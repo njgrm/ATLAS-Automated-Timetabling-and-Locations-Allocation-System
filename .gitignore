@@ -1,0 +1,20 @@
+# Private planning/customization artifacts
+.github/instructions/
+.github/skills/
+.github/copilot-instructions.md
+AGENTS.md
+CHANGELOG.md
+projectIntro.md
+# Local tooling configs
+.vscode/mcp.json
+
+# Dependency locks not required for this planning-only phase
+package-lock.json
+
+EnrollPro/
+
+node_modules/
+
+.env*
+!.env.example
+/generated/prisma

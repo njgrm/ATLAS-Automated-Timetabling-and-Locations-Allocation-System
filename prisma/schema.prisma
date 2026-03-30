@@ -1,0 +1,87 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../atlas-server/node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model School {
+  id             Int        @id @default(autoincrement())
+  name           String
+  shortName      String
+  campusImageUrl String?    @map("campus_image_url")
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  subjects       Subject[]
+  buildings      Building[]
+
+  @@map("schools")
+}
+
+model Building {
+  id        Int      @id @default(autoincrement())
+  schoolId  Int      @map("school_id")
+  name      String
+  x         Float    @default(0)
+  y         Float    @default(0)
+  width     Float    @default(200)
+  height    Float    @default(120)
+  color     String   @default("#2563eb")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  rooms     Room[]
+
+  @@map("buildings")
+}
+
+enum RoomType {
+  CLASSROOM
+  LABORATORY
+  COMPUTER_LAB
+  LIBRARY
+  GYMNASIUM
+  FACULTY_ROOM
+  OFFICE
+  OTHER
+
+  @@map("room_type")
+}
+
+model Room {
+  id         Int      @id @default(autoincrement())
+  buildingId Int      @map("building_id")
+  name       String
+  floor      Int      @default(1)
+  type       RoomType @default(CLASSROOM)
+  capacity   Int?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  building   Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+
+  @@map("rooms")
+}
+
+model Subject {
+  id           Int      @id @default(autoincrement())
+  schoolId     Int
+  code         String
+  name         String
+  weeklyMinJhs Int      @map("weekly_min_jhs")
+  isCore       Boolean  @default(true) @map("is_core")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  school       School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, code], map: "uq_subjects_school_code")
+  @@map("subjects")
+}
