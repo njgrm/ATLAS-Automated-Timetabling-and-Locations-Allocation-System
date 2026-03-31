@@ -79,6 +79,14 @@ export interface FacultyPreferenceInput {
 	timeSlots: PreferenceSlotInput[];
 }
 
+export interface PolicyInput {
+	maxConsecutiveTeachingMinutesBeforeBreak: number;
+	minBreakMinutesAfterConsecutiveBlock: number;
+	maxTeachingMinutesPerDay: number;
+	earliestStartTime: string;
+	latestEndTime: string;
+}
+
 export interface ConstructorInput {
 	schoolId: number;
 	schoolYearId: number;
@@ -88,6 +96,7 @@ export interface ConstructorInput {
 	facultySubjects: FacultySubjectInput[];
 	rooms: RoomInput[];
 	preferences: FacultyPreferenceInput[];
+	policy?: PolicyInput;
 }
 
 export interface ConstructorResult {
@@ -95,6 +104,7 @@ export interface ConstructorResult {
 	assignedCount: number;
 	unassignedCount: number;
 	classesProcessed: number;
+	policyBlockedCount: number;
 }
 
 // ─── Demand computation ───
@@ -189,10 +199,17 @@ function buildPreferenceLookup(preferences: FacultyPreferenceInput[]): Map<numbe
 	return lookup;
 }
 
+// ─── Time helper ───
+
+function timeToMinutes(t: string): number {
+	const [h, m] = t.split(':').map(Number);
+	return h * 60 + m;
+}
+
 // ─── Main constructor ───
 
 export function constructBaseline(input: ConstructorInput): ConstructorResult {
-	const { subjects, faculty, facultySubjects, rooms, preferences, sectionsByGrade } = input;
+	const { subjects, faculty, facultySubjects, rooms, preferences, sectionsByGrade, policy } = input;
 
 	const demand = computeDemand(sectionsByGrade, subjects);
 
@@ -234,7 +251,68 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	const entries: ScheduledEntry[] = [];
 	let assignedCount = 0;
 	let unassignedCount = 0;
+	let policyBlockedCount = 0;
 	let entryCounter = 0;
+
+	// Faculty daily teaching minutes tracker: "facultyId:day" → total minutes
+	const facultyDailyMinutes = new Map<string, number>();
+	// Faculty day placement tracker for consecutive check: "facultyId:day" → sorted period indices
+	const facultyDayPeriods = new Map<string, number[]>();
+
+	// Pre-filter valid period indices by policy time bounds
+	let validPeriodIndices: number[] | null = null;
+	if (policy) {
+		const earliestMin = timeToMinutes(policy.earliestStartTime);
+		const latestMin = timeToMinutes(policy.latestEndTime);
+		validPeriodIndices = [];
+		for (let pi = 0; pi < PERIOD_SLOTS.length; pi++) {
+			const slot = PERIOD_SLOTS[pi];
+			if (timeToMinutes(slot.startTime) >= earliestMin && timeToMinutes(slot.endTime) <= latestMin) {
+				validPeriodIndices.push(pi);
+			}
+		}
+	}
+
+	/**
+	 * Check if placing a class at periodIdx for faculty on a given day
+	 * would exceed the consecutive teaching limit (without required break).
+	 */
+	function wouldExceedConsecutive(facId: number, day: string, periodIdx: number, duration: number): boolean {
+		if (!policy) return false;
+
+		const dayKey = `${facId}:${day}`;
+		const existing = facultyDayPeriods.get(dayKey) ?? [];
+		const allPeriods = [...existing, periodIdx].sort((a, b) => a - b);
+
+		// Walk periods and compute consecutive blocks
+		let consecutive = 0;
+		for (let i = 0; i < allPeriods.length; i++) {
+			const pi = allPeriods[i];
+			const slotDuration = (pi === periodIdx) ? duration : STANDARD_PERIOD_MINUTES;
+
+			if (i === 0) {
+				consecutive = slotDuration;
+				continue;
+			}
+
+			const prevPi = allPeriods[i - 1];
+			const prevEnd = PERIOD_SLOTS[prevPi].endTime;
+			const currStart = PERIOD_SLOTS[pi].startTime;
+			const gapMinutes = timeToMinutes(currStart) - timeToMinutes(prevEnd);
+
+			if (gapMinutes < policy.minBreakMinutesAfterConsecutiveBlock) {
+				consecutive += slotDuration;
+			} else {
+				consecutive = slotDuration;
+			}
+
+			if (consecutive > policy.maxConsecutiveTeachingMinutesBeforeBreak) {
+				return true;
+			}
+		}
+
+		return false;
+	}
 
 	for (const item of demand) {
 		const subject = subjectMap.get(item.subjectId);
@@ -266,13 +344,29 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 				for (let di = 0; di < DAYS.length; di++) {
 					const day = DAYS[di];
-					for (let pi = 0; pi < PERIOD_SLOTS.length; pi++) {
+
+					// Policy: check daily max before considering this day
+					if (policy) {
+						const dailyKey = `${facId}:${day}`;
+						const dailyUsed = facultyDailyMinutes.get(dailyKey) ?? 0;
+						if (dailyUsed + item.durationPerSession > policy.maxTeachingMinutesPerDay) continue;
+					}
+
+					const periodsToCheck = validPeriodIndices ?? Array.from({ length: PERIOD_SLOTS.length }, (_, i) => i);
+
+					for (const pi of periodsToCheck) {
 						if (sectionOcc.isOccupied(item.sectionId, day, pi)) continue;
 						if (facultyOcc.isOccupied(facId, day, pi)) continue;
 
 						const prefKey = `${day}:${pi}`;
 						const pref = facPrefs?.get(prefKey);
 						if (pref === 'UNAVAILABLE') continue;
+
+						// Policy: check consecutive teaching limit
+						if (wouldExceedConsecutive(facId, day, pi, item.durationPerSession)) {
+							policyBlockedCount++;
+							continue;
+						}
 
 						// Score: PREFERRED=0, AVAILABLE/other=1, +10 if day already used for this pair
 						let score = pref === 'PREFERRED' ? 0 : 1;
@@ -319,6 +413,13 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 						// Update load
 						facultyLoad.set(facId, currentLoad + item.durationPerSession);
 
+						// Track daily minutes and period indices for policy
+						const dailyKey = `${facId}:${cand.day}`;
+						facultyDailyMinutes.set(dailyKey, (facultyDailyMinutes.get(dailyKey) ?? 0) + item.durationPerSession);
+						const dayPeriods = facultyDayPeriods.get(dailyKey) ?? [];
+						dayPeriods.push(cand.pi);
+						facultyDayPeriods.set(dailyKey, dayPeriods);
+
 						daysUsedForPair.add(cand.day);
 						placed = true;
 						break;
@@ -339,5 +440,6 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		assignedCount,
 		unassignedCount,
 		classesProcessed: assignedCount + unassignedCount,
+		policyBlockedCount,
 	};
 }

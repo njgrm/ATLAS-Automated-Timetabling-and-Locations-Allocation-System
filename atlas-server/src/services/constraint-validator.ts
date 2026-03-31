@@ -17,6 +17,9 @@ export const VIOLATION_CODES = [
 	'FACULTY_OVERLOAD',
 	'ROOM_TYPE_MISMATCH',
 	'FACULTY_SUBJECT_NOT_QUALIFIED',
+	'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED',
+	'FACULTY_BREAK_REQUIREMENT_VIOLATED',
+	'FACULTY_DAILY_MAX_EXCEEDED',
 ] as const;
 
 export type ViolationCode = (typeof VIOLATION_CODES)[number];
@@ -58,6 +61,15 @@ export interface SubjectRef {
 	preferredRoomType: RoomType;
 }
 
+export interface PolicyRef {
+	maxConsecutiveTeachingMinutesBeforeBreak: number;
+	minBreakMinutesAfterConsecutiveBlock: number;
+	maxTeachingMinutesPerDay: number;
+	earliestStartTime: string;
+	latestEndTime: string;
+	enforceConsecutiveBreakAsHard: boolean;
+}
+
 export interface ValidatorContext {
 	schoolId: number;
 	schoolYearId: number;
@@ -67,13 +79,14 @@ export interface ValidatorContext {
 	facultySubjects: FacultySubjectRef[];
 	rooms: RoomRef[];
 	subjects: SubjectRef[];
+	policy?: PolicyRef;
 }
 
 // ─── Violation output ───
 
 export interface Violation {
 	code: ViolationCode;
-	severity: 'HARD';
+	severity: 'HARD' | 'SOFT';
 	message: string;
 	schoolId: number;
 	schoolYearId: number;
@@ -99,12 +112,16 @@ export interface ValidationResult {
 	};
 }
 
-// ─── Time overlap helper ───
+// ─── Time helpers ───
 
 function timesOverlap(a: { day: string; startTime: string; endTime: string }, b: { day: string; startTime: string; endTime: string }): boolean {
 	if (a.day !== b.day) return false;
-	// HH:mm string comparison works for same-day ranges
 	return a.startTime < b.endTime && b.startTime < a.endTime;
+}
+
+function timeToMinutes(t: string): number {
+	const [h, m] = t.split(':').map(Number);
+	return h * 60 + m;
 }
 
 // ─── Validator ───
@@ -224,14 +241,79 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 		}
 	}
 
+	// ── 6) Policy-based checks (consecutive, daily max, break requirement) ──
+	if (ctx.policy) {
+		const policy = ctx.policy;
+		const severity = policy.enforceConsecutiveBreakAsHard ? 'HARD' as const : 'SOFT' as const;
+
+		// Group entries by faculty+day, sorted by startTime
+		const facDayEntries = new Map<string, ScheduledEntry[]>();
+		for (const e of ctx.entries) {
+			const key = `${e.facultyId}:${e.day}`;
+			const arr = facDayEntries.get(key) ?? [];
+			arr.push(e);
+			facDayEntries.set(key, arr);
+		}
+
+		for (const [key, dayEntries] of facDayEntries) {
+			const [facIdStr, day] = key.split(':');
+			const facultyId = Number(facIdStr);
+			const sorted = [...dayEntries].sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+			// 6a) Daily teaching max
+			const dailyMinutes = sorted.reduce((sum, e) => sum + e.durationMinutes, 0);
+			if (dailyMinutes > policy.maxTeachingMinutesPerDay) {
+				violations.push({
+					...base, severity,
+					code: 'FACULTY_DAILY_MAX_EXCEEDED',
+					message: `Faculty ${facultyId} teaches ${dailyMinutes} min on ${day}, exceeds daily max ${policy.maxTeachingMinutesPerDay} min.`,
+					entities: { facultyId, day, entryIds: sorted.map((e) => e.entryId) },
+					meta: { dailyMinutes, maxTeachingMinutesPerDay: policy.maxTeachingMinutesPerDay },
+				});
+			}
+
+			// 6b) Consecutive teaching without break
+			let consecutiveMinutes = 0;
+			let blockEntries: string[] = [];
+
+			for (let i = 0; i < sorted.length; i++) {
+				const entry = sorted[i];
+
+				if (i === 0) {
+					consecutiveMinutes = entry.durationMinutes;
+					blockEntries = [entry.entryId];
+					continue;
+				}
+
+				const prev = sorted[i - 1];
+				const gapMinutes = timeToMinutes(entry.startTime) - timeToMinutes(prev.endTime);
+
+				if (gapMinutes < policy.minBreakMinutesAfterConsecutiveBlock) {
+					// Contiguous or gap too short — extend block
+					consecutiveMinutes += entry.durationMinutes;
+					blockEntries.push(entry.entryId);
+				} else {
+					// Gap is sufficient — reset
+					consecutiveMinutes = entry.durationMinutes;
+					blockEntries = [entry.entryId];
+				}
+
+				if (consecutiveMinutes > policy.maxConsecutiveTeachingMinutesBeforeBreak) {
+					violations.push({
+						...base, severity,
+						code: 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED',
+						message: `Faculty ${facultyId} has ${consecutiveMinutes} consecutive teaching min on ${day}, exceeds limit ${policy.maxConsecutiveTeachingMinutesBeforeBreak} min.`,
+						entities: { facultyId, day, entryIds: [...blockEntries] },
+						meta: { consecutiveMinutes, maxConsecutive: policy.maxConsecutiveTeachingMinutesBeforeBreak },
+					});
+				}
+			}
+		}
+	}
+
 	// ── Aggregate counts ──
-	const byCode: Record<ViolationCode, number> = {
-		FACULTY_TIME_CONFLICT: 0,
-		ROOM_TIME_CONFLICT: 0,
-		FACULTY_OVERLOAD: 0,
-		ROOM_TYPE_MISMATCH: 0,
-		FACULTY_SUBJECT_NOT_QUALIFIED: 0,
-	};
+	const byCode = {} as Record<ViolationCode, number>;
+	for (const code of VIOLATION_CODES) byCode[code] = 0;
 	for (const v of violations) {
 		byCode[v.code]++;
 	}

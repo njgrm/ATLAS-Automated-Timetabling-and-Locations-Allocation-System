@@ -14,6 +14,7 @@ import {
 } from './constraint-validator.js';
 import { constructBaseline, type ConstructorInput } from './schedule-constructor.js';
 import { sectionAdapter } from './section-adapter.js';
+import { getOrCreatePolicy } from './scheduling-policy.service.js';
 
 // ─── Helpers ───
 
@@ -30,6 +31,7 @@ export interface RunSummary {
 	classesProcessed: number;
 	assignedCount: number;
 	unassignedCount: number;
+	policyBlockedCount: number;
 	hardViolationCount: number;
 	violationCounts?: Record<string, number>;
 }
@@ -60,7 +62,7 @@ export async function triggerGenerationRun(
 
 	try {
 		// ── Fetch all input data for construction ──
-		const [sectionsByGrade, faculty, facultySubjects, rooms, subjects, preferences] = await Promise.all([
+		const [sectionsByGrade, faculty, facultySubjects, rooms, subjects, preferences, policyRecord] = await Promise.all([
 			sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId),
 			prisma.facultyMirror.findMany({
 				where: { schoolId, isActiveForScheduling: true },
@@ -86,6 +88,7 @@ export async function triggerGenerationRun(
 					timeSlots: { select: { day: true, startTime: true, endTime: true, preference: true } },
 				},
 			}),
+			getOrCreatePolicy(schoolId, schoolYearId),
 		]);
 
 		// ── Run baseline constructor ──
@@ -107,6 +110,13 @@ export async function triggerGenerationRun(
 					preference: ts.preference,
 				})),
 			})),
+			policy: {
+				maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
+				minBreakMinutesAfterConsecutiveBlock: policyRecord.minBreakMinutesAfterConsecutiveBlock,
+				maxTeachingMinutesPerDay: policyRecord.maxTeachingMinutesPerDay,
+				earliestStartTime: policyRecord.earliestStartTime,
+				latestEndTime: policyRecord.latestEndTime,
+			},
 		};
 		const result = constructBaseline(constructorInput);
 
@@ -114,6 +124,10 @@ export async function triggerGenerationRun(
 		const validatorCtx: ValidatorContext = {
 			schoolId, schoolYearId, runId: run.id,
 			entries: result.entries, faculty, facultySubjects, rooms, subjects,
+			policy: {
+				...constructorInput.policy!,
+				enforceConsecutiveBreakAsHard: policyRecord.enforceConsecutiveBreakAsHard,
+			},
 		};
 		const validationResult = validateHardConstraints(validatorCtx);
 
@@ -121,6 +135,7 @@ export async function triggerGenerationRun(
 			classesProcessed: result.classesProcessed,
 			assignedCount: result.assignedCount,
 			unassignedCount: result.unassignedCount,
+			policyBlockedCount: result.policyBlockedCount,
 			hardViolationCount: validationResult.counts.total,
 			violationCounts: validationResult.counts.byCode,
 		};

@@ -237,6 +237,27 @@ model PreferenceReview {
 
 // ─── Phase 3: Timetable Generation ───
 
+// ─── Scheduling Policy ───
+
+model SchedulingPolicy {
+  id                                       Int      @id @default(autoincrement())
+  schoolId                                 Int      @map("school_id")
+  schoolYearId                             Int      @map("school_year_id")
+  maxConsecutiveTeachingMinutesBeforeBreak  Int      @default(120) @map("max_consecutive_teaching_minutes_before_break")
+  minBreakMinutesAfterConsecutiveBlock      Int      @default(15) @map("min_break_minutes_after_consecutive_block")
+  maxTeachingMinutesPerDay                  Int      @default(400) @map("max_teaching_minutes_per_day")
+  earliestStartTime                        String   @default("07:00") @map("earliest_start_time")
+  latestEndTime                            String   @default("17:00") @map("latest_end_time")
+  enforceConsecutiveBreakAsHard            Boolean  @default(false) @map("enforce_consecutive_break_as_hard")
+  createdAt                                DateTime @default(now())
+  updatedAt                                DateTime @updatedAt
+
+  @@unique([schoolId, schoolYearId])
+  @@map("scheduling_policies")
+}
+
+// ─── Generation Run ───
+
 enum GenerationRunStatus {
   QUEUED
   RUNNING
