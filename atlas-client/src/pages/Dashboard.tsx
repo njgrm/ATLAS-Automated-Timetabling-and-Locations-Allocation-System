@@ -11,6 +11,8 @@ import {
 	Clock,
 	GraduationCap,
 	MapPinned,
+	Maximize2,
+	Minimize2,
 	Minus,
 	Pencil,
 	Plus,
@@ -83,6 +85,7 @@ export default function Dashboard() {
 	const [unassignedSubjectCount, setUnassignedSubjectCount] = useState<number | null>(null);
 	const mapContainerRef = useRef<HTMLDivElement>(null);
 	const [canvasWidth, setCanvasWidth] = useState(CANVAS_WIDTH);
+	const [buildingFocus, setBuildingFocus] = useState(false);
 
 	// Persist selection to localStorage
 	const selectBuilding = useCallback((id: number | null) => {
@@ -369,17 +372,45 @@ export default function Dashboard() {
 			{/* Campus Map — side-by-side layout with building inspector on right */}
 			<div className="mt-4 flex items-center gap-3">
 				<h2 className="text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground">
-					Campus Map
+					{buildingFocus ? 'Building Focus' : 'Campus Map'}
 				</h2>
 				<div className="h-px flex-1 bg-sidebar-accent" />
 			</div>
 
 			<div className="mt-3 flex gap-4">
-				{/* Map canvas */}
+				{/* Map canvas OR building focus view */}
 				<Card className="flex-1 min-w-0 shadow-sm">
 					<CardContent className="pt-4">
 						{loading ? (
 							<Skeleton className="h-[400px] w-full rounded-lg" />
+						) : buildingFocus && selected ? (
+							<>
+								{/* Focus mode toolbar */}
+								<div className="mb-2 flex items-center gap-2">
+									<h3 className="text-sm font-semibold">{selected.name}</h3>
+									<span className="text-xs text-muted-foreground">
+										{selected.rooms.length} room{selected.rooms.length !== 1 ? 's' : ''} · {selected.width}×{selected.height}
+									</span>
+									<div className="flex-1" />
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => setBuildingFocus(false)}
+										title="Exit focus mode"
+									>
+										<Minimize2 className="size-3.5 mr-1" /> Map View
+									</Button>
+									<Button asChild variant="outline" size="sm">
+										<Link to="/map">
+											<Pencil className="size-3.5" /> Edit Map
+										</Link>
+									</Button>
+								</div>
+								{/* Large BuildingView */}
+								<div className="rounded-md border border-border p-4 min-h-[400px]">
+									<BuildingView building={selected} />
+								</div>
+							</>
 						) : (
 							<>
 								{/* Map toolbar */}
@@ -400,6 +431,16 @@ export default function Dashboard() {
 									<span className="ml-auto text-[0.6875rem] text-muted-foreground tabular-nums">
 										{Math.round(scale * 100)}%
 									</span>
+									{selected && (
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={() => setBuildingFocus(true)}
+											title="Focus on selected building"
+										>
+											<Maximize2 className="size-3.5 mr-1" /> Focus
+										</Button>
+									)}
 									<Button asChild variant="outline" size="sm">
 										<Link to="/map">
 											<Pencil className="size-3.5" /> Edit Map

@@ -54,6 +54,7 @@ export default function FacultyAssignments() {
 	const [dirty, setDirty] = useState(false);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [filterStatus, setFilterStatus] = useState<'all' | 'assigned' | 'unassigned'>('all');
+	const [departmentFilter, setDepartmentFilter] = useState<string>('all');
 	const [error, setError] = useState<string | null>(null);
 
 	const fetchData = useCallback(async () => {
@@ -119,8 +120,9 @@ export default function FacultyAssignments() {
 		} else if (filterStatus === 'unassigned') {
 			list = list.filter((f) => f.subjectCount === 0);
 		}
+		if (departmentFilter !== 'all') list = list.filter((f) => f.department === departmentFilter);
 		return list;
-	}, [faculty, searchQuery, filterStatus]);
+	}, [faculty, searchQuery, filterStatus, departmentFilter]);
 
 	const toggleSubject = (subjectId: number) => {
 		setDirty(true);
@@ -200,7 +202,7 @@ export default function FacultyAssignments() {
 				</div>
 			)}
 
-			<div className="mt-4 flex gap-4 h-[calc(109vh-160px)]">
+					<div className="mt-4 flex gap-4 h-[calc(100vh-8rem)]">
 				{/* LEFT PANEL — Faculty list */}
 				<div className="w-80 shrink-0 flex flex-col rounded-lg border border-border bg-card shadow-sm">
 					<div className="border-b border-border p-3">
@@ -228,6 +230,20 @@ export default function FacultyAssignments() {
 								</button>
 							))}
 						</div>
+						{(() => {
+							const depts = Array.from(new Set(faculty.map((f) => f.department).filter(Boolean) as string[])).sort();
+							if (depts.length === 0) return null;
+							return (
+								<select
+									value={departmentFilter}
+									onChange={(e) => setDepartmentFilter(e.target.value)}
+									className="mt-2 h-7 w-full rounded-md border border-input bg-background px-2 text-[0.6875rem] focus:outline-none focus:ring-1 focus:ring-ring"
+								>
+									<option value="all">All Departments</option>
+									{depts.map((d) => <option key={d} value={d}>{d}</option>)}
+								</select>
+							);
+						})()}
 					</div>
 
 					<div className="flex-1 overflow-auto">
@@ -412,11 +428,7 @@ export default function FacultyAssignments() {
 																<code className="rounded bg-muted px-1 py-0.5 text-[0.6rem] font-mono">
 																	{sub.code}
 																</code>
-																{sub.isSeedable && (
-																	<Badge variant="secondary" className="text-[0.5rem] px-1 py-0">
-																		DepEd
-																	</Badge>
-																)}
+
 															</div>
 															<p className="text-[0.6875rem] text-muted-foreground">
 																{sub.minMinutesPerWeek} min/week

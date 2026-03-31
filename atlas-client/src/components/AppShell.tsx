@@ -1,7 +1,9 @@
 import {
+	ALargeSmall,
 	BarChart3,
 	BookOpen,
 	CalendarClock,
+	CalendarDays,
 	ChevronLeft,
 	ChevronRight,
 	ExternalLink,
@@ -21,8 +23,9 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { captureBridgeToken, getBackHref } from '@/lib/bridge';
-import { fetchActiveSchoolYear, fetchPublicSettings, verifyBridgeToken } from '@/lib/settings';
+import { fetchActiveSchoolYear, fetchPublicSettings, fetchSchoolYears, verifyBridgeToken } from '@/lib/settings';
 import type { BridgeUser } from '@/types';
+import type { SchoolYear } from '@/lib/settings';
 import { Badge } from '@/ui/badge';
 import {
 	Breadcrumb,
@@ -113,8 +116,11 @@ export function AppShell() {
 	const [schoolName, setSchoolName] = useState('ATLAS');
 	const [logoUrl, setLogoUrl] = useState<string | null>(null);
 	const [activeYearLabel, setActiveYearLabel] = useState<string | null>(null);
+	const [schoolYears, setSchoolYears] = useState<SchoolYear[]>([]);
+	const [selectedYearId, setSelectedYearId] = useState<number | null>(null);
 	const [bridgeUser, setBridgeUser] = useState<BridgeUser | null>(null);
 	const [sidebarOpen, setSidebarOpen] = useState(true);
+	const [largeText, setLargeText] = useState(false);
 	const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
 	/* Capture bridge token on mount */
@@ -126,7 +132,10 @@ export function AppShell() {
 	useEffect(() => {
 		fetchPublicSettings()
 			.then((s) => {
-				setSchoolName(s.schoolName || 'ATLAS');
+				// A2: append "High School" if not already present
+				const raw = s.schoolName || 'ATLAS';
+				const displayName = /high\s*school/i.test(raw) ? raw : `${raw} High School`;
+				setSchoolName(displayName);
 				setLogoUrl(s.logoUrl);
 
 				// Set favicon from school logo
@@ -141,9 +150,12 @@ export function AppShell() {
 					link.href = faviconUrl;
 				}
 
-				// Fetch active school year label
-				fetchActiveSchoolYear(s.activeSchoolYearId).then((label) => {
-					if (label) setActiveYearLabel(label);
+				// Fetch school years list + active label
+				if (s.activeSchoolYearId) setSelectedYearId(s.activeSchoolYearId);
+				fetchSchoolYears().then((years) => {
+					setSchoolYears(years);
+					const active = years.find((y) => y.id === s.activeSchoolYearId);
+					if (active) setActiveYearLabel(active.yearLabel);
 				});
 
 				if (s.selectedAccentHsl) {
@@ -174,6 +186,11 @@ export function AppShell() {
 			if (u) setBridgeUser(u);
 		});
 	}, []);
+
+	/* Accessibility: toggle large text */
+	useEffect(() => {
+		document.documentElement.style.fontSize = largeText ? '18px' : '';
+	}, [largeText]);
 
 	const isAdmin = bridgeUser?.role === 'admin' || bridgeUser?.role === 'SYSTEM_ADMIN';
 
@@ -244,7 +261,7 @@ export function AppShell() {
 					className={({ isActive }) =>
 						`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-150 ${
 							isActive
-								? 'bg-sidebar-accent text-sidebar-accent-foreground'
+								? 'bg-sidebar-primary text-sidebar-primary-foreground'
 								: 'text-sidebar-foreground hover:bg-sidebar-accent/60'
 						} ${!sidebarOpen ? 'justify-center px-0' : ''}`
 					}
@@ -404,11 +421,12 @@ export function AppShell() {
 				<header className="flex h-14.5 shrink-0 items-center gap-2 border-b border-border bg-background px-4">
 					<button
 						onClick={() => setSidebarOpen((v) => !v)}
-						className="-ml-1 inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/10 hover:text-foreground transition-colors md:hidden"
+						className="-ml-1 inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/10 hover:text-foreground transition-colors"
+						title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
 					>
 						<PanelLeft className="size-4" />
 					</button>
-					<div className="mr-2 h-4 w-px bg-border md:hidden" />
+					<div className="mr-2 h-4 w-px bg-border" />
 					<Breadcrumb>
 						<BreadcrumbList>
 							<BreadcrumbItem>
@@ -430,6 +448,45 @@ export function AppShell() {
 							))}
 						</BreadcrumbList>
 					</Breadcrumb>
+
+					{/* Right-side header controls */}
+					<div className="ml-auto flex items-center gap-2">
+						{/* School year selector */}
+						{schoolYears.length > 0 && (
+							<div className="flex items-center gap-1.5">
+								<CalendarDays className="size-3.5 text-muted-foreground" />
+								<select
+									value={selectedYearId ?? ''}
+									onChange={(e) => {
+										const id = Number(e.target.value);
+										setSelectedYearId(id);
+										const yr = schoolYears.find((y) => y.id === id);
+										if (yr) setActiveYearLabel(yr.yearLabel);
+									}}
+									className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-ring"
+								>
+									{schoolYears.map((sy) => (
+										<option key={sy.id} value={sy.id}>
+											S.Y. {sy.yearLabel}{sy.isActive ? ' (Active)' : ''}
+										</option>
+									))}
+								</select>
+							</div>
+						)}
+
+						{/* Accessibility — text size toggle */}
+						<button
+							onClick={() => setLargeText((v) => !v)}
+							title={largeText ? 'Normal text size' : 'Large text size'}
+							className={`inline-flex size-8 items-center justify-center rounded-md transition-colors ${
+								largeText
+									? 'bg-primary text-primary-foreground'
+									: 'text-muted-foreground hover:bg-accent/10 hover:text-foreground'
+							}`}
+						>
+							<ALargeSmall className="size-4" />
+						</button>
+					</div>
 				</header>
 
 				{/* Page content via router outlet */}

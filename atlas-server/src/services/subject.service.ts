@@ -78,11 +78,12 @@ export async function updateSubject(
 	const subject = await prisma.subject.findUnique({ where: { id } });
 	if (!subject) return null;
 
-	// Seedable subjects can only update name and minMinutesPerWeek
+	// Seedable subjects can update name, minMinutesPerWeek, and gradeLevels
 	if (subject.isSeedable) {
 		const allowed: Record<string, unknown> = {};
 		if (data.name !== undefined) allowed.name = data.name;
 		if (data.minMinutesPerWeek !== undefined) allowed.minMinutesPerWeek = data.minMinutesPerWeek;
+		if (data.gradeLevels !== undefined) allowed.gradeLevels = data.gradeLevels;
 		return prisma.subject.update({ where: { id }, data: allowed });
 	}
 

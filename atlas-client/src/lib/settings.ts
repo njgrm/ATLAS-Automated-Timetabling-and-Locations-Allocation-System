@@ -22,6 +22,18 @@ export async function fetchPublicSettings(): Promise<EnrollProSettings> {
 	return data;
 }
 
+export async function fetchSchoolYears(): Promise<SchoolYear[]> {
+	try {
+		const token = sessionStorage.getItem('atlas_bridge_token');
+		const headers: Record<string, string> = {};
+		if (token) headers.Authorization = `Bearer ${token}`;
+		const { data } = await axios.get<{ schoolYears: SchoolYear[] }>(`${enrollProApiBase}/school-years`, { headers });
+		return data.schoolYears ?? [];
+	} catch {
+		return [];
+	}
+}
+
 export async function fetchActiveSchoolYear(activeId: number | null): Promise<string | null> {
 	if (!activeId) return null;
 	try {
