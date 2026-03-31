@@ -191,13 +191,7 @@ export default function FacultyAssignments() {
 					: 'under';
 
 	return (
-		<div className="px-6 py-4">
-			<div className="mb-1">
-				<h1 className="text-lg font-bold text-foreground">Faculty & Assignments</h1>
-				<p className="text-sm text-muted-foreground">
-					Assign subjects to faculty members for schedule generation.
-				</p>
-			</div>
+		<div className="px-6 py-1">
 
 			{error && (
 				<div className="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
@@ -206,7 +200,7 @@ export default function FacultyAssignments() {
 				</div>
 			)}
 
-			<div className="mt-4 flex gap-4 h-[calc(100vh-160px)]">
+			<div className="mt-4 flex gap-4 h-[calc(109vh-160px)]">
 				{/* LEFT PANEL — Faculty list */}
 				<div className="w-80 shrink-0 flex flex-col rounded-lg border border-border bg-card shadow-sm">
 					<div className="border-b border-border p-3">
@@ -304,9 +298,9 @@ export default function FacultyAssignments() {
 							</div>
 						</div>
 					) : (
-						<div className="space-y-4">
-							{/* Faculty header */}
-							<Card className="shadow-sm">
+						<div className="flex flex-col h-full">
+							{/* Sticky faculty identity + teaching load */}
+							<Card className="shadow-sm sticky top-0 z-10 shrink-0">
 								<CardContent className="pt-5">
 									<div className="flex items-center justify-between">
 										<div className="flex items-center gap-3">
@@ -329,53 +323,50 @@ export default function FacultyAssignments() {
 											</Badge>
 										)}
 									</div>
-								</CardContent>
-							</Card>
 
-							{/* Teaching load summary */}
-							<Card className="shadow-sm">
-								<CardContent className="pt-5">
-									<h3 className="text-sm font-semibold text-muted-foreground mb-3">
-										Teaching Load Summary
-									</h3>
-									<div className="grid grid-cols-3 gap-4 text-center">
-										<div>
-											<p className="text-2xl font-black">{computedLoad}h</p>
-											<p className="text-[0.6875rem] text-muted-foreground">Weekly hours</p>
-										</div>
-										<div>
-											<p className="text-2xl font-black">{maxHours}h</p>
-											<p className="text-[0.6875rem] text-muted-foreground">Max (RA 4670)</p>
-										</div>
-										<div>
-											<Badge
-												className={`text-xs ${
-													loadStatus === 'over'
-														? 'bg-red-100 text-red-700'
+									<div className="mt-4 pt-3 border-t border-border">
+										<h3 className="text-sm font-semibold text-muted-foreground mb-3">
+											Teaching Load Summary
+										</h3>
+										<div className="grid grid-cols-3 gap-4 text-center">
+											<div>
+												<p className="text-2xl font-black">{computedLoad}h</p>
+												<p className="text-[0.6875rem] text-muted-foreground">Weekly hours</p>
+											</div>
+											<div>
+												<p className="text-2xl font-black">{maxHours}h</p>
+												<p className="text-[0.6875rem] text-muted-foreground">Max (RA 4670)</p>
+											</div>
+											<div>
+												<Badge
+													className={`text-xs ${
+														loadStatus === 'over'
+															? 'bg-red-100 text-red-700'
+															: loadStatus === 'at'
+																? 'bg-amber-100 text-amber-700'
+																: loadStatus === 'under'
+																	? 'bg-emerald-100 text-emerald-700'
+																	: 'bg-muted text-muted-foreground'
+													}`}
+												>
+													{loadStatus === 'over'
+														? 'Over capacity'
 														: loadStatus === 'at'
-															? 'bg-amber-100 text-amber-700'
+															? 'At capacity'
 															: loadStatus === 'under'
-																? 'bg-emerald-100 text-emerald-700'
-																: 'bg-muted text-muted-foreground'
-												}`}
-											>
-												{loadStatus === 'over'
-													? 'Over capacity'
-													: loadStatus === 'at'
-														? 'At capacity'
-														: loadStatus === 'under'
-															? 'Under capacity'
-															: 'No load'}
-											</Badge>
-											<p className="mt-1 text-[0.6875rem] text-muted-foreground">Status</p>
+																? 'Under capacity'
+																: 'No load'}
+												</Badge>
+												<p className="mt-1 text-[0.6875rem] text-muted-foreground">Status</p>
+											</div>
 										</div>
 									</div>
 								</CardContent>
 							</Card>
 
-							{/* Subject assignments */}
-							<Card className="shadow-sm">
-								<CardContent className="pt-5">
+							{/* Scrollable subject assignments */}
+							<Card className="shadow-sm mt-4 flex-1 min-h-0 flex flex-col">
+								<CardContent className="pt-5 flex-1 overflow-auto">
 									<div className="flex items-center justify-between mb-3">
 										<h3 className="text-sm font-semibold text-muted-foreground">
 											Qualified Subjects

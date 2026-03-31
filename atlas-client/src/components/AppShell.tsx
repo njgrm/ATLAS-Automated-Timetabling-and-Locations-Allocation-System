@@ -77,6 +77,8 @@ type NavItem = {
 	end?: boolean; // exact match
 	adminOnly?: boolean;
 	disabled?: boolean;
+	/** Visually nested child items */
+	children?: NavItem[];
 };
 
 const navigationNav: NavItem[] = [
@@ -85,8 +87,15 @@ const navigationNav: NavItem[] = [
 
 const schedulingNav: NavItem[] = [
 	{ label: 'Subjects', to: '/subjects', icon: BookOpen, adminOnly: true },
-	{ label: 'Faculty', to: '/faculty', icon: Users, adminOnly: true },
-	{ label: 'Assignments', to: '/faculty/assignments', icon: UserCog, adminOnly: true },
+	{
+		label: 'Faculty',
+		to: '/faculty',
+		icon: Users,
+		adminOnly: true,
+		children: [
+			{ label: 'Assignments', to: '/faculty/assignments', icon: UserCog, adminOnly: true },
+		],
+	},
 	{ label: 'Sections', to: '/sections', icon: GraduationCap, adminOnly: true, disabled: true },
 	{ label: 'Timetable', to: '/timetable', icon: CalendarClock, adminOnly: true, disabled: true },
 ];
@@ -178,14 +187,28 @@ export function AppShell() {
 		];
 
 		for (const group of groups) {
-			const match = group.items.find((n) =>
-				n.end ? location.pathname === n.to : location.pathname.startsWith(n.to),
-			);
-			if (match) {
-				if (group.label === 'Navigation') {
-					return [{ label: match.label }];
+			for (const item of group.items) {
+				// Check children first for deeper matches
+				if (item.children) {
+					const childMatch = item.children.find((c) =>
+						c.end ? location.pathname === c.to : location.pathname.startsWith(c.to),
+					);
+					if (childMatch) {
+						return group.label === 'Navigation'
+							? [{ label: item.label }, { label: childMatch.label }]
+							: [{ label: group.label }, { label: item.label }, { label: childMatch.label }];
+					}
 				}
-				return [{ label: group.label }, { label: match.label }];
+				// Check the item itself
+				const isMatch = item.end
+					? location.pathname === item.to
+					: location.pathname.startsWith(item.to);
+				if (isMatch) {
+					if (group.label === 'Navigation') {
+						return [{ label: item.label }];
+					}
+					return [{ label: group.label }, { label: item.label }];
+				}
 			}
 		}
 		return [{ label: 'ATLAS' }];
@@ -210,22 +233,33 @@ export function AppShell() {
 				</span>
 			);
 		}
+
+		const hasChildren = item.children && item.children.length > 0;
+
 		return (
-			<NavLink
-				key={item.to}
-				to={item.to}
-				end={item.end}
-				className={({ isActive }) =>
-					`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-150 ${
-						isActive
-							? 'bg-sidebar-accent text-sidebar-accent-foreground'
-							: 'text-sidebar-foreground hover:bg-sidebar-accent/60'
-					} ${!sidebarOpen ? 'justify-center px-0' : ''}`
-				}
-			>
-				<item.icon className="size-4 shrink-0" />
-				{sidebarOpen && item.label}
-			</NavLink>
+			<div key={item.to}>
+				<NavLink
+					to={item.to}
+					end={item.end ?? hasChildren}
+					className={({ isActive }) =>
+						`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-150 ${
+							isActive
+								? 'bg-sidebar-accent text-sidebar-accent-foreground'
+								: 'text-sidebar-foreground hover:bg-sidebar-accent/60'
+						} ${!sidebarOpen ? 'justify-center px-0' : ''}`
+					}
+				>
+					<item.icon className="size-4 shrink-0" />
+					{sidebarOpen && item.label}
+				</NavLink>
+				{hasChildren && sidebarOpen && (
+					<div className="ml-5 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-2">
+						{item.children!
+							.filter((c) => !c.adminOnly || isAdmin)
+							.map(renderNavItem)}
+					</div>
+				)}
+			</div>
 		);
 	};
 

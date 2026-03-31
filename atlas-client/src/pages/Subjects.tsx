@@ -164,13 +164,7 @@ export default function Subjects() {
 	return (
 		<div className="px-6 py-4">
 			{/* Page header */}
-			<div className="mb-1 flex items-center justify-between">
-				<div>
-					<h1 className="text-lg font-bold text-foreground">Subjects</h1>
-					<p className="text-sm text-muted-foreground">
-						Manage learning areas and elective subjects for scheduling.
-					</p>
-				</div>
+			<div className="mb-1 flex items-center justify-end">
 				<Button onClick={() => setShowAdd(true)} disabled={showAdd} size="sm">
 					<Plus className="mr-1.5 size-4" /> Add Subject
 				</Button>

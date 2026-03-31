@@ -133,7 +133,8 @@ router.get('/stats/:schoolId', async (req: Request, res: Response, next: NextFun
 			subjectService.getSubjectCountBySchool(schoolId),
 			subjectService.getSubjectsWithoutFaculty(schoolId),
 		]);
-		res.json({ count, unassigned });
+		// Return both unassignedCount (number) and unassigned (array) for compatibility
+		res.json({ count, unassignedCount: unassigned.length, unassigned });
 	} catch (err) {
 		next(err);
 	}

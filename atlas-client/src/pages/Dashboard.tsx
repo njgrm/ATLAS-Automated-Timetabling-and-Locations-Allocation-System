@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Layer, Rect, Stage, Text } from 'react-konva';
+import { Group, Layer, Rect, Stage, Text } from 'react-konva';
 import { Link } from 'react-router-dom';
 import {
 	AlertTriangle,
@@ -8,6 +8,7 @@ import {
 	CheckCircle2,
 	Circle,
 	ClipboardList,
+	Clock,
 	GraduationCap,
 	MapPinned,
 	Minus,
@@ -17,12 +18,12 @@ import {
 	Users,
 } from 'lucide-react';
 
+import { BuildingView } from '@/components/BuildingView';
 import atlasApi from '@/lib/api';
 import type { Building } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/card';
-import { ScrollArea } from '@/ui/scroll-area';
 import { Skeleton } from '@/ui/skeleton';
 
 const DEFAULT_SCHOOL_ID = 1;
@@ -39,7 +40,7 @@ const LIFECYCLE_PHASES = [
 	{ key: 'ARCHIVED', label: 'Archived', description: 'Past term archive' },
 ] as const;
 
-type SetupCheck = { label: string; done: boolean; link?: string };
+type SetupCheck = { label: string; done: boolean; link?: string; subMessage?: string };
 
 type StatCard = {
 	title: string;
@@ -49,9 +50,22 @@ type StatCard = {
 	bg: string;
 	link?: string;
 	warning?: string;
+	muted?: boolean;
 };
 
 const LS_KEY_SELECTED_BUILDING = 'atlas_dashboard_selected_building';
+
+/**
+ * Smart-threshold label rotation:
+ * - |angle| <= 20°: keep text upright (counter-rotate fully)
+ * - |angle| > 20°: rotate text with the building (no counter-rotation)
+ * This matches the editor's label strategy for visual consistency.
+ */
+function smartLabelRotation(buildingRotation: number): number {
+	const absAngle = Math.abs(buildingRotation % 360);
+	const effective = absAngle > 180 ? 360 - absAngle : absAngle;
+	return effective <= 20 ? -(buildingRotation ?? 0) : 0;
+}
 
 export default function Dashboard() {
 	const [buildings, setBuildings] = useState<Building[]>([]);
@@ -83,7 +97,7 @@ export default function Dashboard() {
 		Promise.all([
 			atlasApi.get<{ buildings: Building[] }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
 			atlasApi.get<{ campusImageUrl: string | null }>(`/map/schools/${DEFAULT_SCHOOL_ID}/campus-image`),
-			atlasApi.get<{ count: number; unassignedCount?: number }>(`/subjects/stats/${DEFAULT_SCHOOL_ID}`).catch(() => ({ data: { count: 0, unassignedCount: undefined } })),
+			atlasApi.get<{ count: number; unassignedCount: number }>(`/subjects/stats/${DEFAULT_SCHOOL_ID}`).catch(() => ({ data: { count: 0, unassignedCount: 0 } })),
 			atlasApi.get<{ subjects: any[] }>(`/subjects?schoolId=${DEFAULT_SCHOOL_ID}`).catch(() => ({ data: { subjects: [] } })),
 		])
 			.then(([bRes, iRes, statsRes, subsRes]) => {
@@ -91,7 +105,7 @@ export default function Dashboard() {
 				setBuildings(blds);
 				setCampusImageUrl(iRes.data.campusImageUrl);
 				setSubjectCount(statsRes.data.count);
-				setUnassignedSubjectCount(statsRes.data.unassignedCount ?? null);
+				setUnassignedSubjectCount(statsRes.data.unassignedCount ?? 0);
 				// Default-select first building if no persisted selection or stale id
 				const storedId = Number(localStorage.getItem(LS_KEY_SELECTED_BUILDING));
 				if (blds.length > 0) {
@@ -146,32 +160,51 @@ export default function Dashboard() {
 	const nonTeachingExcluded = totalRooms - teachingRooms;
 	const selected = useMemo(() => buildings.find((b) => b.id === selectedId) ?? null, [buildings, selectedId]);
 
+	// Declared before any memo/logic that reads it to avoid TDZ risk.
+	// v1: always SETUP until generation is implemented; will become state later.
+	const currentPhase: string = 'SETUP';
+
 	const statCards: StatCard[] = useMemo(
-		() => [
-			{ title: 'Subjects Configured', value: subjectCount !== null ? String(subjectCount) : '—', icon: BookOpen, color: 'text-blue-600', bg: 'bg-blue-50', link: '/subjects', warning: unassignedSubjectCount ? `${unassignedSubjectCount} need faculty` : undefined },
-			{ title: 'Active Faculty', value: facultyCount !== null ? String(facultyCount) : '—', icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50', link: '/faculty' },
-			{ title: 'Sections', value: '—', icon: GraduationCap, color: 'text-pink-600', bg: 'bg-pink-50', link: '/sections' },
-			{ title: 'Buildings', value: String(buildings.length), icon: MapPinned, color: 'text-amber-600', bg: 'bg-amber-50', link: '/map' },
-			{ title: 'Teaching Rooms', value: String(teachingRooms), icon: ClipboardList, color: 'text-violet-600', bg: 'bg-violet-50', link: '/map', warning: nonTeachingExcluded > 0 ? `${totalRooms} total (${nonTeachingExcluded} non-teaching)` : undefined },
-		],
-		[buildings, teachingRooms, totalRooms, nonTeachingExcluded, subjectCount, facultyCount, unassignedSubjectCount],
+		() => {
+			const isSetup = currentPhase === 'SETUP';
+			const isPrefPhase = currentPhase === 'PREFERENCE_COLLECTION';
+			return [
+				{ title: 'Subjects', value: subjectCount !== null ? String(subjectCount) : '—', icon: BookOpen, color: 'text-blue-600', bg: 'bg-blue-50', link: '/subjects', warning: unassignedSubjectCount ? `${unassignedSubjectCount} need faculty` : undefined },
+				{ title: 'Active Faculty', value: facultyCount !== null ? String(facultyCount) : '—', icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50', link: '/faculty' },
+				{ title: 'Sections', value: '—', icon: GraduationCap, color: 'text-pink-600', bg: 'bg-pink-50', link: '/sections' },
+				{ title: 'Buildings', value: String(buildings.length), icon: MapPinned, color: 'text-amber-600', bg: 'bg-amber-50', link: '/map' },
+				{ title: 'Teaching Rooms', value: String(teachingRooms), icon: ClipboardList, color: 'text-violet-600', bg: 'bg-violet-50', link: '/map', warning: nonTeachingExcluded > 0 ? `${totalRooms} total (${nonTeachingExcluded} non-teaching)` : undefined },
+				{ title: 'Faculty Preferences', value: isPrefPhase ? '—' : '—', icon: Clock, color: isPrefPhase ? 'text-orange-600' : 'text-muted-foreground', bg: isPrefPhase ? 'bg-orange-50' : 'bg-muted', muted: isSetup, warning: isSetup ? 'Available in Preference Collection' : undefined },
+			];
+		},
+		// currentPhase is a constant today; include it so the dep array stays correct
+		// when it becomes state in Phase 2+.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+		[buildings, teachingRooms, totalRooms, nonTeachingExcluded, subjectCount, facultyCount, unassignedSubjectCount, currentPhase],
 	);
 
 	/* Setup checklist — determines if we can advance from SETUP phase */
-	const currentPhase = 'SETUP'; // v1: always in setup until generation is implemented
 	const setupChecklist: SetupCheck[] = useMemo(
-		() => [
-			{ label: 'Subjects configured', done: (subjectCount ?? 0) > 0, link: '/subjects' },
-			{ label: 'Faculty synced', done: (facultyCount ?? 0) > 0, link: '/faculty' },
-			{ label: 'Faculty assigned to subjects', done: unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, link: '/faculty/assignments' },
-			{
-				label: 'Buildings & rooms set up',
-				done: buildings.length > 0 && buildings.every(
-					(b) => b.isTeachingBuilding === false || (!/^Building \d+$/.test(b.name) && b.rooms.length > 0),
-				),
-				link: '/map',
-			},
-		],
+		() => {
+			const invalidTeachingBuildings = buildings.filter(
+				(b) => b.isTeachingBuilding !== false && (/^Building \d+$/.test(b.name) || b.rooms.length === 0),
+			);
+			const buildingsDone = buildings.length > 0 && invalidTeachingBuildings.length === 0;
+			const buildingsSubMessage = !buildingsDone && invalidTeachingBuildings.length > 0
+				? `${invalidTeachingBuildings.length} building${invalidTeachingBuildings.length !== 1 ? 's' : ''} ${invalidTeachingBuildings.some((b) => b.rooms.length === 0) ? 'have no rooms configured' : 'need renaming'}`
+				: undefined;
+			return [
+				{ label: 'Subjects configured', done: (subjectCount ?? 0) > 0, link: '/subjects' },
+				{ label: 'Faculty synced', done: (facultyCount ?? 0) > 0, link: '/faculty' },
+				{ label: 'Faculty assigned to subjects', done: unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, link: '/faculty/assignments' },
+				{
+					label: 'Buildings & rooms set up',
+					done: buildingsDone,
+					link: '/map',
+					subMessage: buildingsSubMessage,
+				},
+			];
+		},
 		[subjectCount, facultyCount, unassignedSubjectCount, buildings, totalRooms],
 	);
 
@@ -179,19 +212,19 @@ export default function Dashboard() {
 
 	return (
 		<div className="px-6 py-4">
-			{/* ─── Top section: KPIs (left) + Lifecycle (right) ─── */}
-			<div className="flex gap-4 items-stretch">
-				{/* KPI stat cards — compact 2×2 grid */}
-				<div className="w-[340px] shrink-0 flex flex-col gap-3">
+			{/* ─── Top section: KPIs (left) + Lifecycle (right) — equal columns ─── */}
+			<div className="grid grid-cols-2 gap-4 items-stretch">
+				{/* KPI stat cards — 3×2 grid */}
+				<div className="flex flex-col gap-3">
 					<div className="flex items-center gap-3">
 						<h2 className="text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground">
 							Overview
 						</h2>
 						<div className="h-px flex-1 bg-sidebar-accent" />
 					</div>
-					<div className="grid grid-cols-2 gap-3 flex-1">
+					<div className="grid grid-cols-3 gap-3 flex-1">
 						{statCards.map((stat) => (
-							<Card key={stat.title} className="shadow-sm flex flex-col">
+							<Card key={stat.title} className={`shadow-sm flex flex-col ${stat.muted ? 'opacity-50' : ''}`}>
 								<CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pt-4 pb-1">
 									<CardTitle className="text-[0.625rem] font-bold uppercase text-muted-foreground leading-tight">
 										{stat.title}
@@ -206,7 +239,7 @@ export default function Dashboard() {
 									) : (
 										<div>
 											<div className="text-xl font-black">
-												{stat.link ? (
+												{stat.link && !stat.muted ? (
 													<Link to={stat.link} className="hover:underline">{stat.value}</Link>
 												) : (
 													stat.value
@@ -227,7 +260,7 @@ export default function Dashboard() {
 				</div>
 
 				{/* Lifecycle + setup checklist */}
-				<div className="flex-1 min-w-0 flex flex-col gap-3">
+				<div className="flex flex-col gap-3">
 					<div className="flex items-center gap-3">
 						<h2 className="text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground">
 							Scheduling Lifecycle
@@ -297,24 +330,32 @@ export default function Dashboard() {
 							</div>
 							<ul className="space-y-1.5">
 								{setupChecklist.map((item) => (
-									<li key={item.label} className="flex items-center gap-2 text-sm">
+									<li key={item.label} className="flex items-start gap-2 text-sm">
 										{item.done ? (
-											<CheckCircle2 className="size-4 text-emerald-500 shrink-0" />
+											<CheckCircle2 className="size-4 text-emerald-500 shrink-0 mt-0.5" />
 										) : (
-											<Circle className="size-4 text-muted-foreground/40 shrink-0" />
+											<Circle className="size-4 text-muted-foreground/40 shrink-0 mt-0.5" />
 										)}
-										{item.link ? (
-											<Link
-												to={item.link}
-												className={`hover:underline ${item.done ? 'text-muted-foreground line-through' : 'text-foreground'}`}
-											>
-												{item.label}
-											</Link>
-										) : (
-											<span className={item.done ? 'text-muted-foreground line-through' : 'text-foreground'}>
-												{item.label}
-											</span>
-										)}
+										<div>
+											{item.link ? (
+												<Link
+													to={item.link}
+													className={`hover:underline ${item.done ? 'text-muted-foreground line-through' : 'text-foreground'}`}
+												>
+													{item.label}
+												</Link>
+											) : (
+												<span className={item.done ? 'text-muted-foreground line-through' : 'text-foreground'}>
+													{item.label}
+												</span>
+											)}
+											{item.subMessage && !item.done && (
+												<p className="mt-0.5 flex items-center gap-1 text-[0.6rem] text-amber-600">
+													<AlertTriangle className="size-2.5 shrink-0" />
+													{item.subMessage}
+												</p>
+											)}
+										</div>
 									</li>
 								))}
 							</ul>
@@ -395,11 +436,19 @@ export default function Dashboard() {
 											)}
 											{buildings.map((b) => {
 												const isSelected = selectedId === b.id;
+												const isNonTeaching = b.isTeachingBuilding === false;
+												const labelRot = smartLabelRotation(b.rotation ?? 0);
 												return (
-													<Fragment key={b.id}>
+													<Group
+														key={b.id}
+														x={b.x}
+														y={b.y}
+														width={b.width}
+														height={b.height}
+														rotation={b.rotation ?? 0}
+														onClick={() => selectBuilding(b.id)}
+													>
 														<Rect
-															x={b.x}
-															y={b.y}
 															width={b.width}
 															height={b.height}
 															fill={b.color}
@@ -410,11 +459,22 @@ export default function Dashboard() {
 															shadowColor="rgba(0,0,0,0.1)"
 															shadowBlur={3}
 															shadowOffsetY={1}
-															onClick={() => selectBuilding(b.id)}
 														/>
+														{isNonTeaching && (
+															<Rect
+																width={b.width}
+																height={b.height}
+																cornerRadius={8}
+																fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+																fillLinearGradientEndPoint={{ x: 12, y: 12 }}
+																fillLinearGradientColorStops={[0, 'rgba(0,0,0,0.15)', 0.5, 'rgba(0,0,0,0.15)', 0.5, 'transparent', 1, 'transparent']}
+																opacity={0.6}
+																listening={false}
+															/>
+														)}
 														<Text
-															x={b.x + 6}
-															y={b.y + 6}
+															x={6}
+															y={6}
 															text={b.name}
 															fontSize={Math.min(14, b.width / 8, b.height / 5)}
 															fill="#ffffff"
@@ -424,11 +484,12 @@ export default function Dashboard() {
 															wrap="word"
 															ellipsis
 															listening={false}
+															rotation={labelRot}
 														/>
 														<Text
-															x={b.x + 6}
-															y={b.y + b.height - 18}
-															text={`${b.rooms.length} room${b.rooms.length !== 1 ? 's' : ''}`}
+															x={6}
+															y={b.height - 18}
+															text={isNonTeaching ? 'Non-teaching' : `${b.rooms.length} room${b.rooms.length !== 1 ? 's' : ''}`}
 															fontSize={Math.min(11, b.width / 10)}
 															fill="rgba(255,255,255,0.8)"
 															width={b.width - 12}
@@ -436,7 +497,7 @@ export default function Dashboard() {
 															ellipsis
 															listening={false}
 														/>
-													</Fragment>
+													</Group>
 												);
 											})}
 										</Layer>
@@ -495,36 +556,12 @@ export default function Dashboard() {
 									</p>
 								</div>
 
-								{/* Room list */}
+								{/* 2D room view */}
 								<div className="mt-3">
 									<p className="text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground mb-2">
-										Rooms
+										Floor Plan
 									</p>
-									{selected.rooms.length === 0 ? (
-										<p className="text-[0.8125rem] text-muted-foreground">No rooms configured.</p>
-									) : (
-										<ScrollArea className="max-h-[340px]">
-											<ul className="space-y-1.5 pr-2">
-												{selected.rooms.map((room) => (
-													<li
-														key={room.id}
-														className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-2 text-sm transition-colors hover:bg-muted/50"
-													>
-														<span className="size-1.5 shrink-0 rounded-full bg-primary" />
-														<span className="min-w-0 flex-1 truncate font-medium">{room.name}</span>
-														<Badge variant="outline" className="shrink-0 text-[0.6rem] px-1.5 py-0">
-															{room.type?.replace(/_/g, ' ') ?? 'Classroom'}
-														</Badge>
-														{room.capacity != null && (
-															<span className="shrink-0 text-[0.6875rem] text-muted-foreground tabular-nums">
-																{room.capacity}
-															</span>
-														)}
-													</li>
-												))}
-											</ul>
-										</ScrollArea>
-									)}
+									<BuildingView building={selected} />
 								</div>
 
 								{/* Edit link */}

@@ -34,7 +34,41 @@ const CANVAS_HEIGHT = 580;
 
 const COLORS = ['#2563eb', '#059669', '#ea580c', '#7c3aed', '#dc2626', '#0891b2', '#ca8a04', '#4f46e5'];
 
+/**
+ * Smart-threshold label rotation:
+ * - |angle| <= 20°: keep text upright (counter-rotate fully)
+ * - |angle| > 20°: let text ride with the building (no correction)
+ */
+function smartLabelRotation(buildingRotation: number): number {
+	const absAngle = Math.abs(buildingRotation % 360);
+	const effective = absAngle > 180 ? 360 - absAngle : absAngle;
+	return effective <= 20 ? -(buildingRotation ?? 0) : 0;
+}
+
 let tempIdCounter = -1;
+
+/** Map each resize anchor to the opposite (fixed) anchor */
+const OPPOSITE_ANCHORS: Record<string, string> = {
+	'top-left': 'bottom-right',
+	'top-center': 'bottom-center',
+	'top-right': 'bottom-left',
+	'middle-left': 'middle-right',
+	'middle-right': 'middle-left',
+	'bottom-left': 'top-right',
+	'bottom-center': 'top-center',
+	'bottom-right': 'top-left',
+};
+
+/** Compute local (unrotated) offset of a named anchor within a rectangle */
+function anchorLocalOffset(w: number, h: number, anchor: string): { x: number; y: number } {
+	let x = 0;
+	let y = 0;
+	if (anchor.includes('right')) x = w;
+	else if (anchor.includes('center')) x = w / 2;
+	if (anchor.includes('bottom')) y = h;
+	else if (anchor.startsWith('middle')) y = h / 2;
+	return { x, y };
+}
 
 export function CampusMapEditor({
 	schoolId,
@@ -65,6 +99,9 @@ export function CampusMapEditor({
 	const transformerRef = useRef<Konva.Transformer>(null);
 	const shapeRefs = useRef<Map<number, Konva.Group>>(new Map());
 	const stageRef = useRef<Konva.Stage>(null);
+
+	// Track which resize anchor the user is dragging (for anchored-resize logic)
+	const activeAnchorRef = useRef<string | null>(null);
 
 	// Dimension tooltip state for transform/drag
 	const [dimTooltip, setDimTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
@@ -207,11 +244,16 @@ export function CampusMapEditor({
 	const handleDragEnd = useCallback(
 		(buildingId: number, e: Konva.KonvaEventObject<DragEvent>) => {
 			const node = e.target;
+			// Snap to integer coordinates to prevent sub-pixel drift
+			const snappedX = Math.round(node.x());
+			const snappedY = Math.round(node.y());
+			node.x(snappedX);
+			node.y(snappedY);
 			onPushHistory();
 			onBuildingsChange(
 				buildings.map((b) =>
 					b.id === buildingId
-						? { ...b, x: node.x(), y: node.y(), dirty: true }
+						? { ...b, x: snappedX, y: snappedY, dirty: true }
 						: b,
 				),
 			);
@@ -283,15 +325,53 @@ export function CampusMapEditor({
 			const scaleY = node.scaleY();
 			const rotation = node.rotation();
 
-			// Reset scale (keep rotation)
-			node.scaleX(1);
-			node.scaleY(1);
-
 			const building = buildings.find((b) => b.id === buildingId);
 			if (!building) return;
 
-			const newWidth = Math.max(MIN_WIDTH, Math.round(building.width * scaleX));
-			const newHeight = Math.max(MIN_HEIGHT, Math.round(building.height * scaleY));
+			const newWidth = Math.max(MIN_WIDTH, Math.round(building.width * Math.abs(scaleX)));
+			const newHeight = Math.max(MIN_HEIGHT, Math.round(building.height * Math.abs(scaleY)));
+			const newRotation = Math.round(rotation * 10) / 10;
+
+			let snappedX: number;
+			let snappedY: number;
+
+			// Anchored resize: compute origin so the opposite handle stays put.
+			// The fixed anchor's stage position is derived from the pre-transform
+			// (integer) state, so rounding the new origin does not accumulate drift.
+			const anchor = activeAnchorRef.current;
+			const fixedAnchorName = anchor ? OPPOSITE_ANCHORS[anchor] : null;
+
+			if (fixedAnchorName) {
+				const oldRad = ((building.rotation ?? 0) * Math.PI) / 180;
+				const oldCos = Math.cos(oldRad);
+				const oldSin = Math.sin(oldRad);
+				const oldOff = anchorLocalOffset(building.width, building.height, fixedAnchorName);
+				// Fixed anchor in stage coords from pre-transform integers
+				const fixedX = building.x + oldOff.x * oldCos - oldOff.y * oldSin;
+				const fixedY = building.y + oldOff.x * oldSin + oldOff.y * oldCos;
+
+				const newRad = (newRotation * Math.PI) / 180;
+				const newCos = Math.cos(newRad);
+				const newSin = Math.sin(newRad);
+				const newOff = anchorLocalOffset(newWidth, newHeight, fixedAnchorName);
+				// Derive origin: fixedPoint = origin + rotatedOffset → origin = fixedPoint − rotatedOffset
+				snappedX = Math.round(fixedX - (newOff.x * newCos - newOff.y * newSin));
+				snappedY = Math.round(fixedY - (newOff.x * newSin + newOff.y * newCos));
+			} else {
+				// Pure rotation or unknown anchor — just snap the node's position
+				snappedX = Math.round(node.x());
+				snappedY = Math.round(node.y());
+			}
+
+			// Reset scale to 1 and apply computed dimensions to prevent drift
+			node.scaleX(1);
+			node.scaleY(1);
+			node.width(newWidth);
+			node.height(newHeight);
+			node.x(snappedX);
+			node.y(snappedY);
+
+			activeAnchorRef.current = null;
 
 			onPushHistory();
 			onBuildingsChange(
@@ -299,19 +379,16 @@ export function CampusMapEditor({
 					b.id === buildingId
 						? {
 								...b,
-								x: node.x(),
-								y: node.y(),
+								x: snappedX,
+								y: snappedY,
 								width: newWidth,
 								height: newHeight,
-								rotation: Math.round(rotation * 10) / 10,
+								rotation: newRotation,
 								dirty: true,
 							}
 						: b,
 				),
 			);
-			// Sync node dimensions so Konva doesn't drift
-			node.width(newWidth);
-			node.height(newHeight);
 			setDimTooltip(null);
 		},
 		[buildings, onBuildingsChange, onPushHistory],
@@ -323,6 +400,13 @@ export function CampusMapEditor({
 			if (!node) return;
 			const building = buildings.find((b) => b.id === buildingId);
 			if (!building) return;
+
+			// Capture which anchor is being dragged so handleTransformEnd can
+			// keep the opposite anchor fixed.
+			const tr = transformerRef.current;
+			if (tr) {
+				activeAnchorRef.current = tr.getActiveAnchor();
+			}
 
 			const w = Math.round(Math.max(MIN_WIDTH, building.width * node.scaleX()));
 			const h = Math.round(Math.max(MIN_HEIGHT, building.height * node.scaleY()));
@@ -597,7 +681,7 @@ export function CampusMapEditor({
 											listening={false}
 										/>
 									)}
-									{/* Counter-rotated text so labels stay upright */}
+									{/* Smart-threshold rotation: upright when nearly axis-aligned, else ride with building */}
 									<Text
 										x={6}
 										y={6}
@@ -609,7 +693,7 @@ export function CampusMapEditor({
 										height={b.height - 30}
 										wrap="word"
 										ellipsis
-										rotation={-(b.rotation ?? 0)}
+										rotation={smartLabelRotation(b.rotation ?? 0)}
 										offsetX={0}
 										offsetY={0}
 									/>
@@ -726,7 +810,7 @@ export function CampusMapEditor({
 			</div>
 
 			{/* Status bar */}
-			<div className="flex items-center justify-between text-[0.75rem] text-muted-foreground">
+			<div className="flex items-center justify-between text-[0.75rem] text-muted-foreground ">
 				<span>
 					{tool === 'add' && isDrawing
 						? 'Release to place — minimum size 60×40'

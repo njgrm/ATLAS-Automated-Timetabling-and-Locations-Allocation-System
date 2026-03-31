@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import type { Request, Response } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
@@ -81,20 +81,24 @@ router.delete('/buildings/:id', authenticate, async (req: Request, res: Response
 });
 
 // Auth required: add a room to a building
-router.post('/buildings/:buildingId/rooms', authenticate, async (req: Request, res: Response) => {
-	const buildingId = Number(req.params.buildingId);
-	if (Number.isNaN(buildingId)) {
-		res.status(400).json({ code: 'INVALID_PARAM', message: 'buildingId must be a number.' });
-		return;
+router.post('/buildings/:buildingId/rooms', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const buildingId = Number(req.params.buildingId);
+		if (Number.isNaN(buildingId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'buildingId must be a number.' });
+			return;
+		}
+		const { name } = req.body;
+		if (!name) {
+			res.status(400).json({ code: 'MISSING_FIELDS', message: 'name is required.' });
+			return;
+		}
+		const { floor, type, capacity, isTeachingSpace, floorPosition } = req.body;
+		const room = await mapService.addRoom(buildingId, { name, floor, type, capacity, isTeachingSpace, floorPosition });
+		res.status(201).json({ room });
+	} catch (err) {
+		next(err);
 	}
-	const { name } = req.body;
-	if (!name) {
-		res.status(400).json({ code: 'MISSING_FIELDS', message: 'name is required.' });
-		return;
-	}
-	const { floor, type, capacity, isTeachingSpace, floorPosition } = req.body;
-	const room = await mapService.addRoom(buildingId, { name, floor, type, capacity, isTeachingSpace, floorPosition });
-	res.status(201).json({ room });
 });
 
 // Auth required: delete a room
@@ -109,14 +113,18 @@ router.delete('/rooms/:id', authenticate, async (req: Request, res: Response) =>
 });
 
 // Auth required: update a room
-router.patch('/rooms/:id', authenticate, async (req: Request, res: Response) => {
-	const id = Number(req.params.id);
-	if (Number.isNaN(id)) {
-		res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
-		return;
+router.patch('/rooms/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const id = Number(req.params.id);
+		if (Number.isNaN(id)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
+			return;
+		}
+		const room = await mapService.updateRoom(id, req.body);
+		res.json({ room });
+	} catch (err) {
+		next(err);
 	}
-	const room = await mapService.updateRoom(id, req.body);
-	res.json({ room });
 });
 
 // Auth required: upload campus image

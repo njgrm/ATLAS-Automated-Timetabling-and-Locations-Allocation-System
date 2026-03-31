@@ -71,11 +71,25 @@ export async function addRoom(
 	buildingId: number,
 	data: { name: string; floor?: number; type?: string; capacity?: number; isTeachingSpace?: boolean; floorPosition?: number },
 ) {
+	const floor = data.floor ?? 1;
+
+	// Validate floor does not exceed building floorCount
+	const building = await prisma.building.findUnique({ where: { id: buildingId }, select: { floorCount: true } });
+	if (!building) {
+		throw Object.assign(new Error('Building not found.'), { statusCode: 404, code: 'NOT_FOUND' });
+	}
+	if (floor < 1 || floor > building.floorCount) {
+		throw Object.assign(
+			new Error(`Floor ${floor} is invalid. Building has ${building.floorCount} floor(s).`),
+			{ statusCode: 400, code: 'INVALID_FLOOR' },
+		);
+	}
+
 	// Get the max floorPosition on the same floor for auto-ordering
 	let pos = data.floorPosition;
 	if (pos === undefined) {
 		const maxPos = await prisma.room.aggregate({
-			where: { buildingId, floor: data.floor ?? 1 },
+			where: { buildingId, floor },
 			_max: { floorPosition: true },
 		});
 		pos = (maxPos._max.floorPosition ?? -1) + 1;
@@ -85,7 +99,7 @@ export async function addRoom(
 		data: {
 			buildingId,
 			name: data.name,
-			floor: data.floor ?? 1,
+			floor,
 			type: (data.type as any) ?? 'CLASSROOM',
 			capacity: data.capacity ?? null,
 			isTeachingSpace: data.isTeachingSpace ?? true,
@@ -102,6 +116,21 @@ export async function updateRoom(
 	id: number,
 	data: Partial<{ name: string; floor: number; type: string; capacity: number | null; isTeachingSpace: boolean; floorPosition: number }>,
 ) {
+	// Validate floor against building floorCount if floor is being changed
+	if (data.floor !== undefined) {
+		const room = await prisma.room.findUnique({ where: { id }, select: { buildingId: true } });
+		if (!room) {
+			throw Object.assign(new Error('Room not found.'), { statusCode: 404, code: 'NOT_FOUND' });
+		}
+		const building = await prisma.building.findUnique({ where: { id: room.buildingId }, select: { floorCount: true } });
+		if (building && (data.floor < 1 || data.floor > building.floorCount)) {
+			throw Object.assign(
+				new Error(`Floor ${data.floor} is invalid. Building has ${building.floorCount} floor(s).`),
+				{ statusCode: 400, code: 'INVALID_FLOOR' },
+			);
+		}
+	}
+
 	return prisma.room.update({
 		where: { id },
 		data: {
