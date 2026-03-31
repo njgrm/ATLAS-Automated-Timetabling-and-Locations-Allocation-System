@@ -8,6 +8,8 @@ import { Button } from '@/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/card';
 import { Skeleton } from '@/ui/skeleton';
 
+const DEFAULT_SCHOOL_ID = 1;
+
 type SectionDetail = {
 	id: number;
 	name: string;
@@ -18,6 +20,8 @@ type SectionDetail = {
 };
 
 type SectionSummary = {
+	schoolId: number;
+	schoolYearId: number;
 	totalSections: number;
 	totalEnrolled: number;
 	byGradeLevel: Record<number, number>;
@@ -43,7 +47,7 @@ export default function Sections() {
 				setState({ status: 'no-year', message: 'No active school year is set. Configure it in EnrollPro before sections can be loaded.' });
 				return;
 			}
-			const res = await atlasApi.get<SectionSummary & { code?: string }>(`/sections/summary/${ayId}`);
+			const res = await atlasApi.get<SectionSummary & { code?: string }>(`/sections/summary/${ayId}?schoolId=${DEFAULT_SCHOOL_ID}`);
 			if (res.data.code === 'UPSTREAM_UNAVAILABLE' || res.data.totalSections === 0 && res.data.code) {
 				setState({
 					status: 'unavailable',
@@ -233,7 +237,7 @@ export default function Sections() {
 														return (
 															<tr key={s.id} className="hover:bg-muted/30">
 																<td className="py-1.5 font-medium">{s.name}</td>
-																<td className="py-1.5 text-muted-foreground">Grade {s.gradeLevelName}</td>
+																<td className="py-1.5 text-muted-foreground">{`Grade ${s.gradeLevelName.replace(/^Grade\s+/i, '')}`}</td>
 																<td className="py-1.5 text-right">{s.enrolledCount}</td>
 																<td className="py-1.5 text-right text-muted-foreground">{s.maxCapacity}</td>
 																<td className="py-1.5 text-right">

@@ -129,7 +129,7 @@ export default function Dashboard() {
 				fetchPublicSettings()
 					.then((s) => {
 						if (!s.activeSchoolYearId) { setSectionCount(null); return; }
-						return atlasApi.get<{ totalSections: number }>(`/sections/summary/${s.activeSchoolYearId}`);
+						return atlasApi.get<{ totalSections: number }>(`/sections/summary/${s.activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`);
 					})
 					.then((r) => { if (r) setSectionCount(r.data.totalSections); })
 					.catch(() => setSectionCount(null));
@@ -227,7 +227,7 @@ export default function Dashboard() {
 				{ label: 'Subjects configured', done: (subjectCount ?? 0) > 0, link: '/subjects' },
 				{ label: 'Faculty synced', done: (facultyCount ?? 0) > 0, link: '/faculty' },
 				{ label: 'Faculty assigned to subjects', done: unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, link: '/assignments' },
-				{ label: 'Sections sourced', done: (sectionCount ?? 0) > 0, link: '/sections', subMessage: sectionCount === null ? 'Enrollment service not connected' : undefined },
+				{ label: 'Sections sourced', done: (sectionCount ?? 0) > 0, link: '/sections', subMessage: sectionCount === null ? 'Enrollment service not connected' : sectionCount === 0 ? 'No sections found for active school year' : undefined },
 				{
 					label: 'Buildings & rooms set up',
 					done: buildingsDone,

@@ -20,6 +20,8 @@ export interface SectionsByGrade {
 }
 
 export interface SectionSummary {
+	schoolId: number;
+	schoolYearId: number;
 	totalSections: number;
 	totalEnrolled: number;
 	byGradeLevel: Record<number, number>;
@@ -28,7 +30,7 @@ export interface SectionSummary {
 }
 
 export interface SectionAdapter {
-	fetchSectionsBySchoolYear(schoolYearId: number, authToken?: string): Promise<SectionsByGrade[]>;
+	fetchSectionsBySchoolYear(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionsByGrade[]>;
 }
 
 /* ─── Stub adapter ─── */
@@ -67,7 +69,7 @@ const STUB_SECTIONS: SectionsByGrade[] = [
 ];
 
 export class StubSectionAdapter implements SectionAdapter {
-	async fetchSectionsBySchoolYear(_schoolYearId: number): Promise<SectionsByGrade[]> {
+	async fetchSectionsBySchoolYear(_schoolYearId: number, _schoolId: number): Promise<SectionsByGrade[]> {
 		await new Promise((r) => setTimeout(r, 80));
 		return STUB_SECTIONS;
 	}
@@ -82,7 +84,7 @@ export class EnrollProSectionAdapter implements SectionAdapter {
 		this.baseUrl = baseUrl ?? process.env.ENROLLPRO_API ?? 'http://localhost:5000/api';
 	}
 
-	async fetchSectionsBySchoolYear(schoolYearId: number, authToken?: string): Promise<SectionsByGrade[]> {
+	async fetchSectionsBySchoolYear(schoolYearId: number, _schoolId: number, authToken?: string): Promise<SectionsByGrade[]> {
 		const url = `${this.baseUrl}/sections/${schoolYearId}?level=JHS`;
 		const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
 		const headers: Record<string, string> = { 'Content-Type': 'application/json' };

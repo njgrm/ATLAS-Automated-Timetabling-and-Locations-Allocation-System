@@ -13,8 +13,13 @@ router.get('/summary/:schoolYearId', authenticate, async (req: Request, res: Res
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId must be a number.' });
 			return;
 		}
+		const schoolId = Number(req.query.schoolId);
+		if (!schoolId || Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required and must be a positive number.' });
+			return;
+		}
 		const authToken = req.headers.authorization?.slice(7);
-		const summary = await sectionService.getSectionSummary(schoolYearId, authToken);
+		const summary = await sectionService.getSectionSummary(schoolYearId, schoolId, authToken);
 		res.json(summary);
 	} catch (err: any) {
 		// If the upstream is unreachable, return a degraded response

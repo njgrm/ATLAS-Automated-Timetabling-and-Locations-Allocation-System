@@ -5,8 +5,8 @@
 
 import { sectionAdapter, type SectionSummary } from './section-adapter.js';
 
-export async function getSectionSummary(schoolYearId: number, authToken?: string): Promise<SectionSummary> {
-	const gradeLevels = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, authToken);
+export async function getSectionSummary(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionSummary> {
+	const gradeLevels = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
 
 	const byGradeLevel: Record<number, number> = {};
 	const enrolledByGradeLevel: Record<number, number> = {};
@@ -22,6 +22,8 @@ export async function getSectionSummary(schoolYearId: number, authToken?: string
 	}
 
 	return {
+		schoolId,
+		schoolYearId,
 		totalSections: allSections.length,
 		totalEnrolled,
 		byGradeLevel,
