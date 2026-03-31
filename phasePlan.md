@@ -49,6 +49,13 @@ It defines phase scope, acceptance gates, and the current progress state.
   - Faculty preference data model + APIs
   - Faculty portal preference screen (`/my/preferences`)
   - Officer preference status view (`/faculty/preferences`) with submit/missing indicators and reminder actions
+- **Work completed**
+  - Backend: Prisma models (FacultyPreference, PreferenceTimeSlot, AuditLog), enums, preference service + router (5 endpoints)
+  - Backend remediation: configurable lifecycle phase (env var), auth guard (faculty self + officer/admin/SYSTEM_ADMIN bypass), MISSING filter in service layer, durable audit log for reminders
+  - Frontend: FacultyPreferences page (`/my/preferences`) with time slot editor, save draft, submit, lifecycle/conflict/error handling
+  - Frontend: OfficerPreferences page (`/faculty/preferences`) with summary cards, status filter, search, faculty table, multi-select + reminder action with auditId
+  - Navigation: role-based sidebar entries (officer sees Preferences under Scheduling; faculty sees My Preferences under My Portal)
+  - Shared types: DayOfWeek, TimeSlotPreference, PreferenceStatus, FacultyPreference, OfficerSummary*, ReminderResponse
 - **Exit criteria**
   - Preference window enforceable by lifecycle state
   - Officer can identify missing submissions and trigger reminders

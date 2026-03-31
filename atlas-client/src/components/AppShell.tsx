@@ -5,6 +5,7 @@ import {
 	CalendarClock,
 	CalendarDays,
 	ChevronsUpDown,
+	ClipboardList,
 	ExternalLink,
 	GraduationCap,
 	LayoutDashboard,
@@ -97,6 +98,7 @@ type NavItemDef = {
 	to: string;
 	icon: typeof LayoutDashboard;
 	adminOnly?: boolean;
+	facultyOnly?: boolean;
 	disabled?: boolean;
 };
 
@@ -109,7 +111,12 @@ const schedulingNav: NavItemDef[] = [
 	{ label: 'Faculty', to: '/faculty', icon: Users, adminOnly: true },
 	{ label: 'Assignments', to: '/assignments', icon: UserCog, adminOnly: true },
 	{ label: 'Sections', to: '/sections', icon: GraduationCap, adminOnly: true },
+	{ label: 'Preferences', to: '/faculty/preferences', icon: ClipboardList, adminOnly: true },
 	{ label: 'Timetable', to: '/timetable', icon: CalendarClock, adminOnly: true, disabled: true },
+];
+
+const facultyNav: NavItemDef[] = [
+	{ label: 'My Preferences', to: '/my/preferences', icon: ClipboardList, facultyOnly: true },
 ];
 
 const campusNav: NavItemDef[] = [
@@ -195,7 +202,8 @@ function AppSidebar({
 	pathname: string;
 	onLogout: () => void;
 }) {
-	const isAdmin = bridgeUser?.role === 'admin' || bridgeUser?.role === 'SYSTEM_ADMIN';
+	const isAdmin = bridgeUser?.role === 'admin' || bridgeUser?.role === 'SYSTEM_ADMIN' || bridgeUser?.role === 'officer';
+	const isFaculty = bridgeUser?.role === 'faculty';
 	const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
 	return (
@@ -309,6 +317,21 @@ function AppSidebar({
 											pathname={pathname}
 										/>
 									))}
+
+								{isFaculty && (
+									<>
+										<NavDivider label='My Portal' />
+										{facultyNav.map((item) => (
+											<NavItem
+												key={item.to}
+												to={item.to}
+												icon={item.icon}
+												label={item.label}
+												pathname={pathname}
+											/>
+										))}
+									</>
+								)}
 
 								<NavDivider label='Insights' />
 								{insightsNav.map((item) =>
@@ -492,6 +515,7 @@ export function AppShell() {
 		const groups: { label: string; items: NavItemDef[] }[] = [
 			{ label: 'Navigation', items: navigationNav },
 			{ label: 'Scheduling', items: schedulingNav },
+			{ label: 'My Portal', items: facultyNav },
 			{ label: 'Campus', items: campusNav },
 			{ label: 'Insights', items: insightsNav },
 		];

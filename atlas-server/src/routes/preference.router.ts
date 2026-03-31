@@ -198,7 +198,48 @@ router.get(
 				statusFilter = upper as 'SUBMITTED' | 'DRAFT' | 'MISSING';
 			}
 
+			// Optional auto-seed: if ?autoSeed=true and no preferences exist yet, seed defaults
+			if (req.query.autoSeed === 'true') {
+				const actorId = req.user?.userId;
+				const role = req.user?.role;
+				if (actorId && (role === 'admin' || role === 'officer' || role === 'SYSTEM_ADMIN')) {
+					const preview = await prefService.getOfficerSummary(schoolId, schoolYearId);
+					if (preview.counts.submitted === 0 && preview.counts.draft === 0) {
+						await prefService.seedPreferencesForSchoolYear(schoolId, schoolYearId, actorId);
+					}
+				}
+			}
+
 			const result = await prefService.getOfficerSummary(schoolId, schoolYearId, statusFilter);
+			res.json(result);
+		} catch (e) { next(e); }
+	},
+);
+
+// ─── Officer: seed preferences (idempotent) ───
+
+const PRIVILEGED_ROLES = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
+
+router.post(
+	'/:schoolId/:schoolYearId/seed',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+
+			const role = req.user?.role;
+			if (!role || !PRIVILEGED_ROLES.has(role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can seed preferences.' });
+				return;
+			}
+
+			const actorId = req.user?.userId;
+			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
+
+			const result = await prefService.seedPreferencesForSchoolYear(schoolId, schoolYearId, actorId);
 			res.json(result);
 		} catch (e) { next(e); }
 	},

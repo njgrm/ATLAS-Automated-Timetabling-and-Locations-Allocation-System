@@ -81,3 +81,61 @@ export type FacultySubject = {
 	version: number;
 	subject?: Subject;
 };
+
+/* ─── Preference types ─── */
+
+export type DayOfWeek = 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY';
+export type TimeSlotPreference = 'PREFERRED' | 'AVAILABLE' | 'UNAVAILABLE';
+export type PreferenceStatus = 'DRAFT' | 'SUBMITTED';
+
+export type PreferenceTimeSlot = {
+	id: number;
+	preferenceId: number;
+	day: DayOfWeek;
+	startTime: string;
+	endTime: string;
+	preference: TimeSlotPreference;
+	createdAt: string;
+};
+
+export type FacultyPreference = {
+	id: number;
+	schoolId: number;
+	schoolYearId: number;
+	facultyId: number;
+	status: PreferenceStatus;
+	notes: string | null;
+	submittedAt: string | null;
+	version: number;
+	createdAt: string;
+	updatedAt: string;
+	timeSlots: PreferenceTimeSlot[];
+};
+
+export type OfficerSummaryFaculty = {
+	facultyId: number;
+	firstName: string;
+	lastName: string;
+	department: string | null;
+	preferenceStatus: 'SUBMITTED' | 'DRAFT' | 'MISSING';
+	submittedAt: string | null;
+};
+
+export type OfficerSummaryCounts = {
+	total: number;
+	submitted: number;
+	draft: number;
+	missing: number;
+};
+
+export type OfficerSummaryResponse = {
+	counts: OfficerSummaryCounts;
+	faculty: OfficerSummaryFaculty[];
+};
+
+export type ReminderResponse = {
+	reminded: number;
+	auditId: number;
+	timestamp: string;
+	note: string;
+};

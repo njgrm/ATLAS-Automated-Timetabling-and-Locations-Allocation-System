@@ -11,6 +11,8 @@ const Subjects = lazy(() => import('./pages/Subjects'));
 const Faculty = lazy(() => import('./pages/Faculty'));
 const FacultyAssignments = lazy(() => import('./pages/FacultyAssignments'));
 const Sections = lazy(() => import('./pages/Sections'));
+const FacultyPreferences = lazy(() => import('./pages/FacultyPreferences'));
+const OfficerPreferences = lazy(() => import('./pages/OfficerPreferences'));
 const ComingSoon = lazy(() => import('./pages/ComingSoon'));
 
 
@@ -39,6 +41,14 @@ const router = createBrowserRouter([
 			{
 				path: 'sections',
 				element: <Sections />,
+			},
+			{
+				path: 'faculty/preferences',
+				element: <OfficerPreferences />,
+			},
+			{
+				path: 'my/preferences',
+				element: <FacultyPreferences />,
 			},
 			{
 				path: 'timetable',

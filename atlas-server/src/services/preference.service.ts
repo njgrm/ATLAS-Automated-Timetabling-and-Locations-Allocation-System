@@ -292,3 +292,81 @@ export async function triggerReminder(
 		note: 'Reminder logged. Push/email delivery is not yet implemented.',
 	};
 }
+
+// ─── Seed preferences (idempotent) ───
+
+/** Default Mon–Fri 07:00–17:00 AVAILABLE template for seeded preferences. */
+const DEFAULT_SEED_SLOTS: { day: DayOfWeek; startTime: string; endTime: string; preference: TimeSlotPreference }[] = [
+	{ day: 'MONDAY', startTime: '07:00', endTime: '17:00', preference: 'AVAILABLE' },
+	{ day: 'TUESDAY', startTime: '07:00', endTime: '17:00', preference: 'AVAILABLE' },
+	{ day: 'WEDNESDAY', startTime: '07:00', endTime: '17:00', preference: 'AVAILABLE' },
+	{ day: 'THURSDAY', startTime: '07:00', endTime: '17:00', preference: 'AVAILABLE' },
+	{ day: 'FRIDAY', startTime: '07:00', endTime: '17:00', preference: 'AVAILABLE' },
+];
+
+export async function seedPreferencesForSchoolYear(
+	schoolId: number,
+	schoolYearId: number,
+	actorId: number,
+) {
+	// All active faculty for this school
+	const activeFaculty = await prisma.facultyMirror.findMany({
+		where: { schoolId, isActiveForScheduling: true },
+		select: { id: true },
+	});
+
+	// Existing preferences for this school+year
+	const existing = await prisma.facultyPreference.findMany({
+		where: { schoolId, schoolYearId },
+		select: { facultyId: true },
+	});
+	const existingSet = new Set(existing.map((p) => p.facultyId));
+
+	// Faculty that need seeding
+	const toSeed = activeFaculty.filter((f) => !existingSet.has(f.id));
+
+	// Batch-create inside a transaction
+	if (toSeed.length > 0) {
+		await prisma.$transaction(async (tx) => {
+			for (const f of toSeed) {
+				await tx.facultyPreference.create({
+					data: {
+						schoolId,
+						schoolYearId,
+						facultyId: f.id,
+						status: 'DRAFT',
+						notes: null,
+						timeSlots: {
+							createMany: { data: DEFAULT_SEED_SLOTS },
+						},
+					},
+				});
+			}
+		});
+	}
+
+	// Durable audit
+	const audit = await prisma.auditLog.create({
+		data: {
+			schoolId,
+			schoolYearId,
+			action: 'PREFERENCE_SEEDED',
+			actorId,
+			targetIds: toSeed.map((f) => f.id),
+			metadata: {
+				totalFaculty: activeFaculty.length,
+				alreadySeeded: existingSet.size,
+				created: toSeed.length,
+			},
+		},
+	});
+
+	return {
+		totalFaculty: activeFaculty.length,
+		alreadySeeded: existingSet.size,
+		created: toSeed.length,
+		schoolId,
+		schoolYearId,
+		auditId: audit.id,
+	};
+}
