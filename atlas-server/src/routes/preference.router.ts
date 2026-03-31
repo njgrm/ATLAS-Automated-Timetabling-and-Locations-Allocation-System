@@ -318,6 +318,10 @@ router.patch(
 				return;
 			}
 
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
 			const preferenceId = positiveInt(req.params.preferenceId, 'preferenceId');
 			if (typeof preferenceId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: preferenceId }); return; }
 
@@ -331,6 +335,8 @@ router.patch(
 			}
 
 			const review = await prefService.updateReview({
+				schoolId,
+				schoolYearId,
 				preferenceId,
 				reviewerId,
 				reviewStatus,

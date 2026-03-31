@@ -235,6 +235,37 @@ model PreferenceReview {
   @@map("preference_reviews")
 }
 
+// ─── Phase 3: Timetable Generation ───
+
+enum GenerationRunStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+
+  @@map("generation_run_status")
+}
+
+model GenerationRun {
+  id           Int                  @id @default(autoincrement())
+  schoolId     Int                  @map("school_id")
+  schoolYearId Int                  @map("school_year_id")
+  status       GenerationRunStatus  @default(QUEUED)
+  runType      String               @default("FULL") @map("run_type")
+  triggeredBy  Int                  @map("triggered_by")
+  startedAt    DateTime?            @map("started_at")
+  finishedAt   DateTime?            @map("finished_at")
+  durationMs   Int?                 @map("duration_ms")
+  summary      Json?
+  error        String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@index([schoolId, schoolYearId, createdAt])
+  @@index([status])
+  @@map("generation_runs")
+}
+
 // ─── Audit Log ───
 
 model AuditLog {

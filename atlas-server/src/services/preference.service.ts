@@ -463,6 +463,8 @@ export async function getPreferenceDetail(
 }
 
 export interface UpdateReviewInput {
+	schoolId: number;
+	schoolYearId: number;
 	preferenceId: number;
 	reviewerId: number;
 	reviewStatus: 'REVIEWED' | 'NEEDS_FOLLOW_UP';
@@ -470,13 +472,13 @@ export interface UpdateReviewInput {
 }
 
 export async function updateReview(input: UpdateReviewInput) {
-	const { preferenceId, reviewerId, reviewStatus, reviewerNotes } = input;
+	const { schoolId, schoolYearId, preferenceId, reviewerId, reviewStatus, reviewerNotes } = input;
 
-	const pref = await prisma.facultyPreference.findUnique({
-		where: { id: preferenceId },
+	const pref = await prisma.facultyPreference.findFirst({
+		where: { id: preferenceId, schoolId, schoolYearId },
 		select: { id: true, status: true },
 	});
-	if (!pref) throw err(404, 'PREFERENCE_NOT_FOUND', 'Preference record not found.');
+	if (!pref) throw err(404, 'PREFERENCE_NOT_FOUND', 'Preference record not found in this school/year scope.');
 	if (pref.status !== 'SUBMITTED') {
 		throw err(422, 'NOT_SUBMITTED', 'Only submitted preferences can be reviewed.');
 	}

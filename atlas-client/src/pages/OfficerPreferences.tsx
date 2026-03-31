@@ -34,7 +34,6 @@ import { Card, CardContent } from '@/ui/card';
 import { Input } from '@/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Skeleton } from '@/ui/skeleton';
-import { Tabs, TabsList, TabsTrigger } from '@/ui/tabs';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/ui/sheet';
 import { Textarea } from '@/ui/textarea';
 
@@ -337,34 +336,42 @@ export default function OfficerPreferences() {
 		<div className='flex flex-col h-[calc(100svh-3.5rem)]'>
 			
 			<div className='shrink-0 px-6 pt-6 pb-2 space-y-6'>
-				{/* Summary cards */}
-				<div className='grid grid-cols-2 sm:grid-cols-4 gap-3'>
-					<SummaryCard icon={Users} label='Total Faculty' value={counts.total} color='text-foreground' />
-					<SummaryCard icon={CheckCircle2} label='Submitted' value={counts.submitted} color='text-green-600' />
-					<SummaryCard icon={ClipboardList} label='Draft' value={counts.draft} color='text-yellow-600' />
-					<SummaryCard icon={FileQuestion} label='Missing' value={counts.missing} color='text-red-600' />
-				</div>
 
-				{/* Tabs + Toolbar */}
-				<div className='flex flex-wrap items-center gap-2'>
-					<Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-						<TabsList>
-							{TAB_OPTIONS.map((opt) => (
-								<TabsTrigger key={opt.value} value={opt.value} className='text-xs'>
+				{/* Filters + Toolbar */}
+				<div className='flex flex-wrap items-center gap-3'>
+					<div className='flex flex-wrap items-center gap-1.5'>
+						{TAB_OPTIONS.map((opt) => {
+							const isActive = statusFilter === opt.value;
+							return (
+								<button
+									key={opt.value}
+									onClick={() => setStatusFilter(opt.value as StatusFilter)}
+									className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+										isActive
+											? 'border-primary bg-primary text-primary-foreground shadow-sm'
+											: 'border-border bg-background text-muted-foreground hover:bg-muted'
+									}`}
+								>
 									{opt.label}
 									{opt.value === 'SUBMITTED' && counts.submitted > 0 && (
-										<span className='ml-1 rounded-full bg-green-100 text-green-700 px-1.5 text-[10px] font-semibold'>{counts.submitted}</span>
+										<span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isActive ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-green-100 text-green-700'}`}>
+											{counts.submitted}
+										</span>
 									)}
 									{opt.value === 'DRAFT' && counts.draft > 0 && (
-										<span className='ml-1 rounded-full bg-yellow-100 text-yellow-700 px-1.5 text-[10px] font-semibold'>{counts.draft}</span>
+										<span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isActive ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-yellow-100 text-yellow-700'}`}>
+											{counts.draft}
+										</span>
 									)}
 									{opt.value === 'MISSING' && counts.missing > 0 && (
-										<span className='ml-1 rounded-full bg-red-100 text-red-700 px-1.5 text-[10px] font-semibold'>{counts.missing}</span>
+										<span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isActive ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-red-100 text-red-700'}`}>
+											{counts.missing}
+										</span>
 									)}
-								</TabsTrigger>
-							))}
-						</TabsList>
-					</Tabs>
+								</button>
+							);
+						})}
+					</div>
 
 					<div className='relative flex-1 min-w-[200px] max-w-sm'>
 						<Search className='absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground' />
@@ -654,30 +661,4 @@ export default function OfficerPreferences() {
 	);
 }
 
-/* ─── Summary Card ─── */
 
-function SummaryCard({
-	icon: Icon,
-	label,
-	value,
-	color,
-}: {
-	icon: typeof Users;
-	label: string;
-	value: number;
-	color: string;
-}) {
-	return (
-		<Card>
-			<CardContent className='flex items-center gap-3 py-4'>
-				<div className={`flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted ${color}`}>
-					<Icon className='size-5' />
-				</div>
-				<div>
-					<p className='text-2xl font-bold tracking-tight'>{value}</p>
-					<p className='text-xs text-muted-foreground'>{label}</p>
-				</div>
-			</CardContent>
-		</Card>
-	);
-}

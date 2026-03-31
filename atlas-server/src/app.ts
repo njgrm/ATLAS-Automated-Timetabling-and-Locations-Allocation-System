@@ -12,6 +12,7 @@ import facultyRouter from './routes/faculty.router.js';
 import facultyAssignmentRouter from './routes/faculty-assignment.router.js';
 import sectionRouter from './routes/section.router.js';
 import preferenceRouter from './routes/preference.router.js';
+import generationRouter from './routes/generation.router.js';
 
 const app = express();
 
@@ -50,6 +51,7 @@ app.use('/api/v1/faculty', facultyRouter);
 app.use('/api/v1/faculty-assignments', facultyAssignmentRouter);
 app.use('/api/v1/sections', sectionRouter);
 app.use('/api/v1/preferences', preferenceRouter);
+app.use('/api/v1/generation', generationRouter);
 
 // Error handler
 app.use(errorHandler);

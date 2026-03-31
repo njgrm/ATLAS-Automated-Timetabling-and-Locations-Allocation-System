@@ -112,9 +112,39 @@ export default function Sections() {
 
 	return (
 		<div className="flex flex-col h-[calc(100svh-3.5rem)]">
-			{/* Compact toolbar */}
-			<div className="shrink-0 px-6 pt-3 pb-2 flex items-center justify-end">
-				<Button variant="outline" size="sm" onClick={fetchSections} disabled={state.status === 'loading'} className="h-8">
+			{/* Compact toolbar & Inline Stats */}
+			<div className="shrink-0 px-6 pt-4 pb-2 flex items-center justify-between gap-4">
+				{state.status === 'ok' ? (
+					<div className="flex items-center gap-4 text-sm bg-card border border-border rounded-md px-4 py-2 shadow-sm overflow-x-auto whitespace-nowrap scrollbar-none">
+						<span className="font-semibold text-foreground">Total: <span className="text-muted-foreground font-normal">{state.data.totalSections} sections</span></span>
+						<span className="text-border/60">•</span>
+						<span className="font-semibold text-foreground">Enrolled: <span className="text-muted-foreground font-normal">{state.data.totalEnrolled}</span></span>
+						{Object.keys(state.data.byGradeLevel).length > 0 && (
+							<>
+								<span className="text-border/60">•</span>
+								<div className="flex items-center gap-2">
+									{Object.entries(state.data.byGradeLevel)
+										.sort(([a], [b]) => Number(a) - Number(b))
+										.map(([grade, count]) => {
+											let badgeColor = 'bg-muted/50 text-muted-foreground';
+											if (grade === '7') badgeColor = 'bg-green-100/80 text-green-700';
+											else if (grade === '8') badgeColor = 'bg-yellow-100/80 text-yellow-700';
+											else if (grade === '9') badgeColor = 'bg-red-100/80 text-red-700';
+											else if (grade === '10') badgeColor = 'bg-blue-100/80 text-blue-700';
+											
+											return (
+												<Badge key={grade} variant="secondary" className={`px-2 font-semibold text-[11px] border-0 drop-shadow-sm ${badgeColor}`}>
+													G{grade}: {count}
+												</Badge>
+											);
+										})}
+								</div>
+							</>
+						)}
+					</div>
+				) : <div />}
+
+				<Button variant="outline" size="sm" onClick={fetchSections} disabled={state.status === 'loading'} className="h-8 shrink-0 ml-auto shadow-sm">
 					<RefreshCw className={`mr-1 size-3.5 ${state.status === 'loading' ? 'animate-spin' : ''}`} />
 					Refresh
 				</Button>
@@ -178,82 +208,6 @@ export default function Sections() {
 
 				{state.status === 'ok' && (
 					<div className="flex-1 min-h-0 flex flex-col gap-4">
-						{/* Summary blocks row */}
-						<div className="shrink-0 flex flex-col md:flex-row gap-4">
-							{/* Cards column */}
-							<div className="grid gap-4 sm:grid-cols-2 flex-[2]">
-								<Card className="shadow-sm">
-									<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-										<CardTitle className="text-sm font-semibold">Total Sections</CardTitle>
-										<div className="rounded-md bg-pink-50 p-1.5">
-											<GraduationCap className="size-4 text-pink-600" />
-										</div>
-									</CardHeader>
-									<CardContent>
-										<div className="flex items-baseline gap-2">
-											<span className="text-2xl font-black">{state.data.totalSections}</span>
-											<span className="text-sm text-muted-foreground">sections</span>
-										</div>
-										{state.data.totalSections > 0 && (
-											<div className="mt-1 flex items-center gap-1.5 text-xs text-emerald-600">
-												<CheckCircle2 className="size-3" />
-												Data available for scheduling
-											</div>
-										)}
-									</CardContent>
-								</Card>
-								<Card className="shadow-sm">
-									<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-										<CardTitle className="text-sm font-semibold">Total Enrolled</CardTitle>
-										<div className="rounded-md bg-indigo-50 p-1.5">
-											<Users className="size-4 text-indigo-600" />
-										</div>
-									</CardHeader>
-									<CardContent>
-										<div className="flex items-baseline gap-2">
-											<span className="text-2xl font-black">{state.data.totalEnrolled}</span>
-											<span className="text-sm text-muted-foreground">students</span>
-										</div>
-										{state.data.totalSections > 0 && (
-											<p className="mt-1 text-xs text-muted-foreground">
-												Avg {Math.round(state.data.totalEnrolled / state.data.totalSections)} per section
-											</p>
-										)}
-									</CardContent>
-								</Card>
-							</div>
-
-							{/* Grade breakdown */}
-							{Object.keys(state.data.byGradeLevel).length > 0 && (
-								<Card className="shadow-sm flex-[3]">
-									<CardHeader className="pb-2">
-										<CardTitle className="text-sm font-semibold">By Grade Level</CardTitle>
-									</CardHeader>
-									<CardContent>
-										<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-											{Object.entries(state.data.byGradeLevel)
-												.sort(([a], [b]) => Number(a) - Number(b))
-												.map(([grade, count]) => (
-													<div key={grade} className="rounded-md border border-border/60 bg-muted/20 px-3 py-2">
-														<span className="text-sm font-medium text-muted-foreground">
-															Grade {grade}
-														</span>
-														<div className="mt-1 flex items-center justify-between">
-															<Badge variant="secondary" className="text-xs font-bold border-0 bg-background shadow-xs">
-																{count} sec
-															</Badge>
-															<span className="text-xs text-muted-foreground font-medium">
-																{state.data.enrolledByGradeLevel?.[Number(grade)] ?? 0}
-															</span>
-														</div>
-													</div>
-												))}
-										</div>
-									</CardContent>
-								</Card>
-							)}
-						</div>
-
 						{/* Interactive table card */}
 						{state.data.sections.length > 0 && (
 							<Card className="flex-1 min-h-0 flex flex-col shadow-sm mt-2">
@@ -294,7 +248,17 @@ export default function Sections() {
 												return (
 													<tr key={s.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
 														<td className="px-4 py-2 font-medium">{s.name}</td>
-														<td className="px-4 py-2 text-muted-foreground">{`Grade ${s.gradeLevelName.replace(/^Grade\s+/i, '')}`}</td>
+														<td className="px-4 py-2 text-muted-foreground">
+															<Badge variant="secondary" className={`px-2 font-semibold text-[11px] border-0 drop-shadow-sm ${
+																s.gradeLevelName.includes('7') ? 'bg-green-100/80 text-green-700' :
+																s.gradeLevelName.includes('8') ? 'bg-yellow-100/80 text-yellow-700' :
+																s.gradeLevelName.includes('9') ? 'bg-red-100/80 text-red-700' :
+																s.gradeLevelName.includes('10') ? 'bg-blue-100/80 text-blue-700' :
+																'bg-muted'
+															}`}>
+																{`Grade ${s.gradeLevelName.replace(/^Grade\s+/i, '')}`}
+															</Badge>
+														</td>
 														<td className="px-4 py-2 text-right">{s.enrolledCount}</td>
 														<td className="px-4 py-2 text-right text-muted-foreground">{s.maxCapacity}</td>
 														<td className="px-4 py-2 text-right">
