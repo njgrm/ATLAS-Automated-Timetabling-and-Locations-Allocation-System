@@ -5,8 +5,8 @@ This is the shared planning and verification ledger for all coding agents (Curso
 It defines phase scope, acceptance gates, and the current progress state.
 
 ## Active Phase
-- **Current phase:** Phase 1 - Setup Completion (COMPLETED)
-- **Mode:** Phase 1 formally closed. Awaiting Phase 2 activation.
+- **Current phase:** Phase 2 - Preference Collection
+- **Mode:** Build + verify only items in active phase unless user approves otherwise
 
 ## Non-ATLAS Scope Guardrail
 - Keep out of ATLAS: enrollment/admission workflows, grades/class records, LMS content uploads, registrar document workflows, MRF governance tracking.
@@ -42,7 +42,7 @@ It defines phase scope, acceptance gates, and the current progress state.
   - No unresolved phase-1 blockers remain in this file
 
 ## Phase 2 - Preference Collection
-- **Status:** Not Started
+- **Status:** In Progress
 - **Scope**
   - Faculty preference submission flow and officer monitoring/reminders
 - **Planned deliverables**
@@ -114,10 +114,10 @@ It defines phase scope, acceptance gates, and the current progress state.
 - A batch is **Accepted** only when all blocking findings are resolved or explicitly waived by user.
 
 ## Current Phase 1 Checkpoint (from codebase audit)
-- **Ready/implemented**
-  - `subjects`, `faculty`, and `faculty/assignments` routes/pages exist and are functional baselines
-  - map editor/building panel already include floor count, non-teaching flags, and room reordering patterns
-- **Still incomplete for Phase 1 closure**
-  - sections module is still placeholder
-  - timetable module is still placeholder
-  - some setup quality checks need stronger rule enforcement and verification evidence
+- **Status:** CLOSED (2026-04-01)
+- **Closure report:** `docs/phase1-closure.md`
+- **Summary**
+  - All five setup domains validated and machine-checkable (subjects, faculty, assignments, sections, buildings/rooms)
+  - Sections sourcing + QC findings (school-scoping, grade labels, checklist messaging) fully resolved
+  - Dashboard setup checklist accurate; "setup complete" banner with Phase 2 gating message live
+  - Phase 1 formally closed — next active work moves to Phase 2 (Preference Collection)

@@ -13,17 +13,7 @@ const FacultyAssignments = lazy(() => import('./pages/FacultyAssignments'));
 const Sections = lazy(() => import('./pages/Sections'));
 const ComingSoon = lazy(() => import('./pages/ComingSoon'));
 
-function Fallback() {
-	return (
-		<div className="p-6">
-			<Skeleton className="h-[400px] w-full rounded-lg" />
-		</div>
-	);
-}
 
-function Lazy({ children }: { children: React.ReactNode }) {
-	return <Suspense fallback={<Fallback />}>{children}</Suspense>;
-}
 
 const router = createBrowserRouter([
 	{
@@ -32,31 +22,31 @@ const router = createBrowserRouter([
 		children: [
 			{
 				index: true,
-				element: <Lazy><Dashboard /></Lazy>,
+				element: <Dashboard />,
 			},
 			{
 				path: 'subjects',
-				element: <Lazy><Subjects /></Lazy>,
+				element: <Subjects />,
 			},
 			{
 				path: 'faculty',
-				element: <Lazy><Faculty /></Lazy>,
+				element: <Faculty />,
 			},
 			{
 				path: 'assignments',
-				element: <Lazy><FacultyAssignments /></Lazy>,
+				element: <FacultyAssignments />,
 			},
 			{
 				path: 'sections',
-				element: <Lazy><Sections /></Lazy>,
+				element: <Sections />,
 			},
 			{
 				path: 'timetable',
-				element: <Lazy><ComingSoon /></Lazy>,
+				element: <ComingSoon />,
 			},
 			{
 				path: 'map',
-				element: <Lazy><MapEditor /></Lazy>,
+				element: <MapEditor />,
 			},
 			{ path: '*', element: <Navigate to="/" replace /> },
 		],

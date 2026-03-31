@@ -115,6 +115,7 @@ model FacultyMirror {
   updatedAt             DateTime         @updatedAt
   school                School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   facultySubjects       FacultySubject[]
+  preferences           FacultyPreference[]
 
   @@unique([schoolId, externalId], map: "uq_faculty_school_external")
   @@index([schoolId])
@@ -140,4 +141,84 @@ model FacultySubject {
   @@index([facultyId])
   @@index([subjectId])
   @@map("faculty_subjects")
+}
+
+// ─── Phase 2: Faculty Preferences ───
+
+enum PreferenceStatus {
+  DRAFT
+  SUBMITTED
+
+  @@map("preference_status")
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+
+  @@map("day_of_week")
+}
+
+enum TimeSlotPreference {
+  PREFERRED
+  AVAILABLE
+  UNAVAILABLE
+
+  @@map("time_slot_preference")
+}
+
+model FacultyPreference {
+  id           Int              @id @default(autoincrement())
+  schoolId     Int              @map("school_id")
+  schoolYearId Int              @map("school_year_id")
+  facultyId    Int              @map("faculty_id")
+  status       PreferenceStatus @default(DRAFT)
+  notes        String?
+  submittedAt  DateTime?        @map("submitted_at")
+  version      Int              @default(1)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  faculty      FacultyMirror    @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  timeSlots    PreferenceTimeSlot[]
+
+  @@unique([schoolId, schoolYearId, facultyId], map: "uq_preference_school_year_faculty")
+  @@index([schoolId, schoolYearId])
+  @@index([facultyId])
+  @@map("faculty_preferences")
+}
+
+model PreferenceTimeSlot {
+  id           Int                @id @default(autoincrement())
+  preferenceId Int                @map("preference_id")
+  day          DayOfWeek
+  startTime    String             @map("start_time")
+  endTime      String             @map("end_time")
+  preference   TimeSlotPreference @default(AVAILABLE)
+  createdAt    DateTime           @default(now())
+
+  facultyPreference FacultyPreference @relation(fields: [preferenceId], references: [id], onDelete: Cascade)
+
+  @@index([preferenceId])
+  @@map("preference_time_slots")
+}
+
+// ─── Audit Log ───
+
+model AuditLog {
+  id           Int      @id @default(autoincrement())
+  schoolId     Int      @map("school_id")
+  schoolYearId Int?     @map("school_year_id")
+  action       String
+  actorId      Int      @map("actor_id")
+  targetIds    Int[]    @map("target_ids")
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  @@index([schoolId, action])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
