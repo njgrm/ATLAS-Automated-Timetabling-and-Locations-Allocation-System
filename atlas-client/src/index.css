@@ -2,6 +2,8 @@
 @import 'tw-animate-css';
 @import '@fontsource-variable/instrument-sans';
 
+@custom-variant dark (&:is(.dark *));
+
 @theme {
 	--font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
 
@@ -148,5 +150,8 @@
 		background: hsl(var(--primary));
 		border-radius: 5px;
 		border: 1px solid hsl(var(--muted));
+	}
+	.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+		background: hsl(var(--primary) / 0.8);
 	}
 }

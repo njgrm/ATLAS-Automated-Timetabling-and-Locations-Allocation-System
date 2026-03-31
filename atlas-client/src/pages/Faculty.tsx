@@ -170,7 +170,7 @@ export default function Faculty() {
 	const hasActiveFilters = schedulingFilter !== 'all' || assignmentFilter !== 'all' || departmentFilter !== 'all';
 
 	return (
-		<div className="flex flex-col h-[calc(100vh-3.625rem)]">
+		<div className="flex flex-col h-[calc(100svh-3.5rem)]">
 			{/* Compact toolbar */}
 			<div className="shrink-0 px-6 pt-3 pb-2">
 				<div className="flex items-center gap-2">

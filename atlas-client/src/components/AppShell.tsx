@@ -1,32 +1,30 @@
 import {
-	ALargeSmall,
+	AlertTriangle,
 	BarChart3,
 	BookOpen,
 	CalendarClock,
 	CalendarDays,
-	ChevronLeft,
-	ChevronRight,
+	ChevronsUpDown,
 	ExternalLink,
 	GraduationCap,
-	HelpCircle,
 	LayoutDashboard,
 	Lock,
 	LogOut,
 	MapPinned,
-	PanelLeft,
 	School,
 	UserCog,
 	Users,
 } from 'lucide-react';
 import React, { useEffect, useLayoutEffect, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
+import { Link, Outlet, useLocation } from 'react-router-dom';
+import { motion } from 'motion/react';
 
 import { captureBridgeToken, getBackHref } from '@/lib/bridge';
-import { fetchActiveSchoolYear, fetchPublicSettings, fetchSchoolYears, verifyBridgeToken } from '@/lib/settings';
+import { fetchPublicSettings, fetchSchoolYears, verifyBridgeToken } from '@/lib/settings';
 import type { BridgeUser } from '@/types';
 import type { SchoolYear } from '@/lib/settings';
 import { Badge } from '@/ui/badge';
+import { Button } from '@/ui/button';
 import {
 	Breadcrumb,
 	BreadcrumbItem,
@@ -35,26 +33,40 @@ import {
 	BreadcrumbPage,
 	BreadcrumbSeparator,
 } from '@/ui/breadcrumb';
-import { Button } from '@/ui/button';
+import { Separator } from '@/ui/separator';
+import { Skeleton } from '@/ui/skeleton';
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from '@/ui/dialog';
+	Sidebar,
+	SidebarContent,
+	SidebarFooter,
+	SidebarGroup,
+	SidebarGroupContent,
+	SidebarHeader,
+	SidebarInset,
+	SidebarMenu,
+	SidebarMenuButton,
+	SidebarMenuItem,
+	SidebarProvider,
+	SidebarSeparator,
+	SidebarTrigger,
+} from '@/ui/sidebar';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
+import { ConfirmationModal } from '@/ui/confirmation-modal';
+import { AccessibilityMenu } from '@/components/AccessibilityMenu';
+import { useAccessibility } from '@/hooks/useAccessibility';
 
 /* ─── WCAG contrast helpers (ported from EnrollPro RootLayout) ─── */
 
 function relativeLuminance(hsl: string): number {
-	const [h, s, l] = hsl.split(/\s+/).map((v) => parseFloat(v));
-	const sN = s / 100;
-	const lN = l / 100;
-	const a = sN * Math.min(lN, 1 - lN);
+	const parts = hsl.trim().split(/\s+/);
+	if (parts.length < 3) return 0.5;
+	const h = parseFloat(parts[0]) || 0;
+	const s = (parseFloat(parts[1]) || 0) / 100;
+	const l = (parseFloat(parts[2]) || 0) / 100;
+	const a = s * Math.min(l, 1 - l);
 	const f = (n: number) => {
 		const k = (n + h / 30) % 12;
-		const c = lN - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+		const c = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
 		return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
 	};
 	return 0.2126 * f(0) + 0.7152 * f(8) + 0.0722 * f(4);
@@ -67,61 +79,345 @@ function contrastForeground(hsl: string): string {
 	return contrastWhite >= contrastBlack ? '0 0% 100%' : '0 0% 0%';
 }
 
-/* ─── Nav items ─── */
+/* ─── Constants ─── */
 
 const ENROLLPRO_URL = import.meta.env.VITE_ENROLLPRO_URL ?? 'http://localhost:5173';
-const ENROLLPRO_API_BASE =
-	(import.meta.env.VITE_ENROLLPRO_API ?? 'http://localhost:5000/api').replace('/api', '');
 
-type NavItem = {
+/** Map an EnrollPro `/uploads/…` path to the Vite proxy prefix. */
+function enrollProAsset(path: string | null): string {
+	if (!path) return '';
+	// logoUrl comes as "/uploads/logo-xxx.jpg"; rewrite to "/enrollpro-uploads/logo-xxx.jpg"
+	return path.replace(/^\/uploads/, '/enrollpro-uploads');
+}
+
+/* ─── Nav structure ─── */
+
+type NavItemDef = {
 	label: string;
 	to: string;
 	icon: typeof LayoutDashboard;
-	end?: boolean; // exact match
 	adminOnly?: boolean;
 	disabled?: boolean;
-	/** Visually nested child items */
-	children?: NavItem[];
 };
 
-const navigationNav: NavItem[] = [
-	{ label: 'Dashboard', to: '/', icon: LayoutDashboard, end: true },
+const navigationNav: NavItemDef[] = [
+	{ label: 'Dashboard', to: '/', icon: LayoutDashboard },
 ];
 
-const schedulingNav: NavItem[] = [
+const schedulingNav: NavItemDef[] = [
 	{ label: 'Subjects', to: '/subjects', icon: BookOpen, adminOnly: true },
-	{
-		label: 'Faculty',
-		to: '/faculty',
-		icon: Users,
-		adminOnly: true,
-		children: [
-			{ label: 'Assignments', to: '/faculty/assignments', icon: UserCog, adminOnly: true },
-		],
-	},
-	{ label: 'Sections', to: '/sections', icon: GraduationCap, adminOnly: true, disabled: true },
+	{ label: 'Faculty', to: '/faculty', icon: Users, adminOnly: true },
+	{ label: 'Assignments', to: '/assignments', icon: UserCog, adminOnly: true },
+	{ label: 'Sections', to: '/sections', icon: GraduationCap, adminOnly: true },
 	{ label: 'Timetable', to: '/timetable', icon: CalendarClock, adminOnly: true, disabled: true },
 ];
 
-const campusNav: NavItem[] = [
+const campusNav: NavItemDef[] = [
 	{ label: 'Map Editor', to: '/map', icon: MapPinned, adminOnly: true },
 ];
 
-const insightsNav: NavItem[] = [
+const insightsNav: NavItemDef[] = [
 	{ label: 'Analytics', to: '/analytics', icon: BarChart3, disabled: true },
 ];
 
+/* ─── Sidebar nav helper components (matches EnrollPro pattern) ─── */
+
+function NavDivider({ label }: { label: string }) {
+	return (
+		<div className='px-3 py-2 mt-2 transition-[margin,opacity,height] duration-200 ease-linear group-data-[collapsible=icon]:m-0 group-data-[collapsible=icon]:h-0 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:opacity-0 overflow-hidden'>
+			<span className='text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground opacity-60 whitespace-nowrap'>
+				{label}
+			</span>
+		</div>
+	);
+}
+
+function NavItem({
+	to,
+	icon: Icon,
+	label,
+	pathname,
+}: {
+	to: string;
+	icon: React.ElementType;
+	label: string;
+	pathname: string;
+}) {
+	const isActive = pathname === to;
+	return (
+		<SidebarMenuItem>
+			<SidebarMenuButton asChild isActive={isActive} tooltip={label}>
+				<Link to={to}>
+					<Icon className='size-4' />
+					<span>{label}</span>
+				</Link>
+			</SidebarMenuButton>
+		</SidebarMenuItem>
+	);
+}
+
+function NavItemDisabled({
+	icon: Icon,
+	label,
+}: {
+	icon: React.ElementType;
+	label: string;
+}) {
+	return (
+		<SidebarMenuItem>
+			<SidebarMenuButton
+				tooltip={`${label} (Coming Soon)`}
+				className='cursor-not-allowed opacity-40'
+				disabled
+			>
+				<Icon className='size-4' />
+				<span>{label}</span>
+				<Lock className='ml-auto size-3' />
+			</SidebarMenuButton>
+		</SidebarMenuItem>
+	);
+}
+
+/* ─── AppSidebar ─── */
+
+function AppSidebar({
+	schoolName,
+	logoUrl,
+	activeYearLabel,
+	bridgeUser,
+	pathname,
+	onLogout,
+}: {
+	schoolName: string;
+	logoUrl: string | null;
+	activeYearLabel: string | null;
+	bridgeUser: BridgeUser | null;
+	pathname: string;
+	onLogout: () => void;
+}) {
+	const isAdmin = bridgeUser?.role === 'admin' || bridgeUser?.role === 'SYSTEM_ADMIN';
+	const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+	return (
+		<>
+			<Sidebar collapsible='icon'>
+				{/* ── Header: School Identity ── */}
+				<SidebarHeader>
+					<SidebarMenu>
+						<SidebarMenuItem>
+							<SidebarMenuButton
+								size='lg'
+								className='data-[state=open]:bg-sidebar-accent cursor-default'
+								tooltip={schoolName}
+							>
+								{logoUrl ? (
+									<div className='flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden shrink-0'>
+										<img
+											src={enrollProAsset(logoUrl)}
+											alt='Logo'
+											className='size-8 object-contain'
+										/>
+									</div>
+								) : (
+									<div className='flex aspect-square size-8 items-center justify-center rounded-lg bg-muted shrink-0'>
+										<School className='size-4 text-muted-foreground' />
+									</div>
+								)}
+								<div className='grid flex-1 text-left text-sm leading-tight overflow-hidden'>
+									{schoolName ? (
+										<span className='truncate font-semibold'>
+											{schoolName}
+										</span>
+									) : (
+										<Skeleton className='h-3.5 w-28 my-0.5' />
+									)}
+									<div className='flex items-center gap-1 mt-0.5'>
+										{activeYearLabel ? (
+											<>
+												<span className='truncate text-[0.6875rem] text-foreground'>
+													S.Y. {activeYearLabel}
+												</span>
+												<span className='shrink-0 text-[0.625rem] font-semibold text-green-600'>
+													● ACTIVE
+												</span>
+											</>
+										) : (
+											<>
+												<AlertTriangle className='size-3 shrink-0 text-amber-500' />
+												<span className='text-[0.6875rem] text-muted-foreground'>
+													No Active Year
+												</span>
+											</>
+										)}
+									</div>
+								</div>
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+					</SidebarMenu>
+				</SidebarHeader>
+
+				<SidebarSeparator />
+
+				{/* ── Navigation ── */}
+				<SidebarContent>
+					<SidebarGroup>
+						<SidebarGroupContent>
+							<SidebarMenu>
+								<NavDivider label='Navigation' />
+								{navigationNav
+									.filter((item) => !item.adminOnly || isAdmin)
+									.map((item) => (
+										<NavItem
+											key={item.to}
+											to={item.to}
+											icon={item.icon}
+											label={item.label}
+											pathname={pathname}
+										/>
+									))}
+
+								<NavDivider label='Scheduling' />
+								{schedulingNav
+									.filter((item) => !item.adminOnly || isAdmin)
+									.map((item) =>
+										item.disabled ? (
+											<NavItemDisabled
+												key={item.to}
+												icon={item.icon}
+												label={item.label}
+											/>
+										) : (
+											<NavItem
+												key={item.to}
+												to={item.to}
+												icon={item.icon}
+												label={item.label}
+												pathname={pathname}
+											/>
+										),
+									)}
+
+								<NavDivider label='Campus' />
+								{campusNav
+									.filter((item) => !item.adminOnly || isAdmin)
+									.map((item) => (
+										<NavItem
+											key={item.to}
+											to={item.to}
+											icon={item.icon}
+											label={item.label}
+											pathname={pathname}
+										/>
+									))}
+
+								<NavDivider label='Insights' />
+								{insightsNav.map((item) =>
+									item.disabled ? (
+										<NavItemDisabled
+											key={item.to}
+											icon={item.icon}
+											label={item.label}
+										/>
+									) : (
+										<NavItem
+											key={item.to}
+											to={item.to}
+											icon={item.icon}
+											label={item.label}
+											pathname={pathname}
+										/>
+									),
+								)}
+
+								<NavDivider label='Platform' />
+								<SidebarMenuItem>
+									<SidebarMenuButton asChild tooltip='Back to EnrollPro'>
+										<a href={getBackHref()}>
+											<ExternalLink className='size-4' />
+											<span>Back to EnrollPro</span>
+										</a>
+									</SidebarMenuButton>
+								</SidebarMenuItem>
+							</SidebarMenu>
+						</SidebarGroupContent>
+					</SidebarGroup>
+				</SidebarContent>
+
+				{/* ── Footer: User ── */}
+				<SidebarFooter>
+					<SidebarMenu>
+						<SidebarMenuItem>
+							<SidebarMenuButton
+								size='lg'
+								tooltip={bridgeUser?.role ?? 'User'}
+								onClick={() => setShowLogoutConfirm(true)}
+								className='relative'
+							>
+								{/* Collapsed State: LogOut Icon only */}
+								<div className='absolute inset-0 flex items-center justify-center transition-all duration-200 opacity-0 group-data-[collapsible=icon]:opacity-100 group-data-[collapsible=icon]:scale-100 scale-75'>
+									<LogOut className='size-4 text-muted-foreground' />
+								</div>
+
+								{/* Expanded State: Full Profile */}
+								<div className='flex w-full items-center gap-2 transition-all duration-200 opacity-100 group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:scale-95 group-data-[collapsible=icon]:pointer-events-none'>
+									<div className='flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground overflow-hidden'>
+										<span className='text-xs font-semibold'>
+											{bridgeUser?.role
+												? bridgeUser.role.charAt(0).toUpperCase()
+												: 'G'}
+										</span>
+									</div>
+									<div className='grid flex-1 text-left text-sm leading-tight overflow-hidden'>
+										<span className='truncate font-semibold'>
+											{bridgeUser?.role ?? 'Guest'}
+										</span>
+										{isAdmin && (
+											<Badge
+												variant='outline'
+												className='mt-0.5 w-fit h-4 px-1 text-[0.5625rem] font-bold border-purple-200 bg-purple-50 text-purple-700'
+											>
+												Admin
+											</Badge>
+										)}
+										{!isAdmin && (
+											<span className='truncate text-[0.6875rem] text-muted-foreground'>
+												Bridge session
+											</span>
+										)}
+									</div>
+									<LogOut className='ml-auto size-4 shrink-0 text-muted-foreground' />
+								</div>
+							</SidebarMenuButton>
+						</SidebarMenuItem>
+					</SidebarMenu>
+				</SidebarFooter>
+			</Sidebar>
+
+			<ConfirmationModal
+				open={showLogoutConfirm}
+				onOpenChange={setShowLogoutConfirm}
+				title='Sign Out'
+				description='Are you sure you want to sign out of your account?'
+				confirmText='Sign Out'
+				onConfirm={onLogout}
+				variant='primary'
+			/>
+		</>
+	);
+}
+
+/* ─── AppShell (exported layout) ─── */
+
 export function AppShell() {
 	const location = useLocation();
-	const [schoolName, setSchoolName] = useState('ATLAS');
+	const { fontSize, setFontSize } = useAccessibility();
+	const [schoolName, setSchoolName] = useState('');
 	const [logoUrl, setLogoUrl] = useState<string | null>(null);
 	const [activeYearLabel, setActiveYearLabel] = useState<string | null>(null);
 	const [schoolYears, setSchoolYears] = useState<SchoolYear[]>([]);
 	const [selectedYearId, setSelectedYearId] = useState<number | null>(null);
 	const [bridgeUser, setBridgeUser] = useState<BridgeUser | null>(null);
-	const [sidebarOpen, setSidebarOpen] = useState(true);
-	const [largeText, setLargeText] = useState(false);
-	const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+	const [syOpen, setSyOpen] = useState(false);
 
 	/* Capture bridge token on mount */
 	useLayoutEffect(() => {
@@ -132,15 +428,14 @@ export function AppShell() {
 	useEffect(() => {
 		fetchPublicSettings()
 			.then((s) => {
-				// A2: append "High School" if not already present
-				const raw = s.schoolName || 'ATLAS';
-				const displayName = /high\s*school/i.test(raw) ? raw : `${raw} High School`;
-				setSchoolName(displayName);
+				const raw = s.schoolName || 'High School';
+				const hsLabel = /high\s*school/i.test(raw) ? raw : `${raw}`;
+				setSchoolName(`ATLAS ${hsLabel}`);
 				setLogoUrl(s.logoUrl);
 
 				// Set favicon from school logo
 				if (s.logoUrl) {
-					const faviconUrl = `${ENROLLPRO_API_BASE}${s.logoUrl}`;
+					const faviconUrl = enrollProAsset(s.logoUrl);
 					let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
 					if (!link) {
 						link = document.createElement('link');
@@ -187,16 +482,14 @@ export function AppShell() {
 		});
 	}, []);
 
-	/* Accessibility: toggle large text */
-	useEffect(() => {
-		document.documentElement.style.fontSize = largeText ? '18px' : '';
-	}, [largeText]);
-
-	const isAdmin = bridgeUser?.role === 'admin' || bridgeUser?.role === 'SYSTEM_ADMIN';
+	const handleLogout = () => {
+		sessionStorage.removeItem('atlas_bridge_token');
+		window.location.href = `${ENROLLPRO_URL}/login`;
+	};
 
 	/* Breadcrumbs from current route */
 	const breadcrumbs = (() => {
-		const groups: { label: string; items: NavItem[] }[] = [
+		const groups: { label: string; items: NavItemDef[] }[] = [
 			{ label: 'Navigation', items: navigationNav },
 			{ label: 'Scheduling', items: schedulingNav },
 			{ label: 'Campus', items: campusNav },
@@ -205,22 +498,7 @@ export function AppShell() {
 
 		for (const group of groups) {
 			for (const item of group.items) {
-				// Check children first for deeper matches
-				if (item.children) {
-					const childMatch = item.children.find((c) =>
-						c.end ? location.pathname === c.to : location.pathname.startsWith(c.to),
-					);
-					if (childMatch) {
-						return group.label === 'Navigation'
-							? [{ label: item.label }, { label: childMatch.label }]
-							: [{ label: group.label }, { label: item.label }, { label: childMatch.label }];
-					}
-				}
-				// Check the item itself
-				const isMatch = item.end
-					? location.pathname === item.to
-					: location.pathname.startsWith(item.to);
-				if (isMatch) {
+				if (location.pathname === item.to) {
 					if (group.label === 'Navigation') {
 						return [{ label: item.label }];
 					}
@@ -231,207 +509,27 @@ export function AppShell() {
 		return [{ label: 'ATLAS' }];
 	})();
 
-	const renderNavItem = (item: NavItem) => {
-		if (item.disabled) {
-			return (
-				<span
-					key={item.to}
-					className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground/50 cursor-not-allowed transition-all duration-150 ${
-						!sidebarOpen ? 'justify-center px-0' : ''
-					}`}
-				>
-					<item.icon className="size-4 shrink-0" />
-					{sidebarOpen && (
-						<>
-							{item.label}
-							<Lock className="ml-auto size-3 shrink-0" />
-						</>
-					)}
-				</span>
-			);
-		}
-
-		const hasChildren = item.children && item.children.length > 0;
-
-		return (
-			<div key={item.to}>
-				<NavLink
-					to={item.to}
-					end={item.end ?? hasChildren}
-					className={({ isActive }) =>
-						`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-150 ${
-							isActive
-								? 'bg-sidebar-primary text-sidebar-primary-foreground'
-								: 'text-sidebar-foreground hover:bg-sidebar-accent/60'
-						} ${!sidebarOpen ? 'justify-center px-0' : ''}`
-					}
-				>
-					<item.icon className="size-4 shrink-0" />
-					{sidebarOpen && item.label}
-				</NavLink>
-				{hasChildren && sidebarOpen && (
-					<div className="ml-5 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-2">
-						{item.children!
-							.filter((c) => !c.adminOnly || isAdmin)
-							.map(renderNavItem)}
-					</div>
-				)}
-			</div>
-		);
-	};
-
 	return (
-		<div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-			{/* ─── Sidebar ─── */}
-			<aside
-				className={`flex shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200 ease-linear ${
-					sidebarOpen ? 'w-64' : 'w-14'
-				}`}
-			>
-				{/* Brand */}
-				<div className="flex items-center gap-3 border-b border-sidebar-border px-3 py-3">
-					{logoUrl ? (
-						<div className="flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden shrink-0">
-							<img src={`${ENROLLPRO_API_BASE}${logoUrl}`} alt="Logo" className="size-8 object-contain" />
-						</div>
-					) : (
-						<div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-							<School className="size-4" />
-						</div>
-					)}
-					{sidebarOpen && (
-						<div className="grid flex-1 text-left text-sm leading-tight overflow-hidden">
-							<span className="truncate font-semibold text-sidebar-foreground">
-								{schoolName}
-							</span>
-							<div className="flex items-center gap-1 mt-0.5">
-								{activeYearLabel ? (
-									<>
-										<span className="truncate text-[0.6875rem] text-foreground">
-											S.Y. {activeYearLabel}
-										</span>
-										<span className="shrink-0 text-[0.625rem] font-semibold text-green-600">
-											● ACTIVE
-										</span>
-									</>
-								) : (
-									<span className="text-[0.6875rem] text-muted-foreground">
-										ATLAS
-									</span>
-								)}
-							</div>
-						</div>
-					)}
-				</div>
+		<SidebarProvider>
+			<AppSidebar
+				schoolName={schoolName}
+				logoUrl={logoUrl}
+				activeYearLabel={activeYearLabel}
+				bridgeUser={bridgeUser}
+				pathname={location.pathname}
+				onLogout={handleLogout}
+			/>
 
-				{/* Navigation */}
-				<nav className="flex-1 overflow-auto px-2 py-2">
-					{sidebarOpen && (
-						<p className="px-2 pb-1 pt-3 text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground">
-							Navigation
-						</p>
-					)}
-					{navigationNav
-						.filter((item) => !item.adminOnly || isAdmin)
-						.map(renderNavItem)}
-
-					{sidebarOpen && (
-						<p className="px-2 pb-1 pt-4 text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground">
-							Scheduling
-						</p>
-					)}
-					{schedulingNav
-						.filter((item) => !item.adminOnly || isAdmin)
-						.map(renderNavItem)}
-
-					{sidebarOpen && (
-						<p className="px-2 pb-1 pt-4 text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground">
-							Campus
-						</p>
-					)}
-					{campusNav
-						.filter((item) => !item.adminOnly || isAdmin)
-						.map(renderNavItem)}
-
-					{sidebarOpen && (
-						<p className="px-2 pb-1 pt-4 text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground">
-							Insights
-						</p>
-					)}
-					{insightsNav.map(renderNavItem)}
-
-					{sidebarOpen && (
-						<p className="px-2 pb-1 pt-4 text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground">
-							Platform
-						</p>
-					)}
-					<a
-						href={getBackHref()}
-						className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent/60 transition-colors ${
-							!sidebarOpen ? 'justify-center px-0' : ''
-						}`}
-					>
-						<ExternalLink className="size-4 shrink-0" />
-						{sidebarOpen && 'Back to EnrollPro'}
-					</a>
-				</nav>
-
-				{/* Collapse toggle */}
-				<button
-					onClick={() => setSidebarOpen((v) => !v)}
-					className="flex items-center justify-center border-t border-sidebar-border py-2 text-muted-foreground hover:text-foreground transition-colors"
-				>
-					{sidebarOpen ? <ChevronLeft className="size-4" /> : <ChevronRight className="size-4" />}
-				</button>
-
-				{/* Footer */}
-				<div className="border-t border-sidebar-border px-3 py-3">
-					<button
-						onClick={() => setShowLogoutConfirm(true)}
-						className="flex w-full items-center gap-2.5 rounded-md px-0 py-0 text-left transition-colors hover:bg-sidebar-accent/60"
-					>
-						<div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-sm font-bold text-foreground">
-							{bridgeUser?.role ? bridgeUser.role.charAt(0).toUpperCase() : 'G'}
-						</div>
-						{sidebarOpen && (
-							<div className="min-w-0 flex-1">
-								<div className="flex items-center gap-2">
-									<p className="truncate text-sm font-medium text-sidebar-foreground">
-										{bridgeUser?.role ?? 'Guest'}
-									</p>
-									{isAdmin && (
-										<Badge variant="secondary" className="text-[0.6rem] px-1.5 py-0">
-											Admin
-										</Badge>
-									)}
-								</div>
-								<p className="truncate text-[0.6875rem] text-muted-foreground">Bridge session</p>
-							</div>
-						)}
-						{sidebarOpen && (
-							<LogOut className="ml-auto size-4 shrink-0 text-muted-foreground" />
-						)}
-					</button>
-				</div>
-			</aside>
-
-			{/* ─── Main area ─── */}
-			<div className="flex min-w-0 flex-1 flex-col">
-				{/* Header bar */}
-				<header className="flex h-14.5 shrink-0 items-center gap-2 border-b border-border bg-background px-4">
-					<button
-						onClick={() => setSidebarOpen((v) => !v)}
-						className="-ml-1 inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/10 hover:text-foreground transition-colors"
-						title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-					>
-						<PanelLeft className="size-4" />
-					</button>
-					<div className="mr-2 h-4 w-px bg-border" />
+			<SidebarInset>
+				{/* Top bar */}
+				<header className='flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-4'>
+					<SidebarTrigger className='-ml-1' />
+					<Separator orientation='vertical' className='mr-2 h-4!' />
 					<Breadcrumb>
 						<BreadcrumbList>
 							<BreadcrumbItem>
 								<BreadcrumbLink asChild>
-									<Link to="/">ATLAS</Link>
+									<Link to='/'>ATLAS</Link>
 								</BreadcrumbLink>
 							</BreadcrumbItem>
 							{breadcrumbs.map((crumb, i) => (
@@ -441,7 +539,9 @@ export function AppShell() {
 										{i === breadcrumbs.length - 1 ? (
 											<BreadcrumbPage>{crumb.label}</BreadcrumbPage>
 										) : (
-											<span className="text-sm text-muted-foreground">{crumb.label}</span>
+											<span className='text-sm text-muted-foreground'>
+												{crumb.label}
+											</span>
 										)}
 									</BreadcrumbItem>
 								</React.Fragment>
@@ -450,97 +550,82 @@ export function AppShell() {
 					</Breadcrumb>
 
 					{/* Right-side header controls */}
-					<div className="ml-auto flex items-center gap-2">
-						{/* School year selector */}
+					<div className='ml-auto flex items-center gap-2'>
+						<AccessibilityMenu fontSize={fontSize} setFontSize={setFontSize} />
+
+						{/* School year selector — EnrollPro-style popover */}
 						{schoolYears.length > 0 && (
-							<div className="flex items-center gap-1.5">
-								<CalendarDays className="size-3.5 text-muted-foreground" />
-								<select
-									value={selectedYearId ?? ''}
-									onChange={(e) => {
-										const id = Number(e.target.value);
-										setSelectedYearId(id);
-										const yr = schoolYears.find((y) => y.id === id);
-										if (yr) setActiveYearLabel(yr.yearLabel);
-									}}
-									className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-ring"
-								>
-									{schoolYears.map((sy) => (
-										<option key={sy.id} value={sy.id}>
-											S.Y. {sy.yearLabel}{sy.isActive ? ' (Active)' : ''}
-										</option>
-									))}
-								</select>
+							<div className='relative'>
+								<TooltipProvider>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												variant='outline'
+												size='sm'
+												className='h-8 gap-1.5 text-xs font-medium'
+												onClick={() => setSyOpen(!syOpen)}
+											>
+												<CalendarDays className='size-3.5' />
+												<span>
+													{schoolYears.find((y) => y.id === selectedYearId)?.yearLabel ?? 'No Year'}
+												</span>
+												<ChevronsUpDown className='size-3 opacity-50' />
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent>Switch School Year</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
+								{syOpen && (
+									<>
+										<div className='fixed inset-0 z-40' onClick={() => setSyOpen(false)} />
+										<div className='absolute right-0 top-full z-50 mt-1 min-w-45 rounded-md border border-border bg-popover p-1 shadow-md'>
+											{schoolYears.map((sy) => (
+												<button
+													key={sy.id}
+													onClick={() => {
+														setSelectedYearId(sy.id);
+														setActiveYearLabel(sy.yearLabel);
+														setSyOpen(false);
+													}}
+													className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs ${
+														sy.id === selectedYearId
+															? 'bg-accent text-accent-foreground'
+															: 'hover:bg-sidebar-accent hover:text-accent-foreground'
+													}`}
+												>
+													<span className='flex-1 text-left'>{sy.yearLabel}</span>
+													<span className={`rounded px-1 py-0.5 text-[0.625rem] font-medium ${
+														sy.isActive
+															? 'bg-green-100 text-green-700'
+															: (sy.status === 'UPCOMING'
+																? 'bg-blue-100 text-blue-700'
+																: sy.status === 'DRAFT'
+																	? 'bg-yellow-100 text-yellow-700'
+																	: 'bg-gray-100 text-gray-500')
+													}`}>
+														{sy.isActive ? 'ACTIVE' : (sy.status ?? 'CLOSED')}
+													</span>
+												</button>
+											))}
+										</div>
+									</>
+								)}
 							</div>
 						)}
-
-						{/* Accessibility — text size toggle */}
-						<button
-							onClick={() => setLargeText((v) => !v)}
-							title={largeText ? 'Normal text size' : 'Large text size'}
-							className={`inline-flex size-8 items-center justify-center rounded-md transition-colors ${
-								largeText
-									? 'bg-primary text-primary-foreground'
-									: 'text-muted-foreground hover:bg-accent/10 hover:text-foreground'
-							}`}
-						>
-							<ALargeSmall className="size-4" />
-						</button>
 					</div>
 				</header>
 
-				{/* Page content via router outlet */}
-				<AnimatePresence mode="wait">
-					<motion.main
-						key={location.pathname}
-						initial={{ opacity: 0, y: 10 }}
-						animate={{ opacity: 1, y: 0 }}
-						exit={{ opacity: 0, y: -10 }}
-						transition={{ duration: 0.2 }}
-						className="flex-1 overflow-auto scrollbar-thin"
-					>
-						<Outlet context={{ bridgeUser, schoolName }} />
-					</motion.main>
-				</AnimatePresence>
-			</div>
-
-			{/* ─── Sign-out confirmation modal (matches EnrollPro UX) ─── */}
-			<Dialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
-				<DialogContent className="w-[calc(100%-2rem)] sm:max-w-sm rounded-3xl p-8 overflow-hidden bg-sidebar shadow-2xl">
-					{/* Icon badge */}
-					<div className="flex justify-center mb-5">
-						<span className="flex items-center justify-center w-14 h-14 rounded-full bg-[hsl(var(--primary))] ring-[6px] ring-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary-foreground))]">
-							<HelpCircle className="w-6 h-6" strokeWidth={2.5} />
-						</span>
-					</div>
-					<DialogHeader className="space-y-2 text-center items-center">
-						<DialogTitle className="text-xl font-bold tracking-tight text-gray-900">
-							Sign Out
-						</DialogTitle>
-						<DialogDescription className="text-sm leading-relaxed text-gray-500 text-center">
-							Are you sure you want to sign out of your account?
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter className="flex flex-row gap-3 mt-7 sm:justify-center">
-						<Button
-							variant="outline"
-							onClick={() => setShowLogoutConfirm(false)}
-							className="flex-1 h-12 rounded-2xl font-semibold text-sm border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-all duration-150 active:scale-[0.97]"
-						>
-							Cancel
-						</Button>
-						<Button
-							onClick={() => {
-								sessionStorage.removeItem('atlas_bridge_token');
-								window.location.href = `${ENROLLPRO_URL}/login`;
-							}}
-							className="flex-1 h-12 rounded-2xl font-semibold text-sm bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-md transition-all duration-150 active:scale-[0.97]"
-						>
-							Sign Out
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-		</div>
+				{/* Page content */}
+				<motion.div
+					key={location.pathname}
+					initial={{ opacity: 0 }}
+					animate={{ opacity: 1 }}
+					transition={{ duration: 0.15, ease: 'easeOut' }}
+					className='flex-1 min-h-0 overflow-hidden'
+				>
+					<Outlet context={{ bridgeUser, schoolName }} />
+				</motion.div>
+			</SidebarInset>
+		</SidebarProvider>
 	);
 }

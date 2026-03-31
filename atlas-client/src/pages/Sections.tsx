@@ -2,12 +2,11 @@ import { useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2, GraduationCap, RefreshCw, ServerOff } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
+import { fetchPublicSettings } from '@/lib/settings';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/card';
 import { Skeleton } from '@/ui/skeleton';
-
-const DEFAULT_SCHOOL_ID = 1;
 
 type SectionSummary = {
 	totalSections: number;
@@ -17,24 +16,36 @@ type SectionSummary = {
 type FetchState =
 	| { status: 'loading' }
 	| { status: 'ok'; data: SectionSummary }
-	| { status: 'unavailable'; message: string };
+	| { status: 'unavailable'; message: string }
+	| { status: 'no-year'; message: string };
 
 export default function Sections() {
 	const [state, setState] = useState<FetchState>({ status: 'loading' });
 
-	const fetchSections = () => {
+	const fetchSections = async () => {
 		setState({ status: 'loading' });
-		atlasApi
-			.get<SectionSummary>(`/sections/summary/${DEFAULT_SCHOOL_ID}`)
-			.then((res) => {
-				setState({ status: 'ok', data: res.data });
-			})
-			.catch(() => {
+		try {
+			const settings = await fetchPublicSettings();
+			const ayId = settings.activeSchoolYearId;
+			if (!ayId) {
+				setState({ status: 'no-year', message: 'No active school year is set. Configure it in EnrollPro before sections can be loaded.' });
+				return;
+			}
+			const res = await atlasApi.get<SectionSummary & { code?: string }>(`/sections/summary/${ayId}`);
+			if (res.data.code === 'UPSTREAM_UNAVAILABLE' || res.data.totalSections === 0 && res.data.code) {
 				setState({
 					status: 'unavailable',
-					message: 'Section data is not yet available. Sections are sourced from the enrollment service and will appear here once the upstream API is connected.',
+					message: 'Section data source is currently unavailable. Sections are sourced from the enrollment service and will appear here once the upstream API is connected.',
 				});
+				return;
+			}
+			setState({ status: 'ok', data: { totalSections: res.data.totalSections, byGradeLevel: res.data.byGradeLevel } });
+		} catch {
+			setState({
+				status: 'unavailable',
+				message: 'Section data is not yet available. Sections are sourced from the enrollment service and will appear here once the upstream API is connected.',
 			});
+		}
 	};
 
 	useEffect(() => {
@@ -42,7 +53,7 @@ export default function Sections() {
 	}, []);
 
 	return (
-		<div className="px-6 py-4">
+		<div className="h-[calc(100svh-3.5rem)] overflow-auto px-6 py-4 scrollbar-thin">
 			<div className="flex items-center justify-end">
 				<Button variant="outline" size="sm" onClick={fetchSections} disabled={state.status === 'loading'}>
 					<RefreshCw className={`size-3.5 ${state.status === 'loading' ? 'animate-spin' : ''}`} />
@@ -56,6 +67,22 @@ export default function Sections() {
 						<Skeleton className="h-32 w-full rounded-lg" />
 						<Skeleton className="h-24 w-full rounded-lg" />
 					</div>
+				)}
+
+				{state.status === 'no-year' && (
+					<Card className="border-blue-200 bg-blue-50/50 shadow-sm">
+						<CardContent className="pt-6">
+							<div className="flex items-start gap-4">
+								<div className="rounded-lg bg-blue-100 p-3">
+									<AlertTriangle className="size-6 text-blue-600" />
+								</div>
+								<div className="flex-1">
+									<h3 className="font-semibold text-blue-800">No Active School Year</h3>
+									<p className="mt-1 text-sm text-blue-700">{state.message}</p>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
 				)}
 
 				{state.status === 'unavailable' && (

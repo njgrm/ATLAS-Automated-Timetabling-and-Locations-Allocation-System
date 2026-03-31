@@ -22,6 +22,16 @@ export default defineConfig({
 				target: process.env.VITE_ATLAS_API ?? 'http://localhost:5001',
 				changeOrigin: true,
 			},
+			'/enrollpro-api': {
+				target: process.env.VITE_ENROLLPRO_API_BASE ?? 'http://localhost:5000',
+				changeOrigin: true,
+				rewrite: (path) => path.replace(/^\/enrollpro-api/, '/api'),
+			},
+			'/enrollpro-uploads': {
+				target: process.env.VITE_ENROLLPRO_API_BASE ?? 'http://localhost:5000',
+				changeOrigin: true,
+				rewrite: (path) => path.replace(/^\/enrollpro-uploads/, '/uploads'),
+			},
 		},
 	},
 });

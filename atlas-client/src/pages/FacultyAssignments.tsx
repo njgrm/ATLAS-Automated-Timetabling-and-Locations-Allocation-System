@@ -193,16 +193,16 @@ export default function FacultyAssignments() {
 					: 'under';
 
 	return (
-		<div className="px-6 py-1">
+		<div className="flex flex-col h-[calc(100svh-3.5rem)] px-6">
 
 			{error && (
-				<div className="mt-3 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+				<div className="mt-3 shrink-0 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
 					{error}
 					<button className="ml-2 font-semibold" onClick={() => setError(null)}>Dismiss</button>
 				</div>
 			)}
 
-					<div className="mt-4 flex gap-4 h-[calc(100vh-8rem)]">
+					<div className="mt-4 flex gap-4 flex-1 min-h-0 pb-3">
 				{/* LEFT PANEL — Faculty list */}
 				<div className="w-80 shrink-0 flex flex-col rounded-lg border border-border bg-card shadow-sm">
 					<div className="border-b border-border p-3">
@@ -315,73 +315,55 @@ export default function FacultyAssignments() {
 						</div>
 					) : (
 						<div className="flex flex-col h-full">
-							{/* Sticky faculty identity + teaching load */}
-							<Card className="shadow-sm sticky top-0 z-10 shrink-0">
-								<CardContent className="pt-5">
-									<div className="flex items-center justify-between">
-										<div className="flex items-center gap-3">
-											<div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary">
-												{selected.firstName[0]}
-												{selected.lastName[0]}
-											</div>
-											<div>
-												<h2 className="text-base font-bold">
-													{selected.firstName} {selected.lastName}
-												</h2>
-												<p className="text-sm text-muted-foreground">
-													{selected.department ?? 'No department'} · ID: {selected.externalId}
-												</p>
-											</div>
-										</div>
-										{!selected.isActiveForScheduling && (
-											<Badge variant="secondary" className="text-xs">
-												Excluded from scheduling
-											</Badge>
-										)}
-									</div>
+							{/* Compact faculty identity + teaching load bar */}
+							<div className="shrink-0 flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 shadow-sm">
+								<div className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary shrink-0">
+									{selected.firstName[0]}{selected.lastName[0]}
+								</div>
+								<div className="min-w-0">
+									<p className="text-sm font-bold truncate">
+										{selected.firstName} {selected.lastName}
+									</p>
+									<p className="text-[0.6875rem] text-muted-foreground truncate">
+										{selected.department ?? 'No department'} · ID: {selected.externalId}
+									</p>
+								</div>
 
-									<div className="mt-4 pt-3 border-t border-border">
-										<h3 className="text-sm font-semibold text-muted-foreground mb-3">
-											Teaching Load Summary
-										</h3>
-										<div className="grid grid-cols-3 gap-4 text-center">
-											<div>
-												<p className="text-2xl font-black">{computedLoad}h</p>
-												<p className="text-[0.6875rem] text-muted-foreground">Weekly hours</p>
-											</div>
-											<div>
-												<p className="text-2xl font-black">{maxHours}h</p>
-												<p className="text-[0.6875rem] text-muted-foreground">Max (RA 4670)</p>
-											</div>
-											<div>
-												<Badge
-													className={`text-xs ${
-														loadStatus === 'over'
-															? 'bg-red-100 text-red-700'
-															: loadStatus === 'at'
-																? 'bg-amber-100 text-amber-700'
-																: loadStatus === 'under'
-																	? 'bg-emerald-100 text-emerald-700'
-																	: 'bg-muted text-muted-foreground'
-													}`}
-												>
-													{loadStatus === 'over'
-														? 'Over capacity'
-														: loadStatus === 'at'
-															? 'At capacity'
-															: loadStatus === 'under'
-																? 'Under capacity'
-																: 'No load'}
-												</Badge>
-												<p className="mt-1 text-[0.6875rem] text-muted-foreground">Status</p>
-											</div>
-										</div>
+								{!selected.isActiveForScheduling && (
+									<Badge variant="secondary" className="text-xs shrink-0">
+										Excluded
+									</Badge>
+								)}
+
+								<div className="ml-auto flex items-center gap-4 shrink-0">
+									<div className="text-right">
+										<p className="text-sm font-black leading-none">{computedLoad}<span className="text-xs font-medium text-muted-foreground">/{maxHours}h</span></p>
+										<p className="text-[0.625rem] text-muted-foreground">Weekly load</p>
 									</div>
-								</CardContent>
-							</Card>
+									<Badge
+										className={`text-xs ${
+											loadStatus === 'over'
+												? 'bg-red-100 text-red-700'
+												: loadStatus === 'at'
+													? 'bg-amber-100 text-amber-700'
+													: loadStatus === 'under'
+														? 'bg-emerald-100 text-emerald-700'
+														: 'bg-muted text-muted-foreground'
+										}`}
+									>
+										{loadStatus === 'over'
+											? 'Over'
+											: loadStatus === 'at'
+												? 'At cap'
+												: loadStatus === 'under'
+													? 'OK'
+													: 'No load'}
+									</Badge>
+								</div>
+							</div>
 
 							{/* Scrollable subject assignments */}
-							<Card className="shadow-sm mt-4 flex-1 min-h-0 flex flex-col">
+							<Card className="shadow-sm mt-3 flex-1 min-h-0 flex flex-col">
 								<CardContent className="pt-5 flex-1 overflow-auto">
 									<div className="flex items-center justify-between mb-3">
 										<h3 className="text-sm font-semibold text-muted-foreground">

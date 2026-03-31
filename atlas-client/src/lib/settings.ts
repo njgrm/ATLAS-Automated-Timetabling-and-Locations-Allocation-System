@@ -12,10 +12,11 @@ export interface EnrollProSettings {
 export interface SchoolYear {
 	id: number;
 	yearLabel: string;
+	status?: string;
 	isActive: boolean;
 }
 
-const enrollProApiBase = import.meta.env.VITE_ENROLLPRO_API ?? 'http://localhost:5000/api';
+const enrollProApiBase = '/enrollpro-api';
 
 export async function fetchPublicSettings(): Promise<EnrollProSettings> {
 	const { data } = await axios.get<EnrollProSettings>(`${enrollProApiBase}/settings/public`);
@@ -27,8 +28,10 @@ export async function fetchSchoolYears(): Promise<SchoolYear[]> {
 		const token = sessionStorage.getItem('atlas_bridge_token');
 		const headers: Record<string, string> = {};
 		if (token) headers.Authorization = `Bearer ${token}`;
-		const { data } = await axios.get<{ schoolYears: SchoolYear[] }>(`${enrollProApiBase}/school-years`, { headers });
-		return data.schoolYears ?? [];
+		const { data } = await axios.get<{ years?: SchoolYear[]; schoolYears?: SchoolYear[] }>(`${enrollProApiBase}/school-years`, { headers });
+		// EnrollPro returns { years: [...] }; handle both shapes for safety
+		const list = data.years ?? data.schoolYears ?? [];
+		return list;
 	} catch {
 		return [];
 	}
@@ -40,8 +43,9 @@ export async function fetchActiveSchoolYear(activeId: number | null): Promise<st
 		const token = sessionStorage.getItem('atlas_bridge_token');
 		const headers: Record<string, string> = {};
 		if (token) headers.Authorization = `Bearer ${token}`;
-		const { data } = await axios.get<{ schoolYears: SchoolYear[] }>(`${enrollProApiBase}/school-years`, { headers });
-		const active = data.schoolYears?.find((sy) => sy.id === activeId);
+		const { data } = await axios.get<{ years?: SchoolYear[]; schoolYears?: SchoolYear[] }>(`${enrollProApiBase}/school-years`, { headers });
+		const list = data.years ?? data.schoolYears ?? [];
+		const active = list.find((sy) => sy.id === activeId);
 		return active?.yearLabel ?? null;
 	} catch {
 		return null;

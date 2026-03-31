@@ -10,6 +10,7 @@ import mapRouter from './routes/map.router.js';
 import subjectRouter from './routes/subject.router.js';
 import facultyRouter from './routes/faculty.router.js';
 import facultyAssignmentRouter from './routes/faculty-assignment.router.js';
+import sectionRouter from './routes/section.router.js';
 
 const app = express();
 
@@ -46,6 +47,7 @@ app.use('/api/v1/map', mapRouter);
 app.use('/api/v1/subjects', subjectRouter);
 app.use('/api/v1/faculty', facultyRouter);
 app.use('/api/v1/faculty-assignments', facultyAssignmentRouter);
+app.use('/api/v1/sections', sectionRouter);
 
 // Error handler
 app.use(errorHandler);

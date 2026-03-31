@@ -13,7 +13,7 @@ export interface ExternalFaculty {
 }
 
 export interface FacultyAdapter {
-	fetchFacultyBySchool(schoolId: number): Promise<ExternalFaculty[]>;
+	fetchFacultyBySchool(schoolId: number, authToken?: string): Promise<ExternalFaculty[]>;
 }
 
 // Realistic stub data for development
@@ -45,20 +45,18 @@ export class StubFacultyAdapter implements FacultyAdapter {
 
 export class EnrollProFacultyAdapter implements FacultyAdapter {
 	private baseUrl: string;
-	private serviceToken: string;
 
-	constructor(baseUrl: string, serviceToken: string) {
+	constructor(baseUrl: string) {
 		this.baseUrl = baseUrl;
-		this.serviceToken = serviceToken;
 	}
 
-	async fetchFacultyBySchool(_schoolId: number): Promise<ExternalFaculty[]> {
-		const res = await fetch(`${this.baseUrl}/teachers`, {
-			headers: {
-				Authorization: `Bearer ${this.serviceToken}`,
-				'Content-Type': 'application/json',
-			},
-		});
+	async fetchFacultyBySchool(_schoolId: number, authToken?: string): Promise<ExternalFaculty[]> {
+		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+		if (authToken) {
+			headers.Authorization = `Bearer ${authToken}`;
+		}
+
+		const res = await fetch(`${this.baseUrl}/teachers`, { headers });
 
 		if (!res.ok) {
 			throw new Error(`EnrollPro API returned ${res.status}: ${res.statusText}`);
@@ -87,17 +85,12 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 	}
 }
 
-// Factory — swap adapter here when ready
+// Factory — uses EnrollPro adapter by default in development, falls back to stub
 export function createFacultyAdapter(): FacultyAdapter {
-	const useReal = process.env.FACULTY_ADAPTER === 'enrollpro';
-	if (useReal) {
-		const baseUrl = process.env.ENROLLPRO_API ?? 'http://localhost:5000/api';
-		const serviceToken = process.env.ENROLLPRO_SERVICE_TOKEN ?? '';
-		if (!serviceToken) {
-			console.warn('ENROLLPRO_SERVICE_TOKEN not set; falling back to stub adapter.');
-			return new StubFacultyAdapter();
-		}
-		return new EnrollProFacultyAdapter(baseUrl, serviceToken);
+	const useStub = process.env.FACULTY_ADAPTER === 'stub';
+	if (useStub) {
+		return new StubFacultyAdapter();
 	}
-	return new StubFacultyAdapter();
+	const baseUrl = process.env.ENROLLPRO_API ?? 'http://localhost:5000/api';
+	return new EnrollProFacultyAdapter(baseUrl);
 }

@@ -43,7 +43,7 @@ const router = createBrowserRouter([
 				element: <Lazy><Faculty /></Lazy>,
 			},
 			{
-				path: 'faculty/assignments',
+				path: 'assignments',
 				element: <Lazy><FacultyAssignments /></Lazy>,
 			},
 			{

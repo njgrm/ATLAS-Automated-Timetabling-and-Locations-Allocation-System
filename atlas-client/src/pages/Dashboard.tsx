@@ -9,6 +9,7 @@ import {
 	Circle,
 	ClipboardList,
 	Clock,
+	DoorOpen,
 	GraduationCap,
 	MapPinned,
 	Maximize2,
@@ -20,9 +21,10 @@ import {
 	Users,
 } from 'lucide-react';
 
-import { BuildingView } from '@/components/BuildingView';
+import { BuildingView, ROOM_COLORS, ROOM_TYPE_LABELS } from '@/components/BuildingView';
 import atlasApi from '@/lib/api';
-import type { Building } from '@/types';
+import { fetchPublicSettings } from '@/lib/settings';
+import type { Building, Room } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/card';
@@ -82,14 +84,18 @@ export default function Dashboard() {
 	const [position, setPosition] = useState({ x: 0, y: 0 });
 	const [subjectCount, setSubjectCount] = useState<number | null>(null);
 	const [facultyCount, setFacultyCount] = useState<number | null>(null);
+	const [sectionCount, setSectionCount] = useState<number | null>(null);
 	const [unassignedSubjectCount, setUnassignedSubjectCount] = useState<number | null>(null);
 	const mapContainerRef = useRef<HTMLDivElement>(null);
 	const [canvasWidth, setCanvasWidth] = useState(CANVAS_WIDTH);
 	const [buildingFocus, setBuildingFocus] = useState(false);
+	const [hoveredBuildingId, setHoveredBuildingId] = useState<number | null>(null);
+	const [inspectedRoom, setInspectedRoom] = useState<Room | null>(null);
 
 	// Persist selection to localStorage
 	const selectBuilding = useCallback((id: number | null) => {
 		setSelectedId(id);
+		setInspectedRoom(null);
 		if (id !== null) {
 			localStorage.setItem(LS_KEY_SELECTED_BUILDING, String(id));
 		}
@@ -101,9 +107,8 @@ export default function Dashboard() {
 			atlasApi.get<{ buildings: Building[] }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
 			atlasApi.get<{ campusImageUrl: string | null }>(`/map/schools/${DEFAULT_SCHOOL_ID}/campus-image`),
 			atlasApi.get<{ count: number; unassignedCount: number }>(`/subjects/stats/${DEFAULT_SCHOOL_ID}`).catch(() => ({ data: { count: 0, unassignedCount: 0 } })),
-			atlasApi.get<{ subjects: any[] }>(`/subjects?schoolId=${DEFAULT_SCHOOL_ID}`).catch(() => ({ data: { subjects: [] } })),
 		])
-			.then(([bRes, iRes, statsRes, subsRes]) => {
+			.then(([bRes, iRes, statsRes]) => {
 				const blds = bRes.data.buildings;
 				setBuildings(blds);
 				setCampusImageUrl(iRes.data.campusImageUrl);
@@ -116,10 +121,18 @@ export default function Dashboard() {
 					if (!valid) selectBuilding(blds[0].id);
 					else setSelectedId(storedId);
 				}
-				// Faculty count — try to fetch from faculty route
+				// Faculty count
 				atlasApi.get<{ faculty: any[] }>(`/faculty?schoolId=${DEFAULT_SCHOOL_ID}`)
 					.then((fRes) => setFacultyCount(fRes.data.faculty.length))
 					.catch(() => setFacultyCount(null));
+				// Section count from enrollment service
+				fetchPublicSettings()
+					.then((s) => {
+						if (!s.activeSchoolYearId) { setSectionCount(null); return; }
+						return atlasApi.get<{ totalSections: number }>(`/sections/summary/${s.activeSchoolYearId}`);
+					})
+					.then((r) => { if (r) setSectionCount(r.data.totalSections); })
+					.catch(() => setSectionCount(null));
 			})
 			.catch(() => {
 				setBuildings([]);
@@ -174,7 +187,7 @@ export default function Dashboard() {
 			return [
 				{ title: 'Subjects', value: subjectCount !== null ? String(subjectCount) : '—', icon: BookOpen, color: 'text-blue-600', bg: 'bg-blue-50', link: '/subjects', warning: unassignedSubjectCount ? `${unassignedSubjectCount} need faculty` : undefined },
 				{ title: 'Active Faculty', value: facultyCount !== null ? String(facultyCount) : '—', icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50', link: '/faculty' },
-				{ title: 'Sections', value: '—', icon: GraduationCap, color: 'text-pink-600', bg: 'bg-pink-50', link: '/sections' },
+				{ title: 'Sections', value: sectionCount !== null ? String(sectionCount) : '—', icon: GraduationCap, color: 'text-pink-600', bg: 'bg-pink-50', link: '/sections', warning: sectionCount === null ? 'Upstream unavailable' : undefined },
 				{ title: 'Buildings', value: String(buildings.length), icon: MapPinned, color: 'text-amber-600', bg: 'bg-amber-50', link: '/map' },
 				{ title: 'Teaching Rooms', value: String(teachingRooms), icon: ClipboardList, color: 'text-violet-600', bg: 'bg-violet-50', link: '/map', warning: nonTeachingExcluded > 0 ? `${totalRooms} total (${nonTeachingExcluded} non-teaching)` : undefined },
 				{ title: 'Faculty Preferences', value: isPrefPhase ? '—' : '—', icon: Clock, color: isPrefPhase ? 'text-orange-600' : 'text-muted-foreground', bg: isPrefPhase ? 'bg-orange-50' : 'bg-muted', muted: isSetup, warning: isSetup ? 'Available in Preference Collection' : undefined },
@@ -183,23 +196,38 @@ export default function Dashboard() {
 		// currentPhase is a constant today; include it so the dep array stays correct
 		// when it becomes state in Phase 2+.
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-		[buildings, teachingRooms, totalRooms, nonTeachingExcluded, subjectCount, facultyCount, unassignedSubjectCount, currentPhase],
+		[buildings, teachingRooms, totalRooms, nonTeachingExcluded, subjectCount, facultyCount, sectionCount, unassignedSubjectCount, currentPhase],
 	);
 
 	/* Setup checklist — determines if we can advance from SETUP phase */
 	const setupChecklist: SetupCheck[] = useMemo(
 		() => {
-			const invalidTeachingBuildings = buildings.filter(
-				(b) => b.isTeachingBuilding !== false && (/^Building \d+$/.test(b.name) || b.rooms.length === 0),
+			const teachingBuildings = buildings.filter((b) => b.isTeachingBuilding !== false);
+			const invalidTeachingBuildings = teachingBuildings.filter(
+				(b) => /^Building \d+$/.test(b.name) || b.rooms.length === 0,
 			);
-			const buildingsDone = buildings.length > 0 && invalidTeachingBuildings.length === 0;
-			const buildingsSubMessage = !buildingsDone && invalidTeachingBuildings.length > 0
-				? `${invalidTeachingBuildings.length} building${invalidTeachingBuildings.length !== 1 ? 's' : ''} ${invalidTeachingBuildings.some((b) => b.rooms.length === 0) ? 'have no rooms configured' : 'need renaming'}`
-				: undefined;
+			const teachingBuildingsWithoutRooms = teachingBuildings.filter((b) => b.rooms.length === 0);
+			const placeholderNamedBuildings = teachingBuildings.filter((b) => /^Building \d+$/.test(b.name));
+
+			const buildingsDone = teachingBuildings.length > 0 && invalidTeachingBuildings.length === 0;
+			let buildingsSubMessage: string | undefined;
+			if (!buildingsDone) {
+				if (teachingBuildings.length === 0) {
+					buildingsSubMessage = 'No teaching buildings configured';
+				} else if (teachingBuildingsWithoutRooms.length > 0 && placeholderNamedBuildings.length > 0) {
+					buildingsSubMessage = `${teachingBuildingsWithoutRooms.length} without rooms, ${placeholderNamedBuildings.length} need renaming`;
+				} else if (teachingBuildingsWithoutRooms.length > 0) {
+					buildingsSubMessage = `${teachingBuildingsWithoutRooms.length} building${teachingBuildingsWithoutRooms.length !== 1 ? 's' : ''} have no rooms configured`;
+				} else if (placeholderNamedBuildings.length > 0) {
+					buildingsSubMessage = `${placeholderNamedBuildings.length} building${placeholderNamedBuildings.length !== 1 ? 's' : ''} need renaming`;
+				}
+			}
+
 			return [
 				{ label: 'Subjects configured', done: (subjectCount ?? 0) > 0, link: '/subjects' },
 				{ label: 'Faculty synced', done: (facultyCount ?? 0) > 0, link: '/faculty' },
-				{ label: 'Faculty assigned to subjects', done: unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, link: '/faculty/assignments' },
+				{ label: 'Faculty assigned to subjects', done: unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, link: '/assignments' },
+				{ label: 'Sections sourced', done: (sectionCount ?? 0) > 0, link: '/sections', subMessage: sectionCount === null ? 'Enrollment service not connected' : undefined },
 				{
 					label: 'Buildings & rooms set up',
 					done: buildingsDone,
@@ -208,19 +236,19 @@ export default function Dashboard() {
 				},
 			];
 		},
-		[subjectCount, facultyCount, unassignedSubjectCount, buildings, totalRooms],
+		[subjectCount, facultyCount, unassignedSubjectCount, sectionCount, buildings],
 	);
 
 	const setupProgress = setupChecklist.filter((c) => c.done).length;
 
 	return (
-		<div className="px-6 py-4">
+		<div className="h-[calc(100svh-3.5rem)] overflow-auto px-6 py-4 scrollbar-thin">
 			{/* ─── Top section: KPIs (left) + Lifecycle (right) — equal columns ─── */}
 			<div className="grid grid-cols-2 gap-4 items-stretch">
 				{/* KPI stat cards — 3×2 grid */}
 				<div className="flex flex-col gap-3">
 					<div className="flex items-center gap-3">
-						<h2 className="text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground">
+						<h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
 							Overview
 						</h2>
 						<div className="h-px flex-1 bg-sidebar-accent" />
@@ -229,11 +257,11 @@ export default function Dashboard() {
 						{statCards.map((stat) => (
 							<Card key={stat.title} className={`shadow-sm flex flex-col ${stat.muted ? 'opacity-50' : ''}`}>
 								<CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pt-4 pb-1">
-									<CardTitle className="text-[0.625rem] font-bold uppercase text-muted-foreground leading-tight">
-										{stat.title}
-									</CardTitle>
-									<div className={`${stat.bg} rounded-md p-1.5`}>
-										<stat.icon className={`h-3.5 w-3.5 ${stat.color}`} />
+								<CardTitle className="text-xs font-bold uppercase text-muted-foreground leading-tight">
+									{stat.title}
+								</CardTitle>
+								<div className={`${stat.bg} rounded-md p-1.5`}>
+									<stat.icon className={`h-4 w-4 ${stat.color}`} />
 									</div>
 								</CardHeader>
 								<CardContent className="px-4 pb-3 pt-0 flex-1 flex items-end">
@@ -241,7 +269,7 @@ export default function Dashboard() {
 										<Skeleton className="h-7 w-14" />
 									) : (
 										<div>
-											<div className="text-xl font-black">
+											<div className="text-2xl font-black">
 												{stat.link && !stat.muted ? (
 													<Link to={stat.link} className="hover:underline">{stat.value}</Link>
 												) : (
@@ -249,8 +277,8 @@ export default function Dashboard() {
 												)}
 											</div>
 											{stat.warning && (
-												<div className="mt-0.5 flex items-center gap-1 text-[0.6rem] text-amber-600">
-													<AlertTriangle className="size-2.5" />
+											<div className="mt-0.5 flex items-center gap-1 text-[0.6875rem] text-amber-600">
+												<AlertTriangle className="size-3" />
 													{stat.warning}
 												</div>
 											)}
@@ -265,7 +293,7 @@ export default function Dashboard() {
 				{/* Lifecycle + setup checklist */}
 				<div className="flex flex-col gap-3">
 					<div className="flex items-center gap-3">
-						<h2 className="text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground">
+					<h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
 							Scheduling Lifecycle
 						</h2>
 						<div className="h-px flex-1 bg-sidebar-accent" />
@@ -288,7 +316,7 @@ export default function Dashboard() {
 									)}
 									<div className="flex flex-col items-center">
 										<div
-											className={`flex size-7 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors ${
+											className={`flex size-8 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors ${
 												isCurrent
 													? 'border-primary bg-primary text-primary-foreground'
 													: isPast
@@ -303,7 +331,7 @@ export default function Dashboard() {
 											)}
 										</div>
 										<span
-											className={`mt-1 text-[0.5625rem] font-medium ${
+										className={`mt-1 text-[0.6875rem] font-medium ${
 												isCurrent ? 'text-primary' : 'text-muted-foreground'
 											}`}
 										>
@@ -371,7 +399,7 @@ export default function Dashboard() {
 
 			{/* Campus Map — side-by-side layout with building inspector on right */}
 			<div className="mt-4 flex items-center gap-3">
-				<h2 className="text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground">
+				<h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
 					{buildingFocus ? 'Building Focus' : 'Campus Map'}
 				</h2>
 				<div className="h-px flex-1 bg-sidebar-accent" />
@@ -406,10 +434,8 @@ export default function Dashboard() {
 										</Link>
 									</Button>
 								</div>
-								{/* Large BuildingView */}
-								<div className="rounded-md border border-border p-4 min-h-[400px]">
-									<BuildingView building={selected} />
-								</div>
+							{/* Large BuildingView — same height as map canvas */}
+							<BuildingView building={selected} height={canvasHeight} selectedRoomId={inspectedRoom?.id ?? null} onRoomSelect={setInspectedRoom} />
 							</>
 						) : (
 							<>
@@ -538,6 +564,31 @@ export default function Dashboard() {
 															ellipsis
 															listening={false}
 														/>
+														{/* View Full hover overlay */}
+														{hoveredBuildingId === b.id && b.rooms.length > 0 && (
+															<Group
+																x={b.width / 2 - 28}
+																y={b.height / 2 - 8}
+																rotation={smartLabelRotation(b.rotation ?? 0)}
+																onClick={(e) => { e.cancelBubble = true; selectBuilding(b.id); setBuildingFocus(true); }}
+															>
+																<Rect
+																	width={56}
+																	height={16}
+																	fill="rgba(0,0,0,0.75)"
+																	cornerRadius={3}
+																/>
+																<Text
+																	x={0}
+																	y={3}
+																	width={56}
+																	text="View Full"
+																	fontSize={9}
+																	fill="#ffffff"
+																	align="center"
+																/>
+															</Group>
+														)}
 													</Group>
 												);
 											})}
@@ -560,11 +611,69 @@ export default function Dashboard() {
 							</div>
 						) : !selected ? (
 							<p className="text-sm text-muted-foreground">No buildings yet.</p>
+						) : inspectedRoom ? (
+							/* ── Room detail mode ── */
+							<>
+								<button
+									onClick={() => setInspectedRoom(null)}
+									className="mb-3 text-xs text-primary hover:underline"
+								>
+									← Back to {selected.name}
+								</button>
+
+								{/* Room header */}
+								<div className="rounded-lg border border-border bg-muted/30 p-3">
+									<div className="flex items-center gap-2 mb-1">
+										<div className={`size-2.5 rounded-sm ${ROOM_COLORS[inspectedRoom.type]?.bg ?? 'bg-muted'} border ${ROOM_COLORS[inspectedRoom.type]?.border ?? 'border-border'}`} />
+										<p className="text-sm font-bold text-foreground truncate">{inspectedRoom.name}</p>
+									</div>
+									<Badge variant="outline" className="text-[0.625rem] px-1.5 py-0">
+										{ROOM_TYPE_LABELS[inspectedRoom.type]}
+									</Badge>
+								</div>
+
+								{/* Room details grid */}
+								<div className="mt-3 space-y-2 text-sm">
+									<div className="flex justify-between">
+										<span className="text-muted-foreground">Floor</span>
+										<span className="font-medium">F{inspectedRoom.floor}</span>
+									</div>
+									<div className="flex justify-between">
+										<span className="text-muted-foreground">Capacity</span>
+										<span className="font-medium flex items-center gap-1">
+											{inspectedRoom.capacity != null ? (
+												<><Users className="size-3.5" /> {inspectedRoom.capacity}</>
+											) : (
+												<span className="text-muted-foreground/60">—</span>
+											)}
+										</span>
+									</div>
+									<div className="flex justify-between">
+										<span className="text-muted-foreground">Teaching space</span>
+										<span className="font-medium">
+											{inspectedRoom.isTeachingSpace ? (
+												<span className="text-emerald-600">Yes</span>
+											) : (
+												<span className="flex items-center gap-1 text-amber-600"><AlertTriangle className="size-3.5" /> No</span>
+											)}
+										</span>
+									</div>
+								</div>
+
+								{/* Schedule placeholder */}
+								<div className="mt-4 rounded-md border border-dashed border-border bg-muted/30 px-3 py-3">
+									<p className="text-xs font-medium text-muted-foreground">Room Schedule</p>
+									<p className="mt-1 text-[0.6875rem] text-muted-foreground/60 italic">
+										Schedule will appear here once timetable is published.
+									</p>
+								</div>
+							</>
 						) : (
+							/* ── Building overview mode ── */
 							<>
 								{/* Building selector tabs */}
 								<div className="mb-3">
-									<p className="text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground mb-2">Buildings</p>
+									<p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Buildings</p>
 									<div className="flex flex-wrap gap-1">
 										{buildings.map((b) => (
 											<button
@@ -593,20 +702,77 @@ export default function Dashboard() {
 									</div>
 									<p className="text-[0.6875rem] text-muted-foreground mb-1">
 										{selected.rooms.length} room{selected.rooms.length !== 1 ? 's' : ''} ·{' '}
-										{selected.width}×{selected.height}
+										{selected.floorCount} floor{selected.floorCount !== 1 ? 's' : ''}
 									</p>
 								</div>
 
-								{/* 2D room view */}
+								{/* Simple HTML floor plan */}
 								<div className="mt-3">
-									<p className="text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground mb-2">
+									<p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
 										Floor Plan
 									</p>
-									<BuildingView building={selected} />
+									{selected.rooms.length === 0 ? (
+										<div className="flex flex-col items-center justify-center py-4 text-muted-foreground">
+											<DoorOpen className="size-6 text-muted-foreground/30" />
+											<p className="mt-1 text-xs">No rooms configured.</p>
+										</div>
+									) : (
+										<div className="space-y-px rounded-lg border border-border overflow-hidden bg-border">
+											{Array.from({ length: selected.floorCount }, (_, i) => selected.floorCount - i).map((floor) => {
+												const rooms = selected.rooms
+													.filter((r) => r.floor === floor)
+													.sort((a, b) => a.floorPosition - b.floorPosition);
+												return (
+													<div key={floor} className="flex bg-background">
+														<div className="flex w-7 shrink-0 items-center justify-center border-r border-border bg-muted/50">
+															<span className="text-[0.6rem] font-bold text-muted-foreground [writing-mode:vertical-lr] rotate-180">
+																F{floor}
+															</span>
+														</div>
+														<div className="flex flex-1 gap-px bg-border min-h-10">
+															{rooms.length === 0 ? (
+																<div className="flex flex-1 items-center justify-center bg-background px-2">
+																	<span className="text-[0.625rem] text-muted-foreground/50 italic">Empty</span>
+																</div>
+															) : (
+																rooms.map((room) => {
+																	const colors = ROOM_COLORS[room.type] ?? ROOM_COLORS.OTHER;
+																	return (
+																		<button
+																			key={room.id}
+																			onClick={() => setInspectedRoom(room)}
+																			className={`flex flex-1 flex-col items-center justify-center px-1 py-1 transition-all text-left ${colors.bg} hover:brightness-95`}
+																		>
+																			<span className={`text-[0.5625rem] font-semibold truncate w-full text-center ${colors.text}`}>
+																				{room.name}
+																			</span>
+																			<span className="text-[0.5rem] text-muted-foreground truncate w-full text-center">
+																				{ROOM_TYPE_LABELS[room.type]}
+																			</span>
+																		</button>
+																	);
+																})
+															)}
+														</div>
+													</div>
+												);
+											})}
+										</div>
+									)}
 								</div>
 
+								{/* Expand building view */}
+								<Button
+									variant="outline"
+									size="sm"
+									className="mt-3 w-full"
+									onClick={() => setBuildingFocus(true)}
+								>
+									<Maximize2 className="size-3.5" /> Expand Building View
+								</Button>
+
 								{/* Edit link */}
-								<Button asChild variant="outline" size="sm" className="mt-4 w-full">
+								<Button asChild variant="outline" size="sm" className="mt-2 w-full">
 									<Link to="/map">
 										<Pencil className="size-3.5" /> Edit in Map Editor
 									</Link>

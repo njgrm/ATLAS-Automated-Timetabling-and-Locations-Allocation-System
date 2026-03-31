@@ -246,7 +246,7 @@ export default function Subjects() {
 	const hasActiveFilters = statusFilter !== 'all' || roomTypeFilter !== 'all' || gradeLevelFilter !== 'all';
 
 	return (
-		<div className="flex flex-col h-[calc(100vh-3.625rem)]">
+		<div className="flex flex-col h-[calc(100svh-3.5rem)]">
 			{/* Compact toolbar */}
 			<div className="shrink-0 px-6 pt-3 pb-2">
 				<div className="flex items-center gap-2">
@@ -391,7 +391,7 @@ export default function Subjects() {
 			)}
 
 			{/* Table — component-level scrolling */}
-			<div className="flex-1 min-h-0 px-6 pb-4">
+			<div className="flex-1 min-h-0 px-6 pb-3">
 				<Card className="h-full flex flex-col shadow-sm overflow-hidden">
 					<div className="flex-1 min-h-0 overflow-auto">
 						<table className="w-full text-sm">

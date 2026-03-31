@@ -79,7 +79,9 @@ router.post('/sync', authenticate, async (req: Request, res: Response, next: Nex
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
 			return;
 		}
-		const result = await facultyService.syncFacultyFromExternal(schoolId);
+		// Forward the bridge token to the EnrollPro adapter
+		const authToken = req.headers.authorization?.slice(7);
+		const result = await facultyService.syncFacultyFromExternal(schoolId, authToken);
 		if (!result.synced) {
 			res.status(502).json({ code: 'SYNC_FAILED', message: result.error });
 			return;

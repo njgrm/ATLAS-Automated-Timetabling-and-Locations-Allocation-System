@@ -141,15 +141,15 @@ export default function MapEditor() {
 	if (loading) {
 		return (
 			<div className="p-6">
-				<Skeleton className="h-[600px] w-full rounded-lg" />
+				<Skeleton className="h-150 w-full rounded-lg" />
 			</div>
 		);
 	}
 
 	return (
-		<div className="flex h-full">
+		<div className="flex h-[calc(100svh-3.5rem)] overflow-hidden">
 			{/* Canvas area */}
-			<div className="flex-1 overflow-auto p-4">
+			<div className="flex-1 min-w-0 overflow-hidden p-4">
 				<CampusMapEditor
 					schoolId={DEFAULT_SCHOOL_ID}
 					buildings={buildings}
@@ -167,7 +167,7 @@ export default function MapEditor() {
 			</div>
 
 			{/* Side panel — always visible */}
-			<div className="w-80 shrink-0 border-l border-border bg-muted/30">
+			<div className="w-80 shrink-0 border-l border-border bg-muted/30 overflow-y-auto scrollbar-thin">
 				{selectedBuilding ? (
 					<BuildingPanel
 						building={selectedBuilding}

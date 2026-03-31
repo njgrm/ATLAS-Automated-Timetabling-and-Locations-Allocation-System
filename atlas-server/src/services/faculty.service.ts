@@ -3,10 +3,10 @@ import { createFacultyAdapter, type ExternalFaculty } from './faculty-adapter.js
 
 const adapter = createFacultyAdapter();
 
-export async function syncFacultyFromExternal(schoolId: number) {
+export async function syncFacultyFromExternal(schoolId: number, authToken?: string) {
 	let external: ExternalFaculty[];
 	try {
-		external = await adapter.fetchFacultyBySchool(schoolId);
+		external = await adapter.fetchFacultyBySchool(schoolId, authToken);
 	} catch {
 		return { synced: false, error: 'Faculty source unreachable.' };
 	}
