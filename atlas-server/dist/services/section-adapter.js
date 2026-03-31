@@ -49,9 +49,10 @@ export class EnrollProSectionAdapter {
     }
     async fetchSectionsBySchoolYear(schoolYearId, authToken) {
         const url = `${this.baseUrl}/sections/${schoolYearId}?level=JHS`;
+        const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
         const headers = { 'Content-Type': 'application/json' };
-        if (authToken)
-            headers['Authorization'] = `Bearer ${authToken}`;
+        if (token)
+            headers['Authorization'] = `Bearer ${token}`;
         const response = await fetch(url, { headers });
         if (!response.ok) {
             throw Object.assign(new Error(`EnrollPro sections API returned ${response.status}`), {

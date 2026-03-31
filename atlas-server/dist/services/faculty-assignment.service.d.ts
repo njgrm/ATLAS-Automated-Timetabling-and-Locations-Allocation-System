@@ -43,7 +43,7 @@ export declare function getAssignmentSummary(schoolId: number): Promise<{
     isActiveForScheduling: boolean;
     maxHoursPerWeek: number;
     subjectCount: number;
-    weeklyHours: number;
+    subjectHours: number;
     assignments: ({
         subject: {
             id: number;

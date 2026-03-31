@@ -7,6 +7,7 @@ export interface ExternalSection {
 	id: number;
 	name: string;
 	maxCapacity: number;
+	enrolledCount: number;
 	gradeLevelId: number;
 	gradeLevelName: string;
 }
@@ -20,7 +21,9 @@ export interface SectionsByGrade {
 
 export interface SectionSummary {
 	totalSections: number;
+	totalEnrolled: number;
 	byGradeLevel: Record<number, number>;
+	enrolledByGradeLevel: Record<number, number>;
 	sections: ExternalSection[];
 }
 
@@ -34,31 +37,31 @@ const STUB_SECTIONS: SectionsByGrade[] = [
 	{
 		gradeLevelId: 1, gradeLevelName: 'Grade 7', displayOrder: 7,
 		sections: [
-			{ id: 1, name: '7-Rizal', maxCapacity: 40, gradeLevelId: 1, gradeLevelName: 'Grade 7' },
-			{ id: 2, name: '7-Bonifacio', maxCapacity: 40, gradeLevelId: 1, gradeLevelName: 'Grade 7' },
-			{ id: 3, name: '7-Mabini', maxCapacity: 40, gradeLevelId: 1, gradeLevelName: 'Grade 7' },
+			{ id: 1, name: '7-Rizal', maxCapacity: 40, enrolledCount: 35, gradeLevelId: 1, gradeLevelName: 'Grade 7' },
+			{ id: 2, name: '7-Bonifacio', maxCapacity: 40, enrolledCount: 32, gradeLevelId: 1, gradeLevelName: 'Grade 7' },
+			{ id: 3, name: '7-Mabini', maxCapacity: 40, enrolledCount: 38, gradeLevelId: 1, gradeLevelName: 'Grade 7' },
 		],
 	},
 	{
 		gradeLevelId: 2, gradeLevelName: 'Grade 8', displayOrder: 8,
 		sections: [
-			{ id: 4, name: '8-Aquino', maxCapacity: 40, gradeLevelId: 2, gradeLevelName: 'Grade 8' },
-			{ id: 5, name: '8-Quezon', maxCapacity: 40, gradeLevelId: 2, gradeLevelName: 'Grade 8' },
-			{ id: 6, name: '8-Osmena', maxCapacity: 40, gradeLevelId: 2, gradeLevelName: 'Grade 8' },
+			{ id: 4, name: '8-Aquino', maxCapacity: 40, enrolledCount: 30, gradeLevelId: 2, gradeLevelName: 'Grade 8' },
+			{ id: 5, name: '8-Quezon', maxCapacity: 40, enrolledCount: 36, gradeLevelId: 2, gradeLevelName: 'Grade 8' },
+			{ id: 6, name: '8-Osmena', maxCapacity: 40, enrolledCount: 33, gradeLevelId: 2, gradeLevelName: 'Grade 8' },
 		],
 	},
 	{
 		gradeLevelId: 3, gradeLevelName: 'Grade 9', displayOrder: 9,
 		sections: [
-			{ id: 7, name: '9-Luna', maxCapacity: 40, gradeLevelId: 3, gradeLevelName: 'Grade 9' },
-			{ id: 8, name: '9-Del Pilar', maxCapacity: 40, gradeLevelId: 3, gradeLevelName: 'Grade 9' },
+			{ id: 7, name: '9-Luna', maxCapacity: 40, enrolledCount: 28, gradeLevelId: 3, gradeLevelName: 'Grade 9' },
+			{ id: 8, name: '9-Del Pilar', maxCapacity: 40, enrolledCount: 37, gradeLevelId: 3, gradeLevelName: 'Grade 9' },
 		],
 	},
 	{
 		gradeLevelId: 4, gradeLevelName: 'Grade 10', displayOrder: 10,
 		sections: [
-			{ id: 9, name: '10-Recto', maxCapacity: 40, gradeLevelId: 4, gradeLevelName: 'Grade 10' },
-			{ id: 10, name: '10-Palma', maxCapacity: 40, gradeLevelId: 4, gradeLevelName: 'Grade 10' },
+			{ id: 9, name: '10-Recto', maxCapacity: 40, enrolledCount: 34, gradeLevelId: 4, gradeLevelName: 'Grade 10' },
+			{ id: 10, name: '10-Palma', maxCapacity: 40, enrolledCount: 31, gradeLevelId: 4, gradeLevelName: 'Grade 10' },
 		],
 	},
 ];
@@ -76,13 +79,14 @@ export class EnrollProSectionAdapter implements SectionAdapter {
 	private baseUrl: string;
 
 	constructor(baseUrl?: string) {
-		this.baseUrl = baseUrl ?? process.env.ENROLLPRO_API_URL ?? 'http://localhost:5000/api';
+		this.baseUrl = baseUrl ?? process.env.ENROLLPRO_API ?? 'http://localhost:5000/api';
 	}
 
 	async fetchSectionsBySchoolYear(schoolYearId: number, authToken?: string): Promise<SectionsByGrade[]> {
 		const url = `${this.baseUrl}/sections/${schoolYearId}?level=JHS`;
+		const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
 		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-		if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+		if (token) headers['Authorization'] = `Bearer ${token}`;
 
 		const response = await fetch(url, { headers });
 		if (!response.ok) {
@@ -103,6 +107,7 @@ export class EnrollProSectionAdapter implements SectionAdapter {
 				id: s.id,
 				name: s.name,
 				maxCapacity: s.maxCapacity ?? 0,
+				enrolledCount: s.enrolledCount ?? 0,
 				gradeLevelId: gl.gradeLevelId,
 				gradeLevelName: gl.gradeLevelName,
 			})),

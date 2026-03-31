@@ -42,8 +42,10 @@ export async function getAssignmentSummary(schoolId) {
         orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     });
     return faculty.map((f) => {
-        const weeklyMinutes = f.facultySubjects.reduce((sum, fs) => sum + fs.subject.minMinutesPerWeek * fs.gradeLevels.length, 0);
-        const weeklyHours = weeklyMinutes / 60;
+        // Sum distinct subject hours (no grade-level multiplier).
+        // Actual weekly load depends on section assignments during generation.
+        const subjectMinutes = f.facultySubjects.reduce((sum, fs) => sum + fs.subject.minMinutesPerWeek, 0);
+        const subjectHours = subjectMinutes / 60;
         return {
             id: f.id,
             externalId: f.externalId,
@@ -53,7 +55,7 @@ export async function getAssignmentSummary(schoolId) {
             isActiveForScheduling: f.isActiveForScheduling,
             maxHoursPerWeek: f.maxHoursPerWeek,
             subjectCount: f.facultySubjects.length,
-            weeklyHours: Math.round(weeklyHours * 10) / 10,
+            subjectHours: Math.round(subjectHours * 10) / 10,
             assignments: f.facultySubjects,
         };
     });

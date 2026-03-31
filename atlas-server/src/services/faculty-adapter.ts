@@ -51,9 +51,10 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 	}
 
 	async fetchFacultyBySchool(_schoolId: number, authToken?: string): Promise<ExternalFaculty[]> {
+		const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
 		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-		if (authToken) {
-			headers.Authorization = `Bearer ${authToken}`;
+		if (token) {
+			headers.Authorization = `Bearer ${token}`;
 		}
 
 		const res = await fetch(`${this.baseUrl}/teachers`, { headers });

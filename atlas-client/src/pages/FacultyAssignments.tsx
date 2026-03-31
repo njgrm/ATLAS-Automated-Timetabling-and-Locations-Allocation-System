@@ -30,7 +30,7 @@ type FacultySummary = {
 	isActiveForScheduling: boolean;
 	maxHoursPerWeek: number;
 	subjectCount: number;
-	weeklyHours: number;
+	subjectHours: number;
 	assignments: {
 		id: number;
 		subjectId: number;
@@ -170,27 +170,20 @@ export default function FacultyAssignments() {
 		}
 	};
 
-	// Compute teaching load from local assignments
-	const computedLoad = useMemo(() => {
+	// Compute assigned subject hours (sum of distinct subject hrs, no grade multiplier).
+	// Actual weekly teaching load depends on section assignments during generation.
+	const computedSubjectHours = useMemo(() => {
 		let totalMinutes = 0;
 		for (const a of localAssignments) {
 			const sub = subjects.find((s) => s.id === a.subjectId);
 			if (sub) {
-				totalMinutes += sub.minMinutesPerWeek * a.gradeLevels.length;
+				totalMinutes += sub.minMinutesPerWeek;
 			}
 		}
 		return Math.round((totalMinutes / 60) * 10) / 10;
 	}, [localAssignments, subjects]);
 
 	const maxHours = selected?.maxHoursPerWeek ?? 30;
-	const loadStatus =
-		computedLoad === 0
-			? 'none'
-			: computedLoad > maxHours
-				? 'over'
-				: computedLoad >= maxHours * 0.85
-					? 'at'
-					: 'under';
 
 	return (
 		<div className="flex flex-col h-[calc(100svh-3.5rem)] px-6">
@@ -337,27 +330,13 @@ export default function FacultyAssignments() {
 
 								<div className="ml-auto flex items-center gap-4 shrink-0">
 									<div className="text-right">
-										<p className="text-sm font-black leading-none">{computedLoad}<span className="text-xs font-medium text-muted-foreground">/{maxHours}h</span></p>
-										<p className="text-[0.625rem] text-muted-foreground">Weekly load</p>
+										<p className="text-sm font-black leading-none">
+											{computedSubjectHours}<span className="text-xs font-medium text-muted-foreground"> hrs</span>
+										</p>
+										<p className="text-[0.625rem] text-muted-foreground">{localAssignments.length} subject{localAssignments.length !== 1 ? 's' : ''} assigned</p>
 									</div>
-									<Badge
-										className={`text-xs ${
-											loadStatus === 'over'
-												? 'bg-red-100 text-red-700'
-												: loadStatus === 'at'
-													? 'bg-amber-100 text-amber-700'
-													: loadStatus === 'under'
-														? 'bg-emerald-100 text-emerald-700'
-														: 'bg-muted text-muted-foreground'
-										}`}
-									>
-										{loadStatus === 'over'
-											? 'Over'
-											: loadStatus === 'at'
-												? 'At cap'
-												: loadStatus === 'under'
-													? 'OK'
-													: 'No load'}
+									<Badge className="text-xs bg-muted text-muted-foreground">
+										Max {maxHours}h/wk
 									</Badge>
 								</div>
 							</div>
@@ -413,7 +392,7 @@ export default function FacultyAssignments() {
 
 															</div>
 															<p className="text-[0.6875rem] text-muted-foreground">
-																{sub.minMinutesPerWeek} min/week
+																{Math.round((sub.minMinutesPerWeek / 60) * 10) / 10} hrs/week
 															</p>
 														</div>
 													</div>

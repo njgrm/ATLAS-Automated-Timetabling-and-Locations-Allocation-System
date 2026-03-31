@@ -9,16 +9,23 @@ export async function getSectionSummary(schoolYearId: number, authToken?: string
 	const gradeLevels = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, authToken);
 
 	const byGradeLevel: Record<number, number> = {};
+	const enrolledByGradeLevel: Record<number, number> = {};
 	const allSections: SectionSummary['sections'] = [];
+	let totalEnrolled = 0;
 
 	for (const gl of gradeLevels) {
 		byGradeLevel[gl.displayOrder] = gl.sections.length;
+		const gradeEnrolled = gl.sections.reduce((sum, s) => sum + s.enrolledCount, 0);
+		enrolledByGradeLevel[gl.displayOrder] = gradeEnrolled;
+		totalEnrolled += gradeEnrolled;
 		allSections.push(...gl.sections);
 	}
 
 	return {
 		totalSections: allSections.length,
+		totalEnrolled,
 		byGradeLevel,
+		enrolledByGradeLevel,
 		sections: allSections,
 	};
 }
