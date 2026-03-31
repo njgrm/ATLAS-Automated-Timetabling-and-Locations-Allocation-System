@@ -257,6 +257,8 @@ model GenerationRun {
   finishedAt   DateTime?            @map("finished_at")
   durationMs   Int?                 @map("duration_ms")
   summary      Json?
+  violations   Json?
+  draftEntries Json?                @map("draft_entries")
   error        String?
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
