@@ -139,3 +139,42 @@ export type ReminderResponse = {
 	timestamp: string;
 	note: string;
 };
+
+/* ─── Review types ─── */
+
+export type ReviewStatus = 'PENDING' | 'REVIEWED' | 'NEEDS_FOLLOW_UP';
+
+export type PreferenceReview = {
+	id: number;
+	preferenceId: number;
+	reviewerId: number;
+	reviewStatus: ReviewStatus;
+	reviewerNotes: string | null;
+	reviewedAt: string | null;
+	createdAt: string;
+	updatedAt: string;
+};
+
+export type OfficerSummaryFacultyWithReview = OfficerSummaryFaculty & {
+	reviewStatus: ReviewStatus | null;
+	reviewedAt: string | null;
+};
+
+export type OfficerSummaryWithReviewsResponse = {
+	counts: OfficerSummaryCounts;
+	faculty: OfficerSummaryFacultyWithReview[];
+};
+
+export type PreferenceDetail = FacultyPreference & {
+	review: PreferenceReview | null;
+	faculty: {
+		firstName: string;
+		lastName: string;
+		department: string | null;
+	};
+};
+
+export type DevBulkSubmitResponse = {
+	converted: number;
+	auditId: number | null;
+};

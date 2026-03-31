@@ -19,6 +19,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card } from '@/ui/card';
 import { Input } from '@/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 
 const DEFAULT_SCHOOL_ID = 1;
 const PAGE_SIZES = [10, 25, 50];
@@ -183,33 +184,36 @@ export default function Faculty() {
 							className="pl-8 h-8 text-sm"
 						/>
 					</div>
-					<select
-						value={schedulingFilter}
-						onChange={(e) => setSchedulingFilter(e.target.value as typeof schedulingFilter)}
-						className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-					>
-						<option value="all">All Status</option>
-						<option value="active">Active</option>
-						<option value="excluded">Excluded</option>
-					</select>
-					<select
-						value={assignmentFilter}
-						onChange={(e) => setAssignmentFilter(e.target.value as typeof assignmentFilter)}
-						className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-					>
-						<option value="all">All Assignments</option>
-						<option value="assigned">Has Subjects</option>
-						<option value="unassigned">No Subjects</option>
-					</select>
+					<Select value={schedulingFilter} onValueChange={(v) => setSchedulingFilter(v as typeof schedulingFilter)}>
+						<SelectTrigger className="h-8 w-[130px] text-xs">
+							<SelectValue placeholder="All Status" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All Status</SelectItem>
+							<SelectItem value="active">Active</SelectItem>
+							<SelectItem value="excluded">Excluded</SelectItem>
+						</SelectContent>
+					</Select>
+					<Select value={assignmentFilter} onValueChange={(v) => setAssignmentFilter(v as typeof assignmentFilter)}>
+						<SelectTrigger className="h-8 w-[140px] text-xs">
+							<SelectValue placeholder="All Assignments" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All Assignments</SelectItem>
+							<SelectItem value="assigned">Has Subjects</SelectItem>
+							<SelectItem value="unassigned">No Subjects</SelectItem>
+						</SelectContent>
+					</Select>
 					{departments.length > 0 && (
-						<select
-							value={departmentFilter}
-							onChange={(e) => setDepartmentFilter(e.target.value)}
-							className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-						>
-							<option value="all">All Depts</option>
-							{departments.map((d) => <option key={d} value={d}>{d}</option>)}
-						</select>
+						<Select value={departmentFilter} onValueChange={(v) => setDepartmentFilter(v)}>
+							<SelectTrigger className="h-8 w-[140px] text-xs">
+								<SelectValue placeholder="All Depts" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Depts</SelectItem>
+								{departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+							</SelectContent>
+						</Select>
 					)}
 					{hasActiveFilters && (
 						<Button
@@ -379,13 +383,14 @@ export default function Faculty() {
 								<span>·</span>
 								<span>{faculty.filter((f) => f.isActiveForScheduling).length} active</span>
 								<span>·</span>
-								<select
-									value={pageSize}
-									onChange={(e) => setPageSize(Number(e.target.value))}
-									className="h-7 rounded border border-input bg-background px-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-								>
-									{PAGE_SIZES.map((s) => <option key={s} value={s}>{s} / page</option>)}
-								</select>
+								<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+									<SelectTrigger className="h-7 w-[90px] text-xs">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s} / page</SelectItem>)}
+									</SelectContent>
+								</Select>
 							</div>
 							<div className="flex items-center gap-1">
 								<Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>

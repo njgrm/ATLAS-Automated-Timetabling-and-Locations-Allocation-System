@@ -17,7 +17,7 @@ import {
 	Users,
 } from 'lucide-react';
 import React, { useEffect, useLayoutEffect, useState, Suspense } from 'react';
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation, useOutlet } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 
 import { captureBridgeToken, getBackHref } from '@/lib/bridge';
@@ -433,6 +433,7 @@ function AppSidebar({
 
 export function AppShell() {
 	const location = useLocation();
+	const outlet = useOutlet();
 	const { fontSize, setFontSize } = useAccessibility();
 	const [schoolName, setSchoolName] = useState('');
 	const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -650,7 +651,7 @@ export function AppShell() {
 						className='flex-1 min-h-0 overflow-hidden'
 					>
 						<Suspense fallback={<div className="p-6"><Skeleton className="h-[400px] w-full rounded-lg" /></div>}>
-							<Outlet context={{ bridgeUser, schoolName }} />
+							{outlet && React.cloneElement(outlet as React.ReactElement, { key: location.pathname })}
 						</Suspense>
 					</motion.div>
 				</AnimatePresence>

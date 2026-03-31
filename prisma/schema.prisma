@@ -184,6 +184,7 @@ model FacultyPreference {
 
   faculty      FacultyMirror    @relation(fields: [facultyId], references: [id], onDelete: Cascade)
   timeSlots    PreferenceTimeSlot[]
+  review       PreferenceReview?
 
   @@unique([schoolId, schoolYearId, facultyId], map: "uq_preference_school_year_faculty")
   @@index([schoolId, schoolYearId])
@@ -204,6 +205,34 @@ model PreferenceTimeSlot {
 
   @@index([preferenceId])
   @@map("preference_time_slots")
+}
+
+// ─── Phase 2: Officer Review Metadata ───
+
+enum ReviewStatus {
+  PENDING
+  REVIEWED
+  NEEDS_FOLLOW_UP
+
+  @@map("review_status")
+}
+
+model PreferenceReview {
+  id             Int              @id @default(autoincrement())
+  preferenceId   Int              @map("preference_id")
+  reviewerId     Int              @map("reviewer_id")
+  reviewStatus   ReviewStatus     @default(PENDING) @map("review_status")
+  reviewerNotes  String?          @map("reviewer_notes")
+  reviewedAt     DateTime?        @map("reviewed_at")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  preference     FacultyPreference @relation(fields: [preferenceId], references: [id], onDelete: Cascade)
+
+  @@unique([preferenceId], map: "uq_preference_review")
+  @@index([reviewerId])
+  @@index([reviewStatus])
+  @@map("preference_reviews")
 }
 
 // ─── Audit Log ───

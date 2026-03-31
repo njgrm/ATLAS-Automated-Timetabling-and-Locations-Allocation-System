@@ -280,24 +280,10 @@ export default function FacultyPreferences() {
 	}
 
 	return (
-		<div className='p-6 space-y-6 max-w-4xl'>
-			{/* Header */}
-			<div className='flex items-center justify-between gap-4'>
-				<div>
-					<h1 className='text-xl font-semibold tracking-tight'>My Preferences</h1>
-					<p className='text-sm text-muted-foreground mt-0.5'>
-						Set your weekly time slot preferences for schedule generation.
-					</p>
-				</div>
-				{preference && (
-					<Badge
-						variant={isSubmitted ? 'success' : 'warning'}
-						className='shrink-0'
-					>
-						{isSubmitted ? 'Submitted' : 'Draft'}
-					</Badge>
-				)}
-			</div>
+		<div className='flex flex-col h-[calc(100svh-3.5rem)] max-w-5xl mx-auto w-full'>
+			{/* Notifications area (pinned) */}
+			{(windowClosed || isSubmitted) && (
+				<div className='shrink-0 pt-6 px-6 space-y-4'>
 
 			{/* Window closed alert */}
 			<AnimatePresence>
@@ -335,7 +321,11 @@ export default function FacultyPreferences() {
 					</CardContent>
 				</Card>
 			)}
+			</div>
+			)}
 
+			{/* Scrolling properties area */}
+			<div className="flex-1 min-h-0 overflow-auto px-6 py-6 space-y-6">
 			{/* Time slots editor */}
 			<Card>
 				<CardContent className='pt-5 space-y-4'>
@@ -448,28 +438,43 @@ export default function FacultyPreferences() {
 				</CardContent>
 			</Card>
 
-			{/* Actions */}
-			{canEdit && (
-				<div className='flex items-center gap-3'>
-					<Button
-						variant='outline'
-						onClick={saveDraft}
-						disabled={saving || submitting}
-						className='gap-1.5'
-					>
-						{saving ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
-						Save Draft
-					</Button>
-					<Button
-						onClick={submitPreference}
-						disabled={saving || submitting}
-						className='gap-1.5'
-					>
-						{submitting ? <Loader2 className='size-4 animate-spin' /> : <Send className='size-4' />}
-						Submit
-					</Button>
+			</div>
+
+			{/* Actions Bar Footer */}
+			<div className='shrink-0 flex items-center justify-between border-t border-border px-6 py-4 bg-background'>
+				<div>
+					{preference && (
+						<div className="flex items-center gap-3">
+							<span className="text-sm font-medium text-muted-foreground">Status</span>
+							<Badge variant={isSubmitted ? 'success' : 'warning'}>
+								{isSubmitted ? 'Submitted' : 'Draft'}
+							</Badge>
+						</div>
+					)}
 				</div>
-			)}
+				
+				{canEdit && (
+					<div className='flex items-center gap-3'>
+						<Button
+							variant='outline'
+							onClick={saveDraft}
+							disabled={saving || submitting}
+							className='gap-1.5'
+						>
+							{saving ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
+							Save Draft
+						</Button>
+						<Button
+							onClick={submitPreference}
+							disabled={saving || submitting}
+							className='gap-1.5'
+						>
+							{submitting ? <Loader2 className='size-4 animate-spin' /> : <Send className='size-4' />}
+							Submit
+						</Button>
+					</div>
+				)}
+			</div>
 		</div>
 	);
 }

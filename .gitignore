@@ -8,6 +8,7 @@ projectIntro.md
 # Local tooling configs
 .vscode/mcp.json
 projectUpdate.md
+reminders.md
 
 # Dependency locks not required for this planning-only phase
 package-lock.json
