@@ -1,14 +1,14 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Layer, Rect, Stage, Text } from 'react-konva';
 import { Link } from 'react-router-dom';
 import {
 	AlertTriangle,
 	BookOpen,
-	CalendarClock,
 	Check,
 	CheckCircle2,
 	Circle,
 	ClipboardList,
+	GraduationCap,
 	MapPinned,
 	Minus,
 	Pencil,
@@ -22,6 +22,7 @@ import type { Building } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/card';
+import { ScrollArea } from '@/ui/scroll-area';
 import { Skeleton } from '@/ui/skeleton';
 
 const DEFAULT_SCHOOL_ID = 1;
@@ -43,24 +44,39 @@ type SetupCheck = { label: string; done: boolean; link?: string };
 type StatCard = {
 	title: string;
 	value: string;
-	icon: typeof CalendarClock;
+	icon: typeof BookOpen;
 	color: string;
 	bg: string;
 	link?: string;
 	warning?: string;
 };
 
+const LS_KEY_SELECTED_BUILDING = 'atlas_dashboard_selected_building';
+
 export default function Dashboard() {
 	const [buildings, setBuildings] = useState<Building[]>([]);
 	const [campusImageUrl, setCampusImageUrl] = useState<string | null>(null);
 	const [campusImage, setCampusImage] = useState<HTMLImageElement | null>(null);
 	const [loading, setLoading] = useState(true);
-	const [selectedId, setSelectedId] = useState<number | null>(null);
+	const [selectedId, setSelectedId] = useState<number | null>(() => {
+		const stored = localStorage.getItem(LS_KEY_SELECTED_BUILDING);
+		return stored ? Number(stored) : null;
+	});
 	const [scale, setScale] = useState(1);
 	const [position, setPosition] = useState({ x: 0, y: 0 });
 	const [subjectCount, setSubjectCount] = useState<number | null>(null);
 	const [facultyCount, setFacultyCount] = useState<number | null>(null);
 	const [unassignedSubjectCount, setUnassignedSubjectCount] = useState<number | null>(null);
+	const mapContainerRef = useRef<HTMLDivElement>(null);
+	const [canvasWidth, setCanvasWidth] = useState(CANVAS_WIDTH);
+
+	// Persist selection to localStorage
+	const selectBuilding = useCallback((id: number | null) => {
+		setSelectedId(id);
+		if (id !== null) {
+			localStorage.setItem(LS_KEY_SELECTED_BUILDING, String(id));
+		}
+	}, []);
 
 	useEffect(() => {
 		setLoading(true);
@@ -71,10 +87,18 @@ export default function Dashboard() {
 			atlasApi.get<{ subjects: any[] }>(`/subjects?schoolId=${DEFAULT_SCHOOL_ID}`).catch(() => ({ data: { subjects: [] } })),
 		])
 			.then(([bRes, iRes, statsRes, subsRes]) => {
-				setBuildings(bRes.data.buildings);
+				const blds = bRes.data.buildings;
+				setBuildings(blds);
 				setCampusImageUrl(iRes.data.campusImageUrl);
 				setSubjectCount(statsRes.data.count);
 				setUnassignedSubjectCount(statsRes.data.unassignedCount ?? null);
+				// Default-select first building if no persisted selection or stale id
+				const storedId = Number(localStorage.getItem(LS_KEY_SELECTED_BUILDING));
+				if (blds.length > 0) {
+					const valid = blds.some((b) => b.id === storedId);
+					if (!valid) selectBuilding(blds[0].id);
+					else setSelectedId(storedId);
+				}
 				// Faculty count — try to fetch from faculty route
 				atlasApi.get<{ faculty: any[] }>(`/faculty?schoolId=${DEFAULT_SCHOOL_ID}`)
 					.then((fRes) => setFacultyCount(fRes.data.faculty.length))
@@ -97,17 +121,40 @@ export default function Dashboard() {
 		img.onerror = () => setCampusImage(null);
 	}, [campusImageUrl]);
 
+	// Responsive canvas sizing
+	useEffect(() => {
+		const el = mapContainerRef.current;
+		if (!el) return;
+		const observer = new ResizeObserver((entries) => {
+			const width = entries[0]?.contentRect.width;
+			if (width) setCanvasWidth(Math.floor(width));
+		});
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, []);
+
+	const canvasHeight = Math.round(canvasWidth * (CANVAS_HEIGHT / CANVAS_WIDTH));
+
 	const totalRooms = useMemo(() => buildings.reduce((sum, b) => sum + b.rooms.length, 0), [buildings]);
+	const teachingRooms = useMemo(
+		() => buildings.reduce(
+			(sum, b) => sum + (b.isTeachingBuilding !== false ? b.rooms.filter((r) => r.isTeachingSpace).length : 0),
+			0,
+		),
+		[buildings],
+	);
+	const nonTeachingExcluded = totalRooms - teachingRooms;
 	const selected = useMemo(() => buildings.find((b) => b.id === selectedId) ?? null, [buildings, selectedId]);
 
 	const statCards: StatCard[] = useMemo(
 		() => [
 			{ title: 'Subjects Configured', value: subjectCount !== null ? String(subjectCount) : '—', icon: BookOpen, color: 'text-blue-600', bg: 'bg-blue-50', link: '/subjects', warning: unassignedSubjectCount ? `${unassignedSubjectCount} need faculty` : undefined },
 			{ title: 'Active Faculty', value: facultyCount !== null ? String(facultyCount) : '—', icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50', link: '/faculty' },
+			{ title: 'Sections', value: '—', icon: GraduationCap, color: 'text-pink-600', bg: 'bg-pink-50', link: '/sections' },
 			{ title: 'Buildings', value: String(buildings.length), icon: MapPinned, color: 'text-amber-600', bg: 'bg-amber-50', link: '/map' },
-			{ title: 'Rooms', value: String(totalRooms), icon: ClipboardList, color: 'text-violet-600', bg: 'bg-violet-50', link: '/map' },
+			{ title: 'Teaching Rooms', value: String(teachingRooms), icon: ClipboardList, color: 'text-violet-600', bg: 'bg-violet-50', link: '/map', warning: nonTeachingExcluded > 0 ? `${totalRooms} total (${nonTeachingExcluded} non-teaching)` : undefined },
 		],
-		[buildings, totalRooms, subjectCount, facultyCount, unassignedSubjectCount],
+		[buildings, teachingRooms, totalRooms, nonTeachingExcluded, subjectCount, facultyCount, unassignedSubjectCount],
 	);
 
 	/* Setup checklist — determines if we can advance from SETUP phase */
@@ -117,7 +164,13 @@ export default function Dashboard() {
 			{ label: 'Subjects configured', done: (subjectCount ?? 0) > 0, link: '/subjects' },
 			{ label: 'Faculty synced', done: (facultyCount ?? 0) > 0, link: '/faculty' },
 			{ label: 'Faculty assigned to subjects', done: unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, link: '/faculty/assignments' },
-			{ label: 'Buildings & rooms set up', done: buildings.length > 0 && totalRooms > 0, link: '/map' },
+			{
+				label: 'Buildings & rooms set up',
+				done: buildings.length > 0 && buildings.every(
+					(b) => b.isTeachingBuilding === false || (!/^Building \d+$/.test(b.name) && b.rooms.length > 0),
+				),
+				link: '/map',
+			},
 		],
 		[subjectCount, facultyCount, unassignedSubjectCount, buildings, totalRooms],
 	);
@@ -126,61 +179,63 @@ export default function Dashboard() {
 
 	return (
 		<div className="px-6 py-4">
-			{/* Section heading */}
-			<div className="mb-4 flex items-center gap-3">
-				<h2 className="text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground">
-					Overview
-				</h2>
-				<div className="h-px flex-1 bg-sidebar-accent" />
-			</div>
-
-			{/* Stats grid */}
-			<div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-				{statCards.map((stat) => (
-					<Card key={stat.title} className="shadow-sm">
-						<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-							<CardTitle className="text-xs font-bold uppercase text-muted-foreground">
-								{stat.title}
-							</CardTitle>
-							<div className={`${stat.bg} rounded-md p-2`}>
-								<stat.icon className={`h-4 w-4 ${stat.color}`} />
-							</div>
-						</CardHeader>
-						<CardContent>
-							{loading ? (
-								<Skeleton className="h-8 w-20" />
-							) : (
-								<>
-									<div className="text-2xl font-black">
-										{stat.link ? (
-											<Link to={stat.link} className="hover:underline">{stat.value}</Link>
-										) : (
-											stat.value
-										)}
+			{/* ─── Top section: KPIs (left) + Lifecycle (right) ─── */}
+			<div className="flex gap-4 items-stretch">
+				{/* KPI stat cards — compact 2×2 grid */}
+				<div className="w-[340px] shrink-0 flex flex-col gap-3">
+					<div className="flex items-center gap-3">
+						<h2 className="text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground">
+							Overview
+						</h2>
+						<div className="h-px flex-1 bg-sidebar-accent" />
+					</div>
+					<div className="grid grid-cols-2 gap-3 flex-1">
+						{statCards.map((stat) => (
+							<Card key={stat.title} className="shadow-sm flex flex-col">
+								<CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pt-4 pb-1">
+									<CardTitle className="text-[0.625rem] font-bold uppercase text-muted-foreground leading-tight">
+										{stat.title}
+									</CardTitle>
+									<div className={`${stat.bg} rounded-md p-1.5`}>
+										<stat.icon className={`h-3.5 w-3.5 ${stat.color}`} />
 									</div>
-									{stat.warning && (
-										<div className="mt-1 flex items-center gap-1 text-[0.6875rem] text-amber-600">
-											<AlertTriangle className="size-3" />
-											{stat.warning}
+								</CardHeader>
+								<CardContent className="px-4 pb-3 pt-0 flex-1 flex items-end">
+									{loading ? (
+										<Skeleton className="h-7 w-14" />
+									) : (
+										<div>
+											<div className="text-xl font-black">
+												{stat.link ? (
+													<Link to={stat.link} className="hover:underline">{stat.value}</Link>
+												) : (
+													stat.value
+												)}
+											</div>
+											{stat.warning && (
+												<div className="mt-0.5 flex items-center gap-1 text-[0.6rem] text-amber-600">
+													<AlertTriangle className="size-2.5" />
+													{stat.warning}
+												</div>
+											)}
 										</div>
 									)}
-								</>
-							)}
-						</CardContent>
-					</Card>
-				))}
-			</div>
+								</CardContent>
+							</Card>
+						))}
+					</div>
+				</div>
 
-			{/* Scheduling Lifecycle Status */}
-			<div className="mt-6 flex items-center gap-3">
-				<h2 className="text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground">
-					Scheduling Lifecycle
-				</h2>
-				<div className="h-px flex-1 bg-sidebar-accent" />
-			</div>
-
-			<Card className="mt-3 shadow-sm">
-				<CardContent className="pt-5">
+				{/* Lifecycle + setup checklist */}
+				<div className="flex-1 min-w-0 flex flex-col gap-3">
+					<div className="flex items-center gap-3">
+						<h2 className="text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground">
+							Scheduling Lifecycle
+						</h2>
+						<div className="h-px flex-1 bg-sidebar-accent" />
+					</div>
+					<Card className="shadow-sm flex-1">
+						<CardContent className="pt-5 h-full flex flex-col">
 					{/* Phase stepper */}
 					<div className="flex items-center gap-1">
 						{LIFECYCLE_PHASES.map((phase, idx) => {
@@ -267,220 +322,219 @@ export default function Dashboard() {
 					)}
 				</CardContent>
 			</Card>
+				</div>
+			</div>
 
-			{/* Campus Map */}
-			<div className="mt-6 flex items-center gap-3">
+			{/* Campus Map — side-by-side layout with building inspector on right */}
+			<div className="mt-4 flex items-center gap-3">
 				<h2 className="text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground">
 					Campus Map
 				</h2>
 				<div className="h-px flex-1 bg-sidebar-accent" />
 			</div>
 
-			<Card className="mt-3 shadow-sm">
-				<CardContent className="pt-4">
-					{loading ? (
-						<Skeleton className="h-[600px] w-full rounded-lg" />
-					) : (
-						<>
-							{/* Map toolbar */}
-							<div className="mb-2 flex items-center gap-2">
-								<Button variant="outline" size="sm" onClick={() => setScale((s) => Math.min(s + 0.15, 2.5))}>
-									<Plus className="size-3.5" />
-								</Button>
-								<Button variant="outline" size="sm" onClick={() => setScale((s) => Math.max(s - 0.15, 0.4))}>
-									<Minus className="size-3.5" />
-								</Button>
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={() => { setScale(1); setPosition({ x: 0, y: 0 }); setSelectedId(null); }}
-								>
-									<RotateCcw className="size-3.5" />
-								</Button>
-								<span className="ml-auto text-[0.6875rem] text-muted-foreground tabular-nums">
-									{Math.round(scale * 100)}%
-								</span>
-								<Button asChild variant="outline" size="sm">
-									<Link to="/map">
-										<Pencil className="size-3.5" /> Edit Map
-									</Link>
-								</Button>
-							</div>
+			<div className="mt-3 flex gap-4">
+				{/* Map canvas */}
+				<Card className="flex-1 min-w-0 shadow-sm">
+					<CardContent className="pt-4">
+						{loading ? (
+							<Skeleton className="h-[400px] w-full rounded-lg" />
+						) : (
+							<>
+								{/* Map toolbar */}
+								<div className="mb-2 flex items-center gap-2">
+									<Button variant="outline" size="sm" onClick={() => setScale((s) => Math.min(s + 0.15, 2.5))}>
+										<Plus className="size-3.5" />
+									</Button>
+									<Button variant="outline" size="sm" onClick={() => setScale((s) => Math.max(s - 0.15, 0.4))}>
+										<Minus className="size-3.5" />
+									</Button>
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => { setScale(1); setPosition({ x: 0, y: 0 }); }}
+									>
+										<RotateCcw className="size-3.5" />
+									</Button>
+									<span className="ml-auto text-[0.6875rem] text-muted-foreground tabular-nums">
+										{Math.round(scale * 100)}%
+									</span>
+									<Button asChild variant="outline" size="sm">
+										<Link to="/map">
+											<Pencil className="size-3.5" /> Edit Map
+										</Link>
+									</Button>
+								</div>
 
-							{/* Canvas */}
-							<div className="overflow-hidden rounded-md border border-border">
-								<Stage
-									width={CANVAS_WIDTH}
-									height={CANVAS_HEIGHT}
-									draggable
-									x={position.x}
-									y={position.y}
-									scaleX={scale}
-									scaleY={scale}
-									onDragEnd={(e) => setPosition({ x: e.target.x(), y: e.target.y() })}
-								>
-									<Layer>
-										{campusImage ? (
-											<Rect
-												name="bg"
-												x={0}
-												y={0}
-												width={CANVAS_WIDTH}
-												height={CANVAS_HEIGHT}
-												fillPatternImage={campusImage}
-												fillPatternScaleX={CANVAS_WIDTH / campusImage.width}
-												fillPatternScaleY={CANVAS_HEIGHT / campusImage.height}
-											/>
-										) : (
-											<Rect x={0} y={0} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} fill="hsl(40 30% 95%)" cornerRadius={8} />
-										)}
-										{buildings.map((b) => {
-											const isSelected = selectedId === b.id;
-											return (
-												<Fragment key={b.id}>
-													<Rect
-														x={b.x}
-														y={b.y}
-														width={b.width}
-														height={b.height}
-														fill={b.color}
-														opacity={isSelected ? 0.95 : 0.78}
-														cornerRadius={8}
-														stroke={isSelected ? '#111827' : '#ffffff'}
-														strokeWidth={isSelected ? 4 : 2}
-														shadowColor="rgba(0,0,0,0.1)"
-														shadowBlur={3}
-														shadowOffsetY={1}
-														onClick={() => setSelectedId(b.id)}
-													/>
-													<Text
-														x={b.x + 6}
-														y={b.y + 6}
-														text={b.name}
-														fontSize={Math.min(14, b.width / 8, b.height / 5)}
-														fill="#ffffff"
-														fontStyle="bold"
-														width={b.width - 12}
-														height={b.height - 30}
-														wrap="word"
-														ellipsis
-														listening={false}
-													/>
-													<Text
-														x={b.x + 6}
-														y={b.y + b.height - 18}
-														text={`${b.rooms.length} room${b.rooms.length !== 1 ? 's' : ''}`}
-														fontSize={Math.min(11, b.width / 10)}
-														fill="rgba(255,255,255,0.8)"
-														width={b.width - 12}
-														wrap="none"
-														ellipsis
-														listening={false}
-													/>
-												</Fragment>
-											);
-										})}
-									</Layer>
-								</Stage>
-							</div>
+								{/* Canvas */}
+								<div ref={mapContainerRef} className="overflow-hidden rounded-md border border-border">
+									<Stage
+										width={canvasWidth}
+										height={canvasHeight}
+										draggable
+										x={position.x}
+										y={position.y}
+										scaleX={scale * (canvasWidth / CANVAS_WIDTH)}
+										scaleY={scale * (canvasHeight / CANVAS_HEIGHT)}
+										onDragEnd={(e) => setPosition({ x: e.target.x(), y: e.target.y() })}
+									>
+										<Layer>
+											{campusImage ? (
+												<Rect
+													name="bg"
+													x={0}
+													y={0}
+													width={CANVAS_WIDTH}
+													height={CANVAS_HEIGHT}
+													fillPatternImage={campusImage}
+													fillPatternScaleX={CANVAS_WIDTH / campusImage.width}
+													fillPatternScaleY={CANVAS_HEIGHT / campusImage.height}
+												/>
+											) : (
+												<Rect x={0} y={0} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} fill="hsl(40 30% 95%)" cornerRadius={8} />
+											)}
+											{buildings.map((b) => {
+												const isSelected = selectedId === b.id;
+												return (
+													<Fragment key={b.id}>
+														<Rect
+															x={b.x}
+															y={b.y}
+															width={b.width}
+															height={b.height}
+															fill={b.color}
+															opacity={isSelected ? 0.95 : 0.78}
+															cornerRadius={8}
+															stroke={isSelected ? '#111827' : '#ffffff'}
+															strokeWidth={isSelected ? 4 : 2}
+															shadowColor="rgba(0,0,0,0.1)"
+															shadowBlur={3}
+															shadowOffsetY={1}
+															onClick={() => selectBuilding(b.id)}
+														/>
+														<Text
+															x={b.x + 6}
+															y={b.y + 6}
+															text={b.name}
+															fontSize={Math.min(14, b.width / 8, b.height / 5)}
+															fill="#ffffff"
+															fontStyle="bold"
+															width={b.width - 12}
+															height={b.height - 30}
+															wrap="word"
+															ellipsis
+															listening={false}
+														/>
+														<Text
+															x={b.x + 6}
+															y={b.y + b.height - 18}
+															text={`${b.rooms.length} room${b.rooms.length !== 1 ? 's' : ''}`}
+															fontSize={Math.min(11, b.width / 10)}
+															fill="rgba(255,255,255,0.8)"
+															width={b.width - 12}
+															wrap="none"
+															ellipsis
+															listening={false}
+														/>
+													</Fragment>
+												);
+											})}
+										</Layer>
+									</Stage>
+								</div>
+							</>
+						)}
+					</CardContent>
+				</Card>
 
-							{/* Building inspector */}
-							{selected ? (
-								<div className="mt-3 rounded-md border border-border bg-muted/50 p-3">
-									<p className="text-sm font-bold text-foreground">{selected.name}</p>
-									<p className="mt-1 text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
+				{/* Building inspector — right side panel */}
+				<Card className="w-72 shrink-0 shadow-sm">
+					<CardContent className="pt-4">
+						{loading ? (
+							<div className="space-y-3">
+								<Skeleton className="h-5 w-32" />
+								<Skeleton className="h-4 w-20" />
+								<Skeleton className="h-24 w-full" />
+							</div>
+						) : !selected ? (
+							<p className="text-sm text-muted-foreground">No buildings yet.</p>
+						) : (
+							<>
+								{/* Building selector tabs */}
+								<div className="mb-3">
+									<p className="text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground mb-2">Buildings</p>
+									<div className="flex flex-wrap gap-1">
+										{buildings.map((b) => (
+											<button
+												key={b.id}
+												onClick={() => selectBuilding(b.id)}
+												className={`rounded-md px-2 py-1 text-[0.6875rem] font-medium transition-all duration-150 ${
+													selectedId === b.id
+														? 'bg-primary text-primary-foreground shadow-sm'
+														: 'bg-muted text-muted-foreground hover:bg-muted/80'
+												}`}
+											>
+												{b.name.length > 12 ? b.name.slice(0, 12) + '…' : b.name}
+											</button>
+										))}
+									</div>
+								</div>
+
+								{/* Selected building details */}
+								<div className="rounded-lg border border-border bg-muted/30 p-3">
+									<div className="flex items-center gap-2 mb-2">
+										<div
+											className="size-3 rounded-sm"
+											style={{ backgroundColor: selected.color }}
+										/>
+										<p className="text-sm font-bold text-foreground">{selected.name}</p>
+									</div>
+									<p className="text-[0.6875rem] text-muted-foreground mb-1">
+										{selected.rooms.length} room{selected.rooms.length !== 1 ? 's' : ''} ·{' '}
+										{selected.width}×{selected.height}
+									</p>
+								</div>
+
+								{/* Room list */}
+								<div className="mt-3">
+									<p className="text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground mb-2">
 										Rooms
 									</p>
-									<ul className="mt-1.5 space-y-1">
-										{selected.rooms.map((room) => (
-											<li key={room.id} className="flex items-center gap-2 text-sm text-foreground">
-												<span className="size-1.5 shrink-0 rounded-full bg-primary" />
-												<span className="flex-1">{room.name}</span>
-												<Badge variant="outline" className="text-[0.6rem] px-1 py-0">
-													{room.type?.replace(/_/g, ' ') ?? 'Classroom'}
-												</Badge>
-												{room.capacity && (
-													<span className="text-[0.6875rem] text-muted-foreground">
-														Cap: {room.capacity}
-													</span>
-												)}
-											</li>
-										))}
-									</ul>
+									{selected.rooms.length === 0 ? (
+										<p className="text-[0.8125rem] text-muted-foreground">No rooms configured.</p>
+									) : (
+										<ScrollArea className="max-h-[340px]">
+											<ul className="space-y-1.5 pr-2">
+												{selected.rooms.map((room) => (
+													<li
+														key={room.id}
+														className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-2 text-sm transition-colors hover:bg-muted/50"
+													>
+														<span className="size-1.5 shrink-0 rounded-full bg-primary" />
+														<span className="min-w-0 flex-1 truncate font-medium">{room.name}</span>
+														<Badge variant="outline" className="shrink-0 text-[0.6rem] px-1.5 py-0">
+															{room.type?.replace(/_/g, ' ') ?? 'Classroom'}
+														</Badge>
+														{room.capacity != null && (
+															<span className="shrink-0 text-[0.6875rem] text-muted-foreground tabular-nums">
+																{room.capacity}
+															</span>
+														)}
+													</li>
+												))}
+											</ul>
+										</ScrollArea>
+									)}
 								</div>
-							) : (
-								<p className="mt-2 text-[0.8125rem] text-muted-foreground">
-									Click a building to inspect rooms and details.
-								</p>
-							)}
-						</>
-					)}
-				</CardContent>
-			</Card>
 
-			{/* Quick Actions */}
-			<div className="mt-6 flex items-center gap-3">
-				<h2 className="text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground">
-					Quick Actions
-				</h2>
-				<div className="h-px flex-1 bg-sidebar-accent" />
-			</div>
-
-			<div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-				<Card className="shadow-sm">
-					<CardContent className="pt-6">
-						<div className="flex items-start gap-3">
-							<div className="rounded-md bg-emerald-50 p-2.5">
-								<Pencil className="size-5 text-emerald-600" />
-							</div>
-							<div className="min-w-0 flex-1">
-								<p className="text-sm font-semibold">Map Editor</p>
-								<p className="mt-0.5 text-[0.8125rem] text-muted-foreground">
-									Add buildings, resize, and manage rooms.
-								</p>
-								<Button asChild variant="outline" size="sm" className="mt-3">
-									<Link to="/map">Open Editor</Link>
+								{/* Edit link */}
+								<Button asChild variant="outline" size="sm" className="mt-4 w-full">
+									<Link to="/map">
+										<Pencil className="size-3.5" /> Edit in Map Editor
+									</Link>
 								</Button>
-							</div>
-						</div>
-					</CardContent>
-				</Card>
-
-				<Card className="shadow-sm">
-					<CardContent className="pt-6">
-						<div className="flex items-start gap-3">
-							<div className="rounded-md bg-amber-50 p-2.5">
-								<Users className="size-5 text-amber-600" />
-							</div>
-							<div className="min-w-0 flex-1">
-								<p className="text-sm font-semibold">Faculty Management</p>
-								<p className="mt-0.5 text-[0.8125rem] text-muted-foreground">
-									Sync faculty from EnrollPro and manage assignments.
-								</p>
-								<Button asChild variant="outline" size="sm" className="mt-3">
-									<Link to="/faculty">Manage Faculty</Link>
-								</Button>
-							</div>
-						</div>
-					</CardContent>
-				</Card>
-
-				<Card className="shadow-sm">
-					<CardContent className="pt-6">
-						<div className="flex items-start gap-3">
-							<div className="rounded-md bg-blue-50 p-2.5">
-								<BookOpen className="size-5 text-blue-600" />
-							</div>
-							<div className="min-w-0 flex-1">
-								<p className="text-sm font-semibold">Subjects</p>
-								<p className="mt-0.5 text-[0.8125rem] text-muted-foreground">
-									Configure MATATAG subjects and custom additions.
-								</p>
-								<Button asChild variant="outline" size="sm" className="mt-3">
-									<Link to="/subjects">Manage Subjects</Link>
-								</Button>
-							</div>
-						</div>
+							</>
+						)}
 					</CardContent>
 				</Card>
 			</div>

@@ -10,12 +10,16 @@ import {
 	X,
 } from 'lucide-react';
 
+import { toast } from 'sonner';
+
 import atlasApi from '@/lib/api';
 import type { RoomType, Subject } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
+import { ConfirmationModal } from '@/ui/confirmation-modal';
 import { Input } from '@/ui/input';
+import { Skeleton } from '@/ui/skeleton';
 
 const DEFAULT_SCHOOL_ID = 1;
 
@@ -65,6 +69,7 @@ export default function Subjects() {
 	const [showAdd, setShowAdd] = useState(false);
 	const [newSubject, setNewSubject] = useState<NewSubjectForm>(emptyForm);
 	const [saving, setSaving] = useState(false);
+	const [deleteTarget, setDeleteTarget] = useState<Subject | null>(null);
 
 	const fetchSubjects = useCallback(async () => {
 		setLoading(true);
@@ -106,9 +111,10 @@ export default function Subjects() {
 				minMinutesPerWeek: editState.minMinutesPerWeek,
 			});
 			setEditState(null);
+			toast.success('Subject updated successfully.');
 			await fetchSubjects();
 		} catch {
-			setError('Failed to save changes.');
+			toast.error('Failed to save changes.');
 		} finally {
 			setSaving(false);
 		}
@@ -124,10 +130,11 @@ export default function Subjects() {
 			});
 			setShowAdd(false);
 			setNewSubject(emptyForm);
+			toast.success('Subject created successfully.');
 			await fetchSubjects();
 		} catch (err: any) {
 			const msg = err?.response?.data?.message ?? 'Failed to create subject.';
-			setError(msg);
+			toast.error(msg);
 		} finally {
 			setSaving(false);
 		}
@@ -136,10 +143,12 @@ export default function Subjects() {
 	const handleDelete = async (id: number) => {
 		try {
 			await atlasApi.delete(`/subjects/${id}`);
+			setDeleteTarget(null);
+			toast.success('Subject deleted.');
 			await fetchSubjects();
 		} catch (err: any) {
 			const msg = err?.response?.data?.message ?? 'Failed to delete subject.';
-			setError(msg);
+			toast.error(msg);
 		}
 	};
 
@@ -290,11 +299,17 @@ export default function Subjects() {
 						</thead>
 						<tbody>
 							{loading ? (
-								<tr>
-									<td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
-										Loading subjects...
-									</td>
-								</tr>
+								Array.from({ length: 6 }).map((_, i) => (
+									<tr key={i} className="border-b last:border-0">
+										<td className="px-4 py-3"><Skeleton className="h-5 w-16" /></td>
+										<td className="px-4 py-3"><Skeleton className="h-5 w-40" /></td>
+										<td className="px-4 py-3"><Skeleton className="h-5 w-14" /></td>
+										<td className="px-4 py-3"><Skeleton className="h-5 w-24" /></td>
+										<td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
+										<td className="px-4 py-3"><Skeleton className="h-5 w-14" /></td>
+										<td className="px-4 py-3"><Skeleton className="h-5 w-16 ml-auto" /></td>
+									</tr>
+								))
 							) : filtered.length === 0 ? (
 								<tr>
 									<td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
@@ -410,7 +425,7 @@ export default function Subjects() {
 															<Button
 																variant="outline"
 																size="sm"
-																onClick={() => handleDelete(s.id)}
+																onClick={() => setDeleteTarget(s)}
 																className="text-red-500 hover:text-red-700"
 															>
 																<Trash2 className="size-3.5" />
@@ -433,12 +448,26 @@ export default function Subjects() {
 				<div className="mt-3 flex items-center gap-2 text-[0.8125rem] text-muted-foreground">
 					<BookOpen className="size-4" />
 					<span>
+						{searchQuery && filtered.length !== subjects.length
+							? `Showing ${filtered.length} of ${subjects.length} subjects · `
+							: ''}
 						{subjects.filter((s) => s.isActive).length} active subject{subjects.filter((s) => s.isActive).length !== 1 ? 's' : ''} configured
 						{' · '}
 						{subjects.filter((s) => s.isSeedable).length} DepEd standards
 					</span>
 				</div>
 			)}
+
+			{/* Delete confirmation */}
+			<ConfirmationModal
+				open={!!deleteTarget}
+				onOpenChange={(open) => !open && setDeleteTarget(null)}
+				variant="danger"
+				title="Delete Subject"
+				description={`Are you sure you want to delete "${deleteTarget?.name}" (${deleteTarget?.code})? This action cannot be undone.`}
+				confirmText="Delete"
+				onConfirm={() => deleteTarget && handleDelete(deleteTarget.id)}
+			/>
 		</div>
 	);
 }

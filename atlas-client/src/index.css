@@ -5,9 +5,31 @@
 @theme {
 	--font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
 
+	--animate-modal-in: modal-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+	--animate-modal-out: modal-out 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 	--animate-in: fade-in 0.2s ease-out forwards;
 	--animate-out: fade-out 0.15s ease-in forwards;
 
+	@keyframes modal-in {
+		from {
+			opacity: 0;
+			transform: translate(-50%, -48%) scale(0.9);
+		}
+		to {
+			opacity: 1;
+			transform: translate(-50%, -50%) scale(1);
+		}
+	}
+	@keyframes modal-out {
+		from {
+			opacity: 1;
+			transform: translate(-50%, -50%) scale(1);
+		}
+		to {
+			opacity: 0;
+			transform: translate(-50%, -48%) scale(0.9);
+		}
+	}
 	@keyframes fade-in {
 		from { opacity: 0; }
 		to { opacity: 1; }

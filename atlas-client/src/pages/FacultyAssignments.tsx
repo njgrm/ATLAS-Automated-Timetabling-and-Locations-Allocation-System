@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
 	AlertTriangle,
-	Check,
 	CheckCircle2,
 	ChevronRight,
 	Save,
@@ -9,12 +8,15 @@ import {
 	UserCog,
 } from 'lucide-react';
 
+import { toast } from 'sonner';
+
 import atlasApi from '@/lib/api';
 import type { Subject } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import { Input } from '@/ui/input';
+import { Skeleton } from '@/ui/skeleton';
 
 const DEFAULT_SCHOOL_ID = 1;
 const GRADE_OPTIONS = [7, 8, 9, 10];
@@ -53,7 +55,6 @@ export default function FacultyAssignments() {
 	const [searchQuery, setSearchQuery] = useState('');
 	const [filterStatus, setFilterStatus] = useState<'all' | 'assigned' | 'unassigned'>('all');
 	const [error, setError] = useState<string | null>(null);
-	const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
 	const fetchData = useCallback(async () => {
 		setLoading(true);
@@ -99,7 +100,6 @@ export default function FacultyAssignments() {
 			})),
 		);
 		setDirty(false);
-		setSuccessMsg(null);
 	}, [selected]);
 
 	// Filter faculty list
@@ -159,11 +159,10 @@ export default function FacultyAssignments() {
 				assignments: localAssignments,
 			});
 			setDirty(false);
-			setSuccessMsg('Assignments saved.');
-			setTimeout(() => setSuccessMsg(null), 3000);
+			toast.success('Assignments saved successfully.');
 			await fetchData();
 		} catch (err: any) {
-			setError(err?.response?.data?.message ?? 'Failed to save assignments.');
+			toast.error(err?.response?.data?.message ?? 'Failed to save assignments.');
 		} finally {
 			setSaving(false);
 		}
@@ -239,7 +238,16 @@ export default function FacultyAssignments() {
 
 					<div className="flex-1 overflow-auto">
 						{loading ? (
-							<p className="p-4 text-center text-sm text-muted-foreground">Loading...</p>
+						Array.from({ length: 8 }).map((_, i) => (
+							<div key={i} className="flex w-full items-center gap-3 border-b border-border px-3 py-2.5">
+								<Skeleton className="size-8 rounded-full shrink-0" />
+								<div className="flex-1 space-y-1.5">
+									<Skeleton className="h-4 w-28" />
+									<Skeleton className="h-3 w-20" />
+								</div>
+								<Skeleton className="size-4 shrink-0" />
+							</div>
+						))
 						) : filteredFaculty.length === 0 ? (
 							<p className="p-4 text-center text-sm text-muted-foreground">
 								{faculty.length === 0
@@ -379,13 +387,6 @@ export default function FacultyAssignments() {
 											</Button>
 										)}
 									</div>
-
-									{successMsg && (
-										<div className="mb-3 flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-											<Check className="size-4" />
-											{successMsg}
-										</div>
-									)}
 
 									{!selected.isActiveForScheduling && (
 										<div className="mb-3 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">

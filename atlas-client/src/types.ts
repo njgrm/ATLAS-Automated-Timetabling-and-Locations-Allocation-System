@@ -15,6 +15,8 @@ export type Room = {
 	floor: number;
 	type: RoomType;
 	capacity: number | null;
+	isTeachingSpace: boolean;
+	floorPosition: number;
 	buildingId: number;
 };
 
@@ -25,7 +27,10 @@ export type Building = {
 	y: number;
 	width: number;
 	height: number;
+	rotation: number;
 	color: string;
+	floorCount: number;
+	isTeachingBuilding: boolean;
 	rooms: Room[];
 };
 

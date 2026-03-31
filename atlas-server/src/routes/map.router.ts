@@ -49,12 +49,12 @@ router.post('/schools/:schoolId/buildings', authenticate, async (req: Request, r
 		res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId must be a number.' });
 		return;
 	}
-	const { name, x, y, width, height, color } = req.body;
+	const { name, x, y, width, height, color, rotation, floorCount, isTeachingBuilding } = req.body;
 	if (!name || x == null || y == null || width == null || height == null || !color) {
 		res.status(400).json({ code: 'MISSING_FIELDS', message: 'name, x, y, width, height, color are required.' });
 		return;
 	}
-	const building = await mapService.upsertBuilding(schoolId, { name, x, y, width, height, color });
+	const building = await mapService.upsertBuilding(schoolId, { name, x, y, width, height, color, rotation, floorCount, isTeachingBuilding });
 	res.status(201).json({ building });
 });
 
@@ -92,8 +92,8 @@ router.post('/buildings/:buildingId/rooms', authenticate, async (req: Request, r
 		res.status(400).json({ code: 'MISSING_FIELDS', message: 'name is required.' });
 		return;
 	}
-	const { floor, type, capacity } = req.body;
-	const room = await mapService.addRoom(buildingId, { name, floor, type, capacity });
+	const { floor, type, capacity, isTeachingSpace, floorPosition } = req.body;
+	const room = await mapService.addRoom(buildingId, { name, floor, type, capacity, isTeachingSpace, floorPosition });
 	res.status(201).json({ room });
 });
 
@@ -106,6 +106,17 @@ router.delete('/rooms/:id', authenticate, async (req: Request, res: Response) =>
 	}
 	await mapService.deleteRoom(id);
 	res.status(204).end();
+});
+
+// Auth required: update a room
+router.patch('/rooms/:id', authenticate, async (req: Request, res: Response) => {
+	const id = Number(req.params.id);
+	if (Number.isNaN(id)) {
+		res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
+		return;
+	}
+	const room = await mapService.updateRoom(id, req.body);
+	res.json({ room });
 });
 
 // Auth required: upload campus image

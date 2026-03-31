@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { MapPinned } from 'lucide-react';
 
 import { CampusMapEditor } from '@/components/CampusMapEditor';
 import { BuildingPanel } from '@/components/BuildingPanel';
@@ -10,11 +11,45 @@ type EditorBuilding = Building & { dirty?: boolean; isNew?: boolean };
 
 const DEFAULT_SCHOOL_ID = 1;
 
+const MAX_HISTORY = 30;
+
 export default function MapEditor() {
 	const [buildings, setBuildings] = useState<EditorBuilding[]>([]);
 	const [campusImageUrl, setCampusImageUrl] = useState<string | null>(null);
 	const [selectedId, setSelectedId] = useState<number | null>(null);
 	const [loading, setLoading] = useState(true);
+
+	// Undo / Redo stacks
+	const [historyStack, setHistoryStack] = useState<EditorBuilding[][]>([]);
+	const [redoStack, setRedoStack] = useState<EditorBuilding[][]>([]);
+	const buildingsRef = useRef(buildings);
+	buildingsRef.current = buildings;
+
+	const handlePushHistory = useCallback(() => {
+		const snapshot = buildingsRef.current.map((b) => ({ ...b, rooms: [...b.rooms] }));
+		setHistoryStack((prev) => [...prev.slice(-(MAX_HISTORY - 1)), snapshot]);
+		setRedoStack([]);
+	}, []);
+
+	const handleUndo = useCallback(() => {
+		setHistoryStack((prev) => {
+			if (prev.length === 0) return prev;
+			const snapshot = prev[prev.length - 1];
+			setRedoStack((r) => [...r, buildingsRef.current.map((b) => ({ ...b, rooms: [...b.rooms] }))]);
+			setBuildings(snapshot);
+			return prev.slice(0, -1);
+		});
+	}, []);
+
+	const handleRedo = useCallback(() => {
+		setRedoStack((prev) => {
+			if (prev.length === 0) return prev;
+			const snapshot = prev[prev.length - 1];
+			setHistoryStack((h) => [...h, buildingsRef.current.map((b) => ({ ...b, rooms: [...b.rooms] }))]);
+			setBuildings(snapshot);
+			return prev.slice(0, -1);
+		});
+	}, []);
 
 	const fetchData = useCallback(async () => {
 		setLoading(true);
@@ -23,8 +58,13 @@ export default function MapEditor() {
 				atlasApi.get<{ buildings: Building[] }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
 				atlasApi.get<{ campusImageUrl: string | null }>(`/map/schools/${DEFAULT_SCHOOL_ID}/campus-image`),
 			]);
-			setBuildings(buildingsRes.data.buildings.map((b) => ({ ...b, dirty: false, isNew: false })));
+			const blds = buildingsRes.data.buildings.map((b) => ({ ...b, dirty: false, isNew: false }));
+			setBuildings(blds);
 			setCampusImageUrl(imageRes.data.campusImageUrl);
+			// Auto-select first building so the panel is visible immediately
+			if (blds.length > 0 && selectedId == null) {
+				setSelectedId(blds[0].id);
+			}
 		} catch {
 			setBuildings([]);
 			setCampusImageUrl(null);
@@ -81,6 +121,18 @@ export default function MapEditor() {
 		[selectedId],
 	);
 
+	const handleRoomUpdated = useCallback(
+		(room: Room) => {
+			setBuildings((prev) =>
+				prev.map((b) => ({
+					...b,
+					rooms: b.rooms.map((r) => (r.id === room.id ? room : r)),
+				})),
+			);
+		},
+		[],
+	);
+
 	const handleSaved = useCallback(() => {
 		// Refetch from server to get canonical IDs
 		fetchData();
@@ -112,20 +164,40 @@ export default function MapEditor() {
 					selectedBuildingId={selectedId}
 					onSelect={setSelectedId}
 					onSaved={handleSaved}
+					historyStack={historyStack}
+					redoStack={redoStack}
+					onPushHistory={handlePushHistory}
+					onUndo={handleUndo}
+					onRedo={handleRedo}
 				/>
 			</div>
 
-			{/* Side panel */}
-			{selectedBuilding && (
-				<BuildingPanel
-					building={selectedBuilding}
-					onUpdate={handleBuildingUpdate}
-					onDelete={handleBuildingDelete}
-					onClose={() => setSelectedId(null)}
-					onRoomAdded={handleRoomAdded}
-					onRoomDeleted={handleRoomDeleted}
-				/>
-			)}
+			{/* Side panel — always visible */}
+			<div className="w-80 shrink-0 border-l border-border bg-muted/30">
+				{selectedBuilding ? (
+					<BuildingPanel
+						building={selectedBuilding}
+						onUpdate={handleBuildingUpdate}
+						onDelete={handleBuildingDelete}
+						onClose={() => setSelectedId(null)}
+						onRoomAdded={handleRoomAdded}
+						onRoomDeleted={handleRoomDeleted}
+						onRoomUpdated={handleRoomUpdated}
+						onPushHistory={handlePushHistory}
+					/>
+				) : (
+					<div className="flex h-full items-center justify-center p-6 text-center">
+						<div>
+							<MapPinned className="mx-auto size-10 text-muted-foreground/30" />
+							<p className="mt-2 text-sm text-muted-foreground">
+								{buildings.length === 0
+									? 'Click the + button on the canvas to add your first building.'
+									: 'Select a building on the map to edit its details.'}
+							</p>
+						</div>
+					</div>
+				)}
+			</div>
 		</div>
 	);
 }

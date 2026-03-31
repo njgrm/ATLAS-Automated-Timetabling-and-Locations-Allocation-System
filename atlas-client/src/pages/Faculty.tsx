@@ -13,6 +13,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import { Input } from '@/ui/input';
+import { Skeleton } from '@/ui/skeleton';
 
 const DEFAULT_SCHOOL_ID = 1;
 
@@ -114,9 +115,12 @@ export default function Faculty() {
 			{syncError && (
 				<div className="mt-3 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
 					<AlertTriangle className="size-4 shrink-0" />
-					<span>
+					<span className="flex-1">
 						EnrollPro bridge is unreachable. Showing cached faculty data.
 					</span>
+					<Button size="sm" variant="outline" onClick={handleSync} disabled={syncing} className="shrink-0">
+						<RefreshCw className={`mr-1 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry
+					</Button>
 				</div>
 			)}
 
@@ -151,19 +155,20 @@ export default function Faculty() {
 								<th className="px-4 py-3 text-left font-semibold text-muted-foreground">Contact</th>
 								<th className="px-4 py-3 text-center font-semibold text-muted-foreground">Subjects</th>
 								<th className="px-4 py-3 text-center font-semibold text-muted-foreground">Weekly Load</th>
+								<th className="px-4 py-3 text-center font-semibold text-muted-foreground">Preferences</th>
 								<th className="px-4 py-3 text-center font-semibold text-muted-foreground">Status</th>
 							</tr>
 						</thead>
 						<tbody>
 							{loading ? (
 								<tr>
-									<td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
+									<td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
 										Loading faculty...
 									</td>
 								</tr>
 							) : filtered.length === 0 ? (
 								<tr>
-									<td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
+									<td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
 										{faculty.length === 0 ? (
 											<div className="flex flex-col items-center gap-2">
 												<Users className="size-8 text-muted-foreground/50" />
@@ -239,6 +244,9 @@ export default function Faculty() {
 												</span>
 											</td>
 											<td className="px-4 py-3 text-center">
+												<span className="text-muted-foreground">—</span>
+											</td>
+											<td className="px-4 py-3 text-center">
 												{f.isActiveForScheduling ? (
 													<CheckCircle2 className="mx-auto size-4 text-emerald-500" />
 												) : (
@@ -261,6 +269,9 @@ export default function Faculty() {
 				<div className="mt-3 flex items-center gap-2 text-[0.8125rem] text-muted-foreground">
 					<Users className="size-4" />
 					<span>
+						{searchQuery && filtered.length !== faculty.length
+							? `Showing ${filtered.length} of ${faculty.length} · `
+							: ''}
 						{faculty.filter((f) => f.isActiveForScheduling).length} active faculty
 						{' · '}
 						{faculty.filter((f) => (f.facultySubjects?.length ?? 0) === 0).length} without subject assignments

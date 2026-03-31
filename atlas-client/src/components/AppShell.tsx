@@ -16,13 +16,22 @@ import {
 	UserCog,
 	Users,
 } from 'lucide-react';
-import { useEffect, useLayoutEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
 
 import { captureBridgeToken, getBackHref } from '@/lib/bridge';
-import { fetchPublicSettings, verifyBridgeToken } from '@/lib/settings';
+import { fetchActiveSchoolYear, fetchPublicSettings, verifyBridgeToken } from '@/lib/settings';
 import type { BridgeUser } from '@/types';
 import { Badge } from '@/ui/badge';
+import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbLink,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+} from '@/ui/breadcrumb';
 import { Button } from '@/ui/button';
 import {
 	Dialog,
@@ -94,6 +103,7 @@ export function AppShell() {
 	const location = useLocation();
 	const [schoolName, setSchoolName] = useState('ATLAS');
 	const [logoUrl, setLogoUrl] = useState<string | null>(null);
+	const [activeYearLabel, setActiveYearLabel] = useState<string | null>(null);
 	const [bridgeUser, setBridgeUser] = useState<BridgeUser | null>(null);
 	const [sidebarOpen, setSidebarOpen] = useState(true);
 	const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -109,6 +119,24 @@ export function AppShell() {
 			.then((s) => {
 				setSchoolName(s.schoolName || 'ATLAS');
 				setLogoUrl(s.logoUrl);
+
+				// Set favicon from school logo
+				if (s.logoUrl) {
+					const faviconUrl = `${ENROLLPRO_API_BASE}${s.logoUrl}`;
+					let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+					if (!link) {
+						link = document.createElement('link');
+						link.rel = 'icon';
+						document.head.appendChild(link);
+					}
+					link.href = faviconUrl;
+				}
+
+				// Fetch active school year label
+				fetchActiveSchoolYear(s.activeSchoolYearId).then((label) => {
+					if (label) setActiveYearLabel(label);
+				});
+
 				if (s.selectedAccentHsl) {
 					const hsl = s.selectedAccentHsl;
 					const fg = contrastForeground(hsl);
@@ -138,15 +166,29 @@ export function AppShell() {
 		});
 	}, []);
 
-	const isAdmin = bridgeUser?.role === 'admin';
+	const isAdmin = bridgeUser?.role === 'admin' || bridgeUser?.role === 'SYSTEM_ADMIN';
 
-	/* Page title from current route */
-	const pageTitle = (() => {
-		const allNav = [...navigationNav, ...schedulingNav, ...campusNav, ...insightsNav];
-		const match = allNav.find((n) =>
-			n.end ? location.pathname === n.to : location.pathname.startsWith(n.to),
-		);
-		return match?.label ?? 'ATLAS';
+	/* Breadcrumbs from current route */
+	const breadcrumbs = (() => {
+		const groups: { label: string; items: NavItem[] }[] = [
+			{ label: 'Navigation', items: navigationNav },
+			{ label: 'Scheduling', items: schedulingNav },
+			{ label: 'Campus', items: campusNav },
+			{ label: 'Insights', items: insightsNav },
+		];
+
+		for (const group of groups) {
+			const match = group.items.find((n) =>
+				n.end ? location.pathname === n.to : location.pathname.startsWith(n.to),
+			);
+			if (match) {
+				if (group.label === 'Navigation') {
+					return [{ label: match.label }];
+				}
+				return [{ label: group.label }, { label: match.label }];
+			}
+		}
+		return [{ label: 'ATLAS' }];
 	})();
 
 	const renderNavItem = (item: NavItem) => {
@@ -154,7 +196,7 @@ export function AppShell() {
 			return (
 				<span
 					key={item.to}
-					className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-muted-foreground/50 cursor-not-allowed ${
+					className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground/50 cursor-not-allowed transition-all duration-150 ${
 						!sidebarOpen ? 'justify-center px-0' : ''
 					}`}
 				>
@@ -174,7 +216,7 @@ export function AppShell() {
 				to={item.to}
 				end={item.end}
 				className={({ isActive }) =>
-					`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors ${
+					`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-150 ${
 						isActive
 							? 'bg-sidebar-accent text-sidebar-accent-foreground'
 							: 'text-sidebar-foreground hover:bg-sidebar-accent/60'
@@ -191,23 +233,42 @@ export function AppShell() {
 		<div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
 			{/* ─── Sidebar ─── */}
 			<aside
-				className={`flex shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-200 ${
+				className={`flex shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200 ease-linear ${
 					sidebarOpen ? 'w-64' : 'w-14'
 				}`}
 			>
 				{/* Brand */}
 				<div className="flex items-center gap-3 border-b border-sidebar-border px-3 py-3">
 					{logoUrl ? (
-						<img src={`${ENROLLPRO_API_BASE}${logoUrl}`} alt="" className="size-8 shrink-0 rounded-md object-cover" />
+						<div className="flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden shrink-0">
+							<img src={`${ENROLLPRO_API_BASE}${logoUrl}`} alt="Logo" className="size-8 object-contain" />
+						</div>
 					) : (
-						<div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+						<div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
 							<School className="size-4" />
 						</div>
 					)}
 					{sidebarOpen && (
-						<div className="min-w-0">
-							<p className="truncate text-sm font-bold leading-tight text-sidebar-foreground">ATLAS</p>
-							<p className="truncate text-[0.6875rem] text-muted-foreground">{schoolName}</p>
+						<div className="grid flex-1 text-left text-sm leading-tight overflow-hidden">
+							<span className="truncate font-semibold text-sidebar-foreground">
+								{schoolName}
+							</span>
+							<div className="flex items-center gap-1 mt-0.5">
+								{activeYearLabel ? (
+									<>
+										<span className="truncate text-[0.6875rem] text-foreground">
+											S.Y. {activeYearLabel}
+										</span>
+										<span className="shrink-0 text-[0.625rem] font-semibold text-green-600">
+											● ACTIVE
+										</span>
+									</>
+								) : (
+									<span className="text-[0.6875rem] text-muted-foreground">
+										ATLAS
+									</span>
+								)}
+							</div>
 						</div>
 					)}
 				</div>
@@ -306,7 +367,7 @@ export function AppShell() {
 			{/* ─── Main area ─── */}
 			<div className="flex min-w-0 flex-1 flex-col">
 				{/* Header bar */}
-				<header className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-4">
+				<header className="flex h-14.5 shrink-0 items-center gap-2 border-b border-border bg-background px-4">
 					<button
 						onClick={() => setSidebarOpen((v) => !v)}
 						className="-ml-1 inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/10 hover:text-foreground transition-colors md:hidden"
@@ -314,13 +375,42 @@ export function AppShell() {
 						<PanelLeft className="size-4" />
 					</button>
 					<div className="mr-2 h-4 w-px bg-border md:hidden" />
-					<span className="text-sm font-medium text-muted-foreground">{pageTitle}</span>
+					<Breadcrumb>
+						<BreadcrumbList>
+							<BreadcrumbItem>
+								<BreadcrumbLink asChild>
+									<Link to="/">ATLAS</Link>
+								</BreadcrumbLink>
+							</BreadcrumbItem>
+							{breadcrumbs.map((crumb, i) => (
+								<React.Fragment key={crumb.label}>
+									<BreadcrumbSeparator />
+									<BreadcrumbItem>
+										{i === breadcrumbs.length - 1 ? (
+											<BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+										) : (
+											<span className="text-sm text-muted-foreground">{crumb.label}</span>
+										)}
+									</BreadcrumbItem>
+								</React.Fragment>
+							))}
+						</BreadcrumbList>
+					</Breadcrumb>
 				</header>
 
 				{/* Page content via router outlet */}
-				<main className="flex-1 overflow-auto scrollbar-thin">
-					<Outlet context={{ bridgeUser, schoolName }} />
-				</main>
+				<AnimatePresence mode="wait">
+					<motion.main
+						key={location.pathname}
+						initial={{ opacity: 0, y: 10 }}
+						animate={{ opacity: 1, y: 0 }}
+						exit={{ opacity: 0, y: -10 }}
+						transition={{ duration: 0.2 }}
+						className="flex-1 overflow-auto scrollbar-thin"
+					>
+						<Outlet context={{ bridgeUser, schoolName }} />
+					</motion.main>
+				</AnimatePresence>
 			</div>
 
 			{/* ─── Sign-out confirmation modal (matches EnrollPro UX) ─── */}

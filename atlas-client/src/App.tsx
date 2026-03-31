@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
+import { Toaster } from 'sonner';
 
 import { AppShell } from './components/AppShell';
 import { Skeleton } from './ui/skeleton';
@@ -62,5 +63,10 @@ const router = createBrowserRouter([
 ]);
 
 export function App() {
-	return <RouterProvider router={router} />;
+	return (
+		<>
+			<RouterProvider router={router} />
+			<Toaster richColors position="bottom-right" closeButton />
+		</>
+	);
 }

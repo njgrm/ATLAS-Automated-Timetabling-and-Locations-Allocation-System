@@ -45,16 +45,45 @@ export class StubFacultyAdapter implements FacultyAdapter {
 
 export class EnrollProFacultyAdapter implements FacultyAdapter {
 	private baseUrl: string;
+	private serviceToken: string;
 
-	constructor(baseUrl: string) {
+	constructor(baseUrl: string, serviceToken: string) {
 		this.baseUrl = baseUrl;
+		this.serviceToken = serviceToken;
 	}
 
 	async fetchFacultyBySchool(_schoolId: number): Promise<ExternalFaculty[]> {
-		// Future: call EnrollPro API
-		// const res = await fetch(`${this.baseUrl}/faculty?schoolId=${schoolId}`, { ... });
-		// return res.json();
-		throw new Error('EnrollPro faculty API not yet configured. Use StubFacultyAdapter.');
+		const res = await fetch(`${this.baseUrl}/teachers`, {
+			headers: {
+				Authorization: `Bearer ${this.serviceToken}`,
+				'Content-Type': 'application/json',
+			},
+		});
+
+		if (!res.ok) {
+			throw new Error(`EnrollPro API returned ${res.status}: ${res.statusText}`);
+		}
+
+		const data = (await res.json()) as {
+			teachers: Array<{
+				id: number;
+				firstName: string;
+				lastName: string;
+				specialization: string | null;
+				contactNumber: string | null;
+				isActive: boolean;
+			}>;
+		};
+
+		return data.teachers
+			.filter((t) => t.isActive)
+			.map((t) => ({
+				id: t.id,
+				firstName: t.firstName,
+				lastName: t.lastName,
+				department: t.specialization ?? 'General',
+				contactInfo: t.contactNumber,
+			}));
 	}
 }
 
@@ -63,7 +92,12 @@ export function createFacultyAdapter(): FacultyAdapter {
 	const useReal = process.env.FACULTY_ADAPTER === 'enrollpro';
 	if (useReal) {
 		const baseUrl = process.env.ENROLLPRO_API ?? 'http://localhost:5000/api';
-		return new EnrollProFacultyAdapter(baseUrl);
+		const serviceToken = process.env.ENROLLPRO_SERVICE_TOKEN ?? '';
+		if (!serviceToken) {
+			console.warn('ENROLLPRO_SERVICE_TOKEN not set; falling back to stub adapter.');
+			return new StubFacultyAdapter();
+		}
+		return new EnrollProFacultyAdapter(baseUrl, serviceToken);
 	}
 	return new StubFacultyAdapter();
 }

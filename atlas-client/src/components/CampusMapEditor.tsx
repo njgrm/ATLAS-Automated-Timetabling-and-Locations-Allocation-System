@@ -1,7 +1,7 @@
 import Konva from 'konva';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import { Group, Layer, Rect, Stage, Text, Transformer } from 'react-konva';
-import { Minus, MousePointer2, Plus, RotateCcw, Save, Square, Upload } from 'lucide-react';
+import { Group, Layer, Line, Rect, Stage, Text, Transformer } from 'react-konva';
+import { Minus, MousePointer2, Plus, Redo2, RotateCcw, Save, Square, Undo2, Upload } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
 import type { Building } from '@/types';
@@ -17,6 +17,12 @@ type CampusMapEditorProps = {
 	selectedBuildingId: number | null;
 	onSelect: (id: number | null) => void;
 	onSaved: () => void;
+	/** Undo/redo history managed externally */
+	historyStack: EditorBuilding[][];
+	redoStack: EditorBuilding[][];
+	onPushHistory: () => void;
+	onUndo: () => void;
+	onRedo: () => void;
 };
 
 type Tool = 'select' | 'add';
@@ -38,16 +44,33 @@ export function CampusMapEditor({
 	selectedBuildingId,
 	onSelect,
 	onSaved,
+	historyStack,
+	redoStack,
+	onPushHistory,
+	onUndo,
+	onRedo,
 }: CampusMapEditorProps) {
 	const [scale, setScale] = useState(1);
 	const [position, setPosition] = useState({ x: 0, y: 0 });
 	const [tool, setTool] = useState<Tool>('select');
 	const [saving, setSaving] = useState(false);
 	const [campusImage, setCampusImage] = useState<HTMLImageElement | null>(null);
+	const [hoveredBuildingId, setHoveredBuildingId] = useState<number | null>(null);
+
+	// Draw-to-create state
+	const [isDrawing, setIsDrawing] = useState(false);
+	const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null);
+	const [drawRect, setDrawRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
 	const transformerRef = useRef<Konva.Transformer>(null);
 	const shapeRefs = useRef<Map<number, Konva.Group>>(new Map());
 	const stageRef = useRef<Konva.Stage>(null);
+
+	// Dimension tooltip state for transform/drag
+	const [dimTooltip, setDimTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
+
+	// Alignment guide state
+	const [guides, setGuides] = useState<{ x?: number; y?: number }[]>([]);
 
 	// Load campus background image
 	useEffect(() => {
@@ -78,45 +101,113 @@ export function CampusMapEditor({
 		}
 	}, [selectedBuildingId, buildings]);
 
+	// Keyboard shortcuts for undo/redo
+	useEffect(() => {
+		const handler = (e: KeyboardEvent) => {
+			const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+			if (!isCtrlOrCmd) return;
+
+			if (e.key === 'z' && !e.shiftKey) {
+				e.preventDefault();
+				onUndo();
+			} else if (e.key === 'y' || (e.key === 'z' && e.shiftKey) || (e.key === 'Z' && e.shiftKey)) {
+				e.preventDefault();
+				onRedo();
+			}
+		};
+		window.addEventListener('keydown', handler);
+		return () => window.removeEventListener('keydown', handler);
+	}, [onUndo, onRedo]);
+
 	const handleStageClick = useCallback(
 		(e: Konva.KonvaEventObject<MouseEvent>) => {
-			// If clicked on stage background
+			// Only used for selection in select mode
 			const clickedOnEmpty = e.target === e.target.getStage() || e.target.name() === 'bg';
-
-			if (tool === 'add' && clickedOnEmpty) {
-				const stage = stageRef.current;
-				if (!stage) return;
-				const pointer = stage.getRelativePointerPosition();
-				if (!pointer) return;
-
-				const newBuilding: EditorBuilding = {
-					id: tempIdCounter--,
-					name: `Building ${buildings.length + 1}`,
-					x: pointer.x - 50,
-					y: pointer.y - 30,
-					width: 200,
-					height: 120,
-					color: COLORS[buildings.length % COLORS.length],
-					rooms: [],
-					dirty: true,
-					isNew: true,
-				};
-				onBuildingsChange([...buildings, newBuilding]);
-				onSelect(newBuilding.id);
-				setTool('select');
-				return;
-			}
-
-			if (clickedOnEmpty) {
+			if (clickedOnEmpty && tool === 'select') {
 				onSelect(null);
 			}
 		},
-		[tool, buildings, onBuildingsChange, onSelect],
+		[tool, onSelect],
+	);
+
+	const handleStageMouseDown = useCallback(
+		(e: Konva.KonvaEventObject<MouseEvent>) => {
+			if (tool !== 'add') return;
+			const clickedOnEmpty = e.target === e.target.getStage() || e.target.name() === 'bg';
+			if (!clickedOnEmpty) return;
+
+			const stage = stageRef.current;
+			if (!stage) return;
+			const pointer = stage.getRelativePointerPosition();
+			if (!pointer) return;
+
+			setIsDrawing(true);
+			setDrawStart(pointer);
+			setDrawRect({ x: pointer.x, y: pointer.y, width: 0, height: 0 });
+		},
+		[tool],
+	);
+
+	const handleStageMouseMove = useCallback(
+		() => {
+			if (!isDrawing || !drawStart) return;
+			const stage = stageRef.current;
+			if (!stage) return;
+			const pointer = stage.getRelativePointerPosition();
+			if (!pointer) return;
+
+			const x = Math.min(drawStart.x, pointer.x);
+			const y = Math.min(drawStart.y, pointer.y);
+			const width = Math.abs(pointer.x - drawStart.x);
+			const height = Math.abs(pointer.y - drawStart.y);
+			setDrawRect({ x, y, width, height });
+		},
+		[isDrawing, drawStart],
+	);
+
+	const handleStageMouseUp = useCallback(
+		() => {
+			if (!isDrawing || !drawRect) {
+				setIsDrawing(false);
+				setDrawStart(null);
+				setDrawRect(null);
+				return;
+			}
+
+			setIsDrawing(false);
+			setDrawStart(null);
+			setDrawRect(null);
+
+			// Only create if rect is large enough
+			if (drawRect.width < MIN_WIDTH || drawRect.height < MIN_HEIGHT) return;
+
+			const newBuilding: EditorBuilding = {
+				id: tempIdCounter--,
+				name: `Building ${buildings.length + 1}`,
+				x: drawRect.x,
+				y: drawRect.y,
+				width: drawRect.width,
+				height: drawRect.height,
+				rotation: 0,
+				color: COLORS[buildings.length % COLORS.length],
+				floorCount: 1,
+				isTeachingBuilding: true,
+				rooms: [],
+				dirty: true,
+				isNew: true,
+			};
+			onPushHistory();
+			onBuildingsChange([...buildings, newBuilding]);
+			onSelect(newBuilding.id);
+			setTool('select');
+		},
+		[isDrawing, drawRect, buildings, onBuildingsChange, onSelect],
 	);
 
 	const handleDragEnd = useCallback(
 		(buildingId: number, e: Konva.KonvaEventObject<DragEvent>) => {
 			const node = e.target;
+			onPushHistory();
 			onBuildingsChange(
 				buildings.map((b) =>
 					b.id === buildingId
@@ -124,8 +215,64 @@ export function CampusMapEditor({
 						: b,
 				),
 			);
+			setDimTooltip(null);
+			setGuides([]);
 		},
-		[buildings, onBuildingsChange],
+		[buildings, onBuildingsChange, onPushHistory],
+	);
+
+	const handleDragMove = useCallback(
+		(buildingId: number, e: Konva.KonvaEventObject<DragEvent>) => {
+			const node = e.target;
+			const dragX = node.x();
+			const dragY = node.y();
+			const building = buildings.find((b) => b.id === buildingId);
+			if (!building) return;
+
+			const SNAP_THRESHOLD = 5;
+			const newGuides: { x?: number; y?: number }[] = [];
+
+			// Check alignment with other buildings
+			for (const other of buildings) {
+				if (other.id === buildingId) continue;
+
+				// Vertical guides (left-left, right-right, left-right, right-left, center-center)
+				const edges = [
+					{ dragEdge: dragX, otherEdge: other.x }, // left-left
+					{ dragEdge: dragX + building.width, otherEdge: other.x + other.width }, // right-right
+					{ dragEdge: dragX, otherEdge: other.x + other.width }, // left-right
+					{ dragEdge: dragX + building.width, otherEdge: other.x }, // right-left
+					{ dragEdge: dragX + building.width / 2, otherEdge: other.x + other.width / 2 }, // center-center
+				];
+				for (const { dragEdge, otherEdge } of edges) {
+					if (Math.abs(dragEdge - otherEdge) < SNAP_THRESHOLD) {
+						newGuides.push({ x: otherEdge });
+					}
+				}
+
+				// Horizontal guides (top-top, bottom-bottom, top-bottom, bottom-top, center-center)
+				const hEdges = [
+					{ dragEdge: dragY, otherEdge: other.y },
+					{ dragEdge: dragY + building.height, otherEdge: other.y + other.height },
+					{ dragEdge: dragY, otherEdge: other.y + other.height },
+					{ dragEdge: dragY + building.height, otherEdge: other.y },
+					{ dragEdge: dragY + building.height / 2, otherEdge: other.y + other.height / 2 },
+				];
+				for (const { dragEdge, otherEdge } of hEdges) {
+					if (Math.abs(dragEdge - otherEdge) < SNAP_THRESHOLD) {
+						newGuides.push({ y: otherEdge });
+					}
+				}
+			}
+
+			setGuides(newGuides);
+			setDimTooltip({
+				x: dragX + building.width / 2,
+				y: dragY - 20,
+				text: `${Math.round(dragX)}, ${Math.round(dragY)}`,
+			});
+		},
+		[buildings],
 	);
 
 	const handleTransformEnd = useCallback(
@@ -134,14 +281,19 @@ export function CampusMapEditor({
 			if (!node) return;
 			const scaleX = node.scaleX();
 			const scaleY = node.scaleY();
+			const rotation = node.rotation();
 
-			// Reset scale and update width/height
+			// Reset scale (keep rotation)
 			node.scaleX(1);
 			node.scaleY(1);
 
 			const building = buildings.find((b) => b.id === buildingId);
 			if (!building) return;
 
+			const newWidth = Math.max(MIN_WIDTH, Math.round(building.width * scaleX));
+			const newHeight = Math.max(MIN_HEIGHT, Math.round(building.height * scaleY));
+
+			onPushHistory();
 			onBuildingsChange(
 				buildings.map((b) =>
 					b.id === buildingId
@@ -149,15 +301,42 @@ export function CampusMapEditor({
 								...b,
 								x: node.x(),
 								y: node.y(),
-								width: Math.max(MIN_WIDTH, b.width * scaleX),
-								height: Math.max(MIN_HEIGHT, b.height * scaleY),
+								width: newWidth,
+								height: newHeight,
+								rotation: Math.round(rotation * 10) / 10,
 								dirty: true,
 							}
 						: b,
 				),
 			);
+			// Sync node dimensions so Konva doesn't drift
+			node.width(newWidth);
+			node.height(newHeight);
+			setDimTooltip(null);
 		},
-		[buildings, onBuildingsChange],
+		[buildings, onBuildingsChange, onPushHistory],
+	);
+
+	const handleTransform = useCallback(
+		(buildingId: number) => {
+			const node = shapeRefs.current.get(buildingId);
+			if (!node) return;
+			const building = buildings.find((b) => b.id === buildingId);
+			if (!building) return;
+
+			const w = Math.round(Math.max(MIN_WIDTH, building.width * node.scaleX()));
+			const h = Math.round(Math.max(MIN_HEIGHT, building.height * node.scaleY()));
+			const rot = Math.round(node.rotation());
+			const text = rot !== 0 && rot !== (building.rotation ?? 0)
+				? `${w} × ${h} · ${rot}°`
+				: `${w} × ${h}`;
+			setDimTooltip({
+				x: node.x() + w / 2,
+				y: node.y() - 20,
+				text,
+			});
+		},
+		[buildings],
 	);
 
 	const handleSave = useCallback(async () => {
@@ -174,6 +353,9 @@ export function CampusMapEditor({
 						width: Math.round(b.width),
 						height: Math.round(b.height),
 						color: b.color,
+						rotation: b.rotation ?? 0,
+						floorCount: b.floorCount ?? 1,
+						isTeachingBuilding: b.isTeachingBuilding ?? true,
 					});
 					// Replace temp id with real id
 					const newId = data.building.id;
@@ -193,6 +375,9 @@ export function CampusMapEditor({
 						width: Math.round(b.width),
 						height: Math.round(b.height),
 						color: b.color,
+						rotation: b.rotation ?? 0,
+						floorCount: b.floorCount ?? 1,
+						isTeachingBuilding: b.isTeachingBuilding ?? true,
 					});
 				}
 			}
@@ -280,6 +465,27 @@ export function CampusMapEditor({
 					/>
 				</label>
 
+				<div className="h-6 w-px bg-border" />
+
+				<Button
+					variant="outline"
+					size="sm"
+					disabled={historyStack.length === 0}
+					onClick={onUndo}
+					title="Undo (Ctrl+Z)"
+				>
+					<Undo2 className="size-3.5" />
+				</Button>
+				<Button
+					variant="outline"
+					size="sm"
+					disabled={redoStack.length === 0}
+					onClick={onRedo}
+					title="Redo (Ctrl+Y)"
+				>
+					<Redo2 className="size-3.5" />
+				</Button>
+
 				<div className="flex-1" />
 
 				<Button
@@ -313,6 +519,9 @@ export function CampusMapEditor({
 						}
 					}}
 					onClick={handleStageClick}
+					onMouseDown={handleStageMouseDown}
+					onMouseMove={handleStageMouseMove}
+					onMouseUp={handleStageMouseUp}
 				>
 					<Layer>
 						{/* Background */}
@@ -338,6 +547,7 @@ export function CampusMapEditor({
 						{/* Buildings */}
 						{buildings.map((b) => {
 							const selected = selectedBuildingId === b.id;
+							const isNonTeaching = b.isTeachingBuilding === false;
 							return (
 								<Group
 									key={b.id}
@@ -349,12 +559,17 @@ export function CampusMapEditor({
 									y={b.y}
 									width={b.width}
 									height={b.height}
+									rotation={b.rotation ?? 0}
 									draggable={tool === 'select'}
 									onClick={(e) => {
 										e.cancelBubble = true;
 										onSelect(b.id);
 									}}
+									onMouseEnter={() => setHoveredBuildingId(b.id)}
+									onMouseLeave={() => setHoveredBuildingId((prev) => (prev === b.id ? null : prev))}
+									onDragMove={(e) => handleDragMove(b.id, e)}
 									onDragEnd={(e) => handleDragEnd(b.id, e)}
+									onTransform={() => handleTransform(b.id)}
 									onTransformEnd={() => handleTransformEnd(b.id)}
 								>
 									<Rect
@@ -363,12 +578,26 @@ export function CampusMapEditor({
 										fill={b.color}
 										opacity={selected ? 0.95 : 0.78}
 										cornerRadius={8}
-										stroke={selected ? '#111827' : '#ffffff'}
+										stroke={selected ? '#6366f1' : '#ffffff'}
 										strokeWidth={selected ? 3 : 2}
-										shadowColor="rgba(0,0,0,0.12)"
-										shadowBlur={selected ? 6 : 3}
-										shadowOffsetY={selected ? 2 : 1}
+										shadowColor={selected ? 'rgba(99,102,241,0.35)' : 'rgba(0,0,0,0.12)'}
+										shadowBlur={selected ? 12 : 3}
+										shadowOffsetY={selected ? 4 : 1}
 									/>
+									{/* Diagonal hatch overlay for non-teaching buildings */}
+									{isNonTeaching && (
+										<Rect
+											width={b.width}
+											height={b.height}
+											cornerRadius={8}
+											fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+											fillLinearGradientEndPoint={{ x: 12, y: 12 }}
+											fillLinearGradientColorStops={[0, 'rgba(0,0,0,0.15)', 0.5, 'rgba(0,0,0,0.15)', 0.5, 'transparent', 1, 'transparent']}
+											opacity={0.6}
+											listening={false}
+										/>
+									)}
+									{/* Counter-rotated text so labels stay upright */}
 									<Text
 										x={6}
 										y={6}
@@ -380,11 +609,14 @@ export function CampusMapEditor({
 										height={b.height - 30}
 										wrap="word"
 										ellipsis
+										rotation={-(b.rotation ?? 0)}
+										offsetX={0}
+										offsetY={0}
 									/>
 									<Text
 										x={6}
 										y={b.height - 18}
-										text={`${b.rooms.length} room${b.rooms.length !== 1 ? 's' : ''}`}
+										text={isNonTeaching ? 'Non-teaching' : `${b.rooms.length} room${b.rooms.length !== 1 ? 's' : ''}`}
 										fontSize={Math.min(11, b.width / 10)}
 										fill="rgba(255,255,255,0.8)"
 										width={b.width - 12}
@@ -405,23 +637,90 @@ export function CampusMapEditor({
 							);
 						})}
 
+						{/* Draw preview rectangle */}
+						{isDrawing && drawRect && drawRect.width > 0 && drawRect.height > 0 && (
+							<>
+								<Rect
+									x={drawRect.x}
+									y={drawRect.y}
+									width={drawRect.width}
+									height={drawRect.height}
+									fill={COLORS[buildings.length % COLORS.length]}
+									opacity={0.4}
+									stroke={COLORS[buildings.length % COLORS.length]}
+									strokeWidth={2}
+									dash={[6, 3]}
+									cornerRadius={8}
+								/>
+								<Text
+									x={drawRect.x + drawRect.width / 2 - 30}
+									y={drawRect.y + drawRect.height / 2 - 8}
+									text={`${Math.round(drawRect.width)} × ${Math.round(drawRect.height)}`}
+									fontSize={12}
+									fill="#ffffff"
+									fontStyle="bold"
+									align="center"
+									width={60}
+								/>
+							</>
+						)}
+
 						{/* Transformer */}
 						<Transformer
 							ref={transformerRef}
-							rotateEnabled={false}
+							rotateEnabled={true}
+							rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
+							rotationSnapTolerance={10}
 							enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right', 'middle-left', 'middle-right', 'top-center', 'bottom-center']}
-							boundBoxFunc={(_oldBox, newBox) => {
-								if (newBox.width < MIN_WIDTH) newBox.width = MIN_WIDTH;
-								if (newBox.height < MIN_HEIGHT) newBox.height = MIN_HEIGHT;
+							boundBoxFunc={(oldBox, newBox) => {
+								// Enforce minimum dimensions
+								if (Math.abs(newBox.width) < MIN_WIDTH || Math.abs(newBox.height) < MIN_HEIGHT) {
+									return oldBox;
+								}
 								return newBox;
 							}}
-							borderStroke="#2563eb"
+							borderStroke="#6366f1"
 							borderStrokeWidth={2}
 							anchorFill="#ffffff"
-							anchorStroke="#2563eb"
-							anchorSize={8}
-							anchorCornerRadius={2}
+							anchorStroke="#6366f1"
+							anchorSize={10}
+							anchorCornerRadius={3}
+							anchorStrokeWidth={2}
+							padding={4}
 						/>
+
+						{/* Alignment guides */}
+						{guides.map((g, i) =>
+							g.x !== undefined ? (
+								<Line key={`gv-${i}`} points={[g.x, 0, g.x, CANVAS_HEIGHT]} stroke="#6366f1" strokeWidth={1} dash={[4, 4]} opacity={0.6} />
+							) : g.y !== undefined ? (
+								<Line key={`gh-${i}`} points={[0, g.y, CANVAS_WIDTH, g.y]} stroke="#6366f1" strokeWidth={1} dash={[4, 4]} opacity={0.6} />
+							) : null,
+						)}
+
+						{/* Dimension / position tooltip */}
+						{dimTooltip && (
+							<>
+								<Rect
+									x={dimTooltip.x - 40}
+									y={dimTooltip.y - 5}
+									width={80}
+									height={20}
+									fill="rgba(99,102,241,0.9)"
+									cornerRadius={4}
+								/>
+								<Text
+									x={dimTooltip.x - 40}
+									y={dimTooltip.y - 2}
+									text={dimTooltip.text}
+									fontSize={11}
+									fill="#ffffff"
+									fontStyle="bold"
+									width={80}
+									align="center"
+								/>
+							</>
+						)}
 					</Layer>
 				</Stage>
 			</div>
@@ -429,9 +728,15 @@ export function CampusMapEditor({
 			{/* Status bar */}
 			<div className="flex items-center justify-between text-[0.75rem] text-muted-foreground">
 				<span>
-					{tool === 'add'
-						? 'Click on the canvas to place a new building'
-						: 'Click a building to select • Drag to move • Handles to resize'}
+					{tool === 'add' && isDrawing
+						? 'Release to place — minimum size 60×40'
+						: tool === 'add'
+							? 'Click and drag on the canvas to draw a new building'
+							: tool === 'select' && selectedBuildingId != null
+								? 'Drag to move • Handles to resize • Corner handle to rotate'
+								: tool === 'select' && hoveredBuildingId != null
+									? 'Click to select • Double-click to rename'
+									: 'Click a building to select it'}
 				</span>
 				<span className="tabular-nums">{Math.round(scale * 100)}% zoom</span>
 			</div>
