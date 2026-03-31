@@ -390,8 +390,41 @@ export default function Dashboard() {
 									</li>
 								))}
 							</ul>
+							{setupProgress === setupChecklist.length && (
+								<div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50/60 px-3 py-2">
+									<p className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
+										<CheckCircle2 className="size-3.5 shrink-0" />
+										Setup complete
+									</p>
+									<p className="mt-0.5 text-[0.6875rem] text-emerald-600/80">
+										All setup items are verified. Schedule generation will be available once Preference Collection (Phase 2) is implemented.
+									</p>
+								</div>
+							)}
 						</div>
 					)}
+
+					{/* Quick Actions */}
+					<div className="mt-4 pt-4 border-t border-border mt-auto">
+						<p className="text-sm font-semibold text-foreground mb-2">Quick Actions</p>
+						<div className="flex flex-wrap gap-2">
+							{currentPhase === 'SETUP' && (
+								<>
+									<Button asChild variant="default" size="sm">
+										<Link to="/subjects"><BookOpen className="mr-1.5 size-3.5" /> Configure Subjects</Link>
+									</Button>
+									<Button asChild variant="outline" size="sm">
+										<Link to="/faculty"><Users className="mr-1.5 size-3.5" /> Manage Faculty</Link>
+									</Button>
+								</>
+							)}
+							{currentPhase === 'PREFERENCE_COLLECTION' && (
+								<Button asChild variant="default" size="sm">
+									<Link to="/preferences"><Clock className="mr-1.5 size-3.5" /> Review Preferences</Link>
+								</Button>
+							)}
+						</div>
+					</div>
 				</CardContent>
 			</Card>
 				</div>
@@ -483,7 +516,7 @@ export default function Dashboard() {
 										x={position.x}
 										y={position.y}
 										scaleX={scale * (canvasWidth / CANVAS_WIDTH)}
-										scaleY={scale * (canvasHeight / CANVAS_HEIGHT)}
+										scaleY={scale * (canvasWidth / CANVAS_WIDTH)}
 										onDragEnd={(e) => setPosition({ x: e.target.x(), y: e.target.y() })}
 									>
 										<Layer>

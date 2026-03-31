@@ -24,6 +24,7 @@ import { Card, CardContent } from '@/ui/card';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
 import { Input } from '@/ui/input';
 import { Skeleton } from '@/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 
 const DEFAULT_SCHOOL_ID = 1;
 const PAGE_SIZES = [10, 25, 50];
@@ -79,6 +80,7 @@ export default function Subjects() {
 	const [newSubject, setNewSubject] = useState<NewSubjectForm>(emptyForm);
 	const [saving, setSaving] = useState(false);
 	const [deleteTarget, setDeleteTarget] = useState<Subject | null>(null);
+	const [timeMode, setTimeMode] = useState<'minutes' | 'hours'>('minutes');
 
 	// Sorting
 	const [sortField, setSortField] = useState<SortField>('code');
@@ -259,35 +261,38 @@ export default function Subjects() {
 							className="pl-8 h-8 text-sm"
 						/>
 					</div>
-					<select
-						value={statusFilter}
-						onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-						className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-					>
-						<option value="all">All Status</option>
-						<option value="active">Active</option>
-						<option value="inactive">Inactive</option>
-					</select>
-					<select
-						value={roomTypeFilter}
-						onChange={(e) => setRoomTypeFilter(e.target.value as typeof roomTypeFilter)}
-						className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-					>
-						<option value="all">All Room Types</option>
-						{ALL_ROOM_TYPES.map((t) => (
-							<option key={t} value={t}>{ROOM_TYPE_LABELS[t]}</option>
-						))}
-					</select>
-					<select
-						value={gradeLevelFilter}
-						onChange={(e) => setGradeLevelFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-						className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-					>
-						<option value="all">All Grades</option>
-						{GRADE_OPTIONS.map((g) => (
-							<option key={g} value={g}>Grade {g}</option>
-						))}
-					</select>
+					<Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+						<SelectTrigger className="h-8 w-[120px] text-xs">
+							<SelectValue placeholder="All Status" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All Status</SelectItem>
+							<SelectItem value="active">Active</SelectItem>
+							<SelectItem value="inactive">Inactive</SelectItem>
+						</SelectContent>
+					</Select>
+					<Select value={roomTypeFilter} onValueChange={(v) => setRoomTypeFilter(v as typeof roomTypeFilter)}>
+						<SelectTrigger className="h-8 w-[150px] text-xs">
+							<SelectValue placeholder="All Room Types" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All Room Types</SelectItem>
+							{ALL_ROOM_TYPES.map((t) => (
+								<SelectItem key={t} value={t}>{ROOM_TYPE_LABELS[t]}</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					<Select value={String(gradeLevelFilter)} onValueChange={(v) => setGradeLevelFilter(v === 'all' ? 'all' : Number(v))}>
+						<SelectTrigger className="h-8 w-[110px] text-xs">
+							<SelectValue placeholder="All Grades" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All Grades</SelectItem>
+							{GRADE_OPTIONS.map((g) => (
+								<SelectItem key={g} value={String(g)}>Grade {g}</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 					{hasActiveFilters && (
 						<Button
 							variant="ghost"
@@ -336,26 +341,41 @@ export default function Subjects() {
 									/>
 								</div>
 								<div>
-									<label className="text-xs font-medium text-muted-foreground">Min Minutes/Week</label>
+									<div className="flex justify-between items-center mb-1">
+										<label className="text-xs font-medium text-muted-foreground">Duration ({timeMode === 'minutes' ? 'min' : 'hr'}/wk)</label>
+										<div className="flex gap-1 text-[0.625rem]">
+											<button type="button" onClick={() => setTimeMode('minutes')} className={`px-1 rounded ${timeMode==='minutes' ? 'bg-primary/20 text-primary font-bold' : 'text-muted-foreground hover:bg-muted'}`}>Min</button>
+											<button type="button" onClick={() => setTimeMode('hours')} className={`px-1 rounded ${timeMode==='hours' ? 'bg-primary/20 text-primary font-bold' : 'text-muted-foreground hover:bg-muted'}`}>Hr</button>
+										</div>
+									</div>
 									<Input
 										type="number"
-										min={45}
-										step={45}
-										value={newSubject.minMinutesPerWeek}
-										onChange={(e) => setNewSubject((p) => ({ ...p, minMinutesPerWeek: Number(e.target.value) }))}
+										min={0}
+										step={timeMode === 'minutes' ? 45 : 0.5}
+										value={timeMode === 'minutes' ? newSubject.minMinutesPerWeek : Math.round((newSubject.minMinutesPerWeek / 60) * 10) / 10}
+										onChange={(e) => {
+											const val = Number(e.target.value);
+											setNewSubject((p) => ({ ...p, minMinutesPerWeek: timeMode === 'minutes' ? val : Math.round(val * 60) }));
+										}}
 									/>
+									<div className="flex gap-1 mt-1">
+										{[200, 225, 240, 250].map(val => (
+											<button type="button" key={val} onClick={() => setNewSubject(p => ({ ...p, minMinutesPerWeek: val}))} className="rounded border bg-accent/5 px-1.5 py-0.5 text-[0.5625rem] text-muted-foreground hover:bg-accent hover:text-accent-foreground">{val}m</button>
+										))}
+									</div>
 								</div>
 								<div>
-									<label className="text-xs font-medium text-muted-foreground">Preferred Room Type</label>
-									<select
-										className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs focus:outline-none focus:ring-1 focus:ring-ring"
-										value={newSubject.preferredRoomType}
-										onChange={(e) => setNewSubject((p) => ({ ...p, preferredRoomType: e.target.value as RoomType }))}
-									>
-										{ALL_ROOM_TYPES.map((t) => (
-											<option key={t} value={t}>{ROOM_TYPE_LABELS[t]}</option>
-										))}
-									</select>
+									<label className="text-xs font-medium text-muted-foreground mb-1 block">Preferred Room Type</label>
+									<Select value={newSubject.preferredRoomType} onValueChange={(v) => setNewSubject(p => ({ ...p, preferredRoomType: v as RoomType }))}>
+										<SelectTrigger className="flex h-9 w-full bg-background text-sm shadow-xs">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{ALL_ROOM_TYPES.map((t) => (
+												<SelectItem key={t} value={t}>{ROOM_TYPE_LABELS[t]}</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
 								</div>
 							</div>
 							<div className="mt-3">
@@ -463,6 +483,7 @@ export default function Subjects() {
 													) : (
 														<span className="font-medium">{s.name}</span>
 													)}
+													{s.isSeedable && <Badge variant="secondary" className="ml-2 bg-blue-50 text-blue-700 hover:bg-blue-50 border-blue-200">DepEd Core</Badge>}
 												</td>
 												<td className="px-4 py-3">
 													{isEditing ? (
@@ -567,13 +588,14 @@ export default function Subjects() {
 							<div className="flex items-center gap-2 text-muted-foreground text-xs">
 								<span>{totalFiltered} result{totalFiltered !== 1 ? 's' : ''}</span>
 								<span>·</span>
-								<select
-									value={pageSize}
-									onChange={(e) => setPageSize(Number(e.target.value))}
-									className="h-7 rounded border border-input bg-background px-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-								>
-									{PAGE_SIZES.map((s) => <option key={s} value={s}>{s} / page</option>)}
-								</select>
+								<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+									<SelectTrigger className="h-7 w-[90px] text-xs">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s} / page</SelectItem>)}
+									</SelectContent>
+								</Select>
 							</div>
 							<div className="flex items-center gap-1">
 								<Button

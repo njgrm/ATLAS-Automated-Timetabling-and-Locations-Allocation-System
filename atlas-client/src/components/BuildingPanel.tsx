@@ -25,6 +25,7 @@ import { Button } from '@/ui/button';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
 import { Input } from '@/ui/input';
 import { Badge } from '@/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 
 type EditorBuilding = Building & { dirty?: boolean; isNew?: boolean };
 
@@ -71,7 +72,7 @@ export function BuildingPanel({
 }: BuildingPanelProps) {
 	const [newRoomName, setNewRoomName] = useState('');
 	const [newRoomType, setNewRoomType] = useState<RoomType>('CLASSROOM');
-	const [newRoomCapacity, setNewRoomCapacity] = useState('');
+	const [newRoomCapacity, setNewRoomCapacity] = useState('45');
 	const [addingRoom, setAddingRoom] = useState(false);
 	const [deleting, setDeleting] = useState(false);
 	const [deleteRoomTarget, setDeleteRoomTarget] = useState<Room | null>(null);
@@ -111,7 +112,7 @@ export function BuildingPanel({
 			onPushHistory();
 			onRoomAdded(data.room);
 			setNewRoomName('');
-			setNewRoomCapacity('');
+			setNewRoomCapacity('45');
 			toast.success('Room added successfully.');
 		} catch (err) {
 			toast.error('Failed to add room.');
@@ -453,18 +454,17 @@ export function BuildingPanel({
 								</div>
 							</div>
 							<div>
-								<label className="text-[0.6rem] text-muted-foreground">Type</label>
-								<select
-									value={newRoomType}
-									onChange={(e) => setNewRoomType(e.target.value as RoomType)}
-									className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-								>
-									{ROOM_TYPES.map((t) => (
-										<option key={t.value} value={t.value}>
-											{t.label}
-										</option>
-									))}
-								</select>
+								<label className="text-[0.6rem] text-muted-foreground mb-1 block">Type</label>
+								<Select value={newRoomType} onValueChange={(v) => setNewRoomType(v as RoomType)}>
+									<SelectTrigger className="flex h-9 w-full bg-transparent text-sm shadow-sm transition-colors">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{ROOM_TYPES.map((t) => (
+											<SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
 							</div>
 							<Button
 								size="sm"

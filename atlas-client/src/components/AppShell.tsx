@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useLayoutEffect, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 
 import { captureBridgeToken, getBackHref } from '@/lib/bridge';
 import { fetchPublicSettings, fetchSchoolYears, verifyBridgeToken } from '@/lib/settings';
@@ -616,15 +616,18 @@ export function AppShell() {
 				</header>
 
 				{/* Page content */}
-				<motion.div
-					key={location.pathname}
-					initial={{ opacity: 0 }}
-					animate={{ opacity: 1 }}
-					transition={{ duration: 0.15, ease: 'easeOut' }}
-					className='flex-1 min-h-0 overflow-hidden'
-				>
-					<Outlet context={{ bridgeUser, schoolName }} />
-				</motion.div>
+				<AnimatePresence mode="wait">
+					<motion.div
+						key={location.pathname}
+						initial={{ opacity: 0, y: 10 }}
+						animate={{ opacity: 1, y: 0 }}
+						exit={{ opacity: 0, y: -10 }}
+						transition={{ duration: 0.2, ease: 'easeInOut' }}
+						className='flex-1 min-h-0 overflow-hidden'
+					>
+						<Outlet context={{ bridgeUser, schoolName }} />
+					</motion.div>
+				</AnimatePresence>
 			</SidebarInset>
 		</SidebarProvider>
 	);

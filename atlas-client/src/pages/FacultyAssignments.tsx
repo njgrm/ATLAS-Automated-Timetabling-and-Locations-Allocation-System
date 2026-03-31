@@ -3,6 +3,7 @@ import {
 	AlertTriangle,
 	CheckCircle2,
 	ChevronRight,
+	Info,
 	Save,
 	Search,
 	UserCog,
@@ -17,6 +18,8 @@ import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import { Input } from '@/ui/input';
 import { Skeleton } from '@/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
 const DEFAULT_SCHOOL_ID = 1;
 const GRADE_OPTIONS = [7, 8, 9, 10];
@@ -185,6 +188,16 @@ export default function FacultyAssignments() {
 
 	const maxHours = selected?.maxHoursPerWeek ?? 30;
 
+	const subjectsLackingFaculty = useMemo(() => {
+		const assignedIds = new Set<number>();
+		for (const fac of faculty) {
+			for (const a of fac.assignments) {
+				assignedIds.add(a.subjectId);
+			}
+		}
+		return subjects.filter(s => s.isActive && !assignedIds.has(s.id));
+	}, [faculty, subjects]);
+
 	return (
 		<div className="flex flex-col h-[calc(100svh-3.5rem)] px-6">
 
@@ -227,14 +240,15 @@ export default function FacultyAssignments() {
 							const depts = Array.from(new Set(faculty.map((f) => f.department).filter(Boolean) as string[])).sort();
 							if (depts.length === 0) return null;
 							return (
-								<select
-									value={departmentFilter}
-									onChange={(e) => setDepartmentFilter(e.target.value)}
-									className="mt-2 h-7 w-full rounded-md border border-input bg-background px-2 text-[0.6875rem] focus:outline-none focus:ring-1 focus:ring-ring"
-								>
-									<option value="all">All Departments</option>
-									{depts.map((d) => <option key={d} value={d}>{d}</option>)}
-								</select>
+								<Select value={departmentFilter} onValueChange={(v) => setDepartmentFilter(v)}>
+									<SelectTrigger className="mt-2 h-7 w-full text-[0.6875rem]">
+										<SelectValue placeholder="All Departments" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="all">All Departments</SelectItem>
+										{depts.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+									</SelectContent>
+								</Select>
 							);
 						})()}
 					</div>
@@ -329,10 +343,22 @@ export default function FacultyAssignments() {
 								)}
 
 								<div className="ml-auto flex items-center gap-4 shrink-0">
-									<div className="text-right">
-										<p className="text-sm font-black leading-none">
-											{computedSubjectHours}<span className="text-xs font-medium text-muted-foreground"> hrs</span>
-										</p>
+									<div className="text-right flex flex-col items-end">
+										<div className="flex items-center gap-1">
+											<p className="text-sm font-black leading-none">
+												{computedSubjectHours}<span className="text-xs font-medium text-muted-foreground"> hrs</span>
+											</p>
+											<TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<Info className="size-3 text-muted-foreground cursor-help" />
+													</TooltipTrigger>
+													<TooltipContent className="max-w-[200px] text-xs">
+														<p>This measures assigned subject types. True teaching load depends on section generation.</p>
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+										</div>
 										<p className="text-[0.625rem] text-muted-foreground">{localAssignments.length} subject{localAssignments.length !== 1 ? 's' : ''} assigned</p>
 									</div>
 									<Badge className="text-xs bg-muted text-muted-foreground">
@@ -340,6 +366,26 @@ export default function FacultyAssignments() {
 									</Badge>
 								</div>
 							</div>
+
+							{/* Subjects Lacking Faculty Warning */}
+							{subjectsLackingFaculty.length > 0 && (
+								<div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 shadow-sm">
+									<div className="flex items-center gap-2 text-red-700">
+										<AlertTriangle className="size-4" />
+										<h4 className="text-xs font-semibold">Subjects Lacking Faculty</h4>
+									</div>
+									<p className="mt-1 text-[0.6875rem] text-red-700/80">
+										{subjectsLackingFaculty.length} active subject(s) currently have no faculty assigned to them.
+									</p>
+									<div className="mt-2 flex flex-wrap gap-1">
+										{subjectsLackingFaculty.map(s => (
+											<Badge key={s.id} variant="outline" className="border-red-300 bg-white text-red-700 text-[0.625rem] px-1.5 py-0 hover:bg-red-50">
+												{s.name}
+											</Badge>
+										))}
+									</div>
+								</div>
+							)}
 
 							{/* Scrollable subject assignments */}
 							<Card className="shadow-sm mt-3 flex-1 min-h-0 flex flex-col">

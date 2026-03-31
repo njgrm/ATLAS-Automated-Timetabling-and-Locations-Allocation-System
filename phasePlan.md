@@ -5,8 +5,8 @@ This is the shared planning and verification ledger for all coding agents (Curso
 It defines phase scope, acceptance gates, and the current progress state.
 
 ## Active Phase
-- **Current phase:** Phase 1 - Setup Completion
-- **Mode:** Build + verify only items in active phase unless user approves otherwise
+- **Current phase:** Phase 1 - Setup Completion (COMPLETED)
+- **Mode:** Phase 1 formally closed. Awaiting Phase 2 activation.
 
 ## Non-ATLAS Scope Guardrail
 - Keep out of ATLAS: enrollment/admission workflows, grades/class records, LMS content uploads, registrar document workflows, MRF governance tracking.
@@ -25,7 +25,9 @@ It defines phase scope, acceptance gates, and the current progress state.
   - Basic officer setup flow navigable end-to-end
 
 ## Phase 1 - Setup Completion
-- **Status:** In Progress
+- **Status:** Completed
+- **Closed:** 2026-04-01
+- **Closure report:** `docs/phase1-closure.md`
 - **Scope**
   - Finalize setup-readiness quality for subjects, faculty, assignments, sections readiness, and campus map readiness
   - Tighten dashboard readiness indicators and setup gate logic
