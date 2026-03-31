@@ -15,14 +15,15 @@ datasource db {
 }
 
 model School {
-  id             Int        @id @default(autoincrement())
+  id             Int              @id @default(autoincrement())
   name           String
   shortName      String
-  campusImageUrl String?    @map("campus_image_url")
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  campusImageUrl String?          @map("campus_image_url")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
   subjects       Subject[]
   buildings      Building[]
+  facultyMirrors FacultyMirror[]
 
   @@map("schools")
 }
@@ -48,6 +49,7 @@ enum RoomType {
   CLASSROOM
   LABORATORY
   COMPUTER_LAB
+  TLE_WORKSHOP
   LIBRARY
   GYMNASIUM
   FACULTY_ROOM
@@ -72,16 +74,65 @@ model Room {
 }
 
 model Subject {
-  id           Int      @id @default(autoincrement())
-  schoolId     Int
-  code         String
-  name         String
-  weeklyMinJhs Int      @map("weekly_min_jhs")
-  isCore       Boolean  @default(true) @map("is_core")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  school       School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  id                Int              @id @default(autoincrement())
+  schoolId          Int              @map("school_id")
+  code              String
+  name              String
+  minMinutesPerWeek Int              @map("min_minutes_per_week")
+  preferredRoomType RoomType         @default(CLASSROOM) @map("preferred_room_type")
+  gradeLevels       Int[]            @map("grade_levels")
+  isActive          Boolean          @default(true) @map("is_active")
+  isSeedable        Boolean          @default(false) @map("is_seedable")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  school            School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  facultySubjects   FacultySubject[]
 
   @@unique([schoolId, code], map: "uq_subjects_school_code")
+  @@index([schoolId])
   @@map("subjects")
+}
+
+model FacultyMirror {
+  id                    Int              @id @default(autoincrement())
+  externalId            Int              @map("external_id")
+  schoolId              Int              @map("school_id")
+  firstName             String           @map("first_name")
+  lastName              String           @map("last_name")
+  department            String?
+  contactInfo           String?          @map("contact_info")
+  localNotes            String?          @map("local_notes")
+  isActiveForScheduling Boolean          @default(true) @map("is_active_for_scheduling")
+  maxHoursPerWeek       Int              @default(30) @map("max_hours_per_week")
+  lastSyncedAt          DateTime         @default(now()) @map("last_synced_at")
+  version               Int              @default(1)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  school                School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  facultySubjects       FacultySubject[]
+
+  @@unique([schoolId, externalId], map: "uq_faculty_school_external")
+  @@index([schoolId])
+  @@map("faculty_mirrors")
+}
+
+model FacultySubject {
+  id          Int           @id @default(autoincrement())
+  facultyId   Int           @map("faculty_id")
+  subjectId   Int           @map("subject_id")
+  schoolId    Int           @map("school_id")
+  gradeLevels Int[]         @map("grade_levels")
+  assignedBy  Int           @map("assigned_by")
+  assignedAt  DateTime      @default(now()) @map("assigned_at")
+  version     Int           @default(1)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  faculty     FacultyMirror @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  subject     Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([facultyId, subjectId], map: "uq_faculty_subject")
+  @@index([schoolId])
+  @@index([facultyId])
+  @@index([subjectId])
+  @@map("faculty_subjects")
 }

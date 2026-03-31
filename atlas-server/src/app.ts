@@ -7,6 +7,9 @@ import path from 'path';
 import { errorHandler } from './middleware/errorHandler.js';
 import authRouter from './routes/auth.router.js';
 import mapRouter from './routes/map.router.js';
+import subjectRouter from './routes/subject.router.js';
+import facultyRouter from './routes/faculty.router.js';
+import facultyAssignmentRouter from './routes/faculty-assignment.router.js';
 
 const app = express();
 
@@ -40,6 +43,9 @@ app.get('/api/v1/health', (_req, res) => {
 // Routes
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/map', mapRouter);
+app.use('/api/v1/subjects', subjectRouter);
+app.use('/api/v1/faculty', facultyRouter);
+app.use('/api/v1/faculty-assignments', facultyAssignmentRouter);
 
 // Error handler
 app.use(errorHandler);

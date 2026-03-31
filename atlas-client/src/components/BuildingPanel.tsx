@@ -22,6 +22,7 @@ const ROOM_TYPES: { value: RoomType; label: string }[] = [
 	{ value: 'CLASSROOM', label: 'Classroom' },
 	{ value: 'LABORATORY', label: 'Laboratory' },
 	{ value: 'COMPUTER_LAB', label: 'Computer Lab' },
+	{ value: 'TLE_WORKSHOP', label: 'TLE Workshop' },
 	{ value: 'LIBRARY', label: 'Library' },
 	{ value: 'GYMNASIUM', label: 'Gymnasium' },
 	{ value: 'FACULTY_ROOM', label: 'Faculty Room' },

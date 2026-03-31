@@ -99,7 +99,7 @@ export default function MapEditor() {
 			{/* Canvas area */}
 			<div className="flex-1 overflow-auto p-4">
 				<div className="mb-3">
-					<h2 className="text-lg font-bold">Campus Map Editor</h2>
+					<h2 className="text-lg font-bold">Map Editor</h2>
 					<p className="text-[0.8125rem] text-muted-foreground">
 						Add buildings, drag to position, resize with handles, and manage rooms.
 					</p>

@@ -5,8 +5,11 @@ import { AppShell } from './components/AppShell';
 import { Skeleton } from './ui/skeleton';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
-const MapView = lazy(() => import('./pages/MapView'));
 const MapEditor = lazy(() => import('./pages/MapEditor'));
+const Subjects = lazy(() => import('./pages/Subjects'));
+const Faculty = lazy(() => import('./pages/Faculty'));
+const FacultyAssignments = lazy(() => import('./pages/FacultyAssignments'));
+const ComingSoon = lazy(() => import('./pages/ComingSoon'));
 
 function Fallback() {
 	return (
@@ -16,6 +19,10 @@ function Fallback() {
 	);
 }
 
+function Lazy({ children }: { children: React.ReactNode }) {
+	return <Suspense fallback={<Fallback />}>{children}</Suspense>;
+}
+
 const router = createBrowserRouter([
 	{
 		path: '/',
@@ -23,27 +30,31 @@ const router = createBrowserRouter([
 		children: [
 			{
 				index: true,
-				element: (
-					<Suspense fallback={<Fallback />}>
-						<Dashboard />
-					</Suspense>
-				),
+				element: <Lazy><Dashboard /></Lazy>,
+			},
+			{
+				path: 'subjects',
+				element: <Lazy><Subjects /></Lazy>,
+			},
+			{
+				path: 'faculty',
+				element: <Lazy><Faculty /></Lazy>,
+			},
+			{
+				path: 'faculty/assignments',
+				element: <Lazy><FacultyAssignments /></Lazy>,
+			},
+			{
+				path: 'sections',
+				element: <Lazy><ComingSoon /></Lazy>,
+			},
+			{
+				path: 'timetable',
+				element: <Lazy><ComingSoon /></Lazy>,
 			},
 			{
 				path: 'map',
-				element: (
-					<Suspense fallback={<Fallback />}>
-						<MapView />
-					</Suspense>
-				),
-			},
-			{
-				path: 'map/editor',
-				element: (
-					<Suspense fallback={<Fallback />}>
-						<MapEditor />
-					</Suspense>
-				),
+				element: <Lazy><MapEditor /></Lazy>,
 			},
 			{ path: '*', element: <Navigate to="/" replace /> },
 		],

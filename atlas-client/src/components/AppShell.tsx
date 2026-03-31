@@ -1,23 +1,37 @@
 import {
 	BarChart3,
+	BookOpen,
+	CalendarClock,
 	ChevronLeft,
 	ChevronRight,
 	ExternalLink,
+	GraduationCap,
+	HelpCircle,
 	LayoutDashboard,
+	Lock,
 	LogOut,
 	MapPinned,
 	PanelLeft,
-	Pencil,
 	School,
+	UserCog,
+	Users,
 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 
-import atlasApi from '@/lib/api';
 import { captureBridgeToken, getBackHref } from '@/lib/bridge';
 import { fetchPublicSettings, verifyBridgeToken } from '@/lib/settings';
 import type { BridgeUser } from '@/types';
 import { Badge } from '@/ui/badge';
+import { Button } from '@/ui/button';
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from '@/ui/dialog';
 
 /* ─── WCAG contrast helpers (ported from EnrollPro RootLayout) ─── */
 
@@ -43,23 +57,37 @@ function contrastForeground(hsl: string): string {
 
 /* ─── Nav items ─── */
 
-const ENROLLPRO_URL = 'http://localhost:5173';
+const ENROLLPRO_URL = import.meta.env.VITE_ENROLLPRO_URL ?? 'http://localhost:5173';
+const ENROLLPRO_API_BASE =
+	(import.meta.env.VITE_ENROLLPRO_API ?? 'http://localhost:5000/api').replace('/api', '');
 
 type NavItem = {
 	label: string;
 	to: string;
 	icon: typeof LayoutDashboard;
 	end?: boolean; // exact match
+	adminOnly?: boolean;
+	disabled?: boolean;
 };
 
-const navItems: NavItem[] = [
+const navigationNav: NavItem[] = [
 	{ label: 'Dashboard', to: '/', icon: LayoutDashboard, end: true },
-	{ label: 'Campus Map', to: '/map', icon: MapPinned, end: true },
-	{ label: 'Map Editor', to: '/map/editor', icon: Pencil },
 ];
 
-const analyticsNav: NavItem[] = [
-	{ label: 'Analytics', to: '/analytics', icon: BarChart3 },
+const schedulingNav: NavItem[] = [
+	{ label: 'Subjects', to: '/subjects', icon: BookOpen, adminOnly: true },
+	{ label: 'Faculty', to: '/faculty', icon: Users, adminOnly: true },
+	{ label: 'Assignments', to: '/faculty/assignments', icon: UserCog, adminOnly: true },
+	{ label: 'Sections', to: '/sections', icon: GraduationCap, adminOnly: true, disabled: true },
+	{ label: 'Timetable', to: '/timetable', icon: CalendarClock, adminOnly: true, disabled: true },
+];
+
+const campusNav: NavItem[] = [
+	{ label: 'Map Editor', to: '/map', icon: MapPinned, adminOnly: true },
+];
+
+const insightsNav: NavItem[] = [
+	{ label: 'Analytics', to: '/analytics', icon: BarChart3, disabled: true },
 ];
 
 export function AppShell() {
@@ -68,6 +96,7 @@ export function AppShell() {
 	const [logoUrl, setLogoUrl] = useState<string | null>(null);
 	const [bridgeUser, setBridgeUser] = useState<BridgeUser | null>(null);
 	const [sidebarOpen, setSidebarOpen] = useState(true);
+	const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
 	/* Capture bridge token on mount */
 	useLayoutEffect(() => {
@@ -113,30 +142,50 @@ export function AppShell() {
 
 	/* Page title from current route */
 	const pageTitle = (() => {
-		const allNav = [...navItems, ...analyticsNav];
+		const allNav = [...navigationNav, ...schedulingNav, ...campusNav, ...insightsNav];
 		const match = allNav.find((n) =>
 			n.end ? location.pathname === n.to : location.pathname.startsWith(n.to),
 		);
 		return match?.label ?? 'ATLAS';
 	})();
 
-	const renderNavItem = (item: NavItem) => (
-		<NavLink
-			key={item.to}
-			to={item.to}
-			end={item.end}
-			className={({ isActive }) =>
-				`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors ${
-					isActive
-						? 'bg-sidebar-accent text-sidebar-accent-foreground'
-						: 'text-sidebar-foreground hover:bg-sidebar-accent/60'
-				} ${!sidebarOpen ? 'justify-center px-0' : ''}`
-			}
-		>
-			<item.icon className="size-4 shrink-0" />
-			{sidebarOpen && item.label}
-		</NavLink>
-	);
+	const renderNavItem = (item: NavItem) => {
+		if (item.disabled) {
+			return (
+				<span
+					key={item.to}
+					className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium text-muted-foreground/50 cursor-not-allowed ${
+						!sidebarOpen ? 'justify-center px-0' : ''
+					}`}
+				>
+					<item.icon className="size-4 shrink-0" />
+					{sidebarOpen && (
+						<>
+							{item.label}
+							<Lock className="ml-auto size-3 shrink-0" />
+						</>
+					)}
+				</span>
+			);
+		}
+		return (
+			<NavLink
+				key={item.to}
+				to={item.to}
+				end={item.end}
+				className={({ isActive }) =>
+					`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors ${
+						isActive
+							? 'bg-sidebar-accent text-sidebar-accent-foreground'
+							: 'text-sidebar-foreground hover:bg-sidebar-accent/60'
+					} ${!sidebarOpen ? 'justify-center px-0' : ''}`
+				}
+			>
+				<item.icon className="size-4 shrink-0" />
+				{sidebarOpen && item.label}
+			</NavLink>
+		);
+	};
 
 	return (
 		<div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
@@ -149,7 +198,7 @@ export function AppShell() {
 				{/* Brand */}
 				<div className="flex items-center gap-3 border-b border-sidebar-border px-3 py-3">
 					{logoUrl ? (
-						<img src={logoUrl} alt="" className="size-8 shrink-0 rounded-md object-cover" />
+						<img src={`${ENROLLPRO_API_BASE}${logoUrl}`} alt="" className="size-8 shrink-0 rounded-md object-cover" />
 					) : (
 						<div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
 							<School className="size-4" />
@@ -170,8 +219,26 @@ export function AppShell() {
 							Navigation
 						</p>
 					)}
-					{navItems
-						.filter((item) => item.to !== '/map/editor' || isAdmin)
+					{navigationNav
+						.filter((item) => !item.adminOnly || isAdmin)
+						.map(renderNavItem)}
+
+					{sidebarOpen && (
+						<p className="px-2 pb-1 pt-4 text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground">
+							Scheduling
+						</p>
+					)}
+					{schedulingNav
+						.filter((item) => !item.adminOnly || isAdmin)
+						.map(renderNavItem)}
+
+					{sidebarOpen && (
+						<p className="px-2 pb-1 pt-4 text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground">
+							Campus
+						</p>
+					)}
+					{campusNav
+						.filter((item) => !item.adminOnly || isAdmin)
 						.map(renderNavItem)}
 
 					{sidebarOpen && (
@@ -179,7 +246,7 @@ export function AppShell() {
 							Insights
 						</p>
 					)}
-					{analyticsNav.map(renderNavItem)}
+					{insightsNav.map(renderNavItem)}
 
 					{sidebarOpen && (
 						<p className="px-2 pb-1 pt-4 text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground">
@@ -207,7 +274,10 @@ export function AppShell() {
 
 				{/* Footer */}
 				<div className="border-t border-sidebar-border px-3 py-3">
-					<div className="flex items-center gap-2.5">
+					<button
+						onClick={() => setShowLogoutConfirm(true)}
+						className="flex w-full items-center gap-2.5 rounded-md px-0 py-0 text-left transition-colors hover:bg-sidebar-accent/60"
+					>
 						<div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-sm font-bold text-foreground">
 							{bridgeUser?.role ? bridgeUser.role.charAt(0).toUpperCase() : 'G'}
 						</div>
@@ -227,14 +297,9 @@ export function AppShell() {
 							</div>
 						)}
 						{sidebarOpen && (
-							<a
-								href={`${ENROLLPRO_URL}/login`}
-								className="text-muted-foreground hover:text-foreground transition-colors"
-							>
-								<LogOut className="size-4" />
-							</a>
+							<LogOut className="ml-auto size-4 shrink-0 text-muted-foreground" />
 						)}
-					</div>
+					</button>
 				</div>
 			</aside>
 
@@ -257,6 +322,44 @@ export function AppShell() {
 					<Outlet context={{ bridgeUser, schoolName }} />
 				</main>
 			</div>
+
+			{/* ─── Sign-out confirmation modal (matches EnrollPro UX) ─── */}
+			<Dialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
+				<DialogContent className="w-[calc(100%-2rem)] sm:max-w-sm rounded-3xl p-8 overflow-hidden bg-sidebar shadow-2xl">
+					{/* Icon badge */}
+					<div className="flex justify-center mb-5">
+						<span className="flex items-center justify-center w-14 h-14 rounded-full bg-[hsl(var(--primary))] ring-[6px] ring-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary-foreground))]">
+							<HelpCircle className="w-6 h-6" strokeWidth={2.5} />
+						</span>
+					</div>
+					<DialogHeader className="space-y-2 text-center items-center">
+						<DialogTitle className="text-xl font-bold tracking-tight text-gray-900">
+							Sign Out
+						</DialogTitle>
+						<DialogDescription className="text-sm leading-relaxed text-gray-500 text-center">
+							Are you sure you want to sign out of your account?
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter className="flex flex-row gap-3 mt-7 sm:justify-center">
+						<Button
+							variant="outline"
+							onClick={() => setShowLogoutConfirm(false)}
+							className="flex-1 h-12 rounded-2xl font-semibold text-sm border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-all duration-150 active:scale-[0.97]"
+						>
+							Cancel
+						</Button>
+						<Button
+							onClick={() => {
+								sessionStorage.removeItem('atlas_bridge_token');
+								window.location.href = `${ENROLLPRO_URL}/login`;
+							}}
+							className="flex-1 h-12 rounded-2xl font-semibold text-sm bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-md transition-all duration-150 active:scale-[0.97]"
+						>
+							Sign Out
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }

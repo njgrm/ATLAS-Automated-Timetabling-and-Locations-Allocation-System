@@ -370,22 +370,26 @@ export function CampusMapEditor({
 										shadowOffsetY={selected ? 2 : 1}
 									/>
 									<Text
-										x={10}
-										y={10}
+										x={6}
+										y={6}
 										text={b.name}
-										fontSize={14}
+										fontSize={Math.min(14, b.width / 8, b.height / 5)}
 										fill="#ffffff"
 										fontStyle="bold"
-										width={b.width - 20}
+										width={b.width - 12}
+										height={b.height - 30}
+										wrap="word"
 										ellipsis
-										wrap="none"
 									/>
 									<Text
-										x={10}
-										y={b.height - 24}
+										x={6}
+										y={b.height - 18}
 										text={`${b.rooms.length} room${b.rooms.length !== 1 ? 's' : ''}`}
-										fontSize={11}
+										fontSize={Math.min(11, b.width / 10)}
 										fill="rgba(255,255,255,0.8)"
+										width={b.width - 12}
+										wrap="none"
+										ellipsis
 									/>
 									{b.dirty && (
 										<Rect

@@ -1,19 +1,19 @@
 require('dotenv').config();
 
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient } = require('../atlas-server/node_modules/.prisma/client');
 
 const prisma = new PrismaClient();
 
 const subjectSeeds = [
-	{ code: 'FIL', name: 'Filipino', weeklyMinJhs: 240, isCore: true },
-	{ code: 'ENG', name: 'English', weeklyMinJhs: 240, isCore: true },
-	{ code: 'MATH', name: 'Mathematics', weeklyMinJhs: 240, isCore: true },
-	{ code: 'SCI', name: 'Science', weeklyMinJhs: 240, isCore: true },
-	{ code: 'AP', name: 'Araling Panlipunan', weeklyMinJhs: 180, isCore: true },
-	{ code: 'MAPEH', name: 'MAPEH', weeklyMinJhs: 160, isCore: true },
-	{ code: 'ESP', name: 'Edukasyon sa Pagpapakatao', weeklyMinJhs: 120, isCore: true },
-	{ code: 'TLE', name: 'Technology and Livelihood Education', weeklyMinJhs: 240, isCore: true },
-	{ code: 'HG', name: 'Homeroom Guidance', weeklyMinJhs: 60, isCore: false },
+	{ code: 'FIL', name: 'Filipino', minMinutesPerWeek: 200, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
+	{ code: 'ENG', name: 'English', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
+	{ code: 'MATH', name: 'Mathematics', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
+	{ code: 'SCI', name: 'Science', minMinutesPerWeek: 225, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: true },
+	{ code: 'AP', name: 'Araling Panlipunan', minMinutesPerWeek: 200, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
+	{ code: 'MAPEH', name: 'MAPEH', minMinutesPerWeek: 200, preferredRoomType: 'GYMNASIUM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
+	{ code: 'VE', name: 'Values Education', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
+	{ code: 'TLE', name: 'Technology and Livelihood Education', minMinutesPerWeek: 200, preferredRoomType: 'TLE_WORKSHOP', gradeLevels: [7, 8, 9, 10], isSeedable: true },
+	{ code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
 ];
 
 async function main() {
@@ -39,15 +39,20 @@ async function main() {
 			},
 			update: {
 				name: subject.name,
-				weeklyMinJhs: subject.weeklyMinJhs,
-				isCore: subject.isCore,
+				minMinutesPerWeek: subject.minMinutesPerWeek,
+				preferredRoomType: subject.preferredRoomType,
+				gradeLevels: subject.gradeLevels,
+				isSeedable: subject.isSeedable,
 			},
 			create: {
 				schoolId: school.id,
 				code: subject.code,
 				name: subject.name,
-				weeklyMinJhs: subject.weeklyMinJhs,
-				isCore: subject.isCore,
+				minMinutesPerWeek: subject.minMinutesPerWeek,
+				preferredRoomType: subject.preferredRoomType,
+				gradeLevels: subject.gradeLevels,
+				isSeedable: subject.isSeedable,
+				isActive: true,
 			},
 		});
 	}
