@@ -178,3 +178,52 @@ export type DevBulkSubmitResponse = {
 	converted: number;
 	auditId: number | null;
 };
+
+/* ─── Room Schedule types ─── */
+
+export type RoomScheduleEntry = {
+	entryId: string;
+	subjectId: number;
+	sectionId: number;
+	facultyId: number;
+	startTime: string;
+	endTime: string;
+	durationMinutes: number;
+};
+
+export type RoomScheduleCell = {
+	day: string;
+	occupied: boolean;
+	entries: RoomScheduleEntry[];
+	conflict: boolean;
+};
+
+export type RoomScheduleView = {
+	room: {
+		id: number;
+		name: string;
+		type: string;
+		buildingId?: number;
+		buildingName?: string;
+		floor?: number;
+	};
+	source: {
+		mode: 'LATEST' | 'RUN';
+		runId: number;
+		status: string;
+		generatedAt?: string;
+	};
+	timeSlots: Array<{ startTime: string; endTime: string }>;
+	days: string[];
+	grid: Array<{
+		timeSlot: { startTime: string; endTime: string };
+		cells: RoomScheduleCell[];
+	}>;
+	summary: {
+		occupiedMinutes: number;
+		availableMinutes: number;
+		utilizationPercent: number;
+		entryCount: number;
+		conflictCount: number;
+	};
+};

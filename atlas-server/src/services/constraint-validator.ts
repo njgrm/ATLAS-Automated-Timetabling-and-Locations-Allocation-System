@@ -260,11 +260,11 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 			const facultyId = Number(facIdStr);
 			const sorted = [...dayEntries].sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-			// 6a) Daily teaching max
+			// 6a) Daily teaching max — always HARD
 			const dailyMinutes = sorted.reduce((sum, e) => sum + e.durationMinutes, 0);
 			if (dailyMinutes > policy.maxTeachingMinutesPerDay) {
 				violations.push({
-					...base, severity,
+					...base, severity: 'HARD',
 					code: 'FACULTY_DAILY_MAX_EXCEEDED',
 					message: `Faculty ${facultyId} teaches ${dailyMinutes} min on ${day}, exceeds daily max ${policy.maxTeachingMinutesPerDay} min.`,
 					entities: { facultyId, day, entryIds: sorted.map((e) => e.entryId) },
@@ -272,7 +272,7 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 				});
 			}
 
-			// 6b) Consecutive teaching without break
+			// 6b) Consecutive teaching without break + break requirement
 			let consecutiveMinutes = 0;
 			let blockEntries: string[] = [];
 
@@ -289,6 +289,16 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 				const gapMinutes = timeToMinutes(entry.startTime) - timeToMinutes(prev.endTime);
 
 				if (gapMinutes < policy.minBreakMinutesAfterConsecutiveBlock) {
+					// Gap exists but is insufficient — emit break-requirement violation
+					if (gapMinutes > 0) {
+						violations.push({
+							...base, severity,
+							code: 'FACULTY_BREAK_REQUIREMENT_VIOLATED',
+							message: `Faculty ${facultyId} has only ${gapMinutes} min break on ${day} between ${prev.endTime} and ${entry.startTime}, requires ${policy.minBreakMinutesAfterConsecutiveBlock} min.`,
+							entities: { facultyId, day, entryIds: [prev.entryId, entry.entryId] },
+							meta: { actualGapMinutes: gapMinutes, requiredBreakMinutes: policy.minBreakMinutesAfterConsecutiveBlock },
+						});
+					}
 					// Contiguous or gap too short — extend block
 					consecutiveMinutes += entry.durationMinutes;
 					blockEntries.push(entry.entryId);

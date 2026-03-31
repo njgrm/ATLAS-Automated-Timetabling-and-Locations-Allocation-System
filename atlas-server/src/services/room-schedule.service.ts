@@ -1,0 +1,192 @@
+/**
+ * Room schedule projection service.
+ * Reads draft entries from generation runs and projects a room-centric timetable view.
+ * Business logic only; no transport concerns.
+ */
+
+import { prisma } from '../lib/prisma.js';
+import type { ScheduledEntry } from './constraint-validator.js';
+import * as genService from './generation.service.js';
+
+// ─── Constants ───
+
+const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
+type Day = (typeof DAYS)[number];
+
+const PERIOD_SLOTS = [
+	{ startTime: '07:30', endTime: '08:20' },
+	{ startTime: '08:20', endTime: '09:10' },
+	{ startTime: '09:10', endTime: '10:00' },
+	{ startTime: '10:15', endTime: '11:05' },
+	{ startTime: '11:05', endTime: '11:55' },
+	{ startTime: '12:55', endTime: '13:45' },
+	{ startTime: '13:45', endTime: '14:35' },
+	{ startTime: '14:35', endTime: '15:25' },
+] as const;
+
+// ─── Helpers ───
+
+function err(statusCode: number, code: string, message: string): Error & { statusCode: number; code: string } {
+	const e = new Error(message) as Error & { statusCode: number; code: string };
+	e.statusCode = statusCode;
+	e.code = code;
+	return e;
+}
+
+function timesOverlap(a: { startTime: string; endTime: string }, b: { startTime: string; endTime: string }): boolean {
+	return a.startTime < b.endTime && b.startTime < a.endTime;
+}
+
+// ─── Types ───
+
+export interface RoomScheduleEntry {
+	entryId: string;
+	subjectId: number;
+	sectionId: number;
+	facultyId: number;
+	startTime: string;
+	endTime: string;
+	durationMinutes: number;
+}
+
+export interface RoomScheduleCell {
+	day: string;
+	occupied: boolean;
+	entries: RoomScheduleEntry[];
+	conflict: boolean;
+}
+
+export interface RoomScheduleView {
+	room: {
+		id: number;
+		name: string;
+		type: string;
+		buildingId?: number;
+		buildingName?: string;
+		floor?: number;
+	};
+	source: {
+		mode: 'LATEST' | 'RUN';
+		runId: number;
+		status: string;
+		generatedAt?: string;
+	};
+	timeSlots: Array<{ startTime: string; endTime: string }>;
+	days: typeof DAYS;
+	grid: Array<{
+		timeSlot: { startTime: string; endTime: string };
+		cells: RoomScheduleCell[];
+	}>;
+	summary: {
+		occupiedMinutes: number;
+		availableMinutes: number;
+		utilizationPercent: number;
+		entryCount: number;
+		conflictCount: number;
+	};
+}
+
+// ─── Service ───
+
+export async function getRoomScheduleView(
+	schoolId: number,
+	schoolYearId: number,
+	roomId: number,
+	source: { mode: 'LATEST' } | { mode: 'RUN'; runId: number },
+): Promise<RoomScheduleView> {
+	// 1) Fetch room with building
+	const room = await prisma.room.findFirst({
+		where: { id: roomId, building: { schoolId } },
+		include: { building: { select: { id: true, name: true } } },
+	});
+	if (!room) throw err(404, 'ROOM_NOT_FOUND', `Room ${roomId} not found in school ${schoolId}.`);
+
+	// 2) Fetch draft from generation run
+	const draft = source.mode === 'LATEST'
+		? await genService.getLatestRunDraft(schoolId, schoolYearId)
+		: await genService.getRunDraft(source.runId, schoolId, schoolYearId);
+
+	// 3) Filter entries for this room
+	const roomEntries = draft.entries.filter((e: ScheduledEntry) => e.roomId === roomId);
+
+	// 4) Build index: day -> entries[]
+	const entriesByDay = new Map<string, ScheduledEntry[]>();
+	for (const e of roomEntries) {
+		const arr = entriesByDay.get(e.day) ?? [];
+		arr.push(e);
+		entriesByDay.set(e.day, arr);
+	}
+
+	// 5) Build grid row by row (time slot × day)
+	let occupiedMinutes = 0;
+	let entryCount = 0;
+	let conflictCount = 0;
+
+	const grid = PERIOD_SLOTS.map((slot) => {
+		const cells: RoomScheduleCell[] = DAYS.map((day) => {
+			const dayEntries = entriesByDay.get(day) ?? [];
+			const overlapping = dayEntries.filter((e) => timesOverlap(slot, e));
+
+			const mapped: RoomScheduleEntry[] = overlapping.map((e) => ({
+				entryId: e.entryId,
+				subjectId: e.subjectId,
+				sectionId: e.sectionId,
+				facultyId: e.facultyId,
+				startTime: e.startTime,
+				endTime: e.endTime,
+				durationMinutes: e.durationMinutes,
+			}));
+
+			const hasConflict = mapped.length > 1;
+			if (hasConflict) conflictCount++;
+			if (mapped.length > 0) {
+				entryCount += mapped.length;
+				occupiedMinutes += mapped[0].durationMinutes;
+			}
+
+			return {
+				day,
+				occupied: mapped.length > 0,
+				entries: mapped,
+				conflict: hasConflict,
+			};
+		});
+
+		return { timeSlot: { startTime: slot.startTime, endTime: slot.endTime }, cells };
+	});
+
+	// 6) Summary
+	const totalSlots = PERIOD_SLOTS.length * DAYS.length;
+	const slotMinutes = 50; // standard JHS period
+	const availableMinutes = totalSlots * slotMinutes;
+	const utilizationPercent = availableMinutes > 0
+		? Math.round((occupiedMinutes / availableMinutes) * 10000) / 100
+		: 0;
+
+	return {
+		room: {
+			id: room.id,
+			name: room.name,
+			type: room.type,
+			buildingId: room.building.id,
+			buildingName: room.building.name,
+			floor: room.floor,
+		},
+		source: {
+			mode: source.mode,
+			runId: draft.runId,
+			status: draft.status,
+			generatedAt: draft.summary ? undefined : undefined,
+		},
+		timeSlots: PERIOD_SLOTS.map((s) => ({ startTime: s.startTime, endTime: s.endTime })),
+		days: DAYS,
+		grid,
+		summary: {
+			occupiedMinutes,
+			availableMinutes,
+			utilizationPercent,
+			entryCount,
+			conflictCount,
+		},
+	};
+}

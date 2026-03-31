@@ -136,7 +136,7 @@ export async function triggerGenerationRun(
 			assignedCount: result.assignedCount,
 			unassignedCount: result.unassignedCount,
 			policyBlockedCount: result.policyBlockedCount,
-			hardViolationCount: validationResult.counts.total,
+			hardViolationCount: validationResult.violations.filter((v) => v.severity === 'HARD').length,
 			violationCounts: validationResult.counts.byCode,
 		};
 

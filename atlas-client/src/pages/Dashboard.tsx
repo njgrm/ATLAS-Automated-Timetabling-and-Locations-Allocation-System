@@ -180,6 +180,30 @@ export default function Dashboard() {
 	// v1: always SETUP until generation is implemented; will become state later.
 	const currentPhase: string = 'SETUP';
 
+	const buildingSetupStatus = useMemo(() => {
+		const teachingBuildings = buildings.filter((b) => b.isTeachingBuilding !== false);
+		const invalidTeachingBuildings = teachingBuildings.filter(
+			(b) => /^Building \d+$/.test(b.name) || b.rooms.length === 0,
+		);
+		const teachingBuildingsWithoutRooms = teachingBuildings.filter((b) => b.rooms.length === 0);
+		const placeholderNamedBuildings = teachingBuildings.filter((b) => /^Building \d+$/.test(b.name));
+
+		const done = teachingBuildings.length > 0 && invalidTeachingBuildings.length === 0;
+		let subMessage: string | undefined;
+		if (!done) {
+			if (teachingBuildings.length === 0) {
+				subMessage = 'No teaching buildings configured';
+			} else if (teachingBuildingsWithoutRooms.length > 0 && placeholderNamedBuildings.length > 0) {
+				subMessage = `${teachingBuildingsWithoutRooms.length} without rooms, ${placeholderNamedBuildings.length} need renaming`;
+			} else if (teachingBuildingsWithoutRooms.length > 0) {
+				subMessage = `${teachingBuildingsWithoutRooms.length} building${teachingBuildingsWithoutRooms.length !== 1 ? 's' : ''} have no rooms configured`;
+			} else if (placeholderNamedBuildings.length > 0) {
+				subMessage = `${placeholderNamedBuildings.length} building${placeholderNamedBuildings.length !== 1 ? 's' : ''} need renaming`;
+			}
+		}
+		return { done, subMessage };
+	}, [buildings]);
+
 	const statCards: StatCard[] = useMemo(
 		() => {
 			const isSetup = currentPhase === 'SETUP';
@@ -188,7 +212,7 @@ export default function Dashboard() {
 				{ title: 'Subjects', value: subjectCount !== null ? String(subjectCount) : '—', icon: BookOpen, color: 'text-blue-600', bg: 'bg-blue-50', link: '/subjects', warning: unassignedSubjectCount ? `${unassignedSubjectCount} need faculty` : undefined },
 				{ title: 'Active Faculty', value: facultyCount !== null ? String(facultyCount) : '—', icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50', link: '/faculty' },
 				{ title: 'Sections', value: sectionCount !== null ? String(sectionCount) : '—', icon: GraduationCap, color: 'text-pink-600', bg: 'bg-pink-50', link: '/sections', warning: sectionCount === null ? 'Upstream unavailable' : undefined },
-				{ title: 'Buildings', value: String(buildings.length), icon: MapPinned, color: 'text-amber-600', bg: 'bg-amber-50', link: '/map' },
+				{ title: 'Buildings', value: String(buildings.length), icon: MapPinned, color: 'text-amber-600', bg: 'bg-amber-50', link: '/map', warning: buildingSetupStatus.subMessage },
 				{ title: 'Teaching Rooms', value: String(teachingRooms), icon: ClipboardList, color: 'text-violet-600', bg: 'bg-violet-50', link: '/map', warning: nonTeachingExcluded > 0 ? `${totalRooms} total (${nonTeachingExcluded} non-teaching)` : undefined },
 				{ title: 'Faculty Preferences', value: isPrefPhase ? '—' : '—', icon: Clock, color: isPrefPhase ? 'text-orange-600' : 'text-muted-foreground', bg: isPrefPhase ? 'bg-orange-50' : 'bg-muted', muted: isSetup, warning: isSetup ? 'Available in Preference Collection' : undefined },
 			];
@@ -196,33 +220,12 @@ export default function Dashboard() {
 		// currentPhase is a constant today; include it so the dep array stays correct
 		// when it becomes state in Phase 2+.
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-		[buildings, teachingRooms, totalRooms, nonTeachingExcluded, subjectCount, facultyCount, sectionCount, unassignedSubjectCount, currentPhase],
+		[buildings, teachingRooms, totalRooms, nonTeachingExcluded, subjectCount, facultyCount, sectionCount, unassignedSubjectCount, currentPhase, buildingSetupStatus],
 	);
 
 	/* Setup checklist — determines if we can advance from SETUP phase */
 	const setupChecklist: SetupCheck[] = useMemo(
 		() => {
-			const teachingBuildings = buildings.filter((b) => b.isTeachingBuilding !== false);
-			const invalidTeachingBuildings = teachingBuildings.filter(
-				(b) => /^Building \d+$/.test(b.name) || b.rooms.length === 0,
-			);
-			const teachingBuildingsWithoutRooms = teachingBuildings.filter((b) => b.rooms.length === 0);
-			const placeholderNamedBuildings = teachingBuildings.filter((b) => /^Building \d+$/.test(b.name));
-
-			const buildingsDone = teachingBuildings.length > 0 && invalidTeachingBuildings.length === 0;
-			let buildingsSubMessage: string | undefined;
-			if (!buildingsDone) {
-				if (teachingBuildings.length === 0) {
-					buildingsSubMessage = 'No teaching buildings configured';
-				} else if (teachingBuildingsWithoutRooms.length > 0 && placeholderNamedBuildings.length > 0) {
-					buildingsSubMessage = `${teachingBuildingsWithoutRooms.length} without rooms, ${placeholderNamedBuildings.length} need renaming`;
-				} else if (teachingBuildingsWithoutRooms.length > 0) {
-					buildingsSubMessage = `${teachingBuildingsWithoutRooms.length} building${teachingBuildingsWithoutRooms.length !== 1 ? 's' : ''} have no rooms configured`;
-				} else if (placeholderNamedBuildings.length > 0) {
-					buildingsSubMessage = `${placeholderNamedBuildings.length} building${placeholderNamedBuildings.length !== 1 ? 's' : ''} need renaming`;
-				}
-			}
-
 			return [
 				{ label: 'Subjects configured', done: (subjectCount ?? 0) > 0, link: '/subjects' },
 				{ label: 'Faculty synced', done: (facultyCount ?? 0) > 0, link: '/faculty' },
@@ -230,13 +233,13 @@ export default function Dashboard() {
 				{ label: 'Sections sourced', done: (sectionCount ?? 0) > 0, link: '/sections', subMessage: sectionCount === null ? 'Enrollment service not connected' : sectionCount === 0 ? 'No sections found for active school year' : undefined },
 				{
 					label: 'Buildings & rooms set up',
-					done: buildingsDone,
+					done: buildingSetupStatus.done,
 					link: '/map',
-					subMessage: buildingsSubMessage,
+					subMessage: buildingSetupStatus.subMessage,
 				},
 			];
 		},
-		[subjectCount, facultyCount, unassignedSubjectCount, sectionCount, buildings],
+		[subjectCount, facultyCount, unassignedSubjectCount, sectionCount, buildings, buildingSetupStatus],
 	);
 
 	const setupProgress = setupChecklist.filter((c) => c.done).length;
@@ -264,25 +267,31 @@ export default function Dashboard() {
 									<stat.icon className={`h-4 w-4 ${stat.color}`} />
 									</div>
 								</CardHeader>
-								<CardContent className="px-4 pb-3 pt-0 flex-1 flex items-end">
+								<CardContent className="px-4 pb-3 pt-0 flex-1 flex flex-col items-center">
 									{loading ? (
-										<Skeleton className="h-7 w-14" />
+										<div className="flex-1 flex items-center justify-center">
+											<Skeleton className="h-10 w-20" />
+										</div>
 									) : (
-										<div>
-											<div className="text-2xl font-black">
-												{stat.link && !stat.muted ? (
-													<Link to={stat.link} className="hover:underline">{stat.value}</Link>
-												) : (
-													stat.value
+										<>
+											<div className="flex-1 flex items-center justify-center w-full">
+												<div className="text-4xl font-black tracking-tight">
+													{stat.link && !stat.muted ? (
+														<Link to={stat.link} className="hover:underline">{stat.value}</Link>
+													) : (
+														stat.value
+													)}
+												</div>
+											</div>
+											<div className="w-full flex items-end justify-center mt-1 min-h-[1.5rem]">
+												{stat.warning && (
+													<div className="inline-flex items-start text-center justify-center gap-1 text-[0.625rem] text-amber-600 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200/50 max-w-full leading-tight">
+														<AlertTriangle className="size-2.5 shrink-0 mt-[1px]" />
+														<span className="whitespace-normal break-words">{stat.warning}</span>
+													</div>
 												)}
 											</div>
-											{stat.warning && (
-											<div className="mt-0.5 flex items-center gap-1 text-[0.6875rem] text-amber-600">
-												<AlertTriangle className="size-3" />
-													{stat.warning}
-												</div>
-											)}
-										</div>
+										</>
 									)}
 								</CardContent>
 							</Card>
@@ -381,10 +390,10 @@ export default function Dashboard() {
 												</span>
 											)}
 											{item.subMessage && !item.done && (
-												<p className="mt-0.5 flex items-center gap-1 text-[0.6rem] text-amber-600">
+												<div className="mt-1.5 inline-flex items-center gap-1 text-[0.625rem] text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/50">
 													<AlertTriangle className="size-2.5 shrink-0" />
 													{item.subMessage}
-												</p>
+												</div>
 											)}
 										</div>
 									</li>
