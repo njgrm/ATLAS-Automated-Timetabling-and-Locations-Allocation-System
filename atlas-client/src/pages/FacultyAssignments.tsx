@@ -12,6 +12,7 @@ import {
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
+import { fetchPublicSettings } from '@/lib/settings';
 import type { Subject } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -23,6 +24,37 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 
 const DEFAULT_SCHOOL_ID = 1;
 const GRADE_OPTIONS = [7, 8, 9, 10];
+
+/* ── DepEd Load Policy Constants ─────────────────────────────── */
+const STANDARD_WEEKLY_TEACHING_HOURS = 30;
+const MAX_WEEKLY_TEACHING_HOURS = 40;
+const CLASS_ADVISER_EQUIVALENT_HOURS = 5;
+
+type LoadStatus = 'below-standard' | 'compliant' | 'overload-allowed' | 'over-cap';
+
+type LoadProfile = {
+	actualTeachingHours: number;
+	equivalentHours: number;
+	creditedTotalHours: number;
+	overloadHours: number;
+	overCapHours: number;
+	status: LoadStatus;
+	statusLabel: string;
+	breakdown: { subjectName: string; subjectCode: string; grade: number; minutesPerWeek: number; sections: number; totalMinutes: number }[];
+};
+
+function deriveLoadStatus(actualTeaching: number): { status: LoadStatus; label: string } {
+	if (actualTeaching > MAX_WEEKLY_TEACHING_HOURS) return { status: 'over-cap', label: 'Over Cap' };
+	if (actualTeaching >= STANDARD_WEEKLY_TEACHING_HOURS) return { status: 'overload-allowed', label: actualTeaching > STANDARD_WEEKLY_TEACHING_HOURS ? 'Overload Allowed' : 'Compliant' };
+	return { status: 'below-standard', label: 'Below Standard' };
+}
+
+const STATUS_COLORS: Record<LoadStatus, { text: string; bg: string; border: string }> = {
+	'below-standard': { text: 'text-sky-700', bg: 'bg-sky-50', border: 'border-sky-200' },
+	'compliant': { text: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+	'overload-allowed': { text: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
+	'over-cap': { text: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200' },
+};
 
 type FacultySummary = {
 	id: number;
@@ -60,6 +92,10 @@ export default function FacultyAssignments() {
 	const [departmentFilter, setDepartmentFilter] = useState<string>('all');
 	const [error, setError] = useState<string | null>(null);
 
+	/* Section demand data */
+	const [sectionsByGrade, setSectionsByGrade] = useState<Record<number, number>>({});
+	const [sectionsAvailable, setSectionsAvailable] = useState<boolean | null>(null); // null = loading
+
 	const fetchData = useCallback(async () => {
 		setLoading(true);
 		try {
@@ -74,6 +110,27 @@ export default function FacultyAssignments() {
 			setFaculty(facRes.data.faculty);
 			setSubjects(subRes.data.subjects.filter((s) => s.isActive));
 			setError(null);
+
+			// Fetch section counts (non-blocking — assignment page still works without it)
+			try {
+				const settings = await fetchPublicSettings();
+				const ayId = settings.activeSchoolYearId;
+				if (ayId) {
+					const secRes = await atlasApi.get<{ byGradeLevel: Record<number, number>; code?: string }>(
+						`/sections/summary/${ayId}?schoolId=${DEFAULT_SCHOOL_ID}`,
+					);
+					if (secRes.data.code === 'UPSTREAM_UNAVAILABLE') {
+						setSectionsAvailable(false);
+					} else {
+						setSectionsByGrade(secRes.data.byGradeLevel ?? {});
+						setSectionsAvailable(true);
+					}
+				} else {
+					setSectionsAvailable(false);
+				}
+			} catch {
+				setSectionsAvailable(false);
+			}
 		} catch {
 			setError('Failed to load assignment data.');
 		} finally {
@@ -173,20 +230,41 @@ export default function FacultyAssignments() {
 		}
 	};
 
-	// Compute assigned subject hours (sum of distinct subject hrs, no grade multiplier).
-	// Actual weekly teaching load depends on section assignments during generation.
-	const computedSubjectHours = useMemo(() => {
+	// Section-aware load profile following DepEd policy semantics
+	const loadProfile: LoadProfile = useMemo(() => {
+		const breakdown: LoadProfile['breakdown'] = [];
 		let totalMinutes = 0;
+
 		for (const a of localAssignments) {
 			const sub = subjects.find((s) => s.id === a.subjectId);
-			if (sub) {
-				totalMinutes += sub.minMinutesPerWeek;
+			if (!sub) continue;
+			for (const g of a.gradeLevels) {
+				const secCount = sectionsAvailable ? (sectionsByGrade[g] ?? 0) : 1;
+				const demand = sub.minMinutesPerWeek * secCount;
+				breakdown.push({
+					subjectName: sub.name,
+					subjectCode: sub.code,
+					grade: g,
+					minutesPerWeek: sub.minMinutesPerWeek,
+					sections: secCount,
+					totalMinutes: demand,
+				});
+				totalMinutes += demand;
 			}
 		}
-		return Math.round((totalMinutes / 60) * 10) / 10;
-	}, [localAssignments, subjects]);
 
-	const maxHours = selected?.maxHoursPerWeek ?? 30;
+		const actualTeachingHours = Math.round((totalMinutes / 60) * 10) / 10;
+
+		// Equivalent hours — class adviser adds +5h; extend here as designation data becomes available
+		// TODO: pull designation from faculty record when available
+		const equivalentHours = 0;
+		const creditedTotalHours = Math.round((actualTeachingHours + equivalentHours) * 10) / 10;
+		const overloadHours = Math.round(Math.max(actualTeachingHours - STANDARD_WEEKLY_TEACHING_HOURS, 0) * 10) / 10;
+		const overCapHours = Math.round(Math.max(actualTeachingHours - MAX_WEEKLY_TEACHING_HOURS, 0) * 10) / 10;
+		const { status, label } = deriveLoadStatus(actualTeachingHours);
+
+		return { actualTeachingHours, equivalentHours, creditedTotalHours, overloadHours, overCapHours, status, statusLabel: label, breakdown };
+	}, [localAssignments, subjects, sectionsByGrade, sectionsAvailable]);
 
 	const subjectsLackingFaculty = useMemo(() => {
 		const assignedIds = new Set<number>();
@@ -342,28 +420,92 @@ export default function FacultyAssignments() {
 									</Badge>
 								)}
 
-								<div className="ml-auto flex items-center gap-4 shrink-0">
-									<div className="text-right flex flex-col items-end">
-										<div className="flex items-center gap-1">
-											<p className="text-sm font-black leading-none">
-												{computedSubjectHours}<span className="text-xs font-medium text-muted-foreground"> hrs</span>
-											</p>
-											<TooltipProvider>
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<Info className="size-3 text-muted-foreground cursor-help" />
-													</TooltipTrigger>
-													<TooltipContent className="max-w-[200px] text-xs">
-														<p>This measures assigned subject types. True teaching load depends on section generation.</p>
-													</TooltipContent>
-												</Tooltip>
-											</TooltipProvider>
-										</div>
-										<p className="text-[0.625rem] text-muted-foreground">{localAssignments.length} subject{localAssignments.length !== 1 ? 's' : ''} assigned</p>
-									</div>
-									<Badge className="text-xs bg-muted text-muted-foreground">
-										Max {maxHours}h/wk
-									</Badge>
+								<div className="ml-auto flex items-center gap-3 shrink-0">
+									{/* Inline stat row: Actual | Equiv | Credited | Status */}
+									{(() => {
+										const { actualTeachingHours, equivalentHours, creditedTotalHours, overloadHours, overCapHours, status, statusLabel, breakdown } = loadProfile;
+										const colors = STATUS_COLORS[status];
+
+										return (
+											<>
+												{/* Teaching metrics cluster */}
+												<div className="flex items-center gap-3 text-right">
+													<div className="flex flex-col items-end">
+														<span className="text-[0.625rem] text-muted-foreground leading-tight">Actual</span>
+														<span className={`text-sm font-black leading-none ${status === 'over-cap' ? 'text-red-600' : status === 'overload-allowed' ? 'text-amber-700' : ''}`}>
+															{actualTeachingHours}<span className="text-[0.625rem] font-medium text-muted-foreground"> h</span>
+														</span>
+													</div>
+													{equivalentHours > 0 && (
+														<div className="flex flex-col items-end">
+															<span className="text-[0.625rem] text-muted-foreground leading-tight">Equiv</span>
+															<span className="text-sm font-bold leading-none text-sky-600">
+																+{equivalentHours}<span className="text-[0.625rem] font-medium text-muted-foreground"> h</span>
+															</span>
+														</div>
+													)}
+													<div className="flex flex-col items-end">
+														<span className="text-[0.625rem] text-muted-foreground leading-tight">Credited</span>
+														<span className="text-sm font-bold leading-none">
+															{creditedTotalHours}<span className="text-[0.625rem] font-medium text-muted-foreground"> h</span>
+														</span>
+													</div>
+													{overloadHours > 0 && (
+														<div className="flex flex-col items-end">
+															<span className="text-[0.625rem] text-muted-foreground leading-tight">Overload</span>
+															<span className={`text-sm font-bold leading-none ${overCapHours > 0 ? 'text-red-600' : 'text-amber-600'}`}>
+																{overloadHours}<span className="text-[0.625rem] font-medium text-muted-foreground"> h</span>
+															</span>
+														</div>
+													)}
+												</div>
+
+												{/* Status badge + info */}
+												<div className="flex flex-col items-end gap-0.5">
+													<Badge className={`text-[0.625rem] ${colors.bg} ${colors.text} ${colors.border}`}>
+														{overCapHours > 0 && <AlertTriangle className="mr-1 size-3" />}
+														{statusLabel}
+													</Badge>
+													<TooltipProvider>
+														<Tooltip>
+															<TooltipTrigger asChild>
+																<span className="flex items-center gap-0.5 cursor-help">
+																	<span className="text-[0.5625rem] text-muted-foreground">
+																		{localAssignments.length} subj{sectionsAvailable === false ? ' · baseline' : ''}
+																	</span>
+																	<Info className="size-2.5 text-muted-foreground" />
+																</span>
+															</TooltipTrigger>
+															<TooltipContent className="max-w-xs text-xs" side="bottom" align="end">
+																<div className="space-y-1.5">
+																	<div className="space-y-0.5">
+																		<p className="font-semibold">DepEd Load Policy</p>
+																		<p>Standard: {STANDARD_WEEKLY_TEACHING_HOURS}h/wk · Max: {MAX_WEEKLY_TEACHING_HOURS}h/wk</p>
+																	</div>
+																	{!sectionsAvailable && (
+																		<p className="text-amber-600">Section demand unavailable — baseline estimate (1 section/grade).</p>
+																	)}
+																	{breakdown.length > 0 && (
+																		<div className="space-y-0.5 border-t border-border pt-1">
+																			<p className="font-semibold">Demand breakdown:</p>
+																			{breakdown.map((b, i) => (
+																				<p key={i} className="font-mono">
+																					{b.subjectCode} G{b.grade}: {Math.round(b.minutesPerWeek / 60 * 10) / 10}h × {b.sections}s = {Math.round(b.totalMinutes / 60 * 10) / 10}h
+																				</p>
+																			))}
+																		</div>
+																	)}
+																	{equivalentHours > 0 && (
+																		<p className="border-t border-border pt-1">Class Adviser: +{CLASS_ADVISER_EQUIVALENT_HOURS}h equivalent</p>
+																	)}
+																</div>
+															</TooltipContent>
+														</Tooltip>
+													</TooltipProvider>
+												</div>
+											</>
+										);
+									})()}
 								</div>
 							</div>
 
