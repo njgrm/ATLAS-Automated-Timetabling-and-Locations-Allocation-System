@@ -427,11 +427,18 @@ export default function FacultyAssignments() {
 										const colors = STATUS_COLORS[status];
 
 										return (
-											<>
+											<TooltipProvider delayDuration={200}>
 												{/* Teaching metrics cluster */}
 												<div className="flex items-center gap-3 text-right">
 													<div className="flex flex-col items-end">
-														<span className="text-[0.625rem] text-muted-foreground leading-tight">Actual</span>
+														<Tooltip>
+															<TooltipTrigger asChild>
+																<span tabIndex={0} className="text-[0.625rem] text-muted-foreground leading-tight border-b border-dotted border-muted-foreground/50 cursor-help outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 rounded-sm">Actual</span>
+															</TooltipTrigger>
+															<TooltipContent className="max-w-[250px] text-xs text-left" side="bottom">
+																<p>Total weekly hours of direct classroom teaching from assigned class sessions.</p>
+															</TooltipContent>
+														</Tooltip>
 														<span className={`text-sm font-black leading-none ${status === 'over-cap' ? 'text-red-600' : status === 'overload-allowed' ? 'text-amber-700' : ''}`}>
 															{actualTeachingHours}<span className="text-[0.625rem] font-medium text-muted-foreground"> h</span>
 														</span>
@@ -445,14 +452,31 @@ export default function FacultyAssignments() {
 														</div>
 													)}
 													<div className="flex flex-col items-end">
-														<span className="text-[0.625rem] text-muted-foreground leading-tight">Credited</span>
+														<Tooltip>
+															<TooltipTrigger asChild>
+																<span tabIndex={0} className="text-[0.625rem] text-muted-foreground leading-tight border-b border-dotted border-muted-foreground/50 cursor-help outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 rounded-sm">Credited</span>
+															</TooltipTrigger>
+															<TooltipContent className="max-w-[250px] text-xs text-left" side="bottom">
+																<p>Actual Teaching Hours plus approved teaching-equivalent credits (e.g., class adviser equivalent load).</p>
+															</TooltipContent>
+														</Tooltip>
 														<span className="text-sm font-bold leading-none">
 															{creditedTotalHours}<span className="text-[0.625rem] font-medium text-muted-foreground"> h</span>
 														</span>
 													</div>
 													{overloadHours > 0 && (
 														<div className="flex flex-col items-end">
-															<span className="text-[0.625rem] text-muted-foreground leading-tight">Overload</span>
+															<Tooltip>
+																<TooltipTrigger asChild>
+																	<span tabIndex={0} className="text-[0.625rem] text-muted-foreground leading-tight border-b border-dotted border-muted-foreground/50 cursor-help outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 rounded-sm">Overload</span>
+																</TooltipTrigger>
+																<TooltipContent className="max-w-[260px] text-xs text-left" side="bottom">
+																	<p>Portion of Actual Teaching Hours beyond the 30-hour standard baseline. Overload is compensable up to policy limits.</p>
+																	{overCapHours > 0 && (
+																		<p className="mt-1.5 font-medium text-red-500">Values above 40 actual teaching hours are over-cap and should be flagged.</p>
+																	)}
+																</TooltipContent>
+															</Tooltip>
 															<span className={`text-sm font-bold leading-none ${overCapHours > 0 ? 'text-red-600' : 'text-amber-600'}`}>
 																{overloadHours}<span className="text-[0.625rem] font-medium text-muted-foreground"> h</span>
 															</span>
@@ -462,13 +486,22 @@ export default function FacultyAssignments() {
 
 												{/* Status badge + info */}
 												<div className="flex flex-col items-end gap-0.5">
-													<Badge className={`text-[0.625rem] ${colors.bg} ${colors.text} ${colors.border}`}>
-														{overCapHours > 0 && <AlertTriangle className="mr-1 size-3" />}
-														{statusLabel}
-													</Badge>
-													<TooltipProvider>
-														<Tooltip>
-															<TooltipTrigger asChild>
+													<Tooltip>
+														<TooltipTrigger asChild>
+															<Badge tabIndex={0} className={`text-[0.625rem] cursor-help outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 transition hover:bg-muted ${colors.bg} ${colors.text} ${colors.border}`}>
+																{overCapHours > 0 && <AlertTriangle className="mr-1 size-3" />}
+																{statusLabel}
+															</Badge>
+														</TooltipTrigger>
+														<TooltipContent className="max-w-[220px] text-xs text-left" side="bottom">
+															{status === 'below-standard' && <p>Below 30 credited hours; may be valid depending on designation and service needs.</p>}
+															{(status === 'compliant' || status === 'overload-allowed') && <p>Within policy-compliant range.</p>}
+															{status === 'over-cap' && <p>Exceeds maximum allowed actual teaching hours.</p>}
+														</TooltipContent>
+													</Tooltip>
+
+													<Tooltip>
+														<TooltipTrigger asChild>
 																<span className="flex items-center gap-0.5 cursor-help">
 																	<span className="text-[0.5625rem] text-muted-foreground">
 																		{localAssignments.length} subj{sectionsAvailable === false ? ' · baseline' : ''}
@@ -501,9 +534,8 @@ export default function FacultyAssignments() {
 																</div>
 															</TooltipContent>
 														</Tooltip>
-													</TooltipProvider>
 												</div>
-											</>
+											</TooltipProvider>
 										);
 									})()}
 								</div>

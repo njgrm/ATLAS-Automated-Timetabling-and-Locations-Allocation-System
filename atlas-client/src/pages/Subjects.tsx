@@ -428,9 +428,15 @@ export default function Subjects() {
 										</button>
 									</th>
 									<th className="px-4 py-2.5 text-left">
-										<button onClick={() => toggleSort('minMinutesPerWeek')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground">
-											Min/Week <SortIcon field="minMinutesPerWeek" />
-										</button>
+										<div className="flex items-center gap-2">
+											<button onClick={() => toggleSort('minMinutesPerWeek')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground">
+												Duration <SortIcon field="minMinutesPerWeek" />
+											</button>
+											<div className="flex gap-0.5 text-[0.625rem] bg-muted/50 p-0.5 rounded-md border border-border/50">
+												<button type="button" onClick={() => setTimeMode('minutes')} className={`px-1.5 rounded-sm transition-colors ${timeMode==='minutes' ? 'bg-background shadow-xs text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}>min</button>
+												<button type="button" onClick={() => setTimeMode('hours')} className={`px-1.5 rounded-sm transition-colors ${timeMode==='hours' ? 'bg-background shadow-xs text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}>hr</button>
+											</div>
+										</div>
 									</th>
 									<th className="px-4 py-2.5 text-left">
 										<button onClick={() => toggleSort('preferredRoomType')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground">
@@ -487,16 +493,24 @@ export default function Subjects() {
 												</td>
 												<td className="px-4 py-3">
 													{isEditing ? (
-														<Input
-															type="number"
-															value={editState.minMinutesPerWeek}
-															onChange={(e) => setEditState((p) => p && { ...p, minMinutesPerWeek: Number(e.target.value) })}
-															className="h-8 w-20 text-sm"
-															min={45}
-															step={45}
-														/>
+														<div className="flex items-center gap-1.5">
+															<Input
+																type="number"
+																value={timeMode === 'minutes' ? editState.minMinutesPerWeek : Math.round((editState.minMinutesPerWeek / 60) * 10) / 10}
+																onChange={(e) => {
+																	const val = Number(e.target.value);
+																	setEditState((p) => p && { ...p, minMinutesPerWeek: timeMode === 'minutes' ? val : Math.round(val * 60) });
+																}}
+																className="h-8 w-[4.5rem] text-sm tabular-nums"
+																min={0}
+																step={timeMode === 'minutes' ? 45 : 0.5}
+															/>
+															<span className="text-xs text-muted-foreground shrink-0">{timeMode === 'minutes' ? 'min' : 'hr'}</span>
+														</div>
 													) : (
-														<span>{s.minMinutesPerWeek} min</span>
+														<span className="tabular-nums">
+															{timeMode === 'minutes' ? `${s.minMinutesPerWeek} min` : `${Math.round((s.minMinutesPerWeek / 60) * 10) / 10} h`}
+														</span>
 													)}
 												</td>
 												<td className="px-4 py-3 text-muted-foreground">
