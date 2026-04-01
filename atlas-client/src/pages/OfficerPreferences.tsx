@@ -19,6 +19,7 @@ import { AnimatePresence, motion } from 'motion/react';
 
 import atlasApi from '@/lib/api';
 import { fetchPublicSettings } from '@/lib/settings';
+import { formatTime } from '@/lib/utils';
 import type {
 	OfficerSummaryCounts,
 	OfficerSummaryFacultyWithReview,
@@ -172,7 +173,7 @@ export default function OfficerPreferences() {
 	useEffect(() => { setSelectedIds(new Set()); }, [statusFilter]);
 
 	/* ── Client-side search ── */
-	const { paged, totalFiltered, totalPages } = useMemo(() => {
+	const { paged, totalFiltered, totalPages, filteredList } = useMemo(() => {
 		let list = faculty;
 		if (searchQuery.trim()) {
 			const q = searchQuery.toLowerCase();
@@ -186,8 +187,12 @@ export default function OfficerPreferences() {
 		const tf = list.length;
 		const tp = Math.max(1, Math.ceil(tf / pageSize));
 		const start = (page - 1) * pageSize;
-		return { paged: list.slice(start, start + pageSize), totalFiltered: tf, totalPages: tp };
+		return { paged: list.slice(start, start + pageSize), totalFiltered: tf, totalPages: tp, filteredList: list };
 	}, [faculty, searchQuery, page, pageSize]);
+
+	const currentIndex = reviewFacultyId ? filteredList.findIndex((f) => f.facultyId === reviewFacultyId) : -1;
+	const hasPrev = currentIndex > 0;
+	const hasNext = currentIndex !== -1 && currentIndex < totalFiltered - 1;
 
 	/* ── Selection helpers ── */
 	const toggleOne = (id: number) => {
@@ -251,7 +256,7 @@ export default function OfficerPreferences() {
 	};
 
 	/* ── Save review ── */
-	const saveReview = async () => {
+	const saveReview = async (autoNext = false) => {
 		if (!reviewDetail || !reviewAction || !activeSchoolYearId) return;
 		setReviewSaving(true);
 		try {
@@ -260,8 +265,11 @@ export default function OfficerPreferences() {
 				{ reviewStatus: reviewAction, reviewerNotes: reviewerNotes || null },
 			);
 			toast.success(`Marked as ${reviewAction === 'REVIEWED' ? 'Reviewed' : 'Needs Follow-up'}.`);
-			setReviewOpen(false);
 			loadSummary();
+			
+			if (autoNext && hasNext) {
+				openReview(filteredList[currentIndex + 1].facultyId);
+			}
 		} catch (err) {
 			const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
 			toast.error(msg ?? 'Failed to save review.');
@@ -536,15 +544,43 @@ export default function OfficerPreferences() {
 			{/* Review Sheet */}
 			<Sheet open={reviewOpen} onOpenChange={setReviewOpen}>
 				<SheetContent side='right' className='flex flex-col overflow-hidden sm:max-w-lg'>
-					<SheetHeader className='shrink-0'>
-						<SheetTitle>
-							{reviewDetail
-								? `${reviewDetail.faculty.lastName}, ${reviewDetail.faculty.firstName}`
-								: 'Loading…'}
-						</SheetTitle>
-						<SheetDescription>
-							{reviewDetail?.faculty.department ?? 'Preference review'}
-						</SheetDescription>
+					<SheetHeader className='shrink-0 flex flex-row items-start justify-between pe-6 space-y-0'>
+						<div>
+							<SheetTitle>
+								{reviewDetail
+									? `${reviewDetail.faculty.lastName}, ${reviewDetail.faculty.firstName}`
+									: 'Loading…'}
+							</SheetTitle>
+							<SheetDescription className='mt-1'>
+								{reviewDetail?.faculty.department ?? 'Preference review'}
+							</SheetDescription>
+						</div>
+
+						{reviewFacultyId && currentIndex !== -1 && (
+							<div className="flex items-center gap-1.5 mt-0">
+								<span className="text-xs text-muted-foreground mr-1 tabular-nums font-medium">
+									{currentIndex + 1} of {totalFiltered}
+								</span>
+								<Button 
+									variant="outline" 
+									size="icon" 
+									className="h-7 w-7" 
+									onClick={() => openReview(filteredList[currentIndex - 1].facultyId)} 
+									disabled={!hasPrev || reviewLoading}
+								>
+									<ChevronLeft className="size-3.5" />
+								</Button>
+								<Button 
+									variant="outline" 
+									size="icon" 
+									className="h-7 w-7" 
+									onClick={() => openReview(filteredList[currentIndex + 1].facultyId)} 
+									disabled={!hasNext || reviewLoading}
+								>
+									<ChevronRight className="size-3.5" />
+								</Button>
+							</div>
+						)}
 					</SheetHeader>
 
 					{reviewLoading ? (
@@ -600,8 +636,8 @@ export default function OfficerPreferences() {
 											{reviewDetail.timeSlots.map((ts) => (
 												<tr key={ts.id} className='border-t'>
 													<td className='px-2 py-1.5'>{DAY_LABELS[ts.day] ?? ts.day}</td>
-													<td className='px-2 py-1.5 font-mono'>{ts.startTime}</td>
-													<td className='px-2 py-1.5 font-mono'>{ts.endTime}</td>
+											<td className='px-2 py-1.5 font-mono'>{formatTime(ts.startTime)}</td>
+											<td className='px-2 py-1.5 font-mono'>{formatTime(ts.endTime)}</td>
 													<td className={`px-2 py-1.5 font-medium ${PREF_COLORS[ts.preference] ?? ''}`}>
 														{ts.preference}
 													</td>
@@ -642,15 +678,29 @@ export default function OfficerPreferences() {
 										onChange={(e) => setReviewerNotes(e.target.value)}
 										rows={3}
 									/>
-									<Button
-										size='sm'
-										className='w-full text-xs'
-										onClick={saveReview}
-										disabled={!reviewAction || reviewSaving}
-									>
-										{reviewSaving ? <Loader2 className='size-3 animate-spin mr-1' /> : null}
-										Save Review
-									</Button>
+									<div className="flex gap-2 w-full pt-1">
+										<Button
+											size='sm'
+											className='flex-1 text-xs'
+											onClick={() => saveReview(false)}
+											disabled={!reviewAction || reviewSaving}
+										>
+											{reviewSaving ? <Loader2 className='size-3 animate-spin mr-1' /> : null}
+											Save
+										</Button>
+										{hasNext && (
+											<Button
+												size='sm'
+												variant='secondary'
+												className='flex-1 text-xs'
+												onClick={() => saveReview(true)}
+												disabled={!reviewAction || reviewSaving}
+											>
+												{reviewSaving ? <Loader2 className='size-3 animate-spin mr-1' /> : null}
+												Save & Next
+											</Button>
+										)}
+									</div>
 								</div>
 							)}
 						</div>

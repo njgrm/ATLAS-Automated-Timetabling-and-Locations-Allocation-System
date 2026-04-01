@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback, Fragment } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef, Fragment } from 'react';
 import {
 	AlertTriangle,
 	CalendarX,
@@ -9,6 +9,7 @@ import {
 
 import atlasApi from '@/lib/api';
 import { fetchPublicSettings } from '@/lib/settings';
+import { formatTime } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
@@ -30,8 +31,8 @@ const DAY_SHORT: Record<string, string> = {
 
 /** Break separators inserted after these grid row indices (0-based). */
 const BREAK_AFTER_ROW: Record<number, { label: string; time: string }> = {
-	2: { label: 'Recess', time: '10:00 – 10:15' },
-	4: { label: 'Lunch Break', time: '11:55 – 12:55' },
+	2: { label: 'Recess', time: `${formatTime('10:00')} – ${formatTime('10:15')}` },
+	4: { label: 'Lunch Break', time: `${formatTime('11:55')} – ${formatTime('12:55')}` },
 };
 
 // ─── Types ───
@@ -105,12 +106,30 @@ export default function RoomSchedules() {
 	}, []);
 
 	/* Fetch room schedule */
+	/* Debounced runId — avoids request spam while typing */
+	const [debouncedRunId, setDebouncedRunId] = useState('');
+	const debounceTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+	useEffect(() => {
+		debounceTimer.current = setTimeout(() => setDebouncedRunId(runIdInput), 300);
+		return () => clearTimeout(debounceTimer.current);
+	}, [runIdInput]);
+
+	/* Derived: is the current source config valid for fetching? */
+	const isRunIdValid = sourceMode === 'latest' || (sourceMode === 'run' && /^[1-9]\d*$/.test(debouncedRunId));
+
 	const fetchSchedule = useCallback(async () => {
 		if (!selectedRoomId || !schoolYearId) return;
+
+		// Client-side guard: prevent 400 for missing/invalid runId
+		if (sourceMode === 'run' && !/^[1-9]\d*$/.test(debouncedRunId)) {
+			setState({ status: 'empty', message: 'Enter a valid Run ID to view this source.' });
+			return;
+		}
+
 		setState({ status: 'loading' });
 		try {
 			const params = new URLSearchParams({ source: sourceMode });
-			if (sourceMode === 'run' && runIdInput) params.set('runId', runIdInput);
+			if (sourceMode === 'run') params.set('runId', debouncedRunId);
 
 			const { data } = await atlasApi.get<RoomScheduleView>(
 				`/room-schedules/${DEFAULT_SCHOOL_ID}/${schoolYearId}/rooms/${selectedRoomId}?${params}`,
@@ -126,11 +145,20 @@ export default function RoomSchedules() {
 				setState({ status: 'error', message: msg });
 			}
 		}
-	}, [selectedRoomId, schoolYearId, sourceMode, runIdInput]);
+	}, [selectedRoomId, schoolYearId, sourceMode, debouncedRunId]);
 
+	/* Auto-fetch when room, source mode, or valid runId changes */
 	useEffect(() => {
-		if (selectedRoomId && schoolYearId) fetchSchedule();
-	}, [selectedRoomId, fetchSchedule]);
+		if (!selectedRoomId || !schoolYearId) return;
+		if (sourceMode === 'run' && !/^[1-9]\d*$/.test(debouncedRunId)) {
+			// Show validation hint only if user has started interacting
+			if (debouncedRunId !== '') {
+				setState({ status: 'empty', message: 'Enter a valid Run ID to view this source.' });
+			}
+			return;
+		}
+		fetchSchedule();
+	}, [selectedRoomId, schoolYearId, sourceMode, debouncedRunId, fetchSchedule]);
 
 	return (
 		<div className="flex flex-col h-[calc(100svh-3.5rem)]">
@@ -223,7 +251,7 @@ export default function RoomSchedules() {
 					variant="outline"
 					size="sm"
 					onClick={fetchSchedule}
-					disabled={!selectedRoomId || state.status === 'loading'}
+					disabled={!selectedRoomId || state.status === 'loading' || !isRunIdValid}
 					className="h-8 ml-auto shrink-0 shadow-sm"
 				>
 					<RefreshCw className={`mr-1 size-3.5 ${state.status === 'loading' ? 'animate-spin' : ''}`} />
@@ -358,7 +386,7 @@ function TimetableGrid({
 			</colgroup>
 			<thead className="sticky top-0 z-10 bg-background">
 				<tr>
-					<th className="border-b-2 border-r px-2 py-2 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+					<th className="sticky left-0 z-20 bg-background border-b-2 border-r px-2 py-2 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
 						Time
 					</th>
 					{view.days.map((d) => (
@@ -379,7 +407,7 @@ function TimetableGrid({
 							<td className="sticky left-0 z-[5] bg-background border-r border-b px-2 py-3 align-middle w-24">
 								<div className="text-[11px] font-semibold text-foreground">P{rowIdx + 1}</div>
 								<div className="text-[10px] text-muted-foreground leading-tight">
-									{row.timeSlot.startTime}–{row.timeSlot.endTime}
+								{formatTime(row.timeSlot.startTime)}–{formatTime(row.timeSlot.endTime)}
 								</div>
 							</td>
 

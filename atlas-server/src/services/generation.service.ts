@@ -291,12 +291,14 @@ export interface DraftReport {
 	status: string;
 	entries: ScheduledEntry[];
 	summary: RunSummary | null;
+	finishedAt: string | null;
+	createdAt: string;
 }
 
 export async function getRunDraft(runId: number, schoolId: number, schoolYearId: number): Promise<DraftReport> {
 	const run = await prisma.generationRun.findFirst({
 		where: { id: runId, schoolId, schoolYearId },
-		select: { id: true, status: true, draftEntries: true, summary: true },
+		select: { id: true, status: true, draftEntries: true, summary: true, finishedAt: true, createdAt: true },
 	});
 	if (!run) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
 
@@ -305,6 +307,8 @@ export async function getRunDraft(runId: number, schoolId: number, schoolYearId:
 		status: run.status,
 		entries: (run.draftEntries ?? []) as unknown as ScheduledEntry[],
 		summary: (run.summary ?? null) as RunSummary | null,
+		finishedAt: run.finishedAt?.toISOString() ?? null,
+		createdAt: run.createdAt.toISOString(),
 	};
 }
 
@@ -312,7 +316,7 @@ export async function getLatestRunDraft(schoolId: number, schoolYearId: number):
 	const run = await prisma.generationRun.findFirst({
 		where: { schoolId, schoolYearId },
 		orderBy: { createdAt: 'desc' },
-		select: { id: true, status: true, draftEntries: true, summary: true },
+		select: { id: true, status: true, draftEntries: true, summary: true, finishedAt: true, createdAt: true },
 	});
 	if (!run) throw err(404, 'NO_RUNS', 'No generation runs found for this school/year.');
 
@@ -321,5 +325,7 @@ export async function getLatestRunDraft(schoolId: number, schoolYearId: number):
 		status: run.status,
 		entries: (run.draftEntries ?? []) as unknown as ScheduledEntry[],
 		summary: (run.summary ?? null) as RunSummary | null,
+		finishedAt: run.finishedAt?.toISOString() ?? null,
+		createdAt: run.createdAt.toISOString(),
 	};
 }
