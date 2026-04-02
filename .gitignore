@@ -1,7 +1,5 @@
 # Private planning/customization artifacts
-.github/instructions/
-.github/skills/
-.github/copilot-instructions.md
+.github/
 AGENTS.md
 CHANGELOG.md
 projectIntro.md

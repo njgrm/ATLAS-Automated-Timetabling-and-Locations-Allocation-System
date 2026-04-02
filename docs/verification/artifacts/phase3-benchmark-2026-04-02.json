@@ -1,0 +1,149 @@
+{
+  "meta": {
+    "timestamp": "2026-04-02T05:48:09.796Z",
+    "schoolId": 1,
+    "schoolYearId": 1,
+    "runCount": 5,
+    "actorId": 1
+  },
+  "runs": [
+    {
+      "runId": 16,
+      "status": "COMPLETED",
+      "durationMs": 103,
+      "assignedCount": 30,
+      "unassignedCount": 346,
+      "hardViolationCount": 0,
+      "policyBlockedCount": 228,
+      "classesProcessed": 376,
+      "violationCounts": {
+        "FACULTY_OVERLOAD": 0,
+        "ROOM_TIME_CONFLICT": 0,
+        "ROOM_TYPE_MISMATCH": 0,
+        "FACULTY_TIME_CONFLICT": 0,
+        "FACULTY_DAILY_MAX_EXCEEDED": 0,
+        "FACULTY_SUBJECT_NOT_QUALIFIED": 0,
+        "FACULTY_BREAK_REQUIREMENT_VIOLATED": 0,
+        "FACULTY_CONSECUTIVE_LIMIT_EXCEEDED": 0
+      }
+    },
+    {
+      "runId": 17,
+      "status": "COMPLETED",
+      "durationMs": 95,
+      "assignedCount": 30,
+      "unassignedCount": 346,
+      "hardViolationCount": 0,
+      "policyBlockedCount": 228,
+      "classesProcessed": 376,
+      "violationCounts": {
+        "FACULTY_OVERLOAD": 0,
+        "ROOM_TIME_CONFLICT": 0,
+        "ROOM_TYPE_MISMATCH": 0,
+        "FACULTY_TIME_CONFLICT": 0,
+        "FACULTY_DAILY_MAX_EXCEEDED": 0,
+        "FACULTY_SUBJECT_NOT_QUALIFIED": 0,
+        "FACULTY_BREAK_REQUIREMENT_VIOLATED": 0,
+        "FACULTY_CONSECUTIVE_LIMIT_EXCEEDED": 0
+      }
+    },
+    {
+      "runId": 18,
+      "status": "COMPLETED",
+      "durationMs": 85,
+      "assignedCount": 30,
+      "unassignedCount": 346,
+      "hardViolationCount": 0,
+      "policyBlockedCount": 228,
+      "classesProcessed": 376,
+      "violationCounts": {
+        "FACULTY_OVERLOAD": 0,
+        "ROOM_TIME_CONFLICT": 0,
+        "ROOM_TYPE_MISMATCH": 0,
+        "FACULTY_TIME_CONFLICT": 0,
+        "FACULTY_DAILY_MAX_EXCEEDED": 0,
+        "FACULTY_SUBJECT_NOT_QUALIFIED": 0,
+        "FACULTY_BREAK_REQUIREMENT_VIOLATED": 0,
+        "FACULTY_CONSECUTIVE_LIMIT_EXCEEDED": 0
+      }
+    },
+    {
+      "runId": 19,
+      "status": "COMPLETED",
+      "durationMs": 89,
+      "assignedCount": 30,
+      "unassignedCount": 346,
+      "hardViolationCount": 0,
+      "policyBlockedCount": 228,
+      "classesProcessed": 376,
+      "violationCounts": {
+        "FACULTY_OVERLOAD": 0,
+        "ROOM_TIME_CONFLICT": 0,
+        "ROOM_TYPE_MISMATCH": 0,
+        "FACULTY_TIME_CONFLICT": 0,
+        "FACULTY_DAILY_MAX_EXCEEDED": 0,
+        "FACULTY_SUBJECT_NOT_QUALIFIED": 0,
+        "FACULTY_BREAK_REQUIREMENT_VIOLATED": 0,
+        "FACULTY_CONSECUTIVE_LIMIT_EXCEEDED": 0
+      }
+    },
+    {
+      "runId": 20,
+      "status": "COMPLETED",
+      "durationMs": 90,
+      "assignedCount": 30,
+      "unassignedCount": 346,
+      "hardViolationCount": 0,
+      "policyBlockedCount": 228,
+      "classesProcessed": 376,
+      "violationCounts": {
+        "FACULTY_OVERLOAD": 0,
+        "ROOM_TIME_CONFLICT": 0,
+        "ROOM_TYPE_MISMATCH": 0,
+        "FACULTY_TIME_CONFLICT": 0,
+        "FACULTY_DAILY_MAX_EXCEEDED": 0,
+        "FACULTY_SUBJECT_NOT_QUALIFIED": 0,
+        "FACULTY_BREAK_REQUIREMENT_VIOLATED": 0,
+        "FACULTY_CONSECUTIVE_LIMIT_EXCEEDED": 0
+      }
+    }
+  ],
+  "stats": {
+    "runCount": 5,
+    "successCount": 5,
+    "failCount": 0,
+    "durations": {
+      "p50": 90,
+      "p95": 103,
+      "max": 103,
+      "min": 85,
+      "mean": 92
+    },
+    "assignedCount": {
+      "min": 30,
+      "max": 30,
+      "mean": 30
+    },
+    "unassignedCount": {
+      "min": 346,
+      "max": 346,
+      "mean": 346
+    },
+    "hardViolationCount": {
+      "min": 0,
+      "max": 0,
+      "mean": 0
+    },
+    "policyBlockedCount": {
+      "min": 228,
+      "max": 228,
+      "mean": 228
+    }
+  },
+  "guardrails": {
+    "allRunsSucceeded": true,
+    "hardViolationsStable": true,
+    "maxDurationUnder60s": true,
+    "overallPass": true
+  }
+}

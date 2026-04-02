@@ -4,8 +4,15 @@
 This is the shared planning and verification ledger for all coding agents (Cursor, Copilot, Claude).
 It defines phase scope, acceptance gates, and the current progress state.
 
+## Companion Planning Docs
+- Detailed phase execution files: `docs/phases/`
+- Verification gate checklist: `docs/verification/phase-gates.md`
+- Verification evidence ledger: `docs/verification/evidence-log.md`
+- Integration contract notes: `docs/contracts/enrollpro-atlas.md`
+- Architecture decisions: `docs/decisions/adr-log.md`
+
 ## Active Phase
-- **Current phase:** Phase 2 - Preference Collection
+- **Current phase:** Phase 4 - Review and Manual Adjustment
 - **Mode:** Build + verify only items in active phase unless user approves otherwise
 
 ## Non-ATLAS Scope Guardrail
@@ -42,7 +49,9 @@ It defines phase scope, acceptance gates, and the current progress state.
   - No unresolved phase-1 blockers remain in this file
 
 ## Phase 2 - Preference Collection
-- **Status:** In Progress
+- **Status:** Completed
+- **Closed:** 2026-04-02
+- **Closure report:** `docs/phases/phase-2-closeout.md`
 - **Scope**
   - Faculty preference submission flow and officer monitoring/reminders
 - **Planned deliverables**
@@ -62,17 +71,31 @@ It defines phase scope, acceptance gates, and the current progress state.
   - Preference data available for generation input
 
 ## Phase 3 - Schedule Generation
-- **Status:** Not Started
+- **Status:** Completed
+- **Closed:** 2026-04-02
+- **Closure report:** `docs/phases/phase-3-acceptance-report.md`
 - **Scope**
   - Run algorithm with hard/soft constraints and produce draft schedules
 - **Planned deliverables**
   - Generation endpoint/workflow and persistence for generation artifacts
   - Constraint validation and warning surfaces
   - Runtime instrumentation toward sub-60-second target per school dataset
-- **Exit criteria**
+- **Work completed**
+  - Generation run lifecycle endpoints and persistence model implemented
+  - Deterministic baseline constructor integrated with generation runs
+  - Hard-constraint validator implemented with violation reporting (8 codes)
+  - Scheduling policy model/service/router integrated into constructor + validator
+  - Hard violation counting semantics corrected (`HARD` only)
+  - Break requirement violation emission added with toggle-based severity handling
+  - Draft inspection endpoints and room schedule projection/view implemented
+  - Room schedule interval-union deduplication for occupiedMinutes
+  - Benchmark harness with repeatable 5-run performance artifact (p50=90ms, max=103ms)
+  - Regression test suite: 22 tests covering constraint semantics, policy toggling, deduplication
+- **Exit criteria (all met)**
   - Generation can run from valid setup + preference inputs
   - Hard constraint violations are detectable and reportable
   - Draft output is consumable by review UI
+  - Runtime performance evidence captured (well under 60s target)
 
 ## Phase 4 - Review and Manual Adjustment
 - **Status:** Not Started
