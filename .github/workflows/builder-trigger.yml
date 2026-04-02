@@ -14,8 +14,6 @@ concurrency:
 
 jobs:
   route-to-builder:
-    env:
-      BUILDER_ASSIGNEES: copilot,copilot-swe-agent[bot]
     if: >
       (github.event.action == 'labeled' && github.event.label.name == 'agent:builder') ||
       (github.event.action == 'assigned' && (
