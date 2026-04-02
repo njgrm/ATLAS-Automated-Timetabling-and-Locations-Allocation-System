@@ -1,59 +1,5 @@
-export declare function getBuildingsBySchool(schoolId: number): Promise<({
-    rooms: {
-        id: number;
-        name: string;
-        createdAt: Date;
-        updatedAt: Date;
-        floorPosition: number;
-        floor: number;
-        buildingId: number;
-        type: import("@prisma/client").$Enums.RoomType;
-        capacity: number | null;
-        isTeachingSpace: boolean;
-    }[];
-} & {
-    id: number;
-    schoolId: number;
-    name: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    rotation: number;
-    color: string;
-    floorCount: number;
-    isTeachingBuilding: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-})[]>;
-export declare function getBuilding(id: number): Promise<({
-    rooms: {
-        id: number;
-        name: string;
-        createdAt: Date;
-        updatedAt: Date;
-        floorPosition: number;
-        floor: number;
-        buildingId: number;
-        type: import("@prisma/client").$Enums.RoomType;
-        capacity: number | null;
-        isTeachingSpace: boolean;
-    }[];
-} & {
-    id: number;
-    schoolId: number;
-    name: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    rotation: number;
-    color: string;
-    floorCount: number;
-    isTeachingBuilding: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-}) | null>;
+export declare function getBuildingsBySchool(schoolId: number): Promise<any>;
+export declare function getBuilding(id: number): Promise<any>;
 export declare function upsertBuilding(schoolId: number, data: {
     name: string;
     x: number;
@@ -64,34 +10,7 @@ export declare function upsertBuilding(schoolId: number, data: {
     rotation?: number;
     floorCount?: number;
     isTeachingBuilding?: boolean;
-}): Promise<{
-    rooms: {
-        id: number;
-        name: string;
-        createdAt: Date;
-        updatedAt: Date;
-        floorPosition: number;
-        floor: number;
-        buildingId: number;
-        type: import("@prisma/client").$Enums.RoomType;
-        capacity: number | null;
-        isTeachingSpace: boolean;
-    }[];
-} & {
-    id: number;
-    schoolId: number;
-    name: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    rotation: number;
-    color: string;
-    floorCount: number;
-    isTeachingBuilding: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-}>;
+}): Promise<any>;
 export declare function updateBuilding(id: number, data: Partial<{
     name: string;
     x: number;
@@ -102,49 +21,8 @@ export declare function updateBuilding(id: number, data: Partial<{
     rotation: number;
     floorCount: number;
     isTeachingBuilding: boolean;
-}>): Promise<{
-    rooms: {
-        id: number;
-        name: string;
-        createdAt: Date;
-        updatedAt: Date;
-        floorPosition: number;
-        floor: number;
-        buildingId: number;
-        type: import("@prisma/client").$Enums.RoomType;
-        capacity: number | null;
-        isTeachingSpace: boolean;
-    }[];
-} & {
-    id: number;
-    schoolId: number;
-    name: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    rotation: number;
-    color: string;
-    floorCount: number;
-    isTeachingBuilding: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-}>;
-export declare function deleteBuilding(id: number): Promise<{
-    id: number;
-    schoolId: number;
-    name: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    rotation: number;
-    color: string;
-    floorCount: number;
-    isTeachingBuilding: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-}>;
+}>): Promise<any>;
+export declare function deleteBuilding(id: number): Promise<any>;
 export declare function addRoom(buildingId: number, data: {
     name: string;
     floor?: number;
@@ -152,30 +30,8 @@ export declare function addRoom(buildingId: number, data: {
     capacity?: number;
     isTeachingSpace?: boolean;
     floorPosition?: number;
-}): Promise<{
-    id: number;
-    name: string;
-    createdAt: Date;
-    updatedAt: Date;
-    floorPosition: number;
-    floor: number;
-    buildingId: number;
-    type: import("@prisma/client").$Enums.RoomType;
-    capacity: number | null;
-    isTeachingSpace: boolean;
-}>;
-export declare function deleteRoom(id: number): Promise<{
-    id: number;
-    name: string;
-    createdAt: Date;
-    updatedAt: Date;
-    floorPosition: number;
-    floor: number;
-    buildingId: number;
-    type: import("@prisma/client").$Enums.RoomType;
-    capacity: number | null;
-    isTeachingSpace: boolean;
-}>;
+}): Promise<any>;
+export declare function deleteRoom(id: number): Promise<any>;
 export declare function updateRoom(id: number, data: Partial<{
     name: string;
     floor: number;
@@ -183,24 +39,6 @@ export declare function updateRoom(id: number, data: Partial<{
     capacity: number | null;
     isTeachingSpace: boolean;
     floorPosition: number;
-}>): Promise<{
-    id: number;
-    name: string;
-    createdAt: Date;
-    updatedAt: Date;
-    floorPosition: number;
-    floor: number;
-    buildingId: number;
-    type: import("@prisma/client").$Enums.RoomType;
-    capacity: number | null;
-    isTeachingSpace: boolean;
-}>;
-export declare function getCampusImage(schoolId: number): Promise<string | null>;
-export declare function setCampusImage(schoolId: number, imageUrl: string): Promise<{
-    id: number;
-    name: string;
-    createdAt: Date;
-    updatedAt: Date;
-    shortName: string;
-    campusImageUrl: string | null;
-}>;
+}>): Promise<any>;
+export declare function getCampusImage(schoolId: number): Promise<any>;
+export declare function setCampusImage(schoolId: number, imageUrl: string): Promise<any>;
