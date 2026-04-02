@@ -61,7 +61,7 @@ jobs:
           fi
           echo "Gemini UI polish integration point."
 
-      - name: Ensure no non-frontend modifications were introduced
+      - name: Validate polish changes are frontend-only
         if: steps.scope.outputs.frontend_changed == 'true'
         run: |
           set -euo pipefail
@@ -90,7 +90,7 @@ jobs:
             exit 0
           fi
           git config user.name "gemini-ui-polish[bot]"
-          git config user.email "gemini-ui-polish@users.noreply.github.com"
+          git config user.email "gemini-ui-polish@noreply.github.com"
           git add atlas-client/src atlas-client/public
           git commit -m "style: ui polish pass"
           git push
