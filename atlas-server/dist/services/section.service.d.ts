@@ -3,4 +3,4 @@
  * Returns a summary of sections by grade level sourced from the enrollment service.
  */
 import { type SectionSummary } from './section-adapter.js';
-export declare function getSectionSummary(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionSummary>;
+export declare function getSectionSummary(schoolYearId: number, authToken?: string): Promise<SectionSummary>;

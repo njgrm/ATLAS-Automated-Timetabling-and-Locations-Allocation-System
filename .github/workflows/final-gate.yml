@@ -26,10 +26,9 @@ jobs:
             const reviews = await github.paginate(github.rest.pulls.listReviews, {
               owner, repo, pull_number, per_page: 100
             });
-            const humanApproval = reviews.some(r => r.state === 'APPROVED' && !r.user?.type?.includes('Bot'));
+            const humanApproval = reviews.some(r => r.state === 'APPROVED' && r.user?.type !== 'Bot');
             if (!humanApproval) {
               core.setFailed('Human approval is required before merge.');
             } else {
               core.notice('Human approval detected.');
             }
-

@@ -49,6 +49,8 @@ jobs:
           fi
           echo "Codex review integration point."
           echo "Use pipeline-contract schema for findings."
+          echo "Changed files passed to reviewer:"
+          cat changed_files.txt
           cat > codex_findings.json <<'JSON'
           {
             "findings": [],
@@ -73,4 +75,3 @@ jobs:
               "_This workflow is ready for API wiring with your Codex reviewer._"
             ].join("\n");
             await github.rest.issues.createComment({ owner, repo, issue_number: pull_number, body });
-
