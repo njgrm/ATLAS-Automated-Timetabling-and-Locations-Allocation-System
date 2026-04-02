@@ -250,6 +250,10 @@ model SchedulingPolicy {
   earliestStartTime                        String   @default("07:00") @map("earliest_start_time")
   latestEndTime                            String   @default("17:00") @map("latest_end_time")
   enforceConsecutiveBreakAsHard            Boolean  @default(false) @map("enforce_consecutive_break_as_hard")
+  enableTravelWellbeingChecks              Boolean  @default(true)  @map("enable_travel_wellbeing_checks")
+  maxWalkingDistanceMetersPerTransition    Int      @default(120)   @map("max_walking_distance_meters_per_transition")
+  maxBuildingTransitionsPerDay             Int      @default(4)     @map("max_building_transitions_per_day")
+  maxBackToBackTransitionsWithoutBuffer    Int      @default(2)     @map("max_back_to_back_transitions_without_buffer")
   createdAt                                DateTime @default(now())
   updatedAt                                DateTime @updatedAt
 

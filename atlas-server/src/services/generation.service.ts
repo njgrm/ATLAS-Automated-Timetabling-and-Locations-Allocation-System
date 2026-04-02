@@ -64,7 +64,7 @@ export async function triggerGenerationRun(
 	try {
 		// ── Fetch all input data for construction ──
 		stage = 'sections-fetch';
-		const [sectionsByGrade, faculty, facultySubjects, rooms, subjects, preferences, policyRecord] = await Promise.all([
+		const [sectionsByGrade, faculty, facultySubjects, rooms, subjects, preferences, policyRecord, buildings] = await Promise.all([
 			sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId),
 			prisma.facultyMirror.findMany({
 				where: { schoolId, isActiveForScheduling: true },
@@ -79,7 +79,7 @@ export async function triggerGenerationRun(
 					isTeachingSpace: true,
 					building: { schoolId, isTeachingBuilding: true },
 				},
-				select: { id: true, type: true, isTeachingSpace: true },
+				select: { id: true, type: true, isTeachingSpace: true, buildingId: true },
 			}),
 			prisma.subject.findMany({
 				where: { schoolId, isActive: true },
@@ -94,6 +94,10 @@ export async function triggerGenerationRun(
 				},
 			}),
 			getOrCreatePolicy(schoolId, schoolYearId),
+			prisma.building.findMany({
+				where: { schoolId },
+				select: { id: true, x: true, y: true },
+			}),
 		]);
 
 		// ── Run baseline constructor ──
@@ -135,6 +139,14 @@ export async function triggerGenerationRun(
 				...constructorInput.policy!,
 				enforceConsecutiveBreakAsHard: policyRecord.enforceConsecutiveBreakAsHard,
 			},
+			travelPolicy: {
+				enableTravelWellbeingChecks: policyRecord.enableTravelWellbeingChecks,
+				maxWalkingDistanceMetersPerTransition: policyRecord.maxWalkingDistanceMetersPerTransition,
+				maxBuildingTransitionsPerDay: policyRecord.maxBuildingTransitionsPerDay,
+				maxBackToBackTransitionsWithoutBuffer: policyRecord.maxBackToBackTransitionsWithoutBuffer,
+			},
+			buildings,
+			roomBuildings: rooms.map((r) => ({ roomId: r.id, buildingId: r.buildingId })),
 		};
 		const validationResult = validateHardConstraints(validatorCtx);
 

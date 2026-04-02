@@ -23,6 +23,10 @@ export const POLICY_DEFAULTS = {
 	earliestStartTime: '07:00',
 	latestEndTime: '17:00',
 	enforceConsecutiveBreakAsHard: false,
+	enableTravelWellbeingChecks: true,
+	maxWalkingDistanceMetersPerTransition: 120,
+	maxBuildingTransitionsPerDay: 4,
+	maxBackToBackTransitionsWithoutBuffer: 2,
 } as const;
 
 // ─── Exported policy shape (for cross-service use) ───
@@ -34,6 +38,10 @@ export interface SchedulingPolicyData {
 	earliestStartTime: string;
 	latestEndTime: string;
 	enforceConsecutiveBreakAsHard: boolean;
+	enableTravelWellbeingChecks: boolean;
+	maxWalkingDistanceMetersPerTransition: number;
+	maxBuildingTransitionsPerDay: number;
+	maxBackToBackTransitionsWithoutBuffer: number;
 }
 
 // ─── Validation ───
@@ -52,6 +60,10 @@ export interface PolicyInput {
 	earliestStartTime?: unknown;
 	latestEndTime?: unknown;
 	enforceConsecutiveBreakAsHard?: unknown;
+	enableTravelWellbeingChecks?: unknown;
+	maxWalkingDistanceMetersPerTransition?: unknown;
+	maxBuildingTransitionsPerDay?: unknown;
+	maxBackToBackTransitionsWithoutBuffer?: unknown;
 }
 
 export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolicyData; errors: string[] } {
@@ -111,6 +123,31 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 		}
 	}
 
+	let enableTravel: boolean = POLICY_DEFAULTS.enableTravelWellbeingChecks;
+	if (input.enableTravelWellbeingChecks !== undefined && input.enableTravelWellbeingChecks !== null) {
+		if (typeof input.enableTravelWellbeingChecks !== 'boolean') {
+			errors.push('enableTravelWellbeingChecks must be a boolean.');
+		} else {
+			enableTravel = input.enableTravelWellbeingChecks;
+		}
+	}
+
+	const maxWalkingDistance = requirePositiveInt(
+		input.maxWalkingDistanceMetersPerTransition,
+		'maxWalkingDistanceMetersPerTransition', 10, 1000,
+		POLICY_DEFAULTS.maxWalkingDistanceMetersPerTransition,
+	);
+	const maxTransitions = requirePositiveInt(
+		input.maxBuildingTransitionsPerDay,
+		'maxBuildingTransitionsPerDay', 1, 20,
+		POLICY_DEFAULTS.maxBuildingTransitionsPerDay,
+	);
+	const maxB2B = requirePositiveInt(
+		input.maxBackToBackTransitionsWithoutBuffer,
+		'maxBackToBackTransitionsWithoutBuffer', 1, 10,
+		POLICY_DEFAULTS.maxBackToBackTransitionsWithoutBuffer,
+	);
+
 	return {
 		data: {
 			maxConsecutiveTeachingMinutesBeforeBreak: maxConsecutive,
@@ -119,6 +156,10 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 			earliestStartTime: earliest,
 			latestEndTime: latest,
 			enforceConsecutiveBreakAsHard: enforceHard,
+			enableTravelWellbeingChecks: enableTravel,
+			maxWalkingDistanceMetersPerTransition: maxWalkingDistance,
+			maxBuildingTransitionsPerDay: maxTransitions,
+			maxBackToBackTransitionsWithoutBuffer: maxB2B,
 		},
 		errors,
 	};

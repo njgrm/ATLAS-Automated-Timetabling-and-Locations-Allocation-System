@@ -501,7 +501,7 @@ function EntryCell({
 			<div className="font-semibold text-foreground truncate">
 				{subjectMap.get(entry.subjectId) ?? `Subject ${entry.subjectId}`}
 			</div>
-			<div className="text-muted-foreground truncate">{sectionMap.get(entry.sectionId) ?? `Sec #${entry.sectionId}`}</div>
+			<div className="text-muted-foreground truncate">{sectionMap.get(entry.sectionId) ?? `Unknown Section (#${entry.sectionId})`}</div>
 			<div className="text-muted-foreground/80 truncate">
 				{facultyMap.get(entry.facultyId) ?? `Faculty ${entry.facultyId}`}
 			</div>

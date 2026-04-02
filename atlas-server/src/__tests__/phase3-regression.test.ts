@@ -306,6 +306,158 @@ section('Core hard constraint detection');
 }
 
 // ═══════════════════════════════════════════════════════
+// Test Suite 5: Travel / well-being soft constraints
+// ═══════════════════════════════════════════════════════
+
+section('Travel / well-being soft constraints');
+
+// Shared travel test fixtures
+const travelBuildings: Array<{ id: number; x: number; y: number }> = [
+	{ id: 10, x: 0, y: 0 },
+	{ id: 20, x: 200, y: 0 },   // 200m from building 10
+	{ id: 30, x: 50, y: 0 },    // 50m from building 10
+];
+
+const travelRoomBuildings: Array<{ roomId: number; buildingId: number }> = [
+	{ roomId: 1, buildingId: 10 },
+	{ roomId: 2, buildingId: 20 },
+	{ roomId: 3, buildingId: 30 },
+];
+
+function makeTravelCtx(
+	entries: ScheduledEntry[],
+	travelPolicyOverrides?: Partial<ValidatorContext['travelPolicy']>,
+): ValidatorContext {
+	return {
+		...makeCtx(entries),
+		buildings: travelBuildings,
+		roomBuildings: travelRoomBuildings,
+		travelPolicy: {
+			enableTravelWellbeingChecks: true,
+			maxWalkingDistanceMetersPerTransition: 120,
+			maxBuildingTransitionsPerDay: 4,
+			maxBackToBackTransitionsWithoutBuffer: 2,
+			...travelPolicyOverrides,
+		},
+	};
+}
+
+{
+	// Same-building transitions → no travel violations
+	const entries: ScheduledEntry[] = [
+		makeEntry({ entryId: 'tw1', roomId: 1, day: 'MONDAY', startTime: '07:30', endTime: '08:20' }),
+		makeEntry({ entryId: 'tw2', roomId: 1, day: 'MONDAY', startTime: '08:20', endTime: '09:10' }),
+	];
+	const ctx = makeTravelCtx(entries);
+	const result = validateHardConstraints(ctx);
+
+	const travelViols = result.violations.filter((v) =>
+		v.code === 'FACULTY_EXCESSIVE_TRAVEL_DISTANCE' ||
+		v.code === 'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS' ||
+		v.code === 'FACULTY_INSUFFICIENT_TRANSITION_BUFFER'
+	);
+	assertEqual(travelViols.length, 0, 'Same-building transitions produce zero travel violations');
+}
+
+{
+	// Cross-building short distance (50m) within threshold → no distance violation
+	const entries: ScheduledEntry[] = [
+		makeEntry({ entryId: 'tw1', roomId: 1, day: 'MONDAY', startTime: '07:30', endTime: '08:20' }),
+		makeEntry({ entryId: 'tw2', roomId: 3, day: 'MONDAY', startTime: '08:30', endTime: '09:20' }),
+	];
+	const ctx = makeTravelCtx(entries, { maxWalkingDistanceMetersPerTransition: 120 });
+	const result = validateHardConstraints(ctx);
+
+	const distViols = result.violations.filter((v) => v.code === 'FACULTY_EXCESSIVE_TRAVEL_DISTANCE');
+	assertEqual(distViols.length, 0, 'Under-threshold distance (50m < 120m) produces no distance violation');
+}
+
+{
+	// Cross-building exceeding distance threshold → FACULTY_EXCESSIVE_TRAVEL_DISTANCE
+	const entries: ScheduledEntry[] = [
+		makeEntry({ entryId: 'tw1', roomId: 1, day: 'MONDAY', startTime: '07:30', endTime: '08:20' }),
+		makeEntry({ entryId: 'tw2', roomId: 2, day: 'MONDAY', startTime: '08:30', endTime: '09:20' }),
+	];
+	const ctx = makeTravelCtx(entries, { maxWalkingDistanceMetersPerTransition: 120 });
+	const result = validateHardConstraints(ctx);
+
+	const distViols = result.violations.filter((v) => v.code === 'FACULTY_EXCESSIVE_TRAVEL_DISTANCE');
+	assert(distViols.length > 0, 'Over-threshold distance (200m > 120m) emits FACULTY_EXCESSIVE_TRAVEL_DISTANCE');
+	assert(distViols.every((v) => v.severity === 'SOFT'), 'Travel distance violations are SOFT');
+	assert(distViols[0].meta?.estimatedDistanceMeters === 200, 'Meta includes correct estimated distance');
+}
+
+{
+	// Excessive building transitions per day
+	const entries: ScheduledEntry[] = [];
+	// 6 entries alternating between building 10 and 20 → 5 cross-building transitions
+	for (let i = 0; i < 6; i++) {
+		const h = 7 + i;
+		entries.push(makeEntry({
+			entryId: `tw${i + 1}`,
+			roomId: (i % 2 === 0) ? 1 : 2, // alternates building 10 and 20
+			day: 'MONDAY',
+			startTime: `${String(h).padStart(2, '0')}:00`,
+			endTime: `${String(h).padStart(2, '0')}:50`,
+			durationMinutes: 50,
+		}));
+	}
+	const ctx = makeTravelCtx(entries, { maxBuildingTransitionsPerDay: 2 });
+	const result = validateHardConstraints(ctx);
+
+	const transViols = result.violations.filter((v) => v.code === 'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS');
+	assert(transViols.length > 0, '5 building transitions exceeds limit of 2 → violation emitted');
+	assert(transViols[0].meta?.buildingTransitions === 5, 'Meta reports correct transition count');
+}
+
+{
+	// Back-to-back cross-building transitions without buffer (gap ≤ 5 min)
+	const entries: ScheduledEntry[] = [
+		makeEntry({ entryId: 'tw1', roomId: 1, day: 'MONDAY', startTime: '07:30', endTime: '08:20' }),
+		makeEntry({ entryId: 'tw2', roomId: 2, day: 'MONDAY', startTime: '08:20', endTime: '09:10' }), // 0 min gap, cross-building
+		makeEntry({ entryId: 'tw3', roomId: 1, day: 'MONDAY', startTime: '09:10', endTime: '10:00' }), // 0 min gap, cross-building
+		makeEntry({ entryId: 'tw4', roomId: 2, day: 'MONDAY', startTime: '10:00', endTime: '10:50' }), // 0 min gap, cross-building
+	];
+	const ctx = makeTravelCtx(entries, { maxBackToBackTransitionsWithoutBuffer: 1 });
+	const result = validateHardConstraints(ctx);
+
+	const bufferViols = result.violations.filter((v) => v.code === 'FACULTY_INSUFFICIENT_TRANSITION_BUFFER');
+	assert(bufferViols.length > 0, '3 back-to-back cross-building transitions exceeds limit of 1');
+	assert(bufferViols[0].meta?.backToBackTransitions === 3, 'Meta reports correct back-to-back count');
+}
+
+{
+	// Travel checks disabled → no travel violations even with violating entries
+	const entries: ScheduledEntry[] = [
+		makeEntry({ entryId: 'tw1', roomId: 1, day: 'MONDAY', startTime: '07:30', endTime: '08:20' }),
+		makeEntry({ entryId: 'tw2', roomId: 2, day: 'MONDAY', startTime: '08:20', endTime: '09:10' }),
+	];
+	const ctx = makeTravelCtx(entries, { enableTravelWellbeingChecks: false });
+	const result = validateHardConstraints(ctx);
+
+	const travelViols = result.violations.filter((v) =>
+		v.code === 'FACULTY_EXCESSIVE_TRAVEL_DISTANCE' ||
+		v.code === 'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS' ||
+		v.code === 'FACULTY_INSUFFICIENT_TRANSITION_BUFFER'
+	);
+	assertEqual(travelViols.length, 0, 'No travel violations when enableTravelWellbeingChecks is false');
+}
+
+{
+	// Cross-building with sufficient gap (> 5 min) → no buffer violation
+	const entries: ScheduledEntry[] = [
+		makeEntry({ entryId: 'tw1', roomId: 1, day: 'MONDAY', startTime: '07:30', endTime: '08:20' }),
+		makeEntry({ entryId: 'tw2', roomId: 2, day: 'MONDAY', startTime: '08:30', endTime: '09:20' }), // 10 min gap
+		makeEntry({ entryId: 'tw3', roomId: 1, day: 'MONDAY', startTime: '09:30', endTime: '10:20' }), // 10 min gap
+	];
+	const ctx = makeTravelCtx(entries, { maxBackToBackTransitionsWithoutBuffer: 1 });
+	const result = validateHardConstraints(ctx);
+
+	const bufferViols = result.violations.filter((v) => v.code === 'FACULTY_INSUFFICIENT_TRANSITION_BUFFER');
+	assertEqual(bufferViols.length, 0, 'Cross-building with > 5 min gaps → no buffer violation');
+}
+
+// ═══════════════════════════════════════════════════════
 // Summary
 // ═══════════════════════════════════════════════════════
 

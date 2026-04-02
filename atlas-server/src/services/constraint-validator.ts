@@ -20,6 +20,9 @@ export const VIOLATION_CODES = [
 	'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED',
 	'FACULTY_BREAK_REQUIREMENT_VIOLATED',
 	'FACULTY_DAILY_MAX_EXCEEDED',
+	'FACULTY_EXCESSIVE_TRAVEL_DISTANCE',
+	'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS',
+	'FACULTY_INSUFFICIENT_TRANSITION_BUFFER',
 ] as const;
 
 export type ViolationCode = (typeof VIOLATION_CODES)[number];
@@ -70,6 +73,24 @@ export interface PolicyRef {
 	enforceConsecutiveBreakAsHard: boolean;
 }
 
+export interface TravelPolicyRef {
+	enableTravelWellbeingChecks: boolean;
+	maxWalkingDistanceMetersPerTransition: number;
+	maxBuildingTransitionsPerDay: number;
+	maxBackToBackTransitionsWithoutBuffer: number;
+}
+
+export interface BuildingRef {
+	id: number;
+	x: number;
+	y: number;
+}
+
+export interface RoomBuildingRef {
+	roomId: number;
+	buildingId: number;
+}
+
 export interface ValidatorContext {
 	schoolId: number;
 	schoolYearId: number;
@@ -80,6 +101,9 @@ export interface ValidatorContext {
 	rooms: RoomRef[];
 	subjects: SubjectRef[];
 	policy?: PolicyRef;
+	travelPolicy?: TravelPolicyRef;
+	buildings?: BuildingRef[];
+	roomBuildings?: RoomBuildingRef[];
 }
 
 // ─── Violation output ───
@@ -317,6 +341,105 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 						meta: { consecutiveMinutes, maxConsecutive: policy.maxConsecutiveTeachingMinutesBeforeBreak },
 					});
 				}
+			}
+		}
+	}
+
+	// ── 7) Travel / well-being soft constraints ──
+	if (ctx.travelPolicy?.enableTravelWellbeingChecks && ctx.buildings && ctx.roomBuildings) {
+		const tp = ctx.travelPolicy;
+		const buildingMap = new Map(ctx.buildings.map((b) => [b.id, b]));
+		const roomToBld = new Map(ctx.roomBuildings.map((rb) => [rb.roomId, rb.buildingId]));
+
+		// Group entries by faculty+day, sorted by startTime
+		const byFacDay = new Map<string, ScheduledEntry[]>();
+		for (const e of ctx.entries) {
+			const key = `${e.facultyId}:${e.day}`;
+			const arr = byFacDay.get(key) ?? [];
+			arr.push(e);
+			byFacDay.set(key, arr);
+		}
+
+		for (const [key, dayEntries] of byFacDay) {
+			const [facIdStr, day] = key.split(':');
+			const facultyId = Number(facIdStr);
+			const sorted = [...dayEntries].sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+			let buildingTransitions = 0;
+			let backToBackCross = 0;
+
+			for (let i = 1; i < sorted.length; i++) {
+				const prev = sorted[i - 1];
+				const curr = sorted[i];
+				const fromBldId = roomToBld.get(prev.roomId);
+				const toBldId = roomToBld.get(curr.roomId);
+				if (fromBldId == null || toBldId == null) continue;
+
+				const gapMinutes = timeToMinutes(curr.startTime) - timeToMinutes(prev.endTime);
+				const isCrossBuilding = fromBldId !== toBldId;
+
+				if (isCrossBuilding) {
+					buildingTransitions++;
+
+					// Estimate Euclidean distance between building centers
+					const fromBld = buildingMap.get(fromBldId);
+					const toBld = buildingMap.get(toBldId);
+					const estimatedDistance = (fromBld && toBld)
+						? Math.round(Math.sqrt((toBld.x - fromBld.x) ** 2 + (toBld.y - fromBld.y) ** 2))
+						: 0;
+
+					// 7a) Excessive travel distance per transition
+					if (estimatedDistance > tp.maxWalkingDistanceMetersPerTransition) {
+						violations.push({
+							...base, severity: 'SOFT',
+							code: 'FACULTY_EXCESSIVE_TRAVEL_DISTANCE',
+							message: `Faculty ${facultyId} must travel ~${estimatedDistance}m between buildings on ${day} (${prev.endTime}→${curr.startTime}), exceeds ${tp.maxWalkingDistanceMetersPerTransition}m limit.`,
+							entities: { facultyId, day, entryIds: [prev.entryId, curr.entryId] },
+							meta: {
+								facultyId, day,
+								fromRoomId: prev.roomId, toRoomId: curr.roomId,
+								fromBuildingId: fromBldId, toBuildingId: toBldId,
+								gapMinutes, estimatedDistanceMeters: estimatedDistance,
+								configuredThresholds: { maxWalkingDistanceMetersPerTransition: tp.maxWalkingDistanceMetersPerTransition },
+							},
+						});
+					}
+
+					// 7c) Track back-to-back cross-building with short/no gap
+					if (gapMinutes <= 5) {
+						backToBackCross++;
+					}
+				}
+			}
+
+			// 7b) Excessive building transitions per day
+			if (buildingTransitions > tp.maxBuildingTransitionsPerDay) {
+				violations.push({
+					...base, severity: 'SOFT',
+					code: 'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS',
+					message: `Faculty ${facultyId} has ${buildingTransitions} building transitions on ${day}, exceeds limit of ${tp.maxBuildingTransitionsPerDay}.`,
+					entities: { facultyId, day, entryIds: sorted.map((e) => e.entryId) },
+					meta: {
+						facultyId, day,
+						buildingTransitions,
+						configuredThresholds: { maxBuildingTransitionsPerDay: tp.maxBuildingTransitionsPerDay },
+					},
+				});
+			}
+
+			// 7c) Insufficient transition buffer (too many back-to-back cross-building)
+			if (backToBackCross > tp.maxBackToBackTransitionsWithoutBuffer) {
+				violations.push({
+					...base, severity: 'SOFT',
+					code: 'FACULTY_INSUFFICIENT_TRANSITION_BUFFER',
+					message: `Faculty ${facultyId} has ${backToBackCross} back-to-back cross-building transitions without buffer on ${day}, exceeds limit of ${tp.maxBackToBackTransitionsWithoutBuffer}.`,
+					entities: { facultyId, day, entryIds: sorted.map((e) => e.entryId) },
+					meta: {
+						facultyId, day,
+						backToBackTransitions: backToBackCross,
+						configuredThresholds: { maxBackToBackTransitionsWithoutBuffer: tp.maxBackToBackTransitionsWithoutBuffer },
+					},
+				});
 			}
 		}
 	}

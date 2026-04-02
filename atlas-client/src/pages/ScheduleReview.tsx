@@ -9,6 +9,8 @@ import {
 	DoorOpen,
 	Flag,
 	Loader2,
+	PanelLeftClose,
+	PanelLeftOpen,
 	Play,
 	RefreshCw,
 	Search,
@@ -22,6 +24,7 @@ import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
 import { fetchPublicSettings } from '@/lib/settings';
+import { formatTime } from '@/lib/utils';
 import type {
 	Building,
 	DraftReport,
@@ -78,11 +81,20 @@ const VIOLATION_LABELS: Record<ViolationCode, string> = {
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: 'Consecutive Limit',
 	FACULTY_BREAK_REQUIREMENT_VIOLATED: 'Break Requirement',
 	FACULTY_DAILY_MAX_EXCEEDED: 'Daily Max Exceeded',
+	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: 'Excessive Travel Distance',
+	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: 'Excessive Building Transitions',
+	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: 'Insufficient Transition Buffer',
 };
 
 const CONFLICT_CODES: Set<ViolationCode> = new Set([
 	'FACULTY_TIME_CONFLICT',
 	'ROOM_TIME_CONFLICT',
+]);
+
+const WELLBEING_CODES: Set<ViolationCode> = new Set([
+	'FACULTY_EXCESSIVE_TRAVEL_DISTANCE',
+	'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS',
+	'FACULTY_INSUFFICIENT_TRANSITION_BUFFER',
 ]);
 
 const GRADE_BADGE: Record<number, string> = {
@@ -92,7 +104,7 @@ const GRADE_BADGE: Record<number, string> = {
 	10: 'bg-blue-100 text-blue-700 border-blue-300',
 };
 
-type SeverityFilter = 'all' | 'hard' | 'soft' | 'conflicts';
+type SeverityFilter = 'all' | 'hard' | 'soft' | 'conflicts' | 'wellbeing';
 type ViewMode = 'section' | 'faculty' | 'room';
 
 /** Enriched room info for display (includes parent building context) */
@@ -211,6 +223,10 @@ export default function ScheduleReview() {
 	/* ── Room reference data ── */
 	const [roomMap, setRoomMap] = useState<Map<number, RoomInfo>>(new Map());
 
+	/* ── Layout state ── */
+	const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
+	const [isRightCollapsed, setIsRightCollapsed] = useState(false);
+
 	/* ── Derived state ── */
 	const violations = violationReport?.violations ?? [];
 	const violationIndex = useMemo(() => buildViolationIndex(violations), [violations]);
@@ -227,6 +243,8 @@ export default function ScheduleReview() {
 		else if (severityFilter === 'soft') filtered = filtered.filter((v) => v.severity === 'SOFT');
 		else if (severityFilter === 'conflicts')
 			filtered = filtered.filter((v) => CONFLICT_CODES.has(v.code));
+		else if (severityFilter === 'wellbeing')
+			filtered = filtered.filter((v) => WELLBEING_CODES.has(v.code));
 
 		if (violationSearch.trim()) {
 			const q = violationSearch.toLowerCase();
@@ -285,8 +303,8 @@ export default function ScheduleReview() {
 	const gridEntries = useMemo(() => {
 		if (!draft?.entries) return [];
 		const entries = draft.entries;
-		if (entityFilter === 'all') return entries;
 		const id = Number(entityFilter);
+		if (!id) return [];
 		if (viewMode === 'section') return entries.filter((e) => e.sectionId === id);
 		if (viewMode === 'faculty') return entries.filter((e) => e.facultyId === id);
 		return entries.filter((e) => e.roomId === id);
@@ -556,7 +574,7 @@ export default function ScheduleReview() {
 	const subjectLabel = useCallback(
 		(id: number) => {
 			const s = subjectMap.get(id);
-			return s ? s.code : `Subject #${id}`;
+			return s ? s.code : `Unknown Subject (#${id})`;
 		},
 		[subjectMap],
 	);
@@ -564,7 +582,7 @@ export default function ScheduleReview() {
 	const facultyLabel = useCallback(
 		(id: number) => {
 			const f = facultyMap.get(id);
-			return f ? `${f.lastName}, ${f.firstName}` : `Faculty #${id}`;
+			return f ? `${f.lastName}, ${f.firstName}` : `Unknown Faculty (#${id})`;
 		},
 		[facultyMap],
 	);
@@ -572,7 +590,7 @@ export default function ScheduleReview() {
 	const sectionLabel = useCallback(
 		(id: number) => {
 			const s = sectionMap.get(id);
-			return s ? s.name : `Section #${id}`;
+			return s ? s.name : `Unknown Section (#${id})`;
 		},
 		[sectionMap],
 	);
@@ -592,7 +610,7 @@ export default function ScheduleReview() {
 	const roomLabelShort = useCallback(
 		(roomId: number): string => {
 			const ri = roomMap.get(roomId);
-			if (!ri) return `Rm #${roomId}`;
+			if (!ri) return `Unknown Room (#${roomId})`;
 			const bldg = ri.buildingShortCode || ri.buildingName;
 			return `${ri.name} · ${bldg}`;
 		},
@@ -659,13 +677,8 @@ export default function ScheduleReview() {
 							<Skeleton key={i} className="h-10 w-full" />
 						))}
 					</div>
-					<div className="flex-1 p-4">
+					<div className="flex-1 min-w-0 p-4">
 						<Skeleton className="h-full w-full rounded-lg" />
-					</div>
-					<div className="w-72 border-l p-3 space-y-2">
-						{Array.from({ length: 6 }).map((_, i) => (
-							<Skeleton key={i} className="h-8 w-full" />
-						))}
 					</div>
 				</div>
 			</div>
@@ -811,14 +824,25 @@ export default function ScheduleReview() {
 							<Badge variant="outline" className={`h-5 px-1.5 text-[0.625rem] font-bold ${statusColor(draft?.status ?? '')}`}>
 								{draft?.status ?? '—'}
 							</Badge>
-							<StatItem icon={Check} label="Assigned" value={`${summary.assignedCount}/${summary.classesProcessed}`} />
+							<StatItem
+								icon={Check}
+								label="Assigned"
+								value={`${summary.assignedCount}/${summary.classesProcessed}`}
+								explanation="Classes successfully placed vs total classes the algorithm attempted to schedule."
+							/>
 							<StatItem
 								icon={ShieldAlert}
 								label="Hard"
 								value={String(summary.hardViolationCount)}
 								className={summary.hardViolationCount > 0 ? 'text-red-600 font-semibold' : ''}
+								explanation="Critical policy violations. A schedule with any Hard Violations cannot be published."
 							/>
-							<StatItem icon={Clock} label="Duration" value={formatDuration(draft ? runs.find((r) => String(r.id) === selectedRunId || (selectedRunId === 'latest' && r.id === runs[0]?.id))?.durationMs ?? null : null)} />
+							<StatItem
+								icon={Clock}
+								label="Duration"
+								value={formatDuration(draft ? runs.find((r) => String(r.id) === selectedRunId || (selectedRunId === 'latest' && r.id === runs[0]?.id))?.durationMs ?? null : null)}
+								explanation="Real-world computing time it took to generate this draft."
+							/>
 						</div>
 					)}
 				</div>
@@ -842,10 +866,9 @@ export default function ScheduleReview() {
 					{/* Entity filter — filters grid by section/faculty/room based on view mode */}
 					<Select value={entityFilter} onValueChange={setEntityFilter}>
 						<SelectTrigger className="h-7 w-44 text-xs">
-							<SelectValue placeholder={`All ${VIEW_MODE_LABELS[viewMode]}s`} />
+							<SelectValue placeholder={`Select ${VIEW_MODE_LABELS[viewMode]}…`} />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value="all">All {VIEW_MODE_LABELS[viewMode]}s</SelectItem>
 							{pivotEntityIds.map((id) => (
 								<SelectItem key={id} value={String(id)}>
 									{pivotLabel(id)}
@@ -883,16 +906,77 @@ export default function ScheduleReview() {
 						active={severityFilter === 'conflicts'}
 						onClick={() => setSeverityFilter('conflicts')}
 					/>
+					<FilterChip
+						label="Well-being"
+						count={violations.filter((v) => WELLBEING_CODES.has(v.code)).length}
+						active={severityFilter === 'wellbeing'}
+						onClick={() => setSeverityFilter('wellbeing')}
+					/>
 				</div>
 			</div>
 
-			{/* ── Body: Three-panel split ── */}
+			{/* ── Body: Two-panel split (right detail is a Sheet overlay) ── */}
 			<div className="flex flex-1 min-h-0">
-				{/* LEFT: Violations + Unassigned Tabs */}
-				<div className="w-64 shrink-0 border-r border-border flex flex-col min-h-0 bg-background">
+				{/* LEFT: Violations + Unassigned Tabs (collapsible) */}
+				<motion.div
+					animate={{ width: isLeftCollapsed ? '3rem' : '16rem' }}
+					transition={{ duration: 0.2, ease: 'easeInOut' }}
+					className="shrink-0 border-r border-border flex flex-col min-h-0 bg-background overflow-hidden">
+					{/* Collapse toggle */}
+					<div className="shrink-0 flex items-center justify-end px-1 py-1 border-b border-border">
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setIsLeftCollapsed((c) => !c)}>
+										{isLeftCollapsed ? <PanelLeftOpen className="size-3.5" /> : <PanelLeftClose className="size-3.5" />}
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent side="right">{isLeftCollapsed ? 'Expand panel' : 'Collapse panel'}</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					</div>
+
+					{/* Collapsed icon strip */}
+					{isLeftCollapsed ? (
+						<div className="flex flex-col items-center gap-1 py-2">
+							<TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											variant={leftTab === 'violations' ? 'default' : 'ghost'}
+											size="sm"
+											className="h-8 w-8 p-0"
+											onClick={() => { setLeftTab('violations'); setIsLeftCollapsed(false); }}
+										>
+											<ShieldAlert className="size-4" />
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent side="right">Violations ({violations.length})</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+							<TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											variant={leftTab === 'unassigned' ? 'default' : 'ghost'}
+											size="sm"
+											className="h-8 w-8 p-0"
+											onClick={() => { setLeftTab('unassigned'); setIsLeftCollapsed(false); }}
+										>
+											<AlertTriangle className="size-4" />
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent side="right">Unassigned ({summary?.unassignedCount ?? 0})</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+						</div>
+					) : (
+					<>
 					{/* Tab switcher */}
 					<div className="shrink-0 flex border-b border-border" role="tablist" aria-label="Schedule review panels">
 						<button
+							id="tab-violations"
+							type="button"
 							role="tab"
 							aria-selected={leftTab === 'violations'}
 							aria-controls="panel-violations"
@@ -907,6 +991,8 @@ export default function ScheduleReview() {
 							<span className="ml-1 text-[0.625rem] opacity-70">{violations.length}</span>
 						</button>
 						<button
+							id="tab-unassigned"
+							type="button"
 							role="tab"
 							aria-selected={leftTab === 'unassigned'}
 							aria-controls="panel-unassigned"
@@ -925,7 +1011,7 @@ export default function ScheduleReview() {
 					</div>
 
 					{leftTab === 'violations' ? (
-						<>
+						<div id="panel-violations" role="tabpanel" aria-labelledby="tab-violations" className="flex flex-col flex-1 min-h-0">
 							<div className="shrink-0 px-3 pt-3 pb-2">
 								<div className="relative">
 									<Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
@@ -937,6 +1023,8 @@ export default function ScheduleReview() {
 									/>
 									{violationSearch && (
 										<button
+											type="button"
+											aria-label="Clear search"
 											onClick={() => setViolationSearch('')}
 											className="absolute right-2 top-1/2 -translate-y-1/2"
 										>
@@ -965,31 +1053,51 @@ export default function ScheduleReview() {
 									)}
 								</div>
 							</ScrollArea>
-						</>
+						</div>
 					) : (
-						<ScrollArea className="flex-1 min-h-0">
+						<ScrollArea id="panel-unassigned" role="tabpanel" aria-labelledby="tab-unassigned" className="flex-1 min-h-0">
 							<div className="px-3 py-3 space-y-3">
 								{summary ? (
 									<>
 										<div className="rounded-md border border-border p-3 space-y-2">
 											<div className="flex items-center justify-between">
-												<span className="text-xs font-medium text-muted-foreground">Classes Processed</span>
+												<MetricExplain
+													label="Classes Processed"
+													explanation="The total number of class demands (e.g., Math 7 Section A) the algorithm attempted to schedule."
+												/>
 												<span className="text-sm font-bold">{summary.classesProcessed}</span>
 											</div>
 											<div className="flex items-center justify-between">
-												<span className="text-xs font-medium text-muted-foreground">Assigned</span>
+												<MetricExplain
+													label="Assigned"
+													explanation="Class sessions that were successfully pinned to a timeslot, room, and teacher without breaking hard constraints."
+												/>
 												<span className="text-sm font-bold text-emerald-600">{summary.assignedCount}</span>
 											</div>
 											<div className="flex items-center justify-between">
-												<span className="text-xs font-medium text-muted-foreground">Unassigned</span>
+												<MetricExplain
+													label="Unassigned"
+													explanation="Class sessions that failed to be placed. These will require you to manually triage them, or fix upstream setup data."
+												/>
 												<span className={`text-sm font-bold ${summary.unassignedCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
 													{summary.unassignedCount}
 												</span>
 											</div>
 											{summary.policyBlockedCount > 0 && (
-												<div className="flex items-center justify-between">
-													<span className="text-xs font-medium text-muted-foreground">Policy-Blocked</span>
-													<span className="text-sm font-bold text-red-600">{summary.policyBlockedCount}</span>
+												<div className="flex items-start justify-between mt-3 pt-2 border-t border-border/50">
+													<div className="flex-1 pr-2">
+														<MetricExplain
+															label="Policy-Blocked"
+															explanation={
+																<div className="space-y-1.5 opacity-90">
+																	<p className="font-semibold text-red-400">Not a class count.</p>
+																	<p>This shows how many times the search algorithm hit a dead-end because of a hard policy stricture (like a teacher being overloaded or unavailable).</p>
+																	<p>A massive number (e.g., 1000+) just means the computer had to search extensively to find a valid arrangement.</p>
+																</div>
+															}
+														/>
+													</div>
+													<span className="text-sm font-bold text-red-600 tabular-nums">{summary.policyBlockedCount}</span>
 												</div>
 											)}
 										</div>
@@ -1042,11 +1150,12 @@ export default function ScheduleReview() {
 								)}
 							</div>
 						</ScrollArea>
-					)}
-				</div>
+						)}
+					</>)}
+				</motion.div>
 
 				{/* CENTER: Timetable Grid */}
-				<div className="flex-1 flex flex-col min-h-0">
+				<div className="flex-1 min-w-0 flex flex-col min-h-0">
 					{draft && draft.entries.length > 0 ? (
 						<ScrollArea className="flex-1 min-h-0">
 							<div className="p-4">
@@ -1078,42 +1187,74 @@ export default function ScheduleReview() {
 					)}
 				</div>
 
-				{/* RIGHT: Entry Detail / Action Panel (collapsible) */}
-				<AnimatePresence mode="wait">
-					{selectedEntry && (
-						<motion.div
-							key="detail-panel"
-							initial={{ width: 0, opacity: 0 }}
-							animate={{ width: 288, opacity: 1 }}
-							exit={{ width: 0, opacity: 0 }}
-							transition={{ duration: 0.2, ease: 'easeInOut' }}
-							className="shrink-0 border-l border-border flex flex-col min-h-0 bg-background overflow-hidden"
-						>
-							<motion.div
-								key={selectedEntry.entryId}
-								initial={{ opacity: 0, x: 10 }}
-								animate={{ opacity: 1, x: 0 }}
-								exit={{ opacity: 0, x: 10 }}
-								transition={{ duration: 0.15 }}
-								className="flex flex-col min-h-0 h-full w-72"
-							>
-								<EntryDetailPanel
-									entry={selectedEntry}
-									violationIndex={violationIndex}
-									followUps={followUps}
-									onToggleFollowUp={toggleFollowUp}
-									onClose={() => setSelectedEntry(null)}
-									subjectLabel={subjectLabel}
-									facultyLabel={facultyLabel}
-									sectionLabel={sectionLabel}
-									gradeForSection={gradeForSection}
-									roomLabel={roomLabel}
-									isStaleRoom={isStaleRoom}
-								/>
-							</motion.div>
-						</motion.div>
+				{/* RIGHT: Entry Detail Panel (collapsible) */}
+				<motion.div
+					animate={{ width: isRightCollapsed ? '3rem' : '18rem' }}
+					transition={{ duration: 0.2, ease: 'easeInOut' }}
+					className="shrink-0 border-l border-border flex flex-col min-h-0 bg-background overflow-hidden"
+				>
+					{/* Collapse toggle */}
+					<div className="shrink-0 flex items-center px-1 py-1 border-b border-border">
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setIsRightCollapsed((c) => !c)}>
+										{isRightCollapsed ? <PanelLeftClose className="size-3.5 rotate-180" /> : <PanelLeftOpen className="size-3.5 rotate-180" />}
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent side="left">{isRightCollapsed ? 'Expand panel' : 'Collapse panel'}</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					</div>
+
+					{!isRightCollapsed ? (
+						<AnimatePresence mode="wait">
+							{selectedEntry ? (
+								<motion.div
+									key={selectedEntry.entryId}
+									initial={{ opacity: 0, x: 10 }}
+									animate={{ opacity: 1, x: 0 }}
+									exit={{ opacity: 0, x: 10 }}
+									transition={{ duration: 0.15 }}
+									className="flex flex-col min-h-0 h-full w-72"
+								>
+									<EntryDetailPanel
+										entry={selectedEntry}
+										violationIndex={violationIndex}
+										followUps={followUps}
+										onToggleFollowUp={toggleFollowUp}
+										onClose={() => setSelectedEntry(null)}
+										subjectLabel={subjectLabel}
+										facultyLabel={facultyLabel}
+										sectionLabel={sectionLabel}
+										gradeForSection={gradeForSection}
+										roomLabel={roomLabel}
+										isStaleRoom={isStaleRoom}
+									/>
+								</motion.div>
+							) : (
+								<motion.div
+									key="empty"
+									initial={{ opacity: 0 }}
+									animate={{ opacity: 1 }}
+									exit={{ opacity: 0 }}
+									className="flex-1 flex items-center justify-center w-72"
+								>
+									<div className="text-center space-y-2 px-6">
+										<Users className="mx-auto size-8 text-muted-foreground/30" />
+										<p className="text-xs text-muted-foreground">
+											Click an entry in the grid or select a violation to view details
+										</p>
+									</div>
+								</motion.div>
+							)}
+						</AnimatePresence>
+					) : (
+						<div className="flex-1 flex flex-col items-center py-4 text-muted-foreground/50">
+							<DoorOpen className="size-4" />
+						</div>	
 					)}
-				</AnimatePresence>
+				</motion.div>
 			</div>
 
 			{/* ── Generate Confirmation Dialog ── */}
@@ -1236,19 +1377,55 @@ function StatItem({
 	icon: Icon,
 	label,
 	value,
+	explanation,
 	className = '',
 }: {
 	icon: React.ElementType;
 	label: string;
 	value: string;
+	explanation?: React.ReactNode;
 	className?: string;
 }) {
-	return (
+	const content = (
 		<span className={`flex items-center gap-1 ${className}`}>
-			<Icon className="size-3" />
-			<span className="opacity-70">{label}:</span>
+			<Icon className="size-3 shrink-0" />
+			<span className={explanation ? "opacity-90 border-b border-dotted border-current/50" : "opacity-70"}>{label}:</span>
 			<span className="font-medium text-foreground">{value}</span>
 		</span>
+	);
+
+	if (!explanation) return content;
+
+	return (
+		<TooltipProvider delayDuration={200}>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<button type="button" className="cursor-help outline-none focus-visible:ring-1 focus-visible:ring-primary rounded-sm text-left align-top transition-colors hover:opacity-80">
+						{content}
+					</button>
+				</TooltipTrigger>
+				<TooltipContent className="max-w-[220px] text-xs font-normal leading-relaxed" side="bottom">
+					{explanation}
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
+	);
+}
+
+function MetricExplain({ label, explanation }: { label: string; explanation: React.ReactNode }) {
+	return (
+		<TooltipProvider delayDuration={200}>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<button type="button" className="text-xs font-medium text-muted-foreground border-b border-dotted border-muted-foreground/50 cursor-help outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-1 rounded-sm text-left transition-colors hover:text-foreground hover:border-foreground/50 pb-0.5">
+						{label}
+					</button>
+				</TooltipTrigger>
+				<TooltipContent className="max-w-[260px] text-xs font-normal leading-relaxed" side="bottom">
+					{explanation}
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 }
 
@@ -1384,9 +1561,9 @@ function TimetableGrid({
 					{timeSlots.map((slot) => (
 						<tr key={slot.startTime} className="border-b border-border/50">
 							<td className="px-2 py-1.5 text-muted-foreground whitespace-nowrap font-mono text-[0.625rem] align-top">
-								{slot.startTime}
+								{formatTime(slot.startTime)}
 								<br />
-								<span className="opacity-50">{slot.endTime}</span>
+								<span className="opacity-50">{formatTime(slot.endTime)}</span>
 							</td>
 							{DAYS.map((day) => {
 								const key = `${day}-${slot.startTime}`;
@@ -1416,7 +1593,7 @@ function TimetableGrid({
 													<button
 														key={e.entryId}
 														onClick={() => onEntryClick(e)}
-														aria-label={`${subjectLabel(e.subjectId)}, ${sectionLabel(e.sectionId)}, ${DAY_SHORT[e.day] ?? e.day} ${e.startTime}–${e.endTime}`}
+														aria-label={`${subjectLabel(e.subjectId)}, ${sectionLabel(e.sectionId)}, ${DAY_SHORT[e.day] ?? e.day} ${formatTime(e.startTime)}–${formatTime(e.endTime)}`}
 														className={`w-full text-left rounded px-1.5 py-1 border text-[0.625rem] leading-tight transition-all cursor-pointer hover:opacity-80 ${cellClass}`}
 													>
 														<div className="font-medium truncate">
@@ -1533,7 +1710,7 @@ function EntryDetailPanel({
 					{/* Day/Time */}
 					<DetailRow
 						label="Schedule"
-						value={`${DAY_SHORT[entry.day] ?? entry.day} ${entry.startTime}–${entry.endTime}`}
+						value={`${DAY_SHORT[entry.day] ?? entry.day} ${formatTime(entry.startTime)}–${formatTime(entry.endTime)}`}
 					/>
 					<DetailRow label="Duration" value={`${entry.durationMinutes} min`} />
 
@@ -1554,10 +1731,47 @@ function EntryDetailPanel({
 								>
 									<div className="font-medium">{VIOLATION_LABELS[v.code]}</div>
 									<div className="mt-0.5 opacity-80">{v.message}</div>
+									{v.meta && WELLBEING_CODES.has(v.code) && (
+										<div className="mt-1 pt-1 border-t border-current/10 text-[0.5625rem] space-y-0.5 opacity-90">
+											{v.meta.estimatedDistanceMeters != null && (
+												<div>Distance: ~{String(v.meta.estimatedDistanceMeters)}m</div>
+											)}
+											{v.meta.gapMinutes != null && (
+												<div>Gap: {String(v.meta.gapMinutes)} min</div>
+											)}
+											{v.meta.buildingTransitions != null && (
+												<div>Building transitions: {String(v.meta.buildingTransitions)}</div>
+											)}
+											{v.meta.backToBackTransitions != null && (
+												<div>Back-to-back cross-building: {String(v.meta.backToBackTransitions)}</div>
+											)}
+										</div>
+									)}
 								</div>
 							))}
 						</div>
 					)}
+
+					{/* Mobility impact subsection */}
+					{(() => {
+						const travelViolations = entryViolations.filter((v) => WELLBEING_CODES.has(v.code));
+						if (travelViolations.length === 0) return null;
+						return (
+							<div className="space-y-1.5">
+								<span className="text-[0.6875rem] font-medium text-purple-700">
+									Mobility Impact
+								</span>
+								<div className="rounded border border-purple-200 bg-purple-50/50 px-2 py-1.5 text-[0.625rem] text-purple-800 space-y-0.5">
+									<div>{travelViolations.length} travel/well-being concern{travelViolations.length !== 1 ? 's' : ''}</div>
+									{travelViolations.some((v) => v.meta?.estimatedDistanceMeters != null) && (
+										<div className="opacity-80">
+											Max distance: ~{Math.max(...travelViolations.map((v) => Number(v.meta?.estimatedDistanceMeters ?? 0)))}m
+										</div>
+									)}
+								</div>
+							</div>
+						);
+					})()}
 
 					{/* Action buttons */}
 					<div className="border-t border-border pt-3 space-y-1.5">
