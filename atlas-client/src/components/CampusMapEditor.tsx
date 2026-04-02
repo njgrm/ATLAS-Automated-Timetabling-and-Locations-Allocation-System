@@ -221,6 +221,7 @@ export function CampusMapEditor({
 			const newBuilding: EditorBuilding = {
 				id: tempIdCounter--,
 				name: `Building ${buildings.length + 1}`,
+				shortCode: null,
 				x: drawRect.x,
 				y: drawRect.y,
 				width: drawRect.width,

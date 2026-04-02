@@ -562,20 +562,19 @@ export default function FacultyAssignments() {
 							)}
 
 							{/* Scrollable subject assignments */}
-							<Card className="shadow-sm mt-3 flex-1 min-h-0 flex flex-col">
-								<CardContent className="pt-5 flex-1 overflow-auto">
-									<div className="flex items-center justify-between mb-3">
-										<h3 className="text-sm font-semibold text-muted-foreground">
-											Qualified Subjects
-										</h3>
-										{dirty && (
-											<Button size="sm" onClick={handleSave} disabled={saving || !selected.isActiveForScheduling}>
-												<Save className="mr-1.5 size-3.5" />
-												{saving ? 'Saving...' : 'Save Assignments'}
-											</Button>
-										)}
-									</div>
-
+							<Card className="shadow-sm mt-3 flex-1 min-h-0 flex flex-col overflow-hidden">
+								<div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border bg-card shrink-0">
+									<h3 className="text-sm font-semibold text-muted-foreground">
+										Qualified Subjects
+									</h3>
+									{dirty && (
+										<Button size="sm" onClick={handleSave} disabled={saving || !selected.isActiveForScheduling}>
+											<Save className="mr-1.5 size-3.5" />
+											{saving ? 'Saving...' : 'Save Assignments'}
+										</Button>
+									)}
+								</div>
+								<CardContent className="pt-3 flex-1 overflow-auto">
 									{!selected.isActiveForScheduling && (
 										<div className="mb-3 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
 											<AlertTriangle className="size-4" />

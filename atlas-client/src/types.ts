@@ -23,6 +23,7 @@ export type Room = {
 export type Building = {
 	id: number;
 	name: string;
+	shortCode: string | null;
 	x: number;
 	y: number;
 	width: number;
@@ -310,11 +311,41 @@ export interface ViolationReport {
 	};
 }
 
+export interface UnassignedItem {
+	sectionId: number;
+	subjectId: number;
+	gradeLevel: number;
+	session: number;
+	reason: 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM';
+}
+
 export interface DraftReport {
 	runId: number;
 	status: string;
 	entries: ScheduledEntry[];
+	unassignedItems: UnassignedItem[];
 	summary: RunSummary | null;
 	finishedAt: string | null;
 	createdAt: string;
+}
+
+/* ─── Section types (from enrollment adapter) ─── */
+
+export interface ExternalSection {
+	id: number;
+	name: string;
+	maxCapacity: number;
+	enrolledCount: number;
+	gradeLevelId: number;
+	gradeLevelName: string;
+}
+
+export interface SectionSummaryResponse {
+	schoolId: number;
+	schoolYearId: number;
+	totalSections: number;
+	totalEnrolled: number;
+	byGradeLevel: Record<number, number>;
+	enrolledByGradeLevel: Record<number, number>;
+	sections: ExternalSection[];
 }

@@ -199,3 +199,80 @@ Record dated implementation verification summaries here.
   - none
 - Decision:
   - Accepted — Phase 4 Batch 2 complete.
+
+### 2026-04-02 - Phase 4 Batch 3: Room Identity Clarity + Integrity Hardening
+- Phase: 4
+- Scope gate: PASS (room labels, generation integrity, building shortCode — all Phase 4 review quality scope)
+- Architecture gate: PASS (service-layer logic, thin controllers, school-scoped queries, no direct SQL in controllers)
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npx tsc --noEmit` (client): PASS (0 errors)
+  - `npx tsc --noEmit` (server): PASS (0 errors)
+  - `npx prisma db push`: PASS (short_code column added)
+- Files changed:
+  - `prisma/schema.prisma`: added `shortCode String? @map("short_code")` to Building model
+  - `atlas-server/src/lib/building-short-code.ts`: new deterministic short-code generator
+  - `atlas-server/src/services/map.service.ts`: shortCode auto-gen on create/update, backfill on read, room non-teaching guard
+  - `atlas-server/src/services/generation.service.ts`: room query hardened with `isTeachingSpace: true` + `building.isTeachingBuilding: true`
+  - `atlas-server/src/routes/map.router.ts`: shortCode passthrough in building create
+  - `atlas-client/src/types.ts`: Building.shortCode added
+  - `atlas-client/src/pages/ScheduleReview.tsx`: RoomInfo enriched map, roomLabel/roomLabelShort helpers, stale-room fallback, grid cell room context, pivot sort by building+name
+  - `atlas-client/src/components/CampusMapEditor.tsx`: shortCode: null in new building init
+- Short-code algorithm:
+  - Strip filler words (and/the/of), uppercase first letter of remaining words, append trailing numbers
+  - `Main Building 1` → `MB1`, `Science and Technology Building` → `STB`, `New Academic Block 2` → `NAB2`
+- Before/After labels:
+  - Before: `Room #42`
+  - After: `Room 101 · MB1 (Floor 1)` or `Unknown Room (#99)` with stale badge
+- Verification:
+  - Entry detail panel: shows `RoomName · BuildingLabel (Floor X)` — PASS
+  - Room pivot mode: readable labels sorted by building → room name — PASS
+  - Stale roomId: shows `Unknown Room (#id)` with amber stale badge — PASS (code verified)
+  - Non-teaching building room guard: forces `isTeachingSpace=false` — PASS (code verified)
+  - Generation excludes non-teaching buildings/rooms: WHERE clause verified — PASS
+  - ShortCode auto-generated on create: PASS (code verified)
+  - ShortCode customizable via PATCH: PASS (updateBuilding accepts shortCode)
+  - Backfill on read: PASS (getBuildingsBySchool fills missing shortCodes)
+- Blocking findings:
+  - none
+- Decision:
+  - Accepted — Phase 4 Batch 3 complete.
+
+### 2026-04-03 - Phase 4 Batch 4: UX/Functional Correction Pass
+- Phase: 4
+- Scope gate: PASS (pivot filtering, header layout, unassigned queue, section names, dashboard preview, follow-up persistence — all Phase 4 review UX scope)
+- Architecture gate: PASS (service-layer CRUD, thin router, school-scoped endpoints, `/api/v1` versioning, Prisma model, optimistic client toggle)
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npx tsc --noEmit` (client): PASS (0 errors)
+  - `npx tsc --noEmit` (server): PASS (0 errors)
+  - `npx prisma migrate deploy`: PASS (0002_add_follow_up_flags applied)
+- Files changed:
+  - `prisma/schema.prisma`: added FollowUpFlag model
+  - `prisma/migrations/0002_add_follow_up_flags/migration.sql`: CREATE TABLE + indexes
+  - `atlas-server/src/services/follow-up-flag.service.ts`: new — listByRun, toggleFlag, removeFlag
+  - `atlas-server/src/routes/follow-up-flag.router.ts`: new — GET/PUT/DELETE with auth + role check
+  - `atlas-server/src/app.ts`: wired follow-up-flag router at `/api/v1/follow-up-flags`
+  - `atlas-client/src/types.ts`: added ExternalSection, SectionSummaryResponse interfaces
+  - `atlas-client/src/pages/ScheduleReview.tsx`: A (entityFilter), B (two-row header), C (unassigned tab), D (sectionMap), G (API-backed followUps)
+  - `atlas-client/src/pages/RoomSchedules.tsx`: D+F (sectionMap name resolution)
+  - `atlas-client/src/pages/Dashboard.tsx`: E (RoomSchedulePreview component)
+  - `docs/phases/phase-4-review.md`: Batch 4 documented
+- Feature verification:
+  - A: Entity filter filters gridEntries by sectionId/facultyId/roomId per viewMode — PASS
+  - B: Two-row header layout (Run Management / Grid Controls) — PASS
+  - C: Unassigned tab with metrics + section coverage + grade badges — PASS
+  - D: Section names from enrollment adapter instead of "Section #id" — PASS
+  - E: Dashboard room schedule preview with day grid + utilization — PASS
+  - F: RoomSchedules section name resolution via sectionMap — PASS
+  - G: FollowUpFlag CRUD service, REST endpoints, client API integration with optimistic toggle — PASS
+- API endpoints added:
+  - `GET /api/v1/follow-up-flags/:schoolId/:schoolYearId/runs/:runId/flags` — list flags
+  - `PUT /api/v1/follow-up-flags/:schoolId/:schoolYearId/runs/:runId/flags/:entryId` — toggle flag
+  - `DELETE /api/v1/follow-up-flags/:schoolId/:schoolYearId/runs/:runId/flags/:entryId` — remove flag
+- Blocking findings:
+  - none
+- Decision:
+  - Accepted — Phase 4 Batch 4 complete.

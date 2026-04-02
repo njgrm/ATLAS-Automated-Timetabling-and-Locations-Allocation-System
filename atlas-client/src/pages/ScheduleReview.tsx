@@ -23,13 +23,17 @@ import { toast } from 'sonner';
 import atlasApi from '@/lib/api';
 import { fetchPublicSettings } from '@/lib/settings';
 import type {
+	Building,
 	DraftReport,
+	ExternalSection,
 	GenerationRun,
 	Room,
 	RunSummary,
 	ScheduledEntry,
+	SectionSummaryResponse,
 	Subject,
 	FacultyMirror,
+	UnassignedItem,
 	Violation,
 	ViolationCode,
 	ViolationReport,
@@ -90,6 +94,18 @@ const GRADE_BADGE: Record<number, string> = {
 
 type SeverityFilter = 'all' | 'hard' | 'soft' | 'conflicts';
 type ViewMode = 'section' | 'faculty' | 'room';
+
+/** Enriched room info for display (includes parent building context) */
+type RoomInfo = {
+	id: number;
+	name: string;
+	buildingId: number;
+	buildingName: string;
+	buildingShortCode: string | null;
+	floor: number;
+	type: string;
+	isTeachingSpace: boolean;
+};
 
 const VIEW_MODE_LABELS: Record<ViewMode, string> = {
 	section: 'Section',
@@ -174,6 +190,7 @@ export default function ScheduleReview() {
 	/* ── Reference data lookups ── */
 	const [subjectMap, setSubjectMap] = useState<Map<number, Subject>>(new Map());
 	const [facultyMap, setFacultyMap] = useState<Map<number, FacultyMirror>>(new Map());
+	const [sectionMap, setSectionMap] = useState<Map<number, ExternalSection>>(new Map());
 
 	/* ── Filter / selection state ── */
 	const [severityFilter, setSeverityFilter] = useState<SeverityFilter>('all');
@@ -181,8 +198,9 @@ export default function ScheduleReview() {
 	const [selectedViolation, setSelectedViolation] = useState<Violation | null>(null);
 	const [selectedEntry, setSelectedEntry] = useState<ScheduledEntry | null>(null);
 	const [followUps, setFollowUps] = useState<Set<string>>(new Set());
-	const [sectionFilter, setSectionFilter] = useState<string>('all');
+	const [entityFilter, setEntityFilter] = useState<string>('');
 	const [viewMode, setViewMode] = useState<ViewMode>('section');
+	const [leftTab, setLeftTab] = useState<'violations' | 'unassigned'>('violations');
 
 	/* ── Generate / Publish workflow state ── */
 	const [generating, setGenerating] = useState(false);
@@ -191,7 +209,7 @@ export default function ScheduleReview() {
 	const [publishAcknowledged, setPublishAcknowledged] = useState(false);
 
 	/* ── Room reference data ── */
-	const [roomMap, setRoomMap] = useState<Map<number, Room>>(new Map());
+	const [roomMap, setRoomMap] = useState<Map<number, RoomInfo>>(new Map());
 
 	/* ── Derived state ── */
 	const violations = violationReport?.violations ?? [];
@@ -250,22 +268,29 @@ export default function ScheduleReview() {
 			for (const e of entries) if (e.facultyId) ids.add(e.facultyId);
 			return Array.from(ids).sort((a, b) => a - b);
 		}
-		// room
+		// room — sort by building label then room name for readability
 		const ids = new Set<number>();
 		for (const e of entries) if (e.roomId) ids.add(e.roomId);
-		return Array.from(ids).sort((a, b) => a - b);
-	}, [draft, viewMode, sectionIds]);
+		return Array.from(ids).sort((a, b) => {
+			const ra = roomMap.get(a);
+			const rb = roomMap.get(b);
+			if (!ra || !rb) return a - b;
+			const bldgA = (ra.buildingShortCode || ra.buildingName).toLowerCase();
+			const bldgB = (rb.buildingShortCode || rb.buildingName).toLowerCase();
+			if (bldgA !== bldgB) return bldgA.localeCompare(bldgB);
+			return ra.name.localeCompare(rb.name);
+		});
+	}, [draft, viewMode, sectionIds, roomMap]);
 
 	const gridEntries = useMemo(() => {
 		if (!draft?.entries) return [];
 		const entries = draft.entries;
-		// Apply section filter when in section view mode
-		if (viewMode === 'section') {
-			if (sectionFilter === 'all') return entries;
-			return entries.filter((e) => e.sectionId === Number(sectionFilter));
-		}
-		return entries;
-	}, [draft, sectionFilter, viewMode]);
+		if (entityFilter === 'all') return entries;
+		const id = Number(entityFilter);
+		if (viewMode === 'section') return entries.filter((e) => e.sectionId === id);
+		if (viewMode === 'faculty') return entries.filter((e) => e.facultyId === id);
+		return entries.filter((e) => e.roomId === id);
+	}, [draft, entityFilter, viewMode]);
 
 	/** Grid lookup: `${day}-${startTime}` → entries in that cell, grouped by pivot entity */
 	const gridIndex = useMemo(() => {
@@ -290,6 +315,16 @@ export default function ScheduleReview() {
 	);
 
 	const summary: RunSummary | null = draft?.summary ?? null;
+
+	/** Auto-select first pivot entity when entities change */
+	useEffect(() => {
+		if (pivotEntityIds.length > 0) {
+			const currentValid = entityFilter && entityFilter !== 'all' && pivotEntityIds.includes(Number(entityFilter));
+			if (!currentValid) {
+				setEntityFilter(String(pivotEntityIds[0]));
+			}
+		}
+	}, [pivotEntityIds, entityFilter]);
 
 	/* ── Data fetching ── */
 
@@ -325,20 +360,50 @@ export default function ScheduleReview() {
 
 			setDraft(draftRes.data);
 			setViolationReport(violationsRes.data);
+
+			// Load persisted follow-up flags for this run
+			const numericRunId = draftRes.data.runId;
+			try {
+				const { data } = await atlasApi.get<{ flags: Array<{ entryId: string }> }>(
+					`/follow-up-flags/${DEFAULT_SCHOOL_ID}/${syId}/runs/${numericRunId}/flags`,
+				);
+				setFollowUps(new Set(data.flags.map((f) => f.entryId)));
+			} catch {
+				setFollowUps(new Set());
+			}
 		},
 		[],
 	);
 
-	const fetchReferenceData = useCallback(async () => {
-		const [subjectsRes, facultyRes, buildingsRes] = await Promise.all([
+	const fetchReferenceData = useCallback(async (syId: number) => {
+		const [subjectsRes, facultyRes, buildingsRes, sectionsRes] = await Promise.all([
 			atlasApi.get<{ subjects: Subject[] }>(`/subjects?schoolId=${DEFAULT_SCHOOL_ID}`),
 			atlasApi.get<{ faculty: FacultyMirror[] }>(`/faculty?schoolId=${DEFAULT_SCHOOL_ID}`),
-			atlasApi.get<{ buildings: Array<{ rooms: Room[] }> }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
+			atlasApi.get<{ buildings: Building[] }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
+			atlasApi.get<SectionSummaryResponse>(`/sections/summary/${syId}?schoolId=${DEFAULT_SCHOOL_ID}`)
+				.catch(() => ({ data: { sections: [] as ExternalSection[] } })),
 		]);
 		setSubjectMap(new Map(subjectsRes.data.subjects.map((s) => [s.id, s])));
 		setFacultyMap(new Map(facultyRes.data.faculty.map((f) => [f.id, f])));
-		const rooms = buildingsRes.data.buildings.flatMap((b) => b.rooms);
-		setRoomMap(new Map(rooms.map((r) => [r.id, r])));
+		setSectionMap(new Map(sectionsRes.data.sections.map((s) => [s.id, s])));
+
+		// Build enriched room lookup with building context
+		const enrichedRooms = new Map<number, RoomInfo>();
+		for (const b of buildingsRes.data.buildings) {
+			for (const r of b.rooms) {
+				enrichedRooms.set(r.id, {
+					id: r.id,
+					name: r.name,
+					buildingId: b.id,
+					buildingName: b.name,
+					buildingShortCode: b.shortCode,
+					floor: r.floor,
+					type: r.type,
+					isTeachingSpace: r.isTeachingSpace,
+				});
+			}
+		}
+		setRoomMap(enrichedRooms);
 	}, []);
 
 	const loadAll = useCallback(
@@ -353,7 +418,7 @@ export default function ScheduleReview() {
 					return;
 				}
 
-				const [fetchedRuns] = await Promise.all([fetchRuns(syId), fetchReferenceData()]);
+				const [fetchedRuns] = await Promise.all([fetchRuns(syId), fetchReferenceData(syId)]);
 
 				if (fetchedRuns.length === 0) {
 					setDraft(null);
@@ -420,14 +485,33 @@ export default function ScheduleReview() {
 		setSelectedEntry((prev) => (prev?.entryId === entry.entryId ? null : entry));
 	}, []);
 
-	const toggleFollowUp = useCallback((entryId: string) => {
-		setFollowUps((prev) => {
-			const next = new Set(prev);
-			if (next.has(entryId)) next.delete(entryId);
-			else next.add(entryId);
-			return next;
-		});
-	}, []);
+	const toggleFollowUp = useCallback(
+		async (entryId: string) => {
+			if (!draft || !schoolYearId) return;
+			// Optimistic update
+			setFollowUps((prev) => {
+				const next = new Set(prev);
+				if (next.has(entryId)) next.delete(entryId);
+				else next.add(entryId);
+				return next;
+			});
+			try {
+				await atlasApi.put(
+					`/follow-up-flags/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${draft.runId}/flags/${entryId}`,
+				);
+			} catch {
+				// Revert on failure
+				setFollowUps((prev) => {
+					const next = new Set(prev);
+					if (next.has(entryId)) next.delete(entryId);
+					else next.add(entryId);
+					return next;
+				});
+				toast.error('Failed to update follow-up flag.');
+			}
+		},
+		[draft, schoolYearId],
+	);
 
 	/* ── Generate handler ── */
 
@@ -486,8 +570,39 @@ export default function ScheduleReview() {
 	);
 
 	const sectionLabel = useCallback(
-		(id: number) => `Section ${id}`,
-		[],
+		(id: number) => {
+			const s = sectionMap.get(id);
+			return s ? s.name : `Section #${id}`;
+		},
+		[sectionMap],
+	);
+
+	/** Human-readable room label: "RoomName · BuildingLabel (Floor X)" */
+	const roomLabel = useCallback(
+		(roomId: number): string => {
+			const ri = roomMap.get(roomId);
+			if (!ri) return `Unknown Room (#${roomId})`;
+			const bldg = ri.buildingShortCode || ri.buildingName;
+			return `${ri.name} · ${bldg} (Floor ${ri.floor})`;
+		},
+		[roomMap],
+	);
+
+	/** Compact room label for grid cells */
+	const roomLabelShort = useCallback(
+		(roomId: number): string => {
+			const ri = roomMap.get(roomId);
+			if (!ri) return `Rm #${roomId}`;
+			const bldg = ri.buildingShortCode || ri.buildingName;
+			return `${ri.name} · ${bldg}`;
+		},
+		[roomMap],
+	);
+
+	/** Whether a room is a stale/missing reference */
+	const isStaleRoom = useCallback(
+		(roomId: number): boolean => !roomMap.has(roomId),
+		[roomMap],
 	);
 
 	/** Pivot-specific row label resolver */
@@ -495,21 +610,27 @@ export default function ScheduleReview() {
 		(id: number): string => {
 			if (viewMode === 'section') return sectionLabel(id);
 			if (viewMode === 'faculty') return facultyLabel(id);
-			const room = roomMap.get(id);
-			return room ? room.name : `Room #${id}`;
+			return roomLabelShort(id);
 		},
-		[viewMode, sectionLabel, facultyLabel, roomMap],
+		[viewMode, sectionLabel, facultyLabel, roomLabelShort],
 	);
 
 	const gradeForSection = useCallback(
 		(sectionId: number): number | null => {
-			// Try to infer grade from the entry's subject
+			// Prefer grade from section adapter data
+			const sec = sectionMap.get(sectionId);
+			if (sec) {
+				// displayOrder is the grade level (7, 8, 9, 10)
+				const match = sec.gradeLevelName.match(/(\d+)/);
+				if (match) return Number(match[1]);
+			}
+			// Fallback: infer grade from the entry's subject
 			const entry = draft?.entries.find((e) => e.sectionId === sectionId);
 			if (!entry) return null;
 			const subj = subjectMap.get(entry.subjectId);
 			return subj?.gradeLevels?.[0] ?? null;
 		},
-		[draft, subjectMap],
+		[sectionMap, draft, subjectMap],
 	);
 
 	/* ── Render ── */
@@ -605,8 +726,8 @@ export default function ScheduleReview() {
 		<div className="flex flex-col h-[calc(100svh-3.5rem)]">
 			{/* ── Header: Controls + Inline Stat Banner ── */}
 			<div className="shrink-0 border-b border-border bg-background">
-				{/* Row 1: Controls */}
-				<div className="flex items-center gap-2 px-4 pt-3 pb-2 flex-wrap">
+				{/* Row 1: Run Management */}
+				<div className="flex items-center gap-2 px-4 pt-3 pb-1.5 flex-wrap">
 					{/* Run selector */}
 					<Select value={selectedRunId} onValueChange={handleRunChange}>
 						<SelectTrigger className="h-8 w-44 text-xs">
@@ -621,38 +742,6 @@ export default function ScheduleReview() {
 							))}
 						</SelectContent>
 					</Select>
-
-					{/* Section filter */}
-					<Select value={sectionFilter} onValueChange={setSectionFilter}>
-						<SelectTrigger className="h-8 w-36 text-xs">
-							<SelectValue placeholder="All sections" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Sections</SelectItem>
-							{sectionIds.map((id) => (
-								<SelectItem key={id} value={String(id)}>
-									{sectionLabel(id)}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button
-									variant="outline"
-									size="sm"
-									className="h-8"
-									onClick={handleRefresh}
-									disabled={loading}
-								>
-									<RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} />
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>Refresh data</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
 
 					{/* Generate new run */}
 					<TooltipProvider>
@@ -699,11 +788,46 @@ export default function ScheduleReview() {
 						</Tooltip>
 					</TooltipProvider>
 
-					<div className="h-5 w-px bg-border mx-1" />
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant="outline"
+									size="sm"
+									className="h-8"
+									onClick={handleRefresh}
+									disabled={loading}
+								>
+									<RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Refresh data</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 
+					{/* Inline stat banner */}
+					{summary && (
+						<div className="flex items-center gap-3 ml-auto text-xs text-muted-foreground">
+							<Badge variant="outline" className={`h-5 px-1.5 text-[0.625rem] font-bold ${statusColor(draft?.status ?? '')}`}>
+								{draft?.status ?? '—'}
+							</Badge>
+							<StatItem icon={Check} label="Assigned" value={`${summary.assignedCount}/${summary.classesProcessed}`} />
+							<StatItem
+								icon={ShieldAlert}
+								label="Hard"
+								value={String(summary.hardViolationCount)}
+								className={summary.hardViolationCount > 0 ? 'text-red-600 font-semibold' : ''}
+							/>
+							<StatItem icon={Clock} label="Duration" value={formatDuration(draft ? runs.find((r) => String(r.id) === selectedRunId || (selectedRunId === 'latest' && r.id === runs[0]?.id))?.durationMs ?? null : null)} />
+						</div>
+					)}
+				</div>
+
+				{/* Row 2: Grid Controls */}
+				<div className="flex items-center gap-2 px-4 pb-2 flex-wrap">
 					{/* View-by pivot */}
-					<Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
-						<SelectTrigger className="h-8 w-36 text-xs">
+					<Select value={viewMode} onValueChange={(v) => { setViewMode(v as ViewMode); setEntityFilter(''); }}>
+						<SelectTrigger className="h-7 w-32 text-xs">
 							<SelectValue placeholder="View by" />
 						</SelectTrigger>
 						<SelectContent>
@@ -715,9 +839,24 @@ export default function ScheduleReview() {
 						</SelectContent>
 					</Select>
 
-					<div className="h-5 w-px bg-border mx-1" />
+					{/* Entity filter — filters grid by section/faculty/room based on view mode */}
+					<Select value={entityFilter} onValueChange={setEntityFilter}>
+						<SelectTrigger className="h-7 w-44 text-xs">
+							<SelectValue placeholder={`All ${VIEW_MODE_LABELS[viewMode]}s`} />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All {VIEW_MODE_LABELS[viewMode]}s</SelectItem>
+							{pivotEntityIds.map((id) => (
+								<SelectItem key={id} value={String(id)}>
+									{pivotLabel(id)}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 
-					{/* Filter chips */}
+					<div className="h-4 w-px bg-border mx-0.5" />
+
+					{/* Severity filter chips */}
 					<FilterChip
 						label="All"
 						count={violations.length}
@@ -745,72 +884,165 @@ export default function ScheduleReview() {
 						onClick={() => setSeverityFilter('conflicts')}
 					/>
 				</div>
-
-				{/* Row 2: Inline stat banner */}
-				{summary && (
-					<div className="flex items-center gap-4 px-4 pb-2 text-xs text-muted-foreground flex-wrap">
-						<span className="flex items-center gap-1">
-							<Badge variant="outline" className={`h-5 px-1.5 text-[0.625rem] font-bold ${statusColor(draft?.status ?? '')}`}>
-								{draft?.status ?? '—'}
-							</Badge>
-						</span>
-						<StatItem icon={Check} label="Assigned" value={`${summary.assignedCount}/${summary.classesProcessed}`} />
-						<StatItem
-							icon={ShieldAlert}
-							label="Hard"
-							value={String(summary.hardViolationCount)}
-							className={summary.hardViolationCount > 0 ? 'text-red-600 font-semibold' : ''}
-						/>
-						<StatItem icon={AlertTriangle} label="Total Violations" value={String(violations.length)} />
-						<StatItem icon={Clock} label="Duration" value={formatDuration(draft ? runs.find((r) => String(r.id) === selectedRunId || (selectedRunId === 'latest' && r.id === runs[0]?.id))?.durationMs ?? null : null)} />
-						<StatItem icon={CalendarClock} label="Generated" value={formatTimestamp(draft?.finishedAt ?? null)} />
-					</div>
-				)}
 			</div>
 
 			{/* ── Body: Three-panel split ── */}
 			<div className="flex flex-1 min-h-0">
-				{/* LEFT: Violation Panel */}
+				{/* LEFT: Violations + Unassigned Tabs */}
 				<div className="w-64 shrink-0 border-r border-border flex flex-col min-h-0 bg-background">
-					<div className="shrink-0 px-3 pt-3 pb-2">
-						<div className="relative">
-							<Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-							<Input
-								placeholder="Search violations…"
-								value={violationSearch}
-								onChange={(e) => setViolationSearch(e.target.value)}
-								className="h-7 pl-7 text-xs"
-							/>
-							{violationSearch && (
-								<button
-									onClick={() => setViolationSearch('')}
-									className="absolute right-2 top-1/2 -translate-y-1/2"
-								>
-									<X className="size-3 text-muted-foreground" />
-								</button>
+					{/* Tab switcher */}
+					<div className="shrink-0 flex border-b border-border" role="tablist" aria-label="Schedule review panels">
+						<button
+							role="tab"
+							aria-selected={leftTab === 'violations'}
+							aria-controls="panel-violations"
+							onClick={() => setLeftTab('violations')}
+							className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+								leftTab === 'violations'
+									? 'text-foreground border-b-2 border-primary'
+									: 'text-muted-foreground hover:text-foreground'
+							}`}
+						>
+							Violations
+							<span className="ml-1 text-[0.625rem] opacity-70">{violations.length}</span>
+						</button>
+						<button
+							role="tab"
+							aria-selected={leftTab === 'unassigned'}
+							aria-controls="panel-unassigned"
+							onClick={() => setLeftTab('unassigned')}
+							className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+								leftTab === 'unassigned'
+									? 'text-foreground border-b-2 border-primary'
+									: 'text-muted-foreground hover:text-foreground'
+							}`}
+						>
+							Unassigned
+							{summary && summary.unassignedCount > 0 && (
+								<span className="ml-1 text-[0.625rem] text-amber-600 font-semibold">{summary.unassignedCount}</span>
 							)}
-						</div>
+						</button>
 					</div>
 
-					<ScrollArea className="flex-1 min-h-0">
-						<div className="px-3 pb-3 space-y-1">
-							{filteredViolations.length === 0 ? (
-								<div className="py-6 text-center text-xs text-muted-foreground">
-									{violations.length === 0 ? 'No violations found' : 'No matching violations'}
-								</div>
-							) : (
-								Array.from(violationsByCode.entries()).map(([code, vList]) => (
-									<ViolationGroup
-										key={code}
-										code={code}
-										violations={vList}
-										selectedViolation={selectedViolation}
-										onSelect={handleViolationSelect}
+					{leftTab === 'violations' ? (
+						<>
+							<div className="shrink-0 px-3 pt-3 pb-2">
+								<div className="relative">
+									<Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+									<Input
+										placeholder="Search violations…"
+										value={violationSearch}
+										onChange={(e) => setViolationSearch(e.target.value)}
+										className="h-7 pl-7 text-xs"
 									/>
-								))
-							)}
-						</div>
-					</ScrollArea>
+									{violationSearch && (
+										<button
+											onClick={() => setViolationSearch('')}
+											className="absolute right-2 top-1/2 -translate-y-1/2"
+										>
+											<X className="size-3 text-muted-foreground" />
+										</button>
+									)}
+								</div>
+							</div>
+
+							<ScrollArea className="flex-1 min-h-0">
+								<div className="px-3 pb-3 space-y-1">
+									{filteredViolations.length === 0 ? (
+										<div className="py-6 text-center text-xs text-muted-foreground">
+											{violations.length === 0 ? 'No violations found' : 'No matching violations'}
+										</div>
+									) : (
+										Array.from(violationsByCode.entries()).map(([code, vList]) => (
+											<ViolationGroup
+												key={code}
+												code={code}
+												violations={vList}
+												selectedViolation={selectedViolation}
+												onSelect={handleViolationSelect}
+											/>
+										))
+									)}
+								</div>
+							</ScrollArea>
+						</>
+					) : (
+						<ScrollArea className="flex-1 min-h-0">
+							<div className="px-3 py-3 space-y-3">
+								{summary ? (
+									<>
+										<div className="rounded-md border border-border p-3 space-y-2">
+											<div className="flex items-center justify-between">
+												<span className="text-xs font-medium text-muted-foreground">Classes Processed</span>
+												<span className="text-sm font-bold">{summary.classesProcessed}</span>
+											</div>
+											<div className="flex items-center justify-between">
+												<span className="text-xs font-medium text-muted-foreground">Assigned</span>
+												<span className="text-sm font-bold text-emerald-600">{summary.assignedCount}</span>
+											</div>
+											<div className="flex items-center justify-between">
+												<span className="text-xs font-medium text-muted-foreground">Unassigned</span>
+												<span className={`text-sm font-bold ${summary.unassignedCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+													{summary.unassignedCount}
+												</span>
+											</div>
+											{summary.policyBlockedCount > 0 && (
+												<div className="flex items-center justify-between">
+													<span className="text-xs font-medium text-muted-foreground">Policy-Blocked</span>
+													<span className="text-sm font-bold text-red-600">{summary.policyBlockedCount}</span>
+												</div>
+											)}
+										</div>
+
+										{/* Unassigned items list */}
+										{(draft?.unassignedItems ?? []).length > 0 && (
+											<div className="space-y-1">
+												<span className="text-[0.6875rem] font-medium text-muted-foreground">
+													Unassigned Items
+												</span>
+												{(draft?.unassignedItems ?? []).map((item, i) => {
+													const grade = item.gradeLevel;
+													const gradeBadge = grade ? GRADE_BADGE[grade] : undefined;
+													return (
+														<div
+															key={`${item.sectionId}-${item.subjectId}-${item.session}-${i}`}
+															className="rounded border border-amber-200 bg-amber-50/50 px-2 py-1.5 text-xs space-y-0.5"
+														>
+															<div className="flex items-center gap-1.5">
+																{gradeBadge && (
+																	<Badge variant="outline" className={`h-4 px-1 text-[0.5625rem] shrink-0 ${gradeBadge}`}>
+																		G{grade}
+																	</Badge>
+																)}
+																<span className="font-medium truncate">{sectionLabel(item.sectionId)}</span>
+																<span className="text-muted-foreground">·</span>
+																<span className="truncate">{subjectLabel(item.subjectId)}</span>
+															</div>
+															<div className="flex items-center gap-1.5 text-[0.625rem] text-muted-foreground">
+																<UnassignedReasonBadge reason={item.reason} />
+																<span className="opacity-60">Session {item.session}</span>
+															</div>
+														</div>
+													);
+												})}
+											</div>
+										)}
+
+										{summary.unassignedCount === 0 && (
+											<div className="py-4 text-center text-xs text-muted-foreground">
+												<Check className="mx-auto size-6 text-emerald-500 mb-1" />
+												All classes assigned successfully
+											</div>
+										)}
+									</>
+								) : (
+									<div className="py-6 text-center text-xs text-muted-foreground">
+										No draft data available
+									</div>
+								)}
+							</div>
+						</ScrollArea>
+					)}
 				</div>
 
 				{/* CENTER: Timetable Grid */}
@@ -830,6 +1062,7 @@ export default function ScheduleReview() {
 									sectionLabel={sectionLabel}
 									viewMode={viewMode}
 									pivotLabel={pivotLabel}
+									roomLabelShort={roomLabelShort}
 								/>
 							</div>
 						</ScrollArea>
@@ -845,17 +1078,24 @@ export default function ScheduleReview() {
 					)}
 				</div>
 
-				{/* RIGHT: Entry Detail / Action Panel */}
-				<div className="w-72 shrink-0 border-l border-border flex flex-col min-h-0 bg-background">
-					<AnimatePresence mode="wait">
-						{selectedEntry ? (
+				{/* RIGHT: Entry Detail / Action Panel (collapsible) */}
+				<AnimatePresence mode="wait">
+					{selectedEntry && (
+						<motion.div
+							key="detail-panel"
+							initial={{ width: 0, opacity: 0 }}
+							animate={{ width: 288, opacity: 1 }}
+							exit={{ width: 0, opacity: 0 }}
+							transition={{ duration: 0.2, ease: 'easeInOut' }}
+							className="shrink-0 border-l border-border flex flex-col min-h-0 bg-background overflow-hidden"
+						>
 							<motion.div
 								key={selectedEntry.entryId}
 								initial={{ opacity: 0, x: 10 }}
 								animate={{ opacity: 1, x: 0 }}
 								exit={{ opacity: 0, x: 10 }}
 								transition={{ duration: 0.15 }}
-								className="flex flex-col min-h-0 h-full"
+								className="flex flex-col min-h-0 h-full w-72"
 							>
 								<EntryDetailPanel
 									entry={selectedEntry}
@@ -867,26 +1107,13 @@ export default function ScheduleReview() {
 									facultyLabel={facultyLabel}
 									sectionLabel={sectionLabel}
 									gradeForSection={gradeForSection}
+									roomLabel={roomLabel}
+									isStaleRoom={isStaleRoom}
 								/>
 							</motion.div>
-						) : (
-							<motion.div
-								key="empty"
-								initial={{ opacity: 0 }}
-								animate={{ opacity: 1 }}
-								exit={{ opacity: 0 }}
-								className="flex-1 flex items-center justify-center"
-							>
-								<div className="text-center space-y-2 px-6">
-									<Users className="mx-auto size-8 text-muted-foreground/30" />
-									<p className="text-xs text-muted-foreground">
-										Click an entry in the grid or select a violation to view details
-									</p>
-								</div>
-							</motion.div>
-						)}
-					</AnimatePresence>
-				</div>
+						</motion.div>
+					)}
+				</AnimatePresence>
 			</div>
 
 			{/* ── Generate Confirmation Dialog ── */}
@@ -1108,6 +1335,7 @@ function TimetableGrid({
 	sectionLabel,
 	viewMode,
 	pivotLabel,
+	roomLabelShort,
 }: {
 	entries: ScheduledEntry[];
 	timeSlots: Array<{ startTime: string; endTime: string }>;
@@ -1120,6 +1348,7 @@ function TimetableGrid({
 	sectionLabel: (id: number) => string;
 	viewMode: ViewMode;
 	pivotLabel: (id: number) => string;
+	roomLabelShort: (roomId: number) => string;
 }) {
 	/** Grid lookup: `${day}-${startTime}` → entries */
 	const gridIndex = useMemo(() => {
@@ -1187,20 +1416,24 @@ function TimetableGrid({
 													<button
 														key={e.entryId}
 														onClick={() => onEntryClick(e)}
+														aria-label={`${subjectLabel(e.subjectId)}, ${sectionLabel(e.sectionId)}, ${DAY_SHORT[e.day] ?? e.day} ${e.startTime}–${e.endTime}`}
 														className={`w-full text-left rounded px-1.5 py-1 border text-[0.625rem] leading-tight transition-all cursor-pointer hover:opacity-80 ${cellClass}`}
 													>
 														<div className="font-medium truncate">
 															{subjectLabel(e.subjectId)}
 														</div>
 														<div className="text-muted-foreground truncate">
-															{viewMode === 'section'
+															{viewMode === 'room'
 																? sectionLabel(e.sectionId)
-																: viewMode === 'faculty'
-																	? sectionLabel(e.sectionId)
-																	: sectionLabel(e.sectionId)}
-															{viewMode !== 'section' && (
+																: sectionLabel(e.sectionId)}
+															{viewMode === 'section' && (
+																<span className="ml-1 opacity-60" title={roomLabelShort(e.roomId)}>
+																	{roomLabelShort(e.roomId)}
+																</span>
+															)}
+															{viewMode === 'faculty' && (
 																<span className="ml-1 opacity-60">
-																	({pivotLabel(viewMode === 'faculty' ? (e.facultyId ?? 0) : (e.roomId ?? 0))})
+																	{roomLabelShort(e.roomId)}
 																</span>
 															)}
 														</div>
@@ -1234,6 +1467,8 @@ function EntryDetailPanel({
 	facultyLabel,
 	sectionLabel,
 	gradeForSection,
+	roomLabel,
+	isStaleRoom,
 }: {
 	entry: ScheduledEntry;
 	violationIndex: Map<string, Violation[]>;
@@ -1244,6 +1479,8 @@ function EntryDetailPanel({
 	facultyLabel: (id: number) => string;
 	sectionLabel: (id: number) => string;
 	gradeForSection: (sectionId: number) => number | null;
+	roomLabel: (roomId: number) => string;
+	isStaleRoom: (roomId: number) => boolean;
 }) {
 	const entryViolations = violationIndex.get(entry.entryId) ?? [];
 	const grade = gradeForSection(entry.sectionId);
@@ -1282,7 +1519,16 @@ function EntryDetailPanel({
 					<DetailRow label="Faculty" value={facultyLabel(entry.facultyId)} />
 
 					{/* Room */}
-					<DetailRow label="Room" value={`Room #${entry.roomId}`} />
+					<DetailRow label="Room">
+						<div className="flex items-center gap-1.5">
+							<span className="text-xs">{roomLabel(entry.roomId)}</span>
+							{isStaleRoom(entry.roomId) && (
+								<Badge variant="outline" className="h-4 px-1 text-[0.5625rem] border-amber-300 bg-amber-50 text-amber-700">
+									stale
+								</Badge>
+							)}
+						</div>
+					</DetailRow>
 
 					{/* Day/Time */}
 					<DetailRow
@@ -1406,5 +1652,23 @@ function DetailRow({
 			<span className="text-[0.6875rem] text-muted-foreground shrink-0">{label}</span>
 			{children ?? <span className="text-xs font-medium text-right">{value}</span>}
 		</div>
+	);
+}
+
+/* ─── Unassigned Reason Badge ─── */
+
+const UNASSIGNED_REASON_LABELS: Record<string, { label: string; className: string }> = {
+	NO_QUALIFIED_FACULTY: { label: 'No Qualified Faculty', className: 'border-red-300 bg-red-50 text-red-700' },
+	FACULTY_OVERLOADED: { label: 'Faculty Overloaded', className: 'border-amber-300 bg-amber-50 text-amber-700' },
+	NO_AVAILABLE_SLOT: { label: 'No Available Slot', className: 'border-orange-300 bg-orange-50 text-orange-700' },
+	NO_COMPATIBLE_ROOM: { label: 'No Compatible Room', className: 'border-purple-300 bg-purple-50 text-purple-700' },
+};
+
+function UnassignedReasonBadge({ reason }: { reason: string }) {
+	const info = UNASSIGNED_REASON_LABELS[reason] ?? { label: reason, className: 'border-gray-300 bg-gray-50 text-gray-700' };
+	return (
+		<Badge variant="outline" className={`h-4 px-1 text-[0.5625rem] ${info.className}`}>
+			{info.label}
+		</Badge>
 	);
 }

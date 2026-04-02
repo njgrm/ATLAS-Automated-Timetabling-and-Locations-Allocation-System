@@ -12,7 +12,7 @@ import {
 	type ValidationResult,
 	type Violation,
 } from './constraint-validator.js';
-import { constructBaseline, type ConstructorInput } from './schedule-constructor.js';
+import { constructBaseline, type ConstructorInput, type UnassignedItem } from './schedule-constructor.js';
 import { sectionAdapter } from './section-adapter.js';
 import { getOrCreatePolicy } from './scheduling-policy.service.js';
 
@@ -75,7 +75,10 @@ export async function triggerGenerationRun(
 				select: { facultyId: true, subjectId: true, gradeLevels: true },
 			}),
 			prisma.room.findMany({
-				where: { building: { schoolId } },
+				where: {
+					isTeachingSpace: true,
+					building: { schoolId, isTeachingBuilding: true },
+				},
 				select: { id: true, type: true, isTeachingSpace: true },
 			}),
 			prisma.subject.findMany({
@@ -158,6 +161,7 @@ export async function triggerGenerationRun(
 				summary: summary as object,
 				violations: validationResult.violations as unknown as object[],
 				draftEntries: result.entries as unknown as object[],
+				unassignedItems: result.unassignedItems as unknown as object[],
 			},
 		});
 
@@ -296,6 +300,7 @@ export interface DraftReport {
 	runId: number;
 	status: string;
 	entries: ScheduledEntry[];
+	unassignedItems: UnassignedItem[];
 	summary: RunSummary | null;
 	finishedAt: string | null;
 	createdAt: string;
@@ -304,7 +309,7 @@ export interface DraftReport {
 export async function getRunDraft(runId: number, schoolId: number, schoolYearId: number): Promise<DraftReport> {
 	const run = await prisma.generationRun.findFirst({
 		where: { id: runId, schoolId, schoolYearId },
-		select: { id: true, status: true, draftEntries: true, summary: true, finishedAt: true, createdAt: true },
+		select: { id: true, status: true, draftEntries: true, unassignedItems: true, summary: true, finishedAt: true, createdAt: true },
 	});
 	if (!run) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
 
@@ -312,6 +317,7 @@ export async function getRunDraft(runId: number, schoolId: number, schoolYearId:
 		runId: run.id,
 		status: run.status,
 		entries: (run.draftEntries ?? []) as unknown as ScheduledEntry[],
+		unassignedItems: (run.unassignedItems ?? []) as unknown as UnassignedItem[],
 		summary: (run.summary ?? null) as RunSummary | null,
 		finishedAt: run.finishedAt?.toISOString() ?? null,
 		createdAt: run.createdAt.toISOString(),
@@ -322,7 +328,7 @@ export async function getLatestRunDraft(schoolId: number, schoolYearId: number):
 	const run = await prisma.generationRun.findFirst({
 		where: { schoolId, schoolYearId },
 		orderBy: { createdAt: 'desc' },
-		select: { id: true, status: true, draftEntries: true, summary: true, finishedAt: true, createdAt: true },
+		select: { id: true, status: true, draftEntries: true, unassignedItems: true, summary: true, finishedAt: true, createdAt: true },
 	});
 	if (!run) throw err(404, 'NO_RUNS', 'No generation runs found for this school/year.');
 
@@ -330,6 +336,7 @@ export async function getLatestRunDraft(schoolId: number, schoolYearId: number):
 		runId: run.id,
 		status: run.status,
 		entries: (run.draftEntries ?? []) as unknown as ScheduledEntry[],
+		unassignedItems: (run.unassignedItems ?? []) as unknown as UnassignedItem[],
 		summary: (run.summary ?? null) as RunSummary | null,
 		finishedAt: run.finishedAt?.toISOString() ?? null,
 		createdAt: run.createdAt.toISOString(),

@@ -49,12 +49,12 @@ router.post('/schools/:schoolId/buildings', authenticate, async (req: Request, r
 		res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId must be a number.' });
 		return;
 	}
-	const { name, x, y, width, height, color, rotation, floorCount, isTeachingBuilding } = req.body;
+	const { name, x, y, width, height, color, rotation, floorCount, isTeachingBuilding, shortCode } = req.body;
 	if (!name || x == null || y == null || width == null || height == null || !color) {
 		res.status(400).json({ code: 'MISSING_FIELDS', message: 'name, x, y, width, height, color are required.' });
 		return;
 	}
-	const building = await mapService.upsertBuilding(schoolId, { name, x, y, width, height, color, rotation, floorCount, isTeachingBuilding });
+	const building = await mapService.upsertBuilding(schoolId, { name, x, y, width, height, color, rotation, floorCount, isTeachingBuilding, shortCode });
 	res.status(201).json({ building });
 });
 

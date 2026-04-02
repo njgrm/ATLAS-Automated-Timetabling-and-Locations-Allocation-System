@@ -99,8 +99,17 @@ export interface ConstructorInput {
 	policy?: PolicyInput;
 }
 
+export interface UnassignedItem {
+	sectionId: number;
+	subjectId: number;
+	gradeLevel: number;
+	session: number;
+	reason: 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM';
+}
+
 export interface ConstructorResult {
 	entries: ScheduledEntry[];
+	unassignedItems: UnassignedItem[];
 	assignedCount: number;
 	unassignedCount: number;
 	classesProcessed: number;
@@ -249,6 +258,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	const facultyMax = new Map(faculty.map((f) => [f.id, f.maxHoursPerWeek * 60]));
 
 	const entries: ScheduledEntry[] = [];
+	const unassignedItems: UnassignedItem[] = [];
 	let assignedCount = 0;
 	let unassignedCount = 0;
 	let policyBlockedCount = 0;
@@ -316,7 +326,13 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 	for (const item of demand) {
 		const subject = subjectMap.get(item.subjectId);
-		if (!subject) { unassignedCount += item.sessionsPerWeek; continue; }
+		if (!subject) {
+			for (let s = 0; s < item.sessionsPerWeek; s++) {
+				unassignedItems.push({ sectionId: item.sectionId, subjectId: item.subjectId, gradeLevel: item.gradeLevel, session: s + 1, reason: 'NO_QUALIFIED_FACULTY' });
+			}
+			unassignedCount += item.sessionsPerWeek;
+			continue;
+		}
 
 		const candidateFaculty = qualifiedMap.get(`${item.subjectId}:${item.gradeLevel}`) ?? [];
 		const compatibleRooms = roomsByType.get(subject.preferredRoomType) ?? [];
@@ -430,6 +446,22 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			if (placed) {
 				assignedCount++;
 			} else {
+				// Determine the reason for failure
+				let reason: UnassignedItem['reason'] = 'NO_AVAILABLE_SLOT';
+				if (candidateFaculty.length === 0) {
+					reason = 'NO_QUALIFIED_FACULTY';
+				} else if (compatibleRooms.length === 0) {
+					reason = 'NO_COMPATIBLE_ROOM';
+				} else {
+					// Check if all faculty were overloaded
+					const allOverloaded = candidateFaculty.every((fid) => {
+						const load = facultyLoad.get(fid) ?? 0;
+						const max = facultyMax.get(fid) ?? 0;
+						return load + item.durationPerSession > max;
+					});
+					if (allOverloaded) reason = 'FACULTY_OVERLOADED';
+				}
+				unassignedItems.push({ sectionId: item.sectionId, subjectId: item.subjectId, gradeLevel: item.gradeLevel, session: session + 1, reason });
 				unassignedCount++;
 			}
 		}
@@ -437,6 +469,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 	return {
 		entries,
+		unassignedItems,
 		assignedCount,
 		unassignedCount,
 		classesProcessed: assignedCount + unassignedCount,

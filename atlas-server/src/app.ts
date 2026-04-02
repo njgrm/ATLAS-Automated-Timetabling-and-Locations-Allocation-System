@@ -4,6 +4,14 @@ import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
 
+/* ── Startup env validation ── */
+const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET'] as const;
+for (const key of REQUIRED_ENV) {
+	if (!process.env[key]) {
+		console.error(`[ATLAS] ❌ Missing required env var: ${key}. Server may not function correctly.`);
+	}
+}
+
 import { errorHandler } from './middleware/errorHandler.js';
 import authRouter from './routes/auth.router.js';
 import mapRouter from './routes/map.router.js';
@@ -15,6 +23,7 @@ import preferenceRouter from './routes/preference.router.js';
 import generationRouter from './routes/generation.router.js';
 import schedulingPolicyRouter from './routes/scheduling-policy.router.js';
 import roomScheduleRouter from './routes/room-schedule.router.js';
+import followUpFlagRouter from './routes/follow-up-flag.router.js';
 
 const app = express();
 
@@ -56,6 +65,7 @@ app.use('/api/v1/preferences', preferenceRouter);
 app.use('/api/v1/generation', generationRouter);
 app.use('/api/v1/policies/scheduling', schedulingPolicyRouter);
 app.use('/api/v1/room-schedules', roomScheduleRouter);
+app.use('/api/v1/follow-up-flags', followUpFlagRouter);
 
 // Error handler
 app.use(errorHandler);

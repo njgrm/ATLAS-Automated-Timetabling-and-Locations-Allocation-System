@@ -24,7 +24,7 @@ import {
 import { BuildingView, ROOM_COLORS, ROOM_TYPE_LABELS } from '@/components/BuildingView';
 import atlasApi from '@/lib/api';
 import { fetchPublicSettings } from '@/lib/settings';
-import type { Building, Room } from '@/types';
+import type { Building, Room, RoomScheduleView } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/card';
@@ -702,13 +702,8 @@ export default function Dashboard() {
 									</div>
 								</div>
 
-								{/* Schedule placeholder */}
-								<div className="mt-4 rounded-md border border-dashed border-border bg-muted/30 px-3 py-3">
-									<p className="text-xs font-medium text-muted-foreground">Room Schedule</p>
-									<p className="mt-1 text-[0.6875rem] text-muted-foreground/60 italic">
-										Schedule will appear here once timetable is published.
-									</p>
-								</div>
+								{/* Room schedule preview */}
+								<RoomSchedulePreview roomId={inspectedRoom.id} isTeachingSpace={inspectedRoom.isTeachingSpace} />
 							</>
 						) : (
 							/* ── Building overview mode ── */
@@ -824,6 +819,107 @@ export default function Dashboard() {
 					</CardContent>
 				</Card>
 			</div>
+		</div>
+	);
+}
+
+/* ─── Room Schedule Preview ─── */
+
+const DAY_SHORT: Record<string, string> = {
+	MONDAY: 'M',
+	TUESDAY: 'T',
+	WEDNESDAY: 'W',
+	THURSDAY: 'Th',
+	FRIDAY: 'F',
+};
+
+function RoomSchedulePreview({ roomId, isTeachingSpace }: { roomId: number; isTeachingSpace: boolean }) {
+	const [state, setState] = useState<'idle' | 'loading' | 'ok' | 'empty' | 'error'>('idle');
+	const [schedule, setSchedule] = useState<RoomScheduleView | null>(null);
+
+	useEffect(() => {
+		if (!isTeachingSpace) return;
+		let cancelled = false;
+		setState('loading');
+
+		(async () => {
+			try {
+				const settings = await fetchPublicSettings();
+				if (!settings.activeSchoolYearId || cancelled) return;
+				const { data } = await atlasApi.get<RoomScheduleView>(
+					`/room-schedules/${DEFAULT_SCHOOL_ID}/${settings.activeSchoolYearId}/rooms/${roomId}?source=latest`,
+				);
+				if (cancelled) return;
+				setSchedule(data);
+				setState('ok');
+			} catch {
+				if (!cancelled) setState('empty');
+			}
+		})();
+
+		return () => { cancelled = true; };
+	}, [roomId, isTeachingSpace]);
+
+	if (!isTeachingSpace) {
+		return (
+			<div className="mt-4 rounded-md border border-dashed border-border bg-muted/30 px-3 py-2.5">
+				<p className="text-[0.6875rem] text-muted-foreground/60 italic">Non-teaching room — no schedule</p>
+			</div>
+		);
+	}
+
+	if (state === 'loading' || state === 'idle') {
+		return <Skeleton className="mt-4 h-16 w-full rounded-md" />;
+	}
+
+	if (state === 'empty' || !schedule) {
+		return (
+			<div className="mt-4 rounded-md border border-dashed border-border bg-muted/30 px-3 py-2.5">
+				<p className="text-xs font-medium text-muted-foreground">Room Schedule</p>
+				<p className="mt-1 text-[0.6875rem] text-muted-foreground/60 italic">No generation runs yet</p>
+			</div>
+		);
+	}
+
+	return (
+		<div className="mt-4 space-y-2">
+			<div className="flex items-center justify-between">
+				<p className="text-xs font-medium text-muted-foreground">Room Schedule</p>
+				<Badge variant="outline" className="text-[0.5625rem] px-1 py-0">
+					{schedule.summary.utilizationPercent}% util
+				</Badge>
+			</div>
+			{/* Compact day grid — show slot count per day */}
+			<div className="flex gap-1">
+				{schedule.days.map((day, dayIdx) => {
+					const slotCount = schedule.grid.reduce(
+						(sum, row) => sum + (row.cells[dayIdx]?.occupied ? 1 : 0),
+						0,
+					);
+					return (
+						<div
+							key={day}
+							className={`flex-1 rounded border text-center py-1 text-[0.625rem] ${
+								slotCount > 0
+									? 'border-primary/30 bg-primary/5 text-foreground font-medium'
+									: 'border-border bg-muted/30 text-muted-foreground'
+							}`}
+						>
+							<div>{DAY_SHORT[day] ?? day}</div>
+							<div className="text-[0.5625rem] opacity-70">{slotCount}/{schedule.grid.length}</div>
+						</div>
+					);
+				})}
+			</div>
+			<div className="flex items-center justify-between text-[0.625rem] text-muted-foreground">
+				<span>{schedule.summary.entryCount} entries</span>
+				{schedule.summary.conflictCount > 0 && (
+					<span className="text-red-600 font-medium">{schedule.summary.conflictCount} conflicts</span>
+				)}
+			</div>
+			<Button asChild variant="outline" size="sm" className="w-full h-6 text-[0.625rem]">
+				<Link to="/room-schedules">View Full Schedule</Link>
+			</Button>
 		</div>
 	);
 }

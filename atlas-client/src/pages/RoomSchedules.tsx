@@ -15,7 +15,7 @@ import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Skeleton } from '@/ui/skeleton';
-import type { Building, Room, Subject, FacultyMirror, RoomScheduleView, RoomScheduleEntry } from '@/types';
+import type { Building, Room, Subject, FacultyMirror, RoomScheduleView, RoomScheduleEntry, SectionSummaryResponse, ExternalSection } from '@/types';
 
 // ─── Constants ───
 
@@ -53,6 +53,7 @@ export default function RoomSchedules() {
 	const [rooms, setRooms] = useState<(Room & { buildingName: string })[]>([]);
 	const [subjectMap, setSubjectMap] = useState<Map<number, string>>(new Map());
 	const [facultyMap, setFacultyMap] = useState<Map<number, string>>(new Map());
+	const [sectionMap, setSectionMap] = useState<Map<number, string>>(new Map());
 	const [schoolYearId, setSchoolYearId] = useState<number | null>(null);
 	const [roomsLoading, setRoomsLoading] = useState(true);
 
@@ -76,6 +77,17 @@ export default function RoomSchedules() {
 				]);
 
 				setSchoolYearId(settings.activeSchoolYearId);
+
+				// Fetch section names
+				if (settings.activeSchoolYearId) {
+					atlasApi.get<SectionSummaryResponse>(`/sections/summary/${settings.activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`)
+						.then((r) => {
+							const secMap = new Map<number, string>();
+							for (const s of r.data.sections) secMap.set(s.id, s.name);
+							setSectionMap(secMap);
+						})
+						.catch(() => { /* best-effort */ });
+				}
 
 				const allRooms: (Room & { buildingName: string })[] = [];
 				for (const b of buildingsRes.data.buildings) {
@@ -297,7 +309,7 @@ export default function RoomSchedules() {
 				)}
 
 				{state.status === 'ok' && (
-					<TimetableGrid view={state.data} subjectMap={subjectMap} facultyMap={facultyMap} />
+					<TimetableGrid view={state.data} subjectMap={subjectMap} facultyMap={facultyMap} sectionMap={sectionMap} />
 				)}
 			</div>
 		</div>
@@ -369,10 +381,12 @@ function TimetableGrid({
 	view,
 	subjectMap,
 	facultyMap,
+	sectionMap,
 }: {
 	view: RoomScheduleView;
 	subjectMap: Map<number, string>;
 	facultyMap: Map<number, string>;
+	sectionMap: Map<number, string>;
 }) {
 	const spanData = useMemo(() => computeSpanData(view), [view]);
 
@@ -440,8 +454,7 @@ function TimetableGrid({
 												key={entry.entryId}
 												entry={entry}
 												subjectMap={subjectMap}
-												facultyMap={facultyMap}
-											/>
+												facultyMap={facultyMap}											sectionMap={sectionMap}											/>
 										))}
 										{cellData.conflict && (
 											<Badge variant="destructive" className="mt-0.5 text-[9px] px-1 py-0">
@@ -476,17 +489,19 @@ function EntryCell({
 	entry,
 	subjectMap,
 	facultyMap,
+	sectionMap,
 }: {
 	entry: RoomScheduleEntry;
 	subjectMap: Map<number, string>;
 	facultyMap: Map<number, string>;
+	sectionMap: Map<number, string>;
 }) {
 	return (
 		<div className="px-1.5 py-1 text-[11px] leading-snug">
 			<div className="font-semibold text-foreground truncate">
 				{subjectMap.get(entry.subjectId) ?? `Subject ${entry.subjectId}`}
 			</div>
-			<div className="text-muted-foreground truncate">Sec {entry.sectionId}</div>
+			<div className="text-muted-foreground truncate">{sectionMap.get(entry.sectionId) ?? `Sec #${entry.sectionId}`}</div>
 			<div className="text-muted-foreground/80 truncate">
 				{facultyMap.get(entry.facultyId) ?? `Faculty ${entry.facultyId}`}
 			</div>

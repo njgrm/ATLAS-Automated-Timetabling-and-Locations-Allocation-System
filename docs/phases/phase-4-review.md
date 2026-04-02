@@ -13,6 +13,7 @@
 - [x] Review console UI with conflict overlays and filtering (Batch 1)
 - [x] Generate + Publish workflow with violation guardrails (Batch 2)
 - [x] Grid pivot modes: View By Section / Faculty / Room (Batch 2)
+- [x] Room identity clarity + integrity hardening (Batch 3)
 - [ ] Manual move/reassign actions with validation guards
 - [ ] Revalidation trigger and updated violation report after edits
 - [ ] Audit log entries for manual adjustments
@@ -39,6 +40,67 @@
 - Installed `@radix-ui/react-checkbox`; created `atlas-client/src/ui/checkbox.tsx` (shadcn Checkbox)
 - Enhanced empty state: no-runs now includes Generate button
 - Room map loaded from buildings API at `/map/schools/:schoolId/buildings`
+
+## Batch 3 — Room Identity Clarity + Integrity Hardening (2026-04-02)
+- **Building.shortCode** field added to Prisma schema (nullable, `short_code` column)
+- Short-code generator: `generateBuildingShortCode()` in `atlas-server/src/lib/building-short-code.ts`
+  - Strips filler words (and/the/of), takes uppercase initials, appends trailing numbers
+  - Examples: `Main Building 1` → `MB1`, `Science and Technology Building` → `STB`
+- `getBuildingsBySchool()` backfills missing shortCodes for existing buildings (non-destructive)
+- `upsertBuilding()` auto-generates shortCode on create; `updateBuilding()` regenerates if name changes and no custom code set
+- Building shortCode passthrough: map router accepts `shortCode` in create/update payloads for manual override
+- **Room creation integrity:** `addRoom()` forces `isTeachingSpace=false` when parent building is non-teaching
+- **Generation room query hardened:** `prisma.room.findMany` now requires `isTeachingSpace: true` AND `building.isTeachingBuilding: true`
+- **Frontend `RoomInfo` enriched map:** roomMap now holds building context (buildingName, buildingShortCode, floor)
+- **Entry detail panel:** shows `RoomName · BuildingLabel (Floor X)` with stale-room badge fallback
+- **Grid cells:** show compact `RoomName · BuildingLabel` in all view modes
+- **Room pivot sort:** rooms sorted by building label → room name (not numeric ID)
+- **Historical fallback:** missing roomIds display `Unknown Room (#id)` with amber "stale" badge
+- Frontend `Building` type updated with `shortCode: string | null`
+- `CampusMapEditor.tsx` new-building creation includes `shortCode: null`
+
+## Batch 4 — UX/Functional Correction Pass (2026-04-03)
+
+### A: Fix Pseudo-Pivot Filtering
+- View By Section/Faculty/Room now filters `gridEntries` by the selected entity's actual field (sectionId/facultyId/roomId), not just labels
+- `sectionFilter` state replaced with generic `entityFilter` (string, default `'all'`)
+- Entity filter `<Select>` dynamically shows `pivotEntityIds` with `pivotLabel` for the active view mode
+- `setEntityFilter('all')` resets on viewMode change
+
+### B: Split Header into Two Rows
+- Row 1 (Run Management): run selector, Generate button, Publish button, Refresh button, inline stat banner (status, assigned, hard violations, duration) pushed right via `ml-auto`
+- Row 2 (Grid Controls): View By pivot select, entity filter select, separator, severity filter chips (All/Hard/Soft/Conflicts)
+- Removed standalone stat banner row; stats integrated into Row 1 tail
+
+### C: Unassigned Queue Tab
+- Added `leftTab` state (`'violations' | 'unassigned'`) with tab switcher at top of left panel
+- Violations tab: search + grouped violations (existing)
+- Unassigned tab: classes processed/assigned/unassigned/policy-blocked metrics, coverage by section with DepEd grade badges and entry counts, success checkmark when all assigned
+- Badge counts on each tab header
+
+### D: Explicit Section Names
+- Fetch `GET /sections/summary/:schoolYearId?schoolId=:id` to build `sectionMap: Map<number, ExternalSection>`
+- `sectionLabel()` now resolves to real section names (e.g. "7-Einstein") instead of "Section #id"
+- `gradeForSection()` prefers section adapter grade data, falls back to subject-based inference
+- Applied in ScheduleReview.tsx and RoomSchedules.tsx
+- Added `ExternalSection` and `SectionSummaryResponse` types to `types.ts`
+
+### E: Dashboard Room Schedule Preview
+- New `RoomSchedulePreview` component in Dashboard.tsx
+- Fetches room schedule via `GET /room-schedules/:schoolId/:schoolYearId/rooms/:roomId?source=latest`
+- Shows compact day grid (M/T/W/Th/F) with slot count per day
+- Displays utilization %, entry count, conflict count
+- "View Full Schedule" link to `/room-schedules`
+- Handles non-teaching rooms, loading, and empty states gracefully
+
+### F: RoomSchedules Section Labels
+- Covered by D; RoomSchedules.tsx now resolves section names via `sectionMap`
+
+### G: Follow-Up Flags Persistence
+- **Database:** `FollowUpFlag` model added to Prisma schema (id, runId, entryId, note, createdBy, createdAt; unique [runId, entryId]; index on runId); migration `0002_add_follow_up_flags` applied
+- **Service:** `follow-up-flag.service.ts` with `listByRun()`, `toggleFlag()`, `removeFlag()`
+- **Router:** `follow-up-flag.router.ts` mounted at `/api/v1/follow-up-flags` with GET/PUT/DELETE endpoints, `authenticate` + role check
+- **Client:** ScheduleReview.tsx `followUps` state now loaded from API on run fetch, toggle is optimistic with server `PUT` and revert on failure
 
 ## Exit Criteria
 - Officer can resolve findings and revalidate

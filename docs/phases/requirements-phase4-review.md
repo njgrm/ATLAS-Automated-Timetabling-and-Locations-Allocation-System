@@ -8,7 +8,9 @@ This specification details the functional rules and workflows for interacting wi
 - Generation run triggers via the default algorithm.
 - Publish block-rules regarding Hard and Soft violations.
 - Discard confirmation handling when re-generating over unsaved edits.
-- Grid pivot view toggles (Section, Faculty, Room).
+- Grid pivot view toggles (Section, Faculty, Room) with persistent state.
+- Server-side stored follow-up flags for schedule review.
+- Triage views for unassigned/backlog schedule entries.
 
 ### Out of Scope
 - Configurable "advanced generation options" modal [v2 / Phase 4.5].
@@ -41,6 +43,15 @@ This specification details the functional rules and workflows for interacting wi
 #### [FR-04] Grid Pivot Views
 - FR-04.1: The system shall provide an in-page view toggle allowing the officer to pivot the timetable grid by Section, Faculty, or Room within the same route workspace.
 - FR-04.2: When the grid pivot is changed, the system shall preserve the currently selected run, violation filters, and highlighted entries.
+- FR-04.3: When a user switches view pivot modes (e.g., from Section to Faculty), the system shall automatically select the first alphabetically sorted entity in that mode, rather than displaying an empty grid.
+
+#### [FR-05] Unassigned Backlog Panel
+- FR-05.1: The system shall provide a left-hand panel toggle bridging between "Violations" and "Unassigned" classes.
+- FR-05.2: The Unassigned panel shall display a list of all schedule demands (classes) that the generation algorithm failed to place, organized by Subject and Section.
+
+#### [FR-06] Collaborative Triage (Follow-Up Flags)
+- FR-06.1: The system shall persist "Mark for Follow-up" flags server-side, scoped to the specific `runId` and `entryId`.
+- FR-06.2: Flags must track the `flaggedBy` user ID and `flaggedAt` timestamp to enable multiple officers to collaborate on draft review.
 
 ### Non-Functional Requirements
 

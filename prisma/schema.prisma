@@ -32,6 +32,7 @@ model Building {
   id                 Int      @id @default(autoincrement())
   schoolId           Int      @map("school_id")
   name               String
+  shortCode          String?  @map("short_code")
   x                  Float    @default(0)
   y                  Float    @default(0)
   width              Float    @default(200)
@@ -280,6 +281,7 @@ model GenerationRun {
   summary      Json?
   violations   Json?
   draftEntries Json?                @map("draft_entries")
+  unassignedItems Json?             @map("unassigned_items")
   error        String?
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
@@ -304,4 +306,19 @@ model AuditLog {
   @@index([schoolId, action])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ─── Follow-Up Flag ───
+
+model FollowUpFlag {
+  id        Int      @id @default(autoincrement())
+  runId     Int      @map("run_id")
+  entryId   String   @map("entry_id")
+  note      String?
+  createdBy Int      @map("created_by")
+  createdAt DateTime @default(now())
+
+  @@unique([runId, entryId])
+  @@index([runId])
+  @@map("follow_up_flags")
 }
