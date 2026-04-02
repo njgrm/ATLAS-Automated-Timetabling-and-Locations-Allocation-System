@@ -97,6 +97,12 @@ export interface RoomBuildingRef {
 	buildingId: number;
 }
 
+export interface ConstraintOverrideRef {
+	enabled: boolean;
+	weight: number; // 1–10
+	treatAsHard: boolean;
+}
+
 export interface ValidatorContext {
 	schoolId: number;
 	schoolYearId: number;
@@ -110,6 +116,7 @@ export interface ValidatorContext {
 	travelPolicy?: TravelPolicyRef;
 	buildings?: BuildingRef[];
 	roomBuildings?: RoomBuildingRef[];
+	constraintConfig?: Record<string, ConstraintOverrideRef>;
 }
 
 // ─── Violation output ───
@@ -524,15 +531,40 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 		}
 	}
 
+	// ── 9) Apply constraintConfig overrides ──
+	// Filter out disabled soft constraints and promote treatAsHard; inject weight into meta.
+	const cc = ctx.constraintConfig;
+	let finalViolations = violations;
+	if (cc) {
+		finalViolations = [];
+		for (const v of violations) {
+			const override = cc[v.code];
+			if (!override) {
+				// No override for this code — keep as-is (hard constraints, etc.)
+				finalViolations.push(v);
+				continue;
+			}
+			// If override disables this constraint and the violation is SOFT, drop it
+			if (!override.enabled && v.severity === 'SOFT') continue;
+			// Promote to HARD if treatAsHard and currently SOFT
+			const severity = (override.treatAsHard && v.severity === 'SOFT') ? 'HARD' as const : v.severity;
+			finalViolations.push({
+				...v,
+				severity,
+				meta: { ...v.meta, constraintWeight: override.weight },
+			});
+		}
+	}
+
 	// ── Aggregate counts ──
 	const byCode = {} as Record<ViolationCode, number>;
 	for (const code of VIOLATION_CODES) byCode[code] = 0;
-	for (const v of violations) {
+	for (const v of finalViolations) {
 		byCode[v.code]++;
 	}
 
 	return {
-		violations,
-		counts: { total: violations.length, byCode },
+		violations: finalViolations,
+		counts: { total: finalViolations.length, byCode },
 	};
 }

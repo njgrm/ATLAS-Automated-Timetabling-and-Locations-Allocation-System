@@ -14,7 +14,7 @@ import {
 } from './constraint-validator.js';
 import { constructBaseline, type ConstructorInput, type UnassignedItem } from './schedule-constructor.js';
 import { sectionAdapter } from './section-adapter.js';
-import { getOrCreatePolicy } from './scheduling-policy.service.js';
+import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
 
 // ─── Helpers ───
 
@@ -150,6 +150,10 @@ export async function triggerGenerationRun(
 			},
 			buildings,
 			roomBuildings: rooms.map((r) => ({ roomId: r.id, buildingId: r.buildingId })),
+			constraintConfig: {
+				...DEFAULT_CONSTRAINT_CONFIG,
+				...(policyRecord.constraintConfig as Record<string, { enabled: boolean; weight: number; treatAsHard: boolean }> ?? {}),
+			},
 		};
 		const validationResult = validateHardConstraints(validatorCtx);
 

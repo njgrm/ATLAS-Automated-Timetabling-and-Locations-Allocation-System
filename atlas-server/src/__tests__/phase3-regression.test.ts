@@ -461,6 +461,186 @@ function makeTravelCtx(
 }
 
 // ═══════════════════════════════════════════════════════
+// Test Suite 6: Well-being soft constraints (idle gap, early start, late end)
+// ═══════════════════════════════════════════════════════
+
+section('Well-being soft constraints (idle gap, early/late)');
+
+{
+	// Excessive idle gap → FACULTY_EXCESSIVE_IDLE_GAP
+	const entries: ScheduledEntry[] = [
+		makeEntry({ entryId: 'wb1', day: 'MONDAY', startTime: '07:30', endTime: '08:20', durationMinutes: 50 }),
+		// 100 min gap
+		makeEntry({ entryId: 'wb2', day: 'MONDAY', startTime: '10:00', endTime: '10:50', durationMinutes: 50 }),
+	];
+	const ctx = makeTravelCtx(entries, { maxIdleGapMinutesPerDay: 60 });
+	const result = validateHardConstraints(ctx);
+
+	const idleViols = result.violations.filter((v) => v.code === 'FACULTY_EXCESSIVE_IDLE_GAP');
+	assert(idleViols.length > 0, 'Idle gap of 100 min exceeds 60 min limit → violation emitted');
+	assert(idleViols[0].severity === 'SOFT', 'Idle gap violation is SOFT');
+	assert((idleViols[0].meta?.totalIdleMinutes as number) === 100, 'Meta includes correct idle total');
+}
+
+{
+	// Idle gap within threshold → no violation
+	const entries: ScheduledEntry[] = [
+		makeEntry({ entryId: 'wb1', day: 'MONDAY', startTime: '07:30', endTime: '08:20', durationMinutes: 50 }),
+		// 30 min gap
+		makeEntry({ entryId: 'wb2', day: 'MONDAY', startTime: '08:50', endTime: '09:40', durationMinutes: 50 }),
+	];
+	const ctx = makeTravelCtx(entries, { maxIdleGapMinutesPerDay: 60 });
+	const result = validateHardConstraints(ctx);
+
+	const idleViols = result.violations.filter((v) => v.code === 'FACULTY_EXCESSIVE_IDLE_GAP');
+	assertEqual(idleViols.length, 0, 'Idle gap of 30 min within 60 min limit → no violation');
+}
+
+{
+	// Early start preference triggered
+	const entries: ScheduledEntry[] = [
+		makeEntry({ entryId: 'wb1', day: 'MONDAY', startTime: '07:00', endTime: '07:50', durationMinutes: 50 }),
+		makeEntry({ entryId: 'wb2', day: 'MONDAY', startTime: '08:00', endTime: '08:50', durationMinutes: 50 }),
+	];
+	const ctx = makeTravelCtx(entries, { avoidEarlyFirstPeriod: true });
+	// Ensure policy sets earliestStartTime=07:00
+	ctx.policy = {
+		maxConsecutiveTeachingMinutesBeforeBreak: 120,
+		minBreakMinutesAfterConsecutiveBlock: 15,
+		maxTeachingMinutesPerDay: 400,
+		earliestStartTime: '07:00',
+		latestEndTime: '17:00',
+		enforceConsecutiveBreakAsHard: false,
+	};
+	const result = validateHardConstraints(ctx);
+
+	const earlyViols = result.violations.filter((v) => v.code === 'FACULTY_EARLY_START_PREFERENCE');
+	assert(earlyViols.length > 0, 'Class at 07:00 with avoidEarlyFirstPeriod=true → violation emitted');
+	assert(earlyViols[0].severity === 'SOFT', 'Early start preference is SOFT');
+}
+
+{
+	// Early start preference disabled → no violation
+	const entries: ScheduledEntry[] = [
+		makeEntry({ entryId: 'wb1', day: 'MONDAY', startTime: '07:00', endTime: '07:50', durationMinutes: 50 }),
+	];
+	const ctx = makeTravelCtx(entries, { avoidEarlyFirstPeriod: false });
+	const result = validateHardConstraints(ctx);
+
+	const earlyViols = result.violations.filter((v) => v.code === 'FACULTY_EARLY_START_PREFERENCE');
+	assertEqual(earlyViols.length, 0, 'avoidEarlyFirstPeriod=false → no early start violation');
+}
+
+{
+	// Late end preference triggered
+	const entries: ScheduledEntry[] = [
+		makeEntry({ entryId: 'wb1', day: 'MONDAY', startTime: '15:00', endTime: '15:50', durationMinutes: 50 }),
+		makeEntry({ entryId: 'wb2', day: 'MONDAY', startTime: '16:10', endTime: '17:00', durationMinutes: 50 }),
+	];
+	const ctx = makeTravelCtx(entries, { avoidLateLastPeriod: true });
+	ctx.policy = {
+		maxConsecutiveTeachingMinutesBeforeBreak: 120,
+		minBreakMinutesAfterConsecutiveBlock: 15,
+		maxTeachingMinutesPerDay: 400,
+		earliestStartTime: '07:00',
+		latestEndTime: '17:00',
+		enforceConsecutiveBreakAsHard: false,
+	};
+	const result = validateHardConstraints(ctx);
+
+	const lateViols = result.violations.filter((v) => v.code === 'FACULTY_LATE_END_PREFERENCE');
+	assert(lateViols.length > 0, 'Class ending at 17:00 with avoidLateLastPeriod=true → violation emitted');
+	assert(lateViols[0].severity === 'SOFT', 'Late end preference is SOFT');
+}
+
+{
+	// Late end preference disabled → no violation
+	const entries: ScheduledEntry[] = [
+		makeEntry({ entryId: 'wb1', day: 'MONDAY', startTime: '16:10', endTime: '17:00', durationMinutes: 50 }),
+	];
+	const ctx = makeTravelCtx(entries, { avoidLateLastPeriod: false });
+	const result = validateHardConstraints(ctx);
+
+	const lateViols = result.violations.filter((v) => v.code === 'FACULTY_LATE_END_PREFERENCE');
+	assertEqual(lateViols.length, 0, 'avoidLateLastPeriod=false → no late end violation');
+}
+
+{
+	// enableTravelWellbeingChecks=false disables all wellbeing checks
+	const entries: ScheduledEntry[] = [
+		makeEntry({ entryId: 'wb1', day: 'MONDAY', startTime: '07:00', endTime: '07:50', durationMinutes: 50 }),
+		makeEntry({ entryId: 'wb2', day: 'MONDAY', startTime: '10:00', endTime: '10:50', durationMinutes: 50 }),
+	];
+	const ctx = makeTravelCtx(entries, {
+		enableTravelWellbeingChecks: false,
+		avoidEarlyFirstPeriod: true,
+		avoidLateLastPeriod: true,
+		maxIdleGapMinutesPerDay: 10,
+	});
+	const result = validateHardConstraints(ctx);
+
+	const wbCodes = ['FACULTY_EXCESSIVE_IDLE_GAP', 'FACULTY_EARLY_START_PREFERENCE', 'FACULTY_LATE_END_PREFERENCE'];
+	const wbViols = result.violations.filter((v) => wbCodes.includes(v.code));
+	assertEqual(wbViols.length, 0, 'enableTravelWellbeingChecks=false disables all wellbeing violations');
+}
+
+// ═══════════════════════════════════════════════════════
+// Test Suite 7: constraintConfig overrides (enabled, treatAsHard, weight)
+// ═══════════════════════════════════════════════════════
+
+section('constraintConfig overrides');
+
+{
+	// Disabled constraint → violation dropped
+	const entries: ScheduledEntry[] = [
+		makeEntry({ entryId: 'cc1', day: 'MONDAY', startTime: '07:30', endTime: '08:20', durationMinutes: 50 }),
+		makeEntry({ entryId: 'cc2', day: 'MONDAY', startTime: '10:00', endTime: '10:50', durationMinutes: 50 }),
+	];
+	const ctx = makeTravelCtx(entries, { maxIdleGapMinutesPerDay: 10 });
+	ctx.constraintConfig = {
+		FACULTY_EXCESSIVE_IDLE_GAP: { enabled: false, weight: 3, treatAsHard: false },
+	};
+	const result = validateHardConstraints(ctx);
+
+	const idleViols = result.violations.filter((v) => v.code === 'FACULTY_EXCESSIVE_IDLE_GAP');
+	assertEqual(idleViols.length, 0, 'Disabled constraint → idle gap violation suppressed');
+}
+
+{
+	// treatAsHard promotes SOFT → HARD
+	const entries: ScheduledEntry[] = [
+		makeEntry({ entryId: 'cc1', day: 'MONDAY', startTime: '07:30', endTime: '08:20', durationMinutes: 50 }),
+		makeEntry({ entryId: 'cc2', day: 'MONDAY', startTime: '10:00', endTime: '10:50', durationMinutes: 50 }),
+	];
+	const ctx = makeTravelCtx(entries, { maxIdleGapMinutesPerDay: 10 });
+	ctx.constraintConfig = {
+		FACULTY_EXCESSIVE_IDLE_GAP: { enabled: true, weight: 8, treatAsHard: true },
+	};
+	const result = validateHardConstraints(ctx);
+
+	const idleViols = result.violations.filter((v) => v.code === 'FACULTY_EXCESSIVE_IDLE_GAP');
+	assert(idleViols.length > 0, 'Idle gap violation still emitted when enabled');
+	assert(idleViols[0].severity === 'HARD', 'treatAsHard=true promotes SOFT idle gap violation to HARD');
+}
+
+{
+	// weight is included in violation meta
+	const entries: ScheduledEntry[] = [
+		makeEntry({ entryId: 'cc1', day: 'MONDAY', startTime: '07:30', endTime: '08:20', durationMinutes: 50 }),
+		makeEntry({ entryId: 'cc2', day: 'MONDAY', startTime: '10:00', endTime: '10:50', durationMinutes: 50 }),
+	];
+	const ctx = makeTravelCtx(entries, { maxIdleGapMinutesPerDay: 10 });
+	ctx.constraintConfig = {
+		FACULTY_EXCESSIVE_IDLE_GAP: { enabled: true, weight: 7, treatAsHard: false },
+	};
+	const result = validateHardConstraints(ctx);
+
+	const idleViols = result.violations.filter((v) => v.code === 'FACULTY_EXCESSIVE_IDLE_GAP');
+	assert(idleViols.length > 0, 'Idle gap violation emitted');
+	assert(idleViols[0].meta?.constraintWeight === 7, 'Weight value is injected into violation meta');
+}
+
+// ═══════════════════════════════════════════════════════
 // Summary
 // ═══════════════════════════════════════════════════════
 

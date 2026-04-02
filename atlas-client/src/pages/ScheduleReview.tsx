@@ -859,6 +859,7 @@ export default function ScheduleReview() {
 									className="h-8"
 									onClick={handleRefresh}
 									disabled={loading}
+									aria-label="Refresh data"
 								>
 									<RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} />
 								</Button>
@@ -976,7 +977,7 @@ export default function ScheduleReview() {
 						<TooltipProvider>
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setIsLeftCollapsed((c) => !c)}>
+									<Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setIsLeftCollapsed((c) => !c)} aria-label={isLeftCollapsed ? 'Expand panel' : 'Collapse panel'}>
 										{isLeftCollapsed ? <PanelLeftOpen className="size-3.5" /> : <PanelLeftClose className="size-3.5" />}
 									</Button>
 								</TooltipTrigger>
@@ -996,6 +997,7 @@ export default function ScheduleReview() {
 											size="sm"
 											className="h-8 w-8 p-0"
 											onClick={() => { setLeftTab('violations'); setIsLeftCollapsed(false); }}
+											aria-label={`Violations (${violations.length})`}
 										>
 											<ShieldAlert className="size-4" />
 										</Button>
@@ -1011,6 +1013,7 @@ export default function ScheduleReview() {
 											size="sm"
 											className="h-8 w-8 p-0"
 											onClick={() => { setLeftTab('unassigned'); setIsLeftCollapsed(false); }}
+											aria-label={`Unassigned (${summary?.unassignedCount ?? 0})`}
 										>
 											<AlertTriangle className="size-4" />
 										</Button>
@@ -1259,7 +1262,7 @@ export default function ScheduleReview() {
 						<TooltipProvider>
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setIsRightCollapsed((c) => !c)}>
+									<Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setIsRightCollapsed((c) => !c)} aria-label={isRightCollapsed ? 'Expand detail panel' : 'Collapse detail panel'}>
 										{isRightCollapsed ? <PanelLeftClose className="size-3.5 rotate-180" /> : <PanelLeftOpen className="size-3.5 rotate-180" />}
 									</Button>
 								</TooltipTrigger>
