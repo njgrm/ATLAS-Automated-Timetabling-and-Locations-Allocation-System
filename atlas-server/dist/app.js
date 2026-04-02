@@ -10,6 +10,10 @@ import subjectRouter from './routes/subject.router.js';
 import facultyRouter from './routes/faculty.router.js';
 import facultyAssignmentRouter from './routes/faculty-assignment.router.js';
 import sectionRouter from './routes/section.router.js';
+import preferenceRouter from './routes/preference.router.js';
+import generationRouter from './routes/generation.router.js';
+import schedulingPolicyRouter from './routes/scheduling-policy.router.js';
+import roomScheduleRouter from './routes/room-schedule.router.js';
 const app = express();
 app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -36,6 +40,10 @@ app.use('/api/v1/subjects', subjectRouter);
 app.use('/api/v1/faculty', facultyRouter);
 app.use('/api/v1/faculty-assignments', facultyAssignmentRouter);
 app.use('/api/v1/sections', sectionRouter);
+app.use('/api/v1/preferences', preferenceRouter);
+app.use('/api/v1/generation', generationRouter);
+app.use('/api/v1/policies/scheduling', schedulingPolicyRouter);
+app.use('/api/v1/room-schedules', roomScheduleRouter);
 // Error handler
 app.use(errorHandler);
 export default app;
