@@ -134,3 +134,68 @@ Record dated implementation verification summaries here.
   - none
 - Decision:
   - Accepted — Phase 3 benchmark reproducibility confirmed. Closure evidence complete.
+
+### 2026-04-02 - Phase 4 Batch 1: Review Console UI Foundation
+- Phase: 4
+- Scope gate: PASS (review console UI is first Phase 4 deliverable)
+- Architecture gate: PASS (MVC view layer, service boundaries, `/api/v1` versioning, school-scoped endpoints)
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npx tsc --noEmit` (client): PASS (0 errors)
+  - `npx tsc --noEmit` (server): PASS (0 errors, no server changes)
+- Files changed:
+  - `atlas-client/src/types.ts`: added GenerationRun, RunSummary, ScheduledEntry, Violation, ViolationCode, ViolationSeverity, ViolationReport, DraftReport
+  - `atlas-client/src/pages/ScheduleReview.tsx`: new page — three-panel review console
+  - `atlas-client/src/components/AppShell.tsx`: unlocked Timetable nav item (removed `disabled: true`)
+  - `atlas-client/src/App.tsx`: added ScheduleReview lazy import + route at `/timetable`
+- UI checks:
+  - Sidebar Timetable nav unlocked for admin/officer/SYSTEM_ADMIN: PASS (code verified)
+  - Run selector (latest + specific run): implemented
+  - Section filter: implemented
+  - Filter chips (All/Hard/Soft/Conflicts): implemented
+  - Inline stat banner (status, assigned, hard, total, duration, timestamp): implemented
+  - Violation panel with search, code grouping, severity badges: implemented
+  - Timetable grid with day×time matrix, violation color coding: implemented
+  - Entry detail panel with DepEd grade badges, linked violations: implemented
+  - Placeholder action buttons with tooltips: implemented
+  - Follow-up triage tag: implemented
+  - Loading/empty/error states: implemented
+- Blocking findings:
+  - none (backend APIs already exist from Phase 3; no server changes needed)
+- Decision:
+  - Accepted — Phase 4 Batch 1 complete. Next: manual edit APIs + optimistic locking (Batch 2).
+
+### 2026-04-02 - Phase 4 Batch 2: Review UI Workflow Expansion
+- Phase: 4
+- Scope gate: PASS (generate trigger, publish guardrails, grid pivot — all Phase 4 review workflow scope)
+- Architecture gate: PASS (MVC view layer, thin handlers, service boundaries preserved, no native form elements)
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npx tsc --noEmit` (client): PASS (0 errors)
+  - `npx tsc --noEmit` (server): PASS (0 errors, no server changes)
+- Files changed:
+  - `atlas-client/src/pages/ScheduleReview.tsx`: added Generate, Publish, and View By pivot features
+  - `atlas-client/src/ui/checkbox.tsx`: new shadcn-style Checkbox component (Radix UI)
+- New dependency:
+  - `@radix-ui/react-checkbox` installed
+- Feature details:
+  - **Generate New Timetable:** Play button in toolbar, fires `POST /generation/:schoolId/:schoolYearId/runs`. Confirmation dialog warns if follow-up flags exist. Disabled while generating/loading.
+  - **Publish Schedule:** Send button disabled when hard violations > 0. Dialog with soft violation summary + acknowledgment Checkbox. Publish action is Phase 5 placeholder (toast).
+  - **Grid Pivot Modes:** View By selector (Section / Faculty / Room). Client-side pivot logic via `pivotEntityIds`, `pivotLabel`, `pivotKeyOf`. Room reference data fetched from buildings endpoint. Grid cells show context label for non-section pivots.
+  - **Empty state enhanced:** No-runs state now includes Generate button.
+- UI checks:
+  - Generate button disabled states: correct (no schoolYearId, generating, loading)
+  - Publish button disabled when hardCount > 0: correct
+  - Publish dialog Checkbox gating: correct (soft > 0 requires acknowledgment)
+  - View By selector cycles Section/Faculty/Room: correct
+  - GridEntries pivot-aware filtering: correct (section filter only in section mode)
+  - TimetableGrid accepts viewMode + pivotLabel: correct
+  - Dialogs use @/ui/dialog primitives: correct
+  - Checkbox uses @/ui/checkbox: correct
+  - No native <select>, <button>, or <details>: PASS
+- Blocking findings:
+  - none
+- Decision:
+  - Accepted — Phase 4 Batch 2 complete.

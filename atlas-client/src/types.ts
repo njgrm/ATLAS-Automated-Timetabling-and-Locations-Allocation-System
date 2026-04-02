@@ -227,3 +227,94 @@ export type RoomScheduleView = {
 		conflictCount: number;
 	};
 };
+
+/* ─── Generation / Review types ─── */
+
+export type GenerationRunStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+
+export type ViolationCode =
+	| 'FACULTY_TIME_CONFLICT'
+	| 'ROOM_TIME_CONFLICT'
+	| 'FACULTY_OVERLOAD'
+	| 'ROOM_TYPE_MISMATCH'
+	| 'FACULTY_SUBJECT_NOT_QUALIFIED'
+	| 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED'
+	| 'FACULTY_BREAK_REQUIREMENT_VIOLATED'
+	| 'FACULTY_DAILY_MAX_EXCEEDED';
+
+export type ViolationSeverity = 'HARD' | 'SOFT';
+
+export interface GenerationRun {
+	id: number;
+	schoolId: number;
+	schoolYearId: number;
+	triggeredBy: number;
+	status: GenerationRunStatus;
+	startedAt: string | null;
+	finishedAt: string | null;
+	durationMs: number | null;
+	summary: RunSummary | null;
+	error: string | null;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface RunSummary {
+	classesProcessed: number;
+	assignedCount: number;
+	unassignedCount: number;
+	policyBlockedCount: number;
+	hardViolationCount: number;
+	violationCounts?: Record<string, number>;
+}
+
+export interface ScheduledEntry {
+	entryId: string;
+	facultyId: number;
+	roomId: number;
+	subjectId: number;
+	sectionId: number;
+	day: string;
+	startTime: string;
+	endTime: string;
+	durationMinutes: number;
+}
+
+export interface Violation {
+	code: ViolationCode;
+	severity: ViolationSeverity;
+	message: string;
+	schoolId: number;
+	schoolYearId: number;
+	runId: number;
+	entities: {
+		facultyId?: number;
+		roomId?: number;
+		subjectId?: number;
+		sectionId?: number;
+		day?: string;
+		startTime?: string;
+		endTime?: string;
+		entryIds?: string[];
+	};
+	meta?: Record<string, unknown>;
+}
+
+export interface ViolationReport {
+	runId: number;
+	status: string;
+	violations: Violation[];
+	counts: {
+		total: number;
+		byCode: Record<string, number>;
+	};
+}
+
+export interface DraftReport {
+	runId: number;
+	status: string;
+	entries: ScheduledEntry[];
+	summary: RunSummary | null;
+	finishedAt: string | null;
+	createdAt: string;
+}

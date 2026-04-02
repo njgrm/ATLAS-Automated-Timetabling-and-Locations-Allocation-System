@@ -98,12 +98,15 @@ It defines phase scope, acceptance gates, and the current progress state.
   - Runtime performance evidence captured (well under 60s target)
 
 ## Phase 4 - Review and Manual Adjustment
-- **Status:** Not Started
+- **Status:** In Progress
+- **Started:** 2026-04-02
 - **Scope**
   - Officer review grid and manual schedule corrections before publish
 - **Planned deliverables**
-  - Review UI (`/schedule/review`) with conflict/warning visibility
+  - Review UI (`/timetable`) with conflict/warning visibility ✅ (Batch 1)
   - Manual adjustments with optimistic locking and auditability
+- **Work completed**
+  - Batch 1: Review Console UI foundation (ScheduleReview page, three-panel layout, run/violation/draft consumption, filter/highlight/triage UX)
 - **Exit criteria**
   - Officer can resolve review findings and revalidate hard constraints
   - Conflicts are blocked from publish path until cleared

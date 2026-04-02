@@ -112,7 +112,7 @@ const schedulingNav: NavItemDef[] = [
 	{ label: 'Assignments', to: '/assignments', icon: UserCog, adminOnly: true },
 	{ label: 'Sections', to: '/sections', icon: GraduationCap, adminOnly: true },
 	{ label: 'Preferences', to: '/faculty/preferences', icon: ClipboardList, adminOnly: true },
-	{ label: 'Timetable', to: '/timetable', icon: CalendarClock, adminOnly: true, disabled: true },
+	{ label: 'Timetable', to: '/timetable', icon: CalendarClock, adminOnly: true },
 	{ label: 'Room Schedules', to: '/room-schedules', icon: CalendarDays, adminOnly: true },
 ];
 

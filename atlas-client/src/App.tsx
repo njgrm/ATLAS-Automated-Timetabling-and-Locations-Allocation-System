@@ -15,8 +15,7 @@ const FacultyPreferences = lazy(() => import('./pages/FacultyPreferences'));
 const OfficerPreferences = lazy(() => import('./pages/OfficerPreferences'));
 const ComingSoon = lazy(() => import('./pages/ComingSoon'));
 const RoomSchedules = lazy(() => import('./pages/RoomSchedules'));
-
-
+const ScheduleReview = lazy(() => import('./pages/ScheduleReview'));
 
 const router = createBrowserRouter([
 	{
@@ -53,7 +52,7 @@ const router = createBrowserRouter([
 			},
 			{
 				path: 'timetable',
-				element: <ComingSoon />,
+				element: <ScheduleReview />,
 			},
 			{
 				path: 'room-schedules',
