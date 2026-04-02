@@ -6,17 +6,12 @@ const router = Router();
 router.get('/summary/:schoolYearId', authenticate, async (req, res, next) => {
     try {
         const schoolYearId = Number(req.params.schoolYearId);
-        if (!Number.isInteger(schoolYearId) || schoolYearId <= 0) {
-            res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId must be a positive integer.' });
-            return;
-        }
-        const schoolId = Number(req.query.schoolId);
-        if (!Number.isInteger(schoolId) || schoolId <= 0) {
-            res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required and must be a positive integer.' });
+        if (!schoolYearId || Number.isNaN(schoolYearId)) {
+            res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId must be a number.' });
             return;
         }
         const authToken = req.headers.authorization?.slice(7);
-        const summary = await sectionService.getSectionSummary(schoolYearId, schoolId, authToken);
+        const summary = await sectionService.getSectionSummary(schoolYearId, authToken);
         res.json(summary);
     }
     catch (err) {
