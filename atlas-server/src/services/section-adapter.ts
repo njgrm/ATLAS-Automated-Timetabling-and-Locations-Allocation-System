@@ -119,9 +119,51 @@ export class EnrollProSectionAdapter implements SectionAdapter {
 
 /* ─── Factory ─── */
 
-const adapterType = process.env.SECTION_ADAPTER ?? process.env.FACULTY_ADAPTER ?? 'enrollpro';
+/**
+ * Section source mode (env: SECTION_SOURCE_MODE).
+ *   stub     — always use deterministic stub data
+ *   enrollpro — always use EnrollPro API (fails clearly if unreachable)
+ *   auto     — prefer EnrollPro, fallback to stub with warning
+ *
+ * Legacy env vars SECTION_ADAPTER / FACULTY_ADAPTER = 'stub' are honoured
+ * as shorthand for SECTION_SOURCE_MODE=stub.
+ */
+export type SectionSourceMode = 'stub' | 'enrollpro' | 'auto';
 
-export const sectionAdapter: SectionAdapter =
-	adapterType === 'stub'
-		? new StubSectionAdapter()
-		: new EnrollProSectionAdapter();
+function resolveSectionSourceMode(): SectionSourceMode {
+	const explicit = process.env.SECTION_SOURCE_MODE?.toLowerCase();
+	if (explicit === 'stub' || explicit === 'enrollpro' || explicit === 'auto') return explicit;
+
+	// Legacy compat
+	const legacy = process.env.SECTION_ADAPTER ?? process.env.FACULTY_ADAPTER;
+	if (legacy === 'stub') return 'stub';
+
+	return 'enrollpro'; // default
+}
+
+export const sectionSourceMode: SectionSourceMode = resolveSectionSourceMode();
+
+class AutoSectionAdapter implements SectionAdapter {
+	private enrollpro = new EnrollProSectionAdapter();
+	private stub = new StubSectionAdapter();
+
+	async fetchSectionsBySchoolYear(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionsByGrade[]> {
+		try {
+			return await this.enrollpro.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
+		} catch (error) {
+			const msg = error instanceof Error ? error.message : String(error);
+			console.warn(`[section-adapter] EnrollPro unreachable (${msg}), falling back to stub adapter.`);
+			return this.stub.fetchSectionsBySchoolYear(schoolYearId, schoolId);
+		}
+	}
+}
+
+function buildSectionAdapter(mode: SectionSourceMode): SectionAdapter {
+	switch (mode) {
+		case 'stub': return new StubSectionAdapter();
+		case 'enrollpro': return new EnrollProSectionAdapter();
+		case 'auto': return new AutoSectionAdapter();
+	}
+}
+
+export const sectionAdapter: SectionAdapter = buildSectionAdapter(sectionSourceMode);

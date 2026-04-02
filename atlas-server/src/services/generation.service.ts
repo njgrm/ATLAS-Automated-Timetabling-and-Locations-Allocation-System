@@ -60,8 +60,10 @@ export async function triggerGenerationRun(
 		data: { status: 'RUNNING', startedAt },
 	});
 
+	let stage = 'init';
 	try {
 		// ── Fetch all input data for construction ──
+		stage = 'sections-fetch';
 		const [sectionsByGrade, faculty, facultySubjects, rooms, subjects, preferences, policyRecord] = await Promise.all([
 			sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId),
 			prisma.facultyMirror.findMany({
@@ -92,6 +94,7 @@ export async function triggerGenerationRun(
 		]);
 
 		// ── Run baseline constructor ──
+		stage = 'constructor';
 		const constructorInput: ConstructorInput = {
 			schoolId,
 			schoolYearId,
@@ -121,6 +124,7 @@ export async function triggerGenerationRun(
 		const result = constructBaseline(constructorInput);
 
 		// ── Validate constructed entries ──
+		stage = 'validator';
 		const validatorCtx: ValidatorContext = {
 			schoolId, schoolYearId, runId: run.id,
 			entries: result.entries, faculty, facultySubjects, rooms, subjects,
@@ -144,6 +148,7 @@ export async function triggerGenerationRun(
 		const durationMs = finishedAt.getTime() - startedAt.getTime();
 
 		// Finalize as COMPLETED with draft entries
+		stage = 'persist';
 		const completed = await prisma.generationRun.update({
 			where: { id: run.id },
 			data: {
@@ -170,10 +175,11 @@ export async function triggerGenerationRun(
 
 		return completed;
 	} catch (error) {
-		// Finalize as FAILED
+		// Finalize as FAILED with stage-tagged diagnostics
 		const finishedAt = new Date();
 		const durationMs = finishedAt.getTime() - startedAt.getTime();
-		const errorMessage = error instanceof Error ? error.message : String(error);
+		const rawMessage = error instanceof Error ? error.message : String(error);
+		const errorMessage = `[${stage}] ${rawMessage}`;
 
 		const failed = await prisma.generationRun.update({
 			where: { id: run.id },
@@ -192,7 +198,7 @@ export async function triggerGenerationRun(
 				action: 'GENERATION_RUN_FAILED',
 				actorId,
 				targetIds: [run.id],
-				metadata: { durationMs, error: errorMessage } as object,
+				metadata: { durationMs, stage, error: rawMessage } as object,
 			},
 		});
 

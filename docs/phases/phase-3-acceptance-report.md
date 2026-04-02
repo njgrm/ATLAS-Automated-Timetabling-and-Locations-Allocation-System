@@ -83,29 +83,32 @@ Phase 3 delivers the core schedule generation engine for ATLAS: a deterministic,
 - **Script:** `atlas-server/src/scripts/benchmark.ts`
 - **Default runs:** 5
 - **Target:** All generation runs complete in < 60,000ms
+- **Reproducible command:** `SECTION_SOURCE_MODE=stub npx tsx atlas-server/src/scripts/benchmark.ts --runs=5`
+- **Preflight:** validates school/setup data exist and blocks `enrollpro` mode in benchmark context
 
 ### 3.2 Benchmark Results (2026-04-02, stub dataset: 10 sections × 9 subjects)
 
 | Metric | Value |
 |--------|-------|
-| p50 duration | 90ms |
-| p95 duration | 103ms |
-| max duration | 103ms |
-| min duration | 85ms |
-| mean duration | 92ms |
+| p50 duration | 89ms |
+| p95 duration | 142ms |
+| max duration | 142ms |
+| min duration | 88ms |
+| mean duration | 100ms |
 | Assigned (all runs) | 30 |
 | Unassigned (all runs) | 346 |
 | Hard violations (all runs) | 0 |
 | Policy blocked (all runs) | 228 |
 | All runs succeeded | ✅ PASS |
 | Hard violations stable | ✅ PASS |
-| Max < 60s | ✅ PASS (103ms << 60,000ms) |
+| Max < 60s | ✅ PASS (142ms << 60,000ms) |
 
 **Note:** High unassigned count is expected — the stub adapter provides only 10 sections with limited faculty/rooms. Production datasets will have matching setup data.
 
 ### 3.3 Artifact
-- **Path:** [`docs/verification/artifacts/phase3-benchmark-2026-04-02.json`](../verification/artifacts/phase3-benchmark-2026-04-02.json)
-- **Generated:** 2026-04-02 — 5 runs, all PASS
+- **Path:** `docs/verification/artifacts/phase3-benchmark-2026-04-02T06-11-44-580Z-school1-year1-runs5.json`
+- **Generated:** 2026-04-02, SECTION_SOURCE_MODE=stub, 5 runs, all PASS
+- **README:** [`docs/verification/artifacts/README.md`](../verification/artifacts/README.md)
 
 ---
 

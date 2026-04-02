@@ -7,6 +7,7 @@
 import { prisma } from '../lib/prisma.js';
 import type { ScheduledEntry } from './constraint-validator.js';
 import * as genService from './generation.service.js';
+import { computeOccupiedMinutesByIntervalUnion, countUniqueEntryIds } from './room-schedule.metrics.js';
 
 // ─── Constants ───
 
@@ -35,11 +36,6 @@ function err(statusCode: number, code: string, message: string): Error & { statu
 
 function timesOverlap(a: { startTime: string; endTime: string }, b: { startTime: string; endTime: string }): boolean {
 	return a.startTime < b.endTime && b.startTime < a.endTime;
-}
-
-function timeToMinutes(hhmm: string): number {
-	const [h, m] = hhmm.split(':').map(Number);
-	return h * 60 + m;
 }
 
 // ─── Types ───
@@ -155,36 +151,8 @@ export async function getRoomScheduleView(
 	});
 
 	// 6) Summary — unique-entry aggregation to avoid per-cell inflation
-	const uniqueEntries = new Map<string, ScheduledEntry>();
-	for (const e of roomEntries) {
-		if (!uniqueEntries.has(e.entryId)) uniqueEntries.set(e.entryId, e);
-	}
-	const entryCount = uniqueEntries.size;
-
-	// Compute occupied minutes via interval-union per day to handle overlaps accurately
-	let occupiedMinutes = 0;
-	for (const day of DAYS) {
-		const dayEntries = entriesByDay.get(day);
-		if (!dayEntries || dayEntries.length === 0) continue;
-
-		// Collect intervals as [start, end] minute-of-day pairs, then merge
-		const intervals = dayEntries
-			.map((e) => [timeToMinutes(e.startTime), timeToMinutes(e.endTime)] as [number, number])
-			.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-
-		let [curStart, curEnd] = intervals[0];
-		for (let i = 1; i < intervals.length; i++) {
-			const [s, e] = intervals[i];
-			if (s < curEnd) {
-				curEnd = Math.max(curEnd, e);
-			} else {
-				occupiedMinutes += curEnd - curStart;
-				curStart = s;
-				curEnd = e;
-			}
-		}
-		occupiedMinutes += curEnd - curStart;
-	}
+	const entryCount = countUniqueEntryIds(roomEntries);
+	const occupiedMinutes = computeOccupiedMinutesByIntervalUnion(roomEntries, DAYS);
 
 	const totalSlots = PERIOD_SLOTS.length * DAYS.length;
 	const slotMinutes = 50; // standard JHS period

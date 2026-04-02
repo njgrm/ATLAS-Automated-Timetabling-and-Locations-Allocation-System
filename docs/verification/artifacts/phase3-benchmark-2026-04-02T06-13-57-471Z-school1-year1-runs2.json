@@ -1,0 +1,92 @@
+{
+  "meta": {
+    "timestamp": "2026-04-02T06:13:57.471Z",
+    "schoolId": 1,
+    "schoolYearId": 1,
+    "runCount": 2,
+    "actorId": 1,
+    "sectionSourceMode": "stub"
+  },
+  "runs": [
+    {
+      "runId": 33,
+      "status": "COMPLETED",
+      "durationMs": 149,
+      "error": null,
+      "assignedCount": 30,
+      "unassignedCount": 346,
+      "hardViolationCount": 0,
+      "policyBlockedCount": 228,
+      "classesProcessed": 376,
+      "violationCounts": {
+        "FACULTY_OVERLOAD": 0,
+        "ROOM_TIME_CONFLICT": 0,
+        "ROOM_TYPE_MISMATCH": 0,
+        "FACULTY_TIME_CONFLICT": 0,
+        "FACULTY_DAILY_MAX_EXCEEDED": 0,
+        "FACULTY_SUBJECT_NOT_QUALIFIED": 0,
+        "FACULTY_BREAK_REQUIREMENT_VIOLATED": 0,
+        "FACULTY_CONSECUTIVE_LIMIT_EXCEEDED": 0
+      }
+    },
+    {
+      "runId": 34,
+      "status": "COMPLETED",
+      "durationMs": 93,
+      "error": null,
+      "assignedCount": 30,
+      "unassignedCount": 346,
+      "hardViolationCount": 0,
+      "policyBlockedCount": 228,
+      "classesProcessed": 376,
+      "violationCounts": {
+        "FACULTY_OVERLOAD": 0,
+        "ROOM_TIME_CONFLICT": 0,
+        "ROOM_TYPE_MISMATCH": 0,
+        "FACULTY_TIME_CONFLICT": 0,
+        "FACULTY_DAILY_MAX_EXCEEDED": 0,
+        "FACULTY_SUBJECT_NOT_QUALIFIED": 0,
+        "FACULTY_BREAK_REQUIREMENT_VIOLATED": 0,
+        "FACULTY_CONSECUTIVE_LIMIT_EXCEEDED": 0
+      }
+    }
+  ],
+  "stats": {
+    "runCount": 2,
+    "successCount": 2,
+    "failCount": 0,
+    "durations": {
+      "p50": 93,
+      "p95": 149,
+      "max": 149,
+      "min": 93,
+      "mean": 121
+    },
+    "assignedCount": {
+      "min": 30,
+      "max": 30,
+      "mean": 30
+    },
+    "unassignedCount": {
+      "min": 346,
+      "max": 346,
+      "mean": 346
+    },
+    "hardViolationCount": {
+      "min": 0,
+      "max": 0,
+      "mean": 0
+    },
+    "policyBlockedCount": {
+      "min": 228,
+      "max": 228,
+      "mean": 228
+    }
+  },
+  "guardrails": {
+    "allRunsSucceeded": true,
+    "hardViolationsStable": true,
+    "maxDurationUnder60s": true,
+    "overallPass": true
+  }
+}

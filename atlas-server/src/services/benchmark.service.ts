@@ -6,7 +6,6 @@
  * Business logic only; no transport concerns.
  */
 
-import { prisma } from '../lib/prisma.js';
 import { triggerGenerationRun, type RunSummary } from './generation.service.js';
 
 // ─── Types ───
@@ -15,6 +14,7 @@ export interface BenchmarkRunResult {
 	runId: number;
 	status: string;
 	durationMs: number;
+	error?: string | null;
 	assignedCount: number;
 	unassignedCount: number;
 	hardViolationCount: number;
@@ -47,6 +47,7 @@ export interface BenchmarkReport {
 		schoolYearId: number;
 		runCount: number;
 		actorId: number;
+		sectionSourceMode: string;
 	};
 	runs: BenchmarkRunResult[];
 	stats: BenchmarkStats;
@@ -81,6 +82,7 @@ export async function runBenchmark(
 	schoolYearId: number,
 	actorId: number,
 	runCount: number = 5,
+	sectionSourceMode: string = 'unknown',
 ): Promise<BenchmarkReport> {
 	const runs: BenchmarkRunResult[] = [];
 
@@ -92,6 +94,7 @@ export async function runBenchmark(
 			runId: completed.id,
 			status: completed.status,
 			durationMs: completed.durationMs ?? 0,
+			error: completed.error ?? null,
 			assignedCount: summary.assignedCount ?? 0,
 			unassignedCount: summary.unassignedCount ?? 0,
 			hardViolationCount: summary.hardViolationCount ?? 0,
@@ -136,6 +139,7 @@ export async function runBenchmark(
 			schoolYearId,
 			runCount,
 			actorId,
+			sectionSourceMode,
 		},
 		runs,
 		stats,

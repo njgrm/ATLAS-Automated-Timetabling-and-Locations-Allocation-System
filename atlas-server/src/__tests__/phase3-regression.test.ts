@@ -9,8 +9,8 @@ import {
 	validateHardConstraints,
 	type ValidatorContext,
 	type ScheduledEntry,
-	type ValidationResult,
 } from '../services/constraint-validator.js';
+import { computeOccupiedMinutesByIntervalUnion } from '../services/room-schedule.metrics.js';
 
 // ─── Test helpers ───
 
@@ -213,78 +213,38 @@ section('Policy severity toggling (consecutive + break)');
 section('Interval-union deduplication for occupiedMinutes');
 
 {
-	// Test the algorithm used in room-schedule.service.ts
-	// Two overlapping intervals on same day should union, not sum
-	function computeOccupiedMinutes(entries: Array<{ day: string; startTime: string; endTime: string }>): number {
-		const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
-		function timeToMinutes(hhmm: string): number {
-			const [h, m] = hhmm.split(':').map(Number);
-			return h * 60 + m;
-		}
-
-		const entriesByDay = new Map<string, Array<{ startTime: string; endTime: string }>>();
-		for (const e of entries) {
-			const arr = entriesByDay.get(e.day) ?? [];
-			arr.push(e);
-			entriesByDay.set(e.day, arr);
-		}
-
-		let occupiedMinutes = 0;
-		for (const day of DAYS) {
-			const dayEntries = entriesByDay.get(day);
-			if (!dayEntries || dayEntries.length === 0) continue;
-
-			const intervals = dayEntries
-				.map((e) => [timeToMinutes(e.startTime), timeToMinutes(e.endTime)] as [number, number])
-				.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-
-			let [curStart, curEnd] = intervals[0];
-			for (let i = 1; i < intervals.length; i++) {
-				const [s, e] = intervals[i];
-				if (s < curEnd) {
-					curEnd = Math.max(curEnd, e);
-				} else {
-					occupiedMinutes += curEnd - curStart;
-					curStart = s;
-					curEnd = e;
-				}
-			}
-			occupiedMinutes += curEnd - curStart;
-		}
-
-		return occupiedMinutes;
-	}
+	const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
 
 	// Non-overlapping: two distinct slots = 100 min
-	const nonOverlapping = computeOccupiedMinutes([
+	const nonOverlapping = computeOccupiedMinutesByIntervalUnion([
 		{ day: 'MONDAY', startTime: '07:30', endTime: '08:20' },
 		{ day: 'MONDAY', startTime: '08:20', endTime: '09:10' },
-	]);
+	], DAYS);
 	assertEqual(nonOverlapping, 100, 'Non-overlapping adjacent periods = 100 min');
 
 	// Overlapping: same slot listed twice should NOT double-count
-	const overlapping = computeOccupiedMinutes([
+	const overlapping = computeOccupiedMinutesByIntervalUnion([
 		{ day: 'MONDAY', startTime: '07:30', endTime: '08:20' },
 		{ day: 'MONDAY', startTime: '07:30', endTime: '08:20' },
-	]);
+	], DAYS);
 	assertEqual(overlapping, 50, 'Duplicate entry on same slot = 50 min (not 100)');
 
 	// Partial overlap
-	const partialOverlap = computeOccupiedMinutes([
+	const partialOverlap = computeOccupiedMinutesByIntervalUnion([
 		{ day: 'MONDAY', startTime: '07:30', endTime: '08:30' },
 		{ day: 'MONDAY', startTime: '08:00', endTime: '09:00' },
-	]);
+	], DAYS);
 	assertEqual(partialOverlap, 90, 'Partial overlap [07:30-08:30] + [08:00-09:00] = 90 min (union)');
 
 	// Multi-day entries are summed independently
-	const multiDay = computeOccupiedMinutes([
+	const multiDay = computeOccupiedMinutesByIntervalUnion([
 		{ day: 'MONDAY', startTime: '07:30', endTime: '08:20' },
 		{ day: 'TUESDAY', startTime: '07:30', endTime: '08:20' },
-	]);
+	], DAYS);
 	assertEqual(multiDay, 100, 'Two entries on different days = 100 min total');
 
 	// Empty schedule
-	const empty = computeOccupiedMinutes([]);
+	const empty = computeOccupiedMinutesByIntervalUnion([], DAYS);
 	assertEqual(empty, 0, 'Empty schedule = 0 occupied minutes');
 }
 

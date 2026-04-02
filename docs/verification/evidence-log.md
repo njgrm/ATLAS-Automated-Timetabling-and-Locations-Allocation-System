@@ -105,3 +105,32 @@ Record dated implementation verification summaries here.
   - none
 - Decision:
   - Accepted — Phase 3 complete. All exit criteria satisfied. Move active delivery to Phase 4.
+
+### 2026-04-02 - Phase 3 Benchmark Reproducibility Hardening
+- Phase: 3
+- Scope gate: PASS (benchmark reliability, within Phase 3 closure scope)
+- Architecture gate: PASS (adapter pattern preserved, service boundaries intact)
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npx tsc --noEmit` (server): PASS (0 errors)
+  - `npx tsx atlas-server/src/__tests__/phase3-regression.test.ts`: PASS (22/22)
+  - `SECTION_SOURCE_MODE=stub npx tsx atlas-server/src/scripts/benchmark.ts --runs=5`: PASS (5/5 COMPLETED)
+  - `SECTION_SOURCE_MODE=enrollpro` benchmark: preflight blocked with clear diagnostic (exit 1)
+- Changes:
+  - `section-adapter.ts`: added `SECTION_SOURCE_MODE` env support (stub/enrollpro/auto) + `AutoSectionAdapter` fallback class
+  - `generation.service.ts`: stage-tagged error diagnostics (`[sections-fetch]`, `[constructor]`, `[validator]`, `[persist]`)
+  - `benchmark.ts`: preflight checks (school exists, setup data counts, mode guard) + mode logging
+  - `benchmark.service.ts`: `sectionSourceMode` captured in report meta
+  - `docs/verification/artifacts/README.md`: benchmark run instructions + pass criteria docs
+- Root cause of prior `fetch failed`:
+  - Default `SECTION_SOURCE_MODE` was `enrollpro` (via legacy fallback). EnrollPro API unreachable in local dev. No fallback or diagnostic.
+- Benchmark evidence:
+  - Artifact: `docs/verification/artifacts/phase3-benchmark-2026-04-02T06-11-44-580Z-school1-year1-runs5.json`
+  - Duration: p50=89ms, p95=142ms, max=142ms
+  - Deterministic: 30 assigned, 346 unassigned, 0 hard violations, 228 policy blocked (identical across 5 runs)
+  - All guardrails: PASS
+- Blocking findings:
+  - none
+- Decision:
+  - Accepted — Phase 3 benchmark reproducibility confirmed. Closure evidence complete.
