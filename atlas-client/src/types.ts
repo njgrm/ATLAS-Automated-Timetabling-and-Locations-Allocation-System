@@ -244,7 +244,10 @@ export type ViolationCode =
 	| 'FACULTY_DAILY_MAX_EXCEEDED'
 	| 'FACULTY_EXCESSIVE_TRAVEL_DISTANCE'
 	| 'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS'
-	| 'FACULTY_INSUFFICIENT_TRANSITION_BUFFER';
+	| 'FACULTY_INSUFFICIENT_TRANSITION_BUFFER'
+	| 'FACULTY_EXCESSIVE_IDLE_GAP'
+	| 'FACULTY_EARLY_START_PREFERENCE'
+	| 'FACULTY_LATE_END_PREFERENCE';
 
 export type ViolationSeverity = 'HARD' | 'SOFT';
 
@@ -351,4 +354,34 @@ export interface SectionSummaryResponse {
 	byGradeLevel: Record<number, number>;
 	enrolledByGradeLevel: Record<number, number>;
 	sections: ExternalSection[];
+}
+
+/* ─── Scheduling Policy types ─── */
+
+export interface ConstraintOverride {
+	enabled: boolean;
+	weight: number;
+	treatAsHard: boolean;
+}
+
+export interface SchedulingPolicy {
+	id: number;
+	schoolId: number;
+	schoolYearId: number;
+	maxConsecutiveTeachingMinutesBeforeBreak: number;
+	minBreakMinutesAfterConsecutiveBlock: number;
+	maxTeachingMinutesPerDay: number;
+	earliestStartTime: string;
+	latestEndTime: string;
+	enforceConsecutiveBreakAsHard: boolean;
+	enableTravelWellbeingChecks: boolean;
+	maxWalkingDistanceMetersPerTransition: number;
+	maxBuildingTransitionsPerDay: number;
+	maxBackToBackTransitionsWithoutBuffer: number;
+	maxIdleGapMinutesPerDay: number;
+	avoidEarlyFirstPeriod: boolean;
+	avoidLateLastPeriod: boolean;
+	constraintConfig: Record<string, ConstraintOverride> | null;
+	createdAt: string;
+	updatedAt: string;
 }

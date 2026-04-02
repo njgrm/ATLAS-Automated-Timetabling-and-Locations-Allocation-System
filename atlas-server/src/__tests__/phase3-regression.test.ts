@@ -337,6 +337,9 @@ function makeTravelCtx(
 			maxWalkingDistanceMetersPerTransition: 120,
 			maxBuildingTransitionsPerDay: 4,
 			maxBackToBackTransitionsWithoutBuffer: 2,
+			maxIdleGapMinutesPerDay: 60,
+			avoidEarlyFirstPeriod: false,
+			avoidLateLastPeriod: false,
 			...travelPolicyOverrides,
 		},
 	};

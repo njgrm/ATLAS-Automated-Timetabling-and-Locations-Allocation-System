@@ -4,6 +4,7 @@
  */
 
 import { prisma } from '../lib/prisma.js';
+import { Prisma } from '@prisma/client';
 
 // ─── Helpers ───
 
@@ -27,7 +28,27 @@ export const POLICY_DEFAULTS = {
 	maxWalkingDistanceMetersPerTransition: 120,
 	maxBuildingTransitionsPerDay: 4,
 	maxBackToBackTransitionsWithoutBuffer: 2,
+	maxIdleGapMinutesPerDay: 60,
+	avoidEarlyFirstPeriod: false,
+	avoidLateLastPeriod: false,
 } as const;
+
+export interface ConstraintOverride {
+	enabled: boolean;
+	weight: number; // 1–10
+	treatAsHard: boolean;
+}
+
+export const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride> = {
+	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: { enabled: true, weight: 5, treatAsHard: false },
+	FACULTY_BREAK_REQUIREMENT_VIOLATED: { enabled: true, weight: 5, treatAsHard: false },
+	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: { enabled: true, weight: 4, treatAsHard: false },
+	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: { enabled: true, weight: 4, treatAsHard: false },
+	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: { enabled: true, weight: 3, treatAsHard: false },
+	FACULTY_EXCESSIVE_IDLE_GAP: { enabled: true, weight: 3, treatAsHard: false },
+	FACULTY_EARLY_START_PREFERENCE: { enabled: false, weight: 2, treatAsHard: false },
+	FACULTY_LATE_END_PREFERENCE: { enabled: false, weight: 2, treatAsHard: false },
+};
 
 // ─── Exported policy shape (for cross-service use) ───
 
@@ -42,6 +63,10 @@ export interface SchedulingPolicyData {
 	maxWalkingDistanceMetersPerTransition: number;
 	maxBuildingTransitionsPerDay: number;
 	maxBackToBackTransitionsWithoutBuffer: number;
+	maxIdleGapMinutesPerDay: number;
+	avoidEarlyFirstPeriod: boolean;
+	avoidLateLastPeriod: boolean;
+	constraintConfig: Record<string, ConstraintOverride> | null;
 }
 
 // ─── Validation ───
@@ -64,6 +89,10 @@ export interface PolicyInput {
 	maxWalkingDistanceMetersPerTransition?: unknown;
 	maxBuildingTransitionsPerDay?: unknown;
 	maxBackToBackTransitionsWithoutBuffer?: unknown;
+	maxIdleGapMinutesPerDay?: unknown;
+	avoidEarlyFirstPeriod?: unknown;
+	avoidLateLastPeriod?: unknown;
+	constraintConfig?: unknown;
 }
 
 export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolicyData; errors: string[] } {
@@ -148,6 +177,52 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 		POLICY_DEFAULTS.maxBackToBackTransitionsWithoutBuffer,
 	);
 
+	const maxIdleGap = requirePositiveInt(
+		input.maxIdleGapMinutesPerDay,
+		'maxIdleGapMinutesPerDay', 10, 300,
+		POLICY_DEFAULTS.maxIdleGapMinutesPerDay,
+	);
+
+	// --- booleans (avoidEarly/Late) ---
+	let avoidEarly: boolean = POLICY_DEFAULTS.avoidEarlyFirstPeriod;
+	if (input.avoidEarlyFirstPeriod !== undefined && input.avoidEarlyFirstPeriod !== null) {
+		if (typeof input.avoidEarlyFirstPeriod !== 'boolean') {
+			errors.push('avoidEarlyFirstPeriod must be a boolean.');
+		} else {
+			avoidEarly = input.avoidEarlyFirstPeriod;
+		}
+	}
+
+	let avoidLate: boolean = POLICY_DEFAULTS.avoidLateLastPeriod;
+	if (input.avoidLateLastPeriod !== undefined && input.avoidLateLastPeriod !== null) {
+		if (typeof input.avoidLateLastPeriod !== 'boolean') {
+			errors.push('avoidLateLastPeriod must be a boolean.');
+		} else {
+			avoidLate = input.avoidLateLastPeriod;
+		}
+	}
+
+	// --- constraintConfig (JSON object) ---
+	let constraintConfig: Record<string, ConstraintOverride> | null = null;
+	if (input.constraintConfig !== undefined && input.constraintConfig !== null) {
+		if (typeof input.constraintConfig !== 'object' || Array.isArray(input.constraintConfig)) {
+			errors.push('constraintConfig must be a JSON object.');
+		} else {
+			constraintConfig = {} as Record<string, ConstraintOverride>;
+			for (const [key, val] of Object.entries(input.constraintConfig as Record<string, unknown>)) {
+				if (typeof val !== 'object' || val === null || Array.isArray(val)) {
+					errors.push(`constraintConfig.${key} must be an object with { enabled, weight, treatAsHard }.`);
+					continue;
+				}
+				const v = val as Record<string, unknown>;
+				const enabled = typeof v.enabled === 'boolean' ? v.enabled : true;
+				const weight = typeof v.weight === 'number' && v.weight >= 1 && v.weight <= 10 ? v.weight : 5;
+				const treatAsHard = typeof v.treatAsHard === 'boolean' ? v.treatAsHard : false;
+				constraintConfig[key] = { enabled, weight, treatAsHard };
+			}
+		}
+	}
+
 	return {
 		data: {
 			maxConsecutiveTeachingMinutesBeforeBreak: maxConsecutive,
@@ -160,6 +235,10 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 			maxWalkingDistanceMetersPerTransition: maxWalkingDistance,
 			maxBuildingTransitionsPerDay: maxTransitions,
 			maxBackToBackTransitionsWithoutBuffer: maxB2B,
+			maxIdleGapMinutesPerDay: maxIdleGap,
+			avoidEarlyFirstPeriod: avoidEarly,
+			avoidLateLastPeriod: avoidLate,
+			constraintConfig,
 		},
 		errors,
 	};
@@ -187,9 +266,31 @@ export async function upsertPolicy(schoolId: number, schoolYearId: number, input
 		throw err(400, 'INVALID_POLICY', errors.join(' '));
 	}
 
+	// Prisma Json? fields need Prisma.JsonNull instead of plain null
+	const constraintConfigValue = data.constraintConfig === null
+		? Prisma.JsonNull
+		: (data.constraintConfig as unknown as Prisma.InputJsonValue);
+
+	const prismaData = {
+		maxConsecutiveTeachingMinutesBeforeBreak: data.maxConsecutiveTeachingMinutesBeforeBreak,
+		minBreakMinutesAfterConsecutiveBlock: data.minBreakMinutesAfterConsecutiveBlock,
+		maxTeachingMinutesPerDay: data.maxTeachingMinutesPerDay,
+		earliestStartTime: data.earliestStartTime,
+		latestEndTime: data.latestEndTime,
+		enforceConsecutiveBreakAsHard: data.enforceConsecutiveBreakAsHard,
+		enableTravelWellbeingChecks: data.enableTravelWellbeingChecks,
+		maxWalkingDistanceMetersPerTransition: data.maxWalkingDistanceMetersPerTransition,
+		maxBuildingTransitionsPerDay: data.maxBuildingTransitionsPerDay,
+		maxBackToBackTransitionsWithoutBuffer: data.maxBackToBackTransitionsWithoutBuffer,
+		maxIdleGapMinutesPerDay: data.maxIdleGapMinutesPerDay,
+		avoidEarlyFirstPeriod: data.avoidEarlyFirstPeriod,
+		avoidLateLastPeriod: data.avoidLateLastPeriod,
+		constraintConfig: constraintConfigValue,
+	};
+
 	return prisma.schedulingPolicy.upsert({
 		where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
-		create: { schoolId, schoolYearId, ...data },
-		update: data,
+		create: { schoolId, schoolYearId, ...prismaData },
+		update: prismaData,
 	});
 }

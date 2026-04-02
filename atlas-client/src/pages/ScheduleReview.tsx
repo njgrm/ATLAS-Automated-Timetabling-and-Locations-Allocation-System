@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
 	AlertCircle,
 	AlertTriangle,
@@ -15,6 +15,7 @@ import {
 	RefreshCw,
 	Search,
 	Send,
+	Settings2,
 	ShieldAlert,
 	Users,
 	X,
@@ -59,6 +60,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
+import SchedulingPolicyPane from '@/components/SchedulingPolicyPane';
+
 /* ─── Constants ─── */
 
 const DEFAULT_SCHOOL_ID = 1;
@@ -84,6 +87,9 @@ const VIOLATION_LABELS: Record<ViolationCode, string> = {
 	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: 'Excessive Travel Distance',
 	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: 'Excessive Building Transitions',
 	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: 'Insufficient Transition Buffer',
+	FACULTY_EXCESSIVE_IDLE_GAP: 'Excessive Idle Gap',
+	FACULTY_EARLY_START_PREFERENCE: 'Early Start Preference',
+	FACULTY_LATE_END_PREFERENCE: 'Late End Preference',
 };
 
 const CONFLICT_CODES: Set<ViolationCode> = new Set([
@@ -95,6 +101,9 @@ const WELLBEING_CODES: Set<ViolationCode> = new Set([
 	'FACULTY_EXCESSIVE_TRAVEL_DISTANCE',
 	'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS',
 	'FACULTY_INSUFFICIENT_TRANSITION_BUFFER',
+	'FACULTY_EXCESSIVE_IDLE_GAP',
+	'FACULTY_EARLY_START_PREFERENCE',
+	'FACULTY_LATE_END_PREFERENCE',
 ]);
 
 const GRADE_BADGE: Record<number, string> = {
@@ -226,6 +235,27 @@ export default function ScheduleReview() {
 	/* ── Layout state ── */
 	const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
 	const [isRightCollapsed, setIsRightCollapsed] = useState(false);
+	const [centerView, setCenterView] = useState<'grid' | 'policy'>('grid');
+	// Snapshot of panel state before entering policy view so we can restore on exit
+	const panelSnapshot = useRef<{ left: boolean; right: boolean } | null>(null);
+
+	const enterPolicyView = useCallback(() => {
+		// Snapshot current state then collapse both panels to maximise policy canvas
+		panelSnapshot.current = { left: isLeftCollapsed, right: isRightCollapsed };
+		setIsLeftCollapsed(true);
+		setIsRightCollapsed(true);
+		setCenterView('policy');
+	}, [isLeftCollapsed, isRightCollapsed]);
+
+	const exitPolicyView = useCallback(() => {
+		// Restore panels to whatever the user had before entering policy
+		if (panelSnapshot.current) {
+			setIsLeftCollapsed(panelSnapshot.current.left);
+			setIsRightCollapsed(panelSnapshot.current.right);
+			panelSnapshot.current = null;
+		}
+		setCenterView('grid');
+	}, []);
 
 	/* ── Derived state ── */
 	const violations = violationReport?.violations ?? [];
@@ -801,6 +831,25 @@ export default function ScheduleReview() {
 						</Tooltip>
 					</TooltipProvider>
 
+					{/* Scheduling Policy – inline center-pane toggle */}
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant={centerView === 'policy' ? 'default' : 'outline'}
+									size="sm"
+									className="h-8 gap-1.5"
+									disabled={!schoolYearId}
+									onClick={() => centerView === 'policy' ? exitPolicyView() : enterPolicyView()}
+								>
+									<Settings2 className="size-3.5" />
+									{centerView === 'policy' ? 'Close Policy' : 'Policy'}
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Configure scheduling policy and soft-constraint weights</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+
 					<TooltipProvider>
 						<Tooltip>
 							<TooltipTrigger asChild>
@@ -1012,7 +1061,7 @@ export default function ScheduleReview() {
 
 					{leftTab === 'violations' ? (
 						<div id="panel-violations" role="tabpanel" aria-labelledby="tab-violations" className="flex flex-col flex-1 min-h-0">
-							<div className="shrink-0 px-3 pt-3 pb-2">
+							<div className="shrink-0 px-3 pb-2">
 								<div className="relative">
 									<Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
 									<Input
@@ -1083,23 +1132,6 @@ export default function ScheduleReview() {
 													{summary.unassignedCount}
 												</span>
 											</div>
-											{summary.policyBlockedCount > 0 && (
-												<div className="flex items-start justify-between mt-3 pt-2 border-t border-border/50">
-													<div className="flex-1 pr-2">
-														<MetricExplain
-															label="Policy-Blocked"
-															explanation={
-																<div className="space-y-1.5 opacity-90">
-																	<p className="font-semibold text-red-400">Not a class count.</p>
-																	<p>This shows how many times the search algorithm hit a dead-end because of a hard policy stricture (like a teacher being overloaded or unavailable).</p>
-																	<p>A massive number (e.g., 1000+) just means the computer had to search extensively to find a valid arrangement.</p>
-																</div>
-															}
-														/>
-													</div>
-													<span className="text-sm font-bold text-red-600 tabular-nums">{summary.policyBlockedCount}</span>
-												</div>
-											)}
 										</div>
 
 										{/* Unassigned items list */}
@@ -1154,37 +1186,66 @@ export default function ScheduleReview() {
 					</>)}
 				</motion.div>
 
-				{/* CENTER: Timetable Grid */}
+				{/* CENTER: Timetable Grid or Policy Pane */}
 				<div className="flex-1 min-w-0 flex flex-col min-h-0">
-					{draft && draft.entries.length > 0 ? (
-						<ScrollArea className="flex-1 min-h-0">
-							<div className="p-4">
-								<TimetableGrid
-									entries={gridEntries}
-									timeSlots={timeSlots}
-									violationIndex={violationIndex}
-									highlightedEntryIds={highlightedEntryIds}
-									selectedEntry={selectedEntry}
-									followUps={followUps}
-									onEntryClick={handleEntryClick}
-									subjectLabel={subjectLabel}
-									sectionLabel={sectionLabel}
-									viewMode={viewMode}
-									pivotLabel={pivotLabel}
-									roomLabelShort={roomLabelShort}
+					<AnimatePresence mode="wait">
+						{centerView === 'policy' ? (
+							<motion.div
+								key="policy"
+								initial={{ opacity: 0, y: 8 }}
+								animate={{ opacity: 1, y: 0 }}
+								exit={{ opacity: 0, y: 8 }}
+								transition={{ duration: 0.18 }}
+								className="flex flex-col min-h-0 h-full"
+							>
+								<SchedulingPolicyPane
+									schoolId={DEFAULT_SCHOOL_ID}
+									schoolYearId={schoolYearId}
+									onBack={exitPolicyView}
+									onPolicySaved={handleRefresh}
 								/>
-							</div>
-						</ScrollArea>
-					) : (
-						<div className="flex-1 flex items-center justify-center">
-							<div className="text-center space-y-2">
-								<CalendarClock className="mx-auto size-10 text-muted-foreground/30" />
-								<p className="text-sm text-muted-foreground">
-									{draft ? 'No draft entries in this run' : 'Select a run to view the timetable'}
-								</p>
-							</div>
-						</div>
-					)}
+							</motion.div>
+						) : (
+							<motion.div
+								key="grid"
+								initial={{ opacity: 0, y: -8 }}
+								animate={{ opacity: 1, y: 0 }}
+								exit={{ opacity: 0, y: -8 }}
+								transition={{ duration: 0.18 }}
+								className="flex-1 min-w-0 flex flex-col min-h-0"
+							>
+								{draft && draft.entries.length > 0 ? (
+									<ScrollArea className="flex-1 min-h-0">
+										<div className="p-4">
+											<TimetableGrid
+												entries={gridEntries}
+												timeSlots={timeSlots}
+												violationIndex={violationIndex}
+												highlightedEntryIds={highlightedEntryIds}
+												selectedEntry={selectedEntry}
+												followUps={followUps}
+												onEntryClick={handleEntryClick}
+												subjectLabel={subjectLabel}
+												sectionLabel={sectionLabel}
+												viewMode={viewMode}
+												pivotLabel={pivotLabel}
+												roomLabelShort={roomLabelShort}
+											/>
+										</div>
+									</ScrollArea>
+								) : (
+									<div className="flex-1 flex items-center justify-center">
+										<div className="text-center space-y-2">
+											<CalendarClock className="mx-auto size-10 text-muted-foreground/30" />
+											<p className="text-sm text-muted-foreground">
+												{draft ? 'No draft entries in this run' : 'Select a run to view the timetable'}
+											</p>
+										</div>
+									</div>
+								)}
+							</motion.div>
+						)}
+					</AnimatePresence>
 				</div>
 
 				{/* RIGHT: Entry Detail Panel (collapsible) */}
@@ -1731,19 +1792,32 @@ function EntryDetailPanel({
 								>
 									<div className="font-medium">{VIOLATION_LABELS[v.code]}</div>
 									<div className="mt-0.5 opacity-80">{v.message}</div>
-									{v.meta && WELLBEING_CODES.has(v.code) && (
+									{/* Policy threshold vs observed delta */}
+									{v.meta && (
 										<div className="mt-1 pt-1 border-t border-current/10 text-[0.5625rem] space-y-0.5 opacity-90">
+											{v.meta.consecutiveMinutes != null && v.meta.maxConsecutive != null && (
+												<div>Observed: {String(v.meta.consecutiveMinutes)} min · Limit: {String(v.meta.maxConsecutive)} min · <span className="font-semibold">Δ +{Number(v.meta.consecutiveMinutes) - Number(v.meta.maxConsecutive)} min</span></div>
+											)}
+											{v.meta.dailyMinutes != null && v.meta.maxTeachingMinutesPerDay != null && (
+												<div>Observed: {String(v.meta.dailyMinutes)} min · Limit: {String(v.meta.maxTeachingMinutesPerDay)} min · <span className="font-semibold">Δ +{Number(v.meta.dailyMinutes) - Number(v.meta.maxTeachingMinutesPerDay)} min</span></div>
+											)}
+											{v.meta.actualGapMinutes != null && v.meta.requiredBreakMinutes != null && (
+												<div>Actual break: {String(v.meta.actualGapMinutes)} min · Required: {String(v.meta.requiredBreakMinutes)} min · <span className="font-semibold">Short by {Number(v.meta.requiredBreakMinutes) - Number(v.meta.actualGapMinutes)} min</span></div>
+											)}
+											{v.meta.totalIdleMinutes != null && v.meta.configuredThresholds != null && (
+												<div>Idle: {String(v.meta.totalIdleMinutes)} min · Limit: {String((v.meta.configuredThresholds as Record<string,unknown>).maxIdleGapMinutesPerDay ?? '?')} min</div>
+											)}
 											{v.meta.estimatedDistanceMeters != null && (
-												<div>Distance: ~{String(v.meta.estimatedDistanceMeters)}m</div>
+												<div>Distance: ~{String(v.meta.estimatedDistanceMeters)}m{v.meta.configuredThresholds ? ` · Limit: ${String((v.meta.configuredThresholds as Record<string,unknown>).maxWalkingDistanceMetersPerTransition ?? '?')}m` : ''}</div>
 											)}
 											{v.meta.gapMinutes != null && (
 												<div>Gap: {String(v.meta.gapMinutes)} min</div>
 											)}
 											{v.meta.buildingTransitions != null && (
-												<div>Building transitions: {String(v.meta.buildingTransitions)}</div>
+												<div>Building transitions: {String(v.meta.buildingTransitions)}{v.meta.configuredThresholds ? ` · Limit: ${String((v.meta.configuredThresholds as Record<string,unknown>).maxBuildingTransitionsPerDay ?? '?')}` : ''}</div>
 											)}
 											{v.meta.backToBackTransitions != null && (
-												<div>Back-to-back cross-building: {String(v.meta.backToBackTransitions)}</div>
+												<div>Back-to-back cross-building: {String(v.meta.backToBackTransitions)}{v.meta.configuredThresholds ? ` · Limit: ${String((v.meta.configuredThresholds as Record<string,unknown>).maxBackToBackTransitionsWithoutBuffer ?? '?')}` : ''}</div>
 											)}
 										</div>
 									)}

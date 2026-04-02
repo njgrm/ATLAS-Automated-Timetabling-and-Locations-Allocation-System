@@ -23,6 +23,9 @@ export const VIOLATION_CODES = [
 	'FACULTY_EXCESSIVE_TRAVEL_DISTANCE',
 	'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS',
 	'FACULTY_INSUFFICIENT_TRANSITION_BUFFER',
+	'FACULTY_EXCESSIVE_IDLE_GAP',
+	'FACULTY_EARLY_START_PREFERENCE',
+	'FACULTY_LATE_END_PREFERENCE',
 ] as const;
 
 export type ViolationCode = (typeof VIOLATION_CODES)[number];
@@ -78,6 +81,9 @@ export interface TravelPolicyRef {
 	maxWalkingDistanceMetersPerTransition: number;
 	maxBuildingTransitionsPerDay: number;
 	maxBackToBackTransitionsWithoutBuffer: number;
+	maxIdleGapMinutesPerDay: number;
+	avoidEarlyFirstPeriod: boolean;
+	avoidLateLastPeriod: boolean;
 }
 
 export interface BuildingRef {
@@ -440,6 +446,80 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 						configuredThresholds: { maxBackToBackTransitionsWithoutBuffer: tp.maxBackToBackTransitionsWithoutBuffer },
 					},
 				});
+			}
+		}
+	}
+
+	// ── 8) Well-being soft constraints: idle gap, early start, late end ──
+	if (ctx.travelPolicy?.enableTravelWellbeingChecks) {
+		const tp = ctx.travelPolicy;
+
+		// Group entries by faculty+day, sorted by startTime
+		const byFacDayWB = new Map<string, ScheduledEntry[]>();
+		for (const e of ctx.entries) {
+			const key = `${e.facultyId}:${e.day}`;
+			const arr = byFacDayWB.get(key) ?? [];
+			arr.push(e);
+			byFacDayWB.set(key, arr);
+		}
+
+		for (const [key, dayEntries] of byFacDayWB) {
+			const [facIdStr, day] = key.split(':');
+			const facultyId = Number(facIdStr);
+			const sorted = [...dayEntries].sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+			// 8a) Excessive idle gap: sum of gaps between consecutive classes
+			let totalIdleMinutes = 0;
+			for (let i = 1; i < sorted.length; i++) {
+				const gap = timeToMinutes(sorted[i].startTime) - timeToMinutes(sorted[i - 1].endTime);
+				if (gap > 0) totalIdleMinutes += gap;
+			}
+			if (totalIdleMinutes > tp.maxIdleGapMinutesPerDay) {
+				violations.push({
+					...base, severity: 'SOFT',
+					code: 'FACULTY_EXCESSIVE_IDLE_GAP',
+					message: `Faculty ${facultyId} has ${totalIdleMinutes} min idle gaps on ${day}, exceeds limit of ${tp.maxIdleGapMinutesPerDay} min.`,
+					entities: { facultyId, day, entryIds: sorted.map((e) => e.entryId) },
+					meta: {
+						facultyId, day,
+						totalIdleMinutes,
+						configuredThresholds: { maxIdleGapMinutesPerDay: tp.maxIdleGapMinutesPerDay },
+					},
+				});
+			}
+
+			// 8b) Early start preference
+			if (tp.avoidEarlyFirstPeriod && sorted.length > 0) {
+				const firstStart = sorted[0].startTime;
+				const policyRef = ctx.policy;
+				const earliest = policyRef?.earliestStartTime ?? '07:00';
+				// "Early" = scheduled in first period slot (within 15 min of earliest)
+				if (timeToMinutes(firstStart) <= timeToMinutes(earliest) + 15) {
+					violations.push({
+						...base, severity: 'SOFT',
+						code: 'FACULTY_EARLY_START_PREFERENCE',
+						message: `Faculty ${facultyId} has a class starting at ${firstStart} on ${day} (early first period).`,
+						entities: { facultyId, day, entryIds: [sorted[0].entryId] },
+						meta: { facultyId, day, startTime: firstStart, earliestStartTime: earliest },
+					});
+				}
+			}
+
+			// 8c) Late end preference
+			if (tp.avoidLateLastPeriod && sorted.length > 0) {
+				const lastEnd = sorted[sorted.length - 1].endTime;
+				const policyRef = ctx.policy;
+				const latest = policyRef?.latestEndTime ?? '17:00';
+				// "Late" = class ending within 15 min of latest end time
+				if (timeToMinutes(lastEnd) >= timeToMinutes(latest) - 15) {
+					violations.push({
+						...base, severity: 'SOFT',
+						code: 'FACULTY_LATE_END_PREFERENCE',
+						message: `Faculty ${facultyId} has a class ending at ${lastEnd} on ${day} (late last period).`,
+						entities: { facultyId, day, entryIds: [sorted[sorted.length - 1].entryId] },
+						meta: { facultyId, day, endTime: lastEnd, latestEndTime: latest },
+					});
+				}
 			}
 		}
 	}
