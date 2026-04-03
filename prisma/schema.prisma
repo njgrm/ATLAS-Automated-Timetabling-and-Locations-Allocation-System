@@ -277,26 +277,61 @@ enum GenerationRunStatus {
 }
 
 model GenerationRun {
-  id           Int                  @id @default(autoincrement())
-  schoolId     Int                  @map("school_id")
-  schoolYearId Int                  @map("school_year_id")
-  status       GenerationRunStatus  @default(QUEUED)
-  runType      String               @default("FULL") @map("run_type")
-  triggeredBy  Int                  @map("triggered_by")
-  startedAt    DateTime?            @map("started_at")
-  finishedAt   DateTime?            @map("finished_at")
-  durationMs   Int?                 @map("duration_ms")
-  summary      Json?
-  violations   Json?
-  draftEntries Json?                @map("draft_entries")
-  unassignedItems Json?             @map("unassigned_items")
-  error        String?
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  id              Int                  @id @default(autoincrement())
+  schoolId        Int                  @map("school_id")
+  schoolYearId    Int                  @map("school_year_id")
+  status          GenerationRunStatus  @default(QUEUED)
+  runType         String               @default("FULL") @map("run_type")
+  triggeredBy     Int                  @map("triggered_by")
+  startedAt       DateTime?            @map("started_at")
+  finishedAt      DateTime?            @map("finished_at")
+  durationMs      Int?                 @map("duration_ms")
+  summary         Json?
+  violations      Json?
+  draftEntries    Json?                @map("draft_entries")
+  unassignedItems Json?                @map("unassigned_items")
+  error           String?
+  version         Int                  @default(1)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  manualEdits     ManualScheduleEdit[]
 
   @@index([schoolId, schoolYearId, createdAt])
   @@index([status])
   @@map("generation_runs")
+}
+
+// ─── Manual Schedule Edit ───
+
+enum ManualEditType {
+  PLACE_UNASSIGNED
+  MOVE_ENTRY
+  CHANGE_ROOM
+  CHANGE_FACULTY
+  CHANGE_TIMESLOT
+  REVERT
+
+  @@map("manual_edit_type")
+}
+
+model ManualScheduleEdit {
+  id              Int            @id @default(autoincrement())
+  runId           Int            @map("run_id")
+  schoolId        Int            @map("school_id")
+  schoolYearId    Int            @map("school_year_id")
+  actorId         Int            @map("actor_id")
+  editType        ManualEditType @map("edit_type")
+  beforePayload   Json           @map("before_payload")
+  afterPayload    Json           @map("after_payload")
+  validationSummary Json?        @map("validation_summary")
+  createdAt       DateTime       @default(now())
+
+  run             GenerationRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, createdAt])
+  @@index([schoolId, schoolYearId])
+  @@map("manual_schedule_edits")
 }
 
 // ─── Audit Log ───

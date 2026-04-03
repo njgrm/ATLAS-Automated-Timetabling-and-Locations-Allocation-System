@@ -321,6 +321,7 @@ export interface DraftReport {
 	entries: ScheduledEntry[];
 	unassignedItems: UnassignedItem[];
 	summary: RunSummary | null;
+	version: number;
 	finishedAt: string | null;
 	createdAt: string;
 }
@@ -328,7 +329,7 @@ export interface DraftReport {
 export async function getRunDraft(runId: number, schoolId: number, schoolYearId: number): Promise<DraftReport> {
 	const run = await prisma.generationRun.findFirst({
 		where: { id: runId, schoolId, schoolYearId },
-		select: { id: true, status: true, draftEntries: true, unassignedItems: true, summary: true, finishedAt: true, createdAt: true },
+		select: { id: true, status: true, draftEntries: true, unassignedItems: true, summary: true, version: true, finishedAt: true, createdAt: true },
 	});
 	if (!run) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
 
@@ -338,6 +339,7 @@ export async function getRunDraft(runId: number, schoolId: number, schoolYearId:
 		entries: (run.draftEntries ?? []) as unknown as ScheduledEntry[],
 		unassignedItems: (run.unassignedItems ?? []) as unknown as UnassignedItem[],
 		summary: (run.summary ?? null) as RunSummary | null,
+		version: run.version,
 		finishedAt: run.finishedAt?.toISOString() ?? null,
 		createdAt: run.createdAt.toISOString(),
 	};
@@ -347,7 +349,7 @@ export async function getLatestRunDraft(schoolId: number, schoolYearId: number):
 	const run = await prisma.generationRun.findFirst({
 		where: { schoolId, schoolYearId },
 		orderBy: { createdAt: 'desc' },
-		select: { id: true, status: true, draftEntries: true, unassignedItems: true, summary: true, finishedAt: true, createdAt: true },
+		select: { id: true, status: true, draftEntries: true, unassignedItems: true, summary: true, version: true, finishedAt: true, createdAt: true },
 	});
 	if (!run) throw err(404, 'NO_RUNS', 'No generation runs found for this school/year.');
 
@@ -357,6 +359,7 @@ export async function getLatestRunDraft(schoolId: number, schoolYearId: number):
 		entries: (run.draftEntries ?? []) as unknown as ScheduledEntry[],
 		unassignedItems: (run.unassignedItems ?? []) as unknown as UnassignedItem[],
 		summary: (run.summary ?? null) as RunSummary | null,
+		version: run.version,
 		finishedAt: run.finishedAt?.toISOString() ?? null,
 		createdAt: run.createdAt.toISOString(),
 	};

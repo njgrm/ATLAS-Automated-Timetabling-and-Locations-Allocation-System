@@ -331,7 +331,62 @@ export interface DraftReport {
 	entries: ScheduledEntry[];
 	unassignedItems: UnassignedItem[];
 	summary: RunSummary | null;
+	version: number;
 	finishedAt: string | null;
+	createdAt: string;
+}
+
+/* ─── Manual Edit types ─── */
+
+export type ManualEditType =
+	| 'PLACE_UNASSIGNED'
+	| 'MOVE_ENTRY'
+	| 'CHANGE_ROOM'
+	| 'CHANGE_FACULTY'
+	| 'CHANGE_TIMESLOT'
+	| 'REVERT';
+
+export interface ManualEditProposal {
+	editType: ManualEditType;
+	sectionId?: number;
+	subjectId?: number;
+	session?: number;
+	entryId?: string;
+	targetDay?: string;
+	targetStartTime?: string;
+	targetEndTime?: string;
+	targetRoomId?: number;
+	targetFacultyId?: number;
+}
+
+export interface PreviewResult {
+	allowed: boolean;
+	hardViolations: Violation[];
+	softViolations: Violation[];
+	violationDelta: {
+		hardBefore: number;
+		hardAfter: number;
+		softBefore: number;
+		softAfter: number;
+	};
+}
+
+export interface CommitResult {
+	editId: number;
+	draft: DraftReport;
+	violationDelta: PreviewResult['violationDelta'];
+	warnings: Violation[];
+	newVersion: number;
+}
+
+export interface ManualEditRecord {
+	id: number;
+	runId: number;
+	actorId: number;
+	editType: string;
+	beforePayload: unknown;
+	afterPayload: unknown;
+	validationSummary: unknown;
 	createdAt: string;
 }
 

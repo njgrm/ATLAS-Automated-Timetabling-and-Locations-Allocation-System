@@ -8,6 +8,8 @@ import {
 	Clock,
 	DoorOpen,
 	Flag,
+	GripVertical,
+	History,
 	Loader2,
 	PanelLeftClose,
 	PanelLeftOpen,
@@ -17,6 +19,7 @@ import {
 	Send,
 	Settings2,
 	ShieldAlert,
+	Undo2,
 	Users,
 	X,
 } from 'lucide-react';
@@ -28,9 +31,13 @@ import { fetchPublicSettings } from '@/lib/settings';
 import { formatTime } from '@/lib/utils';
 import type {
 	Building,
+	CommitResult,
 	DraftReport,
 	ExternalSection,
 	GenerationRun,
+	ManualEditProposal,
+	ManualEditRecord,
+	PreviewResult,
 	Room,
 	RunSummary,
 	ScheduledEntry,
@@ -238,6 +245,19 @@ export default function ScheduleReview() {
 	const [centerView, setCenterView] = useState<'grid' | 'policy'>('grid');
 	// Snapshot of panel state before entering policy view so we can restore on exit
 	const panelSnapshot = useRef<{ left: boolean; right: boolean } | null>(null);
+
+	/* ── Manual edit / DnD state ── */
+	const [dragItem, setDragItem] = useState<{ type: 'entry'; entry: ScheduledEntry } | { type: 'unassigned'; item: UnassignedItem } | null>(null);
+	const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
+	const [previewLoading, setPreviewLoading] = useState(false);
+	const [showSoftConfirm, setShowSoftConfirm] = useState(false);
+	const [pendingCommitProposal, setPendingCommitProposal] = useState<ManualEditProposal | null>(null);
+	const [editHistory, setEditHistory] = useState<ManualEditRecord[]>([]);
+	const [showEditHistory, setShowEditHistory] = useState(false);
+	const [commitLoading, setCommitLoading] = useState(false);
+	const [revertLoading, setRevertLoading] = useState(false);
+	/** Keyboard-accessible DnD: selected source for placement */
+	const [kbSelectedSource, setKbSelectedSource] = useState<{ type: 'entry'; entry: ScheduledEntry } | { type: 'unassigned'; item: UnassignedItem } | null>(null);
 
 	const enterPolicyView = useCallback(() => {
 		// Snapshot current state then collapse both panels to maximise policy canvas
@@ -498,6 +518,7 @@ export default function ScheduleReview() {
 			setSelectedRunId(runId);
 			setSelectedViolation(null);
 			setSelectedEntry(null);
+			setEditHistory([]);
 			if (!schoolYearId) return;
 			setLoading(true);
 			try {
@@ -598,6 +619,242 @@ export default function ScheduleReview() {
 		setShowPublishDialog(false);
 		toast.info('Publish API is Phase 5 scope — no action taken.');
 	}, []);
+
+	/* ── Manual Edit handlers ── */
+
+	const runIdNumeric = draft?.runId ?? null;
+	const runVersion = draft?.version ?? 0;
+
+	const apiBase = useMemo(() => {
+		if (!schoolYearId || !runIdNumeric) return null;
+		return `/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${runIdNumeric}/manual-edits`;
+	}, [schoolYearId, runIdNumeric]);
+
+	const fetchEditHistory = useCallback(async () => {
+		if (!apiBase) return;
+		try {
+			const { data } = await atlasApi.get<{ edits: ManualEditRecord[] }>(apiBase);
+			setEditHistory(data.edits);
+		} catch { /* ignore */ }
+	}, [apiBase]);
+
+	const previewEdit = useCallback(
+		async (proposal: ManualEditProposal): Promise<PreviewResult | null> => {
+			if (!apiBase) return null;
+			setPreviewLoading(true);
+			try {
+				const { data } = await atlasApi.post<PreviewResult>(`${apiBase}/preview`, proposal);
+				setPreviewResult(data);
+				return data;
+			} catch (e: unknown) {
+				const msg = e instanceof Error ? e.message : 'Preview failed.';
+				toast.error(msg);
+				return null;
+			} finally {
+				setPreviewLoading(false);
+			}
+		},
+		[apiBase],
+	);
+
+	const commitEdit = useCallback(
+		async (proposal: ManualEditProposal) => {
+			if (!apiBase) return;
+			setCommitLoading(true);
+			try {
+				const { data } = await atlasApi.post<CommitResult>(`${apiBase}/commit`, {
+					proposal,
+					expectedVersion: runVersion,
+				});
+				// Apply returned draft in-place
+				setDraft(data.draft);
+				// Re-validate violations from the updated draft
+				if (schoolYearId && runIdNumeric) {
+					const violRes = await atlasApi.get<ViolationReport>(
+						`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${runIdNumeric}/violations`,
+					);
+					setViolationReport(violRes.data);
+				}
+				fetchEditHistory();
+				if (data.warnings.length > 0) {
+					toast.warning(`Edit applied with ${data.warnings.length} soft warning(s).`);
+				} else {
+					toast.success('Edit applied successfully.');
+				}
+			} catch (e: unknown) {
+				const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+					?? (e instanceof Error ? e.message : 'Commit failed.');
+				if (msg.includes('VERSION_CONFLICT') || msg.includes('version conflict')) {
+					toast.error('Version conflict — someone else edited this run. Please refresh.');
+				} else {
+					toast.error(msg);
+				}
+			} finally {
+				setCommitLoading(false);
+				setPreviewResult(null);
+				setShowSoftConfirm(false);
+				setPendingCommitProposal(null);
+				setDragItem(null);
+			}
+		},
+		[apiBase, runVersion, schoolYearId, runIdNumeric, fetchEditHistory],
+	);
+
+	const revertLastEdit = useCallback(async () => {
+		if (!apiBase) return;
+		setRevertLoading(true);
+		try {
+			const { data } = await atlasApi.post<CommitResult>(`${apiBase}/revert`);
+			setDraft(data.draft);
+			if (schoolYearId && runIdNumeric) {
+				const violRes = await atlasApi.get<ViolationReport>(
+					`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${runIdNumeric}/violations`,
+				);
+				setViolationReport(violRes.data);
+			}
+			fetchEditHistory();
+			toast.success('Last edit reverted.');
+		} catch (e: unknown) {
+			const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+				?? (e instanceof Error ? e.message : 'Revert failed.');
+			toast.error(msg);
+		} finally {
+			setRevertLoading(false);
+		}
+	}, [apiBase, schoolYearId, runIdNumeric, fetchEditHistory]);
+
+	/** Handle drop of item onto a timetable cell */
+	const handleCellDrop = useCallback(
+		async (day: string, startTime: string, endTime: string) => {
+			if (!dragItem) return;
+
+			let proposal: ManualEditProposal;
+			if (dragItem.type === 'unassigned') {
+				const item = dragItem.item;
+				// For unassigned placement, we need faculty and room from the current view context
+				// Use the first available faculty qualified for this subject + first compatible room
+				const firstEntity = Number(entityFilter);
+				let targetFacultyId = 0;
+				let targetRoomId = 0;
+
+				if (viewMode === 'faculty') {
+					targetFacultyId = firstEntity;
+					// Pick first available room
+					const rooms = Array.from(roomMap.values()).filter(r => r.isTeachingSpace);
+					targetRoomId = rooms[0]?.id ?? 0;
+				} else if (viewMode === 'room') {
+					targetRoomId = firstEntity;
+					// Pick first available faculty — rough heuristic
+					const facIds = Array.from(facultyMap.keys());
+					targetFacultyId = facIds[0] ?? 0;
+				} else {
+					// section view — pick first available faculty and room
+					const facIds = Array.from(facultyMap.keys());
+					targetFacultyId = facIds[0] ?? 0;
+					const rooms = Array.from(roomMap.values()).filter(r => r.isTeachingSpace);
+					targetRoomId = rooms[0]?.id ?? 0;
+				}
+
+				proposal = {
+					editType: 'PLACE_UNASSIGNED',
+					sectionId: item.sectionId,
+					subjectId: item.subjectId,
+					session: item.session,
+					targetDay: day,
+					targetStartTime: startTime,
+					targetEndTime: endTime,
+					targetFacultyId,
+					targetRoomId,
+				};
+			} else {
+				const entry = dragItem.entry;
+				proposal = {
+					editType: 'MOVE_ENTRY',
+					entryId: entry.entryId,
+					targetDay: day,
+					targetStartTime: startTime,
+					targetEndTime: endTime,
+				};
+			}
+
+			// Preview first
+			const preview = await previewEdit(proposal);
+			if (!preview) return;
+
+			if (!preview.allowed) {
+				toast.error(`Blocked: ${preview.hardViolations.map(v => v.message).join('; ')}`);
+				setDragItem(null);
+				return;
+			}
+
+			if (preview.softViolations.length > 0) {
+				setPendingCommitProposal(proposal);
+				setShowSoftConfirm(true);
+				return;
+			}
+
+			await commitEdit(proposal);
+		},
+		[dragItem, entityFilter, viewMode, roomMap, facultyMap, previewEdit, commitEdit],
+	);
+
+	/** Keyboard-accessible placement confirm */
+	const handleKbPlace = useCallback(
+		async (day: string, startTime: string, endTime: string) => {
+			if (!kbSelectedSource) return;
+			const fakeItem = kbSelectedSource;
+			setDragItem(fakeItem);
+			setKbSelectedSource(null);
+			// Re-use drop handler logic
+			let proposal: ManualEditProposal;
+			if (fakeItem.type === 'unassigned') {
+				const item = fakeItem.item;
+				const firstEntity = Number(entityFilter);
+				let targetFacultyId = viewMode === 'faculty' ? firstEntity : Array.from(facultyMap.keys())[0] ?? 0;
+				let targetRoomId = viewMode === 'room' ? firstEntity : (Array.from(roomMap.values()).find(r => r.isTeachingSpace)?.id ?? 0);
+
+				proposal = {
+					editType: 'PLACE_UNASSIGNED',
+					sectionId: item.sectionId,
+					subjectId: item.subjectId,
+					session: item.session,
+					targetDay: day,
+					targetStartTime: startTime,
+					targetEndTime: endTime,
+					targetFacultyId,
+					targetRoomId,
+				};
+			} else {
+				proposal = {
+					editType: 'MOVE_ENTRY',
+					entryId: fakeItem.entry.entryId,
+					targetDay: day,
+					targetStartTime: startTime,
+					targetEndTime: endTime,
+				};
+			}
+
+			const preview = await previewEdit(proposal);
+			if (!preview) { setDragItem(null); return; }
+			if (!preview.allowed) {
+				toast.error(`Blocked: ${preview.hardViolations.map(v => v.message).join('; ')}`);
+				setDragItem(null);
+				return;
+			}
+			if (preview.softViolations.length > 0) {
+				setPendingCommitProposal(proposal);
+				setShowSoftConfirm(true);
+				return;
+			}
+			await commitEdit(proposal);
+		},
+		[kbSelectedSource, entityFilter, viewMode, facultyMap, roomMap, previewEdit, commitEdit],
+	);
+
+	/** Load edit history on mount / run change */
+	useEffect(() => {
+		fetchEditHistory();
+	}, [fetchEditHistory]);
 
 	/* ── Lookup helpers ── */
 
@@ -865,6 +1122,44 @@ export default function ScheduleReview() {
 								</Button>
 							</TooltipTrigger>
 							<TooltipContent>Refresh data</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+
+					{/* Undo Last Edit */}
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant="outline"
+									size="sm"
+									className="h-8 gap-1.5"
+									disabled={revertLoading || editHistory.length === 0 || !draft}
+									onClick={revertLastEdit}
+								>
+									<Undo2 className={`size-3.5 ${revertLoading ? 'animate-spin' : ''}`} />
+									Undo
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Revert the last manual edit</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+
+					{/* Edit History */}
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant="outline"
+									size="sm"
+									className="h-8 gap-1.5"
+									disabled={editHistory.length === 0}
+									onClick={() => setShowEditHistory(true)}
+								>
+									<History className="size-3.5" />
+									<span className="text-[0.625rem]">{editHistory.length}</span>
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>View manual edit history</TooltipContent>
 						</Tooltip>
 					</TooltipProvider>
 
@@ -1141,17 +1436,30 @@ export default function ScheduleReview() {
 										{(draft?.unassignedItems ?? []).length > 0 && (
 											<div className="space-y-1">
 												<span className="text-[0.6875rem] font-medium text-muted-foreground">
-													Unassigned Items
+													Unassigned Items — drag to grid
 												</span>
 												{(draft?.unassignedItems ?? []).map((item, i) => {
 													const grade = item.gradeLevel;
 													const gradeBadge = grade ? GRADE_BADGE[grade] : undefined;
+													const isKbSelected = kbSelectedSource?.type === 'unassigned'
+														&& kbSelectedSource.item.sectionId === item.sectionId
+														&& kbSelectedSource.item.subjectId === item.subjectId
+														&& kbSelectedSource.item.session === item.session;
 													return (
 														<div
 															key={`${item.sectionId}-${item.subjectId}-${item.session}-${i}`}
-															className="rounded border border-amber-200 bg-amber-50/50 px-2 py-1.5 text-xs space-y-0.5"
+															draggable
+															onDragStart={() => setDragItem({ type: 'unassigned', item })}
+															onDragEnd={() => { if (!showSoftConfirm) setDragItem(null); }}
+															onClick={() => setKbSelectedSource(isKbSelected ? null : { type: 'unassigned', item })}
+															className={`rounded border px-2 py-1.5 text-xs space-y-0.5 cursor-grab active:cursor-grabbing transition-colors ${
+																isKbSelected
+																	? 'border-primary bg-primary/10 ring-2 ring-primary'
+																	: 'border-amber-200 bg-amber-50/50 hover:border-amber-300'
+															}`}
 														>
 															<div className="flex items-center gap-1.5">
+																<GripVertical className="size-3 text-muted-foreground/50 shrink-0" />
 																{gradeBadge && (
 																	<Badge variant="outline" className={`h-4 px-1 text-[0.5625rem] shrink-0 ${gradeBadge}`}>
 																		G{grade}
@@ -1233,6 +1541,11 @@ export default function ScheduleReview() {
 												viewMode={viewMode}
 												pivotLabel={pivotLabel}
 												roomLabelShort={roomLabelShort}
+												dragItem={dragItem}
+												setDragItem={setDragItem}
+												onCellDrop={handleCellDrop}
+												kbSelectedSource={kbSelectedSource}
+												onKbPlace={handleKbPlace}
 											/>
 										</div>
 									</ScrollArea>
@@ -1294,6 +1607,10 @@ export default function ScheduleReview() {
 										gradeForSection={gradeForSection}
 										roomLabel={roomLabel}
 										isStaleRoom={isStaleRoom}
+										onMoveTimeslot={() => {
+											setKbSelectedSource({ type: 'entry', entry: selectedEntry });
+											toast.info('Click a cell in the grid to move this entry.');
+										}}
 									/>
 								</motion.div>
 							) : (
@@ -1396,6 +1713,115 @@ export default function ScheduleReview() {
 								<TooltipContent>Publish API implementation is Phase 5 scope</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* ── Soft-Violation Confirm Dialog ── */}
+			<Dialog open={showSoftConfirm} onOpenChange={(open) => {
+				if (!open) {
+					setShowSoftConfirm(false);
+					setPendingCommitProposal(null);
+					setPreviewResult(null);
+					setDragItem(null);
+				}
+			}}>
+				<DialogContent className="max-w-md">
+					<DialogHeader>
+						<DialogTitle className="flex items-center gap-2">
+							<AlertTriangle className="size-4 text-amber-500" />
+							Soft Constraint Warnings
+						</DialogTitle>
+						<DialogDescription>
+							This edit introduces {previewResult?.softViolations.length ?? 0} soft warning(s).
+							You can still apply it, but review the issues below.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="max-h-48 overflow-auto space-y-1.5 py-2">
+						{previewResult?.softViolations.map((v, i) => (
+							<div
+								key={i}
+								className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
+							>
+								<span className="font-mono text-[0.625rem] opacity-60 mr-1.5">{v.code}</span>
+								{v.message}
+							</div>
+						))}
+					</div>
+					<DialogFooter className="gap-2 sm:gap-0">
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => {
+								setShowSoftConfirm(false);
+								setPendingCommitProposal(null);
+								setPreviewResult(null);
+								setDragItem(null);
+							}}
+						>
+							Cancel
+						</Button>
+						<Button
+							variant="default"
+							size="sm"
+							disabled={commitLoading}
+							onClick={() => {
+								if (pendingCommitProposal) commitEdit(pendingCommitProposal);
+							}}
+						>
+							{commitLoading ? 'Applying…' : 'Apply Anyway'}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* ── Edit History Dialog ── */}
+			<Dialog open={showEditHistory} onOpenChange={setShowEditHistory}>
+				<DialogContent className="max-w-lg">
+					<DialogHeader>
+						<DialogTitle className="flex items-center gap-2">
+							<History className="size-4" />
+							Manual Edit History
+						</DialogTitle>
+						<DialogDescription>
+							{editHistory.length === 0
+								? 'No manual edits have been made on this run.'
+								: `${editHistory.length} edit(s) recorded.`}
+						</DialogDescription>
+					</DialogHeader>
+					<div className="max-h-64 overflow-auto space-y-1.5 py-2">
+						{editHistory.map((edit) => (
+							<div
+								key={edit.id}
+								className={`rounded border px-3 py-2 text-xs space-y-0.5 ${
+									edit.editType === 'REVERT'
+										? 'border-muted bg-muted/30'
+										: 'border-border bg-background'
+								}`}
+							>
+								<div className="flex items-center justify-between">
+									<Badge variant="outline" className="h-4 px-1 text-[0.5625rem]">
+										{edit.editType.replace(/_/g, ' ')}
+									</Badge>
+									<span className="text-[0.625rem] text-muted-foreground">
+										{new Date(edit.createdAt).toLocaleString()}
+									</span>
+								</div>
+								{edit.validationSummary != null ? (() => {
+									const vs = edit.validationSummary as Record<string, number>;
+									return (
+										<div className="text-muted-foreground text-[0.625rem]">
+											Hard: {vs.hardCount ?? 0}, Soft: {vs.softCount ?? 0}
+										</div>
+									);
+								})() : null}
+							</div>
+						))}
+					</div>
+					<DialogFooter>
+						<Button variant="outline" size="sm" onClick={() => setShowEditHistory(false)}>
+							Close
+						</Button>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
@@ -1564,6 +1990,8 @@ function ViolationGroup({
 
 /* ─── Timetable Grid ─── */
 
+type DragSource = { type: 'entry'; entry: ScheduledEntry } | { type: 'unassigned'; item: UnassignedItem } | null;
+
 function TimetableGrid({
 	entries,
 	timeSlots,
@@ -1577,6 +2005,11 @@ function TimetableGrid({
 	viewMode,
 	pivotLabel,
 	roomLabelShort,
+	dragItem,
+	setDragItem,
+	onCellDrop,
+	kbSelectedSource,
+	onKbPlace,
 }: {
 	entries: ScheduledEntry[];
 	timeSlots: Array<{ startTime: string; endTime: string }>;
@@ -1590,7 +2023,14 @@ function TimetableGrid({
 	viewMode: ViewMode;
 	pivotLabel: (id: number) => string;
 	roomLabelShort: (roomId: number) => string;
+	dragItem: DragSource;
+	setDragItem: (d: DragSource) => void;
+	onCellDrop: (day: string, startTime: string, endTime: string) => void;
+	kbSelectedSource: DragSource;
+	onKbPlace: (day: string, startTime: string, endTime: string) => void;
 }) {
+	const [dropTarget, setDropTarget] = useState<string | null>(null);
+
 	/** Grid lookup: `${day}-${startTime}` → entries */
 	const gridIndex = useMemo(() => {
 		const index = new Map<string, ScheduledEntry[]>();
@@ -1602,6 +2042,9 @@ function TimetableGrid({
 		}
 		return index;
 	}, [entries]);
+
+	const isDragging = dragItem !== null;
+	const hasKbSource = kbSelectedSource !== null;
 
 	return (
 		<div className="overflow-auto">
@@ -1632,9 +2075,41 @@ function TimetableGrid({
 							{DAYS.map((day) => {
 								const key = `${day}-${slot.startTime}`;
 								const cellEntries = gridIndex.get(key) ?? [];
+								const isDropOver = dropTarget === key;
+								// Determine cell drop zone class
+								let dropClass = '';
+								if (isDragging || hasKbSource) {
+									if (isDropOver) {
+										dropClass = ' ring-2 ring-primary bg-primary/5';
+									} else {
+										dropClass = ' ring-1 ring-dashed ring-muted-foreground/20';
+									}
+								}
 								return (
-									<td key={day} className="px-1 py-1 align-top border-l border-border/30">
-										<div className="space-y-0.5">
+									<td
+										key={day}
+										className={`px-1 py-1 align-top border-l border-border/30 transition-all${dropClass}`}
+										onDragOver={(ev) => {
+											if (!isDragging) return;
+											ev.preventDefault();
+											ev.dataTransfer.dropEffect = 'move';
+											setDropTarget(key);
+										}}
+										onDragLeave={() => {
+											if (dropTarget === key) setDropTarget(null);
+										}}
+										onDrop={(ev) => {
+											ev.preventDefault();
+											setDropTarget(null);
+											onCellDrop(day, slot.startTime, slot.endTime);
+										}}
+										onClick={() => {
+											if (hasKbSource) {
+												onKbPlace(day, slot.startTime, slot.endTime);
+											}
+										}}
+									>
+										<div className="space-y-0.5 min-h-[1.5rem]">
 											{cellEntries.map((e) => {
 												const sev = entrySeverity(e.entryId, violationIndex);
 												const isHighlighted = highlightedEntryIds.has(e.entryId);
@@ -1656,11 +2131,21 @@ function TimetableGrid({
 												return (
 													<button
 														key={e.entryId}
-														onClick={() => onEntryClick(e)}
+														draggable
+														onDragStart={(ev) => {
+															ev.stopPropagation();
+															setDragItem({ type: 'entry', entry: e });
+														}}
+														onDragEnd={() => setDragItem(null)}
+														onClick={(ev) => {
+															ev.stopPropagation();
+															onEntryClick(e);
+														}}
 														aria-label={`${subjectLabel(e.subjectId)}, ${sectionLabel(e.sectionId)}, ${DAY_SHORT[e.day] ?? e.day} ${formatTime(e.startTime)}–${formatTime(e.endTime)}`}
-														className={`w-full text-left rounded px-1.5 py-1 border text-[0.625rem] leading-tight transition-all cursor-pointer hover:opacity-80 ${cellClass}`}
+														className={`w-full text-left rounded px-1.5 py-1 border text-[0.625rem] leading-tight transition-all cursor-grab active:cursor-grabbing hover:opacity-80 ${cellClass}`}
 													>
-														<div className="font-medium truncate">
+														<div className="font-medium truncate flex items-center gap-1">
+															<GripVertical className="size-2.5 text-muted-foreground/40 shrink-0" />
 															{subjectLabel(e.subjectId)}
 														</div>
 														<div className="text-muted-foreground truncate">
@@ -1710,6 +2195,7 @@ function EntryDetailPanel({
 	gradeForSection,
 	roomLabel,
 	isStaleRoom,
+	onMoveTimeslot,
 }: {
 	entry: ScheduledEntry;
 	violationIndex: Map<string, Violation[]>;
@@ -1722,6 +2208,7 @@ function EntryDetailPanel({
 	gradeForSection: (sectionId: number) => number | null;
 	roomLabel: (roomId: number) => string;
 	isStaleRoom: (roomId: number) => boolean;
+	onMoveTimeslot: () => void;
 }) {
 	const entryViolations = violationIndex.get(entry.entryId) ?? [];
 	const grade = gradeForSection(entry.sectionId);
@@ -1881,14 +2368,14 @@ function EntryDetailPanel({
 											variant="outline"
 											size="sm"
 											className="w-full h-7 text-xs justify-start"
-											disabled
+											onClick={onMoveTimeslot}
 										>
 											<Clock className="size-3 mr-1.5" />
 											Move Timeslot
 										</Button>
 									</span>
 								</TooltipTrigger>
-								<TooltipContent>Phase 4 edit API pending</TooltipContent>
+								<TooltipContent>Click, then select a target cell in the grid</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
 

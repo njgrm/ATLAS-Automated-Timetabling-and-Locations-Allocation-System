@@ -24,6 +24,7 @@ import generationRouter from './routes/generation.router.js';
 import schedulingPolicyRouter from './routes/scheduling-policy.router.js';
 import roomScheduleRouter from './routes/room-schedule.router.js';
 import followUpFlagRouter from './routes/follow-up-flag.router.js';
+import manualEditRouter from './routes/manual-edit.router.js';
 
 const app = express();
 
@@ -66,6 +67,7 @@ app.use('/api/v1/generation', generationRouter);
 app.use('/api/v1/policies/scheduling', schedulingPolicyRouter);
 app.use('/api/v1/room-schedules', roomScheduleRouter);
 app.use('/api/v1/follow-up-flags', followUpFlagRouter);
+app.use('/api/v1/generation', manualEditRouter);
 
 // Error handler
 app.use(errorHandler);
