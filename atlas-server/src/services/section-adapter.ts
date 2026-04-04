@@ -1,6 +1,8 @@
 /**
  * Section adapter interface and implementations.
  * Mirrors the faculty-adapter pattern: EnrollPro adapter (default) with stub fallback.
+ *
+ * Source metadata is always returned so callers can surface live vs fallback state.
  */
 
 export interface ExternalSection {
@@ -19,6 +21,14 @@ export interface SectionsByGrade {
 	sections: ExternalSection[];
 }
 
+export type SectionSourceLabel = 'enrollpro' | 'stub' | 'auto-fallback';
+
+export interface SectionFetchResult {
+	gradeLevels: SectionsByGrade[];
+	source: SectionSourceLabel;
+	fallbackReason?: string;
+}
+
 export interface SectionSummary {
 	schoolId: number;
 	schoolYearId: number;
@@ -27,10 +37,12 @@ export interface SectionSummary {
 	byGradeLevel: Record<number, number>;
 	enrolledByGradeLevel: Record<number, number>;
 	sections: ExternalSection[];
+	source: SectionSourceLabel;
+	fallbackReason?: string;
 }
 
 export interface SectionAdapter {
-	fetchSectionsBySchoolYear(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionsByGrade[]>;
+	fetchSectionsBySchoolYear(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionFetchResult>;
 }
 
 /* ─── Stub adapter ─── */
@@ -69,9 +81,9 @@ const STUB_SECTIONS: SectionsByGrade[] = [
 ];
 
 export class StubSectionAdapter implements SectionAdapter {
-	async fetchSectionsBySchoolYear(_schoolYearId: number, _schoolId: number): Promise<SectionsByGrade[]> {
+	async fetchSectionsBySchoolYear(_schoolYearId: number, _schoolId: number): Promise<SectionFetchResult> {
 		await new Promise((r) => setTimeout(r, 80));
-		return STUB_SECTIONS;
+		return { gradeLevels: STUB_SECTIONS, source: 'stub' };
 	}
 }
 
@@ -84,7 +96,7 @@ export class EnrollProSectionAdapter implements SectionAdapter {
 		this.baseUrl = baseUrl ?? process.env.ENROLLPRO_API ?? 'http://localhost:5000/api';
 	}
 
-	async fetchSectionsBySchoolYear(schoolYearId: number, _schoolId: number, authToken?: string): Promise<SectionsByGrade[]> {
+	async fetchSectionsBySchoolYear(schoolYearId: number, _schoolId: number, authToken?: string): Promise<SectionFetchResult> {
 		const url = `${this.baseUrl}/sections/${schoolYearId}?level=JHS`;
 		const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
 		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -101,19 +113,22 @@ export class EnrollProSectionAdapter implements SectionAdapter {
 		const body = await response.json() as { gradeLevels?: SectionsByGrade[] };
 		const gradeLevels = body.gradeLevels ?? [];
 
-		return gradeLevels.map((gl) => ({
-			gradeLevelId: gl.gradeLevelId,
-			gradeLevelName: gl.gradeLevelName,
-			displayOrder: gl.displayOrder,
-			sections: (gl.sections ?? []).map((s: any) => ({
-				id: s.id,
-				name: s.name,
-				maxCapacity: s.maxCapacity ?? 0,
-				enrolledCount: s.enrolledCount ?? 0,
+		return {
+			gradeLevels: gradeLevels.map((gl) => ({
 				gradeLevelId: gl.gradeLevelId,
 				gradeLevelName: gl.gradeLevelName,
+				displayOrder: gl.displayOrder,
+				sections: (gl.sections ?? []).map((s: any) => ({
+					id: s.id,
+					name: s.name,
+					maxCapacity: s.maxCapacity ?? 0,
+					enrolledCount: s.enrolledCount ?? 0,
+					gradeLevelId: gl.gradeLevelId,
+					gradeLevelName: gl.gradeLevelName,
+				})),
 			})),
-		}));
+			source: 'enrollpro',
+		};
 	}
 }
 
@@ -127,6 +142,8 @@ export class EnrollProSectionAdapter implements SectionAdapter {
  *
  * Legacy env vars SECTION_ADAPTER / FACULTY_ADAPTER = 'stub' are honoured
  * as shorthand for SECTION_SOURCE_MODE=stub.
+ *
+ * SECTION_STRICT_UPSTREAM=true makes 'auto' behave like fail-fast (no fallback).
  */
 export type SectionSourceMode = 'stub' | 'enrollpro' | 'auto';
 
@@ -143,17 +160,40 @@ function resolveSectionSourceMode(): SectionSourceMode {
 
 export const sectionSourceMode: SectionSourceMode = resolveSectionSourceMode();
 
+const strictUpstream = process.env.SECTION_STRICT_UPSTREAM?.toLowerCase() === 'true';
+
 class AutoSectionAdapter implements SectionAdapter {
 	private enrollpro = new EnrollProSectionAdapter();
 	private stub = new StubSectionAdapter();
 
-	async fetchSectionsBySchoolYear(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionsByGrade[]> {
+	async fetchSectionsBySchoolYear(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionFetchResult> {
 		try {
 			return await this.enrollpro.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
 		} catch (error) {
+			if (strictUpstream) {
+				// In strict mode, do not silently fall back
+				throw error;
+			}
 			const msg = error instanceof Error ? error.message : String(error);
-			console.warn(`[section-adapter] EnrollPro unreachable (${msg}), falling back to stub adapter.`);
-			return this.stub.fetchSectionsBySchoolYear(schoolYearId, schoolId);
+			const errClass = error instanceof Error ? error.constructor.name : 'Unknown';
+
+			// Structured warning log
+			console.warn(JSON.stringify({
+				level: 'WARN',
+				event: 'section_adapter_fallback',
+				schoolYearId,
+				schoolId,
+				errorClass: errClass,
+				errorMessage: msg,
+				ts: new Date().toISOString(),
+			}));
+
+			const stubResult = await this.stub.fetchSectionsBySchoolYear(schoolYearId, schoolId);
+			return {
+				gradeLevels: stubResult.gradeLevels,
+				source: 'auto-fallback',
+				fallbackReason: msg,
+			};
 		}
 	}
 }

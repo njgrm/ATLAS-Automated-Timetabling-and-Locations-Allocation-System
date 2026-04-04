@@ -6,14 +6,14 @@
 import { sectionAdapter, type SectionSummary } from './section-adapter.js';
 
 export async function getSectionSummary(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionSummary> {
-	const gradeLevels = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
+	const result = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
 
 	const byGradeLevel: Record<number, number> = {};
 	const enrolledByGradeLevel: Record<number, number> = {};
 	const allSections: SectionSummary['sections'] = [];
 	let totalEnrolled = 0;
 
-	for (const gl of gradeLevels) {
+	for (const gl of result.gradeLevels) {
 		byGradeLevel[gl.displayOrder] = gl.sections.length;
 		const gradeEnrolled = gl.sections.reduce((sum, s) => sum + s.enrolledCount, 0);
 		enrolledByGradeLevel[gl.displayOrder] = gradeEnrolled;
@@ -29,5 +29,7 @@ export async function getSectionSummary(schoolYearId: number, schoolId: number, 
 		byGradeLevel,
 		enrolledByGradeLevel,
 		sections: allSections,
+		source: result.source,
+		...(result.fallbackReason ? { fallbackReason: result.fallbackReason } : {}),
 	};
 }

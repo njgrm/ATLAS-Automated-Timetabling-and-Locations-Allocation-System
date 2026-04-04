@@ -409,6 +409,9 @@ export interface SectionSummaryResponse {
 	byGradeLevel: Record<number, number>;
 	enrolledByGradeLevel: Record<number, number>;
 	sections: ExternalSection[];
+	source?: 'enrollpro' | 'stub' | 'auto-fallback';
+	sourceMode?: 'stub' | 'enrollpro' | 'auto';
+	fallbackReason?: string;
 }
 
 /* ─── Scheduling Policy types ─── */

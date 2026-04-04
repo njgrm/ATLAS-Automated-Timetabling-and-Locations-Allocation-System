@@ -64,7 +64,7 @@ export async function triggerGenerationRun(
 	try {
 		// ── Fetch all input data for construction ──
 		stage = 'sections-fetch';
-		const [sectionsByGrade, faculty, facultySubjects, rooms, subjects, preferences, policyRecord, buildings] = await Promise.all([
+		const [sectionResult, faculty, facultySubjects, rooms, subjects, preferences, policyRecord, buildings] = await Promise.all([
 			sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId),
 			prisma.facultyMirror.findMany({
 				where: { schoolId, isActiveForScheduling: true },
@@ -102,6 +102,7 @@ export async function triggerGenerationRun(
 
 		// ── Run baseline constructor ──
 		stage = 'constructor';
+		const sectionsByGrade = sectionResult.gradeLevels;
 		const constructorInput: ConstructorInput = {
 			schoolId,
 			schoolYearId,
