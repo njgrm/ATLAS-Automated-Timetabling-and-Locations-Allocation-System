@@ -74,7 +74,7 @@ router.post(
 			const actorId = req.user?.userId;
 			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
 
-			const { proposal, expectedVersion } = req.body ?? {};
+			const { proposal, expectedVersion, allowSoftOverride } = req.body ?? {};
 			if (!proposal || !proposal.editType) {
 				res.status(400).json({ code: 'INVALID_BODY', message: 'Request body must include proposal.editType.' });
 				return;
@@ -85,7 +85,7 @@ router.post(
 			}
 
 			const result = await manualEditService.commitManualEdit(
-				scope.runId, scope.schoolId, scope.schoolYearId, actorId, proposal, expectedVersion,
+				scope.runId, scope.schoolId, scope.schoolYearId, actorId, proposal, expectedVersion, !!allowSoftOverride,
 			);
 			res.json(result);
 		} catch (e) { next(e); }

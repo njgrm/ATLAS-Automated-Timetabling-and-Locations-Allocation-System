@@ -369,6 +369,36 @@ export interface PreviewResult {
 		softBefore: number;
 		softAfter: number;
 	};
+	humanConflicts: HumanConflict[];
+	affectedEntries: AffectedEntry[];
+	policyImpactSummary: PolicyImpact[];
+}
+
+export interface HumanConflict {
+	code: string;
+	severity: 'HARD' | 'SOFT';
+	humanTitle: string;
+	humanDetail: string;
+	delta?: string;
+}
+
+export interface AffectedEntry {
+	entryId: string;
+	subjectId: number;
+	sectionId: number;
+	facultyId: number;
+	roomId: number;
+	day: string;
+	startTime: string;
+	endTime: string;
+	phase: 'before' | 'after';
+}
+
+export interface PolicyImpact {
+	code: string;
+	label: string;
+	summary: string;
+	severity: 'HARD' | 'SOFT';
 }
 
 export interface CommitResult {

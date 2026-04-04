@@ -61,6 +61,45 @@ export interface PreviewResult {
 		softBefore: number;
 		softAfter: number;
 	};
+	/** Human-readable conflict descriptions built server-side */
+	humanConflicts: HumanConflict[];
+	/** Entries affected by this edit (before/after pair) */
+	affectedEntries: AffectedEntry[];
+	/** Policy threshold summaries for delta display */
+	policyImpactSummary: PolicyImpact[];
+}
+
+/** Machine-readable code + human-readable strings for UI rendering */
+export interface HumanConflict {
+	code: string;
+	severity: 'HARD' | 'SOFT';
+	/** Short title for card header, e.g. "Faculty Time Conflict" */
+	humanTitle: string;
+	/** Full human-readable detail, e.g. "Dela Cruz, Juan is already teaching 7-Einstein in Room 101 on Mon 8:00 AM–9:00 AM" */
+	humanDetail: string;
+	/** Optional delta string, e.g. "Limit: 200 min · Observed: 320 min · Δ +120 min" */
+	delta?: string;
+}
+
+export interface AffectedEntry {
+	entryId: string;
+	subjectId: number;
+	sectionId: number;
+	facultyId: number;
+	roomId: number;
+	day: string;
+	startTime: string;
+	endTime: string;
+	/** 'before' = the entry before the edit, 'after' = the entry after the edit */
+	phase: 'before' | 'after';
+}
+
+export interface PolicyImpact {
+	code: string;
+	label: string;
+	/** e.g. "Limit: 200 min · Observed: 320 min · Δ +120 min" */
+	summary: string;
+	severity: 'HARD' | 'SOFT';
 }
 
 export interface CommitResult {
@@ -100,7 +139,7 @@ async function loadRunContext(runId: number, schoolId: number, schoolYearId: num
 		reason: string;
 	}>;
 
-	const [faculty, facultySubjects, rooms, subjects, policyRecord, buildings] = await Promise.all([
+	const [faculty, facultySubjects, rooms, subjects, policyRecord, buildings, facultyNames, roomNames, subjectNames] = await Promise.all([
 		prisma.facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true },
 			select: { id: true, maxHoursPerWeek: true },
@@ -122,9 +161,27 @@ async function loadRunContext(runId: number, schoolId: number, schoolYearId: num
 			where: { schoolId },
 			select: { id: true, x: true, y: true },
 		}),
+		// Name data for human-readable conflict messages
+		prisma.facultyMirror.findMany({
+			where: { schoolId },
+			select: { id: true, firstName: true, lastName: true, maxHoursPerWeek: true },
+		}),
+		prisma.room.findMany({
+			where: { building: { schoolId } },
+			select: { id: true, name: true, buildingId: true, type: true, capacity: true, building: { select: { name: true, shortCode: true } } },
+		}),
+		prisma.subject.findMany({
+			where: { schoolId },
+			select: { id: true, code: true, name: true },
+		}),
 	]);
 
-	return { run, entries, unassignedItems, faculty, facultySubjects, rooms, subjects, policyRecord, buildings };
+	// Build name lookup maps
+	const facultyNameMap = new Map(facultyNames.map((f) => [f.id, `${f.lastName}, ${f.firstName}`]));
+	const roomNameMap = new Map(roomNames.map((r) => [r.id, `${r.name} · ${r.building.shortCode || r.building.name}`]));
+	const subjectNameMap = new Map(subjectNames.map((s) => [s.id, s.code]));
+
+	return { run, entries, unassignedItems, faculty, facultySubjects, rooms, subjects, policyRecord, buildings, facultyNameMap, roomNameMap, subjectNameMap };
 }
 
 function buildValidatorCtx(
@@ -262,6 +319,196 @@ function computeSummary(entries: ScheduledEntry[], unassigned: unknown[], valida
 	};
 }
 
+// ─── Human-readable conflict builder ───
+
+const VIOLATION_TITLES: Record<string, string> = {
+	FACULTY_TIME_CONFLICT: 'Faculty Time Conflict',
+	ROOM_TIME_CONFLICT: 'Room Time Conflict',
+	FACULTY_OVERLOAD: 'Faculty Overload',
+	ROOM_TYPE_MISMATCH: 'Room Type Mismatch',
+	FACULTY_SUBJECT_NOT_QUALIFIED: 'Faculty Not Qualified',
+	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: 'Consecutive Teaching Limit',
+	FACULTY_BREAK_REQUIREMENT_VIOLATED: 'Break Requirement Violated',
+	FACULTY_DAILY_MAX_EXCEEDED: 'Daily Max Exceeded',
+	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: 'Excessive Travel Distance',
+	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: 'Excessive Building Transitions',
+	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: 'Insufficient Transition Buffer',
+	FACULTY_EXCESSIVE_IDLE_GAP: 'Excessive Idle Gap',
+	FACULTY_EARLY_START_PREFERENCE: 'Early Start Preference',
+	FACULTY_LATE_END_PREFERENCE: 'Late End Preference',
+};
+
+const DAY_LABELS: Record<string, string> = {
+	MONDAY: 'Mon', TUESDAY: 'Tue', WEDNESDAY: 'Wed', THURSDAY: 'Thu', FRIDAY: 'Fri',
+};
+
+function formatTimeAmPm(hhmm: string): string {
+	const [h, m] = hhmm.split(':').map(Number);
+	const suffix = h >= 12 ? 'PM' : 'AM';
+	const hour12 = h % 12 || 12;
+	return `${hour12}:${String(m).padStart(2, '0')} ${suffix}`;
+}
+
+function buildHumanConflicts(
+	violations: Violation[],
+	entries: ScheduledEntry[],
+	refData: Awaited<ReturnType<typeof loadRunContext>>,
+): HumanConflict[] {
+	const { facultyNameMap, roomNameMap, subjectNameMap } = refData;
+	const entryMap = new Map(entries.map((e) => [e.entryId, e]));
+
+	return violations.map((v) => {
+		const title = VIOLATION_TITLES[v.code] ?? v.code;
+		let detail = v.message; // fallback
+		let delta: string | undefined;
+
+		const fName = v.entities.facultyId ? facultyNameMap.get(v.entities.facultyId) ?? `Faculty #${v.entities.facultyId}` : undefined;
+		const rName = v.entities.roomId ? roomNameMap.get(v.entities.roomId) ?? `Room #${v.entities.roomId}` : undefined;
+		const dayLabel = v.entities.day ? (DAY_LABELS[v.entities.day] ?? v.entities.day) : undefined;
+		const timeRange = v.entities.startTime && v.entities.endTime
+			? `${formatTimeAmPm(v.entities.startTime)}–${formatTimeAmPm(v.entities.endTime)}`
+			: undefined;
+
+		// Find conflicting entries for context
+		const conflictEntries = (v.entities.entryIds ?? []).map((id) => entryMap.get(id)).filter(Boolean) as ScheduledEntry[];
+
+		switch (v.code) {
+			case 'FACULTY_TIME_CONFLICT': {
+				const otherEntries = conflictEntries.filter((e) => e.facultyId === v.entities.facultyId);
+				const sectionNames = otherEntries.map((e) => subjectNameMap.get(e.subjectId) ?? `Subject #${e.subjectId}`).join(', ');
+				detail = `${fName} is already teaching ${sectionNames}${dayLabel && timeRange ? ` on ${dayLabel} ${timeRange}` : ''}`;
+				break;
+			}
+			case 'ROOM_TIME_CONFLICT': {
+				const otherEntries = conflictEntries.filter((e) => e.roomId === v.entities.roomId);
+				const classes = otherEntries.map((e) => subjectNameMap.get(e.subjectId) ?? `Subject #${e.subjectId}`).join(', ');
+				detail = `${rName} is already occupied by ${classes}${dayLabel && timeRange ? ` on ${dayLabel} ${timeRange}` : ''}`;
+				break;
+			}
+			case 'FACULTY_OVERLOAD': {
+				const m = v.meta;
+				if (m?.totalMinutes != null && m?.maxMinutes != null) {
+					detail = `${fName} total teaching: ${m.totalMinutes} min/week exceeds max ${m.maxMinutes} min/week`;
+					delta = `Limit: ${m.maxMinutes} min · Observed: ${m.totalMinutes} min · Δ +${Number(m.totalMinutes) - Number(m.maxMinutes)} min`;
+				} else {
+					detail = `${fName} exceeds weekly teaching hour limit`;
+				}
+				break;
+			}
+			case 'ROOM_TYPE_MISMATCH': {
+				detail = `${rName} type does not match preferred room type for subject`;
+				break;
+			}
+			case 'FACULTY_SUBJECT_NOT_QUALIFIED': {
+				const sName = v.entities.subjectId ? subjectNameMap.get(v.entities.subjectId) ?? `Subject #${v.entities.subjectId}` : 'unknown subject';
+				detail = `${fName} is not qualified to teach ${sName}`;
+				break;
+			}
+			case 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED': {
+				const m = v.meta;
+				if (m?.consecutiveMinutes != null && m?.maxConsecutive != null) {
+					detail = `${fName} teaches ${m.consecutiveMinutes} consecutive minutes${dayLabel ? ` on ${dayLabel}` : ''}`;
+					delta = `Limit: ${m.maxConsecutive} min · Observed: ${m.consecutiveMinutes} min · Δ +${Number(m.consecutiveMinutes) - Number(m.maxConsecutive)} min`;
+				} else {
+					detail = `${fName} exceeds consecutive teaching limit${dayLabel ? ` on ${dayLabel}` : ''}`;
+				}
+				break;
+			}
+			case 'FACULTY_BREAK_REQUIREMENT_VIOLATED': {
+				const m = v.meta;
+				if (m?.actualGapMinutes != null && m?.requiredBreakMinutes != null) {
+					detail = `${fName} has only ${m.actualGapMinutes} min break${dayLabel ? ` on ${dayLabel}` : ''}, needs ${m.requiredBreakMinutes} min`;
+					delta = `Required: ${m.requiredBreakMinutes} min · Actual: ${m.actualGapMinutes} min · Short by ${Number(m.requiredBreakMinutes) - Number(m.actualGapMinutes)} min`;
+				} else {
+					detail = `${fName} does not have required break${dayLabel ? ` on ${dayLabel}` : ''}`;
+				}
+				break;
+			}
+			case 'FACULTY_DAILY_MAX_EXCEEDED': {
+				const m = v.meta;
+				if (m?.dailyMinutes != null && m?.maxTeachingMinutesPerDay != null) {
+					detail = `${fName} teaches ${m.dailyMinutes} min${dayLabel ? ` on ${dayLabel}` : ''}, exceeds daily max`;
+					delta = `Limit: ${m.maxTeachingMinutesPerDay} min · Observed: ${m.dailyMinutes} min · Δ +${Number(m.dailyMinutes) - Number(m.maxTeachingMinutesPerDay)} min`;
+				} else {
+					detail = `${fName} exceeds daily max teaching minutes`;
+				}
+				break;
+			}
+			case 'FACULTY_EXCESSIVE_TRAVEL_DISTANCE': {
+				const m = v.meta;
+				if (m?.estimatedDistanceMeters != null) {
+					const limit = m?.configuredThresholds ? (m.configuredThresholds as Record<string, unknown>).maxWalkingDistanceMetersPerTransition : undefined;
+					detail = `${fName} travels ~${m.estimatedDistanceMeters}m between classes${dayLabel ? ` on ${dayLabel}` : ''}`;
+					if (limit != null) delta = `Limit: ${limit}m · Observed: ~${m.estimatedDistanceMeters}m · Δ +${Number(m.estimatedDistanceMeters) - Number(limit)}m`;
+				}
+				break;
+			}
+			case 'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS': {
+				const m = v.meta;
+				if (m?.buildingTransitions != null) {
+					const limit = m?.configuredThresholds ? (m.configuredThresholds as Record<string, unknown>).maxBuildingTransitionsPerDay : undefined;
+					detail = `${fName} has ${m.buildingTransitions} building transitions${dayLabel ? ` on ${dayLabel}` : ''}`;
+					if (limit != null) delta = `Limit: ${limit} · Observed: ${m.buildingTransitions} · Δ +${Number(m.buildingTransitions) - Number(limit)}`;
+				}
+				break;
+			}
+			case 'FACULTY_INSUFFICIENT_TRANSITION_BUFFER': {
+				const m = v.meta;
+				if (m?.backToBackTransitions != null) {
+					detail = `${fName} has ${m.backToBackTransitions} back-to-back cross-building transitions${dayLabel ? ` on ${dayLabel}` : ''}`;
+				}
+				break;
+			}
+			case 'FACULTY_EXCESSIVE_IDLE_GAP': {
+				const m = v.meta;
+				if (m?.totalIdleMinutes != null) {
+					const limit = m?.configuredThresholds ? (m.configuredThresholds as Record<string, unknown>).maxIdleGapMinutesPerDay : undefined;
+					detail = `${fName} has ${m.totalIdleMinutes} min idle gap${dayLabel ? ` on ${dayLabel}` : ''}`;
+					if (limit != null) delta = `Limit: ${limit} min · Observed: ${m.totalIdleMinutes} min · Δ +${Number(m.totalIdleMinutes) - Number(limit)} min`;
+				}
+				break;
+			}
+			default:
+				break;
+		}
+
+		return { code: v.code, severity: v.severity, humanTitle: title, humanDetail: detail, delta };
+	});
+}
+
+function buildPolicyImpacts(violations: Violation[], refData: Awaited<ReturnType<typeof loadRunContext>>): PolicyImpact[] {
+	const { facultyNameMap } = refData;
+	const impacts: PolicyImpact[] = [];
+	const seen = new Set<string>();
+
+	for (const v of violations) {
+		const m = v.meta;
+		if (!m) continue;
+
+		const fName = v.entities.facultyId ? facultyNameMap.get(v.entities.facultyId) ?? `Faculty #${v.entities.facultyId}` : 'Unknown';
+		const key = `${v.code}-${v.entities.facultyId ?? ''}-${v.entities.day ?? ''}`;
+		if (seen.has(key)) continue;
+		seen.add(key);
+
+		let summary = '';
+		if (v.code === 'FACULTY_OVERLOAD' && m.totalMinutes != null && m.maxMinutes != null) {
+			summary = `${fName}: ${m.totalMinutes} min/wk (max ${m.maxMinutes})`;
+		} else if (v.code === 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED' && m.consecutiveMinutes != null && m.maxConsecutive != null) {
+			summary = `${fName}: ${m.consecutiveMinutes} min consecutive (max ${m.maxConsecutive})`;
+		} else if (v.code === 'FACULTY_DAILY_MAX_EXCEEDED' && m.dailyMinutes != null && m.maxTeachingMinutesPerDay != null) {
+			summary = `${fName}: ${m.dailyMinutes} min/day (max ${m.maxTeachingMinutesPerDay})`;
+		} else if (v.code === 'FACULTY_BREAK_REQUIREMENT_VIOLATED' && m.actualGapMinutes != null && m.requiredBreakMinutes != null) {
+			summary = `${fName}: ${m.actualGapMinutes} min break (needs ${m.requiredBreakMinutes})`;
+		} else {
+			continue; // Only include policy threshold violations
+		}
+
+		impacts.push({ code: v.code, label: VIOLATION_TITLES[v.code] ?? v.code, summary, severity: v.severity });
+	}
+
+	return impacts;
+}
+
 // ─── Preview (no persistence) ───
 
 export async function previewManualEdit(
@@ -278,7 +525,7 @@ export async function previewManualEdit(
 	const currentValidation = validateHardConstraints(currentCtx);
 
 	// Apply proposal and validate new state
-	const { newEntries } = applyProposal(entries, unassignedItems, proposal);
+	const { newEntries, beforeEntry, afterEntry } = applyProposal(entries, unassignedItems, proposal);
 	const newCtx = buildValidatorCtx(schoolId, schoolYearId, runId, newEntries, refData);
 	const newValidation = validateHardConstraints(newCtx);
 
@@ -290,11 +537,34 @@ export async function previewManualEdit(
 	const newHardViolations = newValidation.violations.filter((v) => v.severity === 'HARD');
 	const newSoftViolations = newValidation.violations.filter((v) => v.severity === 'SOFT');
 
+	const allNewViolations = [...newHardViolations, ...newSoftViolations];
+	const humanConflicts = buildHumanConflicts(allNewViolations, newEntries, refData);
+	const policyImpactSummary = buildPolicyImpacts(allNewViolations, refData);
+
+	const affectedEntries: AffectedEntry[] = [];
+	if (beforeEntry) {
+		affectedEntries.push({
+			entryId: beforeEntry.entryId, subjectId: beforeEntry.subjectId, sectionId: beforeEntry.sectionId,
+			facultyId: beforeEntry.facultyId, roomId: beforeEntry.roomId,
+			day: beforeEntry.day, startTime: beforeEntry.startTime, endTime: beforeEntry.endTime, phase: 'before',
+		});
+	}
+	if (afterEntry) {
+		affectedEntries.push({
+			entryId: afterEntry.entryId, subjectId: afterEntry.subjectId, sectionId: afterEntry.sectionId,
+			facultyId: afterEntry.facultyId, roomId: afterEntry.roomId,
+			day: afterEntry.day, startTime: afterEntry.startTime, endTime: afterEntry.endTime, phase: 'after',
+		});
+	}
+
 	return {
 		allowed: newHardViolations.length === 0,
 		hardViolations: newHardViolations,
 		softViolations: newSoftViolations,
 		violationDelta: { hardBefore, hardAfter, softBefore, softAfter },
+		humanConflicts,
+		affectedEntries,
+		policyImpactSummary,
 	};
 }
 
@@ -307,6 +577,7 @@ export async function commitManualEdit(
 	actorId: number,
 	proposal: ManualEditProposal,
 	expectedVersion: number,
+	allowSoftOverride = false,
 ): Promise<CommitResult> {
 	const refData = await loadRunContext(runId, schoolId, schoolYearId);
 	const { run, entries, unassignedItems } = refData;
@@ -335,6 +606,11 @@ export async function commitManualEdit(
 	// Block commit if hard violations exist
 	if (hardAfter.length > 0) {
 		throw err(422, 'HARD_VIOLATION_BLOCK', `Cannot commit: ${hardAfter.length} hard violation(s). ${hardAfter.map((v) => v.message).join('; ')}`);
+	}
+
+	// Block soft-only commit unless client explicitly acknowledges
+	if (softAfter.length > 0 && !allowSoftOverride) {
+		throw err(422, 'SOFT_OVERRIDE_REQUIRED', `Edit produces ${softAfter.length} soft warning(s). Client must set allowSoftOverride=true to proceed.`);
 	}
 
 	const newSummary = computeSummary(newEntries, newUnassigned, newValidation);

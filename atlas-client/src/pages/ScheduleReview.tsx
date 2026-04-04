@@ -68,6 +68,7 @@ import { Skeleton } from '@/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
 import SchedulingPolicyPane from '@/components/SchedulingPolicyPane';
+import ManualEditPanel from '@/components/ManualEditPanel';
 
 /* ─── Constants ─── */
 
@@ -658,13 +659,14 @@ export default function ScheduleReview() {
 	);
 
 	const commitEdit = useCallback(
-		async (proposal: ManualEditProposal) => {
+		async (proposal: ManualEditProposal, allowSoftOverride = false) => {
 			if (!apiBase) return;
 			setCommitLoading(true);
 			try {
 				const { data } = await atlasApi.post<CommitResult>(`${apiBase}/commit`, {
 					proposal,
 					expectedVersion: runVersion,
+					allowSoftOverride,
 				});
 				// Apply returned draft in-place
 				setDraft(data.draft);
@@ -1595,7 +1597,7 @@ export default function ScheduleReview() {
 									transition={{ duration: 0.15 }}
 									className="flex flex-col min-h-0 h-full w-72"
 								>
-									<EntryDetailPanel
+									<ManualEditPanel
 										entry={selectedEntry}
 										violationIndex={violationIndex}
 										followUps={followUps}
@@ -1607,10 +1609,15 @@ export default function ScheduleReview() {
 										gradeForSection={gradeForSection}
 										roomLabel={roomLabel}
 										isStaleRoom={isStaleRoom}
-										onMoveTimeslot={() => {
-											setKbSelectedSource({ type: 'entry', entry: selectedEntry });
-											toast.info('Click a cell in the grid to move this entry.');
-										}}
+										timeSlots={timeSlots}
+										roomMap={roomMap}
+										facultyMap={facultyMap}
+										draftEntries={draft?.entries ?? []}
+										onPreview={previewEdit}
+										onCommit={commitEdit}
+										previewLoading={previewLoading}
+										commitLoading={commitLoading}
+										onForceOpen={() => setIsRightCollapsed(false)}
 									/>
 								</motion.div>
 							) : (
