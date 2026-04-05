@@ -22,6 +22,9 @@ export default function MapEditor() {
 	const [campusImageUrl, setCampusImageUrl] = useState<string | null>(null);
 	const [selectedId, setSelectedId] = useState<number | null>(null);
 	const [loading, setLoading] = useState(true);
+	const initialLoadDone = useRef(false);
+	const selectedIdRef = useRef(selectedId);
+	selectedIdRef.current = selectedId;
 
 	// Undo / Redo stacks
 	const [historyStack, setHistoryStack] = useState<EditorBuilding[][]>([]);
@@ -65,11 +68,23 @@ export default function MapEditor() {
 			const blds = buildingsRes.data.buildings.map((b) => ({ ...b, dirty: false, isNew: false }));
 			setBuildings(blds);
 			setCampusImageUrl(imageRes.data.campusImageUrl);
-			// Priority: query param buildingId → existing selection → first building
-			if (blds.length > 0 && selectedId == null) {
-				const qId = queryBuildingId ? Number(queryBuildingId) : NaN;
-				const matchQuery = !isNaN(qId) && blds.some((b) => b.id === qId);
-				setSelectedId(matchQuery ? qId : blds[0].id);
+
+			if (blds.length > 0) {
+				// On initial load: URL param → first building
+				// On refetch: preserve current selection → URL param → first
+				const currentSel = selectedIdRef.current;
+				const currentValid = currentSel !== null && blds.some((b) => b.id === currentSel);
+
+				if (!initialLoadDone.current) {
+					// First load: try query param
+					const qId = queryBuildingId ? Number(queryBuildingId) : NaN;
+					const matchQuery = !isNaN(qId) && blds.some((b) => b.id === qId);
+					setSelectedId(matchQuery ? qId : currentValid ? currentSel : blds[0].id);
+					initialLoadDone.current = true;
+				} else if (!currentValid) {
+					// Refetch but current selection no longer exists
+					setSelectedId(blds[0].id);
+				}
 			}
 		} catch {
 			setBuildings([]);

@@ -323,18 +323,69 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 	};
 }
 
+// ─── Schema-drift detection ───
+
+/**
+ * Known Prisma/PG error codes that indicate the DB schema is behind
+ * the Prisma client — e.g. a column referenced by the generated query
+ * does not exist yet in the actual table.
+ *
+ * P2010 = raw query failed, P2022 = column not found (Prisma 5+).
+ * We also match on the PostgreSQL "column … does not exist" message
+ * for generic driver-level errors without a Prisma code.
+ */
+const SCHEMA_DRIFT_CODES = new Set(['P2010', 'P2022']);
+const SCHEMA_DRIFT_MSG = /column .* does not exist|relation .* does not exist|undefined column/i;
+
+function isSchemaDriftError(e: unknown): boolean {
+	if (!e || typeof e !== 'object') return false;
+	const err = e as { code?: string; message?: string; meta?: { message?: string } };
+	if (err.code && SCHEMA_DRIFT_CODES.has(err.code)) return true;
+	const msg = err.meta?.message ?? err.message ?? '';
+	return SCHEMA_DRIFT_MSG.test(msg);
+}
+
+/**
+ * Build a synthetic in-memory policy from defaults.
+ * Used as fallback when the DB schema is behind and `findUnique`/`create` fails.
+ */
+function buildSyntheticPolicy(schoolId: number, schoolYearId: number) {
+	return {
+		id: -1,
+		schoolId,
+		schoolYearId,
+		...POLICY_DEFAULTS,
+		constraintConfig: null as unknown as null,
+		createdAt: new Date(),
+		updatedAt: new Date(),
+	};
+}
+
 // ─── Get (with default-fallback creation) ───
 
 export async function getOrCreatePolicy(schoolId: number, schoolYearId: number) {
-	const existing = await prisma.schedulingPolicy.findUnique({
-		where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
-	});
-	if (existing) return existing;
+	try {
+		const existing = await prisma.schedulingPolicy.findUnique({
+			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+		});
+		if (existing) return existing;
 
-	// Auto-create with defaults
-	return prisma.schedulingPolicy.create({
-		data: { schoolId, schoolYearId, ...POLICY_DEFAULTS },
-	});
+		// Auto-create with defaults
+		return await prisma.schedulingPolicy.create({
+			data: { schoolId, schoolYearId, ...POLICY_DEFAULTS },
+		});
+	} catch (e: unknown) {
+		if (isSchemaDriftError(e)) {
+			console.warn(
+				`[POLICY_SCHEMA_DRIFT] scheduling_policies table is missing expected columns. ` +
+				`Returning in-memory defaults for school ${schoolId}, year ${schoolYearId}. ` +
+				`Action: run \`npx prisma migrate deploy\` to apply pending migrations.`,
+			);
+			return buildSyntheticPolicy(schoolId, schoolYearId);
+		}
+		// Re-throw non-drift errors
+		throw e;
+	}
 }
 
 // ─── Upsert ───

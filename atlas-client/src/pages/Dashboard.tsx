@@ -93,6 +93,12 @@ export default function Dashboard() {
 	const [hoveredBuildingId, setHoveredBuildingId] = useState<number | null>(null);
 	const [inspectedRoom, setInspectedRoom] = useState<Room | null>(null);
 
+	/* ── Room utilization cache (per building) ── */
+	type RoomUtil = { utilization: number; conflicts: number };
+	const [roomUtilMap, setRoomUtilMap] = useState<Map<number, RoomUtil>>(new Map());
+	const [utilLoading, setUtilLoading] = useState(false);
+	const utilCacheRef = useRef<Map<number, Map<number, RoomUtil>>>(new Map()); // buildingId → roomId → util
+
 	// Persist selection to localStorage
 	const selectBuilding = useCallback((id: number | null) => {
 		setSelectedId(id);
@@ -166,6 +172,68 @@ export default function Dashboard() {
 
 	const canvasHeight = Math.round(canvasWidth * (CANVAS_HEIGHT / CANVAS_WIDTH));
 
+	/* ── Fetch room utilization for selected building ── */
+	useEffect(() => {
+		if (!selectedId) { setRoomUtilMap(new Map()); return; }
+		const bld = buildings.find((b) => b.id === selectedId);
+		if (!bld) return;
+		const teachingRoomsInBuilding = bld.isTeachingBuilding !== false
+			? bld.rooms.filter((r) => r.isTeachingSpace)
+			: [];
+		if (teachingRoomsInBuilding.length === 0) { setRoomUtilMap(new Map()); return; }
+
+		// Serve from cache if available
+		const cached = utilCacheRef.current.get(selectedId);
+		if (cached) { setRoomUtilMap(cached); return; }
+
+		let cancelled = false;
+		setUtilLoading(true);
+
+		(async () => {
+			try {
+				const settings = await fetchPublicSettings();
+				if (!settings.activeSchoolYearId || cancelled) { setUtilLoading(false); return; }
+				const syId = settings.activeSchoolYearId;
+
+				const results = new Map<number, RoomUtil>();
+				// Fetch in parallel with limited concurrency (batch of 6)
+				const chunks: Room[][] = [];
+				for (let i = 0; i < teachingRoomsInBuilding.length; i += 6) {
+					chunks.push(teachingRoomsInBuilding.slice(i, i + 6));
+				}
+				for (const chunk of chunks) {
+					if (cancelled) break;
+					const settled = await Promise.allSettled(
+						chunk.map((r) =>
+							atlasApi.get<RoomScheduleView>(
+								`/room-schedules/${DEFAULT_SCHOOL_ID}/${syId}/rooms/${r.id}?source=latest`,
+							),
+						),
+					);
+					settled.forEach((res, idx) => {
+						const room = chunk[idx];
+						if (res.status === 'fulfilled') {
+							results.set(room.id, {
+								utilization: res.value.data.summary.utilizationPercent,
+								conflicts: res.value.data.summary.conflictCount,
+							});
+						}
+					});
+				}
+				if (!cancelled) {
+					utilCacheRef.current.set(selectedId, results);
+					setRoomUtilMap(results);
+				}
+			} catch {
+				// Partial failure is fine — rooms without data just show "—"
+			} finally {
+				if (!cancelled) setUtilLoading(false);
+			}
+		})();
+
+		return () => { cancelled = true; };
+	}, [selectedId, buildings]);
+
 	const totalRooms = useMemo(() => buildings.reduce((sum, b) => sum + b.rooms.length, 0), [buildings]);
 	const teachingRooms = useMemo(
 		() => buildings.reduce(
@@ -176,6 +244,22 @@ export default function Dashboard() {
 	);
 	const nonTeachingExcluded = totalRooms - teachingRooms;
 	const selected = useMemo(() => buildings.find((b) => b.id === selectedId) ?? null, [buildings, selectedId]);
+
+	/* ── Utilization summary for selected building ── */
+	const utilSummary = useMemo(() => {
+		if (!selected || roomUtilMap.size === 0) return null;
+		const teachingInSelected = selected.rooms.filter((r) => r.isTeachingSpace);
+		if (teachingInSelected.length === 0) return null;
+		const entries = teachingInSelected
+			.map((r) => roomUtilMap.get(r.id))
+			.filter((u): u is RoomUtil => u !== undefined);
+		if (entries.length === 0) return null;
+		const avg = Math.round(entries.reduce((s, e) => s + e.utilization, 0) / entries.length);
+		const highest = entries.reduce((best, e) => (e.utilization > best.utilization ? e : best), entries[0]);
+		const highestRoom = teachingInSelected.find((r) => roomUtilMap.get(r.id) === highest);
+		const conflictRooms = entries.filter((e) => e.conflicts > 0).length;
+		return { avg, highestUtil: highest.utilization, highestRoomName: highestRoom?.name ?? '—', conflictRooms, total: entries.length };
+	}, [selected, roomUtilMap]);
 
 	// Declared before any memo/logic that reads it to avoid TDZ risk.
 	// v1: always SETUP until generation is implemented; will become state later.
@@ -478,6 +562,24 @@ export default function Dashboard() {
 									</Button>
 								</div>
 							{/* Large BuildingView — same height as map canvas */}
+							{utilSummary && (
+								<div className="mb-2 flex items-center gap-3 rounded-md border border-border bg-muted/30 px-3 py-1.5 text-[0.6875rem]">
+									<span className="text-muted-foreground">Avg Util:</span>
+									<span className={`font-semibold ${utilSummary.avg >= 80 ? 'text-red-600' : utilSummary.avg >= 50 ? 'text-amber-600' : 'text-emerald-600'}`}>
+										{utilSummary.avg}%
+									</span>
+									<span className="text-border">|</span>
+									<span className="text-muted-foreground">Highest:</span>
+									<span className="font-medium">{utilSummary.highestRoomName} ({utilSummary.highestUtil}%)</span>
+									{utilSummary.conflictRooms > 0 && (
+										<>
+											<span className="text-border">|</span>
+											<span className="font-medium text-red-600">{utilSummary.conflictRooms} room{utilSummary.conflictRooms !== 1 ? 's' : ''} with conflicts</span>
+										</>
+									)}
+									{utilLoading && <span className="text-muted-foreground/50 italic ml-auto">Loading…</span>}
+								</div>
+							)}
 							<BuildingView building={selected} height={canvasHeight} selectedRoomId={inspectedRoom?.id ?? null} onRoomSelect={setInspectedRoom} />
 							</>
 						) : (
@@ -775,6 +877,14 @@ export default function Dashboard() {
 															) : (
 																rooms.map((room) => {
 																	const colors = ROOM_COLORS[room.type] ?? ROOM_COLORS.OTHER;
+																	const util = roomUtilMap.get(room.id);
+																	const utilLabel = !room.isTeachingSpace ? 'N/A'
+																		: util ? `${util.utilization}%` : '—';
+																	const utilColor = !room.isTeachingSpace ? 'text-muted-foreground/40'
+																		: !util ? 'text-muted-foreground/40'
+																		: util.utilization >= 80 ? 'text-red-600'
+																		: util.utilization >= 50 ? 'text-amber-600'
+																		: 'text-emerald-600';
 																	return (
 																		<button
 																			key={room.id}
@@ -786,6 +896,9 @@ export default function Dashboard() {
 																			</span>
 																			<span className="text-[0.5rem] text-muted-foreground truncate w-full text-center">
 																				{ROOM_TYPE_LABELS[room.type]}
+																			</span>
+																			<span className={`text-[0.5rem] font-medium ${utilColor}`}>
+																				{utilLabel}
 																			</span>
 																		</button>
 																	);
