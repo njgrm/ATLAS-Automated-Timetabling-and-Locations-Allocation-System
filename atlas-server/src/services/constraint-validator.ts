@@ -26,6 +26,8 @@ export const VIOLATION_CODES = [
 	'FACULTY_EXCESSIVE_IDLE_GAP',
 	'FACULTY_EARLY_START_PREFERENCE',
 	'FACULTY_LATE_END_PREFERENCE',
+	'FACULTY_INSUFFICIENT_DAILY_VACANT',
+	'SECTION_OVERCOMPRESSED',
 ] as const;
 
 export type ViolationCode = (typeof VIOLATION_CODES)[number];
@@ -97,6 +99,13 @@ export interface RoomBuildingRef {
 	buildingId: number;
 }
 
+export interface VacantPolicyRef {
+	enableVacantAwareConstraints: boolean;
+	targetFacultyDailyVacantMinutes: number;
+	targetSectionDailyVacantPeriods: number;
+	maxCompressedTeachingMinutesPerDay: number;
+}
+
 export interface ConstraintOverrideRef {
 	enabled: boolean;
 	weight: number; // 1–10
@@ -114,6 +123,7 @@ export interface ValidatorContext {
 	subjects: SubjectRef[];
 	policy?: PolicyRef;
 	travelPolicy?: TravelPolicyRef;
+	vacantPolicy?: VacantPolicyRef;
 	buildings?: BuildingRef[];
 	roomBuildings?: RoomBuildingRef[];
 	constraintConfig?: Record<string, ConstraintOverrideRef>;
@@ -531,7 +541,102 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 		}
 	}
 
-	// ── 9) Apply constraintConfig overrides ──
+	// ── 9) Vacant-aware constraints ──
+	if (ctx.vacantPolicy?.enableVacantAwareConstraints) {
+		const vp = ctx.vacantPolicy;
+
+		// 9a) Faculty insufficient daily vacant time
+		// For each faculty per day, compute total time span minus teaching minutes = vacant minutes
+		const facDayForVacant = new Map<string, ScheduledEntry[]>();
+		for (const e of ctx.entries) {
+			const key = `${e.facultyId}:${e.day}`;
+			const arr = facDayForVacant.get(key) ?? [];
+			arr.push(e);
+			facDayForVacant.set(key, arr);
+		}
+
+		for (const [key, dayEntries] of facDayForVacant) {
+			const [facIdStr, day] = key.split(':');
+			const facultyId = Number(facIdStr);
+			const sorted = [...dayEntries].sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+			const firstStart = timeToMinutes(sorted[0].startTime);
+			const lastEnd = timeToMinutes(sorted[sorted.length - 1].endTime);
+			const spanMinutes = lastEnd - firstStart;
+			const teachingMinutes = sorted.reduce((sum, e) => sum + e.durationMinutes, 0);
+			const vacantMinutes = spanMinutes - teachingMinutes;
+
+			if (vacantMinutes < vp.targetFacultyDailyVacantMinutes) {
+				violations.push({
+					...base, severity: 'SOFT',
+					code: 'FACULTY_INSUFFICIENT_DAILY_VACANT',
+					message: `Faculty ${facultyId} has only ${vacantMinutes} min vacant time on ${day}, target is ${vp.targetFacultyDailyVacantMinutes} min.`,
+					entities: { facultyId, day, entryIds: sorted.map((e) => e.entryId) },
+					meta: {
+						facultyId, day,
+						vacantMinutes,
+						targetVacantMinutes: vp.targetFacultyDailyVacantMinutes,
+						teachingMinutes, spanMinutes,
+					},
+				});
+			}
+		}
+
+		// 9b) Section overcompressed — section has too many teaching minutes in a single day
+		const secDayForVacant = new Map<string, ScheduledEntry[]>();
+		for (const e of ctx.entries) {
+			const key = `${e.sectionId}:${e.day}`;
+			const arr = secDayForVacant.get(key) ?? [];
+			arr.push(e);
+			secDayForVacant.set(key, arr);
+		}
+
+		for (const [key, dayEntries] of secDayForVacant) {
+			const [secIdStr, day] = key.split(':');
+			const sectionId = Number(secIdStr);
+			const sorted = [...dayEntries].sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+			// Check vacancy periods — count gaps >= minBreak that qualify as vacant periods
+			const minBreak = ctx.policy?.minBreakMinutesAfterConsecutiveBlock ?? 15;
+			let vacantPeriods = 0;
+			for (let i = 1; i < sorted.length; i++) {
+				const gap = timeToMinutes(sorted[i].startTime) - timeToMinutes(sorted[i - 1].endTime);
+				if (gap >= minBreak) vacantPeriods++;
+			}
+
+			if (vacantPeriods < vp.targetSectionDailyVacantPeriods) {
+				violations.push({
+					...base, severity: 'SOFT',
+					code: 'SECTION_OVERCOMPRESSED',
+					message: `Section ${sectionId} has only ${vacantPeriods} vacant period(s) on ${day}, target is ${vp.targetSectionDailyVacantPeriods}.`,
+					entities: { sectionId, day, entryIds: sorted.map((e) => e.entryId) },
+					meta: {
+						sectionId, day,
+						vacantPeriods,
+						targetVacantPeriods: vp.targetSectionDailyVacantPeriods,
+					},
+				});
+			}
+
+			// Also check day-level compressed teaching minutes for section
+			const sectionDailyMinutes = sorted.reduce((sum, e) => sum + e.durationMinutes, 0);
+			if (sectionDailyMinutes > vp.maxCompressedTeachingMinutesPerDay) {
+				violations.push({
+					...base, severity: 'SOFT',
+					code: 'SECTION_OVERCOMPRESSED',
+					message: `Section ${sectionId} has ${sectionDailyMinutes} teaching min on ${day}, exceeds compressed limit of ${vp.maxCompressedTeachingMinutesPerDay} min.`,
+					entities: { sectionId, day, entryIds: sorted.map((e) => e.entryId) },
+					meta: {
+						sectionId, day,
+						sectionDailyMinutes,
+						maxCompressedMinutes: vp.maxCompressedTeachingMinutesPerDay,
+					},
+				});
+			}
+		}
+	}
+
+	// ── 10) Apply constraintConfig overrides ──
 	// Filter out disabled soft constraints and promote treatAsHard; inject weight into meta.
 	const cc = ctx.constraintConfig;
 	let finalViolations = violations;

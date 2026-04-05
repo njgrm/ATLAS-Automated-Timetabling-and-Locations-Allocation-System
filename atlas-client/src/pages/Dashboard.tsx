@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Group, Layer, Rect, Stage, Text } from 'react-konva';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
 	AlertTriangle,
 	BookOpen,
@@ -72,6 +72,7 @@ function smartLabelRotation(buildingRotation: number): number {
 }
 
 export default function Dashboard() {
+	const navigate = useNavigate();
 	const [buildings, setBuildings] = useState<Building[]>([]);
 	const [campusImageUrl, setCampusImageUrl] = useState<string | null>(null);
 	const [campusImage, setCampusImage] = useState<HTMLImageElement | null>(null);
@@ -471,7 +472,7 @@ export default function Dashboard() {
 										<Minimize2 className="size-3.5 mr-1" /> Map View
 									</Button>
 									<Button asChild variant="outline" size="sm">
-										<Link to="/map">
+										<Link to={selected ? `/map?buildingId=${selected.id}` : '/map'}>
 											<Pencil className="size-3.5" /> Edit Map
 										</Link>
 									</Button>
@@ -510,7 +511,7 @@ export default function Dashboard() {
 										</Button>
 									)}
 									<Button asChild variant="outline" size="sm">
-										<Link to="/map">
+										<Link to={selected ? `/map?buildingId=${selected.id}` : '/map'}>
 											<Pencil className="size-3.5" /> Edit Map
 										</Link>
 									</Button>
@@ -810,7 +811,7 @@ export default function Dashboard() {
 
 								{/* Edit link */}
 								<Button asChild variant="outline" size="sm" className="mt-2 w-full">
-									<Link to="/map">
+									<Link to={`/map?buildingId=${selected.id}`}>
 										<Pencil className="size-3.5" /> Edit in Map Editor
 									</Link>
 								</Button>
@@ -918,7 +919,7 @@ function RoomSchedulePreview({ roomId, isTeachingSpace }: { roomId: number; isTe
 				)}
 			</div>
 			<Button asChild variant="outline" size="sm" className="w-full h-6 text-[0.625rem]">
-				<Link to="/room-schedules">View Full Schedule</Link>
+				<Link to={`/room-schedules?roomId=${roomId}&source=latest`}>View Full Schedule</Link>
 			</Button>
 		</div>
 	);

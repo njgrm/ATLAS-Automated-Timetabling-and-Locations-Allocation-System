@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { MapPinned } from 'lucide-react';
 
 import { CampusMapEditor } from '@/components/CampusMapEditor';
@@ -14,6 +15,9 @@ const DEFAULT_SCHOOL_ID = 1;
 const MAX_HISTORY = 30;
 
 export default function MapEditor() {
+	const [searchParams] = useSearchParams();
+	const queryBuildingId = searchParams.get('buildingId');
+
 	const [buildings, setBuildings] = useState<EditorBuilding[]>([]);
 	const [campusImageUrl, setCampusImageUrl] = useState<string | null>(null);
 	const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -61,9 +65,11 @@ export default function MapEditor() {
 			const blds = buildingsRes.data.buildings.map((b) => ({ ...b, dirty: false, isNew: false }));
 			setBuildings(blds);
 			setCampusImageUrl(imageRes.data.campusImageUrl);
-			// Auto-select first building so the panel is visible immediately
+			// Priority: query param buildingId → existing selection → first building
 			if (blds.length > 0 && selectedId == null) {
-				setSelectedId(blds[0].id);
+				const qId = queryBuildingId ? Number(queryBuildingId) : NaN;
+				const matchQuery = !isNaN(qId) && blds.some((b) => b.id === qId);
+				setSelectedId(matchQuery ? qId : blds[0].id);
 			}
 		} catch {
 			setBuildings([]);

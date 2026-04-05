@@ -9,6 +9,7 @@ projectUpdate.md
 reminders.md
 phasePlan.md
 requirements-phase1-ux.md
+questions.md
 
 # Dependency locks not required for this planning-only phase
 package-lock.json

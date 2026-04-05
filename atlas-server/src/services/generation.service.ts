@@ -127,6 +127,9 @@ export async function triggerGenerationRun(
 				maxTeachingMinutesPerDay: policyRecord.maxTeachingMinutesPerDay,
 				earliestStartTime: policyRecord.earliestStartTime,
 				latestEndTime: policyRecord.latestEndTime,
+				lunchStartTime: policyRecord.lunchStartTime ?? undefined,
+				lunchEndTime: policyRecord.lunchEndTime ?? undefined,
+				enforceLunchWindow: policyRecord.enforceLunchWindow ?? undefined,
 			},
 		};
 		const result = constructBaseline(constructorInput);
@@ -242,10 +245,10 @@ export async function getRunById(runId: number, schoolId: number, schoolYearId: 
 
 export async function getLatestRun(schoolId: number, schoolYearId: number) {
 	const run = await prisma.generationRun.findFirst({
-		where: { schoolId, schoolYearId },
+		where: { schoolId, schoolYearId, status: 'COMPLETED' },
 		orderBy: { createdAt: 'desc' },
 	});
-	if (!run) throw err(404, 'NO_RUNS', 'No generation runs found for this school/year.');
+	if (!run) throw err(404, 'NO_RUNS', 'No completed generation runs found for this school/year.');
 	return run;
 }
 
@@ -293,11 +296,11 @@ export async function getRunViolations(runId: number, schoolId: number, schoolYe
 
 export async function getLatestRunViolations(schoolId: number, schoolYearId: number): Promise<ViolationReport> {
 	const run = await prisma.generationRun.findFirst({
-		where: { schoolId, schoolYearId },
+		where: { schoolId, schoolYearId, status: 'COMPLETED' },
 		orderBy: { createdAt: 'desc' },
 		select: { id: true, status: true, violations: true, summary: true },
 	});
-	if (!run) throw err(404, 'NO_RUNS', 'No generation runs found for this school/year.');
+	if (!run) throw err(404, 'NO_RUNS', 'No completed generation runs found for this school/year.');
 
 	const violations = (run.violations ?? []) as unknown as Violation[];
 	const summary = (run.summary ?? {}) as Record<string, unknown>;
@@ -348,11 +351,11 @@ export async function getRunDraft(runId: number, schoolId: number, schoolYearId:
 
 export async function getLatestRunDraft(schoolId: number, schoolYearId: number): Promise<DraftReport> {
 	const run = await prisma.generationRun.findFirst({
-		where: { schoolId, schoolYearId },
+		where: { schoolId, schoolYearId, status: 'COMPLETED' },
 		orderBy: { createdAt: 'desc' },
 		select: { id: true, status: true, draftEntries: true, unassignedItems: true, summary: true, version: true, finishedAt: true, createdAt: true },
 	});
-	if (!run) throw err(404, 'NO_RUNS', 'No generation runs found for this school/year.');
+	if (!run) throw err(404, 'NO_RUNS', 'No completed generation runs found for this school/year.');
 
 	return {
 		runId: run.id,

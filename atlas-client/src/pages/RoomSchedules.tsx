@@ -1,4 +1,5 @@
-import { useEffect, useState, useMemo, useCallback, useRef, Fragment } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
 	AlertTriangle,
 	CalendarX,
@@ -13,7 +14,7 @@ import { formatTime } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { SearchableSelect } from '@/ui/searchable-select';
 import { Skeleton } from '@/ui/skeleton';
 import type { Building, Room, Subject, FacultyMirror, RoomScheduleView, RoomScheduleEntry, SectionSummaryResponse, ExternalSection } from '@/types';
 
@@ -27,12 +28,6 @@ const DAY_SHORT: Record<string, string> = {
 	WEDNESDAY: 'Wed',
 	THURSDAY: 'Thu',
 	FRIDAY: 'Fri',
-};
-
-/** Break separators inserted after these grid row indices (0-based). */
-const BREAK_AFTER_ROW: Record<number, { label: string; time: string }> = {
-	2: { label: 'Recess', time: `${formatTime('10:00')} – ${formatTime('10:15')}` },
-	4: { label: 'Lunch Break', time: `${formatTime('11:55')} – ${formatTime('12:55')}` },
 };
 
 // ─── Types ───
@@ -49,6 +44,10 @@ type FetchState =
 // ─── Page ───
 
 export default function RoomSchedules() {
+	const [searchParams] = useSearchParams();
+	const queryRoomId = searchParams.get('roomId');
+	const querySource = searchParams.get('source');
+
 	/* Lookup data */
 	const [rooms, setRooms] = useState<(Room & { buildingName: string })[]>([]);
 	const [subjectMap, setSubjectMap] = useState<Map<number, string>>(new Map());
@@ -59,7 +58,7 @@ export default function RoomSchedules() {
 
 	/* Selections */
 	const [selectedRoomId, setSelectedRoomId] = useState<string>('');
-	const [sourceMode, setSourceMode] = useState<SourceMode>('latest');
+	const [sourceMode, setSourceMode] = useState<SourceMode>((querySource === 'latest' || querySource === 'run') ? querySource : 'latest');
 	const [runIdInput, setRunIdInput] = useState('');
 
 	/* Schedule data */
@@ -97,6 +96,11 @@ export default function RoomSchedules() {
 				}
 				allRooms.sort((a, b) => a.name.localeCompare(b.name));
 				setRooms(allRooms);
+
+				// Auto-select room from query param
+				if (queryRoomId && allRooms.some((r) => String(r.id) === queryRoomId)) {
+					setSelectedRoomId(queryRoomId);
+				}
 
 				const sMap = new Map<number, string>();
 				for (const s of subjectsRes.data.subjects) {
@@ -172,6 +176,20 @@ export default function RoomSchedules() {
 		fetchSchedule();
 	}, [selectedRoomId, schoolYearId, sourceMode, debouncedRunId, fetchSchedule]);
 
+	/* Grouped rooms for searchable selector */
+	const roomGroups = useMemo(() => {
+		const byBuilding = new Map<string, { value: string; label: string }[]>();
+		for (const r of rooms) {
+			const key = r.buildingName || 'Unknown';
+			const list = byBuilding.get(key) ?? [];
+			list.push({ value: String(r.id), label: `${r.name} (F${r.floor})` });
+			byBuilding.set(key, list);
+		}
+		return Array.from(byBuilding.entries())
+			.sort((a, b) => a[0].localeCompare(b[0]))
+			.map(([label, items]) => ({ label, items }));
+	}, [rooms]);
+
 	return (
 		<div className="flex flex-col h-[calc(100svh-3.5rem)]">
 			{/* ── Toolbar row ── */}
@@ -181,18 +199,13 @@ export default function RoomSchedules() {
 					{roomsLoading ? (
 						<Skeleton className="h-8 w-full" />
 					) : (
-						<Select value={selectedRoomId} onValueChange={setSelectedRoomId}>
-							<SelectTrigger className="h-8 text-sm">
-								<SelectValue placeholder="Select room…" />
-							</SelectTrigger>
-							<SelectContent>
-								{rooms.map((r) => (
-									<SelectItem key={r.id} value={String(r.id)}>
-										{r.name} — {r.buildingName} (F{r.floor})
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+						<SearchableSelect
+							value={selectedRoomId}
+							onValueChange={setSelectedRoomId}
+							groups={roomGroups}
+							placeholder="Select room…"
+							triggerClassName="h-8 text-sm w-full"
+						/>
 					)}
 				</div>
 
@@ -415,8 +428,7 @@ function TimetableGrid({
 			</thead>
 			<tbody>
 				{view.grid.map((row, rowIdx) => (
-					<Fragment key={rowIdx}>
-						<tr>
+						<tr key={rowIdx}>
 							{/* Sticky time column */}
 							<td className="sticky left-0 z-[5] bg-background border-r border-b px-2 py-3 align-middle w-24">
 								<div className="text-[11px] font-semibold text-foreground">P{rowIdx + 1}</div>
@@ -466,19 +478,6 @@ function TimetableGrid({
 								);
 							})}
 						</tr>
-
-						{/* Break separator */}
-						{BREAK_AFTER_ROW[rowIdx] && (
-							<tr>
-								<td
-									colSpan={view.days.length + 1}
-									className="bg-muted/30 border-b px-3 py-1 text-[10px] text-muted-foreground font-medium text-center italic"
-								>
-									{BREAK_AFTER_ROW[rowIdx].label} — {BREAK_AFTER_ROW[rowIdx].time}
-								</td>
-							</tr>
-						)}
-					</Fragment>
 				))}
 			</tbody>
 		</table>

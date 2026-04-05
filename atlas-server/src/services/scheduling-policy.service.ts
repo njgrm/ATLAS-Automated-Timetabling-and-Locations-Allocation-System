@@ -31,6 +31,13 @@ export const POLICY_DEFAULTS = {
 	maxIdleGapMinutesPerDay: 60,
 	avoidEarlyFirstPeriod: false,
 	avoidLateLastPeriod: false,
+	enableVacantAwareConstraints: false,
+	targetFacultyDailyVacantMinutes: 60,
+	targetSectionDailyVacantPeriods: 1,
+	maxCompressedTeachingMinutesPerDay: 300,
+	lunchStartTime: '11:55',
+	lunchEndTime: '12:55',
+	enforceLunchWindow: true,
 } as const;
 
 export interface ConstraintOverride {
@@ -48,6 +55,8 @@ export const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride> = {
 	FACULTY_EXCESSIVE_IDLE_GAP: { enabled: true, weight: 3, treatAsHard: false },
 	FACULTY_EARLY_START_PREFERENCE: { enabled: false, weight: 2, treatAsHard: false },
 	FACULTY_LATE_END_PREFERENCE: { enabled: false, weight: 2, treatAsHard: false },
+	FACULTY_INSUFFICIENT_DAILY_VACANT: { enabled: false, weight: 3, treatAsHard: false },
+	SECTION_OVERCOMPRESSED: { enabled: false, weight: 3, treatAsHard: false },
 };
 
 // ─── Exported policy shape (for cross-service use) ───
@@ -66,6 +75,13 @@ export interface SchedulingPolicyData {
 	maxIdleGapMinutesPerDay: number;
 	avoidEarlyFirstPeriod: boolean;
 	avoidLateLastPeriod: boolean;
+	enableVacantAwareConstraints: boolean;
+	targetFacultyDailyVacantMinutes: number;
+	targetSectionDailyVacantPeriods: number;
+	maxCompressedTeachingMinutesPerDay: number;
+	lunchStartTime: string;
+	lunchEndTime: string;
+	enforceLunchWindow: boolean;
 	constraintConfig: Record<string, ConstraintOverride> | null;
 }
 
@@ -92,6 +108,13 @@ export interface PolicyInput {
 	maxIdleGapMinutesPerDay?: unknown;
 	avoidEarlyFirstPeriod?: unknown;
 	avoidLateLastPeriod?: unknown;
+	enableVacantAwareConstraints?: unknown;
+	targetFacultyDailyVacantMinutes?: unknown;
+	targetSectionDailyVacantPeriods?: unknown;
+	maxCompressedTeachingMinutesPerDay?: unknown;
+	lunchStartTime?: unknown;
+	lunchEndTime?: unknown;
+	enforceLunchWindow?: unknown;
 	constraintConfig?: unknown;
 }
 
@@ -202,6 +225,55 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 		}
 	}
 
+	// --- vacant-aware booleans and ints ---
+	let enableVacant: boolean = POLICY_DEFAULTS.enableVacantAwareConstraints;
+	if (input.enableVacantAwareConstraints !== undefined && input.enableVacantAwareConstraints !== null) {
+		if (typeof input.enableVacantAwareConstraints !== 'boolean') {
+			errors.push('enableVacantAwareConstraints must be a boolean.');
+		} else {
+			enableVacant = input.enableVacantAwareConstraints;
+		}
+	}
+
+	const targetFacultyVacant = requirePositiveInt(
+		input.targetFacultyDailyVacantMinutes,
+		'targetFacultyDailyVacantMinutes', 0, 300,
+		POLICY_DEFAULTS.targetFacultyDailyVacantMinutes,
+	);
+	const targetSectionVacant = requirePositiveInt(
+		input.targetSectionDailyVacantPeriods,
+		'targetSectionDailyVacantPeriods', 0, 10,
+		POLICY_DEFAULTS.targetSectionDailyVacantPeriods,
+	);
+	const maxCompressedPerDay = requirePositiveInt(
+		input.maxCompressedTeachingMinutesPerDay,
+		'maxCompressedTeachingMinutesPerDay', 60, 600,
+		POLICY_DEFAULTS.maxCompressedTeachingMinutesPerDay,
+	);
+
+	// --- lunch window ---
+	const lunchStart = requireTime(input.lunchStartTime, 'lunchStartTime', POLICY_DEFAULTS.lunchStartTime);
+	const lunchEnd = requireTime(input.lunchEndTime, 'lunchEndTime', POLICY_DEFAULTS.lunchEndTime);
+
+	if (errors.length === 0 && timeToMinutes(lunchStart) >= timeToMinutes(lunchEnd)) {
+		errors.push('lunchStartTime must be before lunchEndTime.');
+	}
+	if (errors.length === 0 && timeToMinutes(lunchStart) < timeToMinutes(earliest)) {
+		errors.push('lunchStartTime must be at or after earliestStartTime.');
+	}
+	if (errors.length === 0 && timeToMinutes(lunchEnd) > timeToMinutes(latest)) {
+		errors.push('lunchEndTime must be at or before latestEndTime.');
+	}
+
+	let enforceLunch: boolean = POLICY_DEFAULTS.enforceLunchWindow;
+	if (input.enforceLunchWindow !== undefined && input.enforceLunchWindow !== null) {
+		if (typeof input.enforceLunchWindow !== 'boolean') {
+			errors.push('enforceLunchWindow must be a boolean.');
+		} else {
+			enforceLunch = input.enforceLunchWindow;
+		}
+	}
+
 	// --- constraintConfig (JSON object) ---
 	let constraintConfig: Record<string, ConstraintOverride> | null = null;
 	if (input.constraintConfig !== undefined && input.constraintConfig !== null) {
@@ -238,6 +310,13 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 			maxIdleGapMinutesPerDay: maxIdleGap,
 			avoidEarlyFirstPeriod: avoidEarly,
 			avoidLateLastPeriod: avoidLate,
+			enableVacantAwareConstraints: enableVacant,
+			targetFacultyDailyVacantMinutes: targetFacultyVacant,
+			targetSectionDailyVacantPeriods: targetSectionVacant,
+			maxCompressedTeachingMinutesPerDay: maxCompressedPerDay,
+			lunchStartTime: lunchStart,
+			lunchEndTime: lunchEnd,
+			enforceLunchWindow: enforceLunch,
 			constraintConfig,
 		},
 		errors,
@@ -285,6 +364,13 @@ export async function upsertPolicy(schoolId: number, schoolYearId: number, input
 		maxIdleGapMinutesPerDay: data.maxIdleGapMinutesPerDay,
 		avoidEarlyFirstPeriod: data.avoidEarlyFirstPeriod,
 		avoidLateLastPeriod: data.avoidLateLastPeriod,
+		enableVacantAwareConstraints: data.enableVacantAwareConstraints,
+		targetFacultyDailyVacantMinutes: data.targetFacultyDailyVacantMinutes,
+		targetSectionDailyVacantPeriods: data.targetSectionDailyVacantPeriods,
+		maxCompressedTeachingMinutesPerDay: data.maxCompressedTeachingMinutesPerDay,
+		lunchStartTime: data.lunchStartTime,
+		lunchEndTime: data.lunchEndTime,
+		enforceLunchWindow: data.enforceLunchWindow,
 		constraintConfig: constraintConfigValue,
 	};
 

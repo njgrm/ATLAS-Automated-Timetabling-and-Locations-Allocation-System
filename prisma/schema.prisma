@@ -257,6 +257,13 @@ model SchedulingPolicy {
   maxIdleGapMinutesPerDay                  Int      @default(60)    @map("max_idle_gap_minutes_per_day")
   avoidEarlyFirstPeriod                    Boolean  @default(false) @map("avoid_early_first_period")
   avoidLateLastPeriod                      Boolean  @default(false) @map("avoid_late_last_period")
+  enableVacantAwareConstraints             Boolean  @default(false) @map("enable_vacant_aware_constraints")
+  targetFacultyDailyVacantMinutes          Int      @default(60)    @map("target_faculty_daily_vacant_minutes")
+  targetSectionDailyVacantPeriods          Int      @default(1)     @map("target_section_daily_vacant_periods")
+  maxCompressedTeachingMinutesPerDay       Int      @default(300)   @map("max_compressed_teaching_minutes_per_day")
+  lunchStartTime                           String   @default("11:55") @map("lunch_start_time")
+  lunchEndTime                             String   @default("12:55") @map("lunch_end_time")
+  enforceLunchWindow                       Boolean  @default(true)    @map("enforce_lunch_window")
   constraintConfig                         Json?    @map("constraint_config")
   createdAt                                DateTime @default(now())
   updatedAt                                DateTime @updatedAt

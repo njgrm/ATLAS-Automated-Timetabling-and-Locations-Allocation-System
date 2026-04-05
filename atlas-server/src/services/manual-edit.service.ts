@@ -218,6 +218,12 @@ function buildValidatorCtx(
 			avoidEarlyFirstPeriod: policyRecord.avoidEarlyFirstPeriod,
 			avoidLateLastPeriod: policyRecord.avoidLateLastPeriod,
 		},
+		vacantPolicy: {
+			enableVacantAwareConstraints: policyRecord.enableVacantAwareConstraints,
+			targetFacultyDailyVacantMinutes: policyRecord.targetFacultyDailyVacantMinutes,
+			targetSectionDailyVacantPeriods: policyRecord.targetSectionDailyVacantPeriods,
+			maxCompressedTeachingMinutesPerDay: policyRecord.maxCompressedTeachingMinutesPerDay,
+		},
 		buildings,
 		roomBuildings: rooms.map((r) => ({ roomId: r.id, buildingId: r.buildingId })),
 		constraintConfig: {
@@ -336,6 +342,8 @@ const VIOLATION_TITLES: Record<string, string> = {
 	FACULTY_EXCESSIVE_IDLE_GAP: 'Excessive Idle Gap',
 	FACULTY_EARLY_START_PREFERENCE: 'Early Start Preference',
 	FACULTY_LATE_END_PREFERENCE: 'Late End Preference',
+	FACULTY_INSUFFICIENT_DAILY_VACANT: 'Insufficient Daily Vacant Time',
+	SECTION_OVERCOMPRESSED: 'Section Overcompressed',
 };
 
 const DAY_LABELS: Record<string, string> = {
@@ -468,6 +476,30 @@ function buildHumanConflicts(
 				}
 				break;
 			}
+			case 'FACULTY_INSUFFICIENT_DAILY_VACANT': {
+				const m = v.meta;
+				if (m?.vacantMinutes != null && m?.targetVacantMinutes != null) {
+					detail = `${fName} has ${m.vacantMinutes} min vacant time${dayLabel ? ` on ${dayLabel}` : ''}, target is ${m.targetVacantMinutes} min`;
+					delta = `Target: ${m.targetVacantMinutes} min · Observed: ${m.vacantMinutes} min · Short by ${Number(m.targetVacantMinutes) - Number(m.vacantMinutes)} min`;
+				} else {
+					detail = `${fName} has insufficient vacant time${dayLabel ? ` on ${dayLabel}` : ''}`;
+				}
+				break;
+			}
+			case 'SECTION_OVERCOMPRESSED': {
+				const m = v.meta;
+				const sectionId = v.entities.sectionId;
+				if (m?.vacantPeriods != null && m?.targetVacantPeriods != null) {
+					detail = `Section ${sectionId} has ${m.vacantPeriods} vacant period(s)${dayLabel ? ` on ${dayLabel}` : ''}, target is ${m.targetVacantPeriods}`;
+					delta = `Target: ${m.targetVacantPeriods} period(s) · Observed: ${m.vacantPeriods} period(s)`;
+				} else if (m?.sectionDailyMinutes != null && m?.maxCompressedMinutes != null) {
+					detail = `Section ${sectionId} has ${m.sectionDailyMinutes} teaching min${dayLabel ? ` on ${dayLabel}` : ''}, exceeds ${m.maxCompressedMinutes} min limit`;
+					delta = `Limit: ${m.maxCompressedMinutes} min · Observed: ${m.sectionDailyMinutes} min · Δ +${Number(m.sectionDailyMinutes) - Number(m.maxCompressedMinutes)} min`;
+				} else {
+					detail = `Section ${sectionId} schedule is overcompressed${dayLabel ? ` on ${dayLabel}` : ''}`;
+				}
+				break;
+			}
 			default:
 				break;
 		}
@@ -499,6 +531,16 @@ function buildPolicyImpacts(violations: Violation[], refData: Awaited<ReturnType
 			summary = `${fName}: ${m.dailyMinutes} min/day (max ${m.maxTeachingMinutesPerDay})`;
 		} else if (v.code === 'FACULTY_BREAK_REQUIREMENT_VIOLATED' && m.actualGapMinutes != null && m.requiredBreakMinutes != null) {
 			summary = `${fName}: ${m.actualGapMinutes} min break (needs ${m.requiredBreakMinutes})`;
+		} else if (v.code === 'FACULTY_INSUFFICIENT_DAILY_VACANT' && m.vacantMinutes != null && m.targetVacantMinutes != null) {
+			summary = `${fName}: ${m.vacantMinutes} min vacant (target ${m.targetVacantMinutes})`;
+		} else if (v.code === 'SECTION_OVERCOMPRESSED') {
+			if (m.sectionDailyMinutes != null && m.maxCompressedMinutes != null) {
+				summary = `Section ${v.entities.sectionId}: ${m.sectionDailyMinutes} min/day (max ${m.maxCompressedMinutes})`;
+			} else if (m.vacantPeriods != null && m.targetVacantPeriods != null) {
+				summary = `Section ${v.entities.sectionId}: ${m.vacantPeriods} vacant period(s) (target ${m.targetVacantPeriods})`;
+			} else {
+				continue;
+			}
 		} else {
 			continue; // Only include policy threshold violations
 		}

@@ -27,15 +27,18 @@ import type { RoomType } from '@prisma/client';
 
 const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
 
-const PERIOD_SLOTS = [
+/** Default period slots — used when no policy lunch window override is provided. */
+const DEFAULT_PERIOD_SLOTS = [
 	{ startTime: '07:30', endTime: '08:20' },
 	{ startTime: '08:20', endTime: '09:10' },
 	{ startTime: '09:10', endTime: '10:00' },
-	{ startTime: '10:15', endTime: '11:05' },
-	{ startTime: '11:05', endTime: '11:55' },
-	{ startTime: '12:55', endTime: '13:45' },
-	{ startTime: '13:45', endTime: '14:35' },
-	{ startTime: '14:35', endTime: '15:25' },
+	{ startTime: '10:00', endTime: '10:50' },
+	{ startTime: '10:50', endTime: '11:40' },
+	{ startTime: '11:40', endTime: '12:30' },
+	{ startTime: '12:30', endTime: '13:20' },
+	{ startTime: '13:20', endTime: '14:10' },
+	{ startTime: '14:10', endTime: '15:00' },
+	{ startTime: '15:00', endTime: '15:50' },
 ] as const;
 
 const STANDARD_PERIOD_MINUTES = 50;
@@ -85,7 +88,55 @@ export interface PolicyInput {
 	maxTeachingMinutesPerDay: number;
 	earliestStartTime: string;
 	latestEndTime: string;
+	lunchStartTime?: string;
+	lunchEndTime?: string;
+	enforceLunchWindow?: boolean;
 }
+
+type PeriodSlot = { startTime: string; endTime: string };
+
+/**
+ * Build period slots dynamically from policy bounds and optional lunch window.
+ * Generates consecutive 50-minute periods between earliest and latest times,
+ * excluding any slot that overlaps the lunch window.
+ */
+function buildPeriodSlots(policy?: PolicyInput): PeriodSlot[] {
+	if (!policy) return [...DEFAULT_PERIOD_SLOTS];
+
+	const earliest = timeToMinutes(policy.earliestStartTime);
+	const latest = timeToMinutes(policy.latestEndTime);
+	const lunchEnforced = policy.enforceLunchWindow !== false;
+	const lunchStart = lunchEnforced && policy.lunchStartTime ? timeToMinutes(policy.lunchStartTime) : -1;
+	const lunchEnd = lunchEnforced && policy.lunchEndTime ? timeToMinutes(policy.lunchEndTime) : -1;
+
+	const slots: PeriodSlot[] = [];
+	let cursor = earliest;
+
+	while (cursor + STANDARD_PERIOD_MINUTES <= latest) {
+		const slotEnd = cursor + STANDARD_PERIOD_MINUTES;
+
+		// Skip slots that overlap lunch window
+		if (lunchStart >= 0 && cursor < lunchEnd && slotEnd > lunchStart) {
+			// Jump cursor past lunch window
+			cursor = lunchEnd;
+			continue;
+		}
+
+		const hh = (min: number) => String(Math.floor(min / 60)).padStart(2, '0');
+		const mm = (min: number) => String(min % 60).padStart(2, '0');
+		slots.push({
+			startTime: `${hh(cursor)}:${mm(cursor)}`,
+			endTime: `${hh(slotEnd)}:${mm(slotEnd)}`,
+		});
+
+		cursor = slotEnd;
+	}
+
+	return slots;
+}
+
+/** Exported for use by room-schedule service and other consumers. */
+export { buildPeriodSlots, type PeriodSlot };
 
 export interface ConstructorInput {
 	schoolId: number;
@@ -172,7 +223,7 @@ class OccupancyTracker {
 
 // ─── Preference lookup ───
 
-function buildPreferenceLookup(preferences: FacultyPreferenceInput[]): Map<number, Map<string, string>> {
+function buildPreferenceLookup(preferences: FacultyPreferenceInput[], periodSlots: PeriodSlot[]): Map<number, Map<string, string>> {
 	const lookup = new Map<number, Map<string, string>>();
 
 	// Group by faculty — prefer SUBMITTED over DRAFT
@@ -188,8 +239,8 @@ function buildPreferenceLookup(preferences: FacultyPreferenceInput[]): Map<numbe
 		const slotMap = new Map<string, string>();
 
 		for (const ts of pref.timeSlots) {
-			for (let pi = 0; pi < PERIOD_SLOTS.length; pi++) {
-				const period = PERIOD_SLOTS[pi];
+			for (let pi = 0; pi < periodSlots.length; pi++) {
+				const period = periodSlots[pi];
 				// Check if preference slot overlaps this standard period
 				if (ts.startTime < period.endTime && period.startTime < ts.endTime) {
 					const key = `${ts.day}:${pi}`;
@@ -220,6 +271,9 @@ function timeToMinutes(t: string): number {
 export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	const { subjects, faculty, facultySubjects, rooms, preferences, sectionsByGrade, policy } = input;
 
+	// Build period slots dynamically from policy (lunch window, school day bounds)
+	const PERIOD_SLOTS = buildPeriodSlots(policy);
+
 	const demand = computeDemand(sectionsByGrade, subjects);
 
 	// Teaching rooms sorted by id, grouped by type
@@ -246,7 +300,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	}
 
 	// Preference lookup
-	const prefLookup = buildPreferenceLookup(preferences);
+	const prefLookup = buildPreferenceLookup(preferences, PERIOD_SLOTS);
 
 	// Occupancy trackers
 	const facultyOcc = new OccupancyTracker();

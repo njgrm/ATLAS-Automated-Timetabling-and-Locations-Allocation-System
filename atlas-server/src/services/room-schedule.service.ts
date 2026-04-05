@@ -8,22 +8,13 @@ import { prisma } from '../lib/prisma.js';
 import type { ScheduledEntry } from './constraint-validator.js';
 import * as genService from './generation.service.js';
 import { computeOccupiedMinutesByIntervalUnion, countUniqueEntryIds } from './room-schedule.metrics.js';
+import { buildPeriodSlots } from './schedule-constructor.js';
+import * as policyService from './scheduling-policy.service.js';
 
 // ─── Constants ───
 
 const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
 type Day = (typeof DAYS)[number];
-
-const PERIOD_SLOTS = [
-	{ startTime: '07:30', endTime: '08:20' },
-	{ startTime: '08:20', endTime: '09:10' },
-	{ startTime: '09:10', endTime: '10:00' },
-	{ startTime: '10:15', endTime: '11:05' },
-	{ startTime: '11:05', endTime: '11:55' },
-	{ startTime: '12:55', endTime: '13:45' },
-	{ startTime: '13:45', endTime: '14:35' },
-	{ startTime: '14:35', endTime: '15:25' },
-] as const;
 
 // ─── Helpers ───
 
@@ -102,15 +93,28 @@ export async function getRoomScheduleView(
 	});
 	if (!room) throw err(404, 'ROOM_NOT_FOUND', `Room ${roomId} not found in school ${schoolId}.`);
 
-	// 2) Fetch draft from generation run
+	// 2) Fetch policy to build dynamic time slots
+	const policy = await policyService.getOrCreatePolicy(schoolId, schoolYearId);
+	const PERIOD_SLOTS = buildPeriodSlots({
+		maxConsecutiveTeachingMinutesBeforeBreak: policy.maxConsecutiveTeachingMinutesBeforeBreak,
+		minBreakMinutesAfterConsecutiveBlock: policy.minBreakMinutesAfterConsecutiveBlock,
+		maxTeachingMinutesPerDay: policy.maxTeachingMinutesPerDay,
+		earliestStartTime: policy.earliestStartTime,
+		latestEndTime: policy.latestEndTime,
+		lunchStartTime: policy.lunchStartTime,
+		lunchEndTime: policy.lunchEndTime,
+		enforceLunchWindow: policy.enforceLunchWindow,
+	});
+
+	// 3) Fetch draft from generation run
 	const draft = source.mode === 'LATEST'
 		? await genService.getLatestRunDraft(schoolId, schoolYearId)
 		: await genService.getRunDraft(source.runId, schoolId, schoolYearId);
 
-	// 3) Filter entries for this room
+	// 4) Filter entries for this room
 	const roomEntries = draft.entries.filter((e: ScheduledEntry) => e.roomId === roomId);
 
-	// 4) Build index: day -> entries[]
+	// 5) Build index: day -> entries[]
 	const entriesByDay = new Map<string, ScheduledEntry[]>();
 	for (const e of roomEntries) {
 		const arr = entriesByDay.get(e.day) ?? [];
@@ -118,7 +122,7 @@ export async function getRoomScheduleView(
 		entriesByDay.set(e.day, arr);
 	}
 
-	// 5) Build grid row by row (time slot × day)
+	// 6) Build grid row by row (time slot × day)
 	let conflictCount = 0;
 
 	const grid = PERIOD_SLOTS.map((slot) => {
@@ -150,7 +154,7 @@ export async function getRoomScheduleView(
 		return { timeSlot: { startTime: slot.startTime, endTime: slot.endTime }, cells };
 	});
 
-	// 6) Summary — unique-entry aggregation to avoid per-cell inflation
+	// 7) Summary — unique-entry aggregation to avoid per-cell inflation
 	const entryCount = countUniqueEntryIds(roomEntries);
 	const occupiedMinutes = computeOccupiedMinutesByIntervalUnion(roomEntries, DAYS);
 

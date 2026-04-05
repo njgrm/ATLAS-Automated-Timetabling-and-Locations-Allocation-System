@@ -247,7 +247,9 @@ export type ViolationCode =
 	| 'FACULTY_INSUFFICIENT_TRANSITION_BUFFER'
 	| 'FACULTY_EXCESSIVE_IDLE_GAP'
 	| 'FACULTY_EARLY_START_PREFERENCE'
-	| 'FACULTY_LATE_END_PREFERENCE';
+	| 'FACULTY_LATE_END_PREFERENCE'
+	| 'FACULTY_INSUFFICIENT_DAILY_VACANT'
+	| 'SECTION_OVERCOMPRESSED';
 
 export type ViolationSeverity = 'HARD' | 'SOFT';
 
@@ -469,6 +471,13 @@ export interface SchedulingPolicy {
 	maxIdleGapMinutesPerDay: number;
 	avoidEarlyFirstPeriod: boolean;
 	avoidLateLastPeriod: boolean;
+	enableVacantAwareConstraints: boolean;
+	targetFacultyDailyVacantMinutes: number;
+	targetSectionDailyVacantPeriods: number;
+	maxCompressedTeachingMinutesPerDay: number;
+	lunchStartTime: string;
+	lunchEndTime: string;
+	enforceLunchWindow: boolean;
 	constraintConfig: Record<string, ConstraintOverride> | null;
 	createdAt: string;
 	updatedAt: string;

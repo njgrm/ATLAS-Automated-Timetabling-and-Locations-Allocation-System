@@ -33,6 +33,8 @@ const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride> = {
 	FACULTY_EXCESSIVE_IDLE_GAP: { enabled: true, weight: 3, treatAsHard: false },
 	FACULTY_EARLY_START_PREFERENCE: { enabled: false, weight: 2, treatAsHard: false },
 	FACULTY_LATE_END_PREFERENCE: { enabled: false, weight: 2, treatAsHard: false },
+	FACULTY_INSUFFICIENT_DAILY_VACANT: { enabled: false, weight: 3, treatAsHard: false },
+	SECTION_OVERCOMPRESSED: { enabled: false, weight: 3, treatAsHard: false },
 };
 
 const SOFT_CONSTRAINT_LABELS: Record<string, { label: string; explanation: string }> = {
@@ -68,6 +70,14 @@ const SOFT_CONSTRAINT_LABELS: Record<string, { label: string; explanation: strin
 		label: 'Avoid Late Last Period',
 		explanation: 'Soft preference to avoid scheduling faculty in the very last period of the day.',
 	},
+	FACULTY_INSUFFICIENT_DAILY_VACANT: {
+		label: 'Insufficient Daily Vacant Time',
+		explanation: 'Penalizes when a faculty member has too little vacant time between their first and last class in a day.',
+	},
+	SECTION_OVERCOMPRESSED: {
+		label: 'Section Overcompressed',
+		explanation: 'Penalizes when a section has too many consecutive classes without vacant periods or exceeds compressed teaching limits.',
+	},
 };
 
 /* ─── Types ─── */
@@ -86,6 +96,13 @@ interface LocalPolicy {
 	maxIdleGapMinutesPerDay: number;
 	avoidEarlyFirstPeriod: boolean;
 	avoidLateLastPeriod: boolean;
+	enableVacantAwareConstraints: boolean;
+	targetFacultyDailyVacantMinutes: number;
+	targetSectionDailyVacantPeriods: number;
+	maxCompressedTeachingMinutesPerDay: number;
+	lunchStartTime: string;
+	lunchEndTime: string;
+	enforceLunchWindow: boolean;
 	constraintConfig: Record<string, ConstraintOverride>;
 }
 
@@ -104,6 +121,13 @@ function policyToLocal(p: SchedulingPolicy): LocalPolicy {
 		maxIdleGapMinutesPerDay: p.maxIdleGapMinutesPerDay,
 		avoidEarlyFirstPeriod: p.avoidEarlyFirstPeriod,
 		avoidLateLastPeriod: p.avoidLateLastPeriod,
+		enableVacantAwareConstraints: p.enableVacantAwareConstraints,
+		targetFacultyDailyVacantMinutes: p.targetFacultyDailyVacantMinutes,
+		targetSectionDailyVacantPeriods: p.targetSectionDailyVacantPeriods,
+		maxCompressedTeachingMinutesPerDay: p.maxCompressedTeachingMinutesPerDay,
+		lunchStartTime: p.lunchStartTime,
+		lunchEndTime: p.lunchEndTime,
+		enforceLunchWindow: p.enforceLunchWindow,
 		constraintConfig: { ...DEFAULT_CONSTRAINT_CONFIG, ...(p.constraintConfig ?? {}) },
 	};
 }
@@ -416,7 +440,7 @@ export default function SchedulingPolicyPane({
 				</div>
 			) : (
 				/* Outer container does NOT scroll — each column card scrolls independently */
-				<div className="flex-1 min-h-0 overflow-hidden p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+				<div className="flex-1 min-h-0 overflow-hidden p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
 
 					{/* ── COL 1: Core Teaching Limits ── */}
 					<SectionCard title="Core Teaching Limits">
@@ -483,6 +507,44 @@ export default function SchedulingPolicyPane({
 								This will block schedule publishing if any faculty exceeds the break limit.
 							</div>
 						)}
+
+						{/* ── Lunch Window ── */}
+						<div className="pt-2 mt-2 border-t border-border/60 space-y-3">
+							<PolicySwitch
+								label="Enforce Lunch Window"
+								explanation="When ON, no classes can be scheduled during the lunch window. Time slots overlapping the window are excluded from the timetable grid."
+								checked={local.enforceLunchWindow}
+								onCheckedChange={(v) => update('enforceLunchWindow', v)}
+							/>
+							{local.enforceLunchWindow && (
+								<div className="grid grid-cols-2 gap-3 pl-2 border-l-2 border-primary/20">
+									<div className="space-y-1.5">
+										<MetricExplain
+											label="Lunch Start"
+											explanation="Start of the lunch window — no classes will overlap this range."
+										/>
+										<Input
+											type="time"
+											className="h-8 text-xs"
+											value={local.lunchStartTime}
+											onChange={(e) => update('lunchStartTime', e.target.value)}
+										/>
+									</div>
+									<div className="space-y-1.5">
+										<MetricExplain
+											label="Lunch End"
+											explanation="End of the lunch window — classes resume after this time."
+										/>
+										<Input
+											type="time"
+											className="h-8 text-xs"
+											value={local.lunchEndTime}
+											onChange={(e) => update('lunchEndTime', e.target.value)}
+										/>
+									</div>
+								</div>
+							)}
+						</div>
 					</SectionCard>
 
 					{/* ── COL 2: Travel & Well-being ── */}
@@ -552,7 +614,54 @@ export default function SchedulingPolicyPane({
 						)}
 					</SectionCard>
 
-					{/* ── COL 3: Per-Constraint Weights ── */}
+					{/* ── COL 3: Vacant-Aware Scheduling ── */}
+					<SectionCard title="Vacant-Aware Scheduling">
+						<PolicySwitch
+							label="Enable Vacant-Aware Constraints"
+							explanation="Master toggle for vacancy and compression checks. When enabled, the system tracks vacant time for faculty and sections."
+							checked={local.enableVacantAwareConstraints}
+							onCheckedChange={(v) => update('enableVacantAwareConstraints', v)}
+						/>
+
+						{local.enableVacantAwareConstraints ? (
+							<motion.div
+								initial={{ opacity: 0 }}
+								animate={{ opacity: 1 }}
+								className="space-y-3 pl-2 border-l-2 border-primary/20"
+							>
+								<PolicyNumberField
+									label="Faculty Daily Vacant Target (min)"
+									explanation="Minimum vacant minutes per day between a faculty member's first and last class. Falls below this triggers a soft violation."
+									value={local.targetFacultyDailyVacantMinutes}
+									onChange={(v) => update('targetFacultyDailyVacantMinutes', v)}
+									min={0}
+									max={300}
+								/>
+								<PolicyNumberField
+									label="Section Vacant Periods Target"
+									explanation="Minimum number of vacant periods (gaps ≥ break duration) per section per day. Below this triggers a soft violation."
+									value={local.targetSectionDailyVacantPeriods}
+									onChange={(v) => update('targetSectionDailyVacantPeriods', v)}
+									min={0}
+									max={10}
+								/>
+								<PolicyNumberField
+									label="Max Compressed Teaching/Day (min)"
+									explanation="Maximum total teaching minutes per section per day. Anti-overcompression guard — exceeding this triggers a soft violation."
+									value={local.maxCompressedTeachingMinutesPerDay}
+									onChange={(v) => update('maxCompressedTeachingMinutesPerDay', v)}
+									min={60}
+									max={600}
+								/>
+							</motion.div>
+						) : (
+							<p className="text-[0.6875rem] text-muted-foreground/60 italic">
+								Enable vacant-aware checks to configure vacancy targets and compression limits.
+							</p>
+						)}
+					</SectionCard>
+
+					{/* ── COL 4: Per-Constraint Weights ── */}
 					<SectionCard title="Per-Constraint Weights">
 						<p className="text-[0.6875rem] text-muted-foreground">
 							Toggle, weight (1–10), and optionally promote soft constraints to hard.

@@ -64,6 +64,7 @@ import {
 import { Input } from '@/ui/input';
 import { ScrollArea } from '@/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { SearchableSelect } from '@/ui/searchable-select';
 import { Skeleton } from '@/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
@@ -98,6 +99,8 @@ const VIOLATION_LABELS: Record<ViolationCode, string> = {
 	FACULTY_EXCESSIVE_IDLE_GAP: 'Excessive Idle Gap',
 	FACULTY_EARLY_START_PREFERENCE: 'Early Start Preference',
 	FACULTY_LATE_END_PREFERENCE: 'Late End Preference',
+	FACULTY_INSUFFICIENT_DAILY_VACANT: 'Insufficient Daily Vacant',
+	SECTION_OVERCOMPRESSED: 'Section Overcompressed',
 };
 
 const CONFLICT_CODES: Set<ViolationCode> = new Set([
@@ -236,6 +239,15 @@ export default function ScheduleReview() {
 	const [showGenerateConfirm, setShowGenerateConfirm] = useState(false);
 	const [showPublishDialog, setShowPublishDialog] = useState(false);
 	const [publishAcknowledged, setPublishAcknowledged] = useState(false);
+	const [generationElapsed, setGenerationElapsed] = useState(0);
+
+	// Elapsed-time counter while generating
+	useEffect(() => {
+		if (!generating) { setGenerationElapsed(0); return; }
+		const t0 = Date.now();
+		const iv = setInterval(() => setGenerationElapsed(Math.floor((Date.now() - t0) / 1000)), 1000);
+		return () => clearInterval(iv);
+	}, [generating]);
 
 	/* ── Room reference data ── */
 	const [roomMap, setRoomMap] = useState<Map<number, RoomInfo>>(new Map());
@@ -243,9 +255,11 @@ export default function ScheduleReview() {
 	/* ── Layout state ── */
 	const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
 	const [isRightCollapsed, setIsRightCollapsed] = useState(false);
-	const [centerView, setCenterView] = useState<'grid' | 'policy'>('grid');
-	// Snapshot of panel state before entering policy view so we can restore on exit
+	const [centerView, setCenterView] = useState<'grid' | 'policy' | 'manual-edit'>('grid');
+	// Snapshot of panel state before entering a swap view so we can restore on exit
 	const panelSnapshot = useRef<{ left: boolean; right: boolean } | null>(null);
+	// Which action the officer triggered from the right panel
+	const [pendingAction, setPendingAction] = useState<'CHANGE_TIMESLOT' | 'CHANGE_ROOM' | 'CHANGE_FACULTY' | null>(null);
 
 	/* ── Manual edit / DnD state ── */
 	const [dragItem, setDragItem] = useState<{ type: 'entry'; entry: ScheduledEntry } | { type: 'unassigned'; item: UnassignedItem } | null>(null);
@@ -260,8 +274,13 @@ export default function ScheduleReview() {
 	/** Keyboard-accessible DnD: selected source for placement */
 	const [kbSelectedSource, setKbSelectedSource] = useState<{ type: 'entry'; entry: ScheduledEntry } | { type: 'unassigned'; item: UnassignedItem } | null>(null);
 
+	/** Assignment picker modal for unassigned placements */
+	const [showAssignmentPicker, setShowAssignmentPicker] = useState(false);
+	const [assignPickerTarget, setAssignPickerTarget] = useState<{ day: string; startTime: string; endTime: string; item: UnassignedItem } | null>(null);
+	const [assignPickerFacultyId, setAssignPickerFacultyId] = useState<string>('');
+	const [assignPickerRoomId, setAssignPickerRoomId] = useState<string>('');
+
 	const enterPolicyView = useCallback(() => {
-		// Snapshot current state then collapse both panels to maximise policy canvas
 		panelSnapshot.current = { left: isLeftCollapsed, right: isRightCollapsed };
 		setIsLeftCollapsed(true);
 		setIsRightCollapsed(true);
@@ -269,12 +288,29 @@ export default function ScheduleReview() {
 	}, [isLeftCollapsed, isRightCollapsed]);
 
 	const exitPolicyView = useCallback(() => {
-		// Restore panels to whatever the user had before entering policy
 		if (panelSnapshot.current) {
 			setIsLeftCollapsed(panelSnapshot.current.left);
 			setIsRightCollapsed(panelSnapshot.current.right);
 			panelSnapshot.current = null;
 		}
+		setCenterView('grid');
+	}, []);
+
+	const enterManualEditView = useCallback((action: 'CHANGE_TIMESLOT' | 'CHANGE_ROOM' | 'CHANGE_FACULTY') => {
+		panelSnapshot.current = { left: isLeftCollapsed, right: isRightCollapsed };
+		setIsLeftCollapsed(true);
+		setIsRightCollapsed(true);
+		setPendingAction(action);
+		setCenterView('manual-edit');
+	}, [isLeftCollapsed, isRightCollapsed]);
+
+	const exitManualEditView = useCallback(() => {
+		if (panelSnapshot.current) {
+			setIsLeftCollapsed(panelSnapshot.current.left);
+			setIsRightCollapsed(panelSnapshot.current.right);
+			panelSnapshot.current = null;
+		}
+		setPendingAction(null);
 		setCenterView('grid');
 	}, []);
 
@@ -589,12 +625,22 @@ export default function ScheduleReview() {
 		if (!schoolYearId) return;
 		setGenerating(true);
 		try {
-			await atlasApi.post(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs`);
-			toast.success('Generation started — refreshing…');
-			// Poll briefly, then reload
-			setTimeout(() => loadAll(false), 2000);
+			const { data: run } = await atlasApi.post<GenerationRun>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs`);
+			if (run.status === 'FAILED') {
+				toast.error(`Generation failed: ${run.error ?? 'Unknown error'}`);
+			} else {
+				const summary = run.summary as RunSummary | null;
+				const assigned = summary?.assignedCount ?? 0;
+				const unassigned = summary?.unassignedCount ?? 0;
+				const hardViolations = summary?.hardViolationCount ?? 0;
+				toast.success(
+					`Schedule generated — ${assigned} assigned, ${unassigned} unassigned, ${hardViolations} hard violations`,
+				);
+			}
+			await loadAll(false);
 		} catch (e: unknown) {
-			const msg = e instanceof Error ? e.message : 'Generation request failed.';
+			const axiosErr = e as { response?: { data?: { message?: string } } };
+			const msg = axiosErr?.response?.data?.message ?? (e instanceof Error ? e.message : 'Generation request failed.');
 			toast.error(msg);
 		} finally {
 			setGenerating(false);
@@ -730,54 +776,33 @@ export default function ScheduleReview() {
 		async (day: string, startTime: string, endTime: string) => {
 			if (!dragItem) return;
 
-			let proposal: ManualEditProposal;
 			if (dragItem.type === 'unassigned') {
-				const item = dragItem.item;
-				// For unassigned placement, we need faculty and room from the current view context
-				// Use the first available faculty qualified for this subject + first compatible room
+				// Show assignment picker modal instead of auto-selecting
+				setAssignPickerTarget({ day, startTime, endTime, item: dragItem.item });
+				// Pre-select from current view context if possible
 				const firstEntity = Number(entityFilter);
-				let targetFacultyId = 0;
-				let targetRoomId = 0;
-
 				if (viewMode === 'faculty') {
-					targetFacultyId = firstEntity;
-					// Pick first available room
-					const rooms = Array.from(roomMap.values()).filter(r => r.isTeachingSpace);
-					targetRoomId = rooms[0]?.id ?? 0;
+					setAssignPickerFacultyId(String(firstEntity));
+					setAssignPickerRoomId('');
 				} else if (viewMode === 'room') {
-					targetRoomId = firstEntity;
-					// Pick first available faculty — rough heuristic
-					const facIds = Array.from(facultyMap.keys());
-					targetFacultyId = facIds[0] ?? 0;
+					setAssignPickerRoomId(String(firstEntity));
+					setAssignPickerFacultyId('');
 				} else {
-					// section view — pick first available faculty and room
-					const facIds = Array.from(facultyMap.keys());
-					targetFacultyId = facIds[0] ?? 0;
-					const rooms = Array.from(roomMap.values()).filter(r => r.isTeachingSpace);
-					targetRoomId = rooms[0]?.id ?? 0;
+					setAssignPickerFacultyId('');
+					setAssignPickerRoomId('');
 				}
-
-				proposal = {
-					editType: 'PLACE_UNASSIGNED',
-					sectionId: item.sectionId,
-					subjectId: item.subjectId,
-					session: item.session,
-					targetDay: day,
-					targetStartTime: startTime,
-					targetEndTime: endTime,
-					targetFacultyId,
-					targetRoomId,
-				};
-			} else {
-				const entry = dragItem.entry;
-				proposal = {
-					editType: 'MOVE_ENTRY',
-					entryId: entry.entryId,
-					targetDay: day,
-					targetStartTime: startTime,
-					targetEndTime: endTime,
-				};
+				setShowAssignmentPicker(true);
+				return;
 			}
+
+			const entry = dragItem.entry;
+			const proposal: ManualEditProposal = {
+				editType: 'MOVE_ENTRY',
+				entryId: entry.entryId,
+				targetDay: day,
+				targetStartTime: startTime,
+				targetEndTime: endTime,
+			};
 
 			// Preview first
 			const preview = await previewEdit(proposal);
@@ -797,7 +822,7 @@ export default function ScheduleReview() {
 
 			await commitEdit(proposal);
 		},
-		[dragItem, entityFilter, viewMode, roomMap, facultyMap, previewEdit, commitEdit],
+		[dragItem, entityFilter, viewMode, previewEdit, commitEdit],
 	);
 
 	/** Keyboard-accessible placement confirm */
@@ -805,37 +830,35 @@ export default function ScheduleReview() {
 		async (day: string, startTime: string, endTime: string) => {
 			if (!kbSelectedSource) return;
 			const fakeItem = kbSelectedSource;
-			setDragItem(fakeItem);
 			setKbSelectedSource(null);
-			// Re-use drop handler logic
-			let proposal: ManualEditProposal;
-			if (fakeItem.type === 'unassigned') {
-				const item = fakeItem.item;
-				const firstEntity = Number(entityFilter);
-				let targetFacultyId = viewMode === 'faculty' ? firstEntity : Array.from(facultyMap.keys())[0] ?? 0;
-				let targetRoomId = viewMode === 'room' ? firstEntity : (Array.from(roomMap.values()).find(r => r.isTeachingSpace)?.id ?? 0);
 
-				proposal = {
-					editType: 'PLACE_UNASSIGNED',
-					sectionId: item.sectionId,
-					subjectId: item.subjectId,
-					session: item.session,
-					targetDay: day,
-					targetStartTime: startTime,
-					targetEndTime: endTime,
-					targetFacultyId,
-					targetRoomId,
-				};
-			} else {
-				proposal = {
-					editType: 'MOVE_ENTRY',
-					entryId: fakeItem.entry.entryId,
-					targetDay: day,
-					targetStartTime: startTime,
-					targetEndTime: endTime,
-				};
+			if (fakeItem.type === 'unassigned') {
+				// Route to assignment picker
+				setAssignPickerTarget({ day, startTime, endTime, item: fakeItem.item });
+				const firstEntity = Number(entityFilter);
+				if (viewMode === 'faculty') {
+					setAssignPickerFacultyId(String(firstEntity));
+					setAssignPickerRoomId('');
+				} else if (viewMode === 'room') {
+					setAssignPickerRoomId(String(firstEntity));
+					setAssignPickerFacultyId('');
+				} else {
+					setAssignPickerFacultyId('');
+					setAssignPickerRoomId('');
+				}
+				setShowAssignmentPicker(true);
+				return;
 			}
 
+			const proposal: ManualEditProposal = {
+				editType: 'MOVE_ENTRY',
+				entryId: fakeItem.entry.entryId,
+				targetDay: day,
+				targetStartTime: startTime,
+				targetEndTime: endTime,
+			};
+
+			setDragItem(fakeItem);
 			const preview = await previewEdit(proposal);
 			if (!preview) { setDragItem(null); return; }
 			if (!preview.allowed) {
@@ -850,8 +873,47 @@ export default function ScheduleReview() {
 			}
 			await commitEdit(proposal);
 		},
-		[kbSelectedSource, entityFilter, viewMode, facultyMap, roomMap, previewEdit, commitEdit],
+		[kbSelectedSource, entityFilter, viewMode, previewEdit, commitEdit],
 	);
+
+	/** Confirm assignment picker and submit the unassigned placement */
+	const confirmAssignmentPicker = useCallback(async () => {
+		if (!assignPickerTarget) return;
+		const { day, startTime, endTime, item } = assignPickerTarget;
+		const targetFacultyId = Number(assignPickerFacultyId);
+		const targetRoomId = Number(assignPickerRoomId);
+		if (!targetFacultyId || !targetRoomId) {
+			toast.error('Please select both a faculty member and a room.');
+			return;
+		}
+		setShowAssignmentPicker(false);
+
+		const proposal: ManualEditProposal = {
+			editType: 'PLACE_UNASSIGNED',
+			sectionId: item.sectionId,
+			subjectId: item.subjectId,
+			session: item.session,
+			targetDay: day,
+			targetStartTime: startTime,
+			targetEndTime: endTime,
+			targetFacultyId,
+			targetRoomId,
+		};
+
+		const preview = await previewEdit(proposal);
+		if (!preview) { setDragItem(null); return; }
+		if (!preview.allowed) {
+			toast.error(`Blocked: ${preview.hardViolations.map(v => v.message).join('; ')}`);
+			setDragItem(null);
+			return;
+		}
+		if (preview.softViolations.length > 0) {
+			setPendingCommitProposal(proposal);
+			setShowSoftConfirm(true);
+			return;
+		}
+		await commitEdit(proposal);
+	}, [assignPickerTarget, assignPickerFacultyId, assignPickerRoomId, previewEdit, commitEdit]);
 
 	/** Load edit history on mount / run change */
 	useEffect(() => {
@@ -940,6 +1002,52 @@ export default function ScheduleReview() {
 		[sectionMap, draft, subjectMap],
 	);
 
+	/** Hierarchical grouping for entity filter dropdown: Building→Room, Grade→Section, Department→Faculty */
+	const groupedPivotEntities = useMemo(() => {
+		const groups: { label: string; ids: number[] }[] = [];
+		if (viewMode === 'room') {
+			// Group rooms by building
+			const byBuilding = new Map<string, number[]>();
+			for (const id of pivotEntityIds) {
+				const room = roomMap.get(id);
+				const bldg = room ? (room.buildingShortCode || room.buildingName) : 'Unknown';
+				const list = byBuilding.get(bldg) ?? [];
+				list.push(id);
+				byBuilding.set(bldg, list);
+			}
+			for (const [bldg, ids] of Array.from(byBuilding.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+				groups.push({ label: bldg, ids });
+			}
+		} else if (viewMode === 'section') {
+			// Group sections by grade level
+			const byGrade = new Map<string, number[]>();
+			for (const id of pivotEntityIds) {
+				const grade = gradeForSection(id);
+				const key = grade ? `Grade ${grade}` : 'Other';
+				const list = byGrade.get(key) ?? [];
+				list.push(id);
+				byGrade.set(key, list);
+			}
+			for (const [grade, ids] of Array.from(byGrade.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+				groups.push({ label: grade, ids });
+			}
+		} else {
+			// Faculty — group by department if available, else flat
+			const byDept = new Map<string, number[]>();
+			for (const id of pivotEntityIds) {
+				const f = facultyMap.get(id);
+				const dept = f?.department || 'Unassigned';
+				const list = byDept.get(dept) ?? [];
+				list.push(id);
+				byDept.set(dept, list);
+			}
+			for (const [dept, ids] of Array.from(byDept.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+				groups.push({ label: dept, ids });
+			}
+		}
+		return groups;
+	}, [viewMode, pivotEntityIds, roomMap, gradeForSection, facultyMap]);
+
 	/* ── Render ── */
 
 	// Loading skeleton
@@ -1009,8 +1117,12 @@ export default function ScheduleReview() {
 						disabled={generating || !schoolYearId}
 						onClick={triggerGeneration}
 					>
-						<Play className={`size-3.5 mr-1.5 ${generating ? 'animate-pulse' : ''}`} />
-						Generate Schedule
+						{generating ? (
+							<Loader2 className="size-3.5 mr-1.5 animate-spin" />
+						) : (
+							<Play className="size-3.5 mr-1.5" />
+						)}
+						{generating ? 'Generating…' : 'Generate Schedule'}
 					</Button>
 					<Button variant="outline" size="sm" onClick={() => loadAll()}>
 						<RefreshCw className="size-3.5 mr-1.5" />
@@ -1056,8 +1168,12 @@ export default function ScheduleReview() {
 									disabled={generating || loading || !schoolYearId}
 									onClick={handleTriggerGenerate}
 								>
-									<Play className={`size-3.5 ${generating ? 'animate-pulse' : ''}`} />
-									Generate
+									{generating ? (
+										<Loader2 className="size-3.5 animate-spin" />
+									) : (
+										<Play className="size-3.5" />
+									)}
+									{generating ? 'Generating…' : 'Generate'}
 								</Button>
 							</TooltipTrigger>
 							<TooltipContent>Trigger a new schedule generation run</TooltipContent>
@@ -1210,19 +1326,17 @@ export default function ScheduleReview() {
 						</SelectContent>
 					</Select>
 
-					{/* Entity filter — filters grid by section/faculty/room based on view mode */}
-					<Select value={entityFilter} onValueChange={setEntityFilter}>
-						<SelectTrigger className="h-7 w-44 text-xs">
-							<SelectValue placeholder={`Select ${VIEW_MODE_LABELS[viewMode]}…`} />
-						</SelectTrigger>
-						<SelectContent>
-							{pivotEntityIds.map((id) => (
-								<SelectItem key={id} value={String(id)}>
-									{pivotLabel(id)}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+					{/* Entity filter — hierarchical groups by building/grade/department */}
+					<SearchableSelect
+						value={entityFilter}
+						onValueChange={setEntityFilter}
+						placeholder={`Select ${VIEW_MODE_LABELS[viewMode]}…`}
+						triggerClassName="h-7 w-44 text-xs"
+						groups={groupedPivotEntities.map((group) => ({
+							label: group.label,
+							items: group.ids.map((id) => ({ value: String(id), label: pivotLabel(id) })),
+						}))}
+					/>
 
 					<div className="h-4 w-px bg-border mx-0.5" />
 
@@ -1518,6 +1632,39 @@ export default function ScheduleReview() {
 									onPolicySaved={handleRefresh}
 								/>
 							</motion.div>
+						) : centerView === 'manual-edit' && selectedEntry ? (
+							<motion.div
+								key="manual-edit"
+								initial={{ opacity: 0, y: 8 }}
+								animate={{ opacity: 1, y: 0 }}
+								exit={{ opacity: 0, y: 8 }}
+								transition={{ duration: 0.18 }}
+								className="flex flex-col min-h-0 h-full"
+							>
+								<ManualEditPanel
+									entry={selectedEntry}
+									violationIndex={violationIndex}
+									followUps={followUps}
+									onToggleFollowUp={toggleFollowUp}
+									onClose={exitManualEditView}
+									subjectLabel={subjectLabel}
+									facultyLabel={facultyLabel}
+									sectionLabel={sectionLabel}
+									gradeForSection={gradeForSection}
+									roomLabel={roomLabel}
+									isStaleRoom={isStaleRoom}
+									timeSlots={timeSlots}
+									roomMap={roomMap}
+									facultyMap={facultyMap}
+									draftEntries={draft?.entries ?? []}
+									onPreview={previewEdit}
+									onCommit={commitEdit}
+									previewLoading={previewLoading}
+									commitLoading={commitLoading}
+									initialAction={pendingAction}
+									onForceOpen={() => {}}
+								/>
+							</motion.div>
 						) : (
 							<motion.div
 								key="grid"
@@ -1566,9 +1713,9 @@ export default function ScheduleReview() {
 					</AnimatePresence>
 				</div>
 
-				{/* RIGHT: Entry Detail Panel (collapsible) */}
+				{/* RIGHT: Compact Entry Detail — action buttons trigger center-pane swap */}
 				<motion.div
-					animate={{ width: isRightCollapsed ? '3rem' : '18rem' }}
+					animate={{ width: isRightCollapsed ? '3rem' : '14rem' }}
 					transition={{ duration: 0.2, ease: 'easeInOut' }}
 					className="shrink-0 border-l border-border flex flex-col min-h-0 bg-background overflow-hidden"
 				>
@@ -1586,7 +1733,7 @@ export default function ScheduleReview() {
 						</TooltipProvider>
 					</div>
 
-					{!isRightCollapsed ? (
+					{!isRightCollapsed && (
 						<AnimatePresence mode="wait">
 							{selectedEntry ? (
 								<motion.div
@@ -1595,30 +1742,79 @@ export default function ScheduleReview() {
 									animate={{ opacity: 1, x: 0 }}
 									exit={{ opacity: 0, x: 10 }}
 									transition={{ duration: 0.15 }}
-									className="flex flex-col min-h-0 h-full w-72"
+									className="flex flex-col min-h-0 h-full"
 								>
-									<ManualEditPanel
-										entry={selectedEntry}
-										violationIndex={violationIndex}
-										followUps={followUps}
-										onToggleFollowUp={toggleFollowUp}
-										onClose={() => setSelectedEntry(null)}
-										subjectLabel={subjectLabel}
-										facultyLabel={facultyLabel}
-										sectionLabel={sectionLabel}
-										gradeForSection={gradeForSection}
-										roomLabel={roomLabel}
-										isStaleRoom={isStaleRoom}
-										timeSlots={timeSlots}
-										roomMap={roomMap}
-										facultyMap={facultyMap}
-										draftEntries={draft?.entries ?? []}
-										onPreview={previewEdit}
-										onCommit={commitEdit}
-										previewLoading={previewLoading}
-										commitLoading={commitLoading}
-										onForceOpen={() => setIsRightCollapsed(false)}
-									/>
+									{/* Entry summary header */}
+									<div className="shrink-0 flex items-center justify-between px-3 py-2 border-b border-border">
+										<span className="text-xs font-semibold truncate">{subjectLabel(selectedEntry.subjectId)}</span>
+										<div className="flex items-center gap-1 shrink-0">
+											{/* Follow-up flag as icon in header */}
+											<TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<Button
+															variant="ghost"
+															size="sm"
+															className="h-6 w-6 p-0"
+															onClick={() => toggleFollowUp(selectedEntry.entryId)}
+															aria-label={followUps.has(selectedEntry.entryId) ? 'Remove follow-up flag' : 'Mark for follow-up'}
+														>
+															<Flag className={`size-3.5 ${followUps.has(selectedEntry.entryId) ? 'text-amber-500 fill-amber-500' : 'text-muted-foreground'}`} />
+														</Button>
+													</TooltipTrigger>
+													<TooltipContent side="left">{followUps.has(selectedEntry.entryId) ? 'Remove follow-up flag' : 'Mark for follow-up'}</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+											<Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setSelectedEntry(null)} aria-label="Close">
+												<X className="size-3.5" />
+											</Button>
+										</div>
+									</div>
+
+									{/* Compact entry facts */}
+									<ScrollArea className="flex-1 min-h-0">
+										<div className="px-3 py-2 space-y-2">
+											{(() => {
+												const grade = gradeForSection(selectedEntry.sectionId);
+												const gradeBadge = grade ? GRADE_BADGE[grade] : undefined;
+												const entryViolations = violationIndex.get(selectedEntry.entryId) ?? [];
+												return (
+													<>
+														<div className="flex items-center gap-1.5">
+															<span className="text-xs font-medium">{sectionLabel(selectedEntry.sectionId)}</span>
+															{gradeBadge && <Badge variant="outline" className={`h-4 px-1 text-[0.5625rem] shrink-0 ${gradeBadge}`}>G{grade}</Badge>}
+														</div>
+														<p className="text-[0.6875rem] text-muted-foreground">{facultyLabel(selectedEntry.facultyId)}</p>
+														<p className="text-[0.6875rem] text-muted-foreground">{DAY_SHORT[selectedEntry.day]} {formatTime(selectedEntry.startTime)}–{formatTime(selectedEntry.endTime)}</p>
+														<p className="text-[0.6875rem] text-muted-foreground truncate">{roomLabel(selectedEntry.roomId)}</p>
+														{entryViolations.length > 0 && (
+															<div className="space-y-1 pt-1">
+																{entryViolations.map((v, i) => (
+																	<div key={i} className={`rounded px-2 py-1 text-[0.625rem] leading-snug ${v.severity === 'HARD' ? 'border border-red-200 bg-red-50 text-red-700' : 'border border-amber-200 bg-amber-50 text-amber-700'}`}>
+																		{VIOLATION_LABELS[v.code] ?? v.code}
+																	</div>
+																))}
+															</div>
+														)}
+													</>
+												);
+											})()}
+										</div>
+									</ScrollArea>
+
+									{/* Sticky action footer — buttons open center-pane workspace */}
+									<div className="shrink-0 border-t border-border px-3 py-2 space-y-1.5 bg-background">
+										<p className="text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground">Manual Edits</p>
+										<Button variant="outline" size="sm" className="w-full h-7 text-xs justify-start" onClick={() => enterManualEditView('CHANGE_TIMESLOT')} aria-label="Move timeslot">
+											<Clock className="size-3 mr-1.5" />Move Timeslot
+										</Button>
+										<Button variant="outline" size="sm" className="w-full h-7 text-xs justify-start" onClick={() => enterManualEditView('CHANGE_ROOM')} aria-label="Change room">
+											<DoorOpen className="size-3 mr-1.5" />Change Room
+										</Button>
+										<Button variant="outline" size="sm" className="w-full h-7 text-xs justify-start" onClick={() => enterManualEditView('CHANGE_FACULTY')} aria-label="Reassign faculty">
+											<Users className="size-3 mr-1.5" />Reassign Faculty
+										</Button>
+									</div>
 								</motion.div>
 							) : (
 								<motion.div
@@ -1626,21 +1822,15 @@ export default function ScheduleReview() {
 									initial={{ opacity: 0 }}
 									animate={{ opacity: 1 }}
 									exit={{ opacity: 0 }}
-									className="flex-1 flex items-center justify-center w-72"
+									className="flex-1 flex items-center justify-center"
 								>
-									<div className="text-center space-y-2 px-6">
+									<div className="text-center space-y-2 px-4">
 										<Users className="mx-auto size-8 text-muted-foreground/30" />
-										<p className="text-xs text-muted-foreground">
-											Click an entry in the grid or select a violation to view details
-										</p>
+										<p className="text-xs text-muted-foreground">Click an entry in the grid to view details and actions</p>
 									</div>
 								</motion.div>
 							)}
 						</AnimatePresence>
-					) : (
-						<div className="flex-1 flex flex-col items-center py-4 text-muted-foreground/50">
-							<DoorOpen className="size-4" />
-						</div>	
 					)}
 				</motion.div>
 			</div>
@@ -1665,6 +1855,28 @@ export default function ScheduleReview() {
 							Generate Anyway
 						</Button>
 					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* ── Generation Progress Overlay ── */}
+			<Dialog open={generating} modal>
+				<DialogContent className="sm:max-w-sm" onPointerDownOutside={(e) => e.preventDefault()} hideClose>
+					<div className="flex flex-col items-center gap-4 py-4">
+						<div className="relative flex items-center justify-center">
+							<div className="absolute size-16 rounded-full border-4 border-primary/20" />
+							<Loader2 className="size-10 text-primary animate-spin" />
+						</div>
+						<div className="text-center space-y-1">
+							<h3 className="text-base font-semibold">Generating Schedule</h3>
+							<p className="text-sm text-muted-foreground">
+								Constructing timetable and validating constraints…
+							</p>
+						</div>
+						<div className="flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
+							<Clock className="size-3" />
+							<span>Elapsed: {generationElapsed}s</span>
+						</div>
+					</div>
 				</DialogContent>
 			</Dialog>
 
@@ -1773,10 +1985,95 @@ export default function ScheduleReview() {
 							size="sm"
 							disabled={commitLoading}
 							onClick={() => {
-								if (pendingCommitProposal) commitEdit(pendingCommitProposal);
+								if (pendingCommitProposal) commitEdit(pendingCommitProposal, true);
 							}}
 						>
 							{commitLoading ? 'Applying…' : 'Apply Anyway'}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* ── Assignment Picker for Unassigned Placement ── */}
+			<Dialog open={showAssignmentPicker} onOpenChange={(open) => {
+				if (!open) {
+					setShowAssignmentPicker(false);
+					setAssignPickerTarget(null);
+					setDragItem(null);
+				}
+			}}>
+				<DialogContent className="max-w-sm">
+					<DialogHeader>
+						<DialogTitle className="flex items-center gap-2">
+							<Users className="size-4 text-primary" />
+							Assign Faculty &amp; Room
+						</DialogTitle>
+						<DialogDescription>
+							{assignPickerTarget && (
+								<>
+									Placing <span className="font-medium">{subjectLabel(assignPickerTarget.item.subjectId)}</span>
+									{' '}for {sectionLabel(assignPickerTarget.item.sectionId)} on {DAY_SHORT[assignPickerTarget.day]} at {formatTime(assignPickerTarget.startTime)}.
+								</>
+							)}
+						</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-3 py-2">
+						<div className="space-y-1.5">
+							<span className="text-xs font-medium">Faculty</span>
+							<Select value={assignPickerFacultyId} onValueChange={setAssignPickerFacultyId}>
+								<SelectTrigger className="h-8 text-xs">
+									<SelectValue placeholder="Select a faculty member…" />
+								</SelectTrigger>
+								<SelectContent>
+									{Array.from(facultyMap.values())
+										.sort((a, b) => `${a.lastName}`.localeCompare(`${b.lastName}`))
+										.map((f) => (
+											<SelectItem key={f.id} value={String(f.id)}>
+												{f.lastName}, {f.firstName}
+											</SelectItem>
+										))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="space-y-1.5">
+							<span className="text-xs font-medium">Room</span>
+							<Select value={assignPickerRoomId} onValueChange={setAssignPickerRoomId}>
+								<SelectTrigger className="h-8 text-xs">
+									<SelectValue placeholder="Select a room…" />
+								</SelectTrigger>
+								<SelectContent>
+									{Array.from(roomMap.values())
+										.filter((r) => r.isTeachingSpace)
+										.sort((a, b) => {
+											const ba = (a.buildingShortCode || a.buildingName).toLowerCase();
+											const bb = (b.buildingShortCode || b.buildingName).toLowerCase();
+											if (ba !== bb) return ba.localeCompare(bb);
+											return a.name.localeCompare(b.name);
+										})
+										.map((r) => (
+											<SelectItem key={r.id} value={String(r.id)}>
+												{r.buildingShortCode || r.buildingName} — {r.name}
+											</SelectItem>
+										))}
+								</SelectContent>
+							</Select>
+						</div>
+					</div>
+					<DialogFooter className="gap-2 sm:gap-0">
+						<Button variant="outline" size="sm" onClick={() => {
+							setShowAssignmentPicker(false);
+							setAssignPickerTarget(null);
+							setDragItem(null);
+						}}>
+							Cancel
+						</Button>
+						<Button
+							variant="default"
+							size="sm"
+							disabled={!assignPickerFacultyId || !assignPickerRoomId}
+							onClick={confirmAssignmentPicker}
+						>
+							Preview &amp; Place
 						</Button>
 					</DialogFooter>
 				</DialogContent>
