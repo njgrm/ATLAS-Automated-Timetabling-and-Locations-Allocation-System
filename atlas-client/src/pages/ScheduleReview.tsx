@@ -8,8 +8,10 @@ import {
 	Clock,
 	DoorOpen,
 	Flag,
+	GraduationCap,
 	GripVertical,
 	History,
+	Lightbulb,
 	Loader2,
 	PanelLeftClose,
 	PanelLeftOpen,
@@ -21,9 +23,12 @@ import {
 	ShieldAlert,
 	Undo2,
 	Users,
+	Wand2,
 	X,
+	Zap,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
@@ -34,6 +39,7 @@ import type {
 	CommitResult,
 	DraftReport,
 	ExternalSection,
+	FixSuggestionsResponse,
 	GenerationRun,
 	ManualEditProposal,
 	ManualEditRecord,
@@ -70,6 +76,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 
 import SchedulingPolicyPane from '@/components/SchedulingPolicyPane';
 import ManualEditPanel from '@/components/ManualEditPanel';
+import { TutorialOverlay, useTutorial } from '@/components/TutorialOverlay';
+import { ExplainabilityDrawer } from '@/components/ExplainabilityDrawer';
 
 /* ─── Constants ─── */
 
@@ -138,6 +146,49 @@ type RoomInfo = {
 	type: string;
 	isTeachingSpace: boolean;
 };
+
+/* ─── Tutorial step definitions ─── */
+
+const TUTORIAL_STEPS = [
+	{
+		target: '[data-tutorial="run-selector"]',
+		title: 'Run Selector',
+		content: 'Pick which generation run to review. "Latest Run" is selected by default. Each run is a separate scheduling attempt.',
+	},
+	{
+		target: '[data-tutorial="left-tabs"]',
+		title: 'Violations & Unassigned',
+		content: 'Two panels here: Violations shows constraint issues, Unassigned shows sessions that couldn\'t be placed. Both need attention before you can publish.',
+	},
+	{
+		target: '[data-tutorial="grid-controls"]',
+		title: 'Grid Controls & Filters',
+		content: 'Switch between Section, Faculty, or Room views. Use severity filters to focus on what matters most.',
+	},
+	{
+		target: '[data-tutorial="center-grid"]',
+		title: 'Timetable Grid',
+		content: 'Click any entry in the grid to see its details. Drag entries or unassigned items to different slots. The system will preview the impact before applying.',
+	},
+	{
+		target: '[data-tutorial="manual-edit-actions"]',
+		title: 'Manual Edit Actions',
+		content: 'Select an entry, then use these buttons to move its timeslot, change room, or reassign faculty. Every edit shows a preview first.',
+		roles: ['admin', 'officer', 'SYSTEM_ADMIN'],
+	},
+	{
+		target: '[data-tutorial="policy-btn"]',
+		title: 'Scheduling Policy',
+		content: 'Open the policy pane to adjust constraint weights, teaching limits, break requirements, and more. Changes affect the next generation run.',
+		roles: ['admin', 'officer', 'SYSTEM_ADMIN'],
+	},
+	{
+		target: '[data-tutorial="undo-btn"]',
+		title: 'History & Undo',
+		content: 'Every manual edit is tracked. Use Undo to revert the last change, or view the full edit history.',
+		roles: ['admin', 'officer', 'SYSTEM_ADMIN'],
+	},
+];
 
 const VIEW_MODE_LABELS: Record<ViewMode, string> = {
 	section: 'Section',
@@ -279,6 +330,13 @@ export default function ScheduleReview() {
 	const [assignPickerTarget, setAssignPickerTarget] = useState<{ day: string; startTime: string; endTime: string; item: UnassignedItem } | null>(null);
 	const [assignPickerFacultyId, setAssignPickerFacultyId] = useState<string>('');
 	const [assignPickerRoomId, setAssignPickerRoomId] = useState<string>('');
+
+	/* ── Tutorial + Explainability ── */
+	const tutorial = useTutorial('atlas_timetable_tour');
+	const [drawerViolation, setDrawerViolation] = useState<Violation | null>(null);
+	const [drawerUnassigned, setDrawerUnassigned] = useState<UnassignedItem | null>(null);
+	const showExplainDrawer = !!drawerViolation || !!drawerUnassigned;
+	const [fixLoading, setFixLoading] = useState<string | null>(null);
 
 	const enterPolicyView = useCallback(() => {
 		panelSnapshot.current = { left: isLeftCollapsed, right: isRightCollapsed };
@@ -1143,6 +1201,7 @@ export default function ScheduleReview() {
 				{/* Row 1: Run Management */}
 				<div className="flex items-center gap-2 px-4 pt-3 pb-1.5 flex-wrap">
 					{/* Run selector */}
+					<div data-tutorial="run-selector">
 					<Select value={selectedRunId} onValueChange={handleRunChange}>
 						<SelectTrigger className="h-8 w-44 text-xs">
 							<SelectValue placeholder="Select run" />
@@ -1156,6 +1215,7 @@ export default function ScheduleReview() {
 							))}
 						</SelectContent>
 					</Select>
+					</div>
 
 					{/* Generate new run */}
 					<TooltipProvider>
@@ -1211,6 +1271,7 @@ export default function ScheduleReview() {
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Button
+									data-tutorial="policy-btn"
 									variant={centerView === 'policy' ? 'default' : 'outline'}
 									size="sm"
 									className="h-8 gap-1.5"
@@ -1248,6 +1309,7 @@ export default function ScheduleReview() {
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Button
+									data-tutorial="undo-btn"
 									variant="outline"
 									size="sm"
 									className="h-8 gap-1.5"
@@ -1281,6 +1343,28 @@ export default function ScheduleReview() {
 						</Tooltip>
 					</TooltipProvider>
 
+					{/* Tutorial + How It Works */}
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant="ghost"
+									size="sm"
+									className="h-8 gap-1.5"
+									onClick={tutorial.start}
+								>
+									<GraduationCap className="size-3.5" />
+									Tour
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Start guided tour of the schedule review page</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+					<Link to="/timetabling/how-it-works" className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+						<Lightbulb className="size-3.5" />
+						How It Works
+					</Link>
+
 					{/* Inline stat banner */}
 					{summary && (
 						<div className="flex items-center gap-3 ml-auto text-xs text-muted-foreground">
@@ -1311,7 +1395,7 @@ export default function ScheduleReview() {
 				</div>
 
 				{/* Row 2: Grid Controls */}
-				<div className="flex items-center gap-2 px-4 pb-2 flex-wrap">
+				<div className="flex items-center gap-2 px-4 pb-2 flex-wrap" data-tutorial="grid-controls">
 					{/* View-by pivot */}
 					<Select value={viewMode} onValueChange={(v) => { setViewMode(v as ViewMode); setEntityFilter(''); }}>
 						<SelectTrigger className="h-7 w-32 text-xs">
@@ -1436,7 +1520,7 @@ export default function ScheduleReview() {
 					) : (
 					<>
 					{/* Tab switcher */}
-					<div className="shrink-0 flex border-b border-border" role="tablist" aria-label="Schedule review panels">
+					<div className="shrink-0 flex border-b border-border" role="tablist" aria-label="Schedule review panels" data-tutorial="left-tabs">
 						<button
 							id="tab-violations"
 							type="button"
@@ -1511,6 +1595,7 @@ export default function ScheduleReview() {
 												violations={vList}
 												selectedViolation={selectedViolation}
 												onSelect={handleViolationSelect}
+												onExplain={setDrawerViolation}
 											/>
 										))
 									)}
@@ -1552,7 +1637,7 @@ export default function ScheduleReview() {
 										{(draft?.unassignedItems ?? []).length > 0 && (
 											<div className="space-y-1">
 												<span className="text-[0.6875rem] font-medium text-muted-foreground">
-													Unassigned Items — drag to grid
+													Unassigned Items — drag to grid or use fix actions
 												</span>
 												{(draft?.unassignedItems ?? []).map((item, i) => {
 													const grade = item.gradeLevel;
@@ -1561,17 +1646,21 @@ export default function ScheduleReview() {
 														&& kbSelectedSource.item.sectionId === item.sectionId
 														&& kbSelectedSource.item.subjectId === item.subjectId
 														&& kbSelectedSource.item.session === item.session;
+													const itemKey = `${item.sectionId}-${item.subjectId}-${item.session}`;
+													const isFollowUp = followUps.has(itemKey);
 													return (
 														<div
-															key={`${item.sectionId}-${item.subjectId}-${item.session}-${i}`}
+															key={`${itemKey}-${i}`}
 															draggable
 															onDragStart={() => setDragItem({ type: 'unassigned', item })}
 															onDragEnd={() => { if (!showSoftConfirm) setDragItem(null); }}
 															onClick={() => setKbSelectedSource(isKbSelected ? null : { type: 'unassigned', item })}
-															className={`rounded border px-2 py-1.5 text-xs space-y-0.5 cursor-grab active:cursor-grabbing transition-colors ${
+															className={`rounded border px-2 py-1.5 text-xs space-y-1 cursor-grab active:cursor-grabbing transition-colors ${
 																isKbSelected
 																	? 'border-primary bg-primary/10 ring-2 ring-primary'
-																	: 'border-amber-200 bg-amber-50/50 hover:border-amber-300'
+																	: isFollowUp
+																		? 'border-amber-300 bg-amber-50/80'
+																		: 'border-amber-200 bg-amber-50/50 hover:border-amber-300'
 															}`}
 														>
 															<div className="flex items-center gap-1.5">
@@ -1588,6 +1677,105 @@ export default function ScheduleReview() {
 															<div className="flex items-center gap-1.5 text-[0.625rem] text-muted-foreground">
 																<UnassignedReasonBadge reason={item.reason} />
 																<span className="opacity-60">Session {item.session}</span>
+																<Badge variant="destructive" className="h-4 px-1 text-[0.5rem] ml-auto">
+																	Blocker
+																</Badge>
+															</div>
+															{/* Fix action row */}
+															<div className="flex items-center gap-1 pt-0.5" onClick={(e) => e.stopPropagation()}>
+																<TooltipProvider>
+																	<Tooltip>
+																		<TooltipTrigger asChild>
+																			<Button
+																				variant="ghost"
+																				size="sm"
+																				className="h-5 px-1.5 text-[0.5625rem] gap-0.5"
+																				onClick={() => setDrawerUnassigned(item)}
+																			>
+																				<Lightbulb className="size-2.5" />
+																				Why?
+																			</Button>
+																		</TooltipTrigger>
+																		<TooltipContent>Explain why this session is unassigned</TooltipContent>
+																	</Tooltip>
+																</TooltipProvider>
+																<TooltipProvider>
+																	<Tooltip>
+																		<TooltipTrigger asChild>
+																			<Button
+																				variant="ghost"
+																				size="sm"
+																				className="h-5 px-1.5 text-[0.5625rem] gap-0.5"
+																				disabled={fixLoading === itemKey}
+																				onClick={async () => {
+																					setFixLoading(itemKey);
+																					try {
+																						const resp = await fetch(
+																							`/api/v1/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${selectedRunId === 'latest' ? runs[0]?.id : selectedRunId}/fix-suggestions`,
+																							{
+																								method: 'POST',
+																								headers: { 'Content-Type': 'application/json' },
+																								body: JSON.stringify({
+																									sectionId: item.sectionId,
+																									subjectId: item.subjectId,
+																									gradeLevel: item.gradeLevel,
+																									session: item.session,
+																									reason: item.reason,
+																								}),
+																							},
+																						);
+																						if (!resp.ok) throw new Error('Failed to fetch suggestions');
+																						const data: FixSuggestionsResponse = await resp.json();
+																						if (data.explanation.suggestions.length > 0) {
+																							const first = data.explanation.suggestions[0];
+																							toast.info(`Suggestion: ${first.label}`, {
+																								description: first.description,
+																								duration: 8000,
+																							});
+																						} else {
+																							toast.info('No automatic fix available. Manual intervention needed.');
+																						}
+																					} catch {
+																						toast.error('Could not fetch fix suggestions');
+																					} finally {
+																						setFixLoading(null);
+																					}
+																				}}
+																			>
+																				{fixLoading === itemKey ? (
+																					<Loader2 className="size-2.5 animate-spin" />
+																				) : (
+																					<Wand2 className="size-2.5" />
+																				)}
+																				Fix
+																			</Button>
+																		</TooltipTrigger>
+																		<TooltipContent>Get AI-suggested fixes for this item</TooltipContent>
+																	</Tooltip>
+																</TooltipProvider>
+																<TooltipProvider>
+																	<Tooltip>
+																		<TooltipTrigger asChild>
+																			<Button
+																				variant="ghost"
+																				size="sm"
+																				className={`h-5 px-1.5 text-[0.5625rem] gap-0.5 ${isFollowUp ? 'text-amber-600' : ''}`}
+																				onClick={() => {
+																					setFollowUps((prev) => {
+																						const next = new Set(prev);
+																						if (next.has(itemKey)) next.delete(itemKey);
+																						else next.add(itemKey);
+																						return next;
+																					});
+																					toast.info(isFollowUp ? 'Follow-up removed' : 'Marked for follow-up');
+																				}}
+																			>
+																				<Flag className={`size-2.5 ${isFollowUp ? 'fill-amber-500' : ''}`} />
+																			</Button>
+																		</TooltipTrigger>
+																		<TooltipContent>{isFollowUp ? 'Remove follow-up flag' : 'Flag for follow-up'}</TooltipContent>
+																	</Tooltip>
+																</TooltipProvider>
 															</div>
 														</div>
 													);
@@ -1614,7 +1802,7 @@ export default function ScheduleReview() {
 				</motion.div>
 
 				{/* CENTER: Timetable Grid or Policy Pane */}
-				<div className="flex-1 min-w-0 flex flex-col min-h-0">
+				<div className="flex-1 min-w-0 flex flex-col min-h-0" data-tutorial="center-grid">
 					<AnimatePresence mode="wait">
 						{centerView === 'policy' ? (
 							<motion.div
@@ -1803,7 +1991,7 @@ export default function ScheduleReview() {
 									</ScrollArea>
 
 									{/* Sticky action footer — buttons open center-pane workspace */}
-									<div className="shrink-0 border-t border-border px-3 py-2 space-y-1.5 bg-background">
+									<div className="shrink-0 border-t border-border px-3 py-2 space-y-1.5 bg-background" data-tutorial="manual-edit-actions">
 										<p className="text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground">Manual Edits</p>
 										<Button variant="outline" size="sm" className="w-full h-7 text-xs justify-start" onClick={() => enterManualEditView('CHANGE_TIMESLOT')} aria-label="Move timeslot">
 											<Clock className="size-3 mr-1.5" />Move Timeslot
@@ -2129,6 +2317,21 @@ export default function ScheduleReview() {
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
+
+			{/* ── Tutorial Overlay ── */}
+			<TutorialOverlay
+				steps={TUTORIAL_STEPS}
+				active={tutorial.active}
+				onComplete={tutorial.complete}
+			/>
+
+			{/* ── Explainability Drawer ── */}
+			<ExplainabilityDrawer
+				open={showExplainDrawer}
+				onClose={() => { setDrawerViolation(null); setDrawerUnassigned(null); }}
+				violation={drawerViolation ?? undefined}
+				unassignedItem={drawerUnassigned ?? undefined}
+			/>
 		</div>
 	);
 }
@@ -2230,11 +2433,13 @@ function ViolationGroup({
 	violations,
 	selectedViolation,
 	onSelect,
+	onExplain,
 }: {
 	code: ViolationCode;
 	violations: Violation[];
 	selectedViolation: Violation | null;
 	onSelect: (v: Violation) => void;
+	onExplain?: (v: Violation) => void;
 }) {
 	const [expanded, setExpanded] = useState(true);
 	const isHard = violations[0]?.severity === 'HARD';
@@ -2271,17 +2476,27 @@ function ViolationGroup({
 							{violations.map((v, i) => {
 								const isSelected = selectedViolation === v;
 								return (
-									<button
-										key={i}
-										onClick={() => onSelect(v)}
-										className={`w-full text-left px-3 py-1.5 text-[0.6875rem] leading-tight transition-colors ${
-											isSelected
-												? 'bg-primary/10 text-foreground'
-												: 'text-muted-foreground hover:bg-muted/50'
-										}`}
-									>
-										<span className="line-clamp-2">{v.message}</span>
-									</button>
+									<div key={i} className={`flex items-center gap-0.5 ${
+										isSelected
+											? 'bg-primary/10 text-foreground'
+											: 'text-muted-foreground hover:bg-muted/50'
+									}`}>
+										<button
+											onClick={() => onSelect(v)}
+											className="flex-1 text-left px-3 py-1.5 text-[0.6875rem] leading-tight transition-colors"
+										>
+											<span className="line-clamp-2">{v.message}</span>
+										</button>
+										{onExplain && (
+											<button
+												onClick={(e) => { e.stopPropagation(); onExplain(v); }}
+												className="shrink-0 p-1 mr-1 rounded hover:bg-muted transition-colors"
+												aria-label="Explain this violation"
+											>
+												<Lightbulb className="size-3 text-amber-500" />
+											</button>
+										)}
+									</div>
 								);
 							})}
 						</div>

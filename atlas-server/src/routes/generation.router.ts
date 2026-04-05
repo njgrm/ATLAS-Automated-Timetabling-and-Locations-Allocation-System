@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import * as genService from '../services/generation.service.js';
+import { getFixSuggestions } from '../services/fix-suggestions.service.js';
 
 const router = Router();
 
@@ -223,6 +224,46 @@ router.get(
 
 			const runs = await genService.listRuns(schoolId, schoolYearId, limit);
 			res.json({ runs, count: runs.length });
+		} catch (e) { next(e); }
+	},
+);
+
+// ─── POST /:schoolId/:schoolYearId/runs/:runId/fix-suggestions — get fix suggestions for an unassigned item ───
+
+router.post(
+	'/:schoolId/:schoolYearId/runs/:runId/fix-suggestions',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const role = req.user?.role;
+			if (!role || !PRIVILEGED_ROLES.has(role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can request fix suggestions.' });
+				return;
+			}
+
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+			const runId = positiveInt(req.params.runId, 'runId');
+			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
+
+			const { sectionId, subjectId, gradeLevel, session, reason } = req.body;
+			const validReasons = ['NO_QUALIFIED_FACULTY', 'FACULTY_OVERLOADED', 'NO_AVAILABLE_SLOT', 'NO_COMPATIBLE_ROOM'];
+			if (!sectionId || !subjectId || !reason || !validReasons.includes(reason)) {
+				res.status(400).json({ code: 'INVALID_BODY', message: 'sectionId, subjectId, session, gradeLevel, and a valid reason are required.' });
+				return;
+			}
+
+			const result = await getFixSuggestions(schoolId, schoolYearId, runId, {
+				sectionId: Number(sectionId),
+				subjectId: Number(subjectId),
+				gradeLevel: Number(gradeLevel) || 0,
+				session: Number(session) || 1,
+				reason,
+			});
+
+			res.json(result);
 		} catch (e) { next(e); }
 	},
 );

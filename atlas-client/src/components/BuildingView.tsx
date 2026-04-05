@@ -163,21 +163,21 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 					y={0}
 					width={buildingContentW - FLOOR_LABEL_W}
 					height={floorTotalH}
-					fill={isGround ? '#fafaf9' : '#fefefe'}
+					fill={isGround ? '#f1f5f9' : '#f8fafc'}
 					cornerRadius={2}
 				/>
 				{/* Left pillar */}
-				<Rect x={FLOOR_LABEL_W} y={0} width={PILLAR_W} height={floorTotalH} fill="#d4d4d4" />
+				<Rect x={FLOOR_LABEL_W} y={0} width={PILLAR_W} height={floorTotalH} fill="#99f6e4" />
 				{/* Right pillar */}
-				<Rect x={buildingContentW - PILLAR_W} y={0} width={PILLAR_W} height={floorTotalH} fill="#d4d4d4" />
+				<Rect x={buildingContentW - PILLAR_W} y={0} width={PILLAR_W} height={floorTotalH} fill="#99f6e4" />
 				{/* Floor separator line */}
 				<Line
 					points={[FLOOR_LABEL_W, floorTotalH, buildingContentW, floorTotalH]}
-					stroke="#a8a29e"
+					stroke="#cbd5e1"
 					strokeWidth={2}
 				/>
 				{/* Floor label */}
-				<Rect x={0} y={0} width={FLOOR_LABEL_W - 2} height={floorTotalH} fill="#f5f5f4" cornerRadius={[4, 0, 0, 4]} />
+				<Rect x={0} y={0} width={FLOOR_LABEL_W - 2} height={floorTotalH} fill="#f0fdfa" cornerRadius={[4, 0, 0, 4]} />
 				<Text
 					x={2}
 					y={floorTotalH / 2 - 8}
@@ -185,7 +185,7 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 					text={`F${floorNum}`}
 					fontSize={11}
 					fontStyle="bold"
-					fill="#78716c"
+					fill="#0d9488"
 					align="center"
 				/>
 				{/* Rooms */}
@@ -323,7 +323,7 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 			)}
 
 			{/* Canvas */}
-			<div ref={containerRef} className="overflow-hidden rounded-md border border-border bg-stone-50">
+			<div ref={containerRef} className="overflow-hidden rounded-md border border-border bg-slate-50">
 				<Stage
 					width={containerW}
 					height={canvasH}
@@ -344,14 +344,14 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 								buildingContentW + 4, ROOF_H,
 							]}
 							closed
-							fill="#78716c"
-							stroke="#57534e"
+							fill="#0d9488"
+							stroke="#0f766e"
 							strokeWidth={1.5}
 						/>
 						{/* Roof accent line */}
 						<Line
 							points={[FLOOR_LABEL_W, ROOF_H, buildingContentW, ROOF_H]}
-							stroke="#57534e"
+							stroke="#0f766e"
 							strokeWidth={2}
 						/>
 						{/* Building name on roof */}
@@ -362,7 +362,7 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 							text={building.name}
 							fontSize={11}
 							fontStyle="bold"
-							fill="#ffffff"
+							fill="#f0fdfa"
 							align="center"
 						/>
 
@@ -374,8 +374,8 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 								y={0}
 								width={buildingContentW - FLOOR_LABEL_W}
 								height={buildingContentH - ROOF_H - GROUND_H}
-								fill="#fafaf9"
-								stroke="#d6d3d1"
+								fill="#f8fafc"
+								stroke="#cbd5e1"
 								strokeWidth={1}
 							/>
 						</Group>
@@ -389,7 +389,7 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 							y={buildingContentH - GROUND_H}
 							width={buildingContentW - FLOOR_LABEL_W + 16}
 							height={GROUND_H}
-							fill="#a8a29e"
+							fill="#94a3b8"
 							cornerRadius={[0, 0, 4, 4]}
 						/>
 						{/* Ground texture lines */}
@@ -402,7 +402,7 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 									FLOOR_LABEL_W - 4 + pct * (buildingContentW - FLOOR_LABEL_W + 8),
 									buildingContentH - 2,
 								]}
-								stroke="#78716c"
+								stroke="#64748b"
 								strokeWidth={0.5}
 								opacity={0.4}
 							/>

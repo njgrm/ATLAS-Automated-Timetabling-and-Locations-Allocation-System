@@ -482,3 +482,44 @@ export interface SchedulingPolicy {
 	createdAt: string;
 	updatedAt: string;
 }
+
+/* ─── Fix Suggestion types ─── */
+
+export type UnassignedReason = 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM';
+
+export type FixActionType =
+	| 'ASSIGN_CANDIDATE_FACULTY'
+	| 'SUGGEST_COMPATIBLE_ROOM'
+	| 'PLACE_NEXT_BEST_SLOT'
+	| 'OPEN_POLICY_SUGGESTION'
+	| 'CONVERT_TO_FOLLOW_UP';
+
+export interface FixSuggestion {
+	action: FixActionType;
+	label: string;
+	description: string;
+	proposal?: ManualEditProposal;
+	policyHint?: string;
+}
+
+export interface UnassignedExplanation {
+	reason: UnassignedReason;
+	humanLabel: string;
+	humanDetail: string;
+	impact: 'PUBLISH_BLOCKER' | 'WARNING';
+	suggestions: FixSuggestion[];
+}
+
+export interface FixSuggestionsResponse {
+	item: UnassignedItem;
+	explanation: UnassignedExplanation;
+}
+
+/* ─── Tutorial step type ─── */
+
+export interface TutorialStep {
+	target: string;
+	title: string;
+	content: string;
+	roles?: string[];
+}
