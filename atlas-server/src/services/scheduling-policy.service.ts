@@ -88,10 +88,17 @@ export interface SchedulingPolicyData {
 // ─── Validation ───
 
 const HH_MM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const STANDARD_PERIOD_MINUTES = 50;
 
 function timeToMinutes(t: string): number {
 	const [h, m] = t.split(':').map(Number);
 	return h * 60 + m;
+}
+
+function minutesToTime(totalMinutes: number): string {
+	const h = Math.floor(totalMinutes / 60);
+	const m = totalMinutes % 60;
+	return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
 export interface PolicyInput {
@@ -161,8 +168,16 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 	const earliest = requireTime(input.earliestStartTime, 'earliestStartTime', POLICY_DEFAULTS.earliestStartTime);
 	const latest = requireTime(input.latestEndTime, 'latestEndTime', POLICY_DEFAULTS.latestEndTime);
 
-	if (errors.length === 0 && timeToMinutes(earliest) >= timeToMinutes(latest)) {
+	const earliestMinutes = timeToMinutes(earliest);
+	const latestMinutes = timeToMinutes(latest);
+
+	if (errors.length === 0 && earliestMinutes >= latestMinutes) {
 		errors.push('earliestStartTime must be before latestEndTime.');
+	}
+	if (errors.length === 0 && latestMinutes - earliestMinutes < STANDARD_PERIOD_MINUTES) {
+		errors.push(
+			`The schedule window must be at least ${STANDARD_PERIOD_MINUTES} minutes to fit one class period.`,
+		);
 	}
 
 	// --- bool ---
@@ -252,25 +267,40 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 	);
 
 	// --- lunch window ---
-	const lunchStart = requireTime(input.lunchStartTime, 'lunchStartTime', POLICY_DEFAULTS.lunchStartTime);
-	const lunchEnd = requireTime(input.lunchEndTime, 'lunchEndTime', POLICY_DEFAULTS.lunchEndTime);
-
-	if (errors.length === 0 && timeToMinutes(lunchStart) >= timeToMinutes(lunchEnd)) {
-		errors.push('lunchStartTime must be before lunchEndTime.');
-	}
-	if (errors.length === 0 && timeToMinutes(lunchStart) < timeToMinutes(earliest)) {
-		errors.push('lunchStartTime must be at or after earliestStartTime.');
-	}
-	if (errors.length === 0 && timeToMinutes(lunchEnd) > timeToMinutes(latest)) {
-		errors.push('lunchEndTime must be at or before latestEndTime.');
-	}
-
 	let enforceLunch: boolean = POLICY_DEFAULTS.enforceLunchWindow;
 	if (input.enforceLunchWindow !== undefined && input.enforceLunchWindow !== null) {
 		if (typeof input.enforceLunchWindow !== 'boolean') {
 			errors.push('enforceLunchWindow must be a boolean.');
 		} else {
 			enforceLunch = input.enforceLunchWindow;
+		}
+	}
+	let lunchStart = requireTime(input.lunchStartTime, 'lunchStartTime', POLICY_DEFAULTS.lunchStartTime);
+	let lunchEnd = requireTime(input.lunchEndTime, 'lunchEndTime', POLICY_DEFAULTS.lunchEndTime);
+
+	let lunchStartMinutes = timeToMinutes(lunchStart);
+	let lunchEndMinutes = timeToMinutes(lunchEnd);
+
+	// Normalize lunch window against schedule bounds for robust "half-day" policies.
+	// If it cannot fit, gracefully disable lunch enforcement instead of failing save.
+	if (errors.length === 0 && enforceLunch) {
+		lunchStartMinutes = Math.max(lunchStartMinutes, earliestMinutes);
+		lunchEndMinutes = Math.min(lunchEndMinutes, latestMinutes);
+		if (lunchStartMinutes >= lunchEndMinutes) {
+			enforceLunch = false;
+		} else {
+			lunchStart = minutesToTime(lunchStartMinutes);
+			lunchEnd = minutesToTime(lunchEndMinutes);
+		}
+	}
+
+	if (errors.length === 0) {
+		const lunchMinutes = enforceLunch ? Math.max(0, lunchEndMinutes - lunchStartMinutes) : 0;
+		const effectiveTeachingWindowMinutes = latestMinutes - earliestMinutes - lunchMinutes;
+		if (effectiveTeachingWindowMinutes < STANDARD_PERIOD_MINUTES) {
+			errors.push(
+				`Policy leaves only ${effectiveTeachingWindowMinutes} effective teaching minutes, which is below one period (${STANDARD_PERIOD_MINUTES} minutes).`,
+			);
 		}
 	}
 
@@ -336,6 +366,8 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
  */
 const SCHEMA_DRIFT_CODES = new Set(['P2010', 'P2022']);
 const SCHEMA_DRIFT_MSG = /column .* does not exist|relation .* does not exist|undefined column/i;
+let schemaDriftWarned = false;
+let ensureColumnsPromise: Promise<void> | null = null;
 
 function isSchemaDriftError(e: unknown): boolean {
 	if (!e || typeof e !== 'object') return false;
@@ -361,10 +393,44 @@ function buildSyntheticPolicy(schoolId: number, schoolYearId: number) {
 	};
 }
 
+/**
+ * Best-effort runtime healing for policy schema drift.
+ * Handles cases where migration history says "up to date" but columns are missing.
+ */
+async function ensureSchedulingPolicyColumns(): Promise<void> {
+	if (!ensureColumnsPromise) {
+		ensureColumnsPromise = (async () => {
+			await prisma.$executeRawUnsafe(`
+				ALTER TABLE "scheduling_policies"
+				ADD COLUMN IF NOT EXISTS "enable_travel_wellbeing_checks" BOOLEAN NOT NULL DEFAULT true,
+				ADD COLUMN IF NOT EXISTS "max_walking_distance_meters_per_transition" INTEGER NOT NULL DEFAULT 120,
+				ADD COLUMN IF NOT EXISTS "max_building_transitions_per_day" INTEGER NOT NULL DEFAULT 4,
+				ADD COLUMN IF NOT EXISTS "max_back_to_back_transitions_without_buffer" INTEGER NOT NULL DEFAULT 2,
+				ADD COLUMN IF NOT EXISTS "max_idle_gap_minutes_per_day" INTEGER NOT NULL DEFAULT 60,
+				ADD COLUMN IF NOT EXISTS "avoid_early_first_period" BOOLEAN NOT NULL DEFAULT false,
+				ADD COLUMN IF NOT EXISTS "avoid_late_last_period" BOOLEAN NOT NULL DEFAULT false,
+				ADD COLUMN IF NOT EXISTS "constraint_config" JSONB,
+				ADD COLUMN IF NOT EXISTS "enable_vacant_aware_constraints" BOOLEAN NOT NULL DEFAULT false,
+				ADD COLUMN IF NOT EXISTS "target_faculty_daily_vacant_minutes" INTEGER NOT NULL DEFAULT 60,
+				ADD COLUMN IF NOT EXISTS "target_section_daily_vacant_periods" INTEGER NOT NULL DEFAULT 1,
+				ADD COLUMN IF NOT EXISTS "max_compressed_teaching_minutes_per_day" INTEGER NOT NULL DEFAULT 300,
+				ADD COLUMN IF NOT EXISTS "lunch_start_time" TEXT NOT NULL DEFAULT '11:55',
+				ADD COLUMN IF NOT EXISTS "lunch_end_time" TEXT NOT NULL DEFAULT '12:55',
+				ADD COLUMN IF NOT EXISTS "enforce_lunch_window" BOOLEAN NOT NULL DEFAULT true;
+			`);
+		})().catch((e) => {
+			ensureColumnsPromise = null;
+			throw e;
+		});
+	}
+	await ensureColumnsPromise;
+}
+
 // ─── Get (with default-fallback creation) ───
 
 export async function getOrCreatePolicy(schoolId: number, schoolYearId: number) {
 	try {
+		await ensureSchedulingPolicyColumns();
 		const existing = await prisma.schedulingPolicy.findUnique({
 			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 		});
@@ -376,11 +442,14 @@ export async function getOrCreatePolicy(schoolId: number, schoolYearId: number) 
 		});
 	} catch (e: unknown) {
 		if (isSchemaDriftError(e)) {
-			console.warn(
-				`[POLICY_SCHEMA_DRIFT] scheduling_policies table is missing expected columns. ` +
-				`Returning in-memory defaults for school ${schoolId}, year ${schoolYearId}. ` +
-				`Action: run \`npx prisma migrate deploy\` to apply pending migrations.`,
-			);
+			if (!schemaDriftWarned) {
+				console.warn(
+					`[POLICY_SCHEMA_DRIFT] scheduling_policies table is missing expected columns. ` +
+					`Returning in-memory defaults for school ${schoolId}, year ${schoolYearId}. ` +
+					`Action: run \`npx prisma migrate deploy\` to apply pending migrations.`,
+				);
+				schemaDriftWarned = true;
+			}
 			return buildSyntheticPolicy(schoolId, schoolYearId);
 		}
 		// Re-throw non-drift errors
@@ -425,9 +494,21 @@ export async function upsertPolicy(schoolId: number, schoolYearId: number, input
 		constraintConfig: constraintConfigValue,
 	};
 
-	return prisma.schedulingPolicy.upsert({
-		where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
-		create: { schoolId, schoolYearId, ...prismaData },
-		update: prismaData,
-	});
+	try {
+		await ensureSchedulingPolicyColumns();
+		return await prisma.schedulingPolicy.upsert({
+			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+			create: { schoolId, schoolYearId, ...prismaData },
+			update: prismaData,
+		});
+	} catch (e: unknown) {
+		if (isSchemaDriftError(e)) {
+			throw err(
+				503,
+				'POLICY_SCHEMA_DRIFT',
+				'Scheduling policy columns are out of date in the database. Run `npx prisma migrate deploy` and retry.',
+			);
+		}
+		throw e;
+	}
 }

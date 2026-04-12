@@ -365,8 +365,10 @@ export default function SchedulingPolicyPane({
 			setLocal(lp);
 			toast.success('Scheduling policy saved.');
 			onPolicySaved?.();
-		} catch {
-			toast.error('Failed to save policy. Your changes are preserved.');
+		} catch (error: unknown) {
+			const apiMessage =
+				(error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+			toast.error(apiMessage || 'Failed to save policy. Your changes are preserved.');
 		} finally {
 			setSaving(false);
 		}

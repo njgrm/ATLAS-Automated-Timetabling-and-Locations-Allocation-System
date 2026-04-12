@@ -219,99 +219,269 @@ ATLAS uses a **deterministic greedy baseline constructor** with constraint valid
 
 ## Installation Guide
 
+ATLAS can run in two modes:
+1. **Standalone Mode** (stub data) — For testing without EnrollPro
+2. **Integrated Mode** — Full integration with EnrollPro for live faculty and section data
+
 ### Prerequisites
 
 | Requirement | Version | Check Command |
 |-------------|---------|---------------|
 | Node.js | ≥ 18.x | `node --version` |
 | npm | ≥ 9.x | `npm --version` |
+| pnpm | ≥ 8.x (for EnrollPro) | `pnpm --version` |
 | PostgreSQL | ≥ 14.x | `psql --version` |
 | Git | Any | `git --version` |
 
-### Step 1: Clone the Repository
+---
+
+### Option A: Standalone Installation (Quick Start)
+
+Use this if you want to test ATLAS without EnrollPro.
+
+#### Step 1: Clone and Install
+
+```bash
+git clone https://github.com/your-org/atlas.git
+cd atlas
+
+# Install all dependencies
+npm install
+cd atlas-server && npm install && cd ..
+cd atlas-client && npm install && cd ..
+```
+
+#### Step 2: Create PostgreSQL Database
+
+```sql
+-- Connect to PostgreSQL as superuser
+psql -U postgres
+
+-- Create ATLAS database
+CREATE DATABASE atlas_db;
+CREATE USER atlas_user WITH ENCRYPTED PASSWORD 'your_password';
+GRANT ALL PRIVILEGES ON DATABASE atlas_db TO atlas_user;
+\c atlas_db
+GRANT ALL ON SCHEMA public TO atlas_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO atlas_user;
+\q
+```
+
+#### Step 3: Configure Environment
+
+```bash
+# Copy example files
+cp .env.example .env
+cp atlas-server/.env.example atlas-server/.env
+cp atlas-client/.env.example atlas-client/.env
+```
+
+Edit `atlas-server/.env`:
+```env
+DATABASE_URL=postgresql://atlas_user:your_password@localhost:5432/atlas_db?schema=public
+JWT_SECRET="change-this-to-a-random-32-char-minimum-secret-key"
+PORT=5001
+FACULTY_ADAPTER=stub
+SECTION_SOURCE_MODE=stub
+```
+
+#### Step 4: Initialize Database with Seed Data
+
+```bash
+# Generate Prisma client and run migrations
+npm run db:bootstrap
+
+# Seed all demo data (school, subjects, buildings, rooms, faculty, assignments)
+npm run db:seed
+```
+
+**Seed data includes:**
+- 1 School (ATLAS Pilot School)
+- 9 DepEd JHS subjects (DO 010 s.2024 compliant)
+- 5 Buildings with 20 rooms (classrooms, labs, gym, TLE workshops)
+- 20 Faculty members with subject qualifications
+- Default scheduling policy (auto-created on first use)
+
+#### Step 5: Start ATLAS
+
+```bash
+npm run dev
+```
+
+Access:
+- **ATLAS Client:** http://localhost:5174
+- **ATLAS API:** http://localhost:5001/api/v1
+
+> ⚠️ **Standalone Limitations:** Stub mode provides 10 mock sections with 334 students. For production use, integrate with EnrollPro.
+
+---
+
+### Option B: Full Installation with EnrollPro
+
+Use this for complete integration with live faculty, sections, and student data.
+
+#### Step 1: Clone ATLAS (includes EnrollPro)
 
 ```bash
 git clone https://github.com/your-org/atlas.git
 cd atlas
 ```
 
-### Step 2: Install Dependencies
-
-```bash
-# Install root dependencies (includes concurrently for dev scripts)
-npm install
-
-# Install server dependencies
-cd atlas-server
-npm install
-cd ..
-
-# Install client dependencies
-cd atlas-client
-npm install
-cd ..
-```
-
-### Step 3: Set Up PostgreSQL Database
+#### Step 2: Create PostgreSQL Databases
 
 ```sql
--- Connect to PostgreSQL as superuser
 psql -U postgres
 
--- Create database and user
-CREATE DATABASE atlas_db;
-CREATE USER atlas_user WITH ENCRYPTED PASSWORD 'your_secure_password';
-GRANT ALL PRIVILEGES ON DATABASE atlas_db TO atlas_user;
+-- Create EnrollPro database
+CREATE DATABASE enrollpro_db;
+CREATE USER enrollpro_user WITH ENCRYPTED PASSWORD 'your_password';
+GRANT ALL PRIVILEGES ON DATABASE enrollpro_db TO enrollpro_user;
+\c enrollpro_db
+GRANT ALL ON SCHEMA public TO enrollpro_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO enrollpro_user;
 
--- Grant schema permissions (PostgreSQL 15+)
+-- Create ATLAS database
+CREATE DATABASE atlas_db;
+CREATE USER atlas_user WITH ENCRYPTED PASSWORD 'your_password';
+GRANT ALL PRIVILEGES ON DATABASE atlas_db TO atlas_user;
 \c atlas_db
 GRANT ALL ON SCHEMA public TO atlas_user;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO atlas_user;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO atlas_user;
-
 \q
 ```
 
-### Step 4: Configure Environment Variables
+#### Step 3: Install EnrollPro
 
 ```bash
-# Copy example environment files
-cp .env.example .env
-cp atlas-server/.env.example atlas-server/.env
-cp atlas-client/.env.example atlas-client/.env
+cd EnrollPro
+
+# Install dependencies (uses pnpm workspaces)
+pnpm install
+
+# Configure environment
+cp server/.env.example server/.env
 ```
 
-Edit each `.env` file with your configuration (see [Environment Configuration](#environment-configuration)).
+Edit `EnrollPro/server/.env`:
+```env
+DATABASE_URL=postgresql://enrollpro_user:your_password@localhost:5432/enrollpro_db?schema=public
+JWT_SECRET="your-enrollpro-jwt-secret-32-chars-minimum"
+PORT=5000
+CLIENT_URL=http://localhost:5173
+```
 
-### Step 5: Initialize Database Schema
+Initialize EnrollPro database:
+```bash
+cd server
+pnpm run db:migrate
+pnpm run db:generate
+pnpm run db:seed          # Creates admin user + school year + sections
+pnpm run db:seed-students # Adds 380+ enrolled students
+cd ../..
+```
+
+**EnrollPro seed creates:**
+- Admin account: `admin@deped.edu.ph` / `Admin2026!`
+- School Year 2026-2027 (Active)
+- 12 JHS Sections (3 per grade, Grades 7-10)
+- 20 Teachers
+- 380+ Enrolled Students
+
+#### Step 4: Install ATLAS
 
 ```bash
-# Generate Prisma client
-npm run db:generate
+# From atlas root
+npm install
+cd atlas-server && npm install && cd ..
+cd atlas-client && npm install && cd ..
+```
 
-# Run migrations
-npm run db:migrate
+Configure `atlas-server/.env`:
+```env
+DATABASE_URL=postgresql://atlas_user:your_password@localhost:5432/atlas_db?schema=public
+JWT_SECRET="your-enrollpro-jwt-secret-32-chars-minimum"  # MUST MATCH EnrollPro!
+PORT=5001
+CLIENT_URL=http://localhost:5174
 
-# (Optional) Seed default data
+# EnrollPro Integration
+ENROLLPRO_API=http://localhost:5000/api
+FACULTY_ADAPTER=enrollpro
+SECTION_SOURCE_MODE=enrollpro
+```
+
+> ⚠️ **Critical:** ATLAS `JWT_SECRET` must match EnrollPro's for bridge token validation.
+
+Initialize ATLAS database:
+```bash
+npm run db:bootstrap
 npm run db:seed
 ```
 
-### Step 6: Start the Application
+#### Step 5: Start Both Systems
 
+**Terminal 1 — EnrollPro:**
 ```bash
-# Development mode (both server and client)
-npm run dev
-
-# Or start individually:
-npm run dev:server  # Express server on port 5001
-npm run dev:client  # Vite dev server on port 5174
+cd EnrollPro
+pnpm run dev
+# Server: http://localhost:5000
+# Client: http://localhost:5173
 ```
 
-### Step 7: Access the Application
+**Terminal 2 — ATLAS:**
+```bash
+cd atlas  # (root)
+npm run dev
+# Server: http://localhost:5001
+# Client: http://localhost:5174
+```
 
-- **Client:** http://localhost:5174
-- **Server API:** http://localhost:5001/api/v1
-- **Prisma Studio:** `npm run db:studio` → http://localhost:5555
+#### Step 6: Establish Bridge Token
+
+1. Open EnrollPro: http://localhost:5173
+2. Log in as: `admin@deped.edu.ph` / `Admin2026!`
+3. Navigate to ATLAS from EnrollPro sidebar or menu
+4. EnrollPro passes your JWT token to ATLAS automatically
+5. ATLAS validates the token and creates your session
+
+**How Bridge Token Works:**
+```
+┌──────────────┐     Login      ┌────────────────┐
+│   EnrollPro  │ ─────────────▶ │  JWT Token     │
+│   (Auth)     │                │  (userId,role) │
+└──────────────┘                └────────┬───────┘
+                                         │
+                                         ▼ Navigate to ATLAS
+┌──────────────┐  Authorization: Bearer <token>   ┌──────────────┐
+│  ATLAS       │ ◀──────────────────────────────  │   Browser    │
+│  Server      │     (same JWT_SECRET validates)  │              │
+└──────────────┘                                  └──────────────┘
+```
+
+#### Step 7: Sync Faculty
+
+1. In ATLAS, go to **Faculty** page
+2. Click **Sync from EnrollPro**
+3. ATLAS imports teachers as `FacultyMirror` records
+
+---
+
+### Seed Data Summary
+
+| System | Command | What It Creates |
+|--------|---------|-----------------|
+| EnrollPro | `pnpm run db:seed` | Admin user, school year, 12 sections, 20 teachers |
+| EnrollPro | `pnpm run db:seed-students` | 380+ enrolled students |
+| ATLAS | `npm run db:seed` | School, 9 subjects, 5 buildings, 20 rooms, 20 faculty, assignments |
+
+### Port Reference
+
+| Service | Port | URL |
+|---------|------|-----|
+| EnrollPro Server | 5000 | http://localhost:5000 |
+| EnrollPro Client | 5173 | http://localhost:5173 |
+| ATLAS Server | 5001 | http://localhost:5001 |
+| ATLAS Client | 5174 | http://localhost:5174 |
+| Prisma Studio | 5555 | http://localhost:5555 |
 
 ---
 
