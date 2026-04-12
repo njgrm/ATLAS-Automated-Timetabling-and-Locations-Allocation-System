@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 
 import { BuildingView, ROOM_COLORS, ROOM_TYPE_LABELS } from '@/components/BuildingView';
+import { RoomScheduleOverlay } from '@/components/RoomScheduleOverlay';
 import atlasApi from '@/lib/api';
 import { fetchPublicSettings } from '@/lib/settings';
 import type { Building, Room, RoomScheduleView } from '@/types';
@@ -92,6 +93,9 @@ export default function Dashboard() {
 	const [buildingFocus, setBuildingFocus] = useState(false);
 	const [hoveredBuildingId, setHoveredBuildingId] = useState<number | null>(null);
 	const [inspectedRoom, setInspectedRoom] = useState<Room | null>(null);
+
+	/* ── Room schedule overlay state ── */
+	const [overlayRoom, setOverlayRoom] = useState<{ id: number; name: string; schedule: RoomScheduleView | null } | null>(null);
 
 	/* ── Room utilization cache (per building) ── */
 	type RoomUtil = { utilization: number; conflicts: number };
@@ -806,7 +810,11 @@ export default function Dashboard() {
 								</div>
 
 								{/* Room schedule preview */}
-								<RoomSchedulePreview roomId={inspectedRoom.id} isTeachingSpace={inspectedRoom.isTeachingSpace} />
+								<RoomSchedulePreview
+									roomId={inspectedRoom.id}
+									isTeachingSpace={inspectedRoom.isTeachingSpace}
+									onExpandSchedule={(schedule) => setOverlayRoom({ id: inspectedRoom.id, name: inspectedRoom.name, schedule })}
+								/>
 							</>
 						) : (
 							/* ── Building overview mode ── */
@@ -933,6 +941,15 @@ export default function Dashboard() {
 					</CardContent>
 				</Card>
 			</div>
+
+			{/* Room Schedule Overlay */}
+			<RoomScheduleOverlay
+				open={!!overlayRoom}
+				onClose={() => setOverlayRoom(null)}
+				roomName={overlayRoom?.name ?? ''}
+				roomId={overlayRoom?.id ?? 0}
+				schedule={overlayRoom?.schedule ?? null}
+			/>
 		</div>
 	);
 }
@@ -947,7 +964,7 @@ const DAY_SHORT: Record<string, string> = {
 	FRIDAY: 'F',
 };
 
-function RoomSchedulePreview({ roomId, isTeachingSpace }: { roomId: number; isTeachingSpace: boolean }) {
+function RoomSchedulePreview({ roomId, isTeachingSpace, onExpandSchedule }: { roomId: number; isTeachingSpace: boolean; onExpandSchedule?: (schedule: RoomScheduleView) => void }) {
 	const [state, setState] = useState<'idle' | 'loading' | 'ok' | 'empty' | 'error'>('idle');
 	const [schedule, setSchedule] = useState<RoomScheduleView | null>(null);
 
@@ -1031,6 +1048,17 @@ function RoomSchedulePreview({ roomId, isTeachingSpace }: { roomId: number; isTe
 					<span className="text-red-600 font-medium">{schedule.summary.conflictCount} conflicts</span>
 				)}
 			</div>
+			{onExpandSchedule && (
+				<Button
+					variant="default"
+					size="sm"
+					className="w-full h-6 text-[0.625rem]"
+					onClick={() => onExpandSchedule(schedule)}
+				>
+					<Maximize2 className="size-3 mr-1" />
+					Expand Full Schedule
+				</Button>
+			)}
 			<Button asChild variant="outline" size="sm" className="w-full h-6 text-[0.625rem]">
 				<Link to={`/room-schedules?roomId=${roomId}&source=latest`}>View Full Schedule</Link>
 			</Button>

@@ -43,6 +43,17 @@ export const ROOM_COLORS: Record<RoomType, { bg: string; border: string; text: s
 	OTHER: { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-600' },
 };
 
+/* ─── DepEd Standard Building Colors ─── */
+const DEPED_COLORS = {
+	roof: '#95d1af',
+	roofStroke: '#6fb890',
+	door: '#aed058',
+	walls: '#f1edca',
+	pillar: '#99f6e4',
+	ground: '#94a3b8',
+	floorLabel: '#f0fdfa',
+} as const;
+
 /* ─── Layout constants ─── */
 const FLOOR_LABEL_W = 36;
 const ROOM_GAP = 4;
@@ -55,6 +66,8 @@ const FLOOR_PAD_Y = 6;
 const ROOF_H = 28;
 const GROUND_H = 14;
 const PILLAR_W = 6;
+const DOOR_W = 8;
+const DOOR_H = 16;
 
 type BuildingViewProps = {
 	building: Building;
@@ -157,19 +170,19 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 
 		return (
 			<Group key={floorNum} x={0} y={floorY}>
-				{/* Floor slab background */}
+				{/* Floor slab background (DepEd cream walls) */}
 				<Rect
 					x={FLOOR_LABEL_W}
 					y={0}
 					width={buildingContentW - FLOOR_LABEL_W}
 					height={floorTotalH}
-					fill={isGround ? '#f1f5f9' : '#f8fafc'}
+					fill={DEPED_COLORS.walls}
 					cornerRadius={2}
 				/>
 				{/* Left pillar */}
-				<Rect x={FLOOR_LABEL_W} y={0} width={PILLAR_W} height={floorTotalH} fill="#99f6e4" />
+				<Rect x={FLOOR_LABEL_W} y={0} width={PILLAR_W} height={floorTotalH} fill={DEPED_COLORS.pillar} />
 				{/* Right pillar */}
-				<Rect x={buildingContentW - PILLAR_W} y={0} width={PILLAR_W} height={floorTotalH} fill="#99f6e4" />
+				<Rect x={buildingContentW - PILLAR_W} y={0} width={PILLAR_W} height={floorTotalH} fill={DEPED_COLORS.pillar} />
 				{/* Floor separator line */}
 				<Line
 					points={[FLOOR_LABEL_W, floorTotalH, buildingContentW, floorTotalH]}
@@ -177,7 +190,7 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 					strokeWidth={2}
 				/>
 				{/* Floor label */}
-				<Rect x={0} y={0} width={FLOOR_LABEL_W - 2} height={floorTotalH} fill="#f0fdfa" cornerRadius={[4, 0, 0, 4]} />
+				<Rect x={0} y={0} width={FLOOR_LABEL_W - 2} height={floorTotalH} fill={DEPED_COLORS.floorLabel} cornerRadius={[4, 0, 0, 4]} />
 				<Text
 					x={2}
 					y={floorTotalH / 2 - 8}
@@ -262,6 +275,17 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 									fontStyle="italic"
 								/>
 							)}
+							{/* DepEd-style door */}
+							<Rect
+								x={ROOM_MIN_W - DOOR_W - 6}
+								y={ROOM_H - DOOR_H - 2}
+								width={DOOR_W}
+								height={DOOR_H}
+								fill={DEPED_COLORS.door}
+								stroke="#8ab844"
+								strokeWidth={0.5}
+								cornerRadius={[2, 2, 0, 0]}
+							/>
 							{/* Schedule placeholder area */}
 							<Rect
 								x={0}
@@ -336,7 +360,7 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 					style={{ cursor: 'grab' }}
 				>
 					<Layer>
-						{/* ── Roof ── */}
+                    {/* ── Roof (DepEd green) ── */}
 						<Line
 							points={[
 								FLOOR_LABEL_W - 4, ROOF_H,
@@ -344,14 +368,14 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 								buildingContentW + 4, ROOF_H,
 							]}
 							closed
-							fill="#0d9488"
-							stroke="#0f766e"
+							fill={DEPED_COLORS.roof}
+							stroke={DEPED_COLORS.roofStroke}
 							strokeWidth={1.5}
 						/>
 						{/* Roof accent line */}
 						<Line
 							points={[FLOOR_LABEL_W, ROOF_H, buildingContentW, ROOF_H]}
-							stroke="#0f766e"
+							stroke={DEPED_COLORS.roofStroke}
 							strokeWidth={2}
 						/>
 						{/* Building name on roof */}
@@ -368,14 +392,14 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 
 						{/* ── Floors group (offset below roof) ── */}
 						<Group y={ROOF_H}>
-							{/* Outer wall background */}
+							{/* Outer wall background (DepEd cream) */}
 							<Rect
 								x={FLOOR_LABEL_W}
 								y={0}
 								width={buildingContentW - FLOOR_LABEL_W}
 								height={buildingContentH - ROOF_H - GROUND_H}
-								fill="#f8fafc"
-								stroke="#cbd5e1"
+								fill={DEPED_COLORS.walls}
+								stroke="#d4cfa8"
 								strokeWidth={1}
 							/>
 						</Group>
@@ -389,7 +413,7 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 							y={buildingContentH - GROUND_H}
 							width={buildingContentW - FLOOR_LABEL_W + 16}
 							height={GROUND_H}
-							fill="#94a3b8"
+							fill={DEPED_COLORS.ground}
 							cornerRadius={[0, 0, 4, 4]}
 						/>
 						{/* Ground texture lines */}

@@ -16,6 +16,7 @@ import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { SearchableSelect } from '@/ui/searchable-select';
 import { Skeleton } from '@/ui/skeleton';
+import { ConflictInspectorSheet, type ConflictInspectorData } from '@/components/ConflictInspectorSheet';
 import type { Building, Room, Subject, FacultyMirror, RoomScheduleView, RoomScheduleEntry, SectionSummaryResponse, ExternalSection } from '@/types';
 
 // ─── Constants ───
@@ -63,6 +64,9 @@ export default function RoomSchedules() {
 
 	/* Schedule data */
 	const [state, setState] = useState<FetchState>({ status: 'idle' });
+
+	/* Conflict inspector */
+	const [conflictData, setConflictData] = useState<ConflictInspectorData | null>(null);
 
 	/* Load lookup data on mount */
 	useEffect(() => {
@@ -322,9 +326,38 @@ export default function RoomSchedules() {
 				)}
 
 				{state.status === 'ok' && (
-					<TimetableGrid view={state.data} subjectMap={subjectMap} facultyMap={facultyMap} sectionMap={sectionMap} />
+					<TimetableGrid
+						view={state.data}
+						subjectMap={subjectMap}
+						facultyMap={facultyMap}
+						sectionMap={sectionMap}
+						onConflictClick={(day, dayLabel, startTime, endTime, entries) => {
+							const room = rooms.find((r) => String(r.id) === selectedRoomId);
+							setConflictData({
+								day,
+								dayLabel,
+								startTime,
+								endTime,
+								roomName: room?.name ?? `Room #${selectedRoomId}`,
+								roomId: Number(selectedRoomId),
+								runId: state.data.source.runId,
+								runStatus: state.data.source.status,
+								entries,
+							});
+						}}
+					/>
 				)}
 			</div>
+
+			{/* Conflict Inspector Sheet */}
+			<ConflictInspectorSheet
+				open={!!conflictData}
+				data={conflictData}
+				onClose={() => setConflictData(null)}
+				subjectMap={subjectMap}
+				facultyMap={facultyMap}
+				sectionMap={sectionMap}
+			/>
 		</div>
 	);
 }
@@ -395,11 +428,13 @@ function TimetableGrid({
 	subjectMap,
 	facultyMap,
 	sectionMap,
+	onConflictClick,
 }: {
 	view: RoomScheduleView;
 	subjectMap: Map<number, string>;
 	facultyMap: Map<number, string>;
 	sectionMap: Map<number, string>;
+	onConflictClick?: (day: string, dayLabel: string, startTime: string, endTime: string, entries: RoomScheduleEntry[]) => void;
 }) {
 	const spanData = useMemo(() => computeSpanData(view), [view]);
 
@@ -457,9 +492,19 @@ function TimetableGrid({
 										rowSpan={cellData.rowSpan}
 										className={`border-b border-r last:border-r-0 px-1 py-0.5 align-top transition-colors ${
 											cellData.conflict
-												? 'bg-red-50 border-red-200'
+												? 'bg-red-50 border-red-200 cursor-pointer hover:bg-red-100'
 												: 'bg-primary/5 border-primary/20'
 										}`}
+										onClick={cellData.conflict && onConflictClick ? () => {
+											const timeSlot = view.grid[rowIdx].timeSlot;
+											onConflictClick(
+												view.days[dayIdx],
+												DAY_SHORT[view.days[dayIdx]] ?? view.days[dayIdx],
+												timeSlot.startTime,
+												timeSlot.endTime,
+												cellData.entries,
+											);
+										} : undefined}
 									>
 										{cellData.entries.map((entry) => (
 											<EntryCell
@@ -469,9 +514,15 @@ function TimetableGrid({
 												facultyMap={facultyMap}											sectionMap={sectionMap}											/>
 										))}
 										{cellData.conflict && (
-											<Badge variant="destructive" className="mt-0.5 text-[9px] px-1 py-0">
+											<Badge
+												variant="destructive"
+												className="mt-0.5 text-[9px] px-1 py-0 cursor-pointer hover:bg-red-700 transition-colors"
+												role="button"
+												tabIndex={0}
+												aria-label="Inspect conflict"
+											>
 												<AlertTriangle className="mr-0.5 size-2.5" />
-												Conflict
+												Conflict — Click to inspect
 											</Badge>
 										)}
 									</td>

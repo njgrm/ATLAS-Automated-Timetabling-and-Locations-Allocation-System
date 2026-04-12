@@ -4,9 +4,11 @@ import {
 	AlertTriangle,
 	CalendarClock,
 	Check,
+	ChevronDown,
 	ChevronRight,
 	Clock,
 	DoorOpen,
+	Filter,
 	Flag,
 	GraduationCap,
 	GripVertical,
@@ -25,6 +27,7 @@ import {
 	Users,
 	Wand2,
 	X,
+	Crosshair,
 	Zap,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -39,6 +42,7 @@ import type {
 	CommitResult,
 	DraftReport,
 	ExternalSection,
+	FixSuggestion,
 	FixSuggestionsResponse,
 	GenerationRun,
 	ManualEditProposal,
@@ -50,7 +54,9 @@ import type {
 	SectionSummaryResponse,
 	Subject,
 	FacultyMirror,
+	UnassignedExplanation,
 	UnassignedItem,
+	UnassignedReason,
 	Violation,
 	ViolationCode,
 	ViolationReport,
@@ -338,6 +344,11 @@ export default function ScheduleReview() {
 	const showExplainDrawer = !!drawerViolation || !!drawerUnassigned;
 	const [fixLoading, setFixLoading] = useState<string | null>(null);
 
+	/* ── Unassigned triage state ── */
+	const [expandedUnassigned, setExpandedUnassigned] = useState<Set<string>>(new Set());
+	const [unassignedFixSuggestions, setUnassignedFixSuggestions] = useState<Record<string, UnassignedExplanation | null>>({});
+	const [unassignedReasonFilter, setUnassignedReasonFilter] = useState<UnassignedReason | 'all'>('all');
+
 	const enterPolicyView = useCallback(() => {
 		panelSnapshot.current = { left: isLeftCollapsed, right: isRightCollapsed };
 		setIsLeftCollapsed(true);
@@ -413,6 +424,38 @@ export default function ScheduleReview() {
 		}
 		return groups;
 	}, [filteredViolations]);
+
+	const hardViolationCount = useMemo(() => violations.filter((v) => v.severity === 'HARD').length, [violations]);
+
+	/** Top blocker violations — first 3 hard violations, deduped by code */
+	const topBlockers = useMemo(() => {
+		const hardViolations = violations.filter((v) => v.severity === 'HARD');
+		const seen = new Set<ViolationCode>();
+		const result: Violation[] = [];
+		for (const v of hardViolations) {
+			if (!seen.has(v.code)) {
+				seen.add(v.code);
+				result.push(v);
+				if (result.length >= 3) break;
+			}
+		}
+		return result;
+	}, [violations]);
+
+	/** Auto-switch to violations tab and expand panel when hard violations appear */
+	const prevHardCountRef = useRef<number | null>(null);
+	useEffect(() => {
+		if (prevHardCountRef.current === null) {
+			prevHardCountRef.current = hardViolationCount;
+			return;
+		}
+		if (hardViolationCount > 0 && prevHardCountRef.current === 0) {
+			setLeftTab('violations');
+			setSeverityFilter('hard');
+			if (isLeftCollapsed) setIsLeftCollapsed(false);
+		}
+		prevHardCountRef.current = hardViolationCount;
+	}, [hardViolationCount, isLeftCollapsed]);
 
 	const timeSlots = useMemo(() => deriveTimeSlots(draft?.entries ?? []), [draft]);
 
@@ -1559,7 +1602,45 @@ export default function ScheduleReview() {
 
 					{leftTab === 'violations' ? (
 						<div id="panel-violations" role="tabpanel" aria-labelledby="tab-violations" className="flex flex-col flex-1 min-h-0">
-							<div className="shrink-0 px-3 pb-2">
+							{/* Top blockers quick list */}
+							{hardViolationCount > 0 && (
+								<div className="shrink-0 px-3 py-2 border-b border-red-100 bg-red-50/50">
+									<div className="flex items-center gap-1.5 text-[0.625rem] font-semibold text-red-700 mb-1">
+										<ShieldAlert className="size-3" />
+										Top blockers ({hardViolationCount} hard)
+									</div>
+									<div className="space-y-0.5">
+										{topBlockers.map((v, i) => {
+											const count = violations.filter((vv) => vv.code === v.code && vv.severity === 'HARD').length;
+											return (
+												<button
+													key={i}
+													type="button"
+													onClick={() => {
+														handleViolationSelect(v);
+														setSeverityFilter('hard');
+													}}
+													className="flex items-center gap-1.5 w-full text-left text-[0.5625rem] text-red-800 hover:text-red-600 hover:bg-red-100/60 rounded px-1 py-0.5 transition-colors"
+												>
+													<ChevronRight className="size-2.5 shrink-0" />
+													<span className="truncate flex-1">{VIOLATION_LABELS[v.code]}</span>
+													<span className="shrink-0 text-red-500 font-medium">×{count}</span>
+												</button>
+											);
+										})}
+									</div>
+								</div>
+							)}
+							{hardViolationCount === 0 && violations.length === 0 && (
+								<div className="shrink-0 px-3 py-2 border-b border-emerald-100 bg-emerald-50/50">
+									<div className="flex items-center gap-1.5 text-[0.625rem] font-medium text-emerald-700">
+										<Check className="size-3" />
+										No violations — schedule is clean
+									</div>
+								</div>
+							)}
+
+							<div className="shrink-0 px-3 py-2">
 								<div className="relative">
 									<Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
 									<Input
@@ -1635,11 +1716,37 @@ export default function ScheduleReview() {
 
 										{/* Unassigned items list */}
 										{(draft?.unassignedItems ?? []).length > 0 && (
-											<div className="space-y-1">
+											<div className="space-y-2">
+												{/* Reason filter chips */}
+												<div className="flex flex-wrap gap-1">
+													{(['all', 'NO_QUALIFIED_FACULTY', 'FACULTY_OVERLOADED', 'NO_AVAILABLE_SLOT', 'NO_COMPATIBLE_ROOM'] as const).map((r) => {
+														const label = r === 'all' ? 'All' : (UNASSIGNED_REASON_LABELS[r]?.label ?? r);
+														const count = r === 'all'
+															? (draft?.unassignedItems ?? []).length
+															: (draft?.unassignedItems ?? []).filter((it) => it.reason === r).length;
+														if (r !== 'all' && count === 0) return null;
+														return (
+															<button
+																key={r}
+																onClick={() => setUnassignedReasonFilter(r)}
+																className={`rounded-full px-2 py-0.5 text-[0.5625rem] font-medium transition-colors ${
+																	unassignedReasonFilter === r
+																		? 'bg-primary text-primary-foreground'
+																		: 'bg-muted text-muted-foreground hover:bg-muted/80'
+																}`}
+															>
+																{label} ({count})
+															</button>
+														);
+													})}
+												</div>
+
 												<span className="text-[0.6875rem] font-medium text-muted-foreground">
-													Unassigned Items — drag to grid or use fix actions
+													Drag to grid or expand for triage actions
 												</span>
-												{(draft?.unassignedItems ?? []).map((item, i) => {
+												{(draft?.unassignedItems ?? [])
+													.filter((it) => unassignedReasonFilter === 'all' || it.reason === unassignedReasonFilter)
+													.map((item, i) => {
 													const grade = item.gradeLevel;
 													const gradeBadge = grade ? GRADE_BADGE[grade] : undefined;
 													const isKbSelected = kbSelectedSource?.type === 'unassigned'
@@ -1648,14 +1755,15 @@ export default function ScheduleReview() {
 														&& kbSelectedSource.item.session === item.session;
 													const itemKey = `${item.sectionId}-${item.subjectId}-${item.session}`;
 													const isFollowUp = followUps.has(itemKey);
+													const isExpanded = expandedUnassigned.has(itemKey);
+													const cachedFix = unassignedFixSuggestions[itemKey];
 													return (
 														<div
 															key={`${itemKey}-${i}`}
 															draggable
 															onDragStart={() => setDragItem({ type: 'unassigned', item })}
 															onDragEnd={() => { if (!showSoftConfirm) setDragItem(null); }}
-															onClick={() => setKbSelectedSource(isKbSelected ? null : { type: 'unassigned', item })}
-															className={`rounded border px-2 py-1.5 text-xs space-y-1 cursor-grab active:cursor-grabbing transition-colors ${
+															className={`rounded border text-xs transition-colors ${
 																isKbSelected
 																	? 'border-primary bg-primary/10 ring-2 ring-primary'
 																	: isFollowUp
@@ -1663,120 +1771,210 @@ export default function ScheduleReview() {
 																		: 'border-amber-200 bg-amber-50/50 hover:border-amber-300'
 															}`}
 														>
-															<div className="flex items-center gap-1.5">
-																<GripVertical className="size-3 text-muted-foreground/50 shrink-0" />
-																{gradeBadge && (
-																	<Badge variant="outline" className={`h-4 px-1 text-[0.5625rem] shrink-0 ${gradeBadge}`}>
-																		G{grade}
+															{/* Collapsed header row */}
+															<button
+																type="button"
+																className="w-full text-left px-2 py-1.5 space-y-1 cursor-grab active:cursor-grabbing"
+																onClick={() => {
+																	setExpandedUnassigned((prev) => {
+																		const next = new Set(prev);
+																		if (next.has(itemKey)) next.delete(itemKey);
+																		else next.add(itemKey);
+																		return next;
+																	});
+																	setKbSelectedSource(isKbSelected ? null : { type: 'unassigned', item });
+																}}
+															>
+																<div className="flex items-center gap-1.5">
+																	<ChevronDown className={`size-3 text-muted-foreground shrink-0 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
+																	<GripVertical className="size-3 text-muted-foreground/50 shrink-0" />
+																	{gradeBadge && (
+																		<Badge variant="outline" className={`h-4 px-1 text-[0.5625rem] shrink-0 ${gradeBadge}`}>
+																			G{grade}
+																		</Badge>
+																	)}
+																	<span className="font-medium truncate">{sectionLabel(item.sectionId)}</span>
+																	<span className="text-muted-foreground">·</span>
+																	<span className="truncate">{subjectLabel(item.subjectId)}</span>
+																</div>
+																<div className="flex items-center gap-1.5 text-[0.625rem] text-muted-foreground pl-[1.125rem]">
+																	<UnassignedReasonBadge reason={item.reason} />
+																	<span className="opacity-60">Session {item.session}</span>
+																	<Badge variant="destructive" className="h-4 px-1 text-[0.5rem] ml-auto">
+																		Blocker
 																	</Badge>
-																)}
-																<span className="font-medium truncate">{sectionLabel(item.sectionId)}</span>
-																<span className="text-muted-foreground">·</span>
-																<span className="truncate">{subjectLabel(item.subjectId)}</span>
-															</div>
-															<div className="flex items-center gap-1.5 text-[0.625rem] text-muted-foreground">
-																<UnassignedReasonBadge reason={item.reason} />
-																<span className="opacity-60">Session {item.session}</span>
-																<Badge variant="destructive" className="h-4 px-1 text-[0.5rem] ml-auto">
-																	Blocker
-																</Badge>
-															</div>
-															{/* Fix action row */}
-															<div className="flex items-center gap-1 pt-0.5" onClick={(e) => e.stopPropagation()}>
-																<TooltipProvider>
-																	<Tooltip>
-																		<TooltipTrigger asChild>
-																			<Button
-																				variant="ghost"
-																				size="sm"
-																				className="h-5 px-1.5 text-[0.5625rem] gap-0.5"
-																				onClick={() => setDrawerUnassigned(item)}
-																			>
-																				<Lightbulb className="size-2.5" />
-																				Why?
-																			</Button>
-																		</TooltipTrigger>
-																		<TooltipContent>Explain why this session is unassigned</TooltipContent>
-																	</Tooltip>
-																</TooltipProvider>
-																<TooltipProvider>
-																	<Tooltip>
-																		<TooltipTrigger asChild>
-																			<Button
-																				variant="ghost"
-																				size="sm"
-																				className="h-5 px-1.5 text-[0.5625rem] gap-0.5"
-																				disabled={fixLoading === itemKey}
-																				onClick={async () => {
-																					setFixLoading(itemKey);
-																					try {
-																						const resp = await fetch(
-																							`/api/v1/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${selectedRunId === 'latest' ? runs[0]?.id : selectedRunId}/fix-suggestions`,
-																							{
-																								method: 'POST',
-																								headers: { 'Content-Type': 'application/json' },
-																								body: JSON.stringify({
-																									sectionId: item.sectionId,
-																									subjectId: item.subjectId,
-																									gradeLevel: item.gradeLevel,
-																									session: item.session,
-																									reason: item.reason,
-																								}),
-																							},
-																						);
-																						if (!resp.ok) throw new Error('Failed to fetch suggestions');
-																						const data: FixSuggestionsResponse = await resp.json();
-																						if (data.explanation.suggestions.length > 0) {
-																							const first = data.explanation.suggestions[0];
-																							toast.info(`Suggestion: ${first.label}`, {
-																								description: first.description,
-																								duration: 8000,
-																							});
-																						} else {
-																							toast.info('No automatic fix available. Manual intervention needed.');
-																						}
-																					} catch {
-																						toast.error('Could not fetch fix suggestions');
-																					} finally {
-																						setFixLoading(null);
+																</div>
+															</button>
+
+															{/* Expanded detail panel */}
+															<AnimatePresence>
+																{isExpanded && (
+																	<motion.div
+																		initial={{ height: 0, opacity: 0 }}
+																		animate={{ height: 'auto', opacity: 1 }}
+																		exit={{ height: 0, opacity: 0 }}
+																		transition={{ duration: 0.15 }}
+																		className="overflow-hidden"
+																	>
+																		<div className="px-2 pb-2 pt-1 border-t border-amber-200 space-y-2">
+																			{/* Reason explanation */}
+																			<div className="rounded bg-amber-50/80 px-2 py-1.5 space-y-1">
+																				<div className="flex items-center gap-1 text-[0.625rem] font-semibold text-amber-800">
+																					<AlertTriangle className="size-2.5" />
+																					Why blocked
+																				</div>
+																				<p className="text-[0.625rem] text-amber-700 leading-relaxed">
+																					{UNASSIGNED_REASON_LABELS[item.reason]?.label ?? item.reason}: {
+																						item.reason === 'NO_QUALIFIED_FACULTY'
+																							? 'No teacher is assigned to this subject at this grade, or all assigned teachers are fully booked.'
+																							: item.reason === 'FACULTY_OVERLOADED'
+																								? 'All qualified teachers have reached their maximum weekly/daily hours.'
+																								: item.reason === 'NO_AVAILABLE_SLOT'
+																									? 'Every possible time slot already causes a hard conflict.'
+																									: item.reason === 'NO_COMPATIBLE_ROOM'
+																										? 'No room of the required type is available at any open time.'
+																										: 'This session could not be placed by the algorithm.'
 																					}
-																				}}
-																			>
-																				{fixLoading === itemKey ? (
-																					<Loader2 className="size-2.5 animate-spin" />
-																				) : (
-																					<Wand2 className="size-2.5" />
-																				)}
-																				Fix
-																			</Button>
-																		</TooltipTrigger>
-																		<TooltipContent>Get AI-suggested fixes for this item</TooltipContent>
-																	</Tooltip>
-																</TooltipProvider>
-																<TooltipProvider>
-																	<Tooltip>
-																		<TooltipTrigger asChild>
-																			<Button
-																				variant="ghost"
-																				size="sm"
-																				className={`h-5 px-1.5 text-[0.5625rem] gap-0.5 ${isFollowUp ? 'text-amber-600' : ''}`}
-																				onClick={() => {
-																					setFollowUps((prev) => {
-																						const next = new Set(prev);
-																						if (next.has(itemKey)) next.delete(itemKey);
-																						else next.add(itemKey);
-																						return next;
-																					});
-																					toast.info(isFollowUp ? 'Follow-up removed' : 'Marked for follow-up');
-																				}}
-																			>
-																				<Flag className={`size-2.5 ${isFollowUp ? 'fill-amber-500' : ''}`} />
-																			</Button>
-																		</TooltipTrigger>
-																		<TooltipContent>{isFollowUp ? 'Remove follow-up flag' : 'Flag for follow-up'}</TooltipContent>
-																	</Tooltip>
-																</TooltipProvider>
-															</div>
+																				</p>
+																			</div>
+
+																			{/* Impact */}
+																			<div className="flex items-center gap-1.5 text-[0.625rem]">
+																				<ShieldAlert className="size-2.5 text-red-600 shrink-0" />
+																				<span className="text-red-700 font-medium">Publish blocker</span>
+																				<span className="text-muted-foreground">— must be resolved before publishing</span>
+																			</div>
+
+																			{/* Fix suggestions (inline) */}
+																			{cachedFix === undefined ? (
+																				<Button
+																					variant="outline"
+																					size="sm"
+																					className="w-full h-6 text-[0.5625rem] gap-1"
+																					disabled={fixLoading === itemKey}
+																					onClick={async (e) => {
+																						e.stopPropagation();
+																						setFixLoading(itemKey);
+																						try {
+																							const resp = await fetch(
+																								`/api/v1/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${selectedRunId === 'latest' ? runs[0]?.id : selectedRunId}/fix-suggestions`,
+																								{
+																									method: 'POST',
+																									headers: { 'Content-Type': 'application/json' },
+																									body: JSON.stringify({
+																										sectionId: item.sectionId,
+																										subjectId: item.subjectId,
+																										gradeLevel: item.gradeLevel,
+																										session: item.session,
+																										reason: item.reason,
+																									}),
+																								},
+																							);
+																							if (!resp.ok) throw new Error('Failed');
+																							const data: FixSuggestionsResponse = await resp.json();
+																							setUnassignedFixSuggestions((prev) => ({
+																								...prev,
+																								[itemKey]: data.explanation,
+																							}));
+																						} catch {
+																							toast.error('Could not fetch fix suggestions');
+																							setUnassignedFixSuggestions((prev) => ({
+																								...prev,
+																								[itemKey]: null,
+																							}));
+																						} finally {
+																							setFixLoading(null);
+																						}
+																					}}
+																				>
+																					{fixLoading === itemKey ? (
+																						<Loader2 className="size-2.5 animate-spin" />
+																					) : (
+																						<Wand2 className="size-2.5" />
+																					)}
+																					Load fix suggestions
+																				</Button>
+																			) : cachedFix === null ? (
+																				<div className="text-[0.625rem] text-muted-foreground italic px-1">
+																					Could not load suggestions. Try again later.
+																				</div>
+																			) : (
+																				<div className="space-y-1.5">
+																					<div className="text-[0.625rem] font-semibold text-foreground flex items-center gap-1">
+																						<Wand2 className="size-2.5 text-primary" />
+																						Recommended fixes ({cachedFix.suggestions.length})
+																					</div>
+																					{cachedFix.suggestions.length === 0 ? (
+																						<div className="text-[0.625rem] text-muted-foreground italic">
+																							No automatic fix available. Manual intervention needed.
+																						</div>
+																					) : (
+																						cachedFix.suggestions.map((sug, si) => (
+																							<div key={si} className="rounded border border-border bg-background px-2 py-1.5 space-y-1">
+																								<div className="flex items-center gap-1">
+																									<span className="text-[0.625rem] font-medium text-foreground">{si + 1}. {sug.label}</span>
+																								</div>
+																								<p className="text-[0.5625rem] text-muted-foreground leading-relaxed">{sug.description}</p>
+																								{sug.proposal && (
+																									<Button
+																										variant="outline"
+																										size="sm"
+																										className="h-5 text-[0.5rem] gap-0.5 mt-0.5"
+																										onClick={(e) => {
+																											e.stopPropagation();
+																											if (sug.proposal) {
+																												previewEdit(sug.proposal);
+																											}
+																										}}
+																									>
+																										<Zap className="size-2" />
+																										Preview & Apply
+																									</Button>
+																								)}
+																								{sug.policyHint && (
+																									<p className="text-[0.5rem] text-muted-foreground/70 italic">
+																										Policy: {sug.policyHint}
+																									</p>
+																								)}
+																							</div>
+																						))
+																					)}
+																				</div>
+																			)}
+
+																			{/* Quick action row */}
+																			<div className="flex items-center gap-1 pt-0.5" onClick={(e) => e.stopPropagation()}>
+																				<Button
+																					variant="ghost"
+																					size="sm"
+																					className="h-5 px-1.5 text-[0.5625rem] gap-0.5"
+																					onClick={() => setDrawerUnassigned(item)}
+																				>
+																					<Lightbulb className="size-2.5" />
+																					Full explanation
+																				</Button>
+																				<Button
+																					variant="ghost"
+																					size="sm"
+																					className={`h-5 px-1.5 text-[0.5625rem] gap-0.5 ${isFollowUp ? 'text-amber-600' : ''}`}
+																					onClick={() => {
+																						setFollowUps((prev) => {
+																							const next = new Set(prev);
+																							if (next.has(itemKey)) next.delete(itemKey);
+																							else next.add(itemKey);
+																							return next;
+																						});
+																						toast.info(isFollowUp ? 'Follow-up removed' : 'Marked for follow-up');
+																					}}
+																				>
+																					<Flag className={`size-2.5 ${isFollowUp ? 'fill-amber-500' : ''}`} />
+																					{isFollowUp ? 'Unflag' : 'Flag'}
+																				</Button>
+																			</div>
+																		</div>
+																	</motion.div>
+																)}
+															</AnimatePresence>
 														</div>
 													);
 												})}
@@ -2441,8 +2639,8 @@ function ViolationGroup({
 	onSelect: (v: Violation) => void;
 	onExplain?: (v: Violation) => void;
 }) {
-	const [expanded, setExpanded] = useState(true);
 	const isHard = violations[0]?.severity === 'HARD';
+	const [expanded, setExpanded] = useState(isHard);
 
 	return (
 		<div className="rounded-md border border-border overflow-hidden">
@@ -2486,6 +2684,14 @@ function ViolationGroup({
 											className="flex-1 text-left px-3 py-1.5 text-[0.6875rem] leading-tight transition-colors"
 										>
 											<span className="line-clamp-2">{v.message}</span>
+										</button>
+										<button
+											onClick={(e) => { e.stopPropagation(); onSelect(v); }}
+											className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
+											aria-label="Focus grid on this violation"
+											title="Focus grid"
+										>
+											<Crosshair className="size-3 text-primary/70" />
 										</button>
 										{onExplain && (
 											<button

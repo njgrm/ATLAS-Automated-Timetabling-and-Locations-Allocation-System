@@ -132,7 +132,7 @@ export default function FacultyAssignments() {
 				setSectionsAvailable(false);
 			}
 		} catch {
-			setError('Failed to load assignment data.');
+			setError('Failed to load teaching load data.');
 		} finally {
 			setLoading(false);
 		}
@@ -221,10 +221,10 @@ export default function FacultyAssignments() {
 				assignments: localAssignments,
 			});
 			setDirty(false);
-			toast.success('Assignments saved successfully.');
+			toast.success('Teaching load saved successfully.');
 			await fetchData();
 		} catch (err: any) {
-			toast.error(err?.response?.data?.message ?? 'Failed to save assignments.');
+			toast.error(err?.response?.data?.message ?? 'Failed to save teaching load.');
 		} finally {
 			setSaving(false);
 		}
@@ -570,7 +570,7 @@ export default function FacultyAssignments() {
 									{dirty && (
 										<Button size="sm" onClick={handleSave} disabled={saving || !selected.isActiveForScheduling}>
 											<Save className="mr-1.5 size-3.5" />
-											{saving ? 'Saving...' : 'Save Assignments'}
+											{saving ? 'Saving...' : 'Save Teaching Load'}
 										</Button>
 									)}
 								</div>

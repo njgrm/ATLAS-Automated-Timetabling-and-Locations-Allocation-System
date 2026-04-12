@@ -44,6 +44,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/ui/select';
+import { SearchableSelect, type SearchableSelectGroup } from '@/ui/searchable-select';
 import {
 	Tooltip,
 	TooltipContent,
@@ -263,6 +264,39 @@ export default function ManualEditPanel({
 		groups.sort((a, b) => a.label.localeCompare(b.label));
 		return groups;
 	}, [roomMap]);
+
+	/** SearchableSelect groups for rooms — grouped by building */
+	const roomSearchGroups: SearchableSelectGroup[] = useMemo(() => {
+		return roomsByBuilding.map((group) => ({
+			label: group.label,
+			items: group.rooms.map((r) => ({
+				value: String(r.id),
+				label: `${r.name} · Floor ${r.floor}${r.capacity != null ? ` · Cap ${r.capacity}` : ''} · ${r.type}`,
+			})),
+		}));
+	}, [roomsByBuilding]);
+
+	/** SearchableSelect groups for faculty — grouped by department */
+	const facultySearchGroups: SearchableSelectGroup[] = useMemo(() => {
+		const deptMap = new Map<string, { value: string; label: string }[]>();
+		for (const [, f] of facultyMap) {
+			if (!f.isActiveForScheduling) continue;
+			const dept = f.department || 'Unassigned Department';
+			if (!deptMap.has(dept)) deptMap.set(dept, []);
+			const loadMinutes = facultyLoadMap.get(f.id) ?? 0;
+			const loadHours = Math.round(loadMinutes / 60);
+			deptMap.get(dept)!.push({
+				value: String(f.id),
+				label: `${f.lastName}, ${f.firstName} — ${loadHours}h / ${f.maxHoursPerWeek}h max`,
+			});
+		}
+		return Array.from(deptMap.entries())
+			.sort(([a], [b]) => a.localeCompare(b))
+			.map(([dept, items]) => ({
+				label: dept,
+				items: items.sort((a, b) => a.label.localeCompare(b.label)),
+			}));
+	}, [facultyMap, facultyLoadMap]);
 
 	// Pre-filter: slots occupied by current faculty or current room on the selected day
 	const occupiedSlots = useMemo(
@@ -628,40 +662,13 @@ export default function ManualEditPanel({
 									<Label htmlFor="target-room" className="text-xs">
 										Target Room
 									</Label>
-									<Select
+									<SearchableSelect
+										groups={roomSearchGroups}
 										value={targetRoomId}
 										onValueChange={setTargetRoomId}
-									>
-										<SelectTrigger
-											id="target-room"
-											className="h-8 text-xs"
-											aria-label="Select target room"
-										>
-											<SelectValue placeholder="Select room" />
-										</SelectTrigger>
-										<SelectContent>
-											{roomsByBuilding.map((group) => (
-												<SelectGroup key={group.buildingId}>
-													<SelectLabel className="text-xs text-muted-foreground">
-														{group.label}
-													</SelectLabel>
-													{group.rooms.map((r) => (
-														<SelectItem
-															key={r.id}
-															value={String(r.id)}
-															className="text-xs"
-														>
-															{r.name} · Floor {r.floor}
-															{r.capacity != null
-																? ` · Cap ${r.capacity}`
-																: ''}{' '}
-															· {r.type}
-														</SelectItem>
-													))}
-												</SelectGroup>
-											))}
-										</SelectContent>
-									</Select>
+										placeholder="Search rooms…"
+										triggerClassName="h-8 text-xs w-full"
+									/>
 								</div>
 							)}
 
@@ -671,44 +678,13 @@ export default function ManualEditPanel({
 									<Label htmlFor="target-faculty" className="text-xs">
 										Target Faculty
 									</Label>
-									<Select
+									<SearchableSelect
+										groups={facultySearchGroups}
 										value={targetFacultyId}
 										onValueChange={setTargetFacultyId}
-									>
-										<SelectTrigger
-											id="target-faculty"
-											className="h-8 text-xs"
-											aria-label="Select target faculty"
-										>
-											<SelectValue placeholder="Select faculty" />
-										</SelectTrigger>
-										<SelectContent>
-											{Array.from(facultyMap.values())
-												.filter((f) => f.isActiveForScheduling)
-												.sort((a, b) =>
-													`${a.lastName}, ${a.firstName}`.localeCompare(
-														`${b.lastName}, ${b.firstName}`,
-													),
-												)
-												.map((f) => {
-													const loadMinutes =
-														facultyLoadMap.get(f.id) ?? 0;
-													const loadHours = Math.round(
-														loadMinutes / 60,
-													);
-													return (
-														<SelectItem
-															key={f.id}
-															value={String(f.id)}
-															className="text-xs"
-														>
-															{f.lastName}, {f.firstName} —{' '}
-															{loadHours}h / {f.maxHoursPerWeek}h max
-														</SelectItem>
-													);
-												})}
-										</SelectContent>
-									</Select>
+										placeholder="Search faculty…"
+										triggerClassName="h-8 text-xs w-full"
+									/>
 								</div>
 							)}
 						</div>
