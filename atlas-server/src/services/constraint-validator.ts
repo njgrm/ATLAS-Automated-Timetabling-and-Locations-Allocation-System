@@ -16,6 +16,7 @@ export const VIOLATION_CODES = [
 	'ROOM_TIME_CONFLICT',
 	'FACULTY_OVERLOAD',
 	'ROOM_TYPE_MISMATCH',
+	'ROOM_CAPACITY_EXCEEDED',
 	'FACULTY_SUBJECT_NOT_QUALIFIED',
 	'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED',
 	'FACULTY_BREAK_REQUIREMENT_VIOLATED',
@@ -28,6 +29,7 @@ export const VIOLATION_CODES = [
 	'FACULTY_LATE_END_PREFERENCE',
 	'FACULTY_INSUFFICIENT_DAILY_VACANT',
 	'SECTION_OVERCOMPRESSED',
+	'SESSION_PATTERN_VIOLATED',
 ] as const;
 
 export type ViolationCode = (typeof VIOLATION_CODES)[number];
@@ -62,11 +64,13 @@ export interface FacultySubjectRef {
 export interface RoomRef {
 	id: number;
 	type: RoomType;
+	capacity: number | null;
 }
 
 export interface SubjectRef {
 	id: number;
 	preferredRoomType: RoomType;
+	sessionPattern?: 'MWF' | 'TTH' | 'ANY';
 }
 
 export interface PolicyRef {
@@ -121,6 +125,8 @@ export interface ValidatorContext {
 	facultySubjects: FacultySubjectRef[];
 	rooms: RoomRef[];
 	subjects: SubjectRef[];
+	/** Map of sectionId → enrolledCount for capacity checks */
+	sectionEnrollment?: Map<number, number>;
 	policy?: PolicyRef;
 	travelPolicy?: TravelPolicyRef;
 	vacantPolicy?: VacantPolicyRef;
@@ -269,6 +275,44 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 				entities: { roomId: e.roomId, subjectId: e.subjectId, sectionId: e.sectionId, entryIds: [e.entryId] },
 				meta: { roomType: room.type, preferredRoomType: subject.preferredRoomType },
 			});
+		}
+	}
+
+	// ── 4b) Room capacity exceeded ──
+	if (ctx.sectionEnrollment) {
+		for (const e of ctx.entries) {
+			const room = roomMap.get(e.roomId);
+			if (!room || room.capacity == null) continue;
+			const enrolled = ctx.sectionEnrollment.get(e.sectionId) ?? 0;
+			if (enrolled > room.capacity) {
+				violations.push({
+					...base,
+					code: 'ROOM_CAPACITY_EXCEEDED',
+					message: `Entry ${e.entryId}: section ${e.sectionId} has ${enrolled} students but room ${e.roomId} capacity is only ${room.capacity}.`,
+					entities: { roomId: e.roomId, sectionId: e.sectionId, entryIds: [e.entryId] },
+					meta: { enrolledCount: enrolled, roomCapacity: room.capacity },
+				});
+			}
+		}
+	}
+
+	// ── 4c) Session pattern violated ──
+	{
+		const MWF_DAYS = new Set(['MONDAY', 'WEDNESDAY', 'FRIDAY']);
+		const TTH_DAYS = new Set(['TUESDAY', 'THURSDAY']);
+		for (const e of ctx.entries) {
+			const subject = subjectMap.get(e.subjectId);
+			if (!subject || !subject.sessionPattern || subject.sessionPattern === 'ANY') continue;
+			const allowed = subject.sessionPattern === 'MWF' ? MWF_DAYS : TTH_DAYS;
+			if (!allowed.has(e.day)) {
+				violations.push({
+					...base, severity: 'SOFT',
+					code: 'SESSION_PATTERN_VIOLATED',
+					message: `Entry ${e.entryId}: subject ${e.subjectId} prefers ${subject.sessionPattern} pattern but is scheduled on ${e.day}.`,
+					entities: { subjectId: e.subjectId, sectionId: e.sectionId, day: e.day, entryIds: [e.entryId] },
+					meta: { sessionPattern: subject.sessionPattern, actualDay: e.day },
+				});
+			}
 		}
 	}
 

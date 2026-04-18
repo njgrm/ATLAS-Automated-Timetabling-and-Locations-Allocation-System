@@ -50,6 +50,7 @@ export interface SubjectInput {
 	code: string;
 	minMinutesPerWeek: number;
 	preferredRoomType: RoomType;
+	sessionPattern: 'MWF' | 'TTH' | 'ANY';
 	gradeLevels: number[];
 }
 
@@ -68,6 +69,7 @@ export interface RoomInput {
 	id: number;
 	type: RoomType;
 	isTeachingSpace: boolean;
+	capacity: number | null;
 }
 
 export interface PreferenceSlotInput {
@@ -94,6 +96,7 @@ export interface PolicyInput {
 	enforceLunchWindow?: boolean;
 	enableTleTwoPassPriority?: boolean;
 	allowFlexibleSubjectAssignment?: boolean;
+	allowConsecutiveLabSessions?: boolean;
 }
 
 type PeriodSlot = { startTime: string; endTime: string };
@@ -179,6 +182,8 @@ interface DemandItem {
 	gradeLevel: number;
 	sessionsPerWeek: number;
 	durationPerSession: number;
+	enrolledCount: number;
+	sessionPattern: 'MWF' | 'TTH' | 'ANY';
 }
 
 function computeDemand(sectionsByGrade: SectionsByGrade[], subjects: SubjectInput[]): DemandItem[] {
@@ -204,6 +209,8 @@ function computeDemand(sectionsByGrade: SectionsByGrade[], subjects: SubjectInpu
 					gradeLevel: gradeNum,
 					sessionsPerWeek: sessions,
 					durationPerSession: duration,
+					enrolledCount: section.enrolledCount,
+					sessionPattern: subject.sessionPattern ?? 'ANY',
 				});
 			}
 		}
@@ -383,6 +390,24 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		return false;
 	}
 
+	/**
+	 * Check if placing a lab/workshop session at periodIdx for a section on a given day
+	 * would create consecutive lab sessions (when policy disallows it).
+	 */
+	function wouldCreateConsecutiveLab(sectionId: number, day: string, periodIdx: number, roomType: string): boolean {
+		if (allowConsecutiveLab) return false;
+		if (!LAB_ROOM_TYPES.has(roomType)) return false;
+
+		const dayKey = `${sectionId}:${day}`;
+		const existing = sectionDayLabPeriods.get(dayKey) ?? [];
+
+		// Check if any existing lab period is adjacent to this one
+		for (const pi of existing) {
+			if (Math.abs(pi - periodIdx) === 1) return true;
+		}
+		return false;
+	}
+
 	// ─── Two-pass TLE priority scheduling ───
 	// When enabled, schedule TLE subjects first (Bucket A), then everything else (Bucket B)
 	const enableTwoPass = policy?.enableTleTwoPassPriority !== false;
@@ -397,7 +422,21 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	}
 
 	const allowFlexible = policy?.allowFlexibleSubjectAssignment === true;
+	const allowConsecutiveLab = policy?.allowConsecutiveLabSessions === true;
 	const allFacultyIds = faculty.map((f) => f.id).sort((a, b) => a - b);
+
+	// Session pattern → allowed day sets
+	const SESSION_PATTERN_DAYS: Record<string, Set<string>> = {
+		MWF: new Set(['MONDAY', 'WEDNESDAY', 'FRIDAY']),
+		TTH: new Set(['TUESDAY', 'THURSDAY']),
+		ANY: new Set(DAYS),
+	};
+
+	// Lab-like room types for consecutive lab check
+	const LAB_ROOM_TYPES: Set<string> = new Set(['LABORATORY', 'TLE_WORKSHOP', 'COMPUTER_LAB']);
+
+	// Section-day placement tracker for consecutive lab check: "sectionId:day" → array of {periodIdx, isLab}
+	const sectionDayLabPeriods = new Map<string, number[]>();
 
 	for (const item of orderedDemand) {
 		const subject = subjectMap.get(item.subjectId);
@@ -439,6 +478,10 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 				for (let di = 0; di < DAYS.length; di++) {
 					const day = DAYS[di];
+
+					// Session pattern: skip days not matching subject's preferred pattern
+					const allowedDays = SESSION_PATTERN_DAYS[item.sessionPattern] ?? SESSION_PATTERN_DAYS.ANY;
+					if (!allowedDays.has(day)) continue;
 
 					// Policy: check daily max before considering this day
 					if (policy) {
@@ -485,6 +528,12 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					for (const room of compatibleRooms) {
 						if (roomOcc.isOccupied(room.id, cand.day, cand.pi)) continue;
 
+						// Capacity check: skip room if section enrollment exceeds room capacity
+						if (room.capacity != null && item.enrolledCount > room.capacity) continue;
+
+						// Consecutive lab check: skip if would create adjacent lab sessions
+						if (wouldCreateConsecutiveLab(item.sectionId, cand.day, cand.pi, room.type)) continue;
+
 						// Place the entry
 						entryCounter++;
 						const period = PERIOD_SLOTS[cand.pi];
@@ -517,6 +566,15 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 						daysUsedForPair.add(cand.day);
 						placed = true;
+
+						// Track lab periods for consecutive lab check
+						if (LAB_ROOM_TYPES.has(room.type)) {
+							const labKey = `${item.sectionId}:${cand.day}`;
+							const labPeriods = sectionDayLabPeriods.get(labKey) ?? [];
+							labPeriods.push(cand.pi);
+							sectionDayLabPeriods.set(labKey, labPeriods);
+						}
+
 						break;
 					}
 				}

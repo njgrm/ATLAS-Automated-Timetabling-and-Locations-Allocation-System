@@ -244,6 +244,7 @@ export type ViolationCode =
 	| 'ROOM_TIME_CONFLICT'
 	| 'FACULTY_OVERLOAD'
 	| 'ROOM_TYPE_MISMATCH'
+	| 'ROOM_CAPACITY_EXCEEDED'
 	| 'FACULTY_SUBJECT_NOT_QUALIFIED'
 	| 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED'
 	| 'FACULTY_BREAK_REQUIREMENT_VIOLATED'
@@ -255,7 +256,8 @@ export type ViolationCode =
 	| 'FACULTY_EARLY_START_PREFERENCE'
 	| 'FACULTY_LATE_END_PREFERENCE'
 	| 'FACULTY_INSUFFICIENT_DAILY_VACANT'
-	| 'SECTION_OVERCOMPRESSED';
+	| 'SECTION_OVERCOMPRESSED'
+	| 'SESSION_PATTERN_VIOLATED';
 
 export type ViolationSeverity = 'HARD' | 'SOFT';
 
@@ -486,6 +488,7 @@ export interface SchedulingPolicy {
 	enforceLunchWindow: boolean;
 	enableTleTwoPassPriority: boolean;
 	allowFlexibleSubjectAssignment: boolean;
+	allowConsecutiveLabSessions: boolean;
 	constraintConfig: Record<string, ConstraintOverride> | null;
 	createdAt: string;
 	updatedAt: string;

@@ -48,6 +48,7 @@ export async function createSubject(
 		name: string;
 		minMinutesPerWeek: number;
 		preferredRoomType: string;
+		sessionPattern?: string;
 		gradeLevels: number[];
 		interSectionEnabled?: boolean;
 		interSectionGradeLevels?: number[];
@@ -72,6 +73,7 @@ export async function createSubject(
 			name: data.name,
 			minMinutesPerWeek: data.minMinutesPerWeek,
 			preferredRoomType: data.preferredRoomType as any,
+			sessionPattern: (data.sessionPattern as any) ?? 'ANY',
 			gradeLevels: data.gradeLevels,
 			isActive: true,
 			isSeedable: false,
@@ -87,6 +89,7 @@ export async function updateSubject(
 		name: string;
 		minMinutesPerWeek: number;
 		preferredRoomType: string;
+		sessionPattern: string;
 		gradeLevels: number[];
 		isActive: boolean;
 		interSectionEnabled: boolean;
@@ -114,6 +117,7 @@ export async function updateSubject(
 		if (data.name !== undefined) allowed.name = data.name;
 		if (data.minMinutesPerWeek !== undefined) allowed.minMinutesPerWeek = data.minMinutesPerWeek;
 		if (data.gradeLevels !== undefined) allowed.gradeLevels = data.gradeLevels;
+		if (data.sessionPattern !== undefined) allowed.sessionPattern = data.sessionPattern;
 		// Seedable subjects can also have inter-section settings updated
 		if (data.interSectionEnabled !== undefined) allowed.interSectionEnabled = data.interSectionEnabled;
 		if (data.interSectionGradeLevels !== undefined) allowed.interSectionGradeLevels = data.interSectionGradeLevels;
@@ -124,6 +128,7 @@ export async function updateSubject(
 	if (data.name !== undefined) updateData.name = data.name;
 	if (data.minMinutesPerWeek !== undefined) updateData.minMinutesPerWeek = data.minMinutesPerWeek;
 	if (data.preferredRoomType !== undefined) updateData.preferredRoomType = data.preferredRoomType;
+	if (data.sessionPattern !== undefined) updateData.sessionPattern = data.sessionPattern as any;
 	if (data.gradeLevels !== undefined) updateData.gradeLevels = data.gradeLevels;
 	if (data.isActive !== undefined) updateData.isActive = data.isActive;
 	if (data.interSectionEnabled !== undefined) updateData.interSectionEnabled = data.interSectionEnabled;

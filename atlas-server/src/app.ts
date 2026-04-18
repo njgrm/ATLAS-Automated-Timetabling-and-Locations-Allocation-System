@@ -36,11 +36,22 @@ app.use(
 
 app.use(
 	cors({
-		origin: [
-			process.env.CLIENT_URL || 'http://localhost:5174',
-			'http://localhost:5174',
-			'http://localhost:5173',
-		],
+		origin: (origin, callback) => {
+			// Allow requests with no origin (server-to-server, curl, Postman)
+			if (!origin) return callback(null, true);
+			const allowed = new Set([
+				process.env.CLIENT_URL || 'http://localhost:5174',
+				process.env.ENROLLPRO_CLIENT_URL || 'http://localhost:5173',
+				'http://localhost:5174',
+				'http://localhost:5173',
+				// Tailscale / LAN origins — comma-separated via env
+				...(process.env.CORS_EXTRA_ORIGINS
+					? process.env.CORS_EXTRA_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)
+					: []),
+			]);
+			if (allowed.has(origin)) return callback(null, true);
+			callback(new Error(`CORS: origin ${origin} not allowed`));
+		},
 		credentials: true,
 	}),
 );

@@ -42,7 +42,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 // Auth: POST /subjects — create a custom subject
 router.post('/', authenticate, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		const { schoolId, code, name, minMinutesPerWeek, preferredRoomType, gradeLevels } = req.body;
+		const { schoolId, code, name, minMinutesPerWeek, preferredRoomType, gradeLevels, sessionPattern } = req.body;
 		if (!schoolId || !code || !name || !minMinutesPerWeek || !preferredRoomType || !gradeLevels) {
 			res.status(400).json({ code: 'MISSING_FIELDS', message: 'schoolId, code, name, minMinutesPerWeek, preferredRoomType, gradeLevels are required.' });
 			return;
@@ -52,6 +52,7 @@ router.post('/', authenticate, async (req: Request, res: Response, next: NextFun
 			name,
 			minMinutesPerWeek: Number(minMinutesPerWeek),
 			preferredRoomType,
+			sessionPattern,
 			gradeLevels,
 		});
 		res.status(201).json({ subject });

@@ -120,6 +120,8 @@ const VIOLATION_LABELS: Record<ViolationCode, string> = {
 	FACULTY_LATE_END_PREFERENCE: 'Late End Preference',
 	FACULTY_INSUFFICIENT_DAILY_VACANT: 'Insufficient Daily Vacant',
 	SECTION_OVERCOMPRESSED: 'Section Overcompressed',
+	ROOM_CAPACITY_EXCEEDED: 'Room Capacity Exceeded',
+	SESSION_PATTERN_VIOLATED: 'Session Pattern Violated',
 };
 
 const CONFLICT_CODES: Set<ViolationCode> = new Set([

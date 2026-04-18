@@ -52,9 +52,9 @@ const facultySubjects = [
 	{ facultyId: 2, subjectId: 2 },
 ];
 const rooms = [
-	{ id: 1, type: 'CLASSROOM' as const },
-	{ id: 2, type: 'CLASSROOM' as const },
-	{ id: 3, type: 'LABORATORY' as const },
+	{ id: 1, type: 'CLASSROOM' as const, capacity: null },
+	{ id: 2, type: 'CLASSROOM' as const, capacity: null },
+	{ id: 3, type: 'LABORATORY' as const, capacity: null },
 ];
 const subjects = [
 	{ id: 1, preferredRoomType: 'CLASSROOM' as const },

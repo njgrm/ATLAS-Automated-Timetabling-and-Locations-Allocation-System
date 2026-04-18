@@ -79,6 +79,14 @@ model Room {
   @@map("rooms")
 }
 
+enum SessionPattern {
+  MWF
+  TTH
+  ANY
+
+  @@map("session_pattern")
+}
+
 model Subject {
   id                      Int              @id @default(autoincrement())
   schoolId                Int              @map("school_id")
@@ -86,6 +94,7 @@ model Subject {
   name                    String
   minMinutesPerWeek       Int              @map("min_minutes_per_week")
   preferredRoomType       RoomType         @default(CLASSROOM) @map("preferred_room_type")
+  sessionPattern          SessionPattern   @default(ANY) @map("session_pattern")
   gradeLevels             Int[]            @map("grade_levels")
   isActive                Boolean          @default(true) @map("is_active")
   isSeedable              Boolean          @default(false) @map("is_seedable")
@@ -272,6 +281,7 @@ model SchedulingPolicy {
   enforceLunchWindow                       Boolean  @default(true)    @map("enforce_lunch_window")
   enableTleTwoPassPriority                 Boolean  @default(true)    @map("enable_tle_two_pass_priority")
   allowFlexibleSubjectAssignment           Boolean  @default(false)   @map("allow_flexible_subject_assignment")
+  allowConsecutiveLabSessions              Boolean  @default(false)   @map("allow_consecutive_lab_sessions")
   constraintConfig                         Json?    @map("constraint_config")
   createdAt                                DateTime @default(now())
   updatedAt                                DateTime @updatedAt

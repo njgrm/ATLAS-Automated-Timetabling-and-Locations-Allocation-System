@@ -150,11 +150,11 @@ async function loadRunContext(runId: number, schoolId: number, schoolYearId: num
 		}),
 		prisma.room.findMany({
 			where: { isTeachingSpace: true, building: { schoolId, isTeachingBuilding: true } },
-			select: { id: true, type: true, isTeachingSpace: true, buildingId: true },
+			select: { id: true, type: true, isTeachingSpace: true, capacity: true, buildingId: true },
 		}),
 		prisma.subject.findMany({
 			where: { schoolId, isActive: true },
-			select: { id: true, minMinutesPerWeek: true, preferredRoomType: true, gradeLevels: true },
+			select: { id: true, minMinutesPerWeek: true, preferredRoomType: true, sessionPattern: true, gradeLevels: true },
 		}),
 		getOrCreatePolicy(schoolId, schoolYearId),
 		prisma.building.findMany({

@@ -40,6 +40,7 @@ export const POLICY_DEFAULTS = {
 	enforceLunchWindow: true,
 	enableTleTwoPassPriority: true,
 	allowFlexibleSubjectAssignment: false,
+	allowConsecutiveLabSessions: false,
 } as const;
 
 export interface ConstraintOverride {
@@ -59,6 +60,8 @@ export const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride> = {
 	FACULTY_LATE_END_PREFERENCE: { enabled: false, weight: 2, treatAsHard: false },
 	FACULTY_INSUFFICIENT_DAILY_VACANT: { enabled: false, weight: 3, treatAsHard: false },
 	SECTION_OVERCOMPRESSED: { enabled: false, weight: 3, treatAsHard: false },
+	SESSION_PATTERN_VIOLATED: { enabled: true, weight: 3, treatAsHard: false },
+	ROOM_CAPACITY_EXCEEDED: { enabled: true, weight: 5, treatAsHard: true },
 };
 
 // ─── Exported policy shape (for cross-service use) ───
@@ -86,6 +89,7 @@ export interface SchedulingPolicyData {
 	enforceLunchWindow: boolean;
 	enableTleTwoPassPriority: boolean;
 	allowFlexibleSubjectAssignment: boolean;
+	allowConsecutiveLabSessions: boolean;
 	constraintConfig: Record<string, ConstraintOverride> | null;
 }
 
@@ -128,6 +132,7 @@ export interface PolicyInput {
 	enforceLunchWindow?: unknown;
 	enableTleTwoPassPriority?: unknown;
 	allowFlexibleSubjectAssignment?: unknown;
+	allowConsecutiveLabSessions?: unknown;
 	constraintConfig?: unknown;
 }
 
@@ -330,6 +335,16 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 		}
 	}
 
+	// --- Consecutive lab sessions ---
+	let allowConsecutiveLab: boolean = POLICY_DEFAULTS.allowConsecutiveLabSessions;
+	if (input.allowConsecutiveLabSessions !== undefined && input.allowConsecutiveLabSessions !== null) {
+		if (typeof input.allowConsecutiveLabSessions !== 'boolean') {
+			errors.push('allowConsecutiveLabSessions must be a boolean.');
+		} else {
+			allowConsecutiveLab = input.allowConsecutiveLabSessions;
+		}
+	}
+
 	// --- constraintConfig (JSON object) ---
 	let constraintConfig: Record<string, ConstraintOverride> | null = null;
 	if (input.constraintConfig !== undefined && input.constraintConfig !== null) {
@@ -375,6 +390,7 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 			enforceLunchWindow: enforceLunch,
 			enableTleTwoPassPriority: enableTleTwoPass,
 			allowFlexibleSubjectAssignment: allowFlexibleAssignment,
+			allowConsecutiveLabSessions: allowConsecutiveLab,
 			constraintConfig,
 		},
 		errors,
@@ -446,7 +462,8 @@ async function ensureSchedulingPolicyColumns(): Promise<void> {
 				ADD COLUMN IF NOT EXISTS "lunch_end_time" TEXT NOT NULL DEFAULT '12:55',
 				ADD COLUMN IF NOT EXISTS "enforce_lunch_window" BOOLEAN NOT NULL DEFAULT true,
 				ADD COLUMN IF NOT EXISTS "enable_tle_two_pass_priority" BOOLEAN NOT NULL DEFAULT true,
-				ADD COLUMN IF NOT EXISTS "allow_flexible_subject_assignment" BOOLEAN NOT NULL DEFAULT false;
+				ADD COLUMN IF NOT EXISTS "allow_flexible_subject_assignment" BOOLEAN NOT NULL DEFAULT false,
+				ADD COLUMN IF NOT EXISTS "allow_consecutive_lab_sessions" BOOLEAN NOT NULL DEFAULT false;
 			`);
 		})().catch((e) => {
 			ensureColumnsPromise = null;

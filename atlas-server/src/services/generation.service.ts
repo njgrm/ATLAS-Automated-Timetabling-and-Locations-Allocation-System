@@ -79,11 +79,11 @@ export async function triggerGenerationRun(
 					isTeachingSpace: true,
 					building: { schoolId, isTeachingBuilding: true },
 				},
-				select: { id: true, type: true, isTeachingSpace: true, buildingId: true },
+				select: { id: true, type: true, isTeachingSpace: true, capacity: true, buildingId: true },
 			}),
 			prisma.subject.findMany({
 				where: { schoolId, isActive: true },
-				select: { id: true, code: true, minMinutesPerWeek: true, preferredRoomType: true, gradeLevels: true },
+				select: { id: true, code: true, minMinutesPerWeek: true, preferredRoomType: true, sessionPattern: true, gradeLevels: true },
 			}),
 			prisma.facultyPreference.findMany({
 				where: { schoolId, schoolYearId },
@@ -132,6 +132,7 @@ export async function triggerGenerationRun(
 				enforceLunchWindow: policyRecord.enforceLunchWindow ?? undefined,
 				enableTleTwoPassPriority: policyRecord.enableTleTwoPassPriority ?? true,
 				allowFlexibleSubjectAssignment: policyRecord.allowFlexibleSubjectAssignment ?? false,
+				allowConsecutiveLabSessions: policyRecord.allowConsecutiveLabSessions ?? false,
 			},
 		};
 		const result = constructBaseline(constructorInput);
@@ -141,6 +142,9 @@ export async function triggerGenerationRun(
 		const validatorCtx: ValidatorContext = {
 			schoolId, schoolYearId, runId: run.id,
 			entries: result.entries, faculty, facultySubjects, rooms, subjects,
+			sectionEnrollment: new Map(
+				sectionsByGrade.flatMap((g) => g.sections.map((s) => [s.id, s.enrolledCount] as const)),
+			),
 			policy: {
 				...constructorInput.policy!,
 				enforceConsecutiveBreakAsHard: policyRecord.enforceConsecutiveBreakAsHard,
@@ -153,6 +157,12 @@ export async function triggerGenerationRun(
 				maxIdleGapMinutesPerDay: policyRecord.maxIdleGapMinutesPerDay,
 				avoidEarlyFirstPeriod: policyRecord.avoidEarlyFirstPeriod,
 				avoidLateLastPeriod: policyRecord.avoidLateLastPeriod,
+			},
+			vacantPolicy: {
+				enableVacantAwareConstraints: policyRecord.enableVacantAwareConstraints,
+				targetFacultyDailyVacantMinutes: policyRecord.targetFacultyDailyVacantMinutes,
+				targetSectionDailyVacantPeriods: policyRecord.targetSectionDailyVacantPeriods,
+				maxCompressedTeachingMinutesPerDay: policyRecord.maxCompressedTeachingMinutesPerDay,
 			},
 			buildings,
 			roomBuildings: rooms.map((r) => ({ roomId: r.id, buildingId: r.buildingId })),

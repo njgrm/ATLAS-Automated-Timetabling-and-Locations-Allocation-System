@@ -35,6 +35,8 @@ const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride> = {
 	FACULTY_LATE_END_PREFERENCE: { enabled: false, weight: 2, treatAsHard: false },
 	FACULTY_INSUFFICIENT_DAILY_VACANT: { enabled: false, weight: 3, treatAsHard: false },
 	SECTION_OVERCOMPRESSED: { enabled: false, weight: 3, treatAsHard: false },
+	SESSION_PATTERN_VIOLATED: { enabled: true, weight: 3, treatAsHard: false },
+	ROOM_CAPACITY_EXCEEDED: { enabled: true, weight: 5, treatAsHard: true },
 };
 
 const SOFT_CONSTRAINT_LABELS: Record<string, { label: string; explanation: string }> = {
@@ -78,6 +80,14 @@ const SOFT_CONSTRAINT_LABELS: Record<string, { label: string; explanation: strin
 		label: 'Section Overcompressed',
 		explanation: 'Penalizes when a section has too many consecutive classes without vacant periods or exceeds compressed teaching limits.',
 	},
+	SESSION_PATTERN_VIOLATED: {
+		label: 'Session Pattern Preference',
+		explanation: 'Penalizes when a subject is scheduled on a day that violates its preferred MWF or TTH session pattern.',
+	},
+	ROOM_CAPACITY_EXCEEDED: {
+		label: 'Room Capacity Exceeded',
+		explanation: 'Flags when a section with more enrolled students than a room can hold is placed in that room.',
+	},
 };
 
 /* ─── Types ─── */
@@ -105,6 +115,7 @@ interface LocalPolicy {
 	enforceLunchWindow: boolean;
 	enableTleTwoPassPriority: boolean;
 	allowFlexibleSubjectAssignment: boolean;
+	allowConsecutiveLabSessions: boolean;
 	constraintConfig: Record<string, ConstraintOverride>;
 }
 
@@ -132,6 +143,7 @@ function policyToLocal(p: SchedulingPolicy): LocalPolicy {
 		enforceLunchWindow: p.enforceLunchWindow,
 		enableTleTwoPassPriority: p.enableTleTwoPassPriority ?? true,
 		allowFlexibleSubjectAssignment: p.allowFlexibleSubjectAssignment ?? false,
+		allowConsecutiveLabSessions: p.allowConsecutiveLabSessions ?? false,
 		constraintConfig: { ...DEFAULT_CONSTRAINT_CONFIG, ...(p.constraintConfig ?? {}) },
 	};
 }
@@ -581,12 +593,24 @@ export default function SchedulingPolicyPane({
 								</div>
 							)}
 						</div>
-					</SectionCard>
 
-					{/* ── COL 2: Travel & Well-being ── */}
-					<SectionCard title="Travel & Well-being">
+						{/* ── Consecutive Lab Sessions ── */}
+						<div className="pt-2 mt-2 border-t border-border/60 space-y-3">
+							<PolicySwitch
+								label="Allow Consecutive Lab Sessions"
+								explanation="When ON, lab/workshop subjects (Science, TLE, Computer Lab) can be scheduled in back-to-back periods for the same section. When OFF, the generator prevents adjacent lab periods."
+								checked={local.allowConsecutiveLabSessions}
+								onCheckedChange={(v) => update('allowConsecutiveLabSessions', v)}
+							/>
+							{local.allowConsecutiveLabSessions && (
+								<div className="flex items-start gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[0.6875rem] text-blue-700">
+									Lab/workshop subjects may be placed in consecutive periods. This can be useful for double-period lab activities.
+								</div>
+							)}
+						</div>
+
 						<PolicySwitch
-							label="Enable Travel/Well-being Checks"
+							label="Travel & Wellbeing Checks"
 							explanation="Master toggle for all travel distance, building transition, idle gap, and preference soft constraints."
 							checked={local.enableTravelWellbeingChecks}
 							onCheckedChange={(v) => update('enableTravelWellbeingChecks', v)}
