@@ -49,8 +49,6 @@ const DEPED_COLORS = {
 	roofStroke: '#6fb890',
 	door: '#aed058',
 	walls: '#f1edca',
-	pillar: '#99f6e4',
-	ground: '#94a3b8',
 	floorLabel: '#f0fdfa',
 } as const;
 
@@ -58,16 +56,36 @@ const DEPED_COLORS = {
 const FLOOR_LABEL_W = 36;
 const ROOM_GAP = 4;
 const FLOOR_GAP = 3;
-const ROOM_MIN_W = 80;
-const ROOM_H = 64;
-const SCHEDULE_PLACEHOLDER_H = 18;
+const ROOM_MIN_W = 90;
+const ROOM_H = 70;
 const FLOOR_PAD_X = 8;
 const FLOOR_PAD_Y = 6;
-const ROOF_H = 28;
-const GROUND_H = 14;
-const PILLAR_W = 6;
+const ROOF_H = 32;
+const ROOF_OVERHANG = 14;
 const DOOR_W = 8;
 const DOOR_H = 16;
+const UTILIZATION_BAR_W = 10;
+const UTILIZATION_BAR_H = 50;
+
+/** Returns a color based on utilization percentage (green → yellow → red) */
+function getUtilizationColor(pct: number): string {
+	const clamped = Math.max(0, Math.min(100, pct));
+	if (clamped <= 50) {
+		// Green to yellow (0-50%)
+		const ratio = clamped / 50;
+		const r = Math.round(34 + (234 - 34) * ratio);
+		const g = Math.round(197 + (179 - 197) * ratio);
+		const b = Math.round(94 + (8 - 94) * ratio);
+		return `rgb(${r},${g},${b})`;
+	} else {
+		// Yellow to red (50-100%)
+		const ratio = (clamped - 50) / 50;
+		const r = Math.round(234 + (220 - 234) * ratio);
+		const g = Math.round(179 + (38 - 179) * ratio);
+		const b = Math.round(8 + (38 - 8) * ratio);
+		return `rgb(${r},${g},${b})`;
+	}
+}
 
 type BuildingViewProps = {
 	building: Building;
@@ -79,9 +97,11 @@ type BuildingViewProps = {
 	selectedRoomId?: number | null;
 	/** Called when a room is clicked */
 	onRoomSelect?: (room: Room | null) => void;
+	/** Room utilization data: Map of roomId → percentage (0-100) */
+	roomUtilization?: Map<number, number>;
 };
 
-export function BuildingView({ building, height: fixedHeight = 400, showToolbar = true, selectedRoomId, onRoomSelect }: BuildingViewProps) {
+export function BuildingView({ building, height: fixedHeight = 400, showToolbar = true, selectedRoomId, onRoomSelect, roomUtilization }: BuildingViewProps) {
 	const [hoveredRoomId, setHoveredRoomId] = useState<number | null>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [containerW, setContainerW] = useState(600);
@@ -128,9 +148,9 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 		[floorsAsc, floorMap],
 	);
 
-	const buildingContentW = FLOOR_LABEL_W + FLOOR_PAD_X * 2 + maxRoomsOnFloor * ROOM_MIN_W + (maxRoomsOnFloor - 1) * ROOM_GAP + PILLAR_W * 2;
-	const floorTotalH = ROOM_H + SCHEDULE_PLACEHOLDER_H + FLOOR_PAD_Y * 2;
-	const buildingContentH = ROOF_H + floorsAsc.length * floorTotalH + (floorsAsc.length - 1) * FLOOR_GAP + GROUND_H;
+	const buildingContentW = FLOOR_LABEL_W + FLOOR_PAD_X * 2 + maxRoomsOnFloor * ROOM_MIN_W + (maxRoomsOnFloor - 1) * ROOM_GAP;
+	const floorTotalH = ROOM_H + FLOOR_PAD_Y * 2;
+	const buildingContentH = ROOF_H + floorsAsc.length * floorTotalH + (floorsAsc.length - 1) * FLOOR_GAP;
 
 	// Auto-fit scale on mount / building change
 	useEffect(() => {
@@ -162,11 +182,11 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 		);
 	}
 
-	// Render floors from bottom-up. Y origin = bottom of building content.
+	// Render floors from bottom-up. Y origin = top of floors area.
 	const floorsRendered = floorsAsc.map((floorNum, idx) => {
 		const rooms = floorMap.get(floorNum) ?? [];
-		const floorY = buildingContentH - GROUND_H - (idx + 1) * floorTotalH - idx * FLOOR_GAP;
-		const isGround = floorNum === 1;
+		// Floor 1 at bottom, calculate from top: (totalFloors - 1 - idx) * (height + gap)
+		const floorY = (floorsAsc.length - 1 - idx) * (floorTotalH + FLOOR_GAP);
 
 		return (
 			<Group key={floorNum} x={0} y={floorY}>
@@ -179,15 +199,11 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 					fill={DEPED_COLORS.walls}
 					cornerRadius={2}
 				/>
-				{/* Left pillar */}
-				<Rect x={FLOOR_LABEL_W} y={0} width={PILLAR_W} height={floorTotalH} fill={DEPED_COLORS.pillar} />
-				{/* Right pillar */}
-				<Rect x={buildingContentW - PILLAR_W} y={0} width={PILLAR_W} height={floorTotalH} fill={DEPED_COLORS.pillar} />
 				{/* Floor separator line */}
 				<Line
 					points={[FLOOR_LABEL_W, floorTotalH, buildingContentW, floorTotalH]}
-					stroke="#cbd5e1"
-					strokeWidth={2}
+					stroke="#d4cfa8"
+					strokeWidth={1.5}
 				/>
 				{/* Floor label */}
 				<Rect x={0} y={0} width={FLOOR_LABEL_W - 2} height={floorTotalH} fill={DEPED_COLORS.floorLabel} cornerRadius={[4, 0, 0, 4]} />
@@ -204,7 +220,8 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 				{/* Rooms */}
 				{rooms.map((room, ri) => {
 					const colors = ROOM_FILLS[room.type] ?? ROOM_FILLS.OTHER;
-					const roomX = FLOOR_LABEL_W + PILLAR_W + FLOOR_PAD_X + ri * (ROOM_MIN_W + ROOM_GAP);
+					const roomX = FLOOR_LABEL_W + FLOOR_PAD_X + ri * (ROOM_MIN_W + ROOM_GAP);
+					const utilization = roomUtilization?.get(room.id) ?? 0;
 					const roomY = FLOOR_PAD_Y;
 					const isHovered = hoveredRoomId === room.id;
 					const isInspected = selectedRoomId === room.id;
@@ -275,38 +292,39 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 									fontStyle="italic"
 								/>
 							)}
-							{/* DepEd-style door */}
+							{/* Utilization bar background */}
 							<Rect
-								x={ROOM_MIN_W - DOOR_W - 6}
-								y={ROOM_H - DOOR_H - 2}
-								width={DOOR_W}
-								height={DOOR_H}
-								fill={DEPED_COLORS.door}
-								stroke="#8ab844"
+								x={ROOM_MIN_W - UTILIZATION_BAR_W - 4}
+								y={8}
+								width={UTILIZATION_BAR_W}
+								height={UTILIZATION_BAR_H}
+								fill="#f1f5f9"
+								stroke="#e2e8f0"
 								strokeWidth={0.5}
-								cornerRadius={[2, 2, 0, 0]}
+								cornerRadius={2}
 							/>
-							{/* Schedule placeholder area */}
-							<Rect
-								x={0}
-								y={ROOM_H + 2}
-								width={ROOM_MIN_W}
-								height={SCHEDULE_PLACEHOLDER_H - 2}
-								fill={isHovered ? '#f3f4f6' : '#f9fafb'}
-								stroke="#e5e7eb"
-								strokeWidth={0.5}
-								cornerRadius={[0, 0, 2, 2]}
-								dash={[3, 2]}
-							/>
+							{/* Utilization bar fill (bottom-up) */}
+							{utilization > 0 && (
+								<Rect
+									x={ROOM_MIN_W - UTILIZATION_BAR_W - 4 + 1}
+									y={8 + UTILIZATION_BAR_H - (UTILIZATION_BAR_H - 2) * (utilization / 100)}
+									width={UTILIZATION_BAR_W - 2}
+									height={(UTILIZATION_BAR_H - 2) * (utilization / 100)}
+									fill={getUtilizationColor(utilization)}
+									opacity={0.85}
+									cornerRadius={[0, 0, 1, 1]}
+								/>
+							)}
+							{/* Utilization percentage - bottom left */}
 							<Text
-								x={2}
-								y={ROOM_H + 4}
-								width={ROOM_MIN_W - 4}
-								text="Schedule"
-								fontSize={7}
-								fill="#d1d5db"
-								align="center"
-								fontStyle="italic"
+								x={4}
+								y={ROOM_H - 14}
+								width={ROOM_MIN_W - 8}
+								text={`${Math.round(utilization)}%`}
+								fontSize={9}
+								fontStyle="bold"
+								fill={getUtilizationColor(utilization)}
+								align="left"
 							/>
 						</Group>
 					);
@@ -314,7 +332,7 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 				{/* Empty floor placeholder */}
 				{rooms.length === 0 && (
 					<Text
-						x={FLOOR_LABEL_W + PILLAR_W + FLOOR_PAD_X}
+						x={FLOOR_LABEL_W + FLOOR_PAD_X}
 						y={floorTotalH / 2 - 6}
 						text="Empty floor"
 						fontSize={10}
@@ -360,33 +378,34 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 					style={{ cursor: 'grab' }}
 				>
 					<Layer>
-                    {/* ── Roof (DepEd green) ── */}
+                    {/* ── Roof (DepEd green trapezoid with overhang) ── */}
 						<Line
 							points={[
-								FLOOR_LABEL_W - 4, ROOF_H,
-								(FLOOR_LABEL_W + buildingContentW) / 2, 0,
-								buildingContentW + 4, ROOF_H,
+								FLOOR_LABEL_W - ROOF_OVERHANG, ROOF_H,
+								FLOOR_LABEL_W + 24, 0,
+								buildingContentW - 24, 0,
+								buildingContentW + ROOF_OVERHANG, ROOF_H,
 							]}
 							closed
 							fill={DEPED_COLORS.roof}
 							stroke={DEPED_COLORS.roofStroke}
 							strokeWidth={1.5}
 						/>
-						{/* Roof accent line */}
+						{/* Roof accent line at base */}
 						<Line
-							points={[FLOOR_LABEL_W, ROOF_H, buildingContentW, ROOF_H]}
+							points={[FLOOR_LABEL_W - ROOF_OVERHANG + 2, ROOF_H, buildingContentW + ROOF_OVERHANG - 2, ROOF_H]}
 							stroke={DEPED_COLORS.roofStroke}
 							strokeWidth={2}
 						/>
-						{/* Building name on roof */}
+						{/* Building name on flat roof area */}
 						<Text
-							x={FLOOR_LABEL_W}
-							y={ROOF_H - 14}
-							width={buildingContentW - FLOOR_LABEL_W}
+							x={FLOOR_LABEL_W + 24}
+							y={ROOF_H / 2 - 6}
+							width={buildingContentW - FLOOR_LABEL_W - 48}
 							text={building.name}
-							fontSize={11}
+							fontSize={12}
 							fontStyle="bold"
-							fill="#f0fdfa"
+							fill="#166534"
 							align="center"
 						/>
 
@@ -397,40 +416,16 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 								x={FLOOR_LABEL_W}
 								y={0}
 								width={buildingContentW - FLOOR_LABEL_W}
-								height={buildingContentH - ROOF_H - GROUND_H}
+								height={buildingContentH - ROOF_H}
 								fill={DEPED_COLORS.walls}
 								stroke="#d4cfa8"
 								strokeWidth={1}
+								cornerRadius={[0, 0, 3, 3]}
 							/>
 						</Group>
 						<Group y={ROOF_H}>
 							{floorsRendered}
 						</Group>
-
-						{/* ── Ground / Foundation ── */}
-						<Rect
-							x={FLOOR_LABEL_W - 8}
-							y={buildingContentH - GROUND_H}
-							width={buildingContentW - FLOOR_LABEL_W + 16}
-							height={GROUND_H}
-							fill={DEPED_COLORS.ground}
-							cornerRadius={[0, 0, 4, 4]}
-						/>
-						{/* Ground texture lines */}
-						{[0.25, 0.5, 0.75].map((pct) => (
-							<Line
-								key={pct}
-								points={[
-									FLOOR_LABEL_W - 4 + pct * (buildingContentW - FLOOR_LABEL_W + 8),
-									buildingContentH - GROUND_H + 3,
-									FLOOR_LABEL_W - 4 + pct * (buildingContentW - FLOOR_LABEL_W + 8),
-									buildingContentH - 2,
-								]}
-								stroke="#64748b"
-								strokeWidth={0.5}
-								opacity={0.4}
-							/>
-						))}
 					</Layer>
 				</Stage>
 			</div>

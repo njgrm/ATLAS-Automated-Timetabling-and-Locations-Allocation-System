@@ -47,6 +47,7 @@ const STANDARD_PERIOD_MINUTES = 50;
 
 export interface SubjectInput {
 	id: number;
+	code: string;
 	minMinutesPerWeek: number;
 	preferredRoomType: RoomType;
 	gradeLevels: number[];
@@ -91,6 +92,8 @@ export interface PolicyInput {
 	lunchStartTime?: string;
 	lunchEndTime?: string;
 	enforceLunchWindow?: boolean;
+	enableTleTwoPassPriority?: boolean;
+	allowFlexibleSubjectAssignment?: boolean;
 }
 
 type PeriodSlot = { startTime: string; endTime: string };
@@ -172,6 +175,7 @@ export interface ConstructorResult {
 interface DemandItem {
 	sectionId: number;
 	subjectId: number;
+	subjectCode: string;
 	gradeLevel: number;
 	sessionsPerWeek: number;
 	durationPerSession: number;
@@ -196,6 +200,7 @@ function computeDemand(sectionsByGrade: SectionsByGrade[], subjects: SubjectInpu
 				demand.push({
 					sectionId: section.id,
 					subjectId: subject.id,
+					subjectCode: subject.code,
 					gradeLevel: gradeNum,
 					sessionsPerWeek: sessions,
 					durationPerSession: duration,
@@ -378,7 +383,23 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		return false;
 	}
 
-	for (const item of demand) {
+	// ─── Two-pass TLE priority scheduling ───
+	// When enabled, schedule TLE subjects first (Bucket A), then everything else (Bucket B)
+	const enableTwoPass = policy?.enableTleTwoPassPriority !== false;
+	let orderedDemand: DemandItem[];
+
+	if (enableTwoPass) {
+		const tleDemand = demand.filter((d) => d.subjectCode === 'TLE');
+		const otherDemand = demand.filter((d) => d.subjectCode !== 'TLE');
+		orderedDemand = [...tleDemand, ...otherDemand];
+	} else {
+		orderedDemand = demand;
+	}
+
+	const allowFlexible = policy?.allowFlexibleSubjectAssignment === true;
+	const allFacultyIds = faculty.map((f) => f.id).sort((a, b) => a - b);
+
+	for (const item of orderedDemand) {
 		const subject = subjectMap.get(item.subjectId);
 		if (!subject) {
 			for (let s = 0; s < item.sessionsPerWeek; s++) {
@@ -388,7 +409,11 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			continue;
 		}
 
-		const candidateFaculty = qualifiedMap.get(`${item.subjectId}:${item.gradeLevel}`) ?? [];
+		// Get qualified faculty; if none and flexible assignment is enabled, use all faculty
+		let candidateFaculty = qualifiedMap.get(`${item.subjectId}:${item.gradeLevel}`) ?? [];
+		if (candidateFaculty.length === 0 && allowFlexible) {
+			candidateFaculty = allFacultyIds;
+		}
 		const compatibleRooms = roomsByType.get(subject.preferredRoomType) ?? [];
 
 		// Track which days we already used for this section-subject pair (spread sessions across days)

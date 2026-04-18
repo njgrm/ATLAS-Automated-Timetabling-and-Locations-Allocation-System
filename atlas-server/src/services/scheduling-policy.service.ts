@@ -38,6 +38,8 @@ export const POLICY_DEFAULTS = {
 	lunchStartTime: '11:55',
 	lunchEndTime: '12:55',
 	enforceLunchWindow: true,
+	enableTleTwoPassPriority: true,
+	allowFlexibleSubjectAssignment: false,
 } as const;
 
 export interface ConstraintOverride {
@@ -82,6 +84,8 @@ export interface SchedulingPolicyData {
 	lunchStartTime: string;
 	lunchEndTime: string;
 	enforceLunchWindow: boolean;
+	enableTleTwoPassPriority: boolean;
+	allowFlexibleSubjectAssignment: boolean;
 	constraintConfig: Record<string, ConstraintOverride> | null;
 }
 
@@ -122,6 +126,8 @@ export interface PolicyInput {
 	lunchStartTime?: unknown;
 	lunchEndTime?: unknown;
 	enforceLunchWindow?: unknown;
+	enableTleTwoPassPriority?: unknown;
+	allowFlexibleSubjectAssignment?: unknown;
 	constraintConfig?: unknown;
 }
 
@@ -304,6 +310,26 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 		}
 	}
 
+	// --- TLE two-pass priority ---
+	let enableTleTwoPass: boolean = POLICY_DEFAULTS.enableTleTwoPassPriority;
+	if (input.enableTleTwoPassPriority !== undefined && input.enableTleTwoPassPriority !== null) {
+		if (typeof input.enableTleTwoPassPriority !== 'boolean') {
+			errors.push('enableTleTwoPassPriority must be a boolean.');
+		} else {
+			enableTleTwoPass = input.enableTleTwoPassPriority;
+		}
+	}
+
+	// --- Flexible subject assignment ---
+	let allowFlexibleAssignment: boolean = POLICY_DEFAULTS.allowFlexibleSubjectAssignment;
+	if (input.allowFlexibleSubjectAssignment !== undefined && input.allowFlexibleSubjectAssignment !== null) {
+		if (typeof input.allowFlexibleSubjectAssignment !== 'boolean') {
+			errors.push('allowFlexibleSubjectAssignment must be a boolean.');
+		} else {
+			allowFlexibleAssignment = input.allowFlexibleSubjectAssignment;
+		}
+	}
+
 	// --- constraintConfig (JSON object) ---
 	let constraintConfig: Record<string, ConstraintOverride> | null = null;
 	if (input.constraintConfig !== undefined && input.constraintConfig !== null) {
@@ -347,6 +373,8 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 			lunchStartTime: lunchStart,
 			lunchEndTime: lunchEnd,
 			enforceLunchWindow: enforceLunch,
+			enableTleTwoPassPriority: enableTleTwoPass,
+			allowFlexibleSubjectAssignment: allowFlexibleAssignment,
 			constraintConfig,
 		},
 		errors,
@@ -416,7 +444,9 @@ async function ensureSchedulingPolicyColumns(): Promise<void> {
 				ADD COLUMN IF NOT EXISTS "max_compressed_teaching_minutes_per_day" INTEGER NOT NULL DEFAULT 300,
 				ADD COLUMN IF NOT EXISTS "lunch_start_time" TEXT NOT NULL DEFAULT '11:55',
 				ADD COLUMN IF NOT EXISTS "lunch_end_time" TEXT NOT NULL DEFAULT '12:55',
-				ADD COLUMN IF NOT EXISTS "enforce_lunch_window" BOOLEAN NOT NULL DEFAULT true;
+				ADD COLUMN IF NOT EXISTS "enforce_lunch_window" BOOLEAN NOT NULL DEFAULT true,
+				ADD COLUMN IF NOT EXISTS "enable_tle_two_pass_priority" BOOLEAN NOT NULL DEFAULT true,
+				ADD COLUMN IF NOT EXISTS "allow_flexible_subject_assignment" BOOLEAN NOT NULL DEFAULT false;
 			`);
 		})().catch((e) => {
 			ensureColumnsPromise = null;
@@ -491,6 +521,8 @@ export async function upsertPolicy(schoolId: number, schoolYearId: number, input
 		lunchStartTime: data.lunchStartTime,
 		lunchEndTime: data.lunchEndTime,
 		enforceLunchWindow: data.enforceLunchWindow,
+		enableTleTwoPassPriority: data.enableTleTwoPassPriority,
+		allowFlexibleSubjectAssignment: data.allowFlexibleSubjectAssignment,
 		constraintConfig: constraintConfigValue,
 	};
 

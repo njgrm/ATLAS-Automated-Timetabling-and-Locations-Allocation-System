@@ -41,7 +41,7 @@ async function checkPolicySchema() {
 	}
 }
 
-app.listen(PORT, async () => {
+app.listen(PORT,'0.0.0.0', async () => {
 	console.log(`[ATLAS] Server listening on http://localhost:${PORT}`);
 	// Startup connectivity check
 	try {

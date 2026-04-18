@@ -7,7 +7,7 @@ import { ScrollArea } from '@/ui/scroll-area';
 
 /* ─── Human-readable explanations per violation code ─── */
 
-const VIOLATION_EXPLANATIONS: Record<string, { why: string; fix: string }> = {
+export const VIOLATION_EXPLANATIONS: Record<string, { why: string; fix: string }> = {
 	FACULTY_TIME_CONFLICT: {
 		why: 'This teacher is assigned to two different classes at the same time.',
 		fix: 'Move one of the conflicting entries to a different time slot, or reassign one to another teacher.',

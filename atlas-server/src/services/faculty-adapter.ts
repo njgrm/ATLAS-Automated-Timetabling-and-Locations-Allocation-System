@@ -9,6 +9,10 @@ export interface ExternalFaculty {
 	firstName: string;
 	lastName: string;
 	department: string;
+	employmentStatus?: 'PERMANENT' | 'PROBATIONARY';
+	isClassAdviser?: boolean;
+	advisoryEquivalentHours?: number;
+	canTeachOutsideDepartment?: boolean;
 	contactInfo: string | null;
 }
 
@@ -81,6 +85,10 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 				firstName: t.firstName,
 				lastName: t.lastName,
 				department: t.specialization ?? 'General',
+				employmentStatus: 'PERMANENT',
+				isClassAdviser: false,
+				advisoryEquivalentHours: 0,
+				canTeachOutsideDepartment: false,
 				contactInfo: t.contactNumber,
 			}));
 	}

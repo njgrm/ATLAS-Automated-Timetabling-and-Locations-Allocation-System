@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ImperativePanelHandle } from 'react-resizable-panels';
 import {
 	AlertCircle,
 	AlertTriangle,
@@ -17,6 +18,8 @@ import {
 	Loader2,
 	PanelLeftClose,
 	PanelLeftOpen,
+	PanelRightClose,
+	PanelRightOpen,
 	Play,
 	RefreshCw,
 	Search,
@@ -78,12 +81,14 @@ import { ScrollArea } from '@/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { SearchableSelect } from '@/ui/searchable-select';
 import { Skeleton } from '@/ui/skeleton';
+import { Separator } from '@/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/ui/resizable';
 
 import SchedulingPolicyPane from '@/components/SchedulingPolicyPane';
 import ManualEditPanel from '@/components/ManualEditPanel';
 import { TutorialOverlay, useTutorial } from '@/components/TutorialOverlay';
-import { ExplainabilityDrawer } from '@/components/ExplainabilityDrawer';
+import { ExplainabilityDrawer, VIOLATION_EXPLANATIONS } from '@/components/ExplainabilityDrawer';
 
 /* ─── Constants ─── */
 
@@ -313,6 +318,9 @@ export default function ScheduleReview() {
 	const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
 	const [isRightCollapsed, setIsRightCollapsed] = useState(false);
 	const [centerView, setCenterView] = useState<'grid' | 'policy' | 'manual-edit'>('grid');
+	// Panel refs for imperative collapse/expand
+	const leftPanelRef = useRef<ImperativePanelHandle>(null);
+	const rightPanelRef = useRef<ImperativePanelHandle>(null);
 	// Snapshot of panel state before entering a swap view so we can restore on exit
 	const panelSnapshot = useRef<{ left: boolean; right: boolean } | null>(null);
 	// Which action the officer triggered from the right panel
@@ -320,6 +328,7 @@ export default function ScheduleReview() {
 
 	/* ── Manual edit / DnD state ── */
 	const [dragItem, setDragItem] = useState<{ type: 'entry'; entry: ScheduledEntry } | { type: 'unassigned'; item: UnassignedItem } | null>(null);
+	const [blockerModalData, setBlockerModalData] = useState<import('@/types').HumanConflict[] | null>(null);
 	const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
 	const [previewLoading, setPreviewLoading] = useState(false);
 	const [showSoftConfirm, setShowSoftConfirm] = useState(false);
@@ -351,15 +360,15 @@ export default function ScheduleReview() {
 
 	const enterPolicyView = useCallback(() => {
 		panelSnapshot.current = { left: isLeftCollapsed, right: isRightCollapsed };
-		setIsLeftCollapsed(true);
-		setIsRightCollapsed(true);
+		leftPanelRef.current?.collapse();
+		rightPanelRef.current?.collapse();
 		setCenterView('policy');
 	}, [isLeftCollapsed, isRightCollapsed]);
 
 	const exitPolicyView = useCallback(() => {
 		if (panelSnapshot.current) {
-			setIsLeftCollapsed(panelSnapshot.current.left);
-			setIsRightCollapsed(panelSnapshot.current.right);
+			if (!panelSnapshot.current.left) leftPanelRef.current?.expand();
+			if (!panelSnapshot.current.right) rightPanelRef.current?.expand();
 			panelSnapshot.current = null;
 		}
 		setCenterView('grid');
@@ -367,16 +376,16 @@ export default function ScheduleReview() {
 
 	const enterManualEditView = useCallback((action: 'CHANGE_TIMESLOT' | 'CHANGE_ROOM' | 'CHANGE_FACULTY') => {
 		panelSnapshot.current = { left: isLeftCollapsed, right: isRightCollapsed };
-		setIsLeftCollapsed(true);
-		setIsRightCollapsed(true);
+		leftPanelRef.current?.collapse();
+		rightPanelRef.current?.collapse();
 		setPendingAction(action);
 		setCenterView('manual-edit');
 	}, [isLeftCollapsed, isRightCollapsed]);
 
 	const exitManualEditView = useCallback(() => {
 		if (panelSnapshot.current) {
-			setIsLeftCollapsed(panelSnapshot.current.left);
-			setIsRightCollapsed(panelSnapshot.current.right);
+			if (!panelSnapshot.current.left) leftPanelRef.current?.expand();
+			if (!panelSnapshot.current.right) rightPanelRef.current?.expand();
 			panelSnapshot.current = null;
 		}
 		setPendingAction(null);
@@ -452,7 +461,7 @@ export default function ScheduleReview() {
 		if (hardViolationCount > 0 && prevHardCountRef.current === 0) {
 			setLeftTab('violations');
 			setSeverityFilter('hard');
-			if (isLeftCollapsed) setIsLeftCollapsed(false);
+			if (isLeftCollapsed) leftPanelRef.current?.expand();
 		}
 		prevHardCountRef.current = hardViolationCount;
 	}, [hardViolationCount, isLeftCollapsed]);
@@ -910,7 +919,7 @@ export default function ScheduleReview() {
 			if (!preview) return;
 
 			if (!preview.allowed) {
-				toast.error(`Blocked: ${preview.hardViolations.map(v => v.message).join('; ')}`);
+				setBlockerModalData(preview.humanConflicts.filter((hc) => hc.severity === 'HARD'));
 				setDragItem(null);
 				return;
 			}
@@ -963,7 +972,7 @@ export default function ScheduleReview() {
 			const preview = await previewEdit(proposal);
 			if (!preview) { setDragItem(null); return; }
 			if (!preview.allowed) {
-				toast.error(`Blocked: ${preview.hardViolations.map(v => v.message).join('; ')}`);
+				setBlockerModalData(preview.humanConflicts.filter((hc) => hc.severity === 'HARD'));
 				setDragItem(null);
 				return;
 			}
@@ -1004,7 +1013,7 @@ export default function ScheduleReview() {
 		const preview = await previewEdit(proposal);
 		if (!preview) { setDragItem(null); return; }
 		if (!preview.allowed) {
-			toast.error(`Blocked: ${preview.hardViolations.map(v => v.message).join('; ')}`);
+			setBlockerModalData(preview.humanConflicts.filter((hc) => hc.severity === 'HARD'));
 			setDragItem(null);
 			return;
 		}
@@ -1124,7 +1133,7 @@ export default function ScheduleReview() {
 			const byGrade = new Map<string, number[]>();
 			for (const id of pivotEntityIds) {
 				const grade = gradeForSection(id);
-				const key = grade ? `Grade ${grade}` : 'Other';
+				const key = grade ? `G${grade}` : 'Other';
 				const list = byGrade.get(key) ?? [];
 				list.push(id);
 				byGrade.set(key, list);
@@ -1503,65 +1512,61 @@ export default function ScheduleReview() {
 				</div>
 			</div>
 
-			{/* ── Body: Two-panel split (right detail is a Sheet overlay) ── */}
-			<div className="flex flex-1 min-h-0">
-				{/* LEFT: Violations + Unassigned Tabs (collapsible) */}
-				<motion.div
-					animate={{ width: isLeftCollapsed ? '3rem' : '16rem' }}
-					transition={{ duration: 0.2, ease: 'easeInOut' }}
-					className="shrink-0 border-r border-border flex flex-col min-h-0 bg-background overflow-hidden">
-					{/* Collapse toggle */}
-					<div className="shrink-0 flex items-center justify-end px-1 py-1 border-b border-border">
-						<TooltipProvider>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setIsLeftCollapsed((c) => !c)} aria-label={isLeftCollapsed ? 'Expand panel' : 'Collapse panel'}>
-										{isLeftCollapsed ? <PanelLeftOpen className="size-3.5" /> : <PanelLeftClose className="size-3.5" />}
-									</Button>
-								</TooltipTrigger>
-								<TooltipContent side="right">{isLeftCollapsed ? 'Expand panel' : 'Collapse panel'}</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
-					</div>
-
-					{/* Collapsed icon strip */}
+			{/* ── Body: Resizable Panels ── */}
+			<ResizablePanelGroup direction="horizontal" className="flex flex-1 min-h-0">
+				{/* LEFT: Violations + Unassigned Tabs */}
+				<ResizablePanel
+					ref={leftPanelRef}
+					id="left-panel"
+					order={1}
+					minSize={12}
+					maxSize={40}
+					defaultSize={20}
+					collapsible
+					collapsedSize={3}
+					onCollapse={() => setIsLeftCollapsed(true)}
+					onExpand={() => setIsLeftCollapsed(false)}
+					className="flex flex-col min-h-0 bg-background overflow-hidden border-r border-border"
+				>
+					{/* Minimized icon-strip when collapsed */}
 					{isLeftCollapsed ? (
-						<div className="flex flex-col items-center gap-1 py-2">
+						<div className="flex flex-col items-center gap-2 pt-2 w-full h-full">
 							<TooltipProvider>
 								<Tooltip>
 									<TooltipTrigger asChild>
-										<Button
-											variant={leftTab === 'violations' ? 'default' : 'ghost'}
-											size="sm"
-											className="h-8 w-8 p-0"
-											onClick={() => { setLeftTab('violations'); setIsLeftCollapsed(false); }}
-											aria-label={`Violations (${violations.length})`}
-										>
-											<ShieldAlert className="size-4" />
+										<Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => leftPanelRef.current?.expand()} aria-label="Expand left panel">
+											<PanelLeftOpen className="size-4" />
 										</Button>
 									</TooltipTrigger>
-									<TooltipContent side="right">Violations ({violations.length})</TooltipContent>
+									<TooltipContent side="right">Expand panel</TooltipContent>
 								</Tooltip>
-							</TooltipProvider>
-							<TooltipProvider>
+								<Separator />
 								<Tooltip>
 									<TooltipTrigger asChild>
-										<Button
-											variant={leftTab === 'unassigned' ? 'default' : 'ghost'}
-											size="sm"
-											className="h-8 w-8 p-0"
-											onClick={() => { setLeftTab('unassigned'); setIsLeftCollapsed(false); }}
-											aria-label={`Unassigned (${summary?.unassignedCount ?? 0})`}
-										>
-											<AlertTriangle className="size-4" />
-										</Button>
+										<button type="button" className="relative flex items-center justify-center h-8 w-8 rounded hover:bg-muted transition-colors" onClick={() => { leftPanelRef.current?.expand(); setLeftTab('violations'); }}>
+											<ShieldAlert className="size-4 text-muted-foreground" />
+											{violations.length > 0 && (
+												<span className="absolute -top-1 -right-1 text-[0.5rem] font-bold leading-none bg-red-500 text-white rounded-full px-1">{violations.length}</span>
+											)}
+										</button>
 									</TooltipTrigger>
-									<TooltipContent side="right">Unassigned ({summary?.unassignedCount ?? 0})</TooltipContent>
+									<TooltipContent side="right">Violations</TooltipContent>
+								</Tooltip>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<button type="button" className="relative flex items-center justify-center h-8 w-8 rounded hover:bg-muted transition-colors" onClick={() => { leftPanelRef.current?.expand(); setLeftTab('unassigned'); }}>
+											<AlertTriangle className="size-4 text-muted-foreground" />
+											{summary && summary.unassignedCount > 0 && (
+												<span className="absolute -top-1 -right-1 text-[0.5rem] font-bold leading-none bg-amber-500 text-white rounded-full px-1">{summary.unassignedCount}</span>
+											)}
+										</button>
+									</TooltipTrigger>
+									<TooltipContent side="right">Unassigned</TooltipContent>
 								</Tooltip>
 							</TooltipProvider>
 						</div>
 					) : (
-					<>
+						<>
 					{/* Tab switcher */}
 					<div className="shrink-0 flex border-b border-border" role="tablist" aria-label="Schedule review panels" data-tutorial="left-tabs">
 						<button
@@ -1598,6 +1603,15 @@ export default function ScheduleReview() {
 								<span className="ml-1 text-[0.625rem] text-amber-600 font-semibold">{summary.unassignedCount}</span>
 							)}
 						</button>
+						<Button
+							variant="ghost"
+							size="sm"
+							className="h-8 w-8 p-0 shrink-0 ml-auto"
+							onClick={() => leftPanelRef.current?.collapse()}
+							aria-label="Collapse left panel"
+						>
+							<PanelLeftClose className="size-4" />
+						</Button>
 					</div>
 
 					{leftTab === 'violations' ? (
@@ -1688,29 +1702,19 @@ export default function ScheduleReview() {
 							<div className="px-3 py-3 space-y-3">
 								{summary ? (
 									<>
-										<div className="rounded-md border border-border p-3 space-y-2">
-											<div className="flex items-center justify-between">
-												<MetricExplain
-													label="Classes Processed"
-													explanation="The total number of class demands (e.g., Math 7 Section A) the algorithm attempted to schedule."
-												/>
-												<span className="text-sm font-bold">{summary.classesProcessed}</span>
+										{/* Dense Inline Stat Block */}
+										<div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-border bg-muted/20 px-3 py-1.5 text-xs">
+											<div className="flex items-center gap-1.5">
+												<span className="text-muted-foreground font-medium">Processed</span>
+												<span className="font-bold">{summary.classesProcessed}</span>
 											</div>
-											<div className="flex items-center justify-between">
-												<MetricExplain
-													label="Assigned"
-													explanation="Class sessions that were successfully pinned to a timeslot, room, and teacher without breaking hard constraints."
-												/>
-												<span className="text-sm font-bold text-emerald-600">{summary.assignedCount}</span>
+											<div className="flex items-center gap-1.5">
+												<span className="text-muted-foreground font-medium">Assigned</span>
+												<span className="font-bold text-emerald-600">{summary.assignedCount}</span>
 											</div>
-											<div className="flex items-center justify-between">
-												<MetricExplain
-													label="Unassigned"
-													explanation="Class sessions that failed to be placed. These will require you to manually triage them, or fix upstream setup data."
-												/>
-												<span className={`text-sm font-bold ${summary.unassignedCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-													{summary.unassignedCount}
-												</span>
+											<div className="flex items-center gap-1.5">
+												<span className="text-muted-foreground font-medium">Unassigned</span>
+												<span className={`font-bold ${summary.unassignedCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{summary.unassignedCount}</span>
 											</div>
 										</div>
 
@@ -1771,10 +1775,9 @@ export default function ScheduleReview() {
 																		: 'border-amber-200 bg-amber-50/50 hover:border-amber-300'
 															}`}
 														>
-															{/* Collapsed header row */}
 															<button
 																type="button"
-																className="w-full text-left px-2 py-1.5 space-y-1 cursor-grab active:cursor-grabbing"
+																className="w-full max-w-full overflow-hidden text-left px-2 py-1.5 space-y-1 cursor-grab active:cursor-grabbing"
 																onClick={() => {
 																	setExpandedUnassigned((prev) => {
 																		const next = new Set(prev);
@@ -1785,7 +1788,7 @@ export default function ScheduleReview() {
 																	setKbSelectedSource(isKbSelected ? null : { type: 'unassigned', item });
 																}}
 															>
-																<div className="flex items-center gap-1.5">
+																<div className="flex items-center gap-1.5 min-w-0">
 																	<ChevronDown className={`size-3 text-muted-foreground shrink-0 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
 																	<GripVertical className="size-3 text-muted-foreground/50 shrink-0" />
 																	{gradeBadge && (
@@ -1793,16 +1796,16 @@ export default function ScheduleReview() {
 																			G{grade}
 																		</Badge>
 																	)}
-																	<span className="font-medium truncate">{sectionLabel(item.sectionId)}</span>
-																	<span className="text-muted-foreground">·</span>
-																	<span className="truncate">{subjectLabel(item.subjectId)}</span>
+																	<span className="font-medium truncate min-w-0">{sectionLabel(item.sectionId)}</span>
+																	<span className="text-muted-foreground shrink-0">·</span>
+																	<span className="truncate min-w-0">{subjectLabel(item.subjectId)}</span>
 																</div>
 																<div className="flex items-center gap-1.5 text-[0.625rem] text-muted-foreground pl-[1.125rem]">
 																	<UnassignedReasonBadge reason={item.reason} />
-																	<span className="opacity-60">Session {item.session}</span>
-																	<Badge variant="destructive" className="h-4 px-1 text-[0.5rem] ml-auto">
-																		Blocker
-																	</Badge>
+																	<span className="opacity-60 font-medium">Session {item.session}</span>
+																	<span className="ml-auto text-red-600/80 font-semibold tracking-wide uppercase text-[0.5rem] flex items-center gap-0.5">
+																		<AlertTriangle className="size-2.5" /> Blocker
+																	</span>
 																</div>
 															</button>
 
@@ -1818,15 +1821,16 @@ export default function ScheduleReview() {
 																	>
 																		<div className="px-2 pb-2 pt-1 border-t border-amber-200 space-y-2">
 																			{/* Reason explanation */}
-																			<div className="rounded bg-amber-50/80 px-2 py-1.5 space-y-1">
-																				<div className="flex items-center gap-1 text-[0.625rem] font-semibold text-amber-800">
-																					<AlertTriangle className="size-2.5" />
+																			<div className="rounded border border-red-200 bg-red-50/50 p-2 space-y-1">
+																				<div className="flex items-center gap-1.5 text-[0.625rem] text-red-800 font-medium">
+																					<AlertTriangle className="size-3" />
 																					Why blocked
 																				</div>
-																				<p className="text-[0.625rem] text-amber-700 leading-relaxed">
-																					{UNASSIGNED_REASON_LABELS[item.reason]?.label ?? item.reason}: {
-																						item.reason === 'NO_QUALIFIED_FACULTY'
-																							? 'No teacher is assigned to this subject at this grade, or all assigned teachers are fully booked.'
+																				<p className="font-medium text-[0.6875rem] text-red-900 break-words whitespace-normal leading-snug">
+																					{unassignedFixSuggestions[itemKey]
+																						? unassignedFixSuggestions[itemKey]!.humanDetail
+																						: item.reason === 'NO_QUALIFIED_FACULTY'
+																							? 'No faculty member is tagged as qualified to teach this subject at this grade level.'
 																							: item.reason === 'FACULTY_OVERLOADED'
 																								? 'All qualified teachers have reached their maximum weekly/daily hours.'
 																								: item.reason === 'NO_AVAILABLE_SLOT'
@@ -1854,30 +1858,46 @@ export default function ScheduleReview() {
 																					disabled={fixLoading === itemKey}
 																					onClick={async (e) => {
 																						e.stopPropagation();
+																						// Resolve run ID - if 'latest', use first run id
+																						const resolvedRunId = selectedRunId === 'latest' ? runs[0]?.id : selectedRunId;
+																						if (!resolvedRunId) {
+																							toast.error('No generation run selected');
+																							return;
+																						}
 																						setFixLoading(itemKey);
 																						try {
-																							const resp = await fetch(
-																								`/api/v1/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${selectedRunId === 'latest' ? runs[0]?.id : selectedRunId}/fix-suggestions`,
+																							const { data } = await atlasApi.post<FixSuggestionsResponse>(
+																								`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${resolvedRunId}/fix-suggestions`,
 																								{
-																									method: 'POST',
-																									headers: { 'Content-Type': 'application/json' },
-																									body: JSON.stringify({
-																										sectionId: item.sectionId,
-																										subjectId: item.subjectId,
-																										gradeLevel: item.gradeLevel,
-																										session: item.session,
-																										reason: item.reason,
-																									}),
+																									sectionId: item.sectionId,
+																									subjectId: item.subjectId,
+																									gradeLevel: item.gradeLevel,
+																									session: item.session,
+																									reason: item.reason,
 																								},
 																							);
-																							if (!resp.ok) throw new Error('Failed');
-																							const data: FixSuggestionsResponse = await resp.json();
 																							setUnassignedFixSuggestions((prev) => ({
 																								...prev,
 																								[itemKey]: data.explanation,
 																							}));
-																						} catch {
-																							toast.error('Could not fetch fix suggestions');
+																						} catch (err: unknown) {
+																							// Handle auth/permission errors with user-friendly messages
+																							const error = err as { response?: { status?: number; data?: { code?: string } } };
+																							const status = error.response?.status;
+																							const code = error.response?.data?.code;
+																							
+																							if (status === 401) {
+																								const msg = code === 'TOKEN_EXPIRED' 
+																									? 'Session expired. Re-open ATLAS from EnrollPro.'
+																									: 'Session missing or invalid. Re-open ATLAS from EnrollPro.';
+																								toast.error(msg);
+																							} else if (status === 403) {
+																								toast.error('You do not have permission to request fix suggestions.');
+																							} else if (status === 400) {
+																								toast.error('Fix suggestion request is invalid. Please refresh run data and try again.');
+																							} else {
+																								toast.error('Could not fetch fix suggestions');
+																							}
 																							setUnassignedFixSuggestions((prev) => ({
 																								...prev,
 																								[itemKey]: null,
@@ -1996,11 +2016,14 @@ export default function ScheduleReview() {
 							</div>
 						</ScrollArea>
 						)}
-					</>)}
-				</motion.div>
+						</>
+					)}
+				</ResizablePanel>
+
+				<ResizableHandle withHandle />
 
 				{/* CENTER: Timetable Grid or Policy Pane */}
-				<div className="flex-1 min-w-0 flex flex-col min-h-0" data-tutorial="center-grid">
+				<ResizablePanel id="center-panel" order={2} defaultSize={60} className="flex-1 min-w-0 flex flex-col min-h-0 relative" data-tutorial="center-grid">
 					<AnimatePresence mode="wait">
 						{centerView === 'policy' ? (
 							<motion.div
@@ -2097,49 +2120,70 @@ export default function ScheduleReview() {
 							</motion.div>
 						)}
 					</AnimatePresence>
-				</div>
+				</ResizablePanel>
 
 				{/* RIGHT: Compact Entry Detail — action buttons trigger center-pane swap */}
-				<motion.div
-					animate={{ width: isRightCollapsed ? '3rem' : '14rem' }}
-					transition={{ duration: 0.2, ease: 'easeInOut' }}
-					className="shrink-0 border-l border-border flex flex-col min-h-0 bg-background overflow-hidden"
+				<ResizableHandle withHandle />
+				<ResizablePanel
+					ref={rightPanelRef}
+					id="right-panel"
+					order={3}
+					minSize={12}
+					maxSize={30}
+					defaultSize={20}
+					collapsible
+					collapsedSize={3}
+					onCollapse={() => setIsRightCollapsed(true)}
+					onExpand={() => setIsRightCollapsed(false)}
+					className="flex flex-col min-h-0 bg-background overflow-hidden border-l border-border"
 				>
-					{/* Collapse toggle */}
-					<div className="shrink-0 flex items-center px-1 py-1 border-b border-border">
-						<TooltipProvider>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setIsRightCollapsed((c) => !c)} aria-label={isRightCollapsed ? 'Expand detail panel' : 'Collapse detail panel'}>
-										{isRightCollapsed ? <PanelLeftClose className="size-3.5 rotate-180" /> : <PanelLeftOpen className="size-3.5 rotate-180" />}
-									</Button>
-								</TooltipTrigger>
-								<TooltipContent side="left">{isRightCollapsed ? 'Expand panel' : 'Collapse panel'}</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
-					</div>
-
-					{!isRightCollapsed && (
-						<AnimatePresence mode="wait">
-							{selectedEntry ? (
-								<motion.div
-									key={selectedEntry.entryId}
-									initial={{ opacity: 0, x: 10 }}
-									animate={{ opacity: 1, x: 0 }}
-									exit={{ opacity: 0, x: 10 }}
-									transition={{ duration: 0.15 }}
-									className="flex flex-col min-h-0 h-full"
-								>
-									{/* Entry summary header */}
-									<div className="shrink-0 flex items-center justify-between px-3 py-2 border-b border-border">
-										<span className="text-xs font-semibold truncate">{subjectLabel(selectedEntry.subjectId)}</span>
-										<div className="flex items-center gap-1 shrink-0">
-											{/* Follow-up flag as icon in header */}
-											<TooltipProvider>
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<Button
-															variant="ghost"
+					{/* Minimized icon-strip when collapsed */}
+					{isRightCollapsed ? (
+						<div className="flex flex-col items-center gap-2 pt-2 w-full h-full">
+							<TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => rightPanelRef.current?.expand()} aria-label="Expand right panel">
+											<PanelRightOpen className="size-4" />
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent side="left">Expand panel</TooltipContent>
+								</Tooltip>
+								<Separator />
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<button type="button" className="relative flex items-center justify-center h-8 w-8 rounded hover:bg-muted transition-colors" onClick={() => rightPanelRef.current?.expand()}>
+											<Users className="size-4 text-muted-foreground" />
+											{selectedEntry && (
+												<span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full" />
+											)}
+										</button>
+									</TooltipTrigger>
+									<TooltipContent side="left">Entry detail</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+						</div>
+					) : (
+					<AnimatePresence mode="wait">
+						{selectedEntry ? (
+							<motion.div
+								key={selectedEntry.entryId}
+								initial={{ opacity: 0, x: 10 }}
+								animate={{ opacity: 1, x: 0 }}
+								exit={{ opacity: 0, x: 10 }}
+								transition={{ duration: 0.15 }}
+								className="flex flex-col min-h-0 h-full"
+							>
+								{/* Entry summary header */}
+								<div className="shrink-0 flex items-center justify-between px-3 py-2 border-b border-border">
+									<span className="text-xs font-semibold truncate">{subjectLabel(selectedEntry.subjectId)}</span>
+									<div className="flex items-center gap-1 shrink-0">
+										{/* Follow-up flag as icon in header */}
+										<TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<Button
+														variant="ghost"
 															size="sm"
 															className="h-6 w-6 p-0"
 															onClick={() => toggleFollowUp(selectedEntry.entryId)}
@@ -2151,6 +2195,9 @@ export default function ScheduleReview() {
 													<TooltipContent side="left">{followUps.has(selectedEntry.entryId) ? 'Remove follow-up flag' : 'Mark for follow-up'}</TooltipContent>
 												</Tooltip>
 											</TooltipProvider>
+											<Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => rightPanelRef.current?.collapse()} aria-label="Collapse panel">
+												<PanelRightClose className="size-3.5" />
+											</Button>
 											<Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setSelectedEntry(null)} aria-label="Close">
 												<X className="size-3.5" />
 											</Button>
@@ -2175,11 +2222,26 @@ export default function ScheduleReview() {
 														<p className="text-[0.6875rem] text-muted-foreground truncate">{roomLabel(selectedEntry.roomId)}</p>
 														{entryViolations.length > 0 && (
 															<div className="space-y-1 pt-1">
-																{entryViolations.map((v, i) => (
-																	<div key={i} className={`rounded px-2 py-1 text-[0.625rem] leading-snug ${v.severity === 'HARD' ? 'border border-red-200 bg-red-50 text-red-700' : 'border border-amber-200 bg-amber-50 text-amber-700'}`}>
-																		{VIOLATION_LABELS[v.code] ?? v.code}
-																	</div>
-																))}
+																{entryViolations.map((v, i) => {
+																	const explanation = VIOLATION_EXPLANATIONS[v.code];
+																	return (
+																		<TooltipProvider key={i}>
+																			<Tooltip delayDuration={200}>
+																				<TooltipTrigger asChild>
+																					<div className={`rounded px-2 py-1 text-[0.625rem] leading-snug cursor-help ${v.severity === 'HARD' ? 'border border-red-200 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 dark:border-red-800' : 'border border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800'}`}>
+																						{VIOLATION_LABELS[v.code] ?? v.code}
+																					</div>
+																				</TooltipTrigger>
+																				{explanation && (
+																					<TooltipContent side="left" className="max-w-[250px] text-xs">
+																						<p className="font-medium mb-1">{VIOLATION_LABELS[v.code]}</p>
+																						<p className="text-muted-foreground">{explanation.why}</p>
+																					</TooltipContent>
+																				)}
+																			</Tooltip>
+																		</TooltipProvider>
+																	);
+																})}
 															</div>
 														)}
 													</>
@@ -2208,18 +2270,25 @@ export default function ScheduleReview() {
 									initial={{ opacity: 0 }}
 									animate={{ opacity: 1 }}
 									exit={{ opacity: 0 }}
-									className="flex-1 flex items-center justify-center"
+									className="flex-1 flex flex-col"
 								>
-									<div className="text-center space-y-2 px-4">
-										<Users className="mx-auto size-8 text-muted-foreground/30" />
-										<p className="text-xs text-muted-foreground">Click an entry in the grid to view details and actions</p>
+									<div className="shrink-0 flex items-center justify-end px-3 py-2 border-b border-border">
+										<Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => rightPanelRef.current?.collapse()} aria-label="Collapse panel">
+											<PanelRightClose className="size-3.5" />
+										</Button>
+									</div>
+									<div className="flex-1 flex items-center justify-center">
+										<div className="text-center space-y-2 px-4">
+											<Users className="mx-auto size-8 text-muted-foreground/30" />
+											<p className="text-xs text-muted-foreground">Click an entry in the grid to view details and actions</p>
+										</div>
 									</div>
 								</motion.div>
 							)}
 						</AnimatePresence>
 					)}
-				</motion.div>
-			</div>
+				</ResizablePanel>
+			</ResizablePanelGroup>
 
 			{/* ── Generate Confirmation Dialog ── */}
 			<Dialog open={showGenerateConfirm} onOpenChange={setShowGenerateConfirm}>
@@ -2523,6 +2592,52 @@ export default function ScheduleReview() {
 				onComplete={tutorial.complete}
 			/>
 
+			{/* ── Hard Violation Blocker Modal ── */}
+			<Dialog open={!!blockerModalData} onOpenChange={(o) => { if (!o) setBlockerModalData(null); }}>
+				<DialogContent className="w-[calc(100%-2rem)] sm:max-w-md rounded-2xl p-6 overflow-hidden">
+					<DialogHeader className="space-y-4">
+						<div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 ring-4 ring-red-50 mx-auto">
+							<ShieldAlert className="size-6 text-red-600" />
+						</div>
+						<DialogTitle className="text-xl font-bold tracking-tight text-center text-red-900">
+							Edit Blocked
+						</DialogTitle>
+						<DialogDescription className="text-center text-sm text-foreground">
+							This change violates one or more <strong className="font-semibold text-red-700">hard constraints</strong> and cannot be applied to the schedule.
+						</DialogDescription>
+					</DialogHeader>
+
+					<div className="mt-4 bg-red-50/50 border border-red-100 rounded-xl overflow-hidden max-h-[40vh]">
+						<ScrollArea className="max-h-[40vh]">
+							<div className="p-4 space-y-3">
+								{blockerModalData?.map((hc, i) => (
+									<div key={i} className="flex items-start gap-2">
+										<AlertCircle className="size-4 shrink-0 mt-0.5 text-red-500" />
+										<div className="space-y-0.5">
+											<p className="text-sm font-medium text-red-800 leading-snug">{hc.humanTitle}</p>
+											<p className="text-xs text-red-700/80 leading-snug">{hc.humanDetail}</p>
+											{hc.delta && (
+												<p className="text-[0.625rem] text-red-500/70 font-mono mt-0.5">{hc.delta}</p>
+											)}
+										</div>
+									</div>
+								))}
+							</div>
+						</ScrollArea>
+					</div>
+
+					<DialogFooter className="mt-6 sm:justify-center">
+						<Button
+							variant="outline"
+							onClick={() => setBlockerModalData(null)}
+							className="w-full sm:w-auto min-w-32 active:scale-95 transition-all text-red-700 border-red-200 hover:bg-red-50"
+						>
+							Understood
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
 			{/* ── Explainability Drawer ── */}
 			<ExplainabilityDrawer
 				open={showExplainDrawer}
@@ -2679,12 +2794,51 @@ function ViolationGroup({
 											? 'bg-primary/10 text-foreground'
 											: 'text-muted-foreground hover:bg-muted/50'
 									}`}>
-										<button
-											onClick={() => onSelect(v)}
-											className="flex-1 text-left px-3 py-1.5 text-[0.6875rem] leading-tight transition-colors"
-										>
-											<span className="line-clamp-2">{v.message}</span>
-										</button>
+										{v.meta && Object.keys(v.meta).length > 0 ? (
+											<TooltipProvider delayDuration={200}>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<button
+															onClick={() => onSelect(v)}
+															className="flex-1 text-left px-3 py-1.5 text-[0.6875rem] leading-tight transition-colors"
+														>
+															<span className="line-clamp-2 underline decoration-dashed decoration-muted-foreground/50 underline-offset-2">{v.message}</span>
+														</button>
+													</TooltipTrigger>
+													<TooltipContent className="max-w-[280px] text-[0.625rem] font-normal leading-relaxed space-y-1 py-2 px-3 border-amber-200 bg-amber-50 text-amber-900" side="right">
+														<div className="font-semibold text-amber-700 pb-1 mb-1 border-b border-amber-200/60">Constraint Context</div>
+														{v.meta.consecutiveMinutes != null && v.meta.maxConsecutive != null && (
+															<div>Observed: {String(v.meta.consecutiveMinutes)} min · Limit: {String(v.meta.maxConsecutive)} min · <span className="font-semibold">Δ +{Number(v.meta.consecutiveMinutes) - Number(v.meta.maxConsecutive)} min</span></div>
+														)}
+														{v.meta.dailyMinutes != null && v.meta.maxTeachingMinutesPerDay != null && (
+															<div>Observed: {String(v.meta.dailyMinutes)} min · Limit: {String(v.meta.maxTeachingMinutesPerDay)} min · <span className="font-semibold">Δ +{Number(v.meta.dailyMinutes) - Number(v.meta.maxTeachingMinutesPerDay)} min</span></div>
+														)}
+														{v.meta.actualGapMinutes != null && v.meta.requiredBreakMinutes != null && (
+															<div>Actual break: {String(v.meta.actualGapMinutes)} min · Required: {String(v.meta.requiredBreakMinutes)} min · <span className="font-semibold">Short by {Number(v.meta.requiredBreakMinutes) - Number(v.meta.actualGapMinutes)} min</span></div>
+														)}
+														{v.meta.totalIdleMinutes != null && v.meta.configuredThresholds != null && (
+															<div>Idle: {String(v.meta.totalIdleMinutes)} min · Limit: {String((v.meta.configuredThresholds as Record<string,unknown>).maxIdleGapMinutesPerDay ?? '?')} min</div>
+														)}
+														{v.meta.estimatedDistanceMeters != null && (
+															<div>Distance: ~{String(v.meta.estimatedDistanceMeters)}m{v.meta.configuredThresholds ? ` · Limit: ${String((v.meta.configuredThresholds as Record<string,unknown>).maxWalkingDistanceMetersPerTransition ?? '?')}m` : ''}</div>
+														)}
+														{v.meta.gapMinutes != null && (
+															<div>Gap: {String(v.meta.gapMinutes)} min</div>
+														)}
+														{v.meta.buildingTransitions != null && (
+															<div>Building trans: {String(v.meta.buildingTransitions)}{v.meta.configuredThresholds ? ` · Limit: ${String((v.meta.configuredThresholds as Record<string,unknown>).maxBuildingTransitionsPerDay ?? '?')}` : ''}</div>
+														)}
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+										) : (
+											<button
+												onClick={() => onSelect(v)}
+												className="flex-1 text-left px-3 py-1.5 text-[0.6875rem] leading-tight transition-colors"
+											>
+												<span className="line-clamp-2">{v.message}</span>
+											</button>
+										)}
 										<button
 											onClick={(e) => { e.stopPropagation(); onSelect(v); }}
 											className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
@@ -2854,44 +3008,66 @@ function TimetableGrid({
 													cellClass += ' ring-2 ring-foreground ring-offset-1';
 
 												return (
-													<button
-														key={e.entryId}
-														draggable
-														onDragStart={(ev) => {
-															ev.stopPropagation();
-															setDragItem({ type: 'entry', entry: e });
-														}}
-														onDragEnd={() => setDragItem(null)}
-														onClick={(ev) => {
-															ev.stopPropagation();
-															onEntryClick(e);
-														}}
-														aria-label={`${subjectLabel(e.subjectId)}, ${sectionLabel(e.sectionId)}, ${DAY_SHORT[e.day] ?? e.day} ${formatTime(e.startTime)}–${formatTime(e.endTime)}`}
-														className={`w-full text-left rounded px-1.5 py-1 border text-[0.625rem] leading-tight transition-all cursor-grab active:cursor-grabbing hover:opacity-80 ${cellClass}`}
-													>
-														<div className="font-medium truncate flex items-center gap-1">
-															<GripVertical className="size-2.5 text-muted-foreground/40 shrink-0" />
-															{subjectLabel(e.subjectId)}
-														</div>
-														<div className="text-muted-foreground truncate">
-															{viewMode === 'room'
-																? sectionLabel(e.sectionId)
-																: sectionLabel(e.sectionId)}
-															{viewMode === 'section' && (
-																<span className="ml-1 opacity-60" title={roomLabelShort(e.roomId)}>
-																	{roomLabelShort(e.roomId)}
-																</span>
-															)}
-															{viewMode === 'faculty' && (
-																<span className="ml-1 opacity-60">
-																	{roomLabelShort(e.roomId)}
-																</span>
-															)}
-														</div>
-														{isFollowUp && (
-															<Flag className="size-2.5 text-amber-500 inline-block ml-0.5" />
-														)}
-													</button>
+													<TooltipProvider key={e.entryId}>
+														<Tooltip delayDuration={300}>
+															<TooltipTrigger asChild>
+																<button
+																	draggable
+																	onDragStart={(ev) => {
+																		ev.stopPropagation();
+																		setDragItem({ type: 'entry', entry: e });
+																	}}
+																	onDragEnd={() => setDragItem(null)}
+																	onClick={(ev) => {
+																		ev.stopPropagation();
+																		onEntryClick(e);
+																	}}
+																	className={`w-full text-left rounded px-1.5 py-1 border text-[0.625rem] leading-tight transition-all cursor-grab active:cursor-grabbing hover:opacity-80 ${cellClass}`}
+																>
+																	<div className="font-medium truncate flex items-center gap-1">
+																		<GripVertical className="size-2.5 text-muted-foreground/40 shrink-0" />
+																		{subjectLabel(e.subjectId)}
+																	</div>
+																	<div className="text-muted-foreground truncate">
+																		{viewMode === 'room'
+																			? sectionLabel(e.sectionId)
+																			: sectionLabel(e.sectionId)}
+																		{viewMode === 'section' && (
+																			<span className="ml-1 opacity-60" title={roomLabelShort(e.roomId)}>
+																				{roomLabelShort(e.roomId)}
+																			</span>
+																		)}
+																		{viewMode === 'faculty' && (
+																			<span className="ml-1 opacity-60">
+																				{roomLabelShort(e.roomId)}
+																			</span>
+																		)}
+																	</div>
+																	{isFollowUp && (
+																		<Flag className="size-2.5 text-amber-500 inline-block ml-0.5" />
+																	)}
+																</button>
+															</TooltipTrigger>
+															<TooltipContent side="right" className="space-y-1 z-[100] max-w-[200px]">
+																<div className="font-semibold">{subjectLabel(e.subjectId)}</div>
+																<div className="text-muted-foreground text-xs">{sectionLabel(e.sectionId)} • {roomLabelShort(e.roomId)}</div>
+																<div className="text-muted-foreground text-xs">{DAY_SHORT[e.day] ?? e.day} {formatTime(e.startTime)}–{formatTime(e.endTime)}</div>
+																{(() => {
+																	const evList = violationIndex.get(e.entryId) ?? [];
+																	return evList.length > 0 ? (
+																		<div className="pt-1 mt-1 border-t border-border/50">
+																			<span className="text-[0.625rem] font-medium text-amber-600 block mb-0.5">Constraint Warnings</span>
+																			{evList.map((v: Violation, i: number) => (
+																				<div key={i} className="text-[0.625rem] text-muted-foreground ml-1.5">
+																					• {VIOLATION_LABELS[v.code] ?? v.code}
+																				</div>
+																			))}
+																		</div>
+																	) : null;
+																})()}
+															</TooltipContent>
+														</Tooltip>
+													</TooltipProvider>
 												);
 											})}
 										</div>
@@ -3161,14 +3337,14 @@ function DetailRow({
 /* ─── Unassigned Reason Badge ─── */
 
 const UNASSIGNED_REASON_LABELS: Record<string, { label: string; className: string }> = {
-	NO_QUALIFIED_FACULTY: { label: 'No Qualified Faculty', className: 'border-red-300 bg-red-50 text-red-700' },
-	FACULTY_OVERLOADED: { label: 'Faculty Overloaded', className: 'border-amber-300 bg-amber-50 text-amber-700' },
-	NO_AVAILABLE_SLOT: { label: 'No Available Slot', className: 'border-orange-300 bg-orange-50 text-orange-700' },
-	NO_COMPATIBLE_ROOM: { label: 'No Compatible Room', className: 'border-purple-300 bg-purple-50 text-purple-700' },
+	NO_QUALIFIED_FACULTY: { label: 'No Qualified Faculty', className: 'border-red-300 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 dark:border-red-800' },
+	FACULTY_OVERLOADED: { label: 'Faculty Overloaded', className: 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800' },
+	NO_AVAILABLE_SLOT: { label: 'No Available Slot', className: 'border-orange-300 bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800' },
+	NO_COMPATIBLE_ROOM: { label: 'No Compatible Room', className: 'border-purple-300 bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800' },
 };
 
 function UnassignedReasonBadge({ reason }: { reason: string }) {
-	const info = UNASSIGNED_REASON_LABELS[reason] ?? { label: reason, className: 'border-gray-300 bg-gray-50 text-gray-700' };
+	const info = UNASSIGNED_REASON_LABELS[reason] ?? { label: reason, className: 'border-gray-300 bg-gray-50 text-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700' };
 	return (
 		<Badge variant="outline" className={`h-4 px-1 text-[0.5625rem] ${info.className}`}>
 			{info.label}

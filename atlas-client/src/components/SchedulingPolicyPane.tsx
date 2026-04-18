@@ -103,6 +103,8 @@ interface LocalPolicy {
 	lunchStartTime: string;
 	lunchEndTime: string;
 	enforceLunchWindow: boolean;
+	enableTleTwoPassPriority: boolean;
+	allowFlexibleSubjectAssignment: boolean;
 	constraintConfig: Record<string, ConstraintOverride>;
 }
 
@@ -128,6 +130,8 @@ function policyToLocal(p: SchedulingPolicy): LocalPolicy {
 		lunchStartTime: p.lunchStartTime,
 		lunchEndTime: p.lunchEndTime,
 		enforceLunchWindow: p.enforceLunchWindow,
+		enableTleTwoPassPriority: p.enableTleTwoPassPriority ?? true,
+		allowFlexibleSubjectAssignment: p.allowFlexibleSubjectAssignment ?? false,
 		constraintConfig: { ...DEFAULT_CONSTRAINT_CONFIG, ...(p.constraintConfig ?? {}) },
 	};
 }
@@ -442,7 +446,7 @@ export default function SchedulingPolicyPane({
 				</div>
 			) : (
 				/* Outer container does NOT scroll — each column card scrolls independently */
-				<div className="flex-1 min-h-0 overflow-hidden p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+				<div className="flex-1 min-h-0 overflow-hidden p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
 
 					{/* ── COL 1: Core Teaching Limits ── */}
 					<SectionCard title="Core Teaching Limits">
@@ -547,6 +551,36 @@ export default function SchedulingPolicyPane({
 								</div>
 							)}
 						</div>
+
+						{/* ── TLE Two-Pass Priority ── */}
+						<div className="pt-2 mt-2 border-t border-border/60 space-y-3">
+							<PolicySwitch
+								label="TLE Two-Pass Priority"
+								explanation="When ON, schedule TLE (Technology and Livelihood Education) subjects first (Bucket A), then schedule all other subjects (Bucket B). This ensures TLE workshop resources are optimally allocated before other classes."
+								checked={local.enableTleTwoPassPriority}
+								onCheckedChange={(v) => update('enableTleTwoPassPriority', v)}
+							/>
+							{local.enableTleTwoPassPriority && (
+								<div className="flex items-start gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[0.6875rem] text-blue-700">
+									TLE subjects will be scheduled before all other subjects to maximize workshop availability.
+								</div>
+							)}
+						</div>
+
+						{/* ── Flexible Subject Assignment ── */}
+						<div className="pt-2 mt-2 border-t border-border/60 space-y-3">
+							<PolicySwitch
+								label="Allow Flexible Subject Assignment"
+								explanation="When ON, teachers may be assigned to teach ANY subject during generation, regardless of their registered subject specializations. Use this when faculty availability is limited or for emergency coverage scenarios."
+								checked={local.allowFlexibleSubjectAssignment}
+								onCheckedChange={(v) => update('allowFlexibleSubjectAssignment', v)}
+							/>
+							{local.allowFlexibleSubjectAssignment && (
+								<div className="flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[0.6875rem] text-amber-700">
+									<span className="font-medium">⚠️ Warning:</span> Teachers may be assigned to subjects outside their specialization. Review assignments carefully before publishing.
+								</div>
+							)}
+						</div>
 					</SectionCard>
 
 					{/* ── COL 2: Travel & Well-being ── */}
@@ -616,54 +650,7 @@ export default function SchedulingPolicyPane({
 						)}
 					</SectionCard>
 
-					{/* ── COL 3: Vacant-Aware Scheduling ── */}
-					<SectionCard title="Vacant-Aware Scheduling">
-						<PolicySwitch
-							label="Enable Vacant-Aware Constraints"
-							explanation="Master toggle for vacancy and compression checks. When enabled, the system tracks vacant time for faculty and sections."
-							checked={local.enableVacantAwareConstraints}
-							onCheckedChange={(v) => update('enableVacantAwareConstraints', v)}
-						/>
-
-						{local.enableVacantAwareConstraints ? (
-							<motion.div
-								initial={{ opacity: 0 }}
-								animate={{ opacity: 1 }}
-								className="space-y-3 pl-2 border-l-2 border-primary/20"
-							>
-								<PolicyNumberField
-									label="Faculty Daily Vacant Target (min)"
-									explanation="Minimum vacant minutes per day between a faculty member's first and last class. Falls below this triggers a soft violation."
-									value={local.targetFacultyDailyVacantMinutes}
-									onChange={(v) => update('targetFacultyDailyVacantMinutes', v)}
-									min={0}
-									max={300}
-								/>
-								<PolicyNumberField
-									label="Section Vacant Periods Target"
-									explanation="Minimum number of vacant periods (gaps ≥ break duration) per section per day. Below this triggers a soft violation."
-									value={local.targetSectionDailyVacantPeriods}
-									onChange={(v) => update('targetSectionDailyVacantPeriods', v)}
-									min={0}
-									max={10}
-								/>
-								<PolicyNumberField
-									label="Max Compressed Teaching/Day (min)"
-									explanation="Maximum total teaching minutes per section per day. Anti-overcompression guard — exceeding this triggers a soft violation."
-									value={local.maxCompressedTeachingMinutesPerDay}
-									onChange={(v) => update('maxCompressedTeachingMinutesPerDay', v)}
-									min={60}
-									max={600}
-								/>
-							</motion.div>
-						) : (
-							<p className="text-[0.6875rem] text-muted-foreground/60 italic">
-								Enable vacant-aware checks to configure vacancy targets and compression limits.
-							</p>
-						)}
-					</SectionCard>
-
-					{/* ── COL 4: Per-Constraint Weights ── */}
+					{/* ── COL 3: Per-Constraint Weights ── */}
 					<SectionCard title="Per-Constraint Weights">
 						<p className="text-[0.6875rem] text-muted-foreground">
 							Toggle, weight (1–10), and optionally promote soft constraints to hard.

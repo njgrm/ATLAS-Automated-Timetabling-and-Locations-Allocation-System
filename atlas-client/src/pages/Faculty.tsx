@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
 	AlertTriangle,
 	ArrowDown,
@@ -7,6 +8,7 @@ import {
 	CheckCircle2,
 	ChevronLeft,
 	ChevronRight,
+	ClipboardList,
 	RefreshCw,
 	Search,
 	Users,
@@ -185,7 +187,7 @@ export default function Faculty() {
 						/>
 					</div>
 					<Select value={schedulingFilter} onValueChange={(v) => setSchedulingFilter(v as typeof schedulingFilter)}>
-						<SelectTrigger className="h-8 w-[130px] text-xs">
+						<SelectTrigger className="h-8 w-32.5 text-xs">
 							<SelectValue placeholder="All Status" />
 						</SelectTrigger>
 						<SelectContent>
@@ -195,7 +197,7 @@ export default function Faculty() {
 						</SelectContent>
 					</Select>
 					<Select value={assignmentFilter} onValueChange={(v) => setAssignmentFilter(v as typeof assignmentFilter)}>
-						<SelectTrigger className="h-8 w-[140px] text-xs">
+						<SelectTrigger className="h-8 w-35 text-xs">
 							<SelectValue placeholder="All Assignments" />
 						</SelectTrigger>
 						<SelectContent>
@@ -206,7 +208,7 @@ export default function Faculty() {
 					</Select>
 					{departments.length > 0 && (
 						<Select value={departmentFilter} onValueChange={(v) => setDepartmentFilter(v)}>
-							<SelectTrigger className="h-8 w-[140px] text-xs">
+							<SelectTrigger className="h-8 w-35 text-xs">
 								<SelectValue placeholder="All Depts" />
 							</SelectTrigger>
 							<SelectContent>
@@ -289,19 +291,18 @@ export default function Faculty() {
 										<button onClick={() => toggleSort('status')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground mx-auto">
 											Status <SortIcon field="status" />
 										</button>
-									</th>
-								</tr>
+									</th>										<th className="px-4 py-2.5 text-right font-semibold text-muted-foreground">Actions</th>								</tr>
 							</thead>
 							<tbody>
 								{loading ? (
 									<tr>
-										<td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
+											<td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
 											Loading faculty...
 										</td>
 									</tr>
 								) : paged.length === 0 ? (
 									<tr>
-										<td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
+											<td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
 											{faculty.length === 0 ? (
 												<div className="flex flex-col items-center gap-2">
 													<Users className="size-8 text-muted-foreground/50" />
@@ -366,8 +367,14 @@ export default function Faculty() {
 													) : (
 														<Badge variant="secondary" className="text-[0.6rem]">Excluded</Badge>
 													)}
-												</td>
-											</tr>
+												</td>													<td className="px-4 py-3 text-right">
+														<Link to={`/assignments?facultyId=${f.id}`}>
+															<Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+																<ClipboardList className="size-3" />
+																Teaching Load
+															</Button>
+														</Link>
+													</td>											</tr>
 										);
 									})
 								)}
@@ -384,7 +391,7 @@ export default function Faculty() {
 								<span>{faculty.filter((f) => f.isActiveForScheduling).length} active</span>
 								<span>·</span>
 								<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-									<SelectTrigger className="h-7 w-[90px] text-xs">
+									<SelectTrigger className="h-7 w-22.5 text-xs">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>

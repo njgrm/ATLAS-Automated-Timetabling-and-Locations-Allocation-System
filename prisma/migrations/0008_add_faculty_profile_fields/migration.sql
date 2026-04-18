@@ -1,0 +1,5 @@
+ALTER TABLE "faculty_mirrors"
+ADD COLUMN IF NOT EXISTS "employment_status" TEXT NOT NULL DEFAULT 'PERMANENT',
+ADD COLUMN IF NOT EXISTS "is_class_adviser" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS "advisory_equivalent_hours" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS "can_teach_outside_department" BOOLEAN NOT NULL DEFAULT false;

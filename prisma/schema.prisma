@@ -80,19 +80,21 @@ model Room {
 }
 
 model Subject {
-  id                Int              @id @default(autoincrement())
-  schoolId          Int              @map("school_id")
-  code              String
-  name              String
-  minMinutesPerWeek Int              @map("min_minutes_per_week")
-  preferredRoomType RoomType         @default(CLASSROOM) @map("preferred_room_type")
-  gradeLevels       Int[]            @map("grade_levels")
-  isActive          Boolean          @default(true) @map("is_active")
-  isSeedable        Boolean          @default(false) @map("is_seedable")
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  school            School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  facultySubjects   FacultySubject[]
+  id                      Int              @id @default(autoincrement())
+  schoolId                Int              @map("school_id")
+  code                    String
+  name                    String
+  minMinutesPerWeek       Int              @map("min_minutes_per_week")
+  preferredRoomType       RoomType         @default(CLASSROOM) @map("preferred_room_type")
+  gradeLevels             Int[]            @map("grade_levels")
+  isActive                Boolean          @default(true) @map("is_active")
+  isSeedable              Boolean          @default(false) @map("is_seedable")
+  interSectionEnabled     Boolean          @default(false) @map("inter_section_enabled")
+  interSectionGradeLevels Int[]            @default([]) @map("inter_section_grade_levels")
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+  school                  School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  facultySubjects         FacultySubject[]
 
   @@unique([schoolId, code], map: "uq_subjects_school_code")
   @@index([schoolId])
@@ -106,9 +108,13 @@ model FacultyMirror {
   firstName             String           @map("first_name")
   lastName              String           @map("last_name")
   department            String?
+  employmentStatus      String           @default("PERMANENT") @map("employment_status")
   contactInfo           String?          @map("contact_info")
   localNotes            String?          @map("local_notes")
   isActiveForScheduling Boolean          @default(true) @map("is_active_for_scheduling")
+  isClassAdviser        Boolean          @default(false) @map("is_class_adviser")
+  advisoryEquivalentHours Int            @default(0) @map("advisory_equivalent_hours")
+  canTeachOutsideDepartment Boolean      @default(false) @map("can_teach_outside_department")
   maxHoursPerWeek       Int              @default(30) @map("max_hours_per_week")
   lastSyncedAt          DateTime         @default(now()) @map("last_synced_at")
   version               Int              @default(1)
@@ -264,6 +270,8 @@ model SchedulingPolicy {
   lunchStartTime                           String   @default("11:55") @map("lunch_start_time")
   lunchEndTime                             String   @default("12:55") @map("lunch_end_time")
   enforceLunchWindow                       Boolean  @default(true)    @map("enforce_lunch_window")
+  enableTleTwoPassPriority                 Boolean  @default(true)    @map("enable_tle_two_pass_priority")
+  allowFlexibleSubjectAssignment           Boolean  @default(false)   @map("allow_flexible_subject_assignment")
   constraintConfig                         Json?    @map("constraint_config")
   createdAt                                DateTime @default(now())
   updatedAt                                DateTime @updatedAt

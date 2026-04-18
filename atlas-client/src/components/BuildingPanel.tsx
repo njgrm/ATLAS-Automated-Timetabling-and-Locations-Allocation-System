@@ -78,7 +78,15 @@ export function BuildingPanel({
 	const [deleteRoomTarget, setDeleteRoomTarget] = useState<Room | null>(null);
 	const [showDeleteBuilding, setShowDeleteBuilding] = useState(false);
 	const [activeFloor, setActiveFloor] = useState(1);
+	const [newRoomFloor, setNewRoomFloor] = useState(1); // Separate state for add-room target floor
 	const [togglingTeaching, setTogglingTeaching] = useState(false);
+
+	// Derive persisted floor count from existing rooms (highest floor among saved rooms)
+	// This helps detect when local floorCount has been increased but not saved
+	const persistedFloorCount = useMemo(() => {
+		if (building.rooms.length === 0) return building.floorCount;
+		return Math.max(...building.rooms.map((r) => r.floor), 1);
+	}, [building.rooms, building.floorCount]);
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
@@ -99,12 +107,20 @@ export function BuildingPanel({
 		// If the building hasn't been saved yet (temp id), can't add rooms
 		if (building.isNew) return;
 
+		// Guard: Block if local floorCount increased but not saved
+		// If newRoomFloor exceeds what we can infer is persisted, user must save first
+		const localFloorCount = building.floorCount ?? 1;
+		if (building.dirty && newRoomFloor > persistedFloorCount) {
+			toast.error('Save building changes first before adding rooms on a new floor.');
+			return;
+		}
+
 		setAddingRoom(true);
 		try {
 			const isTeachingSpace = building.isTeachingBuilding !== false && !NON_TEACHING_TYPES.includes(newRoomType);
 			const { data } = await atlasApi.post(`/map/buildings/${building.id}/rooms`, {
 				name: newRoomName.trim(),
-				floor: activeFloor,
+				floor: newRoomFloor,
 				type: newRoomType,
 				capacity: newRoomCapacity ? Number(newRoomCapacity) : null,
 				isTeachingSpace,
@@ -114,8 +130,10 @@ export function BuildingPanel({
 			setNewRoomName('');
 			setNewRoomCapacity('45');
 			toast.success('Room added successfully.');
-		} catch (err) {
-			toast.error('Failed to add room.');
+		} catch (err: any) {
+			// Surface backend error message if available
+			const backendMsg = err?.response?.data?.message;
+			toast.error(backendMsg || 'Failed to add room.');
 			console.error('Failed to add room:', err);
 		} finally {
 			setAddingRoom(false);
@@ -327,6 +345,7 @@ export function BuildingPanel({
 									const val = Math.max(1, Math.min(10, Number(e.target.value)));
 									onUpdate({ floorCount: val, dirty: true });
 									if (activeFloor > val) setActiveFloor(val);
+									if (newRoomFloor > val) setNewRoomFloor(val);
 								}}
 								className="mt-1"
 							/>
@@ -374,7 +393,10 @@ export function BuildingPanel({
 								return (
 									<button
 										key={floor}
-										onClick={() => setActiveFloor(floor)}
+									onClick={() => {
+										setActiveFloor(floor);
+										setNewRoomFloor(floor); // Sync add-room floor with selected tab
+									}}
 										className={`rounded-md px-2 py-1 text-[0.6875rem] font-medium transition-colors ${
 											activeFloor === floor
 												? 'bg-primary text-primary-foreground shadow-sm'
@@ -430,17 +452,22 @@ export function BuildingPanel({
 							/>
 							<div className="grid grid-cols-2 gap-2">
 								<div>
-									<label className="text-[0.6rem] text-muted-foreground">Floor</label>
-									<Input
-										type="number"
-										min={1}
-										max={building.floorCount ?? 1}
-										value={activeFloor}
-										onChange={(e) => {
-											const f = Math.max(1, Math.min(building.floorCount ?? 1, Number(e.target.value)));
-											setActiveFloor(f);
-										}}
-									/>
+									<label className="text-[0.6rem] text-muted-foreground mb-1 block">Floor</label>
+									<Select
+										value={String(newRoomFloor)}
+										onValueChange={(v) => setNewRoomFloor(Number(v))}
+									>
+										<SelectTrigger className="flex h-9 w-full bg-transparent text-sm shadow-sm transition-colors">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{Array.from({ length: building.floorCount ?? 1 }, (_, i) => i + 1).map((floor) => (
+												<SelectItem key={floor} value={String(floor)}>
+													Floor {floor}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
 								</div>
 								<div>
 									<label className="text-[0.6rem] text-muted-foreground">Capacity</label>

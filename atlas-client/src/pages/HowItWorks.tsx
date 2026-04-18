@@ -3,8 +3,6 @@ import {
 	AlertTriangle,
 	ArrowRight,
 	BookOpen,
-	CheckCircle2,
-	Cog,
 	Eye,
 	Layers,
 	Lightbulb,
@@ -13,6 +11,7 @@ import {
 	ShieldAlert,
 	Zap,
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -26,6 +25,7 @@ const SECTIONS = [
 		icon: Layers,
 		title: 'Inputs the Generator Uses',
 		color: 'text-blue-600 bg-blue-50',
+		span: 'col-span-1 xl:col-span-2',
 		items: [
 			{ term: 'Subjects', desc: 'Each subject has a required room type and minimum weekly minutes — these come from your Subject setup page.' },
 			{ term: 'Faculty', desc: 'Teachers have assigned subjects, grade levels, and weekly hour limits. Their preferences (available/unavailable slots) are collected beforehand.' },
@@ -38,6 +38,7 @@ const SECTIONS = [
 		icon: ShieldAlert,
 		title: 'Hard vs Soft Constraints',
 		color: 'text-red-600 bg-red-50',
+		span: 'col-span-1',
 		items: [
 			{ term: 'Hard constraints (red)', desc: 'Must never be broken. Examples: a teacher cannot be in two rooms at the same time, a room cannot hold two classes at once. If any hard constraint is violated, the schedule cannot be published.' },
 			{ term: 'Soft constraints (amber)', desc: 'Strongly preferred but can be bent when needed. Examples: teacher prefers mornings, teacher teaches too many consecutive hours. Soft violations are shown as warnings. You can still publish.' },
@@ -48,6 +49,7 @@ const SECTIONS = [
 		icon: Scale,
 		title: 'How Scoring & Tradeoffs Work',
 		color: 'text-violet-600 bg-violet-50',
+		span: 'col-span-1',
 		items: [
 			{ term: 'Constraint weights', desc: 'Each soft constraint has a configurable weight (0–100). Higher weight = more important. The generator tries to minimize the total score of all soft violations.' },
 			{ term: 'Tradeoffs', desc: "Sometimes satisfying one teacher's preference means violating another. The generator picks the combination with the lowest overall soft-violation score." },
@@ -58,6 +60,7 @@ const SECTIONS = [
 		icon: AlertTriangle,
 		title: 'Why Sessions Become Unassigned',
 		color: 'text-amber-600 bg-amber-50',
+		span: 'col-span-1 xl:col-span-2',
 		items: [
 			{ term: 'No Qualified Faculty', desc: "No teacher is assigned to this subject+grade combination, or all qualified teachers are already scheduled at the available times." },
 			{ term: 'Faculty Overloaded', desc: "All qualified teachers have hit their weekly or daily hour limits." },
@@ -70,6 +73,7 @@ const SECTIONS = [
 		icon: Eye,
 		title: 'Manual Edits: Preview vs Commit',
 		color: 'text-emerald-600 bg-emerald-50',
+		span: 'col-span-1',
 		items: [
 			{ term: 'Preview', desc: 'Before any change takes effect, the system shows you exactly what will happen — new violations, resolved violations, and affected classes. Nothing changes until you confirm.' },
 			{ term: 'Commit', desc: "When you confirm, the edit is applied to the draft. If it introduces soft violations, you'll be warned and can still proceed. Hard violation edits are blocked." },
@@ -81,6 +85,7 @@ const SECTIONS = [
 		icon: Send,
 		title: 'How Publish Gating Works',
 		color: 'text-primary bg-primary/10',
+		span: 'col-span-1',
 		items: [
 			{ term: 'Zero hard violations', desc: 'The Publish button is disabled until every hard violation is resolved. You can see the count in the header.' },
 			{ term: 'Soft acknowledgement', desc: "If soft violations remain, you'll be asked to acknowledge them before publishing." },
@@ -88,6 +93,21 @@ const SECTIONS = [
 		],
 	},
 ];
+
+/* ─── Animations ─── */
+
+const containerVariants = {
+	hidden: { opacity: 0 },
+	show: {
+		opacity: 1,
+		transition: { staggerChildren: 0.1 },
+	},
+};
+
+const itemVariants = {
+	hidden: { opacity: 0, y: 15 },
+	show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } },
+};
 
 export default function HowItWorks() {
 	return (
@@ -115,95 +135,115 @@ export default function HowItWorks() {
 			</div>
 
 			{/* Content */}
-			<ScrollArea className="flex-1 min-h-0">
-				<div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
-					{/* Quick summary */}
-					<Card className="shadow-sm border-primary/20 bg-primary/5">
-						<CardContent className="pt-4 pb-4">
-							<div className="flex items-start gap-3">
-								<Zap className="size-5 text-primary shrink-0 mt-0.5" />
-								<div>
-									<p className="text-sm font-semibold text-foreground">In a nutshell</p>
-									<p className="text-xs text-muted-foreground leading-relaxed mt-1">
-										ATLAS takes your subjects, faculty, sections, rooms, and policies — then automatically
-										builds a timetable that avoids conflicts and respects everyone's constraints. What it can't
-										place automatically becomes "unassigned" for you to fix manually. Once all hard issues are
-										resolved, you can publish.
-									</p>
-								</div>
-							</div>
-						</CardContent>
-					</Card>
-
-					{/* Sections */}
-					{SECTIONS.map((section) => (
-						<Card key={section.title} className="shadow-sm">
-							<CardHeader className="pb-2">
-								<CardTitle className="flex items-center gap-2 text-sm">
-									<div className={`flex size-7 items-center justify-center rounded-md ${section.color}`}>
-										<section.icon className="size-4" />
-									</div>
-									{section.title}
-								</CardTitle>
-							</CardHeader>
-							<CardContent className="pb-4">
-								<div className="space-y-3">
-									{section.items.map((item) => (
-										<div key={item.term} className="flex gap-3">
-											<div className="shrink-0 mt-1">
-												<div className="size-1.5 rounded-full bg-muted-foreground/30" />
-											</div>
+			<ScrollArea className="flex-1 min-h-0 bg-muted/20">
+				<div className="max-w-6xl mx-auto px-6 py-8">
+					<AnimatePresence mode="wait">
+						<motion.div
+							initial="hidden"
+							animate="show"
+							exit="hidden"
+							variants={containerVariants}
+							className="space-y-6"
+						>
+							{/* Quick summary */}
+							<motion.div variants={itemVariants}>
+								<Card className="shadow-sm border-primary/20 bg-primary/5">
+									<CardContent className="pt-4 pb-4">
+										<div className="flex items-start gap-3">
+											<Zap className="size-6 text-primary shrink-0 mt-0.5" />
 											<div>
-												<span className="text-xs font-semibold text-foreground">{item.term}</span>
-												<p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{item.desc}</p>
+												<p className="text-base font-semibold text-foreground">In a nutshell</p>
+												<p className="text-sm text-muted-foreground leading-relaxed mt-1">
+													ATLAS takes your subjects, faculty, sections, rooms, and policies — then automatically
+													builds a timetable that avoids conflicts and respects everyone's constraints. What it can't
+													place automatically becomes "unassigned" for you to fix manually. Once all hard issues are
+													resolved, you can publish.
+												</p>
 											</div>
 										</div>
-									))}
-									{section.callout && (
-										<div className="flex items-start gap-2 mt-3 rounded-md border border-border bg-muted/30 px-3 py-2">
-											<Lightbulb className="size-3.5 text-amber-500 shrink-0 mt-0.5" />
-											<p className="text-xs text-muted-foreground leading-relaxed italic">
-												{section.callout}
-											</p>
-										</div>
-									)}
-								</div>
-							</CardContent>
-						</Card>
-					))}
+									</CardContent>
+								</Card>
+							</motion.div>
 
-					{/* Glossary row */}
-					<Card className="shadow-sm">
-						<CardHeader className="pb-2">
-							<CardTitle className="flex items-center gap-2 text-sm">
-								<div className="flex size-7 items-center justify-center rounded-md text-muted-foreground bg-muted">
-									<BookOpen className="size-4" />
-								</div>
-								Quick Glossary
-							</CardTitle>
-						</CardHeader>
-						<CardContent className="pb-4">
-							<div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
-								{[
-									['Draft', 'A schedule that has been generated but not yet published.'],
-									['Run', 'A single execution of the schedule generation algorithm.'],
-									['Violation', 'A constraint that is broken by the current schedule.'],
-									['Follow-up', 'A flag you place on an entry to remind yourself to review it.'],
-									['Preview', 'A what-if check that shows the impact of an edit before applying it.'],
-									['Commit', 'Applying an edit to the draft permanently.'],
-								].map(([term, desc]) => (
-									<div key={term} className="flex gap-2">
-										<Badge variant="outline" className="shrink-0 h-5 px-1.5 text-[0.625rem] font-semibold">
-											{term}
-										</Badge>
-										<span className="text-muted-foreground">{desc}</span>
-									</div>
+							{/* Grid Container for Sections & Glossary */}
+							<div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+								{/* Sections */}
+								{SECTIONS.map((section) => (
+									<motion.div key={section.title} variants={itemVariants} className={`flex h-full ${section.span}`}>
+										<Card className="shadow-sm flex-1 flex flex-col">
+											<CardHeader className="pb-2">
+												<CardTitle className="flex items-center gap-2 text-sm">
+													<div className={`flex size-7 items-center justify-center rounded-md ${section.color}`}>
+														<section.icon className="size-4" />
+													</div>
+													{section.title}
+												</CardTitle>
+											</CardHeader>
+											<CardContent className="pb-4 flex-1 flex flex-col">
+												<div className={`grid gap-4 ${section.span.includes('xl:col-span-2') ? 'md:grid-cols-2' : 'grid-cols-1'}`}>
+													{section.items.map((item) => (
+														<div key={item.term} className="flex gap-3 items-start">
+															<div className="shrink-0 mt-1">
+																<div className="size-1.5 rounded-full bg-muted-foreground/30" />
+															</div>
+															<div>
+																<span className="text-xs font-semibold text-foreground">{item.term}</span>
+																<p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{item.desc}</p>
+															</div>
+														</div>
+													))}
+												</div>
+												{section.callout && (
+													<div className="mt-auto pt-4">
+														<div className="flex items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
+															<Lightbulb className="size-3.5 text-amber-500 shrink-0 mt-0.5" />
+															<p className="text-xs text-muted-foreground leading-relaxed italic">
+																{section.callout}
+															</p>
+														</div>
+													</div>
+												)}
+											</CardContent>
+										</Card>
+									</motion.div>
 								))}
+
+								{/* Glossary row */}
+								<motion.div variants={itemVariants} className="col-span-1 xl:col-span-2">
+									<Card className="shadow-sm">
+										<CardHeader className="pb-2 border-b border-border mb-3">
+											<CardTitle className="flex items-center gap-2 text-sm">
+												<div className="flex size-7 items-center justify-center rounded-md text-muted-foreground bg-muted">
+													<BookOpen className="size-4" />
+												</div>
+												Quick Glossary
+											</CardTitle>
+										</CardHeader>
+										<CardContent className="pb-4">
+											<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 text-xs">
+												{[
+													['Draft', 'A schedule that has been generated but not yet published.'],
+													['Run', 'A single execution of the schedule generation algorithm.'],
+													['Violation', 'A constraint that is broken by the current schedule.'],
+													['Follow-up', 'A flag you place on an entry to remind yourself to review it.'],
+													['Preview', 'A what-if check that shows the impact of an edit before applying it.'],
+													['Commit', 'Applying an edit to the draft permanently.'],
+												].map(([term, desc]) => (
+													<div key={term} className="flex flex-col gap-1 border-l-2 border-primary/20 pl-3 py-1">
+														<span className="text-[0.6875rem] font-bold tracking-wide uppercase text-foreground">{term}</span>
+														<span className="text-muted-foreground font-medium leading-normal">{desc}</span>
+													</div>
+												))}
+											</div>
+										</CardContent>
+									</Card>
+								</motion.div>
 							</div>
-						</CardContent>
-					</Card>
+						</motion.div>
+					</AnimatePresence>
 				</div>
 			</ScrollArea>
 		</div>
 	);
 }
+

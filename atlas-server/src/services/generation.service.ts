@@ -83,7 +83,7 @@ export async function triggerGenerationRun(
 			}),
 			prisma.subject.findMany({
 				where: { schoolId, isActive: true },
-				select: { id: true, minMinutesPerWeek: true, preferredRoomType: true, gradeLevels: true },
+				select: { id: true, code: true, minMinutesPerWeek: true, preferredRoomType: true, gradeLevels: true },
 			}),
 			prisma.facultyPreference.findMany({
 				where: { schoolId, schoolYearId },
@@ -130,6 +130,8 @@ export async function triggerGenerationRun(
 				lunchStartTime: policyRecord.lunchStartTime ?? undefined,
 				lunchEndTime: policyRecord.lunchEndTime ?? undefined,
 				enforceLunchWindow: policyRecord.enforceLunchWindow ?? undefined,
+				enableTleTwoPassPriority: policyRecord.enableTleTwoPassPriority ?? true,
+				allowFlexibleSubjectAssignment: policyRecord.allowFlexibleSubjectAssignment ?? false,
 			},
 		};
 		const result = constructBaseline(constructorInput);

@@ -1,22 +1,27 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
 	ArrowDown,
 	ArrowUp,
 	ArrowUpDown,
 	BookOpen,
 	Check,
+	ChevronDown,
 	ChevronLeft,
 	ChevronRight,
+	Map,
 	Pencil,
 	Plus,
 	Search,
 	Trash2,
+	Users,
 	X,
 } from 'lucide-react';
 
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
+import { gradeLabel, GRADE_COLORS } from '@/lib/grade-labels';
 import type { RoomType, Subject } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -25,6 +30,8 @@ import { ConfirmationModal } from '@/ui/confirmation-modal';
 import { Input } from '@/ui/input';
 import { Skeleton } from '@/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { Switch } from '@/ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
 const DEFAULT_SCHOOL_ID = 1;
 const PAGE_SIZES = [10, 25, 50];
@@ -52,6 +59,8 @@ type EditState = {
 	name: string;
 	minMinutesPerWeek: number;
 	gradeLevels: number[];
+	interSectionEnabled: boolean;
+	interSectionGradeLevels: number[];
 };
 
 type NewSubjectForm = {
@@ -60,6 +69,8 @@ type NewSubjectForm = {
 	minMinutesPerWeek: number;
 	preferredRoomType: RoomType;
 	gradeLevels: number[];
+	interSectionEnabled: boolean;
+	interSectionGradeLevels: number[];
 };
 
 const emptyForm: NewSubjectForm = {
@@ -68,6 +79,8 @@ const emptyForm: NewSubjectForm = {
 	minMinutesPerWeek: 45,
 	preferredRoomType: 'CLASSROOM',
 	gradeLevels: [7, 8, 9, 10],
+	interSectionEnabled: false,
+	interSectionGradeLevels: [],
 };
 
 export default function Subjects() {
@@ -81,6 +94,11 @@ export default function Subjects() {
 	const [saving, setSaving] = useState(false);
 	const [deleteTarget, setDeleteTarget] = useState<Subject | null>(null);
 	const [timeMode, setTimeMode] = useState<'minutes' | 'hours'>('minutes');
+
+	// Teacher coverage drilldown
+	const [expandedSubjectId, setExpandedSubjectId] = useState<number | null>(null);
+	const [teacherCoverage, setTeacherCoverage] = useState<Record<number, { name: string; grades: number[] }[]>>({});
+	const [coverageLoading, setCoverageLoading] = useState(false);
 
 	// Sorting
 	const [sortField, setSortField] = useState<SortField>('code');
@@ -114,6 +132,35 @@ export default function Subjects() {
 	useEffect(() => {
 		fetchSubjects();
 	}, [fetchSubjects]);
+
+	const toggleTeacherCoverage = useCallback(async (subjectId: number) => {
+		if (expandedSubjectId === subjectId) {
+			setExpandedSubjectId(null);
+			return;
+		}
+		setExpandedSubjectId(subjectId);
+		if (teacherCoverage[subjectId]) return; // already fetched
+		setCoverageLoading(true);
+		try {
+			const { data } = await atlasApi.get<{ summary: { faculty: { id: number; firstName: string; lastName: string; gradeLevels: number[] }[] } }>('/faculty-assignments/summary', {
+				params: { schoolId: DEFAULT_SCHOOL_ID },
+			});
+			// Build coverage: for each subject, find all faculty assigned to it
+			const coverageMap: Record<number, { name: string; grades: number[] }[]> = {};
+			for (const f of data.summary.faculty ?? []) {
+				for (const a of (f as any).subjects ?? []) {
+					const sid = a.subjectId as number;
+					if (!coverageMap[sid]) coverageMap[sid] = [];
+					coverageMap[sid].push({ name: `${f.lastName}, ${f.firstName}`, grades: a.gradeLevels ?? [] });
+				}
+			}
+			setTeacherCoverage((prev) => ({ ...prev, ...coverageMap }));
+		} catch {
+			toast.error('Failed to load teacher coverage');
+		} finally {
+			setCoverageLoading(false);
+		}
+	}, [expandedSubjectId, teacherCoverage]);
 
 	// Filtered, sorted, paginated
 	const { paged, totalFiltered, totalPages } = useMemo(() => {
@@ -181,6 +228,8 @@ export default function Subjects() {
 				name: editState.name,
 				minMinutesPerWeek: editState.minMinutesPerWeek,
 				gradeLevels: editState.gradeLevels,
+				interSectionEnabled: editState.interSectionEnabled,
+				interSectionGradeLevels: editState.interSectionGradeLevels,
 			});
 			setEditState(null);
 			toast.success('Subject updated successfully.');
@@ -289,7 +338,7 @@ export default function Subjects() {
 						<SelectContent>
 							<SelectItem value="all">All Grades</SelectItem>
 							{GRADE_OPTIONS.map((g) => (
-								<SelectItem key={g} value={String(g)}>Grade {g}</SelectItem>
+								<SelectItem key={g} value={String(g)}>G{g}</SelectItem>
 							))}
 						</SelectContent>
 					</Select>
@@ -392,7 +441,7 @@ export default function Subjects() {
 													: 'border-border bg-background text-muted-foreground hover:bg-accent/10'
 											}`}
 										>
-											Grade {g}
+												G{g}
 										</button>
 									))}
 								</div>
@@ -448,6 +497,20 @@ export default function Subjects() {
 											Grades <SortIcon field="gradeLevels" />
 										</button>
 									</th>
+									<th className="px-4 py-2.5 text-left">
+										<TooltipProvider delayDuration={200}>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<span className="font-semibold text-muted-foreground cursor-help border-b border-dotted border-muted-foreground/50">
+														Inter-Section
+													</span>
+												</TooltipTrigger>
+												<TooltipContent side="bottom" className="max-w-[240px] text-xs">
+													Enable cross-section scheduling (manual only in v1). When enabled, select which grade levels can pool sections for this subject.
+												</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
+									</th>
 									<th className="px-4 py-2.5 text-left font-semibold text-muted-foreground">Status</th>
 									<th className="px-4 py-2.5 text-right font-semibold text-muted-foreground">Actions</th>
 								</tr>
@@ -462,12 +525,13 @@ export default function Subjects() {
 											<td className="px-4 py-3"><Skeleton className="h-5 w-24" /></td>
 											<td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
 											<td className="px-4 py-3"><Skeleton className="h-5 w-14" /></td>
+											<td className="px-4 py-3"><Skeleton className="h-5 w-14" /></td>
 											<td className="px-4 py-3"><Skeleton className="h-5 w-16 ml-auto" /></td>
 										</tr>
 									))
 								) : paged.length === 0 ? (
 									<tr>
-										<td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
+										<td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
 											{searchQuery || hasActiveFilters ? 'No subjects match your filters.' : 'No subjects configured.'}
 										</td>
 									</tr>
@@ -475,7 +539,8 @@ export default function Subjects() {
 									paged.map((s) => {
 										const isEditing = editState?.id === s.id;
 										return (
-											<tr key={s.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+											<Fragment key={s.id}>
+											<tr className="border-b last:border-0 hover:bg-muted/30 transition-colors">
 												<td className="px-4 py-3">
 													<code className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono">{s.code}</code>
 												</td>
@@ -530,7 +595,7 @@ export default function Subjects() {
 																			: 'border-border text-muted-foreground hover:bg-accent/10'
 																	}`}
 																>
-																	{g}
+																	{gradeLabel(g)}
 																</button>
 															))}
 														</div>
@@ -541,6 +606,72 @@ export default function Subjects() {
 																	G{g}
 																</Badge>
 															))}
+														</div>
+													)}
+												</td>
+												<td className="px-4 py-3">
+													{isEditing ? (
+														<div className="flex items-center gap-2">
+															<Switch
+																checked={editState.interSectionEnabled}
+																onCheckedChange={(v) => setEditState((p) => p && {
+																	...p,
+																	interSectionEnabled: v,
+																	interSectionGradeLevels: v ? p.interSectionGradeLevels : [],
+																})}
+																aria-label="Enable inter-section scheduling"
+															/>
+															{editState.interSectionEnabled && (
+																<div className="flex gap-1">
+																	{editState.gradeLevels.map((g) => (
+																		<button
+																			key={g}
+																			type="button"
+																			onClick={() => setEditState((p) => {
+																				if (!p) return p;
+																				const has = p.interSectionGradeLevels.includes(g);
+																				return {
+																					...p,
+																					interSectionGradeLevels: has
+																						? p.interSectionGradeLevels.filter((x) => x !== g)
+																						: [...p.interSectionGradeLevels, g].sort((a, b) => a - b),
+																				};
+																			})}
+																			className={`rounded border px-1.5 py-0.5 text-[0.6rem] font-medium transition-colors ${
+																				editState.interSectionGradeLevels.includes(g)
+																					? 'border-primary bg-primary text-primary-foreground'
+																					: 'border-border text-muted-foreground hover:bg-accent/10'
+																			}`}
+																		>
+																			{gradeLabel(g)}
+																		</button>
+																	))}
+																</div>
+															)}
+														</div>
+													) : (
+														<div className="flex items-center gap-1.5">
+															{s.interSectionEnabled ? (
+																<>
+																	<Badge variant="outline" className="bg-violet-50 text-violet-700 border-violet-200 text-[0.6rem]">
+																		On
+																	</Badge>
+																	{(s.interSectionGradeLevels ?? []).length > 0 && (
+																		<div className="flex gap-0.5">
+																			{s.interSectionGradeLevels.map((g) => (
+																				<span 
+																					key={g} 
+																					className={`text-[0.55rem] font-bold px-1.5 py-0.5 rounded border ${GRADE_COLORS[String(g)] ?? 'bg-muted text-muted-foreground'}`}
+																				>
+																					G{g}
+																				</span>
+																			))}
+																		</div>
+																	)}
+																</>
+															) : (
+																<span className="text-[0.65rem] text-muted-foreground">—</span>
+															)}
 														</div>
 													)}
 												</td>
@@ -563,6 +694,21 @@ export default function Subjects() {
 														</div>
 													) : (
 														<div className="flex justify-end gap-1">
+															<TooltipProvider delayDuration={200}>
+																<Tooltip>
+																	<TooltipTrigger asChild>
+																		<Button
+																			variant="outline"
+																			size="sm"
+																			onClick={() => toggleTeacherCoverage(s.id)}
+																			className={expandedSubjectId === s.id ? 'border-primary text-primary' : ''}
+																		>
+																			<Users className="size-3.5" />
+																		</Button>
+																	</TooltipTrigger>
+																	<TooltipContent>Teacher coverage</TooltipContent>
+																</Tooltip>
+															</TooltipProvider>
 															<Button
 																variant="outline"
 																size="sm"
@@ -571,6 +717,8 @@ export default function Subjects() {
 																	name: s.name,
 																	minMinutesPerWeek: s.minMinutesPerWeek,
 																	gradeLevels: [...s.gradeLevels],
+																	interSectionEnabled: s.interSectionEnabled ?? false,
+																	interSectionGradeLevels: [...(s.interSectionGradeLevels ?? [])],
 																})}
 															>
 																<Pencil className="size-3.5" />
@@ -589,6 +737,48 @@ export default function Subjects() {
 													)}
 												</td>
 											</tr>
+											{/* Teacher coverage drilldown row */}
+											{expandedSubjectId === s.id && (
+												<tr className="bg-muted/20">
+													<td colSpan={8} className="px-4 py-3">
+														{coverageLoading ? (
+															<div className="text-xs text-muted-foreground">Loading teacher coverage...</div>
+														) : (teacherCoverage[s.id] ?? []).length > 0 ? (
+															<div className="space-y-1.5">
+																<div className="text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+																	<Users className="size-3" /> Teachers assigned to {s.name}
+																</div>
+																{(teacherCoverage[s.id] ?? []).map((t, i) => (
+																	<div key={i} className="flex items-center gap-2 text-sm">
+																		<span className="font-medium min-w-[10rem]">{t.name}</span>
+																		<div className="flex gap-1">
+																			{t.grades.map((g) => (
+																				<Badge key={g} variant="outline" className={`text-[0.55rem] px-1.5 py-0 ${GRADE_COLORS[String(g)] ?? ''}`}>
+																					{gradeLabel(g)}
+																				</Badge>
+																			))}
+																		</div>
+																	</div>
+																))}
+																{s.preferredRoomType !== 'CLASSROOM' && (
+																	<div className="mt-2 pt-2 border-t border-border">
+																		<div className="text-[0.6875rem] text-muted-foreground flex items-center gap-1.5">
+																			<Map className="size-3" />
+																			Room type: {ROOM_TYPE_LABELS[s.preferredRoomType]}
+																			<Link to="/map" className="text-primary hover:underline text-[0.625rem] ml-1">
+																				View on map →
+																			</Link>
+																		</div>
+																	</div>
+																)}
+															</div>
+														) : (
+															<div className="text-xs text-muted-foreground">No teachers assigned to this subject yet.</div>
+														)}
+													</td>
+												</tr>
+											)}
+											</Fragment>
 										);
 									})
 								)}

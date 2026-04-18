@@ -197,13 +197,13 @@ export default function Sections() {
 					{/* Grade filter */}
 					{availableGrades.length > 0 && (
 						<Select value={gradeFilter} onValueChange={setGradeFilter}>
-							<SelectTrigger className="h-8 w-[130px] text-xs">
+							<SelectTrigger className="h-8 w-32.5 text-xs">
 								<SelectValue placeholder="All Grades" />
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value="all">All Grades</SelectItem>
 								{availableGrades.map((g) => (
-									<SelectItem key={g} value={g}>Grade {g}</SelectItem>
+									<SelectItem key={g} value={g}>G{g}</SelectItem>
 								))}
 							</SelectContent>
 						</Select>
@@ -352,7 +352,7 @@ export default function Sections() {
 										const fill    = s.maxCapacity > 0 ? Math.round((s.enrolledCount / s.maxCapacity) * 100) : 0;
 										const gKey    = gradeKey(s.gradeLevelName);
 										const gColor  = GRADE_COLORS[gKey] ?? 'bg-muted text-muted-foreground';
-										const gradeLabel = `Grade ${s.gradeLevelName.replace(/^Grade\s+/i, '')}`;
+										const gradeLabel = `G${s.gradeLevelName.replace(/^Grade\s+/i, '')}`;
 
 										return (
 											<tr key={s.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
@@ -403,7 +403,7 @@ export default function Sections() {
 								<span>{totalFiltered} result{totalFiltered !== 1 ? 's' : ''}</span>
 								<span>·</span>
 								<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-									<SelectTrigger className="h-7 w-[90px] text-xs">
+									<SelectTrigger className="h-7 w-22.5 text-xs">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>

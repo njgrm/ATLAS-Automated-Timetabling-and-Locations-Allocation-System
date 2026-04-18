@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
 	AlertTriangle,
 	CheckCircle2,
@@ -6,12 +7,14 @@ import {
 	Info,
 	Save,
 	Search,
+	ShieldAlert,
 	UserCog,
 } from 'lucide-react';
 
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
+import { gradeLabel, isDepartmentMatch } from '@/lib/grade-labels';
 import { fetchPublicSettings } from '@/lib/settings';
 import type { Subject } from '@/types';
 import { Badge } from '@/ui/badge';
@@ -20,6 +23,7 @@ import { Card, CardContent } from '@/ui/card';
 import { Input } from '@/ui/input';
 import { Skeleton } from '@/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { Switch } from '@/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
 const DEFAULT_SCHOOL_ID = 1;
@@ -62,7 +66,11 @@ type FacultySummary = {
 	firstName: string;
 	lastName: string;
 	department: string | null;
+	employmentStatus: string;
 	isActiveForScheduling: boolean;
+	isClassAdviser: boolean;
+	advisoryEquivalentHours: number;
+	canTeachOutsideDepartment: boolean;
 	maxHoursPerWeek: number;
 	subjectCount: number;
 	subjectHours: number;
@@ -80,10 +88,14 @@ type LocalAssignment = {
 };
 
 export default function FacultyAssignments() {
+	const [searchParams] = useSearchParams();
 	const [faculty, setFaculty] = useState<FacultySummary[]>([]);
 	const [subjects, setSubjects] = useState<Subject[]>([]);
 	const [loading, setLoading] = useState(true);
-	const [selectedId, setSelectedId] = useState<number | null>(null);
+	const [selectedId, setSelectedId] = useState<number | null>(() => {
+		const qp = searchParams.get('facultyId');
+		return qp ? Number(qp) : null;
+	});
 	const [localAssignments, setLocalAssignments] = useState<LocalAssignment[]>([]);
 	const [saving, setSaving] = useState(false);
 	const [dirty, setDirty] = useState(false);
@@ -91,6 +103,12 @@ export default function FacultyAssignments() {
 	const [filterStatus, setFilterStatus] = useState<'all' | 'assigned' | 'unassigned'>('all');
 	const [departmentFilter, setDepartmentFilter] = useState<string>('all');
 	const [error, setError] = useState<string | null>(null);
+
+	/* Emergency outside-department toggle — default OFF */
+	const [allowOutsideDepartment, setAllowOutsideDepartment] = useState(false);
+
+	/* Subject search within assignment panel */
+	const [subjectSearch, setSubjectSearch] = useState('');
 
 	/* Section demand data */
 	const [sectionsByGrade, setSectionsByGrade] = useState<Record<number, number>>({});
@@ -255,9 +273,8 @@ export default function FacultyAssignments() {
 
 		const actualTeachingHours = Math.round((totalMinutes / 60) * 10) / 10;
 
-		// Equivalent hours — class adviser adds +5h; extend here as designation data becomes available
-		// TODO: pull designation from faculty record when available
-		const equivalentHours = 0;
+		// Equivalent hours — pull from faculty profile (class adviser load)
+		const equivalentHours = selected?.isClassAdviser ? (selected.advisoryEquivalentHours || CLASS_ADVISER_EQUIVALENT_HOURS) : 0;
 		const creditedTotalHours = Math.round((actualTeachingHours + equivalentHours) * 10) / 10;
 		const overloadHours = Math.round(Math.max(actualTeachingHours - STANDARD_WEEKLY_TEACHING_HOURS, 0) * 10) / 10;
 		const overCapHours = Math.round(Math.max(actualTeachingHours - MAX_WEEKLY_TEACHING_HOURS, 0) * 10) / 10;
@@ -275,6 +292,33 @@ export default function FacultyAssignments() {
 		}
 		return subjects.filter(s => s.isActive && !assignedIds.has(s.id));
 	}, [faculty, subjects]);
+
+	/** Split subjects into primary (department match) vs other (outside department) */
+	const { primarySubjects, otherSubjects } = useMemo(() => {
+		const dept = selected?.department ?? null;
+		const primary: Subject[] = [];
+		const other: Subject[] = [];
+		for (const sub of subjects) {
+			if (isDepartmentMatch(dept, sub.code, sub.name)) {
+				primary.push(sub);
+			} else {
+				other.push(sub);
+			}
+		}
+		return { primarySubjects: primary, otherSubjects: other };
+	}, [subjects, selected]);
+
+	/** Filter subjects by panel search query */
+	const filterBySubjectSearch = useCallback(
+		(list: Subject[]) => {
+			if (!subjectSearch.trim()) return list;
+			const q = subjectSearch.toLowerCase();
+			return list.filter(
+				(s) => s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q),
+			);
+		},
+		[subjectSearch],
+	);
 
 	return (
 		<div className="flex flex-col h-[calc(100svh-3.5rem)] px-6">
@@ -564,16 +608,58 @@ export default function FacultyAssignments() {
 							{/* Scrollable subject assignments */}
 							<Card className="shadow-sm mt-3 flex-1 min-h-0 flex flex-col overflow-hidden">
 								<div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border bg-card shrink-0">
-									<h3 className="text-sm font-semibold text-muted-foreground">
-										Qualified Subjects
-									</h3>
-									{dirty && (
-										<Button size="sm" onClick={handleSave} disabled={saving || !selected.isActiveForScheduling}>
-											<Save className="mr-1.5 size-3.5" />
-											{saving ? 'Saving...' : 'Save Teaching Load'}
-										</Button>
-									)}
+									<div className="flex items-center gap-3">
+										<h3 className="text-sm font-semibold text-muted-foreground">
+											Subject Assignments
+										</h3>
+										{selected.department && (
+											<Badge variant="secondary" className="text-[0.625rem]">{selected.department}</Badge>
+										)}
+									</div>
+									<div className="flex items-center gap-2">
+										{dirty && (
+											<Button size="sm" onClick={handleSave} disabled={saving || !selected.isActiveForScheduling}>
+												<Save className="mr-1.5 size-3.5" />
+												{saving ? 'Saving...' : 'Save Teaching Load'}
+											</Button>
+										)}
+									</div>
 								</div>
+
+								{/* Subject search + emergency toggle toolbar */}
+								<div className="shrink-0 flex items-center gap-2 px-5 py-2 border-b border-border bg-muted/30">
+									<div className="relative flex-1 max-w-xs">
+										<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3 text-muted-foreground" />
+										<Input
+											placeholder="Search subjects..."
+											value={subjectSearch}
+											onChange={(e) => setSubjectSearch(e.target.value)}
+											className="pl-8 h-7 text-xs"
+										/>
+									</div>
+									<div className="flex items-center gap-2 ml-auto">
+										<TooltipProvider delayDuration={200}>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<div className="flex items-center gap-1.5">
+														<ShieldAlert className={`size-3.5 ${allowOutsideDepartment ? 'text-amber-600' : 'text-muted-foreground'}`} />
+														<span className="text-[0.625rem] text-muted-foreground whitespace-nowrap">Outside dept.</span>
+														<Switch
+															checked={allowOutsideDepartment}
+															onCheckedChange={setAllowOutsideDepartment}
+															aria-label="Allow outside department (emergency)"
+														/>
+													</div>
+												</TooltipTrigger>
+												<TooltipContent side="bottom" className="max-w-[240px] text-xs">
+													<p className="font-semibold">Allow outside department (emergency)</p>
+													<p className="mt-1">When ON, subjects outside this teacher's department become selectable. Use only when no qualified teacher is available.</p>
+												</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
+									</div>
+								</div>
+
 								<CardContent className="pt-3 flex-1 overflow-auto">
 									{!selected.isActiveForScheduling && (
 										<div className="mb-3 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
@@ -582,71 +668,153 @@ export default function FacultyAssignments() {
 										</div>
 									)}
 
-									<div className="space-y-2">
-										{subjects.map((sub) => {
-											const assignment = localAssignments.find((a) => a.subjectId === sub.id);
-											const isAssigned = !!assignment;
-
-											return (
-												<div
-													key={sub.id}
-													className={`rounded-lg border p-3 transition-colors ${
-														isAssigned ? 'border-primary/30 bg-primary/5' : 'border-border'
-													}`}
-												>
-													<div className="flex items-center gap-3">
-														<input
-															type="checkbox"
-															checked={isAssigned}
-															onChange={() => toggleSubject(sub.id)}
-															disabled={!selected.isActiveForScheduling}
-															className="size-4 rounded border-border accent-[hsl(var(--primary))]"
-														/>
-														<div className="min-w-0 flex-1">
-															<div className="flex items-center gap-2">
-																<span className="text-sm font-medium">{sub.name}</span>
-																<code className="rounded bg-muted px-1 py-0.5 text-[0.6rem] font-mono">
-																	{sub.code}
-																</code>
-
-															</div>
-															<p className="text-[0.6875rem] text-muted-foreground">
-																{Math.round((sub.minMinutesPerWeek / 60) * 10) / 10} hrs/week
-															</p>
-														</div>
-													</div>
-
-													{/* Grade level scope per subject */}
-													{isAssigned && (
-														<div className="ml-7 mt-2 flex items-center gap-1.5">
-															<span className="text-[0.6875rem] text-muted-foreground mr-1">Grades:</span>
-															{GRADE_OPTIONS.map((g) => (
-																<button
-																	key={g}
-																	type="button"
-																	onClick={() => toggleGradeLevel(sub.id, g)}
-																	disabled={!selected.isActiveForScheduling}
-																	className={`rounded border px-2 py-0.5 text-[0.6875rem] font-medium transition-colors ${
-																		assignment!.gradeLevels.includes(g)
-																			? 'border-primary bg-primary text-primary-foreground'
-																			: 'border-border text-muted-foreground hover:bg-accent/10'
-																	}`}
-																>
-																	{g}
-																</button>
-															))}
-														</div>
-													)}
+									{/* Primary Subjects (Qualified) */}
+									{(() => {
+										const filteredPrimary = filterBySubjectSearch(primarySubjects);
+										return filteredPrimary.length > 0 ? (
+											<div className="mb-4">
+												<h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
+													Primary Subjects (Qualified)
+												</h4>
+												<div className="space-y-2">
+													{filteredPrimary.map((sub) => {
+														const assignment = localAssignments.find((a) => a.subjectId === sub.id);
+														const isAssigned = !!assignment;
+														return (
+															<SubjectRow
+																key={sub.id}
+																subject={sub}
+																isAssigned={isAssigned}
+																assignment={assignment}
+																disabled={!selected.isActiveForScheduling}
+																onToggle={() => toggleSubject(sub.id)}
+																onToggleGrade={(g) => toggleGradeLevel(sub.id, g)}
+															/>
+														);
+													})}
 												</div>
-											);
-										})}
-									</div>
+											</div>
+										) : null;
+									})()}
+
+									{/* Other Subjects (Outside Department) */}
+									{(() => {
+										const filteredOther = filterBySubjectSearch(otherSubjects);
+										return filteredOther.length > 0 ? (
+											<div>
+												<h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider flex items-center gap-1.5">
+													Other Subjects (Outside Department)
+													{!allowOutsideDepartment && (
+														<Badge variant="secondary" className="text-[0.5rem] px-1 py-0 font-normal">Disabled</Badge>
+													)}
+												</h4>
+												<div className={`space-y-2 ${!allowOutsideDepartment ? 'opacity-50 pointer-events-none' : ''}`}>
+													{filteredOther.map((sub) => {
+														const assignment = localAssignments.find((a) => a.subjectId === sub.id);
+														const isAssigned = !!assignment;
+														return (
+															<SubjectRow
+																key={sub.id}
+																subject={sub}
+																isAssigned={isAssigned}
+																assignment={assignment}
+																disabled={!selected.isActiveForScheduling || !allowOutsideDepartment}
+																onToggle={() => toggleSubject(sub.id)}
+																onToggleGrade={(g) => toggleGradeLevel(sub.id, g)}
+																isOutsideDepartment
+															/>
+														);
+													})}
+												</div>
+											</div>
+										) : null;
+									})()}
 								</CardContent>
 							</Card>
 						</div>
 					)}
 				</div>
 			</div>
+		</div>
+	);
+}
+
+/* ─── Extracted SubjectRow component ────────────────────────── */
+
+function SubjectRow({
+	subject: sub,
+	isAssigned,
+	assignment,
+	disabled,
+	onToggle,
+	onToggleGrade,
+	isOutsideDepartment,
+}: {
+	subject: Subject;
+	isAssigned: boolean;
+	assignment: LocalAssignment | undefined;
+	disabled: boolean;
+	onToggle: () => void;
+	onToggleGrade: (grade: number) => void;
+	isOutsideDepartment?: boolean;
+}) {
+	return (
+		<div
+			className={`rounded-lg border p-3 transition-colors ${
+				isAssigned
+					? isOutsideDepartment
+						? 'border-amber-300/50 bg-amber-50/30'
+						: 'border-primary/30 bg-primary/5'
+					: 'border-border'
+			}`}
+		>
+			<div className="flex items-center gap-3">
+				<input
+					type="checkbox"
+					checked={isAssigned}
+					onChange={onToggle}
+					disabled={disabled}
+					className="size-4 rounded border-border accent-[hsl(var(--primary))]"
+				/>
+				<div className="min-w-0 flex-1">
+					<div className="flex items-center gap-2">
+						<span className="text-sm font-medium">{sub.name}</span>
+						<code className="rounded bg-muted px-1 py-0.5 text-[0.6rem] font-mono">
+							{sub.code}
+						</code>
+						{isOutsideDepartment && isAssigned && (
+							<Badge variant="outline" className="text-[0.5rem] px-1 py-0 border-amber-300 text-amber-700 bg-amber-50">
+								Outside Dept.
+							</Badge>
+						)}
+					</div>
+					<p className="text-[0.6875rem] text-muted-foreground">
+						{Math.round((sub.minMinutesPerWeek / 60) * 10) / 10} hrs/week
+					</p>
+				</div>
+			</div>
+
+			{/* Grade level scope per subject */}
+			{isAssigned && (
+				<div className="ml-7 mt-2 flex items-center gap-1.5">
+					<span className="text-[0.6875rem] text-muted-foreground mr-1">Grades:</span>
+					{GRADE_OPTIONS.map((g) => (
+						<button
+							key={g}
+							type="button"
+							onClick={() => onToggleGrade(g)}
+							disabled={disabled}
+							className={`rounded border px-2 py-0.5 text-[0.6875rem] font-medium transition-colors ${
+								assignment!.gradeLevels.includes(g)
+									? 'border-primary bg-primary text-primary-foreground'
+									: 'border-border text-muted-foreground hover:bg-accent/10'
+							}`}
+						>
+							{gradeLabel(g)}
+						</button>
+					))}
+				</div>
+			)}
 		</div>
 	);
 }

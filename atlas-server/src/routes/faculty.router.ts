@@ -42,7 +42,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response, next: NextF
 	}
 });
 
-// Auth: PATCH /faculty/:id — update local notes, scheduling status, max hours
+// Auth: PATCH /faculty/:id — update local notes, scheduling status, load profile fields
 router.patch('/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const id = Number(req.params.id);
@@ -50,14 +50,31 @@ router.patch('/:id', authenticate, async (req: Request, res: Response, next: Nex
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
 			return;
 		}
-		const { localNotes, isActiveForScheduling, maxHoursPerWeek, version } = req.body;
+		const {
+			localNotes,
+			isActiveForScheduling,
+			maxHoursPerWeek,
+			employmentStatus,
+			isClassAdviser,
+			advisoryEquivalentHours,
+			canTeachOutsideDepartment,
+			version,
+		} = req.body;
 		if (version === undefined) {
 			res.status(400).json({ code: 'MISSING_FIELDS', message: 'version is required for optimistic locking.' });
 			return;
 		}
 		const result = await facultyService.updateFacultyMirror(
 			id,
-			{ localNotes, isActiveForScheduling, maxHoursPerWeek },
+			{
+				localNotes,
+				isActiveForScheduling,
+				maxHoursPerWeek,
+				employmentStatus,
+				isClassAdviser,
+				advisoryEquivalentHours,
+				canTeachOutsideDepartment,
+			},
 			Number(version),
 		);
 		if (!result.success) {

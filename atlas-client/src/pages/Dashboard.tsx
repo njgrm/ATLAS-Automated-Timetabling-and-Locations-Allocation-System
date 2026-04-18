@@ -265,6 +265,15 @@ export default function Dashboard() {
 		return { avg, highestUtil: highest.utilization, highestRoomName: highestRoom?.name ?? '—', conflictRooms, total: entries.length };
 	}, [selected, roomUtilMap]);
 
+	/* ── Room utilization map for BuildingView ── */
+	const buildingRoomUtilization = useMemo(() => {
+		const map = new Map<number, number>();
+		roomUtilMap.forEach((util, roomId) => {
+			map.set(roomId, util.utilization);
+		});
+		return map;
+	}, [roomUtilMap]);
+
 	// Declared before any memo/logic that reads it to avoid TDZ risk.
 	// v1: always SETUP until generation is implemented; will become state later.
 	const currentPhase: string = 'SETUP';
@@ -584,7 +593,13 @@ export default function Dashboard() {
 									{utilLoading && <span className="text-muted-foreground/50 italic ml-auto">Loading…</span>}
 								</div>
 							)}
-							<BuildingView building={selected} height={canvasHeight} selectedRoomId={inspectedRoom?.id ?? null} onRoomSelect={setInspectedRoom} />
+							<BuildingView 
+								building={selected} 
+								height={canvasHeight} 
+								selectedRoomId={inspectedRoom?.id ?? null} 
+								onRoomSelect={setInspectedRoom}
+								roomUtilization={buildingRoomUtilization}
+							/>
 							</>
 						) : (
 							<>

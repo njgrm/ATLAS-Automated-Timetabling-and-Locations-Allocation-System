@@ -51,6 +51,8 @@ export type Subject = {
 	gradeLevels: number[];
 	isActive: boolean;
 	isSeedable: boolean;
+	interSectionEnabled: boolean;
+	interSectionGradeLevels: number[];
 	createdAt: string;
 	updatedAt: string;
 };
@@ -62,9 +64,13 @@ export type FacultyMirror = {
 	firstName: string;
 	lastName: string;
 	department: string | null;
+	employmentStatus: string;
 	contactInfo: string | null;
 	localNotes: string | null;
 	isActiveForScheduling: boolean;
+	isClassAdviser: boolean;
+	advisoryEquivalentHours: number;
+	canTeachOutsideDepartment: boolean;
 	maxHoursPerWeek: number;
 	lastSyncedAt: string;
 	version: number;
@@ -478,6 +484,8 @@ export interface SchedulingPolicy {
 	lunchStartTime: string;
 	lunchEndTime: string;
 	enforceLunchWindow: boolean;
+	enableTleTwoPassPriority: boolean;
+	allowFlexibleSubjectAssignment: boolean;
 	constraintConfig: Record<string, ConstraintOverride> | null;
 	createdAt: string;
 	updatedAt: string;
