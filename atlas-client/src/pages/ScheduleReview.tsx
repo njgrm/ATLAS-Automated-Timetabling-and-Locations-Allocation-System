@@ -16,6 +16,7 @@ import {
 	History,
 	Lightbulb,
 	Loader2,
+	Lock,
 	PanelLeftClose,
 	PanelLeftOpen,
 	PanelRightClose,
@@ -87,6 +88,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/ui/resiz
 
 import SchedulingPolicyPane from '@/components/SchedulingPolicyPane';
 import ManualEditPanel from '@/components/ManualEditPanel';
+import LockPanel from '@/components/LockPanel';
 import { TutorialOverlay, useTutorial } from '@/components/TutorialOverlay';
 import { ExplainabilityDrawer, VIOLATION_EXPLANATIONS } from '@/components/ExplainabilityDrawer';
 
@@ -296,7 +298,7 @@ export default function ScheduleReview() {
 	const [followUps, setFollowUps] = useState<Set<string>>(new Set());
 	const [entityFilter, setEntityFilter] = useState<string>('');
 	const [viewMode, setViewMode] = useState<ViewMode>('section');
-	const [leftTab, setLeftTab] = useState<'violations' | 'unassigned'>('violations');
+	const [leftTab, setLeftTab] = useState<'violations' | 'unassigned' | 'locks'>('violations');
 
 	/* ── Generate / Publish workflow state ── */
 	const [generating, setGenerating] = useState(false);
@@ -508,6 +510,15 @@ export default function ScheduleReview() {
 		if (viewMode === 'faculty') return entries.filter((e) => e.facultyId === id);
 		return entries.filter((e) => e.roomId === id);
 	}, [draft, entityFilter, viewMode]);
+
+	/** Simplified room lookup for LockPanel */
+	const lockPanelRooms = useMemo(() => {
+		const m = new Map<number, { id: number; name: string; buildingName: string }>();
+		for (const [id, r] of roomMap) {
+			m.set(id, { id, name: r.name, buildingName: r.buildingName });
+		}
+		return m;
+	}, [roomMap]);
 
 	/** Grid lookup: `${day}-${startTime}` → entries in that cell, grouped by pivot entity */
 	const gridIndex = useMemo(() => {
@@ -1565,6 +1576,14 @@ export default function ScheduleReview() {
 									</TooltipTrigger>
 									<TooltipContent side="right">Unassigned</TooltipContent>
 								</Tooltip>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<button type="button" className="flex items-center justify-center h-8 w-8 rounded hover:bg-muted transition-colors" onClick={() => { leftPanelRef.current?.expand(); setLeftTab('locks'); }}>
+											<Lock className="size-4 text-muted-foreground" />
+										</button>
+									</TooltipTrigger>
+									<TooltipContent side="right">Pinned Sessions</TooltipContent>
+								</Tooltip>
 							</TooltipProvider>
 						</div>
 					) : (
@@ -1604,6 +1623,22 @@ export default function ScheduleReview() {
 							{summary && summary.unassignedCount > 0 && (
 								<span className="ml-1 text-[0.625rem] text-amber-600 font-semibold">{summary.unassignedCount}</span>
 							)}
+						</button>
+						<button
+							id="tab-locks"
+							type="button"
+							role="tab"
+							aria-selected={leftTab === 'locks'}
+							aria-controls="panel-locks"
+							onClick={() => setLeftTab('locks')}
+							className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+								leftTab === 'locks'
+									? 'text-foreground border-b-2 border-primary'
+									: 'text-muted-foreground hover:text-foreground'
+							}`}
+						>
+							<Lock className="inline size-3 mr-0.5 -mt-px" />
+							Pins
 						</button>
 						<Button
 							variant="ghost"
@@ -1699,7 +1734,7 @@ export default function ScheduleReview() {
 								</div>
 							</ScrollArea>
 						</div>
-					) : (
+					) : leftTab === 'unassigned' ? (
 						<ScrollArea id="panel-unassigned" role="tabpanel" aria-labelledby="tab-unassigned" className="flex-1 min-h-0">
 							<div className="px-3 py-3 space-y-3">
 								{summary ? (
@@ -2017,6 +2052,17 @@ export default function ScheduleReview() {
 								)}
 							</div>
 						</ScrollArea>
+						) : (
+						<div id="panel-locks" role="tabpanel" aria-labelledby="tab-locks" className="flex flex-col flex-1 min-h-0">
+							<LockPanel
+								schoolId={DEFAULT_SCHOOL_ID}
+								schoolYearId={schoolYearId ?? 0}
+								sections={sectionMap}
+								subjects={subjectMap}
+								faculty={facultyMap}
+								rooms={lockPanelRooms}
+							/>
+						</div>
 						)}
 						</>
 					)}
@@ -2224,6 +2270,20 @@ export default function ScheduleReview() {
 														<p className="text-[0.6875rem] text-muted-foreground truncate">{roomLabel(selectedEntry.roomId)}</p>
 														{entryViolations.length > 0 && (
 															<div className="space-y-1 pt-1">
+																{/* Concise summary line */}
+																<div className="flex items-center gap-1.5">
+																	{entryViolations.some((v) => v.severity === 'HARD') && (
+																		<Badge variant="outline" className="h-4 px-1.5 text-[0.5rem] border-red-300 bg-red-50 text-red-700">
+																			{entryViolations.filter((v) => v.severity === 'HARD').length} hard
+																		</Badge>
+																	)}
+																	{entryViolations.some((v) => v.severity === 'SOFT') && (
+																		<Badge variant="outline" className="h-4 px-1.5 text-[0.5rem] border-amber-300 bg-amber-50 text-amber-700">
+																			{entryViolations.filter((v) => v.severity === 'SOFT').length} soft
+																		</Badge>
+																	)}
+																</div>
+																{/* Individual violation pills with tooltip detail */}
 																{entryViolations.map((v, i) => {
 																	const explanation = VIOLATION_EXPLANATIONS[v.code];
 																	return (

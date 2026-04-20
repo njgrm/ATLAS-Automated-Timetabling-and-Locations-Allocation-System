@@ -154,6 +154,24 @@ export interface ConstructorInput {
 	rooms: RoomInput[];
 	preferences: FacultyPreferenceInput[];
 	policy?: PolicyInput;
+	lockedEntries?: LockedEntryInput[];
+	gradeWindows?: GradeWindowInput[];
+}
+
+export interface LockedEntryInput {
+	sectionId: number;
+	subjectId: number;
+	facultyId?: number | null;
+	roomId?: number | null;
+	day: string;
+	startTime: string;
+	endTime: string;
+}
+
+export interface GradeWindowInput {
+	gradeLevel: number;
+	startTime: string;
+	endTime: string;
 }
 
 export interface UnassignedItem {
@@ -167,6 +185,7 @@ export interface UnassignedItem {
 export interface ConstructorResult {
 	entries: ScheduledEntry[];
 	unassignedItems: UnassignedItem[];
+	lockWarnings: string[];
 	assignedCount: number;
 	unassignedCount: number;
 	classesProcessed: number;
@@ -281,7 +300,7 @@ function timeToMinutes(t: string): number {
 // ─── Main constructor ───
 
 export function constructBaseline(input: ConstructorInput): ConstructorResult {
-	const { subjects, faculty, facultySubjects, rooms, preferences, sectionsByGrade, policy } = input;
+	const { subjects, faculty, facultySubjects, rooms, preferences, sectionsByGrade, policy, lockedEntries, gradeWindows } = input;
 
 	// Build period slots dynamically from policy (lunch window, school day bounds)
 	const PERIOD_SLOTS = buildPeriodSlots(policy);
@@ -325,6 +344,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 	const entries: ScheduledEntry[] = [];
 	const unassignedItems: UnassignedItem[] = [];
+	const lockWarnings: string[] = [];
 	let assignedCount = 0;
 	let unassignedCount = 0;
 	let policyBlockedCount = 0;
@@ -334,6 +354,76 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	const facultyDailyMinutes = new Map<string, number>();
 	// Faculty day placement tracker for consecutive check: "facultyId:day" → sorted period indices
 	const facultyDayPeriods = new Map<string, number[]>();
+
+	// ─── Pre-place locked entries ───
+	// "sectionId:subjectId" → count of sessions already fulfilled by locks
+	const lockSessionCounts = new Map<string, number>();
+
+	if (lockedEntries && lockedEntries.length > 0) {
+		for (const lock of lockedEntries) {
+			const pi = PERIOD_SLOTS.findIndex(
+				(s) => s.startTime === lock.startTime && s.endTime === lock.endTime,
+			);
+			if (pi < 0) {
+				lockWarnings.push(`Lock for section ${lock.sectionId}, subject ${lock.subjectId} at ${lock.day} ${lock.startTime}-${lock.endTime} does not match any canonical period slot and was skipped.`);
+				continue;
+			}
+
+			if (!lock.facultyId || lock.facultyId < 1) {
+				lockWarnings.push(`Lock for section ${lock.sectionId}, subject ${lock.subjectId} at ${lock.day} ${lock.startTime}-${lock.endTime} has no valid facultyId and was skipped.`);
+				continue;
+			}
+			if (!lock.roomId || lock.roomId < 1) {
+				lockWarnings.push(`Lock for section ${lock.sectionId}, subject ${lock.subjectId} at ${lock.day} ${lock.startTime}-${lock.endTime} has no valid roomId and was skipped.`);
+				continue;
+			}
+
+			entryCounter++;
+			const period = PERIOD_SLOTS[pi];
+			const durationMinutes = timeToMinutes(period.endTime) - timeToMinutes(period.startTime);
+
+			entries.push({
+				entryId: `entry-${entryCounter}`,
+				facultyId: lock.facultyId,
+				roomId: lock.roomId,
+				subjectId: lock.subjectId,
+				sectionId: lock.sectionId,
+				day: lock.day,
+				startTime: period.startTime,
+				endTime: period.endTime,
+				durationMinutes,
+			});
+
+			// Mark occupancy for locked placements
+			sectionOcc.mark(lock.sectionId, lock.day, pi);
+			facultyOcc.mark(lock.facultyId, lock.day, pi);
+			facultyLoad.set(lock.facultyId, (facultyLoad.get(lock.facultyId) ?? 0) + durationMinutes);
+			const dailyKey = `${lock.facultyId}:${lock.day}`;
+			facultyDailyMinutes.set(dailyKey, (facultyDailyMinutes.get(dailyKey) ?? 0) + durationMinutes);
+			const dayPeriods = facultyDayPeriods.get(dailyKey) ?? [];
+			dayPeriods.push(pi);
+			facultyDayPeriods.set(dailyKey, dayPeriods);
+			roomOcc.mark(lock.roomId, lock.day, pi);
+
+			assignedCount++;
+
+			// Track lock session counts
+			const lockKey = `${lock.sectionId}:${lock.subjectId}`;
+			lockSessionCounts.set(lockKey, (lockSessionCounts.get(lockKey) ?? 0) + 1);
+		}
+	}
+
+	// ─── Grade window lookup ───
+	// gradeLevel → { startMin, endMin }
+	const gradeWindowMap = new Map<number, { startMin: number; endMin: number }>();
+	if (gradeWindows && gradeWindows.length > 0) {
+		for (const gw of gradeWindows) {
+			gradeWindowMap.set(gw.gradeLevel, {
+				startMin: timeToMinutes(gw.startTime),
+				endMin: timeToMinutes(gw.endTime),
+			});
+		}
+	}
 
 	// Pre-filter valid period indices by policy time bounds
 	let validPeriodIndices: number[] | null = null;
@@ -448,6 +538,21 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			continue;
 		}
 
+		// Reduce sessions needed by already-placed locked entries
+		const lockKey = `${item.sectionId}:${item.subjectId}`;
+		const lockedSessions = lockSessionCounts.get(lockKey) ?? 0;
+		const sessionsNeeded = Math.max(0, item.sessionsPerWeek - lockedSessions);
+
+		// Grade window: narrow valid periods for this item's grade level
+		let gradeValidPeriods = validPeriodIndices ?? Array.from({ length: PERIOD_SLOTS.length }, (_, i) => i);
+		const gw = gradeWindowMap.get(item.gradeLevel);
+		if (gw) {
+			gradeValidPeriods = gradeValidPeriods.filter((pi) => {
+				const slot = PERIOD_SLOTS[pi];
+				return timeToMinutes(slot.startTime) >= gw.startMin && timeToMinutes(slot.endTime) <= gw.endMin;
+			});
+		}
+
 		// Get qualified faculty; if none and flexible assignment is enabled, use all faculty
 		let candidateFaculty = qualifiedMap.get(`${item.subjectId}:${item.gradeLevel}`) ?? [];
 		if (candidateFaculty.length === 0 && allowFlexible) {
@@ -458,7 +563,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		// Track which days we already used for this section-subject pair (spread sessions across days)
 		const daysUsedForPair = new Set<string>();
 
-		for (let session = 0; session < item.sessionsPerWeek; session++) {
+		for (let session = 0; session < sessionsNeeded; session++) {
 			let placed = false;
 
 			// Try each faculty candidate (sorted by id)
@@ -490,7 +595,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 						if (dailyUsed + item.durationPerSession > policy.maxTeachingMinutesPerDay) continue;
 					}
 
-					const periodsToCheck = validPeriodIndices ?? Array.from({ length: PERIOD_SLOTS.length }, (_, i) => i);
+					const periodsToCheck = gradeValidPeriods;
 
 					for (const pi of periodsToCheck) {
 						if (sectionOcc.isOccupied(item.sectionId, day, pi)) continue;
@@ -607,6 +712,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	return {
 		entries,
 		unassignedItems,
+		lockWarnings,
 		assignedCount,
 		unassignedCount,
 		classesProcessed: assignedCount + unassignedCount,

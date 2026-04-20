@@ -1,0 +1,175 @@
+{
+  "pages": {
+    "dashboard": {
+      "title": "ATLAS",
+      "h1": "Overview",
+      "bodySnippet": "No Active Year\nNAVIGATION\nDashboard\nSCHEDULING\nSubjects\nFaculty\nTeaching Load\nSections\nPreferences\nTimetable\nRoom Schedules\nCAMPUS\nMap Editor\nINSIGHTS\nAnalytics\nPLATFORM\nBack to EnrollPro\nS\nSYSTEM_ADMIN\nAdmin\nToggle Sidebar\nATLAS\nDashboard\nOVERVIEW\nSUBJECTS\n10\nACTIVE FACULTY\n36\nSECTIONS\n—\nUpstream unavailable\nBUILDINGS\n9\n1 without rooms, 1 need renaming\nTEACHING ROOMS\n62\nFACULTY PREFERENCES\n—\nAvailable in Preference Collection\nSCHEDULING LIFECYCLE\nSetup\nPreferences\nGeneration\nReview\nPublished\nArchived\n\nSetup Checklist\n\n3/5 complete\nSubjects configured\nFaculty synced\nFaculty assigned to subjects\nSections sourced\nEnrollment service not connected\nBuildings & rooms set up\n1 without rooms, 1 need renaming\n\nQuick Actions\n\nConfigure Subjects\nManage Faculty\nCAMPUS MAP\n100%\nFocus\nEdit Map\n\nBUILDINGS\n\nAguinaldo\nApolinario\nBuilding 9\nGym and Cove…\nHinigaran\nLibrary and …\nMain Academi…\nScience and …\nSilang\n\nAguinaldo\n\n5 rooms · 1 floor\n\nFLOOR PLAN\n\nF1\n101\nTLE\n—\n102\nClassroom\n—\n103\nClassroom\n—\n104\nClassroom\n—\n105\nClassroom\n—\nExpand Building View\nEdit in Map Editor"
+    },
+    "timetableOverview": {
+      "textSnippet": "No Active Year\nNAVIGATION\nDashboard\nSCHEDULING\nSubjects\nFaculty\nTeaching Load\nSections\nPreferences\nTimetable\nRoom Schedules\nCAMPUS\nMap Editor\nINSIGHTS\nAnalytics\nPLATFORM\nBack to EnrollPro\nS\nSYSTEM_ADMIN\nAdmin\nToggle Sidebar\nATLAS\nScheduling\nTimetable\nRequest failed with status code 502\nRetry",
+      "buttonCount": 6
+    },
+    "timetableAfterInteractions": {
+      "selectedTextSnippet": "No Active Year\nNAVIGATION\nDashboard\nSCHEDULING\nSubjects\nFaculty\nTeaching Load\nSections\nPreferences\nTimetable\nRoom Schedules\nCAMPUS\nMap Editor\nINSIGHTS\nAnalytics\nPLATFORM\nBack to EnrollPro\nS\nSYSTEM_ADMIN\nAdmin\nToggle Sidebar\nATLAS\nScheduling\nTimetable\nRequest failed with status code 502\nRetry"
+    },
+    "roomSchedules": {
+      "textSnippet": "No Active Year\nNAVIGATION\nDashboard\nSCHEDULING\nSubjects\nFaculty\nTeaching Load\nSections\nPreferences\nTimetable\nRoom Schedules\nCAMPUS\nMap Editor\nINSIGHTS\nAnalytics\nPLATFORM\nBack to EnrollPro\nS\nSYSTEM_ADMIN\nAdmin\nToggle Sidebar\nATLAS\nScheduling\nRoom Schedules\nSelect room…\nLatest\nRun ID\nRefresh\n\nSelect a room to view its schedule"
+    },
+    "map": {
+      "textSnippet": "No Active Year\nNAVIGATION\nDashboard\nSCHEDULING\nSubjects\nFaculty\nTeaching Load\nSections\nPreferences\nTimetable\nRoom Schedules\nCAMPUS\nMap Editor\nINSIGHTS\nAnalytics\nPLATFORM\nBack to EnrollPro\nS\nSYSTEM_ADMIN\nAdmin\nToggle Sidebar\nATLAS\nCampus\nMap Editor\nSelect\nAdd Building\nBackground\nSave Changes\nDrag to move • Handles to resize • Corner handle to rotate\n100% zoom\nBuilding Details\nNAME\nCOLOR\nX\nY\nWIDTH\nHEIGHT\nNUMBER OF FLOORS\nExclude from scheduling (non-teaching building)\nROOMS (20)\nF1 (15)\nF2 (5)\n\nG7-B\n\nClassroom\nCap: 45\n📚\n\nG7-A\n\nClassroom\nCap: 45\n📚\n\nG7-C\n\nClassroom\nCap: 45\n📚\n\nG7-D\n\nClassroom\nCap: 45\n📚\n\nG7-E\n\nClassroom\nCap: 45\n📚\n\nG7-F\n\nClassroom\nCap: 45\n📚\n\nG7-G\n\nClassroom\nCap: 45\n📚\n\nG7-H\n\nClassroom\nCap: 45\n📚\n\nG7-I\n\nClassroom\nCap: 45\n📚\n\nG7-J\n\nClassroom\nCap: 45\n📚\n\nG7-K\n\nClassroom\nCap: 45\n📚\n\nG7-L\n\nClassroom\nCap: 45\n📚\n\nG7-M\n\nClassroom\nCap: 45\n📚\n\nG7-N\n\nClassroom\nCap: 45\n📚\n\nG7-O\n\nClassroom\nCap: 45\n📚\nFloor\nFloor 1\nCapacity\nType\nClassroom\nAdd Room\nDelete Building",
+      "canvasFound": true
+    }
+  },
+  "consoleMessages": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    }
+  ],
+  "failedRequests": [
+    {
+      "url": "http://127.0.0.1:5174/enrollpro-api/settings/public",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5174/enrollpro-api/settings/public",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5174/enrollpro-api/settings/public",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5174/uploads/campus-f61256be-3528-41e3-b46c-0fba7aedd984.png",
+      "status": 500
+    },
+    {
+      "url": "http://127.0.0.1:5174/enrollpro-api/settings/public",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5174/enrollpro-api/settings/public",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5174/enrollpro-api/settings/public",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5174/enrollpro-api/settings/public",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5174/enrollpro-api/settings/public",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5174/enrollpro-api/settings/public",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5174/enrollpro-api/settings/public",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5174/enrollpro-api/settings/public",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5174/enrollpro-api/settings/public",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5174/enrollpro-api/settings/public",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5174/enrollpro-api/settings/public",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5174/enrollpro-api/settings/public",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5174/enrollpro-api/settings/public",
+      "status": 502
+    },
+    {
+      "url": "http://127.0.0.1:5174/uploads/campus-f61256be-3528-41e3-b46c-0fba7aedd984.png",
+      "status": 500
+    }
+  ]
+}

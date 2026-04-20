@@ -41,6 +41,8 @@ export type BridgeUser = {
 	mustChangePassword?: boolean;
 };
 
+export type SessionPattern = 'MWF' | 'TTH' | 'ANY';
+
 export type Subject = {
 	id: number;
 	schoolId: number;
@@ -48,6 +50,7 @@ export type Subject = {
 	name: string;
 	minMinutesPerWeek: number;
 	preferredRoomType: RoomType;
+	sessionPattern: SessionPattern;
 	gradeLevels: number[];
 	isActive: boolean;
 	isSeedable: boolean;
@@ -428,6 +431,52 @@ export interface ManualEditRecord {
 	afterPayload: unknown;
 	validationSummary: unknown;
 	createdAt: string;
+}
+
+/* ─── Locked Session types ─── */
+
+export interface LockedSession {
+	id: number;
+	schoolId: number;
+	schoolYearId: number;
+	sectionId: number;
+	subjectId: number;
+	facultyId: number | null;
+	roomId: number | null;
+	day: string;
+	startTime: string;
+	endTime: string;
+	createdBy: number;
+	createdAt: string;
+}
+
+export interface LockedSessionInput {
+	sectionId: number;
+	subjectId: number;
+	facultyId: number;
+	roomId: number;
+	day: string;
+	startTime: string;
+	endTime: string;
+}
+
+/* ─── Grade Shift Window types ─── */
+
+export interface GradeShiftWindow {
+	id: number;
+	schoolId: number;
+	schoolYearId: number;
+	gradeLevel: number;
+	startTime: string;
+	endTime: string;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface GradeShiftWindowInput {
+	gradeLevel: number;
+	startTime: string;
+	endTime: string;
 }
 
 /* ─── Section types (from enrollment adapter) ─── */

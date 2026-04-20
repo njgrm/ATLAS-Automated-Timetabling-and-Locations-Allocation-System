@@ -34,6 +34,7 @@ export interface RunSummary {
 	policyBlockedCount: number;
 	hardViolationCount: number;
 	violationCounts?: Record<string, number>;
+	lockWarnings?: string[];
 }
 
 // ─── Trigger ───
@@ -64,7 +65,7 @@ export async function triggerGenerationRun(
 	try {
 		// ── Fetch all input data for construction ──
 		stage = 'sections-fetch';
-		const [sectionResult, faculty, facultySubjects, rooms, subjects, preferences, policyRecord, buildings] = await Promise.all([
+		const [sectionResult, faculty, facultySubjects, rooms, subjects, preferences, policyRecord, buildings, lockedSessions, gradeWindows] = await Promise.all([
 			sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId),
 			prisma.facultyMirror.findMany({
 				where: { schoolId, isActiveForScheduling: true },
@@ -97,6 +98,12 @@ export async function triggerGenerationRun(
 			prisma.building.findMany({
 				where: { schoolId },
 				select: { id: true, x: true, y: true },
+			}),
+			prisma.lockedSession.findMany({
+				where: { schoolId, schoolYearId },
+			}),
+			prisma.gradeShiftWindow.findMany({
+				where: { schoolId, schoolYearId },
 			}),
 		]);
 
@@ -134,6 +141,20 @@ export async function triggerGenerationRun(
 				allowFlexibleSubjectAssignment: policyRecord.allowFlexibleSubjectAssignment ?? false,
 				allowConsecutiveLabSessions: policyRecord.allowConsecutiveLabSessions ?? false,
 			},
+			lockedEntries: lockedSessions.map((ls) => ({
+				sectionId: ls.sectionId,
+				subjectId: ls.subjectId,
+				facultyId: ls.facultyId,
+				roomId: ls.roomId,
+				day: ls.day,
+				startTime: ls.startTime,
+				endTime: ls.endTime,
+			})),
+			gradeWindows: gradeWindows.map((gw) => ({
+				gradeLevel: gw.gradeLevel,
+				startTime: gw.startTime,
+				endTime: gw.endTime,
+			})),
 		};
 		const result = constructBaseline(constructorInput);
 
@@ -180,6 +201,7 @@ export async function triggerGenerationRun(
 			policyBlockedCount: result.policyBlockedCount,
 			hardViolationCount: validationResult.violations.filter((v) => v.severity === 'HARD').length,
 			violationCounts: validationResult.counts.byCode,
+			lockWarnings: result.lockWarnings.length > 0 ? result.lockWarnings : undefined,
 		};
 
 		const finishedAt = new Date();

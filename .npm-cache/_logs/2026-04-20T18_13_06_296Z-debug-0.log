@@ -1,0 +1,412 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js
+1 info using npm@11.11.0
+2 info using node@v24.14.1
+3 silly config load:file:C:\Program Files\nodejs\node_modules\npm\npmrc
+4 silly config load:file:D:\ATLAS\.npmrc
+5 silly config load:file:C:\Users\njgro\.npmrc
+6 silly config load:file:C:\Users\njgro\AppData\Roaming\npm\etc\npmrc
+7 verbose title npm install playwright
+8 verbose argv "install" "--save-dev" "playwright"
+9 verbose logfile logs-max:10 dir:D:\ATLAS\.npm-cache\_logs\2026-04-20T18_13_06_296Z-
+10 verbose logfile D:\ATLAS\.npm-cache\_logs\2026-04-20T18_13_06_296Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:4496293888 maxSize:1124073472 maxEntrySize:562036736
+13 silly idealTree buildDeps
+14 silly fetch manifest playwright@*
+15 silly packumentCache full:https://registry.npmjs.org/playwright cache-miss
+16 verbose shrinkwrap failed to load node_modules/.package-lock.json out of date, updated: node_modules/prisma
+17 http fetch GET 200 https://registry.npmjs.org/npm 271ms
+18 http fetch GET 200 https://registry.npmjs.org/playwright 570ms (cache miss)
+19 silly packumentCache full:https://registry.npmjs.org/playwright set size:undefined disposed:false
+20 silly placeDep ROOT playwright@1.59.1 OK for: atlas@1.0.0 want: *
+21 silly fetch manifest playwright-core@1.59.1
+22 silly packumentCache full:https://registry.npmjs.org/playwright-core cache-miss
+23 silly fetch manifest fsevents@2.3.2
+24 silly packumentCache full:https://registry.npmjs.org/fsevents cache-miss
+25 http fetch GET 200 https://registry.npmjs.org/fsevents 53ms (cache miss)
+26 silly packumentCache full:https://registry.npmjs.org/fsevents set size:undefined disposed:false
+27 http fetch GET 200 https://registry.npmjs.org/playwright-core 633ms (cache miss)
+28 silly packumentCache full:https://registry.npmjs.org/playwright-core set size:undefined disposed:false
+29 silly placeDep node_modules/playwright fsevents@2.3.2 OK for: playwright@1.59.1 want: 2.3.2
+30 silly placeDep ROOT playwright-core@1.59.1 OK for: playwright@1.59.1 want: 1.59.1
+31 silly reify moves {}
+32 silly audit bulk request {
+32 silly audit   '@babel/code-frame': [ '7.29.0' ],
+32 silly audit   '@babel/compat-data': [ '7.29.0' ],
+32 silly audit   '@babel/core': [ '7.29.0' ],
+32 silly audit   '@babel/generator': [ '7.29.1' ],
+32 silly audit   '@babel/helper-compilation-targets': [ '7.28.6' ],
+32 silly audit   '@babel/helper-globals': [ '7.28.0' ],
+32 silly audit   '@babel/helper-module-imports': [ '7.28.6' ],
+32 silly audit   '@babel/helper-module-transforms': [ '7.28.6' ],
+32 silly audit   '@babel/helper-plugin-utils': [ '7.28.6' ],
+32 silly audit   '@babel/helper-string-parser': [ '7.27.1' ],
+32 silly audit   '@babel/helper-validator-identifier': [ '7.28.5' ],
+32 silly audit   '@babel/helper-validator-option': [ '7.27.1' ],
+32 silly audit   '@babel/helpers': [ '7.29.2' ],
+32 silly audit   '@babel/parser': [ '7.29.2' ],
+32 silly audit   '@babel/plugin-transform-react-jsx-self': [ '7.27.1' ],
+32 silly audit   '@babel/plugin-transform-react-jsx-source': [ '7.27.1' ],
+32 silly audit   '@babel/template': [ '7.28.6' ],
+32 silly audit   '@babel/traverse': [ '7.29.0' ],
+32 silly audit   '@babel/types': [ '7.29.0' ],
+32 silly audit   '@esbuild/aix-ppc64': [ '0.25.12' ],
+32 silly audit   '@esbuild/android-arm': [ '0.25.12' ],
+32 silly audit   '@esbuild/android-arm64': [ '0.25.12' ],
+32 silly audit   '@esbuild/android-x64': [ '0.25.12' ],
+32 silly audit   '@esbuild/darwin-arm64': [ '0.25.12' ],
+32 silly audit   '@esbuild/darwin-x64': [ '0.25.12' ],
+32 silly audit   '@esbuild/freebsd-arm64': [ '0.25.12' ],
+32 silly audit   '@esbuild/freebsd-x64': [ '0.25.12' ],
+32 silly audit   '@esbuild/linux-arm': [ '0.25.12' ],
+32 silly audit   '@esbuild/linux-arm64': [ '0.25.12' ],
+32 silly audit   '@esbuild/linux-ia32': [ '0.25.12' ],
+32 silly audit   '@esbuild/linux-loong64': [ '0.25.12' ],
+32 silly audit   '@esbuild/linux-mips64el': [ '0.25.12' ],
+32 silly audit   '@esbuild/linux-ppc64': [ '0.25.12' ],
+32 silly audit   '@esbuild/linux-riscv64': [ '0.25.12' ],
+32 silly audit   '@esbuild/linux-s390x': [ '0.25.12' ],
+32 silly audit   '@esbuild/linux-x64': [ '0.25.12' ],
+32 silly audit   '@esbuild/netbsd-arm64': [ '0.25.12' ],
+32 silly audit   '@esbuild/netbsd-x64': [ '0.25.12' ],
+32 silly audit   '@esbuild/openbsd-arm64': [ '0.25.12' ],
+32 silly audit   '@esbuild/openbsd-x64': [ '0.25.12' ],
+32 silly audit   '@esbuild/openharmony-arm64': [ '0.25.12' ],
+32 silly audit   '@esbuild/sunos-x64': [ '0.25.12' ],
+32 silly audit   '@esbuild/win32-arm64': [ '0.25.12' ],
+32 silly audit   '@esbuild/win32-ia32': [ '0.25.12' ],
+32 silly audit   '@esbuild/win32-x64': [ '0.25.12' ],
+32 silly audit   '@jridgewell/gen-mapping': [ '0.3.13' ],
+32 silly audit   '@jridgewell/remapping': [ '2.3.5' ],
+32 silly audit   '@jridgewell/resolve-uri': [ '3.1.2' ],
+32 silly audit   '@jridgewell/sourcemap-codec': [ '1.5.5' ],
+32 silly audit   '@jridgewell/trace-mapping': [ '0.3.31' ],
+32 silly audit   '@prisma/client': [ '6.19.2' ],
+32 silly audit   '@prisma/config': [ '6.19.2' ],
+32 silly audit   '@prisma/debug': [ '6.19.2' ],
+32 silly audit   '@prisma/engines': [ '6.19.2' ],
+32 silly audit   '@prisma/engines-version': [ '7.1.1-3.c2990dca591cba766e3b7ef5d9e8a84796e47ab7' ],
+32 silly audit   '@prisma/fetch-engine': [ '6.19.2' ],
+32 silly audit   '@prisma/get-platform': [ '6.19.2' ],
+32 silly audit   '@rolldown/pluginutils': [ '1.0.0-beta.38' ],
+32 silly audit   '@rollup/rollup-android-arm-eabi': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-android-arm64': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-darwin-arm64': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-darwin-x64': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-freebsd-arm64': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-freebsd-x64': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-linux-arm-gnueabihf': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-linux-arm-musleabihf': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-linux-arm64-gnu': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-linux-arm64-musl': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-linux-loong64-gnu': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-linux-loong64-musl': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-linux-ppc64-gnu': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-linux-ppc64-musl': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-linux-riscv64-gnu': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-linux-riscv64-musl': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-linux-s390x-gnu': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-linux-x64-gnu': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-linux-x64-musl': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-openbsd-x64': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-openharmony-arm64': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-win32-arm64-msvc': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-win32-ia32-msvc': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-win32-x64-gnu': [ '4.60.1' ],
+32 silly audit   '@rollup/rollup-win32-x64-msvc': [ '4.60.1' ],
+32 silly audit   '@standard-schema/spec': [ '1.1.0' ],
+32 silly audit   '@types/babel__core': [ '7.20.5' ],
+32 silly audit   '@types/babel__generator': [ '7.27.0' ],
+32 silly audit   '@types/babel__template': [ '7.4.4' ],
+32 silly audit   '@types/babel__traverse': [ '7.28.0' ],
+32 silly audit   '@types/estree': [ '1.0.8' ],
+32 silly audit   '@types/react': [ '19.2.14' ],
+32 silly audit   '@types/react-reconciler': [ '0.33.0', '0.28.9' ],
+32 silly audit   '@vitejs/plugin-react': [ '5.0.4' ],
+32 silly audit   accepts: [ '2.0.0' ],
+32 silly audit   'ansi-regex': [ '5.0.1' ],
+32 silly audit   'ansi-styles': [ '4.3.0' ],
+32 silly audit   anymatch: [ '3.1.3' ],
+32 silly audit   autoprefixer: [ '10.4.27' ],
+32 silly audit   'balanced-match': [ '4.0.4' ],
+32 silly audit   'baseline-browser-mapping': [ '2.10.12' ],
+32 silly audit   'binary-extensions': [ '2.3.0' ],
+32 silly audit   'body-parser': [ '2.2.2' ],
+32 silly audit   'brace-expansion': [ '5.0.5' ],
+32 silly audit   braces: [ '3.0.3' ],
+32 silly audit   browserslist: [ '4.28.1' ],
+32 silly audit   bytes: [ '3.1.2' ],
+32 silly audit   c12: [ '3.1.0' ],
+32 silly audit   chokidar: [ '4.0.3', '3.6.0' ],
+32 silly audit   dotenv: [ '16.6.1', '17.3.1' ],
+32 silly audit   readdirp: [ '4.1.2', '3.6.0' ],
+32 silly audit   'call-bind-apply-helpers': [ '1.0.2' ],
+32 silly audit   'call-bound': [ '1.0.4' ],
+32 silly audit   'caniuse-lite': [ '1.0.30001782' ],
+32 silly audit   chalk: [ '4.1.2' ],
+32 silly audit   'supports-color': [ '7.2.0', '5.5.0', '8.1.1' ],
+32 silly audit   citty: [ '0.1.6', '0.2.1' ],
+32 silly audit   cliui: [ '8.0.1' ],
+32 silly audit   'color-convert': [ '2.0.1' ],
+32 silly audit   'color-name': [ '1.1.4' ],
+32 silly audit   concurrently: [ '9.2.1' ],
+32 silly audit   confbox: [ '0.2.4' ],
+32 silly audit   consola: [ '3.4.2' ],
+32 silly audit   'content-disposition': [ '1.0.1' ],
+32 silly audit   'content-type': [ '1.0.5' ],
+32 silly audit   'convert-source-map': [ '2.0.0' ],
+32 silly audit   cookie: [ '0.7.2' ],
+32 silly audit   'cookie-signature': [ '1.2.2' ],
+32 silly audit   cors: [ '2.8.6' ],
+32 silly audit   csstype: [ '3.2.3' ],
+32 silly audit   debug: [ '4.4.3' ],
+32 silly audit   'deepmerge-ts': [ '7.1.5' ],
+32 silly audit   defu: [ '6.1.4' ],
+32 silly audit   depd: [ '2.0.0' ],
+32 silly audit   destr: [ '2.0.5' ],
+32 silly audit   'dunder-proto': [ '1.0.1' ],
+32 silly audit   'ee-first': [ '1.1.1' ],
+32 silly audit   effect: [ '3.18.4' ],
+32 silly audit   'electron-to-chromium': [ '1.5.328' ],
+32 silly audit   'emoji-regex': [ '8.0.0' ],
+32 silly audit   empathic: [ '2.0.0' ],
+32 silly audit   encodeurl: [ '2.0.0' ],
+32 silly audit   'es-define-property': [ '1.0.1' ],
+32 silly audit   'es-errors': [ '1.3.0' ],
+32 silly audit   'es-object-atoms': [ '1.1.1' ],
+32 silly audit   esbuild: [ '0.25.12' ],
+32 silly audit   escalade: [ '3.2.0' ],
+32 silly audit   'escape-html': [ '1.0.3' ],
+32 silly audit   etag: [ '1.8.1' ],
+32 silly audit   express: [ '5.2.1' ],
+32 silly audit   exsolve: [ '1.0.8' ],
+32 silly audit   'fast-check': [ '3.23.2' ],
+32 silly audit   'fill-range': [ '7.1.1' ],
+32 silly audit   finalhandler: [ '2.1.1' ],
+32 silly audit   forwarded: [ '0.2.0' ],
+32 silly audit   'fraction.js': [ '5.3.4' ],
+32 silly audit   fresh: [ '2.0.0' ],
+32 silly audit   fsevents: [ '2.3.3', '2.3.2' ],
+32 silly audit   'function-bind': [ '1.1.2' ],
+32 silly audit   gensync: [ '1.0.0-beta.2' ],
+32 silly audit   'get-caller-file': [ '2.0.5' ],
+32 silly audit   'get-intrinsic': [ '1.3.0' ],
+32 silly audit   'get-proto': [ '1.0.1' ],
+32 silly audit   giget: [ '2.0.0' ],
+32 silly audit   'glob-parent': [ '5.1.2' ],
+32 silly audit   gopd: [ '1.2.0' ],
+32 silly audit   'has-flag': [ '4.0.0', '3.0.0' ],
+32 silly audit   'has-symbols': [ '1.1.0' ],
+32 silly audit   hasown: [ '2.0.2' ],
+32 silly audit   'http-errors': [ '2.0.1' ],
+32 silly audit   'iconv-lite': [ '0.7.2' ],
+32 silly audit   'ignore-by-default': [ '1.0.1' ],
+32 silly audit   inherits: [ '2.0.4' ],
+32 silly audit   'ipaddr.js': [ '1.9.1' ],
+32 silly audit   'is-binary-path': [ '2.1.0' ],
+32 silly audit   'is-extglob': [ '2.1.1' ],
+32 silly audit   'is-fullwidth-code-point': [ '3.0.0' ],
+32 silly audit   'is-glob': [ '4.0.3' ],
+32 silly audit   'is-number': [ '7.0.0' ],
+32 silly audit   'is-promise': [ '4.0.0' ],
+32 silly audit   'its-fine': [ '2.0.0' ],
+32 silly audit   jiti: [ '2.6.1' ],
+32 silly audit   'js-tokens': [ '4.0.0' ],
+32 silly audit   jsesc: [ '3.1.0' ],
+32 silly audit   json5: [ '2.2.3' ],
+32 silly audit   konva: [ '10.2.3' ],
+32 silly audit   'lru-cache': [ '5.1.1' ],
+32 silly audit   'math-intrinsics': [ '1.1.0' ],
+32 silly audit   'media-typer': [ '1.1.0' ],
+32 silly audit   'merge-descriptors': [ '2.0.0' ],
+32 silly audit   'mime-db': [ '1.54.0' ],
+32 silly audit   'mime-types': [ '3.0.2' ],
+32 silly audit   minimatch: [ '10.2.4' ],
+32 silly audit   ms: [ '2.1.3' ],
+32 silly audit   nanoid: [ '3.3.11' ],
+32 silly audit   negotiator: [ '1.0.0' ],
+32 silly audit   'node-fetch-native': [ '1.6.7' ],
+32 silly audit   'node-releases': [ '2.0.36' ],
+32 silly audit   nodemon: [ '3.1.14' ],
+32 silly audit   semver: [ '7.7.4', '6.3.1' ],
+32 silly audit   'normalize-path': [ '3.0.0' ],
+32 silly audit   nypm: [ '0.6.5' ],
+32 silly audit   'object-assign': [ '4.1.1' ],
+32 silly audit   'object-inspect': [ '1.13.4' ],
+32 silly audit   ohash: [ '2.0.11' ],
+32 silly audit   'on-finished': [ '2.4.1' ],
+32 silly audit   once: [ '1.4.0' ],
+32 silly audit   parseurl: [ '1.3.3' ],
+32 silly audit   'path-to-regexp': [ '8.4.0' ],
+32 silly audit   pathe: [ '2.0.3' ],
+32 silly audit   'perfect-debounce': [ '1.0.0' ],
+32 silly audit   pg: [ '8.20.0' ],
+32 silly audit   'pg-cloudflare': [ '1.3.0' ],
+32 silly audit   'pg-connection-string': [ '2.12.0' ],
+32 silly audit   'pg-int8': [ '1.0.1' ],
+32 silly audit   'pg-pool': [ '3.13.0' ],
+32 silly audit   'pg-protocol': [ '1.13.0' ],
+32 silly audit   'pg-types': [ '2.2.0' ],
+32 silly audit   pgpass: [ '1.0.5' ],
+32 silly audit   picocolors: [ '1.1.1' ],
+32 silly audit   picomatch: [ '2.3.2', '4.0.4' ],
+32 silly audit   'pkg-types': [ '2.3.0' ],
+32 silly audit   postcss: [ '8.5.8' ],
+32 silly audit   'postcss-value-parser': [ '4.2.0' ],
+32 silly audit   'postgres-array': [ '2.0.0' ],
+32 silly audit   'postgres-bytea': [ '1.0.1' ],
+32 silly audit   'postgres-date': [ '1.0.7' ],
+32 silly audit   'postgres-interval': [ '1.2.0' ],
+32 silly audit   prisma: [ '6.19.2' ],
+32 silly audit   'proxy-addr': [ '2.0.7' ],
+32 silly audit   'pstree.remy': [ '1.1.8' ],
+32 silly audit   'pure-rand': [ '6.1.0' ],
+32 silly audit   qs: [ '6.15.0' ],
+32 silly audit   'range-parser': [ '1.2.1' ],
+32 silly audit   'raw-body': [ '3.0.2' ],
+32 silly audit   rc9: [ '2.1.2' ],
+32 silly audit   react: [ '19.2.4' ],
+32 silly audit   'react-dom': [ '19.2.4' ],
+32 silly audit   'react-konva': [ '19.2.3' ],
+32 silly audit   'react-reconciler': [ '0.33.0' ],
+32 silly audit   'react-refresh': [ '0.17.0' ],
+32 silly audit   'react-zoom-pan-pinch': [ '3.7.0' ],
+32 silly audit   'require-directory': [ '2.1.1' ],
+32 silly audit   rollup: [ '4.60.1' ],
+32 silly audit   router: [ '2.2.0' ],
+32 silly audit   rxjs: [ '7.8.2' ],
+32 silly audit   'safer-buffer': [ '2.1.2' ],
+32 silly audit   scheduler: [ '0.27.0' ],
+32 silly audit   send: [ '1.2.1' ],
+32 silly audit   'serve-static': [ '2.2.1' ],
+32 silly audit   setprototypeof: [ '1.2.0' ],
+32 silly audit   'shell-quote': [ '1.8.3' ],
+32 silly audit   'side-channel': [ '1.1.0' ],
+32 silly audit   'side-channel-list': [ '1.0.0' ],
+32 silly audit   'side-channel-map': [ '1.0.1' ],
+32 silly audit   'side-channel-weakmap': [ '1.0.2' ],
+32 silly audit   'simple-update-notifier': [ '2.0.0' ],
+32 silly audit   'source-map-js': [ '1.2.1' ],
+32 silly audit   split2: [ '4.2.0' ],
+32 silly audit   statuses: [ '2.0.2' ],
+32 silly audit   'string-width': [ '4.2.3' ],
+32 silly audit   'strip-ansi': [ '6.0.1' ],
+32 silly audit   tailwindcss: [ '4.2.2' ],
+32 silly audit   tinyexec: [ '1.0.4' ],
+32 silly audit   tinyglobby: [ '0.2.15' ],
+32 silly audit   fdir: [ '6.5.0' ],
+32 silly audit   'to-regex-range': [ '5.0.1' ],
+32 silly audit   toidentifier: [ '1.0.1' ],
+32 silly audit   touch: [ '3.1.1' ],
+32 silly audit   'tree-kill': [ '1.2.2' ],
+32 silly audit   tslib: [ '2.8.1' ],
+32 silly audit   'type-is': [ '2.0.1' ],
+32 silly audit   undefsafe: [ '2.0.5' ],
+32 silly audit   unpipe: [ '1.0.0' ],
+32 silly audit   'update-browserslist-db': [ '1.2.3' ],
+32 silly audit   vary: [ '1.1.2' ],
+32 silly audit   vite: [ '6.4.1' ],
+32 silly audit   'wrap-ansi': [ '7.0.0' ],
+32 silly audit   wrappy: [ '1.0.2' ],
+32 silly audit   xtend: [ '4.0.2' ],
+32 silly audit   y18n: [ '5.0.8' ],
+32 silly audit   yallist: [ '3.1.1' ],
+32 silly audit   yargs: [ '17.7.2' ],
+32 silly audit   'yargs-parser': [ '21.1.1' ],
+32 silly audit   playwright: [ '1.59.1' ],
+32 silly audit   'playwright-core': [ '1.59.1' ]
+32 silly audit }
+33 http cache playwright@https://registry.npmjs.org/playwright/-/playwright-1.59.1.tgz 0ms (cache hit)
+34 silly tarball no local data for playwright@https://registry.npmjs.org/playwright/-/playwright-1.59.1.tgz. Extracting by manifest.
+35 http cache playwright-core@https://registry.npmjs.org/playwright-core/-/playwright-core-1.59.1.tgz 0ms (cache hit)
+36 silly tarball no local data for playwright-core@https://registry.npmjs.org/playwright-core/-/playwright-core-1.59.1.tgz. Extracting by manifest.
+37 http fetch POST 200 https://registry.npmjs.org/-/npm/v1/security/advisories/bulk 230ms
+38 silly audit report {
+38 silly audit report   defu: [
+38 silly audit report     {
+38 silly audit report       id: 1116102,
+38 silly audit report       url: 'https://github.com/advisories/GHSA-737v-mqg7-c878',
+38 silly audit report       title: 'defu: Prototype pollution via `__proto__` key in defaults argument',
+38 silly audit report       severity: 'high',
+38 silly audit report       vulnerable_versions: '<=6.1.4',
+38 silly audit report       cwe: [Array],
+38 silly audit report       cvss: [Object]
+38 silly audit report     }
+38 silly audit report   ],
+38 silly audit report   effect: [
+38 silly audit report     {
+38 silly audit report       id: 1115356,
+38 silly audit report       url: 'https://github.com/advisories/GHSA-38f7-945m-qr2g',
+38 silly audit report       title: 'Effect `AsyncLocalStorage` context lost/contaminated inside Effect fibers under concurrent load with RPC',
+38 silly audit report       severity: 'high',
+38 silly audit report       vulnerable_versions: '<3.20.0',
+38 silly audit report       cwe: [Array],
+38 silly audit report       cvss: [Object]
+38 silly audit report     }
+38 silly audit report   ],
+38 silly audit report   vite: [
+38 silly audit report     {
+38 silly audit report       id: 1116229,
+38 silly audit report       url: 'https://github.com/advisories/GHSA-4w7w-66w2-5vf9',
+38 silly audit report       title: 'Vite Vulnerable to Path Traversal in Optimized Deps `.map` Handling',
+38 silly audit report       severity: 'moderate',
+38 silly audit report       vulnerable_versions: '<=6.4.1',
+38 silly audit report       cwe: [Array],
+38 silly audit report       cvss: [Object]
+38 silly audit report     },
+38 silly audit report     {
+38 silly audit report       id: 1116234,
+38 silly audit report       url: 'https://github.com/advisories/GHSA-p9ff-h696-f583',
+38 silly audit report       title: 'Vite Vulnerable to Arbitrary File Read via Vite Dev Server WebSocket',
+38 silly audit report       severity: 'high',
+38 silly audit report       vulnerable_versions: '>=6.0.0 <=6.4.1',
+38 silly audit report       cwe: [Array],
+38 silly audit report       cvss: [Object]
+38 silly audit report     }
+38 silly audit report   ]
+38 silly audit report }
+39 silly packumentCache corgi:https://registry.npmjs.org/defu cache-miss
+40 silly packumentCache corgi:https://registry.npmjs.org/effect cache-miss
+41 silly packumentCache corgi:https://registry.npmjs.org/vite cache-miss
+42 http fetch GET 200 https://registry.npmjs.org/playwright/-/playwright-1.59.1.tgz 313ms (cache miss)
+43 http fetch GET 200 https://registry.npmjs.org/defu 211ms (cache miss)
+44 silly packumentCache corgi:https://registry.npmjs.org/defu set size:undefined disposed:false
+45 http fetch GET 200 https://registry.npmjs.org/vite 272ms (cache miss)
+46 silly packumentCache corgi:https://registry.npmjs.org/vite set size:undefined disposed:false
+47 http fetch GET 200 https://registry.npmjs.org/effect 345ms (cache miss)
+48 silly packumentCache corgi:https://registry.npmjs.org/effect set size:undefined disposed:false
+49 silly packumentCache corgi:https://registry.npmjs.org/c12 cache-miss
+50 silly packumentCache corgi:https://registry.npmjs.org/giget cache-miss
+51 silly packumentCache corgi:https://registry.npmjs.org/rc9 cache-miss
+52 http fetch GET 200 https://registry.npmjs.org/giget 203ms (cache miss)
+53 silly packumentCache corgi:https://registry.npmjs.org/giget set size:undefined disposed:false
+54 http fetch GET 200 https://registry.npmjs.org/c12 211ms (cache miss)
+55 silly packumentCache corgi:https://registry.npmjs.org/c12 set size:undefined disposed:false
+56 http fetch GET 200 https://registry.npmjs.org/rc9 223ms (cache miss)
+57 silly packumentCache corgi:https://registry.npmjs.org/rc9 set size:undefined disposed:false
+58 silly packumentCache corgi:https://registry.npmjs.org/@prisma%2fconfig cache-miss
+59 http fetch GET 200 https://registry.npmjs.org/playwright-core/-/playwright-core-1.59.1.tgz 858ms (cache miss)
+60 http fetch GET 200 https://registry.npmjs.org/@prisma%2fconfig 911ms (cache miss)
+61 silly packumentCache corgi:https://registry.npmjs.org/@prisma%2fconfig set size:undefined disposed:false
+62 silly packumentCache corgi:https://registry.npmjs.org/@vitejs%2fplugin-react cache-miss
+63 http fetch GET 200 https://registry.npmjs.org/@vitejs%2fplugin-react 363ms (cache miss)
+64 silly packumentCache corgi:https://registry.npmjs.org/@vitejs%2fplugin-react set size:undefined disposed:false
+65 silly packumentCache corgi:https://registry.npmjs.org/prisma cache-miss
+66 http fetch GET 200 https://registry.npmjs.org/prisma 895ms (cache miss)
+67 silly packumentCache corgi:https://registry.npmjs.org/prisma set size:undefined disposed:false
+68 silly packumentCache corgi:https://registry.npmjs.org/@prisma%2fclient cache-miss
+69 http fetch GET 200 https://registry.npmjs.org/@prisma%2fclient 2288ms (cache miss)
+70 silly packumentCache corgi:https://registry.npmjs.org/@prisma%2fclient set size:undefined disposed:false
+71 silly ADD node_modules/playwright-core
+72 silly ADD node_modules/playwright
+73 verbose cwd D:\ATLAS
+74 verbose os Windows_NT 10.0.26200
+75 verbose node v24.14.1
+76 verbose npm  v11.11.0
+77 notice
+77 notice New minor version of npm available! 11.11.0 -> 11.12.1
+77 notice Changelog: https://github.com/npm/cli/releases/tag/v11.12.1
+77 notice To update run: npm install -g npm@11.12.1
+77 notice  { force: true, Symbol(proc-log.meta): true }
+78 verbose exit 0
+79 info ok

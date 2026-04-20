@@ -390,3 +390,41 @@ model FollowUpFlag {
   @@index([runId])
   @@map("follow_up_flags")
 }
+
+// ─── Pre-Generation Locked Sessions ───
+
+model LockedSession {
+  id           Int      @id @default(autoincrement())
+  schoolId     Int      @map("school_id")
+  schoolYearId Int      @map("school_year_id")
+  sectionId    Int      @map("section_id")
+  subjectId    Int      @map("subject_id")
+  facultyId    Int?     @map("faculty_id")
+  roomId       Int?     @map("room_id")
+  day          DayOfWeek
+  startTime    String   @map("start_time")
+  endTime      String   @map("end_time")
+  createdBy    Int      @map("created_by")
+  createdAt    DateTime @default(now())
+
+  @@unique([schoolId, schoolYearId, sectionId, subjectId, day, startTime], map: "uq_locked_session")
+  @@index([schoolId, schoolYearId])
+  @@map("locked_sessions")
+}
+
+// ─── Grade Shift Windows ───
+
+model GradeShiftWindow {
+  id           Int      @id @default(autoincrement())
+  schoolId     Int      @map("school_id")
+  schoolYearId Int      @map("school_year_id")
+  gradeLevel   Int      @map("grade_level")
+  startTime    String   @map("start_time")
+  endTime      String   @map("end_time")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([schoolId, schoolYearId, gradeLevel], map: "uq_grade_shift_window")
+  @@index([schoolId, schoolYearId])
+  @@map("grade_shift_windows")
+}

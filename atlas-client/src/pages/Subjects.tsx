@@ -22,7 +22,7 @@ import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
 import { gradeLabel, GRADE_COLORS } from '@/lib/grade-labels';
-import type { RoomType, Subject } from '@/types';
+import type { RoomType, SessionPattern, Subject } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -51,6 +51,18 @@ const ROOM_TYPE_LABELS: Record<RoomType, string> = {
 const ALL_ROOM_TYPES = Object.keys(ROOM_TYPE_LABELS) as RoomType[];
 const GRADE_OPTIONS = [7, 8, 9, 10];
 
+const SESSION_PATTERN_LABELS: Record<SessionPattern, string> = {
+	ANY: 'Any Day',
+	MWF: 'Mon / Wed / Fri',
+	TTH: 'Tue / Thu',
+};
+
+const SESSION_PATTERN_BADGE: Record<SessionPattern, string> = {
+	ANY: 'bg-gray-100 text-gray-600 border-gray-300',
+	MWF: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+	TTH: 'bg-amber-50 text-amber-700 border-amber-200',
+};
+
 type SortField = 'code' | 'name' | 'minMinutesPerWeek' | 'preferredRoomType' | 'gradeLevels';
 type SortDir = 'asc' | 'desc';
 
@@ -58,6 +70,7 @@ type EditState = {
 	id: number;
 	name: string;
 	minMinutesPerWeek: number;
+	sessionPattern: SessionPattern;
 	gradeLevels: number[];
 	interSectionEnabled: boolean;
 	interSectionGradeLevels: number[];
@@ -68,6 +81,7 @@ type NewSubjectForm = {
 	name: string;
 	minMinutesPerWeek: number;
 	preferredRoomType: RoomType;
+	sessionPattern: SessionPattern;
 	gradeLevels: number[];
 	interSectionEnabled: boolean;
 	interSectionGradeLevels: number[];
@@ -78,6 +92,7 @@ const emptyForm: NewSubjectForm = {
 	name: '',
 	minMinutesPerWeek: 45,
 	preferredRoomType: 'CLASSROOM',
+	sessionPattern: 'ANY',
 	gradeLevels: [7, 8, 9, 10],
 	interSectionEnabled: false,
 	interSectionGradeLevels: [],
@@ -224,9 +239,10 @@ export default function Subjects() {
 		if (!editState) return;
 		setSaving(true);
 		try {
-			await atlasApi.patch(`/subjects/${editState.id}`, {
+				await atlasApi.patch(`/subjects/${editState.id}`, {
 				name: editState.name,
 				minMinutesPerWeek: editState.minMinutesPerWeek,
+				sessionPattern: editState.sessionPattern,
 				gradeLevels: editState.gradeLevels,
 				interSectionEnabled: editState.interSectionEnabled,
 				interSectionGradeLevels: editState.interSectionGradeLevels,
@@ -372,7 +388,7 @@ export default function Subjects() {
 					<Card className="shadow-sm border-primary/30">
 						<CardContent className="pt-4">
 							<p className="text-sm font-semibold mb-3">New Custom Subject</p>
-							<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+							<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
 								<div>
 									<label className="text-xs font-medium text-muted-foreground">Code</label>
 									<Input
@@ -425,6 +441,20 @@ export default function Subjects() {
 											))}
 										</SelectContent>
 									</Select>
+								</div>
+								<div>
+									<label className="text-xs font-medium text-muted-foreground mb-1 block">Session Pattern</label>
+									<Select value={newSubject.sessionPattern} onValueChange={(v) => setNewSubject(p => ({ ...p, sessionPattern: v as SessionPattern }))}>
+										<SelectTrigger className="flex h-9 w-full bg-background text-sm shadow-xs">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{(Object.keys(SESSION_PATTERN_LABELS) as SessionPattern[]).map((p) => (
+												<SelectItem key={p} value={p}>{SESSION_PATTERN_LABELS[p]}</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+									<p className="text-[0.6rem] text-muted-foreground mt-1">MWF = Mon/Wed/Fri only · TTH = Tue/Thu only · Any = all days</p>
 								</div>
 							</div>
 							<div className="mt-3">
@@ -492,6 +522,7 @@ export default function Subjects() {
 											Room Pref. <SortIcon field="preferredRoomType" />
 										</button>
 									</th>
+									<th className="px-4 py-2.5 text-left font-semibold text-muted-foreground">Pattern</th>
 									<th className="px-4 py-2.5 text-left">
 										<button onClick={() => toggleSort('gradeLevels')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground">
 											Grades <SortIcon field="gradeLevels" />
@@ -522,8 +553,7 @@ export default function Subjects() {
 											<td className="px-4 py-3"><Skeleton className="h-5 w-16" /></td>
 											<td className="px-4 py-3"><Skeleton className="h-5 w-40" /></td>
 											<td className="px-4 py-3"><Skeleton className="h-5 w-14" /></td>
-											<td className="px-4 py-3"><Skeleton className="h-5 w-24" /></td>
-											<td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
+											<td className="px-4 py-3"><Skeleton className="h-5 w-24" /></td>									<td className="px-4 py-3"><Skeleton className="h-5 w-12" /></td>											<td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
 											<td className="px-4 py-3"><Skeleton className="h-5 w-14" /></td>
 											<td className="px-4 py-3"><Skeleton className="h-5 w-14" /></td>
 											<td className="px-4 py-3"><Skeleton className="h-5 w-16 ml-auto" /></td>
@@ -531,7 +561,7 @@ export default function Subjects() {
 									))
 								) : paged.length === 0 ? (
 									<tr>
-										<td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
+										<td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">
 											{searchQuery || hasActiveFilters ? 'No subjects match your filters.' : 'No subjects configured.'}
 										</td>
 									</tr>
@@ -580,6 +610,24 @@ export default function Subjects() {
 												</td>
 												<td className="px-4 py-3 text-muted-foreground">
 													{ROOM_TYPE_LABELS[s.preferredRoomType] ?? s.preferredRoomType}
+												</td>
+												<td className="px-4 py-3">
+													{isEditing ? (
+														<Select value={editState.sessionPattern} onValueChange={(v) => setEditState((p) => p && { ...p, sessionPattern: v as SessionPattern })}>
+															<SelectTrigger className="h-8 w-[110px] text-xs">
+																<SelectValue />
+															</SelectTrigger>
+															<SelectContent>
+																{(Object.keys(SESSION_PATTERN_LABELS) as SessionPattern[]).map((p) => (
+																	<SelectItem key={p} value={p}>{SESSION_PATTERN_LABELS[p]}</SelectItem>
+																))}
+															</SelectContent>
+														</Select>
+													) : (
+														<Badge variant="outline" className={`text-[0.6rem] px-1.5 py-0 ${SESSION_PATTERN_BADGE[s.sessionPattern ?? 'ANY']}`}>
+															{s.sessionPattern ?? 'ANY'}
+														</Badge>
+													)}
 												</td>
 												<td className="px-4 py-3">
 													{isEditing ? (
@@ -716,6 +764,7 @@ export default function Subjects() {
 																	id: s.id,
 																	name: s.name,
 																	minMinutesPerWeek: s.minMinutesPerWeek,
+																	sessionPattern: s.sessionPattern ?? 'ANY',
 																	gradeLevels: [...s.gradeLevels],
 																	interSectionEnabled: s.interSectionEnabled ?? false,
 																	interSectionGradeLevels: [...(s.interSectionGradeLevels ?? [])],
@@ -740,7 +789,7 @@ export default function Subjects() {
 											{/* Teacher coverage drilldown row */}
 											{expandedSubjectId === s.id && (
 												<tr className="bg-muted/20">
-													<td colSpan={8} className="px-4 py-3">
+													<td colSpan={9} className="px-4 py-3">
 														{coverageLoading ? (
 															<div className="text-xs text-muted-foreground">Loading teacher coverage...</div>
 														) : (teacherCoverage[s.id] ?? []).length > 0 ? (

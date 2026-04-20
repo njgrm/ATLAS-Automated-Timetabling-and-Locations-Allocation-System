@@ -25,6 +25,8 @@ import schedulingPolicyRouter from './routes/scheduling-policy.router.js';
 import roomScheduleRouter from './routes/room-schedule.router.js';
 import followUpFlagRouter from './routes/follow-up-flag.router.js';
 import manualEditRouter from './routes/manual-edit.router.js';
+import lockedSessionRouter from './routes/locked-session.router.js';
+import gradeWindowRouter from './routes/grade-window.router.js';
 
 const app = express();
 
@@ -79,6 +81,8 @@ app.use('/api/v1/policies/scheduling', schedulingPolicyRouter);
 app.use('/api/v1/room-schedules', roomScheduleRouter);
 app.use('/api/v1/follow-up-flags', followUpFlagRouter);
 app.use('/api/v1/generation', manualEditRouter);
+app.use('/api/v1/generation', lockedSessionRouter);
+app.use('/api/v1/generation', gradeWindowRouter);
 
 // Error handler
 app.use(errorHandler);
