@@ -8,12 +8,31 @@ import { constructBaseline } from './schedule-constructor.js';
 import { sectionAdapter } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
-// ─── Helpers ───
-function err(statusCode, code, message) {
+function err(statusCode, code, message, options) {
     const e = new Error(message);
     e.statusCode = statusCode;
     e.code = code;
+    e.actionHint = options?.actionHint;
+    e.details = options?.details;
     return e;
+}
+function extractDraftFacultyIds(draftEntries) {
+    if (!Array.isArray(draftEntries))
+        return [];
+    const facultyIds = draftEntries
+        .map((entry) => (typeof entry === 'object' && entry && 'facultyId' in entry ? entry.facultyId : undefined))
+        .filter((facultyId) => typeof facultyId === 'number' && Number.isInteger(facultyId) && facultyId > 0);
+    return [...new Set(facultyIds)];
+}
+async function getActiveFacultyMirrorIdSet(schoolId) {
+    const faculty = await prisma.facultyMirror.findMany({
+        where: { schoolId, isActiveForScheduling: true, isStale: false },
+        select: { id: true },
+    });
+    return new Set(faculty.map((member) => member.id));
+}
+function getStaleFacultyIdsForRun(run, activeFacultyIds) {
+    return extractDraftFacultyIds(run.draftEntries).filter((facultyId) => !activeFacultyIds.has(facultyId));
 }
 // ─── Trigger ───
 export async function triggerGenerationRun(schoolId, schoolYearId, actorId) {
@@ -283,6 +302,49 @@ export async function getLatestRun(schoolId, schoolYearId) {
     if (!run)
         throw err(404, 'NO_RUNS', 'No completed generation runs found for this school/year.');
     return run;
+}
+export async function getLatestValidRun(schoolId, schoolYearId) {
+    const [runs, activeFacultyIds] = await Promise.all([
+        prisma.generationRun.findMany({
+            where: { schoolId, schoolYearId, status: 'COMPLETED' },
+            orderBy: { createdAt: 'desc' },
+        }),
+        getActiveFacultyMirrorIdSet(schoolId),
+    ]);
+    if (runs.length === 0) {
+        throw err(404, 'NO_RUNS', 'No completed generation runs found for this school/year.');
+    }
+    for (const run of runs) {
+        if (getStaleFacultyIdsForRun(run, activeFacultyIds).length === 0) {
+            return run;
+        }
+    }
+    const latestRun = runs[0];
+    const staleFacultyIds = getStaleFacultyIdsForRun(latestRun, activeFacultyIds);
+    throw err(409, 'STALE_RUN_DATA', 'Latest completed timetable run references stale faculty assignments. Generate a fresh run after faculty sync before using room preferences.', {
+        actionHint: 'Trigger a new timetable generation run after mirror reseed or faculty sync so draft entries bind to current faculty_mirrors IDs.',
+        details: { latestRunId: latestRun.id, staleFacultyIds },
+    });
+}
+export async function assertLatestRunIsCurrent(schoolId, schoolYearId) {
+    const [latestRun, activeFacultyIds] = await Promise.all([
+        prisma.generationRun.findFirst({
+            where: { schoolId, schoolYearId, status: 'COMPLETED' },
+            orderBy: { createdAt: 'desc' },
+        }),
+        getActiveFacultyMirrorIdSet(schoolId),
+    ]);
+    if (!latestRun) {
+        throw err(404, 'NO_RUNS', 'No completed generation runs found for this school/year.');
+    }
+    const staleFacultyIds = getStaleFacultyIdsForRun(latestRun, activeFacultyIds);
+    if (staleFacultyIds.length > 0) {
+        throw err(409, 'STALE_RUN_DATA', 'Latest completed timetable run references stale faculty assignments. Generate a fresh run after faculty sync before using room preferences.', {
+            actionHint: 'Trigger a new timetable generation run after mirror reseed or faculty sync so draft entries bind to current faculty_mirrors IDs.',
+            details: { latestRunId: latestRun.id, staleFacultyIds },
+        });
+    }
+    return latestRun;
 }
 export async function listRuns(schoolId, schoolYearId, limit = 20) {
     return prisma.generationRun.findMany({

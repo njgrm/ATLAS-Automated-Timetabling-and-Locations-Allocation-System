@@ -19,11 +19,45 @@ import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-polic
 
 // ─── Helpers ───
 
-function err(statusCode: number, code: string, message: string): Error & { statusCode: number; code: string } {
-	const e = new Error(message) as Error & { statusCode: number; code: string };
+type ServiceError = Error & {
+	statusCode: number;
+	code: string;
+	actionHint?: string;
+	details?: Record<string, unknown>;
+};
+
+function err(
+	statusCode: number,
+	code: string,
+	message: string,
+	options?: { actionHint?: string; details?: Record<string, unknown> },
+): ServiceError {
+	const e = new Error(message) as ServiceError;
 	e.statusCode = statusCode;
 	e.code = code;
+	e.actionHint = options?.actionHint;
+	e.details = options?.details;
 	return e;
+}
+
+function extractDraftFacultyIds(draftEntries: unknown): number[] {
+	if (!Array.isArray(draftEntries)) return [];
+	const facultyIds = draftEntries
+		.map((entry) => (typeof entry === 'object' && entry && 'facultyId' in entry ? (entry as { facultyId?: unknown }).facultyId : undefined))
+		.filter((facultyId): facultyId is number => typeof facultyId === 'number' && Number.isInteger(facultyId) && facultyId > 0);
+	return [...new Set(facultyIds)];
+}
+
+async function getActiveFacultyMirrorIdSet(schoolId: number): Promise<Set<number>> {
+	const faculty = await prisma.facultyMirror.findMany({
+		where: { schoolId, isActiveForScheduling: true, isStale: false },
+		select: { id: true },
+	});
+	return new Set(faculty.map((member) => member.id));
+}
+
+function getStaleFacultyIdsForRun(run: { draftEntries: unknown }, activeFacultyIds: Set<number>): number[] {
+	return extractDraftFacultyIds(run.draftEntries).filter((facultyId) => !activeFacultyIds.has(facultyId));
 }
 
 // ─── Types ───
@@ -329,6 +363,67 @@ export async function getLatestRun(schoolId: number, schoolYearId: number) {
 	});
 	if (!run) throw err(404, 'NO_RUNS', 'No completed generation runs found for this school/year.');
 	return run;
+}
+
+export async function getLatestValidRun(schoolId: number, schoolYearId: number) {
+	const [runs, activeFacultyIds] = await Promise.all([
+		prisma.generationRun.findMany({
+			where: { schoolId, schoolYearId, status: 'COMPLETED' },
+			orderBy: { createdAt: 'desc' },
+		}),
+		getActiveFacultyMirrorIdSet(schoolId),
+	]);
+
+	if (runs.length === 0) {
+		throw err(404, 'NO_RUNS', 'No completed generation runs found for this school/year.');
+	}
+
+	for (const run of runs) {
+		if (getStaleFacultyIdsForRun(run, activeFacultyIds).length === 0) {
+			return run;
+		}
+	}
+
+	const latestRun = runs[0];
+	const staleFacultyIds = getStaleFacultyIdsForRun(latestRun, activeFacultyIds);
+	throw err(
+		409,
+		'STALE_RUN_DATA',
+		'Latest completed timetable run references stale faculty assignments. Generate a fresh run after faculty sync before using room preferences.',
+		{
+			actionHint: 'Trigger a new timetable generation run after mirror reseed or faculty sync so draft entries bind to current faculty_mirrors IDs.',
+			details: { latestRunId: latestRun.id, staleFacultyIds },
+		},
+	);
+}
+
+export async function assertLatestRunIsCurrent(schoolId: number, schoolYearId: number) {
+	const [latestRun, activeFacultyIds] = await Promise.all([
+		prisma.generationRun.findFirst({
+			where: { schoolId, schoolYearId, status: 'COMPLETED' },
+			orderBy: { createdAt: 'desc' },
+		}),
+		getActiveFacultyMirrorIdSet(schoolId),
+	]);
+
+	if (!latestRun) {
+		throw err(404, 'NO_RUNS', 'No completed generation runs found for this school/year.');
+	}
+
+	const staleFacultyIds = getStaleFacultyIdsForRun(latestRun, activeFacultyIds);
+	if (staleFacultyIds.length > 0) {
+		throw err(
+			409,
+			'STALE_RUN_DATA',
+			'Latest completed timetable run references stale faculty assignments. Generate a fresh run after faculty sync before using room preferences.',
+			{
+				actionHint: 'Trigger a new timetable generation run after mirror reseed or faculty sync so draft entries bind to current faculty_mirrors IDs.',
+				details: { latestRunId: latestRun.id, staleFacultyIds },
+			},
+		);
+	}
+
+	return latestRun;
 }
 
 export async function listRuns(schoolId: number, schoolYearId: number, limit: number = 20) {

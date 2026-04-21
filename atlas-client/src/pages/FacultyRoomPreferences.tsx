@@ -214,8 +214,11 @@ export default function FacultyRoomPreferences() {
 			applyServerState(roomState.data);
 			setError(null);
 		} catch (err) {
-			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-			setError(message ?? 'No completed timetable run is available for room requests yet.');
+			const responseData = (err as { response?: { data?: { code?: string; message?: string; actionHint?: string } } })?.response?.data;
+			const staleMessage = responseData?.code === 'STALE_RUN_DATA'
+				? [responseData.message, responseData.actionHint].filter(Boolean).join(' ')
+				: null;
+			setError(staleMessage ?? responseData?.message ?? 'No completed timetable run is available for room requests yet.');
 		} finally {
 			setLoading(false);
 		}

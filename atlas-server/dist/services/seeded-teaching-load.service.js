@@ -33,17 +33,26 @@ const DEPARTMENT_ALIASES = {
     tleb: 'technology and livelihood education',
     tle: 'technology and livelihood education',
 };
+function escapeRegExp(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+function containsTerm(haystack, needle) {
+    if (!needle.includes(' ')) {
+        return new RegExp(`(^|[^a-z0-9])${escapeRegExp(needle)}([^a-z0-9]|$)`, 'i').test(haystack);
+    }
+    return haystack.includes(needle);
+}
 function normalizeDepartment(department) {
     const lowered = department?.trim().toLowerCase() ?? '';
     if (!lowered)
         return null;
     for (const [alias, canonical] of Object.entries(DEPARTMENT_ALIASES)) {
-        if (lowered.includes(alias)) {
+        if (containsTerm(lowered, alias)) {
             return canonical;
         }
     }
     for (const key of Object.keys(JHS_DEPT_KEYWORDS)) {
-        if (lowered.includes(key)) {
+        if (containsTerm(lowered, key)) {
             return key;
         }
     }
@@ -65,6 +74,15 @@ function matchesFacultySubject(department, subject) {
     const name = subject.name.trim().toLowerCase();
     const keywords = JHS_DEPT_KEYWORDS[normalizedDepartment] ?? [];
     return keywords.some((keyword) => code.includes(keyword) || name.includes(keyword));
+}
+function supportsSecondaryCoverage(department, subject) {
+    const normalizedDepartment = normalizeDepartment(department);
+    if (normalizedDepartment !== 'homeroom guidance') {
+        return false;
+    }
+    const code = subject.code.trim().toLowerCase();
+    const name = subject.name.trim().toLowerCase();
+    return code === 've' || name.includes('values education');
 }
 function subjectSort(left, right) {
     const leftPriority = SUBJECT_PRIORITY.get(left.code) ?? 99;
@@ -157,8 +175,9 @@ function buildPairDefinitions(sections, subjects, faculty) {
             }
             else {
                 const direct = faculty.filter((member) => matchesFacultySubject(member.department, subject)).map((member) => member.id);
-                candidateIds = direct.length > 0
-                    ? direct
+                const secondary = faculty.filter((member) => supportsSecondaryCoverage(member.department, subject)).map((member) => member.id);
+                candidateIds = direct.length > 0 || secondary.length > 0
+                    ? [...new Set([...direct, ...secondary])]
                     : faculty.filter((member) => member.canTeachOutsideDepartment).map((member) => member.id);
             }
             pairDefinitions.push({

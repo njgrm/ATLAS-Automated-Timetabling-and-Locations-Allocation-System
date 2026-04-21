@@ -79,6 +79,26 @@ Record dated implementation verification summaries here.
 - Decision:
   - Needs fixes
 
+### 2026-04-21 - Wave 4.2 Blocker Closeout (Fresh Run + Stale-Run Guard + Browser QA)
+- Phase: 4
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npm --prefix atlas-server run build`: PASS
+  - `npm --prefix atlas-client run build`: PASS
+  - Scripted generation trigger against current mirrors: PASS (`generation_runs.id = 52`, `status=COMPLETED`, `draftEntryCount=2521`)
+  - Targeted Prisma probe against `generation_runs.id = 52`: PASS (`distinctFacultyIdsInDraft=146`, `matchingCurrentFacultyMirrors=146`)
+- API checks:
+  - Latest room-preference bootstrap now rejects stale latest runs with `STALE_RUN_DATA`, `actionHint`, and structured error details instead of silently binding to orphaned faculty mirror IDs: PASS
+  - Latest completed run regenerated after mirror reseed and now binds fully to current active `faculty_mirrors`: PASS
+- UI checks:
+  - `/my/room-preferences` under a faculty bridge token loaded `Run #52` with `26 assigned sessions`, saved one draft room request, and submitted it successfully: PASS
+  - `/faculty/room-preferences` under an officer bridge token loaded the submitted request in the queue, opened the review sheet, and completed the decision flow with `Approve` correctly disabled for a disallowed preview and `Reject` completing successfully: PASS
+- Decision:
+  - Accepted
+
 ### 2026-04-21 - Wave 3.5.3 Cross-Repo Source Gate + Wave 4.0 Review Hardening
 - Phase: 4 (user-approved cross-phase hardening)
 - Scope gate: PASS

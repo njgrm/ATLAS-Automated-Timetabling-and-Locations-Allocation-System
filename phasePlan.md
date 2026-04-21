@@ -109,6 +109,7 @@ It defines phase scope, acceptance gates, and the current progress state.
   - Batch 1: Review Console UI foundation (ScheduleReview page, three-panel layout, run/violation/draft consumption, filter/highlight/triage UX)
   - Cross-repo hardening batch: EnrollPro build repair, authoritative contract locking for teachers/sections/cohorts, automated live-plus-cached source gate, cohort-aware review explanation hardening, and adviser-backed homeroom hints in Teaching Load
   - Wave 4.1 precision gate: section-scoped teaching load persistence, school-year/version-guarded assignment APIs, section-aware generation/manual-edit qualification, and session-visible pending ownership in Teaching Load
+  - Wave 4.2 closeout: room-preference request workflow hardened with stale-run guards, regenerated latest run ownership, and passing faculty/officer browser QA on `/my/room-preferences` and `/faculty/room-preferences`
 - **Exit criteria**
   - Officer can resolve review findings and revalidate hard constraints
   - Conflicts are blocked from publish path until cleared

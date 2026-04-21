@@ -131,6 +131,12 @@
 - Added focused regression coverage in `qa-artifacts/wave4-teaching-load-precision.test.ts` and updated the existing Phase 4 cohort review fixtures for the new section-aware contracts.
 - Local verification included standard Prisma client regeneration, server/client builds, both Phase 4 regression suites, confirmation that the new migration was already applied locally, and live browser QA of the Teaching Load workflow with an EnrollPro admin bridge session.
 
+## Wave 4.2 — Room Preference Request Workflow Closeout (2026-04-21)
+- Added latest-run stale-data validation in the generation service so room-preference latest bootstraps fail explicitly with `STALE_RUN_DATA` when the newest completed draft no longer maps to current active `faculty_mirrors`.
+- Extended the shared server error envelope and both room-preference pages so stale-run failures surface an operator action hint instead of a generic load error.
+- Regenerated the latest completed draft after the mirror reseed, producing `Run #52` with `2521` draft entries and `146/146` draft faculty IDs matching current active faculty mirrors.
+- Live browser QA passed on both room-request portals: the faculty page loaded non-empty assigned sessions, saved a draft request, and submitted it; the officer page loaded the submitted request, opened the review preview, and completed the review path with the correct disabled-approve guard and successful rejection action.
+
 ## Exit Criteria
 - Officer can resolve findings and revalidate
 - Publish path is blocked while hard violations remain

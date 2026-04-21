@@ -125,7 +125,7 @@ function assertLiveSummary(summary) {
     if (summary.cohorts.source !== 'enrollpro') {
         throw new Error(`Expected live cohorts source=enrollpro, got ${summary.cohorts.source}.`);
     }
-    if (summary.faculty.activeCount !== 154) {
+    if (summary.faculty.activeCount !== 146) {
         throw new Error(`Expected 146 active faculty, got ${summary.faculty.activeCount}.`);
     }
     if (summary.faculty.mtbFacultyCount !== 0) {

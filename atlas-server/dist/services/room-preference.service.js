@@ -156,7 +156,7 @@ export async function getFacultyRoomPreferenceState(schoolId, schoolYearId, runI
     };
 }
 export async function getLatestFacultyRoomPreferenceState(schoolId, schoolYearId, facultyId) {
-    const run = await generationService.getLatestRun(schoolId, schoolYearId);
+    const run = await generationService.assertLatestRunIsCurrent(schoolId, schoolYearId);
     return getFacultyRoomPreferenceState(schoolId, schoolYearId, run.id, facultyId);
 }
 async function upsertRoomPreference(input, status) {
@@ -365,7 +365,7 @@ export async function getRoomPreferenceSummary(schoolId, schoolYearId, runId, fi
     };
 }
 export async function getLatestRoomPreferenceSummary(schoolId, schoolYearId, filters) {
-    const run = await generationService.getLatestRun(schoolId, schoolYearId);
+    const run = await generationService.assertLatestRunIsCurrent(schoolId, schoolYearId);
     return getRoomPreferenceSummary(schoolId, schoolYearId, run.id, filters);
 }
 export async function getRoomPreferenceDetail(schoolId, schoolYearId, runId, requestId) {

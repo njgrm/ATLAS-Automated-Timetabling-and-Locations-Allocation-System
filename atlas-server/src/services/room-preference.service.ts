@@ -309,7 +309,7 @@ export async function getLatestFacultyRoomPreferenceState(
 	schoolYearId: number,
 	facultyId: number,
 ) {
-	const run = await generationService.getLatestRun(schoolId, schoolYearId);
+	const run = await generationService.assertLatestRunIsCurrent(schoolId, schoolYearId);
 	return getFacultyRoomPreferenceState(schoolId, schoolYearId, run.id, facultyId);
 }
 
@@ -568,7 +568,7 @@ export async function getLatestRoomPreferenceSummary(
 		requestedRoomId?: number;
 	},
 ) {
-	const run = await generationService.getLatestRun(schoolId, schoolYearId);
+	const run = await generationService.assertLatestRunIsCurrent(schoolId, schoolYearId);
 	return getRoomPreferenceSummary(schoolId, schoolYearId, run.id, filters);
 }
 

@@ -3,6 +3,8 @@ import type { Request, Response, NextFunction } from 'express';
 interface ServiceError extends Error {
 	statusCode?: number;
 	code?: string;
+	actionHint?: string;
+	details?: Record<string, unknown>;
 }
 
 export function errorHandler(err: ServiceError, req: Request, res: Response, _next: NextFunction): void {
@@ -17,5 +19,10 @@ export function errorHandler(err: ServiceError, req: Request, res: Response, _ne
 		}
 	}
 
-	res.status(statusCode).json({ code, message: err.message || 'An internal server error occurred.' });
+	res.status(statusCode).json({
+		code,
+		message: err.message || 'An internal server error occurred.',
+		...(err.actionHint ? { actionHint: err.actionHint } : {}),
+		...(err.details ? { details: err.details } : {}),
+	});
 }

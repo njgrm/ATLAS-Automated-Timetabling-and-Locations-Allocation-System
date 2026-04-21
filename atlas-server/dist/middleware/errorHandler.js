@@ -8,6 +8,11 @@ export function errorHandler(err, req, res, _next) {
             console.error(err.stack);
         }
     }
-    res.status(statusCode).json({ code, message: err.message || 'An internal server error occurred.' });
+    res.status(statusCode).json({
+        code,
+        message: err.message || 'An internal server error occurred.',
+        ...(err.actionHint ? { actionHint: err.actionHint } : {}),
+        ...(err.details ? { details: err.details } : {}),
+    });
 }
 //# sourceMappingURL=errorHandler.js.map
