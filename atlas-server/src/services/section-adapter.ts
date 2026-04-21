@@ -1,9 +1,16 @@
 /**
  * Section adapter interface and implementations.
- * Mirrors the faculty-adapter pattern: EnrollPro adapter (default) with stub fallback.
+ * Wave 3.5: Special program support + durable cache.
  *
  * Source metadata is always returned so callers can surface live vs fallback state.
  */
+
+import { prisma } from '../lib/prisma.js';
+import crypto from 'crypto';
+
+// ─── Types ───
+
+export type ProgramType = 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'OTHER';
 
 export interface ExternalSection {
 	id: number;
@@ -12,6 +19,13 @@ export interface ExternalSection {
 	enrolledCount: number;
 	gradeLevelId: number;
 	gradeLevelName: string;
+	// Wave 3.5: Special program fields
+	programType?: ProgramType;
+	programCode?: string | null;
+	programName?: string | null;
+	admissionMode?: string | null;
+	adviserId?: number | null;
+	adviserName?: string | null;
 }
 
 export interface SectionsByGrade {
@@ -21,12 +35,14 @@ export interface SectionsByGrade {
 	sections: ExternalSection[];
 }
 
-export type SectionSourceLabel = 'enrollpro' | 'stub' | 'auto-fallback';
+export type SectionSourceLabel = 'enrollpro' | 'stub' | 'cached-enrollpro' | 'auto-fallback';
 
 export interface SectionFetchResult {
 	gradeLevels: SectionsByGrade[];
 	source: SectionSourceLabel;
+	fetchedAt: Date;
 	fallbackReason?: string;
+	isStale?: boolean;
 }
 
 export interface SectionSummary {
@@ -38,11 +54,54 @@ export interface SectionSummary {
 	enrolledByGradeLevel: Record<number, number>;
 	sections: ExternalSection[];
 	source: SectionSourceLabel;
+	fetchedAt: Date | null;
+	isStale: boolean;
 	fallbackReason?: string;
 }
 
 export interface SectionAdapter {
 	fetchSectionsBySchoolYear(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionFetchResult>;
+}
+
+// ─── Cache helpers ───
+
+function computeChecksum(payload: unknown): string {
+	return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+}
+
+async function saveSectionSnapshot(schoolId: number, schoolYearId: number, data: SectionFetchResult): Promise<void> {
+	const checksum = computeChecksum(data.gradeLevels);
+	await prisma.sectionSnapshot.upsert({
+		where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+		update: {
+			payload: data.gradeLevels as any,
+			source: data.source,
+			fetchedAt: data.fetchedAt,
+			checksum,
+		},
+		create: {
+			schoolId,
+			schoolYearId,
+			payload: data.gradeLevels as any,
+			source: data.source,
+			fetchedAt: data.fetchedAt,
+			checksum,
+		},
+	});
+}
+
+async function loadSectionSnapshot(schoolId: number, schoolYearId: number): Promise<{
+	gradeLevels: SectionsByGrade[];
+	fetchedAt: Date;
+} | null> {
+	const snapshot = await prisma.sectionSnapshot.findUnique({
+		where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+	});
+	if (!snapshot) return null;
+	return {
+		gradeLevels: snapshot.payload as unknown as SectionsByGrade[],
+		fetchedAt: snapshot.fetchedAt,
+	};
 }
 
 /* ─── Stub adapter ─── */
@@ -51,31 +110,31 @@ const STUB_SECTIONS: SectionsByGrade[] = [
 	{
 		gradeLevelId: 1, gradeLevelName: 'Grade 7', displayOrder: 7,
 		sections: [
-			{ id: 1, name: '7-Rizal', maxCapacity: 40, enrolledCount: 35, gradeLevelId: 1, gradeLevelName: 'Grade 7' },
-			{ id: 2, name: '7-Bonifacio', maxCapacity: 40, enrolledCount: 32, gradeLevelId: 1, gradeLevelName: 'Grade 7' },
-			{ id: 3, name: '7-Mabini', maxCapacity: 40, enrolledCount: 38, gradeLevelId: 1, gradeLevelName: 'Grade 7' },
+			{ id: 1, name: '7-Rizal', maxCapacity: 40, enrolledCount: 35, gradeLevelId: 1, gradeLevelName: 'Grade 7', programType: 'REGULAR' },
+			{ id: 2, name: '7-Bonifacio', maxCapacity: 40, enrolledCount: 32, gradeLevelId: 1, gradeLevelName: 'Grade 7', programType: 'REGULAR' },
+			{ id: 3, name: '7-STE', maxCapacity: 40, enrolledCount: 38, gradeLevelId: 1, gradeLevelName: 'Grade 7', programType: 'STE', programCode: 'STE', programName: 'Science, Technology, and Engineering' },
 		],
 	},
 	{
 		gradeLevelId: 2, gradeLevelName: 'Grade 8', displayOrder: 8,
 		sections: [
-			{ id: 4, name: '8-Aquino', maxCapacity: 40, enrolledCount: 30, gradeLevelId: 2, gradeLevelName: 'Grade 8' },
-			{ id: 5, name: '8-Quezon', maxCapacity: 40, enrolledCount: 36, gradeLevelId: 2, gradeLevelName: 'Grade 8' },
-			{ id: 6, name: '8-Osmena', maxCapacity: 40, enrolledCount: 33, gradeLevelId: 2, gradeLevelName: 'Grade 8' },
+			{ id: 4, name: '8-Aquino', maxCapacity: 40, enrolledCount: 30, gradeLevelId: 2, gradeLevelName: 'Grade 8', programType: 'REGULAR' },
+			{ id: 5, name: '8-Quezon', maxCapacity: 40, enrolledCount: 36, gradeLevelId: 2, gradeLevelName: 'Grade 8', programType: 'REGULAR' },
+			{ id: 6, name: '8-STE', maxCapacity: 40, enrolledCount: 33, gradeLevelId: 2, gradeLevelName: 'Grade 8', programType: 'STE', programCode: 'STE', programName: 'Science, Technology, and Engineering' },
 		],
 	},
 	{
 		gradeLevelId: 3, gradeLevelName: 'Grade 9', displayOrder: 9,
 		sections: [
-			{ id: 7, name: '9-Luna', maxCapacity: 40, enrolledCount: 28, gradeLevelId: 3, gradeLevelName: 'Grade 9' },
-			{ id: 8, name: '9-Del Pilar', maxCapacity: 40, enrolledCount: 37, gradeLevelId: 3, gradeLevelName: 'Grade 9' },
+			{ id: 7, name: '9-Luna', maxCapacity: 40, enrolledCount: 28, gradeLevelId: 3, gradeLevelName: 'Grade 9', programType: 'REGULAR' },
+			{ id: 8, name: '9-SPS', maxCapacity: 40, enrolledCount: 37, gradeLevelId: 3, gradeLevelName: 'Grade 9', programType: 'SPS', programCode: 'SPS', programName: 'Special Program in Sports' },
 		],
 	},
 	{
 		gradeLevelId: 4, gradeLevelName: 'Grade 10', displayOrder: 10,
 		sections: [
-			{ id: 9, name: '10-Recto', maxCapacity: 40, enrolledCount: 34, gradeLevelId: 4, gradeLevelName: 'Grade 10' },
-			{ id: 10, name: '10-Palma', maxCapacity: 40, enrolledCount: 31, gradeLevelId: 4, gradeLevelName: 'Grade 10' },
+			{ id: 9, name: '10-Recto', maxCapacity: 40, enrolledCount: 34, gradeLevelId: 4, gradeLevelName: 'Grade 10', programType: 'REGULAR' },
+			{ id: 10, name: '10-SPA', maxCapacity: 40, enrolledCount: 31, gradeLevelId: 4, gradeLevelName: 'Grade 10', programType: 'SPA', programCode: 'SPA', programName: 'Special Program in the Arts' },
 		],
 	},
 ];
@@ -83,7 +142,7 @@ const STUB_SECTIONS: SectionsByGrade[] = [
 export class StubSectionAdapter implements SectionAdapter {
 	async fetchSectionsBySchoolYear(_schoolYearId: number, _schoolId: number): Promise<SectionFetchResult> {
 		await new Promise((r) => setTimeout(r, 80));
-		return { gradeLevels: STUB_SECTIONS, source: 'stub' };
+		return { gradeLevels: STUB_SECTIONS, source: 'stub', fetchedAt: new Date() };
 	}
 }
 
@@ -96,7 +155,7 @@ export class EnrollProSectionAdapter implements SectionAdapter {
 		this.baseUrl = baseUrl ?? process.env.ENROLLPRO_API ?? 'http://localhost:5000/api';
 	}
 
-	async fetchSectionsBySchoolYear(schoolYearId: number, _schoolId: number, authToken?: string): Promise<SectionFetchResult> {
+	async fetchSectionsBySchoolYear(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionFetchResult> {
 		const url = `${this.baseUrl}/sections/${schoolYearId}?level=JHS`;
 		const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
 		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -112,8 +171,9 @@ export class EnrollProSectionAdapter implements SectionAdapter {
 
 		const body = await response.json() as { gradeLevels?: SectionsByGrade[] };
 		const gradeLevels = body.gradeLevels ?? [];
+		const fetchedAt = new Date();
 
-		return {
+		const result: SectionFetchResult = {
 			gradeLevels: gradeLevels.map((gl) => ({
 				gradeLevelId: gl.gradeLevelId,
 				gradeLevelName: gl.gradeLevelName,
@@ -125,10 +185,23 @@ export class EnrollProSectionAdapter implements SectionAdapter {
 					enrolledCount: s.enrolledCount ?? 0,
 					gradeLevelId: gl.gradeLevelId,
 					gradeLevelName: gl.gradeLevelName,
+					// Wave 3.5: Special program fields
+					programType: (s.programType ?? 'REGULAR') as ProgramType,
+					programCode: s.programCode ?? null,
+					programName: s.programName ?? null,
+					admissionMode: s.admissionMode ?? null,
+					adviserId: s.adviserId ?? null,
+					adviserName: s.adviserName ?? null,
 				})),
 			})),
 			source: 'enrollpro',
+			fetchedAt,
 		};
+
+		// Auto-save snapshot for durable cache
+		await saveSectionSnapshot(schoolId, schoolYearId, result);
+
+		return result;
 	}
 }
 
@@ -170,10 +243,6 @@ class AutoSectionAdapter implements SectionAdapter {
 		try {
 			return await this.enrollpro.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
 		} catch (error) {
-			if (strictUpstream) {
-				// In strict mode, do not silently fall back
-				throw error;
-			}
 			const msg = error instanceof Error ? error.message : String(error);
 			const errClass = error instanceof Error ? error.constructor.name : 'Unknown';
 
@@ -188,10 +257,29 @@ class AutoSectionAdapter implements SectionAdapter {
 				ts: new Date().toISOString(),
 			}));
 
+			if (strictUpstream) {
+				// In strict mode, do not silently fall back
+				throw error;
+			}
+
+			// Wave 3.5: Try durable cache first before stub
+			const cached = await loadSectionSnapshot(schoolId, schoolYearId);
+			if (cached) {
+				return {
+					gradeLevels: cached.gradeLevels,
+					source: 'cached-enrollpro',
+					fetchedAt: cached.fetchedAt,
+					fallbackReason: msg,
+					isStale: true,
+				};
+			}
+
+			// Final fallback: stub data
 			const stubResult = await this.stub.fetchSectionsBySchoolYear(schoolYearId, schoolId);
 			return {
 				gradeLevels: stubResult.gradeLevels,
 				source: 'auto-fallback',
+				fetchedAt: stubResult.fetchedAt,
 				fallbackReason: msg,
 			};
 		}

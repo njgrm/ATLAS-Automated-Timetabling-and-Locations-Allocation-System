@@ -27,6 +27,7 @@ import followUpFlagRouter from './routes/follow-up-flag.router.js';
 import manualEditRouter from './routes/manual-edit.router.js';
 import lockedSessionRouter from './routes/locked-session.router.js';
 import gradeWindowRouter from './routes/grade-window.router.js';
+import cohortRouter from './routes/cohort.router.js';
 
 const app = express();
 
@@ -83,6 +84,7 @@ app.use('/api/v1/follow-up-flags', followUpFlagRouter);
 app.use('/api/v1/generation', manualEditRouter);
 app.use('/api/v1/generation', lockedSessionRouter);
 app.use('/api/v1/generation', gradeWindowRouter);
+app.use('/api/v1/cohorts', cohortRouter);
 
 // Error handler
 app.use(errorHandler);

@@ -14,10 +14,19 @@ export interface ExternalFaculty {
 	advisoryEquivalentHours?: number;
 	canTeachOutsideDepartment?: boolean;
 	contactInfo: string | null;
+	// Wave 3.5: Adviser mapping
+	advisedSectionId?: number | null;
+	advisedSectionName?: string | null;
+}
+
+export interface FacultyFetchResult {
+	teachers: ExternalFaculty[];
+	source: 'enrollpro' | 'stub';
+	fetchedAt: Date;
 }
 
 export interface FacultyAdapter {
-	fetchFacultyBySchool(schoolId: number, authToken?: string): Promise<ExternalFaculty[]>;
+	fetchFacultyBySchool(schoolId: number, authToken?: string): Promise<FacultyFetchResult>;
 }
 
 // Realistic stub data for development
@@ -40,10 +49,14 @@ const STUB_FACULTY: ExternalFaculty[] = [
 ];
 
 export class StubFacultyAdapter implements FacultyAdapter {
-	async fetchFacultyBySchool(_schoolId: number): Promise<ExternalFaculty[]> {
+	async fetchFacultyBySchool(_schoolId: number): Promise<FacultyFetchResult> {
 		// Simulate network delay
 		await new Promise((resolve) => setTimeout(resolve, 200));
-		return STUB_FACULTY;
+		return {
+			teachers: STUB_FACULTY,
+			source: 'stub',
+			fetchedAt: new Date(),
+		};
 	}
 }
 
@@ -54,7 +67,7 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 		this.baseUrl = baseUrl;
 	}
 
-	async fetchFacultyBySchool(_schoolId: number, authToken?: string): Promise<ExternalFaculty[]> {
+	async fetchFacultyBySchool(_schoolId: number, authToken?: string): Promise<FacultyFetchResult> {
 		const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
 		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 		if (token) {
@@ -75,22 +88,33 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 				specialization: string | null;
 				contactNumber: string | null;
 				isActive: boolean;
+				// Wave 3.5: Adviser fields from EnrollPro
+				advisedSectionId?: number | null;
+				advisedSectionName?: string | null;
 			}>;
 		};
 
-		return data.teachers
+		const teachers = data.teachers
 			.filter((t) => t.isActive)
 			.map((t) => ({
 				id: t.id,
 				firstName: t.firstName,
 				lastName: t.lastName,
 				department: t.specialization ?? 'General',
-				employmentStatus: 'PERMANENT',
-				isClassAdviser: false,
-				advisoryEquivalentHours: 0,
+				employmentStatus: 'PERMANENT' as const,
+				isClassAdviser: !!t.advisedSectionId,
+				advisoryEquivalentHours: t.advisedSectionId ? 5 : 0,
 				canTeachOutsideDepartment: false,
 				contactInfo: t.contactNumber,
+				advisedSectionId: t.advisedSectionId ?? null,
+				advisedSectionName: t.advisedSectionName ?? null,
 			}));
+
+		return {
+			teachers,
+			source: 'enrollpro',
+			fetchedAt: new Date(),
+		};
 	}
 }
 

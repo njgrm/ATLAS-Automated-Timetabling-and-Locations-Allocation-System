@@ -1,0 +1,217 @@
+{
+  "consoleMessages": [
+    {
+      "page": "http://localhost:5174/",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "page": "http://localhost:5174/",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "page": "http://127.0.0.1:5174/timetable",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "page": "http://127.0.0.1:5174/timetable",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "page": "http://127.0.0.1:5174/timetable",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "page": "http://127.0.0.1:5174/timetable",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "page": "http://127.0.0.1:5174/timetable",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "page": "http://127.0.0.1:5174/timetable",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "page": "http://127.0.0.1:5174/timetable",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "page": "http://127.0.0.1:5174/timetable",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "page": "http://127.0.0.1:5174/timetable",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "page": "http://127.0.0.1:5174/room-schedules",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "page": "http://127.0.0.1:5174/room-schedules",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "page": "http://127.0.0.1:5174/room-schedules",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "page": "http://127.0.0.1:5174/room-schedules",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "page": "http://127.0.0.1:5174/room-schedules",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "page": "http://127.0.0.1:5174/room-schedules",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "page": "http://127.0.0.1:5174/room-schedules",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "page": "http://127.0.0.1:5174/map",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "page": "http://127.0.0.1:5174/map",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "page": "http://127.0.0.1:5174/map",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "page": "http://127.0.0.1:5174/map",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    }
+  ],
+  "failedRequests": [
+    {
+      "page": "http://127.0.0.1:5174/timetable",
+      "url": "http://127.0.0.1:5174/api/v1/auth/me",
+      "status": 401
+    },
+    {
+      "page": "http://127.0.0.1:5174/timetable",
+      "url": "http://127.0.0.1:5174/api/v1/auth/me",
+      "status": 401
+    },
+    {
+      "page": "http://127.0.0.1:5174/timetable",
+      "url": "http://127.0.0.1:5174/api/v1/generation/1/1/runs?limit=20",
+      "status": 401
+    },
+    {
+      "page": "http://127.0.0.1:5174/timetable",
+      "url": "http://127.0.0.1:5174/api/v1/faculty?schoolId=1",
+      "status": 401
+    },
+    {
+      "page": "http://127.0.0.1:5174/timetable",
+      "url": "http://127.0.0.1:5174/api/v1/sections/summary/1?schoolId=1",
+      "status": 401
+    },
+    {
+      "page": "http://127.0.0.1:5174/timetable",
+      "url": "http://127.0.0.1:5174/api/v1/generation/1/1/runs?limit=20",
+      "status": 401
+    },
+    {
+      "page": "http://127.0.0.1:5174/timetable",
+      "url": "http://127.0.0.1:5174/api/v1/faculty?schoolId=1",
+      "status": 401
+    },
+    {
+      "page": "http://127.0.0.1:5174/timetable",
+      "url": "http://127.0.0.1:5174/api/v1/sections/summary/1?schoolId=1",
+      "status": 401
+    },
+    {
+      "page": "http://127.0.0.1:5174/room-schedules",
+      "url": "http://127.0.0.1:5174/api/v1/auth/me",
+      "status": 401
+    },
+    {
+      "page": "http://127.0.0.1:5174/room-schedules",
+      "url": "http://127.0.0.1:5174/api/v1/auth/me",
+      "status": 401
+    },
+    {
+      "page": "http://127.0.0.1:5174/room-schedules",
+      "url": "http://127.0.0.1:5174/api/v1/faculty?schoolId=1",
+      "status": 401
+    },
+    {
+      "page": "http://127.0.0.1:5174/room-schedules",
+      "url": "http://127.0.0.1:5174/api/v1/faculty?schoolId=1",
+      "status": 401
+    },
+    {
+      "page": "http://127.0.0.1:5174/room-schedules",
+      "url": "http://127.0.0.1:5174/api/v1/sections/summary/1?schoolId=1",
+      "status": 401
+    },
+    {
+      "page": "http://127.0.0.1:5174/room-schedules",
+      "url": "http://127.0.0.1:5174/api/v1/sections/summary/1?schoolId=1",
+      "status": 401
+    },
+    {
+      "page": "http://127.0.0.1:5174/map",
+      "url": "http://127.0.0.1:5174/api/v1/auth/me",
+      "status": 401
+    },
+    {
+      "page": "http://127.0.0.1:5174/map",
+      "url": "http://127.0.0.1:5174/api/v1/auth/me",
+      "status": 401
+    },
+    {
+      "page": "http://127.0.0.1:5174/map",
+      "url": "http://127.0.0.1:5174/uploads/campus-f61256be-3528-41e3-b46c-0fba7aedd984.png",
+      "status": 500
+    }
+  ],
+  "steps": [
+    {
+      "step": "login",
+      "url": "http://127.0.0.1:5173/dashboard",
+      "title": "Dashboard | EnrollPro | EnrollPro"
+    },
+    {
+      "step": "atlas-bridge",
+      "url": "http://localhost:5174/",
+      "title": "ATLAS"
+    },
+    {
+      "step": "timetable",
+      "url": "http://127.0.0.1:5174/timetable"
+    }
+  ]
+}

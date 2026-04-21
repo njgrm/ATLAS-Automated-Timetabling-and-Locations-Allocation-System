@@ -1,6 +1,7 @@
 /**
  * Section service — bridge to section adapter.
  * Returns a summary of sections by grade level sourced from the enrollment service.
+ * Wave 3.5: includes fetchedAt, isStale, and special program metadata.
  */
 
 import { sectionAdapter, type SectionSummary } from './section-adapter.js';
@@ -30,6 +31,8 @@ export async function getSectionSummary(schoolYearId: number, schoolId: number, 
 		enrolledByGradeLevel,
 		sections: allSections,
 		source: result.source,
+		fetchedAt: result.fetchedAt,
+		isStale: result.isStale ?? false,
 		...(result.fallbackReason ? { fallbackReason: result.fallbackReason } : {}),
 	};
 }

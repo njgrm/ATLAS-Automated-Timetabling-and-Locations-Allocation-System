@@ -111,30 +111,38 @@ model Subject {
 }
 
 model FacultyMirror {
-  id                    Int              @id @default(autoincrement())
-  externalId            Int              @map("external_id")
-  schoolId              Int              @map("school_id")
-  firstName             String           @map("first_name")
-  lastName              String           @map("last_name")
-  department            String?
-  employmentStatus      String           @default("PERMANENT") @map("employment_status")
-  contactInfo           String?          @map("contact_info")
-  localNotes            String?          @map("local_notes")
-  isActiveForScheduling Boolean          @default(true) @map("is_active_for_scheduling")
-  isClassAdviser        Boolean          @default(false) @map("is_class_adviser")
-  advisoryEquivalentHours Int            @default(0) @map("advisory_equivalent_hours")
-  canTeachOutsideDepartment Boolean      @default(false) @map("can_teach_outside_department")
-  maxHoursPerWeek       Int              @default(30) @map("max_hours_per_week")
-  lastSyncedAt          DateTime         @default(now()) @map("last_synced_at")
-  version               Int              @default(1)
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @updatedAt
-  school                School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  facultySubjects       FacultySubject[]
-  preferences           FacultyPreference[]
+  id                        Int               @id @default(autoincrement())
+  externalId                Int               @map("external_id")
+  schoolId                  Int               @map("school_id")
+  firstName                 String            @map("first_name")
+  lastName                  String            @map("last_name")
+  department                String?
+  employmentStatus          String            @default("PERMANENT") @map("employment_status")
+  contactInfo               String?           @map("contact_info")
+  localNotes                String?           @map("local_notes")
+  isActiveForScheduling     Boolean           @default(true) @map("is_active_for_scheduling")
+  isClassAdviser            Boolean           @default(false) @map("is_class_adviser")
+  advisoryEquivalentHours   Int               @default(0) @map("advisory_equivalent_hours")
+  canTeachOutsideDepartment Boolean           @default(false) @map("can_teach_outside_department")
+  maxHoursPerWeek           Int               @default(30) @map("max_hours_per_week")
+  lastSyncedAt              DateTime          @default(now()) @map("last_synced_at")
+  // Stale tracking (Wave 3.5)
+  isStale                   Boolean           @default(false) @map("is_stale")
+  staleReason               String?           @map("stale_reason")
+  staleAt                   DateTime?         @map("stale_at")
+  // Adviser mapping (Wave 3.5)
+  advisedSectionId          Int?              @map("advised_section_id")
+  advisedSectionName        String?           @map("advised_section_name")
+  version                   Int               @default(1)
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+  school                    School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  facultySubjects           FacultySubject[]
+  preferences               FacultyPreference[]
 
   @@unique([schoolId, externalId], map: "uq_faculty_school_external")
   @@index([schoolId])
+  @@index([schoolId, isStale])
   @@map("faculty_mirrors")
 }
 
@@ -427,4 +435,73 @@ model GradeShiftWindow {
   @@unique([schoolId, schoolYearId, gradeLevel], map: "uq_grade_shift_window")
   @@index([schoolId, schoolYearId])
   @@map("grade_shift_windows")
+}
+
+// ─── Wave 3.5: Durable Cache (Source-of-Truth Hardening) ───
+
+model FacultySnapshot {
+  id           Int      @id @default(autoincrement())
+  schoolId     Int      @map("school_id")
+  schoolYearId Int      @map("school_year_id")
+  fetchedAt    DateTime @default(now()) @map("fetched_at")
+  source       String   @default("enrollpro")
+  checksum     String?
+  schemaVersion Int     @default(1) @map("schema_version")
+  payload      Json
+  createdAt    DateTime @default(now())
+
+  @@unique([schoolId, schoolYearId], map: "uq_faculty_snapshot_school_year")
+  @@index([schoolId, fetchedAt])
+  @@map("faculty_snapshots")
+}
+
+model SectionSnapshot {
+  id           Int      @id @default(autoincrement())
+  schoolId     Int      @map("school_id")
+  schoolYearId Int      @map("school_year_id")
+  fetchedAt    DateTime @default(now()) @map("fetched_at")
+  source       String   @default("enrollpro")
+  checksum     String?
+  schemaVersion Int     @default(1) @map("schema_version")
+  payload      Json
+  createdAt    DateTime @default(now())
+
+  @@unique([schoolId, schoolYearId], map: "uq_section_snapshot_school_year")
+  @@index([schoolId, fetchedAt])
+  @@map("section_snapshots")
+}
+
+// ─── Wave 3.5: Special Program Types ───
+
+enum ProgramType {
+  REGULAR
+  STE
+  SPS
+  SPA
+  OTHER
+
+  @@map("program_type")
+}
+
+// ─── Wave 3.5: TLE Inter-section Cohorts ───
+
+model InstructionalCohort {
+  id                  Int       @id @default(autoincrement())
+  schoolId            Int       @map("school_id")
+  schoolYearId        Int       @map("school_year_id")
+  cohortCode          String    @map("cohort_code")
+  specializationCode  String    @map("specialization_code")
+  specializationName  String    @map("specialization_name")
+  gradeLevel          Int       @map("grade_level")
+  memberSectionIds    Int[]     @map("member_section_ids")
+  expectedEnrollment  Int       @default(0) @map("expected_enrollment")
+  preferredRoomType   RoomType? @map("preferred_room_type")
+  isActive            Boolean   @default(true) @map("is_active")
+  sourceRef           String?   @map("source_ref")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([schoolId, schoolYearId, cohortCode], map: "uq_cohort_code")
+  @@index([schoolId, schoolYearId, gradeLevel])
+  @@map("instructional_cohorts")
 }

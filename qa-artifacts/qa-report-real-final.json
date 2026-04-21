@@ -1,0 +1,36 @@
+{
+  "consoleMessages": [
+    {
+      "page": "http://localhost:5174/",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "page": "http://localhost:5174/",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "page": "http://localhost:5174/timetable",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "page": "http://localhost:5174/room-schedules",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "page": "http://localhost:5174/map",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    }
+  ],
+  "failedRequests": [],
+  "notes": [
+    "Dismissed ScheduleReview tutorial overlay via Skip button.",
+    "Opened a timetable entry detail panel from the main grid.",
+    "Opened the manual-edit workspace from the right-side detail panel.",
+    "Selected and dragged a building rectangle in Map Editor."
+  ]
+}
