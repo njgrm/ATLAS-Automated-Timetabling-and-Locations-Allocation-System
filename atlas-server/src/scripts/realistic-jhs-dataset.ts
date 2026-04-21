@@ -21,6 +21,16 @@ export interface RealisticTeacherSeed {
 	canTeachOutsideDepartment: boolean;
 }
 
+export interface RealisticJhsDatasetOptions {
+	/**
+	 * Explicit non-JHS opt-in for deployments that still need MTB staffing.
+	 * JHS runs must leave this disabled.
+	 */
+	includeNonJhsSpecializations?: boolean;
+	/** @deprecated Use includeNonJhsSpecializations for explicit non-JHS opt-in. */
+	includeMotherTongue?: boolean;
+}
+
 export interface RealisticSectionBlueprint {
 	sequence: number;
 	name: string;
@@ -68,7 +78,7 @@ const FILIPINO_FIRST_NAMES_M = [
 	'Ernesto', 'Benjamin', 'Romeo', 'Rodolfo', 'Reynaldo', 'Armando', 'Rolando',
 ];
 
-const DEPARTMENTS = [
+const CORE_DEPARTMENTS = [
 	{ specialization: 'Filipino', count: 18 },
 	{ specialization: 'English', count: 18 },
 	{ specialization: 'Mathematics', count: 18 },
@@ -77,9 +87,19 @@ const DEPARTMENTS = [
 	{ specialization: 'MAPEH', count: 20 },
 	{ specialization: 'Edukasyon sa Pagpapakatao', count: 14 },
 	{ specialization: 'Technology and Livelihood Education', count: 16 },
-	{ specialization: 'Mother Tongue-Based', count: 8 },
 	{ specialization: 'Homeroom Guidance', count: 8 },
 ];
+
+const OPTIONAL_DEPARTMENTS = [
+	{ specialization: 'Mother Tongue-Based', count: 8 },
+];
+
+function getDepartments(options: RealisticJhsDatasetOptions = {}) {
+	const includeNonJhsSpecializations = options.includeNonJhsSpecializations || options.includeMotherTongue;
+	return includeNonJhsSpecializations
+		? [...CORE_DEPARTMENTS, ...OPTIONAL_DEPARTMENTS]
+		: CORE_DEPARTMENTS;
+}
 
 const SECTION_NAMES_BY_GRADE: Array<{
 	displayOrder: number;
@@ -196,11 +216,11 @@ export function flattenRealisticSections(
 	return gradeBlueprints.flatMap((grade) => grade.sections);
 }
 
-export function buildRealisticTeacherSeeds(): RealisticTeacherSeed[] {
+export function buildRealisticTeacherSeeds(options: RealisticJhsDatasetOptions = {}): RealisticTeacherSeed[] {
 	const teachers: RealisticTeacherSeed[] = [];
 	let teacherSequence = 0;
 
-	for (const department of DEPARTMENTS) {
+	for (const department of getDepartments(options)) {
 		for (let index = 0; index < department.count; index += 1) {
 			const isFemale = teacherSequence % 5 !== 0 && teacherSequence % 7 !== 0;
 			const firstName = isFemale

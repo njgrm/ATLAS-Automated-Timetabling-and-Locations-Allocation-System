@@ -50,6 +50,35 @@ Record dated implementation verification summaries here.
 - Decision:
   - Accepted
 
+### 2026-04-21 - Wave 4.2 Gate-Close Fixes (Migration Repair + MTB Cleanup + Auth QA)
+- Phase: 4
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: FAIL
+- Regression gate: PASS
+- Commands:
+  - `npx prisma migrate status`: PASS (`Database schema is up to date!` after clearing the stale rolled-back history row and applying `0012_wave4_2_room_preferences`)
+  - `npx prisma migrate deploy`: PASS (`0012_wave4_2_room_preferences` applied locally)
+  - `npm run db:generate`: PASS (required stopping ATLAS watcher processes first on Windows so Prisma could replace the engine DLL)
+  - `npm --prefix atlas-server run build`: PASS
+  - `npm --prefix atlas-client run build`: PASS
+  - `npm --prefix atlas-server run test:wave4-precision`: PASS (14/14)
+  - `npm --prefix atlas-server run test:phase4-review`: PASS (23/23)
+  - `npm run verify:cross-repo-source-gate -- --schoolId=1 --schoolYearId=1`: PASS
+  - Targeted Prisma probe against `generation_runs.id = 50`: FAIL for live faculty-room-request usability (`draftEntryCount=398`, `distinctFacultyIdsInDraft=16`, `matchingFacultyMirrors=0`)
+- API checks:
+  - EnrollPro authoritative source verification after the MTB cleanup resolved `faculty.activeCount=146`, `sections.totalSections=83`, `sections.totalEnrolled=3311`, `cohorts.count=12`, and `mtbFacultyCount=0`: PASS
+  - Seeded teaching-load diagnostics resolved `requiredPairCount=747`, `assignedPairCount=747`, `unassignedSectionSubjectCount=0`, `facultyWithoutAssignmentsCount=0`, `adviserHomeroomMatchCount=83`, `duplicateOwnershipCount=0`, `maxAssignedHours=20`: PASS
+  - Room-preference service runtime recovered after mapping `FacultyRoomPreference.createdAt/updatedAt` to the applied snake_case columns: PASS
+- UI checks:
+  - `/faculty/room-preferences` under an officer bridge token loaded the queue shell, counters, and empty-state list without the prior Prisma column error: PASS
+  - `/my/room-preferences` under a faculty bridge token loaded the faculty page shell and room list without the prior Prisma column error: PASS
+  - `/my/room-preferences` non-empty assignment/request flow could not be exercised after reseeding because the latest run references 16 faculty IDs and zero of them map to the current `faculty_mirrors` rows: FAIL
+- Blocking findings:
+  - The latest completed draft run is stale relative to the post-reset faculty mirror set, so faculty-authenticated room-request QA is limited to the empty state until a fresh generation run exists or the reset flow also reconciles/removes stale runs.
+- Decision:
+  - Needs fixes
+
 ### 2026-04-21 - Wave 3.5.3 Cross-Repo Source Gate + Wave 4.0 Review Hardening
 - Phase: 4 (user-approved cross-phase hardening)
 - Scope gate: PASS

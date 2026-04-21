@@ -12,7 +12,9 @@ const Faculty = lazy(() => import('./pages/Faculty'));
 const FacultyAssignments = lazy(() => import('./pages/FacultyAssignments'));
 const Sections = lazy(() => import('./pages/Sections'));
 const FacultyPreferences = lazy(() => import('./pages/FacultyPreferences'));
+const FacultyRoomPreferences = lazy(() => import('./pages/FacultyRoomPreferences'));
 const OfficerPreferences = lazy(() => import('./pages/OfficerPreferences'));
+const OfficerRoomPreferences = lazy(() => import('./pages/OfficerRoomPreferences'));
 const ComingSoon = lazy(() => import('./pages/ComingSoon'));
 const RoomSchedules = lazy(() => import('./pages/RoomSchedules'));
 const ScheduleReview = lazy(() => import('./pages/ScheduleReview'));
@@ -52,6 +54,10 @@ const router = createBrowserRouter([
 				element: <FacultyPreferences />,
 			},
 			{
+				path: 'my/room-preferences',
+				element: <FacultyRoomPreferences />,
+			},
+			{
 				path: 'timetable',
 				element: <ScheduleReview />,
 			},
@@ -62,6 +68,10 @@ const router = createBrowserRouter([
 			{
 				path: 'room-schedules',
 				element: <RoomSchedules />,
+			},
+			{
+				path: 'faculty/room-preferences',
+				element: <OfficerRoomPreferences />,
 			},
 			{
 				path: 'map',

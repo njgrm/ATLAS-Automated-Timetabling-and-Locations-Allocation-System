@@ -75,6 +75,7 @@ model Room {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   building        Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  requestedRoomPreferences FacultyRoomPreference[] @relation("RequestedRoomPreferences")
 
   @@map("rooms")
 }
@@ -139,6 +140,7 @@ model FacultyMirror {
   school                    School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   facultySubjects           FacultySubject[]
   preferences               FacultyPreference[]
+  roomPreferences           FacultyRoomPreference[]
 
   @@unique([schoolId, externalId], map: "uq_faculty_school_external")
   @@index([schoolId])
@@ -260,6 +262,58 @@ model PreferenceReview {
   @@map("preference_reviews")
 }
 
+enum RoomPreferenceStatus {
+  DRAFT
+  SUBMITTED
+
+  @@map("room_preference_status")
+}
+
+enum RoomPreferenceDecisionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+
+  @@map("room_preference_decision_status")
+}
+
+model FacultyRoomPreference {
+  id             Int                          @id @default(autoincrement())
+  schoolId       Int                          @map("school_id")
+  schoolYearId   Int                          @map("school_year_id")
+  runId          Int                          @map("run_id")
+  entryId        String                       @map("entry_id")
+  facultyId      Int                          @map("faculty_id")
+  subjectId      Int                          @map("subject_id")
+  sectionId      Int                          @map("section_id")
+  currentRoomId  Int                          @map("current_room_id")
+  requestedRoomId Int                         @map("requested_room_id")
+  day            DayOfWeek
+  startTime      String                       @map("start_time")
+  endTime        String                       @map("end_time")
+  rationale      String?
+  status         RoomPreferenceStatus         @default(DRAFT)
+  submittedAt    DateTime?                    @map("submitted_at")
+  version        Int                          @default(1)
+  reviewerId     Int?                         @map("reviewer_id")
+  decisionStatus RoomPreferenceDecisionStatus @default(PENDING) @map("decision_status")
+  reviewerNotes  String?                      @map("reviewer_notes")
+  reviewedAt     DateTime?                    @map("reviewed_at")
+  createdAt      DateTime                     @default(now()) @map("created_at")
+  updatedAt      DateTime                     @updatedAt @map("updated_at")
+
+  faculty        FacultyMirror                @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  requestedRoom  Room                         @relation("RequestedRoomPreferences", fields: [requestedRoomId], references: [id], onDelete: Cascade)
+  run            GenerationRun                @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, entryId], map: "uq_room_preference_run_entry")
+  @@index([schoolId, schoolYearId, status])
+  @@index([schoolId, schoolYearId, decisionStatus])
+  @@index([runId, facultyId])
+  @@index([requestedRoomId, day, startTime])
+  @@map("faculty_room_preferences")
+}
+
 // ─── Phase 3: Timetable Generation ───
 
 // ─── Scheduling Policy ───
@@ -330,6 +384,7 @@ model GenerationRun {
   updatedAt       DateTime             @updatedAt
 
   manualEdits     ManualScheduleEdit[]
+  roomPreferences FacultyRoomPreference[]
 
   @@index([schoolId, schoolYearId, createdAt])
   @@index([status])

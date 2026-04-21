@@ -155,6 +155,7 @@ const [filterStatus, setFilterStatus] = useState<'all' | 'assigned' | 'unassigne
 const [departmentFilter, setDepartmentFilter] = useState<string>('all');
 const [subjectSearch, setSubjectSearch] = useState('');
 	const [sectionFilter, setSectionFilter] = useState<'all' | 'unassigned' | 'assigned'>('all');
+	const [gradeLevelFilter, setGradeLevelFilter] = useState<string>('all');
 const [allowOutsideDepartment, setAllowOutsideDepartment] = useState(false);
 const [error, setError] = useState<string | null>(null);
 const [homeroomHint, setHomeroomHint] = useState<HomeroomHintResponse | null>(null);
@@ -694,20 +695,6 @@ loadProfile.breakdown.map((item) => (
 				</div>
 			)}
 
-			{pendingEntries.length > 0 && (
-				<div className="mt-1.5 flex items-center gap-2 rounded border border-sky-200 bg-sky-50/60 px-3 py-1.5">
-					<Badge className="shrink-0 border-sky-300 bg-white text-[0.5625rem] text-sky-700">{pendingEntries.length} pending</Badge>
-					<span className="shrink-0 text-xs font-semibold text-sky-800">Ownership transfers:</span>
-					<div className="flex flex-1 items-center gap-1 overflow-x-auto">
-						{pendingEntries.map((e) => (
-							<Badge key={e.key} variant="outline" className="shrink-0 whitespace-nowrap border-sky-200 bg-white px-1.5 py-0 text-[0.5625rem] text-sky-800">
-								{e.facultyName} | {e.subjectCode} | G{e.gradeLevel} {e.sectionName}
-							</Badge>
-						))}
-					</div>
-				</div>
-			)}
-
 			<Card className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden shadow-sm">
 <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3">
 <div className="flex items-center gap-3">
@@ -739,6 +726,18 @@ Discard Draft
 						className="h-7 pl-8 text-xs"
 					/>
 				</div>
+				<Select value={gradeLevelFilter} onValueChange={setGradeLevelFilter}>
+					<SelectTrigger className="h-7 w-28 text-xs">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="all" className="text-xs">All Grades</SelectItem>
+						<SelectItem value="7" className="text-xs">Grade 7</SelectItem>
+						<SelectItem value="8" className="text-xs">Grade 8</SelectItem>
+						<SelectItem value="9" className="text-xs">Grade 9</SelectItem>
+						<SelectItem value="10" className="text-xs">Grade 10</SelectItem>
+					</SelectContent>
+				</Select>
 				<Select value={sectionFilter} onValueChange={(v) => setSectionFilter(v as 'all' | 'unassigned' | 'assigned')}>
 					<SelectTrigger className="h-7 w-36 text-xs">
 						<SelectValue />
@@ -874,6 +873,8 @@ type SubjectRowProps = {
 	isOutsideDepartment?: boolean;
 	searchTerm?: string;
 	sectionFilter?: 'all' | 'unassigned' | 'assigned';
+	gradeLevelFilter?: string;
+	advisedSectionId?: number | null;
 };
 
 function SubjectRow({
@@ -888,6 +889,8 @@ function SubjectRow({
 	isOutsideDepartment,
 	searchTerm = '',
 	sectionFilter = 'all',
+	gradeLevelFilter = 'all',
+	advisedSectionId = null,
 }: SubjectRowProps) {
 	const [openGrades, setOpenGrades] = useState<Record<number, boolean>>({});
 
@@ -903,6 +906,10 @@ function SubjectRow({
 			});
 		}
 
+		if (gradeLevelFilter !== 'all') {
+			result = result.filter(sec => String(sec.displayOrder) === gradeLevelFilter);
+		}
+
 		if (searchTerm) {
 			const term = searchTerm.toLowerCase();
 			if (subject.name.toLowerCase().includes(term) || subject.code.toLowerCase().includes(term)) {
@@ -914,7 +921,7 @@ function SubjectRow({
 		}
 
 		return result;
-	}, [sections, sectionFilter, searchTerm, subject, savedOwnershipMap, pendingOwnershipMap]);
+	}, [sections, sectionFilter, gradeLevelFilter, searchTerm, subject, savedOwnershipMap, pendingOwnershipMap]);
 
 	const groupedSections = useMemo(() => {
 		const sectionGroups = new Map<number, ExternalSection[]>();

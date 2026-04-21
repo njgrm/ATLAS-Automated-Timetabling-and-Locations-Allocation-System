@@ -23,6 +23,7 @@ interface VerifyDomainSummary {
 	isStale?: boolean;
 	warnings?: string[];
 	activeCount?: number;
+	mtbFacultyCount?: number;
 	totalSections?: number;
 	totalEnrolled?: number;
 	count?: number;
@@ -33,6 +34,15 @@ interface VerifySummary {
 	faculty: VerifyDomainSummary;
 	sections: VerifyDomainSummary & { byGradeLevel?: Record<string, number> };
 	cohorts: VerifyDomainSummary;
+	teachingLoad?: {
+		unassignedSectionSubjectCount: number;
+		facultyWithoutAssignmentsCount: number;
+		adviserCount: number;
+		adviserHomeroomMatchCount: number;
+		maxAssignedHours: number;
+		duplicateOwnershipCount: number;
+		mtbFacultyCount: number;
+	};
 }
 
 interface SpawnResult {
@@ -184,8 +194,11 @@ function assertLiveSummary(summary: VerifySummary) {
 	if (summary.cohorts.source !== 'enrollpro') {
 		throw new Error(`Expected live cohorts source=enrollpro, got ${summary.cohorts.source}.`);
 	}
-	if (summary.faculty.activeCount !== 154) {
-		throw new Error(`Expected 154 active faculty, got ${summary.faculty.activeCount}.`);
+	if (summary.faculty.activeCount !== 146) {
+		throw new Error(`Expected 146 active faculty, got ${summary.faculty.activeCount}.`);
+	}
+	if (summary.faculty.mtbFacultyCount !== 0) {
+		throw new Error(`Expected 0 MTB-specialized faculty after JHS cleanup, got ${summary.faculty.mtbFacultyCount}.`);
 	}
 	if (summary.sections.totalSections !== 83) {
 		throw new Error(`Expected 83 sections, got ${summary.sections.totalSections}.`);
@@ -195,6 +208,24 @@ function assertLiveSummary(summary: VerifySummary) {
 	}
 	if (summary.cohorts.count !== 12) {
 		throw new Error(`Expected 12 cohorts, got ${summary.cohorts.count}.`);
+	}
+	if (!summary.teachingLoad) {
+		throw new Error('Expected teaching-load diagnostics in verifier output.');
+	}
+	if (summary.teachingLoad.unassignedSectionSubjectCount !== 0) {
+		throw new Error(`Expected 0 unassigned section-subject pairs, got ${summary.teachingLoad.unassignedSectionSubjectCount}.`);
+	}
+	if (summary.teachingLoad.facultyWithoutAssignmentsCount !== 0) {
+		throw new Error(`Expected 0 faculty without assignments, got ${summary.teachingLoad.facultyWithoutAssignmentsCount}.`);
+	}
+	if (summary.teachingLoad.adviserCount !== summary.teachingLoad.adviserHomeroomMatchCount) {
+		throw new Error(`Expected adviser homeroom coverage to match adviser count (${summary.teachingLoad.adviserCount}), got ${summary.teachingLoad.adviserHomeroomMatchCount}.`);
+	}
+	if (summary.teachingLoad.maxAssignedHours > 40) {
+		throw new Error(`Expected max assigned hours <= 40, got ${summary.teachingLoad.maxAssignedHours}.`);
+	}
+	if (summary.teachingLoad.duplicateOwnershipCount !== 0) {
+		throw new Error(`Expected 0 duplicate ownership conflicts, got ${summary.teachingLoad.duplicateOwnershipCount}.`);
 	}
 }
 
@@ -210,6 +241,12 @@ function assertCachedSummary(summary: VerifySummary) {
 	}
 	if (summary.sections.totalSections !== 83 || summary.sections.totalEnrolled !== 3311) {
 		throw new Error('Cached verification totals diverged from the live upstream snapshot.');
+	}
+	if (summary.faculty.activeCount !== 146 || summary.faculty.mtbFacultyCount !== 0) {
+		throw new Error('Cached faculty totals diverged from the live MTB-free upstream snapshot.');
+	}
+	if (!summary.teachingLoad || summary.teachingLoad.unassignedSectionSubjectCount !== 0 || summary.teachingLoad.facultyWithoutAssignmentsCount !== 0) {
+		throw new Error('Cached verification did not preserve the seeded teaching-load baseline.');
 	}
 }
 

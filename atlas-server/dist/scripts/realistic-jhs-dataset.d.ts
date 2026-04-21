@@ -12,6 +12,15 @@ export interface RealisticTeacherSeed {
     maxHoursPerWeek: number;
     canTeachOutsideDepartment: boolean;
 }
+export interface RealisticJhsDatasetOptions {
+    /**
+     * Explicit non-JHS opt-in for deployments that still need MTB staffing.
+     * JHS runs must leave this disabled.
+     */
+    includeNonJhsSpecializations?: boolean;
+    /** @deprecated Use includeNonJhsSpecializations for explicit non-JHS opt-in. */
+    includeMotherTongue?: boolean;
+}
 export interface RealisticSectionBlueprint {
     sequence: number;
     name: string;
@@ -31,6 +40,6 @@ export interface RealisticGradeBlueprint {
 }
 export declare function buildRealisticGradeBlueprints(): RealisticGradeBlueprint[];
 export declare function flattenRealisticSections(gradeBlueprints?: RealisticGradeBlueprint[]): RealisticSectionBlueprint[];
-export declare function buildRealisticTeacherSeeds(): RealisticTeacherSeed[];
+export declare function buildRealisticTeacherSeeds(options?: RealisticJhsDatasetOptions): RealisticTeacherSeed[];
 export declare const REALISTIC_SECTION_COUNT: number;
 export declare const REALISTIC_TEACHER_COUNT: number;

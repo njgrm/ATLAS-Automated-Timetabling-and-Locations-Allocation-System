@@ -543,6 +543,19 @@ VITE_ENROLLPRO_API=http://localhost:5000/api
 
 ### Development
 
+### Prisma On Windows
+
+If `npx prisma generate` or `npx prisma migrate deploy` fails because `query_engine-windows.dll.node` is locked, stop the ATLAS server watcher before retrying. The local recovery sequence is:
+
+```bash
+# Stop the ATLAS server dev/watch process first
+npx prisma generate
+npx prisma migrate status
+npx prisma migrate deploy
+```
+
+If migration history drift is caused by a rolled-back row that exists only in `_prisma_migrations`, remove that rolled-back record first, then rerun `migrate status` and `migrate deploy`.
+
 ```bash
 # Start both client and server with hot reload
 npm run dev

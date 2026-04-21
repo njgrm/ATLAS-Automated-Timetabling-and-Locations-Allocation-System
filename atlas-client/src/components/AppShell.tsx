@@ -114,10 +114,12 @@ const schedulingNav: NavItemDef[] = [
 	{ label: 'Preferences', to: '/faculty/preferences', icon: ClipboardList, adminOnly: true },
 	{ label: 'Timetable', to: '/timetable', icon: CalendarClock, adminOnly: true },
 	{ label: 'Room Schedules', to: '/room-schedules', icon: CalendarDays, adminOnly: true },
+	{ label: 'Room Requests', to: '/faculty/room-preferences', icon: CalendarDays, adminOnly: true },
 ];
 
 const facultyNav: NavItemDef[] = [
 	{ label: 'My Preferences', to: '/my/preferences', icon: ClipboardList, facultyOnly: true },
+	{ label: 'My Room Requests', to: '/my/room-preferences', icon: CalendarDays, facultyOnly: true },
 ];
 
 const campusNav: NavItemDef[] = [

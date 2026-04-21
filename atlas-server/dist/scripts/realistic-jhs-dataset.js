@@ -16,7 +16,7 @@ const FILIPINO_FIRST_NAMES_M = [
     'Ricardo', 'Eduardo', 'Fernando', 'Rafael', 'Miguel', 'Gabriel', 'Danilo',
     'Ernesto', 'Benjamin', 'Romeo', 'Rodolfo', 'Reynaldo', 'Armando', 'Rolando',
 ];
-const DEPARTMENTS = [
+const CORE_DEPARTMENTS = [
     { specialization: 'Filipino', count: 18 },
     { specialization: 'English', count: 18 },
     { specialization: 'Mathematics', count: 18 },
@@ -25,9 +25,17 @@ const DEPARTMENTS = [
     { specialization: 'MAPEH', count: 20 },
     { specialization: 'Edukasyon sa Pagpapakatao', count: 14 },
     { specialization: 'Technology and Livelihood Education', count: 16 },
-    { specialization: 'Mother Tongue-Based', count: 8 },
     { specialization: 'Homeroom Guidance', count: 8 },
 ];
+const OPTIONAL_DEPARTMENTS = [
+    { specialization: 'Mother Tongue-Based', count: 8 },
+];
+function getDepartments(options = {}) {
+    const includeNonJhsSpecializations = options.includeNonJhsSpecializations || options.includeMotherTongue;
+    return includeNonJhsSpecializations
+        ? [...CORE_DEPARTMENTS, ...OPTIONAL_DEPARTMENTS]
+        : CORE_DEPARTMENTS;
+}
 const SECTION_NAMES_BY_GRADE = [
     {
         displayOrder: 7,
@@ -127,10 +135,10 @@ export function buildRealisticGradeBlueprints() {
 export function flattenRealisticSections(gradeBlueprints = buildRealisticGradeBlueprints()) {
     return gradeBlueprints.flatMap((grade) => grade.sections);
 }
-export function buildRealisticTeacherSeeds() {
+export function buildRealisticTeacherSeeds(options = {}) {
     const teachers = [];
     let teacherSequence = 0;
-    for (const department of DEPARTMENTS) {
+    for (const department of getDepartments(options)) {
         for (let index = 0; index < department.count; index += 1) {
             const isFemale = teacherSequence % 5 !== 0 && teacherSequence % 7 !== 0;
             const firstName = isFemale

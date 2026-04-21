@@ -248,6 +248,101 @@ export type RoomScheduleView = {
 	};
 };
 
+/* ─── Room Preference types ─── */
+
+export type RoomPreferenceStatus = 'DRAFT' | 'SUBMITTED';
+export type RoomPreferenceDecisionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export type FacultyRoomPreferenceEntry = {
+	entryId: string;
+	subjectId: number;
+	sectionId: number;
+	facultyId: number;
+	currentRoomId: number;
+	currentRoomName: string;
+	requestedRoomId: number | null;
+	requestedRoomName: string | null;
+	day: DayOfWeek;
+	startTime: string;
+	endTime: string;
+	durationMinutes: number;
+	status: RoomPreferenceStatus | null;
+	decisionStatus: RoomPreferenceDecisionStatus | null;
+	rationale: string | null;
+	submittedAt: string | null;
+	version: number | null;
+	subjectCode: string;
+	subjectName: string;
+	sectionName: string;
+	requestId: number | null;
+	reviewerNotes: string | null;
+	reviewedAt: string | null;
+	entryKind?: 'SECTION' | 'COHORT';
+	cohortCode?: string | null;
+	cohortName?: string | null;
+	programCode?: string | null;
+	programName?: string | null;
+};
+
+export type FacultyRoomPreferenceState = {
+	runId: number;
+	runVersion: number;
+	entries: FacultyRoomPreferenceEntry[];
+};
+
+export type RoomPreferenceSummaryItem = {
+	id: number;
+	runId: number;
+	entryId: string;
+	facultyId: number;
+	facultyName: string;
+	subjectId: number;
+	subjectCode: string;
+	subjectName: string;
+	sectionId: number;
+	sectionName: string;
+	currentRoomId: number;
+	currentRoomName: string;
+	requestedRoomId: number;
+	requestedRoomName: string;
+	day: DayOfWeek;
+	startTime: string;
+	endTime: string;
+	status: RoomPreferenceStatus;
+	decisionStatus: RoomPreferenceDecisionStatus;
+	rationale: string | null;
+	submittedAt: string | null;
+	version: number;
+	reviewerId: number | null;
+	reviewerNotes: string | null;
+	reviewedAt: string | null;
+	entryKind?: 'SECTION' | 'COHORT';
+	cohortCode?: string | null;
+	cohortName?: string | null;
+	programCode?: string | null;
+	programName?: string | null;
+};
+
+export type RoomPreferenceSummaryResponse = {
+	runId: number;
+	counts: {
+		total: number;
+		draft: number;
+		submitted: number;
+		pending: number;
+		approved: number;
+		rejected: number;
+	};
+	requests: RoomPreferenceSummaryItem[];
+	runVersion: number;
+};
+
+export type RoomPreferencePreviewResponse = {
+	request: RoomPreferenceSummaryItem;
+	runVersion: number;
+	preview: PreviewResult;
+};
+
 /* ─── Generation / Review types ─── */
 
 export type GenerationRunStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';

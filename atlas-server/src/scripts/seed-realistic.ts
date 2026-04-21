@@ -19,6 +19,7 @@ import { prisma } from '../lib/prisma.js';
 import { generateBuildingShortCode } from '../lib/building-short-code.js';
 import type { ExternalFaculty } from '../services/faculty-adapter.js';
 import { syncCohorts } from '../services/cohort.service.js';
+import { seedTeachingLoadBaseline } from '../services/seeded-teaching-load.service.js';
 import { syncFacultyFromExternal } from '../services/faculty.service.js';
 import { getSectionSummary } from '../services/section.service.js';
 import type { ExternalSection, ProgramType, SectionsByGrade } from '../services/section-adapter.js';
@@ -40,6 +41,7 @@ interface SeederOptions {
 	withCachedSnapshots: boolean;
 	seedMap: boolean;
 	resetMap: boolean;
+	seedAssignments: boolean;
 	confirmFixtureBypass: boolean;
 	authUserId: number;
 	authRole: string;
@@ -244,6 +246,7 @@ function parseArgs(): SeederOptions {
 		withCachedSnapshots: parseBooleanFlag(parsed.withCachedSnapshots, false),
 		seedMap: parseBooleanFlag(parsed.seedMap, false),
 		resetMap: parseBooleanFlag(parsed.resetMap, false),
+		seedAssignments: parseBooleanFlag(parsed.seedAssignments, parseBooleanFlag(parsed.reset, false)),
 		confirmFixtureBypass: parseBooleanFlag(parsed.confirmFixtureBypass, false),
 		authUserId: Number(parsed.authUserId) || 1,
 		authRole: typeof parsed.authRole === 'string' && parsed.authRole.trim().length > 0 ? parsed.authRole.trim() : 'SYSTEM_ADMIN',
@@ -434,6 +437,7 @@ function printPreflightSummary(
 	console.log(`    - withCachedSnapshots=${options.withCachedSnapshots}`);
 	console.log(`    - seedMap=${options.seedMap}`);
 	console.log(`    - resetMap=${options.resetMap}`);
+	console.log(`    - seedAssignments=${options.seedAssignments}`);
 	if (options.mode === 'atlas-fixture') {
 		console.log(`    - confirmFixtureBypass=${options.confirmFixtureBypass}`);
 	}
@@ -623,6 +627,7 @@ async function runFixtureMode(options: SeederOptions) {
 		teachers: teachers.length,
 		sections: sections.length,
 		cohorts,
+		gradeLevels,
 	};
 }
 
@@ -660,6 +665,7 @@ async function runEnrollProSourceMode(options: SeederOptions) {
 
 	return {
 		authSource: auth.source,
+		authToken: auth.token,
 		facultySource: facultyResult.source,
 		sectionSource: sectionSummary.source,
 		cohortSource: cohortResult.source,
@@ -824,6 +830,26 @@ async function main() {
 		? await runFixtureMode(options)
 		: await runEnrollProSourceMode(options);
 
+	let assignmentSummary:
+		| Awaited<ReturnType<typeof seedTeachingLoadBaseline>>
+		| undefined;
+	if (options.seedAssignments) {
+		console.log('[seed-realistic] Seeding deterministic faculty teaching-load assignments...');
+		assignmentSummary = await seedTeachingLoadBaseline({
+			schoolId: options.schoolId,
+			schoolYearId: options.schoolYearId,
+			assignedBy: options.authUserId,
+			authToken: options.mode === 'enrollpro-source'
+				? (result as Awaited<ReturnType<typeof runEnrollProSourceMode>>).authToken
+				: undefined,
+			gradeLevels: options.mode === 'atlas-fixture'
+				? (result as Awaited<ReturnType<typeof runFixtureMode>>).gradeLevels
+				: undefined,
+		});
+	} else {
+		console.log('[seed-realistic] Assignment seeding skipped. Existing faculty subject assignments were preserved.');
+	}
+
 	let mapSummary: MapSeedSummary | undefined;
 	if (options.seedMap) {
 		console.log('[seed-realistic] Seeding realistic campus map...');
@@ -848,6 +874,15 @@ async function main() {
 	if (options.mode === 'atlas-fixture') {
 		console.log(`  - Fixture teacher target: ${REALISTIC_TEACHER_COUNT}`);
 		console.log(`  - Fixture section target: ${REALISTIC_SECTION_COUNT}`);
+	}
+	if (assignmentSummary) {
+		console.log(`  - Teaching-load assignment rows: ${assignmentSummary.createdAssignmentRows}`);
+		console.log(`  - Teaching-load section source: ${assignmentSummary.sectionSource}`);
+		console.log(`  - Teaching-load active subjects: ${assignmentSummary.subjectCount}`);
+		console.log(`  - Teaching-load unassigned pairs: ${assignmentSummary.diagnostics.unassignedSectionSubjectCount}`);
+		console.log(`  - Teaching-load faculty without assignments: ${assignmentSummary.diagnostics.facultyWithoutAssignmentsCount}`);
+		console.log(`  - Teaching-load adviser homeroom matches: ${assignmentSummary.diagnostics.adviserHomeroomMatchCount}/${assignmentSummary.diagnostics.adviserCount}`);
+		console.log(`  - Teaching-load max hours: ${assignmentSummary.diagnostics.maxAssignedHours}`);
 	}
 	if (mapSummary) {
 		console.log(`  - Buildings created: ${mapSummary.buildingsCreated}`);

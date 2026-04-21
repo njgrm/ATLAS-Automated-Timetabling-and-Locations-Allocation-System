@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
 
+import { prisma } from '../lib/prisma.js';
 import { syncCohorts } from '../services/cohort.service.js';
+import { collectSeededTeachingLoadDiagnostics } from '../services/seeded-teaching-load.service.js';
 import { syncFacultyFromExternal } from '../services/faculty.service.js';
 import { getSectionSummary } from '../services/section.service.js';
 
@@ -78,6 +80,18 @@ async function main() {
 	const faculty = await syncFacultyFromExternal(options.schoolId, options.schoolYearId, auth.token);
 	const sections = await getSectionSummary(options.schoolYearId, options.schoolId, auth.token);
 	const cohorts = await syncCohorts(options.schoolId, options.schoolYearId, auth.token);
+	const mtbFacultyCount = await prisma.facultyMirror.count({
+		where: {
+			schoolId: options.schoolId,
+			isStale: false,
+			department: { contains: 'mother tongue', mode: 'insensitive' },
+		},
+	});
+	const teachingLoad = await collectSeededTeachingLoadDiagnostics({
+		schoolId: options.schoolId,
+		schoolYearId: options.schoolYearId,
+		authToken: auth.token,
+	});
 
 	assertAcceptedSource('faculty', faculty.source);
 	assertAcceptedSource('sections', sections.source);
@@ -92,6 +106,7 @@ async function main() {
 					activeCount: faculty.activeCount,
 					staleCount: faculty.staleCount,
 					deactivatedCount: faculty.deactivatedCount,
+					mtbFacultyCount,
 					isStale: faculty.isStale ?? false,
 				},
 				sections: {
@@ -107,6 +122,7 @@ async function main() {
 					count: cohorts.count,
 					warnings: cohorts.warnings ?? [],
 				},
+				teachingLoad,
 			},
 			null,
 			2,
@@ -117,4 +133,6 @@ async function main() {
 main().catch((error) => {
 	console.error('[verify-enrollpro-source] Failed:', error instanceof Error ? error.message : error);
 	process.exit(1);
+	}).finally(async () => {
+		await prisma.$disconnect();
 });
