@@ -23,6 +23,33 @@ Record dated implementation verification summaries here.
 
 ---
 
+### 2026-04-21 - Wave 3.5.3 Cross-Repo Source Gate + Wave 4.0 Review Hardening
+- Phase: 4 (user-approved cross-phase hardening)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `Push-Location EnrollPro/server; npm run build`: PASS
+  - `Push-Location atlas-server; npx tsc --noEmit`: PASS
+  - `Push-Location atlas-client; npx tsc --noEmit`: PASS
+  - `Push-Location atlas-server; npm run test:phase4-review`: PASS (23/23)
+  - `Push-Location .; npm run verify:cross-repo-source-gate -- --schoolId=1 --schoolYearId=1`: PASS
+- API checks:
+  - `GET /api/teachers/atlas/faculty-sync?schoolYearId=1` remained authoritative and live-backed during the gate, yielding `faculty.source=enrollpro`, `activeCount=154`, `staleCount=0`: PASS
+  - `GET /api/sections/1?level=JHS` now documents and emits stable program/adviser fields for ATLAS and resolved `sections.source=enrollpro`, `totalSections=83`, `totalEnrolled=3311` during the live gate: PASS
+  - `GET /api/curriculum/1/scp-config` remained authoritative for explicit cohorts and resolved `cohorts.source=enrollpro`, `count=12` during the live gate: PASS
+  - Cached verification with `ENROLLPRO_API=http://127.0.0.1:59999/api` resolved `faculty/sections/cohorts` from `cached-enrollpro` instead of `stub`, preserving the same 154 / 83 / 3311 / 12 totals and surfacing explicit stale warnings: PASS
+  - `GET /api/v1/faculty/advisers?schoolId=1` returned adviser mappings after route-order correction, and `GET /api/v1/faculty/:id/homeroom-hint` returned adviser-backed homeroom guidance for the selected faculty record: PASS
+- UI checks:
+  - `/timetable` bridge-auth browser session loaded the program/entry-kind filters, unassigned queue, and fix-suggestion workflow; loading fix suggestions for an ICT `No Compatible Room` item returned three actionable recommendations with preview support: PASS
+  - `/assignments?facultyId=2548` rendered the new adviser mapping banner (`9-Ruby`) and homeroom guidance copy for the selected faculty member: PASS
+  - Cohort-specific browser copy was not present in the current live unassigned sample, but the cohort-aware fallback/detail path is covered by `npm run test:phase4-review`: PASS
+- Blocking findings:
+  - none
+- Decision:
+  - Accepted
+
 ### 2026-04-21 - Wave 4.0 Cohort-Aware Generation + Special Program Review UX
 - Phase: 4
 - Scope gate: PASS
@@ -72,9 +99,9 @@ Record dated implementation verification summaries here.
   - `matchesFacultyDepartment()` smoke test: missing department to `MATH7` = `false`, `Mathematics` to `MATH7` = `true`, `Mathematics` to `SCI9` = `false`, `English` to `ESP9` = `false`, `Edukasyon sa Pagpapakatao` to `ESP9` = `true`, `null` to `Homeroom Guidance` = `true`: PASS
   - `FacultyAssignments` copy now separates `Qualified by Department` from `Outside Department (Emergency)` and gates the latter behind the emergency toggle: PASS (typechecked code path)
 - Blocking findings:
-  - `Push-Location EnrollPro/server; npm run build`: FAIL due to a pre-existing portable type inference error in `src/features/enrollment/eosy.router.ts:6` unrelated to this batch.
+  - Superseded by the later 2026-04-21 cross-repo hardening entry, which fixes the EnrollPro build and records a passing build result.
 - Decision:
-  - Accepted for requested scope; unrelated EnrollPro build issue remains outside this batch
+  - Accepted for requested scope; build blocker resolved in the subsequent cross-repo hardening batch
 
 ## 2026-03-31 - Bootstrap Entry
 - Phase: 3 (working state)

@@ -40,6 +40,14 @@ import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
 import { fetchPublicSettings } from '@/lib/settings';
+import {
+	getDefaultUnassignedReasonDetail,
+	getProgramBadgeLabel,
+	matchesEntryKindFilter,
+	matchesProgramFilter,
+	type EntryKindFilter,
+	type ProgramFilter,
+} from '@/lib/schedule-review-helpers';
 import { formatTime } from '@/lib/utils';
 import type {
 	Building,
@@ -149,8 +157,6 @@ const GRADE_BADGE: Record<number, string> = {
 
 type SeverityFilter = 'all' | 'hard' | 'soft' | 'conflicts' | 'wellbeing';
 type ViewMode = 'section' | 'faculty' | 'room';
-type ProgramFilter = 'all' | 'REGULAR' | 'SPECIAL' | 'STE' | 'SPA' | 'SPS' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER';
-type EntryKindFilter = 'all' | 'section' | 'cohort';
 
 /** Enriched room info for display (includes parent building context) */
 type RoomInfo = {
@@ -238,28 +244,6 @@ function formatDuration(ms: number | null): string {
 	if (ms == null) return '—';
 	if (ms < 1000) return `${ms}ms`;
 	return `${(ms / 1000).toFixed(1)}s`;
-}
-
-function isSpecialProgram(programType?: string | null): boolean {
-	return Boolean(programType && programType !== 'REGULAR' && programType !== 'OTHER');
-}
-
-function getProgramBadgeLabel(programType?: string | null, programCode?: string | null): string {
-	if (programCode) return programCode;
-	if (!programType || programType === 'REGULAR') return 'Regular';
-	return programType;
-}
-
-function matchesProgramFilter(programType: string | null | undefined, filter: ProgramFilter): boolean {
-	if (filter === 'all') return true;
-	if (filter === 'SPECIAL') return isSpecialProgram(programType);
-	return (programType ?? 'REGULAR') === filter;
-}
-
-function matchesEntryKindFilter(entryKind: ScheduledEntry['entryKind'] | UnassignedItem['entryKind'] | undefined, filter: EntryKindFilter): boolean {
-	if (filter === 'all') return true;
-	if (filter === 'cohort') return entryKind === 'COHORT';
-	return (entryKind ?? 'SECTION') === 'SECTION';
 }
 
 function buildUnassignedKey(item: UnassignedItem): string {
@@ -2035,15 +2019,7 @@ export default function ScheduleReview() {
 																				<p className="font-medium text-[0.6875rem] text-red-900 wrap-break-word whitespace-normal leading-snug">
 																					{unassignedFixSuggestions[itemKey]
 																						? unassignedFixSuggestions[itemKey]!.humanDetail
-																						: item.reason === 'NO_QUALIFIED_FACULTY'
-																							? 'No faculty member is tagged as qualified to teach this subject at this grade level.'
-																							: item.reason === 'FACULTY_OVERLOADED'
-																								? 'All qualified teachers have reached their maximum weekly/daily hours.'
-																								: item.reason === 'NO_AVAILABLE_SLOT'
-																									? 'Every possible time slot already causes a hard conflict.'
-																									: item.reason === 'NO_COMPATIBLE_ROOM'
-																										? 'No room of the required type is available at any open time.'
-																										: 'This session could not be placed by the algorithm.'
+																						: getDefaultUnassignedReasonDetail(item)
 																					}
 																				</p>
 																			</div>
@@ -2086,6 +2062,16 @@ export default function ScheduleReview() {
 																									gradeLevel: item.gradeLevel,
 																									session: item.session,
 																									reason: item.reason,
+																									entryKind: item.entryKind,
+																									programType: item.programType,
+																									programCode: item.programCode,
+																									programName: item.programName,
+																									cohortCode: item.cohortCode,
+																									cohortName: item.cohortName,
+																									cohortMemberSectionIds: item.cohortMemberSectionIds,
+																									cohortExpectedEnrollment: item.cohortExpectedEnrollment,
+																									adviserId: item.adviserId,
+																									adviserName: item.adviserName,
 																								},
 																							);
 																							setUnassignedFixSuggestions((prev) => ({

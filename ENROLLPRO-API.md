@@ -140,7 +140,7 @@ This file documents the currently mounted EnrollPro backend API surface from the
 | POST   | `/api/curriculum/:ayId/grade-levels` | SYSTEM_ADMIN            | `201` with `{ gradeLevel }`                     |
 | PUT    | `/api/curriculum/grade-levels/:id`   | SYSTEM_ADMIN            | `200` with `{ gradeLevel }`                     |
 | DELETE | `/api/curriculum/grade-levels/:id`   | SYSTEM_ADMIN            | `200` with `{ message: "Grade level deleted" }` |
-| GET    | `/api/curriculum/:ayId/scp-config`   | REGISTRAR, SYSTEM_ADMIN | `200` with `{ scpProgramConfigs: [...] }`       |
+| GET    | `/api/curriculum/:ayId/scp-config`   | REGISTRAR, SYSTEM_ADMIN | `200` with `{ scpProgramConfigs: [...], cohorts: [...] }` |
 | PUT    | `/api/curriculum/:ayId/scp-config`   | SYSTEM_ADMIN            | `200` with `{ scpProgramConfigs: [...] }`       |
 
 ---
@@ -151,7 +151,7 @@ This file documents the currently mounted EnrollPro backend API surface from the
 | ------ | ------------------------ | ----------------------- | ------------------------------------------- |
 | GET    | `/api/sections/teachers` | REGISTRAR, SYSTEM_ADMIN | `200` with `{ teachers: [...] }`            |
 | GET    | `/api/sections`          | REGISTRAR, SYSTEM_ADMIN | `200` with `{ sections: [...] }`            |
-| GET    | `/api/sections/:ayId`    | REGISTRAR, SYSTEM_ADMIN | `200` with `{ sections: [...] }`            |
+| GET    | `/api/sections/:ayId`    | REGISTRAR, SYSTEM_ADMIN | `200` with `{ gradeLevels: [...] }`         |
 | POST   | `/api/sections`          | REGISTRAR, SYSTEM_ADMIN | `201` with `{ section }`                    |
 | PUT    | `/api/sections/:id`      | REGISTRAR, SYSTEM_ADMIN | `200` with `{ section }`                    |
 | DELETE | `/api/sections/:id`      | REGISTRAR, SYSTEM_ADMIN | `200` with `{ message: "Section deleted" }` |
@@ -280,7 +280,7 @@ All endpoints below require SYSTEM_ADMIN role.
 | Method | Path                                     | Expected response                                       |
 | ------ | ---------------------------------------- | ------------------------------------------------------- |
 | GET    | `/api/teachers`                          | `200` with `{ scope, teachers: [...] }`                 |
-| GET    | `/api/teachers/atlas/faculty-sync`       | `200` ATLAS sync health/status payload                  |
+| GET    | `/api/teachers/atlas/faculty-sync`       | `200` with `{ teachers: [...] }` for ATLAS mirror sync |
 | POST   | `/api/teachers/atlas/push`               | `200` batch ATLAS push result                           |
 | POST   | `/api/teachers/:id/atlas/push`           | `200` single teacher push result                        |
 | GET    | `/api/teachers/:id/designation`          | `200` with `{ scope, teacher, designation, atlasSync }` |
@@ -291,6 +291,90 @@ All endpoints below require SYSTEM_ADMIN role.
 | PUT    | `/api/teachers/:id`                      | `200` with `{ teacher, atlasSync }`                     |
 | PATCH  | `/api/teachers/:id/deactivate`           | `200` with `{ teacher, atlasSync }`                     |
 | PATCH  | `/api/teachers/:id/reactivate`           | `200` with `{ teacher, atlasSync }`                     |
+
+---
+
+### ATLAS Sync Payloads
+
+#### `GET /api/teachers/atlas/faculty-sync?schoolYearId=:id`
+
+```json
+{
+  "teachers": [
+    {
+      "teacherId": 101,
+      "firstName": "Maria",
+      "lastName": "Santos",
+      "email": "maria.santos@enrollpro.local",
+      "contactNumber": "09171234567",
+      "department": "Mathematics",
+      "specialization": "Mathematics",
+      "isActive": true,
+      "advisoryEquivalentHoursPerWeek": 5,
+      "isTeachingExempt": false,
+      "advisedSectionId": 41,
+      "advisedSectionName": "7-Einstein"
+    }
+  ]
+}
+```
+
+#### `GET /api/sections/:ayId`
+
+```json
+{
+  "gradeLevels": [
+    {
+      "gradeLevelId": 7,
+      "gradeLevelName": "Grade 7",
+      "displayOrder": 7,
+      "sections": [
+        {
+          "id": 41,
+          "name": "7-Einstein",
+          "programType": "SCIENCE_TECHNOLOGY_AND_ENGINEERING",
+          "programCode": "STE",
+          "programName": "Science, Technology, and Engineering",
+          "maxCapacity": 45,
+          "enrolledCount": 42,
+          "fillPercent": 93,
+          "adviserId": 101,
+          "adviserName": "Santos, Maria",
+          "advisingTeacher": {
+            "id": 101,
+            "name": "Santos, Maria"
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+#### `GET /api/curriculum/:ayId/scp-config`
+
+```json
+{
+  "scpProgramConfigs": [
+    {
+      "id": 1,
+      "scpType": "SPECIAL_CURRICULAR_PROGRAMS",
+      "isOffered": true
+    }
+  ],
+  "cohorts": [
+    {
+      "cohortCode": "G7-TLE-IA",
+      "specializationCode": "IA",
+      "specializationName": "Industrial Arts",
+      "gradeLevel": 7,
+      "memberSectionIds": [41, 42, 43],
+      "expectedEnrollment": 118,
+      "preferredRoomType": "TLE_WORKSHOP"
+    }
+  ]
+}
+```
 
 ---
 

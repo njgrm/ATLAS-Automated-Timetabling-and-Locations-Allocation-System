@@ -29,6 +29,80 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
 	}
 });
 
+// Auth: POST /faculty/sync — trigger sync from external source
+router.post('/sync', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.body.schoolId);
+		const schoolYearId = Number(req.body.schoolYearId);
+		if (!schoolId || Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
+			return;
+		}
+		if (!schoolYearId || Number.isNaN(schoolYearId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
+			return;
+		}
+		const authToken = req.headers.authorization?.slice(7);
+		const result = await facultyService.syncFacultyFromExternal(schoolId, schoolYearId, authToken);
+		if (!result.synced) {
+			res.status(502).json({
+				code: 'SYNC_FAILED',
+				message: result.error,
+				source: result.source,
+				isStale: result.isStale,
+				staleReason: result.staleReason,
+			});
+			return;
+		}
+		res.json({
+			synced: true,
+			source: result.source,
+			fetchedAt: result.fetchedAt,
+			activeCount: result.activeCount,
+			staleCount: result.staleCount,
+			deactivatedCount: result.deactivatedCount,
+			isStale: result.isStale,
+			staleReason: result.staleReason,
+		});
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: GET /faculty/advisers?schoolId=X — list advisers with homeroom info
+router.get('/advisers', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.query.schoolId);
+		if (!schoolId || Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
+			return;
+		}
+		const advisers = await facultyService.getFacultyWithAdviserInfo(schoolId);
+		res.json({ advisers });
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: GET /faculty/:id/homeroom-hint — get homeroom recommendation for a faculty
+router.get('/:id/homeroom-hint', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const facultyId = Number(req.params.id);
+		if (Number.isNaN(facultyId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
+			return;
+		}
+		const hint = await facultyService.getHomeroomRecommendation(facultyId);
+		if (!hint) {
+			res.json({ hasAdviserMapping: false, homeroomHint: null });
+			return;
+		}
+		res.json(hint);
+	} catch (err) {
+		next(err);
+	}
+});
+
 // Auth: GET /faculty/:id
 router.get('/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
 	try {
@@ -89,81 +163,6 @@ router.patch('/:id', authenticate, async (req: Request, res: Response, next: Nex
 			return;
 		}
 		res.json({ faculty: result.faculty });
-	} catch (err) {
-		next(err);
-	}
-});
-
-// Auth: POST /faculty/sync — trigger sync from external source
-router.post('/sync', authenticate, async (req: Request, res: Response, next: NextFunction) => {
-	try {
-		const schoolId = Number(req.body.schoolId);
-		const schoolYearId = Number(req.body.schoolYearId);
-		if (!schoolId || Number.isNaN(schoolId)) {
-			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
-			return;
-		}
-		if (!schoolYearId || Number.isNaN(schoolYearId)) {
-			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
-			return;
-		}
-		// Forward the bridge token to the EnrollPro adapter
-		const authToken = req.headers.authorization?.slice(7);
-		const result = await facultyService.syncFacultyFromExternal(schoolId, schoolYearId, authToken);
-		if (!result.synced) {
-			res.status(502).json({
-				code: 'SYNC_FAILED',
-				message: result.error,
-				source: result.source,
-				isStale: result.isStale,
-				staleReason: result.staleReason,
-			});
-			return;
-		}
-		res.json({
-			synced: true,
-			source: result.source,
-			fetchedAt: result.fetchedAt,
-			activeCount: result.activeCount,
-			staleCount: result.staleCount,
-			deactivatedCount: result.deactivatedCount,
-			isStale: result.isStale,
-			staleReason: result.staleReason,
-		});
-	} catch (err) {
-		next(err);
-	}
-});
-
-// Auth: GET /faculty/advisers?schoolId=X — list advisers with homeroom info
-router.get('/advisers', authenticate, async (req: Request, res: Response, next: NextFunction) => {
-	try {
-		const schoolId = Number(req.query.schoolId);
-		if (!schoolId || Number.isNaN(schoolId)) {
-			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
-			return;
-		}
-		const advisers = await facultyService.getFacultyWithAdviserInfo(schoolId);
-		res.json({ advisers });
-	} catch (err) {
-		next(err);
-	}
-});
-
-// Auth: GET /faculty/:id/homeroom-hint — get homeroom recommendation for a faculty
-router.get('/:id/homeroom-hint', authenticate, async (req: Request, res: Response, next: NextFunction) => {
-	try {
-		const facultyId = Number(req.params.id);
-		if (Number.isNaN(facultyId)) {
-			res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
-			return;
-		}
-		const hint = await facultyService.getHomeroomRecommendation(facultyId);
-		if (!hint) {
-			res.json({ hasAdviserMapping: false, homeroomHint: null });
-			return;
-		}
-		res.json(hint);
 	} catch (err) {
 		next(err);
 	}

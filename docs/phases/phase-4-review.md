@@ -111,6 +111,17 @@
 - Faculty assignment qualification logic now fails closed for missing/unknown departments, with Homeroom Guidance as the explicit cross-department exception.
 - Verification evidence logged in `docs/verification/evidence-log.md` for live EnrollPro sync, cached upstream fallback, and strict qualification smoke tests.
 
+## Cross-Repo Kickoff — Wave 3.5.3 + Wave 4.0 Hardening (2026-04-21)
+- Fixed the EnrollPro build blocker by making router typing portable in `eosy.router.ts` and restoring Prisma-compatible mutable where-input typing in sections/curriculum controllers.
+- Locked the authoritative EnrollPro contract surface for ATLAS by documenting and exposing stable shapes for `/api/teachers/atlas/faculty-sync`, `/api/sections/:ayId`, and `/api/curriculum/:ayId/scp-config`.
+- EnrollPro sections now emit explicit `programCode`, `programName`, `adviserId`, and `adviserName` fields in addition to the normalized `advisingTeacher` payload so ATLAS can consume a stable source-of-truth contract without ad hoc inference.
+- Added aligned root/server scripts plus `atlas-server/src/scripts/verify-cross-repo-source-gate.ts` to automate the full source-of-truth gate: EnrollPro authoritative seed, ATLAS live mirror reset, live verification, and cached-upstream verification.
+- `ScheduleReview.tsx` now uses a dedicated helper module for program and entry-kind filtering, pushes cohort/program/adviser metadata through fix-suggestion requests, and renders cohort-aware fallback copy when upstream fix suggestions are absent.
+- `fix-suggestions.service.ts` now returns cohort-aware labels, details, and remediation copy for unassigned cohort sessions instead of generic section-only wording.
+- `faculty.router.ts` route order was corrected so `/sync`, `/advisers`, and `/:id/homeroom-hint` are no longer shadowed by `/:id`.
+- `FacultyAssignments.tsx` now surfaces adviser-backed homeroom guidance inline for the selected faculty member when an adviser mapping exists.
+- Verification evidence logged in `docs/verification/evidence-log.md` for the repaired EnrollPro build, ATLAS server/client typechecks, Wave 4 test expansion, cross-repo gate, and manual browser QA on `/timetable` and `/assignments`.
+
 ## Exit Criteria
 - Officer can resolve findings and revalidate
 - Publish path is blocked while hard violations remain

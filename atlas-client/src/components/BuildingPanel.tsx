@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { GripVertical, PencilLine, Plus, Trash2, X } from 'lucide-react';
+import { GripVertical, PencilLine, Plus, Trash2, X, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import {
 	DndContext,
@@ -36,6 +36,7 @@ import { Badge } from '@/ui/badge';
 import { Label } from '@/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Switch } from '@/ui/switch';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/ui/tooltip';
 
 type EditorBuilding = Building & { dirty?: boolean; isNew?: boolean };
 type RoomEditForm = {
@@ -793,19 +794,40 @@ function SortableRoomTile({
 				</div>
 			</div>
 			<div className="flex shrink-0 items-center gap-1">
-				{showTeachingToggle && (
-					<Button type="button" variant="outline" size="xs" onClick={onToggleTeaching}>
-						{room.isTeachingSpace ? 'Exclude' : 'Teach'}
-					</Button>
-				)}
-				<Button type="button" variant="outline" size="xs" onClick={onEdit}>
-					<PencilLine className="size-3.5" />
-					Edit
-				</Button>
-				<Button type="button" variant="destructive" size="xs" onClick={onDelete}>
-					<Trash2 className="size-3.5" />
-					Delete
-				</Button>
+				<TooltipProvider delayDuration={300}>
+					{showTeachingToggle && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button type="button" variant="ghost" size="icon-xs" onClick={onToggleTeaching}>
+									{room.isTeachingSpace ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent side="top">
+								<p>{room.isTeachingSpace ? 'Exclude from scheduling' : 'Include in scheduling'}</p>
+							</TooltipContent>
+						</Tooltip>
+					)}
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button type="button" variant="ghost" size="icon-xs" onClick={onEdit}>
+								<PencilLine className="size-3.5" />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent side="top">
+							<p>Edit room</p>
+						</TooltipContent>
+					</Tooltip>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button type="button" variant="ghost" size="icon-xs" onClick={onDelete} className="text-destructive hover:text-destructive">
+								<Trash2 className="size-3.5" />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent side="top">
+							<p>Delete room</p>
+						</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
 			</div>
 		</li>
 	);

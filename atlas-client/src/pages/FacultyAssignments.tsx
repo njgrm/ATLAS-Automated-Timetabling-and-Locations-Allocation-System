@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 import atlasApi from '@/lib/api';
 import { gradeLabel, matchesFacultyDepartment } from '@/lib/grade-labels';
 import { fetchPublicSettings } from '@/lib/settings';
-import type { Subject } from '@/types';
+import type { HomeroomHintResponse, Subject } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -113,6 +113,7 @@ export default function FacultyAssignments() {
 	/* Section demand data */
 	const [sectionsByGrade, setSectionsByGrade] = useState<Record<number, number>>({});
 	const [sectionsAvailable, setSectionsAvailable] = useState<boolean | null>(null); // null = loading
+	const [homeroomHint, setHomeroomHint] = useState<HomeroomHintResponse | null>(null);
 
 	const fetchData = useCallback(async () => {
 		setLoading(true);
@@ -170,6 +171,7 @@ export default function FacultyAssignments() {
 		if (!selected) {
 			setLocalAssignments([]);
 			setDirty(false);
+			setHomeroomHint(null);
 			return;
 		}
 		setLocalAssignments(
@@ -179,6 +181,31 @@ export default function FacultyAssignments() {
 			})),
 		);
 		setDirty(false);
+	}, [selected]);
+
+	useEffect(() => {
+		if (!selected) {
+			setHomeroomHint(null);
+			return;
+		}
+
+		let cancelled = false;
+		atlasApi
+			.get<HomeroomHintResponse>(`/faculty/${selected.id}/homeroom-hint`)
+			.then(({ data }) => {
+				if (!cancelled) {
+					setHomeroomHint(data);
+				}
+			})
+			.catch(() => {
+				if (!cancelled) {
+					setHomeroomHint(null);
+				}
+			});
+
+		return () => {
+			cancelled = true;
+		};
 	}, [selected]);
 
 	// Filter faculty list
@@ -703,6 +730,18 @@ export default function FacultyAssignments() {
 										return filteredOther.length > 0 ? (
 											<div>
 												<h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider flex items-center gap-1.5">
+
+										{homeroomHint?.hasAdviserMapping && (
+											<div className="mt-3 flex items-start gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-800">
+												<Info className="mt-0.5 size-4 shrink-0" />
+												<div className="min-w-0">
+													<p className="font-medium">Adviser Mapping: {homeroomHint.advisedSectionName}</p>
+													<p className="text-[0.75rem] leading-snug text-sky-700">
+														{homeroomHint.homeroomHint}. Prioritize Homeroom Guidance and adviser-facing load review for this section.
+													</p>
+												</div>
+											</div>
+										)}
 													Outside Department (Emergency)
 													{!allowOutsideDepartment && (
 														<Badge variant="secondary" className="text-[0.5rem] px-1 py-0 font-normal">Disabled</Badge>

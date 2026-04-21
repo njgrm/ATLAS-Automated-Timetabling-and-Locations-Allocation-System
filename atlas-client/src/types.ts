@@ -82,6 +82,13 @@ export type FacultyMirror = {
 	facultySubjects?: FacultySubject[];
 };
 
+export interface HomeroomHintResponse {
+	hasAdviserMapping: boolean;
+	advisedSectionId?: number | null;
+	advisedSectionName?: string | null;
+	homeroomHint: string | null;
+}
+
 export type FacultySubject = {
 	id: number;
 	facultyId: number;
@@ -537,7 +544,7 @@ export interface SectionSummaryResponse {
 	byGradeLevel: Record<number, number>;
 	enrolledByGradeLevel: Record<number, number>;
 	sections: ExternalSection[];
-	source?: 'enrollpro' | 'stub' | 'auto-fallback';
+	source?: 'enrollpro' | 'stub' | 'cached-enrollpro';
 	sourceMode?: 'stub' | 'enrollpro' | 'auto';
 	fallbackReason?: string;
 	contractWarnings?: string[];

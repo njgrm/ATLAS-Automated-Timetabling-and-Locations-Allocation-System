@@ -107,6 +107,7 @@ It defines phase scope, acceptance gates, and the current progress state.
   - Manual adjustments with optimistic locking and auditability
 - **Work completed**
   - Batch 1: Review Console UI foundation (ScheduleReview page, three-panel layout, run/violation/draft consumption, filter/highlight/triage UX)
+  - Cross-repo hardening batch: EnrollPro build repair, authoritative contract locking for teachers/sections/cohorts, automated live-plus-cached source gate, cohort-aware review explanation hardening, and adviser-backed homeroom hints in Teaching Load
 - **Exit criteria**
   - Officer can resolve review findings and revalidate hard constraints
   - Conflicts are blocked from publish path until cleared

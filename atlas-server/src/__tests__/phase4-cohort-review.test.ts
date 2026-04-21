@@ -35,6 +35,49 @@ function section(name: string) {
 	console.log(`\n═══ ${name} ═══`);
 }
 
+type TestProgramFilter = 'all' | 'REGULAR' | 'SPECIAL' | 'STE' | 'SPA' | 'SPS' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER';
+type TestEntryKindFilter = 'all' | 'section' | 'cohort';
+
+function testIsSpecialProgram(programType?: string | null): boolean {
+	return Boolean(programType && programType !== 'REGULAR' && programType !== 'OTHER');
+}
+
+function testGetProgramBadgeLabel(programType?: string | null, programCode?: string | null): string {
+	if (programCode) return programCode;
+	if (!programType || programType === 'REGULAR') return 'Regular';
+	return programType;
+}
+
+function testMatchesProgramFilter(programType: string | null | undefined, filter: TestProgramFilter): boolean {
+	if (filter === 'all') return true;
+	if (filter === 'SPECIAL') return testIsSpecialProgram(programType);
+	return (programType ?? 'REGULAR') === filter;
+}
+
+function testMatchesEntryKindFilter(entryKind: 'SECTION' | 'COHORT' | undefined, filter: TestEntryKindFilter): boolean {
+	if (filter === 'all') return true;
+	if (filter === 'cohort') return entryKind === 'COHORT';
+	return (entryKind ?? 'SECTION') === 'SECTION';
+}
+
+function testDefaultUnassignedReasonDetail(item: {
+	reason: 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM';
+	entryKind?: 'SECTION' | 'COHORT';
+	cohortCode?: string | null;
+	cohortName?: string | null;
+	cohortMemberSectionIds?: number[];
+	cohortExpectedEnrollment?: number | null;
+}): string {
+	if (item.entryKind === 'COHORT' && item.reason === 'NO_AVAILABLE_SLOT') {
+		const linkedSections = item.cohortMemberSectionIds?.length ?? 0;
+		const cohortLabel = item.cohortCode ?? item.cohortName ?? 'this cohort';
+		const scope = `${cohortLabel}${linkedSections > 0 ? ` across ${linkedSections} linked sections` : ''}${item.cohortExpectedEnrollment != null ? ` for ${item.cohortExpectedEnrollment} learners` : ''}`;
+		return `No shared time slot remains available for ${scope} without creating a hard conflict.`;
+	}
+
+	return 'This session could not be placed by the algorithm.';
+}
+
 section('Section contract normalization');
 
 {
@@ -154,6 +197,56 @@ section('Cohort-aware baseline construction');
 	assertEqual(result.unassignedItems.length, 0, 'Qualified faculty and room capacity allow all cohort sessions to be placed');
 }
 
+section('Fallback to section entries when cohorts are absent');
+
+{
+	const result = constructBaseline({
+		schoolId: 1,
+		schoolYearId: 1,
+		sectionsByGrade: [
+			{
+				gradeLevelId: 7,
+				gradeLevelName: 'Grade 7',
+				displayOrder: 7,
+				sections: [
+					{ id: 31, name: '7-Mabini', maxCapacity: 45, enrolledCount: 32, gradeLevelId: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR', programCode: 'REGULAR', programName: 'Regular', adviserId: 301, adviserName: 'Alma Cruz' },
+					{ id: 32, name: '7-Luna', maxCapacity: 45, enrolledCount: 31, gradeLevelId: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR', programCode: 'REGULAR', programName: 'Regular', adviserId: 302, adviserName: 'Paolo Sy' },
+				],
+			},
+		],
+		subjects: [
+			{
+				id: 302,
+				code: 'TLE',
+				minMinutesPerWeek: 100,
+				preferredRoomType: 'TLE_WORKSHOP',
+				sessionPattern: 'ANY',
+				gradeLevels: [7],
+				interSectionEnabled: true,
+				interSectionGradeLevels: [7],
+			},
+		],
+		cohorts: [],
+		faculty: [{ id: 1, maxHoursPerWeek: 40 }],
+		facultySubjects: [{ facultyId: 1, subjectId: 302, gradeLevels: [7] }],
+		rooms: [{ id: 1, type: 'TLE_WORKSHOP', isTeachingSpace: true, capacity: 80 }],
+		preferences: [],
+		policy: {
+			maxConsecutiveTeachingMinutesBeforeBreak: 120,
+			minBreakMinutesAfterConsecutiveBlock: 15,
+			maxTeachingMinutesPerDay: 300,
+			earliestStartTime: '07:30',
+			latestEndTime: '12:00',
+			enableTleTwoPassPriority: true,
+			allowFlexibleSubjectAssignment: false,
+			allowConsecutiveLabSessions: true,
+		},
+	});
+
+	assert(result.entries.every((entry) => entry.entryKind === 'SECTION' || entry.entryKind === undefined), 'Constructor falls back to section-based entries when no cohorts exist');
+	assertEqual(result.unassignedItems.length, 0, 'Section fallback still places sessions when faculty and rooms are available');
+}
+
 section('Cohort capacity validation');
 
 {
@@ -192,6 +285,28 @@ section('Cohort capacity validation');
 	const capacityViolations = result.violations.filter((violation) => violation.code === 'ROOM_CAPACITY_EXCEEDED');
 	assertEqual(capacityViolations.length, 1, 'Cohort entries are checked against room capacity using cohort enrollment');
 	assertEqual(capacityViolations[0]?.meta?.cohortCode as string, 'G7-TLE-IA', 'Capacity violation metadata preserves cohort code');
+}
+
+section('Review filter and cohort copy helpers');
+
+{
+	assert(testMatchesProgramFilter('STE', 'SPECIAL'), 'Special-program filter includes STE entries');
+	assert(!testMatchesProgramFilter('REGULAR', 'SPECIAL'), 'Special-program filter excludes regular entries');
+	assertEqual(testGetProgramBadgeLabel('SPA', null), 'SPA', 'Program badge falls back to program type when code is absent');
+	assertEqual(testGetProgramBadgeLabel('REGULAR', null), 'Regular', 'Program badge renders Regular for base sections');
+	assert(testMatchesEntryKindFilter('COHORT', 'cohort'), 'Entry-kind filter matches cohort entries');
+	assert(!testMatchesEntryKindFilter('SECTION', 'cohort'), 'Entry-kind filter excludes section entries from cohort-only view');
+	assert(
+		testDefaultUnassignedReasonDetail({
+			reason: 'NO_AVAILABLE_SLOT',
+			entryKind: 'COHORT',
+			cohortCode: 'G8-TLE-HE',
+			cohortName: 'Home Economics',
+			cohortMemberSectionIds: [41, 42, 43],
+			cohortExpectedEnrollment: 118,
+		}).includes('shared time slot'),
+		'Cohort-specific unassigned detail references shared-slot blocking',
+	);
 }
 
 console.log(`\nPassed: ${passCount}`);

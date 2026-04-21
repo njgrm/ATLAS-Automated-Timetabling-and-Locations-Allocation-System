@@ -248,7 +248,23 @@ router.post(
 			const runId = positiveInt(req.params.runId, 'runId');
 			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
 
-			const { sectionId, subjectId, gradeLevel, session, reason } = req.body;
+			const {
+				sectionId,
+				subjectId,
+				gradeLevel,
+				session,
+				reason,
+				entryKind,
+				programType,
+				programCode,
+				programName,
+				cohortCode,
+				cohortName,
+				cohortMemberSectionIds,
+				cohortExpectedEnrollment,
+				adviserId,
+				adviserName,
+			} = req.body;
 			const validReasons = ['NO_QUALIFIED_FACULTY', 'FACULTY_OVERLOADED', 'NO_AVAILABLE_SLOT', 'NO_COMPATIBLE_ROOM'];
 			if (!sectionId || !subjectId || !reason || !validReasons.includes(reason)) {
 				res.status(400).json({ code: 'INVALID_BODY', message: 'sectionId, subjectId, session, gradeLevel, and a valid reason are required.' });
@@ -261,6 +277,18 @@ router.post(
 				gradeLevel: Number(gradeLevel) || 0,
 				session: Number(session) || 1,
 				reason,
+				entryKind: entryKind === 'COHORT' ? 'COHORT' : 'SECTION',
+				programType: typeof programType === 'string' ? programType : null,
+				programCode: typeof programCode === 'string' ? programCode : null,
+				programName: typeof programName === 'string' ? programName : null,
+				cohortCode: typeof cohortCode === 'string' ? cohortCode : null,
+				cohortName: typeof cohortName === 'string' ? cohortName : null,
+				cohortMemberSectionIds: Array.isArray(cohortMemberSectionIds)
+					? cohortMemberSectionIds.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0)
+					: undefined,
+				cohortExpectedEnrollment: Number.isFinite(Number(cohortExpectedEnrollment)) ? Number(cohortExpectedEnrollment) : null,
+				adviserId: Number.isFinite(Number(adviserId)) ? Number(adviserId) : null,
+				adviserName: typeof adviserName === 'string' ? adviserName : null,
 			});
 
 			res.json(result);
