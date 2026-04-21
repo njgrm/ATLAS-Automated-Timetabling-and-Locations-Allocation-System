@@ -1,6 +1,8 @@
 import { prisma } from '../lib/prisma.js';
 import { generateBuildingShortCode } from '../lib/building-short-code.js';
 
+const NON_TEACHING_ROOM_TYPES = new Set(['LIBRARY', 'FACULTY_ROOM', 'OFFICE', 'OTHER']);
+
 export async function getBuildingsBySchool(schoolId: number) {
 	const buildings = await prisma.building.findMany({
 		where: { schoolId },
@@ -61,6 +63,20 @@ export async function updateBuilding(
 	id: number,
 	data: Partial<{ name: string; x: number; y: number; width: number; height: number; color: string; rotation: number; floorCount: number; isTeachingBuilding: boolean; shortCode: string }>,
 ) {
+	if (data.floorCount !== undefined) {
+		const highestAssignedFloor = await prisma.room.aggregate({
+			where: { buildingId: id },
+			_max: { floor: true },
+		});
+		const minAllowedFloorCount = highestAssignedFloor._max.floor ?? 1;
+		if (data.floorCount < minAllowedFloorCount) {
+			throw Object.assign(
+				new Error(`Floor count cannot be set below ${minAllowedFloorCount} while rooms are assigned to that floor.`),
+				{ statusCode: 400, code: 'INVALID_FLOOR_COUNT' },
+			);
+		}
+	}
+
 	// If name changed but shortCode not explicitly provided, regenerate
 	const updateData: Record<string, unknown> = { ...data };
 	if (data.name && data.shortCode === undefined) {
@@ -103,6 +119,7 @@ export async function addRoom(
 	data: { name: string; floor?: number; type?: string; capacity?: number; isTeachingSpace?: boolean; floorPosition?: number },
 ) {
 	const floor = data.floor ?? 1;
+	const roomType = (data.type as any) ?? 'CLASSROOM';
 
 	// Validate floor does not exceed building floorCount; also load teaching flag
 	const building = await prisma.building.findUnique({
@@ -121,7 +138,7 @@ export async function addRoom(
 
 	// Non-teaching buildings force rooms to non-teaching regardless of payload
 	const isTeachingSpace = building.isTeachingBuilding
-		? (data.isTeachingSpace ?? true)
+		? (NON_TEACHING_ROOM_TYPES.has(roomType) ? false : (data.isTeachingSpace ?? true))
 		: false;
 
 	// Get the max floorPosition on the same floor for auto-ordering
@@ -139,7 +156,7 @@ export async function addRoom(
 			buildingId,
 			name: data.name,
 			floor,
-			type: (data.type as any) ?? 'CLASSROOM',
+			type: roomType,
 			capacity: data.capacity ?? null,
 			isTeachingSpace,
 			floorPosition: pos,
@@ -155,29 +172,43 @@ export async function updateRoom(
 	id: number,
 	data: Partial<{ name: string; floor: number; type: string; capacity: number | null; isTeachingSpace: boolean; floorPosition: number }>,
 ) {
-	// Validate floor against building floorCount if floor is being changed
-	if (data.floor !== undefined) {
-		const room = await prisma.room.findUnique({ where: { id }, select: { buildingId: true } });
-		if (!room) {
-			throw Object.assign(new Error('Room not found.'), { statusCode: 404, code: 'NOT_FOUND' });
-		}
-		const building = await prisma.building.findUnique({ where: { id: room.buildingId }, select: { floorCount: true } });
-		if (building && (data.floor < 1 || data.floor > building.floorCount)) {
-			throw Object.assign(
-				new Error(`Floor ${data.floor} is invalid. Building has ${building.floorCount} floor(s).`),
-				{ statusCode: 400, code: 'INVALID_FLOOR' },
-			);
-		}
+	const room = await prisma.room.findUnique({
+		where: { id },
+		select: {
+			isTeachingSpace: true,
+			type: true,
+			building: {
+				select: {
+					floorCount: true,
+					isTeachingBuilding: true,
+				},
+			},
+		},
+	});
+	if (!room) {
+		throw Object.assign(new Error('Room not found.'), { statusCode: 404, code: 'NOT_FOUND' });
 	}
+
+	if (data.floor !== undefined && (data.floor < 1 || data.floor > room.building.floorCount)) {
+		throw Object.assign(
+			new Error(`Floor ${data.floor} is invalid. Building has ${room.building.floorCount} floor(s).`),
+			{ statusCode: 400, code: 'INVALID_FLOOR' },
+		);
+	}
+
+	const nextType = (data.type as any) ?? room.type;
+	const nextIsTeachingSpace = room.building.isTeachingBuilding && !NON_TEACHING_ROOM_TYPES.has(nextType)
+		? (data.isTeachingSpace ?? room.isTeachingSpace)
+		: false;
 
 	return prisma.room.update({
 		where: { id },
 		data: {
 			...(data.name !== undefined && { name: data.name }),
 			...(data.floor !== undefined && { floor: data.floor }),
-			...(data.type !== undefined && { type: data.type as any }),
+			...(data.type !== undefined && { type: nextType }),
 			...(data.capacity !== undefined && { capacity: data.capacity }),
-			...(data.isTeachingSpace !== undefined && { isTeachingSpace: data.isTeachingSpace }),
+			isTeachingSpace: nextIsTeachingSpace,
 			...(data.floorPosition !== undefined && { floorPosition: data.floorPosition }),
 		},
 	});

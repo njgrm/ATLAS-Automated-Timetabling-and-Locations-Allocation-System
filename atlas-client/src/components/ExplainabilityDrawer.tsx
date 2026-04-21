@@ -189,6 +189,13 @@ export function ExplainabilityDrawer({
 											</>
 										)}
 
+										{Boolean(violation.meta && (violation.meta.cohortCode != null || violation.meta.cohortName != null)) && (
+											<div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-[0.625rem] text-sky-900">
+												Cohort context: {String((violation.meta?.cohortCode as string | number | boolean | null | undefined) ?? (violation.meta?.cohortName as string | number | boolean | null | undefined) ?? '')}
+												{violation.meta?.cohortName && violation.meta?.cohortCode ? ` · ${String(violation.meta.cohortName as string | number | boolean)}` : ''}
+											</div>
+										)}
+
 										{contextLabel && (
 											<div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-[0.625rem] text-muted-foreground">
 												Context: {contextLabel}
@@ -228,6 +235,18 @@ export function ExplainabilityDrawer({
 													</p>
 												</div>
 											</>
+										)}
+
+										{(unassignedItem.entryKind === 'COHORT' || unassignedItem.adviserName || unassignedItem.programType) && (
+											<div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-[0.625rem] text-muted-foreground space-y-1">
+												{unassignedItem.entryKind === 'COHORT' && unassignedItem.cohortCode && (
+													<div>Cohort: {unassignedItem.cohortCode}{unassignedItem.cohortName ? ` · ${unassignedItem.cohortName}` : ''}</div>
+												)}
+												{unassignedItem.programType && unassignedItem.programType !== 'REGULAR' && (
+													<div>Program: {unassignedItem.programCode ?? unassignedItem.programType}</div>
+												)}
+												{unassignedItem.adviserName && <div>Adviser: {unassignedItem.adviserName}</div>}
+											</div>
 										)}
 									</div>
 								</>

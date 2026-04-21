@@ -102,6 +102,15 @@
 - **Router:** `follow-up-flag.router.ts` mounted at `/api/v1/follow-up-flags` with GET/PUT/DELETE endpoints, `authenticate` + role check
 - **Client:** ScheduleReview.tsx `followUps` state now loaded from API on run fetch, toggle is optimistic with server `PUT` and revert on failure
 
+## Cross-Phase Hardening — Wave 3.5.2 EnrollPro-First Seeding + Strict Qualification Fix (2026-04-21)
+- User-approved corrective batch executed during Phase 4 to harden source-of-truth behavior before further review tooling work.
+- Added shared realistic JHS dataset and EnrollPro `db:seed-atlas-source` path so EnrollPro owns the 154-teacher / 83-section / special-program source dataset.
+- `atlas-server/src/scripts/seed-realistic.ts` now defaults to `enrollpro-source` and only uses `atlas-fixture` when `--confirmFixtureBypass=true` is supplied explicitly.
+- Faculty sync now consumes the school-year-aware EnrollPro faculty-sync contract; section auto mode no longer drops to stub data; cohort auto mode now uses cached upstream data instead of silent stub fallback.
+- EnrollPro sections and curriculum controllers now count `NULL` `eosyStatus` rows as active and expose explicit cohort data for ATLAS.
+- Faculty assignment qualification logic now fails closed for missing/unknown departments, with Homeroom Guidance as the explicit cross-department exception.
+- Verification evidence logged in `docs/verification/evidence-log.md` for live EnrollPro sync, cached upstream fallback, and strict qualification smoke tests.
+
 ## Exit Criteria
 - Officer can resolve findings and revalidate
 - Publish path is blocked while hard violations remain

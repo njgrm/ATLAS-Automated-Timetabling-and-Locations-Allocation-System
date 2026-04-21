@@ -83,6 +83,7 @@ router.post('/sync', authenticate, async (req: Request, res: Response, next: Nex
 			source: result.source,
 			fetchedAt: result.fetchedAt,
 			count: result.count,
+			warnings: result.warnings ?? [],
 		});
 	} catch (err) {
 		next(err);

@@ -8,7 +8,7 @@ export interface ExternalFaculty {
 	id: number;
 	firstName: string;
 	lastName: string;
-	department: string;
+	department: string | null;
 	employmentStatus?: 'PERMANENT' | 'PROBATIONARY';
 	isClassAdviser?: boolean;
 	advisoryEquivalentHours?: number;
@@ -26,7 +26,7 @@ export interface FacultyFetchResult {
 }
 
 export interface FacultyAdapter {
-	fetchFacultyBySchool(schoolId: number, authToken?: string): Promise<FacultyFetchResult>;
+	fetchFacultyBySchoolYear(schoolId: number, schoolYearId: number, authToken?: string): Promise<FacultyFetchResult>;
 }
 
 // Realistic stub data for development
@@ -49,7 +49,7 @@ const STUB_FACULTY: ExternalFaculty[] = [
 ];
 
 export class StubFacultyAdapter implements FacultyAdapter {
-	async fetchFacultyBySchool(_schoolId: number): Promise<FacultyFetchResult> {
+	async fetchFacultyBySchoolYear(_schoolId: number, _schoolYearId: number): Promise<FacultyFetchResult> {
 		// Simulate network delay
 		await new Promise((resolve) => setTimeout(resolve, 200));
 		return {
@@ -67,14 +67,18 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 		this.baseUrl = baseUrl;
 	}
 
-	async fetchFacultyBySchool(_schoolId: number, authToken?: string): Promise<FacultyFetchResult> {
+	async fetchFacultyBySchoolYear(
+		_schoolId: number,
+		schoolYearId: number,
+		authToken?: string,
+	): Promise<FacultyFetchResult> {
 		const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
 		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 		if (token) {
 			headers.Authorization = `Bearer ${token}`;
 		}
 
-		const res = await fetch(`${this.baseUrl}/teachers`, { headers });
+		const res = await fetch(`${this.baseUrl}/teachers/atlas/faculty-sync?schoolYearId=${schoolYearId}`, { headers });
 
 		if (!res.ok) {
 			throw new Error(`EnrollPro API returned ${res.status}: ${res.statusText}`);
@@ -82,13 +86,16 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 
 		const data = (await res.json()) as {
 			teachers: Array<{
-				id: number;
+				teacherId: number;
 				firstName: string;
 				lastName: string;
+				email?: string | null;
+				contactNumber?: string | null;
+				department?: string | null;
 				specialization: string | null;
-				contactNumber: string | null;
 				isActive: boolean;
-				// Wave 3.5: Adviser fields from EnrollPro
+				advisoryEquivalentHoursPerWeek?: number | null;
+				isTeachingExempt?: boolean;
 				advisedSectionId?: number | null;
 				advisedSectionName?: string | null;
 			}>;
@@ -97,15 +104,15 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 		const teachers = data.teachers
 			.filter((t) => t.isActive)
 			.map((t) => ({
-				id: t.id,
+				id: t.teacherId,
 				firstName: t.firstName,
 				lastName: t.lastName,
-				department: t.specialization ?? 'General',
+				department: t.department ?? t.specialization ?? null,
 				employmentStatus: 'PERMANENT' as const,
 				isClassAdviser: !!t.advisedSectionId,
-				advisoryEquivalentHours: t.advisedSectionId ? 5 : 0,
-				canTeachOutsideDepartment: false,
-				contactInfo: t.contactNumber,
+				advisoryEquivalentHours: t.advisoryEquivalentHoursPerWeek ?? (t.advisedSectionId ? 5 : 0),
+				canTeachOutsideDepartment: !!t.isTeachingExempt,
+				contactInfo: t.contactNumber ?? t.email ?? null,
 				advisedSectionId: t.advisedSectionId ?? null,
 				advisedSectionName: t.advisedSectionName ?? null,
 			}));

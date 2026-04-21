@@ -14,6 +14,8 @@ import {
 } from './constraint-validator.js';
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
 import type { RunSummary, DraftReport } from './generation.service.js';
+import type { UnassignedItem } from './schedule-constructor.js';
+import type { SectionsByGrade } from './section-adapter.js';
 
 // ─── Helpers ───
 
@@ -92,6 +94,12 @@ export interface AffectedEntry {
 	endTime: string;
 	/** 'before' = the entry before the edit, 'after' = the entry after the edit */
 	phase: 'before' | 'after';
+	entryKind?: 'SECTION' | 'COHORT';
+	cohortCode?: string | null;
+	cohortName?: string | null;
+	programType?: string | null;
+	programCode?: string | null;
+	programName?: string | null;
 }
 
 export interface PolicyImpact {
@@ -131,15 +139,9 @@ async function loadRunContext(runId: number, schoolId: number, schoolYearId: num
 	if (run.status !== 'COMPLETED') throw err(400, 'RUN_NOT_COMPLETED', 'Manual edits can only be applied to COMPLETED runs.');
 
 	const entries = (run.draftEntries ?? []) as unknown as ScheduledEntry[];
-	const unassignedItems = (run.unassignedItems ?? []) as unknown as Array<{
-		sectionId: number;
-		subjectId: number;
-		gradeLevel: number;
-		session: number;
-		reason: string;
-	}>;
+	const unassignedItems = (run.unassignedItems ?? []) as unknown as UnassignedItem[];
 
-	const [faculty, facultySubjects, rooms, subjects, policyRecord, buildings, facultyNames, roomNames, subjectNames] = await Promise.all([
+	const [faculty, facultySubjects, rooms, subjects, policyRecord, buildings, facultyNames, roomNames, subjectNames, sectionSnapshot] = await Promise.all([
 		prisma.facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true },
 			select: { id: true, maxHoursPerWeek: true },
@@ -174,14 +176,38 @@ async function loadRunContext(runId: number, schoolId: number, schoolYearId: num
 			where: { schoolId },
 			select: { id: true, code: true, name: true },
 		}),
+		prisma.sectionSnapshot.findUnique({
+			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+			select: { payload: true },
+		}),
 	]);
 
 	// Build name lookup maps
 	const facultyNameMap = new Map(facultyNames.map((f) => [f.id, `${f.lastName}, ${f.firstName}`]));
 	const roomNameMap = new Map(roomNames.map((r) => [r.id, `${r.name} · ${r.building.shortCode || r.building.name}`]));
 	const subjectNameMap = new Map(subjectNames.map((s) => [s.id, s.code]));
+	const snapshotPayload = Array.isArray(sectionSnapshot?.payload)
+		? sectionSnapshot.payload as unknown as SectionsByGrade[]
+		: [];
+	const sectionEnrollment = new Map(
+		snapshotPayload.flatMap((grade) => grade.sections.map((section) => [section.id, section.enrolledCount] as const)),
+	);
 
-	return { run, entries, unassignedItems, faculty, facultySubjects, rooms, subjects, policyRecord, buildings, facultyNameMap, roomNameMap, subjectNameMap };
+	return {
+		run,
+		entries,
+		unassignedItems,
+		faculty,
+		facultySubjects,
+		rooms,
+		subjects,
+		policyRecord,
+		buildings,
+		facultyNameMap,
+		roomNameMap,
+		subjectNameMap,
+		sectionEnrollment,
+	};
 }
 
 function buildValidatorCtx(
@@ -191,7 +217,7 @@ function buildValidatorCtx(
 	entries: ScheduledEntry[],
 	refData: Awaited<ReturnType<typeof loadRunContext>>,
 ): ValidatorContext {
-	const { faculty, facultySubjects, rooms, subjects, policyRecord, buildings } = refData;
+	const { faculty, facultySubjects, rooms, subjects, policyRecord, buildings, sectionEnrollment } = refData;
 	return {
 		schoolId,
 		schoolYearId,
@@ -201,6 +227,7 @@ function buildValidatorCtx(
 		facultySubjects,
 		rooms,
 		subjects,
+		sectionEnrollment,
 		policy: {
 			maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
 			minBreakMinutesAfterConsecutiveBlock: policyRecord.minBreakMinutesAfterConsecutiveBlock,
@@ -236,18 +263,20 @@ function buildValidatorCtx(
 /** Apply a proposal to a draft entries array, returning the new entries + the before/after entry payloads */
 function applyProposal(
 	entries: ScheduledEntry[],
-	unassigned: Array<{ sectionId: number; subjectId: number; gradeLevel: number; session: number; reason: string }>,
+	unassigned: UnassignedItem[],
 	proposal: ManualEditProposal,
 ): {
 	newEntries: ScheduledEntry[];
 	newUnassigned: typeof unassigned;
 	beforeEntry: ScheduledEntry | null;
 	afterEntry: ScheduledEntry | null;
+	removedUnassigned: UnassignedItem | null;
 } {
 	const newEntries = [...entries];
 	let newUnassigned = [...unassigned];
 	let beforeEntry: ScheduledEntry | null = null;
 	let afterEntry: ScheduledEntry | null = null;
+	let removedUnassigned: UnassignedItem | null = null;
 
 	if (proposal.editType === 'PLACE_UNASSIGNED') {
 		// Find matching unassigned item
@@ -260,6 +289,7 @@ function applyProposal(
 		if (uIdx === -1) throw err(400, 'UNASSIGNED_NOT_FOUND', 'Specified unassigned item not found.');
 
 		const uItem = newUnassigned[uIdx];
+		removedUnassigned = uItem;
 		if (!proposal.targetDay || !proposal.targetStartTime || !proposal.targetEndTime || !proposal.targetRoomId || !proposal.targetFacultyId) {
 			throw err(400, 'MISSING_TARGET', 'PLACE_UNASSIGNED requires targetDay, targetStartTime, targetEndTime, targetRoomId, targetFacultyId.');
 		}
@@ -275,6 +305,16 @@ function applyProposal(
 			startTime: proposal.targetStartTime,
 			endTime: proposal.targetEndTime,
 			durationMinutes,
+			entryKind: uItem.entryKind,
+			programType: uItem.programType ?? null,
+			programCode: uItem.programCode ?? null,
+			programName: uItem.programName ?? null,
+			cohortCode: uItem.cohortCode ?? null,
+			cohortName: uItem.cohortName ?? null,
+			cohortMemberSectionIds: uItem.cohortMemberSectionIds,
+			cohortExpectedEnrollment: uItem.cohortExpectedEnrollment ?? null,
+			adviserId: uItem.adviserId ?? null,
+			adviserName: uItem.adviserName ?? null,
 		};
 
 		afterEntry = newEntry;
@@ -303,7 +343,7 @@ function applyProposal(
 		throw err(400, 'INVALID_EDIT_TYPE', `Unsupported edit type: ${proposal.editType}`);
 	}
 
-	return { newEntries, newUnassigned, beforeEntry, afterEntry };
+	return { newEntries, newUnassigned, beforeEntry, afterEntry, removedUnassigned };
 }
 
 function timeToMinutes(t: string): number {
@@ -589,6 +629,12 @@ export async function previewManualEdit(
 			entryId: beforeEntry.entryId, subjectId: beforeEntry.subjectId, sectionId: beforeEntry.sectionId,
 			facultyId: beforeEntry.facultyId, roomId: beforeEntry.roomId,
 			day: beforeEntry.day, startTime: beforeEntry.startTime, endTime: beforeEntry.endTime, phase: 'before',
+			entryKind: beforeEntry.entryKind,
+			cohortCode: beforeEntry.cohortCode ?? null,
+			cohortName: beforeEntry.cohortName ?? null,
+			programType: beforeEntry.programType ?? null,
+			programCode: beforeEntry.programCode ?? null,
+			programName: beforeEntry.programName ?? null,
 		});
 	}
 	if (afterEntry) {
@@ -596,6 +642,12 @@ export async function previewManualEdit(
 			entryId: afterEntry.entryId, subjectId: afterEntry.subjectId, sectionId: afterEntry.sectionId,
 			facultyId: afterEntry.facultyId, roomId: afterEntry.roomId,
 			day: afterEntry.day, startTime: afterEntry.startTime, endTime: afterEntry.endTime, phase: 'after',
+			entryKind: afterEntry.entryKind,
+			cohortCode: afterEntry.cohortCode ?? null,
+			cohortName: afterEntry.cohortName ?? null,
+			programType: afterEntry.programType ?? null,
+			programCode: afterEntry.programCode ?? null,
+			programName: afterEntry.programName ?? null,
 		});
 	}
 
@@ -634,7 +686,7 @@ export async function commitManualEdit(
 	const currentValidation = validateHardConstraints(currentCtx);
 
 	// Apply proposal
-	const { newEntries, newUnassigned, beforeEntry, afterEntry } = applyProposal(entries, unassignedItems, proposal);
+	const { newEntries, newUnassigned, beforeEntry, afterEntry, removedUnassigned } = applyProposal(entries, unassignedItems, proposal);
 
 	// Validate new state
 	const newCtx = buildValidatorCtx(schoolId, schoolYearId, runId, newEntries, refData);
@@ -683,7 +735,8 @@ export async function commitManualEdit(
 					hardCount: hardAfter.length,
 					softCount: softAfter.length,
 					delta: { hardBefore, hardAfter: hardAfter.length, softBefore, softAfter: softAfter.length },
-				},
+					removedUnassignedItem: removedUnassigned ? { ...removedUnassigned } : null,
+				} as object,
 			},
 		}),
 	]);
@@ -745,16 +798,11 @@ export async function revertLastEdit(
 	if (!lastEdit) throw err(400, 'NOTHING_TO_REVERT', 'No manual edits to revert.');
 
 	const entries = (run.draftEntries ?? []) as unknown as ScheduledEntry[];
-	const unassigned = (run.unassignedItems ?? []) as unknown as Array<{
-		sectionId: number;
-		subjectId: number;
-		gradeLevel: number;
-		session: number;
-		reason: string;
-	}>;
+	const unassigned = (run.unassignedItems ?? []) as unknown as UnassignedItem[];
 
 	const beforePayload = lastEdit.beforePayload as ScheduledEntry | null;
 	const afterPayload = lastEdit.afterPayload as ScheduledEntry | null;
+	const validationSummary = (lastEdit.validationSummary ?? {}) as { removedUnassignedItem?: UnassignedItem | null };
 
 	let newEntries = [...entries];
 	let newUnassigned = [...unassigned];
@@ -763,14 +811,24 @@ export async function revertLastEdit(
 		// Remove the placed entry, put item back into unassigned
 		if (afterPayload) {
 			newEntries = newEntries.filter((e) => e.entryId !== afterPayload.entryId);
-			// Re-add to unassigned
-			newUnassigned.push({
+			const restoredUnassigned = validationSummary.removedUnassignedItem ?? {
 				sectionId: afterPayload.sectionId,
 				subjectId: afterPayload.subjectId,
-				gradeLevel: 0, // approximate
+				gradeLevel: 0,
 				session: 1,
 				reason: 'NO_AVAILABLE_SLOT',
-			});
+				entryKind: afterPayload.entryKind,
+				programType: afterPayload.programType ?? null,
+				programCode: afterPayload.programCode ?? null,
+				programName: afterPayload.programName ?? null,
+				cohortCode: afterPayload.cohortCode ?? null,
+				cohortName: afterPayload.cohortName ?? null,
+				cohortMemberSectionIds: afterPayload.cohortMemberSectionIds,
+				cohortExpectedEnrollment: afterPayload.cohortExpectedEnrollment ?? null,
+				adviserId: afterPayload.adviserId ?? null,
+				adviserName: afterPayload.adviserName ?? null,
+			};
+			newUnassigned.push(restoredUnassigned);
 		}
 	} else {
 		// Restore before state

@@ -8,6 +8,7 @@
 
 import { prisma } from '../lib/prisma.js';
 import type { RoomType } from '@prisma/client';
+import { sectionAdapter, type SectionsByGrade } from './section-adapter.js';
 
 // ─── Types ───
 
@@ -19,16 +20,131 @@ export interface ExternalCohort {
 	memberSectionIds: number[];
 	expectedEnrollment: number;
 	preferredRoomType?: RoomType | null;
+	sourceRef?: string | null;
 }
 
 export interface CohortFetchResult {
 	cohorts: ExternalCohort[];
-	source: 'enrollpro' | 'stub';
+	source: 'enrollpro' | 'stub' | 'derived-sections' | 'cached-enrollpro';
 	fetchedAt: Date;
+	contractWarnings?: string[];
 }
 
 export interface CohortAdapter {
-	fetchCohorts(schoolYearId: number, schoolId: number, authToken?: string): Promise<CohortFetchResult>;
+	fetchCohorts(
+		schoolYearId: number,
+		schoolId: number,
+		authToken?: string,
+		context?: { sectionsByGrade?: SectionsByGrade[] },
+	): Promise<CohortFetchResult>;
+}
+
+interface EnrollProScpProgramConfig {
+	id?: number;
+	scpType?: string;
+	isOffered?: boolean;
+}
+
+interface EnrollProScpConfigResponse {
+	cohorts?: Array<Partial<ExternalCohort>>;
+	scpProgramConfigs?: EnrollProScpProgramConfig[];
+}
+
+const TLE_SPECIALIZATION_BLUEPRINTS: Array<{
+	specializationCode: string;
+	specializationName: string;
+	preferredRoomType: RoomType;
+}> = [
+	{ specializationCode: 'IA', specializationName: 'Industrial Arts', preferredRoomType: 'TLE_WORKSHOP' },
+	{ specializationCode: 'HE', specializationName: 'Home Economics', preferredRoomType: 'LABORATORY' },
+	{ specializationCode: 'AFA', specializationName: 'Agri-Fishery Arts', preferredRoomType: 'LABORATORY' },
+];
+
+function normalizeExplicitCohort(rawCohort: Partial<ExternalCohort>): ExternalCohort | null {
+	if (!rawCohort.cohortCode || !rawCohort.specializationCode || !rawCohort.specializationName || rawCohort.gradeLevel == null) {
+		return null;
+	}
+
+	return {
+		cohortCode: rawCohort.cohortCode,
+		specializationCode: rawCohort.specializationCode,
+		specializationName: rawCohort.specializationName,
+		gradeLevel: rawCohort.gradeLevel,
+		memberSectionIds: Array.isArray(rawCohort.memberSectionIds) ? rawCohort.memberSectionIds.filter((value): value is number => typeof value === 'number') : [],
+		expectedEnrollment: typeof rawCohort.expectedEnrollment === 'number' ? rawCohort.expectedEnrollment : 0,
+		preferredRoomType: rawCohort.preferredRoomType ?? null,
+		sourceRef: rawCohort.sourceRef ?? 'enrollpro:explicit-cohorts',
+	};
+}
+
+export function deriveFallbackTleCohorts(gradeLevels: SectionsByGrade[]): ExternalCohort[] {
+	return gradeLevels.flatMap((gradeLevel) => {
+		const orderedSections = [...gradeLevel.sections].sort((left, right) => left.id - right.id);
+		if (orderedSections.length === 0) {
+			return [];
+		}
+
+		const baseSize = Math.floor(orderedSections.length / TLE_SPECIALIZATION_BLUEPRINTS.length);
+		let remainder = orderedSections.length % TLE_SPECIALIZATION_BLUEPRINTS.length;
+		let offset = 0;
+
+		const cohorts: ExternalCohort[] = [];
+		for (const template of TLE_SPECIALIZATION_BLUEPRINTS) {
+			const bucketSize = baseSize + (remainder > 0 ? 1 : 0);
+			remainder = Math.max(0, remainder - 1);
+			const memberSections = orderedSections.slice(offset, offset + bucketSize);
+			offset += bucketSize;
+			if (memberSections.length === 0) {
+				continue;
+			}
+
+			cohorts.push({
+				cohortCode: `G${gradeLevel.displayOrder}-TLE-${template.specializationCode}`,
+				specializationCode: template.specializationCode,
+				specializationName: template.specializationName,
+				gradeLevel: gradeLevel.displayOrder,
+				memberSectionIds: memberSections.map((section) => section.id),
+				expectedEnrollment: memberSections.reduce((total, section) => total + section.enrolledCount, 0),
+				preferredRoomType: template.preferredRoomType,
+				sourceRef: 'derived:section-roster',
+			});
+		}
+
+		return cohorts;
+	});
+}
+
+export function normalizeEnrollProCohortResponse(
+	body: unknown,
+	sectionsByGrade: SectionsByGrade[] = [],
+): { cohorts: ExternalCohort[]; source: CohortFetchResult['source']; warnings: string[] } {
+	const warnings: string[] = [];
+	if (!body || typeof body !== 'object') {
+		warnings.push('EnrollPro SCP config response was not an object; returning an empty cohort payload.');
+		return { cohorts: [], source: 'enrollpro', warnings };
+	}
+
+	const payload = body as EnrollProScpConfigResponse;
+	if (Array.isArray(payload.cohorts) && payload.cohorts.length > 0) {
+		const cohorts = payload.cohorts
+			.map((rawCohort) => normalizeExplicitCohort(rawCohort))
+			.filter((cohort): cohort is ExternalCohort => cohort != null);
+		return { cohorts, source: 'enrollpro', warnings };
+	}
+
+	if (Array.isArray(payload.scpProgramConfigs)) {
+		warnings.push('EnrollPro SCP config returned scpProgramConfigs without an explicit cohorts array; deriving fallback TLE cohorts from the current section roster.');
+		if (sectionsByGrade.length > 0) {
+			return {
+				cohorts: deriveFallbackTleCohorts(sectionsByGrade),
+				source: 'derived-sections',
+				warnings,
+			};
+		}
+		warnings.push('No section roster was available to derive fallback TLE cohorts.');
+	}
+
+	return { cohorts: [], source: 'enrollpro', warnings };
 }
 
 // ─── Stub Adapter ───
@@ -88,7 +204,12 @@ class EnrollProCohortAdapter implements CohortAdapter {
 		this.baseUrl = baseUrl ?? process.env.ENROLLPRO_API ?? 'http://localhost:5000/api';
 	}
 
-	async fetchCohorts(schoolYearId: number, _schoolId: number, authToken?: string): Promise<CohortFetchResult> {
+	async fetchCohorts(
+		schoolYearId: number,
+		_schoolId: number,
+		authToken?: string,
+		context?: { sectionsByGrade?: SectionsByGrade[] },
+	): Promise<CohortFetchResult> {
 		const url = `${this.baseUrl}/curriculum/${schoolYearId}/scp-config`;
 		const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
 		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -102,18 +223,15 @@ class EnrollProCohortAdapter implements CohortAdapter {
 			});
 		}
 
-		const body = await response.json() as { cohorts?: ExternalCohort[] };
-		const cohorts = (body.cohorts ?? []).map((c: any) => ({
-			cohortCode: c.cohortCode ?? `G${c.gradeLevel}-TLE-${c.specializationCode}`,
-			specializationCode: c.specializationCode,
-			specializationName: c.specializationName,
-			gradeLevel: c.gradeLevel,
-			memberSectionIds: c.memberSectionIds ?? [],
-			expectedEnrollment: c.expectedEnrollment ?? 0,
-			preferredRoomType: c.preferredRoomType ?? null,
-		}));
+		const body = await response.json();
+		const normalized = normalizeEnrollProCohortResponse(body, context?.sectionsByGrade ?? []);
 
-		return { cohorts, source: 'enrollpro', fetchedAt: new Date() };
+		return {
+			cohorts: normalized.cohorts,
+			source: normalized.source,
+			fetchedAt: new Date(),
+			...(normalized.warnings.length > 0 ? { contractWarnings: normalized.warnings } : {}),
+		};
 	}
 }
 
@@ -126,18 +244,22 @@ function resolveCohortSourceMode(): CohortSourceMode {
 	if (explicit === 'stub' || explicit === 'enrollpro' || explicit === 'auto') return explicit;
 	const legacy = process.env.SECTION_SOURCE_MODE?.toLowerCase();
 	if (legacy === 'stub') return 'stub';
-	return 'enrollpro';
+	return 'auto';
 }
 
 const cohortSourceMode = resolveCohortSourceMode();
 
 class AutoCohortAdapter implements CohortAdapter {
 	private enrollpro = new EnrollProCohortAdapter();
-	private stub = new StubCohortAdapter();
 
-	async fetchCohorts(schoolYearId: number, schoolId: number, authToken?: string): Promise<CohortFetchResult> {
+	async fetchCohorts(
+		schoolYearId: number,
+		schoolId: number,
+		authToken?: string,
+		context?: { sectionsByGrade?: SectionsByGrade[] },
+	): Promise<CohortFetchResult> {
 		try {
-			return await this.enrollpro.fetchCohorts(schoolYearId, schoolId, authToken);
+			return await this.enrollpro.fetchCohorts(schoolYearId, schoolId, authToken, context);
 		} catch (error) {
 			const msg = error instanceof Error ? error.message : String(error);
 			console.warn(JSON.stringify({
@@ -148,7 +270,32 @@ class AutoCohortAdapter implements CohortAdapter {
 				errorMessage: msg,
 				ts: new Date().toISOString(),
 			}));
-			return await this.stub.fetchCohorts(schoolYearId, schoolId);
+			const existing = await prisma.instructionalCohort.findMany({
+				where: { schoolId, schoolYearId },
+				orderBy: [{ gradeLevel: 'asc' }, { specializationCode: 'asc' }],
+			});
+
+			if (existing.length > 0) {
+				return {
+					cohorts: existing.map((cohort) => ({
+						cohortCode: cohort.cohortCode,
+						specializationCode: cohort.specializationCode,
+						specializationName: cohort.specializationName,
+						gradeLevel: cohort.gradeLevel,
+						memberSectionIds: cohort.memberSectionIds,
+						expectedEnrollment: cohort.expectedEnrollment,
+						preferredRoomType: cohort.preferredRoomType,
+						sourceRef: cohort.sourceRef,
+					})),
+					source: 'cached-enrollpro',
+					fetchedAt: new Date(),
+					contractWarnings: [`EnrollPro cohort source failed (${msg}); using cached cohort snapshot instead.`],
+				};
+			}
+
+			throw Object.assign(new Error(`UPSTREAM_UNAVAILABLE: EnrollPro cohort source failed (${msg}) and no cached cohorts exist.`), {
+				code: 'UPSTREAM_UNAVAILABLE',
+			});
 		}
 	}
 }
@@ -167,10 +314,11 @@ const cohortAdapter: CohortAdapter = buildCohortAdapter(cohortSourceMode);
 
 export interface CohortSyncResult {
 	synced: boolean;
-	source: 'enrollpro' | 'stub';
+	source: 'enrollpro' | 'stub' | 'derived-sections' | 'cached-enrollpro' | 'preserved-existing';
 	fetchedAt: Date;
 	count: number;
 	error?: string;
+	warnings?: string[];
 }
 
 /**
@@ -178,15 +326,44 @@ export interface CohortSyncResult {
  */
 export async function syncCohorts(schoolId: number, schoolYearId: number, authToken?: string): Promise<CohortSyncResult> {
 	try {
-		const result = await cohortAdapter.fetchCohorts(schoolYearId, schoolId, authToken);
-
-		// Clear existing cohorts for this school/year and re-insert
-		await prisma.instructionalCohort.deleteMany({
-			where: { schoolId, schoolYearId },
+		const sectionResult = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
+		const result = await cohortAdapter.fetchCohorts(schoolYearId, schoolId, authToken, {
+			sectionsByGrade: sectionResult.gradeLevels,
 		});
 
-		if (result.cohorts.length > 0) {
-			await prisma.instructionalCohort.createMany({
+		const warnings = [
+			...(sectionResult.contractWarnings ?? []),
+			...(result.contractWarnings ?? []),
+		];
+
+		if (result.cohorts.length === 0) {
+			const existingCount = await prisma.instructionalCohort.count({
+				where: { schoolId, schoolYearId },
+			});
+			if (existingCount > 0) {
+				return {
+					synced: true,
+					source: 'preserved-existing',
+					fetchedAt: result.fetchedAt,
+					count: existingCount,
+					warnings: [...warnings, 'No explicit cohorts were available from the live contract; existing local cohorts were preserved.'],
+				};
+			}
+
+			return {
+				synced: true,
+				source: result.source,
+				fetchedAt: result.fetchedAt,
+				count: 0,
+				...(warnings.length > 0 ? { warnings } : {}),
+			};
+		}
+
+		await prisma.$transaction([
+			prisma.instructionalCohort.deleteMany({
+				where: { schoolId, schoolYearId },
+			}),
+			prisma.instructionalCohort.createMany({
 				data: result.cohorts.map((c) => ({
 					schoolId,
 					schoolYearId,
@@ -197,15 +374,17 @@ export async function syncCohorts(schoolId: number, schoolYearId: number, authTo
 					memberSectionIds: c.memberSectionIds,
 					expectedEnrollment: c.expectedEnrollment,
 					preferredRoomType: c.preferredRoomType,
-				})),
-			});
-		}
+					sourceRef: c.sourceRef ?? null,
+				})) ,
+			}),
+		]);
 
 		return {
 			synced: true,
 			source: result.source,
 			fetchedAt: result.fetchedAt,
 			count: result.cohorts.length,
+			...(warnings.length > 0 ? { warnings } : {}),
 		};
 	} catch (error) {
 		return {

@@ -10,7 +10,208 @@ import crypto from 'crypto';
 
 // ─── Types ───
 
-export type ProgramType = 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'OTHER';
+export type ProgramType = 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER';
+
+type AdmissionMode = 'REGULAR' | 'SCP';
+
+interface EnrollProAdvisingTeacher {
+	id?: number;
+	name?: string;
+}
+
+interface EnrollProSectionPayload {
+	id?: number;
+	name?: string;
+	maxCapacity?: number;
+	enrolledCount?: number;
+	programType?: string;
+	advisingTeacher?: EnrollProAdvisingTeacher | null;
+}
+
+interface EnrollProGradeLevelPayload {
+	gradeLevelId?: number;
+	gradeLevelName?: string;
+	displayOrder?: number;
+	sections?: EnrollProSectionPayload[];
+}
+
+interface EnrollProSectionsResponse {
+	gradeLevels?: EnrollProGradeLevelPayload[];
+}
+
+interface ProgramMetadata {
+	programType: ProgramType;
+	programCode: string;
+	programName: string;
+	admissionMode: AdmissionMode;
+	isSpecialProgram: boolean;
+}
+
+const PROGRAM_METADATA_BY_UPSTREAM_TYPE: Record<string, ProgramMetadata> = {
+	REGULAR: {
+		programType: 'REGULAR',
+		programCode: 'REGULAR',
+		programName: 'Regular',
+		admissionMode: 'REGULAR',
+		isSpecialProgram: false,
+	},
+	SCIENCE_TECHNOLOGY_AND_ENGINEERING: {
+		programType: 'STE',
+		programCode: 'STE',
+		programName: 'Science, Technology & Engineering',
+		admissionMode: 'SCP',
+		isSpecialProgram: true,
+	},
+	SPECIAL_PROGRAM_IN_THE_ARTS: {
+		programType: 'SPA',
+		programCode: 'SPA',
+		programName: 'Special Program in the Arts',
+		admissionMode: 'SCP',
+		isSpecialProgram: true,
+	},
+	SPECIAL_PROGRAM_IN_SPORTS: {
+		programType: 'SPS',
+		programCode: 'SPS',
+		programName: 'Special Program in Sports',
+		admissionMode: 'SCP',
+		isSpecialProgram: true,
+	},
+	SPECIAL_PROGRAM_IN_JOURNALISM: {
+		programType: 'SPJ',
+		programCode: 'SPJ',
+		programName: 'Special Program in Journalism',
+		admissionMode: 'SCP',
+		isSpecialProgram: true,
+	},
+	SPECIAL_PROGRAM_IN_FOREIGN_LANGUAGE: {
+		programType: 'SPFL',
+		programCode: 'SPFL',
+		programName: 'Special Program in Foreign Language',
+		admissionMode: 'SCP',
+		isSpecialProgram: true,
+	},
+	SPECIAL_PROGRAM_IN_TECHNICAL_VOCATIONAL_EDUCATION: {
+		programType: 'SPTVE',
+		programCode: 'SPTVE',
+		programName: 'Special Program in Tech-Voc Education',
+		admissionMode: 'SCP',
+		isSpecialProgram: true,
+	},
+};
+
+function humanizeProgramType(rawProgramType: string): string {
+	return rawProgramType
+		.toLowerCase()
+		.split('_')
+		.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+		.join(' ');
+}
+
+export function normalizeProgramMetadata(rawProgramType: unknown, warnings?: string[]): ProgramMetadata & { upstreamProgramType: string | null } {
+	const upstreamProgramType = typeof rawProgramType === 'string' && rawProgramType.trim().length > 0
+		? rawProgramType.trim().toUpperCase()
+		: 'REGULAR';
+	const known = PROGRAM_METADATA_BY_UPSTREAM_TYPE[upstreamProgramType];
+	if (known) {
+		return { ...known, upstreamProgramType };
+	}
+
+	warnings?.push(`Unknown section programType "${String(rawProgramType)}" received from EnrollPro; normalizing as OTHER.`);
+	return {
+		programType: 'OTHER',
+		programCode: upstreamProgramType,
+		programName: humanizeProgramType(upstreamProgramType),
+		admissionMode: upstreamProgramType === 'REGULAR' ? 'REGULAR' : 'SCP',
+		isSpecialProgram: upstreamProgramType !== 'REGULAR',
+		upstreamProgramType,
+	};
+}
+
+function normalizeAdviser(advisingTeacher: unknown, sectionName: string, warnings?: string[]): { adviserId: number | null; adviserName: string | null } {
+	if (advisingTeacher == null) {
+		return { adviserId: null, adviserName: null };
+	}
+
+	if (typeof advisingTeacher !== 'object') {
+		warnings?.push(`Section "${sectionName}" returned a non-object advisingTeacher payload; adviser mapping skipped.`);
+		return { adviserId: null, adviserName: null };
+	}
+
+	const teacher = advisingTeacher as EnrollProAdvisingTeacher;
+	const adviserId = typeof teacher.id === 'number' ? teacher.id : null;
+	const adviserName = typeof teacher.name === 'string' && teacher.name.trim().length > 0 ? teacher.name.trim() : null;
+
+	if (adviserId == null && adviserName != null) {
+		warnings?.push(`Section "${sectionName}" included adviser name without adviser id; adviser linkage is informational only.`);
+	}
+
+	return { adviserId, adviserName };
+}
+
+export function normalizeEnrollProSectionsResponse(body: unknown): { gradeLevels: SectionsByGrade[]; warnings: string[] } {
+	const warnings: string[] = [];
+	if (!body || typeof body !== 'object') {
+		warnings.push('EnrollPro sections response was not an object; returning an empty section payload.');
+		return { gradeLevels: [], warnings };
+	}
+
+	const payload = body as EnrollProSectionsResponse;
+	if (!Array.isArray(payload.gradeLevels)) {
+		warnings.push('EnrollPro sections response did not include a gradeLevels array; returning an empty section payload.');
+		return { gradeLevels: [], warnings };
+	}
+
+	const gradeLevels = payload.gradeLevels
+		.filter((gradeLevel) => gradeLevel && typeof gradeLevel === 'object')
+		.map((gradeLevel) => {
+			const gradeLevelId = typeof gradeLevel.gradeLevelId === 'number' ? gradeLevel.gradeLevelId : 0;
+			const gradeLevelName = typeof gradeLevel.gradeLevelName === 'string' && gradeLevel.gradeLevelName.trim().length > 0
+				? gradeLevel.gradeLevelName.trim()
+				: `Grade ${gradeLevel.displayOrder ?? gradeLevelId}`;
+			const displayOrder = typeof gradeLevel.displayOrder === 'number' ? gradeLevel.displayOrder : gradeLevelId;
+
+			if (!Array.isArray(gradeLevel.sections)) {
+				warnings.push(`Grade level "${gradeLevelName}" did not include a sections array; treating it as empty.`);
+			}
+
+			const sections = (gradeLevel.sections ?? [])
+				.filter((section) => section && typeof section === 'object')
+				.map((section) => {
+					const sectionId = typeof section.id === 'number' ? section.id : 0;
+					const sectionName = typeof section.name === 'string' && section.name.trim().length > 0
+						? section.name.trim()
+						: `Section ${sectionId}`;
+					const program = normalizeProgramMetadata(section.programType, warnings);
+					const adviser = normalizeAdviser(section.advisingTeacher, sectionName, warnings);
+
+					return {
+						id: sectionId,
+						name: sectionName,
+						maxCapacity: typeof section.maxCapacity === 'number' ? section.maxCapacity : 0,
+						enrolledCount: typeof section.enrolledCount === 'number' ? section.enrolledCount : 0,
+						gradeLevelId,
+						gradeLevelName,
+						programType: program.programType,
+						programCode: program.programCode,
+						programName: program.programName,
+						admissionMode: program.admissionMode,
+						adviserId: adviser.adviserId,
+						adviserName: adviser.adviserName,
+						upstreamProgramType: program.upstreamProgramType,
+						isSpecialProgram: program.isSpecialProgram,
+					};
+				});
+
+			return {
+				gradeLevelId,
+				gradeLevelName,
+				displayOrder,
+				sections,
+			};
+		});
+
+	return { gradeLevels, warnings };
+}
 
 export interface ExternalSection {
 	id: number;
@@ -26,6 +227,8 @@ export interface ExternalSection {
 	admissionMode?: string | null;
 	adviserId?: number | null;
 	adviserName?: string | null;
+	upstreamProgramType?: string | null;
+	isSpecialProgram?: boolean;
 }
 
 export interface SectionsByGrade {
@@ -35,7 +238,7 @@ export interface SectionsByGrade {
 	sections: ExternalSection[];
 }
 
-export type SectionSourceLabel = 'enrollpro' | 'stub' | 'cached-enrollpro' | 'auto-fallback';
+export type SectionSourceLabel = 'enrollpro' | 'stub' | 'cached-enrollpro';
 
 export interface SectionFetchResult {
 	gradeLevels: SectionsByGrade[];
@@ -43,6 +246,7 @@ export interface SectionFetchResult {
 	fetchedAt: Date;
 	fallbackReason?: string;
 	isStale?: boolean;
+	contractWarnings?: string[];
 }
 
 export interface SectionSummary {
@@ -57,6 +261,7 @@ export interface SectionSummary {
 	fetchedAt: Date | null;
 	isStale: boolean;
 	fallbackReason?: string;
+	contractWarnings?: string[];
 }
 
 export interface SectionAdapter {
@@ -169,33 +374,15 @@ export class EnrollProSectionAdapter implements SectionAdapter {
 			});
 		}
 
-		const body = await response.json() as { gradeLevels?: SectionsByGrade[] };
-		const gradeLevels = body.gradeLevels ?? [];
+		const body = await response.json();
+		const normalized = normalizeEnrollProSectionsResponse(body);
 		const fetchedAt = new Date();
 
 		const result: SectionFetchResult = {
-			gradeLevels: gradeLevels.map((gl) => ({
-				gradeLevelId: gl.gradeLevelId,
-				gradeLevelName: gl.gradeLevelName,
-				displayOrder: gl.displayOrder,
-				sections: (gl.sections ?? []).map((s: any) => ({
-					id: s.id,
-					name: s.name,
-					maxCapacity: s.maxCapacity ?? 0,
-					enrolledCount: s.enrolledCount ?? 0,
-					gradeLevelId: gl.gradeLevelId,
-					gradeLevelName: gl.gradeLevelName,
-					// Wave 3.5: Special program fields
-					programType: (s.programType ?? 'REGULAR') as ProgramType,
-					programCode: s.programCode ?? null,
-					programName: s.programName ?? null,
-					admissionMode: s.admissionMode ?? null,
-					adviserId: s.adviserId ?? null,
-					adviserName: s.adviserName ?? null,
-				})),
-			})),
+			gradeLevels: normalized.gradeLevels,
 			source: 'enrollpro',
 			fetchedAt,
+			...(normalized.warnings.length > 0 ? { contractWarnings: normalized.warnings } : {}),
 		};
 
 		// Auto-save snapshot for durable cache
@@ -211,7 +398,7 @@ export class EnrollProSectionAdapter implements SectionAdapter {
  * Section source mode (env: SECTION_SOURCE_MODE).
  *   stub     — always use deterministic stub data
  *   enrollpro — always use EnrollPro API (fails clearly if unreachable)
- *   auto     — prefer EnrollPro, fallback to stub with warning
+ *   auto     — prefer EnrollPro, fallback to cached upstream snapshot only
  *
  * Legacy env vars SECTION_ADAPTER / FACULTY_ADAPTER = 'stub' are honoured
  * as shorthand for SECTION_SOURCE_MODE=stub.
@@ -228,7 +415,7 @@ function resolveSectionSourceMode(): SectionSourceMode {
 	const legacy = process.env.SECTION_ADAPTER ?? process.env.FACULTY_ADAPTER;
 	if (legacy === 'stub') return 'stub';
 
-	return 'enrollpro'; // default
+	return 'auto'; // default
 }
 
 export const sectionSourceMode: SectionSourceMode = resolveSectionSourceMode();
@@ -237,8 +424,6 @@ const strictUpstream = process.env.SECTION_STRICT_UPSTREAM?.toLowerCase() === 't
 
 class AutoSectionAdapter implements SectionAdapter {
 	private enrollpro = new EnrollProSectionAdapter();
-	private stub = new StubSectionAdapter();
-
 	async fetchSectionsBySchoolYear(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionFetchResult> {
 		try {
 			return await this.enrollpro.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
@@ -271,17 +456,16 @@ class AutoSectionAdapter implements SectionAdapter {
 					fetchedAt: cached.fetchedAt,
 					fallbackReason: msg,
 					isStale: true,
+					contractWarnings: [
+						`EnrollPro sections source failed (${msg}); using cached section snapshot instead.`,
+					],
 				};
 			}
 
-			// Final fallback: stub data
-			const stubResult = await this.stub.fetchSectionsBySchoolYear(schoolYearId, schoolId);
-			return {
-				gradeLevels: stubResult.gradeLevels,
-				source: 'auto-fallback',
-				fetchedAt: stubResult.fetchedAt,
-				fallbackReason: msg,
-			};
+
+			throw Object.assign(new Error(`UPSTREAM_UNAVAILABLE: EnrollPro sections source failed (${msg}) and no cached section snapshot exists.`), {
+				code: 'UPSTREAM_UNAVAILABLE',
+			});
 		}
 	}
 }

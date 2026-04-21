@@ -35,6 +35,9 @@ export interface RunSummary {
 	hardViolationCount: number;
 	violationCounts?: Record<string, number>;
 	lockWarnings?: string[];
+	cohortCount?: number;
+	cohortizedClassCount?: number;
+	contractWarnings?: string[];
 }
 
 // ─── Trigger ───
@@ -65,7 +68,7 @@ export async function triggerGenerationRun(
 	try {
 		// ── Fetch all input data for construction ──
 		stage = 'sections-fetch';
-		const [sectionResult, faculty, facultySubjects, rooms, subjects, preferences, policyRecord, buildings, lockedSessions, gradeWindows] = await Promise.all([
+		const [sectionResult, faculty, facultySubjects, rooms, subjects, preferences, policyRecord, buildings, lockedSessions, gradeWindows, cohorts] = await Promise.all([
 			sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId),
 			prisma.facultyMirror.findMany({
 				where: { schoolId, isActiveForScheduling: true },
@@ -84,7 +87,16 @@ export async function triggerGenerationRun(
 			}),
 			prisma.subject.findMany({
 				where: { schoolId, isActive: true },
-				select: { id: true, code: true, minMinutesPerWeek: true, preferredRoomType: true, sessionPattern: true, gradeLevels: true },
+				select: {
+					id: true,
+					code: true,
+					minMinutesPerWeek: true,
+					preferredRoomType: true,
+					sessionPattern: true,
+					gradeLevels: true,
+					interSectionEnabled: true,
+					interSectionGradeLevels: true,
+				},
 			}),
 			prisma.facultyPreference.findMany({
 				where: { schoolId, schoolYearId },
@@ -105,6 +117,19 @@ export async function triggerGenerationRun(
 			prisma.gradeShiftWindow.findMany({
 				where: { schoolId, schoolYearId },
 			}),
+			prisma.instructionalCohort.findMany({
+				where: { schoolId, schoolYearId },
+				orderBy: [{ gradeLevel: 'asc' }, { cohortCode: 'asc' }],
+				select: {
+					cohortCode: true,
+					specializationCode: true,
+					specializationName: true,
+					gradeLevel: true,
+					memberSectionIds: true,
+					expectedEnrollment: true,
+					preferredRoomType: true,
+				},
+			}),
 		]);
 
 		// ── Run baseline constructor ──
@@ -115,6 +140,7 @@ export async function triggerGenerationRun(
 			schoolYearId,
 			sectionsByGrade,
 			subjects,
+			cohorts,
 			faculty,
 			facultySubjects,
 			rooms,
@@ -202,6 +228,13 @@ export async function triggerGenerationRun(
 			hardViolationCount: validationResult.violations.filter((v) => v.severity === 'HARD').length,
 			violationCounts: validationResult.counts.byCode,
 			lockWarnings: result.lockWarnings.length > 0 ? result.lockWarnings : undefined,
+			cohortCount: cohorts.length,
+			cohortizedClassCount: result.entries.filter((entry) => entry.entryKind === 'COHORT').length,
+			contractWarnings: [
+				...(sectionResult.contractWarnings ?? []),
+			].length > 0 ? [
+				...(sectionResult.contractWarnings ?? []),
+			] : undefined,
 		};
 
 		const finishedAt = new Date();

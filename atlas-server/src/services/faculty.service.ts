@@ -94,7 +94,7 @@ export async function syncFacultyFromExternal(
 	let sourceLabel: FacultySourceLabel;
 
 	try {
-		fetchResult = await adapter.fetchFacultyBySchool(schoolId, authToken);
+		fetchResult = await adapter.fetchFacultyBySchoolYear(schoolId, schoolYearId, authToken);
 		sourceLabel = fetchResult.source === 'stub' ? 'stub' : 'enrollpro';
 
 		// Save snapshot on successful fetch

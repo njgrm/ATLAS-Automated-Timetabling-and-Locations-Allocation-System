@@ -149,6 +149,8 @@ const GRADE_BADGE: Record<number, string> = {
 
 type SeverityFilter = 'all' | 'hard' | 'soft' | 'conflicts' | 'wellbeing';
 type ViewMode = 'section' | 'faculty' | 'room';
+type ProgramFilter = 'all' | 'REGULAR' | 'SPECIAL' | 'STE' | 'SPA' | 'SPS' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER';
+type EntryKindFilter = 'all' | 'section' | 'cohort';
 
 /** Enriched room info for display (includes parent building context) */
 type RoomInfo = {
@@ -211,12 +213,62 @@ const VIEW_MODE_LABELS: Record<ViewMode, string> = {
 	room: 'Room',
 };
 
+const PROGRAM_FILTER_OPTIONS: Array<{ value: ProgramFilter; label: string }> = [
+	{ value: 'all', label: 'All Programs' },
+	{ value: 'REGULAR', label: 'Regular' },
+	{ value: 'SPECIAL', label: 'Any Special Program' },
+	{ value: 'STE', label: 'STE' },
+	{ value: 'SPA', label: 'SPA' },
+	{ value: 'SPS', label: 'SPS' },
+	{ value: 'SPJ', label: 'SPJ' },
+	{ value: 'SPFL', label: 'SPFL' },
+	{ value: 'SPTVE', label: 'SPTVE' },
+	{ value: 'OTHER', label: 'Other' },
+];
+
+const ENTRY_KIND_FILTER_OPTIONS: Array<{ value: EntryKindFilter; label: string }> = [
+	{ value: 'all', label: 'All Entries' },
+	{ value: 'section', label: 'Section Entries' },
+	{ value: 'cohort', label: 'Cohort Entries' },
+];
+
 /* ─── Helpers ─── */
 
 function formatDuration(ms: number | null): string {
 	if (ms == null) return '—';
 	if (ms < 1000) return `${ms}ms`;
 	return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function isSpecialProgram(programType?: string | null): boolean {
+	return Boolean(programType && programType !== 'REGULAR' && programType !== 'OTHER');
+}
+
+function getProgramBadgeLabel(programType?: string | null, programCode?: string | null): string {
+	if (programCode) return programCode;
+	if (!programType || programType === 'REGULAR') return 'Regular';
+	return programType;
+}
+
+function matchesProgramFilter(programType: string | null | undefined, filter: ProgramFilter): boolean {
+	if (filter === 'all') return true;
+	if (filter === 'SPECIAL') return isSpecialProgram(programType);
+	return (programType ?? 'REGULAR') === filter;
+}
+
+function matchesEntryKindFilter(entryKind: ScheduledEntry['entryKind'] | UnassignedItem['entryKind'] | undefined, filter: EntryKindFilter): boolean {
+	if (filter === 'all') return true;
+	if (filter === 'cohort') return entryKind === 'COHORT';
+	return (entryKind ?? 'SECTION') === 'SECTION';
+}
+
+function buildUnassignedKey(item: UnassignedItem): string {
+	return [
+		item.cohortCode ?? item.sectionId,
+		item.subjectId,
+		item.session,
+		item.entryKind ?? 'SECTION',
+	].join(':');
 }
 
 function formatTimestamp(iso: string | null): string {
@@ -289,6 +341,7 @@ export default function ScheduleReview() {
 	const [subjectMap, setSubjectMap] = useState<Map<number, Subject>>(new Map());
 	const [facultyMap, setFacultyMap] = useState<Map<number, FacultyMirror>>(new Map());
 	const [sectionMap, setSectionMap] = useState<Map<number, ExternalSection>>(new Map());
+	const [sectionSummary, setSectionSummary] = useState<SectionSummaryResponse | null>(null);
 
 	/* ── Filter / selection state ── */
 	const [severityFilter, setSeverityFilter] = useState<SeverityFilter>('all');
@@ -298,6 +351,8 @@ export default function ScheduleReview() {
 	const [followUps, setFollowUps] = useState<Set<string>>(new Set());
 	const [entityFilter, setEntityFilter] = useState<string>('');
 	const [viewMode, setViewMode] = useState<ViewMode>('section');
+	const [programFilter, setProgramFilter] = useState<ProgramFilter>('all');
+	const [entryKindFilter, setEntryKindFilter] = useState<EntryKindFilter>('all');
 	const [leftTab, setLeftTab] = useState<'violations' | 'unassigned' | 'locks'>('violations');
 
 	/* ── Generate / Publish workflow state ── */
@@ -472,15 +527,38 @@ export default function ScheduleReview() {
 
 	const timeSlots = useMemo(() => deriveTimeSlots(draft?.entries ?? []), [draft]);
 
+	const filteredDraftEntries = useMemo(() => {
+		return (draft?.entries ?? []).filter((entry) => {
+			const programType = entry.programType ?? sectionMap.get(entry.sectionId)?.programType ?? null;
+			return matchesProgramFilter(programType, programFilter) && matchesEntryKindFilter(entry.entryKind, entryKindFilter);
+		});
+	}, [draft, entryKindFilter, programFilter, sectionMap]);
+
+	const programKindFilteredUnassignedItems = useMemo(() => {
+		return (draft?.unassignedItems ?? []).filter((item) => {
+			const programType = item.programType ?? sectionMap.get(item.sectionId)?.programType ?? null;
+			if (!matchesProgramFilter(programType, programFilter)) return false;
+			if (!matchesEntryKindFilter(item.entryKind, entryKindFilter)) return false;
+			return true;
+		});
+	}, [draft, entryKindFilter, programFilter, sectionMap]);
+
+	const filteredUnassignedItems = useMemo(() => {
+		return programKindFilteredUnassignedItems.filter((item) => {
+			if (unassignedReasonFilter !== 'all' && item.reason !== unassignedReasonFilter) return false;
+			return true;
+		});
+	}, [programKindFilteredUnassignedItems, unassignedReasonFilter]);
+
 	const sectionIds = useMemo(() => {
 		const ids = new Set<number>();
-		for (const e of draft?.entries ?? []) ids.add(e.sectionId);
+		for (const e of filteredDraftEntries) ids.add(e.sectionId);
 		return Array.from(ids).sort((a, b) => a - b);
-	}, [draft]);
+	}, [filteredDraftEntries]);
 
 	/** Row-axis entities based on view mode */
 	const pivotEntityIds = useMemo(() => {
-		const entries = draft?.entries ?? [];
+		const entries = filteredDraftEntries;
 		if (viewMode === 'section') return sectionIds;
 		if (viewMode === 'faculty') {
 			const ids = new Set<number>();
@@ -499,17 +577,16 @@ export default function ScheduleReview() {
 			if (bldgA !== bldgB) return bldgA.localeCompare(bldgB);
 			return ra.name.localeCompare(rb.name);
 		});
-	}, [draft, viewMode, sectionIds, roomMap]);
+	}, [filteredDraftEntries, viewMode, sectionIds, roomMap]);
 
 	const gridEntries = useMemo(() => {
-		if (!draft?.entries) return [];
-		const entries = draft.entries;
+		const entries = filteredDraftEntries;
 		const id = Number(entityFilter);
 		if (!id) return [];
 		if (viewMode === 'section') return entries.filter((e) => e.sectionId === id);
 		if (viewMode === 'faculty') return entries.filter((e) => e.facultyId === id);
 		return entries.filter((e) => e.roomId === id);
-	}, [draft, entityFilter, viewMode]);
+	}, [entityFilter, filteredDraftEntries, viewMode]);
 
 	/** Simplified room lookup for LockPanel */
 	const lockPanelRooms = useMemo(() => {
@@ -613,6 +690,7 @@ export default function ScheduleReview() {
 		]);
 		setSubjectMap(new Map(subjectsRes.data.subjects.map((s) => [s.id, s])));
 		setFacultyMap(new Map(facultyRes.data.faculty.map((f) => [f.id, f])));
+		setSectionSummary(sectionsRes.data as SectionSummaryResponse);
 		setSectionMap(new Map(sectionsRes.data.sections.map((s) => [s.id, s])));
 
 		// Build enriched room lookup with building context
@@ -1056,7 +1134,9 @@ export default function ScheduleReview() {
 	const facultyLabel = useCallback(
 		(id: number) => {
 			const f = facultyMap.get(id);
-			return f ? `${f.lastName}, ${f.firstName}` : `Unknown Faculty (#${id})`;
+			if (!f) return `Unknown Faculty (#${id})`;
+			const adviserSuffix = f.advisedSectionName ? ` · Adviser ${f.advisedSectionName}` : '';
+			return `${f.lastName}, ${f.firstName}${adviserSuffix}`;
 		},
 		[facultyMap],
 	);
@@ -1064,9 +1144,39 @@ export default function ScheduleReview() {
 	const sectionLabel = useCallback(
 		(id: number) => {
 			const s = sectionMap.get(id);
-			return s ? s.name : `Unknown Section (#${id})`;
+			if (!s) return `Unknown Section (#${id})`;
+			const programLabel = s.programType && s.programType !== 'REGULAR'
+				? ` · ${getProgramBadgeLabel(s.programType, s.programCode)}`
+				: '';
+			return `${s.name}${programLabel}`;
 		},
 		[sectionMap],
+	);
+
+	const resolveEntryProgramType = useCallback(
+		(entry: ScheduledEntry | UnassignedItem): string | null => {
+			return entry.programType ?? sectionMap.get(entry.sectionId)?.programType ?? null;
+		},
+		[sectionMap],
+	);
+
+	const resolveEntryProgramCode = useCallback(
+		(entry: ScheduledEntry | UnassignedItem): string | null => {
+			return entry.programCode ?? sectionMap.get(entry.sectionId)?.programCode ?? null;
+		},
+		[sectionMap],
+	);
+
+	const entryContextLabel = useCallback(
+		(entry: ScheduledEntry | UnassignedItem): string => {
+			if (entry.entryKind === 'COHORT' && entry.cohortCode) {
+				const memberCount = entry.cohortMemberSectionIds?.length ?? 0;
+				return `${entry.cohortCode}${memberCount > 0 ? ` · ${memberCount} section${memberCount === 1 ? '' : 's'}` : ''}`;
+			}
+			const adviser = entry.adviserName ?? sectionMap.get(entry.sectionId)?.adviserName;
+			return adviser ? `${sectionLabel(entry.sectionId)} · Adviser ${adviser}` : sectionLabel(entry.sectionId);
+		},
+		[sectionLabel, sectionMap],
 	);
 
 	/** Human-readable room label: "RoomName · BuildingLabel (Floor X)" */
@@ -1142,11 +1252,15 @@ export default function ScheduleReview() {
 				groups.push({ label: bldg, ids });
 			}
 		} else if (viewMode === 'section') {
-			// Group sections by grade level
+			// Group sections by grade level and program bucket
 			const byGrade = new Map<string, number[]>();
 			for (const id of pivotEntityIds) {
 				const grade = gradeForSection(id);
-				const key = grade ? `G${grade}` : 'Other';
+				const section = sectionMap.get(id);
+				const programLabel = section?.programType && section.programType !== 'REGULAR'
+					? getProgramBadgeLabel(section.programType, section.programCode)
+					: 'Regular';
+				const key = grade ? `G${grade} · ${programLabel}` : programLabel;
 				const list = byGrade.get(key) ?? [];
 				list.push(id);
 				byGrade.set(key, list);
@@ -1169,7 +1283,7 @@ export default function ScheduleReview() {
 			}
 		}
 		return groups;
-	}, [viewMode, pivotEntityIds, roomMap, gradeForSection, facultyMap]);
+	}, [viewMode, pivotEntityIds, roomMap, gradeForSection, facultyMap, sectionMap]);
 
 	/* ── Render ── */
 
@@ -1258,6 +1372,10 @@ export default function ScheduleReview() {
 
 	const hardCount = violations.filter((v) => v.severity === 'HARD').length;
 	const softCount = violations.filter((v) => v.severity === 'SOFT').length;
+	const contractWarnings = Array.from(new Set([
+		...(summary?.contractWarnings ?? []),
+		...(sectionSummary?.contractWarnings ?? []),
+	]));
 
 	return (
 		<div className="flex flex-col h-[calc(100svh-3.5rem)]">
@@ -1449,6 +1567,14 @@ export default function ScheduleReview() {
 								className={summary.hardViolationCount > 0 ? 'text-red-600 font-semibold' : ''}
 								explanation="Critical policy violations. A schedule with any Hard Violations cannot be published."
 							/>
+							{summary.cohortizedClassCount && summary.cohortizedClassCount > 0 && (
+								<StatItem
+									icon={Users}
+									label="Cohorts"
+									value={String(summary.cohortizedClassCount)}
+									explanation="Scheduled entries that were generated as cohort-aware inter-section classes."
+								/>
+							)}
 							<StatItem
 								icon={Clock}
 								label="Duration"
@@ -1458,6 +1584,14 @@ export default function ScheduleReview() {
 						</div>
 					)}
 				</div>
+
+				{contractWarnings.length > 0 && (
+					<div className="mx-4 mb-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+						<AlertTriangle className="size-3.5 shrink-0" />
+						<span className="font-semibold">Contract warnings</span>
+						<span className="text-amber-800/80">{contractWarnings.join(' ')}</span>
+					</div>
+				)}
 
 				{/* Row 2: Grid Controls */}
 				<div className="flex items-center gap-2 px-4 pb-2 flex-wrap" data-tutorial="grid-controls">
@@ -1486,6 +1620,32 @@ export default function ScheduleReview() {
 							items: group.ids.map((id) => ({ value: String(id), label: pivotLabel(id) })),
 						}))}
 					/>
+
+					<Select value={programFilter} onValueChange={(value) => setProgramFilter(value as ProgramFilter)}>
+						<SelectTrigger className="h-7 w-36 text-xs">
+							<SelectValue placeholder="Program" />
+						</SelectTrigger>
+						<SelectContent>
+							{PROGRAM_FILTER_OPTIONS.map((option) => (
+								<SelectItem key={option.value} value={option.value}>
+									{option.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+
+					<Select value={entryKindFilter} onValueChange={(value) => setEntryKindFilter(value as EntryKindFilter)}>
+						<SelectTrigger className="h-7 w-36 text-xs">
+							<SelectValue placeholder="Entry Type" />
+						</SelectTrigger>
+						<SelectContent>
+							{ENTRY_KIND_FILTER_OPTIONS.map((option) => (
+								<SelectItem key={option.value} value={option.value}>
+									{option.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 
 					<div className="h-4 w-px bg-border mx-0.5" />
 
@@ -1756,15 +1916,15 @@ export default function ScheduleReview() {
 										</div>
 
 										{/* Unassigned items list */}
-										{(draft?.unassignedItems ?? []).length > 0 && (
+										{filteredUnassignedItems.length > 0 && (
 											<div className="space-y-2">
 												{/* Reason filter chips */}
 												<div className="flex flex-wrap gap-1">
 													{(['all', 'NO_QUALIFIED_FACULTY', 'FACULTY_OVERLOADED', 'NO_AVAILABLE_SLOT', 'NO_COMPATIBLE_ROOM'] as const).map((r) => {
 														const label = r === 'all' ? 'All' : (UNASSIGNED_REASON_LABELS[r]?.label ?? r);
 														const count = r === 'all'
-															? (draft?.unassignedItems ?? []).length
-															: (draft?.unassignedItems ?? []).filter((it) => it.reason === r).length;
+															? programKindFilteredUnassignedItems.length
+															: programKindFilteredUnassignedItems.filter((it) => it.reason === r).length;
 														if (r !== 'all' && count === 0) return null;
 														return (
 															<button
@@ -1785,16 +1945,15 @@ export default function ScheduleReview() {
 												<span className="text-[0.6875rem] font-medium text-muted-foreground">
 													Drag to grid or expand for triage actions
 												</span>
-												{(draft?.unassignedItems ?? [])
-													.filter((it) => unassignedReasonFilter === 'all' || it.reason === unassignedReasonFilter)
-													.map((item, i) => {
+												{filteredUnassignedItems.map((item, i) => {
 													const grade = item.gradeLevel;
 													const gradeBadge = grade ? GRADE_BADGE[grade] : undefined;
 													const isKbSelected = kbSelectedSource?.type === 'unassigned'
 														&& kbSelectedSource.item.sectionId === item.sectionId
 														&& kbSelectedSource.item.subjectId === item.subjectId
-														&& kbSelectedSource.item.session === item.session;
-													const itemKey = `${item.sectionId}-${item.subjectId}-${item.session}`;
+																										&& kbSelectedSource.item.session === item.session
+																										&& (kbSelectedSource.item.cohortCode ?? '') === (item.cohortCode ?? '');
+													const itemKey = buildUnassignedKey(item);
 													const isFollowUp = followUps.has(itemKey);
 													const isExpanded = expandedUnassigned.has(itemKey);
 													const cachedFix = unassignedFixSuggestions[itemKey];
@@ -1833,12 +1992,22 @@ export default function ScheduleReview() {
 																			G{grade}
 																		</Badge>
 																	)}
+																	{item.entryKind === 'COHORT' && item.cohortCode && (
+																		<Badge variant="outline" className="h-4 px-1 text-[0.5625rem] shrink-0 border-sky-300 bg-sky-50 text-sky-700">
+																			{item.cohortCode}
+																		</Badge>
+																	)}
 																	<span className="font-medium truncate min-w-0">{sectionLabel(item.sectionId)}</span>
 																	<span className="text-muted-foreground shrink-0">·</span>
 																	<span className="truncate min-w-0">{subjectLabel(item.subjectId)}</span>
 																</div>
-																<div className="flex items-center gap-1.5 text-[0.625rem] text-muted-foreground pl-[1.125rem]">
+																<div className="flex items-center gap-1.5 text-[0.625rem] text-muted-foreground pl-4.5">
 																	<UnassignedReasonBadge reason={item.reason} />
+																	{matchesProgramFilter(resolveEntryProgramType(item), 'SPECIAL') && (
+																		<Badge variant="outline" className="h-4 px-1 text-[0.5625rem] border-violet-300 bg-violet-50 text-violet-700">
+																			{getProgramBadgeLabel(resolveEntryProgramType(item), resolveEntryProgramCode(item))}
+																		</Badge>
+																	)}
 																	<span className="opacity-60 font-medium">Session {item.session}</span>
 																	<span className="ml-auto text-red-600/80 font-semibold tracking-wide uppercase text-[0.5rem] flex items-center gap-0.5">
 																		<AlertTriangle className="size-2.5" /> Blocker
@@ -1863,7 +2032,7 @@ export default function ScheduleReview() {
 																					<AlertTriangle className="size-3" />
 																					Why blocked
 																				</div>
-																				<p className="font-medium text-[0.6875rem] text-red-900 break-words whitespace-normal leading-snug">
+																				<p className="font-medium text-[0.6875rem] text-red-900 wrap-break-word whitespace-normal leading-snug">
 																					{unassignedFixSuggestions[itemKey]
 																						? unassignedFixSuggestions[itemKey]!.humanDetail
 																						: item.reason === 'NO_QUALIFIED_FACULTY'
@@ -1885,6 +2054,12 @@ export default function ScheduleReview() {
 																				<span className="text-red-700 font-medium">Publish blocker</span>
 																				<span className="text-muted-foreground">— must be resolved before publishing</span>
 																			</div>
+
+																			{(item.entryKind === 'COHORT' || item.adviserName) && (
+																				<div className="rounded border border-border bg-background px-2 py-1.5 text-[0.625rem] text-muted-foreground">
+																					{entryContextLabel(item)}
+																				</div>
+																			)}
 
 																			{/* Fix suggestions (inline) */}
 																			{cachedFix === undefined ? (
@@ -2044,6 +2219,12 @@ export default function ScheduleReview() {
 												All classes assigned successfully
 											</div>
 										)}
+
+										{summary.unassignedCount > 0 && filteredUnassignedItems.length === 0 && (
+											<div className="py-4 text-center text-xs text-muted-foreground">
+												No unassigned items match the current program, entry type, and reason filters.
+											</div>
+										)}
 									</>
 								) : (
 									<div className="py-6 text-center text-xs text-muted-foreground">
@@ -2144,6 +2325,7 @@ export default function ScheduleReview() {
 												onEntryClick={handleEntryClick}
 												subjectLabel={subjectLabel}
 												sectionLabel={sectionLabel}
+													entryContextLabel={entryContextLabel}
 												viewMode={viewMode}
 												pivotLabel={pivotLabel}
 												roomLabelShort={roomLabelShort}
@@ -2295,7 +2477,7 @@ export default function ScheduleReview() {
 																					</div>
 																				</TooltipTrigger>
 																				{explanation && (
-																					<TooltipContent side="left" className="max-w-[250px] text-xs">
+																					<TooltipContent side="left" className="max-w-62.5 text-xs">
 																						<p className="font-medium mb-1">{VIOLATION_LABELS[v.code]}</p>
 																						<p className="text-muted-foreground">{explanation.why}</p>
 																					</TooltipContent>
@@ -2776,7 +2958,7 @@ function StatItem({
 						{content}
 					</button>
 				</TooltipTrigger>
-				<TooltipContent className="max-w-[220px] text-xs font-normal leading-relaxed" side="bottom">
+				<TooltipContent className="max-w-55 text-xs font-normal leading-relaxed" side="bottom">
 					{explanation}
 				</TooltipContent>
 			</Tooltip>
@@ -2793,7 +2975,7 @@ function MetricExplain({ label, explanation }: { label: string; explanation: Rea
 						{label}
 					</button>
 				</TooltipTrigger>
-				<TooltipContent className="max-w-[260px] text-xs font-normal leading-relaxed" side="bottom">
+				<TooltipContent className="max-w-65 text-xs font-normal leading-relaxed" side="bottom">
 					{explanation}
 				</TooltipContent>
 			</Tooltip>
@@ -2867,7 +3049,7 @@ function ViolationGroup({
 															<span className="line-clamp-2 underline decoration-dashed decoration-muted-foreground/50 underline-offset-2">{v.message}</span>
 														</button>
 													</TooltipTrigger>
-													<TooltipContent className="max-w-[280px] text-[0.625rem] font-normal leading-relaxed space-y-1 py-2 px-3 border-amber-200 bg-amber-50 text-amber-900" side="right">
+													<TooltipContent className="max-w-70 text-[0.625rem] font-normal leading-relaxed space-y-1 py-2 px-3 border-amber-200 bg-amber-50 text-amber-900" side="right">
 														<div className="font-semibold text-amber-700 pb-1 mb-1 border-b border-amber-200/60">Constraint Context</div>
 														{v.meta.consecutiveMinutes != null && v.meta.maxConsecutive != null && (
 															<div>Observed: {String(v.meta.consecutiveMinutes)} min · Limit: {String(v.meta.maxConsecutive)} min · <span className="font-semibold">Δ +{Number(v.meta.consecutiveMinutes) - Number(v.meta.maxConsecutive)} min</span></div>
@@ -2943,6 +3125,7 @@ function TimetableGrid({
 	onEntryClick,
 	subjectLabel,
 	sectionLabel,
+	entryContextLabel,
 	viewMode,
 	pivotLabel,
 	roomLabelShort,
@@ -2961,6 +3144,7 @@ function TimetableGrid({
 	onEntryClick: (e: ScheduledEntry) => void;
 	subjectLabel: (id: number) => string;
 	sectionLabel: (id: number) => string;
+	entryContextLabel: (entry: ScheduledEntry) => string;
 	viewMode: ViewMode;
 	pivotLabel: (id: number) => string;
 	roomLabelShort: (roomId: number) => string;
@@ -2989,7 +3173,7 @@ function TimetableGrid({
 
 	return (
 		<div className="overflow-auto">
-			<table className="w-full border-collapse text-xs min-w-[640px]">
+			<table className="w-full border-collapse text-xs min-w-160">
 				<thead>
 					<tr>
 						<th className="w-20 px-2 py-2 text-left text-muted-foreground font-medium border-b border-border">
@@ -3050,7 +3234,7 @@ function TimetableGrid({
 											}
 										}}
 									>
-										<div className="space-y-0.5 min-h-[1.5rem]">
+										<div className="space-y-0.5 min-h-6">
 											{cellEntries.map((e) => {
 												const sev = entrySeverity(e.entryId, violationIndex);
 												const isHighlighted = highlightedEntryIds.has(e.entryId);
@@ -3089,11 +3273,14 @@ function TimetableGrid({
 																	<div className="font-medium truncate flex items-center gap-1">
 																		<GripVertical className="size-2.5 text-muted-foreground/40 shrink-0" />
 																		{subjectLabel(e.subjectId)}
+																		{e.entryKind === 'COHORT' && e.cohortCode && (
+																			<span className="rounded bg-sky-100 px-1 py-0.5 text-[0.5rem] font-semibold uppercase tracking-wide text-sky-700">
+																				{e.cohortCode}
+																			</span>
+																		)}
 																	</div>
 																	<div className="text-muted-foreground truncate">
-																		{viewMode === 'room'
-																			? sectionLabel(e.sectionId)
-																			: sectionLabel(e.sectionId)}
+																		{entryContextLabel(e)}
 																		{viewMode === 'section' && (
 																			<span className="ml-1 opacity-60" title={roomLabelShort(e.roomId)}>
 																				{roomLabelShort(e.roomId)}
@@ -3110,9 +3297,12 @@ function TimetableGrid({
 																	)}
 																</button>
 															</TooltipTrigger>
-															<TooltipContent side="right" className="space-y-1 z-[100] max-w-[200px]">
+															<TooltipContent side="right" className="space-y-1 z-100 max-w-50">
 																<div className="font-semibold">{subjectLabel(e.subjectId)}</div>
-																<div className="text-muted-foreground text-xs">{sectionLabel(e.sectionId)} • {roomLabelShort(e.roomId)}</div>
+																<div className="text-muted-foreground text-xs">{entryContextLabel(e)} • {roomLabelShort(e.roomId)}</div>
+																{e.programType && e.programType !== 'REGULAR' && (
+																	<div className="text-[0.625rem] text-violet-700">Program: {getProgramBadgeLabel(e.programType, e.programCode)}</div>
+																)}
 																<div className="text-muted-foreground text-xs">{DAY_SHORT[e.day] ?? e.day} {formatTime(e.startTime)}–{formatTime(e.endTime)}</div>
 																{(() => {
 																	const evList = violationIndex.get(e.entryId) ?? [];
@@ -3203,8 +3393,25 @@ function EntryDetailPanel({
 									G{grade}
 								</Badge>
 							)}
+							{entry.entryKind === 'COHORT' && entry.cohortCode && (
+								<Badge variant="outline" className="h-4 px-1 text-[0.5625rem] border-sky-300 bg-sky-50 text-sky-700">
+									{entry.cohortCode}
+								</Badge>
+							)}
 						</div>
 					</DetailRow>
+
+					{entry.programType && entry.programType !== 'REGULAR' && (
+						<DetailRow label="Program" value={getProgramBadgeLabel(entry.programType, entry.programCode)} />
+					)}
+
+					{entry.entryKind === 'COHORT' && entry.cohortName && (
+						<DetailRow label="Cohort" value={`${entry.cohortName}${entry.cohortExpectedEnrollment ? ` · ${entry.cohortExpectedEnrollment} learners` : ''}`} />
+					)}
+
+					{entry.adviserName && (
+						<DetailRow label="Adviser" value={entry.adviserName} />
+					)}
 
 					{/* Faculty */}
 					<DetailRow label="Faculty" value={facultyLabel(entry.facultyId)} />

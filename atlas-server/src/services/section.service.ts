@@ -34,5 +34,6 @@ export async function getSectionSummary(schoolYearId: number, schoolId: number, 
 		fetchedAt: result.fetchedAt,
 		isStale: result.isStale ?? false,
 		...(result.fallbackReason ? { fallbackReason: result.fallbackReason } : {}),
+		...(result.contractWarnings?.length ? { contractWarnings: result.contractWarnings } : {}),
 	};
 }

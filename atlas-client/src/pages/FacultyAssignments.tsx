@@ -14,7 +14,7 @@ import {
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
-import { gradeLabel, isDepartmentMatch } from '@/lib/grade-labels';
+import { gradeLabel, matchesFacultyDepartment } from '@/lib/grade-labels';
 import { fetchPublicSettings } from '@/lib/settings';
 import type { Subject } from '@/types';
 import { Badge } from '@/ui/badge';
@@ -299,7 +299,7 @@ export default function FacultyAssignments() {
 		const primary: Subject[] = [];
 		const other: Subject[] = [];
 		for (const sub of subjects) {
-			if (isDepartmentMatch(dept, sub.code, sub.name)) {
+			if (matchesFacultyDepartment(dept, sub.code, sub.name)) {
 				primary.push(sub);
 			} else {
 				other.push(sub);
@@ -479,7 +479,7 @@ export default function FacultyAssignments() {
 															<TooltipTrigger asChild>
 																<span tabIndex={0} className="text-[0.625rem] text-muted-foreground leading-tight border-b border-dotted border-muted-foreground/50 cursor-help outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 rounded-sm">Actual</span>
 															</TooltipTrigger>
-															<TooltipContent className="max-w-[250px] text-xs text-left" side="bottom">
+															<TooltipContent className="max-w-62.5 text-xs text-left" side="bottom">
 																<p>Total weekly hours of direct classroom teaching from assigned class sessions.</p>
 															</TooltipContent>
 														</Tooltip>
@@ -500,7 +500,7 @@ export default function FacultyAssignments() {
 															<TooltipTrigger asChild>
 																<span tabIndex={0} className="text-[0.625rem] text-muted-foreground leading-tight border-b border-dotted border-muted-foreground/50 cursor-help outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 rounded-sm">Credited</span>
 															</TooltipTrigger>
-															<TooltipContent className="max-w-[250px] text-xs text-left" side="bottom">
+															<TooltipContent className="max-w-62.5 text-xs text-left" side="bottom">
 																<p>Actual Teaching Hours plus approved teaching-equivalent credits (e.g., class adviser equivalent load).</p>
 															</TooltipContent>
 														</Tooltip>
@@ -514,7 +514,7 @@ export default function FacultyAssignments() {
 																<TooltipTrigger asChild>
 																	<span tabIndex={0} className="text-[0.625rem] text-muted-foreground leading-tight border-b border-dotted border-muted-foreground/50 cursor-help outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 rounded-sm">Overload</span>
 																</TooltipTrigger>
-																<TooltipContent className="max-w-[260px] text-xs text-left" side="bottom">
+																<TooltipContent className="max-w-65 text-xs text-left" side="bottom">
 																	<p>Portion of Actual Teaching Hours beyond the 30-hour standard baseline. Overload is compensable up to policy limits.</p>
 																	{overCapHours > 0 && (
 																		<p className="mt-1.5 font-medium text-red-500">Values above 40 actual teaching hours are over-cap and should be flagged.</p>
@@ -537,7 +537,7 @@ export default function FacultyAssignments() {
 																{statusLabel}
 															</Badge>
 														</TooltipTrigger>
-														<TooltipContent className="max-w-[220px] text-xs text-left" side="bottom">
+														<TooltipContent className="max-w-55 text-xs text-left" side="bottom">
 															{status === 'below-standard' && <p>Below 30 credited hours; may be valid depending on designation and service needs.</p>}
 															{(status === 'compliant' || status === 'overload-allowed') && <p>Within policy-compliant range.</p>}
 															{status === 'over-cap' && <p>Exceeds maximum allowed actual teaching hours.</p>}
@@ -651,9 +651,9 @@ export default function FacultyAssignments() {
 														/>
 													</div>
 												</TooltipTrigger>
-												<TooltipContent side="bottom" className="max-w-[240px] text-xs">
+												<TooltipContent side="bottom" className="max-w-60 text-xs">
 													<p className="font-semibold">Allow outside department (emergency)</p>
-													<p className="mt-1">When ON, subjects outside this teacher's department become selectable. Use only when no qualified teacher is available.</p>
+													<p className="mt-1">When ON, only outside-department emergency assignments become selectable. Qualified department matches stay available regardless.</p>
 												</TooltipContent>
 											</Tooltip>
 										</TooltipProvider>
@@ -668,13 +668,13 @@ export default function FacultyAssignments() {
 										</div>
 									)}
 
-									{/* Primary Subjects (Qualified) */}
+									{/* Qualified by department */}
 									{(() => {
 										const filteredPrimary = filterBySubjectSearch(primarySubjects);
 										return filteredPrimary.length > 0 ? (
 											<div className="mb-4">
 												<h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
-													Primary Subjects (Qualified)
+													Qualified by Department
 												</h4>
 												<div className="space-y-2">
 													{filteredPrimary.map((sub) => {
@@ -697,13 +697,13 @@ export default function FacultyAssignments() {
 										) : null;
 									})()}
 
-									{/* Other Subjects (Outside Department) */}
+									{/* Outside department (emergency) */}
 									{(() => {
 										const filteredOther = filterBySubjectSearch(otherSubjects);
 										return filteredOther.length > 0 ? (
 											<div>
 												<h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider flex items-center gap-1.5">
-													Other Subjects (Outside Department)
+													Outside Department (Emergency)
 													{!allowOutsideDepartment && (
 														<Badge variant="secondary" className="text-[0.5rem] px-1 py-0 font-normal">Disabled</Badge>
 													)}
@@ -774,7 +774,7 @@ function SubjectRow({
 					checked={isAssigned}
 					onChange={onToggle}
 					disabled={disabled}
-					className="size-4 rounded border-border accent-[hsl(var(--primary))]"
+					className="size-4 rounded border-border accent-primary"
 				/>
 				<div className="min-w-0 flex-1">
 					<div className="flex items-center gap-2">

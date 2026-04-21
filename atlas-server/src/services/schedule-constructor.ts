@@ -52,6 +52,18 @@ export interface SubjectInput {
 	preferredRoomType: RoomType;
 	sessionPattern: 'MWF' | 'TTH' | 'ANY';
 	gradeLevels: number[];
+	interSectionEnabled?: boolean;
+	interSectionGradeLevels?: number[];
+}
+
+export interface InstructionalCohortInput {
+	cohortCode: string;
+	specializationCode: string;
+	specializationName: string;
+	gradeLevel: number;
+	memberSectionIds: number[];
+	expectedEnrollment: number;
+	preferredRoomType?: RoomType | null;
 }
 
 export interface FacultyInput {
@@ -149,6 +161,7 @@ export interface ConstructorInput {
 	schoolYearId: number;
 	sectionsByGrade: SectionsByGrade[];
 	subjects: SubjectInput[];
+	cohorts?: InstructionalCohortInput[];
 	faculty: FacultyInput[];
 	facultySubjects: FacultySubjectInput[];
 	rooms: RoomInput[];
@@ -180,6 +193,16 @@ export interface UnassignedItem {
 	gradeLevel: number;
 	session: number;
 	reason: 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM';
+	entryKind?: 'SECTION' | 'COHORT';
+	programType?: string | null;
+	programCode?: string | null;
+	programName?: string | null;
+	cohortCode?: string | null;
+	cohortName?: string | null;
+	cohortMemberSectionIds?: number[];
+	cohortExpectedEnrollment?: number | null;
+	adviserId?: number | null;
+	adviserName?: string | null;
 }
 
 export interface ConstructorResult {
@@ -203,24 +226,106 @@ interface DemandItem {
 	durationPerSession: number;
 	enrolledCount: number;
 	sessionPattern: 'MWF' | 'TTH' | 'ANY';
+	entryKind: 'SECTION' | 'COHORT';
+	programType?: string | null;
+	programCode?: string | null;
+	programName?: string | null;
+	cohortCode?: string | null;
+	cohortName?: string | null;
+	cohortMemberSectionIds?: number[];
+	roomTypePreference?: RoomType;
+	adviserId?: number | null;
+	adviserName?: string | null;
 }
 
-function computeDemand(sectionsByGrade: SectionsByGrade[], subjects: SubjectInput[]): DemandItem[] {
+function computeDemand(
+	sectionsByGrade: SectionsByGrade[],
+	subjects: SubjectInput[],
+	cohorts: InstructionalCohortInput[] = [],
+): DemandItem[] {
 	const demand: DemandItem[] = [];
 	const sortedGrades = [...sectionsByGrade].sort((a, b) => a.displayOrder - b.displayOrder);
 	const sortedSubjects = [...subjects].sort((a, b) => a.id - b.id);
+	const activeCohorts = [...cohorts]
+		.filter((cohort) => cohort.memberSectionIds.length > 0)
+		.sort((left, right) => left.gradeLevel - right.gradeLevel || left.cohortCode.localeCompare(right.cohortCode));
 
 	for (const grade of sortedGrades) {
 		const gradeNum = grade.displayOrder;
 		const sortedSections = [...grade.sections].sort((a, b) => a.id - b.id);
+		const sectionsById = new Map(sortedSections.map((section) => [section.id, section]));
+		const cohortsForGrade = activeCohorts.filter((cohort) => cohort.gradeLevel === gradeNum);
 
-		for (const section of sortedSections) {
-			for (const subject of sortedSubjects) {
-				if (!subject.gradeLevels.includes(gradeNum)) continue;
+		for (const subject of sortedSubjects) {
+			if (!subject.gradeLevels.includes(gradeNum)) continue;
 
-				const sessions = Math.ceil(subject.minMinutesPerWeek / STANDARD_PERIOD_MINUTES);
-				const duration = Math.ceil(subject.minMinutesPerWeek / sessions);
+			const sessions = Math.ceil(subject.minMinutesPerWeek / STANDARD_PERIOD_MINUTES);
+			const duration = Math.ceil(subject.minMinutesPerWeek / sessions);
+			const usesCohorts = subject.interSectionEnabled === true
+				&& (subject.interSectionGradeLevels?.length ? subject.interSectionGradeLevels.includes(gradeNum) : true)
+				&& cohortsForGrade.length > 0;
 
+			if (usesCohorts) {
+				const cohortSectionIds = new Set<number>();
+				for (const cohort of cohortsForGrade) {
+					const memberSections = cohort.memberSectionIds
+						.map((memberSectionId) => sectionsById.get(memberSectionId))
+						.filter((memberSection): memberSection is SectionsByGrade['sections'][number] => memberSection != null);
+					if (memberSections.length === 0) continue;
+
+					for (const memberSection of memberSections) {
+						cohortSectionIds.add(memberSection.id);
+					}
+
+					const anchorSection = memberSections[0];
+					demand.push({
+						sectionId: anchorSection.id,
+						subjectId: subject.id,
+						subjectCode: subject.code,
+						gradeLevel: gradeNum,
+						sessionsPerWeek: sessions,
+						durationPerSession: duration,
+						enrolledCount: cohort.expectedEnrollment > 0
+							? cohort.expectedEnrollment
+							: memberSections.reduce((total, memberSection) => total + memberSection.enrolledCount, 0),
+						sessionPattern: subject.sessionPattern ?? 'ANY',
+						entryKind: 'COHORT',
+						programType: anchorSection.programType ?? null,
+						programCode: anchorSection.programCode ?? null,
+						programName: anchorSection.programName ?? null,
+						cohortCode: cohort.cohortCode,
+						cohortName: cohort.specializationName,
+						cohortMemberSectionIds: memberSections.map((memberSection) => memberSection.id),
+						roomTypePreference: cohort.preferredRoomType ?? subject.preferredRoomType,
+						adviserId: null,
+						adviserName: null,
+					});
+				}
+
+				for (const section of sortedSections) {
+					if (cohortSectionIds.has(section.id)) continue;
+					demand.push({
+						sectionId: section.id,
+						subjectId: subject.id,
+						subjectCode: subject.code,
+						gradeLevel: gradeNum,
+						sessionsPerWeek: sessions,
+						durationPerSession: duration,
+						enrolledCount: section.enrolledCount,
+						sessionPattern: subject.sessionPattern ?? 'ANY',
+						entryKind: 'SECTION',
+						programType: section.programType ?? null,
+						programCode: section.programCode ?? null,
+						programName: section.programName ?? null,
+						roomTypePreference: subject.preferredRoomType,
+						adviserId: section.adviserId ?? null,
+						adviserName: section.adviserName ?? null,
+					});
+				}
+				continue;
+			}
+
+			for (const section of sortedSections) {
 				demand.push({
 					sectionId: section.id,
 					subjectId: subject.id,
@@ -230,12 +335,33 @@ function computeDemand(sectionsByGrade: SectionsByGrade[], subjects: SubjectInpu
 					durationPerSession: duration,
 					enrolledCount: section.enrolledCount,
 					sessionPattern: subject.sessionPattern ?? 'ANY',
+					entryKind: 'SECTION',
+					programType: section.programType ?? null,
+					programCode: section.programCode ?? null,
+					programName: section.programName ?? null,
+					roomTypePreference: subject.preferredRoomType,
+					adviserId: section.adviserId ?? null,
+					adviserName: section.adviserName ?? null,
 				});
 			}
 		}
 	}
 
 	return demand;
+}
+
+function getDemandSectionIds(item: DemandItem): number[] {
+	if (item.entryKind === 'COHORT' && item.cohortMemberSectionIds && item.cohortMemberSectionIds.length > 0) {
+		return item.cohortMemberSectionIds;
+	}
+	return [item.sectionId];
+}
+
+function getDemandAssignmentKey(item: DemandItem): string {
+	if (item.entryKind === 'COHORT' && item.cohortCode) {
+		return `${item.cohortCode}:${item.subjectId}`;
+	}
+	return `${item.sectionId}:${item.subjectId}`;
 }
 
 // ─── Occupancy tracker ───
@@ -305,7 +431,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	// Build period slots dynamically from policy (lunch window, school day bounds)
 	const PERIOD_SLOTS = buildPeriodSlots(policy);
 
-	const demand = computeDemand(sectionsByGrade, subjects);
+	const demand = computeDemand(sectionsByGrade, subjects, input.cohorts ?? []);
 
 	// Teaching rooms sorted by id, grouped by type
 	const teachingRooms = rooms.filter((r) => r.isTeachingSpace).sort((a, b) => a.id - b.id);
@@ -532,14 +658,30 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		const subject = subjectMap.get(item.subjectId);
 		if (!subject) {
 			for (let s = 0; s < item.sessionsPerWeek; s++) {
-				unassignedItems.push({ sectionId: item.sectionId, subjectId: item.subjectId, gradeLevel: item.gradeLevel, session: s + 1, reason: 'NO_QUALIFIED_FACULTY' });
+				unassignedItems.push({
+					sectionId: item.sectionId,
+					subjectId: item.subjectId,
+					gradeLevel: item.gradeLevel,
+					session: s + 1,
+					reason: 'NO_QUALIFIED_FACULTY',
+					entryKind: item.entryKind,
+					programType: item.programType ?? null,
+					programCode: item.programCode ?? null,
+					programName: item.programName ?? null,
+					cohortCode: item.cohortCode ?? null,
+					cohortName: item.cohortName ?? null,
+					cohortMemberSectionIds: item.cohortMemberSectionIds,
+					cohortExpectedEnrollment: item.entryKind === 'COHORT' ? item.enrolledCount : null,
+					adviserId: item.adviserId ?? null,
+					adviserName: item.adviserName ?? null,
+				});
 			}
 			unassignedCount += item.sessionsPerWeek;
 			continue;
 		}
 
 		// Reduce sessions needed by already-placed locked entries
-		const lockKey = `${item.sectionId}:${item.subjectId}`;
+		const lockKey = getDemandAssignmentKey(item);
 		const lockedSessions = lockSessionCounts.get(lockKey) ?? 0;
 		const sessionsNeeded = Math.max(0, item.sessionsPerWeek - lockedSessions);
 
@@ -558,7 +700,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		if (candidateFaculty.length === 0 && allowFlexible) {
 			candidateFaculty = allFacultyIds;
 		}
-		const compatibleRooms = roomsByType.get(subject.preferredRoomType) ?? [];
+		const compatibleRooms = roomsByType.get(item.roomTypePreference ?? subject.preferredRoomType) ?? [];
 
 		// Track which days we already used for this section-subject pair (spread sessions across days)
 		const daysUsedForPair = new Set<string>();
@@ -598,7 +740,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					const periodsToCheck = gradeValidPeriods;
 
 					for (const pi of periodsToCheck) {
-						if (sectionOcc.isOccupied(item.sectionId, day, pi)) continue;
+						if (getDemandSectionIds(item).some((sectionId) => sectionOcc.isOccupied(sectionId, day, pi))) continue;
 						if (facultyOcc.isOccupied(facId, day, pi)) continue;
 
 						const prefKey = `${day}:${pi}`;
@@ -637,7 +779,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 						if (room.capacity != null && item.enrolledCount > room.capacity) continue;
 
 						// Consecutive lab check: skip if would create adjacent lab sessions
-						if (wouldCreateConsecutiveLab(item.sectionId, cand.day, cand.pi, room.type)) continue;
+						if (getDemandSectionIds(item).some((sectionId) => wouldCreateConsecutiveLab(sectionId, cand.day, cand.pi, room.type))) continue;
 
 						// Place the entry
 						entryCounter++;
@@ -652,12 +794,24 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 							startTime: period.startTime,
 							endTime: period.endTime,
 							durationMinutes: item.durationPerSession,
+							entryKind: item.entryKind,
+							programType: item.programType ?? null,
+							programCode: item.programCode ?? null,
+							programName: item.programName ?? null,
+							cohortCode: item.cohortCode ?? null,
+							cohortName: item.cohortName ?? null,
+							cohortMemberSectionIds: item.cohortMemberSectionIds,
+							cohortExpectedEnrollment: item.entryKind === 'COHORT' ? item.enrolledCount : null,
+							adviserId: item.adviserId ?? null,
+							adviserName: item.adviserName ?? null,
 						});
 
 						// Mark occupancy
 						facultyOcc.mark(facId, cand.day, cand.pi);
 						roomOcc.mark(room.id, cand.day, cand.pi);
-						sectionOcc.mark(item.sectionId, cand.day, cand.pi);
+						for (const sectionId of getDemandSectionIds(item)) {
+							sectionOcc.mark(sectionId, cand.day, cand.pi);
+						}
 
 						// Update load
 						facultyLoad.set(facId, currentLoad + item.durationPerSession);
@@ -674,10 +828,12 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 						// Track lab periods for consecutive lab check
 						if (LAB_ROOM_TYPES.has(room.type)) {
-							const labKey = `${item.sectionId}:${cand.day}`;
-							const labPeriods = sectionDayLabPeriods.get(labKey) ?? [];
-							labPeriods.push(cand.pi);
-							sectionDayLabPeriods.set(labKey, labPeriods);
+							for (const sectionId of getDemandSectionIds(item)) {
+								const labKey = `${sectionId}:${cand.day}`;
+								const labPeriods = sectionDayLabPeriods.get(labKey) ?? [];
+								labPeriods.push(cand.pi);
+								sectionDayLabPeriods.set(labKey, labPeriods);
+							}
 						}
 
 						break;
@@ -703,7 +859,23 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					});
 					if (allOverloaded) reason = 'FACULTY_OVERLOADED';
 				}
-				unassignedItems.push({ sectionId: item.sectionId, subjectId: item.subjectId, gradeLevel: item.gradeLevel, session: session + 1, reason });
+				unassignedItems.push({
+					sectionId: item.sectionId,
+					subjectId: item.subjectId,
+					gradeLevel: item.gradeLevel,
+					session: session + 1,
+					reason,
+					entryKind: item.entryKind,
+					programType: item.programType ?? null,
+					programCode: item.programCode ?? null,
+					programName: item.programName ?? null,
+					cohortCode: item.cohortCode ?? null,
+					cohortName: item.cohortName ?? null,
+					cohortMemberSectionIds: item.cohortMemberSectionIds,
+					cohortExpectedEnrollment: item.entryKind === 'COHORT' ? item.enrolledCount : null,
+					adviserId: item.adviserId ?? null,
+					adviserName: item.adviserName ?? null,
+				});
 				unassignedCount++;
 			}
 		}

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { GripVertical, Plus, Trash2, X } from 'lucide-react';
+import { GripVertical, PencilLine, Plus, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
 	DndContext,
@@ -23,11 +23,29 @@ import atlasApi from '@/lib/api';
 import type { Building, Room, RoomType } from '@/types';
 import { Button } from '@/ui/button';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from '@/ui/dialog';
 import { Input } from '@/ui/input';
 import { Badge } from '@/ui/badge';
+import { Label } from '@/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { Switch } from '@/ui/switch';
 
 type EditorBuilding = Building & { dirty?: boolean; isNew?: boolean };
+type RoomEditForm = {
+	id: number;
+	name: string;
+	floor: number;
+	type: RoomType;
+	capacity: string;
+	isTeachingSpace: boolean;
+};
 
 type BuildingPanelProps = {
 	building: EditorBuilding;
@@ -57,7 +75,7 @@ const ROOM_TYPES: { value: RoomType; label: string }[] = [
 const COLORS = ['#2563eb', '#059669', '#ea580c', '#7c3aed', '#dc2626', '#0891b2', '#ca8a04', '#4f46e5', '#be185d', '#374151'];
 
 /** Room types that default to non-teaching when created */
-const NON_TEACHING_TYPES: RoomType[] = ['LIBRARY', 'GYMNASIUM', 'FACULTY_ROOM', 'OFFICE', 'OTHER'];
+const NON_TEACHING_TYPES: RoomType[] = ['LIBRARY', 'FACULTY_ROOM', 'OFFICE', 'OTHER'];
 
 export function BuildingPanel({
 	building,
@@ -80,6 +98,8 @@ export function BuildingPanel({
 	const [activeFloor, setActiveFloor] = useState(1);
 	const [newRoomFloor, setNewRoomFloor] = useState(1); // Separate state for add-room target floor
 	const [togglingTeaching, setTogglingTeaching] = useState(false);
+	const [editingRoom, setEditingRoom] = useState<RoomEditForm | null>(null);
+	const [savingRoom, setSavingRoom] = useState(false);
 
 	// Derive persisted floor count from existing rooms (highest floor among saved rooms)
 	// This helps detect when local floorCount has been increased but not saved
@@ -87,6 +107,11 @@ export function BuildingPanel({
 		if (building.rooms.length === 0) return building.floorCount;
 		return Math.max(...building.rooms.map((r) => r.floor), 1);
 	}, [building.rooms, building.floorCount]);
+
+	const minFloorCount = useMemo(
+		() => (building.rooms.length === 0 ? 1 : Math.max(...building.rooms.map((room) => room.floor), 1)),
+		[building.rooms],
+	);
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
@@ -172,6 +197,47 @@ export function BuildingPanel({
 		}
 	};
 
+	const openRoomEditor = (room: Room) => {
+		setEditingRoom({
+			id: room.id,
+			name: room.name,
+			floor: room.floor,
+			type: room.type,
+			capacity: room.capacity != null ? String(room.capacity) : '',
+			isTeachingSpace: room.isTeachingSpace,
+		});
+	};
+
+	const handleSaveRoomEdit = async () => {
+		if (!editingRoom || !editingRoom.name.trim()) return;
+
+		setSavingRoom(true);
+		try {
+			const isTeachingSpace = building.isTeachingBuilding !== false && !NON_TEACHING_TYPES.includes(editingRoom.type)
+				? editingRoom.isTeachingSpace
+				: false;
+
+			const { data } = await atlasApi.patch(`/map/rooms/${editingRoom.id}`, {
+				name: editingRoom.name.trim(),
+				floor: editingRoom.floor,
+				type: editingRoom.type,
+				capacity: editingRoom.capacity ? Number(editingRoom.capacity) : null,
+				isTeachingSpace,
+			});
+
+			onPushHistory();
+			onRoomUpdated(data.room);
+			setEditingRoom(null);
+			toast.success('Room updated successfully.');
+		} catch (err: any) {
+			const backendMsg = err?.response?.data?.message;
+			toast.error(backendMsg || 'Failed to update room.');
+			console.error('Failed to update room:', err);
+		} finally {
+			setSavingRoom(false);
+		}
+	};
+
 	const handleToggleTeachingSpace = async (room: Room) => {
 		if (building.isTeachingBuilding === false) return; // hidden when non-teaching building
 		try {
@@ -237,12 +303,9 @@ export function BuildingPanel({
 			{/* Header */}
 			<div className="flex items-center justify-between border-b border-border px-4 py-3">
 				<h3 className="text-sm font-bold">Building Details</h3>
-				<button
-					onClick={onClose}
-					className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-				>
+				<Button type="button" variant="ghost" size="icon-xs" onClick={onClose} aria-label="Close building details">
 					<X className="size-4" />
-				</button>
+				</Button>
 			</div>
 
 			<div className="flex-1 overflow-auto px-4 py-3 space-y-4">
@@ -260,6 +323,24 @@ export function BuildingPanel({
 							/>
 						</div>
 
+						<div>
+							<label className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
+								Short Code
+							</label>
+							<Input
+								value={building.shortCode ?? ''}
+								placeholder="Auto-generate on save"
+								onChange={(e) => {
+									const nextValue = e.target.value.trim();
+									onUpdate({ shortCode: nextValue ? nextValue.toUpperCase() : null, dirty: true });
+								}}
+								className="mt-1"
+							/>
+							<p className="mt-1 text-[0.6875rem] text-muted-foreground">
+								Used for room labels and stable seeded-map matching.
+							</p>
+						</div>
+
 						{/* Color */}
 						<div>
 							<label className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
@@ -267,10 +348,14 @@ export function BuildingPanel({
 							</label>
 							<div className="mt-1.5 flex flex-wrap gap-1.5">
 								{COLORS.map((c) => (
-									<button
+									<Button
 										key={c}
+										type="button"
+										variant="outline"
+										size="icon-xs"
+										aria-label={`Set color ${c}`}
 										onClick={() => onUpdate({ color: c, dirty: true })}
-										className={`size-7 rounded-md border-2 transition-all ${
+										className={`border-2 transition-all ${
 											building.color === c ? 'border-foreground scale-110' : 'border-transparent'
 										}`}
 										style={{ backgroundColor: c }}
@@ -338,37 +423,32 @@ export function BuildingPanel({
 							</label>
 							<Input
 								type="number"
-								min={1}
+								min={minFloorCount}
 								max={10}
 								value={building.floorCount ?? 1}
 								onChange={(e) => {
-									const val = Math.max(1, Math.min(10, Number(e.target.value)));
+									const val = Math.max(minFloorCount, Math.min(10, Number(e.target.value)));
 									onUpdate({ floorCount: val, dirty: true });
 									if (activeFloor > val) setActiveFloor(val);
 									if (newRoomFloor > val) setNewRoomFloor(val);
 								}}
 								className="mt-1"
 							/>
+							<p className="mt-1 text-[0.6875rem] text-muted-foreground">
+								Minimum {minFloorCount} while rooms remain assigned above the ground floor.
+							</p>
 						</div>
 
 						{/* Non-teaching building toggle */}
 						{!building.isNew && (
-							<div className="flex items-center gap-2">
-								<button
-									onClick={handleToggleTeachingBuilding}
+							<div className="flex items-center gap-3 rounded-md border border-border px-3 py-2">
+								<Switch
+									checked={building.isTeachingBuilding === false}
+									onCheckedChange={() => {
+										void handleToggleTeachingBuilding();
+									}}
 									disabled={togglingTeaching}
-									className={`relative flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors ${
-										building.isTeachingBuilding === false
-											? 'bg-amber-500'
-											: 'bg-muted-foreground/30'
-									}`}
-								>
-									<span
-										className={`absolute size-3.5 rounded-full bg-white shadow-sm transition-transform ${
-											building.isTeachingBuilding === false ? 'translate-x-[18px]' : 'translate-x-[3px]'
-										}`}
-									/>
-								</button>
+								/>
 								<label className="text-[0.6875rem] text-muted-foreground">
 									Exclude from scheduling (non-teaching building)
 								</label>
@@ -391,20 +471,18 @@ export function BuildingPanel({
 							{Array.from({ length: building.floorCount ?? 1 }, (_, i) => i + 1).map((floor) => {
 								const count = building.rooms.filter((r) => r.floor === floor).length;
 								return (
-									<button
+									<Button
 										key={floor}
-									onClick={() => {
+										type="button"
+										size="xs"
+										variant={activeFloor === floor ? 'default' : 'outline'}
+										onClick={() => {
 										setActiveFloor(floor);
 										setNewRoomFloor(floor); // Sync add-room floor with selected tab
 									}}
-										className={`rounded-md px-2 py-1 text-[0.6875rem] font-medium transition-colors ${
-											activeFloor === floor
-												? 'bg-primary text-primary-foreground shadow-sm'
-												: 'bg-muted text-muted-foreground hover:bg-muted/80'
-										}`}
 									>
 										F{floor} {count > 0 && <span className="text-[0.6rem] opacity-70">({count})</span>}
-									</button>
+									</Button>
 								);
 							})}
 						</div>
@@ -425,8 +503,9 @@ export function BuildingPanel({
 											<SortableRoomTile
 												key={room.id}
 												room={room}
-												showTeachingToggle={building.isTeachingBuilding !== false}
+												showTeachingToggle={building.isTeachingBuilding !== false && !NON_TEACHING_TYPES.includes(room.type)}
 												onToggleTeaching={() => handleToggleTeachingSpace(room)}
+												onEdit={() => openRoomEditor(room)}
 												onDelete={() => setDeleteRoomTarget(room)}
 											/>
 										))}
@@ -544,6 +623,111 @@ export function BuildingPanel({
 				loading={deleting}
 				variant="danger"
 			/>
+
+			<Dialog open={!!editingRoom} onOpenChange={(open) => !open && !savingRoom && setEditingRoom(null)}>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>Edit Room</DialogTitle>
+						<DialogDescription>
+							Update the room metadata for the selected building and floor.
+						</DialogDescription>
+					</DialogHeader>
+
+					{editingRoom && (
+						<div className="space-y-4">
+							<div className="space-y-2">
+								<Label htmlFor="edit-room-name">Room name</Label>
+								<Input
+									id="edit-room-name"
+									value={editingRoom.name}
+									onChange={(e) => setEditingRoom({ ...editingRoom, name: e.target.value })}
+								/>
+							</div>
+
+							<div className="grid grid-cols-2 gap-3">
+								<div className="space-y-2">
+									<Label>Floor</Label>
+									<Select
+										value={String(editingRoom.floor)}
+										onValueChange={(value) => setEditingRoom({ ...editingRoom, floor: Number(value) })}
+									>
+										<SelectTrigger>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{Array.from({ length: building.floorCount ?? 1 }, (_, index) => index + 1).map((floor) => (
+												<SelectItem key={floor} value={String(floor)}>
+													Floor {floor}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+
+								<div className="space-y-2">
+									<Label htmlFor="edit-room-capacity">Capacity</Label>
+									<Input
+										id="edit-room-capacity"
+										type="number"
+										min={1}
+										value={editingRoom.capacity}
+										onChange={(e) => setEditingRoom({ ...editingRoom, capacity: e.target.value })}
+									/>
+								</div>
+							</div>
+
+							<div className="space-y-2">
+								<Label>Room type</Label>
+								<Select
+									value={editingRoom.type}
+									onValueChange={(value) => {
+										const nextType = value as RoomType;
+										setEditingRoom({
+											...editingRoom,
+											type: nextType,
+											isTeachingSpace: NON_TEACHING_TYPES.includes(nextType) ? false : editingRoom.isTeachingSpace,
+										});
+									}}
+								>
+									<SelectTrigger>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{ROOM_TYPES.map((type) => (
+											<SelectItem key={type.value} value={type.value}>
+												{type.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+
+							<div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+								<div>
+									<p className="text-sm font-medium">Teaching space</p>
+									<p className="text-[0.6875rem] text-muted-foreground">
+										Disabled automatically for non-teaching buildings and room types.
+									</p>
+								</div>
+								<Switch
+									checked={editingRoom.isTeachingSpace}
+									onCheckedChange={(checked) => setEditingRoom({ ...editingRoom, isTeachingSpace: checked })}
+									disabled={building.isTeachingBuilding === false || NON_TEACHING_TYPES.includes(editingRoom.type)}
+								/>
+							</div>
+						</div>
+					)}
+
+					<DialogFooter>
+						<Button type="button" variant="outline" onClick={() => setEditingRoom(null)} disabled={savingRoom}>
+							Cancel
+						</Button>
+						<Button type="button" onClick={() => void handleSaveRoomEdit()} disabled={savingRoom || !editingRoom?.name.trim()}>
+							{savingRoom ? 'Saving...' : 'Save changes'}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }
@@ -553,11 +737,13 @@ function SortableRoomTile({
 	room,
 	showTeachingToggle,
 	onToggleTeaching,
+	onEdit,
 	onDelete,
 }: {
 	room: Room;
 	showTeachingToggle: boolean;
 	onToggleTeaching: () => void;
+	onEdit: () => void;
 	onDelete: () => void;
 }) {
 	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: room.id });
@@ -577,13 +763,16 @@ function SortableRoomTile({
 					: 'border-amber-200 bg-amber-50/50'
 			}`}
 		>
-			<button
+			<Button
+				type="button"
+				variant="ghost"
+				size="icon-xs"
 				{...attributes}
 				{...listeners}
-				className="shrink-0 cursor-grab touch-none text-muted-foreground/60 hover:text-muted-foreground active:cursor-grabbing"
+				className="shrink-0 cursor-grab touch-none text-muted-foreground/60 active:cursor-grabbing"
 			>
 				<GripVertical className="size-3.5" />
-			</button>
+			</Button>
 			<span className={`size-1.5 shrink-0 rounded-full ${room.isTeachingSpace ? 'bg-primary' : 'bg-amber-500'}`} />
 			<div className="min-w-0 flex-1">
 				<p className="truncate text-sm font-medium">{room.name}</p>
@@ -603,25 +792,21 @@ function SortableRoomTile({
 					)}
 				</div>
 			</div>
-			{showTeachingToggle && (
-				<button
-					onClick={onToggleTeaching}
-					title={room.isTeachingSpace ? 'Mark as non-teaching space' : 'Mark as teaching space'}
-					className={`shrink-0 rounded-md px-1.5 py-0.5 text-[0.6rem] font-medium border transition-colors ${
-						room.isTeachingSpace
-							? 'border-border text-muted-foreground hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200'
-							: 'border-amber-200 bg-amber-100 text-amber-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'
-					}`}
-				>
-					{room.isTeachingSpace ? '📚' : '🚫'}
-				</button>
-			)}
-			<button
-				onClick={onDelete}
-				className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-			>
-				<Trash2 className="size-3.5" />
-			</button>
+			<div className="flex shrink-0 items-center gap-1">
+				{showTeachingToggle && (
+					<Button type="button" variant="outline" size="xs" onClick={onToggleTeaching}>
+						{room.isTeachingSpace ? 'Exclude' : 'Teach'}
+					</Button>
+				)}
+				<Button type="button" variant="outline" size="xs" onClick={onEdit}>
+					<PencilLine className="size-3.5" />
+					Edit
+				</Button>
+				<Button type="button" variant="destructive" size="xs" onClick={onDelete}>
+					<Trash2 className="size-3.5" />
+					Delete
+				</Button>
+			</div>
 		</li>
 	);
 }

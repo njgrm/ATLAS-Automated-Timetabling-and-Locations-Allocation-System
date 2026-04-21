@@ -47,6 +47,16 @@ export interface ScheduledEntry {
 	startTime: string;    // HH:mm
 	endTime: string;      // HH:mm
 	durationMinutes: number;
+	entryKind?: 'SECTION' | 'COHORT';
+	programType?: string | null;
+	programCode?: string | null;
+	programName?: string | null;
+	cohortCode?: string | null;
+	cohortName?: string | null;
+	cohortMemberSectionIds?: number[];
+	cohortExpectedEnrollment?: number | null;
+	adviserId?: number | null;
+	adviserName?: string | null;
 }
 
 // ─── Reference data ───
@@ -177,6 +187,17 @@ function timeToMinutes(t: string): number {
 	return h * 60 + m;
 }
 
+function getEffectiveSectionIds(entry: ScheduledEntry): number[] {
+	if (entry.entryKind === 'COHORT' && Array.isArray(entry.cohortMemberSectionIds) && entry.cohortMemberSectionIds.length > 0) {
+		return entry.cohortMemberSectionIds;
+	}
+	return [entry.sectionId];
+}
+
+function isSameCohortGroup(left: ScheduledEntry, right: ScheduledEntry): boolean {
+	return Boolean(left.cohortCode && right.cohortCode && left.cohortCode === right.cohortCode);
+}
+
 // ─── Validator ───
 
 export function validateHardConstraints(ctx: ValidatorContext): ValidationResult {
@@ -203,7 +224,7 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 			for (let j = i + 1; j < dayEntries.length; j++) {
 				const a = dayEntries[i];
 				const b = dayEntries[j];
-				if (timesOverlap(a, b)) {
+				if (timesOverlap(a, b) && !isSameCohortGroup(a, b)) {
 					violations.push({
 						...base,
 						code: 'FACULTY_TIME_CONFLICT',
@@ -229,7 +250,7 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 			for (let j = i + 1; j < dayEntries.length; j++) {
 				const a = dayEntries[i];
 				const b = dayEntries[j];
-				if (timesOverlap(a, b)) {
+				if (timesOverlap(a, b) && !isSameCohortGroup(a, b)) {
 					violations.push({
 						...base,
 						code: 'ROOM_TIME_CONFLICT',
@@ -283,14 +304,21 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 		for (const e of ctx.entries) {
 			const room = roomMap.get(e.roomId);
 			if (!room || room.capacity == null) continue;
-			const enrolled = ctx.sectionEnrollment.get(e.sectionId) ?? 0;
+			const enrolled = e.cohortExpectedEnrollment ?? ctx.sectionEnrollment.get(e.sectionId) ?? 0;
 			if (enrolled > room.capacity) {
 				violations.push({
 					...base,
 					code: 'ROOM_CAPACITY_EXCEEDED',
-					message: `Entry ${e.entryId}: section ${e.sectionId} has ${enrolled} students but room ${e.roomId} capacity is only ${room.capacity}.`,
+					message: e.entryKind === 'COHORT' && e.cohortCode
+						? `Entry ${e.entryId}: cohort ${e.cohortCode} has ${enrolled} learners but room ${e.roomId} capacity is only ${room.capacity}.`
+						: `Entry ${e.entryId}: section ${e.sectionId} has ${enrolled} students but room ${e.roomId} capacity is only ${room.capacity}.`,
 					entities: { roomId: e.roomId, sectionId: e.sectionId, entryIds: [e.entryId] },
-					meta: { enrolledCount: enrolled, roomCapacity: room.capacity },
+					meta: {
+						enrolledCount: enrolled,
+						roomCapacity: room.capacity,
+						...(e.cohortCode ? { cohortCode: e.cohortCode } : {}),
+						...(e.cohortName ? { cohortName: e.cohortName } : {}),
+					},
 				});
 			}
 		}
@@ -629,10 +657,12 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 		// 9b) Section overcompressed — section has too many teaching minutes in a single day
 		const secDayForVacant = new Map<string, ScheduledEntry[]>();
 		for (const e of ctx.entries) {
-			const key = `${e.sectionId}:${e.day}`;
-			const arr = secDayForVacant.get(key) ?? [];
-			arr.push(e);
-			secDayForVacant.set(key, arr);
+			for (const sectionId of getEffectiveSectionIds(e)) {
+				const key = `${sectionId}:${e.day}`;
+				const arr = secDayForVacant.get(key) ?? [];
+				arr.push({ ...e, sectionId });
+				secDayForVacant.set(key, arr);
+			}
 		}
 
 		for (const [key, dayEntries] of secDayForVacant) {

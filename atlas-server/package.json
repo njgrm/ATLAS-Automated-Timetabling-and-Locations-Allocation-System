@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "verify:enrollpro-source": "tsx src/scripts/verify-enrollpro-source.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",

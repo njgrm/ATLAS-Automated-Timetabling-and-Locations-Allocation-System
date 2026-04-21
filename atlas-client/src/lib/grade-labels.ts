@@ -18,34 +18,69 @@ export const GRADE_COLORS: Record<string, string> = {
 
 /** Department-to-subject keyword mapping for JHS DepEd subjects */
 const DEPT_KEYWORDS: Record<string, string[]> = {
-	mathematics: ['math'],
-	science: ['sci', 'science'],
-	english: ['eng', 'english'],
-	filipino: ['fil', 'filipino'],
-	'social studies': ['ap', 'araling', 'social'],
-	mapeh: ['mapeh', 'music', 'arts', 'pe', 'health'],
-	tle: ['tle', 'technology', 'livelihood'],
-	'values education': ['values', 'edukasyon', 'esp'],
+	mathematics: ['math', 'mathematics', 'algebra', 'geometry', 'statistics'],
+	science: ['sci', 'science', 'biology', 'chemistry', 'physics', 'earth'],
+	english: ['eng', 'english', 'reading', 'literature', 'oral'],
+	filipino: ['fil', 'filipino', 'wika'],
+	'araling panlipunan': ['ap', 'araling', 'panlipunan', 'social'],
+	mapeh: ['mapeh', 'music', 'arts', 'pe', 'physical', 'health'],
+	'technology and livelihood education': ['tle', 'technology', 'livelihood', 'cookery', 'ict', 'agri', 'industrial', 'home economics'],
+	'edukasyon sa pagpapakatao': ['values', 'edukasyon', 'pagpapakatao', 'esp'],
+	'mother tongue-based': ['mother tongue', 'mtb', 'mtb-mle'],
+	'homeroom guidance': ['homeroom', 'guidance'],
 };
 
+const DEPARTMENT_ALIASES: Record<string, string> = {
+	'social studies': 'araling panlipunan',
+	ap: 'araling panlipunan',
+	theology: 'edukasyon sa pagpapakatao',
+	'values education': 'edukasyon sa pagpapakatao',
+	esp: 'edukasyon sa pagpapakatao',
+	tleb: 'technology and livelihood education',
+	tle: 'technology and livelihood education',
+};
+
+function normalizeDepartment(department: string): string | null {
+	const lowered = department.trim().toLowerCase();
+	if (!lowered) {
+		return null;
+	}
+
+	for (const [alias, canonical] of Object.entries(DEPARTMENT_ALIASES)) {
+		if (lowered.includes(alias)) {
+			return canonical;
+		}
+	}
+
+	for (const key of Object.keys(DEPT_KEYWORDS)) {
+		if (lowered.includes(key)) {
+			return key;
+		}
+	}
+
+	return null;
+}
+
 /** Determine if a subject matches a faculty member's department specialization */
-export function isDepartmentMatch(
+export function matchesFacultyDepartment(
 	department: string | null,
 	subjectCode: string,
 	subjectName: string,
 ): boolean {
-	if (!department) return true; // no department = treat all as primary
-	const dept = department.toLowerCase();
 	const code = subjectCode.toLowerCase();
 	const name = subjectName.toLowerCase();
 
-	// Special case: Homeroom Guidance matches all departments
-	if (code.includes('homeroom') || name.includes('homeroom')) return true;
+	if (code.includes('homeroom') || name.includes('homeroom guidance') || name.includes('homeroom')) {
+		return true;
+	}
 
-	const keywords = Object.entries(DEPT_KEYWORDS)
-		.filter(([key]) => dept.includes(key))
-		.flatMap(([, vals]) => vals);
+	if (!department) return false;
+	const dept = normalizeDepartment(department);
+	if (!dept) return false;
 
-	if (keywords.length === 0) return true; // unknown department = treat all as primary
+	const keywords = DEPT_KEYWORDS[dept] ?? [];
+	if (keywords.length === 0) return false;
 	return keywords.some((kw) => code.includes(kw) || name.includes(kw));
 }
+
+export const isDepartmentMatch = matchesFacultyDepartment;

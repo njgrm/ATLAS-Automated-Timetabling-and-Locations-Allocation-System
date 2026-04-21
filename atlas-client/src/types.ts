@@ -77,6 +77,8 @@ export type FacultyMirror = {
 	maxHoursPerWeek: number;
 	lastSyncedAt: string;
 	version: number;
+	advisedSectionId?: number | null;
+	advisedSectionName?: string | null;
 	facultySubjects?: FacultySubject[];
 };
 
@@ -286,6 +288,10 @@ export interface RunSummary {
 	policyBlockedCount: number;
 	hardViolationCount: number;
 	violationCounts?: Record<string, number>;
+	lockWarnings?: string[];
+	cohortCount?: number;
+	cohortizedClassCount?: number;
+	contractWarnings?: string[];
 }
 
 export interface ScheduledEntry {
@@ -298,6 +304,16 @@ export interface ScheduledEntry {
 	startTime: string;
 	endTime: string;
 	durationMinutes: number;
+	entryKind?: 'SECTION' | 'COHORT';
+	programType?: string | null;
+	programCode?: string | null;
+	programName?: string | null;
+	cohortCode?: string | null;
+	cohortName?: string | null;
+	cohortMemberSectionIds?: number[];
+	cohortExpectedEnrollment?: number | null;
+	adviserId?: number | null;
+	adviserName?: string | null;
 }
 
 export interface Violation {
@@ -336,6 +352,16 @@ export interface UnassignedItem {
 	gradeLevel: number;
 	session: number;
 	reason: 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM';
+	entryKind?: 'SECTION' | 'COHORT';
+	programType?: string | null;
+	programCode?: string | null;
+	programName?: string | null;
+	cohortCode?: string | null;
+	cohortName?: string | null;
+	cohortMemberSectionIds?: number[];
+	cohortExpectedEnrollment?: number | null;
+	adviserId?: number | null;
+	adviserName?: string | null;
 }
 
 export interface DraftReport {
@@ -405,6 +431,12 @@ export interface AffectedEntry {
 	startTime: string;
 	endTime: string;
 	phase: 'before' | 'after';
+	entryKind?: 'SECTION' | 'COHORT';
+	cohortCode?: string | null;
+	cohortName?: string | null;
+	programType?: string | null;
+	programCode?: string | null;
+	programName?: string | null;
 }
 
 export interface PolicyImpact {
@@ -488,6 +520,13 @@ export interface ExternalSection {
 	enrolledCount: number;
 	gradeLevelId: number;
 	gradeLevelName: string;
+	programType?: 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER' | null;
+	programCode?: string | null;
+	programName?: string | null;
+	upstreamProgramType?: string | null;
+	isSpecialProgram?: boolean;
+	adviserId?: number | null;
+	adviserName?: string | null;
 }
 
 export interface SectionSummaryResponse {
@@ -501,6 +540,7 @@ export interface SectionSummaryResponse {
 	source?: 'enrollpro' | 'stub' | 'auto-fallback';
 	sourceMode?: 'stub' | 'enrollpro' | 'auto';
 	fallbackReason?: string;
+	contractWarnings?: string[];
 }
 
 /* ─── Scheduling Policy types ─── */

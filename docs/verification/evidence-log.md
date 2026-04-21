@@ -23,9 +23,91 @@ Record dated implementation verification summaries here.
 
 ---
 
+### 2026-04-21 - Wave 4.0 Cohort-Aware Generation + Special Program Review UX
+- Phase: 4
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npx tsc --noEmit` (server): PASS
+  - `npx tsc --noEmit` (client): PASS
+  - `npx tsx src/__tests__/phase3-regression.test.ts`: PASS (49/49)
+  - `npx tsx src/__tests__/phase4-cohort-review.test.ts`: PASS (14/14)
+- API checks:
+  - `GET /api/sections/:ayId` live contract normalized nested `advisingTeacher` plus upstream `programType` into ATLAS adviser/program fields: PASS
+  - `GET /api/curriculum/:ayId/scp-config` contract guarded against missing `cohorts` and now derives fallback TLE cohorts from section rosters when only `scpProgramConfigs` is present: PASS
+  - generation constructor now consumes stored `InstructionalCohort` rows for inter-section subjects and emits cohort-aware draft entries/unassigned metadata: PASS
+- UI checks:
+  - `ScheduleReview` toolbar exposes program and entry-type filters, contract warning banner, and cohort count summary: PASS (typechecked code path)
+  - `ScheduleReview` grid, detail panel, unassigned cards, and explainability drawer surface cohort/program/adviser context: PASS (typechecked code path)
+  - Manual browser QA against a live bridge-auth session: NOT RUN in this pass
+- Blocking findings:
+  - Manual browser QA remains pending for drag/drop and toolbar interaction confirmation in a fully running local environment.
+- Decision:
+  - Accepted for code verification; browser QA pending
+
+### 2026-04-21 - Wave 3.5.2 EnrollPro-First Seeding + Strict Qualification Fix
+- Phase: 4 (user-approved cross-phase hardening)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `Push-Location atlas-server; npx tsc --noEmit`: PASS
+  - `Push-Location atlas-client; npx tsc --noEmit`: PASS
+  - `Push-Location EnrollPro/server; DATABASE_URL=.../enrollpro?schema=public; npx prisma migrate deploy`: PASS
+  - `Push-Location EnrollPro/server; DATABASE_URL=.../enrollpro?schema=public; npm run db:seed`: PASS
+  - `Push-Location EnrollPro/server; DATABASE_URL=.../enrollpro?schema=public; npm run db:seed-atlas-source`: PASS
+  - `Push-Location atlas-server; ENROLLPRO_API=http://localhost:5000/api; npx tsx src/scripts/seed-realistic.ts --schoolId=1 --schoolYearId=1 --reset`: PASS
+  - `Push-Location atlas-server; ENROLLPRO_API=http://localhost:5000/api; npm run verify:enrollpro-source -- --schoolId=1 --schoolYearId=1`: PASS
+  - `Push-Location atlas-server; ENROLLPRO_API=http://127.0.0.1:59999/api; npm run verify:enrollpro-source -- --schoolId=1 --schoolYearId=1`: PASS
+- API checks:
+  - `POST /api/auth/login` on EnrollPro returned a valid JWT for the seeded admin after normalizing the dedicated EnrollPro verification DB credentials: PASS
+  - `GET /api/teachers/atlas/faculty-sync?schoolYearId=1` fed 154 active faculty into ATLAS and reported live `enrollpro` source after mirror reset: PASS
+  - `GET /api/sections/1?level=JHS` returned 83 sections and 3311 active enrolled learners after fixing `NULL` `eosyStatus` counting: PASS
+  - `GET /api/curriculum/1/scp-config` returned explicit `cohorts` data and produced 12 live instructional cohorts in ATLAS: PASS
+  - With `ENROLLPRO_API` pointed to an unreachable port, ATLAS resolved faculty/sections/cohorts from `cached-enrollpro` instead of stub data: PASS
+- UI checks:
+  - `matchesFacultyDepartment()` smoke test: missing department to `MATH7` = `false`, `Mathematics` to `MATH7` = `true`, `Mathematics` to `SCI9` = `false`, `English` to `ESP9` = `false`, `Edukasyon sa Pagpapakatao` to `ESP9` = `true`, `null` to `Homeroom Guidance` = `true`: PASS
+  - `FacultyAssignments` copy now separates `Qualified by Department` from `Outside Department (Emergency)` and gates the latter behind the emergency toggle: PASS (typechecked code path)
+- Blocking findings:
+  - `Push-Location EnrollPro/server; npm run build`: FAIL due to a pre-existing portable type inference error in `src/features/enrollment/eosy.router.ts:6` unrelated to this batch.
+- Decision:
+  - Accepted for requested scope; unrelated EnrollPro build issue remains outside this batch
+
 ## 2026-03-31 - Bootstrap Entry
 - Phase: 3 (working state)
 - Note: Formalized verification log created. Backfill prior evidence from chat history as needed.
+
+### 2026-04-21 - Wave 3.5.1 Safe Seed + Map Verification
+- Phase: 4 (user-approved cross-phase hardening)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npx prisma generate`: PASS (required temporarily stopping the running `atlas-server` watcher to release the Prisma engine DLL lock)
+  - `npx prisma migrate deploy`: PASS (`0007_add_tle_intersession_fields`, `0008_add_faculty_profile_fields` applied)
+  - `npx tsc --noEmit` (server): PASS
+  - `npx tsc --noEmit` (client): PASS
+  - `npx tsx src/scripts/seed-realistic.ts --schoolId=1 --schoolYearId=1 --reset --withCachedSnapshots=true`: PASS
+  - `npx tsx src/scripts/seed-realistic.ts --schoolId=1 --schoolYearId=1 --withCachedSnapshots=true --seedMap=true`: PASS
+  - Re-ran the same map-seed command: PASS (`Buildings created: 0`, `Buildings preserved/matched: 6`, `Rooms created: 0`, `Rooms preserved/matched: 34`)
+- API checks:
+  - Safe reset preserves `buildings`, `rooms`, and `campus_image_url` unless map reset is explicitly requested: PASS
+  - Realistic map seeding creates six deterministic campus buildings and 34 rooms without duplicate creation on rerun: PASS
+  - Section source default now falls back through `auto` mode instead of forcing `enrollpro`: PASS
+- UI checks:
+  - `/map` floor-count control clamps to the occupied highest floor (`Academic Building 1` stayed at 3 floors when `1` was entered): PASS
+  - `/map` room add flow created a temporary `QA Temp` room and showed success feedback: PASS
+  - `/map` room edit flow updated the temporary room capacity from `10` to `12` through the new dialog and showed success feedback: PASS
+  - `/map` room delete flow required confirmation and removed the temporary room after confirmation: PASS
+  - `/map` building drag + short-code edit saved successfully, persisted after reload, and were reverted to seeded values before final evidence capture: PASS
+- Blocking findings:
+  - Standalone browser QA still shows unrelated 502s for bridge/public-settings calls outside the map workflow.
+- Decision:
+  - Accepted
 
 ### 2026-04-02 - Phase 2 Closeout Verification
 - Phase: 2

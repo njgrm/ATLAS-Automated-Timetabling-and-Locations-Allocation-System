@@ -2,6 +2,7 @@ import Konva from 'konva';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Group, Layer, Line, Rect, Stage, Text, Transformer } from 'react-konva';
 import { Minus, MousePointer2, Plus, Redo2, RotateCcw, Save, Square, Undo2, Upload } from 'lucide-react';
+import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
 import type { Building } from '@/types';
@@ -427,51 +428,46 @@ export function CampusMapEditor({
 	const handleSave = useCallback(async () => {
 		setSaving(true);
 		try {
-			const dirtyBuildings = buildings.filter((b) => b.dirty);
-			for (const b of dirtyBuildings) {
-				if (b.isNew) {
-					// Create new building via API
-					const { data } = await atlasApi.post(`/map/schools/${schoolId}/buildings`, {
-						name: b.name,
-						x: Math.round(b.x),
-						y: Math.round(b.y),
-						width: Math.round(b.width),
-						height: Math.round(b.height),
-						color: b.color,
-						rotation: b.rotation ?? 0,
-						floorCount: b.floorCount ?? 1,
-						isTeachingBuilding: b.isTeachingBuilding ?? true,
-					});
-					// Replace temp id with real id
-					const newId = data.building.id;
-					onBuildingsChange(
-						buildings.map((existing) =>
-							existing.id === b.id
-								? { ...data.building, dirty: false, isNew: false }
-								: existing,
-						),
+			let nextBuildings = buildings.map((building) => ({ ...building, rooms: [...building.rooms] }));
+			const dirtyBuildings = nextBuildings.filter((building) => building.dirty);
+
+			for (const building of dirtyBuildings) {
+				const payload = {
+					name: building.name,
+					shortCode: building.shortCode ?? undefined,
+					x: Math.round(building.x),
+					y: Math.round(building.y),
+					width: Math.round(building.width),
+					height: Math.round(building.height),
+					color: building.color,
+					rotation: building.rotation ?? 0,
+					floorCount: building.floorCount ?? 1,
+					isTeachingBuilding: building.isTeachingBuilding ?? true,
+				};
+
+				if (building.isNew) {
+					const { data } = await atlasApi.post(`/map/schools/${schoolId}/buildings`, payload);
+					nextBuildings = nextBuildings.map((existing) =>
+						existing.id === building.id
+							? { ...data.building, dirty: false, isNew: false }
+							: existing,
 					);
 				} else {
-					// Update existing building
-					await atlasApi.patch(`/map/buildings/${b.id}`, {
-						name: b.name,
-						x: Math.round(b.x),
-						y: Math.round(b.y),
-						width: Math.round(b.width),
-						height: Math.round(b.height),
-						color: b.color,
-						rotation: b.rotation ?? 0,
-						floorCount: b.floorCount ?? 1,
-						isTeachingBuilding: b.isTeachingBuilding ?? true,
-					});
+					const { data } = await atlasApi.patch(`/map/buildings/${building.id}`, payload);
+					nextBuildings = nextBuildings.map((existing) =>
+						existing.id === building.id
+							? { ...data.building, dirty: false, isNew: false }
+							: existing,
+					);
 				}
 			}
-			// Clear dirty flags
-			onBuildingsChange(
-				buildings.map((b) => ({ ...b, dirty: false, isNew: false })),
-			);
+
+			onBuildingsChange(nextBuildings);
+			toast.success('Map changes saved.');
 			onSaved();
-		} catch (err) {
+		} catch (err: any) {
+			const backendMsg = err?.response?.data?.message;
+			toast.error(backendMsg || 'Failed to save map changes.');
 			console.error('Save failed:', err);
 		} finally {
 			setSaving(false);
@@ -487,9 +483,11 @@ export function CampusMapEditor({
 			await atlasApi.post(`/map/schools/${schoolId}/campus-image`, formData, {
 				headers: { 'Content-Type': 'multipart/form-data' },
 			});
+			toast.success('Campus image updated.');
 			// Reload the campus image
 			onSaved();
 		} catch (err) {
+			toast.error('Failed to update campus image.');
 			console.error('Image upload failed:', err);
 		}
 	}, [schoolId, onSaved]);
@@ -518,10 +516,10 @@ export function CampusMapEditor({
 				<div className="h-6 w-px bg-border" />
 
 				<Button variant="outline" size="sm" onClick={() => setScale((s) => Math.min(s + 0.15, 2.5))}>
-					<Plus className="size-3.5" />
+					<Plus className="size-3.5" /> Zoom In
 				</Button>
 				<Button variant="outline" size="sm" onClick={() => setScale((s) => Math.max(s - 0.15, 0.4))}>
-					<Minus className="size-3.5" />
+					<Minus className="size-3.5" /> Zoom Out
 				</Button>
 				<Button
 					variant="outline"
@@ -531,7 +529,7 @@ export function CampusMapEditor({
 						setPosition({ x: 0, y: 0 });
 					}}
 				>
-					<RotateCcw className="size-3.5" />
+					<RotateCcw className="size-3.5" /> Reset View
 				</Button>
 
 				<div className="h-6 w-px bg-border" />
@@ -557,18 +555,16 @@ export function CampusMapEditor({
 					size="sm"
 					disabled={historyStack.length === 0}
 					onClick={onUndo}
-					title="Undo (Ctrl+Z)"
 				>
-					<Undo2 className="size-3.5" />
+					<Undo2 className="size-3.5" /> Undo
 				</Button>
 				<Button
 					variant="outline"
 					size="sm"
 					disabled={redoStack.length === 0}
 					onClick={onRedo}
-					title="Redo (Ctrl+Y)"
 				>
-					<Redo2 className="size-3.5" />
+					<Redo2 className="size-3.5" /> Redo
 				</Button>
 
 				<div className="flex-1" />
