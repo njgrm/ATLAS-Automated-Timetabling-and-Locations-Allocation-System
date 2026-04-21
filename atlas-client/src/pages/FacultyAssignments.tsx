@@ -27,7 +27,7 @@ type FacultyAssignmentDraft,
 type FacultyOwnershipState,
 type LoadStatus,
 } from '@/lib/faculty-assignment-helpers';
-import { gradeLabel, matchesFacultyDepartment } from '@/lib/grade-labels';
+import { gradeLabel, matchesFacultyDepartment, GRADE_COLORS } from '@/lib/grade-labels';
 import { fetchPublicSettings } from '@/lib/settings';
 import type { ExternalSection, HomeroomHintResponse, SectionSummaryResponse, Subject } from '@/types';
 import { Badge } from '@/ui/badge';
@@ -154,6 +154,7 @@ const [searchQuery, setSearchQuery] = useState('');
 const [filterStatus, setFilterStatus] = useState<'all' | 'assigned' | 'unassigned'>('all');
 const [departmentFilter, setDepartmentFilter] = useState<string>('all');
 const [subjectSearch, setSubjectSearch] = useState('');
+	const [sectionFilter, setSectionFilter] = useState<'all' | 'unassigned' | 'assigned'>('all');
 const [allowOutsideDepartment, setAllowOutsideDepartment] = useState(false);
 const [error, setError] = useState<string | null>(null);
 const [homeroomHint, setHomeroomHint] = useState<HomeroomHintResponse | null>(null);
@@ -813,6 +814,8 @@ selectedFacultyId={selected.id}
 savedOwnershipMap={savedOwnershipMap}
 pendingOwnershipMap={pendingOwnershipMap}
 onSetSections={setSubjectSections}
+											searchTerm={subjectSearch}
+											sectionFilter={sectionFilter}
 />
 ))}
 </div>
@@ -843,6 +846,8 @@ selectedFacultyId={selected.id}
 savedOwnershipMap={savedOwnershipMap}
 pendingOwnershipMap={pendingOwnershipMap}
 onSetSections={setSubjectSections}
+											searchTerm={subjectSearch}
+											sectionFilter={sectionFilter}
 isOutsideDepartment
 />
 ))}
@@ -887,7 +892,7 @@ isOutsideDepartment,
 const [openGrades, setOpenGrades] = useState<Record<number, boolean>>({});
 const groupedSections = useMemo(() => {
 const sectionGroups = new Map<number, ExternalSection[]>();
-for (const section of sections) {
+for (const section of displaySections) {
 const nextSections = sectionGroups.get(section.displayOrder) ?? [];
 nextSections.push(section);
 sectionGroups.set(section.displayOrder, nextSections);
@@ -898,7 +903,7 @@ return Array.from(sectionGroups.entries())
 gradeLevel,
 sections: [...gradeSections].sort((left, right) => left.name.localeCompare(right.name) || left.id - right.id),
 }));
-}, [sections]);
+}, [displaySections]);
 const selectedSectionIds = new Set(assignment?.sectionIds ?? []);
 const selectedCount = selectedSectionIds.size;
 
@@ -990,7 +995,7 @@ selectedCount > 0
 ) : (
 <div className="ml-7 mt-3 space-y-2">
 {groupedSections.map(({ gradeLevel, sections: gradeSections }) => {
-const isOpen = openGrades[gradeLevel] ?? true;
+const isOpen = openGrades[gradeLevel] ?? (searchTerm ? true : false);
 const selectedInGrade = gradeSections.filter((section) => selectedSectionIds.has(section.id)).length;
 return (
 <div key={gradeLevel} className="overflow-hidden rounded-md border border-border/70 bg-background">
