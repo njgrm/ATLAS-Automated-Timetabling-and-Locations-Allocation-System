@@ -8,9 +8,12 @@ export declare function getSubjectsBySchool(schoolId: number): Promise<{
     code: string;
     minMinutesPerWeek: number;
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
+    sessionPattern: import("@prisma/client").$Enums.SessionPattern;
     gradeLevels: number[];
     isActive: boolean;
     isSeedable: boolean;
+    interSectionEnabled: boolean;
+    interSectionGradeLevels: number[];
 }[]>;
 export declare function getSubjectById(id: number): Promise<{
     id: number;
@@ -21,16 +24,22 @@ export declare function getSubjectById(id: number): Promise<{
     code: string;
     minMinutesPerWeek: number;
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
+    sessionPattern: import("@prisma/client").$Enums.SessionPattern;
     gradeLevels: number[];
     isActive: boolean;
     isSeedable: boolean;
+    interSectionEnabled: boolean;
+    interSectionGradeLevels: number[];
 } | null>;
 export declare function createSubject(schoolId: number, data: {
     code: string;
     name: string;
     minMinutesPerWeek: number;
     preferredRoomType: string;
+    sessionPattern?: string;
     gradeLevels: number[];
+    interSectionEnabled?: boolean;
+    interSectionGradeLevels?: number[];
 }): Promise<{
     id: number;
     schoolId: number;
@@ -40,16 +49,22 @@ export declare function createSubject(schoolId: number, data: {
     code: string;
     minMinutesPerWeek: number;
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
+    sessionPattern: import("@prisma/client").$Enums.SessionPattern;
     gradeLevels: number[];
     isActive: boolean;
     isSeedable: boolean;
+    interSectionEnabled: boolean;
+    interSectionGradeLevels: number[];
 }>;
 export declare function updateSubject(id: number, data: Partial<{
     name: string;
     minMinutesPerWeek: number;
     preferredRoomType: string;
+    sessionPattern: string;
     gradeLevels: number[];
     isActive: boolean;
+    interSectionEnabled: boolean;
+    interSectionGradeLevels: number[];
 }>): Promise<{
     id: number;
     schoolId: number;
@@ -59,9 +74,12 @@ export declare function updateSubject(id: number, data: Partial<{
     code: string;
     minMinutesPerWeek: number;
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
+    sessionPattern: import("@prisma/client").$Enums.SessionPattern;
     gradeLevels: number[];
     isActive: boolean;
     isSeedable: boolean;
+    interSectionEnabled: boolean;
+    interSectionGradeLevels: number[];
 } | null>;
 export declare function deleteSubject(id: number): Promise<{
     success: boolean;

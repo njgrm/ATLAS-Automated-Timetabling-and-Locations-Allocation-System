@@ -95,6 +95,7 @@ export type FacultySubject = {
 	subjectId: number;
 	schoolId: number;
 	gradeLevels: number[];
+	sectionIds: number[];
 	assignedBy: number;
 	assignedAt: string;
 	version: number;
@@ -527,6 +528,7 @@ export interface ExternalSection {
 	enrolledCount: number;
 	gradeLevelId: number;
 	gradeLevelName: string;
+	displayOrder: number;
 	programType?: 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER' | null;
 	programCode?: string | null;
 	programName?: string | null;

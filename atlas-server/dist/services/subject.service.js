@@ -37,6 +37,14 @@ export async function getSubjectById(id) {
     return prisma.subject.findUnique({ where: { id } });
 }
 export async function createSubject(schoolId, data) {
+    // Validate inter-section grade levels are within subject's grade levels
+    const interGrades = data.interSectionGradeLevels ?? [];
+    if (interGrades.length > 0) {
+        const invalid = interGrades.filter((g) => !data.gradeLevels.includes(g));
+        if (invalid.length > 0) {
+            throw Object.assign(new Error(`interSectionGradeLevels contains grades not in subject gradeLevels: ${invalid.join(', ')}`), { statusCode: 400, code: 'INVALID_INTER_SECTION_GRADES' });
+        }
+    }
     return prisma.subject.create({
         data: {
             schoolId,
@@ -44,9 +52,12 @@ export async function createSubject(schoolId, data) {
             name: data.name,
             minMinutesPerWeek: data.minMinutesPerWeek,
             preferredRoomType: data.preferredRoomType,
+            sessionPattern: data.sessionPattern ?? 'ANY',
             gradeLevels: data.gradeLevels,
             isActive: true,
             isSeedable: false,
+            interSectionEnabled: data.interSectionEnabled ?? false,
+            interSectionGradeLevels: interGrades,
         },
     });
 }
@@ -54,6 +65,14 @@ export async function updateSubject(id, data) {
     const subject = await prisma.subject.findUnique({ where: { id } });
     if (!subject)
         return null;
+    // Validate inter-section grade levels if provided
+    const newGradeLevels = data.gradeLevels ?? subject.gradeLevels;
+    if (data.interSectionGradeLevels !== undefined && data.interSectionGradeLevels.length > 0) {
+        const invalid = data.interSectionGradeLevels.filter((g) => !newGradeLevels.includes(g));
+        if (invalid.length > 0) {
+            throw Object.assign(new Error(`interSectionGradeLevels contains grades not in subject gradeLevels: ${invalid.join(', ')}`), { statusCode: 400, code: 'INVALID_INTER_SECTION_GRADES' });
+        }
+    }
     // Seedable subjects can update name, minMinutesPerWeek, and gradeLevels
     if (subject.isSeedable) {
         const allowed = {};
@@ -63,6 +82,13 @@ export async function updateSubject(id, data) {
             allowed.minMinutesPerWeek = data.minMinutesPerWeek;
         if (data.gradeLevels !== undefined)
             allowed.gradeLevels = data.gradeLevels;
+        if (data.sessionPattern !== undefined)
+            allowed.sessionPattern = data.sessionPattern;
+        // Seedable subjects can also have inter-section settings updated
+        if (data.interSectionEnabled !== undefined)
+            allowed.interSectionEnabled = data.interSectionEnabled;
+        if (data.interSectionGradeLevels !== undefined)
+            allowed.interSectionGradeLevels = data.interSectionGradeLevels;
         return prisma.subject.update({ where: { id }, data: allowed });
     }
     const updateData = {};
@@ -72,10 +98,16 @@ export async function updateSubject(id, data) {
         updateData.minMinutesPerWeek = data.minMinutesPerWeek;
     if (data.preferredRoomType !== undefined)
         updateData.preferredRoomType = data.preferredRoomType;
+    if (data.sessionPattern !== undefined)
+        updateData.sessionPattern = data.sessionPattern;
     if (data.gradeLevels !== undefined)
         updateData.gradeLevels = data.gradeLevels;
     if (data.isActive !== undefined)
         updateData.isActive = data.isActive;
+    if (data.interSectionEnabled !== undefined)
+        updateData.interSectionEnabled = data.interSectionEnabled;
+    if (data.interSectionGradeLevels !== undefined)
+        updateData.interSectionGradeLevels = data.interSectionGradeLevels;
     return prisma.subject.update({ where: { id }, data: updateData });
 }
 export async function deleteSubject(id) {

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import * as assignmentService from '../services/faculty-assignment.service.js';
 const router = Router();
-// Auth: GET /faculty-assignments/summary?schoolId=X
+// Auth: GET /faculty-assignments/summary?schoolId=X&schoolYearId=Y
 router.get('/summary', authenticate, async (req, res, next) => {
     try {
         const schoolId = Number(req.query.schoolId);
@@ -10,14 +10,20 @@ router.get('/summary', authenticate, async (req, res, next) => {
             res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
             return;
         }
-        const summary = await assignmentService.getAssignmentSummary(schoolId);
+        const schoolYearId = Number(req.query.schoolYearId);
+        if (!schoolYearId || Number.isNaN(schoolYearId)) {
+            res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId query parameter is required.' });
+            return;
+        }
+        const authToken = req.headers.authorization?.slice(7);
+        const summary = await assignmentService.getAssignmentSummary(schoolId, schoolYearId, authToken);
         res.json({ faculty: summary });
     }
     catch (err) {
         next(err);
     }
 });
-// Auth: GET /faculty-assignments/:facultyId
+// Auth: GET /faculty-assignments/:facultyId?schoolYearId=Y
 router.get('/:facultyId', authenticate, async (req, res, next) => {
     try {
         const facultyId = Number(req.params.facultyId);
@@ -25,8 +31,18 @@ router.get('/:facultyId', authenticate, async (req, res, next) => {
             res.status(400).json({ code: 'INVALID_PARAM', message: 'facultyId must be a number.' });
             return;
         }
-        const assignments = await assignmentService.getAssignmentsByFaculty(facultyId);
-        res.json({ assignments });
+        const schoolYearId = Number(req.query.schoolYearId);
+        if (!schoolYearId || Number.isNaN(schoolYearId)) {
+            res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId query parameter is required.' });
+            return;
+        }
+        const authToken = req.headers.authorization?.slice(7);
+        const assignments = await assignmentService.getAssignmentsByFaculty(facultyId, schoolYearId, authToken);
+        if (!assignments) {
+            res.status(404).json({ code: 'NOT_FOUND', message: 'Faculty not found.' });
+            return;
+        }
+        res.json(assignments);
     }
     catch (err) {
         next(err);
@@ -40,20 +56,25 @@ router.put('/:facultyId', authenticate, async (req, res, next) => {
             res.status(400).json({ code: 'INVALID_PARAM', message: 'facultyId must be a number.' });
             return;
         }
-        const { schoolId, assignments } = req.body;
-        if (!schoolId || !Array.isArray(assignments)) {
-            res.status(400).json({ code: 'MISSING_FIELDS', message: 'schoolId and assignments array are required.' });
+        const { schoolId, schoolYearId, version, assignments } = req.body;
+        if (!schoolId || !schoolYearId || version === undefined || !Array.isArray(assignments)) {
+            res.status(400).json({ code: 'MISSING_FIELDS', message: 'schoolId, schoolYearId, version, and assignments array are required.' });
             return;
         }
         const assignedBy = req.user.userId;
-        const result = await assignmentService.setAssignments(facultyId, Number(schoolId), assignedBy, assignments);
+        const authToken = req.headers.authorization?.slice(7);
+        const result = await assignmentService.setAssignments(facultyId, Number(schoolId), Number(schoolYearId), assignedBy, Number(version), assignments, authToken);
         if (!result.success) {
-            res.status(400).json({ code: 'ASSIGNMENT_BLOCKED', message: result.error });
+            const status = result.code === 'FACULTY_NOT_FOUND'
+                ? 404
+                : result.code === 'VERSION_CONFLICT' || result.code === 'DUPLICATE_SECTION_OWNERSHIP'
+                    ? 409
+                    : 400;
+            res.status(status).json({ code: result.code, message: result.error, details: result.details });
             return;
         }
-        // Return the updated assignments
-        const updated = await assignmentService.getAssignmentsByFaculty(facultyId);
-        res.json({ assignments: updated });
+        const updated = await assignmentService.getAssignmentsByFaculty(facultyId, Number(schoolYearId), authToken);
+        res.json({ version: result.version, assignments: updated?.assignments ?? [] });
     }
     catch (err) {
         next(err);

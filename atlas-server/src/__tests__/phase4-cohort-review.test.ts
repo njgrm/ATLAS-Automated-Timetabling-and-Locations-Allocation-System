@@ -118,9 +118,9 @@ section('Cohort fallback derivation');
 			gradeLevelName: 'Grade 7',
 			displayOrder: 7,
 			sections: [
-				{ id: 11, name: '7-Rizal', maxCapacity: 45, enrolledCount: 40, gradeLevelId: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR', programCode: 'REGULAR', programName: 'Regular', adviserId: 100, adviserName: 'Maria Santos' },
-				{ id: 12, name: '7-Bonifacio', maxCapacity: 45, enrolledCount: 38, gradeLevelId: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR', programCode: 'REGULAR', programName: 'Regular', adviserId: 101, adviserName: 'Jose Cruz' },
-				{ id: 13, name: '7-Mabini', maxCapacity: 45, enrolledCount: 36, gradeLevelId: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR', programCode: 'REGULAR', programName: 'Regular', adviserId: 102, adviserName: 'Ana Reyes' },
+				{ id: 11, name: '7-Rizal', maxCapacity: 45, enrolledCount: 40, gradeLevelId: 7, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', programCode: 'REGULAR', programName: 'Regular', adviserId: 100, adviserName: 'Maria Santos' },
+				{ id: 12, name: '7-Bonifacio', maxCapacity: 45, enrolledCount: 38, gradeLevelId: 7, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', programCode: 'REGULAR', programName: 'Regular', adviserId: 101, adviserName: 'Jose Cruz' },
+				{ id: 13, name: '7-Mabini', maxCapacity: 45, enrolledCount: 36, gradeLevelId: 7, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', programCode: 'REGULAR', programName: 'Regular', adviserId: 102, adviserName: 'Ana Reyes' },
 			],
 		},
 	];
@@ -147,8 +147,8 @@ section('Cohort-aware baseline construction');
 				gradeLevelName: 'Grade 7',
 				displayOrder: 7,
 				sections: [
-					{ id: 21, name: '7-Rizal', maxCapacity: 45, enrolledCount: 32, gradeLevelId: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR', programCode: 'REGULAR', programName: 'Regular', adviserId: 201, adviserName: 'Luna Dizon' },
-					{ id: 22, name: '7-Bonifacio', maxCapacity: 45, enrolledCount: 31, gradeLevelId: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR', programCode: 'REGULAR', programName: 'Regular', adviserId: 202, adviserName: 'Rico Flores' },
+						{ id: 21, name: '7-Rizal', maxCapacity: 45, enrolledCount: 32, gradeLevelId: 7, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', programCode: 'REGULAR', programName: 'Regular', adviserId: 201, adviserName: 'Luna Dizon' },
+						{ id: 22, name: '7-Bonifacio', maxCapacity: 45, enrolledCount: 31, gradeLevelId: 7, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', programCode: 'REGULAR', programName: 'Regular', adviserId: 202, adviserName: 'Rico Flores' },
 				],
 			},
 		],
@@ -176,7 +176,7 @@ section('Cohort-aware baseline construction');
 			},
 		],
 		faculty: [{ id: 1, maxHoursPerWeek: 40 }],
-		facultySubjects: [{ facultyId: 1, subjectId: 301, gradeLevels: [7] }],
+		facultySubjects: [{ facultyId: 1, subjectId: 301, gradeLevels: [7], sectionIds: [21, 22] }],
 		rooms: [{ id: 1, type: 'TLE_WORKSHOP', isTeachingSpace: true, capacity: 80 }],
 		preferences: [],
 		policy: {
@@ -209,8 +209,8 @@ section('Fallback to section entries when cohorts are absent');
 				gradeLevelName: 'Grade 7',
 				displayOrder: 7,
 				sections: [
-					{ id: 31, name: '7-Mabini', maxCapacity: 45, enrolledCount: 32, gradeLevelId: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR', programCode: 'REGULAR', programName: 'Regular', adviserId: 301, adviserName: 'Alma Cruz' },
-					{ id: 32, name: '7-Luna', maxCapacity: 45, enrolledCount: 31, gradeLevelId: 7, gradeLevelName: 'Grade 7', programType: 'REGULAR', programCode: 'REGULAR', programName: 'Regular', adviserId: 302, adviserName: 'Paolo Sy' },
+						{ id: 31, name: '7-Mabini', maxCapacity: 45, enrolledCount: 32, gradeLevelId: 7, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', programCode: 'REGULAR', programName: 'Regular', adviserId: 301, adviserName: 'Alma Cruz' },
+						{ id: 32, name: '7-Luna', maxCapacity: 45, enrolledCount: 31, gradeLevelId: 7, gradeLevelName: 'Grade 7', displayOrder: 7, programType: 'REGULAR', programCode: 'REGULAR', programName: 'Regular', adviserId: 302, adviserName: 'Paolo Sy' },
 				],
 			},
 		],
@@ -228,7 +228,7 @@ section('Fallback to section entries when cohorts are absent');
 		],
 		cohorts: [],
 		faculty: [{ id: 1, maxHoursPerWeek: 40 }],
-		facultySubjects: [{ facultyId: 1, subjectId: 302, gradeLevels: [7] }],
+		facultySubjects: [{ facultyId: 1, subjectId: 302, gradeLevels: [7], sectionIds: [31, 32] }],
 		rooms: [{ id: 1, type: 'TLE_WORKSHOP', isTeachingSpace: true, capacity: 80 }],
 		preferences: [],
 		policy: {
@@ -275,7 +275,7 @@ section('Cohort capacity validation');
 		runId: 1,
 		entries,
 		faculty: [{ id: 1, maxHoursPerWeek: 40 }],
-		facultySubjects: [{ facultyId: 1, subjectId: 301 }],
+		facultySubjects: [{ facultyId: 1, subjectId: 301, sectionIds: [21, 22] }],
 		rooms: [{ id: 1, type: 'TLE_WORKSHOP', capacity: 40 }],
 		subjects: [{ id: 301, preferredRoomType: 'TLE_WORKSHOP', sessionPattern: 'ANY' }],
 		sectionEnrollment: new Map([[21, 32], [22, 31]]),

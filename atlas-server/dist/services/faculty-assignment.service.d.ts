@@ -1,66 +1,72 @@
-export declare function getAssignmentsByFaculty(facultyId: number): Promise<({
-    subject: {
+import { type AssignmentScopeInput } from './faculty-assignment-scope.service.js';
+export type AssignmentMutationResult = {
+    success: true;
+    version: number;
+} | {
+    success: false;
+    code: 'FACULTY_NOT_FOUND' | 'FACULTY_INACTIVE' | 'VERSION_CONFLICT' | 'SCHOOL_SCOPE_MISMATCH' | 'INVALID_SUBJECTS' | 'INVALID_ASSIGNMENT_SCOPE' | 'DUPLICATE_SECTION_OWNERSHIP';
+    error: string;
+    details?: Record<string, unknown>;
+};
+export declare function getAssignmentsByFaculty(facultyId: number, schoolYearId: number, authToken?: string): Promise<{
+    facultyId: number;
+    version: number;
+    assignments: {
+        gradeLevels: number[];
+        sectionIds: number[];
+        sections: import("./faculty-assignment-scope.service.js").ScopedSection[];
         id: number;
+        facultyId: number;
+        subjectId: number;
         schoolId: number;
-        name: string;
+        assignedBy: number;
+        assignedAt: Date;
+        version: number;
         createdAt: Date;
         updatedAt: Date;
-        code: string;
-        minMinutesPerWeek: number;
-        preferredRoomType: import("@prisma/client").$Enums.RoomType;
-        gradeLevels: number[];
-        isActive: boolean;
-        isSeedable: boolean;
-    };
-} & {
-    id: number;
-    schoolId: number;
-    createdAt: Date;
-    updatedAt: Date;
-    gradeLevels: number[];
-    facultyId: number;
-    subjectId: number;
-    assignedBy: number;
-    assignedAt: Date;
-    version: number;
-})[]>;
-export declare function setAssignments(facultyId: number, schoolId: number, assignedBy: number, assignments: {
-    subjectId: number;
-    gradeLevels: number[];
-}[]): Promise<{
-    success: false;
-    error: string;
-} | {
-    success: true;
-    error?: undefined;
-}>;
-export declare function getAssignmentSummary(schoolId: number): Promise<{
-    id: number;
-    externalId: number;
-    firstName: string;
-    lastName: string;
-    department: string | null;
-    isActiveForScheduling: boolean;
-    maxHoursPerWeek: number;
-    subjectCount: number;
-    subjectHours: number;
-    assignments: ({
         subject: {
             id: number;
             name: string;
             code: string;
             minMinutesPerWeek: number;
         };
-    } & {
-        id: number;
-        schoolId: number;
-        createdAt: Date;
-        updatedAt: Date;
+    }[];
+} | null>;
+export declare function setAssignments(facultyId: number, schoolId: number, schoolYearId: number, assignedBy: number, expectedVersion: number, assignments: AssignmentScopeInput[], authToken?: string): Promise<AssignmentMutationResult>;
+export declare function getAssignmentSummary(schoolId: number, schoolYearId: number, authToken?: string): Promise<{
+    id: number;
+    externalId: number;
+    firstName: string;
+    lastName: string;
+    department: string | null;
+    employmentStatus: string;
+    isClassAdviser: boolean;
+    advisoryEquivalentHours: number;
+    canTeachOutsideDepartment: boolean;
+    isActiveForScheduling: boolean;
+    maxHoursPerWeek: number;
+    version: number;
+    subjectCount: number;
+    sectionCount: number;
+    subjectHours: number;
+    assignments: {
         gradeLevels: number[];
+        sectionIds: number[];
+        sections: import("./faculty-assignment-scope.service.js").ScopedSection[];
+        id: number;
         facultyId: number;
         subjectId: number;
+        schoolId: number;
         assignedBy: number;
         assignedAt: Date;
         version: number;
-    })[];
+        createdAt: Date;
+        updatedAt: Date;
+        subject: {
+            id: number;
+            name: string;
+            code: string;
+            minMinutesPerWeek: number;
+        };
+    }[];
 }[]>;

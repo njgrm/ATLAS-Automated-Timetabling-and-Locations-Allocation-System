@@ -174,7 +174,7 @@ export async function getFixSuggestions(
 					: 'Consider allowing out-of-field assignments or adding qualified faculty in Faculty Assignments.',
 				policyHint: item.entryKind === 'COHORT'
 					? 'Go to Faculty Assignments to align subject ownership and adviser-backed homeroom support for the linked sections.'
-					: 'Go to Faculty Assignments to assign a teacher for this subject + grade level.',
+					: 'Go to Faculty Assignments to assign a teacher for this subject + section.',
 			});
 			break;
 		}

@@ -12,6 +12,7 @@ import {
 	type ValidationResult,
 	type Violation,
 } from './constraint-validator.js';
+import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
 import type { RunSummary, DraftReport } from './generation.service.js';
 import type { UnassignedItem } from './schedule-constructor.js';
@@ -141,14 +142,14 @@ async function loadRunContext(runId: number, schoolId: number, schoolYearId: num
 	const entries = (run.draftEntries ?? []) as unknown as ScheduledEntry[];
 	const unassignedItems = (run.unassignedItems ?? []) as unknown as UnassignedItem[];
 
-	const [faculty, facultySubjects, rooms, subjects, policyRecord, buildings, facultyNames, roomNames, subjectNames, sectionSnapshot] = await Promise.all([
+	const [faculty, facultySubjectRows, rooms, subjects, policyRecord, buildings, facultyNames, roomNames, subjectNames, sectionSnapshot] = await Promise.all([
 		prisma.facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true },
 			select: { id: true, maxHoursPerWeek: true },
 		}),
 		prisma.facultySubject.findMany({
 			where: { schoolId },
-			select: { facultyId: true, subjectId: true, gradeLevels: true },
+			select: { facultyId: true, subjectId: true, gradeLevels: true, sectionIds: true },
 		}),
 		prisma.room.findMany({
 			where: { isTeachingSpace: true, building: { schoolId, isTeachingBuilding: true } },
@@ -189,6 +190,16 @@ async function loadRunContext(runId: number, schoolId: number, schoolYearId: num
 	const snapshotPayload = Array.isArray(sectionSnapshot?.payload)
 		? sectionSnapshot.payload as unknown as SectionsByGrade[]
 		: [];
+	const rosterIndex = buildSectionRosterIndex(snapshotPayload);
+	const facultySubjects = facultySubjectRows.map((assignment) => {
+		const normalized = normalizeStoredAssignmentScope(assignment, rosterIndex);
+		return {
+			facultyId: assignment.facultyId,
+			subjectId: assignment.subjectId,
+			gradeLevels: normalized.gradeLevels,
+			sectionIds: normalized.sectionIds,
+		};
+	});
 	const sectionEnrollment = new Map(
 		snapshotPayload.flatMap((grade) => grade.sections.map((section) => [section.id, section.enrolledCount] as const)),
 	);

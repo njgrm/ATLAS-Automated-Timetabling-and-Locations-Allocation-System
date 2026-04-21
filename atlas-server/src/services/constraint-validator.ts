@@ -69,6 +69,7 @@ export interface FacultyRef {
 export interface FacultySubjectRef {
 	facultyId: number;
 	subjectId: number;
+	sectionIds: number[];
 }
 
 export interface RoomRef {
@@ -208,7 +209,9 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 	const facultyMap = new Map(ctx.faculty.map((f) => [f.id, f]));
 	const roomMap = new Map(ctx.rooms.map((r) => [r.id, r]));
 	const subjectMap = new Map(ctx.subjects.map((s) => [s.id, s]));
-	const qualifiedSet = new Set(ctx.facultySubjects.map((fs) => `${fs.facultyId}:${fs.subjectId}`));
+	const qualifiedSet = new Set(
+		ctx.facultySubjects.flatMap((fs) => fs.sectionIds.map((sectionId) => `${fs.facultyId}:${fs.subjectId}:${sectionId}`)),
+	);
 
 	// ── 1) Faculty time conflict ──
 	const byFacultyDay = new Map<string, ScheduledEntry[]>();
@@ -347,16 +350,18 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 	// ── 5) Faculty-subject qualification ──
 	const checkedPairs = new Set<string>();
 	for (const e of ctx.entries) {
-		const pairKey = `${e.facultyId}:${e.subjectId}`;
-		if (checkedPairs.has(pairKey)) continue;
-		checkedPairs.add(pairKey);
-		if (!qualifiedSet.has(pairKey)) {
-			violations.push({
-				...base,
-				code: 'FACULTY_SUBJECT_NOT_QUALIFIED',
-				message: `Faculty ${e.facultyId} is not qualified/assigned for subject ${e.subjectId}.`,
-				entities: { facultyId: e.facultyId, subjectId: e.subjectId },
-			});
+		for (const sectionId of getEffectiveSectionIds(e)) {
+			const pairKey = `${e.facultyId}:${e.subjectId}:${sectionId}`;
+			if (checkedPairs.has(pairKey)) continue;
+			checkedPairs.add(pairKey);
+			if (!qualifiedSet.has(pairKey)) {
+				violations.push({
+					...base,
+					code: 'FACULTY_SUBJECT_NOT_QUALIFIED',
+					message: `Faculty ${e.facultyId} is not qualified/assigned for subject ${e.subjectId} in section ${sectionId}.`,
+					entities: { facultyId: e.facultyId, subjectId: e.subjectId, sectionId },
+				});
+			}
 		}
 	}
 

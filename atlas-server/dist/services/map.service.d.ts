@@ -15,6 +15,7 @@ export declare function getBuildingsBySchool(schoolId: number): Promise<({
     id: number;
     schoolId: number;
     name: string;
+    shortCode: string | null;
     x: number;
     y: number;
     width: number;
@@ -43,6 +44,7 @@ export declare function getBuilding(id: number): Promise<({
     id: number;
     schoolId: number;
     name: string;
+    shortCode: string | null;
     x: number;
     y: number;
     width: number;
@@ -64,6 +66,7 @@ export declare function upsertBuilding(schoolId: number, data: {
     rotation?: number;
     floorCount?: number;
     isTeachingBuilding?: boolean;
+    shortCode?: string;
 }): Promise<{
     rooms: {
         id: number;
@@ -81,6 +84,7 @@ export declare function upsertBuilding(schoolId: number, data: {
     id: number;
     schoolId: number;
     name: string;
+    shortCode: string | null;
     x: number;
     y: number;
     width: number;
@@ -102,6 +106,7 @@ export declare function updateBuilding(id: number, data: Partial<{
     rotation: number;
     floorCount: number;
     isTeachingBuilding: boolean;
+    shortCode: string;
 }>): Promise<{
     rooms: {
         id: number;
@@ -119,6 +124,7 @@ export declare function updateBuilding(id: number, data: Partial<{
     id: number;
     schoolId: number;
     name: string;
+    shortCode: string | null;
     x: number;
     y: number;
     width: number;
@@ -134,6 +140,7 @@ export declare function deleteBuilding(id: number): Promise<{
     id: number;
     schoolId: number;
     name: string;
+    shortCode: string | null;
     x: number;
     y: number;
     width: number;

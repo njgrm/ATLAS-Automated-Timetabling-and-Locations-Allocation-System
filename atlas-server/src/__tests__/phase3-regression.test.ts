@@ -45,8 +45,8 @@ function section(name: string) {
 
 const baseFaculty = [{ id: 1, maxHoursPerWeek: 40 }, { id: 2, maxHoursPerWeek: 20 }];
 const baseFacultySubjects = [
-	{ facultyId: 1, subjectId: 1 },
-	{ facultyId: 2, subjectId: 2 },
+	{ facultyId: 1, subjectId: 1, sectionIds: [1] },
+	{ facultyId: 2, subjectId: 2, sectionIds: [2] },
 ];
 const baseRooms: Array<{ id: number; type: string }> = [
 	{ id: 1, type: 'REGULAR_CLASSROOM' },

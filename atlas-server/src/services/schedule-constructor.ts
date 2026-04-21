@@ -75,6 +75,7 @@ export interface FacultySubjectInput {
 	facultyId: number;
 	subjectId: number;
 	gradeLevels: number[];
+	sectionIds: number[];
 }
 
 export interface RoomInput {
@@ -444,16 +445,41 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 	const subjectMap = new Map(subjects.map((s) => [s.id, s]));
 
-	// Qualified faculty index: "subjectId:gradeLevel" → sorted [facultyId, ...]
+	// Qualified faculty index: "subjectId:sectionId" → sorted [facultyId, ...]
 	const qualifiedMap = new Map<string, number[]>();
 	const sortedFS = [...facultySubjects].sort((a, b) => a.facultyId - b.facultyId);
 	for (const fs of sortedFS) {
-		for (const gl of fs.gradeLevels) {
-			const key = `${fs.subjectId}:${gl}`;
+		for (const sectionId of fs.sectionIds) {
+			const key = `${fs.subjectId}:${sectionId}`;
 			const arr = qualifiedMap.get(key) ?? [];
 			arr.push(fs.facultyId);
 			qualifiedMap.set(key, arr);
 		}
+	}
+
+	function intersectCandidateLists(candidateLists: number[][]): number[] {
+		if (candidateLists.length === 0) return [];
+		let intersection = [...candidateLists[0]];
+		for (let index = 1; index < candidateLists.length; index++) {
+			const candidateSet = new Set(candidateLists[index]);
+			intersection = intersection.filter((facultyId) => candidateSet.has(facultyId));
+			if (intersection.length === 0) return [];
+		}
+		return intersection.sort((left, right) => left - right);
+	}
+
+	function getQualifiedFacultyIds(item: DemandItem): number[] {
+		if (item.entryKind === 'COHORT' && item.cohortMemberSectionIds && item.cohortMemberSectionIds.length > 0) {
+			const candidateLists = item.cohortMemberSectionIds.map(
+				(sectionId) => qualifiedMap.get(`${item.subjectId}:${sectionId}`) ?? [],
+			);
+			if (candidateLists.some((candidateList) => candidateList.length === 0)) {
+				return [];
+			}
+			return intersectCandidateLists(candidateLists);
+		}
+
+		return [...(qualifiedMap.get(`${item.subjectId}:${item.sectionId}`) ?? [])].sort((left, right) => left - right);
 	}
 
 	// Preference lookup
@@ -696,7 +722,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		}
 
 		// Get qualified faculty; if none and flexible assignment is enabled, use all faculty
-		let candidateFaculty = qualifiedMap.get(`${item.subjectId}:${item.gradeLevel}`) ?? [];
+		let candidateFaculty = getQualifiedFacultyIds(item);
 		if (candidateFaculty.length === 0 && allowFlexible) {
 			candidateFaculty = allFacultyIds;
 		}

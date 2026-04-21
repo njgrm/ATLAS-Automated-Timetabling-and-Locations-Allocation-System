@@ -23,6 +23,33 @@ Record dated implementation verification summaries here.
 
 ---
 
+### 2026-04-21 - Wave 4.1 Teaching Load Precision Gate
+- Phase: 4
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npm run db:generate`: PASS (restored the classic Prisma client required for local browser QA)
+  - `npm --prefix atlas-server run build`: PASS
+  - `npx tsc -p atlas-client/tsconfig.json --noEmit`: PASS
+  - `npm --prefix atlas-client run build`: PASS
+  - `npm --prefix atlas-server run test:phase4-review`: PASS (23/23)
+  - `npm --prefix atlas-server run test:wave4-precision`: PASS (14/14)
+  - `npx prisma migrate resolve --rolled-back 20260415105046`: PASS (local stale migration record cleared)
+  - `npx prisma migrate deploy`: PASS (`0011_wave4_1_teaching_load_precision` already applied locally; no pending migrations)
+- API checks:
+  - `GET /api/v1/faculty-assignments/summary?schoolId=1&schoolYearId=1` returned 154 faculty summary rows with section-aware assignment metadata after the migration was applied: PASS
+  - `GET /api/v1/faculty-assignments/3013?schoolYearId=1` returned `facultyId=3013`, `version=1`, and the expected assignment array shape on the migrated schema: PASS
+- UI checks:
+  - `/assignments` loaded with the active school year and live faculty roster under an EnrollPro admin bridge token after the new migration was applied: PASS
+  - Selecting a faculty member rendered explicit subject-by-section checklists grouped by grade, plus adviser-backed homeroom guidance when available: PASS
+  - Creating an unsaved teaching-load draft surfaced the `Session Pending Ownership` board; switching to another faculty preserved the pending entries and disabled overlapping section checkboxes with `Pending: AGUILAR, CARMEN` ownership labels; discarding the draft restored a clean state: PASS
+- Blocking findings:
+  - `npm run db:generate -- --no-engine` is not a valid local browser-QA step for this workspace's classic Prisma runtime; rerunning `npm run db:generate` resolved the live server failure before final verification.
+- Decision:
+  - Accepted
+
 ### 2026-04-21 - Wave 3.5.3 Cross-Repo Source Gate + Wave 4.0 Review Hardening
 - Phase: 4 (user-approved cross-phase hardening)
 - Scope gate: PASS

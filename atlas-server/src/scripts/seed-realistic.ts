@@ -283,6 +283,7 @@ function generateSectionsByGrade(): SectionsByGrade[] {
 			enrolledCount: section.enrolledCount,
 			gradeLevelId: index + 1,
 			gradeLevelName: grade.gradeLevelName,
+			displayOrder: grade.displayOrder,
 			programType: (section.programCode ?? 'REGULAR') as ProgramType,
 			programCode: section.programCode,
 			programName: section.programName,

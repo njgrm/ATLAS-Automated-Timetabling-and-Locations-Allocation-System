@@ -152,6 +152,7 @@ model FacultySubject {
   subjectId   Int           @map("subject_id")
   schoolId    Int           @map("school_id")
   gradeLevels Int[]         @map("grade_levels")
+  sectionIds  Int[]         @default([]) @map("section_ids")
   assignedBy  Int           @map("assigned_by")
   assignedAt  DateTime      @default(now()) @map("assigned_at")
   version     Int           @default(1)

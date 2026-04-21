@@ -1,20 +1,35 @@
 /**
  * Section service — bridge to section adapter.
  * Returns a summary of sections by grade level sourced from the enrollment service.
+ * Wave 3.5: includes fetchedAt, isStale, and special program metadata.
  */
 import { sectionAdapter } from './section-adapter.js';
-export async function getSectionSummary(schoolYearId, authToken) {
-    const gradeLevels = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, authToken);
+export async function getSectionSummary(schoolYearId, schoolId, authToken) {
+    const result = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
     const byGradeLevel = {};
+    const enrolledByGradeLevel = {};
     const allSections = [];
-    for (const gl of gradeLevels) {
+    let totalEnrolled = 0;
+    for (const gl of result.gradeLevels) {
         byGradeLevel[gl.displayOrder] = gl.sections.length;
+        const gradeEnrolled = gl.sections.reduce((sum, s) => sum + s.enrolledCount, 0);
+        enrolledByGradeLevel[gl.displayOrder] = gradeEnrolled;
+        totalEnrolled += gradeEnrolled;
         allSections.push(...gl.sections);
     }
     return {
+        schoolId,
+        schoolYearId,
         totalSections: allSections.length,
+        totalEnrolled,
         byGradeLevel,
+        enrolledByGradeLevel,
         sections: allSections,
+        source: result.source,
+        fetchedAt: result.fetchedAt,
+        isStale: result.isStale ?? false,
+        ...(result.fallbackReason ? { fallbackReason: result.fallbackReason } : {}),
+        ...(result.contractWarnings?.length ? { contractWarnings: result.contractWarnings } : {}),
     };
 }
 //# sourceMappingURL=section.service.js.map

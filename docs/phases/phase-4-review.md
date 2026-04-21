@@ -122,6 +122,15 @@
 - `FacultyAssignments.tsx` now surfaces adviser-backed homeroom guidance inline for the selected faculty member when an adviser mapping exists.
 - Verification evidence logged in `docs/verification/evidence-log.md` for the repaired EnrollPro build, ATLAS server/client typechecks, Wave 4 test expansion, cross-repo gate, and manual browser QA on `/timetable` and `/assignments`.
 
+## Wave 4.1 — Teaching Load Precision Gate (2026-04-21)
+- Added authoritative section-level persistence for faculty assignments via `FacultySubject.sectionIds` and migration `0011_wave4_1_teaching_load_precision`, while preserving legacy `gradeLevels` compatibility through normalization.
+- Added shared scope normalization in `faculty-assignment-scope.service.ts` so assignment reads, saves, generation, and manual edit validation all converge on the same subject-plus-section contract.
+- `faculty-assignment.service.ts` and `faculty-assignment.router.ts` now require `schoolYearId` and optimistic `version`, reject duplicate `subjectId + sectionId` ownership, and return section-aware summary metrics.
+- Generation and manual edit validation now qualify faculty by section membership instead of grade membership, preventing section drift between assignment storage and schedule validation.
+- `FacultyAssignments.tsx` was rebuilt around explicit section checklists, section-based load math, and a session-local pending ownership board that remains visible while switching faculty and blocks overlapping drafts across teachers.
+- Added focused regression coverage in `qa-artifacts/wave4-teaching-load-precision.test.ts` and updated the existing Phase 4 cohort review fixtures for the new section-aware contracts.
+- Local verification included standard Prisma client regeneration, server/client builds, both Phase 4 regression suites, confirmation that the new migration was already applied locally, and live browser QA of the Teaching Load workflow with an EnrollPro admin bridge session.
+
 ## Exit Criteria
 - Officer can resolve findings and revalidate
 - Publish path is blocked while hard violations remain

@@ -11,7 +11,8 @@
     "seed:atlas-fixture": "tsx src/scripts/seed-realistic.ts --mode=atlas-fixture --confirmFixtureBypass=true",
     "verify:enrollpro-source": "tsx src/scripts/verify-enrollpro-source.ts",
     "verify:cross-repo-source-gate": "tsx src/scripts/verify-cross-repo-source-gate.ts",
-    "test:phase4-review": "tsx src/__tests__/phase4-cohort-review.test.ts"
+    "test:phase4-review": "tsx src/__tests__/phase4-cohort-review.test.ts",
+    "test:wave4-precision": "tsx ../qa-artifacts/wave4-teaching-load-precision.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",

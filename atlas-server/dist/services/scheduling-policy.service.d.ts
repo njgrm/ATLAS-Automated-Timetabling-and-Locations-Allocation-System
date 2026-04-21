@@ -1,0 +1,154 @@
+/**
+ * Scheduling policy service — CRUD and default-fallback for school/year policy.
+ * Business logic only; no transport concerns.
+ */
+import { Prisma } from '@prisma/client';
+export declare const POLICY_DEFAULTS: {
+    readonly maxConsecutiveTeachingMinutesBeforeBreak: 120;
+    readonly minBreakMinutesAfterConsecutiveBlock: 15;
+    readonly maxTeachingMinutesPerDay: 400;
+    readonly earliestStartTime: "07:00";
+    readonly latestEndTime: "17:00";
+    readonly enforceConsecutiveBreakAsHard: false;
+    readonly enableTravelWellbeingChecks: true;
+    readonly maxWalkingDistanceMetersPerTransition: 120;
+    readonly maxBuildingTransitionsPerDay: 4;
+    readonly maxBackToBackTransitionsWithoutBuffer: 2;
+    readonly maxIdleGapMinutesPerDay: 60;
+    readonly avoidEarlyFirstPeriod: false;
+    readonly avoidLateLastPeriod: false;
+    readonly enableVacantAwareConstraints: false;
+    readonly targetFacultyDailyVacantMinutes: 60;
+    readonly targetSectionDailyVacantPeriods: 1;
+    readonly maxCompressedTeachingMinutesPerDay: 300;
+    readonly lunchStartTime: "11:55";
+    readonly lunchEndTime: "12:55";
+    readonly enforceLunchWindow: true;
+    readonly enableTleTwoPassPriority: true;
+    readonly allowFlexibleSubjectAssignment: false;
+    readonly allowConsecutiveLabSessions: false;
+};
+export interface ConstraintOverride {
+    enabled: boolean;
+    weight: number;
+    treatAsHard: boolean;
+}
+export declare const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride>;
+export interface SchedulingPolicyData {
+    maxConsecutiveTeachingMinutesBeforeBreak: number;
+    minBreakMinutesAfterConsecutiveBlock: number;
+    maxTeachingMinutesPerDay: number;
+    earliestStartTime: string;
+    latestEndTime: string;
+    enforceConsecutiveBreakAsHard: boolean;
+    enableTravelWellbeingChecks: boolean;
+    maxWalkingDistanceMetersPerTransition: number;
+    maxBuildingTransitionsPerDay: number;
+    maxBackToBackTransitionsWithoutBuffer: number;
+    maxIdleGapMinutesPerDay: number;
+    avoidEarlyFirstPeriod: boolean;
+    avoidLateLastPeriod: boolean;
+    enableVacantAwareConstraints: boolean;
+    targetFacultyDailyVacantMinutes: number;
+    targetSectionDailyVacantPeriods: number;
+    maxCompressedTeachingMinutesPerDay: number;
+    lunchStartTime: string;
+    lunchEndTime: string;
+    enforceLunchWindow: boolean;
+    enableTleTwoPassPriority: boolean;
+    allowFlexibleSubjectAssignment: boolean;
+    allowConsecutiveLabSessions: boolean;
+    constraintConfig: Record<string, ConstraintOverride> | null;
+}
+export interface PolicyInput {
+    maxConsecutiveTeachingMinutesBeforeBreak?: unknown;
+    minBreakMinutesAfterConsecutiveBlock?: unknown;
+    maxTeachingMinutesPerDay?: unknown;
+    earliestStartTime?: unknown;
+    latestEndTime?: unknown;
+    enforceConsecutiveBreakAsHard?: unknown;
+    enableTravelWellbeingChecks?: unknown;
+    maxWalkingDistanceMetersPerTransition?: unknown;
+    maxBuildingTransitionsPerDay?: unknown;
+    maxBackToBackTransitionsWithoutBuffer?: unknown;
+    maxIdleGapMinutesPerDay?: unknown;
+    avoidEarlyFirstPeriod?: unknown;
+    avoidLateLastPeriod?: unknown;
+    enableVacantAwareConstraints?: unknown;
+    targetFacultyDailyVacantMinutes?: unknown;
+    targetSectionDailyVacantPeriods?: unknown;
+    maxCompressedTeachingMinutesPerDay?: unknown;
+    lunchStartTime?: unknown;
+    lunchEndTime?: unknown;
+    enforceLunchWindow?: unknown;
+    enableTleTwoPassPriority?: unknown;
+    allowFlexibleSubjectAssignment?: unknown;
+    allowConsecutiveLabSessions?: unknown;
+    constraintConfig?: unknown;
+}
+export declare function validatePolicyInput(input: PolicyInput): {
+    data: SchedulingPolicyData;
+    errors: string[];
+};
+export declare function getOrCreatePolicy(schoolId: number, schoolYearId: number): Promise<{
+    id: number;
+    schoolId: number;
+    createdAt: Date;
+    updatedAt: Date;
+    schoolYearId: number;
+    maxTeachingMinutesPerDay: number;
+    enableTravelWellbeingChecks: boolean;
+    earliestStartTime: string;
+    latestEndTime: string;
+    enableVacantAwareConstraints: boolean;
+    enforceLunchWindow: boolean;
+    lunchStartTime: string;
+    lunchEndTime: string;
+    enableTleTwoPassPriority: boolean;
+    allowFlexibleSubjectAssignment: boolean;
+    allowConsecutiveLabSessions: boolean;
+    maxConsecutiveTeachingMinutesBeforeBreak: number;
+    minBreakMinutesAfterConsecutiveBlock: number;
+    maxWalkingDistanceMetersPerTransition: number;
+    maxBuildingTransitionsPerDay: number;
+    maxBackToBackTransitionsWithoutBuffer: number;
+    maxIdleGapMinutesPerDay: number;
+    targetFacultyDailyVacantMinutes: number;
+    targetSectionDailyVacantPeriods: number;
+    maxCompressedTeachingMinutesPerDay: number;
+    enforceConsecutiveBreakAsHard: boolean;
+    avoidEarlyFirstPeriod: boolean;
+    avoidLateLastPeriod: boolean;
+    constraintConfig: Prisma.JsonValue | null;
+}>;
+export declare function upsertPolicy(schoolId: number, schoolYearId: number, input: PolicyInput): Promise<{
+    id: number;
+    schoolId: number;
+    createdAt: Date;
+    updatedAt: Date;
+    schoolYearId: number;
+    maxTeachingMinutesPerDay: number;
+    enableTravelWellbeingChecks: boolean;
+    earliestStartTime: string;
+    latestEndTime: string;
+    enableVacantAwareConstraints: boolean;
+    enforceLunchWindow: boolean;
+    lunchStartTime: string;
+    lunchEndTime: string;
+    enableTleTwoPassPriority: boolean;
+    allowFlexibleSubjectAssignment: boolean;
+    allowConsecutiveLabSessions: boolean;
+    maxConsecutiveTeachingMinutesBeforeBreak: number;
+    minBreakMinutesAfterConsecutiveBlock: number;
+    maxWalkingDistanceMetersPerTransition: number;
+    maxBuildingTransitionsPerDay: number;
+    maxBackToBackTransitionsWithoutBuffer: number;
+    maxIdleGapMinutesPerDay: number;
+    targetFacultyDailyVacantMinutes: number;
+    targetSectionDailyVacantPeriods: number;
+    maxCompressedTeachingMinutesPerDay: number;
+    enforceConsecutiveBreakAsHard: boolean;
+    avoidEarlyFirstPeriod: boolean;
+    avoidLateLastPeriod: boolean;
+    constraintConfig: Prisma.JsonValue | null;
+}>;

@@ -1,0 +1,2 @@
+ALTER TABLE "faculty_subjects"
+ADD COLUMN "section_ids" INTEGER[] NOT NULL DEFAULT ARRAY[]::INTEGER[];

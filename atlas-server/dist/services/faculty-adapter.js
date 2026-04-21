@@ -22,10 +22,14 @@ const STUB_FACULTY = [
     { id: 115, firstName: 'Isabella', lastName: 'De Leon', department: 'Science', contactInfo: 'isabella.deleon@school.edu.ph' },
 ];
 export class StubFacultyAdapter {
-    async fetchFacultyBySchool(_schoolId) {
+    async fetchFacultyBySchoolYear(_schoolId, _schoolYearId) {
         // Simulate network delay
         await new Promise((resolve) => setTimeout(resolve, 200));
-        return STUB_FACULTY;
+        return {
+            teachers: STUB_FACULTY,
+            source: 'stub',
+            fetchedAt: new Date(),
+        };
     }
 }
 export class EnrollProFacultyAdapter {
@@ -33,26 +37,37 @@ export class EnrollProFacultyAdapter {
     constructor(baseUrl) {
         this.baseUrl = baseUrl;
     }
-    async fetchFacultyBySchool(_schoolId, authToken) {
+    async fetchFacultyBySchoolYear(_schoolId, schoolYearId, authToken) {
         const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
         const headers = { 'Content-Type': 'application/json' };
         if (token) {
             headers.Authorization = `Bearer ${token}`;
         }
-        const res = await fetch(`${this.baseUrl}/teachers`, { headers });
+        const res = await fetch(`${this.baseUrl}/teachers/atlas/faculty-sync?schoolYearId=${schoolYearId}`, { headers });
         if (!res.ok) {
             throw new Error(`EnrollPro API returned ${res.status}: ${res.statusText}`);
         }
         const data = (await res.json());
-        return data.teachers
+        const teachers = data.teachers
             .filter((t) => t.isActive)
             .map((t) => ({
-            id: t.id,
+            id: t.teacherId,
             firstName: t.firstName,
             lastName: t.lastName,
-            department: t.specialization ?? 'General',
-            contactInfo: t.contactNumber,
+            department: t.department ?? t.specialization ?? null,
+            employmentStatus: 'PERMANENT',
+            isClassAdviser: !!t.advisedSectionId,
+            advisoryEquivalentHours: t.advisoryEquivalentHoursPerWeek ?? (t.advisedSectionId ? 5 : 0),
+            canTeachOutsideDepartment: !!t.isTeachingExempt,
+            contactInfo: t.contactNumber ?? t.email ?? null,
+            advisedSectionId: t.advisedSectionId ?? null,
+            advisedSectionName: t.advisedSectionName ?? null,
         }));
+        return {
+            teachers,
+            source: 'enrollpro',
+            fetchedAt: new Date(),
+        };
     }
 }
 // Factory — uses EnrollPro adapter by default in development, falls back to stub

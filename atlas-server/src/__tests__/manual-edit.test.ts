@@ -47,9 +47,9 @@ const faculty = [
 	{ id: 2, maxHoursPerWeek: 30 },
 ];
 const facultySubjects = [
-	{ facultyId: 1, subjectId: 1 },
-	{ facultyId: 1, subjectId: 2 },
-	{ facultyId: 2, subjectId: 2 },
+	{ facultyId: 1, subjectId: 1, sectionIds: [1] },
+	{ facultyId: 1, subjectId: 2, sectionIds: [1] },
+	{ facultyId: 2, subjectId: 2, sectionIds: [2] },
 ];
 const rooms = [
 	{ id: 1, type: 'CLASSROOM' as const, capacity: null },

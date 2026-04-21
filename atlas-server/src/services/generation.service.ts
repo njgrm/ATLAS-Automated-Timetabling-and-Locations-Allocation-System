@@ -14,6 +14,7 @@ import {
 } from './constraint-validator.js';
 import { constructBaseline, type ConstructorInput, type UnassignedItem } from './schedule-constructor.js';
 import { sectionAdapter } from './section-adapter.js';
+import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
 
 // ─── Helpers ───
@@ -68,7 +69,7 @@ export async function triggerGenerationRun(
 	try {
 		// ── Fetch all input data for construction ──
 		stage = 'sections-fetch';
-		const [sectionResult, faculty, facultySubjects, rooms, subjects, preferences, policyRecord, buildings, lockedSessions, gradeWindows, cohorts] = await Promise.all([
+		const [sectionResult, faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, lockedSessions, gradeWindows, cohorts] = await Promise.all([
 			sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId),
 			prisma.facultyMirror.findMany({
 				where: { schoolId, isActiveForScheduling: true },
@@ -76,7 +77,7 @@ export async function triggerGenerationRun(
 			}),
 			prisma.facultySubject.findMany({
 				where: { schoolId },
-				select: { facultyId: true, subjectId: true, gradeLevels: true },
+				select: { facultyId: true, subjectId: true, gradeLevels: true, sectionIds: true },
 			}),
 			prisma.room.findMany({
 				where: {
@@ -131,6 +132,17 @@ export async function triggerGenerationRun(
 				},
 			}),
 		]);
+
+		const rosterIndex = buildSectionRosterIndex(sectionResult.gradeLevels);
+		const facultySubjects = facultySubjectRows.map((assignment) => {
+			const normalized = normalizeStoredAssignmentScope(assignment, rosterIndex);
+			return {
+				facultyId: assignment.facultyId,
+				subjectId: assignment.subjectId,
+				gradeLevels: normalized.gradeLevels,
+				sectionIds: normalized.sectionIds,
+			};
+		});
 
 		// ── Run baseline constructor ──
 		stage = 'constructor';
