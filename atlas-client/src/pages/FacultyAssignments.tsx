@@ -683,46 +683,32 @@ loadProfile.breakdown.map((item) => (
 </div>
 
 {subjectsLackingFaculty.length > 0 && (
-<div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 shadow-sm">
-<div className="flex items-center gap-2 text-red-700">
-<AlertTriangle className="size-4" />
-<h4 className="text-xs font-semibold">Subjects Lacking Faculty</h4>
-</div>
-<p className="mt-1 text-[0.6875rem] text-red-700/80">
-{subjectsLackingFaculty.length} active subject(s) currently have no faculty assigned.
-</p>
-<div className="mt-2 flex flex-wrap gap-1">
-{subjectsLackingFaculty.map((subject) => (
-<Badge key={subject.id} variant="outline" className="border-red-300 bg-white text-[0.625rem] text-red-700">
-{subject.code}
-</Badge>
-))}
-</div>
-</div>
-)}
+				<div className="mt-2 flex items-center gap-2 rounded border border-red-200 bg-red-50/60 px-3 py-1.5">
+					<AlertTriangle className="size-3.5 shrink-0 text-red-600" />
+					<span className="shrink-0 text-xs font-semibold text-red-700">{subjectsLackingFaculty.length} lacking faculty:</span>
+					<div className="flex flex-1 items-center gap-1 overflow-x-auto">
+						{subjectsLackingFaculty.map((s) => (
+							<Badge key={s.id} variant="outline" className="shrink-0 border-red-300 bg-white px-1.5 py-0 text-[0.5625rem] text-red-700">{s.code}</Badge>
+						))}
+					</div>
+				</div>
+			)}
 
-{pendingEntries.length > 0 && (
-<div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 p-3 shadow-sm">
-<div className="flex items-center justify-between gap-3">
-<div>
-<p className="text-xs font-semibold text-sky-800">Session Pending Ownership</p>
-<p className="text-[0.6875rem] text-sky-700">
-Unsaved subject-section changes remain visible while you switch teachers.
-</p>
-</div>
-<Badge className="border-sky-200 bg-white text-sky-700">{pendingEntries.length} pending</Badge>
-</div>
-<div className="mt-2 flex max-h-28 flex-wrap gap-1 overflow-auto">
-{pendingEntries.map((entry) => (
-<Badge key={entry.key} variant="outline" className="border-sky-200 bg-white text-[0.625rem] text-sky-800">
-{entry.facultyName} | {entry.subjectCode} | G{entry.gradeLevel} {entry.sectionName}
-</Badge>
-))}
-</div>
-</div>
-)}
+			{pendingEntries.length > 0 && (
+				<div className="mt-1.5 flex items-center gap-2 rounded border border-sky-200 bg-sky-50/60 px-3 py-1.5">
+					<Badge className="shrink-0 border-sky-300 bg-white text-[0.5625rem] text-sky-700">{pendingEntries.length} pending</Badge>
+					<span className="shrink-0 text-xs font-semibold text-sky-800">Ownership transfers:</span>
+					<div className="flex flex-1 items-center gap-1 overflow-x-auto">
+						{pendingEntries.map((e) => (
+							<Badge key={e.key} variant="outline" className="shrink-0 whitespace-nowrap border-sky-200 bg-white px-1.5 py-0 text-[0.5625rem] text-sky-800">
+								{e.facultyName} | {e.subjectCode} | G{e.gradeLevel} {e.sectionName}
+							</Badge>
+						))}
+					</div>
+				</div>
+			)}
 
-<Card className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden shadow-sm">
+			<Card className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden shadow-sm">
 <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3">
 <div className="flex items-center gap-3">
 <h3 className="text-sm font-semibold text-muted-foreground">Subject Assignments</h3>
@@ -744,27 +730,37 @@ Discard Draft
 </div>
 
 <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-5 py-2">
-<div className="relative flex-1 max-w-xs">
-<Search className="absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
-<Input
-placeholder="Search subjects..."
-value={subjectSearch}
-onChange={(event) => setSubjectSearch(event.target.value)}
-className="h-7 pl-8 text-xs"
-/>
-</div>
-<div className="ml-auto flex items-center gap-2">
-<ShieldAlert className={`size-3.5 ${allowOutsideDepartment ? 'text-amber-600' : 'text-muted-foreground'}`} />
-<span className="text-[0.625rem] text-muted-foreground">Outside dept.</span>
-<Switch
-checked={allowOutsideDepartment}
-onCheckedChange={setAllowOutsideDepartment}
-aria-label="Allow outside department assignments"
-/>
-</div>
-</div>
+				<div className="relative w-52 shrink-0">
+					<Search className="absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
+					<Input
+						placeholder="Search subjects or sections..."
+						value={subjectSearch}
+						onChange={(event) => setSubjectSearch(event.target.value)}
+						className="h-7 pl-8 text-xs"
+					/>
+				</div>
+				<Select value={sectionFilter} onValueChange={(v) => setSectionFilter(v as 'all' | 'unassigned' | 'assigned')}>
+					<SelectTrigger className="h-7 w-36 text-xs">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="all" className="text-xs">All Sections</SelectItem>
+						<SelectItem value="unassigned" className="text-xs">Unassigned Only</SelectItem>
+						<SelectItem value="assigned" className="text-xs">Assigned Only</SelectItem>
+					</SelectContent>
+				</Select>
+				<div className="ml-auto flex items-center gap-2">
+					<ShieldAlert className={`size-3.5 ${allowOutsideDepartment ? 'text-amber-600' : 'text-muted-foreground'}`} />
+					<span className="text-[0.625rem] text-muted-foreground">Outside dept.</span>
+					<Switch
+						checked={allowOutsideDepartment}
+						onCheckedChange={setAllowOutsideDepartment}
+						aria-label="Allow outside department assignments"
+					/>
+				</div>
+			</div>
 
-<CardContent className="flex-1 overflow-auto pt-3">
+			<CardContent className="flex-1 overflow-auto pt-3">
 {!selected.isActiveForScheduling && (
 <div className="mb-3 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
 <AlertTriangle className="size-4" />
@@ -1042,7 +1038,7 @@ className="h-auto w-full justify-between rounded-none px-3 py-2"
 <Badge variant="secondary" className="text-[0.5625rem]">{selectedInGrade} / {gradeSections.length}</Badge>
 </Button>
 {isOpen && (
-<div className="space-y-1 border-t border-border/70 px-3 py-2">
+<div className="grid grid-cols-2 gap-1.5 border-t border-border/70 p-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
 {gradeSections.map((section) => {
 const key = getOwnershipKey(subject.id, section.id);
 const savedOwner = savedOwnershipMap[key];
@@ -1065,20 +1061,23 @@ const badgeLabel = isPendingOther
 return (
 <div
 key={section.id}
-className={`flex items-center justify-between gap-3 rounded-md border px-2.5 py-2 ${
-blocked ? 'border-red-200 bg-red-50/60' : isSelected ? 'border-primary/30 bg-primary/5' : 'border-border/70'
+className={`flex flex-col gap-1.5 rounded-md border p-2 transition-colors ${
+blocked ? 'cursor-not-allowed border-red-200 bg-red-50/50 opacity-70' : isSelected ? 'border-primary/40 bg-primary/5 ring-1 ring-primary/20' : 'border-border/60 hover:bg-muted/30'
 }`}
 >
-<div className="flex min-w-0 items-center gap-2">
-<Checkbox checked={isSelected} onCheckedChange={() => toggleSection(section.id)} disabled={disabled || blocked} />
-<div className="min-w-0">
-<p className="truncate text-sm font-medium">{section.name}</p>
-<p className="truncate text-[0.6875rem] text-muted-foreground">
-G{section.displayOrder}{section.programCode && section.programCode !== 'REGULAR' ? ` | ${section.programCode}` : ''}
-</p>
+<div className="flex items-start gap-1.5">
+<Checkbox checked={isSelected} onCheckedChange={() => toggleSection(section.id)} disabled={disabled || blocked} className="mt-0.5 shrink-0" />
+<div className="min-w-0 flex-1">
+<span className={`mb-0.5 inline-block rounded px-1 py-0 text-[0.5rem] font-bold uppercase leading-tight tracking-wider ${GRADE_COLORS[String(section.displayOrder)] ?? 'bg-muted text-muted-foreground'}`}>
+G{section.displayOrder}
+</span>
+<p className="truncate text-xs font-semibold leading-tight">{section.name}</p>
+{section.programCode && section.programCode !== 'REGULAR' && (
+<p className="truncate text-[0.6rem] text-muted-foreground">{section.programCode}</p>
+)}
 </div>
 </div>
-<div className="flex items-center gap-1.5">
+<div className="flex items-center gap-1.5 pl-5">
 {badgeLabel && (
 <Tooltip>
 <TooltipTrigger asChild>
