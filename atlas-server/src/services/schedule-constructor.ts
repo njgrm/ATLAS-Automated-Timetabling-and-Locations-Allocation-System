@@ -177,6 +177,8 @@ export interface LockedEntryInput {
 	subjectId: number;
 	facultyId?: number | null;
 	roomId?: number | null;
+	entryKind?: 'SECTION' | 'COHORT';
+	cohortCode?: string | null;
 	day: string;
 	startTime: string;
 	endTime: string;
@@ -218,7 +220,7 @@ export interface ConstructorResult {
 
 // ─── Demand computation ───
 
-interface DemandItem {
+export interface DemandItem {
 	sectionId: number;
 	subjectId: number;
 	subjectCode: string;
@@ -239,7 +241,7 @@ interface DemandItem {
 	adviserName?: string | null;
 }
 
-function computeDemand(
+export function computeDemand(
 	sectionsByGrade: SectionsByGrade[],
 	subjects: SubjectInput[],
 	cohorts: InstructionalCohortInput[] = [],
@@ -351,14 +353,14 @@ function computeDemand(
 	return demand;
 }
 
-function getDemandSectionIds(item: DemandItem): number[] {
+export function getDemandSectionIds(item: DemandItem): number[] {
 	if (item.entryKind === 'COHORT' && item.cohortMemberSectionIds && item.cohortMemberSectionIds.length > 0) {
 		return item.cohortMemberSectionIds;
 	}
 	return [item.sectionId];
 }
 
-function getDemandAssignmentKey(item: DemandItem): string {
+export function getDemandAssignmentKey(item: DemandItem): string {
 	if (item.entryKind === 'COHORT' && item.cohortCode) {
 		return `${item.cohortCode}:${item.subjectId}`;
 	}
@@ -544,6 +546,8 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				startTime: period.startTime,
 				endTime: period.endTime,
 				durationMinutes,
+				entryKind: lock.entryKind,
+				cohortCode: lock.cohortCode ?? null,
 			});
 
 			// Mark occupancy for locked placements
@@ -560,7 +564,9 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			assignedCount++;
 
 			// Track lock session counts
-			const lockKey = `${lock.sectionId}:${lock.subjectId}`;
+			const lockKey = lock.entryKind === 'COHORT' && lock.cohortCode
+				? `${lock.cohortCode}:${lock.subjectId}`
+				: `${lock.sectionId}:${lock.subjectId}`;
 			lockSessionCounts.set(lockKey, (lockSessionCounts.get(lockKey) ?? 0) + 1);
 		}
 	}

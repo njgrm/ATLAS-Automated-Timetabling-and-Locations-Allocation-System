@@ -137,6 +137,24 @@
 - Regenerated the latest completed draft after the mirror reseed, producing `Run #52` with `2521` draft entries and `146/146` draft faculty IDs matching current active faculty mirrors.
 - Live browser QA passed on both room-request portals: the faculty page loaded non-empty assigned sessions, saved a draft request, and submitted it; the officer page loaded the submitted request, opened the review preview, and completed the review path with the correct disabled-approve guard and successful rejection action.
 
+## Wave 4.3 — Timetable Workspace Finalization (2026-04-22)
+- Sidebar behavior hardened in `AppShell.tsx` so entering `/timetable` collapses the shell to icon mode by default while still allowing manual re-expand.
+- Room-request review sheet hardened in `ScheduleReview.tsx`:
+  - fixed preview field bindings (`hardViolations`/`softViolations`) to remove runtime crashes.
+  - added explicit blocked-preview panel with actionable conflict details.
+  - disabled Approve when preview disallows the request.
+  - fixed duplicate React keys for repeated conflict rows.
+  - added `allowSoftOverride` on Approve when preview has soft warnings, aligning with backend `SOFT_OVERRIDE_REQUIRED` contract.
+- Added QA-only deterministic seeding command `npm --prefix atlas-server run seed:qa-room-requests` via `atlas-server/src/scripts/seed-qa-room-requests.ts`.
+- QA seed evidence produced against `runId=53`:
+  - request `id=2` (GUERRERO, GRACE) seeded as approvable and reviewed to `APPROVED`.
+  - request `id=3` (AQUINO, CARMEN) seeded as blocked-preview and reviewed to `REJECTED`.
+- Manual bridged QA reconfirmed:
+  - `/timetable` opens with collapsed sidebar icon state.
+  - right panel starts collapsed/empty prompt.
+  - conflict inspector remains visible in the workspace.
+  - Requests tab loads deterministic pending items and supports in-page review decisions.
+
 ## Exit Criteria
 - Officer can resolve findings and revalidate
 - Publish path is blocked while hard violations remain

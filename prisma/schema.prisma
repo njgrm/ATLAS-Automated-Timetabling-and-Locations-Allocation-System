@@ -457,23 +457,66 @@ model FollowUpFlag {
 
 // ─── Pre-Generation Locked Sessions ───
 
+enum PreGenerationDraftStatus {
+  DRAFT
+  LOCKED_FOR_RUN
+  ARCHIVED
+
+  @@map("pre_generation_draft_status")
+}
+
+enum PreGenerationDraftEntryKind {
+  SECTION
+  COHORT
+
+  @@map("pre_generation_draft_entry_kind")
+}
+
 model LockedSession {
   id           Int      @id @default(autoincrement())
   schoolId     Int      @map("school_id")
   schoolYearId Int      @map("school_year_id")
+  entryKind    PreGenerationDraftEntryKind @default(SECTION) @map("entry_kind")
   sectionId    Int      @map("section_id")
   subjectId    Int      @map("subject_id")
   facultyId    Int?     @map("faculty_id")
   roomId       Int?     @map("room_id")
+  cohortCode   String?  @map("cohort_code")
+  status       PreGenerationDraftStatus @default(DRAFT)
+  lockedRunId  Int?     @map("locked_run_id")
+  notes        String?
+  version      Int      @default(1)
   day          DayOfWeek
   startTime    String   @map("start_time")
   endTime      String   @map("end_time")
   createdBy    Int      @map("created_by")
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  actions      LockedSessionAction[]
 
-  @@unique([schoolId, schoolYearId, sectionId, subjectId, day, startTime], map: "uq_locked_session")
+  @@unique([schoolId, schoolYearId, entryKind, sectionId, subjectId, cohortCode, day, startTime], map: "uq_locked_session")
   @@index([schoolId, schoolYearId])
+  @@index([schoolId, schoolYearId, status])
+  @@index([lockedRunId])
   @@map("locked_sessions")
+}
+
+model LockedSessionAction {
+  id            Int      @id @default(autoincrement())
+  lockId         Int?     @map("lock_id")
+  schoolId       Int      @map("school_id")
+  schoolYearId   Int      @map("school_year_id")
+  actorId        Int      @map("actor_id")
+  actionType     String   @map("action_type")
+  beforePayload  Json?    @map("before_payload")
+  afterPayload   Json?    @map("after_payload")
+  createdAt      DateTime @default(now())
+
+  lock          LockedSession? @relation(fields: [lockId], references: [id], onDelete: SetNull)
+
+  @@index([lockId, createdAt])
+  @@index([schoolId, schoolYearId, createdAt])
+  @@map("locked_session_actions")
 }
 
 // ─── Grade Shift Windows ───

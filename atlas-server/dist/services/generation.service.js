@@ -8,6 +8,7 @@ import { constructBaseline } from './schedule-constructor.js';
 import { sectionAdapter } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
+import * as preGenerationDraftService from './pre-generation-draft.service.js';
 function err(statusCode, code, message, options) {
     const e = new Error(message);
     e.statusCode = statusCode;
@@ -53,9 +54,11 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId) {
     });
     let stage = 'init';
     try {
+        stage = 'pre-generation-drafts';
+        const preGenerationDrafts = await preGenerationDraftService.consumeDraftPlacementsForRun(run.id, schoolId, schoolYearId);
         // ── Fetch all input data for construction ──
         stage = 'sections-fetch';
-        const [sectionResult, faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, lockedSessions, gradeWindows, cohorts] = await Promise.all([
+        const [sectionResult, faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, gradeWindows, cohorts] = await Promise.all([
             sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId),
             prisma.facultyMirror.findMany({
                 where: { schoolId, isActiveForScheduling: true },
@@ -97,9 +100,6 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId) {
             prisma.building.findMany({
                 where: { schoolId },
                 select: { id: true, x: true, y: true },
-            }),
-            prisma.lockedSession.findMany({
-                where: { schoolId, schoolYearId },
             }),
             prisma.gradeShiftWindow.findMany({
                 where: { schoolId, schoolYearId },
@@ -163,15 +163,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId) {
                 allowFlexibleSubjectAssignment: policyRecord.allowFlexibleSubjectAssignment ?? false,
                 allowConsecutiveLabSessions: policyRecord.allowConsecutiveLabSessions ?? false,
             },
-            lockedEntries: lockedSessions.map((ls) => ({
-                sectionId: ls.sectionId,
-                subjectId: ls.subjectId,
-                facultyId: ls.facultyId,
-                roomId: ls.roomId,
-                day: ls.day,
-                startTime: ls.startTime,
-                endTime: ls.endTime,
-            })),
+            lockedEntries: preGenerationDrafts.lockedEntries,
             gradeWindows: gradeWindows.map((gw) => ({
                 gradeLevel: gw.gradeLevel,
                 startTime: gw.startTime,
@@ -218,6 +210,9 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId) {
             unassignedCount: result.unassignedCount,
             policyBlockedCount: result.policyBlockedCount,
             hardViolationCount: validationResult.violations.filter((v) => v.severity === 'HARD').length,
+            prePlacedCount: preGenerationDrafts.prePlacedCount,
+            invalidPrePlacedCount: preGenerationDrafts.invalidPrePlacedCount,
+            skippedPrePlacedReasons: preGenerationDrafts.skippedPrePlacedReasons.length > 0 ? preGenerationDrafts.skippedPrePlacedReasons : undefined,
             violationCounts: validationResult.counts.byCode,
             lockWarnings: result.lockWarnings.length > 0 ? result.lockWarnings : undefined,
             cohortCount: cohorts.length,
@@ -255,6 +250,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId) {
                 metadata: { durationMs, summary },
             },
         });
+        await preGenerationDraftService.markPlacementsLockedForRun(schoolId, schoolYearId, run.id, preGenerationDrafts.acceptedPlacementIds);
         return completed;
     }
     catch (error) {
@@ -295,13 +291,7 @@ export async function getRunById(runId, schoolId, schoolYearId) {
     return run;
 }
 export async function getLatestRun(schoolId, schoolYearId) {
-    const run = await prisma.generationRun.findFirst({
-        where: { schoolId, schoolYearId, status: 'COMPLETED' },
-        orderBy: { createdAt: 'desc' },
-    });
-    if (!run)
-        throw err(404, 'NO_RUNS', 'No completed generation runs found for this school/year.');
-    return run;
+    return getLatestValidRun(schoolId, schoolYearId);
 }
 export async function getLatestValidRun(schoolId, schoolYearId) {
     const [runs, activeFacultyIds] = await Promise.all([
@@ -374,13 +364,7 @@ export async function getRunViolations(runId, schoolId, schoolYearId) {
     };
 }
 export async function getLatestRunViolations(schoolId, schoolYearId) {
-    const run = await prisma.generationRun.findFirst({
-        where: { schoolId, schoolYearId, status: 'COMPLETED' },
-        orderBy: { createdAt: 'desc' },
-        select: { id: true, status: true, violations: true, summary: true },
-    });
-    if (!run)
-        throw err(404, 'NO_RUNS', 'No completed generation runs found for this school/year.');
+    const run = await getLatestValidRun(schoolId, schoolYearId);
     const violations = (run.violations ?? []);
     const summary = (run.summary ?? {});
     const violationCounts = (summary.violationCounts ?? {});
@@ -413,13 +397,7 @@ export async function getRunDraft(runId, schoolId, schoolYearId) {
     };
 }
 export async function getLatestRunDraft(schoolId, schoolYearId) {
-    const run = await prisma.generationRun.findFirst({
-        where: { schoolId, schoolYearId, status: 'COMPLETED' },
-        orderBy: { createdAt: 'desc' },
-        select: { id: true, status: true, draftEntries: true, unassignedItems: true, summary: true, version: true, finishedAt: true, createdAt: true },
-    });
-    if (!run)
-        throw err(404, 'NO_RUNS', 'No completed generation runs found for this school/year.');
+    const run = await getLatestValidRun(schoolId, schoolYearId);
     return {
         runId: run.id,
         status: run.status,
@@ -430,5 +408,29 @@ export async function getLatestRunDraft(schoolId, schoolYearId) {
         finishedAt: run.finishedAt?.toISOString() ?? null,
         createdAt: run.createdAt.toISOString(),
     };
+}
+export async function invalidateStaleCompletedRuns(schoolId, schoolYearId) {
+    const [runs, activeFacultyIds] = await Promise.all([
+        prisma.generationRun.findMany({
+            where: { schoolId, schoolYearId, status: 'COMPLETED' },
+            orderBy: { createdAt: 'desc' },
+            select: { id: true, draftEntries: true },
+        }),
+        getActiveFacultyMirrorIdSet(schoolId),
+    ]);
+    const staleRunIds = runs
+        .filter((run) => getStaleFacultyIdsForRun(run, activeFacultyIds).length > 0)
+        .map((run) => run.id);
+    if (staleRunIds.length === 0) {
+        return { invalidatedCount: 0, staleRunIds: [] };
+    }
+    await prisma.generationRun.updateMany({
+        where: { id: { in: staleRunIds } },
+        data: {
+            status: 'FAILED',
+            error: 'INVALIDATED_BY_MIRROR_RESET',
+        },
+    });
+    return { invalidatedCount: staleRunIds.length, staleRunIds };
 }
 //# sourceMappingURL=generation.service.js.map

@@ -99,6 +99,35 @@ Record dated implementation verification summaries here.
 - Decision:
   - Accepted
 
+### 2026-04-22 - Wave 4.3 Timetable Workspace Finalization
+- Phase: 4
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npm --prefix atlas-client run build`: PASS
+  - `npm --prefix atlas-server run build`: PASS
+  - `npm --prefix atlas-server run test:wave4-precision`: PASS (14/14)
+  - `npm --prefix atlas-server run test:phase4-review`: PASS (23/23)
+  - `npm --prefix atlas-server run seed:qa-room-requests -- --schoolId=1 --schoolYearId=1`: PASS
+  - Prisma verification probe for seeded requests (`id in [2,3]`) and run `53`: PASS
+- API checks:
+  - `PATCH /api/v1/room-preferences/1/1/runs/53/requests/2/review` after in-page approve returned successful update and persisted `decisionStatus=APPROVED`, `reviewerId=1`: PASS
+  - `PATCH /api/v1/room-preferences/1/1/runs/53/requests/3/review` via in-page reject returned `200` with `commitResult=null` and persisted `decisionStatus=REJECTED`, `reviewerId=1`: PASS
+  - Post-review run snapshot confirmed `generation_runs.id=53` moved to `version=2` with both request decisions persisted: PASS
+- UI checks:
+  - Bridged `/timetable` entry enforces collapsed sidebar icon mode (`data-state=collapsed`, width `48px`): PASS
+  - Right detail panel defaults collapsed with empty selection prompt: PASS
+  - Conflict inspector remains visible in the timetable workspace: PASS
+  - Requests tab loaded deterministic queue (`Pending 2`, then `Pending 1` after approve): PASS
+  - In-page review sheet for approvable request (GUERRERO, GRACE) showed `Allowed: Yes` and completed approve flow: PASS
+  - In-page review sheet for blocked request (AQUINO, CARMEN) showed blocked-preview context and completed reject flow: PASS
+- Blocking findings:
+  - none
+- Decision:
+  - Accepted
+
 ### 2026-04-21 - Wave 3.5.3 Cross-Repo Source Gate + Wave 4.0 Review Hardening
 - Phase: 4 (user-approved cross-phase hardening)
 - Scope gate: PASS

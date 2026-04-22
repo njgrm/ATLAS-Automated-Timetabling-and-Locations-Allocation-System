@@ -6,13 +6,12 @@ CheckCircle2,
 ChevronDown,
 ChevronRight,
 Info,
-Pencil,
 RotateCcw,
 Save,
 Search,
 ShieldAlert,
-Star,
 UserCog,
+Star,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -457,21 +456,27 @@ primary.push(subject);
 other.push(subject);
 }
 }
+
+primary.sort((a, b) => {
+    const aIsHR = a.name.toLowerCase().includes('homeroom') || a.code.toLowerCase().includes('homeroom');
+    const bIsHR = b.name.toLowerCase().includes('homeroom') || b.code.toLowerCase().includes('homeroom');
+    if (aIsHR && !bIsHR) return 1;
+    if (!aIsHR && bIsHR) return -1;
+    return a.name.localeCompare(b.name);
+});
+
+other.sort((a, b) => a.name.localeCompare(b.name));
+
 return { primarySubjects: primary, otherSubjects: other };
 }, [selected, subjects]);
 
 const filterBySubjectSearch = useCallback(
-(subjectList: Subject[]) => {
-if (!subjectSearch.trim()) {
-return subjectList;
-}
-const normalizedQuery = subjectSearch.toLowerCase();
-return subjectList.filter(
-(subject) => subject.name.toLowerCase().includes(normalizedQuery) || subject.code.toLowerCase().includes(normalizedQuery),
+        (subjectList: Subject[]) => {
+                return subjectList; // Rendering visibility is completely handled by SubjectRow filter down algorithm now
+        },
+        [],
 );
-},
-[subjectSearch],
-);
+
 
 const loadProfile = useMemo(
 () =>
@@ -586,8 +591,7 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 {member.lastName[0]}
 </div>
 <div className="min-w-0 flex-1">
-<p className="truncate flex items-center gap-1.5 text-sm font-medium">
-{member.isClassAdviser && <Star className="size-3 shrink-0 flex-none fill-amber-400 text-amber-400" aria-label="Class Adviser" />}
+<p className="truncate text-sm font-medium">
 {member.lastName}, {member.firstName}
 </p>
 <p className="truncate text-[0.6875rem] text-muted-foreground">
@@ -639,11 +643,12 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 </p>
 </div>
 {selected.isClassAdviser && (
-<Badge variant="outline" className="border-amber-200 bg-amber-50 text-[0.5625rem] text-amber-700">
-<Star className="mr-1 size-2.5 fill-amber-500 text-amber-500" /> Class Adviser
-</Badge>
-)}
-{!selected.isActiveForScheduling && <Badge variant="secondary">Excluded</Badge>}
+				<Badge className="border-amber-300 bg-amber-50 text-amber-700 gap-1 flex items-center">
+					<Star className="size-3 fill-amber-500 text-amber-500" />
+					Adviser
+				</Badge>
+			)}
+			{!selected.isActiveForScheduling && <Badge variant="secondary">Excluded</Badge>}
 <div className="ml-auto flex items-center gap-3">
 <div className="text-right">
 <p className="text-[0.625rem] text-muted-foreground">Actual</p>
@@ -703,6 +708,8 @@ loadProfile.breakdown.map((item) => (
 				</div>
 			)}
 
+
+
 			<Card className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden shadow-sm">
 <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3">
 <div className="flex items-center gap-3">
@@ -734,18 +741,6 @@ Discard Draft
 						className="h-7 pl-8 text-xs"
 					/>
 				</div>
-				<Select value={gradeLevelFilter} onValueChange={setGradeLevelFilter}>
-					<SelectTrigger className="h-7 w-28 text-xs">
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all" className="text-xs">All Grades</SelectItem>
-						<SelectItem value="7" className="text-xs">Grade 7</SelectItem>
-						<SelectItem value="8" className="text-xs">Grade 8</SelectItem>
-						<SelectItem value="9" className="text-xs">Grade 9</SelectItem>
-						<SelectItem value="10" className="text-xs">Grade 10</SelectItem>
-					</SelectContent>
-				</Select>
 				<Select value={sectionFilter} onValueChange={(v) => setSectionFilter(v as 'all' | 'unassigned' | 'assigned')}>
 					<SelectTrigger className="h-7 w-36 text-xs">
 						<SelectValue />
@@ -756,7 +751,19 @@ Discard Draft
 						<SelectItem value="assigned" className="text-xs">Assigned Only</SelectItem>
 					</SelectContent>
 				</Select>
-				<div className="ml-auto flex items-center gap-2">
+								<Select value={gradeLevelFilter} onValueChange={setGradeLevelFilter}>
+									<SelectTrigger className="h-7 w-32 text-xs">
+										<SelectValue placeholder="Grade Level" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="all" className="text-xs">All Grades</SelectItem>
+										<SelectItem value="7" className="text-xs">Grade 7</SelectItem>
+										<SelectItem value="8" className="text-xs">Grade 8</SelectItem>
+										<SelectItem value="9" className="text-xs">Grade 9</SelectItem>
+										<SelectItem value="10" className="text-xs">Grade 10</SelectItem>
+									</SelectContent>
+								</Select>
+								<div className="ml-auto flex items-center gap-2">
 					<ShieldAlert className={`size-3.5 ${allowOutsideDepartment ? 'text-amber-600' : 'text-muted-foreground'}`} />
 					<span className="text-[0.625rem] text-muted-foreground">Outside dept.</span>
 					<Switch
@@ -818,7 +825,9 @@ savedOwnershipMap={savedOwnershipMap}
 pendingOwnershipMap={pendingOwnershipMap}
 onSetSections={setSubjectSections}
 											searchTerm={subjectSearch}
-											sectionFilter={sectionFilter}
+								gradeLevelFilter={gradeLevelFilter}
+								sectionFilter={sectionFilter}
+								advisedSectionId={homeroomHint?.advisedSectionId ?? null}
 />
 ))}
 </div>
@@ -850,7 +859,8 @@ savedOwnershipMap={savedOwnershipMap}
 pendingOwnershipMap={pendingOwnershipMap}
 onSetSections={setSubjectSections}
 											searchTerm={subjectSearch}
-											sectionFilter={sectionFilter}
+								gradeLevelFilter={gradeLevelFilter}
+								sectionFilter={sectionFilter}
 isOutsideDepartment
 />
 ))}
@@ -906,16 +916,16 @@ function SubjectRow({
 	const displaySections = useMemo(() => {
 		let result = sections;
 		
-		if (sectionFilter !== 'all') {
+		if (gradeLevelFilter !== 'all') {
+					result = result.filter(sec => sec.displayOrder === Number(gradeLevelFilter));
+				}
+
+				if (sectionFilter !== 'all') {
 			result = result.filter(sec => {
 				const key = getOwnershipKey(subject.id, sec.id);
 				const isAssigned = Boolean(savedOwnershipMap[key]) || Boolean(pendingOwnershipMap[key]);
 				return sectionFilter === 'assigned' ? isAssigned : !isAssigned;
 			});
-		}
-
-		if (gradeLevelFilter !== 'all') {
-			result = result.filter(sec => String(sec.displayOrder) === gradeLevelFilter);
 		}
 
 		if (searchTerm) {
@@ -924,7 +934,7 @@ function SubjectRow({
 				// subject matches
 			} else {
 				// strict filter sections
-				result = result.filter(sec => sec.name.toLowerCase().includes(term) || `g${sec.displayOrder}`.includes(term));
+				result = result.filter(sec => sec.name.toLowerCase().includes(term) || `g${sec.displayOrder}`.toLowerCase().includes(term) || sec.displayOrder.toString().includes(term));
 			}
 		}
 
@@ -965,8 +975,23 @@ return false;
 return true;
 })
 .map((section) => section.id);
+	const blockedCount = sections.length - selectableSectionIds.length;
 
-const blockedCount = sections.length - selectableSectionIds.length;
+	if (groupedSections.length === 0 && (searchTerm || sectionFilter !== 'all' || gradeLevelFilter !== 'all')) {
+		return null;
+	}
+
+	const getGradeColors = (grade: number) => {
+		switch (grade) {
+			case 7: return { container: 'border-green-200 bg-green-50/30', card: 'border-green-200 bg-green-50 hover:bg-green-100/50', text: 'text-green-700' };
+			case 8: return { container: 'border-yellow-200 bg-yellow-50/30', card: 'border-yellow-200 bg-yellow-50 hover:bg-yellow-100/50', text: 'text-yellow-700' };
+			case 9: return { container: 'border-red-200 bg-red-50/30', card: 'border-red-200 bg-red-50 hover:bg-red-100/50', text: 'text-red-700' };
+			case 10: return { container: 'border-blue-200 bg-blue-50/30', card: 'border-blue-200 bg-blue-50 hover:bg-blue-100/50', text: 'text-blue-700' };
+			default: return { container: 'border-border/70 bg-background', card: 'border-border/60 hover:bg-muted/30', text: 'text-muted-foreground' };
+		}
+	};
+
+
 
 const handleToggleAll = () => {
 if (selectedCount > 0) {
@@ -1007,131 +1032,134 @@ onSetSections(subject.id, [...selectedSectionIds, sectionId]);
 
 return (
 <div
-			className={`rounded-lg border p-3 transition-colors ${
-				selectedCount > 0 && isOutsideDepartment
-					? 'border-amber-300/60 bg-amber-50/30'
-					: 'border-border'
-			}`}
-		>
-			<div className="flex items-start gap-3">
-				<Checkbox checked={selectedCount > 0} onCheckedChange={handleToggleAll} disabled={disabled || sections.length === 0} />
-				<div className="min-w-0 flex-1">
-					<div className="flex flex-wrap items-center gap-2">
-						<span className="text-sm font-medium">{subject.name === 'Technology and Livelihood Education' ? 'TLE' : subject.name}</span>
-						<code className="rounded bg-muted px-1 py-0.5 text-[0.6rem] font-mono">{subject.code}</code>
-						{isOutsideDepartment && <Badge variant="outline" className="border-amber-300 text-[0.5625rem] text-amber-700">Outside Dept.</Badge>}
-						<Badge variant="secondary" className="text-[0.5625rem]">{selectedCount} / {sections.length || 0} sections</Badge>
-						{blockedCount > 0 && <Badge variant="outline" className="border-red-200 text-[0.5625rem] text-red-700">{blockedCount} blocked</Badge>}
-					</div>
-					<p className="mt-1 text-[0.6875rem] text-muted-foreground">
-						{Math.round((subject.minMinutesPerWeek / 60) * 10) / 10} hrs/week per section
-					</p>
-				</div>
-			</div>
+className={`rounded-lg border p-3 transition-colors ${
+selectedCount > 0
+? isOutsideDepartment
+? 'border-amber-300/60 bg-amber-50/30'
+: 'border-primary/30 bg-primary/5'
+: 'border-border'
+}`}
+>
+<div className="flex items-start gap-3">
+<Checkbox checked={selectedCount > 0} onCheckedChange={handleToggleAll} disabled={disabled || sections.length === 0} />
+<div className="min-w-0 flex-1">
+<div className="flex flex-wrap items-center gap-2">
+<span className="text-sm font-medium">{subject.name}</span>
+<code className="rounded bg-muted px-1 py-0.5 text-[0.6rem] font-mono">{subject.code}</code>
+{isOutsideDepartment && <Badge variant="outline" className="border-amber-300 text-[0.5625rem] text-amber-700">Outside Dept.</Badge>}
+<Badge variant="secondary" className="text-[0.5625rem]">{selectedCount} / {sections.length || 0} sections</Badge>
+{blockedCount > 0 && <Badge variant="outline" className="border-red-200 text-[0.5625rem] text-red-700">{blockedCount} blocked</Badge>}
+</div>
+<p className="mt-1 text-[0.6875rem] text-muted-foreground">
+{Math.round((subject.minMinutesPerWeek / 60) * 10) / 10} hrs/week per section
+</p>
+</div>
+</div>
 
-			{sections.length === 0 ? (
-				<p className="ml-7 mt-3 text-[0.6875rem] text-muted-foreground">No active sections in the current school year for {subject.code}.</p>
-			) : (
-				<div className="ml-7 mt-3 space-y-2">
-					{groupedSections.map(({ gradeLevel, sections: gradeSections }) => {
-						const isOpen = openGrades[gradeLevel] ?? (searchTerm ? true : false);
-						const selectedInGrade = gradeSections.filter((section) => selectedSectionIds.has(section.id)).length;
-						return (
-							<div key={gradeLevel} className={`overflow-hidden rounded-md border ${GRADE_COLORS[String(gradeLevel)] ? GRADE_COLORS[String(gradeLevel)].replace("/80", "/20").replace(" text-", " ") : "border-border/70 bg-background"}`}>
-								<Button
-									type="button"
-									variant="ghost"
-									onClick={() => setOpenGrades((current) => ({ ...current, [gradeLevel]: !(current[gradeLevel] ?? (searchTerm ? true : false)) }))}
-									className={`h-auto w-full justify-between rounded-none px-3 py-2 ${GRADE_COLORS[String(gradeLevel)] ? GRADE_COLORS[String(gradeLevel)].replace("/80", "/10") : "bg-transparent"}`}
-								>
-									<span className="flex items-center gap-2 text-sm font-medium">
-										{isOpen ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-										{gradeLabel(gradeLevel)}
-									</span>
-									<Badge variant="secondary" className="text-[0.5625rem]">{selectedInGrade} / {gradeSections.length}</Badge>
-								</Button>
-								{isOpen && (
-									<div className="grid grid-cols-2 gap-1.5 border-t border-border/70 p-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-										{gradeSections.map((section) => {
-											const key = getOwnershipKey(subject.id, section.id);
-											const savedOwner = savedOwnershipMap[key];
-											const pendingOwner = pendingOwnershipMap[key];
-											const isSelected = selectedSectionIds.has(section.id);
-											const isPendingCurrent = pendingOwner?.facultyId === selectedFacultyId;
-											const isSavedCurrent = savedOwner?.facultyId === selectedFacultyId;
-											const isPendingOther = Boolean(pendingOwner && pendingOwner.facultyId !== selectedFacultyId);
-											const isSavedOther = Boolean(savedOwner && savedOwner.facultyId !== selectedFacultyId);
-											const blocked = !isSelected && (isPendingOther || isSavedOther);
-											const badgeProps = isPendingOther
-												? { text: pendingOwner?.facultyName, mode: 'pending' }
-												: isSavedOther
-												? { text: savedOwner?.facultyName, mode: 'saved' }
-												: isPendingCurrent
-												? { text: 'Pending Request', mode: 'pending' }
-												: isSavedCurrent
-												? { text: 'Saved', mode: 'saved' }
-												: null;
-											
-											const gradeTint = section.displayOrder === 7 ? 'bg-green-50/70 hover:bg-green-100/50' : section.displayOrder === 8 ? 'bg-yellow-50/70 hover:bg-yellow-100/50' : section.displayOrder === 9 ? 'bg-red-50/70 hover:bg-red-100/50' : section.displayOrder === 10 ? 'bg-blue-50/70 hover:bg-blue-100/50' : 'bg-muted/30 hover:bg-muted/50';
-											const borderState = blocked ? 'cursor-not-allowed border-red-300 opacity-70' : isSelected ? 'border-primary ring-1 ring-primary/40 text-primary-foreground' : 'border-border/60 hover:border-foreground/20';
-
-											return (
-												<div
-													key={section.id}
-													className={`flex flex-col gap-1.5 rounded-md border p-2 transition-colors ${gradeTint} ${borderState}`}
-												>
-													<div className="flex items-start gap-1.5">
-														<Checkbox checked={isSelected} onCheckedChange={() => toggleSection(section.id)} disabled={disabled || blocked} className={`mt-0.5 shrink-0 ${isSelected ? '' : 'bg-white'}`} />
-														<div className="min-w-0 flex-1 flex flex-col gap-0.5">
-															<div className="min-w-0">
-																<p className="text-[0.6875rem] font-semibold leading-tight break-words flex items-center gap-1.5">
-																	{advisedSectionId === section.id && (
-																		<Star className="size-3.5 fill-amber-500 text-amber-500 shrink-0" aria-label="Adviser" />
-																	)}
-																	{section.name}
-																</p>
-																{section.programCode && section.programCode !== 'REGULAR' && (
-																	<p className="text-[0.5625rem] text-muted-foreground break-words mt-[2px]">{section.programCode}</p>
-																)}
-															</div>
-															
-															{badgeProps && (
-																<div className="flex flex-wrap items-center gap-1 mt-0.5">
-																	<Tooltip>
-																		<TooltipTrigger asChild>
-																			<Badge
-																				variant="outline"
-																				className={`px-1.5 py-0.5 text-[0.6875rem] font-medium tracking-tight leading-tight flex items-center gap-1.5 max-w-full truncate shadow-sm ${
-																					badgeProps.mode === 'pending'
-																						? 'border-amber-300 bg-amber-50 text-amber-800 ring-1 ring-amber-400/20'
-																						: 'border-emerald-300 bg-emerald-50 text-emerald-800 ring-1 ring-emerald-400/20'
-																				}`}
-																			>
-																				{badgeProps.mode === 'pending' ? <Pencil className="size-3 shrink-0" /> : <CheckCircle2 className="size-3 shrink-0" />}
-																				<span className="truncate">{badgeProps.text}</span>
-																			</Badge>
-																		</TooltipTrigger>
-																		<TooltipContent side="top" className="max-w-xs text-xs">
-																			{isPendingOther && <p>{pendingOwner?.facultyName} has this subject-section pair in an unsaved session draft.</p>}
-																			{isSavedOther && <p>{savedOwner?.facultyName} already owns this subject-section pair in saved data.</p>}
-																			{isPendingCurrent && <p>This selection is pending in the current session and has not been saved yet.</p>}
-																			{isSavedCurrent && !isPendingCurrent && <p>This subject-section pair is already saved for the selected teacher.</p>}
-																		</TooltipContent>
-																	</Tooltip>
-																</div>
-															)}
-														</div>
-													</div>
-												</div>
-											);
-										})}
-									</div>
-								)}
-							</div>
-						);
-					})}
-				</div>
-			)}
-		</div>
+{sections.length === 0 ? (
+<p className="ml-7 mt-3 text-[0.6875rem] text-muted-foreground">No active sections in the current school year for {subject.code}.</p>
+) : (
+<div className="ml-7 mt-3 space-y-2">
+{groupedSections.map(({ gradeLevel, sections: gradeSections }) => {
+const isOpen = openGrades[gradeLevel] ?? (searchTerm ? true : false);
+const selectedInGrade = gradeSections.filter((section) => selectedSectionIds.has(section.id)).length;
+const gradeStyle = getGradeColors(gradeLevel);
+return (
+<div key={gradeLevel} className={`overflow-hidden rounded-md border ${gradeStyle.container}`}>
+<Button
+type="button"
+variant="ghost"
+onClick={() => setOpenGrades((current) => ({ ...current, [gradeLevel]: !(current[gradeLevel] ?? true) }))}
+className="h-auto w-full justify-between rounded-none px-3 py-2"
+>
+<span className="flex items-center gap-2 text-sm font-medium">
+{isOpen ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+{gradeLabel(gradeLevel)}
+</span>
+<Badge variant="secondary" className="text-[0.5625rem]">{selectedInGrade} / {gradeSections.length}</Badge>
+</Button>
+{isOpen && (
+<div className="grid grid-cols-2 gap-1.5 border-t border-border/70 p-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+{gradeSections.map((section) => {
+const key = getOwnershipKey(subject.id, section.id);
+const savedOwner = savedOwnershipMap[key];
+const pendingOwner = pendingOwnershipMap[key];
+const isSelected = selectedSectionIds.has(section.id);
+const isPendingCurrent = pendingOwner?.facultyId === selectedFacultyId;
+const isSavedCurrent = savedOwner?.facultyId === selectedFacultyId;
+const isPendingOther = Boolean(pendingOwner && pendingOwner.facultyId !== selectedFacultyId);
+const isSavedOther = Boolean(savedOwner && savedOwner.facultyId !== selectedFacultyId);
+const blocked = !isSelected && (isPendingOther || isSavedOther);
+const badgeLabel = isPendingOther
+? `Pending: ${pendingOwner?.facultyName}`
+: isSavedOther
+? `Saved: ${savedOwner?.facultyName}`
+: isPendingCurrent
+? 'Pending'
+: isSavedCurrent
+? 'Saved'
+: null;
+return (
+<div
+key={section.id}
+className={`flex flex-col gap-1.5 rounded-md border p-2 transition-colors ${
+blocked ? 'cursor-not-allowed border-red-300 bg-red-50/50 opacity-70' : isSelected ? 'border-primary/40 bg-primary/5 ring-1 ring-primary/20' : gradeStyle.card
+}`}
+>
+<div className="flex items-start gap-1.5">
+<Checkbox checked={isSelected} onCheckedChange={() => toggleSection(section.id)} disabled={disabled || blocked} className="mt-0.5 shrink-0" />
+<div className="min-w-0 flex-1">
+<div className="flex items-center gap-1">
+<p className="truncate text-xs font-semibold leading-tight">{section.name}</p>
+{advisedSectionId && section.id === advisedSectionId && (
+<Badge className="shrink-0 gap-0.5 border-amber-300 bg-amber-50 px-1 py-0 text-[0.5rem] text-amber-700 flex items-center">
+<Star className="size-2.5 fill-amber-500 text-amber-500" />Advisory
+</Badge>
+)}
+</div>
+{section.programCode && section.programCode !== 'REGULAR' && (
+<p className="truncate text-[0.6rem] text-muted-foreground">{section.programCode}</p>
+)}
+</div>
+</div>
+<div className="flex items-center gap-1.5 pl-5">
+{badgeLabel && (
+<Tooltip>
+<TooltipTrigger asChild>
+<Badge
+variant="outline"
+className={`text-[0.5625rem] ${
+isPendingOther
+? 'border-red-200 text-red-700'
+: isSavedOther
+? 'border-amber-200 text-amber-700'
+: isPendingCurrent
+? 'border-sky-200 text-sky-700'
+: 'border-emerald-200 text-emerald-700'
+}`}
+>
+{badgeLabel}
+</Badge>
+</TooltipTrigger>
+<TooltipContent side="top" className="max-w-xs text-xs">
+{isPendingOther && <p>{pendingOwner?.facultyName} has this subject-section pair in an unsaved session draft.</p>}
+{isSavedOther && <p>{savedOwner?.facultyName} already owns this subject-section pair in saved data.</p>}
+{isPendingCurrent && <p>This selection is pending in the current session and has not been saved yet.</p>}
+{isSavedCurrent && !isPendingCurrent && <p>This subject-section pair is already saved for the selected teacher.</p>}
+</TooltipContent>
+</Tooltip>
+)}
+</div>
+</div>
+);
+})}
+</div>
+)}
+</div>
+);
+})}
+</div>
+)}
+</div>
 );
 }

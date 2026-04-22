@@ -390,6 +390,9 @@ export interface RunSummary {
 	unassignedCount: number;
 	policyBlockedCount: number;
 	hardViolationCount: number;
+	prePlacedCount?: number;
+	invalidPrePlacedCount?: number;
+	skippedPrePlacedReasons?: string[];
 	violationCounts?: Record<string, number>;
 	lockWarnings?: string[];
 	cohortCount?: number;
@@ -574,6 +577,7 @@ export interface LockedSession {
 	id: number;
 	schoolId: number;
 	schoolYearId: number;
+	entryKind?: 'SECTION' | 'COHORT';
 	sectionId: number;
 	subjectId: number;
 	facultyId: number | null;
@@ -581,11 +585,18 @@ export interface LockedSession {
 	day: string;
 	startTime: string;
 	endTime: string;
+	cohortCode?: string | null;
+	status?: 'DRAFT' | 'LOCKED_FOR_RUN' | 'ARCHIVED';
+	lockedRunId?: number | null;
+	notes?: string | null;
+	version?: number;
 	createdBy: number;
 	createdAt: string;
+	updatedAt?: string;
 }
 
 export interface LockedSessionInput {
+	entryKind?: 'SECTION' | 'COHORT';
 	sectionId: number;
 	subjectId: number;
 	facultyId: number;
@@ -593,6 +604,66 @@ export interface LockedSessionInput {
 	day: string;
 	startTime: string;
 	endTime: string;
+	cohortCode?: string | null;
+	notes?: string | null;
+	expectedVersion?: number;
+}
+
+export interface DraftPlacement extends LockedSession {
+	entryKind: 'SECTION' | 'COHORT';
+	status: 'DRAFT' | 'LOCKED_FOR_RUN' | 'ARCHIVED';
+	lockedRunId: number | null;
+	notes: string | null;
+	version: number;
+	updatedAt: string;
+}
+
+export interface DraftQueueItem {
+	assignmentKey: string;
+	entryKind: 'SECTION' | 'COHORT';
+	sectionId: number;
+	sectionName: string;
+	gradeLevel: number;
+	subjectId: number;
+	subjectCode: string;
+	subjectName: string;
+	sessionNumber: number;
+	sessionsPerWeek: number;
+	preferredRoomType: RoomType;
+	cohortCode: string | null;
+	cohortName: string | null;
+	programCode: string | null;
+	programName: string | null;
+	expectedEnrollment: number | null;
+	facultyOptions: number[];
+}
+
+export interface PeriodSlot {
+	startTime: string;
+	endTime: string;
+}
+
+export interface DraftBoardState {
+	placements: DraftPlacement[];
+	queue: DraftQueueItem[];
+	periodSlots: PeriodSlot[];
+	counts: {
+		draft: number;
+		lockedForRun: number;
+		archived: number;
+		unscheduled: number;
+	};
+	filters: {
+		grades: number[];
+		departments: string[];
+		buildings: Array<{ id: number; name: string; shortCode: string | null }>;
+	};
+}
+
+export interface DraftPlacementCommitResult {
+	placement: DraftPlacement;
+	preview: PreviewResult;
+	board: DraftBoardState;
 }
 
 /* ─── Grade Shift Window types ─── */

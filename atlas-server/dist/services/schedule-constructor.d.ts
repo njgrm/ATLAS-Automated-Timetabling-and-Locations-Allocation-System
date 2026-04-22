@@ -111,6 +111,8 @@ export interface LockedEntryInput {
     subjectId: number;
     facultyId?: number | null;
     roomId?: number | null;
+    entryKind?: 'SECTION' | 'COHORT';
+    cohortCode?: string | null;
     day: string;
     startTime: string;
     endTime: string;
@@ -146,4 +148,27 @@ export interface ConstructorResult {
     classesProcessed: number;
     policyBlockedCount: number;
 }
+export interface DemandItem {
+    sectionId: number;
+    subjectId: number;
+    subjectCode: string;
+    gradeLevel: number;
+    sessionsPerWeek: number;
+    durationPerSession: number;
+    enrolledCount: number;
+    sessionPattern: 'MWF' | 'TTH' | 'ANY';
+    entryKind: 'SECTION' | 'COHORT';
+    programType?: string | null;
+    programCode?: string | null;
+    programName?: string | null;
+    cohortCode?: string | null;
+    cohortName?: string | null;
+    cohortMemberSectionIds?: number[];
+    roomTypePreference?: RoomType;
+    adviserId?: number | null;
+    adviserName?: string | null;
+}
+export declare function computeDemand(sectionsByGrade: SectionsByGrade[], subjects: SubjectInput[], cohorts?: InstructionalCohortInput[]): DemandItem[];
+export declare function getDemandSectionIds(item: DemandItem): number[];
+export declare function getDemandAssignmentKey(item: DemandItem): string;
 export declare function constructBaseline(input: ConstructorInput): ConstructorResult;

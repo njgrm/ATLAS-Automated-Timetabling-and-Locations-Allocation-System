@@ -16,7 +16,7 @@ import {
 	UserCog,
 	Users,
 } from 'lucide-react';
-import React, { useEffect, useLayoutEffect, useState, Suspense } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, Suspense } from 'react';
 import { Link, Outlet, useLocation, useOutlet } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 
@@ -438,6 +438,9 @@ export function AppShell() {
 	const location = useLocation();
 	const outlet = useOutlet();
 	const { fontSize, setFontSize } = useAccessibility();
+	const isTimetableRoute = location.pathname.startsWith('/timetable');
+	const [sidebarOpen, setSidebarOpen] = useState(() => !window.location.pathname.startsWith('/timetable'));
+	const previousPathnameRef = useRef(location.pathname);
 	const [schoolName, setSchoolName] = useState('');
 	const [logoUrl, setLogoUrl] = useState<string | null>(null);
 	const [activeYearLabel, setActiveYearLabel] = useState<string | null>(null);
@@ -450,6 +453,14 @@ export function AppShell() {
 	useLayoutEffect(() => {
 		captureBridgeToken();
 	}, []);
+
+	useLayoutEffect(() => {
+		const wasTimetableRoute = previousPathnameRef.current.startsWith('/timetable');
+		if (isTimetableRoute && !wasTimetableRoute) {
+			setSidebarOpen(false);
+		}
+		previousPathnameRef.current = location.pathname;
+	}, [isTimetableRoute, location.pathname]);
 
 	/* Fetch EnrollPro settings + apply dynamic accent theming */
 	useEffect(() => {
@@ -538,7 +549,7 @@ export function AppShell() {
 	})();
 
 	return (
-		<SidebarProvider>
+		<SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
 			<AppSidebar
 				schoolName={schoolName}
 				logoUrl={logoUrl}
@@ -653,7 +664,7 @@ export function AppShell() {
 						transition={{ duration: 0.15, ease: 'linear' }}
 						className='flex-1 min-h-0 overflow-hidden'
 					>
-						<Suspense fallback={<div className="p-6"><Skeleton className="h-[400px] w-full rounded-lg" /></div>}>
+						<Suspense fallback={<div className="p-6"><Skeleton className="h-100 w-full rounded-lg" /></div>}>
 							{outlet && React.cloneElement(outlet as React.ReactElement, { key: location.pathname })}
 						</Suspense>
 					</motion.div>

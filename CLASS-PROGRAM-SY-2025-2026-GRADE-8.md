@@ -63,7 +63,7 @@
 | |Recommending  Approval:| | |Approved:| | |
 | | | | | | | |
 | |JULITO L. FELICANO, CESE| | |GLADY AMYLAINE D. SALES, CESO V| | |
-| |Asst. Schools Division Superintendent| | |Schools Division Superintendent| | |
+| |Asst. Schools Division Sup   erintendent| | |Schools Division Superintendent| | |
 | | | | | | |![][picture_0_1.png]| | | |![][picture_0_2.png]| | |
 | | | | | | | |
 | | | | | | | |

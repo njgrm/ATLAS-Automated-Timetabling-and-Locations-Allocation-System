@@ -10,6 +10,9 @@ export interface RunSummary {
     unassignedCount: number;
     policyBlockedCount: number;
     hardViolationCount: number;
+    prePlacedCount?: number;
+    invalidPrePlacedCount?: number;
+    skippedPrePlacedReasons?: string[];
     violationCounts?: Record<string, number>;
     lockWarnings?: string[];
     cohortCount?: number;
@@ -153,3 +156,7 @@ export interface DraftReport {
 }
 export declare function getRunDraft(runId: number, schoolId: number, schoolYearId: number): Promise<DraftReport>;
 export declare function getLatestRunDraft(schoolId: number, schoolYearId: number): Promise<DraftReport>;
+export declare function invalidateStaleCompletedRuns(schoolId: number, schoolYearId: number): Promise<{
+    invalidatedCount: number;
+    staleRunIds: number[];
+}>;

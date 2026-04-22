@@ -19,6 +19,7 @@ import { prisma } from '../lib/prisma.js';
 import { generateBuildingShortCode } from '../lib/building-short-code.js';
 import type { ExternalFaculty } from '../services/faculty-adapter.js';
 import { syncCohorts } from '../services/cohort.service.js';
+import { invalidateStaleCompletedRuns } from '../services/generation.service.js';
 import { seedTeachingLoadBaseline } from '../services/seeded-teaching-load.service.js';
 import { syncFacultyFromExternal } from '../services/faculty.service.js';
 import { getSectionSummary } from '../services/section.service.js';
@@ -848,6 +849,15 @@ async function main() {
 		});
 	} else {
 		console.log('[seed-realistic] Assignment seeding skipped. Existing faculty subject assignments were preserved.');
+	}
+
+	if (options.reset) {
+		const invalidation = await invalidateStaleCompletedRuns(options.schoolId, options.schoolYearId);
+		if (invalidation.invalidatedCount > 0) {
+			console.log(`[seed-realistic] Invalidated ${invalidation.invalidatedCount} stale completed run(s): ${invalidation.staleRunIds.join(', ')}`);
+		} else {
+			console.log('[seed-realistic] No stale completed generation runs required invalidation after reset.');
+		}
 	}
 
 	let mapSummary: MapSeedSummary | undefined;

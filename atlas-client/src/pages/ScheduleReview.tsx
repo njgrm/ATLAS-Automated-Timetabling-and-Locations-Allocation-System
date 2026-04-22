@@ -4,9 +4,11 @@ import {
 	AlertCircle,
 	AlertTriangle,
 	CalendarClock,
+	CheckCircle2,
 	Check,
 	ChevronDown,
 	ChevronRight,
+	ClipboardList,
 	Clock,
 	DoorOpen,
 	Filter,
@@ -48,7 +50,7 @@ import {
 	type EntryKindFilter,
 	type ProgramFilter,
 } from '@/lib/schedule-review-helpers';
-import { formatTime } from '@/lib/utils';
+import { cn, formatTime } from '@/lib/utils';
 import type {
 	Building,
 	CommitResult,
@@ -61,6 +63,10 @@ import type {
 	ManualEditRecord,
 	PreviewResult,
 	Room,
+	RoomPreferenceDecisionStatus,
+	RoomPreferencePreviewResponse,
+	RoomPreferenceStatus,
+	RoomPreferenceSummaryResponse,
 	RunSummary,
 	ScheduledEntry,
 	SectionSummaryResponse,
@@ -89,8 +95,10 @@ import { Input } from '@/ui/input';
 import { ScrollArea } from '@/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { SearchableSelect } from '@/ui/searchable-select';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet';
 import { Skeleton } from '@/ui/skeleton';
 import { Separator } from '@/ui/separator';
+import { Textarea } from '@/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/ui/resizable';
 
@@ -337,7 +345,21 @@ export default function ScheduleReview() {
 	const [viewMode, setViewMode] = useState<ViewMode>('section');
 	const [programFilter, setProgramFilter] = useState<ProgramFilter>('all');
 	const [entryKindFilter, setEntryKindFilter] = useState<EntryKindFilter>('all');
-	const [leftTab, setLeftTab] = useState<'violations' | 'unassigned' | 'locks'>('violations');
+	const [leftTab, setLeftTab] = useState<'violations' | 'unassigned' | 'locks' | 'requests'>('violations');
+	const [draftBoardSummary, setDraftBoardSummary] = useState<DraftBoardState['counts'] | null>(null);
+
+	const [requestStatusFilter, setRequestStatusFilter] = useState<'ALL' | RoomPreferenceStatus>('SUBMITTED');
+	const [requestDecisionFilter, setRequestDecisionFilter] = useState<'ALL' | RoomPreferenceDecisionStatus>('PENDING');
+	const [requestSearch, setRequestSearch] = useState('');
+	const [roomRequestSummary, setRoomRequestSummary] = useState<RoomPreferenceSummaryResponse | null>(null);
+	const [roomRequestLoading, setRoomRequestLoading] = useState(false);
+	const [roomRequestError, setRoomRequestError] = useState<string | null>(null);
+	const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
+	const [requestPreview, setRequestPreview] = useState<RoomPreferencePreviewResponse | null>(null);
+	const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
+	const [requestReviewSaving, setRequestReviewSaving] = useState(false);
+	const [requestReviewerNotes, setRequestReviewerNotes] = useState('');
+	const [newDraftLoading, setNewDraftLoading] = useState(false);
 
 	/* ── Generate / Publish workflow state ── */
 	const [generating, setGenerating] = useState(false);
@@ -359,7 +381,7 @@ export default function ScheduleReview() {
 
 	/* ── Layout state ── */
 	const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
-	const [isRightCollapsed, setIsRightCollapsed] = useState(false);
+	const [isRightCollapsed, setIsRightCollapsed] = useState(true);
 	const [centerView, setCenterView] = useState<'grid' | 'policy' | 'manual-edit'>('grid');
 	// Panel refs for imperative collapse/expand
 	const leftPanelRef = useRef<ImperativePanelHandle>(null);
@@ -400,6 +422,10 @@ export default function ScheduleReview() {
 	const [expandedUnassigned, setExpandedUnassigned] = useState<Set<string>>(new Set());
 	const [unassignedFixSuggestions, setUnassignedFixSuggestions] = useState<Record<string, UnassignedExplanation | null>>({});
 	const [unassignedReasonFilter, setUnassignedReasonFilter] = useState<UnassignedReason | 'all'>('all');
+
+	useEffect(() => {
+		rightPanelRef.current?.collapse();
+	}, []);
 
 	const enterPolicyView = useCallback(() => {
 		panelSnapshot.current = { left: isLeftCollapsed, right: isRightCollapsed };
@@ -574,9 +600,29 @@ export default function ScheduleReview() {
 
 	/** Simplified room lookup for LockPanel */
 	const lockPanelRooms = useMemo(() => {
-		const m = new Map<number, { id: number; name: string; buildingName: string }>();
+		const m = new Map<number, {
+			id: number;
+			name: string;
+			buildingId: number;
+			buildingName: string;
+			buildingShortCode: string | null;
+			floor: number;
+			type: string;
+			capacity?: number | null;
+			isTeachingSpace: boolean;
+		}>();
 		for (const [id, r] of roomMap) {
-			m.set(id, { id, name: r.name, buildingName: r.buildingName });
+			m.set(id, {
+				id,
+				name: r.name,
+				buildingId: r.buildingId,
+				buildingName: r.buildingName,
+				buildingShortCode: r.buildingShortCode,
+				floor: r.floor,
+				type: r.type,
+				capacity: r.capacity,
+				isTeachingSpace: r.isTeachingSpace,
+			});
 		}
 		return m;
 	}, [roomMap]);
@@ -604,6 +650,13 @@ export default function ScheduleReview() {
 	);
 
 	const summary: RunSummary | null = draft?.summary ?? null;
+	const isPreGenerationWorkspace = runs.length === 0 || leftTab === 'locks';
+	const activeGeneratedRunId = useMemo(() => {
+		if (selectedRunId === 'latest') return runs[0]?.id ?? draft?.runId ?? null;
+		const parsed = Number(selectedRunId);
+		if (Number.isFinite(parsed)) return parsed;
+		return draft?.runId ?? null;
+	}, [selectedRunId, runs, draft?.runId]);
 
 	/** Auto-select first pivot entity when entities change */
 	useEffect(() => {
@@ -664,6 +717,43 @@ export default function ScheduleReview() {
 		[],
 	);
 
+	const fetchDraftBoardSummary = useCallback(async (syId: number) => {
+		try {
+			const { data } = await atlasApi.get<DraftBoardState>(`/generation/${DEFAULT_SCHOOL_ID}/${syId}/pre-generation-drafts`);
+			setDraftBoardSummary(data.counts);
+			return data.counts;
+		} catch {
+			setDraftBoardSummary(null);
+			return null;
+		}
+	}, []);
+
+	const loadRoomRequestSummary = useCallback(
+		async (syId: number, statusFilter: 'ALL' | RoomPreferenceStatus, decisionFilter: 'ALL' | RoomPreferenceDecisionStatus) => {
+			setRoomRequestLoading(true);
+			try {
+				const params: Record<string, string> = {};
+				if (statusFilter !== 'ALL') params.status = statusFilter;
+				if (decisionFilter !== 'ALL') params.decisionStatus = decisionFilter;
+				const { data } = await atlasApi.get<RoomPreferenceSummaryResponse>(
+					`/room-preferences/${DEFAULT_SCHOOL_ID}/${syId}/latest/summary`,
+					{ params },
+				);
+				setRoomRequestSummary(data);
+				setRoomRequestError(null);
+			} catch (err) {
+				const responseData = (err as { response?: { data?: { code?: string; message?: string; actionHint?: string } } })?.response?.data;
+				const staleMessage = responseData?.code === 'STALE_RUN_DATA'
+					? [responseData.message, responseData.actionHint].filter(Boolean).join(' ')
+					: null;
+				setRoomRequestError(staleMessage ?? responseData?.message ?? 'Failed to load room requests.');
+			} finally {
+				setRoomRequestLoading(false);
+			}
+		},
+		[],
+	);
+
 	const fetchReferenceData = useCallback(async (syId: number) => {
 		const [subjectsRes, facultyRes, buildingsRes, sectionsRes] = await Promise.all([
 			atlasApi.get<{ subjects: Subject[] }>(`/subjects?schoolId=${DEFAULT_SCHOOL_ID}`),
@@ -708,11 +798,17 @@ export default function ScheduleReview() {
 					return;
 				}
 
-				const [fetchedRuns] = await Promise.all([fetchRuns(syId), fetchReferenceData(syId)]);
+				const [fetchedRuns] = await Promise.all([
+					fetchRuns(syId),
+					fetchReferenceData(syId),
+					fetchDraftBoardSummary(syId),
+					loadRoomRequestSummary(syId, requestStatusFilter, requestDecisionFilter),
+				]);
 
 				if (fetchedRuns.length === 0) {
 					setDraft(null);
 					setViolationReport(null);
+					setSelectedRunId('latest');
 					setLoading(false);
 					return;
 				}
@@ -727,13 +823,35 @@ export default function ScheduleReview() {
 				setLoading(false);
 			}
 		},
-		[schoolYearId, selectedRunId, fetchSchoolYear, fetchRuns, fetchRunData, fetchReferenceData],
+		[
+			schoolYearId,
+			selectedRunId,
+			fetchSchoolYear,
+			fetchRuns,
+			fetchRunData,
+			fetchReferenceData,
+			fetchDraftBoardSummary,
+			loadRoomRequestSummary,
+			requestDecisionFilter,
+			requestStatusFilter,
+		],
 	);
 
 	useEffect(() => {
 		loadAll();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
+
+	useEffect(() => {
+		if (!schoolYearId) return;
+		void loadRoomRequestSummary(schoolYearId, requestStatusFilter, requestDecisionFilter);
+	}, [schoolYearId, loadRoomRequestSummary, requestStatusFilter, requestDecisionFilter]);
+
+	useEffect(() => {
+		if (runs.length === 0) {
+			setLeftTab('locks');
+		}
+	}, [runs.length]);
 
 	const handleRunChange = useCallback(
 		async (runId: string) => {
@@ -758,6 +876,100 @@ export default function ScheduleReview() {
 	const handleRefresh = useCallback(() => {
 		loadAll(true);
 	}, [loadAll]);
+
+	const filteredRoomRequests = useMemo(() => {
+		const requests = roomRequestSummary?.requests ?? [];
+		if (!requestSearch.trim()) return requests;
+		const query = requestSearch.toLowerCase();
+		return requests.filter((request) =>
+			`${request.facultyName} ${request.subjectCode} ${request.sectionName} ${request.requestedRoomName}`
+				.toLowerCase()
+				.includes(query),
+		);
+	}, [requestSearch, roomRequestSummary?.requests]);
+
+	const focusRequestInGrid = useCallback((requestId: number) => {
+		const request = (roomRequestSummary?.requests ?? []).find((item) => item.id === requestId);
+		if (!request) return;
+		setViewMode('room');
+		setEntityFilter(String(request.requestedRoomId));
+		const matchedEntry = draft?.entries.find((entry) => entry.entryId === request.entryId) ?? null;
+		if (matchedEntry) {
+			setSelectedEntry(matchedEntry);
+		}
+		if (centerView !== 'grid') setCenterView('grid');
+	}, [roomRequestSummary?.requests, draft?.entries, centerView]);
+
+	const openRequestPreview = useCallback(
+		async (requestId: number) => {
+			if (!schoolYearId) return;
+			const request = (roomRequestSummary?.requests ?? []).find((item) => item.id === requestId);
+			if (!request) return;
+			setSelectedRequestId(request.id);
+			setRequestPreviewLoading(true);
+			try {
+				const { data } = await atlasApi.post<RoomPreferencePreviewResponse>(
+					`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${request.runId}/requests/${request.id}/preview`,
+				);
+				setRequestPreview(data);
+				setRequestReviewerNotes(data.request.reviewerNotes ?? '');
+				focusRequestInGrid(request.id);
+			} catch (err) {
+				const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+				toast.error(message ?? 'Failed to load room request preview.');
+				setSelectedRequestId(null);
+				setRequestPreview(null);
+			} finally {
+				setRequestPreviewLoading(false);
+			}
+		},
+		[schoolYearId, roomRequestSummary?.requests, focusRequestInGrid],
+	);
+
+	const reviewRoomRequest = useCallback(
+		async (decisionStatus: 'APPROVED' | 'REJECTED') => {
+			if (!schoolYearId || !roomRequestSummary || !requestPreview) return;
+			if (decisionStatus === 'APPROVED' && !requestPreview.preview.allowed) {
+				toast.error('Preview blocked this room request. Reject it or resolve the listed hard conflicts first.');
+				return;
+			}
+			setRequestReviewSaving(true);
+			try {
+				await atlasApi.patch(
+					`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${requestPreview.request.runId}/requests/${requestPreview.request.id}/review`,
+					{
+						decisionStatus,
+						reviewerNotes: requestReviewerNotes || null,
+						expectedRunVersion: roomRequestSummary.runVersion,
+						requestVersion: requestPreview.request.version,
+						allowSoftOverride: decisionStatus === 'APPROVED' && requestPreview.preview.softViolations.length > 0,
+					},
+				);
+				toast.success(decisionStatus === 'APPROVED' ? 'Room request approved.' : 'Room request rejected.');
+				await loadRoomRequestSummary(schoolYearId, requestStatusFilter, requestDecisionFilter);
+				setRequestPreview(null);
+				setSelectedRequestId(null);
+			} catch (err) {
+				const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+				toast.error(message ?? 'Failed to review room request.');
+			} finally {
+				setRequestReviewSaving(false);
+			}
+		},
+		[
+			schoolYearId,
+			roomRequestSummary,
+			requestPreview,
+			requestReviewerNotes,
+			loadRoomRequestSummary,
+			requestStatusFilter,
+			requestDecisionFilter,
+		],
+	);
+
+	const requestPreviewConflicts = requestPreview?.preview.humanConflicts ?? [];
+	const requestPreviewHardConflicts = requestPreviewConflicts.filter((conflict) => conflict.severity === 'HARD');
+	const requestPreviewSoftWarnings = requestPreviewConflicts.filter((conflict) => conflict.severity === 'SOFT');
 
 	const handleViolationSelect = useCallback(
 		(v: Violation) => {
@@ -832,18 +1044,39 @@ export default function ScheduleReview() {
 		}
 	}, [schoolYearId, loadAll]);
 
-	const handleTriggerGenerate = useCallback(() => {
-		if (followUps.size > 0) {
-			setShowGenerateConfirm(true);
-		} else {
-			triggerGeneration();
+	const handleTriggerGenerate = useCallback(async () => {
+		if (!schoolYearId) return;
+		if (!draftBoardSummary) {
+			await fetchDraftBoardSummary(schoolYearId);
 		}
-	}, [followUps, triggerGeneration]);
+		setShowGenerateConfirm(true);
+	}, [schoolYearId, draftBoardSummary, fetchDraftBoardSummary]);
 
 	const confirmGenerate = useCallback(() => {
 		setShowGenerateConfirm(false);
 		triggerGeneration();
 	}, [triggerGeneration]);
+
+	const handleStartNewPreGenerationDraft = useCallback(async () => {
+		if (!schoolYearId) return;
+		setNewDraftLoading(true);
+		try {
+			const { data } = await atlasApi.post<DraftBoardState>(
+				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/clear`,
+			);
+			setDraftBoardSummary(data.counts);
+			setLeftTab('locks');
+			setCenterView('grid');
+			setSelectedViolation(null);
+			setSelectedEntry(null);
+			toast.success('Pre-generation draft workspace is ready.');
+		} catch (err) {
+			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+			toast.error(message ?? 'Failed to start a new pre-generation draft.');
+		} finally {
+			setNewDraftLoading(false);
+		}
+	}, [schoolYearId]);
 
 	/* ── Publish handler (placeholder — Phase 5 scope) ── */
 
@@ -1319,41 +1552,6 @@ export default function ScheduleReview() {
 		);
 	}
 
-	// No runs state
-	if (runs.length === 0) {
-		return (
-			<div className="flex flex-col h-[calc(100svh-3.5rem)] items-center justify-center gap-3">
-				<div className="flex size-14 items-center justify-center rounded-full bg-muted">
-					<CalendarClock className="size-7 text-muted-foreground/50" />
-				</div>
-				<h2 className="text-lg font-bold text-foreground">No Generation Runs</h2>
-				<p className="text-sm text-muted-foreground max-w-xs text-center">
-					No schedule generation runs have been performed yet. Generate your first
-					schedule or refresh to check for new runs.
-				</p>
-				<div className="flex items-center gap-2">
-					<Button
-						variant="default"
-						size="sm"
-						disabled={generating || !schoolYearId}
-						onClick={triggerGeneration}
-					>
-						{generating ? (
-							<Loader2 className="size-3.5 mr-1.5 animate-spin" />
-						) : (
-							<Play className="size-3.5 mr-1.5" />
-						)}
-						{generating ? 'Generating…' : 'Generate Schedule'}
-					</Button>
-					<Button variant="outline" size="sm" onClick={() => loadAll()}>
-						<RefreshCw className="size-3.5 mr-1.5" />
-						Refresh
-					</Button>
-				</div>
-			</div>
-		);
-	}
-
 	const hardCount = violations.filter((v) => v.severity === 'HARD').length;
 	const softCount = violations.filter((v) => v.severity === 'SOFT').length;
 	const contractWarnings = Array.from(new Set([
@@ -1367,14 +1565,21 @@ export default function ScheduleReview() {
 			<div className="shrink-0 border-b border-border bg-background">
 				{/* Row 1: Run Management */}
 				<div className="flex items-center gap-2 px-4 pt-3 pb-1.5 flex-wrap">
+					<Badge
+						variant={isPreGenerationWorkspace ? 'secondary' : 'default'}
+						className={cn('h-7 px-2.5 text-[10px] font-semibold tracking-[0.06em] uppercase', isPreGenerationWorkspace ? 'border border-border bg-muted text-muted-foreground' : 'bg-primary text-primary-foreground')}
+					>
+						{isPreGenerationWorkspace ? 'Pre-Generation Draft' : `Generated Run #${activeGeneratedRunId ?? '-'}`}
+					</Badge>
+
 					{/* Run selector */}
 					<div data-tutorial="run-selector">
-					<Select value={selectedRunId} onValueChange={handleRunChange}>
+					<Select value={selectedRunId} onValueChange={handleRunChange} disabled={runs.length === 0}>
 						<SelectTrigger className="h-8 w-44 text-xs">
-							<SelectValue placeholder="Select run" />
+							<SelectValue placeholder={runs.length === 0 ? 'No generated run yet' : 'Select run'} />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value="latest">Latest Run</SelectItem>
+							<SelectItem value="latest" disabled={runs.length === 0}>Latest Run</SelectItem>
 							{runs.map((r) => (
 								<SelectItem key={r.id} value={String(r.id)}>
 									Run #{r.id} — {formatTimestamp(r.createdAt)}
@@ -1383,6 +1588,17 @@ export default function ScheduleReview() {
 						</SelectContent>
 					</Select>
 					</div>
+
+					<Button
+						variant="outline"
+						size="sm"
+						className="h-8 gap-1.5"
+						disabled={newDraftLoading || !schoolYearId}
+						onClick={handleStartNewPreGenerationDraft}
+					>
+						{newDraftLoading ? <Loader2 className="size-3.5 animate-spin" /> : <CalendarClock className="size-3.5" />}
+						New Pre-Generation Draft
+					</Button>
 
 					{/* Generate new run */}
 					<TooltipProvider>
@@ -1728,6 +1944,17 @@ export default function ScheduleReview() {
 									</TooltipTrigger>
 									<TooltipContent side="right">Pinned Sessions</TooltipContent>
 								</Tooltip>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<button type="button" className="relative flex items-center justify-center h-8 w-8 rounded hover:bg-muted transition-colors" onClick={() => { leftPanelRef.current?.expand(); setLeftTab('requests'); }}>
+											<ClipboardList className="size-4 text-muted-foreground" />
+											{(roomRequestSummary?.counts.pending ?? 0) > 0 && (
+												<span className="absolute -top-1 -right-1 text-[0.5rem] font-bold leading-none bg-blue-600 text-white rounded-full px-1">{roomRequestSummary?.counts.pending}</span>
+											)}
+										</button>
+									</TooltipTrigger>
+									<TooltipContent side="right">Room Requests</TooltipContent>
+								</Tooltip>
 							</TooltipProvider>
 						</div>
 					) : (
@@ -1783,6 +2010,25 @@ export default function ScheduleReview() {
 						>
 							<Lock className="inline size-3 mr-0.5 -mt-px" />
 							Pins
+						</button>
+						<button
+							id="tab-requests"
+							type="button"
+							role="tab"
+							aria-selected={leftTab === 'requests'}
+							aria-controls="panel-requests"
+							onClick={() => setLeftTab('requests')}
+							className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+								leftTab === 'requests'
+									? 'text-foreground border-b-2 border-primary'
+									: 'text-muted-foreground hover:text-foreground'
+							}`}
+						>
+							<ClipboardList className="inline size-3 mr-0.5 -mt-px" />
+							Requests
+							{(roomRequestSummary?.counts.pending ?? 0) > 0 && (
+								<span className="ml-1 text-[0.625rem] text-blue-700 font-semibold">{roomRequestSummary?.counts.pending}</span>
+							)}
 						</button>
 						<Button
 							variant="ghost"
@@ -2219,7 +2465,7 @@ export default function ScheduleReview() {
 								)}
 							</div>
 						</ScrollArea>
-						) : (
+						) : leftTab === 'locks' ? (
 						<div id="panel-locks" role="tabpanel" aria-labelledby="tab-locks" className="flex flex-col flex-1 min-h-0">
 							<LockPanel
 								schoolId={DEFAULT_SCHOOL_ID}
@@ -2228,8 +2474,104 @@ export default function ScheduleReview() {
 								subjects={subjectMap}
 								faculty={facultyMap}
 								rooms={lockPanelRooms}
+								onBoardChange={(board) => setDraftBoardSummary(board.counts)}
 							/>
 						</div>
+						) : (
+						<ScrollArea id="panel-requests" role="tabpanel" aria-labelledby="tab-requests" className="flex-1 min-h-0">
+							<div className="px-3 py-3 space-y-3">
+								<div className="flex items-center justify-between gap-2 rounded border border-border bg-muted/30 px-2.5 py-1.5 text-[0.6875rem]">
+									<div className="flex items-center gap-1.5">
+										<span className="text-muted-foreground">Pending</span>
+										<span className="font-semibold text-blue-700">{roomRequestSummary?.counts.pending ?? 0}</span>
+									</div>
+									<div className="flex items-center gap-1.5">
+										<span className="text-muted-foreground">Requests</span>
+										<span className="font-semibold">{roomRequestSummary?.requests.length ?? 0}</span>
+									</div>
+								</div>
+
+								<div className="grid grid-cols-1 gap-2">
+									<Input
+										placeholder="Search faculty, subject, section, room"
+										value={requestSearch}
+										onChange={(event) => setRequestSearch(event.target.value)}
+										className="h-8 text-xs"
+									/>
+									<div className="grid grid-cols-2 gap-2">
+										<Select value={requestStatusFilter} onValueChange={(value) => setRequestStatusFilter(value as 'ALL' | RoomPreferenceStatus)}>
+											<SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+											<SelectContent>
+												<SelectItem value="ALL">All statuses</SelectItem>
+												<SelectItem value="SUBMITTED">Submitted</SelectItem>
+												<SelectItem value="DRAFT">Draft</SelectItem>
+											</SelectContent>
+										</Select>
+										<Select value={requestDecisionFilter} onValueChange={(value) => setRequestDecisionFilter(value as 'ALL' | RoomPreferenceDecisionStatus)}>
+											<SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Decision" /></SelectTrigger>
+											<SelectContent>
+												<SelectItem value="ALL">All decisions</SelectItem>
+												<SelectItem value="PENDING">Pending</SelectItem>
+												<SelectItem value="APPROVED">Approved</SelectItem>
+												<SelectItem value="REJECTED">Rejected</SelectItem>
+											</SelectContent>
+										</Select>
+									</div>
+								</div>
+
+								{roomRequestError ? (
+									<div className="rounded border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-[0.6875rem] text-destructive">
+										{roomRequestError}
+									</div>
+								) : null}
+
+								{roomRequestLoading && !roomRequestSummary ? (
+									<div className="space-y-2">
+										{Array.from({ length: 3 }).map((_, index) => (
+											<Skeleton key={index} className="h-20 w-full rounded-lg" />
+										))}
+									</div>
+								) : filteredRoomRequests.length === 0 ? (
+									<div className="rounded border border-dashed border-border py-6 text-center text-xs text-muted-foreground">
+										No room requests match the current filters.
+									</div>
+								) : (
+									<div className="space-y-2">
+										{filteredRoomRequests.map((request) => (
+											<div
+												key={request.id}
+												className={cn(
+													'rounded border px-2.5 py-2 text-xs transition-colors',
+													selectedRequestId === request.id ? 'border-primary bg-primary/5' : 'border-border bg-card',
+												)}
+											>
+												<div className="flex items-start justify-between gap-2">
+													<div className="min-w-0">
+														<p className="font-semibold truncate">{request.facultyName}</p>
+														<p className="text-[0.625rem] text-muted-foreground truncate">{request.subjectCode} · {request.sectionName}</p>
+														<p className="text-[0.625rem] text-muted-foreground truncate">{request.day} {request.startTime}-{request.endTime} · {request.requestedRoomName}</p>
+													</div>
+													<div className="flex flex-col items-end gap-1">
+														<Badge variant="outline" className="h-4 px-1 text-[0.5625rem] uppercase">{request.decisionStatus}</Badge>
+														<Button variant="ghost" size="sm" className="h-6 px-1.5 text-[0.625rem]" onClick={() => focusRequestInGrid(request.id)}>
+															Focus
+														</Button>
+													</div>
+												</div>
+												<Button
+													variant="outline"
+													size="sm"
+													className="mt-2 h-7 w-full text-[0.6875rem]"
+													onClick={() => void openRequestPreview(request.id)}
+												>
+													Review request
+												</Button>
+											</div>
+										))}
+									</div>
+								)}
+							</div>
+						</ScrollArea>
 						)}
 						</>
 					)}
@@ -2298,8 +2640,8 @@ export default function ScheduleReview() {
 								transition={{ duration: 0.18 }}
 								className="flex-1 min-w-0 flex flex-col min-h-0"
 							>
-								{draft && draft.entries.length > 0 ? (
-									<ScrollArea className="flex-1 min-h-0">
+								<ScrollArea className="flex-1 min-h-0">
+									{draft && draft.entries.length > 0 ? (
 										<div className="p-4">
 											<TimetableGrid
 												entries={gridEntries}
@@ -2311,7 +2653,8 @@ export default function ScheduleReview() {
 												onEntryClick={handleEntryClick}
 												subjectLabel={subjectLabel}
 												sectionLabel={sectionLabel}
-													entryContextLabel={entryContextLabel}
+												gradeForSection={gradeForSection}
+												entryContextLabel={entryContextLabel}
 												viewMode={viewMode}
 												pivotLabel={pivotLabel}
 												roomLabelShort={roomLabelShort}
@@ -2322,17 +2665,55 @@ export default function ScheduleReview() {
 												onKbPlace={handleKbPlace}
 											/>
 										</div>
-									</ScrollArea>
-								) : (
-									<div className="flex-1 flex items-center justify-center">
-										<div className="text-center space-y-2">
-											<CalendarClock className="mx-auto size-10 text-muted-foreground/30" />
-											<p className="text-sm text-muted-foreground">
-												{draft ? 'No draft entries in this run' : 'Select a run to view the timetable'}
-											</p>
+									) : (
+										<div className="flex min-h-56 items-center justify-center p-4">
+											<div className="text-center space-y-2">
+												<CalendarClock className="mx-auto size-10 text-muted-foreground/30" />
+												<p className="text-sm text-muted-foreground">
+													{runs.length === 0
+														? 'Start with Pre-Generation Draft on the left, then Generate when ready.'
+														: 'No draft entries in this run'}
+												</p>
+											</div>
 										</div>
+									)}
+								</ScrollArea>
+								<div className="shrink-0 border-t border-border bg-muted/20 px-3 py-2">
+									<div className="flex flex-wrap items-center gap-2 text-[0.6875rem]">
+										<span className="font-semibold text-foreground">Conflict Inspector</span>
+										<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] border-red-200 bg-red-50 text-red-700">
+											Hard {hardCount}
+										</Badge>
+										<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] border-amber-200 bg-amber-50 text-amber-700">
+											Soft {softCount}
+										</Badge>
+										<span className="text-muted-foreground">
+											{selectedEntry
+												? `Selected entry: ${Math.max(violationIndex.get(selectedEntry.entryId)?.length ?? 0, 0)} linked issue(s)`
+												: `${filteredViolations.length} filtered issue(s)`}
+										</span>
 									</div>
-								)}
+									{(selectedEntry ? (violationIndex.get(selectedEntry.entryId) ?? []) : filteredViolations).slice(0, 3).length > 0 ? (
+										<div className="mt-1.5 flex flex-wrap gap-1.5">
+											{(selectedEntry ? (violationIndex.get(selectedEntry.entryId) ?? []) : filteredViolations).slice(0, 3).map((violation) => (
+												<Button
+													key={`${violation.code}-${violation.message}`}
+													variant="outline"
+													size="sm"
+													className={cn(
+														'h-6 px-2 text-[0.625rem] max-w-[20rem] justify-start',
+														violation.severity === 'HARD' ? 'border-red-300 bg-red-50 text-red-700' : 'border-amber-300 bg-amber-50 text-amber-700',
+													)}
+													onClick={() => handleViolationSelect(violation)}
+												>
+													{VIOLATION_LABELS[violation.code]}
+												</Button>
+											))}
+										</div>
+									) : (
+										<p className="mt-1.5 text-[0.6875rem] text-emerald-700">No current violations in focus.</p>
+									)}
+								</div>
 							</motion.div>
 						)}
 					</AnimatePresence>
@@ -2526,9 +2907,20 @@ export default function ScheduleReview() {
 					<DialogHeader>
 						<DialogTitle>Generate New Schedule?</DialogTitle>
 						<DialogDescription>
-							You have <span className="font-semibold text-amber-600">{followUps.size}</span> flagged
-							follow-up{followUps.size !== 1 ? 's' : ''} in the current draft. A new generation will
-							replace the current draft and those flags will be lost.
+							This generation will consume your current pre-generation draft placements
+							{draftBoardSummary ? (
+								<>
+									 {' '}(<span className="font-semibold">{draftBoardSummary.queuedPlacements}</span> queued,
+									 <span className="font-semibold">{draftBoardSummary.preplacedEntries}</span> pre-placed)
+								</>
+							) : null}
+							 and start a new generated run.
+							 {followUps.size > 0 ? (
+								<>
+									 You currently have <span className="font-semibold text-amber-600">{followUps.size}</span>
+									 flagged follow-up{followUps.size !== 1 ? 's' : ''}; they will be reset in the new run.
+								</>
+							) : null}
 						</DialogDescription>
 					</DialogHeader>
 					<DialogFooter className="gap-2 sm:gap-0">
@@ -2542,6 +2934,102 @@ export default function ScheduleReview() {
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
+
+			<Sheet
+				open={!!requestPreview || requestPreviewLoading}
+				onOpenChange={(open) => {
+					if (!open) {
+						setRequestPreview(null);
+						setSelectedRequestId(null);
+					}
+				}}
+			>
+				<SheetContent className="w-full sm:max-w-lg">
+					<SheetHeader>
+						<SheetTitle>Room Request Review</SheetTitle>
+						<SheetDescription>Review request impact and decide without leaving timetable mode.</SheetDescription>
+					</SheetHeader>
+					<div className="mt-4 space-y-3">
+						{requestPreviewLoading && !requestPreview ? (
+							<div className="space-y-2">
+								<Skeleton className="h-20 w-full rounded-lg" />
+								<Skeleton className="h-28 w-full rounded-lg" />
+							</div>
+						) : requestPreview ? (
+							<>
+								<div className="rounded border border-border bg-muted/30 px-3 py-2 text-xs space-y-1">
+									<p className="font-semibold">{requestPreview.request.facultyName}</p>
+									<p className="text-muted-foreground">{requestPreview.request.subjectCode} · {requestPreview.request.sectionName}</p>
+									<p className="text-muted-foreground">{requestPreview.request.day} {requestPreview.request.startTime}-{requestPreview.request.endTime}</p>
+									<p className="text-muted-foreground">{requestPreview.request.currentRoomName} to {requestPreview.request.requestedRoomName}</p>
+								</div>
+
+								{requestPreview.request.rationale ? (
+									<div className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+										{requestPreview.request.rationale}
+									</div>
+								) : null}
+
+								<div className="rounded border border-border px-3 py-2 text-xs space-y-1">
+									<p className="font-medium">Preview impact</p>
+									<p className="text-muted-foreground">Allowed: {requestPreview.preview.allowed ? 'Yes' : 'No'}</p>
+									<p className="text-muted-foreground">Hard conflicts: {requestPreview.preview.hardViolations.length}</p>
+									<p className="text-muted-foreground">Soft warnings: {requestPreview.preview.softViolations.length}</p>
+								</div>
+
+								{requestPreviewHardConflicts.length > 0 ? (
+									<div className="rounded border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs space-y-2">
+										<p className="font-medium text-destructive">Approval blocked</p>
+										{requestPreviewHardConflicts.map((conflict, index) => (
+											<div key={`${conflict.code}-${conflict.humanTitle}-${index}`} className="space-y-0.5">
+												<p className="font-medium text-foreground">{conflict.humanTitle}</p>
+												<p className="text-muted-foreground">{conflict.humanDetail}</p>
+											</div>
+										))}
+									</div>
+								) : null}
+
+								{requestPreviewSoftWarnings.length > 0 ? (
+									<div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs space-y-2 text-amber-950">
+										<p className="font-medium">Warnings to review</p>
+										{requestPreviewSoftWarnings.map((conflict, index) => (
+											<div key={`${conflict.code}-${conflict.humanTitle}-${index}`} className="space-y-0.5">
+												<p className="font-medium">{conflict.humanTitle}</p>
+												<p>{conflict.humanDetail}</p>
+											</div>
+										))}
+									</div>
+								) : null}
+
+								<Textarea
+									value={requestReviewerNotes}
+									onChange={(event) => setRequestReviewerNotes(event.target.value)}
+									placeholder="Decision notes"
+									className="min-h-20 text-xs"
+								/>
+
+								<div className="flex gap-2">
+									<Button
+										className="flex-1"
+										disabled={requestReviewSaving || !requestPreview.preview.allowed}
+										onClick={() => void reviewRoomRequest('APPROVED')}
+									>
+										<CheckCircle2 className="mr-1.5 size-4" /> Approve
+									</Button>
+									<Button
+										variant="destructive"
+										className="flex-1"
+										disabled={requestReviewSaving}
+										onClick={() => void reviewRoomRequest('REJECTED')}
+									>
+										Reject
+									</Button>
+								</div>
+							</>
+						) : null}
+					</div>
+				</SheetContent>
+			</Sheet>
 
 			{/* ── Generation Progress Overlay ── */}
 			<Dialog open={generating} modal>
@@ -3111,6 +3599,7 @@ function TimetableGrid({
 	onEntryClick,
 	subjectLabel,
 	sectionLabel,
+	gradeForSection,
 	entryContextLabel,
 	viewMode,
 	pivotLabel,
@@ -3130,6 +3619,7 @@ function TimetableGrid({
 	onEntryClick: (e: ScheduledEntry) => void;
 	subjectLabel: (id: number) => string;
 	sectionLabel: (id: number) => string;
+	gradeForSection: (sectionId: number) => number | null;
 	entryContextLabel: (entry: ScheduledEntry) => string;
 	viewMode: ViewMode;
 	pivotLabel: (id: number) => string;
@@ -3226,13 +3716,20 @@ function TimetableGrid({
 												const isHighlighted = highlightedEntryIds.has(e.entryId);
 												const isSelected = selectedEntry?.entryId === e.entryId;
 												const isFollowUp = followUps.has(e.entryId);
+												const grade = gradeForSection(e.sectionId);
 
-												let cellClass = 'bg-muted/50 border-transparent';
-												if (sev === 'HARD')
-													cellClass = 'bg-red-500/10 border-red-500 text-red-700';
-												else if (sev === 'SOFT')
-													cellClass = 'bg-amber-500/10 border-amber-500 text-amber-700';
-												else cellClass = 'bg-primary/5 border-transparent';
+												let cellClass = 'border-transparent text-foreground';
+												if (grade === 7) cellClass = 'bg-green-50 border-green-200';
+												else if (grade === 8) cellClass = 'bg-yellow-50 border-yellow-200';
+												else if (grade === 9) cellClass = 'bg-red-50 border-red-200';
+												else if (grade === 10) cellClass = 'bg-blue-50 border-blue-200';
+												else cellClass = 'bg-muted/40 border-border';
+
+												if (sev === 'HARD') {
+													cellClass += ' border-red-500 ring-1 ring-red-300';
+												} else if (sev === 'SOFT') {
+													cellClass += ' border-amber-500 border-dashed';
+												}
 
 												if (isHighlighted)
 													cellClass += ' ring-2 ring-primary ring-offset-1';
@@ -3259,6 +3756,8 @@ function TimetableGrid({
 																	<div className="font-medium truncate flex items-center gap-1">
 																		<GripVertical className="size-2.5 text-muted-foreground/40 shrink-0" />
 																		{subjectLabel(e.subjectId)}
+																		{sev === 'HARD' && <AlertCircle className="size-2.5 shrink-0 text-red-600" />}
+																		{sev === 'SOFT' && <AlertTriangle className="size-2.5 shrink-0 text-amber-600" />}
 																		{e.entryKind === 'COHORT' && e.cohortCode && (
 																			<span className="rounded bg-sky-100 px-1 py-0.5 text-[0.5rem] font-semibold uppercase tracking-wide text-sky-700">
 																				{e.cohortCode}

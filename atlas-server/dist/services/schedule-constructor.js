@@ -69,7 +69,7 @@ function buildPeriodSlots(policy) {
 }
 /** Exported for use by room-schedule service and other consumers. */
 export { buildPeriodSlots };
-function computeDemand(sectionsByGrade, subjects, cohorts = []) {
+export function computeDemand(sectionsByGrade, subjects, cohorts = []) {
     const demand = [];
     const sortedGrades = [...sectionsByGrade].sort((a, b) => a.displayOrder - b.displayOrder);
     const sortedSubjects = [...subjects].sort((a, b) => a.id - b.id);
@@ -170,13 +170,13 @@ function computeDemand(sectionsByGrade, subjects, cohorts = []) {
     }
     return demand;
 }
-function getDemandSectionIds(item) {
+export function getDemandSectionIds(item) {
     if (item.entryKind === 'COHORT' && item.cohortMemberSectionIds && item.cohortMemberSectionIds.length > 0) {
         return item.cohortMemberSectionIds;
     }
     return [item.sectionId];
 }
-function getDemandAssignmentKey(item) {
+export function getDemandAssignmentKey(item) {
     if (item.entryKind === 'COHORT' && item.cohortCode) {
         return `${item.cohortCode}:${item.subjectId}`;
     }
@@ -327,6 +327,8 @@ export function constructBaseline(input) {
                 startTime: period.startTime,
                 endTime: period.endTime,
                 durationMinutes,
+                entryKind: lock.entryKind,
+                cohortCode: lock.cohortCode ?? null,
             });
             // Mark occupancy for locked placements
             sectionOcc.mark(lock.sectionId, lock.day, pi);
@@ -340,7 +342,9 @@ export function constructBaseline(input) {
             roomOcc.mark(lock.roomId, lock.day, pi);
             assignedCount++;
             // Track lock session counts
-            const lockKey = `${lock.sectionId}:${lock.subjectId}`;
+            const lockKey = lock.entryKind === 'COHORT' && lock.cohortCode
+                ? `${lock.cohortCode}:${lock.subjectId}`
+                : `${lock.sectionId}:${lock.subjectId}`;
             lockSessionCounts.set(lockKey, (lockSessionCounts.get(lockKey) ?? 0) + 1);
         }
     }

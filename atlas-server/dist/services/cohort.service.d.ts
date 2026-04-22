@@ -59,10 +59,10 @@ export declare function getCohortsBySchoolYear(schoolId: number, schoolYearId: n
     schoolYearId: number;
     cohortCode: string;
     gradeLevel: number;
+    expectedEnrollment: number;
     specializationCode: string;
     specializationName: string;
     memberSectionIds: number[];
-    expectedEnrollment: number;
     sourceRef: string | null;
 }[]>;
 /**
@@ -78,10 +78,10 @@ export declare function getCohortsByGrade(schoolId: number, schoolYearId: number
     schoolYearId: number;
     cohortCode: string;
     gradeLevel: number;
+    expectedEnrollment: number;
     specializationCode: string;
     specializationName: string;
     memberSectionIds: number[];
-    expectedEnrollment: number;
     sourceRef: string | null;
 }[]>;
 /**
@@ -97,9 +97,9 @@ export declare function getCohortByCode(schoolId: number, schoolYearId: number, 
     schoolYearId: number;
     cohortCode: string;
     gradeLevel: number;
+    expectedEnrollment: number;
     specializationCode: string;
     specializationName: string;
     memberSectionIds: number[];
-    expectedEnrollment: number;
     sourceRef: string | null;
 } | null>;

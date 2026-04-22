@@ -9,9 +9,11 @@
     "start": "node dist/server.js",
     "seed:enrollpro-source": "tsx src/scripts/seed-realistic.ts",
     "seed:atlas-fixture": "tsx src/scripts/seed-realistic.ts --mode=atlas-fixture --confirmFixtureBypass=true",
+    "seed:qa-room-requests": "tsx src/scripts/seed-qa-room-requests.ts",
     "verify:enrollpro-source": "tsx src/scripts/verify-enrollpro-source.ts",
     "verify:cross-repo-source-gate": "tsx src/scripts/verify-cross-repo-source-gate.ts",
     "test:phase4-review": "tsx src/__tests__/phase4-cohort-review.test.ts",
+    "test:wave4.3": "tsx src/__tests__/wave4-pre-generation-draft.test.ts",
     "test:wave4-precision": "tsx ../qa-artifacts/wave4-teaching-load-precision.test.ts"
   },
   "dependencies": {

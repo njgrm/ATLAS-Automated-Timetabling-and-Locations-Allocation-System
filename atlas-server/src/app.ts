@@ -27,6 +27,7 @@ import roomPreferenceRouter from './routes/room-preference.router.js';
 import followUpFlagRouter from './routes/follow-up-flag.router.js';
 import manualEditRouter from './routes/manual-edit.router.js';
 import lockedSessionRouter from './routes/locked-session.router.js';
+import preGenerationDraftRouter from './routes/pre-generation-draft.router.js';
 import gradeWindowRouter from './routes/grade-window.router.js';
 import cohortRouter from './routes/cohort.router.js';
 
@@ -85,6 +86,7 @@ app.use('/api/v1/room-preferences', roomPreferenceRouter);
 app.use('/api/v1/follow-up-flags', followUpFlagRouter);
 app.use('/api/v1/generation', manualEditRouter);
 app.use('/api/v1/generation', lockedSessionRouter);
+app.use('/api/v1/generation', preGenerationDraftRouter);
 app.use('/api/v1/generation', gradeWindowRouter);
 app.use('/api/v1/cohorts', cohortRouter);
 
