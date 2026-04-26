@@ -1,0 +1,44 @@
+name: Builder Trigger
+
+on:
+  issues:
+    types: [opened, labeled, assigned]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: builder-trigger-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  route-to-builder:
+    if: >
+      (github.event.action == 'labeled' && github.event.label.name == 'agent:builder') ||
+      (github.event.action == 'assigned' && (
+        github.event.assignee.login == 'copilot' ||
+        github.event.assignee.login == 'copilot-swe-agent[bot]'
+      )) ||
+      (github.event.action == 'opened' && contains(join(github.event.issue.labels.*.name, ','), 'agent:builder'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add orchestration acknowledgment comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue_number = context.payload.issue.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const body = [
+              "🤖 Agent orchestration started.",
+              "",
+              "Pipeline:",
+              "1) Builder implementation",
+              "2) Codex review gate",
+              "3) Gemini UI polish (when frontend files change)",
+              "4) Human final review",
+              "",
+              "Control plane: GitHub Issues/PRs + Actions."
+            ].join("\n");
+            await github.rest.issues.createComment({ owner, repo, issue_number, body });

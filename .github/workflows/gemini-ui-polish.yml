@@ -1,0 +1,113 @@
+name: Gemini UI Polish
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: gemini-ui-polish-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ui-polish:
+    if: >
+      github.event.review.state == 'approved' &&
+      github.actor != 'github-actions[bot]' &&
+      github.actor != 'gemini-ui-polish[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Detect frontend-only changes
+        id: scope
+        run: |
+          set -euo pipefail
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          git diff --name-only "$base" "$head" > changed_files.txt
+          frontend_changed=false
+          disallowed_changed=false
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            case "$file" in
+              atlas-client/src/*|atlas-client/public/*) frontend_changed=true ;;
+              *) disallowed_changed=true ;;
+            esac
+          done < changed_files.txt
+          echo "frontend_changed=$frontend_changed" >> "$GITHUB_OUTPUT"
+          echo "disallowed_changed=$disallowed_changed" >> "$GITHUB_OUTPUT"
+
+      - name: Stop if no eligible frontend changes
+        if: steps.scope.outputs.frontend_changed != 'true'
+        run: echo "No frontend files changed; skipping polish."
+
+      - name: Run Gemini polish placeholder
+        if: steps.scope.outputs.frontend_changed == 'true'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GEMINI_API_KEY:-}" ]; then
+            echo "GEMINI_API_KEY is not configured."
+            exit 1
+          fi
+          echo "Gemini UI polish integration point."
+
+      - name: Validate polish changes are frontend-only
+        if: steps.scope.outputs.frontend_changed == 'true'
+        run: |
+          set -euo pipefail
+          if ! git diff --name-only | grep -q .; then
+            echo "No generated polish changes."
+            exit 0
+          fi
+          bad=0
+          while IFS= read -r file; do
+            case "$file" in
+              atlas-client/src/*|atlas-client/public/*) ;;
+              *)
+                echo "Disallowed file modified by polish step: $file"
+                bad=1
+                ;;
+            esac
+          done < <(git diff --name-only)
+          [ "$bad" -eq 0 ]
+
+      - name: Commit and push polish changes
+        if: steps.scope.outputs.frontend_changed == 'true'
+        run: |
+          set -euo pipefail
+          if ! git diff --name-only | grep -q .; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git config user.name "gemini-ui-polish[bot]"
+          git config user.email "gemini-ui-polish@noreply.github.com"
+          git add atlas-client/src atlas-client/public
+          git commit -m "style: ui polish pass"
+          git push
+
+      - name: Publish PR audit summary
+        if: steps.scope.outputs.frontend_changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pull_number = context.payload.pull_request.number;
+            const body = [
+              "### Gemini UI Polish",
+              "",
+              "- Status: ✅ Completed",
+              "- Scope: `atlas-client/src/**`, `atlas-client/public/**` only",
+              "- Commit convention: `style: ui polish pass`"
+            ].join("\n");
+            await github.rest.issues.createComment({ owner, repo, issue_number: pull_number, body });
