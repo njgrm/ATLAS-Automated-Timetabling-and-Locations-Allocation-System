@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
-import type { RoomPreferenceDecisionStatus, RoomPreferenceStatus } from '@prisma/client';
+import type { RoomPreferenceDecisionStatus, RoomPreferenceStatus, RoomRequestAppealStatus } from '@prisma/client';
 import { authenticate } from '../middleware/authenticate.js';
 import { prisma } from '../lib/prisma.js';
 import * as roomPreferenceService from '../services/room-preference.service.js';
@@ -11,6 +11,7 @@ const PRIVILEGED_ROLES: Set<string> = new Set(['admin', 'officer', 'SYSTEM_ADMIN
 const VALID_ROOM_PREFERENCE_STATUSES: Set<string> = new Set(['DRAFT', 'SUBMITTED']);
 const VALID_ROOM_PREFERENCE_DECISION_STATUSES: Set<string> = new Set(['PENDING', 'APPROVED', 'REJECTED']);
 const VALID_REVIEW_DECISIONS: Set<string> = new Set(['APPROVED', 'REJECTED']);
+const VALID_APPEAL_STATUSES: Set<string> = new Set(['OPEN', 'UNDER_REVIEW', 'UPHELD', 'DENIED']);
 
 function positiveInt(raw: unknown, name: string): number | string {
 	const parsed = Number(raw);
@@ -45,6 +46,18 @@ async function assertFacultyOwnerOrOfficer(
 	return true;
 }
 
+async function resolveRequestingFacultyId(req: Request, schoolId: number): Promise<number | null> {
+	const role = req.user?.role;
+	if (role && PRIVILEGED_ROLES.has(role)) return null;
+	const userId = req.user?.userId;
+	if (!userId) return null;
+	const faculty = await prisma.facultyMirror.findFirst({
+		where: { schoolId, externalId: userId },
+		select: { id: true },
+	});
+	return faculty?.id ?? null;
+}
+
 function parseScope(req: Request, res: Response) {
 	const schoolId = positiveInt(req.params.schoolId, 'schoolId');
 	if (typeof schoolId === 'string') {
@@ -62,6 +75,30 @@ function parseScope(req: Request, res: Response) {
 		return null;
 	}
 	return { schoolId, schoolYearId, runId };
+}
+
+async function assertRequestOwnerOrOfficer(
+	req: Request,
+	res: Response,
+	scope: { schoolId: number; schoolYearId: number; runId: number },
+	requestId: number,
+) {
+	const request = await prisma.facultyRoomPreference.findFirst({
+		where: {
+			id: requestId,
+			schoolId: scope.schoolId,
+			schoolYearId: scope.schoolYearId,
+			runId: scope.runId,
+		},
+		select: { id: true, facultyId: true },
+	});
+	if (!request) {
+		res.status(404).json({ code: 'ROOM_PREFERENCE_NOT_FOUND', message: 'Room preference request was not found in this run scope.' });
+		return null;
+	}
+	const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, request.facultyId);
+	if (!allowed) return null;
+	return request;
 }
 
 router.get(
@@ -265,8 +302,8 @@ router.get(
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
 			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view room preference summaries.' });
+			if (!role) {
+				res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' });
 				return;
 			}
 
@@ -283,9 +320,19 @@ router.get(
 
 			const statusQuery = req.query.status as string | undefined;
 			const decisionStatusQuery = req.query.decisionStatus as string | undefined;
-			const facultyId = req.query.facultyId != null ? positiveInt(req.query.facultyId, 'facultyId') : undefined;
+			const requestedFacultyId = req.query.facultyId != null ? positiveInt(req.query.facultyId, 'facultyId') : undefined;
+			const ownFacultyId = await resolveRequestingFacultyId(req, schoolId);
+			if (!PRIVILEGED_ROLES.has(role) && ownFacultyId == null) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Faculty profile mapping is required to view room requests.' });
+				return;
+			}
+			const facultyId = ownFacultyId ?? requestedFacultyId;
 			if (typeof facultyId === 'string') {
 				res.status(400).json({ code: 'INVALID_PARAM', message: facultyId });
+				return;
+			}
+			if (ownFacultyId != null && requestedFacultyId != null && requestedFacultyId !== ownFacultyId) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Faculty users can only view their own room requests.' });
 				return;
 			}
 			const requestedRoomId = req.query.requestedRoomId != null ? positiveInt(req.query.requestedRoomId, 'requestedRoomId') : undefined;
@@ -306,7 +353,7 @@ router.get(
 			const result = await roomPreferenceService.getLatestRoomPreferenceSummary(schoolId, schoolYearId, {
 				status: statusQuery as RoomPreferenceStatus | undefined,
 				decisionStatus: decisionStatusQuery as RoomPreferenceDecisionStatus | undefined,
-				facultyId,
+				facultyId: facultyId as number | undefined,
 				requestedRoomId,
 			});
 			res.json(result);
@@ -322,8 +369,8 @@ router.get(
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
 			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view room preference summaries.' });
+			if (!role) {
+				res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' });
 				return;
 			}
 
@@ -332,9 +379,19 @@ router.get(
 
 			const statusQuery = req.query.status as string | undefined;
 			const decisionStatusQuery = req.query.decisionStatus as string | undefined;
-			const facultyId = req.query.facultyId != null ? positiveInt(req.query.facultyId, 'facultyId') : undefined;
+			const requestedFacultyId = req.query.facultyId != null ? positiveInt(req.query.facultyId, 'facultyId') : undefined;
+			const ownFacultyId = await resolveRequestingFacultyId(req, scope.schoolId);
+			if (!PRIVILEGED_ROLES.has(role) && ownFacultyId == null) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Faculty profile mapping is required to view room requests.' });
+				return;
+			}
+			const facultyId = ownFacultyId ?? requestedFacultyId;
 			if (typeof facultyId === 'string') {
 				res.status(400).json({ code: 'INVALID_PARAM', message: facultyId });
+				return;
+			}
+			if (ownFacultyId != null && requestedFacultyId != null && requestedFacultyId !== ownFacultyId) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Faculty users can only view their own room requests.' });
 				return;
 			}
 			const requestedRoomId = req.query.requestedRoomId != null ? positiveInt(req.query.requestedRoomId, 'requestedRoomId') : undefined;
@@ -355,7 +412,7 @@ router.get(
 			const result = await roomPreferenceService.getRoomPreferenceSummary(scope.schoolId, scope.schoolYearId, scope.runId, {
 				status: statusQuery as RoomPreferenceStatus | undefined,
 				decisionStatus: decisionStatusQuery as RoomPreferenceDecisionStatus | undefined,
-				facultyId,
+				facultyId: facultyId as number | undefined,
 				requestedRoomId,
 			});
 			res.json(result);
@@ -370,12 +427,6 @@ router.get(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view room preference details.' });
-				return;
-			}
-
 			const scope = parseScope(req, res);
 			if (!scope) return;
 
@@ -384,6 +435,8 @@ router.get(
 				res.status(400).json({ code: 'INVALID_PARAM', message: requestId });
 				return;
 			}
+			const request = await assertRequestOwnerOrOfficer(req, res, scope, requestId);
+			if (!request) return;
 
 			const result = await roomPreferenceService.getRoomPreferenceDetail(scope.schoolId, scope.schoolYearId, scope.runId, requestId);
 			res.json(result);
@@ -398,12 +451,6 @@ router.post(
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can preview room preference decisions.' });
-				return;
-			}
-
 			const scope = parseScope(req, res);
 			if (!scope) return;
 
@@ -412,6 +459,8 @@ router.post(
 				res.status(400).json({ code: 'INVALID_PARAM', message: requestId });
 				return;
 			}
+			const request = await assertRequestOwnerOrOfficer(req, res, scope, requestId);
+			if (!request) return;
 
 			const result = await roomPreferenceService.previewRoomPreferenceDecision(scope.schoolId, scope.schoolYearId, scope.runId, requestId);
 			res.json(result);
@@ -466,6 +515,108 @@ router.patch(
 				allowSoftOverride: !!allowSoftOverride,
 			});
 
+			res.json(result);
+		} catch (error) {
+			next(error);
+		}
+	},
+);
+
+router.get(
+	'/:schoolId/:schoolYearId/runs/:runId/requests/:requestId/appeals',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const scope = parseScope(req, res);
+			if (!scope) return;
+			const requestId = positiveInt(req.params.requestId, 'requestId');
+			if (typeof requestId === 'string') {
+				res.status(400).json({ code: 'INVALID_PARAM', message: requestId });
+				return;
+			}
+			const request = await assertRequestOwnerOrOfficer(req, res, scope, requestId);
+			if (!request) return;
+			const appeals = await roomPreferenceService.listRoomRequestAppeals(scope.schoolId, scope.schoolYearId, scope.runId, requestId);
+			res.json({ requestId, appeals });
+		} catch (error) {
+			next(error);
+		}
+	},
+);
+
+router.post(
+	'/:schoolId/:schoolYearId/runs/:runId/requests/:requestId/appeals',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const scope = parseScope(req, res);
+			if (!scope) return;
+			const requestId = positiveInt(req.params.requestId, 'requestId');
+			if (typeof requestId === 'string') {
+				res.status(400).json({ code: 'INVALID_PARAM', message: requestId });
+				return;
+			}
+			const request = await assertRequestOwnerOrOfficer(req, res, scope, requestId);
+			if (!request) return;
+			const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
+			const result = await roomPreferenceService.createRoomRequestAppeal({
+				schoolId: scope.schoolId,
+				schoolYearId: scope.schoolYearId,
+				runId: scope.runId,
+				requestId,
+				requesterId: request.facultyId,
+				reason,
+			});
+			res.status(201).json(result);
+		} catch (error) {
+			next(error);
+		}
+	},
+);
+
+router.patch(
+	'/:schoolId/:schoolYearId/runs/:runId/requests/:requestId/appeals/:appealId/status',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const role = req.user?.role;
+			if (!role || !PRIVILEGED_ROLES.has(role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can update appeal status.' });
+				return;
+			}
+			const actorId = req.user?.userId;
+			if (!actorId) {
+				res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' });
+				return;
+			}
+			const scope = parseScope(req, res);
+			if (!scope) return;
+			const requestId = positiveInt(req.params.requestId, 'requestId');
+			if (typeof requestId === 'string') {
+				res.status(400).json({ code: 'INVALID_PARAM', message: requestId });
+				return;
+			}
+			const appealId = positiveInt(req.params.appealId, 'appealId');
+			if (typeof appealId === 'string') {
+				res.status(400).json({ code: 'INVALID_PARAM', message: appealId });
+				return;
+			}
+			const status = req.body?.status;
+			if (typeof status !== 'string' || !VALID_APPEAL_STATUSES.has(status)) {
+				res.status(400).json({ code: 'INVALID_BODY', message: `status must be one of ${[...VALID_APPEAL_STATUSES].join(', ')}.` });
+				return;
+			}
+			const note = typeof req.body?.note === 'string' ? req.body.note : null;
+			const result = await roomPreferenceService.updateRoomRequestAppealStatus({
+				schoolId: scope.schoolId,
+				schoolYearId: scope.schoolYearId,
+				runId: scope.runId,
+				requestId,
+				appealId,
+				actorId,
+				status: status as RoomRequestAppealStatus,
+				note,
+			});
 			res.json(result);
 		} catch (error) {
 			next(error);

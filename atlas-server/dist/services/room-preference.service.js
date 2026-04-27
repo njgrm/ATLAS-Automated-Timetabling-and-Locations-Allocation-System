@@ -314,9 +314,35 @@ export async function getRoomPreferenceSummary(schoolId, schoolYearId, runId, fi
             }
         }
     }
+    const requestIds = requests.map((request) => request.id);
+    const appealRows = requestIds.length > 0
+        ? await prisma.roomRequestAppeal.findMany({
+            where: { requestId: { in: requestIds } },
+            select: { requestId: true, status: true, updatedAt: true },
+            orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+        })
+        : [];
+    const appealByRequest = new Map();
+    for (const row of appealRows) {
+        const existing = appealByRequest.get(row.requestId) ?? {
+            count: 0,
+            openCount: 0,
+            latestStatus: null,
+            latestUpdatedAt: null,
+        };
+        existing.count += 1;
+        if (row.status === 'OPEN' || row.status === 'UNDER_REVIEW')
+            existing.openCount += 1;
+        if (existing.latestStatus == null) {
+            existing.latestStatus = row.status;
+            existing.latestUpdatedAt = row.updatedAt.toISOString();
+        }
+        appealByRequest.set(row.requestId, existing);
+    }
     const mappedRequests = requests.map((request) => {
         const entry = entryMap.get(request.entryId);
         const subject = subjectMap.get(request.subjectId);
+        const appealSummary = appealByRequest.get(request.id);
         return {
             id: request.id,
             runId: request.runId,
@@ -348,6 +374,10 @@ export async function getRoomPreferenceSummary(schoolId, schoolYearId, runId, fi
             cohortName: entry?.cohortName ?? null,
             programCode: entry?.programCode ?? null,
             programName: entry?.programName ?? null,
+            appealCount: appealSummary?.count ?? 0,
+            openAppealCount: appealSummary?.openCount ?? 0,
+            latestAppealStatus: appealSummary?.latestStatus ?? null,
+            latestAppealUpdatedAt: appealSummary?.latestUpdatedAt ?? null,
         };
     });
     return {
@@ -374,9 +404,11 @@ export async function getRoomPreferenceDetail(schoolId, schoolYearId, runId, req
     if (!request) {
         throw err(404, 'ROOM_PREFERENCE_NOT_FOUND', 'Room preference request was not found in this run scope.');
     }
+    const appeals = await listRoomRequestAppeals(schoolId, schoolYearId, runId, requestId);
     return {
         request,
         runVersion: summary.runVersion,
+        appeals,
     };
 }
 export async function previewRoomPreferenceDecision(schoolId, schoolYearId, runId, requestId) {
@@ -389,7 +421,158 @@ export async function previewRoomPreferenceDecision(schoolId, schoolYearId, runI
     return {
         request: detail.request,
         runVersion: detail.runVersion,
+        appeals: detail.appeals,
         preview,
+    };
+}
+export async function listRoomRequestAppeals(schoolId, schoolYearId, runId, requestId) {
+    const appeals = await prisma.roomRequestAppeal.findMany({
+        where: { schoolId, schoolYearId, runId, requestId },
+        include: {
+            requester: { select: { firstName: true, lastName: true } },
+            history: {
+                include: {
+                    appeal: { select: { requesterId: true } },
+                },
+                orderBy: { createdAt: 'asc' },
+            },
+        },
+        orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+    });
+    if (appeals.length === 0)
+        return [];
+    const actorIds = new Set();
+    for (const appeal of appeals) {
+        for (const item of appeal.history)
+            actorIds.add(item.actorId);
+    }
+    const actors = actorIds.size > 0
+        ? await prisma.facultyMirror.findMany({
+            where: { id: { in: [...actorIds] } },
+            select: { id: true, firstName: true, lastName: true },
+        })
+        : [];
+    const actorMap = new Map(actors.map((actor) => [actor.id, `${actor.lastName}, ${actor.firstName}`]));
+    return appeals.map((appeal) => ({
+        id: appeal.id,
+        requestId: appeal.requestId,
+        requesterId: appeal.requesterId,
+        requesterName: `${appeal.requester.lastName}, ${appeal.requester.firstName}`,
+        reason: appeal.reason,
+        status: appeal.status,
+        createdAt: appeal.createdAt.toISOString(),
+        updatedAt: appeal.updatedAt.toISOString(),
+        history: appeal.history.map((item) => ({
+            id: item.id,
+            actorId: item.actorId,
+            actorName: actorMap.get(item.actorId) ?? `Faculty #${item.actorId}`,
+            action: item.action,
+            fromStatus: item.fromStatus,
+            toStatus: item.toStatus,
+            note: item.note ?? null,
+            createdAt: item.createdAt.toISOString(),
+        })),
+    }));
+}
+export async function createRoomRequestAppeal(input) {
+    const reason = input.reason.trim();
+    if (!reason) {
+        throw err(400, 'INVALID_BODY', 'Appeal reason is required.');
+    }
+    const request = await prisma.facultyRoomPreference.findFirst({
+        where: {
+            id: input.requestId,
+            schoolId: input.schoolId,
+            schoolYearId: input.schoolYearId,
+            runId: input.runId,
+        },
+        select: { id: true, entryId: true },
+    });
+    if (!request) {
+        throw err(404, 'ROOM_PREFERENCE_NOT_FOUND', 'Room preference request was not found in this run scope.');
+    }
+    const appeal = await prisma.$transaction(async (tx) => {
+        const created = await tx.roomRequestAppeal.create({
+            data: {
+                schoolId: input.schoolId,
+                schoolYearId: input.schoolYearId,
+                runId: input.runId,
+                requestId: input.requestId,
+                requesterId: input.requesterId,
+                reason,
+                status: 'OPEN',
+            },
+        });
+        await tx.roomRequestAppealHistory.create({
+            data: {
+                appealId: created.id,
+                actorId: input.requesterId,
+                action: 'CREATED',
+                fromStatus: null,
+                toStatus: 'OPEN',
+                note: reason,
+            },
+        });
+        await tx.auditLog.create({
+            data: {
+                schoolId: input.schoolId,
+                schoolYearId: input.schoolYearId,
+                action: 'ROOM_REQUEST_APPEAL_CREATED',
+                actorId: input.requesterId,
+                targetIds: [input.runId, input.requestId, created.id],
+                metadata: { entryId: request.entryId },
+            },
+        });
+        return created;
+    });
+    return {
+        appealId: appeal.id,
+        status: appeal.status,
+    };
+}
+export async function updateRoomRequestAppealStatus(input) {
+    const appeal = await prisma.roomRequestAppeal.findFirst({
+        where: {
+            id: input.appealId,
+            schoolId: input.schoolId,
+            schoolYearId: input.schoolYearId,
+            runId: input.runId,
+            requestId: input.requestId,
+        },
+    });
+    if (!appeal) {
+        throw err(404, 'APPEAL_NOT_FOUND', 'Room request appeal was not found in this run scope.');
+    }
+    const updated = await prisma.$transaction(async (tx) => {
+        const next = await tx.roomRequestAppeal.update({
+            where: { id: appeal.id },
+            data: { status: input.status },
+        });
+        await tx.roomRequestAppealHistory.create({
+            data: {
+                appealId: appeal.id,
+                actorId: input.actorId,
+                action: 'STATUS_CHANGED',
+                fromStatus: appeal.status,
+                toStatus: input.status,
+                note: input.note ?? null,
+            },
+        });
+        await tx.auditLog.create({
+            data: {
+                schoolId: input.schoolId,
+                schoolYearId: input.schoolYearId,
+                action: 'ROOM_REQUEST_APPEAL_STATUS_CHANGED',
+                actorId: input.actorId,
+                targetIds: [input.runId, input.requestId, input.appealId],
+                metadata: { fromStatus: appeal.status, toStatus: input.status, note: input.note ?? null },
+            },
+        });
+        return next;
+    });
+    return {
+        appealId: updated.id,
+        status: updated.status,
     };
 }
 export async function reviewRoomPreference(input) {

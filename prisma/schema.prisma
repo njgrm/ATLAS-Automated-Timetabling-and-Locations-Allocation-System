@@ -120,6 +120,7 @@ model FacultyMirror {
   department                String?
   employmentStatus          String            @default("PERMANENT") @map("employment_status")
   contactInfo               String?           @map("contact_info")
+  avatarUrl                 String?           @map("avatar_url")
   localNotes                String?           @map("local_notes")
   isActiveForScheduling     Boolean           @default(true) @map("is_active_for_scheduling")
   isClassAdviser            Boolean           @default(false) @map("is_class_adviser")
@@ -141,6 +142,7 @@ model FacultyMirror {
   facultySubjects           FacultySubject[]
   preferences               FacultyPreference[]
   roomPreferences           FacultyRoomPreference[]
+  roomRequestAppeals        RoomRequestAppeal[]
 
   @@unique([schoolId, externalId], map: "uq_faculty_school_external")
   @@index([schoolId])
@@ -305,6 +307,7 @@ model FacultyRoomPreference {
   faculty        FacultyMirror                @relation(fields: [facultyId], references: [id], onDelete: Cascade)
   requestedRoom  Room                         @relation("RequestedRoomPreferences", fields: [requestedRoomId], references: [id], onDelete: Cascade)
   run            GenerationRun                @relation(fields: [runId], references: [id], onDelete: Cascade)
+  appeals        RoomRequestAppeal[]
 
   @@unique([runId, entryId], map: "uq_room_preference_run_entry")
   @@index([schoolId, schoolYearId, status])
@@ -312,6 +315,62 @@ model FacultyRoomPreference {
   @@index([runId, facultyId])
   @@index([requestedRoomId, day, startTime])
   @@map("faculty_room_preferences")
+}
+
+enum RoomRequestAppealStatus {
+  OPEN
+  UNDER_REVIEW
+  UPHELD
+  DENIED
+
+  @@map("room_request_appeal_status")
+}
+
+enum RoomRequestAppealHistoryAction {
+  CREATED
+  STATUS_CHANGED
+  NOTE_ADDED
+  DECISION_RECORDED
+
+  @@map("room_request_appeal_history_action")
+}
+
+model RoomRequestAppeal {
+  id              Int                            @id @default(autoincrement())
+  schoolId        Int                            @map("school_id")
+  schoolYearId    Int                            @map("school_year_id")
+  runId           Int                            @map("run_id")
+  requestId       Int                            @map("request_id")
+  requesterId     Int                            @map("requester_id")
+  reason          String
+  status          RoomRequestAppealStatus        @default(OPEN)
+  createdAt       DateTime                       @default(now()) @map("created_at")
+  updatedAt       DateTime                       @updatedAt @map("updated_at")
+
+  request         FacultyRoomPreference          @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  requester       FacultyMirror                  @relation(fields: [requesterId], references: [id], onDelete: Cascade)
+  history         RoomRequestAppealHistory[]
+
+  @@index([schoolId, schoolYearId, runId])
+  @@index([requestId])
+  @@index([requesterId])
+  @@map("room_request_appeals")
+}
+
+model RoomRequestAppealHistory {
+  id              Int                            @id @default(autoincrement())
+  appealId        Int                            @map("appeal_id")
+  actorId         Int                            @map("actor_id")
+  action          RoomRequestAppealHistoryAction
+  fromStatus      RoomRequestAppealStatus?       @map("from_status")
+  toStatus        RoomRequestAppealStatus?       @map("to_status")
+  note            String?
+  createdAt       DateTime                       @default(now()) @map("created_at")
+
+  appeal          RoomRequestAppeal              @relation(fields: [appealId], references: [id], onDelete: Cascade)
+
+  @@index([appealId, createdAt])
+  @@map("room_request_appeal_history")
 }
 
 // ─── Phase 3: Timetable Generation ───

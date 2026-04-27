@@ -155,6 +155,22 @@
   - conflict inspector remains visible in the workspace.
   - Requests tab loads deterministic pending items and supports in-page review decisions.
 
+## Wave 4.4 — UX + Pre-Generation Workspace Unification (2026-04-27)
+- Added a dedicated `/timetable` center workspace state for `Pre-Generation Draft`, separate from generated-run review.
+- New Pre-Generation Draft now opens the center grid workspace; repeat clicks with existing draft anchors prompt a destructive reset confirmation.
+- The left Pins panel now acts as the pre-generation source palette with unassigned demand plus existing pinned/draft entries; sources drop into the shared timetable grid.
+- Building and room navigation no longer opens the separate read-only room schedule table path; room selection filters the shared editable grid by room context.
+- Generation anchor coverage was extended so a manual pre-placement is retained and the constructor schedules remaining sessions around its occupied faculty/room/section slot.
+- Verification completed:
+  - `npm --prefix atlas-client run build`: PASS
+  - `npm --prefix atlas-server run build`: PASS
+  - `npx tsc --noEmit` in `atlas-client`: PASS
+  - `npx tsc --noEmit` in `atlas-server`: PASS
+  - `npm --prefix atlas-server run test:wave4-precision`: PASS
+  - `npm --prefix atlas-server run test:phase4-review`: PASS
+  - `npm --prefix atlas-server run test:wave4.3`: PASS (expanded Wave 4.4 pre-generation anchor coverage)
+- Manual bridged browser QA: NOT RUN in this pass; requires live EnrollPro bridge session plus local ATLAS client/server.
+
 ## Exit Criteria
 - Officer can resolve findings and revalidate
 - Publish path is blocked while hard violations remain

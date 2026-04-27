@@ -29,8 +29,8 @@ export interface RoomScheduleView {
         floor?: number;
     };
     source: {
-        mode: 'LATEST' | 'RUN';
-        runId: number;
+        mode: 'LATEST' | 'RUN' | 'DRAFT';
+        runId: number | null;
         status: string;
         generatedAt?: string;
     };
@@ -59,5 +59,7 @@ export declare function getRoomScheduleView(schoolId: number, schoolYearId: numb
 } | {
     mode: 'RUN';
     runId: number;
+} | {
+    mode: 'DRAFT';
 }): Promise<RoomScheduleView>;
 export {};

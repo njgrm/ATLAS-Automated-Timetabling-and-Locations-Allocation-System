@@ -6,6 +6,7 @@ import {
 	CalendarClock,
 	CheckCircle2,
 	Check,
+	ChevronLeft,
 	ChevronDown,
 	ChevronRight,
 	ClipboardList,
@@ -65,6 +66,8 @@ import type {
 	Room,
 	RoomPreferenceDecisionStatus,
 	RoomPreferencePreviewResponse,
+	RoomRequestAppeal,
+	RoomRequestAppealStatus,
 	RoomPreferenceStatus,
 	RoomPreferenceSummaryResponse,
 	RunSummary,
@@ -72,6 +75,11 @@ import type {
 	SectionSummaryResponse,
 	Subject,
 	FacultyMirror,
+	DraftBoardState,
+	DraftPlacement,
+	DraftPlacementCommitResult,
+	DraftQueueItem,
+	PeriodSlot,
 	UnassignedExplanation,
 	UnassignedItem,
 	UnassignedReason,
@@ -104,7 +112,8 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/ui/resiz
 
 import SchedulingPolicyPane from '@/components/SchedulingPolicyPane';
 import ManualEditPanel from '@/components/ManualEditPanel';
-import LockPanel from '@/components/LockPanel';
+import { CampusMap } from '@/components/CampusMap';
+import { BuildingView, ROOM_COLORS, ROOM_TYPE_LABELS } from '@/components/BuildingView';
 import { TutorialOverlay, useTutorial } from '@/components/TutorialOverlay';
 import { ExplainabilityDrawer, VIOLATION_EXPLANATIONS } from '@/components/ExplainabilityDrawer';
 
@@ -165,6 +174,26 @@ const GRADE_BADGE: Record<number, string> = {
 
 type SeverityFilter = 'all' | 'hard' | 'soft' | 'conflicts' | 'wellbeing';
 type ViewMode = 'section' | 'faculty' | 'room';
+type CenterViewMode = 'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building';
+type PreGenDragSource =
+	| { type: 'draftQueue'; item: DraftQueueItem }
+	| { type: 'draftPlacement'; placement: DraftPlacement };
+
+type PreGenPendingPlacement = {
+	placementId?: number;
+	entryKind: 'SECTION' | 'COHORT';
+	sectionId: number;
+	subjectId: number;
+	facultyId: number;
+	roomId: number;
+	day: string;
+	startTime: string;
+	endTime: string;
+	cohortCode?: string | null;
+	notes?: string | null;
+	expectedVersion?: number;
+	sourceLabel: string;
+};
 
 /** Enriched room info for display (includes parent building context) */
 type RoomInfo = {
@@ -252,6 +281,20 @@ function formatDuration(ms: number | null): string {
 	if (ms == null) return '—';
 	if (ms < 1000) return `${ms}ms`;
 	return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function minutesBetween(startTime: string, endTime: string): number {
+	const toMinutes = (value: string) => {
+		const [hours, minutes] = value.split(':').map(Number);
+		return hours * 60 + minutes;
+	};
+	return Math.max(0, toMinutes(endTime) - toMinutes(startTime));
+}
+
+function initials(firstName?: string | null, lastName?: string | null): string {
+	const first = firstName?.trim()?.charAt(0) ?? '';
+	const last = lastName?.trim()?.charAt(0) ?? '';
+	return `${first}${last}`.toUpperCase() || '—';
 }
 
 function buildUnassignedKey(item: UnassignedItem): string {
@@ -346,7 +389,11 @@ export default function ScheduleReview() {
 	const [programFilter, setProgramFilter] = useState<ProgramFilter>('all');
 	const [entryKindFilter, setEntryKindFilter] = useState<EntryKindFilter>('all');
 	const [leftTab, setLeftTab] = useState<'violations' | 'unassigned' | 'locks' | 'requests'>('violations');
+	const [draftBoard, setDraftBoard] = useState<DraftBoardState | null>(null);
 	const [draftBoardSummary, setDraftBoardSummary] = useState<DraftBoardState['counts'] | null>(null);
+	const [showResetDraftDialog, setShowResetDraftDialog] = useState(false);
+	const [showLeavePreGenDialog, setShowLeavePreGenDialog] = useState(false);
+	const [pendingCenterSwitch, setPendingCenterSwitch] = useState<(() => void) | null>(null);
 
 	const [requestStatusFilter, setRequestStatusFilter] = useState<'ALL' | RoomPreferenceStatus>('SUBMITTED');
 	const [requestDecisionFilter, setRequestDecisionFilter] = useState<'ALL' | RoomPreferenceDecisionStatus>('PENDING');
@@ -360,6 +407,8 @@ export default function ScheduleReview() {
 	const [requestReviewSaving, setRequestReviewSaving] = useState(false);
 	const [requestReviewerNotes, setRequestReviewerNotes] = useState('');
 	const [newDraftLoading, setNewDraftLoading] = useState(false);
+	const userRole = localStorage.getItem('userRole'); // Get role from session/auth context
+	const isPrivilegedUser = userRole != null && ['admin', 'officer', 'SYSTEM_ADMIN'].includes(userRole);
 
 	/* ── Generate / Publish workflow state ── */
 	const [generating, setGenerating] = useState(false);
@@ -378,11 +427,18 @@ export default function ScheduleReview() {
 
 	/* ── Room reference data ── */
 	const [roomMap, setRoomMap] = useState<Map<number, RoomInfo>>(new Map());
+	const [buildings, setBuildings] = useState<Building[]>([]);
+	const [mapBuildingId, setMapBuildingId] = useState<number | null>(null);
+	const [mapRoomId, setMapRoomId] = useState<number | null>(null);
+	const [requestAppeals, setRequestAppeals] = useState<RoomRequestAppeal[]>([]);
+	const [appealsLoading, setAppealsLoading] = useState(false);
+	const [appealReason, setAppealReason] = useState('');
+	const [appealSubmitting, setAppealSubmitting] = useState(false);
 
 	/* ── Layout state ── */
 	const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
 	const [isRightCollapsed, setIsRightCollapsed] = useState(true);
-	const [centerView, setCenterView] = useState<'grid' | 'policy' | 'manual-edit'>('grid');
+	const [centerView, setCenterView] = useState<CenterViewMode>('schedule');
 	// Panel refs for imperative collapse/expand
 	const leftPanelRef = useRef<ImperativePanelHandle>(null);
 	const rightPanelRef = useRef<ImperativePanelHandle>(null);
@@ -392,7 +448,7 @@ export default function ScheduleReview() {
 	const [pendingAction, setPendingAction] = useState<'CHANGE_TIMESLOT' | 'CHANGE_ROOM' | 'CHANGE_FACULTY' | null>(null);
 
 	/* ── Manual edit / DnD state ── */
-	const [dragItem, setDragItem] = useState<{ type: 'entry'; entry: ScheduledEntry } | { type: 'unassigned'; item: UnassignedItem } | null>(null);
+	const [dragItem, setDragItem] = useState<DragSource>(null);
 	const [blockerModalData, setBlockerModalData] = useState<import('@/types').HumanConflict[] | null>(null);
 	const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
 	const [previewLoading, setPreviewLoading] = useState(false);
@@ -403,7 +459,14 @@ export default function ScheduleReview() {
 	const [commitLoading, setCommitLoading] = useState(false);
 	const [revertLoading, setRevertLoading] = useState(false);
 	/** Keyboard-accessible DnD: selected source for placement */
-	const [kbSelectedSource, setKbSelectedSource] = useState<{ type: 'entry'; entry: ScheduledEntry } | { type: 'unassigned'; item: UnassignedItem } | null>(null);
+	const [kbSelectedSource, setKbSelectedSource] = useState<DragSource>(null);
+	const [preGenKbSource, setPreGenKbSource] = useState<PreGenDragSource | null>(null);
+	const [preGenPending, setPreGenPending] = useState<PreGenPendingPlacement | null>(null);
+	const [preGenPreview, setPreGenPreview] = useState<PreviewResult | null>(null);
+	const [preGenPreviewLoading, setPreGenPreviewLoading] = useState(false);
+	const [preGenSaving, setPreGenSaving] = useState(false);
+	const [preGenAllowSoftOverride, setPreGenAllowSoftOverride] = useState(false);
+	const [preGenPreviewError, setPreGenPreviewError] = useState<string | null>(null);
 
 	/** Assignment picker modal for unassigned placements */
 	const [showAssignmentPicker, setShowAssignmentPicker] = useState(false);
@@ -440,7 +503,7 @@ export default function ScheduleReview() {
 			if (!panelSnapshot.current.right) rightPanelRef.current?.expand();
 			panelSnapshot.current = null;
 		}
-		setCenterView('grid');
+		setCenterView('schedule');
 	}, []);
 
 	const enterManualEditView = useCallback((action: 'CHANGE_TIMESLOT' | 'CHANGE_ROOM' | 'CHANGE_FACULTY') => {
@@ -458,8 +521,19 @@ export default function ScheduleReview() {
 			panelSnapshot.current = null;
 		}
 		setPendingAction(null);
-		setCenterView('grid');
+		setCenterView('schedule');
 	}, []);
+
+	const switchCenterViewWithGuard = useCallback((action: () => void) => {
+		const hasUnsavedPreGen = centerView === 'pre-generation' && (preGenPending != null || (draftBoard?.counts.draft ?? 0) > 0);
+		if (hasUnsavedPreGen) {
+			setPendingCenterSwitch(() => action);
+			setShowLeavePreGenDialog(true);
+			return;
+		}
+		action();
+	}, [centerView, draftBoard?.counts.draft, preGenPending]);
+
 
 	/* ── Derived state ── */
 	const violations = violationReport?.violations ?? [];
@@ -535,14 +609,38 @@ export default function ScheduleReview() {
 		prevHardCountRef.current = hardViolationCount;
 	}, [hardViolationCount, isLeftCollapsed]);
 
-	const timeSlots = useMemo(() => deriveTimeSlots(draft?.entries ?? []), [draft]);
+	const preGenEntries = useMemo<ScheduledEntry[]>(() => {
+		return (draftBoard?.placements ?? [])
+			.filter((placement) => placement.status === 'DRAFT' && placement.facultyId != null && placement.roomId != null)
+			.map((placement) => ({
+				entryId: `draft-placement-${placement.id}`,
+				facultyId: placement.facultyId!,
+				roomId: placement.roomId!,
+				subjectId: placement.subjectId,
+				sectionId: placement.sectionId,
+				day: placement.day,
+				startTime: placement.startTime,
+				endTime: placement.endTime,
+				durationMinutes: minutesBetween(placement.startTime, placement.endTime),
+				entryKind: placement.entryKind,
+				cohortCode: placement.cohortCode ?? null,
+			}));
+	}, [draftBoard?.placements]);
+
+	const activeGridEntriesBase = centerView === 'pre-generation' ? preGenEntries : (draft?.entries ?? []);
+	const timeSlots = useMemo(
+		() => centerView === 'pre-generation' && draftBoard?.periodSlots?.length
+			? draftBoard.periodSlots
+			: deriveTimeSlots(activeGridEntriesBase),
+		[activeGridEntriesBase, centerView, draftBoard?.periodSlots],
+	);
 
 	const filteredDraftEntries = useMemo(() => {
-		return (draft?.entries ?? []).filter((entry) => {
+		return activeGridEntriesBase.filter((entry) => {
 			const programType = entry.programType ?? sectionMap.get(entry.sectionId)?.programType ?? null;
 			return matchesProgramFilter(programType, programFilter) && matchesEntryKindFilter(entry.entryKind, entryKindFilter);
 		});
-	}, [draft, entryKindFilter, programFilter, sectionMap]);
+	}, [activeGridEntriesBase, entryKindFilter, programFilter, sectionMap]);
 
 	const programKindFilteredUnassignedItems = useMemo(() => {
 		return (draft?.unassignedItems ?? []).filter((item) => {
@@ -598,35 +696,6 @@ export default function ScheduleReview() {
 		return entries.filter((e) => e.roomId === id);
 	}, [entityFilter, filteredDraftEntries, viewMode]);
 
-	/** Simplified room lookup for LockPanel */
-	const lockPanelRooms = useMemo(() => {
-		const m = new Map<number, {
-			id: number;
-			name: string;
-			buildingId: number;
-			buildingName: string;
-			buildingShortCode: string | null;
-			floor: number;
-			type: string;
-			capacity?: number | null;
-			isTeachingSpace: boolean;
-		}>();
-		for (const [id, r] of roomMap) {
-			m.set(id, {
-				id,
-				name: r.name,
-				buildingId: r.buildingId,
-				buildingName: r.buildingName,
-				buildingShortCode: r.buildingShortCode,
-				floor: r.floor,
-				type: r.type,
-				capacity: r.capacity,
-				isTeachingSpace: r.isTeachingSpace,
-			});
-		}
-		return m;
-	}, [roomMap]);
-
 	/** Grid lookup: `${day}-${startTime}` → entries in that cell, grouped by pivot entity */
 	const gridIndex = useMemo(() => {
 		const index = new Map<string, ScheduledEntry[]>();
@@ -650,7 +719,7 @@ export default function ScheduleReview() {
 	);
 
 	const summary: RunSummary | null = draft?.summary ?? null;
-	const isPreGenerationWorkspace = runs.length === 0 || leftTab === 'locks';
+	const isPreGenerationWorkspace = centerView === 'pre-generation';
 	const activeGeneratedRunId = useMemo(() => {
 		if (selectedRunId === 'latest') return runs[0]?.id ?? draft?.runId ?? null;
 		const parsed = Number(selectedRunId);
@@ -720,9 +789,11 @@ export default function ScheduleReview() {
 	const fetchDraftBoardSummary = useCallback(async (syId: number) => {
 		try {
 			const { data } = await atlasApi.get<DraftBoardState>(`/generation/${DEFAULT_SCHOOL_ID}/${syId}/pre-generation-drafts`);
+			setDraftBoard(data);
 			setDraftBoardSummary(data.counts);
 			return data.counts;
 		} catch {
+			setDraftBoard(null);
 			setDraftBoardSummary(null);
 			return null;
 		}
@@ -764,6 +835,7 @@ export default function ScheduleReview() {
 		]);
 		setSubjectMap(new Map(subjectsRes.data.subjects.map((s) => [s.id, s])));
 		setFacultyMap(new Map(facultyRes.data.faculty.map((f) => [f.id, f])));
+		setBuildings(buildingsRes.data.buildings);
 		setSectionSummary(sectionsRes.data as SectionSummaryResponse);
 		setSectionMap(new Map(sectionsRes.data.sections.map((s) => [s.id, s])));
 
@@ -785,6 +857,28 @@ export default function ScheduleReview() {
 		}
 		setRoomMap(enrichedRooms);
 	}, []);
+
+	const openMapWorkspace = useCallback(async () => {
+		if (!schoolYearId) return;
+		await fetchReferenceData(schoolYearId);
+		switchCenterViewWithGuard(() => setCenterView('map'));
+	}, [schoolYearId, fetchReferenceData, switchCenterViewWithGuard]);
+
+	const openBuildingWorkspace = useCallback(async (buildingId: number) => {
+		if (!schoolYearId) return;
+		await fetchReferenceData(schoolYearId);
+		setMapBuildingId(buildingId);
+		switchCenterViewWithGuard(() => setCenterView('building'));
+	}, [schoolYearId, fetchReferenceData, switchCenterViewWithGuard]);
+
+	const openRoomGridWorkspace = useCallback((roomId: number) => {
+		const room = roomMap.get(roomId);
+		if (room) setMapBuildingId(room.buildingId);
+		setMapRoomId(roomId);
+		setViewMode('room');
+		setEntityFilter(String(roomId));
+		switchCenterViewWithGuard(() => setCenterView(draft ? 'schedule' : 'pre-generation'));
+	}, [draft, roomMap, switchCenterViewWithGuard]);
 
 	const loadAll = useCallback(
 		async (preserveRun = false) => {
@@ -888,7 +982,7 @@ export default function ScheduleReview() {
 		);
 	}, [requestSearch, roomRequestSummary?.requests]);
 
-	const focusRequestInGrid = useCallback((requestId: number) => {
+	const focusRequestInGrid = useCallback(async (requestId: number) => {
 		const request = (roomRequestSummary?.requests ?? []).find((item) => item.id === requestId);
 		if (!request) return;
 		setViewMode('room');
@@ -896,9 +990,10 @@ export default function ScheduleReview() {
 		const matchedEntry = draft?.entries.find((entry) => entry.entryId === request.entryId) ?? null;
 		if (matchedEntry) {
 			setSelectedEntry(matchedEntry);
+			rightPanelRef.current?.expand();
 		}
-		if (centerView !== 'grid') setCenterView('grid');
-	}, [roomRequestSummary?.requests, draft?.entries, centerView]);
+		openRoomGridWorkspace(request.requestedRoomId);
+	}, [roomRequestSummary?.requests, draft?.entries, openRoomGridWorkspace]);
 
 	const openRequestPreview = useCallback(
 		async (requestId: number) => {
@@ -913,18 +1008,76 @@ export default function ScheduleReview() {
 				);
 				setRequestPreview(data);
 				setRequestReviewerNotes(data.request.reviewerNotes ?? '');
-				focusRequestInGrid(request.id);
+				setAppealsLoading(true);
+				try {
+					const appealsRes = await atlasApi.get<{ requestId: number; appeals: RoomRequestAppeal[] }>(
+						`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${request.runId}/requests/${request.id}/appeals`,
+					);
+					setRequestAppeals(appealsRes.data.appeals);
+				} catch {
+					setRequestAppeals([]);
+				} finally {
+					setAppealsLoading(false);
+				}
+				await focusRequestInGrid(request.id);
 			} catch (err) {
 				const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
 				toast.error(message ?? 'Failed to load room request preview.');
 				setSelectedRequestId(null);
 				setRequestPreview(null);
+				setRequestAppeals([]);
 			} finally {
 				setRequestPreviewLoading(false);
 			}
 		},
 		[schoolYearId, roomRequestSummary?.requests, focusRequestInGrid],
 	);
+
+	const submitAppeal = useCallback(async () => {
+		if (!schoolYearId || !requestPreview) return;
+		if (!appealReason.trim()) {
+			toast.error('Appeal reason is required.');
+			return;
+		}
+		setAppealSubmitting(true);
+		try {
+			await atlasApi.post(
+				`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${requestPreview.request.runId}/requests/${requestPreview.request.id}/appeals`,
+				{ reason: appealReason.trim() },
+			);
+			const appealsRes = await atlasApi.get<{ requestId: number; appeals: RoomRequestAppeal[] }>(
+				`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${requestPreview.request.runId}/requests/${requestPreview.request.id}/appeals`,
+			);
+			setRequestAppeals(appealsRes.data.appeals);
+			setAppealReason('');
+			toast.success('Appeal submitted.');
+			await loadRoomRequestSummary(schoolYearId, requestStatusFilter, requestDecisionFilter);
+		} catch (err) {
+			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+			toast.error(message ?? 'Failed to submit appeal.');
+		} finally {
+			setAppealSubmitting(false);
+		}
+	}, [schoolYearId, requestPreview, appealReason, loadRoomRequestSummary, requestStatusFilter, requestDecisionFilter]);
+
+	const updateAppealStatus = useCallback(async (appealId: number, status: RoomRequestAppealStatus) => {
+		if (!schoolYearId || !requestPreview) return;
+		try {
+			await atlasApi.patch(
+				`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${requestPreview.request.runId}/requests/${requestPreview.request.id}/appeals/${appealId}/status`,
+				{ status },
+			);
+			const appealsRes = await atlasApi.get<{ requestId: number; appeals: RoomRequestAppeal[] }>(
+				`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${requestPreview.request.runId}/requests/${requestPreview.request.id}/appeals`,
+			);
+			setRequestAppeals(appealsRes.data.appeals);
+			await loadRoomRequestSummary(schoolYearId, requestStatusFilter, requestDecisionFilter);
+			toast.success('Appeal status updated.');
+		} catch (err) {
+			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+			toast.error(message ?? 'Failed to update appeal status.');
+		}
+	}, [schoolYearId, requestPreview, loadRoomRequestSummary, requestStatusFilter, requestDecisionFilter]);
 
 	const reviewRoomRequest = useCallback(
 		async (decisionStatus: 'APPROVED' | 'REJECTED') => {
@@ -949,6 +1102,8 @@ export default function ScheduleReview() {
 				await loadRoomRequestSummary(schoolYearId, requestStatusFilter, requestDecisionFilter);
 				setRequestPreview(null);
 				setSelectedRequestId(null);
+				setRequestAppeals([]);
+				setAppealReason('');
 			} catch (err) {
 				const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
 				toast.error(message ?? 'Failed to review room request.');
@@ -985,7 +1140,11 @@ export default function ScheduleReview() {
 	);
 
 	const handleEntryClick = useCallback((entry: ScheduledEntry) => {
-		setSelectedEntry((prev) => (prev?.entryId === entry.entryId ? null : entry));
+		setSelectedEntry((prev) => {
+			const next = prev?.entryId === entry.entryId ? null : entry;
+			if (next) rightPanelRef.current?.expand();
+			return next;
+		});
 	}, []);
 
 	const toggleFollowUp = useCallback(
@@ -1057,18 +1216,23 @@ export default function ScheduleReview() {
 		triggerGeneration();
 	}, [triggerGeneration]);
 
-	const handleStartNewPreGenerationDraft = useCallback(async () => {
+	const openPreGenerationWorkspace = useCallback(async (resetExisting: boolean) => {
 		if (!schoolYearId) return;
 		setNewDraftLoading(true);
 		try {
-			const { data } = await atlasApi.post<DraftBoardState>(
-				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/clear`,
-			);
+			const { data } = resetExisting
+				? await atlasApi.post<DraftBoardState>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/clear`)
+				: await atlasApi.get<DraftBoardState>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts`);
+			setDraftBoard(data);
 			setDraftBoardSummary(data.counts);
 			setLeftTab('locks');
-			setCenterView('grid');
+			setCenterView('pre-generation');
 			setSelectedViolation(null);
 			setSelectedEntry(null);
+			setPreGenPending(null);
+			setPreGenPreview(null);
+			setPreGenPreviewError(null);
+			setPreGenAllowSoftOverride(false);
 			toast.success('Pre-generation draft workspace is ready.');
 		} catch (err) {
 			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -1077,6 +1241,16 @@ export default function ScheduleReview() {
 			setNewDraftLoading(false);
 		}
 	}, [schoolYearId]);
+
+	const handleStartNewPreGenerationDraft = useCallback(async () => {
+		if (!schoolYearId) return;
+		const counts = draftBoard?.counts ?? await fetchDraftBoardSummary(schoolYearId);
+		if ((counts?.draft ?? 0) > 0 || preGenPending) {
+			setShowResetDraftDialog(true);
+			return;
+		}
+		await openPreGenerationWorkspace(false);
+	}, [draftBoard?.counts, fetchDraftBoardSummary, openPreGenerationWorkspace, preGenPending, schoolYearId]);
 
 	/* ── Publish handler (placeholder — Phase 5 scope) ── */
 
@@ -1189,10 +1363,107 @@ export default function ScheduleReview() {
 		}
 	}, [apiBase, schoolYearId, runIdNumeric, fetchEditHistory]);
 
+	const choosePreGenFaculty = useCallback((item: DraftQueueItem) => {
+		const contextFacultyId = viewMode === 'faculty' ? Number(entityFilter) : 0;
+		if (contextFacultyId && item.facultyOptions.includes(contextFacultyId)) return contextFacultyId;
+		return item.facultyOptions[0] ?? Array.from(facultyMap.keys())[0] ?? 0;
+	}, [entityFilter, facultyMap, viewMode]);
+
+	const choosePreGenRoom = useCallback((item: DraftQueueItem) => {
+		const contextRoomId = viewMode === 'room' ? Number(entityFilter) : 0;
+		if (contextRoomId && roomMap.get(contextRoomId)?.isTeachingSpace) return contextRoomId;
+		const preferred = Array.from(roomMap.values()).find((room) => room.isTeachingSpace && room.type === item.preferredRoomType);
+		return preferred?.id ?? Array.from(roomMap.values()).find((room) => room.isTeachingSpace)?.id ?? 0;
+	}, [entityFilter, roomMap, viewMode]);
+
+	const runPreGenPreview = useCallback(async (pending: PreGenPendingPlacement) => {
+		if (!schoolYearId) return;
+		setPreGenPreviewLoading(true);
+		setPreGenPreviewError(null);
+		try {
+			const { data } = await atlasApi.post<PreviewResult>(
+				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/preview`,
+				pending,
+			);
+			setPreGenPreview(data);
+		} catch (err) {
+			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+			setPreGenPreview(null);
+			setPreGenPreviewError(message ?? 'Unable to preview this pre-generation placement.');
+		} finally {
+			setPreGenPreviewLoading(false);
+		}
+	}, [schoolYearId]);
+
+	const stagePreGenDrop = useCallback((source: PreGenDragSource, day: string, startTime: string, endTime: string) => {
+		let pending: PreGenPendingPlacement;
+		if (source.type === 'draftQueue') {
+			pending = {
+				entryKind: source.item.entryKind,
+				sectionId: source.item.sectionId,
+				subjectId: source.item.subjectId,
+				facultyId: choosePreGenFaculty(source.item),
+				roomId: choosePreGenRoom(source.item),
+				day,
+				startTime,
+				endTime,
+				cohortCode: source.item.cohortCode,
+				sourceLabel: `${source.item.subjectCode} · ${source.item.sectionName} · session ${source.item.sessionNumber}/${source.item.sessionsPerWeek}`,
+			};
+		} else {
+			pending = {
+				placementId: source.placement.id,
+				entryKind: source.placement.entryKind,
+				sectionId: source.placement.sectionId,
+				subjectId: source.placement.subjectId,
+				facultyId: source.placement.facultyId ?? 0,
+				roomId: source.placement.roomId ?? 0,
+				day,
+				startTime,
+				endTime,
+				cohortCode: source.placement.cohortCode,
+				notes: source.placement.notes,
+				expectedVersion: source.placement.version,
+				sourceLabel: `Draft placement #${source.placement.id}`,
+			};
+		}
+		setPreGenPending(pending);
+		setPreGenAllowSoftOverride(false);
+		void runPreGenPreview(pending);
+	}, [choosePreGenFaculty, choosePreGenRoom, runPreGenPreview]);
+
+	const commitPreGenPending = useCallback(async () => {
+		if (!schoolYearId || !preGenPending) return;
+		setPreGenSaving(true);
+		try {
+			const { data } = await atlasApi.post<DraftPlacementCommitResult>(
+				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/commit`,
+				{ ...preGenPending, allowSoftOverride: preGenAllowSoftOverride },
+			);
+			setDraftBoard(data.board);
+			setDraftBoardSummary(data.board.counts);
+			setPreGenPreview(data.preview);
+			setPreGenPending(null);
+			setPreGenAllowSoftOverride(false);
+			setPreGenPreviewError(null);
+			toast.success(preGenPending.placementId ? 'Draft placement updated.' : 'Draft placement saved.');
+		} catch (err) {
+			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+			toast.error(message ?? 'Unable to save pre-generation placement.');
+		} finally {
+			setPreGenSaving(false);
+		}
+	}, [preGenAllowSoftOverride, preGenPending, schoolYearId]);
+
 	/** Handle drop of item onto a timetable cell */
 	const handleCellDrop = useCallback(
 		async (day: string, startTime: string, endTime: string) => {
 			if (!dragItem) return;
+			if (dragItem.type === 'draftQueue' || dragItem.type === 'draftPlacement') {
+				stagePreGenDrop(dragItem, day, startTime, endTime);
+				setDragItem(null);
+				return;
+			}
 
 			if (dragItem.type === 'unassigned') {
 				// Show assignment picker modal instead of auto-selecting
@@ -1240,7 +1511,7 @@ export default function ScheduleReview() {
 
 			await commitEdit(proposal);
 		},
-		[dragItem, entityFilter, viewMode, previewEdit, commitEdit],
+		[dragItem, entityFilter, viewMode, previewEdit, commitEdit, stagePreGenDrop],
 	);
 
 	/** Keyboard-accessible placement confirm */
@@ -1249,6 +1520,11 @@ export default function ScheduleReview() {
 			if (!kbSelectedSource) return;
 			const fakeItem = kbSelectedSource;
 			setKbSelectedSource(null);
+
+			if (fakeItem.type === 'draftQueue' || fakeItem.type === 'draftPlacement') {
+				stagePreGenDrop(fakeItem, day, startTime, endTime);
+				return;
+			}
 
 			if (fakeItem.type === 'unassigned') {
 				// Route to assignment picker
@@ -1291,7 +1567,7 @@ export default function ScheduleReview() {
 			}
 			await commitEdit(proposal);
 		},
-		[kbSelectedSource, entityFilter, viewMode, previewEdit, commitEdit],
+		[kbSelectedSource, entityFilter, viewMode, previewEdit, commitEdit, stagePreGenDrop],
 	);
 
 	/** Confirm assignment picker and submit the unassigned placement */
@@ -1554,6 +1830,10 @@ export default function ScheduleReview() {
 
 	const hardCount = violations.filter((v) => v.severity === 'HARD').length;
 	const softCount = violations.filter((v) => v.severity === 'SOFT').length;
+	const selectedMapBuilding = buildings.find((b) => b.id === mapBuildingId) ?? null;
+	const selectedMapBuildingFloors = selectedMapBuilding
+		? Array.from({ length: selectedMapBuilding.floorCount }, (_, i) => selectedMapBuilding.floorCount - i)
+		: [];
 	const contractWarnings = Array.from(new Set([
 		...(summary?.contractWarnings ?? []),
 		...(sectionSummary?.contractWarnings ?? []),
@@ -1574,7 +1854,7 @@ export default function ScheduleReview() {
 
 					{/* Run selector */}
 					<div data-tutorial="run-selector">
-					<Select value={selectedRunId} onValueChange={handleRunChange} disabled={runs.length === 0}>
+					<Select value={selectedRunId} onValueChange={handleRunChange} disabled={runs.length === 0 || centerView === 'pre-generation'}>
 						<SelectTrigger className="h-8 w-44 text-xs">
 							<SelectValue placeholder={runs.length === 0 ? 'No generated run yet' : 'Select run'} />
 						</SelectTrigger>
@@ -1631,7 +1911,7 @@ export default function ScheduleReview() {
 									variant="outline"
 									size="sm"
 									className="h-8 gap-1.5"
-									disabled={!draft || hardCount > 0}
+									disabled={!draft || hardCount > 0 || centerView === 'pre-generation'}
 									onClick={() => {
 										setPublishAcknowledged(false);
 										setShowPublishDialog(true);
@@ -1659,13 +1939,31 @@ export default function ScheduleReview() {
 									size="sm"
 									className="h-8 gap-1.5"
 									disabled={!schoolYearId}
-									onClick={() => centerView === 'policy' ? exitPolicyView() : enterPolicyView()}
+									onClick={() => centerView === 'policy' ? exitPolicyView() : switchCenterViewWithGuard(enterPolicyView)}
 								>
 									<Settings2 className="size-3.5" />
 									{centerView === 'policy' ? 'Close Policy' : 'Policy'}
 								</Button>
 							</TooltipTrigger>
 							<TooltipContent>Configure scheduling policy and soft-constraint weights</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant={centerView === 'map' || centerView === 'building' ? 'default' : 'outline'}
+									size="sm"
+									className="h-8 gap-1.5"
+									disabled={!schoolYearId}
+									onClick={() => { void openMapWorkspace(); }}
+								>
+									<Crosshair className="size-3.5" />
+									{centerView === 'map' || centerView === 'building' ? 'Map Workspace' : 'Map View'}
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Navigate buildings and rooms without leaving the editable grid</TooltipContent>
 						</Tooltip>
 					</TooltipProvider>
 
@@ -2467,15 +2765,121 @@ export default function ScheduleReview() {
 						</ScrollArea>
 						) : leftTab === 'locks' ? (
 						<div id="panel-locks" role="tabpanel" aria-labelledby="tab-locks" className="flex flex-col flex-1 min-h-0">
-							<LockPanel
-								schoolId={DEFAULT_SCHOOL_ID}
-								schoolYearId={schoolYearId ?? 0}
-								sections={sectionMap}
-								subjects={subjectMap}
-								faculty={facultyMap}
-								rooms={lockPanelRooms}
-								onBoardChange={(board) => setDraftBoardSummary(board.counts)}
-							/>
+							<div className="shrink-0 border-b border-border px-3 py-2">
+								<div className="flex items-center justify-between gap-2">
+									<div className="flex items-center gap-1.5">
+										<Lock className="size-3.5 text-primary" />
+										<span className="text-xs font-semibold">Pre-Generation Sources</span>
+									</div>
+									<Button
+										variant="outline"
+										size="sm"
+										className="h-7 text-[0.625rem]"
+										onClick={() => { if (schoolYearId) void fetchDraftBoardSummary(schoolYearId); }}
+									>
+										<RefreshCw className="mr-1 size-3" />
+										Refresh
+									</Button>
+								</div>
+								<div className="mt-2 flex flex-wrap items-center gap-1.5">
+									<Badge variant="secondary" className="h-5 px-2 text-[0.625rem]">{draftBoard?.counts.unscheduled ?? 0} unassigned</Badge>
+									<Badge variant="secondary" className="h-5 px-2 text-[0.625rem]">{draftBoard?.counts.draft ?? 0} pinned</Badge>
+									<Badge variant="secondary" className="h-5 px-2 text-[0.625rem]">{draftBoard?.counts.lockedForRun ?? 0} locked</Badge>
+									{preGenPending ? <Badge className="h-5 px-2 text-[0.625rem]">Pending preview</Badge> : null}
+								</div>
+							</div>
+							<ScrollArea className="flex-1 min-h-0">
+								<div className="space-y-3 p-3">
+									<div className="space-y-1">
+										<p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">Unassigned</p>
+										{(draftBoard?.queue ?? []).slice(0, 30).map((item) => {
+											const key = `${item.assignmentKey}-${item.sessionNumber}`;
+											const selected = preGenKbSource?.type === 'draftQueue' && preGenKbSource.item.assignmentKey === item.assignmentKey && preGenKbSource.item.sessionNumber === item.sessionNumber;
+											return (
+												<div
+													key={key}
+													draggable
+													onDragStart={() => setDragItem({ type: 'draftQueue', item })}
+													onDragEnd={() => setDragItem(null)}
+													className={cn(
+														'rounded border bg-background px-2 py-1.5 text-xs transition-colors',
+														selected ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border hover:border-primary/40',
+													)}
+												>
+													<Button
+														type="button"
+														variant="ghost"
+														size="sm"
+														className="h-auto w-full justify-start px-0 py-0 text-left hover:bg-transparent"
+														onClick={() => {
+															const source = { type: 'draftQueue' as const, item };
+															setPreGenKbSource(selected ? null : source);
+															setKbSelectedSource(selected ? null : source);
+														}}
+													>
+														<GripVertical className="mr-1.5 size-3 shrink-0 text-muted-foreground" />
+														<div className="min-w-0 flex-1">
+															<div className="flex items-center gap-1">
+																<Badge variant="outline" className={cn('h-4 px-1 text-[0.5rem]', GRADE_BADGE[item.gradeLevel])}>G{item.gradeLevel}</Badge>
+																<span className="truncate font-medium">{item.subjectCode}</span>
+																<span className="text-[0.5625rem] text-muted-foreground">{item.sessionNumber}/{item.sessionsPerWeek}</span>
+															</div>
+															<p className="truncate text-[0.625rem] text-muted-foreground">{item.sectionName}{item.cohortCode ? ` · ${item.cohortCode}` : ''}</p>
+														</div>
+													</Button>
+												</div>
+											);
+										})}
+										{(draftBoard?.queue.length ?? 0) === 0 ? (
+											<p className="rounded border border-dashed border-border px-2 py-3 text-center text-[0.6875rem] text-muted-foreground">No unassigned pre-generation demand remains.</p>
+										) : null}
+									</div>
+
+									<div className="space-y-1">
+										<p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">Pinned / Existing Draft Entries</p>
+										{(draftBoard?.placements ?? []).filter((placement) => placement.status === 'DRAFT').map((placement) => {
+											const source = { type: 'draftPlacement' as const, placement };
+											const selected = preGenKbSource?.type === 'draftPlacement' && preGenKbSource.placement.id === placement.id;
+											return (
+												<div
+													key={placement.id}
+													draggable
+													onDragStart={() => setDragItem(source)}
+													onDragEnd={() => setDragItem(null)}
+													className={cn(
+														'rounded border bg-muted/30 px-2 py-1.5 text-xs transition-colors',
+														selected ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border hover:border-primary/40',
+													)}
+												>
+													<Button
+														type="button"
+														variant="ghost"
+														size="sm"
+														className="h-auto w-full justify-start px-0 py-0 text-left hover:bg-transparent"
+														onClick={() => {
+															setPreGenKbSource(selected ? null : source);
+															setKbSelectedSource(selected ? null : source);
+															const entry = preGenEntries.find((candidate) => candidate.entryId === `draft-placement-${placement.id}`);
+															if (entry) setSelectedEntry(entry);
+														}}
+													>
+														<GripVertical className="mr-1.5 size-3 shrink-0 text-muted-foreground" />
+														<div className="min-w-0 flex-1">
+															<p className="truncate font-medium">{subjectLabel(placement.subjectId)} · {sectionLabel(placement.sectionId)}</p>
+															<p className="truncate text-[0.625rem] text-muted-foreground">
+																{DAY_SHORT[placement.day] ?? placement.day} {formatTime(placement.startTime)} · {placement.roomId ? roomLabelShort(placement.roomId) : 'No room'}
+															</p>
+														</div>
+													</Button>
+												</div>
+											);
+										})}
+										{(draftBoard?.placements ?? []).filter((placement) => placement.status === 'DRAFT').length === 0 ? (
+											<p className="rounded border border-dashed border-border px-2 py-3 text-center text-[0.6875rem] text-muted-foreground">Drop an unassigned source into the center grid to create a pinned draft entry.</p>
+										) : null}
+									</div>
+								</div>
+							</ScrollArea>
 						</div>
 						) : (
 						<ScrollArea id="panel-requests" role="tabpanel" aria-labelledby="tab-requests" className="flex-1 min-h-0">
@@ -2553,7 +2957,12 @@ export default function ScheduleReview() {
 													</div>
 													<div className="flex flex-col items-end gap-1">
 														<Badge variant="outline" className="h-4 px-1 text-[0.5625rem] uppercase">{request.decisionStatus}</Badge>
-														<Button variant="ghost" size="sm" className="h-6 px-1.5 text-[0.625rem]" onClick={() => focusRequestInGrid(request.id)}>
+														{request.appealCount > 0 ? (
+															<Badge variant="outline" className="h-4 px-1 text-[0.5625rem] uppercase">
+																Appeals {request.appealCount}
+															</Badge>
+														) : null}
+														<Button variant="ghost" size="sm" className="h-6 px-1.5 text-[0.625rem]" onClick={() => { void focusRequestInGrid(request.id); }}>
 															Focus
 														</Button>
 													</div>
@@ -2564,7 +2973,7 @@ export default function ScheduleReview() {
 													className="mt-2 h-7 w-full text-[0.6875rem]"
 													onClick={() => void openRequestPreview(request.id)}
 												>
-													Review request
+													{isPrivilegedUser ? 'Review request' : 'Open request'}
 												</Button>
 											</div>
 										))}
@@ -2631,9 +3040,127 @@ export default function ScheduleReview() {
 									onForceOpen={() => {}}
 								/>
 							</motion.div>
+						) : centerView === 'map' ? (
+							<motion.div
+								key="map-view"
+								initial={{ opacity: 0, y: -8 }}
+								animate={{ opacity: 1, y: 0 }}
+								exit={{ opacity: 0, y: -8 }}
+								transition={{ duration: 0.18 }}
+								className="flex-1 min-w-0 flex flex-col min-h-0 p-3"
+							>
+								<div className="mb-2 flex items-center justify-between gap-2">
+									<div className="flex items-center gap-2">
+										<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] uppercase">Map</Badge>
+										<p className="text-xs text-muted-foreground">View-only map workspace. Editing remains in `/map-editor`.</p>
+									</div>
+									<Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setCenterView('schedule')}>
+										<ChevronLeft className="size-3.5" />
+										Back to Schedule
+									</Button>
+								</div>
+								<CampusMap
+									buildings={buildings}
+									activeBuildingId={mapBuildingId}
+									onSelect={(buildingId) => {
+										if (buildingId == null) {
+											setMapBuildingId(null);
+											return;
+										}
+										void openBuildingWorkspace(buildingId);
+									}}
+								/>
+							</motion.div>
+						) : centerView === 'building' && selectedMapBuilding ? (
+							<motion.div
+								key={`building-${selectedMapBuilding.id}`}
+								initial={{ opacity: 0, y: -8 }}
+								animate={{ opacity: 1, y: 0 }}
+								exit={{ opacity: 0, y: -8 }}
+								transition={{ duration: 0.18 }}
+								className="flex-1 min-w-0 flex flex-col min-h-0 p-3 gap-3"
+							>
+								<div className="flex items-center justify-between gap-2">
+									<div className="flex items-center gap-2">
+										<Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setCenterView('map')}>
+											<ChevronLeft className="size-3.5" />
+											Back to Map
+										</Button>
+										<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] uppercase">Building View</Badge>
+										<p className="text-xs font-medium">{selectedMapBuilding.name}</p>
+									</div>
+									<Button
+										variant="outline"
+										size="sm"
+										className="h-7 text-xs"
+										onClick={() => setCenterView('schedule')}
+									>
+										Back to Schedule
+									</Button>
+								</div>
+								<div className="grid min-h-0 flex-1 grid-cols-12 gap-3">
+									<div className="col-span-8 min-h-0 rounded-lg border border-border bg-card p-2">
+										<BuildingView
+											building={selectedMapBuilding}
+											height={420}
+											showToolbar
+											selectedRoomId={mapRoomId}
+											onRoomSelect={(room) => {
+												if (!room) return;
+												openRoomGridWorkspace(room.id);
+											}}
+										/>
+									</div>
+									<div className="col-span-4 min-h-0 rounded-lg border border-border bg-muted/20 p-3">
+										<p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">Rooms</p>
+										<div className="space-y-px overflow-auto rounded-lg border border-border bg-border max-h-104">
+											{selectedMapBuildingFloors.map((floor) => {
+												const rooms = selectedMapBuilding.rooms
+													.filter((r) => r.floor === floor)
+													.sort((a, b) => a.floorPosition - b.floorPosition);
+												return (
+													<div key={floor} className="flex bg-background">
+														<div className="flex w-7 shrink-0 items-center justify-center border-r border-border bg-muted/50">
+															<span className="text-[0.6rem] font-bold text-muted-foreground [writing-mode:vertical-lr] rotate-180">
+																F{floor}
+															</span>
+														</div>
+														<div className="flex flex-1 gap-px bg-border min-h-10">
+															{rooms.length === 0 ? (
+																<div className="flex flex-1 items-center justify-center bg-background px-2">
+																	<span className="text-[0.625rem] text-muted-foreground/50 italic">Empty</span>
+																</div>
+															) : (
+																rooms.map((room) => {
+																	const colors = ROOM_COLORS[room.type] ?? ROOM_COLORS.OTHER;
+																	return (
+																		<button
+																			key={room.id}
+																			type="button"
+																			onClick={() => openRoomGridWorkspace(room.id)}
+																			className={`flex flex-1 flex-col items-center justify-center px-1 py-1 transition-all text-left ${colors.bg} hover:brightness-95`}
+																		>
+																			<span className={`text-[0.5625rem] font-semibold truncate w-full text-center ${colors.text}`}>
+																				{room.name}
+																			</span>
+																			<span className="text-[0.5rem] text-muted-foreground truncate w-full text-center">
+																				{ROOM_TYPE_LABELS[room.type]}
+																			</span>
+																		</button>
+																	);
+																})
+															)}
+														</div>
+													</div>
+												);
+											})}
+										</div>
+									</div>
+								</div>
+							</motion.div>
 						) : (
 							<motion.div
-								key="grid"
+								key={centerView === 'pre-generation' ? 'pre-generation-grid' : 'schedule-grid'}
 								initial={{ opacity: 0, y: -8 }}
 								animate={{ opacity: 1, y: 0 }}
 								exit={{ opacity: 0, y: -8 }}
@@ -2641,8 +3168,19 @@ export default function ScheduleReview() {
 								className="flex-1 min-w-0 flex flex-col min-h-0"
 							>
 								<ScrollArea className="flex-1 min-h-0">
-									{draft && draft.entries.length > 0 ? (
+									{(centerView === 'pre-generation' ? draftBoard != null : draft != null) ? (
 										<div className="p-4">
+											{centerView === 'pre-generation' ? (
+												<div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs">
+													<div className="flex items-center gap-2">
+														<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] uppercase">Pre-Generation Draft</Badge>
+														<span className="text-muted-foreground">Drop unassigned or pinned sources into the grid. Saved placements become generation anchors.</span>
+													</div>
+													{mapRoomId != null && viewMode === 'room' ? (
+														<Badge variant="secondary" className="h-5 px-2 text-[0.625rem]">{roomLabelShort(mapRoomId)}</Badge>
+													) : null}
+												</div>
+											) : null}
 											<TimetableGrid
 												entries={gridEntries}
 												timeSlots={timeSlots}
@@ -2670,7 +3208,9 @@ export default function ScheduleReview() {
 											<div className="text-center space-y-2">
 												<CalendarClock className="mx-auto size-10 text-muted-foreground/30" />
 												<p className="text-sm text-muted-foreground">
-													{runs.length === 0
+													{centerView === 'pre-generation'
+														? 'Pre-generation draft is empty. Drag sources from the left panel into this grid.'
+														: runs.length === 0
 														? 'Start with Pre-Generation Draft on the left, then Generate when ready.'
 														: 'No draft entries in this run'}
 												</p>
@@ -2681,6 +3221,11 @@ export default function ScheduleReview() {
 								<div className="shrink-0 border-t border-border bg-muted/20 px-3 py-2">
 									<div className="flex flex-wrap items-center gap-2 text-[0.6875rem]">
 										<span className="font-semibold text-foreground">Conflict Inspector</span>
+										{centerView === 'pre-generation' ? (
+											<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] border-primary/30 bg-primary/5 text-primary">
+												Anchors {draftBoard?.counts.draft ?? 0}
+											</Badge>
+										) : null}
 										<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] border-red-200 bg-red-50 text-red-700">
 											Hard {hardCount}
 										</Badge>
@@ -2688,12 +3233,51 @@ export default function ScheduleReview() {
 											Soft {softCount}
 										</Badge>
 										<span className="text-muted-foreground">
-											{selectedEntry
+											{centerView === 'pre-generation' && preGenPending
+												? `Pending: ${preGenPending.sourceLabel}`
+												: selectedEntry
 												? `Selected entry: ${Math.max(violationIndex.get(selectedEntry.entryId)?.length ?? 0, 0)} linked issue(s)`
 												: `${filteredViolations.length} filtered issue(s)`}
 										</span>
 									</div>
-									{(selectedEntry ? (violationIndex.get(selectedEntry.entryId) ?? []) : filteredViolations).slice(0, 3).length > 0 ? (
+									{centerView === 'pre-generation' && preGenPending ? (
+										<div className="mt-1.5 space-y-1.5">
+											<div className="flex flex-wrap items-center gap-2 text-[0.6875rem]">
+												{preGenPreviewLoading ? (
+													<span className="inline-flex items-center gap-1 text-muted-foreground"><Loader2 className="size-3 animate-spin" />Previewing constraints...</span>
+												) : preGenPreviewError ? (
+													<span className="text-destructive">{preGenPreviewError}</span>
+												) : preGenPreview ? (
+													<>
+														<span className={preGenPreview.allowed ? 'text-emerald-700' : 'text-red-700'}>
+															{preGenPreview.allowed ? 'Preview passes hard constraints' : 'Hard conflict detected'}
+														</span>
+														<span className="text-muted-foreground">Hard {preGenPreview.violationDelta.hardBefore} to {preGenPreview.violationDelta.hardAfter} · Soft {preGenPreview.violationDelta.softBefore} to {preGenPreview.violationDelta.softAfter}</span>
+													</>
+												) : null}
+											</div>
+											{preGenPreview?.humanConflicts.slice(0, 3).map((conflict) => (
+												<div key={`${conflict.code}-${conflict.humanDetail}`} className={cn('rounded border px-2 py-1 text-[0.625rem]', conflict.severity === 'HARD' ? 'border-red-300 bg-red-50 text-red-700' : 'border-amber-300 bg-amber-50 text-amber-800')}>
+													<span className="font-medium">{conflict.humanTitle}</span> · {conflict.humanDetail}
+												</div>
+											))}
+											{preGenPreview?.softViolations.length ? (
+												<label className="flex items-center gap-2 text-[0.625rem] text-amber-900">
+													<Checkbox checked={preGenAllowSoftOverride} onCheckedChange={(checked) => setPreGenAllowSoftOverride(Boolean(checked))} />
+													Acknowledge soft conflicts and save this anchor.
+												</label>
+											) : null}
+											<div className="flex items-center gap-2">
+												<Button size="sm" className="h-7 text-xs" disabled={preGenSaving || preGenPreviewLoading || !preGenPreview || (!preGenPreview.allowed && !preGenAllowSoftOverride)} onClick={() => void commitPreGenPending()}>
+													{preGenSaving ? <Loader2 className="mr-1 size-3 animate-spin" /> : <Lock className="mr-1 size-3" />}
+													Save Anchor
+												</Button>
+												<Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setPreGenPending(null); setPreGenPreview(null); setPreGenPreviewError(null); setPreGenAllowSoftOverride(false); }}>
+													Cancel Pending
+												</Button>
+											</div>
+										</div>
+									) : (selectedEntry ? (violationIndex.get(selectedEntry.entryId) ?? []) : filteredViolations).slice(0, 3).length > 0 ? (
 										<div className="mt-1.5 flex flex-wrap gap-1.5">
 											{(selectedEntry ? (violationIndex.get(selectedEntry.entryId) ?? []) : filteredViolations).slice(0, 3).map((violation) => (
 												<Button
@@ -2808,15 +3392,53 @@ export default function ScheduleReview() {
 												const grade = gradeForSection(selectedEntry.sectionId);
 												const gradeBadge = grade ? GRADE_BADGE[grade] : undefined;
 												const entryViolations = violationIndex.get(selectedEntry.entryId) ?? [];
+												const faculty = facultyMap.get(selectedEntry.facultyId);
+												const matchingRequest = (roomRequestSummary?.requests ?? []).find((request) => request.entryId === selectedEntry.entryId) ?? null;
+												const facultyPhotoUrl = (faculty as FacultyMirror & { photoUrl?: string | null } | undefined)?.photoUrl ?? null;
 												return (
 													<>
 														<div className="flex items-center gap-1.5">
 															<span className="text-xs font-medium">{sectionLabel(selectedEntry.sectionId)}</span>
 															{gradeBadge && <Badge variant="outline" className={`h-4 px-1 text-[0.5625rem] shrink-0 ${gradeBadge}`}>G{grade}</Badge>}
 														</div>
-														<p className="text-[0.6875rem] text-muted-foreground">{facultyLabel(selectedEntry.facultyId)}</p>
+														<div className="flex items-center gap-2 rounded border border-border bg-muted/20 px-2 py-1">
+															{facultyPhotoUrl ? (
+																<img src={facultyPhotoUrl} alt={facultyLabel(selectedEntry.facultyId)} className="size-8 rounded-full object-cover" />
+															) : (
+																<div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-[0.625rem] font-semibold text-primary">
+																	{initials(faculty?.firstName ?? null, faculty?.lastName ?? null)}
+																</div>
+															)}
+															<div className="min-w-0">
+																<p className="truncate text-[0.6875rem] font-medium text-foreground">{facultyLabel(selectedEntry.facultyId)}</p>
+																<p className="truncate text-[0.625rem] text-muted-foreground">
+																	{faculty?.department ?? 'No department'} · {faculty?.advisedSectionName ?? 'No advisory class'}
+																</p>
+															</div>
+														</div>
 														<p className="text-[0.6875rem] text-muted-foreground">{DAY_SHORT[selectedEntry.day]} {formatTime(selectedEntry.startTime)}–{formatTime(selectedEntry.endTime)}</p>
 														<p className="text-[0.6875rem] text-muted-foreground truncate">{roomLabel(selectedEntry.roomId)}</p>
+														<div className="space-y-1 rounded border border-border bg-muted/20 px-2 py-1.5">
+															<p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">Room Request</p>
+															{matchingRequest ? (
+																<>
+																	<p className="text-[0.6875rem] text-foreground truncate">Requested: {matchingRequest.requestedRoomName}</p>
+																	<p className="text-[0.625rem] text-muted-foreground">
+																		Status: {matchingRequest.decisionStatus} · Reason: {matchingRequest.rationale ?? '—'}
+																	</p>
+																	<p className="text-[0.625rem] text-muted-foreground truncate">
+																		Reviewer notes: {matchingRequest.reviewerNotes ?? '—'}
+																	</p>
+																	{matchingRequest.appealCount > 0 ? (
+																		<p className="text-[0.625rem] text-muted-foreground">
+																			Appeals: {matchingRequest.appealCount} total ({matchingRequest.openAppealCount} open) · Latest {matchingRequest.latestAppealStatus ?? '—'}
+																		</p>
+																	) : null}
+																</>
+															) : (
+																<p className="text-[0.625rem] text-muted-foreground">No request linked to this session.</p>
+															)}
+														</div>
 														{entryViolations.length > 0 && (
 															<div className="space-y-1 pt-1">
 																{/* Concise summary line */}
@@ -2910,8 +3532,8 @@ export default function ScheduleReview() {
 							This generation will consume your current pre-generation draft placements
 							{draftBoardSummary ? (
 								<>
-									 {' '}(<span className="font-semibold">{draftBoardSummary.queuedPlacements}</span> queued,
-									 <span className="font-semibold">{draftBoardSummary.preplacedEntries}</span> pre-placed)
+									 {' '}(<span className="font-semibold">{draftBoardSummary.unscheduled}</span> unassigned,
+									 <span className="font-semibold">{draftBoardSummary.draft}</span> anchored)
 								</>
 							) : null}
 							 and start a new generated run.
@@ -2935,12 +3557,68 @@ export default function ScheduleReview() {
 				</DialogContent>
 			</Dialog>
 
+			<Dialog open={showResetDraftDialog} onOpenChange={setShowResetDraftDialog}>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>Reset timetable?</DialogTitle>
+						<DialogDescription>
+							This will clear the current pre-generation draft placements. Existing generated runs are not changed, but unsaved or pinned pre-generation anchors in this workspace will be removed.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter className="gap-2 sm:gap-0">
+						<Button variant="outline" size="sm" onClick={() => setShowResetDraftDialog(false)}>
+							Cancel
+						</Button>
+						<Button
+							variant="destructive"
+							size="sm"
+							onClick={() => {
+								setShowResetDraftDialog(false);
+								void openPreGenerationWorkspace(true);
+							}}
+						>
+							Reset Draft
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog open={showLeavePreGenDialog} onOpenChange={setShowLeavePreGenDialog}>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>Leave Pre-Generation Draft?</DialogTitle>
+						<DialogDescription>
+							You have pre-generation placements in progress. Saved anchors remain available for generation, but switching workspaces can hide the draft context.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter className="gap-2 sm:gap-0">
+						<Button variant="outline" size="sm" onClick={() => setShowLeavePreGenDialog(false)}>
+							Cancel
+						</Button>
+						<Button
+							variant="default"
+							size="sm"
+							onClick={() => {
+								setShowLeavePreGenDialog(false);
+								const action = pendingCenterSwitch;
+								setPendingCenterSwitch(null);
+								action?.();
+							}}
+						>
+							Proceed
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
 			<Sheet
 				open={!!requestPreview || requestPreviewLoading}
 				onOpenChange={(open) => {
 					if (!open) {
 						setRequestPreview(null);
 						setSelectedRequestId(null);
+						setRequestAppeals([]);
+						setAppealReason('');
 					}
 				}}
 			>
@@ -3001,30 +3679,92 @@ export default function ScheduleReview() {
 									</div>
 								) : null}
 
-								<Textarea
-									value={requestReviewerNotes}
-									onChange={(event) => setRequestReviewerNotes(event.target.value)}
-									placeholder="Decision notes"
-									className="min-h-20 text-xs"
-								/>
-
-								<div className="flex gap-2">
-									<Button
-										className="flex-1"
-										disabled={requestReviewSaving || !requestPreview.preview.allowed}
-										onClick={() => void reviewRoomRequest('APPROVED')}
-									>
-										<CheckCircle2 className="mr-1.5 size-4" /> Approve
-									</Button>
-									<Button
-										variant="destructive"
-										className="flex-1"
-										disabled={requestReviewSaving}
-										onClick={() => void reviewRoomRequest('REJECTED')}
-									>
-										Reject
-									</Button>
+								<div className="rounded border border-border px-3 py-2 text-xs space-y-2">
+									<div className="flex items-center justify-between">
+										<p className="font-medium">Appeals timeline</p>
+										<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] uppercase">
+											{requestAppeals.length} total
+										</Badge>
+									</div>
+									{appealsLoading ? (
+										<Skeleton className="h-14 w-full rounded" />
+									) : requestAppeals.length === 0 ? (
+										<p className="text-muted-foreground">No appeals yet.</p>
+									) : (
+										<div className="max-h-36 space-y-1.5 overflow-auto">
+											{requestAppeals.map((appeal) => (
+												<div key={appeal.id} className="rounded border border-border bg-muted/20 px-2 py-1.5">
+													<div className="flex items-center justify-between gap-2">
+														<p className="font-medium truncate">{appeal.requesterName}</p>
+														<Badge variant="outline" className="h-4 px-1 text-[0.5625rem] uppercase">{appeal.status}</Badge>
+													</div>
+													<p className="mt-0.5 text-muted-foreground">{appeal.reason}</p>
+													{appeal.history.length > 0 ? (
+														<p className="mt-0.5 text-[0.625rem] text-muted-foreground">
+															Last update: {new Date(appeal.history[appeal.history.length - 1].createdAt).toLocaleString()}
+														</p>
+													) : null}
+													{isPrivilegedUser ? (
+														<div className="mt-1 flex gap-1">
+															<Button variant="outline" size="sm" className="h-6 px-1.5 text-[0.625rem]" onClick={() => void updateAppealStatus(appeal.id, 'UNDER_REVIEW')}>Under Review</Button>
+															<Button variant="outline" size="sm" className="h-6 px-1.5 text-[0.625rem]" onClick={() => void updateAppealStatus(appeal.id, 'UPHELD')}>Upheld</Button>
+															<Button variant="outline" size="sm" className="h-6 px-1.5 text-[0.625rem]" onClick={() => void updateAppealStatus(appeal.id, 'DENIED')}>Denied</Button>
+														</div>
+													) : null}
+												</div>
+											))}
+										</div>
+									)}
+									{!isPrivilegedUser ? (
+										<div className="space-y-2 pt-1">
+											<Textarea
+												value={appealReason}
+												onChange={(event) => setAppealReason(event.target.value)}
+												placeholder="Reason for appeal"
+												className="min-h-16 text-xs"
+											/>
+											<Button
+												variant="outline"
+												size="sm"
+												className="h-7 text-xs"
+												disabled={appealSubmitting || !appealReason.trim()}
+												onClick={() => void submitAppeal()}
+											>
+												{appealSubmitting ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : null}
+												Submit appeal
+											</Button>
+										</div>
+									) : null}
 								</div>
+
+								{isPrivilegedUser ? (
+									<>
+										<Textarea
+											value={requestReviewerNotes}
+											onChange={(event) => setRequestReviewerNotes(event.target.value)}
+											placeholder="Decision notes"
+											className="min-h-20 text-xs"
+										/>
+
+										<div className="flex gap-2">
+											<Button
+												className="flex-1"
+												disabled={requestReviewSaving || !requestPreview.preview.allowed}
+												onClick={() => void reviewRoomRequest('APPROVED')}
+											>
+												<CheckCircle2 className="mr-1.5 size-4" /> Approve
+											</Button>
+											<Button
+												variant="destructive"
+												className="flex-1"
+												disabled={requestReviewSaving}
+												onClick={() => void reviewRoomRequest('REJECTED')}
+											>
+												Reject
+											</Button>
+										</div>
+									</>
+								) : null}
 							</>
 						) : null}
 					</div>
@@ -3193,43 +3933,51 @@ export default function ScheduleReview() {
 					<div className="space-y-3 py-2">
 						<div className="space-y-1.5">
 							<span className="text-xs font-medium">Faculty</span>
-							<Select value={assignPickerFacultyId} onValueChange={setAssignPickerFacultyId}>
-								<SelectTrigger className="h-8 text-xs">
-									<SelectValue placeholder="Select a faculty member…" />
-								</SelectTrigger>
-								<SelectContent>
-									{Array.from(facultyMap.values())
+							<SearchableSelect
+								value={assignPickerFacultyId}
+								onValueChange={setAssignPickerFacultyId}
+								groups={Array.from(
+									Array.from(facultyMap.values())
 										.sort((a, b) => `${a.lastName}`.localeCompare(`${b.lastName}`))
-										.map((f) => (
-											<SelectItem key={f.id} value={String(f.id)}>
-												{f.lastName}, {f.firstName}
-											</SelectItem>
-										))}
-								</SelectContent>
-							</Select>
+										.reduce((groups, faculty) => {
+											const key = faculty.department ?? 'Unassigned Department';
+											const items = groups.get(key) ?? [];
+											items.push({ value: String(faculty.id), label: `${faculty.lastName}, ${faculty.firstName}` });
+											groups.set(key, items);
+											return groups;
+										}, new Map<string, Array<{ value: string; label: string }>>())
+										.entries(),
+								).map(([label, items]) => ({ label, items }))}
+								placeholder="Select a faculty member…"
+								triggerClassName="h-8 text-xs"
+							/>
 						</div>
 						<div className="space-y-1.5">
 							<span className="text-xs font-medium">Room</span>
-							<Select value={assignPickerRoomId} onValueChange={setAssignPickerRoomId}>
-								<SelectTrigger className="h-8 text-xs">
-									<SelectValue placeholder="Select a room…" />
-								</SelectTrigger>
-								<SelectContent>
-									{Array.from(roomMap.values())
-										.filter((r) => r.isTeachingSpace)
+							<SearchableSelect
+								value={assignPickerRoomId}
+								onValueChange={setAssignPickerRoomId}
+								groups={Array.from(
+									Array.from(roomMap.values())
+										.filter((room) => room.isTeachingSpace)
 										.sort((a, b) => {
 											const ba = (a.buildingShortCode || a.buildingName).toLowerCase();
 											const bb = (b.buildingShortCode || b.buildingName).toLowerCase();
 											if (ba !== bb) return ba.localeCompare(bb);
 											return a.name.localeCompare(b.name);
 										})
-										.map((r) => (
-											<SelectItem key={r.id} value={String(r.id)}>
-												{r.buildingShortCode || r.buildingName} — {r.name}
-											</SelectItem>
-										))}
-								</SelectContent>
-							</Select>
+										.reduce((groups, room) => {
+											const key = room.buildingShortCode || room.buildingName;
+											const items = groups.get(key) ?? [];
+											items.push({ value: String(room.id), label: room.name });
+											groups.set(key, items);
+											return groups;
+										}, new Map<string, Array<{ value: string; label: string }>>())
+										.entries(),
+								).map(([label, items]) => ({ label, items }))}
+								placeholder="Select a room…"
+								triggerClassName="h-8 text-xs"
+							/>
 						</div>
 					</div>
 					<DialogFooter className="gap-2 sm:gap-0">
@@ -3587,7 +4335,11 @@ function ViolationGroup({
 
 /* ─── Timetable Grid ─── */
 
-type DragSource = { type: 'entry'; entry: ScheduledEntry } | { type: 'unassigned'; item: UnassignedItem } | null;
+type DragSource =
+	| { type: 'entry'; entry: ScheduledEntry }
+	| { type: 'unassigned'; item: UnassignedItem }
+	| PreGenDragSource
+	| null;
 
 function TimetableGrid({
 	entries,

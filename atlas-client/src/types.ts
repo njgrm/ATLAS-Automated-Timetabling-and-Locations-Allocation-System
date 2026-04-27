@@ -228,8 +228,8 @@ export type RoomScheduleView = {
 		floor?: number;
 	};
 	source: {
-		mode: 'LATEST' | 'RUN';
-		runId: number;
+		mode: 'LATEST' | 'RUN' | 'DRAFT';
+		runId: number | null;
 		status: string;
 		generatedAt?: string;
 	};
@@ -321,6 +321,10 @@ export type RoomPreferenceSummaryItem = {
 	cohortName?: string | null;
 	programCode?: string | null;
 	programName?: string | null;
+	appealCount: number;
+	openAppealCount: number;
+	latestAppealStatus: RoomRequestAppealStatus | null;
+	latestAppealUpdatedAt: string | null;
 };
 
 export type RoomPreferenceSummaryResponse = {
@@ -340,7 +344,34 @@ export type RoomPreferenceSummaryResponse = {
 export type RoomPreferencePreviewResponse = {
 	request: RoomPreferenceSummaryItem;
 	runVersion: number;
+	appeals?: RoomRequestAppeal[];
 	preview: PreviewResult;
+};
+
+export type RoomRequestAppealStatus = 'OPEN' | 'UNDER_REVIEW' | 'UPHELD' | 'DENIED';
+export type RoomRequestAppealHistoryAction = 'CREATED' | 'STATUS_CHANGED' | 'NOTE_ADDED' | 'DECISION_RECORDED';
+
+export type RoomRequestAppealHistory = {
+	id: number;
+	actorId: number;
+	actorName: string;
+	action: RoomRequestAppealHistoryAction;
+	fromStatus: RoomRequestAppealStatus | null;
+	toStatus: RoomRequestAppealStatus | null;
+	note: string | null;
+	createdAt: string;
+};
+
+export type RoomRequestAppeal = {
+	id: number;
+	requestId: number;
+	requesterId: number;
+	requesterName: string;
+	reason: string;
+	status: RoomRequestAppealStatus;
+	createdAt: string;
+	updatedAt: string;
+	history: RoomRequestAppealHistory[];
 };
 
 /* ─── Generation / Review types ─── */

@@ -340,7 +340,7 @@ export default function RoomSchedules() {
 								endTime,
 								roomName: room?.name ?? `Room #${selectedRoomId}`,
 								roomId: Number(selectedRoomId),
-								runId: state.data.source.runId,
+								runId: state.data.source.runId ?? 0,
 								runStatus: state.data.source.status,
 								entries,
 							});

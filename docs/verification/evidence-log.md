@@ -128,6 +128,31 @@ Record dated implementation verification summaries here.
 - Decision:
   - Accepted
 
+### 2026-04-27 - Wave 4.4 UX + Pre-Generation Workspace Unification
+- Phase: 4
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PARTIAL PASS
+- Regression gate: PASS
+- Commands:
+  - `npm --prefix atlas-client run build`: PASS
+  - `npm --prefix atlas-server run build`: PASS
+  - `npx tsc --noEmit` (client): PASS after fixing nullable `runId` handling in `RoomSchedules.tsx`
+  - `npx tsc --noEmit` (server): PASS
+  - `npm --prefix atlas-server run test:wave4-precision`: PASS (14/14)
+  - `npm --prefix atlas-server run test:phase4-review`: PASS (23/23)
+  - `npm --prefix atlas-server run test:wave4.3`: PASS (12/12; includes Wave 4.4 anchor-around-generation coverage)
+- API checks:
+  - Pre-generation draft board endpoint remains the source for queue, draft placement, period slot, and count state: PASS by client build/type coverage.
+  - Generation constructor retains valid locked entries and schedules remaining demand around occupied anchor slots: PASS by `wave4-pre-generation-draft.test.ts`.
+- UI checks:
+  - Dedicated pre-generation center workspace, reset confirmation, disabled run selector state, unified room grid navigation, and pre-generation source palette: PASS by client build/type coverage.
+  - Manual bridged browser QA with screenshots: NOT RUN in this pass.
+- Blocking findings:
+  - Manual browser QA remains pending for live drag/drop and bridge-auth confirmation.
+- Decision:
+  - Needs browser QA before final acceptance.
+
 ### 2026-04-21 - Wave 3.5.3 Cross-Repo Source Gate + Wave 4.0 Review Hardening
 - Phase: 4 (user-approved cross-phase hardening)
 - Scope gate: PASS

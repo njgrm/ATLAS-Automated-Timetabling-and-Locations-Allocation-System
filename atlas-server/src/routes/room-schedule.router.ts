@@ -7,7 +7,7 @@ const router = Router();
 
 // ─── Helpers ───
 
-const PRIVILEGED_ROLES: Set<string> = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
+const ALLOWED_ROLES: Set<string> = new Set(['admin', 'officer', 'SYSTEM_ADMIN', 'faculty', 'FACULTY', 'teacher', 'TEACHER']);
 
 function positiveInt(raw: unknown, name: string): number | string {
 	const n = Number(raw);
@@ -23,8 +23,8 @@ router.get(
 	async (req: Request, res: Response, next: NextFunction) => {
 		try {
 			const role = req.user?.role;
-			if (!role || !PRIVILEGED_ROLES.has(role)) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view room schedules.' });
+			if (!role || !ALLOWED_ROLES.has(role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only authenticated faculty/officer/admin roles can view room schedules.' });
 				return;
 			}
 
@@ -37,7 +37,7 @@ router.get(
 
 			// Parse source query params
 			const sourceParam = (req.query.source as string | undefined) ?? 'latest';
-			let source: { mode: 'LATEST' } | { mode: 'RUN'; runId: number };
+			let source: { mode: 'LATEST' } | { mode: 'RUN'; runId: number } | { mode: 'DRAFT' };
 
 			if (sourceParam === 'latest') {
 				source = { mode: 'LATEST' };
@@ -45,8 +45,10 @@ router.get(
 				const runId = positiveInt(req.query.runId, 'runId');
 				if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
 				source = { mode: 'RUN', runId };
+			} else if (sourceParam === 'draft') {
+				source = { mode: 'DRAFT' };
 			} else {
-				res.status(400).json({ code: 'INVALID_PARAM', message: 'source must be "latest" or "run".' });
+				res.status(400).json({ code: 'INVALID_PARAM', message: 'source must be "latest", "run", or "draft".' });
 				return;
 			}
 

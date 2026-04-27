@@ -1,4 +1,4 @@
-import type { DayOfWeek, RoomPreferenceDecisionStatus, RoomPreferenceStatus } from '@prisma/client';
+import type { DayOfWeek, RoomRequestAppealHistoryAction, RoomRequestAppealStatus, RoomPreferenceDecisionStatus, RoomPreferenceStatus } from '@prisma/client';
 import * as generationService from './generation.service.js';
 import * as manualEditService from './manual-edit.service.js';
 type DraftEntry = generationService.DraftReport['entries'][number];
@@ -94,6 +94,10 @@ export interface RoomPreferenceSummaryItem {
     cohortName?: string | null;
     programCode?: string | null;
     programName?: string | null;
+    appealCount: number;
+    openAppealCount: number;
+    latestAppealStatus: RoomRequestAppealStatus | null;
+    latestAppealUpdatedAt: string | null;
 }
 export interface RoomPreferenceSummaryResponse {
     runId: number;
@@ -107,6 +111,32 @@ export interface RoomPreferenceSummaryResponse {
     };
     requests: RoomPreferenceSummaryItem[];
     runVersion: number;
+}
+export interface RoomRequestAppealHistoryItem {
+    id: number;
+    actorId: number;
+    actorName: string;
+    action: RoomRequestAppealHistoryAction;
+    fromStatus: RoomRequestAppealStatus | null;
+    toStatus: RoomRequestAppealStatus | null;
+    note: string | null;
+    createdAt: string;
+}
+export interface RoomRequestAppealItem {
+    id: number;
+    requestId: number;
+    requesterId: number;
+    requesterName: string;
+    reason: string;
+    status: RoomRequestAppealStatus;
+    createdAt: string;
+    updatedAt: string;
+    history: RoomRequestAppealHistoryItem[];
+}
+export interface RoomPreferenceDetailResponse {
+    request: RoomPreferenceSummaryItem;
+    runVersion: number;
+    appeals: RoomRequestAppealItem[];
 }
 export declare function getFacultyRoomPreferenceState(schoolId: number, schoolYearId: number, runId: number, facultyId: number): Promise<FacultyRoomPreferenceState>;
 export declare function getLatestFacultyRoomPreferenceState(schoolId: number, schoolYearId: number, facultyId: number): Promise<FacultyRoomPreferenceState>;
@@ -128,11 +158,38 @@ export declare function getLatestRoomPreferenceSummary(schoolId: number, schoolY
 export declare function getRoomPreferenceDetail(schoolId: number, schoolYearId: number, runId: number, requestId: number): Promise<{
     request: RoomPreferenceSummaryItem;
     runVersion: number;
+    appeals: RoomRequestAppealItem[];
 }>;
 export declare function previewRoomPreferenceDecision(schoolId: number, schoolYearId: number, runId: number, requestId: number): Promise<{
     request: RoomPreferenceSummaryItem;
     runVersion: number;
+    appeals: RoomRequestAppealItem[];
     preview: manualEditService.PreviewResult;
+}>;
+export declare function listRoomRequestAppeals(schoolId: number, schoolYearId: number, runId: number, requestId: number): Promise<RoomRequestAppealItem[]>;
+export declare function createRoomRequestAppeal(input: {
+    schoolId: number;
+    schoolYearId: number;
+    runId: number;
+    requestId: number;
+    requesterId: number;
+    reason: string;
+}): Promise<{
+    appealId: number;
+    status: import("@prisma/client").$Enums.RoomRequestAppealStatus;
+}>;
+export declare function updateRoomRequestAppealStatus(input: {
+    schoolId: number;
+    schoolYearId: number;
+    runId: number;
+    requestId: number;
+    appealId: number;
+    actorId: number;
+    status: RoomRequestAppealStatus;
+    note?: string | null;
+}): Promise<{
+    appealId: number;
+    status: import("@prisma/client").$Enums.RoomRequestAppealStatus;
 }>;
 export declare function reviewRoomPreference(input: ReviewRoomPreferenceInput): Promise<{
     request: {

@@ -41,20 +41,58 @@ export async function getRoomScheduleView(schoolId, schoolYearId, roomId, source
         lunchEndTime: policy.lunchEndTime,
         enforceLunchWindow: policy.enforceLunchWindow,
     });
-    // 3) Fetch draft from generation run
-    const draft = source.mode === 'LATEST'
-        ? await genService.getLatestRunDraft(schoolId, schoolYearId)
-        : await genService.getRunDraft(source.runId, schoolId, schoolYearId);
-    // 4) Filter entries for this room
-    const roomEntries = draft.entries.filter((e) => e.roomId === roomId);
-    // 5) Build index: day -> entries[]
+    // 3) Resolve source entries (generated run draft OR pre-generation draft board)
+    let roomEntries = [];
+    let sourceRunId = null;
+    let sourceStatus = 'PRE_GENERATION_DRAFT';
+    let sourceGeneratedAt;
+    if (source.mode === 'DRAFT') {
+        const placements = await prisma.lockedSession.findMany({
+            where: {
+                schoolId,
+                schoolYearId,
+                status: 'DRAFT',
+                roomId,
+            },
+            orderBy: [{ day: 'asc' }, { startTime: 'asc' }, { id: 'asc' }],
+        });
+        roomEntries = placements.map((placement) => {
+            const [startHour, startMinute] = placement.startTime.split(':').map(Number);
+            const [endHour, endMinute] = placement.endTime.split(':').map(Number);
+            const durationMinutes = Math.max(0, ((endHour * 60) + endMinute) - ((startHour * 60) + startMinute));
+            return {
+                entryId: `draft-lock-${placement.id}`,
+                facultyId: placement.facultyId ?? 0,
+                roomId: placement.roomId ?? roomId,
+                subjectId: placement.subjectId,
+                sectionId: placement.sectionId,
+                day: placement.day,
+                startTime: placement.startTime,
+                endTime: placement.endTime,
+                durationMinutes,
+                entryKind: placement.entryKind,
+                cohortCode: placement.cohortCode ?? null,
+            };
+        });
+        sourceGeneratedAt = placements[0]?.updatedAt?.toISOString();
+    }
+    else {
+        const draft = source.mode === 'LATEST'
+            ? await genService.getLatestRunDraft(schoolId, schoolYearId)
+            : await genService.getRunDraft(source.runId, schoolId, schoolYearId);
+        roomEntries = draft.entries.filter((e) => e.roomId === roomId);
+        sourceRunId = draft.runId;
+        sourceStatus = draft.status;
+        sourceGeneratedAt = draft.finishedAt ?? draft.createdAt;
+    }
+    // 4) Build index: day -> entries[]
     const entriesByDay = new Map();
     for (const e of roomEntries) {
         const arr = entriesByDay.get(e.day) ?? [];
         arr.push(e);
         entriesByDay.set(e.day, arr);
     }
-    // 6) Build grid row by row (time slot × day)
+    // 5) Build grid row by row (time slot × day)
     let conflictCount = 0;
     const grid = PERIOD_SLOTS.map((slot) => {
         const cells = DAYS.map((day) => {
@@ -81,7 +119,7 @@ export async function getRoomScheduleView(schoolId, schoolYearId, roomId, source
         });
         return { timeSlot: { startTime: slot.startTime, endTime: slot.endTime }, cells };
     });
-    // 7) Summary — unique-entry aggregation to avoid per-cell inflation
+    // 6) Summary — unique-entry aggregation to avoid per-cell inflation
     const entryCount = countUniqueEntryIds(roomEntries);
     const occupiedMinutes = computeOccupiedMinutesByIntervalUnion(roomEntries, DAYS);
     const totalSlots = PERIOD_SLOTS.length * DAYS.length;
@@ -101,9 +139,9 @@ export async function getRoomScheduleView(schoolId, schoolYearId, roomId, source
         },
         source: {
             mode: source.mode,
-            runId: draft.runId,
-            status: draft.status,
-            generatedAt: draft.finishedAt ?? draft.createdAt,
+            runId: sourceRunId,
+            status: sourceStatus,
+            generatedAt: sourceGeneratedAt,
         },
         timeSlots: PERIOD_SLOTS.map((s) => ({ startTime: s.startTime, endTime: s.endTime })),
         days: DAYS,

@@ -77,6 +77,7 @@ export declare function getFacultyById(id: number): Promise<({
     department: string | null;
     employmentStatus: string;
     contactInfo: string | null;
+    avatarUrl: string | null;
     localNotes: string | null;
     isActiveForScheduling: boolean;
     isClassAdviser: boolean;
@@ -116,6 +117,7 @@ export declare function updateFacultyMirror(id: number, data: Partial<{
         department: string | null;
         employmentStatus: string;
         contactInfo: string | null;
+        avatarUrl: string | null;
         localNotes: string | null;
         isActiveForScheduling: boolean;
         isClassAdviser: boolean;

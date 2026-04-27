@@ -143,7 +143,66 @@ section('Invalid pre-placement still emits a lock warning');
 	assertEqual(result.unassignedItems.length, 0, 'Skipping the invalid lock does not prevent the remaining demand from being scheduled');
 }
 
-console.log(`\nWave 4.3 Pre-Generation Draft Tests: ${passCount} passed, ${failCount} failed`);
+section('Manual anchor blocks generated sessions from reusing its slot');
+
+{
+	const result = constructBaseline({
+		schoolId: 1,
+		schoolYearId: 1,
+		sectionsByGrade: [
+			{
+				gradeLevelId: 9,
+				gradeLevelName: 'Grade 9',
+				displayOrder: 9,
+				sections: [
+					{ id: 301, name: '9-Diamond', maxCapacity: 45, enrolledCount: 38, gradeLevelId: 9, gradeLevelName: 'Grade 9', displayOrder: 9, programType: 'REGULAR', programCode: 'REGULAR', programName: 'Regular' },
+				],
+			},
+		],
+		subjects: [
+			{ id: 501, code: 'MATH', minMinutesPerWeek: 50, preferredRoomType: 'CLASSROOM', sessionPattern: 'ANY', gradeLevels: [9], interSectionEnabled: false, interSectionGradeLevels: [] },
+			{ id: 502, code: 'ENG', minMinutesPerWeek: 50, preferredRoomType: 'CLASSROOM', sessionPattern: 'ANY', gradeLevels: [9], interSectionEnabled: false, interSectionGradeLevels: [] },
+		],
+		cohorts: [],
+		faculty: [{ id: 7, maxHoursPerWeek: 40 }],
+		facultySubjects: [
+			{ facultyId: 7, subjectId: 501, gradeLevels: [9], sectionIds: [301] },
+			{ facultyId: 7, subjectId: 502, gradeLevels: [9], sectionIds: [301] },
+		],
+		rooms: [{ id: 9, type: 'CLASSROOM', isTeachingSpace: true, capacity: 45 }],
+		preferences: [],
+		policy: {
+			maxConsecutiveTeachingMinutesBeforeBreak: 120,
+			minBreakMinutesAfterConsecutiveBlock: 15,
+			maxTeachingMinutesPerDay: 300,
+			earliestStartTime: '07:30',
+			latestEndTime: '10:00',
+			enableTleTwoPassPriority: true,
+			allowFlexibleSubjectAssignment: false,
+			allowConsecutiveLabSessions: false,
+		},
+		lockedEntries: [
+			{
+				sectionId: 301,
+				subjectId: 501,
+				facultyId: 7,
+				roomId: 9,
+				day: 'MONDAY',
+				startTime: '07:30',
+				endTime: '08:20',
+			},
+		],
+	});
+
+	const anchored = result.entries.find((entry) => entry.subjectId === 501);
+	const generated = result.entries.find((entry) => entry.subjectId === 502);
+	assert(anchored?.day === 'MONDAY' && anchored.startTime === '07:30', 'Manual anchor remains at its requested slot');
+	assert(generated != null, 'Generation schedules remaining demand around the anchor');
+	assert(generated?.day !== 'MONDAY' || generated.startTime !== '07:30', 'Generated session does not overwrite the anchored faculty/room/section slot');
+	assertEqual(result.lockWarnings.length, 0, 'Valid anchor does not emit lock warnings');
+}
+
+console.log(`\nWave 4.4 Pre-Generation Draft Tests: ${passCount} passed, ${failCount} failed`);
 
 if (failCount > 0) {
 	process.exit(1);

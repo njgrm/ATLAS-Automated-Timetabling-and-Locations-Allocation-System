@@ -3,7 +3,7 @@ import { authenticate } from '../middleware/authenticate.js';
 import { getRoomScheduleView } from '../services/room-schedule.service.js';
 const router = Router();
 // ─── Helpers ───
-const PRIVILEGED_ROLES = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
+const ALLOWED_ROLES = new Set(['admin', 'officer', 'SYSTEM_ADMIN', 'faculty', 'FACULTY', 'teacher', 'TEACHER']);
 function positiveInt(raw, name) {
     const n = Number(raw);
     if (!Number.isInteger(n) || n < 1)
@@ -14,8 +14,8 @@ function positiveInt(raw, name) {
 router.get('/:schoolId/:schoolYearId/rooms/:roomId', authenticate, async (req, res, next) => {
     try {
         const role = req.user?.role;
-        if (!role || !PRIVILEGED_ROLES.has(role)) {
-            res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view room schedules.' });
+        if (!role || !ALLOWED_ROLES.has(role)) {
+            res.status(403).json({ code: 'FORBIDDEN', message: 'Only authenticated faculty/officer/admin roles can view room schedules.' });
             return;
         }
         const schoolId = positiveInt(req.params.schoolId, 'schoolId');
@@ -47,8 +47,11 @@ router.get('/:schoolId/:schoolYearId/rooms/:roomId', authenticate, async (req, r
             }
             source = { mode: 'RUN', runId };
         }
+        else if (sourceParam === 'draft') {
+            source = { mode: 'DRAFT' };
+        }
         else {
-            res.status(400).json({ code: 'INVALID_PARAM', message: 'source must be "latest" or "run".' });
+            res.status(400).json({ code: 'INVALID_PARAM', message: 'source must be "latest", "run", or "draft".' });
             return;
         }
         const view = await getRoomScheduleView(schoolId, schoolYearId, roomId, source);
