@@ -497,6 +497,40 @@ Record dated implementation verification summaries here.
 
 ---
 
+### 2026-05-02 - Wave 4.5b: Post-QA Polish (performance, pagination, auto-preview, pins filters, grid density, KB parity)
+- Phase: 4
+- Scope gate: PASS (all 13 stakeholder-reported items from post-QA review addressed in ScheduleReview.tsx)
+- Architecture gate: PASS (no new endpoints; all changes are client-side UX/perf)
+- Behavior gate: PASS
+  - `React.memo(TimetableGrid)`: panels no longer re-render on unrelated state changes
+  - Pins queue capped at 30 initial items; Load more adds 30 per click
+  - Subject + section filters cascade (section options depend on selected grade)
+  - Grade filter reset propagates to section filter
+  - Pre-gen draft persisted in `localStorage`; Continue Draft button appears when draft has items
+  - pivotEntityIds includes ALL rooms/faculty in pre-gen mode (not just placed ones)
+  - Pre-gen timetable banner has "Map" back button; map view "Back to Grid" is context-aware
+  - Unassigned tab hidden (`hidden` attr) in pre-gen mode
+  - Violations tab shows info banner in pre-gen mode explaining constraint data source
+  - Pins grid uses `auto-fill minmax(110px, 1fr)` — up to 5 columns
+  - Queue card drag affordance: entire card surface is clickable (inner Button replaced with div)
+  - KB/hover parity: hovering timetable cells while pin selected shows drop-target outline
+  - Auto-preview debounced (600ms) on faculty/room change; no separate Preview button
+  - Cell overflow capped at 2 entries + "+N more" badge; `overflow-hidden` prevents row expansion
+- Regression gate: PASS (22/22 tests pass)
+- Commands:
+  - `npm --prefix atlas-client run build`: PASS (✓ 2420 modules)
+  - `npm --prefix atlas-server run build`: PASS
+  - `npm --prefix atlas-server run test:phase4-review`: PASS (23/23)
+  - `npm --prefix atlas-server run test:wave4.3`: PASS (22/22)
+- Files changed:
+  - `atlas-client/src/pages/ScheduleReview.tsx`: Wave 4.5b — all 13 items applied
+- Blocking findings:
+  - None
+- Decision:
+  - Accepted (build + automated test coverage); browser QA deferred to next live session
+
+---
+
 ### 2026-05-01 - Wave 4.5: Pre-Generation Onboarding, Explicit Binding, Teaching-Load-Aware Faculty, Desktop DnD
 - Phase: 4
 - Scope gate: PASS (map-first entry, confirm sheet, faculty load picker, hasNoTeacher, unassigned tab source, pins search/filter, DnD gating — all pre-gen UX scope; daily load enforcement in backend service)

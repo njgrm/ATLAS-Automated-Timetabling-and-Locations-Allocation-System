@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import {
 	AlertCircle,
@@ -512,6 +512,13 @@ export default function ScheduleReview() {
 	/** Wave 4.5: Pins panel search + grade filter */
 	const [pinsSearch, setPinsSearch] = useState('');
 	const [pinsGradeFilter, setPinsGradeFilter] = useState<number | 'all'>('all');
+	/** Wave 4.5b: additional Pins panel filters */
+	const [pinsSubjectFilter, setPinsSubjectFilter] = useState<number | 'all'>('all');
+	const [pinsSectionFilter, setPinsSectionFilter] = useState<number | 'all'>('all');
+	const [pinsQueuePage, setPinsQueuePage] = useState(30);
+	const [violationsGroupPage, setViolationsGroupPage] = useState(10);
+	/** Ref for auto-preview debounce in PreGenConfirmSheet */
+	const autoPreviewRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	/** Assignment picker modal for unassigned placements */
 	const [showAssignmentPicker, setShowAssignmentPicker] = useState(false);
@@ -712,15 +719,24 @@ export default function ScheduleReview() {
 	/** Row-axis entities based on view mode */
 	const pivotEntityIds = useMemo(() => {
 		const entries = filteredDraftEntries;
+		const isPreGen = centerView === 'pre-generation';
 		if (viewMode === 'section') return sectionIds;
 		if (viewMode === 'faculty') {
 			const ids = new Set<number>();
 			for (const e of entries) if (e.facultyId) ids.add(e.facultyId);
+			// In pre-gen mode: include all faculty so nav dropdown is populated even before any placements
+			if (isPreGen) for (const id of facultyMap.keys()) ids.add(id);
 			return Array.from(ids).sort((a, b) => a - b);
 		}
 		// room — sort by building label then room name for readability
 		const ids = new Set<number>();
 		for (const e of entries) if (e.roomId) ids.add(e.roomId);
+		// In pre-gen mode: include all teaching rooms so nav dropdown is populated
+		if (isPreGen) {
+			for (const [id, room] of roomMap.entries()) {
+				if (room.isTeachingSpace) ids.add(id);
+			}
+		}
 		return Array.from(ids).sort((a, b) => {
 			const ra = roomMap.get(a);
 			const rb = roomMap.get(b);
@@ -730,7 +746,7 @@ export default function ScheduleReview() {
 			if (bldgA !== bldgB) return bldgA.localeCompare(bldgB);
 			return ra.name.localeCompare(rb.name);
 		});
-	}, [filteredDraftEntries, viewMode, sectionIds, roomMap]);
+	}, [filteredDraftEntries, viewMode, sectionIds, roomMap, centerView, facultyMap]);
 
 	const gridEntries = useMemo(() => {
 		const entries = filteredDraftEntries;
@@ -1276,6 +1292,8 @@ export default function ScheduleReview() {
 			// Wave 4.5 A: map-first onboarding — land on the campus map with a guidance banner
 			setCenterView('map');
 			setPreGenOnboarding(true);
+			// Wave 4.5b: persist intent so returning to this page shows a Continue button
+			try { localStorage.setItem('atlas_pregen_active', '1'); } catch (_) { /* ignore */ }
 			setSelectedViolation(null);
 			setSelectedEntry(null);
 			setPreGenPending(null);
@@ -1526,6 +1544,18 @@ export default function ScheduleReview() {
 			setConfirmPreviewLoading(false);
 		}
 	}, [confirmFacultyId, confirmRoomId, preGenConfirmCtx, schoolYearId]);
+
+	/** Auto-preview debounce: fires 600ms after faculty/room/ctx change in PreGenConfirmSheet */
+	useEffect(() => {
+		if (autoPreviewRef.current) clearTimeout(autoPreviewRef.current);
+		if (!confirmFacultyId || !confirmRoomId || !preGenConfirmCtx) {
+			setConfirmPreview(null);
+			setConfirmPreviewError(null);
+			return;
+		}
+		autoPreviewRef.current = setTimeout(() => void runConfirmPreview(), 600);
+		return () => { if (autoPreviewRef.current) clearTimeout(autoPreviewRef.current); };
+	}, [confirmFacultyId, confirmRoomId, preGenConfirmCtx, runConfirmPreview]);
 
 	/** Commit from the confirm sheet */
 	const commitConfirmPlacement = useCallback(async () => {
@@ -2040,6 +2070,19 @@ export default function ScheduleReview() {
 						New Pre-Generation Draft
 					</Button>
 
+					{/* Wave 4.5b: Continue pre-gen draft — visible when draft has work and user is not already in pre-gen */}
+					{(draftBoard?.counts.draft ?? 0) > 0 && !isPreGenerationWorkspace && (
+						<Button
+							variant="secondary"
+							size="sm"
+							className="h-8 gap-1.5 border border-primary/30"
+							onClick={() => void openPreGenerationWorkspace(false)}
+						>
+							<CalendarClock className="size-3.5" />
+							Continue Draft
+						</Button>
+					)}
+
 					{/* Generate new run */}
 					<TooltipProvider>
 						<Tooltip>
@@ -2442,6 +2485,7 @@ export default function ScheduleReview() {
 							aria-selected={leftTab === 'unassigned'}
 							aria-controls="panel-unassigned"
 							onClick={() => setLeftTab('unassigned')}
+							hidden={isPreGenerationWorkspace}
 							className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
 								leftTab === 'unassigned'
 									? 'text-foreground border-b-2 border-primary'
@@ -2563,6 +2607,13 @@ export default function ScheduleReview() {
 
 							<ScrollArea className="flex-1 min-h-0">
 								<div className="px-3 pb-3 space-y-1">
+									{/* Wave 4.5b item 12: info banner in pre-gen mode */}
+									{isPreGenerationWorkspace && (
+										<div className="mb-2 flex items-start gap-2 rounded border border-primary/20 bg-primary/5 px-2.5 py-2 text-[0.625rem] text-primary">
+											<Info className="size-3 shrink-0 mt-0.5" />
+											<span>Constraint data shown is from the last generated run. Pre-gen placements are validated individually when saved.</span>
+										</div>
+									)}
 									{filteredViolations.length === 0 ? (
 										<div className="py-6 text-center text-xs text-muted-foreground">
 											{violations.length === 0 ? 'No violations found' : 'No matching violations'}
@@ -3021,7 +3072,7 @@ export default function ScheduleReview() {
 									</div>
 									<Select
 										value={String(pinsGradeFilter)}
-										onValueChange={(v) => setPinsGradeFilter(v === 'all' ? 'all' : Number(v))}
+										onValueChange={(v) => { setPinsGradeFilter(v === 'all' ? 'all' : Number(v)); setPinsSectionFilter('all'); }}
 									>
 										<SelectTrigger className="h-7 w-16 text-[0.625rem]">
 											<SelectValue placeholder="Grade" />
@@ -3032,6 +3083,27 @@ export default function ScheduleReview() {
 											<SelectItem value="8">G8</SelectItem>
 											<SelectItem value="9">G9</SelectItem>
 											<SelectItem value="10">G10</SelectItem>
+										</SelectContent>
+									</Select>
+								</div>
+								{/* Wave 4.5b item 6: subject and section filters */}
+								<div className="mt-1.5 flex items-center gap-1.5">
+									<Select value={String(pinsSubjectFilter)} onValueChange={(v) => setPinsSubjectFilter(v === 'all' ? 'all' : Number(v))}>
+										<SelectTrigger className="h-7 flex-1 min-w-0 text-[0.625rem]"><SelectValue placeholder="Subject" /></SelectTrigger>
+										<SelectContent>
+											<SelectItem value="all">All subjects</SelectItem>
+											{Array.from(new Map((draftBoard?.queue ?? []).map((item) => [item.subjectId, item.subjectCode])).entries()).map(([id, code]) => (
+												<SelectItem key={id} value={String(id)}>{code}</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+									<Select value={String(pinsSectionFilter)} onValueChange={(v) => setPinsSectionFilter(v === 'all' ? 'all' : Number(v))}>
+										<SelectTrigger className="h-7 flex-1 min-w-0 text-[0.625rem]"><SelectValue placeholder="Section" /></SelectTrigger>
+										<SelectContent>
+											<SelectItem value="all">All sections</SelectItem>
+											{Array.from(new Map((draftBoard?.queue ?? []).filter((item) => pinsGradeFilter === 'all' || item.gradeLevel === pinsGradeFilter).map((item) => [item.sectionId, item.sectionName])).entries()).map(([id, name]) => (
+												<SelectItem key={id} value={String(id)}>{name}</SelectItem>
+											))}
 										</SelectContent>
 									</Select>
 								</div>
@@ -3047,14 +3119,17 @@ export default function ScheduleReview() {
 									<div className="space-y-1">
 										<p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">Unassigned</p>
 										{/* Wave 4.5 H: responsive 2-col grid with search + grade filter */}
-										<div className="grid grid-cols-2 gap-1.5">
+										<div className="grid gap-1.5" style={{gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))'}}>
 										{(draftBoard?.queue ?? [])
 											.filter((item) => {
 												const matchesGrade = pinsGradeFilter === 'all' || item.gradeLevel === pinsGradeFilter;
+												const matchesSubject = pinsSubjectFilter === 'all' || item.subjectId === pinsSubjectFilter;
+												const matchesSection = pinsSectionFilter === 'all' || item.sectionId === pinsSectionFilter;
 												const q = pinsSearch.toLowerCase();
 												const matchesSearch = !q || item.subjectCode.toLowerCase().includes(q) || item.subjectName.toLowerCase().includes(q) || item.sectionName.toLowerCase().includes(q) || (item.cohortCode?.toLowerCase().includes(q) ?? false);
-												return matchesGrade && matchesSearch;
+												return matchesGrade && matchesSubject && matchesSection && matchesSearch;
 											})
+											.slice(0, pinsQueuePage)
 											.map((item) => {
 											const key = `${item.assignmentKey}-${item.sessionNumber}`;
 											const selected = preGenKbSource?.type === 'draftQueue' && preGenKbSource.item.assignmentKey === item.assignmentKey && preGenKbSource.item.sessionNumber === item.sessionNumber;
@@ -3070,33 +3145,44 @@ export default function ScheduleReview() {
 														isDesktop ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
 													)}
 												>
-													<Button
-														type="button"
-														variant="ghost"
-														size="sm"
-														className="h-auto w-full justify-start px-0 py-0 text-left hover:bg-transparent"
+													<div
+														className="min-w-0 flex-1"
+														role="button"
+														tabIndex={0}
 														onClick={() => {
 															const source = { type: 'draftQueue' as const, item };
 															setPreGenKbSource(selected ? null : source);
 															setKbSelectedSource(selected ? null : source);
 														}}
+														onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const source = { type: 'draftQueue' as const, item }; setPreGenKbSource(selected ? null : source); setKbSelectedSource(selected ? null : source); } }}
 													>
-														<div className="min-w-0 flex-1">
-															<div className="flex items-center gap-1 min-w-0">
-																<Badge variant="outline" className={cn('h-4 px-1 text-[0.5rem] shrink-0', GRADE_BADGE[item.gradeLevel])}>G{item.gradeLevel}</Badge>
-																{item.hasNoTeacher && (
-																	<UserX className="size-3 text-amber-500 shrink-0" />
-																)}
-																<span className="truncate font-medium">{item.subjectCode}</span>
-															</div>
-															<p className="truncate text-[0.5625rem] text-muted-foreground">{item.sectionName}{item.cohortCode ? ` · ${item.cohortCode}` : ''}</p>
-															<p className="text-[0.5rem] text-muted-foreground/60">{item.sessionNumber}/{item.sessionsPerWeek}</p>
+														<div className="flex items-center gap-1 min-w-0">
+															<Badge variant="outline" className={cn('h-4 px-1 text-[0.5rem] shrink-0', GRADE_BADGE[item.gradeLevel])}>G{item.gradeLevel}</Badge>
+															{item.hasNoTeacher && (
+																<UserX className="size-3 text-amber-500 shrink-0" />
+															)}
+															<span className="truncate font-medium">{item.subjectCode}</span>
 														</div>
-													</Button>
+														<p className="truncate text-[0.5625rem] text-muted-foreground">{item.sectionName}{item.cohortCode ? ` · ${item.cohortCode}` : ''}</p>
+														<p className="text-[0.5rem] text-muted-foreground/60">{item.sessionNumber}/{item.sessionsPerWeek}</p>
+													</div>
 												</div>
 											);
 										})}
 										</div>
+										{/* Wave 4.5b item 2: load more pagination */}
+										{(draftBoard?.queue ?? []).filter((item) => {
+											const matchesGrade = pinsGradeFilter === 'all' || item.gradeLevel === pinsGradeFilter;
+											const matchesSubject = pinsSubjectFilter === 'all' || item.subjectId === pinsSubjectFilter;
+											const matchesSection = pinsSectionFilter === 'all' || item.sectionId === pinsSectionFilter;
+											const q = pinsSearch.toLowerCase();
+											const matchesSearch = !q || item.subjectCode.toLowerCase().includes(q) || item.subjectName.toLowerCase().includes(q) || item.sectionName.toLowerCase().includes(q) || (item.cohortCode?.toLowerCase().includes(q) ?? false);
+											return matchesGrade && matchesSubject && matchesSection && matchesSearch;
+										}).length > pinsQueuePage && (
+											<button type="button" className="mt-1 w-full rounded border border-dashed border-border py-1.5 text-center text-[0.6875rem] text-muted-foreground hover:bg-muted/30 transition-colors" onClick={() => setPinsQueuePage((p) => p + 30)}>
+												Load more
+											</button>
+										)}
 										{(draftBoard?.queue.length ?? 0) === 0 ? (
 											<p className="rounded border border-dashed border-border px-2 py-3 text-center text-[0.6875rem] text-muted-foreground">No unassigned pre-generation demand remains.</p>
 										) : null}
@@ -3352,9 +3438,10 @@ export default function ScheduleReview() {
 											{preGenOnboarding ? 'Click a building then a room to pivot the timetable grid to that room.' : 'View-only map workspace. Editing remains in `/map-editor`.'}
 										</p>
 									</div>
-									<Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setCenterView('schedule')}>
+									<Button variant="outline" size="sm" className="h-7 text-xs"
+										onClick={() => preGenOnboarding ? setCenterView('pre-generation') : setCenterView('schedule')}>
 										<ChevronLeft className="size-3.5" />
-										Back to Schedule
+										{preGenOnboarding ? 'Back to Grid' : 'Back to Schedule'}
 									</Button>
 								</div>
 								<CampusMap
@@ -3474,9 +3561,15 @@ export default function ScheduleReview() {
 														<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] uppercase">Pre-Generation Draft</Badge>
 														<span className="text-muted-foreground">Drop unassigned or pinned sources into the grid. Saved placements become generation anchors.</span>
 													</div>
-													{mapRoomId != null && viewMode === 'room' ? (
-														<Badge variant="secondary" className="h-5 px-2 text-[0.625rem]">{roomLabelShort(mapRoomId)}</Badge>
-													) : null}
+													<div className="flex items-center gap-1.5">
+														{mapRoomId != null && viewMode === 'room' ? (
+															<Badge variant="secondary" className="h-5 px-2 text-[0.625rem]">{roomLabelShort(mapRoomId)}</Badge>
+														) : null}
+														<Button variant="outline" size="sm" className="h-6 px-2 text-[0.625rem] gap-1" onClick={() => { setCenterView('map'); setPreGenOnboarding(true); }}>
+															<MapPin className="size-3" />
+															Map
+														</Button>
+													</div>
 												</div>
 											) : null}
 											<TimetableGrid
@@ -4223,7 +4316,7 @@ export default function ScheduleReview() {
 								const weeklyMins = confirmPreview?.facultyWeeklyMinutes ?? enriched?.dailyMinutesByDay ?? {};
 								return (
 									<div className="grid grid-cols-5 gap-1 mt-1">
-										{['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((day) => {
+										{DAYS.map((day) => {
 											const mins = weeklyMins[day] ?? 0;
 											const band = mins > 480 ? 'hard' : mins > 360 ? 'soft' : 'ok';
 											const isTarget = preGenConfirmCtx?.day === day;
@@ -4234,7 +4327,7 @@ export default function ScheduleReview() {
 														isTarget ? 'border-primary/40 bg-primary/5' : 'border-border'
 													} ${band === 'hard' ? 'bg-red-50' : band === 'soft' ? 'bg-amber-50' : ''}`}
 												>
-													<span className="text-[0.5rem] text-muted-foreground font-medium">{day.slice(0, 3)}</span>
+													<span className="text-[0.5rem] text-muted-foreground font-medium">{DAY_SHORT[day]}</span>
 													<span className={`text-[0.5625rem] font-semibold ${band === 'hard' ? 'text-red-600' : band === 'soft' ? 'text-amber-600' : 'text-foreground'}`}>
 														{Math.round(mins / 60 * 10) / 10}h
 													</span>
@@ -4265,17 +4358,13 @@ export default function ScheduleReview() {
 							</Select>
 						</div>
 
-						{/* Preview action */}
-						<Button
-							variant="outline"
-							size="sm"
-							className="w-full h-8 text-xs"
-							disabled={!confirmFacultyId || !confirmRoomId || confirmPreviewLoading}
-							onClick={() => void runConfirmPreview()}
-						>
-							{confirmPreviewLoading ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <Zap className="mr-1.5 size-3.5" />}
-							Preview Placement
-						</Button>
+						{/* Wave 4.5b item 11: auto-preview via useEffect debounce — no separate button */}
+						{confirmPreviewLoading && (
+							<div className="flex items-center gap-1.5 text-[0.6875rem] text-muted-foreground">
+								<Loader2 className="size-3.5 animate-spin" />
+								Previewing constraints…
+							</div>
+						)}
 
 						{confirmPreviewError && (
 							<div className="flex items-start gap-1.5 rounded border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-[0.6875rem] text-destructive">
@@ -4306,11 +4395,10 @@ export default function ScheduleReview() {
 									<div className="space-y-1 rounded border border-amber-200 bg-amber-50 px-2.5 py-2 text-[0.6875rem] text-amber-700">
 										<p className="font-semibold flex items-center gap-1"><AlertTriangle className="size-3" /> Daily load soft warning ({Math.round((confirmPreview.dailyMinutesAfter ?? 0) / 60 * 10) / 10}h, standard limit 6h)</p>
 										<label className="flex items-center gap-2 cursor-pointer">
-											<input
-												type="checkbox"
+											<Checkbox
 												checked={confirmAllowDailyOverride}
-												onChange={(e) => setConfirmAllowDailyOverride(e.target.checked)}
-												className="size-3"
+												onCheckedChange={(checked) => setConfirmAllowDailyOverride(Boolean(checked))}
+												className="size-3.5"
 											/>
 											<span>I acknowledge the extended teaching day</span>
 										</label>
@@ -4323,11 +4411,10 @@ export default function ScheduleReview() {
 											<p key={idx} className="text-[0.5625rem]">{v.message ?? v.code}</p>
 										))}
 										<label className="flex items-center gap-2 cursor-pointer">
-											<input
-												type="checkbox"
+											<Checkbox
 												checked={confirmAllowSoftOverride}
-												onChange={(e) => setConfirmAllowSoftOverride(e.target.checked)}
-												className="size-3"
+												onCheckedChange={(checked) => setConfirmAllowSoftOverride(Boolean(checked))}
+												className="size-3.5"
 											/>
 											<span>Override soft constraints</span>
 										</label>
@@ -4866,7 +4953,7 @@ type DragSource =
 	| PreGenDragSource
 	| null;
 
-function TimetableGrid({
+const TimetableGrid = memo(function TimetableGrid({
 	entries,
 	timeSlots,
 	violationIndex,
@@ -4967,6 +5054,8 @@ function TimetableGrid({
 									<td
 										key={day}
 										className={`px-1 py-1 align-top border-l border-border/30 transition-all${dropClass}`}
+										onMouseEnter={() => { if (hasKbSource) setDropTarget(key); }}
+										onMouseLeave={() => { if (hasKbSource && dropTarget === key) setDropTarget(null); }}
 										onDragOver={(ev) => {
 											if (!isDragging) return;
 											ev.preventDefault();
@@ -4987,8 +5076,8 @@ function TimetableGrid({
 											}
 										}}
 									>
-										<div className="space-y-0.5 min-h-6">
-											{cellEntries.map((e) => {
+										<div className="space-y-0.5 min-h-6 overflow-hidden">
+											{cellEntries.slice(0, 2).map((e) => {
 												const sev = entrySeverity(e.entryId, violationIndex);
 												const isHighlighted = highlightedEntryIds.has(e.entryId);
 												const isSelected = selectedEntry?.entryId === e.entryId;
@@ -5084,6 +5173,9 @@ function TimetableGrid({
 													</TooltipProvider>
 												);
 											})}
+											{cellEntries.length > 2 && (
+												<div className="text-[0.5rem] text-muted-foreground/70 px-1.5 leading-none">+{cellEntries.length - 2} more</div>
+											)}
 										</div>
 									</td>
 								);
@@ -5094,7 +5186,7 @@ function TimetableGrid({
 			</table>
 		</div>
 	);
-}
+});
 
 /* ─── Entry Detail Panel ─── */
 
