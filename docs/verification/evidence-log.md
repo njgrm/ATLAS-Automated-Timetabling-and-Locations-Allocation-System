@@ -494,6 +494,36 @@ Record dated implementation verification summaries here.
   - `atlas-server/src/services/follow-up-flag.service.ts`: new — listByRun, toggleFlag, removeFlag
   - `atlas-server/src/routes/follow-up-flag.router.ts`: new — GET/PUT/DELETE with auth + role check
   - `atlas-server/src/app.ts`: wired follow-up-flag router at `/api/v1/follow-up-flags`
+
+---
+
+### 2026-05-01 - Wave 4.5: Pre-Generation Onboarding, Explicit Binding, Teaching-Load-Aware Faculty, Desktop DnD
+- Phase: 4
+- Scope gate: PASS (map-first entry, confirm sheet, faculty load picker, hasNoTeacher, unassigned tab source, pins search/filter, DnD gating — all pre-gen UX scope; daily load enforcement in backend service)
+- Architecture gate: PASS (business logic in service layer, thin controllers unchanged, Prisma select extended for `canTeachOutsideDepartment`, no direct SQL)
+- Behavior gate: PASS (daily load band thresholds: ≤360 → ok, 361–480 → soft, >480 → hard; `hasNoTeacher` flag derived from empty `facultyOptions`; hard block is non-overridable; soft requires `allowSoftOverride`)
+- Regression gate: PASS (22/22 tests pass)
+- Commands:
+  - `npm --prefix atlas-client run build`: PASS
+  - `npm --prefix atlas-server run build`: PASS
+  - `npm --prefix atlas-server run test:wave4.3`: PASS (22/22; +10 Wave 4.5 tests for band classification and hasNoTeacher)
+- Files changed:
+  - `atlas-server/src/services/pre-generation-draft.service.ts`: FacultyOptionEnriched interface; DraftQueueItem/DraftPlacementPreview extended; daily load helpers; buildBoardStateFromContext enriched; previewPlacement daily fields; commitPlacement daily hard/soft enforcement; canTeachOutsideDepartment in select
+  - `atlas-client/src/types.ts`: FacultyOptionEnriched type; DraftQueueItem + PreviewResult extended
+  - `atlas-client/src/pages/ScheduleReview.tsx`: useIsDesktop hook; preGenOnboarding state + map banner; stagePreGenDrop → confirm sheet; PreGenConfirmSheet Dialog; runConfirmPreview + commitConfirmPlacement; unassigned tab pre-gen data source; pins panel search + grade filter + 2-col grid; draggable gated by isDesktop; openRoomGridWorkspace clears onboarding
+  - `atlas-server/src/__tests__/wave4-pre-generation-draft.test.ts`: Wave 4.5 test sections added
+- UI checks:
+  - Pre-gen workspace opens to map panel with onboarding banner: PASS (build + type coverage)
+  - Drop onto timetable opens PreGenConfirmSheet with faculty/room pickers: PASS (build + type coverage)
+  - Faculty picker shows daily load badge per option (green/amber/red); hasNoTeacher shows amber alert with fallback: PASS (build + type coverage)
+  - Weekly load strip renders 5-day grid in confirm sheet: PASS (build + type coverage)
+  - Pins panel search + grade filter operational; 2-col grid renders: PASS (build + type coverage)
+  - DnD items render with `draggable={isDesktop}` so phone widths don't fire drag events: PASS (build + type coverage)
+  - Manual bridged browser QA: Pending live EnrollPro bridge session
+- Blocking findings:
+  - Manual browser QA remains pending
+- Decision:
+  - Accepted (build + automated test coverage); browser QA deferred to next live session
   - `atlas-client/src/types.ts`: added ExternalSection, SectionSummaryResponse interfaces
   - `atlas-client/src/pages/ScheduleReview.tsx`: A (entityFilter), B (two-row header), C (unassigned tab), D (sectionMap), G (API-backed followUps)
   - `atlas-client/src/pages/RoomSchedules.tsx`: D+F (sectionMap name resolution)

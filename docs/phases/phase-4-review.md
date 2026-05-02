@@ -171,6 +171,95 @@
   - `npm --prefix atlas-server run test:wave4.3`: PASS (expanded Wave 4.4 pre-generation anchor coverage)
 - Manual bridged browser QA: NOT RUN in this pass; requires live EnrollPro bridge session plus local ATLAS client/server.
 
+## Wave 4.5 — Pre-Generation Scheduler Truth + Onboarding (Planned / In Progress)
+
+### Why this wave exists (context for new agents)
+
+Wave 4.4 unified **where** pre-generation lives (center workspace, shared editable grid, map/room navigation without a separate read-only table). It did **not** fully solve **how** a scheduler understands what they are placing: faculty and room were often chosen **implicitly** via `choosePreGenFaculty` / `choosePreGenRoom` heuristics (first `facultyOptions` entry, first matching room type), which feels like “the system bound pins to nothing visible.” Officers need **explicit** binding aligned with **teaching load** (who is assigned to which subject × section), **overload policy**, and **department rules**—otherwise pre-gen anchors disagree with operational reality and erode trust before generation even runs.
+
+Additionally, the **Unassigned** tab could still surface **last-run** unassigned items while in pre-generation mode, which mixes two different concepts (post-generation triage vs pre-generation demand). Wave 4.5 corrects that and routes pre-gen placement through **one** API path (`/pre-generation-drafts/preview` + `/commit`).
+
+**Direction:** Pre-generation should feel like **drafting with a map and a timetable**, not like a hidden auto-complete. Map-first onboarding, mandatory confirmation steps, teaching-load-aware faculty pickers, and a richer Pins panel reduce wrong anchors and support DepEd-style load discipline (standard day vs capped overload vs unacceptable overload).
+
+### Product goals
+
+1. **Entry:** Opening pre-generation lands on **full map** with banner: *“Choose a room or faculty to begin drafting schedules.”*
+2. **Mandatory confirmation:** Every queue (and pre-gen-unassigned) drop opens **Faculty + Room** confirmation before preview/commit—even if pivot already implies values.
+3. **Teaching load truth:**
+   - Selectable faculty = assigned faculty for that session per teaching load; **live** daily totals for warnings.
+   - **Outside-department** faculty appear only if teaching load allows “teach outside department”; otherwise **filtered out**.
+   - **No teacher configured:** flag clearly; offer **in-department** options with rich labels (what they teach / sections).
+4. **Unassigned tab in pre-gen:** Show **pre-gen unscheduled demand only** (not last-run unassigned); use **pre-gen commit** like queue items.
+5. **Conflict UX:** Short **why** summary; **full-week pre-gen** context for faculty or room so schedulers can move slots without resetting the pin.
+6. **Map → grid:** Room pick **auto-switches** to timetable in **room** pivot with clear room label; **room dropdown** stays in sync with map selection.
+7. **Desktop-first:** Below agreed breakpoint, **disable drag-and-drop**; use non-DnD flows so phone widths do not break.
+
+### Daily teaching load policy (faculty, per day)
+
+These thresholds apply when evaluating **whether a proposed pre-generation placement is acceptable** for the selected faculty on the **target day** (include existing draft anchors that day; use the same minute accounting as the rest of the timetable).
+
+| Band | Hours (teaching) | UX / commit |
+|------|------------------|-------------|
+| Standard | ≤ **6** | No overload warning. |
+| Overload (soft) | **> 6** and ≤ **8** | **Soft warning**; user must **acknowledge** before commit (align with existing soft-override pattern for pre-gen). |
+| Blocker (hard) | **> 8** | **Hard block**; not committable without changing day/slot, faculty, or other placements; **no** soft override for exceeding 8 hours. |
+
+### Implementation notes (high level)
+
+- **Backend:** Extend or add service logic for preview/commit to enforce the 6h / 8h band rules and to intersect faculty lists with teaching-load + department flags; keep controllers thin.
+- **Frontend:** `ScheduleReview.tsx` (pre-gen flows), Pins panel (search, filters, responsive grid), confirmation sheet/dialog, conflict inspector + week context; gate DnD by breakpoint.
+- **Verification:** Extend `test:wave4.3` or add focused tests for daily-minute aggregation and hard/soft classification; bridged manual QA on `/timetable` pre-gen.
+- **Evidence:** Log passes in `docs/verification/evidence-log.md` when the wave closes.
+
+### Status
+
+- **State:** Complete (2026-05-01)
+
+### Changes delivered
+
+**Backend (`atlas-server/src/services/pre-generation-draft.service.ts`):**
+- Added `FacultyOptionEnriched` interface with `id`, `name`, `department`, `canTeachOutsideDepartment`, `dailyMinutesByDay`.
+- Extended `DraftQueueItem` with `facultyOptionsEnriched: FacultyOptionEnriched[]` and `hasNoTeacher: boolean`.
+- Extended `DraftPlacementPreview` with `dailyLoadBand`, `dailyMinutesAfter`, `facultyWeeklyMinutes`.
+- Added helpers: `computeFacultyDailyMinutes`, `computeFacultyWeeklyMinutes`, `classifyDailyLoadBand`.
+- `buildBoardStateFromContext`: queue items now include enriched faculty options with daily load context and the `hasNoTeacher` flag.
+- `previewPlacement`: returns `dailyLoadBand`, `dailyMinutesAfter`, `facultyWeeklyMinutes`.
+- `commitPlacement`: hard blocks at > 8h (`DAILY_LOAD_HARD_BLOCK`, 422); soft requires explicit `allowSoftOverride` at > 6h (`DAILY_LOAD_SOFT_OVERRIDE_REQUIRED`, 422).
+- `facultyMirrors` Prisma query: added `canTeachOutsideDepartment: true` to select.
+
+**Frontend (`atlas-client/src/types.ts`):**
+- Added `FacultyOptionEnriched` type.
+- Extended `DraftQueueItem` with `facultyOptionsEnriched` and `hasNoTeacher`.
+- Extended `PreviewResult` with optional `dailyLoadBand`, `dailyMinutesAfter`, `facultyWeeklyMinutes`.
+
+**Frontend (`atlas-client/src/pages/ScheduleReview.tsx`):**
+- Goal A: `openPreGenerationWorkspace` now lands on `'map'` center view + sets `preGenOnboarding = true`.
+- Goal A: Map panel shows dismissable onboarding banner when `preGenOnboarding` is active.
+- Goal B: `stagePreGenDrop` no longer auto-binds; always opens `PreGenConfirmSheet`.
+- Goal B+C: `PreGenConfirmSheet` (Dialog) with faculty picker (daily load per option, color-coded bands), room picker, weekly load strip, live preview, soft/hard daily override flow, Save Anchor button blocked while hard violations or hard daily load remain.
+- Goal C: Faculty options per session come from `facultyOptionsEnriched`; `hasNoTeacher` shows amber alert with fallback to all active faculty.
+- Goal E: Unassigned tab in pre-gen mode sources from `draftBoard.queue` (pre-gen demand), not last-run `draft.unassignedItems`.
+- Goal G: `openRoomGridWorkspace` clears `preGenOnboarding` and switches to `pre-generation` grid.
+- Goal H: Pins panel gains search input + grade filter `<Select>` + 2-column responsive grid.
+- Goal I: `useIsDesktop` hook; all `draggable` on Pins panel and Unassigned items gated by `isDesktop`.
+- New icons imported: `BookOpen`, `Info`, `MapPin`, `UserX`.
+- New callbacks: `runConfirmPreview`, `commitConfirmPlacement`.
+
+**Tests (`atlas-server/src/__tests__/wave4-pre-generation-draft.test.ts`):**
+- Added Wave 4.5 section: 6 tests for `classifyDailyLoadBand` boundaries (0, 360, 361, 480, 481, 600 min).
+- Added Wave 4.5 section: 4 tests for `hasNoTeacher` flag logic.
+- Total: 22/22 pass.
+
+### Verification evidence
+
+| Step | Result |
+|------|--------|
+| `npm --prefix atlas-client run build` | PASS |
+| `npm --prefix atlas-server run build` | PASS |
+| `npm --prefix atlas-server run test:wave4.3` | PASS (22/22) |
+| Manual bridged QA | Pending live session |
+
+
 ## Exit Criteria
 - Officer can resolve findings and revalidate
 - Publish path is blocked while hard violations remain

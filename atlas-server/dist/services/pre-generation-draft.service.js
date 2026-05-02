@@ -83,6 +83,32 @@ function timeToMinutes(value) {
     const [hours, minutes] = value.split(':').map(Number);
     return hours * 60 + minutes;
 }
+/** Sum teaching minutes for a faculty member on a given day from a list of entries */
+function computeFacultyDailyMinutes(facultyId, day, entries) {
+    return entries
+        .filter((e) => e.facultyId === facultyId && e.day === day)
+        .reduce((sum, e) => sum + e.durationMinutes, 0);
+}
+/** Compute all-day teaching minutes map for a faculty from existing DRAFT placements */
+function computeFacultyWeeklyMinutes(facultyId, placements) {
+    const result = { MONDAY: 0, TUESDAY: 0, WEDNESDAY: 0, THURSDAY: 0, FRIDAY: 0 };
+    for (const p of placements) {
+        if (p.facultyId === facultyId && p.status === 'DRAFT') {
+            const mins = timeToMinutes(p.endTime) - timeToMinutes(p.startTime);
+            result[p.day] = (result[p.day] ?? 0) + Math.max(0, mins);
+        }
+    }
+    return result;
+}
+const DAILY_LOAD_SOFT_THRESHOLD = 360; // 6 hours
+const DAILY_LOAD_HARD_THRESHOLD = 480; // 8 hours
+function classifyDailyLoadBand(minutesAfter) {
+    if (minutesAfter > DAILY_LOAD_HARD_THRESHOLD)
+        return 'hard';
+    if (minutesAfter > DAILY_LOAD_SOFT_THRESHOLD)
+        return 'soft';
+    return 'ok';
+}
 function buildHumanConflicts(violations) {
     return violations.map((violation) => ({
         code: violation.code,
@@ -106,7 +132,7 @@ async function loadDraftContext(schoolId, schoolYearId) {
         sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId),
         prisma.facultyMirror.findMany({
             where: { schoolId, isActiveForScheduling: true, isStale: false },
-            select: { id: true, firstName: true, lastName: true, department: true, maxHoursPerWeek: true, isActiveForScheduling: true },
+            select: { id: true, firstName: true, lastName: true, department: true, maxHoursPerWeek: true, isActiveForScheduling: true, canTeachOutsideDepartment: true },
         }),
         prisma.facultyMirror.findMany({
             where: { schoolId, isActiveForScheduling: true, isStale: false },
@@ -320,6 +346,14 @@ export async function previewPlacement(schoolId, schoolYearId, input) {
     const nextValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, nextEntries, ctx));
     const hardViolations = nextValidation.violations.filter((violation) => violation.severity === 'HARD');
     const softViolations = nextValidation.violations.filter((violation) => violation.severity === 'SOFT');
+    // Daily load band computation (independent of policy maxTeachingMinutesPerDay)
+    const existingDailyMinutes = computeFacultyDailyMinutes(input.facultyId, input.day, buildExistingEntries(ctx, input.placementId));
+    const candidateDuration = timeToMinutes(input.endTime) - timeToMinutes(input.startTime);
+    const dailyMinutesAfter = existingDailyMinutes + Math.max(0, candidateDuration);
+    const dailyLoadBand = classifyDailyLoadBand(dailyMinutesAfter);
+    // Faculty weekly minutes (existing DRAFT placements + candidate for target day)
+    const facultyWeeklyMinutes = computeFacultyWeeklyMinutes(input.facultyId, ctx.placements);
+    facultyWeeklyMinutes[input.day] = dailyMinutesAfter;
     const beforeEntry = existingPlacement && existingPlacement.facultyId != null && existingPlacement.roomId != null
         ? asScheduledEntry({
             placementId: existingPlacement.id,
@@ -375,6 +409,9 @@ export async function previewPlacement(schoolId, schoolYearId, input) {
             },
         ],
         policyImpactSummary: buildPolicyImpactSummary([...hardViolations, ...softViolations]),
+        dailyLoadBand,
+        dailyMinutesAfter,
+        facultyWeeklyMinutes,
     };
 }
 async function buildBoardStateFromContext(schoolId, schoolYearId, ctx) {
@@ -396,6 +433,22 @@ async function buildBoardStateFromContext(schoolId, schoolYearId, ctx) {
         const placedCount = draftCounts.get(key) ?? 0;
         for (let sessionNumber = placedCount + 1; sessionNumber <= demandItem.sessionsPerWeek; sessionNumber++) {
             const section = ctx.sectionsById.get(demandItem.sectionId);
+            const rawFacultyOptions = (demandItem.entryKind === 'COHORT' && demandItem.cohortMemberSectionIds?.length)
+                ? demandItem.cohortMemberSectionIds
+                    .map((sectionId) => ctx.qualifiedByKey.get(`${sectionId}:${demandItem.subjectId}`) ?? [])
+                    .reduce((carry, list, index) => index === 0 ? [...list] : carry.filter((facultyId) => list.includes(facultyId)), [])
+                    .sort((left, right) => left - right)
+                : [...(ctx.qualifiedByKey.get(`${demandItem.sectionId}:${demandItem.subjectId}`) ?? [])].sort((left, right) => left - right);
+            const facultyOptionsEnriched = rawFacultyOptions.map((fId) => {
+                const mirror = ctx.facultyMirrors.find((m) => m.id === fId);
+                return {
+                    id: fId,
+                    name: mirror ? `${mirror.lastName}, ${mirror.firstName}` : `Faculty #${fId}`,
+                    department: mirror?.department ?? null,
+                    canTeachOutsideDepartment: mirror?.canTeachOutsideDepartment ?? false,
+                    dailyMinutesByDay: computeFacultyWeeklyMinutes(fId, ctx.placements),
+                };
+            });
             queue.push({
                 assignmentKey: key,
                 entryKind: demandItem.entryKind,
@@ -413,12 +466,9 @@ async function buildBoardStateFromContext(schoolId, schoolYearId, ctx) {
                 programCode: demandItem.programCode ?? null,
                 programName: demandItem.programName ?? null,
                 expectedEnrollment: demandItem.enrolledCount,
-                facultyOptions: (demandItem.entryKind === 'COHORT' && demandItem.cohortMemberSectionIds?.length)
-                    ? demandItem.cohortMemberSectionIds
-                        .map((sectionId) => ctx.qualifiedByKey.get(`${sectionId}:${demandItem.subjectId}`) ?? [])
-                        .reduce((carry, list, index) => index === 0 ? [...list] : carry.filter((facultyId) => list.includes(facultyId)), [])
-                        .sort((left, right) => left - right)
-                    : [...(ctx.qualifiedByKey.get(`${demandItem.sectionId}:${demandItem.subjectId}`) ?? [])].sort((left, right) => left - right),
+                facultyOptions: rawFacultyOptions,
+                facultyOptionsEnriched,
+                hasNoTeacher: rawFacultyOptions.length === 0,
             });
             counts.unscheduled++;
         }
@@ -454,6 +504,14 @@ export async function commitPlacement(schoolId, schoolYearId, actorId, input, al
     }
     if (preview.softViolations.length > 0 && !allowSoftOverride) {
         throw err(422, 'SOFT_OVERRIDE_REQUIRED', 'Soft conflicts require explicit acknowledgment before committing.', { softViolations: preview.softViolations.map((violation) => violation.code) });
+    }
+    // Daily load hard block: no override allowed above 8 hours
+    if (preview.dailyLoadBand === 'hard') {
+        throw err(422, 'DAILY_LOAD_HARD_BLOCK', `This placement would exceed the 8-hour daily teaching limit (${Math.round(preview.dailyMinutesAfter / 60 * 10) / 10}h on ${input.day}). Choose a different day, slot, or faculty.`, { dailyMinutesAfter: preview.dailyMinutesAfter });
+    }
+    // Daily load soft: requires soft override acknowledgment
+    if (preview.dailyLoadBand === 'soft' && !allowSoftOverride) {
+        throw err(422, 'DAILY_LOAD_SOFT_OVERRIDE_REQUIRED', `This placement pushes the faculty to ${Math.round(preview.dailyMinutesAfter / 60 * 10) / 10}h on ${input.day} (standard limit: 6h). Acknowledge to continue.`, { dailyMinutesAfter: preview.dailyMinutesAfter });
     }
     let placement;
     let actionType;

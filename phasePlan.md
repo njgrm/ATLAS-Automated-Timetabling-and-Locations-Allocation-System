@@ -111,6 +111,7 @@ It defines phase scope, acceptance gates, and the current progress state.
   - Wave 4.1 precision gate: section-scoped teaching load persistence, school-year/version-guarded assignment APIs, section-aware generation/manual-edit qualification, and session-visible pending ownership in Teaching Load
   - Wave 4.2 closeout: room-preference request workflow hardened with stale-run guards, regenerated latest run ownership, and passing faculty/officer browser QA on `/my/room-preferences` and `/faculty/room-preferences`
   - Wave 4.4 implementation pass: `/timetable` pre-generation promoted to a dedicated center workspace, room/building navigation unified through the editable grid, and generation anchor regression coverage extended
+  - **Wave 4.5 (in progress):** Pre-generation **scheduler truth**—map-first onboarding, mandatory faculty/room confirmation aligned with teaching load, daily load policy (6h standard / ≤8h soft overload />8h hard block), pre-gen-only unassigned sourcing, richer Pins panel, full-week conflict context, desktop-first DnD gating. See `docs/phases/phase-4-review.md` section **Wave 4.5**.
 - **Exit criteria**
   - Officer can resolve review findings and revalidate hard constraints
   - Conflicts are blocked from publish path until cleared

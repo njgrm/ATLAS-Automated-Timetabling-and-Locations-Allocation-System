@@ -36,6 +36,14 @@ export interface DraftPlacementRow {
     createdAt: string;
     updatedAt: string;
 }
+export interface FacultyOptionEnriched {
+    id: number;
+    name: string;
+    department: string | null;
+    canTeachOutsideDepartment: boolean;
+    /** Existing DRAFT placement minutes per day for this faculty (day → minutes) */
+    dailyMinutesByDay: Record<string, number>;
+}
 export interface DraftQueueItem {
     assignmentKey: string;
     entryKind: 'SECTION' | 'COHORT';
@@ -54,6 +62,10 @@ export interface DraftQueueItem {
     programName: string | null;
     expectedEnrollment: number | null;
     facultyOptions: number[];
+    /** Enriched faculty options with daily load context */
+    facultyOptionsEnriched: FacultyOptionEnriched[];
+    /** True when no faculty is assigned in teaching load for this session */
+    hasNoTeacher: boolean;
 }
 export interface DraftBoardState {
     placements: DraftPlacementRow[];
@@ -110,6 +122,12 @@ export interface DraftPlacementPreview {
         summary: string;
         severity: 'HARD' | 'SOFT';
     }>;
+    /** Daily teaching-load band for the proposed faculty on the target day */
+    dailyLoadBand: 'ok' | 'soft' | 'hard';
+    /** Total teaching minutes for the faculty on the target day after this placement */
+    dailyMinutesAfter: number;
+    /** Faculty teaching minutes per day (from existing DRAFT placements + this candidate) */
+    facultyWeeklyMinutes: Record<string, number>;
 }
 export interface DraftPlacementCommitResult {
     placement: DraftPlacementRow;

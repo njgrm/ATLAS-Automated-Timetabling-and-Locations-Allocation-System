@@ -66,6 +66,15 @@ export interface DraftPlacementRow {
 	updatedAt: string;
 }
 
+export interface FacultyOptionEnriched {
+	id: number;
+	name: string;
+	department: string | null;
+	canTeachOutsideDepartment: boolean;
+	/** Existing DRAFT placement minutes per day for this faculty (day → minutes) */
+	dailyMinutesByDay: Record<string, number>;
+}
+
 export interface DraftQueueItem {
 	assignmentKey: string;
 	entryKind: 'SECTION' | 'COHORT';
@@ -84,6 +93,10 @@ export interface DraftQueueItem {
 	programName: string | null;
 	expectedEnrollment: number | null;
 	facultyOptions: number[];
+	/** Enriched faculty options with daily load context */
+	facultyOptionsEnriched: FacultyOptionEnriched[];
+	/** True when no faculty is assigned in teaching load for this session */
+	hasNoTeacher: boolean;
 }
 
 export interface DraftBoardState {
@@ -138,6 +151,12 @@ export interface DraftPlacementPreview {
 		summary: string;
 		severity: 'HARD' | 'SOFT';
 	}>;
+	/** Daily teaching-load band for the proposed faculty on the target day */
+	dailyLoadBand: 'ok' | 'soft' | 'hard';
+	/** Total teaching minutes for the faculty on the target day after this placement */
+	dailyMinutesAfter: number;
+	/** Faculty teaching minutes per day (from existing DRAFT placements + this candidate) */
+	facultyWeeklyMinutes: Record<string, number>;
 }
 
 export interface DraftPlacementCommitResult {
@@ -235,6 +254,34 @@ function timeToMinutes(value: string) {
 	return hours * 60 + minutes;
 }
 
+/** Sum teaching minutes for a faculty member on a given day from a list of entries */
+function computeFacultyDailyMinutes(facultyId: number, day: string, entries: ScheduledEntry[]): number {
+	return entries
+		.filter((e) => e.facultyId === facultyId && e.day === day)
+		.reduce((sum, e) => sum + e.durationMinutes, 0);
+}
+
+/** Compute all-day teaching minutes map for a faculty from existing DRAFT placements */
+function computeFacultyWeeklyMinutes(facultyId: number, placements: LockedSession[]): Record<string, number> {
+	const result: Record<string, number> = { MONDAY: 0, TUESDAY: 0, WEDNESDAY: 0, THURSDAY: 0, FRIDAY: 0 };
+	for (const p of placements) {
+		if (p.facultyId === facultyId && p.status === 'DRAFT') {
+			const mins = timeToMinutes(p.endTime) - timeToMinutes(p.startTime);
+			result[p.day] = (result[p.day] ?? 0) + Math.max(0, mins);
+		}
+	}
+	return result;
+}
+
+const DAILY_LOAD_SOFT_THRESHOLD = 360; // 6 hours
+const DAILY_LOAD_HARD_THRESHOLD = 480; // 8 hours
+
+function classifyDailyLoadBand(minutesAfter: number): 'ok' | 'soft' | 'hard' {
+	if (minutesAfter > DAILY_LOAD_HARD_THRESHOLD) return 'hard';
+	if (minutesAfter > DAILY_LOAD_SOFT_THRESHOLD) return 'soft';
+	return 'ok';
+}
+
 function buildHumanConflicts(violations: Violation[]) {
 	return violations.map((violation) => ({
 		code: violation.code,
@@ -260,7 +307,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number) {
 		sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId),
 		prisma.facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true, isStale: false },
-			select: { id: true, firstName: true, lastName: true, department: true, maxHoursPerWeek: true, isActiveForScheduling: true },
+			select: { id: true, firstName: true, lastName: true, department: true, maxHoursPerWeek: true, isActiveForScheduling: true, canTeachOutsideDepartment: true },
 		}),
 		prisma.facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true, isStale: false },
@@ -482,6 +529,17 @@ export async function previewPlacement(schoolId: number, schoolYearId: number, i
 	const nextValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, nextEntries, ctx));
 	const hardViolations = nextValidation.violations.filter((violation) => violation.severity === 'HARD');
 	const softViolations = nextValidation.violations.filter((violation) => violation.severity === 'SOFT');
+
+	// Daily load band computation (independent of policy maxTeachingMinutesPerDay)
+	const existingDailyMinutes = computeFacultyDailyMinutes(input.facultyId, input.day, buildExistingEntries(ctx, input.placementId));
+	const candidateDuration = timeToMinutes(input.endTime) - timeToMinutes(input.startTime);
+	const dailyMinutesAfter = existingDailyMinutes + Math.max(0, candidateDuration);
+	const dailyLoadBand = classifyDailyLoadBand(dailyMinutesAfter);
+
+	// Faculty weekly minutes (existing DRAFT placements + candidate for target day)
+	const facultyWeeklyMinutes = computeFacultyWeeklyMinutes(input.facultyId, ctx.placements);
+	facultyWeeklyMinutes[input.day] = dailyMinutesAfter;
+
 	const beforeEntry = existingPlacement && existingPlacement.facultyId != null && existingPlacement.roomId != null
 		? asScheduledEntry({
 			placementId: existingPlacement.id,
@@ -537,6 +595,9 @@ export async function previewPlacement(schoolId: number, schoolYearId: number, i
 			},
 		],
 		policyImpactSummary: buildPolicyImpactSummary([...hardViolations, ...softViolations]),
+		dailyLoadBand,
+		dailyMinutesAfter,
+		facultyWeeklyMinutes,
 	};
 }
 
@@ -559,6 +620,24 @@ async function buildBoardStateFromContext(schoolId: number, schoolYearId: number
 		const placedCount = draftCounts.get(key) ?? 0;
 		for (let sessionNumber = placedCount + 1; sessionNumber <= demandItem.sessionsPerWeek; sessionNumber++) {
 			const section = ctx.sectionsById.get(demandItem.sectionId);
+			const rawFacultyOptions = (demandItem.entryKind === 'COHORT' && demandItem.cohortMemberSectionIds?.length)
+				? demandItem.cohortMemberSectionIds
+					.map((sectionId) => ctx.qualifiedByKey.get(`${sectionId}:${demandItem.subjectId}`) ?? [])
+					.reduce<number[]>((carry, list, index) => index === 0 ? [...list] : carry.filter((facultyId) => list.includes(facultyId)), [])
+					.sort((left, right) => left - right)
+				: [...(ctx.qualifiedByKey.get(`${demandItem.sectionId}:${demandItem.subjectId}`) ?? [])].sort((left, right) => left - right);
+
+			const facultyOptionsEnriched: FacultyOptionEnriched[] = rawFacultyOptions.map((fId) => {
+				const mirror = ctx.facultyMirrors.find((m) => m.id === fId);
+				return {
+					id: fId,
+					name: mirror ? `${mirror.lastName}, ${mirror.firstName}` : `Faculty #${fId}`,
+					department: mirror?.department ?? null,
+					canTeachOutsideDepartment: mirror?.canTeachOutsideDepartment ?? false,
+					dailyMinutesByDay: computeFacultyWeeklyMinutes(fId, ctx.placements),
+				};
+			});
+
 			queue.push({
 				assignmentKey: key,
 				entryKind: demandItem.entryKind,
@@ -576,12 +655,9 @@ async function buildBoardStateFromContext(schoolId: number, schoolYearId: number
 				programCode: demandItem.programCode ?? null,
 				programName: demandItem.programName ?? null,
 				expectedEnrollment: demandItem.enrolledCount,
-				facultyOptions: (demandItem.entryKind === 'COHORT' && demandItem.cohortMemberSectionIds?.length)
-					? demandItem.cohortMemberSectionIds
-						.map((sectionId) => ctx.qualifiedByKey.get(`${sectionId}:${demandItem.subjectId}`) ?? [])
-						.reduce<number[]>((carry, list, index) => index === 0 ? [...list] : carry.filter((facultyId) => list.includes(facultyId)), [])
-						.sort((left, right) => left - right)
-					: [...(ctx.qualifiedByKey.get(`${demandItem.sectionId}:${demandItem.subjectId}`) ?? [])].sort((left, right) => left - right),
+				facultyOptions: rawFacultyOptions,
+				facultyOptionsEnriched,
+				hasNoTeacher: rawFacultyOptions.length === 0,
 			});
 			counts.unscheduled++;
 		}
@@ -620,6 +696,14 @@ export async function commitPlacement(schoolId: number, schoolYearId: number, ac
 	}
 	if (preview.softViolations.length > 0 && !allowSoftOverride) {
 		throw err(422, 'SOFT_OVERRIDE_REQUIRED', 'Soft conflicts require explicit acknowledgment before committing.', { softViolations: preview.softViolations.map((violation) => violation.code) });
+	}
+	// Daily load hard block: no override allowed above 8 hours
+	if (preview.dailyLoadBand === 'hard') {
+		throw err(422, 'DAILY_LOAD_HARD_BLOCK', `This placement would exceed the 8-hour daily teaching limit (${Math.round(preview.dailyMinutesAfter / 60 * 10) / 10}h on ${input.day}). Choose a different day, slot, or faculty.`, { dailyMinutesAfter: preview.dailyMinutesAfter });
+	}
+	// Daily load soft: requires soft override acknowledgment
+	if (preview.dailyLoadBand === 'soft' && !allowSoftOverride) {
+		throw err(422, 'DAILY_LOAD_SOFT_OVERRIDE_REQUIRED', `This placement pushes the faculty to ${Math.round(preview.dailyMinutesAfter / 60 * 10) / 10}h on ${input.day} (standard limit: 6h). Acknowledge to continue.`, { dailyMinutesAfter: preview.dailyMinutesAfter });
 	}
 
 	let placement: LockedSession;
