@@ -293,12 +293,7 @@ function validateInputOrThrow(input, ctx) {
     if (!room) {
         throw err(422, 'ORPHANED_ROOM', 'Room reference is not an active teaching room in the current campus map.');
     }
-    if (room.capacity != null && demandItem.enrolledCount > room.capacity) {
-        throw err(422, 'ROOM_CAPACITY_BLOCK', `Room capacity ${room.capacity} is below expected enrollment ${demandItem.enrolledCount}.`, {
-            roomId: room.id,
-            expectedEnrollment: demandItem.enrolledCount,
-        });
-    }
+    // Room vs enrollment capacity is validated as SOFT in constraint-validator (ROOM_CAPACITY_EXCEEDED), not a hard pre-check here.
     const gradeWindow = ctx.gradeWindows.find((window) => window.gradeLevel === demandItem.gradeLevel);
     if (gradeWindow) {
         const startMinutes = timeToMinutes(input.startTime);

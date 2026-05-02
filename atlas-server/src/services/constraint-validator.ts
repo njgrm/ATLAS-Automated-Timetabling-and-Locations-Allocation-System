@@ -311,6 +311,7 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 			if (enrolled > room.capacity) {
 				violations.push({
 					...base,
+					severity: 'SOFT',
 					code: 'ROOM_CAPACITY_EXCEEDED',
 					message: e.entryKind === 'COHORT' && e.cohortCode
 						? `Entry ${e.entryId}: cohort ${e.cohortCode} has ${enrolled} learners but room ${e.roomId} capacity is only ${room.capacity}.`
