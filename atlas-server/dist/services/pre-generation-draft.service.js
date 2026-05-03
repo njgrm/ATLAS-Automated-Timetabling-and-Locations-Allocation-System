@@ -109,13 +109,60 @@ function classifyDailyLoadBand(minutesAfter) {
         return 'soft';
     return 'ok';
 }
-function buildHumanConflicts(violations) {
-    return violations.map((violation) => ({
-        code: violation.code,
-        severity: violation.severity,
-        humanTitle: violation.code.replaceAll('_', ' '),
-        humanDetail: violation.message,
-    }));
+const HUMAN_VIOLATION_TITLES = {
+    FACULTY_TIME_CONFLICT: 'Faculty Schedule Conflict',
+    ROOM_TIME_CONFLICT: 'Room Double-Booked',
+    FACULTY_OVERLOAD: 'Faculty Weekly Overload',
+    ROOM_TYPE_MISMATCH: 'Room Type Mismatch',
+    ROOM_CAPACITY_EXCEEDED: 'Room Capacity Exceeded',
+    SESSION_PATTERN_VIOLATED: 'Session Pattern Violated',
+    FACULTY_SUBJECT_NOT_QUALIFIED: 'Faculty Not Qualified',
+    FACULTY_DAILY_MAX_EXCEEDED: 'Daily Load Exceeded',
+    FACULTY_BREAK_REQUIREMENT_VIOLATED: 'Break Requirement Violated',
+    FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: 'Consecutive Teaching Limit Exceeded',
+    FACULTY_EXCESSIVE_TRAVEL_DISTANCE: 'Excessive Travel Distance',
+    FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: 'Too Many Building Transitions',
+    FACULTY_INSUFFICIENT_TRANSITION_BUFFER: 'Insufficient Transition Buffer',
+    FACULTY_EXCESSIVE_IDLE_GAP: 'Excessive Idle Gap',
+    FACULTY_EARLY_START_PREFERENCE: 'Early Start Preference',
+};
+function buildHumanConflicts(violations, ctx) {
+    const facultyName = (id) => {
+        if (!id)
+            return `Faculty #?`;
+        const f = ctx?.facultyMirrors.find((m) => m.id === id);
+        return f ? `${f.firstName} ${f.lastName}` : `Faculty #${id}`;
+    };
+    const roomName = (id) => {
+        if (!id)
+            return `Room #?`;
+        const r = ctx?.rooms.find((rm) => rm.id === id);
+        return r?.name ?? `Room #${id}`;
+    };
+    const sectionName = (id) => {
+        if (!id)
+            return `Section #?`;
+        const s = ctx?.sectionsById.get(id);
+        return s?.name ?? `Section #${id}`;
+    };
+    return violations.map((v) => {
+        const humanTitle = HUMAN_VIOLATION_TITLES[v.code] ?? v.code.replaceAll('_', ' ');
+        let humanDetail = v.message;
+        // Replace raw numeric IDs with display names for common entity references
+        if (v.entities.facultyId != null) {
+            humanDetail = humanDetail
+                .replace(new RegExp(`Faculty ${v.entities.facultyId}(?=\\s|,|:|\\.|-|$)`, 'g'), facultyName(v.entities.facultyId));
+        }
+        if (v.entities.roomId != null) {
+            humanDetail = humanDetail
+                .replace(new RegExp(`Room ${v.entities.roomId}(?=\\s|,|:|\\.|-|$)`, 'g'), roomName(v.entities.roomId));
+        }
+        if (v.entities.sectionId != null) {
+            humanDetail = humanDetail
+                .replace(new RegExp(`section ${v.entities.sectionId}(?=\\s|,|:|\\.|-|$)`, 'gi'), sectionName(v.entities.sectionId));
+        }
+        return { code: v.code, severity: v.severity, humanTitle, humanDetail };
+    });
 }
 function buildPolicyImpactSummary(violations) {
     return violations
@@ -374,7 +421,7 @@ export async function previewPlacement(schoolId, schoolYearId, input) {
             softBefore: currentValidation.violations.filter((violation) => violation.severity === 'SOFT').length,
             softAfter: softViolations.length,
         },
-        humanConflicts: buildHumanConflicts([...hardViolations, ...softViolations]),
+        humanConflicts: buildHumanConflicts([...hardViolations, ...softViolations], ctx),
         affectedEntries: [
             ...(beforeEntry ? [{
                     entryId: beforeEntry.entryId,
@@ -707,6 +754,43 @@ export async function undoLastPlacement(schoolId, schoolYearId, actorId) {
                 actorId,
                 targetIds: action.lockId != null ? [action.lockId] : [],
                 metadata: { revertedActionId: action.id, revertedActionType: action.actionType },
+            },
+        });
+    });
+    return listDraftBoardState(schoolId, schoolYearId);
+}
+export async function removeSinglePlacement(schoolId, schoolYearId, actorId, placementId) {
+    const placement = await prisma.lockedSession.findUnique({ where: { id: placementId } });
+    if (!placement || placement.schoolId !== schoolId || placement.schoolYearId !== schoolYearId) {
+        throw err(404, 'PLACEMENT_NOT_FOUND', 'Draft placement not found.');
+    }
+    if (placement.status !== 'DRAFT') {
+        throw err(409, 'PLACEMENT_NOT_DRAFT', 'Only DRAFT placements can be removed.');
+    }
+    await prisma.$transaction(async (tx) => {
+        await tx.lockedSession.update({
+            where: { id: placementId },
+            data: { status: 'ARCHIVED', version: { increment: 1 } },
+        });
+        await tx.lockedSessionAction.create({
+            data: {
+                schoolId,
+                schoolYearId,
+                actorId,
+                actionType: 'CREATE', // record as inverse of CREATE so undo can restore it
+                lockId: placementId,
+                beforePayload: { ...placement, createdAt: placement.createdAt.toISOString(), updatedAt: placement.updatedAt.toISOString() },
+                afterPayload: { status: 'ARCHIVED' },
+            },
+        });
+        await tx.auditLog.create({
+            data: {
+                schoolId,
+                schoolYearId,
+                action: 'PRE_GENERATION_DRAFT_REMOVE',
+                actorId,
+                targetIds: [placementId],
+                metadata: { placementId },
             },
         });
     });

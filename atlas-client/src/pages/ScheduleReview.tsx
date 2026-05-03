@@ -33,6 +33,7 @@ import {
 	Send,
 	Settings2,
 	ShieldAlert,
+	Trash2,
 	Undo2,
 	UserX,
 	Users,
@@ -175,6 +176,12 @@ const GRADE_BADGE: Record<number, string> = {
 	8: 'bg-yellow-100 text-yellow-700 border-yellow-300',
 	9: 'bg-red-100 text-red-700 border-red-300',
 	10: 'bg-blue-100 text-blue-700 border-blue-300',
+};
+const GRADE_CARD_BG: Record<number, string> = {
+	7: 'bg-green-50/60 border-green-200/80',
+	8: 'bg-yellow-50/60 border-yellow-200/80',
+	9: 'bg-red-50/60 border-red-200/80',
+	10: 'bg-blue-50/60 border-blue-200/80',
 };
 
 type SeverityFilter = 'all' | 'hard' | 'soft' | 'conflicts' | 'wellbeing';
@@ -508,6 +515,8 @@ export default function ScheduleReview() {
 	const [confirmAllowSoftOverride, setConfirmAllowSoftOverride] = useState(false);
 	const [confirmAllowDailyOverride, setConfirmAllowDailyOverride] = useState(false);
 	const [confirmSaving, setConfirmSaving] = useState(false);
+	/** Wave 4.5c C: ID of a placement being deleted (unassign) */
+	const [deletingPlacementId, setDeletingPlacementId] = useState<number | null>(null);
 
 	/** Wave 4.5: Pins panel search + grade filter */
 	const [pinsSearch, setPinsSearch] = useState('');
@@ -687,6 +696,25 @@ export default function ScheduleReview() {
 		[activeGridEntriesBase, centerView, draftBoard?.periodSlots],
 	);
 
+	/** Wave 4.5c: when a queue item is KB-selected, compute which slots are occupied by its faculty/section */
+	const pinConflictSlots = useMemo(() => {
+		if (!isPreGenerationWorkspace || preGenKbSource?.type !== 'draftQueue') return null;
+		const item = preGenKbSource.item;
+		const occupied = new Set<string>();
+		for (const p of draftBoard?.placements ?? []) {
+			if (p.status !== 'DRAFT') continue;
+			if ((item.facultyId && p.facultyId === item.facultyId) || p.sectionId === item.sectionId) {
+				occupied.add(`${p.day}-${p.startTime}`);
+			}
+		}
+		for (const e of activeGridEntriesBase) {
+			if ((item.facultyId && e.facultyId === item.facultyId) || e.sectionId === item.sectionId) {
+				occupied.add(`${e.day}-${e.startTime}`);
+			}
+		}
+		return occupied;
+	}, [isPreGenerationWorkspace, preGenKbSource, draftBoard?.placements, activeGridEntriesBase]);
+
 	const filteredDraftEntries = useMemo(() => {
 		return activeGridEntriesBase.filter((entry) => {
 			const programType = entry.programType ?? sectionMap.get(entry.sectionId)?.programType ?? null;
@@ -780,7 +808,8 @@ export default function ScheduleReview() {
 	);
 
 	const summary: RunSummary | null = draft?.summary ?? null;
-	const isPreGenerationWorkspace = centerView === 'pre-generation';
+	/** True when user is actively in the pre-gen draft workflow (timetable grid OR map navigation within it) */
+	const isPreGenerationWorkspace = centerView === 'pre-generation' || (centerView === 'map' && preGenOnboarding);
 	const activeGeneratedRunId = useMemo(() => {
 		if (selectedRunId === 'latest') return runs[0]?.id ?? draft?.runId ?? null;
 		const parsed = Number(selectedRunId);
@@ -1622,6 +1651,28 @@ export default function ScheduleReview() {
 		}
 	}, [confirmAllowDailyOverride, confirmAllowSoftOverride, confirmFacultyId, confirmRoomId, preGenConfirmCtx, schoolYearId]);
 
+	/** Wave 4.5c C: remove a single draft placement and return it to the queue */
+	const unassignDraftPlacement = useCallback(async (placementId: number) => {
+		if (!schoolYearId) return;
+		setDeletingPlacementId(placementId);
+		try {
+			const { data } = await atlasApi.delete<DraftBoardState>(
+				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/${placementId}`,
+			);
+			setDraftBoard(data);
+			setDraftBoardSummary(data.counts);
+			setSelectedEntry(null);
+			setPreGenKbSource(null);
+			setKbSelectedSource(null);
+			toast.success('Placement removed and returned to queue.');
+		} catch (err) {
+			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+			toast.error(message ?? 'Failed to remove placement.');
+		} finally {
+			setDeletingPlacementId(null);
+		}
+	}, [schoolYearId]);
+
 	const commitPreGenPending = useCallback(async () => {
 		if (!schoolYearId || !preGenPending) return;
 		setPreGenSaving(true);
@@ -1820,6 +1871,17 @@ export default function ScheduleReview() {
 			if (!f) return `Unknown Faculty (#${id})`;
 			const adviserSuffix = f.advisedSectionName ? ` · Adviser ${f.advisedSectionName}` : '';
 			return `${f.lastName}, ${f.firstName}${adviserSuffix}`;
+		},
+		[facultyMap],
+	);
+
+	/** Wave 4.5c E: compact "F. Lastname" label for faculty */
+	const formatFacultyInitials = useCallback(
+		(id: number) => {
+			const f = facultyMap.get(id);
+			if (!f) return `Faculty #${id}`;
+			const initial = f.firstName ? `${f.firstName.charAt(0).toUpperCase()}.` : '';
+			return `${initial} ${f.lastName}`.trim();
 		},
 		[facultyMap],
 	);
@@ -2468,6 +2530,7 @@ export default function ScheduleReview() {
 							role="tab"
 							aria-selected={leftTab === 'violations'}
 							aria-controls="panel-violations"
+							hidden={isPreGenerationWorkspace}
 							onClick={() => setLeftTab('violations')}
 							className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
 								leftTab === 'violations'
@@ -2543,7 +2606,7 @@ export default function ScheduleReview() {
 						</Button>
 					</div>
 
-					{leftTab === 'violations' ? (
+					{leftTab === 'violations' && !isPreGenerationWorkspace ? (
 						<div id="panel-violations" role="tabpanel" aria-labelledby="tab-violations" className="flex flex-col flex-1 min-h-0">
 							{/* Top blockers quick list */}
 							{hardViolationCount > 0 && (
@@ -2633,7 +2696,7 @@ export default function ScheduleReview() {
 								</div>
 							</ScrollArea>
 						</div>
-					) : leftTab === 'unassigned' ? (
+					) : leftTab === 'unassigned' && !isPreGenerationWorkspace ? (
 						<ScrollArea id="panel-unassigned" role="tabpanel" aria-labelledby="tab-unassigned" className="flex-1 min-h-0">
 							<div className="px-3 py-3 space-y-3">
 								{/* Wave 4.5 E: Pre-gen mode shows draftBoard.queue as the demand source */}
@@ -3140,8 +3203,9 @@ export default function ScheduleReview() {
 													onDragStart={() => setDragItem({ type: 'draftQueue', item })}
 													onDragEnd={() => setDragItem(null)}
 													className={cn(
-														'rounded border bg-background px-2 py-1.5 text-xs transition-colors',
-														selected ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border hover:border-primary/40',
+														'rounded border px-2 py-1.5 text-xs transition-colors',
+														GRADE_CARD_BG[item.gradeLevel] ?? 'bg-background border-border',
+														selected ? 'border-primary ring-1 ring-primary' : 'hover:border-primary/50',
 														isDesktop ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
 													)}
 												>
@@ -3151,20 +3215,24 @@ export default function ScheduleReview() {
 														tabIndex={0}
 														onClick={() => {
 															const source = { type: 'draftQueue' as const, item };
-															setPreGenKbSource(selected ? null : source);
-															setKbSelectedSource(selected ? null : source);
+															const nextSelected = !selected;
+															setPreGenKbSource(nextSelected ? source : null);
+															setKbSelectedSource(nextSelected ? source : null);
+															// Selecting a queue item drives the right panel (D spec); deselecting clears it
+															if (nextSelected) setSelectedEntry(null);
 														}}
-														onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const source = { type: 'draftQueue' as const, item }; setPreGenKbSource(selected ? null : source); setKbSelectedSource(selected ? null : source); } }}
+														onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const source = { type: 'draftQueue' as const, item }; setPreGenKbSource(source); setKbSelectedSource(source); setSelectedEntry(null); } }}
 													>
-														<div className="flex items-center gap-1 min-w-0">
-															<Badge variant="outline" className={cn('h-4 px-1 text-[0.5rem] shrink-0', GRADE_BADGE[item.gradeLevel])}>G{item.gradeLevel}</Badge>
+														<div className="flex items-center justify-between gap-1 min-w-0">
+															<span className="truncate font-semibold text-[0.625rem]">{item.sectionName}{item.cohortCode ? ` · ${item.cohortCode}` : ''}</span>
+															<span className="shrink-0 text-[0.5rem] text-muted-foreground/70 tabular-nums">{item.sessionNumber}/{item.sessionsPerWeek}</span>
+														</div>
+														<div className="flex items-center gap-1 min-w-0 mt-0.5">
 															{item.hasNoTeacher && (
 																<UserX className="size-3 text-amber-500 shrink-0" />
 															)}
-															<span className="truncate font-medium">{item.subjectCode}</span>
+															<span className="truncate text-[0.5625rem] text-muted-foreground">{item.subjectCode}</span>
 														</div>
-														<p className="truncate text-[0.5625rem] text-muted-foreground">{item.sectionName}{item.cohortCode ? ` · ${item.cohortCode}` : ''}</p>
-														<p className="text-[0.5rem] text-muted-foreground/60">{item.sessionNumber}/{item.sessionsPerWeek}</p>
 													</div>
 												</div>
 											);
@@ -3402,35 +3470,6 @@ export default function ScheduleReview() {
 								transition={{ duration: 0.18 }}
 								className="flex-1 min-w-0 flex flex-col min-h-0 p-3"
 							>
-								{/* Wave 4.5 A: map-first onboarding banner */}
-								<AnimatePresence>
-									{preGenOnboarding && (
-										<motion.div
-											key="pregen-onboarding-banner"
-											initial={{ opacity: 0, y: -6 }}
-											animate={{ opacity: 1, y: 0 }}
-											exit={{ opacity: 0, y: -6 }}
-											transition={{ duration: 0.18 }}
-											className="mb-2 flex items-start gap-2.5 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5 text-sm text-primary"
-										>
-											<MapPin className="size-4 shrink-0 mt-0.5" />
-											<div className="flex-1 min-w-0">
-												<p className="font-medium leading-tight">Draft workspace ready</p>
-												<p className="mt-0.5 text-xs text-primary/70 leading-snug">
-													Choose a room from the map or select a faculty from the left panel to begin placing sessions. Drag sessions from the&nbsp;<strong>Pins</strong> tab onto the timetable grid.
-												</p>
-											</div>
-											<Button
-												variant="ghost"
-												size="icon"
-												className="size-6 shrink-0 text-primary/60 hover:text-primary hover:bg-primary/10"
-												onClick={() => setPreGenOnboarding(false)}
-											>
-												<X className="size-3.5" />
-											</Button>
-										</motion.div>
-									)}
-								</AnimatePresence>
 								<div className="mb-2 flex items-center justify-between gap-2">
 									<div className="flex items-center gap-2">
 										<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] uppercase">Map</Badge>
@@ -3561,9 +3600,21 @@ export default function ScheduleReview() {
 														<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] uppercase">Pre-Generation Draft</Badge>
 														<span className="text-muted-foreground">Drop unassigned or pinned sources into the grid. Saved placements become generation anchors.</span>
 													</div>
-													<div className="flex items-center gap-1.5">
-														{mapRoomId != null && viewMode === 'room' ? (
-															<Badge variant="secondary" className="h-5 px-2 text-[0.625rem]">{roomLabelShort(mapRoomId)}</Badge>
+													<div className="flex items-center gap-1.5 flex-wrap">
+														{entityFilter && entityFilter !== 'all' ? (
+															<Badge
+																variant="secondary"
+																className={cn(
+																	'h-5 px-2 text-[0.625rem] max-w-36 truncate',
+																	viewMode === 'faculty' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+																	viewMode === 'room' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+																	'bg-muted text-muted-foreground',
+																)}
+																title={pivotLabel(Number(entityFilter))}
+															>
+																{viewMode === 'faculty' ? <Users className="inline size-2.5 mr-0.5 -mt-px" /> : viewMode === 'room' ? <DoorOpen className="inline size-2.5 mr-0.5 -mt-px" /> : null}
+																{pivotLabel(Number(entityFilter))}
+															</Badge>
 														) : null}
 														<Button variant="outline" size="sm" className="h-6 px-2 text-[0.625rem] gap-1" onClick={() => { setCenterView('map'); setPreGenOnboarding(true); }}>
 															<MapPin className="size-3" />
@@ -3592,6 +3643,7 @@ export default function ScheduleReview() {
 												onCellDrop={handleCellDrop}
 												kbSelectedSource={kbSelectedSource}
 												onKbPlace={handleKbPlace}
+												conflictSlots={pinConflictSlots}
 											/>
 										</div>
 									) : (
@@ -3652,6 +3704,13 @@ export default function ScheduleReview() {
 													<span className="font-medium">{conflict.humanTitle}</span> · {conflict.humanDetail}
 												</div>
 											))}
+											{/* Wave 4.5c B: swap hint when placing into an already occupied slot */}
+											{preGenPending && pinConflictSlots?.has(`${preGenPending.day}-${preGenPending.startTime}`) && (
+												<div className="flex items-start gap-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[0.625rem] text-amber-800">
+													<AlertTriangle className="size-3 shrink-0 mt-0.5" />
+													<span>This slot is already occupied for this faculty or section. Saving will add a conflict — consider choosing a different slot, or acknowledge and save.</span>
+												</div>
+											)}
 											{preGenPreview?.softViolations.length ? (
 												<label className="flex items-center gap-2 text-[0.625rem] text-amber-900">
 													<Checkbox checked={preGenAllowSoftOverride} onCheckedChange={(checked) => setPreGenAllowSoftOverride(Boolean(checked))} />
@@ -3737,7 +3796,78 @@ export default function ScheduleReview() {
 						</div>
 					) : (
 					<AnimatePresence mode="wait">
-						{selectedEntry ? (
+						{/* Wave 4.5c D: queue item selected → show pending session detail in right panel */}
+						{isPreGenerationWorkspace && preGenKbSource?.type === 'draftQueue' && !selectedEntry ? (
+							<motion.div
+								key={`queue-item-${preGenKbSource.item.assignmentKey}-${preGenKbSource.item.sessionNumber}`}
+								initial={{ opacity: 0, x: 10 }}
+								animate={{ opacity: 1, x: 0 }}
+								exit={{ opacity: 0, x: 10 }}
+								transition={{ duration: 0.15 }}
+								className="flex flex-col min-h-0 h-full"
+							>
+								<div className="shrink-0 flex items-center justify-between px-3 py-2 border-b border-border">
+									<span className="text-xs font-semibold truncate">{preGenKbSource.item.subjectName}</span>
+									<div className="flex items-center gap-1 shrink-0">
+										<Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => rightPanelRef.current?.collapse()} aria-label="Collapse panel">
+											<PanelRightClose className="size-3.5" />
+										</Button>
+										<Button variant="ghost" size="sm" className="h-6 w-6 p-0" aria-label="Clear selection"
+											onClick={() => { setPreGenKbSource(null); setKbSelectedSource(null); }}
+										>
+											<X className="size-3.5" />
+										</Button>
+									</div>
+								</div>
+								<ScrollArea className="flex-1 min-h-0">
+									<div className="px-3 py-2 space-y-2">
+										{/* Grade + section row */}
+										<div className="flex items-center gap-1.5">
+											<span className="text-xs font-medium">{preGenKbSource.item.sectionName}{preGenKbSource.item.cohortCode ? ` · ${preGenKbSource.item.cohortCode}` : ''}</span>
+											{(() => { const g = preGenKbSource.item.gradeLevel; const bg = GRADE_BADGE[g]; return bg ? <Badge variant="outline" className={`h-4 px-1 text-[0.5625rem] shrink-0 ${bg}`}>G{g}</Badge> : null; })()}
+										</div>
+										{/* Faculty row */}
+										<div className="flex items-center gap-2 rounded border border-border bg-muted/20 px-2 py-1">
+											{preGenKbSource.item.hasNoTeacher ? (
+												<>
+													<UserX className="size-4 shrink-0 text-amber-500" />
+													<p className="text-[0.6875rem] text-amber-700">No teacher assigned — place without faculty</p>
+												</>
+											) : preGenKbSource.item.facultyId ? (
+												<>
+													<div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-[0.625rem] font-semibold text-primary shrink-0">
+														{initials(facultyMap.get(preGenKbSource.item.facultyId)?.firstName ?? null, facultyMap.get(preGenKbSource.item.facultyId)?.lastName ?? null)}
+													</div>
+													<div className="min-w-0">
+														<p className="truncate text-[0.6875rem] font-medium text-foreground">{formatFacultyInitials(preGenKbSource.item.facultyId)}</p>
+														<p className="truncate text-[0.625rem] text-muted-foreground">{facultyMap.get(preGenKbSource.item.facultyId)?.department ?? 'No department'}</p>
+													</div>
+												</>
+											) : (
+												<p className="text-[0.6875rem] text-muted-foreground">No faculty selected</p>
+											)}
+										</div>
+										{/* Session progress */}
+										<div className="flex items-center justify-between text-[0.6875rem]">
+											<span className="text-muted-foreground">Session</span>
+											<span className="font-medium tabular-nums">{preGenKbSource.item.sessionNumber} / {preGenKbSource.item.sessionsPerWeek} this week</span>
+										</div>
+										{/* Preferred room type */}
+										{preGenKbSource.item.subjectPreferredRoomType && (
+											<div className="flex items-center justify-between text-[0.6875rem]">
+												<span className="text-muted-foreground">Preferred room</span>
+												<span className="font-medium">{preGenKbSource.item.subjectPreferredRoomType}</span>
+											</div>
+										)}
+										{/* Placement prompt */}
+										<div className="rounded border border-primary/20 bg-primary/5 px-2.5 py-2 text-[0.625rem] text-primary flex items-start gap-2">
+											<Crosshair className="size-3 shrink-0 mt-0.5" />
+											<span>{isDesktop ? 'Click or drag onto a time slot in the grid to place this session.' : 'Tap a time slot in the grid to place this session.'}</span>
+										</div>
+									</div>
+								</ScrollArea>
+							</motion.div>
+						) : selectedEntry ? (
 							<motion.div
 								key={selectedEntry.entryId}
 								initial={{ opacity: 0, x: 10 }}
@@ -3886,6 +4016,24 @@ export default function ScheduleReview() {
 										<Button variant="outline" size="sm" className="w-full h-7 text-xs justify-start" onClick={() => enterManualEditView('CHANGE_FACULTY')} aria-label="Reassign faculty">
 											<Users className="size-3 mr-1.5" />Reassign Faculty
 										</Button>
+										{/* Wave 4.5c C: Unassign button for pre-gen draft entries */}
+										{isPreGenerationWorkspace && selectedEntry?.entryId.startsWith('draft-placement-') && (() => {
+											const pid = Number(selectedEntry.entryId.replace('draft-placement-', ''));
+											return (
+												<Button
+													variant="outline"
+													size="sm"
+													className="w-full h-7 text-xs justify-start text-destructive border-destructive/40 hover:bg-destructive/5"
+													disabled={deletingPlacementId === pid}
+													onClick={() => void unassignDraftPlacement(pid)}
+												>
+													{deletingPlacementId === pid
+														? <><Loader2 className="size-3 mr-1.5 animate-spin" />Removing...</>
+														: <><Trash2 className="size-3 mr-1.5" />Unassign (Return to Queue)</>
+													}
+												</Button>
+											);
+										})()}
 									</div>
 								</motion.div>
 							) : (
@@ -4380,8 +4528,11 @@ export default function ScheduleReview() {
 										<p className="text-[0.625rem] font-semibold text-red-700 flex items-center gap-1">
 											<ShieldAlert className="size-3" /> {confirmPreview.hardViolations.length} Hard Conflict{confirmPreview.hardViolations.length > 1 ? 's' : ''}
 										</p>
-										{confirmPreview.hardViolations.slice(0, 3).map((v, idx) => (
-											<p key={idx} className="text-[0.5625rem] text-red-700">{v.message ?? v.code}</p>
+										{confirmPreview.humanConflicts.filter((c) => c.severity === 'HARD').map((c, idx) => (
+											<div key={idx} className="space-y-0.5">
+												<p className="text-[0.5625rem] font-medium text-red-800">{c.humanTitle}</p>
+												<p className="text-[0.5rem] text-red-600/80 leading-snug">{c.humanDetail}</p>
+											</div>
 										))}
 									</div>
 								)}
@@ -4407,8 +4558,11 @@ export default function ScheduleReview() {
 								{confirmPreview.softViolations.length > 0 && (
 									<div className="space-y-1 rounded border border-amber-200 bg-amber-50/70 px-2.5 py-2 text-[0.6875rem] text-amber-700">
 										<p className="font-semibold">{confirmPreview.softViolations.length} soft warning{confirmPreview.softViolations.length > 1 ? 's' : ''}</p>
-										{confirmPreview.softViolations.slice(0, 2).map((v, idx) => (
-											<p key={idx} className="text-[0.5625rem]">{v.message ?? v.code}</p>
+										{confirmPreview.humanConflicts.filter((c) => c.severity === 'SOFT').map((c, idx) => (
+											<div key={idx} className="space-y-0.5">
+												<p className="text-[0.5625rem] font-medium text-amber-800">{c.humanTitle}</p>
+												<p className="text-[0.5rem] text-amber-600/80 leading-snug">{c.humanDetail}</p>
+											</div>
 										))}
 										<label className="flex items-center gap-2 cursor-pointer">
 											<Checkbox
@@ -4973,6 +5127,7 @@ const TimetableGrid = memo(function TimetableGrid({
 	onCellDrop,
 	kbSelectedSource,
 	onKbPlace,
+	conflictSlots,
 }: {
 	entries: ScheduledEntry[];
 	timeSlots: Array<{ startTime: string; endTime: string }>;
@@ -4993,6 +5148,7 @@ const TimetableGrid = memo(function TimetableGrid({
 	onCellDrop: (day: string, startTime: string, endTime: string) => void;
 	kbSelectedSource: DragSource;
 	onKbPlace: (day: string, startTime: string, endTime: string) => void;
+	conflictSlots: Set<string> | null;
 }) {
 	const [dropTarget, setDropTarget] = useState<string | null>(null);
 
@@ -5042,10 +5198,15 @@ const TimetableGrid = memo(function TimetableGrid({
 								const cellEntries = gridIndex.get(key) ?? [];
 								const isDropOver = dropTarget === key;
 								// Determine cell drop zone class
+								const isConflictSlot = conflictSlots?.has(key) ?? false;
 								let dropClass = '';
 								if (isDragging || hasKbSource) {
-									if (isDropOver) {
+									if (isDropOver && isConflictSlot) {
+										dropClass = ' ring-2 ring-amber-400 bg-amber-50/60';
+									} else if (isDropOver) {
 										dropClass = ' ring-2 ring-primary bg-primary/5';
+									} else if (isConflictSlot) {
+										dropClass = ' ring-1 ring-amber-300/70 bg-amber-50/30';
 									} else {
 										dropClass = ' ring-1 ring-dashed ring-muted-foreground/20';
 									}

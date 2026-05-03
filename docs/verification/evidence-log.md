@@ -497,6 +497,67 @@ Record dated implementation verification summaries here.
 
 ---
 
+### 2026-05-02 - Wave 4.5c (pass 2): Crash fix + pre-gen panel gating + pin→right-panel + live conflict cells
+- Phase: 4
+- Scope gate: PASS (all changes within pre-generation draft UX scope)
+- Architecture gate: PASS (client-side only; no new endpoints)
+- Behavior gate: PASS
+  - `Trash2` added to lucide-react imports — crash on timetable session click resolved
+  - `isPreGenerationWorkspace` now covers `centerView === 'map' && preGenOnboarding` — violations/unassigned tabs correctly hidden during map navigation within pre-gen draft workflow
+  - Violations panel content gated on `!isPreGenerationWorkspace` — panel content no longer renders in pre-gen mode
+  - Unassigned panel content gated on `!isPreGenerationWorkspace` — unassigned demand not shown in pre-gen mode (queue in Pins panel is the canonical source)
+  - Selecting a queue item now populates right panel with "pending session detail" (section, grade, faculty, session progress, placement prompt) instead of clearing it
+  - Deselecting a queue item or clicking X in right panel clears the queue selection
+  - `pinConflictSlots` computed: Set of `${day}-${startTime}` keys where the selected pin's faculty or section has an existing anchor/timetable entry
+  - TimetableGrid accepts `conflictSlots: Set<string> | null`; occupied cells highlighted amber when a pin is KB-selected; drop-over into an occupied slot shows amber ring instead of primary ring
+  - Swap hint shown in conflict inspector footer when `preGenPending` slot is in `pinConflictSlots`
+- Regression gate: PASS
+- Commands:
+  - `npm --prefix atlas-client run build`: PASS (✓ 2420 modules, 626ms)
+  - `npm --prefix atlas-server run build`: PASS (0 errors)
+  - `npm --prefix atlas-server run test:phase4-review`: PASS (23/23)
+  - `npm --prefix atlas-server run test:wave4.3`: PASS (22/22)
+- Files changed:
+  - `atlas-client/src/pages/ScheduleReview.tsx`: Trash2 import; isPreGenerationWorkspace; violations/unassigned gates; queue→right-panel; pinConflictSlots; TimetableGrid conflictSlots prop + cell coloring; swap hint
+- Blocking findings:
+  - None
+- Decision:
+  - Accepted; browser QA pending bridge auth
+
+---
+
+### 2026-05-03 - Wave 4.5c (pass 1): Human Conflicts, Unassign, Card Redesign, Context Badges, Banner Removal
+- Phase: 4
+- Scope gate: PASS (all changes within pre-generation draft UX scope)
+- Architecture gate: PASS (new `removeSinglePlacement` service function; thin DELETE controller; `buildHumanConflicts` improved; no direct SQL; business logic in service layer)
+- Behavior gate: PASS
+  - `buildHumanConflicts` now resolves faculty/room/section IDs to display names via `ctx.facultyMirrors`, `ctx.rooms`, `ctx.sectionsById`
+  - `HUMAN_VIOLATION_TITLES` map provides readable titles for 16 violation codes
+  - `removeSinglePlacement` validates placement exists + is DRAFT, archives it in a transaction, returns updated board state
+  - `DELETE /api/v1/generation/:schoolId/:schoolYearId/pre-generation-drafts/:placementId` added
+  - Confirm modal hard violations now show `humanTitle` (red-800, bold) + `humanDetail` (red-600, small)
+  - Confirm modal soft violations now show `humanTitle` (amber-800, bold) + `humanDetail` (amber-600, small)
+  - Violations tab hidden in pre-gen mode (J: AnimatePresence onboarding banner removed entirely from map view)
+  - Queue cards redesigned: section+session row on top, subject code below, grade-level background color (GRADE_CARD_BG)
+  - Context badge in pre-gen timetable header shows current faculty/room/section name with color coding
+  - Unassign button added in right panel action footer for draft-placement entries (returns to queue)
+  - Selecting queue item clears `selectedEntry` (mutual deselect)
+  - `formatFacultyInitials` callback provides compact "F. Lastname" format
+- Regression gate: PASS
+- Commands:
+  - `npm --prefix atlas-client run build`: PASS (✓ 2420 modules, 500ms)
+  - `npm --prefix atlas-server run build`: PASS (0 errors)
+- Files changed:
+  - `atlas-server/src/services/pre-generation-draft.service.ts`: `HUMAN_VIOLATION_TITLES`, `buildHumanConflicts` ctx-aware, `removeSinglePlacement`
+  - `atlas-server/src/routes/pre-generation-draft.router.ts`: DELETE endpoint
+  - `atlas-client/src/pages/ScheduleReview.tsx`: 14 patches (J, F, A×2, E×3, C×3, G, D, initials)
+- Blocking findings:
+  - `sectionResult.sections` TS error fixed — corrected to `ctx.sectionsById.get(id)` (Map lookup)
+- Decision:
+  - Accepted (both builds pass; browser QA deferred to next live session)
+
+---
+
 ### 2026-05-02 - Wave 4.5b: Post-QA Polish (performance, pagination, auto-preview, pins filters, grid density, KB parity)
 - Phase: 4
 - Scope gate: PASS (all 13 stakeholder-reported items from post-QA review addressed in ScheduleReview.tsx)

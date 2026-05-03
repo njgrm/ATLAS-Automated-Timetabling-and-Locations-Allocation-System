@@ -258,4 +258,25 @@ router.patch(
 	},
 );
 
+router.delete(
+	'/:schoolId/:schoolYearId/pre-generation-drafts/:placementId',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!requirePrivileged(req, res)) return;
+			const scope = parseScope(req, res);
+			if (!scope) return;
+			const placementId = positiveInt(req.params.placementId, 'placementId');
+			if (typeof placementId === 'string') {
+				res.status(400).json({ code: 'INVALID_PARAM', message: placementId });
+				return;
+			}
+			const board = await draftService.removeSinglePlacement(scope.schoolId, scope.schoolYearId, req.user!.userId, placementId);
+			res.json(board);
+		} catch (error) {
+			next(error);
+		}
+	},
+);
+
 export default router;
