@@ -28,6 +28,7 @@ import {
 	PanelRightClose,
 	PanelRightOpen,
 	Play,
+	Plus,
 	RefreshCw,
 	Search,
 	Send,
@@ -59,6 +60,7 @@ import {
 import { cn, formatTime } from '@/lib/utils';
 import type {
 	Building,
+	CellConflictInfo,
 	CommitResult,
 	DraftReport,
 	ExternalSection,
@@ -498,6 +500,8 @@ export default function ScheduleReview() {
 
 	/** Wave 4.5: map-first onboarding banner active state */
 	const [preGenOnboarding, setPreGenOnboarding] = useState(false);
+	/** Wave 4.5c Pass 3 F: tracks whether map/building was entered from pre-gen context */
+	const [preGenMapContext, setPreGenMapContext] = useState(false);
 
 	/** Wave 4.5: mandatory faculty + room confirm sheet */
 	const [showPreGenConfirm, setShowPreGenConfirm] = useState(false);
@@ -517,6 +521,9 @@ export default function ScheduleReview() {
 	const [confirmSaving, setConfirmSaving] = useState(false);
 	/** Wave 4.5c C: ID of a placement being deleted (unassign) */
 	const [deletingPlacementId, setDeletingPlacementId] = useState<number | null>(null);
+	/** Wave 4.5c Pass 3 E: Unassign confirmation dialog state */
+	const [showUnassignConfirm, setShowUnassignConfirm] = useState(false);
+	const [pendingUnassignId, setPendingUnassignId] = useState<number | null>(null);
 
 	/** Wave 4.5: Pins panel search + grade filter */
 	const [pinsSearch, setPinsSearch] = useState('');
@@ -696,24 +703,208 @@ export default function ScheduleReview() {
 		[activeGridEntriesBase, centerView, draftBoard?.periodSlots],
 	);
 
-	/** Wave 4.5c: when a queue item is KB-selected, compute which slots are occupied by its faculty/section */
-	const pinConflictSlots = useMemo(() => {
-		if (!isPreGenerationWorkspace || preGenKbSource?.type !== 'draftQueue') return null;
-		const item = preGenKbSource.item;
-		const occupied = new Set<string>();
-		for (const p of draftBoard?.placements ?? []) {
-			if (p.status !== 'DRAFT') continue;
-			if ((item.facultyId && p.facultyId === item.facultyId) || p.sectionId === item.sectionId) {
-				occupied.add(`${p.day}-${p.startTime}`);
+	/** Stage 2: Live conflict inspector — per-cell conflict state for the selected/dragged session.
+	 *  Activates for any active source: drag, keyboard selection, or clicked entry.
+	 *  Returns null when no source is active (inspector inactive). */
+	const cellConflictMap = useMemo<Map<string, CellConflictInfo> | null>(() => {
+		// 1. Extract source attributes
+		let sectionId: number | undefined;
+		let facultyId: number | undefined;
+		let allFacultyOptions: number[] | undefined; // draftQueue — multiple options → soft conflict
+		let roomId: number | undefined;
+		let sourceEntryId: string | undefined;
+
+		if (dragItem) {
+			if (dragItem.type === 'entry') {
+				sectionId = dragItem.entry.sectionId;
+				facultyId = dragItem.entry.facultyId;
+				roomId = dragItem.entry.roomId;
+				sourceEntryId = dragItem.entry.entryId;
+			} else if (dragItem.type === 'draftQueue') {
+				sectionId = dragItem.item.sectionId;
+				facultyId = dragItem.item.facultyOptions[0];
+				allFacultyOptions = dragItem.item.facultyOptions;
+			} else if (dragItem.type === 'draftPlacement') {
+				sectionId = dragItem.placement.sectionId;
+				facultyId = dragItem.placement.facultyId ?? undefined;
+				roomId = dragItem.placement.roomId ?? undefined;
+				sourceEntryId = `draft-placement-${dragItem.placement.id}`;
+			} else if (dragItem.type === 'unassigned') {
+				sectionId = dragItem.item.sectionId;
 			}
+		} else if (preGenKbSource) {
+			if (preGenKbSource.type === 'draftQueue') {
+				sectionId = preGenKbSource.item.sectionId;
+				facultyId = preGenKbSource.item.facultyOptions[0];
+				allFacultyOptions = preGenKbSource.item.facultyOptions;
+			} else if (preGenKbSource.type === 'draftPlacement') {
+				sectionId = preGenKbSource.placement.sectionId;
+				facultyId = preGenKbSource.placement.facultyId ?? undefined;
+				roomId = preGenKbSource.placement.roomId ?? undefined;
+				sourceEntryId = `draft-placement-${preGenKbSource.placement.id}`;
+			}
+		} else if (kbSelectedSource) {
+			if (kbSelectedSource.type === 'entry') {
+				sectionId = kbSelectedSource.entry.sectionId;
+				facultyId = kbSelectedSource.entry.facultyId;
+				roomId = kbSelectedSource.entry.roomId;
+				sourceEntryId = kbSelectedSource.entry.entryId;
+			} else if (kbSelectedSource.type === 'unassigned') {
+				sectionId = kbSelectedSource.item.sectionId;
+			}
+		} else if (selectedEntry) {
+			sectionId = selectedEntry.sectionId;
+			facultyId = selectedEntry.facultyId;
+			roomId = selectedEntry.roomId;
+			sourceEntryId = selectedEntry.entryId;
 		}
+
+		if (!sectionId) return null;
+
+		// 2. Build full entry index across ALL entries (not pivot-filtered)
+		const allIndex = new Map<string, ScheduledEntry[]>();
 		for (const e of activeGridEntriesBase) {
-			if ((item.facultyId && e.facultyId === item.facultyId) || e.sectionId === item.sectionId) {
-				occupied.add(`${e.day}-${e.startTime}`);
+			const key = `${e.day}-${e.startTime}`;
+			const list = allIndex.get(key) ?? [];
+			list.push(e);
+			allIndex.set(key, list);
+		}
+
+		// 3. Inline label helpers (avoids capturing unstable callbacks in deps)
+		const fName = (id: number): string => {
+			const f = facultyMap.get(id);
+			if (!f) return `Faculty #${id}`;
+			const init = f.firstName ? `${f.firstName.charAt(0).toUpperCase()}.` : '';
+			return init ? `${init} ${f.lastName}` : f.lastName;
+		};
+		const sName = (id: number): string => sectionMap.get(id)?.name ?? `Section #${id}`;
+		const rName = (id: number): string => {
+			const r = roomMap.get(id);
+			if (!r) return `Room #${id}`;
+			const b = r.buildingShortCode || r.buildingName;
+			return b ? `${r.name} · ${b}` : r.name;
+		};
+		const subName = (id: number): string => subjectMap.get(id)?.name ?? `Subject #${id}`;
+
+		// 4. Per-cell conflict analysis for all slots × days
+		const map = new Map<string, CellConflictInfo>();
+		for (const slot of timeSlots) {
+			for (const day of DAYS) {
+				const key = `${day}-${slot.startTime}`;
+				const cellEntries = allIndex.get(key) ?? [];
+
+				// Self — source entry's current slot
+				if (sourceEntryId && cellEntries.some((e) => e.entryId === sourceEntryId)) {
+					map.set(key, { kind: 'self', reasons: ['Current position'], displaced: [] });
+					continue;
+				}
+
+				const hardReasons: string[] = [];
+				const softReasons: string[] = [];
+				const displaced: CellConflictInfo['displaced'] = [];
+
+				for (const e of cellEntries) {
+					if (e.entryId === sourceEntryId) continue;
+
+					// Section conflict — always hard (section can't be in two places)
+					if (e.sectionId === sectionId) {
+						const label = sName(sectionId);
+						if (!hardReasons.some((r) => r.startsWith('Section occupied'))) {
+							hardReasons.push(`Section occupied: ${label}`);
+						}
+						displaced.push({ entryId: e.entryId, subjectName: subName(e.subjectId), entityName: label, entityId: sectionId, conflictType: 'section' });
+					}
+
+					// Room conflict — hard when source has an explicit room assigned
+					if (roomId && e.roomId === roomId) {
+						const label = rName(roomId);
+						if (!hardReasons.some((r) => r.startsWith('Room occupied'))) {
+							hardReasons.push(`Room occupied: ${label}`);
+						}
+						displaced.push({ entryId: e.entryId, subjectName: subName(e.subjectId), entityName: label, entityId: roomId, conflictType: 'room' });
+					}
+				}
+
+				// J22: Faculty conflict — evaluate ALL options, not just the first
+				if (allFacultyOptions && allFacultyOptions.length > 0) {
+					const busyOptions = allFacultyOptions.filter((fid) =>
+						cellEntries.some((e) => e.entryId !== sourceEntryId && e.facultyId === fid),
+					);
+					if (busyOptions.length > 0) {
+						const freeFacultyExists = busyOptions.length < allFacultyOptions.length;
+						if (freeFacultyExists) {
+							const busyLabels = busyOptions.map(fName).join(', ');
+							if (!softReasons.some((r) => r.startsWith('Faculty busy'))) {
+								softReasons.push(`Faculty busy: ${busyLabels} (alternatives available)`);
+							}
+						} else {
+							const busyLabels = busyOptions.map(fName).join(', ');
+							if (!hardReasons.some((r) => r.startsWith('Faculty overlap'))) {
+								hardReasons.push(`Faculty overlap: all ${allFacultyOptions.length} option${allFacultyOptions.length !== 1 ? 's' : ''} busy (${busyLabels})`);
+							}
+						}
+						for (const fid of busyOptions) {
+							const conflictEntry = cellEntries.find((e) => e.entryId !== sourceEntryId && e.facultyId === fid);
+							if (conflictEntry) {
+								displaced.push({ entryId: conflictEntry.entryId, subjectName: subName(conflictEntry.subjectId), entityName: fName(fid), entityId: fid, conflictType: 'faculty' });
+							}
+						}
+					}
+				} else if (facultyId) {
+					// Single explicit faculty binding
+					const conflictEntry = cellEntries.find((e) => e.entryId !== sourceEntryId && e.facultyId === facultyId);
+					if (conflictEntry) {
+						const label = fName(facultyId);
+						if (!hardReasons.some((r) => r.startsWith('Faculty overlap'))) {
+							hardReasons.push(`Faculty overlap: ${label}`);
+						}
+						displaced.push({ entryId: conflictEntry.entryId, subjectName: subName(conflictEntry.subjectId), entityName: label, entityId: facultyId, conflictType: 'faculty' });
+					}
+				}
+
+				// J23: Daily load band awareness — check if placing this session would exceed soft/hard daily limits
+				const sessionDuration = minutesBetween(slot.startTime, slot.endTime);
+				if (sessionDuration > 0) {
+					const optionsToCheck = allFacultyOptions && allFacultyOptions.length > 0
+						? allFacultyOptions
+						: facultyId ? [facultyId] : [];
+					const softCap = 360; // 6 hours
+					const hardCap = 480; // 8 hours
+					for (const fid of optionsToCheck) {
+						const existingDailyMins = activeGridEntriesBase
+							.filter((e) => e.day === day && e.facultyId === fid && e.entryId !== sourceEntryId)
+							.reduce((sum, e) => sum + minutesBetween(e.startTime, e.endTime), 0);
+						const projected = existingDailyMins + sessionDuration;
+						if (projected > hardCap) {
+							const label = fName(fid);
+							if (!hardReasons.some((r) => r.includes('daily load'))) {
+								hardReasons.push(`Daily load hard cap: ${label} would reach ${Math.round(projected / 60 * 10) / 10}h (max 8h)`);
+							}
+						} else if (projected > softCap) {
+							const label = fName(fid);
+							if (!softReasons.some((r) => r.includes('daily load'))) {
+								softReasons.push(`Daily load soft cap: ${label} would reach ${Math.round(projected / 60 * 10) / 10}h (soft limit 6h)`);
+							}
+						}
+					}
+				}
+
+				let kind: CellConflictInfo['kind'];
+				const reasons: string[] = [];
+				if (hardReasons.length > 0) {
+					kind = 'hard';
+					reasons.push(...hardReasons, ...softReasons);
+				} else if (softReasons.length > 0) {
+					kind = 'soft';
+					reasons.push(...softReasons);
+				} else {
+					kind = 'clean';
+				}
+				map.set(key, { kind, reasons, displaced });
 			}
 		}
-		return occupied;
-	}, [isPreGenerationWorkspace, preGenKbSource, draftBoard?.placements, activeGridEntriesBase]);
+		return map;
+	}, [dragItem, preGenKbSource, kbSelectedSource, selectedEntry, activeGridEntriesBase, timeSlots, facultyMap, sectionMap, roomMap, subjectMap]);
 
 	const filteredDraftEntries = useMemo(() => {
 		return activeGridEntriesBase.filter((entry) => {
@@ -748,7 +939,14 @@ export default function ScheduleReview() {
 	const pivotEntityIds = useMemo(() => {
 		const entries = filteredDraftEntries;
 		const isPreGen = centerView === 'pre-generation';
-		if (viewMode === 'section') return sectionIds;
+		if (viewMode === 'section') {
+			if (isPreGen) {
+				const ids = new Set<number>(sectionIds);
+				for (const id of sectionMap.keys()) ids.add(id);
+				return Array.from(ids).sort((a, b) => a - b);
+			}
+			return sectionIds;
+		}
 		if (viewMode === 'faculty') {
 			const ids = new Set<number>();
 			for (const e of entries) if (e.facultyId) ids.add(e.facultyId);
@@ -774,7 +972,7 @@ export default function ScheduleReview() {
 			if (bldgA !== bldgB) return bldgA.localeCompare(bldgB);
 			return ra.name.localeCompare(rb.name);
 		});
-	}, [filteredDraftEntries, viewMode, sectionIds, roomMap, centerView, facultyMap]);
+	}, [filteredDraftEntries, viewMode, sectionIds, sectionMap, roomMap, centerView, facultyMap]);
 
 	const gridEntries = useMemo(() => {
 		const entries = filteredDraftEntries;
@@ -809,7 +1007,13 @@ export default function ScheduleReview() {
 
 	const summary: RunSummary | null = draft?.summary ?? null;
 	/** True when user is actively in the pre-gen draft workflow (timetable grid OR map navigation within it) */
-	const isPreGenerationWorkspace = centerView === 'pre-generation' || (centerView === 'map' && preGenOnboarding);
+	const isPreGenerationWorkspace = centerView === 'pre-generation' || (centerView === 'map' && preGenOnboarding) || (centerView === 'building' && preGenMapContext);
+
+	/** Stage 2: Quick-nav callbacks — jump to a specific entity's grid view from a conflict tooltip */
+	const navToFaculty = useCallback((id: number) => { setViewMode('faculty'); setEntityFilter(String(id)); }, []);
+	const navToSection = useCallback((id: number) => { setViewMode('section'); setEntityFilter(String(id)); }, []);
+	const navToRoom = useCallback((id: number) => { setViewMode('room'); setEntityFilter(String(id)); }, []);
+
 	const activeGeneratedRunId = useMemo(() => {
 		if (selectedRunId === 'latest') return runs[0]?.id ?? draft?.runId ?? null;
 		const parsed = Number(selectedRunId);
@@ -951,15 +1155,17 @@ export default function ScheduleReview() {
 	const openMapWorkspace = useCallback(async () => {
 		if (!schoolYearId) return;
 		await fetchReferenceData(schoolYearId);
+		setPreGenMapContext(isPreGenerationWorkspace);
 		switchCenterViewWithGuard(() => setCenterView('map'));
-	}, [schoolYearId, fetchReferenceData, switchCenterViewWithGuard]);
+	}, [schoolYearId, fetchReferenceData, switchCenterViewWithGuard, isPreGenerationWorkspace]);
 
 	const openBuildingWorkspace = useCallback(async (buildingId: number) => {
 		if (!schoolYearId) return;
 		await fetchReferenceData(schoolYearId);
 		setMapBuildingId(buildingId);
+		setPreGenMapContext(isPreGenerationWorkspace);
 		switchCenterViewWithGuard(() => setCenterView('building'));
-	}, [schoolYearId, fetchReferenceData, switchCenterViewWithGuard]);
+	}, [schoolYearId, fetchReferenceData, switchCenterViewWithGuard, isPreGenerationWorkspace]);
 
 	const openRoomGridWorkspace = useCallback((roomId: number) => {
 		const room = roomMap.get(roomId);
@@ -967,10 +1173,11 @@ export default function ScheduleReview() {
 		setMapRoomId(roomId);
 		setViewMode('room');
 		setEntityFilter(String(roomId));
-		// Wave 4.5 G + A: room pick clears onboarding and switches to pre-gen timetable in room pivot
+		// Wave 4.5c Pass 3 F: use preGenMapContext to determine return destination
 		setPreGenOnboarding(false);
-		switchCenterViewWithGuard(() => setCenterView(draftBoard ? 'pre-generation' : (draft ? 'schedule' : 'pre-generation')));
-	}, [draft, draftBoard, roomMap, switchCenterViewWithGuard]);
+		setPreGenMapContext(false);
+		switchCenterViewWithGuard(() => setCenterView(preGenMapContext ? 'pre-generation' : (draft ? 'schedule' : 'pre-generation')));
+	}, [draft, preGenMapContext, roomMap, switchCenterViewWithGuard]);
 
 	const loadAll = useCallback(
 		async (preserveRun = false) => {
@@ -1752,7 +1959,7 @@ export default function ScheduleReview() {
 
 			await commitEdit(proposal);
 		},
-		[dragItem, entityFilter, viewMode, previewEdit, commitEdit, stagePreGenDrop],
+		[dragItem, entityFilter, viewMode, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard],
 	);
 
 	/** Keyboard-accessible placement confirm */
@@ -1765,6 +1972,16 @@ export default function ScheduleReview() {
 			if (fakeItem.type === 'draftQueue' || fakeItem.type === 'draftPlacement') {
 				stagePreGenDrop(fakeItem, day, startTime, endTime);
 				return;
+			}
+
+			// Fix 1: draft placement entry KB-placed in pre-gen mode → route to pre-gen commit path
+			if (fakeItem.type === 'entry' && centerView === 'pre-generation' && fakeItem.entry.entryId.startsWith('draft-placement-')) {
+				const pid = Number(fakeItem.entry.entryId.replace('draft-placement-', ''));
+				const placement = draftBoard?.placements.find((p) => p.id === pid);
+				if (placement) {
+					stagePreGenDrop({ type: 'draftPlacement', placement }, day, startTime, endTime);
+					return;
+				}
 			}
 
 			if (fakeItem.type === 'unassigned') {
@@ -1808,7 +2025,7 @@ export default function ScheduleReview() {
 			}
 			await commitEdit(proposal);
 		},
-		[kbSelectedSource, entityFilter, viewMode, previewEdit, commitEdit, stagePreGenDrop],
+		[kbSelectedSource, entityFilter, viewMode, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard],
 	);
 
 	/** Confirm assignment picker and submit the unassigned placement */
@@ -2377,7 +2594,7 @@ export default function ScheduleReview() {
 						value={entityFilter}
 						onValueChange={setEntityFilter}
 						placeholder={`Select ${VIEW_MODE_LABELS[viewMode]}…`}
-						triggerClassName="h-7 w-44 text-xs"
+						triggerClassName="h-7 w-80 text-xs"
 						groups={groupedPivotEntities.map((group) => ({
 							label: group.label,
 							items: group.ids.map((id) => ({ value: String(id), label: pivotLabel(id) })),
@@ -2481,7 +2698,7 @@ export default function ScheduleReview() {
 									<TooltipTrigger asChild>
 										<button type="button" className="relative flex items-center justify-center h-8 w-8 rounded hover:bg-muted transition-colors" onClick={() => { leftPanelRef.current?.expand(); setLeftTab('violations'); }}>
 											<ShieldAlert className="size-4 text-muted-foreground" />
-											{violations.length > 0 && (
+											{violations.length > 0 && !isPreGenerationWorkspace && (
 												<span className="absolute -top-1 -right-1 text-[0.5rem] font-bold leading-none bg-red-500 text-white rounded-full px-1">{violations.length}</span>
 											)}
 										</button>
@@ -2492,7 +2709,7 @@ export default function ScheduleReview() {
 									<TooltipTrigger asChild>
 										<button type="button" className="relative flex items-center justify-center h-8 w-8 rounded hover:bg-muted transition-colors" onClick={() => { leftPanelRef.current?.expand(); setLeftTab('unassigned'); }}>
 											<AlertTriangle className="size-4 text-muted-foreground" />
-											{summary && summary.unassignedCount > 0 && (
+											{summary && summary.unassignedCount > 0 && !isPreGenerationWorkspace && (
 												<span className="absolute -top-1 -right-1 text-[0.5rem] font-bold leading-none bg-amber-500 text-white rounded-full px-1">{summary.unassignedCount}</span>
 											)}
 										</button>
@@ -2556,7 +2773,7 @@ export default function ScheduleReview() {
 							}`}
 						>
 							Unassigned
-							{summary && summary.unassignedCount > 0 && (
+							{summary && summary.unassignedCount > 0 && !isPreGenerationWorkspace && (
 								<span className="ml-1 text-[0.625rem] text-amber-600 font-semibold">{summary.unassignedCount}</span>
 							)}
 						</button>
@@ -3117,9 +3334,30 @@ export default function ScheduleReview() {
 									</Button>
 								</div>
 								<div className="mt-2 flex flex-wrap items-center gap-1.5">
-									<Badge variant="secondary" className="h-5 px-2 text-[0.625rem]">{draftBoard?.counts.unscheduled ?? 0} unassigned</Badge>
-									<Badge variant="secondary" className="h-5 px-2 text-[0.625rem]">{draftBoard?.counts.draft ?? 0} pinned</Badge>
-									<Badge variant="secondary" className="h-5 px-2 text-[0.625rem]">{draftBoard?.counts.lockedForRun ?? 0} locked</Badge>
+									<TooltipProvider>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Badge variant="secondary" className="h-5 px-2 text-[0.625rem] cursor-default">{draftBoard?.counts.unscheduled ?? 0} unassigned</Badge>
+											</TooltipTrigger>
+											<TooltipContent className="max-w-48 text-xs">Sessions not yet placed in the pre-generation draft grid.</TooltipContent>
+										</Tooltip>
+									</TooltipProvider>
+									<TooltipProvider>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Badge variant="secondary" className="h-5 px-2 text-[0.625rem] cursor-default">{draftBoard?.counts.draft ?? 0} pinned</Badge>
+											</TooltipTrigger>
+											<TooltipContent className="max-w-48 text-xs">Sessions placed in the draft grid. These become anchors when schedule generation runs.</TooltipContent>
+										</Tooltip>
+									</TooltipProvider>
+									<TooltipProvider>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Badge variant="secondary" className="h-5 px-2 text-[0.625rem] cursor-default">{draftBoard?.counts.lockedForRun ?? 0} locked</Badge>
+											</TooltipTrigger>
+											<TooltipContent className="max-w-48 text-xs">Sessions locked to a specific generated run. Cannot be edited until the run is reset.</TooltipContent>
+										</Tooltip>
+									</TooltipProvider>
 									{preGenPending ? <Badge className="h-5 px-2 text-[0.625rem]">Pending preview</Badge> : null}
 								</div>
 								{/* Wave 4.5 H: search + grade filter for pins panel */}
@@ -3164,7 +3402,10 @@ export default function ScheduleReview() {
 										<SelectTrigger className="h-7 flex-1 min-w-0 text-[0.625rem]"><SelectValue placeholder="Section" /></SelectTrigger>
 										<SelectContent>
 											<SelectItem value="all">All sections</SelectItem>
-											{Array.from(new Map((draftBoard?.queue ?? []).filter((item) => pinsGradeFilter === 'all' || item.gradeLevel === pinsGradeFilter).map((item) => [item.sectionId, item.sectionName])).entries()).map(([id, name]) => (
+											{Array.from(new Map([
+												...(draftBoard?.queue ?? []).filter((item) => pinsGradeFilter === 'all' || item.gradeLevel === pinsGradeFilter).map((item): [number, string] => [item.sectionId, item.sectionName]),
+												...(draftBoard?.placements ?? []).filter((p) => p.status === 'DRAFT').map((p): [number, string] => [p.sectionId, sectionLabel(p.sectionId)]),
+											]).entries()).map(([id, name]) => (
 												<SelectItem key={id} value={String(id)}>{name}</SelectItem>
 											))}
 										</SelectContent>
@@ -3219,7 +3460,7 @@ export default function ScheduleReview() {
 															setPreGenKbSource(nextSelected ? source : null);
 															setKbSelectedSource(nextSelected ? source : null);
 															// Selecting a queue item drives the right panel (D spec); deselecting clears it
-															if (nextSelected) setSelectedEntry(null);
+															if (nextSelected) { setSelectedEntry(null); rightPanelRef.current?.expand(); }
 														}}
 														onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const source = { type: 'draftQueue' as const, item }; setPreGenKbSource(source); setKbSelectedSource(source); setSelectedEntry(null); } }}
 													>
@@ -3228,9 +3469,11 @@ export default function ScheduleReview() {
 															<span className="shrink-0 text-[0.5rem] text-muted-foreground/70 tabular-nums">{item.sessionNumber}/{item.sessionsPerWeek}</span>
 														</div>
 														<div className="flex items-center gap-1 min-w-0 mt-0.5">
-															{item.hasNoTeacher && (
+															{item.hasNoTeacher ? (
 																<UserX className="size-3 text-amber-500 shrink-0" />
-															)}
+															) : item.facultyOptions[0] ? (
+																<span className="shrink-0 text-[0.5625rem] text-primary/80 font-medium">{formatFacultyInitials(item.facultyOptions[0])}</span>
+															) : null}
 															<span className="truncate text-[0.5625rem] text-muted-foreground">{item.subjectCode}</span>
 														</div>
 													</div>
@@ -3282,6 +3525,7 @@ export default function ScheduleReview() {
 															setKbSelectedSource(selected ? null : source);
 															const entry = preGenEntries.find((candidate) => candidate.entryId === `draft-placement-${placement.id}`);
 															if (entry) setSelectedEntry(entry);
+															if (!selected) rightPanelRef.current?.expand();
 														}}
 													>
 														<GripVertical className="mr-1.5 size-3 shrink-0 text-muted-foreground" />
@@ -3595,32 +3839,26 @@ export default function ScheduleReview() {
 									{(centerView === 'pre-generation' ? draftBoard != null : draft != null) ? (
 										<div className="p-4">
 											{centerView === 'pre-generation' ? (
-												<div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs">
-													<div className="flex items-center gap-2">
-														<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] uppercase">Pre-Generation Draft</Badge>
-														<span className="text-muted-foreground">Drop unassigned or pinned sources into the grid. Saved placements become generation anchors.</span>
-													</div>
-													<div className="flex items-center gap-1.5 flex-wrap">
-														{entityFilter && entityFilter !== 'all' ? (
-															<Badge
-																variant="secondary"
-																className={cn(
-																	'h-5 px-2 text-[0.625rem] max-w-36 truncate',
-																	viewMode === 'faculty' ? 'bg-purple-50 text-purple-700 border-purple-200' :
-																	viewMode === 'room' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-																	'bg-muted text-muted-foreground',
-																)}
-																title={pivotLabel(Number(entityFilter))}
-															>
-																{viewMode === 'faculty' ? <Users className="inline size-2.5 mr-0.5 -mt-px" /> : viewMode === 'room' ? <DoorOpen className="inline size-2.5 mr-0.5 -mt-px" /> : null}
-																{pivotLabel(Number(entityFilter))}
-															</Badge>
-														) : null}
-														<Button variant="outline" size="sm" className="h-6 px-2 text-[0.625rem] gap-1" onClick={() => { setCenterView('map'); setPreGenOnboarding(true); }}>
-															<MapPin className="size-3" />
-															Map
-														</Button>
-													</div>
+												<div className="mb-3 flex items-center gap-2 flex-wrap">
+													{entityFilter && entityFilter !== 'all' ? (
+														<Badge
+															variant="secondary"
+															className={cn(
+																'h-5 px-2 text-[0.625rem] max-w-36 truncate',
+																viewMode === 'faculty' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+																viewMode === 'room' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+																'bg-muted text-muted-foreground',
+															)}
+															title={pivotLabel(Number(entityFilter))}
+														>
+															{viewMode === 'faculty' ? <Users className="inline size-2.5 mr-0.5 -mt-px" /> : viewMode === 'room' ? <DoorOpen className="inline size-2.5 mr-0.5 -mt-px" /> : null}
+															{pivotLabel(Number(entityFilter))}
+														</Badge>
+													) : null}
+													<Button variant="outline" size="sm" className="h-6 px-2 text-[0.625rem] gap-1" onClick={() => { setCenterView('map'); setPreGenOnboarding(true); }}>
+														<MapPin className="size-3" />
+														Map
+													</Button>
 												</div>
 											) : null}
 											<TimetableGrid
@@ -3635,6 +3873,8 @@ export default function ScheduleReview() {
 												sectionLabel={sectionLabel}
 												gradeForSection={gradeForSection}
 												entryContextLabel={entryContextLabel}
+												formatFacultyInitials={formatFacultyInitials}
+												facultyLabel={facultyLabel}
 												viewMode={viewMode}
 												pivotLabel={pivotLabel}
 												roomLabelShort={roomLabelShort}
@@ -3643,7 +3883,10 @@ export default function ScheduleReview() {
 												onCellDrop={handleCellDrop}
 												kbSelectedSource={kbSelectedSource}
 												onKbPlace={handleKbPlace}
-												conflictSlots={pinConflictSlots}
+												conflictMap={cellConflictMap}
+												onNavToFaculty={navToFaculty}
+												onNavToSection={navToSection}
+												onNavToRoom={navToRoom}
 											/>
 										</div>
 									) : (
@@ -3661,93 +3904,50 @@ export default function ScheduleReview() {
 										</div>
 									)}
 								</ScrollArea>
-								<div className="shrink-0 border-t border-border bg-muted/20 px-3 py-2">
-									<div className="flex flex-wrap items-center gap-2 text-[0.6875rem]">
-										<span className="font-semibold text-foreground">Conflict Inspector</span>
-										{centerView === 'pre-generation' ? (
-											<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] border-primary/30 bg-primary/5 text-primary">
-												Anchors {draftBoard?.counts.draft ?? 0}
-											</Badge>
-										) : null}
-										<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] border-red-200 bg-red-50 text-red-700">
-											Hard {hardCount}
-										</Badge>
-										<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] border-amber-200 bg-amber-50 text-amber-700">
-											Soft {softCount}
-										</Badge>
-										<span className="text-muted-foreground">
-											{centerView === 'pre-generation' && preGenPending
-												? `Pending: ${preGenPending.sourceLabel}`
-												: selectedEntry
-												? `Selected entry: ${Math.max(violationIndex.get(selectedEntry.entryId)?.length ?? 0, 0)} linked issue(s)`
-												: `${filteredViolations.length} filtered issue(s)`}
-										</span>
-									</div>
-									{centerView === 'pre-generation' && preGenPending ? (
-										<div className="mt-1.5 space-y-1.5">
-											<div className="flex flex-wrap items-center gap-2 text-[0.6875rem]">
-												{preGenPreviewLoading ? (
-													<span className="inline-flex items-center gap-1 text-muted-foreground"><Loader2 className="size-3 animate-spin" />Previewing constraints...</span>
-												) : preGenPreviewError ? (
-													<span className="text-destructive">{preGenPreviewError}</span>
-												) : preGenPreview ? (
-													<>
-														<span className={preGenPreview.allowed ? 'text-emerald-700' : 'text-red-700'}>
-															{preGenPreview.allowed ? 'Preview passes hard constraints' : 'Hard conflict detected'}
-														</span>
-														<span className="text-muted-foreground">Hard {preGenPreview.violationDelta.hardBefore} to {preGenPreview.violationDelta.hardAfter} · Soft {preGenPreview.violationDelta.softBefore} to {preGenPreview.violationDelta.softAfter}</span>
-													</>
-												) : null}
-											</div>
-											{preGenPreview?.humanConflicts.slice(0, 3).map((conflict) => (
-												<div key={`${conflict.code}-${conflict.humanDetail}`} className={cn('rounded border px-2 py-1 text-[0.625rem]', conflict.severity === 'HARD' ? 'border-red-300 bg-red-50 text-red-700' : 'border-amber-300 bg-amber-50 text-amber-800')}>
-													<span className="font-medium">{conflict.humanTitle}</span> · {conflict.humanDetail}
-												</div>
-											))}
-											{/* Wave 4.5c B: swap hint when placing into an already occupied slot */}
-											{preGenPending && pinConflictSlots?.has(`${preGenPending.day}-${preGenPending.startTime}`) && (
-												<div className="flex items-start gap-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[0.625rem] text-amber-800">
-													<AlertTriangle className="size-3 shrink-0 mt-0.5" />
-													<span>This slot is already occupied for this faculty or section. Saving will add a conflict — consider choosing a different slot, or acknowledge and save.</span>
-												</div>
-											)}
-											{preGenPreview?.softViolations.length ? (
-												<label className="flex items-center gap-2 text-[0.625rem] text-amber-900">
-													<Checkbox checked={preGenAllowSoftOverride} onCheckedChange={(checked) => setPreGenAllowSoftOverride(Boolean(checked))} />
-													Acknowledge soft conflicts and save this anchor.
-												</label>
+								{/* Pre-gen pending anchor bar — only shown when a drop is staged */}
+								{centerView === 'pre-generation' && preGenPending && (
+									<div className="shrink-0 border-t border-border bg-muted/20 px-3 py-2 space-y-1.5">
+										<div className="flex flex-wrap items-center gap-2 text-[0.6875rem]">
+											<Lock className="size-3 text-primary shrink-0" />
+											<span className="font-medium text-foreground truncate max-w-[16rem]">Pending: {preGenPending.sourceLabel}</span>
+											{preGenPreviewLoading ? (
+												<span className="inline-flex items-center gap-1 text-muted-foreground"><Loader2 className="size-3 animate-spin" />Checking…</span>
+											) : preGenPreviewError ? (
+												<span className="text-destructive text-[0.625rem]">{preGenPreviewError}</span>
+											) : preGenPreview ? (
+												<span className={preGenPreview.allowed ? 'text-emerald-700' : 'text-red-700'}>
+													{preGenPreview.allowed ? '✓ No hard conflicts' : '✗ Hard conflict'}
+												</span>
 											) : null}
-											<div className="flex items-center gap-2">
-												<Button size="sm" className="h-7 text-xs" disabled={preGenSaving || preGenPreviewLoading || !preGenPreview || (!preGenPreview.allowed && !preGenAllowSoftOverride)} onClick={() => void commitPreGenPending()}>
-													{preGenSaving ? <Loader2 className="mr-1 size-3 animate-spin" /> : <Lock className="mr-1 size-3" />}
-													Save Anchor
-												</Button>
-												<Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setPreGenPending(null); setPreGenPreview(null); setPreGenPreviewError(null); setPreGenAllowSoftOverride(false); }}>
-													Cancel Pending
-												</Button>
+										</div>
+										{preGenPreview?.humanConflicts.slice(0, 2).map((conflict) => (
+											<div key={`${conflict.code}-${conflict.humanDetail}`} className={cn('rounded border px-2 py-1 text-[0.625rem]', conflict.severity === 'HARD' ? 'border-red-300 bg-red-50 text-red-700' : 'border-amber-300 bg-amber-50 text-amber-800')}>
+												<span className="font-medium">{conflict.humanTitle}</span> — {conflict.humanDetail}
 											</div>
+										))}
+										{preGenPending && cellConflictMap?.get(`${preGenPending.day}-${preGenPending.startTime}`)?.kind === 'hard' && (
+											<div className="flex items-start gap-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[0.625rem] text-amber-800">
+												<AlertTriangle className="size-3 shrink-0 mt-0.5" />
+												<span>Slot occupied — saving will add a conflict. Choose a different slot or acknowledge below.</span>
+											</div>
+										)}
+										{preGenPreview?.softViolations.length ? (
+											<label className="flex items-center gap-2 text-[0.625rem] text-amber-900">
+												<Checkbox checked={preGenAllowSoftOverride} onCheckedChange={(checked) => setPreGenAllowSoftOverride(Boolean(checked))} />
+												Acknowledge soft conflicts and save anchor.
+											</label>
+										) : null}
+										<div className="flex items-center gap-2">
+											<Button size="sm" className="h-7 text-xs" disabled={preGenSaving || preGenPreviewLoading || !preGenPreview || (!preGenPreview.allowed && !preGenAllowSoftOverride)} onClick={() => void commitPreGenPending()}>
+												{preGenSaving ? <Loader2 className="mr-1 size-3 animate-spin" /> : <Lock className="mr-1 size-3" />}
+												Save Anchor
+											</Button>
+											<Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setPreGenPending(null); setPreGenPreview(null); setPreGenPreviewError(null); setPreGenAllowSoftOverride(false); }}>
+												Cancel
+											</Button>
 										</div>
-									) : (selectedEntry ? (violationIndex.get(selectedEntry.entryId) ?? []) : filteredViolations).slice(0, 3).length > 0 ? (
-										<div className="mt-1.5 flex flex-wrap gap-1.5">
-											{(selectedEntry ? (violationIndex.get(selectedEntry.entryId) ?? []) : filteredViolations).slice(0, 3).map((violation) => (
-												<Button
-													key={`${violation.code}-${violation.message}`}
-													variant="outline"
-													size="sm"
-													className={cn(
-														'h-6 px-2 text-[0.625rem] max-w-[20rem] justify-start',
-														violation.severity === 'HARD' ? 'border-red-300 bg-red-50 text-red-700' : 'border-amber-300 bg-amber-50 text-amber-700',
-													)}
-													onClick={() => handleViolationSelect(violation)}
-												>
-													{VIOLATION_LABELS[violation.code]}
-												</Button>
-											))}
-										</div>
-									) : (
-										<p className="mt-1.5 text-[0.6875rem] text-emerald-700">No current violations in focus.</p>
-									)}
-								</div>
+									</div>
+								)}
 							</motion.div>
 						)}
 					</AnimatePresence>
@@ -3833,14 +4033,14 @@ export default function ScheduleReview() {
 													<UserX className="size-4 shrink-0 text-amber-500" />
 													<p className="text-[0.6875rem] text-amber-700">No teacher assigned — place without faculty</p>
 												</>
-											) : preGenKbSource.item.facultyId ? (
+											) : preGenKbSource.item.facultyOptions[0] ? (
 												<>
 													<div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-[0.625rem] font-semibold text-primary shrink-0">
-														{initials(facultyMap.get(preGenKbSource.item.facultyId)?.firstName ?? null, facultyMap.get(preGenKbSource.item.facultyId)?.lastName ?? null)}
+														{initials(facultyMap.get(preGenKbSource.item.facultyOptions[0])?.firstName ?? null, facultyMap.get(preGenKbSource.item.facultyOptions[0])?.lastName ?? null)}
 													</div>
 													<div className="min-w-0">
-														<p className="truncate text-[0.6875rem] font-medium text-foreground">{formatFacultyInitials(preGenKbSource.item.facultyId)}</p>
-														<p className="truncate text-[0.625rem] text-muted-foreground">{facultyMap.get(preGenKbSource.item.facultyId)?.department ?? 'No department'}</p>
+														<p className="truncate text-[0.6875rem] font-medium text-foreground">{formatFacultyInitials(preGenKbSource.item.facultyOptions[0])}</p>
+														<p className="truncate text-[0.625rem] text-muted-foreground">{facultyMap.get(preGenKbSource.item.facultyOptions[0])?.department ?? 'No department'}</p>
 													</div>
 												</>
 											) : (
@@ -3853,10 +4053,10 @@ export default function ScheduleReview() {
 											<span className="font-medium tabular-nums">{preGenKbSource.item.sessionNumber} / {preGenKbSource.item.sessionsPerWeek} this week</span>
 										</div>
 										{/* Preferred room type */}
-										{preGenKbSource.item.subjectPreferredRoomType && (
+										{preGenKbSource.item.preferredRoomType && (
 											<div className="flex items-center justify-between text-[0.6875rem]">
 												<span className="text-muted-foreground">Preferred room</span>
-												<span className="font-medium">{preGenKbSource.item.subjectPreferredRoomType}</span>
+												<span className="font-medium">{preGenKbSource.item.preferredRoomType}</span>
 											</div>
 										)}
 										{/* Placement prompt */}
@@ -4025,7 +4225,7 @@ export default function ScheduleReview() {
 													size="sm"
 													className="w-full h-7 text-xs justify-start text-destructive border-destructive/40 hover:bg-destructive/5"
 													disabled={deletingPlacementId === pid}
-													onClick={() => void unassignDraftPlacement(pid)}
+													onClick={() => { setPendingUnassignId(pid); setShowUnassignConfirm(true); }}
 												>
 													{deletingPlacementId === pid
 														? <><Loader2 className="size-3 mr-1.5 animate-spin" />Removing...</>
@@ -4062,8 +4262,35 @@ export default function ScheduleReview() {
 				</ResizablePanel>
 			</ResizablePanelGroup>
 
-			{/* ── Generate Confirmation Dialog ── */}
-			<Dialog open={showGenerateConfirm} onOpenChange={setShowGenerateConfirm}>
+			{/* ── Unassign Confirmation Dialog (E) ── */}
+			<Dialog open={showUnassignConfirm} onOpenChange={setShowUnassignConfirm}>
+				<DialogContent className="sm:max-w-sm">
+					<DialogHeader>
+						<DialogTitle>Unassign this session?</DialogTitle>
+						<DialogDescription>
+							This will delete the draft placement and return the session to the pre-generation queue. The action cannot be undone without reassigning.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter className="gap-2 sm:gap-0">
+						<Button variant="outline" size="sm" onClick={() => { setShowUnassignConfirm(false); setPendingUnassignId(null); }}>
+							Cancel
+						</Button>
+						<Button
+							variant="destructive"
+							size="sm"
+							onClick={() => {
+								setShowUnassignConfirm(false);
+								if (pendingUnassignId !== null) void unassignDraftPlacement(pendingUnassignId);
+								setPendingUnassignId(null);
+							}}
+						>
+							Unassign
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* ── Generate Confirmation Dialog ── */}			<Dialog open={showGenerateConfirm} onOpenChange={setShowGenerateConfirm}>
 				<DialogContent className="sm:max-w-md">
 					<DialogHeader>
 						<DialogTitle>Generate New Schedule?</DialogTitle>
@@ -5127,7 +5354,10 @@ const TimetableGrid = memo(function TimetableGrid({
 	onCellDrop,
 	kbSelectedSource,
 	onKbPlace,
-	conflictSlots,
+	conflictMap,
+	onNavToFaculty,
+	onNavToSection,
+	onNavToRoom,
 }: {
 	entries: ScheduledEntry[];
 	timeSlots: Array<{ startTime: string; endTime: string }>;
@@ -5140,6 +5370,8 @@ const TimetableGrid = memo(function TimetableGrid({
 	sectionLabel: (id: number) => string;
 	gradeForSection: (sectionId: number) => number | null;
 	entryContextLabel: (entry: ScheduledEntry) => string;
+	formatFacultyInitials: (id: number) => string;
+	facultyLabel: (id: number) => string;
 	viewMode: ViewMode;
 	pivotLabel: (id: number) => string;
 	roomLabelShort: (roomId: number) => string;
@@ -5148,7 +5380,11 @@ const TimetableGrid = memo(function TimetableGrid({
 	onCellDrop: (day: string, startTime: string, endTime: string) => void;
 	kbSelectedSource: DragSource;
 	onKbPlace: (day: string, startTime: string, endTime: string) => void;
-	conflictSlots: Set<string> | null;
+	/** Stage 2: rich per-cell conflict state from live inspector */
+	conflictMap: Map<string, CellConflictInfo> | null;
+	onNavToFaculty: (id: number) => void;
+	onNavToSection: (id: number) => void;
+	onNavToRoom: (id: number) => void;
 }) {
 	const [dropTarget, setDropTarget] = useState<string | null>(null);
 
@@ -5169,7 +5405,7 @@ const TimetableGrid = memo(function TimetableGrid({
 
 	return (
 		<div className="overflow-auto">
-			<table className="w-full border-collapse text-xs min-w-160">
+			<table className="w-full table-fixed border-collapse text-xs min-w-160">
 				<thead>
 					<tr>
 						<th className="w-20 px-2 py-2 text-left text-muted-foreground font-medium border-b border-border">
@@ -5178,7 +5414,7 @@ const TimetableGrid = memo(function TimetableGrid({
 						{DAYS.map((day) => (
 							<th
 								key={day}
-								className="px-2 py-2 text-center font-medium text-muted-foreground border-b border-border"
+								className="w-[20%] px-2 py-2 text-center font-medium text-muted-foreground border-b border-border"
 							>
 								{DAY_SHORT[day]}
 							</th>
@@ -5197,26 +5433,40 @@ const TimetableGrid = memo(function TimetableGrid({
 								const key = `${day}-${slot.startTime}`;
 								const cellEntries = gridIndex.get(key) ?? [];
 								const isDropOver = dropTarget === key;
-								// Determine cell drop zone class
-								const isConflictSlot = conflictSlots?.has(key) ?? false;
+								// Stage 2: Rich conflict overlay driven by the live inspector map
+								const info = conflictMap?.get(key) ?? null;
+								const isActive = conflictMap !== null;
 								let dropClass = '';
-								if (isDragging || hasKbSource) {
-									if (isDropOver && isConflictSlot) {
-										dropClass = ' ring-2 ring-amber-400 bg-amber-50/60';
-									} else if (isDropOver) {
-										dropClass = ' ring-2 ring-primary bg-primary/5';
-									} else if (isConflictSlot) {
-										dropClass = ' ring-1 ring-amber-300/70 bg-amber-50/30';
+								if (isActive) {
+									if (info?.kind === 'self') {
+										dropClass = ' ring-2 ring-blue-400/60 bg-blue-50/20';
+									} else if (info?.kind === 'hard') {
+										dropClass = isDropOver
+											? ' ring-2 ring-red-500 bg-red-50/60'
+											: ' ring-1 ring-red-400/50 bg-red-50/25';
+									} else if (info?.kind === 'soft') {
+										dropClass = isDropOver
+											? ' ring-2 ring-amber-400 bg-amber-50/60'
+											: ' ring-1 ring-amber-300/50 bg-amber-50/20';
 									} else {
-										dropClass = ' ring-1 ring-dashed ring-muted-foreground/20';
+										// clean slot
+										dropClass = isDropOver
+											? ' ring-2 ring-emerald-400 bg-emerald-50/60'
+											: (isDragging || hasKbSource)
+												? ' ring-1 ring-emerald-300/30 bg-emerald-50/10'
+												: '';
 									}
+								} else if (isDragging || hasKbSource) {
+									dropClass = isDropOver
+										? ' ring-2 ring-primary bg-primary/5'
+										: ' ring-1 ring-dashed ring-muted-foreground/20';
 								}
 								return (
 									<td
 										key={day}
 										className={`px-1 py-1 align-top border-l border-border/30 transition-all${dropClass}`}
-										onMouseEnter={() => { if (hasKbSource) setDropTarget(key); }}
-										onMouseLeave={() => { if (hasKbSource && dropTarget === key) setDropTarget(null); }}
+										onMouseEnter={() => { if (isDragging || hasKbSource) setDropTarget(key); }}
+										onMouseLeave={() => { if ((isDragging || hasKbSource) && dropTarget === key) setDropTarget(null); }}
 										onDragOver={(ev) => {
 											if (!isDragging) return;
 											ev.preventDefault();
@@ -5236,7 +5486,78 @@ const TimetableGrid = memo(function TimetableGrid({
 												onKbPlace(day, slot.startTime, slot.endTime);
 											}
 										}}
-									>
+>
+										{/* Stage 2: Conflict inspector — inline badge for hard/soft cells */}
+										{isActive && info && (info.kind === 'hard' || info.kind === 'soft') && (
+											<TooltipProvider>
+												<Tooltip delayDuration={150}>
+													<TooltipTrigger asChild>
+														<div className={cn(
+															'mb-0.5 flex h-3.5 cursor-default items-center gap-0.5 rounded-sm px-1',
+															info.kind === 'hard' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700',
+														)}>
+															{info.kind === 'hard'
+																? <AlertCircle className="size-2 shrink-0" />
+																: <AlertTriangle className="size-2 shrink-0" />
+															}
+															<span className="truncate text-[0.5rem] leading-none font-medium">
+																{info.reasons[0]?.split(':')[0] ?? info.kind}
+															</span>
+														</div>
+													</TooltipTrigger>
+													<TooltipContent side="right" className="z-100 max-w-64 space-y-1.5 p-2 text-xs">
+														<p className={cn('font-semibold', info.kind === 'hard' ? 'text-red-700' : 'text-amber-700')}>
+															{info.kind === 'hard' ? 'Hard conflict' : 'Soft warning'}
+														</p>
+														{info.reasons.map((r, i) => (
+															<p key={i} className="text-muted-foreground">{r}</p>
+														))}
+														{info.displaced.length > 0 && (
+															<div className="space-y-0.5 border-t border-border/40 pt-1">
+																<p className="font-medium text-[0.625rem]">Displaces:</p>
+																{info.displaced.slice(0, 3).map((d, di) => (
+																	<p key={di} className="text-[0.625rem] text-muted-foreground">
+																		{d.subjectName} → unassigned
+																	</p>
+																))}
+															</div>
+														)}
+														{info.displaced.length > 0 && (
+															<div className="flex flex-wrap gap-1.5 border-t border-border/40 pt-1">
+																{Array.from(
+																	new Map(info.displaced.map((d) => [d.conflictType, d])).values(),
+																).map((d) => (
+																	<button
+																		key={d.conflictType}
+																		className="text-[0.625rem] text-primary underline-offset-2 hover:underline"
+																		onMouseDown={(ev) => {
+																			ev.stopPropagation();
+																			if (d.conflictType === 'faculty') onNavToFaculty(d.entityId);
+																			else if (d.conflictType === 'section') onNavToSection(d.entityId);
+																			else onNavToRoom(d.entityId);
+																		}}
+																	>
+																		→ View {d.conflictType === 'faculty' ? 'Faculty' : d.conflictType === 'section' ? 'Section' : 'Room'}
+																	</button>
+																))}
+															</div>
+														)}
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+										)}
+										{/* Current-position indicator for the source entry's slot */}
+										{isActive && info?.kind === 'self' && (
+											<div className="mb-0.5 flex h-3.5 items-center justify-center rounded-sm bg-blue-100 px-1">
+												<span className="text-[0.5rem] font-medium leading-none text-blue-700">Current</span>
+											</div>
+										)}
+										{/* Clean empty-slot indicator during active drag / KB placement */}
+										{isActive && info?.kind === 'clean' && cellEntries.length === 0 && (isDragging || hasKbSource) && (
+											<div className="flex h-3.5 items-center justify-center opacity-25">
+												<Plus className="size-2.5 text-emerald-700" />
+											</div>
+										)}
 										<div className="space-y-0.5 min-h-6 overflow-hidden">
 											{cellEntries.slice(0, 2).map((e) => {
 												const sev = entrySeverity(e.entryId, violationIndex);
@@ -5292,18 +5613,22 @@ const TimetableGrid = memo(function TimetableGrid({
 																		)}
 																	</div>
 																	<div className="text-muted-foreground truncate">
-																		{entryContextLabel(e)}
-																		{viewMode === 'section' && (
-																			<span className="ml-1 opacity-60" title={roomLabelShort(e.roomId)}>
-																				{roomLabelShort(e.roomId)}
-																			</span>
-																		)}
-																		{viewMode === 'faculty' && (
-																			<span className="ml-1 opacity-60">
-																				{roomLabelShort(e.roomId)}
-																			</span>
-																		)}
-																	</div>
+																	{viewMode === 'faculty'
+																		? entryContextLabel(e)
+																		: e.facultyId
+																			? formatFacultyInitials(e.facultyId)
+																			: entryContextLabel(e)}
+																	{viewMode === 'section' && (
+																		<span className="ml-1 opacity-60" title={roomLabelShort(e.roomId)}>
+																			{roomLabelShort(e.roomId)}
+																		</span>
+																	)}
+																	{viewMode === 'faculty' && (
+																		<span className="ml-1 opacity-60">
+																			{roomLabelShort(e.roomId)}
+																		</span>
+																	)}
+																</div>
 																	{isFollowUp && (
 																		<Flag className="size-2.5 text-amber-500 inline-block ml-0.5" />
 																	)}
@@ -5311,6 +5636,9 @@ const TimetableGrid = memo(function TimetableGrid({
 															</TooltipTrigger>
 															<TooltipContent side="right" className="space-y-1 z-100 max-w-50">
 																<div className="font-semibold">{subjectLabel(e.subjectId)}</div>
+																{e.facultyId && viewMode !== 'faculty' && (
+																	<div className="text-xs font-medium">{facultyLabel(e.facultyId)}</div>
+																)}
 																<div className="text-muted-foreground text-xs">{entryContextLabel(e)} • {roomLabelShort(e.roomId)}</div>
 																{e.programType && e.programType !== 'REGULAR' && (
 																	<div className="text-[0.625rem] text-violet-700">Program: {getProgramBadgeLabel(e.programType, e.programCode)}</div>

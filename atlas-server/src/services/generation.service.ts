@@ -108,6 +108,12 @@ export async function triggerGenerationRun(
 		stage = 'pre-generation-drafts';
 		const preGenerationDrafts = await preGenerationDraftService.consumeDraftPlacementsForRun(run.id, schoolId, schoolYearId);
 
+		// ── G.17: Diagnostic output for pre-gen consume phase ──
+		console.log(`[generation][run=${run.id}] pre-gen consume: accepted=${preGenerationDrafts.prePlacedCount}, skipped=${preGenerationDrafts.invalidPrePlacedCount}, lockedEntries=${preGenerationDrafts.lockedEntries?.length ?? 0}`);
+		if ((preGenerationDrafts.skippedPrePlacedReasons?.length ?? 0) > 0) {
+			console.log(`[generation][run=${run.id}] skipped reasons:`, preGenerationDrafts.skippedPrePlacedReasons.slice(0, 10));
+		}
+
 		// ── Fetch all input data for construction ──
 		stage = 'sections-fetch';
 		const [sectionResult, faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, gradeWindows, cohorts] = await Promise.all([
@@ -225,6 +231,19 @@ export async function triggerGenerationRun(
 			})),
 		};
 		const result = constructBaseline(constructorInput);
+
+		// ── G.17: Diagnostic output for constructor result ──
+		console.log(`[generation][run=${run.id}] constructor: assigned=${result.assignedCount}, unassigned=${result.unassignedCount}, policyBlocked=${result.policyBlockedCount}, entries=${result.entries.length}`);
+		if (result.lockWarnings.length > 0) {
+			console.log(`[generation][run=${run.id}] lock warnings:`, result.lockWarnings.slice(0, 5));
+		}
+		if (result.unassignedItems.length > 0) {
+			const reasonCounts: Record<string, number> = {};
+			for (const item of result.unassignedItems) {
+				reasonCounts[item.reason] = (reasonCounts[item.reason] ?? 0) + 1;
+			}
+			console.log(`[generation][run=${run.id}] top unassigned reasons:`, reasonCounts);
+		}
 
 		// ── Validate constructed entries ──
 		stage = 'validator';

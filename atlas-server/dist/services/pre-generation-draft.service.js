@@ -131,13 +131,19 @@ function buildHumanConflicts(violations, ctx) {
         if (!id)
             return `Faculty #?`;
         const f = ctx?.facultyMirrors.find((m) => m.id === id);
-        return f ? `${f.firstName} ${f.lastName}` : `Faculty #${id}`;
+        if (!f)
+            return `Faculty #${id}`;
+        const initial = f.firstName ? `${f.firstName.charAt(0).toUpperCase()}.` : '';
+        return initial ? `${initial} ${f.lastName}` : f.lastName;
     };
     const roomName = (id) => {
         if (!id)
             return `Room #?`;
         const r = ctx?.rooms.find((rm) => rm.id === id);
-        return r?.name ?? `Room #${id}`;
+        if (!r)
+            return `Room #${id}`;
+        const bldgLabel = r.building?.shortCode || r.building?.name || '';
+        return bldgLabel ? `${r.name} · ${bldgLabel}` : r.name;
     };
     const sectionName = (id) => {
         if (!id)
@@ -175,7 +181,7 @@ function buildPolicyImpactSummary(violations) {
     }));
 }
 async function loadDraftContext(schoolId, schoolYearId) {
-    const [sectionResult, facultyMirrors, facultyRefs, facultySubjectRows, subjects, rooms, buildings, policyRecord, gradeWindows, placements] = await Promise.all([
+    const [sectionResult, facultyMirrors, facultyRefs, facultySubjectRows, subjects, rooms, buildings, policyRecord, gradeWindows, placements, cohorts] = await Promise.all([
         sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId),
         prisma.facultyMirror.findMany({
             where: { schoolId, isActiveForScheduling: true, isStale: false },
@@ -220,6 +226,19 @@ async function loadDraftContext(schoolId, schoolYearId) {
         getOrCreatePolicy(schoolId, schoolYearId),
         prisma.gradeShiftWindow.findMany({ where: { schoolId, schoolYearId } }),
         prisma.lockedSession.findMany({ where: { schoolId, schoolYearId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }),
+        prisma.instructionalCohort.findMany({
+            where: { schoolId, schoolYearId },
+            orderBy: [{ gradeLevel: 'asc' }, { cohortCode: 'asc' }],
+            select: {
+                cohortCode: true,
+                specializationCode: true,
+                specializationName: true,
+                gradeLevel: true,
+                memberSectionIds: true,
+                expectedEnrollment: true,
+                preferredRoomType: true,
+            },
+        }),
     ]);
     const rosterIndex = buildSectionRosterIndex(sectionResult.gradeLevels);
     const facultySubjects = facultySubjectRows.map((assignment) => {
@@ -243,7 +262,7 @@ async function loadDraftContext(schoolId, schoolYearId) {
         lunchEndTime: policyRecord.lunchEndTime ?? undefined,
         enforceLunchWindow: policyRecord.enforceLunchWindow ?? undefined,
     });
-    const demand = computeDemand(sectionResult.gradeLevels, subjects, []);
+    const demand = computeDemand(sectionResult.gradeLevels, subjects, cohorts);
     const demandByKey = new Map(demand.map((item) => [getDemandAssignmentKey(item), item]));
     const qualifiedByKey = new Map();
     for (const assignment of facultySubjects) {
@@ -262,6 +281,7 @@ async function loadDraftContext(schoolId, schoolYearId) {
         facultyRefs,
         facultySubjects,
         subjects,
+        cohorts,
         rooms,
         buildings,
         policyRecord,

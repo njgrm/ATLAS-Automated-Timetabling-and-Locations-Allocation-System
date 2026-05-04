@@ -564,6 +564,20 @@ export interface HumanConflict {
 	delta?: string;
 }
 
+/** Stage 2: per-cell conflict state for the live conflict inspector overlay */
+export interface CellConflictInfo {
+	kind: 'hard' | 'soft' | 'clean' | 'self';
+	reasons: string[];
+	displaced: Array<{
+		entryId: string;
+		subjectName: string;
+		entityName: string;
+		/** Numeric ID of the conflicting entity (faculty/section/room) for quick-nav */
+		entityId: number;
+		conflictType: 'faculty' | 'section' | 'room';
+	}>;
+}
+
 export interface AffectedEntry {
 	entryId: string;
 	subjectId: number;

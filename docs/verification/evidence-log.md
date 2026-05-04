@@ -497,6 +497,43 @@ Record dated implementation verification summaries here.
 
 ---
 
+### 2026-05-03 - Stage 2: Live Conflict Inspector (Full-Week Grid Overlay)
+- Phase: 4
+- Scope gate: PASS (all changes within Phase 4 pre-gen / post-gen review scope)
+- Architecture gate: PASS (client-side only; pure useMemo computation; no new API endpoints; business logic in component layer; MVC boundaries preserved)
+- Behavior gate: PASS
+  - `CellConflictInfo` type added to `atlas-client/src/types.ts` with `kind`, `reasons`, `displaced` (including `entityId` for quick-nav)
+  - `pinConflictSlots: Set<string>` replaced by `cellConflictMap: Map<string, CellConflictInfo>` — computes full-week per-cell conflict state from ALL active sources
+  - Active sources covered: `dragItem` (all types: entry, draftQueue, draftPlacement, unassigned), `preGenKbSource`, `kbSelectedSource`, `selectedEntry`
+  - Section conflicts: always HARD regardless of source type
+  - Faculty conflicts: HARD for single/explicit binding; SOFT for draftQueue with multiple faculty options (alternatives available)
+  - Room conflicts: HARD when source has explicit roomId bound
+  - Cell kinds: `hard` (red), `soft` (amber), `clean` (green/emerald), `self` (blue — current slot of selected entry)
+  - TimetableGrid cell background + ring styling driven by conflict kind for all 5×N cells when inspector is active
+  - Inline conflict badge rendered at top of each conflicted cell (hard/soft): shows short reason label + tooltip with full details
+  - Tooltip content: conflict kind header, all conflict reasons, displaced session list (subjectName → unassigned), quick-nav buttons (→ View Faculty/Section/Room) using `onMouseDown` + `stopPropagation`
+  - "Current" indicator (blue pill) shown in source entry's current slot
+  - Clean empty-slot "+" indicator shown during active drag or KB placement
+  - `navToFaculty`, `navToSection`, `navToRoom` callbacks added — switch viewMode + entityFilter on click
+  - Footer swap hint updated: `pinConflictSlots?.has(...)` → `cellConflictMap?.get(...)?.kind === 'hard'`
+  - Inspector activates on entry selection (not just drag/KB) — passive inspection without place intent
+  - Performance: O(entries × slots) client-side computation; all data in memory; no extra API calls
+- Regression gate: PASS
+- Commands:
+  - `npm --prefix atlas-client run build`: PASS (ScheduleReview: 231.05 kB, built in 465ms)
+  - `npm --prefix atlas-server run build`: PASS (0 errors)
+  - `npm --prefix atlas-server run test:phase4-review`: PASS (23/23)
+  - `npm --prefix atlas-server run test:wave4.3`: PASS (22/22)
+- Files changed:
+  - `atlas-client/src/types.ts`: added `CellConflictInfo` interface
+  - `atlas-client/src/pages/ScheduleReview.tsx`: `CellConflictInfo` + `Plus` imports; `cellConflictMap` useMemo; nav callbacks; TimetableGrid call site (conflictMap + nav props); TimetableGrid component definition; cell rendering (dropClass logic, conflict badge, self indicator, clean slot indicator)
+- Blocking findings:
+  - None
+- Decision:
+  - Accepted; browser QA pending bridge auth
+
+---
+
 ### 2026-05-02 - Wave 4.5c (pass 2): Crash fix + pre-gen panel gating + pin→right-panel + live conflict cells
 - Phase: 4
 - Scope gate: PASS (all changes within pre-generation draft UX scope)
