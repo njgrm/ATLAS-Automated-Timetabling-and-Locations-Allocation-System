@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import {
 	AlertCircle,
@@ -2021,10 +2021,7 @@ export default function ScheduleReview() {
 		const baseBody = buildPreGenPendingPlacement(source, day, startTime, endTime, fId, rId);
 		const body = {
 			...baseBody,
-			allowSoftOverride:
-				confirmAllowSoftOverride
-				|| confirmAllowDailyOverride
-				|| ((confirmRawPreview?.softViolations.length ?? 0) > 0 && (confirmPreview?.softViolations.length ?? 0) === 0),
+			allowSoftOverride: true,
 		};
 		try {
 			const { data } = await atlasApi.post<DraftPlacementCommitResult>(
@@ -2200,15 +2197,8 @@ export default function ScheduleReview() {
 				return;
 			}
 
-			if (scopedPreview.softViolations.length > 0) {
-				setPreviewResult(scopedPreview);
-				setSoftConfirmWarnings(scopedPreview.softViolations);
-				setPendingCommitProposal(proposal);
-				setShowSoftConfirm(true);
-				return;
-			}
-
-			await commitEdit(proposal, preview.softViolations.length > 0);
+			// Soft violations are informational only — proceed without blocking
+			await commitEdit(proposal, scopedPreview.softViolations.length > 0);
 		},
 		[dragItem, entityFilter, viewMode, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard?.placements],
 	);
@@ -2272,14 +2262,8 @@ export default function ScheduleReview() {
 				setDragItem(null);
 				return;
 			}
-			if (scopedPreview.softViolations.length > 0) {
-				setPreviewResult(scopedPreview);
-				setSoftConfirmWarnings(scopedPreview.softViolations);
-				setPendingCommitProposal(proposal);
-				setShowSoftConfirm(true);
-				return;
-			}
-			await commitEdit(proposal, preview.softViolations.length > 0);
+			// Soft violations are informational only — proceed without blocking
+			await commitEdit(proposal, scopedPreview.softViolations.length > 0);
 		},
 		[kbSelectedSource, entityFilter, viewMode, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard?.placements],
 	);
@@ -2316,14 +2300,8 @@ export default function ScheduleReview() {
 			setDragItem(null);
 			return;
 		}
-		if (scopedPreview.softViolations.length > 0) {
-			setPreviewResult(scopedPreview);
-			setSoftConfirmWarnings(scopedPreview.softViolations);
-			setPendingCommitProposal(proposal);
-			setShowSoftConfirm(true);
-			return;
-		}
-		await commitEdit(proposal, preview.softViolations.length > 0);
+		// Soft violations are informational only — proceed without blocking
+		await commitEdit(proposal, scopedPreview.softViolations.length > 0);
 	}, [assignPickerTarget, assignPickerFacultyId, assignPickerRoomId, previewEdit, commitEdit]);
 
 	/** Load edit history on mount / run change */
@@ -2875,7 +2853,7 @@ export default function ScheduleReview() {
 				{/* Row 2: Grid Controls */}
 				<div className="flex items-center gap-2 px-4 pb-2 flex-wrap" data-tutorial="grid-controls">
 					{/* View-by pivot */}
-					<Select value={viewMode} onValueChange={(v) => { setViewMode(v as ViewMode); setEntityFilter(''); }}>
+					<Select value={viewMode} onValueChange={(v) => { setViewMode(v as ViewMode); setEntityFilter(''); setSelectedEntry(null); setSelectedViolation(null); setPreGenKbSource(null); setKbSelectedSource(null); }}>
 						<SelectTrigger className="h-7 w-32 text-xs">
 							<SelectValue placeholder="View by" />
 						</SelectTrigger>
@@ -2891,7 +2869,7 @@ export default function ScheduleReview() {
 					{/* Entity filter — hierarchical groups by building/grade/department */}
 					<SearchableSelect
 						value={entityFilter}
-						onValueChange={setEntityFilter}
+						onValueChange={(v) => { setEntityFilter(v); setSelectedEntry(null); setSelectedViolation(null); setPreGenKbSource(null); setKbSelectedSource(null); }}
 						placeholder={`Select ${VIEW_MODE_LABELS[viewMode]}…`}
 						triggerClassName="h-7 w-80 text-xs"
 						groups={groupedPivotEntities.map((group) => ({
@@ -3210,6 +3188,7 @@ export default function ScheduleReview() {
 												selectedViolation={selectedViolation}
 												onSelect={handleViolationSelect}
 												onExplain={setDrawerViolation}
+												formatConstraintMessage={formatConstraintMessage}
 											/>
 										))
 									)}
@@ -4278,19 +4257,14 @@ export default function ScheduleReview() {
 												<span>Slot occupied — saving will add a conflict. Choose a different slot or acknowledge below.</span>
 											</div>
 										)}
-										{preGenPreview?.softViolations.length ? (
-											<label className="flex items-center gap-2 text-[0.625rem] text-amber-900">
-												<Checkbox checked={preGenAllowSoftOverride} onCheckedChange={(checked) => setPreGenAllowSoftOverride(Boolean(checked))} />
-												Acknowledge soft conflicts and save anchor.
-											</label>
-										) : null}
+										{preGenPreview?.softViolations.length ? (<div className="flex items-start gap-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[0.625rem] text-amber-800"><AlertTriangle className="size-3 shrink-0 mt-0.5" /><span>{preGenPreview.softViolations.length} soft warning(s) — informational only.</span></div>) : null}
 										<div className="flex items-center gap-2">
 											<Button
 												id="pre-gen-pending-save-anchor"
 												data-testid="pre-gen-pending-save-anchor"
 												size="sm"
 												className="h-7 text-xs"
-												disabled={preGenSaving || preGenPreviewLoading || !preGenPreview || (!preGenPreview.allowed && !preGenAllowSoftOverride)}
+												disabled={preGenSaving || preGenPreviewLoading || !preGenPreview || !preGenPreview.allowed}
 												onClick={() => void commitPreGenPending()}
 											>
 												{preGenSaving ? <Loader2 className="mr-1 size-3 animate-spin" /> : <Lock className="mr-1 size-3" />}
@@ -4964,7 +4938,7 @@ export default function ScheduleReview() {
 							{softCount > 0 ? (
 								<>
 									This draft has <span className="font-semibold text-amber-600">{softCount}</span> soft
-									violation{softCount !== 1 ? 's' : ''}. Please review and acknowledge before publishing.
+									violation{softCount !== 1 ? 's' : ''} (informational — does not block publish).
 								</>
 							) : (
 								'This draft has no violations. Ready to publish.'
@@ -4972,20 +4946,7 @@ export default function ScheduleReview() {
 						</DialogDescription>
 					</DialogHeader>
 
-					{softCount > 0 && (
-						<div className="flex items-start gap-2 pt-2">
-							<Checkbox
-								id="ack-soft"
-								checked={publishAcknowledged}
-								onCheckedChange={(v) => setPublishAcknowledged(v === true)}
-							/>
-							<label htmlFor="ack-soft" className="text-sm leading-tight cursor-pointer select-none">
-								I have reviewed all soft violations and accept them for this published schedule.
-							</label>
-						</div>
-					)}
-
-					<DialogFooter className="gap-2 sm:gap-0">
+										<DialogFooter className="gap-2 sm:gap-0">
 						<Button variant="outline" size="sm" onClick={() => setShowPublishDialog(false)}>
 							Cancel
 						</Button>
@@ -4996,8 +4957,7 @@ export default function ScheduleReview() {
 										<Button
 											variant="default"
 											size="sm"
-											disabled={softCount > 0 && !publishAcknowledged}
-											onClick={handlePublishConfirm}
+																						onClick={handlePublishConfirm}
 										>
 											<Send className="size-3.5 mr-1.5" />
 											Publish
@@ -5218,15 +5178,7 @@ export default function ScheduleReview() {
 												<p className="text-[0.5rem] text-amber-600/80 leading-snug">{c.humanDetail}</p>
 											</div>
 										))}
-										<label className="flex items-center gap-2 cursor-pointer">
-											<Checkbox
-												checked={confirmAllowSoftOverride}
-												onCheckedChange={(checked) => setConfirmAllowSoftOverride(Boolean(checked))}
-												className="size-3.5"
-											/>
-											<span>Override soft constraints</span>
-										</label>
-									</div>
+										</div>
 								)}
 								{confirmPreview.hardViolations.length === 0 && confirmPreview.dailyLoadBand !== 'hard' && (
 									<div className="flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[0.6875rem] text-emerald-700">
@@ -5259,7 +5211,7 @@ export default function ScheduleReview() {
 								|| (confirmPreview?.hardViolations.length ?? 0) > 0
 								|| confirmPreview?.dailyLoadBand === 'hard'
 								|| (confirmPreview?.dailyLoadBand === 'soft' && !confirmAllowDailyOverride)
-								|| ((confirmPreview?.softViolations.length ?? 0) > 0 && !confirmAllowSoftOverride)
+								
 								|| !confirmPreview
 							}
 							onClick={() => void commitConfirmPlacement()}
@@ -5685,12 +5637,14 @@ function ViolationGroup({
 	selectedViolation,
 	onSelect,
 	onExplain,
+	formatConstraintMessage,
 }: {
 	code: ViolationCode;
 	violations: Violation[];
 	selectedViolation: Violation | null;
 	onSelect: (v: Violation) => void;
 	onExplain?: (v: Violation) => void;
+	formatConstraintMessage?: (msg: string) => string;
 }) {
 	const isHard = violations[0]?.severity === 'HARD';
 
@@ -5732,7 +5686,7 @@ function ViolationGroup({
 														onClick={() => onSelect(v)}
 														className="flex-1 text-left px-3 py-1.5 text-[0.6875rem] leading-tight transition-colors"
 													>
-														<span className="line-clamp-2 underline decoration-dashed decoration-muted-foreground/50 underline-offset-2">{v.message}</span>
+														<span className="line-clamp-2 underline decoration-dashed decoration-muted-foreground/50 underline-offset-2">{formatConstraintMessage ? formatConstraintMessage(v.message) : v.message}</span>
 													</button>
 												</TooltipTrigger>
 												<TooltipContent className="max-w-70 text-[0.625rem] font-normal leading-relaxed space-y-1 py-2 px-3 border-amber-200 bg-amber-50 text-amber-900" side="right">
@@ -5766,7 +5720,7 @@ function ViolationGroup({
 											onClick={() => onSelect(v)}
 											className="flex-1 text-left px-3 py-1.5 text-[0.6875rem] leading-tight transition-colors"
 										>
-											<span className="line-clamp-2">{v.message}</span>
+											<span className="line-clamp-2">{formatConstraintMessage ? formatConstraintMessage(v.message) : v.message}</span>
 										</button>
 									)}
 									<button
@@ -6133,7 +6087,9 @@ const TimetableGrid = memo(function TimetableGrid({
 													<TooltipProvider key={e.entryId}>
 														<Tooltip delayDuration={300}>
 															<TooltipTrigger asChild>
-																<button
+																<div
+																	role="button"
+																	tabIndex={0}
 																	draggable
 																	onDragStart={(ev) => {
 																		ev.stopPropagation();
@@ -6143,6 +6099,12 @@ const TimetableGrid = memo(function TimetableGrid({
 																	onClick={(ev) => {
 																		ev.stopPropagation();
 																		onEntryClick(e);
+																	}}
+																	onKeyDown={(ev) => {
+																		if (ev.key === 'Enter' || ev.key === ' ') {
+																			ev.preventDefault();
+																			onEntryClick(e);
+																		}
 																	}}
 																	className={`w-full text-left rounded px-1.5 py-1 border text-[0.625rem] leading-tight transition-all cursor-grab active:cursor-grabbing hover:opacity-80 ${cellClass}`}
 																>
@@ -6157,16 +6119,17 @@ const TimetableGrid = memo(function TimetableGrid({
 																			</span>
 																		)}
 																	</div>
-																	<div className="text-muted-foreground truncate" title={`${entryContextLabel(e)} · ${e.facultyId ? formatFacultyInitials(e.facultyId) : 'No faculty'} · ${roomLabelShort(e.roomId)}`}>
+																	<p className="truncate text-muted-foreground">
 																		<span className="font-medium text-foreground/80">{entryContextLabel(e)}</span>
-																		<span className="mx-1 opacity-60">·</span>
-																		<span>{e.facultyId ? formatFacultyInitials(e.facultyId) : 'No faculty'}</span>
-																		<span className="ml-1 opacity-60">{roomLabelShort(e.roomId)}</span>
-																	</div>
+																	</p>
+																	<p className="truncate text-muted-foreground">
+																		{e.facultyId ? formatFacultyInitials(e.facultyId) : 'No faculty'}{' '}
+																		<span className="opacity-60">{roomLabelShort(e.roomId)}</span>
+																	</p>
 																	{isFollowUp && (
 																		<Flag className="size-2.5 text-amber-500 inline-block ml-0.5" />
 																	)}
-																</button>
+																</div>
 															</TooltipTrigger>
 															<TooltipContent side="right" className="space-y-1 z-100 max-w-50">
 																<div className="font-semibold">{subjectLabel(e.subjectId)}</div>
