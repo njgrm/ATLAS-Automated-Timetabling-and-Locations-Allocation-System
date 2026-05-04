@@ -99,6 +99,7 @@ import type {
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Checkbox } from '@/ui/checkbox';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/ui/accordion';
 import {
 	Dialog,
 	DialogContent,
@@ -124,6 +125,7 @@ import { CampusMap } from '@/components/CampusMap';
 import { BuildingView, ROOM_COLORS, ROOM_TYPE_LABELS } from '@/components/BuildingView';
 import { TutorialOverlay, useTutorial } from '@/components/TutorialOverlay';
 import { ExplainabilityDrawer, VIOLATION_EXPLANATIONS } from '@/components/ExplainabilityDrawer';
+import { useTimetableDragDrop } from '@/hooks/useTimetableDragDrop';
 
 /* ─── Constants ─── */
 
@@ -206,6 +208,20 @@ type PreGenPendingPlacement = {
 	cohortCode?: string | null;
 	notes?: string | null;
 	expectedVersion?: number;
+	sourceLabel: string;
+};
+
+type PendingSwapAction = {
+	source: PreGenDragSource;
+	target: {
+		day: string;
+		startTime: string;
+		endTime: string;
+		facultyId: number;
+		roomId: number;
+	};
+	displaced: DraftPlacement;
+	displacementMode: 'to-queue';
 	sourceLabel: string;
 };
 
@@ -374,6 +390,48 @@ function entrySeverity(entryId: string, violationIndex: Map<string, Violation[]>
 	return vList.some((v) => v.severity === 'HARD') ? 'HARD' : 'SOFT';
 }
 
+function parseDraftPlacementId(entryId: string): number | null {
+	if (!entryId.startsWith('draft-placement-')) return null;
+	const parsed = Number(entryId.replace('draft-placement-', ''));
+	return Number.isFinite(parsed) ? parsed : null;
+}
+
+function scopePreviewToCandidate(
+	preview: PreviewResult,
+	target: { day?: string; startTime?: string; endTime?: string } = {},
+): PreviewResult {
+	const affectedEntryIds = new Set(preview.affectedEntries.map((entry) => entry.entryId));
+	const matchesTarget = (violation: Violation) => {
+		if (!target.day || !target.startTime || !target.endTime) return false;
+		return violation.entities.day === target.day
+			&& violation.entities.startTime === target.startTime
+			&& violation.entities.endTime === target.endTime;
+	};
+	const isRelevant = (violation: Violation) => {
+		const entryIds = violation.entities.entryIds ?? [];
+		if (entryIds.some((entryId) => affectedEntryIds.has(entryId))) return true;
+		return matchesTarget(violation);
+	};
+
+	const allViolations = [...preview.hardViolations, ...preview.softViolations];
+	const relevantIndexes = new Set<number>();
+	allViolations.forEach((violation, index) => {
+		if (isRelevant(violation)) relevantIndexes.add(index);
+	});
+
+	const hardViolations = preview.hardViolations.filter(isRelevant);
+	const softViolations = preview.softViolations.filter(isRelevant);
+	const humanConflicts = preview.humanConflicts.filter((_, index) => relevantIndexes.has(index));
+
+	return {
+		...preview,
+		allowed: hardViolations.length === 0,
+		hardViolations,
+		softViolations,
+		humanConflicts,
+	};
+}
+
 /* ─── Main Component ─── */
 
 /** Returns true when the viewport is ≥ 1024px (lg breakpoint). Disables HTML5 DnD on phone widths. */
@@ -481,6 +539,7 @@ export default function ScheduleReview() {
 	const [dragItem, setDragItem] = useState<DragSource>(null);
 	const [blockerModalData, setBlockerModalData] = useState<import('@/types').HumanConflict[] | null>(null);
 	const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
+	const [softConfirmWarnings, setSoftConfirmWarnings] = useState<Violation[]>([]);
 	const [previewLoading, setPreviewLoading] = useState(false);
 	const [showSoftConfirm, setShowSoftConfirm] = useState(false);
 	const [pendingCommitProposal, setPendingCommitProposal] = useState<ManualEditProposal | null>(null);
@@ -515,15 +574,20 @@ export default function ScheduleReview() {
 	const [confirmRoomId, setConfirmRoomId] = useState<string>('');
 	const [confirmPreviewLoading, setConfirmPreviewLoading] = useState(false);
 	const [confirmPreview, setConfirmPreview] = useState<PreviewResult | null>(null);
+	const [confirmRawPreview, setConfirmRawPreview] = useState<PreviewResult | null>(null);
 	const [confirmPreviewError, setConfirmPreviewError] = useState<string | null>(null);
 	const [confirmAllowSoftOverride, setConfirmAllowSoftOverride] = useState(false);
 	const [confirmAllowDailyOverride, setConfirmAllowDailyOverride] = useState(false);
 	const [confirmSaving, setConfirmSaving] = useState(false);
+	const [showSwapConfirm, setShowSwapConfirm] = useState(false);
+	const [swapAction, setSwapAction] = useState<PendingSwapAction | null>(null);
+	const [swapSaving, setSwapSaving] = useState(false);
 	/** Wave 4.5c C: ID of a placement being deleted (unassign) */
 	const [deletingPlacementId, setDeletingPlacementId] = useState<number | null>(null);
 	/** Wave 4.5c Pass 3 E: Unassign confirmation dialog state */
 	const [showUnassignConfirm, setShowUnassignConfirm] = useState(false);
 	const [pendingUnassignId, setPendingUnassignId] = useState<number | null>(null);
+	const [unassignDropActive, setUnassignDropActive] = useState(false);
 
 	/** Wave 4.5: Pins panel search + grade filter */
 	const [pinsSearch, setPinsSearch] = useState('');
@@ -695,12 +759,16 @@ export default function ScheduleReview() {
 			}));
 	}, [draftBoard?.placements]);
 
-	const activeGridEntriesBase = centerView === 'pre-generation' ? preGenEntries : (draft?.entries ?? []);
+	const isPreGenerationWorkspace = centerView === 'pre-generation'
+		|| (centerView === 'map' && (preGenOnboarding || preGenMapContext))
+		|| (centerView === 'building' && preGenMapContext);
+
+	const activeGridEntriesBase = isPreGenerationWorkspace ? preGenEntries : (draft?.entries ?? []);
 	const timeSlots = useMemo(
-		() => centerView === 'pre-generation' && draftBoard?.periodSlots?.length
+		() => isPreGenerationWorkspace && draftBoard?.periodSlots?.length
 			? draftBoard.periodSlots
 			: deriveTimeSlots(activeGridEntriesBase),
-		[activeGridEntriesBase, centerView, draftBoard?.periodSlots],
+		[activeGridEntriesBase, draftBoard?.periodSlots, isPreGenerationWorkspace],
 	);
 
 	/** Stage 2: Live conflict inspector — per-cell conflict state for the selected/dragged session.
@@ -1006,8 +1074,6 @@ export default function ScheduleReview() {
 	);
 
 	const summary: RunSummary | null = draft?.summary ?? null;
-	/** True when user is actively in the pre-gen draft workflow (timetable grid OR map navigation within it) */
-	const isPreGenerationWorkspace = centerView === 'pre-generation' || (centerView === 'map' && preGenOnboarding) || (centerView === 'building' && preGenMapContext);
 
 	/** Stage 2: Quick-nav callbacks — jump to a specific entity's grid view from a conflict tooltip */
 	const navToFaculty = useCallback((id: number) => { setViewMode('faculty'); setEntityFilter(String(id)); }, []);
@@ -1246,6 +1312,42 @@ export default function ScheduleReview() {
 		}
 	}, [runs.length]);
 
+	useEffect(() => {
+		if (!isPreGenerationWorkspace && leftTab === 'locks') {
+			setLeftTab(runs.length === 0 ? 'violations' : 'violations');
+		}
+	}, [isPreGenerationWorkspace, leftTab, runs.length]);
+
+	useEffect(() => {
+		if (centerView !== 'pre-generation') {
+			setPreGenKbSource(null);
+			if (kbSelectedSource?.type === 'draftPlacement' || kbSelectedSource?.type === 'draftQueue') {
+				setKbSelectedSource(null);
+			}
+		}
+	}, [centerView, kbSelectedSource]);
+
+	useEffect(() => {
+		if (!selectedEntry) return;
+		setPreGenKbSource(null);
+		if (kbSelectedSource && kbSelectedSource.type !== 'entry') {
+			setKbSelectedSource(null);
+		}
+	}, [selectedEntry, kbSelectedSource]);
+
+	useEffect(() => {
+		if (!selectedEntry) return;
+		const updated = activeGridEntriesBase.find((entry) => entry.entryId === selectedEntry.entryId) ?? null;
+		if (!updated) {
+			setSelectedEntry(null);
+			setSelectedViolation(null);
+			return;
+		}
+		if (updated !== selectedEntry) {
+			setSelectedEntry(updated);
+		}
+	}, [activeGridEntriesBase, selectedEntry]);
+
 	const handleRunChange = useCallback(
 		async (runId: string) => {
 			setSelectedRunId(runId);
@@ -1427,6 +1529,8 @@ export default function ScheduleReview() {
 
 	const handleViolationSelect = useCallback(
 		(v: Violation) => {
+			setKbSelectedSource(null);
+			setPreGenKbSource(null);
 			setSelectedViolation((prev) => (prev === v ? null : v));
 			// Auto-select first affected entry
 			const firstId = v.entities.entryIds?.[0];
@@ -1439,6 +1543,9 @@ export default function ScheduleReview() {
 	);
 
 	const handleEntryClick = useCallback((entry: ScheduledEntry) => {
+		setSelectedViolation(null);
+		setKbSelectedSource(null);
+		setPreGenKbSource(null);
 		setSelectedEntry((prev) => {
 			const next = prev?.entryId === entry.entryId ? null : entry;
 			if (next) rightPanelRef.current?.expand();
@@ -1635,6 +1742,7 @@ export default function ScheduleReview() {
 			} finally {
 				setCommitLoading(false);
 				setPreviewResult(null);
+				setSoftConfirmWarnings([]);
 				setShowSoftConfirm(false);
 				setPendingCommitProposal(null);
 				setDragItem(null);
@@ -1679,6 +1787,61 @@ export default function ScheduleReview() {
 		return preferred?.id ?? Array.from(roomMap.values()).find((room) => room.isTeachingSpace)?.id ?? 0;
 	}, [entityFilter, roomMap, viewMode]);
 
+	const buildPreGenPendingPlacement = useCallback((
+		source: PreGenDragSource,
+		day: string,
+		startTime: string,
+		endTime: string,
+		facultyId: number,
+		roomId: number,
+	): PreGenPendingPlacement => {
+		if (source.type === 'draftQueue') {
+			return {
+				entryKind: source.item.entryKind,
+				sectionId: source.item.sectionId,
+				subjectId: source.item.subjectId,
+				facultyId,
+				roomId,
+				day,
+				startTime,
+				endTime,
+				cohortCode: source.item.cohortCode,
+				sourceLabel: `${source.item.subjectCode} · ${source.item.sectionName} · session ${source.item.sessionNumber}/${source.item.sessionsPerWeek}`,
+			};
+		}
+		return {
+			placementId: source.placement.id,
+			entryKind: source.placement.entryKind,
+			sectionId: source.placement.sectionId,
+			subjectId: source.placement.subjectId,
+			facultyId,
+			roomId,
+			day,
+			startTime,
+			endTime,
+			cohortCode: source.placement.cohortCode,
+			notes: source.placement.notes,
+			expectedVersion: source.placement.version,
+			sourceLabel: `Draft placement #${source.placement.id}`,
+		};
+	}, []);
+
+	const openSwapPrompt = useCallback((
+		source: PreGenDragSource,
+		target: { day: string; startTime: string; endTime: string; facultyId: number; roomId: number },
+		displaced: DraftPlacement,
+		sourceLabel: string,
+	) => {
+		setSwapAction({
+			source,
+			target,
+			displaced,
+			displacementMode: 'to-queue',
+			sourceLabel,
+		});
+		setShowSwapConfirm(true);
+	}, []);
+
 	const runPreGenPreview = useCallback(async (pending: PreGenPendingPlacement) => {
 		if (!schoolYearId) return;
 		setPreGenPreviewLoading(true);
@@ -1688,7 +1851,11 @@ export default function ScheduleReview() {
 				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/preview`,
 				pending,
 			);
-			setPreGenPreview(data);
+			setPreGenPreview(scopePreviewToCandidate(data, {
+				day: pending.day,
+				startTime: pending.startTime,
+				endTime: pending.endTime,
+			}));
 		} catch (err) {
 			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
 			setPreGenPreview(null);
@@ -1698,30 +1865,105 @@ export default function ScheduleReview() {
 		}
 	}, [schoolYearId]);
 
-	const stagePreGenDrop = useCallback((source: PreGenDragSource, day: string, startTime: string, endTime: string) => {
-		// Wave 4.5 B: always open the mandatory confirm sheet — never auto-bind faculty/room silently
-		// Pre-fill from current pivot context where available
-		const contextFacultyId = viewMode === 'faculty' ? String(entityFilter) : (() => {
-			if (source.type === 'draftQueue') {
-				return source.item.facultyOptions[0] ? String(source.item.facultyOptions[0]) : '';
+	const stagePreGenDrop = useCallback(async (
+		source: PreGenDragSource,
+		day: string,
+		startTime: string,
+		endTime: string,
+		options?: { suppressConfirm?: boolean },
+	) => {
+		if (!schoolYearId) return;
+		const suppressConfirm = options?.suppressConfirm === true;
+
+		const candidateFacultyId = source.type === 'draftQueue'
+			? choosePreGenFaculty(source.item)
+			: (source.placement.facultyId ?? 0);
+		const candidateRoomId = source.type === 'draftQueue'
+			? choosePreGenRoom(source.item)
+			: (source.placement.roomId ?? 0);
+
+		if (!candidateFacultyId || !candidateRoomId) {
+			toast.error('Cannot place this session yet. Select a faculty and room from a compatible context first.');
+			return;
+		}
+
+		const pending = buildPreGenPendingPlacement(source, day, startTime, endTime, candidateFacultyId, candidateRoomId);
+
+		if (source.type === 'draftPlacement' && !suppressConfirm) {
+			setConfirmFacultyId(String(candidateFacultyId));
+			setConfirmRoomId(String(candidateRoomId));
+			setConfirmPreview(null);
+			setConfirmRawPreview(null);
+			setConfirmPreviewError(null);
+			setConfirmAllowSoftOverride(false);
+			setConfirmAllowDailyOverride(false);
+			setPreGenConfirmCtx({ source, day, startTime, endTime });
+			setShowPreGenConfirm(true);
+			return;
+		}
+
+		// Queue placements and silent internal moves run through direct preview+commit.
+		setPreGenPreviewLoading(true);
+		setPreGenPreviewError(null);
+		try {
+			const { data } = await atlasApi.post<PreviewResult>(
+				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/preview`,
+				pending,
+			);
+			const scoped = scopePreviewToCandidate(data, { day, startTime, endTime });
+
+			if (scoped.hardViolations.length > 0 || scoped.dailyLoadBand === 'hard') {
+				const displaced = (draftBoard?.placements ?? []).filter((placement) =>
+					placement.status === 'DRAFT'
+					&& placement.day === day
+					&& placement.startTime === startTime
+					&& placement.endTime === endTime,
+				);
+				if (!suppressConfirm && displaced.length === 1) {
+					openSwapPrompt(source, {
+						day,
+						startTime,
+						endTime,
+						facultyId: candidateFacultyId,
+						roomId: candidateRoomId,
+					}, displaced[0], pending.sourceLabel);
+					return;
+				}
+				setPreviewResult(scoped);
+				setBlockerModalData(scoped.humanConflicts.filter((conflict) => conflict.severity === 'HARD'));
+				toast.info('Target slot has a blocking conflict. Move the conflicting session or choose another slot.');
+				return;
 			}
-			return source.placement.facultyId ? String(source.placement.facultyId) : '';
-		})();
-		const contextRoomId = viewMode === 'room' ? String(entityFilter) : (() => {
-			if (source.type === 'draftPlacement') return source.placement.roomId ? String(source.placement.roomId) : '';
-			// Default to first teaching room matching the preferred room type
-			const preferred = Array.from(roomMap.values()).find((r) => r.isTeachingSpace && r.type === (source.type === 'draftQueue' ? source.item.preferredRoomType : ''));
-			return preferred ? String(preferred.id) : (Array.from(roomMap.values()).find((r) => r.isTeachingSpace)?.id ? String(Array.from(roomMap.values()).find((r) => r.isTeachingSpace)!.id) : '');
-		})();
-		setConfirmFacultyId(contextFacultyId);
-		setConfirmRoomId(contextRoomId);
-		setConfirmPreview(null);
-		setConfirmPreviewError(null);
-		setConfirmAllowSoftOverride(false);
-		setConfirmAllowDailyOverride(false);
-		setPreGenConfirmCtx({ source, day, startTime, endTime });
-		setShowPreGenConfirm(true);
-	}, [entityFilter, roomMap, viewMode]);
+
+			const allowSoftOverride = scoped.dailyLoadBand === 'soft' || scoped.softViolations.length > 0 || suppressConfirm;
+			const commitBody = {
+				...pending,
+				allowSoftOverride,
+			};
+			const { data: commitResult } = await atlasApi.post<DraftPlacementCommitResult>(
+				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/commit`,
+				commitBody,
+			);
+			setPreviewResult(scoped);
+			setDraftBoard(commitResult.board);
+			setDraftBoardSummary(commitResult.board.counts);
+			setSelectedEntry(null);
+			setPreGenKbSource(null);
+			setKbSelectedSource(null);
+			if (suppressConfirm && allowSoftOverride) {
+				toast.warning('Session moved with soft warnings. Review details in the right panel.');
+			} else if (allowSoftOverride) {
+				toast.warning('Pinned session placed with soft warnings for this slot.');
+			} else {
+				toast.success(source.type === 'draftPlacement' ? 'Pinned session moved.' : 'Pinned session placed.');
+			}
+		} catch (err) {
+			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+			toast.error(message ?? 'Unable to place this session.');
+		} finally {
+			setPreGenPreviewLoading(false);
+		}
+	}, [buildPreGenPendingPlacement, choosePreGenFaculty, choosePreGenRoom, draftBoard?.placements, openSwapPrompt, schoolYearId]);
 
 	/** Run a preview inside the confirm sheet */
 	const runConfirmPreview = useCallback(async () => {
@@ -1735,51 +1977,23 @@ export default function ScheduleReview() {
 		setConfirmPreviewLoading(true);
 		setConfirmPreviewError(null);
 		setConfirmPreview(null);
+		setConfirmRawPreview(null);
 		const { source, day, startTime, endTime } = preGenConfirmCtx;
-		let body: PreGenPendingPlacement;
-		if (source.type === 'draftQueue') {
-			body = {
-				entryKind: source.item.entryKind,
-				sectionId: source.item.sectionId,
-				subjectId: source.item.subjectId,
-				facultyId: fId,
-				roomId: rId,
-				day,
-				startTime,
-				endTime,
-				cohortCode: source.item.cohortCode,
-				sourceLabel: `${source.item.subjectCode} · ${source.item.sectionName} · session ${source.item.sessionNumber}/${source.item.sessionsPerWeek}`,
-			};
-		} else {
-			body = {
-				placementId: source.placement.id,
-				entryKind: source.placement.entryKind,
-				sectionId: source.placement.sectionId,
-				subjectId: source.placement.subjectId,
-				facultyId: fId,
-				roomId: rId,
-				day,
-				startTime,
-				endTime,
-				cohortCode: source.placement.cohortCode,
-				notes: source.placement.notes,
-				expectedVersion: source.placement.version,
-				sourceLabel: `Draft placement #${source.placement.id}`,
-			};
-		}
+		const body = buildPreGenPendingPlacement(source, day, startTime, endTime, fId, rId);
 		try {
 			const { data } = await atlasApi.post<PreviewResult>(
 				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/preview`,
 				body,
 			);
-			setConfirmPreview(data);
+			setConfirmRawPreview(data);
+			setConfirmPreview(scopePreviewToCandidate(data, { day, startTime, endTime }));
 		} catch (err) {
 			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
 			setConfirmPreviewError(message ?? 'Unable to preview this placement.');
 		} finally {
 			setConfirmPreviewLoading(false);
 		}
-	}, [confirmFacultyId, confirmRoomId, preGenConfirmCtx, schoolYearId]);
+	}, [buildPreGenPendingPlacement, confirmFacultyId, confirmRoomId, preGenConfirmCtx, schoolYearId]);
 
 	/** Auto-preview debounce: fires 600ms after faculty/room/ctx change in PreGenConfirmSheet */
 	useEffect(() => {
@@ -1804,39 +2018,14 @@ export default function ScheduleReview() {
 		}
 		setConfirmSaving(true);
 		const { source, day, startTime, endTime } = preGenConfirmCtx;
-		let body: PreGenPendingPlacement & { allowSoftOverride: boolean };
-		if (source.type === 'draftQueue') {
-			body = {
-				entryKind: source.item.entryKind,
-				sectionId: source.item.sectionId,
-				subjectId: source.item.subjectId,
-				facultyId: fId,
-				roomId: rId,
-				day,
-				startTime,
-				endTime,
-				cohortCode: source.item.cohortCode,
-				sourceLabel: `${source.item.subjectCode} · ${source.item.sectionName} · session ${source.item.sessionNumber}/${source.item.sessionsPerWeek}`,
-				allowSoftOverride: confirmAllowSoftOverride || confirmAllowDailyOverride,
-			};
-		} else {
-			body = {
-				placementId: source.placement.id,
-				entryKind: source.placement.entryKind,
-				sectionId: source.placement.sectionId,
-				subjectId: source.placement.subjectId,
-				facultyId: fId,
-				roomId: rId,
-				day,
-				startTime,
-				endTime,
-				cohortCode: source.placement.cohortCode,
-				notes: source.placement.notes,
-				expectedVersion: source.placement.version,
-				sourceLabel: `Draft placement #${source.placement.id}`,
-				allowSoftOverride: confirmAllowSoftOverride || confirmAllowDailyOverride,
-			};
-		}
+		const baseBody = buildPreGenPendingPlacement(source, day, startTime, endTime, fId, rId);
+		const body = {
+			...baseBody,
+			allowSoftOverride:
+				confirmAllowSoftOverride
+				|| confirmAllowDailyOverride
+				|| ((confirmRawPreview?.softViolations.length ?? 0) > 0 && (confirmPreview?.softViolations.length ?? 0) === 0),
+		};
 		try {
 			const { data } = await atlasApi.post<DraftPlacementCommitResult>(
 				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/commit`,
@@ -1847,8 +2036,12 @@ export default function ScheduleReview() {
 			setShowPreGenConfirm(false);
 			setPreGenConfirmCtx(null);
 			setConfirmPreview(null);
+			setConfirmRawPreview(null);
 			setConfirmFacultyId('');
 			setConfirmRoomId('');
+			setSelectedEntry(null);
+			setPreGenKbSource(null);
+			setKbSelectedSource(null);
 			toast.success('Draft placement saved.');
 		} catch (err) {
 			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -1856,7 +2049,43 @@ export default function ScheduleReview() {
 		} finally {
 			setConfirmSaving(false);
 		}
-	}, [confirmAllowDailyOverride, confirmAllowSoftOverride, confirmFacultyId, confirmRoomId, preGenConfirmCtx, schoolYearId]);
+	}, [buildPreGenPendingPlacement, confirmAllowDailyOverride, confirmAllowSoftOverride, confirmFacultyId, confirmPreview?.softViolations.length, confirmRawPreview?.softViolations.length, confirmRoomId, preGenConfirmCtx, schoolYearId]);
+
+	const executeSwapAction = useCallback(async () => {
+		if (!schoolYearId || !swapAction) return;
+		setSwapSaving(true);
+		try {
+			await atlasApi.delete<DraftBoardState>(
+				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/${swapAction.displaced.id}`,
+			);
+
+			const sourceBody = buildPreGenPendingPlacement(
+				swapAction.source,
+				swapAction.target.day,
+				swapAction.target.startTime,
+				swapAction.target.endTime,
+				swapAction.target.facultyId,
+				swapAction.target.roomId,
+			);
+			const { data } = await atlasApi.post<DraftPlacementCommitResult>(
+				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/commit`,
+				{ ...sourceBody, allowSoftOverride: true },
+			);
+			setDraftBoard(data.board);
+			setDraftBoardSummary(data.board.counts);
+			setSelectedEntry(null);
+			setPreGenKbSource(null);
+			setKbSelectedSource(null);
+			setShowSwapConfirm(false);
+			setSwapAction(null);
+			toast.success('Swap completed. Conflicting session returned to unassigned and the new session was placed.');
+		} catch (err) {
+			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+			toast.error(message ?? 'Unable to complete swap.');
+		} finally {
+			setSwapSaving(false);
+		}
+	}, [buildPreGenPendingPlacement, schoolYearId, swapAction]);
 
 	/** Wave 4.5c C: remove a single draft placement and return it to the queue */
 	const unassignDraftPlacement = useCallback(async (placementId: number) => {
@@ -1879,6 +2108,13 @@ export default function ScheduleReview() {
 			setDeletingPlacementId(null);
 		}
 	}, [schoolYearId]);
+
+	const getDraggedDraftPlacementId = useCallback((source: DragSource): number | null => {
+		if (!source) return null;
+		if (source.type === 'draftPlacement') return source.placement.id;
+		if (source.type === 'entry') return parseDraftPlacementId(source.entry.entryId);
+		return null;
+	}, []);
 
 	const commitPreGenPending = useCallback(async () => {
 		if (!schoolYearId || !preGenPending) return;
@@ -1908,7 +2144,7 @@ export default function ScheduleReview() {
 		async (day: string, startTime: string, endTime: string) => {
 			if (!dragItem) return;
 			if (dragItem.type === 'draftQueue' || dragItem.type === 'draftPlacement') {
-				stagePreGenDrop(dragItem, day, startTime, endTime);
+				await stagePreGenDrop(dragItem, day, startTime, endTime);
 				setDragItem(null);
 				return;
 			}
@@ -1932,6 +2168,18 @@ export default function ScheduleReview() {
 				return;
 			}
 
+			if (dragItem.type === 'entry' && centerView === 'pre-generation') {
+				const placementId = parseDraftPlacementId(dragItem.entry.entryId);
+				if (placementId != null) {
+					const placement = draftBoard?.placements.find((candidate) => candidate.id === placementId);
+					if (placement) {
+						await stagePreGenDrop({ type: 'draftPlacement', placement }, day, startTime, endTime, { suppressConfirm: true });
+						setDragItem(null);
+						return;
+					}
+				}
+			}
+
 			const entry = dragItem.entry;
 			const proposal: ManualEditProposal = {
 				editType: 'MOVE_ENTRY',
@@ -1944,22 +2192,25 @@ export default function ScheduleReview() {
 			// Preview first
 			const preview = await previewEdit(proposal);
 			if (!preview) return;
+			const scopedPreview = scopePreviewToCandidate(preview, { day, startTime, endTime });
 
-			if (!preview.allowed) {
-				setBlockerModalData(preview.humanConflicts.filter((hc) => hc.severity === 'HARD'));
+			if (!scopedPreview.allowed) {
+				setBlockerModalData(scopedPreview.humanConflicts.filter((hc) => hc.severity === 'HARD'));
 				setDragItem(null);
 				return;
 			}
 
-			if (preview.softViolations.length > 0) {
+			if (scopedPreview.softViolations.length > 0) {
+				setPreviewResult(scopedPreview);
+				setSoftConfirmWarnings(scopedPreview.softViolations);
 				setPendingCommitProposal(proposal);
 				setShowSoftConfirm(true);
 				return;
 			}
 
-			await commitEdit(proposal);
+			await commitEdit(proposal, preview.softViolations.length > 0);
 		},
-		[dragItem, entityFilter, viewMode, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard],
+		[dragItem, entityFilter, viewMode, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard?.placements],
 	);
 
 	/** Keyboard-accessible placement confirm */
@@ -1970,7 +2221,8 @@ export default function ScheduleReview() {
 			setKbSelectedSource(null);
 
 			if (fakeItem.type === 'draftQueue' || fakeItem.type === 'draftPlacement') {
-				stagePreGenDrop(fakeItem, day, startTime, endTime);
+				setPreGenKbSource(null);
+				await stagePreGenDrop(fakeItem, day, startTime, endTime);
 				return;
 			}
 
@@ -1979,7 +2231,8 @@ export default function ScheduleReview() {
 				const pid = Number(fakeItem.entry.entryId.replace('draft-placement-', ''));
 				const placement = draftBoard?.placements.find((p) => p.id === pid);
 				if (placement) {
-					stagePreGenDrop({ type: 'draftPlacement', placement }, day, startTime, endTime);
+					setPreGenKbSource(null);
+					await stagePreGenDrop({ type: 'draftPlacement', placement }, day, startTime, endTime, { suppressConfirm: true });
 					return;
 				}
 			}
@@ -2013,19 +2266,22 @@ export default function ScheduleReview() {
 			setDragItem(fakeItem);
 			const preview = await previewEdit(proposal);
 			if (!preview) { setDragItem(null); return; }
-			if (!preview.allowed) {
-				setBlockerModalData(preview.humanConflicts.filter((hc) => hc.severity === 'HARD'));
+			const scopedPreview = scopePreviewToCandidate(preview, { day, startTime, endTime });
+			if (!scopedPreview.allowed) {
+				setBlockerModalData(scopedPreview.humanConflicts.filter((hc) => hc.severity === 'HARD'));
 				setDragItem(null);
 				return;
 			}
-			if (preview.softViolations.length > 0) {
+			if (scopedPreview.softViolations.length > 0) {
+				setPreviewResult(scopedPreview);
+				setSoftConfirmWarnings(scopedPreview.softViolations);
 				setPendingCommitProposal(proposal);
 				setShowSoftConfirm(true);
 				return;
 			}
-			await commitEdit(proposal);
+			await commitEdit(proposal, preview.softViolations.length > 0);
 		},
-		[kbSelectedSource, entityFilter, viewMode, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard],
+		[kbSelectedSource, entityFilter, viewMode, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard?.placements],
 	);
 
 	/** Confirm assignment picker and submit the unassigned placement */
@@ -2054,17 +2310,20 @@ export default function ScheduleReview() {
 
 		const preview = await previewEdit(proposal);
 		if (!preview) { setDragItem(null); return; }
-		if (!preview.allowed) {
-			setBlockerModalData(preview.humanConflicts.filter((hc) => hc.severity === 'HARD'));
+		const scopedPreview = scopePreviewToCandidate(preview, { day, startTime, endTime });
+		if (!scopedPreview.allowed) {
+			setBlockerModalData(scopedPreview.humanConflicts.filter((hc) => hc.severity === 'HARD'));
 			setDragItem(null);
 			return;
 		}
-		if (preview.softViolations.length > 0) {
+		if (scopedPreview.softViolations.length > 0) {
+			setPreviewResult(scopedPreview);
+			setSoftConfirmWarnings(scopedPreview.softViolations);
 			setPendingCommitProposal(proposal);
 			setShowSoftConfirm(true);
 			return;
 		}
-		await commitEdit(proposal);
+		await commitEdit(proposal, preview.softViolations.length > 0);
 	}, [assignPickerTarget, assignPickerFacultyId, assignPickerRoomId, previewEdit, commitEdit]);
 
 	/** Load edit history on mount / run change */
@@ -2163,6 +2422,32 @@ export default function ScheduleReview() {
 		[roomMap],
 	);
 
+	const formatConstraintMessage = useCallback(
+		(message: string): string => {
+			const roomFormatted = message.replace(/\broom\s+#?(\d+)\b/gi, (_match, rawId: string) => {
+				const id = Number(rawId);
+				if (!Number.isFinite(id)) return _match;
+				const room = roomMap.get(id);
+				return room ? roomLabelShort(id) : _match;
+			});
+
+			const facultyFormatted = roomFormatted.replace(/\bfaculty\s+#?(\d+)\b/gi, (_match, rawId: string) => {
+				const id = Number(rawId);
+				if (!Number.isFinite(id)) return _match;
+				const faculty = facultyMap.get(id);
+				return faculty ? `${faculty.lastName}, ${faculty.firstName}` : _match;
+			});
+
+			return facultyFormatted.replace(/\bsection\s+#?(\d+)\b/gi, (_match, rawId: string) => {
+				const id = Number(rawId);
+				if (!Number.isFinite(id)) return _match;
+				const section = sectionMap.get(id);
+				return section ? section.name : _match;
+			});
+		},
+		[facultyMap, roomLabelShort, roomMap, sectionMap],
+	);
+
 	/** Whether a room is a stale/missing reference */
 	const isStaleRoom = useCallback(
 		(roomId: number): boolean => !roomMap.has(roomId),
@@ -2246,6 +2531,20 @@ export default function ScheduleReview() {
 		}
 		return groups;
 	}, [viewMode, pivotEntityIds, roomMap, gradeForSection, facultyMap, sectionMap]);
+
+	const confirmDisplacedPlacement = useMemo(() => {
+		if (!preGenConfirmCtx) return null;
+		const atTarget = (draftBoard?.placements ?? []).filter((placement) =>
+			placement.status === 'DRAFT'
+			&& placement.day === preGenConfirmCtx.day
+			&& placement.startTime === preGenConfirmCtx.startTime
+			&& placement.endTime === preGenConfirmCtx.endTime,
+		);
+		if (preGenConfirmCtx.source.type === 'draftPlacement') {
+			return atTarget.find((placement) => placement.id !== preGenConfirmCtx.source.placement.id) ?? null;
+		}
+		return atTarget[0] ?? null;
+	}, [draftBoard?.placements, preGenConfirmCtx]);
 
 	/* ── Render ── */
 
@@ -2716,14 +3015,16 @@ export default function ScheduleReview() {
 									</TooltipTrigger>
 									<TooltipContent side="right">Unassigned</TooltipContent>
 								</Tooltip>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<button type="button" className="flex items-center justify-center h-8 w-8 rounded hover:bg-muted transition-colors" onClick={() => { leftPanelRef.current?.expand(); setLeftTab('locks'); }}>
-											<Lock className="size-4 text-muted-foreground" />
-										</button>
-									</TooltipTrigger>
-									<TooltipContent side="right">Pinned Sessions</TooltipContent>
-								</Tooltip>
+								{isPreGenerationWorkspace && (
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<button type="button" className="flex items-center justify-center h-8 w-8 rounded hover:bg-muted transition-colors" onClick={() => { leftPanelRef.current?.expand(); setLeftTab('locks'); }}>
+												<Lock className="size-4 text-muted-foreground" />
+											</button>
+										</TooltipTrigger>
+										<TooltipContent side="right">Pinned Sessions</TooltipContent>
+									</Tooltip>
+								)}
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<button type="button" className="relative flex items-center justify-center h-8 w-8 rounded hover:bg-muted transition-colors" onClick={() => { leftPanelRef.current?.expand(); setLeftTab('requests'); }}>
@@ -2777,22 +3078,24 @@ export default function ScheduleReview() {
 								<span className="ml-1 text-[0.625rem] text-amber-600 font-semibold">{summary.unassignedCount}</span>
 							)}
 						</button>
-						<button
-							id="tab-locks"
-							type="button"
-							role="tab"
-							aria-selected={leftTab === 'locks'}
-							aria-controls="panel-locks"
-							onClick={() => setLeftTab('locks')}
-							className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
-								leftTab === 'locks'
-									? 'text-foreground border-b-2 border-primary'
-									: 'text-muted-foreground hover:text-foreground'
-							}`}
-						>
-							<Lock className="inline size-3 mr-0.5 -mt-px" />
-							Pins
-						</button>
+						{isPreGenerationWorkspace && (
+							<button
+								id="tab-locks"
+								type="button"
+								role="tab"
+								aria-selected={leftTab === 'locks'}
+								aria-controls="panel-locks"
+								onClick={() => setLeftTab('locks')}
+								className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+									leftTab === 'locks'
+										? 'text-foreground border-b-2 border-primary'
+										: 'text-muted-foreground hover:text-foreground'
+								}`}
+							>
+								<Lock className="inline size-3 mr-0.5 -mt-px" />
+								Pins
+							</button>
+						)}
 						<button
 							id="tab-requests"
 							type="button"
@@ -2940,7 +3243,7 @@ export default function ScheduleReview() {
 															key={item.assignmentKey}
 															draggable={isDesktop}
 															onDragStart={() => setDragItem({ type: 'draftQueue', item })}
-															onDragEnd={() => setDragItem(null)}
+															onDragEnd={() => { setDragItem(null); setUnassignDropActive(false); }}
 															className="flex flex-col gap-1 rounded border border-border bg-card px-2 py-1.5 text-xs cursor-grab active:cursor-grabbing hover:border-primary/40 hover:bg-primary/5 transition-colors"
 															onClick={() => {
 																// Tap-to-open: open confirm sheet without a specific slot
@@ -3042,7 +3345,7 @@ export default function ScheduleReview() {
 															key={`${itemKey}-${i}`}
 															draggable
 															onDragStart={() => setDragItem({ type: 'unassigned', item })}
-															onDragEnd={() => { if (!showSoftConfirm) setDragItem(null); }}
+															onDragEnd={() => { if (!showSoftConfirm) setDragItem(null); setUnassignDropActive(false); }}
 															className={`rounded border text-xs transition-colors ${
 																isKbSelected
 																	? 'border-primary bg-primary/10 ring-2 ring-primary'
@@ -3315,7 +3618,7 @@ export default function ScheduleReview() {
 								)}
 							</div>
 						</ScrollArea>
-					) : leftTab === 'locks' ? (
+					) : leftTab === 'locks' && isPreGenerationWorkspace ? (
 						<div id="panel-locks" role="tabpanel" aria-labelledby="tab-locks" className="flex flex-col flex-1 min-h-0">
 							<div className="shrink-0 border-b border-border px-3 py-2">
 								<div className="flex items-center justify-between gap-2">
@@ -3420,8 +3723,35 @@ export default function ScheduleReview() {
 							)}
 							<ScrollArea className="flex-1 min-h-0">
 								<div className="space-y-3 p-3">
-									<div className="space-y-1">
+									<div
+										className={cn(
+											'space-y-1 rounded-md border border-transparent transition-colors',
+											unassignDropActive ? 'border-destructive/60 bg-destructive/5' : '',
+										)}
+										onDragOver={(event) => {
+											const placementId = getDraggedDraftPlacementId(dragItem);
+											if (placementId == null) return;
+											event.preventDefault();
+											event.dataTransfer.dropEffect = 'move';
+											setUnassignDropActive(true);
+										}}
+										onDragLeave={() => setUnassignDropActive(false)}
+										onDrop={(event) => {
+											event.preventDefault();
+											setUnassignDropActive(false);
+											const placementId = getDraggedDraftPlacementId(dragItem);
+											setDragItem(null);
+											if (placementId == null) return;
+											setPendingUnassignId(placementId);
+											setShowUnassignConfirm(true);
+										}}
+									>
 										<p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">Unassigned</p>
+										{unassignDropActive && (
+											<div className="rounded border border-destructive/50 bg-destructive/10 px-2 py-1 text-[0.625rem] text-destructive">
+												Drop here to unassign the dragged pinned session.
+											</div>
+										)}
 										{/* Wave 4.5 H: responsive 2-col grid with search + grade filter */}
 										<div className="grid gap-1.5" style={{gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))'}}>
 										{(draftBoard?.queue ?? [])
@@ -3442,7 +3772,7 @@ export default function ScheduleReview() {
 													key={key}
 													draggable={isDesktop}
 													onDragStart={() => setDragItem({ type: 'draftQueue', item })}
-													onDragEnd={() => setDragItem(null)}
+													onDragEnd={() => { setDragItem(null); setUnassignDropActive(false); }}
 													className={cn(
 														'rounded border px-2 py-1.5 text-xs transition-colors',
 														GRADE_CARD_BG[item.gradeLevel] ?? 'bg-background border-border',
@@ -3503,39 +3833,56 @@ export default function ScheduleReview() {
 										<p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">Pinned / Existing Draft Entries</p>
 										{(draftBoard?.placements ?? []).filter((placement) => placement.status === 'DRAFT').map((placement) => {
 											const source = { type: 'draftPlacement' as const, placement };
-											const selected = preGenKbSource?.type === 'draftPlacement' && preGenKbSource.placement.id === placement.id;
+											const selected = selectedEntry?.entryId === `draft-placement-${placement.id}`;
+											const placementGrade = gradeForSection(placement.sectionId);
+											const placementGradeBadge = placementGrade ? GRADE_BADGE[placementGrade] : null;
 											return (
 												<div
 													key={placement.id}
 													draggable={isDesktop}
+													onPointerDownCapture={() => {
+														if (isDesktop) setDragItem(source);
+													}}
 													onDragStart={() => setDragItem(source)}
-													onDragEnd={() => setDragItem(null)}
+													onDragEnd={() => { setDragItem(null); setUnassignDropActive(false); }}
 													className={cn(
-														'rounded border bg-muted/30 px-2 py-1.5 text-xs transition-colors',
+														'rounded border px-2 py-1.5 text-xs transition-colors',
+														placementGrade ? (GRADE_CARD_BG[placementGrade] ?? 'bg-muted/30 border-border') : 'bg-muted/30',
 														selected ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border hover:border-primary/40',
+														isDesktop ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
 													)}
 												>
-													<Button
+													<button
 														type="button"
-														variant="ghost"
-														size="sm"
-														className="h-auto w-full justify-start px-0 py-0 text-left hover:bg-transparent"
+														className="w-full text-left"
 														onClick={() => {
-															setPreGenKbSource(selected ? null : source);
-															setKbSelectedSource(selected ? null : source);
+															setPreGenKbSource(null);
+															setKbSelectedSource(null);
 															const entry = preGenEntries.find((candidate) => candidate.entryId === `draft-placement-${placement.id}`);
-															if (entry) setSelectedEntry(entry);
+															if (entry) {
+																setSelectedViolation(null);
+																setSelectedEntry(entry);
+															}
 															if (!selected) rightPanelRef.current?.expand();
 														}}
 													>
-														<GripVertical className="mr-1.5 size-3 shrink-0 text-muted-foreground" />
-														<div className="min-w-0 flex-1">
-															<p className="truncate font-medium">{subjectLabel(placement.subjectId)} · {sectionLabel(placement.sectionId)}</p>
-															<p className="truncate text-[0.625rem] text-muted-foreground">
-																{DAY_SHORT[placement.day] ?? placement.day} {formatTime(placement.startTime)} · {placement.roomId ? roomLabelShort(placement.roomId) : 'No room'}
-															</p>
+														<div className="flex items-center gap-1.5 min-w-0">
+															<GripVertical className="size-3 shrink-0 text-muted-foreground/60" />
+															{placementGradeBadge ? (
+																<Badge variant="outline" className={`h-4 px-1 text-[0.5625rem] shrink-0 ${placementGradeBadge}`}>
+																	G{placementGrade}
+																</Badge>
+															) : null}
+															<span className="truncate font-semibold text-[0.6875rem]">{subjectLabel(placement.subjectId)}</span>
 														</div>
-													</Button>
+														<p className="mt-0.5 truncate text-[0.625rem] text-muted-foreground pl-4.5">
+															{sectionLabel(placement.sectionId)}
+														</p>
+														<div className="mt-1 pl-4.5 space-y-0.5 text-[0.625rem] text-muted-foreground">
+															<p className="truncate">{DAY_SHORT[placement.day] ?? placement.day} {formatTime(placement.startTime)}–{formatTime(placement.endTime)}</p>
+															<p className="truncate">{placement.facultyId ? formatFacultyInitials(placement.facultyId) : 'No faculty'} · {placement.roomId ? roomLabelShort(placement.roomId) : 'No room'}</p>
+														</div>
+													</button>
 												</div>
 											);
 										})}
@@ -3938,7 +4285,14 @@ export default function ScheduleReview() {
 											</label>
 										) : null}
 										<div className="flex items-center gap-2">
-											<Button size="sm" className="h-7 text-xs" disabled={preGenSaving || preGenPreviewLoading || !preGenPreview || (!preGenPreview.allowed && !preGenAllowSoftOverride)} onClick={() => void commitPreGenPending()}>
+											<Button
+												id="pre-gen-pending-save-anchor"
+												data-testid="pre-gen-pending-save-anchor"
+												size="sm"
+												className="h-7 text-xs"
+												disabled={preGenSaving || preGenPreviewLoading || !preGenPreview || (!preGenPreview.allowed && !preGenAllowSoftOverride)}
+												onClick={() => void commitPreGenPending()}
+											>
 												{preGenSaving ? <Loader2 className="mr-1 size-3 animate-spin" /> : <Lock className="mr-1 size-3" />}
 												Save Anchor
 											</Button>
@@ -4160,6 +4514,19 @@ export default function ScheduleReview() {
 																<p className="text-[0.625rem] text-muted-foreground">No request linked to this session.</p>
 															)}
 														</div>
+														{isPreGenerationWorkspace && previewResult?.softViolations.length ? (
+															<div className="space-y-1 rounded border border-amber-200 bg-amber-50 px-2 py-1.5">
+																<p className="text-[0.625rem] font-semibold uppercase tracking-wide text-amber-800">Latest Move Warnings</p>
+																{previewResult.softViolations.slice(0, 3).map((warning, idx) => (
+																	<p key={`${warning.code}-${idx}`} className="text-[0.625rem] text-amber-900 leading-snug">
+																		{formatConstraintMessage(warning.message)}
+																	</p>
+																))}
+																{previewResult.softViolations.length > 3 ? (
+																	<p className="text-[0.5625rem] text-amber-700">+{previewResult.softViolations.length - 3} more warning(s)</p>
+																) : null}
+															</div>
+														) : null}
 														{entryViolations.length > 0 && (
 															<div className="space-y-1 pt-1">
 																{/* Concise summary line */}
@@ -4206,34 +4573,63 @@ export default function ScheduleReview() {
 
 									{/* Sticky action footer — buttons open center-pane workspace */}
 									<div className="shrink-0 border-t border-border px-3 py-2 space-y-1.5 bg-background" data-tutorial="manual-edit-actions">
-										<p className="text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground">Manual Edits</p>
-										<Button variant="outline" size="sm" className="w-full h-7 text-xs justify-start" onClick={() => enterManualEditView('CHANGE_TIMESLOT')} aria-label="Move timeslot">
-											<Clock className="size-3 mr-1.5" />Move Timeslot
-										</Button>
-										<Button variant="outline" size="sm" className="w-full h-7 text-xs justify-start" onClick={() => enterManualEditView('CHANGE_ROOM')} aria-label="Change room">
-											<DoorOpen className="size-3 mr-1.5" />Change Room
-										</Button>
-										<Button variant="outline" size="sm" className="w-full h-7 text-xs justify-start" onClick={() => enterManualEditView('CHANGE_FACULTY')} aria-label="Reassign faculty">
-											<Users className="size-3 mr-1.5" />Reassign Faculty
-										</Button>
-										{/* Wave 4.5c C: Unassign button for pre-gen draft entries */}
-										{isPreGenerationWorkspace && selectedEntry?.entryId.startsWith('draft-placement-') && (() => {
-											const pid = Number(selectedEntry.entryId.replace('draft-placement-', ''));
-											return (
+										{isPreGenerationWorkspace && selectedEntry?.entryId.startsWith('draft-placement-') ? (
+											<>
+												<p className="text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground">Draft Actions</p>
+												<p className="text-[0.625rem] text-muted-foreground">Use draft actions while pre-generation is active. Generated-run manual edit APIs are not used in this mode.</p>
 												<Button
 													variant="outline"
 													size="sm"
-													className="w-full h-7 text-xs justify-start text-destructive border-destructive/40 hover:bg-destructive/5"
-													disabled={deletingPlacementId === pid}
-													onClick={() => { setPendingUnassignId(pid); setShowUnassignConfirm(true); }}
+													className="w-full h-7 text-xs justify-start"
+													onClick={() => {
+														const placementId = parseDraftPlacementId(selectedEntry.entryId);
+														const placement = placementId != null ? draftBoard?.placements.find((candidate) => candidate.id === placementId) : undefined;
+														if (!placement) {
+															toast.error('Draft placement details are stale. Refresh and try again.');
+															return;
+														}
+														setPreGenKbSource({ type: 'draftPlacement', placement });
+														setKbSelectedSource({ type: 'entry', entry: selectedEntry });
+														setSelectedEntry(null);
+														setSelectedViolation(null);
+														toast.info('Select a destination slot in the timetable to move this pinned session.');
+													}}
 												>
-													{deletingPlacementId === pid
-														? <><Loader2 className="size-3 mr-1.5 animate-spin" />Removing...</>
-														: <><Trash2 className="size-3 mr-1.5" />Unassign (Return to Queue)</>
-													}
+													<Clock className="size-3 mr-1.5" />Move Pinned Session
 												</Button>
-											);
-										})()}
+												{(() => {
+													const pid = parseDraftPlacementId(selectedEntry.entryId);
+													if (pid == null) return null;
+													return (
+														<Button
+															variant="outline"
+															size="sm"
+															className="w-full h-7 text-xs justify-start text-destructive border-destructive/40 hover:bg-destructive/5"
+															disabled={deletingPlacementId === pid}
+															onClick={() => { setPendingUnassignId(pid); setShowUnassignConfirm(true); }}
+														>
+															{deletingPlacementId === pid
+																? <><Loader2 className="size-3 mr-1.5 animate-spin" />Removing...</>
+																: <><Trash2 className="size-3 mr-1.5" />Unassign (Return to Queue)</>
+															}
+														</Button>
+													);
+												})()}
+											</>
+										) : (
+											<>
+												<p className="text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground">Manual Edits</p>
+												<Button variant="outline" size="sm" className="w-full h-7 text-xs justify-start" onClick={() => enterManualEditView('CHANGE_TIMESLOT')} aria-label="Move timeslot">
+													<Clock className="size-3 mr-1.5" />Move Timeslot
+												</Button>
+												<Button variant="outline" size="sm" className="w-full h-7 text-xs justify-start" onClick={() => enterManualEditView('CHANGE_ROOM')} aria-label="Change room">
+													<DoorOpen className="size-3 mr-1.5" />Change Room
+												</Button>
+												<Button variant="outline" size="sm" className="w-full h-7 text-xs justify-start" onClick={() => enterManualEditView('CHANGE_FACULTY')} aria-label="Reassign faculty">
+													<Users className="size-3 mr-1.5" />Reassign Faculty
+												</Button>
+											</>
+										)}
 									</div>
 								</motion.div>
 							) : (
@@ -4621,6 +5017,7 @@ export default function ScheduleReview() {
 					setShowPreGenConfirm(false);
 					setPreGenConfirmCtx(null);
 					setConfirmPreview(null);
+					setConfirmRawPreview(null);
 					setConfirmPreviewError(null);
 					setConfirmAllowSoftOverride(false);
 					setConfirmAllowDailyOverride(false);
@@ -4761,6 +5158,36 @@ export default function ScheduleReview() {
 												<p className="text-[0.5rem] text-red-600/80 leading-snug">{c.humanDetail}</p>
 											</div>
 										))}
+												{confirmDisplacedPlacement && preGenConfirmCtx && (
+													<Button
+														variant="outline"
+														size="sm"
+														className="h-7 text-[0.625rem]"
+														onClick={() => {
+															const facultyId = Number(confirmFacultyId);
+															const roomId = Number(confirmRoomId);
+															if (!facultyId || !roomId) {
+																toast.error('Select faculty and room before swapping.');
+																return;
+															}
+															openSwapPrompt(
+																preGenConfirmCtx.source,
+																{
+																	day: preGenConfirmCtx.day,
+																	startTime: preGenConfirmCtx.startTime,
+																	endTime: preGenConfirmCtx.endTime,
+																	facultyId,
+																	roomId,
+																},
+																confirmDisplacedPlacement,
+																confirmPreview.humanConflicts[0]?.humanTitle ?? 'Selected placement',
+															);
+															setShowPreGenConfirm(false);
+														}}
+													>
+														Swap by returning conflicting session to queue
+													</Button>
+												)}
 									</div>
 								)}
 								{confirmPreview.dailyLoadBand === 'hard' && (
@@ -4821,6 +5248,8 @@ export default function ScheduleReview() {
 							Cancel
 						</Button>
 						<Button
+							id="pre-gen-confirm-save-anchor"
+							data-testid="pre-gen-confirm-save-anchor"
 							size="sm"
 							className="h-8 text-xs"
 							disabled={
@@ -4842,12 +5271,61 @@ export default function ScheduleReview() {
 				</DialogContent>
 			</Dialog>
 
+			{/* ── Swap Confirmation Dialog ── */}
+			<Dialog open={showSwapConfirm} onOpenChange={(open) => {
+				if (!open) {
+					setShowSwapConfirm(false);
+					setSwapAction(null);
+				}
+			}}>
+				<DialogContent className="max-w-md">
+					<DialogHeader>
+						<DialogTitle className="flex items-center gap-2">
+							<RefreshCw className="size-4 text-primary" />
+							Swap Placement?
+						</DialogTitle>
+						<DialogDescription>
+							{swapAction
+								? `${swapAction.sourceLabel} will be placed on ${DAY_SHORT[swapAction.target.day] ?? swapAction.target.day} ${formatTime(swapAction.target.startTime)}-${formatTime(swapAction.target.endTime)}.`
+								: 'Confirm swap action.'}
+						</DialogDescription>
+					</DialogHeader>
+					{swapAction && (
+						<div className="space-y-2 text-xs">
+							<div className="rounded border border-border bg-muted/20 px-2.5 py-2">
+								<p className="font-medium">Destination</p>
+								<p className="text-muted-foreground">
+									{DAY_SHORT[swapAction.target.day] ?? swapAction.target.day} {formatTime(swapAction.target.startTime)}-{formatTime(swapAction.target.endTime)}
+									 {' '}· Faculty {formatFacultyInitials(swapAction.target.facultyId)} · {roomLabelShort(swapAction.target.roomId)}
+								</p>
+							</div>
+							<div className="rounded border border-amber-300 bg-amber-50 px-2.5 py-2 text-amber-900">
+								<p className="font-medium">Displaced session outcome</p>
+								<p>
+									{subjectLabel(swapAction.displaced.subjectId)} · {sectionLabel(swapAction.displaced.sectionId)} will be returned to the Unassigned queue.
+								</p>
+							</div>
+						</div>
+					)}
+					<DialogFooter className="gap-2 sm:gap-0">
+						<Button variant="outline" size="sm" onClick={() => { setShowSwapConfirm(false); setSwapAction(null); }}>
+							Cancel
+						</Button>
+						<Button size="sm" disabled={swapSaving || !swapAction} onClick={() => { void executeSwapAction(); }}>
+							{swapSaving ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 size-3.5" />}
+							Confirm Swap
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
 			{/* ── Soft-Violation Confirm Dialog ── */}
 			<Dialog open={showSoftConfirm} onOpenChange={(open) => {
 				if (!open) {
 					setShowSoftConfirm(false);
 					setPendingCommitProposal(null);
 					setPreviewResult(null);
+					setSoftConfirmWarnings([]);
 					setDragItem(null);
 				}
 			}}>
@@ -4858,18 +5336,18 @@ export default function ScheduleReview() {
 							Soft Constraint Warnings
 						</DialogTitle>
 						<DialogDescription>
-							This edit introduces {previewResult?.softViolations.length ?? 0} soft warning(s).
+							This edit introduces {softConfirmWarnings.length} soft warning(s).
 							You can still apply it, but review the issues below.
 						</DialogDescription>
 					</DialogHeader>
 					<div className="max-h-48 overflow-auto space-y-1.5 py-2">
-						{previewResult?.softViolations.map((v, i) => (
+						{softConfirmWarnings.map((v, i) => (
 							<div
 								key={i}
 								className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
 							>
 								<span className="font-mono text-[0.625rem] opacity-60 mr-1.5">{v.code}</span>
-								{v.message}
+								{formatConstraintMessage(v.message)}
 							</div>
 						))}
 					</div>
@@ -4881,6 +5359,7 @@ export default function ScheduleReview() {
 								setShowSoftConfirm(false);
 								setPendingCommitProposal(null);
 								setPreviewResult(null);
+								setSoftConfirmWarnings([]);
 								setDragItem(null);
 							}}
 						>
@@ -5214,115 +5693,106 @@ function ViolationGroup({
 	onExplain?: (v: Violation) => void;
 }) {
 	const isHard = violations[0]?.severity === 'HARD';
-	const [expanded, setExpanded] = useState(isHard);
 
 	return (
-		<div className="rounded-md border border-border overflow-hidden">
-			<button
-				onClick={() => setExpanded(!expanded)}
-				className="flex items-center gap-2 w-full px-2 py-1.5 text-left text-xs font-medium hover:bg-muted/50 transition-colors"
-			>
-				<ChevronRight
-					className={`size-3 shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`}
-				/>
-				<Badge
-					variant="outline"
-					className={`h-4 px-1 text-[0.5625rem] ${isHard ? 'border-red-300 bg-red-50 text-red-700' : 'border-amber-300 bg-amber-50 text-amber-700'}`}
-				>
-					{isHard ? 'HARD' : 'SOFT'}
-				</Badge>
-				<span className="truncate flex-1">{VIOLATION_LABELS[code]}</span>
-				<span className="text-muted-foreground">{violations.length}</span>
-			</button>
-
-			<AnimatePresence>
-				{expanded && (
-					<motion.div
-						initial={{ height: 0 }}
-						animate={{ height: 'auto' }}
-						exit={{ height: 0 }}
-						transition={{ duration: 0.15 }}
-						className="overflow-hidden"
-					>
-						<div className="border-t border-border">
-							{violations.map((v, i) => {
-								const isSelected = selectedViolation === v;
-								return (
-									<div key={i} className={`flex items-center gap-0.5 ${
-										isSelected
-											? 'bg-primary/10 text-foreground'
-											: 'text-muted-foreground hover:bg-muted/50'
-									}`}>
-										{v.meta && Object.keys(v.meta).length > 0 ? (
-											<TooltipProvider delayDuration={200}>
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<button
-															onClick={() => onSelect(v)}
-															className="flex-1 text-left px-3 py-1.5 text-[0.6875rem] leading-tight transition-colors"
-														>
-															<span className="line-clamp-2 underline decoration-dashed decoration-muted-foreground/50 underline-offset-2">{v.message}</span>
-														</button>
-													</TooltipTrigger>
-													<TooltipContent className="max-w-70 text-[0.625rem] font-normal leading-relaxed space-y-1 py-2 px-3 border-amber-200 bg-amber-50 text-amber-900" side="right">
-														<div className="font-semibold text-amber-700 pb-1 mb-1 border-b border-amber-200/60">Constraint Context</div>
-														{v.meta.consecutiveMinutes != null && v.meta.maxConsecutive != null && (
-															<div>Observed: {String(v.meta.consecutiveMinutes)} min · Limit: {String(v.meta.maxConsecutive)} min · <span className="font-semibold">Δ +{Number(v.meta.consecutiveMinutes) - Number(v.meta.maxConsecutive)} min</span></div>
-														)}
-														{v.meta.dailyMinutes != null && v.meta.maxTeachingMinutesPerDay != null && (
-															<div>Observed: {String(v.meta.dailyMinutes)} min · Limit: {String(v.meta.maxTeachingMinutesPerDay)} min · <span className="font-semibold">Δ +{Number(v.meta.dailyMinutes) - Number(v.meta.maxTeachingMinutesPerDay)} min</span></div>
-														)}
-														{v.meta.actualGapMinutes != null && v.meta.requiredBreakMinutes != null && (
-															<div>Actual break: {String(v.meta.actualGapMinutes)} min · Required: {String(v.meta.requiredBreakMinutes)} min · <span className="font-semibold">Short by {Number(v.meta.requiredBreakMinutes) - Number(v.meta.actualGapMinutes)} min</span></div>
-														)}
-														{v.meta.totalIdleMinutes != null && v.meta.configuredThresholds != null && (
-															<div>Idle: {String(v.meta.totalIdleMinutes)} min · Limit: {String((v.meta.configuredThresholds as Record<string,unknown>).maxIdleGapMinutesPerDay ?? '?')} min</div>
-														)}
-														{v.meta.estimatedDistanceMeters != null && (
-															<div>Distance: ~{String(v.meta.estimatedDistanceMeters)}m{v.meta.configuredThresholds ? ` · Limit: ${String((v.meta.configuredThresholds as Record<string,unknown>).maxWalkingDistanceMetersPerTransition ?? '?')}m` : ''}</div>
-														)}
-														{v.meta.gapMinutes != null && (
-															<div>Gap: {String(v.meta.gapMinutes)} min</div>
-														)}
-														{v.meta.buildingTransitions != null && (
-															<div>Building trans: {String(v.meta.buildingTransitions)}{v.meta.configuredThresholds ? ` · Limit: ${String((v.meta.configuredThresholds as Record<string,unknown>).maxBuildingTransitionsPerDay ?? '?')}` : ''}</div>
-														)}
-													</TooltipContent>
-												</Tooltip>
-											</TooltipProvider>
-										) : (
-											<button
-												onClick={() => onSelect(v)}
-												className="flex-1 text-left px-3 py-1.5 text-[0.6875rem] leading-tight transition-colors"
-											>
-												<span className="line-clamp-2">{v.message}</span>
-											</button>
-										)}
+		<Accordion
+			type="single"
+			collapsible
+			defaultValue={isHard ? String(code) : undefined}
+			className="rounded-md border border-border bg-background"
+		>
+			<AccordionItem value={String(code)} className="border-0">
+				<AccordionTrigger className="px-2 py-1.5 hover:no-underline">
+					<div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+						<Badge
+							variant="outline"
+							className={`h-4 px-1 text-[0.5625rem] ${isHard ? 'border-red-300 bg-red-50 text-red-700' : 'border-amber-300 bg-amber-50 text-amber-700'}`}
+						>
+							{isHard ? 'HARD' : 'SOFT'}
+						</Badge>
+						<span className="truncate text-xs font-medium">{VIOLATION_LABELS[code]}</span>
+						<span className="ml-auto shrink-0 text-[0.6875rem] text-muted-foreground">{violations.length}</span>
+					</div>
+				</AccordionTrigger>
+				<AccordionContent className="border-t border-border pb-0">
+					<div>
+						{violations.map((v, i) => {
+							const isSelected = selectedViolation === v;
+							return (
+								<div key={i} className={`flex items-center gap-0.5 ${
+									isSelected
+										? 'bg-primary/10 text-foreground'
+										: 'text-muted-foreground hover:bg-muted/50'
+								}`}>
+									{v.meta && Object.keys(v.meta).length > 0 ? (
+										<TooltipProvider delayDuration={200}>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<button
+														onClick={() => onSelect(v)}
+														className="flex-1 text-left px-3 py-1.5 text-[0.6875rem] leading-tight transition-colors"
+													>
+														<span className="line-clamp-2 underline decoration-dashed decoration-muted-foreground/50 underline-offset-2">{v.message}</span>
+													</button>
+												</TooltipTrigger>
+												<TooltipContent className="max-w-70 text-[0.625rem] font-normal leading-relaxed space-y-1 py-2 px-3 border-amber-200 bg-amber-50 text-amber-900" side="right">
+													<div className="font-semibold text-amber-700 pb-1 mb-1 border-b border-amber-200/60">Constraint Context</div>
+													{v.meta.consecutiveMinutes != null && v.meta.maxConsecutive != null && (
+														<div>Observed: {String(v.meta.consecutiveMinutes)} min · Limit: {String(v.meta.maxConsecutive)} min · <span className="font-semibold">Δ +{Number(v.meta.consecutiveMinutes) - Number(v.meta.maxConsecutive)} min</span></div>
+													)}
+													{v.meta.dailyMinutes != null && v.meta.maxTeachingMinutesPerDay != null && (
+														<div>Observed: {String(v.meta.dailyMinutes)} min · Limit: {String(v.meta.maxTeachingMinutesPerDay)} min · <span className="font-semibold">Δ +{Number(v.meta.dailyMinutes) - Number(v.meta.maxTeachingMinutesPerDay)} min</span></div>
+													)}
+													{v.meta.actualGapMinutes != null && v.meta.requiredBreakMinutes != null && (
+														<div>Actual break: {String(v.meta.actualGapMinutes)} min · Required: {String(v.meta.requiredBreakMinutes)} min · <span className="font-semibold">Short by {Number(v.meta.requiredBreakMinutes) - Number(v.meta.actualGapMinutes)} min</span></div>
+													)}
+													{v.meta.totalIdleMinutes != null && v.meta.configuredThresholds != null && (
+														<div>Idle: {String(v.meta.totalIdleMinutes)} min · Limit: {String((v.meta.configuredThresholds as Record<string,unknown>).maxIdleGapMinutesPerDay ?? '?')} min</div>
+													)}
+													{v.meta.estimatedDistanceMeters != null && (
+														<div>Distance: ~{String(v.meta.estimatedDistanceMeters)}m{v.meta.configuredThresholds ? ` · Limit: ${String((v.meta.configuredThresholds as Record<string,unknown>).maxWalkingDistanceMetersPerTransition ?? '?')}m` : ''}</div>
+													)}
+													{v.meta.gapMinutes != null && (
+														<div>Gap: {String(v.meta.gapMinutes)} min</div>
+													)}
+													{v.meta.buildingTransitions != null && (
+														<div>Building trans: {String(v.meta.buildingTransitions)}{v.meta.configuredThresholds ? ` · Limit: ${String((v.meta.configuredThresholds as Record<string,unknown>).maxBuildingTransitionsPerDay ?? '?')}` : ''}</div>
+													)}
+												</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
+									) : (
 										<button
-											onClick={(e) => { e.stopPropagation(); onSelect(v); }}
-											className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
-											aria-label="Focus grid on this violation"
-											title="Focus grid"
+											onClick={() => onSelect(v)}
+											className="flex-1 text-left px-3 py-1.5 text-[0.6875rem] leading-tight transition-colors"
 										>
-											<Crosshair className="size-3 text-primary/70" />
+											<span className="line-clamp-2">{v.message}</span>
 										</button>
-										{onExplain && (
-											<button
-												onClick={(e) => { e.stopPropagation(); onExplain(v); }}
-												className="shrink-0 p-1 mr-1 rounded hover:bg-muted transition-colors"
-												aria-label="Explain this violation"
-											>
-												<Lightbulb className="size-3 text-amber-500" />
-											</button>
-										)}
-									</div>
-								);
-							})}
-						</div>
-					</motion.div>
-				)}
-			</AnimatePresence>
-		</div>
+									)}
+									<button
+										onClick={(e) => { e.stopPropagation(); onSelect(v); }}
+										className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
+										aria-label="Focus grid on this violation"
+										title="Focus grid"
+									>
+										<Crosshair className="size-3 text-primary/70" />
+									</button>
+									{onExplain && (
+										<button
+											onClick={(e) => { e.stopPropagation(); onExplain(v); }}
+											className="shrink-0 p-1 mr-1 rounded hover:bg-muted transition-colors"
+											aria-label="Explain this violation"
+										>
+											<Lightbulb className="size-3 text-amber-500" />
+										</button>
+									)}
+								</div>
+							);
+						})}
+					</div>
+				</AccordionContent>
+			</AccordionItem>
+		</Accordion>
 	);
 }
 
@@ -5346,6 +5816,8 @@ const TimetableGrid = memo(function TimetableGrid({
 	sectionLabel,
 	gradeForSection,
 	entryContextLabel,
+	formatFacultyInitials,
+	facultyLabel,
 	viewMode,
 	pivotLabel,
 	roomLabelShort,
@@ -5386,7 +5858,8 @@ const TimetableGrid = memo(function TimetableGrid({
 	onNavToSection: (id: number) => void;
 	onNavToRoom: (id: number) => void;
 }) {
-	const [dropTarget, setDropTarget] = useState<string | null>(null);
+	const { dropTarget, setDropTarget, resolveDropCell } = useTimetableDragDrop();
+	const [dropFeedbackMode, setDropFeedbackMode] = useState<'swap' | 'replace' | null>(null);
 
 	/** Grid lookup: `${day}-${startTime}` → entries */
 	const gridIndex = useMemo(() => {
@@ -5464,22 +5937,50 @@ const TimetableGrid = memo(function TimetableGrid({
 								return (
 									<td
 										key={day}
+										data-day={day}
+										data-start-time={slot.startTime}
+										data-end-time={slot.endTime}
 										className={`px-1 py-1 align-top border-l border-border/30 transition-all${dropClass}`}
-										onMouseEnter={() => { if (isDragging || hasKbSource) setDropTarget(key); }}
-										onMouseLeave={() => { if ((isDragging || hasKbSource) && dropTarget === key) setDropTarget(null); }}
+										onMouseEnter={() => {
+											if (isDragging || hasKbSource) {
+												setDropTarget(key);
+												setDropFeedbackMode(cellEntries.length > 0 ? 'swap' : 'replace');
+											}
+										}}
+										onMouseLeave={() => {
+											if ((isDragging || hasKbSource) && dropTarget === key) {
+												setDropTarget(null);
+												setDropFeedbackMode(null);
+											}
+										}}
 										onDragOver={(ev) => {
 											if (!isDragging) return;
 											ev.preventDefault();
 											ev.dataTransfer.dropEffect = 'move';
-											setDropTarget(key);
+											const resolvedCell = resolveDropCell(ev, {
+												day,
+												startTime: slot.startTime,
+												endTime: slot.endTime,
+											});
+											setDropTarget(resolvedCell.key);
+											setDropFeedbackMode((gridIndex.get(resolvedCell.key) ?? []).length > 0 ? 'swap' : 'replace');
 										}}
 										onDragLeave={() => {
-											if (dropTarget === key) setDropTarget(null);
+											if (dropTarget === key) {
+												setDropTarget(null);
+												setDropFeedbackMode(null);
+											}
 										}}
 										onDrop={(ev) => {
 											ev.preventDefault();
+											const resolvedCell = resolveDropCell(ev, {
+												day,
+												startTime: slot.startTime,
+												endTime: slot.endTime,
+											});
 											setDropTarget(null);
-											onCellDrop(day, slot.startTime, slot.endTime);
+											setDropFeedbackMode(null);
+											onCellDrop(resolvedCell.day, resolvedCell.startTime, resolvedCell.endTime);
 										}}
 										onClick={() => {
 											if (hasKbSource) {
@@ -5487,6 +5988,50 @@ const TimetableGrid = memo(function TimetableGrid({
 											}
 										}}
 >
+										<AnimatePresence>
+											{isDropOver && isDragging && dropFeedbackMode && (
+												<motion.div
+													initial={{ opacity: 0, y: -4 }}
+													animate={{ opacity: 1, y: 0 }}
+													exit={{ opacity: 0, y: -4 }}
+													transition={{ duration: 0.12 }}
+													className={cn(
+														'mb-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.5rem] font-semibold uppercase tracking-wide',
+														dropFeedbackMode === 'swap'
+															? 'bg-amber-100 text-amber-800'
+															: 'bg-emerald-100 text-emerald-800',
+													)}
+												>
+													{dropFeedbackMode === 'swap' ? 'Swap Preview' : 'Replace Preview'}
+												</motion.div>
+											)}
+										</AnimatePresence>
+										{isDragging && cellEntries.length > 0 && (
+											<TooltipProvider>
+												<Tooltip delayDuration={150}>
+													<TooltipTrigger asChild>
+														<div className="mb-0.5 inline-flex items-center rounded-sm bg-muted px-1 py-0.5 text-[0.5rem] text-muted-foreground">
+															Occupied ({cellEntries.length})
+														</div>
+													</TooltipTrigger>
+													<TooltipContent side="right" className="z-100 max-w-72 space-y-1.5 p-2 text-xs">
+														<p className="font-semibold">Slot Occupancy</p>
+														{cellEntries.slice(0, 4).map((entry) => (
+															<p key={entry.entryId} className="text-muted-foreground leading-snug">
+																{subjectLabel(entry.subjectId)} · {sectionLabel(entry.sectionId)} · {entry.facultyId ? formatFacultyInitials(entry.facultyId) : 'No faculty'} · {roomLabelShort(entry.roomId)}
+															</p>
+														))}
+														{info?.reasons?.length ? (
+															<div className="border-t border-border/60 pt-1">
+																{info.reasons.map((reason, index) => (
+																	<p key={`${reason}-${index}`} className="text-[0.6875rem] text-foreground/80">{reason}</p>
+																))}
+															</div>
+														) : null}
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+										)}
 										{/* Stage 2: Conflict inspector — inline badge for hard/soft cells */}
 										{isActive && info && (info.kind === 'hard' || info.kind === 'soft') && (
 											<TooltipProvider>
@@ -5594,7 +6139,7 @@ const TimetableGrid = memo(function TimetableGrid({
 																		ev.stopPropagation();
 																		setDragItem({ type: 'entry', entry: e });
 																	}}
-																	onDragEnd={() => setDragItem(null)}
+																	onDragEnd={() => { setDragItem(null); setUnassignDropActive(false); }}
 																	onClick={(ev) => {
 																		ev.stopPropagation();
 																		onEntryClick(e);
@@ -5612,23 +6157,12 @@ const TimetableGrid = memo(function TimetableGrid({
 																			</span>
 																		)}
 																	</div>
-																	<div className="text-muted-foreground truncate">
-																	{viewMode === 'faculty'
-																		? entryContextLabel(e)
-																		: e.facultyId
-																			? formatFacultyInitials(e.facultyId)
-																			: entryContextLabel(e)}
-																	{viewMode === 'section' && (
-																		<span className="ml-1 opacity-60" title={roomLabelShort(e.roomId)}>
-																			{roomLabelShort(e.roomId)}
-																		</span>
-																	)}
-																	{viewMode === 'faculty' && (
-																		<span className="ml-1 opacity-60">
-																			{roomLabelShort(e.roomId)}
-																		</span>
-																	)}
-																</div>
+																	<div className="text-muted-foreground truncate" title={`${entryContextLabel(e)} · ${e.facultyId ? formatFacultyInitials(e.facultyId) : 'No faculty'} · ${roomLabelShort(e.roomId)}`}>
+																		<span className="font-medium text-foreground/80">{entryContextLabel(e)}</span>
+																		<span className="mx-1 opacity-60">·</span>
+																		<span>{e.facultyId ? formatFacultyInitials(e.facultyId) : 'No faculty'}</span>
+																		<span className="ml-1 opacity-60">{roomLabelShort(e.roomId)}</span>
+																	</div>
 																	{isFollowUp && (
 																		<Flag className="size-2.5 text-amber-500 inline-block ml-0.5" />
 																	)}
