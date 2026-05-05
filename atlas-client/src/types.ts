@@ -400,6 +400,9 @@ export type ViolationCode =
 
 export type ViolationSeverity = 'HARD' | 'SOFT';
 
+export type ProgramFilter = 'all' | 'REGULAR' | 'SPECIAL' | 'STE' | 'SPA' | 'SPS' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER';
+export type EntryKindFilter = 'all' | 'section' | 'cohort';
+
 export interface GenerationRun {
 	id: number;
 	schoolId: number;

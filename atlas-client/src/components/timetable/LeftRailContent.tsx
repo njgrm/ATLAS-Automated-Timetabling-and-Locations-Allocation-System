@@ -31,9 +31,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { ViolationGroup } from '@/components/timetable/TimetableShared';
+import type { LeftRailContentContext } from '@/components/timetable/timetableContexts.types';
+
 type LeftRailContentProps = {
-context: any;
+context: LeftRailContentContext;
 };
+
 export function LeftRailContent({ context }: LeftRailContentProps) {
 const {
 leftTab,
@@ -83,6 +86,7 @@ previewEdit,
 setDrawerUnassigned,
 setFollowUps,
 showSoftConfirm,
+unassignDropActive,
 setUnassignDropActive,
 fetchDraftBoardSummary,
 preGenPending,
@@ -104,6 +108,7 @@ preGenKbSource,
 setPreGenKbSource,
 setKbSelectedSource,
 rightPanelRef,
+selectedEntry,
 setSelectedEntry,
 setSelectedViolation,
 preGenEntries,
@@ -918,7 +923,7 @@ return (
 										className="h-8 text-xs"
 									/>
 									<div className="grid grid-cols-2 gap-2">
-										<Select value={requestStatusFilter} onValueChange={(value) => setRequestStatusFilter(value)}>
+										<Select value={requestStatusFilter} onValueChange={(value) => setRequestStatusFilter(value as 'ALL' | 'SUBMITTED' | 'DRAFT')}>
 											<SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
 											<SelectContent>
 												<SelectItem value="ALL">All statuses</SelectItem>
@@ -926,7 +931,7 @@ return (
 												<SelectItem value="DRAFT">Draft</SelectItem>
 											</SelectContent>
 										</Select>
-										<Select value={requestDecisionFilter} onValueChange={(value) => setRequestDecisionFilter(value)}>
+										<Select value={requestDecisionFilter} onValueChange={(value) => setRequestDecisionFilter(value as 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED')}>
 											<SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Decision" /></SelectTrigger>
 											<SelectContent>
 												<SelectItem value="ALL">All decisions</SelectItem>

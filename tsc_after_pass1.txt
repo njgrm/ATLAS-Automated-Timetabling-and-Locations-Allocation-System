@@ -1,0 +1,8 @@
+src/components/timetable/LeftRailContent.tsx(226,13): error TS2322: Type 'string' is not assignable to type 'ViolationCode'.
+src/components/timetable/LeftRailContent.tsx(926,96): error TS2345: Argument of type 'string' is not assignable to parameter of type 'SetStateAction<"DRAFT" | "SUBMITTED" | "ALL">'.
+src/components/timetable/LeftRailContent.tsx(934,100): error TS2345: Argument of type 'string' is not assignable to parameter of type 'SetStateAction<"PENDING" | "APPROVED" | "REJECTED" | "ALL">'.
+src/components/timetable/modals/ScheduleReviewDialogs.tsx(530,70): error TS7006: Parameter 'f' implicitly has an 'any' type.
+src/components/timetable/modals/ScheduleReviewDialogs.tsx(558,45): error TS7006: Parameter 'f' implicitly has an 'any' type.
+src/components/timetable/ScheduleReviewWorkspace.tsx(978,738): error TS2322: Type 'Dispatch<SetStateAction<Record<string, UnassignedExplanation | null>>>' is not assignable to type 'Dispatch<SetStateAction<Record<string, UnassignedExplanation | null | undefined>>>'.
+  Type 'SetStateAction<Record<string, UnassignedExplanation | null | undefined>>' is not assignable to type 'SetStateAction<Record<string, UnassignedExplanation | null>>'.
+    Type 'Record<string, UnassignedExplanation | null | undefined>' is not assignable to type 'SetStateAction<Record<string, UnassignedExplanation | null>>'.

@@ -38,8 +38,7 @@ type RoomInfo = {
 	buildingShortCode: string | null;
 	floor: number;
 	type: string;
-[new_code]
-[new_code]
+	isTeachingSpace: boolean;
 };
 
 type PreGenDragSource =

@@ -303,7 +303,8 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 														</div>
 													) : (
 														rooms.map((room: any) => {
-															const colors = ROOM_COLORS[room.type] ?? ROOM_COLORS.OTHER;
+															const roomType = (room.type in ROOM_COLORS ? room.type : 'OTHER') as keyof typeof ROOM_COLORS;
+															const colors = ROOM_COLORS[roomType];
 															return (
 																<button
 																	key={room.id}
@@ -315,7 +316,7 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 																		{room.name}
 																	</span>
 																	<span className="text-[0.5rem] text-muted-foreground truncate w-full text-center">
-																		{ROOM_TYPE_LABELS[room.type]}
+																		{ROOM_TYPE_LABELS[roomType]}
 																	</span>
 																</button>
 															);

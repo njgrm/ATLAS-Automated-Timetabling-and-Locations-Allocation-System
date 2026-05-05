@@ -20,6 +20,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Checkbox } from '@/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet';
 import { Skeleton } from '@/ui/skeleton';
 import { Textarea } from '@/ui/textarea';
@@ -27,9 +28,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 
 import { SearchableSelect } from '@/ui/searchable-select';
 import { SoftViolationConfirmDialog } from '@/components/timetable/modals/SoftViolationConfirmDialog';
+import type { ScheduleReviewDialogsContext } from '@/components/timetable/timetableContexts.types';
 
 type ScheduleReviewDialogsProps = {
-context: any;
+context: ScheduleReviewDialogsContext;
 };
 
 export function ScheduleReviewDialogs({ context }: ScheduleReviewDialogsProps) {
@@ -117,6 +119,7 @@ setRegularSwapPending,
 regularSwapSaving,
 executeRegularSwap,
 showSoftConfirm,
+setShowSoftConfirm,
 softConfirmWarnings,
 commitLoading,
 formatConstraintMessage,
@@ -524,7 +527,7 @@ return (
 								</SelectTrigger>
 								<SelectContent>
 									{preGenConfirmCtx?.source.type === 'draftQueue' && preGenConfirmCtx.source.item.facultyOptionsEnriched.length > 0
-										? preGenConfirmCtx.source.item.facultyOptionsEnriched.map((f) => {
+										? preGenConfirmCtx.source.item.facultyOptionsEnriched.map((f: { id: number; name: string; department: string | null; dailyMinutesByDay: Record<string, number> }) => {
 											const dayMins = preGenConfirmCtx ? (f.dailyMinutesByDay[preGenConfirmCtx.day] ?? 0) : 0;
 											const dayBand = dayMins > 480 ? 'hard' : dayMins > 360 ? 'soft' : 'ok';
 											return (
@@ -539,7 +542,7 @@ return (
 												</SelectItem>
 											);
 										})
-										: Array.from(facultyMap.values()).map((f) => (
+										: Array.from(facultyMap.values()).map((f: { id: number; firstName: string; lastName: string }) => (
 											<SelectItem key={f.id} value={String(f.id)}>
 												{f.lastName}, {f.firstName}
 											</SelectItem>
@@ -552,7 +555,7 @@ return (
 								const enrichedList = preGenConfirmCtx?.source.type === 'draftQueue'
 									? preGenConfirmCtx.source.item.facultyOptionsEnriched
 									: [];
-								const enriched = enrichedList.find((f) => String(f.id) === confirmFacultyId);
+								const enriched = enrichedList.find((f: { id: number; dailyMinutesByDay: Record<string, number> }) => String(f.id) === confirmFacultyId);
 								if (!enriched && !confirmPreview?.facultyWeeklyMinutes) return null;
 								const weeklyMins = confirmPreview?.facultyWeeklyMinutes ?? enriched?.dailyMinutesByDay ?? {};
 								return (
