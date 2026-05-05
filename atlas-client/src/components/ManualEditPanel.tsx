@@ -32,7 +32,6 @@ import type {
 } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
-import { Checkbox } from '@/ui/checkbox';
 import { Label } from '@/ui/label';
 import { ScrollArea } from '@/ui/scroll-area';
 import {
@@ -191,7 +190,6 @@ export default function ManualEditPanel({
 	const [actionType, setActionType] = useState<ActionType>(initialAction ?? 'CHANGE_TIMESLOT');
 	const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
 	const [pendingProposal, setPendingProposal] = useState<ManualEditProposal | null>(null);
-	const [softAcknowledged, setSoftAcknowledged] = useState(false);
 	/** Tracks last preview outcome when user adjusts form after previewing */
 	const [lastPreviewSummary, setLastPreviewSummary] = useState<{
 		hard: number;
@@ -220,7 +218,6 @@ export default function ManualEditPanel({
 	useEffect(() => {
 		setPreviewResult(null);
 		setPendingProposal(null);
-		setSoftAcknowledged(false);
 		setLastPreviewSummary(null);
 		setTargetDay(entry.day);
 		setTargetTimeSlot(`${entry.startTime}-${entry.endTime}`);
@@ -232,7 +229,6 @@ export default function ManualEditPanel({
 	useEffect(() => {
 		setPreviewResult(null);
 		setPendingProposal(null);
-		setSoftAcknowledged(false);
 	}, [actionType]);
 
 	// ── Derived data ──
@@ -362,7 +358,6 @@ export default function ManualEditPanel({
 		if (result) {
 			setPreviewResult(result);
 			setPendingProposal(proposal);
-			setSoftAcknowledged(false);
 			setLastPreviewSummary({
 				hard: result.hardViolations.length,
 				soft: result.softViolations.length,
@@ -372,9 +367,8 @@ export default function ManualEditPanel({
 
 	const handleCommit = useCallback(async () => {
 		if (!pendingProposal) return;
-		const hasSoft = (previewResult?.softViolations.length ?? 0) > 0;
-		await onCommit(pendingProposal, hasSoft && softAcknowledged);
-	}, [pendingProposal, previewResult, softAcknowledged, onCommit]);
+		await onCommit(pendingProposal, true); // always allow soft override
+	}, [pendingProposal, onCommit]);
 
 	const isFormComplete = useMemo(() => {
 		if (actionType === 'CHANGE_TIMESLOT') return !!targetDay && !!targetTimeSlot;
@@ -396,12 +390,9 @@ export default function ManualEditPanel({
 					handlePreview();
 				}
 			} else if (e.key === 'Enter') {
-				if (pendingProposal && !commitLoading) {
-					const hasSoft = (previewResult?.softViolations.length ?? 0) > 0;
-					if (previewResult?.hardViolations.length === 0 && (!hasSoft || softAcknowledged)) {
-						e.preventDefault();
-						handleCommit();
-					}
+				if (pendingProposal && !commitLoading && previewResult?.hardViolations.length === 0) {
+					e.preventDefault();
+					handleCommit();
 				}
 			} else if (e.key === 'Escape') {
 				e.preventDefault();
@@ -410,7 +401,7 @@ export default function ManualEditPanel({
 		};
 		window.addEventListener('keydown', handler);
 		return () => window.removeEventListener('keydown', handler);
-	}, [isFormComplete, previewLoading, handlePreview, pendingProposal, commitLoading, previewResult, softAcknowledged, handleCommit, onClose]);
+	}, [isFormComplete, previewLoading, handlePreview, pendingProposal, commitLoading, previewResult, handleCommit, onClose]);
 
 	// Clear preview when form inputs change (stale result)
 	const prevFormKey = useRef('');
@@ -419,7 +410,6 @@ export default function ManualEditPanel({
 		if (prevFormKey.current && prevFormKey.current !== formKey) {
 			setPreviewResult(null);
 			setPendingProposal(null);
-			setSoftAcknowledged(false);
 		}
 		prevFormKey.current = formKey;
 	}, [formKey]);
@@ -987,50 +977,8 @@ export default function ManualEditPanel({
 										again.
 									</span>
 								</div>
-							) : previewResult.softViolations.length > 0 ? (
-								/* Soft only — require acknowledgment */
-								<div className="space-y-2">
-									<div className="flex items-start gap-2">
-										<Checkbox
-											id="soft-acknowledge"
-											checked={softAcknowledged}
-											onCheckedChange={(checked) =>
-												setSoftAcknowledged(checked === true)
-											}
-											className="mt-0.5"
-											aria-label="Acknowledge soft warnings"
-										/>
-										<Label
-											htmlFor="soft-acknowledge"
-											className="text-xs text-muted-foreground leading-tight cursor-pointer"
-										>
-											I acknowledge{' '}
-											{previewResult.softViolations.length} soft warning
-											{previewResult.softViolations.length !== 1
-												? 's'
-												: ''}{' '}
-											and accept the policy impact
-										</Label>
-									</div>
-									<Button
-										size="sm"
-										className="w-full h-8 text-xs"
-										variant="default"
-										onClick={handleCommit}
-										disabled={!softAcknowledged || commitLoading}
-										aria-label="Apply changes with warnings (Enter)"
-									>
-										{commitLoading ? (
-											<Loader2 className="size-3 mr-1.5 animate-spin" />
-										) : (
-											<ShieldAlert className="size-3 mr-1.5" />
-										)}
-										Apply with Warnings
-										<kbd className="ml-auto text-[0.5625rem] bg-background/50 border border-border/40 rounded px-1 py-px font-mono opacity-70">↵</kbd>
-									</Button>
-								</div>
 							) : (
-								/* Clean — simple commit */
+								/* Clean or soft-only — commit immediately */
 								<Button
 									size="sm"
 									className="w-full h-8 text-xs"

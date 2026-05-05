@@ -143,4 +143,29 @@ router.get(
 	},
 );
 
+// ─── POST /:schoolId/:schoolYearId/runs/:runId/manual-edits/swap ───
+
+router.post(
+	'/:schoolId/:schoolYearId/runs/:runId/manual-edits/swap',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const role = req.user?.role;
+			if (!role || !PRIVILEGED_ROLES.has(role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can swap entries.' });
+				return;
+			}
+			const scope = parseScope(req.params as Record<string, string>);
+			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+			const actorId = req.user?.userId;
+			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
+			const { entryIdA, entryIdB, expectedVersion } = req.body ?? {};
+			if (!entryIdA || !entryIdB) { res.status(400).json({ code: 'INVALID_BODY', message: 'entryIdA and entryIdB are required.' }); return; }
+			if (typeof expectedVersion !== 'number') { res.status(400).json({ code: 'INVALID_BODY', message: 'expectedVersion (number) is required.' }); return; }
+			const result = await manualEditService.swapManualEntries(scope.runId, scope.schoolId, scope.schoolYearId, actorId, entryIdA, entryIdB, expectedVersion);
+			res.json(result);
+		} catch (e) { next(e); }
+	},
+);
+
 export default router;

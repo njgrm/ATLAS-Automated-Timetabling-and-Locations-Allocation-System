@@ -23,6 +23,28 @@ Record dated implementation verification summaries here.
 
 ---
 
+### 2026-05-05 - Wave 4.5 Pass 6 ScheduleReview Monolith Dismantling
+- Phase: 4
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npm --prefix atlas-client run build`: PASS
+  - `get_errors` on touched timetable files: PASS
+  - `Measure-Object -Line atlas-client/src/pages/ScheduleReview.tsx`: PASS (`36` lines)
+- API checks:
+  - none (frontend refactor only)
+- UI checks:
+  - `ScheduleReview` route now delegates to `ScheduleReviewWorkspace` through a thin container and context provider: PASS (typecheck/build verified)
+  - Shared helper functions moved to `src/lib/timetable-utils.ts` and consumed by workspace module: PASS
+  - Shared timetable sub-components moved to `src/components/timetable/TimetableShared.tsx`: PASS
+  - Inline modal extractions applied for soft-warning confirm and hard-blocker dialogs via `src/components/timetable/modals/*`: PASS
+- Blocking findings:
+  - none
+- Decision:
+  - Accepted
+
 ### 2026-04-21 - Wave 4.1 Teaching Load Precision Gate
 - Phase: 4
 - Scope gate: PASS

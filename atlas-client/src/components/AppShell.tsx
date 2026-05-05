@@ -54,6 +54,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
 import { AccessibilityMenu } from '@/components/AccessibilityMenu';
+import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
 import { useAccessibility } from '@/hooks/useAccessibility';
 
 /* ─── WCAG contrast helpers (ported from EnrollPro RootLayout) ─── */
@@ -439,6 +440,9 @@ export function AppShell() {
 	const outlet = useOutlet();
 	const { fontSize, setFontSize } = useAccessibility();
 	const isTimetableRoute = location.pathname.startsWith('/timetable');
+	const suspenseFallback = isTimetableRoute
+		? <TimetableSkeleton />
+		: <div className="p-6"><Skeleton className="h-100 w-full rounded-lg" /></div>;
 	const [sidebarOpen, setSidebarOpen] = useState(() => !window.location.pathname.startsWith('/timetable'));
 	const previousPathnameRef = useRef(location.pathname);
 	const [schoolName, setSchoolName] = useState('');
@@ -664,7 +668,7 @@ export function AppShell() {
 						transition={{ duration: 0.15, ease: 'linear' }}
 						className='flex-1 min-h-0 overflow-hidden'
 					>
-						<Suspense fallback={<div className="p-6"><Skeleton className="h-100 w-full rounded-lg" /></div>}>
+						<Suspense fallback={suspenseFallback}>
 							{outlet && React.cloneElement(outlet as React.ReactElement, { key: location.pathname })}
 						</Suspense>
 					</motion.div>
