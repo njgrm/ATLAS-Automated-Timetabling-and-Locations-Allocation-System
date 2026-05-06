@@ -149,3 +149,18 @@ export function UnassignDropZone({
 		</div>
 	);
 }
+
+export function PinnedRailDropZone({
+	children,
+	className,
+}: {
+	children: ReactNode;
+	className?: string;
+}) {
+	const { setNodeRef } = useDroppable({ id: 'pinned-rail-zone' });
+	return (
+		<div ref={setNodeRef} className={className}>
+			{children}
+		</div>
+	);
+}

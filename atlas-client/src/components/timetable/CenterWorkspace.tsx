@@ -70,8 +70,6 @@ type CenterWorkspaceProps = {
 	navToFaculty: (id: number) => void;
 	navToSection: (id: number) => void;
 	navToRoom: (id: number) => void;
-	dropTarget: string | null;
-	setDropTarget: (target: string | null) => void;
 	preGenPending: any;
 	preGenPreviewLoading: boolean;
 	preGenPreviewError: string | null;
@@ -141,8 +139,6 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 		navToFaculty,
 		navToSection,
 		navToRoom,
-		dropTarget,
-		setDropTarget,
 		preGenPending,
 		preGenPreviewLoading,
 		preGenPreviewError,
@@ -387,8 +383,6 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 										onNavToFaculty={navToFaculty}
 										onNavToSection={navToSection}
 										onNavToRoom={navToRoom}
-										dropTarget={dropTarget}
-										onDropTargetChange={setDropTarget}
 									/>
 								</div>
 							) : (

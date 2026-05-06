@@ -37,6 +37,9 @@ function parseScope(req, res) {
 function parsePlacementBody(req) {
     return {
         placementId: req.body.placementId == null ? undefined : Number(req.body.placementId),
+        excludePlacementIds: Array.isArray(req.body.excludePlacementIds)
+            ? req.body.excludePlacementIds.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0)
+            : undefined,
         entryKind: req.body.entryKind,
         sectionId: Number(req.body.sectionId),
         subjectId: Number(req.body.subjectId),

@@ -126,6 +126,31 @@ router.get('/:schoolId/:schoolYearId/runs/:runId/manual-edits', authenticate, as
         next(e);
     }
 });
+// ─── POST /:schoolId/:schoolYearId/runs/:runId/manual-edits/swap/preview ───
+router.post('/:schoolId/:schoolYearId/runs/:runId/manual-edits/swap/preview', authenticate, async (req, res, next) => {
+    try {
+        const role = req.user?.role;
+        if (!role || !PRIVILEGED_ROLES.has(role)) {
+            res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can preview swaps.' });
+            return;
+        }
+        const scope = parseScope(req.params);
+        if (typeof scope === 'string') {
+            res.status(400).json({ code: 'INVALID_PARAM', message: scope });
+            return;
+        }
+        const { entryIdA, entryIdB } = req.body ?? {};
+        if (!entryIdA || !entryIdB) {
+            res.status(400).json({ code: 'INVALID_BODY', message: 'entryIdA and entryIdB are required.' });
+            return;
+        }
+        const result = await manualEditService.previewManualSwapEntries(scope.runId, scope.schoolId, scope.schoolYearId, entryIdA, entryIdB);
+        res.json(result);
+    }
+    catch (e) {
+        next(e);
+    }
+});
 // ─── POST /:schoolId/:schoolYearId/runs/:runId/manual-edits/swap ───
 router.post('/:schoolId/:schoolYearId/runs/:runId/manual-edits/swap', authenticate, async (req, res, next) => {
     try {
@@ -144,7 +169,7 @@ router.post('/:schoolId/:schoolYearId/runs/:runId/manual-edits/swap', authentica
             res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' });
             return;
         }
-        const { entryIdA, entryIdB, expectedVersion } = req.body ?? {};
+        const { entryIdA, entryIdB, expectedVersion, strategy, autoFixTarget } = req.body ?? {};
         if (!entryIdA || !entryIdB) {
             res.status(400).json({ code: 'INVALID_BODY', message: 'entryIdA and entryIdB are required.' });
             return;
@@ -153,7 +178,7 @@ router.post('/:schoolId/:schoolYearId/runs/:runId/manual-edits/swap', authentica
             res.status(400).json({ code: 'INVALID_BODY', message: 'expectedVersion (number) is required.' });
             return;
         }
-        const result = await manualEditService.swapManualEntries(scope.runId, scope.schoolId, scope.schoolYearId, actorId, entryIdA, entryIdB, expectedVersion);
+        const result = await manualEditService.swapManualEntries(scope.runId, scope.schoolId, scope.schoolYearId, actorId, entryIdA, entryIdB, expectedVersion, strategy, autoFixTarget);
         res.json(result);
     }
     catch (e) {

@@ -3,6 +3,7 @@ import { type Violation } from './constraint-validator.js';
 import { type ConstructorInput, type PeriodSlot } from './schedule-constructor.js';
 export interface DraftPlacementInput {
     placementId?: number;
+    excludePlacementIds?: number[];
     entryKind?: 'SECTION' | 'COHORT';
     sectionId: number;
     subjectId: number;

@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -94,7 +94,7 @@ import {
 } from '@/lib/timetable-utils';
 
 // ---------------------------------------------------------------------------
-// Debug toggle — flip to false OR delete this block after diagnosis is done
+// Debug toggle â€” flip to false OR delete this block after diagnosis is done
 // ---------------------------------------------------------------------------
 const DEBUG_PREGEN_DND = true;
 const dbgWs = (...args: unknown[]) => { if (DEBUG_PREGEN_DND) console.log('[PREGEN_DND]', ...args); };
@@ -124,7 +124,7 @@ export default function ScheduleReviewWorkspace() {
 	const [viewMode, setViewMode] = useState<ViewMode>('section');
 	const [programFilter, setProgramFilter] = useState<ProgramFilter>('all');
 	const [entryKindFilter, setEntryKindFilter] = useState<EntryKindFilter>('all');
-	const [leftTab, setLeftTab] = useState<'violations' | 'unassigned' | 'locks' | 'requests'>('violations');
+	const [leftTab, setLeftTab] = useState<'violations' | 'unassigned' | 'pinned' | 'requests'>('violations');
 	const [draftBoard, setDraftBoard] = useState<DraftBoardState | null>(null);
 	const [draftBoardSummary, setDraftBoardSummary] = useState<DraftBoardState['counts'] | null>(null);
 	const [showResetDraftDialog, setShowResetDraftDialog] = useState(false);
@@ -239,9 +239,10 @@ export default function ScheduleReviewWorkspace() {
 	const [showUnassignConfirm, setShowUnassignConfirm] = useState(false);
 	const [pendingUnassignId, setPendingUnassignId] = useState<number | null>(null);
 	const [unassignDropActive, setUnassignDropActive] = useState(false);
+	const [pinnedRailDropActive, setPinnedRailDropActive] = useState(false);
 
 	// ---------------------------------------------------------------------------
-	// Debug badge state — only populated when DEBUG_PREGEN_DND is true
+	// Debug badge state â€” only populated when DEBUG_PREGEN_DND is true
 	// ---------------------------------------------------------------------------
 	const [debugInfo, setDebugInfo] = useState<{ type: string; branch: string; suppress: boolean | null } | null>(null);
 	const [pinsSearch, setPinsSearch] = useState('');
@@ -290,7 +291,7 @@ export default function ScheduleReviewWorkspace() {
 			panelSnapshot.current = null;
 		}
 		setCenterView('schedule');
-	}, []);
+	}, [centerView, draftBoard?.placements, setDragItem]);
 
 	const enterManualEditView = useCallback((action: 'CHANGE_TIMESLOT' | 'CHANGE_ROOM' | 'CHANGE_FACULTY') => {
 		panelSnapshot.current = { left: isLeftCollapsed, right: isRightCollapsed };
@@ -633,11 +634,11 @@ export default function ScheduleReviewWorkspace() {
 						setDragItem(null);
 						return;
 					}
-					dbgWs('path:entry->parsedDraftPlacement — placement NOT FOUND in draftBoard');
+					dbgWs('path:entry->parsedDraftPlacement â€” placement NOT FOUND in draftBoard');
 				}
 			}
 			const entry = dragItem.entry;
-			// Detect if target slot is occupied — scope to same pivot entity for current viewMode
+			// Detect if target slot is occupied â€” scope to same pivot entity for current viewMode
 			const targetKey = `${day}-${startTime}`;
 			const pivotId = viewMode === 'section' ? entry.sectionId : viewMode === 'faculty' ? entry.facultyId : entry.roomId;
 			const cellOccupants = (gridIndex.get(targetKey) ?? []).filter((occ) => {
@@ -670,7 +671,7 @@ export default function ScheduleReviewWorkspace() {
 				return;
 			}
 
-			// Soft violations are informational only — proceed without blocking
+			// Soft violations are informational only â€” proceed without blocking
 			await commitEdit(proposal, scopedPreview.softViolations.length > 0);
 		},
 		[dragItem, entityFilter, viewMode, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard?.placements, gridIndex, setDebugInfo],
@@ -751,7 +752,7 @@ export default function ScheduleReviewWorkspace() {
 				setDragItem(null);
 				return;
 			}
-			// Soft violations are informational only — proceed without blocking
+			// Soft violations are informational only â€” proceed without blocking
 			await commitEdit(proposal, scopedPreview.softViolations.length > 0);
 		},
 		[kbSelectedSource, entityFilter, viewMode, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard?.placements, gridIndex],
@@ -789,7 +790,7 @@ export default function ScheduleReviewWorkspace() {
 			setDragItem(null);
 			return;
 		}
-		// Soft violations are informational only — proceed without blocking
+		// Soft violations are informational only â€” proceed without blocking
 		await commitEdit(proposal, scopedPreview.softViolations.length > 0);
 	}, [assignPickerTarget, assignPickerFacultyId, assignPickerRoomId, previewEdit, commitEdit]);
 
@@ -819,10 +820,10 @@ export default function ScheduleReviewWorkspace() {
 		(entry: ScheduledEntry | UnassignedItem): string => {
 			if (entry.entryKind === 'COHORT' && entry.cohortCode) {
 				const memberCount = entry.cohortMemberSectionIds?.length ?? 0;
-return `${entry.cohortCode}${memberCount > 0 ? ` · ${memberCount} section${memberCount === 1 ? '' : 's'}` : ''}`;
+return `${entry.cohortCode}${memberCount > 0 ? ` Â· ${memberCount} section${memberCount === 1 ? '' : 's'}` : ''}`;
 		}
 		const adviser = entry.adviserName ?? sectionMap.get(entry.sectionId)?.adviserName;
-		return adviser ? `${sectionLabel(entry.sectionId)} · Adviser ${adviser}` : sectionLabel(entry.sectionId);
+		return adviser ? `${sectionLabel(entry.sectionId)} Â· Adviser ${adviser}` : sectionLabel(entry.sectionId);
 		},
 		[sectionLabel, sectionMap],
 	);
@@ -900,7 +901,7 @@ return `${entry.cohortCode}${memberCount > 0 ? ` · ${memberCount} section${memb
 				const programLabel = section?.programType && section.programType !== 'REGULAR'
 					? getProgramBadgeLabel(section.programType, section.programCode)
 					: 'Regular';
-				const key = grade ? `G${grade} · ${programLabel}` : programLabel;
+				const key = grade ? `G${grade} Â· ${programLabel}` : programLabel;
 				const list = byGrade.get(key) ?? [];
 				list.push(id);
 				byGrade.set(key, list);
@@ -909,7 +910,7 @@ return `${entry.cohortCode}${memberCount > 0 ? ` · ${memberCount} section${memb
 				groups.push({ label: grade, ids });
 			}
 		} else {
-			// Faculty — group by department if available, else flat
+			// Faculty â€” group by department if available, else flat
 			const byDept = new Map<string, number[]>();
 			for (const id of pivotEntityIds) {
 				const f = facultyMap.get(id);
@@ -945,11 +946,36 @@ return `${entry.cohortCode}${memberCount > 0 ? ` · ${memberCount} section${memb
 
 	const handleGlobalDragStart = useCallback((event: DragStartEvent) => {
 		const data = event.active.data.current as
-			| { type?: string; entry?: ScheduledEntry; item?: UnassignedItem | DraftQueueItem; placement?: DraftPlacement }
+			| { type?: string; entry?: ScheduledEntry; item?: UnassignedItem | DraftQueueItem; placement?: DraftPlacement; placementId?: number }
 			| undefined;
 		if (!data?.type) return;
 
+		if (data.type === 'draftPlacement') {
+			const placement = data.placement ?? (data.placementId != null
+				? (draftBoard?.placements ?? []).find((candidate) => candidate.id === data.placementId) ?? null
+				: null);
+			if (placement) {
+				setDragItem({ type: 'draftPlacement', placement });
+				return;
+			}
+			// Placement lookup failed (stale draftBoard). Grid drags also carry entry -- fall back.
+			if (data.entry) {
+				setDragItem({ type: 'entry', entry: data.entry });
+				return;
+			}
+		}
+
 		if (data.type === 'entry' && data.entry) {
+			if (centerView === 'pre-generation') {
+				const placementId = parseDraftPlacementId(data.entry.entryId);
+				const placement = placementId != null
+					? (draftBoard?.placements ?? []).find((candidate) => candidate.id === placementId) ?? null
+					: null;
+				if (placement) {
+					setDragItem({ type: 'draftPlacement', placement });
+					return;
+				}
+			}
 			setDragItem({ type: 'entry', entry: data.entry });
 			return;
 		}
@@ -961,21 +987,43 @@ return `${entry.cohortCode}${memberCount > 0 ? ` · ${memberCount} section${memb
 			setDragItem({ type: 'draftQueue', item: data.item as DraftQueueItem });
 			return;
 		}
-		if (data.type === 'draftPlacement' && data.placement) {
-			setDragItem({ type: 'draftPlacement', placement: data.placement });
-		}
-	}, []);
+	}, [centerView, draftBoard?.placements, setDragItem]);
 
 	const handleGlobalDragOver = useCallback((event: DragOverEvent) => {
 		const key = event.over?.id ? String(event.over.id) : null;
+		const data = event.active.data.current as { type?: string; entry?: ScheduledEntry } | undefined;
 		setDropTarget(key);
 		if (key === 'unassign-zone') {
-			const data = event.active.data.current as { type?: string } | undefined;
 			setUnassignDropActive(data?.type === 'draftPlacement' || data?.type === 'entry');
 		} else {
 			setUnassignDropActive(false);
 		}
-	}, [setDropTarget, setUnassignDropActive]);
+		if (key === 'pinned-rail-zone') {
+			setPinnedRailDropActive(
+				data?.type === 'draftPlacement'
+				|| (data?.type === 'entry' && parseDraftPlacementId(data.entry?.entryId ?? '') != null),
+			);
+		} else {
+			setPinnedRailDropActive(false);
+		}
+	}, [setDropTarget, setPinnedRailDropActive, setUnassignDropActive, parseDraftPlacementId]);
+
+	const focusPinnedPlacement = useCallback((
+		placement: DraftPlacement,
+		mode: 'details' | 'faculty' | 'section' | 'room' = 'details',
+	) => {
+		setCenterView('pre-generation');
+		setLeftTab('pinned');
+		setSelectedViolation(null);
+		setPreGenKbSource(null);
+		setKbSelectedSource(null);
+		if (mode === 'faculty' && placement.facultyId) navToFaculty(placement.facultyId);
+		if (mode === 'section') navToSection(placement.sectionId);
+		if (mode === 'room' && placement.roomId) navToRoom(placement.roomId);
+		const entry = preGenEntries.find((candidate) => candidate.entryId === `draft-placement-${placement.id}`) ?? null;
+		setSelectedEntry(entry);
+		rightPanelRef.current?.expand();
+	}, [navToFaculty, navToRoom, navToSection, preGenEntries, rightPanelRef, setCenterView, setKbSelectedSource, setLeftTab, setPreGenKbSource, setSelectedEntry, setSelectedViolation]);
 
 	const handleGlobalDragEnd = useCallback((event: DragEndEvent) => {
 		const overData = event.over?.data.current as {
@@ -987,21 +1035,41 @@ return `${entry.cohortCode}${memberCount > 0 ? ` · ${memberCount} section${memb
 			placement?: { day: string; startTime: string; endTime: string };
 		} | undefined;
 		setUnassignDropActive(false);
+		setPinnedRailDropActive(false);
 		setDropTarget(null);
 
-		// Handle drop onto the unassign zone
-		if (event.over?.id === 'unassign-zone') {
+// Handle drop onto the unassign zone
+if (event.over?.id === 'unassign-zone') {
+const data = event.active.data.current as { type?: string; placement?: DraftPlacement; entry?: ScheduledEntry } | undefined;
+setDragItem(null);
+if (data?.type === 'draftPlacement' && data.placement) {
+setPendingUnassignId(data.placement.id);
+setShowUnassignConfirm(true);
+} else if (data?.type === 'entry' && data.entry) {
+const pid = parseDraftPlacementId(data.entry.entryId);
+if (pid != null) {
+setPendingUnassignId(pid);
+setShowUnassignConfirm(true);
+}
+}
+return;
+}
+
+if (event.over?.id === 'pinned-rail-zone') {
 			const data = event.active.data.current as { type?: string; placement?: DraftPlacement; entry?: ScheduledEntry } | undefined;
-			setDragItem(null);
+			let placement: DraftPlacement | null = null;
 			if (data?.type === 'draftPlacement' && data.placement) {
-				setPendingUnassignId(data.placement.id);
-				setShowUnassignConfirm(true);
+				placement = data.placement;
 			} else if (data?.type === 'entry' && data.entry) {
-				const pid = parseDraftPlacementId(data.entry.entryId);
-				if (pid != null) {
-					setPendingUnassignId(pid);
-					setShowUnassignConfirm(true);
-				}
+				const placementId = parseDraftPlacementId(data.entry.entryId);
+				placement = placementId != null
+					? (draftBoard?.placements ?? []).find((candidate) => candidate.id === placementId) ?? null
+					: null;
+			}
+			setDragItem(null);
+			if (placement) {
+				focusPinnedPlacement(placement);
+				toast.info('Pinned session focused in the left rail.');
 			}
 			return;
 		}
@@ -1010,11 +1078,11 @@ return `${entry.cohortCode}${memberCount > 0 ? ` · ${memberCount} section${memb
 		let targetDay = overData?.day;
 		let targetStartTime = overData?.startTime;
 		let targetEndTime = overData?.endTime;
-		if (!targetDay && overData?.type === 'entry' && overData.entry) {
+		if (!targetDay && overData?.entry) {
 			targetDay = overData.entry.day;
 			targetStartTime = overData.entry.startTime;
 			targetEndTime = overData.entry.endTime;
-		} else if (!targetDay && overData?.type === 'draftPlacement' && overData.placement) {
+		} else if (!targetDay && overData?.placement) {
 			targetDay = overData.placement.day;
 			targetStartTime = overData.placement.startTime;
 			targetEndTime = overData.placement.endTime;
@@ -1024,7 +1092,7 @@ return `${entry.cohortCode}${memberCount > 0 ? ` · ${memberCount} section${memb
 			handleCellDrop(targetDay, targetStartTime, targetEndTime);
 		}
 		setDragItem(null);
-	}, [handleCellDrop, setDropTarget, setUnassignDropActive, setPendingUnassignId, setShowUnassignConfirm, parseDraftPlacementId]);
+	}, [draftBoard?.placements, focusPinnedPlacement, handleCellDrop, parseDraftPlacementId, setDropTarget, setPinnedRailDropActive, setPendingUnassignId, setShowUnassignConfirm, setUnassignDropActive, toast]);
 
 	/* -- Render -- */
 
@@ -1047,8 +1115,8 @@ return `${entry.cohortCode}${memberCount > 0 ? ` · ${memberCount} section${memb
 	const selectedMapBuildingFloors = selectedMapBuilding ? Array.from({ length: selectedMapBuilding.floorCount }, (_, i) => selectedMapBuilding.floorCount - i) : [];
 	const contractWarnings = Array.from(new Set([...(summary?.contractWarnings ?? []), ...(sectionSummary?.contractWarnings ?? [])]));
 	const { leftRailContentContext, centerWorkspaceContext, rightPanelContext, headerContext, overlaysContext } = (() => {
-		const leftRailContentContext = buildLeftRailContext({ leftTab, isPreGenerationWorkspace, hardViolationCount, topBlockers, violations, handleViolationSelect, setSeverityFilter, VIOLATION_LABELS, violationSearch, setViolationSearch, filteredViolations, violationsByCode, selectedViolation, setDrawerViolation, formatConstraintMessage, draftBoard, isDesktop, setDragItem, toast, summary, filteredUnassignedItems, programKindFilteredUnassignedItems, unassignedReasonFilter, setUnassignedReasonFilter, resolveEntryProgramType, resolveEntryProgramCode, sectionLabel, subjectLabel, kbSelectedSource, followUps, expandedUnassigned, setExpandedUnassigned, unassignedFixSuggestions, fixLoading, schoolYearId, runs, selectedRunId, setFixLoading, setUnassignedFixSuggestions, entryContextLabel, previewEdit, setDrawerUnassigned, setFollowUps, showSoftConfirm, unassignDropActive, setUnassignDropActive, fetchDraftBoardSummary, preGenPending, pinsSearch, setPinsSearch, pinsGradeFilter, setPinsGradeFilter, pinsSectionFilter, setPinsSectionFilter, pinsSubjectFilter, setPinsSubjectFilter, getDraggedDraftPlacementId, dragItem, setPendingUnassignId, setShowUnassignConfirm, pinsQueuePage, setPinsQueuePage, preGenKbSource, setPreGenKbSource, setKbSelectedSource, rightPanelRef, selectedEntry, setSelectedEntry, setSelectedViolation, preGenEntries, gradeForSection, formatFacultyInitials, roomLabelShort, roomRequestSummary, requestSearch, setRequestSearch, requestStatusFilter, setRequestStatusFilter, requestDecisionFilter, setRequestDecisionFilter, roomRequestError, roomRequestLoading, filteredRoomRequests, selectedRequestId, focusRequestInGrid, openRequestPreview, isPrivilegedUser });
-		const centerWorkspaceContext = buildCenterWorkspaceContext({ centerView, selectedEntry, violationIndex, followUps, toggleFollowUp, exitPolicyView, handleRefresh, schoolYearId, pendingAction, roomMap, facultyMap, draft, previewEdit, commitEdit, previewLoading, commitLoading, subjectLabel, facultyLabel, sectionLabel, gradeForSection, roomLabel, isStaleRoom, timeSlots, preGenOnboarding, setCenterView, buildings, mapBuildingId, setMapBuildingId, openBuildingWorkspace, selectedMapBuilding, selectedMapBuildingFloors, mapRoomId, openRoomGridWorkspace, draftBoard, runs, entityFilter, pivotLabel, viewMode, setPreGenOnboarding, gridEntries, highlightedEntryIds, handleEntryClick, entryContextLabel, formatFacultyInitials, roomLabelShort, dragItem, kbSelectedSource, handleKbPlace, cellConflictMap, navToFaculty, navToSection, navToRoom, dropTarget, setDropTarget, preGenPending, preGenPreviewLoading, preGenPreviewError, preGenPreview, commitPreGenPending, preGenSaving, setPreGenPending, setPreGenPreview, setPreGenPreviewError, setPreGenAllowSoftOverride });
+		const leftRailContentContext = buildLeftRailContext({ leftTab, isPreGenerationWorkspace, hardViolationCount, topBlockers, violations, handleViolationSelect, setSeverityFilter, VIOLATION_LABELS, violationSearch, setViolationSearch, filteredViolations, violationsByCode, selectedViolation, setDrawerViolation, formatConstraintMessage, draftBoard, isDesktop, setDragItem, toast, summary, filteredUnassignedItems, programKindFilteredUnassignedItems, unassignedReasonFilter, setUnassignedReasonFilter, resolveEntryProgramType, resolveEntryProgramCode, sectionLabel, subjectLabel, kbSelectedSource, followUps, expandedUnassigned, setExpandedUnassigned, unassignedFixSuggestions, fixLoading, schoolYearId, runs, selectedRunId, setFixLoading, setUnassignedFixSuggestions, entryContextLabel, previewEdit, setDrawerUnassigned, setFollowUps, showSoftConfirm, unassignDropActive, setUnassignDropActive, pinnedRailDropActive, fetchDraftBoardSummary, preGenPending, pinsSearch, setPinsSearch, pinsGradeFilter, setPinsGradeFilter, pinsSectionFilter, setPinsSectionFilter, pinsSubjectFilter, setPinsSubjectFilter, getDraggedDraftPlacementId, dragItem, setPendingUnassignId, setShowUnassignConfirm, pinsQueuePage, setPinsQueuePage, preGenKbSource, setPreGenKbSource, setKbSelectedSource, rightPanelRef, selectedEntry, setSelectedEntry, setSelectedViolation, preGenEntries, gradeForSection, formatFacultyInitials, roomLabelShort, roomRequestSummary, requestSearch, setRequestSearch, requestStatusFilter, setRequestStatusFilter, requestDecisionFilter, setRequestDecisionFilter, roomRequestError, roomRequestLoading, filteredRoomRequests, selectedRequestId, focusRequestInGrid, openRequestPreview, isPrivilegedUser, focusPinnedPlacement });
+		const centerWorkspaceContext = buildCenterWorkspaceContext({ centerView, selectedEntry, violationIndex, followUps, toggleFollowUp, exitPolicyView, handleRefresh, schoolYearId, pendingAction, roomMap, facultyMap, draft, previewEdit, commitEdit, previewLoading, commitLoading, subjectLabel, facultyLabel, sectionLabel, gradeForSection, roomLabel, isStaleRoom, timeSlots, preGenOnboarding, setCenterView, buildings, mapBuildingId, setMapBuildingId, openBuildingWorkspace, selectedMapBuilding, selectedMapBuildingFloors, mapRoomId, openRoomGridWorkspace, draftBoard, runs, entityFilter, pivotLabel, viewMode, setPreGenOnboarding, gridEntries, highlightedEntryIds, handleEntryClick, entryContextLabel, formatFacultyInitials, roomLabelShort, dragItem, kbSelectedSource, handleKbPlace, cellConflictMap, navToFaculty, navToSection, navToRoom, preGenPending, preGenPreviewLoading, preGenPreviewError, preGenPreview, commitPreGenPending, preGenSaving, setPreGenPending, setPreGenPreview, setPreGenPreviewError, setPreGenAllowSoftOverride });
 		const rightPanelContext = buildRightPanelContext({ rightPanelRef, setIsRightCollapsed, isRightCollapsed, isPreGenerationWorkspace, preGenKbSource, selectedEntry, setPreGenKbSource, setKbSelectedSource, initials, facultyMap, formatFacultyInitials, isDesktop, subjectLabel, toggleFollowUp, followUps, setSelectedEntry, gradeForSection, violationIndex, sectionLabel, facultyLabel, roomLabel, roomRequestSummary, previewResult, formatConstraintMessage, violationLabels: VIOLATION_LABELS, violationExplanations: VIOLATION_EXPLANATIONS, setSelectedViolation, toast, draftBoard, parseDraftPlacementId, deletingPlacementId, setPendingUnassignId, setShowUnassignConfirm, enterManualEditView });
 		const headerContext = buildHeaderContext({ isPreGenerationWorkspace, activeGeneratedRunId, selectedRunId, handleRunChange, runs, centerView, newDraftLoading, schoolYearId, handleStartNewPreGenerationDraft, draftBoard, openPreGenerationWorkspace, returnToGeneratedRun, generating, loading, handleTriggerGenerate, draft, hardCount, setPublishAcknowledged, setShowPublishDialog, exitPolicyView, switchCenterViewWithGuard, enterPolicyView, openMapWorkspace, handleRefresh, revertLoading, editHistory, revertLastEdit, setShowEditHistory, tutorial, summary, statusColor, formatDuration, formatTimestamp, contractWarnings, viewMode, setViewMode, setEntityFilter, setSelectedEntry, setSelectedViolation, setPreGenKbSource, setKbSelectedSource, entityFilter, groupedPivotEntities, pivotLabel, programFilter, setProgramFilter, entryKindFilter, setEntryKindFilter, violations, severityFilter, setSeverityFilter, softCount });
 		const dialogContext = buildDialogContext({ showUnassignConfirm, setShowUnassignConfirm, setPendingUnassignId, pendingUnassignId, unassignDraftPlacement, showGenerateConfirm, setShowGenerateConfirm, draftBoardSummary, followUps, confirmGenerate, showResetDraftDialog, setShowResetDraftDialog, openPreGenerationWorkspace, showLeavePreGenDialog, setShowLeavePreGenDialog, pendingCenterSwitch, setPendingCenterSwitch, requestPreview, requestPreviewLoading, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason, requestPreviewHardConflicts, requestPreviewSoftWarnings, requestAppeals, appealsLoading, isPrivilegedUser, updateAppealStatus, appealReason, appealSubmitting, submitAppeal, requestReviewerNotes, setRequestReviewerNotes, requestReviewSaving, reviewRoomRequest, generating, generationElapsed, showPublishDialog, setShowPublishDialog, softCount, handlePublishConfirm, showPreGenConfirm, setShowPreGenConfirm, setPreGenConfirmCtx, setConfirmPreview, setConfirmRawPreview, setConfirmPreviewError, setConfirmAllowSoftOverride, setConfirmAllowDailyOverride, preGenConfirmCtx, confirmFacultyId, setConfirmFacultyId, confirmPreview, confirmRoomId, setConfirmRoomId, facultyMap, roomMap, confirmPreviewLoading, confirmPreviewError, confirmDisplacedPlacement, toast, openSwapPrompt, confirmAllowDailyOverride, confirmSaving, commitConfirmPlacement, showSwapConfirm, setShowSwapConfirm, setSwapAction, swapAction, formatFacultyInitials, roomLabelShort, subjectLabel, sectionLabel, swapSaving, executeSwapAction, swapPreview, regularSwapPending, setRegularSwapPending, regularSwapSaving, executeRegularSwap, showSoftConfirm, setShowSoftConfirm, softConfirmWarnings, commitLoading, formatConstraintMessage, setPendingCommitProposal, setPreviewResult, setSoftConfirmWarnings, setDragItem, pendingCommitProposal, commitEdit, showAssignmentPicker, setShowAssignmentPicker, setAssignPickerTarget, assignPickerTarget, assignPickerFacultyId, setAssignPickerFacultyId, assignPickerRoomId, setAssignPickerRoomId, confirmAssignmentPicker, showEditHistory, setShowEditHistory, editHistory });
@@ -1062,11 +1130,11 @@ return `${entry.cohortCode}${memberCount > 0 ? ` · ${memberCount} section${memb
 				<ScheduleReviewWorkspaceHeader context={headerContext} />
 				<ScheduleReviewWorkspaceBody context={{ leftPanelRef, setIsLeftCollapsed, isLeftCollapsed, isPreGenerationWorkspace, leftTab, setLeftTab, violations, summary, roomRequestSummary, leftRailContentContext, centerWorkspaceContext, rightPanelContext }} />
 				{DEBUG_PREGEN_DND && debugInfo && (
-					<div className="fixed bottom-2 right-2 z-[9999] rounded border border-yellow-400 bg-yellow-50 px-2 py-1 text-[10px] font-mono text-yellow-900 shadow pointer-events-none select-none">
+					<div className="fixed bottom-2 right-2 z-9999 rounded border border-yellow-400 bg-yellow-50 px-2 py-1 text-[10px] font-mono text-yellow-900 shadow pointer-events-none select-none">
 						<span className="font-bold">DnD DBG</span>
-						{' · '}type: <span className="font-bold">{debugInfo.type}</span>
-						{' · '}branch: <span className="font-bold">{debugInfo.branch}</span>
-						{' · '}suppress: <span className="font-bold">{String(debugInfo.suppress)}</span>
+						{' Â· '}type: <span className="font-bold">{debugInfo.type}</span>
+						{' Â· '}branch: <span className="font-bold">{debugInfo.branch}</span>
+						{' Â· '}suppress: <span className="font-bold">{String(debugInfo.suppress)}</span>
 					</div>
 				)}
 				<DragOverlay dropAnimation={null}>
@@ -1088,3 +1156,4 @@ return `${entry.cohortCode}${memberCount > 0 ? ` · ${memberCount} section${memb
 		</div>
 	);
 }
+

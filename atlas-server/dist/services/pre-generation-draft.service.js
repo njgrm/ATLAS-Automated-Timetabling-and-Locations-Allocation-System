@@ -426,19 +426,23 @@ export async function previewPlacement(schoolId, schoolYearId, input) {
         throw err(404, 'PLACEMENT_NOT_FOUND', 'Draft placement was not found or is no longer editable.');
     }
     const demandItem = validateInputOrThrow({ ...input, entryKind: input.entryKind ?? existingPlacement?.entryKind ?? 'SECTION' }, ctx);
-    const currentEntries = buildExistingEntries(ctx);
+    const excludedPlacementIds = Array.from(new Set([
+        ...(input.excludePlacementIds ?? []),
+        ...(input.placementId != null ? [input.placementId] : []),
+    ]));
+    const currentEntries = buildExistingEntries(ctx, excludedPlacementIds.length > 0 ? excludedPlacementIds : undefined);
     const currentValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, currentEntries, ctx));
     const candidateEntry = asScheduledEntry({
         ...input,
         entryKind: input.entryKind ?? existingPlacement?.entryKind ?? 'SECTION',
         cohortCode: input.cohortCode ?? existingPlacement?.cohortCode ?? null,
     }, `draft-preview-${input.placementId ?? 'new'}`, demandItem);
-    const nextEntries = [...buildExistingEntries(ctx, input.placementId != null ? [input.placementId] : []), candidateEntry];
+    const nextEntries = [...currentEntries, candidateEntry];
     const nextValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, nextEntries, ctx));
     const hardViolations = nextValidation.violations.filter((violation) => violation.severity === 'HARD');
     const softViolations = nextValidation.violations.filter((violation) => violation.severity === 'SOFT');
     // Daily load band computation (independent of policy maxTeachingMinutesPerDay)
-    const existingDailyMinutes = computeFacultyDailyMinutes(input.facultyId, input.day, buildExistingEntries(ctx, input.placementId != null ? [input.placementId] : []));
+    const existingDailyMinutes = computeFacultyDailyMinutes(input.facultyId, input.day, currentEntries);
     const candidateDuration = timeToMinutes(input.endTime) - timeToMinutes(input.startTime);
     const dailyMinutesAfter = existingDailyMinutes + Math.max(0, candidateDuration);
     const dailyLoadBand = classifyDailyLoadBand(dailyMinutesAfter);

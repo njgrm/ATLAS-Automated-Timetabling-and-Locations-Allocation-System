@@ -99,8 +99,8 @@ export type ScheduleReviewWorkspaceBodyContext = {
 	setIsLeftCollapsed: Dispatch<SetStateAction<boolean>>;
 	isLeftCollapsed: boolean;
 	isPreGenerationWorkspace: boolean;
-	leftTab: 'violations' | 'unassigned' | 'locks' | 'requests';
-	setLeftTab: (value: 'violations' | 'unassigned' | 'locks' | 'requests') => void;
+	leftTab: 'violations' | 'unassigned' | 'pinned' | 'requests';
+	setLeftTab: (value: 'violations' | 'unassigned' | 'pinned' | 'requests') => void;
 	violations: unknown[];
 	summary: { unassignedCount?: number } | null;
 	roomRequestSummary: { counts?: { pending?: number } } | null;

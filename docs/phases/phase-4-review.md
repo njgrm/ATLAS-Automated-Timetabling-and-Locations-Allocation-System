@@ -277,6 +277,53 @@ These thresholds apply when evaluating **whether a proposed pre-generation place
 | `npm --prefix atlas-server run test:wave4.3` | PASS (33/33) |
 | Manual bridged QA for pinned swap / generate-from-pre-gen / back-to-run path | Pending live session |
 
+## Wave 4.5c Follow-up — Grid Drag Usability + Scoped Swap Preview + Pinned Rail UX (2026-05-06)
+- Pre-generation preview requests now accept `excludePlacementIds`, allowing the client to simulate queue-to-occupied displacement without previewing against the occupied slot.
+- `atlas-client/src/hooks/useTimetableMutations.ts` now loads scoped per-leg swap previews for pinned-to-pinned moves and a displacement-aware preview for queue-to-occupied moves, replacing the old global dialog warning surface.
+- Grid drags for draft placements now normalize to `draftPlacement` drag items at drag start, so in-grid pinned drags follow the same swap/open-confirm path as left-rail pins.
+- The left rail now exposes a dedicated `Pinned Sessions` drop zone plus Room / Section / Faculty pivot buttons for each pinned draft entry.
+- `atlas-server/src/__tests__/wave4-pre-generation-draft.test.ts` source guards were updated to verify the new displaced-slot preview flow instead of the old client atomic-preview callsite.
+
+### Wave 4.5c follow-up verification
+
+| Step | Result |
+|------|--------|
+| `npx tsc --noEmit` (atlas-client) | PASS |
+| `npm --prefix atlas-client run build` | PASS |
+| `npm --prefix atlas-server run build` | PASS |
+| `npm --prefix atlas-server run test:wave4.3` | PASS (34/34) |
+| Manual bridged QA for follow-up drag/swap/pinned-rail flows | Blocked: EnrollPro `admin@deped.edu.ph` / `Admin2026!` returned `Invalid email or password`, so same-tab bridge auth could not be established |
+
+## Wave 4.5c Follow-up 2 — Drag Source Visibility + Pinned Panel Split + Swap Readability (2026-05-06)
+- In-grid draft placement drags now resolve directly from `placementId` payloads and hide the source card while dragging, so pinned sessions no longer appear visually stuck inside their original cells during a drag.
+- The pre-generation left rail now treats `Unassigned`, `Pinned`, and `Requests` as first-class tabs; pinned sessions are no longer appended under the queue panel.
+- Shared search and filter controls now drive both the unassigned queue and the pinned-session panel in pre-generation mode.
+- The confusing pre-generation `Locked` metric was removed from the left-rail summary surface.
+- Swap confirmation now renders a wider before/after layout with session cards, slot context, human-readable labels, and larger hard/soft warning copy instead of raw preview identifiers and dense text rows.
+
+### Wave 4.5c follow-up 2 verification
+
+| Step | Result |
+|------|--------|
+| `npx tsc --noEmit` (atlas-client) | PASS |
+| `npm --prefix atlas-client run build` | PASS |
+| Manual bridged QA for grid drag visibility, pinned-tab behavior, and swap dialog readability | Blocked: local EnrollPro bridge auth still rejects the documented credentials, so protected `/timetable` verification could not be re-run |
+
+## Wave 4.5c Follow-up 3 — Grid DnD Reliability + Timetable Entry Performance (2026-05-06)
+- `TimetableGrid` draggable cards now forward the DOM ref through the draggable node, so `TooltipTrigger asChild` and `@dnd-kit/core` both bind to the same element for in-grid drag registration.
+- Drag-time cell feedback no longer relies on per-cell motion wrappers; this reduces animation work while the pointer moves across dense timetable cells.
+- Grid tooltip composition is now consolidated under a single provider instead of per-card providers to reduce provider churn during drag hover.
+- `/timetable` route entry now lazy-loads the heavy workspace module and uses `TimetableSkeleton` in route Suspense so first navigation no longer appears visually stalled.
+- Bridge-auth credential references in project knowledge/instruction files are updated to `admin@deped.edu.ph / Admin2026!`.
+
+### Wave 4.5c follow-up 3 verification
+
+| Step | Result |
+|------|--------|
+| `npx tsc --noEmit` (atlas-client) | PASS |
+| `npm --prefix atlas-client run build` | PASS |
+| Manual bridged QA for generated-run and pre-generation pinned in-grid drag | Pending live bridged session |
+
 
 ## Exit Criteria
 - Officer can resolve findings and revalidate

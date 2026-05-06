@@ -31,7 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { ViolationGroup } from '@/components/timetable/TimetableShared';
-import { DraggablePlacementPin, DraggableQueuePin, DraggableUnassignedPin, UnassignDropZone } from '@/components/timetable/DraggablePinWrappers';
+import { DraggablePlacementPin, DraggableQueuePin, DraggableUnassignedPin, PinnedRailDropZone, UnassignDropZone } from '@/components/timetable/DraggablePinWrappers';
 import type { LeftRailContentContext } from '@/components/timetable/timetableContexts.types';
 
 type LeftRailContentProps = {
@@ -89,6 +89,7 @@ setFollowUps,
 showSoftConfirm,
 unassignDropActive,
 setUnassignDropActive,
+pinnedRailDropActive,
 fetchDraftBoardSummary,
 preGenPending,
 pinsSearch,
@@ -134,6 +135,7 @@ selectedRequestId,
 focusRequestInGrid,
 openRequestPreview,
 isPrivilegedUser,
+focusPinnedPlacement,
 } = context;
 	const renderUnassignedReasonBadge = (reason: string) => {
 		const info = UNASSIGNED_REASON_LABELS[reason] ?? {
@@ -146,6 +148,44 @@ isPrivilegedUser,
 			</Badge>
 		);
 	};
+	const filteredPreGenQueue = (draftBoard?.queue ?? []).filter((item) => {
+		const matchesGrade = pinsGradeFilter === 'all' || item.gradeLevel === pinsGradeFilter;
+		const matchesSubject = pinsSubjectFilter === 'all' || item.subjectId === pinsSubjectFilter;
+		const matchesSection = pinsSectionFilter === 'all' || item.sectionId === pinsSectionFilter;
+		const q = pinsSearch.toLowerCase();
+		const matchesSearch = !q
+			|| item.subjectCode.toLowerCase().includes(q)
+			|| item.subjectName.toLowerCase().includes(q)
+			|| item.sectionName.toLowerCase().includes(q)
+			|| (item.cohortCode?.toLowerCase().includes(q) ?? false);
+		return matchesGrade && matchesSubject && matchesSection && matchesSearch;
+	});
+	const filteredPinnedPlacements = (draftBoard?.placements ?? []).filter((placement) => {
+		if (placement.status !== 'DRAFT') return false;
+		const grade = gradeForSection(placement.sectionId);
+		const matchesGrade = pinsGradeFilter === 'all' || grade === pinsGradeFilter;
+		const matchesSubject = pinsSubjectFilter === 'all' || placement.subjectId === pinsSubjectFilter;
+		const matchesSection = pinsSectionFilter === 'all' || placement.sectionId === pinsSectionFilter;
+		const q = pinsSearch.toLowerCase();
+		const matchesSearch = !q
+			|| subjectLabel(placement.subjectId).toLowerCase().includes(q)
+			|| sectionLabel(placement.sectionId).toLowerCase().includes(q)
+			|| (placement.cohortCode?.toLowerCase().includes(q) ?? false)
+			|| `${DAY_SHORT[placement.day] ?? placement.day} ${formatTime(placement.startTime)} ${formatTime(placement.endTime)}`.toLowerCase().includes(q);
+		return matchesGrade && matchesSubject && matchesSection && matchesSearch;
+	});
+	const pinSubjectOptions = Array.from(new Map([
+		...(draftBoard?.queue ?? []).map((item): [number, string] => [item.subjectId, item.subjectCode]),
+		...(draftBoard?.placements ?? []).filter((placement) => placement.status === 'DRAFT').map((placement): [number, string] => [placement.subjectId, subjectLabel(placement.subjectId)]),
+	]).entries());
+	const pinSectionOptions = Array.from(new Map([
+		...(draftBoard?.queue ?? []).filter((item) => pinsGradeFilter === 'all' || item.gradeLevel === pinsGradeFilter).map((item): [number, string] => [item.sectionId, item.sectionName]),
+		...(draftBoard?.placements ?? []).filter((placement) => {
+			if (placement.status !== 'DRAFT') return false;
+			const grade = gradeForSection(placement.sectionId);
+			return pinsGradeFilter === 'all' || grade === pinsGradeFilter;
+		}).map((placement): [number, string] => [placement.sectionId, sectionLabel(placement.sectionId)]),
+	]).entries());
 return (
 <>{leftTab === 'violations' && !isPreGenerationWorkspace ? (
 						<div id="panel-violations" role="tabpanel" aria-labelledby="tab-violations" className="flex flex-col flex-1 min-h-0">
@@ -626,13 +666,13 @@ return (
 								)}
 							</div>
 						</ScrollArea>
-					) : leftTab === 'locks' && isPreGenerationWorkspace ? (
-						<div id="panel-locks" role="tabpanel" aria-labelledby="tab-locks" className="flex flex-col flex-1 min-h-0">
+					) : isPreGenerationWorkspace && (leftTab === 'unassigned' || leftTab === 'pinned') ? (
+						<div id={leftTab === 'pinned' ? 'panel-pinned' : 'panel-unassigned'} role="tabpanel" aria-labelledby={leftTab === 'pinned' ? 'tab-pinned' : 'tab-unassigned'} className="flex flex-col flex-1 min-h-0">
 							<div className="shrink-0 border-b border-border px-3 py-2">
 								<div className="flex items-center justify-between gap-2">
 									<div className="flex items-center gap-1.5">
 										<Lock className="size-3.5 text-primary" />
-										<span className="text-xs font-semibold">Pre-Generation Sources</span>
+										<span className="text-xs font-semibold">Pre-Generation Draft</span>
 									</div>
 									<Button
 										variant="outline"
@@ -659,14 +699,6 @@ return (
 												<Badge variant="secondary" className="h-5 px-2 text-[0.625rem] cursor-default">{draftBoard?.counts.draft ?? 0} pinned</Badge>
 											</TooltipTrigger>
 											<TooltipContent className="max-w-48 text-xs">Sessions placed in the draft grid. These become anchors when schedule generation runs.</TooltipContent>
-										</Tooltip>
-									</TooltipProvider>
-									<TooltipProvider>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<Badge variant="secondary" className="h-5 px-2 text-[0.625rem] cursor-default">{draftBoard?.counts.lockedForRun ?? 0} locked</Badge>
-											</TooltipTrigger>
-											<TooltipContent className="max-w-48 text-xs">Sessions locked to a specific generated run. Cannot be edited until the run is reset.</TooltipContent>
 										</Tooltip>
 									</TooltipProvider>
 									{preGenPending ? <Badge className="h-5 px-2 text-[0.625rem]">Pending preview</Badge> : null}
@@ -704,7 +736,7 @@ return (
 										<SelectTrigger className="h-7 flex-1 min-w-0 text-[0.625rem]"><SelectValue placeholder="Subject" /></SelectTrigger>
 										<SelectContent>
 											<SelectItem value="all">All subjects</SelectItem>
-											{Array.from(new Map((draftBoard?.queue ?? []).map((item) => [item.subjectId, item.subjectCode])).entries()).map(([id, code]) => (
+											{pinSubjectOptions.map(([id, code]) => (
 												<SelectItem key={id} value={String(id)}>{code}</SelectItem>
 											))}
 										</SelectContent>
@@ -713,10 +745,7 @@ return (
 										<SelectTrigger className="h-7 flex-1 min-w-0 text-[0.625rem]"><SelectValue placeholder="Section" /></SelectTrigger>
 										<SelectContent>
 											<SelectItem value="all">All sections</SelectItem>
-											{Array.from(new Map([
-												...(draftBoard?.queue ?? []).filter((item) => pinsGradeFilter === 'all' || item.gradeLevel === pinsGradeFilter).map((item): [number, string] => [item.sectionId, item.sectionName]),
-												...(draftBoard?.placements ?? []).filter((p) => p.status === 'DRAFT').map((p): [number, string] => [p.sectionId, sectionLabel(p.sectionId)]),
-											]).entries()).map(([id, name]) => (
+											{pinSectionOptions.map(([id, name]) => (
 												<SelectItem key={id} value={String(id)}>{name}</SelectItem>
 											))}
 										</SelectContent>
@@ -731,31 +760,16 @@ return (
 							)}
 							<ScrollArea className="flex-1 min-h-0">
 								<div className="space-y-3 p-3">
-									<UnassignDropZone
-										className={cn(
-											'space-y-1 rounded-md border border-transparent transition-colors',
-											unassignDropActive ? 'border-destructive/60 bg-destructive/5' : '',
-										)}
-									>
-										<p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">Unassigned</p>
-										{unassignDropActive && (
-											<div className="rounded border border-destructive/50 bg-destructive/10 px-2 py-1 text-[0.625rem] text-destructive">
-												Drop here to unassign the dragged pinned session.
+									{leftTab === 'unassigned' ? (
+										<>
+											<div className="space-y-1">
+												<p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">Unassigned Sessions</p>
+												<p className="text-[0.6875rem] text-muted-foreground">Drag from here into the grid to pin a draft session.</p>
 											</div>
-										)}
-										{/* Wave 4.5 H: responsive 2-col grid with search + grade filter */}
-										<div className="grid gap-1.5" style={{gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))'}}>
-										{(draftBoard?.queue ?? [])
-											.filter((item) => {
-												const matchesGrade = pinsGradeFilter === 'all' || item.gradeLevel === pinsGradeFilter;
-												const matchesSubject = pinsSubjectFilter === 'all' || item.subjectId === pinsSubjectFilter;
-												const matchesSection = pinsSectionFilter === 'all' || item.sectionId === pinsSectionFilter;
-												const q = pinsSearch.toLowerCase();
-												const matchesSearch = !q || item.subjectCode.toLowerCase().includes(q) || item.subjectName.toLowerCase().includes(q) || item.sectionName.toLowerCase().includes(q) || (item.cohortCode?.toLowerCase().includes(q) ?? false);
-												return matchesGrade && matchesSubject && matchesSection && matchesSearch;
-											})
-											.slice(0, pinsQueuePage)
-											.map((item) => {
+											<div className="grid gap-1.5" style={{gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))'}}>
+											{filteredPreGenQueue
+												.slice(0, pinsQueuePage)
+												.map((item) => {
 											const key = `${item.assignmentKey}-${item.sessionNumber}`;
 											const selected = preGenKbSource?.type === 'draftQueue' && preGenKbSource.item.assignmentKey === item.assignmentKey && preGenKbSource.item.sessionNumber === item.sessionNumber;
 											return (
@@ -799,28 +813,58 @@ return (
 													</div>
 												</DraggableQueuePin>
 											);
-										})}
-										</div>
-										{/* Wave 4.5b item 2: load more pagination */}
-										{(draftBoard?.queue ?? []).filter((item) => {
-											const matchesGrade = pinsGradeFilter === 'all' || item.gradeLevel === pinsGradeFilter;
-											const matchesSubject = pinsSubjectFilter === 'all' || item.subjectId === pinsSubjectFilter;
-											const matchesSection = pinsSectionFilter === 'all' || item.sectionId === pinsSectionFilter;
-											const q = pinsSearch.toLowerCase();
-											const matchesSearch = !q || item.subjectCode.toLowerCase().includes(q) || item.subjectName.toLowerCase().includes(q) || item.sectionName.toLowerCase().includes(q) || (item.cohortCode?.toLowerCase().includes(q) ?? false);
-											return matchesGrade && matchesSubject && matchesSection && matchesSearch;
-										}).length > pinsQueuePage && (
+												})}
+											</div>
+											{filteredPreGenQueue.length > pinsQueuePage && (
 											<button type="button" className="mt-1 w-full rounded border border-dashed border-border py-1.5 text-center text-[0.6875rem] text-muted-foreground hover:bg-muted/30 transition-colors" onClick={() => setPinsQueuePage((p) => p + 30)}>
 												Load more
 											</button>
 										)}
-										{(draftBoard?.queue.length ?? 0) === 0 ? (
+											{(draftBoard?.queue.length ?? 0) === 0 ? (
 											<p className="rounded border border-dashed border-border px-2 py-3 text-center text-[0.6875rem] text-muted-foreground">No unassigned pre-generation demand remains.</p>
-										) : null}
-									</UnassignDropZone>
-									<div className="space-y-1">
-										<p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">Pinned / Existing Draft Entries</p>
-										{(draftBoard?.placements ?? []).filter((placement) => placement.status === 'DRAFT').map((placement) => {
+											) : filteredPreGenQueue.length === 0 ? (
+											<p className="rounded border border-dashed border-border px-2 py-3 text-center text-[0.6875rem] text-muted-foreground">No unassigned items match the current search and filters.</p>
+											) : null}
+										</>
+									) : (
+										<>
+											<UnassignDropZone
+												className={cn(
+													'space-y-1 rounded-md border border-transparent transition-colors',
+													unassignDropActive ? 'border-destructive/60 bg-destructive/5' : '',
+												)}
+											>
+												<p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">Unassign Drop Zone</p>
+												{unassignDropActive ? (
+													<div className="rounded border border-destructive/50 bg-destructive/10 px-2 py-1 text-[0.6875rem] text-destructive">
+														Drop here to return the dragged pinned session to the unassigned list.
+													</div>
+												) : (
+													<p className="text-[0.6875rem] text-muted-foreground">Drag a pinned session here when it should leave the grid.</p>
+												)}
+											</UnassignDropZone>
+											<PinnedRailDropZone
+												className={cn(
+													'space-y-2 rounded-md border border-transparent p-2 transition-colors',
+													pinnedRailDropActive ? 'border-primary/60 bg-primary/5' : 'border-border/60 bg-muted/20',
+												)}
+											>
+												<div className="flex items-center justify-between gap-2">
+													<div>
+														<p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">Pinned Sessions</p>
+														<p className="text-[0.6875rem] text-muted-foreground">Pinned sessions already placed in the draft grid. Drop one here to focus it in the rail.</p>
+													</div>
+													<Badge variant="outline" className="h-5 px-1.5 text-[0.5625rem]">
+														{filteredPinnedPlacements.length}
+													</Badge>
+												</div>
+												{pinnedRailDropActive && (
+													<div className="rounded border border-primary/40 bg-primary/10 px-2 py-1 text-[0.6875rem] text-primary">
+														Release to focus this pinned session and inspect alternate pivots.
+													</div>
+												)}
+												<div className="space-y-1">
+												{filteredPinnedPlacements.map((placement) => {
 											const selected = selectedEntry?.entryId === `draft-placement-${placement.id}`;
 											const placementGrade = gradeForSection(placement.sectionId);
 											const placementGradeBadge = placementGrade ? GRADE_BADGE[placementGrade] : null;
@@ -836,18 +880,16 @@ return (
 														isDesktop ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
 													)}
 												>
-													<button
-														type="button"
+													<div
+														role="button"
+														tabIndex={0}
 														className="w-full text-left"
-														onClick={() => {
-															setPreGenKbSource(null);
-															setKbSelectedSource(null);
-															const entry = preGenEntries.find((candidate) => candidate.entryId === `draft-placement-${placement.id}`);
-															if (entry) {
-																setSelectedViolation(null);
-																setSelectedEntry(entry);
+														onClick={() => { focusPinnedPlacement(placement); }}
+														onKeyDown={(event) => {
+															if (event.key === 'Enter' || event.key === ' ') {
+																event.preventDefault();
+																focusPinnedPlacement(placement);
 															}
-															if (!selected) rightPanelRef.current?.expand();
 														}}
 													>
 														<div className="flex items-center gap-1.5 min-w-0">
@@ -866,14 +908,30 @@ return (
 															<p className="truncate">{DAY_SHORT[placement.day] ?? placement.day} {formatTime(placement.startTime)}–{formatTime(placement.endTime)}</p>
 															<p className="truncate">{placement.facultyId ? formatFacultyInitials(placement.facultyId) : 'No faculty'} · {placement.roomId ? roomLabelShort(placement.roomId) : 'No room'}</p>
 														</div>
-													</button>
+														<div className="mt-1 flex flex-wrap gap-1 pl-4.5">
+															<Button type="button" variant="outline" size="sm" className="h-5 px-1.5 text-[0.5625rem]" onClick={(event) => { event.stopPropagation(); focusPinnedPlacement(placement, 'room'); }} disabled={!placement.roomId}>
+																Room
+															</Button>
+															<Button type="button" variant="outline" size="sm" className="h-5 px-1.5 text-[0.5625rem]" onClick={(event) => { event.stopPropagation(); focusPinnedPlacement(placement, 'section'); }}>
+																Section
+															</Button>
+															<Button type="button" variant="outline" size="sm" className="h-5 px-1.5 text-[0.5625rem]" onClick={(event) => { event.stopPropagation(); focusPinnedPlacement(placement, 'faculty'); }} disabled={!placement.facultyId}>
+																Faculty
+															</Button>
+														</div>
+													</div>
 												</DraggablePlacementPin>
 											);
-										})}
-										{(draftBoard?.placements ?? []).filter((placement) => placement.status === 'DRAFT').length === 0 ? (
+												})}
+												{(draftBoard?.placements ?? []).filter((placement) => placement.status === 'DRAFT').length === 0 ? (
 											<p className="rounded border border-dashed border-border px-2 py-3 text-center text-[0.6875rem] text-muted-foreground">Drop an unassigned source into the center grid to create a pinned draft entry.</p>
-										) : null}
-									</div>
+												) : filteredPinnedPlacements.length === 0 ? (
+													<p className="rounded border border-dashed border-border px-2 py-3 text-center text-[0.6875rem] text-muted-foreground">No pinned sessions match the current search and filters.</p>
+												) : null}
+												</div>
+											</PinnedRailDropZone>
+										</>
+									)}
 								</div>
 							</ScrollArea>
 						</div>

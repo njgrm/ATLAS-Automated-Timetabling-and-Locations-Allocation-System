@@ -110,8 +110,8 @@ type UseTimetableDataInput = {
 	setViewMode: React.Dispatch<React.SetStateAction<'section' | 'faculty' | 'room'>>;
 	programFilter: ProgramFilter;
 	entryKindFilter: EntryKindFilter;
-	leftTab: 'violations' | 'unassigned' | 'locks' | 'requests';
-	setLeftTab: React.Dispatch<React.SetStateAction<'violations' | 'unassigned' | 'locks' | 'requests'>>;
+	leftTab: 'violations' | 'unassigned' | 'pinned' | 'requests';
+	setLeftTab: React.Dispatch<React.SetStateAction<'violations' | 'unassigned' | 'pinned' | 'requests'>>;
 	unassignedReasonFilter: UnassignedReason | 'all';
 
 	draftBoard: DraftBoardState | null;
@@ -830,11 +830,11 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	}, [schoolYearId, loadRoomRequestSummary, requestStatusFilter, requestDecisionFilter]);
 
 	useEffect(() => {
-		if (runs.length === 0) setLeftTab('locks');
+		if (runs.length === 0) setLeftTab('pinned');
 	}, [runs.length, setLeftTab]);
 
 	useEffect(() => {
-		if (!isPreGenerationWorkspace && leftTab === 'locks') setLeftTab(runs.length === 0 ? 'violations' : 'violations');
+		if (!isPreGenerationWorkspace && leftTab === 'pinned') setLeftTab('violations');
 	}, [isPreGenerationWorkspace, leftTab, runs.length, setLeftTab]);
 
 	useEffect(() => {

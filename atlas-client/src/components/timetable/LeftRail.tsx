@@ -20,8 +20,8 @@ type LeftRailProps = {
 	onCollapseChange: (collapsed: boolean) => void;
 	isCollapsed: boolean;
 	isPreGenerationWorkspace: boolean;
-	leftTab: 'violations' | 'unassigned' | 'locks' | 'requests';
-	setLeftTab: (tab: 'violations' | 'unassigned' | 'locks' | 'requests') => void;
+	leftTab: 'violations' | 'unassigned' | 'pinned' | 'requests';
+	setLeftTab: (tab: 'violations' | 'unassigned' | 'pinned' | 'requests') => void;
 	violationsCount: number;
 	unassignedCount: number;
 	pendingRequestCount: number;
@@ -79,7 +79,7 @@ export function LeftRail({
 						{isPreGenerationWorkspace && (
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<button type="button" className="flex items-center justify-center h-8 w-8 rounded hover:bg-muted transition-colors" onClick={() => { panelRef.current?.expand(); setLeftTab('locks'); }}>
+									<button type="button" className="flex items-center justify-center h-8 w-8 rounded hover:bg-muted transition-colors" onClick={() => { panelRef.current?.expand(); setLeftTab('pinned'); }}>
 										<Lock className="size-4 text-muted-foreground" />
 									</button>
 								</TooltipTrigger>
@@ -126,7 +126,6 @@ export function LeftRail({
 							aria-selected={leftTab === 'unassigned'}
 							aria-controls="panel-unassigned"
 							onClick={() => setLeftTab('unassigned')}
-							hidden={isPreGenerationWorkspace}
 							className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
 								leftTab === 'unassigned'
 									? 'text-foreground border-b-2 border-primary'
@@ -140,20 +139,20 @@ export function LeftRail({
 						</button>
 						{isPreGenerationWorkspace && (
 							<button
-								id="tab-locks"
+								id="tab-pinned"
 								type="button"
 								role="tab"
-								aria-selected={leftTab === 'locks'}
-								aria-controls="panel-locks"
-								onClick={() => setLeftTab('locks')}
+								aria-selected={leftTab === 'pinned'}
+								aria-controls="panel-pinned"
+								onClick={() => setLeftTab('pinned')}
 								className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
-									leftTab === 'locks'
+									leftTab === 'pinned'
 										? 'text-foreground border-b-2 border-primary'
 										: 'text-muted-foreground hover:text-foreground'
 								}`}
 							>
 								<Lock className="inline size-3 mr-0.5 -mt-px" />
-								Pins
+								Pinned
 							</button>
 						)}
 						<button

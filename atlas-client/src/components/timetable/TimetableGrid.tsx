@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
+import { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { HTMLAttributes, MouseEvent, TdHTMLAttributes } from 'react';
 import {
 	AlertCircle,
@@ -8,11 +8,11 @@ import {
 	GripVertical,
 	Plus,
 } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
-import { useDraggable, useDroppable } from '@dnd-kit/core';
+import { useDndMonitor, useDraggable, useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 
 import { getProgramBadgeLabel } from '@/lib/schedule-review-helpers';
+import { parseDraftPlacementId } from '@/lib/timetable-utils';
 import { cn, formatTime } from '@/lib/utils';
 import type { CellConflictInfo, ScheduledEntry, Violation, ViolationCode, ViolationSeverity } from '@/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
@@ -56,10 +56,15 @@ function entrySeverity(entryId: string, violationIndex: Map<string, Violation[]>
 
 interface DraggableEntryProps extends HTMLAttributes<HTMLDivElement> {
 	entryId: string;
-	entryData: { type: 'entry'; entry: ScheduledEntry };
+	entryData:
+		| { type: 'entry'; entry: ScheduledEntry }
+		| { type: 'draftPlacement'; entry: ScheduledEntry; placementId: number };
 }
 
-function DraggableEntry({ entryId, entryData, children, style, onClick, ...rest }: DraggableEntryProps) {
+const DraggableEntry = forwardRef<HTMLDivElement, DraggableEntryProps>(function DraggableEntry(
+	{ entryId, entryData, children, style, onClick, ...rest },
+	forwardedRef,
+) {
 	const { attributes, listeners, setNodeRef, isDragging: draggingThis, transform } = useDraggable({
 		id: entryId,
 		data: entryData,
@@ -70,8 +75,19 @@ function DraggableEntry({ entryId, entryData, children, style, onClick, ...rest 
 	// against edge cases where the synthetic click still propagates.
 	const didDragRef = useRef(false);
 	useEffect(() => {
-		if (draggingThis) didDragRef.current = true;
+		if (draggingThis) {
+			didDragRef.current = true;
+		}
 	}, [draggingThis]);
+
+	const handleNodeRef = useCallback((node: HTMLDivElement | null) => {
+		setNodeRef(node);
+		if (typeof forwardedRef === 'function') {
+			forwardedRef(node);
+		} else if (forwardedRef) {
+			forwardedRef.current = node;
+		}
+	}, [forwardedRef, setNodeRef]);
 
 	const handleClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
 		if (didDragRef.current) {
@@ -83,18 +99,27 @@ function DraggableEntry({ entryId, entryData, children, style, onClick, ...rest 
 
 	return (
 		<div
-			ref={setNodeRef}
-			{...listeners}
-			{...attributes}
+			ref={handleNodeRef}
 			{...rest}
+			{...attributes}
+			{...listeners}
 			onClick={handleClick}
 			tabIndex={0}
-			style={{ ...style, transform: CSS.Translate.toString(transform), zIndex: draggingThis ? 50 : undefined, opacity: draggingThis ? 0.4 : 1, touchAction: 'none' }}
+			style={{
+				...style,
+				transform: CSS.Translate.toString(transform),
+				zIndex: draggingThis ? 50 : undefined,
+				opacity: draggingThis ? 0 : 1,
+				touchAction: 'none',
+				willChange: draggingThis ? 'transform' : undefined,
+			}}
+			data-dnd-source-type={entryData.type}
+			data-dnd-entry-id={entryId}
 		>
 			{children}
 		</div>
 	);
-}
+});
 
 interface DroppableCellProps extends TdHTMLAttributes<HTMLTableCellElement> {
 	cellId: string;
@@ -141,8 +166,6 @@ interface TimetableGridProps {
 	onNavToFaculty: (id: number) => void;
 	onNavToSection: (id: number) => void;
 	onNavToRoom: (id: number) => void;
-	dropTarget: string | null;
-	onDropTargetChange: (targetKey: string | null) => void;
 }
 
 export const TimetableGrid = memo(function TimetableGrid({
@@ -169,9 +192,22 @@ export const TimetableGrid = memo(function TimetableGrid({
 	onNavToFaculty,
 	onNavToSection,
 	onNavToRoom,
-	dropTarget,
-	onDropTargetChange,
 }: TimetableGridProps) {
+	// Track drop target locally — avoids propagating setDropTarget up to ScheduleReviewWorkspace
+	// and causing the whole workspace to re-render on every hover during drag.
+	const [dropTarget, setDropTarget] = useState<string | null>(null);
+	useDndMonitor({
+		onDragOver(event) {
+			const key = event.over?.id ? String(event.over.id) : null;
+			setDropTarget(key);
+		},
+		onDragEnd() {
+			setDropTarget(null);
+		},
+		onDragCancel() {
+			setDropTarget(null);
+		},
+	});
 	const gridIndex = useMemo(() => {
 		const index = new Map<string, ScheduledEntry[]>();
 		for (const entry of entries) {
@@ -185,10 +221,12 @@ export const TimetableGrid = memo(function TimetableGrid({
 
 	const isDragging = dragItem !== null;
 	const hasKbSource = kbSelectedSource !== null;
+	const showHeavyTooltips = !isDragging && !hasKbSource;
 
 	return (
-		<div className="overflow-auto">
-			<table className="w-full table-fixed border-collapse text-xs min-w-160">
+		<TooltipProvider>
+			<div className="overflow-auto">
+				<table className="w-full table-fixed border-collapse text-xs min-w-160">
 				<thead>
 					<tr>
 						<th className="w-20 px-2 py-2 text-left text-muted-foreground font-medium border-b border-border">
@@ -240,7 +278,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 									}
 								} else if (isDragging || hasKbSource) {
 									dropClass = isDropOver
-										? ' ring-2 ring-primary bg-primary/5'
+											? ' ring-2 ring-emerald-400 bg-emerald-50/60'
 										: ' ring-1 ring-dashed ring-muted-foreground/20';
 								}
 
@@ -255,12 +293,12 @@ export const TimetableGrid = memo(function TimetableGrid({
 										className={`px-1 py-1 align-top border-l border-border/30 transition-all${dropClass}`}
 										onMouseEnter={() => {
 											if (hasKbSource) {
-												onDropTargetChange(key);
+												setDropTarget(key);
 											}
 										}}
 										onMouseLeave={() => {
 											if (hasKbSource && dropTarget === key) {
-												onDropTargetChange(null);
+												setDropTarget(null);
 											}
 										}}
 										onClick={() => {
@@ -269,105 +307,91 @@ export const TimetableGrid = memo(function TimetableGrid({
 											}
 										}}
 									>
-										<AnimatePresence>
-											{isDropOver && isDragging && dropFeedbackMode && (
-												<motion.div
-													initial={{ opacity: 0, y: -4 }}
-													animate={{ opacity: 1, y: 0 }}
-													exit={{ opacity: 0, y: -4 }}
-													transition={{ duration: 0.12 }}
-													className={cn(
-														'mb-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.5rem] font-semibold uppercase tracking-wide',
-														dropFeedbackMode === 'swap'
-															? 'bg-amber-100 text-amber-800'
-															: 'bg-emerald-100 text-emerald-800',
-													)}
-												>
-													{dropFeedbackMode === 'swap' ? 'Swap Preview' : 'Replace Preview'}
-												</motion.div>
-											)}
-										</AnimatePresence>
+										{isDropOver && isDragging && dropFeedbackMode && (
+											<div
+												className={cn(
+													'mb-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.5rem] font-semibold uppercase tracking-wide',
+													dropFeedbackMode === 'swap'
+														? 'bg-amber-100 text-amber-800'
+														: 'bg-emerald-100 text-emerald-800',
+												)}
+											>
+												{dropFeedbackMode === 'swap' ? 'Swap Preview' : 'Replace Preview'}
+											</div>
+										)}
 										{isDragging && cellEntries.length > 0 && (
-											<TooltipProvider>
-												<Tooltip delayDuration={150}>
-													<TooltipTrigger asChild>
-														<div className="mb-0.5 inline-flex items-center rounded-sm bg-muted px-1 py-0.5 text-[0.5rem] text-muted-foreground">
-															Occupied ({cellEntries.length})
-														</div>
-													</TooltipTrigger>
-													<TooltipContent side="right" className="z-100 max-w-72 space-y-1.5 p-2 text-xs">
-														<p className="font-semibold">Slot Occupancy</p>
-														{cellEntries.slice(0, 4).map((entry) => (
-															<p key={entry.entryId} className="text-muted-foreground leading-snug">
-																{subjectLabel(entry.subjectId)} - {sectionLabel(entry.sectionId)} - {entry.facultyId ? formatFacultyInitials(entry.facultyId) : 'No faculty'} - {roomLabelShort(entry.roomId)}
-															</p>
-														))}
-														{info?.reasons?.length ? (
-															<div className="border-t border-border/60 pt-1">
-																{info.reasons.map((reason, index) => (
-																	<p key={`${reason}-${index}`} className="text-[0.6875rem] text-foreground/80">{reason}</p>
-																))}
-															</div>
-														) : null}
-													</TooltipContent>
-												</Tooltip>
-											</TooltipProvider>
+											<div className="mb-0.5 inline-flex items-center rounded-sm bg-muted px-1 py-0.5 text-[0.5rem] text-muted-foreground">
+												Occupied ({cellEntries.length})
+											</div>
 										)}
 										{isActive && info && (info.kind === 'hard' || info.kind === 'soft') && (
-											<TooltipProvider>
-												<Tooltip delayDuration={150}>
-													<TooltipTrigger asChild>
-														<div className={cn(
-															'mb-0.5 flex h-3.5 cursor-default items-center gap-0.5 rounded-sm px-1',
-															info.kind === 'hard' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700',
-														)}>
-															{info.kind === 'hard'
-																? <AlertCircle className="size-2 shrink-0" />
-																: <AlertTriangle className="size-2 shrink-0" />
-															}
-															<span className="truncate text-[0.5rem] leading-none font-medium">
-																{info.reasons[0]?.split(':')[0] ?? info.kind}
-															</span>
+											showHeavyTooltips ? (
+											<Tooltip delayDuration={150}>
+												<TooltipTrigger asChild>
+													<div className={cn(
+														'mb-0.5 flex h-3.5 cursor-default items-center gap-0.5 rounded-sm px-1',
+														info.kind === 'hard' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700',
+													)}>
+														{info.kind === 'hard'
+															? <AlertCircle className="size-2 shrink-0" />
+															: <AlertTriangle className="size-2 shrink-0" />
+														}
+														<span className="truncate text-[0.5rem] leading-none font-medium">
+															{info.reasons[0]?.split(':')[0] ?? info.kind}
+														</span>
+													</div>
+												</TooltipTrigger>
+												<TooltipContent side="right" className="z-100 max-w-64 space-y-1.5 p-2 text-xs">
+													<p className={cn('font-semibold', info.kind === 'hard' ? 'text-red-700' : 'text-amber-700')}>
+														{info.kind === 'hard' ? 'Hard conflict' : 'Soft warning'}
+													</p>
+													{info.reasons.map((reason, reasonIndex) => (
+														<p key={reasonIndex} className="text-muted-foreground">{reason}</p>
+													))}
+													{info.displaced.length > 0 && (
+														<div className="space-y-0.5 border-t border-border/40 pt-1">
+															<p className="font-medium text-[0.625rem]">Displaces:</p>
+															{info.displaced.slice(0, 3).map((displaced, displacedIndex) => (
+																<p key={displacedIndex} className="text-[0.625rem] text-muted-foreground">
+																	{displaced.subjectName} - unassigned
+																</p>
+															))}
 														</div>
-													</TooltipTrigger>
-													<TooltipContent side="right" className="z-100 max-w-64 space-y-1.5 p-2 text-xs">
-														<p className={cn('font-semibold', info.kind === 'hard' ? 'text-red-700' : 'text-amber-700')}>
-															{info.kind === 'hard' ? 'Hard conflict' : 'Soft warning'}
-														</p>
-														{info.reasons.map((reason, reasonIndex) => (
-															<p key={reasonIndex} className="text-muted-foreground">{reason}</p>
-														))}
-														{info.displaced.length > 0 && (
-															<div className="space-y-0.5 border-t border-border/40 pt-1">
-																<p className="font-medium text-[0.625rem]">Displaces:</p>
-																{info.displaced.slice(0, 3).map((displaced, displacedIndex) => (
-																	<p key={displacedIndex} className="text-[0.625rem] text-muted-foreground">
-																		{displaced.subjectName} - unassigned
-																	</p>
-																))}
-															</div>
-														)}
-														{info.displaced.length > 0 && (
-															<div className="flex flex-wrap gap-1.5 border-t border-border/40 pt-1">
-																{Array.from(new Map(info.displaced.map((displaced) => [displaced.conflictType, displaced])).values()).map((displaced) => (
-																	<button
-																		key={displaced.conflictType}
-																		className="text-[0.625rem] text-primary underline-offset-2 hover:underline"
-																		onMouseDown={(event) => {
-																			event.stopPropagation();
-																			if (displaced.conflictType === 'faculty') onNavToFaculty(displaced.entityId);
-																			else if (displaced.conflictType === 'section') onNavToSection(displaced.entityId);
-																			else onNavToRoom(displaced.entityId);
-																		}}
-																	>
-																		- View {displaced.conflictType === 'faculty' ? 'Faculty' : displaced.conflictType === 'section' ? 'Section' : 'Room'}
-																	</button>
-																))}
-															</div>
-														)}
-													</TooltipContent>
-												</Tooltip>
-											</TooltipProvider>
+													)}
+													{info.displaced.length > 0 && (
+														<div className="flex flex-wrap gap-1.5 border-t border-border/40 pt-1">
+															{Array.from(new Map(info.displaced.map((displaced) => [displaced.conflictType, displaced])).values()).map((displaced) => (
+																<button
+																	key={displaced.conflictType}
+																	className="text-[0.625rem] text-primary underline-offset-2 hover:underline"
+																	onMouseDown={(event) => {
+																		event.stopPropagation();
+																		if (displaced.conflictType === 'faculty') onNavToFaculty(displaced.entityId);
+																		else if (displaced.conflictType === 'section') onNavToSection(displaced.entityId);
+																		else onNavToRoom(displaced.entityId);
+																	}}
+																>
+																	- View {displaced.conflictType === 'faculty' ? 'Faculty' : displaced.conflictType === 'section' ? 'Section' : 'Room'}
+																</button>
+															))}
+														</div>
+													)}
+												</TooltipContent>
+											</Tooltip>
+											) : (
+												<div className={cn(
+													'mb-0.5 flex h-3.5 cursor-default items-center gap-0.5 rounded-sm px-1',
+													info.kind === 'hard' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700',
+												)}>
+													{info.kind === 'hard'
+														? <AlertCircle className="size-2 shrink-0" />
+														: <AlertTriangle className="size-2 shrink-0" />
+													}
+													<span className="truncate text-[0.5rem] leading-none font-medium">
+														{info.reasons[0]?.split(':')[0] ?? info.kind}
+													</span>
+												</div>
+											)
 										)}
 										{isActive && info?.kind === 'self' && (
 											<div className="mb-0.5 flex h-3.5 items-center justify-center rounded-sm bg-blue-100 px-1">
@@ -403,13 +427,16 @@ export const TimetableGrid = memo(function TimetableGrid({
 												if (isHighlighted) cellClass += ' ring-2 ring-primary ring-offset-1';
 												if (isSelected) cellClass += ' ring-2 ring-foreground ring-offset-1';
 
-												return (
-													<TooltipProvider key={entry.entryId}>
-													<Tooltip delayDuration={300} open={isDragging ? false : undefined}>
-															<TooltipTrigger asChild>
+													return (
+														(() => {
+															const placementId = parseDraftPlacementId(entry.entryId);
+															const entryData = placementId != null
+																? { type: 'draftPlacement' as const, entry, placementId }
+																: { type: 'entry' as const, entry };
+															const card = (
 																<DraggableEntry
 																	entryId={entry.entryId}
-																	entryData={{ type: 'entry', entry }}
+																	entryData={entryData}
 																	role="button"
 																	onClick={(event) => {
 																		if (hasKbSource) {
@@ -426,7 +453,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 																			onEntryClick(entry);
 																		}
 																	}}
-																	className={`w-full text-left rounded px-1.5 py-1 border text-[0.625rem] leading-tight transition-all cursor-grab active:cursor-grabbing hover:opacity-80 select-none ${cellClass}`}
+																	className={`w-full text-left rounded px-1.5 py-1 border text-[0.625rem] leading-tight transition-colors cursor-grab active:cursor-grabbing hover:opacity-80 select-none ${cellClass}`}
 																>
 																	<div className="font-medium truncate flex items-center gap-1">
 																		<GripVertical className="size-2.5 text-muted-foreground/40 shrink-0" />
@@ -450,6 +477,16 @@ export const TimetableGrid = memo(function TimetableGrid({
 																		<Flag className="size-2.5 text-amber-500 inline-block ml-0.5" />
 																	)}
 																</DraggableEntry>
+															);
+
+															if (!showHeavyTooltips) {
+																return <div key={entry.entryId}>{card}</div>;
+															}
+
+															return (
+													<Tooltip key={entry.entryId} delayDuration={300}>
+															<TooltipTrigger asChild>
+																{card}
 															</TooltipTrigger>
 															<TooltipContent side="right" className="space-y-1 z-100 max-w-50">
 																<div className="font-semibold">{subjectLabel(entry.subjectId)}</div>
@@ -476,7 +513,8 @@ export const TimetableGrid = memo(function TimetableGrid({
 																})()}
 															</TooltipContent>
 														</Tooltip>
-													</TooltipProvider>
+																);
+															})()
 												);
 											})}
 											{cellEntries.length > 2 && (
@@ -489,7 +527,8 @@ export const TimetableGrid = memo(function TimetableGrid({
 						</tr>
 					))}
 				</tbody>
-			</table>
-		</div>
+				</table>
+			</div>
+		</TooltipProvider>
 	);
 });

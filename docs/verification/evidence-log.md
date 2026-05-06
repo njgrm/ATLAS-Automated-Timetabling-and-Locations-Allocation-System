@@ -23,6 +23,51 @@ Record dated implementation verification summaries here.
 
 ---
 
+### 2026-05-06 - Wave 4.5c Follow-up 4: Canonical occupied-slot swaps + drag hot-path cleanup
+- Phase: 4
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npx tsc --noEmit -p tsconfig.json` (atlas-client): PASS
+  - `npm run build` (atlas-client): PASS
+  - `npm run build` (atlas-server): PASS
+- API checks:
+  - Added `POST /api/v1/generation/:schoolId/:schoolYearId/runs/:runId/manual-edits/swap/preview` for generated-run occupied-slot swap strategy decisioning (`DIRECT_SWAP` vs `AUTO_FIX_RELOCATE`): PASS by server build and client integration.
+  - Extended `POST /api/v1/generation/:schoolId/:schoolYearId/runs/:runId/manual-edits/swap` to accept strategy + `autoFixTarget`: PASS by server build and client commit flow.
+- UI checks:
+  - Generated-run occupied-cell drops now open a canonical preview-driven swap flow (instead of immediate blind confirm), including strategy recommendation, hard/soft counts, and blocked-state confirm prevention: PASS by client typecheck/build and source inspection.
+  - Pre-generation drop flow no longer forces immediate pre-preview/commit; it stages through confirm or swap prompt to prevent repeated recomputation and toast churn during drag loops: PASS by source inspection and client typecheck/build.
+  - Global workspace drag-over no longer performs parent-level per-hover drop-target state writes (`ScheduleReviewWorkspace`), reducing render churn on drag hot paths: PASS by source inspection.
+  - Timetable drag highlight now uses an emerald confirmation ring in grid hover states: PASS by source inspection and client build.
+  - `/timetable` skeleton now renders immediately on first navigation (no initial fade delay): PASS by source inspection and client build.
+- Blocking findings:
+  - Manual bridged browser profiling capture (FPS/commit flamegraph) and render-count instrumentation screenshots were not produced in this environment.
+- Decision:
+  - Accepted for code verification with compile/build evidence; manual runtime profiling artifacts pending.
+
+### 2026-05-06 - Wave 4.5c Follow-up 3: Grid DnD reliability + timetable entry performance
+- Phase: 4
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npx tsc --noEmit` (atlas-client): PASS
+  - `npm --prefix atlas-client run build`: PASS
+- API checks:
+  - none (client behavior + knowledge documentation updates)
+- UI checks:
+  - Grid draggable entries now forward DOM refs through `TooltipTrigger asChild`, restoring `dnd-kit` node registration on in-grid cards: PASS by typecheck/build and source inspection.
+  - Drag-time grid rendering no longer uses per-cell motion drop badges and no longer instantiates per-item tooltip providers, reducing frame-drop pressure during drag: PASS by build and source inspection.
+  - `/timetable` route now lazy-loads `ScheduleReviewWorkspace` and shows `TimetableSkeleton` through Suspense while the workspace chunk loads: PASS by build output (`ScheduleReview` lightweight chunk + deferred workspace chunk).
+  - Manual bridged browser QA for generated-run and pre-generation pinned in-grid drag remains pending in this pass.
+- Blocking findings:
+  - Protected-route runtime QA still depends on successful EnrollPro bridge auth in local environment.
+- Decision:
+  - Accepted for code verification; manual bridged QA pending.
+
 ### 2026-05-06 - Wave 4.5c Pre-Generation State Machine Hardening
 - Phase: 4
 - Scope gate: PASS
@@ -46,6 +91,50 @@ Record dated implementation verification summaries here.
   - Manual bridge-auth QA is still required to confirm live drag/drop and post-generation navigation behavior in a full local runtime.
 - Decision:
   - Accepted for code verification; manual QA pending.
+
+### 2026-05-06 - Wave 4.5c Follow-up: Grid drag usability + scoped swap preview + pinned rail UX
+- Phase: 4
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npx tsc --noEmit` (atlas-client): PASS
+  - `npm --prefix atlas-client run build`: PASS
+  - `npm --prefix atlas-server run build`: PASS
+  - `npm --prefix atlas-server run test:wave4.3`: PASS (34/34)
+- API checks:
+  - `POST /api/v1/generation/:schoolId/:schoolYearId/pre-generation-drafts/preview` now accepts `excludePlacementIds` and supports displacement-aware previews without changing atomic swap commit semantics: PASS by server build plus regression source guard.
+- UI checks:
+  - In-grid draft placement drags normalize to `draftPlacement` behavior before drop resolution, matching left-rail pinned drag routing: PASS by client typecheck/build.
+  - Swap dialog now renders source-leg and displaced-leg preview results separately for pinned-to-pinned moves, and uses a displaced-slot preview for queue-to-occupied flows: PASS by client typecheck/build plus regression source guard.
+  - Left rail now exposes a dedicated `Pinned Sessions` drop zone and Room / Section / Faculty quick pivots for pinned entries: PASS by client typecheck/build.
+  - Manual bridged browser QA for the six requested follow-up interactions: BLOCKED in this environment because EnrollPro rejected the documented bridge credentials with `Invalid email or password`.
+- Blocking findings:
+  - Protected ATLAS manual QA remains blocked until bridge-auth credentials are accepted again in local EnrollPro.
+- Decision:
+  - Accepted for code verification; manual bridged QA blocked by environment auth failure.
+
+### 2026-05-06 - Wave 4.5c Follow-up 2: Drag visibility + pinned panel split + swap readability
+- Phase: 4
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npx tsc --noEmit` (atlas-client): PASS
+  - `npm --prefix atlas-client run build`: PASS
+- API checks:
+  - none (client-only follow-up)
+- UI checks:
+  - Pre-generation grid drags now hide the original source card and resolve pinned sessions from direct draft-placement payloads: PASS by client typecheck/build.
+  - Left rail now exposes first-class `Unassigned / Pinned / Requests` tabs, and pinned sessions are no longer appended beneath the queue surface: PASS by client typecheck/build.
+  - Swap confirmation now shows human-readable before/after session cards and enlarged warning copy instead of raw preview identifiers: PASS by client typecheck/build.
+  - Manual bridged browser QA for drag visibility, pinned-tab parity, and swap confirmation readability: BLOCKED in this environment because EnrollPro still rejects the documented bridge credentials.
+- Blocking findings:
+  - Protected ATLAS manual QA remains blocked until the local EnrollPro bridge-auth credentials succeed again.
+- Decision:
+  - Accepted for code verification; manual bridged QA blocked by environment auth failure.
 
 ### 2026-05-05 - Wave 4.5 Pass 6 ScheduleReview Monolith Dismantling
 - Phase: 4

@@ -10,7 +10,6 @@ import type {
 	DraftBoardState,
 	DraftPlacement,
 	DraftPlacementCommitResult,
-	DraftPlacementSwapPreview,
 	DraftPlacementSwapResult,
 	DraftQueueItem,
 	DraftReport,
@@ -33,12 +32,6 @@ import type {
 
 const DEFAULT_SCHOOL_ID = 1;
 
-// ---------------------------------------------------------------------------
-// Debug toggle — flip to false OR delete this block after diagnosis is done
-// ---------------------------------------------------------------------------
-const DEBUG_PREGEN_DND = true;
-const dbg = (...args: unknown[]) => { if (DEBUG_PREGEN_DND) console.log('[PREGEN_DND]', ...args); };
-
 type RoomInfo = {
 	id: number;
 	name: string;
@@ -55,14 +48,24 @@ type PreGenDragSource =
 	| { type: 'draftPlacement'; placement: DraftPlacement };
 
 type SwapPreviewState = {
-	atomicPreview: DraftPlacementSwapPreview | null;
 	sourcePreview: PreviewResult | null;
+	displacedPreview: PreviewResult | null;
+	loading: boolean;
+	error: string | null;
+};
+
+type RegularSwapPreviewState = {
+	directPreview: PreviewResult | null;
+	autoFixPreview: PreviewResult | null;
+	recommendedStrategy: 'DIRECT_SWAP' | 'AUTO_FIX_RELOCATE' | 'BLOCKED' | null;
+	autoFixTarget: { day: string; startTime: string; endTime: string } | null;
 	loading: boolean;
 	error: string | null;
 };
 
 export type PreGenPendingPlacement = {
 	placementId?: number;
+	excludePlacementIds?: number[];
 	entryKind: 'SECTION' | 'COHORT';
 	sectionId: number;
 	subjectId: number;
@@ -120,7 +123,7 @@ type UseTimetableMutationsInput = {
 	setNewDraftLoading: React.Dispatch<React.SetStateAction<boolean>>;
 	setDraftBoard: React.Dispatch<React.SetStateAction<DraftBoardState | null>>;
 	setDraftBoardSummary: React.Dispatch<React.SetStateAction<DraftBoardState['counts'] | null>>;
-	setLeftTab: React.Dispatch<React.SetStateAction<'violations' | 'unassigned' | 'locks' | 'requests'>>;
+	setLeftTab: React.Dispatch<React.SetStateAction<'violations' | 'unassigned' | 'pinned' | 'requests'>>;
 	setCenterView: React.Dispatch<React.SetStateAction<'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building'>>;
 	setPreGenOnboarding: React.Dispatch<React.SetStateAction<boolean>>;
 	setPreGenPending: React.Dispatch<React.SetStateAction<PreGenPendingPlacement | null>>;
@@ -247,6 +250,8 @@ export type TimetableMutationState = {
 	commitPreGenPending: () => Promise<void>;
 	/** Swap preview results loaded when swap confirm dialog opens (Fix C) */
 	swapPreview: SwapPreviewState | null;
+	regularSwapPreview: RegularSwapPreviewState | null;
+	openRegularSwapPrompt: (entryA: ScheduledEntry, entryB: ScheduledEntry) => void;
 };
 
 export function useTimetableMutations(input: UseTimetableMutationsInput): TimetableMutationState {
@@ -344,11 +349,16 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 
 	// Fix C: internal swap preview state — loaded when swap confirm dialog opens
 	const [swapPreview, setSwapPreview] = useState<SwapPreviewState | null>(null);
+	const [regularSwapPreview, setRegularSwapPreview] = useState<RegularSwapPreviewState | null>(null);
 
 	// Clear swap preview when swap action is dismissed (cancel path)
 	useEffect(() => {
 		if (!swapAction) setSwapPreview(null);
 	}, [swapAction]);
+
+	useEffect(() => {
+		if (!regularSwapPending) setRegularSwapPreview(null);
+	}, [regularSwapPending]);
 
 	const filteredRoomRequests = useMemo(() => {
 		const requests = roomRequestSummary?.requests ?? [];
@@ -585,7 +595,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				: await atlasApi.get<DraftBoardState>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts`);
 			setDraftBoard(data);
 			setDraftBoardSummary(data.counts);
-			setLeftTab('locks');
+			setLeftTab('pinned');
 			setCenterView('map');
 			setPreGenOnboarding(true);
 			try { localStorage.setItem('atlas_pregen_active', '1'); } catch { /* ignore */ }
@@ -767,40 +777,123 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setSwapAction({ source, target, displaced, displacementMode, sourceLabel });
 		setShowSwapConfirm(true);
 
-		// Load the exact server-side swap preview so dialog blocking matches commit behavior.
+		// Preview each affected leg separately so warnings are scoped to the source move
+		// and, when applicable, the displaced pinned session's return leg.
 		if (!schoolYearId) return;
-		setSwapPreview({ atomicPreview: null, sourcePreview: null, loading: true, error: null });
+		setSwapPreview({ sourcePreview: null, displacedPreview: null, loading: true, error: null });
 		void (async () => {
 			try {
+				const sourcePending = buildPreGenPendingPlacement(
+					source,
+					target.day,
+					target.startTime,
+					target.endTime,
+					target.facultyId,
+					target.roomId,
+				);
 				if (source.type === 'draftPlacement') {
-					const { data } = await atlasApi.post<DraftPlacementSwapPreview>(
-						`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/swap/preview`,
-						{
-							sourcePlacementId: source.placement.id,
-							targetPlacementId: displaced.id,
-							sourceExpectedVersion: source.placement.version,
-							targetExpectedVersion: displaced.version,
-						},
+					const displacedPending = buildPreGenPendingPlacement(
+						{ type: 'draftPlacement', placement: displaced },
+						source.placement.day,
+						source.placement.startTime,
+						source.placement.endTime,
+						source.placement.facultyId ?? target.facultyId,
+						source.placement.roomId ?? target.roomId,
 					);
-					setSwapPreview({ atomicPreview: data, sourcePreview: null, loading: false, error: null });
+					const [{ data: sourcePreviewRaw }, { data: displacedPreviewRaw }] = await Promise.all([
+						atlasApi.post<PreviewResult>(
+							`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/preview`,
+							{ ...sourcePending, excludePlacementIds: [displaced.id] },
+						),
+						atlasApi.post<PreviewResult>(
+							`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/preview`,
+							{ ...displacedPending, excludePlacementIds: [source.placement.id] },
+						),
+					]);
+					setSwapPreview({
+						sourcePreview: scopePreviewToCandidate(sourcePreviewRaw, target),
+						displacedPreview: scopePreviewToCandidate(displacedPreviewRaw, {
+							day: source.placement.day,
+							startTime: source.placement.startTime,
+							endTime: source.placement.endTime,
+						}),
+						loading: false,
+						error: null,
+					});
 					return;
 				}
-				const sourcePending = buildPreGenPendingPlacement(source, target.day, target.startTime, target.endTime, target.facultyId, target.roomId);
 				const { data } = await atlasApi.post<PreviewResult>(
 					`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/preview`,
-					sourcePending,
+					{ ...sourcePending, excludePlacementIds: [displaced.id] },
 				);
 				setSwapPreview({
-					atomicPreview: null,
-					sourcePreview: data,
+					sourcePreview: scopePreviewToCandidate(data, target),
+					displacedPreview: null,
 					loading: false,
 					error: null,
 				});
 			} catch {
-				setSwapPreview({ atomicPreview: null, sourcePreview: null, loading: false, error: 'Preview unavailable.' });
+				setSwapPreview({ sourcePreview: null, displacedPreview: null, loading: false, error: 'Preview unavailable.' });
 			}
 		})();
 	}, [setSwapAction, setShowSwapConfirm, schoolYearId, buildPreGenPendingPlacement, setSwapPreview]);
+
+	const openRegularSwapPrompt = useCallback((entryA: ScheduledEntry, entryB: ScheduledEntry) => {
+		setRegularSwapPending({ entryA, entryB });
+		if (!schoolYearId || !runIdNumeric) {
+			setRegularSwapPreview({
+				directPreview: null,
+				autoFixPreview: null,
+				recommendedStrategy: null,
+				autoFixTarget: null,
+				loading: false,
+				error: 'Missing active run context.',
+			});
+			return;
+		}
+
+		setRegularSwapPreview({
+			directPreview: null,
+			autoFixPreview: null,
+			recommendedStrategy: null,
+			autoFixTarget: null,
+			loading: true,
+			error: null,
+		});
+
+		void (async () => {
+			try {
+				const { data } = await atlasApi.post<{
+					direct: PreviewResult;
+					autoFixPreview: PreviewResult | null;
+					recommendedStrategy: 'DIRECT_SWAP' | 'AUTO_FIX_RELOCATE' | 'BLOCKED';
+					autoFixTarget: { day: string; startTime: string; endTime: string } | null;
+				}>(`${apiBase}/swap/preview`, {
+					entryIdA: entryA.entryId,
+					entryIdB: entryB.entryId,
+				});
+
+				setRegularSwapPreview({
+					directPreview: data.direct,
+					autoFixPreview: data.autoFixPreview,
+					recommendedStrategy: data.recommendedStrategy,
+					autoFixTarget: data.autoFixTarget,
+					loading: false,
+					error: null,
+				});
+			} catch (error) {
+				const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+				setRegularSwapPreview({
+					directPreview: null,
+					autoFixPreview: null,
+					recommendedStrategy: null,
+					autoFixTarget: null,
+					loading: false,
+					error: message ?? 'Unable to preview swap.',
+				});
+			}
+		})();
+	}, [apiBase, runIdNumeric, schoolYearId, setRegularSwapPending]);
 
 	const runPreGenPreview = useCallback(async (pending: PreGenPendingPlacement) => {
 		if (!schoolYearId) return;
@@ -823,14 +916,10 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		day: string,
 		startTime: string,
 		endTime: string,
-		options?: { suppressConfirm?: boolean },
 	) => {
 		if (!schoolYearId) return;
-		const suppressConfirm = options?.suppressConfirm === true;
 		const candidateFacultyId = source.type === 'draftQueue' ? choosePreGenFaculty(source.item) : (source.placement.facultyId ?? 0);
 		const candidateRoomId = source.type === 'draftQueue' ? choosePreGenRoom(source.item) : (source.placement.roomId ?? 0);
-
-		dbg('stage:start', { sourceType: source.type, suppressConfirm, candidateFacultyId, candidateRoomId, day, startTime, endTime });
 
 		if (!candidateFacultyId || !candidateRoomId) {
 			toast.error('Cannot place this session yet. Select a faculty and room from a compatible context first.');
@@ -838,82 +927,26 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		}
 
 		const pending = buildPreGenPendingPlacement(source, day, startTime, endTime, candidateFacultyId, candidateRoomId);
-		dbg('pendingLabel', pending.sourceLabel);
 
 		if (source.type === 'draftPlacement') {
-			// ALWAYS check for slot conflicts first, regardless of suppressConfirm.
-			// This ensures grid-drag of a pinned entry routes to the swap modal just
-			// like a left-rail pin drag does.
 			const conflictsAtTarget = (draftBoard?.placements ?? []).filter(
 				(p) => p.status === 'DRAFT' && p.day === day && p.startTime === startTime && p.endTime === endTime && p.id !== source.placement.id,
 			);
-			dbg('targetConflicts', { count: conflictsAtTarget.length, ids: conflictsAtTarget.map((c) => c.id) });
 			if (conflictsAtTarget.length === 1) {
-				dbg('action:openSwapPrompt', { displaced: conflictsAtTarget[0]!.id });
 				openSwapPrompt(source, { day, startTime, endTime, facultyId: candidateFacultyId, roomId: candidateRoomId }, conflictsAtTarget[0]!, pending.sourceLabel);
 				return;
 			}
-			if (!suppressConfirm) {
-				// Left-rail pin drag: open confirm sheet so faculty/room can be reviewed
-				dbg('action:openConfirmSheet');
-				setConfirmFacultyId(String(candidateFacultyId));
-				setConfirmRoomId(String(candidateRoomId));
-				setConfirmPreview(null);
-				setConfirmRawPreview(null);
-				setConfirmPreviewError(null);
-				setConfirmAllowSoftOverride(false);
-				setConfirmAllowDailyOverride(false);
-				setPreGenConfirmCtx({ source, day, startTime, endTime });
-				setShowPreGenConfirm(true);
-				return;
-			}
-			// suppressConfirm=true (grid drag): placement already has faculty/room,
-			// target slot is empty — fall through to preview + commit below.
 		}
 
-		setPreGenPreviewLoading(true);
-		setPreGenPreviewError(null);
-		try {
-			const { data } = await atlasApi.post<PreviewResult>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/preview`, pending);
-			const scoped = scopePreviewToCandidate(data, { day, startTime, endTime });
-
-			if (scoped.hardViolations.length > 0 || scoped.dailyLoadBand === 'hard') {
-				const displaced = (draftBoard?.placements ?? []).filter((placement) =>
-					placement.status === 'DRAFT' && placement.day === day && placement.startTime === startTime && placement.endTime === endTime,
-				);
-				if (displaced.length === 1) {
-					dbg('action:openSwapPrompt (hard-block displaced)', { displaced: displaced[0].id });
-					openSwapPrompt(source, { day, startTime, endTime, facultyId: candidateFacultyId, roomId: candidateRoomId }, displaced[0], pending.sourceLabel);
-					return;
-				}
-				dbg('action:hardBlock', { hardViolations: scoped.hardViolations.length, dailyLoadBand: scoped.dailyLoadBand, displacedCount: displaced.length });
-				setPreviewResult(scoped);
-				setBlockerModalData(scoped.humanConflicts.filter((conflict) => conflict.severity === 'HARD'));
-				toast.info('Target slot has a blocking conflict. Move the conflicting session or choose another slot.');
-				return;
-			}
-
-			const hasSoftWarnings = scoped.dailyLoadBand === 'soft' || scoped.softViolations.length > 0;
-			dbg('action:commit', { hasSoftWarnings, softViolations: scoped.softViolations.length, suppressConfirm });
-			const { data: commitResult } = await atlasApi.post<DraftPlacementCommitResult>(
-				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/commit`,
-				pending,
-			);
-			setPreviewResult(scoped);
-			setDraftBoard(commitResult.board);
-			setDraftBoardSummary(commitResult.board.counts);
-			setSelectedEntry(null);
-			setPreGenKbSource(null);
-			setKbSelectedSource(null);
-			if (suppressConfirm && hasSoftWarnings) toast.warning('Session moved with soft warnings. Review details in the right panel.');
-			else if (hasSoftWarnings) toast.warning('Pinned session placed with soft warnings for this slot.');
-			else toast.success(source.type === 'draftPlacement' ? 'Pinned session moved.' : 'Pinned session placed.');
-		} catch (err) {
-			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-			toast.error(message ?? 'Unable to place this session.');
-		} finally {
-			setPreGenPreviewLoading(false);
-		}
+		setConfirmFacultyId(String(candidateFacultyId));
+		setConfirmRoomId(String(candidateRoomId));
+		setConfirmPreview(null);
+		setConfirmRawPreview(null);
+		setConfirmPreviewError(null);
+		setConfirmAllowSoftOverride(false);
+		setConfirmAllowDailyOverride(false);
+		setPreGenConfirmCtx({ source, day, startTime, endTime });
+		setShowPreGenConfirm(true);
 	}, [
 		schoolYearId,
 		choosePreGenFaculty,
@@ -930,15 +963,6 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setConfirmAllowDailyOverride,
 		setPreGenConfirmCtx,
 		setShowPreGenConfirm,
-		setPreGenPreviewLoading,
-		setPreGenPreviewError,
-		setPreviewResult,
-		setBlockerModalData,
-		setDraftBoard,
-		setDraftBoardSummary,
-		setSelectedEntry,
-		setPreGenKbSource,
-		setKbSelectedSource,
 	]);
 
 	const runConfirmPreview = useCallback(async () => {
@@ -1106,7 +1130,20 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		const { entryA, entryB } = regularSwapPending;
 		setRegularSwapSaving(true);
 		try {
-			const { data } = await atlasApi.post<CommitResult>(`${apiBase}/swap`, { entryIdA: entryA.entryId, entryIdB: entryB.entryId, expectedVersion: runVersion });
+			const strategy = regularSwapPreview?.recommendedStrategy === 'AUTO_FIX_RELOCATE'
+				? 'AUTO_FIX_RELOCATE'
+				: 'DIRECT_SWAP';
+			if (regularSwapPreview?.recommendedStrategy === 'BLOCKED') {
+				toast.error('No safe swap strategy is available for this occupied slot.');
+				return;
+			}
+			const { data } = await atlasApi.post<CommitResult>(`${apiBase}/swap`, {
+				entryIdA: entryA.entryId,
+				entryIdB: entryB.entryId,
+				expectedVersion: runVersion,
+				strategy,
+				autoFixTarget: strategy === 'AUTO_FIX_RELOCATE' ? regularSwapPreview?.autoFixTarget : null,
+			});
 			setDraft(data.draft);
 			if (schoolYearId && runIdNumeric) {
 				const violRes = await atlasApi.get<ViolationReport>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${runIdNumeric}/violations`);
@@ -1115,14 +1152,18 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			await fetchEditHistory();
 			setRegularSwapPending(null);
 			setSelectedEntry(null);
-			toast.success('Sessions swapped.');
+			if (strategy === 'AUTO_FIX_RELOCATE') {
+				toast.success('Swap applied with scheduler auto-fix relocation for the displaced session.');
+			} else {
+				toast.success('Sessions swapped.');
+			}
 		} catch (e: unknown) {
 			const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Swap failed.';
 			toast.error(msg);
 		} finally {
 			setRegularSwapSaving(false);
 		}
-	}, [regularSwapPending, apiBase, runVersion, setRegularSwapSaving, setDraft, schoolYearId, runIdNumeric, setViolationReport, fetchEditHistory, setRegularSwapPending, setSelectedEntry]);
+	}, [regularSwapPending, apiBase, runVersion, regularSwapPreview, setRegularSwapSaving, setDraft, schoolYearId, runIdNumeric, setViolationReport, fetchEditHistory, setRegularSwapPending, setSelectedEntry]);
 
 	const unassignDraftPlacement = useCallback(async (placementId: number) => {
 		if (!schoolYearId) return;
@@ -1200,6 +1241,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		choosePreGenRoom,
 		buildPreGenPendingPlacement,
 		openSwapPrompt,
+		openRegularSwapPrompt,
 		runPreGenPreview,
 		stagePreGenDrop,
 		runConfirmPreview,
@@ -1210,5 +1252,6 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		getDraggedDraftPlacementId,
 		commitPreGenPending,
 		swapPreview,
+		regularSwapPreview,
 	};
 }

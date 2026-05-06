@@ -952,6 +952,246 @@ export async function listManualEdits(
 	}));
 }
 
+export type SwapStrategy = 'DIRECT_SWAP' | 'AUTO_FIX_RELOCATE';
+
+export interface SwapPreviewResult {
+	entryIdA: string;
+	entryIdB: string;
+	direct: PreviewResult;
+	recommendedStrategy: 'DIRECT_SWAP' | 'AUTO_FIX_RELOCATE' | 'BLOCKED';
+	autoFixTarget: { day: string; startTime: string; endTime: string } | null;
+	autoFixPreview: PreviewResult | null;
+}
+
+function applySwapWithTarget(
+	entries: ScheduledEntry[],
+	entryA: ScheduledEntry,
+	entryB: ScheduledEntry,
+	entryBTarget?: { day: string; startTime: string; endTime: string },
+): ScheduledEntry[] {
+	const targetForB = entryBTarget ?? {
+		day: entryA.day,
+		startTime: entryA.startTime,
+		endTime: entryA.endTime,
+	};
+
+	return entries.map((entry) => {
+		if (entry.entryId === entryA.entryId) {
+			return {
+				...entry,
+				day: entryB.day,
+				startTime: entryB.startTime,
+				endTime: entryB.endTime,
+				durationMinutes: timeToMinutes(entryB.endTime) - timeToMinutes(entryB.startTime),
+			};
+		}
+		if (entry.entryId === entryB.entryId) {
+			return {
+				...entry,
+				day: targetForB.day,
+				startTime: targetForB.startTime,
+				endTime: targetForB.endTime,
+				durationMinutes: timeToMinutes(targetForB.endTime) - timeToMinutes(targetForB.startTime),
+			};
+		}
+		return entry;
+	});
+}
+
+function buildSwapPreviewFromValidation(
+	currentValidation: ValidationResult,
+	nextValidation: ValidationResult,
+	nextEntries: ScheduledEntry[],
+	refData: Awaited<ReturnType<typeof loadRunContext>>,
+	entryA: ScheduledEntry,
+	entryB: ScheduledEntry,
+	afterEntryB: { day: string; startTime: string; endTime: string },
+): PreviewResult {
+	const hardBefore = currentValidation.violations.filter((v) => v.severity === 'HARD').length;
+	const softBefore = currentValidation.violations.filter((v) => v.severity === 'SOFT').length;
+	const hardViolations = nextValidation.violations.filter((v) => v.severity === 'HARD');
+	const softViolations = nextValidation.violations.filter((v) => v.severity === 'SOFT');
+
+	return {
+		allowed: hardViolations.length === 0,
+		hardViolations,
+		softViolations,
+		violationDelta: {
+			hardBefore,
+			hardAfter: hardViolations.length,
+			softBefore,
+			softAfter: softViolations.length,
+		},
+		humanConflicts: buildHumanConflicts([...hardViolations, ...softViolations], nextEntries, refData),
+		affectedEntries: [
+			{
+				entryId: entryA.entryId,
+				subjectId: entryA.subjectId,
+				sectionId: entryA.sectionId,
+				facultyId: entryA.facultyId,
+				roomId: entryA.roomId,
+				day: entryA.day,
+				startTime: entryA.startTime,
+				endTime: entryA.endTime,
+				phase: 'before',
+				entryKind: entryA.entryKind,
+				cohortCode: entryA.cohortCode ?? null,
+				cohortName: entryA.cohortName ?? null,
+				programType: entryA.programType ?? null,
+				programCode: entryA.programCode ?? null,
+				programName: entryA.programName ?? null,
+			},
+			{
+				entryId: entryB.entryId,
+				subjectId: entryB.subjectId,
+				sectionId: entryB.sectionId,
+				facultyId: entryB.facultyId,
+				roomId: entryB.roomId,
+				day: entryB.day,
+				startTime: entryB.startTime,
+				endTime: entryB.endTime,
+				phase: 'before',
+				entryKind: entryB.entryKind,
+				cohortCode: entryB.cohortCode ?? null,
+				cohortName: entryB.cohortName ?? null,
+				programType: entryB.programType ?? null,
+				programCode: entryB.programCode ?? null,
+				programName: entryB.programName ?? null,
+			},
+			{
+				entryId: entryA.entryId,
+				subjectId: entryA.subjectId,
+				sectionId: entryA.sectionId,
+				facultyId: entryA.facultyId,
+				roomId: entryA.roomId,
+				day: entryB.day,
+				startTime: entryB.startTime,
+				endTime: entryB.endTime,
+				phase: 'after',
+				entryKind: entryA.entryKind,
+				cohortCode: entryA.cohortCode ?? null,
+				cohortName: entryA.cohortName ?? null,
+				programType: entryA.programType ?? null,
+				programCode: entryA.programCode ?? null,
+				programName: entryA.programName ?? null,
+			},
+			{
+				entryId: entryB.entryId,
+				subjectId: entryB.subjectId,
+				sectionId: entryB.sectionId,
+				facultyId: entryB.facultyId,
+				roomId: entryB.roomId,
+				day: afterEntryB.day,
+				startTime: afterEntryB.startTime,
+				endTime: afterEntryB.endTime,
+				phase: 'after',
+				entryKind: entryB.entryKind,
+				cohortCode: entryB.cohortCode ?? null,
+				cohortName: entryB.cohortName ?? null,
+				programType: entryB.programType ?? null,
+				programCode: entryB.programCode ?? null,
+				programName: entryB.programName ?? null,
+			},
+		],
+		policyImpactSummary: buildPolicyImpacts([...hardViolations, ...softViolations], refData),
+	};
+}
+
+function findAutoFixTarget(
+	entries: ScheduledEntry[],
+	entryA: ScheduledEntry,
+	entryB: ScheduledEntry,
+	refData: Awaited<ReturnType<typeof loadRunContext>>,
+	currentValidation: ValidationResult,
+	schoolId: number,
+	schoolYearId: number,
+	runId: number,
+): { target: { day: string; startTime: string; endTime: string }; preview: PreviewResult } | null {
+	const slotSet = new Set(entries.map((entry) => `${entry.day}|${entry.startTime}|${entry.endTime}`));
+	const candidates = Array.from(slotSet)
+		.map((value) => {
+			const [day, startTime, endTime] = value.split('|');
+			return { day, startTime, endTime };
+		})
+		.filter((slot) => !(slot.day === entryB.day && slot.startTime === entryB.startTime && slot.endTime === entryB.endTime));
+
+	let best: { target: { day: string; startTime: string; endTime: string }; preview: PreviewResult; softCount: number } | null = null;
+
+	for (const target of candidates) {
+		if ((timeToMinutes(target.endTime) - timeToMinutes(target.startTime)) !== entryB.durationMinutes) continue;
+		const candidateEntries = applySwapWithTarget(entries, entryA, entryB, target);
+		const candidateValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, candidateEntries, refData));
+		const candidatePreview = buildSwapPreviewFromValidation(currentValidation, candidateValidation, candidateEntries, refData, entryA, entryB, target);
+		if (candidatePreview.hardViolations.length > 0) continue;
+		const softCount = candidatePreview.softViolations.length;
+		if (!best || softCount < best.softCount) {
+			best = { target, preview: candidatePreview, softCount };
+		}
+	}
+
+	return best ? { target: best.target, preview: best.preview } : null;
+}
+
+export async function previewManualSwapEntries(
+	runId: number,
+	schoolId: number,
+	schoolYearId: number,
+	entryIdA: string,
+	entryIdB: string,
+): Promise<SwapPreviewResult> {
+	const refData = await loadRunContext(runId, schoolId, schoolYearId);
+	const { entries } = refData;
+	const entryA = entries.find((entry) => entry.entryId === entryIdA);
+	const entryB = entries.find((entry) => entry.entryId === entryIdB);
+	if (!entryA) throw err(400, 'ENTRY_NOT_FOUND', `Entry ${entryIdA} not found.`);
+	if (!entryB) throw err(400, 'ENTRY_NOT_FOUND', `Entry ${entryIdB} not found.`);
+
+	const currentValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, entries, refData));
+	const directEntries = applySwapWithTarget(entries, entryA, entryB);
+	const directValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, directEntries, refData));
+	const directPreview = buildSwapPreviewFromValidation(
+		currentValidation,
+		directValidation,
+		directEntries,
+		refData,
+		entryA,
+		entryB,
+		{ day: entryA.day, startTime: entryA.startTime, endTime: entryA.endTime },
+	);
+
+	if (directPreview.hardViolations.length === 0) {
+		return {
+			entryIdA,
+			entryIdB,
+			direct: directPreview,
+			recommendedStrategy: 'DIRECT_SWAP',
+			autoFixTarget: null,
+			autoFixPreview: null,
+		};
+	}
+
+	const autoFix = findAutoFixTarget(entries, entryA, entryB, refData, currentValidation, schoolId, schoolYearId, runId);
+	if (autoFix) {
+		return {
+			entryIdA,
+			entryIdB,
+			direct: directPreview,
+			recommendedStrategy: 'AUTO_FIX_RELOCATE',
+			autoFixTarget: autoFix.target,
+			autoFixPreview: autoFix.preview,
+		};
+	}
+
+	return {
+		entryIdA,
+		entryIdB,
+		direct: directPreview,
+		recommendedStrategy: 'BLOCKED',
+		autoFixTarget: null,
+		autoFixPreview: null,
+	};
+}
+
 // ─── Swap two entries' timeslot (atomic, no intermediate conflict) ───
 
 export async function swapManualEntries(
@@ -962,6 +1202,8 @@ export async function swapManualEntries(
 	entryIdA: string,
 	entryIdB: string,
 	expectedVersion: number,
+	strategy: SwapStrategy = 'DIRECT_SWAP',
+	autoFixTarget?: { day: string; startTime: string; endTime: string } | null,
 ): Promise<CommitResult> {
 	const refData = await loadRunContext(runId, schoolId, schoolYearId);
 	const { run, entries, unassignedItems } = refData;
@@ -975,16 +1217,14 @@ export async function swapManualEntries(
 	if (!entryA) throw err(400, 'ENTRY_NOT_FOUND', `Entry ${entryIdA} not found.`);
 	if (!entryB) throw err(400, 'ENTRY_NOT_FOUND', `Entry ${entryIdB} not found.`);
 
-	// Atomically swap day/startTime/endTime — no intermediate double-booking possible
-	const newEntries = entries.map((e) => {
-		if (e.entryId === entryIdA) {
-			return { ...e, day: entryB.day, startTime: entryB.startTime, endTime: entryB.endTime, durationMinutes: timeToMinutes(entryB.endTime) - timeToMinutes(entryB.startTime) };
-		}
-		if (e.entryId === entryIdB) {
-			return { ...e, day: entryA.day, startTime: entryA.startTime, endTime: entryA.endTime, durationMinutes: timeToMinutes(entryA.endTime) - timeToMinutes(entryA.startTime) };
-		}
-		return e;
-	});
+	const targetForB = strategy === 'AUTO_FIX_RELOCATE'
+		? (autoFixTarget ?? null)
+		: { day: entryA.day, startTime: entryA.startTime, endTime: entryA.endTime };
+	if (strategy === 'AUTO_FIX_RELOCATE' && !targetForB) {
+		throw err(400, 'INVALID_BODY', 'autoFixTarget is required when strategy=AUTO_FIX_RELOCATE.');
+	}
+
+	const newEntries = applySwapWithTarget(entries, entryA, entryB, targetForB ?? undefined);
 
 	const currentCtx = buildValidatorCtx(schoolId, schoolYearId, runId, entries, refData);
 	const currentValidation = validateHardConstraints(currentCtx);
@@ -1019,8 +1259,19 @@ export async function swapManualEntries(
 				schoolYearId,
 				actorId,
 				editType: 'SWAP_ENTRIES',
-				beforePayload: { entryIdA, entryIdB } as object,
-				afterPayload: { entryIdA: entryIdB, entryIdB: entryIdA } as object,
+				beforePayload: {
+					entryIdA,
+					entryIdB,
+					entryA: { day: entryA.day, startTime: entryA.startTime, endTime: entryA.endTime },
+					entryB: { day: entryB.day, startTime: entryB.startTime, endTime: entryB.endTime },
+				} as object,
+				afterPayload: {
+					strategy,
+					entryIdA,
+					entryIdB,
+					entryA: { day: entryB.day, startTime: entryB.startTime, endTime: entryB.endTime },
+					entryB: targetForB,
+				} as object,
 				validationSummary: { hardCount: hardAfter.length, softCount: softAfter, delta: { hardBefore, hardAfter: hardAfter.length, softBefore, softAfter } } as object,
 			},
 		}),

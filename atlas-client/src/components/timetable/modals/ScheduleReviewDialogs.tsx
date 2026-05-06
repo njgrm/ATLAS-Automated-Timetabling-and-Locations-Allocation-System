@@ -1,6 +1,7 @@
 import {
 AlertCircle,
 AlertTriangle,
+ArrowRight,
 CheckCircle2,
 Clock,
 Crosshair,
@@ -115,6 +116,7 @@ sectionLabel,
 swapSaving,
 executeSwapAction,
 swapPreview,
+regularSwapPreview,
 regularSwapPending,
 setRegularSwapPending,
 regularSwapSaving,
@@ -143,6 +145,69 @@ showEditHistory,
 setShowEditHistory,
 editHistory,
 } = context;
+
+const formatSwapSlot = (day: string, startTime: string, endTime: string) => `${DAY_SHORT[day] ?? day} ${formatTime(startTime)}-${formatTime(endTime)}`;
+const formatSessionContext = (sectionName: string, cohortCode?: string | null) => cohortCode ? `${sectionName} · ${cohortCode}` : sectionName;
+const buildPlacementLabel = (placement: { subjectId: number; sectionId: number; cohortCode?: string | null }) => ({
+	title: subjectLabel(placement.subjectId),
+	context: formatSessionContext(sectionLabel(placement.sectionId), placement.cohortCode),
+});
+const buildQueueLabel = (item: { subjectId: number; sectionName: string; cohortCode?: string | null }) => ({
+	title: subjectLabel(item.subjectId),
+	context: formatSessionContext(item.sectionName, item.cohortCode),
+});
+const humanizeSwapConflictDetail = (detail: string) => {
+	if (!swapAction) return detail;
+	let readable = detail;
+	const replaceToken = (token: string, label: string) => {
+		readable = readable.replace(new RegExp(`Entry ${token}(?=:)`, 'g'), label);
+	};
+	if (swapAction.source.type === 'draftPlacement') {
+		const sourceLabel = buildPlacementLabel(swapAction.source.placement);
+		replaceToken(`draft-preview-${swapAction.source.placement.id}`, `${sourceLabel.title} · ${sourceLabel.context}`);
+	} else {
+		const sourceLabel = buildQueueLabel(swapAction.source.item);
+		replaceToken('draft-preview-new', `${sourceLabel.title} · ${sourceLabel.context}`);
+	}
+	const displacedLabel = buildPlacementLabel(swapAction.displaced);
+	replaceToken(`draft-preview-${swapAction.displaced.id}`, `${displacedLabel.title} · ${displacedLabel.context}`);
+	return readable;
+};
+const renderSessionCard = ({
+	eyebrow,
+	title,
+	contextText,
+	slot,
+	facultyText,
+	roomText,
+	tone = 'default',
+}: {
+	eyebrow: string;
+	title: string;
+	contextText: string;
+	slot: string;
+	facultyText: string;
+	roomText: string;
+	tone?: 'default' | 'accent' | 'muted';
+}) => {
+	const toneClass = tone === 'accent'
+		? 'border-primary/30 bg-primary/5'
+		: tone === 'muted'
+			? 'border-amber-200 bg-amber-50/70'
+			: 'border-border bg-background';
+	return (
+		<div className={`rounded-lg border p-3 ${toneClass}`}>
+			<p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{eyebrow}</p>
+			<p className="mt-1 text-sm font-semibold text-foreground">{title}</p>
+			<p className="mt-1 text-sm text-muted-foreground">{contextText}</p>
+			<div className="mt-3 space-y-1.5 text-sm">
+				<div className="flex items-center gap-2 text-foreground"><Clock className="size-3.5 text-muted-foreground" />{slot}</div>
+				<div className="flex items-center gap-2 text-foreground"><Users className="size-3.5 text-muted-foreground" />{facultyText}</div>
+				<div className="flex items-center gap-2 text-foreground"><Crosshair className="size-3.5 text-muted-foreground" />{roomText}</div>
+			</div>
+		</div>
+	);
+};
 
 return (
 <>{/* -- Unassign Confirmation Dialog (E) -- */}
@@ -741,69 +806,143 @@ return (
 					setSwapAction(null);
 				}
 			}}>
-				<DialogContent className="max-w-md">
+				<DialogContent className="max-w-3xl">
 					<DialogHeader>
 						<DialogTitle className="flex items-center gap-2">
 							<RefreshCw className="size-4 text-primary" />
-							{swapAction?.displacementMode === 'to-source-slot' ? 'Switch Slots?' : 'Swap Placement?'}
+							{swapAction?.displacementMode === 'to-source-slot' ? 'Review Slot Switch' : 'Review Placement Swap'}
 						</DialogTitle>
 						<DialogDescription>
 							{swapAction
 								? swapAction.displacementMode === 'to-source-slot'
-									? `${swapAction.sourceLabel} and the session at ${DAY_SHORT[swapAction.target.day] ?? swapAction.target.day} ${formatTime(swapAction.target.startTime)}–${formatTime(swapAction.target.endTime)} will switch slots.`
-									: `${swapAction.sourceLabel} will be placed on ${DAY_SHORT[swapAction.target.day] ?? swapAction.target.day} ${formatTime(swapAction.target.startTime)}–${formatTime(swapAction.target.endTime)}.`
+									? 'Review how the two pinned sessions will trade slots before saving the switch.'
+									: 'Review the destination slot and the displaced session outcome before saving this placement.'
 								: 'Confirm swap action.'}
 						</DialogDescription>
 					</DialogHeader>
 					{swapAction && (
-						<div className="space-y-2 text-xs">
-							<div className="rounded border border-border bg-muted/20 px-2.5 py-2">
-								<p className="font-medium">Destination</p>
-								<p className="text-muted-foreground">
-									{DAY_SHORT[swapAction.target.day] ?? swapAction.target.day} {formatTime(swapAction.target.startTime)}–{formatTime(swapAction.target.endTime)}
-									{' '}· Faculty {formatFacultyInitials(swapAction.target.facultyId)} · {roomLabelShort(swapAction.target.roomId)}
-								</p>
-							</div>
+						<div className="space-y-4 text-sm">
 							{swapAction.displacementMode === 'to-source-slot' && swapAction.source.type === 'draftPlacement' ? (
-								<div className="rounded border border-blue-200 bg-blue-50 px-2.5 py-2 text-blue-900">
-									<p className="font-medium">Sessions will switch slots</p>
-									<p className="mt-0.5 text-blue-800/80">
-										{subjectLabel(swapAction.displaced.subjectId)} · {sectionLabel(swapAction.displaced.sectionId)} will move to{' '}
-										{DAY_SHORT[swapAction.source.placement.day] ?? swapAction.source.placement.day}{' '}
-										{formatTime(swapAction.source.placement.startTime)}–{formatTime(swapAction.source.placement.endTime)}.
-									</p>
-								</div>
+								<>
+									<div className="rounded-xl border border-border bg-muted/20 p-3">
+										<p className="text-sm font-semibold text-foreground">Before</p>
+										<div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
+											{renderSessionCard({
+												eyebrow: 'Current source slot',
+												title: buildPlacementLabel(swapAction.source.placement).title,
+												contextText: buildPlacementLabel(swapAction.source.placement).context,
+												slot: formatSwapSlot(swapAction.source.placement.day, swapAction.source.placement.startTime, swapAction.source.placement.endTime),
+												facultyText: swapAction.source.placement.facultyId ? formatFacultyInitials(swapAction.source.placement.facultyId) : 'No faculty assigned',
+												roomText: swapAction.source.placement.roomId ? roomLabelShort(swapAction.source.placement.roomId) : 'No room assigned',
+											})}
+											<div className="hidden justify-center md:flex"><ArrowRight className="size-5 text-muted-foreground" /></div>
+											{renderSessionCard({
+												eyebrow: 'Current destination slot',
+												title: buildPlacementLabel(swapAction.displaced).title,
+												contextText: buildPlacementLabel(swapAction.displaced).context,
+												slot: formatSwapSlot(swapAction.displaced.day, swapAction.displaced.startTime, swapAction.displaced.endTime),
+												facultyText: swapAction.displaced.facultyId ? formatFacultyInitials(swapAction.displaced.facultyId) : 'No faculty assigned',
+												roomText: swapAction.displaced.roomId ? roomLabelShort(swapAction.displaced.roomId) : 'No room assigned',
+											})}
+										</div>
+									</div>
+									<div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+										<p className="text-sm font-semibold text-foreground">After</p>
+										<div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
+											{renderSessionCard({
+												eyebrow: 'Source moves here',
+												title: buildPlacementLabel(swapAction.source.placement).title,
+												contextText: buildPlacementLabel(swapAction.source.placement).context,
+												slot: formatSwapSlot(swapAction.target.day, swapAction.target.startTime, swapAction.target.endTime),
+												facultyText: formatFacultyInitials(swapAction.target.facultyId),
+												roomText: roomLabelShort(swapAction.target.roomId),
+												tone: 'accent',
+											})}
+											<div className="hidden justify-center md:flex"><ArrowRight className="size-5 text-primary" /></div>
+											{renderSessionCard({
+												eyebrow: 'Displaced session returns here',
+												title: buildPlacementLabel(swapAction.displaced).title,
+												contextText: buildPlacementLabel(swapAction.displaced).context,
+												slot: formatSwapSlot(swapAction.source.placement.day, swapAction.source.placement.startTime, swapAction.source.placement.endTime),
+												facultyText: swapAction.source.placement.facultyId ? formatFacultyInitials(swapAction.source.placement.facultyId) : 'No faculty assigned',
+												roomText: swapAction.source.placement.roomId ? roomLabelShort(swapAction.source.placement.roomId) : 'No room assigned',
+												tone: 'accent',
+											})}
+										</div>
+									</div>
+								</>
 							) : (
-								<div className="rounded border border-amber-300 bg-amber-50 px-2.5 py-2 text-amber-900">
-									<p className="font-medium">Displaced session outcome</p>
-									<p>
-										{subjectLabel(swapAction.displaced.subjectId)} · {sectionLabel(swapAction.displaced.sectionId)} will be returned to the Unassigned queue.
-									</p>
-								</div>
+								<>
+									<div className="rounded-xl border border-border bg-muted/20 p-3">
+										<p className="text-sm font-semibold text-foreground">Placement plan</p>
+										<div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
+											{renderSessionCard({
+												eyebrow: 'Source from queue',
+												title: buildQueueLabel(swapAction.source.item).title,
+												contextText: buildQueueLabel(swapAction.source.item).context,
+												slot: 'Not yet pinned',
+												facultyText: formatFacultyInitials(swapAction.target.facultyId),
+												roomText: roomLabelShort(swapAction.target.roomId),
+											})}
+											<div className="hidden justify-center md:flex"><ArrowRight className="size-5 text-primary" /></div>
+											{renderSessionCard({
+												eyebrow: 'Destination slot',
+												title: buildQueueLabel(swapAction.source.item).title,
+												contextText: buildQueueLabel(swapAction.source.item).context,
+												slot: formatSwapSlot(swapAction.target.day, swapAction.target.startTime, swapAction.target.endTime),
+												facultyText: formatFacultyInitials(swapAction.target.facultyId),
+												roomText: roomLabelShort(swapAction.target.roomId),
+												tone: 'accent',
+											})}
+										</div>
+									</div>
+									<div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3">
+										<p className="text-sm font-semibold text-foreground">Displaced session outcome</p>
+										<div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-center">
+											{renderSessionCard({
+												eyebrow: 'Currently in destination slot',
+												title: buildPlacementLabel(swapAction.displaced).title,
+												contextText: buildPlacementLabel(swapAction.displaced).context,
+												slot: formatSwapSlot(swapAction.displaced.day, swapAction.displaced.startTime, swapAction.displaced.endTime),
+												facultyText: swapAction.displaced.facultyId ? formatFacultyInitials(swapAction.displaced.facultyId) : 'No faculty assigned',
+												roomText: swapAction.displaced.roomId ? roomLabelShort(swapAction.displaced.roomId) : 'No room assigned',
+											})}
+											<div className="hidden justify-center md:flex"><ArrowRight className="size-5 text-amber-700" /></div>
+											<div className="rounded-lg border border-amber-300 bg-background p-3">
+												<p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">After save</p>
+												<p className="mt-1 text-sm font-semibold text-foreground">Returned to unassigned</p>
+												<p className="mt-1 text-sm text-muted-foreground">This displaced session will leave the grid and return to the unassigned pre-generation list.</p>
+											</div>
+										</div>
+									</div>
+								</>
 							)}
 
 							{/* Fix C: live conflict preview for both swap legs */}
 							{swapPreview?.loading && (
-								<div className="flex items-center gap-1.5 text-[0.6875rem] text-muted-foreground">
+								<div className="flex items-center gap-1.5 text-sm text-muted-foreground">
 									<Loader2 className="size-3.5 animate-spin" />
 									Checking conflicts…
 								</div>
 							)}
 							{swapPreview && !swapPreview.loading && swapPreview.error && (
-								<div className="flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[0.6875rem] text-amber-700">
+								<div className="flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
 									<AlertTriangle className="size-3.5 shrink-0" />
 									{swapPreview.error}
 								</div>
 							)}
 							{swapPreview && !swapPreview.loading && !swapPreview.error && (() => {
 								if (swapAction.displacementMode === 'to-source-slot') {
-									const atomicPreview = swapPreview.atomicPreview;
-									const totalHard = atomicPreview?.hardViolations.length ?? 0;
-									const totalSoft = atomicPreview?.softViolations.length ?? 0;
-									if (!atomicPreview) return null;
+									const sourceHard = swapPreview.sourcePreview?.hardViolations ?? [];
+									const sourceSoft = swapPreview.sourcePreview?.softViolations ?? [];
+									const displacedHard = swapPreview.displacedPreview?.hardViolations ?? [];
+									const displacedSoft = swapPreview.displacedPreview?.softViolations ?? [];
+									const totalHard = sourceHard.length + displacedHard.length;
+									const totalSoft = sourceSoft.length + displacedSoft.length;
+									if (!swapPreview.sourcePreview || !swapPreview.displacedPreview) return null;
 									if (totalHard === 0 && totalSoft === 0) {
 										return (
-											<div className="flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[0.6875rem] text-emerald-700">
+											<div className="flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
 												<CheckCircle2 className="size-3.5 shrink-0" />
 												No additional hard conflicts detected for the two-way switch.
 											</div>
@@ -811,25 +950,39 @@ return (
 									}
 									return (
 										<div className="space-y-1.5">
-											{totalHard > 0 && (
-												<div className="rounded border border-red-200 bg-red-50 px-2.5 py-2 text-[0.6875rem] text-red-800 space-y-1">
+											{sourceHard.length > 0 && (
+												<div className="rounded border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-800 space-y-2">
 													<p className="font-semibold flex items-center gap-1">
 														<ShieldAlert className="size-3.5 shrink-0" />
-														{totalHard} hard conflict{totalHard > 1 ? 's' : ''} — switch blocked
+														Source to target: {sourceHard.length} hard conflict{sourceHard.length > 1 ? 's' : ''}
 													</p>
-													{atomicPreview.humanConflicts.filter((conflict) => conflict.severity === 'HARD').map((conflict, index) => (
-														<p key={`${conflict.code}-${index}`} className="text-[0.5625rem] text-red-700">{conflict.humanTitle}: {conflict.humanDetail}</p>
+													{swapPreview.sourcePreview.humanConflicts.filter((conflict) => conflict.severity === 'HARD').map((conflict, index) => (
+														<p key={`${conflict.code}-${index}`} className="text-xs text-red-700">{conflict.humanTitle}: {humanizeSwapConflictDetail(conflict.humanDetail)}</p>
+													))}
+												</div>
+											)}
+											{displacedHard.length > 0 && (
+												<div className="rounded border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-800 space-y-2">
+													<p className="font-semibold flex items-center gap-1">
+														<ShieldAlert className="size-3.5 shrink-0" />
+														Displaced session to source slot: {displacedHard.length} hard conflict{displacedHard.length > 1 ? 's' : ''}
+													</p>
+													{swapPreview.displacedPreview.humanConflicts.filter((conflict) => conflict.severity === 'HARD').map((conflict, index) => (
+														<p key={`${conflict.code}-${index}`} className="text-xs text-red-700">{conflict.humanTitle}: {humanizeSwapConflictDetail(conflict.humanDetail)}</p>
 													))}
 												</div>
 											)}
 											{totalSoft > 0 && totalHard === 0 && (
-												<div className="rounded border border-amber-200 bg-amber-50 px-2.5 py-2 text-[0.6875rem] text-amber-800 space-y-1">
+												<div className="rounded border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800 space-y-2">
 													<p className="font-semibold flex items-center gap-1">
 														<AlertTriangle className="size-3.5 shrink-0" />
-														{totalSoft} soft warning{totalSoft > 1 ? 's' : ''} — informational only
+														{totalSoft} soft warning{totalSoft > 1 ? 's' : ''} to review before saving
 													</p>
-													{atomicPreview.humanConflicts.filter((conflict) => conflict.severity === 'SOFT').map((conflict, index) => (
-														<p key={`${conflict.code}-${index}`} className="text-[0.5625rem] text-amber-700">{conflict.humanTitle}: {conflict.humanDetail}</p>
+													{swapPreview.sourcePreview.humanConflicts.filter((conflict) => conflict.severity === 'SOFT').map((conflict, index) => (
+														<p key={`source-${conflict.code}-${index}`} className="text-xs text-amber-700">{conflict.humanTitle}: {humanizeSwapConflictDetail(conflict.humanDetail)}</p>
+													))}
+													{swapPreview.displacedPreview.humanConflicts.filter((conflict) => conflict.severity === 'SOFT').map((conflict, index) => (
+														<p key={`${conflict.code}-${index}`} className="text-xs text-amber-700">{conflict.humanTitle}: {humanizeSwapConflictDetail(conflict.humanDetail)}</p>
 													))}
 												</div>
 											)}
@@ -842,7 +995,7 @@ return (
 								const totalSoft = srcSoft.length;
 								if (totalHard === 0 && totalSoft === 0) {
 									return (
-										<div className="flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[0.6875rem] text-emerald-700">
+										<div className="flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
 											<CheckCircle2 className="size-3.5 shrink-0" />
 											No additional conflicts detected for either slot.
 										</div>
@@ -851,24 +1004,24 @@ return (
 								return (
 									<div className="space-y-1.5">
 										{totalHard > 0 && (
-											<div className="rounded border border-red-200 bg-red-50 px-2.5 py-2 text-[0.6875rem] text-red-800 space-y-1">
+											<div className="rounded border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-800 space-y-2">
 												<p className="font-semibold flex items-center gap-1">
 													<ShieldAlert className="size-3.5 shrink-0" />
 													{totalHard} hard conflict{totalHard > 1 ? 's' : ''} — swap blocked
 												</p>
 												{swapPreview.sourcePreview?.humanConflicts.filter((c) => c.severity === 'HARD').map((c, idx) => (
-													<p key={idx} className="text-[0.5625rem] text-red-700">{c.humanTitle}: {c.humanDetail}</p>
+													<p key={idx} className="text-xs text-red-700">{c.humanTitle}: {humanizeSwapConflictDetail(c.humanDetail)}</p>
 												))}
 											</div>
 										)}
 										{totalSoft > 0 && totalHard === 0 && (
-											<div className="rounded border border-amber-200 bg-amber-50 px-2.5 py-2 text-[0.6875rem] text-amber-800 space-y-1">
+											<div className="rounded border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800 space-y-2">
 												<p className="font-semibold flex items-center gap-1">
 													<AlertTriangle className="size-3.5 shrink-0" />
-													{totalSoft} soft warning{totalSoft > 1 ? 's' : ''} — informational only
+													{totalSoft} soft warning{totalSoft > 1 ? 's' : ''} to review before saving
 												</p>
 												{swapPreview.sourcePreview?.humanConflicts.filter((c) => c.severity === 'SOFT').map((c, idx) => (
-													<p key={idx} className="text-[0.5625rem] text-amber-700">{c.humanTitle}: {c.humanDetail}</p>
+													<p key={idx} className="text-xs text-amber-700">{c.humanTitle}: {humanizeSwapConflictDetail(c.humanDetail)}</p>
 												))}
 											</div>
 										)}
@@ -888,7 +1041,11 @@ return (
 								|| !swapAction
 								|| swapPreview?.loading === true
 								|| (swapAction.displacementMode === 'to-source-slot'
-									? swapPreview?.atomicPreview?.allowed === false
+									? !swapPreview?.sourcePreview || !swapPreview?.displacedPreview
+									: !swapPreview?.sourcePreview)
+								|| (swapAction.displacementMode === 'to-source-slot'
+									? ((swapPreview?.sourcePreview?.hardViolations.length ?? 0) > 0
+										|| (swapPreview?.displacedPreview?.hardViolations.length ?? 0) > 0)
 									: (swapPreview?.sourcePreview?.hardViolations.length ?? 0) > 0)
 							}
 							onClick={() => { void executeSwapAction(); }}
@@ -904,18 +1061,71 @@ return (
 			<Dialog open={!!regularSwapPending} onOpenChange={(o) => { if (!o) setRegularSwapPending(null); }}>
 				<DialogContent className="sm:max-w-sm">
 					<DialogHeader>
-						<DialogTitle>Swap Sessions?</DialogTitle>
+						<DialogTitle>Confirm Occupied-Slot Swap</DialogTitle>
 						<DialogDescription>
 							{regularSwapPending
 								? `${subjectLabel(regularSwapPending.entryA.subjectId)} (${sectionLabel(regularSwapPending.entryA.sectionId)}) will move to ${DAY_SHORT[regularSwapPending.entryB.day] ?? regularSwapPending.entryB.day} ${formatTime(regularSwapPending.entryB.startTime)}–${formatTime(regularSwapPending.entryB.endTime)}. ${subjectLabel(regularSwapPending.entryB.subjectId)} (${sectionLabel(regularSwapPending.entryB.sectionId)}) will move to the original slot.`
 								: 'Confirm swap action.'}
 						</DialogDescription>
 					</DialogHeader>
+					{regularSwapPreview?.loading ? (
+						<div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground flex items-center gap-2">
+							<Loader2 className="size-3.5 animate-spin" />
+							Evaluating swap strategies...
+						</div>
+					) : regularSwapPreview?.error ? (
+						<div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+							{regularSwapPreview.error}
+						</div>
+					) : regularSwapPreview ? (
+						<div className="space-y-2">
+							<div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700">
+								Recommended strategy:{' '}
+								<span className="font-semibold">
+									{regularSwapPreview.recommendedStrategy === 'AUTO_FIX_RELOCATE'
+										? 'Swap with auto-fix relocation'
+										: regularSwapPreview.recommendedStrategy === 'DIRECT_SWAP'
+											? 'Direct swap'
+											: 'Blocked'}
+								</span>
+								{regularSwapPreview.autoFixTarget ? (
+									<span>
+										{' '}to {DAY_SHORT[regularSwapPreview.autoFixTarget.day] ?? regularSwapPreview.autoFixTarget.day} {formatTime(regularSwapPreview.autoFixTarget.startTime)}-{formatTime(regularSwapPreview.autoFixTarget.endTime)}.
+									</span>
+								) : null}
+							</div>
+							<div className="rounded-md border border-border/60 bg-muted/20 p-2.5 text-xs space-y-1">
+								<div className="font-medium">Direct swap impact</div>
+								<div>
+									Hard conflicts: <span className={(regularSwapPreview.directPreview?.hardViolations.length ?? 0) > 0 ? 'font-semibold text-destructive' : 'font-semibold text-emerald-600'}>{regularSwapPreview.directPreview?.hardViolations.length ?? 0}</span>
+									{' '}| Soft warnings: <span className="font-semibold">{regularSwapPreview.directPreview?.softViolations.length ?? 0}</span>
+								</div>
+							</div>
+							{regularSwapPreview.autoFixPreview ? (
+								<div className="rounded-md border border-border/60 bg-muted/20 p-2.5 text-xs space-y-1">
+									<div className="font-medium">Auto-fix impact</div>
+									<div>
+										Hard conflicts: <span className={(regularSwapPreview.autoFixPreview.hardViolations.length ?? 0) > 0 ? 'font-semibold text-destructive' : 'font-semibold text-emerald-600'}>{regularSwapPreview.autoFixPreview.hardViolations.length ?? 0}</span>
+										{' '}| Soft warnings: <span className="font-semibold">{regularSwapPreview.autoFixPreview.softViolations.length ?? 0}</span>
+									</div>
+								</div>
+							) : null}
+						</div>
+					) : null}
 					<DialogFooter className="gap-2">
 						<Button variant="outline" size="sm" onClick={() => setRegularSwapPending(null)}>Cancel</Button>
-						<Button size="sm" disabled={regularSwapSaving} onClick={() => { void executeRegularSwap(); }}>
+						<Button
+							size="sm"
+							disabled={
+								regularSwapSaving
+								|| regularSwapPreview?.loading === true
+								|| regularSwapPreview?.recommendedStrategy === 'BLOCKED'
+								|| !!regularSwapPreview?.error
+							}
+							onClick={() => { void executeRegularSwap(); }}
+						>
 							{regularSwapSaving ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 size-3.5" />}
-							Confirm Swap
+							{regularSwapPreview?.recommendedStrategy === 'AUTO_FIX_RELOCATE' ? 'Confirm Auto-Fix Swap' : 'Confirm Swap'}
 						</Button>
 					</DialogFooter>
 				</DialogContent>

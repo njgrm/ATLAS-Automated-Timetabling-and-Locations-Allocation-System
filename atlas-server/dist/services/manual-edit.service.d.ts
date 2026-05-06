@@ -96,5 +96,23 @@ export declare function previewManualEdit(runId: number, schoolId: number, schoo
 export declare function commitManualEdit(runId: number, schoolId: number, schoolYearId: number, actorId: number, proposal: ManualEditProposal, expectedVersion: number, allowSoftOverride?: boolean): Promise<CommitResult>;
 export declare function revertLastEdit(runId: number, schoolId: number, schoolYearId: number, actorId: number): Promise<CommitResult>;
 export declare function listManualEdits(runId: number, schoolId: number, schoolYearId: number): Promise<ManualEditRecord[]>;
-export declare function swapManualEntries(runId: number, schoolId: number, schoolYearId: number, actorId: number, entryIdA: string, entryIdB: string, expectedVersion: number): Promise<CommitResult>;
+export type SwapStrategy = 'DIRECT_SWAP' | 'AUTO_FIX_RELOCATE';
+export interface SwapPreviewResult {
+    entryIdA: string;
+    entryIdB: string;
+    direct: PreviewResult;
+    recommendedStrategy: 'DIRECT_SWAP' | 'AUTO_FIX_RELOCATE' | 'BLOCKED';
+    autoFixTarget: {
+        day: string;
+        startTime: string;
+        endTime: string;
+    } | null;
+    autoFixPreview: PreviewResult | null;
+}
+export declare function previewManualSwapEntries(runId: number, schoolId: number, schoolYearId: number, entryIdA: string, entryIdB: string): Promise<SwapPreviewResult>;
+export declare function swapManualEntries(runId: number, schoolId: number, schoolYearId: number, actorId: number, entryIdA: string, entryIdB: string, expectedVersion: number, strategy?: SwapStrategy, autoFixTarget?: {
+    day: string;
+    startTime: string;
+    endTime: string;
+} | null): Promise<CommitResult>;
 export declare function getRunVersion(runId: number, schoolId: number, schoolYearId: number): Promise<number>;

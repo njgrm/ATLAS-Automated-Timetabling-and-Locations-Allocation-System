@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 
 import type {
+	DraftPlacement,
 	DraftBoardState,
 	ManualEditProposal,
 	ManualEditRecord,
@@ -15,7 +16,7 @@ import type {
 } from '@/types';
 
 export type LeftRailContentContext = {
-	leftTab: 'violations' | 'unassigned' | 'locks' | 'requests';
+	leftTab: 'violations' | 'unassigned' | 'pinned' | 'requests';
 	isPreGenerationWorkspace: boolean;
 	hardViolationCount: number;
 	topBlockers: Violation[];
@@ -68,6 +69,7 @@ export type LeftRailContentContext = {
 	showSoftConfirm: boolean;
 	unassignDropActive: boolean;
 	setUnassignDropActive: Dispatch<SetStateAction<boolean>>;
+	pinnedRailDropActive: boolean;
 	fetchDraftBoardSummary: (syId: number) => Promise<any>;
 	preGenPending: any;
 	pinsSearch: string;
@@ -113,6 +115,7 @@ export type LeftRailContentContext = {
 	focusRequestInGrid: (requestId: number) => Promise<void>;
 	openRequestPreview: (requestId: number) => Promise<void>;
 	isPrivilegedUser: boolean;
+	focusPinnedPlacement: (placement: DraftPlacement, mode?: 'details' | 'faculty' | 'section' | 'room') => void;
 };
 
 export type ScheduleReviewDialogsContext = {
@@ -196,8 +199,16 @@ export type ScheduleReviewDialogsContext = {
 	executeSwapAction: () => Promise<void>;
 	/** Fix C: swap conflict preview for both legs of a pinned\u21d4pinned swap */
 	swapPreview: {
-		atomicPreview: import('@/types').DraftPlacementSwapPreview | null;
 		sourcePreview: PreviewResult | null;
+		displacedPreview: PreviewResult | null;
+		loading: boolean;
+		error: string | null;
+	} | null;
+	regularSwapPreview: {
+		directPreview: PreviewResult | null;
+		autoFixPreview: PreviewResult | null;
+		recommendedStrategy: 'DIRECT_SWAP' | 'AUTO_FIX_RELOCATE' | 'BLOCKED' | null;
+		autoFixTarget: { day: string; startTime: string; endTime: string } | null;
 		loading: boolean;
 		error: string | null;
 	} | null;
