@@ -206,15 +206,19 @@ export type ScheduleReviewDialogsContext = {
 	} | null;
 	regularSwapPreview: {
 		directPreview: PreviewResult | null;
-		autoFixPreview: PreviewResult | null;
-		recommendedStrategy: 'DIRECT_SWAP' | 'AUTO_FIX_RELOCATE' | 'BLOCKED' | null;
-		autoFixTarget: { day: string; startTime: string; endTime: string } | null;
+		autoFixBlockingPreview: PreviewResult | null;
+		autoFixBlockingTarget: { day: string; startTime: string; endTime: string } | null;
+		autoFixSourcePreview: PreviewResult | null;
+		autoFixSourceTarget: { day: string; startTime: string; endTime: string } | null;
+		recommendedStrategy: 'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | 'BLOCKED' | null;
 		loading: boolean;
 		error: string | null;
 	} | null;
 	regularSwapPending: any;
 	setRegularSwapPending: Dispatch<SetStateAction<any>>;
 	regularSwapSaving: boolean;
+	regularSwapStrategy: 'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | null;
+	setRegularSwapStrategy: Dispatch<SetStateAction<'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | null>>;
 	executeRegularSwap: () => Promise<void>;
 	showSoftConfirm: boolean;
 	setShowSoftConfirm: Dispatch<SetStateAction<boolean>>;

@@ -812,3 +812,27 @@ Record dated implementation verification summaries here.
   - none
 - Decision:
   - Accepted — Phase 4 Batch 4 complete.
+
+### 2026-05-06 - Wave 4.5c Generated View Unification + Performance Pass
+- Phase: 4
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - 
+px tsc --noEmit --incremental false (atlas-client): PASS
+  - 
+px tsc --noEmit (atlas-server): PASS
+- API checks:
+  - POST /api/v1/generation/:schoolId/:schoolYearId/runs/:runId/manual-edits/swap/preview now returns directional auto-fix previews/targets (AUTO_FIX_MOVE_BLOCKING, AUTO_FIX_MOVE_SOURCE) plus recommended strategy: PASS by server typecheck + client integration.
+  - POST /api/v1/generation/:schoolId/:schoolYearId/runs/:runId/manual-edits/swap now accepts directional strategy semantics using existing utoFixTarget: PASS by server typecheck + client integration.
+- UI checks:
+  - Generated occupied-slot dialog now exposes quick strategy actions (direct, auto-fix blocking, auto-fix source) with per-strategy impact summaries: PASS by source inspection + client typecheck.
+  - Generated non-swap move/unassigned flows now surface inline preview/commit status and avoid blocker-modal interruptions for hard-conflict outcomes: PASS by source inspection + client typecheck.
+  - Pre-generation non-swap empty-slot drops now run modal-free preview+commit path; occupied conflicts still route to swap dialog: PASS by source inspection + client typecheck.
+  - Added global 2px top loading strip for expensive workspace operations and strengthened timetable skeleton contrast/loading affordance: PASS by source inspection + client typecheck.
+- Blocking findings:
+  - Manual bridged runtime QA (gesture-level latency + keyboard parity + responsive verification screenshots) is pending.
+- Decision:
+  - Accepted for code verification; manual bridged UX evidence pending.

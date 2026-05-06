@@ -952,24 +952,34 @@ export async function listManualEdits(
 	}));
 }
 
-export type SwapStrategy = 'DIRECT_SWAP' | 'AUTO_FIX_RELOCATE';
+export type SwapStrategy = 'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE';
 
 export interface SwapPreviewResult {
 	entryIdA: string;
 	entryIdB: string;
 	direct: PreviewResult;
-	recommendedStrategy: 'DIRECT_SWAP' | 'AUTO_FIX_RELOCATE' | 'BLOCKED';
-	autoFixTarget: { day: string; startTime: string; endTime: string } | null;
-	autoFixPreview: PreviewResult | null;
+	recommendedStrategy: 'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | 'BLOCKED';
+	autoFixBlockingTarget: { day: string; startTime: string; endTime: string } | null;
+	autoFixBlockingPreview: PreviewResult | null;
+	autoFixSourceTarget: { day: string; startTime: string; endTime: string } | null;
+	autoFixSourcePreview: PreviewResult | null;
 }
 
 function applySwapWithTarget(
 	entries: ScheduledEntry[],
 	entryA: ScheduledEntry,
 	entryB: ScheduledEntry,
-	entryBTarget?: { day: string; startTime: string; endTime: string },
+	targets?: {
+		entryATarget?: { day: string; startTime: string; endTime: string };
+		entryBTarget?: { day: string; startTime: string; endTime: string };
+	},
 ): ScheduledEntry[] {
-	const targetForB = entryBTarget ?? {
+	const targetForA = targets?.entryATarget ?? {
+		day: entryB.day,
+		startTime: entryB.startTime,
+		endTime: entryB.endTime,
+	};
+	const targetForB = targets?.entryBTarget ?? {
 		day: entryA.day,
 		startTime: entryA.startTime,
 		endTime: entryA.endTime,
@@ -979,10 +989,10 @@ function applySwapWithTarget(
 		if (entry.entryId === entryA.entryId) {
 			return {
 				...entry,
-				day: entryB.day,
-				startTime: entryB.startTime,
-				endTime: entryB.endTime,
-				durationMinutes: timeToMinutes(entryB.endTime) - timeToMinutes(entryB.startTime),
+				day: targetForA.day,
+				startTime: targetForA.startTime,
+				endTime: targetForA.endTime,
+				durationMinutes: timeToMinutes(targetForA.endTime) - timeToMinutes(targetForA.startTime),
 			};
 		}
 		if (entry.entryId === entryB.entryId) {
@@ -995,6 +1005,23 @@ function applySwapWithTarget(
 			};
 		}
 		return entry;
+	});
+}
+
+function applyMoveOnly(
+	entries: ScheduledEntry[],
+	entryToMove: ScheduledEntry,
+	target: { day: string; startTime: string; endTime: string },
+): ScheduledEntry[] {
+	return entries.map((entry) => {
+		if (entry.entryId !== entryToMove.entryId) return entry;
+		return {
+			...entry,
+			day: target.day,
+			startTime: target.startTime,
+			endTime: target.endTime,
+			durationMinutes: timeToMinutes(target.endTime) - timeToMinutes(target.startTime),
+		};
 	});
 }
 
@@ -1106,7 +1133,10 @@ function findAutoFixTarget(
 	schoolId: number,
 	schoolYearId: number,
 	runId: number,
-): { target: { day: string; startTime: string; endTime: string }; preview: PreviewResult } | null {
+): {
+	blocking: { target: { day: string; startTime: string; endTime: string }; preview: PreviewResult } | null;
+	source: { target: { day: string; startTime: string; endTime: string }; preview: PreviewResult } | null;
+} {
 	const slotSet = new Set(entries.map((entry) => `${entry.day}|${entry.startTime}|${entry.endTime}`));
 	const candidates = Array.from(slotSet)
 		.map((value) => {
@@ -1115,21 +1145,46 @@ function findAutoFixTarget(
 		})
 		.filter((slot) => !(slot.day === entryB.day && slot.startTime === entryB.startTime && slot.endTime === entryB.endTime));
 
-	let best: { target: { day: string; startTime: string; endTime: string }; preview: PreviewResult; softCount: number } | null = null;
+	let bestBlocking: { target: { day: string; startTime: string; endTime: string }; preview: PreviewResult; softCount: number } | null = null;
+	let bestSource: { target: { day: string; startTime: string; endTime: string }; preview: PreviewResult; softCount: number } | null = null;
 
 	for (const target of candidates) {
-		if ((timeToMinutes(target.endTime) - timeToMinutes(target.startTime)) !== entryB.durationMinutes) continue;
-		const candidateEntries = applySwapWithTarget(entries, entryA, entryB, target);
-		const candidateValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, candidateEntries, refData));
-		const candidatePreview = buildSwapPreviewFromValidation(currentValidation, candidateValidation, candidateEntries, refData, entryA, entryB, target);
-		if (candidatePreview.hardViolations.length > 0) continue;
-		const softCount = candidatePreview.softViolations.length;
-		if (!best || softCount < best.softCount) {
-			best = { target, preview: candidatePreview, softCount };
+		if ((timeToMinutes(target.endTime) - timeToMinutes(target.startTime)) === entryB.durationMinutes) {
+			const blockingEntries = applySwapWithTarget(entries, entryA, entryB, {
+				entryATarget: { day: entryB.day, startTime: entryB.startTime, endTime: entryB.endTime },
+				entryBTarget: target,
+			});
+			const blockingValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, blockingEntries, refData));
+			const blockingPreview = buildSwapPreviewFromValidation(currentValidation, blockingValidation, blockingEntries, refData, entryA, entryB, target);
+			if (blockingPreview.hardViolations.length === 0) {
+				const softCount = blockingPreview.softViolations.length;
+				if (!bestBlocking || softCount < bestBlocking.softCount) {
+					bestBlocking = { target, preview: blockingPreview, softCount };
+				}
+			}
+		}
+
+		if ((timeToMinutes(target.endTime) - timeToMinutes(target.startTime)) === entryA.durationMinutes) {
+			const sourceEntries = applyMoveOnly(entries, entryA, target);
+			const sourceValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, sourceEntries, refData));
+			const sourcePreview = buildSwapPreviewFromValidation(currentValidation, sourceValidation, sourceEntries, refData, entryA, entryB, {
+				day: entryB.day,
+				startTime: entryB.startTime,
+				endTime: entryB.endTime,
+			});
+			if (sourcePreview.hardViolations.length === 0) {
+				const softCount = sourcePreview.softViolations.length;
+				if (!bestSource || softCount < bestSource.softCount) {
+					bestSource = { target, preview: sourcePreview, softCount };
+				}
+			}
 		}
 	}
 
-	return best ? { target: best.target, preview: best.preview } : null;
+	return {
+		blocking: bestBlocking ? { target: bestBlocking.target, preview: bestBlocking.preview } : null,
+		source: bestSource ? { target: bestSource.target, preview: bestSource.preview } : null,
+	};
 }
 
 export async function previewManualSwapEntries(
@@ -1165,30 +1220,32 @@ export async function previewManualSwapEntries(
 			entryIdB,
 			direct: directPreview,
 			recommendedStrategy: 'DIRECT_SWAP',
-			autoFixTarget: null,
-			autoFixPreview: null,
+			autoFixBlockingTarget: null,
+			autoFixBlockingPreview: null,
+			autoFixSourceTarget: null,
+			autoFixSourcePreview: null,
 		};
 	}
 
 	const autoFix = findAutoFixTarget(entries, entryA, entryB, refData, currentValidation, schoolId, schoolYearId, runId);
-	if (autoFix) {
-		return {
-			entryIdA,
-			entryIdB,
-			direct: directPreview,
-			recommendedStrategy: 'AUTO_FIX_RELOCATE',
-			autoFixTarget: autoFix.target,
-			autoFixPreview: autoFix.preview,
-		};
-	}
+	const blocking = autoFix.blocking;
+	const source = autoFix.source;
+	const recommendedStrategy: SwapPreviewResult['recommendedStrategy'] = (() => {
+		if (blocking && source) return blocking.preview.softViolations.length <= source.preview.softViolations.length ? 'AUTO_FIX_MOVE_BLOCKING' : 'AUTO_FIX_MOVE_SOURCE';
+		if (blocking) return 'AUTO_FIX_MOVE_BLOCKING';
+		if (source) return 'AUTO_FIX_MOVE_SOURCE';
+		return 'BLOCKED';
+	})();
 
 	return {
 		entryIdA,
 		entryIdB,
 		direct: directPreview,
-		recommendedStrategy: 'BLOCKED',
-		autoFixTarget: null,
-		autoFixPreview: null,
+		recommendedStrategy,
+		autoFixBlockingTarget: blocking?.target ?? null,
+		autoFixBlockingPreview: blocking?.preview ?? null,
+		autoFixSourceTarget: source?.target ?? null,
+		autoFixSourcePreview: source?.preview ?? null,
 	};
 }
 
@@ -1217,14 +1274,24 @@ export async function swapManualEntries(
 	if (!entryA) throw err(400, 'ENTRY_NOT_FOUND', `Entry ${entryIdA} not found.`);
 	if (!entryB) throw err(400, 'ENTRY_NOT_FOUND', `Entry ${entryIdB} not found.`);
 
-	const targetForB = strategy === 'AUTO_FIX_RELOCATE'
-		? (autoFixTarget ?? null)
-		: { day: entryA.day, startTime: entryA.startTime, endTime: entryA.endTime };
-	if (strategy === 'AUTO_FIX_RELOCATE' && !targetForB) {
-		throw err(400, 'INVALID_BODY', 'autoFixTarget is required when strategy=AUTO_FIX_RELOCATE.');
+	let newEntries: ScheduledEntry[];
+	if (strategy === 'AUTO_FIX_MOVE_SOURCE') {
+		if (!autoFixTarget) {
+			throw err(400, 'INVALID_BODY', 'autoFixTarget is required when strategy=AUTO_FIX_MOVE_SOURCE.');
+		}
+		newEntries = applyMoveOnly(entries, entryA, autoFixTarget);
+	} else {
+		const targetForB = strategy === 'AUTO_FIX_MOVE_BLOCKING'
+			? (autoFixTarget ?? null)
+			: { day: entryA.day, startTime: entryA.startTime, endTime: entryA.endTime };
+		if (strategy === 'AUTO_FIX_MOVE_BLOCKING' && !targetForB) {
+			throw err(400, 'INVALID_BODY', 'autoFixTarget is required when strategy=AUTO_FIX_MOVE_BLOCKING.');
+		}
+		newEntries = applySwapWithTarget(entries, entryA, entryB, {
+			entryATarget: { day: entryB.day, startTime: entryB.startTime, endTime: entryB.endTime },
+			entryBTarget: targetForB ?? undefined,
+		});
 	}
-
-	const newEntries = applySwapWithTarget(entries, entryA, entryB, targetForB ?? undefined);
 
 	const currentCtx = buildValidatorCtx(schoolId, schoolYearId, runId, entries, refData);
 	const currentValidation = validateHardConstraints(currentCtx);
@@ -1269,8 +1336,20 @@ export async function swapManualEntries(
 					strategy,
 					entryIdA,
 					entryIdB,
-					entryA: { day: entryB.day, startTime: entryB.startTime, endTime: entryB.endTime },
-					entryB: targetForB,
+					entryA: newEntries.find((entry) => entry.entryId === entryA.entryId)
+						? {
+							day: newEntries.find((entry) => entry.entryId === entryA.entryId)!.day,
+							startTime: newEntries.find((entry) => entry.entryId === entryA.entryId)!.startTime,
+							endTime: newEntries.find((entry) => entry.entryId === entryA.entryId)!.endTime,
+						}
+						: null,
+					entryB: newEntries.find((entry) => entry.entryId === entryB.entryId)
+						? {
+							day: newEntries.find((entry) => entry.entryId === entryB.entryId)!.day,
+							startTime: newEntries.find((entry) => entry.entryId === entryB.entryId)!.startTime,
+							endTime: newEntries.find((entry) => entry.entryId === entryB.entryId)!.endTime,
+						}
+						: null,
 				} as object,
 				validationSummary: { hardCount: hardAfter.length, softCount: softAfter, delta: { hardBefore, hardAfter: hardAfter.length, softBefore, softAfter } } as object,
 			},

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { toast } from 'sonner';
 
@@ -56,9 +56,11 @@ type SwapPreviewState = {
 
 type RegularSwapPreviewState = {
 	directPreview: PreviewResult | null;
-	autoFixPreview: PreviewResult | null;
-	recommendedStrategy: 'DIRECT_SWAP' | 'AUTO_FIX_RELOCATE' | 'BLOCKED' | null;
-	autoFixTarget: { day: string; startTime: string; endTime: string } | null;
+	autoFixBlockingPreview: PreviewResult | null;
+	autoFixBlockingTarget: { day: string; startTime: string; endTime: string } | null;
+	autoFixSourcePreview: PreviewResult | null;
+	autoFixSourceTarget: { day: string; startTime: string; endTime: string } | null;
+	recommendedStrategy: 'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | 'BLOCKED' | null;
 	loading: boolean;
 	error: string | null;
 };
@@ -245,6 +247,8 @@ export type TimetableMutationState = {
 	commitConfirmPlacement: () => Promise<void>;
 	executeSwapAction: () => Promise<void>;
 	executeRegularSwap: () => Promise<void>;
+	regularSwapStrategy: 'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | null;
+	setRegularSwapStrategy: React.Dispatch<React.SetStateAction<'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | null>>;
 	unassignDraftPlacement: (placementId: number) => Promise<void>;
 	getDraggedDraftPlacementId: (source: any) => number | null;
 	commitPreGenPending: () => Promise<void>;
@@ -350,6 +354,9 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	// Fix C: internal swap preview state — loaded when swap confirm dialog opens
 	const [swapPreview, setSwapPreview] = useState<SwapPreviewState | null>(null);
 	const [regularSwapPreview, setRegularSwapPreview] = useState<RegularSwapPreviewState | null>(null);
+	const [regularSwapStrategy, setRegularSwapStrategy] = useState<'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | null>(null);
+	const previewCacheRef = useRef<Map<string, PreviewResult>>(new Map());
+	const regularSwapPreviewCacheRef = useRef<Map<string, RegularSwapPreviewState>>(new Map());
 
 	// Clear swap preview when swap action is dismissed (cancel path)
 	useEffect(() => {
@@ -357,8 +364,16 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	}, [swapAction]);
 
 	useEffect(() => {
-		if (!regularSwapPending) setRegularSwapPreview(null);
+		if (!regularSwapPending) {
+			setRegularSwapPreview(null);
+			setRegularSwapStrategy(null);
+		}
 	}, [regularSwapPending]);
+
+	useEffect(() => {
+		previewCacheRef.current.clear();
+		regularSwapPreviewCacheRef.current.clear();
+	}, [draft?.version, draft?.runId]);
 
 	const filteredRoomRequests = useMemo(() => {
 		const requests = roomRequestSummary?.requests ?? [];
@@ -649,9 +664,16 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 
 	const previewEdit = useCallback(async (proposal: ManualEditProposal): Promise<PreviewResult | null> => {
 		if (!apiBase) return null;
+		const cacheKey = `${runVersion}:${JSON.stringify(proposal)}`;
+		const cached = previewCacheRef.current.get(cacheKey);
+		if (cached) {
+			setPreviewResult(cached);
+			return cached;
+		}
 		setPreviewLoading(true);
 		try {
 			const { data } = await atlasApi.post<PreviewResult>(`${apiBase}/preview`, proposal);
+			previewCacheRef.current.set(cacheKey, data);
 			setPreviewResult(data);
 			return data;
 		} catch (e: unknown) {
@@ -661,7 +683,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		} finally {
 			setPreviewLoading(false);
 		}
-	}, [apiBase, setPreviewLoading, setPreviewResult]);
+	}, [apiBase, runVersion, setPreviewLoading, setPreviewResult]);
 
 	const commitEdit = useCallback(async (proposal: ManualEditProposal, _allowSoftOverride = false) => {
 		if (!apiBase) return;
@@ -678,8 +700,11 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				setViolationReport(violRes.data);
 			}
 			await fetchEditHistory();
-			if (data.warnings.length > 0) toast.warning(`Edit applied with ${data.warnings.length} soft warning(s).`);
-			else toast.success('Edit applied successfully.');
+			const suppressVerboseToasts = proposal.editType === 'MOVE_ENTRY' || proposal.editType === 'PLACE_UNASSIGNED';
+			if (!suppressVerboseToasts) {
+				if (data.warnings.length > 0) toast.warning(`Edit applied with ${data.warnings.length} soft warning(s).`);
+				else toast.success('Edit applied successfully.');
+			}
 		} catch (e: unknown) {
 			const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? (e instanceof Error ? e.message : 'Commit failed.');
 			if (msg.includes('VERSION_CONFLICT') || msg.includes('version conflict')) toast.error('Version conflict - someone else edited this run. Please refresh.');
@@ -840,12 +865,21 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 
 	const openRegularSwapPrompt = useCallback((entryA: ScheduledEntry, entryB: ScheduledEntry) => {
 		setRegularSwapPending({ entryA, entryB });
+		const cacheKey = `${runVersion}:${entryA.entryId}:${entryB.entryId}`;
+		const cached = regularSwapPreviewCacheRef.current.get(cacheKey);
+		if (cached) {
+			setRegularSwapPreview(cached);
+			setRegularSwapStrategy(cached.recommendedStrategy === 'BLOCKED' ? null : cached.recommendedStrategy);
+			return;
+		}
 		if (!schoolYearId || !runIdNumeric) {
 			setRegularSwapPreview({
 				directPreview: null,
-				autoFixPreview: null,
+				autoFixBlockingPreview: null,
+				autoFixBlockingTarget: null,
+				autoFixSourcePreview: null,
+				autoFixSourceTarget: null,
 				recommendedStrategy: null,
-				autoFixTarget: null,
 				loading: false,
 				error: 'Missing active run context.',
 			});
@@ -854,9 +888,11 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 
 		setRegularSwapPreview({
 			directPreview: null,
-			autoFixPreview: null,
+			autoFixBlockingPreview: null,
+			autoFixBlockingTarget: null,
+			autoFixSourcePreview: null,
+			autoFixSourceTarget: null,
 			recommendedStrategy: null,
-			autoFixTarget: null,
 			loading: true,
 			error: null,
 		});
@@ -865,35 +901,45 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			try {
 				const { data } = await atlasApi.post<{
 					direct: PreviewResult;
-					autoFixPreview: PreviewResult | null;
-					recommendedStrategy: 'DIRECT_SWAP' | 'AUTO_FIX_RELOCATE' | 'BLOCKED';
-					autoFixTarget: { day: string; startTime: string; endTime: string } | null;
+					autoFixBlockingPreview: PreviewResult | null;
+					autoFixBlockingTarget: { day: string; startTime: string; endTime: string } | null;
+					autoFixSourcePreview: PreviewResult | null;
+					autoFixSourceTarget: { day: string; startTime: string; endTime: string } | null;
+					recommendedStrategy: 'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | 'BLOCKED';
 				}>(`${apiBase}/swap/preview`, {
 					entryIdA: entryA.entryId,
 					entryIdB: entryB.entryId,
 				});
 
-				setRegularSwapPreview({
+				const previewState: RegularSwapPreviewState = {
 					directPreview: data.direct,
-					autoFixPreview: data.autoFixPreview,
+					autoFixBlockingPreview: data.autoFixBlockingPreview,
+					autoFixBlockingTarget: data.autoFixBlockingTarget,
+					autoFixSourcePreview: data.autoFixSourcePreview,
+					autoFixSourceTarget: data.autoFixSourceTarget,
 					recommendedStrategy: data.recommendedStrategy,
-					autoFixTarget: data.autoFixTarget,
 					loading: false,
 					error: null,
-				});
+				};
+				regularSwapPreviewCacheRef.current.set(cacheKey, previewState);
+				setRegularSwapPreview(previewState);
+				setRegularSwapStrategy(data.recommendedStrategy === 'BLOCKED' ? null : data.recommendedStrategy);
 			} catch (error) {
 				const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
 				setRegularSwapPreview({
 					directPreview: null,
-					autoFixPreview: null,
+					autoFixBlockingPreview: null,
+					autoFixBlockingTarget: null,
+					autoFixSourcePreview: null,
+					autoFixSourceTarget: null,
 					recommendedStrategy: null,
-					autoFixTarget: null,
 					loading: false,
 					error: message ?? 'Unable to preview swap.',
 				});
+				setRegularSwapStrategy(null);
 			}
 		})();
-	}, [apiBase, runIdNumeric, schoolYearId, setRegularSwapPending]);
+	}, [apiBase, runIdNumeric, runVersion, schoolYearId, setRegularSwapPending]);
 
 	const runPreGenPreview = useCallback(async (pending: PreGenPendingPlacement) => {
 		if (!schoolYearId) return;
@@ -938,15 +984,38 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			}
 		}
 
-		setConfirmFacultyId(String(candidateFacultyId));
-		setConfirmRoomId(String(candidateRoomId));
-		setConfirmPreview(null);
-		setConfirmRawPreview(null);
-		setConfirmPreviewError(null);
-		setConfirmAllowSoftOverride(false);
-		setConfirmAllowDailyOverride(false);
-		setPreGenConfirmCtx({ source, day, startTime, endTime });
-		setShowPreGenConfirm(true);
+		setPreGenPending(pending);
+		setPreGenPreview(null);
+		setPreGenPreviewError(null);
+		setPreGenAllowSoftOverride(false);
+		setPreGenPreviewLoading(true);
+		try {
+			const { data: previewRaw } = await atlasApi.post<PreviewResult>(
+				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/preview`,
+				pending,
+			);
+			const preview = scopePreviewToCandidate(previewRaw, { day, startTime, endTime });
+			setPreGenPreview(preview);
+			if (!preview.allowed) {
+				setPreGenPreviewError('This placement has hard conflicts. Resolve conflicts or use a different slot.');
+				return;
+			}
+			const { data: commitResult } = await atlasApi.post<DraftPlacementCommitResult>(
+				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/commit`,
+				pending,
+			);
+			setDraftBoard(commitResult.board);
+			setDraftBoardSummary(commitResult.board.counts);
+			setPreGenPending(null);
+			setSelectedEntry(null);
+			setPreGenKbSource(null);
+			setKbSelectedSource(null);
+		} catch (err) {
+			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+			setPreGenPreviewError(message ?? 'Unable to place this session.');
+		} finally {
+			setPreGenPreviewLoading(false);
+		}
 	}, [
 		schoolYearId,
 		choosePreGenFaculty,
@@ -954,15 +1023,16 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		buildPreGenPendingPlacement,
 		draftBoard?.placements,
 		openSwapPrompt,
-		setConfirmFacultyId,
-		setConfirmRoomId,
-		setConfirmPreview,
-		setConfirmRawPreview,
-		setConfirmPreviewError,
-		setConfirmAllowSoftOverride,
-		setConfirmAllowDailyOverride,
-		setPreGenConfirmCtx,
-		setShowPreGenConfirm,
+		setPreGenPending,
+		setPreGenPreview,
+		setPreGenPreviewError,
+		setPreGenAllowSoftOverride,
+		setPreGenPreviewLoading,
+		setDraftBoard,
+		setDraftBoardSummary,
+		setSelectedEntry,
+		setPreGenKbSource,
+		setKbSelectedSource,
 	]);
 
 	const runConfirmPreview = useCallback(async () => {
@@ -1130,19 +1200,30 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		const { entryA, entryB } = regularSwapPending;
 		setRegularSwapSaving(true);
 		try {
-			const strategy = regularSwapPreview?.recommendedStrategy === 'AUTO_FIX_RELOCATE'
-				? 'AUTO_FIX_RELOCATE'
-				: 'DIRECT_SWAP';
+			const strategy = regularSwapStrategy ?? regularSwapPreview?.recommendedStrategy ?? 'DIRECT_SWAP';
 			if (regularSwapPreview?.recommendedStrategy === 'BLOCKED') {
 				toast.error('No safe swap strategy is available for this occupied slot.');
 				return;
 			}
+			if (strategy === 'AUTO_FIX_MOVE_BLOCKING' && !regularSwapPreview?.autoFixBlockingTarget) {
+				toast.error('Blocking-session auto-fix target is unavailable for this slot.');
+				return;
+			}
+			if (strategy === 'AUTO_FIX_MOVE_SOURCE' && !regularSwapPreview?.autoFixSourceTarget) {
+				toast.error('Source-session auto-fix target is unavailable for this slot.');
+				return;
+			}
+			const autoFixTarget = strategy === 'AUTO_FIX_MOVE_BLOCKING'
+				? regularSwapPreview?.autoFixBlockingTarget
+				: strategy === 'AUTO_FIX_MOVE_SOURCE'
+					? regularSwapPreview?.autoFixSourceTarget
+					: null;
 			const { data } = await atlasApi.post<CommitResult>(`${apiBase}/swap`, {
 				entryIdA: entryA.entryId,
 				entryIdB: entryB.entryId,
 				expectedVersion: runVersion,
 				strategy,
-				autoFixTarget: strategy === 'AUTO_FIX_RELOCATE' ? regularSwapPreview?.autoFixTarget : null,
+				autoFixTarget,
 			});
 			setDraft(data.draft);
 			if (schoolYearId && runIdNumeric) {
@@ -1152,18 +1233,16 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			await fetchEditHistory();
 			setRegularSwapPending(null);
 			setSelectedEntry(null);
-			if (strategy === 'AUTO_FIX_RELOCATE') {
-				toast.success('Swap applied with scheduler auto-fix relocation for the displaced session.');
-			} else {
-				toast.success('Sessions swapped.');
-			}
+			if (strategy === 'AUTO_FIX_MOVE_SOURCE') toast.success('Source session auto-fixed to the nearest valid slot.');
+			else if (strategy === 'AUTO_FIX_MOVE_BLOCKING') toast.success('Swap applied with blocking-session auto-fix relocation.');
+			else toast.success('Sessions swapped.');
 		} catch (e: unknown) {
 			const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Swap failed.';
 			toast.error(msg);
 		} finally {
 			setRegularSwapSaving(false);
 		}
-	}, [regularSwapPending, apiBase, runVersion, regularSwapPreview, setRegularSwapSaving, setDraft, schoolYearId, runIdNumeric, setViolationReport, fetchEditHistory, setRegularSwapPending, setSelectedEntry]);
+	}, [regularSwapPending, apiBase, runVersion, regularSwapPreview, regularSwapStrategy, setRegularSwapSaving, setDraft, schoolYearId, runIdNumeric, setViolationReport, fetchEditHistory, setRegularSwapPending, setSelectedEntry]);
 
 	const unassignDraftPlacement = useCallback(async (placementId: number) => {
 		if (!schoolYearId) return;
@@ -1253,5 +1332,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		commitPreGenPending,
 		swapPreview,
 		regularSwapPreview,
+		regularSwapStrategy,
+		setRegularSwapStrategy,
 	};
 }

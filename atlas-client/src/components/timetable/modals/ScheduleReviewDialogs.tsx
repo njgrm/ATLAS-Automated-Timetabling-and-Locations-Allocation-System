@@ -120,6 +120,8 @@ regularSwapPreview,
 regularSwapPending,
 setRegularSwapPending,
 regularSwapSaving,
+regularSwapStrategy,
+setRegularSwapStrategy,
 executeRegularSwap,
 showSoftConfirm,
 setShowSoftConfirm,
@@ -1082,17 +1084,40 @@ return (
 							<div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700">
 								Recommended strategy:{' '}
 								<span className="font-semibold">
-									{regularSwapPreview.recommendedStrategy === 'AUTO_FIX_RELOCATE'
-										? 'Swap with auto-fix relocation'
+									{regularSwapPreview.recommendedStrategy === 'AUTO_FIX_MOVE_BLOCKING'
+										? 'Swap + auto-fix blocking session'
+										: regularSwapPreview.recommendedStrategy === 'AUTO_FIX_MOVE_SOURCE'
+											? 'Move source session to nearest valid slot'
 										: regularSwapPreview.recommendedStrategy === 'DIRECT_SWAP'
 											? 'Direct swap'
 											: 'Blocked'}
 								</span>
-								{regularSwapPreview.autoFixTarget ? (
-									<span>
-										{' '}to {DAY_SHORT[regularSwapPreview.autoFixTarget.day] ?? regularSwapPreview.autoFixTarget.day} {formatTime(regularSwapPreview.autoFixTarget.startTime)}-{formatTime(regularSwapPreview.autoFixTarget.endTime)}.
-									</span>
-								) : null}
+							</div>
+							<div className="grid grid-cols-1 gap-1.5">
+								<Button
+									variant={regularSwapStrategy === 'DIRECT_SWAP' ? 'default' : 'outline'}
+									size="sm"
+									disabled={(regularSwapPreview.directPreview?.hardViolations.length ?? 0) > 0}
+									onClick={() => setRegularSwapStrategy('DIRECT_SWAP')}
+								>
+									Direct swap
+								</Button>
+								<Button
+									variant={regularSwapStrategy === 'AUTO_FIX_MOVE_BLOCKING' ? 'default' : 'outline'}
+									size="sm"
+									disabled={!regularSwapPreview.autoFixBlockingPreview}
+									onClick={() => setRegularSwapStrategy('AUTO_FIX_MOVE_BLOCKING')}
+								>
+									Auto-fix blocking session
+								</Button>
+								<Button
+									variant={regularSwapStrategy === 'AUTO_FIX_MOVE_SOURCE' ? 'default' : 'outline'}
+									size="sm"
+									disabled={!regularSwapPreview.autoFixSourcePreview}
+									onClick={() => setRegularSwapStrategy('AUTO_FIX_MOVE_SOURCE')}
+								>
+									Auto-fix source session
+								</Button>
 							</div>
 							<div className="rounded-md border border-border/60 bg-muted/20 p-2.5 text-xs space-y-1">
 								<div className="font-medium">Direct swap impact</div>
@@ -1101,15 +1126,44 @@ return (
 									{' '}| Soft warnings: <span className="font-semibold">{regularSwapPreview.directPreview?.softViolations.length ?? 0}</span>
 								</div>
 							</div>
-							{regularSwapPreview.autoFixPreview ? (
+							{regularSwapPreview.autoFixBlockingPreview ? (
 								<div className="rounded-md border border-border/60 bg-muted/20 p-2.5 text-xs space-y-1">
-									<div className="font-medium">Auto-fix impact</div>
+									<div className="font-medium">Auto-fix blocking session impact</div>
 									<div>
-										Hard conflicts: <span className={(regularSwapPreview.autoFixPreview.hardViolations.length ?? 0) > 0 ? 'font-semibold text-destructive' : 'font-semibold text-emerald-600'}>{regularSwapPreview.autoFixPreview.hardViolations.length ?? 0}</span>
-										{' '}| Soft warnings: <span className="font-semibold">{regularSwapPreview.autoFixPreview.softViolations.length ?? 0}</span>
+										Hard conflicts: <span className={(regularSwapPreview.autoFixBlockingPreview.hardViolations.length ?? 0) > 0 ? 'font-semibold text-destructive' : 'font-semibold text-emerald-600'}>{regularSwapPreview.autoFixBlockingPreview.hardViolations.length ?? 0}</span>
+										{' '}| Soft warnings: <span className="font-semibold">{regularSwapPreview.autoFixBlockingPreview.softViolations.length ?? 0}</span>
 									</div>
+									{regularSwapPreview.autoFixBlockingTarget ? (
+										<div className="text-muted-foreground">
+											Target: {DAY_SHORT[regularSwapPreview.autoFixBlockingTarget.day] ?? regularSwapPreview.autoFixBlockingTarget.day} {formatTime(regularSwapPreview.autoFixBlockingTarget.startTime)}-{formatTime(regularSwapPreview.autoFixBlockingTarget.endTime)}
+										</div>
+									) : null}
 								</div>
 							) : null}
+							{regularSwapPreview.autoFixSourcePreview ? (
+								<div className="rounded-md border border-border/60 bg-muted/20 p-2.5 text-xs space-y-1">
+									<div className="font-medium">Auto-fix source session impact</div>
+									<div>
+										Hard conflicts: <span className={(regularSwapPreview.autoFixSourcePreview.hardViolations.length ?? 0) > 0 ? 'font-semibold text-destructive' : 'font-semibold text-emerald-600'}>{regularSwapPreview.autoFixSourcePreview.hardViolations.length ?? 0}</span>
+										{' '}| Soft warnings: <span className="font-semibold">{regularSwapPreview.autoFixSourcePreview.softViolations.length ?? 0}</span>
+									</div>
+									{regularSwapPreview.autoFixSourceTarget ? (
+										<div className="text-muted-foreground">
+											Target: {DAY_SHORT[regularSwapPreview.autoFixSourceTarget.day] ?? regularSwapPreview.autoFixSourceTarget.day} {formatTime(regularSwapPreview.autoFixSourceTarget.startTime)}-{formatTime(regularSwapPreview.autoFixSourceTarget.endTime)}
+										</div>
+									) : null}
+								</div>
+							) : null}
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => {
+									setRegularSwapPending(null);
+									toast.error('Manual resolve selected. Move the blocking session first, then retry the swap.');
+								}}
+							>
+								Manual resolve first
+							</Button>
 						</div>
 					) : null}
 					<DialogFooter className="gap-2">
@@ -1119,13 +1173,18 @@ return (
 							disabled={
 								regularSwapSaving
 								|| regularSwapPreview?.loading === true
-								|| regularSwapPreview?.recommendedStrategy === 'BLOCKED'
+									|| regularSwapPreview?.recommendedStrategy === 'BLOCKED'
+									|| !regularSwapStrategy
 								|| !!regularSwapPreview?.error
 							}
 							onClick={() => { void executeRegularSwap(); }}
 						>
 							{regularSwapSaving ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 size-3.5" />}
-							{regularSwapPreview?.recommendedStrategy === 'AUTO_FIX_RELOCATE' ? 'Confirm Auto-Fix Swap' : 'Confirm Swap'}
+								{regularSwapStrategy === 'AUTO_FIX_MOVE_SOURCE'
+									? 'Confirm Source Auto-Fix'
+									: regularSwapStrategy === 'AUTO_FIX_MOVE_BLOCKING'
+										? 'Confirm Blocking Auto-Fix'
+										: 'Confirm Swap'}
 						</Button>
 					</DialogFooter>
 				</DialogContent>
