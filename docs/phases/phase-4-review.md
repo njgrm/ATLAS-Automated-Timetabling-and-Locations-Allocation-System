@@ -259,8 +259,66 @@ These thresholds apply when evaluating **whether a proposed pre-generation place
 | `npm --prefix atlas-server run test:wave4.3` | PASS (22/22) |
 | Manual bridged QA | Pending live session |
 
+## Wave 4.5c — Pre-Generation State Machine Hardening (2026-05-06)
+- Added atomic pre-generation swap service endpoints in `atlas-server/src/services/pre-generation-draft.service.ts` and `atlas-server/src/routes/pre-generation-draft.router.ts`.
+- Pinned-to-pinned swaps now preview and commit through a single server-controlled transaction instead of the prior client delete-plus-two-commit sequence.
+- Pre-generation commit policy no longer blocks on soft violations or daily soft overload; hard conflicts and daily hard overload still block.
+- `atlas-client/src/hooks/useTimetableMutations.ts` now routes pinned swaps through `/pre-generation-drafts/swap` and uses `/pre-generation-drafts/swap/preview` for dialog validation.
+- `atlas-client/src/components/timetable/ScheduleReviewWorkspaceHeader.tsx` now exposes an explicit `Back to Generated Run` action while in pre-generation mode.
+- Generate confirmation and success messaging now explain that anchored draft placements lock into the new generated run and the workspace returns to generated-run view after generation.
+- `atlas-server/src/__tests__/wave4-pre-generation-draft.test.ts` now includes Wave 4.5c source-guard regressions for atomic swap wiring, soft-warning policy removal, and lifecycle affordances.
+
+### Wave 4.5c verification
+
+| Step | Result |
+|------|--------|
+| `npm --prefix atlas-server run build` | PASS |
+| `npm --prefix atlas-client run build` | PASS |
+| `npm --prefix atlas-server run test:wave4.3` | PASS (33/33) |
+| Manual bridged QA for pinned swap / generate-from-pre-gen / back-to-run path | Pending live session |
+
 
 ## Exit Criteria
 - Officer can resolve findings and revalidate
 - Publish path is blocked while hard violations remain
 - Edit conflicts are safely handled and communicated
+
+## Wave 4.5c Recovery Context (2026-05-06)
+
+### Why this section exists
+- Multiple implementation passes reported "READY" but manual QA still reproduced core pre-generation regressions.
+- Build/typecheck success alone is not sufficient for timetable acceptance; interaction path correctness must be proven.
+- This section is the required handoff context for any agent touching `/timetable` pre-generation DnD, swap, commit, and generation lifecycle behavior.
+
+### Current observed problems (manual QA)
+- Dragging pinned sessions in-grid remains inconsistent; swap modal behavior regresses across passes.
+- Some swap flows still displace sessions to unassigned instead of performing a true pinned-to-pinned switch.
+- Soft conflict handling is inconsistent across paths; some paths still feel blocked despite policy requiring soft warnings to be non-blocking.
+- Pre-generation generation flow is confusing: after generate, users perceive blank-slate behavior with unclear meaning of locked placements.
+- Missing/unclear navigation path back to generated run from pre-generation workspace.
+
+### Root causes confirmed from code audits
+- Client swap flow has used multi-step orchestration (delete + commit + commit), which can create partial-failure states and regression loops.
+- Pre-generation drag/drop semantics have mixed generic entry-path and draft-placement path behavior, causing branch mismatch under certain targets.
+- Soft-warning logic has been implemented in multiple places, allowing policy drift between preview/commit/swap paths.
+- `LOCKED_FOR_RUN` lifecycle is valid server behavior but not communicated clearly in UI, so expected state transitions look like data loss to users.
+
+### Required behavior contract (must hold after fix)
+1. Pinned-to-pinned drag on occupied slot opens swap flow and performs a true two-way switch.
+2. Queue-to-occupied drag may displace existing placement to unassigned (as designed), but pinned-to-pinned must not.
+3. Soft violations are warnings only in pre-generation; they never block placement commits.
+4. Hard violations and hard daily-load violations block placement.
+5. Generation from pre-generation must clearly transition UI context and explain lock state.
+6. User must have an explicit "Back to Generated Run" path while in pre-generation.
+
+### Implementation guidance for next pass
+- Prefer server-atomic swap operation for pinned-to-pinned swaps to eliminate partial client-side state transitions.
+- Unify pre-generation commit policy at service boundary (single source of truth for hard/soft handling).
+- Keep DnD routing deterministic: pre-generation drags must route through one pre-generation mutation contract.
+- Include explicit lifecycle/status indicators for `DRAFT`, `LOCKED_FOR_RUN`, and `ARCHIVED` counts in UI.
+
+### Acceptance gate (mandatory)
+- No "READY" verdict without:
+  - Typecheck + build pass
+  - Automated tests covering swap atomicity and soft/hard policy outcomes
+  - Manual QA evidence for all required behavior contract items above

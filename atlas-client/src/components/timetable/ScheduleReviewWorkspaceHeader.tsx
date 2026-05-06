@@ -30,6 +30,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		handleStartNewPreGenerationDraft,
 		draftBoard,
 		openPreGenerationWorkspace,
+		returnToGeneratedRun,
 		generating,
 		loading,
 		handleTriggerGenerate,
@@ -123,6 +124,18 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					>
 						<CalendarClock className="size-3.5" />
 						Continue Draft
+					</Button>
+				)}
+
+				{isPreGenerationWorkspace && activeGeneratedRunId != null && (
+					<Button
+						variant="outline"
+						size="sm"
+						className="h-8 gap-1.5"
+						onClick={returnToGeneratedRun}
+					>
+						<Undo2 className="size-3.5" />
+						Back to Generated Run
 					</Button>
 				)}
 

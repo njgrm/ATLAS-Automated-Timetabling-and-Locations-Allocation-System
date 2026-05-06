@@ -439,7 +439,7 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 										data-testid="pre-gen-pending-save-anchor"
 										size="sm"
 										className="h-7 text-xs"
-										disabled={preGenSaving || preGenPreviewLoading || !preGenPreview || !preGenPreview.allowed}
+										disabled={preGenSaving || preGenPreviewLoading || !preGenPreview || (preGenPreview.hardViolations?.length ?? 0) > 0}
 										onClick={() => void commitPreGenPending()}
 									>
 										{preGenSaving ? <Loader2 className="mr-1 size-3 animate-spin" /> : <Lock className="mr-1 size-3" />}

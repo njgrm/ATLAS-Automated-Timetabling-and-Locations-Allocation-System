@@ -733,6 +733,42 @@ export interface DraftPlacementCommitResult {
 	board: DraftBoardState;
 }
 
+export interface DraftPlacementSwapPreview {
+	allowed: boolean;
+	hardViolations: Violation[];
+	softViolations: Violation[];
+	violationDelta: PreviewResult['violationDelta'];
+	humanConflicts: HumanConflict[];
+	policyImpactSummary: PolicyImpact[];
+	dailyLoads: {
+		source: {
+			placementId: number;
+			facultyId: number;
+			day: string;
+			dailyLoadBand: 'ok' | 'soft' | 'hard';
+			dailyMinutesAfter: number;
+			facultyWeeklyMinutes: Record<string, number>;
+		};
+		target: {
+			placementId: number;
+			facultyId: number;
+			day: string;
+			dailyLoadBand: 'ok' | 'soft' | 'hard';
+			dailyMinutesAfter: number;
+			facultyWeeklyMinutes: Record<string, number>;
+		};
+	};
+}
+
+export interface DraftPlacementSwapResult {
+	placements: {
+		source: DraftPlacement;
+		target: DraftPlacement;
+	};
+	preview: DraftPlacementSwapPreview;
+	board: DraftBoardState;
+}
+
 /* ─── Grade Shift Window types ─── */
 
 export interface GradeShiftWindow {

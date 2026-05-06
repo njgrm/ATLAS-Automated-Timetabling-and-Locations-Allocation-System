@@ -79,6 +79,25 @@ function placementToScheduledEntry(placement, demandItem) {
         notes: placement.notes,
     }, `draft-${placement.id}`, demandItem);
 }
+function placementToInput(placement) {
+    if (placement.facultyId == null || placement.roomId == null) {
+        throw err(422, 'INCOMPLETE_DRAFT_PLACEMENT', `Draft placement ${placement.id} is missing faculty or room assignment.`);
+    }
+    return {
+        placementId: placement.id,
+        entryKind: placement.entryKind,
+        sectionId: placement.sectionId,
+        subjectId: placement.subjectId,
+        facultyId: placement.facultyId,
+        roomId: placement.roomId,
+        day: placement.day,
+        startTime: placement.startTime,
+        endTime: placement.endTime,
+        cohortCode: placement.cohortCode,
+        notes: placement.notes,
+        expectedVersion: placement.version,
+    };
+}
 function timeToMinutes(value) {
     const [hours, minutes] = value.split(':').map(Number);
     return hours * 60 + minutes;
@@ -96,6 +115,15 @@ function computeFacultyWeeklyMinutes(facultyId, placements) {
         if (p.facultyId === facultyId && p.status === 'DRAFT') {
             const mins = timeToMinutes(p.endTime) - timeToMinutes(p.startTime);
             result[p.day] = (result[p.day] ?? 0) + Math.max(0, mins);
+        }
+    }
+    return result;
+}
+function computeFacultyWeeklyMinutesFromEntries(facultyId, entries) {
+    const result = { MONDAY: 0, TUESDAY: 0, WEDNESDAY: 0, THURSDAY: 0, FRIDAY: 0 };
+    for (const entry of entries) {
+        if (entry.facultyId === facultyId) {
+            result[entry.day] = (result[entry.day] ?? 0) + entry.durationMinutes;
         }
     }
     return result;
@@ -371,9 +399,10 @@ function validateInputOrThrow(input, ctx) {
     }
     return demandItem;
 }
-function buildExistingEntries(ctx, excludedPlacementId) {
+function buildExistingEntries(ctx, excludedPlacementIds) {
+    const excludedIds = new Set(excludedPlacementIds ?? []);
     return ctx.placements
-        .filter((placement) => placement.status === 'DRAFT' && placement.id !== excludedPlacementId)
+        .filter((placement) => placement.status === 'DRAFT' && !excludedIds.has(placement.id))
         .map((placement) => {
         const demandItem = ctx.demandByKey.get(buildAssignmentKey({
             entryKind: placement.entryKind,
@@ -404,12 +433,12 @@ export async function previewPlacement(schoolId, schoolYearId, input) {
         entryKind: input.entryKind ?? existingPlacement?.entryKind ?? 'SECTION',
         cohortCode: input.cohortCode ?? existingPlacement?.cohortCode ?? null,
     }, `draft-preview-${input.placementId ?? 'new'}`, demandItem);
-    const nextEntries = [...buildExistingEntries(ctx, input.placementId), candidateEntry];
+    const nextEntries = [...buildExistingEntries(ctx, input.placementId != null ? [input.placementId] : []), candidateEntry];
     const nextValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, nextEntries, ctx));
     const hardViolations = nextValidation.violations.filter((violation) => violation.severity === 'HARD');
     const softViolations = nextValidation.violations.filter((violation) => violation.severity === 'SOFT');
     // Daily load band computation (independent of policy maxTeachingMinutesPerDay)
-    const existingDailyMinutes = computeFacultyDailyMinutes(input.facultyId, input.day, buildExistingEntries(ctx, input.placementId));
+    const existingDailyMinutes = computeFacultyDailyMinutes(input.facultyId, input.day, buildExistingEntries(ctx, input.placementId != null ? [input.placementId] : []));
     const candidateDuration = timeToMinutes(input.endTime) - timeToMinutes(input.startTime);
     const dailyMinutesAfter = existingDailyMinutes + Math.max(0, candidateDuration);
     const dailyLoadBand = classifyDailyLoadBand(dailyMinutesAfter);
@@ -564,17 +593,11 @@ export async function commitPlacement(schoolId, schoolYearId, actorId, input, al
     if (preview.hardViolations.length > 0) {
         throw err(422, 'HARD_VIOLATION_BLOCK', 'Placement cannot be committed while hard conflicts remain.', { hardViolations: preview.hardViolations.map((violation) => violation.code) });
     }
-    if (preview.softViolations.length > 0 && !allowSoftOverride) {
-        throw err(422, 'SOFT_OVERRIDE_REQUIRED', 'Soft conflicts require explicit acknowledgment before committing.', { softViolations: preview.softViolations.map((violation) => violation.code) });
-    }
     // Daily load hard block: no override allowed above 8 hours
     if (preview.dailyLoadBand === 'hard') {
         throw err(422, 'DAILY_LOAD_HARD_BLOCK', `This placement would exceed the 8-hour daily teaching limit (${Math.round(preview.dailyMinutesAfter / 60 * 10) / 10}h on ${input.day}). Choose a different day, slot, or faculty.`, { dailyMinutesAfter: preview.dailyMinutesAfter });
     }
-    // Daily load soft: requires soft override acknowledgment
-    if (preview.dailyLoadBand === 'soft' && !allowSoftOverride) {
-        throw err(422, 'DAILY_LOAD_SOFT_OVERRIDE_REQUIRED', `This placement pushes the faculty to ${Math.round(preview.dailyMinutesAfter / 60 * 10) / 10}h on ${input.day} (standard limit: 6h). Acknowledge to continue.`, { dailyMinutesAfter: preview.dailyMinutesAfter });
-    }
+    void allowSoftOverride;
     let placement;
     let actionType;
     let beforePayload = null;
@@ -654,6 +677,172 @@ export async function commitPlacement(schoolId, schoolYearId, actorId, input, al
     const refreshed = await loadDraftContext(schoolId, schoolYearId);
     return {
         placement: toDraftRow(placement),
+        preview,
+        board: await buildBoardStateFromContext(schoolId, schoolYearId, refreshed),
+    };
+}
+function getDraftPlacementOrThrow(ctx, placementId, expectedVersion) {
+    const placement = ctx.placements.find((row) => row.id === placementId && row.status === 'DRAFT');
+    if (!placement) {
+        throw err(404, 'PLACEMENT_NOT_FOUND', `Draft placement ${placementId} was not found or is no longer editable.`);
+    }
+    if (expectedVersion != null && placement.version !== expectedVersion) {
+        throw err(409, 'VERSION_CONFLICT', `Draft placement version conflict: expected ${expectedVersion}, actual ${placement.version}.`, { placementId });
+    }
+    return placement;
+}
+function buildSwapPreview(ctx, sourcePlacement, targetPlacement) {
+    const currentEntries = buildExistingEntries(ctx);
+    const currentValidation = validateHardConstraints(buildValidatorCtx(sourcePlacement.schoolId, sourcePlacement.schoolYearId, currentEntries, ctx));
+    const sourceOriginal = placementToInput(sourcePlacement);
+    const targetOriginal = placementToInput(targetPlacement);
+    const sourceInput = {
+        ...sourceOriginal,
+        day: targetPlacement.day,
+        startTime: targetPlacement.startTime,
+        endTime: targetPlacement.endTime,
+    };
+    const targetInput = {
+        ...targetOriginal,
+        day: sourcePlacement.day,
+        startTime: sourcePlacement.startTime,
+        endTime: sourcePlacement.endTime,
+    };
+    const sourceDemand = validateInputOrThrow(sourceInput, ctx);
+    const targetDemand = validateInputOrThrow(targetInput, ctx);
+    const nextEntries = [
+        ...buildExistingEntries(ctx, [sourcePlacement.id, targetPlacement.id]),
+        asScheduledEntry(sourceInput, `draft-swap-${sourcePlacement.id}`, sourceDemand),
+        asScheduledEntry(targetInput, `draft-swap-${targetPlacement.id}`, targetDemand),
+    ];
+    const nextValidation = validateHardConstraints(buildValidatorCtx(sourcePlacement.schoolId, sourcePlacement.schoolYearId, nextEntries, ctx));
+    const hardViolations = nextValidation.violations.filter((violation) => violation.severity === 'HARD');
+    const softViolations = nextValidation.violations.filter((violation) => violation.severity === 'SOFT');
+    const sourceDailyMinutesAfter = computeFacultyDailyMinutes(sourceInput.facultyId, sourceInput.day, nextEntries);
+    const targetDailyMinutesAfter = computeFacultyDailyMinutes(targetInput.facultyId, targetInput.day, nextEntries);
+    return {
+        allowed: hardViolations.length === 0
+            && classifyDailyLoadBand(sourceDailyMinutesAfter) !== 'hard'
+            && classifyDailyLoadBand(targetDailyMinutesAfter) !== 'hard',
+        hardViolations,
+        softViolations,
+        violationDelta: {
+            hardBefore: currentValidation.violations.filter((violation) => violation.severity === 'HARD').length,
+            hardAfter: hardViolations.length,
+            softBefore: currentValidation.violations.filter((violation) => violation.severity === 'SOFT').length,
+            softAfter: softViolations.length,
+        },
+        humanConflicts: buildHumanConflicts([...hardViolations, ...softViolations], ctx),
+        policyImpactSummary: buildPolicyImpactSummary([...hardViolations, ...softViolations]),
+        dailyLoads: {
+            source: {
+                placementId: sourcePlacement.id,
+                facultyId: sourceInput.facultyId,
+                day: sourceInput.day,
+                dailyLoadBand: classifyDailyLoadBand(sourceDailyMinutesAfter),
+                dailyMinutesAfter: sourceDailyMinutesAfter,
+                facultyWeeklyMinutes: computeFacultyWeeklyMinutesFromEntries(sourceInput.facultyId, nextEntries),
+            },
+            target: {
+                placementId: targetPlacement.id,
+                facultyId: targetInput.facultyId,
+                day: targetInput.day,
+                dailyLoadBand: classifyDailyLoadBand(targetDailyMinutesAfter),
+                dailyMinutesAfter: targetDailyMinutesAfter,
+                facultyWeeklyMinutes: computeFacultyWeeklyMinutesFromEntries(targetInput.facultyId, nextEntries),
+            },
+        },
+    };
+}
+export async function previewSwapPlacements(schoolId, schoolYearId, input) {
+    if (input.sourcePlacementId === input.targetPlacementId) {
+        throw err(422, 'NOOP_SWAP', 'Source and target placements must be different draft entries.');
+    }
+    const ctx = await loadDraftContext(schoolId, schoolYearId);
+    const sourcePlacement = getDraftPlacementOrThrow(ctx, input.sourcePlacementId, input.sourceExpectedVersion);
+    const targetPlacement = getDraftPlacementOrThrow(ctx, input.targetPlacementId, input.targetExpectedVersion);
+    return buildSwapPreview(ctx, sourcePlacement, targetPlacement);
+}
+export async function swapPlacements(schoolId, schoolYearId, actorId, input) {
+    if (input.sourcePlacementId === input.targetPlacementId) {
+        throw err(422, 'NOOP_SWAP', 'Source and target placements must be different draft entries.');
+    }
+    const ctx = await loadDraftContext(schoolId, schoolYearId);
+    const sourcePlacement = getDraftPlacementOrThrow(ctx, input.sourcePlacementId, input.sourceExpectedVersion);
+    const targetPlacement = getDraftPlacementOrThrow(ctx, input.targetPlacementId, input.targetExpectedVersion);
+    const preview = buildSwapPreview(ctx, sourcePlacement, targetPlacement);
+    if (preview.hardViolations.length > 0) {
+        throw err(422, 'HARD_VIOLATION_BLOCK', 'Swap cannot be committed while hard conflicts remain.', { hardViolations: preview.hardViolations.map((violation) => violation.code) });
+    }
+    if (preview.dailyLoads.source.dailyLoadBand === 'hard' || preview.dailyLoads.target.dailyLoadBand === 'hard') {
+        throw err(422, 'DAILY_LOAD_HARD_BLOCK', 'Swap cannot be committed because one leg exceeds the 8-hour daily teaching limit.', {
+            sourceDailyMinutesAfter: preview.dailyLoads.source.dailyMinutesAfter,
+            targetDailyMinutesAfter: preview.dailyLoads.target.dailyMinutesAfter,
+        });
+    }
+    const [updatedSource, updatedTarget] = await prisma.$transaction(async (tx) => {
+        const nextSource = await tx.lockedSession.update({
+            where: { id: sourcePlacement.id },
+            data: {
+                day: targetPlacement.day,
+                startTime: targetPlacement.startTime,
+                endTime: targetPlacement.endTime,
+                version: { increment: 1 },
+            },
+        });
+        const nextTarget = await tx.lockedSession.update({
+            where: { id: targetPlacement.id },
+            data: {
+                day: sourcePlacement.day,
+                startTime: sourcePlacement.startTime,
+                endTime: sourcePlacement.endTime,
+                version: { increment: 1 },
+            },
+        });
+        await tx.lockedSessionAction.createMany({
+            data: [
+                {
+                    lockId: sourcePlacement.id,
+                    schoolId,
+                    schoolYearId,
+                    actorId,
+                    actionType: 'SWAP',
+                    beforePayload: sourcePlacement,
+                    afterPayload: nextSource,
+                },
+                {
+                    lockId: targetPlacement.id,
+                    schoolId,
+                    schoolYearId,
+                    actorId,
+                    actionType: 'SWAP',
+                    beforePayload: targetPlacement,
+                    afterPayload: nextTarget,
+                },
+            ],
+        });
+        await tx.auditLog.create({
+            data: {
+                schoolId,
+                schoolYearId,
+                action: 'PRE_GENERATION_DRAFT_SWAP',
+                actorId,
+                targetIds: [sourcePlacement.id, targetPlacement.id],
+                metadata: {
+                    sourcePlacementId: sourcePlacement.id,
+                    targetPlacementId: targetPlacement.id,
+                    preview,
+                },
+            },
+        });
+        return [nextSource, nextTarget];
+    });
+    const refreshed = await loadDraftContext(schoolId, schoolYearId);
+    return {
+        placements: {
+            source: toDraftRow(updatedSource),
+            target: toDraftRow(updatedTarget),
+        },
         preview,
         board: await buildBoardStateFromContext(schoolId, schoolYearId, refreshed),
     };

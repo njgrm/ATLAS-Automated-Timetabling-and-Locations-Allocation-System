@@ -50,6 +50,7 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	handleStartNewPreGenerationDraft: () => Promise<void>;
 	draftBoard: DraftBoardState | null;
 	openPreGenerationWorkspace: (showConfirm: boolean) => Promise<void>;
+	returnToGeneratedRun: () => void;
 	generating: boolean;
 	loading: boolean;
 	handleTriggerGenerate: () => void;

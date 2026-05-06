@@ -108,7 +108,11 @@ export type PendingSwapAction = {
 		roomId: number;
 	};
 	displaced: DraftPlacement;
-	displacementMode: 'to-queue';
+	/**
+	 * 'to-source-slot': source is a draftPlacement → true two-way swap (displaced moves to source's original slot).
+	 * 'to-queue': source is a draftQueue item → displaced is unassigned/returned to queue.
+	 */
+	displacementMode: 'to-queue' | 'to-source-slot';
 	sourceLabel: string;
 };
 

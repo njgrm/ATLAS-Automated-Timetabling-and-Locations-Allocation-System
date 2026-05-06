@@ -114,6 +114,7 @@ subjectLabel,
 sectionLabel,
 swapSaving,
 executeSwapAction,
+swapPreview,
 regularSwapPending,
 setRegularSwapPending,
 regularSwapSaving,
@@ -184,7 +185,7 @@ return (
 									 <span className="font-semibold">{draftBoardSummary.draft}</span> anchored)
 								</>
 							) : null}
-							 and start a new generated run.
+							 and start a new generated run. Anchored draft placements become locked run inputs, and the workspace returns to Generated Run view after generation.
 							 {followUps.size > 0 ? (
 								<>
 									 You currently have <span className="font-semibold text-amber-600">{followUps.size}</span>
@@ -285,7 +286,7 @@ return (
 							<>
 								<div className="rounded border border-border bg-muted/30 px-3 py-2 text-xs space-y-1">
 									<p className="font-semibold">{requestPreview.request.facultyName}</p>
-									<p className="text-muted-foreground">{requestPreview.request.subjectCode} � {requestPreview.request.sectionName}</p>
+									<p className="text-muted-foreground">{requestPreview.request.subjectCode} · {requestPreview.request.sectionName}</p>
 									<p className="text-muted-foreground">{requestPreview.request.day} {requestPreview.request.startTime}-{requestPreview.request.endTime}</p>
 									<p className="text-muted-foreground">{requestPreview.request.currentRoomName} to {requestPreview.request.requestedRoomName}</p>
 								</div>
@@ -430,7 +431,7 @@ return (
 						<div className="text-center space-y-1">
 							<h3 className="text-base font-semibold">Generating Schedule</h3>
 							<p className="text-sm text-muted-foreground">
-								Constructing timetable and validating constraints�
+								Constructing timetable and validating constraints…
 							</p>
 						</div>
 						<div className="flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
@@ -450,7 +451,7 @@ return (
 							{softCount > 0 ? (
 								<>
 									This draft has <span className="font-semibold text-amber-600">{softCount}</span> soft
-									violation{softCount !== 1 ? 's' : ''} (informational � does not block publish).
+									violation{softCount !== 1 ? 's' : ''} (informational — does not block publish).
 								</>
 							) : (
 								'This draft has no violations. Ready to publish.'
@@ -503,11 +504,11 @@ return (
 						</DialogTitle>
 						<DialogDescription>
 							{preGenConfirmCtx?.source.type === 'draftQueue'
-								? `${preGenConfirmCtx.source.item.subjectCode} � ${preGenConfirmCtx.source.item.sectionName} � Session ${preGenConfirmCtx.source.item.sessionNumber}/${preGenConfirmCtx.source.item.sessionsPerWeek}`
+								? `${preGenConfirmCtx.source.item.subjectCode} · ${preGenConfirmCtx.source.item.sectionName} · Session ${preGenConfirmCtx.source.item.sessionNumber}/${preGenConfirmCtx.source.item.sessionsPerWeek}`
 								: preGenConfirmCtx
 									? `Draft Placement #${preGenConfirmCtx.source.placement.id}`
 									: ''}
-							{preGenConfirmCtx && ` � ${preGenConfirmCtx.day} ${formatTime(preGenConfirmCtx.startTime)}�${formatTime(preGenConfirmCtx.endTime)}`}
+							{preGenConfirmCtx && ` — ${preGenConfirmCtx.day} ${formatTime(preGenConfirmCtx.startTime)}–${formatTime(preGenConfirmCtx.endTime)}`}
 						</DialogDescription>
 					</DialogHeader>
 
@@ -523,7 +524,7 @@ return (
 							)}
 							<Select value={confirmFacultyId} onValueChange={(v) => { setConfirmFacultyId(v); setConfirmPreview(null); }}>
 								<SelectTrigger className="h-8 text-xs">
-									<SelectValue placeholder="Select faculty�" />
+									<SelectValue placeholder="Select faculty…" />
 								</SelectTrigger>
 								<SelectContent>
 									{preGenConfirmCtx?.source.type === 'draftQueue' && preGenConfirmCtx.source.item.facultyOptionsEnriched.length > 0
@@ -588,25 +589,25 @@ return (
 							<label className="text-xs font-medium">Room</label>
 							<Select value={confirmRoomId} onValueChange={(v) => { setConfirmRoomId(v); setConfirmPreview(null); }}>
 								<SelectTrigger className="h-8 text-xs">
-									<SelectValue placeholder="Select room�" />
+									<SelectValue placeholder="Select room…" />
 								</SelectTrigger>
 								<SelectContent>
 									{Array.from(roomMap.values())
 										.filter((r) => r.isTeachingSpace)
 										.map((r) => (
 											<SelectItem key={r.id} value={String(r.id)}>
-												{r.name} {r.buildingName ? `� ${r.buildingName}` : ''}
+												{r.name} {r.buildingName ? `· ${r.buildingName}` : ''}
 											</SelectItem>
 										))}
 								</SelectContent>
 							</Select>
 						</div>
 
-						{/* Wave 4.5b item 11: auto-preview via useEffect debounce � no separate button */}
+						{/* Wave 4.5b item 11: auto-preview via useEffect debounce — no separate button */}
 						{confirmPreviewLoading && (
 							<div className="flex items-center gap-1.5 text-[0.6875rem] text-muted-foreground">
 								<Loader2 className="size-3.5 animate-spin" />
-								Previewing constraints�
+								Previewing constraints…
 							</div>
 						)}
 
@@ -695,7 +696,7 @@ return (
 								{confirmPreview.hardViolations.length === 0 && confirmPreview.dailyLoadBand !== 'hard' && (
 									<div className="flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[0.6875rem] text-emerald-700">
 										<CheckCircle2 className="size-3.5" />
-										No hard conflicts � safe to save.
+										No hard conflicts — safe to save.
 									</div>
 								)}
 							</div>
@@ -722,8 +723,6 @@ return (
 								|| confirmSaving
 								|| (confirmPreview?.hardViolations.length ?? 0) > 0
 								|| confirmPreview?.dailyLoadBand === 'hard'
-								|| (confirmPreview?.dailyLoadBand === 'soft' && !confirmAllowDailyOverride)
-								
 								|| !confirmPreview
 							}
 							onClick={() => void commitConfirmPlacement()}
@@ -746,11 +745,13 @@ return (
 					<DialogHeader>
 						<DialogTitle className="flex items-center gap-2">
 							<RefreshCw className="size-4 text-primary" />
-							Swap Placement?
+							{swapAction?.displacementMode === 'to-source-slot' ? 'Switch Slots?' : 'Swap Placement?'}
 						</DialogTitle>
 						<DialogDescription>
 							{swapAction
-								? `${swapAction.sourceLabel} will be placed on ${DAY_SHORT[swapAction.target.day] ?? swapAction.target.day} ${formatTime(swapAction.target.startTime)}-${formatTime(swapAction.target.endTime)}.`
+								? swapAction.displacementMode === 'to-source-slot'
+									? `${swapAction.sourceLabel} and the session at ${DAY_SHORT[swapAction.target.day] ?? swapAction.target.day} ${formatTime(swapAction.target.startTime)}–${formatTime(swapAction.target.endTime)} will switch slots.`
+									: `${swapAction.sourceLabel} will be placed on ${DAY_SHORT[swapAction.target.day] ?? swapAction.target.day} ${formatTime(swapAction.target.startTime)}–${formatTime(swapAction.target.endTime)}.`
 								: 'Confirm swap action.'}
 						</DialogDescription>
 					</DialogHeader>
@@ -759,25 +760,141 @@ return (
 							<div className="rounded border border-border bg-muted/20 px-2.5 py-2">
 								<p className="font-medium">Destination</p>
 								<p className="text-muted-foreground">
-									{DAY_SHORT[swapAction.target.day] ?? swapAction.target.day} {formatTime(swapAction.target.startTime)}-{formatTime(swapAction.target.endTime)}
-									 {' '}� Faculty {formatFacultyInitials(swapAction.target.facultyId)} � {roomLabelShort(swapAction.target.roomId)}
+									{DAY_SHORT[swapAction.target.day] ?? swapAction.target.day} {formatTime(swapAction.target.startTime)}–{formatTime(swapAction.target.endTime)}
+									{' '}· Faculty {formatFacultyInitials(swapAction.target.facultyId)} · {roomLabelShort(swapAction.target.roomId)}
 								</p>
 							</div>
-							<div className="rounded border border-amber-300 bg-amber-50 px-2.5 py-2 text-amber-900">
-								<p className="font-medium">Displaced session outcome</p>
-								<p>
-									{subjectLabel(swapAction.displaced.subjectId)} � {sectionLabel(swapAction.displaced.sectionId)} will be returned to the Unassigned queue.
-								</p>
-							</div>
+							{swapAction.displacementMode === 'to-source-slot' && swapAction.source.type === 'draftPlacement' ? (
+								<div className="rounded border border-blue-200 bg-blue-50 px-2.5 py-2 text-blue-900">
+									<p className="font-medium">Sessions will switch slots</p>
+									<p className="mt-0.5 text-blue-800/80">
+										{subjectLabel(swapAction.displaced.subjectId)} · {sectionLabel(swapAction.displaced.sectionId)} will move to{' '}
+										{DAY_SHORT[swapAction.source.placement.day] ?? swapAction.source.placement.day}{' '}
+										{formatTime(swapAction.source.placement.startTime)}–{formatTime(swapAction.source.placement.endTime)}.
+									</p>
+								</div>
+							) : (
+								<div className="rounded border border-amber-300 bg-amber-50 px-2.5 py-2 text-amber-900">
+									<p className="font-medium">Displaced session outcome</p>
+									<p>
+										{subjectLabel(swapAction.displaced.subjectId)} · {sectionLabel(swapAction.displaced.sectionId)} will be returned to the Unassigned queue.
+									</p>
+								</div>
+							)}
+
+							{/* Fix C: live conflict preview for both swap legs */}
+							{swapPreview?.loading && (
+								<div className="flex items-center gap-1.5 text-[0.6875rem] text-muted-foreground">
+									<Loader2 className="size-3.5 animate-spin" />
+									Checking conflicts…
+								</div>
+							)}
+							{swapPreview && !swapPreview.loading && swapPreview.error && (
+								<div className="flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[0.6875rem] text-amber-700">
+									<AlertTriangle className="size-3.5 shrink-0" />
+									{swapPreview.error}
+								</div>
+							)}
+							{swapPreview && !swapPreview.loading && !swapPreview.error && (() => {
+								if (swapAction.displacementMode === 'to-source-slot') {
+									const atomicPreview = swapPreview.atomicPreview;
+									const totalHard = atomicPreview?.hardViolations.length ?? 0;
+									const totalSoft = atomicPreview?.softViolations.length ?? 0;
+									if (!atomicPreview) return null;
+									if (totalHard === 0 && totalSoft === 0) {
+										return (
+											<div className="flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[0.6875rem] text-emerald-700">
+												<CheckCircle2 className="size-3.5 shrink-0" />
+												No additional hard conflicts detected for the two-way switch.
+											</div>
+										);
+									}
+									return (
+										<div className="space-y-1.5">
+											{totalHard > 0 && (
+												<div className="rounded border border-red-200 bg-red-50 px-2.5 py-2 text-[0.6875rem] text-red-800 space-y-1">
+													<p className="font-semibold flex items-center gap-1">
+														<ShieldAlert className="size-3.5 shrink-0" />
+														{totalHard} hard conflict{totalHard > 1 ? 's' : ''} — switch blocked
+													</p>
+													{atomicPreview.humanConflicts.filter((conflict) => conflict.severity === 'HARD').map((conflict, index) => (
+														<p key={`${conflict.code}-${index}`} className="text-[0.5625rem] text-red-700">{conflict.humanTitle}: {conflict.humanDetail}</p>
+													))}
+												</div>
+											)}
+											{totalSoft > 0 && totalHard === 0 && (
+												<div className="rounded border border-amber-200 bg-amber-50 px-2.5 py-2 text-[0.6875rem] text-amber-800 space-y-1">
+													<p className="font-semibold flex items-center gap-1">
+														<AlertTriangle className="size-3.5 shrink-0" />
+														{totalSoft} soft warning{totalSoft > 1 ? 's' : ''} — informational only
+													</p>
+													{atomicPreview.humanConflicts.filter((conflict) => conflict.severity === 'SOFT').map((conflict, index) => (
+														<p key={`${conflict.code}-${index}`} className="text-[0.5625rem] text-amber-700">{conflict.humanTitle}: {conflict.humanDetail}</p>
+													))}
+												</div>
+											)}
+										</div>
+									);
+								}
+								const srcHard = swapPreview.sourcePreview?.hardViolations ?? [];
+								const srcSoft = swapPreview.sourcePreview?.softViolations ?? [];
+								const totalHard = srcHard.length;
+								const totalSoft = srcSoft.length;
+								if (totalHard === 0 && totalSoft === 0) {
+									return (
+										<div className="flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[0.6875rem] text-emerald-700">
+											<CheckCircle2 className="size-3.5 shrink-0" />
+											No additional conflicts detected for either slot.
+										</div>
+									);
+								}
+								return (
+									<div className="space-y-1.5">
+										{totalHard > 0 && (
+											<div className="rounded border border-red-200 bg-red-50 px-2.5 py-2 text-[0.6875rem] text-red-800 space-y-1">
+												<p className="font-semibold flex items-center gap-1">
+													<ShieldAlert className="size-3.5 shrink-0" />
+													{totalHard} hard conflict{totalHard > 1 ? 's' : ''} — swap blocked
+												</p>
+												{swapPreview.sourcePreview?.humanConflicts.filter((c) => c.severity === 'HARD').map((c, idx) => (
+													<p key={idx} className="text-[0.5625rem] text-red-700">{c.humanTitle}: {c.humanDetail}</p>
+												))}
+											</div>
+										)}
+										{totalSoft > 0 && totalHard === 0 && (
+											<div className="rounded border border-amber-200 bg-amber-50 px-2.5 py-2 text-[0.6875rem] text-amber-800 space-y-1">
+												<p className="font-semibold flex items-center gap-1">
+													<AlertTriangle className="size-3.5 shrink-0" />
+													{totalSoft} soft warning{totalSoft > 1 ? 's' : ''} — informational only
+												</p>
+												{swapPreview.sourcePreview?.humanConflicts.filter((c) => c.severity === 'SOFT').map((c, idx) => (
+													<p key={idx} className="text-[0.5625rem] text-amber-700">{c.humanTitle}: {c.humanDetail}</p>
+												))}
+											</div>
+										)}
+									</div>
+								);
+							})()}
 						</div>
 					)}
 					<DialogFooter className="gap-2 sm:gap-0">
 						<Button variant="outline" size="sm" onClick={() => { setShowSwapConfirm(false); setSwapAction(null); }}>
 							Cancel
 						</Button>
-						<Button size="sm" disabled={swapSaving || !swapAction} onClick={() => { void executeSwapAction(); }}>
+						<Button
+							size="sm"
+							disabled={
+								swapSaving
+								|| !swapAction
+								|| swapPreview?.loading === true
+								|| (swapAction.displacementMode === 'to-source-slot'
+									? swapPreview?.atomicPreview?.allowed === false
+									: (swapPreview?.sourcePreview?.hardViolations.length ?? 0) > 0)
+							}
+							onClick={() => { void executeSwapAction(); }}
+						>
 							{swapSaving ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 size-3.5" />}
-							Confirm Swap
+							{swapAction?.displacementMode === 'to-source-slot' ? 'Confirm Switch' : 'Confirm Swap'}
 						</Button>
 					</DialogFooter>
 				</DialogContent>
@@ -790,7 +907,7 @@ return (
 						<DialogTitle>Swap Sessions?</DialogTitle>
 						<DialogDescription>
 							{regularSwapPending
-								? `${subjectLabel(regularSwapPending.entryA.subjectId)} (${sectionLabel(regularSwapPending.entryA.sectionId)}) will move to ${DAY_SHORT[regularSwapPending.entryB.day] ?? regularSwapPending.entryB.day} ${formatTime(regularSwapPending.entryB.startTime)}�${formatTime(regularSwapPending.entryB.endTime)}. ${subjectLabel(regularSwapPending.entryB.subjectId)} (${sectionLabel(regularSwapPending.entryB.sectionId)}) will move to the original slot.`
+								? `${subjectLabel(regularSwapPending.entryA.subjectId)} (${sectionLabel(regularSwapPending.entryA.sectionId)}) will move to ${DAY_SHORT[regularSwapPending.entryB.day] ?? regularSwapPending.entryB.day} ${formatTime(regularSwapPending.entryB.startTime)}–${formatTime(regularSwapPending.entryB.endTime)}. ${subjectLabel(regularSwapPending.entryB.subjectId)} (${sectionLabel(regularSwapPending.entryB.sectionId)}) will move to the original slot.`
 								: 'Confirm swap action.'}
 						</DialogDescription>
 					</DialogHeader>
@@ -862,7 +979,7 @@ return (
 										}, new Map<string, Array<{ value: string; label: string }>>())
 										.entries(),
 								).map(([label, items]) => ({ label, items }))}
-								placeholder="Select a faculty member�"
+								placeholder="Select a faculty member…"
 								triggerClassName="h-8 text-xs"
 							/>
 						</div>
@@ -889,7 +1006,7 @@ return (
 										}, new Map<string, Array<{ value: string; label: string }>>())
 										.entries(),
 								).map(([label, items]) => ({ label, items }))}
-								placeholder="Select a room�"
+								placeholder="Select a room…"
 								triggerClassName="h-8 text-xs"
 							/>
 						</div>

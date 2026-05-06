@@ -57,6 +57,15 @@ function parsePlacementBody(req: Request) {
 	};
 }
 
+function parseSwapBody(req: Request) {
+	return {
+		sourcePlacementId: Number(req.body.sourcePlacementId),
+		targetPlacementId: Number(req.body.targetPlacementId),
+		sourceExpectedVersion: req.body.sourceExpectedVersion == null ? undefined : Number(req.body.sourceExpectedVersion),
+		targetExpectedVersion: req.body.targetExpectedVersion == null ? undefined : Number(req.body.targetExpectedVersion),
+	};
+}
+
 function toEditablePlacementInput(existing: Awaited<ReturnType<typeof draftService.getDraftPlacement>>) {
 	if (existing.facultyId == null || existing.roomId == null) {
 		return 'Draft placement is incomplete and cannot be edited through targeted faculty/room/timeslot routes.';
@@ -110,6 +119,26 @@ router.post(
 );
 
 router.post(
+	'/:schoolId/:schoolYearId/pre-generation-drafts/swap/preview',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!requirePrivileged(req, res)) return;
+			const scope = parseScope(req, res);
+			if (!scope) return;
+			const result = await draftService.previewSwapPlacements(
+				scope.schoolId,
+				scope.schoolYearId,
+				parseSwapBody(req),
+			);
+			res.json(result);
+		} catch (error) {
+			next(error);
+		}
+	},
+);
+
+router.post(
 	'/:schoolId/:schoolYearId/pre-generation-drafts/commit',
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {
@@ -123,6 +152,27 @@ router.post(
 				req.user!.userId,
 				parsePlacementBody(req),
 				Boolean(req.body.allowSoftOverride),
+			);
+			res.status(201).json(result);
+		} catch (error) {
+			next(error);
+		}
+	},
+);
+
+router.post(
+	'/:schoolId/:schoolYearId/pre-generation-drafts/swap',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			if (!requirePrivileged(req, res)) return;
+			const scope = parseScope(req, res);
+			if (!scope) return;
+			const result = await draftService.swapPlacements(
+				scope.schoolId,
+				scope.schoolYearId,
+				req.user!.userId,
+				parseSwapBody(req),
 			);
 			res.status(201).json(result);
 		} catch (error) {

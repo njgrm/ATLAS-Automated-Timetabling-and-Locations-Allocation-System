@@ -31,6 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { ViolationGroup } from '@/components/timetable/TimetableShared';
+import { DraggablePlacementPin, DraggableQueuePin, DraggableUnassignedPin, UnassignDropZone } from '@/components/timetable/DraggablePinWrappers';
 import type { LeftRailContentContext } from '@/components/timetable/timetableContexts.types';
 
 type LeftRailContentProps = {
@@ -170,7 +171,7 @@ return (
 												>
 													<ChevronRight className="size-2.5 shrink-0" />
 													<span className="truncate flex-1">{VIOLATION_LABELS[v.code]}</span>
-													<span className="shrink-0 text-red-500 font-medium">�{count}</span>
+													<span className="shrink-0 text-red-500 font-medium">×{count}</span>
 												</button>
 											);
 										})}
@@ -181,7 +182,7 @@ return (
 								<div className="shrink-0 px-3 py-2 border-b border-emerald-100 bg-emerald-50/50">
 									<div className="flex items-center gap-1.5 text-[0.625rem] font-medium text-emerald-700">
 										<Check className="size-3" />
-										No violations � schedule is clean
+												No violations — schedule is clean
 									</div>
 								</div>
 							)}
@@ -189,7 +190,7 @@ return (
 								<div className="relative">
 									<Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
 									<Input
-										placeholder="Search violations�"
+										placeholder="Search violations…"
 										value={violationSearch}
 										onChange={(e) => setViolationSearch(e.target.value)}
 										className="h-7 pl-7 text-xs"
@@ -259,17 +260,14 @@ return (
 													const grade = item.gradeLevel;
 													const gradeBadge = grade ? GRADE_BADGE[grade] : undefined;
 													return (
-														<div
+														<DraggableQueuePin
 															key={item.assignmentKey}
-															draggable={isDesktop}
-															onDragStart={() => setDragItem({ type: 'draftQueue', item })}
-															onDragEnd={() => { setDragItem(null); setUnassignDropActive(false); }}
+															item={item}
+															disabled={!isDesktop}
 															className="flex flex-col gap-1 rounded border border-border bg-card px-2 py-1.5 text-xs cursor-grab active:cursor-grabbing hover:border-primary/40 hover:bg-primary/5 transition-colors"
 															onClick={() => {
-																// Tap-to-open: open confirm sheet without a specific slot
-																// (user will interact from timetable side)
 																setDragItem({ type: 'draftQueue', item });
-																toast.info('Session selected � now tap an empty slot on the timetable to place it.');
+																toast.info('Session selected — now tap an empty slot on the timetable to place it.');
 															}}
 														>
 															<div className="flex items-center gap-1.5 min-w-0">
@@ -291,10 +289,10 @@ return (
 															</div>
 															<div className="flex items-center gap-1.5 text-[0.5625rem] text-muted-foreground pl-4.5">
 																<span className="truncate">{item.sectionName}</span>
-																<span>�</span>
+																<span>·</span>
 																<span>Session {item.sessionNumber}/{item.sessionsPerWeek}</span>
 															</div>
-														</div>
+														</DraggableQueuePin>
 													);
 												})}
 											</div>
@@ -359,11 +357,11 @@ return (
 													const isExpanded = expandedUnassigned.has(itemKey);
 													const cachedFix = unassignedFixSuggestions[itemKey];
 													return (
-														<div
+														<DraggableUnassignedPin
 															key={`${itemKey}-${i}`}
-															draggable
-															onDragStart={() => setDragItem({ type: 'unassigned', item })}
-															onDragEnd={() => { if (!showSoftConfirm) setDragItem(null); setUnassignDropActive(false); }}
+															itemKey={itemKey}
+															item={item}
+															disabled={false}
 															className={`rounded border text-xs transition-colors ${
 																isKbSelected
 																	? 'border-primary bg-primary/10 ring-2 ring-primary'
@@ -399,7 +397,7 @@ return (
 																		</Badge>
 																	)}
 																	<span className="font-medium truncate min-w-0">{sectionLabel(item.sectionId)}</span>
-																	<span className="text-muted-foreground shrink-0">�</span>
+																	<span className="text-muted-foreground shrink-0">·</span>
 																	<span className="truncate min-w-0">{subjectLabel(item.subjectId)}</span>
 																</div>
 																<div className="flex items-center gap-1.5 text-[0.625rem] text-muted-foreground pl-4.5">
@@ -443,7 +441,7 @@ return (
 																			<div className="flex items-center gap-1.5 text-[0.625rem]">
 																				<ShieldAlert className="size-2.5 text-red-600 shrink-0" />
 																				<span className="text-red-700 font-medium">Publish blocker</span>
-																				<span className="text-muted-foreground">� must be resolved before publishing</span>
+																				<span className="text-muted-foreground">— must be resolved before publishing</span>
 																			</div>
 																			{(item.entryKind === 'COHORT' || item.adviserName) && (
 																				<div className="rounded border border-border bg-background px-2 py-1.5 text-[0.625rem] text-muted-foreground">
@@ -604,7 +602,7 @@ return (
 																	</motion.div>
 																)}
 															</AnimatePresence>
-														</div>
+														</DraggableUnassignedPin>
 													);
 												})}
 											</div>
@@ -678,7 +676,7 @@ return (
 									<div className="relative flex-1 min-w-0">
 										<Search className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 size-3 text-muted-foreground" />
 										<Input
-											placeholder="Filter�"
+												placeholder="Filter…"
 											value={pinsSearch}
 											onChange={(e) => setPinsSearch(e.target.value)}
 											className="h-7 pl-6 text-[0.625rem]"
@@ -733,28 +731,11 @@ return (
 							)}
 							<ScrollArea className="flex-1 min-h-0">
 								<div className="space-y-3 p-3">
-									<div
+									<UnassignDropZone
 										className={cn(
 											'space-y-1 rounded-md border border-transparent transition-colors',
 											unassignDropActive ? 'border-destructive/60 bg-destructive/5' : '',
 										)}
-										onDragOver={(event) => {
-											const placementId = getDraggedDraftPlacementId(dragItem);
-											if (placementId == null) return;
-											event.preventDefault();
-											event.dataTransfer.dropEffect = 'move';
-											setUnassignDropActive(true);
-										}}
-										onDragLeave={() => setUnassignDropActive(false)}
-										onDrop={(event) => {
-											event.preventDefault();
-											setUnassignDropActive(false);
-											const placementId = getDraggedDraftPlacementId(dragItem);
-											setDragItem(null);
-											if (placementId == null) return;
-											setPendingUnassignId(placementId);
-											setShowUnassignConfirm(true);
-										}}
 									>
 										<p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">Unassigned</p>
 										{unassignDropActive && (
@@ -778,11 +759,10 @@ return (
 											const key = `${item.assignmentKey}-${item.sessionNumber}`;
 											const selected = preGenKbSource?.type === 'draftQueue' && preGenKbSource.item.assignmentKey === item.assignmentKey && preGenKbSource.item.sessionNumber === item.sessionNumber;
 											return (
-												<div
+												<DraggableQueuePin
 													key={key}
-													draggable={isDesktop}
-													onDragStart={() => setDragItem({ type: 'draftQueue', item })}
-													onDragEnd={() => { setDragItem(null); setUnassignDropActive(false); }}
+													item={item}
+													disabled={!isDesktop}
 													className={cn(
 														'rounded border px-2 py-1.5 text-xs transition-colors',
 														GRADE_CARD_BG[item.gradeLevel] ?? 'bg-background border-border',
@@ -805,7 +785,7 @@ return (
 														onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const source = { type: 'draftQueue' as const, item }; setPreGenKbSource(source); setKbSelectedSource(source); setSelectedEntry(null); } }}
 													>
 														<div className="flex items-center justify-between gap-1 min-w-0">
-															<span className="truncate font-semibold text-[0.625rem]">{item.sectionName}{item.cohortCode ? ` � ${item.cohortCode}` : ''}</span>
+																<span className="truncate font-semibold text-[0.625rem]">{item.sectionName}{item.cohortCode ? ` · ${item.cohortCode}` : ''}</span>
 															<span className="shrink-0 text-[0.5rem] text-muted-foreground/70 tabular-nums">{item.sessionNumber}/{item.sessionsPerWeek}</span>
 														</div>
 														<div className="flex items-center gap-1 min-w-0 mt-0.5">
@@ -817,7 +797,7 @@ return (
 															<span className="truncate text-[0.5625rem] text-muted-foreground">{item.subjectCode}</span>
 														</div>
 													</div>
-												</div>
+												</DraggableQueuePin>
 											);
 										})}
 										</div>
@@ -837,23 +817,18 @@ return (
 										{(draftBoard?.queue.length ?? 0) === 0 ? (
 											<p className="rounded border border-dashed border-border px-2 py-3 text-center text-[0.6875rem] text-muted-foreground">No unassigned pre-generation demand remains.</p>
 										) : null}
-									</div>
+									</UnassignDropZone>
 									<div className="space-y-1">
 										<p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">Pinned / Existing Draft Entries</p>
 										{(draftBoard?.placements ?? []).filter((placement) => placement.status === 'DRAFT').map((placement) => {
-											const source = { type: 'draftPlacement' as const, placement };
 											const selected = selectedEntry?.entryId === `draft-placement-${placement.id}`;
 											const placementGrade = gradeForSection(placement.sectionId);
 											const placementGradeBadge = placementGrade ? GRADE_BADGE[placementGrade] : null;
 											return (
-												<div
+												<DraggablePlacementPin
 													key={placement.id}
-													draggable={isDesktop}
-													onPointerDownCapture={() => {
-														if (isDesktop) setDragItem(source);
-													}}
-													onDragStart={() => setDragItem(source)}
-													onDragEnd={() => { setDragItem(null); setUnassignDropActive(false); }}
+													placement={placement}
+													disabled={!isDesktop}
 													className={cn(
 														'rounded border px-2 py-1.5 text-xs transition-colors',
 														placementGrade ? (GRADE_CARD_BG[placementGrade] ?? 'bg-muted/30 border-border') : 'bg-muted/30',
@@ -888,11 +863,11 @@ return (
 															{sectionLabel(placement.sectionId)}
 														</p>
 														<div className="mt-1 pl-4.5 space-y-0.5 text-[0.625rem] text-muted-foreground">
-															<p className="truncate">{DAY_SHORT[placement.day] ?? placement.day} {formatTime(placement.startTime)}�{formatTime(placement.endTime)}</p>
-															<p className="truncate">{placement.facultyId ? formatFacultyInitials(placement.facultyId) : 'No faculty'} � {placement.roomId ? roomLabelShort(placement.roomId) : 'No room'}</p>
+															<p className="truncate">{DAY_SHORT[placement.day] ?? placement.day} {formatTime(placement.startTime)}–{formatTime(placement.endTime)}</p>
+															<p className="truncate">{placement.facultyId ? formatFacultyInitials(placement.facultyId) : 'No faculty'} · {placement.roomId ? roomLabelShort(placement.roomId) : 'No room'}</p>
 														</div>
 													</button>
-												</div>
+												</DraggablePlacementPin>
 											);
 										})}
 										{(draftBoard?.placements ?? []).filter((placement) => placement.status === 'DRAFT').length === 0 ? (
@@ -970,8 +945,8 @@ return (
 												<div className="flex items-start justify-between gap-2">
 													<div className="min-w-0">
 														<p className="font-semibold truncate">{request.facultyName}</p>
-														<p className="text-[0.625rem] text-muted-foreground truncate">{request.subjectCode} � {request.sectionName}</p>
-														<p className="text-[0.625rem] text-muted-foreground truncate">{request.day} {request.startTime}-{request.endTime} � {request.requestedRoomName}</p>
+														<p className="text-[0.625rem] text-muted-foreground truncate">{request.subjectCode} · {request.sectionName}</p>
+														<p className="text-[0.625rem] text-muted-foreground truncate">{request.day} {request.startTime}-{request.endTime} · {request.requestedRoomName}</p>
 													</div>
 													<div className="flex flex-col items-end gap-1">
 														<Badge variant="outline" className="h-4 px-1 text-[0.5625rem] uppercase">{request.decisionStatus}</Badge>

@@ -749,6 +749,83 @@ export async function listManualEdits(runId, schoolId, schoolYearId) {
         createdAt: e.createdAt.toISOString(),
     }));
 }
+// ─── Swap two entries' timeslot (atomic, no intermediate conflict) ───
+export async function swapManualEntries(runId, schoolId, schoolYearId, actorId, entryIdA, entryIdB, expectedVersion) {
+    const refData = await loadRunContext(runId, schoolId, schoolYearId);
+    const { run, entries, unassignedItems } = refData;
+    if (run.version !== expectedVersion) {
+        throw err(409, 'VERSION_CONFLICT', `Run version conflict: expected ${expectedVersion}, actual ${run.version}. Please reload and retry.`);
+    }
+    const entryA = entries.find((e) => e.entryId === entryIdA);
+    const entryB = entries.find((e) => e.entryId === entryIdB);
+    if (!entryA)
+        throw err(400, 'ENTRY_NOT_FOUND', `Entry ${entryIdA} not found.`);
+    if (!entryB)
+        throw err(400, 'ENTRY_NOT_FOUND', `Entry ${entryIdB} not found.`);
+    // Atomically swap day/startTime/endTime — no intermediate double-booking possible
+    const newEntries = entries.map((e) => {
+        if (e.entryId === entryIdA) {
+            return { ...e, day: entryB.day, startTime: entryB.startTime, endTime: entryB.endTime, durationMinutes: timeToMinutes(entryB.endTime) - timeToMinutes(entryB.startTime) };
+        }
+        if (e.entryId === entryIdB) {
+            return { ...e, day: entryA.day, startTime: entryA.startTime, endTime: entryA.endTime, durationMinutes: timeToMinutes(entryA.endTime) - timeToMinutes(entryA.startTime) };
+        }
+        return e;
+    });
+    const currentCtx = buildValidatorCtx(schoolId, schoolYearId, runId, entries, refData);
+    const currentValidation = validateHardConstraints(currentCtx);
+    const newCtx = buildValidatorCtx(schoolId, schoolYearId, runId, newEntries, refData);
+    const newValidation = validateHardConstraints(newCtx);
+    const hardAfter = newValidation.violations.filter((v) => v.severity === 'HARD');
+    if (hardAfter.length > 0) {
+        throw err(422, 'HARD_VIOLATION_BLOCK', `Swap creates ${hardAfter.length} hard violation(s): ${hardAfter.map((v) => v.message).join('; ')}`);
+    }
+    const hardBefore = currentValidation.violations.filter((v) => v.severity === 'HARD').length;
+    const softBefore = currentValidation.violations.filter((v) => v.severity === 'SOFT').length;
+    const softAfter = newValidation.violations.filter((v) => v.severity === 'SOFT').length;
+    const newSummary = computeSummary(newEntries, unassignedItems, newValidation);
+    const newVersion = run.version + 1;
+    const [updatedRun, editRecord] = await prisma.$transaction([
+        prisma.generationRun.update({
+            where: { id: runId, version: expectedVersion },
+            data: {
+                draftEntries: newEntries,
+                violations: newValidation.violations,
+                summary: newSummary,
+                version: newVersion,
+            },
+        }),
+        prisma.manualScheduleEdit.create({
+            data: {
+                runId,
+                schoolId,
+                schoolYearId,
+                actorId,
+                editType: 'SWAP_ENTRIES',
+                beforePayload: { entryIdA, entryIdB },
+                afterPayload: { entryIdA: entryIdB, entryIdB: entryIdA },
+                validationSummary: { hardCount: hardAfter.length, softCount: softAfter, delta: { hardBefore, hardAfter: hardAfter.length, softBefore, softAfter } },
+            },
+        }),
+    ]);
+    const draftReport = {
+        runId: updatedRun.id,
+        status: updatedRun.status,
+        entries: newEntries,
+        unassignedItems: unassignedItems,
+        summary: newSummary,
+        finishedAt: updatedRun.finishedAt?.toISOString() ?? null,
+        createdAt: updatedRun.createdAt.toISOString(),
+        version: updatedRun.version,
+    };
+    return {
+        editId: editRecord.id,
+        draft: draftReport,
+        violationDelta: { hardBefore, hardAfter: hardAfter.length, softBefore, softAfter },
+        warnings: newValidation.violations.filter((v) => v.severity === 'SOFT'),
+        newVersion,
+    };
+}
 // ─── Get run version (for frontend optimistic locking) ───
 export async function getRunVersion(runId, schoolId, schoolYearId) {
     const run = await prisma.generationRun.findFirst({

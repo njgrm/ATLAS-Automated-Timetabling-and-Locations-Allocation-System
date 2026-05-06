@@ -1,14 +1,17 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
 import { parseDraftPlacementId, scopePreviewToCandidate } from '@/lib/timetable-utils';
+import type { PendingSwapAction } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import type {
 	CommitResult,
 	DraftBoardState,
 	DraftPlacement,
 	DraftPlacementCommitResult,
+	DraftPlacementSwapPreview,
+	DraftPlacementSwapResult,
 	DraftQueueItem,
 	DraftReport,
 	ManualEditProposal,
@@ -30,6 +33,12 @@ import type {
 
 const DEFAULT_SCHOOL_ID = 1;
 
+// ---------------------------------------------------------------------------
+// Debug toggle — flip to false OR delete this block after diagnosis is done
+// ---------------------------------------------------------------------------
+const DEBUG_PREGEN_DND = true;
+const dbg = (...args: unknown[]) => { if (DEBUG_PREGEN_DND) console.log('[PREGEN_DND]', ...args); };
+
 type RoomInfo = {
 	id: number;
 	name: string;
@@ -44,6 +53,13 @@ type RoomInfo = {
 type PreGenDragSource =
 	| { type: 'draftQueue'; item: DraftQueueItem }
 	| { type: 'draftPlacement'; placement: DraftPlacement };
+
+type SwapPreviewState = {
+	atomicPreview: DraftPlacementSwapPreview | null;
+	sourcePreview: PreviewResult | null;
+	loading: boolean;
+	error: string | null;
+};
 
 export type PreGenPendingPlacement = {
 	placementId?: number;
@@ -118,22 +134,10 @@ type UseTimetableMutationsInput = {
 	setShowResetDraftDialog: React.Dispatch<React.SetStateAction<boolean>>;
 	draftBoard: DraftBoardState | null;
 	setShowPublishDialog: React.Dispatch<React.SetStateAction<boolean>>;
-	setSwapAction: React.Dispatch<React.SetStateAction<{
-		source: PreGenDragSource;
-		target: { day: string; startTime: string; endTime: string; facultyId: number; roomId: number };
-		displaced: DraftPlacement;
-		displacementMode: 'to-queue';
-		sourceLabel: string;
-	} | null>>;
+	setSwapAction: React.Dispatch<React.SetStateAction<PendingSwapAction | null>>;
 	setShowSwapConfirm: React.Dispatch<React.SetStateAction<boolean>>;
 	setSwapSaving: React.Dispatch<React.SetStateAction<boolean>>;
-	swapAction: {
-		source: PreGenDragSource;
-		target: { day: string; startTime: string; endTime: string; facultyId: number; roomId: number };
-		displaced: DraftPlacement;
-		displacementMode: 'to-queue';
-		sourceLabel: string;
-	} | null;
+	swapAction: PendingSwapAction | null;
 	setRegularSwapSaving: React.Dispatch<React.SetStateAction<boolean>>;
 	setRegularSwapPending: React.Dispatch<React.SetStateAction<{ entryA: ScheduledEntry; entryB: ScheduledEntry } | null>>;
 	regularSwapPending: { entryA: ScheduledEntry; entryB: ScheduledEntry } | null;
@@ -241,6 +245,8 @@ export type TimetableMutationState = {
 	unassignDraftPlacement: (placementId: number) => Promise<void>;
 	getDraggedDraftPlacementId: (source: any) => number | null;
 	commitPreGenPending: () => Promise<void>;
+	/** Swap preview results loaded when swap confirm dialog opens (Fix C) */
+	swapPreview: SwapPreviewState | null;
 };
 
 export function useTimetableMutations(input: UseTimetableMutationsInput): TimetableMutationState {
@@ -335,6 +341,14 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		facultyMap,
 		roomMap,
 	} = input;
+
+	// Fix C: internal swap preview state — loaded when swap confirm dialog opens
+	const [swapPreview, setSwapPreview] = useState<SwapPreviewState | null>(null);
+
+	// Clear swap preview when swap action is dismissed (cancel path)
+	useEffect(() => {
+		if (!swapAction) setSwapPreview(null);
+	}, [swapAction]);
 
 	const filteredRoomRequests = useMemo(() => {
 		const requests = roomRequestSummary?.requests ?? [];
@@ -504,6 +518,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	const triggerGeneration = useCallback(async () => {
 		if (!schoolYearId) return;
 		setGenerating(true);
+		const lockedAnchorCount = draftBoardSummary?.draft ?? 0;
 		try {
 			const { data: run } = await atlasApi.post<import('@/types').GenerationRun>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs`);
 			if (run.status === 'FAILED') {
@@ -513,9 +528,21 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				const assigned = summary?.assignedCount ?? 0;
 				const unassigned = summary?.unassignedCount ?? 0;
 				const hardViolations = summary?.hardViolationCount ?? 0;
+				setCenterView('schedule');
+				setPreGenOnboarding(false);
+				setSelectedEntry(null);
+				setPreGenPending(null);
+				setPreGenPreview(null);
+				setPreGenPreviewError(null);
+				setPreGenAllowSoftOverride(false);
+				try { localStorage.removeItem('atlas_pregen_active'); } catch { /* ignore */ }
 				toast.success(`Schedule generated - ${assigned} assigned, ${unassigned} unassigned, ${hardViolations} hard violations`);
+				if (lockedAnchorCount > 0) {
+					toast.info(`${lockedAnchorCount} draft anchor${lockedAnchorCount === 1 ? '' : 's'} locked into the new generated run. Review them from Generated Run view.`);
+				}
 			}
 			await loadAll(false);
+			await fetchDraftBoardSummary(schoolYearId);
 		} catch (e: unknown) {
 			const axiosErr = e as { response?: { data?: { message?: string } } };
 			const msg = axiosErr?.response?.data?.message ?? (e instanceof Error ? e.message : 'Generation request failed.');
@@ -523,7 +550,20 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		} finally {
 			setGenerating(false);
 		}
-	}, [schoolYearId, setGenerating, loadAll]);
+	}, [
+		schoolYearId,
+		setGenerating,
+		draftBoardSummary?.draft,
+		setCenterView,
+		setPreGenOnboarding,
+		setSelectedEntry,
+		setPreGenPending,
+		setPreGenPreview,
+		setPreGenPreviewError,
+		setPreGenAllowSoftOverride,
+		loadAll,
+		fetchDraftBoardSummary,
+	]);
 
 	const handleTriggerGenerate = useCallback(async () => {
 		if (!schoolYearId) return;
@@ -722,9 +762,45 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		displaced: DraftPlacement,
 		sourceLabel: string,
 	) => {
-		setSwapAction({ source, target, displaced, displacementMode: 'to-queue', sourceLabel });
+		const displacementMode: PendingSwapAction['displacementMode'] =
+			source.type === 'draftPlacement' ? 'to-source-slot' : 'to-queue';
+		setSwapAction({ source, target, displaced, displacementMode, sourceLabel });
 		setShowSwapConfirm(true);
-	}, [setSwapAction, setShowSwapConfirm]);
+
+		// Load the exact server-side swap preview so dialog blocking matches commit behavior.
+		if (!schoolYearId) return;
+		setSwapPreview({ atomicPreview: null, sourcePreview: null, loading: true, error: null });
+		void (async () => {
+			try {
+				if (source.type === 'draftPlacement') {
+					const { data } = await atlasApi.post<DraftPlacementSwapPreview>(
+						`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/swap/preview`,
+						{
+							sourcePlacementId: source.placement.id,
+							targetPlacementId: displaced.id,
+							sourceExpectedVersion: source.placement.version,
+							targetExpectedVersion: displaced.version,
+						},
+					);
+					setSwapPreview({ atomicPreview: data, sourcePreview: null, loading: false, error: null });
+					return;
+				}
+				const sourcePending = buildPreGenPendingPlacement(source, target.day, target.startTime, target.endTime, target.facultyId, target.roomId);
+				const { data } = await atlasApi.post<PreviewResult>(
+					`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/preview`,
+					sourcePending,
+				);
+				setSwapPreview({
+					atomicPreview: null,
+					sourcePreview: data,
+					loading: false,
+					error: null,
+				});
+			} catch {
+				setSwapPreview({ atomicPreview: null, sourcePreview: null, loading: false, error: 'Preview unavailable.' });
+			}
+		})();
+	}, [setSwapAction, setShowSwapConfirm, schoolYearId, buildPreGenPendingPlacement, setSwapPreview]);
 
 	const runPreGenPreview = useCallback(async (pending: PreGenPendingPlacement) => {
 		if (!schoolYearId) return;
@@ -753,23 +829,46 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		const suppressConfirm = options?.suppressConfirm === true;
 		const candidateFacultyId = source.type === 'draftQueue' ? choosePreGenFaculty(source.item) : (source.placement.facultyId ?? 0);
 		const candidateRoomId = source.type === 'draftQueue' ? choosePreGenRoom(source.item) : (source.placement.roomId ?? 0);
+
+		dbg('stage:start', { sourceType: source.type, suppressConfirm, candidateFacultyId, candidateRoomId, day, startTime, endTime });
+
 		if (!candidateFacultyId || !candidateRoomId) {
 			toast.error('Cannot place this session yet. Select a faculty and room from a compatible context first.');
 			return;
 		}
 
 		const pending = buildPreGenPendingPlacement(source, day, startTime, endTime, candidateFacultyId, candidateRoomId);
-		if (source.type === 'draftPlacement' && !suppressConfirm) {
-			setConfirmFacultyId(String(candidateFacultyId));
-			setConfirmRoomId(String(candidateRoomId));
-			setConfirmPreview(null);
-			setConfirmRawPreview(null);
-			setConfirmPreviewError(null);
-			setConfirmAllowSoftOverride(false);
-			setConfirmAllowDailyOverride(false);
-			setPreGenConfirmCtx({ source, day, startTime, endTime });
-			setShowPreGenConfirm(true);
-			return;
+		dbg('pendingLabel', pending.sourceLabel);
+
+		if (source.type === 'draftPlacement') {
+			// ALWAYS check for slot conflicts first, regardless of suppressConfirm.
+			// This ensures grid-drag of a pinned entry routes to the swap modal just
+			// like a left-rail pin drag does.
+			const conflictsAtTarget = (draftBoard?.placements ?? []).filter(
+				(p) => p.status === 'DRAFT' && p.day === day && p.startTime === startTime && p.endTime === endTime && p.id !== source.placement.id,
+			);
+			dbg('targetConflicts', { count: conflictsAtTarget.length, ids: conflictsAtTarget.map((c) => c.id) });
+			if (conflictsAtTarget.length === 1) {
+				dbg('action:openSwapPrompt', { displaced: conflictsAtTarget[0]!.id });
+				openSwapPrompt(source, { day, startTime, endTime, facultyId: candidateFacultyId, roomId: candidateRoomId }, conflictsAtTarget[0]!, pending.sourceLabel);
+				return;
+			}
+			if (!suppressConfirm) {
+				// Left-rail pin drag: open confirm sheet so faculty/room can be reviewed
+				dbg('action:openConfirmSheet');
+				setConfirmFacultyId(String(candidateFacultyId));
+				setConfirmRoomId(String(candidateRoomId));
+				setConfirmPreview(null);
+				setConfirmRawPreview(null);
+				setConfirmPreviewError(null);
+				setConfirmAllowSoftOverride(false);
+				setConfirmAllowDailyOverride(false);
+				setPreGenConfirmCtx({ source, day, startTime, endTime });
+				setShowPreGenConfirm(true);
+				return;
+			}
+			// suppressConfirm=true (grid drag): placement already has faculty/room,
+			// target slot is empty — fall through to preview + commit below.
 		}
 
 		setPreGenPreviewLoading(true);
@@ -782,20 +881,23 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				const displaced = (draftBoard?.placements ?? []).filter((placement) =>
 					placement.status === 'DRAFT' && placement.day === day && placement.startTime === startTime && placement.endTime === endTime,
 				);
-				if (!suppressConfirm && displaced.length === 1) {
+				if (displaced.length === 1) {
+					dbg('action:openSwapPrompt (hard-block displaced)', { displaced: displaced[0].id });
 					openSwapPrompt(source, { day, startTime, endTime, facultyId: candidateFacultyId, roomId: candidateRoomId }, displaced[0], pending.sourceLabel);
 					return;
 				}
+				dbg('action:hardBlock', { hardViolations: scoped.hardViolations.length, dailyLoadBand: scoped.dailyLoadBand, displacedCount: displaced.length });
 				setPreviewResult(scoped);
 				setBlockerModalData(scoped.humanConflicts.filter((conflict) => conflict.severity === 'HARD'));
 				toast.info('Target slot has a blocking conflict. Move the conflicting session or choose another slot.');
 				return;
 			}
 
-			const allowSoftOverride = scoped.dailyLoadBand === 'soft' || scoped.softViolations.length > 0 || suppressConfirm;
+			const hasSoftWarnings = scoped.dailyLoadBand === 'soft' || scoped.softViolations.length > 0;
+			dbg('action:commit', { hasSoftWarnings, softViolations: scoped.softViolations.length, suppressConfirm });
 			const { data: commitResult } = await atlasApi.post<DraftPlacementCommitResult>(
 				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/commit`,
-				{ ...pending, allowSoftOverride },
+				pending,
 			);
 			setPreviewResult(scoped);
 			setDraftBoard(commitResult.board);
@@ -803,8 +905,8 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			setSelectedEntry(null);
 			setPreGenKbSource(null);
 			setKbSelectedSource(null);
-			if (suppressConfirm && allowSoftOverride) toast.warning('Session moved with soft warnings. Review details in the right panel.');
-			else if (allowSoftOverride) toast.warning('Pinned session placed with soft warnings for this slot.');
+			if (suppressConfirm && hasSoftWarnings) toast.warning('Session moved with soft warnings. Review details in the right panel.');
+			else if (hasSoftWarnings) toast.warning('Pinned session placed with soft warnings for this slot.');
 			else toast.success(source.type === 'draftPlacement' ? 'Pinned session moved.' : 'Pinned session placed.');
 		} catch (err) {
 			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -900,7 +1002,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		const { source, day, startTime, endTime } = preGenConfirmCtx;
 		const baseBody = buildPreGenPendingPlacement(source, day, startTime, endTime, fId, rId);
 		try {
-			const { data } = await atlasApi.post<DraftPlacementCommitResult>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/commit`, { ...baseBody, allowSoftOverride: true });
+			const { data } = await atlasApi.post<DraftPlacementCommitResult>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/commit`, baseBody);
 			setDraftBoard(data.board);
 			setDraftBoardSummary(data.board.counts);
 			setShowPreGenConfirm(false);
@@ -943,31 +1045,61 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		if (!schoolYearId || !swapAction) return;
 		setSwapSaving(true);
 		try {
-			await atlasApi.delete<DraftBoardState>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/${swapAction.displaced.id}`);
-			const sourceBody = buildPreGenPendingPlacement(
-				swapAction.source,
-				swapAction.target.day,
-				swapAction.target.startTime,
-				swapAction.target.endTime,
-				swapAction.target.facultyId,
-				swapAction.target.roomId,
-			);
-			const { data } = await atlasApi.post<DraftPlacementCommitResult>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/commit`, { ...sourceBody, allowSoftOverride: true });
-			setDraftBoard(data.board);
-			setDraftBoardSummary(data.board.counts);
-			setSelectedEntry(null);
-			setPreGenKbSource(null);
-			setKbSelectedSource(null);
-			setShowSwapConfirm(false);
-			setSwapAction(null);
-			toast.success('Swap completed. Conflicting session returned to unassigned and the new session was placed.');
+			if (swapAction.displacementMode === 'to-source-slot' && swapAction.source.type === 'draftPlacement') {
+				const { data } = await atlasApi.post<DraftPlacementSwapResult>(
+					`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/swap`,
+					{
+						sourcePlacementId: swapAction.source.placement.id,
+						targetPlacementId: swapAction.displaced.id,
+						sourceExpectedVersion: swapAction.source.placement.version,
+						targetExpectedVersion: swapAction.displaced.version,
+					},
+				);
+				setDraftBoard(data.board);
+				setDraftBoardSummary(data.board.counts);
+				setSelectedEntry(null);
+				setPreGenKbSource(null);
+				setKbSelectedSource(null);
+				setShowSwapConfirm(false);
+				setSwapAction(null);
+				setSwapPreview(null);
+				const hasSoftWarnings = data.preview.softViolations.length > 0
+					|| data.preview.dailyLoads.source.dailyLoadBand === 'soft'
+					|| data.preview.dailyLoads.target.dailyLoadBand === 'soft';
+				if (hasSoftWarnings) toast.warning('Sessions switched slots with soft warnings. Review details in the right panel.');
+				else toast.success('Sessions switched slots.');
+			} else {
+				// 'to-queue': source is a queue item — displaced returns to unassigned
+				await atlasApi.delete<DraftBoardState>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/${swapAction.displaced.id}`);
+				const sourceBody = buildPreGenPendingPlacement(
+					swapAction.source,
+					swapAction.target.day,
+					swapAction.target.startTime,
+					swapAction.target.endTime,
+					swapAction.target.facultyId,
+					swapAction.target.roomId,
+				);
+				const { data } = await atlasApi.post<DraftPlacementCommitResult>(
+					`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/commit`,
+					sourceBody,
+				);
+				setDraftBoard(data.board);
+				setDraftBoardSummary(data.board.counts);
+				setSelectedEntry(null);
+				setPreGenKbSource(null);
+				setKbSelectedSource(null);
+				setShowSwapConfirm(false);
+				setSwapAction(null);
+				setSwapPreview(null);
+				toast.success('Swap completed. Conflicting session returned to unassigned and the new session was placed.');
+			}
 		} catch (err) {
 			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
 			toast.error(message ?? 'Unable to complete swap.');
 		} finally {
 			setSwapSaving(false);
 		}
-	}, [schoolYearId, swapAction, setSwapSaving, buildPreGenPendingPlacement, setDraftBoard, setDraftBoardSummary, setSelectedEntry, setPreGenKbSource, setKbSelectedSource, setShowSwapConfirm, setSwapAction]);
+	}, [schoolYearId, swapAction, setSwapSaving, buildPreGenPendingPlacement, setDraftBoard, setDraftBoardSummary, setSelectedEntry, setPreGenKbSource, setKbSelectedSource, setShowSwapConfirm, setSwapAction, setSwapPreview]);
 
 	const executeRegularSwap = useCallback(async () => {
 		if (!regularSwapPending || !apiBase) return;
@@ -1022,10 +1154,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		if (!schoolYearId || !preGenPending) return;
 		setPreGenSaving(true);
 		try {
-			const { data } = await atlasApi.post<DraftPlacementCommitResult>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/commit`, {
-				...preGenPending,
-				allowSoftOverride: preGenAllowSoftOverride,
-			});
+			const { data } = await atlasApi.post<DraftPlacementCommitResult>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/commit`, preGenPending);
 			setDraftBoard(data.board);
 			setDraftBoardSummary(data.board.counts);
 			setPreGenPreview(data.preview);
@@ -1039,7 +1168,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		} finally {
 			setPreGenSaving(false);
 		}
-	}, [schoolYearId, preGenPending, preGenAllowSoftOverride, setPreGenSaving, setDraftBoard, setDraftBoardSummary, setPreGenPreview, setPreGenPending, setPreGenAllowSoftOverride, setPreGenPreviewError]);
+	}, [schoolYearId, preGenPending, setPreGenSaving, setDraftBoard, setDraftBoardSummary, setPreGenPreview, setPreGenPending, setPreGenAllowSoftOverride, setPreGenPreviewError]);
 
 	return {
 		filteredRoomRequests,
@@ -1080,5 +1209,6 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		unassignDraftPlacement,
 		getDraggedDraftPlacementId,
 		commitPreGenPending,
+		swapPreview,
 	};
 }

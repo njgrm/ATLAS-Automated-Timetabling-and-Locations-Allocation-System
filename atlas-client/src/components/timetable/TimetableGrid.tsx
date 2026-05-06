@@ -1,5 +1,5 @@
-import { memo, useMemo } from 'react';
-import type { HTMLAttributes, TdHTMLAttributes } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
+import type { HTMLAttributes, MouseEvent, TdHTMLAttributes } from 'react';
 import {
 	AlertCircle,
 	AlertTriangle,
@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 
 import { getProgramBadgeLabel } from '@/lib/schedule-review-helpers';
 import { cn, formatTime } from '@/lib/utils';
@@ -58,11 +59,27 @@ interface DraggableEntryProps extends HTMLAttributes<HTMLDivElement> {
 	entryData: { type: 'entry'; entry: ScheduledEntry };
 }
 
-function DraggableEntry({ entryId, entryData, children, style, ...rest }: DraggableEntryProps) {
-	const { attributes, listeners, setNodeRef, isDragging: draggingThis } = useDraggable({
+function DraggableEntry({ entryId, entryData, children, style, onClick, ...rest }: DraggableEntryProps) {
+	const { attributes, listeners, setNodeRef, isDragging: draggingThis, transform } = useDraggable({
 		id: entryId,
 		data: entryData,
 	});
+
+	// Prevent the click-selection handler from firing immediately after a drag.
+	// PointerSensor suppresses click when pointer moves >8px, but this ref guards
+	// against edge cases where the synthetic click still propagates.
+	const didDragRef = useRef(false);
+	useEffect(() => {
+		if (draggingThis) didDragRef.current = true;
+	}, [draggingThis]);
+
+	const handleClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
+		if (didDragRef.current) {
+			didDragRef.current = false;
+			return;
+		}
+		onClick?.(event);
+	}, [onClick]);
 
 	return (
 		<div
@@ -70,8 +87,9 @@ function DraggableEntry({ entryId, entryData, children, style, ...rest }: Dragga
 			{...listeners}
 			{...attributes}
 			{...rest}
+			onClick={handleClick}
 			tabIndex={0}
-			style={{ ...style, opacity: draggingThis ? 0.4 : 1, touchAction: 'none' }}
+			style={{ ...style, transform: CSS.Translate.toString(transform), zIndex: draggingThis ? 50 : undefined, opacity: draggingThis ? 0.4 : 1, touchAction: 'none' }}
 		>
 			{children}
 		</div>
@@ -228,7 +246,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 
 								return (
 									<DroppableCell
-										key={day}
+										key={key}
 										cellId={key}
 										cellData={{ day, startTime: slot.startTime, endTime: slot.endTime }}
 										data-day={day}
@@ -387,7 +405,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 
 												return (
 													<TooltipProvider key={entry.entryId}>
-														<Tooltip delayDuration={300}>
+													<Tooltip delayDuration={300} open={isDragging ? false : undefined}>
 															<TooltipTrigger asChild>
 																<DraggableEntry
 																	entryId={entry.entryId}

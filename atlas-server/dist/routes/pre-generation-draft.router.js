@@ -50,6 +50,14 @@ function parsePlacementBody(req) {
         expectedVersion: req.body.expectedVersion == null ? undefined : Number(req.body.expectedVersion),
     };
 }
+function parseSwapBody(req) {
+    return {
+        sourcePlacementId: Number(req.body.sourcePlacementId),
+        targetPlacementId: Number(req.body.targetPlacementId),
+        sourceExpectedVersion: req.body.sourceExpectedVersion == null ? undefined : Number(req.body.sourceExpectedVersion),
+        targetExpectedVersion: req.body.targetExpectedVersion == null ? undefined : Number(req.body.targetExpectedVersion),
+    };
+}
 function toEditablePlacementInput(existing) {
     if (existing.facultyId == null || existing.roomId == null) {
         return 'Draft placement is incomplete and cannot be edited through targeted faculty/room/timeslot routes.';
@@ -97,6 +105,20 @@ router.post('/:schoolId/:schoolYearId/pre-generation-drafts/preview', authentica
         next(error);
     }
 });
+router.post('/:schoolId/:schoolYearId/pre-generation-drafts/swap/preview', authenticate, async (req, res, next) => {
+    try {
+        if (!requirePrivileged(req, res))
+            return;
+        const scope = parseScope(req, res);
+        if (!scope)
+            return;
+        const result = await draftService.previewSwapPlacements(scope.schoolId, scope.schoolYearId, parseSwapBody(req));
+        res.json(result);
+    }
+    catch (error) {
+        next(error);
+    }
+});
 router.post('/:schoolId/:schoolYearId/pre-generation-drafts/commit', authenticate, async (req, res, next) => {
     try {
         if (!requirePrivileged(req, res))
@@ -105,6 +127,20 @@ router.post('/:schoolId/:schoolYearId/pre-generation-drafts/commit', authenticat
         if (!scope)
             return;
         const result = await draftService.commitPlacement(scope.schoolId, scope.schoolYearId, req.user.userId, parsePlacementBody(req), Boolean(req.body.allowSoftOverride));
+        res.status(201).json(result);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.post('/:schoolId/:schoolYearId/pre-generation-drafts/swap', authenticate, async (req, res, next) => {
+    try {
+        if (!requirePrivileged(req, res))
+            return;
+        const scope = parseScope(req, res);
+        if (!scope)
+            return;
+        const result = await draftService.swapPlacements(scope.schoolId, scope.schoolYearId, req.user.userId, parseSwapBody(req));
         res.status(201).json(result);
     }
     catch (error) {

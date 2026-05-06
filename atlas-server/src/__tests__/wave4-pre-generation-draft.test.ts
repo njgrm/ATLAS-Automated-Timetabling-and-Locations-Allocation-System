@@ -3,6 +3,9 @@
  * Run with: npx tsx atlas-server/src/__tests__/wave4-pre-generation-draft.test.ts
  */
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { constructBaseline } from '../services/schedule-constructor.js';
 
 let passCount = 0;
@@ -235,6 +238,28 @@ section('Wave 4.5 — hasNoTeacher flag from empty facultyOptions');
 	assert(queueItemNoFaculty.hasNoTeacher === true, 'hasNoTeacher is true when facultyOptions is empty');
 	assertEqual(queueItemWithFaculty.hasNoTeacher, queueItemWithFaculty.facultyOptions.length === 0, 'hasNoTeacher mirrors (facultyOptions.length === 0) for non-empty list');
 	assertEqual(queueItemNoFaculty.hasNoTeacher, queueItemNoFaculty.facultyOptions.length === 0, 'hasNoTeacher mirrors (facultyOptions.length === 0) for empty list');
+}
+
+section('Wave 4.5c — source guards for atomic swap and soft-warning policy');
+{
+	const repoRoot = resolve(import.meta.dirname, '../../..');
+	const draftServiceSource = readFileSync(resolve(repoRoot, 'atlas-server/src/services/pre-generation-draft.service.ts'), 'utf8');
+	const draftRouterSource = readFileSync(resolve(repoRoot, 'atlas-server/src/routes/pre-generation-draft.router.ts'), 'utf8');
+	const clientMutationsSource = readFileSync(resolve(repoRoot, 'atlas-client/src/hooks/useTimetableMutations.ts'), 'utf8');
+	const headerSource = readFileSync(resolve(repoRoot, 'atlas-client/src/components/timetable/ScheduleReviewWorkspaceHeader.tsx'), 'utf8');
+	const dialogsSource = readFileSync(resolve(repoRoot, 'atlas-client/src/components/timetable/modals/ScheduleReviewDialogs.tsx'), 'utf8');
+
+	assert(!draftServiceSource.includes('SOFT_OVERRIDE_REQUIRED'), 'Pre-generation commit no longer hard-blocks on SOFT_OVERRIDE_REQUIRED');
+	assert(!draftServiceSource.includes('DAILY_LOAD_SOFT_OVERRIDE_REQUIRED'), 'Pre-generation commit no longer hard-blocks on daily soft load warnings');
+	assert(draftServiceSource.includes('export async function previewSwapPlacements'), 'Draft service exposes atomic swap preview');
+	assert(draftServiceSource.includes('export async function swapPlacements'), 'Draft service exposes atomic swap commit');
+	assert(draftRouterSource.includes("/pre-generation-drafts/swap/preview"), 'Draft router exposes swap preview endpoint');
+	assert(draftRouterSource.includes("/pre-generation-drafts/swap"), 'Draft router exposes atomic swap endpoint');
+	assert(clientMutationsSource.includes('/pre-generation-drafts/swap/preview'), 'Client swap dialog uses atomic swap preview endpoint');
+	assert(clientMutationsSource.includes('/pre-generation-drafts/swap'), 'Client swap action uses atomic swap commit endpoint');
+	assert(!clientMutationsSource.includes('const displacedBody = {'), 'Client no longer rebuilds a displaced placement body for pinned two-way swaps');
+	assert(headerSource.includes('Back to Generated Run'), 'Header exposes an explicit Back to Generated Run path');
+	assert(dialogsSource.includes('Anchored draft placements become locked run inputs'), 'Generate dialog explains draft-lock behavior before generation');
 }
 
 console.log(`\nWave 4.5 Daily Load + hasNoTeacher Tests: ${passCount} passed, ${failCount} failed`);

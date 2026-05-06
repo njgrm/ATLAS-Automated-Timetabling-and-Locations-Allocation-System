@@ -5,7 +5,7 @@
  */
 import { type Violation } from './constraint-validator.js';
 import type { DraftReport } from './generation.service.js';
-export type ManualEditType = 'PLACE_UNASSIGNED' | 'MOVE_ENTRY' | 'CHANGE_ROOM' | 'CHANGE_FACULTY' | 'CHANGE_TIMESLOT' | 'REVERT';
+export type ManualEditType = 'PLACE_UNASSIGNED' | 'MOVE_ENTRY' | 'CHANGE_ROOM' | 'CHANGE_FACULTY' | 'CHANGE_TIMESLOT' | 'SWAP_ENTRIES' | 'REVERT';
 export interface ManualEditProposal {
     editType: ManualEditType;
     /** For PLACE_UNASSIGNED: the unassigned item index/identity */
@@ -96,4 +96,5 @@ export declare function previewManualEdit(runId: number, schoolId: number, schoo
 export declare function commitManualEdit(runId: number, schoolId: number, schoolYearId: number, actorId: number, proposal: ManualEditProposal, expectedVersion: number, allowSoftOverride?: boolean): Promise<CommitResult>;
 export declare function revertLastEdit(runId: number, schoolId: number, schoolYearId: number, actorId: number): Promise<CommitResult>;
 export declare function listManualEdits(runId: number, schoolId: number, schoolYearId: number): Promise<ManualEditRecord[]>;
+export declare function swapManualEntries(runId: number, schoolId: number, schoolYearId: number, actorId: number, entryIdA: string, entryIdB: string, expectedVersion: number): Promise<CommitResult>;
 export declare function getRunVersion(runId: number, schoolId: number, schoolYearId: number): Promise<number>;

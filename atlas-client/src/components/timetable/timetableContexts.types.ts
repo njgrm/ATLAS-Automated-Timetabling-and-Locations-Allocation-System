@@ -194,6 +194,13 @@ export type ScheduleReviewDialogsContext = {
 	sectionLabel: (id: number) => string;
 	swapSaving: boolean;
 	executeSwapAction: () => Promise<void>;
+	/** Fix C: swap conflict preview for both legs of a pinned\u21d4pinned swap */
+	swapPreview: {
+		atomicPreview: import('@/types').DraftPlacementSwapPreview | null;
+		sourcePreview: PreviewResult | null;
+		loading: boolean;
+		error: string | null;
+	} | null;
 	regularSwapPending: any;
 	setRegularSwapPending: Dispatch<SetStateAction<any>>;
 	regularSwapSaving: boolean;

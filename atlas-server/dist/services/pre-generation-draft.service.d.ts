@@ -134,6 +134,61 @@ export interface DraftPlacementCommitResult {
     preview: DraftPlacementPreview;
     board: DraftBoardState;
 }
+export interface DraftPlacementSwapInput {
+    sourcePlacementId: number;
+    targetPlacementId: number;
+    sourceExpectedVersion?: number;
+    targetExpectedVersion?: number;
+}
+export interface DraftPlacementSwapPreview {
+    allowed: boolean;
+    hardViolations: Violation[];
+    softViolations: Violation[];
+    violationDelta: {
+        hardBefore: number;
+        hardAfter: number;
+        softBefore: number;
+        softAfter: number;
+    };
+    humanConflicts: Array<{
+        code: string;
+        severity: 'HARD' | 'SOFT';
+        humanTitle: string;
+        humanDetail: string;
+    }>;
+    policyImpactSummary: Array<{
+        code: string;
+        label: string;
+        summary: string;
+        severity: 'HARD' | 'SOFT';
+    }>;
+    dailyLoads: {
+        source: {
+            placementId: number;
+            facultyId: number;
+            day: string;
+            dailyLoadBand: 'ok' | 'soft' | 'hard';
+            dailyMinutesAfter: number;
+            facultyWeeklyMinutes: Record<string, number>;
+        };
+        target: {
+            placementId: number;
+            facultyId: number;
+            day: string;
+            dailyLoadBand: 'ok' | 'soft' | 'hard';
+            dailyMinutesAfter: number;
+            facultyWeeklyMinutes: Record<string, number>;
+        };
+    };
+}
+export interface DraftPlacementSwapResult {
+    placements: {
+        source: DraftPlacementRow;
+        target: DraftPlacementRow;
+    };
+    preview: DraftPlacementSwapPreview;
+    board: DraftBoardState;
+}
 export interface DraftConsumeResult {
     lockedEntries: ConstructorInput['lockedEntries'];
     prePlacedCount: number;
@@ -145,6 +200,8 @@ export declare function previewPlacement(schoolId: number, schoolYearId: number,
 export declare function listDraftBoardState(schoolId: number, schoolYearId: number): Promise<DraftBoardState>;
 export declare function getDraftPlacement(schoolId: number, schoolYearId: number, placementId: number): Promise<DraftPlacementRow>;
 export declare function commitPlacement(schoolId: number, schoolYearId: number, actorId: number, input: DraftPlacementInput, allowSoftOverride?: boolean): Promise<DraftPlacementCommitResult>;
+export declare function previewSwapPlacements(schoolId: number, schoolYearId: number, input: DraftPlacementSwapInput): Promise<DraftPlacementSwapPreview>;
+export declare function swapPlacements(schoolId: number, schoolYearId: number, actorId: number, input: DraftPlacementSwapInput): Promise<DraftPlacementSwapResult>;
 export declare function clearDraft(schoolId: number, schoolYearId: number, actorId: number): Promise<DraftBoardState>;
 export declare function undoLastPlacement(schoolId: number, schoolYearId: number, actorId: number): Promise<DraftBoardState>;
 export declare function removeSinglePlacement(schoolId: number, schoolYearId: number, actorId: number, placementId: number): Promise<DraftBoardState>;

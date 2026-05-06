@@ -23,6 +23,30 @@ Record dated implementation verification summaries here.
 
 ---
 
+### 2026-05-06 - Wave 4.5c Pre-Generation State Machine Hardening
+- Phase: 4
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npm --prefix atlas-server run build`: PASS
+  - `npm --prefix atlas-client run build`: PASS
+  - `npm --prefix atlas-server run test:wave4.3`: PASS (33/33)
+- API checks:
+  - `POST /api/v1/generation/:schoolId/:schoolYearId/pre-generation-drafts/swap/preview` added and consumed by the client swap dialog: PASS by server/client build plus Wave 4.5c source-guard regression.
+  - `POST /api/v1/generation/:schoolId/:schoolYearId/pre-generation-drafts/swap` added as the atomic pinned-to-pinned swap path: PASS by server/client build plus Wave 4.5c source-guard regression.
+  - Pre-generation commit no longer throws `SOFT_OVERRIDE_REQUIRED` or `DAILY_LOAD_SOFT_OVERRIDE_REQUIRED`; hard conflicts and daily hard overload remain blocking: PASS by regression script source guards.
+- UI checks:
+  - Pinned-to-pinned swap dialog now uses the atomic swap preview contract and blocks only on server-declared hard conflicts: PASS by client build plus regression source guard.
+  - Generate confirmation copy now explains draft-lock behavior, and successful generation returns the workspace to generated-run view with a lock-status toast when anchors were consumed: PASS by client build and source guard.
+  - Pre-generation header now exposes `Back to Generated Run`: PASS by client build and source guard.
+  - Manual bridged browser QA for live drag/drop, generate-from-pre-gen, and return-to-run flows: NOT RUN in this pass.
+- Blocking findings:
+  - Manual bridge-auth QA is still required to confirm live drag/drop and post-generation navigation behavior in a full local runtime.
+- Decision:
+  - Accepted for code verification; manual QA pending.
+
 ### 2026-05-05 - Wave 4.5 Pass 6 ScheduleReview Monolith Dismantling
 - Phase: 4
 - Scope gate: PASS

@@ -35,6 +35,7 @@ export type ManualEditType =
 	| 'CHANGE_ROOM'
 	| 'CHANGE_FACULTY'
 	| 'CHANGE_TIMESLOT'
+	| 'SWAP_ENTRIES'
 	| 'REVERT';
 
 export interface ManualEditProposal {
