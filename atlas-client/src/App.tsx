@@ -5,6 +5,7 @@ import { Toaster } from 'sonner';
 import { AppShell } from './components/AppShell';
 import { Skeleton } from './ui/skeleton';
 
+const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const MapEditor = lazy(() => import('./pages/MapEditor'));
 const Subjects = lazy(() => import('./pages/Subjects'));
@@ -21,6 +22,10 @@ const ScheduleReview = lazy(() => import('./pages/ScheduleReview'));
 const HowItWorks = lazy(() => import('./pages/HowItWorks'));
 
 const router = createBrowserRouter([
+	{
+		path: '/login',
+		element: <Login />,
+	},
 	{
 		path: '/',
 		element: <AppShell />,

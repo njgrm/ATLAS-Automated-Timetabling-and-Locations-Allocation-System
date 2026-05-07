@@ -13,15 +13,18 @@ export function authenticate(req, res, next) {
     }
     try {
         const decoded = jwt.verify(token, secret);
-        req.user = decoded;
+        req.user = {
+            ...decoded,
+            authSource: decoded.authSource === 'local' ? 'local' : 'bridge',
+        };
         next();
     }
     catch (err) {
         if (err instanceof jwt.TokenExpiredError) {
-            res.status(401).json({ code: 'TOKEN_EXPIRED', message: 'Bridge token has expired.' });
+            res.status(401).json({ code: 'TOKEN_EXPIRED', message: 'Access token has expired.' });
             return;
         }
-        res.status(401).json({ code: 'INVALID_TOKEN', message: 'Invalid bridge token.' });
+        res.status(401).json({ code: 'INVALID_TOKEN', message: 'Invalid access token.' });
     }
 }
 //# sourceMappingURL=authenticate.js.map

@@ -91,11 +91,11 @@ export declare function validatePolicyInput(input: PolicyInput): {
     errors: string[];
 };
 export declare function getOrCreatePolicy(schoolId: number, schoolYearId: number): Promise<{
-    id: number;
     schoolId: number;
-    createdAt: Date;
-    updatedAt: Date;
     schoolYearId: number;
+    createdAt: Date;
+    id: number;
+    updatedAt: Date;
     maxTeachingMinutesPerDay: number;
     enableTravelWellbeingChecks: boolean;
     earliestStartTime: string;
@@ -122,11 +122,11 @@ export declare function getOrCreatePolicy(schoolId: number, schoolYearId: number
     constraintConfig: Prisma.JsonValue | null;
 }>;
 export declare function upsertPolicy(schoolId: number, schoolYearId: number, input: PolicyInput): Promise<{
-    id: number;
     schoolId: number;
-    createdAt: Date;
-    updatedAt: Date;
     schoolYearId: number;
+    createdAt: Date;
+    id: number;
+    updatedAt: Date;
     maxTeachingMinutesPerDay: number;
     enableTravelWellbeingChecks: boolean;
     earliestStartTime: string;

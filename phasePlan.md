@@ -15,6 +15,20 @@ It defines phase scope, acceptance gates, and the current progress state.
 - **Current phase:** Phase 4 - Review and Manual Adjustment
 - **Mode:** Build + verify only items in active phase unless user approves otherwise
 
+## Priority Realignment (2026-05-07)
+- **Direction change:** De-prioritize non-critical timetable UX/UI polish and prioritize objective-completion blockers.
+- **Objective-critical focus order:**
+  1. Standalone ATLAS faculty authentication flow
+  2. PWA/offline-first baseline (manifest, service worker, cache/sync strategy)
+  3. Generated-view functional parity blockers only
+  4. Publish lifecycle implementation
+  5. Faculty published schedule view (`/my/schedule`)
+  6. Student/public published schedule views and APIs
+- **Scope rule while Phase 4 remains active:** timetable UI changes are allowed only if they fix correctness, parity, or performance blockers tied to objective acceptance.
+- **Reference docs:**
+  - `docs/progress/objectives-priority-progress-check-2026-05-07.md`
+  - `docs/phases/phase-4-priority-realignment-2026-05-07.md`
+
 ## Non-ATLAS Scope Guardrail
 - Keep out of ATLAS: enrollment/admission workflows, grades/class records, LMS content uploads, registrar document workflows, MRF governance tracking.
 - ATLAS consumes cross-service data via API only.

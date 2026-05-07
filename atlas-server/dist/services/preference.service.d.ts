@@ -35,67 +35,67 @@ interface ServiceError {
 export declare function checkPreferenceWindow(currentPhase: string): ServiceError | null;
 export declare function getPreference(schoolId: number, schoolYearId: number, facultyId: number): Promise<({
     timeSlots: {
-        id: number;
-        createdAt: Date;
-        startTime: string;
         day: import("@prisma/client").$Enums.DayOfWeek;
+        createdAt: Date;
+        id: number;
+        startTime: string;
         preferenceId: number;
         endTime: string;
         preference: import("@prisma/client").$Enums.TimeSlotPreference;
     }[];
 } & {
-    id: number;
     schoolId: number;
-    createdAt: Date;
-    updatedAt: Date;
-    facultyId: number;
-    version: number;
     schoolYearId: number;
+    createdAt: Date;
+    id: number;
     status: import("@prisma/client").$Enums.PreferenceStatus;
+    facultyId: number;
+    updatedAt: Date;
+    version: number;
     notes: string | null;
     submittedAt: Date | null;
 }) | null>;
 export declare function saveDraft(input: SaveDraftInput): Promise<{
     timeSlots: {
-        id: number;
-        createdAt: Date;
-        startTime: string;
         day: import("@prisma/client").$Enums.DayOfWeek;
+        createdAt: Date;
+        id: number;
+        startTime: string;
         preferenceId: number;
         endTime: string;
         preference: import("@prisma/client").$Enums.TimeSlotPreference;
     }[];
 } & {
-    id: number;
     schoolId: number;
-    createdAt: Date;
-    updatedAt: Date;
-    facultyId: number;
-    version: number;
     schoolYearId: number;
+    createdAt: Date;
+    id: number;
     status: import("@prisma/client").$Enums.PreferenceStatus;
+    facultyId: number;
+    updatedAt: Date;
+    version: number;
     notes: string | null;
     submittedAt: Date | null;
 }>;
 export declare function submitPreference(input: SubmitInput): Promise<{
     timeSlots: {
-        id: number;
-        createdAt: Date;
-        startTime: string;
         day: import("@prisma/client").$Enums.DayOfWeek;
+        createdAt: Date;
+        id: number;
+        startTime: string;
         preferenceId: number;
         endTime: string;
         preference: import("@prisma/client").$Enums.TimeSlotPreference;
     }[];
 } & {
-    id: number;
     schoolId: number;
-    createdAt: Date;
-    updatedAt: Date;
-    facultyId: number;
-    version: number;
     schoolYearId: number;
+    createdAt: Date;
+    id: number;
     status: import("@prisma/client").$Enums.PreferenceStatus;
+    facultyId: number;
+    updatedAt: Date;
+    version: number;
     notes: string | null;
     submittedAt: Date | null;
 }>;
@@ -154,17 +154,17 @@ export declare function getPreferenceDetail(schoolId: number, schoolYearId: numb
         department: string | null;
     };
     timeSlots: {
-        id: number;
-        createdAt: Date;
-        startTime: string;
         day: import("@prisma/client").$Enums.DayOfWeek;
+        createdAt: Date;
+        id: number;
+        startTime: string;
         preferenceId: number;
         endTime: string;
         preference: import("@prisma/client").$Enums.TimeSlotPreference;
     }[];
     review: {
-        id: number;
         createdAt: Date;
+        id: number;
         updatedAt: Date;
         preferenceId: number;
         reviewerId: number;
@@ -173,14 +173,14 @@ export declare function getPreferenceDetail(schoolId: number, schoolYearId: numb
         reviewedAt: Date | null;
     } | null;
 } & {
-    id: number;
     schoolId: number;
-    createdAt: Date;
-    updatedAt: Date;
-    facultyId: number;
-    version: number;
     schoolYearId: number;
+    createdAt: Date;
+    id: number;
     status: import("@prisma/client").$Enums.PreferenceStatus;
+    facultyId: number;
+    updatedAt: Date;
+    version: number;
     notes: string | null;
     submittedAt: Date | null;
 }>;
@@ -193,8 +193,8 @@ export interface UpdateReviewInput {
     reviewerNotes?: string | null;
 }
 export declare function updateReview(input: UpdateReviewInput): Promise<{
-    id: number;
     createdAt: Date;
+    id: number;
     updatedAt: Date;
     preferenceId: number;
     reviewerId: number;

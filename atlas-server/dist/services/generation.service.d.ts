@@ -21,13 +21,13 @@ export interface RunSummary {
 }
 export declare function triggerGenerationRun(schoolId: number, schoolYearId: number, actorId: number): Promise<{
     error: string | null;
-    id: number;
     schoolId: number;
+    schoolYearId: number;
     createdAt: Date;
+    id: number;
+    status: import("@prisma/client").$Enums.GenerationRunStatus;
     updatedAt: Date;
     version: number;
-    schoolYearId: number;
-    status: import("@prisma/client").$Enums.GenerationRunStatus;
     runType: string;
     triggeredBy: number;
     startedAt: Date | null;
@@ -40,13 +40,13 @@ export declare function triggerGenerationRun(schoolId: number, schoolYearId: num
 }>;
 export declare function getRunById(runId: number, schoolId: number, schoolYearId: number): Promise<{
     error: string | null;
-    id: number;
     schoolId: number;
+    schoolYearId: number;
     createdAt: Date;
+    id: number;
+    status: import("@prisma/client").$Enums.GenerationRunStatus;
     updatedAt: Date;
     version: number;
-    schoolYearId: number;
-    status: import("@prisma/client").$Enums.GenerationRunStatus;
     runType: string;
     triggeredBy: number;
     startedAt: Date | null;
@@ -59,13 +59,13 @@ export declare function getRunById(runId: number, schoolId: number, schoolYearId
 }>;
 export declare function getLatestRun(schoolId: number, schoolYearId: number): Promise<{
     error: string | null;
-    id: number;
     schoolId: number;
+    schoolYearId: number;
     createdAt: Date;
+    id: number;
+    status: import("@prisma/client").$Enums.GenerationRunStatus;
     updatedAt: Date;
     version: number;
-    schoolYearId: number;
-    status: import("@prisma/client").$Enums.GenerationRunStatus;
     runType: string;
     triggeredBy: number;
     startedAt: Date | null;
@@ -78,13 +78,13 @@ export declare function getLatestRun(schoolId: number, schoolYearId: number): Pr
 }>;
 export declare function getLatestValidRun(schoolId: number, schoolYearId: number): Promise<{
     error: string | null;
-    id: number;
     schoolId: number;
+    schoolYearId: number;
     createdAt: Date;
+    id: number;
+    status: import("@prisma/client").$Enums.GenerationRunStatus;
     updatedAt: Date;
     version: number;
-    schoolYearId: number;
-    status: import("@prisma/client").$Enums.GenerationRunStatus;
     runType: string;
     triggeredBy: number;
     startedAt: Date | null;
@@ -97,13 +97,13 @@ export declare function getLatestValidRun(schoolId: number, schoolYearId: number
 }>;
 export declare function assertLatestRunIsCurrent(schoolId: number, schoolYearId: number): Promise<{
     error: string | null;
-    id: number;
     schoolId: number;
+    schoolYearId: number;
     createdAt: Date;
+    id: number;
+    status: import("@prisma/client").$Enums.GenerationRunStatus;
     updatedAt: Date;
     version: number;
-    schoolYearId: number;
-    status: import("@prisma/client").$Enums.GenerationRunStatus;
     runType: string;
     triggeredBy: number;
     startedAt: Date | null;
@@ -116,13 +116,13 @@ export declare function assertLatestRunIsCurrent(schoolId: number, schoolYearId:
 }>;
 export declare function listRuns(schoolId: number, schoolYearId: number, limit?: number): Promise<{
     error: string | null;
-    id: number;
     schoolId: number;
+    schoolYearId: number;
     createdAt: Date;
+    id: number;
+    status: import("@prisma/client").$Enums.GenerationRunStatus;
     updatedAt: Date;
     version: number;
-    schoolYearId: number;
-    status: import("@prisma/client").$Enums.GenerationRunStatus;
     runType: string;
     triggeredBy: number;
     startedAt: Date | null;

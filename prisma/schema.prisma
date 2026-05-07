@@ -24,6 +24,7 @@ model School {
   subjects       Subject[]
   buildings      Building[]
   facultyMirrors FacultyMirror[]
+  authAccounts   AtlasAuthAccount[]
 
   @@map("schools")
 }
@@ -143,11 +144,34 @@ model FacultyMirror {
   preferences               FacultyPreference[]
   roomPreferences           FacultyRoomPreference[]
   roomRequestAppeals        RoomRequestAppeal[]
+  authAccounts              AtlasAuthAccount[]
 
   @@unique([schoolId, externalId], map: "uq_faculty_school_external")
   @@index([schoolId])
   @@index([schoolId, isStale])
   @@map("faculty_mirrors")
+}
+
+model AtlasAuthAccount {
+  id                 Int           @id @default(autoincrement())
+  schoolId           Int           @map("school_id")
+  facultyId          Int?          @map("faculty_id")
+  email              String        @unique
+  role               String
+  passwordHash       String        @map("password_hash")
+  isActive           Boolean       @default(true) @map("is_active")
+  mustChangePassword Boolean       @default(false) @map("must_change_password")
+  failedLoginCount   Int           @default(0) @map("failed_login_count")
+  lockedUntil        DateTime?     @map("locked_until")
+  lastLoginAt        DateTime?     @map("last_login_at")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+  school             School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  faculty            FacultyMirror? @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, role])
+  @@index([facultyId])
+  @@map("atlas_auth_accounts")
 }
 
 model FacultySubject {

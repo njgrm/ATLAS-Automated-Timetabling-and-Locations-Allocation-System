@@ -9,6 +9,21 @@
 - Conflict/warning visibility and resolution workflow
 - Manual adjustments with optimistic locking and auditability
 
+## Objective-Priority Slice - Standalone Local Auth (2026-05-08)
+- Priority alignment: Objective-critical Priority 1 (standalone ATLAS faculty/scheduler authentication)
+- State: Implemented and compile-verified
+- Notes:
+  - Added local credential login endpoint `POST /api/v1/auth/login` with failed-attempt tracking and lock-window handling in service-layer auth logic.
+  - Preserved bridge-auth compatibility in middleware and session verification by normalizing `authSource` as `local` or `bridge`.
+  - Added frontend `/login` route and dual-auth shell behavior (local-first token, bridge fallback, source-aware logout destination).
+  - Added Prisma auth-account persistence model and migration for local credential-backed identities.
+- Verification (2026-05-08):
+  - `npm run db:generate`: PASS
+  - `npm --prefix atlas-server run build`: PASS
+  - `npm --prefix atlas-client run build`: PASS
+- Remaining gap:
+  - Dedicated automated auth acceptance coverage (TC-AUTH-01..08 style) is not yet present in `atlas-server/src/__tests__` and remains pending.
+
 ## Planned Deliverables
 - [x] Review console UI with conflict overlays and filtering (Batch 1)
 - [x] Generate + Publish workflow with violation guardrails (Batch 2)

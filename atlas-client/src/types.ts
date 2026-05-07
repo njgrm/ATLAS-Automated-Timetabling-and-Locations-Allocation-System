@@ -39,6 +39,9 @@ export type BridgeUser = {
 	userId: number;
 	role: string;
 	mustChangePassword?: boolean;
+	authSource?: 'bridge' | 'local';
+	schoolId?: number;
+	accountId?: number;
 };
 
 export type SessionPattern = 'MWF' | 'TTH' | 'ANY';

@@ -30,6 +30,7 @@ import {
 	REALISTIC_SECTION_COUNT,
 	REALISTIC_TEACHER_COUNT,
 } from './realistic-jhs-dataset.js';
+import { seedLocalAuthAccounts } from '../services/local-auth.service.js';
 
 type CliValue = string | boolean | undefined;
 type SeederMode = 'enrollpro-source' | 'atlas-fixture';
@@ -868,6 +869,19 @@ async function main() {
 		console.log('[seed-realistic] Map seeding skipped. Existing buildings, rooms, and campus image were preserved.');
 	}
 
+	const firstFaculty = await prisma.facultyMirror.findFirst({
+		where: {
+			schoolId: options.schoolId,
+			isActiveForScheduling: true,
+		},
+		orderBy: { id: 'asc' },
+		select: { id: true },
+	});
+	const authSeed = await seedLocalAuthAccounts({
+		schoolId: options.schoolId,
+		facultyId: firstFaculty?.id ?? null,
+	});
+
 	console.log('[seed-realistic] Completed successfully.');
 	console.log(`  - Mode: ${options.mode}`);
 	console.log(`  - Teachers: ${result.teachers}`);
@@ -901,6 +915,8 @@ async function main() {
 		console.log(`  - Rooms preserved/matched: ${mapSummary.roomsMatched}`);
 		console.log(`  - Map reset applied: ${mapSummary.mapResetApplied}`);
 	}
+	console.log(`  - Local auth accounts seeded: ${authSeed.created} created, ${authSeed.updated} updated`);
+	console.log('    Credentials: officer@atlas.local / Atlas2026! and faculty@atlas.local / Atlas2026!');
 }
 
 main()

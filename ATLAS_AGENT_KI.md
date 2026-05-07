@@ -121,6 +121,11 @@ Optional feature: Where [feature included], the [system] shall [action].
 - ATLAS is an isolated microservice and must never share a database with other services.
 - All exposed endpoints are versioned under `/api/v1/...`.
 - Multi-school support is required in v1.
+- Auth role clarity:
+  - Scheduler Officer = scheduling operator for lifecycle actions.
+  - IT Admin = account/platform admin role with scheduler-equivalent capability for testing/verification.
+  - Teacher/Faculty = preference and personal schedule user.
+  - Student/Public = unauthenticated published schedule viewer.
 
 ### Current Delivery Position
 

@@ -1,16 +1,20 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-export interface BridgePayload {
+export interface AuthPayload {
 	userId: number;
 	role: string;
 	mustChangePassword?: boolean;
+	authSource?: 'bridge' | 'local';
+	schoolId?: number;
+	accountId?: number;
+	email?: string;
 }
 
 declare global {
 	namespace Express {
 		interface Request {
-			user?: BridgePayload;
+			user?: AuthPayload;
 		}
 	}
 }
@@ -30,14 +34,17 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
 	}
 
 	try {
-		const decoded = jwt.verify(token, secret) as BridgePayload;
-		req.user = decoded;
+		const decoded = jwt.verify(token, secret) as AuthPayload;
+		req.user = {
+			...decoded,
+			authSource: decoded.authSource === 'local' ? 'local' : 'bridge',
+		};
 		next();
 	} catch (err: unknown) {
 		if (err instanceof jwt.TokenExpiredError) {
-			res.status(401).json({ code: 'TOKEN_EXPIRED', message: 'Bridge token has expired.' });
+			res.status(401).json({ code: 'TOKEN_EXPIRED', message: 'Access token has expired.' });
 			return;
 		}
-		res.status(401).json({ code: 'INVALID_TOKEN', message: 'Invalid bridge token.' });
+		res.status(401).json({ code: 'INVALID_TOKEN', message: 'Invalid access token.' });
 	}
 }

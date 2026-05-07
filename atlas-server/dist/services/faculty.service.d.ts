@@ -37,40 +37,39 @@ export declare function getFacultyBySchool(schoolId: number, options?: GetFacult
 export declare function getFacultyById(id: number): Promise<({
     facultySubjects: ({
         subject: {
-            id: number;
             schoolId: number;
-            name: string;
             createdAt: Date;
-            updatedAt: Date;
+            id: number;
+            name: string;
             code: string;
+            isActive: boolean;
+            updatedAt: Date;
             minMinutesPerWeek: number;
             preferredRoomType: import("@prisma/client").$Enums.RoomType;
             sessionPattern: import("@prisma/client").$Enums.SessionPattern;
             gradeLevels: number[];
-            isActive: boolean;
             isSeedable: boolean;
             interSectionEnabled: boolean;
             interSectionGradeLevels: number[];
         };
     } & {
-        id: number;
         schoolId: number;
         createdAt: Date;
-        updatedAt: Date;
-        gradeLevels: number[];
+        id: number;
         facultyId: number;
+        updatedAt: Date;
+        version: number;
+        gradeLevels: number[];
         subjectId: number;
         sectionIds: number[];
         assignedBy: number;
         assignedAt: Date;
-        version: number;
     })[];
 } & {
-    id: number;
     schoolId: number;
     createdAt: Date;
+    id: number;
     updatedAt: Date;
-    version: number;
     externalId: number;
     firstName: string;
     lastName: string;
@@ -90,6 +89,7 @@ export declare function getFacultyById(id: number): Promise<({
     staleAt: Date | null;
     advisedSectionId: number | null;
     advisedSectionName: string | null;
+    version: number;
 }) | null>;
 export declare function updateFacultyMirror(id: number, data: Partial<{
     localNotes: string;
@@ -106,11 +106,10 @@ export declare function updateFacultyMirror(id: number, data: Partial<{
 } | {
     success: true;
     faculty: {
-        id: number;
         schoolId: number;
         createdAt: Date;
+        id: number;
         updatedAt: Date;
-        version: number;
         externalId: number;
         firstName: string;
         lastName: string;
@@ -130,6 +129,7 @@ export declare function updateFacultyMirror(id: number, data: Partial<{
         staleAt: Date | null;
         advisedSectionId: number | null;
         advisedSectionName: string | null;
+        version: number;
     };
     error?: undefined;
 }>;

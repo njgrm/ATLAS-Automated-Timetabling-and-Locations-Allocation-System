@@ -1,5 +1,7 @@
 import axios from 'axios';
 import atlasApi from './api';
+import { ATLAS_BRIDGE_TOKEN_KEY, getPreferredAccessToken } from './auth';
+import type { BridgeUser } from '@/types';
 
 export interface EnrollProSettings {
 	schoolName: string;
@@ -25,7 +27,7 @@ export async function fetchPublicSettings(): Promise<EnrollProSettings> {
 
 export async function fetchSchoolYears(): Promise<SchoolYear[]> {
 	try {
-		const token = sessionStorage.getItem('atlas_bridge_token');
+		const token = sessionStorage.getItem(ATLAS_BRIDGE_TOKEN_KEY);
 		const headers: Record<string, string> = {};
 		if (token) headers.Authorization = `Bearer ${token}`;
 		const { data } = await axios.get<{ years?: SchoolYear[]; schoolYears?: SchoolYear[] }>(`${enrollProApiBase}/school-years`, { headers });
@@ -40,7 +42,7 @@ export async function fetchSchoolYears(): Promise<SchoolYear[]> {
 export async function fetchActiveSchoolYear(activeId: number | null): Promise<string | null> {
 	if (!activeId) return null;
 	try {
-		const token = sessionStorage.getItem('atlas_bridge_token');
+		const token = sessionStorage.getItem(ATLAS_BRIDGE_TOKEN_KEY);
 		const headers: Record<string, string> = {};
 		if (token) headers.Authorization = `Bearer ${token}`;
 		const { data } = await axios.get<{ years?: SchoolYear[]; schoolYears?: SchoolYear[] }>(`${enrollProApiBase}/school-years`, { headers });
@@ -52,12 +54,8 @@ export async function fetchActiveSchoolYear(activeId: number | null): Promise<st
 	}
 }
 
-export interface BridgeUser {
-	userId: number;
-	role: string;
-}
-
-export async function verifyBridgeToken(): Promise<BridgeUser | null> {
+export async function verifySessionToken(): Promise<BridgeUser | null> {
+	if (!getPreferredAccessToken()) return null;
 	try {
 		const { data } = await atlasApi.get<{ user: BridgeUser }>('/auth/me');
 		return data.user;
@@ -65,3 +63,5 @@ export async function verifyBridgeToken(): Promise<BridgeUser | null> {
 		return null;
 	}
 }
+
+export const verifyBridgeToken = verifySessionToken;

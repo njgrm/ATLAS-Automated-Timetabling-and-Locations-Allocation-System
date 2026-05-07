@@ -1,15 +1,17 @@
+import { ATLAS_BRIDGE_TOKEN_KEY } from './auth';
+
 export function captureBridgeToken(): string | null {
 	const url = new URL(window.location.href);
 	const urlToken = url.searchParams.get('bridgeToken');
 	if (urlToken) {
-		sessionStorage.setItem('atlas_bridge_token', urlToken);
+		sessionStorage.setItem(ATLAS_BRIDGE_TOKEN_KEY, urlToken);
 		// Clean URL without reload
 		url.searchParams.delete('bridgeToken');
 		url.searchParams.delete('from');
 		window.history.replaceState({}, '', url.pathname);
 		return urlToken;
 	}
-	return sessionStorage.getItem('atlas_bridge_token');
+	return sessionStorage.getItem(ATLAS_BRIDGE_TOKEN_KEY);
 }
 
 export function getBackHref(): string {

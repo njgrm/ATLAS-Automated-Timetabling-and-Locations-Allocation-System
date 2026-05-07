@@ -17,11 +17,12 @@ import {
 	Users,
 } from 'lucide-react';
 import React, { useEffect, useLayoutEffect, useRef, useState, Suspense } from 'react';
-import { Link, Outlet, useLocation, useOutlet } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useOutlet } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 
 import { captureBridgeToken, getBackHref } from '@/lib/bridge';
-import { fetchPublicSettings, fetchSchoolYears, verifyBridgeToken } from '@/lib/settings';
+import { fetchPublicSettings, fetchSchoolYears, verifySessionToken } from '@/lib/settings';
+import { clearAtlasAuthStorage, hasAnyAuthToken } from '@/lib/auth';
 import type { BridgeUser } from '@/types';
 import type { SchoolYear } from '@/lib/settings';
 import { Badge } from '@/ui/badge';
@@ -436,6 +437,7 @@ function AppSidebar({
 /* ─── AppShell (exported layout) ─── */
 
 export function AppShell() {
+	const navigate = useNavigate();
 	const location = useLocation();
 	const outlet = useOutlet();
 	const { fontSize, setFontSize } = useAccessibility();
@@ -451,6 +453,7 @@ export function AppShell() {
 	const [schoolYears, setSchoolYears] = useState<SchoolYear[]>([]);
 	const [selectedYearId, setSelectedYearId] = useState<number | null>(null);
 	const [bridgeUser, setBridgeUser] = useState<BridgeUser | null>(null);
+	const [authSource, setAuthSource] = useState<'bridge' | 'local' | null>(null);
 	const [syOpen, setSyOpen] = useState(false);
 
 	/* Capture bridge token on mount */
@@ -517,16 +520,32 @@ export function AppShell() {
 			.catch(() => {});
 	}, []);
 
-	/* Verify bridge identity */
+	/* Verify session identity */
 	useEffect(() => {
-		verifyBridgeToken().then((u) => {
-			if (u) setBridgeUser(u);
+		if (!hasAnyAuthToken()) {
+			navigate('/login', { replace: true });
+			return;
+		}
+
+		verifySessionToken().then((u) => {
+			if (!u) {
+				clearAtlasAuthStorage();
+				navigate('/login', { replace: true });
+				return;
+			}
+			setBridgeUser(u);
+			setAuthSource(u.authSource ?? 'bridge');
+			localStorage.setItem('userRole', u.role);
 		});
-	}, []);
+	}, [navigate]);
 
 	const handleLogout = () => {
-		sessionStorage.removeItem('atlas_bridge_token');
-		window.location.href = `${ENROLLPRO_URL}/login`;
+		clearAtlasAuthStorage();
+		if (authSource === 'bridge') {
+			window.location.href = `${ENROLLPRO_URL}/login`;
+			return;
+		}
+		navigate('/login', { replace: true });
 	};
 
 	/* Breadcrumbs from current route */

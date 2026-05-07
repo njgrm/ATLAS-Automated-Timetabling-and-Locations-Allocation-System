@@ -1,8 +1,8 @@
 export declare function getBuildingsBySchool(schoolId: number): Promise<({
     rooms: {
+        createdAt: Date;
         id: number;
         name: string;
-        createdAt: Date;
         updatedAt: Date;
         floorPosition: number;
         floor: number;
@@ -12,26 +12,26 @@ export declare function getBuildingsBySchool(schoolId: number): Promise<({
         isTeachingSpace: boolean;
     }[];
 } & {
-    id: number;
+    y: number;
     schoolId: number;
+    createdAt: Date;
+    id: number;
     name: string;
+    updatedAt: Date;
     shortCode: string | null;
     x: number;
-    y: number;
     width: number;
     height: number;
     rotation: number;
     color: string;
     floorCount: number;
     isTeachingBuilding: boolean;
-    createdAt: Date;
-    updatedAt: Date;
 })[]>;
 export declare function getBuilding(id: number): Promise<({
     rooms: {
+        createdAt: Date;
         id: number;
         name: string;
-        createdAt: Date;
         updatedAt: Date;
         floorPosition: number;
         floor: number;
@@ -41,20 +41,20 @@ export declare function getBuilding(id: number): Promise<({
         isTeachingSpace: boolean;
     }[];
 } & {
-    id: number;
+    y: number;
     schoolId: number;
+    createdAt: Date;
+    id: number;
     name: string;
+    updatedAt: Date;
     shortCode: string | null;
     x: number;
-    y: number;
     width: number;
     height: number;
     rotation: number;
     color: string;
     floorCount: number;
     isTeachingBuilding: boolean;
-    createdAt: Date;
-    updatedAt: Date;
 }) | null>;
 export declare function upsertBuilding(schoolId: number, data: {
     name: string;
@@ -69,9 +69,9 @@ export declare function upsertBuilding(schoolId: number, data: {
     shortCode?: string;
 }): Promise<{
     rooms: {
+        createdAt: Date;
         id: number;
         name: string;
-        createdAt: Date;
         updatedAt: Date;
         floorPosition: number;
         floor: number;
@@ -81,20 +81,20 @@ export declare function upsertBuilding(schoolId: number, data: {
         isTeachingSpace: boolean;
     }[];
 } & {
-    id: number;
+    y: number;
     schoolId: number;
+    createdAt: Date;
+    id: number;
     name: string;
+    updatedAt: Date;
     shortCode: string | null;
     x: number;
-    y: number;
     width: number;
     height: number;
     rotation: number;
     color: string;
     floorCount: number;
     isTeachingBuilding: boolean;
-    createdAt: Date;
-    updatedAt: Date;
 }>;
 export declare function updateBuilding(id: number, data: Partial<{
     name: string;
@@ -109,9 +109,9 @@ export declare function updateBuilding(id: number, data: Partial<{
     shortCode: string;
 }>): Promise<{
     rooms: {
+        createdAt: Date;
         id: number;
         name: string;
-        createdAt: Date;
         updatedAt: Date;
         floorPosition: number;
         floor: number;
@@ -121,36 +121,36 @@ export declare function updateBuilding(id: number, data: Partial<{
         isTeachingSpace: boolean;
     }[];
 } & {
-    id: number;
+    y: number;
     schoolId: number;
+    createdAt: Date;
+    id: number;
     name: string;
+    updatedAt: Date;
     shortCode: string | null;
     x: number;
-    y: number;
     width: number;
     height: number;
     rotation: number;
     color: string;
     floorCount: number;
     isTeachingBuilding: boolean;
-    createdAt: Date;
-    updatedAt: Date;
 }>;
 export declare function deleteBuilding(id: number): Promise<{
-    id: number;
+    y: number;
     schoolId: number;
+    createdAt: Date;
+    id: number;
     name: string;
+    updatedAt: Date;
     shortCode: string | null;
     x: number;
-    y: number;
     width: number;
     height: number;
     rotation: number;
     color: string;
     floorCount: number;
     isTeachingBuilding: boolean;
-    createdAt: Date;
-    updatedAt: Date;
 }>;
 export declare function addRoom(buildingId: number, data: {
     name: string;
@@ -160,9 +160,9 @@ export declare function addRoom(buildingId: number, data: {
     isTeachingSpace?: boolean;
     floorPosition?: number;
 }): Promise<{
+    createdAt: Date;
     id: number;
     name: string;
-    createdAt: Date;
     updatedAt: Date;
     floorPosition: number;
     floor: number;
@@ -172,9 +172,9 @@ export declare function addRoom(buildingId: number, data: {
     isTeachingSpace: boolean;
 }>;
 export declare function deleteRoom(id: number): Promise<{
+    createdAt: Date;
     id: number;
     name: string;
-    createdAt: Date;
     updatedAt: Date;
     floorPosition: number;
     floor: number;
@@ -191,9 +191,9 @@ export declare function updateRoom(id: number, data: Partial<{
     isTeachingSpace: boolean;
     floorPosition: number;
 }>): Promise<{
+    createdAt: Date;
     id: number;
     name: string;
-    createdAt: Date;
     updatedAt: Date;
     floorPosition: number;
     floor: number;
@@ -204,9 +204,9 @@ export declare function updateRoom(id: number, data: Partial<{
 }>;
 export declare function getCampusImage(schoolId: number): Promise<string | null>;
 export declare function setCampusImage(schoolId: number, imageUrl: string): Promise<{
+    createdAt: Date;
     id: number;
     name: string;
-    createdAt: Date;
     updatedAt: Date;
     shortName: string;
     campusImageUrl: string | null;

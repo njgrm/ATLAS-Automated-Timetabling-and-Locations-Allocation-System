@@ -20,6 +20,7 @@ import { seedTeachingLoadBaseline } from '../services/seeded-teaching-load.servi
 import { syncFacultyFromExternal } from '../services/faculty.service.js';
 import { getSectionSummary } from '../services/section.service.js';
 import { buildRealisticGradeBlueprints, buildRealisticTeacherSeeds, REALISTIC_SECTION_COUNT, REALISTIC_TEACHER_COUNT, } from './realistic-jhs-dataset.js';
+import { seedLocalAuthAccounts } from '../services/local-auth.service.js';
 const USAGE = 'Usage: npx tsx src/scripts/seed-realistic.ts --schoolId=N --schoolYearId=N [--mode=enrollpro-source|atlas-fixture] [--reset] [--withCachedSnapshots] [--seedMap=true|false] [--resetMap=true|false] [--confirmFixtureBypass=true] [--authUserId=N] [--authRole=SYSTEM_ADMIN] [--authToken=TOKEN]';
 const WAVE_RESET_LABELS = [
     'faculty_mirrors (target school)',
@@ -711,6 +712,18 @@ async function main() {
     else {
         console.log('[seed-realistic] Map seeding skipped. Existing buildings, rooms, and campus image were preserved.');
     }
+    const firstFaculty = await prisma.facultyMirror.findFirst({
+        where: {
+            schoolId: options.schoolId,
+            isActiveForScheduling: true,
+        },
+        orderBy: { id: 'asc' },
+        select: { id: true },
+    });
+    const authSeed = await seedLocalAuthAccounts({
+        schoolId: options.schoolId,
+        facultyId: firstFaculty?.id ?? null,
+    });
     console.log('[seed-realistic] Completed successfully.');
     console.log(`  - Mode: ${options.mode}`);
     console.log(`  - Teachers: ${result.teachers}`);
@@ -744,6 +757,8 @@ async function main() {
         console.log(`  - Rooms preserved/matched: ${mapSummary.roomsMatched}`);
         console.log(`  - Map reset applied: ${mapSummary.mapResetApplied}`);
     }
+    console.log(`  - Local auth accounts seeded: ${authSeed.created} created, ${authSeed.updated} updated`);
+    console.log('    Credentials: officer@atlas.local / Atlas2026! and faculty@atlas.local / Atlas2026!');
 }
 main()
     .catch((error) => {

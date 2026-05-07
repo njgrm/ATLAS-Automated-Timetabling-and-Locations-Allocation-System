@@ -23,6 +23,28 @@ Record dated implementation verification summaries here.
 
 ---
 
+### 2026-05-08 - Priority 1 Standalone Local Login (Faculty + Scheduler Officer)
+- Phase: 4 (objective-priority override item)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PARTIAL PASS
+- Regression gate: PASS
+- Commands:
+  - `npm run db:generate`: PASS
+  - `npm --prefix atlas-server run build`: PASS
+  - `npm --prefix atlas-client run build`: PASS
+- API checks:
+  - `POST /api/v1/auth/login` route and local-auth service integration (`loginWithEmailPassword`) compile and wire correctly: PASS (source inspection + build verification)
+  - `GET /api/v1/auth/me` returns auth-source aware payload for dual-auth sessions: PASS (source inspection + build verification)
+- UI checks:
+  - `/login` page is registered in router and builds successfully with local auth submission flow: PASS
+  - App shell verifies dual-auth sessions and uses source-aware logout redirect logic: PASS (source inspection + client build)
+- Blocking findings:
+  - No dedicated automated auth acceptance test file currently exists for TC-AUTH-01..08-equivalent scenarios.
+  - Live manual bridged browser QA evidence for protected-route session transitions was not captured in this pass.
+- Decision:
+  - Accepted for implementation + compile verification; behavioral test automation/manual QA evidence pending follow-up.
+
 ### 2026-05-06 - Wave 4.5c Follow-up 4: Canonical occupied-slot swaps + drag hot-path cleanup
 - Phase: 4
 - Scope gate: PASS
