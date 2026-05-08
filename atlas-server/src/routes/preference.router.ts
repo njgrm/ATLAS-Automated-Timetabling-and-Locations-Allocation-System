@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import * as prefService from '../services/preference.service.js';
 import { subscribePreferenceEvents, getPreferenceEventsSince } from '../services/preference-events.service.js';
 import type { DayOfWeek, TimeSlotPreference } from '@prisma/client';
+import { prisma } from '../lib/prisma.js';
 
 const router = Router();
 
@@ -397,7 +398,25 @@ router.get(
 
 			// Determine scope: faculty users get filtered to their own events
 			const isPrivileged = decoded.role === 'admin' || decoded.role === 'officer' || decoded.role === 'SYSTEM_ADMIN';
-			const scopeFacultyId = isPrivileged ? null : (decoded.facultyId ?? null);
+			let scopeFacultyId: number | null = null;
+			if (!isPrivileged) {
+				if (typeof decoded.facultyId === 'number' && decoded.facultyId > 0) {
+					scopeFacultyId = decoded.facultyId;
+				} else {
+					const faculty = await prisma.facultyMirror.findFirst({
+						where: { schoolId, externalId: decoded.userId },
+						select: { id: true },
+					});
+					if (!faculty) {
+						res.status(403).json({
+							code: 'FORBIDDEN',
+							message: 'Faculty profile mapping is required to subscribe to preference updates.',
+						});
+						return;
+					}
+					scopeFacultyId = faculty.id;
+				}
+			}
 
 			// Reconnect: replay missed events since Last-Event-ID
 			const lastIdRaw = req.headers['last-event-id'] as string | undefined;

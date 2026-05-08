@@ -30,6 +30,6 @@ export declare class StubFacultyAdapter implements FacultyAdapter {
 export declare class EnrollProFacultyAdapter implements FacultyAdapter {
     private baseUrl;
     constructor(baseUrl: string);
-    fetchFacultyBySchoolYear(_schoolId: number, schoolYearId: number, authToken?: string): Promise<FacultyFetchResult>;
+    fetchFacultyBySchoolYear(_schoolId: number, schoolYearId: number, _authToken?: string): Promise<FacultyFetchResult>;
 }
 export declare function createFacultyAdapter(): FacultyAdapter;

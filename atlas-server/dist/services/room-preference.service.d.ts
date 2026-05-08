@@ -73,6 +73,7 @@ export interface FacultyRoomPreferenceEntry {
 export interface FacultyRoomPreferenceState {
     runId: number;
     runVersion: number;
+    runGeneratedAt: string | null;
     entries: FacultyRoomPreferenceEntry[];
 }
 export interface RoomPreferenceSummaryItem {

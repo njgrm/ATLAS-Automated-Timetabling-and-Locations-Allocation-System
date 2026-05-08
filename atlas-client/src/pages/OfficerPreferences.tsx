@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { AnimatePresence, motion } from 'motion/react';
 
 import atlasApi from '@/lib/api';
+import { getPreferredAccessToken } from '@/lib/auth';
 import { fetchPublicSettings } from '@/lib/settings';
 import { formatTime } from '@/lib/utils';
 import type {
@@ -175,10 +176,7 @@ export default function OfficerPreferences() {
 	/* ── SSE: live preference submissions ── */
 	useEffect(() => {
 		if (!activeSchoolYearId) return;
-		const token = document.cookie
-			.split('; ')
-			.find((row) => row.startsWith('atlasAuthToken='))
-			?.split('=')[1];
+		const token = getPreferredAccessToken();
 		const tokenParam = token ? `accessToken=${encodeURIComponent(token)}` : '';
 		const url = `/api/v1/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/events${tokenParam ? '?' + tokenParam : ''}`;
 		const es = new EventSource(url);

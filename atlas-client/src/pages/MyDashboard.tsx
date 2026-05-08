@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowRight, CalendarClock, CheckCircle2, Clock3, MapPin, RefreshCcw } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CalendarClock, MapPin, RefreshCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import atlasApi from '@/lib/api';
-import { fetchPublicSettings } from '@/lib/settings';
+import { fetchPublicSettings, fetchSchoolYears, type SchoolYear } from '@/lib/settings';
 import { formatTime } from '@/lib/utils';
 import type { FacultyRoomPreferenceEntry } from '@/types';
 import { Badge } from '@/ui/badge';
@@ -12,6 +12,37 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/ui/card';
 import { Skeleton } from '@/ui/skeleton';
 
 const DEFAULT_SCHOOL_ID = 1;
+const FALLBACK_SCHOOL_YEAR_ID = 1;
+
+function resolveSchoolYearContext(settingsActiveSchoolYearId: number | null, years: SchoolYear[]) {
+	if (settingsActiveSchoolYearId) {
+		return {
+			schoolYearId: settingsActiveSchoolYearId,
+			notice: null as string | null,
+		};
+	}
+
+	const sortedYears = [...years].sort((left, right) => right.id - left.id);
+	const inferredActive = sortedYears.find((year) => year.isActive || year.status?.toUpperCase() === 'ACTIVE');
+	if (inferredActive) {
+		return {
+			schoolYearId: inferredActive.id,
+			notice: `No active school year was provided by public settings. Showing inferred active school year ${inferredActive.yearLabel}.`,
+		};
+	}
+
+	if (sortedYears[0]) {
+		return {
+			schoolYearId: sortedYears[0].id,
+			notice: `No active school year was provided by public settings. Showing latest available school year ${sortedYears[0].yearLabel}.`,
+		};
+	}
+
+	return {
+		schoolYearId: FALLBACK_SCHOOL_YEAR_ID,
+		notice: 'No school year metadata was available. Showing fallback school year context.',
+	};
+}
 
 type MyDashboardResponse = {
 	faculty: {
@@ -20,6 +51,14 @@ type MyDashboardResponse = {
 	};
 	phase: string;
 	phaseMessage: string;
+	runContext: {
+		state: 'ACTIVE_DRAFT' | 'NO_ACTIVE_DRAFT';
+		runId: number | null;
+		runVersion: number | null;
+		generatedAt: string | null;
+		reason: string | null;
+		recoveryHint: string | null;
+	};
 	fallbackBanner: {
 		show: boolean;
 		title: string;
@@ -30,6 +69,7 @@ type MyDashboardResponse = {
 	schedulePreview: {
 		runId: number | null;
 		runVersion: number | null;
+		generatedAt: string | null;
 		entries: FacultyRoomPreferenceEntry[];
 		counts: {
 			total: number;
@@ -57,21 +97,21 @@ export default function MyDashboard() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [dashboard, setDashboard] = useState<MyDashboardResponse | null>(null);
+	const [schoolYearNotice, setSchoolYearNotice] = useState<string | null>(null);
 
 	const loadDashboard = async () => {
 		setLoading(true);
 		try {
-			const settings = await fetchPublicSettings();
-			if (!settings.activeSchoolYearId) {
-				setError('No active school year configured.');
-				setLoading(false);
-				return;
-			}
-			const { data } = await atlasApi.get<MyDashboardResponse>(`/faculty-portal/${DEFAULT_SCHOOL_ID}/${settings.activeSchoolYearId}/dashboard`);
+			const [settings, years] = await Promise.all([fetchPublicSettings(), fetchSchoolYears()]);
+			const schoolYearContext = resolveSchoolYearContext(settings.activeSchoolYearId, years);
+			const schoolYearId = schoolYearContext.schoolYearId;
+			setSchoolYearNotice(schoolYearContext.notice);
+			const { data } = await atlasApi.get<MyDashboardResponse>(`/faculty-portal/${DEFAULT_SCHOOL_ID}/${schoolYearId}/dashboard`);
 			setDashboard(data);
 			setError(null);
 		} catch (err) {
-			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+			const payload = (err as { response?: { data?: { message?: string; actionHint?: string } } })?.response?.data;
+			const message = [payload?.message, payload?.actionHint].filter(Boolean).join(' ');
 			setError(message ?? 'Unable to load your faculty dashboard.');
 		} finally {
 			setLoading(false);
@@ -126,6 +166,11 @@ export default function MyDashboard() {
 		<div className='flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden'>
 			<div className='flex-1 min-h-0 overflow-auto px-4 py-4 sm:px-6'>
 				<div className='mx-auto w-full max-w-4xl space-y-4'>
+					{schoolYearNotice && (
+						<div className='rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900'>
+							{schoolYearNotice}
+						</div>
+					)}
 					<div className='rounded-2xl border border-border bg-card px-4 py-4 shadow-sm'>
 						<p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>My Portal</p>
 						<h1 className='mt-2 text-xl font-semibold tracking-tight'>Hello, {dashboard.faculty.name}</h1>
@@ -145,8 +190,21 @@ export default function MyDashboard() {
 											{dashboard.fallbackBanner.generatedAt ? ` • Generated ${new Date(dashboard.fallbackBanner.generatedAt).toLocaleString()}` : ''}
 										</p>
 									)}
+									{dashboard.runContext.state === 'NO_ACTIVE_DRAFT' && (
+										<p className='mt-2 text-xs text-amber-900'>
+											{dashboard.runContext.reason}
+											{dashboard.runContext.recoveryHint ? ` ${dashboard.runContext.recoveryHint}` : ''}
+										</p>
+									)}
 								</div>
 							</div>
+						</div>
+					)}
+
+					{dashboard.schedulePreview.runId && (
+						<div className='rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground'>
+							Data as of Run #{dashboard.schedulePreview.runId}
+							{dashboard.schedulePreview.generatedAt ? ` • Generated ${new Date(dashboard.schedulePreview.generatedAt).toLocaleString()}` : ''}
 						</div>
 					)}
 

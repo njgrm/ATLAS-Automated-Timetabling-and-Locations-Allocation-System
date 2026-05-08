@@ -105,6 +105,54 @@ export function normalizeEnrollProSectionsResponse(body) {
         return { gradeLevels: [], warnings };
     }
     const payload = body;
+    if (Array.isArray(payload.data)) {
+        const grouped = new Map();
+        for (const section of payload.data) {
+            if (!section || typeof section !== 'object')
+                continue;
+            const gradeLevelId = typeof section.gradeLevel?.id === 'number' ? section.gradeLevel.id : 0;
+            const displayOrder = typeof section.gradeLevel?.displayOrder === 'number'
+                ? section.gradeLevel.displayOrder
+                : gradeLevelId;
+            const gradeLevelName = typeof section.gradeLevel?.name === 'string' && section.gradeLevel.name.trim().length > 0
+                ? section.gradeLevel.name.trim()
+                : `Grade ${displayOrder || gradeLevelId}`;
+            if (!grouped.has(gradeLevelId)) {
+                grouped.set(gradeLevelId, {
+                    gradeLevelId,
+                    gradeLevelName,
+                    displayOrder,
+                    sections: [],
+                });
+            }
+            const program = normalizeProgramMetadata(section.programType, warnings);
+            const adviserName = section.advisingTeacher
+                ? [section.advisingTeacher.firstName, section.advisingTeacher.lastName].filter(Boolean).join(' ').trim() || null
+                : null;
+            grouped.get(gradeLevelId).sections.push({
+                id: typeof section.id === 'number' ? section.id : 0,
+                name: typeof section.name === 'string' && section.name.trim().length > 0 ? section.name.trim() : 'Unnamed Section',
+                maxCapacity: typeof section.maxCapacity === 'number' ? section.maxCapacity : 0,
+                enrolledCount: typeof section.enrolledCount === 'number' ? section.enrolledCount : 0,
+                gradeLevelId,
+                gradeLevelName,
+                displayOrder,
+                programType: program.programType,
+                programCode: program.programCode,
+                programName: program.programName,
+                admissionMode: program.admissionMode,
+                adviserId: typeof section.advisingTeacher?.id === 'number' ? section.advisingTeacher.id : null,
+                adviserName,
+                upstreamProgramType: program.upstreamProgramType,
+                isSpecialProgram: program.isSpecialProgram,
+            });
+        }
+        const gradeLevels = Array.from(grouped.values()).sort((a, b) => a.displayOrder - b.displayOrder || a.gradeLevelId - b.gradeLevelId);
+        for (const grade of gradeLevels) {
+            grade.sections.sort((a, b) => a.name.localeCompare(b.name) || a.id - b.id);
+        }
+        return { gradeLevels, warnings };
+    }
     if (!Array.isArray(payload.gradeLevels)) {
         warnings.push('EnrollPro sections response did not include a gradeLevels array; returning an empty section payload.');
         return { gradeLevels: [], warnings };
@@ -237,12 +285,8 @@ export class EnrollProSectionAdapter {
         this.baseUrl = baseUrl ?? process.env.ENROLLPRO_API ?? 'http://localhost:5000/api';
     }
     async fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken) {
-        const url = `${this.baseUrl}/sections/${schoolYearId}?level=JHS`;
-        const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
-        const headers = { 'Content-Type': 'application/json' };
-        if (token)
-            headers['Authorization'] = `Bearer ${token}`;
-        const response = await fetch(url, { headers });
+        const url = `${this.baseUrl}/integration/v1/sections?schoolYearId=${schoolYearId}`;
+        const response = await fetch(url);
         if (!response.ok) {
             throw Object.assign(new Error(`EnrollPro sections API returned ${response.status}`), {
                 statusCode: response.status,

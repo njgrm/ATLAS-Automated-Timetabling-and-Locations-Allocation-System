@@ -9,6 +9,7 @@ import type {
 import * as generationService from './generation.service.js';
 import * as manualEditService from './manual-edit.service.js';
 import { publishRoomPreferenceEvent } from './room-preference-events.service.js';
+import { resolveActiveDraftRun } from './active-draft-run-resolver.service.js';
 
 function err(statusCode: number, code: string, message: string): Error & { statusCode: number; code: string } {
 	const error = new Error(message) as Error & { statusCode: number; code: string };
@@ -96,6 +97,7 @@ export interface FacultyRoomPreferenceEntry {
 export interface FacultyRoomPreferenceState {
 	runId: number;
 	runVersion: number;
+	runGeneratedAt: string | null;
 	entries: FacultyRoomPreferenceEntry[];
 }
 
@@ -318,6 +320,7 @@ export async function getFacultyRoomPreferenceState(
 	return {
 		runId: draft.runId,
 		runVersion: draft.version,
+		runGeneratedAt: draft.finishedAt ?? draft.createdAt,
 		entries: assignedEntries.map((entry) => {
 			const request = requestMap.get(entry.entryId);
 			const subject = subjectMap.get(entry.subjectId);
@@ -369,7 +372,7 @@ export async function getLatestFacultyRoomPreferenceState(
 	schoolYearId: number,
 	facultyId: number,
 ) {
-	const run = await generationService.assertLatestRunIsCurrent(schoolId, schoolYearId);
+	const run = await resolveActiveDraftRun(schoolId, schoolYearId);
 	return getFacultyRoomPreferenceState(schoolId, schoolYearId, run.id, facultyId);
 }
 
@@ -689,7 +692,7 @@ export async function getLatestRoomPreferenceSummary(
 		requestedRoomId?: number;
 	},
 ) {
-	const run = await generationService.assertLatestRunIsCurrent(schoolId, schoolYearId);
+	const run = await resolveActiveDraftRun(schoolId, schoolYearId);
 	return getRoomPreferenceSummary(schoolId, schoolYearId, run.id, filters);
 }
 

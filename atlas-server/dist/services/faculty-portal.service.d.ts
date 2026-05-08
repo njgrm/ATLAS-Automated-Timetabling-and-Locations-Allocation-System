@@ -6,6 +6,14 @@ export declare function getFacultyPortalDashboard(params: {
 }): Promise<{
     phase: LifecyclePhase;
     phaseMessage: string;
+    runContext: {
+        state: "NO_ACTIVE_DRAFT";
+        runId: null;
+        runVersion: null;
+        generatedAt: null;
+        reason: string;
+        recoveryHint: string;
+    };
     fallbackBanner: {
         show: boolean;
         title: string;
@@ -16,6 +24,7 @@ export declare function getFacultyPortalDashboard(params: {
     schedulePreview: {
         runId: null;
         runVersion: null;
+        generatedAt: null;
         entries: never[];
         counts: {
             total: number;
@@ -32,6 +41,14 @@ export declare function getFacultyPortalDashboard(params: {
 } | {
     phase: LifecyclePhase;
     phaseMessage: string;
+    runContext: {
+        state: "ACTIVE_DRAFT";
+        runId: number;
+        runVersion: number;
+        generatedAt: string | null;
+        reason: null;
+        recoveryHint: null;
+    };
     fallbackBanner: {
         show: boolean;
         title: string;
@@ -42,6 +59,7 @@ export declare function getFacultyPortalDashboard(params: {
     schedulePreview: {
         runId: number;
         runVersion: number;
+        generatedAt: string | null;
         entries: import("./room-preference.service.js").FacultyRoomPreferenceEntry[];
         counts: {
             total: number;

@@ -16,7 +16,8 @@ import { toast } from 'sonner';
 import { AnimatePresence, motion } from 'motion/react';
 
 import atlasApi from '@/lib/api';
-import { fetchPublicSettings } from '@/lib/settings';
+import { getPreferredAccessToken } from '@/lib/auth';
+import { fetchPublicSettings, fetchSchoolYears, type SchoolYear } from '@/lib/settings';
 import type {
 	DayOfWeek,
 	FacultyPreference,
@@ -35,6 +36,36 @@ import { Textarea } from '@/ui/textarea';
 /* ─── Constants ─── */
 
 const DEFAULT_SCHOOL_ID = 1;
+
+function resolveSchoolYearContext(settingsActiveSchoolYearId: number | null, years: SchoolYear[]) {
+	if (settingsActiveSchoolYearId) {
+		return {
+			schoolYearId: settingsActiveSchoolYearId,
+			notice: null as string | null,
+		};
+	}
+
+	const sortedYears = [...years].sort((left, right) => right.id - left.id);
+	const inferredActive = sortedYears.find((year) => year.isActive || year.status?.toUpperCase() === 'ACTIVE');
+	if (inferredActive) {
+		return {
+			schoolYearId: inferredActive.id,
+			notice: `No active school year was provided by public settings. Showing inferred active school year ${inferredActive.yearLabel}.`,
+		};
+	}
+
+	if (sortedYears[0]) {
+		return {
+			schoolYearId: sortedYears[0].id,
+			notice: `No active school year was provided by public settings. Showing latest available school year ${sortedYears[0].yearLabel}.`,
+		};
+	}
+
+	return {
+		schoolYearId: 1,
+		notice: 'No school year metadata was available. Showing fallback school year context.',
+	};
+}
 
 const DAYS: { value: DayOfWeek; label: string }[] = [
 	{ value: 'MONDAY', label: 'Monday' },
@@ -120,6 +151,7 @@ export default function FacultyPreferences() {
 
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [facultyId, setFacultyId] = useState<number | null>(null);
+	const [schoolYearNotice, setSchoolYearNotice] = useState<string | null>(null);
 
 	const [preference, setPreference] = useState<FacultyPreference | null>(null);
 	const [slots, setSlots] = useState<SlotRow[]>([emptySlot()]);
@@ -131,13 +163,10 @@ export default function FacultyPreferences() {
 	useEffect(() => {
 		(async () => {
 			try {
-				const settings = await fetchPublicSettings();
-				if (!settings.activeSchoolYearId) {
-					setError('No active school year configured. Contact your scheduling officer.');
-					setLoading(false);
-					return;
-				}
-				setActiveSchoolYearId(settings.activeSchoolYearId);
+				const [settings, years] = await Promise.all([fetchPublicSettings(), fetchSchoolYears()]);
+				const schoolYearContext = resolveSchoolYearContext(settings.activeSchoolYearId, years);
+				setActiveSchoolYearId(schoolYearContext.schoolYearId);
+				setSchoolYearNotice(schoolYearContext.notice);
 
 				// Resolve faculty mapping from bridge identity
 				const { data: facultyMe } = await atlasApi.get<{ faculty: { id: number } }>('/faculty/me', {
@@ -150,7 +179,7 @@ export default function FacultyPreferences() {
 				}
 				setFacultyId(facultyMe.faculty.id);
 			} catch {
-				setError('Failed to load session context.');
+				setError('Failed to load session context. Please sign in again or contact the scheduling officer if your faculty profile is not mapped yet.');
 				setLoading(false);
 			}
 		})();
@@ -211,10 +240,7 @@ export default function FacultyPreferences() {
 	/* ── SSE: bilateral preference events ── */
 	useEffect(() => {
 		if (!activeSchoolYearId || !facultyId) return;
-		const token = document.cookie
-			.split('; ')
-			.find((row) => row.startsWith('atlasAuthToken='))
-			?.split('=')[1];
+		const token = getPreferredAccessToken();
 		const tokenParam = token ? `accessToken=${encodeURIComponent(token)}` : '';
 		const url = `/api/v1/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/events${tokenParam ? '?' + tokenParam : ''}`;
 		const es = new EventSource(url);
@@ -441,6 +467,11 @@ export default function FacultyPreferences() {
 
 			{/* Scrolling content */}
 			<div className='flex-1 min-h-0 overflow-auto px-6 py-6 space-y-6'>
+				{schoolYearNotice && (
+					<div className='rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900'>
+						{schoolYearNotice}
+					</div>
+				)}
 
 				{/* Well-being preferences */}
 				<Card>

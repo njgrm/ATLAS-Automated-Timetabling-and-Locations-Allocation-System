@@ -60,13 +60,9 @@ router.get('/', authenticate, async (req, res, next) => {
 router.post('/sync', authenticate, async (req, res, next) => {
     try {
         const schoolId = Number(req.body.schoolId);
-        const schoolYearId = Number(req.body.schoolYearId);
+        const schoolYearId = req.body.schoolYearId !== undefined ? Number(req.body.schoolYearId) : 1;
         if (!schoolId || Number.isNaN(schoolId)) {
             res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
-            return;
-        }
-        if (!schoolYearId || Number.isNaN(schoolYearId)) {
-            res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
             return;
         }
         const authToken = req.headers.authorization?.slice(7);

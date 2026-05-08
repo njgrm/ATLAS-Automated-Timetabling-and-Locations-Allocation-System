@@ -303,6 +303,7 @@ export type FacultyRoomPreferenceEntry = {
 export type FacultyRoomPreferenceState = {
 	runId: number;
 	runVersion: number;
+	runGeneratedAt: string | null;
 	entries: FacultyRoomPreferenceEntry[];
 };
 

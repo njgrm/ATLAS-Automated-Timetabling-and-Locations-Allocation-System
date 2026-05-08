@@ -3,6 +3,7 @@ import { authenticate } from '../middleware/authenticate.js';
 import jwt from 'jsonwebtoken';
 import * as prefService from '../services/preference.service.js';
 import { subscribePreferenceEvents, getPreferenceEventsSince } from '../services/preference-events.service.js';
+import { prisma } from '../lib/prisma.js';
 const router = Router();
 // ─── Helpers ───
 /** Verify the authenticated user owns the faculty record or is an officer/admin. */
@@ -429,7 +430,26 @@ router.get('/:schoolId/:schoolYearId/events', async (req, res, next) => {
         }
         // Determine scope: faculty users get filtered to their own events
         const isPrivileged = decoded.role === 'admin' || decoded.role === 'officer' || decoded.role === 'SYSTEM_ADMIN';
-        const scopeFacultyId = isPrivileged ? null : (decoded.facultyId ?? null);
+        let scopeFacultyId = null;
+        if (!isPrivileged) {
+            if (typeof decoded.facultyId === 'number' && decoded.facultyId > 0) {
+                scopeFacultyId = decoded.facultyId;
+            }
+            else {
+                const faculty = await prisma.facultyMirror.findFirst({
+                    where: { schoolId, externalId: decoded.userId },
+                    select: { id: true },
+                });
+                if (!faculty) {
+                    res.status(403).json({
+                        code: 'FORBIDDEN',
+                        message: 'Faculty profile mapping is required to subscribe to preference updates.',
+                    });
+                    return;
+                }
+                scopeFacultyId = faculty.id;
+            }
+        }
         // Reconnect: replay missed events since Last-Event-ID
         const lastIdRaw = req.headers['last-event-id'];
         const lastId = lastIdRaw ? parseInt(lastIdRaw, 10) : 0;

@@ -38,7 +38,7 @@ import {
 	replaceOutboxActions,
 	type RoomPreferenceOutboxAction,
 } from '@/lib/roomPreferenceOutbox';
-import { fetchPublicSettings } from '@/lib/settings';
+import { fetchPublicSettings, fetchSchoolYears, type SchoolYear } from '@/lib/settings';
 import { formatTime } from '@/lib/utils';
 import type {
 	Building,
@@ -57,6 +57,37 @@ import { Skeleton } from '@/ui/skeleton';
 import { Textarea } from '@/ui/textarea';
 
 const DEFAULT_SCHOOL_ID = 1;
+const FALLBACK_SCHOOL_YEAR_ID = 1;
+
+function resolveSchoolYearContext(settingsActiveSchoolYearId: number | null, years: SchoolYear[]) {
+	if (settingsActiveSchoolYearId) {
+		return {
+			schoolYearId: settingsActiveSchoolYearId,
+			notice: null as string | null,
+		};
+	}
+
+	const sortedYears = [...years].sort((left, right) => right.id - left.id);
+	const inferredActive = sortedYears.find((year) => year.isActive || year.status?.toUpperCase() === 'ACTIVE');
+	if (inferredActive) {
+		return {
+			schoolYearId: inferredActive.id,
+			notice: `No active school year was provided by public settings. Showing inferred active school year ${inferredActive.yearLabel}.`,
+		};
+	}
+
+	if (sortedYears[0]) {
+		return {
+			schoolYearId: sortedYears[0].id,
+			notice: `No active school year was provided by public settings. Showing latest available school year ${sortedYears[0].yearLabel}.`,
+		};
+	}
+
+	return {
+		schoolYearId: FALLBACK_SCHOOL_YEAR_ID,
+		notice: 'No school year metadata was available. Showing fallback school year context.',
+	};
+}
 
 type RoomOption = Room & { buildingName: string };
 
@@ -168,9 +199,12 @@ export default function FacultyRoomPreferences() {
 	const [facultyId, setFacultyId] = useState<number | null>(null);
 	const [runId, setRunId] = useState<number | null>(null);
 	const [runVersion, setRunVersion] = useState<number>(1);
+	const [runGeneratedAt, setRunGeneratedAt] = useState<string | null>(null);
 	const [online, setOnline] = useState<boolean>(navigator.onLine);
 	const [outboxCount, setOutboxCount] = useState<number>(0);
 	const [syncingOutbox, setSyncingOutbox] = useState(false);
+	const [liveUpdateCount, setLiveUpdateCount] = useState(0);
+	const [schoolYearNotice, setSchoolYearNotice] = useState<string | null>(null);
 	const [initialEntries, setInitialEntries] = useState<FacultyRoomPreferenceEntry[]>([]);
 	const [entries, setEntries] = useState<FacultyRoomPreferenceEntry[]>([]);
 	const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
@@ -187,6 +221,7 @@ export default function FacultyRoomPreferences() {
 	const applyServerState = useCallback((state: FacultyRoomPreferenceState) => {
 		setRunId(state.runId);
 		setRunVersion(state.runVersion);
+		setRunGeneratedAt(state.runGeneratedAt);
 		setInitialEntries(state.entries);
 		setEntries(state.entries);
 		setSelectedEntryId((current) => (current && state.entries.some((entry) => entry.entryId === current) ? current : state.entries[0]?.entryId ?? null));
@@ -195,12 +230,11 @@ export default function FacultyRoomPreferences() {
 	const loadBootstrap = useCallback(async () => {
 		setLoading(true);
 		try {
-			const settings = await fetchPublicSettings();
-			if (!settings.activeSchoolYearId) {
-				setError('No active school year configured.');
-				return;
-			}
-			setActiveSchoolYearId(settings.activeSchoolYearId);
+			const [settings, years] = await Promise.all([fetchPublicSettings(), fetchSchoolYears()]);
+			const schoolYearContext = resolveSchoolYearContext(settings.activeSchoolYearId, years);
+			const schoolYearId = schoolYearContext.schoolYearId;
+			setActiveSchoolYearId(schoolYearId);
+			setSchoolYearNotice(schoolYearContext.notice);
 
 			const { data: facultyMe } = await atlasApi.get<{ faculty: FacultyMirror }>(`/faculty/me`, {
 				params: { schoolId: DEFAULT_SCHOOL_ID },
@@ -213,7 +247,7 @@ export default function FacultyRoomPreferences() {
 			setFacultyId(facultyMatch.id);
 
 			const [roomState, buildingsResponse] = await Promise.all([
-				atlasApi.get<FacultyRoomPreferenceState>(`/room-preferences/${DEFAULT_SCHOOL_ID}/${settings.activeSchoolYearId}/latest/faculty/${facultyMatch.id}`),
+				atlasApi.get<FacultyRoomPreferenceState>(`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/latest/faculty/${facultyMatch.id}`),
 				atlasApi.get<{ buildings: Building[] }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
 			]);
 
@@ -230,10 +264,13 @@ export default function FacultyRoomPreferences() {
 			setError(null);
 		} catch (err) {
 			const responseData = (err as { response?: { data?: { code?: string; message?: string; actionHint?: string } } })?.response?.data;
+			const noDraftMessage = responseData?.code === 'NO_ACTIVE_DRAFT'
+				? [responseData.message, responseData.actionHint].filter(Boolean).join(' ')
+				: null;
 			const staleMessage = responseData?.code === 'STALE_RUN_DATA'
 				? [responseData.message, responseData.actionHint].filter(Boolean).join(' ')
 				: null;
-			setError(staleMessage ?? responseData?.message ?? 'No completed timetable run is available for room requests yet.');
+			setError(noDraftMessage ?? staleMessage ?? responseData?.message ?? 'No active draft run is available for room requests yet.');
 		} finally {
 			setLoading(false);
 		}
@@ -314,12 +351,16 @@ export default function FacultyRoomPreferences() {
 
 		const handleEvent = (event: MessageEvent<string>) => {
 			try {
-				const payload = JSON.parse(event.data) as { id: number; facultyId: number | null };
+				const payload = JSON.parse(event.data) as { id: number; facultyId: number | null; type?: string; message?: string };
 				if (payload.id) {
 					lastEventIdRef.current = payload.id;
 				}
 				if (facultyId && payload.facultyId != null && payload.facultyId !== facultyId) {
 					return;
+				}
+				setLiveUpdateCount((count) => count + 1);
+				if (payload.message) {
+					toast.info(payload.message);
 				}
 				void loadBootstrap();
 			} catch {
@@ -545,6 +586,12 @@ export default function FacultyRoomPreferences() {
 		<DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
 			<div className='flex h-[calc(100svh-3.5rem)] flex-col'>
 				<div className='shrink-0 space-y-4 px-6 pt-6 pb-3'>
+					{schoolYearNotice && (
+						<div className='rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900'>
+							{schoolYearNotice}
+						</div>
+					)}
+
 					<div className={`flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-xs ${online ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
 						{online ? <Wifi className='size-4' /> : <WifiOff className='size-4' />}
 						<span className='font-semibold'>{online ? 'Online' : 'Offline mode'}</span>
@@ -553,6 +600,12 @@ export default function FacultyRoomPreferences() {
 								<span>•</span>
 								<span>{outboxCount} queued action(s)</span>
 								{syncingOutbox && <span>• syncing...</span>}
+							</>
+						)}
+						{liveUpdateCount > 0 && (
+							<>
+								<span>•</span>
+								<span>{liveUpdateCount} live update(s)</span>
 							</>
 						)}
 					</div>
@@ -578,6 +631,12 @@ export default function FacultyRoomPreferences() {
 					<div className='flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-sm shadow-sm'>
 						<span className='font-medium text-foreground'>Run #{runId}</span>
 						<span className='text-muted-foreground'>Version {runVersion}</span>
+						{runGeneratedAt && (
+							<>
+								<span className='text-border/60'>•</span>
+								<span className='text-muted-foreground'>Generated {new Date(runGeneratedAt).toLocaleString()}</span>
+							</>
+						)}
 						<span className='text-border/60'>•</span>
 						<span className='text-muted-foreground'>{entries.length} assigned sessions</span>
 						<span className='text-border/60'>•</span>

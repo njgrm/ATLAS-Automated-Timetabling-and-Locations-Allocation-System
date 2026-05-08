@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma.js';
 import * as generationService from './generation.service.js';
 import * as manualEditService from './manual-edit.service.js';
 import { publishRoomPreferenceEvent } from './room-preference-events.service.js';
+import { resolveActiveDraftRun } from './active-draft-run-resolver.service.js';
 function err(statusCode, code, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
@@ -121,6 +122,7 @@ export async function getFacultyRoomPreferenceState(schoolId, schoolYearId, runI
     return {
         runId: draft.runId,
         runVersion: draft.version,
+        runGeneratedAt: draft.finishedAt ?? draft.createdAt,
         entries: assignedEntries.map((entry) => {
             const request = requestMap.get(entry.entryId);
             const subject = subjectMap.get(entry.subjectId);
@@ -166,7 +168,7 @@ export async function getFacultyRoomPreferenceState(schoolId, schoolYearId, runI
     };
 }
 export async function getLatestFacultyRoomPreferenceState(schoolId, schoolYearId, facultyId) {
-    const run = await generationService.assertLatestRunIsCurrent(schoolId, schoolYearId);
+    const run = await resolveActiveDraftRun(schoolId, schoolYearId);
     return getFacultyRoomPreferenceState(schoolId, schoolYearId, run.id, facultyId);
 }
 async function upsertRoomPreference(input, status) {
@@ -434,7 +436,7 @@ export async function getRoomPreferenceSummary(schoolId, schoolYearId, runId, fi
     };
 }
 export async function getLatestRoomPreferenceSummary(schoolId, schoolYearId, filters) {
-    const run = await generationService.assertLatestRunIsCurrent(schoolId, schoolYearId);
+    const run = await resolveActiveDraftRun(schoolId, schoolYearId);
     return getRoomPreferenceSummary(schoolId, schoolYearId, run.id, filters);
 }
 export async function getRoomPreferenceDetail(schoolId, schoolYearId, runId, requestId) {

@@ -1,5 +1,5 @@
-import { prisma } from '../lib/prisma.js';
-import { getLatestFacultyRoomPreferenceState } from './room-preference.service.js';
+import { getFacultyRoomPreferenceState } from './room-preference.service.js';
+import { resolveActiveDraftRun } from './active-draft-run-resolver.service.js';
 const PHASE_COPY = {
     SETUP: 'Setup in progress. Scheduling configuration is still being prepared.',
     PREFERENCE_COLLECTION: 'Preference collection is open. Your submitted preferences are being gathered.',
@@ -22,41 +22,49 @@ function currentPhase() {
 }
 export async function getFacultyPortalDashboard(params) {
     const phase = currentPhase();
-    const latestRun = await prisma.generationRun.findFirst({
-        where: {
-            schoolId: params.schoolId,
-            schoolYearId: params.schoolYearId,
-            status: 'COMPLETED',
-        },
-        orderBy: { createdAt: 'desc' },
-        select: {
-            id: true,
-            status: true,
-            finishedAt: true,
-        },
-    });
-    if (!latestRun) {
+    let state = null;
+    let resolvedRun = null;
+    try {
+        resolvedRun = await resolveActiveDraftRun(params.schoolId, params.schoolYearId);
+        state = await getFacultyRoomPreferenceState(params.schoolId, params.schoolYearId, resolvedRun.id, params.facultyId);
+    }
+    catch (error) {
+        const code = error.code;
+        if (code !== 'NO_ACTIVE_DRAFT') {
+            throw error;
+        }
         return {
             phase,
             phaseMessage: PHASE_COPY[phase],
+            runContext: {
+                state: 'NO_ACTIVE_DRAFT',
+                runId: null,
+                runVersion: null,
+                generatedAt: null,
+                reason: 'No active draft timetable run is available for this school year.',
+                recoveryHint: 'Ask the scheduling officer to generate a new draft, then refresh My Portal.',
+            },
             fallbackBanner: {
-                show: phase !== 'PUBLISHED',
-                title: 'No published schedule yet',
-                message: 'Your schedule is still in draft preparation and may change after scheduler review.',
+                show: true,
+                title: 'No active draft run available',
+                message: 'Your dashboard is waiting for the latest draft run from the review workflow.',
             },
             schedulePreview: {
                 runId: null,
                 runVersion: null,
+                generatedAt: null,
                 entries: [],
                 counts: { total: 0, pending: 0, approved: 0, rejected: 0, unchanged: 0 },
             },
             statuses: {
-                requestStatusLabel: 'No schedule generated yet',
-                reviewStatusLabel: 'Waiting for generated draft',
+                requestStatusLabel: 'No active draft run yet',
+                reviewStatusLabel: 'Waiting for scheduler generation',
             },
         };
     }
-    const state = await getLatestFacultyRoomPreferenceState(params.schoolId, params.schoolYearId, params.facultyId);
+    if (!state || !resolvedRun) {
+        throw new Error('Resolved run context was expected but not found.');
+    }
     const counts = {
         total: state.entries.length,
         pending: state.entries.filter((entry) => entry.status === 'SUBMITTED' && entry.decisionStatus === 'PENDING').length,
@@ -67,16 +75,25 @@ export async function getFacultyPortalDashboard(params) {
     return {
         phase,
         phaseMessage: PHASE_COPY[phase],
+        runContext: {
+            state: 'ACTIVE_DRAFT',
+            runId: state.runId,
+            runVersion: state.runVersion,
+            generatedAt: state.runGeneratedAt,
+            reason: null,
+            recoveryHint: null,
+        },
         fallbackBanner: {
             show: phase !== 'PUBLISHED',
-            title: 'Latest generated fallback (not final / not yet published)',
+            title: 'Active draft run (not final / not yet published)',
             message: 'This preview reflects the latest generated draft and active room-request reviews. Final room assignments apply only after publish.',
-            runId: latestRun.id,
-            generatedAt: latestRun.finishedAt?.toISOString() ?? null,
+            runId: state.runId,
+            generatedAt: state.runGeneratedAt,
         },
         schedulePreview: {
             runId: state.runId,
             runVersion: state.runVersion,
+            generatedAt: state.runGeneratedAt,
             entries: state.entries,
             counts,
         },

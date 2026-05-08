@@ -37,31 +37,30 @@ export class EnrollProFacultyAdapter {
     constructor(baseUrl) {
         this.baseUrl = baseUrl;
     }
-    async fetchFacultyBySchoolYear(_schoolId, schoolYearId, authToken) {
-        const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
-        const headers = { 'Content-Type': 'application/json' };
-        if (token) {
-            headers.Authorization = `Bearer ${token}`;
-        }
-        const res = await fetch(`${this.baseUrl}/teachers/atlas/faculty-sync?schoolYearId=${schoolYearId}`, { headers });
+    async fetchFacultyBySchoolYear(_schoolId, schoolYearId, _authToken) {
+        // /integration/faculty is public and auto-resolves to the active school year
+        const url = schoolYearId
+            ? `${this.baseUrl}/integration/v1/faculty?schoolYearId=${schoolYearId}`
+            : `${this.baseUrl}/integration/v1/faculty`;
+        const res = await fetch(url);
         if (!res.ok) {
             throw new Error(`EnrollPro API returned ${res.status}: ${res.statusText}`);
         }
         const data = (await res.json());
-        const teachers = data.teachers
+        const teachers = data.data
             .filter((t) => t.isActive)
             .map((t) => ({
             id: t.teacherId,
             firstName: t.firstName,
             lastName: t.lastName,
-            department: t.department ?? t.specialization ?? null,
+            department: t.specialization ?? null,
             employmentStatus: 'PERMANENT',
-            isClassAdviser: !!t.advisedSectionId,
-            advisoryEquivalentHours: t.advisoryEquivalentHoursPerWeek ?? (t.advisedSectionId ? 5 : 0),
-            canTeachOutsideDepartment: !!t.isTeachingExempt,
+            isClassAdviser: t.isClassAdviser ?? !!t.advisorySectionId,
+            advisoryEquivalentHours: t.advisorySectionId ? 5 : 0,
+            canTeachOutsideDepartment: false,
             contactInfo: t.email ?? t.contactNumber ?? null,
-            advisedSectionId: t.advisedSectionId ?? null,
-            advisedSectionName: t.advisedSectionName ?? null,
+            advisedSectionId: t.advisorySectionId ?? null,
+            advisedSectionName: t.advisorySectionName ?? null,
         }));
         return {
             teachers,
