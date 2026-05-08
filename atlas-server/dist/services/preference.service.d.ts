@@ -9,6 +9,12 @@ export interface TimeSlotInput {
     endTime: string;
     preference: TimeSlotPreference;
 }
+export interface WellbeingInput {
+    pregnancySupport?: boolean;
+    physicalAilmentSupport?: boolean;
+    minimizeTravelTime?: boolean;
+    avoidUpperFloors?: boolean;
+}
 export interface SaveDraftInput {
     schoolId: number;
     schoolYearId: number;
@@ -16,6 +22,7 @@ export interface SaveDraftInput {
     notes?: string | null;
     timeSlots: TimeSlotInput[];
     version?: number;
+    wellbeing?: WellbeingInput;
 }
 export interface SubmitInput extends SaveDraftInput {
     version: number;
@@ -25,21 +32,14 @@ interface ServiceError {
     code: string;
     message: string;
 }
-/**
- * Check whether the preference window is currently active.
- * In v1 this checks the lifecycle phase constant; in future it will read
- * persisted phase state per school+year.
- *
- * Returns null if window is open, or a ServiceError if blocked.
- */
 export declare function checkPreferenceWindow(currentPhase: string): ServiceError | null;
 export declare function getPreference(schoolId: number, schoolYearId: number, facultyId: number): Promise<({
     timeSlots: {
         day: import("@prisma/client").$Enums.DayOfWeek;
         createdAt: Date;
         id: number;
-        startTime: string;
         preferenceId: number;
+        startTime: string;
         endTime: string;
         preference: import("@prisma/client").$Enums.TimeSlotPreference;
     }[];
@@ -54,14 +54,18 @@ export declare function getPreference(schoolId: number, schoolYearId: number, fa
     version: number;
     notes: string | null;
     submittedAt: Date | null;
+    pregnancySupport: boolean;
+    physicalAilmentSupport: boolean;
+    minimizeTravelTime: boolean;
+    avoidUpperFloors: boolean;
 }) | null>;
 export declare function saveDraft(input: SaveDraftInput): Promise<{
     timeSlots: {
         day: import("@prisma/client").$Enums.DayOfWeek;
         createdAt: Date;
         id: number;
-        startTime: string;
         preferenceId: number;
+        startTime: string;
         endTime: string;
         preference: import("@prisma/client").$Enums.TimeSlotPreference;
     }[];
@@ -76,14 +80,18 @@ export declare function saveDraft(input: SaveDraftInput): Promise<{
     version: number;
     notes: string | null;
     submittedAt: Date | null;
+    pregnancySupport: boolean;
+    physicalAilmentSupport: boolean;
+    minimizeTravelTime: boolean;
+    avoidUpperFloors: boolean;
 }>;
 export declare function submitPreference(input: SubmitInput): Promise<{
     timeSlots: {
         day: import("@prisma/client").$Enums.DayOfWeek;
         createdAt: Date;
         id: number;
-        startTime: string;
         preferenceId: number;
+        startTime: string;
         endTime: string;
         preference: import("@prisma/client").$Enums.TimeSlotPreference;
     }[];
@@ -98,6 +106,10 @@ export declare function submitPreference(input: SubmitInput): Promise<{
     version: number;
     notes: string | null;
     submittedAt: Date | null;
+    pregnancySupport: boolean;
+    physicalAilmentSupport: boolean;
+    minimizeTravelTime: boolean;
+    avoidUpperFloors: boolean;
 }>;
 export declare function getOfficerSummary(schoolId: number, schoolYearId: number, statusFilter?: 'SUBMITTED' | 'DRAFT' | 'MISSING'): Promise<{
     counts: {
@@ -145,6 +157,12 @@ export declare function getOfficerSummaryWithReviews(schoolId: number, schoolYea
         submittedAt: Date | null;
         reviewStatus: ReviewStatus | null;
         reviewedAt: Date | null;
+        wellbeing: {
+            pregnancySupport: boolean;
+            physicalAilmentSupport: boolean;
+            minimizeTravelTime: boolean;
+            avoidUpperFloors: boolean;
+        } | null;
     }[];
 }>;
 export declare function getPreferenceDetail(schoolId: number, schoolYearId: number, facultyId: number): Promise<{
@@ -157,8 +175,8 @@ export declare function getPreferenceDetail(schoolId: number, schoolYearId: numb
         day: import("@prisma/client").$Enums.DayOfWeek;
         createdAt: Date;
         id: number;
-        startTime: string;
         preferenceId: number;
+        startTime: string;
         endTime: string;
         preference: import("@prisma/client").$Enums.TimeSlotPreference;
     }[];
@@ -183,6 +201,10 @@ export declare function getPreferenceDetail(schoolId: number, schoolYearId: numb
     version: number;
     notes: string | null;
     submittedAt: Date | null;
+    pregnancySupport: boolean;
+    physicalAilmentSupport: boolean;
+    minimizeTravelTime: boolean;
+    avoidUpperFloors: boolean;
 }>;
 export interface UpdateReviewInput {
     schoolId: number;

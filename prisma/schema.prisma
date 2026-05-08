@@ -224,16 +224,21 @@ enum TimeSlotPreference {
 }
 
 model FacultyPreference {
-  id           Int              @id @default(autoincrement())
-  schoolId     Int              @map("school_id")
-  schoolYearId Int              @map("school_year_id")
-  facultyId    Int              @map("faculty_id")
-  status       PreferenceStatus @default(DRAFT)
-  notes        String?
-  submittedAt  DateTime?        @map("submitted_at")
-  version      Int              @default(1)
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id                     Int              @id @default(autoincrement())
+  schoolId               Int              @map("school_id")
+  schoolYearId           Int              @map("school_year_id")
+  facultyId              Int              @map("faculty_id")
+  status                 PreferenceStatus @default(DRAFT)
+  notes                  String?
+  submittedAt            DateTime?        @map("submitted_at")
+  version                Int              @default(1)
+  // Well-being preference toggles
+  pregnancySupport       Boolean          @default(false) @map("pregnancy_support")
+  physicalAilmentSupport Boolean          @default(false) @map("physical_ailment_support")
+  minimizeTravelTime     Boolean          @default(false) @map("minimize_travel_time")
+  avoidUpperFloors       Boolean          @default(false) @map("avoid_upper_floors")
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
 
   faculty      FacultyMirror    @relation(fields: [facultyId], references: [id], onDelete: Cascade)
   timeSlots    PreferenceTimeSlot[]

@@ -3,6 +3,7 @@
  * Business logic only; no transport concerns.
  */
 import { prisma } from '../lib/prisma.js';
+import { publishPreferenceEvent } from './preference-events.service.js';
 function err(statusCode, code, message) {
     return Object.assign(new Error(message), { statusCode, code });
 }
@@ -14,10 +15,16 @@ function err(statusCode, code, message) {
  *
  * Returns null if window is open, or a ServiceError if blocked.
  */
+/** Phases during which faculty may still edit preferences. */
+const EDITABLE_PHASES = new Set(['SETUP', 'PREFERENCE_COLLECTION']);
 export function checkPreferenceWindow(currentPhase) {
-    if (currentPhase === 'PREFERENCE_COLLECTION')
+    if (EDITABLE_PHASES.has(currentPhase))
         return null;
-    return err(403, 'PREFERENCE_WINDOW_CLOSED', `Preference submissions are only accepted during the Preference Collection phase. Current phase: ${currentPhase}.`);
+    // Distinguishes between "not yet open" (SETUP) and hard lock (any post-collection phase).
+    const isLocked = currentPhase !== 'SETUP';
+    return err(422, isLocked ? 'PREFERENCE_LOCKED' : 'PREFERENCE_WINDOW_CLOSED', isLocked
+        ? `Preferences are locked for editing. The schedule is now in the ${currentPhase} phase. Contact your scheduling officer if a correction is needed.`
+        : `Preference submissions are only accepted during the Preference Collection phase. Current phase: ${currentPhase}.`);
 }
 // ─── Faculty self operations ───
 export async function getPreference(schoolId, schoolYearId, facultyId) {
@@ -27,8 +34,16 @@ export async function getPreference(schoolId, schoolYearId, facultyId) {
     });
     return pref;
 }
+function wellbeingData(wb) {
+    return {
+        pregnancySupport: wb?.pregnancySupport ?? false,
+        physicalAilmentSupport: wb?.physicalAilmentSupport ?? false,
+        minimizeTravelTime: wb?.minimizeTravelTime ?? false,
+        avoidUpperFloors: wb?.avoidUpperFloors ?? false,
+    };
+}
 export async function saveDraft(input) {
-    const { schoolId, schoolYearId, facultyId, notes, timeSlots, version } = input;
+    const { schoolId, schoolYearId, facultyId, notes, timeSlots, version, wellbeing } = input;
     // Verify faculty exists
     const faculty = await prisma.facultyMirror.findFirst({
         where: { id: facultyId, schoolId },
@@ -43,17 +58,18 @@ export async function saveDraft(input) {
         if (version !== undefined && version !== existing.version) {
             throw err(409, 'VERSION_CONFLICT', `Version conflict: expected ${existing.version}, got ${version}. Reload and retry.`);
         }
-        // Cannot edit an already submitted preference via draft save
-        if (existing.status === 'SUBMITTED') {
-            throw err(422, 'ALREADY_SUBMITTED', 'Preference has been submitted. It cannot be edited as a draft.');
-        }
-        return prisma.$transaction(async (tx) => {
+        // Allow re-editing a previously submitted preference (resets to DRAFT) when the window is open.
+        // The route layer has already confirmed the window is open before calling saveDraft.
+        const saved = await prisma.$transaction(async (tx) => {
             await tx.preferenceTimeSlot.deleteMany({ where: { preferenceId: existing.id } });
             return tx.facultyPreference.update({
                 where: { id: existing.id },
                 data: {
                     notes,
+                    status: 'DRAFT',
+                    submittedAt: null,
                     version: { increment: 1 },
+                    ...wellbeingData(wellbeing),
                     timeSlots: {
                         createMany: {
                             data: timeSlots.map((ts) => ({
@@ -68,15 +84,25 @@ export async function saveDraft(input) {
                 include: { timeSlots: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } },
             });
         });
+        publishPreferenceEvent({
+            type: 'PREFERENCE_DRAFT_SAVED',
+            schoolId,
+            schoolYearId,
+            facultyId,
+            preferenceId: saved.id,
+            message: `${faculty.firstName} ${faculty.lastName} saved a preference draft.`,
+        });
+        return saved;
     }
     // Create new
-    return prisma.facultyPreference.create({
+    const created = await prisma.facultyPreference.create({
         data: {
             schoolId,
             schoolYearId,
             facultyId,
             notes,
             status: 'DRAFT',
+            ...wellbeingData(wellbeing),
             timeSlots: {
                 createMany: {
                     data: timeSlots.map((ts) => ({
@@ -90,9 +116,18 @@ export async function saveDraft(input) {
         },
         include: { timeSlots: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } },
     });
+    publishPreferenceEvent({
+        type: 'PREFERENCE_DRAFT_SAVED',
+        schoolId,
+        schoolYearId,
+        facultyId,
+        preferenceId: created.id,
+        message: `${faculty.firstName} ${faculty.lastName} started a preference draft.`,
+    });
+    return created;
 }
 export async function submitPreference(input) {
-    const { schoolId, schoolYearId, facultyId, notes, timeSlots, version } = input;
+    const { schoolId, schoolYearId, facultyId, notes, timeSlots, version, wellbeing } = input;
     // Verify faculty exists
     const faculty = await prisma.facultyMirror.findFirst({
         where: { id: facultyId, schoolId },
@@ -106,10 +141,7 @@ export async function submitPreference(input) {
         if (version !== existing.version) {
             throw err(409, 'VERSION_CONFLICT', `Version conflict: expected ${existing.version}, got ${version}. Reload and retry.`);
         }
-        if (existing.status === 'SUBMITTED') {
-            throw err(422, 'ALREADY_SUBMITTED', 'Preference has already been submitted.');
-        }
-        return prisma.$transaction(async (tx) => {
+        const submitted = await prisma.$transaction(async (tx) => {
             await tx.preferenceTimeSlot.deleteMany({ where: { preferenceId: existing.id } });
             return tx.facultyPreference.update({
                 where: { id: existing.id },
@@ -118,6 +150,7 @@ export async function submitPreference(input) {
                     status: 'SUBMITTED',
                     submittedAt: new Date(),
                     version: { increment: 1 },
+                    ...wellbeingData(wellbeing),
                     timeSlots: {
                         createMany: {
                             data: timeSlots.map((ts) => ({
@@ -132,9 +165,24 @@ export async function submitPreference(input) {
                 include: { timeSlots: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } },
             });
         });
+        publishPreferenceEvent({
+            type: 'PREFERENCE_SUBMITTED',
+            schoolId,
+            schoolYearId,
+            facultyId,
+            preferenceId: submitted.id,
+            message: `${faculty.firstName} ${faculty.lastName} submitted their preferences.`,
+            metadata: {
+                pregnancySupport: submitted.pregnancySupport,
+                physicalAilmentSupport: submitted.physicalAilmentSupport,
+                minimizeTravelTime: submitted.minimizeTravelTime,
+                avoidUpperFloors: submitted.avoidUpperFloors,
+            },
+        });
+        return submitted;
     }
     // Create and submit in one step
-    return prisma.facultyPreference.create({
+    const created = await prisma.facultyPreference.create({
         data: {
             schoolId,
             schoolYearId,
@@ -142,6 +190,7 @@ export async function submitPreference(input) {
             notes,
             status: 'SUBMITTED',
             submittedAt: new Date(),
+            ...wellbeingData(wellbeing),
             timeSlots: {
                 createMany: {
                     data: timeSlots.map((ts) => ({
@@ -155,6 +204,21 @@ export async function submitPreference(input) {
         },
         include: { timeSlots: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } },
     });
+    publishPreferenceEvent({
+        type: 'PREFERENCE_SUBMITTED',
+        schoolId,
+        schoolYearId,
+        facultyId,
+        preferenceId: created.id,
+        message: `${faculty.firstName} ${faculty.lastName} submitted their preferences.`,
+        metadata: {
+            pregnancySupport: created.pregnancySupport,
+            physicalAilmentSupport: created.physicalAilmentSupport,
+            minimizeTravelTime: created.minimizeTravelTime,
+            avoidUpperFloors: created.avoidUpperFloors,
+        },
+    });
+    return created;
 }
 // ─── Officer monitoring ───
 export async function getOfficerSummary(schoolId, schoolYearId, statusFilter) {
@@ -294,6 +358,10 @@ export async function getOfficerSummaryWithReviews(schoolId, schoolYearId, statu
             status: true,
             submittedAt: true,
             version: true,
+            pregnancySupport: true,
+            physicalAilmentSupport: true,
+            minimizeTravelTime: true,
+            avoidUpperFloors: true,
             review: {
                 select: {
                     reviewStatus: true,
@@ -316,6 +384,14 @@ export async function getOfficerSummaryWithReviews(schoolId, schoolYearId, statu
             submittedAt: pref?.submittedAt ?? null,
             reviewStatus: pref?.review?.reviewStatus ?? null,
             reviewedAt: pref?.review?.reviewedAt ?? null,
+            wellbeing: pref
+                ? {
+                    pregnancySupport: pref.pregnancySupport,
+                    physicalAilmentSupport: pref.physicalAilmentSupport,
+                    minimizeTravelTime: pref.minimizeTravelTime,
+                    avoidUpperFloors: pref.avoidUpperFloors,
+                }
+                : null,
         };
     });
     const filtered = statusFilter
@@ -348,7 +424,12 @@ export async function updateReview(input) {
     const { schoolId, schoolYearId, preferenceId, reviewerId, reviewStatus, reviewerNotes } = input;
     const pref = await prisma.facultyPreference.findFirst({
         where: { id: preferenceId, schoolId, schoolYearId },
-        select: { id: true, status: true },
+        select: {
+            id: true,
+            status: true,
+            facultyId: true,
+            faculty: { select: { firstName: true, lastName: true } },
+        },
     });
     if (!pref)
         throw err(404, 'PREFERENCE_NOT_FOUND', 'Preference record not found in this school/year scope.');
@@ -370,6 +451,15 @@ export async function updateReview(input) {
             reviewerNotes: reviewerNotes ?? null,
             reviewedAt: new Date(),
         },
+    });
+    publishPreferenceEvent({
+        type: 'PREFERENCE_REVIEWED',
+        schoolId,
+        schoolYearId,
+        facultyId: pref.facultyId,
+        preferenceId,
+        message: `Preference for ${pref.faculty.firstName} ${pref.faculty.lastName} marked as ${reviewStatus}.`,
+        metadata: { reviewStatus, reviewerNotes: reviewerNotes ?? null },
     });
     return review;
 }

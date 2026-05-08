@@ -62,7 +62,7 @@ async function buildLookupMaps(schoolId, entryIds, entries) {
     const [subjects, snapshot, rooms] = await Promise.all([
         prisma.subject.findMany({
             where: { schoolId, id: { in: subjectIds } },
-            select: { id: true, code: true, name: true },
+            select: { id: true, code: true, name: true, preferredRoomType: true },
         }),
         prisma.sectionSnapshot.findFirst({
             where: { schoolId },
@@ -74,6 +74,7 @@ async function buildLookupMaps(schoolId, entryIds, entries) {
             select: {
                 id: true,
                 name: true,
+                type: true,
                 building: { select: { name: true, shortCode: true } },
             },
         }),
@@ -93,7 +94,8 @@ async function buildLookupMaps(schoolId, entryIds, entries) {
         room.id,
         `${room.name} · ${room.building.shortCode || room.building.name}`,
     ]));
-    return { subjectMap, sectionMap, roomMap };
+    const roomTypeMap = new Map(rooms.map((room) => [room.id, room.type]));
+    return { subjectMap, sectionMap, roomMap, roomTypeMap };
 }
 export async function getFacultyRoomPreferenceState(schoolId, schoolYearId, runId, facultyId) {
     const draft = await getRunDraftWithVersion(runId, schoolId, schoolYearId);
@@ -115,12 +117,18 @@ export async function getFacultyRoomPreferenceState(schoolId, schoolYearId, runI
         },
     });
     const requestMap = new Map(requests.map((request) => [request.entryId, request]));
-    const { subjectMap, sectionMap, roomMap } = await buildLookupMaps(schoolId, assignedEntries.map((entry) => entry.entryId), assignedEntries);
+    const { subjectMap, sectionMap, roomMap, roomTypeMap } = await buildLookupMaps(schoolId, assignedEntries.map((entry) => entry.entryId), assignedEntries);
     return {
         runId: draft.runId,
         runVersion: draft.version,
         entries: assignedEntries.map((entry) => {
             const request = requestMap.get(entry.entryId);
+            const subject = subjectMap.get(entry.subjectId);
+            const requestedRoomType = request ? roomTypeMap.get(request.requestedRoomId) : undefined;
+            const roomTypeOverride = request != null &&
+                subject?.preferredRoomType != null &&
+                requestedRoomType != null &&
+                requestedRoomType !== subject.preferredRoomType;
             return {
                 entryId: entry.entryId,
                 subjectId: entry.subjectId,
@@ -141,8 +149,8 @@ export async function getFacultyRoomPreferenceState(schoolId, schoolYearId, runI
                 rationale: request?.rationale ?? null,
                 submittedAt: request?.submittedAt?.toISOString() ?? null,
                 version: request?.version ?? null,
-                subjectCode: subjectMap.get(entry.subjectId)?.code ?? `Subject #${entry.subjectId}`,
-                subjectName: subjectMap.get(entry.subjectId)?.name ?? `Subject #${entry.subjectId}`,
+                subjectCode: subject?.code ?? `Subject #${entry.subjectId}`,
+                subjectName: subject?.name ?? `Subject #${entry.subjectId}`,
                 sectionName: sectionMap.get(entry.sectionId) ?? `Section #${entry.sectionId}`,
                 requestId: request?.id ?? null,
                 reviewerNotes: request?.reviewerNotes ?? null,
@@ -152,6 +160,7 @@ export async function getFacultyRoomPreferenceState(schoolId, schoolYearId, runI
                 cohortName: entry.cohortName ?? null,
                 programCode: entry.programCode ?? null,
                 programName: entry.programName ?? null,
+                roomTypeOverride,
             };
         }),
     };

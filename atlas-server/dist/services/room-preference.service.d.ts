@@ -67,6 +67,8 @@ export interface FacultyRoomPreferenceEntry {
     cohortName?: string | null;
     programCode?: string | null;
     programName?: string | null;
+    /** True when the requested room type differs from the subject's preferred room type. Warning-only. */
+    roomTypeOverride?: boolean;
 }
 export interface FacultyRoomPreferenceState {
     runId: number;

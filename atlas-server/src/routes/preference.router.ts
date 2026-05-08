@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
+import jwt from 'jsonwebtoken';
 import * as prefService from '../services/preference.service.js';
+import { subscribePreferenceEvents, getPreferenceEventsSince } from '../services/preference-events.service.js';
 import type { DayOfWeek, TimeSlotPreference } from '@prisma/client';
 
 const router = Router();
@@ -125,6 +127,12 @@ router.put(
 				notes: req.body.notes ?? null,
 				timeSlots: slots,
 				version: req.body.version,
+				wellbeing: {
+					pregnancySupport: req.body.wellbeing?.pregnancySupport ?? false,
+					physicalAilmentSupport: req.body.wellbeing?.physicalAilmentSupport ?? false,
+					minimizeTravelTime: req.body.wellbeing?.minimizeTravelTime ?? false,
+					avoidUpperFloors: req.body.wellbeing?.avoidUpperFloors ?? false,
+				},
 			});
 			res.json({ preference: result });
 		} catch (e) { next(e); }
@@ -169,6 +177,12 @@ router.post(
 				notes: req.body.notes ?? null,
 				timeSlots: slots,
 				version,
+				wellbeing: {
+					pregnancySupport: req.body.wellbeing?.pregnancySupport ?? false,
+					physicalAilmentSupport: req.body.wellbeing?.physicalAilmentSupport ?? false,
+					minimizeTravelTime: req.body.wellbeing?.minimizeTravelTime ?? false,
+					avoidUpperFloors: req.body.wellbeing?.avoidUpperFloors ?? false,
+				},
 			});
 			res.json({ preference: result });
 		} catch (e) { next(e); }
@@ -343,6 +357,72 @@ router.patch(
 				reviewerNotes: reviewerNotes ?? null,
 			});
 			res.json({ review });
+		} catch (e) { next(e); }
+	},
+);
+
+// ─── SSE: bilateral preference events ───
+// Faculty clients subscribe scoped to their own facultyId.
+// Officer clients subscribe with facultyId=null to see all events.
+// Accepts accessToken query param for EventSource compatibility.
+
+router.get(
+	'/:schoolId/:schoolYearId/events',
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+
+			// Auth: accept token from cookie or query param (EventSource compat)
+			let token: string | undefined =
+				req.cookies?.atlasAuthToken ?? req.query.accessToken as string | undefined;
+			if (!token) {
+				const authHeader = req.headers.authorization;
+				if (authHeader?.startsWith('Bearer ')) token = authHeader.slice(7);
+			}
+			if (!token) { res.status(401).json({ code: 'NO_TOKEN', message: 'Authentication required.' }); return; }
+
+			const secret = process.env.JWT_SECRET;
+			if (!secret) { res.status(500).json({ code: 'SERVER_ERROR', message: 'JWT secret not configured.' }); return; }
+			let decoded: { userId: number; role: string; facultyId?: number | null } | null = null;
+			try {
+				decoded = jwt.verify(token, secret) as { userId: number; role: string; facultyId?: number | null };
+			} catch {
+				res.status(401).json({ code: 'INVALID_TOKEN', message: 'Invalid or expired token.' });
+				return;
+			}
+			if (!decoded) { res.status(401).json({ code: 'INVALID_TOKEN', message: 'Invalid token.' }); return; }
+
+			// Determine scope: faculty users get filtered to their own events
+			const isPrivileged = decoded.role === 'admin' || decoded.role === 'officer' || decoded.role === 'SYSTEM_ADMIN';
+			const scopeFacultyId = isPrivileged ? null : (decoded.facultyId ?? null);
+
+			// Reconnect: replay missed events since Last-Event-ID
+			const lastIdRaw = req.headers['last-event-id'] as string | undefined;
+			const lastId = lastIdRaw ? parseInt(lastIdRaw, 10) : 0;
+
+			res.setHeader('Content-Type', 'text/event-stream');
+			res.setHeader('Cache-Control', 'no-cache');
+			res.setHeader('Connection', 'keep-alive');
+			res.setHeader('X-Accel-Buffering', 'no');
+			res.flushHeaders();
+
+			const send = (event: import('../services/preference-events.service.js').PreferenceEvent) => {
+				res.write(`id: ${event.id}\nevent: preference\ndata: ${JSON.stringify(event)}\n\n`);
+			};
+
+			// Replay missed events
+			if (lastId > 0) {
+				const missed = getPreferenceEventsSince(lastId, { schoolId, schoolYearId, facultyId: scopeFacultyId });
+				for (const ev of missed) send(ev);
+			}
+
+			const unsub = subscribePreferenceEvents({ schoolId, schoolYearId, facultyId: scopeFacultyId, send });
+
+			const heartbeat = setInterval(() => res.write(': heartbeat\n\n'), 15_000);
+			req.on('close', () => { unsub(); clearInterval(heartbeat); });
 		} catch (e) { next(e); }
 	},
 );

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
 	AlertCircle,
 	Bell,
@@ -8,6 +8,7 @@ import {
 	ClipboardList,
 	Eye,
 	FileQuestion,
+	Heart,
 	Loader2,
 	Search,
 	Users,
@@ -124,6 +125,10 @@ export default function OfficerPreferences() {
 	// Dev bulk-submit state
 	const [devSubmitting, setDevSubmitting] = useState(false);
 
+	// SSE: live new-submission counter
+	const [newSubmissions, setNewSubmissions] = useState(0);
+	const sseRef = useRef<EventSource | null>(null);
+
 	/* ── Resolve school year ── */
 	useEffect(() => {
 		fetchPublicSettings()
@@ -166,6 +171,32 @@ export default function OfficerPreferences() {
 	useEffect(() => {
 		if (activeSchoolYearId) loadSummary();
 	}, [activeSchoolYearId, statusFilter, loadSummary]);
+
+	/* ── SSE: live preference submissions ── */
+	useEffect(() => {
+		if (!activeSchoolYearId) return;
+		const token = document.cookie
+			.split('; ')
+			.find((row) => row.startsWith('atlasAuthToken='))
+			?.split('=')[1];
+		const tokenParam = token ? `accessToken=${encodeURIComponent(token)}` : '';
+		const url = `/api/v1/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/events${tokenParam ? '?' + tokenParam : ''}`;
+		const es = new EventSource(url);
+		sseRef.current = es;
+		es.addEventListener('preference', (ev) => {
+			try {
+				const event = JSON.parse((ev as MessageEvent).data) as { type: string };
+				if (event.type === 'PREFERENCE_SUBMITTED') {
+					setNewSubmissions((n) => n + 1);
+					loadSummary();
+				}
+			} catch {
+				// Ignore parse errors
+			}
+		});
+		es.onerror = () => { /* auto-reconnects */ };
+		return () => { es.close(); sseRef.current = null; };
+	}, [activeSchoolYearId, loadSummary]);
 
 	/* Reset page on filter/search change */
 	useEffect(() => { setPage(1); }, [statusFilter, searchQuery]);
@@ -342,7 +373,35 @@ export default function OfficerPreferences() {
 
 	return (
 		<div className='flex flex-col h-[calc(100svh-3.5rem)]'>
-			
+
+			{/* Live new-submissions banner */}
+			<AnimatePresence>
+				{newSubmissions > 0 && (
+					<motion.div
+						key='new-sub-banner'
+						initial={{ opacity: 0, y: -8 }}
+						animate={{ opacity: 1, y: 0 }}
+						exit={{ opacity: 0, y: -8 }}
+						className='shrink-0 px-6 pt-4'
+					>
+						<div className='flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3'>
+							<ClipboardList className='size-4 text-blue-600 shrink-0' />
+							<p className='flex-1 text-sm text-blue-800 font-medium'>
+								{newSubmissions} new submission{newSubmissions > 1 ? 's' : ''} received — list refreshed.
+							</p>
+							<Button
+								variant='ghost'
+								size='sm'
+								className='text-blue-700 hover:text-blue-900 h-7 text-xs'
+								onClick={() => setNewSubmissions(0)}
+							>
+								Dismiss
+							</Button>
+						</div>
+					</motion.div>
+				)}
+			</AnimatePresence>
+	
 			<div className='shrink-0 px-6 pt-6 pb-2 space-y-6'>
 
 				{/* Filters + Toolbar */}
@@ -476,7 +535,12 @@ export default function OfficerPreferences() {
 													/>
 												</td>
 												<td className='px-3 py-2.5 font-medium'>
-													{f.lastName}, {f.firstName}
+													<div className='flex items-center gap-1.5'>
+														<span>{f.lastName}, {f.firstName}</span>
+														{f.wellbeing && Object.values(f.wellbeing).some(Boolean) && (
+															<Heart className='size-3 text-rose-400 shrink-0' aria-label='Has well-being preferences' />
+														)}
+													</div>
 												</td>
 												<td className='px-3 py-2.5 text-muted-foreground'>
 													{f.department ?? '—'}
@@ -647,6 +711,38 @@ export default function OfficerPreferences() {
 									</table>
 								</div>
 							</div>
+
+							{/* Well-being preferences */}
+							{reviewDetail.wellbeing && Object.values(reviewDetail.wellbeing).some(Boolean) && (
+								<div>
+									<p className='text-xs text-muted-foreground mb-2 flex items-center gap-1'>
+										<Heart className='size-3 text-rose-400' />
+										Well-being Preferences Requested
+									</p>
+									<div className='flex flex-wrap gap-1.5'>
+										{reviewDetail.wellbeing.pregnancySupport && (
+											<Badge variant='secondary' className='text-xs gap-1'>
+												<Heart className='size-2.5 text-rose-400' />Pregnancy support
+											</Badge>
+										)}
+										{reviewDetail.wellbeing.physicalAilmentSupport && (
+											<Badge variant='secondary' className='text-xs gap-1'>
+												<Heart className='size-2.5 text-rose-400' />Mobility support
+											</Badge>
+										)}
+										{reviewDetail.wellbeing.minimizeTravelTime && (
+											<Badge variant='secondary' className='text-xs gap-1'>
+												<Heart className='size-2.5 text-rose-400' />Minimize travel
+											</Badge>
+										)}
+										{reviewDetail.wellbeing.avoidUpperFloors && (
+											<Badge variant='secondary' className='text-xs gap-1'>
+												<Heart className='size-2.5 text-rose-400' />Avoid upper floors
+											</Badge>
+										)}
+									</div>
+								</div>
+							)}
 
 							{/* Review actions (only for SUBMITTED preferences) */}
 							{reviewDetail.status === 'SUBMITTED' && (

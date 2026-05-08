@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
 	AlertCircle,
 	CalendarClock,
 	CheckCircle2,
 	Clock,
+	Heart,
+	Lock,
 	Loader2,
 	Plus,
 	Save,
@@ -24,8 +26,11 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import { Input } from '@/ui/input';
+import { Label } from '@/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Skeleton } from '@/ui/skeleton';
+import { Switch } from '@/ui/switch';
+import { Textarea } from '@/ui/textarea';
 
 /* ─── Constants ─── */
 
@@ -62,6 +67,45 @@ function emptySlot(): SlotRow {
 	return { key: nextKey(), day: 'MONDAY', startTime: '08:00', endTime: '09:00', preference: 'AVAILABLE' };
 }
 
+/* ─── Well-being ─── */
+
+type WellbeingState = {
+	pregnancySupport: boolean;
+	physicalAilmentSupport: boolean;
+	minimizeTravelTime: boolean;
+	avoidUpperFloors: boolean;
+};
+
+const DEFAULT_WELLBEING: WellbeingState = {
+	pregnancySupport: false,
+	physicalAilmentSupport: false,
+	minimizeTravelTime: false,
+	avoidUpperFloors: false,
+};
+
+const WELLBEING_ITEMS: { key: keyof WellbeingState; label: string; description: string }[] = [
+	{
+		key: 'pregnancySupport',
+		label: 'Pregnancy support',
+		description: 'Avoid prolonged standing; prefer ground-floor rooms near restrooms.',
+	},
+	{
+		key: 'physicalAilmentSupport',
+		label: 'Physical ailment / mobility support',
+		description: 'Mobility limitation — prefer accessible rooms and minimize walking distance.',
+	},
+	{
+		key: 'minimizeTravelTime',
+		label: 'Minimize travel time between classes',
+		description: 'Prefer consecutive classes in the same or adjacent rooms.',
+	},
+	{
+		key: 'avoidUpperFloors',
+		label: 'Avoid upper floors (2nd floor and above)',
+		description: 'Prefer ground-floor rooms. Elevator access may not always be available.',
+	},
+];
+
 /* ─── Page ─── */
 
 export default function FacultyPreferences() {
@@ -69,8 +113,10 @@ export default function FacultyPreferences() {
 	const [saving, setSaving] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const [windowClosed, setWindowClosed] = useState(false);
-	const [windowClosedMsg, setWindowClosedMsg] = useState('');
+	const [locked, setLocked] = useState(false);
+	const [lockedMsg, setLockedMsg] = useState('');
+	const [reviewUpdates, setReviewUpdates] = useState(0);
+	const sseRef = useRef<EventSource | null>(null);
 
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [facultyId, setFacultyId] = useState<number | null>(null);
@@ -79,6 +125,7 @@ export default function FacultyPreferences() {
 	const [slots, setSlots] = useState<SlotRow[]>([emptySlot()]);
 	const [notes, setNotes] = useState('');
 	const [version, setVersion] = useState(1);
+	const [wellbeing, setWellbeing] = useState<WellbeingState>(DEFAULT_WELLBEING);
 
 	/* ── Resolve session context ── */
 	useEffect(() => {
@@ -124,12 +171,19 @@ export default function FacultyPreferences() {
 				`/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/faculty/${facultyId}`,
 			);
 			if (data.preference) {
-				setPreference(data.preference);
-				setVersion(data.preference.version);
-				setNotes(data.preference.notes ?? '');
-				if (data.preference.timeSlots.length > 0) {
+				const pref = data.preference;
+				setPreference(pref);
+				setVersion(pref.version);
+				setNotes(pref.notes ?? '');
+				setWellbeing({
+					pregnancySupport: pref.pregnancySupport,
+					physicalAilmentSupport: pref.physicalAilmentSupport,
+					minimizeTravelTime: pref.minimizeTravelTime,
+					avoidUpperFloors: pref.avoidUpperFloors,
+				});
+				if (pref.timeSlots.length > 0) {
 					setSlots(
-						data.preference.timeSlots.map((ts) => ({
+						pref.timeSlots.map((ts) => ({
 							key: nextKey(),
 							day: ts.day,
 							startTime: ts.startTime,
@@ -145,9 +199,10 @@ export default function FacultyPreferences() {
 				setSlots([emptySlot()]);
 				setNotes('');
 				setVersion(1);
+				setWellbeing(DEFAULT_WELLBEING);
 			}
 			setError(null);
-			setWindowClosed(false);
+			setLocked(false);
 		} catch {
 			setError('Failed to load your preferences.');
 		} finally {
@@ -157,6 +212,38 @@ export default function FacultyPreferences() {
 
 	useEffect(() => {
 		if (activeSchoolYearId && facultyId) loadPreference();
+	}, [activeSchoolYearId, facultyId, loadPreference]);
+
+	/* ── SSE: bilateral preference events ── */
+	useEffect(() => {
+		if (!activeSchoolYearId || !facultyId) return;
+		const token = document.cookie
+			.split('; ')
+			.find((row) => row.startsWith('atlasAuthToken='))
+			?.split('=')[1];
+		const tokenParam = token ? `accessToken=${encodeURIComponent(token)}` : '';
+		const url = `/api/v1/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/events${tokenParam ? '?' + tokenParam : ''}`;
+		const es = new EventSource(url);
+		sseRef.current = es;
+		es.addEventListener('preference', (ev) => {
+			try {
+				const event = JSON.parse((ev as MessageEvent).data) as {
+					type: string;
+					facultyId: number | null;
+					metadata?: { reviewStatus?: string };
+				};
+				if (event.type === 'PREFERENCE_REVIEWED' && event.facultyId === facultyId) {
+					setReviewUpdates((n) => n + 1);
+					const statusLabel = event.metadata?.reviewStatus ?? 'reviewed';
+					toast.info(`Your preferences were marked as ${statusLabel} by the scheduling officer.`);
+					loadPreference();
+				}
+			} catch {
+				// Ignore parse errors
+			}
+		});
+		es.onerror = () => { /* auto-reconnects */ };
+		return () => { es.close(); sseRef.current = null; };
 	}, [activeSchoolYearId, facultyId, loadPreference]);
 
 	/* ── Slot mutations ── */
@@ -181,6 +268,7 @@ export default function FacultyPreferences() {
 				endTime: s.endTime,
 				preference: s.preference,
 			})),
+			wellbeing,
 			version,
 		};
 	}
@@ -188,18 +276,17 @@ export default function FacultyPreferences() {
 	/* ── Handle API error ── */
 	function handleApiError(err: unknown, action: string) {
 		const resp = (err as { response?: { status?: number; data?: { code?: string; message?: string } } })?.response;
-		if (resp?.status === 403 && resp.data?.code === 'PREFERENCE_WINDOW_CLOSED') {
-			setWindowClosed(true);
-			setWindowClosedMsg(resp.data.message ?? 'Preference window is closed.');
+		if (
+			resp?.status === 422 &&
+			(resp.data?.code === 'PREFERENCE_LOCKED' || resp.data?.code === 'PREFERENCE_WINDOW_CLOSED')
+		) {
+			setLocked(true);
+			setLockedMsg(resp.data?.message ?? 'Preferences are currently locked.');
 			return;
 		}
 		if (resp?.status === 409 && resp.data?.code === 'VERSION_CONFLICT') {
-			toast.error('Version conflict — your preference was modified elsewhere. Reloading…');
+			toast.error('Your preference was modified elsewhere. Reloading…');
 			loadPreference();
-			return;
-		}
-		if (resp?.status === 422) {
-			toast.error(resp.data?.message ?? `Cannot ${action}: preference already submitted.`);
 			return;
 		}
 		toast.error(resp?.data?.message ?? `Failed to ${action}.`);
@@ -245,7 +332,7 @@ export default function FacultyPreferences() {
 
 	/* ── Derived state ── */
 	const isSubmitted = preference?.status === 'SUBMITTED';
-	const canEdit = !isSubmitted && !windowClosed;
+	const canEdit = !locked;
 
 	/* ── Render ── */
 
@@ -281,178 +368,248 @@ export default function FacultyPreferences() {
 
 	return (
 		<div className='flex flex-col h-[calc(100svh-3.5rem)] max-w-5xl mx-auto w-full'>
-			{/* Notifications area (pinned) */}
-			{(windowClosed || isSubmitted) && (
-				<div className='shrink-0 pt-6 px-6 space-y-4'>
 
-			{/* Window closed alert */}
-			<AnimatePresence>
-				{windowClosed && (
-					<motion.div
-						initial={{ opacity: 0, y: -8 }}
-						animate={{ opacity: 1, y: 0 }}
-						exit={{ opacity: 0, y: -8 }}
-					>
-						<Card className='border-amber-200 bg-amber-50'>
-							<CardContent className='flex items-center gap-3 py-4'>
-								<CalendarClock className='size-5 text-amber-600 shrink-0' />
-								<div>
-									<p className='font-medium text-amber-800'>Preference window closed</p>
-									<p className='text-sm text-amber-700 mt-0.5'>{windowClosedMsg}</p>
+			{/* Pinned notification banners */}
+			{(locked || isSubmitted || reviewUpdates > 0) && (
+				<div className='shrink-0 pt-6 px-6 space-y-3'>
+					<AnimatePresence>
+						{locked && (
+							<motion.div
+								key='locked-banner'
+								initial={{ opacity: 0, y: -8 }}
+								animate={{ opacity: 1, y: 0 }}
+								exit={{ opacity: 0, y: -8 }}
+							>
+								<Card className='border-amber-200 bg-amber-50'>
+									<CardContent className='flex items-center gap-3 py-4'>
+										<Lock className='size-5 text-amber-600 shrink-0' />
+										<div>
+											<p className='font-medium text-amber-800'>Preferences locked</p>
+											<p className='text-sm text-amber-700 mt-0.5'>{lockedMsg}</p>
+										</div>
+									</CardContent>
+								</Card>
+							</motion.div>
+						)}
+						{!locked && isSubmitted && (
+							<motion.div
+								key='submitted-banner'
+								initial={{ opacity: 0, y: -8 }}
+								animate={{ opacity: 1, y: 0 }}
+								exit={{ opacity: 0, y: -8 }}
+							>
+								<Card className='border-green-200 bg-green-50'>
+									<CardContent className='flex items-center gap-3 py-4'>
+										<CheckCircle2 className='size-5 text-green-600 shrink-0' />
+										<div>
+											<p className='font-medium text-green-800'>Preferences submitted</p>
+											<p className='text-sm text-green-700 mt-0.5'>
+												Submitted {preference?.submittedAt
+													? new Date(preference.submittedAt).toLocaleString()
+													: 'N/A'}. You can still edit until the scheduling officer locks the window.
+											</p>
+										</div>
+									</CardContent>
+								</Card>
+							</motion.div>
+						)}
+						{reviewUpdates > 0 && (
+							<motion.div
+								key='review-banner'
+								initial={{ opacity: 0, y: -8 }}
+								animate={{ opacity: 1, y: 0 }}
+								exit={{ opacity: 0, y: -8 }}
+							>
+								<Card className='border-blue-200 bg-blue-50'>
+									<CardContent className='flex items-center gap-3 py-4'>
+										<CalendarClock className='size-5 text-blue-600 shrink-0' />
+										<div className='flex-1'>
+											<p className='font-medium text-blue-800'>Review update received</p>
+											<p className='text-sm text-blue-700 mt-0.5'>
+												Your preferences were reviewed. Changes are reflected below.
+											</p>
+										</div>
+										<Button
+											variant='ghost'
+											size='sm'
+											className='text-blue-700 hover:text-blue-900'
+											onClick={() => setReviewUpdates(0)}
+										>
+											Dismiss
+										</Button>
+									</CardContent>
+								</Card>
+							</motion.div>
+						)}
+					</AnimatePresence>
+				</div>
+			)}
+
+			{/* Scrolling content */}
+			<div className='flex-1 min-h-0 overflow-auto px-6 py-6 space-y-6'>
+
+				{/* Well-being preferences */}
+				<Card>
+					<CardContent className='pt-5 space-y-4'>
+						<div className='flex items-center gap-2'>
+							<Heart className='size-4 text-rose-500' />
+							<h2 className='text-sm font-semibold'>Well-being Preferences</h2>
+							<span className='text-xs text-muted-foreground ml-1'>
+								(Scheduling officer has final authority on accommodations)
+							</span>
+						</div>
+						<div className='grid gap-4 sm:grid-cols-2'>
+							{WELLBEING_ITEMS.map(({ key, label, description }) => (
+								<div
+									key={key}
+									className='flex items-start gap-3 rounded-lg border border-border p-3 bg-muted/30'
+								>
+									<Switch
+										id={`wb-${key}`}
+										checked={wellbeing[key]}
+										onCheckedChange={(checked) =>
+											setWellbeing((prev) => ({ ...prev, [key]: checked }))
+										}
+										disabled={!canEdit}
+										className='mt-0.5 shrink-0'
+									/>
+									<div>
+										<Label htmlFor={`wb-${key}`} className='text-sm font-medium cursor-pointer'>
+											{label}
+										</Label>
+										<p className='text-xs text-muted-foreground mt-0.5'>{description}</p>
+									</div>
 								</div>
-							</CardContent>
-						</Card>
-					</motion.div>
-				)}
-			</AnimatePresence>
-
-			{/* Submitted confirmation */}
-			{isSubmitted && (
-				<Card className='border-green-200 bg-green-50'>
-					<CardContent className='flex items-center gap-3 py-4'>
-						<CheckCircle2 className='size-5 text-green-600 shrink-0' />
-						<div>
-							<p className='font-medium text-green-800'>Preference submitted</p>
-							<p className='text-sm text-green-700 mt-0.5'>
-								Submitted on {preference?.submittedAt ? new Date(preference.submittedAt).toLocaleString() : 'N/A'}.
-								Your preferences will be used for schedule generation.
-							</p>
+							))}
 						</div>
 					</CardContent>
 				</Card>
-			)}
-			</div>
-			)}
 
-			{/* Scrolling properties area */}
-			<div className="flex-1 min-h-0 overflow-auto px-6 py-6 space-y-6">
-			{/* Time slots editor */}
-			<Card>
-				<CardContent className='pt-5 space-y-4'>
-					<div className='flex items-center justify-between'>
-						<div className='flex items-center gap-2'>
-							<Clock className='size-4 text-muted-foreground' />
-							<h2 className='text-sm font-semibold'>Time Slots</h2>
+				{/* Time slots editor */}
+				<Card>
+					<CardContent className='pt-5 space-y-4'>
+						<div className='flex items-center justify-between'>
+							<div className='flex items-center gap-2'>
+								<Clock className='size-4 text-muted-foreground' />
+								<h2 className='text-sm font-semibold'>Time Slot Preferences</h2>
+							</div>
+							{canEdit && (
+								<Button variant='outline' size='sm' onClick={addSlot} className='h-7 gap-1'>
+									<Plus className='size-3.5' />
+									Add Slot
+								</Button>
+							)}
 						</div>
-						{canEdit && (
-							<Button variant='outline' size='sm' onClick={addSlot} className='h-7 gap-1'>
-								<Plus className='size-3.5' />
-								Add Slot
-							</Button>
-						)}
-					</div>
 
-					{/* Column headers */}
-					<div className='hidden sm:grid sm:grid-cols-[1fr_100px_100px_140px_40px] gap-2 px-1 text-xs font-medium text-muted-foreground'>
-						<span>Day</span>
-						<span>Start</span>
-						<span>End</span>
-						<span>Preference</span>
-						<span />
-					</div>
+						<div className='hidden sm:grid sm:grid-cols-[1fr_100px_100px_140px_40px] gap-2 px-1 text-xs font-medium text-muted-foreground'>
+							<span>Day</span>
+							<span>Start</span>
+							<span>End</span>
+							<span>Preference</span>
+							<span />
+						</div>
 
-					<div className='space-y-2'>
-						<AnimatePresence initial={false}>
-							{slots.map((slot) => (
-								<motion.div
-									key={slot.key}
-									initial={{ opacity: 0, height: 0 }}
-									animate={{ opacity: 1, height: 'auto' }}
-									exit={{ opacity: 0, height: 0 }}
-									className='grid grid-cols-1 sm:grid-cols-[1fr_100px_100px_140px_40px] gap-2 items-center'
-								>
-									<Select
-										value={slot.day}
-										onValueChange={(v) => updateSlot(slot.key, 'day', v)}
-										disabled={!canEdit}
+						<div className='space-y-2'>
+							<AnimatePresence initial={false}>
+								{slots.map((slot) => (
+									<motion.div
+										key={slot.key}
+										initial={{ opacity: 0, height: 0 }}
+										animate={{ opacity: 1, height: 'auto' }}
+										exit={{ opacity: 0, height: 0 }}
+										className='grid grid-cols-1 sm:grid-cols-[1fr_100px_100px_140px_40px] gap-2 items-center'
 									>
-										<SelectTrigger className='h-9 text-sm'>
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											{DAYS.map((d) => (
-												<SelectItem key={d.value} value={d.value}>
-													{d.label}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-									<Input
-										type='time'
-										value={slot.startTime}
-										onChange={(e) => updateSlot(slot.key, 'startTime', e.target.value)}
-										disabled={!canEdit}
-										className='h-9 text-sm'
-									/>
-									<Input
-										type='time'
-										value={slot.endTime}
-										onChange={(e) => updateSlot(slot.key, 'endTime', e.target.value)}
-										disabled={!canEdit}
-										className='h-9 text-sm'
-									/>
-									<Select
-										value={slot.preference}
-										onValueChange={(v) => updateSlot(slot.key, 'preference', v)}
-										disabled={!canEdit}
-									>
-										<SelectTrigger className='h-9 text-sm'>
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											{PREF_OPTIONS.map((p) => (
-												<SelectItem key={p.value} value={p.value}>
-													{p.label}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-									{canEdit && (
-										<Button
-											variant='ghost'
-											size='icon'
-											className='size-9 text-muted-foreground hover:text-destructive'
-											onClick={() => removeSlot(slot.key)}
+										<Select
+											value={slot.day}
+											onValueChange={(v) => updateSlot(slot.key, 'day', v)}
+											disabled={!canEdit}
 										>
-											<Trash2 className='size-3.5' />
-										</Button>
-									)}
-								</motion.div>
-							))}
-						</AnimatePresence>
-					</div>
-				</CardContent>
-			</Card>
+											<SelectTrigger className='h-9 text-sm'>
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												{DAYS.map((d) => (
+													<SelectItem key={d.value} value={d.value}>
+														{d.label}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+										<Input
+											type='time'
+											value={slot.startTime}
+											onChange={(e) => updateSlot(slot.key, 'startTime', e.target.value)}
+											disabled={!canEdit}
+											className='h-9 text-sm'
+										/>
+										<Input
+											type='time'
+											value={slot.endTime}
+											onChange={(e) => updateSlot(slot.key, 'endTime', e.target.value)}
+											disabled={!canEdit}
+											className='h-9 text-sm'
+										/>
+										<Select
+											value={slot.preference}
+											onValueChange={(v) => updateSlot(slot.key, 'preference', v)}
+											disabled={!canEdit}
+										>
+											<SelectTrigger className='h-9 text-sm'>
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												{PREF_OPTIONS.map((p) => (
+													<SelectItem key={p.value} value={p.value}>
+														{p.label}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+										{canEdit && (
+											<Button
+												variant='ghost'
+												size='icon'
+												className='size-9 text-muted-foreground hover:text-destructive'
+												onClick={() => removeSlot(slot.key)}
+											>
+												<Trash2 className='size-3.5' />
+											</Button>
+										)}
+									</motion.div>
+								))}
+							</AnimatePresence>
+						</div>
+					</CardContent>
+				</Card>
 
-			{/* Notes */}
-			<Card>
-				<CardContent className='pt-5 space-y-2'>
-					<label className='text-sm font-semibold'>Additional Notes</label>
-					<textarea
-						className='flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-h-20 resize-y'
-						placeholder='Any additional scheduling preferences or constraints…'
-						value={notes}
-						onChange={(e) => setNotes(e.target.value)}
-						disabled={!canEdit}
-					/>
-				</CardContent>
-			</Card>
-
+				{/* Notes */}
+				<Card>
+					<CardContent className='pt-5 space-y-2'>
+						<Label className='text-sm font-semibold'>Additional Notes</Label>
+						<Textarea
+							placeholder='Any additional scheduling preferences or constraints…'
+							value={notes}
+							onChange={(e) => setNotes(e.target.value)}
+							disabled={!canEdit}
+							className='min-h-20 resize-y'
+						/>
+					</CardContent>
+				</Card>
 			</div>
 
-			{/* Actions Bar Footer */}
+			{/* Actions bar */}
 			<div className='shrink-0 flex items-center justify-between border-t border-border px-6 py-4 bg-background'>
 				<div>
 					{preference && (
-						<div className="flex items-center gap-3">
-							<span className="text-sm font-medium text-muted-foreground">Status</span>
-							<Badge variant={isSubmitted ? 'success' : 'warning'}>
-								{isSubmitted ? 'Submitted' : 'Draft'}
+						<div className='flex items-center gap-3'>
+							<span className='text-sm font-medium text-muted-foreground'>Status</span>
+							<Badge variant={locked ? 'secondary' : isSubmitted ? 'success' : 'warning'}>
+								{locked ? 'Locked' : isSubmitted ? 'Submitted' : 'Draft'}
 							</Badge>
 						</div>
 					)}
 				</div>
-				
+
 				{canEdit && (
 					<div className='flex items-center gap-3'>
 						<Button

@@ -133,6 +133,11 @@ export type FacultyPreference = {
 	createdAt: string;
 	updatedAt: string;
 	timeSlots: PreferenceTimeSlot[];
+	// Well-being preference toggles
+	pregnancySupport: boolean;
+	physicalAilmentSupport: boolean;
+	minimizeTravelTime: boolean;
+	avoidUpperFloors: boolean;
 };
 
 export type OfficerSummaryFaculty = {
@@ -181,6 +186,12 @@ export type PreferenceReview = {
 export type OfficerSummaryFacultyWithReview = OfficerSummaryFaculty & {
 	reviewStatus: ReviewStatus | null;
 	reviewedAt: string | null;
+	wellbeing: {
+		pregnancySupport: boolean;
+		physicalAilmentSupport: boolean;
+		minimizeTravelTime: boolean;
+		avoidUpperFloors: boolean;
+	} | null;
 };
 
 export type OfficerSummaryWithReviewsResponse = {
@@ -285,6 +296,8 @@ export type FacultyRoomPreferenceEntry = {
 	cohortName?: string | null;
 	programCode?: string | null;
 	programName?: string | null;
+	/** True when the requested room type differs from the subject's preferred room type. Warning-only. */
+	roomTypeOverride?: boolean;
 };
 
 export type FacultyRoomPreferenceState = {
