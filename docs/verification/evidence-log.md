@@ -23,6 +23,39 @@ Record dated implementation verification summaries here.
 
 ---
 
+### 2026-05-08 - Priority 1 Login Hardening: EnrollPro UX Parity + Accent Fix
+- Phase: 4 (objective-priority override)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npx tsc --noEmit` (client): PASS (0 errors)
+  - `npm --prefix atlas-server run test:auth`: PASS — 29 unit + 12 integration = 41/41 passed, 0 failed
+- Visual parity gate: PASS
+  - Layout, component order, spacing, typography, control order confirmed 1:1 with EnrollPro Login.tsx
+  - Sections present: Email field, Password field, show/hide toggle, Remember me, Forgot password, Submit button, OR-continue-with divider, Google sign-in status block, Terms/Privacy footer
+- Dynamic accent gate: PASS
+  - `applyEnrollProAccentTheme` called on settings load — same path as AppShell
+  - `applyCachedAccentTheme()` added to `main.tsx` before React mount — eliminates default-blue flash for returning sessions
+  - Last-known accent stored in `localStorage` under `atlas:accent-hsl` key after each apply
+- Content relevance gate: PASS
+  - Left hero panel cards describe ATLAS scheduling lifecycle: Preference Collection, Automated Generation, Review and Publish Workflow
+- Identity-only delta gate: PASS
+  - All EnrollPro product text replaced with "ATLAS Scheduling System"; interaction model equivalent
+- Credential compatibility gate: PASS
+  - Email-only login enforced; seeded officer + faculty emails accepted by test suite
+- Security gate: PASS
+  - Generic invalid-credential error messaging; lockout/rate limiting (429 + retryAfterSeconds); audit logs; JWT/session handling unchanged
+- INT-AUTH-01..05 integration tests:
+  - INT-AUTH-01: POST /auth/login issues local token — PASS
+  - INT-AUTH-02: GET /auth/me accepts local token — PASS
+  - INT-AUTH-03: auth guard blocks unauthenticated writes (401 + NO_TOKEN) — PASS
+  - INT-AUTH-04: auth guard accepts local token on protected writes — PASS
+  - INT-AUTH-05: bridge token compatibility preserved — PASS
+- Blocking findings: none
+- Decision: ACCEPTED — all hardened acceptance gates passed
+
 ### 2026-05-08 - Priority 1 Standalone Local Login (Faculty + Scheduler Officer)
 - Phase: 4 (objective-priority override item)
 - Scope gate: PASS

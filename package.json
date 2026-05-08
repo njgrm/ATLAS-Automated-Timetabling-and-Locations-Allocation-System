@@ -12,6 +12,7 @@
     "verify:enrollpro-source": "npm --prefix atlas-server run verify:enrollpro-source --",
     "verify:cross-repo-source-gate": "npm --prefix atlas-server run verify:cross-repo-source-gate --",
     "test:phase4-review": "npm --prefix atlas-server run test:phase4-review",
+    "test:login-ui-parity": "node qa-artifacts/login-ui-parity-check.mjs",
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:generate": "npx prisma generate",
     "db:migrate": "npx prisma migrate dev --name init",

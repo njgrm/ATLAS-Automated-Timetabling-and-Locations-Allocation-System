@@ -18,6 +18,59 @@ export interface SchoolYear {
 	isActive: boolean;
 }
 
+function relativeLuminance(hsl: string): number {
+	const parts = hsl.trim().split(/\s+/);
+	if (parts.length < 3) return 0.5;
+	const h = parseFloat(parts[0]) || 0;
+	const s = (parseFloat(parts[1]) || 0) / 100;
+	const l = (parseFloat(parts[2]) || 0) / 100;
+	const a = s * Math.min(l, 1 - l);
+	const f = (n: number) => {
+		const k = (n + h / 30) % 12;
+		const c = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+		return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+	};
+	return 0.2126 * f(0) + 0.7152 * f(8) + 0.0722 * f(4);
+}
+
+function contrastForeground(hsl: string): string {
+	const lum = relativeLuminance(hsl);
+	const contrastWhite = 1.05 / (lum + 0.05);
+	const contrastBlack = (lum + 0.05) / 0.05;
+	return contrastWhite >= contrastBlack ? '0 0% 100%' : '0 0% 0%';
+}
+
+const ACCENT_CACHE_KEY = 'atlas:accent-hsl';
+
+export function applyEnrollProAccentTheme(selectedAccentHsl: string | null | undefined): void {
+	if (!selectedAccentHsl) return;
+	const hsl = selectedAccentHsl;
+	const fg = contrastForeground(hsl);
+	const parts = hsl.split(/\s+/);
+	const muted = `${parts[0]} ${parts[1]} 94%`;
+	const root = document.documentElement;
+	root.style.setProperty('--accent', hsl);
+	root.style.setProperty('--accent-foreground', fg);
+	root.style.setProperty('--accent-muted', muted);
+	root.style.setProperty('--accent-ring', hsl);
+	root.style.setProperty('--primary', 'var(--accent)');
+	root.style.setProperty('--primary-foreground', 'var(--accent-foreground)');
+	root.style.setProperty('--ring', 'var(--accent-ring)');
+	root.style.setProperty('--sidebar-primary', 'var(--accent)');
+	root.style.setProperty('--sidebar-primary-foreground', 'var(--accent-foreground)');
+	root.style.setProperty('--sidebar-ring', 'var(--accent-ring)');
+	root.style.setProperty('--sidebar-accent', muted);
+	try { localStorage.setItem(ACCENT_CACHE_KEY, hsl); } catch { /* storage unavailable */ }
+}
+
+/** Apply cached accent synchronously before first paint to avoid default-blue flash. */
+export function applyCachedAccentTheme(): void {
+	try {
+		const cached = localStorage.getItem(ACCENT_CACHE_KEY);
+		if (cached) applyEnrollProAccentTheme(cached);
+	} catch { /* storage unavailable */ }
+}
+
 const enrollProApiBase = '/enrollpro-api';
 
 export async function fetchPublicSettings(): Promise<EnrollProSettings> {
