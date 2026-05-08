@@ -2,6 +2,50 @@
 
 Record dated implementation verification summaries here.
 
+### 2026-05-08 - EnrollPro Teacher User Auto-Provisioning + ATLAS Faculty Auth End-to-End Validation
+- Phase: 4 (objective-priority continuation)
+- Scope gate: PASS (EnrollPro now creates User records during runtime teacher CRUD; backfill script handles legacy teachers)
+- Architecture gate: PASS (Dual provisioning model: backfill for seeded/imported teachers, runtime creation in store endpoint)
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - EnrollPro `npm --prefix server run db:seed-teachers`: PASS (142 teachers seeded with auto User provisioning)
+  - EnrollPro `npx tsx server/prisma/backfill-teacher-users.ts`: PASS (0 created, 142 synced - all teachers have User records)
+  - ATLAS `npm --prefix atlas-server run test:auth`: PASS (52/52, includes TC-AUTH-09 delegated faculty test)
+  - ATLAS `npm --prefix atlas-server run build`: PASS
+- API checks:
+  - EnrollPro `POST /api/auth/login` with maria.santos@deped.edu.ph / DepEd2026!: PASS (returns TEACHER role token)
+  - ATLAS `POST /api/v1/auth/login` with maria.santos@deped.edu.ph / DepEd2026!: PASS (returns faculty role, userId=295 [FacultyMirror.externalId])
+  - ATLAS `GET /api/v1/auth/me` with faculty token: PASS (returns role=faculty, userId is stable external ID)
+  - Faculty protected endpoint access: PASS (auth middleware accepts faculty token)
+- UI checks:
+  - none in this pass (manual browser login QA pending)
+- Blocking findings:
+  - none
+- Decision:
+  - Accepted. EnrollPro changes unblock faculty portal design work. All faculty auth unit and integration tests passing. Next: design faculty pages (/my/dashboard, /my/preferences, etc.)
+
+### 2026-05-08 - ATLAS Delegated Faculty Auth Hardening + EnrollPro Repo Hygiene
+- Phase: 4 (objective-priority continuation)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npm --prefix atlas-server run test:auth`: PASS (52/52)
+  - `npm --prefix atlas-server run build`: PASS
+- API checks:
+  - `POST /api/v1/auth/login` delegated faculty path now prefers stable upstream faculty identifiers and falls back to contact-info matching only when needed: PASS
+  - First delegated faculty login now issues JWT `userId` aligned to `FacultyMirror.externalId`: PASS
+- UI checks:
+  - none in this pass
+- Repo hygiene checks:
+  - `git -C EnrollPro status --short`: PASS (clean after targeted restore of residual local changes)
+- Blocking findings:
+  - Manual protected-route bridge QA was not rerun in this pass.
+- Decision:
+  - Accepted.
+
 ## Entry Template
 ### YYYY-MM-DD - [Feature/Batch Name]
 - Phase: [2/3/4/5]

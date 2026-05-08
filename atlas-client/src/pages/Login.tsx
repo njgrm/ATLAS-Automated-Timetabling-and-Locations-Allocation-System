@@ -95,7 +95,7 @@ export default function Login() {
 				applyEnrollProAccentTheme(settings.selectedAccentHsl);
 				setLogoUrl(settings.logoUrl);
 				if (settings.schoolName?.trim()) {
-					setSchoolName('ATLAS Scheduling System');
+					setSchoolName(settings.schoolName.trim());
 				}
 
 				const details = settings as {

@@ -70,51 +70,47 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 	async fetchFacultyBySchoolYear(
 		_schoolId: number,
 		schoolYearId: number,
-		authToken?: string,
+		_authToken?: string,
 	): Promise<FacultyFetchResult> {
-		const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
-		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-		if (token) {
-			headers.Authorization = `Bearer ${token}`;
-		}
-
-		const res = await fetch(`${this.baseUrl}/teachers/atlas/faculty-sync?schoolYearId=${schoolYearId}`, { headers });
+		// /integration/faculty is public and auto-resolves to the active school year
+		const url = schoolYearId
+			? `${this.baseUrl}/integration/v1/faculty?schoolYearId=${schoolYearId}`
+			: `${this.baseUrl}/integration/v1/faculty`;
+		const res = await fetch(url);
 
 		if (!res.ok) {
 			throw new Error(`EnrollPro API returned ${res.status}: ${res.statusText}`);
 		}
 
 		const data = (await res.json()) as {
-			teachers: Array<{
+			data: Array<{
 				teacherId: number;
 				firstName: string;
 				lastName: string;
 				email?: string | null;
 				contactNumber?: string | null;
-				department?: string | null;
 				specialization: string | null;
 				isActive: boolean;
-				advisoryEquivalentHoursPerWeek?: number | null;
-				isTeachingExempt?: boolean;
-				advisedSectionId?: number | null;
-				advisedSectionName?: string | null;
+				isClassAdviser?: boolean;
+				advisorySectionId?: number | null;
+				advisorySectionName?: string | null;
 			}>;
 		};
 
-		const teachers = data.teachers
+		const teachers = data.data
 			.filter((t) => t.isActive)
 			.map((t) => ({
 				id: t.teacherId,
 				firstName: t.firstName,
 				lastName: t.lastName,
-				department: t.department ?? t.specialization ?? null,
+				department: t.specialization ?? null,
 				employmentStatus: 'PERMANENT' as const,
-				isClassAdviser: !!t.advisedSectionId,
-				advisoryEquivalentHours: t.advisoryEquivalentHoursPerWeek ?? (t.advisedSectionId ? 5 : 0),
-				canTeachOutsideDepartment: !!t.isTeachingExempt,
+				isClassAdviser: t.isClassAdviser ?? !!t.advisorySectionId,
+				advisoryEquivalentHours: t.advisorySectionId ? 5 : 0,
+				canTeachOutsideDepartment: false,
 				contactInfo: t.email ?? t.contactNumber ?? null,
-				advisedSectionId: t.advisedSectionId ?? null,
-				advisedSectionName: t.advisedSectionName ?? null,
+				advisedSectionId: t.advisorySectionId ?? null,
+				advisedSectionName: t.advisorySectionName ?? null,
 			}));
 
 		return {

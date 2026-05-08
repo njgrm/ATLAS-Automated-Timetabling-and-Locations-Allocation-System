@@ -168,6 +168,70 @@ async function run() {
             });
         }
     }
+    section('TC-AUTH-09 delegated faculty login prefers stable external faculty id');
+    const delegatedFacultyEmail = 'delegated.faculty.external-id@deped.edu.ph';
+    const delegatedFacultyExternalId = 942424;
+    const delegatedSchoolId = officerAccount.schoolId;
+    const originalFetch = globalThis.fetch;
+    const originalEnrollProApi = process.env.ENROLLPRO_API;
+    try {
+        await prisma.atlasAuthAccount.deleteMany({ where: { email: delegatedFacultyEmail } });
+        await prisma.facultyMirror.deleteMany({
+            where: { schoolId: delegatedSchoolId, externalId: delegatedFacultyExternalId },
+        });
+        const delegatedMirror = await prisma.facultyMirror.create({
+            data: {
+                schoolId: delegatedSchoolId,
+                externalId: delegatedFacultyExternalId,
+                firstName: 'Delegated',
+                lastName: 'Faculty',
+                contactInfo: 'mismatched-linking-email@deped.edu.ph',
+            },
+        });
+        globalThis.fetch = (async () => ({
+            ok: true,
+            json: async () => ({
+                valid: true,
+                user: {
+                    id: 88001,
+                    teacherId: delegatedFacultyExternalId,
+                    firstName: 'Delegated',
+                    lastName: 'Faculty',
+                    email: delegatedFacultyEmail,
+                    role: 'TEACHER',
+                    mustChangePassword: false,
+                },
+            }),
+        }));
+        process.env.ENROLLPRO_API = 'http://delegated-auth-test/api';
+        const delegatedLogin = await loginWithEmailPassword({
+            email: delegatedFacultyEmail,
+            password: 'Incorrect_404',
+            ipAddress: '127.0.0.1',
+            userAgent: 'local-auth-test',
+        });
+        assert(delegatedLogin.ok, 'Delegated faculty login returns success');
+        if (delegatedLogin.ok) {
+            assertEqual(delegatedLogin.user.role, 'faculty', 'Delegated user role is faculty');
+            assertEqual(delegatedLogin.user.userId, delegatedFacultyExternalId, 'Delegated faculty token uses FacultyMirror.externalId for userId');
+            const delegatedAccount = await prisma.atlasAuthAccount.findUnique({ where: { email: delegatedFacultyEmail } });
+            assert(Boolean(delegatedAccount), 'Delegated ATLAS auth account is provisioned');
+            assertEqual(delegatedAccount?.facultyId ?? null, delegatedMirror.id, 'Delegated ATLAS auth account links to matching FacultyMirror by external id');
+        }
+    }
+    finally {
+        globalThis.fetch = originalFetch;
+        if (originalEnrollProApi === undefined) {
+            delete process.env.ENROLLPRO_API;
+        }
+        else {
+            process.env.ENROLLPRO_API = originalEnrollProApi;
+        }
+        await prisma.atlasAuthAccount.deleteMany({ where: { email: delegatedFacultyEmail } });
+        await prisma.facultyMirror.deleteMany({
+            where: { schoolId: delegatedSchoolId, externalId: delegatedFacultyExternalId },
+        });
+    }
     console.log(`\nSummary: ${passCount} passed, ${failCount} failed`);
     if (failCount > 0) {
         process.exitCode = 1;

@@ -4,9 +4,9 @@ export declare function getSubjectsBySchool(schoolId: number): Promise<{
     createdAt: Date;
     id: number;
     name: string;
-    code: string;
-    isActive: boolean;
     updatedAt: Date;
+    isActive: boolean;
+    code: string;
     minMinutesPerWeek: number;
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
     sessionPattern: import("@prisma/client").$Enums.SessionPattern;
@@ -20,9 +20,9 @@ export declare function getSubjectById(id: number): Promise<{
     createdAt: Date;
     id: number;
     name: string;
-    code: string;
-    isActive: boolean;
     updatedAt: Date;
+    isActive: boolean;
+    code: string;
     minMinutesPerWeek: number;
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
     sessionPattern: import("@prisma/client").$Enums.SessionPattern;
@@ -45,9 +45,9 @@ export declare function createSubject(schoolId: number, data: {
     createdAt: Date;
     id: number;
     name: string;
-    code: string;
-    isActive: boolean;
     updatedAt: Date;
+    isActive: boolean;
+    code: string;
     minMinutesPerWeek: number;
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
     sessionPattern: import("@prisma/client").$Enums.SessionPattern;
@@ -70,9 +70,9 @@ export declare function updateSubject(id: number, data: Partial<{
     createdAt: Date;
     id: number;
     name: string;
-    code: string;
-    isActive: boolean;
     updatedAt: Date;
+    isActive: boolean;
+    code: string;
     minMinutesPerWeek: number;
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
     sessionPattern: import("@prisma/client").$Enums.SessionPattern;

@@ -42,26 +42,26 @@ const subjectSeeds = [
 
 /** Stub faculty data — used when FACULTY_ADAPTER=stub */
 const facultySeeds = [
-	{ externalId: 'T-0001', firstName: 'Maria', lastName: 'Santos', email: 't-0001@deped.local', department: 'Languages', maxWeeklyHours: 30, subjects: ['FIL'] },
-	{ externalId: 'T-0002', firstName: 'Jose', lastName: 'Reyes', email: 't-0002@deped.local', department: 'Languages', maxWeeklyHours: 30, subjects: ['ENG'] },
-	{ externalId: 'T-0003', firstName: 'Ana', lastName: 'Dela Cruz', email: 't-0003@deped.local', department: 'Mathematics', maxWeeklyHours: 30, subjects: ['MATH'] },
-	{ externalId: 'T-0004', firstName: 'Mark', lastName: 'Villanueva', email: 't-0004@deped.local', department: 'Science', maxWeeklyHours: 30, subjects: ['SCI'] },
-	{ externalId: 'T-0005', firstName: 'Liza', lastName: 'Garcia', email: 't-0005@deped.local', department: 'Social Studies', maxWeeklyHours: 30, subjects: ['AP'] },
-	{ externalId: 'T-0006', firstName: 'Paolo', lastName: 'Castro', email: 't-0006@deped.local', department: 'MAPEH', maxWeeklyHours: 30, subjects: ['MAPEH'] },
-	{ externalId: 'T-0007', firstName: 'Rica', lastName: 'Mendoza', email: 't-0007@deped.local', department: 'Values', maxWeeklyHours: 30, subjects: ['VE'] },
-	{ externalId: 'T-0008', firstName: 'Neil', lastName: 'Torres', email: 't-0008@deped.local', department: 'TLE', maxWeeklyHours: 30, subjects: ['TLE'] },
-	{ externalId: 'T-0009', firstName: 'Grace', lastName: 'Aquino', email: 't-0009@deped.local', department: 'Guidance', maxWeeklyHours: 20, subjects: ['HG'] },
-	{ externalId: 'T-0010', firstName: 'Ivy', lastName: 'Flores', email: 't-0010@deped.local', department: 'Mathematics', maxWeeklyHours: 30, subjects: ['MATH'] },
-	{ externalId: 'T-0011', firstName: 'Jomar', lastName: 'Navarro', email: 't-0011@deped.local', department: 'Science', maxWeeklyHours: 30, subjects: ['SCI'] },
-	{ externalId: 'T-0012', firstName: 'Celia', lastName: 'Pascual', email: 't-0012@deped.local', department: 'Languages', maxWeeklyHours: 30, subjects: ['ENG'] },
-	{ externalId: 'T-0013', firstName: 'Ramon', lastName: 'Lopez', email: 't-0013@deped.local', department: 'Languages', maxWeeklyHours: 30, subjects: ['FIL'] },
-	{ externalId: 'T-0014', firstName: 'Katrina', lastName: 'Salazar', email: 't-0014@deped.local', department: 'Social Studies', maxWeeklyHours: 30, subjects: ['AP'] },
-	{ externalId: 'T-0015', firstName: 'Lourdes', lastName: 'Valdez', email: 't-0015@deped.local', department: 'MAPEH', maxWeeklyHours: 30, subjects: ['MAPEH'] },
-	{ externalId: 'T-0016', firstName: 'Harold', lastName: 'Bautista', email: 't-0016@deped.local', department: 'Values', maxWeeklyHours: 30, subjects: ['VE'] },
-	{ externalId: 'T-0017', firstName: 'Mika', lastName: 'Ramos', email: 't-0017@deped.local', department: 'TLE', maxWeeklyHours: 30, subjects: ['TLE'] },
-	{ externalId: 'T-0018', firstName: 'Jonas', lastName: 'Domingo', email: 't-0018@deped.local', department: 'Mathematics', maxWeeklyHours: 30, subjects: ['MATH'] },
-	{ externalId: 'T-0019', firstName: 'Ella', lastName: 'Rivera', email: 't-0019@deped.local', department: 'Science', maxWeeklyHours: 30, subjects: ['SCI'] },
-	{ externalId: 'T-0020', firstName: 'Darren', lastName: 'Serrano', email: 't-0020@deped.local', department: 'Languages', maxWeeklyHours: 30, subjects: ['ENG'] },
+	{ externalId: 1, firstName: 'Maria', lastName: 'Santos', email: 't-0001@deped.local', department: 'Languages', maxWeeklyHours: 30, subjects: ['FIL'] },
+	{ externalId: 2, firstName: 'Jose', lastName: 'Reyes', email: 't-0002@deped.local', department: 'Languages', maxWeeklyHours: 30, subjects: ['ENG'] },
+	{ externalId: 3, firstName: 'Ana', lastName: 'Dela Cruz', email: 't-0003@deped.local', department: 'Mathematics', maxWeeklyHours: 30, subjects: ['MATH'] },
+	{ externalId: 4, firstName: 'Mark', lastName: 'Villanueva', email: 't-0004@deped.local', department: 'Science', maxWeeklyHours: 30, subjects: ['SCI'] },
+	{ externalId: 5, firstName: 'Liza', lastName: 'Garcia', email: 't-0005@deped.local', department: 'Social Studies', maxWeeklyHours: 30, subjects: ['AP'] },
+	{ externalId: 6, firstName: 'Paolo', lastName: 'Castro', email: 't-0006@deped.local', department: 'MAPEH', maxWeeklyHours: 30, subjects: ['MAPEH'] },
+	{ externalId: 7, firstName: 'Rica', lastName: 'Mendoza', email: 't-0007@deped.local', department: 'Values', maxWeeklyHours: 30, subjects: ['VE'] },
+	{ externalId: 8, firstName: 'Neil', lastName: 'Torres', email: 't-0008@deped.local', department: 'TLE', maxWeeklyHours: 30, subjects: ['TLE'] },
+	{ externalId: 9, firstName: 'Grace', lastName: 'Aquino', email: 't-0009@deped.local', department: 'Guidance', maxWeeklyHours: 20, subjects: ['HG'] },
+	{ externalId: 10, firstName: 'Ivy', lastName: 'Flores', email: 't-0010@deped.local', department: 'Mathematics', maxWeeklyHours: 30, subjects: ['MATH'] },
+	{ externalId: 11, firstName: 'Jomar', lastName: 'Navarro', email: 't-0011@deped.local', department: 'Science', maxWeeklyHours: 30, subjects: ['SCI'] },
+	{ externalId: 12, firstName: 'Celia', lastName: 'Pascual', email: 't-0012@deped.local', department: 'Languages', maxWeeklyHours: 30, subjects: ['ENG'] },
+	{ externalId: 13, firstName: 'Ramon', lastName: 'Lopez', email: 't-0013@deped.local', department: 'Languages', maxWeeklyHours: 30, subjects: ['FIL'] },
+	{ externalId: 14, firstName: 'Katrina', lastName: 'Salazar', email: 't-0014@deped.local', department: 'Social Studies', maxWeeklyHours: 30, subjects: ['AP'] },
+	{ externalId: 15, firstName: 'Lourdes', lastName: 'Valdez', email: 't-0015@deped.local', department: 'MAPEH', maxWeeklyHours: 30, subjects: ['MAPEH'] },
+	{ externalId: 16, firstName: 'Harold', lastName: 'Bautista', email: 't-0016@deped.local', department: 'Values', maxWeeklyHours: 30, subjects: ['VE'] },
+	{ externalId: 17, firstName: 'Mika', lastName: 'Ramos', email: 't-0017@deped.local', department: 'TLE', maxWeeklyHours: 30, subjects: ['TLE'] },
+	{ externalId: 18, firstName: 'Jonas', lastName: 'Domingo', email: 't-0018@deped.local', department: 'Mathematics', maxWeeklyHours: 30, subjects: ['MATH'] },
+	{ externalId: 19, firstName: 'Ella', lastName: 'Rivera', email: 't-0019@deped.local', department: 'Science', maxWeeklyHours: 30, subjects: ['SCI'] },
+	{ externalId: 20, firstName: 'Darren', lastName: 'Serrano', email: 't-0020@deped.local', department: 'Languages', maxWeeklyHours: 30, subjects: ['ENG'] },
 ];
 
 async function main() {
@@ -229,20 +229,20 @@ async function main() {
 			update: {
 				firstName: f.firstName,
 				lastName: f.lastName,
-				email: f.email,
+				contactInfo: f.email,
 				department: f.department,
-				maxWeeklyHours: f.maxWeeklyHours,
-				isActive: true,
+				maxHoursPerWeek: f.maxWeeklyHours,
+				isActiveForScheduling: true,
 			},
 			create: {
 				schoolId: school.id,
 				externalId: f.externalId,
 				firstName: f.firstName,
 				lastName: f.lastName,
-				email: f.email,
+				contactInfo: f.email,
 				department: f.department,
-				maxWeeklyHours: f.maxWeeklyHours,
-				isActive: true,
+				maxHoursPerWeek: f.maxWeeklyHours,
+				isActiveForScheduling: true,
 			},
 		});
 		facultyCreated++;
@@ -251,6 +251,8 @@ async function main() {
 		for (const subjectCode of f.subjects) {
 			const subjectId = subjectMap.get(subjectCode);
 			if (!subjectId) continue;
+
+			const subject = allSubjects.find(s => s.id === subjectId);
 
 			const existingAssignment = await prisma.facultySubject.findUnique({
 				where: {
@@ -266,7 +268,9 @@ async function main() {
 					data: {
 						facultyId: faculty.id,
 						subjectId: subjectId,
-						isActive: true,
+						schoolId: school.id,
+						gradeLevels: subject ? subject.gradeLevels : [7, 8, 9, 10],
+						assignedBy: 0,
 					},
 				});
 				assignmentsCreated++;
@@ -291,7 +295,7 @@ async function main() {
 	console.log('════════════════════════════════════════════════════════════');
 	console.log('\nNext Steps:');
 	console.log('  1. Start EnrollPro (pnpm dev) for sections and student data');
-	console.log('  2. Log in to EnrollPro as admin@deped.edu.ph / Admin2026!');
+	console.log('  2. Log in to EnrollPro as admin@deped.edu.ph / Incorrect_404');
 	console.log('  3. Navigate to ATLAS from EnrollPro to establish bridge token');
 	console.log('  4. Or use stub mode (SECTION_SOURCE_MODE=stub) for standalone testing');
 	console.log('════════════════════════════════════════════════════════════\n');

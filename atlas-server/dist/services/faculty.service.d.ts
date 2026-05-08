@@ -41,9 +41,9 @@ export declare function getFacultyById(id: number): Promise<({
             createdAt: Date;
             id: number;
             name: string;
-            code: string;
-            isActive: boolean;
             updatedAt: Date;
+            isActive: boolean;
+            code: string;
             minMinutesPerWeek: number;
             preferredRoomType: import("@prisma/client").$Enums.RoomType;
             sessionPattern: import("@prisma/client").$Enums.SessionPattern;
@@ -56,9 +56,9 @@ export declare function getFacultyById(id: number): Promise<({
         schoolId: number;
         createdAt: Date;
         id: number;
-        facultyId: number;
-        updatedAt: Date;
         version: number;
+        updatedAt: Date;
+        facultyId: number;
         gradeLevels: number[];
         subjectId: number;
         sectionIds: number[];
@@ -69,7 +69,6 @@ export declare function getFacultyById(id: number): Promise<({
     schoolId: number;
     createdAt: Date;
     id: number;
-    updatedAt: Date;
     externalId: number;
     firstName: string;
     lastName: string;
@@ -90,6 +89,7 @@ export declare function getFacultyById(id: number): Promise<({
     advisedSectionId: number | null;
     advisedSectionName: string | null;
     version: number;
+    updatedAt: Date;
 }) | null>;
 export declare function updateFacultyMirror(id: number, data: Partial<{
     localNotes: string;
@@ -109,7 +109,6 @@ export declare function updateFacultyMirror(id: number, data: Partial<{
         schoolId: number;
         createdAt: Date;
         id: number;
-        updatedAt: Date;
         externalId: number;
         firstName: string;
         lastName: string;
@@ -130,6 +129,7 @@ export declare function updateFacultyMirror(id: number, data: Partial<{
         advisedSectionId: number | null;
         advisedSectionName: string | null;
         version: number;
+        updatedAt: Date;
     };
     error?: undefined;
 }>;

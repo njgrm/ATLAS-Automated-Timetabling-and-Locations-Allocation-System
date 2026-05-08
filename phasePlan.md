@@ -116,34 +116,47 @@ It defines phase scope, acceptance gates, and the current progress state.
 - **Started:** 2026-04-02
 - **Scope**
   - Officer review grid and manual schedule corrections before publish
+  - **Faculty Auth Foundation (Objective-Critical, 2026-05-08):** Standalone ATLAS faculty authentication with delegated EnrollPro fallback, token identity hardening for downstream faculty route enforcement
 - **Planned deliverables**
   - Review UI (`/timetable`) with conflict/warning visibility ✅ (Batch 1)
   - Manual adjustments with optimistic locking and auditability
+  - Faculty auth infrastructure for Phase 5 portal access ✅ (2026-05-08)
 - **Work completed**
   - Batch 1: Review Console UI foundation (ScheduleReview page, three-panel layout, run/violation/draft consumption, filter/highlight/triage UX)
   - Cross-repo hardening batch: EnrollPro build repair, authoritative contract locking for teachers/sections/cohorts, automated live-plus-cached source gate, cohort-aware review explanation hardening, and adviser-backed homeroom hints in Teaching Load
   - Wave 4.1 precision gate: section-scoped teaching load persistence, school-year/version-guarded assignment APIs, section-aware generation/manual-edit qualification, and session-visible pending ownership in Teaching Load
   - Wave 4.2 closeout: room-preference request workflow hardened with stale-run guards, regenerated latest run ownership, and passing faculty/officer browser QA on `/my/room-preferences` and `/faculty/room-preferences`
   - Wave 4.4 implementation pass: `/timetable` pre-generation promoted to a dedicated center workspace, room/building navigation unified through the editable grid, and generation anchor regression coverage extended
+  - **Faculty Auth Hardening (2026-05-08):** ATLAS delegated faculty login now prefers stable upstream faculty identifiers (FacultyMirror.externalId), token identity correctly issued for downstream route enforcement, EnrollPro teacher User accounts auto-provisioned during runtime CRUD, 142 seeded teachers backfilled, end-to-end auth validation PASS (52/52 tests, protected endpoints accessible)
   - **Wave 4.5 (in progress):** Pre-generation **scheduler truth**—map-first onboarding, mandatory faculty/room confirmation aligned with teaching load, daily load policy (6h standard / ≤8h soft overload />8h hard block), pre-gen-only unassigned sourcing, richer Pins panel, full-week conflict context, desktop-first DnD gating. See `docs/phases/phase-4-review.md` section **Wave 4.5**.
 - **Exit criteria**
   - Officer can resolve review findings and revalidate hard constraints
   - Conflicts are blocked from publish path until cleared
+  - Faculty auth validated and ready for Phase 5 portal pages
 
 ## Phase 5 - Publish and Dissemination
-- **Status:** Not Started
+- **Status:** Ready for Initiation (Faculty Auth Validated 2026-05-08)
 - **Scope**
   - Publish validated schedules and expose role/public views
+  - Faculty portal with authenticated schedule/preference/assignment views
 - **Planned deliverables**
+  - Faculty dashboard (`/my/dashboard`) with active schedule, class list, load summary
+  - Faculty personal schedule view (`/my/schedule`)
+  - Faculty assignment management (`/my/assignments`)
   - Publish action with lifecycle transition enforcement
-  - Faculty-facing timetable view (`/my/schedule`)
   - Public schedule pages (`/s/:schoolSlug`, `/s/:schoolSlug/section/:id`)
   - Published schedule public APIs for downstream services
   - Faculty-impact notification triggers
+- **Prerequisites Met**
+  - ✅ Faculty authentication infrastructure (delegated login, token identity hardening, protected routes)
+  - ✅ EnrollPro teacher User provisioning working (runtime CRUD creates User accounts)
+  - ✅ Preference collection data model complete (Phase 2)
+  - ✅ Generation and review workflows complete (Phases 3-4)
 - **Exit criteria**
   - Only published schedules are exposed publicly
   - Faculty and student/public views render published data correctly
   - Publish requires zero hard-constraint violations
+  - Faculty dashboard accessible and shows personalized schedule/assignments
 
 ## Phase 6 - Exceptions and Archive
 - **Status:** Not Started

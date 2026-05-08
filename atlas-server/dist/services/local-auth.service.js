@@ -62,6 +62,116 @@ async function writeAuditLog(params) {
         },
     });
 }
+function mapEnrollProRole(role) {
+    switch (role) {
+        case 'TEACHER':
+        case 'CLASS_ADVISER':
+            return 'faculty';
+        default:
+            return 'officer';
+    }
+}
+/**
+ * Try to validate credentials against EnrollPro's /api/auth/verify endpoint.
+ * Returns null when EnrollPro is unreachable or the credentials are invalid.
+ */
+async function tryEnrollProVerify(email, password) {
+    const enrollProApi = (process.env.ENROLLPRO_API ?? 'http://localhost:5000/api').replace(/\/$/, '');
+    try {
+        const resp = await fetch(`${enrollProApi}/auth/verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+            signal: AbortSignal.timeout(5000),
+        });
+        if (!resp.ok)
+            return null;
+        const data = await resp.json();
+        if (!data?.valid || !data.user)
+            return null;
+        return { valid: true, user: data.user };
+    }
+    catch {
+        return null;
+    }
+}
+function getEnrollProFacultyExternalId(user) {
+    const candidate = user.externalTeacherId ?? user.facultyExternalId ?? user.teacherId ?? null;
+    return typeof candidate === 'number' && Number.isInteger(candidate) && candidate > 0 ? candidate : null;
+}
+async function findLinkedFacultyMirror(params) {
+    if (params.role !== 'faculty') {
+        return null;
+    }
+    const externalFacultyId = getEnrollProFacultyExternalId(params.enrollProUser);
+    if (externalFacultyId !== null) {
+        const mirror = await prisma.facultyMirror.findFirst({
+            where: {
+                schoolId: params.schoolId,
+                externalId: externalFacultyId,
+            },
+            select: { id: true, externalId: true },
+        });
+        if (mirror) {
+            return mirror;
+        }
+    }
+    const mirror = await prisma.facultyMirror.findFirst({
+        where: {
+            schoolId: params.schoolId,
+            contactInfo: { equals: params.email, mode: 'insensitive' },
+        },
+        select: { id: true, externalId: true },
+    });
+    return mirror ?? null;
+}
+/**
+ * Provision (create or update) an ATLAS auth account from a verified EnrollPro identity.
+ * Maps EnrollPro roles to ATLAS roles and links to FacultyMirror when applicable.
+ */
+async function provisionFromEnrollPro(params) {
+    const role = mapEnrollProRole(params.enrollProUser.role);
+    const hash = await bcrypt.hash(params.password, 12);
+    const email = params.enrollProUser.email.trim().toLowerCase();
+    const linkedMirror = await findLinkedFacultyMirror({
+        schoolId: params.schoolId,
+        role,
+        email,
+        enrollProUser: params.enrollProUser,
+    });
+    const facultyId = linkedMirror?.id ?? null;
+    const facultyExternalId = linkedMirror?.externalId ?? null;
+    const existing = await prisma.atlasAuthAccount.findUnique({ where: { email } });
+    if (existing) {
+        const updated = await prisma.atlasAuthAccount.update({
+            where: { id: existing.id },
+            data: {
+                passwordHash: hash,
+                role,
+                schoolId: params.schoolId,
+                facultyId,
+                isActive: true,
+                mustChangePassword: params.enrollProUser.mustChangePassword,
+                failedLoginCount: 0,
+                lockedUntil: null,
+            },
+        });
+        return { account: { id: updated.id, role: updated.role, schoolId: updated.schoolId, facultyId: updated.facultyId, facultyExternalId, mustChangePassword: updated.mustChangePassword } };
+    }
+    const created = await prisma.atlasAuthAccount.create({
+        data: {
+            email,
+            passwordHash: hash,
+            role,
+            schoolId: params.schoolId,
+            facultyId,
+            isActive: true,
+            mustChangePassword: params.enrollProUser.mustChangePassword,
+        },
+    });
+    return { account: { id: created.id, role: created.role, schoolId: created.schoolId, facultyId: created.facultyId, facultyExternalId, mustChangePassword: created.mustChangePassword } };
+}
+// ──────────────────────────────────────────────────────────────────────────────
 export async function loginWithEmailPassword(params) {
     const email = normalizeEmail(params.email);
     const now = Date.now();
@@ -101,7 +211,43 @@ export async function loginWithEmailPassword(params) {
             },
         },
     });
-    if (!account || !account.isActive) {
+    // No local ATLAS account — try EnrollPro delegation first before rejecting
+    if (!account) {
+        const enrollProResult = await tryEnrollProVerify(email, params.password);
+        if (enrollProResult) {
+            const defaultSchoolId = Number(process.env.ATLAS_DEFAULT_SCHOOL_ID ?? 1);
+            const { account: provisioned } = await provisionFromEnrollPro({
+                enrollProUser: enrollProResult.user,
+                password: params.password,
+                schoolId: defaultSchoolId,
+            });
+            const userId = provisioned.role === 'faculty' && provisioned.facultyExternalId
+                ? provisioned.facultyExternalId
+                : provisioned.id;
+            const user = {
+                userId,
+                role: provisioned.role,
+                mustChangePassword: provisioned.mustChangePassword,
+                authSource: 'local',
+                schoolId: provisioned.schoolId,
+                accountId: provisioned.id,
+                email,
+            };
+            const token = createToken(user);
+            if (!token) {
+                return { ok: false, status: 500, code: 'SERVER_ERROR', message: 'JWT secret not configured.' };
+            }
+            return { ok: true, token, user };
+        }
+        registerMemoryFailure(email, params.ipAddress, now);
+        return {
+            ok: false,
+            status: 401,
+            code: 'INVALID_CREDENTIALS',
+            message: 'Invalid email or password.',
+        };
+    }
+    if (!account.isActive) {
         registerMemoryFailure(email, params.ipAddress, now);
         return {
             ok: false,
@@ -122,6 +268,41 @@ export async function loginWithEmailPassword(params) {
     }
     const validPassword = await bcrypt.compare(params.password, account.passwordHash);
     if (!validPassword) {
+        // Local password check failed — try EnrollPro delegation (user may have changed
+        // their EnrollPro password since the last ATLAS seed).
+        const enrollProResult = await tryEnrollProVerify(email, params.password);
+        if (enrollProResult) {
+            const { account: provisioned } = await provisionFromEnrollPro({
+                enrollProUser: enrollProResult.user,
+                password: params.password,
+                schoolId: account.schoolId,
+            });
+            const linkedFacultyMirrorExternalId = provisioned.facultyExternalId ?? account.faculty?.externalId ?? null;
+            const userId = provisioned.role === 'faculty' && linkedFacultyMirrorExternalId
+                ? linkedFacultyMirrorExternalId
+                : provisioned.id;
+            const user = {
+                userId,
+                role: provisioned.role,
+                mustChangePassword: provisioned.mustChangePassword,
+                authSource: 'local',
+                schoolId: provisioned.schoolId,
+                accountId: provisioned.id,
+                email,
+            };
+            const token = createToken(user);
+            if (!token) {
+                return { ok: false, status: 500, code: 'SERVER_ERROR', message: 'JWT secret not configured.' };
+            }
+            await writeAuditLog({
+                schoolId: provisioned.schoolId,
+                actorId: provisioned.id,
+                action: 'LOCAL_LOGIN_SUCCESS',
+                targetIds: [provisioned.id],
+                metadata: { email, ipAddress: params.ipAddress, userAgent: params.userAgent ?? null, role: provisioned.role, via: 'enrollpro-delegation' },
+            });
+            return { ok: true, token, user };
+        }
         registerMemoryFailure(email, params.ipAddress, now);
         const nextFailedCount = account.failedLoginCount + 1;
         const shouldLock = nextFailedCount >= MAX_FAILED_ATTEMPTS;

@@ -41,8 +41,10 @@ app.use(cors({
         const allowed = new Set([
             process.env.CLIENT_URL || 'http://localhost:5174',
             process.env.ENROLLPRO_CLIENT_URL || 'http://localhost:5173',
-            'http://localhost:5174',
             'http://localhost:5173',
+            'http://localhost:5174',
+            'http://localhost:5175',
+            'http://localhost:5176',
             // Tailscale / LAN origins — comma-separated via env
             ...(process.env.CORS_EXTRA_ORIGINS
                 ? process.env.CORS_EXTRA_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)
