@@ -38,8 +38,16 @@ async function run() {
 	}
 
 	const seededPassword = process.env.ATLAS_DEFAULT_AUTH_PASSWORD ?? 'Atlas2026!';
-	const officerEmail = process.env.ATLAS_SEEDED_OFFICER_EMAIL ?? 'officer@atlas.local';
-	const facultyEmail = process.env.ATLAS_SEEDED_FACULTY_EMAIL ?? 'faculty@atlas.local';
+	const seededOfficer = await prisma.atlasAuthAccount.findFirst({
+		where: { role: 'officer', isActive: true },
+		orderBy: { id: 'asc' },
+	});
+	const officerEmail = process.env.ATLAS_SEEDED_OFFICER_EMAIL ?? seededOfficer?.email ?? 'officer@deped.edu.ph';
+	const seededFaculty = await prisma.atlasAuthAccount.findFirst({
+		where: { role: 'faculty', isActive: true },
+		orderBy: { id: 'asc' },
+	});
+	const facultyEmail = process.env.ATLAS_SEEDED_FACULTY_EMAIL ?? seededFaculty?.email ?? 'faculty@deped.edu.ph';
 
 	section('Seeded account availability');
 

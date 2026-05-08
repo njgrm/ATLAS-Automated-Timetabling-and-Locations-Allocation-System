@@ -148,7 +148,7 @@ export default function Login() {
 			localStorage.setItem('userRole', response.data.user.role);
 			setSuccess('Login successful! Redirecting...');
 			redirectTimeoutRef.current = window.setTimeout(() => {
-				navigate('/', { replace: true });
+				navigate(response.data.user.role === 'faculty' ? '/my' : '/', { replace: true });
 			}, 800);
 		} catch (err: unknown) {
 			if (isAxiosError(err)) {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
 	AlertCircle,
 	CheckCircle2,
@@ -11,6 +11,7 @@ import {
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
+import { getPreferredAccessToken } from '@/lib/auth';
 import { fetchPublicSettings } from '@/lib/settings';
 import { formatTime } from '@/lib/utils';
 import type {
@@ -50,6 +51,7 @@ export default function OfficerRoomPreferences() {
 	const [previewLoading, setPreviewLoading] = useState(false);
 	const [reviewerNotes, setReviewerNotes] = useState('');
 	const [savingDecision, setSavingDecision] = useState(false);
+	const refreshTimeoutRef = useRef<number | null>(null);
 
 	const loadSummary = useCallback(async (schoolYearId: number, nextStatus: 'ALL' | RoomPreferenceStatus, nextDecision: 'ALL' | RoomPreferenceDecisionStatus) => {
 		setLoading(true);
@@ -88,6 +90,36 @@ export default function OfficerRoomPreferences() {
 			}
 		})();
 	}, [decisionFilter, loadSummary, statusFilter]);
+
+	useEffect(() => {
+		if (!activeSchoolYearId) return;
+		const token = getPreferredAccessToken();
+		if (!token) return;
+
+		const streamUrl = `${import.meta.env.VITE_ATLAS_API ?? '/api/v1'}/room-preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/events?accessToken=${encodeURIComponent(token)}`;
+		const source = new EventSource(streamUrl);
+
+		const queueRefresh = () => {
+			if (refreshTimeoutRef.current) {
+				window.clearTimeout(refreshTimeoutRef.current);
+			}
+			refreshTimeoutRef.current = window.setTimeout(() => {
+				void loadSummary(activeSchoolYearId, statusFilter, decisionFilter);
+			}, 180);
+		};
+
+		source.addEventListener('ROOM_REQUEST_DRAFT_SAVED', queueRefresh as EventListener);
+		source.addEventListener('ROOM_REQUEST_SUBMITTED', queueRefresh as EventListener);
+		source.addEventListener('ROOM_REQUEST_DELETED', queueRefresh as EventListener);
+		source.addEventListener('ROOM_REQUEST_REVIEWED', queueRefresh as EventListener);
+
+		return () => {
+			if (refreshTimeoutRef.current) {
+				window.clearTimeout(refreshTimeoutRef.current);
+			}
+			source.close();
+		};
+	}, [activeSchoolYearId, decisionFilter, loadSummary, statusFilter]);
 
 	const filteredRequests = useMemo(() => {
 		const requests = summary?.requests ?? [];

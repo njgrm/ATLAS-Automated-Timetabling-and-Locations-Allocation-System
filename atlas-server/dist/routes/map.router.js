@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
 import { authenticate } from '../middleware/authenticate.js';
+import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as mapService from '../services/map.service.js';
 const router = Router();
 // Configure multer for campus image uploads
@@ -37,7 +38,7 @@ router.get('/schools/:schoolId/buildings', async (req, res) => {
     res.json({ buildings });
 });
 // Auth required: create a building
-router.post('/schools/:schoolId/buildings', authenticate, async (req, res) => {
+router.post('/schools/:schoolId/buildings', authenticate, requirePrivilegedRole, async (req, res) => {
     const schoolId = Number(req.params.schoolId);
     if (Number.isNaN(schoolId)) {
         res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId must be a number.' });
@@ -52,7 +53,7 @@ router.post('/schools/:schoolId/buildings', authenticate, async (req, res) => {
     res.status(201).json({ building });
 });
 // Auth required: update a building
-router.patch('/buildings/:id', authenticate, async (req, res) => {
+router.patch('/buildings/:id', authenticate, requirePrivilegedRole, async (req, res) => {
     const id = Number(req.params.id);
     if (Number.isNaN(id)) {
         res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
@@ -62,7 +63,7 @@ router.patch('/buildings/:id', authenticate, async (req, res) => {
     res.json({ building });
 });
 // Auth required: delete a building
-router.delete('/buildings/:id', authenticate, async (req, res) => {
+router.delete('/buildings/:id', authenticate, requirePrivilegedRole, async (req, res) => {
     const id = Number(req.params.id);
     if (Number.isNaN(id)) {
         res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
@@ -72,7 +73,7 @@ router.delete('/buildings/:id', authenticate, async (req, res) => {
     res.status(204).end();
 });
 // Auth required: add a room to a building
-router.post('/buildings/:buildingId/rooms', authenticate, async (req, res, next) => {
+router.post('/buildings/:buildingId/rooms', authenticate, requirePrivilegedRole, async (req, res, next) => {
     try {
         const buildingId = Number(req.params.buildingId);
         if (Number.isNaN(buildingId)) {
@@ -93,7 +94,7 @@ router.post('/buildings/:buildingId/rooms', authenticate, async (req, res, next)
     }
 });
 // Auth required: delete a room
-router.delete('/rooms/:id', authenticate, async (req, res) => {
+router.delete('/rooms/:id', authenticate, requirePrivilegedRole, async (req, res) => {
     const id = Number(req.params.id);
     if (Number.isNaN(id)) {
         res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
@@ -103,7 +104,7 @@ router.delete('/rooms/:id', authenticate, async (req, res) => {
     res.status(204).end();
 });
 // Auth required: update a room
-router.patch('/rooms/:id', authenticate, async (req, res, next) => {
+router.patch('/rooms/:id', authenticate, requirePrivilegedRole, async (req, res, next) => {
     try {
         const id = Number(req.params.id);
         if (Number.isNaN(id)) {
@@ -118,7 +119,7 @@ router.patch('/rooms/:id', authenticate, async (req, res, next) => {
     }
 });
 // Auth required: upload campus image
-router.post('/schools/:schoolId/campus-image', authenticate, upload.single('image'), async (req, res) => {
+router.post('/schools/:schoolId/campus-image', authenticate, requirePrivilegedRole, upload.single('image'), async (req, res) => {
     const schoolId = Number(req.params.schoolId);
     if (Number.isNaN(schoolId)) {
         res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId must be a number.' });

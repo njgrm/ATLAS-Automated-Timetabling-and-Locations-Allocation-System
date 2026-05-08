@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
 	closestCenter,
 	DndContext,
@@ -19,6 +19,8 @@ import {
 	GripVertical,
 	Loader2,
 	MapPinned,
+	Wifi,
+	WifiOff,
 	Save,
 	Search,
 	Send,
@@ -28,6 +30,14 @@ import { toast } from 'sonner';
 import { AnimatePresence, motion } from 'motion/react';
 
 import atlasApi from '@/lib/api';
+import { getPreferredAccessToken } from '@/lib/auth';
+import {
+	clearOutboxActions,
+	enqueueOutboxAction,
+	listOutboxActions,
+	replaceOutboxActions,
+	type RoomPreferenceOutboxAction,
+} from '@/lib/roomPreferenceOutbox';
 import { fetchPublicSettings } from '@/lib/settings';
 import { formatTime } from '@/lib/utils';
 import type {
@@ -158,12 +168,16 @@ export default function FacultyRoomPreferences() {
 	const [facultyId, setFacultyId] = useState<number | null>(null);
 	const [runId, setRunId] = useState<number | null>(null);
 	const [runVersion, setRunVersion] = useState<number>(1);
+	const [online, setOnline] = useState<boolean>(navigator.onLine);
+	const [outboxCount, setOutboxCount] = useState<number>(0);
+	const [syncingOutbox, setSyncingOutbox] = useState(false);
 	const [initialEntries, setInitialEntries] = useState<FacultyRoomPreferenceEntry[]>([]);
 	const [entries, setEntries] = useState<FacultyRoomPreferenceEntry[]>([]);
 	const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
 	const [draggedEntryId, setDraggedEntryId] = useState<string | null>(null);
 	const [roomSearch, setRoomSearch] = useState('');
 	const [rooms, setRooms] = useState<RoomOption[]>([]);
+	const lastEventIdRef = useRef<number>(0);
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -188,10 +202,11 @@ export default function FacultyRoomPreferences() {
 			}
 			setActiveSchoolYearId(settings.activeSchoolYearId);
 
-			const { data: me } = await atlasApi.get<{ user: { userId: number } }>('/auth/me');
-			const { data: facultyResponse } = await atlasApi.get<{ faculty: FacultyMirror[] }>('/faculty', { params: { schoolId: DEFAULT_SCHOOL_ID } });
-			const facultyMatch = facultyResponse.faculty.find((item) => item.externalId === me.user.userId);
-			if (!facultyMatch) {
+			const { data: facultyMe } = await atlasApi.get<{ faculty: FacultyMirror }>(`/faculty/me`, {
+				params: { schoolId: DEFAULT_SCHOOL_ID },
+			});
+			const facultyMatch = facultyMe.faculty;
+			if (!facultyMatch?.id) {
 				setError('Your account is not linked to a faculty record in this school.');
 				return;
 			}
@@ -227,6 +242,100 @@ export default function FacultyRoomPreferences() {
 	useEffect(() => {
 		void loadBootstrap();
 	}, [loadBootstrap]);
+
+	const flushOutbox = useCallback(async () => {
+		if (!online || !runId || !activeSchoolYearId || !facultyId) return;
+		const queued = listOutboxActions(facultyId, runId);
+		if (queued.length === 0) {
+			setOutboxCount(0);
+			return;
+		}
+
+		setSyncingOutbox(true);
+		try {
+			const { data } = await atlasApi.post<{
+				results: Array<{ actionId: string; ok: boolean; error?: { message: string } }>;
+				state: FacultyRoomPreferenceState;
+			}>(
+				`/room-preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/runs/${runId}/faculty/${facultyId}/sync`,
+				{ actions: queued.map(({ queuedAt, ...action }) => action) },
+			);
+
+			const failed = new Set(data.results.filter((item) => !item.ok).map((item) => item.actionId));
+			if (failed.size > 0) {
+				replaceOutboxActions(facultyId, runId, queued.filter((item) => failed.has(item.actionId)));
+				setOutboxCount(failed.size);
+				toast.error(`${failed.size} queued action(s) need retry.`);
+			} else {
+				clearOutboxActions(facultyId, runId);
+				setOutboxCount(0);
+				toast.success('Offline room-request actions were synced.');
+			}
+
+			applyServerState(data.state);
+		} catch {
+			setOutboxCount(queued.length);
+			toast.error('Unable to sync queued room-request actions.');
+		} finally {
+			setSyncingOutbox(false);
+		}
+	}, [activeSchoolYearId, applyServerState, facultyId, online, runId]);
+
+	useEffect(() => {
+		const updateOnline = () => setOnline(navigator.onLine);
+		window.addEventListener('online', updateOnline);
+		window.addEventListener('offline', updateOnline);
+		return () => {
+			window.removeEventListener('online', updateOnline);
+			window.removeEventListener('offline', updateOnline);
+		};
+	}, []);
+
+	useEffect(() => {
+		void flushOutbox();
+	}, [flushOutbox, online]);
+
+	useEffect(() => {
+		if (!runId || !facultyId) return;
+		setOutboxCount(listOutboxActions(facultyId, runId).length);
+	}, [facultyId, runId]);
+
+	useEffect(() => {
+		if (!activeSchoolYearId) return;
+		const token = getPreferredAccessToken();
+		if (!token) return;
+
+		const streamUrl = `${import.meta.env.VITE_ATLAS_API ?? '/api/v1'}/room-preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/events?accessToken=${encodeURIComponent(token)}`;
+		const source = new EventSource(streamUrl);
+
+		source.onmessage = () => {
+			// No default events are emitted; typed events are used below.
+		};
+
+		const handleEvent = (event: MessageEvent<string>) => {
+			try {
+				const payload = JSON.parse(event.data) as { id: number; facultyId: number | null };
+				if (payload.id) {
+					lastEventIdRef.current = payload.id;
+				}
+				if (facultyId && payload.facultyId != null && payload.facultyId !== facultyId) {
+					return;
+				}
+				void loadBootstrap();
+			} catch {
+				void loadBootstrap();
+			}
+		};
+
+		source.addEventListener('ROOM_REQUEST_DRAFT_SAVED', handleEvent as EventListener);
+		source.addEventListener('ROOM_REQUEST_SUBMITTED', handleEvent as EventListener);
+		source.addEventListener('ROOM_REQUEST_DELETED', handleEvent as EventListener);
+		source.addEventListener('ROOM_REQUEST_REVIEWED', handleEvent as EventListener);
+
+		return () => {
+			source.close();
+		};
+	}, [activeSchoolYearId, facultyId, loadBootstrap]);
 
 	const initialMap = useMemo(() => new Map(initialEntries.map((entry) => [entry.entryId, entry])), [initialEntries]);
 	const selectedEntry = entries.find((entry) => entry.entryId === selectedEntryId) ?? null;
@@ -264,6 +373,20 @@ export default function FacultyRoomPreferences() {
 
 	const clearSelectedRequest = async () => {
 		if (!selectedEntry || !runId || !activeSchoolYearId || !facultyId) return;
+		if (!online) {
+			enqueueOutboxAction(facultyId, runId, {
+				actionId: `delete-${selectedEntry.entryId}-${Date.now()}`,
+				type: 'DELETE',
+				entryId: selectedEntry.entryId,
+				requestVersion: selectedEntry.version,
+			});
+			setOutboxCount((count) => count + 1);
+			setEntries((current) => current.map((entry) => entry.entryId === selectedEntry.entryId
+				? { ...entry, requestedRoomId: null, requestedRoomName: null, rationale: '', status: 'DRAFT', decisionStatus: 'PENDING' }
+				: entry));
+			toast.info('Action queued offline. It will sync when connection returns.');
+			return;
+		}
 		if (!selectedEntry.requestId) {
 			setEntries((current) => current.map((entry) => entry.entryId === selectedEntry.entryId ? { ...entry, requestedRoomId: null, requestedRoomName: null, rationale: '' } : entry));
 			return;
@@ -289,6 +412,25 @@ export default function FacultyRoomPreferences() {
 		});
 		if (entriesToSave.length === 0) {
 			toast.info('No room changes to save.');
+			return;
+		}
+		if (!online) {
+			for (const entry of entriesToSave) {
+				enqueueOutboxAction(facultyId, runId, {
+					actionId: `draft-${entry.entryId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+					type: 'SAVE_DRAFT',
+					entryId: entry.entryId,
+					requestedRoomId: entry.requestedRoomId ?? undefined,
+					rationale: entry.rationale,
+					expectedRunVersion: runVersion,
+					requestVersion: entry.version,
+				});
+			}
+			setOutboxCount((count) => count + entriesToSave.length);
+			setEntries((current) => current.map((entry) => entriesToSave.some((dirty) => dirty.entryId === entry.entryId)
+				? { ...entry, status: 'DRAFT', decisionStatus: 'PENDING' }
+				: entry));
+			toast.info(`${entriesToSave.length} room request draft action(s) queued offline.`);
 			return;
 		}
 		setSaving(true);
@@ -322,6 +464,25 @@ export default function FacultyRoomPreferences() {
 		const entriesToSubmit = entries.filter((entry) => entry.requestedRoomId != null && entry.decisionStatus !== 'APPROVED');
 		if (entriesToSubmit.length === 0) {
 			toast.info('Choose at least one room before submitting.');
+			return;
+		}
+		if (!online) {
+			for (const entry of entriesToSubmit) {
+				enqueueOutboxAction(facultyId, runId, {
+					actionId: `submit-${entry.entryId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+					type: 'SUBMIT',
+					entryId: entry.entryId,
+					requestedRoomId: entry.requestedRoomId ?? undefined,
+					rationale: entry.rationale,
+					expectedRunVersion: runVersion,
+					requestVersion: entry.version,
+				});
+			}
+			setOutboxCount((count) => count + entriesToSubmit.length);
+			setEntries((current) => current.map((entry) => entriesToSubmit.some((draft) => draft.entryId === entry.entryId)
+				? { ...entry, status: 'SUBMITTED', decisionStatus: 'PENDING' }
+				: entry));
+			toast.info(`${entriesToSubmit.length} room request submission(s) queued offline.`);
 			return;
 		}
 		setSubmitting(true);
@@ -384,6 +545,18 @@ export default function FacultyRoomPreferences() {
 		<DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
 			<div className='flex h-[calc(100svh-3.5rem)] flex-col'>
 				<div className='shrink-0 space-y-4 px-6 pt-6 pb-3'>
+					<div className={`flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-xs ${online ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+						{online ? <Wifi className='size-4' /> : <WifiOff className='size-4' />}
+						<span className='font-semibold'>{online ? 'Online' : 'Offline mode'}</span>
+						{outboxCount > 0 && (
+							<>
+								<span>•</span>
+								<span>{outboxCount} queued action(s)</span>
+								{syncingOutbox && <span>• syncing...</span>}
+							</>
+						)}
+					</div>
+
 					<div className='flex flex-wrap items-center gap-3'>
 						<div>
 							<h1 className='text-2xl font-semibold tracking-tight'>Faculty Room Requests</h1>

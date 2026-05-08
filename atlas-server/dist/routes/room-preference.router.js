@@ -1,7 +1,10 @@
 import { Router } from 'express';
+import jwt from 'jsonwebtoken';
 import { authenticate } from '../middleware/authenticate.js';
 import { prisma } from '../lib/prisma.js';
 import * as roomPreferenceService from '../services/room-preference.service.js';
+import { hasPrivilegedRole } from '../middleware/authorize.js';
+import { getRoomPreferenceEventsSince, subscribeRoomPreferenceEvents } from '../services/room-preference-events.service.js';
 const router = Router();
 const PRIVILEGED_ROLES = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
 const VALID_ROOM_PREFERENCE_STATUSES = new Set(['DRAFT', 'SUBMITTED']);
@@ -45,6 +48,28 @@ async function resolveRequestingFacultyId(req, schoolId) {
         select: { id: true },
     });
     return faculty?.id ?? null;
+}
+function resolveSseUser(req) {
+    if (req.user)
+        return req.user;
+    const header = req.headers.authorization;
+    const queryToken = typeof req.query.accessToken === 'string' ? req.query.accessToken : null;
+    const token = header?.startsWith('Bearer ') ? header.slice(7) : queryToken;
+    if (!token)
+        return null;
+    const secret = process.env.JWT_SECRET;
+    if (!secret)
+        return null;
+    try {
+        const decoded = jwt.verify(token, secret);
+        return {
+            ...decoded,
+            authSource: decoded.authSource === 'local' ? 'local' : 'bridge',
+        };
+    }
+    catch {
+        return null;
+    }
 }
 function parseScope(req, res) {
     const schoolId = positiveInt(req.params.schoolId, 'schoolId');
@@ -230,6 +255,103 @@ router.delete('/:schoolId/:schoolYearId/runs/:runId/faculty/:facultyId/entries/:
         }
         const result = await roomPreferenceService.deleteRoomPreferenceDraft(scope.schoolId, scope.schoolYearId, scope.runId, facultyId, entryId, req.body?.requestVersion);
         res.json(result);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.post('/:schoolId/:schoolYearId/runs/:runId/faculty/:facultyId/sync', authenticate, async (req, res, next) => {
+    try {
+        const scope = parseScope(req, res);
+        if (!scope)
+            return;
+        const facultyId = positiveInt(req.params.facultyId, 'facultyId');
+        if (typeof facultyId === 'string') {
+            res.status(400).json({ code: 'INVALID_PARAM', message: facultyId });
+            return;
+        }
+        const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, facultyId);
+        if (!allowed)
+            return;
+        const actions = Array.isArray(req.body?.actions) ? req.body.actions : null;
+        if (!actions) {
+            res.status(400).json({ code: 'INVALID_BODY', message: 'actions must be an array.' });
+            return;
+        }
+        const result = await roomPreferenceService.processQueuedRoomPreferenceActions({
+            schoolId: scope.schoolId,
+            schoolYearId: scope.schoolYearId,
+            runId: scope.runId,
+            facultyId,
+            actions,
+        });
+        res.json(result);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.get('/:schoolId/:schoolYearId/events', async (req, res, next) => {
+    try {
+        const sseUser = resolveSseUser(req);
+        if (!sseUser) {
+            res.status(401).json({ code: 'INVALID_TOKEN', message: 'Valid access token is required for event streaming.' });
+            return;
+        }
+        req.user = sseUser;
+        const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+        if (typeof schoolId === 'string') {
+            res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
+            return;
+        }
+        const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+        if (typeof schoolYearId === 'string') {
+            res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId });
+            return;
+        }
+        const role = req.user?.role;
+        const requestingFacultyId = await resolveRequestingFacultyId(req, schoolId);
+        if (!hasPrivilegedRole(role) && requestingFacultyId == null) {
+            res.status(403).json({ code: 'FORBIDDEN', message: 'Faculty profile mapping is required to subscribe to room request updates.' });
+            return;
+        }
+        const facultyScope = requestingFacultyId ?? null;
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.flushHeaders();
+        res.write('retry: 2000\n\n');
+        const sendEvent = (event) => {
+            res.write(`id: ${event.id}\n`);
+            res.write(`event: ${event.type}\n`);
+            res.write(`data: ${JSON.stringify(event)}\n\n`);
+        };
+        const lastEventIdHeader = req.header('last-event-id');
+        const lastEventId = Number(lastEventIdHeader);
+        if (Number.isFinite(lastEventId) && lastEventId > 0) {
+            const missed = getRoomPreferenceEventsSince(lastEventId, {
+                schoolId,
+                schoolYearId,
+                facultyId: facultyScope,
+            });
+            for (const event of missed) {
+                sendEvent(event);
+            }
+        }
+        const heartbeat = setInterval(() => {
+            res.write(`event: heartbeat\ndata: ${JSON.stringify({ ts: new Date().toISOString() })}\n\n`);
+        }, 15000);
+        const unsubscribe = subscribeRoomPreferenceEvents({
+            schoolId,
+            schoolYearId,
+            facultyId: facultyScope,
+            send: sendEvent,
+        });
+        req.on('close', () => {
+            clearInterval(heartbeat);
+            unsubscribe();
+        });
     }
     catch (error) {
         next(error);

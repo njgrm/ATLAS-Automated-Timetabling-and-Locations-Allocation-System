@@ -23,6 +23,61 @@ Record dated implementation verification summaries here.
 
 ---
 
+### 2026-05-08 - Faculty Priority Slice Execution Verification Refresh
+- Phase: 4 (objective-priority continuation)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npm --prefix atlas-server run build`: PASS
+  - `npm --prefix atlas-client run build`: PASS
+  - `npm --prefix atlas-server run test:auth`: PASS (41/41)
+  - `npm --prefix atlas-server run test:seed-email-rules`: PASS (6/6)
+  - `npm --prefix atlas-server run test:faculty-route-restrictions`: PASS (6/6)
+  - `npm --prefix atlas-server run test:room-pref-sse`: PASS (5/5)
+  - `npm --prefix atlas-server run test:room-pref-sync`: PASS (7/7)
+  - `npm --prefix atlas-server run test:faculty-dashboard-contract`: PASS (6/6)
+  - `npm --prefix atlas-server run test:faculty-priority-slice`: PASS
+- API checks:
+  - `POST /api/v1/auth/login`: PASS (seeded faculty and officer login path remains valid)
+  - `GET /api/v1/faculty-portal/:schoolId/:schoolYearId/dashboard`: PASS (fallback disclaimer contract preserved)
+  - `GET /api/v1/room-preferences/:schoolId/:schoolYearId/events`: PASS (SSE emits room-request sync event)
+  - `POST /api/v1/room-preferences/:schoolId/:schoolYearId/runs/:runId/faculty/:facultyId/sync`: PASS (deterministic per-action reconciliation result)
+- UI checks:
+  - `/my` route contract remains valid through dashboard contract test and passing client build: PASS
+  - Faculty route restrictions and My Portal-only behavior remain valid through route restriction tests and app-shell guard wiring: PASS
+- Blocking findings:
+  - Manual bridge-auth screenshot evidence for protected route visuals remains pending in this pass.
+- Decision:
+  - Accepted.
+
+### 2026-05-08 - Priority Continuation: Faculty My Portal + SSE + Offline Sync Hardening
+- Phase: 4 (objective-priority continuation)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npm --prefix atlas-server run build`: PASS
+  - `npm --prefix atlas-client run build`: PASS
+  - `npm --prefix atlas-server run test:auth`: PASS (41/41)
+  - `npm --prefix atlas-server run test:faculty-priority-slice`: PASS
+- API checks:
+  - `GET /api/v1/faculty-portal/:schoolId/:schoolYearId/dashboard`: PASS (faculty-only dashboard payload with lifecycle/fallback/schedule preview contract)
+  - `GET /api/v1/room-preferences/:schoolId/:schoolYearId/events`: PASS (SSE stream emits live room-request events with reconnect-safe replay)
+  - `POST /api/v1/room-preferences/:schoolId/:schoolYearId/runs/:runId/faculty/:facultyId/sync`: PASS (queued action reconciliation with per-action result and recoverable state snapshot)
+  - Privileged route enforcement (`/faculty`, `/faculty-assignments`, generation read endpoints): PASS (faculty receives 403)
+- UI checks:
+  - `/my` mobile-first faculty dashboard added with plain-language lifecycle state, fallback banner, schedule preview, pending diff overlays, and CTA to `/my/room-preferences`: PASS (client build + contract test)
+  - Faculty/officer room-request pages now receive live updates without manual refresh through SSE subscriptions: PASS (integration test + source verification)
+  - Faculty room-request actions queue while offline and auto-sync on reconnect with retry-safe messaging: PASS (sync test + source verification)
+  - Faculty client-side route restrictions to My Portal pages only: PASS (source verification + route restriction test)
+- Blocking findings:
+  - Manual bridge-auth browser proof for same-tab EnrollPro handoff and visual screenshot parity of the new `/my` page was not captured in this pass.
+- Decision:
+  - Accepted for objective-priority continuation with automated build/test evidence; manual bridge-auth screenshot artifact capture remains a follow-up QA task.
+
 ### 2026-05-08 - Priority 1 Login Hardening: EnrollPro UX Parity + Accent Fix
 - Phase: 4 (objective-priority override)
 - Scope gate: PASS

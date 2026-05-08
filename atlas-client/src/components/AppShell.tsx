@@ -96,6 +96,7 @@ const schedulingNav: NavItemDef[] = [
 ];
 
 const facultyNav: NavItemDef[] = [
+	{ label: 'My Dashboard', to: '/my', icon: LayoutDashboard, facultyOnly: true },
 	{ label: 'My Preferences', to: '/my/preferences', icon: ClipboardList, facultyOnly: true },
 	{ label: 'My Room Requests', to: '/my/room-preferences', icon: CalendarDays, facultyOnly: true },
 ];
@@ -185,6 +186,9 @@ function AppSidebar({
 }) {
 	const isAdmin = bridgeUser?.role === 'admin' || bridgeUser?.role === 'SYSTEM_ADMIN' || bridgeUser?.role === 'officer';
 	const isFaculty = bridgeUser?.role === 'faculty';
+	const topNavigation = isFaculty
+		? [{ label: 'My Dashboard', to: '/my', icon: LayoutDashboard }]
+		: navigationNav;
 	const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
 	return (
@@ -253,7 +257,7 @@ function AppSidebar({
 						<SidebarGroupContent>
 							<SidebarMenu>
 								<NavDivider label='Navigation' />
-								{navigationNav
+								{topNavigation
 									.filter((item) => !item.adminOnly || isAdmin)
 									.map((item) => (
 										<NavItem
@@ -265,39 +269,43 @@ function AppSidebar({
 										/>
 									))}
 
-								<NavDivider label='Scheduling' />
-								{schedulingNav
-									.filter((item) => !item.adminOnly || isAdmin)
-									.map((item) =>
-										item.disabled ? (
-											<NavItemDisabled
-												key={item.to}
-												icon={item.icon}
-												label={item.label}
-											/>
-										) : (
-											<NavItem
-												key={item.to}
-												to={item.to}
-												icon={item.icon}
-												label={item.label}
-												pathname={pathname}
-											/>
-										),
-									)}
+								{!isFaculty && (
+									<>
+										<NavDivider label='Scheduling' />
+										{schedulingNav
+											.filter((item) => !item.adminOnly || isAdmin)
+											.map((item) =>
+												item.disabled ? (
+													<NavItemDisabled
+														key={item.to}
+														icon={item.icon}
+														label={item.label}
+													/>
+												) : (
+													<NavItem
+														key={item.to}
+														to={item.to}
+														icon={item.icon}
+														label={item.label}
+														pathname={pathname}
+													/>
+												),
+											)}
 
-								<NavDivider label='Campus' />
-								{campusNav
-									.filter((item) => !item.adminOnly || isAdmin)
-									.map((item) => (
-										<NavItem
-											key={item.to}
-											to={item.to}
-											icon={item.icon}
-											label={item.label}
-											pathname={pathname}
-										/>
-									))}
+										<NavDivider label='Campus' />
+										{campusNav
+											.filter((item) => !item.adminOnly || isAdmin)
+											.map((item) => (
+												<NavItem
+													key={item.to}
+													to={item.to}
+													icon={item.icon}
+													label={item.label}
+													pathname={pathname}
+												/>
+											))}
+									</>
+								)}
 
 								{isFaculty && (
 									<>
@@ -314,23 +322,27 @@ function AppSidebar({
 									</>
 								)}
 
-								<NavDivider label='Insights' />
-								{insightsNav.map((item) =>
-									item.disabled ? (
-										<NavItemDisabled
-											key={item.to}
-											icon={item.icon}
-											label={item.label}
-										/>
-									) : (
-										<NavItem
-											key={item.to}
-											to={item.to}
-											icon={item.icon}
-											label={item.label}
-											pathname={pathname}
-										/>
-									),
+								{!isFaculty && (
+									<>
+										<NavDivider label='Insights' />
+										{insightsNav.map((item) =>
+											item.disabled ? (
+												<NavItemDisabled
+													key={item.to}
+													icon={item.icon}
+													label={item.label}
+												/>
+											) : (
+												<NavItem
+													key={item.to}
+													to={item.to}
+													icon={item.icon}
+													label={item.label}
+													pathname={pathname}
+												/>
+											),
+										)}
+									</>
 								)}
 
 								<NavDivider label='Platform' />
@@ -492,11 +504,29 @@ export function AppShell() {
 				navigate('/login', { replace: true });
 				return;
 			}
+			if (u.role === 'faculty') {
+				const allowed = location.pathname === '/my'
+					|| location.pathname === '/my/preferences'
+					|| location.pathname === '/my/room-preferences';
+				if (!allowed) {
+					navigate('/my', { replace: true });
+				}
+			}
 			setBridgeUser(u);
 			setAuthSource(u.authSource ?? 'bridge');
 			localStorage.setItem('userRole', u.role);
 		});
-	}, [navigate]);
+	}, [navigate, location.pathname]);
+
+	useEffect(() => {
+		if (bridgeUser?.role !== 'faculty') return;
+		const allowed = location.pathname === '/my'
+			|| location.pathname === '/my/preferences'
+			|| location.pathname === '/my/room-preferences';
+		if (!allowed) {
+			navigate('/my', { replace: true });
+		}
+	}, [bridgeUser?.role, location.pathname, navigate]);
 
 	const handleLogout = () => {
 		clearAtlasAuthStorage();

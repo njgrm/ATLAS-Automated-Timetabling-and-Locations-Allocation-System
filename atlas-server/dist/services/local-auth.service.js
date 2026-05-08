@@ -212,19 +212,27 @@ export async function loginWithEmailPassword(params) {
 export async function seedLocalAuthAccounts(params) {
     const defaultPassword = process.env.ATLAS_DEFAULT_AUTH_PASSWORD ?? 'Atlas2026!';
     const hash = await bcrypt.hash(defaultPassword, 12);
+    const activeFaculty = await prisma.facultyMirror.findMany({
+        where: {
+            schoolId: params.schoolId,
+            isActiveForScheduling: true,
+        },
+        select: {
+            id: true,
+            externalId: true,
+            firstName: true,
+            lastName: true,
+        },
+        orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }, { id: 'asc' }],
+    });
     const accounts = [
         {
-            email: 'officer@atlas.local',
+            email: process.env.ATLAS_SEEDED_OFFICER_EMAIL ?? 'officer@deped.edu.ph',
             role: 'officer',
             facultyId: null,
             mustChangePassword: true,
         },
-        {
-            email: 'faculty@atlas.local',
-            role: 'faculty',
-            facultyId: params.facultyId,
-            mustChangePassword: true,
-        },
+        ...buildFacultySeedAccounts(activeFaculty),
     ];
     let created = 0;
     let updated = 0;
@@ -262,5 +270,78 @@ export async function seedLocalAuthAccounts(params) {
         created += 1;
     }
     return { created, updated };
+}
+function normalizeNameToken(value) {
+    const cleaned = value
+        .toLowerCase()
+        .normalize('NFKD')
+        .replace(/[^a-z\s-]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (!cleaned)
+        return 'user';
+    return cleaned.replace(/\s+/g, '-');
+}
+function extractPrimaryNamePart(value) {
+    const normalized = normalizeNameToken(value);
+    const parts = normalized.split(/[\s-]+/).filter(Boolean);
+    return parts[0] ?? 'user';
+}
+function deriveMiddleInitial(firstName, externalId, offset = 0) {
+    const parts = normalizeNameToken(firstName).split(/[\s-]+/).filter(Boolean);
+    if (parts.length > 1 && parts[1][0]) {
+        const initial = parts[1][0].toLowerCase();
+        const code = initial.charCodeAt(0) - 97;
+        const rotated = ((code + offset) % 26 + 26) % 26;
+        return String.fromCharCode(97 + rotated);
+    }
+    const seed = Math.abs(externalId + offset);
+    return String.fromCharCode(97 + (seed % 26));
+}
+export function buildFacultySeedAccounts(facultyRows) {
+    const usedEmails = new Set();
+    const byBase = new Map();
+    for (const row of facultyRows) {
+        const first = extractPrimaryNamePart(row.firstName);
+        const last = extractPrimaryNamePart(row.lastName);
+        const base = `${first}.${last}`;
+        const group = byBase.get(base) ?? [];
+        group.push(row);
+        byBase.set(base, group);
+    }
+    const result = [];
+    const sortedBases = [...byBase.keys()].sort();
+    for (const base of sortedBases) {
+        const rows = (byBase.get(base) ?? []).sort((a, b) => a.externalId - b.externalId || a.id - b.id);
+        if (rows.length === 1) {
+            const email = `${base}@deped.edu.ph`;
+            usedEmails.add(email);
+            result.push({
+                email,
+                role: 'faculty',
+                facultyId: rows[0].id,
+                mustChangePassword: true,
+            });
+            continue;
+        }
+        for (const row of rows) {
+            const first = extractPrimaryNamePart(row.firstName);
+            const last = extractPrimaryNamePart(row.lastName);
+            let offset = 0;
+            let email = `${first}.${deriveMiddleInitial(row.firstName, row.externalId, offset)}.${last}@deped.edu.ph`;
+            while (usedEmails.has(email) && offset < 52) {
+                offset += 1;
+                email = `${first}.${deriveMiddleInitial(row.firstName, row.externalId, offset)}.${last}@deped.edu.ph`;
+            }
+            usedEmails.add(email);
+            result.push({
+                email,
+                role: 'faculty',
+                facultyId: row.id,
+                mustChangePassword: true,
+            });
+        }
+    }
+    return result;
 }
 //# sourceMappingURL=local-auth.service.js.map

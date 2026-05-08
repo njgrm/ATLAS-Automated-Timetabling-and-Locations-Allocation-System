@@ -22,7 +22,33 @@
   - `npm --prefix atlas-server run build`: PASS
   - `npm --prefix atlas-client run build`: PASS
 - Remaining gap:
-  - Dedicated automated auth acceptance coverage (TC-AUTH-01..08 style) is not yet present in `atlas-server/src/__tests__` and remains pending.
+  - Manual bridge-auth screenshot evidence for protected-route transitions remains pending capture.
+
+## Objective-Priority Continuation - Faculty Workflow Slice (2026-05-08)
+- Priority alignment: Objective-critical faculty workflow continuation (mobile-first My Portal, hard access control, live room-request updates, offline-safe sync)
+- State: Implemented and verification-complete
+- Delivered backend scope:
+  - Local auth seeding now provisions deterministic `@deped.edu.ph` local accounts for all active seeded faculty mirrors (duplicate fallback: `firstname.m.lastname@deped.edu.ph`).
+  - Added privileged-role enforcement middleware on scheduler/admin endpoints to hard-block faculty direct admin API access.
+  - Added faculty portal API `GET /api/v1/faculty-portal/:schoolId/:schoolYearId/dashboard` with lifecycle plain-language status, latest-generated fallback disclaimer, faculty schedule preview, and room-request status cards.
+  - Added room-request SSE stream endpoint `GET /api/v1/room-preferences/:schoolId/:schoolYearId/events` with reconnect-safe replay using `Last-Event-ID`.
+  - Added offline reconciliation endpoint `POST /api/v1/room-preferences/:schoolId/:schoolYearId/runs/:runId/faculty/:facultyId/sync` with ordered action processing and per-action recoverable result payload.
+- Delivered frontend scope:
+  - Added mobile-first faculty dashboard route `/my` with fallback banner, preview overlays (current vs pending vs final), and clear CTA to `/my/room-preferences`.
+  - Faculty local login now redirects to `/my`; app shell enforces hard client-side route restriction to My Portal pages for faculty role.
+  - Faculty room-request page now supports offline outbox queueing + auto-sync and live SSE refresh; officer room-request panel now updates live via SSE.
+- Verification (2026-05-08):
+  - `npm --prefix atlas-server run build`: PASS
+  - `npm --prefix atlas-client run build`: PASS
+  - `npm --prefix atlas-server run test:auth`: PASS
+  - `npm --prefix atlas-server run test:seed-email-rules`: PASS
+  - `npm --prefix atlas-server run test:faculty-route-restrictions`: PASS
+  - `npm --prefix atlas-server run test:room-pref-sse`: PASS
+  - `npm --prefix atlas-server run test:room-pref-sync`: PASS
+  - `npm --prefix atlas-server run test:faculty-dashboard-contract`: PASS
+  - `npm --prefix atlas-server run test:faculty-priority-slice`: PASS
+- Remaining gap:
+  - Manual bridge-auth browser screenshot evidence for `/my`, `/my/room-preferences`, and scheduler live-update panel behavior is pending QA artifact capture.
 
 ## Planned Deliverables
 - [x] Review console UI with conflict overlays and filtering (Batch 1)

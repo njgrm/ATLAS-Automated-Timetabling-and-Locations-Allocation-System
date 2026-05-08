@@ -1,9 +1,42 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
+import { requirePrivilegedRole } from '../middleware/authorize.js';
+import { prisma } from '../lib/prisma.js';
 import * as facultyService from '../services/faculty.service.js';
 
 const router = Router();
+
+// Auth: GET /faculty/me?schoolId=X — resolve caller's linked faculty mirror
+router.get('/me', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const userId = req.user?.userId;
+		if (!userId) {
+			res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' });
+			return;
+		}
+		const schoolId = Number(req.query.schoolId);
+		if (!schoolId || Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
+			return;
+		}
+
+		const faculty = await prisma.facultyMirror.findFirst({
+			where: { schoolId, externalId: userId },
+		});
+		if (!faculty) {
+			res.status(404).json({ code: 'FACULTY_NOT_LINKED', message: 'No faculty profile is linked to this account for the selected school.' });
+			return;
+		}
+
+		res.json({ faculty });
+	} catch (err) {
+		next(err);
+	}
+});
+
+// All remaining /faculty routes are scheduler/admin-only.
+router.use(authenticate, requirePrivilegedRole);
 
 // Auth: GET /faculty?schoolId=X&includeStale=true|false
 router.get('/', authenticate, async (req: Request, res: Response, next: NextFunction) => {

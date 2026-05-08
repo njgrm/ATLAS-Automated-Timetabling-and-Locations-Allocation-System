@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
+import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as subjectService from '../services/subject.service.js';
 
 const router = Router();
@@ -40,7 +41,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 });
 
 // Auth: POST /subjects — create a custom subject
-router.post('/', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const { schoolId, code, name, minMinutesPerWeek, preferredRoomType, gradeLevels, sessionPattern } = req.body;
 		if (!schoolId || !code || !name || !minMinutesPerWeek || !preferredRoomType || !gradeLevels) {
@@ -66,7 +67,7 @@ router.post('/', authenticate, async (req: Request, res: Response, next: NextFun
 });
 
 // Auth: PATCH /subjects/:id
-router.patch('/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.patch('/:id', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const id = Number(req.params.id);
 		if (Number.isNaN(id)) {
@@ -85,7 +86,7 @@ router.patch('/:id', authenticate, async (req: Request, res: Response, next: Nex
 });
 
 // Auth: DELETE /subjects/:id
-router.delete('/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.delete('/:id', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const id = Number(req.params.id);
 		if (Number.isNaN(id)) {
@@ -107,7 +108,7 @@ router.delete('/:id', authenticate, async (req: Request, res: Response, next: Ne
 });
 
 // Auth: POST /subjects/seed — seed defaults for a school
-router.post('/seed', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/seed', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const schoolId = Number(req.body.schoolId);
 		if (!schoolId || Number.isNaN(schoolId)) {
@@ -123,7 +124,7 @@ router.post('/seed', authenticate, async (req: Request, res: Response, next: Nex
 });
 
 // Auth: GET /subjects/stats — get counts for dashboard
-router.get('/stats/:schoolId', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/stats/:schoolId', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const schoolId = Number(req.params.schoolId);
 		if (Number.isNaN(schoolId)) {

@@ -282,24 +282,32 @@ export async function loginWithEmailPassword(params: {
 
 export async function seedLocalAuthAccounts(params: {
 	schoolId: number;
-	facultyId: number | null;
 }): Promise<{ created: number; updated: number }> {
 	const defaultPassword = process.env.ATLAS_DEFAULT_AUTH_PASSWORD ?? 'Atlas2026!';
 	const hash = await bcrypt.hash(defaultPassword, 12);
 
+	const activeFaculty = await prisma.facultyMirror.findMany({
+		where: {
+			schoolId: params.schoolId,
+			isActiveForScheduling: true,
+		},
+		select: {
+			id: true,
+			externalId: true,
+			firstName: true,
+			lastName: true,
+		},
+		orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }, { id: 'asc' }],
+	});
+
 	const accounts = [
 		{
-			email: 'officer@atlas.local',
+			email: process.env.ATLAS_SEEDED_OFFICER_EMAIL ?? 'officer@deped.edu.ph',
 			role: 'officer',
 			facultyId: null,
 			mustChangePassword: true,
 		},
-		{
-			email: 'faculty@atlas.local',
-			role: 'faculty',
-			facultyId: params.facultyId,
-			mustChangePassword: true,
-		},
+		...buildFacultySeedAccounts(activeFaculty),
 	];
 
 	let created = 0;
@@ -341,4 +349,102 @@ export async function seedLocalAuthAccounts(params: {
 	}
 
 	return { created, updated };
+}
+
+function normalizeNameToken(value: string): string {
+	const cleaned = value
+		.toLowerCase()
+		.normalize('NFKD')
+		.replace(/[^a-z\s-]/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+	if (!cleaned) return 'user';
+	return cleaned.replace(/\s+/g, '-');
+}
+
+function extractPrimaryNamePart(value: string): string {
+	const normalized = normalizeNameToken(value);
+	const parts = normalized.split(/[\s-]+/).filter(Boolean);
+	return parts[0] ?? 'user';
+}
+
+function deriveMiddleInitial(firstName: string, externalId: number, offset = 0): string {
+	const parts = normalizeNameToken(firstName).split(/[\s-]+/).filter(Boolean);
+	if (parts.length > 1 && parts[1][0]) {
+		const initial = parts[1][0].toLowerCase();
+		const code = initial.charCodeAt(0) - 97;
+		const rotated = ((code + offset) % 26 + 26) % 26;
+		return String.fromCharCode(97 + rotated);
+	}
+	const seed = Math.abs(externalId + offset);
+	return String.fromCharCode(97 + (seed % 26));
+}
+
+export type FacultySeedIdentity = {
+	id: number;
+	externalId: number;
+	firstName: string;
+	lastName: string;
+};
+
+export function buildFacultySeedAccounts(facultyRows: FacultySeedIdentity[]): Array<{
+	email: string;
+	role: 'faculty';
+	facultyId: number;
+	mustChangePassword: true;
+}> {
+	const usedEmails = new Set<string>();
+	const byBase = new Map<string, FacultySeedIdentity[]>();
+
+	for (const row of facultyRows) {
+		const first = extractPrimaryNamePart(row.firstName);
+		const last = extractPrimaryNamePart(row.lastName);
+		const base = `${first}.${last}`;
+		const group = byBase.get(base) ?? [];
+		group.push(row);
+		byBase.set(base, group);
+	}
+
+	const result: Array<{
+		email: string;
+		role: 'faculty';
+		facultyId: number;
+		mustChangePassword: true;
+	}> = [];
+
+	const sortedBases = [...byBase.keys()].sort();
+	for (const base of sortedBases) {
+		const rows = (byBase.get(base) ?? []).sort((a, b) => a.externalId - b.externalId || a.id - b.id);
+		if (rows.length === 1) {
+			const email = `${base}@deped.edu.ph`;
+			usedEmails.add(email);
+			result.push({
+				email,
+				role: 'faculty',
+				facultyId: rows[0].id,
+				mustChangePassword: true,
+			});
+			continue;
+		}
+
+		for (const row of rows) {
+			const first = extractPrimaryNamePart(row.firstName);
+			const last = extractPrimaryNamePart(row.lastName);
+			let offset = 0;
+			let email = `${first}.${deriveMiddleInitial(row.firstName, row.externalId, offset)}.${last}@deped.edu.ph`;
+			while (usedEmails.has(email) && offset < 52) {
+				offset += 1;
+				email = `${first}.${deriveMiddleInitial(row.firstName, row.externalId, offset)}.${last}@deped.edu.ph`;
+			}
+			usedEmails.add(email);
+			result.push({
+				email,
+				role: 'faculty',
+				facultyId: row.id,
+				mustChangePassword: true,
+			});
+		}
+	}
+
+	return result;
 }

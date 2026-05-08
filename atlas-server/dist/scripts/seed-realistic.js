@@ -712,17 +712,8 @@ async function main() {
     else {
         console.log('[seed-realistic] Map seeding skipped. Existing buildings, rooms, and campus image were preserved.');
     }
-    const firstFaculty = await prisma.facultyMirror.findFirst({
-        where: {
-            schoolId: options.schoolId,
-            isActiveForScheduling: true,
-        },
-        orderBy: { id: 'asc' },
-        select: { id: true },
-    });
     const authSeed = await seedLocalAuthAccounts({
         schoolId: options.schoolId,
-        facultyId: firstFaculty?.id ?? null,
     });
     console.log('[seed-realistic] Completed successfully.');
     console.log(`  - Mode: ${options.mode}`);
@@ -758,7 +749,7 @@ async function main() {
         console.log(`  - Map reset applied: ${mapSummary.mapResetApplied}`);
     }
     console.log(`  - Local auth accounts seeded: ${authSeed.created} created, ${authSeed.updated} updated`);
-    console.log('    Credentials: officer@atlas.local / Atlas2026! and faculty@atlas.local / Atlas2026!');
+    console.log('    Credentials: officer@deped.edu.ph / Atlas2026! and faculty emails using firstname.lastname@deped.edu.ph (duplicate fallback firstname.m.lastname@deped.edu.ph).');
 }
 main()
     .catch((error) => {

@@ -26,8 +26,19 @@ export declare function loginWithEmailPassword(params: {
 }): Promise<LocalLoginResult>;
 export declare function seedLocalAuthAccounts(params: {
     schoolId: number;
-    facultyId: number | null;
 }): Promise<{
     created: number;
     updated: number;
+}>;
+export type FacultySeedIdentity = {
+    id: number;
+    externalId: number;
+    firstName: string;
+    lastName: string;
+};
+export declare function buildFacultySeedAccounts(facultyRows: FacultySeedIdentity[]): Array<{
+    email: string;
+    role: 'faculty';
+    facultyId: number;
+    mustChangePassword: true;
 }>;

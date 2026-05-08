@@ -30,6 +30,7 @@ import lockedSessionRouter from './routes/locked-session.router.js';
 import preGenerationDraftRouter from './routes/pre-generation-draft.router.js';
 import gradeWindowRouter from './routes/grade-window.router.js';
 import cohortRouter from './routes/cohort.router.js';
+import facultyPortalRouter from './routes/faculty-portal.router.js';
 
 const app = express();
 
@@ -89,6 +90,7 @@ app.use('/api/v1/generation', lockedSessionRouter);
 app.use('/api/v1/generation', preGenerationDraftRouter);
 app.use('/api/v1/generation', gradeWindowRouter);
 app.use('/api/v1/cohorts', cohortRouter);
+app.use('/api/v1/faculty-portal', facultyPortalRouter);
 
 // Error handler
 app.use(errorHandler);

@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import * as generationService from './generation.service.js';
 import * as manualEditService from './manual-edit.service.js';
+import { publishRoomPreferenceEvent } from './room-preference-events.service.js';
 function err(statusCode, code, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
@@ -221,6 +222,22 @@ async function upsertRoomPreference(input, status) {
             },
         },
     });
+    publishRoomPreferenceEvent({
+        type: status === 'SUBMITTED' ? 'ROOM_REQUEST_SUBMITTED' : 'ROOM_REQUEST_DRAFT_SAVED',
+        schoolId: input.schoolId,
+        schoolYearId: input.schoolYearId,
+        runId: input.runId,
+        facultyId: input.facultyId,
+        requestId: preference.id,
+        entryId: input.entryId,
+        message: status === 'SUBMITTED'
+            ? 'Faculty submitted a room request for review.'
+            : 'Faculty saved a room request draft.',
+        metadata: {
+            requestedRoomId: requestedRoom.id,
+            status,
+        },
+    });
     return getFacultyRoomPreferenceState(input.schoolId, input.schoolYearId, input.runId, input.facultyId);
 }
 export async function saveRoomPreferenceDraft(input) {
@@ -255,6 +272,19 @@ export async function deleteRoomPreferenceDraft(schoolId, schoolYearId, runId, f
                 entryId,
                 requestedRoomId: existing.requestedRoomId,
             },
+        },
+    });
+    publishRoomPreferenceEvent({
+        type: 'ROOM_REQUEST_DELETED',
+        schoolId,
+        schoolYearId,
+        runId,
+        facultyId,
+        requestId: existing.id,
+        entryId,
+        message: 'Faculty cleared a room request.',
+        metadata: {
+            requestedRoomId: existing.requestedRoomId,
         },
     });
     return getFacultyRoomPreferenceState(schoolId, schoolYearId, runId, facultyId);
@@ -626,9 +656,111 @@ export async function reviewRoomPreference(input) {
             },
         },
     });
+    publishRoomPreferenceEvent({
+        type: 'ROOM_REQUEST_REVIEWED',
+        schoolId: input.schoolId,
+        schoolYearId: input.schoolYearId,
+        runId: input.runId,
+        facultyId: request.facultyId,
+        requestId: updated.id,
+        entryId: request.entryId,
+        message: input.decisionStatus === 'APPROVED'
+            ? 'Scheduler approved a room request.'
+            : 'Scheduler rejected a room request.',
+        metadata: {
+            decisionStatus: input.decisionStatus,
+            reviewerId: input.reviewerId,
+            manualEditId: commitResult?.editId ?? null,
+        },
+    });
     return {
         request: updated,
         commitResult,
+    };
+}
+export async function processQueuedRoomPreferenceActions(input) {
+    const results = [];
+    for (const action of input.actions) {
+        try {
+            if (!action.entryId || !action.actionId) {
+                throw err(400, 'INVALID_ACTION', 'Each queued action requires actionId and entryId.');
+            }
+            let state;
+            if (action.type === 'SAVE_DRAFT') {
+                if (!Number.isInteger(action.requestedRoomId) || (action.requestedRoomId ?? 0) <= 0) {
+                    throw err(400, 'INVALID_ACTION', 'SAVE_DRAFT requires a valid requestedRoomId.');
+                }
+                const requestedRoomId = action.requestedRoomId;
+                state = await saveRoomPreferenceDraft({
+                    schoolId: input.schoolId,
+                    schoolYearId: input.schoolYearId,
+                    runId: input.runId,
+                    facultyId: input.facultyId,
+                    entryId: action.entryId,
+                    requestedRoomId,
+                    rationale: action.rationale ?? null,
+                    expectedRunVersion: action.expectedRunVersion,
+                    requestVersion: action.requestVersion,
+                });
+            }
+            else if (action.type === 'SUBMIT') {
+                if (!Number.isInteger(action.requestedRoomId) || (action.requestedRoomId ?? 0) <= 0) {
+                    throw err(400, 'INVALID_ACTION', 'SUBMIT requires a valid requestedRoomId.');
+                }
+                const requestedRoomId = action.requestedRoomId;
+                state = await submitRoomPreference({
+                    schoolId: input.schoolId,
+                    schoolYearId: input.schoolYearId,
+                    runId: input.runId,
+                    facultyId: input.facultyId,
+                    entryId: action.entryId,
+                    requestedRoomId,
+                    rationale: action.rationale ?? null,
+                    expectedRunVersion: action.expectedRunVersion,
+                    requestVersion: action.requestVersion,
+                });
+            }
+            else if (action.type === 'DELETE') {
+                state = await deleteRoomPreferenceDraft(input.schoolId, input.schoolYearId, input.runId, input.facultyId, action.entryId, action.requestVersion);
+            }
+            else {
+                throw err(400, 'INVALID_ACTION', `Unsupported queued action type: ${action.type}.`);
+            }
+            results.push({ actionId: action.actionId, ok: true, state });
+        }
+        catch (error) {
+            const known = error;
+            results.push({
+                actionId: action.actionId,
+                ok: false,
+                error: {
+                    code: known.code ?? 'SYNC_ACTION_FAILED',
+                    message: known.message ?? 'Queued action failed during reconciliation.',
+                    statusCode: known.statusCode ?? 500,
+                },
+            });
+        }
+    }
+    const latestState = await getFacultyRoomPreferenceState(input.schoolId, input.schoolYearId, input.runId, input.facultyId);
+    publishRoomPreferenceEvent({
+        type: 'ROOM_REQUEST_SYNC_COMPLETED',
+        schoolId: input.schoolId,
+        schoolYearId: input.schoolYearId,
+        runId: input.runId,
+        facultyId: input.facultyId,
+        requestId: null,
+        entryId: null,
+        message: 'Queued room preference actions were reconciled.',
+        metadata: {
+            totalActions: input.actions.length,
+            failedActions: results.filter((item) => !item.ok).length,
+        },
+    });
+    return {
+        runId: input.runId,
+        runVersion: latestState.runVersion,
+        results,
+        state: latestState,
     };
 }
 //# sourceMappingURL=room-preference.service.js.map

@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
+import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as sectionService from '../services/section.service.js';
 import { sectionSourceMode } from '../services/section-adapter.js';
 const router = Router();
 // Auth: GET /sections/summary/:schoolYearId
-router.get('/summary/:schoolYearId', authenticate, async (req, res, next) => {
+router.get('/summary/:schoolYearId', authenticate, requirePrivilegedRole, async (req, res, next) => {
     try {
         const schoolYearId = Number(req.params.schoolYearId);
         if (!Number.isInteger(schoolYearId) || schoolYearId <= 0) {

@@ -16,6 +16,16 @@ export interface SaveRoomPreferenceDraftInput {
 export interface SubmitRoomPreferenceInput extends SaveRoomPreferenceDraftInput {
     requestVersion?: number;
 }
+export type RoomPreferenceSyncActionType = 'SAVE_DRAFT' | 'SUBMIT' | 'DELETE';
+export interface RoomPreferenceSyncAction {
+    actionId: string;
+    type: RoomPreferenceSyncActionType;
+    entryId: string;
+    requestedRoomId?: number;
+    rationale?: string | null;
+    expectedRunVersion?: number;
+    requestVersion?: number;
+}
 export interface ReviewRoomPreferenceInput {
     schoolId: number;
     schoolYearId: number;
@@ -218,5 +228,26 @@ export declare function reviewRoomPreference(input: ReviewRoomPreferenceInput): 
         decisionStatus: import("@prisma/client").$Enums.RoomPreferenceDecisionStatus;
     };
     commitResult: manualEditService.CommitResult | null;
+}>;
+export declare function processQueuedRoomPreferenceActions(input: {
+    schoolId: number;
+    schoolYearId: number;
+    runId: number;
+    facultyId: number;
+    actions: RoomPreferenceSyncAction[];
+}): Promise<{
+    runId: number;
+    runVersion: number;
+    results: {
+        actionId: string;
+        ok: boolean;
+        state?: FacultyRoomPreferenceState;
+        error?: {
+            code: string;
+            message: string;
+            statusCode: number;
+        };
+    }[];
+    state: FacultyRoomPreferenceState;
 }>;
 export {};

@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
+import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as assignmentService from '../services/faculty-assignment.service.js';
 
 const router = Router();
 
 // Auth: GET /faculty-assignments/summary?schoolId=X&schoolYearId=Y
-router.get('/summary', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/summary', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const schoolId = Number(req.query.schoolId);
 		if (!schoolId || Number.isNaN(schoolId)) {
@@ -27,7 +28,7 @@ router.get('/summary', authenticate, async (req: Request, res: Response, next: N
 });
 
 // Auth: GET /faculty-assignments/:facultyId?schoolYearId=Y
-router.get('/:facultyId', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/:facultyId', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const facultyId = Number(req.params.facultyId);
 		if (Number.isNaN(facultyId)) {
@@ -52,7 +53,7 @@ router.get('/:facultyId', authenticate, async (req: Request, res: Response, next
 });
 
 // Auth: PUT /faculty-assignments/:facultyId — replace all assignments for a faculty member
-router.put('/:facultyId', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.put('/:facultyId', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const facultyId = Number(req.params.facultyId);
 		if (Number.isNaN(facultyId)) {

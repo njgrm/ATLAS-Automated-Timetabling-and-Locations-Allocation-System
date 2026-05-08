@@ -13,6 +13,12 @@
     "verify:enrollpro-source": "tsx src/scripts/verify-enrollpro-source.ts",
     "verify:cross-repo-source-gate": "tsx src/scripts/verify-cross-repo-source-gate.ts",
     "test:auth": "tsx src/__tests__/local-auth.test.ts && tsx src/__tests__/auth-login-integration.test.ts",
+    "test:seed-email-rules": "tsx src/__tests__/seed-email-rules.test.ts",
+    "test:faculty-route-restrictions": "tsx src/__tests__/faculty-route-restrictions.test.ts",
+    "test:room-pref-sse": "tsx src/__tests__/room-preference-sse.test.ts",
+    "test:room-pref-sync": "tsx src/__tests__/room-preference-sync.test.ts",
+    "test:faculty-dashboard-contract": "tsx src/__tests__/faculty-dashboard-contract.test.ts",
+    "test:faculty-priority-slice": "npm run test:seed-email-rules && npm run test:faculty-route-restrictions && npm run test:room-pref-sse && npm run test:room-pref-sync && npm run test:faculty-dashboard-contract",
     "test:phase4-review": "tsx src/__tests__/phase4-cohort-review.test.ts",
     "test:wave4.3": "tsx src/__tests__/wave4-pre-generation-draft.test.ts",
     "test:wave4-precision": "tsx ../qa-artifacts/wave4-teaching-load-precision.test.ts"
