@@ -22,7 +22,7 @@ import {
 
 import atlasApi from '@/lib/api';
 import { captureBridgeToken } from '@/lib/bridge';
-import { ATLAS_LOCAL_TOKEN_KEY, clearAtlasAuthStorage, hasAnyAuthToken } from '@/lib/auth';
+import { clearAtlasAuthStorage, hasAnyAuthToken, setLocalToken } from '@/lib/auth';
 import { applyEnrollProAccentTheme, fetchPublicSettings, verifySessionToken } from '@/lib/settings';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
@@ -57,6 +57,8 @@ export default function Login() {
 	const [googleUiError, setGoogleUiError] = useState<string | null>(null);
 	const redirectTimeoutRef = useRef<number | null>(null);
 	const hasToken = hasAnyAuthToken();
+	const rememberedRole = localStorage.getItem('userRole');
+	const defaultLandingRoute = rememberedRole === 'faculty' ? '/my' : '/';
 	const enrollProHost = import.meta.env.VITE_ENROLLPRO_URL ?? 'http://localhost:5173';
 	const projectTagline = 'ATLAS Scheduling System';
 	const projectFullName = 'ATLAS Scheduling System';
@@ -116,7 +118,7 @@ export default function Login() {
 			.then((user) => {
 				if (user) {
 					localStorage.setItem('userRole', user.role);
-					navigate('/', { replace: true });
+					navigate(user.role === 'faculty' ? '/my' : '/', { replace: true });
 					return;
 				}
 				clearAtlasAuthStorage();
@@ -141,10 +143,7 @@ export default function Login() {
 				email: email.trim(),
 				password,
 			});
-			sessionStorage.setItem(ATLAS_LOCAL_TOKEN_KEY, response.data.token);
-			if (rememberMe) {
-				localStorage.setItem(ATLAS_LOCAL_TOKEN_KEY, response.data.token);
-			}
+			setLocalToken(response.data.token, rememberMe);
 			localStorage.setItem('userRole', response.data.user.role);
 			setSuccess('Login successful! Redirecting...');
 			redirectTimeoutRef.current = window.setTimeout(() => {
@@ -171,7 +170,7 @@ export default function Login() {
 	};
 
 	if (!isCheckingSession && hasToken) {
-		return <Navigate to='/' replace />;
+		return <Navigate to={defaultLandingRoute} replace />;
 	}
 
 	return (

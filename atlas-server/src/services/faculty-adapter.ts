@@ -112,7 +112,7 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 				isClassAdviser: !!t.advisedSectionId,
 				advisoryEquivalentHours: t.advisoryEquivalentHoursPerWeek ?? (t.advisedSectionId ? 5 : 0),
 				canTeachOutsideDepartment: !!t.isTeachingExempt,
-				contactInfo: t.contactNumber ?? t.email ?? null,
+				contactInfo: t.email ?? t.contactNumber ?? null,
 				advisedSectionId: t.advisedSectionId ?? null,
 				advisedSectionName: t.advisedSectionName ?? null,
 			}));

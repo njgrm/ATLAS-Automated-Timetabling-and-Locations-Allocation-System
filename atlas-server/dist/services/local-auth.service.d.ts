@@ -35,6 +35,7 @@ export type FacultySeedIdentity = {
     externalId: number;
     firstName: string;
     lastName: string;
+    contactInfo?: string | null;
 };
 export declare function buildFacultySeedAccounts(facultyRows: FacultySeedIdentity[]): Array<{
     email: string;

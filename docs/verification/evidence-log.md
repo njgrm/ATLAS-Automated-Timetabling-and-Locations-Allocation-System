@@ -23,6 +23,50 @@ Record dated implementation verification summaries here.
 
 ---
 
+### 2026-05-08 - EnrollPro Rebaseline + ATLAS Faculty Auth Rebind (Fresh Upstream Pass)
+- Phase: 4 (objective-priority continuation)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PARTIAL PASS
+- Regression gate: PASS
+- EnrollPro baseline:
+  - Repo reset to `b9832bcf52a081f2ae1e037773267510920f1e99` (`origin/main`)
+  - Upstream blockers fixed:
+    - Missing runtime dependency (`axios`) in `EnrollPro/server/package.json`
+    - Missing ATLAS sync route restored: `GET /api/teachers/atlas/faculty-sync?schoolYearId=:id`
+  - Runtime verification:
+    - EnrollPro server boot: PASS (`http://localhost:5000`)
+    - EnrollPro client boot: PASS (`http://localhost:5174`)
+  - Contract checks:
+    - `GET /api/settings/public`: PASS (200)
+    - `POST /api/auth/login` (admin): PASS (200)
+    - `GET /api/teachers/atlas/faculty-sync?schoolYearId=1` (auth): PASS (200, `teacherCount=142`)
+- ATLAS rebind and auth checks:
+  - Reseed from EnrollPro source completed with auth token (`seed:enrollpro-source -- --schoolId=1 --schoolYearId=1 --reset --authToken=...`): PASS
+  - Local faculty account mapping now prefers upstream email identity when present: PASS (code-level)
+  - CORS allowlist fixed for local fallback client origin `http://localhost:5175`: PASS
+  - Accent propagation check (`/enrollpro-api/settings/public` vs `--accent` CSS var): PASS (exact match)
+- Commands:
+  - `npm --prefix atlas-server run build`: PASS
+  - `npm --prefix atlas-client run build`: PASS
+  - `npm --prefix atlas-server run test:auth`: PASS (47/47)
+  - `npm --prefix atlas-server run test:faculty-route-restrictions`: PASS (6/6)
+  - `npm --prefix atlas-server run test:preference-wellbeing`: PASS (16/16)
+  - `npm --prefix atlas-server run test:preference-lifecycle-lock`: PASS (11/11)
+  - `npm --prefix atlas-server run test:preference-sse-bilateral`: PASS (11/11)
+  - `npm --prefix atlas-server run test:room-pref-sync`: PASS (7/7)
+- Manual QA (shared browser):
+  - Faculty login to `/my`: PASS after CORS allowlist fix
+  - Faculty route restriction (`/subjects` forced back to `/my`): PASS
+  - Session refresh persistence on `/my`: PASS (session token retained)
+  - `/my/preferences` draft/submit: FAIL — page shows `Cannot load preferences` / `Failed to load session context.` (401/403)
+  - Officer review -> faculty SSE update: NOT RUN (blocked by missing faculty session context in preferences flow)
+  - `/my/room-preferences` offline queue + reconnect autosync: NOT RUN (blocked by missing faculty session context)
+- Blocking findings:
+  - Faculty portal context hydration still fails on `/my/preferences` with 401/403 (`Failed to load session context`) under local faculty login.
+- Decision:
+  - Needs fixes before full objective sign-off.
+
 ### 2026-05-08 - Faculty Priority Slice Execution Verification Refresh
 - Phase: 4 (objective-priority continuation)
 - Scope gate: PASS

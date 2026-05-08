@@ -1,8 +1,11 @@
 import axios from 'axios';
 import { getPreferredAccessToken } from './auth';
 
+const runtimeEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
+const apiBaseUrl = runtimeEnv?.VITE_ATLAS_API ?? '/api/v1';
+
 const atlasApi = axios.create({
-	baseURL: import.meta.env.VITE_ATLAS_API ?? '/api/v1',
+	baseURL: apiBaseUrl,
 });
 
 // Inject bridge token on every request

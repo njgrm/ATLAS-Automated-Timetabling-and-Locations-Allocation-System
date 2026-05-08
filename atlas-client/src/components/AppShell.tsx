@@ -22,7 +22,14 @@ import { AnimatePresence, motion } from 'motion/react';
 
 import { captureBridgeToken, getBackHref } from '@/lib/bridge';
 import { applyEnrollProAccentTheme, fetchPublicSettings, fetchSchoolYears, verifySessionToken } from '@/lib/settings';
-import { clearAtlasAuthStorage, hasAnyAuthToken } from '@/lib/auth';
+import {
+	clearAtlasAuthStorage,
+	clearBridgeToken,
+	clearLocalToken,
+	clearUserRoleCache,
+	hasAnyAuthToken,
+	isFacultyPortalRoute,
+} from '@/lib/auth';
 import type { BridgeUser } from '@/types';
 import type { SchoolYear } from '@/lib/settings';
 import { Badge } from '@/ui/badge';
@@ -443,6 +450,7 @@ export function AppShell() {
 	const [bridgeUser, setBridgeUser] = useState<BridgeUser | null>(null);
 	const [authSource, setAuthSource] = useState<'bridge' | 'local' | null>(null);
 	const [syOpen, setSyOpen] = useState(false);
+	const authCheckSeqRef = useRef(0);
 
 	/* Capture bridge token on mount */
 	useLayoutEffect(() => {
@@ -494,46 +502,56 @@ export function AppShell() {
 	/* Verify session identity */
 	useEffect(() => {
 		if (!hasAnyAuthToken()) {
+			setBridgeUser(null);
+			setAuthSource(null);
+			clearUserRoleCache();
 			navigate('/login', { replace: true });
 			return;
 		}
 
+		authCheckSeqRef.current += 1;
+		const checkSeq = authCheckSeqRef.current;
+
 		verifySessionToken().then((u) => {
+			if (checkSeq !== authCheckSeqRef.current) return;
+
 			if (!u) {
+				setBridgeUser(null);
+				setAuthSource(null);
 				clearAtlasAuthStorage();
 				navigate('/login', { replace: true });
 				return;
 			}
-			if (u.role === 'faculty') {
-				const allowed = location.pathname === '/my'
-					|| location.pathname === '/my/preferences'
-					|| location.pathname === '/my/room-preferences';
-				if (!allowed) {
-					navigate('/my', { replace: true });
-				}
-			}
+
 			setBridgeUser(u);
 			setAuthSource(u.authSource ?? 'bridge');
 			localStorage.setItem('userRole', u.role);
+
+			if (u.role === 'faculty' && !isFacultyPortalRoute(location.pathname)) {
+				navigate('/my', { replace: true });
+			}
 		});
-	}, [navigate, location.pathname]);
+	}, [navigate]);
 
 	useEffect(() => {
 		if (bridgeUser?.role !== 'faculty') return;
-		const allowed = location.pathname === '/my'
-			|| location.pathname === '/my/preferences'
-			|| location.pathname === '/my/room-preferences';
-		if (!allowed) {
+		if (!isFacultyPortalRoute(location.pathname)) {
 			navigate('/my', { replace: true });
 		}
 	}, [bridgeUser?.role, location.pathname, navigate]);
 
 	const handleLogout = () => {
-		clearAtlasAuthStorage();
 		if (authSource === 'bridge') {
+			clearBridgeToken();
+			clearUserRoleCache();
 			window.location.href = `${ENROLLPRO_URL}/login`;
 			return;
 		}
+
+		clearLocalToken();
+		clearUserRoleCache();
+		setBridgeUser(null);
+		setAuthSource(null);
 		navigate('/login', { replace: true });
 	};
 

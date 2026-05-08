@@ -222,6 +222,7 @@ export async function seedLocalAuthAccounts(params) {
             externalId: true,
             firstName: true,
             lastName: true,
+            contactInfo: true,
         },
         orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }, { id: 'asc' }],
     });
@@ -298,6 +299,12 @@ function deriveMiddleInitial(firstName, externalId, offset = 0) {
     const seed = Math.abs(externalId + offset);
     return String.fromCharCode(97 + (seed % 26));
 }
+function tryNormalizeEmail(value) {
+    if (!value)
+        return null;
+    const normalized = value.trim().toLowerCase();
+    return isValidEmail(normalized) ? normalized : null;
+}
 export function buildFacultySeedAccounts(facultyRows) {
     const usedEmails = new Set();
     const byBase = new Map();
@@ -313,18 +320,57 @@ export function buildFacultySeedAccounts(facultyRows) {
     const sortedBases = [...byBase.keys()].sort();
     for (const base of sortedBases) {
         const rows = (byBase.get(base) ?? []).sort((a, b) => a.externalId - b.externalId || a.id - b.id);
-        if (rows.length === 1) {
+        for (const row of rows) {
+            const upstreamEmail = tryNormalizeEmail(row.contactInfo);
+            if (!upstreamEmail || usedEmails.has(upstreamEmail)) {
+                continue;
+            }
+            usedEmails.add(upstreamEmail);
+            result.push({
+                email: upstreamEmail,
+                role: 'faculty',
+                facultyId: row.id,
+                mustChangePassword: true,
+            });
+        }
+        const unresolvedRows = rows.filter((row) => {
+            const upstreamEmail = tryNormalizeEmail(row.contactInfo);
+            return !upstreamEmail || !usedEmails.has(upstreamEmail) || result.every((entry) => entry.facultyId !== row.id);
+        });
+        if (unresolvedRows.length === 0) {
+            continue;
+        }
+        if (unresolvedRows.length === 1) {
             const email = `${base}@deped.edu.ph`;
+            if (usedEmails.has(email)) {
+                const row = unresolvedRows[0];
+                let offset = 0;
+                const first = extractPrimaryNamePart(row.firstName);
+                const last = extractPrimaryNamePart(row.lastName);
+                let fallbackEmail = `${first}.${deriveMiddleInitial(row.firstName, row.externalId, offset)}.${last}@deped.edu.ph`;
+                while (usedEmails.has(fallbackEmail) && offset < 52) {
+                    offset += 1;
+                    fallbackEmail = `${first}.${deriveMiddleInitial(row.firstName, row.externalId, offset)}.${last}@deped.edu.ph`;
+                }
+                usedEmails.add(fallbackEmail);
+                result.push({
+                    email: fallbackEmail,
+                    role: 'faculty',
+                    facultyId: row.id,
+                    mustChangePassword: true,
+                });
+                continue;
+            }
             usedEmails.add(email);
             result.push({
                 email,
                 role: 'faculty',
-                facultyId: rows[0].id,
+                facultyId: unresolvedRows[0].id,
                 mustChangePassword: true,
             });
             continue;
         }
-        for (const row of rows) {
+        for (const row of unresolvedRows) {
             const first = extractPrimaryNamePart(row.firstName);
             const last = extractPrimaryNamePart(row.lastName);
             let offset = 0;

@@ -116,6 +116,10 @@ async function run() {
 				},
 			});
 			assertEqual(me.status, 200, '/auth/me returns HTTP 200 for local token');
+			assert(typeof me.json?.user?.userId === 'number', '/auth/me local response includes numeric userId');
+			assertEqual(me.json?.user?.role, 'officer', '/auth/me local response preserves role metadata');
+			assert(typeof me.json?.user?.schoolId === 'number', '/auth/me local response includes schoolId');
+			assert(typeof me.json?.user?.accountId === 'number', '/auth/me local response includes accountId');
 			assertEqual(me.json?.user?.authSource, 'local', '/auth/me returns local authSource');
 		}
 
@@ -165,6 +169,31 @@ async function run() {
 		assertEqual(bridgeMe.status, 200, '/auth/me accepts bridge-style tokens');
 		assertEqual(bridgeMe.json?.user?.authSource, 'bridge', '/auth/me normalizes bridge token authSource');
 		assertEqual(bridgeMe.json?.user?.role, 'admin', 'Bridge token role is preserved');
+
+		section('INT-AUTH-06 privileged guard remains intact for officer/admin');
+		if (!token) {
+			assert(false, 'Skipped privileged guard regression check because officer token is missing');
+		} else {
+			const officerWrite = await requestJson(`${baseUrl}`, '/subjects', {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({}),
+			});
+			assertEqual(officerWrite.status, 400, 'Officer token still passes auth guard and reaches route validation');
+		}
+
+		const adminWrite = await requestJson(`${baseUrl}`, '/subjects', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${bridgeToken}`,
+			},
+			body: JSON.stringify({}),
+		});
+		assertEqual(adminWrite.status, 400, 'Bridge admin token still passes auth guard and reaches route validation');
 	} finally {
 		await new Promise<void>((resolve, reject) => {
 			server.close((err) => {

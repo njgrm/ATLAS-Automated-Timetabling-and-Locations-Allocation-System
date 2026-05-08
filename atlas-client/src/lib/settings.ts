@@ -1,6 +1,13 @@
 import axios from 'axios';
 import atlasApi from './api';
-import { ATLAS_BRIDGE_TOKEN_KEY, getPreferredAccessToken } from './auth';
+import {
+	ATLAS_BRIDGE_TOKEN_KEY,
+	clearBridgeToken,
+	clearLocalToken,
+	getBridgeToken,
+	getLocalToken,
+	getPreferredAccessToken,
+} from './auth';
 import type { BridgeUser } from '@/types';
 
 export interface EnrollProSettings {
@@ -109,10 +116,39 @@ export async function fetchActiveSchoolYear(activeId: number | null): Promise<st
 
 export async function verifySessionToken(): Promise<BridgeUser | null> {
 	if (!getPreferredAccessToken()) return null;
+
+	const localToken = getLocalToken();
+	if (localToken) {
+		try {
+			const { data } = await atlasApi.get<{ user: BridgeUser }>('/auth/me', {
+				headers: {
+					authorization: `Bearer ${localToken}`,
+				},
+			});
+			return {
+				...data.user,
+				authSource: data.user.authSource ?? 'local',
+			};
+		} catch {
+			clearLocalToken();
+		}
+	}
+
+	const bridgeToken = getBridgeToken();
+	if (!bridgeToken) return null;
+
 	try {
-		const { data } = await atlasApi.get<{ user: BridgeUser }>('/auth/me');
-		return data.user;
+		const { data } = await atlasApi.get<{ user: BridgeUser }>('/auth/me', {
+			headers: {
+				authorization: `Bearer ${bridgeToken}`,
+			},
+		});
+		return {
+			...data.user,
+			authSource: data.user.authSource ?? 'bridge',
+		};
 	} catch {
+		clearBridgeToken();
 		return null;
 	}
 }

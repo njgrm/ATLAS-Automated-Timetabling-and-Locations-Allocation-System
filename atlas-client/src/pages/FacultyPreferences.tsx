@@ -140,21 +140,15 @@ export default function FacultyPreferences() {
 				setActiveSchoolYearId(settings.activeSchoolYearId);
 
 				// Resolve faculty mapping from bridge identity
-				const { data } = await atlasApi.get<{ user: { userId: number } }>('/auth/me');
-				const userId = data.user.userId;
-
-				// Find matching faculty mirror via the faculty endpoint
-				const { data: facData } = await atlasApi.get<{ faculty: { id: number; externalId: number }[] }>(
-					'/faculty',
-					{ params: { schoolId: DEFAULT_SCHOOL_ID } },
-				);
-				const match = facData.faculty?.find((f) => f.externalId === userId);
-				if (!match) {
+				const { data: facultyMe } = await atlasApi.get<{ faculty: { id: number } }>('/faculty/me', {
+					params: { schoolId: DEFAULT_SCHOOL_ID },
+				});
+				if (!facultyMe?.faculty?.id) {
 					setError('Your account is not linked to a faculty record in this school. Contact your scheduling officer.');
 					setLoading(false);
 					return;
 				}
-				setFacultyId(match.id);
+				setFacultyId(facultyMe.faculty.id);
 			} catch {
 				setError('Failed to load session context.');
 				setLoading(false);
