@@ -564,6 +564,19 @@ export default function FacultyRoomPreferences() {
 			failed: outboxActions.filter((action) => action.status === 'failed').length,
 		};
 	}, [outboxActions]);
+	const lastSyncedFeedback = useMemo(
+		() => outboxFeedback.find((item) => item.status === 'SYNCED') ?? null,
+		[outboxFeedback],
+	);
+	const reasonRequired = actionType === 'SWAP_WITH_OCCUPIED' && (requestPreview?.hardViolations.length ?? 0) > 0;
+	const syncLifecycleState = useMemo(() => {
+		if (!online) return 'queued-offline' as const;
+		if (syncingOutbox || outboxStatusCounts.syncing > 0) return 'syncing' as const;
+		if (outboxStatusCounts.failed > 0) return 'failed' as const;
+		if (outboxStatusCounts.queued > 0) return 'queued' as const;
+		if (lastSyncedFeedback) return 'synced' as const;
+		return 'idle' as const;
+	}, [lastSyncedFeedback, online, outboxStatusCounts.failed, outboxStatusCounts.queued, outboxStatusCounts.syncing, syncingOutbox]);
 	const recentFailedFeedback = useMemo(() => outboxFeedback.filter((item) => item.status === 'FAILED').slice(0, 3), [outboxFeedback]);
 	const timeSlots = useMemo(() => {
 		const unique = new Map<string, { startTime: string; endTime: string }>();
@@ -683,8 +696,7 @@ export default function FacultyRoomPreferences() {
 			toast.error('Select a room for this request type.');
 			return;
 		}
-		const swapNeedsReason = actionType === 'SWAP_WITH_OCCUPIED' && (requestPreview?.hardViolations.length ?? 0) > 0;
-		if (swapNeedsReason && !reason.trim()) {
+		if (reasonRequired && !reason.trim()) {
 			toast.error('A reason is required for conflict-causing swap requests.');
 			return;
 		}
@@ -763,7 +775,7 @@ export default function FacultyRoomPreferences() {
 	}
 
 	return (
-		<div className='flex min-h-[calc(100svh-3.5rem)] flex-col overflow-y-auto lg:h-[calc(100svh-3.5rem)] lg:min-h-0 lg:overflow-hidden'>
+		<div className='flex h-[calc(100svh-3.5rem)] min-h-0 flex-col overflow-hidden'>
 				<div className='shrink-0 space-y-4 px-4 pt-4 pb-3 sm:px-6 sm:pt-6'>
 					{schoolYearNotice && (
 						<div className='rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900'>
@@ -771,24 +783,27 @@ export default function FacultyRoomPreferences() {
 						</div>
 					)}
 
-					{/* Show local status banner only for warnings/action-required states. */}
-					{(!online || syncingOutbox || outboxCount > 0 || outboxStatusCounts.failed > 0) && (
+					{/* Show local status banner for queue/sync lifecycle states. */}
+					{(!online || syncingOutbox || outboxCount > 0 || outboxStatusCounts.failed > 0 || Boolean(lastSyncedFeedback)) && (
 					<div className={`flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-xs ${online ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
 						{online ? <Wifi className='size-4 shrink-0' /> : <WifiOff className='size-4 shrink-0' />}
-						{!online && (
-							<span className='font-semibold'>You're offline — changes will be saved and sent when you reconnect.</span>
+						{syncLifecycleState === 'queued-offline' && (
+							<span className='font-semibold'>Queued — You are offline. Waiting for connection before submitting.</span>
 						)}
-						{online && syncingOutbox && (
-							<span className='font-semibold'>Saving your changes…</span>
+						{syncLifecycleState === 'syncing' && (
+							<span className='font-semibold'>Syncing — Saving your queued room-request changes now.</span>
 						)}
-						{online && !syncingOutbox && outboxCount > 0 && outboxStatusCounts.failed === 0 && (
-							<span className='font-semibold'>{outboxCount} change{outboxCount !== 1 ? 's' : ''} queued — sending now…</span>
+						{syncLifecycleState === 'queued' && (
+							<span className='font-semibold'>Queued — {outboxCount} change{outboxCount !== 1 ? 's' : ''} waiting to sync.</span>
 						)}
-						{online && outboxStatusCounts.failed > 0 && (
+						{syncLifecycleState === 'synced' && lastSyncedFeedback && (
+							<span className='font-semibold'>Synced — Last update saved at {new Date(lastSyncedFeedback.at).toLocaleTimeString()}.</span>
+						)}
+						{syncLifecycleState === 'failed' && (
 							<>
-								<span className='font-semibold text-amber-800'>{outboxStatusCounts.failed} change{outboxStatusCounts.failed !== 1 ? 's' : ''} could not be saved.</span>
+								<span className='font-semibold text-amber-800'>Failed — {outboxStatusCounts.failed} change{outboxStatusCounts.failed !== 1 ? 's' : ''} could not be saved.</span>
 								<Button size='sm' variant='outline' className='h-6 px-2 text-xs' onClick={retryFailedOutboxActions}>
-									Try again
+									Retry
 								</Button>
 							</>
 						)}
@@ -874,7 +889,7 @@ export default function FacultyRoomPreferences() {
 						{draftCount > 0 && (
 							<>
 								<span className='text-border/60'>•</span>
-								<span className='text-muted-foreground'>{draftCount} draft request{draftCount !== 1 ? 's' : ''} (not yet submitted)</span>
+								<span className='text-muted-foreground'>{draftCount} saved request{draftCount !== 1 ? 's' : ''} (ready to submit)</span>
 							</>
 						)}
 						{gate?.blocked && (
@@ -882,9 +897,16 @@ export default function FacultyRoomPreferences() {
 						)}
 						{dirtyEntries.length > 0 && <Badge variant='warning'>{dirtyEntries.length} unsaved change{dirtyEntries.length !== 1 ? 's' : ''}</Badge>}
 					</div>
+
+					<div className='rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900'>
+						<p className='font-semibold'>This schedule is still being reviewed.</p>
+						<p className='mt-1'>What happened: You are editing requests on a review schedule.</p>
+						<p className='mt-1'>What to do now: Submit your room request and wait for the scheduler decision.</p>
+						<p className='mt-1'>Who to contact: Your scheduling officer if this page does not update after reconnecting.</p>
+					</div>
 				</div>
 
-				<div className='lg:hidden flex-1 overflow-auto px-4 pb-28'>
+				<div className='lg:hidden flex-1 min-h-0 overflow-auto px-4 pb-28'>
 					<div className='space-y-4'>
 						{mobileStep === 1 && (
 						<Card className='rounded-2xl border-border'>
@@ -1224,12 +1246,14 @@ export default function FacultyRoomPreferences() {
 								: 'Select a target slot from the schedule grid.'}
 						</div>
 
-						<Textarea
-							value={reason}
-							onChange={(event) => setReason(event.target.value)}
-							placeholder='Reason for this request — required if your change causes a schedule conflict.'
-							className='min-h-24'
-						/>
+						{reasonRequired && (
+							<Textarea
+								value={reason}
+								onChange={(event) => setReason(event.target.value)}
+								placeholder='Reason for this request — required because this swap creates a schedule conflict.'
+								className='min-h-24'
+							/>
+						)}
 
 						<Separator />
 
@@ -1263,7 +1287,7 @@ export default function FacultyRoomPreferences() {
 							Minor scheduling notes are for your information only. Requests with conflicts will be reviewed and decided by the scheduling officer — they are not automatically rejected.
 						</div>
 
-						{actionType === 'SWAP_WITH_OCCUPIED' && (requestPreview?.hardViolations.length ?? 0) > 0 && !reason.trim() && (
+						{reasonRequired && !reason.trim() && (
 							<div className='rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive'>
 								Please enter a reason above to explain why you need this change — it helps the scheduling officer make a decision.
 							</div>
@@ -1274,7 +1298,7 @@ export default function FacultyRoomPreferences() {
 							<Button
 								className='sm:w-auto'
 								onClick={() => void submitCurrentRequest()}
-								disabled={submitting || !selectedEntry || !targetSlot || (actionType === 'SWAP_WITH_OCCUPIED' && (requestPreview?.hardViolations.length ?? 0) > 0 && !reason.trim())}
+								disabled={submitting || !selectedEntry || !targetSlot || (reasonRequired && !reason.trim())}
 							>
 								{submitting ? <Loader2 className='mr-1.5 size-4 animate-spin' /> : <Send className='mr-1.5 size-4' />}
 								Submit request

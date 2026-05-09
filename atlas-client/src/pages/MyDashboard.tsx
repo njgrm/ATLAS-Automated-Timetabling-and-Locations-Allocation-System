@@ -127,6 +127,25 @@ export default function MyDashboard() {
 		return dashboard.schedulePreview.entries.slice(0, 10);
 	}, [dashboard]);
 
+	const plainLanguageBanner = useMemo(() => {
+		if (!dashboard) return null;
+		if (dashboard.runContext.state === 'NO_ACTIVE_DRAFT') {
+			return {
+				title: 'Your schedule is still being prepared.',
+				whatHappened: 'What happened: The scheduler has not released a review draft for your classes yet.',
+				whatNow: 'What to do now: Check back later. If this takes too long, ask your scheduling officer for an update.',
+				whoToContact: 'Who to contact: Your scheduling officer or school IT admin.',
+			};
+		}
+
+		return {
+			title: 'This schedule is still being reviewed.',
+			whatHappened: 'What happened: You are viewing a review draft while the scheduler finalizes the timetable.',
+			whatNow: 'What to do now: You can submit room requests now. Final schedule will be shared after scheduler approval.',
+			whoToContact: 'Who to contact: Your scheduling officer if anything looks incorrect.',
+		};
+	}, [dashboard]);
+
 	if (loading) {
 		return (
 			<div className='flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden'>
@@ -176,7 +195,7 @@ export default function MyDashboard() {
 					<div className='rounded-2xl border border-border bg-card px-4 py-5 shadow-sm'>
 						<p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>My Portal</p>
 						<h1 className='mt-1.5 text-xl font-semibold tracking-tight'>Hello, {dashboard.faculty.name} 👋</h1>
-						<p className='mt-1 text-sm text-muted-foreground'>{dashboard.phaseMessage}</p>
+						<p className='mt-1 text-sm text-muted-foreground'>{plainLanguageBanner?.title ?? dashboard.phaseMessage}</p>
 						<Link
 							to='/my/room-preferences'
 							className='mt-4 flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors'
@@ -186,6 +205,15 @@ export default function MyDashboard() {
 							<ArrowRight className='size-4 ml-auto' />
 						</Link>
 					</div>
+
+					{plainLanguageBanner && (
+						<div className='rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900'>
+							<p className='font-semibold'>{plainLanguageBanner.title}</p>
+							<p className='mt-1'>{plainLanguageBanner.whatHappened}</p>
+							<p className='mt-1'>{plainLanguageBanner.whatNow}</p>
+							<p className='mt-1'>{plainLanguageBanner.whoToContact}</p>
+						</div>
+					)}
 
 					{dashboard.fallbackBanner.show && (
 						<div className='rounded-2xl border border-amber-300 bg-amber-50 px-4 py-4'>

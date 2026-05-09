@@ -2,6 +2,67 @@
 
 Record dated implementation verification summaries here.
 
+### 2026-05-09 - Faculty UX Gate Recovery Pass (NO-GO to GO)
+- Phase: 4 (faculty UX hardening validation)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Final decision:
+  - GO
+- Commands:
+  - `npm --prefix .\\atlas-client run build`: PASS
+  - `npm --prefix .\\atlas-server run build`: PASS
+  - `npm --prefix .\\atlas-server run test:room-pref-sync`: PASS
+  - `npm --prefix .\\atlas-server run test:phase1`: PASS
+  - `npm --prefix .\\atlas-server run test:phase2`: PASS
+  - `npm --prefix .\\atlas-server run test:phase2-regression`: PASS
+- Manual evidence matrix (final pass):
+  - First-screen plain-language guidance on `/my` and `/my/room-preferences`: PASS
+  - Conditional reason field:
+    - Non-required path hidden: PASS
+    - Conflict-causing swap required and visible: PASS
+  - Mobile scroll safety:
+    - Portrait: PASS
+    - Landscape: PASS
+  - Offline lifecycle proof:
+    - queued-offline: PASS
+    - syncing: PASS
+    - queued pending: PASS
+    - synced: PASS
+    - failed + retry control visible: PASS
+    - retry action trigger from failed state: PASS
+  - Final timed non-technical acceptance:
+    - Portrait run: 5710 ms (< 2 min): PASS
+    - Landscape run: 6652 ms (< 2 min): PASS
+- Evidence capture references (browser run artifacts):
+  - Conflict-causing required reason visible: `call_SJSpCtr46gCYYOuHNo1GlZFJ`
+  - Mobile landscape layout check: `call_WRwxaaS0HCaAZHZtW2EoI17t`
+  - Offline queued-offline banner: `call_vwlq1YaRxEkMCEYJNmluMXNL`
+  - Reconnect syncing state: `call_1d7oN7NHCAoGsKmxBZHKyq0p`
+  - Synced state: `call_0nNJZPGBbFecRLFwSPwYtDZc`
+  - Failed + Retry visible: `call_Kzh110Pd2BEV8GlHWozmfOgo`
+  - Retry action triggered (syncing after retry): `call_bI1Mtw7ap7VbPvnttsk5ZL3M`
+- Environment notes:
+  - Intermittent local 401/403/SSE noise still appears in this environment but did not block gate criteria completion in this pass.
+
+### 2026-05-09 - Final Faculty Gate Checklist (Design + Usability First)
+- Phase: 4 (faculty UX hardening validation)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PARTIAL PASS
+- Regression gate: PARTIAL PASS
+- Checklist report:
+  - `docs/verification/faculty-final-gate-checklist-2026-05-09.md`
+- Final decision:
+  - NO-GO (critical items remain open)
+- Critical failures recorded:
+  - First-screen copy still contains technical wording for non-technical users.
+  - Mobile room-preferences scroll architecture still carries nested-scroll risk.
+  - Copy quality does not consistently provide "what happened / what to do / who to contact".
+  - Offline-confidence end-to-end evidence (queued->sync->resolved + retry) not fully completed in final run.
+  - Final observed non-technical acceptance run (<2 minutes, no trial-and-error confusion) not yet documented.
+
 ### 2026-05-09 - Faculty UX/UI Hardening Pass (Mobile Drawer + Guided Room Request Flow)
 - Phase: 4 (objective-priority continuation)
 - Scope gate: PASS
