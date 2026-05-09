@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
 	AlertCircle,
-	Wifi,
-	WifiOff,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -39,6 +37,7 @@ import type {
 	TutorialStep,
 } from '@/types';
 import { TutorialOverlay, useTutorial } from '@/components/TutorialOverlay';
+import StatusRail from '@/components/faculty-shared/StatusRail';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -815,50 +814,20 @@ export default function FacultyRoomPreferences() {
 						</div>
 					)}
 
-					{/* Show local status banner for queue/sync lifecycle states. */}
-					{(!online || syncingOutbox || outboxCount > 0 || outboxStatusCounts.failed > 0 || Boolean(lastSyncedFeedback)) && (
-					<div className={`flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-xs ${online ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
-						{online ? <Wifi className='size-4 shrink-0' /> : <WifiOff className='size-4 shrink-0' />}
-						{syncLifecycleState === 'queued-offline' && (
-							<span className='font-semibold'>Queued — You are offline. Waiting for connection before submitting.</span>
-						)}
-						{syncLifecycleState === 'syncing' && (
-							<span className='font-semibold'>Syncing — Saving your queued room-request changes now.</span>
-						)}
-						{syncLifecycleState === 'queued' && (
-							<span className='font-semibold'>Queued — {outboxCount} change{outboxCount !== 1 ? 's' : ''} waiting to sync.</span>
-						)}
-						{syncLifecycleState === 'synced' && lastSyncedFeedback && (
-							<span className='font-semibold'>Synced — Last update saved at {new Date(lastSyncedFeedback.at).toLocaleTimeString()}.</span>
-						)}
-						{syncLifecycleState === 'failed' && (
-							<>
-								<span className='font-semibold text-amber-800'>Failed — {outboxStatusCounts.failed} change{outboxStatusCounts.failed !== 1 ? 's' : ''} could not be saved.</span>
-								<Button size='sm' variant='outline' className='h-6 px-2 text-xs' onClick={retryFailedOutboxActions}>
-									Retry
-								</Button>
-							</>
-						)}
-						{compactPresence.visible.length > 0 && (
-							<>
-								<span className='mx-1 text-muted-foreground/40'>|</span>
-								<span className='text-muted-foreground'>{compactPresence.visible.length + compactPresence.hiddenCount} other{compactPresence.visible.length + compactPresence.hiddenCount !== 1 ? 's' : ''} viewing</span>
-								<div className='flex items-center gap-1'>
-									{compactPresence.visible.map((person) => {
-										const label = person.email ?? `User`;
-										const initials = label.slice(0, 2).toUpperCase();
-										return (
-											<span key={person.connectionId} className='inline-flex size-5 items-center justify-center rounded-full border border-current bg-white text-[0.55rem] font-semibold' title={label}>
-												{initials}
-											</span>
-										);
-									})}
-									{compactPresence.hiddenCount > 0 && <span className='text-muted-foreground'>+{compactPresence.hiddenCount}</span>}
-								</div>
-							</>
-						)}
-							</div>
-							)}
+					{(!online || syncingOutbox || outboxCount > 0 || outboxStatusCounts.failed > 0 || Boolean(lastSyncedFeedback) || compactPresence.visible.length > 0) && (
+						<StatusRail
+							online={online}
+							syncState={syncLifecycleState}
+							queuedCount={outboxCount}
+							failedCount={outboxStatusCounts.failed}
+							lastSyncedAt={lastSyncedFeedback?.at ?? null}
+							liveViewers={compactPresence.visible.length + compactPresence.hiddenCount}
+							liveUpdates={liveUpdateCount}
+							realtimeConnected={collaborationConnected}
+							realtimeError={collaborationLastError}
+							onRetryFailed={retryFailedOutboxActions}
+						/>
+					)}
 
 					<RoomRequestHeader
 						isMobileViewport={isMobileViewport}
@@ -872,30 +841,32 @@ export default function FacultyRoomPreferences() {
 						dirtyCount={dirtyEntries.length}
 					/>
 
-					<div className='flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5' data-tutorial='context-toggle'>
-						<div className='min-w-0 flex-1'>
+					<div className='space-y-2 rounded-xl border border-border bg-card px-3 py-2.5' data-tutorial='context-toggle'>
+						<div>
 							<p className='text-xs font-semibold text-foreground'>My Schedule First</p>
 							<p className='text-xs text-muted-foreground'>
 								Keep this off for the simple view. Turn on full schedule context only when you need more detail.
 							</p>
 						</div>
-						<div className='flex items-center gap-2'>
-							<Switch
-								checked={showFullScheduleContext}
-								onCheckedChange={setShowFullScheduleContext}
-								aria-label='Show full schedule context'
-							/>
-							<span className='text-xs text-muted-foreground'>Show full context</span>
+						<div className='flex flex-wrap items-center gap-3'>
+							<div className='flex items-center gap-2'>
+								<Switch
+									checked={showFullScheduleContext}
+									onCheckedChange={setShowFullScheduleContext}
+									aria-label='Show full schedule context'
+								/>
+								<span className='text-xs text-muted-foreground'>Show full context</span>
+							</div>
+							<Button
+								type='button'
+								variant='outline'
+								size='sm'
+								onClick={tutorial.start}
+								data-tutorial='tour-replay-btn'
+							>
+								Take a quick tour
+							</Button>
 						</div>
-						<Button
-							type='button'
-							variant='outline'
-							size='sm'
-							onClick={tutorial.start}
-							data-tutorial='tour-replay-btn'
-						>
-							Take a quick tour
-						</Button>
 					</div>
 				</div>
 

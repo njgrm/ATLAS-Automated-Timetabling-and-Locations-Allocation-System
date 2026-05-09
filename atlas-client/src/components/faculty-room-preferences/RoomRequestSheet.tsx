@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/ui/separator';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/tabs';
-import { Textarea } from '@/ui/textarea';
+import ConflictInspector from '@/components/faculty-shared/ConflictInspector';
 
 type RoomOption = Room & { buildingName: string };
 
@@ -312,52 +312,19 @@ export default function RoomRequestSheet({
 							: 'Select a target slot from the schedule grid.'}
 					</div>
 
-					{reasonRequired && (
-						<Textarea
-							value={reason}
-							onChange={(event) => onReasonChange(event.target.value)}
-							placeholder='Reason for this request - required because this swap creates a schedule conflict.'
-							className='min-h-24'
-						/>
-					)}
-
 					<Separator />
 
-					<div className='space-y-2'>
-						<p className='text-sm font-semibold'>Schedule check</p>
-						{previewLoading && <p className='text-xs text-muted-foreground'>Checking for conflicts...</p>}
-						{!previewLoading && requestPreview && (
-							<>
-								{requestPreview.hardViolations.length === 0 && requestPreview.softViolations.length === 0 && (
-									<p className='text-xs font-medium text-emerald-700'>No conflicts found. You can submit this request.</p>
-								)}
-								{requestPreview.hardViolations.length > 0 && (
-									<p className='text-xs font-medium text-amber-800'>This request causes {requestPreview.hardViolations.length} schedule conflict{requestPreview.hardViolations.length !== 1 ? 's' : ''}. Please explain your reason below and the scheduling officer will decide.</p>
-								)}
-								{requestPreview.softViolations.length > 0 && requestPreview.hardViolations.length === 0 && (
-									<p className='text-xs text-muted-foreground'>{requestPreview.softViolations.length} minor scheduling note{requestPreview.softViolations.length !== 1 ? 's' : ''}. You can still submit.</p>
-								)}
-								<div className='space-y-2'>
-									{requestPreview.humanConflicts.map((conflict, index) => (
-										<div key={`${conflict.code}-${conflict.humanTitle}-${index}`} className='rounded-lg border border-border bg-background p-2'>
-											<p className='text-xs font-semibold'>{conflict.humanTitle}</p>
-											<p className='mt-1 text-xs text-muted-foreground'>{conflict.humanDetail}</p>
-										</div>
-									))}
-								</div>
-							</>
-						)}
-					</div>
+					<ConflictInspector
+						previewLoading={previewLoading}
+						preview={requestPreview}
+						reasonRequired={reasonRequired}
+						reason={reason}
+						onReasonChange={onReasonChange}
+					/>
 
 					<div className='rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900'>
 						Requests with conflicts are reviewed by the scheduling officer. They are not auto-rejected.
 					</div>
-
-					{reasonRequired && !reason.trim() && (
-						<div className='rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive'>
-							Please enter a reason above so the scheduling officer can decide your request.
-						</div>
-					)}
 
 					<div className='flex flex-col-reverse gap-2 sm:flex-row sm:justify-end'>
 						<Button variant='outline' className='sm:w-auto' onClick={() => onOpenChange(false)}>Cancel</Button>

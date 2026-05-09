@@ -6,6 +6,7 @@ This directory holds detailed execution and verification records per phase.
 - Cross-role UX refactor sequencing and acceptance gates: `docs/phases/ux-refactor-master-plan.md`
 - Hybrid algorithm refactor sequencing and acceptance gates: `docs/phases/algorithm-hybrid-refactor-plan.md`
 - Copilot skill/context7 rollout sequencing: `docs/phases/copilot-supercharge-rollout.md`
+- Faculty UX/UI refactor execution details (mobile + desktop): `docs/phases/faculty-ux-ui-refactor-execution-plan.md`
 
 ## Source Of Truth Order
 1. `phasePlan.md` (root) — active phase pointer and high-level status

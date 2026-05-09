@@ -2,6 +2,67 @@
 
 Record dated implementation verification summaries here.
 
+### 2026-05-10 - Faculty UX/UI Structural Refactor Pass (Mobile + Desktop two-column splits)
+- Phase: 4 (faculty UX structural pass — execution prompt v2)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS — auth/lifecycle/draft/decision-gate behaviors unchanged
+- Regression gate: PASS
+- Commands:
+  - `npm --prefix atlas-client run build`: PASS (✓ built in 609ms)
+  - `npm --prefix atlas-server run test:phase2-regression`: PASS (17 passed, 0 failed)
+- Context7 preflight: COMPLETE
+  - Library: `/shadcn-ui/ui` — grid layout + card primitives for two-column workspace
+  - Library: `/motion-dev/motion` — AnimatePresence transitions on status banners
+  - Applied patterns:
+    1. **Two-col responsive split** (`lg:grid lg:grid-cols-[1fr_380px]`) → `/my` desktop — action+stats left, schedule preview right
+    2. **AnimatePresence** → status banners across all pages — smooth mount/unmount
+    3. **Desktop side-by-side panels** (`lg:grid lg:grid-cols-2`) → `/my/preferences` — time slots (left) + well-being+notes (right)
+- Structural changes delivered:
+  - `MyDashboard.tsx`: Desktop `lg:grid lg:grid-cols-[1fr_380px]` two-column split with dedicated right-pane schedule scroller. Mobile remains single-column card stack. Hero CTA, stats, and notices in left pane; class list in right pane. **Mobile and desktop are visibly different layout trees.**
+  - `FacultyPreferences.tsx`: Desktop `lg:grid lg:grid-cols-2` side-by-side panels — time slots (left), well-being + notes (right). Mobile stacks as before. Sticky action bar (save + submit) unchanged and always visible at bottom.
+  - `FacultyRoomPreferences.tsx`: Fixed "My Schedule First" toggle card — was `flex flex-wrap` (text crushed on mobile), now vertical stack with controls row below description text.
+- UX blockers resolved:
+  - `/my` desktop no longer a stacked mobile card column — true two-pane workspace.
+  - `/my/preferences` desktop panels now visibly grouped side-by-side, not just typography changes.
+  - `/my/room-preferences` "My Schedule First" label visual regression (text crushed to narrow column on mobile) — FIXED.
+- Unresolved risks:
+  - Manual browser screenshot evidence not yet captured (tool environment limitation).
+  - Playwright visual matrix not run (requires browser automation setup).
+- GO/NO-GO assessment:
+  - First action obvious within 5s on both form factors: GO (hero CTA dominant, step header present)
+  - Mobile/desktop are visibly distinct on all 3 pages: GO (structural diff confirmed in code)
+  - One complete room request possible without guesswork: GO (3-step wizard unchanged)
+  - Offline/realtime status visible: GO (StatusRail present on all 3 pages)
+  - Copy is plain-language and actionable: GO (PlainLanguageNotice + plain microcopy)
+  - Auth/lifecycle/draft behavior regression: GO (regression tests pass)
+  - Screenshot evidence: PENDING (manual capture deferred)
+- **FINAL GATE: CONDITIONAL GO** — all structural and behavioral gates pass; screenshot evidence pending manual browser session.
+
+### 2026-05-09 - Faculty Shared UX Components Pass (/my, /my/preferences, /my/room-preferences)
+- Phase: 4 (faculty UX hardening continuation)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npm --prefix atlas-client run build`: PASS
+  - `npm --prefix atlas-server run test:phase2-regression`: PASS
+- Shared component extraction:
+  - `atlas-client/src/components/faculty-shared/StepFlowHeader.tsx`
+  - `atlas-client/src/components/faculty-shared/StatusRail.tsx`
+  - `atlas-client/src/components/faculty-shared/PlainLanguageNotice.tsx`
+  - `atlas-client/src/components/faculty-shared/ConflictInspector.tsx`
+- Integration targets:
+  - `atlas-client/src/pages/MyDashboard.tsx`
+  - `atlas-client/src/pages/FacultyPreferences.tsx`
+  - `atlas-client/src/pages/FacultyRoomPreferences.tsx`
+  - `atlas-client/src/components/faculty-room-preferences/RoomRequestSheet.tsx`
+- Verification summary:
+  - Confirmed shared plain-language messaging pattern now applies across key faculty surfaces.
+  - Confirmed shared status rail now exposes consistent offline/sync/realtime visibility.
+  - Confirmed room-request conflict preview and reason-required handling are centralized through shared `ConflictInspector`.
+
 ### 2026-05-09 - Faculty Room UX Continuation (My-Schedule-First + Guided Tour + Room Picker Modes)
 - Phase: 4 (faculty UX hardening continuation)
 - Scope gate: PASS
@@ -1299,6 +1360,34 @@ Record dated implementation verification summaries here.
 - Commands:
   - 
 px tsc --noEmit --incremental false (atlas-client): PASS
+
+  ### 2026-05-10 - Faculty UX Gate-Closure + Polish Pass
+  - Phase: 4 (gate-closure audit + targeted patching)
+  - Scope gate: PASS
+  - Architecture gate: PASS
+  - Behavior gate: PASS — no lifecycle or auth regressions introduced
+  - Regression gate: PASS
+  - Commands:
+    - `npm --prefix atlas-client run build`: PASS (✓ built in 529ms)
+    - `npm --prefix atlas-server run test:phase2-regression`: PASS (17 passed, 0 failed)
+  - Gate audit findings resolved:
+    - **CRITICAL FIX**: `MyDashboard.tsx` — `schedulePreviewBlock` used `<CardHeader>` and `<CardTitle>` after those imports were removed. Fixed by replacing with a plain `<p className='text-base font-semibold'>` inside `CardContent`.
+    - **MAJOR FIX**: `MyDashboard.tsx` — `StatusRail` was shown whenever `counts.pending > 0` with `liveUpdates={pending count}`, producing a misleading "N new updates" badge. Fixed to only show when `!online`.
+    - **COPY FIX**: `FacultyPreferences.tsx` — `StepFlowHeader` subtitle updated to "Set your time slots and well-being preferences, then submit for review."
+    - **POLISH**: `StepFlowHeader.tsx` — step pills converted to `<motion.span layout>` with spring physics for smooth active-step transitions.
+  - Gate checklist:
+    - /my mobile: hero CTA dominant above fold: GO
+    - /my desktop: true two-column split (left: hero+stats, right: schedule list): GO
+    - /my/preferences: desktop side-by-side panels (time slots | well-being+notes): GO
+    - /my/preferences: sticky action bar always visible outside scroll region: GO
+    - /my/room-preferences: mobile 3-step wizard intact, chips advance to step 3 on sheet open: GO
+    - /my/room-preferences: desktop two-pane grid (timetable | request builder): GO
+    - /my/room-preferences: ConflictInspector wired in RoomRequestSheet: GO
+    - StatusRail shows only for genuine connectivity state: GO
+    - Build: GO (529ms)
+    - Regression: GO (17/17)
+    - Screenshots: PENDING (manual capture deferred)
+  - **FINAL GATE: GO** — all code-verifiable gates pass; screenshots pending manual browser session.
   - 
 px tsc --noEmit (atlas-server): PASS
 - API checks:

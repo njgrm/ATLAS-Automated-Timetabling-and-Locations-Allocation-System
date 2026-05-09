@@ -32,6 +32,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/ui/skeleton';
 import { Switch } from '@/ui/switch';
 import { Textarea } from '@/ui/textarea';
+import PlainLanguageNotice from '@/components/faculty-shared/PlainLanguageNotice';
+import StatusRail from '@/components/faculty-shared/StatusRail';
+import StepFlowHeader from '@/components/faculty-shared/StepFlowHeader';
 
 /* ─── Constants ─── */
 
@@ -152,6 +155,9 @@ export default function FacultyPreferences() {
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [facultyId, setFacultyId] = useState<number | null>(null);
 	const [schoolYearNotice, setSchoolYearNotice] = useState<string | null>(null);
+	const [online, setOnline] = useState<boolean>(navigator.onLine);
+	const [sseConnected, setSseConnected] = useState(false);
+	const [sseError, setSseError] = useState<string | null>(null);
 
 	const [preference, setPreference] = useState<FacultyPreference | null>(null);
 	const [slots, setSlots] = useState<SlotRow[]>([emptySlot()]);
@@ -239,12 +245,26 @@ export default function FacultyPreferences() {
 
 	/* ── SSE: bilateral preference events ── */
 	useEffect(() => {
+		const updateOnline = () => setOnline(navigator.onLine);
+		window.addEventListener('online', updateOnline);
+		window.addEventListener('offline', updateOnline);
+		return () => {
+			window.removeEventListener('online', updateOnline);
+			window.removeEventListener('offline', updateOnline);
+		};
+	}, []);
+
+	useEffect(() => {
 		if (!activeSchoolYearId || !facultyId) return;
 		const token = getPreferredAccessToken();
 		const tokenParam = token ? `accessToken=${encodeURIComponent(token)}` : '';
 		const url = `/api/v1/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/events${tokenParam ? '?' + tokenParam : ''}`;
 		const es = new EventSource(url);
 		sseRef.current = es;
+		es.onopen = () => {
+			setSseConnected(true);
+			setSseError(null);
+		};
 		es.addEventListener('preference', (ev) => {
 			try {
 				const event = JSON.parse((ev as MessageEvent).data) as {
@@ -262,8 +282,15 @@ export default function FacultyPreferences() {
 				// Ignore parse errors
 			}
 		});
-		es.onerror = () => { /* auto-reconnects */ };
-		return () => { es.close(); sseRef.current = null; };
+		es.onerror = () => {
+			setSseConnected(false);
+			setSseError('Realtime updates are reconnecting.');
+		};
+		return () => {
+			es.close();
+			sseRef.current = null;
+			setSseConnected(false);
+		};
 	}, [activeSchoolYearId, facultyId, loadPreference]);
 
 	/* ── Slot mutations ── */
@@ -353,6 +380,7 @@ export default function FacultyPreferences() {
 	/* ── Derived state ── */
 	const isSubmitted = preference?.status === 'SUBMITTED';
 	const canEdit = !locked;
+	const preferenceStep = locked || isSubmitted ? 3 : 2;
 	const topBanner: 'locked' | 'review' | 'submitted' | null = locked
 		? 'locked'
 		: reviewUpdates > 0
@@ -411,13 +439,13 @@ export default function FacultyPreferences() {
 								animate={{ opacity: 1, y: 0 }}
 								exit={{ opacity: 0, y: -8 }}
 							>
-								<div className='flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5'>
-									<Lock className='size-4 text-amber-600 shrink-0 mt-0.5' />
-									<div>
-										<p className='text-sm font-medium text-amber-800'>Preferences locked</p>
-										<p className='text-xs text-amber-700 mt-0.5'>{lockedMsg}</p>
-									</div>
-								</div>
+								<PlainLanguageNotice
+									variant='warning'
+									title='Preferences locked'
+									whatHappened={lockedMsg}
+									whatNow='Review your latest submission status while waiting for the scheduling officer to reopen edits.'
+									whoToContact='Your scheduling officer'
+								/>
 							</motion.div>
 						)}
 						{topBanner === 'submitted' && (
@@ -427,17 +455,13 @@ export default function FacultyPreferences() {
 								animate={{ opacity: 1, y: 0 }}
 								exit={{ opacity: 0, y: -8 }}
 							>
-								<div className='flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-3 py-2.5'>
-									<CheckCircle2 className='size-4 text-green-600 shrink-0 mt-0.5' />
-									<div>
-										<p className='text-sm font-medium text-green-800'>Preferences submitted</p>
-										<p className='text-xs text-green-700 mt-0.5'>
-											Submitted {preference?.submittedAt
-												? new Date(preference.submittedAt).toLocaleString()
-												: 'N/A'}. You can still edit until the scheduling officer locks the window.
-										</p>
-									</div>
-								</div>
+								<PlainLanguageNotice
+									variant='success'
+									title='Preferences submitted'
+									whatHappened={`Submitted ${preference?.submittedAt ? new Date(preference.submittedAt).toLocaleString() : 'N/A'}.`}
+									whatNow='You can still edit until the scheduling officer locks the submission window.'
+									whoToContact='Your scheduling officer'
+								/>
 							</motion.div>
 						)}
 						{topBanner === 'review' && (
@@ -447,23 +471,21 @@ export default function FacultyPreferences() {
 								animate={{ opacity: 1, y: 0 }}
 								exit={{ opacity: 0, y: -8 }}
 							>
-								<div className='flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5'>
-									<CalendarClock className='size-4 text-blue-600 shrink-0 mt-0.5' />
-									<div className='flex-1'>
-										<p className='text-sm font-medium text-blue-800'>Review update received</p>
-										<p className='text-xs text-blue-700 mt-0.5'>
-											Your preferences were reviewed. Changes are reflected below.
-										</p>
-									</div>
-									<Button
-										variant='ghost'
-										size='sm'
-										className='text-blue-700 hover:text-blue-900 h-7 px-2 shrink-0'
-										onClick={() => setReviewUpdates(0)}
-									>
-										Dismiss
-									</Button>
-								</div>
+								<PlainLanguageNotice
+									title='Review update received'
+									whatHappened='Your preferences were reviewed. Changes are reflected below.'
+									whatNow='Review the updates and adjust your draft if needed.'
+									actionSlot={
+										<Button
+											variant='ghost'
+											size='sm'
+											className='h-7 px-2 text-blue-800 hover:text-blue-900'
+											onClick={() => setReviewUpdates(0)}
+										>
+											Dismiss
+										</Button>
+									}
+								/>
 							</motion.div>
 						)}
 					</AnimatePresence>
@@ -472,48 +494,34 @@ export default function FacultyPreferences() {
 
 			{/* Scrolling content */}
 			<div className='flex-1 min-h-0 overflow-auto px-4 py-4 sm:px-6 sm:py-6 space-y-4 sm:space-y-6'>
+				<StepFlowHeader
+					title='My Preferences'
+					subtitle='Set your time slots and well-being preferences, then submit for review.'
+					steps={[
+						{ id: 1, label: '1 Set time slots' },
+						{ id: 2, label: '2 Save draft' },
+						{ id: 3, label: '3 Submit and wait' },
+					]}
+					activeStep={preferenceStep}
+				/>
+
+				<StatusRail
+					online={online}
+					syncState={online ? 'idle' : 'queued-offline'}
+					liveUpdates={reviewUpdates}
+					realtimeConnected={sseConnected}
+					realtimeError={sseError}
+				/>
+
 				{schoolYearNotice && (
 					<div className='rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900'>
 						{schoolYearNotice}
 					</div>
 				)}
 
-				{/* Well-being preferences */}
-				<Card>
-					<CardContent className='pt-5 space-y-4'>
-						<div className='flex items-center gap-2'>
-							<Heart className='size-4 text-rose-500' />
-							<h2 className='text-sm font-semibold'>Well-being Preferences</h2>
-							<span className='text-xs text-muted-foreground ml-1'>
-								(Scheduling officer has final authority on accommodations)
-							</span>
-						</div>
-						<div className='grid gap-4 sm:grid-cols-2'>
-							{WELLBEING_ITEMS.map(({ key, label, description }) => (
-								<div
-									key={key}
-									className='flex items-start gap-3 rounded-lg border border-border p-3 bg-muted/30'
-								>
-									<Switch
-										id={`wb-${key}`}
-										checked={wellbeing[key]}
-										onCheckedChange={(checked) =>
-											setWellbeing((prev) => ({ ...prev, [key]: checked }))
-										}
-										disabled={!canEdit}
-										className='mt-0.5 shrink-0'
-									/>
-									<div>
-										<Label htmlFor={`wb-${key}`} className='text-sm font-medium cursor-pointer'>
-											{label}
-										</Label>
-										<p className='text-xs text-muted-foreground mt-0.5'>{description}</p>
-									</div>
-								</div>
-							))}
-						</div>
-					</CardContent>
-				</Card>
+				{/* Desktop: two-panel side-by-side (time slots left, well-being right) */}
+				{/* Mobile: stacked cards */}
+				<div className='lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-4 lg:space-y-0'>
 
 				{/* Time slots editor */}
 				<Card>
@@ -688,6 +696,46 @@ export default function FacultyPreferences() {
 					</CardContent>
 				</Card>
 
+				{/* Right column on desktop: well-being + notes */}
+				<div className='space-y-4'>
+
+				{/* Well-being preferences */}
+				<Card>
+					<CardContent className='pt-5 space-y-4'>
+						<div className='flex items-center gap-2'>
+							<Heart className='size-4 text-rose-500' />
+							<h2 className='text-sm font-semibold'>Well-being Preferences</h2>
+							<span className='text-xs text-muted-foreground ml-1'>
+								(Scheduling officer has final authority on accommodations)
+							</span>
+						</div>
+						<div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-1'>
+							{WELLBEING_ITEMS.map(({ key, label, description }) => (
+								<div
+									key={key}
+									className='flex items-start gap-3 rounded-lg border border-border p-3 bg-muted/30'
+								>
+									<Switch
+										id={`wb-${key}`}
+										checked={wellbeing[key]}
+										onCheckedChange={(checked) =>
+											setWellbeing((prev) => ({ ...prev, [key]: checked }))
+										}
+										disabled={!canEdit}
+										className='mt-0.5 shrink-0'
+									/>
+									<div>
+										<Label htmlFor={`wb-${key}`} className='text-sm font-medium cursor-pointer'>
+											{label}
+										</Label>
+										<p className='text-xs text-muted-foreground mt-0.5'>{description}</p>
+									</div>
+								</div>
+							))}
+						</div>
+					</CardContent>
+				</Card>
+
 				{/* Notes */}
 				<Card>
 					<CardContent className='pt-5 space-y-2'>
@@ -701,7 +749,11 @@ export default function FacultyPreferences() {
 						/>
 					</CardContent>
 				</Card>
-			</div>
+
+				</div>{/* end right col */}
+				</div>{/* end desktop grid */}
+
+			</div>{/* end scrolling content */}
 
 			{/* Actions bar */}
 			<div className='shrink-0 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between border-t border-border px-4 py-3 sm:px-6 sm:py-4 bg-background'>
@@ -722,7 +774,7 @@ export default function FacultyPreferences() {
 							variant='outline'
 							onClick={saveDraft}
 							disabled={saving || submitting}
-							className='gap-1.5 min-h-[3rem] sm:min-h-0'
+							className='gap-1.5 min-h-12 sm:min-h-0'
 						>
 							{saving ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
 							Save Draft
@@ -730,7 +782,7 @@ export default function FacultyPreferences() {
 						<Button
 							onClick={submitPreference}
 							disabled={saving || submitting}
-							className='gap-1.5 min-h-[3rem] sm:min-h-0'
+							className='gap-1.5 min-h-12 sm:min-h-0'
 						>
 							{submitting ? <Loader2 className='size-4 animate-spin' /> : <Send className='size-4' />}
 							Submit
