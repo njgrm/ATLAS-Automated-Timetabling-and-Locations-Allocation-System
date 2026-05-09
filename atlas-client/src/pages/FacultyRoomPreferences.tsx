@@ -1,10 +1,8 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
 	AlertCircle,
 	Loader2,
 	Move,
-	RotateCw,
-	ScanSearch,
 	Send,
 	Shuffle,
 	TimerReset,
@@ -55,6 +53,9 @@ import { Card, CardContent } from '@/ui/card';
 import { Input } from '@/ui/input';
 import { Skeleton } from '@/ui/skeleton';
 import { Textarea } from '@/ui/textarea';
+import DesktopRoomRequestLayout from '@/components/faculty-room-preferences/DesktopRoomRequestLayout';
+import MobileRoomRequestLayout from '@/components/faculty-room-preferences/MobileRoomRequestLayout';
+import RoomRequestHeader from '@/components/faculty-room-preferences/RoomRequestHeader';
 
 const DEFAULT_SCHOOL_ID = 1;
 const FALLBACK_SCHOOL_YEAR_ID = 1;
@@ -828,366 +829,92 @@ export default function FacultyRoomPreferences() {
 							</div>
 							)}
 
-					<div className='flex flex-wrap items-start gap-3'>
-						<div>
-							<h1 className='text-2xl font-semibold tracking-tight'>Room Change Requests</h1>
-							<p className='text-sm text-muted-foreground'>
-								{(isMobileViewport ? mobileStep : currentStep) === 1
-									? 'Step 1 of 3 — Select one of your classes to begin.'
-									: (isMobileViewport ? mobileStep : currentStep) === 2
-										? 'Step 2 of 3 — Choose where you want to move it.'
-										: 'Step 3 of 3 — Review conflicts and submit your request.'}
-							</p>
-							<div className='mt-2 flex gap-1.5'>
-								{(['1 Select Class', '2 Choose Target', '3 Review & Submit'] as const).map((label, idx) => {
-									const step = idx + 1;
-									const activeStep = isMobileViewport ? mobileStep : currentStep;
-									return (
-										<span
-											key={label}
-											className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
-												step === activeStep
-													? 'bg-primary text-primary-foreground border-primary'
-													: step < activeStep
-														? 'bg-primary/15 text-primary border-primary/30'
-														: 'bg-muted text-muted-foreground border-transparent'
-											}`}
-										>
-											{label}
-										</span>
-									);
-								})}
-							</div>
-						</div>
-						<div className='ml-auto hidden lg:flex flex-wrap items-center gap-2'>
-							<Button variant='outline' size='sm' onClick={() => setZoom((current) => Math.max(0.7, Number((current - 0.1).toFixed(2))))}>
-								<Move className='mr-1.5 size-4' /> Zoom out
-							</Button>
-							<Button variant='outline' size='sm' onClick={() => setZoom((current) => Math.min(1.5, Number((current + 0.1).toFixed(2))))}>
-								<ScanSearch className='mr-1.5 size-4' /> Zoom in
-							</Button>
-							<Button variant='outline' size='sm' onClick={() => setZoom(1)}>
-								<RotateCw className='mr-1.5 size-4' /> Reset
-							</Button>
-						</div>
-					</div>
-
-					<div className='flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-sm shadow-sm'>
-						<span className='font-medium text-foreground'>{entries.length} class{entries.length !== 1 ? 'es' : ''} assigned to you</span>
-						{runGeneratedAt && (
-							<>
-								<span className='text-border/60'>•</span>
-								<span className='text-muted-foreground'>Schedule as of {new Date(runGeneratedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-							</>
-						)}
-						{submittedCount > 0 && (
-							<>
-								<span className='text-border/60'>•</span>
-								<span className='text-muted-foreground'>{submittedCount} request{submittedCount !== 1 ? 's' : ''} pending review</span>
-							</>
-						)}
-						{draftCount > 0 && (
-							<>
-								<span className='text-border/60'>•</span>
-								<span className='text-muted-foreground'>{draftCount} saved request{draftCount !== 1 ? 's' : ''} (ready to submit)</span>
-							</>
-						)}
-						{gate?.blocked && (
-							<Badge variant='warning'>Schedule update paused — {gate.openCount} request{gate.openCount !== 1 ? 's' : ''} awaiting decision</Badge>
-						)}
-						{dirtyEntries.length > 0 && <Badge variant='warning'>{dirtyEntries.length} unsaved change{dirtyEntries.length !== 1 ? 's' : ''}</Badge>}
-					</div>
-
-					<div className='rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900'>
-						<p className='font-semibold'>This schedule is still being reviewed.</p>
-						<p className='mt-1'>What happened: You are editing requests on a review schedule.</p>
-						<p className='mt-1'>What to do now: Submit your room request and wait for the scheduler decision.</p>
-						<p className='mt-1'>Who to contact: Your scheduling officer if this page does not update after reconnecting.</p>
-					</div>
+					<RoomRequestHeader
+						isMobileViewport={isMobileViewport}
+						mobileStep={mobileStep}
+						currentStep={currentStep}
+						entriesCount={entries.length}
+						runGeneratedAt={runGeneratedAt}
+						submittedCount={submittedCount}
+						draftCount={draftCount}
+						gate={gate}
+						dirtyCount={dirtyEntries.length}
+					/>
 				</div>
 
-				<div className='lg:hidden flex-1 min-h-0 overflow-auto px-4 pb-28'>
-					<div className='space-y-4'>
-						{mobileStep === 1 && (
-						<Card className='rounded-2xl border-border'>
-							<CardContent className='space-y-3 p-4'>
-								<p className='text-sm font-semibold'>Select Your Class</p>
-								<p className='text-xs text-muted-foreground'>Tap a class card to continue to the next step.</p>
-								<div className='space-y-2'>
-									{entries.map((entry) => (
-										<button
-											key={`mobile-source-${entry.entryId}`}
-											type='button'
-											onClick={() => {
-												setSelectedSourceEntryId(entry.entryId);
-												setMobileStep(2);
-												collaborationRef.current?.sendSelection({
-													schoolId: DEFAULT_SCHOOL_ID,
-													schoolYearId: activeSchoolYearId ?? 0,
-													runId: runId ?? 0,
-													entryId: entry.entryId,
-													source: 'SESSION',
-												});
-											}}
-											className={`w-full rounded-xl border-2 p-4 text-left transition-colors ${
-												selectedSourceEntryId === entry.entryId
-													? 'border-primary bg-primary/5'
-													: 'border-border hover:border-primary/40 active:bg-muted'
-											}`}
-										>
-											<div className='flex items-start gap-3'>
-												<div className={`mt-0.5 size-5 rounded-full border-2 shrink-0 ${
-													selectedSourceEntryId === entry.entryId ? 'border-primary bg-primary' : 'border-muted-foreground/40'
-												}`} />
-												<div className='flex-1 min-w-0 space-y-1'>
-													<div className='flex flex-wrap items-center gap-2'>
-														<Badge variant='outline'>{entry.subjectCode}</Badge>
-														{statusBadge(entry.status, entry.decisionStatus)}
-													</div>
-													<p className='text-sm font-semibold text-foreground'>{entry.sectionName}</p>
-													<p className='text-xs text-muted-foreground'>{entry.day.slice(0, 3)} {formatTime(entry.startTime)} – {formatTime(entry.endTime)}</p>
-													<p className='text-xs text-muted-foreground'>Room: {entry.currentRoomName}</p>
-												</div>
-											</div>
-										</button>
-									))}
-								</div>
-							</CardContent>
-						</Card>
-						)}
+				<MobileRoomRequestLayout
+					mobileStep={mobileStep}
+					entries={entries}
+					selectedSourceEntryId={selectedSourceEntryId}
+					selectedEntry={selectedEntry}
+					mobileTargets={mobileTargets}
+					onSelectSourceEntry={(entryId) => {
+						setSelectedSourceEntryId(entryId);
+						setMobileStep(2);
+						collaborationRef.current?.sendSelection({
+							schoolId: DEFAULT_SCHOOL_ID,
+							schoolYearId: activeSchoolYearId ?? 0,
+							runId: runId ?? 0,
+							entryId,
+							source: 'SESSION',
+						});
+					}}
+					onSelectTargetSlot={(target) => {
+						collaborationRef.current?.sendSelection({
+							schoolId: DEFAULT_SCHOOL_ID,
+							schoolYearId: activeSchoolYearId ?? 0,
+							runId: runId ?? 0,
+							day: target.day,
+							startTime: target.startTime,
+							endTime: target.endTime,
+							entryId: target.targetEntryId ?? undefined,
+							source: 'GRID_CELL',
+						});
+						openRequestSheet(target);
+					}}
+					onStepBack={() => setMobileStep((s) => Math.max(1, s - 1) as 1 | 2 | 3)}
+					onStepForward={() => selectedSourceEntryId && setMobileStep(2)}
+					renderStatusBadge={statusBadge}
+				/>
 
-						{mobileStep === 2 && selectedEntry && (
-							<Card className='rounded-2xl border-border'>
-								<CardContent className='space-y-3 p-4'>
-									<div className='flex items-center justify-between gap-2'>
-										<p className='text-sm font-semibold'>Choose Target Slot</p>
-									</div>
-									<div className='rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm'>
-										<p className='font-medium'>{selectedEntry.sectionName} · {selectedEntry.subjectCode}</p>
-										<p className='text-xs text-muted-foreground mt-0.5'>{selectedEntry.day.slice(0, 3)} {formatTime(selectedEntry.startTime)} – {formatTime(selectedEntry.endTime)} · {selectedEntry.currentRoomName}</p>
-									</div>
-									<p className='text-xs text-muted-foreground'>Free slots = move request. Occupied slots = swap request.</p>
-									<div className='space-y-2'>
-										{mobileTargets.map((target) => (
-											<button
-												key={`mobile-target-${target.day}-${target.startTime}-${target.endTime}`}
-												type='button'
-												onClick={() => {
-													collaborationRef.current?.sendSelection({
-														schoolId: DEFAULT_SCHOOL_ID,
-														schoolYearId: activeSchoolYearId ?? 0,
-														runId: runId ?? 0,
-														day: target.day,
-														startTime: target.startTime,
-														endTime: target.endTime,
-														entryId: target.targetEntryId ?? undefined,
-														source: 'GRID_CELL',
-													});
-													openRequestSheet(target);
-												}}
-												className={`w-full rounded-xl border-2 p-4 text-left transition-colors ${
-													target.occupiedLabel
-														? 'border-amber-200 bg-amber-50/50 hover:border-amber-400 active:bg-amber-100'
-														: 'border-emerald-200 bg-emerald-50/50 hover:border-emerald-400 active:bg-emerald-100'
-												}`}
-											>
-												<p className='text-sm font-semibold text-foreground'>{target.day.slice(0, 3)} {formatTime(target.startTime)} – {formatTime(target.endTime)}</p>
-												<p className={`text-xs mt-0.5 font-medium ${target.occupiedLabel ? 'text-amber-700' : 'text-emerald-700'}`}>
-													{target.occupiedLabel ? `Occupied — ${target.occupiedLabel}` : 'Free — move here'}
-												</p>
-											</button>
-										))}
-									</div>
-								</CardContent>
-							</Card>
-						)}
-					</div>
-				</div>
-
-				{/* Mobile fixed bottom nav */}
-				<div className='lg:hidden fixed bottom-0 inset-x-0 z-20 bg-background/95 backdrop-blur border-t px-4 py-3 flex gap-3'>
-					{mobileStep > 1 && (
-						<Button variant='outline' className='flex-1 min-h-12' onClick={() => setMobileStep((s) => Math.max(1, s - 1) as 1 | 2 | 3)}>
-							← Back
-						</Button>
-					)}
-					{mobileStep === 1 && (
-						<Button
-							className='flex-1 min-h-12'
-							disabled={!selectedSourceEntryId}
-							onClick={() => selectedSourceEntryId && setMobileStep(2)}
-						>
-							Choose Target →
-						</Button>
-					)}
-				</div>
-
-				<div className='hidden lg:grid flex-1 min-h-0 gap-4 overflow-visible px-6 pb-6 lg:grid-cols-[1.3fr_0.7fr] md:overflow-hidden'>
-					<div className='flex flex-col overflow-hidden rounded-2xl border border-border bg-card'>
-						<div className='border-b border-border px-4 py-3'>
-							<p className='text-sm font-semibold text-foreground'>Your Current Schedule</p>
-							<p className='text-xs text-muted-foreground'>
-								{selectedSourceEntryId
-									? 'Class selected — now tap any time slot to request a change.'
-									: 'Tap any of your classes (highlighted in blue) to start a request.'}
-							</p>
-						</div>
-						<div className='flex-1 min-h-0 overflow-visible px-3 py-3 md:overflow-auto' style={{ touchAction: 'pan-x pan-y' }}>
-							<div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', minWidth: '860px' }}>
-								<div className='grid grid-cols-[9rem_repeat(5,minmax(10rem,1fr))] gap-2'>
-									<div className='text-xs font-semibold text-muted-foreground px-2 py-2'>Time</div>
-									{DAYS.map((day) => (
-										<div key={day} className='text-xs font-semibold text-muted-foreground px-2 py-2'>{day.slice(0, 3)}</div>
-									))}
-									{timeSlots.map((slot, slotIndex) => (
-										<Fragment key={`slot-row-${slot.startTime}-${slot.endTime}-${slotIndex}`}>
-											<div key={`slot-${slot.startTime}-${slot.endTime}`} className='rounded-lg border border-border bg-muted/40 px-2 py-2 text-xs font-medium'>
-												{formatTime(slot.startTime)} - {formatTime(slot.endTime)}
-											</div>
-											{DAYS.map((day) => {
-												const key = slotKey(day, slot.startTime, slot.endTime);
-												const cellEntries = globalBySlot.get(key) ?? [];
-												const slotLive = slotSelectionDetails.get(key);
-												return (
-													<button
-														key={`${key}-${day}`}
-														type='button'
-														onClick={() => {
-															const occupied = cellEntries[0] ?? null;
-															collaborationRef.current?.sendSelection({
-																schoolId: DEFAULT_SCHOOL_ID,
-																schoolYearId: activeSchoolYearId ?? 0,
-																runId: runId ?? 0,
-																day,
-																startTime: slot.startTime,
-																endTime: slot.endTime,
-																entryId: occupied?.entryId,
-																source: 'GRID_CELL',
-															});
-															openRequestSheet({
-																day,
-																startTime: slot.startTime,
-																endTime: slot.endTime,
-																targetEntryId: occupied?.entryId ?? null,
-															});
-														}}
-														className='min-h-24 rounded-lg border border-border bg-background p-2 text-left hover:border-primary/40'
-													>
-														{(selectionCountBySlot.get(key) ?? 0) > 0 && (
-															<div className='mb-1 flex justify-end'>
-																<Badge variant='outline'>Live {selectionCountBySlot.get(key)}</Badge>
-															</div>
-														)}
-														{slotLive && (
-															<p className='mb-1 text-[0.65rem] text-amber-700'>
-																Viewing: {slotLive.actors.slice(0, 2).join(', ')}{slotLive.actors.length > 2 ? ` +${slotLive.actors.length - 2}` : ''}
-															</p>
-														)}
-														<div className='space-y-1'>
-															{cellEntries.length === 0 && <p className='text-[0.68rem] text-muted-foreground'>Free — tap to move here</p>}
-															{cellEntries.map((entry) => {
-																const ownedEntry = entry.owned;
-																const sourceSelected = selectedSourceEntryId === entry.entryId;
-																const entryLive = entrySelectionDetails.get(entry.entryId);
-																return (
-																	<div
-																		key={entry.entryId}
-																		onClick={(event) => {
-																			event.stopPropagation();
-																			if (!ownedEntry && !selectedEntry) return;
-																			if (ownedEntry) {
-																				setSelectedSourceEntryId(entry.entryId);
-																				collaborationRef.current?.sendSelection({
-																					schoolId: DEFAULT_SCHOOL_ID,
-																					schoolYearId: activeSchoolYearId ?? 0,
-																					runId: runId ?? 0,
-																					day,
-																					startTime: slot.startTime,
-																					endTime: slot.endTime,
-																					entryId: entry.entryId,
-																					source: 'SESSION',
-																				});
-																				return;
-																			}
-																			openRequestSheet({ day, startTime: slot.startTime, endTime: slot.endTime, targetEntryId: entry.entryId });
-																		}}
-																		className={`rounded-md border px-2 py-1 text-[0.68rem] ${ownedEntry ? 'border-primary/30 bg-primary/5 text-foreground' : 'border-border bg-muted/30 text-muted-foreground'} ${sourceSelected ? 'ring-2 ring-primary/40' : ''} ${entryLive ? 'ring-2 ring-amber-300/80' : ''}`}
-																	>
-																		<p className='font-semibold'>{entry.subjectCode}</p>
-																		<p>{entry.sectionName}</p>
-																		{entryLive && (
-																			<p className='mt-1 text-[0.62rem] text-amber-700'>
-																				Focused by {entryLive.actors.slice(0, 2).join(', ')}{entryLive.actors.length > 2 ? ` +${entryLive.actors.length - 2}` : ''}
-																			</p>
-																		)}
-																	</div>
-																);
-															})}
-														</div>
-													</button>
-												);
-											})}
-										</Fragment>
-									))}
-								</div>
-							</div>
-						</div>
-					</div>
-
-					<div className='flex flex-col overflow-hidden rounded-2xl border border-border bg-card'>
-						<div className='space-y-4 border-b border-border px-4 py-4'>
-							<div className='flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2'>
-								<Search className='size-4 text-muted-foreground' />
-								<Input value={roomSearch} onChange={(event) => setRoomSearch(event.target.value)} placeholder='Search rooms by name or building…' className='border-0 bg-transparent px-0 shadow-none focus-visible:ring-0' />
-							</div>
-
-							{selectedEntry ? (
-								<div className='space-y-3 rounded-xl border border-border bg-background p-4'>
-									<div className='flex flex-wrap items-center gap-2'>
-										<Badge variant='outline'>{selectedEntry.subjectCode}</Badge>
-										{statusBadge(selectedEntry.status, selectedEntry.decisionStatus)}
-									</div>
-									<div>
-										<p className='font-semibold text-foreground'>{selectedEntry.sectionName}</p>
-										<p className='text-xs text-muted-foreground'>{selectedEntry.day.slice(0, 3)} • {formatTime(selectedEntry.startTime)} - {formatTime(selectedEntry.endTime)}</p>
-									</div>
-									<div className='grid gap-2 text-xs text-muted-foreground sm:grid-cols-2'>
-										<div className='rounded-lg border border-border bg-card px-3 py-2'>Current: {selectedEntry.currentRoomName}</div>
-										<div className='rounded-lg border border-border bg-card px-3 py-2'>Requested: {selectedEntry.requestedRoomName ?? 'None selected'}</div>
-									</div>
-									<Textarea value={selectedEntry.rationale ?? ''} onChange={(event) => updateSelectedRationale(event.target.value)} placeholder='Optional context for your next request.' className='min-h-24' />
-									{selectedEntry.reviewerNotes && (
-										<div className='rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900'>Reviewer note: {selectedEntry.reviewerNotes}</div>
-									)}
-								</div>
-							) : (
-								<div className='rounded-xl border border-dashed border-border px-4 py-6 text-sm text-muted-foreground'>Tap one of your classes in the schedule to begin.</div>
-							)}
-						</div>
-
-						<div className='flex-1 space-y-3 overflow-visible p-4 md:overflow-auto'>
-							{filteredRooms.map((room) => (
-								<button
-									type='button'
-									key={room.id}
-									onClick={() => selectedEntry && assignRoomToEntry(selectedEntry.entryId, room.id)}
-									className={`w-full rounded-xl border px-4 py-3 text-left transition ${selectedEntry?.requestedRoomId === room.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-border bg-card hover:border-primary/40'}`}
-								>
-									<div className='flex items-start justify-between gap-3'>
-										<div>
-											<p className='font-semibold text-foreground'>{room.name}</p>
-											<p className='mt-1 text-xs text-muted-foreground'>{room.buildingName} • Floor {room.floor}</p>
-										</div>
-										{room.capacity != null && <Badge variant='outline'>Cap {room.capacity}</Badge>}
-									</div>
-								</button>
-							))}
-							{filteredRooms.length === 0 && (
-								<div className='rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground'>No rooms match this filter.</div>
-							)}
-						</div>
-					</div>
-				</div>
+				<DesktopRoomRequestLayout
+					days={DAYS}
+					timeSlots={timeSlots}
+					globalBySlot={globalBySlot}
+					selectionCountBySlot={selectionCountBySlot}
+					slotSelectionDetails={slotSelectionDetails}
+					entrySelectionDetails={entrySelectionDetails}
+					activeSchoolYearId={activeSchoolYearId}
+					runId={runId}
+					selectedSourceEntryId={selectedSourceEntryId}
+					selectedEntry={selectedEntry}
+					zoom={zoom}
+					onZoomOut={() => setZoom((current) => Math.max(0.7, Number((current - 0.1).toFixed(2))))}
+					onZoomIn={() => setZoom((current) => Math.min(1.5, Number((current + 0.1).toFixed(2))))}
+					onZoomReset={() => setZoom(1)}
+					roomSearch={roomSearch}
+					onRoomSearchChange={setRoomSearch}
+					filteredRooms={filteredRooms}
+					onAssignRoomToEntry={assignRoomToEntry}
+					onSelectSourceEntry={(entryId) => {
+						setSelectedSourceEntryId(entryId);
+					}}
+					onSelectTargetFromGrid={(payload) => {
+						collaborationRef.current?.sendSelection({
+							schoolId: DEFAULT_SCHOOL_ID,
+							schoolYearId: activeSchoolYearId ?? 0,
+							runId: runId ?? 0,
+							day: payload.day,
+							startTime: payload.startTime,
+							endTime: payload.endTime,
+							entryId: payload.targetEntryId ?? undefined,
+							source: 'GRID_CELL',
+						});
+						openRequestSheet(payload);
+					}}
+					onUpdateSelectedRationale={updateSelectedRationale}
+					renderStatusBadge={statusBadge}
+				/>
 
 			<Sheet open={requestSheetOpen} onOpenChange={setRequestSheetOpen}>
 				<SheetContent side='bottom' className='h-[88dvh] overflow-auto rounded-t-2xl pb-[calc(env(safe-area-inset-bottom)+0.5rem)]'>

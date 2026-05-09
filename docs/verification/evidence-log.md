@@ -2,6 +2,35 @@
 
 Record dated implementation verification summaries here.
 
+### 2026-05-09 - Faculty Room-Preferences Layout Split Refactor (Mobile/Desktop First-Class)
+- Phase: 4 (faculty UX hardening continuation)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS (build + core interaction flow)
+- Regression gate: PARTIAL PASS (manual audit constrained by local session instability)
+- Commands:
+  - `npm --prefix atlas-client run build`: PASS
+- Refactor verification summary:
+  - Extracted first-class layout components and wired from parent page:
+    - `atlas-client/src/components/faculty-room-preferences/RoomRequestHeader.tsx`
+    - `atlas-client/src/components/faculty-room-preferences/MobileRoomRequestLayout.tsx`
+    - `atlas-client/src/components/faculty-room-preferences/DesktopRoomRequestLayout.tsx`
+  - `atlas-client/src/pages/FacultyRoomPreferences.tsx` reduced below component-size guardrail and preserved active-draft/request workflow wiring.
+  - Pre-action noise reduced: advisory converted to compact line + expandable Learn more.
+- Manual evidence references (this refactor slice):
+  - Portrait first-action visibility: `qa-artifacts/screenshots/faculty-hardening-after-mobile-portrait-my-room-preferences-step1.png`
+  - Portrait request completion clarity (sheet): `qa-artifacts/screenshots/faculty-hardening-after-mobile-portrait-my-room-preferences-step3-sheet.png`
+  - Landscape no clipping/overlap check: `qa-artifacts/screenshots/faculty-hardening-after-mobile-landscape-my-room-preferences.png`
+  - Desktop two-pane parity reference: `qa-artifacts/screenshots/faculty-hardening-after-desktop-my-room-preferences.png`
+  - Offline/reconnect visibility reference: `qa-artifacts/screenshots/gate-check-session-refresh-persist.png`
+- Post-refactor audit measurements (current embedded browser run):
+  - First actionable control position: `top=10`, `left=16`, `size=36x36`
+  - Scroll gestures before first action: `0`
+  - Can-understand-next-step-under-5-seconds check: PASS (`Step 2 of 3 - Choose where you want to move it.` visible at first paint)
+- Caveats captured during this pass:
+  - Embedded browser viewport resizing was constrained in-run (returned fixed narrow viewport despite resize requests), so strict portrait/landscape/desktop numeric viewport dimensions were not reliable in this specific rerun.
+  - Intermittent `401`/SSE abort noise still appears in local session streams while page content remains usable.
+
 ### 2026-05-09 - Faculty UX Gate Recovery Pass (NO-GO to GO)
 - Phase: 4 (faculty UX hardening validation)
 - Scope gate: PASS
