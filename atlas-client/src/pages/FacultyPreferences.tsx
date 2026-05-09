@@ -402,7 +402,7 @@ export default function FacultyPreferences() {
 
 			{/* Pinned notification banners */}
 			{topBanner && (
-				<div className='shrink-0 pt-6 px-6 space-y-3'>
+				<div className='shrink-0 pt-4 px-4 sm:pt-6 sm:px-6 space-y-2'>
 					<AnimatePresence>
 						{topBanner === 'locked' && (
 							<motion.div
@@ -411,15 +411,13 @@ export default function FacultyPreferences() {
 								animate={{ opacity: 1, y: 0 }}
 								exit={{ opacity: 0, y: -8 }}
 							>
-								<Card className='border-amber-200 bg-amber-50'>
-									<CardContent className='flex items-center gap-3 py-4'>
-										<Lock className='size-5 text-amber-600 shrink-0' />
-										<div>
-											<p className='font-medium text-amber-800'>Preferences locked</p>
-											<p className='text-sm text-amber-700 mt-0.5'>{lockedMsg}</p>
-										</div>
-									</CardContent>
-								</Card>
+								<div className='flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5'>
+									<Lock className='size-4 text-amber-600 shrink-0 mt-0.5' />
+									<div>
+										<p className='text-sm font-medium text-amber-800'>Preferences locked</p>
+										<p className='text-xs text-amber-700 mt-0.5'>{lockedMsg}</p>
+									</div>
+								</div>
 							</motion.div>
 						)}
 						{topBanner === 'submitted' && (
@@ -429,19 +427,17 @@ export default function FacultyPreferences() {
 								animate={{ opacity: 1, y: 0 }}
 								exit={{ opacity: 0, y: -8 }}
 							>
-								<Card className='border-green-200 bg-green-50'>
-									<CardContent className='flex items-center gap-3 py-4'>
-										<CheckCircle2 className='size-5 text-green-600 shrink-0' />
-										<div>
-											<p className='font-medium text-green-800'>Preferences submitted</p>
-											<p className='text-sm text-green-700 mt-0.5'>
-												Submitted {preference?.submittedAt
-													? new Date(preference.submittedAt).toLocaleString()
-													: 'N/A'}. You can still edit until the scheduling officer locks the window.
-											</p>
-										</div>
-									</CardContent>
-								</Card>
+								<div className='flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-3 py-2.5'>
+									<CheckCircle2 className='size-4 text-green-600 shrink-0 mt-0.5' />
+									<div>
+										<p className='text-sm font-medium text-green-800'>Preferences submitted</p>
+										<p className='text-xs text-green-700 mt-0.5'>
+											Submitted {preference?.submittedAt
+												? new Date(preference.submittedAt).toLocaleString()
+												: 'N/A'}. You can still edit until the scheduling officer locks the window.
+										</p>
+									</div>
+								</div>
 							</motion.div>
 						)}
 						{topBanner === 'review' && (
@@ -451,25 +447,23 @@ export default function FacultyPreferences() {
 								animate={{ opacity: 1, y: 0 }}
 								exit={{ opacity: 0, y: -8 }}
 							>
-								<Card className='border-blue-200 bg-blue-50'>
-									<CardContent className='flex items-center gap-3 py-4'>
-										<CalendarClock className='size-5 text-blue-600 shrink-0' />
-										<div className='flex-1'>
-											<p className='font-medium text-blue-800'>Review update received</p>
-											<p className='text-sm text-blue-700 mt-0.5'>
-												Your preferences were reviewed. Changes are reflected below.
-											</p>
-										</div>
-										<Button
-											variant='ghost'
-											size='sm'
-											className='text-blue-700 hover:text-blue-900'
-											onClick={() => setReviewUpdates(0)}
-										>
-											Dismiss
-										</Button>
-									</CardContent>
-								</Card>
+								<div className='flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5'>
+									<CalendarClock className='size-4 text-blue-600 shrink-0 mt-0.5' />
+									<div className='flex-1'>
+										<p className='text-sm font-medium text-blue-800'>Review update received</p>
+										<p className='text-xs text-blue-700 mt-0.5'>
+											Your preferences were reviewed. Changes are reflected below.
+										</p>
+									</div>
+									<Button
+										variant='ghost'
+										size='sm'
+										className='text-blue-700 hover:text-blue-900 h-7 px-2 shrink-0'
+										onClick={() => setReviewUpdates(0)}
+									>
+										Dismiss
+									</Button>
+								</div>
 							</motion.div>
 						)}
 					</AnimatePresence>
@@ -477,7 +471,7 @@ export default function FacultyPreferences() {
 			)}
 
 			{/* Scrolling content */}
-			<div className='flex-1 min-h-0 overflow-auto px-6 py-6 space-y-6'>
+			<div className='flex-1 min-h-0 overflow-auto px-4 py-4 sm:px-6 sm:py-6 space-y-4 sm:space-y-6'>
 				{schoolYearNotice && (
 					<div className='rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900'>
 						{schoolYearNotice}
@@ -545,7 +539,7 @@ export default function FacultyPreferences() {
 							<span />
 						</div>
 
-						<div className='space-y-2'>
+						<div className='space-y-3'>
 							<AnimatePresence initial={false}>
 								{slots.map((slot) => (
 									<motion.div
@@ -553,64 +547,140 @@ export default function FacultyPreferences() {
 										initial={{ opacity: 0, height: 0 }}
 										animate={{ opacity: 1, height: 'auto' }}
 										exit={{ opacity: 0, height: 0 }}
-										className='grid grid-cols-1 sm:grid-cols-[1fr_100px_100px_140px_40px] gap-2 items-center'
 									>
-										<Select
-											value={slot.day}
-											onValueChange={(v) => updateSlot(slot.key, 'day', v)}
-											disabled={!canEdit}
-										>
-											<SelectTrigger className='h-9 text-sm'>
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												{DAYS.map((d) => (
-													<SelectItem key={d.value} value={d.value}>
-														{d.label}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
-										<Input
-											type='time'
-											value={slot.startTime}
-											onChange={(e) => updateSlot(slot.key, 'startTime', e.target.value)}
-											disabled={!canEdit}
-											className='h-9 text-sm'
-										/>
-										<Input
-											type='time'
-											value={slot.endTime}
-											onChange={(e) => updateSlot(slot.key, 'endTime', e.target.value)}
-											disabled={!canEdit}
-											className='h-9 text-sm'
-										/>
-										<Select
-											value={slot.preference}
-											onValueChange={(v) => updateSlot(slot.key, 'preference', v)}
-											disabled={!canEdit}
-										>
-											<SelectTrigger className='h-9 text-sm'>
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												{PREF_OPTIONS.map((p) => (
-													<SelectItem key={p.value} value={p.value}>
-														{p.label}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
-										{canEdit && (
-											<Button
-												variant='ghost'
-												size='icon'
-												className='size-9 text-muted-foreground hover:text-destructive'
-												onClick={() => removeSlot(slot.key)}
+										{/* Mobile card layout */}
+										<div className='sm:hidden rounded-xl border border-border bg-card p-3 space-y-2.5'>
+											<div className='flex items-center justify-between gap-2'>
+												<span className='text-xs font-medium text-muted-foreground'>Day</span>
+												{canEdit && (
+													<Button
+														variant='ghost'
+														size='icon'
+														className='size-7 text-muted-foreground hover:text-destructive'
+														onClick={() => removeSlot(slot.key)}
+													>
+														<Trash2 className='size-3.5' />
+													</Button>
+												)}
+											</div>
+											<Select
+												value={slot.day}
+												onValueChange={(v) => updateSlot(slot.key, 'day', v)}
+												disabled={!canEdit}
 											>
-												<Trash2 className='size-3.5' />
-											</Button>
-										)}
+												<SelectTrigger className='h-11 text-base'>
+													<SelectValue />
+												</SelectTrigger>
+												<SelectContent>
+													{DAYS.map((d) => (
+														<SelectItem key={d.value} value={d.value}>
+															{d.label}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+											<div className='grid grid-cols-2 gap-2'>
+												<div className='space-y-1'>
+													<span className='text-xs font-medium text-muted-foreground'>Start</span>
+													<Input
+														type='time'
+														value={slot.startTime}
+														onChange={(e) => updateSlot(slot.key, 'startTime', e.target.value)}
+														disabled={!canEdit}
+														className='h-11 text-base'
+													/>
+												</div>
+												<div className='space-y-1'>
+													<span className='text-xs font-medium text-muted-foreground'>End</span>
+													<Input
+														type='time'
+														value={slot.endTime}
+														onChange={(e) => updateSlot(slot.key, 'endTime', e.target.value)}
+														disabled={!canEdit}
+														className='h-11 text-base'
+													/>
+												</div>
+											</div>
+											<div className='space-y-1'>
+												<span className='text-xs font-medium text-muted-foreground'>Preference</span>
+												<Select
+													value={slot.preference}
+													onValueChange={(v) => updateSlot(slot.key, 'preference', v)}
+													disabled={!canEdit}
+												>
+													<SelectTrigger className='h-11 text-base'>
+														<SelectValue />
+													</SelectTrigger>
+													<SelectContent>
+														{PREF_OPTIONS.map((p) => (
+															<SelectItem key={p.value} value={p.value}>
+																{p.label}
+															</SelectItem>
+														))}
+													</SelectContent>
+												</Select>
+											</div>
+										</div>
+
+										{/* Desktop row layout */}
+										<div className='hidden sm:grid sm:grid-cols-[1fr_100px_100px_140px_40px] gap-2 items-center'>
+											<Select
+												value={slot.day}
+												onValueChange={(v) => updateSlot(slot.key, 'day', v)}
+												disabled={!canEdit}
+											>
+												<SelectTrigger className='h-9 text-sm'>
+													<SelectValue />
+												</SelectTrigger>
+												<SelectContent>
+													{DAYS.map((d) => (
+														<SelectItem key={d.value} value={d.value}>
+															{d.label}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+											<Input
+												type='time'
+												value={slot.startTime}
+												onChange={(e) => updateSlot(slot.key, 'startTime', e.target.value)}
+												disabled={!canEdit}
+												className='h-9 text-sm'
+											/>
+											<Input
+												type='time'
+												value={slot.endTime}
+												onChange={(e) => updateSlot(slot.key, 'endTime', e.target.value)}
+												disabled={!canEdit}
+												className='h-9 text-sm'
+											/>
+											<Select
+												value={slot.preference}
+												onValueChange={(v) => updateSlot(slot.key, 'preference', v)}
+												disabled={!canEdit}
+											>
+												<SelectTrigger className='h-9 text-sm'>
+													<SelectValue />
+												</SelectTrigger>
+												<SelectContent>
+													{PREF_OPTIONS.map((p) => (
+														<SelectItem key={p.value} value={p.value}>
+															{p.label}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+											{canEdit && (
+												<Button
+													variant='ghost'
+													size='icon'
+													className='size-9 text-muted-foreground hover:text-destructive'
+													onClick={() => removeSlot(slot.key)}
+												>
+													<Trash2 className='size-3.5' />
+												</Button>
+											)}
+										</div>
 									</motion.div>
 								))}
 							</AnimatePresence>
@@ -634,7 +704,7 @@ export default function FacultyPreferences() {
 			</div>
 
 			{/* Actions bar */}
-			<div className='shrink-0 flex items-center justify-between border-t border-border px-6 py-4 bg-background'>
+			<div className='shrink-0 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between border-t border-border px-4 py-3 sm:px-6 sm:py-4 bg-background'>
 				<div>
 					{preference && (
 						<div className='flex items-center gap-3'>
@@ -647,12 +717,12 @@ export default function FacultyPreferences() {
 				</div>
 
 				{canEdit && (
-					<div className='flex items-center gap-3'>
+					<div className='flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:gap-3'>
 						<Button
 							variant='outline'
 							onClick={saveDraft}
 							disabled={saving || submitting}
-							className='gap-1.5'
+							className='gap-1.5 min-h-[3rem] sm:min-h-0'
 						>
 							{saving ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
 							Save Draft
@@ -660,7 +730,7 @@ export default function FacultyPreferences() {
 						<Button
 							onClick={submitPreference}
 							disabled={saving || submitting}
-							className='gap-1.5'
+							className='gap-1.5 min-h-[3rem] sm:min-h-0'
 						>
 							{submitting ? <Loader2 className='size-4 animate-spin' /> : <Send className='size-4' />}
 							Submit

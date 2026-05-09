@@ -662,7 +662,7 @@ export function AppShell() {
 	const currentPageTitle = breadcrumbs[breadcrumbs.length - 1]?.label ?? 'ATLAS';
 
 	return (
-		<SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
+		<SidebarProvider open={isMobile ? false : sidebarOpen} onOpenChange={setSidebarOpen}>
 			<AppSidebar
 				className='hidden lg:flex'
 				schoolName={schoolName}

@@ -398,7 +398,7 @@ export default function FacultyRoomPreferences() {
 					setCollaborationLastError(null);
 					socket.join({
 						schoolId: DEFAULT_SCHOOL_ID,
-						schoolYearId: activeSchoolYearId,
+						schoolYearId: activeSchoolYearId ?? 0,
 						runId,
 						viewMode: 'FACULTY_ACTIVE_DRAFT',
 					});
@@ -808,7 +808,7 @@ export default function FacultyRoomPreferences() {
 						)}
 					</div>
 
-					<div className='flex flex-wrap items-center gap-3'>
+					<div className='flex flex-wrap items-start gap-3'>
 						<div>
 							<h1 className='text-2xl font-semibold tracking-tight'>Room Change Requests</h1>
 							<p className='text-sm text-muted-foreground'>
@@ -818,13 +818,28 @@ export default function FacultyRoomPreferences() {
 										? 'Step 2 of 3 — Choose where you want to move it.'
 										: 'Step 3 of 3 — Review conflicts and submit your request.'}
 							</p>
-							<div className='mt-2 flex flex-wrap gap-2'>
-								<Badge variant={(isMobileViewport ? mobileStep : currentStep) === 1 ? 'default' : 'outline'}>1 Select Class</Badge>
-								<Badge variant={(isMobileViewport ? mobileStep : currentStep) === 2 ? 'default' : 'outline'}>2 Choose Target</Badge>
-								<Badge variant={(isMobileViewport ? mobileStep : currentStep) === 3 ? 'default' : 'outline'}>3 Review & Submit</Badge>
+							<div className='mt-2 flex gap-1.5'>
+								{(['1 Select Class', '2 Choose Target', '3 Review & Submit'] as const).map((label, idx) => {
+									const step = idx + 1;
+									const activeStep = isMobileViewport ? mobileStep : currentStep;
+									return (
+										<span
+											key={label}
+											className={`rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+												step === activeStep
+													? 'bg-primary text-primary-foreground border-primary'
+													: step < activeStep
+														? 'bg-primary/15 text-primary border-primary/30'
+														: 'bg-muted text-muted-foreground border-transparent'
+											}`}
+										>
+											{label}
+										</span>
+									);
+								})}
 							</div>
 						</div>
-						<div className='ml-auto flex flex-wrap items-center gap-2'>
+						<div className='ml-auto hidden lg:flex flex-wrap items-center gap-2'>
 							<Button variant='outline' size='sm' onClick={() => setZoom((current) => Math.max(0.7, Number((current - 0.1).toFixed(2))))}>
 								<Move className='mr-1.5 size-4' /> Zoom out
 							</Button>
@@ -864,64 +879,77 @@ export default function FacultyRoomPreferences() {
 					</div>
 				</div>
 
-				<div className='lg:hidden flex-1 overflow-auto px-4 pb-6'>
+				<div className='lg:hidden flex-1 overflow-auto px-4 pb-28'>
 					<div className='space-y-4'>
+						{mobileStep === 1 && (
 						<Card className='rounded-2xl border-border'>
 							<CardContent className='space-y-3 p-4'>
-								<p className='text-sm font-semibold'>Step 1: Select Your Class</p>
-								<p className='text-xs text-muted-foreground'>Tap one class card, then continue.</p>
+								<p className='text-sm font-semibold'>Select Your Class</p>
+								<p className='text-xs text-muted-foreground'>Tap a class card to continue to the next step.</p>
 								<div className='space-y-2'>
 									{entries.map((entry) => (
-										<Button
+										<button
 											key={`mobile-source-${entry.entryId}`}
-											variant={selectedSourceEntryId === entry.entryId ? 'secondary' : 'outline'}
-											className='h-auto w-full justify-start px-3 py-3 text-left'
+											type='button'
 											onClick={() => {
 												setSelectedSourceEntryId(entry.entryId);
 												setMobileStep(2);
 												collaborationRef.current?.sendSelection({
 													schoolId: DEFAULT_SCHOOL_ID,
-													schoolYearId: activeSchoolYearId,
-													runId,
+													schoolYearId: activeSchoolYearId ?? 0,
+													runId: runId ?? 0,
 													entryId: entry.entryId,
 													source: 'SESSION',
 												});
 											}}
+											className={`w-full rounded-xl border-2 p-4 text-left transition-colors ${
+												selectedSourceEntryId === entry.entryId
+													? 'border-primary bg-primary/5'
+													: 'border-border hover:border-primary/40 active:bg-muted'
+											}`}
 										>
-											<div className='w-full space-y-1'>
-												<div className='flex flex-wrap items-center gap-2'>
-													<Badge variant='outline'>{entry.subjectCode}</Badge>
-													{statusBadge(entry.status, entry.decisionStatus)}
+											<div className='flex items-start gap-3'>
+												<div className={`mt-0.5 size-5 rounded-full border-2 flex-shrink-0 ${
+													selectedSourceEntryId === entry.entryId ? 'border-primary bg-primary' : 'border-muted-foreground/40'
+												}`} />
+												<div className='flex-1 min-w-0 space-y-1'>
+													<div className='flex flex-wrap items-center gap-2'>
+														<Badge variant='outline'>{entry.subjectCode}</Badge>
+														{statusBadge(entry.status, entry.decisionStatus)}
+													</div>
+													<p className='text-sm font-semibold text-foreground'>{entry.sectionName}</p>
+													<p className='text-xs text-muted-foreground'>{entry.day.slice(0, 3)} {formatTime(entry.startTime)} – {formatTime(entry.endTime)}</p>
+													<p className='text-xs text-muted-foreground'>Room: {entry.currentRoomName}</p>
 												</div>
-												<p className='text-sm font-semibold text-foreground'>{entry.sectionName}</p>
-												<p className='text-xs text-muted-foreground'>{entry.day.slice(0, 3)} {formatTime(entry.startTime)} - {formatTime(entry.endTime)}</p>
-												<p className='text-xs text-muted-foreground'>Current room: {entry.currentRoomName}</p>
 											</div>
-										</Button>
+										</button>
 									))}
 								</div>
 							</CardContent>
 						</Card>
+						)}
 
-						{selectedEntry && (
+						{mobileStep === 2 && selectedEntry && (
 							<Card className='rounded-2xl border-border'>
 								<CardContent className='space-y-3 p-4'>
 									<div className='flex items-center justify-between gap-2'>
-										<p className='text-sm font-semibold'>Step 2: Choose Target</p>
-										<Button variant='ghost' size='sm' onClick={() => setMobileStep(1)}>Change class</Button>
+										<p className='text-sm font-semibold'>Choose Target Slot</p>
 									</div>
-									<p className='text-xs text-muted-foreground'>Pick a day/time. Free slots suggest move, occupied slots suggest swap.</p>
+									<div className='rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm'>
+										<p className='font-medium'>{selectedEntry.sectionName} · {selectedEntry.subjectCode}</p>
+										<p className='text-xs text-muted-foreground mt-0.5'>{selectedEntry.day.slice(0, 3)} {formatTime(selectedEntry.startTime)} – {formatTime(selectedEntry.endTime)} · {selectedEntry.currentRoomName}</p>
+									</div>
+									<p className='text-xs text-muted-foreground'>Free slots = move request. Occupied slots = swap request.</p>
 									<div className='space-y-2'>
 										{mobileTargets.map((target) => (
-											<Button
+											<button
 												key={`mobile-target-${target.day}-${target.startTime}-${target.endTime}`}
-												variant='outline'
-												className='h-auto w-full justify-start px-3 py-3 text-left'
+												type='button'
 												onClick={() => {
 													collaborationRef.current?.sendSelection({
 														schoolId: DEFAULT_SCHOOL_ID,
-														schoolYearId: activeSchoolYearId,
-														runId,
+														schoolYearId: activeSchoolYearId ?? 0,
+														runId: runId ?? 0,
 														day: target.day,
 														startTime: target.startTime,
 														endTime: target.endTime,
@@ -930,20 +958,41 @@ export default function FacultyRoomPreferences() {
 													});
 													openRequestSheet(target);
 												}}
+												className={`w-full rounded-xl border-2 p-4 text-left transition-colors ${
+													target.occupiedLabel
+														? 'border-amber-200 bg-amber-50/50 hover:border-amber-400 active:bg-amber-100'
+														: 'border-emerald-200 bg-emerald-50/50 hover:border-emerald-400 active:bg-emerald-100'
+												}`}
 											>
-												<div className='w-full space-y-1'>
-													<p className='text-sm font-semibold text-foreground'>{target.day.slice(0, 3)} {formatTime(target.startTime)} - {formatTime(target.endTime)}</p>
-													<p className={`text-xs ${target.occupiedLabel ? 'text-amber-700' : 'text-emerald-700'}`}>
-														{target.occupiedLabel ? `Occupied: ${target.occupiedLabel}` : 'Free slot'}
-													</p>
-												</div>
-											</Button>
+												<p className='text-sm font-semibold text-foreground'>{target.day.slice(0, 3)} {formatTime(target.startTime)} – {formatTime(target.endTime)}</p>
+												<p className={`text-xs mt-0.5 font-medium ${target.occupiedLabel ? 'text-amber-700' : 'text-emerald-700'}`}>
+													{target.occupiedLabel ? `Occupied — ${target.occupiedLabel}` : 'Free — move here'}
+												</p>
+											</button>
 										))}
 									</div>
 								</CardContent>
 							</Card>
 						)}
 					</div>
+				</div>
+
+				{/* Mobile fixed bottom nav */}
+				<div className='lg:hidden fixed bottom-0 inset-x-0 z-20 bg-background/95 backdrop-blur border-t px-4 py-3 flex gap-3'>
+					{mobileStep > 1 && (
+						<Button variant='outline' className='flex-1 min-h-[3rem]' onClick={() => setMobileStep((s) => Math.max(1, s - 1) as 1 | 2 | 3)}>
+							← Back
+						</Button>
+					)}
+					{mobileStep === 1 && (
+						<Button
+							className='flex-1 min-h-[3rem]'
+							disabled={!selectedSourceEntryId}
+							onClick={() => selectedSourceEntryId && setMobileStep(2)}
+						>
+							Choose Target →
+						</Button>
+					)}
 				</div>
 
 				<div className='hidden lg:grid flex-1 min-h-0 gap-4 overflow-visible px-6 pb-6 lg:grid-cols-[1.3fr_0.7fr] md:overflow-hidden'>
@@ -980,8 +1029,8 @@ export default function FacultyRoomPreferences() {
 															const occupied = cellEntries[0] ?? null;
 															collaborationRef.current?.sendSelection({
 																schoolId: DEFAULT_SCHOOL_ID,
-																schoolYearId: activeSchoolYearId,
-																runId,
+																schoolYearId: activeSchoolYearId ?? 0,
+																runId: runId ?? 0,
 																day,
 																startTime: slot.startTime,
 																endTime: slot.endTime,
@@ -1023,8 +1072,8 @@ export default function FacultyRoomPreferences() {
 																				setSelectedSourceEntryId(entry.entryId);
 																				collaborationRef.current?.sendSelection({
 																					schoolId: DEFAULT_SCHOOL_ID,
-																					schoolYearId: activeSchoolYearId,
-																					runId,
+																					schoolYearId: activeSchoolYearId ?? 0,
+																					runId: runId ?? 0,
 																					day,
 																					startTime: slot.startTime,
 																					endTime: slot.endTime,
@@ -1198,9 +1247,10 @@ export default function FacultyRoomPreferences() {
 							</div>
 						)}
 
-						<div className='flex justify-end gap-2'>
-							<Button variant='outline' onClick={() => setRequestSheetOpen(false)}>Cancel</Button>
+						<div className='flex flex-col-reverse gap-2 sm:flex-row sm:justify-end'>
+							<Button variant='outline' className='sm:w-auto' onClick={() => setRequestSheetOpen(false)}>Cancel</Button>
 							<Button
+								className='sm:w-auto'
 								onClick={() => void submitCurrentRequest()}
 								disabled={submitting || !selectedEntry || !targetSlot || (actionType === 'SWAP_WITH_OCCUPIED' && (requestPreview?.hardViolations.length ?? 0) > 0 && !reason.trim())}
 							>
