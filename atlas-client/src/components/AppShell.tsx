@@ -193,9 +193,8 @@ function AppSidebar({
 }) {
 	const isAdmin = bridgeUser?.role === 'admin' || bridgeUser?.role === 'SYSTEM_ADMIN' || bridgeUser?.role === 'officer';
 	const isFaculty = bridgeUser?.role === 'faculty';
-	const topNavigation = isFaculty
-		? [{ label: 'My Dashboard', to: '/my', icon: LayoutDashboard }]
-		: navigationNav;
+	// Faculty top-nav is intentionally empty; all faculty links live under the "My Portal" group below.
+	const topNavigation = isFaculty ? [] : navigationNav;
 	const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
 	return (
@@ -402,9 +401,14 @@ function AppSidebar({
 												Admin
 											</Badge>
 										)}
-										{!isAdmin && (
+										{isFaculty && (
 											<span className='truncate text-[0.6875rem] text-muted-foreground'>
-												Bridge session
+												Faculty
+											</span>
+										)}
+										{!isAdmin && !isFaculty && (
+											<span className='truncate text-[0.6875rem] text-muted-foreground'>
+												Portal access
 											</span>
 										)}
 									</div>

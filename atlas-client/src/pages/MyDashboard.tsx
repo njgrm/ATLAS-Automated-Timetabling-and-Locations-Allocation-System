@@ -168,13 +168,23 @@ export default function MyDashboard() {
 				<div className='mx-auto w-full max-w-4xl space-y-4'>
 					{schoolYearNotice && (
 						<div className='rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900'>
-							{schoolYearNotice}
+							Showing School Year {schoolYearNotice.match(/school year ([^\s.]+)/i)?.[1] ?? '—'}. {schoolYearNotice.includes('No active') ? 'Contact your scheduling officer if this looks wrong.' : ''}
 						</div>
 					)}
-					<div className='rounded-2xl border border-border bg-card px-4 py-4 shadow-sm'>
+
+					{/* ── Hero greeting + primary CTA ── */}
+					<div className='rounded-2xl border border-border bg-card px-4 py-5 shadow-sm'>
 						<p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>My Portal</p>
-						<h1 className='mt-2 text-xl font-semibold tracking-tight'>Hello, {dashboard.faculty.name}</h1>
+						<h1 className='mt-1.5 text-xl font-semibold tracking-tight'>Hello, {dashboard.faculty.name} 👋</h1>
 						<p className='mt-1 text-sm text-muted-foreground'>{dashboard.phaseMessage}</p>
+						<Link
+							to='/my/room-preferences'
+							className='mt-4 flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors'
+						>
+							<MapPin className='size-4' />
+							Manage My Room Requests
+							<ArrowRight className='size-4 ml-auto' />
+						</Link>
 					</div>
 
 					{dashboard.fallbackBanner.show && (
@@ -184,146 +194,74 @@ export default function MyDashboard() {
 								<div>
 									<p className='font-semibold text-amber-900'>{dashboard.fallbackBanner.title}</p>
 									<p className='mt-1 text-sm text-amber-800'>{dashboard.fallbackBanner.message}</p>
-									{dashboard.fallbackBanner.runId && (
-										<p className='mt-2 text-xs text-amber-800'>
-											Run #{dashboard.fallbackBanner.runId}
-											{dashboard.fallbackBanner.generatedAt ? ` • Generated ${new Date(dashboard.fallbackBanner.generatedAt).toLocaleString()}` : ''}
-										</p>
-									)}
-									{dashboard.runContext.state === 'NO_ACTIVE_DRAFT' && (
-										<p className='mt-2 text-xs text-amber-900'>
-											{dashboard.runContext.reason}
-											{dashboard.runContext.recoveryHint ? ` ${dashboard.runContext.recoveryHint}` : ''}
-										</p>
+									{dashboard.runContext.state === 'NO_ACTIVE_DRAFT' && dashboard.runContext.recoveryHint && (
+										<p className='mt-2 text-xs text-amber-900'>{dashboard.runContext.recoveryHint}</p>
 									)}
 								</div>
 							</div>
 						</div>
 					)}
 
-					{dashboard.schedulePreview.runId && (
-						<div className='rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground'>
-							Data as of Run #{dashboard.schedulePreview.runId}
-							{dashboard.schedulePreview.generatedAt ? ` • Generated ${new Date(dashboard.schedulePreview.generatedAt).toLocaleString()}` : ''}
+					{/* ── Compact stats inline ── */}
+					{dashboard.schedulePreview.counts.total > 0 && (
+						<div className='grid grid-cols-2 gap-2 sm:grid-cols-4'>
+							<div className='rounded-xl border border-border bg-card px-3 py-3 text-center'>
+								<p className='text-2xl font-semibold'>{dashboard.schedulePreview.counts.total}</p>
+								<p className='mt-0.5 text-xs text-muted-foreground'>Classes</p>
+							</div>
+							<div className='rounded-xl border border-border bg-card px-3 py-3 text-center'>
+								<p className='text-2xl font-semibold'>{dashboard.schedulePreview.counts.pending}</p>
+								<p className='mt-0.5 text-xs text-muted-foreground'>Awaiting decision</p>
+							</div>
+							<div className='rounded-xl border border-border bg-card px-3 py-3 text-center'>
+								<p className='text-2xl font-semibold text-emerald-700'>{dashboard.schedulePreview.counts.approved}</p>
+								<p className='mt-0.5 text-xs text-muted-foreground'>Approved</p>
+							</div>
+							<div className='rounded-xl border border-border bg-card px-3 py-3 text-center'>
+								<p className='text-2xl font-semibold text-amber-700'>{dashboard.schedulePreview.counts.rejected}</p>
+								<p className='mt-0.5 text-xs text-muted-foreground'>Not approved</p>
+							</div>
 						</div>
 					)}
 
-					<div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
+					{/* ── Simplified schedule preview ── */}
+					{previewEntries.length > 0 && (
 						<Card className='rounded-2xl'>
-							<CardContent className='py-4'>
-								<p className='text-xs text-muted-foreground'>Scheduled Classes</p>
-								<p className='mt-2 text-2xl font-semibold'>{dashboard.schedulePreview.counts.total}</p>
-							</CardContent>
-						</Card>
-						<Card className='rounded-2xl'>
-							<CardContent className='py-4'>
-								<p className='text-xs text-muted-foreground'>Pending Requests</p>
-								<p className='mt-2 text-2xl font-semibold'>{dashboard.schedulePreview.counts.pending}</p>
-							</CardContent>
-						</Card>
-						<Card className='rounded-2xl'>
-							<CardContent className='py-4'>
-								<p className='text-xs text-muted-foreground'>Approved</p>
-								<p className='mt-2 text-2xl font-semibold text-emerald-700'>{dashboard.schedulePreview.counts.approved}</p>
-							</CardContent>
-						</Card>
-						<Card className='rounded-2xl'>
-							<CardContent className='py-4'>
-								<p className='text-xs text-muted-foreground'>Rejected</p>
-								<p className='mt-2 text-2xl font-semibold text-amber-700'>{dashboard.schedulePreview.counts.rejected}</p>
-							</CardContent>
-						</Card>
-					</div>
-
-					<Card className='rounded-2xl'>
-						<CardHeader className='pb-3'>
-							<div className='flex items-center justify-between gap-2'>
-								<div>
-									<CardTitle className='text-lg'>Schedule Preview</CardTitle>
-									<p className='mt-1 text-sm text-muted-foreground'>
-										View your current room assignment, pending request overlay, and final review result.
-									</p>
-								</div>
-								<Button asChild size='sm'>
+							<CardHeader className='pb-2 pt-4 px-4'>
+								<CardTitle className='text-base'>Your Classes</CardTitle>
+							</CardHeader>
+							<CardContent className='px-4 pb-4 space-y-2'>
+								{previewEntries.map((entry) => (
+									<div key={entry.entryId} className='flex flex-wrap items-center gap-2 rounded-xl border border-border px-3 py-2.5 text-sm'>
+										<div className='flex-1 min-w-0'>
+											<span className='font-semibold text-foreground'>{entry.sectionName}</span>
+											<span className='mx-1.5 text-muted-foreground/50'>·</span>
+											<span className='text-muted-foreground'>{entry.subjectCode}</span>
+											<span className='mx-1.5 text-muted-foreground/50'>·</span>
+											<span className='text-xs text-muted-foreground'>{entry.day.slice(0, 3)} {formatTime(entry.startTime)}</span>
+										</div>
+										{entryOutcomeBadge(entry)}
+										{entry.reviewerNotes && (
+											<p className='w-full text-xs text-amber-700 mt-1'>Note from officer: {entry.reviewerNotes}</p>
+										)}
+									</div>
+								))}
+								<Button asChild variant='outline' size='sm' className='w-full mt-2'>
 									<Link to='/my/room-preferences'>
-										Manage room requests <ArrowRight className='ml-1.5 size-4' />
+										View full schedule and manage requests <ArrowRight className='ml-1.5 size-4' />
 									</Link>
 								</Button>
-							</div>
-						</CardHeader>
-						<CardContent className='space-y-3'>
-							{previewEntries.length === 0 && (
-								<div className='rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground'>
-									No generated entries are available yet.
-								</div>
-							)}
-							{previewEntries.map((entry) => (
-								<div key={entry.entryId} className='rounded-xl border border-border px-3 py-3'>
-									<div className='flex flex-wrap items-center gap-2'>
-										<Badge variant='outline'>{entry.subjectCode}</Badge>
-										{entryOutcomeBadge(entry)}
-									</div>
-									<p className='mt-2 text-sm font-semibold text-foreground'>{entry.sectionName}</p>
-									<p className='mt-1 text-xs text-muted-foreground flex items-center gap-1.5'>
-										<CalendarClock className='size-3.5' />
-										{entry.day.slice(0, 3)} • {formatTime(entry.startTime)} - {formatTime(entry.endTime)}
-									</p>
-									<div className='mt-2 grid gap-2 text-xs sm:grid-cols-3'>
-										<div className='rounded-lg bg-muted/40 px-2 py-2'>
-											<p className='font-semibold text-muted-foreground'>Current assigned</p>
-											<p className='mt-1 text-foreground'>{entry.currentRoomName}</p>
-										</div>
-										<div className='rounded-lg bg-primary/5 px-2 py-2'>
-											<p className='font-semibold text-primary'>Pending request</p>
-											<p className='mt-1 text-foreground'>{entry.requestedRoomName ?? 'No pending room change'}</p>
-										</div>
-										<div className='rounded-lg bg-emerald-50 px-2 py-2'>
-											<p className='font-semibold text-emerald-700'>Final review</p>
-											<p className='mt-1 text-foreground'>
-												{entry.decisionStatus === 'APPROVED'
-													? entry.requestedRoomName ?? 'Approved'
-													: entry.decisionStatus === 'REJECTED'
-														? entry.currentRoomName
-														: 'Awaiting review'}
-											</p>
-										</div>
-									</div>
-									{entry.reviewerNotes && (
-										<p className='mt-2 text-xs text-muted-foreground'>Reviewer note: {entry.reviewerNotes}</p>
-									)}
-								</div>
-							))}
-						</CardContent>
-					</Card>
-
-					<div className='grid gap-3 sm:grid-cols-2'>
-						<Card className='rounded-2xl'>
-							<CardContent className='py-4'>
-								<p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>Request Status</p>
-								<p className='mt-2 text-sm font-medium'>{dashboard.statuses.requestStatusLabel}</p>
 							</CardContent>
 						</Card>
-						<Card className='rounded-2xl'>
-							<CardContent className='py-4'>
-								<p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>Review Status</p>
-								<p className='mt-2 text-sm font-medium'>{dashboard.statuses.reviewStatusLabel}</p>
-							</CardContent>
-						</Card>
-					</div>
+					)}
 
-					<div className='rounded-2xl border border-border bg-card px-4 py-4'>
-						<div className='flex flex-wrap items-center justify-between gap-2'>
-							<div className='min-w-0'>
-								<p className='text-sm font-semibold text-foreground'>Next step</p>
-								<p className='text-xs text-muted-foreground'>Submit or update room preference requests from My Room Requests.</p>
-							</div>
-							<Button asChild variant='outline' size='sm'>
-								<Link to='/my/room-preferences'>
-									<MapPin className='mr-1.5 size-4' /> Go to room requests
-								</Link>
-							</Button>
+					{previewEntries.length === 0 && (
+						<div className='rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground'>
+							<CalendarClock className='mx-auto mb-2 size-8 text-muted-foreground/40' />
+							<p className='font-medium'>No schedule yet</p>
+							<p className='mt-1 text-xs'>Your schedule will appear here once the scheduling officer generates a timetable.</p>
 						</div>
-					</div>
+					)}
 				</div>
 			</div>
 		</div>

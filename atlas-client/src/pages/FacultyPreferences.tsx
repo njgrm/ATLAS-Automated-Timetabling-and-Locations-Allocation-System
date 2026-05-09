@@ -374,12 +374,16 @@ export default function FacultyPreferences() {
 		return (
 			<div className='p-6'>
 				<Card>
-					<CardContent className='flex items-center gap-3 py-8'>
-						<AlertCircle className='size-5 text-destructive shrink-0' />
-						<div>
-							<p className='font-medium text-destructive'>Cannot load preferences</p>
+					<CardContent className='flex items-start gap-3 py-8'>
+						<AlertCircle className='mt-0.5 size-5 text-destructive shrink-0' />
+						<div className='flex-1 min-w-0'>
+							<p className='font-medium text-destructive'>Could not load your preferences</p>
 							<p className='text-sm text-muted-foreground mt-1'>{error}</p>
+							<p className='text-xs text-muted-foreground mt-2'>Try refreshing. If this keeps happening, contact your scheduling officer.</p>
 						</div>
+						<Button variant='outline' size='sm' className='shrink-0' onClick={() => void loadPreference()}>
+							Try again
+						</Button>
 					</CardContent>
 				</Card>
 			</div>

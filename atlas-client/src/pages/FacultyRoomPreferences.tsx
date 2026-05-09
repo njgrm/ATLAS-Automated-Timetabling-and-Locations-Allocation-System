@@ -115,10 +115,10 @@ const DAYS: DayOfWeek[] = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY
 
 function statusBadge(status: RoomPreferenceStatus | null, decision: RoomPreferenceDecisionStatus | null) {
 	if (decision === 'APPROVED') return <Badge variant='success'>Approved</Badge>;
-	if (decision === 'REJECTED') return <Badge variant='warning'>Rejected</Badge>;
-	if (status === 'SUBMITTED') return <Badge variant='secondary'>Submitted</Badge>;
-	if (status === 'DRAFT') return <Badge variant='outline'>Draft</Badge>;
-	return <Badge variant='secondary'>No request</Badge>;
+	if (decision === 'REJECTED') return <Badge variant='destructive'>Rejected</Badge>;
+	if (status === 'SUBMITTED') return <Badge variant='default'>Pending review</Badge>;
+	if (status === 'DRAFT') return <Badge variant='secondary'>Draft (not submitted)</Badge>;
+	return <Badge variant='outline'>No request</Badge>;
 }
 
 function isEntryDirty(current: FacultyRoomPreferenceEntry, initial?: FacultyRoomPreferenceEntry) {
@@ -727,75 +727,59 @@ export default function FacultyRoomPreferences() {
 						</div>
 					)}
 
+					{/* ── Connection / sync status strip ── */}
 					<div className={`flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-xs ${online ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
-						{online ? <Wifi className='size-4' /> : <WifiOff className='size-4' />}
-						<span className='font-semibold'>{online ? 'Online' : 'Offline mode'}</span>
-						{outboxCount > 0 && (
-							<>
-								<span>•</span>
-								<span>{outboxCount} queued action(s)</span>
-								<Badge variant='outline'>Queued {outboxStatusCounts.queued}</Badge>
-								<Badge variant='outline'>Syncing {outboxStatusCounts.syncing}</Badge>
-								<Badge variant={outboxStatusCounts.failed > 0 ? 'warning' : 'outline'}>Failed {outboxStatusCounts.failed}</Badge>
-								{syncingOutbox && <span>• syncing...</span>}
-								{outboxStatusCounts.failed > 0 && (
-									<Button size='sm' variant='outline' onClick={retryFailedOutboxActions}>
-										Retry Failed
-									</Button>
-								)}
-							</>
+						{online ? <Wifi className='size-4 shrink-0' /> : <WifiOff className='size-4 shrink-0' />}
+						{!online && (
+							<span className='font-semibold'>You're offline — changes will be saved and sent when you reconnect.</span>
 						)}
-						{liveUpdateCount > 0 && (
-							<>
-								<span>•</span>
-								<span>{liveUpdateCount} live update(s)</span>
-							</>
+						{online && outboxCount === 0 && !syncingOutbox && (
+							<span className='font-semibold'>Connected</span>
 						)}
-						{collaborationConnected && compactPresence.visible.length === 0 && (
-							<>
-								<span>•</span>
-								<span>No active collaborators yet</span>
-							</>
+						{online && syncingOutbox && (
+							<span className='font-semibold'>Saving your changes…</span>
 						)}
-						{online && !collaborationConnected && (
+						{online && !syncingOutbox && outboxCount > 0 && outboxStatusCounts.failed === 0 && (
+							<span className='font-semibold'>{outboxCount} change{outboxCount !== 1 ? 's' : ''} queued — sending now…</span>
+						)}
+						{online && outboxStatusCounts.failed > 0 && (
 							<>
-								<span>•</span>
-								<span>Realtime disconnected; SSE updates remain active</span>
-								{collaborationLastError && <span>({collaborationLastError})</span>}
+								<span className='font-semibold text-amber-800'>{outboxStatusCounts.failed} change{outboxStatusCounts.failed !== 1 ? 's' : ''} could not be saved.</span>
+								<Button size='sm' variant='outline' className='h-6 px-2 text-xs' onClick={retryFailedOutboxActions}>
+									Try again
+								</Button>
 							</>
 						)}
 						{compactPresence.visible.length > 0 && (
 							<>
-								<span>•</span>
+								<span className='mx-1 text-muted-foreground/40'>|</span>
+								<span className='text-muted-foreground'>{compactPresence.visible.length + compactPresence.hiddenCount} other{compactPresence.visible.length + compactPresence.hiddenCount !== 1 ? 's' : ''} viewing</span>
 								<div className='flex items-center gap-1'>
 									{compactPresence.visible.map((person) => {
-										const label = person.email ?? `${person.role} #${person.userId}`;
+										const label = person.email ?? `User`;
 										const initials = label.slice(0, 2).toUpperCase();
 										return (
-											<Badge key={person.connectionId} variant='outline' className='gap-1'>
-												<span className='inline-flex size-4 items-center justify-center rounded-full border border-current text-[0.55rem]'>
-													{initials}
-												</span>
-												{person.viewMode === 'FACULTY_ACTIVE_DRAFT' ? 'Draft' : 'Review'}
-											</Badge>
+											<span key={person.connectionId} className='inline-flex size-5 items-center justify-center rounded-full border border-current bg-white text-[0.55rem] font-semibold' title={label}>
+												{initials}
+											</span>
 										);
 									})}
-									{compactPresence.hiddenCount > 0 && <Badge variant='outline'>+{compactPresence.hiddenCount}</Badge>}
+									{compactPresence.hiddenCount > 0 && <span className='text-muted-foreground'>+{compactPresence.hiddenCount}</span>}
 								</div>
-							</>
-						)}
-						{recentFailedFeedback.length > 0 && (
-							<>
-								<span>•</span>
-								<span>Last sync: {recentFailedFeedback[0].message}</span>
 							</>
 						)}
 					</div>
 
 					<div className='flex flex-wrap items-center gap-3'>
 						<div>
-							<h1 className='text-2xl font-semibold tracking-tight'>Faculty Room Requests</h1>
-							<p className='text-sm text-muted-foreground'>Tap one of your sessions, then tap a target slot to open the request sheet with conflict inspection.</p>
+							<h1 className='text-2xl font-semibold tracking-tight'>Room Change Requests</h1>
+							<p className='text-sm text-muted-foreground'>
+								{!selectedSourceEntryId
+									? 'Step 1 of 3 — Tap one of your classes (highlighted in blue) to select it.'
+									: !requestSheetOpen
+										? 'Step 2 of 3 — Tap any time slot to request a change for your selected class.'
+										: 'Step 3 of 3 — Choose your preferred room, check for conflicts, then submit.'}
+							</p>
 						</div>
 						<div className='ml-auto flex flex-wrap items-center gap-2'>
 							<Button variant='outline' size='sm' onClick={() => setZoom((current) => Math.max(0.7, Number((current - 0.1).toFixed(2))))}>
@@ -811,32 +795,41 @@ export default function FacultyRoomPreferences() {
 					</div>
 
 					<div className='flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-sm shadow-sm'>
-						<span className='font-medium text-foreground'>Run #{runId}</span>
-						<span className='text-muted-foreground'>Version {runVersion}</span>
+						<span className='font-medium text-foreground'>{entries.length} class{entries.length !== 1 ? 'es' : ''} assigned to you</span>
 						{runGeneratedAt && (
 							<>
 								<span className='text-border/60'>•</span>
-								<span className='text-muted-foreground'>Generated {new Date(runGeneratedAt).toLocaleString()}</span>
+								<span className='text-muted-foreground'>Schedule as of {new Date(runGeneratedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
 							</>
 						)}
-						<span className='text-border/60'>•</span>
-						<span className='text-muted-foreground'>{entries.length} assigned sessions</span>
-						<span className='text-border/60'>•</span>
-						<span className='text-muted-foreground'>{draftCount} draft</span>
-						<span className='text-border/60'>•</span>
-						<span className='text-muted-foreground'>{submittedCount} submitted</span>
-						{gate?.blocked && (
-							<Badge variant='warning'>Generation blocked: {gate.openCount} undecided request(s)</Badge>
+						{submittedCount > 0 && (
+							<>
+								<span className='text-border/60'>•</span>
+								<span className='text-muted-foreground'>{submittedCount} request{submittedCount !== 1 ? 's' : ''} pending review</span>
+							</>
 						)}
-						{dirtyEntries.length > 0 && <Badge variant='warning'>{dirtyEntries.length} unsaved</Badge>}
+						{draftCount > 0 && (
+							<>
+								<span className='text-border/60'>•</span>
+								<span className='text-muted-foreground'>{draftCount} draft request{draftCount !== 1 ? 's' : ''} (not yet submitted)</span>
+							</>
+						)}
+						{gate?.blocked && (
+							<Badge variant='warning'>Schedule update paused — {gate.openCount} request{gate.openCount !== 1 ? 's' : ''} awaiting decision</Badge>
+						)}
+						{dirtyEntries.length > 0 && <Badge variant='warning'>{dirtyEntries.length} unsaved change{dirtyEntries.length !== 1 ? 's' : ''}</Badge>}
 					</div>
 				</div>
 
 				<div className='grid flex-1 min-h-0 gap-4 overflow-visible px-6 pb-6 lg:grid-cols-[1.3fr_0.7fr] md:overflow-hidden'>
-					<div className='flex min-h-[58svh] flex-col overflow-hidden rounded-2xl border border-border bg-card md:min-h-0'>
+					<div className='flex flex-col overflow-hidden rounded-2xl border border-border bg-card'>
 						<div className='border-b border-border px-4 py-3'>
-							<p className='text-sm font-semibold text-foreground'>Active Draft Schedule</p>
-							<p className='text-xs text-muted-foreground'>Owned sessions are selectable as source. Non-owned sessions are read-only and can be swap targets.</p>
+							<p className='text-sm font-semibold text-foreground'>Your Current Schedule</p>
+							<p className='text-xs text-muted-foreground'>
+								{selectedSourceEntryId
+									? 'Class selected — now tap any time slot to request a change.'
+									: 'Tap any of your classes (highlighted in blue) to start a request.'}
+							</p>
 						</div>
 						<div className='flex-1 min-h-0 overflow-visible px-3 py-3 md:overflow-auto' style={{ touchAction: 'pan-x pan-y' }}>
 							<div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', minWidth: '860px' }}>
@@ -890,7 +883,7 @@ export default function FacultyRoomPreferences() {
 															</p>
 														)}
 														<div className='space-y-1'>
-															{cellEntries.length === 0 && <p className='text-[0.68rem] text-muted-foreground'>Empty slot</p>}
+															{cellEntries.length === 0 && <p className='text-[0.68rem] text-muted-foreground'>Free — tap to move here</p>}
 															{cellEntries.map((entry) => {
 																const ownedEntry = entry.owned;
 																const sourceSelected = selectedSourceEntryId === entry.entryId;
@@ -940,11 +933,11 @@ export default function FacultyRoomPreferences() {
 						</div>
 					</div>
 
-					<div className='flex min-h-[48svh] flex-col overflow-hidden rounded-2xl border border-border bg-card md:min-h-0'>
+					<div className='flex flex-col overflow-hidden rounded-2xl border border-border bg-card'>
 						<div className='space-y-4 border-b border-border px-4 py-4'>
 							<div className='flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2'>
 								<Search className='size-4 text-muted-foreground' />
-								<Input value={roomSearch} onChange={(event) => setRoomSearch(event.target.value)} placeholder='Filter rooms by name or building' className='border-0 bg-transparent px-0 shadow-none focus-visible:ring-0' />
+								<Input value={roomSearch} onChange={(event) => setRoomSearch(event.target.value)} placeholder='Search rooms by name or building…' className='border-0 bg-transparent px-0 shadow-none focus-visible:ring-0' />
 							</div>
 
 							{selectedEntry ? (
@@ -967,7 +960,7 @@ export default function FacultyRoomPreferences() {
 									)}
 								</div>
 							) : (
-								<div className='rounded-xl border border-dashed border-border px-4 py-6 text-sm text-muted-foreground'>Tap one of your sessions from the grid to set your source.</div>
+								<div className='rounded-xl border border-dashed border-border px-4 py-6 text-sm text-muted-foreground'>Tap one of your classes in the schedule to begin.</div>
 							)}
 						</div>
 
@@ -998,21 +991,21 @@ export default function FacultyRoomPreferences() {
 			<Sheet open={requestSheetOpen} onOpenChange={setRequestSheetOpen}>
 				<SheetContent side='bottom' className='h-[88svh] overflow-auto rounded-t-2xl'>
 					<SheetHeader>
-						<SheetTitle>Request Change on Active Draft</SheetTitle>
-						<SheetDescription>Conflict inspector uses the same pre-generation semantics as scheduler preview.</SheetDescription>
+						<SheetTitle>Request a Room Change</SheetTitle>
+						<SheetDescription>Choose what you want to change, pick a room, and check for schedule conflicts before submitting.</SheetDescription>
 					</SheetHeader>
 
 					<div className='mt-4 space-y-4'>
 						<div className='grid gap-3 sm:grid-cols-2'>
 							<div className='space-y-2'>
-								<Label>Action type</Label>
+								<Label>What do you want to change?</Label>
 								<Select value={actionType} onValueChange={(value) => setActionType(value as RequestActionType)}>
 									<SelectTrigger><SelectValue /></SelectTrigger>
 									<SelectContent>
-										<SelectItem value='MOVE_TO_EMPTY_SLOT'><Move className='mr-2 inline size-4' />Move to empty slot</SelectItem>
-										<SelectItem value='SWAP_WITH_OCCUPIED'><Shuffle className='mr-2 inline size-4' />Swap with occupied slot</SelectItem>
-										<SelectItem value='ROOM_CHANGE'><TimerReset className='mr-2 inline size-4' />Room change</SelectItem>
-										<SelectItem value='TIME_AND_ROOM_CHANGE'><Send className='mr-2 inline size-4' />Time + room change</SelectItem>
+										<SelectItem value='MOVE_TO_EMPTY_SLOT'><Move className='mr-2 inline size-4' />Move my class to a free time slot</SelectItem>
+										<SelectItem value='SWAP_WITH_OCCUPIED'><Shuffle className='mr-2 inline size-4' />Swap time slots with another class</SelectItem>
+										<SelectItem value='ROOM_CHANGE'><TimerReset className='mr-2 inline size-4' />Change my classroom only</SelectItem>
+										<SelectItem value='TIME_AND_ROOM_CHANGE'><Send className='mr-2 inline size-4' />Change both time and classroom</SelectItem>
 									</SelectContent>
 								</Select>
 							</div>
@@ -1038,24 +1031,27 @@ export default function FacultyRoomPreferences() {
 						<Textarea
 							value={reason}
 							onChange={(event) => setReason(event.target.value)}
-							placeholder='Reason for this request (required only for conflict-causing swaps).'
+							placeholder='Reason for this request — required if your change causes a schedule conflict.'
 							className='min-h-24'
 						/>
 
 						<Separator />
 
 						<div className='space-y-2'>
-							<p className='text-sm font-semibold'>Conflict inspector</p>
-							{previewLoading && <p className='text-xs text-muted-foreground'>Loading conflict analysis...</p>}
+							<p className='text-sm font-semibold'>Schedule check</p>
+							{previewLoading && <p className='text-xs text-muted-foreground'>Checking for conflicts…</p>}
 							{!previewLoading && requestPreview && (
 								<>
-									<div className='flex flex-wrap items-center gap-2 text-xs'>
-										<Badge variant={requestPreview.hardViolations.length > 0 ? 'warning' : 'success'}>Hard: {requestPreview.hardViolations.length}</Badge>
-										<Badge variant='outline'>Soft: {requestPreview.softViolations.length}</Badge>
-										<Badge variant='outline'>Allowed: {requestPreview.allowed ? 'Yes' : 'No'}</Badge>
-									</div>
+									{requestPreview.hardViolations.length === 0 && requestPreview.softViolations.length === 0 && (
+										<p className='text-xs text-emerald-700 font-medium'>✓ No conflicts found. You can submit this request.</p>
+									)}
+									{requestPreview.hardViolations.length > 0 && (
+										<p className='text-xs text-amber-800 font-medium'>This request causes {requestPreview.hardViolations.length} schedule conflict{requestPreview.hardViolations.length !== 1 ? 's' : ''}. Please explain your reason below and the scheduling officer will decide.</p>
+									)}
+									{requestPreview.softViolations.length > 0 && requestPreview.hardViolations.length === 0 && (
+										<p className='text-xs text-muted-foreground'>{requestPreview.softViolations.length} minor scheduling note{requestPreview.softViolations.length !== 1 ? 's' : ''} — you can still submit.</p>
+									)}
 									<div className='space-y-2'>
-										{requestPreview.humanConflicts.length === 0 && <p className='text-xs text-muted-foreground'>No conflicts detected.</p>}
 										{requestPreview.humanConflicts.map((conflict, index) => (
 											<div key={`${conflict.code}-${conflict.humanTitle}-${index}`} className='rounded-lg border border-border bg-background p-2'>
 												<p className='text-xs font-semibold'>{conflict.humanTitle}</p>
@@ -1068,8 +1064,14 @@ export default function FacultyRoomPreferences() {
 						</div>
 
 						<div className='rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900'>
-							Soft policy conflicts are warnings only. Hard conflicts route through scheduler decision workflow.
+							Minor scheduling notes are for your information only. Requests with conflicts will be reviewed and decided by the scheduling officer — they are not automatically rejected.
 						</div>
+
+						{actionType === 'SWAP_WITH_OCCUPIED' && (requestPreview?.hardViolations.length ?? 0) > 0 && !reason.trim() && (
+							<div className='rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive'>
+								Please enter a reason above to explain why you need this change — it helps the scheduling officer make a decision.
+							</div>
+						)}
 
 						<div className='flex justify-end gap-2'>
 							<Button variant='outline' onClick={() => setRequestSheetOpen(false)}>Cancel</Button>
