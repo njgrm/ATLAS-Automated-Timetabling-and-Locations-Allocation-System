@@ -2,6 +2,64 @@
 
 Record dated implementation verification summaries here.
 
+### 2026-05-09 - Faculty UX/UI Hardening Pass (Mobile Drawer + Guided Room Request Flow)
+- Phase: 4 (objective-priority continuation)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS (automated), PARTIAL PASS (manual)
+- Regression gate: PASS
+- Pre-implementation UX audit (shared browser + source review) vs `docs/phases/faculty-mobile-wireframe-spec.md`:
+  - Blocker A (mobile shell): FAIL before changes. Persistent left icon rail remained visible on phone widths; no top hamburger drawer.
+  - Blocker B (mobile room flow): FAIL before changes. `/my/room-preferences` exposed desktop matrix patterns on small screens with high discovery burden.
+  - Blocker C (step guidance): PARTIAL before changes. Step copy existed but mobile flow was not operationally linear.
+  - Blocker D (plain language): PARTIAL before changes. Multiple school-year/session-context strings remained technical.
+  - Blocker E (touch ergonomics): FAIL before changes. Dense matrix interactions were not mobile-first.
+- Implementation mapping to blockers:
+  - A fixed in `atlas-client/src/components/AppShell.tsx`:
+    - Hidden persistent sidebar on `<1024px`.
+    - Added top app bar with hamburger toggle, center route title, and compact connectivity chip (`Online`/`Offline`/`Syncing`).
+    - Added framer-motion top overlay drawer with faculty nav, back-to-EnrollPro, and sign-out actions.
+  - B fixed in `atlas-client/src/pages/FacultyRoomPreferences.tsx`:
+    - Added mobile-first stacked guided flow (Step 1 class select, Step 2 target select, Step 3 sheet review/submit).
+    - Kept desktop grid workflow at `lg` and above only.
+  - C fixed in `atlas-client/src/pages/FacultyRoomPreferences.tsx`:
+    - Added persistent step chips and step-specific helper text.
+  - D fixed in `atlas-client/src/pages/FacultyPreferences.tsx`, `atlas-client/src/pages/MyDashboard.tsx`, `atlas-client/src/pages/FacultyRoomPreferences.tsx`:
+    - Replaced technical school-year/session/draft fallback copy with plain-language faculty-facing phrasing.
+  - E fixed in `atlas-client/src/pages/FacultyRoomPreferences.tsx`:
+    - Enlarged card/button targets for mobile selection and added clearer occupied/free state labels.
+- Commands:
+  - `npm --prefix atlas-client run build`: PASS
+  - `npm --prefix atlas-server run build`: PASS
+  - `npm --prefix atlas-server run test:room-pref-sync`: PASS
+  - `npm --prefix atlas-server run test:phase1`: PASS
+  - `npm --prefix atlas-server run test:phase2`: PASS
+  - `npm --prefix atlas-server run test:phase2-regression`: PASS
+  - Re-check after final UI edits:
+    - `npm --prefix atlas-client run build`: PASS
+    - `npm --prefix atlas-server run test:room-pref-sync`: PASS
+    - `npm --prefix atlas-server run test:phase2`: PASS
+    - `npm --prefix atlas-server run test:phase2-regression`: PASS
+- Manual QA screenshots captured:
+  - `qa-artifacts/screenshots/faculty-hardening-after-mobile-portrait-drawer-open.png` (hamburger drawer open)
+  - `qa-artifacts/screenshots/faculty-hardening-after-mobile-portrait-my.png`
+  - `qa-artifacts/screenshots/faculty-hardening-after-mobile-portrait-my-preferences.png`
+  - `qa-artifacts/screenshots/faculty-hardening-after-mobile-portrait-my-room-preferences-step1.png`
+  - `qa-artifacts/screenshots/faculty-hardening-after-mobile-portrait-my-room-preferences-step3-sheet.png`
+  - `qa-artifacts/screenshots/faculty-hardening-after-mobile-landscape-my-room-preferences.png`
+  - `qa-artifacts/screenshots/faculty-hardening-after-desktop-my-room-preferences.png`
+- Manual QA outcomes:
+  - Mobile portrait hamburger opens/closes and routes correctly: PASS
+  - Mobile portrait room-request step guidance is visible and actionable: PASS
+  - Mobile landscape no left-rail clipping and no desktop grid squeeze: PASS
+  - Desktop layout regression check: PASS
+  - Offline submit message + reconnect autosync visual completion: NOT FULLY VERIFIED in this browser pass due intermittent 401/403 session invalidation and realtime channel disconnect in the shared environment.
+- Blocking findings:
+  - Shared browser environment intermittently returned 401/403 for faculty room-preference event/session requests during manual pass, limiting complete offline/reconnect evidence capture.
+- Decision:
+  - Accepted for code + automated regression gates.
+  - Manual offline/reconnect evidence remains required for final objective sign-off.
+
 ### 2026-05-09 - Collaboration Visibility + Offline UX + Mobile Scroll Hardening (Iteration)
 - Phase: 4 (objective-priority continuation)
 - Scope gate: PASS

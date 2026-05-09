@@ -27,20 +27,20 @@ function resolveSchoolYearContext(settingsActiveSchoolYearId: number | null, yea
 	if (inferredActive) {
 		return {
 			schoolYearId: inferredActive.id,
-			notice: `No active school year was provided by public settings. Showing inferred active school year ${inferredActive.yearLabel}.`,
+			notice: `Showing School Year ${inferredActive.yearLabel}.`,
 		};
 	}
 
 	if (sortedYears[0]) {
 		return {
 			schoolYearId: sortedYears[0].id,
-			notice: `No active school year was provided by public settings. Showing latest available school year ${sortedYears[0].yearLabel}.`,
+			notice: `Showing School Year ${sortedYears[0].yearLabel}.`,
 		};
 	}
 
 	return {
 		schoolYearId: FALLBACK_SCHOOL_YEAR_ID,
-		notice: 'No school year metadata was available. Showing fallback school year context.',
+		notice: 'Showing a fallback school year while setup is being completed.',
 	};
 }
 
@@ -192,8 +192,8 @@ export default function MyDashboard() {
 							<div className='flex items-start gap-3'>
 								<AlertTriangle className='mt-0.5 size-5 text-amber-700 shrink-0' />
 								<div>
-									<p className='font-semibold text-amber-900'>{dashboard.fallbackBanner.title}</p>
-									<p className='mt-1 text-sm text-amber-800'>{dashboard.fallbackBanner.message}</p>
+									<p className='font-semibold text-amber-900'>{dashboard.runContext.state === 'NO_ACTIVE_DRAFT' ? 'Your schedule is not ready yet' : dashboard.fallbackBanner.title}</p>
+									<p className='mt-1 text-sm text-amber-800'>{dashboard.runContext.state === 'NO_ACTIVE_DRAFT' ? "Your schedule isn't ready yet. Please wait for the scheduler to generate the draft." : dashboard.fallbackBanner.message}</p>
 									{dashboard.runContext.state === 'NO_ACTIVE_DRAFT' && dashboard.runContext.recoveryHint && (
 										<p className='mt-2 text-xs text-amber-900'>{dashboard.runContext.recoveryHint}</p>
 									)}

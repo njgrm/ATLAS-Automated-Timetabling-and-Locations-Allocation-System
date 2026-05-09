@@ -71,20 +71,20 @@ function resolveSchoolYearContext(settingsActiveSchoolYearId: number | null, yea
 	if (inferredActive) {
 		return {
 			schoolYearId: inferredActive.id,
-			notice: `No active school year was provided by public settings. Showing inferred active school year ${inferredActive.yearLabel}.`,
+			notice: `Showing School Year ${inferredActive.yearLabel}.`,
 		};
 	}
 
 	if (sortedYears[0]) {
 		return {
 			schoolYearId: sortedYears[0].id,
-			notice: `No active school year was provided by public settings. Showing latest available school year ${sortedYears[0].yearLabel}.`,
+			notice: `Showing School Year ${sortedYears[0].yearLabel}.`,
 		};
 	}
 
 	return {
 		schoolYearId: FALLBACK_SCHOOL_YEAR_ID,
-		notice: 'No school year metadata was available. Showing fallback school year context.',
+		notice: 'Showing a fallback school year while setup is being completed.',
 	};
 }
 
@@ -175,6 +175,8 @@ export default function FacultyRoomPreferences() {
 	const [remoteSelections, setRemoteSelections] = useState<Record<string, CollaborationSelection>>({});
 	const [collaborationConnected, setCollaborationConnected] = useState(false);
 	const [collaborationLastError, setCollaborationLastError] = useState<string | null>(null);
+	const [isMobileViewport, setIsMobileViewport] = useState(() => window.matchMedia('(max-width: 1023px)').matches);
+	const [mobileStep, setMobileStep] = useState<1 | 2 | 3>(1);
 	const lastEventIdRef = useRef<number>(0);
 	const collaborationRef = useRef<ReturnType<typeof createRoomPreferenceCollaborationSocket> | null>(null);
 	const selfConnectionIdRef = useRef<string | null>(null);
@@ -236,7 +238,7 @@ export default function FacultyRoomPreferences() {
 			const staleMessage = responseData?.code === 'STALE_RUN_DATA'
 				? [responseData.message, responseData.actionHint].filter(Boolean).join(' ')
 				: null;
-			setError(noDraftMessage ?? staleMessage ?? responseData?.message ?? 'No active draft run is available for room requests yet.');
+			setError(noDraftMessage ?? staleMessage ?? responseData?.message ?? "Your schedule isn't ready yet. Please wait for the scheduler to generate the draft.");
 		} finally {
 			setLoading(false);
 		}
@@ -245,6 +247,14 @@ export default function FacultyRoomPreferences() {
 	useEffect(() => {
 		void loadBootstrap();
 	}, [loadBootstrap]);
+
+	useEffect(() => {
+		const media = window.matchMedia('(max-width: 1023px)');
+		const onChange = (event: MediaQueryListEvent) => setIsMobileViewport(event.matches);
+		setIsMobileViewport(media.matches);
+		media.addEventListener('change', onChange);
+		return () => media.removeEventListener('change', onChange);
+	}, []);
 
 	const flushOutbox = useCallback(async () => {
 		if (!online || !runId || !activeSchoolYearId || !facultyId) return;
@@ -575,6 +585,33 @@ export default function FacultyRoomPreferences() {
 		}
 		return map;
 	}, [globalEntries]);
+	const mobileTargets = useMemo(() => {
+		const targets: Array<{ day: DayOfWeek; startTime: string; endTime: string; targetEntryId: string | null; occupiedLabel: string | null }> = [];
+		for (const day of DAYS) {
+			for (const slot of timeSlots) {
+				const key = slotKey(day, slot.startTime, slot.endTime);
+				const occupant = (globalBySlot.get(key) ?? [])[0] ?? null;
+				targets.push({
+					day,
+					startTime: slot.startTime,
+					endTime: slot.endTime,
+					targetEntryId: occupant?.entryId ?? null,
+					occupiedLabel: occupant ? `${occupant.subjectCode} • ${occupant.sectionName}` : null,
+				});
+			}
+		}
+		return targets;
+	}, [globalBySlot, timeSlots]);
+	const currentStep = useMemo<1 | 2 | 3>(() => {
+		if (requestSheetOpen) return 3;
+		if (!selectedSourceEntryId) return 1;
+		return 2;
+	}, [requestSheetOpen, selectedSourceEntryId]);
+
+	useEffect(() => {
+		if (!isMobileViewport) return;
+		setMobileStep(currentStep);
+	}, [currentStep, isMobileViewport]);
 
 	const assignRoomToEntry = useCallback((entryId: string, roomId: number) => {
 		const room = rooms.find((item) => item.id === roomId);
@@ -599,6 +636,7 @@ export default function FacultyRoomPreferences() {
 		setReason(selectedEntry.rationale ?? '');
 		setRequestPreview(null);
 		setRequestSheetOpen(true);
+		setMobileStep(3);
 	}, [selectedEntry]);
 
 	useEffect(() => {
@@ -774,12 +812,17 @@ export default function FacultyRoomPreferences() {
 						<div>
 							<h1 className='text-2xl font-semibold tracking-tight'>Room Change Requests</h1>
 							<p className='text-sm text-muted-foreground'>
-								{!selectedSourceEntryId
-									? 'Step 1 of 3 — Tap one of your classes (highlighted in blue) to select it.'
-									: !requestSheetOpen
-										? 'Step 2 of 3 — Tap any time slot to request a change for your selected class.'
-										: 'Step 3 of 3 — Choose your preferred room, check for conflicts, then submit.'}
+								{(isMobileViewport ? mobileStep : currentStep) === 1
+									? 'Step 1 of 3 — Select one of your classes to begin.'
+									: (isMobileViewport ? mobileStep : currentStep) === 2
+										? 'Step 2 of 3 — Choose where you want to move it.'
+										: 'Step 3 of 3 — Review conflicts and submit your request.'}
 							</p>
+							<div className='mt-2 flex flex-wrap gap-2'>
+								<Badge variant={(isMobileViewport ? mobileStep : currentStep) === 1 ? 'default' : 'outline'}>1 Select Class</Badge>
+								<Badge variant={(isMobileViewport ? mobileStep : currentStep) === 2 ? 'default' : 'outline'}>2 Choose Target</Badge>
+								<Badge variant={(isMobileViewport ? mobileStep : currentStep) === 3 ? 'default' : 'outline'}>3 Review & Submit</Badge>
+							</div>
 						</div>
 						<div className='ml-auto flex flex-wrap items-center gap-2'>
 							<Button variant='outline' size='sm' onClick={() => setZoom((current) => Math.max(0.7, Number((current - 0.1).toFixed(2))))}>
@@ -821,7 +864,89 @@ export default function FacultyRoomPreferences() {
 					</div>
 				</div>
 
-				<div className='grid flex-1 min-h-0 gap-4 overflow-visible px-6 pb-6 lg:grid-cols-[1.3fr_0.7fr] md:overflow-hidden'>
+				<div className='lg:hidden flex-1 overflow-auto px-4 pb-6'>
+					<div className='space-y-4'>
+						<Card className='rounded-2xl border-border'>
+							<CardContent className='space-y-3 p-4'>
+								<p className='text-sm font-semibold'>Step 1: Select Your Class</p>
+								<p className='text-xs text-muted-foreground'>Tap one class card, then continue.</p>
+								<div className='space-y-2'>
+									{entries.map((entry) => (
+										<Button
+											key={`mobile-source-${entry.entryId}`}
+											variant={selectedSourceEntryId === entry.entryId ? 'secondary' : 'outline'}
+											className='h-auto w-full justify-start px-3 py-3 text-left'
+											onClick={() => {
+												setSelectedSourceEntryId(entry.entryId);
+												setMobileStep(2);
+												collaborationRef.current?.sendSelection({
+													schoolId: DEFAULT_SCHOOL_ID,
+													schoolYearId: activeSchoolYearId,
+													runId,
+													entryId: entry.entryId,
+													source: 'SESSION',
+												});
+											}}
+										>
+											<div className='w-full space-y-1'>
+												<div className='flex flex-wrap items-center gap-2'>
+													<Badge variant='outline'>{entry.subjectCode}</Badge>
+													{statusBadge(entry.status, entry.decisionStatus)}
+												</div>
+												<p className='text-sm font-semibold text-foreground'>{entry.sectionName}</p>
+												<p className='text-xs text-muted-foreground'>{entry.day.slice(0, 3)} {formatTime(entry.startTime)} - {formatTime(entry.endTime)}</p>
+												<p className='text-xs text-muted-foreground'>Current room: {entry.currentRoomName}</p>
+											</div>
+										</Button>
+									))}
+								</div>
+							</CardContent>
+						</Card>
+
+						{selectedEntry && (
+							<Card className='rounded-2xl border-border'>
+								<CardContent className='space-y-3 p-4'>
+									<div className='flex items-center justify-between gap-2'>
+										<p className='text-sm font-semibold'>Step 2: Choose Target</p>
+										<Button variant='ghost' size='sm' onClick={() => setMobileStep(1)}>Change class</Button>
+									</div>
+									<p className='text-xs text-muted-foreground'>Pick a day/time. Free slots suggest move, occupied slots suggest swap.</p>
+									<div className='space-y-2'>
+										{mobileTargets.map((target) => (
+											<Button
+												key={`mobile-target-${target.day}-${target.startTime}-${target.endTime}`}
+												variant='outline'
+												className='h-auto w-full justify-start px-3 py-3 text-left'
+												onClick={() => {
+													collaborationRef.current?.sendSelection({
+														schoolId: DEFAULT_SCHOOL_ID,
+														schoolYearId: activeSchoolYearId,
+														runId,
+														day: target.day,
+														startTime: target.startTime,
+														endTime: target.endTime,
+														entryId: target.targetEntryId ?? undefined,
+														source: 'GRID_CELL',
+													});
+													openRequestSheet(target);
+												}}
+											>
+												<div className='w-full space-y-1'>
+													<p className='text-sm font-semibold text-foreground'>{target.day.slice(0, 3)} {formatTime(target.startTime)} - {formatTime(target.endTime)}</p>
+													<p className={`text-xs ${target.occupiedLabel ? 'text-amber-700' : 'text-emerald-700'}`}>
+														{target.occupiedLabel ? `Occupied: ${target.occupiedLabel}` : 'Free slot'}
+													</p>
+												</div>
+											</Button>
+										))}
+									</div>
+								</CardContent>
+							</Card>
+						)}
+					</div>
+				</div>
+
+				<div className='hidden lg:grid flex-1 min-h-0 gap-4 overflow-visible px-6 pb-6 lg:grid-cols-[1.3fr_0.7fr] md:overflow-hidden'>
 					<div className='flex flex-col overflow-hidden rounded-2xl border border-border bg-card'>
 						<div className='border-b border-border px-4 py-3'>
 							<p className='text-sm font-semibold text-foreground'>Your Current Schedule</p>
@@ -838,8 +963,8 @@ export default function FacultyRoomPreferences() {
 									{DAYS.map((day) => (
 										<div key={day} className='text-xs font-semibold text-muted-foreground px-2 py-2'>{day.slice(0, 3)}</div>
 									))}
-									{timeSlots.map((slot) => (
-										<Fragment key={`slot-row-${slot.startTime}-${slot.endTime}`}>
+									{timeSlots.map((slot, slotIndex) => (
+										<Fragment key={`slot-row-${slot.startTime}-${slot.endTime}-${slotIndex}`}>
 											<div key={`slot-${slot.startTime}-${slot.endTime}`} className='rounded-lg border border-border bg-muted/40 px-2 py-2 text-xs font-medium'>
 												{formatTime(slot.startTime)} - {formatTime(slot.endTime)}
 											</div>

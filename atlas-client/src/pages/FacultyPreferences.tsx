@@ -50,20 +50,20 @@ function resolveSchoolYearContext(settingsActiveSchoolYearId: number | null, yea
 	if (inferredActive) {
 		return {
 			schoolYearId: inferredActive.id,
-			notice: `No active school year was provided by public settings. Showing inferred active school year ${inferredActive.yearLabel}.`,
+			notice: `Showing School Year ${inferredActive.yearLabel}.`,
 		};
 	}
 
 	if (sortedYears[0]) {
 		return {
 			schoolYearId: sortedYears[0].id,
-			notice: `No active school year was provided by public settings. Showing latest available school year ${sortedYears[0].yearLabel}.`,
+			notice: `Showing School Year ${sortedYears[0].yearLabel}.`,
 		};
 	}
 
 	return {
 		schoolYearId: 1,
-		notice: 'No school year metadata was available. Showing fallback school year context.',
+		notice: 'Showing a fallback school year while setup is being completed.',
 	};
 }
 
@@ -179,7 +179,7 @@ export default function FacultyPreferences() {
 				}
 				setFacultyId(facultyMe.faculty.id);
 			} catch {
-				setError('Failed to load session context. Please sign in again or contact the scheduling officer if your faculty profile is not mapped yet.');
+				setError("We couldn't load your account details. Please tap Retry.");
 				setLoading(false);
 			}
 		})();
@@ -353,6 +353,13 @@ export default function FacultyPreferences() {
 	/* ── Derived state ── */
 	const isSubmitted = preference?.status === 'SUBMITTED';
 	const canEdit = !locked;
+	const topBanner: 'locked' | 'review' | 'submitted' | null = locked
+		? 'locked'
+		: reviewUpdates > 0
+			? 'review'
+			: isSubmitted
+				? 'submitted'
+				: null;
 
 	/* ── Render ── */
 
@@ -394,10 +401,10 @@ export default function FacultyPreferences() {
 		<div className='flex flex-col h-[calc(100svh-3.5rem)] max-w-5xl mx-auto w-full'>
 
 			{/* Pinned notification banners */}
-			{(locked || isSubmitted || reviewUpdates > 0) && (
+			{topBanner && (
 				<div className='shrink-0 pt-6 px-6 space-y-3'>
 					<AnimatePresence>
-						{locked && (
+						{topBanner === 'locked' && (
 							<motion.div
 								key='locked-banner'
 								initial={{ opacity: 0, y: -8 }}
@@ -415,7 +422,7 @@ export default function FacultyPreferences() {
 								</Card>
 							</motion.div>
 						)}
-						{!locked && isSubmitted && (
+						{topBanner === 'submitted' && (
 							<motion.div
 								key='submitted-banner'
 								initial={{ opacity: 0, y: -8 }}
@@ -437,7 +444,7 @@ export default function FacultyPreferences() {
 								</Card>
 							</motion.div>
 						)}
-						{reviewUpdates > 0 && (
+						{topBanner === 'review' && (
 							<motion.div
 								key='review-banner'
 								initial={{ opacity: 0, y: -8 }}

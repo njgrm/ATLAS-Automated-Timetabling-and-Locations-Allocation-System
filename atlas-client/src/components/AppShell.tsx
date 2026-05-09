@@ -12,11 +12,15 @@ import {
 	Lock,
 	LogOut,
 	MapPinned,
+	Menu,
 	School,
 	UserCog,
 	Users,
+	Wifi,
+	WifiOff,
+	X,
 } from 'lucide-react';
-import React, { useEffect, useLayoutEffect, useRef, useState, Suspense } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, Suspense } from 'react';
 import { Link, useLocation, useNavigate, useOutlet } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 
@@ -183,6 +187,7 @@ function AppSidebar({
 	bridgeUser,
 	pathname,
 	onLogout,
+	className,
 }: {
 	schoolName: string;
 	logoUrl: string | null;
@@ -190,6 +195,7 @@ function AppSidebar({
 	bridgeUser: BridgeUser | null;
 	pathname: string;
 	onLogout: () => void;
+	className?: string;
 }) {
 	const isAdmin = bridgeUser?.role === 'admin' || bridgeUser?.role === 'SYSTEM_ADMIN' || bridgeUser?.role === 'officer';
 	const isFaculty = bridgeUser?.role === 'faculty';
@@ -199,7 +205,7 @@ function AppSidebar({
 
 	return (
 		<>
-			<Sidebar collapsible='icon'>
+			<Sidebar collapsible='icon' className={className}>
 				{/* ── Header: School Identity ── */}
 				<SidebarHeader>
 					<SidebarMenu>
@@ -454,7 +460,79 @@ export function AppShell() {
 	const [bridgeUser, setBridgeUser] = useState<BridgeUser | null>(null);
 	const [authSource, setAuthSource] = useState<'bridge' | 'local' | null>(null);
 	const [syOpen, setSyOpen] = useState(false);
+	const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 1023px)').matches);
+	const [mobileNavOpen, setMobileNavOpen] = useState(false);
+	const [isOnline, setIsOnline] = useState(navigator.onLine);
+	const [mobileSyncLabel, setMobileSyncLabel] = useState<'Online' | 'Offline' | 'Syncing'>(() => navigator.onLine ? 'Online' : 'Offline');
 	const authCheckSeqRef = useRef(0);
+
+	const isAdmin = bridgeUser?.role === 'admin' || bridgeUser?.role === 'SYSTEM_ADMIN' || bridgeUser?.role === 'officer';
+	const isFaculty = bridgeUser?.role === 'faculty';
+
+	const mobileNavItems = useMemo(() => {
+		if (isFaculty) return facultyNav;
+		const aggregated = [...navigationNav, ...schedulingNav, ...campusNav, ...insightsNav]
+			.filter((item) => !item.disabled)
+			.filter((item) => !item.adminOnly || isAdmin);
+		const deduped = new Map<string, NavItemDef>();
+		for (const item of aggregated) deduped.set(item.to, item);
+		return [...deduped.values()];
+	}, [isAdmin, isFaculty]);
+
+	useEffect(() => {
+		const media = window.matchMedia('(max-width: 1023px)');
+		const onChange = (event: MediaQueryListEvent) => {
+			setIsMobile(event.matches);
+			if (!event.matches) setMobileNavOpen(false);
+		};
+		setIsMobile(media.matches);
+		media.addEventListener('change', onChange);
+		return () => media.removeEventListener('change', onChange);
+	}, []);
+
+	useEffect(() => {
+		const updateSyncState = () => {
+			const online = navigator.onLine;
+			setIsOnline(online);
+			if (!online) {
+				setMobileSyncLabel('Offline');
+				return;
+			}
+
+			let hasQueued = false;
+			for (let index = 0; index < localStorage.length; index += 1) {
+				const key = localStorage.key(index);
+				if (!key || !key.startsWith('atlas:room-pref-outbox:')) continue;
+				const raw = localStorage.getItem(key);
+				if (!raw) continue;
+				try {
+					const parsed = JSON.parse(raw) as Array<{ status?: string }>;
+					if (Array.isArray(parsed) && parsed.length > 0) {
+						hasQueued = true;
+						break;
+					}
+				} catch {
+					continue;
+				}
+			}
+
+			setMobileSyncLabel(hasQueued ? 'Syncing' : 'Online');
+		};
+
+		updateSyncState();
+		window.addEventListener('online', updateSyncState);
+		window.addEventListener('offline', updateSyncState);
+		const timer = window.setInterval(updateSyncState, 2500);
+		return () => {
+			window.removeEventListener('online', updateSyncState);
+			window.removeEventListener('offline', updateSyncState);
+			window.clearInterval(timer);
+		};
+	}, [location.pathname]);
+
+	useEffect(() => {
+		setMobileNavOpen(false);
+	}, [location.pathname]);
 
 	/* Capture bridge token on mount */
 	useLayoutEffect(() => {
@@ -581,10 +659,12 @@ export function AppShell() {
 		}
 		return [{ label: 'ATLAS' }];
 	})();
+	const currentPageTitle = breadcrumbs[breadcrumbs.length - 1]?.label ?? 'ATLAS';
 
 	return (
 		<SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
 			<AppSidebar
+				className='hidden lg:flex'
 				schoolName={schoolName}
 				logoUrl={logoUrl}
 				activeYearLabel={activeYearLabel}
@@ -596,97 +676,166 @@ export function AppShell() {
 			<SidebarInset>
 				{/* Top bar */}
 				<header className='flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-4'>
-					<SidebarTrigger className='-ml-1' />
-					<Separator orientation='vertical' className='mr-2 h-4!' />
-					<Breadcrumb>
-						<BreadcrumbList>
-							<BreadcrumbItem>
-								<BreadcrumbLink asChild>
-									<Link to='/'>ATLAS</Link>
-								</BreadcrumbLink>
-							</BreadcrumbItem>
-							{breadcrumbs.map((crumb, i) => (
-								<React.Fragment key={crumb.label}>
-									<BreadcrumbSeparator />
+					{isMobile ? (
+						<>
+							<Button variant='ghost' size='icon' className='h-9 w-9' onClick={() => setMobileNavOpen((open) => !open)}>
+								{mobileNavOpen ? <X className='size-5' /> : <Menu className='size-5' />}
+								<span className='sr-only'>Open navigation menu</span>
+							</Button>
+							<div className='flex-1 truncate text-center text-sm font-semibold'>{currentPageTitle}</div>
+							<Badge
+								variant='outline'
+								className={`h-7 px-2 text-[0.65rem] ${isOnline ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}
+							>
+								{isOnline ? <Wifi className='mr-1 size-3' /> : <WifiOff className='mr-1 size-3' />}
+								{mobileSyncLabel}
+							</Badge>
+						</>
+					) : (
+						<>
+							<SidebarTrigger className='-ml-1 hidden lg:inline-flex' />
+							<Separator orientation='vertical' className='mr-2 h-4! hidden lg:block' />
+							<Breadcrumb>
+								<BreadcrumbList>
 									<BreadcrumbItem>
-										{i === breadcrumbs.length - 1 ? (
-											<BreadcrumbPage>{crumb.label}</BreadcrumbPage>
-										) : (
-											<span className='text-sm text-muted-foreground'>
-												{crumb.label}
-											</span>
-										)}
+										<BreadcrumbLink asChild>
+											<Link to='/'>ATLAS</Link>
+										</BreadcrumbLink>
 									</BreadcrumbItem>
-								</React.Fragment>
-							))}
-						</BreadcrumbList>
-					</Breadcrumb>
-
-					{/* Right-side header controls */}
-					<div className='ml-auto flex items-center gap-2'>
-						<AccessibilityMenu fontSize={fontSize} setFontSize={setFontSize} />
-
-						{/* School year selector — EnrollPro-style popover */}
-						{schoolYears.length > 0 && (
-							<div className='relative'>
-								<TooltipProvider>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<Button
-												variant='outline'
-												size='sm'
-												className='h-8 gap-1.5 text-xs font-medium'
-												onClick={() => setSyOpen(!syOpen)}
-											>
-												<CalendarDays className='size-3.5' />
-												<span>
-													{schoolYears.find((y) => y.id === selectedYearId)?.yearLabel ?? 'No Year'}
-												</span>
-												<ChevronsUpDown className='size-3 opacity-50' />
-											</Button>
-										</TooltipTrigger>
-										<TooltipContent>Switch School Year</TooltipContent>
-									</Tooltip>
-								</TooltipProvider>
-								{syOpen && (
-									<>
-										<div className='fixed inset-0 z-40' onClick={() => setSyOpen(false)} />
-										<div className='absolute right-0 top-full z-50 mt-1 min-w-45 rounded-md border border-border bg-popover p-1 shadow-md'>
-											{schoolYears.map((sy) => (
-												<button
-													key={sy.id}
-													onClick={() => {
-														setSelectedYearId(sy.id);
-														setActiveYearLabel(sy.yearLabel);
-														setSyOpen(false);
-													}}
-													className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs ${
-														sy.id === selectedYearId
-															? 'bg-accent text-accent-foreground'
-															: 'hover:bg-sidebar-accent hover:text-accent-foreground'
-													}`}
-												>
-													<span className='flex-1 text-left'>{sy.yearLabel}</span>
-													<span className={`rounded px-1 py-0.5 text-[0.625rem] font-medium ${
-														sy.isActive
-															? 'bg-green-100 text-green-700'
-															: (sy.status === 'UPCOMING'
-																? 'bg-blue-100 text-blue-700'
-																: sy.status === 'DRAFT'
-																	? 'bg-yellow-100 text-yellow-700'
-																	: 'bg-gray-100 text-gray-500')
-													}`}>
-														{sy.isActive ? 'ACTIVE' : (sy.status ?? 'CLOSED')}
+									{breadcrumbs.map((crumb, i) => (
+										<React.Fragment key={crumb.label}>
+											<BreadcrumbSeparator />
+											<BreadcrumbItem>
+												{i === breadcrumbs.length - 1 ? (
+													<BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+												) : (
+													<span className='text-sm text-muted-foreground'>
+														{crumb.label}
 													</span>
-												</button>
-											))}
-										</div>
-									</>
+												)}
+											</BreadcrumbItem>
+										</React.Fragment>
+									))}
+								</BreadcrumbList>
+							</Breadcrumb>
+
+							{/* Right-side header controls */}
+							<div className='ml-auto flex items-center gap-2'>
+								<AccessibilityMenu fontSize={fontSize} setFontSize={setFontSize} />
+
+								{/* School year selector — EnrollPro-style popover */}
+								{schoolYears.length > 0 && (
+									<div className='relative'>
+										<TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<Button
+														variant='outline'
+														size='sm'
+														className='h-8 gap-1.5 text-xs font-medium'
+														onClick={() => setSyOpen(!syOpen)}
+													>
+														<CalendarDays className='size-3.5' />
+														<span>
+															{schoolYears.find((y) => y.id === selectedYearId)?.yearLabel ?? 'No Year'}
+														</span>
+														<ChevronsUpDown className='size-3 opacity-50' />
+													</Button>
+												</TooltipTrigger>
+												<TooltipContent>Switch School Year</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
+										{syOpen && (
+											<>
+												<div className='fixed inset-0 z-40' onClick={() => setSyOpen(false)} />
+												<div className='absolute right-0 top-full z-50 mt-1 min-w-45 rounded-md border border-border bg-popover p-1 shadow-md'>
+													{schoolYears.map((sy) => (
+														<button
+															key={sy.id}
+															onClick={() => {
+																setSelectedYearId(sy.id);
+																setActiveYearLabel(sy.yearLabel);
+																setSyOpen(false);
+															}}
+															className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs ${
+																sy.id === selectedYearId
+																	? 'bg-accent text-accent-foreground'
+																	: 'hover:bg-sidebar-accent hover:text-accent-foreground'
+															}`}
+														>
+															<span className='flex-1 text-left'>{sy.yearLabel}</span>
+															<span className={`rounded px-1 py-0.5 text-[0.625rem] font-medium ${
+																sy.isActive
+																	? 'bg-green-100 text-green-700'
+																	: (sy.status === 'UPCOMING'
+																		? 'bg-blue-100 text-blue-700'
+																		: sy.status === 'DRAFT'
+																			? 'bg-yellow-100 text-yellow-700'
+																			: 'bg-gray-100 text-gray-500')
+															}`}>
+																{sy.isActive ? 'ACTIVE' : (sy.status ?? 'CLOSED')}
+															</span>
+														</button>
+													))}
+												</div>
+											</>
+										)}
+									</div>
 								)}
 							</div>
-						)}
-					</div>
+						</>
+					)}
 				</header>
+
+				<AnimatePresence>
+					{isMobile && mobileNavOpen && (
+						<>
+							<motion.button
+								type='button'
+								className='fixed inset-0 top-14 z-40 bg-black/30'
+								initial={{ opacity: 0 }}
+								animate={{ opacity: 1 }}
+								exit={{ opacity: 0 }}
+								onClick={() => setMobileNavOpen(false)}
+							/>
+							<motion.nav
+								className='fixed inset-x-2 top-14 z-50 overflow-hidden rounded-b-2xl border border-border bg-background shadow-xl'
+								initial={{ opacity: 0, y: -16 }}
+								animate={{ opacity: 1, y: 0 }}
+								exit={{ opacity: 0, y: -16 }}
+								transition={{ duration: 0.18, ease: 'easeOut' }}
+							>
+								<div className='space-y-1 p-3'>
+									{mobileNavItems.map((item) => (
+										<Button
+											key={item.to}
+											variant={location.pathname === item.to ? 'secondary' : 'ghost'}
+											className='h-11 w-full justify-start text-sm'
+											onClick={() => {
+												navigate(item.to);
+												setMobileNavOpen(false);
+											}}
+										>
+											<item.icon className='mr-2 size-4' />
+											{item.label}
+										</Button>
+									))}
+									<Separator className='my-2' />
+									<Button asChild variant='ghost' className='h-11 w-full justify-start text-sm'>
+										<a href={getBackHref()}>
+											<ExternalLink className='mr-2 size-4' />
+											Back to EnrollPro
+										</a>
+									</Button>
+									<Button variant='ghost' className='h-11 w-full justify-start text-sm text-destructive' onClick={handleLogout}>
+										<LogOut className='mr-2 size-4' />
+										Sign out
+									</Button>
+								</div>
+							</motion.nav>
+						</>
+					)}
+				</AnimatePresence>
 
 				{/* Page content */}
 				<AnimatePresence mode="wait">
