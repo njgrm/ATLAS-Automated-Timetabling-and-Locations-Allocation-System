@@ -26,7 +26,12 @@ export interface SaveRoomPreferenceDraftInput {
 	runId: number;
 	facultyId: number;
 	entryId: string;
-	requestedRoomId: number;
+	requestedRoomId?: number;
+	actionType?: RoomPreferenceActionType;
+	targetDay?: string;
+	targetStartTime?: string;
+	targetEndTime?: string;
+	targetEntryId?: string;
 	rationale?: string | null;
 	expectedRunVersion?: number;
 	requestVersion?: number;
@@ -38,11 +43,55 @@ export interface SubmitRoomPreferenceInput extends SaveRoomPreferenceDraftInput 
 
 export type RoomPreferenceSyncActionType = 'SAVE_DRAFT' | 'SUBMIT' | 'DELETE';
 
+export type RoomPreferenceActionType = 'ROOM_CHANGE' | 'MOVE_TO_EMPTY_SLOT' | 'SWAP_WITH_OCCUPIED' | 'TIME_AND_ROOM_CHANGE';
+
+export interface RoomPreferenceRequestMeta {
+	actionType: RoomPreferenceActionType;
+	targetDay?: string;
+	targetStartTime?: string;
+	targetEndTime?: string;
+	targetEntryId?: string;
+}
+
+const REQUEST_META_PREFIX = '[ATLAS_REQ_META]';
+
+function encodeRationaleWithMeta(meta: RoomPreferenceRequestMeta, rationale?: string | null): string | null {
+	const plainRationale = (rationale ?? '').trim();
+	const encodedMeta = Buffer.from(JSON.stringify(meta), 'utf8').toString('base64url');
+	return `${REQUEST_META_PREFIX}${encodedMeta}\n${plainRationale}`;
+}
+
+function decodeRationaleAndMeta(rawRationale: string | null | undefined): {
+	rationale: string | null;
+	meta: RoomPreferenceRequestMeta | null;
+} {
+	if (!rawRationale) return { rationale: null, meta: null };
+	if (!rawRationale.startsWith(REQUEST_META_PREFIX)) {
+		return { rationale: rawRationale, meta: null };
+	}
+	const newlineIdx = rawRationale.indexOf('\n');
+	const encodedMeta = newlineIdx >= 0
+		? rawRationale.slice(REQUEST_META_PREFIX.length, newlineIdx)
+		: rawRationale.slice(REQUEST_META_PREFIX.length);
+	const plainRationale = newlineIdx >= 0 ? rawRationale.slice(newlineIdx + 1).trim() : '';
+	try {
+		const parsed = JSON.parse(Buffer.from(encodedMeta, 'base64url').toString('utf8')) as RoomPreferenceRequestMeta;
+		return { rationale: plainRationale || null, meta: parsed };
+	} catch {
+		return { rationale: plainRationale || null, meta: null };
+	}
+}
+
 export interface RoomPreferenceSyncAction {
 	actionId: string;
 	type: RoomPreferenceSyncActionType;
 	entryId: string;
 	requestedRoomId?: number;
+	actionType?: RoomPreferenceActionType;
+	targetDay?: string;
+	targetStartTime?: string;
+	targetEndTime?: string;
+	targetEntryId?: string;
 	rationale?: string | null;
 	expectedRunVersion?: number;
 	requestVersion?: number;
@@ -90,8 +139,36 @@ export interface FacultyRoomPreferenceEntry {
 	cohortName?: string | null;
 	programCode?: string | null;
 	programName?: string | null;
+	actionType?: RoomPreferenceActionType | null;
+	targetDay?: string | null;
+	targetStartTime?: string | null;
+	targetEndTime?: string | null;
+	targetEntryId?: string | null;
 	/** True when the requested room type differs from the subject's preferred room type. Warning-only. */
 	roomTypeOverride?: boolean;
+}
+
+export interface FacultyGlobalDraftEntry {
+	entryId: string;
+	facultyId: number;
+	facultyName: string;
+	sectionId: number;
+	sectionName: string;
+	subjectId: number;
+	subjectCode: string;
+	subjectName: string;
+	roomId: number;
+	roomName: string;
+	day: string;
+	startTime: string;
+	endTime: string;
+	durationMinutes: number;
+	owned: boolean;
+	entryKind?: DraftEntry['entryKind'];
+	cohortCode?: string | null;
+	cohortName?: string | null;
+	programCode?: string | null;
+	programName?: string | null;
 }
 
 export interface FacultyRoomPreferenceState {
@@ -99,6 +176,7 @@ export interface FacultyRoomPreferenceState {
 	runVersion: number;
 	runGeneratedAt: string | null;
 	entries: FacultyRoomPreferenceEntry[];
+	globalEntries: FacultyGlobalDraftEntry[];
 }
 
 export interface RoomPreferenceSummaryItem {
@@ -238,8 +316,9 @@ async function buildLookupMaps(schoolId: number, entryIds: string[], entries: Dr
 	const subjectIds = [...new Set(entries.map((entry) => entry.subjectId))];
 	const sectionIds = [...new Set(entries.map((entry) => entry.sectionId))];
 	const roomIds = [...new Set(entries.map((entry) => entry.roomId))];
+	const facultyIds = [...new Set(entries.map((entry) => entry.facultyId))];
 
-	const [subjects, snapshot, rooms] = await Promise.all([
+	const [subjects, snapshot, rooms, faculty] = await Promise.all([
 		prisma.subject.findMany({
 			where: { schoolId, id: { in: subjectIds } },
 			select: { id: true, code: true, name: true, preferredRoomType: true },
@@ -257,6 +336,10 @@ async function buildLookupMaps(schoolId: number, entryIds: string[], entries: Dr
 				type: true,
 				building: { select: { name: true, shortCode: true } },
 			},
+		}),
+		prisma.facultyMirror.findMany({
+			where: { schoolId, id: { in: facultyIds } },
+			select: { id: true, firstName: true, lastName: true },
 		}),
 	]);
 
@@ -278,8 +361,42 @@ async function buildLookupMaps(schoolId: number, entryIds: string[], entries: Dr
 		]),
 	);
 	const roomTypeMap = new Map(rooms.map((room) => [room.id, room.type]));
+	const facultyMap = new Map(faculty.map((member) => [member.id, `${member.lastName}, ${member.firstName}`]));
 
-	return { subjectMap, sectionMap, roomMap, roomTypeMap };
+	return { subjectMap, sectionMap, roomMap, roomTypeMap, facultyMap };
+}
+
+function resolveRequestTargets(input: SaveRoomPreferenceDraftInput, entry: DraftEntry, draftEntries: DraftEntry[]) {
+	const actionType: RoomPreferenceActionType = input.actionType ?? 'ROOM_CHANGE';
+	const targetDay = input.targetDay ?? entry.day;
+	const targetStartTime = input.targetStartTime ?? entry.startTime;
+	const targetEndTime = input.targetEndTime ?? entry.endTime;
+
+	let resolvedTargetEntryId = input.targetEntryId ?? null;
+	if (actionType === 'SWAP_WITH_OCCUPIED' && !resolvedTargetEntryId) {
+		const occupied = draftEntries.find((candidate) =>
+			candidate.entryId !== entry.entryId
+			&& candidate.day === targetDay
+			&& candidate.startTime === targetStartTime
+			&& candidate.endTime === targetEndTime,
+		);
+		resolvedTargetEntryId = occupied?.entryId ?? null;
+	}
+
+	const requestedRoomId = input.requestedRoomId
+		?? (actionType === 'SWAP_WITH_OCCUPIED' && resolvedTargetEntryId
+			? draftEntries.find((candidate) => candidate.entryId === resolvedTargetEntryId)?.roomId
+			: undefined)
+		?? entry.roomId;
+
+	return {
+		actionType,
+		targetDay,
+		targetStartTime,
+		targetEndTime,
+		targetEntryId: resolvedTargetEntryId,
+		requestedRoomId,
+	};
 }
 
 export async function getFacultyRoomPreferenceState(
@@ -317,12 +434,19 @@ export async function getFacultyRoomPreferenceState(
 		assignedEntries,
 	);
 
+	const { subjectMap: allSubjectMap, sectionMap: allSectionMap, roomMap: allRoomMap, facultyMap } = await buildLookupMaps(
+		schoolId,
+		draft.entries.map((entry) => entry.entryId),
+		draft.entries,
+	);
+
 	return {
 		runId: draft.runId,
 		runVersion: draft.version,
 		runGeneratedAt: draft.finishedAt ?? draft.createdAt,
 		entries: assignedEntries.map((entry) => {
 			const request = requestMap.get(entry.entryId);
+			const decoded = decodeRationaleAndMeta(request?.rationale ?? null);
 			const subject = subjectMap.get(entry.subjectId);
 			const requestedRoomType = request ? roomTypeMap.get(request.requestedRoomId) : undefined;
 			const roomTypeOverride =
@@ -347,7 +471,7 @@ export async function getFacultyRoomPreferenceState(
 				durationMinutes: entry.durationMinutes,
 				status: request?.status ?? null,
 				decisionStatus: request?.decisionStatus ?? null,
-				rationale: request?.rationale ?? null,
+				rationale: decoded.rationale,
 				submittedAt: request?.submittedAt?.toISOString() ?? null,
 				version: request?.version ?? null,
 				subjectCode: subject?.code ?? `Subject #${entry.subjectId}`,
@@ -361,9 +485,42 @@ export async function getFacultyRoomPreferenceState(
 				cohortName: entry.cohortName ?? null,
 				programCode: entry.programCode ?? null,
 				programName: entry.programName ?? null,
+				actionType: decoded.meta?.actionType ?? null,
+				targetDay: decoded.meta?.targetDay ?? null,
+				targetStartTime: decoded.meta?.targetStartTime ?? null,
+				targetEndTime: decoded.meta?.targetEndTime ?? null,
+				targetEntryId: decoded.meta?.targetEntryId ?? null,
 				roomTypeOverride,
 			};
 		}),
+		globalEntries: draft.entries
+			.map((entry) => ({
+				entryId: entry.entryId,
+				facultyId: entry.facultyId,
+				facultyName: facultyMap.get(entry.facultyId) ?? `Faculty #${entry.facultyId}`,
+				sectionId: entry.sectionId,
+				sectionName: allSectionMap.get(entry.sectionId) ?? `Section #${entry.sectionId}`,
+				subjectId: entry.subjectId,
+				subjectCode: allSubjectMap.get(entry.subjectId)?.code ?? `Subject #${entry.subjectId}`,
+				subjectName: allSubjectMap.get(entry.subjectId)?.name ?? `Subject #${entry.subjectId}`,
+				roomId: entry.roomId,
+				roomName: allRoomMap.get(entry.roomId) ?? `Room #${entry.roomId}`,
+				day: entry.day,
+				startTime: entry.startTime,
+				endTime: entry.endTime,
+				durationMinutes: entry.durationMinutes,
+				owned: entry.facultyId === facultyId,
+				entryKind: entry.entryKind,
+				cohortCode: entry.cohortCode ?? null,
+				cohortName: entry.cohortName ?? null,
+				programCode: entry.programCode ?? null,
+				programName: entry.programName ?? null,
+			}))
+			.sort((left, right) =>
+				left.day.localeCompare(right.day)
+				|| left.startTime.localeCompare(right.startTime)
+				|| left.sectionName.localeCompare(right.sectionName),
+			),
 	};
 }
 
@@ -376,6 +533,48 @@ export async function getLatestFacultyRoomPreferenceState(
 	return getFacultyRoomPreferenceState(schoolId, schoolYearId, run.id, facultyId);
 }
 
+export async function previewFacultyRoomPreferenceAction(input: SaveRoomPreferenceDraftInput) {
+	const draft = await getRunDraftWithVersion(input.runId, input.schoolId, input.schoolYearId);
+	assertRunVersion(draft.version, input.expectedRunVersion);
+	const entryMap = buildEntryMap(draft.entries);
+	const entry = ensureFacultyOwnsEntry(entryMap.get(input.entryId), input.facultyId);
+	const target = resolveRequestTargets(input, entry, draft.entries);
+
+	if (target.actionType === 'SWAP_WITH_OCCUPIED') {
+		if (!target.targetEntryId) {
+			throw err(422, 'SWAP_TARGET_REQUIRED', 'Swap request requires a target occupied session.');
+		}
+		const swapPreview = await manualEditService.previewManualSwapEntries(
+			input.runId,
+			input.schoolId,
+			input.schoolYearId,
+			entry.entryId,
+			target.targetEntryId,
+		);
+		return {
+			actionType: target.actionType,
+			target,
+			preview: swapPreview.direct,
+			swap: swapPreview,
+		};
+	}
+
+	const preview = await manualEditService.previewManualEdit(input.runId, input.schoolId, input.schoolYearId, {
+		editType: target.actionType === 'ROOM_CHANGE' ? 'CHANGE_ROOM' : 'MOVE_ENTRY',
+		entryId: entry.entryId,
+		targetDay: target.targetDay,
+		targetStartTime: target.targetStartTime,
+		targetEndTime: target.targetEndTime,
+		targetRoomId: target.requestedRoomId,
+	});
+
+	return {
+		actionType: target.actionType,
+		target,
+		preview,
+	};
+}
+
 async function upsertRoomPreference(
 	input: SaveRoomPreferenceDraftInput,
 	status: RoomPreferenceStatus,
@@ -385,7 +584,40 @@ async function upsertRoomPreference(
 
 	const entryMap = buildEntryMap(draft.entries);
 	const entry = ensureFacultyOwnsEntry(entryMap.get(input.entryId), input.facultyId);
-	const requestedRoom = await getTeachingRoom(input.schoolId, input.requestedRoomId);
+	const target = resolveRequestTargets(input, entry, draft.entries);
+	const requestedRoom = await getTeachingRoom(input.schoolId, target.requestedRoomId);
+
+	if (target.actionType === 'MOVE_TO_EMPTY_SLOT') {
+		const occupied = draft.entries.find((candidate) =>
+			candidate.entryId !== entry.entryId
+			&& candidate.day === target.targetDay
+			&& candidate.startTime === target.targetStartTime
+			&& candidate.endTime === target.targetEndTime,
+		);
+		if (occupied) {
+			throw err(422, 'TARGET_SLOT_OCCUPIED', 'Selected target slot is occupied. Use swap request instead.');
+		}
+	}
+
+	if (target.actionType === 'SWAP_WITH_OCCUPIED') {
+		if (!target.targetEntryId) {
+			throw err(422, 'SWAP_TARGET_REQUIRED', 'Swap request requires a target occupied session.');
+		}
+		const swapTarget = draft.entries.find((candidate) => candidate.entryId === target.targetEntryId);
+		if (!swapTarget) {
+			throw err(404, 'ENTRY_NOT_FOUND', 'Swap target session was not found in this draft run.');
+		}
+		const swapPreview = await manualEditService.previewManualSwapEntries(
+			input.runId,
+			input.schoolId,
+			input.schoolYearId,
+			entry.entryId,
+			target.targetEntryId,
+		);
+		if (swapPreview.direct.hardViolations.length > 0 && !(input.rationale ?? '').trim()) {
+			throw err(422, 'SWAP_REASON_REQUIRED', 'A reason is required for swap requests with hard conflict risks.');
+		}
+	}
 
 	const existing = await prisma.facultyRoomPreference.findUnique({
 		where: { runId_entryId: { runId: input.runId, entryId: input.entryId } },
@@ -409,10 +641,16 @@ async function upsertRoomPreference(
 		sectionId: entry.sectionId,
 		currentRoomId: entry.roomId,
 		requestedRoomId: requestedRoom.id,
-		day: entry.day as DayOfWeek,
-		startTime: entry.startTime,
-		endTime: entry.endTime,
-		rationale: input.rationale ?? null,
+		day: target.targetDay as DayOfWeek,
+		startTime: target.targetStartTime,
+		endTime: target.targetEndTime,
+		rationale: encodeRationaleWithMeta({
+			actionType: target.actionType,
+			targetDay: target.targetDay,
+			targetStartTime: target.targetStartTime,
+			targetEndTime: target.targetEndTime,
+			targetEntryId: target.targetEntryId ?? undefined,
+		}, input.rationale),
 		status,
 		submittedAt: status === 'SUBMITTED' ? new Date() : null,
 		decisionStatus: 'PENDING' as const,
@@ -443,6 +681,11 @@ async function upsertRoomPreference(
 			metadata: {
 				entryId: input.entryId,
 				requestedRoomId: requestedRoom.id,
+				actionType: target.actionType,
+				targetDay: target.targetDay,
+				targetStartTime: target.targetStartTime,
+				targetEndTime: target.targetEndTime,
+				targetEntryId: target.targetEntryId,
 				status,
 			} as object,
 		},
@@ -461,6 +704,11 @@ async function upsertRoomPreference(
 			: 'Faculty saved a room request draft.',
 		metadata: {
 			requestedRoomId: requestedRoom.id,
+			actionType: target.actionType,
+			targetDay: target.targetDay,
+			targetStartTime: target.targetStartTime,
+			targetEndTime: target.targetEndTime,
+			targetEntryId: target.targetEntryId,
 			status,
 		},
 	});
@@ -649,7 +897,7 @@ export async function getRoomPreferenceSummary(
 			endTime: request.endTime,
 			status: request.status,
 			decisionStatus: request.decisionStatus,
-			rationale: request.rationale,
+			rationale: decodeRationaleAndMeta(request.rationale).rationale,
 			submittedAt: request.submittedAt?.toISOString() ?? null,
 			version: request.version,
 			reviewerId: request.reviewerId,
@@ -722,11 +970,36 @@ export async function previewRoomPreferenceDecision(
 	requestId: number,
 ) {
 	const detail = await getRoomPreferenceDetail(schoolId, schoolYearId, runId, requestId);
-	const preview = await manualEditService.previewManualEdit(runId, schoolId, schoolYearId, {
-		editType: 'CHANGE_ROOM',
-		entryId: detail.request.entryId,
-		targetRoomId: detail.request.requestedRoomId,
-	});
+	const requestRow = await prisma.facultyRoomPreference.findUnique({ where: { id: requestId }, select: { rationale: true, day: true, startTime: true, endTime: true, requestedRoomId: true, entryId: true } });
+	if (!requestRow) {
+		throw err(404, 'ROOM_PREFERENCE_NOT_FOUND', 'Room preference request was not found in this run scope.');
+	}
+	const decoded = decodeRationaleAndMeta(requestRow.rationale);
+	const actionType = decoded.meta?.actionType ?? 'ROOM_CHANGE';
+	let preview: manualEditService.PreviewResult;
+
+	if (actionType === 'SWAP_WITH_OCCUPIED') {
+		if (!decoded.meta?.targetEntryId) {
+			throw err(422, 'SWAP_TARGET_REQUIRED', 'Swap request is missing its target session.');
+		}
+		const swapPreview = await manualEditService.previewManualSwapEntries(runId, schoolId, schoolYearId, requestRow.entryId, decoded.meta.targetEntryId);
+		preview = swapPreview.direct;
+	} else if (actionType === 'MOVE_TO_EMPTY_SLOT' || actionType === 'TIME_AND_ROOM_CHANGE') {
+		preview = await manualEditService.previewManualEdit(runId, schoolId, schoolYearId, {
+			editType: 'MOVE_ENTRY',
+			entryId: detail.request.entryId,
+			targetDay: decoded.meta?.targetDay ?? requestRow.day,
+			targetStartTime: decoded.meta?.targetStartTime ?? requestRow.startTime,
+			targetEndTime: decoded.meta?.targetEndTime ?? requestRow.endTime,
+			targetRoomId: requestRow.requestedRoomId,
+		});
+	} else {
+		preview = await manualEditService.previewManualEdit(runId, schoolId, schoolYearId, {
+			editType: 'CHANGE_ROOM',
+			entryId: detail.request.entryId,
+			targetRoomId: detail.request.requestedRoomId,
+		});
+	}
 
 	return {
 		request: detail.request,
@@ -933,24 +1206,60 @@ export async function reviewRoomPreference(input: ReviewRoomPreferenceInput) {
 	}
 	assertRequestVersion(request.version, input.requestVersion);
 
+	const decoded = decodeRationaleAndMeta(request.rationale);
+	const actionType = decoded.meta?.actionType ?? 'ROOM_CHANGE';
+
 	let commitResult: manualEditService.CommitResult | null = null;
 	if (input.decisionStatus === 'APPROVED') {
 		if (input.expectedRunVersion == null) {
 			throw err(400, 'INVALID_BODY', 'expectedRunVersion is required when approving a room preference request.');
 		}
-		commitResult = await manualEditService.commitManualEdit(
-			input.runId,
-			input.schoolId,
-			input.schoolYearId,
-			input.reviewerId,
-			{
-				editType: 'CHANGE_ROOM',
-				entryId: request.entryId,
-				targetRoomId: request.requestedRoomId,
-			},
-			input.expectedRunVersion,
-			!!input.allowSoftOverride,
-		);
+		if (actionType === 'SWAP_WITH_OCCUPIED') {
+			if (!decoded.meta?.targetEntryId) {
+				throw err(422, 'SWAP_TARGET_REQUIRED', 'Swap request is missing target session data.');
+			}
+			commitResult = await manualEditService.swapManualEntries(
+				input.runId,
+				input.schoolId,
+				input.schoolYearId,
+				input.reviewerId,
+				request.entryId,
+				decoded.meta.targetEntryId,
+				input.expectedRunVersion,
+				'DIRECT_SWAP',
+			);
+		} else if (actionType === 'MOVE_TO_EMPTY_SLOT' || actionType === 'TIME_AND_ROOM_CHANGE') {
+			commitResult = await manualEditService.commitManualEdit(
+				input.runId,
+				input.schoolId,
+				input.schoolYearId,
+				input.reviewerId,
+				{
+					editType: 'MOVE_ENTRY',
+					entryId: request.entryId,
+					targetDay: decoded.meta?.targetDay ?? request.day,
+					targetStartTime: decoded.meta?.targetStartTime ?? request.startTime,
+					targetEndTime: decoded.meta?.targetEndTime ?? request.endTime,
+					targetRoomId: request.requestedRoomId,
+				},
+				input.expectedRunVersion,
+				!!input.allowSoftOverride,
+			);
+		} else {
+			commitResult = await manualEditService.commitManualEdit(
+				input.runId,
+				input.schoolId,
+				input.schoolYearId,
+				input.reviewerId,
+				{
+					editType: 'CHANGE_ROOM',
+					entryId: request.entryId,
+					targetRoomId: request.requestedRoomId,
+				},
+				input.expectedRunVersion,
+				!!input.allowSoftOverride,
+			);
+		}
 	}
 
 	const updated = await prisma.facultyRoomPreference.update({
@@ -1025,33 +1334,35 @@ export async function processQueuedRoomPreferenceActions(input: {
 
 			let state: FacultyRoomPreferenceState;
 			if (action.type === 'SAVE_DRAFT') {
-				if (!Number.isInteger(action.requestedRoomId) || (action.requestedRoomId ?? 0) <= 0) {
-					throw err(400, 'INVALID_ACTION', 'SAVE_DRAFT requires a valid requestedRoomId.');
-				}
-				const requestedRoomId = action.requestedRoomId as number;
 				state = await saveRoomPreferenceDraft({
 					schoolId: input.schoolId,
 					schoolYearId: input.schoolYearId,
 					runId: input.runId,
 					facultyId: input.facultyId,
 					entryId: action.entryId,
-					requestedRoomId,
+					requestedRoomId: action.requestedRoomId,
+					actionType: action.actionType,
+					targetDay: action.targetDay,
+					targetStartTime: action.targetStartTime,
+					targetEndTime: action.targetEndTime,
+					targetEntryId: action.targetEntryId,
 					rationale: action.rationale ?? null,
 					expectedRunVersion: action.expectedRunVersion,
 					requestVersion: action.requestVersion,
 				});
 			} else if (action.type === 'SUBMIT') {
-				if (!Number.isInteger(action.requestedRoomId) || (action.requestedRoomId ?? 0) <= 0) {
-					throw err(400, 'INVALID_ACTION', 'SUBMIT requires a valid requestedRoomId.');
-				}
-				const requestedRoomId = action.requestedRoomId as number;
 				state = await submitRoomPreference({
 					schoolId: input.schoolId,
 					schoolYearId: input.schoolYearId,
 					runId: input.runId,
 					facultyId: input.facultyId,
 					entryId: action.entryId,
-					requestedRoomId,
+					requestedRoomId: action.requestedRoomId,
+					actionType: action.actionType,
+					targetDay: action.targetDay,
+					targetStartTime: action.targetStartTime,
+					targetEndTime: action.targetEndTime,
+					targetEntryId: action.targetEntryId,
 					rationale: action.rationale ?? null,
 					expectedRunVersion: action.expectedRunVersion,
 					requestVersion: action.requestVersion,

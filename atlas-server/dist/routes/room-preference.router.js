@@ -9,7 +9,7 @@ const router = Router();
 const PRIVILEGED_ROLES = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
 const VALID_ROOM_PREFERENCE_STATUSES = new Set(['DRAFT', 'SUBMITTED']);
 const VALID_ROOM_PREFERENCE_DECISION_STATUSES = new Set(['PENDING', 'APPROVED', 'REJECTED']);
-const VALID_REVIEW_DECISIONS = new Set(['APPROVED', 'REJECTED']);
+const VALID_REVIEW_DECISIONS = new Set(['APPROVED', 'REJECTED', 'NEEDS_FOLLOW_UP']);
 const VALID_APPEAL_STATUSES = new Set(['OPEN', 'UNDER_REVIEW', 'UPHELD', 'DENIED']);
 function positiveInt(raw, name) {
     const parsed = Number(raw);
@@ -168,7 +168,7 @@ router.put('/:schoolId/:schoolYearId/runs/:runId/faculty/:facultyId/entries/:ent
         const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, facultyId);
         if (!allowed)
             return;
-        const requestedRoomId = positiveInt(req.body.requestedRoomId, 'requestedRoomId');
+        const requestedRoomId = req.body.requestedRoomId == null ? undefined : positiveInt(req.body.requestedRoomId, 'requestedRoomId');
         if (typeof requestedRoomId === 'string') {
             res.status(400).json({ code: 'INVALID_BODY', message: requestedRoomId });
             return;
@@ -185,9 +185,58 @@ router.put('/:schoolId/:schoolYearId/runs/:runId/faculty/:facultyId/entries/:ent
             facultyId,
             entryId,
             requestedRoomId,
+            actionType: req.body.actionType,
+            targetDay: req.body.targetDay,
+            targetStartTime: req.body.targetStartTime,
+            targetEndTime: req.body.targetEndTime,
+            targetEntryId: req.body.targetEntryId,
             rationale: req.body.rationale ?? null,
             expectedRunVersion: req.body.expectedRunVersion,
             requestVersion: req.body.requestVersion,
+        });
+        res.json(result);
+    }
+    catch (error) {
+        next(error);
+    }
+});
+router.post('/:schoolId/:schoolYearId/runs/:runId/faculty/:facultyId/entries/:entryId/preview', authenticate, async (req, res, next) => {
+    try {
+        const scope = parseScope(req, res);
+        if (!scope)
+            return;
+        const facultyId = positiveInt(req.params.facultyId, 'facultyId');
+        if (typeof facultyId === 'string') {
+            res.status(400).json({ code: 'INVALID_PARAM', message: facultyId });
+            return;
+        }
+        const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, facultyId);
+        if (!allowed)
+            return;
+        const requestedRoomId = req.body.requestedRoomId == null ? undefined : positiveInt(req.body.requestedRoomId, 'requestedRoomId');
+        if (typeof requestedRoomId === 'string') {
+            res.status(400).json({ code: 'INVALID_BODY', message: requestedRoomId });
+            return;
+        }
+        const entryId = typeof req.params.entryId === 'string' ? req.params.entryId : undefined;
+        if (!entryId) {
+            res.status(400).json({ code: 'INVALID_PARAM', message: 'entryId is required.' });
+            return;
+        }
+        const result = await roomPreferenceService.previewFacultyRoomPreferenceAction({
+            schoolId: scope.schoolId,
+            schoolYearId: scope.schoolYearId,
+            runId: scope.runId,
+            facultyId,
+            entryId,
+            requestedRoomId,
+            actionType: req.body.actionType,
+            targetDay: req.body.targetDay,
+            targetStartTime: req.body.targetStartTime,
+            targetEndTime: req.body.targetEndTime,
+            targetEntryId: req.body.targetEntryId,
+            rationale: req.body.rationale ?? null,
+            expectedRunVersion: req.body.expectedRunVersion,
         });
         res.json(result);
     }
@@ -208,7 +257,7 @@ router.post('/:schoolId/:schoolYearId/runs/:runId/faculty/:facultyId/entries/:en
         const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, facultyId);
         if (!allowed)
             return;
-        const requestedRoomId = positiveInt(req.body.requestedRoomId, 'requestedRoomId');
+        const requestedRoomId = req.body.requestedRoomId == null ? undefined : positiveInt(req.body.requestedRoomId, 'requestedRoomId');
         if (typeof requestedRoomId === 'string') {
             res.status(400).json({ code: 'INVALID_BODY', message: requestedRoomId });
             return;
@@ -225,6 +274,11 @@ router.post('/:schoolId/:schoolYearId/runs/:runId/faculty/:facultyId/entries/:en
             facultyId,
             entryId,
             requestedRoomId,
+            actionType: req.body.actionType,
+            targetDay: req.body.targetDay,
+            targetStartTime: req.body.targetStartTime,
+            targetEndTime: req.body.targetEndTime,
+            targetEntryId: req.body.targetEntryId,
             rationale: req.body.rationale ?? null,
             expectedRunVersion: req.body.expectedRunVersion,
             requestVersion: req.body.requestVersion,
@@ -533,14 +587,17 @@ router.patch('/:schoolId/:schoolYearId/runs/:runId/requests/:requestId/review', 
             res.status(400).json({ code: 'INVALID_BODY', message: `decisionStatus must be one of ${[...VALID_REVIEW_DECISIONS].join(', ')}.` });
             return;
         }
+        const normalizedDecision = decisionStatus === 'NEEDS_FOLLOW_UP' ? 'REJECTED' : decisionStatus;
         const result = await roomPreferenceService.reviewRoomPreference({
             schoolId: scope.schoolId,
             schoolYearId: scope.schoolYearId,
             runId: scope.runId,
             requestId,
             reviewerId,
-            decisionStatus,
-            reviewerNotes: reviewerNotes ?? null,
+            decisionStatus: normalizedDecision,
+            reviewerNotes: decisionStatus === 'NEEDS_FOLLOW_UP'
+                ? `[NEEDS_FOLLOW_UP] ${(reviewerNotes ?? '').trim()}`.trim()
+                : reviewerNotes ?? null,
             expectedRunVersion,
             requestVersion,
             allowSoftOverride: !!allowSoftOverride,

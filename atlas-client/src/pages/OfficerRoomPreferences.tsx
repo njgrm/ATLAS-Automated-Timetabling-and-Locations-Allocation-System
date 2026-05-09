@@ -152,7 +152,7 @@ export default function OfficerRoomPreferences() {
 		}
 	}, [activeSchoolYearId]);
 
-	const reviewRequest = async (decisionStatus: 'APPROVED' | 'REJECTED') => {
+	const reviewRequest = async (decisionStatus: 'APPROVED' | 'REJECTED' | 'NEEDS_FOLLOW_UP') => {
 		if (!activeSchoolYearId || !previewState || !summary) return;
 		setSavingDecision(true);
 		try {
@@ -165,7 +165,11 @@ export default function OfficerRoomPreferences() {
 					requestVersion: previewState.request.version,
 				},
 			);
-			toast.success(decisionStatus === 'APPROVED' ? 'Room request approved.' : 'Room request rejected.');
+			toast.success(decisionStatus === 'APPROVED'
+				? 'Room request approved.'
+				: decisionStatus === 'NEEDS_FOLLOW_UP'
+					? 'Room request marked for follow-up.'
+					: 'Room request rejected.');
 			await loadSummary(activeSchoolYearId, statusFilter, decisionFilter);
 			setSelectedRequestId(null);
 			setPreviewState(null);
@@ -353,6 +357,9 @@ export default function OfficerRoomPreferences() {
 							<Textarea value={reviewerNotes} onChange={(event) => setReviewerNotes(event.target.value)} placeholder='Add an officer note for the faculty member or review log.' className='min-h-28' />
 
 							<div className='flex flex-wrap items-center justify-end gap-2'>
+								<Button variant='outline' onClick={() => void reviewRequest('NEEDS_FOLLOW_UP')} disabled={savingDecision}>
+									{savingDecision ? <Loader2 className='mr-1.5 size-4 animate-spin' /> : <ClipboardList className='mr-1.5 size-4' />} Needs follow-up
+								</Button>
 								<Button variant='outline' onClick={() => void reviewRequest('REJECTED')} disabled={savingDecision}>
 									{savingDecision ? <Loader2 className='mr-1.5 size-4 animate-spin' /> : <XCircle className='mr-1.5 size-4' />} Reject
 								</Button>

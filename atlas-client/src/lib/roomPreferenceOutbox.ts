@@ -1,4 +1,5 @@
 export type RoomPreferenceOutboxActionType = 'SAVE_DRAFT' | 'SUBMIT' | 'DELETE';
+export type RoomPreferenceActionType = 'ROOM_CHANGE' | 'MOVE_TO_EMPTY_SLOT' | 'SWAP_WITH_OCCUPIED' | 'TIME_AND_ROOM_CHANGE';
 
 export type OutboxActionStatus = 'queued' | 'syncing' | 'retried' | 'failed' | 'recovered';
 
@@ -7,6 +8,11 @@ export type RoomPreferenceOutboxAction = {
 	type: RoomPreferenceOutboxActionType;
 	entryId: string;
 	requestedRoomId?: number;
+	actionType?: RoomPreferenceActionType;
+	targetDay?: string;
+	targetStartTime?: string;
+	targetEndTime?: string;
+	targetEntryId?: string;
 	rationale?: string | null;
 	expectedRunVersion?: number;
 	requestVersion?: number | null;

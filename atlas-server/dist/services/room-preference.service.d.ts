@@ -8,7 +8,12 @@ export interface SaveRoomPreferenceDraftInput {
     runId: number;
     facultyId: number;
     entryId: string;
-    requestedRoomId: number;
+    requestedRoomId?: number;
+    actionType?: RoomPreferenceActionType;
+    targetDay?: string;
+    targetStartTime?: string;
+    targetEndTime?: string;
+    targetEntryId?: string;
     rationale?: string | null;
     expectedRunVersion?: number;
     requestVersion?: number;
@@ -17,11 +22,24 @@ export interface SubmitRoomPreferenceInput extends SaveRoomPreferenceDraftInput 
     requestVersion?: number;
 }
 export type RoomPreferenceSyncActionType = 'SAVE_DRAFT' | 'SUBMIT' | 'DELETE';
+export type RoomPreferenceActionType = 'ROOM_CHANGE' | 'MOVE_TO_EMPTY_SLOT' | 'SWAP_WITH_OCCUPIED' | 'TIME_AND_ROOM_CHANGE';
+export interface RoomPreferenceRequestMeta {
+    actionType: RoomPreferenceActionType;
+    targetDay?: string;
+    targetStartTime?: string;
+    targetEndTime?: string;
+    targetEntryId?: string;
+}
 export interface RoomPreferenceSyncAction {
     actionId: string;
     type: RoomPreferenceSyncActionType;
     entryId: string;
     requestedRoomId?: number;
+    actionType?: RoomPreferenceActionType;
+    targetDay?: string;
+    targetStartTime?: string;
+    targetEndTime?: string;
+    targetEntryId?: string;
     rationale?: string | null;
     expectedRunVersion?: number;
     requestVersion?: number;
@@ -67,14 +85,42 @@ export interface FacultyRoomPreferenceEntry {
     cohortName?: string | null;
     programCode?: string | null;
     programName?: string | null;
+    actionType?: RoomPreferenceActionType | null;
+    targetDay?: string | null;
+    targetStartTime?: string | null;
+    targetEndTime?: string | null;
+    targetEntryId?: string | null;
     /** True when the requested room type differs from the subject's preferred room type. Warning-only. */
     roomTypeOverride?: boolean;
+}
+export interface FacultyGlobalDraftEntry {
+    entryId: string;
+    facultyId: number;
+    facultyName: string;
+    sectionId: number;
+    sectionName: string;
+    subjectId: number;
+    subjectCode: string;
+    subjectName: string;
+    roomId: number;
+    roomName: string;
+    day: string;
+    startTime: string;
+    endTime: string;
+    durationMinutes: number;
+    owned: boolean;
+    entryKind?: DraftEntry['entryKind'];
+    cohortCode?: string | null;
+    cohortName?: string | null;
+    programCode?: string | null;
+    programName?: string | null;
 }
 export interface FacultyRoomPreferenceState {
     runId: number;
     runVersion: number;
     runGeneratedAt: string | null;
     entries: FacultyRoomPreferenceEntry[];
+    globalEntries: FacultyGlobalDraftEntry[];
 }
 export interface RoomPreferenceSummaryItem {
     id: number;
@@ -153,6 +199,31 @@ export interface RoomPreferenceDetailResponse {
 }
 export declare function getFacultyRoomPreferenceState(schoolId: number, schoolYearId: number, runId: number, facultyId: number): Promise<FacultyRoomPreferenceState>;
 export declare function getLatestFacultyRoomPreferenceState(schoolId: number, schoolYearId: number, facultyId: number): Promise<FacultyRoomPreferenceState>;
+export declare function previewFacultyRoomPreferenceAction(input: SaveRoomPreferenceDraftInput): Promise<{
+    actionType: "SWAP_WITH_OCCUPIED";
+    target: {
+        actionType: RoomPreferenceActionType;
+        targetDay: string;
+        targetStartTime: string;
+        targetEndTime: string;
+        targetEntryId: string | null;
+        requestedRoomId: number;
+    };
+    preview: manualEditService.PreviewResult;
+    swap: manualEditService.SwapPreviewResult;
+} | {
+    actionType: "ROOM_CHANGE" | "MOVE_TO_EMPTY_SLOT" | "TIME_AND_ROOM_CHANGE";
+    target: {
+        actionType: RoomPreferenceActionType;
+        targetDay: string;
+        targetStartTime: string;
+        targetEndTime: string;
+        targetEntryId: string | null;
+        requestedRoomId: number;
+    };
+    preview: manualEditService.PreviewResult;
+    swap?: undefined;
+}>;
 export declare function saveRoomPreferenceDraft(input: SaveRoomPreferenceDraftInput): Promise<FacultyRoomPreferenceState>;
 export declare function submitRoomPreference(input: SubmitRoomPreferenceInput): Promise<FacultyRoomPreferenceState>;
 export declare function deleteRoomPreferenceDraft(schoolId: number, schoolYearId: number, runId: number, facultyId: number, entryId: string, requestVersion?: number): Promise<FacultyRoomPreferenceState>;
@@ -224,11 +295,11 @@ export declare function reviewRoomPreference(input: ReviewRoomPreferenceInput): 
         reviewedAt: Date | null;
         sectionId: number;
         runId: number;
+        decisionStatus: import("@prisma/client").$Enums.RoomPreferenceDecisionStatus;
         entryId: string;
         currentRoomId: number;
         requestedRoomId: number;
         rationale: string | null;
-        decisionStatus: import("@prisma/client").$Enums.RoomPreferenceDecisionStatus;
     };
     commitResult: manualEditService.CommitResult | null;
 }>;

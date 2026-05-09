@@ -38,6 +38,24 @@ export declare function triggerGenerationRun(schoolId: number, schoolYearId: num
     draftEntries: import(".prisma/client/runtime/library").JsonValue | null;
     unassignedItems: import(".prisma/client/runtime/library").JsonValue | null;
 }>;
+export declare function assertGenerationRoomRequestGate(schoolId: number, schoolYearId: number): Promise<{
+    blocked: boolean;
+    openCount: number;
+    runId: null;
+} | {
+    blocked: boolean;
+    openCount: number;
+    runId: number;
+}>;
+export declare function getGenerationRoomRequestGateStatus(schoolId: number, schoolYearId: number): Promise<{
+    blocked: boolean;
+    openCount: number;
+    runId: null;
+} | {
+    blocked: boolean;
+    openCount: number;
+    runId: number;
+}>;
 export declare function getRunById(runId: number, schoolId: number, schoolYearId: number): Promise<{
     error: string | null;
     schoolId: number;

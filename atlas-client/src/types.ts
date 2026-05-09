@@ -266,6 +266,7 @@ export type RoomScheduleView = {
 
 export type RoomPreferenceStatus = 'DRAFT' | 'SUBMITTED';
 export type RoomPreferenceDecisionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type RoomPreferenceActionType = 'ROOM_CHANGE' | 'MOVE_TO_EMPTY_SLOT' | 'SWAP_WITH_OCCUPIED' | 'TIME_AND_ROOM_CHANGE';
 
 export type FacultyRoomPreferenceEntry = {
 	entryId: string;
@@ -296,8 +297,36 @@ export type FacultyRoomPreferenceEntry = {
 	cohortName?: string | null;
 	programCode?: string | null;
 	programName?: string | null;
+	actionType?: RoomPreferenceActionType | null;
+	targetDay?: DayOfWeek | null;
+	targetStartTime?: string | null;
+	targetEndTime?: string | null;
+	targetEntryId?: string | null;
 	/** True when the requested room type differs from the subject's preferred room type. Warning-only. */
 	roomTypeOverride?: boolean;
+};
+
+export type FacultyGlobalDraftEntry = {
+	entryId: string;
+	facultyId: number;
+	facultyName: string;
+	sectionId: number;
+	sectionName: string;
+	subjectId: number;
+	subjectCode: string;
+	subjectName: string;
+	roomId: number;
+	roomName: string;
+	day: DayOfWeek;
+	startTime: string;
+	endTime: string;
+	durationMinutes: number;
+	owned: boolean;
+	entryKind?: 'SECTION' | 'COHORT';
+	cohortCode?: string | null;
+	cohortName?: string | null;
+	programCode?: string | null;
+	programName?: string | null;
 };
 
 export type FacultyRoomPreferenceState = {
@@ -305,6 +334,13 @@ export type FacultyRoomPreferenceState = {
 	runVersion: number;
 	runGeneratedAt: string | null;
 	entries: FacultyRoomPreferenceEntry[];
+	globalEntries: FacultyGlobalDraftEntry[];
+};
+
+export type GenerationGateStatus = {
+	blocked: boolean;
+	openCount: number;
+	runId: number | null;
 };
 
 export type RoomPreferenceSummaryItem = {

@@ -14,7 +14,7 @@ const router = Router();
 const PRIVILEGED_ROLES: Set<string> = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
 const VALID_ROOM_PREFERENCE_STATUSES: Set<string> = new Set(['DRAFT', 'SUBMITTED']);
 const VALID_ROOM_PREFERENCE_DECISION_STATUSES: Set<string> = new Set(['PENDING', 'APPROVED', 'REJECTED']);
-const VALID_REVIEW_DECISIONS: Set<string> = new Set(['APPROVED', 'REJECTED']);
+const VALID_REVIEW_DECISIONS: Set<string> = new Set(['APPROVED', 'REJECTED', 'NEEDS_FOLLOW_UP']);
 const VALID_APPEAL_STATUSES: Set<string> = new Set(['OPEN', 'UNDER_REVIEW', 'UPHELD', 'DENIED']);
 
 function positiveInt(raw: unknown, name: string): number | string {
@@ -203,7 +203,7 @@ router.put(
 			const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, facultyId);
 			if (!allowed) return;
 
-			const requestedRoomId = positiveInt(req.body.requestedRoomId, 'requestedRoomId');
+			const requestedRoomId = req.body.requestedRoomId == null ? undefined : positiveInt(req.body.requestedRoomId, 'requestedRoomId');
 			if (typeof requestedRoomId === 'string') {
 				res.status(400).json({ code: 'INVALID_BODY', message: requestedRoomId });
 				return;
@@ -221,9 +221,65 @@ router.put(
 				facultyId,
 				entryId,
 				requestedRoomId,
+				actionType: req.body.actionType,
+				targetDay: req.body.targetDay,
+				targetStartTime: req.body.targetStartTime,
+				targetEndTime: req.body.targetEndTime,
+				targetEntryId: req.body.targetEntryId,
 				rationale: req.body.rationale ?? null,
 				expectedRunVersion: req.body.expectedRunVersion,
 				requestVersion: req.body.requestVersion,
+			});
+
+			res.json(result);
+		} catch (error) {
+			next(error);
+		}
+	},
+);
+
+router.post(
+	'/:schoolId/:schoolYearId/runs/:runId/faculty/:facultyId/entries/:entryId/preview',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const scope = parseScope(req, res);
+			if (!scope) return;
+
+			const facultyId = positiveInt(req.params.facultyId, 'facultyId');
+			if (typeof facultyId === 'string') {
+				res.status(400).json({ code: 'INVALID_PARAM', message: facultyId });
+				return;
+			}
+
+			const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, facultyId);
+			if (!allowed) return;
+
+			const requestedRoomId = req.body.requestedRoomId == null ? undefined : positiveInt(req.body.requestedRoomId, 'requestedRoomId');
+			if (typeof requestedRoomId === 'string') {
+				res.status(400).json({ code: 'INVALID_BODY', message: requestedRoomId });
+				return;
+			}
+			const entryId = typeof req.params.entryId === 'string' ? req.params.entryId : undefined;
+			if (!entryId) {
+				res.status(400).json({ code: 'INVALID_PARAM', message: 'entryId is required.' });
+				return;
+			}
+
+			const result = await roomPreferenceService.previewFacultyRoomPreferenceAction({
+				schoolId: scope.schoolId,
+				schoolYearId: scope.schoolYearId,
+				runId: scope.runId,
+				facultyId,
+				entryId,
+				requestedRoomId,
+				actionType: req.body.actionType,
+				targetDay: req.body.targetDay,
+				targetStartTime: req.body.targetStartTime,
+				targetEndTime: req.body.targetEndTime,
+				targetEntryId: req.body.targetEntryId,
+				rationale: req.body.rationale ?? null,
+				expectedRunVersion: req.body.expectedRunVersion,
 			});
 
 			res.json(result);
@@ -250,7 +306,7 @@ router.post(
 			const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, facultyId);
 			if (!allowed) return;
 
-			const requestedRoomId = positiveInt(req.body.requestedRoomId, 'requestedRoomId');
+			const requestedRoomId = req.body.requestedRoomId == null ? undefined : positiveInt(req.body.requestedRoomId, 'requestedRoomId');
 			if (typeof requestedRoomId === 'string') {
 				res.status(400).json({ code: 'INVALID_BODY', message: requestedRoomId });
 				return;
@@ -268,6 +324,11 @@ router.post(
 				facultyId,
 				entryId,
 				requestedRoomId,
+				actionType: req.body.actionType,
+				targetDay: req.body.targetDay,
+				targetStartTime: req.body.targetStartTime,
+				targetEndTime: req.body.targetEndTime,
+				targetEntryId: req.body.targetEntryId,
 				rationale: req.body.rationale ?? null,
 				expectedRunVersion: req.body.expectedRunVersion,
 				requestVersion: req.body.requestVersion,
@@ -640,6 +701,7 @@ router.patch(
 				res.status(400).json({ code: 'INVALID_BODY', message: `decisionStatus must be one of ${[...VALID_REVIEW_DECISIONS].join(', ')}.` });
 				return;
 			}
+			const normalizedDecision = decisionStatus === 'NEEDS_FOLLOW_UP' ? 'REJECTED' : decisionStatus;
 
 			const result = await roomPreferenceService.reviewRoomPreference({
 				schoolId: scope.schoolId,
@@ -647,8 +709,10 @@ router.patch(
 				runId: scope.runId,
 				requestId,
 				reviewerId,
-				decisionStatus,
-				reviewerNotes: reviewerNotes ?? null,
+				decisionStatus: normalizedDecision,
+				reviewerNotes: decisionStatus === 'NEEDS_FOLLOW_UP'
+					? `[NEEDS_FOLLOW_UP] ${(reviewerNotes ?? '').trim()}`.trim()
+					: reviewerNotes ?? null,
 				expectedRunVersion,
 				requestVersion,
 				allowSoftOverride: !!allowSoftOverride,

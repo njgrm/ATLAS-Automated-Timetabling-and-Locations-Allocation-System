@@ -9,6 +9,7 @@ import { sectionAdapter } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
 import * as preGenerationDraftService from './pre-generation-draft.service.js';
+import { resolveActiveDraftRun } from './active-draft-run-resolver.service.js';
 function err(statusCode, code, message, options) {
     const e = new Error(message);
     e.statusCode = statusCode;
@@ -37,6 +38,7 @@ function getStaleFacultyIdsForRun(run, activeFacultyIds) {
 }
 // ─── Trigger ───
 export async function triggerGenerationRun(schoolId, schoolYearId, actorId) {
+    await assertGenerationRoomRequestGate(schoolId, schoolYearId);
     // Create run as QUEUED
     const run = await prisma.generationRun.create({
         data: {
@@ -297,6 +299,40 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId) {
         });
         return failed;
     }
+}
+export async function assertGenerationRoomRequestGate(schoolId, schoolYearId) {
+    const status = await getGenerationRoomRequestGateStatus(schoolId, schoolYearId);
+    if (!status.blocked)
+        return status;
+    throw err(409, 'OPEN_ROOM_REQUESTS_BLOCK_GENERATION', `Generation is blocked until all submitted faculty requests are decided. ${status.openCount} request(s) remain pending.`, {
+        actionHint: 'Resolve all pending requests in the room-request panel, then retry generation.',
+        details: { runId: status.runId, openRequestCount: status.openCount },
+    });
+}
+export async function getGenerationRoomRequestGateStatus(schoolId, schoolYearId) {
+    let activeRunId = null;
+    try {
+        const activeRun = await resolveActiveDraftRun(schoolId, schoolYearId);
+        activeRunId = activeRun.id;
+    }
+    catch (error) {
+        const code = error.code;
+        if (code === 'NO_ACTIVE_DRAFT')
+            return { blocked: false, openCount: 0, runId: null };
+        throw error;
+    }
+    if (!activeRunId)
+        return { blocked: false, openCount: 0, runId: null };
+    const openCount = await prisma.facultyRoomPreference.count({
+        where: {
+            schoolId,
+            schoolYearId,
+            runId: activeRunId,
+            status: 'SUBMITTED',
+            decisionStatus: 'PENDING',
+        },
+    });
+    return { blocked: openCount > 0, openCount, runId: activeRunId };
 }
 // ─── Queries ───
 export async function getRunById(runId, schoolId, schoolYearId) {
