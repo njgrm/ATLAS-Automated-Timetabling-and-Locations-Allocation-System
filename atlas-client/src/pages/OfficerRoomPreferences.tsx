@@ -14,6 +14,7 @@ import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { createRoomPreferenceCollaborationSocket } from '@/lib/roomPreferenceCollaboration';
 import { fetchPublicSettings } from '@/lib/settings';
+import { scopePreviewToCandidate } from '@/lib/timetable-utils';
 import { formatTime } from '@/lib/utils';
 import type {
 	CollaborationPresence,
@@ -252,6 +253,22 @@ export default function OfficerRoomPreferences() {
 	}, [presenceByConnection, remoteSelections]);
 
 	const selectedRequest = filteredRequests.find((request) => request.id === selectedRequestId) ?? null;
+	const scopedPreviewState = useMemo(() => {
+		if (!previewState) return null;
+		const request = previewState.request as RoomPreferenceSummaryItem & {
+			targetDay?: string | null;
+			targetStartTime?: string | null;
+			targetEndTime?: string | null;
+		};
+		return {
+			...previewState,
+			preview: scopePreviewToCandidate(previewState.preview, {
+				day: request.targetDay ?? request.day,
+				startTime: request.targetStartTime ?? request.startTime,
+				endTime: request.targetEndTime ?? request.endTime,
+			}),
+		};
+	}, [previewState]);
 
 	const openPreview = useCallback(async (request: RoomPreferenceSummaryItem) => {
 		if (!activeSchoolYearId) return;
@@ -284,16 +301,16 @@ export default function OfficerRoomPreferences() {
 	}, [activeSchoolYearId]);
 
 	const reviewRequest = async (decisionStatus: 'APPROVED' | 'REJECTED' | 'NEEDS_FOLLOW_UP') => {
-		if (!activeSchoolYearId || !previewState || !summary) return;
+		if (!activeSchoolYearId || !scopedPreviewState || !summary) return;
 		setSavingDecision(true);
 		try {
 			await atlasApi.patch(
-				`/room-preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/runs/${previewState.request.runId}/requests/${previewState.request.id}/review`,
+				`/room-preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/runs/${scopedPreviewState.request.runId}/requests/${scopedPreviewState.request.id}/review`,
 				{
 					decisionStatus,
 					reviewerNotes: reviewerNotes || null,
 					expectedRunVersion: summary.runVersion,
-					requestVersion: previewState.request.version,
+					requestVersion: scopedPreviewState.request.version,
 				},
 			);
 			toast.success(decisionStatus === 'APPROVED'
@@ -488,43 +505,59 @@ export default function OfficerRoomPreferences() {
 						</div>
 					)}
 
-					{!previewLoading && previewState && (
+					{!previewLoading && scopedPreviewState && (
 						<div className='mt-6 space-y-4'>
 							<div className='rounded-2xl border border-border bg-card p-4'>
 								<div className='flex flex-wrap items-center gap-2'>
-									<Badge variant='outline'>{previewState.request.subjectCode}</Badge>
-									{decisionBadge(previewState.request.decisionStatus)}
+									<Badge variant='outline'>{scopedPreviewState.request.subjectCode}</Badge>
+									{decisionBadge(scopedPreviewState.request.decisionStatus)}
 								</div>
-								<p className='mt-3 font-semibold text-foreground'>{previewState.request.facultyName}</p>
-								<p className='text-sm text-muted-foreground'>{previewState.request.sectionName} • {previewState.request.day.slice(0, 3)} • {formatTime(previewState.request.startTime)} - {formatTime(previewState.request.endTime)}</p>
-								<p className='mt-3 text-sm text-muted-foreground'>Current room: {previewState.request.currentRoomName}</p>
-								<p className='text-sm text-primary'>Requested room: {previewState.request.requestedRoomName}</p>
-								{previewState.request.rationale && <p className='mt-3 text-sm text-muted-foreground'>{previewState.request.rationale}</p>}
+								<p className='mt-3 font-semibold text-foreground'>{scopedPreviewState.request.facultyName}</p>
+								<p className='text-sm text-muted-foreground'>{scopedPreviewState.request.sectionName} • {scopedPreviewState.request.day.slice(0, 3)} • {formatTime(scopedPreviewState.request.startTime)} - {formatTime(scopedPreviewState.request.endTime)}</p>
+								<p className='mt-3 text-sm text-muted-foreground'>Current room: {scopedPreviewState.request.currentRoomName}</p>
+								<p className='text-sm text-primary'>Requested room: {scopedPreviewState.request.requestedRoomName}</p>
+								{scopedPreviewState.request.rationale && <p className='mt-3 text-sm text-muted-foreground'>{scopedPreviewState.request.rationale}</p>}
+							</div>
+
+							<div className='rounded-2xl border border-border bg-card p-4'>
+								<p className='text-xs uppercase tracking-wide text-muted-foreground'>Request visualization</p>
+								<div className='mt-2 grid gap-2 sm:grid-cols-2'>
+									<div className='rounded-lg border border-border bg-muted/30 px-3 py-2'>
+										<p className='text-[0.7rem] font-medium text-muted-foreground'>Before</p>
+										<p className='text-sm font-semibold text-foreground'>{scopedPreviewState.request.day.slice(0, 3)} {formatTime(scopedPreviewState.request.startTime)} - {formatTime(scopedPreviewState.request.endTime)}</p>
+										<p className='text-xs text-muted-foreground'>{scopedPreviewState.request.currentRoomName}</p>
+									</div>
+									<div className='rounded-lg border border-primary/30 bg-primary/5 px-3 py-2'>
+										<p className='text-[0.7rem] font-medium text-muted-foreground'>After request</p>
+										<p className='text-sm font-semibold text-foreground'>{scopedPreviewState.request.day.slice(0, 3)} {formatTime(scopedPreviewState.request.startTime)} - {formatTime(scopedPreviewState.request.endTime)}</p>
+										<p className='text-xs text-primary'>{scopedPreviewState.request.requestedRoomName}</p>
+									</div>
+								</div>
 							</div>
 
 							<div className='grid gap-3 sm:grid-cols-4'>
 								<div className='rounded-2xl border border-border bg-card p-4'>
 									<p className='text-xs uppercase tracking-wide text-muted-foreground'>Allowed</p>
-									<p className='mt-2 text-lg font-semibold text-foreground'>{previewState.preview.allowed ? 'Yes' : 'No'}</p>
+									<p className='mt-2 text-lg font-semibold text-foreground'>{scopedPreviewState.preview.allowed ? 'Yes' : 'No'}</p>
 								</div>
 								<div className='rounded-2xl border border-border bg-card p-4'>
 									<p className='text-xs uppercase tracking-wide text-muted-foreground'>Hard Δ</p>
-									<p className='mt-2 text-lg font-semibold text-foreground'>{previewState.preview.violationDelta.hardBefore} → {previewState.preview.violationDelta.hardAfter}</p>
+									<p className='mt-2 text-lg font-semibold text-foreground'>{scopedPreviewState.preview.violationDelta.hardBefore} → {scopedPreviewState.preview.violationDelta.hardAfter}</p>
 								</div>
 								<div className='rounded-2xl border border-border bg-card p-4'>
 									<p className='text-xs uppercase tracking-wide text-muted-foreground'>Soft Δ</p>
-									<p className='mt-2 text-lg font-semibold text-foreground'>{previewState.preview.violationDelta.softBefore} → {previewState.preview.violationDelta.softAfter}</p>
+									<p className='mt-2 text-lg font-semibold text-foreground'>{scopedPreviewState.preview.violationDelta.softBefore} → {scopedPreviewState.preview.violationDelta.softAfter}</p>
 								</div>
 								<div className='rounded-2xl border border-border bg-card p-4'>
 									<p className='text-xs uppercase tracking-wide text-muted-foreground'>Affected</p>
-									<p className='mt-2 text-lg font-semibold text-foreground'>{previewState.preview.affectedEntries.length}</p>
+									<p className='mt-2 text-lg font-semibold text-foreground'>{scopedPreviewState.preview.affectedEntries.length}</p>
 								</div>
 							</div>
 
 							<div className='rounded-2xl border border-border bg-card p-4'>
 								<p className='font-semibold text-foreground'>Conflict Summary</p>
 								<div className='mt-3 space-y-2'>
-									{previewState.preview.humanConflicts.length > 0 ? previewState.preview.humanConflicts.map((conflict, index) => (
+									{scopedPreviewState.preview.humanConflicts.length > 0 ? scopedPreviewState.preview.humanConflicts.map((conflict, index) => (
 										<div key={`${conflict.code}-${conflict.humanTitle}-${index}`} className='rounded-xl border border-border px-3 py-2 text-sm'>
 											<p className='font-medium text-foreground'>{conflict.humanTitle}</p>
 											<p className='mt-1 text-muted-foreground'>{conflict.humanDetail}</p>
@@ -533,18 +566,22 @@ export default function OfficerRoomPreferences() {
 								</div>
 							</div>
 
-							<Textarea value={reviewerNotes} onChange={(event) => setReviewerNotes(event.target.value)} placeholder='Add an officer note for the faculty member or review log.' className='min-h-28' />
+							<div className='pb-24'>
+								<Textarea value={reviewerNotes} onChange={(event) => setReviewerNotes(event.target.value)} placeholder='Add an officer note for the faculty member or review log.' className='min-h-28' />
+							</div>
 
-							<div className='flex flex-wrap items-center justify-end gap-2'>
+							<div className='sticky bottom-0 z-10 -mx-1 border-t border-border bg-background/95 px-1 py-3 backdrop-blur'>
+								<div className='flex flex-wrap items-center justify-end gap-2'>
 								<Button variant='outline' onClick={() => void reviewRequest('NEEDS_FOLLOW_UP')} disabled={savingDecision}>
 									{savingDecision ? <Loader2 className='mr-1.5 size-4 animate-spin' /> : <ClipboardList className='mr-1.5 size-4' />} Needs follow-up
 								</Button>
 								<Button variant='outline' onClick={() => void reviewRequest('REJECTED')} disabled={savingDecision}>
 									{savingDecision ? <Loader2 className='mr-1.5 size-4 animate-spin' /> : <XCircle className='mr-1.5 size-4' />} Reject
 								</Button>
-								<Button onClick={() => void reviewRequest('APPROVED')} disabled={savingDecision || !previewState.preview.allowed}>
+								<Button onClick={() => void reviewRequest('APPROVED')} disabled={savingDecision || !scopedPreviewState.preview.allowed}>
 									{savingDecision ? <Loader2 className='mr-1.5 size-4 animate-spin' /> : <CheckCircle2 className='mr-1.5 size-4' />} Approve
 								</Button>
+								</div>
 							</div>
 						</div>
 					)}

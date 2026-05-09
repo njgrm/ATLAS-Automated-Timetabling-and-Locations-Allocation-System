@@ -663,15 +663,17 @@ export function AppShell() {
 
 	return (
 		<SidebarProvider open={isMobile ? false : sidebarOpen} onOpenChange={setSidebarOpen}>
-			<AppSidebar
-				className='hidden lg:flex'
-				schoolName={schoolName}
-				logoUrl={logoUrl}
-				activeYearLabel={activeYearLabel}
-				bridgeUser={bridgeUser}
-				pathname={location.pathname}
-				onLogout={handleLogout}
-			/>
+			{!isMobile && (
+				<AppSidebar
+					className='hidden lg:flex'
+					schoolName={schoolName}
+					logoUrl={logoUrl}
+					activeYearLabel={activeYearLabel}
+					bridgeUser={bridgeUser}
+					pathname={location.pathname}
+					onLogout={handleLogout}
+				/>
+			)}
 
 			<SidebarInset>
 				{/* Top bar */}
@@ -787,23 +789,24 @@ export function AppShell() {
 					)}
 				</header>
 
-				<AnimatePresence>
+				<AnimatePresence initial={false}>
 					{isMobile && mobileNavOpen && (
 						<>
 							<motion.button
 								type='button'
-								className='fixed inset-0 top-14 z-40 bg-black/30'
+								className='fixed inset-0 top-14 z-40 bg-black/30 will-change-[opacity]'
 								initial={{ opacity: 0 }}
 								animate={{ opacity: 1 }}
 								exit={{ opacity: 0 }}
+								transition={{ duration: 0.16, ease: 'easeOut' }}
 								onClick={() => setMobileNavOpen(false)}
 							/>
 							<motion.nav
-								className='fixed inset-x-2 top-14 z-50 overflow-hidden rounded-b-2xl border border-border bg-background shadow-xl'
+								className='fixed inset-x-2 top-14 z-50 overflow-hidden rounded-b-2xl border border-border bg-background shadow-xl transform-gpu will-change-transform'
 								initial={{ opacity: 0, y: -16 }}
 								animate={{ opacity: 1, y: 0 }}
 								exit={{ opacity: 0, y: -16 }}
-								transition={{ duration: 0.18, ease: 'easeOut' }}
+								transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
 							>
 								<div className='space-y-1 p-3'>
 									{mobileNavItems.map((item) => (

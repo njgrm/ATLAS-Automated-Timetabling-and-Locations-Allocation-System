@@ -351,6 +351,34 @@ return (
 							</div>
 						) : requestPreview ? (
 							<>
+								{(() => {
+									const request = requestPreview.request as typeof requestPreview.request & {
+										targetDay?: string | null;
+										targetStartTime?: string | null;
+										targetEndTime?: string | null;
+									};
+									const targetDay = request.targetDay ?? request.day;
+									const targetStart = request.targetStartTime ?? request.startTime;
+									const targetEnd = request.targetEndTime ?? request.endTime;
+									return (
+										<div className="rounded border border-border bg-card px-3 py-2 text-xs space-y-2">
+											<p className="font-medium">Request visualization</p>
+											<div className="grid gap-2 sm:grid-cols-2">
+												<div className="rounded border border-border bg-muted/30 px-2 py-1.5">
+													<p className="text-[0.65rem] font-medium text-muted-foreground">Before</p>
+													<p className="font-semibold">{request.day} {request.startTime}-{request.endTime}</p>
+													<p className="text-muted-foreground">{request.currentRoomName}</p>
+												</div>
+												<div className="rounded border border-primary/30 bg-primary/5 px-2 py-1.5">
+													<p className="text-[0.65rem] font-medium text-muted-foreground">After request</p>
+													<p className="font-semibold">{targetDay} {targetStart}-{targetEnd}</p>
+													<p className="text-primary">{request.requestedRoomName}</p>
+												</div>
+											</div>
+										</div>
+									);
+								})()}
+
 								<div className="rounded border border-border bg-muted/30 px-3 py-2 text-xs space-y-1">
 									<p className="font-semibold">{requestPreview.request.facultyName}</p>
 									<p className="text-muted-foreground">{requestPreview.request.subjectCode} · {requestPreview.request.sectionName}</p>
@@ -455,14 +483,17 @@ return (
 
 								{isPrivilegedUser ? (
 									<>
+										<div className="pb-20 space-y-3">
 										<Textarea
 											value={requestReviewerNotes}
 											onChange={(event) => setRequestReviewerNotes(event.target.value)}
 											placeholder="Decision notes"
 											className="min-h-20 text-xs"
 										/>
+										</div>
 
-										<div className="flex gap-2">
+										<div className="sticky bottom-0 z-10 -mx-1 border-t border-border bg-background/95 px-1 py-2 backdrop-blur">
+											<div className="flex gap-2">
 											<Button
 												className="flex-1"
 												disabled={requestReviewSaving || !requestPreview.preview.allowed}
@@ -478,6 +509,7 @@ return (
 											>
 												Reject
 											</Button>
+											</div>
 										</div>
 									</>
 								) : null}

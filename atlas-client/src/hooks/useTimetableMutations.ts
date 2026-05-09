@@ -405,7 +405,14 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setRequestPreviewLoading(true);
 		try {
 			const { data } = await atlasApi.post<RoomPreferencePreviewResponse>(`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${request.runId}/requests/${request.id}/preview`);
-			setRequestPreview(data);
+			setRequestPreview({
+				...data,
+				preview: scopePreviewToCandidate(data.preview, {
+					day: request.day,
+					startTime: request.startTime,
+					endTime: request.endTime,
+				}),
+			});
 			setRequestReviewerNotes(data.request.reviewerNotes ?? '');
 			setAppealsLoading(true);
 			try {

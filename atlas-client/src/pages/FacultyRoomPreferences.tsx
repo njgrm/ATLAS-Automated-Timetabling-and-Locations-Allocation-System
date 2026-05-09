@@ -27,6 +27,7 @@ import {
 	type RoomPreferenceOutboxAction,
 } from '@/lib/roomPreferenceOutbox';
 import { fetchPublicSettings, fetchSchoolYears, type SchoolYear } from '@/lib/settings';
+import { scopePreviewToCandidate } from '@/lib/timetable-utils';
 import { formatTime } from '@/lib/utils';
 import type {
 	Building,
@@ -165,6 +166,7 @@ export default function FacultyRoomPreferences() {
 	const [requestSheetOpen, setRequestSheetOpen] = useState(false);
 	const [actionType, setActionType] = useState<RequestActionType>('MOVE_TO_EMPTY_SLOT');
 	const [requestedRoomId, setRequestedRoomId] = useState<string>('');
+	const [requestRoomSearch, setRequestRoomSearch] = useState('');
 	const [reason, setReason] = useState('');
 	const [requestPreview, setRequestPreview] = useState<PreviewResult | null>(null);
 	const [previewLoading, setPreviewLoading] = useState(false);
@@ -210,12 +212,9 @@ export default function FacultyRoomPreferences() {
 			}
 			setFacultyId(facultyMatch.id);
 
-			const [roomState, buildingsResponse, gateResponse] = await Promise.all([
+			const [roomState, buildingsResponse] = await Promise.all([
 				atlasApi.get<FacultyRoomPreferenceState>(`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/latest/faculty/${facultyMatch.id}`),
 				atlasApi.get<{ buildings: Building[] }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
-				atlasApi.get<GenerationGateStatus>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/gate`).catch(() => ({
-					data: { blocked: false, openCount: 0, runId: null } as GenerationGateStatus,
-				})),
 			]);
 
 			const nextRooms: RoomOption[] = [];
@@ -228,7 +227,7 @@ export default function FacultyRoomPreferences() {
 			nextRooms.sort((left, right) => left.name.localeCompare(right.name) || left.floor - right.floor);
 			setRooms(nextRooms);
 			applyServerState(roomState.data);
-			setGate(gateResponse.data ?? null);
+			setGate(null);
 			setError(null);
 		} catch (err) {
 			const responseData = (err as { response?: { data?: { code?: string; message?: string; actionHint?: string } } })?.response?.data;
@@ -382,6 +381,7 @@ export default function FacultyRoomPreferences() {
 
 	useEffect(() => {
 		if (!activeSchoolYearId || !runId || !online) return;
+		if (import.meta.env.VITE_ROOM_PREF_COLLAB !== 'true') return;
 		const token = getPreferredAccessToken();
 		if (!token) return;
 
@@ -510,6 +510,7 @@ export default function FacultyRoomPreferences() {
 	const selectedEntry = entries.find((entry) => entry.entryId === selectedSourceEntryId) ?? null;
 	const dirtyEntries = entries.filter((entry) => isEntryDirty(entry, initialMap.get(entry.entryId)));
 	const filteredRooms = rooms.filter((room) => `${room.name} ${room.buildingName}`.toLowerCase().includes(roomSearch.toLowerCase()));
+	const requestRoomOptions = rooms.filter((room) => `${room.name} ${room.buildingName}`.toLowerCase().includes(requestRoomSearch.toLowerCase()));
 	const draftCount = entries.filter((entry) => entry.status === 'DRAFT').length;
 	const submittedCount = entries.filter((entry) => entry.status === 'SUBMITTED').length;
 	const compactPresence = useMemo(() => {
@@ -633,6 +634,7 @@ export default function FacultyRoomPreferences() {
 		setTargetSlot(slot);
 		setActionType(slot.targetEntryId ? 'SWAP_WITH_OCCUPIED' : 'MOVE_TO_EMPTY_SLOT');
 		setRequestedRoomId(String(selectedEntry.currentRoomId));
+		setRequestRoomSearch('');
 		setReason(selectedEntry.rationale ?? '');
 		setRequestPreview(null);
 		setRequestSheetOpen(true);
@@ -659,7 +661,11 @@ export default function FacultyRoomPreferences() {
 						expectedRunVersion: runVersion,
 					},
 				);
-				setRequestPreview(data.preview);
+				setRequestPreview(scopePreviewToCandidate(data.preview, {
+					day: targetSlot.day,
+					startTime: targetSlot.startTime,
+					endTime: targetSlot.endTime,
+				}));
 			} catch {
 				setRequestPreview(null);
 			} finally {
@@ -728,7 +734,7 @@ export default function FacultyRoomPreferences() {
 
 	if (loading) {
 		return (
-			<div className='flex h-[calc(100svh-3.5rem)] flex-col px-6 py-6'>
+			<div className='flex h-[calc(100svh-3.5rem)] flex-col px-4 py-4 sm:px-6 sm:py-6'>
 				<div className='grid gap-3 md:grid-cols-[1.15fr_0.85fr]'>
 					<Skeleton className='h-[72svh] rounded-2xl' />
 					<Skeleton className='h-[72svh] rounded-2xl' />
@@ -739,7 +745,7 @@ export default function FacultyRoomPreferences() {
 
 	if (error) {
 		return (
-			<div className='p-6'>
+			<div className='p-4 sm:p-6'>
 				<Card>
 					<CardContent className='flex items-center gap-3 py-8'>
 						<AlertCircle className='size-5 text-destructive shrink-0' />
@@ -757,22 +763,20 @@ export default function FacultyRoomPreferences() {
 	}
 
 	return (
-		<div className='flex min-h-[calc(100svh-3.5rem)] flex-col overflow-y-auto md:h-[calc(100svh-3.5rem)] md:min-h-0 md:overflow-hidden'>
-				<div className='shrink-0 space-y-4 px-6 pt-6 pb-3'>
+		<div className='flex min-h-[calc(100svh-3.5rem)] flex-col overflow-y-auto lg:h-[calc(100svh-3.5rem)] lg:min-h-0 lg:overflow-hidden'>
+				<div className='shrink-0 space-y-4 px-4 pt-4 pb-3 sm:px-6 sm:pt-6'>
 					{schoolYearNotice && (
 						<div className='rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900'>
 							{schoolYearNotice}
 						</div>
 					)}
 
-					{/* ── Connection / sync status strip ── */}
+					{/* Show local status banner only for warnings/action-required states. */}
+					{(!online || syncingOutbox || outboxCount > 0 || outboxStatusCounts.failed > 0) && (
 					<div className={`flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-xs ${online ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
 						{online ? <Wifi className='size-4 shrink-0' /> : <WifiOff className='size-4 shrink-0' />}
 						{!online && (
 							<span className='font-semibold'>You're offline — changes will be saved and sent when you reconnect.</span>
-						)}
-						{online && outboxCount === 0 && !syncingOutbox && (
-							<span className='font-semibold'>Connected</span>
 						)}
 						{online && syncingOutbox && (
 							<span className='font-semibold'>Saving your changes…</span>
@@ -806,7 +810,8 @@ export default function FacultyRoomPreferences() {
 								</div>
 							</>
 						)}
-					</div>
+							</div>
+							)}
 
 					<div className='flex flex-wrap items-start gap-3'>
 						<div>
@@ -909,7 +914,7 @@ export default function FacultyRoomPreferences() {
 											}`}
 										>
 											<div className='flex items-start gap-3'>
-												<div className={`mt-0.5 size-5 rounded-full border-2 flex-shrink-0 ${
+												<div className={`mt-0.5 size-5 rounded-full border-2 shrink-0 ${
 													selectedSourceEntryId === entry.entryId ? 'border-primary bg-primary' : 'border-muted-foreground/40'
 												}`} />
 												<div className='flex-1 min-w-0 space-y-1'>
@@ -980,13 +985,13 @@ export default function FacultyRoomPreferences() {
 				{/* Mobile fixed bottom nav */}
 				<div className='lg:hidden fixed bottom-0 inset-x-0 z-20 bg-background/95 backdrop-blur border-t px-4 py-3 flex gap-3'>
 					{mobileStep > 1 && (
-						<Button variant='outline' className='flex-1 min-h-[3rem]' onClick={() => setMobileStep((s) => Math.max(1, s - 1) as 1 | 2 | 3)}>
+						<Button variant='outline' className='flex-1 min-h-12' onClick={() => setMobileStep((s) => Math.max(1, s - 1) as 1 | 2 | 3)}>
 							← Back
 						</Button>
 					)}
 					{mobileStep === 1 && (
 						<Button
-							className='flex-1 min-h-[3rem]'
+							className='flex-1 min-h-12'
 							disabled={!selectedSourceEntryId}
 							onClick={() => selectedSourceEntryId && setMobileStep(2)}
 						>
@@ -1163,13 +1168,21 @@ export default function FacultyRoomPreferences() {
 				</div>
 
 			<Sheet open={requestSheetOpen} onOpenChange={setRequestSheetOpen}>
-				<SheetContent side='bottom' className='h-[88svh] overflow-auto rounded-t-2xl'>
+				<SheetContent side='bottom' className='h-[88dvh] overflow-auto rounded-t-2xl pb-[calc(env(safe-area-inset-bottom)+0.5rem)]'>
 					<SheetHeader>
 						<SheetTitle>Request a Room Change</SheetTitle>
 						<SheetDescription>Choose what you want to change, pick a room, and check for schedule conflicts before submitting.</SheetDescription>
 					</SheetHeader>
 
 					<div className='mt-4 space-y-4'>
+						{selectedEntry && (
+							<div className='rounded-xl border border-border bg-muted/30 p-3'>
+								<p className='text-xs font-medium text-muted-foreground'>Selected session</p>
+								<p className='mt-1 text-sm font-semibold text-foreground'>{selectedEntry.subjectCode} · {selectedEntry.sectionName}</p>
+								<p className='text-xs text-muted-foreground'>{selectedEntry.day.slice(0, 3)} {formatTime(selectedEntry.startTime)} - {formatTime(selectedEntry.endTime)} · {selectedEntry.currentRoomName}</p>
+							</div>
+						)}
+
 						<div className='grid gap-3 sm:grid-cols-2'>
 							<div className='space-y-2'>
 								<Label>What do you want to change?</Label>
@@ -1185,10 +1198,19 @@ export default function FacultyRoomPreferences() {
 							</div>
 							<div className='space-y-2'>
 								<Label>Target room</Label>
+								<div className='flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2'>
+									<Search className='size-4 text-muted-foreground' />
+									<Input
+										value={requestRoomSearch}
+										onChange={(event) => setRequestRoomSearch(event.target.value)}
+										placeholder='Search room by name or building'
+										className='h-8 border-0 bg-transparent px-0 text-base shadow-none focus-visible:ring-0'
+									/>
+								</div>
 								<Select value={requestedRoomId} onValueChange={setRequestedRoomId}>
 									<SelectTrigger><SelectValue placeholder='Keep current room' /></SelectTrigger>
 									<SelectContent>
-										{filteredRooms.map((room) => (
+										{requestRoomOptions.map((room) => (
 											<SelectItem key={room.id} value={String(room.id)}>{room.name} · {room.buildingName}</SelectItem>
 										))}
 									</SelectContent>
