@@ -21,6 +21,7 @@ type DesktopRoomRequestLayoutProps = {
 	days: DayOfWeek[];
 	timeSlots: TimeSlot[];
 	globalBySlot: Map<string, FacultyGlobalDraftEntry[]>;
+	showFullScheduleContext: boolean;
 	selectionCountBySlot: Map<string, number>;
 	slotSelectionDetails: Map<string, { count: number; actors: string[] }>;
 	entrySelectionDetails: Map<string, { count: number; actors: string[] }>;
@@ -50,6 +51,7 @@ export default function DesktopRoomRequestLayout({
 	days,
 	timeSlots,
 	globalBySlot,
+	showFullScheduleContext,
 	selectionCountBySlot,
 	slotSelectionDetails,
 	entrySelectionDetails,
@@ -71,15 +73,20 @@ export default function DesktopRoomRequestLayout({
 	return (
 		<div className='hidden flex-1 min-h-0 gap-4 overflow-hidden px-6 pb-6 lg:grid lg:grid-cols-[1.3fr_0.7fr]'>
 			<div className='flex flex-col overflow-hidden rounded-2xl border border-border bg-card'>
-				<div className='border-b border-border px-4 py-3'>
+				<div className='border-b border-border px-4 py-3' data-tutorial='target-slot-map'>
 					<div className='flex items-center justify-between gap-2'>
 						<div>
-							<p className='text-sm font-semibold text-foreground'>Schedule Slot Map</p>
+							<p className='text-sm font-semibold text-foreground'>Choose Your Target Time</p>
 							<p className='text-xs text-muted-foreground'>
 								{selectedSourceEntryId
-									? 'Class selected - click any slot to prepare a request.'
-									: 'Select one of your classes (blue cards) then choose a target slot.'}
+									? 'Your class is selected. Click a time slot to continue.'
+									: 'Start by selecting one of your classes in the panel on the right.'}
 							</p>
+							{!showFullScheduleContext && (
+								<p className='mt-1 text-[11px] text-muted-foreground'>
+									Showing the simple view first. Turn on full context if you want to inspect other classes.
+								</p>
+							)}
 						</div>
 						<div className='flex flex-wrap items-center gap-2'>
 							<Button variant='outline' size='sm' onClick={onZoomOut}>
@@ -111,18 +118,21 @@ export default function DesktopRoomRequestLayout({
 									{days.map((day) => {
 										const key = slotKey(day, slot.startTime, slot.endTime);
 										const cellEntries = globalBySlot.get(key) ?? [];
+										const ownedEntries = cellEntries.filter((entry) => entry.owned);
+										const nonOwnedEntries = cellEntries.filter((entry) => !entry.owned);
+										const visibleEntries = showFullScheduleContext ? cellEntries : ownedEntries;
 										const slotLive = slotSelectionDetails.get(key);
+										const targetOccupant = nonOwnedEntries[0] ?? cellEntries[0] ?? null;
 										return (
 											<button
 												key={`${key}-${day}`}
 												type='button'
 												onClick={() => {
-													const occupied = cellEntries[0] ?? null;
 													onSelectTargetFromGrid({
 														day,
 														startTime: slot.startTime,
 														endTime: slot.endTime,
-														targetEntryId: occupied?.entryId ?? null,
+														targetEntryId: targetOccupant?.entryId ?? null,
 													});
 												}}
 												className='min-h-24 rounded-lg border border-border bg-background p-2 text-left hover:border-primary/40'
@@ -138,8 +148,11 @@ export default function DesktopRoomRequestLayout({
 													</p>
 												)}
 												<div className='space-y-1'>
-													{cellEntries.length === 0 && <p className='text-[0.68rem] text-muted-foreground'>Free - click to move here</p>}
-													{cellEntries.map((entry) => {
+													{cellEntries.length === 0 && <p className='text-[0.68rem] text-emerald-700'>Free slot - click to move here</p>}
+													{!showFullScheduleContext && nonOwnedEntries.length > 0 && (
+														<p className='text-[0.68rem] text-amber-700'>Occupied by another class - click to request a swap</p>
+													)}
+													{visibleEntries.map((entry) => {
 														const ownedEntry = entry.owned;
 														const sourceSelected = selectedSourceEntryId === entry.entryId;
 														const entryLive = entrySelectionDetails.get(entry.entryId);
@@ -184,7 +197,7 @@ export default function DesktopRoomRequestLayout({
 			</div>
 
 			<div className='flex flex-col overflow-hidden rounded-2xl border border-border bg-card'>
-				<div className='space-y-3 border-b border-border px-4 py-4'>
+				<div className='space-y-3 border-b border-border px-4 py-4' data-tutorial='my-classes-panel'>
 					<p className='text-sm font-semibold text-foreground'>Request Builder</p>
 					<div className='flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2'>
 						<Search className='size-4 text-muted-foreground' />
@@ -226,7 +239,7 @@ export default function DesktopRoomRequestLayout({
 						</div>
 					) : (
 						<div className='rounded-xl border border-dashed border-border px-4 py-6 text-sm text-muted-foreground'>
-							Select one of your classes in the slot map to begin.
+							Select one of your classes, then click a target time on the left.
 						</div>
 					)}
 				</div>

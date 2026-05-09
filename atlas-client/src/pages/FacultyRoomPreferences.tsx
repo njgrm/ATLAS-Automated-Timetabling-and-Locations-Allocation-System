@@ -1,14 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
 	AlertCircle,
-	Loader2,
-	Move,
-	Send,
-	Shuffle,
-	TimerReset,
 	Wifi,
 	WifiOff,
-	Search,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -42,20 +36,18 @@ import type {
 	RoomPreferenceActionType as RequestActionType,
 	RoomPreferenceDecisionStatus,
 	RoomPreferenceStatus,
+	TutorialStep,
 } from '@/types';
+import { TutorialOverlay, useTutorial } from '@/components/TutorialOverlay';
 import { Badge } from '@/ui/badge';
-import { Label } from '@/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
-import { Separator } from '@/ui/separator';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/ui/sheet';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
-import { Input } from '@/ui/input';
 import { Skeleton } from '@/ui/skeleton';
-import { Textarea } from '@/ui/textarea';
+import { Switch } from '@/ui/switch';
 import DesktopRoomRequestLayout from '@/components/faculty-room-preferences/DesktopRoomRequestLayout';
 import MobileRoomRequestLayout from '@/components/faculty-room-preferences/MobileRoomRequestLayout';
 import RoomRequestHeader from '@/components/faculty-room-preferences/RoomRequestHeader';
+import RoomRequestSheet from '@/components/faculty-room-preferences/RoomRequestSheet';
 
 const DEFAULT_SCHOOL_ID = 1;
 const FALLBACK_SCHOOL_YEAR_ID = 1;
@@ -115,6 +107,34 @@ const ACTION_LABELS: Record<RequestActionType, string> = {
 
 const DAYS: DayOfWeek[] = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
 
+const FACULTY_ROOM_TUTORIAL_STEPS: TutorialStep[] = [
+	{
+		target: '[data-tutorial="room-step-guidance"]',
+		title: 'Follow The 3 Steps',
+		content: 'Start from Step 1, then move forward to submit. The page keeps you focused on one action at a time.',
+	},
+	{
+		target: '[data-tutorial="context-toggle"]',
+		title: 'Simple View First',
+		content: 'You will first see only what you need. Turn on full schedule context only when you need more details.',
+	},
+	{
+		target: '[data-tutorial="my-classes-panel"]',
+		title: 'Pick Your Class',
+		content: 'Choose your class first. This tells the system which class you are requesting to move.',
+	},
+	{
+		target: '[data-tutorial="target-slot-map"]',
+		title: 'Choose New Time Slot',
+		content: 'Click a free slot to move. Click an occupied slot to request a swap.',
+	},
+	{
+		target: '[data-tutorial="room-picker-modes"]',
+		title: 'Choose Room Your Way',
+		content: 'When the request panel opens, you can pick a room using list, building, or map view.',
+	},
+];
+
 function statusBadge(status: RoomPreferenceStatus | null, decision: RoomPreferenceDecisionStatus | null) {
 	if (decision === 'APPROVED') return <Badge variant='success'>Approved</Badge>;
 	if (decision === 'REJECTED') return <Badge variant='destructive'>Rejected</Badge>;
@@ -171,9 +191,12 @@ export default function FacultyRoomPreferences() {
 	const [reason, setReason] = useState('');
 	const [requestPreview, setRequestPreview] = useState<PreviewResult | null>(null);
 	const [previewLoading, setPreviewLoading] = useState(false);
+	const [showFullScheduleContext, setShowFullScheduleContext] = useState(false);
 	const [zoom, setZoom] = useState(1);
 	const [roomSearch, setRoomSearch] = useState('');
 	const [rooms, setRooms] = useState<RoomOption[]>([]);
+	const [buildings, setBuildings] = useState<Building[]>([]);
+	const [campusImageUrl, setCampusImageUrl] = useState<string | null>(null);
 	const [presence, setPresence] = useState<CollaborationPresence[]>([]);
 	const [remoteSelections, setRemoteSelections] = useState<Record<string, CollaborationSelection>>({});
 	const [collaborationConnected, setCollaborationConnected] = useState(false);
@@ -183,6 +206,7 @@ export default function FacultyRoomPreferences() {
 	const lastEventIdRef = useRef<number>(0);
 	const collaborationRef = useRef<ReturnType<typeof createRoomPreferenceCollaborationSocket> | null>(null);
 	const selfConnectionIdRef = useRef<string | null>(null);
+	const tutorial = useTutorial('atlas_faculty_room_preferences_tour_v1');
 
 	const applyServerState = useCallback((state: FacultyRoomPreferenceState) => {
 		setRunId(state.runId);
@@ -213,9 +237,10 @@ export default function FacultyRoomPreferences() {
 			}
 			setFacultyId(facultyMatch.id);
 
-			const [roomState, buildingsResponse] = await Promise.all([
+			const [roomState, buildingsResponse, campusImageResponse] = await Promise.all([
 				atlasApi.get<FacultyRoomPreferenceState>(`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/latest/faculty/${facultyMatch.id}`),
 				atlasApi.get<{ buildings: Building[] }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
+				atlasApi.get<{ campusImageUrl: string | null }>(`/map/schools/${DEFAULT_SCHOOL_ID}/campus-image`),
 			]);
 
 			const nextRooms: RoomOption[] = [];
@@ -227,6 +252,8 @@ export default function FacultyRoomPreferences() {
 			}
 			nextRooms.sort((left, right) => left.name.localeCompare(right.name) || left.floor - right.floor);
 			setRooms(nextRooms);
+			setBuildings(buildingsResponse.data.buildings);
+			setCampusImageUrl(campusImageResponse.data.campusImageUrl ?? null);
 			applyServerState(roomState.data);
 			setGate(null);
 			setError(null);
@@ -611,12 +638,16 @@ export default function FacultyRoomPreferences() {
 					startTime: slot.startTime,
 					endTime: slot.endTime,
 					targetEntryId: occupant?.entryId ?? null,
-					occupiedLabel: occupant ? `${occupant.subjectCode} • ${occupant.sectionName}` : null,
+					occupiedLabel: occupant
+						? showFullScheduleContext
+							? `${occupant.subjectCode} • ${occupant.sectionName}`
+							: 'Occupied by another class'
+						: null,
 				});
 			}
 		}
 		return targets;
-	}, [globalBySlot, timeSlots]);
+	}, [globalBySlot, showFullScheduleContext, timeSlots]);
 	const currentStep = useMemo<1 | 2 | 3>(() => {
 		if (requestSheetOpen) return 3;
 		if (!selectedSourceEntryId) return 1;
@@ -840,6 +871,32 @@ export default function FacultyRoomPreferences() {
 						gate={gate}
 						dirtyCount={dirtyEntries.length}
 					/>
+
+					<div className='flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5' data-tutorial='context-toggle'>
+						<div className='min-w-0 flex-1'>
+							<p className='text-xs font-semibold text-foreground'>My Schedule First</p>
+							<p className='text-xs text-muted-foreground'>
+								Keep this off for the simple view. Turn on full schedule context only when you need more detail.
+							</p>
+						</div>
+						<div className='flex items-center gap-2'>
+							<Switch
+								checked={showFullScheduleContext}
+								onCheckedChange={setShowFullScheduleContext}
+								aria-label='Show full schedule context'
+							/>
+							<span className='text-xs text-muted-foreground'>Show full context</span>
+						</div>
+						<Button
+							type='button'
+							variant='outline'
+							size='sm'
+							onClick={tutorial.start}
+							data-tutorial='tour-replay-btn'
+						>
+							Take a quick tour
+						</Button>
+					</div>
 				</div>
 
 				<MobileRoomRequestLayout
@@ -848,6 +905,7 @@ export default function FacultyRoomPreferences() {
 					selectedSourceEntryId={selectedSourceEntryId}
 					selectedEntry={selectedEntry}
 					mobileTargets={mobileTargets}
+					showFullScheduleContext={showFullScheduleContext}
 					onSelectSourceEntry={(entryId) => {
 						setSelectedSourceEntryId(entryId);
 						setMobileStep(2);
@@ -881,6 +939,7 @@ export default function FacultyRoomPreferences() {
 					days={DAYS}
 					timeSlots={timeSlots}
 					globalBySlot={globalBySlot}
+					showFullScheduleContext={showFullScheduleContext}
 					selectionCountBySlot={selectionCountBySlot}
 					slotSelectionDetails={slotSelectionDetails}
 					entrySelectionDetails={entrySelectionDetails}
@@ -916,124 +975,34 @@ export default function FacultyRoomPreferences() {
 					renderStatusBadge={statusBadge}
 				/>
 
-			<Sheet open={requestSheetOpen} onOpenChange={setRequestSheetOpen}>
-				<SheetContent side='bottom' className='h-[88dvh] overflow-auto rounded-t-2xl pb-[calc(env(safe-area-inset-bottom)+0.5rem)]'>
-					<SheetHeader>
-						<SheetTitle>Request a Room Change</SheetTitle>
-						<SheetDescription>Choose what you want to change, pick a room, and check for schedule conflicts before submitting.</SheetDescription>
-					</SheetHeader>
+			<RoomRequestSheet
+				open={requestSheetOpen}
+				onOpenChange={setRequestSheetOpen}
+				selectedEntry={selectedEntry}
+				targetSlot={targetSlot}
+				actionType={actionType}
+				onActionTypeChange={(value) => setActionType(value as RequestActionType)}
+				requestedRoomId={requestedRoomId}
+				onRequestedRoomIdChange={setRequestedRoomId}
+				requestRoomSearch={requestRoomSearch}
+				onRequestRoomSearchChange={setRequestRoomSearch}
+				requestRoomOptions={requestRoomOptions}
+				buildings={buildings}
+				campusImageUrl={campusImageUrl}
+				reason={reason}
+				onReasonChange={setReason}
+				reasonRequired={reasonRequired}
+				previewLoading={previewLoading}
+				requestPreview={requestPreview}
+				submitting={submitting}
+				onSubmit={() => void submitCurrentRequest()}
+			/>
 
-					<div className='mt-4 space-y-4'>
-						{selectedEntry && (
-							<div className='rounded-xl border border-border bg-muted/30 p-3'>
-								<p className='text-xs font-medium text-muted-foreground'>Selected session</p>
-								<p className='mt-1 text-sm font-semibold text-foreground'>{selectedEntry.subjectCode} · {selectedEntry.sectionName}</p>
-								<p className='text-xs text-muted-foreground'>{selectedEntry.day.slice(0, 3)} {formatTime(selectedEntry.startTime)} - {formatTime(selectedEntry.endTime)} · {selectedEntry.currentRoomName}</p>
-							</div>
-						)}
-
-						<div className='grid gap-3 sm:grid-cols-2'>
-							<div className='space-y-2'>
-								<Label>What do you want to change?</Label>
-								<Select value={actionType} onValueChange={(value) => setActionType(value as RequestActionType)}>
-									<SelectTrigger><SelectValue /></SelectTrigger>
-									<SelectContent>
-										<SelectItem value='MOVE_TO_EMPTY_SLOT'><Move className='mr-2 inline size-4' />Move my class to a free time slot</SelectItem>
-										<SelectItem value='SWAP_WITH_OCCUPIED'><Shuffle className='mr-2 inline size-4' />Swap time slots with another class</SelectItem>
-										<SelectItem value='ROOM_CHANGE'><TimerReset className='mr-2 inline size-4' />Change my classroom only</SelectItem>
-										<SelectItem value='TIME_AND_ROOM_CHANGE'><Send className='mr-2 inline size-4' />Change both time and classroom</SelectItem>
-									</SelectContent>
-								</Select>
-							</div>
-							<div className='space-y-2'>
-								<Label>Target room</Label>
-								<div className='flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2'>
-									<Search className='size-4 text-muted-foreground' />
-									<Input
-										value={requestRoomSearch}
-										onChange={(event) => setRequestRoomSearch(event.target.value)}
-										placeholder='Search room by name or building'
-										className='h-8 border-0 bg-transparent px-0 text-base shadow-none focus-visible:ring-0'
-									/>
-								</div>
-								<Select value={requestedRoomId} onValueChange={setRequestedRoomId}>
-									<SelectTrigger><SelectValue placeholder='Keep current room' /></SelectTrigger>
-									<SelectContent>
-										{requestRoomOptions.map((room) => (
-											<SelectItem key={room.id} value={String(room.id)}>{room.name} · {room.buildingName}</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-						</div>
-
-						<div className='rounded-xl border border-border bg-muted/30 p-3 text-xs text-muted-foreground'>
-							{targetSlot
-								? `Target slot: ${targetSlot.day.slice(0, 3)} ${formatTime(targetSlot.startTime)} - ${formatTime(targetSlot.endTime)} ${targetSlot.targetEntryId ? '(occupied)' : '(empty)'}`
-								: 'Select a target slot from the schedule grid.'}
-						</div>
-
-						{reasonRequired && (
-							<Textarea
-								value={reason}
-								onChange={(event) => setReason(event.target.value)}
-								placeholder='Reason for this request — required because this swap creates a schedule conflict.'
-								className='min-h-24'
-							/>
-						)}
-
-						<Separator />
-
-						<div className='space-y-2'>
-							<p className='text-sm font-semibold'>Schedule check</p>
-							{previewLoading && <p className='text-xs text-muted-foreground'>Checking for conflicts…</p>}
-							{!previewLoading && requestPreview && (
-								<>
-									{requestPreview.hardViolations.length === 0 && requestPreview.softViolations.length === 0 && (
-										<p className='text-xs text-emerald-700 font-medium'>✓ No conflicts found. You can submit this request.</p>
-									)}
-									{requestPreview.hardViolations.length > 0 && (
-										<p className='text-xs text-amber-800 font-medium'>This request causes {requestPreview.hardViolations.length} schedule conflict{requestPreview.hardViolations.length !== 1 ? 's' : ''}. Please explain your reason below and the scheduling officer will decide.</p>
-									)}
-									{requestPreview.softViolations.length > 0 && requestPreview.hardViolations.length === 0 && (
-										<p className='text-xs text-muted-foreground'>{requestPreview.softViolations.length} minor scheduling note{requestPreview.softViolations.length !== 1 ? 's' : ''} — you can still submit.</p>
-									)}
-									<div className='space-y-2'>
-										{requestPreview.humanConflicts.map((conflict, index) => (
-											<div key={`${conflict.code}-${conflict.humanTitle}-${index}`} className='rounded-lg border border-border bg-background p-2'>
-												<p className='text-xs font-semibold'>{conflict.humanTitle}</p>
-												<p className='mt-1 text-xs text-muted-foreground'>{conflict.humanDetail}</p>
-											</div>
-										))}
-									</div>
-								</>
-							)}
-						</div>
-
-						<div className='rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900'>
-							Minor scheduling notes are for your information only. Requests with conflicts will be reviewed and decided by the scheduling officer — they are not automatically rejected.
-						</div>
-
-						{reasonRequired && !reason.trim() && (
-							<div className='rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive'>
-								Please enter a reason above to explain why you need this change — it helps the scheduling officer make a decision.
-							</div>
-						)}
-
-						<div className='flex flex-col-reverse gap-2 sm:flex-row sm:justify-end'>
-							<Button variant='outline' className='sm:w-auto' onClick={() => setRequestSheetOpen(false)}>Cancel</Button>
-							<Button
-								className='sm:w-auto'
-								onClick={() => void submitCurrentRequest()}
-								disabled={submitting || !selectedEntry || !targetSlot || (reasonRequired && !reason.trim())}
-							>
-								{submitting ? <Loader2 className='mr-1.5 size-4 animate-spin' /> : <Send className='mr-1.5 size-4' />}
-								Submit request
-							</Button>
-						</div>
-					</div>
-				</SheetContent>
-			</Sheet>
+			<TutorialOverlay
+				steps={FACULTY_ROOM_TUTORIAL_STEPS}
+				active={tutorial.active}
+				onComplete={tutorial.complete}
+			/>
 		</div>
 	);
 }

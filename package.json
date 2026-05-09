@@ -13,6 +13,11 @@
     "verify:cross-repo-source-gate": "npm --prefix atlas-server run verify:cross-repo-source-gate --",
     "test:phase4-review": "npm --prefix atlas-server run test:phase4-review",
     "test:login-ui-parity": "node qa-artifacts/login-ui-parity-check.mjs",
+    "test:visual:install": "playwright install chromium",
+    "test:visual": "playwright test -c playwright.config.ts",
+    "test:visual:ci": "playwright test -c playwright.config.ts",
+    "test:visual:assert": "playwright test -c playwright.config.ts",
+    "test:visual:update": "playwright test -c playwright.config.ts --update-snapshots",
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:generate": "npx prisma generate",
     "db:migrate": "npx prisma migrate dev --name init",
@@ -38,6 +43,7 @@
     "react-zoom-pan-pinch": "^3.7.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.27",
     "concurrently": "^9.2.1",
@@ -46,7 +52,8 @@
     "postcss": "^8.5.8",
     "prisma": "^6.19.2",
     "tailwindcss": "^4.2.2",
-    "vite": "^6.4.1"
+    "vite": "^6.4.1",
+    "wait-on": "^9.0.5"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

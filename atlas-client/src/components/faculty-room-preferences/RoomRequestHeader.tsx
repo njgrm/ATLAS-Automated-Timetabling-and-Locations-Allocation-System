@@ -33,13 +33,13 @@ export default function RoomRequestHeader({
 	const activeStep = isMobileViewport ? mobileStep : currentStep;
 
 	const stepCopy = useMemo(() => {
-		if (activeStep === 1) return 'Step 1 of 3 - Select one of your classes to begin.';
-		if (activeStep === 2) return 'Step 2 of 3 - Choose where you want to move it.';
-		return 'Step 3 of 3 - Review conflicts and submit your request.';
+		if (activeStep === 1) return 'Step 1 of 3 - Pick the class you want to move.';
+		if (activeStep === 2) return 'Step 2 of 3 - Pick the new time slot.';
+		return 'Step 3 of 3 - Review the check and submit for approval.';
 	}, [activeStep]);
 
 	return (
-		<div className='space-y-3'>
+		<div className='space-y-3' data-tutorial='room-step-guidance'>
 			<div>
 				<h1 className='text-2xl font-semibold tracking-tight'>Room Change Requests</h1>
 				<p className='text-sm text-muted-foreground'>{stepCopy}</p>

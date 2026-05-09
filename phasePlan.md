@@ -6,6 +6,8 @@ It defines phase scope, acceptance gates, and the current progress state.
 
 ## Companion Planning Docs
 - Detailed phase execution files: `docs/phases/`
+- UX refactor execution plan: `docs/phases/ux-refactor-master-plan.md`
+- Hybrid algorithm refactor execution plan: `docs/phases/algorithm-hybrid-refactor-plan.md`
 - Verification gate checklist: `docs/verification/phase-gates.md`
 - Verification evidence ledger: `docs/verification/evidence-log.md`
 - Integration contract notes: `docs/contracts/enrollpro-atlas.md`
@@ -28,6 +30,58 @@ It defines phase scope, acceptance gates, and the current progress state.
 - **Reference docs:**
   - `docs/progress/objectives-priority-progress-check-2026-05-07.md`
   - `docs/phases/phase-4-priority-realignment-2026-05-07.md`
+  - `docs/phases/ux-refactor-master-plan.md`
+
+## Objective Completion Roadmap (Post-Faculty UX)
+- Trigger: Start this sequence after faculty UX gates are accepted for the current pass.
+- Objective mapping:
+  - **1.1** Web-based administrative portal with drag-and-drop scheduling
+  - **1.2** Configurable scheduling priority management
+  - **1.3** Mobile faculty authentication with preference submission
+  - **1.4** Automated timetable generation system
+- Execution order:
+  1. **Scheduler UX refactor (UX-1)**  
+     - Finalize scheduler desktop command-center clarity and conflict triage speed.  
+     - Outcome target: strengthen Objective **1.1** usability and operational readiness.
+  2. **Admin UX refactor (UX-2)**  
+     - Refactor policy/account governance surfaces with safe defaults and clear impact messaging.  
+     - Outcome target: improve Objective **1.2** operability and reduce admin-side configuration errors.
+  3. **Public/Student UX refactor (UX-4)**  
+     - Simplify read-only published schedule discovery and mobile readability.  
+     - Outcome target: complete publish-consumption experience tied to Objectives **1.1** and **1.4** outputs.
+  4. **Publish lifecycle completion (Phase 5 core)**  
+     - Close remaining publish path blockers, enforce zero-hard-violation publish rules, and finalize public APIs.  
+     - Outcome target: finish Objective **1.4** lifecycle delivery and dissemination.
+  5. **Priority management hardening (policy + review loop)**  
+     - Tighten policy controls and scheduler decision loops affecting generated outcomes and request handling.  
+     - Outcome target: complete Objective **1.2** in production-like operation.
+  6. **Hybrid algorithm refactor (H-ALG)**  
+     - Implement greedy multi-seed constructor + GA optimization + repair operators as described in `docs/phases/algorithm-hybrid-refactor-plan.md`.  
+     - Outcome target: improve Objective **1.4** automated generation reliability and Objective **1.2** policy-priority optimization quality under dense constraints.
+  7. **Cross-role consistency pass (UX-5)**  
+     - Normalize status semantics, copy, spacing, and EnrollPro accent fidelity across scheduler/admin/faculty/public.  
+     - Outcome target: whole-system UX coherence for Objectives **1.1–1.4**.
+  8. **Final objective verification sweep**  
+     - Run full automated suites + role-based manual QA + evidence consolidation for capstone objective sign-off.
+
+## Algorithm Refactor Track (Hybrid GA Enhancement)
+- **Status:** Planned (post-faculty UX gate)
+- **Reference plan:** `docs/phases/algorithm-hybrid-refactor-plan.md`
+- **Context:** Current deterministic constructor is fast but can be short-sighted in dense bottlenecks. GA is better for global optimization but benefits from stronger initial populations and repair operators.
+- **Model choice:** Keep Genetic Algorithm as the primary optimization engine; add deterministic greedy construction and repair as supporting stages.
+- **Implementation path in current system flow:**
+  1. Generate multiple baseline candidates through a deterministic greedy multi-seed constructor.
+  2. Feed candidates into GA for crossover/mutation optimization against hard/soft fitness.
+  3. Apply repair passes for hard-constraint recovery before candidate rejection.
+  4. Persist best candidate into existing generation run artifacts consumed by review UI.
+- **Objective impact mapping:**
+  - **1.1:** fewer broken drafts reaching manual review in admin portal workflows.
+  - **1.2:** stronger policy-weighted optimization and priority control behavior.
+  - **1.3:** better schedule quality for faculty-facing preference/request participation.
+  - **1.4:** higher automated completion rates with fewer hard violations.
+- **Gates to start implementation:**
+  - Faculty UX hardening pass accepted for current cycle.
+  - Algorithm benchmark datasets and pass/fail metrics agreed in evidence log.
 
 ## Non-ATLAS Scope Guardrail
 - Keep out of ATLAS: enrollment/admission workflows, grades/class records, LMS content uploads, registrar document workflows, MRF governance tracking.

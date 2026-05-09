@@ -2,6 +2,27 @@
 
 Record dated implementation verification summaries here.
 
+### 2026-05-09 - Faculty Room UX Continuation (My-Schedule-First + Guided Tour + Room Picker Modes)
+- Phase: 4 (faculty UX hardening continuation)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS (build + regression)
+- Regression gate: PARTIAL PASS (manual delta capture completed for full-context state; broader browser pass still constrained by local auth/realtime instability)
+- Commands:
+  - `npm --prefix atlas-client run build`: PASS
+  - `npm --prefix atlas-server run test:phase2-regression`: PASS
+- Manual evidence references (continuation delta):
+  - Full-context toggle state on mobile room-preferences flow: `qa-artifacts/screenshots/faculty-room-ux-2026-05-09-mobile-full-context-on.png`
+- Delta verification summary:
+  - Confirmed my-schedule-first continuation wiring remains build-clean after extraction and follow-up commits.
+  - Confirmed full-context toggle visual state capture for room-preferences mobile flow.
+  - Confirmed no static diagnostics in updated files:
+    - `atlas-client/src/pages/FacultyRoomPreferences.tsx`
+    - `atlas-client/src/components/faculty-room-preferences/RoomRequestSheet.tsx`
+- Caveats:
+  - Intermittent `401`/SSE abort noise remains present in shared local browser sessions.
+  - Earlier transient `ReferenceError: Sheet is not defined` signal was not reproducible in this follow-up build/error check pass.
+
 ### 2026-05-09 - Faculty Room-Preferences Layout Split Refactor (Mobile/Desktop First-Class)
 - Phase: 4 (faculty UX hardening continuation)
 - Scope gate: PASS

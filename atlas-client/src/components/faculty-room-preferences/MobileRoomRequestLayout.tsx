@@ -20,6 +20,7 @@ type MobileRoomRequestLayoutProps = {
 	selectedSourceEntryId: string | null;
 	selectedEntry: FacultyRoomPreferenceEntry | null;
 	mobileTargets: MobileTarget[];
+	showFullScheduleContext: boolean;
 	onSelectSourceEntry: (entryId: string) => void;
 	onSelectTargetSlot: (target: MobileTarget) => void;
 	onStepBack: () => void;
@@ -33,6 +34,7 @@ export default function MobileRoomRequestLayout({
 	selectedSourceEntryId,
 	selectedEntry,
 	mobileTargets,
+	showFullScheduleContext,
 	onSelectSourceEntry,
 	onSelectTargetSlot,
 	onStepBack,
@@ -44,13 +46,13 @@ export default function MobileRoomRequestLayout({
 			<div className='flex-1 min-h-0 overflow-auto px-4 pb-28 lg:hidden'>
 				<div className='space-y-4'>
 					{mobileStep === 1 && (
-						<Card className='rounded-2xl border-border'>
+						<Card className='rounded-2xl border-border' data-tutorial='my-classes-panel'>
 							<CardContent className='space-y-3 p-4'>
 								<div className='flex items-center justify-between gap-2'>
-									<p className='text-sm font-semibold'>Select Your Class</p>
+									<p className='text-sm font-semibold'>Step 1: Pick Your Class</p>
 									<Badge variant='outline' className='text-[11px]'>First action</Badge>
 								</div>
-								<p className='text-xs text-muted-foreground'>Tap a class card to continue to the next step.</p>
+								<p className='text-xs text-muted-foreground'>Tap the class you want to move, then press Choose Target.</p>
 								<div className='space-y-2'>
 									{entries.map((entry) => (
 										<button
@@ -89,9 +91,9 @@ export default function MobileRoomRequestLayout({
 					)}
 
 					{mobileStep === 2 && selectedEntry && (
-						<Card className='rounded-2xl border-border'>
+						<Card className='rounded-2xl border-border' data-tutorial='target-slot-map'>
 							<CardContent className='space-y-3 p-4'>
-								<p className='text-sm font-semibold'>Choose Target Slot</p>
+								<p className='text-sm font-semibold'>Step 2: Choose New Time</p>
 								<div className='rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm'>
 									<p className='font-medium'>
 										{selectedEntry.sectionName} - {selectedEntry.subjectCode}
@@ -117,7 +119,11 @@ export default function MobileRoomRequestLayout({
 												{target.day.slice(0, 3)} {formatTime(target.startTime)} - {formatTime(target.endTime)}
 											</p>
 											<p className={`mt-0.5 text-xs font-medium ${target.occupiedLabel ? 'text-amber-700' : 'text-emerald-700'}`}>
-												{target.occupiedLabel ? `Occupied - ${target.occupiedLabel}` : 'Free - move here'}
+													{target.occupiedLabel
+														? showFullScheduleContext
+															? `Occupied - ${target.occupiedLabel}`
+															: 'Occupied by another class'
+														: 'Free - move here'}
 											</p>
 										</button>
 									))}
