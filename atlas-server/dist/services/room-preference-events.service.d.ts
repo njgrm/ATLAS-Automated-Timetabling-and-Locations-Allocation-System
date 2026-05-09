@@ -1,4 +1,4 @@
-type RoomPreferenceEventType = 'ROOM_REQUEST_DRAFT_SAVED' | 'ROOM_REQUEST_SUBMITTED' | 'ROOM_REQUEST_DELETED' | 'ROOM_REQUEST_REVIEWED' | 'ROOM_REQUEST_SYNC_COMPLETED';
+export type RoomPreferenceEventType = 'ROOM_REQUEST_DRAFT_SAVED' | 'ROOM_REQUEST_SUBMITTED' | 'ROOM_REQUEST_DELETED' | 'ROOM_REQUEST_REVIEWED' | 'ROOM_REQUEST_SYNC_COMPLETED';
 export type RoomPreferenceEvent = {
     id: number;
     type: RoomPreferenceEventType;
@@ -13,6 +13,7 @@ export type RoomPreferenceEvent = {
     metadata?: Record<string, unknown>;
 };
 export declare function publishRoomPreferenceEvent(event: Omit<RoomPreferenceEvent, 'id' | 'timestamp'>): RoomPreferenceEvent;
+export declare function onRoomPreferenceEvent(listener: (event: RoomPreferenceEvent) => void): () => void;
 export declare function subscribeRoomPreferenceEvents(params: {
     schoolId: number;
     schoolYearId: number;
@@ -24,4 +25,3 @@ export declare function getRoomPreferenceEventsSince(eventId: number, scope: {
     schoolYearId: number;
     facultyId?: number | null;
 }): RoomPreferenceEvent[];
-export {};

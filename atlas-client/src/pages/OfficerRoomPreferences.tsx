@@ -12,9 +12,12 @@ import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
+import { createRoomPreferenceCollaborationSocket } from '@/lib/roomPreferenceCollaboration';
 import { fetchPublicSettings } from '@/lib/settings';
 import { formatTime } from '@/lib/utils';
 import type {
+	CollaborationPresence,
+	CollaborationSelection,
 	RoomPreferenceDecisionStatus,
 	RoomPreferencePreviewResponse,
 	RoomPreferenceStatus,
@@ -51,7 +54,13 @@ export default function OfficerRoomPreferences() {
 	const [previewLoading, setPreviewLoading] = useState(false);
 	const [reviewerNotes, setReviewerNotes] = useState('');
 	const [savingDecision, setSavingDecision] = useState(false);
+	const [presence, setPresence] = useState<CollaborationPresence[]>([]);
+	const [remoteSelections, setRemoteSelections] = useState<Record<string, CollaborationSelection>>({});
+	const [collaborationConnected, setCollaborationConnected] = useState(false);
+	const [collaborationLastError, setCollaborationLastError] = useState<string | null>(null);
 	const refreshTimeoutRef = useRef<number | null>(null);
+	const collaborationRef = useRef<ReturnType<typeof createRoomPreferenceCollaborationSocket> | null>(null);
+	const selfConnectionIdRef = useRef<string | null>(null);
 
 	const loadSummary = useCallback(async (schoolYearId: number, nextStatus: 'ALL' | RoomPreferenceStatus, nextDecision: 'ALL' | RoomPreferenceDecisionStatus) => {
 		setLoading(true);
@@ -121,6 +130,89 @@ export default function OfficerRoomPreferences() {
 		};
 	}, [activeSchoolYearId, decisionFilter, loadSummary, statusFilter]);
 
+	useEffect(() => {
+		if (!activeSchoolYearId || !summary?.runId) return;
+		const token = getPreferredAccessToken();
+		if (!token) return;
+
+		const socket = createRoomPreferenceCollaborationSocket({
+			accessToken: token,
+			onEvent: (event) => {
+				if (event.type === 'connected') {
+					selfConnectionIdRef.current = event.payload.connectionId;
+					setCollaborationLastError(null);
+					return;
+				}
+				if (event.type === 'open') {
+					setCollaborationConnected(true);
+					setCollaborationLastError(null);
+					socket.join({
+						schoolId: DEFAULT_SCHOOL_ID,
+						schoolYearId: activeSchoolYearId,
+						runId: summary.runId,
+						viewMode: 'SCHEDULER_QUEUE',
+					});
+					return;
+				}
+				if (event.type === 'snapshot') {
+					const selfId = selfConnectionIdRef.current;
+					setPresence(event.payload.presence.filter((item) => item.connectionId !== selfId));
+					setRemoteSelections({});
+					return;
+				}
+				if (event.type === 'presence-upsert') {
+					if (event.payload.connectionId === selfConnectionIdRef.current) return;
+					setPresence((current) => {
+						const next = current.filter((item) => item.connectionId !== event.payload.connectionId);
+						next.push(event.payload);
+						return next;
+					});
+					return;
+				}
+				if (event.type === 'presence-leave') {
+					setPresence((current) => current.filter((item) => item.connectionId !== event.payload.connectionId));
+					setRemoteSelections((current) => {
+						const next = { ...current };
+						delete next[event.payload.connectionId];
+						return next;
+					});
+					return;
+				}
+				if (event.type === 'selection') {
+					if (event.payload.presence.connectionId === selfConnectionIdRef.current) return;
+					setRemoteSelections((current) => ({
+						...current,
+						[event.payload.presence.connectionId]: event.payload.selection,
+					}));
+					return;
+				}
+				if (event.type === 'room-request-event') {
+					void loadSummary(activeSchoolYearId, statusFilter, decisionFilter);
+					return;
+				}
+				if (event.type === 'error') {
+					setCollaborationLastError(event.payload.message);
+					toast.error(event.payload.message);
+					return;
+				}
+				if (event.type === 'close') {
+					setCollaborationConnected(false);
+				}
+			},
+		});
+
+		collaborationRef.current = socket;
+		return () => {
+			socket.close();
+			if (collaborationRef.current === socket) {
+				collaborationRef.current = null;
+			}
+			setCollaborationConnected(false);
+			setPresence([]);
+			setRemoteSelections({});
+		};
+	}, [activeSchoolYearId, decisionFilter, loadSummary, statusFilter, summary?.runId]);
+
 	const filteredRequests = useMemo(() => {
 		const requests = summary?.requests ?? [];
 		if (!searchQuery.trim()) return requests;
@@ -129,11 +221,50 @@ export default function OfficerRoomPreferences() {
 			`${request.facultyName} ${request.subjectCode} ${request.sectionName} ${request.requestedRoomName}`.toLowerCase().includes(query),
 		);
 	}, [searchQuery, summary?.requests]);
+	const compactPresence = useMemo(() => {
+		const sorted = [...presence].sort((left, right) => right.lastActive.localeCompare(left.lastActive));
+		return {
+			visible: sorted.slice(0, 3),
+			hiddenCount: Math.max(0, sorted.length - 3),
+		};
+	}, [presence]);
+	const presenceByConnection = useMemo(() => new Map(presence.map((person) => [person.connectionId, person])), [presence]);
+	const remoteEntrySelectionCounts = useMemo(() => {
+		const counts = new Map<string, number>();
+		for (const selection of Object.values(remoteSelections)) {
+			if (!selection.entryId) continue;
+			counts.set(selection.entryId, (counts.get(selection.entryId) ?? 0) + 1);
+		}
+		return counts;
+	}, [remoteSelections]);
+	const remoteEntrySelectionActors = useMemo(() => {
+		const details = new Map<string, string[]>();
+		for (const [connectionId, selection] of Object.entries(remoteSelections)) {
+			if (!selection.entryId) continue;
+			const actor = presenceByConnection.get(connectionId)?.email ?? `User ${connectionId.slice(-4)}`;
+			const actors = details.get(selection.entryId) ?? [];
+			if (!actors.includes(actor)) {
+				actors.push(actor);
+				details.set(selection.entryId, actors);
+			}
+		}
+		return details;
+	}, [presenceByConnection, remoteSelections]);
 
 	const selectedRequest = filteredRequests.find((request) => request.id === selectedRequestId) ?? null;
 
 	const openPreview = useCallback(async (request: RoomPreferenceSummaryItem) => {
 		if (!activeSchoolYearId) return;
+		collaborationRef.current?.sendSelection({
+			schoolId: DEFAULT_SCHOOL_ID,
+			schoolYearId: activeSchoolYearId,
+			runId: request.runId,
+			day: request.day,
+			startTime: request.startTime,
+			endTime: request.endTime,
+			entryId: request.entryId,
+			source: 'REQUEST_CARD',
+		});
 		setSelectedRequestId(request.id);
 		setPreviewLoading(true);
 		try {
@@ -213,7 +344,7 @@ export default function OfficerRoomPreferences() {
 	}
 
 	return (
-		<div className='flex h-[calc(100svh-3.5rem)] flex-col'>
+		<div className='flex min-h-[calc(100svh-3.5rem)] flex-col overflow-y-auto md:h-[calc(100svh-3.5rem)] md:min-h-0 md:overflow-hidden'>
 			<div className='shrink-0 space-y-4 px-6 pt-6 pb-3'>
 				<div className='flex flex-wrap items-center gap-3'>
 					<div>
@@ -236,15 +367,48 @@ export default function OfficerRoomPreferences() {
 					<span className='text-muted-foreground'>{summary?.counts.approved ?? 0} approved</span>
 					<span className='text-border/60'>•</span>
 					<span className='text-muted-foreground'>{summary?.counts.rejected ?? 0} rejected</span>
+					{collaborationConnected && compactPresence.visible.length === 0 && (
+						<>
+							<span className='text-border/60'>•</span>
+							<span className='text-muted-foreground'>No active collaborators yet</span>
+						</>
+					)}
+					{!collaborationConnected && (
+						<>
+							<span className='text-border/60'>•</span>
+							<span className='text-muted-foreground'>Realtime disconnected; SSE updates remain active</span>
+							{collaborationLastError && <span className='text-muted-foreground'>({collaborationLastError})</span>}
+						</>
+					)}
+					{compactPresence.visible.length > 0 && (
+						<>
+							<span className='text-border/60'>•</span>
+							<div className='flex items-center gap-1'>
+								{compactPresence.visible.map((person) => {
+									const label = person.email ?? `${person.role} #${person.userId}`;
+									const initials = label.slice(0, 2).toUpperCase();
+									return (
+										<Badge key={person.connectionId} variant='outline' className='gap-1'>
+											<span className='inline-flex size-4 items-center justify-center rounded-full border border-current text-[0.55rem]'>
+												{initials}
+											</span>
+											{person.viewMode === 'FACULTY_ACTIVE_DRAFT' ? 'Draft' : 'Queue'}
+										</Badge>
+									);
+								})}
+								{compactPresence.hiddenCount > 0 && <Badge variant='outline'>+{compactPresence.hiddenCount}</Badge>}
+							</div>
+						</>
+					)}
 				</div>
 
 				<div className='flex flex-wrap items-center gap-3'>
-					<div className='flex min-w-[220px] items-center gap-2 rounded-xl border border-border bg-card px-3 py-2'>
+					<div className='flex min-w-55 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2'>
 						<Search className='size-4 text-muted-foreground' />
 						<Input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder='Search faculty, subject, section, or room' className='border-0 bg-transparent px-0 shadow-none focus-visible:ring-0' />
 					</div>
 					<Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'ALL' | RoomPreferenceStatus)}>
-						<SelectTrigger className='w-[180px]'><SelectValue placeholder='Submission status' /></SelectTrigger>
+						<SelectTrigger className='w-45'><SelectValue placeholder='Submission status' /></SelectTrigger>
 						<SelectContent>
 							<SelectItem value='ALL'>All submissions</SelectItem>
 							<SelectItem value='DRAFT'>Draft</SelectItem>
@@ -252,7 +416,7 @@ export default function OfficerRoomPreferences() {
 						</SelectContent>
 					</Select>
 					<Select value={decisionFilter} onValueChange={(value) => setDecisionFilter(value as 'ALL' | RoomPreferenceDecisionStatus)}>
-						<SelectTrigger className='w-[180px]'><SelectValue placeholder='Decision status' /></SelectTrigger>
+						<SelectTrigger className='w-45'><SelectValue placeholder='Decision status' /></SelectTrigger>
 						<SelectContent>
 							<SelectItem value='ALL'>All decisions</SelectItem>
 							<SelectItem value='PENDING'>Pending</SelectItem>
@@ -263,23 +427,36 @@ export default function OfficerRoomPreferences() {
 				</div>
 			</div>
 
-			<div className='flex-1 min-h-0 overflow-auto px-6 pb-6'>
+			<div className='flex-1 min-h-0 overflow-visible px-6 pb-6 md:overflow-auto'>
 				<div className='space-y-3'>
 					{filteredRequests.map((request) => (
+						(() => {
+							const liveActors = remoteEntrySelectionActors.get(request.entryId) ?? [];
+							const liveCount = remoteEntrySelectionCounts.get(request.entryId) ?? 0;
+							const hasLiveFocus = liveCount > 0;
+							return (
 						<button
 							type='button'
 							key={request.id}
 							onClick={() => void openPreview(request)}
-							className='w-full rounded-2xl border border-border bg-card px-4 py-4 text-left shadow-sm transition hover:border-primary/40'
+							className={`w-full rounded-2xl border border-border bg-card px-4 py-4 text-left shadow-sm transition hover:border-primary/40 ${hasLiveFocus ? 'ring-2 ring-amber-300/80 border-amber-300/80' : ''}`}
 						>
 							<div className='flex flex-wrap items-start justify-between gap-3'>
 								<div className='space-y-2'>
 									<div className='flex flex-wrap items-center gap-2'>
 										<Badge variant='outline'>{request.subjectCode}</Badge>
 										{decisionBadge(request.decisionStatus)}
+										{liveCount > 0 && (
+											<Badge variant='outline'>Live {liveCount}</Badge>
+										)}
 									</div>
 									<p className='font-semibold text-foreground'>{request.facultyName}</p>
 									<p className='text-sm text-muted-foreground'>{request.sectionName} • {request.day.slice(0, 3)} • {formatTime(request.startTime)} - {formatTime(request.endTime)}</p>
+									{liveActors.length > 0 && (
+										<p className='text-xs text-amber-700'>
+											Focused by {liveActors.slice(0, 2).join(', ')}{liveActors.length > 2 ? ` +${liveActors.length - 2}` : ''}
+										</p>
+									)}
 								</div>
 								<div className='space-y-1 text-right text-xs text-muted-foreground'>
 									<p>{request.currentRoomName}</p>
@@ -288,6 +465,8 @@ export default function OfficerRoomPreferences() {
 							</div>
 							{request.rationale && <p className='mt-3 text-sm text-muted-foreground'>{request.rationale}</p>}
 						</button>
+							);
+						})()
 					))}
 					{filteredRequests.length === 0 && (
 						<div className='rounded-2xl border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground'>No room requests match the current filters.</div>
@@ -345,8 +524,8 @@ export default function OfficerRoomPreferences() {
 							<div className='rounded-2xl border border-border bg-card p-4'>
 								<p className='font-semibold text-foreground'>Conflict Summary</p>
 								<div className='mt-3 space-y-2'>
-									{previewState.preview.humanConflicts.length > 0 ? previewState.preview.humanConflicts.map((conflict) => (
-										<div key={`${conflict.code}-${conflict.humanTitle}`} className='rounded-xl border border-border px-3 py-2 text-sm'>
+									{previewState.preview.humanConflicts.length > 0 ? previewState.preview.humanConflicts.map((conflict, index) => (
+										<div key={`${conflict.code}-${conflict.humanTitle}-${index}`} className='rounded-xl border border-border px-3 py-2 text-sm'>
 											<p className='font-medium text-foreground'>{conflict.humanTitle}</p>
 											<p className='mt-1 text-muted-foreground'>{conflict.humanDetail}</p>
 										</div>

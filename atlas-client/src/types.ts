@@ -343,6 +343,52 @@ export type GenerationGateStatus = {
 	runId: number | null;
 };
 
+export type CollaborationViewMode = 'FACULTY_ACTIVE_DRAFT' | 'SCHEDULER_REVIEW' | 'SCHEDULER_QUEUE';
+
+export type CollaborationPresence = {
+	connectionId: string;
+	userId: number;
+	role: string;
+	email: string | null;
+	schoolId: number;
+	schoolYearId: number;
+	runId: number;
+	viewMode: CollaborationViewMode;
+	lastActive: string;
+};
+
+export type CollaborationSelection = {
+	schoolId: number;
+	schoolYearId: number;
+	runId: number;
+	day?: DayOfWeek;
+	startTime?: string;
+	endTime?: string;
+	entryId?: string;
+	source?: 'GRID_CELL' | 'REQUEST_CARD' | 'SESSION';
+};
+
+export type RoomPreferenceLiveEventType =
+	| 'ROOM_REQUEST_DRAFT_SAVED'
+	| 'ROOM_REQUEST_SUBMITTED'
+	| 'ROOM_REQUEST_DELETED'
+	| 'ROOM_REQUEST_REVIEWED'
+	| 'ROOM_REQUEST_SYNC_COMPLETED';
+
+export type RoomPreferenceEvent = {
+	id: number;
+	type: RoomPreferenceLiveEventType;
+	timestamp: string;
+	schoolId: number;
+	schoolYearId: number;
+	runId: number;
+	facultyId: number | null;
+	requestId: number | null;
+	entryId: string | null;
+	message: string;
+	metadata?: Record<string, unknown>;
+};
+
 export type RoomPreferenceSummaryItem = {
 	id: number;
 	runId: number;

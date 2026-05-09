@@ -1,6 +1,10 @@
+import { createServer } from 'node:http';
 import app from './app.js';
 import { prisma } from './lib/prisma.js';
+import { registerRoomPreferenceCollaborationSocket } from './services/room-preference-collaboration.service.js';
 const PORT = Number(process.env.PORT) || 5001;
+const server = createServer(app);
+registerRoomPreferenceCollaborationSocket(server);
 /**
  * Verify that expected policy columns exist in scheduling_policies.
  * Non-fatal: logs actionable warning if columns are missing.
@@ -36,7 +40,7 @@ async function checkPolicySchema() {
         console.warn('[POLICY_SCHEMA_DRIFT] Could not verify scheduling_policies schema. Run: npx prisma migrate deploy');
     }
 }
-app.listen(PORT, '0.0.0.0', async () => {
+server.listen(PORT, '0.0.0.0', async () => {
     console.log(`[ATLAS] Server listening on http://localhost:${PORT}`);
     // Startup connectivity check
     try {

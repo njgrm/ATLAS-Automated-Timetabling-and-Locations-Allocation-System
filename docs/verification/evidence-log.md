@@ -2,6 +2,78 @@
 
 Record dated implementation verification summaries here.
 
+### 2026-05-09 - Collaboration Visibility + Offline UX + Mobile Scroll Hardening (Iteration)
+- Phase: 4 (objective-priority continuation)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS (automated), PARTIAL PASS (manual)
+- Regression gate: PASS
+- Commands:
+  - `npm --prefix atlas-server run build`: PASS
+  - `npm --prefix atlas-client run build`: PASS
+  - `npm --prefix atlas-server run test:auth`: PASS
+  - `npm --prefix atlas-server run test:faculty-route-restrictions`: PASS
+  - `npm --prefix atlas-server run test:preference-wellbeing`: PASS
+  - `npm --prefix atlas-server run test:preference-lifecycle-lock`: PASS
+  - `npm --prefix atlas-server run test:preference-sse-bilateral`: PASS
+  - `npm --prefix atlas-server run test:room-pref-sync`: PASS
+  - `npm --prefix atlas-server run test:phase1`: PASS
+  - `npm --prefix atlas-server run test:phase2`: PASS
+  - `npm --prefix atlas-server run test:phase2-regression`: PASS
+  - Re-check after final UI fix:
+    - `npm --prefix atlas-client run build`: PASS
+    - `npm --prefix atlas-server run test:room-pref-sync`: PASS
+    - `npm --prefix atlas-server run test:phase2`: PASS
+    - `npm --prefix atlas-server run test:phase2-regression`: PASS
+- Manual QA (shared browser, isolated contexts):
+  - Officer queue page (`/faculty/room-preferences`) renders explicit fallback status when realtime channel is unavailable: PASS
+  - Faculty room-request page (`/my/room-preferences`) renders explicit fallback status when realtime channel is unavailable: PASS
+  - Mobile viewport usability check for both pages (no global layout collapse, content remains navigable): PASS
+  - Screenshot evidence captured in-session for both officer and faculty pages showing fallback banners and mobile ergonomics: PASS
+  - Presence badge and actor-level live focus visibility under active websocket collaboration: NOT OBSERVED in this environment (channel remained disconnected in browser)
+  - Offline submit + reconnect autosync end-to-end interaction: NOT COMPLETED in this browser pass due session/auth instability while attempting repeated role switching
+- Additional fix applied during this iteration:
+  - Faculty timetable row key duplication removed by deduplicating timeslots using start/end range only (prevents duplicate React key collisions on slot rows).
+- Blocking findings:
+  - Browser realtime channel remained disconnected during manual pass despite phase-2 websocket tests passing.
+  - Manual cross-role flow (faculty submit -> officer live update -> officer decision -> faculty live update) was not reproducible end-to-end in this browser run due session instability while switching contexts.
+- Decision:
+  - Accepted for code and automated regression gates.
+  - Manual realtime-presence and offline-reconnect evidence remains required for full objective sign-off.
+
+### 2026-05-09 - Phase 2 WebSocket Collaboration + Concurrency Validation
+- Phase: 4 (objective-priority continuation)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS (automated), PARTIAL PASS (manual)
+- Regression gate: PASS
+- Commands:
+  - `npm --prefix atlas-server run build`: PASS
+  - `npm --prefix atlas-client run build`: PASS
+  - `npm --prefix atlas-server run test:phase1`: PASS
+  - `npm --prefix atlas-server run test:phase2`: PASS
+  - `npm --prefix atlas-server run test:phase2-regression`: PASS
+- API and realtime checks:
+  - WebSocket unauthorized handshake rejection (`phase2-websocket-collaboration`): PASS
+  - Presence snapshot/upsert/leave contract (`phase2-websocket-collaboration`): PASS
+  - Selection fanout contract (`phase2-websocket-collaboration`): PASS
+  - Room-request event bridge fanout from publish pipeline (`phase2-websocket-collaboration`): PASS
+  - Heartbeat timeout prune (`phase2-websocket-collaboration`): PASS
+  - Optimistic concurrency guard (`phase2-concurrency-conflict`): PASS (`VERSION_CONFLICT` on stale run/request versions)
+- Manual QA (shared browser, two sessions):
+  - Session setup: scheduler on `http://localhost:5174`, faculty on `http://localhost:5175`: PASS
+  - Open same active draft room-request views (`/faculty/room-preferences`, `/my/room-preferences`): PASS
+  - Faculty request create reflected in scheduler queue count and card list without manual refresh: PASS
+  - Scheduler decision reflected to faculty state (`Rejected` visible for submitted request): PASS
+  - Presence chip rendering and cell-level `Live N` indicator verification: NOT OBSERVED in this browser pass
+  - Offline queue submit/reconnect autosync scenario: NOT COMPLETED in this browser pass
+- Blocking findings:
+  - Faculty page emits recurring React duplicate key warnings during large draft rendering, creating noisy manual QA signal.
+  - Presence and remote-selection visual indicators were not visible in this run despite websocket test coverage passing.
+- Decision:
+  - Accepted for automated verification and end-to-end request/decision propagation.
+  - Follow-up manual QA required for explicit presence badge and offline queue reconnect evidence capture.
+
 ### 2026-05-08 - Faculty Portal Session Context Fix + Comprehensive Testing
 - Phase: 4 (objective-priority continuation)
 - Scope gate: PASS

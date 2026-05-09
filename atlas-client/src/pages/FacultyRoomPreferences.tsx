@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
 	AlertCircle,
 	Loader2,
@@ -16,8 +16,11 @@ import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
+import { createRoomPreferenceCollaborationSocket } from '@/lib/roomPreferenceCollaboration';
 import {
 	clearOutboxActions,
+	enqueueOutboxAction,
+	type OutboxActionStatus,
 	type RoomPreferenceActionType,
 	listOutboxActions,
 	replaceOutboxActions,
@@ -27,6 +30,8 @@ import { fetchPublicSettings, fetchSchoolYears, type SchoolYear } from '@/lib/se
 import { formatTime } from '@/lib/utils';
 import type {
 	Building,
+	CollaborationPresence,
+	CollaborationSelection,
 	DayOfWeek,
 	FacultyGlobalDraftEntry,
 	FacultyMirror,
@@ -92,6 +97,13 @@ type SlotTarget = {
 	targetEntryId: string | null;
 };
 
+type OutboxSyncFeedback = {
+	actionId: string;
+	status: 'SYNCED' | 'FAILED';
+	message: string;
+	at: string;
+};
+
 const ACTION_LABELS: Record<RequestActionType, string> = {
 	ROOM_CHANGE: 'Room change only',
 	MOVE_TO_EMPTY_SLOT: 'Move to empty slot',
@@ -140,7 +152,9 @@ export default function FacultyRoomPreferences() {
 	const [gate, setGate] = useState<GenerationGateStatus | null>(null);
 	const [online, setOnline] = useState<boolean>(navigator.onLine);
 	const [outboxCount, setOutboxCount] = useState<number>(0);
+	const [outboxActions, setOutboxActions] = useState<RoomPreferenceOutboxAction[]>([]);
 	const [syncingOutbox, setSyncingOutbox] = useState(false);
+	const [outboxFeedback, setOutboxFeedback] = useState<OutboxSyncFeedback[]>([]);
 	const [liveUpdateCount, setLiveUpdateCount] = useState(0);
 	const [schoolYearNotice, setSchoolYearNotice] = useState<string | null>(null);
 	const [initialEntries, setInitialEntries] = useState<FacultyRoomPreferenceEntry[]>([]);
@@ -157,7 +171,13 @@ export default function FacultyRoomPreferences() {
 	const [zoom, setZoom] = useState(1);
 	const [roomSearch, setRoomSearch] = useState('');
 	const [rooms, setRooms] = useState<RoomOption[]>([]);
+	const [presence, setPresence] = useState<CollaborationPresence[]>([]);
+	const [remoteSelections, setRemoteSelections] = useState<Record<string, CollaborationSelection>>({});
+	const [collaborationConnected, setCollaborationConnected] = useState(false);
+	const [collaborationLastError, setCollaborationLastError] = useState<string | null>(null);
 	const lastEventIdRef = useRef<number>(0);
+	const collaborationRef = useRef<ReturnType<typeof createRoomPreferenceCollaborationSocket> | null>(null);
+	const selfConnectionIdRef = useRef<string | null>(null);
 
 	const applyServerState = useCallback((state: FacultyRoomPreferenceState) => {
 		setRunId(state.runId);
@@ -229,40 +249,105 @@ export default function FacultyRoomPreferences() {
 	const flushOutbox = useCallback(async () => {
 		if (!online || !runId || !activeSchoolYearId || !facultyId) return;
 		const queued = listOutboxActions(facultyId, runId);
+		setOutboxActions(queued);
 		if (queued.length === 0) {
 			setOutboxCount(0);
 			return;
 		}
 
 		setSyncingOutbox(true);
+		const attemptAt = new Date().toISOString();
+		const syncingActions = queued.map((action) => ({
+			...action,
+			status: action.status === 'failed' ? action.status : 'syncing',
+			lastAttemptAt: attemptAt,
+		}));
+		replaceOutboxActions(facultyId, runId, syncingActions);
+		setOutboxActions(syncingActions);
 		try {
 			const { data } = await atlasApi.post<{
 				results: Array<{ actionId: string; ok: boolean; error?: { message: string } }>;
 				state: FacultyRoomPreferenceState;
 			}>(
 				`/room-preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/runs/${runId}/faculty/${facultyId}/sync`,
-				{ actions: queued.map(({ queuedAt, ...action }) => action) },
+				{ actions: syncingActions.map(({ queuedAt, ...action }) => action) },
 			);
 
-			const failed = new Set(data.results.filter((item) => !item.ok).map((item) => item.actionId));
-			if (failed.size > 0) {
-				replaceOutboxActions(facultyId, runId, queued.filter((item) => failed.has(item.actionId)));
-				setOutboxCount(failed.size);
-				toast.error(`${failed.size} queued action(s) need retry.`);
+			const resultByAction = new Map(data.results.map((item) => [item.actionId, item]));
+			const feedback: OutboxSyncFeedback[] = [];
+			const remaining = syncingActions.flatMap((action) => {
+				const result = resultByAction.get(action.actionId);
+				if (result?.ok) {
+					feedback.push({
+						actionId: action.actionId,
+						status: 'SYNCED',
+						message: 'Synced successfully.',
+						at: attemptAt,
+					});
+					return [];
+				}
+
+				const nextRetryCount = action.retryCount + 1;
+				const nextStatus: OutboxActionStatus = nextRetryCount >= 5 ? 'failed' : 'queued';
+				feedback.push({
+					actionId: action.actionId,
+					status: 'FAILED',
+					message: result?.error?.message ?? 'Sync failed. Retry is required.',
+					at: attemptAt,
+				});
+
+				return [{
+					...action,
+					retryCount: nextRetryCount,
+					status: nextStatus,
+					lastAttemptAt: attemptAt,
+				}];
+			});
+
+			replaceOutboxActions(facultyId, runId, remaining);
+			setOutboxActions(remaining);
+			setOutboxCount(remaining.length);
+			setOutboxFeedback((current) => [...feedback, ...current].slice(0, 12));
+
+			if (remaining.some((action) => action.status === 'failed')) {
+				toast.error('Some queued actions reached retry limits. Use Retry Failed to sync again.');
+			} else if (remaining.length > 0) {
+				toast.error(`${remaining.length} queued action(s) still pending sync.`);
 			} else {
 				clearOutboxActions(facultyId, runId);
-				setOutboxCount(0);
 				toast.success('Offline room-request actions were synced.');
 			}
 
 			applyServerState(data.state);
 		} catch {
-			setOutboxCount(queued.length);
+			const failedRetry = syncingActions.map((action) => ({
+				...action,
+				retryCount: action.retryCount + 1,
+				status: action.retryCount + 1 >= 5 ? 'failed' : 'queued',
+				lastAttemptAt: attemptAt,
+			}));
+			replaceOutboxActions(facultyId, runId, failedRetry);
+			setOutboxActions(failedRetry);
+			setOutboxCount(failedRetry.length);
 			toast.error('Unable to sync queued room-request actions.');
 		} finally {
 			setSyncingOutbox(false);
 		}
 	}, [activeSchoolYearId, applyServerState, facultyId, online, runId]);
+
+	const retryFailedOutboxActions = useCallback(() => {
+		if (!facultyId || !runId) return;
+		const queued = listOutboxActions(facultyId, runId);
+		const retriable = queued.map((action) => (action.status === 'failed'
+			? { ...action, status: 'queued' as OutboxActionStatus, lastAttemptAt: null }
+			: action));
+		replaceOutboxActions(facultyId, runId, retriable);
+		setOutboxActions(retriable);
+		setOutboxCount(retriable.length);
+		if (online) {
+			void flushOutbox();
+		}
+	}, [facultyId, flushOutbox, online, runId]);
 
 	useEffect(() => {
 		const updateOnline = () => setOnline(navigator.onLine);
@@ -280,8 +365,95 @@ export default function FacultyRoomPreferences() {
 
 	useEffect(() => {
 		if (!runId || !facultyId) return;
-		setOutboxCount(listOutboxActions(facultyId, runId).length);
+		const actions = listOutboxActions(facultyId, runId);
+		setOutboxActions(actions);
+		setOutboxCount(actions.length);
 	}, [facultyId, runId]);
+
+	useEffect(() => {
+		if (!activeSchoolYearId || !runId || !online) return;
+		const token = getPreferredAccessToken();
+		if (!token) return;
+
+		const socket = createRoomPreferenceCollaborationSocket({
+			accessToken: token,
+			onEvent: (event) => {
+				if (event.type === 'connected') {
+					selfConnectionIdRef.current = event.payload.connectionId;
+					setCollaborationLastError(null);
+					return;
+				}
+				if (event.type === 'open') {
+					setCollaborationConnected(true);
+					setCollaborationLastError(null);
+					socket.join({
+						schoolId: DEFAULT_SCHOOL_ID,
+						schoolYearId: activeSchoolYearId,
+						runId,
+						viewMode: 'FACULTY_ACTIVE_DRAFT',
+					});
+					return;
+				}
+				if (event.type === 'snapshot') {
+					const selfId = selfConnectionIdRef.current;
+					setPresence(event.payload.presence.filter((item) => item.connectionId !== selfId));
+					setRemoteSelections({});
+					return;
+				}
+				if (event.type === 'presence-upsert') {
+					if (event.payload.connectionId === selfConnectionIdRef.current) return;
+					setPresence((current) => {
+						const next = current.filter((item) => item.connectionId !== event.payload.connectionId);
+						next.push(event.payload);
+						return next;
+					});
+					return;
+				}
+				if (event.type === 'presence-leave') {
+					setPresence((current) => current.filter((item) => item.connectionId !== event.payload.connectionId));
+					setRemoteSelections((current) => {
+						const next = { ...current };
+						delete next[event.payload.connectionId];
+						return next;
+					});
+					return;
+				}
+				if (event.type === 'selection') {
+					if (event.payload.presence.connectionId === selfConnectionIdRef.current) return;
+					setRemoteSelections((current) => ({
+						...current,
+						[event.payload.presence.connectionId]: event.payload.selection,
+					}));
+					return;
+				}
+				if (event.type === 'room-request-event') {
+					setLiveUpdateCount((count) => count + 1);
+					void loadBootstrap();
+					return;
+				}
+				if (event.type === 'error') {
+					setCollaborationLastError(event.payload.message);
+					toast.error(event.payload.message);
+					return;
+				}
+				if (event.type === 'close') {
+					setCollaborationConnected(false);
+				}
+			},
+		});
+
+		collaborationRef.current = socket;
+
+		return () => {
+			socket.close();
+			if (collaborationRef.current === socket) {
+				collaborationRef.current = null;
+			}
+			setCollaborationConnected(false);
+			setPresence([]);
+			setRemoteSelections({});
+		};
+	}, [activeSchoolYearId, loadBootstrap, online, runId]);
 
 	useEffect(() => {
 		if (!activeSchoolYearId) return;
@@ -330,10 +502,63 @@ export default function FacultyRoomPreferences() {
 	const filteredRooms = rooms.filter((room) => `${room.name} ${room.buildingName}`.toLowerCase().includes(roomSearch.toLowerCase()));
 	const draftCount = entries.filter((entry) => entry.status === 'DRAFT').length;
 	const submittedCount = entries.filter((entry) => entry.status === 'SUBMITTED').length;
+	const compactPresence = useMemo(() => {
+		const sorted = [...presence].sort((left, right) => right.lastActive.localeCompare(left.lastActive));
+		return {
+			visible: sorted.slice(0, 3),
+			hiddenCount: Math.max(0, sorted.length - 3),
+		};
+	}, [presence]);
+	const presenceByConnection = useMemo(() => {
+		return new Map(presence.map((person) => [person.connectionId, person]));
+	}, [presence]);
+	const selectionCountBySlot = useMemo(() => {
+		const counts = new Map<string, number>();
+		for (const selection of Object.values(remoteSelections)) {
+			if (!selection.day || !selection.startTime || !selection.endTime) continue;
+			const key = slotKey(selection.day, selection.startTime, selection.endTime);
+			counts.set(key, (counts.get(key) ?? 0) + 1);
+		}
+		return counts;
+	}, [remoteSelections]);
+	const slotSelectionDetails = useMemo(() => {
+		const details = new Map<string, { count: number; actors: string[] }>();
+		for (const [connectionId, selection] of Object.entries(remoteSelections)) {
+			if (!selection.day || !selection.startTime || !selection.endTime) continue;
+			const key = slotKey(selection.day, selection.startTime, selection.endTime);
+			const actor = presenceByConnection.get(connectionId)?.email ?? `User ${connectionId.slice(-4)}`;
+			const current = details.get(key) ?? { count: 0, actors: [] };
+			current.count += 1;
+			if (!current.actors.includes(actor)) current.actors.push(actor);
+			details.set(key, current);
+		}
+		return details;
+	}, [presenceByConnection, remoteSelections]);
+	const entrySelectionDetails = useMemo(() => {
+		const details = new Map<string, { count: number; actors: string[] }>();
+		for (const [connectionId, selection] of Object.entries(remoteSelections)) {
+			if (!selection.entryId) continue;
+			const actor = presenceByConnection.get(connectionId)?.email ?? `User ${connectionId.slice(-4)}`;
+			const current = details.get(selection.entryId) ?? { count: 0, actors: [] };
+			current.count += 1;
+			if (!current.actors.includes(actor)) current.actors.push(actor);
+			details.set(selection.entryId, current);
+		}
+		return details;
+	}, [presenceByConnection, remoteSelections]);
+	const outboxStatusCounts = useMemo(() => {
+		return {
+			queued: outboxActions.filter((action) => action.status === 'queued' || action.status === 'retried').length,
+			syncing: outboxActions.filter((action) => action.status === 'syncing').length,
+			failed: outboxActions.filter((action) => action.status === 'failed').length,
+		};
+	}, [outboxActions]);
+	const recentFailedFeedback = useMemo(() => outboxFeedback.filter((item) => item.status === 'FAILED').slice(0, 3), [outboxFeedback]);
 	const timeSlots = useMemo(() => {
 		const unique = new Map<string, { startTime: string; endTime: string }>();
 		for (const entry of globalEntries) {
-			unique.set(slotKey(entry.day, entry.startTime, entry.endTime), { startTime: entry.startTime, endTime: entry.endTime });
+			const timeKey = `${entry.startTime}-${entry.endTime}`;
+			unique.set(timeKey, { startTime: entry.startTime, endTime: entry.endTime });
 		}
 		return [...unique.values()].sort((left, right) => left.startTime.localeCompare(right.startTime));
 	}, [globalEntries]);
@@ -433,13 +658,14 @@ export default function FacultyRoomPreferences() {
 		};
 
 		if (!online) {
-			enqueueOutboxAction(facultyId, runId, {
+			const nextOutbox = enqueueOutboxAction(facultyId, runId, {
 				actionId: `submit-${selectedEntry.entryId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
 				type: 'SUBMIT',
 				entryId: selectedEntry.entryId,
 				...payload,
 			});
-			setOutboxCount((count) => count + 1);
+			setOutboxActions(nextOutbox);
+			setOutboxCount(nextOutbox.length);
 			toast.info('Waiting for connection before submitting.');
 			setRequestSheetOpen(false);
 			return;
@@ -493,7 +719,7 @@ export default function FacultyRoomPreferences() {
 	}
 
 	return (
-		<div className='flex h-[calc(100svh-3.5rem)] flex-col'>
+		<div className='flex min-h-[calc(100svh-3.5rem)] flex-col overflow-y-auto md:h-[calc(100svh-3.5rem)] md:min-h-0 md:overflow-hidden'>
 				<div className='shrink-0 space-y-4 px-6 pt-6 pb-3'>
 					{schoolYearNotice && (
 						<div className='rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900'>
@@ -508,13 +734,60 @@ export default function FacultyRoomPreferences() {
 							<>
 								<span>•</span>
 								<span>{outboxCount} queued action(s)</span>
+								<Badge variant='outline'>Queued {outboxStatusCounts.queued}</Badge>
+								<Badge variant='outline'>Syncing {outboxStatusCounts.syncing}</Badge>
+								<Badge variant={outboxStatusCounts.failed > 0 ? 'warning' : 'outline'}>Failed {outboxStatusCounts.failed}</Badge>
 								{syncingOutbox && <span>• syncing...</span>}
+								{outboxStatusCounts.failed > 0 && (
+									<Button size='sm' variant='outline' onClick={retryFailedOutboxActions}>
+										Retry Failed
+									</Button>
+								)}
 							</>
 						)}
 						{liveUpdateCount > 0 && (
 							<>
 								<span>•</span>
 								<span>{liveUpdateCount} live update(s)</span>
+							</>
+						)}
+						{collaborationConnected && compactPresence.visible.length === 0 && (
+							<>
+								<span>•</span>
+								<span>No active collaborators yet</span>
+							</>
+						)}
+						{online && !collaborationConnected && (
+							<>
+								<span>•</span>
+								<span>Realtime disconnected; SSE updates remain active</span>
+								{collaborationLastError && <span>({collaborationLastError})</span>}
+							</>
+						)}
+						{compactPresence.visible.length > 0 && (
+							<>
+								<span>•</span>
+								<div className='flex items-center gap-1'>
+									{compactPresence.visible.map((person) => {
+										const label = person.email ?? `${person.role} #${person.userId}`;
+										const initials = label.slice(0, 2).toUpperCase();
+										return (
+											<Badge key={person.connectionId} variant='outline' className='gap-1'>
+												<span className='inline-flex size-4 items-center justify-center rounded-full border border-current text-[0.55rem]'>
+													{initials}
+												</span>
+												{person.viewMode === 'FACULTY_ACTIVE_DRAFT' ? 'Draft' : 'Review'}
+											</Badge>
+										);
+									})}
+									{compactPresence.hiddenCount > 0 && <Badge variant='outline'>+{compactPresence.hiddenCount}</Badge>}
+								</div>
+							</>
+						)}
+						{recentFailedFeedback.length > 0 && (
+							<>
+								<span>•</span>
+								<span>Last sync: {recentFailedFeedback[0].message}</span>
 							</>
 						)}
 					</div>
@@ -559,13 +832,13 @@ export default function FacultyRoomPreferences() {
 					</div>
 				</div>
 
-				<div className='grid flex-1 min-h-0 gap-4 overflow-hidden px-6 pb-6 lg:grid-cols-[1.3fr_0.7fr]'>
-					<div className='flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card'>
+				<div className='grid flex-1 min-h-0 gap-4 overflow-visible px-6 pb-6 lg:grid-cols-[1.3fr_0.7fr] md:overflow-hidden'>
+					<div className='flex min-h-[58svh] flex-col overflow-hidden rounded-2xl border border-border bg-card md:min-h-0'>
 						<div className='border-b border-border px-4 py-3'>
 							<p className='text-sm font-semibold text-foreground'>Active Draft Schedule</p>
 							<p className='text-xs text-muted-foreground'>Owned sessions are selectable as source. Non-owned sessions are read-only and can be swap targets.</p>
 						</div>
-						<div className='flex-1 min-h-0 overflow-auto px-3 py-3' style={{ touchAction: 'pan-x pan-y' }}>
+						<div className='flex-1 min-h-0 overflow-visible px-3 py-3 md:overflow-auto' style={{ touchAction: 'pan-x pan-y' }}>
 							<div style={{ transform: `scale(${zoom})`, transformOrigin: 'top left', minWidth: '860px' }}>
 								<div className='grid grid-cols-[9rem_repeat(5,minmax(10rem,1fr))] gap-2'>
 									<div className='text-xs font-semibold text-muted-foreground px-2 py-2'>Time</div>
@@ -573,19 +846,30 @@ export default function FacultyRoomPreferences() {
 										<div key={day} className='text-xs font-semibold text-muted-foreground px-2 py-2'>{day.slice(0, 3)}</div>
 									))}
 									{timeSlots.map((slot) => (
-										<>
+										<Fragment key={`slot-row-${slot.startTime}-${slot.endTime}`}>
 											<div key={`slot-${slot.startTime}-${slot.endTime}`} className='rounded-lg border border-border bg-muted/40 px-2 py-2 text-xs font-medium'>
 												{formatTime(slot.startTime)} - {formatTime(slot.endTime)}
 											</div>
 											{DAYS.map((day) => {
 												const key = slotKey(day, slot.startTime, slot.endTime);
 												const cellEntries = globalBySlot.get(key) ?? [];
+												const slotLive = slotSelectionDetails.get(key);
 												return (
 													<button
 														key={`${key}-${day}`}
 														type='button'
 														onClick={() => {
 															const occupied = cellEntries[0] ?? null;
+															collaborationRef.current?.sendSelection({
+																schoolId: DEFAULT_SCHOOL_ID,
+																schoolYearId: activeSchoolYearId,
+																runId,
+																day,
+																startTime: slot.startTime,
+																endTime: slot.endTime,
+																entryId: occupied?.entryId,
+																source: 'GRID_CELL',
+															});
 															openRequestSheet({
 																day,
 																startTime: slot.startTime,
@@ -595,11 +879,22 @@ export default function FacultyRoomPreferences() {
 														}}
 														className='min-h-24 rounded-lg border border-border bg-background p-2 text-left hover:border-primary/40'
 													>
+														{(selectionCountBySlot.get(key) ?? 0) > 0 && (
+															<div className='mb-1 flex justify-end'>
+																<Badge variant='outline'>Live {selectionCountBySlot.get(key)}</Badge>
+															</div>
+														)}
+														{slotLive && (
+															<p className='mb-1 text-[0.65rem] text-amber-700'>
+																Viewing: {slotLive.actors.slice(0, 2).join(', ')}{slotLive.actors.length > 2 ? ` +${slotLive.actors.length - 2}` : ''}
+															</p>
+														)}
 														<div className='space-y-1'>
 															{cellEntries.length === 0 && <p className='text-[0.68rem] text-muted-foreground'>Empty slot</p>}
 															{cellEntries.map((entry) => {
 																const ownedEntry = entry.owned;
 																const sourceSelected = selectedSourceEntryId === entry.entryId;
+																const entryLive = entrySelectionDetails.get(entry.entryId);
 																return (
 																	<div
 																		key={entry.entryId}
@@ -608,14 +903,29 @@ export default function FacultyRoomPreferences() {
 																			if (!ownedEntry && !selectedEntry) return;
 																			if (ownedEntry) {
 																				setSelectedSourceEntryId(entry.entryId);
+																				collaborationRef.current?.sendSelection({
+																					schoolId: DEFAULT_SCHOOL_ID,
+																					schoolYearId: activeSchoolYearId,
+																					runId,
+																					day,
+																					startTime: slot.startTime,
+																					endTime: slot.endTime,
+																					entryId: entry.entryId,
+																					source: 'SESSION',
+																				});
 																				return;
 																			}
 																			openRequestSheet({ day, startTime: slot.startTime, endTime: slot.endTime, targetEntryId: entry.entryId });
 																		}}
-																		className={`rounded-md border px-2 py-1 text-[0.68rem] ${ownedEntry ? 'border-primary/30 bg-primary/5 text-foreground' : 'border-border bg-muted/30 text-muted-foreground'} ${sourceSelected ? 'ring-2 ring-primary/40' : ''}`}
+																		className={`rounded-md border px-2 py-1 text-[0.68rem] ${ownedEntry ? 'border-primary/30 bg-primary/5 text-foreground' : 'border-border bg-muted/30 text-muted-foreground'} ${sourceSelected ? 'ring-2 ring-primary/40' : ''} ${entryLive ? 'ring-2 ring-amber-300/80' : ''}`}
 																	>
 																		<p className='font-semibold'>{entry.subjectCode}</p>
 																		<p>{entry.sectionName}</p>
+																		{entryLive && (
+																			<p className='mt-1 text-[0.62rem] text-amber-700'>
+																				Focused by {entryLive.actors.slice(0, 2).join(', ')}{entryLive.actors.length > 2 ? ` +${entryLive.actors.length - 2}` : ''}
+																			</p>
+																		)}
 																	</div>
 																);
 															})}
@@ -623,14 +933,14 @@ export default function FacultyRoomPreferences() {
 													</button>
 												);
 											})}
-										</>
+										</Fragment>
 									))}
 								</div>
 							</div>
 						</div>
 					</div>
 
-					<div className='flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card'>
+					<div className='flex min-h-[48svh] flex-col overflow-hidden rounded-2xl border border-border bg-card md:min-h-0'>
 						<div className='space-y-4 border-b border-border px-4 py-4'>
 							<div className='flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2'>
 								<Search className='size-4 text-muted-foreground' />
@@ -661,7 +971,7 @@ export default function FacultyRoomPreferences() {
 							)}
 						</div>
 
-						<div className='flex-1 space-y-3 overflow-auto p-4'>
+						<div className='flex-1 space-y-3 overflow-visible p-4 md:overflow-auto'>
 							{filteredRooms.map((room) => (
 								<button
 									type='button'
@@ -746,8 +1056,8 @@ export default function FacultyRoomPreferences() {
 									</div>
 									<div className='space-y-2'>
 										{requestPreview.humanConflicts.length === 0 && <p className='text-xs text-muted-foreground'>No conflicts detected.</p>}
-										{requestPreview.humanConflicts.map((conflict) => (
-											<div key={`${conflict.code}-${conflict.humanTitle}`} className='rounded-lg border border-border bg-background p-2'>
+										{requestPreview.humanConflicts.map((conflict, index) => (
+											<div key={`${conflict.code}-${conflict.humanTitle}-${index}`} className='rounded-lg border border-border bg-background p-2'>
 												<p className='text-xs font-semibold'>{conflict.humanTitle}</p>
 												<p className='mt-1 text-xs text-muted-foreground'>{conflict.humanDetail}</p>
 											</div>

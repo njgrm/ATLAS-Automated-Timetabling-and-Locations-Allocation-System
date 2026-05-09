@@ -109,7 +109,7 @@ async function run() {
             headers: { authorization: `Bearer ${token}` },
         });
         assertEqual(portal.status, 200, 'Faculty portal endpoint returns HTTP 200');
-        assertEqual(portal.json?.runId, activeRun.id, 'Faculty portal resolves active draft run');
+        assertEqual(portal.json?.runContext?.runId, activeRun.id, 'Faculty portal resolves active draft run');
         const explicitOlder = await requestJson(baseUrl, `/room-preferences/${schoolId}/${schoolYearId}/runs/${olderRun.id}/faculty/${faculty.facultyId}`, {
             headers: { authorization: `Bearer ${token}` },
         });

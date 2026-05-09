@@ -1,4 +1,4 @@
-type RoomPreferenceEventType =
+export type RoomPreferenceEventType =
 	| 'ROOM_REQUEST_DRAFT_SAVED'
 	| 'ROOM_REQUEST_SUBMITTED'
 	| 'ROOM_REQUEST_DELETED'
@@ -30,6 +30,7 @@ const MAX_BUFFER = 300;
 let nextEventId = 1;
 const subscribers = new Set<Subscriber>();
 const buffer: RoomPreferenceEvent[] = [];
+const listeners = new Set<(event: RoomPreferenceEvent) => void>();
 
 function canReceive(subscriber: Subscriber, event: RoomPreferenceEvent): boolean {
 	if (subscriber.schoolId !== event.schoolId || subscriber.schoolYearId !== event.schoolYearId) {
@@ -61,7 +62,16 @@ export function publishRoomPreferenceEvent(event: Omit<RoomPreferenceEvent, 'id'
 		}
 	}
 
+	for (const listener of listeners) {
+		listener(resolved);
+	}
+
 	return resolved;
+}
+
+export function onRoomPreferenceEvent(listener: (event: RoomPreferenceEvent) => void): () => void {
+	listeners.add(listener);
+	return () => listeners.delete(listener);
 }
 
 export function subscribeRoomPreferenceEvents(params: {
