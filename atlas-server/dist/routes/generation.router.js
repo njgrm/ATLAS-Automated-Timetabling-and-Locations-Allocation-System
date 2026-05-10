@@ -34,8 +34,43 @@ router.post('/:schoolId/:schoolYearId/runs', authenticate, async (req, res, next
             res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' });
             return;
         }
-        const run = await genService.triggerGenerationRun(schoolId, schoolYearId, actorId);
+        const ignoreRoomRequestGate = req.body?.ignoreRoomRequestGate === true;
+        const run = await genService.triggerGenerationRun(schoolId, schoolYearId, actorId, { ignoreRoomRequestGate });
         res.status(201).json({ run });
+    }
+    catch (e) {
+        next(e);
+    }
+});
+router.post('/:schoolId/:schoolYearId/runs/:runId/publish', authenticate, async (req, res, next) => {
+    try {
+        const role = req.user?.role;
+        if (!role || !PRIVILEGED_ROLES.has(role)) {
+            res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can publish timetable runs.' });
+            return;
+        }
+        const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+        if (typeof schoolId === 'string') {
+            res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
+            return;
+        }
+        const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+        if (typeof schoolYearId === 'string') {
+            res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId });
+            return;
+        }
+        const runId = positiveInt(req.params.runId, 'runId');
+        if (typeof runId === 'string') {
+            res.status(400).json({ code: 'INVALID_PARAM', message: runId });
+            return;
+        }
+        const actorId = req.user?.userId;
+        if (!actorId) {
+            res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' });
+            return;
+        }
+        const run = await genService.publishRun(schoolId, schoolYearId, runId, actorId);
+        res.json({ run });
     }
     catch (e) {
         next(e);

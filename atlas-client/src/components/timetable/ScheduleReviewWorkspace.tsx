@@ -101,7 +101,7 @@ export default function ScheduleReviewWorkspace() {
 	const [violationReport, setViolationReport] = useState<ViolationReport | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [policy, setPolicy] = useState<{ teacherMoveEnabled: boolean } | null>(null);
+	const [policy, setPolicy] = useState<{ teacherMoveEnabled: boolean } | null>({ teacherMoveEnabled: true });
 	/* -- Reference data lookups -- */
 	const [subjectMap, setSubjectMap] = useState<Map<number, Subject>>(new Map());
 	const [facultyMap, setFacultyMap] = useState<Map<number, FacultyMirror>>(new Map());

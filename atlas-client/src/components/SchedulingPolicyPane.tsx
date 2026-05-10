@@ -114,6 +114,14 @@ interface LocalPolicy {
 	lunchStartTime: string;
 	lunchEndTime: string;
 	enforceLunchWindow: boolean;
+	showSpecialEventsInGrid: boolean;
+	enableFlagCeremony: boolean;
+	flagCeremonyStartTime: string;
+	flagCeremonyEndTime: string;
+	enableRecess: boolean;
+	recessStartTime: string;
+	recessEndTime: string;
+	enableLunchWindow: boolean;
 	enableTleTwoPassPriority: boolean;
 	allowFlexibleSubjectAssignment: boolean;
 	allowConsecutiveLabSessions: boolean;
@@ -122,7 +130,7 @@ interface LocalPolicy {
 
 function policyToLocal(p: SchedulingPolicy): LocalPolicy {
 	return {
-		teacherMoveEnabled: p.teacherMoveEnabled ?? false,
+		teacherMoveEnabled: p.teacherMoveEnabled ?? true,
 		maxConsecutiveTeachingMinutesBeforeBreak: p.maxConsecutiveTeachingMinutesBeforeBreak,
 		minBreakMinutesAfterConsecutiveBlock: p.minBreakMinutesAfterConsecutiveBlock,
 		maxTeachingMinutesPerDay: p.maxTeachingMinutesPerDay,
@@ -143,6 +151,14 @@ function policyToLocal(p: SchedulingPolicy): LocalPolicy {
 		lunchStartTime: p.lunchStartTime,
 		lunchEndTime: p.lunchEndTime,
 		enforceLunchWindow: p.enforceLunchWindow,
+		showSpecialEventsInGrid: p.showSpecialEventsInGrid ?? true,
+		enableFlagCeremony: p.enableFlagCeremony ?? true,
+		flagCeremonyStartTime: p.flagCeremonyStartTime ?? '07:00',
+		flagCeremonyEndTime: p.flagCeremonyEndTime ?? '07:30',
+		enableRecess: p.enableRecess ?? true,
+		recessStartTime: p.recessStartTime ?? '09:45',
+		recessEndTime: p.recessEndTime ?? '10:00',
+		enableLunchWindow: p.enableLunchWindow ?? p.enforceLunchWindow,
 		enableTleTwoPassPriority: p.enableTleTwoPassPriority ?? true,
 		allowFlexibleSubjectAssignment: p.allowFlexibleSubjectAssignment ?? false,
 		allowConsecutiveLabSessions: p.allowConsecutiveLabSessions ?? false,
@@ -374,9 +390,14 @@ export default function SchedulingPolicyPane({
 		if (!schoolYearId || !local) return;
 		setSaving(true);
 		try {
+			const payload = {
+				...local,
+				enableLunchWindow: local.enableLunchWindow,
+				enforceLunchWindow: local.enableLunchWindow,
+			};
 			const { data } = await atlasApi.put<{ policy: SchedulingPolicy }>(
 				`/policies/scheduling/${schoolId}/${schoolYearId}`,
-				local,
+				payload,
 			);
 			const lp = policyToLocal(data.policy);
 			setPersisted(lp);
@@ -463,11 +484,11 @@ export default function SchedulingPolicyPane({
 				<div className="flex-1 min-h-0 overflow-hidden p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
 
 					{/* ── COL 0: Scheduling Mode ── */}
-					<SectionCard title="Scheduling Mode">
+					<SectionCard title="Teacher Movement Policy">
 						<div className="space-y-3">
 							<div className="space-y-2">
 								<div className="flex items-center justify-between">
-									<Label className="font-medium text-xs text-foreground">Section Movement</Label>
+									<Label className="font-medium text-xs text-foreground">Teacher's Move</Label>
 									<Switch
 										checked={local.teacherMoveEnabled}
 										onCheckedChange={(checked) => update('teacherMoveEnabled', checked)}
@@ -475,8 +496,8 @@ export default function SchedulingPolicyPane({
 								</div>
 								<p className="text-xs text-muted-foreground leading-relaxed">
 									{local.teacherMoveEnabled
-										? 'Sections will move with teachers to rooms outside their assigned building. This affects room occupancy planning and teacher travel distance calculations.'
-										: 'Sections stay in their assigned building rooms. Teachers move between buildings as needed. Most common for JHS settings.'}
+										? 'Enabled: Teachers can move and hold classes in rooms outside their default building assignment. Use this for flexible rooming across buildings.'
+										: 'Disabled: Teachers stay constrained to their assigned building context. Use this for stricter room locality during generation and review.'}
 								</p>
 							</div>
 						</div>
@@ -551,12 +572,57 @@ export default function SchedulingPolicyPane({
 						{/* ── Lunch Window ── */}
 						<div className="pt-2 mt-2 border-t border-border/60 space-y-3">
 							<PolicySwitch
+								label="Show Special Events in Grid"
+								explanation="When ON, the editable timetable grid shows dedicated rows for flag ceremony, recess, and lunch. These rows are non-schedulable."
+								checked={local.showSpecialEventsInGrid}
+								onCheckedChange={(v) => update('showSpecialEventsInGrid', v)}
+							/>
+							<PolicySwitch
+								label="Enable Flag Ceremony"
+								explanation="Adds a global non-schedulable flag ceremony interval to the timetable policy."
+								checked={local.enableFlagCeremony}
+								onCheckedChange={(v) => update('enableFlagCeremony', v)}
+							/>
+							{local.enableFlagCeremony && (
+								<div className="grid grid-cols-2 gap-3 pl-2 border-l-2 border-primary/20">
+									<div className="space-y-1.5">
+										<MetricExplain label="Flag Start" explanation="Start time for flag ceremony row." />
+										<Input type="time" className="h-8 text-xs" value={local.flagCeremonyStartTime} onChange={(e) => update('flagCeremonyStartTime', e.target.value)} />
+									</div>
+									<div className="space-y-1.5">
+										<MetricExplain label="Flag End" explanation="End time for flag ceremony row." />
+										<Input type="time" className="h-8 text-xs" value={local.flagCeremonyEndTime} onChange={(e) => update('flagCeremonyEndTime', e.target.value)} />
+									</div>
+								</div>
+							)}
+							<PolicySwitch
+								label="Enable Recess"
+								explanation="Adds a global non-schedulable recess interval to the timetable policy."
+								checked={local.enableRecess}
+								onCheckedChange={(v) => update('enableRecess', v)}
+							/>
+							{local.enableRecess && (
+								<div className="grid grid-cols-2 gap-3 pl-2 border-l-2 border-primary/20">
+									<div className="space-y-1.5">
+										<MetricExplain label="Recess Start" explanation="Start time for recess row." />
+										<Input type="time" className="h-8 text-xs" value={local.recessStartTime} onChange={(e) => update('recessStartTime', e.target.value)} />
+									</div>
+									<div className="space-y-1.5">
+										<MetricExplain label="Recess End" explanation="End time for recess row." />
+										<Input type="time" className="h-8 text-xs" value={local.recessEndTime} onChange={(e) => update('recessEndTime', e.target.value)} />
+									</div>
+								</div>
+							)}
+							<PolicySwitch
 								label="Enforce Lunch Window"
 								explanation="When ON, no classes can be scheduled during the lunch window. Time slots overlapping the window are excluded from the timetable grid."
-								checked={local.enforceLunchWindow}
-								onCheckedChange={(v) => update('enforceLunchWindow', v)}
+								checked={local.enableLunchWindow}
+								onCheckedChange={(v) => {
+									update('enableLunchWindow', v);
+									update('enforceLunchWindow', v);
+								}}
 							/>
-							{local.enforceLunchWindow && (
+							{local.enableLunchWindow && (
 								<div className="grid grid-cols-2 gap-3 pl-2 border-l-2 border-primary/20">
 									<div className="space-y-1.5">
 										<MetricExplain

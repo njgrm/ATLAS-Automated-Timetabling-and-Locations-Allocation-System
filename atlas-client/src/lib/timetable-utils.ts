@@ -59,13 +59,16 @@ export function statusColor(status: string): string {
 }
 
 export function deriveTimeSlots(entries: ScheduledEntry[]): Array<{ startTime: string; endTime: string }> {
-	const seen = new Map<string, string>();
+	const seen = new Set<string>();
 	for (const e of entries) {
-		seen.set(e.startTime, e.endTime);
+		seen.add(`${e.startTime}-${e.endTime}`);
 	}
-	return Array.from(seen.entries())
-		.map(([startTime, endTime]) => ({ startTime, endTime }))
-		.sort((a, b) => a.startTime.localeCompare(b.startTime));
+	return Array.from(seen.values())
+		.map((slotKey) => {
+			const [startTime, endTime] = slotKey.split('-');
+			return { startTime, endTime };
+		})
+		.sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime));
 }
 
 export function buildViolationIndex(violations: Violation[]): Map<string, Violation[]> {

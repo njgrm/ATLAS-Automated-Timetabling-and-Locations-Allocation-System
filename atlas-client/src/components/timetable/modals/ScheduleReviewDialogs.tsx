@@ -560,10 +560,12 @@ return (
 
 					<div className="space-y-3 py-2 text-sm">
 						<div className="rounded-md bg-muted/50 p-3">
-							<p className="font-medium text-xs text-foreground mb-1">Scheduling Mode</p>
+							<p className="font-medium text-xs text-foreground mb-1">Teacher's Move</p>
 							<p className="text-xs text-muted-foreground">
-								Sections will <span className="font-semibold">{context.policy?.teacherMoveEnabled ? 'move with teachers' : 'stay in assigned rooms'}</span>
-								{context.policy?.teacherMoveEnabled ? ' to rooms outside their assigned building.' : '.'}
+								Mode: <span className="font-semibold">{(context.policy?.teacherMoveEnabled ?? true) ? 'Enabled' : 'Disabled'}</span>
+								 {(context.policy?.teacherMoveEnabled ?? true)
+									? 'Teachers may move across buildings for assigned classes.'
+									: 'Teachers remain constrained to their assigned building context.'}
 							</p>
 						</div>
 					</div>

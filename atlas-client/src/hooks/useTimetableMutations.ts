@@ -547,12 +547,14 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		}
 	}, [draft, schoolYearId, setFollowUps]);
 
-	const triggerGeneration = useCallback(async () => {
+	const triggerGeneration = useCallback(async (ignoreRoomRequestGate: boolean = false) => {
 		if (!schoolYearId) return;
 		setGenerating(true);
 		const lockedAnchorCount = draftBoardSummary?.draft ?? 0;
 		try {
-			const { data: run } = await atlasApi.post<import('@/types').GenerationRun>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs`);
+			const { data: run } = await atlasApi.post<import('@/types').GenerationRun>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs`, {
+				ignoreRoomRequestGate,
+			});
 			if (run.status === 'FAILED') {
 				toast.error(`Generation failed: ${run.error ?? 'Unknown error'}`);
 			} else {
@@ -605,7 +607,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 
 	const confirmGenerate = useCallback(() => {
 		setShowGenerateConfirm(false);
-		void triggerGeneration();
+		void triggerGeneration(true);
 	}, [setShowGenerateConfirm, triggerGeneration]);
 
 	const openPreGenerationWorkspace = useCallback(async (resetExisting: boolean) => {
@@ -646,10 +648,24 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		await openPreGenerationWorkspace(false);
 	}, [schoolYearId, draftBoard?.counts, fetchDraftBoardSummary, preGenPending, setShowResetDraftDialog, openPreGenerationWorkspace]);
 
-	const handlePublishConfirm = useCallback(() => {
-		setShowPublishDialog(false);
-		toast.info('Publish API is Phase 5 scope - no action taken.');
-	}, [setShowPublishDialog]);
+	const handlePublishConfirm = useCallback(async () => {
+		if (!schoolYearId || !draft?.runId) {
+			toast.error('No active run selected for publish.');
+			return;
+		}
+		try {
+			const { data } = await atlasApi.post<{ run: import('@/types').GenerationRun }>(
+				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${draft.runId}/publish`,
+			);
+			setShowPublishDialog(false);
+			toast.success(`Run #${data.run.id} published. Final schedule is now viewable.`);
+			await loadAll(false);
+		} catch (e: unknown) {
+			const axiosErr = e as { response?: { data?: { message?: string } } };
+			const msg = axiosErr?.response?.data?.message ?? (e instanceof Error ? e.message : 'Publish request failed.');
+			toast.error(msg);
+		}
+	}, [schoolYearId, draft?.runId, setShowPublishDialog, loadAll]);
 
 	const runIdNumeric = draft?.runId ?? null;
 	const runVersion = draft?.version ?? 0;

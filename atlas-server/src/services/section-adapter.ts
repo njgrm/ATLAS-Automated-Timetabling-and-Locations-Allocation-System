@@ -334,6 +334,7 @@ export interface SectionSummary {
 	totalEnrolled: number;
 	byGradeLevel: Record<number, number>;
 	enrolledByGradeLevel: Record<number, number>;
+	gradeLevels: SectionsByGrade[];
 	sections: ExternalSection[];
 	source: SectionSourceLabel;
 	fetchedAt: Date | null;
@@ -440,7 +441,10 @@ export class EnrollProSectionAdapter implements SectionAdapter {
 
 	async fetchSectionsBySchoolYear(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionFetchResult> {
 		const url = `${this.baseUrl}/integration/v1/sections?schoolYearId=${schoolYearId}`;
-		const response = await fetch(url);
+		const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
+		const response = await fetch(url, {
+			headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+		});
 		if (!response.ok) {
 			throw Object.assign(new Error(`EnrollPro sections API returned ${response.status}`), {
 				statusCode: response.status,

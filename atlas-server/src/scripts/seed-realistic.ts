@@ -117,50 +117,77 @@ const DEFAULT_PRESERVED_MAP_LABELS = [
 
 const NON_TEACHING_ROOM_TYPES = new Set<RoomType>(['LIBRARY', 'FACULTY_ROOM', 'OFFICE', 'OTHER']);
 
+// Helper to build rooms for a grade-level building
+function buildGradeLevelRooms(gradeLevel: number, numRoomsPerFloor: number): SeedRoom[] {
+	const rooms: SeedRoom[] = [];
+	const baseNum = (gradeLevel - 7) * 100 + 1; // G7: 1-20, G8: 101-124, etc.
+	let roomNumber = baseNum;
+
+	for (let floor = 1; floor <= 4; floor++) {
+		for (let pos = 0; pos < numRoomsPerFloor; pos++) {
+			rooms.push({
+				name: `G${gradeLevel} Room ${String(floor)}${String(pos + 1).padStart(2, '0')}`,
+				floor,
+				type: 'CLASSROOM',
+				capacity: 45,
+				floorPosition: pos,
+			});
+			roomNumber++;
+		}
+	}
+
+	return rooms;
+}
+
 const REALISTIC_CAMPUS_BUILDINGS: SeedBuilding[] = [
+	// ─── Grade-Level Dedicated Buildings (20-24 rooms each, 4 floors) ───
 	{
-		name: 'Academic Building 1',
-		x: 48,
-		y: 56,
-		width: 238,
-		height: 168,
-		color: '#2563eb',
-		floorCount: 3,
-		rooms: [
-			{ name: 'Room 101', floor: 1, type: 'CLASSROOM', capacity: 45, floorPosition: 0 },
-			{ name: 'Room 102', floor: 1, type: 'CLASSROOM', capacity: 45, floorPosition: 1 },
-			{ name: 'Room 103', floor: 1, type: 'CLASSROOM', capacity: 45, floorPosition: 2 },
-			{ name: 'Room 201', floor: 2, type: 'CLASSROOM', capacity: 45, floorPosition: 0 },
-			{ name: 'Room 202', floor: 2, type: 'CLASSROOM', capacity: 45, floorPosition: 1 },
-			{ name: 'Room 203', floor: 2, type: 'CLASSROOM', capacity: 45, floorPosition: 2 },
-			{ name: 'Room 301', floor: 3, type: 'CLASSROOM', capacity: 42, floorPosition: 0 },
-			{ name: 'Room 302', floor: 3, type: 'CLASSROOM', capacity: 42, floorPosition: 1 },
-		],
+		name: 'Grade 7 Academic Wing',
+		x: 20,
+		y: 20,
+		width: 180,
+		height: 280,
+		color: '#3b82f6',
+		floorCount: 4,
+		rooms: buildGradeLevelRooms(7, 5), // 5 rooms × 4 floors = 20 rooms
 	},
 	{
-		name: 'Academic Building 2',
-		x: 328,
-		y: 52,
-		width: 230,
-		height: 170,
-		color: '#0f766e',
-		floorCount: 3,
-		rooms: [
-			{ name: 'Room 104', floor: 1, type: 'CLASSROOM', capacity: 45, floorPosition: 0 },
-			{ name: 'Room 105', floor: 1, type: 'CLASSROOM', capacity: 45, floorPosition: 1 },
-			{ name: 'Room 204', floor: 2, type: 'CLASSROOM', capacity: 45, floorPosition: 0 },
-			{ name: 'Room 205', floor: 2, type: 'CLASSROOM', capacity: 45, floorPosition: 1 },
-			{ name: 'Room 206', floor: 2, type: 'CLASSROOM', capacity: 42, floorPosition: 2 },
-			{ name: 'Room 304', floor: 3, type: 'CLASSROOM', capacity: 42, floorPosition: 0 },
-			{ name: 'Room 305', floor: 3, type: 'CLASSROOM', capacity: 42, floorPosition: 1 },
-		],
+		name: 'Grade 8 Academic Wing',
+		x: 220,
+		y: 20,
+		width: 200,
+		height: 280,
+		color: '#8b5cf6',
+		floorCount: 4,
+		rooms: buildGradeLevelRooms(8, 6), // 6 rooms × 4 floors = 24 rooms
 	},
+	{
+		name: 'Grade 9 Academic Wing',
+		x: 440,
+		y: 20,
+		width: 180,
+		height: 280,
+		color: '#ec4899',
+		floorCount: 4,
+		rooms: buildGradeLevelRooms(9, 5), // 5 rooms × 4 floors = 20 rooms
+	},
+	{
+		name: 'Grade 10 Academic Wing',
+		x: 640,
+		y: 20,
+		width: 180,
+		height: 280,
+		color: '#f59e0b',
+		floorCount: 4,
+		rooms: buildGradeLevelRooms(10, 5), // 5 rooms × 4 floors = 20 rooms
+	},
+	// ─── Shared Specialized Facilities ───
 	{
 		name: 'Science and Innovation Center',
-		x: 612,
-		y: 56,
-		width: 236,
-		height: 164,
+		x: 20,
+		y: 320,
+		width: 200,
+		height: 160,
 		color: '#16a34a',
 		floorCount: 2,
 		rooms: [
@@ -173,10 +200,10 @@ const REALISTIC_CAMPUS_BUILDINGS: SeedBuilding[] = [
 	},
 	{
 		name: 'MAPEH and Wellness Hub',
-		x: 64,
-		y: 286,
-		width: 258,
-		height: 180,
+		x: 240,
+		y: 320,
+		width: 200,
+		height: 160,
 		color: '#ea580c',
 		floorCount: 1,
 		rooms: [
@@ -188,10 +215,10 @@ const REALISTIC_CAMPUS_BUILDINGS: SeedBuilding[] = [
 	},
 	{
 		name: 'TLE and Livelihood Center',
-		x: 362,
-		y: 278,
-		width: 256,
-		height: 188,
+		x: 460,
+		y: 320,
+		width: 200,
+		height: 160,
 		color: '#d97706',
 		floorCount: 2,
 		rooms: [
@@ -204,10 +231,10 @@ const REALISTIC_CAMPUS_BUILDINGS: SeedBuilding[] = [
 	},
 	{
 		name: 'Admin and Learning Commons',
-		x: 654,
-		y: 280,
-		width: 208,
-		height: 182,
+		x: 680,
+		y: 320,
+		width: 180,
+		height: 160,
 		color: '#7c3aed',
 		floorCount: 2,
 		isTeachingBuilding: false,
@@ -673,6 +700,7 @@ async function runEnrollProSourceMode(options: SeederOptions) {
 		cohortSource: cohortResult.source,
 		teachers: facultyResult.activeCount,
 		sections: sectionSummary.totalSections,
+		gradeLevels: sectionSummary.gradeLevels,
 		cohorts: cohortResult.count,
 		totalEnrolled: sectionSummary.totalEnrolled,
 		isSectionStale: sectionSummary.isStale,
@@ -846,6 +874,8 @@ async function main() {
 				: undefined,
 			gradeLevels: options.mode === 'atlas-fixture'
 				? (result as Awaited<ReturnType<typeof runFixtureMode>>).gradeLevels
+				: options.mode === 'enrollpro-source'
+					? (result as Awaited<ReturnType<typeof runEnrollProSourceMode>>).gradeLevels
 				: undefined,
 		});
 	} else {

@@ -7,6 +7,11 @@ const router = Router();
 
 const PRIVILEGED_ROLES: Set<string> = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
 
+function getAuthToken(req: Request): string | undefined {
+	const header = req.headers.authorization;
+	return header?.startsWith('Bearer ') ? header.slice(7) : undefined;
+}
+
 function positiveInt(raw: unknown, name: string): number | string {
 	const value = Number(raw);
 	if (!Number.isInteger(value) || value < 1) return `${name} must be a positive integer.`;
@@ -97,7 +102,7 @@ router.get(
 			if (!requirePrivileged(req, res)) return;
 			const scope = parseScope(req, res);
 			if (!scope) return;
-			const board = await draftService.listDraftBoardState(scope.schoolId, scope.schoolYearId);
+			const board = await draftService.listDraftBoardState(scope.schoolId, scope.schoolYearId, getAuthToken(req));
 			res.json(board);
 		} catch (error) {
 			next(error);
@@ -113,7 +118,7 @@ router.post(
 			if (!requirePrivileged(req, res)) return;
 			const scope = parseScope(req, res);
 			if (!scope) return;
-			const preview = await draftService.previewPlacement(scope.schoolId, scope.schoolYearId, parsePlacementBody(req));
+			const preview = await draftService.previewPlacement(scope.schoolId, scope.schoolYearId, parsePlacementBody(req), getAuthToken(req));
 			res.json(preview);
 		} catch (error) {
 			next(error);
@@ -133,6 +138,7 @@ router.post(
 				scope.schoolId,
 				scope.schoolYearId,
 				parseSwapBody(req),
+				getAuthToken(req),
 			);
 			res.json(result);
 		} catch (error) {
@@ -155,6 +161,7 @@ router.post(
 				req.user!.userId,
 				parsePlacementBody(req),
 				Boolean(req.body.allowSoftOverride),
+				getAuthToken(req),
 			);
 			res.status(201).json(result);
 		} catch (error) {
@@ -176,6 +183,7 @@ router.post(
 				scope.schoolYearId,
 				req.user!.userId,
 				parseSwapBody(req),
+				getAuthToken(req),
 			);
 			res.status(201).json(result);
 		} catch (error) {
@@ -192,7 +200,7 @@ router.post(
 			if (!requirePrivileged(req, res)) return;
 			const scope = parseScope(req, res);
 			if (!scope) return;
-			const board = await draftService.undoLastPlacement(scope.schoolId, scope.schoolYearId, req.user!.userId);
+			const board = await draftService.undoLastPlacement(scope.schoolId, scope.schoolYearId, req.user!.userId, getAuthToken(req));
 			res.json(board);
 		} catch (error) {
 			next(error);
@@ -208,7 +216,7 @@ router.post(
 			if (!requirePrivileged(req, res)) return;
 			const scope = parseScope(req, res);
 			if (!scope) return;
-			const board = await draftService.clearDraft(scope.schoolId, scope.schoolYearId, req.user!.userId);
+			const board = await draftService.clearDraft(scope.schoolId, scope.schoolYearId, req.user!.userId, getAuthToken(req));
 			res.json(board);
 		} catch (error) {
 			next(error);

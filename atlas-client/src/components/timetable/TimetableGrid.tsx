@@ -29,6 +29,7 @@ const DAY_SHORT: Record<string, string> = {
 const VIOLATION_LABELS: Record<ViolationCode, string> = {
 	FACULTY_TIME_CONFLICT: 'Faculty Time Conflict',
 	ROOM_TIME_CONFLICT: 'Room Time Conflict',
+	SECTION_TIME_CONFLICT: 'Section Time Conflict',
 	FACULTY_OVERLOAD: 'Faculty Overload',
 	ROOM_TYPE_MISMATCH: 'Room Type Mismatch',
 	FACULTY_SUBJECT_NOT_QUALIFIED: 'Not Qualified',
@@ -144,7 +145,7 @@ export type GridDragSource =
 
 interface TimetableGridProps {
 	entries: ScheduledEntry[];
-	timeSlots: Array<{ startTime: string; endTime: string }>;
+	timeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
 	violationIndex: Map<string, Violation[]>;
 	highlightedEntryIds: Set<string>;
 	selectedEntry: ScheduledEntry | null;
@@ -211,7 +212,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 	const gridIndex = useMemo(() => {
 		const index = new Map<string, ScheduledEntry[]>();
 		for (const entry of entries) {
-			const key = `${entry.day}-${entry.startTime}`;
+			const key = `${entry.day}-${entry.startTime}-${entry.endTime}`;
 			const list = index.get(key) ?? [];
 			list.push(entry);
 			index.set(key, list);
@@ -244,15 +245,30 @@ export const TimetableGrid = memo(function TimetableGrid({
 				</thead>
 				<tbody>
 					{timeSlots.map((slot) => (
-						<tr key={slot.startTime} className="border-b border-border/50">
+						<tr key={`${slot.startTime}-${slot.endTime}`} className="border-b border-border/50">
 							<td className="px-2 py-1.5 text-muted-foreground whitespace-nowrap font-mono text-[0.625rem] align-top">
 								{formatTime(slot.startTime)}
 								<br />
 								<span className="opacity-50">{formatTime(slot.endTime)}</span>
+								{slot.isSpecialEvent && slot.eventName && (
+									<>
+										<br />
+										<span className="inline-flex mt-1 rounded bg-amber-100 px-1.5 py-0.5 text-[0.55rem] font-semibold text-amber-700">
+											{slot.eventName}
+										</span>
+									</>
+								)}
 							</td>
 							{DAYS.map((day) => {
-								const key = `${day}-${slot.startTime}`;
+								const key = `${day}-${slot.startTime}-${slot.endTime}`;
 								const cellEntries = gridIndex.get(key) ?? [];
+								if (slot.isSpecialEvent) {
+									return (
+										<td key={key} className="px-1 py-1 align-top border-l border-border/30 bg-amber-50/40 text-center text-[0.65rem] font-medium text-amber-700">
+											{slot.eventName ?? 'Special Event'}
+										</td>
+									);
+								}
 								const isDropOver = dropTarget === key;
 								const dropFeedbackMode = isDropOver ? (cellEntries.length > 0 ? 'swap' : 'replace') : null;
 								const info = conflictMap?.get(key) ?? null;

@@ -2,6 +2,37 @@
 
 Record dated implementation verification summaries here.
 
+### 2026-05-11 - Generation 409 Gate Override + Publish Flow + Teacher's Move Wording
+- Phase: 4 (review/publish foundation hardening)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Commands:
+  - `npx prisma migrate deploy`: PASS (applied `0019_teacher_move_default_enabled`)
+  - `npm run db:generate`: BLOCKED by Windows file lock on Prisma engine DLL while dev server was live (non-functional blocker; runtime remained healthy)
+  - Runtime DB verification query (node): PASS
+- Generation 409 investigation:
+  - Root cause confirmed: active run had `3` room requests with `status=SUBMITTED` and `decisionStatus=PENDING`, triggering generation gate conflict.
+  - Existing conflict code path: `OPEN_ROOM_REQUESTS_BLOCK_GENERATION`.
+  - Fix implemented: generation endpoint now accepts `ignoreRoomRequestGate=true` and allows explicit override for "Generate Anyway" flow.
+- Shared-browser QA rerun (post-fix):
+  - Route: `/timetable` — PASS
+  - Teacher-move header label: PASS (`Teacher's Move: Enabled`)
+  - Generate flow: PASS (`Generate Anyway` -> `POST /api/v1/generation/1/1/runs` returned `201`)
+  - Publish flow: PASS (`POST /api/v1/generation/1/1/runs/:runId/publish` returned `200`)
+  - Publish UX confirmation: PASS (`Run #176 published. Final schedule is now viewable.`)
+  - Final schedule visibility: PASS (`/room-schedules` shows run metadata `Run #176 · COMPLETED` and schedule grid view)
+- Persisted final-state verification:
+  - Latest run: `id=176`, `status=COMPLETED`
+  - Published flag persisted in summary: `isPublished=true`
+  - Published timestamp present: `publishedAt` non-null
+- Wording and default updates delivered:
+  - Header text updated from `Section Movement` to `Teacher's Move`
+  - Policy pane label/copy updated to Teacher's Move language
+  - Publish dialog summary updated to Teacher's Move language
+  - Teacher-move defaults aligned to enabled (`schema default true`, service default true, migration updates existing records)
+
 ### 2026-05-10 - Publish-Phase Teacher-Move: Migration + Seed + Shared-Browser Generation QA
 - Phase: 4 (publish-foundation blocker verification)
 - Scope gate: PASS

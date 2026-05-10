@@ -16,6 +16,10 @@ export const VIOLATION_EXPLANATIONS: Record<string, { why: string; fix: string }
 		why: 'Two classes are scheduled in the same room at the same time.',
 		fix: 'Move one class to a different time slot, or change one of them to a different room.',
 	},
+	SECTION_TIME_CONFLICT: {
+		why: 'The same section is assigned to overlapping classes in the same time window.',
+		fix: 'Move one of the conflicting section entries to a different slot so students are not double-booked.',
+	},
 	FACULTY_OVERLOAD: {
 		why: "This teacher's total teaching hours exceed their configured weekly maximum.",
 		fix: 'Reduce this teacher\'s load by reassigning some of their classes to other qualified faculty.',

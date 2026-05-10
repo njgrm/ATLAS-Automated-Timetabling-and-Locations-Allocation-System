@@ -512,10 +512,15 @@ function TimetableGrid({
 						<tr key={rowIdx}>
 							{/* Sticky time column */}
 							<td className="sticky left-0 z-[5] bg-background border-r border-b px-2 py-3 align-middle w-24">
-								<div className="text-[11px] font-semibold text-foreground">P{rowIdx + 1}</div>
-								<div className="text-[10px] text-muted-foreground leading-tight">
-								{formatTime(row.timeSlot.startTime)}–{formatTime(row.timeSlot.endTime)}
-								</div>
+								{row.timeSlot.eventLabel ? (
+									<div className="text-xs font-bold text-foreground">
+										{row.timeSlot.eventLabel}
+									</div>
+								) : (
+									<div className="text-xs font-semibold text-foreground">
+										{formatTime(row.timeSlot.startTime)}–{formatTime(row.timeSlot.endTime)}
+									</div>
+								)}
 							</td>
 
 							{/* Day cells */}

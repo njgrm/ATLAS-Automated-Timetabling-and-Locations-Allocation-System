@@ -23,8 +23,34 @@ export interface RunSummary {
     selectedSeedProfile?: string;
     seedQuality?: SeedQualitySummary[];
     repairImpact?: RepairImpact;
+    resourceDiagnostics?: {
+        qualifiedFacultyCoverageBySubject: Array<{
+            subjectId: number;
+            subjectCode: string;
+            requiredAssignments: number;
+            qualifiedAssignments: number;
+            coveragePercent: number;
+        }>;
+        slotSaturationByInterval: Array<{
+            day: string;
+            startTime: string;
+            endTime: string;
+            assigned: number;
+            capacity: number;
+            saturationPercent: number;
+        }>;
+        unassignedBySubjectGrade: Array<{
+            subjectId: number;
+            subjectCode: string;
+            gradeLevel: number;
+            count: number;
+            reasons: Record<string, number>;
+        }>;
+    };
 }
-export declare function triggerGenerationRun(schoolId: number, schoolYearId: number, actorId: number): Promise<{
+export declare function triggerGenerationRun(schoolId: number, schoolYearId: number, actorId: number, options?: {
+    ignoreRoomRequestGate?: boolean;
+}): Promise<{
     error: string | null;
     schoolId: number;
     schoolYearId: number;
@@ -156,6 +182,25 @@ export declare function listRuns(schoolId: number, schoolYearId: number, limit?:
     draftEntries: import(".prisma/client/runtime/library").JsonValue | null;
     unassignedItems: import(".prisma/client/runtime/library").JsonValue | null;
 }[]>;
+export declare function publishRun(schoolId: number, schoolYearId: number, runId: number, actorId: number): Promise<{
+    error: string | null;
+    schoolId: number;
+    schoolYearId: number;
+    createdAt: Date;
+    id: number;
+    version: number;
+    updatedAt: Date;
+    status: import("@prisma/client").$Enums.GenerationRunStatus;
+    runType: string;
+    triggeredBy: number;
+    startedAt: Date | null;
+    finishedAt: Date | null;
+    durationMs: number | null;
+    summary: import(".prisma/client/runtime/library").JsonValue | null;
+    violations: import(".prisma/client/runtime/library").JsonValue | null;
+    draftEntries: import(".prisma/client/runtime/library").JsonValue | null;
+    unassignedItems: import(".prisma/client/runtime/library").JsonValue | null;
+}>;
 export interface ViolationReport {
     runId: number;
     status: string;

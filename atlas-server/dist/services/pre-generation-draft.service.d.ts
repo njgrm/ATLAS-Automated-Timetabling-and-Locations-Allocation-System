@@ -72,6 +72,7 @@ export interface DraftBoardState {
     placements: DraftPlacementRow[];
     queue: DraftQueueItem[];
     periodSlots: PeriodSlot[];
+    classPeriodSlots: PeriodSlot[];
     counts: {
         draft: number;
         lockedForRun: number;

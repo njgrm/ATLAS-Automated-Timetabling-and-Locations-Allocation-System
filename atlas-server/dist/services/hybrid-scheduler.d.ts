@@ -52,6 +52,12 @@ export interface RepairImpact {
     conflictsResolved: number;
     /** Conflicts that could not be relocated within the cap. */
     conflictsUnresolved: number;
+    /** Breakdown for unresolved relocations. */
+    unresolvedByReason: {
+        lockedOrMissing: number;
+        noFeasibleSlot: number;
+        attemptCapReached: number;
+    };
 }
 /**
  * H-ALG-3: Bounded repair pass for hard slot conflicts.
@@ -64,7 +70,7 @@ export interface RepairImpact {
  * - Capped at MAX_REPAIR_ATTEMPTS to ensure sub-second runtime.
  * - Pure function — does not mutate input array.
  */
-export declare function repairHardConflicts(entries: ScheduledEntry[], lockedEntryIds: Set<string>): {
+export declare function repairHardConflicts(entries: ScheduledEntry[], lockedEntryIds: Set<string>, maxAttempts?: number): {
     entries: ScheduledEntry[];
     impact: RepairImpact;
 };

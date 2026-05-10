@@ -247,7 +247,7 @@ export type RoomScheduleView = {
 		status: string;
 		generatedAt?: string;
 	};
-	timeSlots: Array<{ startTime: string; endTime: string }>;
+	timeSlots: Array<{ startTime: string; endTime: string; eventLabel?: string | null; isSpecialEvent?: boolean }>;
 	days: string[];
 	grid: Array<{
 		timeSlot: { startTime: string; endTime: string };
@@ -480,6 +480,7 @@ export type GenerationRunStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 export type ViolationCode =
 	| 'FACULTY_TIME_CONFLICT'
 	| 'ROOM_TIME_CONFLICT'
+	| 'SECTION_TIME_CONFLICT'
 	| 'FACULTY_OVERLOAD'
 	| 'ROOM_TYPE_MISMATCH'
 	| 'ROOM_CAPACITY_EXCEEDED'
@@ -531,6 +532,51 @@ export interface RunSummary {
 	cohortCount?: number;
 	cohortizedClassCount?: number;
 	contractWarnings?: string[];
+	hybridEnabled?: boolean;
+	selectedSeedProfile?: string;
+	seedQuality?: Array<{
+		profileId: string;
+		profileLabel: string;
+		assignedCount: number;
+		unassignedCount: number;
+		policyBlockedCount: number;
+		fitnessScore: number;
+		completionRate: number;
+	}>;
+	repairImpact?: {
+		attemptsTotal: number;
+		conflictsResolved: number;
+		conflictsUnresolved: number;
+		unresolvedByReason?: {
+			lockedOrMissing: number;
+			noFeasibleSlot: number;
+			attemptCapReached: number;
+		};
+	};
+	resourceDiagnostics?: {
+		qualifiedFacultyCoverageBySubject: Array<{
+			subjectId: number;
+			subjectCode: string;
+			requiredAssignments: number;
+			qualifiedAssignments: number;
+			coveragePercent: number;
+		}>;
+		slotSaturationByInterval: Array<{
+			day: string;
+			startTime: string;
+			endTime: string;
+			assigned: number;
+			capacity: number;
+			saturationPercent: number;
+		}>;
+		unassignedBySubjectGrade: Array<{
+			subjectId: number;
+			subjectCode: string;
+			gradeLevel: number;
+			count: number;
+			reasons: Record<string, number>;
+		}>;
+	};
 }
 
 export interface ScheduledEntry {
@@ -807,12 +853,15 @@ export interface DraftQueueItem {
 export interface PeriodSlot {
 	startTime: string;
 	endTime: string;
+	isSpecialEvent?: boolean;
+	eventName?: string;
 }
 
 export interface DraftBoardState {
 	placements: DraftPlacement[];
 	queue: DraftQueueItem[];
 	periodSlots: PeriodSlot[];
+	classPeriodSlots?: PeriodSlot[];
 	counts: {
 		draft: number;
 		lockedForRun: number;
@@ -953,6 +1002,14 @@ export interface SchedulingPolicy {
 	lunchStartTime: string;
 	lunchEndTime: string;
 	enforceLunchWindow: boolean;
+	showSpecialEventsInGrid: boolean;
+	enableFlagCeremony: boolean;
+	flagCeremonyStartTime: string;
+	flagCeremonyEndTime: string;
+	enableRecess: boolean;
+	recessStartTime: string;
+	recessEndTime: string;
+	enableLunchWindow: boolean;
 	enableTleTwoPassPriority: boolean;
 	allowFlexibleSubjectAssignment: boolean;
 	allowConsecutiveLabSessions: boolean;

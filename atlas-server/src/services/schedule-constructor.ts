@@ -83,6 +83,7 @@ export interface RoomInput {
 	type: RoomType;
 	isTeachingSpace: boolean;
 	capacity: number | null;
+	buildingId?: number | null;
 }
 
 export interface PreferenceSlotInput {
@@ -107,55 +108,113 @@ export interface PolicyInput {
 	lunchStartTime?: string;
 	lunchEndTime?: string;
 	enforceLunchWindow?: boolean;
+	enableLunchWindow?: boolean;
+	showSpecialEventsInGrid?: boolean;
+	enableFlagCeremony?: boolean;
+	flagCeremonyStartTime?: string;
+	flagCeremonyEndTime?: string;
+	enableRecess?: boolean;
+	recessStartTime?: string;
+	recessEndTime?: string;
 	enableTleTwoPassPriority?: boolean;
 	allowFlexibleSubjectAssignment?: boolean;
 	allowConsecutiveLabSessions?: boolean;
 }
 
-type PeriodSlot = { startTime: string; endTime: string };
+type PeriodSlot = { startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string };
 
 /**
- * Build period slots dynamically from policy bounds and optional lunch window.
- * Generates consecutive 50-minute periods between earliest and latest times,
- * excluding any slot that overlaps the lunch window.
+ * Build schedulable class period slots from policy bounds and lunch window.
+ * Special event rows are built separately via buildSpecialEventSlots().
  */
 function buildPeriodSlots(policy?: PolicyInput): PeriodSlot[] {
-	if (!policy) return [...DEFAULT_PERIOD_SLOTS];
+	let slots: PeriodSlot[] = [];
+	
+	if (!policy) {
+		slots = [...DEFAULT_PERIOD_SLOTS];
+	} else {
+		const earliest = timeToMinutes(policy.earliestStartTime);
+		const latest = timeToMinutes(policy.latestEndTime);
+		const lunchEnforced = policy.enableLunchWindow ?? policy.enforceLunchWindow ?? true;
+		const lunchStart = lunchEnforced && policy.lunchStartTime ? timeToMinutes(policy.lunchStartTime) : -1;
+		const lunchEnd = lunchEnforced && policy.lunchEndTime ? timeToMinutes(policy.lunchEndTime) : -1;
 
-	const earliest = timeToMinutes(policy.earliestStartTime);
-	const latest = timeToMinutes(policy.latestEndTime);
-	const lunchEnforced = policy.enforceLunchWindow !== false;
-	const lunchStart = lunchEnforced && policy.lunchStartTime ? timeToMinutes(policy.lunchStartTime) : -1;
-	const lunchEnd = lunchEnforced && policy.lunchEndTime ? timeToMinutes(policy.lunchEndTime) : -1;
+		let cursor = earliest;
 
-	const slots: PeriodSlot[] = [];
-	let cursor = earliest;
+		while (cursor + STANDARD_PERIOD_MINUTES <= latest) {
+			const slotEnd = cursor + STANDARD_PERIOD_MINUTES;
 
-	while (cursor + STANDARD_PERIOD_MINUTES <= latest) {
-		const slotEnd = cursor + STANDARD_PERIOD_MINUTES;
+			// Skip slots that overlap lunch window
+			if (lunchStart >= 0 && cursor < lunchEnd && slotEnd > lunchStart) {
+				// Jump cursor past lunch window
+				cursor = lunchEnd;
+				continue;
+			}
 
-		// Skip slots that overlap lunch window
-		if (lunchStart >= 0 && cursor < lunchEnd && slotEnd > lunchStart) {
-			// Jump cursor past lunch window
-			cursor = lunchEnd;
-			continue;
+			const hh = (min: number) => String(Math.floor(min / 60)).padStart(2, '0');
+			const mm = (min: number) => String(min % 60).padStart(2, '0');
+			slots.push({
+				startTime: `${hh(cursor)}:${mm(cursor)}`,
+				endTime: `${hh(slotEnd)}:${mm(slotEnd)}`,
+			});
+
+			cursor = slotEnd;
 		}
-
-		const hh = (min: number) => String(Math.floor(min / 60)).padStart(2, '0');
-		const mm = (min: number) => String(min % 60).padStart(2, '0');
-		slots.push({
-			startTime: `${hh(cursor)}:${mm(cursor)}`,
-			endTime: `${hh(slotEnd)}:${mm(slotEnd)}`,
-		});
-
-		cursor = slotEnd;
 	}
 
 	return slots;
 }
 
+function buildSpecialEventSlots(policy?: PolicyInput): PeriodSlot[] {
+	if (!policy) {
+		return [];
+	}
+
+	const events: PeriodSlot[] = [];
+	if (policy.enableFlagCeremony ?? true) {
+		events.push({
+			startTime: policy.flagCeremonyStartTime ?? '07:00',
+			endTime: policy.flagCeremonyEndTime ?? '07:30',
+			isSpecialEvent: true,
+			eventName: 'FLAG CEREMONY',
+		});
+	}
+	if (policy.enableRecess ?? true) {
+		events.push({
+			startTime: policy.recessStartTime ?? '09:45',
+			endTime: policy.recessEndTime ?? '10:00',
+			isSpecialEvent: true,
+			eventName: 'RECESS',
+		});
+	}
+	if (policy.enableLunchWindow ?? policy.enforceLunchWindow ?? true) {
+		events.push({
+			startTime: policy.lunchStartTime ?? '11:55',
+			endTime: policy.lunchEndTime ?? '12:55',
+			isSpecialEvent: true,
+			eventName: 'LUNCH BREAK',
+		});
+	}
+
+	return events.sort((left, right) => {
+		const leftStart = timeToMinutes(left.startTime);
+		const rightStart = timeToMinutes(right.startTime);
+		if (leftStart !== rightStart) return leftStart - rightStart;
+		return timeToMinutes(left.endTime) - timeToMinutes(right.endTime);
+	});
+}
+
+function mergeDisplaySlots(periodSlots: PeriodSlot[], specialEventSlots: PeriodSlot[]): PeriodSlot[] {
+	return [...periodSlots, ...specialEventSlots].sort((left, right) => {
+		const leftStart = timeToMinutes(left.startTime);
+		const rightStart = timeToMinutes(right.startTime);
+		if (leftStart !== rightStart) return leftStart - rightStart;
+		return timeToMinutes(left.endTime) - timeToMinutes(right.endTime);
+	});
+}
+
 /** Exported for use by room-schedule service and other consumers. */
-export { buildPeriodSlots, type PeriodSlot };
+export { buildPeriodSlots, buildSpecialEventSlots, mergeDisplaySlots, type PeriodSlot };
 
 export interface ConstructorInput {
 	schoolId: number;
@@ -170,6 +229,7 @@ export interface ConstructorInput {
 	policy?: PolicyInput;
 	lockedEntries?: LockedEntryInput[];
 	gradeWindows?: GradeWindowInput[];
+	buildings?: Array<{ id: number; name: string }>;
 	/**
 	 * Optional demand override — bypasses computeDemand() to allow seed profile
 	 * reordering in the hybrid multi-seed constructor (H-ALG-1).
@@ -376,14 +436,24 @@ export function getDemandAssignmentKey(item: DemandItem): string {
 // ─── Occupancy tracker ───
 
 class OccupancyTracker {
-	private occupied = new Set<string>();
+	private occupied = new Map<string, Array<{ start: number; end: number }>>();
 
-	isOccupied(entityId: number, day: string, periodIdx: number): boolean {
-		return this.occupied.has(`${entityId}:${day}:${periodIdx}`);
+	isOccupied(entityId: number, day: string, startTime: string, endTime: string): boolean {
+		const key = `${entityId}:${day}`;
+		const start = timeToMinutes(startTime);
+		const end = timeToMinutes(endTime);
+		const intervals = this.occupied.get(key);
+		if (!intervals) return false;
+		return intervals.some((interval) => interval.start < end && start < interval.end);
 	}
 
-	mark(entityId: number, day: string, periodIdx: number): void {
-		this.occupied.add(`${entityId}:${day}:${periodIdx}`);
+	mark(entityId: number, day: string, startTime: string, endTime: string): void {
+		const key = `${entityId}:${day}`;
+		const start = timeToMinutes(startTime);
+		const end = timeToMinutes(endTime);
+		const intervals = this.occupied.get(key) ?? [];
+		intervals.push({ start, end });
+		this.occupied.set(key, intervals);
 	}
 }
 
@@ -450,6 +520,22 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		const arr = roomsByType.get(r.type) ?? [];
 		arr.push(r);
 		roomsByType.set(r.type, arr);
+	}
+
+	// ─── Building → Grade Level mapping ───
+	// Grade-level buildings follow pattern "Grade X Academic Wing"
+	// Shared buildings (Science, MAPEH, TLE, Admin) don't restrict to a grade
+	function extractGradeLevelFromBuildingName(name: string): number | null {
+		const match = name.match(/Grade\s+(\d+)/i);
+		return match ? Number(match[1]) : null;
+	}
+
+	const buildingGradeMap = new Map<number | null, number | null>(); // buildingId → gradeLevel (null if shared)
+	if (input.buildings && input.buildings.length > 0) {
+		for (const building of input.buildings) {
+			const gradeLevel = extractGradeLevelFromBuildingName(building.name);
+			buildingGradeMap.set(building.id, gradeLevel);
+		}
 	}
 
 	const subjectMap = new Map(subjects.map((s) => [s.id, s]));
@@ -558,15 +644,15 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			});
 
 			// Mark occupancy for locked placements
-			sectionOcc.mark(lock.sectionId, lock.day, pi);
-			facultyOcc.mark(lock.facultyId, lock.day, pi);
+			sectionOcc.mark(lock.sectionId, lock.day, period.startTime, period.endTime);
+			facultyOcc.mark(lock.facultyId, lock.day, period.startTime, period.endTime);
 			facultyLoad.set(lock.facultyId, (facultyLoad.get(lock.facultyId) ?? 0) + durationMinutes);
 			const dailyKey = `${lock.facultyId}:${lock.day}`;
 			facultyDailyMinutes.set(dailyKey, (facultyDailyMinutes.get(dailyKey) ?? 0) + durationMinutes);
 			const dayPeriods = facultyDayPeriods.get(dailyKey) ?? [];
 			dayPeriods.push(pi);
 			facultyDayPeriods.set(dailyKey, dayPeriods);
-			roomOcc.mark(lock.roomId, lock.day, pi);
+			roomOcc.mark(lock.roomId, lock.day, period.startTime, period.endTime);
 
 			assignedCount++;
 
@@ -739,7 +825,20 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		if (candidateFaculty.length === 0 && allowFlexible) {
 			candidateFaculty = allFacultyIds;
 		}
-		const compatibleRooms = roomsByType.get(item.roomTypePreference ?? subject.preferredRoomType) ?? [];
+		
+		// Get compatible rooms by type, then filter by grade level building assignment if applicable
+		let compatibleRooms = roomsByType.get(item.roomTypePreference ?? subject.preferredRoomType) ?? [];
+		
+		// Filter rooms to match grade level if room has a building assignment
+		if (compatibleRooms.length > 0 && buildingGradeMap.size > 0) {
+			compatibleRooms = compatibleRooms.filter((room) => {
+				const buildingId = room.buildingId;
+				if (!buildingId) return true; // No building assignment, allow usage
+				const buildingGradeLevel = buildingGradeMap.get(buildingId);
+				if (buildingGradeLevel === null) return true; // Shared building (null grade level), allow usage
+				return buildingGradeLevel === item.gradeLevel; // Only allow if grade level matches
+			});
+		}
 
 		// Track which days we already used for this section-subject pair (spread sessions across days)
 		const daysUsedForPair = new Set<string>();
@@ -779,8 +878,9 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					const periodsToCheck = gradeValidPeriods;
 
 					for (const pi of periodsToCheck) {
-						if (getDemandSectionIds(item).some((sectionId) => sectionOcc.isOccupied(sectionId, day, pi))) continue;
-						if (facultyOcc.isOccupied(facId, day, pi)) continue;
+						const slot = PERIOD_SLOTS[pi];
+						if (getDemandSectionIds(item).some((sectionId) => sectionOcc.isOccupied(sectionId, day, slot.startTime, slot.endTime))) continue;
+						if (facultyOcc.isOccupied(facId, day, slot.startTime, slot.endTime)) continue;
 
 						const prefKey = `${day}:${pi}`;
 						const pref = facPrefs?.get(prefKey);
@@ -812,7 +912,8 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				for (const cand of candidates) {
 					if (placed) break;
 					for (const room of compatibleRooms) {
-						if (roomOcc.isOccupied(room.id, cand.day, cand.pi)) continue;
+						const slot = PERIOD_SLOTS[cand.pi];
+						if (roomOcc.isOccupied(room.id, cand.day, slot.startTime, slot.endTime)) continue;
 
 						// Capacity check: skip room if section enrollment exceeds room capacity
 						if (room.capacity != null && item.enrolledCount > room.capacity) continue;
@@ -846,10 +947,10 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 						});
 
 						// Mark occupancy
-						facultyOcc.mark(facId, cand.day, cand.pi);
-						roomOcc.mark(room.id, cand.day, cand.pi);
+						facultyOcc.mark(facId, cand.day, period.startTime, period.endTime);
+						roomOcc.mark(room.id, cand.day, period.startTime, period.endTime);
 						for (const sectionId of getDemandSectionIds(item)) {
-							sectionOcc.mark(sectionId, cand.day, cand.pi);
+							sectionOcc.mark(sectionId, cand.day, period.startTime, period.endTime);
 						}
 
 						// Update load

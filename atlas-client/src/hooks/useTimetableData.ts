@@ -39,6 +39,7 @@ const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
 const VIOLATION_LABELS: Record<ViolationCode, string> = {
 	FACULTY_TIME_CONFLICT: 'Faculty Time Conflict',
 	ROOM_TIME_CONFLICT: 'Room Time Conflict',
+	SECTION_TIME_CONFLICT: 'Section Time Conflict',
 	FACULTY_OVERLOAD: 'Faculty Overload',
 	ROOM_TYPE_MISMATCH: 'Room Type Mismatch',
 	FACULTY_SUBJECT_NOT_QUALIFIED: 'Not Qualified',
@@ -60,6 +61,7 @@ const VIOLATION_LABELS: Record<ViolationCode, string> = {
 const CONFLICT_CODES: Set<ViolationCode> = new Set([
 	'FACULTY_TIME_CONFLICT',
 	'ROOM_TIME_CONFLICT',
+	'SECTION_TIME_CONFLICT',
 ]);
 
 const WELLBEING_CODES: Set<ViolationCode> = new Set([
@@ -165,7 +167,7 @@ export type TimetableDataState = {
 	preGenEntries: ScheduledEntry[];
 	isPreGenerationWorkspace: boolean;
 	activeGridEntriesBase: ScheduledEntry[];
-	timeSlots: Array<{ startTime: string; endTime: string }>;
+	timeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
 	cellConflictMap: Map<string, CellConflictInfo> | null;
 	filteredDraftEntries: ScheduledEntry[];
 	programKindFilteredUnassignedItems: UnassignedItem[];
@@ -426,7 +428,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 
 		const allIndex = new Map<string, ScheduledEntry[]>();
 		for (const e of activeGridEntriesBase) {
-			const key = `${e.day}-${e.startTime}`;
+			const key = `${e.day}-${e.startTime}-${e.endTime}`;
 			const list = allIndex.get(key) ?? [];
 			list.push(e);
 			allIndex.set(key, list);
@@ -450,7 +452,15 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		const map = new Map<string, CellConflictInfo>();
 		for (const slot of timeSlots) {
 			for (const day of DAYS) {
-				const key = `${day}-${slot.startTime}`;
+				const key = `${day}-${slot.startTime}-${slot.endTime}`;
+				if (slot.isSpecialEvent) {
+					map.set(key, {
+						kind: 'hard',
+						reasons: [`${slot.eventName ?? 'Special event'} slot is non-schedulable`],
+						displaced: [],
+					});
+					continue;
+				}
 				const cellEntries = allIndex.get(key) ?? [];
 
 				if (sourceEntryId && cellEntries.some((e) => e.entryId === sourceEntryId)) {
@@ -614,7 +624,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	const gridIndex = useMemo(() => {
 		const index = new Map<string, ScheduledEntry[]>();
 		for (const e of gridEntries) {
-			const key = `${e.day}-${e.startTime}`;
+			const key = `${e.day}-${e.startTime}-${e.endTime}`;
 			const list = index.get(key) ?? [];
 			list.push(e);
 			index.set(key, list);

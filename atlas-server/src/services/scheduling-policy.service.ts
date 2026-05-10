@@ -18,7 +18,7 @@ function err(statusCode: number, code: string, message: string): Error & { statu
 // ─── Default values ───
 
 export const POLICY_DEFAULTS = {
-	teacherMoveEnabled: false,
+	teacherMoveEnabled: true,
 	maxConsecutiveTeachingMinutesBeforeBreak: 120,
 	minBreakMinutesAfterConsecutiveBlock: 15,
 	maxTeachingMinutesPerDay: 400,
@@ -39,6 +39,14 @@ export const POLICY_DEFAULTS = {
 	lunchStartTime: '11:55',
 	lunchEndTime: '12:55',
 	enforceLunchWindow: true,
+	showSpecialEventsInGrid: true,
+	enableFlagCeremony: true,
+	flagCeremonyStartTime: '07:00',
+	flagCeremonyEndTime: '07:30',
+	enableRecess: true,
+	recessStartTime: '09:45',
+	recessEndTime: '10:00',
+	enableLunchWindow: true,
 	enableTleTwoPassPriority: true,
 	allowFlexibleSubjectAssignment: false,
 	allowConsecutiveLabSessions: false,
@@ -89,6 +97,14 @@ export interface SchedulingPolicyData {
 	lunchStartTime: string;
 	lunchEndTime: string;
 	enforceLunchWindow: boolean;
+	showSpecialEventsInGrid: boolean;
+	enableFlagCeremony: boolean;
+	flagCeremonyStartTime: string;
+	flagCeremonyEndTime: string;
+	enableRecess: boolean;
+	recessStartTime: string;
+	recessEndTime: string;
+	enableLunchWindow: boolean;
 	enableTleTwoPassPriority: boolean;
 	allowFlexibleSubjectAssignment: boolean;
 	allowConsecutiveLabSessions: boolean;
@@ -112,6 +128,7 @@ function minutesToTime(totalMinutes: number): string {
 }
 
 export interface PolicyInput {
+	teacherMoveEnabled?: unknown;
 	maxConsecutiveTeachingMinutesBeforeBreak?: unknown;
 	minBreakMinutesAfterConsecutiveBlock?: unknown;
 	maxTeachingMinutesPerDay?: unknown;
@@ -132,10 +149,28 @@ export interface PolicyInput {
 	lunchStartTime?: unknown;
 	lunchEndTime?: unknown;
 	enforceLunchWindow?: unknown;
+	showSpecialEventsInGrid?: unknown;
+	enableFlagCeremony?: unknown;
+	flagCeremonyStartTime?: unknown;
+	flagCeremonyEndTime?: unknown;
+	enableRecess?: unknown;
+	recessStartTime?: unknown;
+	recessEndTime?: unknown;
+	enableLunchWindow?: unknown;
 	enableTleTwoPassPriority?: unknown;
 	allowFlexibleSubjectAssignment?: unknown;
 	allowConsecutiveLabSessions?: unknown;
 	constraintConfig?: unknown;
+}
+
+interface SpecialEventWindow {
+	enabled: boolean;
+	startTime: string;
+	endTime: string;
+}
+
+function overlapsWindow(left: { start: number; end: number }, right: { start: number; end: number }): boolean {
+	return left.start < right.end && right.start < left.end;
 }
 
 export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolicyData; errors: string[] } {
@@ -194,6 +229,15 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 	}
 
 	// --- bool ---
+	let teacherMoveEnabled: boolean = POLICY_DEFAULTS.teacherMoveEnabled;
+	if (input.teacherMoveEnabled !== undefined && input.teacherMoveEnabled !== null) {
+		if (typeof input.teacherMoveEnabled !== 'boolean') {
+			errors.push('teacherMoveEnabled must be a boolean.');
+		} else {
+			teacherMoveEnabled = input.teacherMoveEnabled;
+		}
+	}
+
 	let enforceHard: boolean = POLICY_DEFAULTS.enforceConsecutiveBreakAsHard;
 	if (input.enforceConsecutiveBreakAsHard !== undefined && input.enforceConsecutiveBreakAsHard !== null) {
 		if (typeof input.enforceConsecutiveBreakAsHard !== 'boolean') {
@@ -288,6 +332,56 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 			enforceLunch = input.enforceLunchWindow;
 		}
 	}
+
+	let enableLunchWindow: boolean = POLICY_DEFAULTS.enableLunchWindow;
+	if (input.enableLunchWindow !== undefined && input.enableLunchWindow !== null) {
+		if (typeof input.enableLunchWindow !== 'boolean') {
+			errors.push('enableLunchWindow must be a boolean.');
+		} else {
+			enableLunchWindow = input.enableLunchWindow;
+		}
+	}
+
+	// Backward-compat: when either flag is provided, keep them in sync.
+	enableLunchWindow = input.enableLunchWindow !== undefined || input.enforceLunchWindow === undefined
+		? enableLunchWindow
+		: enforceLunch;
+	enforceLunch = enableLunchWindow;
+
+	let showSpecialEventsInGrid: boolean = POLICY_DEFAULTS.showSpecialEventsInGrid;
+	if (input.showSpecialEventsInGrid !== undefined && input.showSpecialEventsInGrid !== null) {
+		if (typeof input.showSpecialEventsInGrid !== 'boolean') {
+			errors.push('showSpecialEventsInGrid must be a boolean.');
+		} else {
+			showSpecialEventsInGrid = input.showSpecialEventsInGrid;
+		}
+	}
+
+	let enableFlagCeremony: boolean = POLICY_DEFAULTS.enableFlagCeremony;
+	if (input.enableFlagCeremony !== undefined && input.enableFlagCeremony !== null) {
+		if (typeof input.enableFlagCeremony !== 'boolean') {
+			errors.push('enableFlagCeremony must be a boolean.');
+		} else {
+			enableFlagCeremony = input.enableFlagCeremony;
+		}
+	}
+	const flagCeremonyStartTime = requireTime(input.flagCeremonyStartTime, 'flagCeremonyStartTime', POLICY_DEFAULTS.flagCeremonyStartTime);
+	const flagCeremonyEndTime = requireTime(input.flagCeremonyEndTime, 'flagCeremonyEndTime', POLICY_DEFAULTS.flagCeremonyEndTime);
+
+	let enableRecess: boolean = POLICY_DEFAULTS.enableRecess;
+	if (input.enableRecess !== undefined && input.enableRecess !== null) {
+		if (typeof input.enableRecess !== 'boolean') {
+			errors.push('enableRecess must be a boolean.');
+		} else {
+			enableRecess = input.enableRecess;
+		}
+	}
+	const recessStartTime = requireTime(input.recessStartTime, 'recessStartTime', POLICY_DEFAULTS.recessStartTime);
+	const recessEndTime = requireTime(input.recessEndTime, 'recessEndTime', POLICY_DEFAULTS.recessEndTime);
+	const flagWithinBounds = timeToMinutes(flagCeremonyEndTime) > earliestMinutes && timeToMinutes(flagCeremonyStartTime) < latestMinutes;
+	const recessWithinBounds = timeToMinutes(recessEndTime) > earliestMinutes && timeToMinutes(recessStartTime) < latestMinutes;
+	enableFlagCeremony = enableFlagCeremony && flagWithinBounds;
+	enableRecess = enableRecess && recessWithinBounds;
 	let lunchStart = requireTime(input.lunchStartTime, 'lunchStartTime', POLICY_DEFAULTS.lunchStartTime);
 	let lunchEnd = requireTime(input.lunchEndTime, 'lunchEndTime', POLICY_DEFAULTS.lunchEndTime);
 
@@ -296,10 +390,11 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 
 	// Normalize lunch window against schedule bounds for robust "half-day" policies.
 	// If it cannot fit, gracefully disable lunch enforcement instead of failing save.
-	if (errors.length === 0 && enforceLunch) {
+	if (errors.length === 0 && enableLunchWindow) {
 		lunchStartMinutes = Math.max(lunchStartMinutes, earliestMinutes);
 		lunchEndMinutes = Math.min(lunchEndMinutes, latestMinutes);
 		if (lunchStartMinutes >= lunchEndMinutes) {
+			enableLunchWindow = false;
 			enforceLunch = false;
 		} else {
 			lunchStart = minutesToTime(lunchStartMinutes);
@@ -308,12 +403,57 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 	}
 
 	if (errors.length === 0) {
-		const lunchMinutes = enforceLunch ? Math.max(0, lunchEndMinutes - lunchStartMinutes) : 0;
+		const lunchMinutes = enableLunchWindow ? Math.max(0, lunchEndMinutes - lunchStartMinutes) : 0;
 		const effectiveTeachingWindowMinutes = latestMinutes - earliestMinutes - lunchMinutes;
 		if (effectiveTeachingWindowMinutes < STANDARD_PERIOD_MINUTES) {
 			errors.push(
 				`Policy leaves only ${effectiveTeachingWindowMinutes} effective teaching minutes, which is below one period (${STANDARD_PERIOD_MINUTES} minutes).`,
 			);
+		}
+	}
+
+	if (errors.length === 0) {
+		const windows: SpecialEventWindow[] = [
+			{
+				enabled: enableFlagCeremony,
+				startTime: flagCeremonyStartTime,
+				endTime: flagCeremonyEndTime,
+			},
+			{
+				enabled: enableRecess,
+				startTime: recessStartTime,
+				endTime: recessEndTime,
+			},
+			{
+				enabled: enableLunchWindow,
+				startTime: lunchStart,
+				endTime: lunchEnd,
+			},
+		];
+
+		for (const [index, windowDef] of windows.entries()) {
+			if (!windowDef.enabled) continue;
+			const start = timeToMinutes(windowDef.startTime);
+			const end = timeToMinutes(windowDef.endTime);
+			if (start >= end) {
+				errors.push(`Special event window #${index + 1} must have startTime before endTime.`);
+			}
+			if (end <= earliestMinutes || start >= latestMinutes) continue;
+		}
+
+		const enabledWindows = windows
+			.filter((windowDef) => windowDef.enabled)
+			.map((windowDef) => ({
+				start: timeToMinutes(windowDef.startTime),
+				end: timeToMinutes(windowDef.endTime),
+			}));
+
+		for (let index = 0; index < enabledWindows.length; index++) {
+			for (let nextIndex = index + 1; nextIndex < enabledWindows.length; nextIndex++) {
+				if (overlapsWindow(enabledWindows[index], enabledWindows[nextIndex])) {
+					errors.push('Special event windows must not overlap each other.');
+				}
+			}
 		}
 	}
 
@@ -370,6 +510,7 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 
 	return {
 		data: {
+			teacherMoveEnabled,
 			maxConsecutiveTeachingMinutesBeforeBreak: maxConsecutive,
 			minBreakMinutesAfterConsecutiveBlock: minBreak,
 			maxTeachingMinutesPerDay: maxDaily,
@@ -389,7 +530,15 @@ export function validatePolicyInput(input: PolicyInput): { data: SchedulingPolic
 			maxCompressedTeachingMinutesPerDay: maxCompressedPerDay,
 			lunchStartTime: lunchStart,
 			lunchEndTime: lunchEnd,
-			enforceLunchWindow: enforceLunch,
+			enforceLunchWindow: enableLunchWindow,
+			showSpecialEventsInGrid,
+			enableFlagCeremony,
+			flagCeremonyStartTime,
+			flagCeremonyEndTime,
+			enableRecess,
+			recessStartTime,
+			recessEndTime,
+			enableLunchWindow,
 			enableTleTwoPassPriority: enableTleTwoPass,
 			allowFlexibleSubjectAssignment: allowFlexibleAssignment,
 			allowConsecutiveLabSessions: allowConsecutiveLab,
@@ -463,9 +612,21 @@ async function ensureSchedulingPolicyColumns(): Promise<void> {
 				ADD COLUMN IF NOT EXISTS "lunch_start_time" TEXT NOT NULL DEFAULT '11:55',
 				ADD COLUMN IF NOT EXISTS "lunch_end_time" TEXT NOT NULL DEFAULT '12:55',
 				ADD COLUMN IF NOT EXISTS "enforce_lunch_window" BOOLEAN NOT NULL DEFAULT true,
+				ADD COLUMN IF NOT EXISTS "show_special_events_in_grid" BOOLEAN NOT NULL DEFAULT true,
+				ADD COLUMN IF NOT EXISTS "enable_flag_ceremony" BOOLEAN NOT NULL DEFAULT true,
+				ADD COLUMN IF NOT EXISTS "flag_ceremony_start_time" TEXT NOT NULL DEFAULT '07:00',
+				ADD COLUMN IF NOT EXISTS "flag_ceremony_end_time" TEXT NOT NULL DEFAULT '07:30',
+				ADD COLUMN IF NOT EXISTS "enable_recess" BOOLEAN NOT NULL DEFAULT true,
+				ADD COLUMN IF NOT EXISTS "recess_start_time" TEXT NOT NULL DEFAULT '09:45',
+				ADD COLUMN IF NOT EXISTS "recess_end_time" TEXT NOT NULL DEFAULT '10:00',
+				ADD COLUMN IF NOT EXISTS "enable_lunch_window" BOOLEAN NOT NULL DEFAULT true,
 				ADD COLUMN IF NOT EXISTS "enable_tle_two_pass_priority" BOOLEAN NOT NULL DEFAULT true,
 				ADD COLUMN IF NOT EXISTS "allow_flexible_subject_assignment" BOOLEAN NOT NULL DEFAULT false,
 				ADD COLUMN IF NOT EXISTS "allow_consecutive_lab_sessions" BOOLEAN NOT NULL DEFAULT false;
+
+			UPDATE "scheduling_policies"
+			SET "enable_lunch_window" = "enforce_lunch_window"
+			WHERE "enable_lunch_window" IS DISTINCT FROM "enforce_lunch_window";
 			`);
 		})().catch((e) => {
 			ensureColumnsPromise = null;
@@ -540,8 +701,17 @@ export async function upsertPolicy(schoolId: number, schoolYearId: number, input
 		lunchStartTime: data.lunchStartTime,
 		lunchEndTime: data.lunchEndTime,
 		enforceLunchWindow: data.enforceLunchWindow,
+		showSpecialEventsInGrid: data.showSpecialEventsInGrid,
+		enableFlagCeremony: data.enableFlagCeremony,
+		flagCeremonyStartTime: data.flagCeremonyStartTime,
+		flagCeremonyEndTime: data.flagCeremonyEndTime,
+		enableRecess: data.enableRecess,
+		recessStartTime: data.recessStartTime,
+		recessEndTime: data.recessEndTime,
+		enableLunchWindow: data.enableLunchWindow,
 		enableTleTwoPassPriority: data.enableTleTwoPassPriority,
 		allowFlexibleSubjectAssignment: data.allowFlexibleSubjectAssignment,
+		allowConsecutiveLabSessions: data.allowConsecutiveLabSessions,
 		constraintConfig: constraintConfigValue,
 	};
 

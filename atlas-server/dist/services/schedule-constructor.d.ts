@@ -55,6 +55,7 @@ export interface RoomInput {
     type: RoomType;
     isTeachingSpace: boolean;
     capacity: number | null;
+    buildingId?: number | null;
 }
 export interface PreferenceSlotInput {
     day: string;
@@ -76,6 +77,14 @@ export interface PolicyInput {
     lunchStartTime?: string;
     lunchEndTime?: string;
     enforceLunchWindow?: boolean;
+    enableLunchWindow?: boolean;
+    showSpecialEventsInGrid?: boolean;
+    enableFlagCeremony?: boolean;
+    flagCeremonyStartTime?: string;
+    flagCeremonyEndTime?: string;
+    enableRecess?: boolean;
+    recessStartTime?: string;
+    recessEndTime?: string;
     enableTleTwoPassPriority?: boolean;
     allowFlexibleSubjectAssignment?: boolean;
     allowConsecutiveLabSessions?: boolean;
@@ -83,15 +92,18 @@ export interface PolicyInput {
 type PeriodSlot = {
     startTime: string;
     endTime: string;
+    isSpecialEvent?: boolean;
+    eventName?: string;
 };
 /**
- * Build period slots dynamically from policy bounds and optional lunch window.
- * Generates consecutive 50-minute periods between earliest and latest times,
- * excluding any slot that overlaps the lunch window.
+ * Build schedulable class period slots from policy bounds and lunch window.
+ * Special event rows are built separately via buildSpecialEventSlots().
  */
 declare function buildPeriodSlots(policy?: PolicyInput): PeriodSlot[];
+declare function buildSpecialEventSlots(policy?: PolicyInput): PeriodSlot[];
+declare function mergeDisplaySlots(periodSlots: PeriodSlot[], specialEventSlots: PeriodSlot[]): PeriodSlot[];
 /** Exported for use by room-schedule service and other consumers. */
-export { buildPeriodSlots, type PeriodSlot };
+export { buildPeriodSlots, buildSpecialEventSlots, mergeDisplaySlots, type PeriodSlot };
 export interface ConstructorInput {
     schoolId: number;
     schoolYearId: number;
@@ -105,6 +117,10 @@ export interface ConstructorInput {
     policy?: PolicyInput;
     lockedEntries?: LockedEntryInput[];
     gradeWindows?: GradeWindowInput[];
+    buildings?: Array<{
+        id: number;
+        name: string;
+    }>;
     /**
      * Optional demand override — bypasses computeDemand() to allow seed profile
      * reordering in the hybrid multi-seed constructor (H-ALG-1).

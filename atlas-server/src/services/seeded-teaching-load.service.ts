@@ -98,7 +98,7 @@ const SUBJECT_PRIORITY = new Map([
 
 const JHS_DEPT_KEYWORDS: Record<string, string[]> = {
 	mathematics: ['math', 'mathematics', 'algebra', 'geometry', 'statistics'],
-	science: ['sci', 'science', 'biology', 'chemistry', 'physics', 'earth'],
+	science: ['sci', 'science', 'biology', 'chemistry', 'physics', 'earth', 'environmental', 'biotechnology', 'electronics', 'research iii', 'advanced physics', 'advanced chemistry'],
 	english: ['eng', 'english', 'reading', 'literature', 'oral'],
 	filipino: ['fil', 'filipino', 'wika'],
 	'araling panlipunan': ['ap', 'araling', 'panlipunan', 'social'],
@@ -106,6 +106,18 @@ const JHS_DEPT_KEYWORDS: Record<string, string[]> = {
 	'technology and livelihood education': ['tle', 'technology', 'livelihood', 'cookery', 'ict', 'agri', 'industrial', 'home economics'],
 	'edukasyon sa pagpapakatao': ['values', 'edukasyon', 'pagpapakatao', 'esp', 've'],
 	'homeroom guidance': ['homeroom', 'guidance', 'hg'],
+};
+
+const SUBJECT_CODE_MATCHERS: Record<string, string[]> = {
+	mathematics: ['MATH', 'RESEARCH_I', 'BASIC_STATISTICS', 'RESEARCH_II', 'ADVANCED_STATISTICS'],
+	science: ['SCI', 'ENV_SCI', 'BIOTECHNOLOGY', 'RESEARCH_III', 'ADVANCED_PHYSICS', 'ADVANCED_CHEMISTRY', 'ELECTRONICS'],
+	english: ['ENG'],
+	filipino: ['FIL'],
+	'araling panlipunan': ['AP'],
+	mapeh: ['MAPEH'],
+	'technology and livelihood education': ['TLE'],
+	'edukasyon sa pagpapakatao': ['ESP'],
+	'homeroom guidance': ['HG'],
 };
 
 const DEPARTMENT_ALIASES: Record<string, string> = {
@@ -154,6 +166,17 @@ function isHomeroomSubject(subject: Pick<SeedableSubject, 'code' | 'name'>): boo
 	return code === 'hg' || code.includes('homeroom') || name.includes('homeroom guidance') || name.includes('homeroom');
 }
 
+function subjectMatchesDepartment(normalizedDepartment: string, subject: Pick<SeedableSubject, 'code' | 'name'>): boolean {
+	const code = subject.code.trim().toLowerCase();
+	const name = subject.name.trim().toLowerCase();
+	const codeMatchers = SUBJECT_CODE_MATCHERS[normalizedDepartment] ?? [];
+	if (codeMatchers.some((matcher) => code === matcher.toLowerCase() || code.includes(matcher.toLowerCase()))) {
+		return true;
+	}
+	const keywords = JHS_DEPT_KEYWORDS[normalizedDepartment] ?? [];
+	return keywords.some((keyword) => code.includes(keyword) || name.includes(keyword));
+}
+
 function matchesFacultySubject(department: string | null, subject: Pick<SeedableSubject, 'code' | 'name'>): boolean {
 	if (isHomeroomSubject(subject)) {
 		return normalizeDepartment(department) === 'homeroom guidance';
@@ -162,10 +185,7 @@ function matchesFacultySubject(department: string | null, subject: Pick<Seedable
 	const normalizedDepartment = normalizeDepartment(department);
 	if (!normalizedDepartment) return false;
 
-	const code = subject.code.trim().toLowerCase();
-	const name = subject.name.trim().toLowerCase();
-	const keywords = JHS_DEPT_KEYWORDS[normalizedDepartment] ?? [];
-	return keywords.some((keyword) => code.includes(keyword) || name.includes(keyword));
+	return subjectMatchesDepartment(normalizedDepartment, subject);
 }
 
 function supportsSecondaryCoverage(department: string | null, subject: Pick<SeedableSubject, 'code' | 'name'>): boolean {
@@ -177,6 +197,11 @@ function supportsSecondaryCoverage(department: string | null, subject: Pick<Seed
 	const code = subject.code.trim().toLowerCase();
 	const name = subject.name.trim().toLowerCase();
 	return code === 've' || name.includes('values education');
+}
+
+function canTeachOutsideDepartment(subject: Pick<SeedableSubject, 'code' | 'name'>): boolean {
+	return ['FIL', 'ENG', 'MATH', 'SCI', 'ESP', 'HG'].includes(subject.code.trim().toUpperCase())
+		|| ['filipino', 'english', 'mathematics', 'science', 'edukasyon sa pagpapakatao', 'homeroom'].some((term) => subject.name.trim().toLowerCase().includes(term));
 }
 
 function subjectSort(left: SeedableSubject, right: SeedableSubject): number {
@@ -285,7 +310,7 @@ function buildPairDefinitions(sections: Array<ExternalSection & { displayOrder: 
 				const secondary = faculty.filter((member) => supportsSecondaryCoverage(member.department, subject)).map((member) => member.id);
 				candidateIds = direct.length > 0 || secondary.length > 0
 					? [...new Set([...direct, ...secondary])]
-					: faculty.filter((member) => member.canTeachOutsideDepartment).map((member) => member.id);
+					: faculty.filter((member) => member.canTeachOutsideDepartment && canTeachOutsideDepartment(subject)).map((member) => member.id);
 			}
 
 			pairDefinitions.push({

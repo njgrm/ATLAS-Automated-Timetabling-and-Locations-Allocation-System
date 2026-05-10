@@ -20,6 +20,7 @@ export const DAY_SHORT: Record<string, string> = {
 export const VIOLATION_LABELS: Record<ViolationCode, string> = {
 	FACULTY_TIME_CONFLICT: 'Faculty Time Conflict',
 	ROOM_TIME_CONFLICT: 'Room Time Conflict',
+	SECTION_TIME_CONFLICT: 'Section Time Conflict',
 	FACULTY_OVERLOAD: 'Faculty Overload',
 	ROOM_TYPE_MISMATCH: 'Room Type Mismatch',
 	FACULTY_SUBJECT_NOT_QUALIFIED: 'Not Qualified',
@@ -41,6 +42,7 @@ export const VIOLATION_LABELS: Record<ViolationCode, string> = {
 export const CONFLICT_CODES: Set<ViolationCode> = new Set([
 	'FACULTY_TIME_CONFLICT',
 	'ROOM_TIME_CONFLICT',
+	'SECTION_TIME_CONFLICT',
 ]);
 
 export const WELLBEING_CODES: Set<ViolationCode> = new Set([

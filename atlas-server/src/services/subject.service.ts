@@ -7,27 +7,50 @@ const MATATAG_DEFAULTS = [
 	{ code: 'SCI', name: 'Science', minMinutesPerWeek: 225, preferredRoomType: 'LABORATORY' as const, gradeLevels: [7, 8, 9, 10] },
 	{ code: 'AP', name: 'Araling Panlipunan', minMinutesPerWeek: 200, preferredRoomType: 'CLASSROOM' as const, gradeLevels: [7, 8, 9, 10] },
 	{ code: 'MAPEH', name: 'MAPEH', minMinutesPerWeek: 200, preferredRoomType: 'GYMNASIUM' as const, gradeLevels: [7, 8, 9, 10] },
-	{ code: 'VE', name: 'Values Education', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM' as const, gradeLevels: [7, 8, 9, 10] },
+	{ code: 'ESP', name: 'Edukasyon sa Pagpapakatao (EsP)', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM' as const, gradeLevels: [7, 8, 9, 10] },
 	{ code: 'TLE', name: 'Technology and Livelihood Education', minMinutesPerWeek: 200, preferredRoomType: 'TLE_WORKSHOP' as const, gradeLevels: [7, 8, 9, 10] },
 	{ code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM' as const, gradeLevels: [7, 8, 9, 10] },
+	{ code: 'ENV_SCI', name: 'Environmental Science', minMinutesPerWeek: 180, preferredRoomType: 'LABORATORY' as const, gradeLevels: [7, 8, 9, 10] },
+	{ code: 'RESEARCH_I', name: 'Research I / Basic Statistics', minMinutesPerWeek: 180, preferredRoomType: 'CLASSROOM' as const, gradeLevels: [7, 8, 9, 10] },
+	{ code: 'BASIC_STATISTICS', name: 'Basic Statistics', minMinutesPerWeek: 180, preferredRoomType: 'CLASSROOM' as const, gradeLevels: [7, 8, 9, 10] },
+	{ code: 'RESEARCH_II', name: 'Research II / Advanced Statistics', minMinutesPerWeek: 180, preferredRoomType: 'CLASSROOM' as const, gradeLevels: [7, 8, 9, 10] },
+	{ code: 'ADVANCED_STATISTICS', name: 'Advanced Statistics', minMinutesPerWeek: 180, preferredRoomType: 'CLASSROOM' as const, gradeLevels: [7, 8, 9, 10] },
+	{ code: 'BIOTECHNOLOGY', name: 'Biotechnology', minMinutesPerWeek: 180, preferredRoomType: 'LABORATORY' as const, gradeLevels: [7, 8, 9, 10] },
+	{ code: 'RESEARCH_III', name: 'Research III / Advanced Physics', minMinutesPerWeek: 180, preferredRoomType: 'LABORATORY' as const, gradeLevels: [7, 8, 9, 10] },
+	{ code: 'ADVANCED_PHYSICS', name: 'Advanced Physics', minMinutesPerWeek: 180, preferredRoomType: 'LABORATORY' as const, gradeLevels: [7, 8, 9, 10] },
+	{ code: 'ADVANCED_CHEMISTRY', name: 'Advanced Chemistry', minMinutesPerWeek: 180, preferredRoomType: 'LABORATORY' as const, gradeLevels: [7, 8, 9, 10] },
+	{ code: 'ELECTRONICS', name: 'Electronics', minMinutesPerWeek: 180, preferredRoomType: 'TLE_WORKSHOP' as const, gradeLevels: [7, 8, 9, 10] },
 ];
 
 export async function ensureDefaultSubjects(schoolId: number): Promise<void> {
-	const count = await prisma.subject.count({ where: { schoolId } });
-	if (count > 0) return;
-
-	await prisma.subject.createMany({
-		data: MATATAG_DEFAULTS.map((s) => ({
-			schoolId,
-			code: s.code,
-			name: s.name,
-			minMinutesPerWeek: s.minMinutesPerWeek,
-			preferredRoomType: s.preferredRoomType,
-			gradeLevels: s.gradeLevels,
-			isSeedable: true,
-			isActive: true,
+	await prisma.$transaction(
+		MATATAG_DEFAULTS.map((subject) => prisma.subject.upsert({
+			where: {
+				schoolId_code: {
+					schoolId,
+					code: subject.code,
+				},
+			},
+			update: {
+				name: subject.name,
+				minMinutesPerWeek: subject.minMinutesPerWeek,
+				preferredRoomType: subject.preferredRoomType,
+				gradeLevels: subject.gradeLevels,
+				isSeedable: true,
+				isActive: true,
+			},
+			create: {
+				schoolId,
+				code: subject.code,
+				name: subject.name,
+				minMinutesPerWeek: subject.minMinutesPerWeek,
+				preferredRoomType: subject.preferredRoomType,
+				gradeLevels: subject.gradeLevels,
+				isSeedable: true,
+				isActive: true,
+			},
 		})),
-	});
+	);
 }
 
 export async function getSubjectsBySchool(schoolId: number) {

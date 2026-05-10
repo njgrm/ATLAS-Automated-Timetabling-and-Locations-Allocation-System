@@ -1,7 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { Prisma } from '@prisma/client';
 import { validateHardConstraints, } from './constraint-validator.js';
-import { buildPeriodSlots, computeDemand, getDemandAssignmentKey, } from './schedule-constructor.js';
+import { buildPeriodSlots, buildSpecialEventSlots, mergeDisplaySlots, computeDemand, getDemandAssignmentKey, } from './schedule-constructor.js';
 import { sectionAdapter } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
@@ -280,7 +280,7 @@ async function loadDraftContext(schoolId, schoolYearId) {
     });
     const sectionsById = new Map(sectionResult.gradeLevels.flatMap((grade) => grade.sections.map((section) => [section.id, section])));
     const sectionEnrollment = new Map(sectionResult.gradeLevels.flatMap((grade) => grade.sections.map((section) => [section.id, section.enrolledCount])));
-    const periodSlots = buildPeriodSlots({
+    const classPeriodSlots = buildPeriodSlots({
         maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
         minBreakMinutesAfterConsecutiveBlock: policyRecord.minBreakMinutesAfterConsecutiveBlock,
         maxTeachingMinutesPerDay: policyRecord.maxTeachingMinutesPerDay,
@@ -288,8 +288,35 @@ async function loadDraftContext(schoolId, schoolYearId) {
         latestEndTime: policyRecord.latestEndTime,
         lunchStartTime: policyRecord.lunchStartTime ?? undefined,
         lunchEndTime: policyRecord.lunchEndTime ?? undefined,
+        enableLunchWindow: policyRecord.enableLunchWindow ?? undefined,
         enforceLunchWindow: policyRecord.enforceLunchWindow ?? undefined,
+        enableFlagCeremony: policyRecord.enableFlagCeremony ?? undefined,
+        flagCeremonyStartTime: policyRecord.flagCeremonyStartTime ?? undefined,
+        flagCeremonyEndTime: policyRecord.flagCeremonyEndTime ?? undefined,
+        enableRecess: policyRecord.enableRecess ?? undefined,
+        recessStartTime: policyRecord.recessStartTime ?? undefined,
+        recessEndTime: policyRecord.recessEndTime ?? undefined,
     });
+    const specialEventSlots = buildSpecialEventSlots({
+        maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
+        minBreakMinutesAfterConsecutiveBlock: policyRecord.minBreakMinutesAfterConsecutiveBlock,
+        maxTeachingMinutesPerDay: policyRecord.maxTeachingMinutesPerDay,
+        earliestStartTime: policyRecord.earliestStartTime,
+        latestEndTime: policyRecord.latestEndTime,
+        lunchStartTime: policyRecord.lunchStartTime ?? undefined,
+        lunchEndTime: policyRecord.lunchEndTime ?? undefined,
+        enableLunchWindow: policyRecord.enableLunchWindow ?? undefined,
+        enforceLunchWindow: policyRecord.enforceLunchWindow ?? undefined,
+        enableFlagCeremony: policyRecord.enableFlagCeremony ?? undefined,
+        flagCeremonyStartTime: policyRecord.flagCeremonyStartTime ?? undefined,
+        flagCeremonyEndTime: policyRecord.flagCeremonyEndTime ?? undefined,
+        enableRecess: policyRecord.enableRecess ?? undefined,
+        recessStartTime: policyRecord.recessStartTime ?? undefined,
+        recessEndTime: policyRecord.recessEndTime ?? undefined,
+    });
+    const periodSlots = (policyRecord.showSpecialEventsInGrid ?? true)
+        ? mergeDisplaySlots(classPeriodSlots, specialEventSlots)
+        : classPeriodSlots;
     const demand = computeDemand(sectionResult.gradeLevels, subjects, cohorts);
     const demandByKey = new Map(demand.map((item) => [getDemandAssignmentKey(item), item]));
     const qualifiedByKey = new Map();
@@ -316,6 +343,7 @@ async function loadDraftContext(schoolId, schoolYearId) {
         gradeWindows,
         placements,
         periodSlots,
+        classPeriodSlots,
         demand,
         demandByKey,
         qualifiedByKey,
@@ -367,7 +395,7 @@ function validateInputOrThrow(input, ctx) {
     if (!VALID_DAYS.has(input.day)) {
         throw err(400, 'INVALID_DAY', 'Day must be one of MONDAY, TUESDAY, WEDNESDAY, THURSDAY, or FRIDAY.');
     }
-    if (!ctx.periodSlots.some((slot) => slot.startTime === input.startTime && slot.endTime === input.endTime)) {
+    if (!ctx.classPeriodSlots.some((slot) => slot.startTime === input.startTime && slot.endTime === input.endTime)) {
         throw err(422, 'INVALID_TIME_SLOT', `Time slot ${input.startTime}-${input.endTime} is outside the configured policy window.`);
     }
     const assignmentKey = buildAssignmentKey(input);
@@ -572,6 +600,7 @@ async function buildBoardStateFromContext(schoolId, schoolYearId, ctx) {
         placements,
         queue,
         periodSlots: ctx.periodSlots,
+        classPeriodSlots: ctx.classPeriodSlots,
         counts,
         filters: {
             grades: [...new Set(ctx.sections.map((grade) => grade.displayOrder))].sort((left, right) => left - right),

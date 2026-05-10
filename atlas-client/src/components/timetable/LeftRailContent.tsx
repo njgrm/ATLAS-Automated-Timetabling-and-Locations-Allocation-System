@@ -355,6 +355,38 @@ return (
 												<span className={`font-bold ${summary.unassignedCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{summary.unassignedCount}</span>
 											</div>
 										</div>
+										{summary.resourceDiagnostics && (
+											<div className="rounded border border-border/70 bg-background/70 px-2.5 py-2 space-y-2 text-[0.625rem]">
+												<div className="font-semibold text-muted-foreground uppercase tracking-wide">Resource Diagnostics</div>
+												<div className="space-y-1">
+													<div className="font-medium">Lowest qualified-faculty coverage</div>
+													{summary.resourceDiagnostics.qualifiedFacultyCoverageBySubject.slice(0, 3).map((row) => (
+														<div key={`coverage-${row.subjectId}`} className="flex items-center justify-between text-muted-foreground">
+															<span>{row.subjectCode}</span>
+															<span className="font-semibold text-amber-700">{row.coveragePercent}%</span>
+														</div>
+													))}
+												</div>
+												<div className="space-y-1">
+													<div className="font-medium">Most saturated intervals</div>
+													{summary.resourceDiagnostics.slotSaturationByInterval.slice(0, 3).map((row, idx) => (
+														<div key={`sat-${idx}-${row.day}-${row.startTime}-${row.endTime}`} className="flex items-center justify-between text-muted-foreground">
+															<span>{row.day.slice(0, 3)} {row.startTime}-{row.endTime}</span>
+															<span className="font-semibold text-rose-700">{row.saturationPercent}%</span>
+														</div>
+													))}
+												</div>
+												<div className="space-y-1">
+													<div className="font-medium">Top unassigned clusters</div>
+													{summary.resourceDiagnostics.unassignedBySubjectGrade.slice(0, 3).map((row) => (
+														<div key={`unassigned-${row.subjectId}-${row.gradeLevel}`} className="flex items-center justify-between text-muted-foreground">
+															<span>{row.subjectCode} • G{row.gradeLevel}</span>
+															<span className="font-semibold text-amber-700">{row.count}</span>
+														</div>
+													))}
+												</div>
+											</div>
+										)}
 										{/* Unassigned items list */}
 										{filteredUnassignedItems.length > 0 && (
 											<div className="space-y-2">

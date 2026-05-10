@@ -97,22 +97,44 @@ export function scoreFitness(result, hardViolationCount = 0, softViolationCount 
     };
 }
 /** Maximum relocation attempts to bound repair-pass runtime. */
-const MAX_REPAIR_ATTEMPTS = 30;
-function buildOccupancySets(entries) {
-    const faculty = new Set();
-    const room = new Set();
-    const section = new Set();
-    for (const e of entries) {
-        faculty.add(`${e.facultyId}:${e.day}:${e.startTime}`);
-        room.add(`${e.roomId}:${e.day}:${e.startTime}`);
-        const sectionIds = e.entryKind === 'COHORT' && e.cohortMemberSectionIds?.length
-            ? e.cohortMemberSectionIds
-            : [e.sectionId];
-        for (const sid of sectionIds) {
-            section.add(`${sid}:${e.day}:${e.startTime}`);
-        }
+const MAX_REPAIR_ATTEMPTS = 120;
+function timeToMinutes(value) {
+    const [h, m] = value.split(':').map(Number);
+    return h * 60 + m;
+}
+function intervalsOverlap(left, right) {
+    return timeToMinutes(left.startTime) < timeToMinutes(right.endTime)
+        && timeToMinutes(right.startTime) < timeToMinutes(left.endTime);
+}
+function getEffectiveSectionIds(entry) {
+    return entry.entryKind === 'COHORT' && entry.cohortMemberSectionIds?.length
+        ? entry.cohortMemberSectionIds
+        : [entry.sectionId];
+}
+function hasOverlapConflict(target, entries) {
+    let faculty = false;
+    let room = false;
+    let section = false;
+    const targetSections = new Set(getEffectiveSectionIds(target));
+    for (const entry of entries) {
+        if (entry.entryId === target.entryId || entry.day !== target.day)
+            continue;
+        if (!intervalsOverlap(target, entry))
+            continue;
+        if (entry.facultyId === target.facultyId)
+            faculty = true;
+        if (entry.roomId === target.roomId)
+            room = true;
+        if (getEffectiveSectionIds(entry).some((sectionId) => targetSections.has(sectionId)))
+            section = true;
+        if (faculty || room || section)
+            return { faculty, room, section };
     }
     return { faculty, room, section };
+}
+function canPlaceWithoutConflict(target, entries) {
+    const checks = hasOverlapConflict(target, entries);
+    return !(checks.faculty || checks.room || checks.section);
 }
 /**
  * H-ALG-3: Bounded repair pass for hard slot conflicts.
@@ -125,110 +147,75 @@ function buildOccupancySets(entries) {
  * - Capped at MAX_REPAIR_ATTEMPTS to ensure sub-second runtime.
  * - Pure function — does not mutate input array.
  */
-export function repairHardConflicts(entries, lockedEntryIds) {
+export function repairHardConflicts(entries, lockedEntryIds, maxAttempts = MAX_REPAIR_ATTEMPTS) {
     const repaired = [...entries];
     let attemptsTotal = 0;
     let conflictsResolved = 0;
     let conflictsUnresolved = 0;
+    const unresolvedByReason = {
+        lockedOrMissing: 0,
+        noFeasibleSlot: 0,
+        attemptCapReached: 0,
+    };
     // Collect all unique (day, startTime, endTime) period slots from existing entries
     const slotMap = new Map();
     for (const e of repaired) {
-        const key = `${e.day}:${e.startTime}`;
+        const key = `${e.day}:${e.startTime}:${e.endTime}`;
         if (!slotMap.has(key)) {
             slotMap.set(key, { day: e.day, startTime: e.startTime, endTime: e.endTime });
         }
     }
     const availableSlots = [...slotMap.values()].sort((a, b) => a.day.localeCompare(b.day) || a.startTime.localeCompare(b.startTime));
-    // Detect faculty-time conflicts
     const conflictingIds = new Set();
-    const facultyBuckets = new Map();
-    for (const e of repaired) {
-        const key = `${e.facultyId}:${e.day}:${e.startTime}`;
-        const arr = facultyBuckets.get(key) ?? [];
-        arr.push(e.entryId);
-        facultyBuckets.set(key, arr);
-    }
-    for (const ids of facultyBuckets.values()) {
-        if (ids.length > 1)
-            for (let i = 1; i < ids.length; i++)
-                conflictingIds.add(ids[i]);
-    }
-    // Detect room-time conflicts
-    const roomBuckets = new Map();
-    for (const e of repaired) {
-        const key = `${e.roomId}:${e.day}:${e.startTime}`;
-        const arr = roomBuckets.get(key) ?? [];
-        arr.push(e.entryId);
-        roomBuckets.set(key, arr);
-    }
-    for (const ids of roomBuckets.values()) {
-        if (ids.length > 1)
-            for (let i = 1; i < ids.length; i++)
-                conflictingIds.add(ids[i]);
-    }
-    // Detect section-time conflicts
-    const sectionBuckets = new Map();
-    for (const e of repaired) {
-        const sectionIds = e.entryKind === 'COHORT' && e.cohortMemberSectionIds?.length
-            ? e.cohortMemberSectionIds
-            : [e.sectionId];
-        for (const sid of sectionIds) {
-            const key = `${sid}:${e.day}:${e.startTime}`;
-            const arr = sectionBuckets.get(key) ?? [];
-            arr.push(e.entryId);
-            sectionBuckets.set(key, arr);
+    for (let index = 0; index < repaired.length; index++) {
+        for (let nextIndex = index + 1; nextIndex < repaired.length; nextIndex++) {
+            const left = repaired[index];
+            const right = repaired[nextIndex];
+            if (left.day !== right.day || !intervalsOverlap(left, right))
+                continue;
+            const leftSections = new Set(getEffectiveSectionIds(left));
+            const rightSections = getEffectiveSectionIds(right);
+            const sectionOverlap = rightSections.some((sectionId) => leftSections.has(sectionId));
+            if (left.facultyId === right.facultyId || left.roomId === right.roomId || sectionOverlap) {
+                conflictingIds.add(right.entryId);
+            }
         }
     }
-    for (const ids of sectionBuckets.values()) {
-        if (ids.length > 1)
-            for (let i = 1; i < ids.length; i++)
-                conflictingIds.add(ids[i]);
-    }
     if (conflictingIds.size === 0) {
-        return { entries: repaired, impact: { attemptsTotal: 0, conflictsResolved: 0, conflictsUnresolved: 0 } };
+        return {
+            entries: repaired,
+            impact: {
+                attemptsTotal: 0,
+                conflictsResolved: 0,
+                conflictsUnresolved: 0,
+                unresolvedByReason: { lockedOrMissing: 0, noFeasibleSlot: 0, attemptCapReached: 0 },
+            },
+        };
     }
-    const occ = buildOccupancySets(repaired);
     const entryById = new Map(repaired.map((e) => [e.entryId, e]));
     for (const conflictId of conflictingIds) {
-        if (attemptsTotal >= MAX_REPAIR_ATTEMPTS)
-            break;
+        if (attemptsTotal >= maxAttempts) {
+            conflictsUnresolved++;
+            unresolvedByReason.attemptCapReached++;
+            continue;
+        }
         const target = entryById.get(conflictId);
         if (!target || lockedEntryIds.has(target.entryId)) {
             conflictsUnresolved++;
+            unresolvedByReason.lockedOrMissing++;
             continue;
         }
         attemptsTotal++;
         let resolved = false;
-        const targetSectionIds = target.entryKind === 'COHORT' && target.cohortMemberSectionIds?.length
-            ? target.cohortMemberSectionIds
-            : [target.sectionId];
         for (const slot of availableSlots) {
             // Skip the same slot — that's where the conflict already is
-            if (slot.day === target.day && slot.startTime === target.startTime)
+            if (slot.day === target.day && slot.startTime === target.startTime && slot.endTime === target.endTime)
                 continue;
-            // Check all three occupancy constraints
-            const fKey = `${target.facultyId}:${slot.day}:${slot.startTime}`;
-            if (occ.faculty.has(fKey))
-                continue;
-            const rKey = `${target.roomId}:${slot.day}:${slot.startTime}`;
-            if (occ.room.has(rKey))
-                continue;
-            const sKeys = targetSectionIds.map((sid) => `${sid}:${slot.day}:${slot.startTime}`);
-            if (sKeys.some((k) => occ.section.has(k)))
-                continue;
-            // Remove old occupancy marks
-            occ.faculty.delete(`${target.facultyId}:${target.day}:${target.startTime}`);
-            occ.room.delete(`${target.roomId}:${target.day}:${target.startTime}`);
-            for (const sid of targetSectionIds) {
-                occ.section.delete(`${sid}:${target.day}:${target.startTime}`);
-            }
             // Apply relocation
             const relocated = { ...target, day: slot.day, startTime: slot.startTime, endTime: slot.endTime };
-            // Add new occupancy marks
-            occ.faculty.add(fKey);
-            occ.room.add(rKey);
-            for (const k of sKeys)
-                occ.section.add(k);
+            const candidateEntries = repaired.map((entry) => (entry.entryId === conflictId ? relocated : entry));
+            if (!canPlaceWithoutConflict(relocated, candidateEntries.filter((entry) => entry.entryId !== conflictId)))
+                continue;
             // Update arrays
             const idx = repaired.findIndex((e) => e.entryId === conflictId);
             if (idx >= 0)
@@ -238,10 +225,12 @@ export function repairHardConflicts(entries, lockedEntryIds) {
             conflictsResolved++;
             break;
         }
-        if (!resolved)
+        if (!resolved) {
             conflictsUnresolved++;
+            unresolvedByReason.noFeasibleSlot++;
+        }
     }
-    return { entries: repaired, impact: { attemptsTotal, conflictsResolved, conflictsUnresolved } };
+    return { entries: repaired, impact: { attemptsTotal, conflictsResolved, conflictsUnresolved, unresolvedByReason } };
 }
 // ─── Main orchestrator ───
 /**
@@ -291,7 +280,12 @@ export function runHybridScheduler(input) {
         return {
             ...fallback,
             seedQuality: [],
-            repairImpact: { attemptsTotal: 0, conflictsResolved: 0, conflictsUnresolved: 0 },
+            repairImpact: {
+                attemptsTotal: 0,
+                conflictsResolved: 0,
+                conflictsUnresolved: 0,
+                unresolvedByReason: { lockedOrMissing: 0, noFeasibleSlot: 0, attemptCapReached: 0 },
+            },
             selectedProfileId: 'GRADE_ASC_SUBJECT_ASC',
             hybridEnabled: false,
         };

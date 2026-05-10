@@ -4,6 +4,7 @@
  */
 import { prisma } from '../lib/prisma.js';
 import { validateHardConstraints, } from './constraint-validator.js';
+import { computeDemand } from './schedule-constructor.js';
 import { runHybridScheduler } from './hybrid-scheduler.js';
 import { sectionAdapter } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
@@ -36,9 +37,75 @@ async function getActiveFacultyMirrorIdSet(schoolId) {
 function getStaleFacultyIdsForRun(run, activeFacultyIds) {
     return extractDraftFacultyIds(run.draftEntries).filter((facultyId) => !activeFacultyIds.has(facultyId));
 }
+function buildQualifiedCoverageBySubject(demand, facultySubjects) {
+    const qualifiedKey = new Set();
+    for (const assignment of facultySubjects) {
+        for (const sectionId of assignment.sectionIds) {
+            qualifiedKey.add(`${sectionId}:${assignment.subjectId}`);
+        }
+    }
+    const agg = new Map();
+    for (const item of demand) {
+        const stat = agg.get(item.subjectId) ?? { subjectCode: item.subjectCode, requiredAssignments: 0, qualifiedAssignments: 0 };
+        const sectionIds = item.entryKind === 'COHORT' && item.cohortMemberSectionIds?.length ? item.cohortMemberSectionIds : [item.sectionId];
+        const qualified = sectionIds.every((sectionId) => qualifiedKey.has(`${sectionId}:${item.subjectId}`));
+        stat.requiredAssignments += item.sessionsPerWeek;
+        if (qualified)
+            stat.qualifiedAssignments += item.sessionsPerWeek;
+        agg.set(item.subjectId, stat);
+    }
+    return [...agg.entries()].map(([subjectId, stat]) => ({
+        subjectId,
+        subjectCode: stat.subjectCode,
+        requiredAssignments: stat.requiredAssignments,
+        qualifiedAssignments: stat.qualifiedAssignments,
+        coveragePercent: stat.requiredAssignments > 0
+            ? Math.round((stat.qualifiedAssignments / stat.requiredAssignments) * 10000) / 100
+            : 0,
+    })).sort((left, right) => left.coveragePercent - right.coveragePercent || left.subjectCode.localeCompare(right.subjectCode));
+}
+function buildSlotSaturation(entries, roomCapacity) {
+    const slotCounts = new Map();
+    for (const entry of entries) {
+        const key = `${entry.day}:${entry.startTime}:${entry.endTime}`;
+        const slot = slotCounts.get(key) ?? { day: entry.day, startTime: entry.startTime, endTime: entry.endTime, assigned: 0 };
+        slot.assigned += 1;
+        slotCounts.set(key, slot);
+    }
+    return [...slotCounts.values()]
+        .map((slot) => ({
+        ...slot,
+        capacity: roomCapacity,
+        saturationPercent: roomCapacity > 0 ? Math.round((slot.assigned / roomCapacity) * 10000) / 100 : 0,
+    }))
+        .sort((left, right) => right.saturationPercent - left.saturationPercent || left.day.localeCompare(right.day) || left.startTime.localeCompare(right.startTime));
+}
+function buildUnassignedBySubjectGrade(unassignedItems, subjectCodeById) {
+    const agg = new Map();
+    for (const item of unassignedItems) {
+        const key = `${item.subjectId}:${item.gradeLevel}`;
+        const row = agg.get(key) ?? {
+            subjectId: item.subjectId,
+            subjectCode: subjectCodeById.get(item.subjectId) ?? `SUBJECT_${item.subjectId}`,
+            gradeLevel: item.gradeLevel,
+            count: 0,
+            reasons: {},
+        };
+        row.count += 1;
+        row.reasons[item.reason] = (row.reasons[item.reason] ?? 0) + 1;
+        agg.set(key, row);
+    }
+    return [...agg.values()].sort((left, right) => right.count - left.count || left.gradeLevel - right.gradeLevel || left.subjectCode.localeCompare(right.subjectCode));
+}
 // ─── Trigger ───
-export async function triggerGenerationRun(schoolId, schoolYearId, actorId) {
-    await assertGenerationRoomRequestGate(schoolId, schoolYearId);
+export async function triggerGenerationRun(schoolId, schoolYearId, actorId, options) {
+    const gateStatus = await getGenerationRoomRequestGateStatus(schoolId, schoolYearId);
+    if (gateStatus.blocked && !options?.ignoreRoomRequestGate) {
+        throw err(409, 'OPEN_ROOM_REQUESTS_BLOCK_GENERATION', `Generation is blocked until all submitted faculty requests are decided. ${gateStatus.openCount} request(s) remain pending.`, {
+            actionHint: 'Resolve all pending requests in the room-request panel, or use Generate Anyway to override this gate for a fresh draft.',
+            details: { runId: gateStatus.runId, openRequestCount: gateStatus.openCount },
+        });
+    }
     // Create run as QUEUED
     const run = await prisma.generationRun.create({
         data: {
@@ -106,7 +173,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId) {
             getOrCreatePolicy(schoolId, schoolYearId),
             prisma.building.findMany({
                 where: { schoolId },
-                select: { id: true, x: true, y: true },
+                select: { id: true, name: true, x: true, y: true },
             }),
             prisma.gradeShiftWindow.findMany({
                 where: { schoolId, schoolYearId },
@@ -138,6 +205,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId) {
         // ── Run hybrid multi-seed constructor (H-ALG-1 through H-ALG-3) ──
         stage = 'constructor';
         const sectionsByGrade = sectionResult.gradeLevels;
+        const demand = computeDemand(sectionsByGrade, subjects, cohorts);
         const constructorInput = {
             schoolId,
             schoolYearId,
@@ -165,7 +233,15 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId) {
                 latestEndTime: policyRecord.latestEndTime,
                 lunchStartTime: policyRecord.lunchStartTime ?? undefined,
                 lunchEndTime: policyRecord.lunchEndTime ?? undefined,
+                enableLunchWindow: policyRecord.enableLunchWindow ?? undefined,
                 enforceLunchWindow: policyRecord.enforceLunchWindow ?? undefined,
+                showSpecialEventsInGrid: policyRecord.showSpecialEventsInGrid ?? undefined,
+                enableFlagCeremony: policyRecord.enableFlagCeremony ?? undefined,
+                flagCeremonyStartTime: policyRecord.flagCeremonyStartTime ?? undefined,
+                flagCeremonyEndTime: policyRecord.flagCeremonyEndTime ?? undefined,
+                enableRecess: policyRecord.enableRecess ?? undefined,
+                recessStartTime: policyRecord.recessStartTime ?? undefined,
+                recessEndTime: policyRecord.recessEndTime ?? undefined,
                 enableTleTwoPassPriority: policyRecord.enableTleTwoPassPriority ?? true,
                 allowFlexibleSubjectAssignment: policyRecord.allowFlexibleSubjectAssignment ?? false,
                 allowConsecutiveLabSessions: policyRecord.allowConsecutiveLabSessions ?? false,
@@ -176,6 +252,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId) {
                 startTime: gw.startTime,
                 endTime: gw.endTime,
             })),
+            buildings: buildings.map((b) => ({ id: b.id, name: b.name })),
         };
         const result = runHybridScheduler(constructorInput);
         // ── G.17: Diagnostic output for constructor result ──
@@ -223,6 +300,12 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId) {
             },
         };
         const validationResult = validateHardConstraints(validatorCtx);
+        const subjectCodeById = new Map(subjects.map((subject) => [subject.id, subject.code]));
+        const resourceDiagnostics = {
+            qualifiedFacultyCoverageBySubject: buildQualifiedCoverageBySubject(demand, facultySubjects),
+            slotSaturationByInterval: buildSlotSaturation(result.entries, Math.max(rooms.length, 1)).slice(0, 20),
+            unassignedBySubjectGrade: buildUnassignedBySubjectGrade(result.unassignedItems, subjectCodeById).slice(0, 20),
+        };
         const summary = {
             classesProcessed: result.classesProcessed,
             assignedCount: result.assignedCount,
@@ -246,6 +329,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId) {
             selectedSeedProfile: result.selectedProfileId,
             seedQuality: result.seedQuality?.length > 0 ? result.seedQuality : undefined,
             repairImpact: result.repairImpact,
+            resourceDiagnostics,
         };
         const finishedAt = new Date();
         const durationMs = finishedAt.getTime() - startedAt.getTime();
@@ -271,7 +355,12 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId) {
                 action: 'GENERATION_RUN_COMPLETED',
                 actorId,
                 targetIds: [run.id],
-                metadata: { durationMs, summary },
+                metadata: {
+                    durationMs,
+                    summary,
+                    gateOverrideUsed: Boolean(options?.ignoreRoomRequestGate),
+                    gateOpenRequestCountAtTrigger: gateStatus.openCount,
+                },
             },
         });
         await preGenerationDraftService.markPlacementsLockedForRun(schoolId, schoolYearId, run.id, preGenerationDrafts.acceptedPlacementIds);
@@ -400,6 +489,44 @@ export async function listRuns(schoolId, schoolYearId, limit = 20) {
         orderBy: { createdAt: 'desc' },
         take: limit,
     });
+}
+export async function publishRun(schoolId, schoolYearId, runId, actorId) {
+    const run = await getRunById(runId, schoolId, schoolYearId);
+    if (run.status !== 'COMPLETED') {
+        throw err(422, 'RUN_NOT_COMPLETED', 'Only completed generation runs can be published.');
+    }
+    const summary = (run.summary ?? {});
+    const hardViolationCount = Number(summary.hardViolationCount ?? 0);
+    if (hardViolationCount > 0) {
+        throw err(422, 'PUBLISH_BLOCKED_HARD_VIOLATIONS', 'Cannot publish while hard violations exist.', {
+            details: { runId, hardViolationCount },
+            actionHint: 'Resolve hard violations in Review and try publish again.',
+        });
+    }
+    const publishedAtIso = new Date().toISOString();
+    const nextSummary = {
+        ...summary,
+        isPublished: true,
+        publishedAt: publishedAtIso,
+        publishedBy: actorId,
+    };
+    const updated = await prisma.generationRun.update({
+        where: { id: run.id },
+        data: {
+            summary: nextSummary,
+        },
+    });
+    await prisma.auditLog.create({
+        data: {
+            schoolId,
+            schoolYearId,
+            action: 'GENERATION_RUN_PUBLISHED',
+            actorId,
+            targetIds: [run.id],
+            metadata: { runId: run.id, publishedAt: publishedAtIso },
+        },
+    });
+    return updated;
 }
 export async function getRunViolations(runId, schoolId, schoolYearId) {
     const run = await prisma.generationRun.findFirst({

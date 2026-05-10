@@ -8,6 +8,8 @@ import {
 } from './constraint-validator.js';
 import {
 	buildPeriodSlots,
+	buildSpecialEventSlots,
+	mergeDisplaySlots,
 	computeDemand,
 	getDemandAssignmentKey,
 	type ConstructorInput,
@@ -104,6 +106,7 @@ export interface DraftBoardState {
 	placements: DraftPlacementRow[];
 	queue: DraftQueueItem[];
 	periodSlots: PeriodSlot[];
+	classPeriodSlots: PeriodSlot[];
 	counts: {
 		draft: number;
 		lockedForRun: number;
@@ -441,9 +444,9 @@ function buildPolicyImpactSummary(violations: Violation[]) {
 		}));
 }
 
-async function loadDraftContext(schoolId: number, schoolYearId: number) {
+async function loadDraftContext(schoolId: number, schoolYearId: number, authToken?: string) {
 	const [sectionResult, facultyMirrors, facultyRefs, facultySubjectRows, subjects, rooms, buildings, policyRecord, gradeWindows, placements, cohorts] = await Promise.all([
-		sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId),
+		sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken),
 		prisma.facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true, isStale: false },
 			select: { id: true, firstName: true, lastName: true, department: true, maxHoursPerWeek: true, isActiveForScheduling: true, canTeachOutsideDepartment: true },
@@ -515,7 +518,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number) {
 
 	const sectionsById = new Map(sectionResult.gradeLevels.flatMap((grade) => grade.sections.map((section) => [section.id, section] as const)));
 	const sectionEnrollment = new Map(sectionResult.gradeLevels.flatMap((grade) => grade.sections.map((section) => [section.id, section.enrolledCount] as const)));
-	const periodSlots = buildPeriodSlots({
+	const classPeriodSlots = buildPeriodSlots({
 		maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
 		minBreakMinutesAfterConsecutiveBlock: policyRecord.minBreakMinutesAfterConsecutiveBlock,
 		maxTeachingMinutesPerDay: policyRecord.maxTeachingMinutesPerDay,
@@ -523,8 +526,35 @@ async function loadDraftContext(schoolId: number, schoolYearId: number) {
 		latestEndTime: policyRecord.latestEndTime,
 		lunchStartTime: policyRecord.lunchStartTime ?? undefined,
 		lunchEndTime: policyRecord.lunchEndTime ?? undefined,
+		enableLunchWindow: policyRecord.enableLunchWindow ?? undefined,
 		enforceLunchWindow: policyRecord.enforceLunchWindow ?? undefined,
+		enableFlagCeremony: policyRecord.enableFlagCeremony ?? undefined,
+		flagCeremonyStartTime: policyRecord.flagCeremonyStartTime ?? undefined,
+		flagCeremonyEndTime: policyRecord.flagCeremonyEndTime ?? undefined,
+		enableRecess: policyRecord.enableRecess ?? undefined,
+		recessStartTime: policyRecord.recessStartTime ?? undefined,
+		recessEndTime: policyRecord.recessEndTime ?? undefined,
 	} satisfies PolicyInput);
+	const specialEventSlots = buildSpecialEventSlots({
+		maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
+		minBreakMinutesAfterConsecutiveBlock: policyRecord.minBreakMinutesAfterConsecutiveBlock,
+		maxTeachingMinutesPerDay: policyRecord.maxTeachingMinutesPerDay,
+		earliestStartTime: policyRecord.earliestStartTime,
+		latestEndTime: policyRecord.latestEndTime,
+		lunchStartTime: policyRecord.lunchStartTime ?? undefined,
+		lunchEndTime: policyRecord.lunchEndTime ?? undefined,
+		enableLunchWindow: policyRecord.enableLunchWindow ?? undefined,
+		enforceLunchWindow: policyRecord.enforceLunchWindow ?? undefined,
+		enableFlagCeremony: policyRecord.enableFlagCeremony ?? undefined,
+		flagCeremonyStartTime: policyRecord.flagCeremonyStartTime ?? undefined,
+		flagCeremonyEndTime: policyRecord.flagCeremonyEndTime ?? undefined,
+		enableRecess: policyRecord.enableRecess ?? undefined,
+		recessStartTime: policyRecord.recessStartTime ?? undefined,
+		recessEndTime: policyRecord.recessEndTime ?? undefined,
+	} satisfies PolicyInput);
+	const periodSlots = (policyRecord.showSpecialEventsInGrid ?? true)
+		? mergeDisplaySlots(classPeriodSlots, specialEventSlots)
+		: classPeriodSlots;
 
 	const demand = computeDemand(sectionResult.gradeLevels, subjects, cohorts);
 	const demandByKey = new Map(demand.map((item) => [getDemandAssignmentKey(item), item]));
@@ -553,6 +583,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number) {
 		gradeWindows,
 		placements,
 		periodSlots,
+		classPeriodSlots,
 		demand,
 		demandByKey,
 		qualifiedByKey,
@@ -606,7 +637,7 @@ function validateInputOrThrow(input: DraftPlacementInput, ctx: DraftContext) {
 	if (!VALID_DAYS.has(input.day)) {
 		throw err(400, 'INVALID_DAY', 'Day must be one of MONDAY, TUESDAY, WEDNESDAY, THURSDAY, or FRIDAY.');
 	}
-	if (!ctx.periodSlots.some((slot) => slot.startTime === input.startTime && slot.endTime === input.endTime)) {
+	if (!ctx.classPeriodSlots.some((slot) => slot.startTime === input.startTime && slot.endTime === input.endTime)) {
 		throw err(422, 'INVALID_TIME_SLOT', `Time slot ${input.startTime}-${input.endTime} is outside the configured policy window.`);
 	}
 	const assignmentKey = buildAssignmentKey(input);
@@ -659,8 +690,8 @@ function buildExistingEntries(ctx: DraftContext, excludedPlacementIds?: Iterable
 		.filter((entry): entry is ScheduledEntry => entry != null);
 }
 
-export async function previewPlacement(schoolId: number, schoolYearId: number, input: DraftPlacementInput): Promise<DraftPlacementPreview> {
-	const ctx = await loadDraftContext(schoolId, schoolYearId);
+export async function previewPlacement(schoolId: number, schoolYearId: number, input: DraftPlacementInput, authToken?: string): Promise<DraftPlacementPreview> {
+	const ctx = await loadDraftContext(schoolId, schoolYearId, authToken);
 	const existingPlacement = input.placementId != null
 		? ctx.placements.find((placement) => placement.id === input.placementId && placement.status === 'DRAFT')
 		: null;
@@ -820,6 +851,7 @@ async function buildBoardStateFromContext(schoolId: number, schoolYearId: number
 		placements,
 		queue,
 		periodSlots: ctx.periodSlots,
+		classPeriodSlots: ctx.classPeriodSlots,
 		counts,
 		filters: {
 			grades: [...new Set(ctx.sections.map((grade) => grade.displayOrder))].sort((left, right) => left - right),
@@ -829,8 +861,8 @@ async function buildBoardStateFromContext(schoolId: number, schoolYearId: number
 	};
 }
 
-export async function listDraftBoardState(schoolId: number, schoolYearId: number): Promise<DraftBoardState> {
-	const ctx = await loadDraftContext(schoolId, schoolYearId);
+export async function listDraftBoardState(schoolId: number, schoolYearId: number, authToken?: string): Promise<DraftBoardState> {
+	const ctx = await loadDraftContext(schoolId, schoolYearId, authToken);
 	return buildBoardStateFromContext(schoolId, schoolYearId, ctx);
 }
 
@@ -842,9 +874,9 @@ export async function getDraftPlacement(schoolId: number, schoolYearId: number, 
 	return toDraftRow(placement);
 }
 
-export async function commitPlacement(schoolId: number, schoolYearId: number, actorId: number, input: DraftPlacementInput, allowSoftOverride = false): Promise<DraftPlacementCommitResult> {
-	const ctx = await loadDraftContext(schoolId, schoolYearId);
-	const preview = await previewPlacement(schoolId, schoolYearId, input);
+export async function commitPlacement(schoolId: number, schoolYearId: number, actorId: number, input: DraftPlacementInput, allowSoftOverride = false, authToken?: string): Promise<DraftPlacementCommitResult> {
+	const ctx = await loadDraftContext(schoolId, schoolYearId, authToken);
+	const preview = await previewPlacement(schoolId, schoolYearId, input, authToken);
 	if (preview.hardViolations.length > 0) {
 		throw err(422, 'HARD_VIOLATION_BLOCK', 'Placement cannot be committed while hard conflicts remain.', { hardViolations: preview.hardViolations.map((violation) => violation.code) });
 	}
@@ -931,7 +963,7 @@ export async function commitPlacement(schoolId: number, schoolYearId: number, ac
 		}),
 	]);
 
-	const refreshed = await loadDraftContext(schoolId, schoolYearId);
+	const refreshed = await loadDraftContext(schoolId, schoolYearId, authToken);
 	return {
 		placement: toDraftRow(placement),
 		preview,
@@ -1018,11 +1050,12 @@ export async function previewSwapPlacements(
 	schoolId: number,
 	schoolYearId: number,
 	input: DraftPlacementSwapInput,
+	authToken?: string,
 ): Promise<DraftPlacementSwapPreview> {
 	if (input.sourcePlacementId === input.targetPlacementId) {
 		throw err(422, 'NOOP_SWAP', 'Source and target placements must be different draft entries.');
 	}
-	const ctx = await loadDraftContext(schoolId, schoolYearId);
+	const ctx = await loadDraftContext(schoolId, schoolYearId, authToken);
 	const sourcePlacement = getDraftPlacementOrThrow(ctx, input.sourcePlacementId, input.sourceExpectedVersion);
 	const targetPlacement = getDraftPlacementOrThrow(ctx, input.targetPlacementId, input.targetExpectedVersion);
 	return buildSwapPreview(ctx, sourcePlacement, targetPlacement);
@@ -1033,11 +1066,12 @@ export async function swapPlacements(
 	schoolYearId: number,
 	actorId: number,
 	input: DraftPlacementSwapInput,
+	authToken?: string,
 ): Promise<DraftPlacementSwapResult> {
 	if (input.sourcePlacementId === input.targetPlacementId) {
 		throw err(422, 'NOOP_SWAP', 'Source and target placements must be different draft entries.');
 	}
-	const ctx = await loadDraftContext(schoolId, schoolYearId);
+	const ctx = await loadDraftContext(schoolId, schoolYearId, authToken);
 	const sourcePlacement = getDraftPlacementOrThrow(ctx, input.sourcePlacementId, input.sourceExpectedVersion);
 	const targetPlacement = getDraftPlacementOrThrow(ctx, input.targetPlacementId, input.targetExpectedVersion);
 	const preview = buildSwapPreview(ctx, sourcePlacement, targetPlacement);
@@ -1107,7 +1141,7 @@ export async function swapPlacements(
 		});
 		return [nextSource, nextTarget] as const;
 	});
-	const refreshed = await loadDraftContext(schoolId, schoolYearId);
+	const refreshed = await loadDraftContext(schoolId, schoolYearId, authToken);
 	return {
 		placements: {
 			source: toDraftRow(updatedSource),
@@ -1118,10 +1152,10 @@ export async function swapPlacements(
 	};
 }
 
-export async function clearDraft(schoolId: number, schoolYearId: number, actorId: number) {
+export async function clearDraft(schoolId: number, schoolYearId: number, actorId: number, authToken?: string) {
 	const draftPlacements = await prisma.lockedSession.findMany({ where: { schoolId, schoolYearId, status: 'DRAFT' } });
 	if (draftPlacements.length === 0) {
-		return listDraftBoardState(schoolId, schoolYearId);
+		return listDraftBoardState(schoolId, schoolYearId, authToken);
 	}
 	await prisma.$transaction([
 		prisma.lockedSession.updateMany({ where: { schoolId, schoolYearId, status: 'DRAFT' }, data: { status: 'ARCHIVED', version: { increment: 1 } } }),
@@ -1146,10 +1180,10 @@ export async function clearDraft(schoolId: number, schoolYearId: number, actorId
 			},
 		}),
 	]);
-	return listDraftBoardState(schoolId, schoolYearId);
+	return listDraftBoardState(schoolId, schoolYearId, authToken);
 }
 
-export async function undoLastPlacement(schoolId: number, schoolYearId: number, actorId: number) {
+export async function undoLastPlacement(schoolId: number, schoolYearId: number, actorId: number, authToken?: string) {
 	const action = await prisma.lockedSessionAction.findFirst({
 		where: { schoolId, schoolYearId, actionType: { not: 'UNDO' } },
 		orderBy: { createdAt: 'desc' },
@@ -1235,7 +1269,7 @@ export async function undoLastPlacement(schoolId: number, schoolYearId: number, 
 			},
 		});
 	});
-	return listDraftBoardState(schoolId, schoolYearId);
+		return listDraftBoardState(schoolId, schoolYearId, authToken);
 }
 
 export async function removeSinglePlacement(schoolId: number, schoolYearId: number, actorId: number, placementId: number): Promise<DraftBoardState> {
@@ -1273,11 +1307,11 @@ export async function removeSinglePlacement(schoolId: number, schoolYearId: numb
 			},
 		});
 	});
-	return listDraftBoardState(schoolId, schoolYearId);
+	return listDraftBoardState(schoolId, schoolYearId, authToken);
 }
 
-export async function consumeDraftPlacementsForRun(runId: number, schoolId: number, schoolYearId: number): Promise<DraftConsumeResult> {
-	const ctx = await loadDraftContext(schoolId, schoolYearId);
+export async function consumeDraftPlacementsForRun(runId: number, schoolId: number, schoolYearId: number, authToken?: string): Promise<DraftConsumeResult> {
+	const ctx = await loadDraftContext(schoolId, schoolYearId, authToken);
 	const draftPlacements = ctx.placements.filter((placement) => placement.status === 'DRAFT');
 	const accepted: LockedSession[] = [];
 	const skippedPrePlacedReasons: string[] = [];

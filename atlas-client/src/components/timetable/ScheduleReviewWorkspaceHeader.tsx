@@ -333,7 +333,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 						/>
 						<div className="h-4 w-px bg-border mx-1" />
 						<span className="text-[0.625rem] font-medium text-foreground">
-							Section Movement: <span className="font-semibold">{context.policy?.teacherMoveEnabled ? 'Enabled' : 'Disabled'}</span>
+							Teacher's Move: <span className="font-semibold">{(context.policy?.teacherMoveEnabled ?? true) ? 'Enabled' : 'Disabled'}</span>
 						</span>
 					</div>
 				)}

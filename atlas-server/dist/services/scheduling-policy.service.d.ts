@@ -4,6 +4,7 @@
  */
 import { Prisma } from '@prisma/client';
 export declare const POLICY_DEFAULTS: {
+    readonly teacherMoveEnabled: true;
     readonly maxConsecutiveTeachingMinutesBeforeBreak: 120;
     readonly minBreakMinutesAfterConsecutiveBlock: 15;
     readonly maxTeachingMinutesPerDay: 400;
@@ -24,6 +25,14 @@ export declare const POLICY_DEFAULTS: {
     readonly lunchStartTime: "11:55";
     readonly lunchEndTime: "12:55";
     readonly enforceLunchWindow: true;
+    readonly showSpecialEventsInGrid: true;
+    readonly enableFlagCeremony: true;
+    readonly flagCeremonyStartTime: "07:00";
+    readonly flagCeremonyEndTime: "07:30";
+    readonly enableRecess: true;
+    readonly recessStartTime: "09:45";
+    readonly recessEndTime: "10:00";
+    readonly enableLunchWindow: true;
     readonly enableTleTwoPassPriority: true;
     readonly allowFlexibleSubjectAssignment: false;
     readonly allowConsecutiveLabSessions: false;
@@ -35,6 +44,7 @@ export interface ConstraintOverride {
 }
 export declare const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride>;
 export interface SchedulingPolicyData {
+    teacherMoveEnabled: boolean;
     maxConsecutiveTeachingMinutesBeforeBreak: number;
     minBreakMinutesAfterConsecutiveBlock: number;
     maxTeachingMinutesPerDay: number;
@@ -55,12 +65,21 @@ export interface SchedulingPolicyData {
     lunchStartTime: string;
     lunchEndTime: string;
     enforceLunchWindow: boolean;
+    showSpecialEventsInGrid: boolean;
+    enableFlagCeremony: boolean;
+    flagCeremonyStartTime: string;
+    flagCeremonyEndTime: string;
+    enableRecess: boolean;
+    recessStartTime: string;
+    recessEndTime: string;
+    enableLunchWindow: boolean;
     enableTleTwoPassPriority: boolean;
     allowFlexibleSubjectAssignment: boolean;
     allowConsecutiveLabSessions: boolean;
     constraintConfig: Record<string, ConstraintOverride> | null;
 }
 export interface PolicyInput {
+    teacherMoveEnabled?: unknown;
     maxConsecutiveTeachingMinutesBeforeBreak?: unknown;
     minBreakMinutesAfterConsecutiveBlock?: unknown;
     maxTeachingMinutesPerDay?: unknown;
@@ -81,6 +100,14 @@ export interface PolicyInput {
     lunchStartTime?: unknown;
     lunchEndTime?: unknown;
     enforceLunchWindow?: unknown;
+    showSpecialEventsInGrid?: unknown;
+    enableFlagCeremony?: unknown;
+    flagCeremonyStartTime?: unknown;
+    flagCeremonyEndTime?: unknown;
+    enableRecess?: unknown;
+    recessStartTime?: unknown;
+    recessEndTime?: unknown;
+    enableLunchWindow?: unknown;
     enableTleTwoPassPriority?: unknown;
     allowFlexibleSubjectAssignment?: unknown;
     allowConsecutiveLabSessions?: unknown;
@@ -101,9 +128,12 @@ export declare function getOrCreatePolicy(schoolId: number, schoolYearId: number
     earliestStartTime: string;
     latestEndTime: string;
     enableVacantAwareConstraints: boolean;
-    enforceLunchWindow: boolean;
+    enableLunchWindow: boolean;
     lunchStartTime: string;
     lunchEndTime: string;
+    enableFlagCeremony: boolean;
+    enableRecess: boolean;
+    enforceLunchWindow: boolean;
     enableTleTwoPassPriority: boolean;
     allowFlexibleSubjectAssignment: boolean;
     allowConsecutiveLabSessions: boolean;
@@ -116,9 +146,15 @@ export declare function getOrCreatePolicy(schoolId: number, schoolYearId: number
     targetFacultyDailyVacantMinutes: number;
     targetSectionDailyVacantPeriods: number;
     maxCompressedTeachingMinutesPerDay: number;
+    flagCeremonyStartTime: string;
+    flagCeremonyEndTime: string;
+    recessStartTime: string;
+    recessEndTime: string;
+    teacherMoveEnabled: boolean;
     enforceConsecutiveBreakAsHard: boolean;
     avoidEarlyFirstPeriod: boolean;
     avoidLateLastPeriod: boolean;
+    showSpecialEventsInGrid: boolean;
     constraintConfig: Prisma.JsonValue | null;
 }>;
 export declare function upsertPolicy(schoolId: number, schoolYearId: number, input: PolicyInput): Promise<{
@@ -132,9 +168,12 @@ export declare function upsertPolicy(schoolId: number, schoolYearId: number, inp
     earliestStartTime: string;
     latestEndTime: string;
     enableVacantAwareConstraints: boolean;
-    enforceLunchWindow: boolean;
+    enableLunchWindow: boolean;
     lunchStartTime: string;
     lunchEndTime: string;
+    enableFlagCeremony: boolean;
+    enableRecess: boolean;
+    enforceLunchWindow: boolean;
     enableTleTwoPassPriority: boolean;
     allowFlexibleSubjectAssignment: boolean;
     allowConsecutiveLabSessions: boolean;
@@ -147,8 +186,14 @@ export declare function upsertPolicy(schoolId: number, schoolYearId: number, inp
     targetFacultyDailyVacantMinutes: number;
     targetSectionDailyVacantPeriods: number;
     maxCompressedTeachingMinutesPerDay: number;
+    flagCeremonyStartTime: string;
+    flagCeremonyEndTime: string;
+    recessStartTime: string;
+    recessEndTime: string;
+    teacherMoveEnabled: boolean;
     enforceConsecutiveBreakAsHard: boolean;
     avoidEarlyFirstPeriod: boolean;
     avoidLateLastPeriod: boolean;
+    showSpecialEventsInGrid: boolean;
     constraintConfig: Prisma.JsonValue | null;
 }>;

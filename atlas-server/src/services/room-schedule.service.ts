@@ -8,7 +8,7 @@ import { prisma } from '../lib/prisma.js';
 import type { ScheduledEntry } from './constraint-validator.js';
 import * as genService from './generation.service.js';
 import { computeOccupiedMinutesByIntervalUnion, countUniqueEntryIds } from './room-schedule.metrics.js';
-import { buildPeriodSlots } from './schedule-constructor.js';
+import { buildPeriodSlots, buildSpecialEventSlots, mergeDisplaySlots } from './schedule-constructor.js';
 import * as policyService from './scheduling-policy.service.js';
 
 // ─── Constants ───
@@ -63,10 +63,10 @@ export interface RoomScheduleView {
 		status: string;
 		generatedAt?: string;
 	};
-	timeSlots: Array<{ startTime: string; endTime: string }>;
+	timeSlots: Array<{ startTime: string; endTime: string; eventLabel?: string | null }>;
 	days: typeof DAYS;
 	grid: Array<{
-		timeSlot: { startTime: string; endTime: string };
+		timeSlot: { startTime: string; endTime: string; eventLabel?: string | null };
 		cells: RoomScheduleCell[];
 	}>;
 	summary: {
@@ -95,7 +95,7 @@ export async function getRoomScheduleView(
 
 	// 2) Fetch policy to build dynamic time slots
 	const policy = await policyService.getOrCreatePolicy(schoolId, schoolYearId);
-	const PERIOD_SLOTS = buildPeriodSlots({
+	const classPeriodSlots = buildPeriodSlots({
 		maxConsecutiveTeachingMinutesBeforeBreak: policy.maxConsecutiveTeachingMinutesBeforeBreak,
 		minBreakMinutesAfterConsecutiveBlock: policy.minBreakMinutesAfterConsecutiveBlock,
 		maxTeachingMinutesPerDay: policy.maxTeachingMinutesPerDay,
@@ -103,8 +103,35 @@ export async function getRoomScheduleView(
 		latestEndTime: policy.latestEndTime,
 		lunchStartTime: policy.lunchStartTime,
 		lunchEndTime: policy.lunchEndTime,
+		enableLunchWindow: policy.enableLunchWindow,
 		enforceLunchWindow: policy.enforceLunchWindow,
+		enableFlagCeremony: policy.enableFlagCeremony,
+		flagCeremonyStartTime: policy.flagCeremonyStartTime,
+		flagCeremonyEndTime: policy.flagCeremonyEndTime,
+		enableRecess: policy.enableRecess,
+		recessStartTime: policy.recessStartTime,
+		recessEndTime: policy.recessEndTime,
 	});
+	const specialEventSlots = buildSpecialEventSlots({
+		maxConsecutiveTeachingMinutesBeforeBreak: policy.maxConsecutiveTeachingMinutesBeforeBreak,
+		minBreakMinutesAfterConsecutiveBlock: policy.minBreakMinutesAfterConsecutiveBlock,
+		maxTeachingMinutesPerDay: policy.maxTeachingMinutesPerDay,
+		earliestStartTime: policy.earliestStartTime,
+		latestEndTime: policy.latestEndTime,
+		lunchStartTime: policy.lunchStartTime,
+		lunchEndTime: policy.lunchEndTime,
+		enableLunchWindow: policy.enableLunchWindow,
+		enforceLunchWindow: policy.enforceLunchWindow,
+		enableFlagCeremony: policy.enableFlagCeremony,
+		flagCeremonyStartTime: policy.flagCeremonyStartTime,
+		flagCeremonyEndTime: policy.flagCeremonyEndTime,
+		enableRecess: policy.enableRecess,
+		recessStartTime: policy.recessStartTime,
+		recessEndTime: policy.recessEndTime,
+	});
+	const PERIOD_SLOTS = (policy.showSpecialEventsInGrid ?? true)
+		? mergeDisplaySlots(classPeriodSlots, specialEventSlots)
+		: classPeriodSlots;
 
 	// 3) Resolve source entries (generated run draft OR pre-generation draft board)
 	let roomEntries: ScheduledEntry[] = [];
@@ -163,7 +190,16 @@ export async function getRoomScheduleView(
 	let conflictCount = 0;
 
 	const grid = PERIOD_SLOTS.map((slot) => {
+		const eventLabel = slot.eventName ?? null;
 		const cells: RoomScheduleCell[] = DAYS.map((day) => {
+			if (slot.isSpecialEvent) {
+				return {
+					day,
+					occupied: false,
+					entries: [],
+					conflict: false,
+				};
+			}
 			const dayEntries = entriesByDay.get(day) ?? [];
 			const overlapping = dayEntries.filter((e) => timesOverlap(slot, e));
 
@@ -188,14 +224,14 @@ export async function getRoomScheduleView(
 			};
 		});
 
-		return { timeSlot: { startTime: slot.startTime, endTime: slot.endTime }, cells };
+		return { timeSlot: { startTime: slot.startTime, endTime: slot.endTime, eventLabel }, cells };
 	});
 
 	// 6) Summary — unique-entry aggregation to avoid per-cell inflation
 	const entryCount = countUniqueEntryIds(roomEntries);
 	const occupiedMinutes = computeOccupiedMinutesByIntervalUnion(roomEntries, DAYS);
 
-	const totalSlots = PERIOD_SLOTS.length * DAYS.length;
+	const totalSlots = classPeriodSlots.length * DAYS.length;
 	const slotMinutes = 50; // standard JHS period
 	const availableMinutes = totalSlots * slotMinutes;
 	const utilizationPercent = availableMinutes > 0
@@ -217,7 +253,7 @@ export async function getRoomScheduleView(
 			status: sourceStatus,
 			generatedAt: sourceGeneratedAt,
 		},
-		timeSlots: PERIOD_SLOTS.map((s) => ({ startTime: s.startTime, endTime: s.endTime })),
+		timeSlots: PERIOD_SLOTS.map((s) => ({ startTime: s.startTime, endTime: s.endTime, eventLabel: s.eventName ?? null })),
 		days: DAYS,
 		grid,
 		summary: {

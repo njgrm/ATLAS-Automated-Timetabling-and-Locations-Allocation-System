@@ -84,7 +84,7 @@ const CORE_DEPARTMENTS = [
 	{ specialization: 'Mathematics', count: 18 },
 	{ specialization: 'Science', count: 18 },
 	{ specialization: 'Araling Panlipunan', count: 16 },
-	{ specialization: 'MAPEH', count: 20 },
+	{ specialization: 'MAPEH', count: 16 },
 	{ specialization: 'Edukasyon sa Pagpapakatao', count: 14 },
 	{ specialization: 'Technology and Livelihood Education', count: 16 },
 	{ specialization: 'Homeroom Guidance', count: 8 },
@@ -101,6 +101,29 @@ function getDepartments(options: RealisticJhsDatasetOptions = {}) {
 		: CORE_DEPARTMENTS;
 }
 
+// ─── EnrollPro-aligned section naming (from seed-sections.ts) ───
+const STARS = ['SIRIUS', 'VEGA', 'RIGEL', 'ARCTURUS', 'CAPELLA', 'CANOPUS', 'ALTAIR', 'PROCYON'];
+const HEROES = [
+	'JOSE RIZAL', 'ANDRES BONIFACIO', 'APOLINARIO MABINI', 'MARCELO DEL PILAR',
+	'JUAN LUNA', 'EMILIO JACINTO', 'GABRIELA SILANG', 'EMILIO AGUINALDO',
+	'GRACIANO LOPEZ JAENA', 'GREGORIO DEL PILAR', 'MELCHORA AQUINO', 'DIEGO SILANG',
+	'FRANCISCO BALAGTAS', 'MARCIANA AGONCILLO', 'TERESA MAGBANUA', 'TRINIDAD TECSON',
+];
+const CORE_VALUES = [
+	'MAKA-DIYOS', 'MAKATAO', 'MAKAKALIKASAN', 'MAKABANSA', 'KARANGALAN',
+	'KATAPATAN', 'KATAPANGAN', 'KAGALINGAN', 'KAAYUSAN', 'KALAYAAN',
+	'KATARUNGAN', 'KASIPAGAN', 'PAGKAKAISA', 'PAGMAMAHAL', 'PAGMALASAKIT',
+	'PAGTITIPID', 'PAGKAMALIKHAIN',
+];
+const FLOWERS = [
+	'SAMPAGUITA', 'GUMAMELA', 'ROSAS', 'ORCHID', 'SUNFLOWER', 'DAISY',
+	'LILY', 'TULIP', 'JASMINE', 'HIBISCUS', 'ANTHURIUM', 'CATTLEYA',
+];
+const MINERALS = [
+	'GOLD', 'SILVER', 'COPPER', 'IRON', 'NICKEL', 'CHROMITE',
+	'QUARTZ', 'FELDSPAR', 'MICA', 'TALC', 'GYPSUM', 'CALCITE', 'APATITE',
+];
+
 const SECTION_NAMES_BY_GRADE: Array<{
 	displayOrder: number;
 	gradeLevelName: string;
@@ -109,37 +132,41 @@ const SECTION_NAMES_BY_GRADE: Array<{
 	{
 		displayOrder: 7,
 		gradeLevelName: 'Grade 7',
+		// 2 SCP sections (stars) + 5 numeric + 16 HEROES = 23 total
 		names: [
-			'Einstein', 'Curie', 'Newton', 'Galileo', 'Darwin', 'Mendel', 'Pasteur', 'Tesla',
-			'Edison', 'Fermi', 'Hawking', 'Bohr', 'Archimedes', 'Pythagoras', 'Euclid', 'Pascal',
-			'Kepler', 'Copernicus', 'Faraday', 'Lavoisier', 'Maxwell', 'Planck', 'Rutherford',
+			...STARS.slice(0, 2), // SIRIUS, VEGA
+			'1', '2', '3', '4', '5',
+			...HEROES,
 		],
 	},
 	{
 		displayOrder: 8,
 		gradeLevelName: 'Grade 8',
+		// 2 SCP sections (stars) + 5 numeric + 17 CORE_VALUES = 24 total
 		names: [
-			'Rizal', 'Bonifacio', 'Mabini', 'Luna', 'Del Pilar', 'Aguinaldo', 'Jacinto',
-			'Silang', 'Malvar', 'Tandang Sora', 'Plaridel', 'Jaena', 'Ponce', 'Paterno',
-			'Legarda', 'Tavera', 'Buencamino', 'Araullo', 'Osmena', 'Quezon', 'Laurel',
+			...STARS.slice(2, 4), // RIGEL, ARCTURUS
+			'1', '2', '3', '4', '5',
+			...CORE_VALUES,
 		],
 	},
 	{
 		displayOrder: 9,
 		gradeLevelName: 'Grade 9',
+		// 2 SCP sections (stars) + 5 numeric + 12 FLOWERS = 19 total
 		names: [
-			'Diamond', 'Ruby', 'Emerald', 'Sapphire', 'Pearl', 'Amethyst', 'Topaz', 'Opal',
-			'Garnet', 'Jade', 'Onyx', 'Quartz', 'Turquoise', 'Coral', 'Amber', 'Jasper',
-			'Obsidian', 'Citrine', 'Peridot',
+			...STARS.slice(4, 6), // CAPELLA, CANOPUS
+			'1', '2', '3', '4', '5',
+			...FLOWERS,
 		],
 	},
 	{
 		displayOrder: 10,
 		gradeLevelName: 'Grade 10',
+		// 2 SCP sections (stars) + 5 numeric + 13 MINERALS = 20 total
 		names: [
-			'Narra', 'Molave', 'Acacia', 'Mahogany', 'Kamagong', 'Ipil', 'Yakal', 'Tindalo',
-			'Lauan', 'Apitong', 'Dao', 'Balayong', 'Bangkal', 'Almaciga', 'Pili', 'Anahaw',
-			'Balete', 'Mango', 'Santol', 'Kaimito',
+			...STARS.slice(6, 8), // ALTAIR, PROCYON
+			'1', '2', '3', '4', '5',
+			...MINERALS,
 		],
 	},
 ];
@@ -148,7 +175,9 @@ function toEmailSlug(value: string): string {
 	return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
+// Determine program type based on section index (SCP sections are 0-1 per grade)
 function getProgramMetadata(displayOrder: number, index: number): ProgramMetadata {
+	// First star section is STE for all grades
 	if (index === 0) {
 		return {
 			upstreamProgramType: 'SCIENCE_TECHNOLOGY_AND_ENGINEERING',
@@ -158,7 +187,8 @@ function getProgramMetadata(displayOrder: number, index: number): ProgramMetadat
 		};
 	}
 
-	if (displayOrder >= 9 && index === 1) {
+	// Second star section is SPS (Sports) for grades 9-10
+	if (index === 1 && displayOrder >= 9) {
 		return {
 			upstreamProgramType: 'SPECIAL_PROGRAM_IN_SPORTS',
 			programCode: 'SPS',
@@ -167,12 +197,13 @@ function getProgramMetadata(displayOrder: number, index: number): ProgramMetadat
 		};
 	}
 
-	if (displayOrder === 10 && index === 2) {
+	// For other grades, second star is regular
+	if (index === 1 && displayOrder < 9) {
 		return {
-			upstreamProgramType: 'SPECIAL_PROGRAM_IN_THE_ARTS',
-			programCode: 'SPA',
-			programName: 'Special Program in the Arts',
-			admissionMode: 'COMPETITIVE',
+			upstreamProgramType: 'REGULAR',
+			programCode: null,
+			programName: null,
+			admissionMode: 'REGULAR',
 		};
 	}
 

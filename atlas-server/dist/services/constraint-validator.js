@@ -10,6 +10,7 @@
 export const VIOLATION_CODES = [
     'FACULTY_TIME_CONFLICT',
     'ROOM_TIME_CONFLICT',
+    'SECTION_TIME_CONFLICT',
     'FACULTY_OVERLOAD',
     'ROOM_TYPE_MISMATCH',
     'ROOM_CAPACITY_EXCEEDED',
@@ -107,7 +108,45 @@ export function validateHardConstraints(ctx) {
             }
         }
     }
-    // ── 3) Faculty load over max ──
+    // ── 3) Section time conflict ──
+    const bySectionDay = new Map();
+    for (const entry of ctx.entries) {
+        for (const sectionId of getEffectiveSectionIds(entry)) {
+            const key = `${sectionId}:${entry.day}`;
+            const entries = bySectionDay.get(key);
+            if (entries)
+                entries.push(entry);
+            else
+                bySectionDay.set(key, [entry]);
+        }
+    }
+    for (const [key, dayEntries] of bySectionDay) {
+        const [rawSectionId, day] = key.split(':');
+        const sectionId = Number(rawSectionId);
+        for (let index = 0; index < dayEntries.length; index++) {
+            for (let nextIndex = index + 1; nextIndex < dayEntries.length; nextIndex++) {
+                const left = dayEntries[index];
+                const right = dayEntries[nextIndex];
+                if (left.entryId === right.entryId)
+                    continue;
+                if (timesOverlap(left, right) && !isSameCohortGroup(left, right)) {
+                    violations.push({
+                        ...base,
+                        code: 'SECTION_TIME_CONFLICT',
+                        message: `Section ${sectionId} has overlapping assignments on ${day}: ${left.startTime}-${left.endTime} vs ${right.startTime}-${right.endTime}.`,
+                        entities: {
+                            sectionId,
+                            day,
+                            startTime: left.startTime,
+                            endTime: right.endTime,
+                            entryIds: [left.entryId, right.entryId],
+                        },
+                    });
+                }
+            }
+        }
+    }
+    // ── 4) Faculty load over max ──
     const minutesByFaculty = new Map();
     for (const e of ctx.entries) {
         minutesByFaculty.set(e.facultyId, (minutesByFaculty.get(e.facultyId) ?? 0) + e.durationMinutes);
@@ -127,7 +166,7 @@ export function validateHardConstraints(ctx) {
             });
         }
     }
-    // ── 4) Room/type incompatibility ──
+    // ── 5) Room/type incompatibility ──
     for (const e of ctx.entries) {
         const room = roomMap.get(e.roomId);
         const subject = subjectMap.get(e.subjectId);

@@ -37,12 +37,14 @@ export interface RoomScheduleView {
     timeSlots: Array<{
         startTime: string;
         endTime: string;
+        eventLabel?: string | null;
     }>;
     days: typeof DAYS;
     grid: Array<{
         timeSlot: {
             startTime: string;
             endTime: string;
+            eventLabel?: string | null;
         };
         cells: RoomScheduleCell[];
     }>;

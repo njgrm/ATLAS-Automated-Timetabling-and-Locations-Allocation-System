@@ -98,8 +98,8 @@ export interface ManualEditPanelProps {
 	gradeForSection: (sectionId: number) => number | null;
 	roomLabel: (roomId: number) => string;
 	isStaleRoom: (roomId: number) => boolean;
-	/** All time slots derived from draft entries */
-	timeSlots: Array<{ startTime: string; endTime: string }>;
+	/** All class time slots derived from draft entries */
+	timeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean }>;
 	/** Rooms (teaching + non-teaching) */
 	roomMap: Map<number, RoomInfo>;
 	/** Faculty with load data */
@@ -309,7 +309,9 @@ export default function ManualEditPanel({
 
 	const freeTimeSlots = useMemo(
 		() =>
-			timeSlots.map((ts) => ({
+			timeSlots
+				.filter((ts) => !ts.isSpecialEvent)
+				.map((ts) => ({
 				...ts,
 				key: `${ts.startTime}-${ts.endTime}`,
 				occupied: occupiedSlots.has(`${ts.startTime}-${ts.endTime}`),

@@ -162,11 +162,12 @@ section('H-ALG-3-01 repairHardConflicts returns unchanged entries when no confli
 }
 section('H-ALG-3-02 repairHardConflicts detects faculty-time conflict');
 {
-    // Two entries same faculty, same slot — conflict on entry e2
+    // Two entries same faculty, same slot — conflict on entry e2.
+    // e3 uses a DIFFERENT faculty (2) to create a TUESDAY slot that is free for faculty=1.
     const entries = [
         makeEntry('e1', 1, 1, 1, 'MONDAY', '07:30', '08:20'),
-        makeEntry('e2', 1, 2, 2, 'MONDAY', '07:30', '08:20'), // same faculty + slot → conflict
-        makeEntry('e3', 1, 3, 3, 'TUESDAY', '07:30', '08:20'), // free slot for relocation
+        makeEntry('e2', 1, 2, 2, 'MONDAY', '07:30', '08:20'), // same faculty=1 + slot → conflict
+        makeEntry('e3', 2, 3, 3, 'TUESDAY', '07:30', '08:20'), // faculty=2 creates TUESDAY slot; faculty=1 free then
     ];
     const { entries: result, impact } = repairHardConflicts(entries, new Set());
     assert(impact.attemptsTotal > 0, 'At least one repair attempt made');
@@ -177,11 +178,12 @@ section('H-ALG-3-02 repairHardConflicts detects faculty-time conflict');
 }
 section('H-ALG-3-03 repairHardConflicts detects room-time conflict');
 {
-    // Same room, same slot — two different faculty but same room
+    // Same room=5, same slot — two different faculty but same room → conflict on e2.
+    // e3 uses faculty=3, room=6, section=3 to create a TUESDAY slot that is free for faculty=2/room=5/section=2.
     const entries = [
         makeEntry('e1', 1, 5, 1, 'MONDAY', '07:30', '08:20'),
-        makeEntry('e2', 2, 5, 2, 'MONDAY', '07:30', '08:20'), // same room + slot → conflict
-        makeEntry('e3', 2, 6, 2, 'TUESDAY', '07:30', '08:20'), // free slot for relocation
+        makeEntry('e2', 2, 5, 2, 'MONDAY', '07:30', '08:20'), // same room=5 + slot → conflict
+        makeEntry('e3', 3, 6, 3, 'TUESDAY', '07:30', '08:20'), // faculty=3 creates TUESDAY slot; faculty=2/room=5/section=2 free then
     ];
     const { entries: result, impact } = repairHardConflicts(entries, new Set());
     assert(impact.attemptsTotal > 0, 'Repair attempted for room conflict');

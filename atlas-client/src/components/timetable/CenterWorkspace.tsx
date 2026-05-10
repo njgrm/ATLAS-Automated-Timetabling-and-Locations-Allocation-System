@@ -40,7 +40,7 @@ type CenterWorkspaceProps = {
 	gradeForSection: (sectionId: number) => number | null;
 	roomLabel: (roomId: number) => string;
 	isStaleRoom: (roomId: number) => boolean;
-	timeSlots: Array<{ startTime: string; endTime: string }>;
+	timeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
 	preGenOnboarding: boolean;
 	setCenterView: (view: 'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building') => void;
 	buildings: any[];
