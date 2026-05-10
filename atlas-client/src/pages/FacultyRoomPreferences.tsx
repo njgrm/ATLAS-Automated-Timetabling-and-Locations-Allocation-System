@@ -47,6 +47,7 @@ import DesktopRoomRequestLayout from '@/components/faculty-room-preferences/Desk
 import MobileRoomRequestLayout from '@/components/faculty-room-preferences/MobileRoomRequestLayout';
 import RoomRequestHeader from '@/components/faculty-room-preferences/RoomRequestHeader';
 import RoomRequestSheet from '@/components/faculty-room-preferences/RoomRequestSheet';
+import { useMobileConflictPreview } from '@/hooks/useMobileConflictPreview';
 
 const DEFAULT_SCHOOL_ID = 1;
 const FALLBACK_SCHOOL_YEAR_ID = 1;
@@ -152,7 +153,7 @@ function applyRoomSelection(entries: FacultyRoomPreferenceEntry[], entryId: stri
 		? {
 			...entry,
 			requestedRoomId: room.id,
-			requestedRoomName: `${room.name} · ${room.buildingName}`,
+			requestedRoomName: `${room.name} Â· ${room.buildingName}`,
 		}
 		: entry);
 }
@@ -206,6 +207,14 @@ export default function FacultyRoomPreferences() {
 	const collaborationRef = useRef<ReturnType<typeof createRoomPreferenceCollaborationSocket> | null>(null);
 	const selfConnectionIdRef = useRef<string | null>(null);
 	const tutorial = useTutorial('atlas_faculty_room_preferences_tour_v1');
+	const mobilePreview = useMobileConflictPreview({
+		schoolId: DEFAULT_SCHOOL_ID,
+		activeSchoolYearId,
+		runId,
+		facultyId,
+		runVersion,
+		selectedEntry: entries.find((entry) => entry.entryId === selectedSourceEntryId) ?? null,
+	});
 
 	const applyServerState = useCallback((state: FacultyRoomPreferenceState) => {
 		setRunId(state.runId);
@@ -309,7 +318,6 @@ export default function FacultyRoomPreferences() {
 				{ actions: syncingActions.map(({ queuedAt, ...action }) => action) },
 			);
 
-			const resultByAction = new Map(data.results.map((item) => [item.actionId, item]));
 			const feedback: OutboxSyncFeedback[] = [];
 			const remaining = syncingActions.flatMap((action) => {
 				const result = resultByAction.get(action.actionId);
@@ -639,7 +647,7 @@ export default function FacultyRoomPreferences() {
 					targetEntryId: occupant?.entryId ?? null,
 					occupiedLabel: occupant
 						? showFullScheduleContext
-							? `${occupant.subjectCode} • ${occupant.sectionName}`
+							? `${occupant.subjectCode} â€¢ ${occupant.sectionName}`
 							: 'Occupied by another class'
 						: null,
 				});
@@ -868,112 +876,126 @@ export default function FacultyRoomPreferences() {
 							</Button>
 						</div>
 					</div>
-				</div>
+			</div>
 
-				<MobileRoomRequestLayout
-					mobileStep={mobileStep}
-					entries={entries}
-					selectedSourceEntryId={selectedSourceEntryId}
-					selectedEntry={selectedEntry}
-					mobileTargets={mobileTargets}
-					showFullScheduleContext={showFullScheduleContext}
-					onSelectSourceEntry={(entryId) => {
-						setSelectedSourceEntryId(entryId);
-						setMobileStep(2);
-						collaborationRef.current?.sendSelection({
-							schoolId: DEFAULT_SCHOOL_ID,
-							schoolYearId: activeSchoolYearId ?? 0,
-							runId: runId ?? 0,
-							entryId,
-							source: 'SESSION',
-						});
-					}}
-					onSelectTargetSlot={(target) => {
-						collaborationRef.current?.sendSelection({
-							schoolId: DEFAULT_SCHOOL_ID,
-							schoolYearId: activeSchoolYearId ?? 0,
-							runId: runId ?? 0,
-							day: target.day,
-							startTime: target.startTime,
-							endTime: target.endTime,
-							entryId: target.targetEntryId ?? undefined,
-							source: 'GRID_CELL',
-						});
-						openRequestSheet(target);
-					}}
-					onStepBack={() => setMobileStep((s) => Math.max(1, s - 1) as 1 | 2 | 3)}
-					onStepForward={() => selectedSourceEntryId && setMobileStep(2)}
-					renderStatusBadge={statusBadge}
-				/>
+<MobileRoomRequestLayout
+mobileStep={mobileStep}
+entries={entries}
+selectedSourceEntryId={selectedSourceEntryId}
+selectedEntry={selectedEntry}
+mobileTargets={mobileTargets}
+showFullScheduleContext={showFullScheduleContext}
+previewSlot={mobilePreview.previewSlot}
+inlinePreview={mobilePreview.preview}
+inlinePreviewLoading={mobilePreview.previewLoading}
+onSelectSourceEntry={(entryId) => {
+setSelectedSourceEntryId(entryId);
+mobilePreview.clearPreview();
+setMobileStep(2);
+collaborationRef.current?.sendSelection({
+schoolId: DEFAULT_SCHOOL_ID,
+schoolYearId: activeSchoolYearId ?? 0,
+runId: runId ?? 0,
+entryId,
+source: 'SESSION',
+});
+}}
+onSelectTargetSlot={(target) => {
+collaborationRef.current?.sendSelection({
+schoolId: DEFAULT_SCHOOL_ID,
+schoolYearId: activeSchoolYearId ?? 0,
+runId: runId ?? 0,
+day: target.day,
+startTime: target.startTime,
+endTime: target.endTime,
+entryId: target.targetEntryId ?? undefined,
+source: 'GRID_CELL',
+});
+void mobilePreview.selectTarget(target);
+}}
+onContinueToReview={() => {
+if (mobilePreview.previewSlot) openRequestSheet(mobilePreview.previewSlot);
+}}
+onClearPreviewTarget={mobilePreview.clearPreview}
+onStepBack={() => {
+mobilePreview.clearPreview();
+setMobileStep((s) => Math.max(1, s - 1) as 1 | 2 | 3);
+}}
+onStepForward={() => selectedSourceEntryId && setMobileStep(2)}
+renderStatusBadge={statusBadge}
+/>
 
-				<DesktopRoomRequestLayout
-					days={DAYS}
-					timeSlots={timeSlots}
-					globalBySlot={globalBySlot}
-					showFullScheduleContext={showFullScheduleContext}
-					selectionCountBySlot={selectionCountBySlot}
-					slotSelectionDetails={slotSelectionDetails}
-					entrySelectionDetails={entrySelectionDetails}
-					activeSchoolYearId={activeSchoolYearId}
-					runId={runId}
-					selectedSourceEntryId={selectedSourceEntryId}
-					selectedEntry={selectedEntry}
-					zoom={zoom}
-					onZoomOut={() => setZoom((current) => Math.max(0.7, Number((current - 0.1).toFixed(2))))}
-					onZoomIn={() => setZoom((current) => Math.min(1.5, Number((current + 0.1).toFixed(2))))}
-					onZoomReset={() => setZoom(1)}
-					roomSearch={roomSearch}
-					onRoomSearchChange={setRoomSearch}
-					filteredRooms={filteredRooms}
-					onAssignRoomToEntry={assignRoomToEntry}
-					onSelectSourceEntry={(entryId) => {
-						setSelectedSourceEntryId(entryId);
-					}}
-					onSelectTargetFromGrid={(payload) => {
-						collaborationRef.current?.sendSelection({
-							schoolId: DEFAULT_SCHOOL_ID,
-							schoolYearId: activeSchoolYearId ?? 0,
-							runId: runId ?? 0,
-							day: payload.day,
-							startTime: payload.startTime,
-							endTime: payload.endTime,
-							entryId: payload.targetEntryId ?? undefined,
-							source: 'GRID_CELL',
-						});
-						openRequestSheet(payload);
-					}}
-					onUpdateSelectedRationale={updateSelectedRationale}
-					renderStatusBadge={statusBadge}
-				/>
+<DesktopRoomRequestLayout
+days={DAYS}
+timeSlots={timeSlots}
+globalBySlot={globalBySlot}
+showFullScheduleContext={showFullScheduleContext}
+selectionCountBySlot={selectionCountBySlot}
+slotSelectionDetails={slotSelectionDetails}
+entrySelectionDetails={entrySelectionDetails}
+activeSchoolYearId={activeSchoolYearId}
+runId={runId}
+selectedSourceEntryId={selectedSourceEntryId}
+selectedEntry={selectedEntry}
+zoom={zoom}
+onZoomOut={() => setZoom((current) => Math.max(0.7, Number((current - 0.1).toFixed(2))))}
+onZoomIn={() => setZoom((current) => Math.min(1.5, Number((current + 0.1).toFixed(2))))}
+onZoomReset={() => setZoom(1)}
+roomSearch={roomSearch}
+onRoomSearchChange={setRoomSearch}
+filteredRooms={filteredRooms}
+onAssignRoomToEntry={assignRoomToEntry}
+onSelectSourceEntry={(entryId) => {
+setSelectedSourceEntryId(entryId);
+}}
+onSelectTargetFromGrid={(payload) => {
+collaborationRef.current?.sendSelection({
+schoolId: DEFAULT_SCHOOL_ID,
+schoolYearId: activeSchoolYearId ?? 0,
+runId: runId ?? 0,
+day: payload.day,
+startTime: payload.startTime,
+endTime: payload.endTime,
+entryId: payload.targetEntryId ?? undefined,
+source: 'GRID_CELL',
+});
+openRequestSheet(payload);
+}}
+onUpdateSelectedRationale={updateSelectedRationale}
+renderStatusBadge={statusBadge}
+/>
 
-			<RoomRequestSheet
-				open={requestSheetOpen}
-				onOpenChange={setRequestSheetOpen}
-				selectedEntry={selectedEntry}
-				targetSlot={targetSlot}
-				actionType={actionType}
-				onActionTypeChange={(value) => setActionType(value as RequestActionType)}
-				requestedRoomId={requestedRoomId}
-				onRequestedRoomIdChange={setRequestedRoomId}
-				requestRoomSearch={requestRoomSearch}
-				onRequestRoomSearchChange={setRequestRoomSearch}
-				requestRoomOptions={requestRoomOptions}
-				buildings={buildings}
-				campusImageUrl={campusImageUrl}
-				reason={reason}
-				onReasonChange={setReason}
-				reasonRequired={reasonRequired}
-				previewLoading={previewLoading}
-				requestPreview={requestPreview}
-				submitting={submitting}
-				onSubmit={() => void submitCurrentRequest()}
-			/>
+<RoomRequestSheet
+open={requestSheetOpen}
+onOpenChange={(open) => {
+setRequestSheetOpen(open);
+if (!open) mobilePreview.clearPreview();
+}}
+selectedEntry={selectedEntry}
+targetSlot={targetSlot}
+actionType={actionType}
+onActionTypeChange={(value) => setActionType(value as RequestActionType)}
+requestedRoomId={requestedRoomId}
+onRequestedRoomIdChange={setRequestedRoomId}
+requestRoomSearch={requestRoomSearch}
+onRequestRoomSearchChange={setRequestRoomSearch}
+requestRoomOptions={requestRoomOptions}
+buildings={buildings}
+campusImageUrl={campusImageUrl}
+reason={reason}
+onReasonChange={setReason}
+reasonRequired={reasonRequired}
+previewLoading={previewLoading}
+requestPreview={requestPreview}
+submitting={submitting}
+onSubmit={() => void submitCurrentRequest()}
+/>
 
-			<TutorialOverlay
-				steps={FACULTY_ROOM_TUTORIAL_STEPS}
-				active={tutorial.active}
-				onComplete={tutorial.complete}
-			/>
-		</div>
-	);
+<TutorialOverlay
+steps={FACULTY_ROOM_TUTORIAL_STEPS}
+active={tutorial.active}
+onComplete={tutorial.complete}
+/>
+</div>
+);
 }

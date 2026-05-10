@@ -12,6 +12,10 @@
   - `npm run test:visual:install`
 - Run matrix:
   - `npm run test:visual`
+- **Faculty full matrix** (logged-in `/my`, `/my/preferences`, `/my/room-preferences` × 3 viewports):
+  - Start app: `npm run dev`
+  - `npm run test:visual:faculty`
+  - Screenshots: `qa-artifacts/screenshots/faculty-ux-refactor/`
 - Run CI-safe guest capture mode:
   - `PLAYWRIGHT_TARGET_ROLES=guest npm run test:visual:ci`
 - Run snapshot assertions:

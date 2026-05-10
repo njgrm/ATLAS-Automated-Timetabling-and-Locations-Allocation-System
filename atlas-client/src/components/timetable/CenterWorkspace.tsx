@@ -5,6 +5,7 @@ import { CampusMap } from '@/components/CampusMap';
 import ManualEditPanel from '@/components/ManualEditPanel';
 import SchedulingPolicyPane from '@/components/SchedulingPolicyPane';
 import { BuildingView, ROOM_COLORS, ROOM_TYPE_LABELS } from '@/components/BuildingView';
+import { ClassProgramMatrixView } from '@/components/timetable/ClassProgramMatrixView';
 import { TimetableGrid } from '@/components/timetable/TimetableGrid';
 import { formatTime } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
@@ -50,6 +51,7 @@ type CenterWorkspaceProps = {
 	selectedMapBuildingFloors: number[];
 	mapRoomId: number | null;
 	openRoomGridWorkspace: (roomId: number) => void;
+	presentationMode: 'workflow' | 'matrix';
 	draftBoard: any;
 	draft: any;
 	runs: any[];
@@ -119,6 +121,7 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 		selectedMapBuildingFloors,
 		mapRoomId,
 		openRoomGridWorkspace,
+		presentationMode,
 		draftBoard,
 		draft,
 		runs,
@@ -325,6 +328,28 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 								</div>
 							</div>
 						</div>
+					</motion.div>
+				) : presentationMode === 'matrix' && (centerView === 'schedule' || centerView === 'pre-generation') && (centerView === 'pre-generation' ? draftBoard != null : draft != null) ? (
+					<motion.div
+						key={centerView === 'pre-generation' ? 'pre-generation-matrix' : 'schedule-matrix'}
+						initial={{ opacity: 0, y: -8 }}
+						animate={{ opacity: 1, y: 0 }}
+						exit={{ opacity: 0, y: -8 }}
+						transition={{ duration: 0.18 }}
+						className="flex-1 min-w-0 flex flex-col min-h-0"
+					>
+						<ClassProgramMatrixView
+							entries={gridEntries as any}
+							sectionLabel={sectionLabel}
+							gradeForSection={gradeForSection}
+							subjectLabel={subjectLabel}
+							facultyLabel={facultyLabel}
+							roomLabelShort={roomLabelShort}
+							entryContextLabel={entryContextLabel}
+							onEntryClick={handleEntryClick}
+							selectedEntryId={selectedEntry?.entryId ?? null}
+							header={<Badge variant="secondary" className="h-5 px-1.5 text-[0.625rem]">{centerView === 'pre-generation' ? 'Pre-Generation Matrix' : 'Generated Matrix'}</Badge>}
+						/>
 					</motion.div>
 				) : (
 					<motion.div

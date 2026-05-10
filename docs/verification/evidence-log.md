@@ -39,6 +39,31 @@ Record dated implementation verification summaries here.
   - Screenshot evidence: PENDING (manual capture deferred)
 - **FINAL GATE: CONDITIONAL GO** — all structural and behavioral gates pass; screenshot evidence pending manual browser session.
 
+### 2026-05-10 - Class Program Matrix + Occupancy Preview Parity Wiring
+- Phase: 4 (class-program / occupancy preview execution)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PARTIAL PASS
+- Commands:
+  - `npm --prefix atlas-client run build`: PASS (✓ built in 446ms)
+  - `npm run test:visual:faculty`: FAIL before target-page capture due existing login selector ambiguity in Playwright (`getByLabel(/password/i)` resolves to password input + show-password button)
+- Delivered surfaces:
+  - `atlas-client/src/components/timetable/ClassProgramMatrixView.tsx`
+  - `atlas-client/src/components/room-schedules/OccupancyTemplatePreview.tsx`
+  - `atlas-client/src/components/timetable/ScheduleReviewWorkspace.tsx`
+  - `atlas-client/src/components/timetable/ScheduleReviewWorkspaceHeader.tsx`
+  - `atlas-client/src/components/timetable/buildScheduleReviewWorkspaceContexts.ts`
+  - `atlas-client/src/components/timetable/CenterWorkspace.tsx`
+  - `atlas-client/src/pages/RoomSchedules.tsx`
+- Verification summary:
+  - Confirmed the client build succeeds with the class-program matrix and occupancy preview wiring in place.
+  - Confirmed the broader existing faculty visual matrix is blocked by a pre-existing login locator ambiguity before it reaches the changed timetable pages.
+  - No new server-side scheduling or export pipeline was introduced for this parity pass.
+- Decision:
+  - Accepted as a code-complete parity wiring pass with build verification.
+  - Full visual gate remains pending a login-test fix or a dedicated smoke path for the changed pages.
+
 ### 2026-05-09 - Faculty Shared UX Components Pass (/my, /my/preferences, /my/room-preferences)
 - Phase: 4 (faculty UX hardening continuation)
 - Scope gate: PASS
@@ -1360,9 +1385,38 @@ Record dated implementation verification summaries here.
 - Commands:
   - 
 px tsc --noEmit --incremental false (atlas-client): PASS
+  # Verification Evidence Log
 
-  ### 2026-05-10 - Faculty UX Gate-Closure + Polish Pass
-  - Phase: 4 (gate-closure audit + targeted patching)
+  Record dated implementation verification summaries here.
+
+  ### 2026-05-10 — Faculty UX Expert Hardening Pass (Live Conflict Inspector + Map UX)
+  - Phase: 4 (faculty UX expert hardening — docs/prompts/faculty-ux-expert-hardening-pass.md)
+  - Scope: `/my/room-preferences` — mobile inline conflict inspector visible during Step 2 target selection; RoomRequestSheet MAP tab legibility improvements
+  - Architecture gate: PASS — hook logic in `/hooks/useMobileConflictPreview.ts`; page under 1000 lines (component extraction maintained)
+  - Regression gate: PASS
+  - Commands:
+    - `npm --prefix atlas-client run build`: PASS (✓ built in 641ms)
+    - `npm --prefix atlas-server run test:phase2-regression`: PASS (17 passed, 0 failed)
+  - Context7 preflight: COMPLETE
+    - Library: `/shadcn-ui/ui` — Sheet/Tabs/focus, AnimatePresence slide-in for inline preview panel
+    - Library: `/motion-dev/motion` — `AnimatePresence` + `motion.div` animate inline conflict preview mount/unmount in Step 2
+    - Applied patterns:
+      1. **Atlassian guided-flow pattern** → inline ConflictInspector visible in Step 2 BEFORE entering the full sheet (Step 3) — faculty sees conflict severity upfront, reducing abandoned requests
+      2. **CSS scrollable fixed-pixel canvas** → MAP tab in RoomRequestSheet — `overflow-auto` div with `width:600px height:400px` inner div, building buttons with `min-height:44px` — faculty can pan/tap reliably on small screens
+      3. **Shopify Polaris empty state** → MAP tab when no campus image + no buildings — plain heading + helper text, no dead-end blank div
+  - Deliverables:
+    - `atlas-client/src/hooks/useMobileConflictPreview.ts` — NEW: encapsulates mobile inline preview state + API fetch
+    - `atlas-client/src/components/faculty-room-preferences/MobileRoomRequestLayout.tsx` — UPDATED: Step 2 now shows `AnimatePresence`-driven inline `ConflictInspector` when target slot tapped; "Review & Submit" in fixed nav bar activates only after preview resolves
+    - `atlas-client/src/pages/FacultyRoomPreferences.tsx` — UPDATED: `useMobileConflictPreview` hook wired; `onSelectTargetSlot` now calls `void mobilePreview.selectTarget(target)` instead of directly opening sheet; `onContinueToReview` opens sheet from resolved preview slot; preview cleared on sheet close and on step-back
+    - `atlas-client/src/components/faculty-room-preferences/RoomRequestSheet.tsx` — UPDATED: MAP tab now uses scrollable 600×400px fixed canvas with ≥44px building tap targets, `aria-label` on each building button, empty state when no campus image
+  - Gate decisions:
+    - Conflict inspector visible before Step 3 commit: **GO** — inline `ConflictInspector` rendered in Step 2 via `AnimatePresence` motion panel
+    - Map tab legibility on mobile (scroll, tap targets): **GO** — scrollable overflow canvas, `min-height:44px`, aria-labels
+    - Map empty state: **GO** — dashed border empty state with plain-language guidance rendered when no campus image + no buildings
+    - Build: **GO** (641ms)
+    - Regression: **GO** (17/17)
+  - **FINAL GATE: GO** — all expert hardening blockers resolved; build + regression clean.
+
   - Scope gate: PASS
   - Architecture gate: PASS
   - Behavior gate: PASS — no lifecycle or auth regressions introduced

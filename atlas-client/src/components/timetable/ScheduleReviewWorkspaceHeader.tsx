@@ -21,6 +21,8 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	const {
 		isPreGenerationWorkspace,
 		activeGeneratedRunId,
+		presentationMode,
+		setPresentationMode,
 		selectedRunId,
 		handleRunChange,
 		runs,
@@ -369,6 +371,24 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 				onEntryKindFilterChange={(value) => setEntryKindFilter(value as EntryKindFilter)}
 				entryKindFilterOptions={ENTRY_KIND_FILTER_OPTIONS}
 			>
+				<div className="flex items-center gap-1">
+					<Button
+						variant={presentationMode === 'workflow' ? 'default' : 'outline'}
+						size="sm"
+						className="h-7 px-2.5 text-[0.625rem]"
+						onClick={() => setPresentationMode('workflow')}
+					>
+						Workflow
+					</Button>
+					<Button
+						variant={presentationMode === 'matrix' ? 'default' : 'outline'}
+						size="sm"
+						className="h-7 px-2.5 text-[0.625rem]"
+						onClick={() => setPresentationMode('matrix')}
+					>
+						Class Program Matrix
+					</Button>
+				</div>
 				<div className="h-4 w-px bg-border mx-0.5" />
 				<FilterChip
 					label="All"

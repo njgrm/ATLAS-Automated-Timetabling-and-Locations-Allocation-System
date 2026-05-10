@@ -32,6 +32,8 @@ export type DialogContext = ScheduleReviewDialogsContext;
 export type ScheduleReviewWorkspaceHeaderContext = {
 	isPreGenerationWorkspace: boolean;
 	activeGeneratedRunId: number | null;
+	presentationMode: 'workflow' | 'matrix';
+	setPresentationMode: (value: 'workflow' | 'matrix') => void;
 	viewMode: 'section' | 'faculty' | 'room';
 	setViewMode: (value: 'section' | 'faculty' | 'room') => void;
 	entityFilter: string;

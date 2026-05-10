@@ -17,6 +17,7 @@ import { Input } from '@/ui/input';
 import { SearchableSelect } from '@/ui/searchable-select';
 import { Skeleton } from '@/ui/skeleton';
 import { ConflictInspectorSheet, type ConflictInspectorData } from '@/components/ConflictInspectorSheet';
+import { OccupancyTemplatePreview } from '@/components/room-schedules/OccupancyTemplatePreview';
 import type { Building, Room, Subject, FacultyMirror, RoomScheduleView, RoomScheduleEntry, SectionSummaryResponse, ExternalSection } from '@/types';
 
 // ─── Constants ───
@@ -61,6 +62,8 @@ export default function RoomSchedules() {
 	const [selectedRoomId, setSelectedRoomId] = useState<string>('');
 	const [sourceMode, setSourceMode] = useState<SourceMode>((querySource === 'latest' || querySource === 'run') ? querySource : 'latest');
 	const [runIdInput, setRunIdInput] = useState('');
+	const [presentationMode, setPresentationMode] = useState<'schedule' | 'occupancy'>('schedule');
+	const [templateVariant, setTemplateVariant] = useState<'11x6' | '13x6'>('11x6');
 
 	/* Schedule data */
 	const [state, setState] = useState<FetchState>({ status: 'idle' });
@@ -214,27 +217,59 @@ export default function RoomSchedules() {
 				</div>
 
 				{/* Source pill toggles */}
-				<div className="flex items-center gap-1.5">
-					<button
+				<div className="flex flex-wrap items-center gap-1.5">
+					<Button
+						variant={presentationMode === 'schedule' ? 'default' : 'outline'}
+						size="sm"
+						className="h-8 px-3 text-xs"
+						onClick={() => setPresentationMode('schedule')}
+					>
+						Room Schedule
+					</Button>
+					<Button
+						variant={presentationMode === 'occupancy' ? 'default' : 'outline'}
+						size="sm"
+						className="h-8 px-3 text-xs"
+						onClick={() => setPresentationMode('occupancy')}
+					>
+						Occupancy Preview
+					</Button>
+					{presentationMode === 'occupancy' && (
+						<div className="flex items-center gap-1.5 rounded-md border border-border bg-background px-1.5 py-1">
+							<Button
+								variant={templateVariant === '11x6' ? 'default' : 'outline'}
+								size="sm"
+								className="h-7 px-2.5 text-[11px]"
+								onClick={() => setTemplateVariant('11x6')}
+							>
+								11x6
+							</Button>
+							<Button
+								variant={templateVariant === '13x6' ? 'default' : 'outline'}
+								size="sm"
+								className="h-7 px-2.5 text-[11px]"
+								onClick={() => setTemplateVariant('13x6')}
+							>
+								13x6
+							</Button>
+						</div>
+					)}
+					<Button
 						onClick={() => setSourceMode('latest')}
-						className={`rounded-md border px-3 py-1 text-xs font-medium transition-colors ${
-							sourceMode === 'latest'
-								? 'border-primary bg-primary text-primary-foreground shadow-sm'
-								: 'border-border bg-background text-muted-foreground hover:bg-muted'
-						}`}
+						variant={sourceMode === 'latest' ? 'default' : 'outline'}
+						size="sm"
+						className="h-8 px-3 text-xs"
 					>
 						Latest
-					</button>
-					<button
+					</Button>
+					<Button
 						onClick={() => setSourceMode('run')}
-						className={`rounded-md border px-3 py-1 text-xs font-medium transition-colors ${
-							sourceMode === 'run'
-								? 'border-primary bg-primary text-primary-foreground shadow-sm'
-								: 'border-border bg-background text-muted-foreground hover:bg-muted'
-						}`}
+						variant={sourceMode === 'run' ? 'default' : 'outline'}
+						size="sm"
+						className="h-8 px-3 text-xs"
 					>
 						Run ID
-					</button>
+					</Button>
 					{sourceMode === 'run' && (
 						<Input
 							type="number"
@@ -325,7 +360,7 @@ export default function RoomSchedules() {
 					</div>
 				)}
 
-				{state.status === 'ok' && (
+				{state.status === 'ok' && presentationMode === 'schedule' && (
 					<TimetableGrid
 						view={state.data}
 						subjectMap={subjectMap}
@@ -345,6 +380,17 @@ export default function RoomSchedules() {
 								entries,
 							});
 						}}
+					/>
+				)}
+
+				{state.status === 'ok' && presentationMode === 'occupancy' && (
+					<OccupancyTemplatePreview
+						view={state.data}
+						variant={templateVariant}
+						subjectMap={subjectMap}
+						facultyMap={facultyMap}
+						sectionMap={sectionMap}
+						onPrint={() => window.print()}
 					/>
 				)}
 			</div>

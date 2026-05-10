@@ -243,56 +243,87 @@ export default function RoomRequestSheet({
 							</TabsContent>
 
 							<TabsContent value='MAP' className='space-y-3'>
-								<div
-									className='relative h-56 overflow-hidden rounded-xl border border-border bg-slate-50'
-									style={campusImageUrl ? { backgroundImage: `url(${campusImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
-								>
-									{buildingsWithRooms.map((building) => {
-										const left = ((building.x - bounds.minX) / bounds.width) * 100;
-										const top = ((building.y - bounds.minY) / bounds.height) * 100;
-										const width = Math.max(10, (building.width / bounds.width) * 100);
-										const height = Math.max(10, (building.height / bounds.height) * 100);
-										const isActive = selectedBuildingId === building.id;
-										return (
-											<button
-												type='button'
-												key={`request-map-building-${building.id}`}
-												onClick={() => setSelectedBuildingId(building.id)}
-												className={`absolute rounded-md border px-1 text-[10px] font-semibold text-white shadow ${isActive ? 'border-white ring-2 ring-sky-500/70' : 'border-white/70'}`}
+								{!campusImageUrl && buildingsWithRooms.length === 0 ? (
+									<div className='rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground'>
+										<p className='font-medium'>No campus map available.</p>
+										<p className='mt-1'>Ask your IT admin to upload a campus map in the Map Editor.</p>
+									</div>
+								) : (
+									<>
+										<div
+											className='overflow-auto rounded-xl border border-border bg-slate-50'
+											style={{ height: '14rem', touchAction: 'pan-x pan-y' }}
+										>
+											<div
+												className='relative'
 												style={{
-													left: `${Math.min(92, left)}%`,
-													top: `${Math.min(90, top)}%`,
-													width: `${Math.min(35, width)}%`,
-													height: `${Math.min(30, height)}%`,
-													backgroundColor: building.color,
+													width: '600px',
+													height: '400px',
+													backgroundImage: campusImageUrl ? `url(${campusImageUrl})` : undefined,
+													backgroundSize: 'cover',
+													backgroundPosition: 'center',
 												}}
 											>
-												<span className='line-clamp-2'>{building.shortCode ?? building.name}</span>
-											</button>
-										);
-									})}
-									{buildingsWithRooms.length === 0 && (
-										<div className='flex h-full items-center justify-center text-xs text-muted-foreground'>No buildings to show for this search.</div>
-									)}
-								</div>
-								<div className='space-y-2 rounded-lg border border-border bg-background p-2'>
-									<p className='text-xs font-semibold text-foreground'>
-										{selectedBuilding ? `Rooms in ${selectedBuilding.shortCode ?? selectedBuilding.name}` : 'Select a building on the map'}
-									</p>
-									<div className='flex max-h-32 flex-wrap gap-2 overflow-auto pr-1'>
-										{selectedBuilding?.rooms.map((room) => (
-											<Button
-												type='button'
-												key={`request-map-room-${room.id}`}
-												variant={requestedRoomId === String(room.id) ? 'default' : 'outline'}
-												size='sm'
-												onClick={() => onRequestedRoomIdChange(String(room.id))}
-											>
-												{room.name}
-											</Button>
-										))}
-									</div>
-								</div>
+												{buildingsWithRooms.map((building) => {
+													const MAP_W = 600;
+													const MAP_H = 400;
+													const left = ((building.x - bounds.minX) / bounds.width) * MAP_W;
+													const top = ((building.y - bounds.minY) / bounds.height) * MAP_H;
+													const width = Math.max(60, (building.width / bounds.width) * MAP_W);
+													const height = Math.max(44, (building.height / bounds.height) * MAP_H);
+													const isActive = selectedBuildingId === building.id;
+													return (
+														<button
+															type='button'
+															key={`request-map-building-${building.id}`}
+															aria-label={`Select ${building.shortCode ?? building.name}`}
+															onClick={() => setSelectedBuildingId(building.id)}
+															className={`absolute flex items-center justify-center rounded-md border font-semibold text-white shadow transition-all ${isActive ? 'border-white ring-2 ring-sky-400 shadow-lg' : 'border-white/70 hover:ring-1 hover:ring-white/60'}`}
+															style={{
+																left: `${Math.min(540, left)}px`,
+																top: `${Math.min(356, top)}px`,
+																width: `${Math.min(160, width)}px`,
+																height: `${Math.min(100, height)}px`,
+																backgroundColor: building.color,
+																fontSize: '11px',
+															}}
+														>
+															<span className='px-1 text-center leading-tight line-clamp-2'>
+																{building.shortCode ?? building.name}
+															</span>
+														</button>
+													);
+												})}
+												{buildingsWithRooms.length === 0 && (
+													<div className='flex h-full items-center justify-center text-sm text-muted-foreground'>
+														No buildings match your search.
+													</div>
+												)}
+											</div>
+										</div>
+										<div className='space-y-2 rounded-lg border border-border bg-background p-2'>
+											<p className='text-xs font-semibold text-foreground'>
+												{selectedBuilding ? `Rooms in ${selectedBuilding.shortCode ?? selectedBuilding.name}` : 'Tap a building on the map above'}
+											</p>
+											<div className='flex max-h-32 flex-wrap gap-2 overflow-auto pr-1'>
+												{selectedBuilding?.rooms.map((room) => (
+													<Button
+														type='button'
+														key={`request-map-room-${room.id}`}
+														variant={requestedRoomId === String(room.id) ? 'default' : 'outline'}
+														size='sm'
+														onClick={() => onRequestedRoomIdChange(String(room.id))}
+													>
+														{room.name}
+													</Button>
+												))}
+												{!selectedBuilding && (
+													<p className='text-xs text-muted-foreground px-1'>Select a building first.</p>
+												)}
+											</div>
+										</div>
+									</>
+								)}
 							</TabsContent>
 						</Tabs>
 					</div>
