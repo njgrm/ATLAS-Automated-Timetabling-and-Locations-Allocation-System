@@ -21,11 +21,17 @@ const credentials = {
 };
 
 async function loginFaculty(page: Page) {
-  await page.goto("/login", { waitUntil: "networkidle" });
-  await page.getByLabel(/email/i).fill(credentials.email);
-  await page.getByLabel(/password/i).fill(credentials.password);
-  await page.getByRole("button", { name: /sign in|log in|login/i }).first().click();
-  await page.waitForURL(/\/(my|dashboard|faculty|schedule|subjects)/i, { timeout: 25_000 });
+  const response = await page.request.post("http://localhost:5001/api/v1/auth/login", {
+    data: credentials,
+  });
+  expect(response.ok()).toBeTruthy();
+  const payload = await response.json() as { token?: string };
+  if (!payload.token) {
+    throw new Error("Faculty login API did not return a token.");
+  }
+  await page.addInitScript((token) => {
+    sessionStorage.setItem("atlas_local_token", token);
+  }, payload.token);
 }
 
 const shouldAssertSnapshots =
@@ -39,7 +45,7 @@ test.describe("faculty full matrix (logged-in)", () => {
 
   for (const route of FACULTY_ROUTES) {
     test(`faculty ${route.path} capture`, async ({ page }, testInfo) => {
-      await page.goto(route.path, { waitUntil: "networkidle", timeout: 60_000 });
+      await page.goto(route.path, { waitUntil: "domcontentloaded", timeout: 60_000 });
 
       const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
       const viewport = testInfo.project.name;

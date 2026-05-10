@@ -2,6 +2,51 @@
 
 Record dated implementation verification summaries here.
 
+### 2026-05-10 - EnrollPro Source-of-Truth Reset Hardening (Execution Pass 1)
+- Phase: 4 (objective-critical data integrity hardening)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS (targeted)
+- Files updated:
+  - `atlas-server/src/services/faculty.service.ts`
+  - `atlas-server/src/routes/faculty.router.ts`
+  - `atlas-server/src/scripts/verify-enrollpro-source.ts`
+  - `atlas-server/src/__tests__/faculty-sync-reconciliation.test.ts`
+  - `atlas-server/package.json`
+- Commands:
+  - `npm --prefix atlas-server run build`: PASS
+  - `npm --prefix atlas-server run test:faculty-sync-reconciliation`: PASS (12 passed, 0 failed)
+- Verification summary:
+  - Added explicit sync mode controls (`reconcile` default, `prune` explicit).
+  - Added privileged reset route `POST /faculty/sync/reset` with confirmation guard (`confirmPrune=true`).
+  - Added hard-prune behavior for missing faculty records and linked auth-account cleanup in prune mode.
+  - Added assignment scope cleanup that removes invalid section references and deletes now-empty assignments.
+  - Added completed-run invalidation trigger when reconciliation alters faculty/assignment ground truth.
+  - Added expected-count verification flags for source gate checks (`--expectedFacultyCount`, `--expectedSectionsCount`).
+- Decision:
+  - Source-truth reset pass 1 is implementation-complete and build/test validated; ready to proceed to hybrid algorithm refactor sequence.
+
+### 2026-05-10 - Timetable Matrix Render Path Fix (Smoke Gate Recovery)
+- Phase: 4 (generated-view parity blocker)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS
+- Root cause fixed:
+  - `presentationMode` was not passed into the center workspace context, so the matrix toggle state changed in the header but the center canvas stayed on workflow grid rendering.
+  - Matrix toggle behavior now also exits non-grid center views (`map`, `building`, `policy`, `manual-edit`) back to grid contexts when selecting matrix mode.
+- Files updated:
+  - `atlas-client/src/components/timetable/ScheduleReviewWorkspace.tsx`
+- Commands:
+  - `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-preview-smoke.spec.ts`: PASS (6 passed, 0 failed)
+- Verification summary:
+  - Confirmed `Class Program Matrix` is now reachable and rendered across desktop, mobile portrait, and mobile landscape smoke paths.
+  - Confirmed occupancy preview smoke remains green in all three viewport targets.
+  - Updated screenshot artifacts were generated under `qa-artifacts/screenshots/timetable-preview-smoke/matrix/` and `qa-artifacts/screenshots/timetable-preview-smoke/occupancy/`.
+- Decision:
+  - Matrix and occupancy preview smoke gate recovered to PASS.
+
 ### 2026-05-10 - Faculty UX/UI Structural Refactor Pass (Mobile + Desktop two-column splits)
 - Phase: 4 (faculty UX structural pass — execution prompt v2)
 - Scope gate: PASS
@@ -63,6 +108,24 @@ Record dated implementation verification summaries here.
 - Decision:
   - Accepted as a code-complete parity wiring pass with build verification.
   - Full visual gate remains pending a login-test fix or a dedicated smoke path for the changed pages.
+
+### 2026-05-10 - Timetable Preview Smoke Rerun (Matrix Blocker / Occupancy Pass)
+- Phase: 4 (visual smoke verification)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PARTIAL PASS
+- Regression gate: PARTIAL PASS
+- Commands:
+  - `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-preview-smoke.spec.ts`: PARTIAL PASS (3 occupancy captures passed; 3 matrix captures failed)
+- Screenshot outputs:
+  - Occupancy captures saved under `qa-artifacts/screenshots/timetable-preview-smoke/occupancy/`
+- Verification summary:
+  - Confirmed the occupancy preview smoke reaches the printable occupancy surface and captures fresh screenshots successfully.
+  - Confirmed the matrix smoke still lands in the timetable map/workspace state instead of the matrix body, even after returning from the draft/map flow and clicking the matrix toggle.
+  - The current blocker is the app-state/render path for matrix mode, not the Playwright selector or auth seeding.
+- Decision:
+  - Keep the dedicated smoke spec as a live blocker check.
+  - Matrix screenshot evidence remains pending an app-side fix that exposes the actual matrix body from the current timetable workspace flow.
 
 ### 2026-05-09 - Faculty Shared UX Components Pass (/my, /my/preferences, /my/room-preferences)
 - Phase: 4 (faculty UX hardening continuation)

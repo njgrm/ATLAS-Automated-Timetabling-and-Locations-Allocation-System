@@ -35,11 +35,17 @@ const credentials = {
 
 async function login(page: Page, role: "faculty" | "admin") {
   const creds = credentials[role];
-  await page.goto("/login", { waitUntil: "networkidle" });
-  await page.getByLabel(/email/i).fill(creds.email);
-  await page.getByLabel(/password/i).fill(creds.password);
-  await page.getByRole("button", { name: /sign in|log in|login/i }).first().click();
-  await page.waitForURL(/\/(my|dashboard|faculty|schedule|subjects)/i, { timeout: 20_000 });
+  const response = await page.request.post("http://localhost:5001/api/v1/auth/login", {
+    data: creds,
+  });
+  expect(response.ok()).toBeTruthy();
+  const payload = await response.json() as { token?: string };
+  if (!payload.token) {
+    throw new Error(`Login API did not return a token for ${role}.`);
+  }
+  await page.addInitScript((token) => {
+    sessionStorage.setItem("atlas_local_token", token);
+  }, payload.token);
 }
 
 test.describe("role-viewport visual matrix", () => {

@@ -13,12 +13,16 @@ function parseArgs() {
         const [key, value] = arg.slice(2).split('=');
         parsed[key] = value ?? true;
     }
+    const expectedFacultyCountRaw = Number(parsed.expectedFacultyCount);
+    const expectedSectionsCountRaw = Number(parsed.expectedSectionsCount);
     return {
         schoolId: Number(parsed.schoolId) || 0,
         schoolYearId: Number(parsed.schoolYearId) || 0,
         authUserId: Number(parsed.authUserId) || 1,
         authRole: typeof parsed.authRole === 'string' && parsed.authRole.trim().length > 0 ? parsed.authRole.trim() : 'SYSTEM_ADMIN',
         authToken: typeof parsed.authToken === 'string' && parsed.authToken.trim().length > 0 ? parsed.authToken.trim() : null,
+        expectedFacultyCount: Number.isFinite(expectedFacultyCountRaw) && expectedFacultyCountRaw > 0 ? expectedFacultyCountRaw : null,
+        expectedSectionsCount: Number.isFinite(expectedSectionsCountRaw) && expectedSectionsCountRaw > 0 ? expectedSectionsCountRaw : null,
     };
 }
 function resolveAuthToken(options) {
@@ -44,7 +48,7 @@ function assertAcceptedSource(domain, source) {
 async function main() {
     const options = parseArgs();
     if (!options.schoolId || !options.schoolYearId) {
-        throw new Error('Usage: npx tsx src/scripts/verify-enrollpro-source.ts --schoolId=N --schoolYearId=N [--authUserId=N] [--authRole=SYSTEM_ADMIN] [--authToken=TOKEN]');
+        throw new Error('Usage: npx tsx src/scripts/verify-enrollpro-source.ts --schoolId=N --schoolYearId=N [--authUserId=N] [--authRole=SYSTEM_ADMIN] [--authToken=TOKEN] [--expectedFacultyCount=N] [--expectedSectionsCount=N]');
     }
     const auth = resolveAuthToken(options);
     if (!auth.token) {
@@ -68,8 +72,18 @@ async function main() {
     assertAcceptedSource('faculty', faculty.source);
     assertAcceptedSource('sections', sections.source);
     assertAcceptedSource('cohorts', cohorts.source);
+    if (options.expectedFacultyCount != null && faculty.activeCount !== options.expectedFacultyCount) {
+        throw new Error(`Faculty count mismatch. Expected ${options.expectedFacultyCount}, got ${faculty.activeCount}.`);
+    }
+    if (options.expectedSectionsCount != null && sections.totalSections !== options.expectedSectionsCount) {
+        throw new Error(`Section count mismatch. Expected ${options.expectedSectionsCount}, got ${sections.totalSections}.`);
+    }
     console.log(JSON.stringify({
         authSource: auth.source,
+        expectedCounts: {
+            faculty: options.expectedFacultyCount,
+            sections: options.expectedSectionsCount,
+        },
         faculty: {
             source: faculty.source,
             activeCount: faculty.activeCount,

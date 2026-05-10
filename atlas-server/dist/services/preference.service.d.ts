@@ -38,9 +38,9 @@ export declare function getPreference(schoolId: number, schoolYearId: number, fa
         day: import("@prisma/client").$Enums.DayOfWeek;
         createdAt: Date;
         id: number;
-        preferenceId: number;
         startTime: string;
         endTime: string;
+        preferenceId: number;
         preference: import("@prisma/client").$Enums.TimeSlotPreference;
     }[];
 } & {
@@ -64,9 +64,9 @@ export declare function saveDraft(input: SaveDraftInput): Promise<{
         day: import("@prisma/client").$Enums.DayOfWeek;
         createdAt: Date;
         id: number;
-        preferenceId: number;
         startTime: string;
         endTime: string;
+        preferenceId: number;
         preference: import("@prisma/client").$Enums.TimeSlotPreference;
     }[];
 } & {
@@ -90,9 +90,9 @@ export declare function submitPreference(input: SubmitInput): Promise<{
         day: import("@prisma/client").$Enums.DayOfWeek;
         createdAt: Date;
         id: number;
-        preferenceId: number;
         startTime: string;
         endTime: string;
+        preferenceId: number;
         preference: import("@prisma/client").$Enums.TimeSlotPreference;
     }[];
 } & {
@@ -175,9 +175,9 @@ export declare function getPreferenceDetail(schoolId: number, schoolYearId: numb
         day: import("@prisma/client").$Enums.DayOfWeek;
         createdAt: Date;
         id: number;
-        preferenceId: number;
         startTime: string;
         endTime: string;
+        preferenceId: number;
         preference: import("@prisma/client").$Enums.TimeSlotPreference;
     }[];
     review: {

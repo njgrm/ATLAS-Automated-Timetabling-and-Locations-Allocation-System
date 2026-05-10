@@ -56,8 +56,13 @@ router.get('/', authenticate, async (req, res, next) => {
         next(err);
     }
 });
-// Auth: POST /faculty/sync — trigger sync from external source
-router.post('/sync', authenticate, async (req, res, next) => {
+function parseSyncMode(value) {
+    if (value === 'prune') {
+        return 'prune';
+    }
+    return 'reconcile';
+}
+async function handleFacultySync(req, res, next, modeOverride) {
     try {
         const schoolId = Number(req.body.schoolId);
         const schoolYearId = req.body.schoolYearId !== undefined ? Number(req.body.schoolYearId) : 1;
@@ -65,8 +70,20 @@ router.post('/sync', authenticate, async (req, res, next) => {
             res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
             return;
         }
+        const mode = modeOverride ?? parseSyncMode(req.body.mode);
+        if (mode === 'prune' && req.body.confirmPrune !== true) {
+            res.status(400).json({
+                code: 'PRUNE_CONFIRMATION_REQUIRED',
+                message: 'confirmPrune=true is required for prune reset mode.',
+            });
+            return;
+        }
         const authToken = req.headers.authorization?.slice(7);
-        const result = await facultyService.syncFacultyFromExternal(schoolId, schoolYearId, authToken);
+        const result = await facultyService.syncFacultyFromExternal(schoolId, schoolYearId, authToken, {
+            mode,
+            pruneSectionAssignments: true,
+            invalidateRuns: true,
+        });
         if (!result.synced) {
             res.status(502).json({
                 code: 'SYNC_FAILED',
@@ -81,9 +98,13 @@ router.post('/sync', authenticate, async (req, res, next) => {
             synced: true,
             source: result.source,
             fetchedAt: result.fetchedAt,
+            mode: result.mode,
             activeCount: result.activeCount,
             staleCount: result.staleCount,
             deactivatedCount: result.deactivatedCount,
+            reconciliation: result.reconciliation,
+            assignmentPrune: result.assignmentPrune,
+            invalidatedRuns: result.invalidatedRuns,
             isStale: result.isStale,
             staleReason: result.staleReason,
         });
@@ -91,6 +112,14 @@ router.post('/sync', authenticate, async (req, res, next) => {
     catch (err) {
         next(err);
     }
+}
+// Auth: POST /faculty/sync — trigger sync from external source
+router.post('/sync', authenticate, async (req, res, next) => {
+    await handleFacultySync(req, res, next);
+});
+// Auth: POST /faculty/sync/reset — deterministic prune reset from source of truth
+router.post('/sync/reset', authenticate, async (req, res, next) => {
+    await handleFacultySync(req, res, next, 'prune');
 });
 // Auth: GET /faculty/advisers?schoolId=X — list advisers with homeroom info
 router.get('/advisers', authenticate, async (req, res, next) => {

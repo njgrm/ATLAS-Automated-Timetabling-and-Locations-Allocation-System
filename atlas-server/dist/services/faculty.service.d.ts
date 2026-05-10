@@ -1,14 +1,33 @@
 /**
- * Faculty service — Wave 3.5 Source-of-Truth Hardening
+ * Faculty service � Wave 3.5 Source-of-Truth Hardening
  *
  * Features:
- * - Full reconciliation (upsert + stale detection)
+ * - Full reconciliation with optional prune mode
  * - Durable cache with auto-save and auto-fallback
  * - Stale teachers hidden by default
  * - Adviser mapping support
  */
 import { prisma } from '../lib/prisma.js';
+import { type ExternalFaculty } from './faculty-adapter.js';
 export type FacultySourceLabel = 'enrollpro' | 'cached-enrollpro' | 'stub';
+export type FacultySyncMode = 'reconcile' | 'prune';
+export interface FacultyReconciliationSummary {
+    inserted: number;
+    updated: number;
+    removed: number;
+    skipped: number;
+    deactivated: number;
+}
+export interface AssignmentScopePruneSummary {
+    updated: number;
+    removed: number;
+    unchanged: number;
+}
+export interface FacultySyncOptions {
+    mode?: FacultySyncMode;
+    pruneSectionAssignments?: boolean;
+    invalidateRuns?: boolean;
+}
 export interface FacultySyncResult {
     synced: boolean;
     error?: string;
@@ -17,6 +36,13 @@ export interface FacultySyncResult {
     activeCount: number;
     staleCount: number;
     deactivatedCount: number;
+    mode: FacultySyncMode;
+    reconciliation: FacultyReconciliationSummary;
+    assignmentPrune: AssignmentScopePruneSummary;
+    invalidatedRuns: {
+        invalidatedCount: number;
+        staleRunIds: number[];
+    };
     isStale?: boolean;
     staleReason?: string;
 }
@@ -29,7 +55,35 @@ export interface FacultyListResult {
     activeCount: number;
     staleCount: number;
 }
-export declare function syncFacultyFromExternal(schoolId: number, schoolYearId: number, authToken?: string): Promise<FacultySyncResult>;
+interface LocalMirrorComparable {
+    id: number;
+    externalId: number;
+    firstName: string;
+    lastName: string;
+    department: string | null;
+    employmentStatus: string;
+    isClassAdviser: boolean;
+    advisoryEquivalentHours: number;
+    canTeachOutsideDepartment: boolean;
+    contactInfo: string | null;
+    advisedSectionId: number | null;
+    advisedSectionName: string | null;
+    isStale: boolean;
+}
+export interface AssignmentScopeSnapshot {
+    id: number;
+    sectionIds: number[];
+    gradeLevels: number[];
+}
+export interface AssignmentScopeReconcileDecision {
+    id: number;
+    action: 'skip' | 'update' | 'remove';
+    sectionIds: number[];
+    gradeLevels: number[];
+}
+export declare function buildFacultyReconciliationSummary(external: ExternalFaculty[], localMirrors: LocalMirrorComparable[], mode: FacultySyncMode): FacultyReconciliationSummary;
+export declare function reconcileAssignmentScopesToSections(assignments: AssignmentScopeSnapshot[], sectionDisplayOrderById: Map<number, number>): AssignmentScopeReconcileDecision[];
+export declare function syncFacultyFromExternal(schoolId: number, schoolYearId: number, authToken?: string, options?: FacultySyncOptions): Promise<FacultySyncResult>;
 export interface GetFacultyOptions {
     includeStale?: boolean;
 }
@@ -148,3 +202,4 @@ export declare function getHomeroomRecommendation(facultyId: number): Promise<{
     advisedSectionName: string | null;
     homeroomHint: string;
 } | null>;
+export {};

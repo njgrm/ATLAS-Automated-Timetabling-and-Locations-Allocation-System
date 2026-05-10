@@ -1,17 +1,18 @@
 /**
- * Faculty service — Wave 3.5 Source-of-Truth Hardening
+ * Faculty service � Wave 3.5 Source-of-Truth Hardening
  *
  * Features:
- * - Full reconciliation (upsert + stale detection)
+ * - Full reconciliation with optional prune mode
  * - Durable cache with auto-save and auto-fallback
  * - Stale teachers hidden by default
  * - Adviser mapping support
  */
+import crypto from 'crypto';
 import { prisma } from '../lib/prisma.js';
 import { createFacultyAdapter } from './faculty-adapter.js';
-import crypto from 'crypto';
+import { invalidateStaleCompletedRuns } from './generation.service.js';
+import { sectionAdapter } from './section-adapter.js';
 const adapter = createFacultyAdapter();
-// ─── Cache helpers ───
 function computeChecksum(payload) {
     return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 }
@@ -46,8 +47,125 @@ async function loadSnapshot(schoolId, schoolYearId) {
         fetchedAt: snapshot.fetchedAt,
     };
 }
-// ─── Sync with reconciliation ───
-export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken) {
+function toExternalComparable(faculty) {
+    return {
+        firstName: faculty.firstName,
+        lastName: faculty.lastName,
+        department: faculty.department ?? null,
+        employmentStatus: faculty.employmentStatus ?? 'PERMANENT',
+        isClassAdviser: faculty.isClassAdviser ?? false,
+        advisoryEquivalentHours: faculty.advisoryEquivalentHours ?? (faculty.isClassAdviser ? 5 : 0),
+        canTeachOutsideDepartment: faculty.canTeachOutsideDepartment ?? false,
+        contactInfo: faculty.contactInfo ?? null,
+        advisedSectionId: faculty.advisedSectionId ?? null,
+        advisedSectionName: faculty.advisedSectionName ?? null,
+    };
+}
+function isMirrorEquivalent(local, external) {
+    const normalized = toExternalComparable(external);
+    return (local.firstName === normalized.firstName
+        && local.lastName === normalized.lastName
+        && local.department === normalized.department
+        && local.employmentStatus === normalized.employmentStatus
+        && local.isClassAdviser === normalized.isClassAdviser
+        && local.advisoryEquivalentHours === normalized.advisoryEquivalentHours
+        && local.canTeachOutsideDepartment === normalized.canTeachOutsideDepartment
+        && local.contactInfo === normalized.contactInfo
+        && local.advisedSectionId === normalized.advisedSectionId
+        && local.advisedSectionName === normalized.advisedSectionName
+        && local.isStale === false);
+}
+export function buildFacultyReconciliationSummary(external, localMirrors, mode) {
+    const localByExternalId = new Map(localMirrors.map((mirror) => [mirror.externalId, mirror]));
+    let inserted = 0;
+    let updated = 0;
+    let skipped = 0;
+    for (const faculty of external) {
+        const local = localByExternalId.get(faculty.id);
+        if (!local) {
+            inserted += 1;
+            continue;
+        }
+        if (isMirrorEquivalent(local, faculty)) {
+            skipped += 1;
+        }
+        else {
+            updated += 1;
+        }
+    }
+    const externalIds = new Set(external.map((faculty) => faculty.id));
+    const missingCount = localMirrors.filter((mirror) => !externalIds.has(mirror.externalId)).length;
+    return {
+        inserted,
+        updated,
+        removed: mode === 'prune' ? missingCount : 0,
+        skipped,
+        deactivated: mode === 'reconcile' ? missingCount : 0,
+    };
+}
+export function reconcileAssignmentScopesToSections(assignments, sectionDisplayOrderById) {
+    return assignments.map((assignment) => {
+        const nextSectionIds = Array.from(new Set((assignment.sectionIds ?? []).filter((sectionId) => sectionDisplayOrderById.has(sectionId)))).sort((left, right) => left - right);
+        if (nextSectionIds.length === 0) {
+            return {
+                id: assignment.id,
+                action: 'remove',
+                sectionIds: [],
+                gradeLevels: [],
+            };
+        }
+        const nextGradeLevels = Array.from(new Set(nextSectionIds
+            .map((sectionId) => sectionDisplayOrderById.get(sectionId) ?? 0)
+            .filter((value) => value > 0))).sort((left, right) => left - right);
+        const currentSectionIds = [...(assignment.sectionIds ?? [])].sort((left, right) => left - right);
+        const currentGradeLevels = [...(assignment.gradeLevels ?? [])].sort((left, right) => left - right);
+        const sameSections = JSON.stringify(nextSectionIds) === JSON.stringify(currentSectionIds);
+        const sameGrades = JSON.stringify(nextGradeLevels) === JSON.stringify(currentGradeLevels);
+        return {
+            id: assignment.id,
+            action: sameSections && sameGrades ? 'skip' : 'update',
+            sectionIds: nextSectionIds,
+            gradeLevels: nextGradeLevels,
+        };
+    });
+}
+async function pruneFacultyAssignmentScopes(schoolId, schoolYearId, authToken) {
+    const sectionResult = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
+    const sectionDisplayOrderById = new Map();
+    for (const gradeLevel of sectionResult.gradeLevels) {
+        for (const section of gradeLevel.sections) {
+            sectionDisplayOrderById.set(section.id, gradeLevel.displayOrder);
+        }
+    }
+    const assignments = await prisma.facultySubject.findMany({
+        where: { schoolId },
+        select: { id: true, sectionIds: true, gradeLevels: true },
+    });
+    const decisions = reconcileAssignmentScopesToSections(assignments, sectionDisplayOrderById);
+    const updates = decisions.filter((decision) => decision.action === 'update');
+    const removals = decisions.filter((decision) => decision.action === 'remove').map((decision) => decision.id);
+    await prisma.$transaction(async (tx) => {
+        if (removals.length > 0) {
+            await tx.facultySubject.deleteMany({ where: { id: { in: removals } } });
+        }
+        for (const decision of updates) {
+            await tx.facultySubject.update({
+                where: { id: decision.id },
+                data: {
+                    sectionIds: decision.sectionIds,
+                    gradeLevels: decision.gradeLevels,
+                },
+            });
+        }
+    });
+    return {
+        updated: updates.length,
+        removed: removals.length,
+        unchanged: decisions.filter((decision) => decision.action === 'skip').length,
+    };
+}
+export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken, options = {}) {
+    const mode = options.mode ?? 'reconcile';
     let fetchResult;
     let isStale = false;
     let staleReason;
@@ -55,11 +173,9 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken)
     try {
         fetchResult = await adapter.fetchFacultyBySchoolYear(schoolId, schoolYearId, authToken);
         sourceLabel = fetchResult.source === 'stub' ? 'stub' : 'enrollpro';
-        // Save snapshot on successful fetch
         await saveSnapshot(schoolId, schoolYearId, fetchResult);
     }
     catch (err) {
-        // Upstream failed — try cached snapshot
         const cached = await loadSnapshot(schoolId, schoolYearId);
         if (cached) {
             fetchResult = {
@@ -72,7 +188,6 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken)
             staleReason = err instanceof Error ? err.message : 'Upstream unavailable';
         }
         else {
-            // No cache — explicit error
             return {
                 synced: false,
                 error: 'UPSTREAM_UNAVAILABLE: Faculty source unreachable and no cached snapshot exists.',
@@ -81,6 +196,10 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken)
                 activeCount: 0,
                 staleCount: 0,
                 deactivatedCount: 0,
+                mode,
+                reconciliation: { inserted: 0, updated: 0, removed: 0, skipped: 0, deactivated: 0 },
+                assignmentPrune: { updated: 0, removed: 0, unchanged: 0 },
+                invalidatedRuns: { invalidatedCount: 0, staleRunIds: [] },
                 isStale: true,
                 staleReason: 'No upstream and no cache',
             };
@@ -88,7 +207,25 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken)
     }
     const external = fetchResult.teachers;
     const externalIds = new Set(external.map((f) => f.id));
-    // 1. Upsert current teachers
+    const localTeachers = await prisma.facultyMirror.findMany({
+        where: { schoolId },
+        select: {
+            id: true,
+            externalId: true,
+            firstName: true,
+            lastName: true,
+            department: true,
+            employmentStatus: true,
+            isClassAdviser: true,
+            advisoryEquivalentHours: true,
+            canTeachOutsideDepartment: true,
+            contactInfo: true,
+            advisedSectionId: true,
+            advisedSectionName: true,
+            isStale: true,
+        },
+    });
+    const reconciliation = buildFacultyReconciliationSummary(external, localTeachers, mode);
     for (const f of external) {
         await prisma.facultyMirror.upsert({
             where: { schoolId_externalId: { schoolId, externalId: f.id } },
@@ -104,7 +241,6 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken)
                 advisedSectionId: f.advisedSectionId ?? null,
                 advisedSectionName: f.advisedSectionName ?? null,
                 lastSyncedAt: new Date(),
-                // Clear stale flag on successful upstream appearance
                 isStale: false,
                 staleReason: null,
                 staleAt: null,
@@ -129,15 +265,20 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken)
             },
         });
     }
-    // 2. Detect and mark stale teachers (locally present but missing from upstream)
-    const localTeachers = await prisma.facultyMirror.findMany({
-        where: { schoolId },
-        select: { id: true, externalId: true, isStale: true },
-    });
+    const missingLocal = localTeachers.filter((local) => !externalIds.has(local.externalId));
     let deactivatedCount = 0;
-    for (const local of localTeachers) {
-        if (!externalIds.has(local.externalId) && !local.isStale) {
-            // Mark as stale (soft-deactivate)
+    if (mode === 'prune' && missingLocal.length > 0) {
+        const removedFacultyIds = missingLocal.map((local) => local.id);
+        await prisma.$transaction(async (tx) => {
+            await tx.atlasAuthAccount.deleteMany({ where: { facultyId: { in: removedFacultyIds } } });
+            await tx.facultyMirror.deleteMany({ where: { id: { in: removedFacultyIds } } });
+        });
+    }
+    else {
+        for (const local of missingLocal) {
+            if (local.isStale) {
+                continue;
+            }
             await prisma.facultyMirror.update({
                 where: { id: local.id },
                 data: {
@@ -146,10 +287,20 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken)
                     staleAt: new Date(),
                 },
             });
-            deactivatedCount++;
+            deactivatedCount += 1;
         }
     }
-    // Count results
+    const assignmentPrune = options.pruneSectionAssignments === false
+        ? { updated: 0, removed: 0, unchanged: 0 }
+        : await pruneFacultyAssignmentScopes(schoolId, schoolYearId, authToken);
+    const shouldInvalidateRuns = options.invalidateRuns !== false
+        && ((mode === 'prune' && missingLocal.length > 0)
+            || deactivatedCount > 0
+            || assignmentPrune.updated > 0
+            || assignmentPrune.removed > 0);
+    const invalidatedRuns = shouldInvalidateRuns
+        ? await invalidateStaleCompletedRuns(schoolId, schoolYearId)
+        : { invalidatedCount: 0, staleRunIds: [] };
     const [activeCount, staleCount] = await Promise.all([
         prisma.facultyMirror.count({ where: { schoolId, isStale: false } }),
         prisma.facultyMirror.count({ where: { schoolId, isStale: true } }),
@@ -161,6 +312,14 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken)
         activeCount,
         staleCount,
         deactivatedCount,
+        mode,
+        reconciliation: {
+            ...reconciliation,
+            deactivated: mode === 'reconcile' ? deactivatedCount : 0,
+            removed: mode === 'prune' ? missingLocal.length : 0,
+        },
+        assignmentPrune,
+        invalidatedRuns,
         isStale,
         staleReason,
     };
@@ -191,7 +350,7 @@ export async function getFacultyBySchool(schoolId, options = {}) {
     ]);
     return {
         faculty,
-        source: 'enrollpro', // Source of the mirror data
+        source: 'enrollpro',
         fetchedAt: lastSyncRecord?.lastSyncedAt ?? null,
         isStale: false,
         activeCount,
@@ -237,7 +396,6 @@ export async function getLastSyncTime(schoolId) {
     });
     return latest?.lastSyncedAt ?? null;
 }
-// ─── Adviser helpers ───
 export async function getFacultyWithAdviserInfo(schoolId) {
     return prisma.facultyMirror.findMany({
         where: { schoolId, isStale: false, isClassAdviser: true },
