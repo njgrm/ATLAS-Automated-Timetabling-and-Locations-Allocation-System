@@ -1,5 +1,5 @@
 /**
- * Faculty service � Wave 3.5 Source-of-Truth Hardening
+ * Faculty service - Wave 3.5 Source-of-Truth Hardening
  *
  * Features:
  * - Full reconciliation with optional prune mode

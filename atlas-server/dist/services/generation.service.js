@@ -4,7 +4,7 @@
  */
 import { prisma } from '../lib/prisma.js';
 import { validateHardConstraints, } from './constraint-validator.js';
-import { constructBaseline } from './schedule-constructor.js';
+import { runHybridScheduler } from './hybrid-scheduler.js';
 import { sectionAdapter } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
@@ -135,7 +135,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId) {
                 sectionIds: normalized.sectionIds,
             };
         });
-        // ── Run baseline constructor ──
+        // ── Run hybrid multi-seed constructor (H-ALG-1 through H-ALG-3) ──
         stage = 'constructor';
         const sectionsByGrade = sectionResult.gradeLevels;
         const constructorInput = {
@@ -177,9 +177,9 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId) {
                 endTime: gw.endTime,
             })),
         };
-        const result = constructBaseline(constructorInput);
+        const result = runHybridScheduler(constructorInput);
         // ── G.17: Diagnostic output for constructor result ──
-        console.log(`[generation][run=${run.id}] constructor: assigned=${result.assignedCount}, unassigned=${result.unassignedCount}, policyBlocked=${result.policyBlockedCount}, entries=${result.entries.length}`);
+        console.log(`[generation][run=${run.id}] constructor: assigned=${result.assignedCount}, unassigned=${result.unassignedCount}, policyBlocked=${result.policyBlockedCount}, entries=${result.entries.length}, hybrid=${result.hybridEnabled}, selectedProfile=${result.selectedProfileId}`);
         if (result.lockWarnings.length > 0) {
             console.log(`[generation][run=${run.id}] lock warnings:`, result.lockWarnings.slice(0, 5));
         }
@@ -241,6 +241,11 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId) {
             ].length > 0 ? [
                 ...(sectionResult.contractWarnings ?? []),
             ] : undefined,
+            // H-ALG-5: Hybrid scheduler diagnostics
+            hybridEnabled: result.hybridEnabled,
+            selectedSeedProfile: result.selectedProfileId,
+            seedQuality: result.seedQuality?.length > 0 ? result.seedQuality : undefined,
+            repairImpact: result.repairImpact,
         };
         const finishedAt = new Date();
         const durationMs = finishedAt.getTime() - startedAt.getTime();

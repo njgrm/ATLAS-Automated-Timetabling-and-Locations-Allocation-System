@@ -36,7 +36,9 @@
     "test:wave4-precision": "tsx ../qa-artifacts/wave4-teaching-load-precision.test.ts",
     "test:preference-wellbeing": "tsx src/__tests__/preference-wellbeing.test.ts",
     "test:preference-lifecycle-lock": "tsx src/__tests__/preference-lifecycle-lock.test.ts",
-    "test:preference-sse-bilateral": "tsx src/__tests__/preference-sse-bilateral.test.ts"
+    "test:preference-sse-bilateral": "tsx src/__tests__/preference-sse-bilateral.test.ts",
+    "test:hybrid-scheduler": "tsx src/__tests__/hybrid-scheduler.test.ts",
+    "benchmark:hybrid": "tsx src/scripts/benchmark-hybrid.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",

@@ -170,6 +170,12 @@ export interface ConstructorInput {
 	policy?: PolicyInput;
 	lockedEntries?: LockedEntryInput[];
 	gradeWindows?: GradeWindowInput[];
+	/**
+	 * Optional demand override — bypasses computeDemand() to allow seed profile
+	 * reordering in the hybrid multi-seed constructor (H-ALG-1).
+	 * When provided, this array is used directly instead of calling computeDemand().
+	 */
+	demandOverride?: DemandItem[];
 }
 
 export interface LockedEntryInput {
@@ -434,7 +440,8 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	// Build period slots dynamically from policy (lunch window, school day bounds)
 	const PERIOD_SLOTS = buildPeriodSlots(policy);
 
-	const demand = computeDemand(sectionsByGrade, subjects, input.cohorts ?? []);
+	// Use demandOverride when provided (H-ALG-1 multi-seed support), otherwise compute fresh demand.
+	const demand = input.demandOverride ?? computeDemand(sectionsByGrade, subjects, input.cohorts ?? []);
 
 	// Teaching rooms sorted by id, grouped by type
 	const teachingRooms = rooms.filter((r) => r.isTeachingSpace).sort((a, b) => a.id - b.id);

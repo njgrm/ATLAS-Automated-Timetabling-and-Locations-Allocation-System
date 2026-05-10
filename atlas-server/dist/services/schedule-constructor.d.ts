@@ -105,6 +105,12 @@ export interface ConstructorInput {
     policy?: PolicyInput;
     lockedEntries?: LockedEntryInput[];
     gradeWindows?: GradeWindowInput[];
+    /**
+     * Optional demand override — bypasses computeDemand() to allow seed profile
+     * reordering in the hybrid multi-seed constructor (H-ALG-1).
+     * When provided, this array is used directly instead of calling computeDemand().
+     */
+    demandOverride?: DemandItem[];
 }
 export interface LockedEntryInput {
     sectionId: number;

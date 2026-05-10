@@ -4,6 +4,7 @@
  */
 import { type ScheduledEntry, type Violation } from './constraint-validator.js';
 import { type UnassignedItem } from './schedule-constructor.js';
+import { type SeedQualitySummary, type RepairImpact } from './hybrid-scheduler.js';
 export interface RunSummary {
     classesProcessed: number;
     assignedCount: number;
@@ -18,6 +19,10 @@ export interface RunSummary {
     cohortCount?: number;
     cohortizedClassCount?: number;
     contractWarnings?: string[];
+    hybridEnabled?: boolean;
+    selectedSeedProfile?: string;
+    seedQuality?: SeedQualitySummary[];
+    repairImpact?: RepairImpact;
 }
 export declare function triggerGenerationRun(schoolId: number, schoolYearId: number, actorId: number): Promise<{
     error: string | null;

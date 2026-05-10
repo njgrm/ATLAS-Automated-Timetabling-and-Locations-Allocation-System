@@ -2,6 +2,23 @@
 
 Record dated implementation verification summaries here.
 
+### 2026-05-11 - Hybrid Multi-Seed Scheduler Refactor (H-ALG-1 through H-ALG-5)
+- Phase: 4 (algorithm accuracy + scheduling quality)
+- Scope: hybrid-scheduler.ts (new), schedule-constructor.ts (demandOverride), generation.service.ts (orchestration wire-up), test + benchmark harnesses
+- Architecture gate: PASS — strict MVC; business logic isolated in /services; no controller changes
+- TypeScript build gate: PASS — 0 errors after null→undefined fixture fix
+- Unit test gate: PASS — 35/35 tests (H-ALG-2 fitness, H-ALG-3 repair, H-ALG-1 integration)
+  - Command: `npm --prefix atlas-server run test:hybrid-scheduler`
+- Benchmark gate: GO ✓ (H-ALG-4)
+  - Dataset: synthetic dense fixture (8 sections, 9 subjects, 10 faculty, 10 rooms, 5 iterations)
+  - Command: `npm --prefix atlas-server run benchmark:hybrid`
+  - Baseline → Hybrid: completion rate 71.8% → 72.2%, policy blocked 267 → 194
+  - Runtime max: baseline 9.5 ms | hybrid 24.3 ms (well under 60 000 ms budget)
+  - Determinism: PASS on both baseline and hybrid runs
+  - Selected profile consistent across runs: SESSION_PATTERN_PRIORITY
+- Playwright smoke: PASS 6/6
+  - Command: `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-preview-smoke.spec.ts`
+
 ### 2026-05-10 - EnrollPro Source-of-Truth Reset Hardening (Execution Pass 1)
 - Phase: 4 (objective-critical data integrity hardening)
 - Scope gate: PASS

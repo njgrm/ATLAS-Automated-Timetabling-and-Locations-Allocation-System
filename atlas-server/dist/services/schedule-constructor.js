@@ -233,7 +233,8 @@ export function constructBaseline(input) {
     const { subjects, faculty, facultySubjects, rooms, preferences, sectionsByGrade, policy, lockedEntries, gradeWindows } = input;
     // Build period slots dynamically from policy (lunch window, school day bounds)
     const PERIOD_SLOTS = buildPeriodSlots(policy);
-    const demand = computeDemand(sectionsByGrade, subjects, input.cohorts ?? []);
+    // Use demandOverride when provided (H-ALG-1 multi-seed support), otherwise compute fresh demand.
+    const demand = input.demandOverride ?? computeDemand(sectionsByGrade, subjects, input.cohorts ?? []);
     // Teaching rooms sorted by id, grouped by type
     const teachingRooms = rooms.filter((r) => r.isTeachingSpace).sort((a, b) => a.id - b.id);
     const roomsByType = new Map();
