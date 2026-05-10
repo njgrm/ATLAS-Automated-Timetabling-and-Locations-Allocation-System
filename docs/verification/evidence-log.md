@@ -2,6 +2,42 @@
 
 Record dated implementation verification summaries here.
 
+### 2026-05-10 - Publish-Phase Teacher-Move: Migration + Seed + Shared-Browser Generation QA
+- Phase: 4 (publish-foundation blocker verification)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PARTIAL PASS
+- Regression gate: PARTIAL PASS
+- Operator: GitHub Copilot (shared-browser QA run)
+- Account/role used: `admin@deped.edu.ph` (admin)
+- Environment:
+  - ATLAS server: `http://localhost:5001` (`SECTION_SOURCE_MODE=stub`)
+  - ATLAS client: `http://localhost:5174`
+  - EnrollPro server: `http://localhost:5000` (for settings/branding dependency)
+- Commands:
+  - `prisma migrate status` (tool): PASS — schema up to date after apply
+  - `npx prisma migrate deploy`: PASS — applied `0017_normalize_subject_ve_to_esp`, `0018_add_teacher_move_policy`
+  - `npm run db:seed`: PASS
+  - `npm run db:generate`: PASS
+  - Post-seed Prisma verification query (node): PASS
+- Database verification summary:
+  - MAIN building room count: `20`
+  - Subject normalization: `ESP=1`, `VE=0`
+  - Subject total after seed: `26`
+  - Scheduling policy sample includes `teacherMoveEnabled=false` (default verified)
+- Shared-browser QA checkpoints (desktop):
+  - Route: `/timetable` — PASS (page loads with generated run context)
+  - Header indicator: PASS (`Section Movement: Disabled` visible inline)
+  - Generate flow entry: PASS (`Generate` opens confirmation with `Generate Anyway`)
+  - Generate API execution: BLOCKED by backend conflict (`POST /api/v1/generation/1/1/runs` returned `409`)
+- Shared-browser viewport matrix:
+  - Desktop `1366x768`: PASS (`Timetable`, `Section Movement`, `Generate` visible)
+  - Mobile portrait `390x844`: PASS (`Timetable`, `Section Movement`, `Generate` visible)
+  - Mobile landscape `844x390`: PASS (`Timetable`, `Section Movement`, `Generate` visible)
+- Decision:
+  - Migration and seed verification are complete and valid.
+  - Shared-browser generation path is wired and request is emitted, but run creation is currently blocked by runtime `409` conflict; follow-up investigation required in generation service/runtime state.
+
 ### 2026-05-11 - Hybrid Multi-Seed Scheduler Refactor (H-ALG-1 through H-ALG-5)
 - Phase: 4 (algorithm accuracy + scheduling quality)
 - Scope: hybrid-scheduler.ts (new), schedule-constructor.ts (demandOverride), generation.service.ts (orchestration wire-up), test + benchmark harnesses
