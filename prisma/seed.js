@@ -6,7 +6,7 @@
  * 
  * Seeded Data:
  * 1. School — ATLAS Pilot School
- * 2. Subjects — 9 DepEd JHS learning areas (DO 010 s.2024 compliant)
+ * 2. Subjects — core DepEd JHS learning areas plus STE/SPA specialty subjects
  * 3. Buildings — 4 campus buildings with rooms
  * 4. Faculty Mirror — 20 teachers (synced from EnrollPro or stub)
  * 5. Faculty-Subject Assignments — Qualifications for each teacher
@@ -27,17 +27,52 @@ const prisma = new PrismaClient();
 // SEED DATA DEFINITIONS
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** DepEd JHS Learning Areas per DO 010 s.2024 */
+/**
+ * DepEd JHS Learning Areas per DO 010 s.2024
+ *
+ * Core BEC subjects (isSeedable: true) are auto-assigned to every section by the scheduler.
+ * Track-specific subjects (isSeedable: false) are only assigned to STE/SPA sections manually.
+ *
+ * Subject code alignment note:
+ *   - ESP (not VE): official DepEd code is "EsP" (Edukasyon sa Pagpapakatao).
+ *     EnrollPro uses department code 'ESP'. 'VE' / 'Values Education' is the old BEC label.
+ *   - ICT: present in STE and some regular Grade 8 sections.
+ *   - STE subjects align with EnrollPro's checklist: Environmental Science,
+ *     Research I/II/III, Basic Statistics, Advanced Statistics, Biotechnology,
+ *     Advanced Physics, Advanced Chemistry, Electronics.
+ *   - SPA subjects align with EnrollPro's checklist: Music, Visual Arts,
+ *     Theater Arts, Media Arts, Creative Writing, Dance.
+ */
 const subjectSeeds = [
+	// ── Core BEC subjects ────────────────────────────────────────────────
 	{ code: 'FIL', name: 'Filipino', minMinutesPerWeek: 200, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
 	{ code: 'ENG', name: 'English', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
 	{ code: 'MATH', name: 'Mathematics', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
 	{ code: 'SCI', name: 'Science', minMinutesPerWeek: 225, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: true },
 	{ code: 'AP', name: 'Araling Panlipunan', minMinutesPerWeek: 200, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
 	{ code: 'MAPEH', name: 'MAPEH', minMinutesPerWeek: 200, preferredRoomType: 'GYMNASIUM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
-	{ code: 'VE', name: 'Values Education', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
+	{ code: 'ESP', name: 'Edukasyon sa Pagpapakatao', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
 	{ code: 'TLE', name: 'Technology and Livelihood Education', minMinutesPerWeek: 200, preferredRoomType: 'TLE_WORKSHOP', gradeLevels: [7, 8, 9, 10], isSeedable: true },
 	{ code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
+	{ code: 'ICT', name: 'Information and Communications Technology', minMinutesPerWeek: 90, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [7, 8, 9, 10], isSeedable: true },
+	// ── STE track specialty subjects ─────────────────────────────────────
+	{ code: 'ENVIRONMENTAL_SCIENCE', name: 'Environmental Science', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8], isSeedable: false },
+	{ code: 'RESEARCH_I', name: 'Research I / Basic Statistics', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [8, 9, 10], isSeedable: false },
+	{ code: 'BASIC_STATISTICS', name: 'Basic Statistics', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [8, 9, 10], isSeedable: false },
+	{ code: 'RESEARCH_II', name: 'Research II / Advanced Statistics', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [8, 9, 10], isSeedable: false },
+	{ code: 'ADVANCED_STATISTICS', name: 'Advanced Statistics', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [8, 9, 10], isSeedable: false },
+	{ code: 'BIOTECHNOLOGY', name: 'Biotechnology', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [8, 9, 10], isSeedable: false },
+	{ code: 'RESEARCH_III', name: 'Research III / Advanced Physics', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [8, 9, 10], isSeedable: false },
+	{ code: 'ADVANCED_PHYSICS', name: 'Advanced Physics', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [8, 9, 10], isSeedable: false },
+	{ code: 'ADVANCED_CHEMISTRY', name: 'Advanced Chemistry', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [8, 9, 10], isSeedable: false },
+	{ code: 'ELECTRONICS', name: 'Electronics', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [8, 9, 10], isSeedable: false },
+	// ── SPA track specialty subjects ─────────────────────────────────────
+	{ code: 'MUSIC', name: 'Music (Vocal / Instrumental)', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false },
+	{ code: 'VISUAL_ARTS', name: 'Visual Arts', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false },
+	{ code: 'THEATER_ARTS', name: 'Theater Arts', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false },
+	{ code: 'MEDIA_ARTS', name: 'Media Arts', minMinutesPerWeek: 90, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [7, 8, 9, 10], isSeedable: false },
+	{ code: 'CREATIVE_WRITING', name: 'Creative Writing (English / Filipino)', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false },
+	{ code: 'DANCE', name: 'Dance', minMinutesPerWeek: 90, preferredRoomType: 'GYMNASIUM', gradeLevels: [7, 8, 9, 10], isSeedable: false },
 ];
 
 /** Stub faculty data — used when FACULTY_ADAPTER=stub */
@@ -48,7 +83,7 @@ const facultySeeds = [
 	{ externalId: 4, firstName: 'Mark', lastName: 'Villanueva', email: 't-0004@deped.local', department: 'Science', maxWeeklyHours: 30, subjects: ['SCI'] },
 	{ externalId: 5, firstName: 'Liza', lastName: 'Garcia', email: 't-0005@deped.local', department: 'Social Studies', maxWeeklyHours: 30, subjects: ['AP'] },
 	{ externalId: 6, firstName: 'Paolo', lastName: 'Castro', email: 't-0006@deped.local', department: 'MAPEH', maxWeeklyHours: 30, subjects: ['MAPEH'] },
-	{ externalId: 7, firstName: 'Rica', lastName: 'Mendoza', email: 't-0007@deped.local', department: 'Values', maxWeeklyHours: 30, subjects: ['VE'] },
+	{ externalId: 7, firstName: 'Rica', lastName: 'Mendoza', email: 't-0007@deped.local', department: 'Values', maxWeeklyHours: 30, subjects: ['ESP'] },
 	{ externalId: 8, firstName: 'Neil', lastName: 'Torres', email: 't-0008@deped.local', department: 'TLE', maxWeeklyHours: 30, subjects: ['TLE'] },
 	{ externalId: 9, firstName: 'Grace', lastName: 'Aquino', email: 't-0009@deped.local', department: 'Guidance', maxWeeklyHours: 20, subjects: ['HG'] },
 	{ externalId: 10, firstName: 'Ivy', lastName: 'Flores', email: 't-0010@deped.local', department: 'Mathematics', maxWeeklyHours: 30, subjects: ['MATH'] },
@@ -57,7 +92,7 @@ const facultySeeds = [
 	{ externalId: 13, firstName: 'Ramon', lastName: 'Lopez', email: 't-0013@deped.local', department: 'Languages', maxWeeklyHours: 30, subjects: ['FIL'] },
 	{ externalId: 14, firstName: 'Katrina', lastName: 'Salazar', email: 't-0014@deped.local', department: 'Social Studies', maxWeeklyHours: 30, subjects: ['AP'] },
 	{ externalId: 15, firstName: 'Lourdes', lastName: 'Valdez', email: 't-0015@deped.local', department: 'MAPEH', maxWeeklyHours: 30, subjects: ['MAPEH'] },
-	{ externalId: 16, firstName: 'Harold', lastName: 'Bautista', email: 't-0016@deped.local', department: 'Values', maxWeeklyHours: 30, subjects: ['VE'] },
+	{ externalId: 16, firstName: 'Harold', lastName: 'Bautista', email: 't-0016@deped.local', department: 'Values', maxWeeklyHours: 30, subjects: ['ESP'] },
 	{ externalId: 17, firstName: 'Mika', lastName: 'Ramos', email: 't-0017@deped.local', department: 'TLE', maxWeeklyHours: 30, subjects: ['TLE'] },
 	{ externalId: 18, firstName: 'Jonas', lastName: 'Domingo', email: 't-0018@deped.local', department: 'Mathematics', maxWeeklyHours: 30, subjects: ['MATH'] },
 	{ externalId: 19, firstName: 'Ella', lastName: 'Rivera', email: 't-0019@deped.local', department: 'Science', maxWeeklyHours: 30, subjects: ['SCI'] },
@@ -107,7 +142,8 @@ async function main() {
 
 	console.log(`Seeded ${subjectSeeds.length} ATLAS subjects for school ${school.name}.`);
 
-	// Seed demo buildings + rooms (adequate for 12 JHS sections)
+	// Seed demo buildings + rooms aligned to occupancy-plan templates (20-room + 24-room buildings)
+	// Main Academic Building: 20 classrooms (7 per floor F1/F2, 6 per floor F3)
 	const buildingSeeds = [
 		{
 			name: 'Main Academic Building',
@@ -115,14 +151,29 @@ async function main() {
 			floorCount: 3,
 			x: 70, y: 80, width: 280, height: 170, color: '#2563eb',
 			rooms: [
+				// Floor 1: 7 classrooms
 				{ name: 'Room 101', floor: 1, type: 'CLASSROOM', capacity: 45, floorPosition: 1 },
 				{ name: 'Room 102', floor: 1, type: 'CLASSROOM', capacity: 45, floorPosition: 2 },
 				{ name: 'Room 103', floor: 1, type: 'CLASSROOM', capacity: 40, floorPosition: 3 },
+				{ name: 'Room 104', floor: 1, type: 'CLASSROOM', capacity: 45, floorPosition: 4 },
+				{ name: 'Room 105', floor: 1, type: 'CLASSROOM', capacity: 45, floorPosition: 5 },
+				{ name: 'Room 106', floor: 1, type: 'CLASSROOM', capacity: 40, floorPosition: 6 },
+				{ name: 'Room 107', floor: 1, type: 'CLASSROOM', capacity: 45, floorPosition: 7 },
+				// Floor 2: 7 classrooms
 				{ name: 'Room 201', floor: 2, type: 'CLASSROOM', capacity: 45, floorPosition: 1 },
 				{ name: 'Room 202', floor: 2, type: 'CLASSROOM', capacity: 45, floorPosition: 2 },
 				{ name: 'Room 203', floor: 2, type: 'CLASSROOM', capacity: 40, floorPosition: 3 },
+				{ name: 'Room 204', floor: 2, type: 'CLASSROOM', capacity: 45, floorPosition: 4 },
+				{ name: 'Room 205', floor: 2, type: 'CLASSROOM', capacity: 45, floorPosition: 5 },
+				{ name: 'Room 206', floor: 2, type: 'CLASSROOM', capacity: 40, floorPosition: 6 },
+				{ name: 'Room 207', floor: 2, type: 'CLASSROOM', capacity: 45, floorPosition: 7 },
+				// Floor 3: 6 classrooms
 				{ name: 'Room 301', floor: 3, type: 'CLASSROOM', capacity: 45, floorPosition: 1 },
 				{ name: 'Room 302', floor: 3, type: 'CLASSROOM', capacity: 45, floorPosition: 2 },
+				{ name: 'Room 303', floor: 3, type: 'CLASSROOM', capacity: 40, floorPosition: 3 },
+				{ name: 'Room 304', floor: 3, type: 'CLASSROOM', capacity: 45, floorPosition: 4 },
+				{ name: 'Room 305', floor: 3, type: 'CLASSROOM', capacity: 45, floorPosition: 5 },
+				{ name: 'Room 306', floor: 3, type: 'CLASSROOM', capacity: 40, floorPosition: 6 },
 			],
 		},
 		{

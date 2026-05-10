@@ -93,6 +93,7 @@ const SOFT_CONSTRAINT_LABELS: Record<string, { label: string; explanation: strin
 /* ─── Types ─── */
 
 interface LocalPolicy {
+	teacherMoveEnabled: boolean;
 	maxConsecutiveTeachingMinutesBeforeBreak: number;
 	minBreakMinutesAfterConsecutiveBlock: number;
 	maxTeachingMinutesPerDay: number;
@@ -121,6 +122,7 @@ interface LocalPolicy {
 
 function policyToLocal(p: SchedulingPolicy): LocalPolicy {
 	return {
+		teacherMoveEnabled: p.teacherMoveEnabled ?? false,
 		maxConsecutiveTeachingMinutesBeforeBreak: p.maxConsecutiveTeachingMinutesBeforeBreak,
 		minBreakMinutesAfterConsecutiveBlock: p.minBreakMinutesAfterConsecutiveBlock,
 		maxTeachingMinutesPerDay: p.maxTeachingMinutesPerDay,
@@ -459,6 +461,26 @@ export default function SchedulingPolicyPane({
 			) : (
 				/* Outer container does NOT scroll — each column card scrolls independently */
 				<div className="flex-1 min-h-0 overflow-hidden p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+
+					{/* ── COL 0: Scheduling Mode ── */}
+					<SectionCard title="Scheduling Mode">
+						<div className="space-y-3">
+							<div className="space-y-2">
+								<div className="flex items-center justify-between">
+									<Label className="font-medium text-xs text-foreground">Section Movement</Label>
+									<Switch
+										checked={local.teacherMoveEnabled}
+										onCheckedChange={(checked) => update('teacherMoveEnabled', checked)}
+									/>
+								</div>
+								<p className="text-xs text-muted-foreground leading-relaxed">
+									{local.teacherMoveEnabled
+										? 'Sections will move with teachers to rooms outside their assigned building. This affects room occupancy planning and teacher travel distance calculations.'
+										: 'Sections stay in their assigned building rooms. Teachers move between buildings as needed. Most common for JHS settings.'}
+								</p>
+							</div>
+						</div>
+					</SectionCard>
 
 					{/* ── COL 1: Core Teaching Limits ── */}
 					<SectionCard title="Core Teaching Limits">

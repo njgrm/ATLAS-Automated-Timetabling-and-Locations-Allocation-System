@@ -558,7 +558,17 @@ return (
 						</DialogDescription>
 					</DialogHeader>
 
-										<DialogFooter className="gap-2 sm:gap-0">
+					<div className="space-y-3 py-2 text-sm">
+						<div className="rounded-md bg-muted/50 p-3">
+							<p className="font-medium text-xs text-foreground mb-1">Scheduling Mode</p>
+							<p className="text-xs text-muted-foreground">
+								Sections will <span className="font-semibold">{context.policy?.teacherMoveEnabled ? 'move with teachers' : 'stay in assigned rooms'}</span>
+								{context.policy?.teacherMoveEnabled ? ' to rooms outside their assigned building.' : '.'}
+							</p>
+						</div>
+					</div>
+
+					<DialogFooter className="gap-2 sm:gap-0">
 						<Button variant="outline" size="sm" onClick={() => setShowPublishDialog(false)}>
 							Cancel
 						</Button>

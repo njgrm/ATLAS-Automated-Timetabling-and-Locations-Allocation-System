@@ -94,6 +94,7 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	formatTimestamp: (value: string | null) => string;
 	setProgramFilter: (value: ProgramFilter) => void;
 	setEntryKindFilter: (value: EntryKindFilter) => void;
+	policy: { teacherMoveEnabled: boolean } | null;
 };
 
 export type ScheduleReviewWorkspaceBodyContext = {

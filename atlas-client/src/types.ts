@@ -932,6 +932,7 @@ export interface SchedulingPolicy {
 	id: number;
 	schoolId: number;
 	schoolYearId: number;
+	teacherMoveEnabled: boolean;
 	maxConsecutiveTeachingMinutesBeforeBreak: number;
 	minBreakMinutesAfterConsecutiveBlock: number;
 	maxTeachingMinutesPerDay: number;

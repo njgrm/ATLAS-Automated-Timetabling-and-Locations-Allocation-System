@@ -18,6 +18,7 @@ function err(statusCode: number, code: string, message: string): Error & { statu
 // ─── Default values ───
 
 export const POLICY_DEFAULTS = {
+	teacherMoveEnabled: false,
 	maxConsecutiveTeachingMinutesBeforeBreak: 120,
 	minBreakMinutesAfterConsecutiveBlock: 15,
 	maxTeachingMinutesPerDay: 400,
@@ -67,6 +68,7 @@ export const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride> = {
 // ─── Exported policy shape (for cross-service use) ───
 
 export interface SchedulingPolicyData {
+	teacherMoveEnabled: boolean;
 	maxConsecutiveTeachingMinutesBeforeBreak: number;
 	minBreakMinutesAfterConsecutiveBlock: number;
 	maxTeachingMinutesPerDay: number;
