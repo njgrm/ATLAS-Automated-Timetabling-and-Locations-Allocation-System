@@ -90,6 +90,7 @@ type EditState = {
 	gradeLevels: number[];
 	interSectionEnabled: boolean;
 	interSectionGradeLevels: number[];
+	programScopes: string[];
 };
 
 type NewSubjectForm = {
@@ -101,6 +102,7 @@ type NewSubjectForm = {
 	gradeLevels: number[];
 	interSectionEnabled: boolean;
 	interSectionGradeLevels: number[];
+	programScopes: string[];
 };
 
 const emptyForm: NewSubjectForm = {
@@ -112,6 +114,7 @@ const emptyForm: NewSubjectForm = {
 	gradeLevels: [7, 8, 9, 10],
 	interSectionEnabled: false,
 	interSectionGradeLevels: [],
+	programScopes: ['REGULAR'],
 };
 
 export default function Subjects() {
@@ -266,6 +269,7 @@ export default function Subjects() {
 				gradeLevels: editState.gradeLevels,
 				interSectionEnabled: editState.interSectionEnabled,
 				interSectionGradeLevels: editState.interSectionGradeLevels,
+				programScopes: editState.programScopes,
 			});
 			setEditState(null);
 			toast.success('Subject updated successfully.');
@@ -503,6 +507,29 @@ export default function Subjects() {
 											}`}
 										>
 												G{g}
+										</button>
+									))}
+								</div>
+							</div>
+							<div className="mt-3">
+								<label className="text-xs font-medium text-muted-foreground">Program Scopes</label>
+								<div className="mt-1 flex flex-wrap gap-1.5">
+									{PROGRAM_SCOPE_OPTIONS.map(({ value, label }) => (
+										<button
+											key={value}
+											type="button"
+											onClick={() => setNewSubject((p) => {
+												const has = p.programScopes.includes(value);
+												const next = has ? p.programScopes.filter((x) => x !== value) : [...p.programScopes, value];
+												return { ...p, programScopes: next.length > 0 ? next : [value] };
+											})}
+											className={`rounded border px-2 py-1 text-xs font-medium transition-colors ${
+												newSubject.programScopes.includes(value)
+													? `border-current ${PROGRAM_SCOPE_BADGE[value] ?? 'bg-sky-50 text-sky-700 border-sky-200'}`
+													: 'border-border text-muted-foreground hover:bg-accent/10'
+											}`}
+										>
+											{label}
 										</button>
 									))}
 								</div>
@@ -766,10 +793,38 @@ export default function Subjects() {
 													)}
 												</td>
 												<td className="px-4 py-3">
-													{s.isActive ? (
-														<Badge className="bg-emerald-100 text-emerald-700 text-[0.6rem]">Active</Badge>
+													{isEditing ? (
+														<div className="flex flex-wrap gap-1">
+															{PROGRAM_SCOPE_OPTIONS.map(({ value, label }) => (
+																<button
+																	key={value}
+																	type="button"
+																	onClick={() => setEditState((p) => {
+																		if (!p) return p;
+																		const has = p.programScopes.includes(value);
+																		const next = has
+																			? p.programScopes.filter((x) => x !== value)
+																			: [...p.programScopes, value];
+																		return { ...p, programScopes: next.length > 0 ? next : [value] };
+																	})}
+																	className={`rounded border px-1.5 py-0.5 text-[0.6rem] font-medium transition-colors ${
+																		editState.programScopes.includes(value)
+																			? `border-current ${PROGRAM_SCOPE_BADGE[value] ?? 'bg-sky-50 text-sky-700 border-sky-200'}`
+																			: 'border-border text-muted-foreground hover:bg-accent/10'
+																	}`}
+																>
+																	{label}
+																</button>
+															))}
+														</div>
 													) : (
-														<Badge variant="secondary" className="text-[0.6rem]">Inactive</Badge>
+														<>
+															{s.isActive ? (
+																<Badge className="bg-emerald-100 text-emerald-700 text-[0.6rem]">Active</Badge>
+															) : (
+																<Badge variant="secondary" className="text-[0.6rem]">Inactive</Badge>
+															)}
+														</>
 													)}
 												</td>
 												<td className="px-4 py-3 text-right">
@@ -810,6 +865,7 @@ export default function Subjects() {
 																	gradeLevels: [...s.gradeLevels],
 																	interSectionEnabled: s.interSectionEnabled ?? false,
 																	interSectionGradeLevels: [...(s.interSectionGradeLevels ?? [])],
+																	programScopes: [...(s.programScopes ?? ['REGULAR'])],
 																})}
 															>
 																<Pencil className="size-3.5" />

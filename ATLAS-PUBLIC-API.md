@@ -152,8 +152,7 @@ Delete a subject (blocked if it has active assignments).
 | | |
 |---|---|
 | **Auth** | Required |
-| **Success** | `204 No Content` |
-
+| **Success** | `204 No Content` 
 ---
 
 ### `POST /subjects/seed` 🔒

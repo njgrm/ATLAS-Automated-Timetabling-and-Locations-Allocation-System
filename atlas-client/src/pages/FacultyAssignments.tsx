@@ -541,10 +541,10 @@ className="h-7 px-2 text-[0.6875rem]"
 {departmentOptions.length > 0 && (
 <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
 <SelectTrigger className="mt-2 h-7 w-full text-[0.6875rem]">
-<SelectValue placeholder="All Departments" />
+<SelectValue placeholder="All Specializations" />
 </SelectTrigger>
 <SelectContent>
-<SelectItem value="all">All Departments</SelectItem>
+<SelectItem value="all">All Specializations</SelectItem>
 {departmentOptions.map((department) => (
 <SelectItem key={department} value={department}>
 {department}

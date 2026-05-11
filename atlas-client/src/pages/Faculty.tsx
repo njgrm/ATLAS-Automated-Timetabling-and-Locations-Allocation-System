@@ -26,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 const DEFAULT_SCHOOL_ID = 1;
 const PAGE_SIZES = [10, 25, 50];
 
-type SortField = 'name' | 'department' | 'subjects' | 'weeklyLoad' | 'status';
+type SortField = 'name' | 'specialization' | 'subjects' | 'weeklyLoad' | 'status';
 type SortDir = 'asc' | 'desc';
 
 export default function Faculty() {
@@ -138,7 +138,7 @@ export default function Faculty() {
 			let cmp = 0;
 			switch (sortField) {
 				case 'name': cmp = `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`); break;
-				case 'department': cmp = (a.department ?? '').localeCompare(b.department ?? ''); break;
+					case 'specialization': cmp = (a.department ?? '').localeCompare(b.department ?? ''); break;
 				case 'subjects': cmp = (a.facultySubjects?.length ?? 0) - (b.facultySubjects?.length ?? 0); break;
 				case 'weeklyLoad': {
 					const aMin = (a.facultySubjects ?? []).reduce((s, fs) => s + (fs.subject?.minMinutesPerWeek ?? 0) * fs.gradeLevels.length, 0);
@@ -209,10 +209,10 @@ export default function Faculty() {
 					{departments.length > 0 && (
 						<Select value={departmentFilter} onValueChange={(v) => setDepartmentFilter(v)}>
 							<SelectTrigger className="h-8 w-35 text-xs">
-								<SelectValue placeholder="All Depts" />
+								<SelectValue placeholder="All Specs" />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="all">All Depts</SelectItem>
+								<SelectItem value="all">All Specs</SelectItem>
 								{departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
 							</SelectContent>
 						</Select>
@@ -271,8 +271,8 @@ export default function Faculty() {
 										</button>
 									</th>
 									<th className="px-4 py-2.5 text-left">
-										<button onClick={() => toggleSort('department')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground">
-											Department <SortIcon field="department" />
+										<button onClick={() => toggleSort('specialization')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground">
+											Specialization <SortIcon field="specialization" />
 										</button>
 									</th>
 									<th className="px-4 py-2.5 text-left font-semibold text-muted-foreground">Contact</th>
@@ -286,7 +286,6 @@ export default function Faculty() {
 											Weekly Load <SortIcon field="weeklyLoad" />
 										</button>
 									</th>
-									<th className="px-4 py-2.5 text-center font-semibold text-muted-foreground">Preferences</th>
 									<th className="px-4 py-2.5 text-center">
 										<button onClick={() => toggleSort('status')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground mx-auto">
 											Status <SortIcon field="status" />
@@ -296,13 +295,13 @@ export default function Faculty() {
 							<tbody>
 								{loading ? (
 									<tr>
-											<td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
+											<td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
 											Loading faculty...
 										</td>
 									</tr>
 								) : paged.length === 0 ? (
 									<tr>
-											<td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">
+									<td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
 											{faculty.length === 0 ? (
 												<div className="flex flex-col items-center gap-2">
 													<Users className="size-8 text-muted-foreground/50" />
@@ -357,9 +356,6 @@ export default function Faculty() {
 														{weeklyHours > 0 ? `${weeklyHours}h` : '—'}
 													</span>
 													<span className="text-muted-foreground text-[0.6875rem]"> / {maxHours}h</span>
-												</td>
-												<td className="px-4 py-3 text-center">
-													<span className="text-muted-foreground">—</span>
 												</td>
 												<td className="px-4 py-3 text-center">
 													{f.isActiveForScheduling ? (

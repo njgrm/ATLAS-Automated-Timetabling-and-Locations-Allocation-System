@@ -34,6 +34,16 @@ const GRADE_COLORS: Record<string, string> = {
 	'10': 'bg-blue-100/80 text-blue-700',
 };
 
+const PROGRAM_BADGE: Record<string, string> = {
+	STE:   'bg-emerald-50 text-emerald-700 border-emerald-200',
+	SPA:   'bg-purple-50 text-purple-700 border-purple-200',
+	SPS:   'bg-orange-50 text-orange-700 border-orange-200',
+	SPJ:   'bg-sky-50 text-sky-700 border-sky-200',
+	SPFL:  'bg-indigo-50 text-indigo-700 border-indigo-200',
+	SPTVE: 'bg-amber-50 text-amber-700 border-amber-200',
+	OTHER: 'bg-gray-50 text-gray-600 border-gray-200',
+};
+
 /* ─── Types ─── */
 type SortField = 'name' | 'gradeLevelId' | 'enrolledCount' | 'maxCapacity' | 'fill';
 type SortDir   = 'asc' | 'desc';
@@ -45,6 +55,11 @@ type SectionDetail = {
 	enrolledCount: number;
 	gradeLevelId:  number;
 	gradeLevelName: string;
+	// Special program fields (Wave 3.5)
+	programType?:    string;
+	programCode?:    string;
+	programName?:    string;
+	isSpecialProgram?: boolean;
 };
 
 type SectionSummary = {
@@ -85,6 +100,7 @@ export default function Sections() {
 	const [pageSize, setPageSize]     = useState(25);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [gradeFilter, setGradeFilter] = useState<string>('all');
+	const [programFilter, setProgramFilter] = useState<string>('all');
 
 	const fetchSections = useCallback(async () => {
 		setState({ status: 'loading' });
@@ -120,7 +136,7 @@ export default function Sections() {
 	useEffect(() => { void fetchSections(); }, [fetchSections]);
 
 	// Reset page when filters change
-	useEffect(() => { setPage(1); }, [searchQuery, gradeFilter, pageSize]);
+	useEffect(() => { setPage(1); }, [searchQuery, gradeFilter, programFilter, pageSize]);
 
 	const { paged, totalFiltered, totalPages } = useMemo(() => {
 		if (state.status !== 'ok') return { paged: [], totalFiltered: 0, totalPages: 1 };
@@ -134,6 +150,14 @@ export default function Sections() {
 		// Grade filter
 		if (gradeFilter !== 'all') {
 			list = list.filter((s) => gradeKey(s.gradeLevelName) === gradeFilter);
+		}
+		// Program filter
+		if (programFilter !== 'all') {
+			if (programFilter === 'REGULAR') {
+				list = list.filter((s) => !s.isSpecialProgram);
+			} else {
+				list = list.filter((s) => s.programType === programFilter);
+			}
 		}
 
 		// Sort
@@ -155,7 +179,7 @@ export default function Sections() {
 		const tp = Math.max(1, Math.ceil(tf / pageSize));
 		const start = (page - 1) * pageSize;
 		return { paged: sorted.slice(start, start + pageSize), totalFiltered: tf, totalPages: tp };
-	}, [state, searchQuery, gradeFilter, sortField, sortDir, page, pageSize]);
+	}, [state, searchQuery, gradeFilter, programFilter, sortField, sortDir, page, pageSize]);
 
 	const toggleSort = (field: SortField) => {
 		if (sortField === field) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -167,7 +191,7 @@ export default function Sections() {
 		return sortDir === 'asc' ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />;
 	};
 
-	const hasActiveFilters = gradeFilter !== 'all' || searchQuery.trim() !== '';
+	const hasActiveFilters = gradeFilter !== 'all' || searchQuery.trim() !== '' || programFilter !== 'all';
 
 	// Distinct grade levels present in data
 	const availableGrades = useMemo(() => {
@@ -175,6 +199,14 @@ export default function Sections() {
 		const keys = new Set<string>();
 		state.data.sections.forEach((s) => { const k = gradeKey(s.gradeLevelName); if (k) keys.add(k); });
 		return Array.from(keys).sort((a, b) => Number(a) - Number(b));
+	}, [state]);
+
+	// Distinct special programs in data
+	const availablePrograms = useMemo(() => {
+		if (state.status !== 'ok') return [];
+		const types = new Set<string>();
+		state.data.sections.forEach((s) => { if (s.isSpecialProgram && s.programType) types.add(s.programType); });
+		return Array.from(types).sort();
 	}, [state]);
 
 	return (
@@ -209,13 +241,29 @@ export default function Sections() {
 						</Select>
 					)}
 
+					{/* Program filter */}
+					{availablePrograms.length > 0 && (
+						<Select value={programFilter} onValueChange={setProgramFilter}>
+							<SelectTrigger className="h-8 w-32 text-xs">
+								<SelectValue placeholder="All Programs" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Programs</SelectItem>
+								<SelectItem value="REGULAR">Regular</SelectItem>
+								{availablePrograms.map((p) => (
+									<SelectItem key={p} value={p}>{p}</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					)}
+
 					{/* Clear filters */}
 					{hasActiveFilters && (
 						<Button
 							variant="ghost"
 							size="sm"
 							className="h-8 px-2 text-xs"
-							onClick={() => { setSearchQuery(''); setGradeFilter('all'); }}
+							onClick={() => { setSearchQuery(''); setGradeFilter('all'); setProgramFilter('all'); }}
 						>
 							<X className="size-3 mr-1" /> Clear
 						</Button>
@@ -356,13 +404,23 @@ export default function Sections() {
 
 										return (
 											<tr key={s.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-												{/* Name cell with avatar-style initial */}
+												{/* Name cell with avatar-style initial + program badge */}
 												<td className="px-4 py-3">
 													<div className="flex items-center gap-3">
 														<div className={`flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${GRADE_COLORS[gKey] ?? 'bg-primary/10 text-primary'}`}>
 															{gKey || s.name[0]}
 														</div>
-														<span className="font-medium">{s.name}</span>
+														<div>
+															<span className="font-medium">{s.name}</span>
+															{s.isSpecialProgram && s.programCode && (
+																<Badge
+																	variant="outline"
+																	className={`ml-2 text-[0.55rem] px-1.5 py-0 ${PROGRAM_BADGE[s.programCode] ?? PROGRAM_BADGE.OTHER}`}
+																>
+																	{s.programCode}
+																</Badge>
+															)}
+														</div>
 													</div>
 												</td>
 

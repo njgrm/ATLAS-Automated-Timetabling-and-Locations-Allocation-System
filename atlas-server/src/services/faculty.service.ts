@@ -485,7 +485,7 @@ prisma.facultyMirror.findMany({
 where: whereClause,
 include: {
 facultySubjects: {
-include: { subject: { select: { id: true, name: true, code: true } } },
+include: { subject: { select: { id: true, name: true, code: true, minMinutesPerWeek: true, programScopes: true } } },
 },
 },
 orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
