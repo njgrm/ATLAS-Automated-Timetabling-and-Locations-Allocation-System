@@ -46,7 +46,7 @@ Service liveness probe. No auth required.
 
 ## Subjects
 
-**Public endpoints** (no auth required).
+Public read endpoints are available; write and stats endpoints are protected.
 
 ### `GET /subjects?schoolId=<id>`
 List all subjects for a school.
@@ -93,7 +93,7 @@ Subject dashboard counts for a school.
 
 | | |
 |---|---|
-| **Auth** | None |
+| **Auth** | Required (officer or admin) |
 | **Success** | `200 OK` |
 
 ```json
@@ -246,7 +246,10 @@ Update local scheduling metadata for a faculty member. Requires `version` for op
 ### `POST /faculty/sync` 🔒
 Trigger a full sync of faculty data from the EnrollPro adapter.
 
-**Body:** `{ "schoolId": 1 }`
+**Body:**
+```json
+{ "schoolId": 1, "schoolYearId": 1, "mode": "reconcile" }
+```
 
 | | |
 |---|---|
@@ -254,14 +257,37 @@ Trigger a full sync of faculty data from the EnrollPro adapter.
 | **Success** | `200 OK` |
 
 ```json
-{ "synced": 24, "lastSyncedAt": "2026-04-18T10:00:00.000Z" }
+{
+  "synced": true,
+  "source": "enrollpro",
+  "fetchedAt": "2026-05-11T03:12:56.956Z",
+  "mode": "reconcile",
+  "activeCount": 141,
+  "staleCount": 0,
+  "deactivatedCount": 0,
+  "reconciliation": {
+    "inserted": 0,
+    "updated": 0,
+    "removed": 0,
+    "skipped": 141,
+    "deactivated": 0
+  }
+}
+```
+
+### `POST /faculty/sync/reset` 🔒
+Trigger deterministic prune reset from source-of-truth.
+
+**Body:**
+```json
+{ "schoolId": 1, "schoolYearId": 1, "confirmPrune": true }
 ```
 
 ---
 
 ## Faculty Assignments (Subject-to-Faculty)
 
-### `GET /faculty-assignments/summary?schoolId=<id>` 🔒
+### `GET /faculty-assignments/summary?schoolId=<id>&schoolYearId=<id>` 🔒
 Teaching load summary for all faculty in a school.
 
 | | |
@@ -284,7 +310,7 @@ Teaching load summary for all faculty in a school.
 
 ---
 
-### `GET /faculty-assignments/:facultyId` 🔒
+### `GET /faculty-assignments/:facultyId?schoolYearId=<id>` 🔒
 Get all subject assignments for one faculty member.
 
 | | |
@@ -309,6 +335,8 @@ Replace all subject assignments for a faculty member (full replace).
 ```json
 {
   "schoolId": 1,
+  "schoolYearId": 1,
+  "version": 3,
   "assignments": [
     { "subjectId": 2, "gradeLevel": "GRADE_7" },
     { "subjectId": 3, "gradeLevel": "GRADE_8" }
@@ -746,10 +774,11 @@ Get full weekly schedule for a room.
 |---|---|
 | `latest` | Use the most recent committed timetable (default) |
 | `run&runId=<id>` | Use a specific generation run |
+| `draft` | Use currently staged manual draft entries |
 
 | | |
 |---|---|
-| **Auth** | Required (officer or admin) |
+| **Auth** | Required (faculty/teacher/officer/admin) |
 | **Success** | `200 OK` |
 
 ```json
@@ -763,6 +792,60 @@ Get full weekly schedule for a room.
       "sectionName": "7-Rizal",
       "subjectCode": "ENG",
       "facultyName": "Maria Santos"
+    }
+  ]
+}
+```
+
+---
+
+## Published Schedules
+
+**Public endpoints** (no auth required). These return only `Published` schedules.
+
+### `GET /schools/:schoolId/schedules/published`
+Get the current published schedule payload for a school.
+
+### `GET /schools/:schoolId/schedules/published/:termId`
+Get published schedule payload for a specific term.
+
+### `GET /schools/:schoolId/schedules/published/sections/:sectionId`
+Get current published schedule view for a section.
+
+### `GET /schools/:schoolId/schedules/published/:termId/sections/:sectionId`
+Get term-specific published schedule view for a section.
+
+### `GET /schools/:schoolId/schedules/published/faculty/:facultyId`
+Get current published schedule view for a faculty member.
+
+### `GET /schools/:schoolId/schedules/published/:termId/faculty/:facultyId`
+Get term-specific published schedule view for a faculty member.
+
+### `GET /schools/:schoolId/schedules/published/rooms/:roomId`
+Get current published schedule view for a room.
+
+### `GET /schools/:schoolId/schedules/published/:termId/rooms/:roomId`
+Get term-specific published schedule view for a room.
+
+| | |
+|---|---|
+| **Auth** | None |
+| **Success** | `200 OK` |
+
+```json
+{
+  "schoolId": 1,
+  "termId": 1,
+  "publishedAt": "2026-05-11T03:30:00.000Z",
+  "entries": [
+    {
+      "sectionId": 101,
+      "facultyId": 7947,
+      "roomId": 3,
+      "day": "MONDAY",
+      "startTime": "07:00",
+      "endTime": "08:00",
+      "subjectCode": "ENG"
     }
   ]
 }

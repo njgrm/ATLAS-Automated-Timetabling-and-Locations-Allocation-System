@@ -273,7 +273,7 @@ export async function getAssignmentSummary(schoolId: number, schoolYearId: numbe
 const [rosterIndex, faculty] = await Promise.all([
 buildRosterIndex(schoolId, schoolYearId, authToken),
 prisma.facultyMirror.findMany({
-where: { schoolId },
+where: { schoolId, isStale: false },
 include: {
 facultySubjects: {
 include: { subject: { select: { id: true, name: true, code: true, minMinutesPerWeek: true } } },
