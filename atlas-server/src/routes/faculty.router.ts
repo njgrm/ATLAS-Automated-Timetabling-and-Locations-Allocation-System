@@ -231,4 +231,25 @@ router.patch('/:id', authenticate, async (req: Request, res: Response, next: Nex
 	}
 });
 
+// Auth: GET /faculty/specializations?schoolId=X — distinct non-stale specialization values
+router.get('/specializations', async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.query.schoolId);
+		if (!schoolId || Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
+			return;
+		}
+		const rows = await prisma.facultyMirror.findMany({
+			where: { schoolId, isStale: false, department: { not: null } },
+			select: { department: true },
+			distinct: ['department'],
+			orderBy: { department: 'asc' },
+		});
+		const specializations = rows.map((r) => r.department as string);
+		res.json({ specializations });
+	} catch (err) {
+		next(err);
+	}
+});
+
 export default router;

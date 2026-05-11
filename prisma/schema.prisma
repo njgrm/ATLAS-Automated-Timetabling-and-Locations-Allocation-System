@@ -104,6 +104,7 @@ model Subject {
   interSectionEnabled     Boolean          @default(false) @map("inter_section_enabled")
   interSectionGradeLevels Int[]            @default([]) @map("inter_section_grade_levels")
   programScopes           ProgramType[]    @default([REGULAR]) @map("program_scopes")
+  allowedSpecializations  String[]         @default([]) @map("allowed_specializations")
   createdAt               DateTime         @default(now())
   updatedAt               DateTime         @updatedAt
   school                  School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)

@@ -22,7 +22,19 @@ import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
 import { gradeLabel, GRADE_COLORS } from '@/lib/grade-labels';
+import {
+	ALL_ROOM_TYPES,
+	GRADE_OPTIONS,
+	PROGRAM_SCOPE_BADGE,
+	PROGRAM_SCOPE_OPTIONS,
+	ROOM_TYPE_LABELS,
+	SESSION_PATTERN_BADGE,
+	SESSION_PATTERN_LABELS,
+	type NewSubjectForm,
+	emptyForm,
+} from '@/lib/subject-constants';
 import type { RoomType, SessionPattern, Subject } from '@/types';
+import { SubjectAddForm } from '@/components/subjects/SubjectAddForm';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -36,49 +48,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 const DEFAULT_SCHOOL_ID = 1;
 const PAGE_SIZES = [10, 25, 50];
 
-const ROOM_TYPE_LABELS: Record<RoomType, string> = {
-	CLASSROOM: 'Classroom',
-	LABORATORY: 'Science Laboratory',
-	COMPUTER_LAB: 'ICT / Computer Lab',
-	TLE_WORKSHOP: 'TLE Workshop',
-	LIBRARY: 'Library',
-	GYMNASIUM: 'Gymnasium',
-	FACULTY_ROOM: 'Faculty Room',
-	OFFICE: 'Office',
-	OTHER: 'Other',
-};
-
-const ALL_ROOM_TYPES = Object.keys(ROOM_TYPE_LABELS) as RoomType[];
-const GRADE_OPTIONS = [7, 8, 9, 10];
-
-const PROGRAM_SCOPE_OPTIONS = [
-	{ value: 'REGULAR', label: 'Regular' },
-	{ value: 'STE', label: 'STE' },
-	{ value: 'SPA', label: 'SPA' },
-	{ value: 'SPS', label: 'SPS' },
-	{ value: 'OTHER', label: 'Other' },
-] as const;
-
-const PROGRAM_SCOPE_BADGE: Record<string, string> = {
-	REGULAR: 'bg-sky-50 text-sky-700 border-sky-200',
-	STE: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-	SPA: 'bg-purple-50 text-purple-700 border-purple-200',
-	SPS: 'bg-orange-50 text-orange-700 border-orange-200',
-	OTHER: 'bg-gray-50 text-gray-600 border-gray-200',
-};
-
-const SESSION_PATTERN_LABELS: Record<SessionPattern, string> = {
-	ANY: 'Any Day',
-	MWF: 'Mon / Wed / Fri',
-	TTH: 'Tue / Thu',
-};
-
-const SESSION_PATTERN_BADGE: Record<SessionPattern, string> = {
-	ANY: 'bg-gray-100 text-gray-600 border-gray-300',
-	MWF: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-	TTH: 'bg-amber-50 text-amber-700 border-amber-200',
-};
-
 type SortField = 'code' | 'name' | 'minMinutesPerWeek' | 'preferredRoomType' | 'gradeLevels';
 type SortDir = 'asc' | 'desc';
 
@@ -91,30 +60,7 @@ type EditState = {
 	interSectionEnabled: boolean;
 	interSectionGradeLevels: number[];
 	programScopes: string[];
-};
-
-type NewSubjectForm = {
-	code: string;
-	name: string;
-	minMinutesPerWeek: number;
-	preferredRoomType: RoomType;
-	sessionPattern: SessionPattern;
-	gradeLevels: number[];
-	interSectionEnabled: boolean;
-	interSectionGradeLevels: number[];
-	programScopes: string[];
-};
-
-const emptyForm: NewSubjectForm = {
-	code: '',
-	name: '',
-	minMinutesPerWeek: 45,
-	preferredRoomType: 'CLASSROOM',
-	sessionPattern: 'ANY',
-	gradeLevels: [7, 8, 9, 10],
-	interSectionEnabled: false,
-	interSectionGradeLevels: [],
-	programScopes: ['REGULAR'],
+	allowedSpecializations: string[];
 };
 
 export default function Subjects() {
@@ -128,6 +74,7 @@ export default function Subjects() {
 	const [saving, setSaving] = useState(false);
 	const [deleteTarget, setDeleteTarget] = useState<Subject | null>(null);
 	const [timeMode, setTimeMode] = useState<'minutes' | 'hours'>('minutes');
+	const [availableSpecializations, setAvailableSpecializations] = useState<string[]>([]);
 
 	// Teacher coverage drilldown
 	const [expandedSubjectId, setExpandedSubjectId] = useState<number | null>(null);
@@ -166,6 +113,12 @@ export default function Subjects() {
 
 	useEffect(() => {
 		fetchSubjects();
+		// Fetch available faculty specializations (for allowedSpecializations config)
+		atlasApi.get<{ specializations: string[] }>('/faculty/specializations', {
+			params: { schoolId: DEFAULT_SCHOOL_ID },
+		}).then(({ data }) => setAvailableSpecializations(data.specializations)).catch(() => {
+			// Non-critical: silently ignore if endpoint is not yet available
+		});
 	}, [fetchSubjects]);
 
 	const toggleTeacherCoverage = useCallback(async (subjectId: number) => {
@@ -270,6 +223,7 @@ export default function Subjects() {
 				interSectionEnabled: editState.interSectionEnabled,
 				interSectionGradeLevels: editState.interSectionGradeLevels,
 				programScopes: editState.programScopes,
+				allowedSpecializations: editState.allowedSpecializations,
 			});
 			setEditState(null);
 			toast.success('Subject updated successfully.');
@@ -311,15 +265,6 @@ export default function Subjects() {
 			const msg = err?.response?.data?.message ?? 'Failed to delete subject.';
 			toast.error(msg);
 		}
-	};
-
-	const toggleGradeLevel = (grade: number) => {
-		setNewSubject((prev) => ({
-			...prev,
-			gradeLevels: prev.gradeLevels.includes(grade)
-				? prev.gradeLevels.filter((g) => g !== grade)
-				: [...prev.gradeLevels, grade].sort(),
-		}));
 	};
 
 	const toggleEditGrade = (grade: number) => {
@@ -419,132 +364,16 @@ export default function Subjects() {
 
 			{/* Add subject form */}
 			{showAdd && (
-				<div className="shrink-0 px-6 pb-2">
-					<Card className="shadow-sm border-primary/30">
-						<CardContent className="pt-4">
-							<p className="text-sm font-semibold mb-3">New Custom Subject</p>
-							<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-								<div>
-									<label className="text-xs font-medium text-muted-foreground">Code</label>
-									<Input
-										placeholder="e.g. ELEC1"
-										value={newSubject.code}
-										onChange={(e) => setNewSubject((p) => ({ ...p, code: e.target.value.toUpperCase() }))}
-									/>
-								</div>
-								<div>
-									<label className="text-xs font-medium text-muted-foreground">Name</label>
-									<Input
-										placeholder="Subject name"
-										value={newSubject.name}
-										onChange={(e) => setNewSubject((p) => ({ ...p, name: e.target.value }))}
-									/>
-								</div>
-								<div>
-									<div className="flex justify-between items-center mb-1">
-										<label className="text-xs font-medium text-muted-foreground">Duration ({timeMode === 'minutes' ? 'min' : 'hr'}/wk)</label>
-										<div className="flex gap-1 text-[0.625rem]">
-											<button type="button" onClick={() => setTimeMode('minutes')} className={`px-1 rounded ${timeMode==='minutes' ? 'bg-primary/20 text-primary font-bold' : 'text-muted-foreground hover:bg-muted'}`}>Min</button>
-											<button type="button" onClick={() => setTimeMode('hours')} className={`px-1 rounded ${timeMode==='hours' ? 'bg-primary/20 text-primary font-bold' : 'text-muted-foreground hover:bg-muted'}`}>Hr</button>
-										</div>
-									</div>
-									<Input
-										type="number"
-										min={0}
-										step={timeMode === 'minutes' ? 45 : 0.5}
-										value={timeMode === 'minutes' ? newSubject.minMinutesPerWeek : Math.round((newSubject.minMinutesPerWeek / 60) * 10) / 10}
-										onChange={(e) => {
-											const val = Number(e.target.value);
-											setNewSubject((p) => ({ ...p, minMinutesPerWeek: timeMode === 'minutes' ? val : Math.round(val * 60) }));
-										}}
-									/>
-									<div className="flex gap-1 mt-1">
-										{[200, 225, 240, 250].map(val => (
-											<button type="button" key={val} onClick={() => setNewSubject(p => ({ ...p, minMinutesPerWeek: val}))} className="rounded border bg-accent/5 px-1.5 py-0.5 text-[0.5625rem] text-muted-foreground hover:bg-accent hover:text-accent-foreground">{val}m</button>
-										))}
-									</div>
-								</div>
-								<div>
-									<label className="text-xs font-medium text-muted-foreground mb-1 block">Preferred Room Type</label>
-									<Select value={newSubject.preferredRoomType} onValueChange={(v) => setNewSubject(p => ({ ...p, preferredRoomType: v as RoomType }))}>
-										<SelectTrigger className="flex h-9 w-full bg-background text-sm shadow-xs">
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											{ALL_ROOM_TYPES.map((t) => (
-												<SelectItem key={t} value={t}>{ROOM_TYPE_LABELS[t]}</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</div>
-								<div>
-									<label className="text-xs font-medium text-muted-foreground mb-1 block">Session Pattern</label>
-									<Select value={newSubject.sessionPattern} onValueChange={(v) => setNewSubject(p => ({ ...p, sessionPattern: v as SessionPattern }))}>
-										<SelectTrigger className="flex h-9 w-full bg-background text-sm shadow-xs">
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											{(Object.keys(SESSION_PATTERN_LABELS) as SessionPattern[]).map((p) => (
-												<SelectItem key={p} value={p}>{SESSION_PATTERN_LABELS[p]}</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-									<p className="text-[0.6rem] text-muted-foreground mt-1">MWF = Mon/Wed/Fri only · TTH = Tue/Thu only · Any = all days</p>
-								</div>
-							</div>
-							<div className="mt-3">
-								<label className="text-xs font-medium text-muted-foreground">Grade Levels</label>
-								<div className="mt-1 flex gap-2">
-									{GRADE_OPTIONS.map((g) => (
-										<button
-											key={g}
-											type="button"
-											onClick={() => toggleGradeLevel(g)}
-											className={`inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
-												newSubject.gradeLevels.includes(g)
-													? 'border-primary bg-primary text-primary-foreground'
-													: 'border-border bg-background text-muted-foreground hover:bg-accent/10'
-											}`}
-										>
-												G{g}
-										</button>
-									))}
-								</div>
-							</div>
-							<div className="mt-3">
-								<label className="text-xs font-medium text-muted-foreground">Program Scopes</label>
-								<div className="mt-1 flex flex-wrap gap-1.5">
-									{PROGRAM_SCOPE_OPTIONS.map(({ value, label }) => (
-										<button
-											key={value}
-											type="button"
-											onClick={() => setNewSubject((p) => {
-												const has = p.programScopes.includes(value);
-												const next = has ? p.programScopes.filter((x) => x !== value) : [...p.programScopes, value];
-												return { ...p, programScopes: next.length > 0 ? next : [value] };
-											})}
-											className={`rounded border px-2 py-1 text-xs font-medium transition-colors ${
-												newSubject.programScopes.includes(value)
-													? `border-current ${PROGRAM_SCOPE_BADGE[value] ?? 'bg-sky-50 text-sky-700 border-sky-200'}`
-													: 'border-border text-muted-foreground hover:bg-accent/10'
-											}`}
-										>
-											{label}
-										</button>
-									))}
-								</div>
-							</div>
-							<div className="mt-4 flex gap-2">
-								<Button size="sm" onClick={handleCreate} disabled={saving || !newSubject.code.trim() || !newSubject.name.trim()}>
-									{saving ? 'Creating...' : 'Create Subject'}
-								</Button>
-								<Button variant="outline" size="sm" onClick={() => { setShowAdd(false); setNewSubject(emptyForm); }}>
-									Cancel
-								</Button>
-							</div>
-						</CardContent>
-					</Card>
-				</div>
+				<SubjectAddForm
+					newSubject={newSubject}
+					setNewSubject={setNewSubject}
+					saving={saving}
+					timeMode={timeMode}
+					setTimeMode={setTimeMode}
+					availableSpecializations={availableSpecializations}
+					onCreate={handleCreate}
+					onCancel={() => { setShowAdd(false); setNewSubject(emptyForm); }}
+				/>
 			)}
 
 			{/* Table — component-level scrolling */}
@@ -794,28 +623,60 @@ export default function Subjects() {
 												</td>
 												<td className="px-4 py-3">
 													{isEditing ? (
-														<div className="flex flex-wrap gap-1">
-															{PROGRAM_SCOPE_OPTIONS.map(({ value, label }) => (
-																<button
-																	key={value}
-																	type="button"
-																	onClick={() => setEditState((p) => {
-																		if (!p) return p;
-																		const has = p.programScopes.includes(value);
-																		const next = has
-																			? p.programScopes.filter((x) => x !== value)
-																			: [...p.programScopes, value];
-																		return { ...p, programScopes: next.length > 0 ? next : [value] };
-																	})}
-																	className={`rounded border px-1.5 py-0.5 text-[0.6rem] font-medium transition-colors ${
-																		editState.programScopes.includes(value)
-																			? `border-current ${PROGRAM_SCOPE_BADGE[value] ?? 'bg-sky-50 text-sky-700 border-sky-200'}`
-																			: 'border-border text-muted-foreground hover:bg-accent/10'
-																	}`}
-																>
-																	{label}
-																</button>
-															))}
+														<div className="flex flex-col gap-1">
+															<div className="flex flex-wrap gap-1">
+																{PROGRAM_SCOPE_OPTIONS.map(({ value, label }) => (
+																	<button
+																		key={value}
+																		type="button"
+																		onClick={() => setEditState((p) => {
+																			if (!p) return p;
+																			const has = p.programScopes.includes(value);
+																			const next = has
+																				? p.programScopes.filter((x) => x !== value)
+																				: [...p.programScopes, value];
+																			return { ...p, programScopes: next.length > 0 ? next : [value] };
+																		})}
+																		className={`rounded border px-1.5 py-0.5 text-[0.6rem] font-medium transition-colors ${
+																			editState.programScopes.includes(value)
+																				? `border-current ${PROGRAM_SCOPE_BADGE[value] ?? 'bg-sky-50 text-sky-700 border-sky-200'}`
+																				: 'border-border text-muted-foreground hover:bg-accent/10'
+																		}`}
+																	>
+																		{label}
+																	</button>
+																))}
+															</div>
+															{availableSpecializations.length > 0 && (
+																<div className="mt-1 border-t pt-1">
+																	<p className="text-[0.6rem] text-muted-foreground mb-1">Restrict to specializations</p>
+																	<div className="flex flex-wrap gap-1">
+																		{availableSpecializations.map((spec) => (
+																			<button
+																				key={spec}
+																				type="button"
+																				onClick={() => setEditState((p) => {
+																					if (!p) return p;
+																					const has = p.allowedSpecializations.includes(spec);
+																					return {
+																						...p,
+																						allowedSpecializations: has
+																							? p.allowedSpecializations.filter((x) => x !== spec)
+																							: [...p.allowedSpecializations, spec],
+																					};
+																				})}
+																				className={`rounded border px-1.5 py-0.5 text-[0.6rem] font-medium transition-colors ${
+																					editState.allowedSpecializations.includes(spec)
+																						? 'border-violet-400 bg-violet-50 text-violet-700'
+																						: 'border-border text-muted-foreground hover:bg-accent/10'
+																				}`}
+																			>
+																				{spec}
+																			</button>
+																		))}
+																	</div>
+																</div>
+															)}
 														</div>
 													) : (
 														<>
@@ -823,6 +684,11 @@ export default function Subjects() {
 																<Badge className="bg-emerald-100 text-emerald-700 text-[0.6rem]">Active</Badge>
 															) : (
 																<Badge variant="secondary" className="text-[0.6rem]">Inactive</Badge>
+															)}
+															{(s as any).allowedSpecializations?.length > 0 && (
+																<Badge variant="outline" className="mt-1 block w-fit text-[0.55rem] px-1 py-0 border-violet-300 text-violet-700">
+																	🔒 {(s as any).allowedSpecializations.length} specs
+																</Badge>
 															)}
 														</>
 													)}
@@ -866,6 +732,7 @@ export default function Subjects() {
 																	interSectionEnabled: s.interSectionEnabled ?? false,
 																	interSectionGradeLevels: [...(s.interSectionGradeLevels ?? [])],
 																	programScopes: [...(s.programScopes ?? ['REGULAR'])],
+																	allowedSpecializations: [...((s as any).allowedSpecializations ?? [])],
 																})}
 															>
 																<Pencil className="size-3.5" />

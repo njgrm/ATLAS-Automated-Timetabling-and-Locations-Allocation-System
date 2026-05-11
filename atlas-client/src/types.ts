@@ -60,6 +60,7 @@ export type Subject = {
 	interSectionEnabled: boolean;
 	interSectionGradeLevels: number[];
 	programScopes: string[];
+	allowedSpecializations: string[];
 	createdAt: string;
 	updatedAt: string;
 };

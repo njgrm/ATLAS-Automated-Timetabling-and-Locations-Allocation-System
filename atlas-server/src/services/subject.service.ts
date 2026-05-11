@@ -109,6 +109,7 @@ export async function createSubject(
 		interSectionEnabled?: boolean;
 		interSectionGradeLevels?: number[];
 		programScopes?: ProgramType[];
+		allowedSpecializations?: string[];
 	},
 ) {
 	// Validate inter-section grade levels are within subject's grade levels
@@ -153,6 +154,7 @@ export async function updateSubject(
 		interSectionEnabled: boolean;
 		interSectionGradeLevels: number[];
 		programScopes: ProgramType[];
+		allowedSpecializations: string[];
 	}>,
 ) {
 	const subject = await prisma.subject.findUnique({ where: { id } });
@@ -180,6 +182,7 @@ export async function updateSubject(
 		if (data.interSectionEnabled !== undefined) allowed.interSectionEnabled = data.interSectionEnabled;
 		if (data.interSectionGradeLevels !== undefined) allowed.interSectionGradeLevels = data.interSectionGradeLevels;
 		if (data.programScopes !== undefined) allowed.programScopes = data.programScopes;
+		if (data.allowedSpecializations !== undefined) allowed.allowedSpecializations = data.allowedSpecializations;
 		return prisma.subject.update({ where: { id }, data: allowed });
 	}
 
@@ -193,6 +196,7 @@ export async function updateSubject(
 	if (data.interSectionEnabled !== undefined) updateData.interSectionEnabled = data.interSectionEnabled;
 	if (data.interSectionGradeLevels !== undefined) updateData.interSectionGradeLevels = data.interSectionGradeLevels;
 	if (data.programScopes !== undefined) updateData.programScopes = data.programScopes;
+	if (data.allowedSpecializations !== undefined) updateData.allowedSpecializations = data.allowedSpecializations;
 
 	return prisma.subject.update({ where: { id }, data: updateData });
 }
