@@ -123,6 +123,7 @@ model FacultyMirror {
   firstName                 String            @map("first_name")
   lastName                  String            @map("last_name")
   department                String?
+  specialization            String?
   employmentStatus          String            @default("PERMANENT") @map("employment_status")
   contactInfo               String?           @map("contact_info")
   avatarUrl                 String?           @map("avatar_url")

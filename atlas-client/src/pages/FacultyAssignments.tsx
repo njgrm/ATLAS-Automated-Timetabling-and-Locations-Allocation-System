@@ -66,6 +66,7 @@ externalId: number;
 firstName: string;
 lastName: string;
 department: string | null;
+specialization: string | null;
 employmentStatus: string;
 isActiveForScheduling: boolean;
 isClassAdviser: boolean;

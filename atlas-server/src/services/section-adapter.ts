@@ -115,6 +115,49 @@ const PROGRAM_METADATA_BY_UPSTREAM_TYPE: Record<string, ProgramMetadata> = {
 		admissionMode: 'SCP',
 		isSpecialProgram: true,
 	},
+	// Short-code aliases — EnrollPro may send either the long-form key or the short code
+	STE: {
+		programType: 'STE',
+		programCode: 'STE',
+		programName: 'Science, Technology & Engineering',
+		admissionMode: 'SCP',
+		isSpecialProgram: true,
+	},
+	SPA: {
+		programType: 'SPA',
+		programCode: 'SPA',
+		programName: 'Special Program in the Arts',
+		admissionMode: 'SCP',
+		isSpecialProgram: true,
+	},
+	SPS: {
+		programType: 'SPS',
+		programCode: 'SPS',
+		programName: 'Special Program in Sports',
+		admissionMode: 'SCP',
+		isSpecialProgram: true,
+	},
+	SPJ: {
+		programType: 'SPJ',
+		programCode: 'SPJ',
+		programName: 'Special Program in Journalism',
+		admissionMode: 'SCP',
+		isSpecialProgram: true,
+	},
+	SPFL: {
+		programType: 'SPFL',
+		programCode: 'SPFL',
+		programName: 'Special Program in Foreign Language',
+		admissionMode: 'SCP',
+		isSpecialProgram: true,
+	},
+	SPTVE: {
+		programType: 'SPTVE',
+		programCode: 'SPTVE',
+		programName: 'Special Program in Tech-Voc Education',
+		admissionMode: 'SCP',
+		isSpecialProgram: true,
+	},
 };
 
 function humanizeProgramType(rawProgramType: string): string {

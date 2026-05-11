@@ -5,7 +5,6 @@ import {
 	ArrowUp,
 	ArrowUpDown,
 	BookOpen,
-	Check,
 	ChevronDown,
 	ChevronLeft,
 	ChevronRight,
@@ -29,20 +28,16 @@ import {
 	PROGRAM_SCOPE_OPTIONS,
 	ROOM_TYPE_LABELS,
 	SESSION_PATTERN_BADGE,
-	SESSION_PATTERN_LABELS,
-	type NewSubjectForm,
-	emptyForm,
 } from '@/lib/subject-constants';
-import type { RoomType, SessionPattern, Subject } from '@/types';
-import { SubjectAddForm } from '@/components/subjects/SubjectAddForm';
+import type { RoomType, Subject } from '@/types';
+import { SubjectFormModal, type SubjectFormValues } from '@/components/subjects/SubjectFormModal';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
-import { Card, CardContent } from '@/ui/card';
+import { Card } from '@/ui/card';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
 import { Input } from '@/ui/input';
 import { Skeleton } from '@/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
-import { Switch } from '@/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
 const DEFAULT_SCHOOL_ID = 1;
@@ -51,26 +46,13 @@ const PAGE_SIZES = [10, 25, 50];
 type SortField = 'code' | 'name' | 'minMinutesPerWeek' | 'preferredRoomType' | 'gradeLevels';
 type SortDir = 'asc' | 'desc';
 
-type EditState = {
-	id: number;
-	name: string;
-	minMinutesPerWeek: number;
-	sessionPattern: SessionPattern;
-	gradeLevels: number[];
-	interSectionEnabled: boolean;
-	interSectionGradeLevels: number[];
-	programScopes: string[];
-	allowedSpecializations: string[];
-};
-
 export default function Subjects() {
 	const [subjects, setSubjects] = useState<Subject[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [searchQuery, setSearchQuery] = useState('');
-	const [editState, setEditState] = useState<EditState | null>(null);
-	const [showAdd, setShowAdd] = useState(false);
-	const [newSubject, setNewSubject] = useState<NewSubjectForm>(emptyForm);
+	const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null);
+	const [modalSubject, setModalSubject] = useState<SubjectFormValues | null>(null);
 	const [saving, setSaving] = useState(false);
 	const [deleteTarget, setDeleteTarget] = useState<Subject | null>(null);
 	const [timeMode, setTimeMode] = useState<'minutes' | 'hours'>('minutes');
@@ -211,49 +193,40 @@ export default function Subjects() {
 		return sortDir === 'asc' ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />;
 	};
 
-	const handleEditSave = async () => {
-		if (!editState) return;
+	const handleModalSave = async (values: SubjectFormValues) => {
 		setSaving(true);
 		try {
-				await atlasApi.patch(`/subjects/${editState.id}`, {
-				name: editState.name,
-				minMinutesPerWeek: editState.minMinutesPerWeek,
-				sessionPattern: editState.sessionPattern,
-				gradeLevels: editState.gradeLevels,
-				interSectionEnabled: editState.interSectionEnabled,
-				interSectionGradeLevels: editState.interSectionGradeLevels,
-				programScopes: editState.programScopes,
-				allowedSpecializations: editState.allowedSpecializations,
-			});
-			setEditState(null);
-			toast.success('Subject updated successfully.');
-			await fetchSubjects();
-		} catch {
-			toast.error('Failed to save changes.');
-		} finally {
-			setSaving(false);
-		}
-	};
-
-	const handleCreate = async () => {
-		if (!newSubject.code.trim() || !newSubject.name.trim()) return;
-		setSaving(true);
-		try {
-			await atlasApi.post('/subjects', {
-				schoolId: DEFAULT_SCHOOL_ID,
-				...newSubject,
-			});
-			setShowAdd(false);
-			setNewSubject(emptyForm);
-			toast.success('Subject created successfully.');
+			if (modalMode === 'edit' && values.id != null) {
+				await atlasApi.patch(`/subjects/${values.id}`, {
+					name: values.name,
+					minMinutesPerWeek: values.minMinutesPerWeek,
+					sessionPattern: values.sessionPattern,
+					gradeLevels: values.gradeLevels,
+					interSectionEnabled: values.interSectionEnabled,
+					interSectionGradeLevels: values.interSectionGradeLevels,
+					programScopes: values.programScopes,
+					allowedSpecializations: values.allowedSpecializations,
+				});
+				toast.success('Subject updated successfully.');
+			} else {
+				await atlasApi.post('/subjects', {
+					schoolId: DEFAULT_SCHOOL_ID,
+					...values,
+				});
+				toast.success('Subject created successfully.');
+			}
+			setModalMode(null);
+			setModalSubject(null);
 			await fetchSubjects();
 		} catch (err: any) {
-			const msg = err?.response?.data?.message ?? 'Failed to create subject.';
+			const msg = err?.response?.data?.message ?? 'Failed to save subject.';
 			toast.error(msg);
 		} finally {
 			setSaving(false);
 		}
 	};
+
+	const hasActiveFilters = statusFilter !== 'all' || roomTypeFilter !== 'all' || gradeLevelFilter !== 'all' || programScopeFilter !== 'all';
 
 	const handleDelete = async (id: number) => {
 		try {
@@ -266,20 +239,6 @@ export default function Subjects() {
 			toast.error(msg);
 		}
 	};
-
-	const toggleEditGrade = (grade: number) => {
-		setEditState((prev) => {
-			if (!prev) return prev;
-			const has = prev.gradeLevels.includes(grade);
-			const newGrades = has
-				? prev.gradeLevels.filter((g) => g !== grade)
-				: [...prev.gradeLevels, grade].sort();
-			if (newGrades.length === 0) return prev;
-			return { ...prev, gradeLevels: newGrades };
-		});
-	};
-
-	const hasActiveFilters = statusFilter !== 'all' || roomTypeFilter !== 'all' || gradeLevelFilter !== 'all' || programScopeFilter !== 'all';
 
 	return (
 		<div className="flex flex-col h-[calc(100svh-3.5rem)]">
@@ -349,7 +308,7 @@ export default function Subjects() {
 						</Button>
 					)}
 					<div className="flex-1" />
-					<Button onClick={() => setShowAdd(true)} disabled={showAdd} size="sm" className="h-8">
+					<Button onClick={() => { setModalMode('add'); setModalSubject(null); }} size="sm" className="h-8">
 						<Plus className="mr-1 size-3.5" /> Add Subject
 					</Button>
 				</div>
@@ -360,20 +319,6 @@ export default function Subjects() {
 					{error}
 					<button className="ml-2 font-semibold" onClick={() => setError(null)}>Dismiss</button>
 				</div>
-			)}
-
-			{/* Add subject form */}
-			{showAdd && (
-				<SubjectAddForm
-					newSubject={newSubject}
-					setNewSubject={setNewSubject}
-					saving={saving}
-					timeMode={timeMode}
-					setTimeMode={setTimeMode}
-					availableSpecializations={availableSpecializations}
-					onCreate={handleCreate}
-					onCancel={() => { setShowAdd(false); setNewSubject(emptyForm); }}
-				/>
 			)}
 
 			{/* Table — component-level scrolling */}
@@ -454,7 +399,6 @@ export default function Subjects() {
 									</tr>
 								) : (
 									paged.map((s) => {
-										const isEditing = editState?.id === s.id;
 										return (
 											<Fragment key={s.id}>
 											<tr className="border-b last:border-0 hover:bg-muted/30 transition-colors">
@@ -462,293 +406,132 @@ export default function Subjects() {
 													<code className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono">{s.code}</code>
 												</td>
 												<td className="px-4 py-3">
-													{isEditing ? (
-														<Input
-															value={editState.name}
-															onChange={(e) => setEditState((p) => p && { ...p, name: e.target.value })}
-															className="h-8 text-sm"
-														/>
-													) : (
-														<div>
-															<span className="font-medium">{s.name}</span>
-															{s.isSeedable && <Badge variant="secondary" className="ml-2 bg-blue-50 text-blue-700 hover:bg-blue-50 border-blue-200">DepEd Core</Badge>}
-															{(s.programScopes ?? []).length > 0 && (
-																<div className="flex flex-wrap gap-0.5 mt-0.5">
-																	{(s.programScopes ?? []).map((scope) => (
-																		<Badge key={scope} variant="outline" className={`text-[0.5625rem] px-1 py-0 ${PROGRAM_SCOPE_BADGE[scope] ?? 'bg-gray-50 text-gray-600 border-gray-200'}`}>
-																			{scope}
-																		</Badge>
-																	))}
-																</div>
-															)}
-														</div>
-													)}
+													<div>
+														<span className="font-medium">{s.name}</span>
+														{s.isSeedable && <Badge variant="secondary" className="ml-2 bg-blue-50 text-blue-700 hover:bg-blue-50 border-blue-200">DepEd Core</Badge>}
+														{(s.programScopes ?? []).length > 0 && (
+															<div className="flex flex-wrap gap-0.5 mt-0.5">
+																{(s.programScopes ?? []).map((scope) => (
+																	<Badge key={scope} variant="outline" className={`text-[0.5625rem] px-1 py-0 ${PROGRAM_SCOPE_BADGE[scope] ?? 'bg-gray-50 text-gray-600 border-gray-200'}`}>
+																		{scope}
+																	</Badge>
+																))}
+															</div>
+														)}
+													</div>
 												</td>
 												<td className="px-4 py-3">
-													{isEditing ? (
-														<div className="flex items-center gap-1.5">
-															<Input
-																type="number"
-																value={timeMode === 'minutes' ? editState.minMinutesPerWeek : Math.round((editState.minMinutesPerWeek / 60) * 10) / 10}
-																onChange={(e) => {
-																	const val = Number(e.target.value);
-																	setEditState((p) => p && { ...p, minMinutesPerWeek: timeMode === 'minutes' ? val : Math.round(val * 60) });
-																}}
-																className="h-8 w-[4.5rem] text-sm tabular-nums"
-																min={0}
-																step={timeMode === 'minutes' ? 45 : 0.5}
-															/>
-															<span className="text-xs text-muted-foreground shrink-0">{timeMode === 'minutes' ? 'min' : 'hr'}</span>
-														</div>
-													) : (
-														<span className="tabular-nums">
-															{timeMode === 'minutes' ? `${s.minMinutesPerWeek} min` : `${Math.round((s.minMinutesPerWeek / 60) * 10) / 10} h`}
-														</span>
-													)}
+													<span className="tabular-nums">
+														{timeMode === 'minutes' ? `${s.minMinutesPerWeek} min` : `${Math.round((s.minMinutesPerWeek / 60) * 10) / 10} h`}
+													</span>
 												</td>
 												<td className="px-4 py-3 text-muted-foreground">
 													{ROOM_TYPE_LABELS[s.preferredRoomType] ?? s.preferredRoomType}
 												</td>
 												<td className="px-4 py-3">
-													{isEditing ? (
-														<Select value={editState.sessionPattern} onValueChange={(v) => setEditState((p) => p && { ...p, sessionPattern: v as SessionPattern })}>
-															<SelectTrigger className="h-8 w-[110px] text-xs">
-																<SelectValue />
-															</SelectTrigger>
-															<SelectContent>
-																{(Object.keys(SESSION_PATTERN_LABELS) as SessionPattern[]).map((p) => (
-																	<SelectItem key={p} value={p}>{SESSION_PATTERN_LABELS[p]}</SelectItem>
-																))}
-															</SelectContent>
-														</Select>
-													) : (
-														<Badge variant="outline" className={`text-[0.6rem] px-1.5 py-0 ${SESSION_PATTERN_BADGE[s.sessionPattern ?? 'ANY']}`}>
-															{s.sessionPattern ?? 'ANY'}
-														</Badge>
-													)}
+													<Badge variant="outline" className={`text-[0.6rem] px-1.5 py-0 ${SESSION_PATTERN_BADGE[s.sessionPattern ?? 'ANY']}`}>
+														{s.sessionPattern ?? 'ANY'}
+													</Badge>
 												</td>
 												<td className="px-4 py-3">
-													{isEditing ? (
-														<div className="flex gap-1">
-															{GRADE_OPTIONS.map((g) => (
-																<button
-																	key={g}
-																	type="button"
-																	onClick={() => toggleEditGrade(g)}
-																	className={`rounded border px-1.5 py-0.5 text-[0.6875rem] font-medium transition-colors ${
-																		editState.gradeLevels.includes(g)
-																			? 'border-primary bg-primary text-primary-foreground'
-																			: 'border-border text-muted-foreground hover:bg-accent/10'
-																	}`}
-																>
-																	{gradeLabel(g)}
-																</button>
-															))}
-														</div>
-													) : (
-														<div className="flex gap-1">
-															{s.gradeLevels.map((g) => (
-																<Badge key={g} variant="outline" className="text-[0.6rem] px-1.5 py-0">
-																	G{g}
+													<div className="flex gap-1">
+														{s.gradeLevels.map((g) => (
+															<Badge key={g} variant="outline" className="text-[0.6rem] px-1.5 py-0">
+																G{g}
+															</Badge>
+														))}`,
+													</div>
+												</td>
+												<td className="px-4 py-3">
+													<div className="flex items-center gap-1.5">
+														{s.interSectionEnabled ? (
+															<>
+																<Badge variant="outline" className="bg-violet-50 text-violet-700 border-violet-200 text-[0.6rem]">
+																	On
 																</Badge>
-															))}
-														</div>
-													)}
-												</td>
-												<td className="px-4 py-3">
-													{isEditing ? (
-														<div className="flex items-center gap-2">
-															<Switch
-																checked={editState.interSectionEnabled}
-																onCheckedChange={(v) => setEditState((p) => p && {
-																	...p,
-																	interSectionEnabled: v,
-																	interSectionGradeLevels: v ? p.interSectionGradeLevels : [],
-																})}
-																aria-label="Enable inter-section scheduling"
-															/>
-															{editState.interSectionEnabled && (
-																<div className="flex gap-1">
-																	{editState.gradeLevels.map((g) => (
-																		<button
-																			key={g}
-																			type="button"
-																			onClick={() => setEditState((p) => {
-																				if (!p) return p;
-																				const has = p.interSectionGradeLevels.includes(g);
-																				return {
-																					...p,
-																					interSectionGradeLevels: has
-																						? p.interSectionGradeLevels.filter((x) => x !== g)
-																						: [...p.interSectionGradeLevels, g].sort((a, b) => a - b),
-																				};
-																			})}
-																			className={`rounded border px-1.5 py-0.5 text-[0.6rem] font-medium transition-colors ${
-																				editState.interSectionGradeLevels.includes(g)
-																					? 'border-primary bg-primary text-primary-foreground'
-																					: 'border-border text-muted-foreground hover:bg-accent/10'
-																			}`}
-																		>
-																			{gradeLabel(g)}
-																		</button>
-																	))}
-																</div>
-															)}
-														</div>
-													) : (
-														<div className="flex items-center gap-1.5">
-															{s.interSectionEnabled ? (
-																<>
-																	<Badge variant="outline" className="bg-violet-50 text-violet-700 border-violet-200 text-[0.6rem]">
-																		On
-																	</Badge>
-																	{(s.interSectionGradeLevels ?? []).length > 0 && (
-																		<div className="flex gap-0.5">
-																			{s.interSectionGradeLevels.map((g) => (
-																				<span 
-																					key={g} 
-																					className={`text-[0.55rem] font-bold px-1.5 py-0.5 rounded border ${GRADE_COLORS[String(g)] ?? 'bg-muted text-muted-foreground'}`}
-																				>
-																					G{g}
-																				</span>
-																			))}
-																		</div>
-																	)}
-																</>
-															) : (
-																<span className="text-[0.65rem] text-muted-foreground">—</span>
-															)}
-														</div>
-													)}
-												</td>
-												<td className="px-4 py-3">
-													{isEditing ? (
-														<div className="flex flex-col gap-1">
-															<div className="flex flex-wrap gap-1">
-																{PROGRAM_SCOPE_OPTIONS.map(({ value, label }) => (
-																	<button
-																		key={value}
-																		type="button"
-																		onClick={() => setEditState((p) => {
-																			if (!p) return p;
-																			const has = p.programScopes.includes(value);
-																			const next = has
-																				? p.programScopes.filter((x) => x !== value)
-																				: [...p.programScopes, value];
-																			return { ...p, programScopes: next.length > 0 ? next : [value] };
-																		})}
-																		className={`rounded border px-1.5 py-0.5 text-[0.6rem] font-medium transition-colors ${
-																			editState.programScopes.includes(value)
-																				? `border-current ${PROGRAM_SCOPE_BADGE[value] ?? 'bg-sky-50 text-sky-700 border-sky-200'}`
-																				: 'border-border text-muted-foreground hover:bg-accent/10'
-																		}`}
-																	>
-																		{label}
-																	</button>
-																))}
-															</div>
-															{availableSpecializations.length > 0 && (
-																<div className="mt-1 border-t pt-1">
-																	<p className="text-[0.6rem] text-muted-foreground mb-1">Restrict to specializations</p>
-																	<div className="flex flex-wrap gap-1">
-																		{availableSpecializations.map((spec) => (
-																			<button
-																				key={spec}
-																				type="button"
-																				onClick={() => setEditState((p) => {
-																					if (!p) return p;
-																					const has = p.allowedSpecializations.includes(spec);
-																					return {
-																						...p,
-																						allowedSpecializations: has
-																							? p.allowedSpecializations.filter((x) => x !== spec)
-																							: [...p.allowedSpecializations, spec],
-																					};
-																				})}
-																				className={`rounded border px-1.5 py-0.5 text-[0.6rem] font-medium transition-colors ${
-																					editState.allowedSpecializations.includes(spec)
-																						? 'border-violet-400 bg-violet-50 text-violet-700'
-																						: 'border-border text-muted-foreground hover:bg-accent/10'
-																				}`}
+																{(s.interSectionGradeLevels ?? []).length > 0 && (
+																	<div className="flex gap-0.5">
+																		{s.interSectionGradeLevels.map((g) => (
+																			<span
+																				key={g}
+																				className={`text-[0.55rem] font-bold px-1.5 py-0.5 rounded border ${GRADE_COLORS[String(g)] ?? 'bg-muted text-muted-foreground'}`}
 																			>
-																				{spec}
-																			</button>
-																		))}
+																				G{g}
+																			</span>
+																		))}`,
 																	</div>
-																</div>
-															)}
-														</div>
-													) : (
-														<>
-															{s.isActive ? (
-																<Badge className="bg-emerald-100 text-emerald-700 text-[0.6rem]">Active</Badge>
-															) : (
-																<Badge variant="secondary" className="text-[0.6rem]">Inactive</Badge>
-															)}
-															{(s as any).allowedSpecializations?.length > 0 && (
-																<Badge variant="outline" className="mt-1 block w-fit text-[0.55rem] px-1 py-0 border-violet-300 text-violet-700">
-																	🔒 {(s as any).allowedSpecializations.length} specs
-																</Badge>
-															)}
-														</>
-													)}
+																)}
+															</>
+														) : (
+															<span className="text-[0.65rem] text-muted-foreground">—</span>
+														)}
+													</div>
+												</td>
+												<td className="px-4 py-3">
+													<>
+														{s.isActive ? (
+															<Badge className="bg-emerald-100 text-emerald-700 text-[0.6rem]">Active</Badge>
+														) : (
+															<Badge variant="secondary" className="text-[0.6rem]">Inactive</Badge>
+														)}
+														{(s as any).allowedSpecializations?.length > 0 && (
+															<Badge variant="outline" className="mt-1 block w-fit text-[0.55rem] px-1 py-0 border-violet-300 text-violet-700">
+																🔒 {(s as any).allowedSpecializations.length} specs
+															</Badge>
+														)}
+													</>
 												</td>
 												<td className="px-4 py-3 text-right">
-													{isEditing ? (
-														<div className="flex justify-end gap-1">
-															<Button variant="outline" size="sm" onClick={handleEditSave} disabled={saving}>
-																<Check className="size-3.5" />
-															</Button>
-															<Button variant="outline" size="sm" onClick={() => setEditState(null)}>
-																<X className="size-3.5" />
-															</Button>
-														</div>
-													) : (
-														<div className="flex justify-end gap-1">
-															<TooltipProvider delayDuration={200}>
-																<Tooltip>
-																	<TooltipTrigger asChild>
-																		<Button
-																			variant="outline"
-																			size="sm"
-																			onClick={() => toggleTeacherCoverage(s.id)}
-																			className={expandedSubjectId === s.id ? 'border-primary text-primary' : ''}
-																		>
-																			<Users className="size-3.5" />
-																		</Button>
-																	</TooltipTrigger>
-																	<TooltipContent>Teacher coverage</TooltipContent>
-																</Tooltip>
-															</TooltipProvider>
-															<Button
-																variant="outline"
-																size="sm"
-																onClick={() => setEditState({
+													<div className="flex justify-end gap-1">
+														<TooltipProvider delayDuration={200}>
+															<Tooltip>
+																<TooltipTrigger asChild>
+																	<Button
+																		variant="outline"
+																		size="sm"
+																		onClick={() => toggleTeacherCoverage(s.id)}
+																		className={expandedSubjectId === s.id ? 'border-primary text-primary' : ''}
+																	>
+																		<Users className="size-3.5" />
+																	</Button>
+																</TooltipTrigger>
+																<TooltipContent>Teacher coverage</TooltipContent>
+															</Tooltip>
+														</TooltipProvider>
+														<Button
+															variant="outline"
+															size="sm"
+															onClick={() => {
+																setModalSubject({
 																	id: s.id,
+																	code: s.code,
 																	name: s.name,
 																	minMinutesPerWeek: s.minMinutesPerWeek,
 																	sessionPattern: s.sessionPattern ?? 'ANY',
+																	preferredRoomType: s.preferredRoomType,
 																	gradeLevels: [...s.gradeLevels],
 																	interSectionEnabled: s.interSectionEnabled ?? false,
 																	interSectionGradeLevels: [...(s.interSectionGradeLevels ?? [])],
 																	programScopes: [...(s.programScopes ?? ['REGULAR'])],
 																	allowedSpecializations: [...((s as any).allowedSpecializations ?? [])],
-																})}
+																});
+																setModalMode('edit');
+															}
+														}
+														>
+															<Pencil className="size-3.5" />
+														</Button>
+														{!s.isSeedable && (
+															<Button
+																variant="outline"
+																size="sm"
+																onClick={() => setDeleteTarget(s)}
+																className="text-red-500 hover:text-red-700"
 															>
-																<Pencil className="size-3.5" />
+																<Trash2 className="size-3.5" />
 															</Button>
-															{!s.isSeedable && (
-																<Button
-																	variant="outline"
-																	size="sm"
-																	onClick={() => setDeleteTarget(s)}
-																	className="text-red-500 hover:text-red-700"
-																>
-																	<Trash2 className="size-3.5" />
-																</Button>
-															)}
-														</div>
-													)}
+														)}
+													</div>
 												</td>
 											</tr>
 											{/* Teacher coverage drilldown row */}
@@ -840,7 +623,16 @@ export default function Subjects() {
 					)}
 				</Card>
 			</div>
-
+		{/* Add / Edit subject modal */}
+		<SubjectFormModal
+			open={modalMode !== null}
+			mode={modalMode ?? 'add'}
+			initialValues={modalSubject ?? undefined}
+			saving={saving}
+			availableSpecializations={availableSpecializations}
+			onSave={handleModalSave}
+			onClose={() => { setModalMode(null); setModalSubject(null); }}
+		/>
 			{/* Delete confirmation */}
 			<ConfirmationModal
 				open={!!deleteTarget}

@@ -114,6 +114,7 @@ async function handleFacultySync(req: Request, res: Response, next: NextFunction
 			reconciliation: result.reconciliation,
 			assignmentPrune: result.assignmentPrune,
 			invalidatedRuns: result.invalidatedRuns,
+			seededAssignments: result.seededAssignments,
 			isStale: result.isStale,
 			staleReason: result.staleReason,
 		});

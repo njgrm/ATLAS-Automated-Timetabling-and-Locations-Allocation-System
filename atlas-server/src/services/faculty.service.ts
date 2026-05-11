@@ -13,6 +13,7 @@ import crypto from 'crypto';
 import { prisma } from '../lib/prisma.js';
 import { createFacultyAdapter, type ExternalFaculty, type FacultyFetchResult } from './faculty-adapter.js';
 import { invalidateStaleCompletedRuns } from './generation.service.js';
+import { seedQualifiedAssignments } from './assignment-seed.service.js';
 import { sectionAdapter } from './section-adapter.js';
 
 const adapter = createFacultyAdapter();
@@ -52,6 +53,7 @@ mode: FacultySyncMode;
 reconciliation: FacultyReconciliationSummary;
 assignmentPrune: AssignmentScopePruneSummary;
 invalidatedRuns: { invalidatedCount: number; staleRunIds: number[] };
+seededAssignments: { created: number; skipped: number };
 isStale?: boolean;
 staleReason?: string;
 }
@@ -72,6 +74,7 @@ externalId: number;
 firstName: string;
 lastName: string;
 department: string | null;
+specialization: string | null;
 employmentStatus: string;
 isClassAdviser: boolean;
 advisoryEquivalentHours: number;
@@ -139,6 +142,7 @@ return {
 firstName: faculty.firstName,
 lastName: faculty.lastName,
 department: faculty.department ?? null,
+specialization: faculty.specialization ?? null,
 employmentStatus: faculty.employmentStatus ?? 'PERMANENT',
 isClassAdviser: faculty.isClassAdviser ?? false,
 advisoryEquivalentHours: faculty.advisoryEquivalentHours ?? (faculty.isClassAdviser ? 5 : 0),
@@ -155,6 +159,7 @@ return (
 local.firstName === normalized.firstName
 && local.lastName === normalized.lastName
 && local.department === normalized.department
+&& local.specialization === normalized.specialization
 && local.employmentStatus === normalized.employmentStatus
 && local.isClassAdviser === normalized.isClassAdviser
 && local.advisoryEquivalentHours === normalized.advisoryEquivalentHours
@@ -327,6 +332,7 @@ mode,
 reconciliation: { inserted: 0, updated: 0, removed: 0, skipped: 0, deactivated: 0 },
 assignmentPrune: { updated: 0, removed: 0, unchanged: 0 },
 invalidatedRuns: { invalidatedCount: 0, staleRunIds: [] },
+seededAssignments: { created: 0, skipped: 0 },
 isStale: true,
 staleReason: 'No upstream and no cache',
 };
@@ -344,6 +350,7 @@ externalId: true,
 firstName: true,
 lastName: true,
 department: true,
+specialization: true,
 employmentStatus: true,
 isClassAdviser: true,
 advisoryEquivalentHours: true,
@@ -364,6 +371,7 @@ update: {
 firstName: f.firstName,
 lastName: f.lastName,
 department: f.department,
+specialization: f.specialization ?? null,
 employmentStatus: f.employmentStatus ?? 'PERMANENT',
 isClassAdviser: f.isClassAdviser ?? false,
 advisoryEquivalentHours: f.advisoryEquivalentHours ?? (f.isClassAdviser ? 5 : 0),
@@ -382,6 +390,7 @@ schoolId,
 firstName: f.firstName,
 lastName: f.lastName,
 department: f.department,
+specialization: f.specialization ?? null,
 employmentStatus: f.employmentStatus ?? 'PERMANENT',
 isClassAdviser: f.isClassAdviser ?? false,
 advisoryEquivalentHours: f.advisoryEquivalentHours ?? (f.isClassAdviser ? 5 : 0),
@@ -445,6 +454,9 @@ prisma.facultyMirror.count({ where: { schoolId, isStale: false } }),
 prisma.facultyMirror.count({ where: { schoolId, isStale: true } }),
 ]);
 
+// Auto-seed qualified assignments for faculty whose dept matches a subject's allowedSpecializations
+const seededAssignments = await seedQualifiedAssignments(schoolId, schoolYearId);
+
 return {
 synced: true,
 source: sourceLabel,
@@ -460,6 +472,7 @@ removed: mode === 'prune' ? missingLocal.length : 0,
 },
 assignmentPrune,
 invalidatedRuns,
+seededAssignments,
 isStale,
 staleReason,
 };

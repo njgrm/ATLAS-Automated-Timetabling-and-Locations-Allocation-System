@@ -272,7 +272,7 @@ export default function Faculty() {
 									</th>
 									<th className="px-4 py-2.5 text-left">
 										<button onClick={() => toggleSort('specialization')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground">
-											Specialization <SortIcon field="specialization" />
+											Dept / Specialization <SortIcon field="specialization" />
 										</button>
 									</th>
 									<th className="px-4 py-2.5 text-left font-semibold text-muted-foreground">Contact</th>
@@ -342,7 +342,14 @@ export default function Faculty() {
 														</div>
 													</div>
 												</td>
-												<td className="px-4 py-3 text-muted-foreground">{f.department ?? '—'}</td>
+												<td className="px-4 py-3">
+													<div className="flex flex-col gap-0.5">
+														{f.department ? (
+															<span className="text-[0.6875rem] uppercase tracking-wide text-muted-foreground font-medium">{f.department}</span>
+														) : null}
+														<span className="text-sm">{f.specialization ?? f.department ?? '—'}</span>
+													</div>
+												</td>
 												<td className="px-4 py-3 text-muted-foreground text-[0.8125rem]">{f.contactInfo ?? '—'}</td>
 												<td className="px-4 py-3 text-center">
 													{subjectCount > 0 ? (

@@ -35,44 +35,42 @@ const prisma = new PrismaClient();
  *
  * Subject code alignment note:
  *   - ESP (not VE): official DepEd code is "EsP" (Edukasyon sa Pagpapakatao).
- *     EnrollPro uses department code 'ESP'. 'VE' / 'Values Education' is the old BEC label.
- *   - ICT: present in STE and some regular Grade 8 sections.
- *   - STE subjects align with EnrollPro's checklist: Environmental Science,
- *     Research I/II/III, Basic Statistics, Advanced Statistics, Biotechnology,
- *     Advanced Physics, Advanced Chemistry, Electronics.
- *   - SPA subjects align with EnrollPro's checklist: Music, Visual Arts,
- *     Theater Arts, Media Arts, Creative Writing, Dance.
+ *   - TLE_ICT_7/8/9/10: per-grade ICT track within TLE, REGULAR program.
+ *   - STE subjects are per-grade per DO 010 s.2024 Science, Technology & Engineering track.
+ *   - SPA subjects align with EnrollPro's checklist.
  */
 const subjectSeeds = [
-	// ── Core BEC subjects ────────────────────────────────────────────────
-	{ code: 'FIL', name: 'Filipino', minMinutesPerWeek: 200, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
-	{ code: 'ENG', name: 'English', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
-	{ code: 'MATH', name: 'Mathematics', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
-	{ code: 'SCI', name: 'Science', minMinutesPerWeek: 225, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: true },
-	{ code: 'AP', name: 'Araling Panlipunan', minMinutesPerWeek: 200, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
-	{ code: 'MAPEH', name: 'MAPEH', minMinutesPerWeek: 200, preferredRoomType: 'GYMNASIUM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
-	{ code: 'ESP', name: 'Edukasyon sa Pagpapakatao', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
-	{ code: 'TLE', name: 'Technology and Livelihood Education', minMinutesPerWeek: 200, preferredRoomType: 'TLE_WORKSHOP', gradeLevels: [7, 8, 9, 10], isSeedable: true },
-	{ code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true },
-	{ code: 'ICT', name: 'Information and Communications Technology', minMinutesPerWeek: 90, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [7, 8, 9, 10], isSeedable: true },
-	// ── STE track specialty subjects ─────────────────────────────────────
-	{ code: 'ENVIRONMENTAL_SCIENCE', name: 'Environmental Science', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8], isSeedable: false },
-	{ code: 'RESEARCH_I', name: 'Research I / Basic Statistics', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [8, 9, 10], isSeedable: false },
-	{ code: 'BASIC_STATISTICS', name: 'Basic Statistics', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [8, 9, 10], isSeedable: false },
-	{ code: 'RESEARCH_II', name: 'Research II / Advanced Statistics', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [8, 9, 10], isSeedable: false },
-	{ code: 'ADVANCED_STATISTICS', name: 'Advanced Statistics', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [8, 9, 10], isSeedable: false },
-	{ code: 'BIOTECHNOLOGY', name: 'Biotechnology', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [8, 9, 10], isSeedable: false },
-	{ code: 'RESEARCH_III', name: 'Research III / Advanced Physics', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [8, 9, 10], isSeedable: false },
-	{ code: 'ADVANCED_PHYSICS', name: 'Advanced Physics', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [8, 9, 10], isSeedable: false },
-	{ code: 'ADVANCED_CHEMISTRY', name: 'Advanced Chemistry', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [8, 9, 10], isSeedable: false },
-	{ code: 'ELECTRONICS', name: 'Electronics', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [8, 9, 10], isSeedable: false },
-	// ── SPA track specialty subjects ─────────────────────────────────────
-	{ code: 'MUSIC', name: 'Music (Vocal / Instrumental)', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false },
-	{ code: 'VISUAL_ARTS', name: 'Visual Arts', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false },
-	{ code: 'THEATER_ARTS', name: 'Theater Arts', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false },
-	{ code: 'MEDIA_ARTS', name: 'Media Arts', minMinutesPerWeek: 90, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [7, 8, 9, 10], isSeedable: false },
-	{ code: 'CREATIVE_WRITING', name: 'Creative Writing (English / Filipino)', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false },
-	{ code: 'DANCE', name: 'Dance', minMinutesPerWeek: 90, preferredRoomType: 'GYMNASIUM', gradeLevels: [7, 8, 9, 10], isSeedable: false },
+	// ── Core BEC subjects ─────────────────────────────────────────────────────
+	{ code: 'FIL', name: 'Filipino', minMinutesPerWeek: 200, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+	{ code: 'ENG', name: 'English', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+	{ code: 'MATH', name: 'Mathematics', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+	{ code: 'SCI', name: 'Science', minMinutesPerWeek: 225, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+	{ code: 'AP', name: 'Araling Panlipunan', minMinutesPerWeek: 200, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+	{ code: 'MAPEH', name: 'MAPEH', minMinutesPerWeek: 200, preferredRoomType: 'GYMNASIUM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+	{ code: 'ESP', name: 'Edukasyon sa Pagpapakatao', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+	{ code: 'TLE', name: 'Technology and Livelihood Education', minMinutesPerWeek: 200, preferredRoomType: 'TLE_WORKSHOP', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+	{ code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+	// ── TLE (ICT) per-grade — REGULAR track ──────────────────────────────────
+	{ code: 'TLE_ICT_7', name: 'TLE (ICT I) Computer Systems', minMinutesPerWeek: 90, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [7], isSeedable: false, programScopes: ['REGULAR'] },
+	{ code: 'TLE_ICT_8', name: 'TLE (ICT II) Computer Systems Servicing II', minMinutesPerWeek: 90, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [8], isSeedable: false, programScopes: ['REGULAR'] },
+	{ code: 'TLE_ICT_9', name: 'TLE (ICT III) Computer Systems Servicing III', minMinutesPerWeek: 90, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [9], isSeedable: false, programScopes: ['REGULAR'] },
+	{ code: 'TLE_ICT_10', name: 'TLE (ICT IV) Computer Systems Servicing IV', minMinutesPerWeek: 90, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [10], isSeedable: false, programScopes: ['REGULAR'] },
+	// ── STE track specialty subjects (per-grade per DO 010 s.2024) ────────────
+	{ code: 'ENV_SCI', name: 'Environmental Science', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [7], isSeedable: false, programScopes: ['STE'] },
+	{ code: 'RESEARCH_I', name: 'Research I', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7], isSeedable: false, programScopes: ['STE'] },
+	{ code: 'RESEARCH_II', name: 'Research II', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [8], isSeedable: false, programScopes: ['STE'] },
+	{ code: 'BIOTECHNOLOGY', name: 'Biotechnology', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [8], isSeedable: false, programScopes: ['STE'] },
+	{ code: 'CONSUMERS_CHEMISTRY', name: 'Consumers Chemistry', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [9], isSeedable: false, programScopes: ['STE'] },
+	{ code: 'RESEARCH_III', name: 'Research III', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [9], isSeedable: false, programScopes: ['STE'] },
+	{ code: 'ELECTRONICS_ROBOTICS', name: 'Electronics and Robotics', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [10], isSeedable: false, programScopes: ['STE'] },
+	{ code: 'RESEARCH_IV', name: 'Research IV', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [10], isSeedable: false, programScopes: ['STE'] },
+	// ── SPA track specialty subjects ──────────────────────────────────────────
+	{ code: 'MUSIC', name: 'Music (Vocal / Instrumental)', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'] },
+	{ code: 'VISUAL_ARTS', name: 'Visual Arts', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'] },
+	{ code: 'THEATER_ARTS', name: 'Theater Arts', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'] },
+	{ code: 'MEDIA_ARTS', name: 'Media Arts', minMinutesPerWeek: 90, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'] },
+	{ code: 'CREATIVE_WRITING', name: 'Creative Writing (English / Filipino)', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'] },
+	{ code: 'DANCE', name: 'Dance', minMinutesPerWeek: 90, preferredRoomType: 'GYMNASIUM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'] },
 ];
 
 /** Stub faculty data — used when FACULTY_ADAPTER=stub */
@@ -126,6 +124,7 @@ async function main() {
 				preferredRoomType: subject.preferredRoomType,
 				gradeLevels: subject.gradeLevels,
 				isSeedable: subject.isSeedable,
+				programScopes: subject.programScopes ?? ['REGULAR'],
 			},
 			create: {
 				schoolId: school.id,
@@ -135,6 +134,7 @@ async function main() {
 				preferredRoomType: subject.preferredRoomType,
 				gradeLevels: subject.gradeLevels,
 				isSeedable: subject.isSeedable,
+				programScopes: subject.programScopes ?? ['REGULAR'],
 				isActive: true,
 			},
 		});
@@ -282,6 +282,7 @@ async function main() {
 				lastName: f.lastName,
 				contactInfo: f.email,
 				department: f.department,
+				specialization: f.specialization ?? null,
 				maxHoursPerWeek: f.maxWeeklyHours,
 				isActiveForScheduling: true,
 			},
@@ -292,6 +293,7 @@ async function main() {
 				lastName: f.lastName,
 				contactInfo: f.email,
 				department: f.department,
+				specialization: f.specialization ?? null,
 				maxHoursPerWeek: f.maxWeeklyHours,
 				isActiveForScheduling: true,
 			},

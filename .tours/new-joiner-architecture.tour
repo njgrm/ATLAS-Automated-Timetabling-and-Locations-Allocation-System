@@ -1,0 +1,62 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "ATLAS Architecture Walkthrough",
+  "description": "A guided tour through the core layers of the ATLAS project for new developers.",
+  "ref": "main",
+  "steps": [
+    {
+      "directory": "atlas-server",
+      "title": "Backend Root",
+      "description": "The backend is a Node.js Express API. All server-side logic, database interactions, and API routes live under this directory."
+    },
+    {
+      "file": "atlas-server/src/server.ts",
+      "line": 8,
+      "title": "Server Entry Point",
+      "description": "The server starts here. It creates the HTTP server, registers WebSocket collaboration handlers, and begins listening on the configured port."
+    },
+    {
+      "file": "atlas-server/src/app.ts",
+      "line": 33,
+      "title": "Express Application setup",
+      "description": "This file configures the Express application, including CORS policies, security headers (Helmet), JSON parsing limits, and global error handling."
+    },
+    {
+      "directory": "atlas-server/src/routes",
+      "title": "API Routes",
+      "description": "All REST endpoints are defined here. Each router is typically responsible for one resource (e.g., faculty, subjects, schedules) and follows the versioned pattern `/api/v1/...`."
+    },
+    {
+      "directory": "atlas-server/src/services",
+      "title": "Service Layer",
+      "description": "This is where the 'heavy lifting' happens. Business logic, scheduling algorithms (like the hybrid-scheduler), and data validation rules are encapsulated into services to keep routers thin."
+    },
+    {
+      "file": "prisma/schema.prisma",
+      "line": 11,
+      "title": "Database Schema",
+      "description": "Prisma is used as the ORM. This schema file is the single source of truth for the PostgreSQL database structure, defining models for Schools, Faculty, Subjects, and Schedules."
+    },
+    {
+      "file": "atlas-client/src/main.tsx",
+      "line": 11,
+      "title": "Frontend Entry Point",
+      "description": "The React application is initialized here. It applies themes and renders the root component into the DOM."
+    },
+    {
+      "file": "atlas-client/src/App.tsx",
+      "line": 31,
+      "title": "Frontend Routing",
+      "description": "Client-side navigation is managed by React Router. This file defines all accessible pages and their layout structure within the AppShell."
+    },
+    {
+      "directory": "atlas-client/src/hooks",
+      "title": "Frontend Business Logic",
+      "description": "Frontend state management and complex side effects (like fetching timetable data or handling drag-and-drop) are managed via custom React hooks."
+    },
+    {
+      "title": "Next Steps",
+      "description": "You've seen the full stack! Try running `npm run dev` in the root to start the project and explore the UI at http://localhost:5174."
+    }
+  ]
+}

@@ -88,6 +88,7 @@ export type FacultyMirror = {
 	firstName: string;
 	lastName: string;
 	department: string | null;
+	specialization: string | null;
 	employmentStatus: string;
 	contactInfo: string | null;
 	localNotes: string | null;
