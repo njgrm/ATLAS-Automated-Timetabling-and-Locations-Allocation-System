@@ -556,7 +556,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 		? mergeDisplaySlots(classPeriodSlots, specialEventSlots)
 		: classPeriodSlots;
 
-	const demand = computeDemand(sectionResult.gradeLevels, subjects, cohorts);
+	const demand = computeDemand(sectionResult.gradeLevels, subjects, cohorts, {});
 	const demandByKey = new Map(demand.map((item) => [getDemandAssignmentKey(item), item]));
 	const qualifiedByKey = new Map<string, number[]>();
 	for (const assignment of facultySubjects) {
@@ -1269,7 +1269,7 @@ export async function undoLastPlacement(schoolId: number, schoolYearId: number, 
 			},
 		});
 	});
-		return listDraftBoardState(schoolId, schoolYearId, authToken);
+	return listDraftBoardState(schoolId, schoolYearId, undefined);
 }
 
 export async function removeSinglePlacement(schoolId: number, schoolYearId: number, actorId: number, placementId: number): Promise<DraftBoardState> {
@@ -1307,7 +1307,7 @@ export async function removeSinglePlacement(schoolId: number, schoolYearId: numb
 			},
 		});
 	});
-	return listDraftBoardState(schoolId, schoolYearId, authToken);
+	return listDraftBoardState(schoolId, schoolYearId, undefined);
 }
 
 export async function consumeDraftPlacementsForRun(runId: number, schoolId: number, schoolYearId: number, authToken?: string): Promise<DraftConsumeResult> {

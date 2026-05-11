@@ -2,6 +2,41 @@
 
 Record dated implementation verification summaries here.
 
+### 2026-05-11 - Shared Browser QA: EnrollPro Sections + Room Payload Trace
+- Phase: 4 (runtime QA / source-of-truth validation)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS for section-source and room-payload checks
+- Operator: GitHub Copilot (shared-browser QA run)
+- Account/role used: `admin@deped.edu.ph` (admin)
+- Environment:
+  - ATLAS client: `http://localhost:5175`
+  - ATLAS API: `http://localhost:5001` (already running)
+- Shared-browser QA checkpoints:
+  - `/login` -> PASS (admin login succeeded)
+  - `/sections` -> PASS (live EnrollPro-backed list loaded)
+  - `/timetable` -> PASS (pre-generation draft and pinned-session workflows loaded)
+- Live section-source verification:
+  - Sections total: `10`
+  - Enrollment total: `334`
+  - Grade split: `G7: 3`, `G8: 3`, `G9: 2`, `G10: 2`
+  - Outcome: not stub-like; matches the current EnrollPro-backed 10-section dataset shown in the browser
+- Live room-payload verification:
+  - `GET /api/v1/map/schools/1/buildings` returned `200`
+  - Buildings: `8`
+  - Rooms: `103 total`
+  - Teaching rooms: `98`
+  - Sample payload: Admin/Learning Commons `5 rooms / 0 teaching`, Grade 10 Academic Wing `20 rooms / 20 teaching`
+- Client trace:
+  - `atlas-client/src/components/ManualEditPanel.tsx` builds the room dropdown from `roomMap` and filters only `isTeachingSpace`
+  - `atlas-client/src/pages/Dashboard.tsx` and related map views use the same teaching-space filter when summarizing rooms
+- Observation:
+  - The browser workflow exposed the pinned-session summary and draft actions, but not a separate room-picker modal in this path.
+  - The API payload is complete enough for the dropdown to populate all teaching rooms; the sparse-dropdown symptom does not reproduce in the traced payload.
+- Screenshot evidence:
+  - Captured an authenticated timetable draft screenshot showing the live generated run, pinned session, and right-side session details panel.
+
 ### 2026-05-11 - Generation 409 Gate Override + Publish Flow + Teacher's Move Wording
 - Phase: 4 (review/publish foundation hardening)
 - Scope gate: PASS

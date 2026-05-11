@@ -15,5 +15,5 @@ export function captureBridgeToken(): string | null {
 }
 
 export function getBackHref(): string {
-	return (import.meta.env.VITE_ENROLLPRO_URL ?? 'http://localhost:5173') + '/dashboard';
+	return (import.meta.env.VITE_ENROLLPRO_URL ?? 'http://100.88.55.125:5173') + '/dashboard';
 }

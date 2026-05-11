@@ -19,6 +19,7 @@ import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './facul
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
 import * as preGenerationDraftService from './pre-generation-draft.service.js';
 import { resolveActiveDraftRun } from './active-draft-run-resolver.service.js';
+import { getTemplatePeriodProfiles, ensureTemplatesForProgramTypes } from './class-template.service.js';
 
 // ─── Helpers ───
 
@@ -237,6 +238,7 @@ export async function triggerGenerationRun(
 					gradeLevels: true,
 					interSectionEnabled: true,
 					interSectionGradeLevels: true,
+					programScopes: true,
 				},
 			}),
 			prisma.facultyPreference.findMany({
@@ -284,7 +286,29 @@ export async function triggerGenerationRun(
 		// ── Run hybrid multi-seed constructor (H-ALG-1 through H-ALG-3) ──
 		stage = 'constructor';
 		const sectionsByGrade = sectionResult.gradeLevels;
-		const demand = computeDemand(sectionsByGrade, subjects, cohorts);
+
+		// Auto-seed class templates for any program types found in the fetched sections
+		// so that schedule generation uses the correct period lengths for special programs.
+		const detectedProgramTypes = [
+			...new Set(
+				sectionsByGrade
+					.flatMap((g) => g.sections)
+					.map((s) => s.programType)
+					.filter((pt): pt is NonNullable<typeof pt> => pt != null),
+			),
+		];
+		if (detectedProgramTypes.length > 0) {
+			await ensureTemplatesForProgramTypes(schoolId, detectedProgramTypes as any);
+		}
+
+		// Build classTemplatePeriods map: programType -> periodLengthMinutes
+		const templateProfiles = await getTemplatePeriodProfiles(schoolId);
+		const classTemplatePeriods: Record<string, number> = {};
+		for (const tp of templateProfiles) {
+			classTemplatePeriods[tp.programType] = tp.periodLengthMinutes;
+		}
+
+		const demand = computeDemand(sectionsByGrade, subjects, cohorts, classTemplatePeriods);
 		const constructorInput: ConstructorInput = {
 			schoolId,
 			schoolYearId,
@@ -332,6 +356,7 @@ export async function triggerGenerationRun(
 				endTime: gw.endTime,
 			})),
 			buildings: buildings.map((b) => ({ id: b.id, name: b.name })),
+			classTemplatePeriods,
 		};
 		const result = runHybridScheduler(constructorInput);
 

@@ -69,13 +69,12 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 
 	async fetchFacultyBySchoolYear(
 		_schoolId: number,
-		schoolYearId: number,
+		_schoolYearId: number,
 		_authToken?: string,
 	): Promise<FacultyFetchResult> {
-		// /integration/faculty is public and auto-resolves to the active school year
-		const url = schoolYearId
-			? `${this.baseUrl}/integration/v1/faculty?schoolYearId=${schoolYearId}`
-			: `${this.baseUrl}/integration/v1/faculty`;
+		// EnrollPro auto-resolves to the active school year when no schoolYearId is given.
+		// Passing ATLAS-internal IDs causes 404 since EnrollPro uses its own ID sequence.
+		const url = `${this.baseUrl}/integration/v1/faculty`;
 		const res = await fetch(url);
 
 		if (!res.ok) {

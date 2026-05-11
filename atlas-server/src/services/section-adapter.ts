@@ -440,7 +440,10 @@ export class EnrollProSectionAdapter implements SectionAdapter {
 	}
 
 	async fetchSectionsBySchoolYear(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionFetchResult> {
-		const url = `${this.baseUrl}/integration/v1/sections?schoolYearId=${schoolYearId}`;
+		// EnrollPro returns the active school year's sections by default.
+		// The schoolYearId query param uses EnrollPro-internal IDs which differ from ATLAS IDs,
+		// so we omit it and let EnrollPro resolve the active year automatically.
+		const url = `${this.baseUrl}/integration/v1/sections`;
 		const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
 		const response = await fetch(url, {
 			headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -490,7 +493,7 @@ function resolveSectionSourceMode(): SectionSourceMode {
 	if (explicit === 'stub' || explicit === 'enrollpro' || explicit === 'auto') return explicit;
 
 	// Legacy compat
-	const legacy = process.env.SECTION_ADAPTER ?? process.env.FACULTY_ADAPTER;
+	const legacy = process.env.SECTION_ADAPTER;
 	if (legacy === 'stub') return 'stub';
 
 	return 'auto'; // default

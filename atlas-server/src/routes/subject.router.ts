@@ -14,7 +14,9 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
 			return;
 		}
-		const subjects = await subjectService.getSubjectsBySchool(schoolId);
+		const includeSte = req.query.includeSte !== 'false';
+		const includeSpa = req.query.includeSpa !== 'false';
+		const subjects = await subjectService.getSubjectsBySchool(schoolId, { includeSte, includeSpa });
 		res.json({ subjects });
 	} catch (err) {
 		next(err);

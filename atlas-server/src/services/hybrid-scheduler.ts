@@ -365,7 +365,7 @@ export function runHybridScheduler(input: ConstructorInput): HybridSchedulerResu
 	const candidates: Array<{ result: ConstructorResult; profile: SeedProfile; fitness: FitnessScore }> = [];
 
 	// H-ALG-1: Compute base demand once, permute per profile
-	const baseDemand = computeDemand(input.sectionsByGrade, input.subjects, input.cohorts ?? []);
+	const baseDemand = computeDemand(input.sectionsByGrade, input.subjects, input.cohorts ?? [], input.classTemplatePeriods ?? {});
 
 	for (const profile of SEED_PROFILES) {
 		try {

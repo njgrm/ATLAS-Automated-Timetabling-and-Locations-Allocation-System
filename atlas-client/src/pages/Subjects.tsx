@@ -51,6 +51,22 @@ const ROOM_TYPE_LABELS: Record<RoomType, string> = {
 const ALL_ROOM_TYPES = Object.keys(ROOM_TYPE_LABELS) as RoomType[];
 const GRADE_OPTIONS = [7, 8, 9, 10];
 
+const PROGRAM_SCOPE_OPTIONS = [
+	{ value: 'REGULAR', label: 'Regular' },
+	{ value: 'STE', label: 'STE' },
+	{ value: 'SPA', label: 'SPA' },
+	{ value: 'SPS', label: 'SPS' },
+	{ value: 'OTHER', label: 'Other' },
+] as const;
+
+const PROGRAM_SCOPE_BADGE: Record<string, string> = {
+	REGULAR: 'bg-sky-50 text-sky-700 border-sky-200',
+	STE: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+	SPA: 'bg-purple-50 text-purple-700 border-purple-200',
+	SPS: 'bg-orange-50 text-orange-700 border-orange-200',
+	OTHER: 'bg-gray-50 text-gray-600 border-gray-200',
+};
+
 const SESSION_PATTERN_LABELS: Record<SessionPattern, string> = {
 	ANY: 'Any Day',
 	MWF: 'Mon / Wed / Fri',
@@ -127,6 +143,7 @@ export default function Subjects() {
 	const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 	const [roomTypeFilter, setRoomTypeFilter] = useState<RoomType | 'all'>('all');
 	const [gradeLevelFilter, setGradeLevelFilter] = useState<number | 'all'>('all');
+	const [programScopeFilter, setProgramScopeFilter] = useState<string>('all');
 
 	const fetchSubjects = useCallback(async () => {
 		setLoading(true);
@@ -199,6 +216,9 @@ export default function Subjects() {
 		// Grade level filter
 		if (gradeLevelFilter !== 'all') list = list.filter((s) => s.gradeLevels.includes(gradeLevelFilter));
 
+		// Program scope filter
+		if (programScopeFilter !== 'all') list = list.filter((s) => (s.programScopes ?? []).includes(programScopeFilter));
+
 		// Sort
 		const sorted = [...list].sort((a, b) => {
 			let cmp = 0;
@@ -216,10 +236,10 @@ export default function Subjects() {
 		const tp = Math.max(1, Math.ceil(tf / pageSize));
 		const start = (page - 1) * pageSize;
 		return { paged: sorted.slice(start, start + pageSize), totalFiltered: tf, totalPages: tp };
-	}, [subjects, searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, sortField, sortDir, page, pageSize]);
+	}, [subjects, searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, sortField, sortDir, page, pageSize]);
 
 	// Reset page when filters change
-	useEffect(() => { setPage(1); }, [searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, pageSize]);
+	useEffect(() => { setPage(1); }, [searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, pageSize]);
 
 	const toggleSort = (field: SortField) => {
 		if (sortField === field) {
@@ -310,7 +330,7 @@ export default function Subjects() {
 		});
 	};
 
-	const hasActiveFilters = statusFilter !== 'all' || roomTypeFilter !== 'all' || gradeLevelFilter !== 'all';
+	const hasActiveFilters = statusFilter !== 'all' || roomTypeFilter !== 'all' || gradeLevelFilter !== 'all' || programScopeFilter !== 'all';
 
 	return (
 		<div className="flex flex-col h-[calc(100svh-3.5rem)]">
@@ -358,12 +378,23 @@ export default function Subjects() {
 							))}
 						</SelectContent>
 					</Select>
+					<Select value={programScopeFilter} onValueChange={setProgramScopeFilter}>
+						<SelectTrigger className="h-8 w-[110px] text-xs">
+							<SelectValue placeholder="All Programs" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All Programs</SelectItem>
+							{PROGRAM_SCOPE_OPTIONS.map((o) => (
+								<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 					{hasActiveFilters && (
 						<Button
 							variant="ghost"
 							size="sm"
 							className="h-8 px-2 text-xs"
-							onClick={() => { setStatusFilter('all'); setRoomTypeFilter('all'); setGradeLevelFilter('all'); }}
+							onClick={() => { setStatusFilter('all'); setRoomTypeFilter('all'); setGradeLevelFilter('all'); setProgramScopeFilter('all'); }}
 						>
 							<X className="size-3 mr-1" /> Clear
 						</Button>
@@ -582,9 +613,20 @@ export default function Subjects() {
 															className="h-8 text-sm"
 														/>
 													) : (
-														<span className="font-medium">{s.name}</span>
+														<div>
+															<span className="font-medium">{s.name}</span>
+															{s.isSeedable && <Badge variant="secondary" className="ml-2 bg-blue-50 text-blue-700 hover:bg-blue-50 border-blue-200">DepEd Core</Badge>}
+															{(s.programScopes ?? []).length > 0 && (
+																<div className="flex flex-wrap gap-0.5 mt-0.5">
+																	{(s.programScopes ?? []).map((scope) => (
+																		<Badge key={scope} variant="outline" className={`text-[0.5625rem] px-1 py-0 ${PROGRAM_SCOPE_BADGE[scope] ?? 'bg-gray-50 text-gray-600 border-gray-200'}`}>
+																			{scope}
+																		</Badge>
+																	))}
+																</div>
+															)}
+														</div>
 													)}
-													{s.isSeedable && <Badge variant="secondary" className="ml-2 bg-blue-50 text-blue-700 hover:bg-blue-50 border-blue-200">DepEd Core</Badge>}
 												</td>
 												<td className="px-4 py-3">
 													{isEditing ? (

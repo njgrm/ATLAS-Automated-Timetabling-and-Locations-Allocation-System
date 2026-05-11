@@ -71,7 +71,7 @@ import { useAccessibility } from '@/hooks/useAccessibility';
 
 /* ─── Constants ─── */
 
-const ENROLLPRO_URL = import.meta.env.VITE_ENROLLPRO_URL ?? 'http://localhost:5173';
+const ENROLLPRO_URL = import.meta.env.VITE_ENROLLPRO_URL ?? 'http://100.88.55.125:5173';
 
 /** Map an EnrollPro `/uploads/…` path to the Vite proxy prefix. */
 function enrollProAsset(path: string | null): string {

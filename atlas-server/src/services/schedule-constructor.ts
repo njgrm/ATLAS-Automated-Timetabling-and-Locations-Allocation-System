@@ -22,6 +22,7 @@
 import type { ScheduledEntry } from './constraint-validator.js';
 import type { SectionsByGrade } from './section-adapter.js';
 import type { RoomType } from '@prisma/client';
+import { isSubjectAllowedForSectionProgram } from './subject-program-scope.service.js';
 
 // ─── Standard time grid (JHS 8-period day) ───
 
@@ -54,6 +55,8 @@ export interface SubjectInput {
 	gradeLevels: number[];
 	interSectionEnabled?: boolean;
 	interSectionGradeLevels?: number[];
+	/** Stored program scopes from DB — used for data-driven filtering */
+	programScopes?: string[];
 }
 
 export interface InstructionalCohortInput {
@@ -135,19 +138,40 @@ function buildPeriodSlots(policy?: PolicyInput): PeriodSlot[] {
 	} else {
 		const earliest = timeToMinutes(policy.earliestStartTime);
 		const latest = timeToMinutes(policy.latestEndTime);
+		const blockedWindows: Array<{ start: number; end: number }> = [];
+
+		if (policy.enableFlagCeremony ?? true) {
+			blockedWindows.push({
+				start: timeToMinutes(policy.flagCeremonyStartTime ?? '07:00'),
+				end: timeToMinutes(policy.flagCeremonyEndTime ?? '07:30'),
+			});
+		}
+
+		if (policy.enableRecess ?? true) {
+			blockedWindows.push({
+				start: timeToMinutes(policy.recessStartTime ?? '09:45'),
+				end: timeToMinutes(policy.recessEndTime ?? '10:00'),
+			});
+		}
+
 		const lunchEnforced = policy.enableLunchWindow ?? policy.enforceLunchWindow ?? true;
-		const lunchStart = lunchEnforced && policy.lunchStartTime ? timeToMinutes(policy.lunchStartTime) : -1;
-		const lunchEnd = lunchEnforced && policy.lunchEndTime ? timeToMinutes(policy.lunchEndTime) : -1;
+		if (lunchEnforced) {
+			blockedWindows.push({
+				start: timeToMinutes(policy.lunchStartTime ?? '11:55'),
+				end: timeToMinutes(policy.lunchEndTime ?? '12:55'),
+			});
+		}
 
 		let cursor = earliest;
 
 		while (cursor + STANDARD_PERIOD_MINUTES <= latest) {
 			const slotEnd = cursor + STANDARD_PERIOD_MINUTES;
 
-			// Skip slots that overlap lunch window
-			if (lunchStart >= 0 && cursor < lunchEnd && slotEnd > lunchStart) {
-				// Jump cursor past lunch window
-				cursor = lunchEnd;
+			const overlappingWindow = blockedWindows
+				.filter((window) => window.end > window.start)
+				.find((window) => cursor < window.end && slotEnd > window.start);
+			if (overlappingWindow) {
+				cursor = Math.max(cursor + 1, overlappingWindow.end);
 				continue;
 			}
 
@@ -231,6 +255,13 @@ export interface ConstructorInput {
 	gradeWindows?: GradeWindowInput[];
 	buildings?: Array<{ id: number; name: string }>;
 	/**
+	 * Per-program period length overrides from class templates.
+	 * Key: program type (e.g. 'STE', 'SPA'). Value: period length in minutes.
+	 * When provided, the constructor uses this length instead of STANDARD_PERIOD_MINUTES
+	 * for sections of the matching program type.
+	 */
+	classTemplatePeriods?: Record<string, number>;
+	/**
 	 * Optional demand override — bypasses computeDemand() to allow seed profile
 	 * reordering in the hybrid multi-seed constructor (H-ALG-1).
 	 * When provided, this array is used directly instead of calling computeDemand().
@@ -311,6 +342,7 @@ export function computeDemand(
 	sectionsByGrade: SectionsByGrade[],
 	subjects: SubjectInput[],
 	cohorts: InstructionalCohortInput[] = [],
+	classTemplatePeriods: Record<string, number> = {},
 ): DemandItem[] {
 	const demand: DemandItem[] = [];
 	const sortedGrades = [...sectionsByGrade].sort((a, b) => a.displayOrder - b.displayOrder);
@@ -328,8 +360,22 @@ export function computeDemand(
 		for (const subject of sortedSubjects) {
 			if (!subject.gradeLevels.includes(gradeNum)) continue;
 
-			const sessions = Math.ceil(subject.minMinutesPerWeek / STANDARD_PERIOD_MINUTES);
-			const duration = Math.ceil(subject.minMinutesPerWeek / sessions);
+			/**
+			 * Resolve period length for a section based on its program type.
+			 * Uses classTemplatePeriods override if provided; falls back to STANDARD_PERIOD_MINUTES.
+			 */
+			const getPeriodLength = (programCode: string | null | undefined): number => {
+				const code = (programCode ?? '').toUpperCase();
+				return classTemplatePeriods[code] ?? STANDARD_PERIOD_MINUTES;
+			};
+
+			const computeSessions = (programCode: string | null | undefined) => {
+				const periodLen = getPeriodLength(programCode);
+				const s = Math.ceil(subject.minMinutesPerWeek / periodLen);
+				const d = Math.ceil(subject.minMinutesPerWeek / s);
+				return { sessions: s, duration: d };
+			};
+
 			const usesCohorts = subject.interSectionEnabled === true
 				&& (subject.interSectionGradeLevels?.length ? subject.interSectionGradeLevels.includes(gradeNum) : true)
 				&& cohortsForGrade.length > 0;
@@ -340,13 +386,17 @@ export function computeDemand(
 					const memberSections = cohort.memberSectionIds
 						.map((memberSectionId) => sectionsById.get(memberSectionId))
 						.filter((memberSection): memberSection is SectionsByGrade['sections'][number] => memberSection != null);
-					if (memberSections.length === 0) continue;
+					const applicableMembers = memberSections.filter((memberSection) =>
+						isSubjectAllowedForSectionProgram(subject.code, memberSection.programCode, subject.programScopes),
+					);
+					if (applicableMembers.length === 0) continue;
 
-					for (const memberSection of memberSections) {
+					for (const memberSection of applicableMembers) {
 						cohortSectionIds.add(memberSection.id);
 					}
 
-					const anchorSection = memberSections[0];
+					const anchorSection = applicableMembers[0];
+					const { sessions, duration } = computeSessions(anchorSection.programCode);
 					demand.push({
 						sectionId: anchorSection.id,
 						subjectId: subject.id,
@@ -356,7 +406,7 @@ export function computeDemand(
 						durationPerSession: duration,
 						enrolledCount: cohort.expectedEnrollment > 0
 							? cohort.expectedEnrollment
-							: memberSections.reduce((total, memberSection) => total + memberSection.enrolledCount, 0),
+							: applicableMembers.reduce((total, memberSection) => total + memberSection.enrolledCount, 0),
 						sessionPattern: subject.sessionPattern ?? 'ANY',
 						entryKind: 'COHORT',
 						programType: anchorSection.programType ?? null,
@@ -364,7 +414,7 @@ export function computeDemand(
 						programName: anchorSection.programName ?? null,
 						cohortCode: cohort.cohortCode,
 						cohortName: cohort.specializationName,
-						cohortMemberSectionIds: memberSections.map((memberSection) => memberSection.id),
+						cohortMemberSectionIds: applicableMembers.map((memberSection) => memberSection.id),
 						roomTypePreference: cohort.preferredRoomType ?? subject.preferredRoomType,
 						adviserId: null,
 						adviserName: null,
@@ -373,6 +423,8 @@ export function computeDemand(
 
 				for (const section of sortedSections) {
 					if (cohortSectionIds.has(section.id)) continue;
+					if (!isSubjectAllowedForSectionProgram(subject.code, section.programCode, subject.programScopes)) continue;
+					const { sessions, duration } = computeSessions(section.programCode);
 					demand.push({
 						sectionId: section.id,
 						subjectId: subject.id,
@@ -395,6 +447,8 @@ export function computeDemand(
 			}
 
 			for (const section of sortedSections) {
+				if (!isSubjectAllowedForSectionProgram(subject.code, section.programCode, subject.programScopes)) continue;
+				const { sessions, duration } = computeSessions(section.programCode);
 				demand.push({
 					sectionId: section.id,
 					subjectId: subject.id,
@@ -511,7 +565,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	const PERIOD_SLOTS = buildPeriodSlots(policy);
 
 	// Use demandOverride when provided (H-ALG-1 multi-seed support), otherwise compute fresh demand.
-	const demand = input.demandOverride ?? computeDemand(sectionsByGrade, subjects, input.cohorts ?? []);
+	const demand = input.demandOverride ?? computeDemand(sectionsByGrade, subjects, input.cohorts ?? [], input.classTemplatePeriods ?? {});
 
 	// Teaching rooms sorted by id, grouped by type
 	const teachingRooms = rooms.filter((r) => r.isTeachingSpace).sort((a, b) => a.id - b.id);

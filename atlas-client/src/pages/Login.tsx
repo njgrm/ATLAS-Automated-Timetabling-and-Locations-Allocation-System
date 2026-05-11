@@ -59,7 +59,6 @@ export default function Login() {
 	const hasToken = hasAnyAuthToken();
 	const rememberedRole = localStorage.getItem('userRole');
 	const defaultLandingRoute = rememberedRole === 'faculty' ? '/my' : '/';
-	const enrollProHost = import.meta.env.VITE_ENROLLPRO_URL ?? 'http://localhost:5173';
 	const projectTagline = 'ATLAS Scheduling System';
 	const projectFullName = 'ATLAS Scheduling System';
 	const jhsScopeLabel = 'Junior High School (Grades 7-10)';
@@ -80,13 +79,13 @@ export default function Login() {
 		if (!logoUrl) return null;
 		if (logoUrl.startsWith('http://') || logoUrl.startsWith('https://')) return logoUrl;
 		if (logoUrl.startsWith('/uploads/')) {
-			return `${enrollProHost}${logoUrl}`;
+			return logoUrl.replace(/^\/uploads/, '/enrollpro-uploads');
 		}
 		if (logoUrl.startsWith('/enrollpro-uploads/')) {
-			return `${enrollProHost}${logoUrl.replace('/enrollpro-uploads/', '/uploads/')}`;
+			return logoUrl;
 		}
-		return `${enrollProHost}${logoUrl.startsWith('/') ? logoUrl : `/${logoUrl}`}`;
-	}, [enrollProHost, logoUrl]);
+		return `/enrollpro-uploads/${logoUrl.replace(/^\/+/, '')}`;
+	}, [logoUrl]);
 
 	useEffect(() => {
 		captureBridgeToken();

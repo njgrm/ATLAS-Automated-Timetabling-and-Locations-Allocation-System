@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
@@ -17,39 +17,46 @@ function toProxyOrigin(rawValue: string | undefined, fallbackOrigin: string): st
 	}
 }
 
-const atlasProxyTarget = toProxyOrigin(process.env.VITE_ATLAS_API, 'http://localhost:5001');
-const enrollProProxyTarget = toProxyOrigin(process.env.VITE_ENROLLPRO_API_BASE, 'http://localhost:5000');
+// Use the factory form so loadEnv runs before proxy targets are computed.
+// process.env does NOT include .env values at config-evaluation time in Vite —
+// loadEnv is the correct way to read them here.
+export default defineConfig(({ mode }) => {
+	const env = loadEnv(mode, process.cwd(), '');
 
-export default defineConfig({
-	plugins: [react(), tailwindcss()],
-	resolve: {
-		alias: {
-			'@': path.resolve(__dirname, './src'),
-		},
-	},
-	server: {
-		host: true,
-		port: 5174,
-		allowedHosts: ['njgrm.buru-degree.ts.net'],
-		proxy: {
-			'/api': {
-				target: atlasProxyTarget,
-				changeOrigin: true,
-			},
-			'/uploads': {
-				target: atlasProxyTarget,
-				changeOrigin: true,
-			},
-			'/enrollpro-api': {
-				target: enrollProProxyTarget,
-				changeOrigin: true,
-				rewrite: (path) => path.replace(/^\/enrollpro-api/, '/api'),
-			},
-			'/enrollpro-uploads': {
-				target: enrollProProxyTarget,
-				changeOrigin: true,
-				rewrite: (path) => path.replace(/^\/enrollpro-uploads/, '/uploads'),
+	const atlasProxyTarget = toProxyOrigin(env.VITE_ATLAS_API, 'http://localhost:5001');
+	const enrollProProxyTarget = toProxyOrigin(env.VITE_ENROLLPRO_API_BASE, 'http://localhost:5000');
+
+	return {
+		plugins: [react(), tailwindcss()],
+		resolve: {
+			alias: {
+				'@': path.resolve(__dirname, './src'),
 			},
 		},
-	},
+		server: {
+			host: true,
+			port: 5174,
+			allowedHosts: ['njgrm.buru-degree.ts.net', 'dev-jegs.buru-degree.ts.net'],
+			proxy: {
+				'/api': {
+					target: atlasProxyTarget,
+					changeOrigin: true,
+				},
+				'/uploads': {
+					target: atlasProxyTarget,
+					changeOrigin: true,
+				},
+				'/enrollpro-api': {
+					target: enrollProProxyTarget,
+					changeOrigin: true,
+					rewrite: (path) => path.replace(/^\/enrollpro-api/, '/api'),
+				},
+				'/enrollpro-uploads': {
+					target: enrollProProxyTarget,
+					changeOrigin: true,
+					rewrite: (path) => path.replace(/^\/enrollpro-uploads/, '/uploads'),
+				},
+			},
+		},
+	};
 });

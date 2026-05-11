@@ -59,6 +59,23 @@ export type Subject = {
 	isSeedable: boolean;
 	interSectionEnabled: boolean;
 	interSectionGradeLevels: number[];
+	programScopes: string[];
+	createdAt: string;
+	updatedAt: string;
+};
+
+export type ClassTemplate = {
+	id: number;
+	schoolId: number;
+	name: string;
+	label: string;
+	programType: string;
+	gradeApplicability: number[];
+	periodLengthMinutes: number;
+	periodsPerDay: number;
+	isActive: boolean;
+	isDefault: boolean;
+	subjects: Array<{ id: number; code: string; name: string; programScopes: string[] }>;
 	createdAt: string;
 	updatedAt: string;
 };

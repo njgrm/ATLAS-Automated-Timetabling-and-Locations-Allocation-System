@@ -25,6 +25,7 @@ model School {
   buildings      Building[]
   facultyMirrors FacultyMirror[]
   authAccounts   AtlasAuthAccount[]
+  classTemplates ClassTemplate[]
 
   @@map("schools")
 }
@@ -102,10 +103,12 @@ model Subject {
   isSeedable              Boolean          @default(false) @map("is_seedable")
   interSectionEnabled     Boolean          @default(false) @map("inter_section_enabled")
   interSectionGradeLevels Int[]            @default([]) @map("inter_section_grade_levels")
+  programScopes           ProgramType[]    @default([REGULAR]) @map("program_scopes")
   createdAt               DateTime         @default(now())
   updatedAt               DateTime         @updatedAt
   school                  School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   facultySubjects         FacultySubject[]
+  templateBindings        ClassTemplateSubject[]
 
   @@unique([schoolId, code], map: "uq_subjects_school_code")
   @@index([schoolId])
@@ -701,4 +704,41 @@ model InstructionalCohort {
   @@unique([schoolId, schoolYearId, cohortCode], map: "uq_cohort_code")
   @@index([schoolId, schoolYearId, gradeLevel])
   @@map("instructional_cohorts")
+}
+
+// ─── Class Templates: Configurable per-school schedule profiles ───
+
+model ClassTemplate {
+  id                  Int                    @id @default(autoincrement())
+  schoolId            Int                    @map("school_id")
+  name                String
+  label               String
+  programType         ProgramType            @map("program_type")
+  gradeApplicability  Int[]                  @map("grade_applicability")
+  periodLengthMinutes Int                    @default(50) @map("period_length_minutes")
+  periodsPerDay       Int                    @default(8) @map("periods_per_day")
+  isActive            Boolean                @default(true) @map("is_active")
+  isDefault           Boolean                @default(false) @map("is_default")
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  school              School                 @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  subjectBindings     ClassTemplateSubject[]
+
+  @@unique([schoolId, programType], map: "uq_class_template_school_program")
+  @@index([schoolId])
+  @@map("class_templates")
+}
+
+model ClassTemplateSubject {
+  id         Int           @id @default(autoincrement())
+  templateId Int           @map("template_id")
+  subjectId  Int           @map("subject_id")
+  createdAt  DateTime      @default(now())
+  template   ClassTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  subject    Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, subjectId], map: "uq_template_subject")
+  @@index([templateId])
+  @@index([subjectId])
+  @@map("class_template_subjects")
 }
