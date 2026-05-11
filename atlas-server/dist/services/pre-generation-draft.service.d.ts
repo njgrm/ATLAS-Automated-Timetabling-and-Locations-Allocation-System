@@ -198,15 +198,15 @@ export interface DraftConsumeResult {
     skippedPrePlacedReasons: string[];
     acceptedPlacementIds: number[];
 }
-export declare function previewPlacement(schoolId: number, schoolYearId: number, input: DraftPlacementInput): Promise<DraftPlacementPreview>;
-export declare function listDraftBoardState(schoolId: number, schoolYearId: number): Promise<DraftBoardState>;
+export declare function previewPlacement(schoolId: number, schoolYearId: number, input: DraftPlacementInput, authToken?: string): Promise<DraftPlacementPreview>;
+export declare function listDraftBoardState(schoolId: number, schoolYearId: number, authToken?: string): Promise<DraftBoardState>;
 export declare function getDraftPlacement(schoolId: number, schoolYearId: number, placementId: number): Promise<DraftPlacementRow>;
-export declare function commitPlacement(schoolId: number, schoolYearId: number, actorId: number, input: DraftPlacementInput, allowSoftOverride?: boolean): Promise<DraftPlacementCommitResult>;
-export declare function previewSwapPlacements(schoolId: number, schoolYearId: number, input: DraftPlacementSwapInput): Promise<DraftPlacementSwapPreview>;
-export declare function swapPlacements(schoolId: number, schoolYearId: number, actorId: number, input: DraftPlacementSwapInput): Promise<DraftPlacementSwapResult>;
-export declare function clearDraft(schoolId: number, schoolYearId: number, actorId: number): Promise<DraftBoardState>;
-export declare function undoLastPlacement(schoolId: number, schoolYearId: number, actorId: number): Promise<DraftBoardState>;
+export declare function commitPlacement(schoolId: number, schoolYearId: number, actorId: number, input: DraftPlacementInput, allowSoftOverride?: boolean, authToken?: string): Promise<DraftPlacementCommitResult>;
+export declare function previewSwapPlacements(schoolId: number, schoolYearId: number, input: DraftPlacementSwapInput, authToken?: string): Promise<DraftPlacementSwapPreview>;
+export declare function swapPlacements(schoolId: number, schoolYearId: number, actorId: number, input: DraftPlacementSwapInput, authToken?: string): Promise<DraftPlacementSwapResult>;
+export declare function clearDraft(schoolId: number, schoolYearId: number, actorId: number, authToken?: string): Promise<DraftBoardState>;
+export declare function undoLastPlacement(schoolId: number, schoolYearId: number, actorId: number, authToken?: string): Promise<DraftBoardState>;
 export declare function removeSinglePlacement(schoolId: number, schoolYearId: number, actorId: number, placementId: number): Promise<DraftBoardState>;
-export declare function consumeDraftPlacementsForRun(runId: number, schoolId: number, schoolYearId: number): Promise<DraftConsumeResult>;
+export declare function consumeDraftPlacementsForRun(runId: number, schoolId: number, schoolYearId: number, authToken?: string): Promise<DraftConsumeResult>;
 export declare function markPlacementsLockedForRun(schoolId: number, schoolYearId: number, runId: number, placementIds: number[]): Promise<void>;
 export declare function archivePlacementsForRun(runId: number, schoolId: number, schoolYearId: number): Promise<void>;

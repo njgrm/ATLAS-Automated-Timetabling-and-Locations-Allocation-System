@@ -248,7 +248,7 @@ export function runHybridScheduler(input) {
     const seedQuality = [];
     const candidates = [];
     // H-ALG-1: Compute base demand once, permute per profile
-    const baseDemand = computeDemand(input.sectionsByGrade, input.subjects, input.cohorts ?? []);
+    const baseDemand = computeDemand(input.sectionsByGrade, input.subjects, input.cohorts ?? [], input.classTemplatePeriods ?? {});
     for (const profile of SEED_PROFILES) {
         try {
             const orderedDemand = profile.orderDemand(baseDemand, input);

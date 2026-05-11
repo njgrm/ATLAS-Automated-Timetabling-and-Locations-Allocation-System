@@ -56,6 +56,49 @@ const PROGRAM_METADATA_BY_UPSTREAM_TYPE = {
         admissionMode: 'SCP',
         isSpecialProgram: true,
     },
+    // Short-code aliases — EnrollPro may send either the long-form key or the short code
+    STE: {
+        programType: 'STE',
+        programCode: 'STE',
+        programName: 'Science, Technology & Engineering',
+        admissionMode: 'SCP',
+        isSpecialProgram: true,
+    },
+    SPA: {
+        programType: 'SPA',
+        programCode: 'SPA',
+        programName: 'Special Program in the Arts',
+        admissionMode: 'SCP',
+        isSpecialProgram: true,
+    },
+    SPS: {
+        programType: 'SPS',
+        programCode: 'SPS',
+        programName: 'Special Program in Sports',
+        admissionMode: 'SCP',
+        isSpecialProgram: true,
+    },
+    SPJ: {
+        programType: 'SPJ',
+        programCode: 'SPJ',
+        programName: 'Special Program in Journalism',
+        admissionMode: 'SCP',
+        isSpecialProgram: true,
+    },
+    SPFL: {
+        programType: 'SPFL',
+        programCode: 'SPFL',
+        programName: 'Special Program in Foreign Language',
+        admissionMode: 'SCP',
+        isSpecialProgram: true,
+    },
+    SPTVE: {
+        programType: 'SPTVE',
+        programCode: 'SPTVE',
+        programName: 'Special Program in Tech-Voc Education',
+        admissionMode: 'SCP',
+        isSpecialProgram: true,
+    },
 };
 function humanizeProgramType(rawProgramType) {
     return rawProgramType
@@ -285,8 +328,14 @@ export class EnrollProSectionAdapter {
         this.baseUrl = baseUrl ?? process.env.ENROLLPRO_API ?? 'http://localhost:5000/api';
     }
     async fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken) {
-        const url = `${this.baseUrl}/integration/v1/sections?schoolYearId=${schoolYearId}`;
-        const response = await fetch(url);
+        // EnrollPro returns the active school year's sections by default.
+        // The schoolYearId query param uses EnrollPro-internal IDs which differ from ATLAS IDs,
+        // so we omit it and let EnrollPro resolve the active year automatically.
+        const url = `${this.baseUrl}/integration/v1/sections`;
+        const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
+        const response = await fetch(url, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
         if (!response.ok) {
             throw Object.assign(new Error(`EnrollPro sections API returned ${response.status}`), {
                 statusCode: response.status,
@@ -312,7 +361,7 @@ function resolveSectionSourceMode() {
     if (explicit === 'stub' || explicit === 'enrollpro' || explicit === 'auto')
         return explicit;
     // Legacy compat
-    const legacy = process.env.SECTION_ADAPTER ?? process.env.FACULTY_ADAPTER;
+    const legacy = process.env.SECTION_ADAPTER;
     if (legacy === 'stub')
         return 'stub';
     return 'auto'; // default

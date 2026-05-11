@@ -11,6 +11,7 @@ import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './facul
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
 import * as preGenerationDraftService from './pre-generation-draft.service.js';
 import { resolveActiveDraftRun } from './active-draft-run-resolver.service.js';
+import { getTemplatePeriodProfiles, ensureTemplatesForProgramTypes } from './class-template.service.js';
 function err(statusCode, code, message, options) {
     const e = new Error(message);
     e.statusCode = statusCode;
@@ -124,7 +125,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
     let stage = 'init';
     try {
         stage = 'pre-generation-drafts';
-        const preGenerationDrafts = await preGenerationDraftService.consumeDraftPlacementsForRun(run.id, schoolId, schoolYearId);
+        const preGenerationDrafts = await preGenerationDraftService.consumeDraftPlacementsForRun(run.id, schoolId, schoolYearId, options?.authToken);
         // ── G.17: Diagnostic output for pre-gen consume phase ──
         console.log(`[generation][run=${run.id}] pre-gen consume: accepted=${preGenerationDrafts.prePlacedCount}, skipped=${preGenerationDrafts.invalidPrePlacedCount}, lockedEntries=${preGenerationDrafts.lockedEntries?.length ?? 0}`);
         if ((preGenerationDrafts.skippedPrePlacedReasons?.length ?? 0) > 0) {
@@ -133,7 +134,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
         // ── Fetch all input data for construction ──
         stage = 'sections-fetch';
         const [sectionResult, faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, gradeWindows, cohorts] = await Promise.all([
-            sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId),
+            sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, options?.authToken),
             prisma.facultyMirror.findMany({
                 where: { schoolId, isActiveForScheduling: true },
                 select: { id: true, maxHoursPerWeek: true },
@@ -160,6 +161,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
                     gradeLevels: true,
                     interSectionEnabled: true,
                     interSectionGradeLevels: true,
+                    programScopes: true,
                 },
             }),
             prisma.facultyPreference.findMany({
@@ -205,7 +207,24 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
         // ── Run hybrid multi-seed constructor (H-ALG-1 through H-ALG-3) ──
         stage = 'constructor';
         const sectionsByGrade = sectionResult.gradeLevels;
-        const demand = computeDemand(sectionsByGrade, subjects, cohorts);
+        // Auto-seed class templates for any program types found in the fetched sections
+        // so that schedule generation uses the correct period lengths for special programs.
+        const detectedProgramTypes = [
+            ...new Set(sectionsByGrade
+                .flatMap((g) => g.sections)
+                .map((s) => s.programType)
+                .filter((pt) => pt != null)),
+        ];
+        if (detectedProgramTypes.length > 0) {
+            await ensureTemplatesForProgramTypes(schoolId, detectedProgramTypes);
+        }
+        // Build classTemplatePeriods map: programType -> periodLengthMinutes
+        const templateProfiles = await getTemplatePeriodProfiles(schoolId);
+        const classTemplatePeriods = {};
+        for (const tp of templateProfiles) {
+            classTemplatePeriods[tp.programType] = tp.periodLengthMinutes;
+        }
+        const demand = computeDemand(sectionsByGrade, subjects, cohorts, classTemplatePeriods);
         const constructorInput = {
             schoolId,
             schoolYearId,
@@ -253,6 +272,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
                 endTime: gw.endTime,
             })),
             buildings: buildings.map((b) => ({ id: b.id, name: b.name })),
+            classTemplatePeriods,
         };
         const result = runHybridScheduler(constructorInput);
         // ── G.17: Diagnostic output for constructor result ──

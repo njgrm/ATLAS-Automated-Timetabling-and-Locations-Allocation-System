@@ -1,5 +1,11 @@
+import type { ProgramType } from '@prisma/client';
 export declare function ensureDefaultSubjects(schoolId: number): Promise<void>;
-export declare function getSubjectsBySchool(schoolId: number): Promise<{
+type SubjectScopeFilter = {
+    includeSte?: boolean;
+    includeSpa?: boolean;
+};
+export declare function getSubjectsBySchool(schoolId: number, filters?: SubjectScopeFilter): Promise<{
+    programScopes: import("./subject-program-scope.service.js").SubjectProgramScope[];
     schoolId: number;
     createdAt: Date;
     id: number;
@@ -14,6 +20,7 @@ export declare function getSubjectsBySchool(schoolId: number): Promise<{
     isSeedable: boolean;
     interSectionEnabled: boolean;
     interSectionGradeLevels: number[];
+    allowedSpecializations: string[];
 }[]>;
 export declare function getSubjectById(id: number): Promise<{
     schoolId: number;
@@ -30,6 +37,8 @@ export declare function getSubjectById(id: number): Promise<{
     isSeedable: boolean;
     interSectionEnabled: boolean;
     interSectionGradeLevels: number[];
+    programScopes: import("@prisma/client").$Enums.ProgramType[];
+    allowedSpecializations: string[];
 } | null>;
 export declare function createSubject(schoolId: number, data: {
     code: string;
@@ -40,6 +49,8 @@ export declare function createSubject(schoolId: number, data: {
     gradeLevels: number[];
     interSectionEnabled?: boolean;
     interSectionGradeLevels?: number[];
+    programScopes?: ProgramType[];
+    allowedSpecializations?: string[];
 }): Promise<{
     schoolId: number;
     createdAt: Date;
@@ -55,6 +66,8 @@ export declare function createSubject(schoolId: number, data: {
     isSeedable: boolean;
     interSectionEnabled: boolean;
     interSectionGradeLevels: number[];
+    programScopes: import("@prisma/client").$Enums.ProgramType[];
+    allowedSpecializations: string[];
 }>;
 export declare function updateSubject(id: number, data: Partial<{
     name: string;
@@ -65,6 +78,8 @@ export declare function updateSubject(id: number, data: Partial<{
     isActive: boolean;
     interSectionEnabled: boolean;
     interSectionGradeLevels: number[];
+    programScopes: ProgramType[];
+    allowedSpecializations: string[];
 }>): Promise<{
     schoolId: number;
     createdAt: Date;
@@ -80,6 +95,8 @@ export declare function updateSubject(id: number, data: Partial<{
     isSeedable: boolean;
     interSectionEnabled: boolean;
     interSectionGradeLevels: number[];
+    programScopes: import("@prisma/client").$Enums.ProgramType[];
+    allowedSpecializations: string[];
 } | null>;
 export declare function deleteSubject(id: number): Promise<{
     success: boolean;
@@ -91,3 +108,4 @@ export declare function getSubjectsWithoutFaculty(schoolId: number): Promise<{
     name: string;
     code: string;
 }[]>;
+export {};

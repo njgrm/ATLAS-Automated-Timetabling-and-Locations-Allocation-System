@@ -3,6 +3,10 @@ import { authenticate } from '../middleware/authenticate.js';
 import * as draftService from '../services/pre-generation-draft.service.js';
 const router = Router();
 const PRIVILEGED_ROLES = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
+function getAuthToken(req) {
+    const header = req.headers.authorization;
+    return header?.startsWith('Bearer ') ? header.slice(7) : undefined;
+}
 function positiveInt(raw, name) {
     const value = Number(raw);
     if (!Number.isInteger(value) || value < 1)
@@ -87,7 +91,7 @@ router.get('/:schoolId/:schoolYearId/pre-generation-drafts', authenticate, async
         const scope = parseScope(req, res);
         if (!scope)
             return;
-        const board = await draftService.listDraftBoardState(scope.schoolId, scope.schoolYearId);
+        const board = await draftService.listDraftBoardState(scope.schoolId, scope.schoolYearId, getAuthToken(req));
         res.json(board);
     }
     catch (error) {
@@ -101,7 +105,7 @@ router.post('/:schoolId/:schoolYearId/pre-generation-drafts/preview', authentica
         const scope = parseScope(req, res);
         if (!scope)
             return;
-        const preview = await draftService.previewPlacement(scope.schoolId, scope.schoolYearId, parsePlacementBody(req));
+        const preview = await draftService.previewPlacement(scope.schoolId, scope.schoolYearId, parsePlacementBody(req), getAuthToken(req));
         res.json(preview);
     }
     catch (error) {
@@ -115,7 +119,7 @@ router.post('/:schoolId/:schoolYearId/pre-generation-drafts/swap/preview', authe
         const scope = parseScope(req, res);
         if (!scope)
             return;
-        const result = await draftService.previewSwapPlacements(scope.schoolId, scope.schoolYearId, parseSwapBody(req));
+        const result = await draftService.previewSwapPlacements(scope.schoolId, scope.schoolYearId, parseSwapBody(req), getAuthToken(req));
         res.json(result);
     }
     catch (error) {
@@ -129,7 +133,7 @@ router.post('/:schoolId/:schoolYearId/pre-generation-drafts/commit', authenticat
         const scope = parseScope(req, res);
         if (!scope)
             return;
-        const result = await draftService.commitPlacement(scope.schoolId, scope.schoolYearId, req.user.userId, parsePlacementBody(req), Boolean(req.body.allowSoftOverride));
+        const result = await draftService.commitPlacement(scope.schoolId, scope.schoolYearId, req.user.userId, parsePlacementBody(req), Boolean(req.body.allowSoftOverride), getAuthToken(req));
         res.status(201).json(result);
     }
     catch (error) {
@@ -143,7 +147,7 @@ router.post('/:schoolId/:schoolYearId/pre-generation-drafts/swap', authenticate,
         const scope = parseScope(req, res);
         if (!scope)
             return;
-        const result = await draftService.swapPlacements(scope.schoolId, scope.schoolYearId, req.user.userId, parseSwapBody(req));
+        const result = await draftService.swapPlacements(scope.schoolId, scope.schoolYearId, req.user.userId, parseSwapBody(req), getAuthToken(req));
         res.status(201).json(result);
     }
     catch (error) {
@@ -157,7 +161,7 @@ router.post('/:schoolId/:schoolYearId/pre-generation-drafts/undo', authenticate,
         const scope = parseScope(req, res);
         if (!scope)
             return;
-        const board = await draftService.undoLastPlacement(scope.schoolId, scope.schoolYearId, req.user.userId);
+        const board = await draftService.undoLastPlacement(scope.schoolId, scope.schoolYearId, req.user.userId, getAuthToken(req));
         res.json(board);
     }
     catch (error) {
@@ -171,7 +175,7 @@ router.post('/:schoolId/:schoolYearId/pre-generation-drafts/clear', authenticate
         const scope = parseScope(req, res);
         if (!scope)
             return;
-        const board = await draftService.clearDraft(scope.schoolId, scope.schoolYearId, req.user.userId);
+        const board = await draftService.clearDraft(scope.schoolId, scope.schoolYearId, req.user.userId, getAuthToken(req));
         res.json(board);
     }
     catch (error) {

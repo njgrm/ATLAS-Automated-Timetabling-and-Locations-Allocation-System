@@ -50,6 +50,7 @@ export interface RunSummary {
 }
 export declare function triggerGenerationRun(schoolId: number, schoolYearId: number, actorId: number, options?: {
     ignoreRoomRequestGate?: boolean;
+    authToken?: string;
 }): Promise<{
     error: string | null;
     schoolId: number;

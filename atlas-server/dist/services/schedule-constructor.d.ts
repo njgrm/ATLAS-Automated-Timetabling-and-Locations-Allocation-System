@@ -30,6 +30,8 @@ export interface SubjectInput {
     gradeLevels: number[];
     interSectionEnabled?: boolean;
     interSectionGradeLevels?: number[];
+    /** Stored program scopes from DB — used for data-driven filtering */
+    programScopes?: string[];
 }
 export interface InstructionalCohortInput {
     cohortCode: string;
@@ -122,6 +124,13 @@ export interface ConstructorInput {
         name: string;
     }>;
     /**
+     * Per-program period length overrides from class templates.
+     * Key: program type (e.g. 'STE', 'SPA'). Value: period length in minutes.
+     * When provided, the constructor uses this length instead of STANDARD_PERIOD_MINUTES
+     * for sections of the matching program type.
+     */
+    classTemplatePeriods?: Record<string, number>;
+    /**
      * Optional demand override — bypasses computeDemand() to allow seed profile
      * reordering in the hybrid multi-seed constructor (H-ALG-1).
      * When provided, this array is used directly instead of calling computeDemand().
@@ -190,7 +199,7 @@ export interface DemandItem {
     adviserId?: number | null;
     adviserName?: string | null;
 }
-export declare function computeDemand(sectionsByGrade: SectionsByGrade[], subjects: SubjectInput[], cohorts?: InstructionalCohortInput[]): DemandItem[];
+export declare function computeDemand(sectionsByGrade: SectionsByGrade[], subjects: SubjectInput[], cohorts?: InstructionalCohortInput[], classTemplatePeriods?: Record<string, number>): DemandItem[];
 export declare function getDemandSectionIds(item: DemandItem): number[];
 export declare function getDemandAssignmentKey(item: DemandItem): string;
 export declare function constructBaseline(input: ConstructorInput): ConstructorResult;

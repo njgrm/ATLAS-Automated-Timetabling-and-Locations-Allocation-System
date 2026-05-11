@@ -128,11 +128,9 @@ export declare function getOrCreatePolicy(schoolId: number, schoolYearId: number
     earliestStartTime: string;
     latestEndTime: string;
     enableVacantAwareConstraints: boolean;
-    enableLunchWindow: boolean;
-    lunchStartTime: string;
-    lunchEndTime: string;
     enableFlagCeremony: boolean;
     enableRecess: boolean;
+    enableLunchWindow: boolean;
     enforceLunchWindow: boolean;
     enableTleTwoPassPriority: boolean;
     allowFlexibleSubjectAssignment: boolean;
@@ -150,6 +148,8 @@ export declare function getOrCreatePolicy(schoolId: number, schoolYearId: number
     flagCeremonyEndTime: string;
     recessStartTime: string;
     recessEndTime: string;
+    lunchStartTime: string;
+    lunchEndTime: string;
     teacherMoveEnabled: boolean;
     enforceConsecutiveBreakAsHard: boolean;
     avoidEarlyFirstPeriod: boolean;
@@ -168,11 +168,9 @@ export declare function upsertPolicy(schoolId: number, schoolYearId: number, inp
     earliestStartTime: string;
     latestEndTime: string;
     enableVacantAwareConstraints: boolean;
-    enableLunchWindow: boolean;
-    lunchStartTime: string;
-    lunchEndTime: string;
     enableFlagCeremony: boolean;
     enableRecess: boolean;
+    enableLunchWindow: boolean;
     enforceLunchWindow: boolean;
     enableTleTwoPassPriority: boolean;
     allowFlexibleSubjectAssignment: boolean;
@@ -190,6 +188,8 @@ export declare function upsertPolicy(schoolId: number, schoolYearId: number, inp
     flagCeremonyEndTime: string;
     recessStartTime: string;
     recessEndTime: string;
+    lunchStartTime: string;
+    lunchEndTime: string;
     teacherMoveEnabled: boolean;
     enforceConsecutiveBreakAsHard: boolean;
     avoidEarlyFirstPeriod: boolean;

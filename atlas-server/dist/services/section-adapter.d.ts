@@ -59,6 +59,7 @@ export interface SectionSummary {
     totalEnrolled: number;
     byGradeLevel: Record<number, number>;
     enrolledByGradeLevel: Record<number, number>;
+    gradeLevels: SectionsByGrade[];
     sections: ExternalSection[];
     source: SectionSourceLabel;
     fetchedAt: Date | null;

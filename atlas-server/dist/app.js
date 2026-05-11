@@ -29,6 +29,8 @@ import preGenerationDraftRouter from './routes/pre-generation-draft.router.js';
 import gradeWindowRouter from './routes/grade-window.router.js';
 import cohortRouter from './routes/cohort.router.js';
 import facultyPortalRouter from './routes/faculty-portal.router.js';
+import publishedScheduleRouter from './routes/published-schedule.router.js';
+import classTemplateRouter from './routes/class-template.router.js';
 const app = express();
 app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -39,10 +41,10 @@ app.use(cors({
         if (!origin)
             return callback(null, true);
         const allowed = new Set([
-            process.env.CLIENT_URL || 'http://localhost:5174',
-            process.env.ENROLLPRO_CLIENT_URL || 'http://localhost:5173',
-            'http://localhost:5173',
-            'http://localhost:5174',
+            process.env.CLIENT_URL || 'http://100.88.55.125:5174',
+            process.env.ENROLLPRO_CLIENT_URL || 'http://100.88.55.125:5173',
+            'http://100.88.55.125:5173',
+            'http://100.88.55.125:5174',
             'http://localhost:5175',
             'http://localhost:5176',
             // Tailscale / LAN origins — comma-separated via env
@@ -82,6 +84,8 @@ app.use('/api/v1/generation', preGenerationDraftRouter);
 app.use('/api/v1/generation', gradeWindowRouter);
 app.use('/api/v1/cohorts', cohortRouter);
 app.use('/api/v1/faculty-portal', facultyPortalRouter);
+app.use('/api/v1', publishedScheduleRouter);
+app.use('/api/v1/class-templates', classTemplateRouter);
 // Error handler
 app.use(errorHandler);
 export default app;

@@ -24,6 +24,7 @@ export async function getSectionSummary(schoolYearId, schoolId, authToken) {
         totalEnrolled,
         byGradeLevel,
         enrolledByGradeLevel,
+        gradeLevels: result.gradeLevels,
         sections: allSections,
         source: result.source,
         fetchedAt: result.fetchedAt,

@@ -105,6 +105,7 @@ async function handleFacultySync(req, res, next, modeOverride) {
             reconciliation: result.reconciliation,
             assignmentPrune: result.assignmentPrune,
             invalidatedRuns: result.invalidatedRuns,
+            seededAssignments: result.seededAssignments,
             isStale: result.isStale,
             staleReason: result.staleReason,
         });
@@ -202,6 +203,27 @@ router.patch('/:id', authenticate, async (req, res, next) => {
             return;
         }
         res.json({ faculty: result.faculty });
+    }
+    catch (err) {
+        next(err);
+    }
+});
+// Auth: GET /faculty/specializations?schoolId=X — distinct non-stale specialization values
+router.get('/specializations', async (req, res, next) => {
+    try {
+        const schoolId = Number(req.query.schoolId);
+        if (!schoolId || Number.isNaN(schoolId)) {
+            res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
+            return;
+        }
+        const rows = await prisma.facultyMirror.findMany({
+            where: { schoolId, isStale: false, department: { not: null } },
+            select: { department: true },
+            distinct: ['department'],
+            orderBy: { department: 'asc' },
+        });
+        const specializations = rows.map((r) => r.department);
+        res.json({ specializations });
     }
     catch (err) {
         next(err);

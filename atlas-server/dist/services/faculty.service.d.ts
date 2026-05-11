@@ -43,6 +43,10 @@ export interface FacultySyncResult {
         invalidatedCount: number;
         staleRunIds: number[];
     };
+    seededAssignments: {
+        created: number;
+        skipped: number;
+    };
     isStale?: boolean;
     staleReason?: string;
 }
@@ -61,6 +65,7 @@ interface LocalMirrorComparable {
     firstName: string;
     lastName: string;
     department: string | null;
+    specialization: string | null;
     employmentStatus: string;
     isClassAdviser: boolean;
     advisoryEquivalentHours: number;
@@ -105,6 +110,8 @@ export declare function getFacultyById(id: number): Promise<({
             isSeedable: boolean;
             interSectionEnabled: boolean;
             interSectionGradeLevels: number[];
+            programScopes: import("@prisma/client").$Enums.ProgramType[];
+            allowedSpecializations: string[];
         };
     } & {
         schoolId: number;
@@ -127,6 +134,7 @@ export declare function getFacultyById(id: number): Promise<({
     firstName: string;
     lastName: string;
     department: string | null;
+    specialization: string | null;
     employmentStatus: string;
     contactInfo: string | null;
     avatarUrl: string | null;
@@ -167,6 +175,7 @@ export declare function updateFacultyMirror(id: number, data: Partial<{
         firstName: string;
         lastName: string;
         department: string | null;
+        specialization: string | null;
         employmentStatus: string;
         contactInfo: string | null;
         avatarUrl: string | null;

@@ -7,7 +7,10 @@ export interface ExternalFaculty {
     id: number;
     firstName: string;
     lastName: string;
+    /** Academic department (e.g. "Mathematics") — from EnrollPro `department` field */
     department: string | null;
+    /** Subject specialization (e.g. "Algebra") — from EnrollPro `specialization` field */
+    specialization: string | null;
     employmentStatus?: 'PERMANENT' | 'PROBATIONARY';
     isClassAdviser?: boolean;
     advisoryEquivalentHours?: number;
@@ -30,6 +33,6 @@ export declare class StubFacultyAdapter implements FacultyAdapter {
 export declare class EnrollProFacultyAdapter implements FacultyAdapter {
     private baseUrl;
     constructor(baseUrl: string);
-    fetchFacultyBySchoolYear(_schoolId: number, schoolYearId: number, _authToken?: string): Promise<FacultyFetchResult>;
+    fetchFacultyBySchoolYear(_schoolId: number, _schoolYearId: number, _authToken?: string): Promise<FacultyFetchResult>;
 }
 export declare function createFacultyAdapter(): FacultyAdapter;

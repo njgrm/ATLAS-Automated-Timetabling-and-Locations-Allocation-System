@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowRight, CalendarClock, MapPin, RefreshCcw } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { AlertTriangle, RefreshCcw } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
 import { fetchPublicSettings, fetchSchoolYears, type SchoolYear } from '@/lib/settings';
-import { formatTime } from '@/lib/utils';
 import type { FacultyRoomPreferenceEntry } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -13,6 +11,8 @@ import { Skeleton } from '@/ui/skeleton';
 import PlainLanguageNotice from '@/components/faculty-shared/PlainLanguageNotice';
 import StatusRail from '@/components/faculty-shared/StatusRail';
 import StepFlowHeader from '@/components/faculty-shared/StepFlowHeader';
+import MobileDashboardLayout from '@/components/faculty-dashboard/MobileDashboardLayout';
+import DesktopDashboardLayout from '@/components/faculty-dashboard/DesktopDashboardLayout';
 
 const DEFAULT_SCHOOL_ID = 1;
 const FALLBACK_SCHOOL_YEAR_ID = 1;
@@ -89,11 +89,11 @@ type MyDashboardResponse = {
 };
 
 function entryOutcomeBadge(entry: FacultyRoomPreferenceEntry) {
-	if (entry.decisionStatus === 'APPROVED') return <Badge variant='success'>Final approved</Badge>;
-	if (entry.decisionStatus === 'REJECTED') return <Badge variant='warning'>Final rejected</Badge>;
-	if (entry.status === 'SUBMITTED') return <Badge variant='secondary'>Pending review</Badge>;
-	if (entry.requestedRoomId) return <Badge variant='outline'>Draft request</Badge>;
-	return <Badge variant='secondary'>Current assigned</Badge>;
+	if (entry.decisionStatus === 'APPROVED') return <Badge variant='success' className='text-[9px] h-4 px-1'>Approved</Badge>;
+	if (entry.decisionStatus === 'REJECTED') return <Badge variant='destructive' className='text-[9px] h-4 px-1'>Rejected</Badge>;
+	if (entry.status === 'SUBMITTED') return <Badge variant='secondary' className='text-[9px] h-4 px-1'>Review</Badge>;
+	if (entry.requestedRoomId) return <Badge variant='outline' className='text-[9px] h-4 px-1'>Draft</Badge>;
+	return <Badge variant='outline' className='text-[9px] h-4 px-1 opacity-50'>Live</Badge>;
 }
 
 export default function MyDashboard() {
@@ -102,6 +102,7 @@ export default function MyDashboard() {
 	const [dashboard, setDashboard] = useState<MyDashboardResponse | null>(null);
 	const [schoolYearNotice, setSchoolYearNotice] = useState<string | null>(null);
 	const [online, setOnline] = useState<boolean>(navigator.onLine);
+	const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 1023px)').matches);
 
 	const loadDashboard = async () => {
 		setLoading(true);
@@ -128,35 +129,36 @@ export default function MyDashboard() {
 
 	useEffect(() => {
 		const updateOnline = () => setOnline(navigator.onLine);
+		const media = window.matchMedia('(max-width: 1023px)');
+		const updateMedia = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+
 		window.addEventListener('online', updateOnline);
 		window.addEventListener('offline', updateOnline);
+		media.addEventListener('change', updateMedia);
+
 		return () => {
 			window.removeEventListener('online', updateOnline);
 			window.removeEventListener('offline', updateOnline);
+			media.removeEventListener('change', updateMedia);
 		};
 	}, []);
-
-	const previewEntries = useMemo(() => {
-		if (!dashboard) return [];
-		return dashboard.schedulePreview.entries.slice(0, 10);
-	}, [dashboard]);
 
 	const plainLanguageBanner = useMemo(() => {
 		if (!dashboard) return null;
 		if (dashboard.runContext.state === 'NO_ACTIVE_DRAFT') {
 			return {
 				title: 'Your schedule is still being prepared.',
-				whatHappened: 'What happened: The scheduler has not released a review draft for your classes yet.',
-				whatNow: 'What to do now: Check back later. If this takes too long, ask your scheduling officer for an update.',
-				whoToContact: 'Who to contact: Your scheduling officer or school IT admin.',
+				whatHappened: 'The scheduler has not released a review draft for your classes yet.',
+				whatNow: 'Check back later. If this takes too long, ask your scheduling officer for an update.',
+				whoToContact: 'Your scheduling officer or school IT admin.',
 			};
 		}
 
 		return {
 			title: 'This schedule is still being reviewed.',
-			whatHappened: 'What happened: You are viewing a review draft while the scheduler finalizes the timetable.',
-			whatNow: 'What to do now: You can submit room requests now. Final schedule will be shared after scheduler approval.',
-			whoToContact: 'Who to contact: Your scheduling officer if anything looks incorrect.',
+			whatHappened: 'You are viewing a review draft while the scheduler finalizes the timetable.',
+			whatNow: 'You can submit room requests now. Final schedule will be shared after scheduler approval.',
+			whoToContact: 'Your scheduling officer if anything looks incorrect.',
 		};
 	}, [dashboard]);
 
@@ -185,16 +187,16 @@ export default function MyDashboard() {
 		return (
 			<div className='flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden'>
 				<div className='flex-1 min-h-0 overflow-auto px-4 py-4 sm:px-6'>
-					<Card className='rounded-2xl'>
-						<CardContent className='flex items-start gap-3 py-6'>
-							<AlertTriangle className='mt-0.5 size-5 text-destructive shrink-0' />
-							<div className='min-w-0'>
-								<p className='font-semibold text-destructive'>My Dashboard unavailable</p>
-								<p className='mt-1 text-sm text-muted-foreground'>{error ?? 'Unexpected error.'}</p>
+					<Card className='rounded-2xl border-destructive/20'>
+						<CardContent className='flex items-start gap-4 py-8'>
+							<AlertTriangle className='mt-1 size-6 text-destructive shrink-0' />
+							<div className='flex-1 min-w-0'>
+								<p className='text-lg font-bold text-destructive'>Dashboard unavailable</p>
+								<p className='mt-1 text-sm text-muted-foreground leading-relaxed'>{error ?? 'Unexpected error occurred while loading your data.'}</p>
+								<Button variant='outline' size='sm' className='mt-4 rounded-xl' onClick={() => void loadDashboard()}>
+									<RefreshCcw className='mr-2 size-4' /> Retry Loading
+								</Button>
 							</div>
-							<Button variant='outline' size='sm' className='ml-auto' onClick={() => void loadDashboard()}>
-								<RefreshCcw className='mr-1.5 size-4' /> Retry
-							</Button>
 						</CardContent>
 					</Card>
 				</div>
@@ -202,211 +204,82 @@ export default function MyDashboard() {
 		);
 	}
 
-	/* ── Shared inner blocks ── */
-	const heroBlock = (
-		<div className='rounded-2xl border border-border bg-card px-4 py-5 shadow-sm'>
-			<p className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>My Portal</p>
-			<h1 className='mt-1.5 text-xl font-semibold tracking-tight'>Hello, {dashboard.faculty.name} 👋</h1>
-			<p className='mt-1 text-sm text-muted-foreground'>{plainLanguageBanner?.title ?? dashboard.phaseMessage}</p>
-			<Link
-				to='/my/room-preferences'
-				className='mt-4 flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors'
-			>
-				<MapPin className='size-4' />
-				Manage My Room Requests
-				<ArrowRight className='size-4 ml-auto' />
-			</Link>
-		</div>
-	);
-
-	const statsBlock = dashboard.schedulePreview.counts.total > 0 ? (
-		<div className='grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2'>
-			<div className='rounded-xl border border-border bg-card px-3 py-3 text-center'>
-				<p className='text-2xl font-semibold'>{dashboard.schedulePreview.counts.total}</p>
-				<p className='mt-0.5 text-xs text-muted-foreground'>Classes</p>
-			</div>
-			<div className='rounded-xl border border-border bg-card px-3 py-3 text-center'>
-				<p className='text-2xl font-semibold'>{dashboard.schedulePreview.counts.pending}</p>
-				<p className='mt-0.5 text-xs text-muted-foreground'>Awaiting decision</p>
-			</div>
-			<div className='rounded-xl border border-border bg-card px-3 py-3 text-center'>
-				<p className='text-2xl font-semibold text-emerald-700'>{dashboard.schedulePreview.counts.approved}</p>
-				<p className='mt-0.5 text-xs text-muted-foreground'>Approved</p>
-			</div>
-			<div className='rounded-xl border border-border bg-card px-3 py-3 text-center'>
-				<p className='text-2xl font-semibold text-amber-700'>{dashboard.schedulePreview.counts.rejected}</p>
-				<p className='mt-0.5 text-xs text-muted-foreground'>Not approved</p>
-			</div>
-		</div>
-	) : null;
-
-	const schedulePreviewBlock = (
-		<>
-			{previewEntries.length > 0 ? (
-				<Card className='rounded-2xl'>
-					<CardContent className='px-4 pt-4 pb-4 space-y-2'>
-						<p className='text-base font-semibold'>Your Classes</p>
-						{previewEntries.map((entry) => (
-							<div key={entry.entryId} className='flex flex-wrap items-center gap-2 rounded-xl border border-border px-3 py-2.5 text-sm'>
-								<div className='flex-1 min-w-0'>
-									<span className='font-semibold text-foreground'>{entry.sectionName}</span>
-									<span className='mx-1.5 text-muted-foreground/50'>·</span>
-									<span className='text-muted-foreground'>{entry.subjectCode}</span>
-									<span className='mx-1.5 text-muted-foreground/50'>·</span>
-									<span className='text-xs text-muted-foreground'>{entry.day.slice(0, 3)} {formatTime(entry.startTime)}</span>
-								</div>
-								{entryOutcomeBadge(entry)}
-								{entry.reviewerNotes && (
-									<p className='w-full text-xs text-amber-700 mt-1'>Note from officer: {entry.reviewerNotes}</p>
-								)}
-							</div>
-						))}
-						<Button asChild variant='outline' size='sm' className='w-full mt-2'>
-							<Link to='/my/room-preferences'>
-								View full schedule and manage requests <ArrowRight className='ml-1.5 size-4' />
-							</Link>
-						</Button>
-					</CardContent>
-				</Card>
-			) : (
-				<div className='rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground'>
-					<CalendarClock className='mx-auto mb-2 size-8 text-muted-foreground/40' />
-					<p className='font-medium'>No schedule yet</p>
-					<p className='mt-1 text-xs'>Your schedule will appear here once the scheduling officer generates a timetable.</p>
-				</div>
+	const banners = (
+		<div className='space-y-4'>
+			{plainLanguageBanner && (
+				<PlainLanguageNotice
+					title={plainLanguageBanner.title}
+					whatHappened={plainLanguageBanner.whatHappened}
+					whatNow={plainLanguageBanner.whatNow}
+					whoToContact={plainLanguageBanner.whoToContact}
+				/>
 			)}
-		</>
+
+			{dashboard.fallbackBanner.show && (
+				<PlainLanguageNotice
+					variant='warning'
+					title='Limited data visibility'
+					whatHappened={dashboard.fallbackBanner.message}
+					whatNow='Some sections of your dashboard might be incomplete until the next sync.'
+					whoToContact='School IT Support'
+				/>
+			)}
+		</div>
 	);
 
 	return (
-		<div className='flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden'>
-			{/* ── Pinned top strip (shared banners + step header) ── */}
-			<div className='shrink-0 px-4 pt-4 pb-0 sm:px-6 sm:pt-6'>
-				<StepFlowHeader
-					title='My Faculty Dashboard'
-					subtitle='Track your current draft classes and send room requests using the guided steps.'
-					steps={[
-						{ id: 1, label: '1 Review classes' },
-						{ id: 2, label: '2 Submit requests' },
-						{ id: 3, label: '3 Wait for decision' },
-					]}
-					activeStep={dashboardStep}
-				/>
-				{!online && (
-					<div className='mt-3'>
-						<StatusRail
-							online={online}
-							syncState='queued-offline'
-						/>
-					</div>
-				)}
-				{schoolYearNotice && (
-					<div className='mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900'>
-						Showing School Year {schoolYearNotice.match(/school year ([^\s.]+)/i)?.[1] ?? '—'}.
-					</div>
-				)}
+		<div className='flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-background'>
+			{/* Top Nav/Header Area */}
+			<div className='shrink-0 px-4 pt-4 pb-2 sm:px-6 sm:pt-6 sm:pb-4 border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60'>
+				<div className='max-w-7xl mx-auto space-y-4'>
+					<StepFlowHeader
+						title='Faculty Portal'
+						subtitle='Track your class assignments and request room changes.'
+						steps={[
+							{ id: 1, label: '1 Review' },
+							{ id: 2, label: '2 Request' },
+							{ id: 3, label: '3 Decision' },
+						]}
+						activeStep={dashboardStep}
+					/>
+					<StatusRail
+						online={online}
+						syncState={online ? 'idle' : 'queued-offline'}
+						realtimeConnected={true}
+					/>
+					{schoolYearNotice && (
+						<div className='rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-900 uppercase tracking-tight'>
+							{schoolYearNotice}
+						</div>
+					)}
+				</div>
 			</div>
 
-			{/* ── Scrollable workspace ── */}
-			<div className='flex-1 min-h-0 overflow-auto px-4 py-4 sm:px-6'>
-
-				{/* Mobile: single-column card stack */}
-				<div className='lg:hidden mx-auto w-full max-w-xl space-y-4'>
-					{heroBlock}
-					{plainLanguageBanner && (
-						<PlainLanguageNotice
-							title={plainLanguageBanner.title}
-							whatHappened={plainLanguageBanner.whatHappened}
-							whatNow={plainLanguageBanner.whatNow}
-							whoToContact={plainLanguageBanner.whoToContact}
+			{/* Main Layout Workspace */}
+			<div className='flex-1 min-h-0 overflow-auto px-4 py-6 sm:px-6 sm:py-8'>
+				<div className='max-w-7xl mx-auto h-full'>
+					{isMobile ? (
+						<MobileDashboardLayout
+							facultyName={dashboard.faculty.name}
+							phaseMessage={dashboard.phaseMessage}
+							counts={dashboard.schedulePreview.counts}
+							schedulePreview={dashboard.schedulePreview.entries}
+							renderEntryBadge={entryOutcomeBadge}
+							banners={banners}
+						/>
+					) : (
+						<DesktopDashboardLayout
+							facultyName={dashboard.faculty.name}
+							phaseMessage={dashboard.phaseMessage}
+							counts={dashboard.schedulePreview.counts}
+							entries={dashboard.schedulePreview.entries}
+							renderEntryBadge={entryOutcomeBadge}
+							banners={banners}
 						/>
 					)}
-					{dashboard.fallbackBanner.show && (
-						<div className='rounded-2xl border border-amber-300 bg-amber-50 px-4 py-4'>
-							<div className='flex items-start gap-3'>
-								<AlertTriangle className='mt-0.5 size-5 text-amber-700 shrink-0' />
-								<div>
-									<p className='font-semibold text-amber-900'>{dashboard.runContext.state === 'NO_ACTIVE_DRAFT' ? 'Your schedule is not ready yet' : dashboard.fallbackBanner.title}</p>
-									<p className='mt-1 text-sm text-amber-800'>{dashboard.runContext.state === 'NO_ACTIVE_DRAFT' ? "Your schedule isn't ready yet. Please wait for the scheduler to generate the draft." : dashboard.fallbackBanner.message}</p>
-									{dashboard.runContext.state === 'NO_ACTIVE_DRAFT' && dashboard.runContext.recoveryHint && (
-										<p className='mt-2 text-xs text-amber-900'>{dashboard.runContext.recoveryHint}</p>
-									)}
-								</div>
-							</div>
-						</div>
-					)}
-					{statsBlock}
-					{schedulePreviewBlock}
-				</div>
-
-				{/* Desktop: two-column split workspace */}
-				<div className='hidden lg:grid lg:grid-cols-[1fr_380px] lg:gap-6 lg:mx-auto lg:w-full lg:max-w-6xl'>
-					{/* Left pane: action + context */}
-					<div className='space-y-4'>
-						{heroBlock}
-						{plainLanguageBanner && (
-							<PlainLanguageNotice
-								title={plainLanguageBanner.title}
-								whatHappened={plainLanguageBanner.whatHappened}
-								whatNow={plainLanguageBanner.whatNow}
-								whoToContact={plainLanguageBanner.whoToContact}
-							/>
-						)}
-						{dashboard.fallbackBanner.show && (
-							<div className='rounded-2xl border border-amber-300 bg-amber-50 px-4 py-4'>
-								<div className='flex items-start gap-3'>
-									<AlertTriangle className='mt-0.5 size-5 text-amber-700 shrink-0' />
-									<div>
-										<p className='font-semibold text-amber-900'>{dashboard.runContext.state === 'NO_ACTIVE_DRAFT' ? 'Your schedule is not ready yet' : dashboard.fallbackBanner.title}</p>
-										<p className='mt-1 text-sm text-amber-800'>{dashboard.runContext.state === 'NO_ACTIVE_DRAFT' ? "Your schedule isn't ready yet. Please wait for the scheduler to generate the draft." : dashboard.fallbackBanner.message}</p>
-										{dashboard.runContext.state === 'NO_ACTIVE_DRAFT' && dashboard.runContext.recoveryHint && (
-											<p className='mt-2 text-xs text-amber-900'>{dashboard.runContext.recoveryHint}</p>
-										)}
-									</div>
-								</div>
-							</div>
-						)}
-						{statsBlock}
-					</div>
-
-					{/* Right pane: schedule preview */}
-					<div className='flex flex-col min-h-0'>
-						<p className='mb-3 text-sm font-semibold text-muted-foreground'>Your Classes</p>
-						<div className='flex-1 min-h-0 overflow-auto space-y-2 rounded-2xl border border-border bg-card p-3'>
-							{previewEntries.length > 0 ? (
-								<>
-									{previewEntries.map((entry) => (
-										<div key={entry.entryId} className='flex flex-wrap items-center gap-2 rounded-xl border border-border px-3 py-2.5 text-sm'>
-											<div className='flex-1 min-w-0'>
-												<span className='font-semibold text-foreground'>{entry.sectionName}</span>
-												<span className='mx-1.5 text-muted-foreground/50'>·</span>
-												<span className='text-muted-foreground'>{entry.subjectCode}</span>
-												<span className='mx-1.5 text-muted-foreground/50'>·</span>
-												<span className='text-xs text-muted-foreground'>{entry.day.slice(0, 3)} {formatTime(entry.startTime)}</span>
-											</div>
-											{entryOutcomeBadge(entry)}
-											{entry.reviewerNotes && (
-												<p className='w-full text-xs text-amber-700 mt-1'>Note from officer: {entry.reviewerNotes}</p>
-											)}
-										</div>
-									))}
-									<Button asChild variant='outline' size='sm' className='w-full mt-2'>
-										<Link to='/my/room-preferences'>
-											View full schedule and manage requests <ArrowRight className='ml-1.5 size-4' />
-										</Link>
-									</Button>
-								</>
-							) : (
-								<div className='flex flex-col items-center justify-center py-10 text-sm text-muted-foreground'>
-									<CalendarClock className='mb-2 size-8 text-muted-foreground/40' />
-									<p className='font-medium'>No schedule yet</p>
-									<p className='mt-1 text-xs text-center'>Your schedule will appear here once the scheduling officer generates a timetable.</p>
-								</div>
-							)}
-						</div>
-					</div>
 				</div>
 			</div>
 		</div>
 	);
 }
+

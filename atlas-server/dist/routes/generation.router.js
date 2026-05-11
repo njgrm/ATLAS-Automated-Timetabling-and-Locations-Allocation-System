@@ -5,6 +5,10 @@ import { getFixSuggestions } from '../services/fix-suggestions.service.js';
 const router = Router();
 // ─── Helpers ───
 const PRIVILEGED_ROLES = new Set(['admin', 'officer', 'SYSTEM_ADMIN']);
+function getAuthToken(req) {
+    const header = req.headers.authorization;
+    return header?.startsWith('Bearer ') ? header.slice(7) : undefined;
+}
 function positiveInt(raw, name) {
     const n = Number(raw);
     if (!Number.isInteger(n) || n < 1)
@@ -35,7 +39,8 @@ router.post('/:schoolId/:schoolYearId/runs', authenticate, async (req, res, next
             return;
         }
         const ignoreRoomRequestGate = req.body?.ignoreRoomRequestGate === true;
-        const run = await genService.triggerGenerationRun(schoolId, schoolYearId, actorId, { ignoreRoomRequestGate });
+        const authToken = getAuthToken(req);
+        const run = await genService.triggerGenerationRun(schoolId, schoolYearId, actorId, { ignoreRoomRequestGate, authToken });
         res.status(201).json({ run });
     }
     catch (e) {

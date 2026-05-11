@@ -8,6 +8,9 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? '8h';
 const MAX_FAILED_ATTEMPTS = Number(process.env.ATLAS_AUTH_MAX_FAILED_ATTEMPTS ?? 5);
 const LOCKOUT_MINUTES = Number(process.env.ATLAS_AUTH_LOCKOUT_MINUTES ?? 15);
 const MEMORY_WINDOW_MS = Number(process.env.ATLAS_AUTH_MEMORY_WINDOW_MS ?? 10 * 60 * 1000);
+// Set ATLAS_AUTH_DISABLE_RATE_LIMIT=true in .env to bypass all login rate limiting.
+// Remove or set to false to re-enable enforcement.
+const DISABLE_RATE_LIMIT = process.env.ATLAS_AUTH_DISABLE_RATE_LIMIT === 'true';
 
 type RateEntry = {
 	count: number;
@@ -285,7 +288,7 @@ export async function loginWithEmailPassword(params: {
 	}
 
 	const memoryRetryAfter = getMemoryLockRemainingSeconds(email, params.ipAddress, now);
-	if (memoryRetryAfter > 0) {
+	if (!DISABLE_RATE_LIMIT && memoryRetryAfter > 0) {
 		return {
 			ok: false,
 			status: 429,
@@ -353,7 +356,7 @@ export async function loginWithEmailPassword(params: {
 		};
 	}
 
-	if (account.lockedUntil && account.lockedUntil.getTime() > now) {
+	if (!DISABLE_RATE_LIMIT && account.lockedUntil && account.lockedUntil.getTime() > now) {
 		const seconds = Math.ceil((account.lockedUntil.getTime() - now) / 1000);
 		return {
 			ok: false,

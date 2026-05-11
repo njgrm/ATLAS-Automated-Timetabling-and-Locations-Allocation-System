@@ -208,9 +208,9 @@ function buildPolicyImpactSummary(violations) {
         severity: violation.severity,
     }));
 }
-async function loadDraftContext(schoolId, schoolYearId) {
+async function loadDraftContext(schoolId, schoolYearId, authToken) {
     const [sectionResult, facultyMirrors, facultyRefs, facultySubjectRows, subjects, rooms, buildings, policyRecord, gradeWindows, placements, cohorts] = await Promise.all([
-        sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId),
+        sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken),
         prisma.facultyMirror.findMany({
             where: { schoolId, isActiveForScheduling: true, isStale: false },
             select: { id: true, firstName: true, lastName: true, department: true, maxHoursPerWeek: true, isActiveForScheduling: true, canTeachOutsideDepartment: true },
@@ -317,7 +317,7 @@ async function loadDraftContext(schoolId, schoolYearId) {
     const periodSlots = (policyRecord.showSpecialEventsInGrid ?? true)
         ? mergeDisplaySlots(classPeriodSlots, specialEventSlots)
         : classPeriodSlots;
-    const demand = computeDemand(sectionResult.gradeLevels, subjects, cohorts);
+    const demand = computeDemand(sectionResult.gradeLevels, subjects, cohorts, {});
     const demandByKey = new Map(demand.map((item) => [getDemandAssignmentKey(item), item]));
     const qualifiedByKey = new Map();
     for (const assignment of facultySubjects) {
@@ -445,8 +445,8 @@ function buildExistingEntries(ctx, excludedPlacementIds) {
     })
         .filter((entry) => entry != null);
 }
-export async function previewPlacement(schoolId, schoolYearId, input) {
-    const ctx = await loadDraftContext(schoolId, schoolYearId);
+export async function previewPlacement(schoolId, schoolYearId, input, authToken) {
+    const ctx = await loadDraftContext(schoolId, schoolYearId, authToken);
     const existingPlacement = input.placementId != null
         ? ctx.placements.find((placement) => placement.id === input.placementId && placement.status === 'DRAFT')
         : null;
@@ -609,8 +609,8 @@ async function buildBoardStateFromContext(schoolId, schoolYearId, ctx) {
         },
     };
 }
-export async function listDraftBoardState(schoolId, schoolYearId) {
-    const ctx = await loadDraftContext(schoolId, schoolYearId);
+export async function listDraftBoardState(schoolId, schoolYearId, authToken) {
+    const ctx = await loadDraftContext(schoolId, schoolYearId, authToken);
     return buildBoardStateFromContext(schoolId, schoolYearId, ctx);
 }
 export async function getDraftPlacement(schoolId, schoolYearId, placementId) {
@@ -620,9 +620,9 @@ export async function getDraftPlacement(schoolId, schoolYearId, placementId) {
     }
     return toDraftRow(placement);
 }
-export async function commitPlacement(schoolId, schoolYearId, actorId, input, allowSoftOverride = false) {
-    const ctx = await loadDraftContext(schoolId, schoolYearId);
-    const preview = await previewPlacement(schoolId, schoolYearId, input);
+export async function commitPlacement(schoolId, schoolYearId, actorId, input, allowSoftOverride = false, authToken) {
+    const ctx = await loadDraftContext(schoolId, schoolYearId, authToken);
+    const preview = await previewPlacement(schoolId, schoolYearId, input, authToken);
     if (preview.hardViolations.length > 0) {
         throw err(422, 'HARD_VIOLATION_BLOCK', 'Placement cannot be committed while hard conflicts remain.', { hardViolations: preview.hardViolations.map((violation) => violation.code) });
     }
@@ -707,7 +707,7 @@ export async function commitPlacement(schoolId, schoolYearId, actorId, input, al
             },
         }),
     ]);
-    const refreshed = await loadDraftContext(schoolId, schoolYearId);
+    const refreshed = await loadDraftContext(schoolId, schoolYearId, authToken);
     return {
         placement: toDraftRow(placement),
         preview,
@@ -787,20 +787,20 @@ function buildSwapPreview(ctx, sourcePlacement, targetPlacement) {
         },
     };
 }
-export async function previewSwapPlacements(schoolId, schoolYearId, input) {
+export async function previewSwapPlacements(schoolId, schoolYearId, input, authToken) {
     if (input.sourcePlacementId === input.targetPlacementId) {
         throw err(422, 'NOOP_SWAP', 'Source and target placements must be different draft entries.');
     }
-    const ctx = await loadDraftContext(schoolId, schoolYearId);
+    const ctx = await loadDraftContext(schoolId, schoolYearId, authToken);
     const sourcePlacement = getDraftPlacementOrThrow(ctx, input.sourcePlacementId, input.sourceExpectedVersion);
     const targetPlacement = getDraftPlacementOrThrow(ctx, input.targetPlacementId, input.targetExpectedVersion);
     return buildSwapPreview(ctx, sourcePlacement, targetPlacement);
 }
-export async function swapPlacements(schoolId, schoolYearId, actorId, input) {
+export async function swapPlacements(schoolId, schoolYearId, actorId, input, authToken) {
     if (input.sourcePlacementId === input.targetPlacementId) {
         throw err(422, 'NOOP_SWAP', 'Source and target placements must be different draft entries.');
     }
-    const ctx = await loadDraftContext(schoolId, schoolYearId);
+    const ctx = await loadDraftContext(schoolId, schoolYearId, authToken);
     const sourcePlacement = getDraftPlacementOrThrow(ctx, input.sourcePlacementId, input.sourceExpectedVersion);
     const targetPlacement = getDraftPlacementOrThrow(ctx, input.targetPlacementId, input.targetExpectedVersion);
     const preview = buildSwapPreview(ctx, sourcePlacement, targetPlacement);
@@ -870,7 +870,7 @@ export async function swapPlacements(schoolId, schoolYearId, actorId, input) {
         });
         return [nextSource, nextTarget];
     });
-    const refreshed = await loadDraftContext(schoolId, schoolYearId);
+    const refreshed = await loadDraftContext(schoolId, schoolYearId, authToken);
     return {
         placements: {
             source: toDraftRow(updatedSource),
@@ -880,10 +880,10 @@ export async function swapPlacements(schoolId, schoolYearId, actorId, input) {
         board: await buildBoardStateFromContext(schoolId, schoolYearId, refreshed),
     };
 }
-export async function clearDraft(schoolId, schoolYearId, actorId) {
+export async function clearDraft(schoolId, schoolYearId, actorId, authToken) {
     const draftPlacements = await prisma.lockedSession.findMany({ where: { schoolId, schoolYearId, status: 'DRAFT' } });
     if (draftPlacements.length === 0) {
-        return listDraftBoardState(schoolId, schoolYearId);
+        return listDraftBoardState(schoolId, schoolYearId, authToken);
     }
     await prisma.$transaction([
         prisma.lockedSession.updateMany({ where: { schoolId, schoolYearId, status: 'DRAFT' }, data: { status: 'ARCHIVED', version: { increment: 1 } } }),
@@ -908,9 +908,9 @@ export async function clearDraft(schoolId, schoolYearId, actorId) {
             },
         }),
     ]);
-    return listDraftBoardState(schoolId, schoolYearId);
+    return listDraftBoardState(schoolId, schoolYearId, authToken);
 }
-export async function undoLastPlacement(schoolId, schoolYearId, actorId) {
+export async function undoLastPlacement(schoolId, schoolYearId, actorId, authToken) {
     const action = await prisma.lockedSessionAction.findFirst({
         where: { schoolId, schoolYearId, actionType: { not: 'UNDO' } },
         orderBy: { createdAt: 'desc' },
@@ -999,7 +999,7 @@ export async function undoLastPlacement(schoolId, schoolYearId, actorId) {
             },
         });
     });
-    return listDraftBoardState(schoolId, schoolYearId);
+    return listDraftBoardState(schoolId, schoolYearId, undefined);
 }
 export async function removeSinglePlacement(schoolId, schoolYearId, actorId, placementId) {
     const placement = await prisma.lockedSession.findUnique({ where: { id: placementId } });
@@ -1036,10 +1036,10 @@ export async function removeSinglePlacement(schoolId, schoolYearId, actorId, pla
             },
         });
     });
-    return listDraftBoardState(schoolId, schoolYearId);
+    return listDraftBoardState(schoolId, schoolYearId, undefined);
 }
-export async function consumeDraftPlacementsForRun(runId, schoolId, schoolYearId) {
-    const ctx = await loadDraftContext(schoolId, schoolYearId);
+export async function consumeDraftPlacementsForRun(runId, schoolId, schoolYearId, authToken) {
+    const ctx = await loadDraftContext(schoolId, schoolYearId, authToken);
     const draftPlacements = ctx.placements.filter((placement) => placement.status === 'DRAFT');
     const accepted = [];
     const skippedPrePlacedReasons = [];

@@ -24,8 +24,8 @@ function assertEqual(actual, expected, label) {
 }
 function runReconciliation(mode) {
     return buildFacultyReconciliationSummary([
-        { id: 101, firstName: 'Maria', lastName: 'Santos', department: 'English', contactInfo: null },
-        { id: 102, firstName: 'Juan', lastName: 'Dela Cruz', department: 'Math', contactInfo: null },
+        { id: 101, firstName: 'Maria', lastName: 'Santos', department: 'English', specialization: null, contactInfo: null },
+        { id: 102, firstName: 'Juan', lastName: 'Dela Cruz', department: 'Math', specialization: null, contactInfo: null },
     ], [
         {
             id: 1,
@@ -33,6 +33,7 @@ function runReconciliation(mode) {
             firstName: 'Maria',
             lastName: 'Santos',
             department: 'English',
+            specialization: null,
             employmentStatus: 'PERMANENT',
             isClassAdviser: false,
             advisoryEquivalentHours: 0,
@@ -48,6 +49,7 @@ function runReconciliation(mode) {
             firstName: 'Old',
             lastName: 'Teacher',
             department: 'MAPEH',
+            specialization: null,
             employmentStatus: 'PERMANENT',
             isClassAdviser: false,
             advisoryEquivalentHours: 0,

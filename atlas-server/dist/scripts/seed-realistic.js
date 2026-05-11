@@ -241,6 +241,7 @@ function generateTeachers(schoolId, sections) {
             firstName: teacher.firstName,
             lastName: teacher.lastName,
             department: teacher.specialization,
+            specialization: teacher.specialization ?? null,
             employmentStatus: teacher.employmentStatus,
             isClassAdviser: adviserSection != null,
             advisoryEquivalentHours: adviserSection ? 5 : 0,
@@ -399,6 +400,7 @@ async function upsertFacultyMirrors(schoolId, teachers) {
                 firstName: teacher.firstName,
                 lastName: teacher.lastName,
                 department: teacher.department,
+                specialization: teacher.specialization ?? null,
                 employmentStatus: teacher.employmentStatus ?? 'PERMANENT',
                 contactInfo: teacher.contactInfo,
                 isClassAdviser: teacher.isClassAdviser ?? false,
@@ -419,6 +421,7 @@ async function upsertFacultyMirrors(schoolId, teachers) {
                 firstName: teacher.firstName,
                 lastName: teacher.lastName,
                 department: teacher.department,
+                specialization: teacher.specialization ?? null,
                 employmentStatus: teacher.employmentStatus ?? 'PERMANENT',
                 contactInfo: teacher.contactInfo,
                 isClassAdviser: teacher.isClassAdviser ?? false,
@@ -440,6 +443,7 @@ async function saveFacultySnapshot(schoolId, schoolYearId, teachers) {
         firstName: teacher.firstName,
         lastName: teacher.lastName,
         department: teacher.department,
+        specialization: teacher.specialization ?? null,
         employmentStatus: teacher.employmentStatus,
         isClassAdviser: teacher.isClassAdviser,
         advisoryEquivalentHours: teacher.advisoryEquivalentHours,
@@ -562,6 +566,7 @@ async function runEnrollProSourceMode(options) {
         cohortSource: cohortResult.source,
         teachers: facultyResult.activeCount,
         sections: sectionSummary.totalSections,
+        gradeLevels: sectionSummary.gradeLevels,
         cohorts: cohortResult.count,
         totalEnrolled: sectionSummary.totalEnrolled,
         isSectionStale: sectionSummary.isStale,
@@ -713,7 +718,9 @@ async function main() {
                 : undefined,
             gradeLevels: options.mode === 'atlas-fixture'
                 ? result.gradeLevels
-                : undefined,
+                : options.mode === 'enrollpro-source'
+                    ? result.gradeLevels
+                    : undefined,
         });
     }
     else {

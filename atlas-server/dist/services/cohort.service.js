@@ -136,12 +136,13 @@ class EnrollProCohortAdapter {
     constructor(baseUrl) {
         this.baseUrl = baseUrl ?? process.env.ENROLLPRO_API ?? 'http://localhost:5000/api';
     }
-    async fetchCohorts(schoolYearId, _schoolId, authToken, context) {
-        const url = `${this.baseUrl}/curriculum/${schoolYearId}/scp-config`;
-        const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
+    async fetchCohorts(_schoolYearId, _schoolId, _authToken, context) {
+        // Use /settings/scp-config which is public (no auth) and returns the same
+        // scpProgramConfigs shape. The /curriculum/{id}/scp-config endpoint requires
+        // auth and uses EnrollPro-internal school year IDs, causing 401/404 in cross-
+        // machine Tailscale setups where ATLAS and EnrollPro use different ID sequences.
+        const url = `${this.baseUrl}/settings/scp-config`;
         const headers = { 'Content-Type': 'application/json' };
-        if (token)
-            headers['Authorization'] = `Bearer ${token}`;
         const response = await fetch(url, { headers });
         if (!response.ok) {
             throw Object.assign(new Error(`EnrollPro SCP config API returned ${response.status}`), {
