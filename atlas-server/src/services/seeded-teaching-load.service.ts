@@ -9,6 +9,7 @@ type SeedableFaculty = {
 	firstName: string;
 	lastName: string;
 	department: string | null;
+	specialization: string | null;
 	canTeachOutsideDepartment: boolean;
 	maxHoursPerWeek: number;
 	advisedSectionId: number | null;
@@ -160,6 +161,13 @@ function normalizeDepartment(department: string | null): string | null {
 	return null;
 }
 
+function normalizeMatchDimension(value: string | null, aliasToCanonical: Map<string, string>): string | null {
+	const lowered = value?.trim().toLowerCase() ?? '';
+	if (!lowered) return null;
+	const canonical = aliasToCanonical.get(lowered) ?? lowered;
+	return normalizeDepartment(canonical);
+}
+
 function isHomeroomSubject(subject: Pick<SeedableSubject, 'code' | 'name'>): boolean {
 	const code = subject.code.trim().toLowerCase();
 	const name = subject.name.trim().toLowerCase();
@@ -177,13 +185,25 @@ function subjectMatchesDepartment(normalizedDepartment: string, subject: Pick<Se
 	return keywords.some((keyword) => code.includes(keyword) || name.includes(keyword));
 }
 
-function matchesFacultySubject(department: string | null, subject: Pick<SeedableSubject, 'code' | 'name'>): boolean {
+function matchesFacultySubject(
+	member: Pick<SeedableFaculty, 'department' | 'specialization'>,
+	subject: Pick<SeedableSubject, 'code' | 'name'>,
+	aliasToCanonical: Map<string, string>,
+): boolean {
 	if (isHomeroomSubject(subject)) {
-		return normalizeDepartment(department) === 'homeroom guidance';
+		return normalizeMatchDimension(member.specialization, aliasToCanonical) === 'homeroom guidance'
+			|| normalizeMatchDimension(member.department, aliasToCanonical) === 'homeroom guidance';
 	}
 
-	const normalizedDepartment = normalizeDepartment(department);
-	if (!normalizedDepartment) return false;
+	const normalizedSpecialization = normalizeMatchDimension(member.specialization, aliasToCanonical);
+	if (normalizedSpecialization && subjectMatchesDepartment(normalizedSpecialization, subject)) {
+		return true;
+	}
+
+	const normalizedDepartment = normalizeMatchDimension(member.department, aliasToCanonical);
+	if (!normalizedDepartment) {
+		return false;
+	}
 
 	return subjectMatchesDepartment(normalizedDepartment, subject);
 }
@@ -253,7 +273,7 @@ async function loadGradeLevels(input: Pick<SeedTeachingLoadBaselineInput, 'schoo
 async function loadSeedInputs(input: Pick<SeedTeachingLoadBaselineInput, 'schoolId' | 'schoolYearId' | 'authToken' | 'gradeLevels'>) {
 	await ensureDefaultSubjects(input.schoolId);
 
-	const [{ gradeLevels, source }, faculty, subjects] = await Promise.all([
+	const [{ gradeLevels, source }, faculty, subjects, specializationAliases] = await Promise.all([
 		loadGradeLevels(input),
 		prisma.facultyMirror.findMany({
 			where: { schoolId: input.schoolId, isStale: false, isActiveForScheduling: true },
@@ -263,6 +283,7 @@ async function loadSeedInputs(input: Pick<SeedTeachingLoadBaselineInput, 'school
 				firstName: true,
 				lastName: true,
 				department: true,
+				specialization: true,
 				canTeachOutsideDepartment: true,
 				maxHoursPerWeek: true,
 				advisedSectionId: true,
@@ -275,19 +296,36 @@ async function loadSeedInputs(input: Pick<SeedTeachingLoadBaselineInput, 'school
 			select: { id: true, code: true, name: true, minMinutesPerWeek: true, gradeLevels: true },
 			orderBy: [{ isSeedable: 'desc' }, { code: 'asc' }, { id: 'asc' }],
 		}),
+		prisma.specializationAlias.findMany({
+			where: { schoolId: input.schoolId },
+			select: { alias: true, canonical: true },
+		}),
 	]);
 
 	const sections = buildSectionRosterIndex(gradeLevels).sectionMap;
+	const aliasToCanonical = new Map<string, string>();
+	for (const row of specializationAliases) {
+		if (!row.alias?.trim() || !row.canonical?.trim()) {
+			continue;
+		}
+		aliasToCanonical.set(row.alias.trim().toLowerCase(), row.canonical.trim().toLowerCase());
+	}
 	return {
 		gradeLevels,
 		sectionSource: source,
 		sections: [...sections.values()].sort(sectionSort),
 		faculty: faculty as SeedableFaculty[],
 		subjects: (subjects as SeedableSubject[]).sort(subjectSort),
+		aliasToCanonical,
 	};
 }
 
-function buildPairDefinitions(sections: Array<ExternalSection & { displayOrder: number }>, subjects: SeedableSubject[], faculty: SeedableFaculty[]): SectionSubjectPair[] {
+function buildPairDefinitions(
+	sections: Array<ExternalSection & { displayOrder: number }>,
+	subjects: SeedableSubject[],
+	faculty: SeedableFaculty[],
+	aliasToCanonical: Map<string, string>,
+): SectionSubjectPair[] {
 	const facultyIdsByAdvisedSection = new Map<number, number>();
 	for (const member of faculty) {
 		if (member.advisedSectionId) {
@@ -306,7 +344,7 @@ function buildPairDefinitions(sections: Array<ExternalSection & { displayOrder: 
 				const adviserId = facultyIdsByAdvisedSection.get(section.id);
 				candidateIds = adviserId ? [adviserId] : [];
 			} else {
-				const direct = faculty.filter((member) => matchesFacultySubject(member.department, subject)).map((member) => member.id);
+				const direct = faculty.filter((member) => matchesFacultySubject(member, subject, aliasToCanonical)).map((member) => member.id);
 				const secondary = faculty.filter((member) => supportsSecondaryCoverage(member.department, subject)).map((member) => member.id);
 				candidateIds = direct.length > 0 || secondary.length > 0
 					? [...new Set([...direct, ...secondary])]
@@ -364,7 +402,7 @@ function printSeedDiagnostics(diagnostics: SeededTeachingLoadDiagnostics) {
 }
 
 export async function collectSeededTeachingLoadDiagnostics(input: Pick<SeedTeachingLoadBaselineInput, 'schoolId' | 'schoolYearId' | 'authToken' | 'gradeLevels'>): Promise<SeededTeachingLoadDiagnostics> {
-	const { sections, faculty, subjects } = await loadSeedInputs(input);
+	const { sections, faculty, subjects, aliasToCanonical } = await loadSeedInputs(input);
 	const assignments = await prisma.facultySubject.findMany({
 		where: { schoolId: input.schoolId },
 		select: {
@@ -407,7 +445,7 @@ export async function collectSeededTeachingLoadDiagnostics(input: Pick<SeedTeach
 		sectionCounts.set(assignment.facultyId, facultySections);
 	}
 
-	const pairDefinitions = buildPairDefinitions(sections, subjects, faculty);
+	const pairDefinitions = buildPairDefinitions(sections, subjects, faculty, aliasToCanonical);
 	const unassignedPairs = pairDefinitions
 		.filter((pair) => !pairOwners.has(pair.key))
 		.map((pair) => ({
@@ -462,7 +500,7 @@ export async function collectSeededTeachingLoadDiagnostics(input: Pick<SeedTeach
 
 export async function seedTeachingLoadBaseline(input: SeedTeachingLoadBaselineInput): Promise<SeedTeachingLoadBaselineResult> {
 	const maxWeeklyHoursCap = input.maxWeeklyHoursCap ?? 40;
-	const { sections, faculty, subjects, sectionSource } = await loadSeedInputs(input);
+	const { sections, faculty, subjects, sectionSource, aliasToCanonical } = await loadSeedInputs(input);
 
 	if (faculty.length === 0) {
 		throw new Error('Cannot seed teaching loads because no active faculty mirrors were found.');
@@ -475,7 +513,7 @@ export async function seedTeachingLoadBaseline(input: SeedTeachingLoadBaselineIn
 	}
 
 	const facultyById = new Map(faculty.map((member) => [member.id, member]));
-	const pairDefinitions = buildPairDefinitions(sections, subjects, faculty);
+	const pairDefinitions = buildPairDefinitions(sections, subjects, faculty, aliasToCanonical);
 	const assignedPairs = new Set<string>();
 	const loadMinutes = new Map<number, number>();
 	const assignmentPairCounts = new Map<number, number>();

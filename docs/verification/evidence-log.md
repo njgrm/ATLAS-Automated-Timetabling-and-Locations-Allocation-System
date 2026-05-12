@@ -2,6 +2,42 @@
 
 Record dated implementation verification summaries here.
 
+### 2026-05-12 - Wave 4.6 Tailscale EnrollPro Execution (dev-jegs:5002)
+- Phase: 4 (objective-critical source-of-truth and generation validation)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PARTIAL PASS
+- Regression gate: PASS for touched service and precision checks
+- Operator: GitHub Copilot
+- Environment:
+  - EnrollPro API (Tailscale): `http://dev-jegs.buru-degree.ts.net:5002/api`
+  - ATLAS server workspace: `d:\ATLAS\atlas-server`
+- Commands executed:
+  - `npm run seed:enrollpro-source -- --schoolId=1 --schoolYearId=1 --reset --authToken=<dev-jegs token>`
+  - `npm run seed:aliases`
+  - `npm run seed:enrollpro-source -- --schoolId=1 --schoolYearId=1 --seedAssignments --authToken=<dev-jegs token>`
+  - `npm run test:wave4-precision`
+  - `SECTION_SOURCE_MODE=auto npx tsx src/scripts/benchmark.ts --schoolId=1 --schoolYearId=1 --runs=1`
+- Verified source availability:
+  - `GET /api/health` on dev-jegs: PASS (`200`)
+  - `GET /api/integration/v1/sections` on dev-jegs: PASS (`200`)
+  - `POST /api/auth/login` on dev-jegs: PASS (token returned)
+- Teaching-load seeding outcomes:
+  - Before specialization-aware seeding repair: `assigned=0`, `unassigned=1863`, `facultyWithoutAssignments=145`
+  - After service repair and reseed: `assigned=728`, `unassigned=1135`, `facultyWithoutAssignments=89`, `rows=183`
+- Generation benchmark outcome (run #16):
+  - Status: `COMPLETED`
+  - Assigned: `1160`
+  - Unassigned: `1752`
+  - Hard violations: `497`
+  - Policy blocked: `236251`
+  - Duration: `183845ms` (max-duration guardrail FAIL vs `<60000ms` target)
+- Additional quality check:
+  - `npm run test:wave4-precision`: PASS (`14 passed, 0 failed`)
+- Remaining blockers:
+  - High unassigned demand and hard-violation count remain above Wave 4.6 closure expectations.
+  - Runtime exceeds the sub-60-second generation objective.
+
 ### 2026-05-11 - Shared Browser QA: EnrollPro Sections + Room Payload Trace
 - Phase: 4 (runtime QA / source-of-truth validation)
 - Scope gate: PASS
