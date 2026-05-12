@@ -44,6 +44,10 @@ export const VIOLATION_EXPLANATIONS: Record<string, { why: string; fix: string }
 		why: 'After a long consecutive block, the teacher does not have a long enough break.',
 		fix: 'Extend the gap between classes or move an adjacent class to a different slot.',
 	},
+	FACULTY_DAILY_STANDARD_EXCEEDED: {
+		why: 'This teacher teaches more than the 6-hour daily target, even though they are still below the hard daily cap.',
+		fix: 'Move one of their classes to another day or reassign it to another qualified teacher.',
+	},
 	FACULTY_DAILY_MAX_EXCEEDED: {
 		why: "This teacher's total teaching minutes on this day exceed the daily maximum.",
 		fix: 'Move one of their classes on this day to a different day, or reassign to another teacher.',

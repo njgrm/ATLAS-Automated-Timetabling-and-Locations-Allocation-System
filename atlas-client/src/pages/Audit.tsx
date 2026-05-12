@@ -225,410 +225,135 @@ export default function Audit() {
 	if (loading) return <div className="p-6 flex items-center justify-center h-full"><Loader2 className="animate-spin" /></div>;
 
 	return (
-		<div className="p-6 max-w-6xl mx-auto space-y-6 h-full flex flex-col overflow-hidden">
-			<div className="flex items-center justify-between shrink-0">
-				<div className="flex items-center gap-3">
-					<ShieldCheck className="size-6 text-emerald-600" />
-					<h1 className="text-2xl font-bold tracking-tight">Scheduling Readiness Audit</h1>
-				</div>
-				<Button variant="outline" size="sm" onClick={loadData}>Refresh Data</Button>
-			</div>
-
-			{/* Readiness Verdict Banner */}
-			<Card className={`shrink-0 border-l-4 ${isReady ? 'border-l-emerald-500 bg-emerald-50/30' : 'border-l-red-500 bg-red-50/30'}`}>
-				<CardContent className="py-4 flex items-center justify-between">
-					<div className="flex items-center gap-4">
-						<div className={`size-10 rounded-full flex items-center justify-center ${isReady ? 'bg-emerald-100' : 'bg-red-100'}`}>
-							{isReady ? <CheckCircle2 className="size-6 text-emerald-600" /> : <XCircle className="size-6 text-red-600" />}
+		<div className="h-[calc(100svh-3.5rem)] flex flex-col overflow-hidden bg-background">
+			{/* Page Header */}
+			<header className="shrink-0 border-b bg-muted/30 px-6 py-3">
+				<div className="flex items-center justify-between">
+					<div className="flex items-center gap-3">
+						<div className="size-8 rounded-lg bg-emerald-600/10 flex items-center justify-center">
+							<ShieldCheck className="size-5 text-emerald-600" />
 						</div>
 						<div>
-							<h3 className={`font-bold ${isReady ? 'text-emerald-900' : 'text-red-900'}`}>
-								{isReady ? 'Ready for Generation' : 'Action Required Before Generation'}
-							</h3>
-							<p className={`text-sm ${isReady ? 'text-emerald-800/70' : 'text-red-800/70'}`}>
-								{isReady 
-									? 'All critical checks passed. You can proceed to generate the schedule.' 
-									: `Found ${criticalCount} critical issue${criticalCount === 1 ? '' : 's'} that will block schedule generation.`}
-							</p>
+							<h1 className="text-lg font-bold tracking-tight">Readiness Audit</h1>
+							<p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">System Validation & Health Check</p>
 						</div>
 					</div>
-					{isReady && (
-						<Button asChild className="bg-emerald-600 hover:bg-emerald-700">
-							<Link to="/timetable/generate">Proceed to Generator</Link>
+					<div className="flex items-center gap-3">
+						<Button variant="outline" size="sm" className="h-8 gap-2" onClick={loadData}>
+							<RefreshCw className="size-3.5" />
+							Refresh
 						</Button>
-					)}
-				</CardContent>
-			</Card>
+						{isReady && (
+							<Button asChild size="sm" className="h-8 bg-emerald-600 hover:bg-emerald-700">
+								<Link to="/timetable/generate">Proceed to Generator</Link>
+							</Button>
+						)}
+					</div>
+				</div>
+			</header>
 
-			<div className="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
-				<Card className="bg-red-50/50 border-red-100 shadow-sm">
-					<CardHeader className="py-4">
-						<CardTitle className="text-sm font-medium text-red-800 flex items-center gap-2">
-							<AlertTriangle className="size-4" /> Critical Errors
-						</CardTitle>
-					</CardHeader>
-					<CardContent className="py-2">
-						<div className="text-2xl font-bold text-red-700">{criticalCount}</div>
-						<p className="text-xs text-red-600/70">{mismatches.length} Mismatches, {facilityGaps.length} Gaps</p>
-					</CardContent>
-				</Card>
-
-				<Card className="bg-orange-50/50 border-orange-100 shadow-sm">
-					<CardHeader className="py-4">
-						<CardTitle className="text-sm font-medium text-orange-800 flex items-center gap-2">
-							<Clock className="size-4" /> Constraint Clashes
-						</CardTitle>
-					</CardHeader>
-					<CardContent className="py-2">
-						<div className="text-2xl font-bold text-orange-700">{clashes.length}</div>
-						<p className="text-xs text-orange-600/70">Specialists with {'>'}50% blocked</p>
-					</CardContent>
-				</Card>
-
-				<Card className="bg-amber-50/50 border-amber-100 shadow-sm">
-					<CardHeader className="py-4">
-						<CardTitle className="text-sm font-medium text-amber-800 flex items-center gap-2">
-							<BookX className="size-4" /> Roster Gaps
-						</CardTitle>
-					</CardHeader>
-					<CardContent className="py-2">
-						<div className="text-2xl font-bold text-amber-700">{rosterGaps.length}</div>
-						<p className="text-xs text-amber-600/70">Sections missing core subjects</p>
-					</CardContent>
-				</Card>
-
-				<Card className="bg-blue-50/50 border-blue-100 shadow-sm">
-					<CardHeader className="py-4">
-						<CardTitle className="text-sm font-medium text-blue-800 flex items-center gap-2">
-							<RefreshCw className="size-4" /> Sync Health
-						</CardTitle>
-					</CardHeader>
-					<CardContent className="py-2">
-						<div className="text-2xl font-bold text-blue-700">{syncIssues.length}</div>
-						<p className="text-xs text-blue-600/70">Missing or invalid Employee IDs</p>
-					</CardContent>
-				</Card>
-			</div>
-
-			<Tabs defaultValue="mismatches" className="flex-1 min-h-0 flex flex-col">
-				<TabsList className="shrink-0 w-fit">
-					<TabsTrigger value="mismatches" className="gap-2">
-						Mismatches {mismatches.length > 0 && <Badge variant="secondary" className="px-1 py-0 h-4 text-[10px] bg-red-100 text-red-700 border-red-200">{mismatches.length}</Badge>}
-					</TabsTrigger>
-					<TabsTrigger value="clashes" className="gap-2">
-						Clashes {clashes.length > 0 && <Badge variant="secondary" className="px-1 py-0 h-4 text-[10px] bg-orange-100 text-orange-700 border-orange-200">{clashes.length}</Badge>}
-					</TabsTrigger>
-					<TabsTrigger value="roster" className="gap-2">
-						Roster {rosterGaps.length > 0 && <Badge variant="secondary" className="px-1 py-0 h-4 text-[10px] bg-amber-100 text-amber-700 border-amber-200">{rosterGaps.length}</Badge>}
-					</TabsTrigger>
-					<TabsTrigger value="facilities" className="gap-2">
-						Facilities {facilityGaps.length > 0 && <Badge variant="secondary" className="px-1 py-0 h-4 text-[10px] bg-red-100 text-red-700 border-red-200">{facilityGaps.length}</Badge>}
-					</TabsTrigger>
-					<TabsTrigger value="optimization" className="gap-2">
-						Optimization {optimizationIssues.length > 0 && <Badge variant="secondary" className="px-1 py-0 h-4 text-[10px]">{optimizationIssues.length}</Badge>}
-					</TabsTrigger>
-					<TabsTrigger value="utilization">Utilization</TabsTrigger>
-					<TabsTrigger value="sync" className="gap-2">
-						Sync {syncIssues.length > 0 && <Badge variant="secondary" className="px-1 py-0 h-4 text-[10px] bg-blue-100 text-blue-700 border-blue-200">{syncIssues.length}</Badge>}
-					</TabsTrigger>
-				</TabsList>
-				
-				<TabsContent value="mismatches" className="flex-1 min-h-0 pt-4">
-					<Card className="h-full flex flex-col overflow-hidden shadow-sm">
-						<div className="p-4 border-b bg-muted/20">
-							<div className="relative">
-								<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-								<Input 
-									placeholder="Search mismatches..." 
-									value={mismatchSearch}
-									onChange={(e) => setMismatchSearch(e.target.value)}
-									className="pl-8 h-8 max-w-xs"
-								/>
-							</div>
-						</div>
-						<ScrollArea className="flex-1">
-							<div className="divide-y">
-							{(() => {
-								const filtered = mismatches.filter(m => !mismatchSearch ||
-									m.facultyName.toLowerCase().includes(mismatchSearch.toLowerCase()) ||
-									m.subjectName.toLowerCase().includes(mismatchSearch.toLowerCase()));
-								if (filtered.length === 0) return (
-									<div className="p-8 text-center text-muted-foreground italic">
-										{mismatchSearch ? 'No mismatches match your search.' : 'No critical qualification mismatches found.'}
+			<div className="flex-1 flex overflow-hidden">
+				{/* Left Rail - Summaries & Verdict */}
+				<aside className="w-80 shrink-0 border-r bg-muted/10 flex flex-col overflow-hidden">
+					<ScrollArea className="flex-1">
+						<div className="p-6 space-y-6">
+							{/* Verdict Card */}
+							<Card className={`border-l-4 shadow-sm ${isReady ? 'border-l-emerald-500 bg-emerald-50/50' : 'border-l-red-500 bg-red-50/50'}`}>
+								<CardContent className="p-4">
+									<div className="flex items-start gap-3">
+										<div className={`size-8 rounded-full shrink-0 flex items-center justify-center ${isReady ? 'bg-emerald-100' : 'bg-red-100'}`}>
+											{isReady ? <CheckCircle2 className="size-5 text-emerald-600" /> : <XCircle className="size-5 text-red-600" />}
+										</div>
+										<div>
+											<h3 className={`text-sm font-bold ${isReady ? 'text-emerald-900' : 'text-red-900'}`}>
+												{isReady ? 'System Ready' : 'Blockers Found'}
+											</h3>
+											<p className={`text-[11px] mt-1 leading-relaxed ${isReady ? 'text-emerald-800/70' : 'text-red-800/70'}`}>
+												{isReady 
+													? 'All critical checks passed. You can proceed to generate the schedule.' 
+													: `Found ${criticalCount} critical issue${criticalCount === 1 ? '' : 's'} that will block schedule generation.`}
+											</p>
+										</div>
 									</div>
-								);
-								return filtered.map((m, i) => (
-										<div key={i} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors group">
-											<div className="space-y-1">
-												<div className="flex items-center gap-2">
-													<span className="font-semibold">{m.facultyName}</span>
-													<ArrowRight className="size-3 text-muted-foreground" />
-													<span className="font-medium text-primary">{m.subjectName} ({m.subjectCode})</span>
-												</div>
-												<div className="flex items-center gap-4 text-xs">
-													<span className="text-muted-foreground">Required: <Badge variant="outline" className="text-red-700 border-red-200 bg-red-50 py-0 h-4">{m.required}</Badge></span>
-													<span className="text-muted-foreground">Actual: <Badge variant="outline" className="py-0 h-4">{m.actual}</Badge></span>
-												</div>
-											</div>
-											<Button asChild variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
-												<Link to={`/assignments?facultyId=${m.facultyId}`}>Fix →</Link>
-											</Button>
-										</div>
-									));
-							})()}
-							</div>
-						</ScrollArea>
-					</Card>
-				</TabsContent>
-
-				<TabsContent value="clashes" className="flex-1 min-h-0 pt-4">
-					<Card className="h-full flex flex-col overflow-hidden shadow-sm">
-						<div className="p-4 border-b bg-muted/20">
-							<div className="relative">
-								<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-								<Input 
-									placeholder="Search clashes..." 
-									value={clashSearch}
-									onChange={(e) => setClashSearch(e.target.value)}
-									className="pl-8 h-8 max-w-xs"
-								/>
-							</div>
-						</div>
-						<ScrollArea className="flex-1">
-							<div className="divide-y">
-							{(() => {
-								const filtered = clashes.filter(c => !clashSearch ||
-									c.name.toLowerCase().includes(clashSearch.toLowerCase()));
-								if (filtered.length === 0) return (
-									<div className="p-8 text-center text-muted-foreground italic">
-										{clashSearch ? 'No bottlenecks match your search.' : 'No preference bottlenecks detected.'}
-									</div>
-								);
-								return filtered.map((c, i) => (
-										<div key={i} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors group">
-											<div className="space-y-1 flex-1">
-												<div className="flex items-center gap-2">
-													<span className="font-semibold">{c.name}</span>
-													<Badge variant="destructive" className="text-[0.65rem] py-0 h-4">{c.unavailabilityPercent}% Unavailable</Badge>
-												</div>
-												<div className="text-xs text-muted-foreground">
-													Blocks scheduling for: {c.qualifiedSubjects.map((s: any) => s.code).join(', ')}
-												</div>
-											</div>
-											<Button asChild variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
-												<Link to={`/faculty/preferences?facultyId=${c.facultyId}`}>Review Prefs →</Link>
-											</Button>
-										</div>
-									));
-							})()}
-							</div>
-						</ScrollArea>
-					</Card>
-				</TabsContent>
-
-				<TabsContent value="roster" className="flex-1 min-h-0 pt-4">
-					<Card className="h-full flex flex-col overflow-hidden shadow-sm">
-						<div className="p-4 border-b bg-muted/20">
-							<div className="relative">
-								<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-								<Input 
-									placeholder="Search roster gaps..." 
-									value={rosterSearch}
-									onChange={(e) => setRosterSearch(e.target.value)}
-									className="pl-8 h-8 max-w-xs"
-								/>
-							</div>
-						</div>
-						<ScrollArea className="flex-1">
-							<div className="divide-y">
-							{(() => {
-								const filtered = rosterGaps.filter(r => !rosterSearch ||
-									r.sectionName.toLowerCase().includes(rosterSearch.toLowerCase()) ||
-									r.subjectName.toLowerCase().includes(rosterSearch.toLowerCase()));
-								if (filtered.length === 0) return (
-									<div className="p-8 text-center text-muted-foreground italic">
-										{rosterSearch ? 'No roster gaps match your search.' : 'All sections have full subject coverage.'}
-									</div>
-								);
-								return filtered.map((r, i) => (
-										<div key={i} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors group">
-											<div className="space-y-1">
-												<div className="flex items-center gap-2">
-													<Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 py-0 h-4">G{r.gradeLevel}</Badge>
-													<span className="font-semibold">{r.sectionName}</span>
-												</div>
-												<div className="text-xs text-muted-foreground">
-													Missing teacher for: <span className="font-medium text-destructive">{r.subjectName} ({r.subjectCode})</span>
-												</div>
-											</div>
-											<Button asChild variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
-												<Link to={`/assignments?sectionId=${r.sectionId}`}>Assign →</Link>
-											</Button>
-										</div>
-									));
-							})()}
-							</div>
-						</ScrollArea>
-					</Card>
-				</TabsContent>
-
-				<TabsContent value="facilities" className="flex-1 min-h-0 pt-4">
-					<Card className="h-full flex flex-col overflow-hidden shadow-sm">
-						<div className="p-4 border-b bg-muted/20 flex items-center justify-between">
-							<div className="flex items-center gap-2">
-								<input 
-									type="checkbox" 
-									id="gap-only"
-									checked={showOnlyFacilityGaps}
-									onChange={(e) => setShowOnlyFacilityGaps(e.target.checked)}
-									className="size-3.5 rounded border-input accent-primary"
-								/>
-								<label htmlFor="gap-only" className="text-xs font-medium cursor-pointer">Show only Facility Gaps</label>
-							</div>
-						</div>
-						<ScrollArea className="flex-1">
-							<div className="divide-y">
-								{(() => {
-									const list = subjects.filter(s => s.requiredFeatures?.length > 0).map((s) => {
-										const compatibleRooms = rooms.filter(r => 
-											r.type === s.preferredRoomType && 
-											s.requiredFeatures.every((f: string) => (r.features || []).includes(f))
-										);
-										return { ...s, compatibleRooms, hasGap: compatibleRooms.length === 0 };
-									});
-									
-									const filtered = showOnlyFacilityGaps ? list.filter(l => l.hasGap) : list;
-									
-									if (filtered.length === 0) {
-										return (
-											<div className="p-8 text-center text-muted-foreground italic">
-												{showOnlyFacilityGaps 
-													? 'No subjects currently have room matching gaps.' 
-													: 'No subjects have required facility features defined.'}
-											</div>
-										);
-									}
-
-									return filtered.map((s) => (
-										<div key={s.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors group">
-											<div className="space-y-1">
-												<div className="flex items-center gap-2">
-													<span className="font-semibold">{s.name} ({s.code})</span>
-													{s.hasGap && <Badge variant="destructive" className="text-[0.6rem] py-0 h-4">Facility Gap</Badge>}
-												</div>
-												<div className="flex flex-wrap gap-1.5 mt-1">
-													<span className="text-[0.65rem] text-muted-foreground uppercase">Requires:</span>
-													{s.requiredFeatures.map((f: string) => (
-														<Badge key={f} variant="secondary" className="text-[0.55rem] bg-amber-50 text-amber-700 border-amber-100 py-0 h-4">{f}</Badge>
-													))}
-												</div>
-												<div className="text-[0.65rem] text-muted-foreground">
-													{s.hasGap 
-														? 'Zero rooms meet all feature requirements.' 
-														: `${s.compatibleRooms.length} compatible room(s) found.`}
-												</div>
-											</div>
-											<Button asChild variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
-												<Link to={s.hasGap ? "/map" : "/subjects"}>{s.hasGap ? "Fix Map →" : "View →"}</Link>
-											</Button>
-										</div>
-									));
-								})()}
-							</div>
-						</ScrollArea>
-					</Card>
-				</TabsContent>
-
-				<TabsContent value="optimization" className="flex-1 min-h-0 pt-4">
-					<Card className="h-full flex flex-col overflow-hidden shadow-sm">
-						<ScrollArea className="flex-1">
-							<div className="divide-y">
-								{optimizationIssues.length === 0 ? (
-									<div className="p-8 text-center text-muted-foreground italic">Specialized faculty are optimally utilized.</div>
-								) : (
-									optimizationIssues.map((opt, i) => (
-										<div key={i} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors group">
-											<div className="space-y-1">
-												<div className="flex items-center gap-2">
-													<span className="font-semibold">{opt.specialistName}</span>
-													<Badge variant="outline" className="text-[0.6rem] bg-indigo-50 text-indigo-700 border-indigo-200 py-0 h-4">{opt.specialization} Specialist</Badge>
-												</div>
-												<p className="text-xs text-muted-foreground max-w-xl italic">
-													{opt.reason}
-												</p>
-											</div>
-											<Button asChild variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
-												<Link to="/assignments">Optimize →</Link>
-											</Button>
-										</div>
-									))
-								)}
-							</div>
-						</ScrollArea>
-					</Card>
-				</TabsContent>
-
-				<TabsContent value="utilization" className="flex-1 min-h-0 pt-4">
-					<div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full">
-						<div className="md:col-span-1 space-y-6">
-							<Card className="shadow-sm">
-								<CardHeader className="pb-2">
-									<CardTitle className="text-sm font-medium">Load Distribution</CardTitle>
-								</CardHeader>
-								<CardContent className="space-y-4">
-									{(() => {
-										const overloaded = faculty.filter(f => f.loadPercentage > 100).length;
-										const heavy = faculty.filter(f => f.loadPercentage > 90 && f.loadPercentage <= 100).length;
-										const underloaded = faculty.filter(f => f.loadPercentage < 50).length;
-										
-										return (
-											<div className="space-y-3">
-												<div className="flex items-center justify-between">
-													<div className="flex items-center gap-2">
-														<div className="size-2 rounded-full bg-red-500" />
-														<span className="text-xs">Overloaded ({'>'}100%)</span>
-													</div>
-													<span className="text-xs font-bold">{overloaded}</span>
-												</div>
-												<div className="flex items-center justify-between">
-													<div className="flex items-center gap-2">
-														<div className="size-2 rounded-full bg-amber-500" />
-														<span className="text-xs">Heavy Load (90-100%)</span>
-													</div>
-													<span className="text-xs font-bold">{heavy}</span>
-												</div>
-												<div className="flex items-center justify-between">
-													<div className="flex items-center gap-2">
-														<div className="size-2 rounded-full bg-emerald-500" />
-														<span className="text-xs">Normal / Underloaded</span>
-													</div>
-													<span className="text-xs font-bold">{faculty.length - overloaded - heavy}</span>
-												</div>
-												<div className="pt-2 border-t flex items-center justify-between text-muted-foreground">
-													<span className="text-[0.65rem] uppercase font-bold tracking-wider">Underloaded ({'<'}50%)</span>
-													<span className="text-xs font-bold">{underloaded}</span>
-												</div>
-											</div>
-										);
-									})()}
 								</CardContent>
 							</Card>
 
-							<Card className="bg-primary/5 border-primary/10 shadow-sm">
-								<CardHeader className="pb-2">
-									<CardTitle className="text-sm font-medium text-primary">Summary Verdict</CardTitle>
+							<div className="space-y-3">
+								<label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-1">Health Indicators</label>
+								
+								<Card className="shadow-none border-none bg-red-50/50">
+									<CardContent className="p-4 flex items-center justify-between">
+										<div className="space-y-1">
+											<div className="text-xs font-medium text-red-800 flex items-center gap-2">
+												<AlertTriangle className="size-3.5" /> Critical Errors
+											</div>
+											<div className="text-2xl font-bold text-red-700">{criticalCount}</div>
+										</div>
+										<div className="text-right">
+											<p className="text-[10px] text-red-600/70">{mismatches.length} Mismatches</p>
+											<p className="text-[10px] text-red-600/70">{facilityGaps.length} Facility Gaps</p>
+										</div>
+									</CardContent>
+								</Card>
+
+								<Card className="shadow-none border-none bg-orange-50/50">
+									<CardContent className="p-4 flex items-center justify-between">
+										<div className="space-y-1">
+											<div className="text-xs font-medium text-orange-800 flex items-center gap-2">
+												<Clock className="size-3.5" /> Constraint Clashes
+											</div>
+											<div className="text-2xl font-bold text-orange-700">{clashes.length}</div>
+										</div>
+										<p className="text-[10px] text-orange-600/70 text-right w-24 leading-tight">
+											Specialists with {'>'}50% blocked
+										</p>
+									</CardContent>
+								</Card>
+
+								<Card className="shadow-none border-none bg-amber-50/50">
+									<CardContent className="p-4 flex items-center justify-between">
+										<div className="space-y-1">
+											<div className="text-xs font-medium text-amber-800 flex items-center gap-2">
+												<BookX className="size-3.5" /> Roster Gaps
+											</div>
+											<div className="text-2xl font-bold text-amber-700">{rosterGaps.length}</div>
+										</div>
+										<p className="text-[10px] text-amber-600/70 text-right w-24 leading-tight">
+											Sections missing core subjects
+										</p>
+									</CardContent>
+								</Card>
+
+								<Card className="shadow-none border-none bg-blue-50/50">
+									<CardContent className="p-4 flex items-center justify-between">
+										<div className="space-y-1">
+											<div className="text-xs font-medium text-blue-800 flex items-center gap-2">
+												<RefreshCw className="size-3.5" /> Sync Health
+											</div>
+											<div className="text-2xl font-bold text-blue-700">{syncIssues.length}</div>
+										</div>
+										<p className="text-[10px] text-blue-600/70 text-right w-24 leading-tight">
+											Invalid or missing IDs
+										</p>
+									</CardContent>
+								</Card>
+							</div>
+
+							{/* Utilization Summary in Rail */}
+							<Card className="bg-primary/5 border-primary/10 shadow-none">
+								<CardHeader className="p-4 pb-2">
+									<CardTitle className="text-xs font-bold uppercase tracking-wider text-primary/70">Average Roster Load</CardTitle>
 								</CardHeader>
-								<CardContent>
+								<CardContent className="p-4 pt-0">
 									{(() => {
 										const avgLoad = faculty.reduce((sum, f) => sum + f.loadPercentage, 0) / (faculty.length || 1);
 										return (
 											<div className="space-y-2">
-												<div className="text-2xl font-bold">{avgLoad.toFixed(1)}%</div>
-												<p className="text-[0.65rem] text-muted-foreground uppercase font-bold tracking-wider">Average Roster Load</p>
-												<p className="text-xs text-primary/80 mt-2">
-													{avgLoad > 95 ? 'Capacity is tight. Generation may struggle with constraints.' : 
+												<div className="text-2xl font-bold text-primary">{avgLoad.toFixed(1)}%</div>
+												<p className="text-[10px] text-primary/70 leading-relaxed italic">
+													{avgLoad > 95 ? 'Capacity is tight. Generation may struggle.' : 
 													 avgLoad < 70 ? 'Significant excess capacity detected.' : 
-													 'Roster capacity is in the optimal range (70-90%).'}
+													 'Roster capacity is in the optimal range.'}
 												</p>
 											</div>
 										);
@@ -636,84 +361,382 @@ export default function Audit() {
 								</CardContent>
 							</Card>
 						</div>
+					</ScrollArea>
+				</aside>
 
-						<Card className="md:col-span-2 h-full flex flex-col overflow-hidden shadow-sm">
-							<div className="p-4 border-b bg-muted/20">
-								<div className="relative">
-									<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-									<Input 
-										placeholder="Filter by name..." 
-										value={utilSearch}
-										onChange={(e) => setUtilSearch(e.target.value)}
-										className="pl-8 h-8 max-w-xs"
-									/>
-								</div>
-							</div>
-							<ScrollArea className="flex-1">
-								<div className="divide-y">
-									{faculty
-										.filter(f => f.lastName.toLowerCase().includes(utilSearch.toLowerCase()) || f.firstName.toLowerCase().includes(utilSearch.toLowerCase()))
-										.sort((a, b) => b.loadPercentage - a.loadPercentage)
-										.map((f) => (
-										<div key={f.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors group">
-											<div className="space-y-1">
-												<div className="font-semibold">{f.lastName}, {f.firstName}</div>
-												<div className="flex flex-col">
-													{f.department && <div className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground/70">{f.department}</div>}
-													{f.specialization && <div className="text-xs text-muted-foreground">{f.specialization} Specialist</div>}
-													{!f.specialization && !f.department && <div className="text-xs text-muted-foreground">General Specialist</div>}
-												</div>
-											</div>
-											<div className="flex items-center gap-4">
-												<div className="text-right">
-													<div className={`text-sm font-bold ${f.loadPercentage > 100 ? 'text-red-600' : f.loadPercentage > 90 ? 'text-amber-600' : 'text-emerald-600'}`}>{f.loadPercentage}%</div>
-													<div className="text-[0.65rem] text-muted-foreground uppercase">{f.subjectHours} / {f.maxHoursPerWeek} hrs</div>
-												</div>
-												<div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
-													<div 
-														className={`h-full transition-all ${f.loadPercentage > 100 ? 'bg-red-500' : f.loadPercentage > 90 ? 'bg-amber-500' : 'bg-emerald-500'}`} 
-														style={{ width: `${Math.min(f.loadPercentage, 100)}%` }} 
-													/>
-												</div>
-												<Button asChild variant="outline" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
-													<Link to={`/assignments?facultyId=${f.id}`}>View →</Link>
-												</Button>
-											</div>
+				{/* Main Workspace - Data Lists */}
+				<main className="flex-1 flex flex-col overflow-hidden">
+					<Tabs defaultValue="mismatches" className="flex-1 flex flex-col overflow-hidden">
+						<div className="px-6 pt-4 border-b bg-background shrink-0">
+							<TabsList className="w-fit bg-muted/50 p-1">
+								<TabsTrigger value="mismatches" className="text-xs gap-2 px-4 h-8">
+									Mismatches {mismatches.length > 0 && <Badge variant="secondary" className="px-1 py-0 h-4 text-[9px] bg-red-100 text-red-700 border-red-200">{mismatches.length}</Badge>}
+								</TabsTrigger>
+								<TabsTrigger value="clashes" className="text-xs gap-2 px-4 h-8">
+									Clashes {clashes.length > 0 && <Badge variant="secondary" className="px-1 py-0 h-4 text-[9px] bg-orange-100 text-orange-700 border-orange-200">{clashes.length}</Badge>}
+								</TabsTrigger>
+								<TabsTrigger value="roster" className="text-xs gap-2 px-4 h-8">
+									Roster {rosterGaps.length > 0 && <Badge variant="secondary" className="px-1 py-0 h-4 text-[9px] bg-amber-100 text-amber-700 border-amber-200">{rosterGaps.length}</Badge>}
+								</TabsTrigger>
+								<TabsTrigger value="facilities" className="text-xs gap-2 px-4 h-8">
+									Facilities {facilityGaps.length > 0 && <Badge variant="secondary" className="px-1 py-0 h-4 text-[9px] bg-red-100 text-red-700 border-red-200">{facilityGaps.length}</Badge>}
+								</TabsTrigger>
+								<TabsTrigger value="optimization" className="text-xs gap-2 px-4 h-8">
+									Optimization {optimizationIssues.length > 0 && <Badge variant="secondary" className="px-1 py-0 h-4 text-[9px]">{optimizationIssues.length}</Badge>}
+								</TabsTrigger>
+								<TabsTrigger value="utilization" className="text-xs px-4 h-8">Utilization</TabsTrigger>
+								<TabsTrigger value="sync" className="text-xs gap-2 px-4 h-8">
+									Sync {syncIssues.length > 0 && <Badge variant="secondary" className="px-1 py-0 h-4 text-[9px] bg-blue-100 text-blue-700 border-blue-200">{syncIssues.length}</Badge>}
+								</TabsTrigger>
+							</TabsList>
+						</div>
+						
+						<div className="flex-1 overflow-hidden">
+							<TabsContent value="mismatches" className="h-full m-0 p-0 focus-visible:ring-0">
+								<div className="h-full flex flex-col overflow-hidden">
+									<div className="px-6 py-3 border-b bg-muted/20 flex items-center justify-between">
+										<div className="relative flex-1 max-w-sm">
+											<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+											<Input 
+												placeholder="Search faculty or subjects..." 
+												value={mismatchSearch}
+												onChange={(e) => setMismatchSearch(e.target.value)}
+												className="pl-8 h-8 text-xs bg-background"
+											/>
 										</div>
-									))}
+										<p className="text-[11px] text-muted-foreground italic">Critical issues that block schedule generation</p>
+									</div>
+									<ScrollArea className="flex-1">
+										<div className="divide-y px-6">
+										{(() => {
+											const filtered = mismatches.filter(m => !mismatchSearch ||
+												m.facultyName.toLowerCase().includes(mismatchSearch.toLowerCase()) ||
+												m.subjectName.toLowerCase().includes(mismatchSearch.toLowerCase()));
+											if (filtered.length === 0) return (
+												<div className="py-20 text-center">
+													<ShieldCheck className="size-10 text-emerald-500/20 mx-auto mb-3" />
+													<p className="text-sm text-muted-foreground italic">
+														{mismatchSearch ? 'No mismatches match your search.' : 'No critical qualification mismatches found.'}
+													</p>
+												</div>
+											);
+											return filtered.map((m, i) => (
+													<div key={i} className="py-4 flex items-center justify-between hover:bg-muted/30 transition-colors group px-2 -mx-2 rounded-lg">
+														<div className="space-y-1">
+															<div className="flex items-center gap-2">
+																<span className="font-bold text-sm">{m.facultyName}</span>
+																<ArrowRight className="size-3 text-muted-foreground" />
+																<span className="font-semibold text-sm text-primary">{m.subjectName} ({m.subjectCode})</span>
+															</div>
+															<div className="flex items-center gap-4">
+																<div className="flex items-center gap-1.5">
+																	<span className="text-[10px] text-muted-foreground uppercase font-bold">Required</span>
+																	<Badge variant="outline" className="text-[10px] text-red-700 border-red-200 bg-red-50 py-0 h-4">{m.required}</Badge>
+																</div>
+																<div className="flex items-center gap-1.5">
+																	<span className="text-[10px] text-muted-foreground uppercase font-bold">Actual</span>
+																	<Badge variant="outline" className="text-[10px] py-0 h-4">{m.actual}</Badge>
+																</div>
+															</div>
+														</div>
+														<Button asChild variant="outline" size="sm" className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+															<Link to={`/assignments?facultyId=${m.facultyId}`}>Fix in Assignments →</Link>
+														</Button>
+													</div>
+												));
+										})()}
+										</div>
+									</ScrollArea>
 								</div>
-							</ScrollArea>
-						</Card>
-					</div>
-				</TabsContent>
+							</TabsContent>
 
-				<TabsContent value="sync" className="flex-1 min-h-0 pt-4">
-					<Card className="h-full flex flex-col overflow-hidden">
-						<ScrollArea className="flex-1">
-							<div className="divide-y">
-								{syncIssues.length === 0 ? (
-									<div className="p-8 text-center text-muted-foreground italic">All faculty records have valid Employee IDs.</div>
-								) : (
-									syncIssues.map((issue) => (
-										<div key={issue.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
-											<div className="space-y-1">
-												<div className="font-semibold">{issue.name}</div>
-												<div className="text-xs text-red-600 flex items-center gap-1.5">
-													<AlertTriangle className="size-3" />
-													{issue.reason}
-												</div>
-											</div>
-											<Button asChild variant="ghost" size="sm">
-												<Link to="/faculty">Fix in Faculty →</Link>
-											</Button>
+							<TabsContent value="clashes" className="h-full m-0 p-0 focus-visible:ring-0">
+								<div className="h-full flex flex-col overflow-hidden">
+									<div className="px-6 py-3 border-b bg-muted/20">
+										<div className="relative max-w-sm">
+											<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+											<Input 
+												placeholder="Search faculty..." 
+												value={clashSearch}
+												onChange={(e) => setClashSearch(e.target.value)}
+												className="pl-8 h-8 text-xs bg-background"
+											/>
 										</div>
-									))
-								)}
-							</div>
-						</ScrollArea>
-					</Card>
-				</TabsContent>
-			</Tabs>
+									</div>
+									<ScrollArea className="flex-1">
+										<div className="divide-y px-6">
+										{(() => {
+											const filtered = clashes.filter(c => !clashSearch ||
+												c.name.toLowerCase().includes(clashSearch.toLowerCase()));
+											if (filtered.length === 0) return (
+												<div className="py-20 text-center text-muted-foreground italic">
+													{clashSearch ? 'No bottlenecks match your search.' : 'No preference bottlenecks detected.'}
+												</div>
+											);
+											return filtered.map((c, i) => (
+													<div key={i} className="py-4 flex items-center justify-between hover:bg-muted/30 transition-colors group px-2 -mx-2 rounded-lg">
+														<div className="space-y-1 flex-1">
+															<div className="flex items-center gap-2">
+																<span className="font-bold text-sm">{c.name}</span>
+																<Badge variant="destructive" className="text-[9px] py-0 h-4 uppercase font-bold tracking-wider">{c.unavailabilityPercent}% Unavailable</Badge>
+															</div>
+															<div className="text-[11px] text-muted-foreground">
+																Blocks scheduling for: <span className="font-semibold">{c.qualifiedSubjects.map((s: any) => s.code).join(', ')}</span>
+															</div>
+														</div>
+														<Button asChild variant="outline" size="sm" className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+															<Link to={`/faculty/preferences?facultyId=${c.facultyId}`}>Review Preferences →</Link>
+														</Button>
+													</div>
+												));
+										})()}
+										</div>
+									</ScrollArea>
+								</div>
+							</TabsContent>
+
+							<TabsContent value="roster" className="h-full m-0 p-0 focus-visible:ring-0">
+								<div className="h-full flex flex-col overflow-hidden">
+									<div className="px-6 py-3 border-b bg-muted/20">
+										<div className="relative max-w-sm">
+											<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+											<Input 
+												placeholder="Search sections or subjects..." 
+												value={rosterSearch}
+												onChange={(e) => setRosterSearch(e.target.value)}
+												className="pl-8 h-8 text-xs bg-background"
+											/>
+										</div>
+									</div>
+									<ScrollArea className="flex-1">
+										<div className="divide-y px-6">
+										{(() => {
+											const filtered = rosterGaps.filter(r => !rosterSearch ||
+												r.sectionName.toLowerCase().includes(rosterSearch.toLowerCase()) ||
+												r.subjectName.toLowerCase().includes(rosterSearch.toLowerCase()));
+											if (filtered.length === 0) return (
+												<div className="py-20 text-center text-muted-foreground italic">
+													{rosterSearch ? 'No roster gaps match your search.' : 'All sections have full subject coverage.'}
+												</div>
+											);
+											return filtered.map((r, i) => (
+													<div key={i} className="py-4 flex items-center justify-between hover:bg-muted/30 transition-colors group px-2 -mx-2 rounded-lg">
+														<div className="space-y-1">
+															<div className="flex items-center gap-2">
+																<Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 py-0 h-4 text-[10px] font-bold">G{r.gradeLevel}</Badge>
+																<span className="font-bold text-sm">{r.sectionName}</span>
+															</div>
+															<div className="text-[11px] text-muted-foreground">
+																Missing teacher for: <span className="font-semibold text-red-600">{r.subjectName} ({r.subjectCode})</span>
+															</div>
+														</div>
+														<Button asChild variant="outline" size="sm" className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+															<Link to={`/assignments?sectionId=${r.sectionId}`}>Assign Teacher →</Link>
+														</Button>
+													</div>
+												));
+										})()}
+										</div>
+									</ScrollArea>
+								</div>
+							</TabsContent>
+
+							<TabsContent value="facilities" className="h-full m-0 p-0 focus-visible:ring-0">
+								<div className="h-full flex flex-col overflow-hidden">
+									<div className="px-6 py-3 border-b bg-muted/20 flex items-center justify-between">
+										<div className="flex items-center gap-2">
+											<input 
+												type="checkbox" 
+												id="gap-only"
+												checked={showOnlyFacilityGaps}
+												onChange={(e) => setShowOnlyFacilityGaps(e.target.checked)}
+												className="size-3.5 rounded border-input accent-emerald-600"
+											/>
+											<label htmlFor="gap-only" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground cursor-pointer">Show only Facility Gaps</label>
+										</div>
+									</div>
+									<ScrollArea className="flex-1">
+										<div className="divide-y px-6">
+											{(() => {
+												const list = subjects.filter(s => s.requiredFeatures?.length > 0).map((s) => {
+													const compatibleRooms = rooms.filter(r => 
+														r.type === s.preferredRoomType && 
+														s.requiredFeatures.every((f: string) => (r.features || []).includes(f))
+													);
+													return { ...s, compatibleRooms, hasGap: compatibleRooms.length === 0 };
+												});
+												
+												const filtered = showOnlyFacilityGaps ? list.filter(l => l.hasGap) : list;
+												
+												if (filtered.length === 0) {
+													return (
+														<div className="py-20 text-center text-muted-foreground italic">
+															{showOnlyFacilityGaps 
+																? 'No subjects currently have room matching gaps.' 
+																: 'No subjects have required facility features defined.'}
+														</div>
+													);
+												}
+
+												return filtered.map((s) => (
+													<div key={s.id} className="py-4 flex items-center justify-between hover:bg-muted/30 transition-colors group px-2 -mx-2 rounded-lg">
+														<div className="space-y-1">
+															<div className="flex items-center gap-2">
+																<span className="font-bold text-sm">{s.name} ({s.code})</span>
+																{s.hasGap && <Badge variant="destructive" className="text-[9px] py-0 h-4 uppercase font-bold tracking-wider">Facility Gap</Badge>}
+															</div>
+															<div className="flex flex-wrap gap-1.5 mt-1">
+																<span className="text-[10px] text-muted-foreground uppercase font-bold">Requires:</span>
+																{s.requiredFeatures.map((f: string) => (
+																	<Badge key={f} variant="secondary" className="text-[9px] bg-amber-50 text-amber-700 border-amber-100 py-0 h-4 font-semibold">{f}</Badge>
+																))}
+															</div>
+															<div className="text-[11px] text-muted-foreground mt-1">
+																{s.hasGap 
+																	? 'Zero rooms meet all feature requirements in current map.' 
+																	: `${s.compatibleRooms.length} compatible room(s) identified.`}
+															</div>
+														</div>
+														<Button asChild variant="outline" size="sm" className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+															<Link to={s.hasGap ? "/map" : "/subjects"}>{s.hasGap ? "Fix Map →" : "View Subject →"}</Link>
+														</Button>
+													</div>
+												));
+											})()}
+										</div>
+									</ScrollArea>
+								</div>
+							</TabsContent>
+
+							<TabsContent value="optimization" className="h-full m-0 p-0 focus-visible:ring-0">
+								<div className="h-full flex flex-col overflow-hidden">
+									<div className="px-6 py-3 border-b bg-muted/20">
+										<p className="text-[11px] text-muted-foreground italic">Suggestions for better utilization of specialized faculty</p>
+									</div>
+									<ScrollArea className="flex-1">
+										<div className="divide-y px-6">
+											{optimizationIssues.length === 0 ? (
+												<div className="py-20 text-center">
+													<ShieldCheck className="size-10 text-emerald-500/20 mx-auto mb-3" />
+													<p className="text-sm text-muted-foreground italic">Specialized faculty are optimally utilized.</p>
+												</div>
+											) : (
+												optimizationIssues.map((opt, i) => (
+													<div key={i} className="py-4 flex items-center justify-between hover:bg-muted/30 transition-colors group px-2 -mx-2 rounded-lg">
+														<div className="space-y-1">
+															<div className="flex items-center gap-2">
+																<span className="font-bold text-sm">{opt.specialistName}</span>
+																<Badge variant="outline" className="text-[9px] bg-indigo-50 text-indigo-700 border-indigo-200 py-0 h-4 font-bold uppercase tracking-wider">{opt.specialization} Specialist</Badge>
+															</div>
+															<p className="text-[11px] text-muted-foreground max-w-xl italic leading-relaxed">
+																{opt.reason}
+															</p>
+														</div>
+														<Button asChild variant="outline" size="sm" className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+															<Link to="/assignments">Optimize Load →</Link>
+														</Button>
+													</div>
+												))
+											)}
+										</div>
+									</ScrollArea>
+								</div>
+							</TabsContent>
+
+							<TabsContent value="utilization" className="h-full m-0 p-0 focus-visible:ring-0">
+								<div className="h-full flex flex-col overflow-hidden">
+									<div className="px-6 py-3 border-b bg-muted/20 flex items-center justify-between">
+										<div className="relative flex-1 max-w-sm">
+											<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+											<Input 
+												placeholder="Filter by name..." 
+												value={utilSearch}
+												onChange={(e) => setUtilSearch(e.target.value)}
+												className="pl-8 h-8 text-xs bg-background"
+											/>
+										</div>
+										{/* Mini stats for utilization */}
+										{(() => {
+											const overloaded = faculty.filter(f => f.loadPercentage > 100).length;
+											return (
+												<div className="flex items-center gap-4">
+													<div className="flex items-center gap-1.5">
+														<div className="size-2 rounded-full bg-red-500" />
+														<span className="text-[10px] font-bold uppercase text-red-700">{overloaded} Overloaded</span>
+													</div>
+												</div>
+											);
+										})()}
+									</div>
+									<ScrollArea className="flex-1">
+										<div className="divide-y px-6">
+											{faculty
+												.filter(f => f.lastName.toLowerCase().includes(utilSearch.toLowerCase()) || f.firstName.toLowerCase().includes(utilSearch.toLowerCase()))
+												.sort((a, b) => b.loadPercentage - a.loadPercentage)
+												.map((f) => (
+												<div key={f.id} className="py-4 flex items-center justify-between hover:bg-muted/30 transition-colors group px-2 -mx-2 rounded-lg">
+													<div className="space-y-1">
+														<div className="font-bold text-sm">{f.lastName}, {f.firstName}</div>
+														<div className="flex items-center gap-3">
+															{f.department && <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">{f.department}</div>}
+															{f.specialization && <div className="text-[10px] text-primary/70 font-semibold">{f.specialization} Specialist</div>}
+														</div>
+													</div>
+													<div className="flex items-center gap-6">
+														<div className="text-right">
+															<div className={`text-sm font-bold ${f.loadPercentage > 100 ? 'text-red-600' : f.loadPercentage > 90 ? 'text-amber-600' : 'text-emerald-600'}`}>{f.loadPercentage}%</div>
+															<div className="text-[10px] text-muted-foreground uppercase font-medium">{f.subjectHours} / {f.maxHoursPerWeek} hrs</div>
+														</div>
+														<div className="w-32 h-1.5 bg-muted rounded-full overflow-hidden">
+															<div 
+																className={`h-full transition-all ${f.loadPercentage > 100 ? 'bg-red-500' : f.loadPercentage > 90 ? 'bg-amber-500' : 'bg-emerald-500'}`} 
+																style={{ width: `${Math.min(f.loadPercentage, 100)}%` }} 
+															/>
+														</div>
+														<Button asChild variant="outline" size="sm" className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+															<Link to={`/assignments?facultyId=${f.id}`}>View Details →</Link>
+														</Button>
+													</div>
+												</div>
+											))}
+										</div>
+									</ScrollArea>
+								</div>
+							</TabsContent>
+
+							<TabsContent value="sync" className="h-full m-0 p-0 focus-visible:ring-0">
+								<div className="h-full flex flex-col overflow-hidden">
+									<div className="px-6 py-3 border-b bg-muted/20">
+										<p className="text-[11px] text-muted-foreground italic">Verification of data synchronization with EnrollPro</p>
+									</div>
+									<ScrollArea className="flex-1">
+										<div className="divide-y px-6">
+											{syncIssues.length === 0 ? (
+												<div className="py-20 text-center text-muted-foreground italic">All faculty records have valid Employee IDs.</div>
+											) : (
+												syncIssues.map((issue) => (
+													<div key={issue.id} className="py-4 flex items-center justify-between hover:bg-muted/30 transition-colors group px-2 -mx-2 rounded-lg">
+														<div className="space-y-1">
+															<div className="font-bold text-sm">{issue.name}</div>
+															<div className="text-[11px] text-red-600 flex items-center gap-1.5 font-medium">
+																<AlertTriangle className="size-3" />
+																{issue.reason}
+															</div>
+														</div>
+														<Button asChild variant="ghost" size="sm" className="h-7 text-xs">
+															<Link to="/faculty">Fix in Faculty Profile →</Link>
+														</Button>
+													</div>
+												))
+											)}
+										</div>
+									</ScrollArea>
+								</div>
+							</TabsContent>
+						</div>
+					</Tabs>
+				</main>
+			</div>
 		</div>
 	);
 }

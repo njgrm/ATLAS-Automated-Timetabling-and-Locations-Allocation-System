@@ -410,3 +410,184 @@ These thresholds apply when evaluating **whether a proposed pre-generation place
   - Typecheck + build pass
   - Automated tests covering swap atomicity and soft/hard policy outcomes
   - Manual QA evidence for all required behavior contract items above
+
+---
+
+## Wave 4.6 — Seeding Quality & Teaching Load Hardening (2026-05-12)
+
+### Context & Diagnosis
+
+**Current Findings (May 12, 2026):**
+
+After Run 14 achieved 0 hard violations and Run 15 was generated with remaining concerns:
+
+1. **FacultySubject Distribution (Current State):**
+   - Total assignments: 472 rows
+   - Subjects with minimum cover: 12 (only 1 faculty each)
+   - Average subjects per faculty: 3.3
+   - Min: 1 subject | Max: 10 subjects
+   - 58/142 faculty teaching only 1 subject (minimum cover baseline)
+   - 62/142 faculty teaching 4+ subjects (potentially overloaded)
+
+2. **Teaching Load Health:**
+   - No overlapping assignments in current seeding (good)
+   - But load distribution is non-realistic:
+     - 40% of faculty assigned only minimum coverage
+     - 44% of faculty overloaded (4+ subjects each)
+     - No hour-based validation or load balancing
+   - Missing link between teaching hours and subject count
+
+3. **Adviser-HG Mapping Gap:**
+   - 66 class advisers from EnrollPro (isClassAdviser=true)
+   - HG has 69 faculty assigned
+   - No relationship between section adviser and HG assignment
+   - Creates unassigned HG sections despite adviser data
+
+4. **Specialization Mapping Completeness:**
+   - Only 61 aliases mapped (basic BEC subjects)
+   - 12 subjects with single faculty only (forced minimum cover)
+   - 15 advanced/elective/research subjects underrepresented
+   - No clustering logic (ADVANCED_CHEMISTRY shouldn't auto-assign to SCI + MATH both)
+
+5. **Building/Room Seeding:**
+   - 20-24 floors per grade level not seeded
+   - Contributing to 60% unassigned section cascade (1752/2912)
+
+### Problems Identified
+
+**Problem 1: Non-Realistic Teaching Load Distribution**
+- Seeding assigns subjects but ignores workload hour math
+- Frontend controls can be bypassed via backend API
+- Algorithm inherits bad input and can't optimize
+
+**Problem 2: Class Adviser-HG Disconnect**
+- HG should be strictly section-adviser-based, not random
+- Creates orphaned HG assignments and unassigned adviser sessions
+
+**Problem 3: Incomplete Specialization Mapping**
+- Only handles 19 BEC subjects, not full 34-subject catalog
+- Advanced/research subjects seeded via fallback hack (1 faculty each)
+- No smart subject clustering
+
+**Problem 4: Unassigned Sections Cascade**
+- 60% unassigned (1752/2912) likely caused by:
+  - Incomplete faculty seeding (12 subjects with 1 faculty each)
+  - Room/building data missing (no per-grade floors)
+  - Section-grade mapping validation not visible
+
+### Proposed Solutions (Wave 4.6 Scope)
+
+#### **Task 4.6.1: Smart Load-Based Seeding** 
+Create a new seeding script that:
+- For each faculty → fetch specialization → map to teaching subjects
+- Calculate expected hours per subject per grade level (using subject.minMinutesPerWeek or section counts)
+- Assign subjects until reaching 30-35h/week (optimal zone)
+- Hard-cap at 40h/week
+- NEVER assign overlapping sections for same subject-grade pair
+- Auto-assign HG to class advisers (isClassAdviser=true)
+
+**Expected outcome:** 
+- ~120-130 faculty teaching 2-4 subjects each (realistic distribution)
+- All teaching load within 30-40h/week range
+- ~50-60 HG assignments mapped to actual advisers
+- No overlapping teaching assignments
+
+#### **Task 4.6.2: Explicit Adviser-HG Mapping Service**
+Create a service that:
+- Reads Section.adviserId from EnrollPro
+- For each section → find adviser faculty → create FacultySubject(subject=HG, grades=[section's grade])
+- Mark assignment as ADVISER_MANDATORY (flag for manual-edit guards)
+- Validates no conflicts or duplicates
+
+**Expected outcome:**
+- 66 HG assignments (one per adviser)
+- Every section with an adviser has exactly one HG instructor
+- No unassigned HG sections
+
+#### **Task 4.6.3: Expand Specialization Mapping**
+Update the SpecializationAlias table to cover:
+- **Phase 1 (BEC core):** Current 61 aliases
+- **Phase 2 (Advanced):** Map specializations to advanced subjects
+  - ADVANCED_CHEMISTRY → SCI specialization
+  - ADVANCED_PHYSICS → SCI specialization
+  - ADVANCED_STATISTICS → MATH specialization
+  - RESEARCH_I/II/III → SCI/MATH specialization
+- **Phase 3 (Electives):** Map contextually or randomly
+  - ICT → TLE specialization
+  - CREATIVE_WRITING → ENG specialization
+  - etc.
+
+**Expected outcome:**
+- All 34 subjects mapped to at least one specialization
+- Advanced/research subjects auto-included in seeding
+- No more than 1-2 faculty per advanced subject (realistic scarcity)
+
+#### **Task 4.6.4: Backend Teaching Load Validation & Guards**
+Add service-layer validation:
+- `validateTeachingLoad()`: Verify faculty daily load ≤ 8h (hard), ≤ 6h standard
+- `validateNoOverlapForSubject()`: Check same faculty × same subject × overlapping time
+- `validateMaxWeeklyLoad()`: Enforce ≤ 40h/week
+- Block room assignments if teaching load exceeds limits (hard fail)
+
+**Expected outcome:**
+- Backend prevents invalid assignments
+- Pre-generation confirms load is within thresholds
+- Publish workflow blocks if any faculty exceeds 40h/week
+
+#### **Task 4.6.5: Specialization Mapping UI Redesign**
+Redesign mapping interface from dropdown-to-dropdown to **cards + auto-population**:
+- Left: Specializations fetched from EnrollPro (auto-populated)
+- Right: Checkboxes for related subjects (preset by mapping logic)
+- Global Save button (batch operation)
+- Unsaved changes confirmation on nav away
+
+**Expected outcome:**
+- Less overwhelming UX
+- Users can quickly enable/disable advanced subjects per specialization
+- Fewer errors from manual mis-mapping
+
+### Acceptance Criteria
+
+#### **Wave 4.6 Completeness Gate**
+- ✅ Smart load-based seeding script runs successfully
+- ✅ Teaching load output: 120-130 faculty with 30-40h/week loads
+- ✅ HG assignments: 66 advisers mapped, 0 orphaned sections
+- ✅ Specialization aliases: 34/34 subjects mapped
+- ✅ Backend validation: hard-block logic implemented and tested
+- ✅ Generation runs with new seed → 0-10 hard violations (< Run 13's 83)
+- ✅ Unassigned sections reduced: target < 20% (from current 60%)
+
+#### **UX & Documentation Completeness**
+- ✅ Mapping UI redesigned and verified in live session
+- ✅ Teaching load display in pre-generation confirmation
+- ✅ Adviser-HG link visible in assignment review
+- ✅ Documentation in instruction files for seeding strategy
+
+### Pending Clarifications (Required Before Implementation)
+
+1. **Teaching hours calculation basis:**
+   - Should we use `subject.minMinutesPerWeek` as the base?
+   - Or derive from section counts (e.g., 50min × 5 sessions/week = 250 min)?
+
+2. **Adviser conflict scope:**
+   - Can a class adviser also teach other subjects?
+   - Should adviser role be dedicated HG-only or concurrent?
+   - If concurrent, how do we balance their total load?
+
+3. **Smart suggestion behavior (legacy "quick resolve"):**
+   - Should specialization matching auto-enable all related subjects?
+   - Or only primary specialization?
+   - Should department be a filter or secondary selector?
+
+4. **Building/room seeding priority:**
+   - Should building seed fix be prerequisite for teaching load fixes?
+   - Or are they independent enough to parallelize?
+
+5. **Unassigned section tolerance:**
+   - Target: 0 unassigned? Or acceptable % (e.g., 5-10% for constraints)?
+   - Should hard-constraint violations take priority over unassigned count?
+
+### Status
+- **State:** Pending clarifications (discovery phase)
+- **Started:** 2026-05-12
+- **Detailed findings:** `docs/phases/phase-4-seeding-findings-2026-05-12.md`

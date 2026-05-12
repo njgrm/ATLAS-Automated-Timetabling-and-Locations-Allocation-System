@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 const VIOLATION_SHORT_LABELS: Partial<Record<ViolationCode, string>> = {
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: 'Consecutive Limit',
 	FACULTY_BREAK_REQUIREMENT_VIOLATED: 'Break Req.',
+	FACULTY_DAILY_STANDARD_EXCEEDED: 'Daily Warn.',
 	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: 'Travel Dist.',
 	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: 'Bldg. Trans.',
 	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: 'Trans. Buffer',
@@ -44,7 +45,7 @@ export default function PolicyImpactSummary({
 	// Trend vs previous run
 	const prevSoftCount = previousSummary?.violationCounts
 		? Object.entries(previousSummary.violationCounts)
-				.filter(([code]) => !['FACULTY_TIME_CONFLICT', 'ROOM_TIME_CONFLICT', 'FACULTY_OVERLOAD', 'ROOM_TYPE_MISMATCH', 'FACULTY_SUBJECT_NOT_QUALIFIED', 'FACULTY_DAILY_MAX_EXCEEDED'].includes(code))
+				.filter(([code]) => !['FACULTY_TIME_CONFLICT', 'ROOM_TIME_CONFLICT', 'FACULTY_OVERLOAD', 'ROOM_TYPE_MISMATCH', 'FACULTY_SUBJECT_NOT_QUALIFIED', 'FACULTY_DAILY_STANDARD_EXCEEDED', 'FACULTY_DAILY_MAX_EXCEEDED'].includes(code))
 				.reduce((sum, [, count]) => sum + count, 0)
 		: null;
 

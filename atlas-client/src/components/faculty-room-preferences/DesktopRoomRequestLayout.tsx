@@ -22,6 +22,7 @@ type TimeSlot = { startTime: string; endTime: string };
 type DesktopRoomRequestLayoutProps = {
 	days: DayOfWeek[];
 	timeSlots: TimeSlot[];
+	entries: FacultyRoomPreferenceEntry[];
 	globalBySlot: Map<string, FacultyGlobalDraftEntry[]>;
 	showFullScheduleContext: boolean;
 	selectionCountBySlot: Map<string, number>;
@@ -52,6 +53,7 @@ function slotKey(day: string, startTime: string, endTime: string) {
 export default function DesktopRoomRequestLayout({
 	days,
 	timeSlots,
+	entries,
 	globalBySlot,
 	showFullScheduleContext,
 	selectionCountBySlot,
@@ -219,7 +221,7 @@ export default function DesktopRoomRequestLayout({
 																	{entry.owned && <div className='size-1.5 rounded-full bg-primary-foreground' />}
 																</div>
 																<p className='truncate mt-0.5 opacity-80'>{entry.sectionName}</p>
-																<p className='mt-1 font-medium truncate'>{entry.currentRoomName}</p>
+																<p className='mt-1 font-medium truncate'>{entry.roomName}</p>
 															</div>
 														);
 													})}

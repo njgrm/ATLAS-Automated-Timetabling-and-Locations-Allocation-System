@@ -388,6 +388,7 @@ const VIOLATION_TITLES: Record<string, string> = {
 	FACULTY_SUBJECT_NOT_QUALIFIED: 'Faculty Not Qualified',
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: 'Consecutive Teaching Limit',
 	FACULTY_BREAK_REQUIREMENT_VIOLATED: 'Break Requirement Violated',
+	FACULTY_DAILY_STANDARD_EXCEEDED: 'Daily Load Warning',
 	FACULTY_DAILY_MAX_EXCEEDED: 'Daily Max Exceeded',
 	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: 'Excessive Travel Distance',
 	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: 'Excessive Building Transitions',
@@ -501,6 +502,16 @@ function buildHumanConflicts(
 					delta = `Limit: ${m.maxTeachingMinutesPerDay} min · Observed: ${m.dailyMinutes} min · Δ +${Number(m.dailyMinutes) - Number(m.maxTeachingMinutesPerDay)} min`;
 				} else {
 					detail = `${fName} exceeds daily max teaching minutes`;
+				}
+				break;
+			}
+			case 'FACULTY_DAILY_STANDARD_EXCEEDED': {
+				const m = v.meta;
+				if (m?.dailyMinutes != null && m?.standardDailyMinutes != null) {
+					detail = `${fName} teaches ${m.dailyMinutes} min${dayLabel ? ` on ${dayLabel}` : ''}, exceeds the 6 hour daily target`;
+					delta = `Target: ${m.standardDailyMinutes} min · Observed: ${m.dailyMinutes} min · Δ +${Number(m.dailyMinutes) - Number(m.standardDailyMinutes)} min`;
+				} else {
+					detail = `${fName} exceeds the standard daily teaching target`;
 				}
 				break;
 			}

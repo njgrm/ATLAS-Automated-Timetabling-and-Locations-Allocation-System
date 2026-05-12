@@ -45,6 +45,7 @@ const VIOLATION_LABELS: Record<ViolationCode, string> = {
 	FACULTY_SUBJECT_NOT_QUALIFIED: 'Not Qualified',
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: 'Consecutive Limit',
 	FACULTY_BREAK_REQUIREMENT_VIOLATED: 'Break Requirement',
+	FACULTY_DAILY_STANDARD_EXCEEDED: 'Daily Load Warning',
 	FACULTY_DAILY_MAX_EXCEEDED: 'Daily Max Exceeded',
 	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: 'Excessive Travel Distance',
 	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: 'Excessive Building Transitions',

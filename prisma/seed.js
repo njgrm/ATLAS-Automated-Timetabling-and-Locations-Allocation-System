@@ -52,6 +52,8 @@ const subjectSeeds = [
 	{ code: 'TLE', name: 'Technology and Livelihood Education', minMinutesPerWeek: 200, preferredRoomType: 'TLE_WORKSHOP', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
 	{ code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
 	// ── TLE (ICT) per-grade — REGULAR track ──────────────────────────────────
+	// Note: Generic 'ICT' (id=10 in older seed runs) is non-seedable; TLE_ICT_* per grade are used instead
+	{ code: 'ICT', name: 'Information and Communications Technology', minMinutesPerWeek: 90, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'] },
 	{ code: 'TLE_ICT_7', name: 'TLE (ICT I) Computer Systems', minMinutesPerWeek: 90, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [7], isSeedable: false, programScopes: ['REGULAR'] },
 	{ code: 'TLE_ICT_8', name: 'TLE (ICT II) Computer Systems Servicing II', minMinutesPerWeek: 90, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [8], isSeedable: false, programScopes: ['REGULAR'] },
 	{ code: 'TLE_ICT_9', name: 'TLE (ICT III) Computer Systems Servicing III', minMinutesPerWeek: 90, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [9], isSeedable: false, programScopes: ['REGULAR'] },
@@ -357,6 +359,61 @@ async function main() {
 		{ alias: 'Math', canonical: 'MATH' },
 		{ alias: 'Fil', canonical: 'FIL' },
 		{ alias: 'TLE/ICT', canonical: 'TLE' },
+		// ── Real EnrollPro specialization values (MAJOR IN X format) ──────────
+		// Science cluster
+		{ alias: 'MAJOR IN GENERAL SCIENCE / BIOLOGY / CHEMISTRY / PHYSICS', canonical: 'SCI' },
+		{ alias: 'MAJOR IN BIOLOGY', canonical: 'SCI' },
+		{ alias: 'MAJOR IN CHEMISTRY', canonical: 'SCI' },
+		{ alias: 'MAJOR IN PHYSICS', canonical: 'SCI' },
+		{ alias: 'MAJOR IN GENERAL SCIENCE', canonical: 'SCI' },
+		// Mathematics cluster
+		{ alias: 'MAJOR IN MATHEMATICS', canonical: 'MATH' },
+		{ alias: 'MAJOR IN MATHEMATICS (WITH STATISTICS BACKGROUND)', canonical: 'MATH' },
+		{ alias: 'MAJOR IN APPLIED MATHEMATICS', canonical: 'MATH' },
+		// Filipino cluster
+		{ alias: 'MAJOR IN FILIPINO', canonical: 'FIL' },
+		{ alias: 'MAJOR IN FILIPINO (CAMPUS JOURNALISM)', canonical: 'FIL' },
+		{ alias: 'MAJOR IN PHILIPPINE LITERATURE', canonical: 'FIL' },
+		// English cluster
+		{ alias: 'MAJOR IN ENGLISH', canonical: 'ENG' },
+		{ alias: 'MAJOR IN ENGLISH / APPLIED LINGUISTICS', canonical: 'ENG' },
+		{ alias: 'MAJOR IN ENGLISH (CAMPUS JOURNALISM)', canonical: 'ENG' },
+		{ alias: 'MAJOR IN APPLIED LINGUISTICS', canonical: 'ENG' },
+		{ alias: 'LITERATURE / CREATIVE WRITING', canonical: 'ENG' },
+		{ alias: 'MASS COMMUNICATION', canonical: 'ENG' },
+		{ alias: 'JOURNALISM', canonical: 'ENG' },
+		// Social Studies / AP cluster
+		{ alias: 'MAJOR IN SOCIAL STUDIES', canonical: 'AP' },
+		{ alias: 'MAJOR IN SOCIAL STUDIES / HISTORY', canonical: 'AP' },
+		{ alias: 'MAJOR IN HISTORY', canonical: 'AP' },
+		{ alias: 'MAJOR IN SOCIAL SCIENCE', canonical: 'AP' },
+		// Values Education / ESP cluster
+		{ alias: 'MAJOR IN VALUES EDUCATION', canonical: 'ESP' },
+		{ alias: 'MAJOR IN THEOLOGY', canonical: 'ESP' },
+		{ alias: 'MAJOR IN PHILOSOPHY', canonical: 'ESP' },
+		// MAPEH cluster
+		{ alias: 'MAJOR IN MAPEH', canonical: 'MAPEH' },
+		{ alias: 'MAJOR IN PHYSICAL EDUCATION', canonical: 'MAPEH' },
+		{ alias: 'MAJOR IN MUSIC EDUCATION', canonical: 'MAPEH' },
+		{ alias: 'THEATER / PERFORMING ARTS', canonical: 'MAPEH' },
+		{ alias: 'FINE ARTS', canonical: 'MAPEH' },
+		{ alias: 'DANCE', canonical: 'MAPEH' },
+		{ alias: 'MAJOR IN MUSIC', canonical: 'MAPEH' },
+		{ alias: 'MAJOR IN ARTS', canonical: 'MAPEH' },
+		{ alias: 'MAJOR IN HEALTH EDUCATION', canonical: 'MAPEH' },
+		// TLE cluster
+		{ alias: 'MAJOR IN HOME ECONOMICS', canonical: 'TLE' },
+		{ alias: 'MAJOR IN INDUSTRIAL ARTS', canonical: 'TLE' },
+		{ alias: 'MAJOR IN AGRI-FISHERY ARTS', canonical: 'TLE' },
+		{ alias: 'MAJOR IN ICT', canonical: 'TLE' },
+		{ alias: 'MAJOR IN INFORMATION TECHNOLOGY', canonical: 'TLE' },
+		{ alias: 'MAJOR IN COMPUTER SCIENCE', canonical: 'TLE' },
+		{ alias: 'MAJOR IN TECHNOLOGY AND LIVELIHOOD EDUCATION', canonical: 'TLE' },
+		// Homeroom Guidance cluster
+		{ alias: 'MAJOR IN GUIDANCE AND COUNSELING', canonical: 'HG' },
+		{ alias: 'MAJOR IN SCHOOL GUIDANCE', canonical: 'HG' },
+		{ alias: 'GUIDANCE COUNSELOR', canonical: 'HG' },
+		{ alias: 'MAJOR IN PSYCHOLOGY', canonical: 'HG' },
 	];
 
 	let aliasCount = 0;
@@ -403,7 +460,39 @@ async function main() {
 	});
 	console.log('✅ Seeded admin auth account (Employee ID: 1000001).');
 
-	// Seed demo faculty account linked to stub faculty externalId=1 (Maria Santos)
+	// Seed faculty auth account for Diego Aquino (MATH teacher, Employee ID 3179586)
+	// Note: FacultyMirror.externalId is EnrollPro's internal teacher ID, not the employee ID.
+	// We look him up by first/last name since externalId ≠ employeeId.
+	const facultyMirrorForDiego = await prisma.facultyMirror.findFirst({
+		where: { schoolId: school.id, firstName: 'DIEGO', lastName: 'AQUINO', isStale: false },
+	});
+	if (facultyMirrorForDiego) {
+		const diegoHash = await bcrypt.hash('DepEd2026!', 12);
+		await prisma.atlasAuthAccount.upsert({
+			where: { employeeId: '3179586' },
+			update: {
+				passwordHash: diegoHash,
+				role: 'faculty',
+				isActive: true,
+				failedLoginCount: 0,
+				lockedUntil: null,
+				facultyId: facultyMirrorForDiego.id,
+			},
+			create: {
+				employeeId: '3179586',
+				passwordHash: diegoHash,
+				role: 'faculty',
+				schoolId: school.id,
+				facultyId: facultyMirrorForDiego.id,
+				isActive: true,
+			},
+		});
+		console.log(`✅ Seeded/updated faculty auth account for AQUINO, DIEGO C. (Employee ID: 3179586).`);
+	} else {
+		console.log('ℹ️  Skipped Diego Aquino faculty auth — FacultyMirror not yet synced. Run faculty sync then re-seed.');
+	}
+
+	// Legacy: also seed Maria Santos demo account if her stub faculty record still exists
 	const facultyMirrorForDemo = await prisma.facultyMirror.findFirst({
 		where: { schoolId: school.id, externalId: 1 },
 	});
@@ -428,7 +517,7 @@ async function main() {
 				isActive: true,
 			},
 		});
-		console.log('✅ Seeded demo faculty auth account (maria.santos@deped.edu.ph).');
+		console.log('✅ Seeded legacy demo faculty auth account (maria.santos@deped.edu.ph).');
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════

@@ -21,7 +21,7 @@ export const POLICY_DEFAULTS = {
 	teacherMoveEnabled: true,
 	maxConsecutiveTeachingMinutesBeforeBreak: 120,
 	minBreakMinutesAfterConsecutiveBlock: 15,
-	maxTeachingMinutesPerDay: 400,
+	maxTeachingMinutesPerDay: 480,
 	earliestStartTime: '07:00',
 	latestEndTime: '17:00',
 	enforceConsecutiveBreakAsHard: false,

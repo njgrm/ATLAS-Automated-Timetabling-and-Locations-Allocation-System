@@ -529,7 +529,7 @@ export default function OfficerPreferences() {
 														type='checkbox'
 														checked={selectedIds.has(f.facultyId)}
 														onChange={() => toggleOne(f.facultyId)}
-														className='size-4 rounded border-input accent-[hsl(var(--primary))]'
+														className='size-4 rounded border-input accent-primary'
 													/>
 												</td>
 												<td className='px-3 py-2.5 font-medium'>
@@ -711,29 +711,29 @@ export default function OfficerPreferences() {
 							</div>
 
 							{/* Well-being preferences */}
-							{reviewDetail.wellbeing && Object.values(reviewDetail.wellbeing).some(Boolean) && (
+							{(reviewDetail.pregnancySupport || reviewDetail.physicalAilmentSupport || reviewDetail.minimizeTravelTime || reviewDetail.avoidUpperFloors) && (
 								<div>
 									<p className='text-xs text-muted-foreground mb-2 flex items-center gap-1'>
 										<Heart className='size-3 text-rose-400' />
 										Well-being Preferences Requested
 									</p>
 									<div className='flex flex-wrap gap-1.5'>
-										{reviewDetail.wellbeing.pregnancySupport && (
+										{reviewDetail.pregnancySupport && (
 											<Badge variant='secondary' className='text-xs gap-1'>
 												<Heart className='size-2.5 text-rose-400' />Pregnancy support
 											</Badge>
 										)}
-										{reviewDetail.wellbeing.physicalAilmentSupport && (
+										{reviewDetail.physicalAilmentSupport && (
 											<Badge variant='secondary' className='text-xs gap-1'>
 												<Heart className='size-2.5 text-rose-400' />Mobility support
 											</Badge>
 										)}
-										{reviewDetail.wellbeing.minimizeTravelTime && (
+										{reviewDetail.minimizeTravelTime && (
 											<Badge variant='secondary' className='text-xs gap-1'>
 												<Heart className='size-2.5 text-rose-400' />Minimize travel
 											</Badge>
 										)}
-										{reviewDetail.wellbeing.avoidUpperFloors && (
+										{reviewDetail.avoidUpperFloors && (
 											<Badge variant='secondary' className='text-xs gap-1'>
 												<Heart className='size-2.5 text-rose-400' />Avoid upper floors
 											</Badge>
@@ -789,24 +789,6 @@ export default function OfficerPreferences() {
 												className='flex-1 text-xs'
 												onClick={() => saveReview(true)}
 												disabled={!reviewAction || reviewSaving}
-											>
-												{reviewSaving ? <Loader2 className='size-3 animate-spin mr-1' /> : null}
-												Save & Next
-											</Button>
-										)}
-									</div>
-								</div>
-							)}
-						</div>
-					) : null}
-				</SheetContent>
-			</Sheet>
-		</div>
-	);
-}
-
-
-ving}
 											>
 												{reviewSaving ? <Loader2 className='size-3 animate-spin mr-1' /> : null}
 												Save & Next
