@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import type { FacultyRoomPreferenceEntry } from '@/types';
+import ActionQueue from './ActionQueue';
 
 type MobileDashboardLayoutProps = {
 	facultyName: string;
@@ -13,6 +14,8 @@ type MobileDashboardLayoutProps = {
 		total: number;
 		pending: number;
 		approved: number;
+		rejected: number;
+		unchanged: number;
 	};
 	schedulePreview: FacultyRoomPreferenceEntry[];
 	renderEntryBadge: (entry: FacultyRoomPreferenceEntry) => ReactNode;
@@ -27,6 +30,8 @@ export default function MobileDashboardLayout({
 	renderEntryBadge,
 	banners,
 }: MobileDashboardLayoutProps) {
+	const hasDrafts = schedulePreview.some(e => e.status === 'DRAFT');
+
 	return (
 		<div className='flex flex-col gap-6'>
 			{/* Compact Greeting & Primary CTA */}
@@ -44,26 +49,29 @@ export default function MobileDashboardLayout({
 				</Button>
 			</div>
 
-			{/* Status Banners (Progressive Disclosure) */}
+			{/* Phase 3: Action Queue (Attention Center) */}
+			<ActionQueue counts={counts} hasDraftRoomRequests={hasDrafts} />
+
+			{/* Status Banners (Progressive Disclosure) - Optional if redundant with GlobalHeader */}
 			{banners && <div className='space-y-3'>{banners}</div>}
 
-			{/* Summary Tiles */}
+			{/* Summary Tiles - Font size fix */}
 			<div className='grid grid-cols-3 gap-3'>
 				<Card className='rounded-2xl border-border/50 bg-muted/20'>
 					<CardContent className='p-3 text-center'>
-						<p className='text-[10px] font-bold text-muted-foreground uppercase'>Classes</p>
+						<p className='text-xs font-bold text-muted-foreground uppercase'>Classes</p>
 						<p className='text-lg font-bold mt-1'>{counts.total}</p>
 					</CardContent>
 				</Card>
 				<Card className='rounded-2xl border-border/50 bg-blue-50/50'>
 					<CardContent className='p-3 text-center'>
-						<p className='text-[10px] font-bold text-blue-600 uppercase'>Pending</p>
+						<p className='text-xs font-bold text-blue-600 uppercase'>Pending</p>
 						<p className='text-lg font-bold text-blue-700 mt-1'>{counts.pending}</p>
 					</CardContent>
 				</Card>
 				<Card className='rounded-2xl border-border/50 bg-emerald-50/50'>
 					<CardContent className='p-3 text-center'>
-						<p className='text-[10px] font-bold text-emerald-600 uppercase'>Approved</p>
+						<p className='text-xs font-bold text-emerald-600 uppercase'>Approved</p>
 						<p className='text-lg font-bold text-emerald-700 mt-1'>{counts.approved}</p>
 					</CardContent>
 				</Card>
@@ -88,11 +96,15 @@ export default function MobileDashboardLayout({
 						</p>
 					) : (
 						schedulePreview.slice(0, 5).map((entry) => (
-							<Card key={entry.entryId} className='rounded-xl border-border/50 overflow-hidden'>
+							<Card key={entry.entryId} className='rounded-xl border-border/50 overflow-hidden shadow-sm'>
 								<CardContent className='p-3 flex items-center justify-between gap-3'>
 									<div className='min-w-0'>
-										<p className='text-xs font-bold truncate'>{entry.subjectCode} â€¢ {entry.sectionName}</p>
+										<p className='text-xs font-bold truncate'>{entry.subjectCode} • {entry.sectionName}</p>
 										<p className='text-[10px] text-muted-foreground mt-0.5 truncate'>{entry.currentRoomName}</p>
+										{/* Quick-Request Link (Phase 4.2) */}
+										<Button asChild variant="link" size="sm" className="h-auto p-0 text-[10px] font-bold text-primary">
+											<Link to={`/my/room-preferences?entryId=${entry.entryId}`}>Request Move</Link>
+										</Button>
 									</div>
 									<div className='shrink-0'>
 										{renderEntryBadge(entry)}

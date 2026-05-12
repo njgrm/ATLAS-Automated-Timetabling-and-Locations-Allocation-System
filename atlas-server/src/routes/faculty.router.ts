@@ -232,7 +232,7 @@ router.patch('/:id', authenticate, async (req: Request, res: Response, next: Nex
 	}
 });
 
-// Auth: GET /faculty/specializations?schoolId=X — distinct non-stale specialization values
+// Auth: GET /faculty/specializations?schoolId=X — distinct non-stale specialization/department values
 router.get('/specializations', async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const schoolId = Number(req.query.schoolId);
@@ -240,13 +240,26 @@ router.get('/specializations', async (req: Request, res: Response, next: NextFun
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
 			return;
 		}
-		const rows = await prisma.facultyMirror.findMany({
-			where: { schoolId, isStale: false, department: { not: null } },
-			select: { department: true },
-			distinct: ['department'],
-			orderBy: { department: 'asc' },
-		});
-		const specializations = rows.map((r) => r.department as string);
+		
+		// Fetch distinct specializations and departments
+		const [specRows, deptRows] = await Promise.all([
+			prisma.facultyMirror.findMany({
+				where: { schoolId, isStale: false, specialization: { not: null } },
+				select: { specialization: true },
+				distinct: ['specialization'],
+			}),
+			prisma.facultyMirror.findMany({
+				where: { schoolId, isStale: false, department: { not: null } },
+				select: { department: true },
+				distinct: ['department'],
+			}),
+		]);
+
+		const specializations = Array.from(new Set([
+			...specRows.map((r) => r.specialization as string),
+			...deptRows.map((r) => r.department as string),
+		])).sort();
+
 		res.json({ specializations });
 	} catch (err) {
 		next(err);

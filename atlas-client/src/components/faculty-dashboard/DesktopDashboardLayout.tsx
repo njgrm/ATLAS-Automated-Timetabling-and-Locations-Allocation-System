@@ -1,11 +1,11 @@
+import { CalendarClock, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { CalendarClock, MapPin, ArrowRight } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import type { FacultyRoomPreferenceEntry } from '@/types';
-import WeeklyScheduleGrid from '@/components/faculty-shared/WeeklyScheduleGrid';
+import ActionQueue from './ActionQueue';
 
 type DesktopDashboardLayoutProps = {
 	facultyName: string;
@@ -14,6 +14,8 @@ type DesktopDashboardLayoutProps = {
 		total: number;
 		pending: number;
 		approved: number;
+		rejected: number;
+		unchanged: number;
 	};
 	entries: FacultyRoomPreferenceEntry[];
 	renderEntryBadge: (entry: FacultyRoomPreferenceEntry) => ReactNode;
@@ -28,70 +30,102 @@ export default function DesktopDashboardLayout({
 	renderEntryBadge,
 	banners,
 }: DesktopDashboardLayoutProps) {
+	const hasDrafts = entries.some(e => e.status === 'DRAFT');
+
 	return (
-		<div className='grid grid-cols-[380px_1fr] gap-8 h-full'>
-			{/* Left Column: Action and Status Context */}
-			<div className='space-y-6 overflow-y-auto pr-2'>
+		<div className='grid grid-cols-12 gap-8 h-full'>
+			{/* Left Column: Greeting & Summary */}
+			<div className='col-span-4 space-y-6'>
 				<div className='space-y-1'>
-					<h1 className='text-3xl font-bold tracking-tight'>Hello, {facultyName} 👋</h1>
+					<h1 className='text-3xl font-bold tracking-tight'>Welcome, {facultyName}</h1>
 					<p className='text-muted-foreground'>{phaseMessage}</p>
 				</div>
 
-				<div className='grid grid-cols-3 gap-3'>
-					<div className='flex flex-col items-center justify-center p-4 rounded-2xl border border-border bg-card'>
-						<span className='text-2xl font-bold'>{counts.total}</span>
-						<span className='text-[10px] font-bold text-muted-foreground uppercase mt-1'>Classes</span>
-					</div>
-					<div className='flex flex-col items-center justify-center p-4 rounded-2xl border border-blue-100 bg-blue-50/30'>
-						<span className='text-2xl font-bold text-blue-600'>{counts.pending}</span>
-						<span className='text-[10px] font-bold text-blue-600 uppercase mt-1'>Pending</span>
-					</div>
-					<div className='flex flex-col items-center justify-center p-4 rounded-2xl border border-emerald-100 bg-emerald-50/30'>
-						<span className='text-2xl font-bold text-emerald-600'>{counts.approved}</span>
-						<span className='text-[10px] font-bold text-emerald-600 uppercase mt-1'>Approved</span>
-					</div>
+				<ActionQueue counts={counts} hasDraftRoomRequests={hasDrafts} />
+
+				{banners}
+
+				<div className='grid grid-cols-2 gap-4'>
+					<Card className='rounded-2xl border-border/50 bg-muted/10'>
+						<CardContent className='p-4'>
+							<p className='text-xs font-bold text-muted-foreground uppercase tracking-wider'>Total Classes</p>
+							<p className='text-3xl font-bold mt-1'>{counts.total}</p>
+						</CardContent>
+					</Card>
+					<Card className='rounded-2xl border-border/50 bg-blue-50/50'>
+						<CardContent className='p-4'>
+							<p className='text-xs font-bold text-blue-600 uppercase tracking-wider'>Pending Requests</p>
+							<p className='text-3xl font-bold text-blue-700 mt-1'>{counts.pending}</p>
+						</CardContent>
+					</Card>
 				</div>
 
-				<Card className='rounded-2xl border-primary/20 bg-primary/5 shadow-sm'>
-					<CardContent className='p-6 space-y-4'>
-						<div className='space-y-2'>
-							<h3 className='font-bold text-primary flex items-center gap-2'>
-								<MapPin className='size-5' />
-								Manage Room Requests
-							</h3>
-							<p className='text-sm text-primary/80 leading-relaxed'>
-								Need to change a room or time slot? Submit your requests here and track their status in real-time.
-							</p>
-						</div>
-						<Button asChild className='w-full h-12 rounded-xl font-bold shadow-sm' size='lg'>
-							<Link to='/my/room-preferences'>
-								Go to Room Requests <ArrowRight className='ml-2 size-4' />
-							</Link>
-						</Button>
-					</CardContent>
-				</Card>
-
-				{banners && <div className='space-y-4'>{banners}</div>}
+				<Button asChild size='lg' className='w-full h-14 text-base font-bold rounded-2xl shadow-md'>
+					<Link to='/my/room-preferences'>
+						<MapPin className='size-5 mr-2' />
+						Manage Room Requests
+					</Link>
+				</Button>
 			</div>
 
-			{/* Right Column: Weekly Schedule Grid */}
-			<div className='flex flex-col min-h-0 bg-muted/10 rounded-3xl border border-border overflow-hidden'>
-				<div className='p-6 border-b border-border bg-card/50 flex items-center justify-between shrink-0'>
+			{/* Right Column: Full Schedule Preview Table */}
+			<div className='col-span-8 flex flex-col min-h-0'>
+				<div className='flex items-center justify-between mb-4'>
 					<h2 className='text-lg font-bold flex items-center gap-2'>
 						<CalendarClock className='size-5 text-primary' />
-						Your Weekly Schedule
+						Your Class Assignments
 					</h2>
-					<Badge variant='outline' className='bg-background px-3 py-1'>
-						Draft Run Context
-					</Badge>
+					<span className='text-xs font-bold text-muted-foreground uppercase'>Academic Review Phase</span>
 				</div>
-				
-				<div className='flex-1 min-h-0 overflow-auto p-6'>
-					<WeeklyScheduleGrid
-						entries={entries}
-						renderEntryBadge={renderEntryBadge}
-					/>
-				</div>
+
+				<Card className='flex-1 min-h-0 overflow-hidden rounded-2xl border-border/50 shadow-sm'>
+					<div className='h-full overflow-auto'>
+						<table className='w-full text-sm'>
+							<thead className='sticky top-0 z-10 bg-muted/80 backdrop-blur-sm'>
+								<tr className='border-b border-border/50'>
+									<th className='px-4 py-3 text-left font-bold text-muted-foreground uppercase text-[10px]'>Class / Section</th>
+									<th className='px-4 py-3 text-left font-bold text-muted-foreground uppercase text-[10px]'>Schedule</th>
+									<th className='px-4 py-3 text-left font-bold text-muted-foreground uppercase text-[10px]'>Room</th>
+									<th className='px-4 py-3 text-right font-bold text-muted-foreground uppercase text-[10px]'>Status</th>
+								</tr>
+							</thead>
+							<tbody className='divide-y divide-border/40'>
+								{entries.map((entry) => (
+									<tr key={entry.entryId} className='hover:bg-muted/30 transition-colors group'>
+										<td className='px-4 py-4'>
+											<div>
+												<p className='font-bold'>{entry.subjectCode}</p>
+												<p className='text-xs text-muted-foreground'>{entry.sectionName}</p>
+											</div>
+										</td>
+										<td className='px-4 py-4'>
+											<div className='flex flex-col'>
+												<span className='font-medium'>{entry.day}</span>
+												<span className='text-xs text-muted-foreground'>{entry.startTime} - {entry.endTime}</span>
+											</div>
+										</td>
+										<td className='px-4 py-4'>
+											<div className='flex flex-col'>
+												<p className='font-medium'>{entry.currentRoomName}</p>
+												{entry.requestedRoomName && (
+													<p className='text-[11px] text-blue-600 font-bold'>Requested: {entry.requestedRoomName}</p>
+												)}
+											</div>
+										</td>
+										<td className='px-4 py-4 text-right'>
+											<div className="flex flex-col items-end gap-1.5">
+												{renderEntryBadge(entry)}
+												<Button asChild variant="ghost" size="sm" className="h-7 px-2 text-[10px] font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+													<Link to={`/my/room-preferences?entryId=${entry.entryId}`}>Request Move</Link>
+												</Button>
+											</div>
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				</Card>
 			</div>
 		</div>
 	);

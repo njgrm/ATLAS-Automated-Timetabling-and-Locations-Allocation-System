@@ -29,6 +29,7 @@ type CenterWorkspaceProps = {
 	pendingAction: 'CHANGE_TIMESLOT' | 'CHANGE_ROOM' | 'CHANGE_FACULTY' | null;
 	roomMap: Map<number, any>;
 	facultyMap: Map<number, any>;
+	subjectMap: Map<number, any>;
 	draftEntries: any[];
 	previewEdit: (proposal: any) => Promise<any>;
 	commitEdit: (proposal: any, allowSoftOverride?: boolean) => Promise<void>;
@@ -198,6 +199,7 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 							timeSlots={timeSlots}
 							roomMap={roomMap}
 							facultyMap={facultyMap}
+							subjectMap={subjectMap}
 							draftEntries={draftEntries}
 							onPreview={previewEdit}
 							onCommit={commitEdit}

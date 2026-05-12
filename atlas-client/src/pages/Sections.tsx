@@ -94,6 +94,9 @@ function fillColor(pct: number) {
 /* ─── Component ─── */
 export default function Sections() {
 	const [state, setState]           = useState<FetchState>({ status: 'loading' });
+	const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+	const [syncing, setSyncing]       = useState(false);
+	const [syncError, setSyncError]   = useState(false);
 	const [sortField, setSortField]   = useState<SortField>('name');
 	const [sortDir, setSortDir]       = useState<SortDir>('asc');
 	const [page, setPage]             = useState(1);
@@ -117,7 +120,7 @@ export default function Sections() {
 			const res = await atlasApi.get<SectionSummary & { code?: string }>(
 				`/sections/summary/${ayId}?schoolId=${DEFAULT_SCHOOL_ID}`,
 			);
-			if (res.data.code === 'UPSTREAM_UNAVAILABLE' || (res.data.totalSections === 0 && res.data.code)) {
+			if (res.data.code === 'UPSTREAM_UNAVAILABLE' && res.data.totalSections === 0) {
 				setState({
 					status: 'unavailable',
 					message: 'Section data source is currently unavailable. Sections are sourced from the enrollment service and will appear here once the upstream API is connected.',
@@ -125,6 +128,7 @@ export default function Sections() {
 				return;
 			}
 			setState({ status: 'ok', data: res.data });
+			setLastSyncedAt(res.data.fetchedAt ? String(res.data.fetchedAt) : null);
 		} catch {
 			setState({
 				status: 'unavailable',
@@ -132,6 +136,35 @@ export default function Sections() {
 			});
 		}
 	}, []);
+
+	const handleSync = async () => {
+		setSyncing(true);
+		setSyncError(false);
+		try {
+			const { data } = await atlasApi.post('/sections/sync', {
+				schoolId: DEFAULT_SCHOOL_ID,
+			});
+			if (data.synced) {
+				await fetchSections();
+			} else {
+				setSyncError(true);
+			}
+		} catch {
+			setSyncError(true);
+		} finally {
+			setSyncing(false);
+		}
+	};
+
+	const timeSince = useMemo(() => {
+		if (!lastSyncedAt) return null;
+		const diff = Date.now() - new Date(lastSyncedAt).getTime();
+		const mins = Math.floor(diff / 60000);
+		if (mins < 1) return 'Just now';
+		if (mins < 60) return `${mins} min${mins !== 1 ? 's' : ''} ago`;
+		const hours = Math.floor(mins / 60);
+		return `${hours} hr${hours !== 1 ? 's' : ''} ago`;
+	}, [lastSyncedAt]);
 
 	useEffect(() => { void fetchSections(); }, [fetchSections]);
 
@@ -300,15 +333,21 @@ export default function Sections() {
 						</div>
 					)}
 
+					{timeSince && (
+						<span className="text-[0.6875rem] text-muted-foreground shrink-0 ml-2">
+							Synced: {timeSince}
+						</span>
+					)}
+
 					<Button
 						variant="outline"
 						size="sm"
-						onClick={fetchSections}
-						disabled={state.status === 'loading'}
-						className="h-8 shrink-0"
+						onClick={handleSync}
+						disabled={syncing || state.status === 'loading'}
+						className="h-8 shrink-0 ml-2"
 					>
-						<RefreshCw className={`mr-1 size-3.5 ${state.status === 'loading' ? 'animate-spin' : ''}`} />
-						Refresh
+						<RefreshCw className={`mr-1 size-3.5 ${syncing ? 'animate-spin' : ''}`} />
+						{syncing ? 'Syncing...' : 'Sync'}
 					</Button>
 				</div>
 			</div>
@@ -320,12 +359,14 @@ export default function Sections() {
 					<span className="flex-1">No active school year. {state.message}</span>
 				</div>
 			)}
-			{state.status === 'unavailable' && (
+			{(state.status === 'unavailable' || syncError) && (
 				<div className="shrink-0 mx-6 mb-2 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
-					<ServerOff className="size-4 shrink-0" />
-					<span className="flex-1">Enrollment service unavailable. Showing read-only view.</span>
-					<Button size="sm" variant="outline" onClick={fetchSections} className="shrink-0 h-7">
-						<RefreshCw className="mr-1 size-3 " /> Retry
+					<AlertTriangle className="size-4 shrink-0" />
+					<span className="flex-1">
+						{syncError ? 'EnrollPro bridge unreachable. Showing cached data.' : 'Enrollment service unavailable. Showing cached data.'}
+					</span>
+					<Button size="sm" variant="outline" onClick={handleSync} disabled={syncing} className="shrink-0 h-7">
+						<RefreshCw className={`mr-1 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry Sync
 					</Button>
 				</div>
 			)}

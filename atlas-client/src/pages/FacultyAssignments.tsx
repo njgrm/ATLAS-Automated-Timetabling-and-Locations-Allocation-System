@@ -28,7 +28,7 @@ type FacultyAssignmentDraft,
 type FacultyOwnershipState,
 type LoadStatus,
 } from '@/lib/faculty-assignment-helpers';
-import { gradeLabel, matchesFacultyDepartment, GRADE_COLORS } from '@/lib/grade-labels';
+import { gradeLabel, matchesFacultyDepartment, getQualificationTier, GRADE_COLORS } from '@/lib/grade-labels';
 import { fetchPublicSettings } from '@/lib/settings';
 import type { ExternalSection, HomeroomHintResponse, SectionSummaryResponse, Subject } from '@/types';
 import { SubjectRow, getOwnershipKey } from '@/components/faculty-assignments/SubjectRow';
@@ -443,29 +443,38 @@ assignedSubjectIds.add(assignment.subjectId);
 return subjects.filter((subject) => subject.isActive && !assignedSubjectIds.has(subject.id));
 }, [effectiveAssignmentsByFaculty, subjects]);
 
-const { primarySubjects, otherSubjects } = useMemo(() => {
-const department = selected?.department ?? null;
-const primary: Subject[] = [];
-const other: Subject[] = [];
-for (const subject of subjects) {
-if (matchesFacultyDepartment(department, subject.code, subject.name)) {
-primary.push(subject);
-} else {
-other.push(subject);
-}
-}
+const { tier1Subjects, tier2Subjects, tier3Subjects, otherSubjects } = useMemo(() => {
+	const facultyInfo = { 
+		specialization: selected?.specialization ?? null, 
+		department: selected?.department ?? null 
+	};
+	const tier1: Subject[] = [];
+	const tier2: Subject[] = [];
+	const tier3: Subject[] = [];
+	const other: Subject[] = [];
+	
+	for (const subject of subjects) {
+		const tier = getQualificationTier(facultyInfo, subject);
+		if (tier === 1) tier1.push(subject);
+		else if (tier === 2) tier2.push(subject);
+		else if (tier === 3) tier3.push(subject);
+		else other.push(subject);
+	}
 
-primary.sort((a, b) => {
-    const aIsHR = a.name.toLowerCase().includes('homeroom') || a.code.toLowerCase().includes('homeroom');
-    const bIsHR = b.name.toLowerCase().includes('homeroom') || b.code.toLowerCase().includes('homeroom');
-    if (aIsHR && !bIsHR) return 1;
-    if (!aIsHR && bIsHR) return -1;
-    return a.name.localeCompare(b.name);
-});
+	const sortByHR = (a: Subject, b: Subject) => {
+		const aIsHR = a.name.toLowerCase().includes('homeroom') || a.code.toLowerCase().includes('homeroom');
+		const bIsHR = b.name.toLowerCase().includes('homeroom') || b.code.toLowerCase().includes('homeroom');
+		if (aIsHR && !bIsHR) return 1;
+		if (!aIsHR && bIsHR) return -1;
+		return a.name.localeCompare(b.name);
+	};
 
-other.sort((a, b) => a.name.localeCompare(b.name));
+	tier1.sort(sortByHR);
+	tier2.sort(sortByHR);
+	tier3.sort(sortByHR);
+	other.sort((a, b) => a.name.localeCompare(b.name));
 
-return { primarySubjects: primary, otherSubjects: other };
+	return { tier1Subjects: tier1, tier2Subjects: tier2, tier3Subjects: tier3, otherSubjects: other };
 }, [selected, subjects]);
 
 const filterBySubjectSearch = useCallback(
@@ -588,13 +597,26 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 {member.firstName[0]}
 {member.lastName[0]}
 </div>
-<div className="min-w-0 flex-1">
-<p className="truncate text-sm font-medium">
-{member.lastName}, {member.firstName}
-</p>
-<p className="truncate text-[0.6875rem] text-muted-foreground">
-{member.department ?? 'No department'} | {effectiveSubjectCount} subj / {member.sectionCount} sec
-</p>
+<div className="flex-1 min-w-0">
+	<p className="truncate text-sm font-medium">
+		{member.lastName}, {member.firstName}
+	</p>
+	<div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+		<span className="truncate text-[0.625rem] text-muted-foreground uppercase flex-1">
+			{member.specialization || member.department || 'General'}
+		</span>
+		<div className="flex flex-col items-end gap-0.5 shrink-0">
+			<span className={`text-[0.6rem] font-bold ${(member as any).loadPercentage > 100 ? 'text-red-600' : (member as any).loadPercentage > 90 ? 'text-amber-600' : 'text-emerald-600'}`}>
+				{(member as any).loadPercentage}%
+			</span>
+			<div className="w-10 h-0.5 bg-muted rounded-full overflow-hidden">
+				<div 
+					className={`h-full transition-all ${(member as any).loadPercentage > 100 ? 'bg-red-500' : (member as any).loadPercentage > 90 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+					style={{ width: `${Math.min((member as any).loadPercentage, 100)}%` }}
+				/>
+			</div>
+		</div>
+	</div>
 </div>
 <div className="flex items-center gap-1.5">
 {hasDraft && <Badge className="border-sky-200 bg-sky-50 text-[0.5625rem] text-sky-700">Draft</Badge>}
@@ -803,66 +825,76 @@ This faculty member is excluded from scheduling. Enable them first.
 )}
 
 {(() => {
-const filteredPrimarySubjects = filterBySubjectSearch(primarySubjects);
-if (filteredPrimarySubjects.length === 0) {
-return null;
-}
-return (
-<div className="mb-4">
-<h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Qualified by Department</h4>
-<div className="space-y-2">
-{filteredPrimarySubjects.map((subject) => (
-<SubjectRow
-key={subject.id}
-subject={subject}
-assignment={currentAssignments.find((assignment) => assignment.subjectId === subject.id)}
-sections={allKnownSections.filter((section) => subject.gradeLevels.includes(section.displayOrder))}
-disabled={!selected.isActiveForScheduling || !sectionsAvailable}
-selectedFacultyId={selected.id}
-savedOwnershipMap={savedOwnershipMap}
-pendingOwnershipMap={pendingOwnershipMap}
-onSetSections={setSubjectSections}facultyDepartment={selected.department}											searchTerm={subjectSearch}
-								gradeLevelFilter={gradeLevelFilter}
-								sectionFilter={sectionFilter}
-								advisedSectionId={homeroomHint?.advisedSectionId ?? null}
-/>
-))}
-</div>
-</div>
-);
-})()}
+	const renderTier = (subjects: Subject[], title: string, badge?: string) => {
+		if (subjects.length === 0) return null;
+		return (
+			<div className="mb-4">
+				<div className="mb-2 flex items-center gap-2">
+					<h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h4>
+					{badge && <Badge variant="outline" className="text-[0.5rem] bg-emerald-50 text-emerald-700 border-emerald-200">{badge}</Badge>}
+				</div>
+				<div className="space-y-2">
+					{subjects.map((subject) => (
+						<SubjectRow
+							key={subject.id}
+							subject={subject}
+							assignment={currentAssignments.find((a) => a.subjectId === subject.id)}
+							sections={allKnownSections.filter((sec) => subject.gradeLevels.includes(sec.displayOrder))}
+							disabled={!selected.isActiveForScheduling || !sectionsAvailable}
+							selectedFacultyId={selected.id}
+							savedOwnershipMap={savedOwnershipMap}
+							pendingOwnershipMap={pendingOwnershipMap}
+							onSetSections={setSubjectSections}
+							facultyDepartment={selected.department}
+							facultySpecialization={selected.specialization}
+							searchTerm={subjectSearch}
+							gradeLevelFilter={gradeLevelFilter}
+							sectionFilter={sectionFilter}
+							advisedSectionId={homeroomHint?.advisedSectionId ?? null}
+						/>
+					))}
+				</div>
+			</div>
+		);
+	};
 
-{(() => {
-const filteredOtherSubjects = filterBySubjectSearch(otherSubjects);
-if (filteredOtherSubjects.length === 0) {
-return null;
-}
-return (
-<div>
-<div className="mb-2 flex items-center gap-2">
-<h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Outside Department (Emergency)</h4>
-{!allowOutsideDepartment && <Badge variant="secondary" className="text-[0.5625rem]">Disabled</Badge>}
-</div>
-<div className={`space-y-2 ${allowOutsideDepartment ? '' : 'opacity-60'}`}>
-{filteredOtherSubjects.map((subject) => (
-<SubjectRow
-key={subject.id}
-subject={subject}
-assignment={currentAssignments.find((assignment) => assignment.subjectId === subject.id)}
-sections={allKnownSections.filter((section) => subject.gradeLevels.includes(section.displayOrder))}
-disabled={!selected.isActiveForScheduling || !sectionsAvailable || !allowOutsideDepartment}
-selectedFacultyId={selected.id}
-savedOwnershipMap={savedOwnershipMap}
-pendingOwnershipMap={pendingOwnershipMap}
-onSetSections={setSubjectSections}facultyDepartment={selected.department}											searchTerm={subjectSearch}
+	return (
+		<>
+			{renderTier(tier1Subjects, 'Qualified by Specialization', 'Perfect Match')}
+			{renderTier(tier2Subjects, 'Qualified by Department', 'Structural Match')}
+			{renderTier(tier3Subjects, 'Smart Suggestions', 'Fuzzy Match')}
+			
+			{otherSubjects.length > 0 && (
+				<div>
+					<div className="mb-2 flex items-center gap-2">
+						<h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Outside Department (Emergency)</h4>
+						{!allowOutsideDepartment && <Badge variant="secondary" className="text-[0.5625rem]">Disabled</Badge>}
+					</div>
+					<div className={`space-y-2 ${allowOutsideDepartment ? '' : 'opacity-60'}`}>
+						{otherSubjects.map((subject) => (
+							<SubjectRow
+								key={subject.id}
+								subject={subject}
+								assignment={currentAssignments.find((a) => a.subjectId === subject.id)}
+								sections={allKnownSections.filter((sec) => subject.gradeLevels.includes(sec.displayOrder))}
+								disabled={!selected.isActiveForScheduling || !sectionsAvailable || !allowOutsideDepartment}
+								selectedFacultyId={selected.id}
+								savedOwnershipMap={savedOwnershipMap}
+								pendingOwnershipMap={pendingOwnershipMap}
+								onSetSections={setSubjectSections}
+								facultyDepartment={selected.department}
+								facultySpecialization={selected.specialization}
+								searchTerm={subjectSearch}
 								gradeLevelFilter={gradeLevelFilter}
 								sectionFilter={sectionFilter}
-isOutsideDepartment
-/>
-))}
-</div>
-</div>
-);
+								isOutsideDepartment
+							/>
+						))}
+					</div>
+				</div>
+			)}
+		</>
+	);
 })()}
 </CardContent>
 </Card>

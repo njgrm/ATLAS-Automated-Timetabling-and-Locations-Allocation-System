@@ -8,9 +8,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import { Skeleton } from '@/ui/skeleton';
-import PlainLanguageNotice from '@/components/faculty-shared/PlainLanguageNotice';
-import StatusRail from '@/components/faculty-shared/StatusRail';
-import StepFlowHeader from '@/components/faculty-shared/StepFlowHeader';
+import FacultyGlobalHeader from '@/components/faculty-shared/FacultyGlobalHeader';
 import MobileDashboardLayout from '@/components/faculty-dashboard/MobileDashboardLayout';
 import DesktopDashboardLayout from '@/components/faculty-dashboard/DesktopDashboardLayout';
 
@@ -88,12 +86,16 @@ type MyDashboardResponse = {
 	};
 };
 
+import { CheckCircle2, XCircle, Eye, Clock, FileEdit } from 'lucide-react';
+
+// ... (keep resolveSchoolYearContext)
+
 function entryOutcomeBadge(entry: FacultyRoomPreferenceEntry) {
-	if (entry.decisionStatus === 'APPROVED') return <Badge variant='success' className='text-[9px] h-4 px-1'>Approved</Badge>;
-	if (entry.decisionStatus === 'REJECTED') return <Badge variant='destructive' className='text-[9px] h-4 px-1'>Rejected</Badge>;
-	if (entry.status === 'SUBMITTED') return <Badge variant='secondary' className='text-[9px] h-4 px-1'>Review</Badge>;
-	if (entry.requestedRoomId) return <Badge variant='outline' className='text-[9px] h-4 px-1'>Draft</Badge>;
-	return <Badge variant='outline' className='text-[9px] h-4 px-1 opacity-50'>Live</Badge>;
+	if (entry.decisionStatus === 'APPROVED') return <Badge variant='success' className='text-xs h-5 px-1.5 gap-1'><CheckCircle2 className="size-3" /> Approved</Badge>;
+	if (entry.decisionStatus === 'REJECTED') return <Badge variant='destructive' className='text-xs h-5 px-1.5 gap-1'><XCircle className="size-3" /> Rejected</Badge>;
+	if (entry.status === 'SUBMITTED') return <Badge variant='secondary' className='text-xs h-5 px-1.5 gap-1'><Clock className="size-3" /> Review</Badge>;
+	if (entry.requestedRoomId) return <Badge variant='outline' className='text-xs h-5 px-1.5 gap-1'><FileEdit className="size-3" /> Draft</Badge>;
+	return <Badge variant='outline' className='text-xs h-5 px-1.5 text-muted-foreground/60 gap-1'><Eye className="size-3" /> Live</Badge>;
 }
 
 export default function MyDashboard() {
@@ -143,22 +145,29 @@ export default function MyDashboard() {
 		};
 	}, []);
 
-	const plainLanguageBanner = useMemo(() => {
-		if (!dashboard) return null;
+	const advisory = useMemo(() => {
+		if (!dashboard) return undefined;
+		
+		if (dashboard.fallbackBanner.show) {
+			return {
+				title: 'Limited visibility',
+				message: dashboard.fallbackBanner.message,
+				variant: 'warning' as const
+			};
+		}
+
 		if (dashboard.runContext.state === 'NO_ACTIVE_DRAFT') {
 			return {
-				title: 'Your schedule is still being prepared.',
-				whatHappened: 'The scheduler has not released a review draft for your classes yet.',
-				whatNow: 'Check back later. If this takes too long, ask your scheduling officer for an update.',
-				whoToContact: 'Your scheduling officer or school IT admin.',
+				title: 'Schedule preparing',
+				message: 'The scheduler has not released a review draft yet. Check back later.',
+				variant: 'info' as const
 			};
 		}
 
 		return {
-			title: 'This schedule is still being reviewed.',
-			whatHappened: 'You are viewing a review draft while the scheduler finalizes the timetable.',
-			whatNow: 'You can submit room requests now. Final schedule will be shared after scheduler approval.',
-			whoToContact: 'Your scheduling officer if anything looks incorrect.',
+			title: 'Review in progress',
+			message: 'You are viewing a review draft. You can submit room requests now.',
+			variant: 'warning' as const
 		};
 	}, [dashboard]);
 
@@ -204,58 +213,29 @@ export default function MyDashboard() {
 		);
 	}
 
-	const banners = (
-		<div className='space-y-4'>
-			{plainLanguageBanner && (
-				<PlainLanguageNotice
-					title={plainLanguageBanner.title}
-					whatHappened={plainLanguageBanner.whatHappened}
-					whatNow={plainLanguageBanner.whatNow}
-					whoToContact={plainLanguageBanner.whoToContact}
-				/>
-			)}
-
-			{dashboard.fallbackBanner.show && (
-				<PlainLanguageNotice
-					variant='warning'
-					title='Limited data visibility'
-					whatHappened={dashboard.fallbackBanner.message}
-					whatNow='Some sections of your dashboard might be incomplete until the next sync.'
-					whoToContact='School IT Support'
-				/>
-			)}
-		</div>
-	);
-
 	return (
 		<div className='flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-background'>
-			{/* Top Nav/Header Area */}
-			<div className='shrink-0 px-4 pt-4 pb-2 sm:px-6 sm:pt-6 sm:pb-4 border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60'>
-				<div className='max-w-7xl mx-auto space-y-4'>
-					<StepFlowHeader
-						title='Faculty Portal'
-						subtitle='Track your class assignments and request room changes.'
-						steps={[
-							{ id: 1, label: '1 Review' },
-							{ id: 2, label: '2 Request' },
-							{ id: 3, label: '3 Decision' },
-						]}
-						activeStep={dashboardStep}
-					/>
-					<StatusRail
-						online={online}
-						syncState={online ? 'idle' : 'queued-offline'}
-						realtimeConnected={true}
-					/>
-					{schoolYearNotice && (
-						<div className='rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-900 uppercase tracking-tight'>
-							{schoolYearNotice}
-						</div>
-					)}
-				</div>
-			</div>
+			<FacultyGlobalHeader
+				title='Faculty Portal'
+				subtitle='Track your class assignments and request room changes.'
+				steps={[
+					{ id: 1, label: '1 Review' },
+					{ id: 2, label: '2 Request' },
+					{ id: 3, label: '3 Decision' },
+				]}
+				activeStep={dashboardStep}
+				online={online}
+				syncState={online ? 'idle' : 'queued-offline'}
+				realtimeConnected={true}
+				advisory={advisory}
+			>
+				{schoolYearNotice && (
+					<div className='rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-[10px] font-bold text-amber-900 uppercase tracking-tight'>
+						{schoolYearNotice}
+					</div>
+				)}
+			</FacultyGlobalHeader>
 
-			{/* Main Layout Workspace */}
 			<div className='flex-1 min-h-0 overflow-auto px-4 py-6 sm:px-6 sm:py-8'>
 				<div className='max-w-7xl mx-auto h-full'>
 					{isMobile ? (
@@ -265,7 +245,6 @@ export default function MyDashboard() {
 							counts={dashboard.schedulePreview.counts}
 							schedulePreview={dashboard.schedulePreview.entries}
 							renderEntryBadge={entryOutcomeBadge}
-							banners={banners}
 						/>
 					) : (
 						<DesktopDashboardLayout
@@ -274,7 +253,6 @@ export default function MyDashboard() {
 							counts={dashboard.schedulePreview.counts}
 							entries={dashboard.schedulePreview.entries}
 							renderEntryBadge={entryOutcomeBadge}
-							banners={banners}
 						/>
 					)}
 				</div>
@@ -282,4 +260,3 @@ export default function MyDashboard() {
 		</div>
 	);
 }
-

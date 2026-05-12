@@ -23,12 +23,14 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 
 import { formatTime } from '@/lib/utils';
+import { getQualificationTier, type QualificationTier } from '@/lib/grade-labels';
 import type {
 	ManualEditProposal,
 	PreviewResult,
 	ScheduledEntry,
 	FacultyMirror,
 	Violation,
+	Subject,
 } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -84,6 +86,7 @@ type RoomInfo = {
 	type: string;
 	capacity?: number | null;
 	isTeachingSpace: boolean;
+	features: string[];
 };
 
 export interface ManualEditPanelProps {
@@ -104,6 +107,8 @@ export interface ManualEditPanelProps {
 	roomMap: Map<number, RoomInfo>;
 	/** Faculty with load data */
 	facultyMap: Map<number, FacultyMirror>;
+	/** Full subject details for qualification matching */
+	subjectMap: Map<number, Subject>;
 	/** Draft entries for computing current faculty load + free-slot filtering */
 	draftEntries: ScheduledEntry[];
 	/** Preview API call */
@@ -263,36 +268,64 @@ export default function ManualEditPanel({
 
 	/** SearchableSelect groups for rooms — grouped by building */
 	const roomSearchGroups: SearchableSelectGroup[] = useMemo(() => {
+		const subject = subjectMap.get(entry.subjectId);
+		const required = subject?.requiredFeatures || [];
+
 		return roomsByBuilding.map((group) => ({
 			label: group.label,
-			items: group.rooms.map((r) => ({
-				value: String(r.id),
-				label: `${r.name} · Floor ${r.floor}${r.capacity != null ? ` · Cap ${r.capacity}` : ''} · ${r.type}`,
-			})),
+			items: group.rooms.map((r) => {
+				const missing = required.filter(f => !(r.features || []).includes(f));
+				const isCompatible = missing.length === 0;
+				
+				return {
+					value: String(r.id),
+					label: `${r.name} · Floor ${r.floor}${r.capacity != null ? ` · Cap ${r.capacity}` : ''} · ${r.type}`,
+					subLabel: !isCompatible ? `Lacks: ${missing.join(', ')}` : r.features?.length ? `Features: ${r.features.join(', ')}` : undefined,
+					disabled: !isCompatible, // Optional: could just warn instead of disable
+				};
+			}),
 		}));
-	}, [roomsByBuilding]);
+	}, [roomsByBuilding, subjectMap, entry.subjectId]);
 
 	/** SearchableSelect groups for faculty — grouped by department */
 	const facultySearchGroups: SearchableSelectGroup[] = useMemo(() => {
-		const deptMap = new Map<string, { value: string; label: string }[]>();
+		const deptMap = new Map<string, { value: string; label: string; subLabel?: string; tier?: QualificationTier }[]>();
+		const subject = subjectMap.get(entry.subjectId);
+
 		for (const [, f] of facultyMap) {
 			if (!f.isActiveForScheduling) continue;
 			const dept = f.department || 'Unassigned Department';
 			if (!deptMap.has(dept)) deptMap.set(dept, []);
 			const loadMinutes = facultyLoadMap.get(f.id) ?? 0;
 			const loadHours = Math.round(loadMinutes / 60);
+			
+			const tier = subject ? getQualificationTier(f, subject) : null;
+			let tierLabel = '';
+			if (tier === 1) tierLabel = '[Tier 1: Perfect] ';
+			else if (tier === 2) tierLabel = '[Tier 2: Structural] ';
+			else if (tier === 3) tierLabel = '[Tier 3: Suggestion] ';
+			else tierLabel = '[Unqualified] ';
+
 			deptMap.get(dept)!.push({
 				value: String(f.id),
-				label: `${f.lastName}, ${f.firstName} — ${loadHours}h / ${f.maxHoursPerWeek}h max`,
+				label: `${tierLabel}${f.lastName}, ${f.firstName}`,
+				subLabel: `${loadHours}h / ${f.maxHoursPerWeek}h max${f.specialization ? ` · ${f.specialization}` : ''}`,
+				tier,
 			});
 		}
 		return Array.from(deptMap.entries())
 			.sort(([a], [b]) => a.localeCompare(b))
 			.map(([dept, items]) => ({
 				label: dept,
-				items: items.sort((a, b) => a.label.localeCompare(b.label)),
+				items: items.sort((a, b) => {
+					// Sort by tier first, then name
+					const tA = a.tier ?? 99;
+					const tB = b.tier ?? 99;
+					if (tA !== tB) return tA - tB;
+					return a.label.localeCompare(b.label);
+				}),
 			}));
-	}, [facultyMap, facultyLoadMap]);
+	}, [facultyMap, facultyLoadMap, subjectMap, entry.subjectId]);
 
 	// Pre-filter: slots occupied by current faculty or current room on the selected day
 	const occupiedSlots = useMemo(
@@ -650,33 +683,119 @@ export default function ManualEditPanel({
 
 							{/* ── Room form ── */}
 							{actionType === 'CHANGE_ROOM' && (
-								<div className="space-y-1.5">
-									<Label htmlFor="target-room" className="text-xs">
-										Target Room
-									</Label>
-									<SearchableSelect
-										groups={roomSearchGroups}
-										value={targetRoomId}
-										onValueChange={setTargetRoomId}
-										placeholder="Search rooms…"
-										triggerClassName="h-8 text-xs w-full"
-									/>
+								<div className="space-y-3">
+									<div className="space-y-1.5">
+										<Label htmlFor="target-room" className="text-xs">
+											Target Room
+										</Label>
+										<SearchableSelect
+											groups={roomSearchGroups}
+											value={targetRoomId}
+											onValueChange={setTargetRoomId}
+											placeholder="Search rooms…"
+											triggerClassName="h-8 text-xs w-full"
+										/>
+									</div>
+									
+									{/* Feature Check Display */}
+									{(() => {
+										const subject = subjectMap.get(entry.subjectId);
+										const selectedRoom = roomMap.get(Number(targetRoomId));
+										if (!subject || (subject.requiredFeatures.length === 0 && !selectedRoom?.features.length)) return null;
+
+										return (
+											<div className="rounded-md border border-border/50 bg-muted/20 p-2.5 space-y-2">
+												<div className="text-[0.625rem] font-semibold text-muted-foreground uppercase tracking-tight">Requirement vs capability</div>
+												
+												<div className="space-y-1.5">
+													<p className="text-[0.65rem] font-medium flex items-center gap-1.5">
+														<span className="text-muted-foreground">Subject requires:</span>
+														{subject.requiredFeatures.length > 0 ? (
+															subject.requiredFeatures.map(f => (
+																<Badge key={f} variant="outline" className="text-[0.55rem] px-1 py-0 border-amber-200 bg-amber-50 text-amber-700">{f}</Badge>
+															))
+														) : <span className="italic text-muted-foreground/60">No specific features</span>}
+													</p>
+													
+													<p className="text-[0.65rem] font-medium flex items-center gap-1.5">
+														<span className="text-muted-foreground">Room provides:</span>
+														{selectedRoom?.features && selectedRoom.features.length > 0 ? (
+															selectedRoom.features.map(f => (
+																<Badge key={f} variant="outline" className="text-[0.55rem] px-1 py-0 border-sky-200 bg-sky-50 text-sky-700">{f}</Badge>
+															))
+														) : <span className="italic text-muted-foreground/60">No features tagged</span>}
+													</p>
+												</div>
+
+												{selectedRoom && subject.requiredFeatures.some(f => !(selectedRoom.features || []).includes(f)) && (
+													<div className="flex items-center gap-1.5 text-[0.65rem] text-red-600 font-medium pt-1 border-t border-border/40">
+														<AlertCircle className="size-3" />
+														Lacks: {subject.requiredFeatures.filter(f => !(selectedRoom.features || []).includes(f)).join(', ')}
+													</div>
+												)}
+											</div>
+										);
+									})()}
 								</div>
 							)}
 
 							{/* ── Faculty form ── */}
 							{actionType === 'CHANGE_FACULTY' && (
-								<div className="space-y-1.5">
-									<Label htmlFor="target-faculty" className="text-xs">
-										Target Faculty
-									</Label>
-									<SearchableSelect
-										groups={facultySearchGroups}
-										value={targetFacultyId}
-										onValueChange={setTargetFacultyId}
-										placeholder="Search faculty…"
-										triggerClassName="h-8 text-xs w-full"
-									/>
+								<div className="space-y-3">
+									<div className="space-y-1.5">
+										<Label htmlFor="target-faculty" className="text-xs">
+											Target Faculty
+										</Label>
+										<SearchableSelect
+											groups={facultySearchGroups}
+											value={targetFacultyId}
+											onValueChange={setTargetFacultyId}
+											placeholder="Search faculty…"
+											triggerClassName="h-8 text-xs w-full"
+										/>
+									</div>
+
+									{/* Qualification Check Display */}
+									{(() => {
+										const subject = subjectMap.get(entry.subjectId);
+										const faculty = facultyMap.get(Number(targetFacultyId));
+										if (!subject || !faculty) return null;
+										
+										const tier = getQualificationTier(faculty, subject);
+										
+										return (
+											<div className={`rounded-md border p-2.5 flex items-start gap-3 transition-colors ${
+												tier === 1 ? 'border-emerald-200 bg-emerald-50/30' :
+												tier === 2 ? 'border-sky-200 bg-sky-50/30' :
+												tier === 3 ? 'border-amber-200 bg-amber-50/30' :
+												'border-red-200 bg-red-50/30'
+											}`}>
+												<div className={`size-8 rounded-full flex items-center justify-center shrink-0 ${
+													tier === 1 ? 'bg-emerald-100 text-emerald-600' :
+													tier === 2 ? 'bg-sky-100 text-sky-600' :
+													tier === 3 ? 'bg-amber-100 text-amber-600' :
+													'bg-red-100 text-red-600'
+												}`}>
+													<Users className="size-4" />
+												</div>
+												<div className="space-y-1 min-w-0">
+													<div className="flex items-center gap-2">
+														<span className="text-xs font-bold truncate">{faculty.lastName}, {faculty.firstName}</span>
+														{tier === 1 && <Badge className="text-[0.55rem] bg-emerald-100 text-emerald-700 hover:bg-emerald-100 px-1 py-0">Tier 1</Badge>}
+														{tier === 2 && <Badge className="text-[0.55rem] bg-sky-100 text-sky-700 hover:bg-sky-100 px-1 py-0">Tier 2</Badge>}
+														{tier === 3 && <Badge className="text-[0.55rem] bg-amber-100 text-amber-700 hover:bg-amber-100 px-1 py-0">Suggestion</Badge>}
+														{!tier && <Badge variant="destructive" className="text-[0.55rem] px-1 py-0">Unqualified</Badge>}
+													</div>
+													<p className="text-[0.65rem] text-muted-foreground leading-tight">
+														{tier === 1 ? 'Perfect match: specialist for this learning area.' :
+														 tier === 2 ? 'Structural match: assigned to the relevant department.' :
+														 tier === 3 ? 'Fuzzy suggestion: keyword match based on historical data.' :
+														 'No qualification match found. This may cause scheduling failures.'}
+													</p>
+												</div>
+											</div>
+										);
+									})()}
 								</div>
 							)}
 						</div>

@@ -20,7 +20,7 @@ import {
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
-import { gradeLabel, GRADE_COLORS } from '@/lib/grade-labels';
+import { gradeLabel, GRADE_COLORS, getQualificationTier } from '@/lib/grade-labels';
 import {
 	ALL_ROOM_TYPES,
 	GRADE_OPTIONS,
@@ -60,7 +60,10 @@ export default function Subjects() {
 
 	// Teacher coverage drilldown
 	const [expandedSubjectId, setExpandedSubjectId] = useState<number | null>(null);
-	const [teacherCoverage, setTeacherCoverage] = useState<Record<number, { name: string; grades: number[] }[]>>({});
+	const [teacherCoverage, setTeacherCoverage] = useState<Record<number, { 
+		assigned: { name: string; grades: number[] }[], 
+		eligible: { name: string; tier: number }[] 
+	}>>({});
 	const [coverageLoading, setCoverageLoading] = useState(false);
 
 	// Sorting
@@ -110,27 +113,54 @@ export default function Subjects() {
 		}
 		setExpandedSubjectId(subjectId);
 		if (teacherCoverage[subjectId]) return; // already fetched
+		
+		const targetSubject = subjects.find(s => s.id === subjectId);
+		if (!targetSubject) return;
+
 		setCoverageLoading(true);
 		try {
-			const { data } = await atlasApi.get<{ summary: { faculty: { id: number; firstName: string; lastName: string; gradeLevels: number[] }[] } }>('/faculty-assignments/summary', {
-				params: { schoolId: DEFAULT_SCHOOL_ID },
+			const { data } = await atlasApi.get<{ faculty: any[] }>('/faculty-assignments/summary', {
+				params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId: 1 }, 
 			});
-			// Build coverage: for each subject, find all faculty assigned to it
-			const coverageMap: Record<number, { name: string; grades: number[] }[]> = {};
-			for (const f of data.summary.faculty ?? []) {
-				for (const a of (f as any).subjects ?? []) {
-					const sid = a.subjectId as number;
-					if (!coverageMap[sid]) coverageMap[sid] = [];
-					coverageMap[sid].push({ name: `${f.lastName}, ${f.firstName}`, grades: a.gradeLevels ?? [] });
+			
+			const assigned: { name: string; grades: number[]; load: number }[] = [];
+			const eligible: { name: string; tier: number; load: number }[] = [];
+
+			for (const f of data.faculty ?? []) {
+				const isAssigned = (f.assignments ?? []).some((a: any) => a.subjectId === subjectId);
+				const load = (f as any).loadPercentage ?? 0;
+				if (isAssigned) {
+					const assignment = f.assignments.find((a: any) => a.subjectId === subjectId);
+					assigned.push({ 
+						name: `${f.lastName}, ${f.firstName}`, 
+						grades: assignment.gradeLevels ?? [],
+						load
+					});
+				} else {
+					const tier = getQualificationTier(f, targetSubject);
+					if (tier === 1 || tier === 2) {
+						eligible.push({ 
+							name: `${f.lastName}, ${f.firstName}`, 
+							tier: tier as number,
+							load
+						});
+					}
 				}
 			}
-			setTeacherCoverage((prev) => ({ ...prev, ...coverageMap }));
+
+			// Sort eligible by load (ascending) then tier (ascending)
+			eligible.sort((a, b) => (a.load - b.load) || (a.tier - b.tier));
+
+			setTeacherCoverage((prev) => ({ 
+				...prev, 
+				[subjectId]: { assigned, eligible } 
+			}));
 		} catch {
 			toast.error('Failed to load teacher coverage');
 		} finally {
 			setCoverageLoading(false);
 		}
-	}, [expandedSubjectId, teacherCoverage]);
+	}, [expandedSubjectId, teacherCoverage, subjects]);
 
 	// Filtered, sorted, paginated
 	const { paged, totalFiltered, totalPages } = useMemo(() => {
@@ -540,23 +570,60 @@ export default function Subjects() {
 													<td colSpan={9} className="px-4 py-3">
 														{coverageLoading ? (
 															<div className="text-xs text-muted-foreground">Loading teacher coverage...</div>
-														) : (teacherCoverage[s.id] ?? []).length > 0 ? (
-															<div className="space-y-1.5">
-																<div className="text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-																	<Users className="size-3" /> Teachers assigned to {s.name}
-																</div>
-																{(teacherCoverage[s.id] ?? []).map((t, i) => (
-																	<div key={i} className="flex items-center gap-2 text-sm">
-																		<span className="font-medium min-w-[10rem]">{t.name}</span>
-																		<div className="flex gap-1">
-																			{t.grades.map((g) => (
-																				<Badge key={g} variant="outline" className={`text-[0.55rem] px-1.5 py-0 ${GRADE_COLORS[String(g)] ?? ''}`}>
-																					{gradeLabel(g)}
-																				</Badge>
+														) : (
+															<div className="space-y-4">
+																{/* Assigned Section */}
+																<div>
+																	<div className="text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+																		<Users className="size-3" /> Teachers assigned to {s.name}
+																	</div>
+																	{(teacherCoverage[s.id]?.assigned ?? []).length > 0 ? (
+																		<div className="space-y-1.5 pl-4">
+																			{(teacherCoverage[s.id].assigned).map((t, i) => (
+																				<div key={i} className="flex items-center gap-2 text-sm">
+																					<span className="font-medium min-w-[10rem]">{t.name}</span>
+																					<div className="flex gap-1 items-center">
+																						{t.grades.map((g) => (
+																							<Badge key={g} variant="outline" className={`text-[0.55rem] px-1.5 py-0 ${GRADE_COLORS[String(g)] ?? ''}`}>
+																								{gradeLabel(g)}
+																							</Badge>
+																						))}
+																						<Badge variant="secondary" className="text-[0.55rem] ml-2 bg-muted/50">
+																							{t.load}% Load
+																						</Badge>
+																					</div>
+																				</div>
 																			))}
 																		</div>
+																	) : (
+																		<div className="text-xs text-muted-foreground pl-4 italic">No teachers assigned yet.</div>
+																	)}
+																</div>
+
+																{/* Eligible Section */}
+																<div>
+																	<div className="text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+																		<Star className="size-3 text-amber-500 fill-amber-500/20" /> Eligible but Unassigned (Capacity Sorted)
 																	</div>
-																))}
+																	{(teacherCoverage[s.id]?.eligible ?? []).length > 0 ? (
+																		<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pl-4">
+																			{(teacherCoverage[s.id].eligible).map((t, i) => (
+																				<div key={i} className="flex items-center justify-between gap-2 text-xs border border-border/60 bg-background/50 rounded px-2 py-1 hover:border-primary/40 transition-colors">
+																					<div className="flex flex-col min-w-0">
+																						<span className="truncate font-medium">{t.name}</span>
+																						<span className="text-[0.65rem] text-muted-foreground">{t.load}% Load</span>
+																					</div>
+																					<Badge variant="outline" className={`text-[0.5rem] px-1 py-0 shrink-0 ${t.tier === 1 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-sky-50 text-sky-700 border-sky-200'}`}>
+																						{t.tier === 1 ? 'Spec' : 'Dept'}
+																					</Badge>
+																				</div>
+																			))}
+																		</div>
+																	) : (
+																		<div className="text-xs text-muted-foreground pl-4 italic">No other eligible teachers found.</div>
+																	)}
+																</div>
+
 																{s.preferredRoomType !== 'CLASSROOM' && (
 																	<div className="mt-2 pt-2 border-t border-border">
 																		<div className="text-[0.6875rem] text-muted-foreground flex items-center gap-1.5">
@@ -569,8 +636,6 @@ export default function Subjects() {
 																	</div>
 																)}
 															</div>
-														) : (
-															<div className="text-xs text-muted-foreground">No teachers assigned to this subject yet.</div>
 														)}
 													</td>
 												</tr>

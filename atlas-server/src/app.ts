@@ -33,6 +33,7 @@ import cohortRouter from './routes/cohort.router.js';
 import facultyPortalRouter from './routes/faculty-portal.router.js';
 import publishedScheduleRouter from './routes/published-schedule.router.js';
 import classTemplateRouter from './routes/class-template.router.js';
+import specializationAliasRouter from './routes/specialization-alias.router.ts';
 
 const app = express();
 
@@ -97,6 +98,7 @@ app.use('/api/v1/cohorts', cohortRouter);
 app.use('/api/v1/faculty-portal', facultyPortalRouter);
 app.use('/api/v1', publishedScheduleRouter);
 app.use('/api/v1/class-templates', classTemplateRouter);
+app.use('/api/v1/specialization-aliases', specializationAliasRouter);
 
 // Error handler
 app.use(errorHandler);

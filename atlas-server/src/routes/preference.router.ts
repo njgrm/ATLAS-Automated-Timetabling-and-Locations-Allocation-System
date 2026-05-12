@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
+import { requirePrivilegedRole } from '../middleware/authorize.js';
 import jwt from 'jsonwebtoken';
 import * as prefService from '../services/preference.service.js';
 import { subscribePreferenceEvents, getPreferenceEventsSince } from '../services/preference-events.service.js';
@@ -94,6 +95,58 @@ router.get(
 			res.json({ preference: pref });
 		} catch (e) { next(e); }
 	},
+);
+
+// ─── Officer: get audit summary (unavailability %) ───
+
+router.get(
+	'/:schoolId/:schoolYearId/audit',
+	authenticate,
+	requirePrivilegedRole,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+
+			const faculty = await prisma.facultyMirror.findMany({
+				where: { schoolId, isActiveForScheduling: true },
+				select: { id: true, firstName: true, lastName: true, specialization: true, department: true }
+			});
+
+			const preferences = await prisma.facultyPreference.findMany({
+				where: { schoolId, schoolYearId },
+				include: { timeSlots: true }
+			});
+
+			const prefMap = new Map(preferences.map(p => [p.facultyId, p]));
+
+			// Standard school day is roughly 10 periods (07:30 - 15:50) * 5 days = 50 total slots
+			const TOTAL_WEEKLY_SLOTS = 50;
+
+			const audit = faculty.map(f => {
+				const pref = prefMap.get(f.id);
+				if (!pref) return { facultyId: f.id, unavailabilityPercent: 0, status: 'MISSING' };
+
+				const unavailableCount = pref.timeSlots.filter(ts => ts.preference === 'UNAVAILABLE').length;
+				// This is a rough heuristic. In a more precise system, we'd overlap with canonical slots.
+				// For now, percentage of standard day blocked.
+				const percent = Math.round((unavailableCount / TOTAL_WEEKLY_SLOTS) * 100);
+
+				return {
+					facultyId: f.id,
+					name: `${f.lastName}, ${f.firstName}`,
+					specialization: f.specialization,
+					department: f.department,
+					unavailabilityPercent: percent,
+					status: pref.status
+				};
+			});
+
+			res.json({ audit });
+		} catch (e) { next(e); }
+	}
 );
 
 // ─── Faculty self: save draft ───

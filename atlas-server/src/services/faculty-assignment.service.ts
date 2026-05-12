@@ -293,7 +293,10 @@ const subjectMinutes = assignments.reduce(
 (sum, assignment) => sum + assignment.subject.minMinutesPerWeek * assignment.sectionIds.length,
 0,
 );
-const subjectHours = Math.round((subjectMinutes / 60) * 10) / 10;
+const teachingHours = subjectMinutes / 60;
+const totalHours = teachingHours + (member.advisoryEquivalentHours || 0);
+const subjectHours = Math.round(totalHours * 10) / 10;
+const loadPercentage = member.maxHoursPerWeek > 0 ? Math.round((totalHours / member.maxHoursPerWeek) * 100) : 0;
 
 return {
 id: member.id,
@@ -301,6 +304,7 @@ externalId: member.externalId,
 firstName: member.firstName,
 lastName: member.lastName,
 department: member.department,
+specialization: member.specialization,
 employmentStatus: member.employmentStatus,
 isClassAdviser: member.isClassAdviser,
 advisoryEquivalentHours: member.advisoryEquivalentHours,
@@ -311,6 +315,7 @@ version: member.version,
 subjectCount: assignments.length,
 sectionCount,
 subjectHours,
+loadPercentage,
 assignments,
 };
 });

@@ -46,6 +46,7 @@ type RoomEditForm = {
 	type: RoomType;
 	capacity: string;
 	isTeachingSpace: boolean;
+	features: string[];
 };
 
 type BuildingPanelProps = {
@@ -206,6 +207,7 @@ export function BuildingPanel({
 			type: room.type,
 			capacity: room.capacity != null ? String(room.capacity) : '',
 			isTeachingSpace: room.isTeachingSpace,
+			features: room.features || [],
 		});
 	};
 
@@ -224,6 +226,7 @@ export function BuildingPanel({
 				type: editingRoom.type,
 				capacity: editingRoom.capacity ? Number(editingRoom.capacity) : null,
 				isTeachingSpace,
+				features: editingRoom.features,
 			});
 
 			onPushHistory();
@@ -716,6 +719,46 @@ export function BuildingPanel({
 									disabled={building.isTeachingBuilding === false || NON_TEACHING_TYPES.includes(editingRoom.type)}
 								/>
 							</div>
+
+							<div className="space-y-2">
+								<Label className="text-xs">Room Features / Equipment</Label>
+								<div className="flex gap-2">
+									<Input 
+										placeholder="e.g. PROJECTOR, GAS_STOVE..."
+										className="h-8 text-xs"
+										onKeyDown={(e) => {
+											if (e.key === 'Enter') {
+												e.preventDefault();
+												const val = e.currentTarget.value.trim().toUpperCase();
+												if (val && !editingRoom.features.includes(val)) {
+													setEditingRoom({ ...editingRoom, features: [...editingRoom.features, val] });
+													e.currentTarget.value = '';
+												}
+											}
+										}}
+									/>
+								</div>
+								<div className="flex flex-wrap gap-1.5 pt-1">
+									{editingRoom.features.map(f => (
+										<Badge key={f} variant="secondary" className="text-[0.65rem] bg-sky-50 text-sky-700 border-sky-100 flex items-center gap-1">
+											{f}
+											<button onClick={() => setEditingRoom({ ...editingRoom, features: editingRoom.features.filter(x => x !== f) })}>×</button>
+										</Badge>
+									))}
+								</div>
+								<div className="flex flex-wrap gap-1">
+									{['PROJECTOR', 'SMART_TV', 'GAS_STOVE', 'GREENHOUSE', 'ICT-LAB', 'WELDING'].filter(s => !editingRoom.features.includes(s)).map(s => (
+										<button
+											key={s}
+											type="button"
+											onClick={() => setEditingRoom({ ...editingRoom, features: [...editingRoom.features, s] })}
+											className="text-[0.6rem] bg-muted/50 hover:bg-muted px-1.5 py-0.5 rounded border border-border/50"
+										>
+											+ {s}
+										</button>
+									))}
+								</div>
+							</div>
 						</div>
 					)}
 
@@ -777,7 +820,7 @@ function SortableRoomTile({
 			<span className={`size-1.5 shrink-0 rounded-full ${room.isTeachingSpace ? 'bg-primary' : 'bg-amber-500'}`} />
 			<div className="min-w-0 flex-1">
 				<p className="truncate text-sm font-medium">{room.name}</p>
-				<div className="flex items-center gap-1.5 mt-0.5">
+				<div className="flex flex-wrap items-center gap-1.5 mt-0.5">
 					<Badge variant="outline" className="text-[0.6rem] px-1 py-0">
 						{ROOM_TYPES.find((t) => t.value === room.type)?.label ?? room.type}
 					</Badge>
@@ -790,6 +833,14 @@ function SortableRoomTile({
 						<Badge className="bg-amber-100 text-amber-700 text-[0.55rem] px-1 py-0">
 							Non-teaching
 						</Badge>
+					)}
+					{room.features && room.features.length > 0 && (
+						<div className="flex flex-wrap gap-1">
+							{room.features.slice(0, 3).map(f => (
+								<Badge key={f} className="text-[0.5rem] px-1 py-0 bg-sky-50 text-sky-700 border-sky-100">{f}</Badge>
+							))}
+							{room.features.length > 3 && <span className="text-[0.5rem] text-muted-foreground">+{room.features.length - 3}</span>}
+						</div>
 					)}
 				</div>
 			</div>
@@ -846,7 +897,7 @@ function RoomTileReadOnly({ room }: { room: Room }) {
 			<span className={`size-1.5 shrink-0 rounded-full ${room.isTeachingSpace ? 'bg-primary' : 'bg-amber-500'}`} />
 			<div className="min-w-0 flex-1">
 				<p className="truncate text-sm font-medium">{room.name}</p>
-				<div className="flex items-center gap-1.5 mt-0.5">
+				<div className="flex flex-wrap items-center gap-1.5 mt-0.5">
 					<Badge variant="outline" className="text-[0.6rem] px-1 py-0">
 						{ROOM_TYPES.find((t) => t.value === room.type)?.label ?? room.type}
 					</Badge>
@@ -859,6 +910,14 @@ function RoomTileReadOnly({ room }: { room: Room }) {
 						<Badge className="bg-amber-100 text-amber-700 text-[0.55rem] px-1 py-0">
 							Non-teaching
 						</Badge>
+					)}
+					{room.features && room.features.length > 0 && (
+						<div className="flex flex-wrap gap-1">
+							{room.features.slice(0, 3).map(f => (
+								<Badge key={f} className="text-[0.5rem] px-1 py-0 bg-sky-50 text-sky-700 border-sky-100">{f}</Badge>
+							))}
+							{room.features.length > 3 && <span className="text-[0.5rem] text-muted-foreground">+{room.features.length - 3}</span>}
+						</div>
 					)}
 				</div>
 			</div>

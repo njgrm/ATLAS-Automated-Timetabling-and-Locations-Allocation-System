@@ -28,6 +28,7 @@ export type SubjectRowProps = {
 	onSetSections: (subjectId: number, sectionIds: number[]) => void;
 	isOutsideDepartment?: boolean;
 	facultyDepartment?: string | null;
+	facultySpecialization?: string | null;
 	searchTerm?: string;
 	sectionFilter?: 'all' | 'unassigned' | 'assigned';
 	gradeLevelFilter?: string;
@@ -45,6 +46,7 @@ export function SubjectRow({
 	onSetSections,
 	isOutsideDepartment,
 	facultyDepartment,
+	facultySpecialization,
 	searchTerm = '',
 	sectionFilter = 'all',
 	gradeLevelFilter = 'all',
@@ -175,18 +177,21 @@ export function SubjectRow({
 		onSetSections(subject.id, [...selectedSectionIds, sectionId]);
 	};
 
-	// Soft advisory: specialization mismatch
-	const isSpecMismatch =
-		Boolean(facultyDepartment) &&
-		Array.isArray((subject as any).allowedSpecializations) &&
-		(subject as any).allowedSpecializations.length > 0 &&
-		!(subject as any).allowedSpecializations.includes(facultyDepartment);
+	// Tiered Qualification Logic (Wave 4 Audit)
+	const allowedSpecs = subject.allowedSpecializations ?? [];
+	const isTier1 = Boolean(facultySpecialization && allowedSpecs.includes(facultySpecialization));
+	const isTier2 = !isTier1 && Boolean(facultyDepartment && allowedSpecs.includes(facultyDepartment));
+	const isTier3 = !isTier1 && !isTier2 && matchesFacultyDepartment(facultyDepartment, subject.code, subject.name);
+	
+	const isSpecMismatch = allowedSpecs.length > 0 && !isTier1 && !isTier2;
 
 	return (
 		<div
 			className={`rounded-lg border p-3 transition-colors ${
 				selectedCount > 0
-					? isOutsideDepartment
+					? isTier1
+						? 'border-emerald-300/60 bg-emerald-50/30'
+						: isOutsideDepartment
 						? 'border-amber-300/60 bg-amber-50/30'
 						: 'border-primary/30 bg-primary/5'
 					: 'border-border'
@@ -202,6 +207,23 @@ export function SubjectRow({
 					<div className="flex flex-wrap items-center gap-2">
 						<span className="text-sm font-medium">{subject.name}</span>
 						<code className="rounded bg-muted px-1 py-0.5 text-[0.6rem] font-mono">{subject.code}</code>
+						
+						{isTier1 && (
+							<Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[0.5625rem] hover:bg-emerald-100">
+								Perfect Match
+							</Badge>
+						)}
+						{isTier2 && (
+							<Badge variant="secondary" className="bg-sky-100 text-sky-700 border-sky-200 text-[0.5625rem] hover:bg-sky-100">
+								Structural Match
+							</Badge>
+						)}
+						{isTier3 && (
+							<Badge variant="outline" className="text-[0.5625rem] text-muted-foreground border-dashed">
+								Fuzzy Suggestion
+							</Badge>
+						)}
+
 						{isOutsideDepartment && (
 							<Badge variant="outline" className="border-amber-300 text-[0.5625rem] text-amber-700">
 								Outside Dept.
@@ -223,6 +245,11 @@ export function SubjectRow({
 					</div>
 					<p className="mt-1 text-[0.6875rem] text-muted-foreground">
 						{Math.round((subject.minMinutesPerWeek / 60) * 10) / 10} hrs/week per section
+						{allowedSpecs.length > 0 && (
+							<span className="ml-2 italic text-muted-foreground/60">
+								Required: {allowedSpecs.join(', ')}
+							</span>
+						)}
 					</p>
 				</div>
 			</div>

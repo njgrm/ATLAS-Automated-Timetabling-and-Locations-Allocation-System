@@ -106,4 +106,36 @@ export function matchesFacultyDepartment(
 	return keywords.some((kw) => code.includes(kw) || name.includes(kw));
 }
 
+export type QualificationTier = 1 | 2 | 3 | null;
+
+/** 
+ * Tiered Qualification Matcher (Audit Wave 4)
+ * Tier 1: Explicit Specialization match (Source of Truth)
+ * Tier 2: Structural Department match
+ * Tier 3: Fuzzy Keyword match (Smart Suggestion)
+ */
+export function getQualificationTier(
+	faculty: { specialization: string | null; department: string | null },
+	subject: { code: string; name: string; allowedSpecializations?: string[] },
+): QualificationTier {
+	const allowed = subject.allowedSpecializations ?? [];
+	
+	// Tier 1: Explicit Specialization Match
+	if (faculty.specialization && allowed.includes(faculty.specialization)) {
+		return 1;
+	}
+
+	// Tier 2: Structural Department Match
+	if (faculty.department && allowed.includes(faculty.department)) {
+		return 2;
+	}
+
+	// Tier 3: Fuzzy Keyword Match (Legacy fallback/Suggestion)
+	if (matchesFacultyDepartment(faculty.department, subject.code, subject.name)) {
+		return 3;
+	}
+
+	return null;
+}
+
 export const isDepartmentMatch = matchesFacultyDepartment;

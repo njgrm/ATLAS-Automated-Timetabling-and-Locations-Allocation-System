@@ -54,6 +54,7 @@ export type NewSubjectForm = {
 	interSectionGradeLevels: number[];
 	programScopes: string[];
 	allowedSpecializations: string[];
+	requiredFeatures: string[];
 };
 
 export const emptyForm: NewSubjectForm = {
@@ -67,4 +68,5 @@ export const emptyForm: NewSubjectForm = {
 	interSectionGradeLevels: [],
 	programScopes: ['REGULAR'],
 	allowedSpecializations: [],
+	requiredFeatures: [],
 };

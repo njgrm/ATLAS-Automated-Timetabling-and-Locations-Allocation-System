@@ -40,4 +40,31 @@ router.get('/summary/:schoolYearId', authenticate, requirePrivilegedRole, async 
 	}
 });
 
+/**
+ * POST /api/v1/sections/sync
+ * Manually trigger a reconciliation from EnrollPro sections into ATLAS SectionMirror.
+ */
+router.post('/sync', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.body.schoolId);
+		if (!schoolId) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required' });
+			return;
+		}
+
+		// Use active year from bridge settings
+		const settings = await prisma.bridgeSettings.findUnique({ where: { schoolId } });
+		const schoolYearId = settings?.activeSchoolYearId;
+		if (!schoolYearId) {
+			res.status(400).json({ code: 'NO_ACTIVE_YEAR', message: 'No active school year configured for this bridge.' });
+			return;
+		}
+
+		const result = await syncSectionsFromExternal(schoolId, schoolYearId, req.headers.authorization);
+		res.json(result);
+	} catch (err) {
+		next(err);
+	}
+});
+
 export default router;

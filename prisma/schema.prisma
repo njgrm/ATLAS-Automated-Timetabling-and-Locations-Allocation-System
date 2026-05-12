@@ -26,8 +26,61 @@ model School {
   facultyMirrors FacultyMirror[]
   authAccounts   AtlasAuthAccount[]
   classTemplates ClassTemplate[]
+  specializationAliases SpecializationAlias[]
+  sectionMirrors        SectionMirror[]
 
   @@map("schools")
+}
+
+model SectionMirror {
+  id                Int      @id @default(autoincrement())
+  externalId        Int      @map("external_id")
+  schoolId          Int      @map("school_id")
+  schoolYearId      Int      @map("school_year_id")
+  name              String
+  gradeLevelId      Int      @map("grade_level_id")
+  gradeLevelName    String   @map("grade_level_name")
+  displayOrder      Int      @map("display_order")
+  maxCapacity       Int      @map("max_capacity")
+  enrolledCount     Int      @map("enrolled_count")
+  programType       String?  @map("program_type")
+  programCode       String?  @map("program_code")
+  programName       String?  @map("program_name")
+  isSpecialProgram  Boolean  @default(false) @map("is_special_program")
+
+  // ATLAS-specific metadata/overrides
+  isActiveForScheduling Boolean @default(true) @map("is_active_for_scheduling")
+  preferredRoomId       Int?    @map("preferred_room_id")
+
+  lastSyncedAt      DateTime @default(now()) @map("last_synced_at")
+  isStale           Boolean  @default(false) @map("is_stale")
+  staleReason       String?  @map("stale_reason")
+  staleAt           DateTime? @map("stale_at")
+
+  version           Int      @default(1)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  school            School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, schoolYearId, externalId])
+  @@index([schoolId, schoolYearId])
+  @@map("section_mirrors")
+}
+
+model SpecializationAlias {
+  id        Int      @id @default(autoincrement())
+  schoolId  Int      @map("school_id")
+  canonical String   // e.g. "Mathematics"
+  alias     String   // e.g. "Algebra"
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolId, canonical, alias])
+  @@index([schoolId])
+  @@map("specialization_aliases")
 }
 
 model Building {
@@ -74,6 +127,7 @@ model Room {
   capacity        Int?
   isTeachingSpace Boolean  @default(true) @map("is_teaching_space")
   floorPosition   Int      @default(0) @map("floor_position")
+  features        String[] @default([])
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   building        Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
@@ -105,6 +159,7 @@ model Subject {
   interSectionGradeLevels Int[]            @default([]) @map("inter_section_grade_levels")
   programScopes           ProgramType[]    @default([REGULAR]) @map("program_scopes")
   allowedSpecializations  String[]         @default([]) @map("allowed_specializations")
+  requiredFeatures        String[]         @default([]) @map("required_features")
   createdAt               DateTime         @default(now())
   updatedAt               DateTime         @updatedAt
   school                  School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)

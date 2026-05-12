@@ -18,6 +18,7 @@ export type Room = {
 	isTeachingSpace: boolean;
 	floorPosition: number;
 	buildingId: number;
+	features: string[];
 };
 
 export type Building = {
@@ -61,6 +62,7 @@ export type Subject = {
 	interSectionGradeLevels: number[];
 	programScopes: string[];
 	allowedSpecializations: string[];
+	requiredFeatures: string[];
 	createdAt: string;
 	updatedAt: string;
 };
@@ -77,6 +79,43 @@ export type ClassTemplate = {
 	isActive: boolean;
 	isDefault: boolean;
 	subjects: Array<{ id: number; code: string; name: string; programScopes: string[] }>;
+	createdAt: string;
+	updatedAt: string;
+};
+
+export type ExternalFaculty = {
+	id: number;
+	externalId: number;
+	firstName: string;
+	lastName: string;
+	department: string | null;
+	specialization: string | null;
+	employmentStatus: string;
+	isActiveForScheduling: boolean;
+	isClassAdviser: boolean;
+	advisoryEquivalentHours: number;
+	canTeachOutsideDepartment: boolean;
+	maxHoursPerWeek: number;
+	version: number;
+	subjectCount: number;
+	sectionCount: number;
+	subjectHours: number;
+	loadPercentage: number;
+	assignments: FacultyAssignmentDraft[];
+};
+
+export type FacultyAssignmentDraft = {
+	subjectId: number;
+	gradeLevels: number[];
+	sectionIds: number[];
+	sections?: ExternalSection[];
+};
+
+export type SpecializationAlias = {
+	id: number;
+	schoolId: number;
+	canonical: string;
+	alias: string;
 	createdAt: string;
 	updatedAt: string;
 };

@@ -326,6 +326,7 @@ export default function Dashboard() {
 		() => {
 			return [
 				{ label: 'Subjects configured', done: (subjectCount ?? 0) > 0, link: '/subjects' },
+				{ label: 'Specialization mapping configured', done: (subjectCount ?? 0) > 0, link: '/specialization-mapping' },
 				{ label: 'Faculty synced', done: (facultyCount ?? 0) > 0, link: '/faculty' },
 				{ label: 'Faculty assigned to subjects', done: unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, link: '/assignments' },
 				{ label: 'Sections sourced', done: (sectionCount ?? 0) > 0, link: '/sections', subMessage: sectionCount === null ? 'Enrollment service not connected' : sectionCount === 0 ? 'No sections found for active school year' : undefined },

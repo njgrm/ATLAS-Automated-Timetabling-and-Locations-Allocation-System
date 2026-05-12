@@ -19,9 +19,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import { Skeleton } from '@/ui/skeleton';
-import PlainLanguageNotice from '@/components/faculty-shared/PlainLanguageNotice';
-import StatusRail from '@/components/faculty-shared/StatusRail';
-import StepFlowHeader from '@/components/faculty-shared/StepFlowHeader';
+import FacultyGlobalHeader from '@/components/faculty-shared/FacultyGlobalHeader';
 import MobilePreferencesLayout from '@/components/faculty-preferences/MobilePreferencesLayout';
 import DesktopPreferencesLayout from '@/components/faculty-preferences/DesktopPreferencesLayout';
 
@@ -303,52 +301,30 @@ export default function FacultyPreferences() {
 	const canEdit = !locked;
 	const preferenceStep = locked || isSubmitted ? 3 : 2;
 	
-	const banners = (
-		<div className='space-y-4'>
-			<AnimatePresence>
-				{locked && (
-					<motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
-						<PlainLanguageNotice
-							variant='warning'
-							title='Preferences are currently locked'
-							whatHappened={lockedMsg}
-							whatNow='You can review your assignments but cannot change preferences until the scheduler reopens the window.'
-							whoToContact='Your scheduling officer'
-						/>
-					</motion.div>
-				)}
-				{isSubmitted && !locked && (
-					<motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
-						<PlainLanguageNotice
-							variant='success'
-							title='Your preferences are submitted'
-							whatHappened={`Last submission at ${preference?.submittedAt ? new Date(preference.submittedAt).toLocaleString() : 'N/A'}.`}
-							whatNow='You can still update and re-submit until the window is locked.'
-						/>
-					</motion.div>
-				)}
-				{reviewUpdates > 0 && (
-					<motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
-						<PlainLanguageNotice
-							title='Review update received'
-							whatHappened='The scheduling officer has reviewed your latest submission.'
-							whatNow='Review any notes or changes and update your draft if required.'
-							actionSlot={
-								<Button variant='ghost' size='sm' className='h-7 px-2 text-blue-800' onClick={() => setReviewUpdates(0)}>
-									Dismiss
-								</Button>
-							}
-						/>
-					</motion.div>
-				)}
-			</AnimatePresence>
-			{schoolYearNotice && (
-				<div className='rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-900 uppercase'>
-					{schoolYearNotice}
-				</div>
-			)}
-		</div>
-	);
+	const advisory = useMemo(() => {
+		if (locked) {
+			return {
+				title: 'Preferences locked',
+				message: lockedMsg,
+				variant: 'warning' as const
+			};
+		}
+		if (isSubmitted) {
+			return {
+				title: 'Preferences submitted',
+				message: `Last submission: ${preference?.submittedAt ? new Date(preference.submittedAt).toLocaleString() : 'N/A'}.`,
+				variant: 'success' as const
+			};
+		}
+		if (reviewUpdates > 0) {
+			return {
+				title: 'Review update',
+				message: 'The scheduling officer has reviewed your latest submission. Review notes and update if needed.',
+				variant: 'info' as const
+			};
+		}
+		return undefined;
+	}, [locked, lockedMsg, isSubmitted, preference?.submittedAt, reviewUpdates]);
 
 	if (loading) {
 		return (
@@ -383,29 +359,27 @@ export default function FacultyPreferences() {
 
 	return (
 		<div className='flex flex-col h-[calc(100svh-3.5rem)] overflow-hidden bg-background'>
-			{/* Top Header */}
-			<div className='shrink-0 px-4 pt-4 pb-2 sm:px-6 sm:pt-6 sm:pb-4 border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60'>
-				<div className='max-w-7xl mx-auto space-y-4'>
-					<StepFlowHeader
-						title='My Preferences'
-						subtitle='Set your preferred teaching hours and accessibility needs.'
-						steps={[
-							{ id: 1, label: '1 Set times' },
-							{ id: 2, label: '2 Draft' },
-							{ id: 3, label: '3 Submit' },
-						]}
-						activeStep={preferenceStep}
-					/>
-					<StatusRail
-						online={online}
-						syncState={online ? 'idle' : 'queued-offline'}
-						realtimeConnected={sseConnected}
-						realtimeError={sseError}
-					/>
-				</div>
-			</div>
+			<FacultyGlobalHeader
+				title='My Preferences'
+				subtitle='Set your preferred teaching hours and accessibility needs.'
+				steps={[
+					{ id: 1, label: '1 Set times' },
+					{ id: 2, label: '2 Draft' },
+					{ id: 3, label: '3 Submit' },
+				]}
+				activeStep={preferenceStep}
+				online={online}
+				syncState={online ? 'idle' : 'queued-offline'}
+				realtimeConnected={sseConnected}
+				advisory={advisory}
+			>
+				{schoolYearNotice && (
+					<div className='rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-[10px] font-bold text-amber-900 uppercase'>
+						{schoolYearNotice}
+					</div>
+				)}
+			</FacultyGlobalHeader>
 
-			{/* Main Content Area */}
 			<div className='flex-1 min-h-0 overflow-auto px-4 py-6 sm:px-6 sm:py-8'>
 				<div className='max-w-7xl mx-auto h-full'>
 					{isMobile ? (
@@ -417,7 +391,6 @@ export default function FacultyPreferences() {
 							notes={notes}
 							onNotesChange={setNotes}
 							canEdit={canEdit}
-							banners={banners}
 						/>
 					) : (
 						<DesktopPreferencesLayout
@@ -428,19 +401,17 @@ export default function FacultyPreferences() {
 							notes={notes}
 							onNotesChange={setNotes}
 							canEdit={canEdit}
-							banners={banners}
 						/>
 					)}
 				</div>
 			</div>
 
-			{/* Sticky Actions Bar */}
 			{canEdit && (
 				<div className='shrink-0 border-t border-border bg-background/95 backdrop-blur p-4 sm:p-6 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]'>
 					<div className='max-w-7xl mx-auto flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3'>
 						<div className='flex items-center gap-3'>
 							<span className='text-xs font-bold text-muted-foreground uppercase tracking-wider'>Status</span>
-							<Badge variant={isSubmitted ? 'success' : 'warning'} className='rounded-full px-3'>
+							<Badge variant={isSubmitted ? 'success' : 'warning'} className='rounded-full px-3 h-6 text-xs'>
 								{isSubmitted ? 'Submitted' : 'Draft'}
 							</Badge>
 						</div>

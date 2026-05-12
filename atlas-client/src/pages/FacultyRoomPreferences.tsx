@@ -37,7 +37,7 @@ import type {
 	TutorialStep,
 } from '@/types';
 import { TutorialOverlay, useTutorial } from '@/components/TutorialOverlay';
-import StatusRail from '@/components/faculty-shared/StatusRail';
+import FacultyGlobalHeader from '@/components/faculty-shared/FacultyGlobalHeader';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -45,7 +45,6 @@ import { Skeleton } from '@/ui/skeleton';
 import { Switch } from '@/ui/switch';
 import DesktopRoomRequestLayout from '@/components/faculty-room-preferences/DesktopRoomRequestLayout';
 import MobileRoomRequestLayout from '@/components/faculty-room-preferences/MobileRoomRequestLayout';
-import RoomRequestHeader from '@/components/faculty-room-preferences/RoomRequestHeader';
 import RoomRequestSheet from '@/components/faculty-room-preferences/RoomRequestSheet';
 import { useMobileConflictPreview } from '@/hooks/useMobileConflictPreview';
 
@@ -135,12 +134,16 @@ const FACULTY_ROOM_TUTORIAL_STEPS: TutorialStep[] = [
 	},
 ];
 
+import { CheckCircle2, XCircle, Clock, FileEdit, HelpCircle } from 'lucide-react';
+
+// ...
+
 function statusBadge(status: RoomPreferenceStatus | null, decision: RoomPreferenceDecisionStatus | null) {
-	if (decision === 'APPROVED') return <Badge variant='success'>Approved</Badge>;
-	if (decision === 'REJECTED') return <Badge variant='destructive'>Rejected</Badge>;
-	if (status === 'SUBMITTED') return <Badge variant='default'>Pending review</Badge>;
-	if (status === 'DRAFT') return <Badge variant='secondary'>Draft (not submitted)</Badge>;
-	return <Badge variant='outline'>No request</Badge>;
+	if (decision === 'APPROVED') return <Badge variant='success' className='text-xs h-5 px-1.5 gap-1'><CheckCircle2 className="size-3" /> Approved</Badge>;
+	if (decision === 'REJECTED') return <Badge variant='destructive' className='text-xs h-5 px-1.5 gap-1'><XCircle className="size-3" /> Rejected</Badge>;
+	if (status === 'SUBMITTED') return <Badge variant='default' className='text-xs h-5 px-1.5 gap-1'><Clock className="size-3" /> Pending</Badge>;
+	if (status === 'DRAFT') return <Badge variant='secondary' className='text-xs h-5 px-1.5 gap-1'><FileEdit className="size-3" /> Draft</Badge>;
+	return <Badge variant='outline' className='text-xs h-5 px-1.5 text-muted-foreground/60 gap-1'><HelpCircle className="size-3" /> No request</Badge>;
 }
 
 function isEntryDirty(current: FacultyRoomPreferenceEntry, initial?: FacultyRoomPreferenceEntry) {
@@ -163,6 +166,7 @@ function slotKey(day: string, startTime: string, endTime: string) {
 }
 
 export default function FacultyRoomPreferences() {
+	const [searchParams] = useSearchParams();
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [submitting, setSubmitting] = useState(false);
@@ -223,8 +227,15 @@ export default function FacultyRoomPreferences() {
 		setInitialEntries(state.entries);
 		setEntries(state.entries);
 		setGlobalEntries(state.globalEntries ?? []);
-		setSelectedSourceEntryId((current) => (current && state.entries.some((entry) => entry.entryId === current) ? current : state.entries[0]?.entryId ?? null));
-	}, []);
+		
+		const entryIdParam = searchParams.get('entryId');
+		if (entryIdParam && state.entries.some(e => e.entryId === entryIdParam)) {
+			setSelectedSourceEntryId(entryIdParam);
+			if (isMobileViewport) setMobileStep(2);
+		} else {
+			setSelectedSourceEntryId((current) => (current && state.entries.some((entry) => entry.entryId === current) ? current : state.entries[0]?.entryId ?? null));
+		}
+	}, [searchParams, isMobileViewport]);
 
 	const loadBootstrap = useCallback(async () => {
 		setLoading(true);
@@ -319,6 +330,7 @@ export default function FacultyRoomPreferences() {
 			);
 
 			const feedback: OutboxSyncFeedback[] = [];
+			const resultByAction = new Map(data.results.map((r) => [r.actionId, r]));
 			const remaining = syncingActions.flatMap((action) => {
 				const result = resultByAction.get(action.actionId);
 				if (result?.ok) {
@@ -555,43 +567,6 @@ export default function FacultyRoomPreferences() {
 			hiddenCount: Math.max(0, sorted.length - 3),
 		};
 	}, [presence]);
-	const presenceByConnection = useMemo(() => {
-		return new Map(presence.map((person) => [person.connectionId, person]));
-	}, [presence]);
-	const selectionCountBySlot = useMemo(() => {
-		const counts = new Map<string, number>();
-		for (const selection of Object.values(remoteSelections)) {
-			if (!selection.day || !selection.startTime || !selection.endTime) continue;
-			const key = slotKey(selection.day, selection.startTime, selection.endTime);
-			counts.set(key, (counts.get(key) ?? 0) + 1);
-		}
-		return counts;
-	}, [remoteSelections]);
-	const slotSelectionDetails = useMemo(() => {
-		const details = new Map<string, { count: number; actors: string[] }>();
-		for (const [connectionId, selection] of Object.entries(remoteSelections)) {
-			if (!selection.day || !selection.startTime || !selection.endTime) continue;
-			const key = slotKey(selection.day, selection.startTime, selection.endTime);
-			const actor = presenceByConnection.get(connectionId)?.email ?? `User ${connectionId.slice(-4)}`;
-			const current = details.get(key) ?? { count: 0, actors: [] };
-			current.count += 1;
-			if (!current.actors.includes(actor)) current.actors.push(actor);
-			details.set(key, current);
-		}
-		return details;
-	}, [presenceByConnection, remoteSelections]);
-	const entrySelectionDetails = useMemo(() => {
-		const details = new Map<string, { count: number; actors: string[] }>();
-		for (const [connectionId, selection] of Object.entries(remoteSelections)) {
-			if (!selection.entryId) continue;
-			const actor = presenceByConnection.get(connectionId)?.email ?? `User ${connectionId.slice(-4)}`;
-			const current = details.get(selection.entryId) ?? { count: 0, actors: [] };
-			current.count += 1;
-			if (!current.actors.includes(actor)) current.actors.push(actor);
-			details.set(selection.entryId, current);
-		}
-		return details;
-	}, [presenceByConnection, remoteSelections]);
 	const outboxStatusCounts = useMemo(() => {
 		return {
 			queued: outboxActions.filter((action) => action.status === 'queued' || action.status === 'retried').length,
@@ -612,7 +587,6 @@ export default function FacultyRoomPreferences() {
 		if (lastSyncedFeedback) return 'synced' as const;
 		return 'idle' as const;
 	}, [lastSyncedFeedback, online, outboxStatusCounts.failed, outboxStatusCounts.queued, outboxStatusCounts.syncing, syncingOutbox]);
-	const recentFailedFeedback = useMemo(() => outboxFeedback.filter((item) => item.status === 'FAILED').slice(0, 3), [outboxFeedback]);
 	const timeSlots = useMemo(() => {
 		const unique = new Map<string, { startTime: string; endTime: string }>();
 		for (const entry of globalEntries) {
@@ -783,6 +757,21 @@ export default function FacultyRoomPreferences() {
 		}
 	};
 
+	const advisory = useMemo(() => {
+		if (gate?.blocked) {
+			return {
+				title: 'Update paused',
+				message: `Please complete ${gate.openCount} open items before submitting more.`,
+				variant: 'warning' as const
+			};
+		}
+		return {
+			title: 'Review schedule active',
+			message: 'Submit your request and wait for scheduler decision.',
+			variant: 'info' as const
+		};
+	}, [gate]);
+
 	if (loading) {
 		return (
 			<div className='flex h-[calc(100svh-3.5rem)] flex-col px-4 py-4 sm:px-6 sm:py-6'>
@@ -815,187 +804,168 @@ export default function FacultyRoomPreferences() {
 
 	return (
 		<div className='flex h-[calc(100svh-3.5rem)] min-h-0 flex-col overflow-hidden'>
-				<div className='shrink-0 space-y-4 px-4 pt-4 pb-3 sm:px-6 sm:pt-6'>
-					{schoolYearNotice && (
-						<div className='rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900'>
-							{schoolYearNotice}
-						</div>
-					)}
-
-					{(!online || syncingOutbox || outboxCount > 0 || outboxStatusCounts.failed > 0 || Boolean(lastSyncedFeedback) || compactPresence.visible.length > 0) && (
-						<StatusRail
-							online={online}
-							syncState={syncLifecycleState}
-							queuedCount={outboxCount}
-							failedCount={outboxStatusCounts.failed}
-							lastSyncedAt={lastSyncedFeedback?.at ?? null}
-							liveViewers={compactPresence.visible.length + compactPresence.hiddenCount}
-							liveUpdates={liveUpdateCount}
-							realtimeConnected={collaborationConnected}
-							realtimeError={collaborationLastError}
-							onRetryFailed={retryFailedOutboxActions}
-						/>
-					)}
-
-					<RoomRequestHeader
-						isMobileViewport={isMobileViewport}
-						mobileStep={mobileStep}
-						currentStep={currentStep}
-						entriesCount={entries.length}
-						runGeneratedAt={runGeneratedAt}
-						submittedCount={submittedCount}
-						draftCount={draftCount}
-						gate={gate}
-						dirtyCount={dirtyEntries.length}
-					/>
-
-					<div className='space-y-2 rounded-xl border border-border bg-card px-3 py-2.5' data-tutorial='context-toggle'>
-						<div>
-							<p className='text-xs font-semibold text-foreground'>My Schedule First</p>
-							<p className='text-xs text-muted-foreground'>
-								Keep this off for the simple view. Turn on full schedule context only when you need more detail.
-							</p>
-						</div>
-						<div className='flex flex-wrap items-center gap-3'>
-							<div className='flex items-center gap-2'>
-								<Switch
-									checked={showFullScheduleContext}
-									onCheckedChange={setShowFullScheduleContext}
-									aria-label='Show full schedule context'
-								/>
-								<span className='text-xs text-muted-foreground'>Show full context</span>
-							</div>
-							<Button
-								type='button'
-								variant='outline'
-								size='sm'
-								onClick={tutorial.start}
-								data-tutorial='tour-replay-btn'
-							>
-								Take a quick tour
-							</Button>
-						</div>
+			<FacultyGlobalHeader
+				title='Room Change Requests'
+				subtitle={currentStep === 1 ? 'Pick the class you want to move.' : currentStep === 2 ? 'Pick the new time slot.' : 'Review the check and submit.'}
+				steps={[
+					{ id: 1, label: '1 Select Class' },
+					{ id: 2, label: '2 Choose Target' },
+					{ id: 3, label: '3 Submit' },
+				]}
+				activeStep={currentStep}
+				online={online}
+				syncState={syncLifecycleState}
+				queuedCount={outboxCount}
+				failedCount={outboxStatusCounts.failed}
+				lastSyncedAt={lastSyncedFeedback?.at ?? null}
+				liveViewers={compactPresence.visible.length + compactPresence.hiddenCount}
+				realtimeConnected={collaborationConnected}
+				advisory={advisory}
+				onRetryFailed={retryFailedOutboxActions}
+			>
+				{schoolYearNotice && (
+					<div className='rounded-xl border border-amber-200 bg-amber-50 px-3 py-1 text-[10px] font-bold text-amber-900 uppercase'>
+						{schoolYearNotice}
 					</div>
+				)}
+				
+				<div className='flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5 text-xs sm:text-sm'>
+					<span className='font-bold text-foreground'>{entries.length} classes</span>
+					<span className='text-border/60'>•</span>
+					<span className='text-muted-foreground'>{submittedCount} pending</span>
+					{dirtyCount > 0 && <Badge variant='warning' className="h-5 px-1.5 text-[10px]">Unsaved changes</Badge>}
+					<div className="flex-1" />
+					<div className='flex items-center gap-2' data-tutorial='context-toggle'>
+						<Switch
+							checked={showFullScheduleContext}
+							onCheckedChange={setShowFullScheduleContext}
+							className="scale-75"
+						/>
+						<span className='text-[11px] text-muted-foreground font-bold uppercase'>Full Context</span>
+					</div>
+				</div>
+			</FacultyGlobalHeader>
+
+			<div className="flex-1 min-h-0 overflow-hidden">
+				<MobileRoomRequestLayout
+					mobileStep={mobileStep}
+					entries={entries}
+					selectedSourceEntryId={selectedSourceEntryId}
+					selectedEntry={selectedEntry}
+					mobileTargets={mobileTargets}
+					showFullScheduleContext={showFullScheduleContext}
+					previewSlot={mobilePreview.previewSlot}
+					inlinePreview={mobilePreview.preview}
+					inlinePreviewLoading={mobilePreview.previewLoading}
+					onSelectSourceEntry={(entryId) => {
+						setSelectedSourceEntryId(entryId);
+						mobilePreview.clearPreview();
+						setMobileStep(2);
+						collaborationRef.current?.sendSelection({
+							schoolId: DEFAULT_SCHOOL_ID,
+							schoolYearId: activeSchoolYearId ?? 0,
+							runId: runId ?? 0,
+							entryId,
+							source: 'SESSION',
+						});
+					}}
+					onSelectTargetSlot={(target) => {
+						collaborationRef.current?.sendSelection({
+							schoolId: DEFAULT_SCHOOL_ID,
+							schoolYearId: activeSchoolYearId ?? 0,
+							runId: runId ?? 0,
+							day: target.day,
+							startTime: target.startTime,
+							endTime: target.endTime,
+							entryId: target.targetEntryId ?? undefined,
+							source: 'GRID_CELL',
+						});
+						void mobilePreview.selectTarget(target);
+					}}
+					onContinueToReview={() => {
+						if (mobilePreview.previewSlot) openRequestSheet(mobilePreview.previewSlot);
+					}}
+					onClearPreviewTarget={mobilePreview.clearPreview}
+					onStepBack={() => {
+						mobilePreview.clearPreview();
+						setMobileStep((s) => Math.max(1, s - 1) as 1 | 2 | 3);
+					}}
+					onStepForward={() => selectedSourceEntryId && setMobileStep(2)}
+					renderStatusBadge={statusBadge}
+				/>
+
+				<DesktopRoomRequestLayout
+					days={DAYS}
+					timeSlots={timeSlots}
+					globalBySlot={globalBySlot}
+					showFullScheduleContext={showFullScheduleContext}
+					selectionCountBySlot={selectionCountBySlot}
+					slotSelectionDetails={slotSelectionDetails}
+					entrySelectionDetails={entrySelectionDetails}
+					activeSchoolYearId={activeSchoolYearId}
+					runId={runId}
+					selectedSourceEntryId={selectedSourceEntryId}
+					selectedEntry={selectedEntry}
+					zoom={zoom}
+					onZoomOut={() => setZoom((current) => Math.max(0.7, Number((current - 0.1).toFixed(2))))}
+					onZoomIn={() => setZoom((current) => Math.min(1.5, Number((current + 0.1).toFixed(2))))}
+					onZoomReset={() => setZoom(1)}
+					roomSearch={roomSearch}
+					onRoomSearchChange={setRoomSearch}
+					filteredRooms={filteredRooms}
+					onAssignRoomToEntry={assignRoomToEntry}
+					onSelectSourceEntry={(entryId) => {
+						setSelectedSourceEntryId(entryId);
+					}}
+					onSelectTargetFromGrid={(payload) => {
+						collaborationRef.current?.sendSelection({
+							schoolId: DEFAULT_SCHOOL_ID,
+							schoolYearId: activeSchoolYearId ?? 0,
+							runId: runId ?? 0,
+							day: payload.day,
+							startTime: payload.startTime,
+							endTime: payload.endTime,
+							entryId: payload.targetEntryId ?? undefined,
+							source: 'GRID_CELL',
+						});
+						openRequestSheet(payload);
+					}}
+					onUpdateSelectedRationale={updateSelectedRationale}
+					renderStatusBadge={statusBadge}
+				/>
 			</div>
 
-<MobileRoomRequestLayout
-mobileStep={mobileStep}
-entries={entries}
-selectedSourceEntryId={selectedSourceEntryId}
-selectedEntry={selectedEntry}
-mobileTargets={mobileTargets}
-showFullScheduleContext={showFullScheduleContext}
-previewSlot={mobilePreview.previewSlot}
-inlinePreview={mobilePreview.preview}
-inlinePreviewLoading={mobilePreview.previewLoading}
-onSelectSourceEntry={(entryId) => {
-setSelectedSourceEntryId(entryId);
-mobilePreview.clearPreview();
-setMobileStep(2);
-collaborationRef.current?.sendSelection({
-schoolId: DEFAULT_SCHOOL_ID,
-schoolYearId: activeSchoolYearId ?? 0,
-runId: runId ?? 0,
-entryId,
-source: 'SESSION',
-});
-}}
-onSelectTargetSlot={(target) => {
-collaborationRef.current?.sendSelection({
-schoolId: DEFAULT_SCHOOL_ID,
-schoolYearId: activeSchoolYearId ?? 0,
-runId: runId ?? 0,
-day: target.day,
-startTime: target.startTime,
-endTime: target.endTime,
-entryId: target.targetEntryId ?? undefined,
-source: 'GRID_CELL',
-});
-void mobilePreview.selectTarget(target);
-}}
-onContinueToReview={() => {
-if (mobilePreview.previewSlot) openRequestSheet(mobilePreview.previewSlot);
-}}
-onClearPreviewTarget={mobilePreview.clearPreview}
-onStepBack={() => {
-mobilePreview.clearPreview();
-setMobileStep((s) => Math.max(1, s - 1) as 1 | 2 | 3);
-}}
-onStepForward={() => selectedSourceEntryId && setMobileStep(2)}
-renderStatusBadge={statusBadge}
-/>
+			<RoomRequestSheet
+				open={requestSheetOpen}
+				onOpenChange={(open) => {
+					setRequestSheetOpen(open);
+					if (!open) mobilePreview.clearPreview();
+				}}
+				selectedEntry={selectedEntry}
+				targetSlot={targetSlot}
+				actionType={actionType}
+				onActionTypeChange={(value) => setActionType(value as RequestActionType)}
+				requestedRoomId={requestedRoomId}
+				onRequestedRoomIdChange={setRequestedRoomId}
+				requestRoomSearch={requestRoomSearch}
+				onRequestRoomSearchChange={setRequestRoomSearch}
+				requestRoomOptions={requestRoomOptions}
+				buildings={buildings}
+				campusImageUrl={campusImageUrl}
+				reason={reason}
+				onReasonChange={setReason}
+				reasonRequired={reasonRequired}
+				previewLoading={previewLoading}
+				requestPreview={requestPreview}
+				submitting={submitting}
+				onSubmit={() => void submitCurrentRequest()}
+			/>
 
-<DesktopRoomRequestLayout
-days={DAYS}
-timeSlots={timeSlots}
-globalBySlot={globalBySlot}
-showFullScheduleContext={showFullScheduleContext}
-selectionCountBySlot={selectionCountBySlot}
-slotSelectionDetails={slotSelectionDetails}
-entrySelectionDetails={entrySelectionDetails}
-activeSchoolYearId={activeSchoolYearId}
-runId={runId}
-selectedSourceEntryId={selectedSourceEntryId}
-selectedEntry={selectedEntry}
-zoom={zoom}
-onZoomOut={() => setZoom((current) => Math.max(0.7, Number((current - 0.1).toFixed(2))))}
-onZoomIn={() => setZoom((current) => Math.min(1.5, Number((current + 0.1).toFixed(2))))}
-onZoomReset={() => setZoom(1)}
-roomSearch={roomSearch}
-onRoomSearchChange={setRoomSearch}
-filteredRooms={filteredRooms}
-onAssignRoomToEntry={assignRoomToEntry}
-onSelectSourceEntry={(entryId) => {
-setSelectedSourceEntryId(entryId);
-}}
-onSelectTargetFromGrid={(payload) => {
-collaborationRef.current?.sendSelection({
-schoolId: DEFAULT_SCHOOL_ID,
-schoolYearId: activeSchoolYearId ?? 0,
-runId: runId ?? 0,
-day: payload.day,
-startTime: payload.startTime,
-endTime: payload.endTime,
-entryId: payload.targetEntryId ?? undefined,
-source: 'GRID_CELL',
-});
-openRequestSheet(payload);
-}}
-onUpdateSelectedRationale={updateSelectedRationale}
-renderStatusBadge={statusBadge}
-/>
-
-<RoomRequestSheet
-open={requestSheetOpen}
-onOpenChange={(open) => {
-setRequestSheetOpen(open);
-if (!open) mobilePreview.clearPreview();
-}}
-selectedEntry={selectedEntry}
-targetSlot={targetSlot}
-actionType={actionType}
-onActionTypeChange={(value) => setActionType(value as RequestActionType)}
-requestedRoomId={requestedRoomId}
-onRequestedRoomIdChange={setRequestedRoomId}
-requestRoomSearch={requestRoomSearch}
-onRequestRoomSearchChange={setRequestRoomSearch}
-requestRoomOptions={requestRoomOptions}
-buildings={buildings}
-campusImageUrl={campusImageUrl}
-reason={reason}
-onReasonChange={setReason}
-reasonRequired={reasonRequired}
-previewLoading={previewLoading}
-requestPreview={requestPreview}
-submitting={submitting}
-onSubmit={() => void submitCurrentRequest()}
-/>
-
-<TutorialOverlay
-steps={FACULTY_ROOM_TUTORIAL_STEPS}
-active={tutorial.active}
-onComplete={tutorial.complete}
-/>
-</div>
-);
+			<TutorialOverlay
+				steps={FACULTY_ROOM_TUTORIAL_STEPS}
+				active={tutorial.active}
+				onComplete={tutorial.complete}
+			/>
+		</div>
+	);
 }

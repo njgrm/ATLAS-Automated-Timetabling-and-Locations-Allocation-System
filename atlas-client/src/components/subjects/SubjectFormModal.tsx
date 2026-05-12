@@ -80,6 +80,20 @@ export function SubjectFormModal({
 		});
 	};
 
+	const [newFeature, setNewFeature] = useState('');
+	const addFeature = () => {
+		if (!newFeature.trim()) return;
+		const feat = newFeature.trim().toUpperCase();
+		if (!form.requiredFeatures.includes(feat)) {
+			setForm(p => ({ ...p, requiredFeatures: [...p.requiredFeatures, feat] }));
+		}
+		setNewFeature('');
+	};
+
+	const removeFeature = (feat: string) => {
+		setForm(p => ({ ...p, requiredFeatures: p.requiredFeatures.filter(f => f !== feat) }));
+	};
+
 	const canSave = form.code.trim().length > 0 && form.name.trim().length > 0 && !saving;
 
 	return (
@@ -329,6 +343,61 @@ export function SubjectFormModal({
 						</div>
 					</div>
 				)}
+
+				{/* Required Room Features */}
+				<div>
+					<label className="text-xs font-medium text-muted-foreground">
+						Required Room Features{' '}
+						<span className="font-normal text-muted-foreground/70">(e.g. Greenhouse, Welding, ICT-Lab)</span>
+					</label>
+					<div className="mt-1 flex flex-col gap-2">
+						<div className="flex gap-2">
+							<Input 
+								placeholder="Add a feature requirement..." 
+								value={newFeature}
+								onChange={(e) => setNewFeature(e.target.value)}
+								onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addFeature(); } }}
+								className="h-8 text-xs"
+							/>
+							<Button type="button" size="sm" onClick={addFeature} className="h-8 px-3">Add</Button>
+						</div>
+						<div className="flex flex-wrap gap-1.5">
+							{form.requiredFeatures.map((feat) => (
+								<Badge 
+									key={feat} 
+									variant="secondary" 
+									className="px-2 py-0.5 text-[0.65rem] flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200"
+								>
+									{feat}
+									<button 
+										type="button" 
+										onClick={() => removeFeature(feat)}
+										className="hover:text-red-600 transition-colors"
+									>
+										×
+									</button>
+								</Badge>
+							))}
+							{form.requiredFeatures.length === 0 && (
+								<span className="text-[0.65rem] text-muted-foreground italic">No specific room requirements.</span>
+							)}
+						</div>
+						
+						{/* Suggestions */}
+						<div className="flex flex-wrap gap-1 mt-1">
+							{['GREENHOUSE', 'WELDING', 'GAS_STOVE', 'INTERNET', 'PROJECTOR', 'SINKS'].filter(s => !form.requiredFeatures.includes(s)).map(s => (
+								<button
+									key={s}
+									type="button"
+									onClick={() => setForm(p => ({ ...p, requiredFeatures: [...p.requiredFeatures, s] }))}
+									className="text-[0.6rem] bg-muted/50 hover:bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border/50 transition-colors"
+								>
+									+ {s}
+								</button>
+							))}
+						</div>
+					</div>
+				</div>
 
 				<DialogFooter>
 					<Button variant="outline" onClick={onClose} disabled={saving}>

@@ -28,6 +28,10 @@ export const VIOLATION_EXPLANATIONS: Record<string, { why: string; fix: string }
 		why: "The subject requires a specific room type (e.g., Lab) but is placed in a different type (e.g., Classroom).",
 		fix: 'Change the room to one that matches the subject\'s preferred room type.',
 	},
+	ROOM_FEATURE_MISMATCH: {
+		why: "The subject requires specific room features or equipment (e.g., Greenhouse, Internet) that are missing from the assigned room.",
+		fix: 'Move to a room that has the required features, or update the room features in the Campus Map editor.',
+	},
 	FACULTY_SUBJECT_NOT_QUALIFIED: {
 		why: 'This teacher is not assigned to teach this particular subject at this grade level.',
 		fix: 'Reassign to a qualified teacher, or update Faculty Assignments to add this subject to the teacher.',

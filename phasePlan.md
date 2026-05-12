@@ -96,8 +96,11 @@ It defines phase scope, acceptance gates, and the current progress state.
   - Initial dashboard with lifecycle widget and setup checklist
 - **Exit criteria (passed)**
   - Server routes mounted under `/api/v1/...`
-  - Core setup entities persisted via Prisma
-  - Basic officer setup flow navigable end-to-end
+  - **Audit Wave 4: Specialization Hardening** (Delivered 2026-05-12)
+  - Tiered Qualification Matcher (Specialization > Dept > Alias)
+  - Dynamic Specialization Alias system (No more hardcoded keywords)
+  - Unified Qualification Audit Dashboard
+  - Load-aware coverage suggestions in Subjects UI
 
 ## Phase 1 - Setup Completion
 - **Status:** Completed
