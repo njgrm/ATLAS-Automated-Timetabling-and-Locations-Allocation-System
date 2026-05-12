@@ -3,6 +3,7 @@ import {
 	AlertCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useSearchParams } from 'react-router-dom';
 
 import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';

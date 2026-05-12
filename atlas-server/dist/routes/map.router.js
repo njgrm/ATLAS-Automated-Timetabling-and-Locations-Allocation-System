@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/authenticate.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as mapService from '../services/map.service.js';
 const router = Router();
+const BUILDING_SHORT_CODE_MAX = 20;
 // Configure multer for campus image uploads
 const storage = multer.diskStorage({
     destination: path.resolve(import.meta.dirname, '../../uploads'),
@@ -49,6 +50,10 @@ router.post('/schools/:schoolId/buildings', authenticate, requirePrivilegedRole,
         res.status(400).json({ code: 'MISSING_FIELDS', message: 'name, x, y, width, height, color are required.' });
         return;
     }
+    if (typeof shortCode === 'string' && shortCode.length > BUILDING_SHORT_CODE_MAX) {
+        res.status(400).json({ code: 'INVALID_SHORT_CODE', message: `shortCode must be ${BUILDING_SHORT_CODE_MAX} characters or fewer.` });
+        return;
+    }
     const building = await mapService.upsertBuilding(schoolId, { name, x, y, width, height, color, rotation, floorCount, isTeachingBuilding, shortCode });
     res.status(201).json({ building });
 });
@@ -57,6 +62,10 @@ router.patch('/buildings/:id', authenticate, requirePrivilegedRole, async (req, 
     const id = Number(req.params.id);
     if (Number.isNaN(id)) {
         res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
+        return;
+    }
+    if (typeof req.body?.shortCode === 'string' && req.body.shortCode.length > BUILDING_SHORT_CODE_MAX) {
+        res.status(400).json({ code: 'INVALID_SHORT_CODE', message: `shortCode must be ${BUILDING_SHORT_CODE_MAX} characters or fewer.` });
         return;
     }
     const building = await mapService.updateBuilding(id, req.body);

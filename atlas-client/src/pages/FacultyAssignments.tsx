@@ -608,9 +608,16 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 		</span>
 	</div>
 	<div className="flex items-center gap-1.5 mt-0.5 min-w-0">
-		<span className="truncate text-[0.625rem] text-muted-foreground uppercase flex-1">
-			{member.specialization || member.department || 'General'}
-		</span>
+		<div className="flex flex-col min-w-0 flex-1">
+			{member.department && (
+				<span className="truncate text-[0.55rem] font-bold uppercase tracking-wider text-muted-foreground/70">
+					{member.department}
+				</span>
+			)}
+			<span className="truncate text-[0.625rem] text-muted-foreground uppercase">
+				{member.specialization || (member.department ? '' : 'General')}
+			</span>
+		</div>
 		<div className="flex flex-col items-end gap-0.5 shrink-0">
 			<span className={`text-[0.6rem] font-bold ${(member as any).loadPercentage > 100 ? 'text-red-600' : (member as any).loadPercentage > 90 ? 'text-amber-600' : 'text-emerald-600'}`}>
 				{(member as any).loadPercentage}%

@@ -347,7 +347,7 @@ export default function Faculty() {
 														{f.department ? (
 															<span className="text-[0.6875rem] uppercase tracking-wide text-muted-foreground font-medium">{f.department}</span>
 														) : null}
-														<span className="text-sm">{f.specialization ?? f.department ?? '—'}</span>
+														<span className="text-sm">{f.specialization || (f.department ? 'General' : '—')}</span>
 													</div>
 												</td>
 												<td className="px-4 py-3 text-muted-foreground text-[0.8125rem]">{f.contactInfo ?? '—'}</td>

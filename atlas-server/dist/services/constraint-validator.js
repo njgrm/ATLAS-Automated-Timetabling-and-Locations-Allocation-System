@@ -13,6 +13,7 @@ export const VIOLATION_CODES = [
     'SECTION_TIME_CONFLICT',
     'FACULTY_OVERLOAD',
     'ROOM_TYPE_MISMATCH',
+    'ROOM_FEATURE_MISMATCH',
     'ROOM_CAPACITY_EXCEEDED',
     'FACULTY_SUBJECT_NOT_QUALIFIED',
     'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED',
@@ -172,6 +173,7 @@ export function validateHardConstraints(ctx) {
         const subject = subjectMap.get(e.subjectId);
         if (!room || !subject)
             continue;
+        // Type match
         if (room.type !== subject.preferredRoomType) {
             violations.push({
                 ...base,
@@ -180,6 +182,20 @@ export function validateHardConstraints(ctx) {
                 entities: { roomId: e.roomId, subjectId: e.subjectId, sectionId: e.sectionId, entryIds: [e.entryId] },
                 meta: { roomType: room.type, preferredRoomType: subject.preferredRoomType },
             });
+        }
+        // Feature match
+        if (subject.requiredFeatures && subject.requiredFeatures.length > 0) {
+            const roomFeatures = new Set(room.features || []);
+            const missing = subject.requiredFeatures.filter(f => !roomFeatures.has(f));
+            if (missing.length > 0) {
+                violations.push({
+                    ...base,
+                    code: 'ROOM_FEATURE_MISMATCH',
+                    message: `Entry ${e.entryId}: room ${e.roomId} lacks required features: ${missing.join(', ')}.`,
+                    entities: { roomId: e.roomId, subjectId: e.subjectId, sectionId: e.sectionId, entryIds: [e.entryId] },
+                    meta: { required: subject.requiredFeatures, actual: room.features || [], missing },
+                });
+            }
         }
     }
     // ── 4b) Room capacity exceeded ──

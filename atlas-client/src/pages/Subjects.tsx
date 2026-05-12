@@ -12,6 +12,7 @@ import {
 	Pencil,
 	Plus,
 	Search,
+	Star,
 	Trash2,
 	Users,
 	X,
@@ -61,8 +62,8 @@ export default function Subjects() {
 	// Teacher coverage drilldown
 	const [expandedSubjectId, setExpandedSubjectId] = useState<number | null>(null);
 	const [teacherCoverage, setTeacherCoverage] = useState<Record<number, { 
-		assigned: { name: string; grades: number[] }[], 
-		eligible: { name: string; tier: number }[] 
+		assigned: { facultyId: number; name: string; grades: number[]; load: number }[], 
+		eligible: { facultyId: number; name: string; tier: number; load: number }[] 
 	}>>({});
 	const [coverageLoading, setCoverageLoading] = useState(false);
 
@@ -106,6 +107,46 @@ export default function Subjects() {
 		});
 	}, [fetchSubjects]);
 
+	const handleAssignTeacher = async (facultyId: number, subjectId: number) => {
+		try {
+			setCoverageLoading(true);
+			const currentRes = await atlasApi.get(`/faculty-assignments/${facultyId}`, {
+				params: { schoolYearId: 1 }
+			});
+			const { version, assignments } = currentRes.data;
+			
+			const newAssignments = [
+				...assignments.map((a: any) => ({
+					subjectId: a.subject.id,
+					gradeLevels: a.gradeLevels,
+					sectionIds: a.sections.map((s: any) => s.id)
+				})),
+				{ subjectId, gradeLevels: [], sectionIds: [] }
+			];
+
+			await atlasApi.put(`/faculty-assignments/${facultyId}`, {
+				schoolId: DEFAULT_SCHOOL_ID,
+				schoolYearId: 1,
+				version,
+				assignments: newAssignments
+			});
+
+			toast.success('Teacher assigned successfully.');
+			
+			// Force refetch by clearing state and toggling again
+			setTeacherCoverage(prev => {
+				const newState = { ...prev };
+				delete newState[subjectId];
+				return newState;
+			});
+			setExpandedSubjectId(null);
+			setTimeout(() => toggleTeacherCoverage(subjectId), 50);
+		} catch (err: any) {
+			toast.error(err.response?.data?.message || 'Failed to assign teacher');
+			setCoverageLoading(false);
+		}
+	};
+
 	const toggleTeacherCoverage = useCallback(async (subjectId: number) => {
 		if (expandedSubjectId === subjectId) {
 			setExpandedSubjectId(null);
@@ -123,8 +164,8 @@ export default function Subjects() {
 				params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId: 1 }, 
 			});
 			
-			const assigned: { name: string; grades: number[]; load: number }[] = [];
-			const eligible: { name: string; tier: number; load: number }[] = [];
+			const assigned: { facultyId: number; name: string; grades: number[]; load: number }[] = [];
+			const eligible: { facultyId: number; name: string; tier: number; load: number }[] = [];
 
 			for (const f of data.faculty ?? []) {
 				const isAssigned = (f.assignments ?? []).some((a: any) => a.subjectId === subjectId);
@@ -132,6 +173,7 @@ export default function Subjects() {
 				if (isAssigned) {
 					const assignment = f.assignments.find((a: any) => a.subjectId === subjectId);
 					assigned.push({ 
+						facultyId: f.id,
 						name: `${f.lastName}, ${f.firstName}`, 
 						grades: assignment.gradeLevels ?? [],
 						load
@@ -140,6 +182,7 @@ export default function Subjects() {
 					const tier = getQualificationTier(f, targetSubject);
 					if (tier === 1 || tier === 2) {
 						eligible.push({ 
+							facultyId: f.id,
 							name: `${f.lastName}, ${f.firstName}`, 
 							tier: tier as number,
 							load
@@ -613,9 +656,14 @@ export default function Subjects() {
 																						<span className="truncate font-medium">{t.name}</span>
 																						<span className="text-[0.65rem] text-muted-foreground">{t.load}% Load</span>
 																					</div>
-																					<Badge variant="outline" className={`text-[0.5rem] px-1 py-0 shrink-0 ${t.tier === 1 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-sky-50 text-sky-700 border-sky-200'}`}>
-																						{t.tier === 1 ? 'Spec' : 'Dept'}
-																					</Badge>
+																					<div className="flex items-center gap-2">
+																						<Badge variant="outline" className={`text-[0.5rem] px-1 py-0 shrink-0 ${t.tier === 1 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-sky-50 text-sky-700 border-sky-200'}`}>
+																							{t.tier === 1 ? 'Spec' : 'Dept'}
+																						</Badge>
+																						<Button variant="outline" size="sm" className="h-5 text-[0.6rem] px-2 py-0" onClick={() => handleAssignTeacher(t.facultyId, s.id)}>
+																							Assign
+																						</Button>
+																					</div>
 																				</div>
 																			))}
 																		</div>

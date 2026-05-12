@@ -367,27 +367,66 @@ export function constructBaseline(input) {
             qualifiedMap.set(key, arr);
         }
     }
-    function intersectCandidateLists(candidateLists) {
-        if (candidateLists.length === 0)
-            return [];
-        let intersection = [...candidateLists[0]];
-        for (let index = 1; index < candidateLists.length; index++) {
-            const candidateSet = new Set(candidateLists[index]);
-            intersection = intersection.filter((facultyId) => candidateSet.has(facultyId));
-            if (intersection.length === 0)
-                return [];
+    function isFacultyQualified(f, s) {
+        const allowed = s.allowedSpecializations ?? [];
+        if (allowed.length === 0)
+            return true; // No restriction
+        // Tier 1: Explicit Specialization
+        if (f.specialization && allowed.includes(f.specialization))
+            return true;
+        // Tier 2: Structural Department
+        if (f.department && allowed.includes(f.department))
+            return true;
+        // Tier 3: Alias Mapping
+        if (input.specializationAliases && input.specializationAliases.length > 0) {
+            const facultyTerms = [f.specialization, f.department].filter(Boolean);
+            for (const alias of input.specializationAliases) {
+                if (facultyTerms.includes(alias.alias) && allowed.includes(alias.canonical)) {
+                    return true;
+                }
+            }
         }
-        return intersection.sort((left, right) => left - right);
+        return false;
     }
-    function getQualifiedFacultyIds(item) {
+    function getQualifiedFacultyIds(item, day, slot, pi) {
+        const subject = subjectMap.get(item.subjectId);
+        // Priority 1: Explicit Assignments from qualifiedMap
+        let candidates = [];
         if (item.entryKind === 'COHORT' && item.cohortMemberSectionIds && item.cohortMemberSectionIds.length > 0) {
             const candidateLists = item.cohortMemberSectionIds.map((sectionId) => qualifiedMap.get(`${item.subjectId}:${sectionId}`) ?? []);
-            if (candidateLists.some((candidateList) => candidateList.length === 0)) {
-                return [];
+            if (!candidateLists.some((candidateList) => candidateList.length === 0)) {
+                candidates = intersectCandidateLists(candidateLists);
             }
-            return intersectCandidateLists(candidateLists);
         }
-        return [...(qualifiedMap.get(`${item.subjectId}:${item.sectionId}`) ?? [])].sort((left, right) => left - right);
+        else {
+            candidates = [...(qualifiedMap.get(`${item.subjectId}:${item.sectionId}`) ?? [])];
+        }
+        // Priority 2: Fallback to Tiered Qualification
+        if (candidates.length === 0 && subject) {
+            candidates = faculty.filter(f => isFacultyQualified(f, subject)).map(f => f.id);
+        }
+        if (candidates.length === 0) {
+            return { ids: [], reason: 'NO_QUALIFIED_FACULTY' };
+        }
+        // Filter candidates based on load and availability at this specific slot
+        const available = candidates.filter(facId => {
+            const currentLoad = facultyLoad.get(facId) ?? 0;
+            const maxLoad = facultyMax.get(facId) ?? 0;
+            if (currentLoad + item.durationPerSession > maxLoad)
+                return false;
+            if (facultyOcc.isOccupied(facId, day, slot.startTime, slot.endTime))
+                return false;
+            const facPrefs = prefLookup.get(facId);
+            if (facPrefs?.get(`${day}:${pi}`) === 'UNAVAILABLE')
+                return false;
+            return true;
+        });
+        if (available.length === 0) {
+            // Check if it's overload or preference
+            const overloaded = candidates.every(facId => (facultyLoad.get(facId) ?? 0) + item.durationPerSession > (facultyMax.get(facId) ?? 0));
+            return { ids: [], reason: overloaded ? 'FACULTY_OVERLOADED' : 'NO_AVAILABLE_SLOT' };
+        }
+        return { ids: available.sort((a, b) => a - b) };
     }
     // Preference lookup
     const prefLookup = buildPreferenceLookup(preferences, PERIOD_SLOTS);
@@ -601,113 +640,107 @@ export function constructBaseline(input) {
                 return timeToMinutes(slot.startTime) >= gw.startMin && timeToMinutes(slot.endTime) <= gw.endMin;
             });
         }
-        // Get qualified faculty; if none and flexible assignment is enabled, use all faculty
-        let candidateFaculty = getQualifiedFacultyIds(item);
-        if (candidateFaculty.length === 0 && allowFlexible) {
-            candidateFaculty = allFacultyIds;
-        }
-        // Get compatible rooms by type, then filter by grade level building assignment if applicable
-        let compatibleRooms = roomsByType.get(item.roomTypePreference ?? subject.preferredRoomType) ?? [];
-        // Filter rooms to match grade level if room has a building assignment
-        if (compatibleRooms.length > 0 && buildingGradeMap.size > 0) {
-            compatibleRooms = compatibleRooms.filter((room) => {
-                const buildingId = room.buildingId;
-                if (!buildingId)
-                    return true; // No building assignment, allow usage
-                const buildingGradeLevel = buildingGradeMap.get(buildingId);
-                if (buildingGradeLevel === null)
-                    return true; // Shared building (null grade level), allow usage
-                return buildingGradeLevel === item.gradeLevel; // Only allow if grade level matches
-            });
-        }
         // Track which days we already used for this section-subject pair (spread sessions across days)
         const daysUsedForPair = new Set();
+        // Track failure reasons across all attempts for this session
+        const sessionFailureReasons = new Set();
         for (let session = 0; session < sessionsNeeded; session++) {
             let placed = false;
-            // Try each faculty candidate (sorted by id)
-            for (const facId of candidateFaculty) {
+            // Build possible slot candidates first (deterministic scoring)
+            const possibleSlots = [];
+            for (let di = 0; di < DAYS.length; di++) {
+                const day = DAYS[di];
+                const allowedDays = SESSION_PATTERN_DAYS[item.sessionPattern] ?? SESSION_PATTERN_DAYS.ANY;
+                if (!allowedDays.has(day))
+                    continue;
+                for (const pi of gradeValidPeriods) {
+                    const slot = PERIOD_SLOTS[pi];
+                    if (getDemandSectionIds(item).some((sectionId) => sectionOcc.isOccupied(sectionId, day, slot.startTime, slot.endTime)))
+                        continue;
+                    let score = 1;
+                    if (daysUsedForPair.has(day))
+                        score += 10;
+                    possibleSlots.push({ day, pi, score });
+                }
+            }
+            // Sort slots by score
+            possibleSlots.sort((a, b) => {
+                if (a.score !== b.score)
+                    return a.score - b.score;
+                const dayDiff = DAYS.indexOf(a.day) - DAYS.indexOf(b.day);
+                if (dayDiff !== 0)
+                    return dayDiff;
+                return a.pi - b.pi;
+            });
+            // For each slot, try to find a qualified and available teacher + room
+            for (const slotCandidate of possibleSlots) {
                 if (placed)
                     break;
-                // Check faculty load
-                const currentLoad = facultyLoad.get(facId) ?? 0;
-                const maxLoad = facultyMax.get(facId) ?? 0;
-                if (currentLoad + item.durationPerSession > maxLoad)
+                const slot = PERIOD_SLOTS[slotCandidate.pi];
+                const { ids: candidates, reason: qReason } = getQualifiedFacultyIds(item, slotCandidate.day, slot, slotCandidate.pi);
+                if (qReason)
+                    sessionFailureReasons.add(qReason);
+                if (candidates.length === 0)
                     continue;
-                // Get faculty preference map
-                const facPrefs = prefLookup.get(facId);
-                // Build slot candidates with deterministic scoring
-                const candidates = [];
-                for (let di = 0; di < DAYS.length; di++) {
-                    const day = DAYS[di];
-                    // Session pattern: skip days not matching subject's preferred pattern
-                    const allowedDays = SESSION_PATTERN_DAYS[item.sessionPattern] ?? SESSION_PATTERN_DAYS.ANY;
-                    if (!allowedDays.has(day))
-                        continue;
-                    // Policy: check daily max before considering this day
-                    if (policy) {
-                        const dailyKey = `${facId}:${day}`;
-                        const dailyUsed = facultyDailyMinutes.get(dailyKey) ?? 0;
-                        if (dailyUsed + item.durationPerSession > policy.maxTeachingMinutesPerDay)
-                            continue;
-                    }
-                    const periodsToCheck = gradeValidPeriods;
-                    for (const pi of periodsToCheck) {
-                        const slot = PERIOD_SLOTS[pi];
-                        if (getDemandSectionIds(item).some((sectionId) => sectionOcc.isOccupied(sectionId, day, slot.startTime, slot.endTime)))
-                            continue;
-                        if (facultyOcc.isOccupied(facId, day, slot.startTime, slot.endTime))
-                            continue;
-                        const prefKey = `${day}:${pi}`;
-                        const pref = facPrefs?.get(prefKey);
-                        if (pref === 'UNAVAILABLE')
-                            continue;
-                        // Policy: check consecutive teaching limit
-                        if (wouldExceedConsecutive(facId, day, pi, item.durationPerSession)) {
-                            policyBlockedCount++;
-                            continue;
-                        }
-                        // Score: PREFERRED=0, AVAILABLE/other=1, +10 if day already used for this pair
-                        let score = pref === 'PREFERRED' ? 0 : 1;
-                        if (daysUsedForPair.has(day))
-                            score += 10;
-                        candidates.push({ day, pi, score });
-                    }
+                // We have qualified teachers! Now try rooms
+                let compatibleRooms = roomsByType.get(item.roomTypePreference ?? subject.preferredRoomType) ?? [];
+                if (compatibleRooms.length > 0 && buildingGradeMap.size > 0) {
+                    compatibleRooms = compatibleRooms.filter((room) => {
+                        const buildingId = room.buildingId;
+                        if (!buildingId)
+                            return true;
+                        const buildingGradeLevel = buildingGradeMap.get(buildingId);
+                        if (buildingGradeLevel === null)
+                            return true;
+                        return buildingGradeLevel === item.gradeLevel;
+                    });
                 }
-                // Deterministic sort: score → day index → period index
-                candidates.sort((a, b) => {
-                    if (a.score !== b.score)
-                        return a.score - b.score;
-                    const dayDiff = DAYS.indexOf(a.day) - DAYS.indexOf(b.day);
-                    if (dayDiff !== 0)
-                        return dayDiff;
-                    return a.pi - b.pi;
-                });
-                // Try each slot with compatible rooms
-                for (const cand of candidates) {
+                if (compatibleRooms.length === 0) {
+                    sessionFailureReasons.add('NO_COMPATIBLE_ROOM');
+                    continue;
+                }
+                for (const facId of candidates) {
                     if (placed)
                         break;
-                    for (const room of compatibleRooms) {
-                        const slot = PERIOD_SLOTS[cand.pi];
-                        if (roomOcc.isOccupied(room.id, cand.day, slot.startTime, slot.endTime))
+                    // Final policy checks for this teacher
+                    if (policy) {
+                        const dailyKey = `${facId}:${slotCandidate.day}`;
+                        const dailyUsed = facultyDailyMinutes.get(dailyKey) ?? 0;
+                        if (dailyUsed + item.durationPerSession > policy.maxTeachingMinutesPerDay) {
+                            sessionFailureReasons.add('FACULTY_OVERLOADED');
                             continue;
-                        // Capacity check: skip room if section enrollment exceeds room capacity
+                        }
+                        if (wouldExceedConsecutive(facId, slotCandidate.day, slotCandidate.pi, item.durationPerSession)) {
+                            policyBlockedCount++;
+                            // consecutive is a complex block, but treat as unavailable for now
+                            sessionFailureReasons.add('NO_AVAILABLE_SLOT');
+                            continue;
+                        }
+                    }
+                    for (const room of compatibleRooms) {
+                        if (roomOcc.isOccupied(room.id, slotCandidate.day, slot.startTime, slot.endTime))
+                            continue;
                         if (room.capacity != null && item.enrolledCount > room.capacity)
                             continue;
-                        // Consecutive lab check: skip if would create adjacent lab sessions
-                        if (getDemandSectionIds(item).some((sectionId) => wouldCreateConsecutiveLab(sectionId, cand.day, cand.pi, room.type)))
+                        // Feature check: Room must have all required features
+                        if (subject.requiredFeatures && subject.requiredFeatures.length > 0) {
+                            const roomFeatures = new Set(room.features || []);
+                            if (!subject.requiredFeatures.every(f => roomFeatures.has(f)))
+                                continue;
+                        }
+                        if (getDemandSectionIds(item).some((sectionId) => wouldCreateConsecutiveLab(sectionId, slotCandidate.day, slotCandidate.pi, room.type)))
                             continue;
                         // Place the entry
                         entryCounter++;
-                        const period = PERIOD_SLOTS[cand.pi];
                         entries.push({
                             entryId: `entry-${entryCounter}`,
                             facultyId: facId,
                             roomId: room.id,
                             subjectId: item.subjectId,
                             sectionId: item.sectionId,
-                            day: cand.day,
-                            startTime: period.startTime,
-                            endTime: period.endTime,
+                            day: slotCandidate.day,
+                            startTime: slot.startTime,
+                            endTime: slot.endTime,
                             durationMinutes: item.durationPerSession,
                             entryKind: item.entryKind,
                             programType: item.programType ?? null,
@@ -721,27 +754,24 @@ export function constructBaseline(input) {
                             adviserName: item.adviserName ?? null,
                         });
                         // Mark occupancy
-                        facultyOcc.mark(facId, cand.day, period.startTime, period.endTime);
-                        roomOcc.mark(room.id, cand.day, period.startTime, period.endTime);
+                        facultyOcc.mark(facId, slotCandidate.day, slot.startTime, slot.endTime);
+                        roomOcc.mark(room.id, slotCandidate.day, slot.startTime, slot.endTime);
                         for (const sectionId of getDemandSectionIds(item)) {
-                            sectionOcc.mark(sectionId, cand.day, period.startTime, period.endTime);
+                            sectionOcc.mark(sectionId, slotCandidate.day, slot.startTime, slot.endTime);
                         }
-                        // Update load
-                        facultyLoad.set(facId, currentLoad + item.durationPerSession);
-                        // Track daily minutes and period indices for policy
-                        const dailyKey = `${facId}:${cand.day}`;
+                        facultyLoad.set(facId, (facultyLoad.get(facId) ?? 0) + item.durationPerSession);
+                        const dailyKey = `${facId}:${slotCandidate.day}`;
                         facultyDailyMinutes.set(dailyKey, (facultyDailyMinutes.get(dailyKey) ?? 0) + item.durationPerSession);
                         const dayPeriods = facultyDayPeriods.get(dailyKey) ?? [];
-                        dayPeriods.push(cand.pi);
+                        dayPeriods.push(slotCandidate.pi);
                         facultyDayPeriods.set(dailyKey, dayPeriods);
-                        daysUsedForPair.add(cand.day);
+                        daysUsedForPair.add(slotCandidate.day);
                         placed = true;
-                        // Track lab periods for consecutive lab check
                         if (LAB_ROOM_TYPES.has(room.type)) {
                             for (const sectionId of getDemandSectionIds(item)) {
-                                const labKey = `${sectionId}:${cand.day}`;
+                                const labKey = `${sectionId}:${slotCandidate.day}`;
                                 const labPeriods = sectionDayLabPeriods.get(labKey) ?? [];
-                                labPeriods.push(cand.pi);
+                                labPeriods.push(slotCandidate.pi);
                                 sectionDayLabPeriods.set(labKey, labPeriods);
                             }
                         }
@@ -753,24 +783,14 @@ export function constructBaseline(input) {
                 assignedCount++;
             }
             else {
-                // Determine the reason for failure
+                // Priority of reasons: NO_QUALIFIED > FACULTY_OVERLOADED > NO_COMPATIBLE_ROOM > NO_AVAILABLE_SLOT
                 let reason = 'NO_AVAILABLE_SLOT';
-                if (candidateFaculty.length === 0) {
+                if (sessionFailureReasons.has('NO_QUALIFIED_FACULTY'))
                     reason = 'NO_QUALIFIED_FACULTY';
-                }
-                else if (compatibleRooms.length === 0) {
+                else if (sessionFailureReasons.has('FACULTY_OVERLOADED'))
+                    reason = 'FACULTY_OVERLOADED';
+                else if (sessionFailureReasons.has('NO_COMPATIBLE_ROOM'))
                     reason = 'NO_COMPATIBLE_ROOM';
-                }
-                else {
-                    // Check if all faculty were overloaded
-                    const allOverloaded = candidateFaculty.every((fid) => {
-                        const load = facultyLoad.get(fid) ?? 0;
-                        const max = facultyMax.get(fid) ?? 0;
-                        return load + item.durationPerSession > max;
-                    });
-                    if (allOverloaded)
-                        reason = 'FACULTY_OVERLOADED';
-                }
                 unassignedItems.push({
                     sectionId: item.sectionId,
                     subjectId: item.subjectId,

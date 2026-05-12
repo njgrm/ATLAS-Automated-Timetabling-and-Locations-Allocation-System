@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/authenticate.js';
+import { authenticate, authenticateWithSystemToken } from '../middleware/authenticate.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import { prisma } from '../lib/prisma.js';
 import * as facultyService from '../services/faculty.service.js';
+import { fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
 const router = Router();
 // Auth: GET /faculty/me?schoolId=X — resolve caller's linked faculty mirror
 router.get('/me', authenticate, async (req, res, next) => {
@@ -65,7 +66,6 @@ function parseSyncMode(value) {
 async function handleFacultySync(req, res, next, modeOverride) {
     try {
         const schoolId = Number(req.body.schoolId);
-        const schoolYearId = req.body.schoolYearId !== undefined ? Number(req.body.schoolYearId) : 1;
         if (!schoolId || Number.isNaN(schoolId)) {
             res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
             return;
@@ -79,11 +79,23 @@ async function handleFacultySync(req, res, next, modeOverride) {
             return;
         }
         const authToken = req.headers.authorization?.slice(7);
-        const result = await facultyService.syncFacultyFromExternal(schoolId, schoolYearId, authToken, {
-            mode,
-            pruneSectionAssignments: true,
-            invalidateRuns: true,
-        });
+        // Resolve schoolYearId: use caller-supplied value if present, otherwise fetch from EnrollPro.
+        let schoolYearId;
+        if (req.body.schoolYearId !== undefined) {
+            schoolYearId = Number(req.body.schoolYearId);
+        }
+        else {
+            const activeYear = await fetchEnrollProActiveSchoolYear(authToken);
+            schoolYearId = activeYear?.id ?? 1;
+        }
+        const [result, activeYear] = await Promise.all([
+            facultyService.syncFacultyFromExternal(schoolId, schoolYearId, authToken, {
+                mode,
+                pruneSectionAssignments: true,
+                invalidateRuns: true,
+            }),
+            fetchEnrollProActiveSchoolYear(authToken),
+        ]);
         if (!result.synced) {
             res.status(502).json({
                 code: 'SYNC_FAILED',
@@ -108,6 +120,7 @@ async function handleFacultySync(req, res, next, modeOverride) {
             seededAssignments: result.seededAssignments,
             isStale: result.isStale,
             staleReason: result.staleReason,
+            ...(activeYear ? { enrollProActiveYear: activeYear.yearLabel } : {}),
         });
     }
     catch (err) {
@@ -115,11 +128,11 @@ async function handleFacultySync(req, res, next, modeOverride) {
     }
 }
 // Auth: POST /faculty/sync — trigger sync from external source
-router.post('/sync', authenticate, async (req, res, next) => {
+router.post('/sync', authenticateWithSystemToken, async (req, res, next) => {
     await handleFacultySync(req, res, next);
 });
 // Auth: POST /faculty/sync/reset — deterministic prune reset from source of truth
-router.post('/sync/reset', authenticate, async (req, res, next) => {
+router.post('/sync/reset', authenticateWithSystemToken, async (req, res, next) => {
     await handleFacultySync(req, res, next, 'prune');
 });
 // Auth: GET /faculty/advisers?schoolId=X — list advisers with homeroom info
@@ -132,6 +145,37 @@ router.get('/advisers', authenticate, async (req, res, next) => {
         }
         const advisers = await facultyService.getFacultyWithAdviserInfo(schoolId);
         res.json({ advisers });
+    }
+    catch (err) {
+        next(err);
+    }
+});
+// Auth: GET /faculty/specializations?schoolId=X — distinct non-stale specialization/department values
+router.get('/specializations', async (req, res, next) => {
+    try {
+        const schoolId = Number(req.query.schoolId);
+        if (!schoolId || Number.isNaN(schoolId)) {
+            res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
+            return;
+        }
+        // Fetch distinct specializations and departments
+        const [specRows, deptRows] = await Promise.all([
+            prisma.facultyMirror.findMany({
+                where: { schoolId, isStale: false, specialization: { not: null } },
+                select: { specialization: true },
+                distinct: ['specialization'],
+            }),
+            prisma.facultyMirror.findMany({
+                where: { schoolId, isStale: false, department: { not: null } },
+                select: { department: true },
+                distinct: ['department'],
+            }),
+        ]);
+        const specializations = Array.from(new Set([
+            ...specRows.map((r) => r.specialization),
+            ...deptRows.map((r) => r.department),
+        ])).sort();
+        res.json({ specializations });
     }
     catch (err) {
         next(err);
@@ -203,27 +247,6 @@ router.patch('/:id', authenticate, async (req, res, next) => {
             return;
         }
         res.json({ faculty: result.faculty });
-    }
-    catch (err) {
-        next(err);
-    }
-});
-// Auth: GET /faculty/specializations?schoolId=X — distinct non-stale specialization values
-router.get('/specializations', async (req, res, next) => {
-    try {
-        const schoolId = Number(req.query.schoolId);
-        if (!schoolId || Number.isNaN(schoolId)) {
-            res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
-            return;
-        }
-        const rows = await prisma.facultyMirror.findMany({
-            where: { schoolId, isStale: false, department: { not: null } },
-            select: { department: true },
-            distinct: ['department'],
-            orderBy: { department: 'asc' },
-        });
-        const specializations = rows.map((r) => r.department);
-        res.json({ specializations });
     }
     catch (err) {
         next(err);

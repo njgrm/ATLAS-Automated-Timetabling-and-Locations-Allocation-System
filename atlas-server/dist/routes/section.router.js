@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/authenticate.js';
+import { authenticate, authenticateWithSystemToken } from '../middleware/authenticate.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as sectionService from '../services/section.service.js';
-import { sectionSourceMode } from '../services/section-adapter.js';
+import { syncSectionsFromExternal } from '../services/section.service.js';
+import { sectionSourceMode, fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
 const router = Router();
 // Auth: GET /sections/summary/:schoolYearId
 router.get('/summary/:schoolYearId', authenticate, requirePrivilegedRole, async (req, res, next) => {
@@ -34,6 +35,37 @@ router.get('/summary/:schoolYearId', authenticate, requirePrivilegedRole, async 
             });
             return;
         }
+        next(err);
+    }
+});
+/**
+ * POST /api/v1/sections/sync
+ * Manually trigger a reconciliation from EnrollPro sections into ATLAS SectionMirror.
+ */
+router.post('/sync', authenticateWithSystemToken, requirePrivilegedRole, async (req, res, next) => {
+    try {
+        const schoolId = Number(req.body.schoolId);
+        if (!schoolId) {
+            res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required' });
+            return;
+        }
+        const authToken = req.headers.authorization?.slice(7);
+        // Resolve schoolYearId: use caller-supplied value if present, otherwise fetch from EnrollPro.
+        let schoolYearId;
+        if (req.body.schoolYearId !== undefined) {
+            schoolYearId = Number(req.body.schoolYearId);
+        }
+        else {
+            const activeYear = await fetchEnrollProActiveSchoolYear(authToken);
+            schoolYearId = activeYear?.id ?? 1;
+        }
+        const [result, activeYear] = await Promise.all([
+            syncSectionsFromExternal(schoolId, schoolYearId, authToken),
+            fetchEnrollProActiveSchoolYear(authToken),
+        ]);
+        res.json({ ...result, ...(activeYear ? { enrollProActiveYear: activeYear.yearLabel } : {}) });
+    }
+    catch (err) {
         next(err);
     }
 });

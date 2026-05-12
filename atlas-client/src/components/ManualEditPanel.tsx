@@ -309,7 +309,7 @@ export default function ManualEditPanel({
 			deptMap.get(dept)!.push({
 				value: String(f.id),
 				label: `${tierLabel}${f.lastName}, ${f.firstName}`,
-				subLabel: `${loadHours}h / ${f.maxHoursPerWeek}h max${f.specialization ? ` · ${f.specialization}` : ''}`,
+				subLabel: `${loadHours}h / ${f.maxHoursPerWeek}h max${f.department ? ` · ${f.department}` : ''}${f.specialization ? ` · ${f.specialization}` : ''}`,
 				tier,
 			});
 		}

@@ -1,7 +1,13 @@
 /**
- * Section service — bridge to section adapter.
- * Returns a summary of sections by grade level sourced from the enrollment service.
- * Wave 3.5: includes fetchedAt, isStale, and special program metadata.
+ * Section service — Wave 5 Durable Mirroring
+ * Bridges to section adapter and maintains a local SectionMirror
+ * for high availability and local overrides.
  */
 import { type SectionSummary } from './section-adapter.js';
+export declare function syncSectionsFromExternal(schoolId: number, schoolYearId: number, authToken?: string): Promise<{
+    synced: boolean;
+    count: number;
+    source: string;
+    fetchedAt: Date;
+}>;
 export declare function getSectionSummary(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionSummary>;

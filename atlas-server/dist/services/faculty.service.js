@@ -50,6 +50,7 @@ async function loadSnapshot(schoolId, schoolYearId) {
 }
 function toExternalComparable(faculty) {
     return {
+        employeeId: faculty.employeeId ?? null,
         firstName: faculty.firstName,
         lastName: faculty.lastName,
         department: faculty.department ?? null,
@@ -65,7 +66,8 @@ function toExternalComparable(faculty) {
 }
 function isMirrorEquivalent(local, external) {
     const normalized = toExternalComparable(external);
-    return (local.firstName === normalized.firstName
+    return (local.employeeId === normalized.employeeId
+        && local.firstName === normalized.firstName
         && local.lastName === normalized.lastName
         && local.department === normalized.department
         && local.specialization === normalized.specialization

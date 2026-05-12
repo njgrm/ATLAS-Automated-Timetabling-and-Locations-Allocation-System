@@ -54,11 +54,11 @@ async function loadRunContext(runId, schoolId, schoolYearId) {
         }),
         prisma.room.findMany({
             where: { building: { schoolId } },
-            select: { id: true, name: true, buildingId: true, type: true, capacity: true, building: { select: { name: true, shortCode: true } } },
+            select: { id: true, name: true, buildingId: true, type: true, capacity: true, features: true, building: { select: { name: true, shortCode: true } } },
         }),
         prisma.subject.findMany({
             where: { schoolId },
-            select: { id: true, code: true, name: true },
+            select: { id: true, code: true, name: true, requiredFeatures: true },
         }),
         prisma.sectionSnapshot.findUnique({
             where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
@@ -238,6 +238,7 @@ const VIOLATION_TITLES = {
     ROOM_TIME_CONFLICT: 'Room Time Conflict',
     FACULTY_OVERLOAD: 'Faculty Overload',
     ROOM_TYPE_MISMATCH: 'Room Type Mismatch',
+    ROOM_FEATURE_MISMATCH: 'Room Feature Mismatch',
     FACULTY_SUBJECT_NOT_QUALIFIED: 'Faculty Not Qualified',
     FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: 'Consecutive Teaching Limit',
     FACULTY_BREAK_REQUIREMENT_VIOLATED: 'Break Requirement Violated',
@@ -301,6 +302,16 @@ function buildHumanConflicts(violations, entries, refData) {
             }
             case 'ROOM_TYPE_MISMATCH': {
                 detail = `${rName} type does not match preferred room type for subject`;
+                break;
+            }
+            case 'ROOM_FEATURE_MISMATCH': {
+                const m = v.meta;
+                if (Array.isArray(m?.missing) && m.missing.length > 0) {
+                    detail = `${rName} lacks required feature(s): ${m.missing.join(', ')}`;
+                }
+                else {
+                    detail = `${rName} does not meet specialized feature requirements for this subject`;
+                }
                 break;
             }
             case 'FACULTY_SUBJECT_NOT_QUALIFIED': {

@@ -5,21 +5,21 @@
  */
 // Realistic stub data for development
 const STUB_FACULTY = [
-    { id: 101, firstName: 'Maria', lastName: 'Santos', department: 'Languages', specialization: 'Filipino', contactInfo: 'maria.santos@school.edu.ph' },
-    { id: 102, firstName: 'Jose', lastName: 'Cruz', department: 'Languages', specialization: 'English', contactInfo: 'jose.cruz@school.edu.ph' },
-    { id: 103, firstName: 'Ana', lastName: 'Reyes', department: 'Mathematics', specialization: 'Mathematics', contactInfo: 'ana.reyes@school.edu.ph' },
-    { id: 104, firstName: 'Pedro', lastName: 'Garcia', department: 'Science', specialization: 'Science', contactInfo: 'pedro.garcia@school.edu.ph' },
-    { id: 105, firstName: 'Rosa', lastName: 'Mendoza', department: 'Social Studies', specialization: 'Araling Panlipunan', contactInfo: 'rosa.mendoza@school.edu.ph' },
-    { id: 106, firstName: 'Juan', lastName: 'Dela Cruz', department: 'MAPEH', specialization: 'MAPEH', contactInfo: 'juan.delacruz@school.edu.ph' },
-    { id: 107, firstName: 'Luz', lastName: 'Villanueva', department: 'TLE', specialization: 'TLE/ICT', contactInfo: 'luz.villanueva@school.edu.ph' },
-    { id: 108, firstName: 'Carlos', lastName: 'Ramos', department: 'Values Education', specialization: 'EsP', contactInfo: 'carlos.ramos@school.edu.ph' },
-    { id: 109, firstName: 'Elena', lastName: 'Bautista', department: 'Mathematics', specialization: 'Mathematics', contactInfo: 'elena.bautista@school.edu.ph' },
-    { id: 110, firstName: 'Miguel', lastName: 'Fernandez', department: 'Science', specialization: 'Science/STE', contactInfo: 'miguel.fernandez@school.edu.ph' },
-    { id: 111, firstName: 'Carmen', lastName: 'Aquino', department: 'Languages', specialization: 'English', contactInfo: 'carmen.aquino@school.edu.ph' },
-    { id: 112, firstName: 'Roberto', lastName: 'Lim', department: 'Languages', specialization: 'Filipino', contactInfo: 'roberto.lim@school.edu.ph' },
-    { id: 113, firstName: 'Teresa', lastName: 'Tan', department: 'Social Studies', specialization: 'Araling Panlipunan', contactInfo: 'teresa.tan@school.edu.ph' },
-    { id: 114, firstName: 'Rafael', lastName: 'Navarro', department: 'MAPEH', specialization: 'MAPEH', contactInfo: 'rafael.navarro@school.edu.ph' },
-    { id: 115, firstName: 'Isabella', lastName: 'De Leon', department: 'Science', specialization: 'Science/STE', contactInfo: 'isabella.deleon@school.edu.ph' },
+    { id: 101, employeeId: '1000001', firstName: 'Maria', lastName: 'Santos', department: 'Languages', specialization: 'Filipino', contactInfo: 'maria.santos@school.edu.ph' },
+    { id: 102, employeeId: '1000002', firstName: 'Jose', lastName: 'Cruz', department: 'Languages', specialization: 'English', contactInfo: 'jose.cruz@school.edu.ph' },
+    { id: 103, employeeId: '1000003', firstName: 'Ana', lastName: 'Reyes', department: 'Mathematics', specialization: 'Mathematics', contactInfo: 'ana.reyes@school.edu.ph' },
+    { id: 104, employeeId: '1000004', firstName: 'Pedro', lastName: 'Garcia', department: 'Science', specialization: 'Science', contactInfo: 'pedro.garcia@school.edu.ph' },
+    { id: 105, employeeId: '1000005', firstName: 'Rosa', lastName: 'Mendoza', department: 'Social Studies', specialization: 'Araling Panlipunan', contactInfo: 'rosa.mendoza@school.edu.ph' },
+    { id: 106, employeeId: '1000006', firstName: 'Juan', lastName: 'Dela Cruz', department: 'MAPEH', specialization: 'MAPEH', contactInfo: 'juan.delacruz@school.edu.ph' },
+    { id: 107, employeeId: '1000007', firstName: 'Luz', lastName: 'Villanueva', department: 'TLE', specialization: 'TLE/ICT', contactInfo: 'luz.villanueva@school.edu.ph' },
+    { id: 108, employeeId: '1000008', firstName: 'Carlos', lastName: 'Ramos', department: 'Values Education', specialization: 'EsP', contactInfo: 'carlos.ramos@school.edu.ph' },
+    { id: 109, employeeId: '1000009', firstName: 'Elena', lastName: 'Bautista', department: 'Mathematics', specialization: 'Mathematics', contactInfo: 'elena.bautista@school.edu.ph' },
+    { id: 110, employeeId: '1000010', firstName: 'Miguel', lastName: 'Fernandez', department: 'Science', specialization: 'Science/STE', contactInfo: 'miguel.fernandez@school.edu.ph' },
+    { id: 111, employeeId: '1000011', firstName: 'Carmen', lastName: 'Aquino', department: 'Languages', specialization: 'English', contactInfo: 'carmen.aquino@school.edu.ph' },
+    { id: 112, employeeId: '1000012', firstName: 'Roberto', lastName: 'Lim', department: 'Languages', specialization: 'Filipino', contactInfo: 'roberto.lim@school.edu.ph' },
+    { id: 113, employeeId: '1000013', firstName: 'Teresa', lastName: 'Tan', department: 'Social Studies', specialization: 'Araling Panlipunan', contactInfo: 'teresa.tan@school.edu.ph' },
+    { id: 114, employeeId: '1000014', firstName: 'Rafael', lastName: 'Navarro', department: 'MAPEH', specialization: 'MAPEH', contactInfo: 'rafael.navarro@school.edu.ph' },
+    { id: 115, employeeId: '1000015', firstName: 'Isabella', lastName: 'De Leon', department: 'Science', specialization: 'Science/STE', contactInfo: 'isabella.deleon@school.edu.ph' },
 ];
 export class StubFacultyAdapter {
     async fetchFacultyBySchoolYear(_schoolId, _schoolYearId) {
@@ -37,29 +37,33 @@ export class EnrollProFacultyAdapter {
     constructor(baseUrl) {
         this.baseUrl = baseUrl;
     }
-    async fetchFacultyBySchoolYear(_schoolId, _schoolYearId, _authToken) {
-        // Use the ATLAS faculty-sync endpoint which returns both department and specialization
-        const url = `${this.baseUrl}/teachers/atlas/faculty-sync`;
-        const res = await fetch(url);
+    async fetchFacultyBySchoolYear(_schoolId, _schoolYearId, authToken) {
+        // Use the public integration/v1/faculty endpoint — no auth required
+        const url = `${this.baseUrl}/integration/v1/faculty`;
+        const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
+        const res = await fetch(url, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
         if (!res.ok) {
             throw new Error(`EnrollPro API returned ${res.status}: ${res.statusText}`);
         }
         const data = (await res.json());
-        const teachers = (data.teachers ?? [])
+        const teachers = (data.data ?? [])
             .filter((t) => t.isActive)
             .map((t) => ({
             id: t.teacherId,
+            employeeId: t.employeeId || null,
             firstName: t.firstName,
             lastName: t.lastName,
-            department: t.department ?? null,
+            department: null,
             specialization: t.specialization ?? null,
             employmentStatus: 'PERMANENT',
-            isClassAdviser: !!t.advisedSectionId,
-            advisoryEquivalentHours: t.advisoryEquivalentHoursPerWeek ?? (t.advisedSectionId ? 5 : 0),
+            isClassAdviser: !!(t.isClassAdviser || t.advisorySectionId),
+            advisoryEquivalentHours: t.advisoryEquivalentHoursPerWeek ?? (t.advisorySectionId ? 5 : 0),
             canTeachOutsideDepartment: false,
             contactInfo: t.email ?? t.contactNumber ?? null,
-            advisedSectionId: t.advisedSectionId ?? null,
-            advisedSectionName: t.advisedSectionName ?? null,
+            advisedSectionId: t.advisorySectionId ?? null,
+            advisedSectionName: t.advisorySectionName ?? null,
         }));
         return {
             teachers,

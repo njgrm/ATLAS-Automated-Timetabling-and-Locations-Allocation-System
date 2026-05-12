@@ -1,13 +1,17 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
-import { loginWithEmailPassword } from '../services/local-auth.service.js';
+import { login } from '../services/local-auth.service.js';
 const router = Router();
 router.post('/login', async (req, res, next) => {
     try {
-        const email = typeof req.body?.email === 'string' ? req.body.email : '';
+        const identifier = typeof req.body?.identifier === 'string'
+            ? req.body.identifier
+            : typeof req.body?.email === 'string'
+                ? req.body.email
+                : '';
         const password = typeof req.body?.password === 'string' ? req.body.password : '';
-        const result = await loginWithEmailPassword({
-            email,
+        const result = await login({
+            identifier,
             password,
             ipAddress: req.ip || 'unknown',
             userAgent: req.get('user-agent') ?? undefined,

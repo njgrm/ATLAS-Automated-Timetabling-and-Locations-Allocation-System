@@ -334,6 +334,50 @@ async function main() {
 	console.log(`✅ Seeded ${facultyCreated} faculty members with ${assignmentsCreated} subject assignments.`);
 
 	// ═══════════════════════════════════════════════════════════════════════════
+	// SPECIALIZATION ALIASES — EnrollPro department terms → ATLAS subject codes
+	// ═══════════════════════════════════════════════════════════════════════════
+
+	const aliasSeeds = [
+		// Direct subject name aliases (common LIS/HR "specialization" values)
+		{ alias: 'Filipino', canonical: 'FIL' },
+		{ alias: 'English', canonical: 'ENG' },
+		{ alias: 'Mathematics', canonical: 'MATH' },
+		{ alias: 'Science', canonical: 'SCI' },
+		{ alias: 'Araling Panlipunan', canonical: 'AP' },
+		{ alias: 'MAPEH', canonical: 'MAPEH' },
+		{ alias: 'Edukasyon sa Pagpapakatao', canonical: 'ESP' },
+		{ alias: 'Technology and Livelihood Education', canonical: 'TLE' },
+		{ alias: 'Homeroom Guidance', canonical: 'HG' },
+		// Department name mappings (from EnrollPro department field)
+		{ alias: 'Languages', canonical: 'ENG' },
+		{ alias: 'Social Studies', canonical: 'AP' },
+		{ alias: 'Values', canonical: 'ESP' },
+		{ alias: 'Guidance', canonical: 'HG' },
+		// Common shorthand / alternate spellings
+		{ alias: 'Math', canonical: 'MATH' },
+		{ alias: 'Fil', canonical: 'FIL' },
+		{ alias: 'TLE/ICT', canonical: 'TLE' },
+	];
+
+	let aliasCount = 0;
+	for (const alias of aliasSeeds) {
+		const subject = await prisma.subject.findFirst({
+			where: { schoolId: school.id, code: alias.canonical },
+		});
+		if (!subject) {
+			console.log(`⚠️  Skipping alias "${alias.alias}" → ${alias.canonical} (subject not found)`);
+			continue;
+		}
+		await prisma.specializationAlias.upsert({
+			where: { schoolId_canonical_alias: { schoolId: school.id, canonical: alias.canonical, alias: alias.alias } },
+			update: { canonical: alias.canonical },
+			create: { schoolId: school.id, alias: alias.alias, canonical: alias.canonical },
+		});
+		aliasCount++;
+	}
+	console.log(`✅ Seeded ${aliasCount} specialization alias mappings.`);
+
+	// ═══════════════════════════════════════════════════════════════════════════
 	// ATLAS AUTH ACCOUNTS — Scheduling Officer and demo faculty
 	// ═══════════════════════════════════════════════════════════════════════════
 

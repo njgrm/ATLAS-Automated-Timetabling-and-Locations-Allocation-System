@@ -39,6 +39,7 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
     firstName: string;
     lastName: string;
     department: string | null;
+    specialization: string | null;
     employmentStatus: string;
     isClassAdviser: boolean;
     advisoryEquivalentHours: number;
@@ -49,6 +50,7 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
     subjectCount: number;
     sectionCount: number;
     subjectHours: number;
+    loadPercentage: number;
     assignments: {
         gradeLevels: number[];
         sectionIds: number[];

@@ -62,6 +62,7 @@ export interface FacultyListResult {
 interface LocalMirrorComparable {
     id: number;
     externalId: number;
+    employeeId: string | null;
     firstName: string;
     lastName: string;
     department: string | null;
@@ -112,6 +113,7 @@ export declare function getFacultyById(id: number): Promise<({
             interSectionGradeLevels: number[];
             programScopes: import("@prisma/client").$Enums.ProgramType[];
             allowedSpecializations: string[];
+            requiredFeatures: string[];
         };
     } & {
         schoolId: number;
@@ -131,6 +133,7 @@ export declare function getFacultyById(id: number): Promise<({
     createdAt: Date;
     id: number;
     externalId: number;
+    employeeId: string | null;
     firstName: string;
     lastName: string;
     department: string | null;
@@ -172,6 +175,7 @@ export declare function updateFacultyMirror(id: number, data: Partial<{
         createdAt: Date;
         id: number;
         externalId: number;
+        employeeId: string | null;
         firstName: string;
         lastName: string;
         department: string | null;

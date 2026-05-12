@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
-import { authenticate } from '../middleware/authenticate.js';
+import { authenticate, authenticateWithSystemToken } from '../middleware/authenticate.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import { prisma } from '../lib/prisma.js';
 import * as facultyService from '../services/faculty.service.js';
@@ -37,7 +37,8 @@ router.get('/me', authenticate, async (req: Request, res: Response, next: NextFu
 });
 
 // All remaining /faculty routes are scheduler/admin-only.
-router.use(authenticate, requirePrivilegedRole);
+// Allow either a normal JWT or the static ATLAS_SYSTEM_TOKEN.
+router.use(authenticateWithSystemToken, requirePrivilegedRole);
 
 // Auth: GET /faculty?schoolId=X&includeStale=true|false
 router.get('/', authenticate, async (req: Request, res: Response, next: NextFunction) => {
@@ -88,23 +89,24 @@ async function handleFacultySync(req: Request, res: Response, next: NextFunction
 		}
 
 		const authToken = req.headers.authorization?.slice(7);
+		const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
 
 		// Resolve schoolYearId: use caller-supplied value if present, otherwise fetch from EnrollPro.
 		let schoolYearId: number;
 		if (req.body.schoolYearId !== undefined) {
 			schoolYearId = Number(req.body.schoolYearId);
 		} else {
-			const activeYear = await fetchEnrollProActiveSchoolYear(authToken);
+			const activeYear = await fetchEnrollProActiveSchoolYear(upstreamAuthToken);
 			schoolYearId = activeYear?.id ?? 1;
 		}
 
 		const [result, activeYear] = await Promise.all([
-			facultyService.syncFacultyFromExternal(schoolId, schoolYearId, authToken, {
+			facultyService.syncFacultyFromExternal(schoolId, schoolYearId, upstreamAuthToken, {
 				mode,
 				pruneSectionAssignments: true,
 				invalidateRuns: true,
 			}),
-			fetchEnrollProActiveSchoolYear(authToken),
+			fetchEnrollProActiveSchoolYear(upstreamAuthToken),
 		]);
 		if (!result.synced) {
 			res.status(502).json({
@@ -138,12 +140,12 @@ async function handleFacultySync(req: Request, res: Response, next: NextFunction
 }
 
 // Auth: POST /faculty/sync — trigger sync from external source
-router.post('/sync', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/sync', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
 	await handleFacultySync(req, res, next);
 });
 
 // Auth: POST /faculty/sync/reset — deterministic prune reset from source of truth
-router.post('/sync/reset', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/sync/reset', authenticateWithSystemToken, async (req: Request, res: Response, next: NextFunction) => {
 	await handleFacultySync(req, res, next, 'prune');
 });
 
@@ -157,6 +159,40 @@ router.get('/advisers', authenticate, async (req: Request, res: Response, next: 
 		}
 		const advisers = await facultyService.getFacultyWithAdviserInfo(schoolId);
 		res.json({ advisers });
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: GET /faculty/specializations?schoolId=X — distinct non-stale specialization/department values
+router.get('/specializations', async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.query.schoolId);
+		if (!schoolId || Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
+			return;
+		}
+		
+		// Fetch distinct specializations and departments
+		const [specRows, deptRows] = await Promise.all([
+			prisma.facultyMirror.findMany({
+				where: { schoolId, isStale: false, specialization: { not: null } },
+				select: { specialization: true },
+				distinct: ['specialization'],
+			}),
+			prisma.facultyMirror.findMany({
+				where: { schoolId, isStale: false, department: { not: null } },
+				select: { department: true },
+				distinct: ['department'],
+			}),
+		]);
+
+		const specializations = Array.from(new Set([
+			...specRows.map((r) => r.specialization as string),
+			...deptRows.map((r) => r.department as string),
+		])).sort();
+
+		res.json({ specializations });
 	} catch (err) {
 		next(err);
 	}
@@ -241,40 +277,6 @@ router.patch('/:id', authenticate, async (req: Request, res: Response, next: Nex
 			return;
 		}
 		res.json({ faculty: result.faculty });
-	} catch (err) {
-		next(err);
-	}
-});
-
-// Auth: GET /faculty/specializations?schoolId=X — distinct non-stale specialization/department values
-router.get('/specializations', async (req: Request, res: Response, next: NextFunction) => {
-	try {
-		const schoolId = Number(req.query.schoolId);
-		if (!schoolId || Number.isNaN(schoolId)) {
-			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
-			return;
-		}
-		
-		// Fetch distinct specializations and departments
-		const [specRows, deptRows] = await Promise.all([
-			prisma.facultyMirror.findMany({
-				where: { schoolId, isStale: false, specialization: { not: null } },
-				select: { specialization: true },
-				distinct: ['specialization'],
-			}),
-			prisma.facultyMirror.findMany({
-				where: { schoolId, isStale: false, department: { not: null } },
-				select: { department: true },
-				distinct: ['department'],
-			}),
-		]);
-
-		const specializations = Array.from(new Set([
-			...specRows.map((r) => r.specialization as string),
-			...deptRows.map((r) => r.department as string),
-		])).sort();
-
-		res.json({ specializations });
 	} catch (err) {
 		next(err);
 	}

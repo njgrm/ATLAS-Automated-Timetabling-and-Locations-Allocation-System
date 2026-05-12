@@ -6,6 +6,8 @@ export type LocalAuthUser = {
     schoolId: number;
     accountId: number;
     email: string;
+    employeeId?: string | null;
+    accountName?: string | null;
 };
 export type LocalLoginResult = {
     ok: true;
@@ -18,8 +20,8 @@ export type LocalLoginResult = {
     message: string;
     retryAfterSeconds?: number;
 };
-export declare function loginWithEmailPassword(params: {
-    email: string;
+export declare function login(params: {
+    identifier: string;
     password: string;
     ipAddress: string;
     userAgent?: string;

@@ -24,6 +24,7 @@ import type { RoomType } from '@prisma/client';
 export interface SubjectInput {
     id: number;
     code: string;
+    name: string;
     minMinutesPerWeek: number;
     preferredRoomType: RoomType;
     sessionPattern: 'MWF' | 'TTH' | 'ANY';
@@ -32,6 +33,7 @@ export interface SubjectInput {
     interSectionGradeLevels?: number[];
     /** Stored program scopes from DB — used for data-driven filtering */
     programScopes?: string[];
+    allowedSpecializations?: string[];
 }
 export interface InstructionalCohortInput {
     cohortCode: string;
@@ -45,6 +47,8 @@ export interface InstructionalCohortInput {
 export interface FacultyInput {
     id: number;
     maxHoursPerWeek: number;
+    specialization: string | null;
+    department: string | null;
 }
 export interface FacultySubjectInput {
     facultyId: number;
@@ -106,6 +110,10 @@ declare function buildSpecialEventSlots(policy?: PolicyInput): PeriodSlot[];
 declare function mergeDisplaySlots(periodSlots: PeriodSlot[], specialEventSlots: PeriodSlot[]): PeriodSlot[];
 /** Exported for use by room-schedule service and other consumers. */
 export { buildPeriodSlots, buildSpecialEventSlots, mergeDisplaySlots, type PeriodSlot };
+export interface SpecializationAliasInput {
+    canonical: string;
+    alias: string;
+}
 export interface ConstructorInput {
     schoolId: number;
     schoolYearId: number;
@@ -123,6 +131,7 @@ export interface ConstructorInput {
         id: number;
         name: string;
     }>;
+    specializationAliases?: SpecializationAliasInput[];
     /**
      * Per-program period length overrides from class templates.
      * Key: program type (e.g. 'STE', 'SPA'). Value: period length in minutes.

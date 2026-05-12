@@ -1,27 +1,44 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
-import { authenticate } from '../middleware/authenticate.js';
+import { authenticate, authenticateWithSystemToken } from '../middleware/authenticate.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as assignmentService from '../services/faculty-assignment.service.js';
+import { fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
 
 const router = Router();
 
 // Auth: GET /faculty-assignments/summary?schoolId=X&schoolYearId=Y
-router.get('/summary', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/summary', authenticateWithSystemToken, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const schoolId = Number(req.query.schoolId);
 		if (!schoolId || Number.isNaN(schoolId)) {
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
 			return;
 		}
-		const schoolYearId = Number(req.query.schoolYearId);
-		if (!schoolYearId || Number.isNaN(schoolYearId)) {
-			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId query parameter is required.' });
-			return;
-		}
 		const authToken = req.headers.authorization?.slice(7);
-		const summary = await assignmentService.getAssignmentSummary(schoolId, schoolYearId, authToken);
-		res.json({ faculty: summary });
+		const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
+
+		let schoolYearId: number;
+		if (req.query.schoolYearId !== undefined) {
+			schoolYearId = Number(req.query.schoolYearId);
+			if (!schoolYearId || Number.isNaN(schoolYearId)) {
+				res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId must be a valid number when provided.' });
+				return;
+			}
+		} else {
+			const activeYear = await fetchEnrollProActiveSchoolYear(upstreamAuthToken);
+			if (!activeYear?.id) {
+				res.status(400).json({
+					code: 'ACTIVE_SCHOOL_YEAR_UNAVAILABLE',
+					message: 'Unable to resolve active school year from EnrollPro. Provide schoolYearId explicitly.',
+				});
+				return;
+			}
+			schoolYearId = activeYear.id;
+		}
+
+		const summary = await assignmentService.getAssignmentSummary(schoolId, schoolYearId, upstreamAuthToken);
+		res.json({ faculty: summary, schoolYearId });
 	} catch (err) {
 		next(err);
 	}

@@ -95,6 +95,7 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 				lastName: string;
 				email?: string | null;
 				contactNumber?: string | null;
+				department?: string | null;
 				specialization: string | null;
 				isActive: boolean;
 				isTeachingExempt?: boolean;
@@ -112,7 +113,7 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 				employeeId: t.employeeId || null,
 				firstName: t.firstName,
 				lastName: t.lastName,
-				department: null,
+				department: t.department ?? null,
 				specialization: t.specialization ?? null,
 				employmentStatus: 'PERMANENT' as const,
 				isClassAdviser: !!(t.isClassAdviser || t.advisorySectionId),

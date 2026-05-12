@@ -507,7 +507,7 @@ export default function OfficerPreferences() {
 											{/* Checkbox column */}
 										</th>
 										<th className='px-3 py-2.5 text-left font-medium text-muted-foreground'>Name</th>
-										<th className='px-3 py-2.5 text-left font-medium text-muted-foreground'>Department</th>
+										<th className='px-3 py-2.5 text-left font-medium text-muted-foreground'>Dept / Specialization</th>
 										<th className='px-3 py-2.5 text-left font-medium text-muted-foreground'>Status</th>
 										<th className='px-3 py-2.5 text-left font-medium text-muted-foreground'>Review</th>
 										<th className='px-3 py-2.5 text-left font-medium text-muted-foreground'>Submitted</th>
@@ -789,6 +789,24 @@ export default function OfficerPreferences() {
 												className='flex-1 text-xs'
 												onClick={() => saveReview(true)}
 												disabled={!reviewAction || reviewSaving}
+											>
+												{reviewSaving ? <Loader2 className='size-3 animate-spin mr-1' /> : null}
+												Save & Next
+											</Button>
+										)}
+									</div>
+								</div>
+							)}
+						</div>
+					) : null}
+				</SheetContent>
+			</Sheet>
+		</div>
+	);
+}
+
+
+ving}
 											>
 												{reviewSaving ? <Loader2 className='size-3 animate-spin mr-1' /> : null}
 												Save & Next

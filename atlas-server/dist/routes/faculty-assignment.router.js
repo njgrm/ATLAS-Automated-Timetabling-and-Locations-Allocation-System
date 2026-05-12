@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/authenticate.js';
+import { authenticate, authenticateWithSystemToken } from '../middleware/authenticate.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as assignmentService from '../services/faculty-assignment.service.js';
 const router = Router();
 // Auth: GET /faculty-assignments/summary?schoolId=X&schoolYearId=Y
-router.get('/summary', authenticate, requirePrivilegedRole, async (req, res, next) => {
+router.get('/summary', authenticateWithSystemToken, requirePrivilegedRole, async (req, res, next) => {
     try {
         const schoolId = Number(req.query.schoolId);
         if (!schoolId || Number.isNaN(schoolId)) {

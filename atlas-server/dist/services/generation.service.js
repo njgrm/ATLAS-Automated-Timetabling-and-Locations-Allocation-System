@@ -6,7 +6,7 @@ import { prisma } from '../lib/prisma.js';
 import { validateHardConstraints, } from './constraint-validator.js';
 import { computeDemand } from './schedule-constructor.js';
 import { runHybridScheduler } from './hybrid-scheduler.js';
-import { sectionAdapter } from './section-adapter.js';
+import { getSectionSummary } from './section.service.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
 import * as preGenerationDraftService from './pre-generation-draft.service.js';
@@ -133,11 +133,11 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
         }
         // ── Fetch all input data for construction ──
         stage = 'sections-fetch';
-        const [sectionResult, faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, gradeWindows, cohorts] = await Promise.all([
-            sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, options?.authToken),
+        const [sectionResult, faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, gradeWindows, cohorts, specializationAliases] = await Promise.all([
+            getSectionSummary(schoolYearId, schoolId, options?.authToken),
             prisma.facultyMirror.findMany({
                 where: { schoolId, isActiveForScheduling: true },
-                select: { id: true, maxHoursPerWeek: true },
+                select: { id: true, maxHoursPerWeek: true, specialization: true, department: true },
             }),
             prisma.facultySubject.findMany({
                 where: { schoolId },
@@ -155,6 +155,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
                 select: {
                     id: true,
                     code: true,
+                    name: true,
                     minMinutesPerWeek: true,
                     preferredRoomType: true,
                     sessionPattern: true,
@@ -162,6 +163,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
                     interSectionEnabled: true,
                     interSectionGradeLevels: true,
                     programScopes: true,
+                    allowedSpecializations: true,
                 },
             }),
             prisma.facultyPreference.findMany({
@@ -192,6 +194,10 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
                     expectedEnrollment: true,
                     preferredRoomType: true,
                 },
+            }),
+            prisma.specializationAlias.findMany({
+                where: { schoolId },
+                select: { canonical: true, alias: true },
             }),
         ]);
         const rosterIndex = buildSectionRosterIndex(sectionResult.gradeLevels);
@@ -272,6 +278,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
                 endTime: gw.endTime,
             })),
             buildings: buildings.map((b) => ({ id: b.id, name: b.name })),
+            specializationAliases,
             classTemplatePeriods,
         };
         const result = runHybridScheduler(constructorInput);

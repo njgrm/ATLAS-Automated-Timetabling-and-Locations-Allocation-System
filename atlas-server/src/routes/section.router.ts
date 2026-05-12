@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
-import { authenticate } from '../middleware/authenticate.js';
+import { authenticate, authenticateWithSystemToken } from '../middleware/authenticate.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as sectionService from '../services/section.service.js';
 import { syncSectionsFromExternal } from '../services/section.service.js';
@@ -45,7 +45,7 @@ router.get('/summary/:schoolYearId', authenticate, requirePrivilegedRole, async 
  * POST /api/v1/sections/sync
  * Manually trigger a reconciliation from EnrollPro sections into ATLAS SectionMirror.
  */
-router.post('/sync', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/sync', authenticateWithSystemToken, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const schoolId = Number(req.body.schoolId);
 		if (!schoolId) {
@@ -54,19 +54,20 @@ router.post('/sync', authenticate, requirePrivilegedRole, async (req: Request, r
 		}
 
 		const authToken = req.headers.authorization?.slice(7);
+		const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
 
 		// Resolve schoolYearId: use caller-supplied value if present, otherwise fetch from EnrollPro.
 		let schoolYearId: number;
 		if (req.body.schoolYearId !== undefined) {
 			schoolYearId = Number(req.body.schoolYearId);
 		} else {
-			const activeYear = await fetchEnrollProActiveSchoolYear(authToken);
+			const activeYear = await fetchEnrollProActiveSchoolYear(upstreamAuthToken);
 			schoolYearId = activeYear?.id ?? 1;
 		}
 
 		const [result, activeYear] = await Promise.all([
-			syncSectionsFromExternal(schoolId, schoolYearId, req.headers.authorization),
-			fetchEnrollProActiveSchoolYear(authToken),
+			syncSectionsFromExternal(schoolId, schoolYearId, upstreamAuthToken),
+			fetchEnrollProActiveSchoolYear(upstreamAuthToken),
 		]);
 		res.json({ ...result, ...(activeYear ? { enrollProActiveYear: activeYear.yearLabel } : {}) });
 	} catch (err) {

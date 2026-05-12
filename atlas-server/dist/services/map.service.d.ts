@@ -10,6 +10,7 @@ export declare function getBuildingsBySchool(schoolId: number): Promise<({
         type: import("@prisma/client").$Enums.RoomType;
         capacity: number | null;
         isTeachingSpace: boolean;
+        features: string[];
     }[];
 } & {
     y: number;
@@ -39,6 +40,7 @@ export declare function getBuilding(id: number): Promise<({
         type: import("@prisma/client").$Enums.RoomType;
         capacity: number | null;
         isTeachingSpace: boolean;
+        features: string[];
     }[];
 } & {
     y: number;
@@ -79,6 +81,7 @@ export declare function upsertBuilding(schoolId: number, data: {
         type: import("@prisma/client").$Enums.RoomType;
         capacity: number | null;
         isTeachingSpace: boolean;
+        features: string[];
     }[];
 } & {
     y: number;
@@ -119,6 +122,7 @@ export declare function updateBuilding(id: number, data: Partial<{
         type: import("@prisma/client").$Enums.RoomType;
         capacity: number | null;
         isTeachingSpace: boolean;
+        features: string[];
     }[];
 } & {
     y: number;
@@ -170,6 +174,7 @@ export declare function addRoom(buildingId: number, data: {
     type: import("@prisma/client").$Enums.RoomType;
     capacity: number | null;
     isTeachingSpace: boolean;
+    features: string[];
 }>;
 export declare function deleteRoom(id: number): Promise<{
     createdAt: Date;
@@ -182,6 +187,7 @@ export declare function deleteRoom(id: number): Promise<{
     type: import("@prisma/client").$Enums.RoomType;
     capacity: number | null;
     isTeachingSpace: boolean;
+    features: string[];
 }>;
 export declare function updateRoom(id: number, data: Partial<{
     name: string;
@@ -201,6 +207,7 @@ export declare function updateRoom(id: number, data: Partial<{
     type: import("@prisma/client").$Enums.RoomType;
     capacity: number | null;
     isTeachingSpace: boolean;
+    features: string[];
 }>;
 export declare function getCampusImage(schoolId: number): Promise<string | null>;
 export declare function setCampusImage(schoolId: number, imageUrl: string): Promise<{

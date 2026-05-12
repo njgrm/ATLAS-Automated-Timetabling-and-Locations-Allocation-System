@@ -4,6 +4,15 @@
  *
  * Source metadata is always returned so callers can surface live vs fallback state.
  */
+/**
+ * Fetch the active school year from EnrollPro's integration endpoint.
+ * Returns EnrollPro-internal { id, yearLabel }, or null if the call fails.
+ * Useful to surface which academic year is active without needing a body param.
+ */
+export declare function fetchEnrollProActiveSchoolYear(authToken?: string): Promise<{
+    id: number;
+    yearLabel: string;
+} | null>;
 export type ProgramType = 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER';
 type AdmissionMode = 'REGULAR' | 'SCP';
 interface ProgramMetadata {

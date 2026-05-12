@@ -5,6 +5,7 @@
  */
 export interface ExternalFaculty {
     id: number;
+    employeeId: string | null;
     firstName: string;
     lastName: string;
     /** Academic department (e.g. "Mathematics") — from EnrollPro `department` field */
@@ -33,6 +34,6 @@ export declare class StubFacultyAdapter implements FacultyAdapter {
 export declare class EnrollProFacultyAdapter implements FacultyAdapter {
     private baseUrl;
     constructor(baseUrl: string);
-    fetchFacultyBySchoolYear(_schoolId: number, _schoolYearId: number, _authToken?: string): Promise<FacultyFetchResult>;
+    fetchFacultyBySchoolYear(_schoolId: number, _schoolYearId: number, authToken?: string): Promise<FacultyFetchResult>;
 }
 export declare function createFacultyAdapter(): FacultyAdapter;

@@ -3,7 +3,7 @@ export interface AuthPayload {
     userId: number;
     role: string;
     mustChangePassword?: boolean;
-    authSource?: 'bridge' | 'local';
+    authSource?: 'bridge' | 'local' | 'system';
     schoolId?: number;
     accountId?: number;
     email?: string;
@@ -15,4 +15,5 @@ declare global {
         }
     }
 }
+export declare function authenticateWithSystemToken(req: Request, res: Response, next: NextFunction): void;
 export declare function authenticate(req: Request, res: Response, next: NextFunction): void;

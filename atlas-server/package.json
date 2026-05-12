@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "seed:enrollpro-source": "tsx src/scripts/seed-realistic.ts",
     "seed:atlas-fixture": "tsx src/scripts/seed-realistic.ts --mode=atlas-fixture --confirmFixtureBypass=true",
+    "seed:aliases": "tsx src/scripts/seed-specialization-aliases.ts",
     "seed:qa-room-requests": "tsx src/scripts/seed-qa-room-requests.ts",
     "verify:enrollpro-source": "tsx src/scripts/verify-enrollpro-source.ts",
     "verify:cross-repo-source-gate": "tsx src/scripts/verify-cross-repo-source-gate.ts",
