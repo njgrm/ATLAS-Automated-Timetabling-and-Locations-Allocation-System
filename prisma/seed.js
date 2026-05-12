@@ -20,6 +20,7 @@
 require('dotenv').config();
 
 const { PrismaClient } = require('../atlas-server/node_modules/.prisma/client');
+const bcrypt = require('../atlas-server/node_modules/bcryptjs');
 
 const prisma = new PrismaClient();
 
@@ -331,6 +332,60 @@ async function main() {
 		}
 	}
 	console.log(`✅ Seeded ${facultyCreated} faculty members with ${assignmentsCreated} subject assignments.`);
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// ATLAS AUTH ACCOUNTS — Scheduling Officer and demo faculty
+	// ═══════════════════════════════════════════════════════════════════════════
+
+	const adminHash = await bcrypt.hash('AdminSY2026!', 12);
+	await prisma.atlasAuthAccount.upsert({
+		where: { email: 'admin@deped.edu.ph' },
+		update: {
+			employeeId: '1000001',
+			passwordHash: adminHash,
+			role: 'officer',
+			isActive: true,
+			failedLoginCount: 0,
+			lockedUntil: null,
+		},
+		create: {
+			email: 'admin@deped.edu.ph',
+			employeeId: '1000001',
+			passwordHash: adminHash,
+			role: 'officer',
+			schoolId: school.id,
+			isActive: true,
+		},
+	});
+	console.log('✅ Seeded admin auth account (Employee ID: 1000001).');
+
+	// Seed demo faculty account linked to stub faculty externalId=1 (Maria Santos)
+	const facultyMirrorForDemo = await prisma.facultyMirror.findFirst({
+		where: { schoolId: school.id, externalId: 1 },
+	});
+	if (facultyMirrorForDemo) {
+		const facultyHash = await bcrypt.hash('DepEd2026!', 12);
+		await prisma.atlasAuthAccount.upsert({
+			where: { email: 'maria.santos@deped.edu.ph' },
+			update: {
+				passwordHash: facultyHash,
+				role: 'faculty',
+				isActive: true,
+				failedLoginCount: 0,
+				lockedUntil: null,
+				facultyId: facultyMirrorForDemo.id,
+			},
+			create: {
+				email: 'maria.santos@deped.edu.ph',
+				passwordHash: facultyHash,
+				role: 'faculty',
+				schoolId: school.id,
+				facultyId: facultyMirrorForDemo.id,
+				isActive: true,
+			},
+		});
+		console.log('✅ Seeded demo faculty auth account (maria.santos@deped.edu.ph).');
+	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// SEED SUMMARY

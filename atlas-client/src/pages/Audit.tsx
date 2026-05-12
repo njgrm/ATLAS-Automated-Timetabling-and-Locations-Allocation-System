@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ShieldCheck, AlertTriangle, UserMinus, BookX, Loader2, Search, ArrowRight, Clock, Box } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, UserMinus, BookX, Loader2, Search, ArrowRight, Clock, Box, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -190,6 +190,14 @@ export default function Audit() {
 		}).filter(s => s.compatibleCount === 0);
 	}, [subjects, rooms]);
 
+	const syncIssues = useMemo(() => {
+		return faculty.filter(f => !f.employeeId || f.employeeId.length !== 7).map(f => ({
+			id: f.id,
+			name: `${f.lastName}, ${f.firstName}`,
+			reason: !f.employeeId ? 'Missing Employee ID' : 'Invalid ID format (must be 7 digits)'
+		}));
+	}, [faculty]);
+
 	if (loading) return <div className="p-6 flex items-center justify-center h-full"><Loader2 className="animate-spin" /></div>;
 
 	return (
@@ -223,7 +231,7 @@ export default function Audit() {
 					</CardHeader>
 					<CardContent className="py-2">
 						<div className="text-2xl font-bold text-orange-700">{clashes.length}</div>
-						<p className="text-xs text-orange-600/70">Specialists with &gt;50% blocked</p>
+						<p className="text-xs text-orange-600/70">Specialists with {'>'}50% blocked</p>
 					</CardContent>
 				</Card>
 
@@ -242,12 +250,12 @@ export default function Audit() {
 				<Card className="bg-blue-50/50 border-blue-100">
 					<CardHeader className="py-4">
 						<CardTitle className="text-sm font-medium text-blue-800 flex items-center gap-2">
-							<Box className="size-4" /> Optimization
+							<RefreshCw className="size-4" /> Sync Health
 						</CardTitle>
 					</CardHeader>
 					<CardContent className="py-2">
-						<div className="text-2xl font-bold text-blue-700">{optimizationIssues.length}</div>
-						<p className="text-xs text-blue-600/70">Under-utilized specialists</p>
+						<div className="text-2xl font-bold text-blue-700">{syncIssues.length}</div>
+						<p className="text-xs text-blue-600/70">Missing or invalid Employee IDs</p>
 					</CardContent>
 				</Card>
 			</div>
@@ -260,6 +268,7 @@ export default function Audit() {
 					<TabsTrigger value="facilities">Facilities</TabsTrigger>
 					<TabsTrigger value="optimization">Optimization</TabsTrigger>
 					<TabsTrigger value="utilization">Utilization</TabsTrigger>
+					<TabsTrigger value="sync">Sync Health</TabsTrigger>
 				</TabsList>
 				
 				<TabsContent value="mismatches" className="flex-1 min-h-0 pt-4">
@@ -459,6 +468,33 @@ export default function Audit() {
 										</div>
 									</div>
 								))}
+							</div>
+						</ScrollArea>
+					</Card>
+				</TabsContent>
+
+				<TabsContent value="sync" className="flex-1 min-h-0 pt-4">
+					<Card className="h-full flex flex-col overflow-hidden">
+						<ScrollArea className="flex-1">
+							<div className="divide-y">
+								{syncIssues.length === 0 ? (
+									<div className="p-8 text-center text-muted-foreground italic">All faculty records have valid Employee IDs.</div>
+								) : (
+									syncIssues.map((issue) => (
+										<div key={issue.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
+											<div className="space-y-1">
+												<div className="font-semibold">{issue.name}</div>
+												<div className="text-xs text-red-600 flex items-center gap-1.5">
+													<AlertTriangle className="size-3" />
+													{issue.reason}
+												</div>
+											</div>
+											<Button asChild variant="ghost" size="sm">
+												<Link to="/faculty">Fix in Faculty →</Link>
+											</Button>
+										</div>
+									))
+								)}
 							</div>
 						</ScrollArea>
 					</Card>

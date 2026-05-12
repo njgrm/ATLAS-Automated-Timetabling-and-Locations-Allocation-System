@@ -71,6 +71,7 @@ staleCount: number;
 interface LocalMirrorComparable {
 id: number;
 externalId: number;
+employeeId: string | null;
 firstName: string;
 lastName: string;
 department: string | null;
@@ -139,6 +140,7 @@ fetchedAt: snapshot.fetchedAt,
 
 function toExternalComparable(faculty: ExternalFaculty) {
 return {
+employeeId: faculty.employeeId ?? null,
 firstName: faculty.firstName,
 lastName: faculty.lastName,
 department: faculty.department ?? null,
@@ -156,7 +158,8 @@ advisedSectionName: faculty.advisedSectionName ?? null,
 function isMirrorEquivalent(local: LocalMirrorComparable, external: ExternalFaculty): boolean {
 const normalized = toExternalComparable(external);
 return (
-local.firstName === normalized.firstName
+local.employeeId === normalized.employeeId
+&& local.firstName === normalized.firstName
 && local.lastName === normalized.lastName
 && local.department === normalized.department
 && local.specialization === normalized.specialization

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Shield, Plus, Trash2, Loader2, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -43,11 +43,6 @@ export default function SpecializationMapping() {
 	// Orphaned terms: specializations found in faculty data but not in aliases and not themselves canonical subjects
 	const orphanedTerms = useMemo(() => {
 		const mappedAliases = new Set(aliases.map(a => a.alias));
-		const canonicals = new Set(allTerms); // For now assuming allTerms includes possible targets
-		
-		// In a real scenario, we'd check against a fixed list of 'Standard Subjects'
-		// For now, let's treat any term that isn't mapped as an alias OR is not a standard learning area
-		// We'll define standard areas as the ones currently in the 'Canonical' list for simplicity
 		return allTerms.filter(t => !mappedAliases.has(t));
 	}, [allTerms, aliases]);
 
@@ -213,7 +208,7 @@ export default function SpecializationMapping() {
 										<div key={term} className="p-3 border rounded-lg bg-background space-y-2">
 											<div className="text-xs font-bold truncate">{term}</div>
 											<div className="flex gap-2">
-												<Select onValueChange={(val) => handleAdd(term).then(() => setNewCanonical(val))}>
+												<Select onValueChange={(val) => { setNewCanonical(val); handleAdd(term); }}>
 													<SelectTrigger className="h-7 text-[0.65rem] flex-1">
 														<SelectValue placeholder="Map to..." />
 													</SelectTrigger>

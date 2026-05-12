@@ -63,6 +63,7 @@ subject: { id: number; name: string; code: string; minMinutesPerWeek: number };
 type FacultySummary = {
 id: number;
 externalId: number;
+employeeId: string | null;
 firstName: string;
 lastName: string;
 department: string | null;
@@ -598,9 +599,14 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 {member.lastName[0]}
 </div>
 <div className="flex-1 min-w-0">
-	<p className="truncate text-sm font-medium">
-		{member.lastName}, {member.firstName}
-	</p>
+	<div className="flex items-center justify-between gap-2">
+		<p className="truncate text-sm font-medium">
+			{member.lastName}, {member.firstName}
+		</p>
+		<span className="text-[0.6rem] font-mono text-muted-foreground shrink-0 bg-muted/50 px-1 rounded">
+			{member.employeeId || 'No ID'}
+		</span>
+	</div>
 	<div className="flex items-center gap-1.5 mt-0.5 min-w-0">
 		<span className="truncate text-[0.625rem] text-muted-foreground uppercase flex-1">
 			{member.specialization || member.department || 'General'}
@@ -658,8 +664,8 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 <p className="truncate text-sm font-bold">
 {selected.firstName} {selected.lastName}
 </p>
-<p className="truncate text-[0.6875rem] text-muted-foreground">
-{selected.department ?? 'No department'} | ID: {selected.externalId}
+<p className="truncate text-[0.6875rem] text-muted-foreground font-mono">
+{selected.department ?? 'No department'} | ID: {selected.employeeId || 'No ID'}
 </p>
 </div>
 {selected.isClassAdviser && (

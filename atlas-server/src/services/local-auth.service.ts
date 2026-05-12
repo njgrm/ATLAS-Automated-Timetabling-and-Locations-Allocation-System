@@ -28,6 +28,8 @@ export type LocalAuthUser = {
 	schoolId: number;
 	accountId: number;
 	email: string;
+	employeeId?: string | null;
+	accountName?: string | null;
 };
 
 export type LocalLoginResult =
@@ -44,7 +46,7 @@ export type LocalLoginResult =
 			retryAfterSeconds?: number;
 	  };
 
-function normalizeEmail(value: string): string {
+function normalizeIdentifier(value: string): string {
 	return value.trim().toLowerCase();
 }
 
@@ -52,8 +54,8 @@ function isValidEmail(value: string): boolean {
 	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-function rateLimitKey(email: string, ip: string): string {
-	return `${ip}::${email}`;
+function rateLimitKey(identifier: string, ip: string): string {
+	return `${ip}::${identifier}`;
 }
 
 function getOrCreateMemoryEntry(key: string, now: number): RateEntry {
@@ -66,8 +68,8 @@ function getOrCreateMemoryEntry(key: string, now: number): RateEntry {
 	return current;
 }
 
-function registerMemoryFailure(email: string, ip: string, now: number): void {
-	const key = rateLimitKey(email, ip);
+function registerMemoryFailure(identifier: string, ip: string, now: number): void {
+	const key = rateLimitKey(identifier, ip);
 	const entry = getOrCreateMemoryEntry(key, now);
 	entry.count += 1;
 	if (entry.count >= MAX_FAILED_ATTEMPTS) {
@@ -78,8 +80,8 @@ function registerMemoryFailure(email: string, ip: string, now: number): void {
 	memoryRateLimit.set(key, entry);
 }
 
-function getMemoryLockRemainingSeconds(email: string, ip: string, now: number): number {
-	const key = rateLimitKey(email, ip);
+function getMemoryLockRemainingSeconds(identifier: string, ip: string, now: number): number {
+	const key = rateLimitKey(identifier, ip);
 	const entry = getOrCreateMemoryEntry(key, now);
 	if (!entry.lockedUntil || entry.lockedUntil <= now) {
 		entry.lockedUntil = null;
@@ -122,6 +124,8 @@ type EnrollProVerifiedUser = {
 	firstName: string;
 	lastName: string;
 	email: string;
+	employeeId: string | null;
+	accountName: string | null;
 	role: EnrollProRole;
 	mustChangePassword: boolean;
 	teacherId?: number | null;
@@ -143,7 +147,7 @@ function mapEnrollProRole(role: EnrollProRole): 'officer' | 'faculty' {
  * Try to validate credentials against EnrollPro's /api/auth/verify endpoint.
  * Returns null when EnrollPro is unreachable or the credentials are invalid.
  */
-async function tryEnrollProVerify(email: string, password: string): Promise<{
+async function tryEnrollProVerify(accountName: string, password: string): Promise<{
 	valid: true;
 	user: EnrollProVerifiedUser;
 } | null> {
@@ -152,7 +156,7 @@ async function tryEnrollProVerify(email: string, password: string): Promise<{
 		const resp = await fetch(`${enrollProApi}/auth/verify`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ email, password }),
+			body: JSON.stringify({ accountName, password }),
 			signal: AbortSignal.timeout(5000),
 		});
 		if (!resp.ok) return null;
@@ -173,24 +177,28 @@ async function findLinkedFacultyMirror(params: {
 	schoolId: number;
 	role: 'officer' | 'faculty';
 	email: string;
+	employeeId: string | null;
 	enrollProUser: EnrollProVerifiedUser;
 }): Promise<{ id: number; externalId: number } | null> {
 	if (params.role !== 'faculty') {
 		return null;
 	}
 
-	const externalFacultyId = getEnrollProFacultyExternalId(params.enrollProUser);
-	if (externalFacultyId !== null) {
+	const externalId = getEnrollProFacultyExternalId(params.enrollProUser);
+	if (externalId !== null) {
 		const mirror = await prisma.facultyMirror.findFirst({
-			where: {
-				schoolId: params.schoolId,
-				externalId: externalFacultyId,
-			},
+			where: { schoolId: params.schoolId, externalId },
 			select: { id: true, externalId: true },
 		});
-		if (mirror) {
-			return mirror;
-		}
+		if (mirror) return mirror;
+	}
+
+	if (params.employeeId) {
+		const mirror = await prisma.facultyMirror.findUnique({
+			where: { employeeId: params.employeeId },
+			select: { id: true, externalId: true },
+		});
+		if (mirror) return mirror;
 	}
 
 	const mirror = await prisma.facultyMirror.findFirst({
@@ -212,25 +220,41 @@ async function provisionFromEnrollPro(params: {
 	enrollProUser: EnrollProVerifiedUser;
 	password: string;
 	schoolId: number;
-}): Promise<{ account: { id: number; role: string; schoolId: number; facultyId: number | null; facultyExternalId: number | null; mustChangePassword: boolean } }> {
+}): Promise<{ account: { id: number; role: string; schoolId: number; facultyId: number | null; facultyExternalId: number | null; mustChangePassword: boolean; employeeId: string | null; accountName: string | null } }> {
 	const role = mapEnrollProRole(params.enrollProUser.role);
 	const hash = await bcrypt.hash(params.password, 12);
 	const email = params.enrollProUser.email.trim().toLowerCase();
+	const employeeId = params.enrollProUser.employeeId;
+	const accountName = params.enrollProUser.accountName;
 
 	const linkedMirror = await findLinkedFacultyMirror({
 		schoolId: params.schoolId,
 		role,
 		email,
+		employeeId,
 		enrollProUser: params.enrollProUser,
 	});
 	const facultyId = linkedMirror?.id ?? null;
 	const facultyExternalId = linkedMirror?.externalId ?? null;
 
-	const existing = await prisma.atlasAuthAccount.findUnique({ where: { email } });
+	// Try finding by accountName or employeeId if email doesn't match
+	const existing = await prisma.atlasAuthAccount.findFirst({
+		where: {
+			OR: [
+				{ email },
+				employeeId ? { employeeId } : {},
+				accountName ? { accountName } : {},
+			].filter(x => Object.keys(x).length > 0) as Prisma.AtlasAuthAccountWhereInput[]
+		}
+	});
+
 	if (existing) {
 		const updated = await prisma.atlasAuthAccount.update({
 			where: { id: existing.id },
 			data: {
+				email,
+				employeeId,
+				accountName,
 				passwordHash: hash,
 				role,
 				schoolId: params.schoolId,
@@ -241,12 +265,14 @@ async function provisionFromEnrollPro(params: {
 				lockedUntil: null,
 			},
 		});
-		return { account: { id: updated.id, role: updated.role, schoolId: updated.schoolId, facultyId: updated.facultyId, facultyExternalId, mustChangePassword: updated.mustChangePassword } };
+		return { account: { id: updated.id, role: updated.role, schoolId: updated.schoolId, facultyId: updated.facultyId, facultyExternalId, mustChangePassword: updated.mustChangePassword, employeeId: updated.employeeId, accountName: updated.accountName } };
 	}
 
 	const created = await prisma.atlasAuthAccount.create({
 		data: {
 			email,
+			employeeId,
+			accountName,
 			passwordHash: hash,
 			role,
 			schoolId: params.schoolId,
@@ -255,26 +281,26 @@ async function provisionFromEnrollPro(params: {
 			mustChangePassword: params.enrollProUser.mustChangePassword,
 		},
 	});
-	return { account: { id: created.id, role: created.role, schoolId: created.schoolId, facultyId: created.facultyId, facultyExternalId, mustChangePassword: created.mustChangePassword } };
+	return { account: { id: created.id, role: created.role, schoolId: created.schoolId, facultyId: created.facultyId, facultyExternalId, mustChangePassword: created.mustChangePassword, employeeId: created.employeeId, accountName: created.accountName } };
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
 
-export async function loginWithEmailPassword(params: {
-	email: string;
+export async function login(params: {
+	identifier: string;
 	password: string;
 	ipAddress: string;
 	userAgent?: string;
 }): Promise<LocalLoginResult> {
-	const email = normalizeEmail(params.email);
+	const identifier = normalizeIdentifier(params.identifier);
 	const now = Date.now();
 
-	if (!isValidEmail(email)) {
+	if (!identifier) {
 		return {
 			ok: false,
 			status: 400,
-			code: 'INVALID_EMAIL',
-			message: 'A valid email address is required.',
+			code: 'INVALID_IDENTIFIER',
+			message: 'An identifier (Employee ID or Email) is required.',
 		};
 	}
 
@@ -287,7 +313,7 @@ export async function loginWithEmailPassword(params: {
 		};
 	}
 
-	const memoryRetryAfter = getMemoryLockRemainingSeconds(email, params.ipAddress, now);
+	const memoryRetryAfter = getMemoryLockRemainingSeconds(identifier, params.ipAddress, now);
 	if (!DISABLE_RATE_LIMIT && memoryRetryAfter > 0) {
 		return {
 			ok: false,
@@ -298,8 +324,15 @@ export async function loginWithEmailPassword(params: {
 		};
 	}
 
-	const account = await prisma.atlasAuthAccount.findUnique({
-		where: { email },
+	// Find local account by email, accountName, or employeeId
+	const account = await prisma.atlasAuthAccount.findFirst({
+		where: {
+			OR: [
+				{ email: identifier },
+				{ employeeId: identifier },
+				{ accountName: identifier },
+			],
+		},
 		include: {
 			faculty: {
 				select: {
@@ -311,7 +344,7 @@ export async function loginWithEmailPassword(params: {
 
 	// No local ATLAS account — try EnrollPro delegation first before rejecting
 	if (!account) {
-		const enrollProResult = await tryEnrollProVerify(email, params.password);
+		const enrollProResult = await tryEnrollProVerify(identifier, params.password);
 		if (enrollProResult) {
 			const defaultSchoolId = Number(process.env.ATLAS_DEFAULT_SCHOOL_ID ?? 1);
 			const { account: provisioned } = await provisionFromEnrollPro({
@@ -319,9 +352,12 @@ export async function loginWithEmailPassword(params: {
 				password: params.password,
 				schoolId: defaultSchoolId,
 			});
-			const userId = provisioned.role === 'faculty' && provisioned.facultyExternalId
-				? provisioned.facultyExternalId
+			
+			const linkedFacultyMirrorExternalId = provisioned.facultyExternalId;
+			const userId = provisioned.role === 'faculty' && linkedFacultyMirrorExternalId
+				? linkedFacultyMirrorExternalId
 				: provisioned.id;
+			
 			const user: LocalAuthUser = {
 				userId,
 				role: provisioned.role,
@@ -329,30 +365,33 @@ export async function loginWithEmailPassword(params: {
 				authSource: 'local',
 				schoolId: provisioned.schoolId,
 				accountId: provisioned.id,
-				email,
+				email: provisioned.email,
+				employeeId: provisioned.employeeId,
+				accountName: provisioned.accountName,
 			};
+			
 			const token = createToken(user);
 			if (!token) {
 				return { ok: false, status: 500, code: 'SERVER_ERROR', message: 'JWT secret not configured.' };
 			}
 			return { ok: true, token, user };
 		}
-		registerMemoryFailure(email, params.ipAddress, now);
+		registerMemoryFailure(identifier, params.ipAddress, now);
 		return {
 			ok: false,
 			status: 401,
 			code: 'INVALID_CREDENTIALS',
-			message: 'Invalid email or password.',
+			message: 'Invalid Employee ID/Email or password.',
 		};
 	}
 
 	if (!account.isActive) {
-		registerMemoryFailure(email, params.ipAddress, now);
+		registerMemoryFailure(identifier, params.ipAddress, now);
 		return {
 			ok: false,
 			status: 401,
 			code: 'INVALID_CREDENTIALS',
-			message: 'Invalid email or password.',
+			message: 'Account is inactive.',
 		};
 	}
 
@@ -370,8 +409,8 @@ export async function loginWithEmailPassword(params: {
 	const validPassword = await bcrypt.compare(params.password, account.passwordHash);
 	if (!validPassword) {
 		// Local password check failed — try EnrollPro delegation (user may have changed
-		// their EnrollPro password since the last ATLAS seed).
-		const enrollProResult = await tryEnrollProVerify(email, params.password);
+		// their EnrollPro password or Employee ID since the last sync).
+		const enrollProResult = await tryEnrollProVerify(identifier, params.password);
 		if (enrollProResult) {
 			const { account: provisioned } = await provisionFromEnrollPro({
 				enrollProUser: enrollProResult.user,
@@ -382,6 +421,7 @@ export async function loginWithEmailPassword(params: {
 			const userId = provisioned.role === 'faculty' && linkedFacultyMirrorExternalId
 				? linkedFacultyMirrorExternalId
 				: provisioned.id;
+			
 			const user: LocalAuthUser = {
 				userId,
 				role: provisioned.role,
@@ -389,7 +429,9 @@ export async function loginWithEmailPassword(params: {
 				authSource: 'local',
 				schoolId: provisioned.schoolId,
 				accountId: provisioned.id,
-				email,
+				email: provisioned.email,
+				employeeId: provisioned.employeeId,
+				accountName: provisioned.accountName,
 			};
 			const token = createToken(user);
 			if (!token) {
@@ -400,12 +442,12 @@ export async function loginWithEmailPassword(params: {
 				actorId: provisioned.id,
 				action: 'LOCAL_LOGIN_SUCCESS',
 				targetIds: [provisioned.id],
-				metadata: { email, ipAddress: params.ipAddress, userAgent: params.userAgent ?? null, role: provisioned.role, via: 'enrollpro-delegation' },
+				metadata: { identifier, ipAddress: params.ipAddress, userAgent: params.userAgent ?? null, role: provisioned.role, via: 'enrollpro-delegation' },
 			});
 			return { ok: true, token, user };
 		}
 
-		registerMemoryFailure(email, params.ipAddress, now);
+		registerMemoryFailure(identifier, params.ipAddress, now);
 		const nextFailedCount = account.failedLoginCount + 1;
 		const shouldLock = nextFailedCount >= MAX_FAILED_ATTEMPTS;
 		const lockedUntil = shouldLock ? new Date(now + LOCKOUT_MINUTES * 60_000) : null;
@@ -424,7 +466,7 @@ export async function loginWithEmailPassword(params: {
 			action: 'LOCAL_LOGIN_FAILED',
 			targetIds: [account.id],
 			metadata: {
-				email,
+				identifier,
 				ipAddress: params.ipAddress,
 				userAgent: params.userAgent ?? null,
 				attempt: nextFailedCount,
@@ -446,7 +488,7 @@ export async function loginWithEmailPassword(params: {
 			ok: false,
 			status: 401,
 			code: 'INVALID_CREDENTIALS',
-			message: 'Invalid email or password.',
+			message: 'Invalid Employee ID/Email or password.',
 		};
 	}
 
@@ -462,6 +504,8 @@ export async function loginWithEmailPassword(params: {
 		schoolId: account.schoolId,
 		accountId: account.id,
 		email: account.email,
+		employeeId: account.employeeId,
+		accountName: account.accountName,
 	};
 
 	const token = createToken(user);
@@ -489,7 +533,7 @@ export async function loginWithEmailPassword(params: {
 		action: 'LOCAL_LOGIN_SUCCESS',
 		targetIds: [account.id],
 		metadata: {
-			email,
+			identifier,
 			ipAddress: params.ipAddress,
 			userAgent: params.userAgent ?? null,
 			role: account.role,

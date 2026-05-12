@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as sectionService from '../services/section.service.js';
+import { syncSectionsFromExternal } from '../services/section.service.js';
 import { sectionSourceMode } from '../services/section-adapter.js';
 
 const router = Router();
@@ -52,13 +53,7 @@ router.post('/sync', authenticate, requirePrivilegedRole, async (req: Request, r
 			return;
 		}
 
-		// Use active year from bridge settings
-		const settings = await prisma.bridgeSettings.findUnique({ where: { schoolId } });
-		const schoolYearId = settings?.activeSchoolYearId;
-		if (!schoolYearId) {
-			res.status(400).json({ code: 'NO_ACTIVE_YEAR', message: 'No active school year configured for this bridge.' });
-			return;
-		}
+		const schoolYearId = req.body.schoolYearId !== undefined ? Number(req.body.schoolYearId) : 1;
 
 		const result = await syncSectionsFromExternal(schoolId, schoolYearId, req.headers.authorization);
 		res.json(result);

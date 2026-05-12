@@ -43,7 +43,7 @@ export default function Login() {
 	const navigate = useNavigate();
 	const [showPassword, setShowPassword] = useState(false);
 	const [rememberMe, setRememberMe] = useState(false);
-	const [email, setEmail] = useState('');
+	const [identifier, setIdentifier] = useState('');
 	const [password, setPassword] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
 	const [isCheckingSession, setIsCheckingSession] = useState(true);
@@ -139,7 +139,7 @@ export default function Login() {
 
 		try {
 			const response = await atlasApi.post<LoginResponse>('/auth/login', {
-				email: email.trim(),
+				identifier: identifier.trim(),
 				password,
 			});
 			setLocalToken(response.data.token, rememberMe);
@@ -152,11 +152,11 @@ export default function Login() {
 			if (isAxiosError(err)) {
 				const code = err.response?.data?.code;
 				if (err.response?.status === 429) {
-					setError('Too many login attempts. Please wait and try again.');
-				} else if (err.response?.status === 401 && code === 'INVALID_CREDENTIALS') {
-					setError('Invalid email or password');
-				} else if (err.response?.status === 400 && code === 'INVALID_EMAIL') {
-					setError('Invalid email or password');
+					setError('Too many login attempts. Please try again later.');
+				} else if (err.response?.status === 401) {
+					setError('Invalid Employee ID/Email or password');
+				} else if (err.response?.status === 400) {
+					setError('Please provide a valid Employee ID or Email');
 				} else {
 					setError('Unable to sign in right now. Please try again.');
 				}
@@ -357,8 +357,8 @@ export default function Login() {
 
 							<form onSubmit={handleSubmit} className='space-y-3'>
 								<div className='space-y-1.5'>
-									<Label htmlFor='email' className='text-gray-800 font-semibold text-sm pl-1'>
-										Email
+									<Label htmlFor='identifier' className='text-gray-800 font-semibold text-sm pl-1'>
+										Employee ID or Email
 									</Label>
 									<div className='relative group'>
 										<div className='absolute left-0 top-0 bottom-0 w-11 flex items-center justify-center pointer-events-none z-10'>
@@ -367,17 +367,17 @@ export default function Login() {
 											</div>
 										</div>
 										<Input
-											id='email'
-											type='email'
-											placeholder='Enter your email'
-											data-testid='login-email-input'
-											value={email}
+											id='identifier'
+											type='text'
+											placeholder='Enter your 7-digit ID or email'
+											data-testid='login-identifier-input'
+											value={identifier}
 											onChange={(event) => {
-												setEmail(event.target.value);
+												setIdentifier(event.target.value);
 												if (error) setError(null);
 											}}
 											className='pl-12 h-11 bg-gray-50 border-gray-200 hover:border-gray-300 focus:ring-4 focus:ring-primary/15 rounded-xl transition-all duration-200 placeholder:text-gray-400 text-gray-900 font-bold'
-											autoComplete='email'
+											autoComplete='username'
 											required
 										/>
 									</div>

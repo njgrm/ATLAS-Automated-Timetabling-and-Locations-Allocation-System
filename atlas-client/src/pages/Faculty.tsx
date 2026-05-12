@@ -338,7 +338,7 @@ export default function Faculty() {
 														</div>
 														<div>
 															<p className="font-medium">{f.lastName}, {f.firstName}</p>
-															<p className="text-[0.6875rem] text-muted-foreground">ID: {f.externalId}</p>
+															<p className="text-[0.6875rem] text-muted-foreground font-mono">ID: {f.employeeId || 'No ID'}</p>
 														</div>
 													</div>
 												</td>
