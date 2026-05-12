@@ -6,7 +6,7 @@ import {
 	type FacultyAssignmentDraft,
 	type FacultyOwnershipState,
 } from '@/lib/faculty-assignment-helpers';
-import { gradeLabel } from '@/lib/grade-labels';
+import { gradeLabel, matchesFacultyDepartment } from '@/lib/grade-labels';
 import type { ExternalSection, Subject } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';

@@ -573,10 +573,14 @@ export function AppShell() {
 
 				// Fetch school years list + active label
 				if (s.activeSchoolYearId) setSelectedYearId(s.activeSchoolYearId);
+				if (s.activeSchoolYearLabel) setActiveYearLabel(s.activeSchoolYearLabel);
 				fetchSchoolYears().then((years) => {
 					setSchoolYears(years);
-					const active = years.find((y) => y.id === s.activeSchoolYearId);
-					if (active) setActiveYearLabel(active.yearLabel);
+					// If settings/public didn't have the label, fall back to the years list
+					if (!s.activeSchoolYearLabel) {
+						const active = years.find((y) => y.id === s.activeSchoolYearId);
+						if (active) setActiveYearLabel(active.yearLabel);
+					}
 				});
 
 				applyEnrollProAccentTheme(s.selectedAccentHsl);

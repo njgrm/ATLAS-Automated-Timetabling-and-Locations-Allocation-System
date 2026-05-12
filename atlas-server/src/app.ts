@@ -33,7 +33,7 @@ import cohortRouter from './routes/cohort.router.js';
 import facultyPortalRouter from './routes/faculty-portal.router.js';
 import publishedScheduleRouter from './routes/published-schedule.router.js';
 import classTemplateRouter from './routes/class-template.router.js';
-import specializationAliasRouter from './routes/specialization-alias.router.ts';
+import specializationAliasRouter from './routes/specialization-alias.router.js';
 
 const app = express();
 

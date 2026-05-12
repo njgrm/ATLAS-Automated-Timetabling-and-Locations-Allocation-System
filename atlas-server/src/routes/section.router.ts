@@ -4,7 +4,7 @@ import { authenticate } from '../middleware/authenticate.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as sectionService from '../services/section.service.js';
 import { syncSectionsFromExternal } from '../services/section.service.js';
-import { sectionSourceMode } from '../services/section-adapter.js';
+import { sectionSourceMode, fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
 
 const router = Router();
 
@@ -53,10 +53,22 @@ router.post('/sync', authenticate, requirePrivilegedRole, async (req: Request, r
 			return;
 		}
 
-		const schoolYearId = req.body.schoolYearId !== undefined ? Number(req.body.schoolYearId) : 1;
+		const authToken = req.headers.authorization?.slice(7);
 
-		const result = await syncSectionsFromExternal(schoolId, schoolYearId, req.headers.authorization);
-		res.json(result);
+		// Resolve schoolYearId: use caller-supplied value if present, otherwise fetch from EnrollPro.
+		let schoolYearId: number;
+		if (req.body.schoolYearId !== undefined) {
+			schoolYearId = Number(req.body.schoolYearId);
+		} else {
+			const activeYear = await fetchEnrollProActiveSchoolYear(authToken);
+			schoolYearId = activeYear?.id ?? 1;
+		}
+
+		const [result, activeYear] = await Promise.all([
+			syncSectionsFromExternal(schoolId, schoolYearId, req.headers.authorization),
+			fetchEnrollProActiveSchoolYear(authToken),
+		]);
+		res.json({ ...result, ...(activeYear ? { enrollProActiveYear: activeYear.yearLabel } : {}) });
 	} catch (err) {
 		next(err);
 	}

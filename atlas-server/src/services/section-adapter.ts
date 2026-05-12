@@ -8,6 +8,29 @@
 import { prisma } from '../lib/prisma.js';
 import crypto from 'crypto';
 
+// ─── Active school year resolver ───
+
+/**
+ * Fetch the active school year from EnrollPro's integration endpoint.
+ * Returns EnrollPro-internal { id, yearLabel }, or null if the call fails.
+ * Useful to surface which academic year is active without needing a body param.
+ */
+export async function fetchEnrollProActiveSchoolYear(authToken?: string): Promise<{ id: number; yearLabel: string } | null> {
+	const baseUrl = process.env.ENROLLPRO_API ?? 'http://localhost:5000/api';
+	const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
+	try {
+		const res = await fetch(`${baseUrl}/integration/v1/school-year`, {
+			headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+		});
+		if (!res.ok) return null;
+		const body = await res.json() as { data?: { id?: number; yearLabel?: string } };
+		if (!body.data?.id || !body.data?.yearLabel) return null;
+		return { id: body.data.id, yearLabel: body.data.yearLabel };
+	} catch {
+		return null;
+	}
+}
+
 // ─── Types ───
 
 export type ProgramType = 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER';

@@ -70,24 +70,20 @@ export async function syncSectionsFromExternal(
 		}
 	}
 
-	// Mark missing sections as stale
-	await prisma.sectionMirror.updateMany({
+	// Hard-delete sections that no longer exist in EnrollPro.
+	// EnrollPro is the source of truth — stale rows must not persist.
+	const { count: deletedCount } = await prisma.sectionMirror.deleteMany({
 		where: {
 			schoolId,
 			schoolYearId,
 			externalId: { notIn: Array.from(externalIds) },
-			isStale: false,
 		},
-		data: {
-			isStale: true,
-			staleReason: 'Missing from upstream during sync',
-			staleAt: new Date(),
-		}
 	});
 
 	return {
 		synced: true,
 		count: externalSections.length,
+		removed: deletedCount,
 		source: result.source,
 		fetchedAt: result.fetchedAt,
 	};

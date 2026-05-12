@@ -4,6 +4,7 @@ import { authenticate } from '../middleware/authenticate.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import { prisma } from '../lib/prisma.js';
 import * as facultyService from '../services/faculty.service.js';
+import { fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
 
 const router = Router();
 
@@ -72,7 +73,6 @@ function parseSyncMode(value: unknown): facultyService.FacultySyncMode {
 async function handleFacultySync(req: Request, res: Response, next: NextFunction, modeOverride?: facultyService.FacultySyncMode) {
 	try {
 		const schoolId = Number(req.body.schoolId);
-		const schoolYearId = req.body.schoolYearId !== undefined ? Number(req.body.schoolYearId) : 1;
 		if (!schoolId || Number.isNaN(schoolId)) {
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
 			return;
@@ -88,11 +88,24 @@ async function handleFacultySync(req: Request, res: Response, next: NextFunction
 		}
 
 		const authToken = req.headers.authorization?.slice(7);
-		const result = await facultyService.syncFacultyFromExternal(schoolId, schoolYearId, authToken, {
-			mode,
-			pruneSectionAssignments: true,
-			invalidateRuns: true,
-		});
+
+		// Resolve schoolYearId: use caller-supplied value if present, otherwise fetch from EnrollPro.
+		let schoolYearId: number;
+		if (req.body.schoolYearId !== undefined) {
+			schoolYearId = Number(req.body.schoolYearId);
+		} else {
+			const activeYear = await fetchEnrollProActiveSchoolYear(authToken);
+			schoolYearId = activeYear?.id ?? 1;
+		}
+
+		const [result, activeYear] = await Promise.all([
+			facultyService.syncFacultyFromExternal(schoolId, schoolYearId, authToken, {
+				mode,
+				pruneSectionAssignments: true,
+				invalidateRuns: true,
+			}),
+			fetchEnrollProActiveSchoolYear(authToken),
+		]);
 		if (!result.synced) {
 			res.status(502).json({
 				code: 'SYNC_FAILED',
@@ -117,6 +130,7 @@ async function handleFacultySync(req: Request, res: Response, next: NextFunction
 			seededAssignments: result.seededAssignments,
 			isStale: result.isStale,
 			staleReason: result.staleReason,
+			...(activeYear ? { enrollProActiveYear: activeYear.yearLabel } : {}),
 		});
 	} catch (err) {
 		next(err);

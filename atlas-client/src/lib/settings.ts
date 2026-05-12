@@ -16,6 +16,7 @@ export interface EnrollProSettings {
 	colorScheme: Record<string, unknown> | null;
 	selectedAccentHsl: string | null;
 	activeSchoolYearId: number | null;
+	activeSchoolYearLabel: string | null;
 }
 
 export interface SchoolYear {
