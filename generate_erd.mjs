@@ -112,9 +112,7 @@ function parsePrisma(schema) {
                 localField.isFK = true;
                 rel.fromDbField = localField.dbName;
             } else {
-                 // handle composite or mapped fields if needed, simplified here
                  rel.fromDbField = rel.localField; 
-                 // just mark it if we can find it
                  const f = model.fields.find(f => f.name === rel.localField || f.dbName === rel.localField);
                  if (f) f.isFK = true;
             }
@@ -145,11 +143,17 @@ function generateXML(models) {
         <mxCell id="1" parent="0" />
 `;
 
-    let x = 100;
-    let y = 100;
-    const columns = 6;
-    let currentColumn = 0;
-    let currentRowHeight = 0;
+    // Hierarchical Placement (Sugiyama Approximation)
+    const placementMap = {
+        'departments': 0, 'grade_levels': 0, 'academic_years': 0, 'semesters': 0, 'admin_audits': 0, 'faculty_audits': 0, 'enrollpro_sync_logs': 0, 'api_keys': 0, 'password_resets': 0, 'user_sessions': 0,
+        'schools': 1, 'users': 1, 'faculty': 1, 'rooms': 1, 'subjects': 1, 'class_templates': 1, 'generation_runs': 1,
+        'faculty_mirrors': 2, 'subject_mirrors': 2, 'room_mirrors': 2, 'sections': 2, 'class_template_subjects': 2, 'run_logs': 2,
+        'section_mirrors': 3, 'teaching_assignments': 3, 'timetables': 3, 'timetable_entries': 3
+    };
+
+    let colY = [100, 100, 100, 100];
+    const COL_WIDTH = 600;
+    const ROW_GAP = 200;
     
     let idCounter = 1000;
     function nextId() { return 'id-' + (idCounter++); }
@@ -160,6 +164,12 @@ function generateXML(models) {
     for (const model of models) {
         const tableId = nextId();
         modelIds[model.dbName] = tableId;
+        
+        let col = placementMap[model.dbName];
+        if (col === undefined) col = 3; // Default to rightmost if unknown
+        
+        let x = col * COL_WIDTH;
+        let y = colY[col];
         
         const rowHeight = 30;
         const tableHeight = 30 + model.fields.length * rowHeight;
@@ -201,16 +211,7 @@ function generateXML(models) {
             rowY += rowHeight;
         }
         
-        currentRowHeight = Math.max(currentRowHeight, tableHeight);
-        currentColumn++;
-        x += 350; // horizontal spacing
-        
-        if (currentColumn >= columns) {
-            currentColumn = 0;
-            x = 100;
-            y += currentRowHeight + 400; // vertical spacing
-            currentRowHeight = 0;
-        }
+        colY[col] += tableHeight + ROW_GAP;
     }
     
     // Edges
@@ -222,7 +223,8 @@ function generateXML(models) {
             
             if (sourceId && targetId) {
                 const edgeId = nextId();
-                xml += `        <mxCell id="${edgeId}" style="edgeStyle=orthogonalEdgeStyle;rounded=1;jumpStyle=arc;endArrow=ERzeroToMany;startArrow=ERmandOne;html=1;" edge="1" parent="1" source="${sourceId}" target="${targetId}">
+                // Applied strict anchor points and backbone edge style
+                xml += `        <mxCell id="${edgeId}" style="edgeStyle=entityRelationEdgeStyle;rounded=1;html=1;jumpStyle=arc;endArrow=ERzeroToMany;startArrow=ERmandOne;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="${sourceId}" target="${targetId}">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>\n`;
             }
@@ -240,4 +242,4 @@ function generateXML(models) {
 const models = parsePrisma(prismaSchema);
 const xml = generateXML(models);
 fs.writeFileSync('D:/ATLAS/ATLAS_ERD.xml', xml);
-console.log('Successfully wrote ATLAS_ERD.xml with ' + models.length + ' tables.');
+console.log('Successfully wrote ATLAS_ERD.xml with advanced layout.');
