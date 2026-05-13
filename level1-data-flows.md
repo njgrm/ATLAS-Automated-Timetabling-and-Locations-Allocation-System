@@ -1,231 +1,205 @@
-# ATLAS Level 1 DFD — Horizontal Data Flows (Process ↔ Data Store)
+# ATLAS Level 1 DFD — Normalized Horizontal Data Flows
 
-> All flows are **unidirectional** (no double-headed arrows).
-> Direction notation: **Source → Destination: *Data Label***
-
----
-
-## Data Store Index (D1–D28)
-
-| ID | Table | Description |
-|----|-------|-------------|
-| D1 | `schools` | School profiles |
-| D2 | `buildings` | Campus buildings |
-| D3 | `rooms` | Rooms per building |
-| D4 | `subjects` | Subject catalogue |
-| D5 | `faculty_mirrors` | Synced faculty profiles |
-| D6 | `atlas_auth_accounts` | Local auth credentials |
-| D7 | `faculty_subjects` | Faculty–subject assignments |
-| D8 | `faculty_preferences` | Faculty preference forms |
-| D9 | `preference_time_slots` | Time slot preference entries |
-| D10 | `preference_reviews` | Officer reviews of preference forms |
-| D11 | `faculty_room_preferences` | Room change requests |
-| D12 | `room_request_appeals` | Appeals on rejected room requests |
-| D13 | `room_request_appeal_history` | Appeal status history entries |
-| D14 | `scheduling_policies` | Scheduling constraint rules |
-| D15 | `generation_runs` | Timetable generation run records |
-| D16 | `manual_schedule_edits` | Manual edit audit trail |
-| D17 | `audit_logs` | System-wide action audit log |
-| D18 | `follow_up_flags` | Entries flagged for follow-up |
-| D19 | `locked_sessions` | Pre-generation locked session slots |
-| D20 | `locked_session_actions` | Locked session action history |
-| D21 | `grade_shift_windows` | Grade-level scheduling windows |
-| D22 | `faculty_snapshots` | Durable faculty sync cache |
-| D23 | `section_snapshots` | Durable section sync cache |
-| D24 | `instructional_cohorts` | TLE inter-section cohorts |
-| D25 | `class_templates` | Schedule profile templates |
-| D26 | `class_template_subjects` | Template–subject bindings |
-| D27 | `section_mirrors` | Synced section records |
-| D28 | `specialization_aliases` | Faculty specialization alias mappings |
+> **Rule applied to every process:** Only stores that are genuine read/write partners get their own arrow.
+> Tightly-coupled store pairs are merged. Pure lookup/context stores are absorbed into labels.
+> No double-headed arrows — all flows are unidirectional.
 
 ---
 
-## Process Index (P1.0–P8.0)
+## Data Store Index
 
-| ID | Process |
-|----|---------|
-| P1.0 | User Authentication |
-| P2.0 | Manage System Settings & Sync |
-| P3.0 | Manage Academic Resources |
-| P4.0 | Configure Priority Parameters |
-| P5.0 | Process Teacher Preferences |
-| P6.0 | Algorithmic Timetable Generation |
-| P7.0 | Manual Schedule Refinement |
-| P8.0 | Data Synchronization & Distribution |
+| ID | Table |
+|----|-------|
+| D1 | `schools` |
+| D2 | `buildings` |
+| D3 | `rooms` |
+| D4 | `subjects` |
+| D5 | `faculty_mirrors` |
+| D6 | `atlas_auth_accounts` |
+| D7 | `faculty_subjects` |
+| D8 | `faculty_preferences` |
+| D9 | `preference_time_slots` |
+| D10 | `preference_reviews` |
+| D11 | `faculty_room_preferences` |
+| D12 | `room_request_appeals` |
+| D13 | `room_request_appeal_history` |
+| D14 | `scheduling_policies` |
+| D15 | `generation_runs` |
+| D16 | `manual_schedule_edits` |
+| D17 | `audit_logs` |
+| D18 | `follow_up_flags` |
+| D19 | `locked_sessions` |
+| D20 | `locked_session_actions` |
+| D21 | `grade_shift_windows` |
+| D22 | `faculty_snapshots` |
+| D23 | `section_snapshots` |
+| D24 | `instructional_cohorts` |
+| D25 | `class_templates` |
+| D26 | `class_template_subjects` |
+| D27 | `section_mirrors` |
+| D28 | `specialization_aliases` |
 
 ---
 
 ## Cluster A: Identity & System Basics
 
 **Processes:** P1.0, P2.0
-**Data Stores:** D1, D5, D6, D17, D22, D23, D27, D28
+
+---
 
 ### P1.0 — User Authentication
+*(3 arrows — already minimal, nothing to absorb)*
 
 | Step | Flow | Data Label |
 |------|------|------------|
 | 1 | D6 → P1.0 | Stored Account Credentials, Role, and Lock Status |
-| 2 | P1.0 → D6 | Updated Failed Login Count / Lock Expiry Timestamp |
-| 3 | P1.0 → D17 | Record of Authentication Event (success, failure, or lockout) |
+| 2 | P1.0 → D6 | Updated Failed Login Count / Lock Expiry |
+| 3 | P1.0 → D17 | Authentication Event Record (success, failure, or lockout) |
+
+---
 
 ### P2.0 — Manage System Settings & Sync
+*(7 arrows — down from 13)*
+> **Merges:** D1+D28 → one "settings" pair (school profile + aliases are both system config). D5+D22 → faculty sync pair (mirror + snapshot always travel together). D27+D23 → section sync pair (same pattern).
 
 | Step | Flow | Data Label |
 |------|------|------------|
-| 1 | D1 → P2.0 | Current School Profile (name, shortName, campus map URL) |
-| 2 | P2.0 → D1 | Updated School Profile |
-| 3 | D5 → P2.0 | Existing Faculty Mirror Records (for diff comparison) |
-| 4 | P2.0 → D5 | Synced Faculty Profile Data (from LIS/stub) |
-| 5 | D22 → P2.0 | Last Faculty Snapshot (checksum, payload) |
-| 6 | P2.0 → D22 | New Faculty Snapshot Record |
-| 7 | D27 → P2.0 | Existing Section Mirror Records (for diff comparison) |
-| 8 | P2.0 → D27 | Synced Section Profile Data (from EnrollPro/stub) |
-| 9 | D23 → P2.0 | Last Section Snapshot (checksum, payload) |
-| 10 | P2.0 → D23 | New Section Snapshot Record |
-| 11 | D28 → P2.0 | Existing Specialization Alias Mappings |
-| 12 | P2.0 → D28 | New or Updated Specialization Alias Entry |
-| 13 | P2.0 → D17 | Record of Sync Operations and Setting Changes |
+| 1 | D1, D28 → P2.0 | Current System Settings (school profile and specialization alias mappings) |
+| 2 | P2.0 → D1, D28 | Updated System Setting (school profile or alias entry) |
+| 3 | D5, D22 → P2.0 | Existing Faculty Records and Last Sync Snapshot (for diff and checksum comparison) |
+| 4 | P2.0 → D5, D22 | Synced Faculty Profile Data and New Snapshot Record |
+| 5 | D27, D23 → P2.0 | Existing Section Records and Last Sync Snapshot (for diff and checksum comparison) |
+| 6 | P2.0 → D27, D23 | Synced Section Profile Data and New Snapshot Record |
+| 7 | P2.0 → D17 | Audit Record of Sync Operations and Setting Changes |
 
 ---
 
 ## Cluster B: Resource & Preference Management
 
 **Processes:** P3.0, P4.0, P5.0
-**Data Stores:** D2, D3, D4, D5, D7, D8, D9, D10, D11, D12, D13, D14, D17, D21, D24, D25, D26, D27, D28
+
+---
 
 ### P3.0 — Manage Academic Resources
-
-> Stores are bundled by role: **D2–D3** = physical infrastructure, **D5+D7** = faculty layer, **D24–D26** = program configuration, **D27+D28** = read-only reference context.
+*(7 arrows — down from 18)*
+> **Merges:** D4+D25+D26 → academic programme (subjects, templates, bindings). D7+D24 → teaching assignments (faculty–subject pairings and cohorts).
+> **Absorbed (no arrow):** D5 (faculty lookup context), D27 (section scoping), D28 (alias matching) — referenced within labels.
 
 | Step | Flow | Data Label |
 |------|------|------------|
-| 1 | D2–D3 → P3.0 | Current Infrastructure Records (buildings, rooms with type, capacity, features) |
-| 2 | P3.0 → D2–D3 | New or Updated Infrastructure Record (building or room) |
-| 3 | D4 → P3.0 | Current Subject Records (code, name, grade levels, session pattern) |
-| 4 | P3.0 → D4 | New or Updated Subject Record |
-| 5 | D5, D7 → P3.0 | Faculty Profiles and Existing Assignments (for reference and display) |
-| 6 | P3.0 → D7 | New or Updated Faculty–Subject Assignment |
-| 7 | D24–D26 → P3.0 | Program Configuration Data (cohorts, class templates, template–subject bindings) |
-| 8 | P3.0 → D24–D26 | New or Updated Program Configuration Record |
-| 9 | D27, D28 → P3.0 | Reference Context (section records and specialization aliases — read only) |
-| 10 | P3.0 → D17 | Record of All Resource Create/Update/Delete Events |
+| 1 | D2, D3 → P3.0 | Current Campus Infrastructure (building layouts, room types, capacities, features) |
+| 2 | P3.0 → D2, D3 | Updated Infrastructure Record (new or revised building or room) |
+| 3 | D4, D25, D26 → P3.0 | Current Academic Programme Data (subjects with grade levels; class templates and bindings) |
+| 4 | P3.0 → D4, D25, D26 | Updated Academic Programme Record (subject, template, or binding) |
+| 5 | D7, D24 → P3.0 | Current Teaching Assignments (faculty–subject pairings and inter-section cohort definitions) |
+| 6 | P3.0 → D7, D24 | New or Updated Teaching Assignment or Cohort |
+| 7 | P3.0 → D17 | Audit Record of All Resource Changes |
+
+---
 
 ### P4.0 — Configure Priority Parameters
+*(3 arrows — down from 5)*
+> **Merged:** D14+D21 → one scheduling configuration pair (policy rules and grade-shift windows are always configured together).
 
 | Step | Flow | Data Label |
 |------|------|------------|
-| 1 | D14 → P4.0 | Existing Scheduling Policy (constraint thresholds, flags) |
-| 2 | P4.0 → D14 | Updated Scheduling Policy Rules |
-| 3 | D21 → P4.0 | Existing Grade Shift Windows (start/end times per grade level) |
-| 4 | P4.0 → D21 | New or Updated Grade Shift Window |
-| 5 | P4.0 → D17 | Record of Policy and Window Configuration Changes |
+| 1 | D14, D21 → P4.0 | Current Scheduling Configuration (policy constraint rules and grade-level shift windows) |
+| 2 | P4.0 → D14, D21 | Updated Scheduling Configuration Record |
+| 3 | P4.0 → D17 | Audit Record of Policy and Window Changes |
+
+---
 
 ### P5.0 — Process Teacher Preferences
+*(7 arrows — down from 14)*
+> **Merged:** D8+D9 → preference submission pair (form and its time slots are always read/written together). D11+D12+D13 → room request chain (request, appeal, history form a single escalation flow).
+> **Absorbed (no arrow):** D5 (faculty identity lookup) — referenced in Step 1 label.
 
 | Step | Flow | Data Label |
 |------|------|------------|
-| 1 | D5 → P5.0 | Faculty Mirror Records (identity and school context) |
-| 2 | D8 → P5.0 | Existing Faculty Preference Form (status, notes, well-being flags) |
-| 3 | P5.0 → D8 | New or Updated Faculty Preference Form |
-| 4 | D9 → P5.0 | Existing Time Slot Preference Entries |
-| 5 | P5.0 → D9 | New or Updated Preferred Time Slots |
-| 6 | D10 → P5.0 | Existing Preference Review Record (status, reviewer notes) |
-| 7 | P5.0 → D10 | New or Updated Preference Review Decision |
-| 8 | D11 → P5.0 | Existing Room Change Requests |
-| 9 | P5.0 → D11 | New Room Preference Request or Updated Decision |
-| 10 | D12 → P5.0 | Existing Room Request Appeals |
-| 11 | P5.0 → D12 | New Room Request Appeal Record |
-| 12 | D13 → P5.0 | Existing Appeal History Entries |
-| 13 | P5.0 → D13 | New Appeal History Entry (status change or note) |
-| 14 | P5.0 → D17 | Record of Preference Submissions and Review Events |
+| 1 | D8, D9 → P5.0 | Existing Preference Submissions (faculty preference forms and their time slot entries; faculty identity from D5 used as context) |
+| 2 | P5.0 → D8, D9 | New or Updated Preference Submission and Time Slot Entries |
+| 3 | D10 → P5.0 | Existing Preference Review Record (status and reviewer notes) |
+| 4 | P5.0 → D10 | Updated Review Decision |
+| 5 | D11, D12, D13 → P5.0 | Room Request and Appeal Records (requests, appeals, and status history) |
+| 6 | P5.0 → D11, D12, D13 | New or Updated Room Request, Appeal, or History Entry |
+| 7 | P5.0 → D17 | Audit Record of Preference Submissions and Review Events |
 
 ---
 
 ## Cluster C: Engine & Distribution
 
 **Processes:** P6.0, P7.0, P8.0
-**Data Stores:** D1, D2, D3, D4, D5, D7, D8, D9, D14, D15, D16, D17, D18, D19, D20, D21, D24, D25, D27
+
+---
 
 ### P6.0 — Algorithmic Timetable Generation
+*(8 arrows — down from 16)*
+> **Merged:** D5+D7+D8+D9 → faculty input pack (profiles, assignments, preferences, time slots — all consumed as one faculty dataset). D4+D25 → academic programme (subjects and templates define what gets scheduled). D24+D27 → section/cohort definitions (who gets scheduled).
+> **Absorbed (no arrow):** D1 (school_id is implicit scoping on every query — not a meaningful input to draw), D26 (template–subject bindings are consumed as part of D25).
 
 | Step | Flow | Data Label |
 |------|------|------------|
-| 1 | D1 → P6.0 | School Context (id, name — for run scoping) |
-| 2 | D2 → P6.0 | Building Data (coordinates for travel-distance calculations) |
-| 3 | D3 → P6.0 | Room Data (type, capacity, features, floor) |
-| 4 | D4 → P6.0 | Subject Data (minutes/week, session pattern, required features) |
-| 5 | D5 → P6.0 | Faculty Data (load limits, specializations, adviser flag) |
-| 6 | D7 → P6.0 | Faculty–Subject Assignments (who teaches what sections) |
-| 7 | D8 → P6.0 | Submitted Faculty Preference Forms (well-being flags) |
-| 8 | D9 → P6.0 | Faculty Time Slot Preferences (PREFERRED / AVAILABLE / UNAVAILABLE) |
-| 9 | D14 → P6.0 | Scheduling Policy Rules (hard and soft constraint config) |
-| 10 | D19 → P6.0 | Locked Session Constraints (pre-pinned slots) |
-| 11 | D21 → P6.0 | Grade Shift Windows (per-grade earliest/latest time bounds) |
-| 12 | D24 → P6.0 | Instructional Cohort Definitions (TLE cross-section groups) |
-| 13 | D25 → P6.0 | Class Templates (period length, periods per day) |
-| 14 | D27 → P6.0 | Section Mirror Records (enrolled count, program type) |
-| 15 | P6.0 → D15 | Newly Generated Draft Schedule (entries, violations, summary) |
-| 16 | P6.0 → D17 | Record of Generation Run Event (triggered_by, duration, status) |
+| 1 | D2, D3 → P6.0 | Campus Infrastructure (building coordinates for travel calculation; room types, capacities, features) |
+| 2 | D4, D25 → P6.0 | Academic Programme Data (subjects with minute requirements and patterns; class templates with period config) |
+| 3 | D5, D7, D8, D9 → P6.0 | Faculty Input Pack (profiles with load limits; assignments; submitted preference forms and time slot ratings) |
+| 4 | D14, D21 → P6.0 | Scheduling Rules (hard and soft policy constraints; per-grade shift windows) |
+| 5 | D19 → P6.0 | Locked Session Constraints (pre-pinned timeslots that must not be moved) |
+| 6 | D24, D27 → P6.0 | Section and Cohort Definitions (enrolled counts, program types, TLE inter-section groups) |
+| 7 | P6.0 → D15 | Generated Draft Schedule (entries, constraint violations, summary metrics) |
+| 8 | P6.0 → D17 | Audit Record of Generation Run (actor, duration, status) |
+
+---
 
 ### P7.0 — Manual Schedule Refinement
+*(8 arrows — down from 12)*
+> **Merged:** D19+D20 → locked session layer (session record and its action history always accessed together). D11+D18 → review items (room requests and follow-up flags are both pending review work addressed in this phase).
 
 | Step | Flow | Data Label |
 |------|------|------------|
 | 1 | D15 → P7.0 | Draft Schedule Entries (for display and manual editing) |
-| 2 | P7.0 → D15 | Updated Draft Entries (after move, swap, or room change) |
-| 3 | P7.0 → D16 | Log of Manual Schedule Adjustment (before/after payloads) |
-| 4 | D19 → P7.0 | Existing Locked Session Records |
-| 5 | P7.0 → D19 | New or Updated Locked Session (status, day, timeslot) |
-| 6 | D20 → P7.0 | Locked Session Action History |
-| 7 | P7.0 → D20 | New Locked Session Action Entry (actor, before/after payload) |
-| 8 | D18 → P7.0 | Existing Follow-Up Flags for Draft Entries |
-| 9 | P7.0 → D18 | New Follow-Up Flag (entry_id, note) |
-| 10 | D11 → P7.0 | Pending Room Preference Requests (for officer review) |
-| 11 | P7.0 → D11 | Room Preference Decision (APPROVED/REJECTED, reviewer notes) |
-| 12 | P7.0 → D17 | Record of Manual Edit and Room Decision Events |
-
-### P8.0 — Data Synchronization & Distribution
-
-| Step | Flow | Data Label |
-|------|------|------------|
-| 1 | D15 → P8.0 | Finalized Generation Run Data (completed draft entries) |
-| 2 | D4 → P8.0 | Subject Catalogue (for published schedule enrichment) |
-| 3 | D5 → P8.0 | Faculty Profile Data (for teacher-facing schedule views) |
-| 4 | D27 → P8.0 | Section Mirror Data (for student/section schedule views) |
-| 5 | D3 → P8.0 | Room Data (for location display in published schedule) |
-| 6 | P8.0 → D17 | Record of Publication and Distribution Events |
+| 2 | P7.0 → D15 | Updated Draft Entries (after move, swap, room change, or revert) |
+| 3 | P7.0 → D16 | Manual Edit Log Entry (edit type, before and after payloads) |
+| 4 | D19, D20 → P7.0 | Locked Sessions and Action History (existing locks and their change log) |
+| 5 | P7.0 → D19, D20 | Updated Lock Status and New Action Record |
+| 6 | D11, D18 → P7.0 | Pending Review Items (room preference requests and follow-up flags) |
+| 7 | P7.0 → D11, D18 | Review Decision or New Flag (approved/rejected room change; new follow-up marker) |
+| 8 | P7.0 → D17 | Audit Record of Manual Edits and Review Decisions |
 
 ---
 
-## Summary: Data Store Cluster Membership
+### P8.0 — Data Synchronization & Distribution
+*(3 arrows — down from 6)*
+> **Merged:** D3+D4+D5+D27 → schedule enrichment data (rooms, subjects, faculty, sections are all read-only lookups used to render human-readable published schedule output).
 
-| Data Store | Cluster A | Cluster B | Cluster C |
-|------------|:---------:|:---------:|:---------:|
-| D1 (schools) | ✓ | | ✓ |
-| D2 (buildings) | | ✓ | ✓ |
-| D3 (rooms) | | ✓ | ✓ |
-| D4 (subjects) | | ✓ | ✓ |
-| D5 (faculty_mirrors) | ✓ | ✓ | ✓ |
-| D6 (atlas_auth_accounts) | ✓ | | |
-| D7 (faculty_subjects) | | ✓ | ✓ |
-| D8 (faculty_preferences) | | ✓ | ✓ |
-| D9 (preference_time_slots) | | ✓ | ✓ |
-| D10 (preference_reviews) | | ✓ | |
-| D11 (faculty_room_preferences) | | ✓ | ✓ |
-| D12 (room_request_appeals) | | ✓ | |
-| D13 (room_request_appeal_history) | | ✓ | |
-| D14 (scheduling_policies) | | ✓ | ✓ |
-| D15 (generation_runs) | | | ✓ |
-| D16 (manual_schedule_edits) | | | ✓ |
-| D17 (audit_logs) | ✓ | ✓ | ✓ |
-| D18 (follow_up_flags) | | | ✓ |
-| D19 (locked_sessions) | | | ✓ |
-| D20 (locked_session_actions) | | | ✓ |
-| D21 (grade_shift_windows) | | ✓ | ✓ |
-| D22 (faculty_snapshots) | ✓ | | |
-| D23 (section_snapshots) | ✓ | | |
-| D24 (instructional_cohorts) | | ✓ | ✓ |
-| D25 (class_templates) | | ✓ | ✓ |
-| D26 (class_template_subjects) | | ✓ | |
-| D27 (section_mirrors) | ✓ | ✓ | ✓ |
-| D28 (specialization_aliases) | ✓ | ✓ | |
+| Step | Flow | Data Label |
+|------|------|------------|
+| 1 | D15 → P8.0 | Finalized Generation Run Data (completed draft entries marked for publication) |
+| 2 | D3, D4, D5, D27 → P8.0 | Schedule Enrichment Data (room details, subject names, faculty profiles, section names — for human-readable output) |
+| 3 | P8.0 → D17 | Audit Record of Publication and Distribution Event |
+
+---
+
+## Flow Count Summary
+
+| Process | Original | Normalized | Reduction |
+|---------|---------|------------|-----------|
+| P1.0 | 3 | 3 | — |
+| P2.0 | 13 | 7 | −6 |
+| P3.0 | 18 | 7 | −11 |
+| P4.0 | 5 | 3 | −2 |
+| P5.0 | 14 | 7 | −7 |
+| P6.0 | 16 | 8 | −8 |
+| P7.0 | 12 | 8 | −4 |
+| P8.0 | 6 | 3 | −3 |
+| **Total** | **87** | **46** | **−41** |
+
+## Absorbed Stores by Process
+
+| Process | Absorbed Stores | Reason |
+|---------|----------------|--------|
+| P2.0 | — | All stores are genuine sync targets |
+| P3.0 | D5, D27, D28 | Read-only lookup context (faculty identity, section scope, alias matching) |
+| P5.0 | D5 | Faculty identity lookup only — no preference data written to D5 |
+| P6.0 | D1, D26 | D1 = implicit school scoping; D26 = consumed as part of D25 template reads |
+| P7.0 | — | All stores are genuine edit/decision targets |
+| P8.0 | — | Enrichment stores merged, not absorbed |
