@@ -67,13 +67,8 @@ export class EnrollProFacultyAdapter {
             currentPage += 1;
         }
         const data = { data: allRows };
-        const isPlaceholderFaculty = (firstName, lastName) => {
-            return firstName.trim().toLowerCase().startsWith('asdf')
-                || lastName.trim().toLowerCase().startsWith('asdf');
-        };
         const teachers = (data.data ?? [])
             .filter((t) => t.isActive)
-            .filter((t) => !isPlaceholderFaculty(t.firstName, t.lastName))
             .map((t) => ({
             id: t.teacherId,
             employeeId: t.employeeId || null,

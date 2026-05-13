@@ -52,13 +52,16 @@ export interface SubjectInput {
 	name: string;
 	minMinutesPerWeek: number;
 	preferredRoomType: RoomType;
-	sessionPattern: 'MWF' | 'TTH' | 'ANY';
+	sessionPattern: 'MWF' | 'TTH' | 'ANY' | 'FRIDAY_ONLY';
 	gradeLevels: number[];
 	interSectionEnabled?: boolean;
 	interSectionGradeLevels?: number[];
 	/** Stored program scopes from DB — used for data-driven filtering */
 	programScopes?: string[];
 	allowedSpecializations?: string[];
+	modularGroupId?: string | null;
+	modularOrder?: number | null;
+	requiredFeatures?: string[];
 }
 
 export interface InstructionalCohortInput {
@@ -319,10 +322,25 @@ export interface ConstructorResult {
 	entries: ScheduledEntry[];
 	unassignedItems: UnassignedItem[];
 	lockWarnings: string[];
+	modularWarnings?: ModularWarning[];
 	assignedCount: number;
 	unassignedCount: number;
 	classesProcessed: number;
 	policyBlockedCount: number;
+}
+
+export interface ModularAssignment {
+	quarter: number;
+	facultyId: number;
+	subjectCode: string;
+}
+
+export interface ModularWarning {
+	code: 'LACKING_FACULTY' | 'INCOMPLETE_MODULAR_GROUP';
+	sectionId: number;
+	subjectId: number;
+	message: string;
+	meta?: Record<string, unknown>;
 }
 
 // ─── Demand computation ───
@@ -335,7 +353,7 @@ export interface DemandItem {
 	sessionsPerWeek: number;
 	durationPerSession: number;
 	enrolledCount: number;
-	sessionPattern: 'MWF' | 'TTH' | 'ANY';
+	sessionPattern: 'MWF' | 'TTH' | 'ANY' | 'FRIDAY_ONLY';
 	entryKind: 'SECTION' | 'COHORT';
 	programType?: string | null;
 	programCode?: string | null;
@@ -346,6 +364,14 @@ export interface DemandItem {
 	roomTypePreference?: RoomType;
 	adviserId?: number | null;
 	adviserName?: string | null;
+	modularGroupId?: string | null;
+	modularSubjects?: Array<{
+		subjectId: number;
+		subjectCode: string;
+		modularOrder: number;
+		minMinutesPerWeek: number;
+	}>;
+	modularExpectedCount?: number;
 }
 
 export function computeDemand(
@@ -354,6 +380,10 @@ export function computeDemand(
 	cohorts: InstructionalCohortInput[] = [],
 	classTemplatePeriods: Record<string, number> = {},
 ): DemandItem[] {
+	const EXPECTED_MODULAR_SUBJECTS: Record<string, number> = {
+		SCIENCE: 4,
+	};
+
 	const demand: DemandItem[] = [];
 	const sortedGrades = [...sectionsByGrade].sort((a, b) => a.displayOrder - b.displayOrder);
 	const sortedSubjects = [...subjects].sort((a, b) => a.id - b.id);
@@ -366,9 +396,73 @@ export function computeDemand(
 		const sortedSections = [...grade.sections].sort((a, b) => a.id - b.id);
 		const sectionsById = new Map(sortedSections.map((section) => [section.id, section]));
 		const cohortsForGrade = activeCohorts.filter((cohort) => cohort.gradeLevel === gradeNum);
+		const modularGroups = new Map<string, SubjectInput[]>();
+		const modularSubjectIds = new Set<number>();
 
 		for (const subject of sortedSubjects) {
 			if (!subject.gradeLevels.includes(gradeNum)) continue;
+			if (!subject.modularGroupId) continue;
+			const groupId = subject.modularGroupId.trim().toUpperCase();
+			if (!groupId) continue;
+			const groupSubjects = modularGroups.get(groupId) ?? [];
+			groupSubjects.push(subject);
+			modularGroups.set(groupId, groupSubjects);
+			modularSubjectIds.add(subject.id);
+		}
+
+		for (const [groupId, groupSubjects] of modularGroups) {
+			const orderedModules = [...groupSubjects].sort((left, right) => {
+				const leftOrder = left.modularOrder ?? Number.MAX_SAFE_INTEGER;
+				const rightOrder = right.modularOrder ?? Number.MAX_SAFE_INTEGER;
+				return leftOrder - rightOrder || left.id - right.id;
+			});
+			if (orderedModules.length === 0) continue;
+
+			const primary = orderedModules[0];
+			const maxMinutesPerWeek = Math.max(...orderedModules.map((moduleSubject) => moduleSubject.minMinutesPerWeek));
+			const expectedCount = EXPECTED_MODULAR_SUBJECTS[groupId] ?? orderedModules.length;
+
+			for (const section of sortedSections) {
+				const applicableModules = orderedModules.filter((moduleSubject) =>
+					isSubjectAllowedForSectionProgram(moduleSubject.code, section.programCode, moduleSubject.programScopes),
+				);
+				if (applicableModules.length === 0) continue;
+
+				const periodLength = classTemplatePeriods[(section.programCode ?? '').toUpperCase()] ?? STANDARD_PERIOD_MINUTES;
+				const sessions = Math.ceil(maxMinutesPerWeek / periodLength);
+				const duration = Math.ceil(maxMinutesPerWeek / sessions);
+
+				demand.push({
+					sectionId: section.id,
+					subjectId: primary.id,
+					subjectCode: groupId,
+					gradeLevel: gradeNum,
+					sessionsPerWeek: sessions,
+					durationPerSession: duration,
+					enrolledCount: section.enrolledCount,
+					sessionPattern: primary.sessionPattern ?? 'ANY',
+					entryKind: 'SECTION',
+					programType: section.programType ?? null,
+					programCode: section.programCode ?? null,
+					programName: section.programName ?? null,
+					roomTypePreference: primary.preferredRoomType,
+					adviserId: section.adviserId ?? null,
+					adviserName: section.adviserName ?? null,
+					modularGroupId: groupId,
+					modularSubjects: applicableModules.map((moduleSubject, index) => ({
+						subjectId: moduleSubject.id,
+						subjectCode: moduleSubject.code,
+						modularOrder: moduleSubject.modularOrder ?? index + 1,
+						minMinutesPerWeek: moduleSubject.minMinutesPerWeek,
+					})),
+					modularExpectedCount: expectedCount,
+				});
+			}
+		}
+
+		for (const subject of sortedSubjects) {
+			if (!subject.gradeLevels.includes(gradeNum)) continue;
+			if (modularSubjectIds.has(subject.id)) continue;
 
 			/**
 			 * Resolve period length for a section based on its program type.
@@ -687,6 +781,60 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		return { ids: available.sort((a, b) => a - b) };
 	}
 
+	function buildModularAssignments(item: DemandItem): { assignments: ModularAssignment[]; missingQuarters: number[] } {
+		if (!item.modularSubjects || item.modularSubjects.length === 0) {
+			return { assignments: [], missingQuarters: [] };
+		}
+
+		const sortedModules = [...item.modularSubjects].sort((left, right) => left.modularOrder - right.modularOrder);
+		const assignments: ModularAssignment[] = [];
+		const missingQuarters: number[] = [];
+
+		for (const moduleSubject of sortedModules) {
+			const quarter = moduleSubject.modularOrder;
+			const facultyIds = qualifiedMap.get(`${moduleSubject.subjectId}:${item.sectionId}`) ?? [];
+			if (facultyIds.length === 0) {
+				missingQuarters.push(quarter);
+				continue;
+			}
+			assignments.push({
+				quarter,
+				facultyId: facultyIds[0],
+				subjectCode: moduleSubject.subjectCode,
+			});
+		}
+
+		if (missingQuarters.length > 0) {
+			modularWarnings.push({
+				code: 'LACKING_FACULTY',
+				sectionId: item.sectionId,
+				subjectId: item.subjectId,
+				message: `Lacking Faculty for modular group ${item.modularGroupId ?? item.subjectCode} in section ${item.sectionId}. Missing quarter(s): ${missingQuarters.join(', ')}.`,
+				meta: {
+					modularGroupId: item.modularGroupId ?? null,
+					missingQuarters,
+				},
+			});
+		}
+
+		if (item.modularExpectedCount && sortedModules.length < item.modularExpectedCount) {
+			modularWarnings.push({
+				code: 'INCOMPLETE_MODULAR_GROUP',
+				sectionId: item.sectionId,
+				subjectId: item.subjectId,
+				message: `Incomplete Modular Group ${item.modularGroupId ?? item.subjectCode} in section ${item.sectionId}: found ${sortedModules.length} of expected ${item.modularExpectedCount} module subjects.`,
+				meta: {
+					modularGroupId: item.modularGroupId ?? null,
+					foundSubjects: sortedModules.length,
+					expectedSubjects: item.modularExpectedCount,
+					subjectCodes: sortedModules.map((moduleSubject) => moduleSubject.subjectCode),
+				},
+			});
+		}
+
+		return { assignments, missingQuarters };
+	}
+
 	// Preference lookup
 	const prefLookup = buildPreferenceLookup(preferences, PERIOD_SLOTS);
 
@@ -702,6 +850,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	const entries: ScheduledEntry[] = [];
 	const unassignedItems: UnassignedItem[] = [];
 	const lockWarnings: string[] = [];
+	const modularWarnings: ModularWarning[] = [];
 	let assignedCount = 0;
 	let unassignedCount = 0;
 	let policyBlockedCount = 0;
@@ -880,6 +1029,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	const SESSION_PATTERN_DAYS: Record<string, Set<string>> = {
 		MWF: new Set(['MONDAY', 'WEDNESDAY', 'FRIDAY']),
 		TTH: new Set(['TUESDAY', 'THURSDAY']),
+		FRIDAY_ONLY: new Set(['FRIDAY']),
 		ANY: new Set(DAYS),
 	};
 
@@ -891,6 +1041,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 	for (const item of orderedDemand) {
 		const subject = subjectMap.get(item.subjectId);
+		const modularAssignmentInfo = item.modularGroupId ? buildModularAssignments(item) : null;
 		if (!subject) {
 			for (let s = 0; s < item.sessionsPerWeek; s++) {
 				unassignedItems.push({
@@ -964,12 +1115,15 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				return a.pi - b.pi;
 			});
 
-			// For each slot, try to find a qualified and available teacher + room
+			// For each slot, place with explicit faculty (standard) or modular metadata (unified modular subjects)
 			for (const slotCandidate of possibleSlots) {
 				if (placed) break;
 				
 				const slot = PERIOD_SLOTS[slotCandidate.pi];
-				const { ids: candidates, reason: qReason } = getQualifiedFacultyIds(item, slotCandidate.day, slot, slotCandidate.pi);
+				const isModularUnified = Boolean(item.modularGroupId);
+				const { ids: candidates, reason: qReason } = isModularUnified
+					? { ids: [0] as number[], reason: undefined }
+					: getQualifiedFacultyIds(item, slotCandidate.day, slot, slotCandidate.pi);
 				
 				if (qReason) sessionFailureReasons.add(qReason);
 				if (candidates.length === 0) continue;
@@ -995,7 +1149,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					if (placed) break;
 					
 					// Final policy checks for this teacher
-					if (policy) {
+					if (policy && !isModularUnified) {
 						const dailyKey = `${facId}:${slotCandidate.day}`;
 						const dailyUsed = facultyDailyMinutes.get(dailyKey) ?? 0;
 						if (dailyUsed + item.durationPerSession > policy.maxTeachingMinutesPerDay) {
@@ -1027,7 +1181,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 						entryCounter++;
 						entries.push({
 							entryId: `entry-${entryCounter}`,
-							facultyId: facId,
+							facultyId: isModularUnified ? null : facId,
 							roomId: room.id,
 							subjectId: item.subjectId,
 							sectionId: item.sectionId,
@@ -1045,21 +1199,31 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 							cohortExpectedEnrollment: item.entryKind === 'COHORT' ? item.enrolledCount : null,
 							adviserId: item.adviserId ?? null,
 							adviserName: item.adviserName ?? null,
+							metadata: isModularUnified
+								? {
+									modularGroupId: item.modularGroupId,
+									modularAssignments: modularAssignmentInfo?.assignments ?? [],
+								}
+								: undefined,
 						});
 
 						// Mark occupancy
-						facultyOcc.mark(facId, slotCandidate.day, slot.startTime, slot.endTime);
+						if (!isModularUnified) {
+							facultyOcc.mark(facId, slotCandidate.day, slot.startTime, slot.endTime);
+						}
 						roomOcc.mark(room.id, slotCandidate.day, slot.startTime, slot.endTime);
 						for (const sectionId of getDemandSectionIds(item)) {
 							sectionOcc.mark(sectionId, slotCandidate.day, slot.startTime, slot.endTime);
 						}
 
-						facultyLoad.set(facId, (facultyLoad.get(facId) ?? 0) + item.durationPerSession);
-						const dailyKey = `${facId}:${slotCandidate.day}`;
-						facultyDailyMinutes.set(dailyKey, (facultyDailyMinutes.get(dailyKey) ?? 0) + item.durationPerSession);
-						const dayPeriods = facultyDayPeriods.get(dailyKey) ?? [];
-						dayPeriods.push(slotCandidate.pi);
-						facultyDayPeriods.set(dailyKey, dayPeriods);
+						if (!isModularUnified) {
+							facultyLoad.set(facId, (facultyLoad.get(facId) ?? 0) + item.durationPerSession);
+							const dailyKey = `${facId}:${slotCandidate.day}`;
+							facultyDailyMinutes.set(dailyKey, (facultyDailyMinutes.get(dailyKey) ?? 0) + item.durationPerSession);
+							const dayPeriods = facultyDayPeriods.get(dailyKey) ?? [];
+							dayPeriods.push(slotCandidate.pi);
+							facultyDayPeriods.set(dailyKey, dayPeriods);
+						}
 
 						daysUsedForPair.add(slotCandidate.day);
 						placed = true;
@@ -1112,6 +1276,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		entries,
 		unassignedItems,
 		lockWarnings,
+		modularWarnings,
 		assignedCount,
 		unassignedCount,
 		classesProcessed: assignedCount + unassignedCount,

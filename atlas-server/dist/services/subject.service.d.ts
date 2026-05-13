@@ -22,6 +22,7 @@ export declare function getSubjectsBySchool(schoolId: number, filters?: SubjectS
     interSectionGradeLevels: number[];
     allowedSpecializations: string[];
     requiredFeatures: string[];
+    modularGroupId: string | null;
 }[]>;
 export declare function getSubjectById(id: number): Promise<{
     schoolId: number;
@@ -41,6 +42,7 @@ export declare function getSubjectById(id: number): Promise<{
     programScopes: import("@prisma/client").$Enums.ProgramType[];
     allowedSpecializations: string[];
     requiredFeatures: string[];
+    modularGroupId: string | null;
 } | null>;
 export declare function createSubject(schoolId: number, data: {
     code: string;
@@ -71,6 +73,7 @@ export declare function createSubject(schoolId: number, data: {
     programScopes: import("@prisma/client").$Enums.ProgramType[];
     allowedSpecializations: string[];
     requiredFeatures: string[];
+    modularGroupId: string | null;
 }>;
 export declare function updateSubject(id: number, data: Partial<{
     name: string;
@@ -101,6 +104,7 @@ export declare function updateSubject(id: number, data: Partial<{
     programScopes: import("@prisma/client").$Enums.ProgramType[];
     allowedSpecializations: string[];
     requiredFeatures: string[];
+    modularGroupId: string | null;
 } | null>;
 export declare function deleteSubject(id: number): Promise<{
     success: boolean;

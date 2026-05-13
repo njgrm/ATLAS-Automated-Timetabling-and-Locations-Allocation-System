@@ -45,7 +45,7 @@ export type BridgeUser = {
 	accountId?: number;
 };
 
-export type SessionPattern = 'MWF' | 'TTH' | 'ANY';
+export type SessionPattern = 'MWF' | 'TTH' | 'ANY' | 'FRIDAY_ONLY';
 
 export type Subject = {
 	id: number;
@@ -62,6 +62,8 @@ export type Subject = {
 	interSectionGradeLevels: number[];
 	programScopes: string[];
 	allowedSpecializations: string[];
+	modularGroupId?: string | null;
+	modularOrder?: number | null;
 	requiredFeatures: string[];
 	createdAt: string;
 	updatedAt: string;
@@ -578,7 +580,9 @@ export type ViolationCode =
 	| 'FACULTY_LATE_END_PREFERENCE'
 	| 'FACULTY_INSUFFICIENT_DAILY_VACANT'
 	| 'SECTION_OVERCOMPRESSED'
-	| 'SESSION_PATTERN_VIOLATED';
+	| 'SESSION_PATTERN_VIOLATED'
+	| 'LACKING_FACULTY'
+	| 'INCOMPLETE_MODULAR_GROUP';
 
 export type ViolationSeverity = 'HARD' | 'SOFT';
 
@@ -663,7 +667,7 @@ export interface RunSummary {
 
 export interface ScheduledEntry {
 	entryId: string;
-	facultyId: number;
+	facultyId: number | null;
 	roomId: number;
 	subjectId: number;
 	sectionId: number;
@@ -681,6 +685,14 @@ export interface ScheduledEntry {
 	cohortExpectedEnrollment?: number | null;
 	adviserId?: number | null;
 	adviserName?: string | null;
+	metadata?: {
+		modularGroupId?: string;
+		modularAssignments?: Array<{
+			quarter: number;
+			facultyId: number;
+			subjectCode: string;
+		}>;
+	};
 }
 
 export interface Violation {

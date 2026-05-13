@@ -27,13 +27,16 @@ export interface SubjectInput {
     name: string;
     minMinutesPerWeek: number;
     preferredRoomType: RoomType;
-    sessionPattern: 'MWF' | 'TTH' | 'ANY';
+    sessionPattern: 'MWF' | 'TTH' | 'ANY' | 'FRIDAY_ONLY';
     gradeLevels: number[];
     interSectionEnabled?: boolean;
     interSectionGradeLevels?: number[];
     /** Stored program scopes from DB — used for data-driven filtering */
     programScopes?: string[];
     allowedSpecializations?: string[];
+    modularGroupId?: string | null;
+    modularOrder?: number | null;
+    requiredFeatures?: string[];
 }
 export interface InstructionalCohortInput {
     cohortCode: string;
@@ -183,10 +186,23 @@ export interface ConstructorResult {
     entries: ScheduledEntry[];
     unassignedItems: UnassignedItem[];
     lockWarnings: string[];
+    modularWarnings: ModularWarning[];
     assignedCount: number;
     unassignedCount: number;
     classesProcessed: number;
     policyBlockedCount: number;
+}
+export interface ModularAssignment {
+    quarter: number;
+    facultyId: number;
+    subjectCode: string;
+}
+export interface ModularWarning {
+    code: 'LACKING_FACULTY' | 'INCOMPLETE_MODULAR_GROUP';
+    sectionId: number;
+    subjectId: number;
+    message: string;
+    meta?: Record<string, unknown>;
 }
 export interface DemandItem {
     sectionId: number;
@@ -196,7 +212,7 @@ export interface DemandItem {
     sessionsPerWeek: number;
     durationPerSession: number;
     enrolledCount: number;
-    sessionPattern: 'MWF' | 'TTH' | 'ANY';
+    sessionPattern: 'MWF' | 'TTH' | 'ANY' | 'FRIDAY_ONLY';
     entryKind: 'SECTION' | 'COHORT';
     programType?: string | null;
     programCode?: string | null;
@@ -207,6 +223,14 @@ export interface DemandItem {
     roomTypePreference?: RoomType;
     adviserId?: number | null;
     adviserName?: string | null;
+    modularGroupId?: string | null;
+    modularSubjects?: Array<{
+        subjectId: number;
+        subjectCode: string;
+        modularOrder: number;
+        minMinutesPerWeek: number;
+    }>;
+    modularExpectedCount?: number;
 }
 export declare function computeDemand(sectionsByGrade: SectionsByGrade[], subjects: SubjectInput[], cohorts?: InstructionalCohortInput[], classTemplatePeriods?: Record<string, number>): DemandItem[];
 export declare function getDemandSectionIds(item: DemandItem): number[];

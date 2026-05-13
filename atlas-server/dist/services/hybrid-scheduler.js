@@ -121,7 +121,7 @@ function hasOverlapConflict(target, entries) {
             continue;
         if (!intervalsOverlap(target, entry))
             continue;
-        if (entry.facultyId === target.facultyId)
+        if (entry.facultyId != null && target.facultyId != null && entry.facultyId === target.facultyId)
             faculty = true;
         if (entry.roomId === target.roomId)
             room = true;
@@ -176,7 +176,7 @@ export function repairHardConflicts(entries, lockedEntryIds, maxAttempts = MAX_R
             const leftSections = new Set(getEffectiveSectionIds(left));
             const rightSections = getEffectiveSectionIds(right);
             const sectionOverlap = rightSections.some((sectionId) => leftSections.has(sectionId));
-            if (left.facultyId === right.facultyId || left.roomId === right.roomId || sectionOverlap) {
+            if ((left.facultyId != null && right.facultyId != null && left.facultyId === right.facultyId) || left.roomId === right.roomId || sectionOverlap) {
                 conflictingIds.add(right.entryId);
             }
         }

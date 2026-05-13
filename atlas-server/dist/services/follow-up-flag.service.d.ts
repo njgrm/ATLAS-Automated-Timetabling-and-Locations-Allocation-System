@@ -2,9 +2,9 @@
 export declare function listByRun(runId: number, schoolId: number, schoolYearId: number): Promise<{
     createdAt: Date;
     id: number;
+    entryId: string;
     createdBy: number;
     runId: number;
-    entryId: string;
     note: string | null;
 }[]>;
 /** Toggle a follow-up flag: create if absent, delete if present. Returns the new state. */

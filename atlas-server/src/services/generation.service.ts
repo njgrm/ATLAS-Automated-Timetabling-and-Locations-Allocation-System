@@ -77,6 +77,7 @@ export interface RunSummary {
 	skippedPrePlacedReasons?: string[];
 	violationCounts?: Record<string, number>;
 	lockWarnings?: string[];
+	modularWarnings?: string[];
 	cohortCount?: number;
 	cohortizedClassCount?: number;
 	contractWarnings?: string[];
@@ -241,6 +242,9 @@ export async function triggerGenerationRun(
 					interSectionGradeLevels: true,
 					programScopes: true,
 					allowedSpecializations: true,
+					requiredFeatures: true,
+					modularGroupId: true,
+					modularOrder: true,
 				},
 			}),
 			prisma.facultyPreference.findMany({
@@ -418,6 +422,31 @@ export async function triggerGenerationRun(
 			},
 		};
 		const validationResult = validateHardConstraints(validatorCtx);
+		const modularWarnings = result.modularWarnings ?? [];
+		const modularWarningViolations: Violation[] = modularWarnings.map((warning) => ({
+			code: warning.code,
+			severity: 'SOFT',
+			message: warning.message,
+			schoolId,
+			schoolYearId,
+			runId: run.id,
+			entities: {
+				sectionId: warning.sectionId,
+				subjectId: warning.subjectId,
+			},
+			meta: warning.meta,
+		}));
+		const mergedViolationCounts = { ...validationResult.counts.byCode } as Record<string, number>;
+		for (const warning of modularWarningViolations) {
+			mergedViolationCounts[warning.code] = (mergedViolationCounts[warning.code] ?? 0) + 1;
+		}
+		const mergedValidationResult: ValidationResult = {
+			violations: [...validationResult.violations, ...modularWarningViolations],
+			counts: {
+				total: validationResult.counts.total + modularWarningViolations.length,
+				byCode: mergedViolationCounts as ValidationResult['counts']['byCode'],
+			},
+		};
 		const subjectCodeById = new Map(subjects.map((subject) => [subject.id, subject.code]));
 		const resourceDiagnostics: NonNullable<RunSummary['resourceDiagnostics']> = {
 			qualifiedFacultyCoverageBySubject: buildQualifiedCoverageBySubject(demand, facultySubjects),
@@ -430,12 +459,13 @@ export async function triggerGenerationRun(
 			assignedCount: result.assignedCount,
 			unassignedCount: result.unassignedCount,
 			policyBlockedCount: result.policyBlockedCount,
-			hardViolationCount: validationResult.violations.filter((v) => v.severity === 'HARD').length,
+			hardViolationCount: mergedValidationResult.violations.filter((v) => v.severity === 'HARD').length,
 			prePlacedCount: preGenerationDrafts.prePlacedCount,
 			invalidPrePlacedCount: preGenerationDrafts.invalidPrePlacedCount,
 			skippedPrePlacedReasons: preGenerationDrafts.skippedPrePlacedReasons.length > 0 ? preGenerationDrafts.skippedPrePlacedReasons : undefined,
-			violationCounts: validationResult.counts.byCode,
+			violationCounts: mergedValidationResult.counts.byCode,
 			lockWarnings: result.lockWarnings.length > 0 ? result.lockWarnings : undefined,
+			modularWarnings: modularWarnings.length > 0 ? modularWarnings.map((warning) => warning.message) : undefined,
 			cohortCount: cohorts.length,
 			cohortizedClassCount: result.entries.filter((entry) => entry.entryKind === 'COHORT').length,
 			contractWarnings: [
@@ -463,7 +493,7 @@ export async function triggerGenerationRun(
 				finishedAt,
 				durationMs,
 				summary: summary as object,
-				violations: validationResult.violations as unknown as object[],
+				violations: mergedValidationResult.violations as unknown as object[],
 				draftEntries: result.entries as unknown as object[],
 				unassignedItems: result.unassignedItems as unknown as object[],
 			},

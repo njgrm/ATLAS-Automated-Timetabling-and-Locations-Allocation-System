@@ -114,6 +114,7 @@ export declare function getFacultyById(id: number): Promise<({
             programScopes: import("@prisma/client").$Enums.ProgramType[];
             allowedSpecializations: string[];
             requiredFeatures: string[];
+            modularGroupId: string | null;
         };
     } & {
         schoolId: number;

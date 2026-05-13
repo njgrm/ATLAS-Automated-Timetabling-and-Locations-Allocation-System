@@ -28,7 +28,7 @@ export declare function getPublishedSchedulePayload(schoolId: number, schoolYear
             name: string;
         };
         faculty: {
-            id: number;
+            id: number | null;
             name: string;
         };
         room: {
@@ -60,7 +60,7 @@ export declare function getPublishedSectionSchedule(schoolId: number, sectionId:
             name: string;
         };
         faculty: {
-            id: number;
+            id: number | null;
             name: string;
         };
         room: {
@@ -105,7 +105,7 @@ export declare function getPublishedFacultySchedule(schoolId: number, facultyId:
             name: string;
         };
         faculty: {
-            id: number;
+            id: number | null;
             name: string;
         };
         room: {
@@ -150,7 +150,7 @@ export declare function getPublishedRoomSchedule(schoolId: number, roomId: numbe
             name: string;
         };
         faculty: {
-            id: number;
+            id: number | null;
             name: string;
         };
         room: {

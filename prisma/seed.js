@@ -29,51 +29,57 @@ const prisma = new PrismaClient();
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * DepEd JHS Learning Areas per DO 010 s.2024
+ * DepEd JHS Learning Areas per DO 010 s.2024 with modular rotation support.
  *
  * Core BEC subjects (isSeedable: true) are auto-assigned to every section by the scheduler.
- * Track-specific subjects (isSeedable: false) are only assigned to STE/SPA sections manually.
- *
- * Subject code alignment note:
- *   - ESP (not VE): official DepEd code is "EsP" (Edukasyon sa Pagpapakatao).
- *   - TLE_ICT_7/8/9/10: per-grade ICT track within TLE, REGULAR program.
- *   - STE subjects are per-grade per DO 010 s.2024 Science, Technology & Engineering track.
- *   - SPA subjects align with EnrollPro's checklist.
+ * Track-specific subjects (isSeedable: false) are assigned via teaching-load workflows.
  */
 const subjectSeeds = [
 	// ── Core BEC subjects ─────────────────────────────────────────────────────
-	{ code: 'FIL', name: 'Filipino', minMinutesPerWeek: 200, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
-	{ code: 'ENG', name: 'English', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
-	{ code: 'MATH', name: 'Mathematics', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
-	{ code: 'SCI', name: 'Science', minMinutesPerWeek: 225, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
-	{ code: 'AP', name: 'Araling Panlipunan', minMinutesPerWeek: 200, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
-	{ code: 'MAPEH', name: 'MAPEH', minMinutesPerWeek: 200, preferredRoomType: 'GYMNASIUM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
-	{ code: 'ESP', name: 'Edukasyon sa Pagpapakatao', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
-	{ code: 'TLE', name: 'Technology and Livelihood Education', minMinutesPerWeek: 200, preferredRoomType: 'TLE_WORKSHOP', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
-	{ code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
-	// ── TLE (ICT) per-grade — REGULAR track ──────────────────────────────────
-	// Note: Generic 'ICT' (id=10 in older seed runs) is non-seedable; TLE_ICT_* per grade are used instead
+	{ code: 'FIL', name: 'Filipino', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+	{ code: 'ENG', name: 'English', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+	{ code: 'MATH', name: 'Mathematics', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+	{ code: 'AP', name: 'Araling Panlipunan', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+	{ code: 'MAPEH', name: 'MAPEH', minMinutesPerWeek: 240, preferredRoomType: 'GYMNASIUM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+	{ code: 'ESP', name: 'ESP/GMRC', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+	{ code: 'TLE', name: 'Technology and Livelihood Education', minMinutesPerWeek: 240, preferredRoomType: 'TLE_WORKSHOP', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+	{ code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 60, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+	{ code: 'NRP', name: 'National Reading Program', minMinutesPerWeek: 50, preferredRoomType: 'CLASSROOM', sessionPattern: 'FRIDAY_ONLY', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+	{ code: 'NMP', name: 'National Mathematics Program', minMinutesPerWeek: 50, preferredRoomType: 'CLASSROOM', sessionPattern: 'FRIDAY_ONLY', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+	// ── Modular Science rotation (merged during generation by modularGroupId) ─
+	{ code: 'SCI_BIO', name: 'Science - Biology', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'], modularGroupId: 'SCIENCE', modularOrder: 1 },
+	{ code: 'SCI_CHEM', name: 'Science - Chemistry', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'], modularGroupId: 'SCIENCE', modularOrder: 2 },
+	{ code: 'SCI_ES', name: 'Science - Earth Science', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'], modularGroupId: 'SCIENCE', modularOrder: 3 },
+	{ code: 'SCI_PHYS', name: 'Science - Physics', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'], modularGroupId: 'SCIENCE', modularOrder: 4 },
+	// ── Generic non-core enrichment ───────────────────────────────────────────
 	{ code: 'ICT', name: 'Information and Communications Technology', minMinutesPerWeek: 90, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'] },
-	{ code: 'TLE_ICT_7', name: 'TLE (ICT I) Computer Systems', minMinutesPerWeek: 90, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [7], isSeedable: false, programScopes: ['REGULAR'] },
-	{ code: 'TLE_ICT_8', name: 'TLE (ICT II) Computer Systems Servicing II', minMinutesPerWeek: 90, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [8], isSeedable: false, programScopes: ['REGULAR'] },
-	{ code: 'TLE_ICT_9', name: 'TLE (ICT III) Computer Systems Servicing III', minMinutesPerWeek: 90, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [9], isSeedable: false, programScopes: ['REGULAR'] },
-	{ code: 'TLE_ICT_10', name: 'TLE (ICT IV) Computer Systems Servicing IV', minMinutesPerWeek: 90, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [10], isSeedable: false, programScopes: ['REGULAR'] },
 	// ── STE track specialty subjects (per-grade per DO 010 s.2024) ────────────
 	{ code: 'ENV_SCI', name: 'Environmental Science', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [7], isSeedable: false, programScopes: ['STE'] },
-	{ code: 'RESEARCH_I', name: 'Research I', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7], isSeedable: false, programScopes: ['STE'] },
-	{ code: 'RESEARCH_II', name: 'Research II', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [8], isSeedable: false, programScopes: ['STE'] },
+	{ code: 'STE_RESEARCH', name: 'Research', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['STE'] },
 	{ code: 'BIOTECHNOLOGY', name: 'Biotechnology', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [8], isSeedable: false, programScopes: ['STE'] },
 	{ code: 'CONSUMERS_CHEMISTRY', name: 'Consumers Chemistry', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [9], isSeedable: false, programScopes: ['STE'] },
-	{ code: 'RESEARCH_III', name: 'Research III', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [9], isSeedable: false, programScopes: ['STE'] },
 	{ code: 'ELECTRONICS_ROBOTICS', name: 'Electronics and Robotics', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [10], isSeedable: false, programScopes: ['STE'] },
-	{ code: 'RESEARCH_IV', name: 'Research IV', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [10], isSeedable: false, programScopes: ['STE'] },
 	// ── SPA track specialty subjects ──────────────────────────────────────────
-	{ code: 'MUSIC', name: 'Music (Vocal / Instrumental)', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'] },
-	{ code: 'VISUAL_ARTS', name: 'Visual Arts', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'] },
-	{ code: 'THEATER_ARTS', name: 'Theater Arts', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'] },
-	{ code: 'MEDIA_ARTS', name: 'Media Arts', minMinutesPerWeek: 90, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'] },
-	{ code: 'CREATIVE_WRITING', name: 'Creative Writing (English / Filipino)', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'] },
-	{ code: 'DANCE', name: 'Dance', minMinutesPerWeek: 90, preferredRoomType: 'GYMNASIUM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'] },
+	{ code: 'SPA_SPEC', name: 'SPA Specialization', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'] },
+	{ code: 'DEVL_READING', name: 'Developmental Reading', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['STE', 'SPA'] },
+];
+
+const deprecatedSubjectCodes = [
+	'SCI',
+	'TLE_ICT_7',
+	'TLE_ICT_8',
+	'TLE_ICT_9',
+	'TLE_ICT_10',
+	'RESEARCH_I',
+	'RESEARCH_II',
+	'RESEARCH_III',
+	'RESEARCH_IV',
+	'MUSIC',
+	'VISUAL_ARTS',
+	'THEATER_ARTS',
+	'MEDIA_ARTS',
+	'CREATIVE_WRITING',
+	'DANCE',
 ];
 
 /** Stub faculty data — used when FACULTY_ADAPTER=stub */
@@ -81,14 +87,14 @@ const facultySeeds = [
 	{ externalId: 1, firstName: 'Maria', lastName: 'Santos', email: 't-0001@deped.local', department: 'Languages', maxWeeklyHours: 30, subjects: ['FIL'] },
 	{ externalId: 2, firstName: 'Jose', lastName: 'Reyes', email: 't-0002@deped.local', department: 'Languages', maxWeeklyHours: 30, subjects: ['ENG'] },
 	{ externalId: 3, firstName: 'Ana', lastName: 'Dela Cruz', email: 't-0003@deped.local', department: 'Mathematics', maxWeeklyHours: 30, subjects: ['MATH'] },
-	{ externalId: 4, firstName: 'Mark', lastName: 'Villanueva', email: 't-0004@deped.local', department: 'Science', maxWeeklyHours: 30, subjects: ['SCI'] },
+	{ externalId: 4, firstName: 'Mark', lastName: 'Villanueva', email: 't-0004@deped.local', department: 'Science', maxWeeklyHours: 30, subjects: ['SCI_BIO'] },
 	{ externalId: 5, firstName: 'Liza', lastName: 'Garcia', email: 't-0005@deped.local', department: 'Social Studies', maxWeeklyHours: 30, subjects: ['AP'] },
 	{ externalId: 6, firstName: 'Paolo', lastName: 'Castro', email: 't-0006@deped.local', department: 'MAPEH', maxWeeklyHours: 30, subjects: ['MAPEH'] },
 	{ externalId: 7, firstName: 'Rica', lastName: 'Mendoza', email: 't-0007@deped.local', department: 'Values', maxWeeklyHours: 30, subjects: ['ESP'] },
 	{ externalId: 8, firstName: 'Neil', lastName: 'Torres', email: 't-0008@deped.local', department: 'TLE', maxWeeklyHours: 30, subjects: ['TLE'] },
 	{ externalId: 9, firstName: 'Grace', lastName: 'Aquino', email: 't-0009@deped.local', department: 'Guidance', maxWeeklyHours: 20, subjects: ['HG'] },
 	{ externalId: 10, firstName: 'Ivy', lastName: 'Flores', email: 't-0010@deped.local', department: 'Mathematics', maxWeeklyHours: 30, subjects: ['MATH'] },
-	{ externalId: 11, firstName: 'Jomar', lastName: 'Navarro', email: 't-0011@deped.local', department: 'Science', maxWeeklyHours: 30, subjects: ['SCI'] },
+	{ externalId: 11, firstName: 'Jomar', lastName: 'Navarro', email: 't-0011@deped.local', department: 'Science', maxWeeklyHours: 30, subjects: ['SCI_CHEM'] },
 	{ externalId: 12, firstName: 'Celia', lastName: 'Pascual', email: 't-0012@deped.local', department: 'Languages', maxWeeklyHours: 30, subjects: ['ENG'] },
 	{ externalId: 13, firstName: 'Ramon', lastName: 'Lopez', email: 't-0013@deped.local', department: 'Languages', maxWeeklyHours: 30, subjects: ['FIL'] },
 	{ externalId: 14, firstName: 'Katrina', lastName: 'Salazar', email: 't-0014@deped.local', department: 'Social Studies', maxWeeklyHours: 30, subjects: ['AP'] },
@@ -96,8 +102,8 @@ const facultySeeds = [
 	{ externalId: 16, firstName: 'Harold', lastName: 'Bautista', email: 't-0016@deped.local', department: 'Values', maxWeeklyHours: 30, subjects: ['ESP'] },
 	{ externalId: 17, firstName: 'Mika', lastName: 'Ramos', email: 't-0017@deped.local', department: 'TLE', maxWeeklyHours: 30, subjects: ['TLE'] },
 	{ externalId: 18, firstName: 'Jonas', lastName: 'Domingo', email: 't-0018@deped.local', department: 'Mathematics', maxWeeklyHours: 30, subjects: ['MATH'] },
-	{ externalId: 19, firstName: 'Ella', lastName: 'Rivera', email: 't-0019@deped.local', department: 'Science', maxWeeklyHours: 30, subjects: ['SCI'] },
-	{ externalId: 20, firstName: 'Darren', lastName: 'Serrano', email: 't-0020@deped.local', department: 'Languages', maxWeeklyHours: 30, subjects: ['ENG'] },
+	{ externalId: 19, firstName: 'Ella', lastName: 'Rivera', email: 't-0019@deped.local', department: 'Science', maxWeeklyHours: 30, subjects: ['SCI_ES'] },
+	{ externalId: 20, firstName: 'Darren', lastName: 'Serrano', email: 't-0020@deped.local', department: 'Science', maxWeeklyHours: 30, subjects: ['SCI_PHYS'] },
 ];
 
 async function main() {
@@ -113,6 +119,19 @@ async function main() {
 		},
 	});
 
+	if (deprecatedSubjectCodes.length > 0) {
+		await prisma.subject.updateMany({
+			where: {
+				schoolId: school.id,
+				code: { in: deprecatedSubjectCodes },
+			},
+			data: {
+				isActive: false,
+				isSeedable: false,
+			},
+		});
+	}
+
 	for (const subject of subjectSeeds) {
 		await prisma.subject.upsert({
 			where: {
@@ -125,9 +144,13 @@ async function main() {
 				name: subject.name,
 				minMinutesPerWeek: subject.minMinutesPerWeek,
 				preferredRoomType: subject.preferredRoomType,
+				sessionPattern: subject.sessionPattern ?? 'ANY',
+				modularGroupId: subject.modularGroupId ?? null,
+				modularOrder: subject.modularOrder ?? null,
 				gradeLevels: subject.gradeLevels,
 				isSeedable: subject.isSeedable,
 				programScopes: subject.programScopes ?? ['REGULAR'],
+				isActive: true,
 			},
 			create: {
 				schoolId: school.id,
@@ -135,6 +158,9 @@ async function main() {
 				name: subject.name,
 				minMinutesPerWeek: subject.minMinutesPerWeek,
 				preferredRoomType: subject.preferredRoomType,
+				sessionPattern: subject.sessionPattern ?? 'ANY',
+				modularGroupId: subject.modularGroupId ?? null,
+				modularOrder: subject.modularOrder ?? null,
 				gradeLevels: subject.gradeLevels,
 				isSeedable: subject.isSeedable,
 				programScopes: subject.programScopes ?? ['REGULAR'],

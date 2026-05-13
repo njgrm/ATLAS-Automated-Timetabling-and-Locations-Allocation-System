@@ -16,6 +16,7 @@ export interface RunSummary {
     skippedPrePlacedReasons?: string[];
     violationCounts?: Record<string, number>;
     lockWarnings?: string[];
+    modularWarnings?: string[];
     cohortCount?: number;
     cohortizedClassCount?: number;
     contractWarnings?: string[];

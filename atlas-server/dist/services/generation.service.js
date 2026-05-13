@@ -164,6 +164,9 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
                     interSectionGradeLevels: true,
                     programScopes: true,
                     allowedSpecializations: true,
+                    requiredFeatures: true,
+                    modularGroupId: true,
+                    modularOrder: true,
                 },
             }),
             prisma.facultyPreference.findMany({
@@ -330,6 +333,30 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
             },
         };
         const validationResult = validateHardConstraints(validatorCtx);
+        const modularWarningViolations = result.modularWarnings.map((warning) => ({
+            code: warning.code,
+            severity: 'SOFT',
+            message: warning.message,
+            schoolId,
+            schoolYearId,
+            runId: run.id,
+            entities: {
+                sectionId: warning.sectionId,
+                subjectId: warning.subjectId,
+            },
+            meta: warning.meta,
+        }));
+        const mergedViolationCounts = { ...validationResult.counts.byCode };
+        for (const warning of modularWarningViolations) {
+            mergedViolationCounts[warning.code] = (mergedViolationCounts[warning.code] ?? 0) + 1;
+        }
+        const mergedValidationResult = {
+            violations: [...validationResult.violations, ...modularWarningViolations],
+            counts: {
+                total: validationResult.counts.total + modularWarningViolations.length,
+                byCode: mergedViolationCounts,
+            },
+        };
         const subjectCodeById = new Map(subjects.map((subject) => [subject.id, subject.code]));
         const resourceDiagnostics = {
             qualifiedFacultyCoverageBySubject: buildQualifiedCoverageBySubject(demand, facultySubjects),
@@ -341,12 +368,13 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
             assignedCount: result.assignedCount,
             unassignedCount: result.unassignedCount,
             policyBlockedCount: result.policyBlockedCount,
-            hardViolationCount: validationResult.violations.filter((v) => v.severity === 'HARD').length,
+            hardViolationCount: mergedValidationResult.violations.filter((v) => v.severity === 'HARD').length,
             prePlacedCount: preGenerationDrafts.prePlacedCount,
             invalidPrePlacedCount: preGenerationDrafts.invalidPrePlacedCount,
             skippedPrePlacedReasons: preGenerationDrafts.skippedPrePlacedReasons.length > 0 ? preGenerationDrafts.skippedPrePlacedReasons : undefined,
-            violationCounts: validationResult.counts.byCode,
+            violationCounts: mergedValidationResult.counts.byCode,
             lockWarnings: result.lockWarnings.length > 0 ? result.lockWarnings : undefined,
+            modularWarnings: result.modularWarnings.length > 0 ? result.modularWarnings.map((warning) => warning.message) : undefined,
             cohortCount: cohorts.length,
             cohortizedClassCount: result.entries.filter((entry) => entry.entryKind === 'COHORT').length,
             contractWarnings: [
@@ -372,7 +400,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
                 finishedAt,
                 durationMs,
                 summary: summary,
-                violations: validationResult.violations,
+                violations: mergedValidationResult.violations,
                 draftEntries: result.entries,
                 unassignedItems: result.unassignedItems,
             },

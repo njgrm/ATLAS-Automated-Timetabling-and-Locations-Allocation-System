@@ -139,6 +139,7 @@ model Room {
 enum SessionPattern {
   MWF
   TTH
+  FRIDAY_ONLY
   ANY
 
   @@map("session_pattern")
@@ -152,6 +153,8 @@ model Subject {
   minMinutesPerWeek       Int              @map("min_minutes_per_week")
   preferredRoomType       RoomType         @default(CLASSROOM) @map("preferred_room_type")
   sessionPattern          SessionPattern   @default(ANY) @map("session_pattern")
+  modularGroupId          String?          @db.VarChar(64) @map("modular_group_id")
+  modularOrder            Int?             @map("modular_order")
   gradeLevels             Int[]            @map("grade_levels")
   isActive                Boolean          @default(true) @map("is_active")
   isSeedable              Boolean          @default(false) @map("is_seedable")

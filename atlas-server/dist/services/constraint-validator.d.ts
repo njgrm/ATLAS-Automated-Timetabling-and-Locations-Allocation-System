@@ -7,12 +7,12 @@
  * subject preferred room types) and emits a typed violation array.
  */
 import type { RoomType } from '@prisma/client';
-export declare const VIOLATION_CODES: readonly ["FACULTY_TIME_CONFLICT", "ROOM_TIME_CONFLICT", "SECTION_TIME_CONFLICT", "FACULTY_OVERLOAD", "ROOM_TYPE_MISMATCH", "ROOM_FEATURE_MISMATCH", "ROOM_CAPACITY_EXCEEDED", "FACULTY_SUBJECT_NOT_QUALIFIED", "FACULTY_CONSECUTIVE_LIMIT_EXCEEDED", "FACULTY_BREAK_REQUIREMENT_VIOLATED", "FACULTY_DAILY_STANDARD_EXCEEDED", "FACULTY_DAILY_MAX_EXCEEDED", "FACULTY_EXCESSIVE_TRAVEL_DISTANCE", "FACULTY_EXCESSIVE_BUILDING_TRANSITIONS", "FACULTY_INSUFFICIENT_TRANSITION_BUFFER", "FACULTY_EXCESSIVE_IDLE_GAP", "FACULTY_EARLY_START_PREFERENCE", "FACULTY_LATE_END_PREFERENCE", "FACULTY_INSUFFICIENT_DAILY_VACANT", "SECTION_OVERCOMPRESSED", "SESSION_PATTERN_VIOLATED"];
+export declare const VIOLATION_CODES: readonly ["FACULTY_TIME_CONFLICT", "ROOM_TIME_CONFLICT", "SECTION_TIME_CONFLICT", "FACULTY_OVERLOAD", "ROOM_TYPE_MISMATCH", "ROOM_FEATURE_MISMATCH", "ROOM_CAPACITY_EXCEEDED", "FACULTY_SUBJECT_NOT_QUALIFIED", "FACULTY_CONSECUTIVE_LIMIT_EXCEEDED", "FACULTY_BREAK_REQUIREMENT_VIOLATED", "FACULTY_DAILY_STANDARD_EXCEEDED", "FACULTY_DAILY_MAX_EXCEEDED", "FACULTY_EXCESSIVE_TRAVEL_DISTANCE", "FACULTY_EXCESSIVE_BUILDING_TRANSITIONS", "FACULTY_INSUFFICIENT_TRANSITION_BUFFER", "FACULTY_EXCESSIVE_IDLE_GAP", "FACULTY_EARLY_START_PREFERENCE", "FACULTY_LATE_END_PREFERENCE", "FACULTY_INSUFFICIENT_DAILY_VACANT", "SECTION_OVERCOMPRESSED", "SESSION_PATTERN_VIOLATED", "LACKING_FACULTY", "INCOMPLETE_MODULAR_GROUP"];
 export type ViolationCode = (typeof VIOLATION_CODES)[number];
 export interface ScheduledEntry {
     /** Unique id of this class assignment within the draft */
     entryId: string;
-    facultyId: number;
+    facultyId: number | null;
     roomId: number;
     subjectId: number;
     sectionId: number;
@@ -30,6 +30,14 @@ export interface ScheduledEntry {
     cohortExpectedEnrollment?: number | null;
     adviserId?: number | null;
     adviserName?: string | null;
+    metadata?: {
+        modularGroupId?: string;
+        modularAssignments?: Array<{
+            quarter: number;
+            facultyId: number;
+            subjectCode: string;
+        }>;
+    };
 }
 export interface FacultyRef {
     id: number;
@@ -49,7 +57,7 @@ export interface RoomRef {
 export interface SubjectRef {
     id: number;
     preferredRoomType: RoomType;
-    sessionPattern?: 'MWF' | 'TTH' | 'ANY';
+    sessionPattern?: 'MWF' | 'TTH' | 'ANY' | 'FRIDAY_ONLY';
     requiredFeatures?: string[];
 }
 export interface PolicyRef {

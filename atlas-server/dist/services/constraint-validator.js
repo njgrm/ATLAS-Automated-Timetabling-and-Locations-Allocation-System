@@ -29,6 +29,8 @@ export const VIOLATION_CODES = [
     'FACULTY_INSUFFICIENT_DAILY_VACANT',
     'SECTION_OVERCOMPRESSED',
     'SESSION_PATTERN_VIOLATED',
+    'LACKING_FACULTY',
+    'INCOMPLETE_MODULAR_GROUP',
 ];
 // ─── Time helpers ───
 function timesOverlap(a, b) {
@@ -61,6 +63,8 @@ export function validateHardConstraints(ctx) {
     // ── 1) Faculty time conflict ──
     const byFacultyDay = new Map();
     for (const e of ctx.entries) {
+        if (e.facultyId == null)
+            continue;
         const key = `${e.facultyId}:${e.day}`;
         const arr = byFacultyDay.get(key);
         if (arr)
@@ -151,6 +155,8 @@ export function validateHardConstraints(ctx) {
     // ── 4) Faculty load over max ──
     const minutesByFaculty = new Map();
     for (const e of ctx.entries) {
+        if (e.facultyId == null)
+            continue;
         minutesByFaculty.set(e.facultyId, (minutesByFaculty.get(e.facultyId) ?? 0) + e.durationMinutes);
     }
     for (const [facultyId, totalMinutes] of minutesByFaculty) {
@@ -229,11 +235,16 @@ export function validateHardConstraints(ctx) {
     {
         const MWF_DAYS = new Set(['MONDAY', 'WEDNESDAY', 'FRIDAY']);
         const TTH_DAYS = new Set(['TUESDAY', 'THURSDAY']);
+        const FRIDAY_ONLY_DAYS = new Set(['FRIDAY']);
         for (const e of ctx.entries) {
             const subject = subjectMap.get(e.subjectId);
             if (!subject || !subject.sessionPattern || subject.sessionPattern === 'ANY')
                 continue;
-            const allowed = subject.sessionPattern === 'MWF' ? MWF_DAYS : TTH_DAYS;
+            const allowed = subject.sessionPattern === 'MWF'
+                ? MWF_DAYS
+                : subject.sessionPattern === 'TTH'
+                    ? TTH_DAYS
+                    : FRIDAY_ONLY_DAYS;
             if (!allowed.has(e.day)) {
                 violations.push({
                     ...base, severity: 'SOFT',
@@ -248,6 +259,8 @@ export function validateHardConstraints(ctx) {
     // ── 5) Faculty-subject qualification ──
     const checkedPairs = new Set();
     for (const e of ctx.entries) {
+        if (e.facultyId == null)
+            continue;
         for (const sectionId of getEffectiveSectionIds(e)) {
             const pairKey = `${e.facultyId}:${e.subjectId}:${sectionId}`;
             if (checkedPairs.has(pairKey))
@@ -272,6 +285,8 @@ export function validateHardConstraints(ctx) {
         // Group entries by faculty+day, sorted by startTime
         const facDayEntries = new Map();
         for (const e of ctx.entries) {
+            if (e.facultyId == null)
+                continue;
             const key = `${e.facultyId}:${e.day}`;
             const arr = facDayEntries.get(key) ?? [];
             arr.push(e);
@@ -353,6 +368,8 @@ export function validateHardConstraints(ctx) {
         // Group entries by faculty+day, sorted by startTime
         const byFacDay = new Map();
         for (const e of ctx.entries) {
+            if (e.facultyId == null)
+                continue;
             const key = `${e.facultyId}:${e.day}`;
             const arr = byFacDay.get(key) ?? [];
             arr.push(e);
@@ -439,6 +456,8 @@ export function validateHardConstraints(ctx) {
         // Group entries by faculty+day, sorted by startTime
         const byFacDayWB = new Map();
         for (const e of ctx.entries) {
+            if (e.facultyId == null)
+                continue;
             const key = `${e.facultyId}:${e.day}`;
             const arr = byFacDayWB.get(key) ?? [];
             arr.push(e);
@@ -509,6 +528,8 @@ export function validateHardConstraints(ctx) {
         // For each faculty per day, compute total time span minus teaching minutes = vacant minutes
         const facDayForVacant = new Map();
         for (const e of ctx.entries) {
+            if (e.facultyId == null)
+                continue;
             const key = `${e.facultyId}:${e.day}`;
             const arr = facDayForVacant.get(key) ?? [];
             arr.push(e);

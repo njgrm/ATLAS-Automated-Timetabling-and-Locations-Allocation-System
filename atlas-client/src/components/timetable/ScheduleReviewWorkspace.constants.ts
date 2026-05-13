@@ -38,6 +38,8 @@ export const VIOLATION_LABELS: Record<ViolationCode, string> = {
 	SECTION_OVERCOMPRESSED: 'Section Overcompressed',
 	ROOM_CAPACITY_EXCEEDED: 'Room Capacity Exceeded',
 	SESSION_PATTERN_VIOLATED: 'Session Pattern Violated',
+	LACKING_FACULTY: 'Lacking Faculty',
+	INCOMPLETE_MODULAR_GROUP: 'Incomplete Modular Group',
 };
 
 export const CONFLICT_CODES: Set<ViolationCode> = new Set([
