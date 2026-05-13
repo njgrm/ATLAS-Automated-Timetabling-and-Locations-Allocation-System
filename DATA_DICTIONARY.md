@@ -40,7 +40,7 @@ This dictionary documents all Prisma models in schema.prisma and serves as a bri
 | building_id | INT (FK) | --- | Reference to the building containing the room. |
 | name | VARCHAR | --- | Room name or number. |
 | floor | INT | --- | Floor number where the room is located. |
-| type | ENUM | --- | Room type (RoomType enum). |
+| type | ENUM | --- | Room type. One of: CLASSROOM, LABORATORY, COMPUTER_LAB, TLE_WORKSHOP, LIBRARY, GYMNASIUM, FACULTY_ROOM, OFFICE, OTHER. |
 | capacity | INT | --- | Optional; maximum occupancy capacity. |
 | is_teaching_space | BOOLEAN | --- | True when the room can be scheduled for classes. |
 | floor_position | INT | --- | Ordering position of the room on its floor. |
@@ -57,14 +57,14 @@ This dictionary documents all Prisma models in schema.prisma and serves as a bri
 | code | VARCHAR | 32 | Subject code (unique within the school). |
 | name | VARCHAR | --- | Subject name. |
 | min_minutes_per_week | INT | --- | Required minimum instructional minutes per week. |
-| preferred_room_type | ENUM | --- | Preferred room type (RoomType enum). |
-| session_pattern | ENUM | --- | Preferred session pattern (SessionPattern enum). |
+| preferred_room_type | ENUM | --- | Preferred room type. One of: CLASSROOM, LABORATORY, COMPUTER_LAB, TLE_WORKSHOP, LIBRARY, GYMNASIUM, FACULTY_ROOM, OFFICE, OTHER. |
+| session_pattern | ENUM | --- | Preferred session distribution pattern. One of: MWF (Mon/Wed/Fri), TTH (Tue/Thu), ANY (no preference). |
 | grade_levels | INT[] | --- | Grade levels this subject applies to. |
 | is_active | BOOLEAN | --- | True when the subject is active and usable. |
 | is_seedable | BOOLEAN | --- | True when subject can be included in seed data sets. |
 | inter_section_enabled | BOOLEAN | --- | True when inter-section grouping is allowed. |
 | inter_section_grade_levels | INT[] | --- | Grade levels allowed for inter-section grouping. |
-| program_scopes | ENUM[] | --- | Program types this subject applies to (ProgramType enum). |
+| program_scopes | ENUM[] | --- | Program types this subject applies to. Values: REGULAR, STE, SPS, SPA, OTHER. |
 | allowed_specializations | VARCHAR[] | --- | Faculty specializations allowed to teach the subject. |
 | required_features | VARCHAR[] | --- | Room feature tags required by the subject (e.g., PROJECTOR). Defaults to empty array. |
 | createdAt | DATETIME | --- | Record creation timestamp. |
@@ -145,7 +145,7 @@ This dictionary documents all Prisma models in schema.prisma and serves as a bri
 | school_id | INT (FK) | --- | Reference to the owning school. |
 | school_year_id | INT | --- | School year context identifier. |
 | faculty_id | INT (FK) | --- | Submitting faculty member. |
-| status | ENUM | --- | Preference status (PreferenceStatus enum). |
+| status | ENUM | --- | Preference form status. One of: DRAFT, SUBMITTED. |
 | notes | VARCHAR | --- | Optional; faculty notes or constraints. |
 | submitted_at | DATETIME | --- | Optional; submission timestamp. |
 | version | INT | --- | Revision counter for this record. |
@@ -162,10 +162,10 @@ This dictionary documents all Prisma models in schema.prisma and serves as a bri
 | ---------- | --------- | ------ | ----------- |
 | id | INT (PK) | --- | Unique identifier for the time slot. |
 | preference_id | INT (FK) | --- | Reference to the faculty preference record. |
-| day | ENUM | --- | Day of week (DayOfWeek enum). |
+| day | ENUM | --- | Day of week. One of: MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY. |
 | start_time | VARCHAR | --- | Start time in HH:MM format. |
 | end_time | VARCHAR | --- | End time in HH:MM format. |
-| preference | ENUM | --- | Preference rating (TimeSlotPreference enum). |
+| preference | ENUM | --- | Preference rating for the time slot. One of: PREFERRED, AVAILABLE, UNAVAILABLE. |
 | createdAt | DATETIME | --- | Record creation timestamp. |
 
 ## Table 10: PREFERENCE_REVIEWS
@@ -175,7 +175,7 @@ This dictionary documents all Prisma models in schema.prisma and serves as a bri
 | id | INT (PK) | --- | Unique identifier for the review. |
 | preference_id | INT (FK) | --- | Reference to the faculty preference record. |
 | reviewer_id | INT | --- | Reviewer identifier. |
-| review_status | ENUM | --- | Review status (ReviewStatus enum). |
+| review_status | ENUM | --- | Review status. One of: PENDING, REVIEWED, NEEDS_FOLLOW_UP. |
 | reviewer_notes | VARCHAR | --- | Optional; reviewer notes. |
 | reviewed_at | DATETIME | --- | Optional; time review was completed. |
 | createdAt | DATETIME | --- | Record creation timestamp. |
@@ -195,15 +195,15 @@ This dictionary documents all Prisma models in schema.prisma and serves as a bri
 | section_id | INT | --- | Section identifier tied to the request. |
 | current_room_id | INT | --- | Current assigned room ID. |
 | requested_room_id | INT | --- | Requested room ID. |
-| day | ENUM | --- | Day of week (DayOfWeek enum). |
+| day | ENUM | --- | Day of week. One of: MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY. |
 | start_time | VARCHAR | --- | Start time in HH:MM format. |
 | end_time | VARCHAR | --- | End time in HH:MM format. |
 | rationale | VARCHAR | --- | Optional; justification for the request. |
-| status | ENUM | --- | Submission status (RoomPreferenceStatus enum). |
+| status | ENUM | --- | Submission status. One of: DRAFT, SUBMITTED. |
 | submitted_at | DATETIME | --- | Optional; time request was submitted. |
 | version | INT | --- | Revision counter for this record. |
 | reviewer_id | INT | --- | Optional; reviewer identifier. |
-| decision_status | ENUM | --- | Decision status (RoomPreferenceDecisionStatus enum). |
+| decision_status | ENUM | --- | Decision status. One of: PENDING, APPROVED, REJECTED. |
 | reviewer_notes | VARCHAR | --- | Optional; reviewer notes. |
 | reviewed_at | DATETIME | --- | Optional; review completion time. |
 | created_at | DATETIME | --- | Record creation timestamp. |
@@ -220,7 +220,7 @@ This dictionary documents all Prisma models in schema.prisma and serves as a bri
 | request_id | INT (FK) | --- | Reference to the room preference request. |
 | requester_id | INT (FK) | --- | Faculty member who filed the appeal. |
 | reason | VARCHAR | --- | Stated reason for the appeal. |
-| status | ENUM | --- | Appeal status (RoomRequestAppealStatus enum). |
+| status | ENUM | --- | Appeal status. One of: OPEN, UNDER_REVIEW, UPHELD, DENIED. |
 | created_at | DATETIME | --- | Record creation timestamp. |
 | updated_at | DATETIME | --- | Record last update timestamp. |
 
@@ -231,9 +231,9 @@ This dictionary documents all Prisma models in schema.prisma and serves as a bri
 | id | INT (PK) | --- | Unique identifier for a history entry. |
 | appeal_id | INT (FK) | --- | Reference to the appeal. |
 | actor_id | INT | --- | Identifier of the actor who made the change. |
-| action | ENUM | --- | Action taken (RoomRequestAppealHistoryAction enum). |
-| from_status | ENUM | --- | Optional; previous status (RoomRequestAppealStatus enum). |
-| to_status | ENUM | --- | Optional; new status (RoomRequestAppealStatus enum). |
+| action | ENUM | --- | Action taken. One of: CREATED, STATUS_CHANGED, NOTE_ADDED, DECISION_RECORDED. |
+| from_status | ENUM | --- | Optional; previous appeal status. One of: OPEN, UNDER_REVIEW, UPHELD, DENIED. |
+| to_status | ENUM | --- | Optional; new appeal status. One of: OPEN, UNDER_REVIEW, UPHELD, DENIED. |
 | note | VARCHAR | --- | Optional; free-form note. |
 | created_at | DATETIME | --- | Record creation timestamp. |
 
@@ -287,7 +287,7 @@ This dictionary documents all Prisma models in schema.prisma and serves as a bri
 | id | INT (PK) | --- | Unique identifier for the generation run. |
 | school_id | INT (FK) | --- | Reference to the owning school. |
 | school_year_id | INT | --- | School year context identifier. |
-| status | ENUM | --- | Run status (GenerationRunStatus enum). |
+| status | ENUM | --- | Run status. One of: QUEUED, RUNNING, COMPLETED, FAILED. |
 | run_type | VARCHAR | 20 | Run type label (e.g., FULL). |
 | triggered_by | INT | --- | Actor identifier who triggered the run. |
 | started_at | DATETIME | --- | Optional; run start timestamp. |
@@ -311,7 +311,7 @@ This dictionary documents all Prisma models in schema.prisma and serves as a bri
 | school_id | INT (FK) | --- | Reference to the owning school. |
 | school_year_id | INT | --- | School year context identifier. |
 | actor_id | INT | --- | Actor identifier who made the edit. |
-| edit_type | ENUM | --- | Edit type (ManualEditType enum). |
+| edit_type | ENUM | --- | Type of manual edit. One of: PLACE_UNASSIGNED, MOVE_ENTRY, CHANGE_ROOM, CHANGE_FACULTY, CHANGE_TIMESLOT, SWAP_ENTRIES, REVERT. |
 | before_payload | JSON | --- | Snapshot before the edit. |
 | after_payload | JSON | --- | Snapshot after the edit. |
 | validation_summary | JSON | --- | Optional; validation summary after the edit. |
@@ -348,17 +348,17 @@ This dictionary documents all Prisma models in schema.prisma and serves as a bri
 | id | INT (PK) | --- | Unique identifier for the locked session. |
 | school_id | INT (FK) | --- | Reference to the owning school. |
 | school_year_id | INT | --- | School year context identifier. |
-| entry_kind | ENUM | --- | Entry type (PreGenerationDraftEntryKind enum). |
+| entry_kind | ENUM | --- | Entry type. One of: SECTION, COHORT. |
 | section_id | INT | --- | Section identifier. |
 | subject_id | INT | --- | Subject identifier. |
 | faculty_id | INT | --- | Optional; faculty identifier. |
 | room_id | INT | --- | Optional; room identifier. |
 | cohort_code | VARCHAR | 50 | Optional; cohort code for grouped sessions. |
-| status | ENUM | --- | Draft status (PreGenerationDraftStatus enum). |
+| status | ENUM | --- | Draft status. One of: DRAFT, LOCKED_FOR_RUN, ARCHIVED. |
 | locked_run_id | INT | --- | Optional; generation run that locked the entry. |
 | notes | VARCHAR | --- | Optional; notes for the locked session. |
 | version | INT | --- | Revision counter for this record. |
-| day | ENUM | --- | Day of week (DayOfWeek enum). |
+| day | ENUM | --- | Day of week. One of: MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY. |
 | start_time | VARCHAR | --- | Start time in HH:MM format. |
 | end_time | VARCHAR | --- | End time in HH:MM format. |
 | created_by | INT | --- | Actor identifier who created the lock. |
@@ -433,7 +433,7 @@ This dictionary documents all Prisma models in schema.prisma and serves as a bri
 | grade_level | INT | --- | Grade level. |
 | member_section_ids | INT[] | --- | Section IDs in the cohort. |
 | expected_enrollment | INT | --- | Expected total enrollment. |
-| preferred_room_type | ENUM | --- | Optional; preferred room type (RoomType enum). |
+| preferred_room_type | ENUM | --- | Optional; preferred room type. One of: CLASSROOM, LABORATORY, COMPUTER_LAB, TLE_WORKSHOP, LIBRARY, GYMNASIUM, FACULTY_ROOM, OFFICE, OTHER. |
 | is_active | BOOLEAN | --- | True when the cohort is active. |
 | source_ref | VARCHAR | --- | Optional; source reference label. |
 | createdAt | DATETIME | --- | Record creation timestamp. |
@@ -447,7 +447,7 @@ This dictionary documents all Prisma models in schema.prisma and serves as a bri
 | school_id | INT (FK) | --- | Reference to the owning school. |
 | name | VARCHAR | --- | Template name. |
 | label | VARCHAR | --- | Display label for the template. |
-| program_type | ENUM | --- | Program type (ProgramType enum). |
+| program_type | ENUM | --- | Program type. One of: REGULAR, STE, SPS, SPA, OTHER. |
 | grade_applicability | INT[] | --- | Grade levels this template applies to. |
 | period_length_minutes | INT | --- | Length of each period in minutes. |
 | periods_per_day | INT | --- | Number of periods per day. |
