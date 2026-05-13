@@ -933,6 +933,7 @@ export default function FacultyRoomPreferences() {
 					}}
 					onUpdateSelectedRationale={updateSelectedRationale}
 					renderStatusBadge={statusBadge}
+					entries={entries}
 				/>
 			</div>
 

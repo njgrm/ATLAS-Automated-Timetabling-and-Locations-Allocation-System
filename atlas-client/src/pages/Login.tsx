@@ -222,19 +222,19 @@ export default function Login() {
 						<div className='flex flex-col gap-1.5 mt-3'>
 							{schoolAddress && (
 								<div className='flex items-center gap-2 text-white text-sm font-bold'>
-									<MapPin className='w-4 h-4 flex-shrink-0' />
+									<MapPin className='w-4 h-4 shrink-0' />
 									<span>{schoolAddress}</span>
 								</div>
 							)}
 							{schoolDivision && (
 								<div className='flex items-center gap-2 text-white text-sm font-bold'>
-									<Building2 className='w-4 h-4 flex-shrink-0' />
+									<Building2 className='w-4 h-4 shrink-0' />
 									<span>Division of {schoolDivision}</span>
 								</div>
 							)}
 							{schoolRegion && (
 								<div className='flex items-center gap-2 text-white text-sm font-bold'>
-									<Globe className='w-4 h-4 flex-shrink-0' />
+									<Globe className='w-4 h-4 shrink-0' />
 									<span>{schoolRegion}</span>
 								</div>
 							)}
@@ -289,7 +289,7 @@ export default function Login() {
 			</div>
 
 			<div className='relative w-full lg:w-[45%] xl:w-2/5 flex items-center justify-center p-4 sm:p-6 lg:p-8 overflow-y-auto'>
-				<div className='relative z-10 w-full max-w-[420px]'>
+				<div className='relative z-10 w-full max-w-105'>
 					<div className='lg:hidden flex items-center justify-center gap-3 mb-6'>
 						<div
 							className='w-12 h-12 rounded-full flex items-center justify-center shadow-lg overflow-hidden'
@@ -338,8 +338,8 @@ export default function Login() {
 
 						<CardContent className='px-6 pb-5 pt-4'>
 							{error && (
-								<div className='mb-4 p-3 rounded-xl bg-gradient-to-r from-red-50 to-rose-50 border border-red-100 flex items-center gap-2.5'>
-									<div className='w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0'>
+								<div className='mb-4 p-3 rounded-xl bg-linear-to-r from-red-50 to-rose-50 border border-red-100 flex items-center gap-2.5'>
+									<div className='w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center shrink-0'>
 										<AlertCircle className='w-4 h-4 text-red-600' />
 									</div>
 									<span className='text-sm font-bold text-red-700' data-testid='login-error-message'>{error}</span>
@@ -347,8 +347,8 @@ export default function Login() {
 							)}
 
 							{success && (
-								<div className='mb-4 p-3 rounded-xl border flex items-center gap-2.5 bg-gradient-to-r from-primary/10 to-accent/10 border-primary/25'>
-									<div className='w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-primary/15'>
+								<div className='mb-4 p-3 rounded-xl border flex items-center gap-2.5 bg-linear-to-r from-primary/10 to-accent/10 border-primary/25'>
+									<div className='w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-primary/15'>
 										<CheckCircle className='w-4 h-4 text-primary' />
 									</div>
 									<p className='text-sm font-semibold text-primary'>{success}</p>
@@ -471,7 +471,7 @@ export default function Login() {
 										</div>
 
 										<div
-											className='min-h-[44px] w-full flex items-center justify-center rounded-full border border-dashed border-slate-300 text-xs font-semibold text-slate-500 bg-slate-50'
+											className='min-h-11 w-full flex items-center justify-center rounded-full border border-dashed border-slate-300 text-xs font-semibold text-slate-500 bg-slate-50'
 											aria-label='Continue with Google'
 										>
 											Google sign-in button unavailable

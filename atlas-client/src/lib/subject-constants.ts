@@ -49,9 +49,13 @@ export type NewSubjectForm = {
 	minMinutesPerWeek: number;
 	preferredRoomType: RoomType;
 	sessionPattern: SessionPattern;
+	isActive: boolean;
+	isSeedable: boolean;
 	gradeLevels: number[];
 	interSectionEnabled: boolean;
 	interSectionGradeLevels: number[];
+	modularGroupId: string;
+	modularOrder: number | null;
 	programScopes: string[];
 	allowedSpecializations: string[];
 	requiredFeatures: string[];
@@ -63,9 +67,13 @@ export const emptyForm: NewSubjectForm = {
 	minMinutesPerWeek: 45,
 	preferredRoomType: 'CLASSROOM',
 	sessionPattern: 'ANY',
+	isActive: true,
+	isSeedable: false,
 	gradeLevels: [7, 8, 9, 10],
 	interSectionEnabled: false,
 	interSectionGradeLevels: [],
+	modularGroupId: '',
+	modularOrder: null,
 	programScopes: ['REGULAR'],
 	allowedSpecializations: [],
 	requiredFeatures: [],

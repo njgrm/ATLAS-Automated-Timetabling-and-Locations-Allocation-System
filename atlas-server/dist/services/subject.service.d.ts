@@ -13,16 +13,17 @@ export declare function getSubjectsBySchool(schoolId: number, filters?: SubjectS
     updatedAt: Date;
     isActive: boolean;
     code: string;
+    modularGroupId: string | null;
     minMinutesPerWeek: number;
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
     sessionPattern: import("@prisma/client").$Enums.SessionPattern;
+    modularOrder: number | null;
     gradeLevels: number[];
     isSeedable: boolean;
     interSectionEnabled: boolean;
     interSectionGradeLevels: number[];
     allowedSpecializations: string[];
     requiredFeatures: string[];
-    modularGroupId: string | null;
 }[]>;
 export declare function getSubjectById(id: number): Promise<{
     schoolId: number;
@@ -32,9 +33,11 @@ export declare function getSubjectById(id: number): Promise<{
     updatedAt: Date;
     isActive: boolean;
     code: string;
+    modularGroupId: string | null;
     minMinutesPerWeek: number;
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
     sessionPattern: import("@prisma/client").$Enums.SessionPattern;
+    modularOrder: number | null;
     gradeLevels: number[];
     isSeedable: boolean;
     interSectionEnabled: boolean;
@@ -42,7 +45,6 @@ export declare function getSubjectById(id: number): Promise<{
     programScopes: import("@prisma/client").$Enums.ProgramType[];
     allowedSpecializations: string[];
     requiredFeatures: string[];
-    modularGroupId: string | null;
 } | null>;
 export declare function createSubject(schoolId: number, data: {
     code: string;
@@ -53,8 +55,13 @@ export declare function createSubject(schoolId: number, data: {
     gradeLevels: number[];
     interSectionEnabled?: boolean;
     interSectionGradeLevels?: number[];
+    isSeedable?: boolean;
+    modularGroupId?: string | null;
+    modularOrder?: number | null;
     programScopes?: ProgramType[];
     allowedSpecializations?: string[];
+    requiredFeatures?: string[];
+    isActive?: boolean;
 }): Promise<{
     schoolId: number;
     createdAt: Date;
@@ -63,9 +70,11 @@ export declare function createSubject(schoolId: number, data: {
     updatedAt: Date;
     isActive: boolean;
     code: string;
+    modularGroupId: string | null;
     minMinutesPerWeek: number;
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
     sessionPattern: import("@prisma/client").$Enums.SessionPattern;
+    modularOrder: number | null;
     gradeLevels: number[];
     isSeedable: boolean;
     interSectionEnabled: boolean;
@@ -73,7 +82,6 @@ export declare function createSubject(schoolId: number, data: {
     programScopes: import("@prisma/client").$Enums.ProgramType[];
     allowedSpecializations: string[];
     requiredFeatures: string[];
-    modularGroupId: string | null;
 }>;
 export declare function updateSubject(id: number, data: Partial<{
     name: string;
@@ -84,8 +92,12 @@ export declare function updateSubject(id: number, data: Partial<{
     isActive: boolean;
     interSectionEnabled: boolean;
     interSectionGradeLevels: number[];
+    isSeedable: boolean;
+    modularGroupId: string | null;
+    modularOrder: number | null;
     programScopes: ProgramType[];
     allowedSpecializations: string[];
+    requiredFeatures: string[];
 }>): Promise<{
     schoolId: number;
     createdAt: Date;
@@ -94,9 +106,11 @@ export declare function updateSubject(id: number, data: Partial<{
     updatedAt: Date;
     isActive: boolean;
     code: string;
+    modularGroupId: string | null;
     minMinutesPerWeek: number;
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
     sessionPattern: import("@prisma/client").$Enums.SessionPattern;
+    modularOrder: number | null;
     gradeLevels: number[];
     isSeedable: boolean;
     interSectionEnabled: boolean;
@@ -104,7 +118,6 @@ export declare function updateSubject(id: number, data: Partial<{
     programScopes: import("@prisma/client").$Enums.ProgramType[];
     allowedSpecializations: string[];
     requiredFeatures: string[];
-    modularGroupId: string | null;
 } | null>;
 export declare function deleteSubject(id: number): Promise<{
     success: boolean;

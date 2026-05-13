@@ -438,7 +438,7 @@ export default function OfficerPreferences() {
 						})}
 					</div>
 
-					<div className='relative flex-1 min-w-[200px] max-w-sm'>
+					<div className='relative flex-1 min-w-50 max-w-sm'>
 						<Search className='absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground' />
 						<Input
 							placeholder='Search faculty…'
@@ -581,7 +581,7 @@ export default function OfficerPreferences() {
 								<span>{totalFiltered} result{totalFiltered !== 1 ? 's' : ''}</span>
 								<span>·</span>
 								<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-									<SelectTrigger className="h-7 w-[90px] text-xs">
+									<SelectTrigger className="h-7 w-22.5 text-xs">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>

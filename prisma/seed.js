@@ -43,16 +43,13 @@ const subjectSeeds = [
 	{ code: 'MAPEH', name: 'MAPEH', minMinutesPerWeek: 240, preferredRoomType: 'GYMNASIUM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
 	{ code: 'ESP', name: 'ESP/GMRC', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
 	{ code: 'TLE', name: 'Technology and Livelihood Education', minMinutesPerWeek: 240, preferredRoomType: 'TLE_WORKSHOP', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
-	{ code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 60, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
-	{ code: 'NRP', name: 'National Reading Program', minMinutesPerWeek: 50, preferredRoomType: 'CLASSROOM', sessionPattern: 'FRIDAY_ONLY', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
-	{ code: 'NMP', name: 'National Mathematics Program', minMinutesPerWeek: 50, preferredRoomType: 'CLASSROOM', sessionPattern: 'FRIDAY_ONLY', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+	{ code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 60, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'] },
+
 	// ── Modular Science rotation (merged during generation by modularGroupId) ─
 	{ code: 'SCI_BIO', name: 'Science - Biology', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'], modularGroupId: 'SCIENCE', modularOrder: 1 },
 	{ code: 'SCI_CHEM', name: 'Science - Chemistry', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'], modularGroupId: 'SCIENCE', modularOrder: 2 },
 	{ code: 'SCI_ES', name: 'Science - Earth Science', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'], modularGroupId: 'SCIENCE', modularOrder: 3 },
 	{ code: 'SCI_PHYS', name: 'Science - Physics', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'], modularGroupId: 'SCIENCE', modularOrder: 4 },
-	// ── Generic non-core enrichment ───────────────────────────────────────────
-	{ code: 'ICT', name: 'Information and Communications Technology', minMinutesPerWeek: 90, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'] },
 	// ── STE track specialty subjects (per-grade per DO 010 s.2024) ────────────
 	{ code: 'ENV_SCI', name: 'Environmental Science', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [7], isSeedable: false, programScopes: ['STE'] },
 	{ code: 'STE_RESEARCH', name: 'Research', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['STE'] },
@@ -66,6 +63,7 @@ const subjectSeeds = [
 
 const deprecatedSubjectCodes = [
 	'SCI',
+	'ICT',
 	'TLE_ICT_7',
 	'TLE_ICT_8',
 	'TLE_ICT_9',
@@ -506,6 +504,7 @@ async function main() {
 			},
 			create: {
 				employeeId: '3179586',
+				email: `faculty.3179586@deped.edu.ph`,
 				passwordHash: diegoHash,
 				role: 'faculty',
 				schoolId: school.id,

@@ -273,18 +273,26 @@ export default function Subjects() {
 				await atlasApi.patch(`/subjects/${values.id}`, {
 					name: values.name,
 					minMinutesPerWeek: values.minMinutesPerWeek,
+					preferredRoomType: values.preferredRoomType,
 					sessionPattern: values.sessionPattern,
+					isActive: values.isActive,
+					isSeedable: values.isSeedable,
 					gradeLevels: values.gradeLevels,
 					interSectionEnabled: values.interSectionEnabled,
 					interSectionGradeLevels: values.interSectionGradeLevels,
+					modularGroupId: values.modularGroupId?.trim() ? values.modularGroupId.trim() : null,
+					modularOrder: values.modularGroupId?.trim() ? values.modularOrder : null,
 					programScopes: values.programScopes,
 					allowedSpecializations: values.allowedSpecializations,
+					requiredFeatures: values.requiredFeatures,
 				});
 				toast.success('Subject updated successfully.');
 			} else {
 				await atlasApi.post('/subjects', {
 					schoolId: DEFAULT_SCHOOL_ID,
 					...values,
+					modularGroupId: values.modularGroupId?.trim() ? values.modularGroupId.trim() : null,
+					modularOrder: values.modularGroupId?.trim() ? values.modularOrder : null,
 				});
 				toast.success('Subject created successfully.');
 			}
@@ -328,7 +336,7 @@ export default function Subjects() {
 						/>
 					</div>
 					<Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
-						<SelectTrigger className="h-8 w-[120px] text-xs">
+						<SelectTrigger className="h-8 w-30 text-xs">
 							<SelectValue placeholder="All Status" />
 						</SelectTrigger>
 						<SelectContent>
@@ -338,7 +346,7 @@ export default function Subjects() {
 						</SelectContent>
 					</Select>
 					<Select value={roomTypeFilter} onValueChange={(v) => setRoomTypeFilter(v as typeof roomTypeFilter)}>
-						<SelectTrigger className="h-8 w-[150px] text-xs">
+						<SelectTrigger className="h-8 w-37.5 text-xs">
 							<SelectValue placeholder="All Room Types" />
 						</SelectTrigger>
 						<SelectContent>
@@ -349,7 +357,7 @@ export default function Subjects() {
 						</SelectContent>
 					</Select>
 					<Select value={String(gradeLevelFilter)} onValueChange={(v) => setGradeLevelFilter(v === 'all' ? 'all' : Number(v))}>
-						<SelectTrigger className="h-8 w-[110px] text-xs">
+						<SelectTrigger className="h-8 w-27.5 text-xs">
 							<SelectValue placeholder="All Grades" />
 						</SelectTrigger>
 						<SelectContent>
@@ -360,7 +368,7 @@ export default function Subjects() {
 						</SelectContent>
 					</Select>
 					<Select value={programScopeFilter} onValueChange={setProgramScopeFilter}>
-						<SelectTrigger className="h-8 w-[110px] text-xs">
+						<SelectTrigger className="h-8 w-27.5 text-xs">
 							<SelectValue placeholder="All Programs" />
 						</SelectTrigger>
 						<SelectContent>
@@ -441,7 +449,7 @@ export default function Subjects() {
 														Inter-Section
 													</span>
 												</TooltipTrigger>
-												<TooltipContent side="bottom" className="max-w-[240px] text-xs">
+												<TooltipContent side="bottom" className="max-w-60 text-xs">
 													Enable cross-section scheduling (manual only in v1). When enabled, select which grade levels can pool sections for this subject.
 												</TooltipContent>
 											</Tooltip>
@@ -481,6 +489,9 @@ export default function Subjects() {
 												<td className="px-4 py-3">
 													<div>
 														<span className="font-medium">{s.name}</span>
+														{s.modularGroupId && (
+															<Badge variant="outline" className="ml-2 border-indigo-200 bg-indigo-50 text-indigo-700">Modular</Badge>
+														)}
 														{s.isSeedable && <Badge variant="secondary" className="ml-2 bg-blue-50 text-blue-700 hover:bg-blue-50 border-blue-200">DepEd Core</Badge>}
 														{(s.programScopes ?? []).length > 0 && (
 															<div className="flex flex-wrap gap-0.5 mt-0.5">
@@ -509,10 +520,10 @@ export default function Subjects() {
 												<td className="px-4 py-3">
 													<div className="flex gap-1">
 														{s.gradeLevels.map((g) => (
-															<Badge key={g} variant="outline" className="text-[0.6rem] px-1.5 py-0">
+															<Badge key={g} variant="outline" className={`text-[0.6rem] px-1.5 py-0 ${GRADE_COLORS[String(g)] ?? ''}`}>
 																G{g}
 															</Badge>
-														))}`,
+														))}
 													</div>
 												</td>
 												<td className="px-4 py-3">
@@ -531,7 +542,7 @@ export default function Subjects() {
 																			>
 																				G{g}
 																			</span>
-																		))}`,
+																		))}
 																	</div>
 																)}
 															</>
@@ -583,10 +594,15 @@ export default function Subjects() {
 																	sessionPattern: s.sessionPattern ?? 'ANY',
 																	preferredRoomType: s.preferredRoomType,
 																	gradeLevels: [...s.gradeLevels],
+																	isActive: s.isActive,
+																	isSeedable: s.isSeedable,
 																	interSectionEnabled: s.interSectionEnabled ?? false,
 																	interSectionGradeLevels: [...(s.interSectionGradeLevels ?? [])],
+																	modularGroupId: s.modularGroupId ?? '',
+																	modularOrder: s.modularOrder ?? null,
 																	programScopes: [...(s.programScopes ?? ['REGULAR'])],
 																	allowedSpecializations: [...((s as any).allowedSpecializations ?? [])],
+																	requiredFeatures: [...((s as any).requiredFeatures ?? [])],
 																});
 																setModalMode('edit');
 															}
@@ -624,7 +640,7 @@ export default function Subjects() {
 																		<div className="space-y-1.5 pl-4">
 																			{(teacherCoverage[s.id].assigned).map((t, i) => (
 																				<div key={i} className="flex items-center gap-2 text-sm">
-																					<span className="font-medium min-w-[10rem]">{t.name}</span>
+																					<span className="font-medium min-w-40">{t.name}</span>
 																					<div className="flex gap-1 items-center">
 																						{t.grades.map((g) => (
 																							<Badge key={g} variant="outline" className={`text-[0.55rem] px-1.5 py-0 ${GRADE_COLORS[String(g)] ?? ''}`}>
@@ -703,7 +719,7 @@ export default function Subjects() {
 								<span>{totalFiltered} result{totalFiltered !== 1 ? 's' : ''}</span>
 								<span>·</span>
 								<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-									<SelectTrigger className="h-7 w-[90px] text-xs">
+									<SelectTrigger className="h-7 w-22.5 text-xs">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>

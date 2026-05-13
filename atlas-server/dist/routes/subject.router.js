@@ -42,7 +42,7 @@ router.get('/:id', async (req, res, next) => {
 // Auth: POST /subjects — create a custom subject
 router.post('/', authenticate, requirePrivilegedRole, async (req, res, next) => {
     try {
-        const { schoolId, code, name, minMinutesPerWeek, preferredRoomType, gradeLevels, sessionPattern } = req.body;
+        const { schoolId, code, name, minMinutesPerWeek, preferredRoomType, gradeLevels, sessionPattern, isSeedable, interSectionEnabled, interSectionGradeLevels, modularGroupId, modularOrder, programScopes, allowedSpecializations, requiredFeatures, isActive, } = req.body;
         if (!schoolId || !code || !name || !minMinutesPerWeek || !preferredRoomType || !gradeLevels) {
             res.status(400).json({ code: 'MISSING_FIELDS', message: 'schoolId, code, name, minMinutesPerWeek, preferredRoomType, gradeLevels are required.' });
             return;
@@ -54,6 +54,15 @@ router.post('/', authenticate, requirePrivilegedRole, async (req, res, next) => 
             preferredRoomType,
             sessionPattern,
             gradeLevels,
+            isSeedable,
+            interSectionEnabled,
+            interSectionGradeLevels,
+            modularGroupId,
+            modularOrder,
+            programScopes,
+            allowedSpecializations,
+            requiredFeatures,
+            isActive,
         });
         res.status(201).json({ subject });
     }

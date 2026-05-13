@@ -155,7 +155,7 @@ export function ClassProgramMatrixView({
 							</CardHeader>
 							<CardContent className="p-0">
 								<div className="overflow-auto">
-									<table className="min-w-[920px] w-full border-collapse text-xs">
+									<table className="min-w-230 w-full border-collapse text-xs">
 										<colgroup>
 											<col className="w-48" />
 											{DAYS.map((day) => <col key={day} />)}
@@ -197,7 +197,7 @@ export function ClassProgramMatrixView({
 																				<button
 																				type="button"
 																				key={entry.entryId}
-																				aria-label={`${section.sectionLabel} ${DAY_SHORT[day] ?? day} ${formatTime(entry.startTime)} to ${formatTime(entry.endTime)} ${subjectLabel(entry.subjectId)} ${facultyLabel(entry.facultyId)} ${roomLabelShort(entry.roomId)}`}
+																				aria-label={`${section.sectionLabel} ${DAY_SHORT[day] ?? day} ${formatTime(entry.startTime)} to ${formatTime(entry.endTime)} ${subjectLabel(entry.subjectId)} ${entry.facultyId != null ? facultyLabel(entry.facultyId) : 'Modular'} ${roomLabelShort(entry.roomId)}`}
 																				onClick={() => onEntryClick(entry)}
 																				className={cn(
 																				'block w-full rounded-md border px-2 py-1.5 text-left shadow-sm transition-colors hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
@@ -209,7 +209,7 @@ export function ClassProgramMatrixView({
 																					<span className="font-semibold text-foreground">{subjectLabel(entry.subjectId)}</span>
 																					<span className="text-[0.625rem] text-muted-foreground">{formatTime(entry.startTime)}-{formatTime(entry.endTime)}</span>
 																				</div>
-																				<div className="mt-0.5 text-[0.625rem] text-muted-foreground">{facultyLabel(entry.facultyId)} · {roomLabelShort(entry.roomId)}</div>
+																				<div className="mt-0.5 text-[0.625rem] text-muted-foreground">{entry.facultyId != null ? facultyLabel(entry.facultyId) : 'Modular'} · {roomLabelShort(entry.roomId)}</div>
 																				<div className="mt-0.5 text-[0.625rem] text-muted-foreground/80">{entryContextLabel(entry)}</div>
 																			</button>
 																		);

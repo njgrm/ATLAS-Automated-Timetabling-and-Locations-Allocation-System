@@ -333,7 +333,8 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
             },
         };
         const validationResult = validateHardConstraints(validatorCtx);
-        const modularWarningViolations = result.modularWarnings.map((warning) => ({
+        const modularWarnings = result.modularWarnings ?? [];
+        const modularWarningViolations = modularWarnings.map((warning) => ({
             code: warning.code,
             severity: 'SOFT',
             message: warning.message,
@@ -374,7 +375,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
             skippedPrePlacedReasons: preGenerationDrafts.skippedPrePlacedReasons.length > 0 ? preGenerationDrafts.skippedPrePlacedReasons : undefined,
             violationCounts: mergedValidationResult.counts.byCode,
             lockWarnings: result.lockWarnings.length > 0 ? result.lockWarnings : undefined,
-            modularWarnings: result.modularWarnings.length > 0 ? result.modularWarnings.map((warning) => warning.message) : undefined,
+            modularWarnings: modularWarnings.length > 0 ? modularWarnings.map((warning) => warning.message) : undefined,
             cohortCount: cohorts.length,
             cohortizedClassCount: result.entries.filter((entry) => entry.entryKind === 'COHORT').length,
             contractWarnings: [

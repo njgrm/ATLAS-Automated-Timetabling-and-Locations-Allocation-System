@@ -710,7 +710,6 @@ export function constructBaseline(input) {
     const SESSION_PATTERN_DAYS = {
         MWF: new Set(['MONDAY', 'WEDNESDAY', 'FRIDAY']),
         TTH: new Set(['TUESDAY', 'THURSDAY']),
-        FRIDAY_ONLY: new Set(['FRIDAY']),
         ANY: new Set(DAYS),
     };
     // Lab-like room types for consecutive lab check

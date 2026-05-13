@@ -27,7 +27,7 @@ export interface SubjectInput {
     name: string;
     minMinutesPerWeek: number;
     preferredRoomType: RoomType;
-    sessionPattern: 'MWF' | 'TTH' | 'ANY' | 'FRIDAY_ONLY';
+    sessionPattern: 'MWF' | 'TTH' | 'ANY';
     gradeLevels: number[];
     interSectionEnabled?: boolean;
     interSectionGradeLevels?: number[];
@@ -186,7 +186,7 @@ export interface ConstructorResult {
     entries: ScheduledEntry[];
     unassignedItems: UnassignedItem[];
     lockWarnings: string[];
-    modularWarnings: ModularWarning[];
+    modularWarnings?: ModularWarning[];
     assignedCount: number;
     unassignedCount: number;
     classesProcessed: number;
@@ -212,7 +212,7 @@ export interface DemandItem {
     sessionsPerWeek: number;
     durationPerSession: number;
     enrolledCount: number;
-    sessionPattern: 'MWF' | 'TTH' | 'ANY' | 'FRIDAY_ONLY';
+    sessionPattern: 'MWF' | 'TTH' | 'ANY';
     entryKind: 'SECTION' | 'COHORT';
     programType?: string | null;
     programCode?: string | null;

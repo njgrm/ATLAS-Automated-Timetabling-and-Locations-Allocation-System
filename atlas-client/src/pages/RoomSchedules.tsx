@@ -202,7 +202,7 @@ export default function RoomSchedules() {
 			{/* ── Toolbar row ── */}
 			<div className="shrink-0 px-6 pt-4 pb-2 flex items-center gap-3 flex-wrap">
 				{/* Room selector */}
-				<div className="min-w-[220px]">
+				<div className="min-w-55">
 					{roomsLoading ? (
 						<Skeleton className="h-8 w-full" />
 					) : (
@@ -511,7 +511,7 @@ function TimetableGrid({
 				{view.grid.map((row, rowIdx) => (
 						<tr key={rowIdx}>
 							{/* Sticky time column */}
-							<td className="sticky left-0 z-[5] bg-background border-r border-b px-2 py-3 align-middle w-24">
+							<td className="sticky left-0 z-5 bg-background border-r border-b px-2 py-3 align-middle w-24">
 								{row.timeSlot.eventLabel ? (
 									<div className="text-xs font-bold text-foreground">
 										{row.timeSlot.eventLabel}

@@ -2,6 +2,33 @@
 
 Record dated implementation verification summaries here.
 
+### 2026-05-14 - Subjects Module Data + UI Sync (Uniform Daily Grid + Modular Controls)
+- Phase: 4 (correctness/parity blocker in Subjects config and seeding workflow)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PARTIAL PASS (server build blocked by pre-existing unrelated test drift)
+- Operator: GitHub Copilot
+- Files updated:
+  - `prisma/seed.js`
+  - `atlas-server/src/services/subject.service.ts`
+  - `atlas-server/src/routes/subject.router.ts`
+  - `atlas-client/src/lib/subject-constants.ts`
+  - `atlas-client/src/components/subjects/SubjectFormModal.tsx`
+  - `atlas-client/src/pages/Subjects.tsx`
+- Commands executed:
+  - `npm run db:seed`: PASS (`Seeded 19 ATLAS subjects`)
+  - `Invoke-RestMethod http://localhost:5001/api/v1/subjects?schoolId=1`: PASS (contract and values verified)
+  - `npm --prefix atlas-client run build`: PASS
+  - `npm --prefix atlas-server run build`: BLOCKED by pre-existing unrelated TypeScript fixture/type drift in tests/scripts
+- Verification highlights:
+  - `ENG` and `MATH` now verified at `240` minutes.
+  - `HG` verified as `isActive=true` and `isSeedable=false`.
+  - Deprecated subjects verified inactive (`SCI`, `ICT`, `RESEARCH_I-III`, `TLE_ICT_7-10`, legacy SPA arts).
+  - `NRP` and `NMP` absent from subject API payload.
+  - Modular metadata verified on `SCI_BIO` (`modularGroupId=SCIENCE`, `modularOrder=1`).
+  - Subjects modal now sectioned into Basic Identity / Grid & Time Constraints / Advanced Grouping with modular and auto-grid controls.
+
 ### 2026-05-13 - Pass 5 Regression and Acceptance Gate (Faculty Assignment Ownership + Load Parity)
 - Phase: 4 (objective-critical assignment integrity and load accuracy)
 - Scope gate: PASS

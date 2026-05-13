@@ -139,7 +139,6 @@ model Room {
 enum SessionPattern {
   MWF
   TTH
-  FRIDAY_ONLY
   ANY
 
   @@map("session_pattern")

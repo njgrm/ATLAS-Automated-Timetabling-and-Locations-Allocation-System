@@ -57,7 +57,7 @@ export interface RoomRef {
 export interface SubjectRef {
     id: number;
     preferredRoomType: RoomType;
-    sessionPattern?: 'MWF' | 'TTH' | 'ANY' | 'FRIDAY_ONLY';
+    sessionPattern?: 'MWF' | 'TTH' | 'ANY';
     requiredFeatures?: string[];
 }
 export interface PolicyRef {

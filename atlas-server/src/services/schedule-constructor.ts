@@ -52,7 +52,7 @@ export interface SubjectInput {
 	name: string;
 	minMinutesPerWeek: number;
 	preferredRoomType: RoomType;
-	sessionPattern: 'MWF' | 'TTH' | 'ANY' | 'FRIDAY_ONLY';
+	sessionPattern: 'MWF' | 'TTH' | 'ANY';
 	gradeLevels: number[];
 	interSectionEnabled?: boolean;
 	interSectionGradeLevels?: number[];
@@ -353,7 +353,7 @@ export interface DemandItem {
 	sessionsPerWeek: number;
 	durationPerSession: number;
 	enrolledCount: number;
-	sessionPattern: 'MWF' | 'TTH' | 'ANY' | 'FRIDAY_ONLY';
+	sessionPattern: 'MWF' | 'TTH' | 'ANY';
 	entryKind: 'SECTION' | 'COHORT';
 	programType?: string | null;
 	programCode?: string | null;
@@ -1029,7 +1029,6 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	const SESSION_PATTERN_DAYS: Record<string, Set<string>> = {
 		MWF: new Set(['MONDAY', 'WEDNESDAY', 'FRIDAY']),
 		TTH: new Set(['TUESDAY', 'THURSDAY']),
-		FRIDAY_ONLY: new Set(['FRIDAY']),
 		ANY: new Set(DAYS),
 	};
 

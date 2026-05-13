@@ -45,7 +45,7 @@ export type BridgeUser = {
 	accountId?: number;
 };
 
-export type SessionPattern = 'MWF' | 'TTH' | 'ANY' | 'FRIDAY_ONLY';
+export type SessionPattern = 'MWF' | 'TTH' | 'ANY';
 
 export type Subject = {
 	id: number;
@@ -333,7 +333,7 @@ export type RoomScheduleView = {
 	timeSlots: Array<{ startTime: string; endTime: string; eventLabel?: string | null; isSpecialEvent?: boolean }>;
 	days: string[];
 	grid: Array<{
-		timeSlot: { startTime: string; endTime: string };
+		timeSlot: { startTime: string; endTime: string; eventLabel?: string | null; isSpecialEvent?: boolean };
 		cells: RoomScheduleCell[];
 	}>;
 	summary: {

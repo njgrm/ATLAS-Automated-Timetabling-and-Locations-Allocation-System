@@ -235,16 +235,13 @@ export function validateHardConstraints(ctx) {
     {
         const MWF_DAYS = new Set(['MONDAY', 'WEDNESDAY', 'FRIDAY']);
         const TTH_DAYS = new Set(['TUESDAY', 'THURSDAY']);
-        const FRIDAY_ONLY_DAYS = new Set(['FRIDAY']);
         for (const e of ctx.entries) {
             const subject = subjectMap.get(e.subjectId);
             if (!subject || !subject.sessionPattern || subject.sessionPattern === 'ANY')
                 continue;
             const allowed = subject.sessionPattern === 'MWF'
                 ? MWF_DAYS
-                : subject.sessionPattern === 'TTH'
-                    ? TTH_DAYS
-                    : FRIDAY_ONLY_DAYS;
+                : TTH_DAYS;
             if (!allowed.has(e.day)) {
                 violations.push({
                     ...base, severity: 'SOFT',

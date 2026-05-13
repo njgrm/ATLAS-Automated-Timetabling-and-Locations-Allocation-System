@@ -1,27 +1,55 @@
 import { prisma } from '../lib/prisma.js';
 import { inferSubjectProgramScopes } from './subject-program-scope.service.js';
 const MATATAG_DEFAULTS = [
-    { code: 'FIL', name: 'Filipino', minMinutesPerWeek: 200, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], programScopes: ['REGULAR'] },
-    { code: 'ENG', name: 'English', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], programScopes: ['REGULAR'] },
-    { code: 'MATH', name: 'Mathematics', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], programScopes: ['REGULAR'] },
-    { code: 'SCI', name: 'Science', minMinutesPerWeek: 225, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], programScopes: ['REGULAR'] },
-    { code: 'AP', name: 'Araling Panlipunan', minMinutesPerWeek: 200, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], programScopes: ['REGULAR'] },
-    { code: 'MAPEH', name: 'MAPEH', minMinutesPerWeek: 200, preferredRoomType: 'GYMNASIUM', gradeLevels: [7, 8, 9, 10], programScopes: ['REGULAR'] },
-    { code: 'ESP', name: 'Edukasyon sa Pagpapakatao (EsP)', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], programScopes: ['REGULAR'] },
-    { code: 'TLE', name: 'Technology and Livelihood Education', minMinutesPerWeek: 200, preferredRoomType: 'TLE_WORKSHOP', gradeLevels: [7, 8, 9, 10], programScopes: ['REGULAR', 'SPA'] },
-    { code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], programScopes: ['REGULAR'] },
-    { code: 'ENV_SCI', name: 'Environmental Science', minMinutesPerWeek: 180, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], programScopes: ['STE'] },
-    { code: 'RESEARCH_I', name: 'Research I / Basic Statistics', minMinutesPerWeek: 180, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], programScopes: ['STE'] },
-    { code: 'BASIC_STATISTICS', name: 'Basic Statistics', minMinutesPerWeek: 180, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], programScopes: ['STE'] },
-    { code: 'RESEARCH_II', name: 'Research II / Advanced Statistics', minMinutesPerWeek: 180, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], programScopes: ['STE'] },
-    { code: 'ADVANCED_STATISTICS', name: 'Advanced Statistics', minMinutesPerWeek: 180, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], programScopes: ['STE'] },
-    { code: 'BIOTECHNOLOGY', name: 'Biotechnology', minMinutesPerWeek: 180, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], programScopes: ['STE'] },
-    { code: 'RESEARCH_III', name: 'Research III / Advanced Physics', minMinutesPerWeek: 180, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], programScopes: ['STE'] },
-    { code: 'ADVANCED_PHYSICS', name: 'Advanced Physics', minMinutesPerWeek: 180, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], programScopes: ['STE'] },
-    { code: 'ADVANCED_CHEMISTRY', name: 'Advanced Chemistry', minMinutesPerWeek: 180, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], programScopes: ['STE'] },
-    { code: 'ELECTRONICS', name: 'Electronics', minMinutesPerWeek: 180, preferredRoomType: 'TLE_WORKSHOP', gradeLevels: [7, 8, 9, 10], programScopes: ['STE'] },
+    { code: 'FIL', name: 'Filipino', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+    { code: 'ENG', name: 'English', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+    { code: 'MATH', name: 'Mathematics', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+    { code: 'AP', name: 'Araling Panlipunan', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+    { code: 'MAPEH', name: 'MAPEH', minMinutesPerWeek: 240, preferredRoomType: 'GYMNASIUM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+    { code: 'ESP', name: 'ESP/GMRC', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+    { code: 'TLE', name: 'Technology and Livelihood Education', minMinutesPerWeek: 240, preferredRoomType: 'TLE_WORKSHOP', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+    { code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 60, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'] },
+    { code: 'SCI_BIO', name: 'Science - Biology', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'SCIENCE', modularOrder: 1, programScopes: ['REGULAR'] },
+    { code: 'SCI_CHEM', name: 'Science - Chemistry', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'SCIENCE', modularOrder: 2, programScopes: ['REGULAR'] },
+    { code: 'SCI_ES', name: 'Science - Earth Science', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'SCIENCE', modularOrder: 3, programScopes: ['REGULAR'] },
+    { code: 'SCI_PHYS', name: 'Science - Physics', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'SCIENCE', modularOrder: 4, programScopes: ['REGULAR'] },
+    { code: 'ENV_SCI', name: 'Environmental Science', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [7], isSeedable: false, programScopes: ['STE'] },
+    { code: 'STE_RESEARCH', name: 'Research', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['STE'] },
+    { code: 'BIOTECHNOLOGY', name: 'Biotechnology', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [8], isSeedable: false, programScopes: ['STE'] },
+    { code: 'CONSUMERS_CHEMISTRY', name: 'Consumers Chemistry', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [9], isSeedable: false, programScopes: ['STE'] },
+    { code: 'ELECTRONICS_ROBOTICS', name: 'Electronics and Robotics', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [10], isSeedable: false, programScopes: ['STE'] },
+    { code: 'SPA_SPEC', name: 'SPA Specialization', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'] },
+    { code: 'DEVL_READING', name: 'Developmental Reading', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['STE', 'SPA'] },
+];
+const DEPRECATED_SUBJECT_CODES = [
+    'SCI',
+    'ICT',
+    'TLE_ICT_7',
+    'TLE_ICT_8',
+    'TLE_ICT_9',
+    'TLE_ICT_10',
+    'RESEARCH_I',
+    'RESEARCH_II',
+    'RESEARCH_III',
+    'RESEARCH_IV',
+    'MUSIC',
+    'VISUAL_ARTS',
+    'THEATER_ARTS',
+    'MEDIA_ARTS',
+    'CREATIVE_WRITING',
+    'DANCE',
 ];
 export async function ensureDefaultSubjects(schoolId) {
+    await prisma.subject.updateMany({
+        where: {
+            schoolId,
+            code: { in: DEPRECATED_SUBJECT_CODES },
+        },
+        data: {
+            isActive: false,
+            isSeedable: false,
+        },
+    });
     await prisma.$transaction(MATATAG_DEFAULTS.map((subject) => prisma.subject.upsert({
         where: {
             schoolId_code: {
@@ -33,9 +61,12 @@ export async function ensureDefaultSubjects(schoolId) {
             name: subject.name,
             minMinutesPerWeek: subject.minMinutesPerWeek,
             preferredRoomType: subject.preferredRoomType,
+            sessionPattern: subject.sessionPattern ?? 'ANY',
+            modularGroupId: subject.modularGroupId ?? null,
+            modularOrder: subject.modularOrder ?? null,
             gradeLevels: subject.gradeLevels,
             programScopes: subject.programScopes,
-            isSeedable: true,
+            isSeedable: subject.isSeedable,
             isActive: true,
         },
         create: {
@@ -44,9 +75,12 @@ export async function ensureDefaultSubjects(schoolId) {
             name: subject.name,
             minMinutesPerWeek: subject.minMinutesPerWeek,
             preferredRoomType: subject.preferredRoomType,
+            sessionPattern: subject.sessionPattern ?? 'ANY',
+            modularGroupId: subject.modularGroupId ?? null,
+            modularOrder: subject.modularOrder ?? null,
             gradeLevels: subject.gradeLevels,
             programScopes: subject.programScopes,
-            isSeedable: true,
+            isSeedable: subject.isSeedable,
             isActive: true,
         },
     })));
@@ -95,11 +129,15 @@ export async function createSubject(schoolId, data) {
             preferredRoomType: data.preferredRoomType,
             sessionPattern: data.sessionPattern ?? 'ANY',
             gradeLevels: data.gradeLevels,
-            isActive: true,
-            isSeedable: false,
+            isActive: data.isActive ?? true,
+            isSeedable: data.isSeedable ?? false,
             interSectionEnabled: data.interSectionEnabled ?? false,
             interSectionGradeLevels: interGrades,
+            modularGroupId: data.modularGroupId ?? null,
+            modularOrder: data.modularOrder ?? null,
             programScopes: data.programScopes ?? ['REGULAR'],
+            allowedSpecializations: data.allowedSpecializations ?? [],
+            requiredFeatures: data.requiredFeatures ?? [],
         },
     });
 }
@@ -130,10 +168,18 @@ export async function updateSubject(id, data) {
             allowed.interSectionEnabled = data.interSectionEnabled;
         if (data.interSectionGradeLevels !== undefined)
             allowed.interSectionGradeLevels = data.interSectionGradeLevels;
+        if (data.isSeedable !== undefined)
+            allowed.isSeedable = data.isSeedable;
+        if (data.modularGroupId !== undefined)
+            allowed.modularGroupId = data.modularGroupId;
+        if (data.modularOrder !== undefined)
+            allowed.modularOrder = data.modularOrder;
         if (data.programScopes !== undefined)
             allowed.programScopes = data.programScopes;
         if (data.allowedSpecializations !== undefined)
             allowed.allowedSpecializations = data.allowedSpecializations;
+        if (data.requiredFeatures !== undefined)
+            allowed.requiredFeatures = data.requiredFeatures;
         return prisma.subject.update({ where: { id }, data: allowed });
     }
     const updateData = {};
@@ -149,14 +195,22 @@ export async function updateSubject(id, data) {
         updateData.gradeLevels = data.gradeLevels;
     if (data.isActive !== undefined)
         updateData.isActive = data.isActive;
+    if (data.isSeedable !== undefined)
+        updateData.isSeedable = data.isSeedable;
     if (data.interSectionEnabled !== undefined)
         updateData.interSectionEnabled = data.interSectionEnabled;
     if (data.interSectionGradeLevels !== undefined)
         updateData.interSectionGradeLevels = data.interSectionGradeLevels;
+    if (data.modularGroupId !== undefined)
+        updateData.modularGroupId = data.modularGroupId;
+    if (data.modularOrder !== undefined)
+        updateData.modularOrder = data.modularOrder;
     if (data.programScopes !== undefined)
         updateData.programScopes = data.programScopes;
     if (data.allowedSpecializations !== undefined)
         updateData.allowedSpecializations = data.allowedSpecializations;
+    if (data.requiredFeatures !== undefined)
+        updateData.requiredFeatures = data.requiredFeatures;
     return prisma.subject.update({ where: { id }, data: updateData });
 }
 export async function deleteSubject(id) {
