@@ -25,6 +25,8 @@ export type SubjectRowProps = {
 	selectedFacultyId: number;
 	savedOwnershipMap: Record<string, FacultyOwnershipState>;
 	pendingOwnershipMap: Record<string, FacultyOwnershipState>;
+	/** Multi-owner map for detecting database-level duplicate ownership conflicts. */
+	savedConflictMap?: Record<string, FacultyOwnershipState[]>;
 	onSetSections: (subjectId: number, sectionIds: number[]) => void;
 	isOutsideDepartment?: boolean;
 	facultyDepartment?: string | null;
@@ -43,6 +45,7 @@ export function SubjectRow({
 	selectedFacultyId,
 	savedOwnershipMap,
 	pendingOwnershipMap,
+	savedConflictMap = {},
 	onSetSections,
 	isOutsideDepartment,
 	facultyDepartment,
@@ -106,6 +109,12 @@ export function SubjectRow({
 
 	const selectedSectionIds = new Set(assignment?.sectionIds ?? []);
 	const selectedCount = selectedSectionIds.size;
+
+	// Count hard DB-level conflicts for sections belonging to this subject
+	const conflictedSectionCount = sections.filter((sec) => {
+		const key = getOwnershipKey(subject.id, sec.id);
+		return (savedConflictMap[key]?.length ?? 0) > 1;
+	}).length;
 
 	const selectableSectionIds = sections
 		.filter((section) => {
@@ -242,6 +251,18 @@ export function SubjectRow({
 								{blockedCount} blocked
 							</Badge>
 						)}
+						{conflictedSectionCount > 0 && (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Badge variant="outline" className="border-rose-500 bg-rose-50 text-[0.5625rem] text-rose-700 font-semibold">
+										⚠ {conflictedSectionCount} DB conflict{conflictedSectionCount > 1 ? 's' : ''}
+									</Badge>
+								</TooltipTrigger>
+								<TooltipContent side="top" className="max-w-xs text-xs">
+									<p>{conflictedSectionCount} section{conflictedSectionCount > 1 ? 's' : ''} for this subject have multiple saved owners in the database. This is a data integrity issue that must be resolved by an administrator.</p>
+								</TooltipContent>
+							</Tooltip>
+						)}
 					</div>
 					<p className="mt-1 text-[0.6875rem] text-muted-foreground">
 						{Math.round((subject.minMinutesPerWeek / 60) * 10) / 10} hrs/week per section
@@ -291,13 +312,17 @@ export function SubjectRow({
 											const key = getOwnershipKey(subject.id, section.id);
 											const savedOwner = savedOwnershipMap[key];
 											const pendingOwner = pendingOwnershipMap[key];
+											const conflictOwners = savedConflictMap[key];
+											const isHardConflict = (conflictOwners?.length ?? 0) > 1;
 											const isSelected = selectedSectionIds.has(section.id);
 											const isPendingCurrent = pendingOwner?.facultyId === selectedFacultyId;
 											const isSavedCurrent = savedOwner?.facultyId === selectedFacultyId;
 											const isPendingOther = Boolean(pendingOwner && pendingOwner.facultyId !== selectedFacultyId);
 											const isSavedOther = Boolean(savedOwner && savedOwner.facultyId !== selectedFacultyId);
-											const blocked = !isSelected && (isPendingOther || isSavedOther);
-											const badgeLabel = isPendingOther
+											const blocked = !isSelected && (isPendingOther || isSavedOther || isHardConflict);
+											const badgeLabel = isHardConflict
+												? 'DB Conflict'
+												: isPendingOther
 												? `Pending: ${pendingOwner?.facultyName}`
 												: isSavedOther
 												? `Saved: ${savedOwner?.facultyName}`
@@ -310,7 +335,9 @@ export function SubjectRow({
 												<div
 													key={section.id}
 													className={`flex flex-col gap-1.5 rounded-md border p-2 transition-colors ${
-														blocked
+														isHardConflict
+															? 'cursor-not-allowed border-rose-400 bg-rose-50/60 ring-1 ring-rose-300'
+															: blocked
 															? 'cursor-not-allowed border-red-300 bg-red-50/50 opacity-70'
 															: isSelected
 															? 'border-primary/40 bg-primary/5 ring-1 ring-primary/20'
@@ -346,7 +373,9 @@ export function SubjectRow({
 																	<Badge
 																		variant="outline"
 																		className={`text-[0.5625rem] ${
-																			isPendingOther
+																			isHardConflict
+																				? 'border-rose-400 bg-rose-50 text-rose-700 font-semibold'
+																				: isPendingOther
 																				? 'border-red-200 text-red-700'
 																				: isSavedOther
 																				? 'border-amber-200 text-amber-700'
@@ -359,16 +388,22 @@ export function SubjectRow({
 																	</Badge>
 																</TooltipTrigger>
 																<TooltipContent side="top" className="max-w-xs text-xs">
-																	{isPendingOther && (
+																	{isHardConflict && (
+																		<p>
+																			<strong>Database conflict:</strong> multiple teachers own this subject-section pair:{' '}
+																			{conflictOwners.map((o) => o.facultyName).join(', ')}. An administrator must resolve this before it can be reassigned.
+																		</p>
+																	)}
+																	{!isHardConflict && isPendingOther && (
 																		<p>{pendingOwner?.facultyName} has this subject-section pair in an unsaved session draft.</p>
 																	)}
-																	{isSavedOther && (
+																	{!isHardConflict && isSavedOther && (
 																		<p>{savedOwner?.facultyName} already owns this subject-section pair in saved data.</p>
 																	)}
-																	{isPendingCurrent && (
+																	{!isHardConflict && isPendingCurrent && (
 																		<p>This selection is pending in the current session and has not been saved yet.</p>
 																	)}
-																	{isSavedCurrent && !isPendingCurrent && (
+																	{!isHardConflict && isSavedCurrent && !isPendingCurrent && (
 																		<p>This subject-section pair is already saved for the selected teacher.</p>
 																	)}
 																</TooltipContent>

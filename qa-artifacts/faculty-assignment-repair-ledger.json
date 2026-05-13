@@ -1,0 +1,23 @@
+{
+  "generatedAt": "2026-05-13T05:56:42.217Z",
+  "schoolId": 1,
+  "mode": "dry-run",
+  "priorState": {
+    "totalRows": 269,
+    "duplicateOwnershipTuples": 0
+  },
+  "conflictResolution": {
+    "totalConflictingTuples": 0,
+    "entries": []
+  },
+  "repairOps": {
+    "updates": 0,
+    "deletes": 0,
+    "ops": []
+  },
+  "postRepairValidation": {
+    "remainingDuplicateOwnershipTuples": 0,
+    "remainingMismatchedLoadFaculty": 36,
+    "note": "simulated — based on planned ops applied to pre-repair data"
+  }
+}

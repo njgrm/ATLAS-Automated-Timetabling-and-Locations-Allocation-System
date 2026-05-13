@@ -8,6 +8,43 @@ export type AssignmentMutationResult = {
     error: string;
     details?: Record<string, unknown>;
 };
+type AssignmentLoadShape = {
+    subject: {
+        minMinutesPerWeek: number;
+    };
+    sectionIds: number[];
+    gradeLevels: number[];
+};
+export type TeachingLoadFormula = 'section' | 'grade';
+export type DuplicateOwnershipInput = {
+    facultyId: number;
+    facultyName: string;
+    subjectId: number;
+    sectionIds: number[];
+};
+export type DuplicateOwnershipTuple = {
+    subjectId: number;
+    sectionId: number;
+    owners: Array<{
+        facultyId: number;
+        facultyName: string;
+    }>;
+};
+export type OwnershipConflictCandidate = {
+    subjectId: number;
+    sectionId: number;
+    facultyId: number;
+};
+export type OwnershipConflictDetail = {
+    subjectId: number;
+    sectionId: number;
+    ownerFacultyId: number;
+    ownerFacultyName: string;
+};
+export declare function computeTeachingLoadMinutes(assignments: AssignmentLoadShape[], formula: TeachingLoadFormula): number;
+export declare function detectDuplicateOwnershipTuples(assignments: DuplicateOwnershipInput[]): DuplicateOwnershipTuple[];
+export declare function buildOwnershipConflictDetails(conflicts: OwnershipConflictCandidate[], ownerNamesByFacultyId: Map<number, string>): OwnershipConflictDetail[];
+export declare function buildDuplicateOwnershipBlockingResult(conflicts: OwnershipConflictCandidate[], ownerNamesByFacultyId: Map<number, string>): AssignmentMutationResult | null;
 export declare function getAssignmentsByFaculty(facultyId: number, schoolYearId: number, authToken?: string): Promise<{
     facultyId: number;
     version: number;
@@ -72,3 +109,4 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
         };
     }[];
 }[]>;
+export {};

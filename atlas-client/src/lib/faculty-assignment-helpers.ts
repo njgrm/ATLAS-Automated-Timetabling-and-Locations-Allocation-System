@@ -129,6 +129,50 @@ export function buildOwnershipMap(
 	return ownershipMap;
 }
 
+/**
+ * Like buildOwnershipMap but accumulates ALL owners per key instead of last-write-wins.
+ * Use this to detect database-level duplicate ownership conflicts that bypass the
+ * transaction guardrails (e.g. via seeding scripts).
+ */
+export function buildMultiOwnerSavedMap(
+	savedAssignmentsByFaculty: Record<number, FacultyAssignmentDraft[]>,
+	facultyNames: Record<number, string>,
+): Record<string, FacultyOwnershipState[]> {
+	const multiMap: Record<string, FacultyOwnershipState[]> = {};
+	for (const [facultyIdRaw, assignments] of Object.entries(savedAssignmentsByFaculty)) {
+		const facultyId = Number(facultyIdRaw);
+		const facultyName = facultyNames[facultyId] ?? `Faculty ${facultyId}`;
+		for (const assignment of assignments) {
+			for (const sectionId of assignment.sectionIds) {
+				const key = getAssignmentOwnershipKey(assignment.subjectId, sectionId);
+				const existing = multiMap[key];
+				if (existing) {
+					existing.push({ facultyId, facultyName, source: 'saved' });
+				} else {
+					multiMap[key] = [{ facultyId, facultyName, source: 'saved' }];
+				}
+			}
+		}
+	}
+	return multiMap;
+}
+
+/**
+ * Returns the set of ownership keys (subjectId:sectionId) that are owned by more
+ * than one faculty in saved data — these are hard database-level conflicts.
+ */
+export function detectSavedConflictKeys(
+	multiOwnerMap: Record<string, FacultyOwnershipState[]>,
+): Set<string> {
+	const conflicted = new Set<string>();
+	for (const [key, owners] of Object.entries(multiOwnerMap)) {
+		if (owners.length > 1) {
+			conflicted.add(key);
+		}
+	}
+	return conflicted;
+}
+
 export function buildPendingOwnershipMap(
 	savedAssignmentsByFaculty: Record<number, FacultyAssignmentDraft[]>,
 	draftAssignmentsByFaculty: Record<number, FacultyAssignmentDraft[]>,

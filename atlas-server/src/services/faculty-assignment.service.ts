@@ -1,12 +1,11 @@
 import { prisma } from '../lib/prisma.js';
 import { sectionAdapter } from './section-adapter.js';
 import {
-buildSectionRosterIndex,
-detectSectionOwnershipConflicts,
-normalizeIncomingAssignmentScope,
-normalizeStoredAssignmentScope,
-type AssignmentScopeInput,
-type NormalizedAssignmentScope,
+  buildSectionRosterIndex,
+  normalizeIncomingAssignmentScope,
+  normalizeStoredAssignmentScope,
+  type AssignmentScopeInput,
+  type NormalizedAssignmentScope,
 } from './faculty-assignment-scope.service.js';
 
 export type AssignmentMutationResult =
@@ -29,6 +28,128 @@ details?: Record<string, unknown>;
   };
 
 type AssignmentMutationErrorCode = Exclude<AssignmentMutationResult, { success: true }>['code'];
+
+type AssignmentLoadShape = {
+  subject: { minMinutesPerWeek: number };
+  sectionIds: number[];
+  gradeLevels: number[];
+};
+
+export type TeachingLoadFormula = 'section' | 'grade';
+
+export type DuplicateOwnershipInput = {
+  facultyId: number;
+  facultyName: string;
+  subjectId: number;
+  sectionIds: number[];
+};
+
+export type DuplicateOwnershipTuple = {
+  subjectId: number;
+  sectionId: number;
+  owners: Array<{ facultyId: number; facultyName: string }>;
+};
+
+export type OwnershipConflictCandidate = {
+  subjectId: number;
+  sectionId: number;
+  facultyId: number;
+};
+
+export type OwnershipConflictDetail = {
+  subjectId: number;
+  sectionId: number;
+  ownerFacultyId: number;
+  ownerFacultyName: string;
+};
+
+export function computeTeachingLoadMinutes(
+  assignments: AssignmentLoadShape[],
+  formula: TeachingLoadFormula,
+): number {
+  return assignments.reduce((sum, assignment) => {
+    const units = formula === 'section' ? assignment.sectionIds.length : assignment.gradeLevels.length;
+    return sum + assignment.subject.minMinutesPerWeek * units;
+  }, 0);
+}
+
+export function detectDuplicateOwnershipTuples(
+  assignments: DuplicateOwnershipInput[],
+): DuplicateOwnershipTuple[] {
+  const ownership = new Map<
+    string,
+    {
+      subjectId: number;
+      sectionId: number;
+      owners: Map<number, string>;
+    }
+  >();
+
+  for (const assignment of assignments) {
+    for (const sectionId of assignment.sectionIds) {
+      const key = `${assignment.subjectId}:${sectionId}`;
+      const existing =
+        ownership.get(key) ??
+        {
+          subjectId: assignment.subjectId,
+          sectionId,
+          owners: new Map<number, string>(),
+        };
+      existing.owners.set(assignment.facultyId, assignment.facultyName);
+      ownership.set(key, existing);
+    }
+  }
+
+  return Array.from(ownership.values())
+    .filter((entry) => entry.owners.size > 1)
+    .map((entry) => ({
+      subjectId: entry.subjectId,
+      sectionId: entry.sectionId,
+      owners: Array.from(entry.owners.entries())
+        .map(([facultyId, facultyName]) => ({ facultyId, facultyName }))
+        .sort((a, b) => a.facultyId - b.facultyId),
+    }))
+    .sort((a, b) => {
+      if (a.subjectId !== b.subjectId) {
+        return a.subjectId - b.subjectId;
+      }
+      return a.sectionId - b.sectionId;
+    });
+}
+
+export function buildOwnershipConflictDetails(
+  conflicts: OwnershipConflictCandidate[],
+  ownerNamesByFacultyId: Map<number, string>,
+): OwnershipConflictDetail[] {
+  return conflicts.map((conflict) => ({
+    subjectId: conflict.subjectId,
+    sectionId: conflict.sectionId,
+    ownerFacultyId: conflict.facultyId,
+    ownerFacultyName: ownerNamesByFacultyId.get(conflict.facultyId) ?? `Faculty #${conflict.facultyId}`,
+  }));
+}
+
+export function buildDuplicateOwnershipBlockingResult(
+  conflicts: OwnershipConflictCandidate[],
+  ownerNamesByFacultyId: Map<number, string>,
+): AssignmentMutationResult | null {
+  if (conflicts.length === 0) {
+    return null;
+  }
+
+  const details = buildOwnershipConflictDetails(conflicts, ownerNamesByFacultyId);
+  return buildServiceError(
+    'DUPLICATE_SECTION_OWNERSHIP',
+    `One or more subject-section pairs are already assigned to another faculty member. ${details
+      .slice(0, 3)
+      .map(
+        (conflict) =>
+          `${conflict.ownerFacultyName} already owns subject ${conflict.subjectId} / section ${conflict.sectionId}`,
+      )
+      .join('; ')}${details.length > 3 ? ` (+${details.length - 3} more)` : ''}`,
+    { conflicts: details },
+  );
+}
 
 function formatFacultyName(firstName: string, lastName: string): string {
 return `${lastName}, ${firstName}`;
@@ -192,67 +313,88 @@ if (concurrentFaculty.version !== expectedVersion) {
 throw buildServiceError('VERSION_CONFLICT', 'Version conflict. Please reload.');
 }
 
-if (rosterIndex && subjectIds.length > 0) {
-const existingAssignments = await tx.facultySubject.findMany({
-where: {
-schoolId,
-facultyId: { not: facultyId },
-subjectId: { in: subjectIds },
-},
-select: {
-facultyId: true,
-subjectId: true,
-gradeLevels: true,
-sectionIds: true,
-faculty: { select: { firstName: true, lastName: true } },
-},
-});
+      // Conflict check against normalized ownership table — authoritative DB-level source.
+      // Avoids scanning FacultySubject.sectionIds arrays across all faculty.
+      if (normalizedAssignments.length > 0) {
+        const incomingSubjectIds = normalizedAssignments.map((a) => a.subjectId);
+        const incomingSectionIds = [...new Set(normalizedAssignments.flatMap((a) => a.sectionIds))];
 
-const normalizedExisting = existingAssignments.map((assignment) => {
-const normalized = normalizeStoredAssignmentScope(assignment, rosterIndex!);
-return {
-facultyId: assignment.facultyId,
-facultyName: formatFacultyName(assignment.faculty.firstName, assignment.faculty.lastName),
-subjectId: assignment.subjectId,
-sectionIds: normalized.sectionIds,
-};
-});
+        if (incomingSectionIds.length > 0) {
+          const blockingOwners = await tx.subjectSectionOwnership.findMany({
+            where: {
+              schoolId,
+              subjectId: { in: incomingSubjectIds },
+              sectionId: { in: incomingSectionIds },
+              facultyId: { not: facultyId },
+            },
+            select: { subjectId: true, sectionId: true, facultyId: true },
+          });
 
-const conflicts = detectSectionOwnershipConflicts(facultyId, normalizedAssignments, normalizedExisting);
-if (conflicts.length > 0) {
-throw buildServiceError(
-'DUPLICATE_SECTION_OWNERSHIP',
-`One or more subject-section pairs are already assigned to another faculty member. ${conflicts
-.slice(0, 3)
-.map((conflict) => `${conflict.ownerFacultyName} already owns subject ${conflict.subjectId} / section ${conflict.sectionId}`)
-.join('; ')}${conflicts.length > 3 ? ` (+${conflicts.length - 3} more)` : ''}`,
-{ conflicts },
-);
-}
-}
+          // Query is a cross-product (subjectId × sectionId); filter to exact claimed pairs
+          const incomingPairs = new Set(
+            normalizedAssignments.flatMap((a) => a.sectionIds.map((sid) => `${a.subjectId}:${sid}`)),
+          );
+          const realConflicts = blockingOwners.filter((o) =>
+            incomingPairs.has(`${o.subjectId}:${o.sectionId}`),
+          );
 
-const versionUpdate = await tx.facultyMirror.updateMany({
-where: { id: facultyId, version: expectedVersion },
-data: { version: { increment: 1 } },
-});
-if (versionUpdate.count !== 1) {
-throw buildServiceError('VERSION_CONFLICT', 'Version conflict. Please reload.');
-}
+          if (realConflicts.length > 0) {
+            const conflictFacultyIds = [...new Set(realConflicts.map((c) => c.facultyId))];
+            const conflictFaculty = await tx.facultyMirror.findMany({
+              where: { id: { in: conflictFacultyIds } },
+              select: { id: true, firstName: true, lastName: true },
+            });
+            const nameMap = new Map(
+              conflictFaculty.map((f) => [f.id, formatFacultyName(f.firstName, f.lastName)]),
+            );
+            const blockingResult = buildDuplicateOwnershipBlockingResult(realConflicts, nameMap);
+            if (blockingResult) {
+              throw blockingResult;
+            }
+          }
+        }
+      }
 
-await tx.facultySubject.deleteMany({ where: { facultyId } });
+      const versionUpdate = await tx.facultyMirror.updateMany({
+        where: { id: facultyId, version: expectedVersion },
+        data: { version: { increment: 1 } },
+      });
+      if (versionUpdate.count !== 1) {
+        throw buildServiceError('VERSION_CONFLICT', 'Version conflict. Please reload.');
+      }
 
-if (normalizedAssignments.length > 0) {
-await tx.facultySubject.createMany({
-data: normalizedAssignments.map((assignment) => ({
-facultyId,
-subjectId: assignment.subjectId,
-schoolId,
-gradeLevels: assignment.gradeLevels,
-sectionIds: assignment.sectionIds,
-assignedBy,
-})),
-});
-}
+      // deleteMany cascade-deletes SubjectSectionOwnership rows via the FK on faculty_subjects
+      await tx.facultySubject.deleteMany({ where: { facultyId } });
+
+      if (normalizedAssignments.length > 0) {
+        // createManyAndReturn gives us IDs needed to populate the normalized ownership index
+        const createdSubjects = await tx.facultySubject.createManyAndReturn({
+          data: normalizedAssignments.map((assignment) => ({
+            facultyId,
+            subjectId: assignment.subjectId,
+            schoolId,
+            gradeLevels: assignment.gradeLevels,
+            sectionIds: assignment.sectionIds,
+            assignedBy,
+          })),
+          select: { id: true, subjectId: true, sectionIds: true },
+        });
+
+        // Write normalized ownership rows — unique constraint is the final DB guardrail
+        const ownershipData = createdSubjects.flatMap((fs) =>
+          fs.sectionIds.map((sectionId) => ({
+            schoolId,
+            facultySubjectId: fs.id,
+            facultyId,
+            subjectId: fs.subjectId,
+            sectionId,
+            assignedAt: new Date(),
+          })),
+        );
+        if (ownershipData.length > 0) {
+          await tx.subjectSectionOwnership.createMany({ data: ownershipData });
+        }
+      }
 },
 { isolationLevel: 'Serializable' },
 );
@@ -261,9 +403,16 @@ if (error?.success === false) {
 return error as AssignmentMutationResult;
 }
 if (error?.code === 'P2034') {
-return buildServiceError('VERSION_CONFLICT', 'A concurrent assignment update occurred. Please reload and try again.');
-}
-throw error;
+    return buildServiceError('VERSION_CONFLICT', 'A concurrent assignment update occurred. Please reload and try again.');
+  }
+  // DB unique constraint uq_subject_section_owner fired (race slipped past the pre-flight check)
+  if (error?.code === 'P2002' && error?.meta?.modelName === 'SubjectSectionOwnership') {
+    return buildServiceError(
+      'DUPLICATE_SECTION_OWNERSHIP',
+      'A concurrent save created an ownership conflict on the same subject-section. Please reload and try again.',
+    );
+  }
+  throw error;
 }
 
 return { success: true, version: expectedVersion + 1 };
@@ -289,10 +438,7 @@ const normalized = normalizeStoredAssignmentScope(assignment, rosterIndex);
 return toAssignmentResponse(assignment, normalized);
 });
 const sectionCount = assignments.reduce((sum, assignment) => sum + assignment.sectionIds.length, 0);
-const subjectMinutes = assignments.reduce(
-(sum, assignment) => sum + assignment.subject.minMinutesPerWeek * assignment.sectionIds.length,
-0,
-);
+const subjectMinutes = computeTeachingLoadMinutes(assignments, 'section');
 const teachingHours = subjectMinutes / 60;
 const totalHours = teachingHours + (member.advisoryEquivalentHours || 0);
 const subjectHours = Math.round(totalHours * 10) / 10;

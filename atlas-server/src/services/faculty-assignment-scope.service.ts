@@ -254,3 +254,36 @@ export function detectSectionOwnershipConflicts(
 
 	return conflicts;
 }
+
+/**
+ * Derives sorted unique grade levels from an array of sectionIds by looking up
+ * each section's displayOrder in the provided map. Used by scope repair and
+ * normalization operations that work directly against the SectionMirror table
+ * instead of the section adapter HTTP service.
+ */
+export function deriveGradeLevelsFromSectionIds(
+	sectionIds: readonly number[],
+	sectionDisplayOrderMap: ReadonlyMap<number, number>,
+): number[] {
+	return Array.from(
+		new Set(
+			uniqueSortedPositiveInts(sectionIds)
+				.map((id) => sectionDisplayOrderMap.get(id))
+				.filter((order): order is number => typeof order === 'number' && order > 0),
+		),
+	).sort((a, b) => a - b);
+}
+
+/**
+ * Expands grade levels to section IDs using a Map<gradeLevel, sectionId[]>.
+ * Produces a sorted, deduplicated list. Used by legacy-row repair where
+ * sectionIds is empty but gradeLevels is populated.
+ */
+export function expandGradeLevelsToSectionIds(
+	gradeLevels: readonly number[],
+	sectionsByGrade: ReadonlyMap<number, number[]>,
+): number[] {
+	return uniqueSortedPositiveInts(
+		uniqueSortedPositiveInts(gradeLevels).flatMap((grade) => sectionsByGrade.get(grade) ?? []),
+	);
+}

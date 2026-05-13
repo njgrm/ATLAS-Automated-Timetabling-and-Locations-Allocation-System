@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import atlasApi from '@/lib/api';
 import {
 buildAssignmentSignature,
+buildMultiOwnerSavedMap,
 buildOwnershipMap,
 buildPendingOwnershipMap,
 buildSectionMap,
@@ -265,6 +266,11 @@ const facultyNames = useMemo(
 
 const savedOwnershipMap = useMemo(
 () => buildOwnershipMap(savedAssignmentsByFaculty, facultyNames, 'saved'),
+[facultyNames, savedAssignmentsByFaculty],
+);
+
+const savedConflictMap = useMemo(
+() => buildMultiOwnerSavedMap(savedAssignmentsByFaculty, facultyNames),
 [facultyNames, savedAssignmentsByFaculty],
 );
 
@@ -857,6 +863,7 @@ This faculty member is excluded from scheduling. Enable them first.
 							selectedFacultyId={selected.id}
 							savedOwnershipMap={savedOwnershipMap}
 							pendingOwnershipMap={pendingOwnershipMap}
+							savedConflictMap={savedConflictMap}
 							onSetSections={setSubjectSections}
 							facultyDepartment={selected.department}
 							facultySpecialization={selected.specialization}
@@ -894,6 +901,7 @@ This faculty member is excluded from scheduling. Enable them first.
 								selectedFacultyId={selected.id}
 								savedOwnershipMap={savedOwnershipMap}
 								pendingOwnershipMap={pendingOwnershipMap}
+								savedConflictMap={savedConflictMap}
 								onSetSections={setSubjectSections}
 								facultyDepartment={selected.department}
 								facultySpecialization={selected.specialization}

@@ -1,0 +1,474 @@
+{
+  "generatedAt": "2026-05-13T05:23:43.291Z",
+  "schoolId": 1,
+  "totals": {
+    "facultyCount": 142,
+    "assignmentCount": 269,
+    "mismatchCount": 36,
+    "duplicateOwnershipCount": 0
+  },
+  "formulas": {
+    "sectionBased": "sum(subject.minMinutesPerWeek * sectionIds.length) / 60",
+    "gradeBased": "sum(subject.minMinutesPerWeek * gradeLevels.length) / 60",
+    "expectedSourceOfTruth": "sectionBased"
+  },
+  "mismatches": [
+    {
+      "facultyId": 11477,
+      "fullName": "ESTRELLA MACAPAGAL",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 28.8,
+      "gradeHours": 9.3,
+      "deltaHours": 19.5,
+      "sectionFormulaMinutes": 1730,
+      "gradeFormulaMinutes": 560
+    },
+    {
+      "facultyId": 11416,
+      "fullName": "FELICIDAD AQUINO",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 28.8,
+      "gradeHours": 9.3,
+      "deltaHours": 19.5,
+      "sectionFormulaMinutes": 1730,
+      "gradeFormulaMinutes": 560
+    },
+    {
+      "facultyId": 11440,
+      "fullName": "FERDINAND DE LEON",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 28.8,
+      "gradeHours": 9.3,
+      "deltaHours": 19.5,
+      "sectionFormulaMinutes": 1730,
+      "gradeFormulaMinutes": 560
+    },
+    {
+      "facultyId": 11480,
+      "fullName": "JOSEFINA MACAPAGAL",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 28.8,
+      "gradeHours": 9.3,
+      "deltaHours": 19.5,
+      "sectionFormulaMinutes": 1730,
+      "gradeFormulaMinutes": 560
+    },
+    {
+      "facultyId": 11474,
+      "fullName": "MARCELO LUNA",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 28.8,
+      "gradeHours": 9.3,
+      "deltaHours": 19.5,
+      "sectionFormulaMinutes": 1730,
+      "gradeFormulaMinutes": 560
+    },
+    {
+      "facultyId": 11430,
+      "fullName": "MARIA CASTILLO",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 28.8,
+      "gradeHours": 9.3,
+      "deltaHours": 19.5,
+      "sectionFormulaMinutes": 1730,
+      "gradeFormulaMinutes": 560
+    },
+    {
+      "facultyId": 11468,
+      "fullName": "MARIA IBARRA",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 28.8,
+      "gradeHours": 9.3,
+      "deltaHours": 19.5,
+      "sectionFormulaMinutes": 1730,
+      "gradeFormulaMinutes": 560
+    },
+    {
+      "facultyId": 11431,
+      "fullName": "PAOLO CASTRO",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 28.8,
+      "gradeHours": 9.3,
+      "deltaHours": 19.5,
+      "sectionFormulaMinutes": 1730,
+      "gradeFormulaMinutes": 560
+    },
+    {
+      "facultyId": 11493,
+      "fullName": "ANGELICA NAVARRO",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 27.3,
+      "gradeHours": 9.3,
+      "deltaHours": 18,
+      "sectionFormulaMinutes": 1640,
+      "gradeFormulaMinutes": 560
+    },
+    {
+      "facultyId": 11511,
+      "fullName": "ANGELICA QUEZON",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 27.3,
+      "gradeHours": 9.3,
+      "deltaHours": 18,
+      "sectionFormulaMinutes": 1640,
+      "gradeFormulaMinutes": 560
+    },
+    {
+      "facultyId": 11503,
+      "fullName": "CRISTINA PANGANIBAN",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 27.3,
+      "gradeHours": 9.3,
+      "deltaHours": 18,
+      "sectionFormulaMinutes": 1640,
+      "gradeFormulaMinutes": 560
+    },
+    {
+      "facultyId": 11482,
+      "fullName": "DIEGO MAGNO",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 27.3,
+      "gradeHours": 9.3,
+      "deltaHours": 18,
+      "sectionFormulaMinutes": 1640,
+      "gradeFormulaMinutes": 560
+    },
+    {
+      "facultyId": 11537,
+      "fullName": "FRANCISCO SILANG",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 27.3,
+      "gradeHours": 9.3,
+      "deltaHours": 18,
+      "sectionFormulaMinutes": 1640,
+      "gradeFormulaMinutes": 560
+    },
+    {
+      "facultyId": 11550,
+      "fullName": "LOURDES VALDEZ",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 27.3,
+      "gradeHours": 9.3,
+      "deltaHours": 18,
+      "sectionFormulaMinutes": 1640,
+      "gradeFormulaMinutes": 560
+    },
+    {
+      "facultyId": 11554,
+      "fullName": "PURISIMA VILLANUEVA",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 27.3,
+      "gradeHours": 9.3,
+      "deltaHours": 18,
+      "sectionFormulaMinutes": 1640,
+      "gradeFormulaMinutes": 560
+    },
+    {
+      "facultyId": 11505,
+      "fullName": "TERESA PANGANIBAN",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 27.3,
+      "gradeHours": 9.3,
+      "deltaHours": 18,
+      "sectionFormulaMinutes": 1640,
+      "gradeFormulaMinutes": 560
+    },
+    {
+      "facultyId": 11447,
+      "fullName": "CHRISTIAN DUTERTE",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 29.8,
+      "gradeHours": 12.7,
+      "deltaHours": 17.1,
+      "sectionFormulaMinutes": 1790,
+      "gradeFormulaMinutes": 760
+    },
+    {
+      "facultyId": 11464,
+      "fullName": "FRANCISCO GONZALES",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 29.8,
+      "gradeHours": 12.7,
+      "deltaHours": 17.1,
+      "sectionFormulaMinutes": 1790,
+      "gradeFormulaMinutes": 760
+    },
+    {
+      "facultyId": 11417,
+      "fullName": "GRACE AQUINO",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 29.8,
+      "gradeHours": 12.7,
+      "deltaHours": 17.1,
+      "sectionFormulaMinutes": 1790,
+      "gradeFormulaMinutes": 760
+    },
+    {
+      "facultyId": 11459,
+      "fullName": "GREGORIO FERNANDEZ",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 29.8,
+      "gradeHours": 12.7,
+      "deltaHours": 17.1,
+      "sectionFormulaMinutes": 1790,
+      "gradeFormulaMinutes": 760
+    },
+    {
+      "facultyId": 11426,
+      "fullName": "HAROLD BAUTISTA",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 29.8,
+      "gradeHours": 12.7,
+      "deltaHours": 17.1,
+      "sectionFormulaMinutes": 1790,
+      "gradeFormulaMinutes": 760
+    },
+    {
+      "facultyId": 11492,
+      "fullName": "RICA MENDOZA",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 2,
+      "sectionHours": 29.8,
+      "gradeHours": 12.7,
+      "deltaHours": 17.1,
+      "sectionFormulaMinutes": 1790,
+      "gradeFormulaMinutes": 760
+    },
+    {
+      "facultyId": 11425,
+      "fullName": "ELPIDIO BALTAZAR",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 5,
+      "sectionHours": 28.5,
+      "gradeHours": 19.5,
+      "deltaHours": 9,
+      "sectionFormulaMinutes": 1710,
+      "gradeFormulaMinutes": 1170
+    },
+    {
+      "facultyId": 11547,
+      "fullName": "NEIL TORRES",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 5,
+      "sectionHours": 30,
+      "gradeHours": 22.5,
+      "deltaHours": 7.5,
+      "sectionFormulaMinutes": 1800,
+      "gradeFormulaMinutes": 1350
+    },
+    {
+      "facultyId": 11546,
+      "fullName": "PURISIMA SORIANO",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 5,
+      "sectionHours": 28.5,
+      "gradeHours": 21,
+      "deltaHours": 7.5,
+      "sectionFormulaMinutes": 1710,
+      "gradeFormulaMinutes": 1260
+    },
+    {
+      "facultyId": 11461,
+      "fullName": "SALVACION FERNANDEZ",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 6,
+      "sectionHours": 30,
+      "gradeHours": 22.5,
+      "deltaHours": 7.5,
+      "sectionFormulaMinutes": 1800,
+      "gradeFormulaMinutes": 1350
+    },
+    {
+      "facultyId": 11501,
+      "fullName": "EMILIO OSMEÑA",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 6,
+      "sectionHours": 27,
+      "gradeHours": 21,
+      "deltaHours": 6,
+      "sectionFormulaMinutes": 1620,
+      "gradeFormulaMinutes": 1260
+    },
+    {
+      "facultyId": 11512,
+      "fullName": "GABRIEL QUEZON",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 5,
+      "sectionHours": 28.5,
+      "gradeHours": 22.5,
+      "deltaHours": 6,
+      "sectionFormulaMinutes": 1710,
+      "gradeFormulaMinutes": 1350
+    },
+    {
+      "facultyId": 11542,
+      "fullName": "GABRIELA SORIANO",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 6,
+      "sectionHours": 27,
+      "gradeHours": 21,
+      "deltaHours": 6,
+      "sectionFormulaMinutes": 1620,
+      "gradeFormulaMinutes": 1260
+    },
+    {
+      "facultyId": 11543,
+      "fullName": "JOSEFINA SORIANO",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 6,
+      "sectionHours": 28.5,
+      "gradeHours": 22.5,
+      "deltaHours": 6,
+      "sectionFormulaMinutes": 1710,
+      "gradeFormulaMinutes": 1350
+    },
+    {
+      "facultyId": 11513,
+      "fullName": "MATEO QUEZON",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 5,
+      "sectionHours": 28.5,
+      "gradeHours": 22.5,
+      "deltaHours": 6,
+      "sectionFormulaMinutes": 1710,
+      "gradeFormulaMinutes": 1350
+    },
+    {
+      "facultyId": 11444,
+      "fullName": "REMEDIOS DEL ROSARIO",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 6,
+      "sectionHours": 28.5,
+      "gradeHours": 22.5,
+      "deltaHours": 6,
+      "sectionFormulaMinutes": 1710,
+      "gradeFormulaMinutes": 1350
+    },
+    {
+      "facultyId": 11502,
+      "fullName": "ROSA OSMEÑA",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 6,
+      "sectionHours": 28.5,
+      "gradeHours": 22.5,
+      "deltaHours": 6,
+      "sectionFormulaMinutes": 1710,
+      "gradeFormulaMinutes": 1350
+    },
+    {
+      "facultyId": 11539,
+      "fullName": "BEA SORIANO",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 6,
+      "sectionHours": 27,
+      "gradeHours": 22.5,
+      "deltaHours": 4.5,
+      "sectionFormulaMinutes": 1620,
+      "gradeFormulaMinutes": 1350
+    },
+    {
+      "facultyId": 11419,
+      "fullName": "LEONOR AQUINO",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 6,
+      "sectionHours": 28.5,
+      "gradeHours": 24,
+      "deltaHours": 4.5,
+      "sectionFormulaMinutes": 1710,
+      "gradeFormulaMinutes": 1440
+    },
+    {
+      "facultyId": 11523,
+      "fullName": "MIKA RAMOS",
+      "maxHoursPerWeek": 30,
+      "assignmentCount": 6,
+      "sectionHours": 27,
+      "gradeHours": 24,
+      "deltaHours": 3,
+      "sectionFormulaMinutes": 1620,
+      "gradeFormulaMinutes": 1440
+    }
+  ],
+  "duplicateOwnership": [],
+  "focusedCases": [
+    {
+      "summary": {
+        "facultyId": 11414,
+        "fullName": "DIEGO AQUINO",
+        "maxHoursPerWeek": 30,
+        "assignmentCount": 1,
+        "sectionHours": 3.3,
+        "gradeHours": 3.3,
+        "deltaHours": 0,
+        "sectionFormulaMinutes": 200,
+        "gradeFormulaMinutes": 200
+      },
+      "assignments": [
+        {
+          "subjectId": 1,
+          "subjectCode": "FIL",
+          "subjectName": "Filipino",
+          "minMinutesPerWeek": 200,
+          "sectionCount": 1,
+          "gradeCount": 1,
+          "sectionIds": [
+            1299
+          ],
+          "gradeLevels": [
+            7
+          ]
+        }
+      ]
+    },
+    {
+      "summary": {
+        "facultyId": 11545,
+        "fullName": "MIGUEL SORIANO",
+        "maxHoursPerWeek": 30,
+        "assignmentCount": 1,
+        "sectionHours": 3.3,
+        "gradeHours": 3.3,
+        "deltaHours": 0,
+        "sectionFormulaMinutes": 200,
+        "gradeFormulaMinutes": 200
+      },
+      "assignments": [
+        {
+          "subjectId": 1,
+          "subjectCode": "FIL",
+          "subjectName": "Filipino",
+          "minMinutesPerWeek": 200,
+          "sectionCount": 1,
+          "gradeCount": 1,
+          "sectionIds": [
+            1265
+          ],
+          "gradeLevels": [
+            7
+          ]
+        }
+      ]
+    }
+  ]
+}

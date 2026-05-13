@@ -2,6 +2,36 @@
 
 Record dated implementation verification summaries here.
 
+### 2026-05-13 - Pass 5 Regression and Acceptance Gate (Faculty Assignment Ownership + Load Parity)
+- Phase: 4 (objective-critical assignment integrity and load accuracy)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS (targeted)
+- Operator: GitHub Copilot
+- Files updated:
+  - `atlas-server/src/services/faculty-assignment.service.ts`
+  - `atlas-server/src/__tests__/faculty-assignment-pass5-regression.test.ts`
+  - `atlas-server/package.json`
+- Commands executed:
+  - `npm --prefix atlas-server run test:faculty-assignment-pass5`: PASS (`8 passed, 0 failed`)
+  - `npm --prefix atlas-server run test:wave4-precision`: PASS (`14 passed, 0 failed`)
+  - `npm --prefix atlas-server run build`: BLOCKED by pre-existing unrelated TypeScript drift in legacy tests/scripts (not introduced by Pass 5)
+- Before/after metrics (reported case pattern proof):
+  - Pattern: same faculty assigned to one subject across two sections of the same grade.
+  - Baseline reference (single section): `4.0` teaching hours.
+  - Required parity case (two same-grade sections): `8.0` teaching hours.
+  - Pass 5 proof:
+    - `faculty-assignment-pass5-regression`: server load path reports `8.0` hours for two-section case.
+    - `wave4-teaching-load-precision`: `one section = 4`, `two sections = 8` (section-based doubling preserved).
+  - Acceptance conclusion: faculty subjectHours parity for same-grade multi-section assignments is stable and measurable.
+- Duplicate ownership guardrail evidence:
+  - `faculty-assignment-pass5-regression` asserts duplicate tuple detection count = `1` for overlapping `(subjectId, sectionId)` ownership.
+  - `buildDuplicateOwnershipBlockingResult` emits blocking response with code `DUPLICATE_SECTION_OWNERSHIP`.
+  - This matches the service's DB-backed conflict path in `setAssignments` and preserves blocking behavior under conflict.
+- Remaining blockers:
+  - Full server TypeScript compile remains blocked by pre-existing fixture/type drift in unrelated files (e.g., `employeeId` requirement in faculty sync test fixtures, `name` requirement in older `SubjectInput` fixtures, local-auth export mismatch).
+
 ### 2026-05-13 - Wave 4.6b Specialization Mapping UX + Catalog API
 - Phase: 4 (objective-critical specialization mapping and teaching-load alignment)
 - Scope gate: PASS

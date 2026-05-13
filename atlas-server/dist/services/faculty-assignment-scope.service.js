@@ -150,4 +150,23 @@ export function detectSectionOwnershipConflicts(proposedFacultyId, proposedAssig
     }
     return conflicts;
 }
+/**
+ * Derives sorted unique grade levels from an array of sectionIds by looking up
+ * each section's displayOrder in the provided map. Used by scope repair and
+ * normalization operations that work directly against the SectionMirror table
+ * instead of the section adapter HTTP service.
+ */
+export function deriveGradeLevelsFromSectionIds(sectionIds, sectionDisplayOrderMap) {
+    return Array.from(new Set(uniqueSortedPositiveInts(sectionIds)
+        .map((id) => sectionDisplayOrderMap.get(id))
+        .filter((order) => typeof order === 'number' && order > 0))).sort((a, b) => a - b);
+}
+/**
+ * Expands grade levels to section IDs using a Map<gradeLevel, sectionId[]>.
+ * Produces a sorted, deduplicated list. Used by legacy-row repair where
+ * sectionIds is empty but gradeLevels is populated.
+ */
+export function expandGradeLevelsToSectionIds(gradeLevels, sectionsByGrade) {
+    return uniqueSortedPositiveInts(uniqueSortedPositiveInts(gradeLevels).flatMap((grade) => sectionsByGrade.get(grade) ?? []));
+}
 //# sourceMappingURL=faculty-assignment-scope.service.js.map

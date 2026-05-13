@@ -49,3 +49,16 @@ export declare function normalizeIncomingAssignmentScope(assignment: AssignmentS
 export declare function normalizeStoredAssignmentScope(assignment: AssignmentScopeInput, rosterIndex: SectionRosterIndex): NormalizedAssignmentScope;
 export declare function getAssignmentOwnershipKey(subjectId: number, sectionId: number): string;
 export declare function detectSectionOwnershipConflicts(proposedFacultyId: number, proposedAssignments: Pick<NormalizedAssignmentScope, 'subjectId' | 'sectionIds'>[], existingAssignments: FacultySectionOwnership[]): OwnershipConflict[];
+/**
+ * Derives sorted unique grade levels from an array of sectionIds by looking up
+ * each section's displayOrder in the provided map. Used by scope repair and
+ * normalization operations that work directly against the SectionMirror table
+ * instead of the section adapter HTTP service.
+ */
+export declare function deriveGradeLevelsFromSectionIds(sectionIds: readonly number[], sectionDisplayOrderMap: ReadonlyMap<number, number>): number[];
+/**
+ * Expands grade levels to section IDs using a Map<gradeLevel, sectionId[]>.
+ * Produces a sorted, deduplicated list. Used by legacy-row repair where
+ * sectionIds is empty but gradeLevels is populated.
+ */
+export declare function expandGradeLevelsToSectionIds(gradeLevels: readonly number[], sectionsByGrade: ReadonlyMap<number, number[]>): number[];
