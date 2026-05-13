@@ -95,26 +95,20 @@
 
 ### P3.0 — Manage Academic Resources
 
+> Stores are bundled by role: **D2–D3** = physical infrastructure, **D5+D7** = faculty layer, **D24–D26** = program configuration, **D27+D28** = read-only reference context.
+
 | Step | Flow | Data Label |
 |------|------|------------|
-| 1 | D2 → P3.0 | Existing Building Records (name, coordinates, floor count) |
-| 2 | P3.0 → D2 | New or Updated Building Record |
-| 3 | D3 → P3.0 | Existing Room Records (type, capacity, features, floor) |
-| 4 | P3.0 → D3 | New or Updated Room Record |
-| 5 | D4 → P3.0 | Existing Subject Records (code, name, grade levels, pattern) |
-| 6 | P3.0 → D4 | New or Updated Subject Record |
-| 7 | D5 → P3.0 | Faculty Mirror Records (for assignment reference) |
-| 8 | D7 → P3.0 | Existing Faculty–Subject Assignments |
-| 9 | P3.0 → D7 | New or Updated Faculty–Subject Assignment |
-| 10 | D24 → P3.0 | Existing Instructional Cohort Records |
-| 11 | P3.0 → D24 | New or Updated Instructional Cohort |
-| 12 | D25 → P3.0 | Existing Class Templates |
-| 13 | P3.0 → D25 | New or Updated Class Template |
-| 14 | D26 → P3.0 | Existing Template–Subject Bindings |
-| 15 | P3.0 → D26 | New Template–Subject Binding |
-| 16 | D27 → P3.0 | Section Mirror Records (for section-scoped resource lookup) |
-| 17 | D28 → P3.0 | Specialization Aliases (for faculty assignment matching) |
-| 18 | P3.0 → D17 | Record of Resource Create/Update/Delete Events |
+| 1 | D2–D3 → P3.0 | Current Infrastructure Records (buildings, rooms with type, capacity, features) |
+| 2 | P3.0 → D2–D3 | New or Updated Infrastructure Record (building or room) |
+| 3 | D4 → P3.0 | Current Subject Records (code, name, grade levels, session pattern) |
+| 4 | P3.0 → D4 | New or Updated Subject Record |
+| 5 | D5, D7 → P3.0 | Faculty Profiles and Existing Assignments (for reference and display) |
+| 6 | P3.0 → D7 | New or Updated Faculty–Subject Assignment |
+| 7 | D24–D26 → P3.0 | Program Configuration Data (cohorts, class templates, template–subject bindings) |
+| 8 | P3.0 → D24–D26 | New or Updated Program Configuration Record |
+| 9 | D27, D28 → P3.0 | Reference Context (section records and specialization aliases — read only) |
+| 10 | P3.0 → D17 | Record of All Resource Create/Update/Delete Events |
 
 ### P4.0 — Configure Priority Parameters
 
