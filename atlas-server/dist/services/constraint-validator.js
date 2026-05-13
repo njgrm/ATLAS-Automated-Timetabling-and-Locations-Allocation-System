@@ -18,6 +18,7 @@ export const VIOLATION_CODES = [
     'FACULTY_SUBJECT_NOT_QUALIFIED',
     'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED',
     'FACULTY_BREAK_REQUIREMENT_VIOLATED',
+    'FACULTY_DAILY_STANDARD_EXCEEDED',
     'FACULTY_DAILY_MAX_EXCEEDED',
     'FACULTY_EXCESSIVE_TRAVEL_DISTANCE',
     'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS',
@@ -266,6 +267,8 @@ export function validateHardConstraints(ctx) {
     if (ctx.policy) {
         const policy = ctx.policy;
         const severity = policy.enforceConsecutiveBreakAsHard ? 'HARD' : 'SOFT';
+        const standardDailyLimitMinutes = 360;
+        const hardDailyLimitMinutes = Math.min(policy.maxTeachingMinutesPerDay, 480);
         // Group entries by faculty+day, sorted by startTime
         const facDayEntries = new Map();
         for (const e of ctx.entries) {
@@ -278,15 +281,24 @@ export function validateHardConstraints(ctx) {
             const [facIdStr, day] = key.split(':');
             const facultyId = Number(facIdStr);
             const sorted = [...dayEntries].sort((a, b) => a.startTime.localeCompare(b.startTime));
-            // 6a) Daily teaching max — always HARD
+            // 6a) Daily teaching target — warn above 6h, hard-block above 8h
             const dailyMinutes = sorted.reduce((sum, e) => sum + e.durationMinutes, 0);
-            if (dailyMinutes > policy.maxTeachingMinutesPerDay) {
+            if (dailyMinutes > standardDailyLimitMinutes && dailyMinutes <= hardDailyLimitMinutes) {
+                violations.push({
+                    ...base, severity: 'SOFT',
+                    code: 'FACULTY_DAILY_STANDARD_EXCEEDED',
+                    message: `Faculty ${facultyId} teaches ${dailyMinutes} min on ${day}, exceeds the 6 hour standard daily target.`,
+                    entities: { facultyId, day, entryIds: sorted.map((e) => e.entryId) },
+                    meta: { dailyMinutes, standardDailyMinutes: standardDailyLimitMinutes },
+                });
+            }
+            if (dailyMinutes > hardDailyLimitMinutes) {
                 violations.push({
                     ...base, severity: 'HARD',
                     code: 'FACULTY_DAILY_MAX_EXCEEDED',
-                    message: `Faculty ${facultyId} teaches ${dailyMinutes} min on ${day}, exceeds daily max ${policy.maxTeachingMinutesPerDay} min.`,
+                    message: `Faculty ${facultyId} teaches ${dailyMinutes} min on ${day}, exceeds hard daily max ${hardDailyLimitMinutes} min.`,
                     entities: { facultyId, day, entryIds: sorted.map((e) => e.entryId) },
-                    meta: { dailyMinutes, maxTeachingMinutesPerDay: policy.maxTeachingMinutesPerDay },
+                    meta: { dailyMinutes, maxTeachingMinutesPerDay: hardDailyLimitMinutes },
                 });
             }
             // 6b) Consecutive teaching without break + break requirement

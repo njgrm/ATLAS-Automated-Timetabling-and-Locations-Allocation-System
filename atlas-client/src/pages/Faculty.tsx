@@ -120,7 +120,8 @@ export default function Faculty() {
 				(f) =>
 					f.firstName.toLowerCase().includes(q) ||
 					f.lastName.toLowerCase().includes(q) ||
-					(f.department ?? '').toLowerCase().includes(q),
+					(f.department ?? '').toLowerCase().includes(q) ||
+					(f.specialization ?? '').toLowerCase().includes(q),
 			);
 		}
 
@@ -138,7 +139,7 @@ export default function Faculty() {
 			let cmp = 0;
 			switch (sortField) {
 				case 'name': cmp = `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`); break;
-					case 'specialization': cmp = (a.department ?? '').localeCompare(b.department ?? ''); break;
+					case 'specialization': cmp = (a.specialization ?? a.department ?? '').localeCompare(b.specialization ?? b.department ?? ''); break;
 				case 'subjects': cmp = (a.facultySubjects?.length ?? 0) - (b.facultySubjects?.length ?? 0); break;
 				case 'weeklyLoad': {
 					const aMin = (a.facultySubjects ?? []).reduce((s, fs) => s + (fs.subject?.minMinutesPerWeek ?? 0) * fs.gradeLevels.length, 0);
@@ -180,7 +181,7 @@ export default function Faculty() {
 					<div className="relative flex-1 max-w-sm">
 						<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
 						<Input
-							placeholder="Search by name or department..."
+							placeholder="Search by name, department, or specialization..."
 							value={searchQuery}
 							onChange={(e) => setSearchQuery(e.target.value)}
 							className="pl-8 h-8 text-sm"
@@ -209,10 +210,10 @@ export default function Faculty() {
 					{departments.length > 0 && (
 						<Select value={departmentFilter} onValueChange={(v) => setDepartmentFilter(v)}>
 							<SelectTrigger className="h-8 w-35 text-xs">
-								<SelectValue placeholder="All Specs" />
+								<SelectValue placeholder="All Departments" />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="all">All Specs</SelectItem>
+								<SelectItem value="all">All Departments</SelectItem>
 								{departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
 							</SelectContent>
 						</Select>

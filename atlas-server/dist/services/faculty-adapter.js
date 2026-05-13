@@ -48,14 +48,20 @@ export class EnrollProFacultyAdapter {
             throw new Error(`EnrollPro API returned ${res.status}: ${res.statusText}`);
         }
         const data = (await res.json());
+        const isPlaceholderFaculty = (firstName, lastName) => {
+            return firstName.trim().toLowerCase().startsWith('asdf')
+                || lastName.trim().toLowerCase().startsWith('asdf');
+        };
         const teachers = (data.data ?? [])
             .filter((t) => t.isActive)
+            .filter((t) => !isPlaceholderFaculty(t.firstName, t.lastName))
             .map((t) => ({
             id: t.teacherId,
             employeeId: t.employeeId || null,
             firstName: t.firstName,
             lastName: t.lastName,
-            department: null,
+            // EnrollPro now emits departmentCode/departmentName in integration v1; keep backward compatibility.
+            department: t.departmentCode ?? t.department ?? t.departmentName ?? null,
             specialization: t.specialization ?? null,
             employmentStatus: 'PERMANENT',
             isClassAdviser: !!(t.isClassAdviser || t.advisorySectionId),

@@ -8,7 +8,7 @@ export interface ExternalFaculty {
     employeeId: string | null;
     firstName: string;
     lastName: string;
-    /** Academic department (e.g. "Mathematics") — from EnrollPro `department` field */
+    /** Academic department value used by ATLAS matching logic (code first, then label/name fallback). */
     department: string | null;
     /** Subject specialization (e.g. "Algebra") — from EnrollPro `specialization` field */
     specialization: string | null;

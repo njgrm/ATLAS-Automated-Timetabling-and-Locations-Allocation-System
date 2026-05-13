@@ -2,6 +2,35 @@
 
 Record dated implementation verification summaries here.
 
+### 2026-05-13 - Wave 4.6b Specialization Mapping UX + Catalog API
+- Phase: 4 (objective-critical specialization mapping and teaching-load alignment)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PASS
+- Regression gate: PASS (targeted)
+- Operator: GitHub Copilot
+- Files updated:
+  - `atlas-server/src/services/faculty.service.ts`
+  - `atlas-server/src/routes/faculty.router.ts`
+  - `atlas-server/src/__tests__/specialization-catalog-logic.test.ts`
+  - `atlas-server/package.json`
+  - `atlas-client/src/types.ts`
+  - `atlas-client/src/pages/SpecializationMapping.tsx`
+  - `atlas-client/src/pages/Faculty.tsx`
+- Commands executed:
+  - `npm --prefix atlas-client run build`: PASS
+  - `npm --prefix atlas-server run test:specialization-catalog`: PASS (`7 passed, 0 failed`)
+  - `npm --prefix atlas-server run test:wave4-precision`: PASS (`14 passed, 0 failed`)
+  - `npm --prefix atlas-server run build`: BLOCKED by pre-existing TypeScript fixture/interface mismatches in unrelated test and script files (not introduced by Wave 4.6b changes)
+- Verification summary:
+  - Added specialization catalog API path grouped by department for frontend card rendering.
+  - Reworked specialization mapping UI into department-grouped specialization cards with per-card Subject selection.
+  - Added global save flow and unsaved-change guards (browser unload + in-app route-change confirmation dialog with stay/discard/save-and-leave choices).
+  - Updated faculty list search/sort language to prioritize specialization/department plain terminology.
+  - Confirmed specialization strings remain compatible with teaching-load precision checks in targeted tests.
+- Remaining blockers:
+  - Full server TypeScript build remains blocked by pre-existing cross-test typing drift outside the Wave 4.6b touched scope.
+
 ### 2026-05-12 - Wave 4.6 Tailscale EnrollPro Execution (dev-jegs:5002)
 - Phase: 4 (objective-critical source-of-truth and generation validation)
 - Scope gate: PASS

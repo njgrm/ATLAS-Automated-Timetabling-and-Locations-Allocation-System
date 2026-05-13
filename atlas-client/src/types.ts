@@ -120,6 +120,29 @@ export type SpecializationAlias = {
 	updatedAt: string;
 };
 
+export type SpecializationCatalogItem = {
+	specialization: string;
+	departmentCode: string | null;
+	departmentName: string | null;
+	mappedSubjectCodes: string[];
+	mappedSubjects: Array<{ code: string; name: string }>;
+	status: 'mapped' | 'partially_mapped' | 'unmapped';
+};
+
+export type SpecializationCatalogDepartment = {
+	departmentCode: string | null;
+	departmentName: string;
+	specializationCount: number;
+	items: SpecializationCatalogItem[];
+};
+
+export type SpecializationCatalogResponse = {
+	departments: SpecializationCatalogDepartment[];
+	orphans: string[];
+	totalSpecializations: number;
+	totalDepartments: number;
+};
+
 export type FacultyMirror = {
 	id: number;
 	externalId: number;

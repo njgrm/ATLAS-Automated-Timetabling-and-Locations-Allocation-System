@@ -44,6 +44,7 @@ This dictionary documents all Prisma models in schema.prisma and serves as a bri
 | capacity | INT | --- | Optional; maximum occupancy capacity. |
 | is_teaching_space | BOOLEAN | --- | True when the room can be scheduled for classes. |
 | floor_position | INT | --- | Ordering position of the room on its floor. |
+| features | VARCHAR[] | --- | List of room feature tags (e.g., PROJECTOR, AC). Defaults to empty array. |
 | createdAt | DATETIME | --- | Record creation timestamp. |
 | updatedAt | DATETIME | --- | Record last update timestamp. |
 
@@ -65,6 +66,7 @@ This dictionary documents all Prisma models in schema.prisma and serves as a bri
 | inter_section_grade_levels | INT[] | --- | Grade levels allowed for inter-section grouping. |
 | program_scopes | ENUM[] | --- | Program types this subject applies to (ProgramType enum). |
 | allowed_specializations | VARCHAR[] | --- | Faculty specializations allowed to teach the subject. |
+| required_features | VARCHAR[] | --- | Room feature tags required by the subject (e.g., PROJECTOR). Defaults to empty array. |
 | createdAt | DATETIME | --- | Record creation timestamp. |
 | updatedAt | DATETIME | --- | Record last update timestamp. |
 
@@ -74,6 +76,7 @@ This dictionary documents all Prisma models in schema.prisma and serves as a bri
 | ---------- | --------- | ------ | ----------- |
 | id | INT (PK) | --- | Unique local identifier for a faculty member. |
 | external_id | INT | --- | External LIS/HR identifier. |
+| employee_id | VARCHAR | 7 | Optional; unique DepEd employee ID (e.g., "1234567"). |
 | school_id | INT (FK) | --- | Reference to the owning school. |
 | first_name | VARCHAR | --- | Faculty first name. |
 | last_name | VARCHAR | --- | Faculty last name. |
@@ -106,6 +109,8 @@ This dictionary documents all Prisma models in schema.prisma and serves as a bri
 | school_id | INT (FK) | --- | Reference to the owning school. |
 | faculty_id | INT (FK) | --- | Optional; linked faculty mirror ID. |
 | email | VARCHAR | 254 | Unique login email. |
+| employee_id | VARCHAR | 7 | Optional; unique DepEd employee ID linked to the account. |
+| account_name | VARCHAR | --- | Optional; unique display/username for the account. |
 | role | VARCHAR | 32 | Role label for access control. |
 | password_hash | VARCHAR | --- | Hashed password. |
 | is_active | BOOLEAN | --- | True when the account is active. |
@@ -459,6 +464,45 @@ This dictionary documents all Prisma models in schema.prisma and serves as a bri
 | template_id | INT (FK) | --- | Reference to the class template. |
 | subject_id | INT (FK) | --- | Reference to the subject. |
 | createdAt | DATETIME | --- | Record creation timestamp. |
+
+## Table 27: SECTION_MIRRORS
+
+| Field Name | Data Type | Length | Description |
+| ---------- | --------- | ------ | ----------- |
+| id | INT (PK) | --- | Unique identifier for the section mirror record. |
+| external_id | INT | --- | External LIS/EnrollPro section identifier. |
+| school_id | INT (FK) | --- | Reference to the owning school. |
+| school_year_id | INT | --- | School year context identifier. |
+| name | VARCHAR | --- | Section name (e.g., "7-Rizal"). |
+| grade_level_id | INT | --- | Numeric grade level identifier from the source system. |
+| grade_level_name | VARCHAR | --- | Display name for the grade level (e.g., "Grade 7"). |
+| display_order | INT | --- | Ordering position within the grade level. |
+| max_capacity | INT | --- | Maximum enrollment capacity of the section. |
+| enrolled_count | INT | --- | Current enrolled student count. |
+| program_type | VARCHAR | --- | Optional; program type label from the source system. |
+| program_code | VARCHAR | --- | Optional; program code from the source system. |
+| program_name | VARCHAR | --- | Optional; program name from the source system. |
+| is_special_program | BOOLEAN | --- | True when the section belongs to a special program. |
+| is_active_for_scheduling | BOOLEAN | --- | True when the section is included in ATLAS scheduling. |
+| preferred_room_id | INT | --- | Optional; ATLAS-assigned preferred room override. |
+| last_synced_at | DATETIME | --- | Last sync time with the LIS/EnrollPro source. |
+| is_stale | BOOLEAN | --- | True when the mirror data is stale relative to the source. |
+| stale_reason | VARCHAR | --- | Optional; reason the record was marked stale. |
+| stale_at | DATETIME | --- | Optional; time the record was marked stale. |
+| version | INT | --- | Revision counter for this record. |
+| createdAt | DATETIME | --- | Record creation timestamp. |
+| updatedAt | DATETIME | --- | Record last update timestamp. |
+
+## Table 28: SPECIALIZATION_ALIASES
+
+| Field Name | Data Type | Length | Description |
+| ---------- | --------- | ------ | ----------- |
+| id | INT (PK) | --- | Unique identifier for the alias entry. |
+| school_id | INT (FK) | --- | Reference to the owning school. |
+| canonical | VARCHAR | --- | Canonical specialization name (e.g., "Mathematics"). |
+| alias | VARCHAR | --- | Accepted alias for the canonical name (e.g., "Algebra"). |
+| created_at | DATETIME | --- | Record creation timestamp. |
+| updated_at | DATETIME | --- | Record last update timestamp. |
 
 ## Enum Reference
 

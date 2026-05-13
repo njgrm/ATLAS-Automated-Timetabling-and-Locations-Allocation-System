@@ -215,4 +215,34 @@ export declare function getHomeroomRecommendation(facultyId: number): Promise<{
     advisedSectionName: string | null;
     homeroomHint: string;
 } | null>;
+export interface SpecializationTermList {
+    specializations: string[];
+    departments: string[];
+}
+export type SpecializationMappingStatus = 'mapped' | 'partially_mapped' | 'unmapped';
+export interface SpecializationCatalogItem {
+    specialization: string;
+    departmentCode: string | null;
+    departmentName: string | null;
+    mappedSubjectCodes: string[];
+    mappedSubjects: Array<{
+        code: string;
+        name: string;
+    }>;
+    status: SpecializationMappingStatus;
+}
+export interface SpecializationCatalogDepartment {
+    departmentCode: string | null;
+    departmentName: string;
+    specializationCount: number;
+    items: SpecializationCatalogItem[];
+}
+export interface SpecializationCatalogResult {
+    departments: SpecializationCatalogDepartment[];
+    orphans: string[];
+    totalSpecializations: number;
+    totalDepartments: number;
+}
+export declare function listSpecializationTermsBySchool(schoolId: number): Promise<SpecializationTermList>;
+export declare function getSpecializationCatalogBySchool(schoolId: number): Promise<SpecializationCatalogResult>;
 export {};

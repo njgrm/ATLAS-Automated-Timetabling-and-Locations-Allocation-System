@@ -145,6 +145,7 @@ const HUMAN_VIOLATION_TITLES = {
     ROOM_CAPACITY_EXCEEDED: 'Room Capacity Exceeded',
     SESSION_PATTERN_VIOLATED: 'Session Pattern Violated',
     FACULTY_SUBJECT_NOT_QUALIFIED: 'Faculty Not Qualified',
+    FACULTY_DAILY_STANDARD_EXCEEDED: 'Daily Load Warning',
     FACULTY_DAILY_MAX_EXCEEDED: 'Daily Load Exceeded',
     FACULTY_BREAK_REQUIREMENT_VIOLATED: 'Break Requirement Violated',
     FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: 'Consecutive Teaching Limit Exceeded',

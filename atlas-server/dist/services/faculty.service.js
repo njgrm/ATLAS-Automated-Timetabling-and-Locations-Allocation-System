@@ -440,4 +440,125 @@ export async function getHomeroomRecommendation(facultyId) {
         homeroomHint: `Configure homeroom for ${faculty.advisedSectionName}`,
     };
 }
+export async function listSpecializationTermsBySchool(schoolId) {
+    const [specRows, deptRows] = await Promise.all([
+        prisma.facultyMirror.findMany({
+            where: { schoolId, isStale: false, specialization: { not: null } },
+            select: { specialization: true },
+            distinct: ['specialization'],
+        }),
+        prisma.facultyMirror.findMany({
+            where: { schoolId, isStale: false, department: { not: null } },
+            select: { department: true },
+            distinct: ['department'],
+        }),
+    ]);
+    const specializations = specRows
+        .map((row) => row.specialization?.trim())
+        .filter((value) => Boolean(value))
+        .sort((left, right) => left.localeCompare(right));
+    const departments = deptRows
+        .map((row) => row.department?.trim())
+        .filter((value) => Boolean(value))
+        .sort((left, right) => left.localeCompare(right));
+    return {
+        specializations,
+        departments,
+    };
+}
+export async function getSpecializationCatalogBySchool(schoolId) {
+    const [facultyRows, aliases, subjects] = await Promise.all([
+        prisma.facultyMirror.findMany({
+            where: {
+                schoolId,
+                isStale: false,
+                specialization: { not: null },
+            },
+            select: {
+                specialization: true,
+                department: true,
+            },
+        }),
+        prisma.specializationAlias.findMany({
+            where: { schoolId },
+            select: { alias: true, canonical: true },
+        }),
+        prisma.subject.findMany({
+            where: { schoolId, isActive: true },
+            select: { code: true, name: true },
+        }),
+    ]);
+    const subjectByCode = new Map(subjects.map((subject) => [subject.code, subject.name]));
+    const aliasToCanonical = new Map();
+    for (const alias of aliases) {
+        const canonicalList = aliasToCanonical.get(alias.alias) ?? [];
+        if (!canonicalList.includes(alias.canonical)) {
+            canonicalList.push(alias.canonical);
+        }
+        aliasToCanonical.set(alias.alias, canonicalList);
+    }
+    const specializationByKey = new Map();
+    for (const row of facultyRows) {
+        const specialization = row.specialization?.trim();
+        if (!specialization) {
+            continue;
+        }
+        const department = row.department?.trim() || null;
+        const key = `${department ?? 'UNASSIGNED'}::${specialization}`;
+        if (!specializationByKey.has(key)) {
+            specializationByKey.set(key, { specialization, department });
+        }
+    }
+    const departmentBuckets = new Map();
+    const orphanSet = new Set();
+    for (const entry of specializationByKey.values()) {
+        const mappedFromAlias = aliasToCanonical.get(entry.specialization) ?? [];
+        const directCanonical = subjectByCode.has(entry.specialization) ? [entry.specialization] : [];
+        const mappedSubjectCodes = Array.from(new Set([...directCanonical, ...mappedFromAlias]));
+        const mappedSubjects = mappedSubjectCodes
+            .filter((code) => subjectByCode.has(code))
+            .map((code) => ({ code, name: subjectByCode.get(code) }));
+        let status;
+        if (mappedSubjectCodes.length === 0) {
+            status = 'unmapped';
+            orphanSet.add(entry.specialization);
+        }
+        else if (mappedSubjects.length < mappedSubjectCodes.length) {
+            status = 'partially_mapped';
+        }
+        else {
+            status = 'mapped';
+        }
+        const departmentKey = entry.department ?? 'UNASSIGNED';
+        const departmentName = entry.department ?? 'Unassigned Department';
+        const bucket = departmentBuckets.get(departmentKey) ?? {
+            departmentCode: entry.department,
+            departmentName,
+            specializationCount: 0,
+            items: [],
+        };
+        bucket.items.push({
+            specialization: entry.specialization,
+            departmentCode: entry.department,
+            departmentName,
+            mappedSubjectCodes,
+            mappedSubjects,
+            status,
+        });
+        bucket.specializationCount += 1;
+        departmentBuckets.set(departmentKey, bucket);
+    }
+    const departments = Array.from(departmentBuckets.values())
+        .map((department) => ({
+        ...department,
+        items: department.items.sort((left, right) => left.specialization.localeCompare(right.specialization)),
+    }))
+        .sort((left, right) => left.departmentName.localeCompare(right.departmentName));
+    return {
+        departments,
+        orphans: Array.from(orphanSet).sort((left, right) => left.localeCompare(right)),
+        totalSpecializations: specializationByKey.size,
+        totalDepartments: departments.length,
+    };
+}
 //# sourceMappingURL=faculty.service.js.map

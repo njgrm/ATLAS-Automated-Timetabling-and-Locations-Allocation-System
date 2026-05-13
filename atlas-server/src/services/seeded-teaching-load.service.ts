@@ -558,6 +558,17 @@ export async function seedTeachingLoadBaseline(input: SeedTeachingLoadBaselineIn
 		}
 	}
 
+	// Last-resort coverage: ensure each faculty has at least one section-subject ownership
+	// even when no specialization/department-derived candidate map is available.
+	for (const member of faculty.filter((candidate) => (assignmentPairCounts.get(candidate.id) ?? 0) === 0)) {
+		const fallbackPair = pairDefinitions
+			.filter((pair) => !assignedPairs.has(pair.key) && canFit(member.id, pair.minutes))
+			.sort(pairSort)[0];
+		if (fallbackPair) {
+			assignPair(member.id, fallbackPair);
+		}
+	}
+
 	for (const pair of pairDefinitions.filter((entry) => !assignedPairs.has(entry.key))) {
 		const candidate = pair.candidateIds
 			.filter((facultyId) => canFit(facultyId, pair.minutes))

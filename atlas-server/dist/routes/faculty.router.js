@@ -32,7 +32,8 @@ router.get('/me', authenticate, async (req, res, next) => {
     }
 });
 // All remaining /faculty routes are scheduler/admin-only.
-router.use(authenticate, requirePrivilegedRole);
+// Allow either a normal JWT or the static ATLAS_SYSTEM_TOKEN.
+router.use(authenticateWithSystemToken, requirePrivilegedRole);
 // Auth: GET /faculty?schoolId=X&includeStale=true|false
 router.get('/', authenticate, async (req, res, next) => {
     try {
@@ -79,22 +80,23 @@ async function handleFacultySync(req, res, next, modeOverride) {
             return;
         }
         const authToken = req.headers.authorization?.slice(7);
+        const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
         // Resolve schoolYearId: use caller-supplied value if present, otherwise fetch from EnrollPro.
         let schoolYearId;
         if (req.body.schoolYearId !== undefined) {
             schoolYearId = Number(req.body.schoolYearId);
         }
         else {
-            const activeYear = await fetchEnrollProActiveSchoolYear(authToken);
+            const activeYear = await fetchEnrollProActiveSchoolYear(upstreamAuthToken);
             schoolYearId = activeYear?.id ?? 1;
         }
         const [result, activeYear] = await Promise.all([
-            facultyService.syncFacultyFromExternal(schoolId, schoolYearId, authToken, {
+            facultyService.syncFacultyFromExternal(schoolId, schoolYearId, upstreamAuthToken, {
                 mode,
                 pruneSectionAssignments: true,
                 invalidateRuns: true,
             }),
-            fetchEnrollProActiveSchoolYear(authToken),
+            fetchEnrollProActiveSchoolYear(upstreamAuthToken),
         ]);
         if (!result.synced) {
             res.status(502).json({
@@ -158,24 +160,23 @@ router.get('/specializations', async (req, res, next) => {
             res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
             return;
         }
-        // Fetch distinct specializations and departments
-        const [specRows, deptRows] = await Promise.all([
-            prisma.facultyMirror.findMany({
-                where: { schoolId, isStale: false, specialization: { not: null } },
-                select: { specialization: true },
-                distinct: ['specialization'],
-            }),
-            prisma.facultyMirror.findMany({
-                where: { schoolId, isStale: false, department: { not: null } },
-                select: { department: true },
-                distinct: ['department'],
-            }),
-        ]);
-        const specializations = Array.from(new Set([
-            ...specRows.map((r) => r.specialization),
-            ...deptRows.map((r) => r.department),
-        ])).sort();
-        res.json({ specializations });
+        const terms = await facultyService.listSpecializationTermsBySchool(schoolId);
+        res.json(terms);
+    }
+    catch (err) {
+        next(err);
+    }
+});
+// Auth: GET /faculty/specialization-catalog?schoolId=X — department-grouped specialization catalog with mapping status
+router.get('/specialization-catalog', async (req, res, next) => {
+    try {
+        const schoolId = Number(req.query.schoolId);
+        if (!schoolId || Number.isNaN(schoolId)) {
+            res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
+            return;
+        }
+        const catalog = await facultyService.getSpecializationCatalogBySchool(schoolId);
+        res.json(catalog);
     }
     catch (err) {
         next(err);

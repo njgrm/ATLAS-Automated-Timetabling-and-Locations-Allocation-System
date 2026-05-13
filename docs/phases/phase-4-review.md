@@ -591,3 +591,112 @@ Redesign mapping interface from dropdown-to-dropdown to **cards + auto-populatio
 - **State:** Pending clarifications (discovery phase)
 - **Started:** 2026-05-12
 - **Detailed findings:** `docs/phases/phase-4-seeding-findings-2026-05-12.md`
+
+## Wave 4.6b — Department + Specialization UX/Data Alignment Plan (2026-05-13)
+
+### Live verification from tailnet (completed)
+
+Verified against the active EnrollPro tailnet host (`http://dev-jegs.buru-degree.ts.net:5002/api`):
+
+- `GET /integration/v1/school-year` returns active school year `id=38`, `yearLabel=2026-2027`.
+- `GET /integration/v1/faculty?page=1&limit=5` returns department metadata on each faculty row:
+  - `departmentId`
+  - `departmentCode`
+  - `departmentName`
+  - `specialization`
+- Sample scope from live payload: `schoolId=15`, `schoolYearId=38`, total `145` active faculty in feed.
+- No standalone integration departments endpoint is exposed; department source of truth is the faculty feed.
+
+### Verified concern map (current ATLAS UI)
+
+1. `SpecializationMapping` still uses technical wording and dual-dropdown staging:
+   - labels: "EnrollPro Term" and "ATLAS Learning Area"
+   - containers: "Add New Mapping", "Quick Resolve", "Map orphans directly"
+   - user concern confirmed: workflow feels technical and overwhelming.
+2. Current mapping flow is list-first, not department-clustered card-first.
+3. Unsaved navigation guard is not present for staged mapping edits.
+4. Faculty-facing displays are not consistently showing department + specialization context using live upstream structure.
+
+### Implementation objective for this slice
+
+Replace technical mapping interactions with an operations-friendly workflow centered on **Specialization** and **Subject**, with auto-populated specialization cards grouped by live EnrollPro department metadata.
+
+### Scope (this plan)
+
+#### In scope
+- Specialization Mapping page redesign to card-based grouped workflow.
+- Department-aware specialization catalog pipeline from live EnrollPro-synced faculty mirrors.
+- Faculty display consistency updates where specialization/department context is surfaced.
+- Unsaved changes guardrails for mapping edits.
+- Keep subject selection via dropdowns per specialization card and global save.
+
+#### Out of scope
+- Publish-generation execution itself.
+- Scheduler algorithm policy changes unrelated to specialization/department surfacing.
+- Non-blocking cosmetic redesigns outside specialization/faculty surfaces.
+
+### Execution plan
+
+#### Step 1 — Data contract extension (server)
+- Extend faculty mirror ingestion and response DTOs to preserve live EnrollPro department metadata (id/code/name) alongside specialization.
+- Add/extend a read endpoint for specialization mapping UI, returning:
+  - grouped departments (`departmentCode`, `departmentName`)
+  - specializations per department
+  - mapping status per specialization (mapped, partially mapped, unmapped)
+  - orphan status where applicable.
+- Ensure the endpoint is scoped by school and dynamic school year (`/integration/v1/school-year` resolved value).
+
+#### Step 2 — Terminology cleanup (UI copy)
+- Replace technical copy in mapping UI:
+  - "EnrollPro Term" -> "Specialization"
+  - "ATLAS Learning Area" -> "Subject"
+  - "Add New Mapping" container removed
+  - "Quick Resolve" and "Map orphans directly" removed
+- Keep language plain and task-led: "Pick subjects for this specialization".
+
+#### Step 3 — Card-first specialization mapping redesign
+- Build department sections (cards/accordion groups), ordered by department name/code.
+- Inside each department group, render specialization cards auto-populated from live data.
+- Each specialization card contains:
+  - specialization title
+  - department chip
+  - one subject dropdown (multi-select behavior is optional follow-up; initial pass keeps dropdown per user request)
+  - current mapped subjects summary.
+- Keep one global Save button in the header/footer rail for batch commit.
+
+#### Step 4 — Unsaved changes protection
+- Add dirty-state tracking for staged specialization-subject edits.
+- Add before-unload browser guard and in-app route-change confirmation modal when dirty.
+- Confirmation actions: `Stay`, `Discard`, `Save and continue`.
+
+#### Step 5 — Faculty display alignment
+- Update faculty list and assignment pages to surface the same department + specialization model sourced from live data.
+- Ensure sorting/filtering by department uses upstream-aligned department values.
+- Keep existing subject dropdown flows where needed, but pre-contextualize by specialization first.
+
+#### Step 6 — Verification gates (must pass before final publish-generation run)
+- Data gate:
+  - live fetch confirms active school year and department-enriched faculty payload.
+  - specialization cards reflect current tailnet payload counts.
+- UX gate:
+  - no dual-dropdown "add mapping" container remains.
+  - no technical "quick resolve/orphans" wording remains.
+  - unsaved changes prompt fires on navigation.
+- Regression gate:
+  - mapping save and reload are deterministic.
+  - faculty pages still build and load with filters/sorts intact.
+
+### Target files for planned implementation
+
+- `atlas-server/src/services/faculty-adapter.ts`
+- `atlas-server/src/routes/faculty.router.ts`
+- `atlas-server/src/services/faculty.service.ts`
+- `atlas-client/src/pages/SpecializationMapping.tsx`
+- `atlas-client/src/pages/Faculty.tsx`
+- `atlas-client/src/pages/FacultyAssignments.tsx`
+- `atlas-client/src/types.ts`
+
+### Status
+- **State:** Planned (verified with live tailnet payload)
+- **Prerequisite met:** Dynamic EnrollPro school year/source verification complete (`schoolYearId=38`)
+- **Next action:** Implement Step 1 and Step 2 in one batch, then run UI verification against tailnet-backed data.

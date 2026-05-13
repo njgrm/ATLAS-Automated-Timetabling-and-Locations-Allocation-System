@@ -136,7 +136,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
         const [sectionResult, faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, gradeWindows, cohorts, specializationAliases] = await Promise.all([
             getSectionSummary(schoolYearId, schoolId, options?.authToken),
             prisma.facultyMirror.findMany({
-                where: { schoolId, isActiveForScheduling: true },
+                where: { schoolId, isActiveForScheduling: true, isStale: false },
                 select: { id: true, maxHoursPerWeek: true, specialization: true, department: true },
             }),
             prisma.facultySubject.findMany({
@@ -201,7 +201,10 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
             }),
         ]);
         const rosterIndex = buildSectionRosterIndex(sectionResult.gradeLevels);
-        const facultySubjects = facultySubjectRows.map((assignment) => {
+        const activeFacultyIdSet = new Set(faculty.map((member) => member.id));
+        const facultySubjects = facultySubjectRows
+            .filter((assignment) => activeFacultyIdSet.has(assignment.facultyId))
+            .map((assignment) => {
             const normalized = normalizeStoredAssignmentScope(assignment, rosterIndex);
             return {
                 facultyId: assignment.facultyId,
@@ -438,7 +441,8 @@ export async function getGenerationRoomRequestGateStatus(schoolId, schoolYearId)
     }
     catch (error) {
         const code = error.code;
-        if (code === 'NO_ACTIVE_DRAFT')
+        // Stale draft also means no valid draft to gate against — allow a fresh generation
+        if (code === 'NO_ACTIVE_DRAFT' || code === 'STALE_RUN_DATA')
             return { blocked: false, openCount: 0, runId: null };
         throw error;
     }

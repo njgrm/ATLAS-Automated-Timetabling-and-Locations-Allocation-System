@@ -172,27 +172,25 @@ router.get('/specializations', async (req: Request, res: Response, next: NextFun
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
 			return;
 		}
-		
-		// Fetch distinct specializations and departments
-		const [specRows, deptRows] = await Promise.all([
-			prisma.facultyMirror.findMany({
-				where: { schoolId, isStale: false, specialization: { not: null } },
-				select: { specialization: true },
-				distinct: ['specialization'],
-			}),
-			prisma.facultyMirror.findMany({
-				where: { schoolId, isStale: false, department: { not: null } },
-				select: { department: true },
-				distinct: ['department'],
-			}),
-		]);
 
-		const specializations = Array.from(new Set([
-			...specRows.map((r) => r.specialization as string),
-			...deptRows.map((r) => r.department as string),
-		])).sort();
+		const terms = await facultyService.listSpecializationTermsBySchool(schoolId);
+		res.json(terms);
+	} catch (err) {
+		next(err);
+	}
+});
 
-		res.json({ specializations });
+// Auth: GET /faculty/specialization-catalog?schoolId=X — department-grouped specialization catalog with mapping status
+router.get('/specialization-catalog', async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.query.schoolId);
+		if (!schoolId || Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
+			return;
+		}
+
+		const catalog = await facultyService.getSpecializationCatalogBySchool(schoolId);
+		res.json(catalog);
 	} catch (err) {
 		next(err);
 	}

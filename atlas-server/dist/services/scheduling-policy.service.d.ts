@@ -7,7 +7,7 @@ export declare const POLICY_DEFAULTS: {
     readonly teacherMoveEnabled: true;
     readonly maxConsecutiveTeachingMinutesBeforeBreak: 120;
     readonly minBreakMinutesAfterConsecutiveBlock: 15;
-    readonly maxTeachingMinutesPerDay: 400;
+    readonly maxTeachingMinutesPerDay: 480;
     readonly earliestStartTime: "07:00";
     readonly latestEndTime: "17:00";
     readonly enforceConsecutiveBreakAsHard: false;

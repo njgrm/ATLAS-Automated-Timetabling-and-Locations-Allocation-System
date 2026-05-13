@@ -50,18 +50,19 @@ router.post('/sync', authenticateWithSystemToken, requirePrivilegedRole, async (
             return;
         }
         const authToken = req.headers.authorization?.slice(7);
+        const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
         // Resolve schoolYearId: use caller-supplied value if present, otherwise fetch from EnrollPro.
         let schoolYearId;
         if (req.body.schoolYearId !== undefined) {
             schoolYearId = Number(req.body.schoolYearId);
         }
         else {
-            const activeYear = await fetchEnrollProActiveSchoolYear(authToken);
+            const activeYear = await fetchEnrollProActiveSchoolYear(upstreamAuthToken);
             schoolYearId = activeYear?.id ?? 1;
         }
         const [result, activeYear] = await Promise.all([
-            syncSectionsFromExternal(schoolId, schoolYearId, authToken),
-            fetchEnrollProActiveSchoolYear(authToken),
+            syncSectionsFromExternal(schoolId, schoolYearId, upstreamAuthToken),
+            fetchEnrollProActiveSchoolYear(upstreamAuthToken),
         ]);
         res.json({ ...result, ...(activeYear ? { enrollProActiveYear: activeYear.yearLabel } : {}) });
     }

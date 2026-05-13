@@ -9,7 +9,7 @@ export interface ExternalFaculty {
 	employeeId: string | null;
 	firstName: string;
 	lastName: string;
-	/** Academic department (e.g. "Mathematics") — from EnrollPro `department` field */
+	/** Academic department value used by ATLAS matching logic (code first, then label/name fallback). */
 	department: string | null;
 	/** Subject specialization (e.g. "Algebra") — from EnrollPro `specialization` field */
 	specialization: string | null;
@@ -96,6 +96,9 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 				email?: string | null;
 				contactNumber?: string | null;
 				department?: string | null;
+				departmentId?: number | null;
+				departmentCode?: string | null;
+				departmentName?: string | null;
 				specialization: string | null;
 				isActive: boolean;
 				isTeachingExempt?: boolean;
@@ -106,14 +109,21 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 			}>;
 		};
 
+		const isPlaceholderFaculty = (firstName: string, lastName: string): boolean => {
+			return firstName.trim().toLowerCase().startsWith('asdf')
+				|| lastName.trim().toLowerCase().startsWith('asdf');
+		};
+
 		const teachers = (data.data ?? [])
 			.filter((t) => t.isActive)
+			.filter((t) => !isPlaceholderFaculty(t.firstName, t.lastName))
 			.map((t) => ({
 				id: t.teacherId,
 				employeeId: t.employeeId || null,
 				firstName: t.firstName,
 				lastName: t.lastName,
-				department: t.department ?? null,
+				// EnrollPro now emits departmentCode/departmentName in integration v1; keep backward compatibility.
+				department: t.departmentCode ?? t.department ?? t.departmentName ?? null,
 				specialization: t.specialization ?? null,
 				employmentStatus: 'PERMANENT' as const,
 				isClassAdviser: !!(t.isClassAdviser || t.advisorySectionId),
