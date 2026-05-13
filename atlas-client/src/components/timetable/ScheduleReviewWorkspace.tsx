@@ -286,7 +286,7 @@ export default function ScheduleReviewWorkspace() {
 			try {
 				const schoolId = DEFAULT_SCHOOL_ID;
 				const response = await fetch(
-					`/api/v1/scheduling-policy/${schoolId}/${schoolYearId}`,
+					`/api/v1/policies/scheduling/${schoolId}/${schoolYearId}`,
 					{ credentials: 'include' }
 				);
 				if (response.ok) {

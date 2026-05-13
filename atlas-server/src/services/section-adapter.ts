@@ -507,21 +507,70 @@ export class EnrollProSectionAdapter implements SectionAdapter {
 
 	async fetchSectionsBySchoolYear(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionFetchResult> {
 		// EnrollPro returns the active school year's sections by default.
-		// The schoolYearId query param uses EnrollPro-internal IDs which differ from ATLAS IDs,
-		// so we omit it and let EnrollPro resolve the active year automatically.
+		// This feed is paginated (default limit=50), so collect every page.
 		const url = `${this.baseUrl}/integration/v1/sections`;
 		const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
-		const response = await fetch(url, {
-			headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-		});
-		if (!response.ok) {
-			throw Object.assign(new Error(`EnrollPro sections API returned ${response.status}`), {
-				statusCode: response.status,
-				code: 'UPSTREAM_ERROR',
-			});
+		const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+		type SectionFeedRow = {
+			id?: number;
+			name?: string;
+			maxCapacity?: number;
+			enrolledCount?: number;
+			programType?: string;
+			gradeLevel?: {
+				id?: number;
+				name?: string;
+				displayOrder?: number;
+			} | null;
+			advisingTeacher?: {
+				id?: number;
+				firstName?: string;
+				lastName?: string;
+				middleName?: string | null;
+			} | null;
+		};
+
+		type SectionFeedPage = {
+			data?: SectionFeedRow[];
+			meta?: {
+				totalPages?: number;
+				page?: number;
+				limit?: number;
+			};
+		};
+
+		const pageSize = 200;
+		let currentPage = 1;
+		let totalPages = 1;
+		const allRows: SectionFeedRow[] = [];
+
+		while (currentPage <= totalPages) {
+			const pageUrl = `${url}?page=${currentPage}&limit=${pageSize}`;
+			const response = await fetch(pageUrl, { headers });
+			if (!response.ok) {
+				throw Object.assign(new Error(`EnrollPro sections API returned ${response.status}`), {
+					statusCode: response.status,
+					code: 'UPSTREAM_ERROR',
+				});
+			}
+
+			const page = (await response.json()) as SectionFeedPage;
+			const rows = Array.isArray(page.data) ? page.data : [];
+			allRows.push(...rows);
+
+			const reportedTotalPages = Number(page.meta?.totalPages ?? 0);
+			if (Number.isFinite(reportedTotalPages) && reportedTotalPages > 0) {
+				totalPages = reportedTotalPages;
+			} else {
+				// Backward compatibility when pagination metadata is absent.
+				totalPages = rows.length < pageSize ? currentPage : currentPage + 1;
+			}
+
+			currentPage += 1;
 		}
 
-		const body = await response.json();
+		const body: EnrollProSectionsResponse = { data: allRows };
 		const normalized = normalizeEnrollProSectionsResponse(body);
 		const fetchedAt = new Date();
 

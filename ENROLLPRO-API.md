@@ -384,8 +384,8 @@ Public read-only feeds for companion systems (ATLAS, SMART, AIMS).
 | GET | `/api/integration/v1/health` | None | Connectivity and DB health check. |
 | GET | `/api/integration/v1/school-year` | None | EnrollPro's active school year `id` and `yearLabel`. Use to confirm which year faculty/section data belongs to. |
 | GET | `/api/integration/v1/learners` | None | Paginated list of learners. **Requires `schoolYearId`**. Supports `page`/`limit`. |
-| GET | `/api/integration/v1/faculty` | None | List of all faculty members. Defaults to active school year if `schoolYearId` is omitted. Active-year context available in `meta.scope`. |
-| GET | `/api/integration/v1/sections` | None | List of sections with occupancy. Defaults to active school year if `schoolYearId` is omitted. Active-year context available in `meta.scope`. |
+| GET | `/api/integration/v1/faculty` | None | List faculty feed rows. Defaults to active school year if `schoolYearId` is omitted. Supports `page` and `limit`; response includes `meta.total`, `meta.page`, `meta.limit`, `meta.totalPages`, and `meta.scope`. |
+| GET | `/api/integration/v1/sections` | None | List section feed rows with occupancy. Defaults to active school year if `schoolYearId` is omitted. Supports `page` and `limit`; response includes `meta.total`, `meta.page`, `meta.limit`, `meta.totalPages`, and `meta.scope`. |
 | GET | `/api/integration/v1/sections/:sectionId/learners` | None | Paginated roster for a specific section. Supports `page`/`limit`. |
 
 ### Sample: `GET /api/integration/v1/health`
@@ -650,8 +650,8 @@ Staff-initiated pull/push triggers for external companion systems. These complem
 | `SMART_API_BASE_URL` | SMART sync | Base URL of the S.M.A.R.T. Tailscale node. |
 | `SMART_API_KEY` | SMART sync | API key sent in `X-API-KEY` header. |
 | `SMART_SYNC_FALLBACK_ENABLED` | SMART sync | Set `true` to use mock data when SMART is unreachable (demo/offline mode). |
-| `ATLAS_API_BASE_URL` | ATLAS sync | Base URL of the ATLAS teacher data endpoint. |
-| `ATLAS_API_KEY` | ATLAS sync | API key sent in `X-API-KEY` header. |
+| `ATLAS_API_BASE_URL` | ATLAS sync | Base URL of the ATLAS service (for example, `http://njgrm.buru-degree.ts.net:5001`). |
+| `ATLAS_SYSTEM_TOKEN` | ATLAS sync | Bearer token used in `Authorization: Bearer <token>` when calling protected ATLAS sync endpoints. |
 
 ### Sample: `POST /api/integration/smart/sections/10/sync-grades`
 

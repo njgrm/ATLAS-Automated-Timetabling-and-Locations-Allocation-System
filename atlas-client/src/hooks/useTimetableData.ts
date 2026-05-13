@@ -65,6 +65,45 @@ const CONFLICT_CODES: Set<ViolationCode> = new Set([
 	'SECTION_TIME_CONFLICT',
 ]);
 
+type TimetableApiErrorPayload = {
+	code?: string;
+	message?: string;
+	actionHint?: string;
+};
+
+function getTimetableApiErrorPayload(error: unknown): TimetableApiErrorPayload | null {
+	const payload = (error as { response?: { data?: TimetableApiErrorPayload } } | null)?.response?.data;
+	if (!payload) {
+		return null;
+	}
+	return payload;
+}
+
+function getTimetableApiErrorCode(error: unknown): string | undefined {
+	return getTimetableApiErrorPayload(error)?.code;
+}
+
+function buildTimetableErrorMessage(error: unknown, fallbackMessage: string): string {
+	const payload = getTimetableApiErrorPayload(error);
+	if (payload?.code === 'NO_ACTIVE_DRAFT') {
+		const base = payload.message ?? 'No active draft timetable run is available for the active school year.';
+		const hint = payload.actionHint ?? 'Generate a timetable for the active school year, then refresh.';
+		return `${base} ${hint}`;
+	}
+	if (payload?.code === 'STALE_RUN_DATA') {
+		const base = payload.message ?? 'The latest timetable run references stale data.';
+		const hint = payload.actionHint ?? 'Run faculty sync, regenerate the timetable, then refresh.';
+		return `${base} ${hint}`;
+	}
+	if (payload?.message) {
+		return payload.message;
+	}
+	if (error instanceof Error) {
+		return error.message;
+	}
+	return fallbackMessage;
+}
+
 const WELLBEING_CODES: Set<ViolationCode> = new Set([
 	'FACULTY_EXCESSIVE_TRAVEL_DISTANCE',
 	'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS',
@@ -677,18 +716,28 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	const fetchRunData = useCallback(async (syId: number, runId: string) => {
 		const base = `/generation/${DEFAULT_SCHOOL_ID}/${syId}/runs`;
 		const runPath = runId === 'latest' ? `${base}/latest` : `${base}/${runId}`;
-		const [draftRes, violationsRes] = await Promise.all([
-			atlasApi.get<DraftReport>(`${runPath}/draft`),
-			atlasApi.get<ViolationReport>(`${runPath}/violations`),
-		]);
-		setDraft(draftRes.data);
-		setViolationReport(violationsRes.data);
-		const numericRunId = draftRes.data.runId;
 		try {
-			const { data } = await atlasApi.get<{ flags: Array<{ entryId: string }> }>(`/follow-up-flags/${DEFAULT_SCHOOL_ID}/${syId}/runs/${numericRunId}/flags`);
-			setFollowUps(new Set(data.flags.map((f) => f.entryId)));
-		} catch {
-			setFollowUps(new Set());
+			const [draftRes, violationsRes] = await Promise.all([
+				atlasApi.get<DraftReport>(`${runPath}/draft`),
+				atlasApi.get<ViolationReport>(`${runPath}/violations`),
+			]);
+			setDraft(draftRes.data);
+			setViolationReport(violationsRes.data);
+			const numericRunId = draftRes.data.runId;
+			try {
+				const { data } = await atlasApi.get<{ flags: Array<{ entryId: string }> }>(`/follow-up-flags/${DEFAULT_SCHOOL_ID}/${syId}/runs/${numericRunId}/flags`);
+				setFollowUps(new Set(data.flags.map((f) => f.entryId)));
+			} catch {
+				setFollowUps(new Set());
+			}
+		} catch (error) {
+			// Preserve structured API errors (NO_RUNS, NO_ACTIVE_DRAFT, STALE_RUN_DATA)
+			// so loadAll's catch block can inspect the code and keep the workspace open.
+			const code = getTimetableApiErrorCode(error);
+			if (code === 'NO_RUNS' || code === 'NO_ACTIVE_DRAFT' || code === 'STALE_RUN_DATA') {
+				throw error;
+			}
+			throw new Error(buildTimetableErrorMessage(error, 'Failed to load timetable run data.'));
 		}
 	}, [setDraft, setViolationReport, setFollowUps]);
 
@@ -715,9 +764,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			setRoomRequestSummary(data);
 			setRoomRequestError(null);
 		} catch (err) {
-			const responseData = (err as { response?: { data?: { code?: string; message?: string; actionHint?: string } } })?.response?.data;
-			const staleMessage = responseData?.code === 'STALE_RUN_DATA' ? [responseData.message, responseData.actionHint].filter(Boolean).join(' ') : null;
-			setRoomRequestError(staleMessage ?? responseData?.message ?? 'Failed to load room requests.');
+			setRoomRequestError(buildTimetableErrorMessage(err, 'Failed to load room requests.'));
 		} finally {
 			setRoomRequestLoading(false);
 		}
@@ -808,8 +855,16 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			if (!preserveRun) setSelectedRunId('latest');
 			await fetchRunData(syId, runId);
 		} catch (e: unknown) {
-			const msg = e instanceof Error ? e.message : 'Failed to load data.';
-			setError(msg);
+			const code = getTimetableApiErrorCode(e);
+			if (code === 'NO_ACTIVE_DRAFT' || code === 'STALE_RUN_DATA' || code === 'NO_RUNS') {
+				// Keep the workspace accessible for setup/pre-generation controls.
+				setDraft(null);
+				setViolationReport(null);
+				setError(null);
+			} else {
+				const msg = buildTimetableErrorMessage(e, 'Failed to load data.');
+				setError(msg);
+			}
 		} finally {
 			setLoading(false);
 		}

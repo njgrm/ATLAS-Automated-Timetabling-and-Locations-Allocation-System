@@ -38,16 +38,35 @@ export class EnrollProFacultyAdapter {
         this.baseUrl = baseUrl;
     }
     async fetchFacultyBySchoolYear(_schoolId, _schoolYearId, authToken) {
-        // Use the public integration/v1/faculty endpoint — no auth required
+        // Use the public integration/v1/faculty endpoint — no auth required.
+        // EnrollPro now paginates this feed (default limit=50), so collect all pages.
         const url = `${this.baseUrl}/integration/v1/faculty`;
         const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
-        const res = await fetch(url, {
-            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        });
-        if (!res.ok) {
-            throw new Error(`EnrollPro API returned ${res.status}: ${res.statusText}`);
+        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+        const pageSize = 200;
+        let currentPage = 1;
+        let totalPages = 1;
+        const allRows = [];
+        while (currentPage <= totalPages) {
+            const pageUrl = `${url}?page=${currentPage}&limit=${pageSize}`;
+            const res = await fetch(pageUrl, { headers });
+            if (!res.ok) {
+                throw new Error(`EnrollPro API returned ${res.status}: ${res.statusText}`);
+            }
+            const page = (await res.json());
+            const rows = Array.isArray(page.data) ? page.data : [];
+            allRows.push(...rows);
+            const reportedTotalPages = Number(page.meta?.totalPages ?? 0);
+            if (Number.isFinite(reportedTotalPages) && reportedTotalPages > 0) {
+                totalPages = reportedTotalPages;
+            }
+            else {
+                // Backward compatibility: if meta pagination is absent, infer from page fill.
+                totalPages = rows.length < pageSize ? currentPage : currentPage + 1;
+            }
+            currentPage += 1;
         }
-        const data = (await res.json());
+        const data = { data: allRows };
         const isPlaceholderFaculty = (firstName, lastName) => {
             return firstName.trim().toLowerCase().startsWith('asdf')
                 || lastName.trim().toLowerCase().startsWith('asdf');

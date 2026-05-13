@@ -76,47 +76,73 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 		_schoolYearId: number,
 		authToken?: string,
 	): Promise<FacultyFetchResult> {
-		// Use the public integration/v1/faculty endpoint — no auth required
+		// Use the public integration/v1/faculty endpoint — no auth required.
+		// EnrollPro now paginates this feed (default limit=50), so collect all pages.
 		const url = `${this.baseUrl}/integration/v1/faculty`;
 		const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
-		const res = await fetch(url, {
-			headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-		});
+		const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
-		if (!res.ok) {
-			throw new Error(`EnrollPro API returned ${res.status}: ${res.statusText}`);
+		type FacultyFeedRow = {
+			teacherId: number;
+			employeeId?: string | null;
+			firstName: string;
+			lastName: string;
+			email?: string | null;
+			contactNumber?: string | null;
+			department?: string | null;
+			departmentId?: number | null;
+			departmentCode?: string | null;
+			departmentName?: string | null;
+			specialization: string | null;
+			isActive: boolean;
+			isTeachingExempt?: boolean;
+			isClassAdviser?: boolean;
+			advisoryEquivalentHoursPerWeek?: number | null;
+			advisorySectionId?: number | null;
+			advisorySectionName?: string | null;
+		};
+
+		type FacultyFeedPage = {
+			data?: FacultyFeedRow[];
+			meta?: {
+				totalPages?: number;
+				page?: number;
+				limit?: number;
+			};
+		};
+
+		const pageSize = 200;
+		let currentPage = 1;
+		let totalPages = 1;
+		const allRows: FacultyFeedRow[] = [];
+
+		while (currentPage <= totalPages) {
+			const pageUrl = `${url}?page=${currentPage}&limit=${pageSize}`;
+			const res = await fetch(pageUrl, { headers });
+
+			if (!res.ok) {
+				throw new Error(`EnrollPro API returned ${res.status}: ${res.statusText}`);
+			}
+
+			const page = (await res.json()) as FacultyFeedPage;
+			const rows = Array.isArray(page.data) ? page.data : [];
+			allRows.push(...rows);
+
+			const reportedTotalPages = Number(page.meta?.totalPages ?? 0);
+			if (Number.isFinite(reportedTotalPages) && reportedTotalPages > 0) {
+				totalPages = reportedTotalPages;
+			} else {
+				// Backward compatibility: if meta pagination is absent, infer from page fill.
+				totalPages = rows.length < pageSize ? currentPage : currentPage + 1;
+			}
+
+			currentPage += 1;
 		}
 
-		const data = (await res.json()) as {
-			data: Array<{
-				teacherId: number;
-				employeeId?: string | null;
-				firstName: string;
-				lastName: string;
-				email?: string | null;
-				contactNumber?: string | null;
-				department?: string | null;
-				departmentId?: number | null;
-				departmentCode?: string | null;
-				departmentName?: string | null;
-				specialization: string | null;
-				isActive: boolean;
-				isTeachingExempt?: boolean;
-				isClassAdviser?: boolean;
-				advisoryEquivalentHoursPerWeek?: number | null;
-				advisorySectionId?: number | null;
-				advisorySectionName?: string | null;
-			}>;
-		};
-
-		const isPlaceholderFaculty = (firstName: string, lastName: string): boolean => {
-			return firstName.trim().toLowerCase().startsWith('asdf')
-				|| lastName.trim().toLowerCase().startsWith('asdf');
-		};
+		const data = { data: allRows };
 
 		const teachers = (data.data ?? [])
 			.filter((t) => t.isActive)
-			.filter((t) => !isPlaceholderFaculty(t.firstName, t.lastName))
 			.map((t) => ({
 				id: t.teacherId,
 				employeeId: t.employeeId || null,
