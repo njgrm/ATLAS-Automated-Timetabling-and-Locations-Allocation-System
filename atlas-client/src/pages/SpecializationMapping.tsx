@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useBlocker } from 'react-router-dom';
-import { CheckCircle2, ChevronDown, Loader2, RefreshCw, Save, Search, ShieldAlert, Sparkles, TriangleAlert, X } from 'lucide-react';
+import { CheckCircle2, ChevronDown, LayoutGrid, LayoutList, Loader2, RefreshCw, Save, Search, Sparkles, Wand2, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
@@ -26,15 +26,13 @@ import { Label } from '@/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { ScrollArea } from '@/ui/scroll-area';
 import { Switch } from '@/ui/switch';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
 const DEFAULT_SCHOOL_ID = 1;
-const NONE_LABEL = 'No ATLAS Learning Area selected';
+const NONE_LABEL = 'No Subject selected';
 
 type MappingOption = {
 	code: string;
 	name: string;
-	isActive: boolean;
 	groupLabel: string;
 };
 
@@ -58,15 +56,14 @@ function termTokens(value: string): string[] {
 
 function buildGroupedOptions(
 	subjectList: Subject[],
-	departmentName: string,
-	selectedCodes: string[],
+	specializationName: string,
 	query: string,
 ): MappingGroup[] {
-	const normalizedDepartment = normalizeTerm(departmentName);
+	const normalizedSpec = normalizeTerm(specializationName);
 	const queryValue = normalizeTerm(query);
 
 	const visibleSubjects = subjectList
-		.filter((subject) => subject.isActive || selectedCodes.includes(subject.code))
+		.filter((subject) => subject.isActive)
 		.filter((subject) => {
 			if (!queryValue) {
 				return true;
@@ -79,18 +76,25 @@ function buildGroupedOptions(
 			return {
 				code: subject.code,
 				name: subject.name,
-				isActive: subject.isActive,
 				groupLabel: firstScope,
 			};
 		});
 
-	const departmentTokens = new Set(termTokens(normalizedDepartment));
+	const specTokens = new Set(termTokens(normalizedSpec));
 	const isSuggested = (option: MappingOption) => {
-		const optionTokens = new Set(termTokens(`${option.name} ${option.code}`));
-		for (const token of departmentTokens) {
-			if (optionTokens.has(token)) {
-				return true;
-			}
+		const optionName = normalizeTerm(`${option.name} ${option.code}`);
+		const optionTokens = new Set(termTokens(optionName));
+		// Token exact match
+		for (const token of specTokens) {
+			if (optionTokens.has(token)) return true;
+		}
+		// Substring: spec token appears inside option name/code
+		for (const token of specTokens) {
+			if (token.length >= 3 && optionName.includes(token)) return true;
+		}
+		// Substring: option token appears inside spec
+		for (const token of optionTokens) {
+			if (token.length >= 3 && normalizedSpec.includes(token)) return true;
 		}
 		return false;
 	};
@@ -125,14 +129,14 @@ function buildGroupedOptions(
 }
 
 type MappingMultiSelectProps = {
-	departmentName: string;
+	specializationName: string;
 	selectedCodes: string[];
 	subjects: Subject[];
 	onChange: (nextCodes: string[]) => void;
 };
 
 function MappingMultiSelect({
-	departmentName,
+	specializationName,
 	selectedCodes,
 	subjects,
 	onChange,
@@ -142,18 +146,13 @@ function MappingMultiSelect({
 	const inputRef = useRef<HTMLInputElement>(null);
 
 	const groups = useMemo(
-		() => buildGroupedOptions(subjects, departmentName, selectedCodes, query),
-		[subjects, departmentName, selectedCodes, query],
+		() => buildGroupedOptions(subjects, specializationName, query),
+		[subjects, specializationName, query],
 	);
 
 	const selectedLabels = useMemo(() => {
 		const lookup = new Map(subjects.map((subject) => [subject.code, subject.name]));
 		return selectedCodes.map((code) => lookup.get(code) || code);
-	}, [selectedCodes, subjects]);
-
-	const selectedInactiveCount = useMemo(() => {
-		const activeLookup = new Map(subjects.map((subject) => [subject.code, subject.isActive]));
-		return selectedCodes.filter((code) => activeLookup.get(code) === false).length;
 	}, [selectedCodes, subjects]);
 
 	return (
@@ -216,22 +215,16 @@ function MappingMultiSelect({
 													variant='ghost'
 													className='h-auto w-full justify-start gap-2 rounded-md px-2 py-1.5 text-left text-xs'
 													onClick={() => {
-														if (checked) {
-															onChange(selectedCodes.filter((code) => code !== item.code));
-															return;
-														}
-														onChange([...selectedCodes, item.code]);
+														const next = checked
+															? selectedCodes.filter((code) => code !== item.code)
+															: [...selectedCodes, item.code];
+														onChange(next);
 													}}
 												>
 													<Checkbox checked={checked} />
-													<div className='min-w-0'>
-														<p className='truncate font-medium'>
-															{item.name} ({item.code})
-														</p>
-														{!item.isActive && (
-															<p className='text-[10px] text-amber-700'>Inactive in ATLAS</p>
-														)}
-													</div>
+													<p className='truncate font-medium'>
+														{item.name} ({item.code})
+													</p>
 												</Button>
 											);
 										})}
@@ -245,41 +238,42 @@ function MappingMultiSelect({
 
 			{selectedCodes.length > 0 ? (
 				<div className='flex flex-wrap gap-1'>
-					{selectedCodes.map((code, index) => {
-						const subject = subjects.find((item) => item.code === code);
-						return (
-							<Badge key={code} variant='secondary' className='h-6 gap-1 text-[10px]'>
-								<span className='max-w-40 truncate'>
-									{selectedLabels[index]} ({code})
-								</span>
-								<Button
-									type='button'
-									variant='ghost'
-									size='icon'
-									className='size-4 rounded-full'
-									onClick={() => onChange(selectedCodes.filter((itemCode) => itemCode !== code))}
-								>
-									<X className='size-3' />
-								</Button>
-								{subject && !subject.isActive && <TriangleAlert className='size-3 text-amber-700' />}
-							</Badge>
-						);
-					})}
-				</div>
-			) : (
-				<p className='text-[11px] text-muted-foreground'>{NONE_LABEL}</p>
-			)}
-
-			{selectedInactiveCount > 0 && (
-				<div className='flex items-start gap-1.5 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] text-red-700'>
-					<TriangleAlert className='mt-0.5 size-3.5' />
-					<span>
-						One or more mapped learning areas are inactive and will not be used during generation.
-					</span>
-				</div>
-			)}
-		</div>
+				{selectedCodes.map((code, index) => (
+					<Badge key={code} variant='secondary' className='h-6 gap-1 text-[10px]'>
+						<span className='max-w-40 truncate'>
+							{selectedLabels[index]} ({code})
+						</span>
+						<Button
+							type='button'
+							variant='ghost'
+							size='icon'
+							className='size-4 rounded-full'
+							onClick={() => onChange(selectedCodes.filter((itemCode) => itemCode !== code))}
+						>
+							<X className='size-3' />
+						</Button>
+					</Badge>
+				))}
+			</div>
+		) : (
+			<p className='text-[11px] text-muted-foreground'>{NONE_LABEL}</p>
+		)}
+	</div>
 	);
+}
+
+function findAutoMapMatch(specialization: string, subjects: Subject[]): Subject | null {
+	const normalizedSpec = normalizeTerm(specialization);
+	const activeSubjects = subjects.filter((s) => s.isActive);
+	const exact = activeSubjects.find((s) => normalizeTerm(s.code) === normalizedSpec);
+	if (exact) return exact;
+	const exactName = activeSubjects.find((s) => normalizeTerm(s.name) === normalizedSpec);
+	if (exactName) return exactName;
+	const loose = activeSubjects.find((s) => {
+		const nc = normalizeTerm(`${s.name} ${s.code}`);
+		return nc.includes(normalizedSpec) || normalizedSpec.includes(normalizeTerm(s.code));
+	});
+	return loose ?? null;
 }
 
 export default function SpecializationMapping() {
@@ -287,12 +281,17 @@ export default function SpecializationMapping() {
 	const [saving, setSaving] = useState(false);
 	const [subjects, setSubjects] = useState<Subject[]>([]);
 	const [departments, setDepartments] = useState<SpecializationCatalogDepartment[]>([]);
-	const [orphans, setOrphans] = useState<string[]>([]);
 	const [selectionBySpecialization, setSelectionBySpecialization] = useState<Record<string, string[]>>({});
 	const [initialSelectionBySpecialization, setInitialSelectionBySpecialization] = useState<Record<string, string[]>>({});
 	const [pendingRouteExit, setPendingRouteExit] = useState(false);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [showUnmappedOnly, setShowUnmappedOnly] = useState(false);
+	const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+	const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+	const [bulkMapOpen, setBulkMapOpen] = useState(false);
+	const [bulkMapCodes, setBulkMapCodes] = useState<string[]>([]);
+	const [bulkMapQuery, setBulkMapQuery] = useState('');
+	const bulkMapInputRef = useRef<HTMLInputElement>(null);
 
 	const isDirty = useMemo(
 		() => JSON.stringify(selectionBySpecialization) !== JSON.stringify(initialSelectionBySpecialization),
@@ -335,7 +334,6 @@ export default function SpecializationMapping() {
 
 			setSubjects(subjectRes.data.subjects);
 			setDepartments(catalogRes.data.departments);
-			setOrphans(catalogRes.data.orphans);
 
 			const nextSelectionMap: Record<string, string[]> = {};
 			for (const department of catalogRes.data.departments) {
@@ -352,11 +350,46 @@ export default function SpecializationMapping() {
 		}
 	};
 
+	const enrichWithModularSiblings = (codes: string[]): string[] => {
+		const result = new Set(codes);
+		const activeSubjects = subjects.filter((s) => s.isActive);
+		for (const code of codes) {
+			const subject = activeSubjects.find((s) => s.code === code);
+			if (subject?.modularGroupId) {
+				for (const sibling of activeSubjects) {
+					if (sibling.modularGroupId === subject.modularGroupId) {
+						result.add(sibling.code);
+					}
+				}
+			}
+		}
+		return Array.from(result);
+	};
+
 	const handleSelectionChange = (specialization: string, subjectCodes: string[]) => {
+		const enriched = enrichWithModularSiblings(subjectCodes);
 		setSelectionBySpecialization((previous) => ({
 			...previous,
-			[specialization]: Array.from(new Set(subjectCodes)),
+			[specialization]: Array.from(new Set(enriched)),
 		}));
+	};
+
+	const applyAutoMap = (specialization: string) => {
+		const match = findAutoMapMatch(specialization, subjects);
+		if (!match) return;
+		handleSelectionChange(specialization, [match.code]);
+		toast.success(`Auto-mapped "${specialization}" → ${match.name}`);
+	};
+
+	const applyBulkMap = () => {
+		if (selectedRows.size === 0 || bulkMapCodes.length === 0) return;
+		for (const spec of selectedRows) {
+			handleSelectionChange(spec, bulkMapCodes);
+		}
+		toast.success(`Mapped ${selectedRows.size} specialization(s) to ${bulkMapCodes.length} subject(s).`);
+		setSelectedRows(new Set());
+		setBulkMapOpen(false);
+		setBulkMapCodes([]);
 	};
 
 	const saveAllChanges = async () => {
@@ -428,6 +461,8 @@ export default function SpecializationMapping() {
 		[departments],
 	);
 
+	const mappedPercent = totalSpecializations > 0 ? Math.round((mappedCount / totalSpecializations) * 100) : 0;
+
 	const filteredDepartments = useMemo(() => {
 		const search = searchQuery.trim().toLowerCase();
 		return departments
@@ -466,6 +501,24 @@ export default function SpecializationMapping() {
 		[filteredDepartments],
 	);
 
+	const flatItems = useMemo(
+		() =>
+			filteredDepartments.flatMap((d) =>
+				d.items.map((item) => ({ ...item, departmentName: d.departmentName })),
+			),
+		[filteredDepartments],
+	);
+
+	const bulkSubjectOptions = useMemo(() => {
+		const q = normalizeTerm(bulkMapQuery);
+		return subjects
+			.filter((s) => s.isActive)
+			.filter((s) => {
+				if (!q) return true;
+				return normalizeTerm(`${s.name} ${s.code}`).includes(q);
+			});
+	}, [subjects, bulkMapQuery]);
+
 	if (loading) {
 		return (
 			<div className='h-[calc(100svh-3.5rem)] flex items-center justify-center'>
@@ -478,19 +531,27 @@ export default function SpecializationMapping() {
 		<div className='h-[calc(100svh-3.5rem)] flex flex-col overflow-hidden bg-background'>
 			<header className='shrink-0 border-b bg-muted/30 px-6 py-3'>
 				<div className='flex items-center gap-3 justify-between'>
-					<div className='space-y-1'>
+					<div className='space-y-1 flex-1 min-w-0'>
 						<div className='flex items-center gap-2'>
 							<Sparkles className='size-4 text-primary' />
 							<h1 className='text-lg font-bold tracking-tight'>Specialization to Subject Mapping</h1>
 						</div>
 						<p className='text-xs text-muted-foreground'>
-							Map each EnrollPro term to one or more ATLAS Learning Areas using suggested grouping and searchable selection.
+							Map each Faculty Specialization to one or more Subjects for use in schedule generation.
 						</p>
+						<div className='flex items-center gap-2 pt-1'>
+							<div className='flex-1 max-w-xs h-1.5 rounded-full bg-muted overflow-hidden'>
+								<div
+									className='h-full rounded-full bg-primary transition-all'
+									style={{ width: `${mappedPercent}%` }}
+								/>
+							</div>
+							<span className='text-[11px] text-muted-foreground'>
+								{mappedCount}/{totalSpecializations} mapped ({mappedPercent}%)
+							</span>
+						</div>
 					</div>
 					<div className='flex items-center gap-2'>
-						<Badge variant='secondary' className='h-7 px-3 text-xs font-semibold'>
-							{mappedCount}/{totalSpecializations} mapped
-						</Badge>
 						<Button variant='outline' size='sm' className='h-8 gap-2' onClick={() => void loadData()} disabled={saving}>
 							<RefreshCw className='size-3.5' />
 							Refresh
@@ -510,7 +571,7 @@ export default function SpecializationMapping() {
 						<Input
 							value={searchQuery}
 							onChange={(event) => setSearchQuery(event.target.value)}
-							placeholder='Search EnrollPro terms'
+				placeholder='Search specializations...'
 							className='h-8 pl-7 text-xs'
 						/>
 					</div>
@@ -520,8 +581,44 @@ export default function SpecializationMapping() {
 					</div>
 					<Badge variant='outline' className='font-semibold'>
 						{filteredSpecializationCount} visible
-					</Badge>
+					</Badge>				<div className='flex items-center gap-0.5 rounded-md border p-0.5'>
+					<Button
+						variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+						size='icon'
+						className='size-6'
+						onClick={() => setViewMode('grid')}
+						title='Grid view'
+					>
+						<LayoutGrid className='size-3.5' />
+					</Button>
+					<Button
+						variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+						size='icon'
+						className='size-6'
+						onClick={() => {
+							setViewMode('list');
+							setSelectedRows(new Set());
+						}}
+						title='List view'
+					>
+						<LayoutList className='size-3.5' />
+					</Button>
 				</div>
+				{viewMode === 'list' && selectedRows.size > 0 && (
+					<Button
+						size='sm'
+						variant='secondary'
+						className='h-7 gap-1.5 text-xs'
+						onClick={() => {
+							setBulkMapOpen(true);
+							setBulkMapCodes([]);
+							setBulkMapQuery('');
+						}}
+					>
+						<CheckCircle2 className='size-3.5' />
+						Map {selectedRows.size} Selected
+					</Button>
+				)}				</div>
 			</div>
 
 			<div className='shrink-0 px-6 py-2 border-b bg-background/70 flex items-center gap-3 text-xs'>
@@ -529,17 +626,12 @@ export default function SpecializationMapping() {
 					{filteredDepartments.length}/{departments.length} departments
 				</Badge>
 				<Badge variant='outline' className='font-semibold'>
-					{mappedCount}/{totalSpecializations} terms mapped
-				</Badge>
-				{orphans.length > 0 && (
-					<Badge variant='secondary' className='bg-amber-100 text-amber-800 border-amber-200 font-semibold'>
-						<ShieldAlert className='size-3 mr-1' />
-						{orphans.length} specialization(s) still need mapping
-					</Badge>
-				)}
+				{mappedCount}/{totalSpecializations} mapped
+			</Badge>
 			</div>
 
 			<ScrollArea className='flex-1 min-h-0'>
+			{viewMode === 'grid' ? (
 				<div className='p-6 space-y-5'>
 					{filteredDepartments.map((department) => (
 						<Card key={department.departmentName} className='shadow-sm'>
@@ -562,38 +654,35 @@ export default function SpecializationMapping() {
 								<div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3'>
 									{department.items.map((item) => {
 										const selected = selectionBySpecialization[item.specialization] ?? [];
-										const selectedSubjects = selected
-											.map((code) => subjects.find((subject) => subject.code === code))
-											.filter((subject): subject is Subject => Boolean(subject));
-										const selectedHasInactive = selectedSubjects.some((subject) => !subject.isActive);
 										const statusTone = selected.length === 0 ? 'bg-amber-100 text-amber-800 border-amber-200' : 'bg-emerald-100 text-emerald-800 border-emerald-200';
+										const autoMatch = selected.length === 0 ? findAutoMapMatch(item.specialization, subjects) : null;
 										return (
 											<Card key={item.specialization} className='border-muted/80'>
 												<CardContent className='p-4 space-y-3'>
-													<div className='space-y-1'>
-														<p className='text-sm font-semibold leading-tight'>{item.specialization}</p>
-														<Badge className={`h-5 text-[10px] font-semibold border ${statusTone}`}>
-															{selected.length === 0 ? 'Needs mapping' : 'Mapped'}
-														</Badge>
+													<div className='flex items-start justify-between gap-2'>
+														<div className='space-y-1 min-w-0'>
+															<p className='text-sm font-semibold leading-tight truncate'>{item.specialization}</p>
+															<Badge className={`h-5 text-[10px] font-semibold border ${statusTone}`}>
+																{selected.length === 0 ? 'Needs mapping' : 'Mapped'}
+															</Badge>
+														</div>
+														{autoMatch && (
+															<Button
+																type='button'
+																variant='ghost'
+																size='icon'
+																className='size-7 shrink-0'
+																title={`Auto-map → ${autoMatch.name}`}
+																onClick={() => applyAutoMap(item.specialization)}
+															>
+																<Wand2 className='size-3.5 text-primary' />
+															</Button>
+														)}
 													</div>
 													<div className='space-y-1'>
-														<div className='flex items-center gap-1'>
-															<Label className='text-[11px] font-semibold'>ATLAS Learning Area</Label>
-															<TooltipProvider>
-																<Tooltip>
-																	<TooltipTrigger asChild>
-																		<Button variant='ghost' size='icon' className='size-4'>
-																			<TriangleAlert className='size-3 text-muted-foreground' />
-																		</Button>
-																	</TooltipTrigger>
-																	<TooltipContent>
-																		Inactive mappings will not be used during generation.
-																	</TooltipContent>
-																</Tooltip>
-															</TooltipProvider>
-														</div>
+													<Label className='text-[11px] font-semibold'>Subject</Label>
 														<MappingMultiSelect
-															departmentName={department.departmentName}
+															specializationName={item.specialization}
 															selectedCodes={selected}
 															subjects={subjects}
 															onChange={(values) => handleSelectionChange(item.specialization, values)}
@@ -602,12 +691,6 @@ export default function SpecializationMapping() {
 													{item.mappedSubjects.length > 0 && (
 														<div className='text-[11px] text-muted-foreground'>
 															Current: {item.mappedSubjects.map((entry) => `${entry.name} (${entry.code})`).join(', ')}
-														</div>
-													)}
-													{selectedHasInactive && (
-														<div className='text-[11px] text-red-700 flex items-center gap-1'>
-															<TriangleAlert className='size-3.5' />
-															Contains inactive learning area
 														</div>
 													)}
 												</CardContent>
@@ -626,7 +709,198 @@ export default function SpecializationMapping() {
 						</Card>
 					)}
 				</div>
-			</ScrollArea>
+		) : (
+			/* ── LIST VIEW ── */
+			<div className='p-4'>
+				<table className='w-full text-xs border-collapse'>
+					<thead>
+						<tr className='border-b bg-muted/40'>
+							<th className='w-8 px-2 py-2 text-left'>
+								<Checkbox
+									checked={selectedRows.size > 0 && selectedRows.size === flatItems.length}
+									onCheckedChange={(checked) => {
+										if (checked) {
+											setSelectedRows(new Set(flatItems.map((i) => i.specialization)));
+										} else {
+											setSelectedRows(new Set());
+										}
+									}}
+								/>
+							</th>
+							<th className='px-3 py-2 text-left font-semibold text-muted-foreground'>Specialization</th>
+							<th className='px-3 py-2 text-left font-semibold text-muted-foreground'>Department</th>
+							<th className='px-3 py-2 text-left font-semibold text-muted-foreground'>Mapped Subjects</th>
+							<th className='w-24 px-3 py-2 text-left font-semibold text-muted-foreground'>Status</th>
+							<th className='w-10 px-2 py-2' />
+						</tr>
+					</thead>
+					<tbody>
+						{flatItems.map((item) => {
+							const selected = selectionBySpecialization[item.specialization] ?? [];
+							const isChecked = selectedRows.has(item.specialization);
+							const statusTone =
+								selected.length === 0
+									? 'bg-amber-100 text-amber-800 border-amber-200'
+									: 'bg-emerald-100 text-emerald-800 border-emerald-200';
+							const autoMatch = selected.length === 0 ? findAutoMapMatch(item.specialization, subjects) : null;
+							return (
+								<tr
+									key={item.specialization}
+									className={`border-b transition-colors hover:bg-muted/30 ${isChecked ? 'bg-primary/5' : ''}`}
+								>
+									<td className='px-2 py-2'>
+										<Checkbox
+											checked={isChecked}
+											onCheckedChange={(checked) => {
+												const next = new Set(selectedRows);
+												if (checked) next.add(item.specialization);
+												else next.delete(item.specialization);
+												setSelectedRows(next);
+											}}
+										/>
+									</td>
+									<td className='px-3 py-2 font-medium'>{item.specialization}</td>
+									<td className='px-3 py-2 text-muted-foreground'>{item.departmentName}</td>
+									<td className='px-3 py-2'>
+										{selected.length === 0 ? (
+											<span className='text-muted-foreground italic'>—</span>
+										) : (
+											<div className='flex flex-wrap gap-1'>
+												{selected.map((code) => {
+													const subj = subjects.find((s) => s.code === code);
+													return (
+														<Badge key={code} variant='secondary' className='h-5 gap-1 text-[10px]'>
+															{subj?.name ?? code}
+															<Button
+																type='button'
+																variant='ghost'
+																size='icon'
+																className='size-3.5 rounded-full'
+																onClick={() =>
+																	handleSelectionChange(
+																		item.specialization,
+																		selected.filter((c) => c !== code),
+																	)
+																}
+															>
+																<X className='size-2.5' />
+															</Button>
+														</Badge>
+													);
+												})}
+											</div>
+										)}
+									</td>
+									<td className='px-3 py-2'>
+										<Badge className={`h-5 text-[10px] font-semibold border ${statusTone}`}>
+											{selected.length === 0 ? 'Unmapped' : 'Mapped'}
+										</Badge>
+									</td>
+									<td className='px-2 py-2 text-right'>
+										{autoMatch && (
+											<Button
+												type='button'
+												variant='ghost'
+												size='icon'
+												className='size-6'
+												title={`Auto-map → ${autoMatch.name}`}
+												onClick={() => applyAutoMap(item.specialization)}
+											>
+												<Wand2 className='size-3 text-primary' />
+											</Button>
+										)}
+									</td>
+								</tr>
+							);
+						})}
+						{flatItems.length === 0 && (
+							<tr>
+								<td colSpan={6} className='py-10 text-center text-muted-foreground'>
+									No specialization terms match your current filters.
+								</td>
+							</tr>
+						)}
+					</tbody>
+				</table>
+			</div>
+		)}
+		</ScrollArea>
+
+		{/* Bulk Map Dialog */}
+		<Dialog open={bulkMapOpen} onOpenChange={setBulkMapOpen}>
+			<DialogContent className='max-w-md'>
+				<DialogHeader>
+					<DialogTitle>Map {selectedRows.size} Specialization(s)</DialogTitle>
+					<DialogDescription>
+						Select subjects to assign to all {selectedRows.size} selected specialization(s). This replaces their current mappings.
+					</DialogDescription>
+				</DialogHeader>
+					<div className='space-y-3'>
+						<div className='flex items-center gap-2 rounded-md border px-2'>
+							<Search className='size-3.5 text-muted-foreground' />
+							<Input
+								ref={bulkMapInputRef}
+								value={bulkMapQuery}
+								onChange={(e) => setBulkMapQuery(e.target.value)}
+								placeholder='Search subjects...'
+								className='h-7 border-0 px-0 text-xs shadow-none focus-visible:ring-0'
+							/>
+						</div>
+						<ScrollArea className='max-h-64 rounded-md border'>
+							<div className='p-2 space-y-1'>
+								{bulkSubjectOptions.map((subj) => {
+									const checked = bulkMapCodes.includes(subj.code);
+									return (
+										<Button
+											key={subj.code}
+											type='button'
+											variant='ghost'
+											className='h-auto w-full justify-start gap-2 rounded-md px-2 py-1.5 text-left text-xs'
+											onClick={() => {
+												setBulkMapCodes(
+													checked
+														? bulkMapCodes.filter((c) => c !== subj.code)
+														: [...bulkMapCodes, subj.code],
+												);
+											}}
+										>
+											<Checkbox checked={checked} />
+											<span className='truncate'>{subj.name} ({subj.code})</span>
+										</Button>
+									);
+								})}
+							</div>
+						</ScrollArea>
+						{bulkMapCodes.length > 0 && (
+							<div className='flex flex-wrap gap-1'>
+								{bulkMapCodes.map((code) => {
+									const subj = subjects.find((s) => s.code === code);
+									return (
+										<Badge key={code} variant='secondary' className='h-5 text-[10px] gap-1'>
+											{subj?.name ?? code}
+											<Button
+												type='button'
+												variant='ghost'
+												size='icon'
+												className='size-3.5 rounded-full'
+												onClick={() => setBulkMapCodes(bulkMapCodes.filter((c) => c !== code))}
+											>
+												<X className='size-2.5' />
+											</Button>
+										</Badge>
+									);
+								})}
+							</div>
+						)}
+					</div>
+					<DialogFooter>
+						<Button variant='outline' onClick={() => setBulkMapOpen(false)}>Cancel</Button>
+						<Button disabled={bulkMapCodes.length === 0} onClick={applyBulkMap}>
+							Apply to {selectedRows.size} Specialization(s)
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 			<Dialog open={pendingRouteExit} onOpenChange={setPendingRouteExit}>
 				<DialogContent>

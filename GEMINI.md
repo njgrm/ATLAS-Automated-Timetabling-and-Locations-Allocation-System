@@ -36,6 +36,12 @@ ATLAS is a Progressive Web Application (PWA) designed for automated academic sch
   - Backend integration tests use `tsx` to run individual test files.
   - Frontend/E2E tests via Playwright in `qa-artifacts/`.
 
+## Testing & Validation Directives
+- **Primary Environment:** ALL testing, research, and validation MUST target the live Tailnet environment (`https://njgrm.buru-degree.ts.net`) by default.
+- **Localhost Exception:** Only use `localhost` if explicitly requested by the user for a specific isolated task.
+- **Tailscale Connectivity:** The local database and backend communicate over Tailscale tunnels. Ensure your testing tools (e.g., Playwright, curl, scripts) are configured to use the Tailnet hostname or IP (`100.88.55.125`).
+- **No Push/Pull Needed:** The local and remote environments are bridged via Tailscale; code changes in the workspace are reflected in the local backend, which is visible to the remote surfaces.
+
 ## Common Commands
 - `npm run dev`: Starts both client and server.
 - `npm run db:bootstrap`: Generates Prisma client and runs migrations.

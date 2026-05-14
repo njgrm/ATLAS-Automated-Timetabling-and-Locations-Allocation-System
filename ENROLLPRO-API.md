@@ -4,9 +4,9 @@ This document provides a comprehensive reference for the EnrollPro backend API. 
 
 ## Runtime Endpoints
 
+- **Default Testing (Tailnet):** `https://njgrm.buru-degree.ts.net/api`
 - **Local Base:** `http://localhost:5002/api`
-- **Production Base:** `https://dev-jegs.buru-degree.ts.net/api`
-- **Static Assets:** `/uploads/*` (e.g., `https://dev-jegs.buru-degree.ts.net/uploads/logo.png`)
+- **Static Assets:** `/uploads/*` (e.g., `https://njgrm.buru-degree.ts.net/uploads/logo.png`)
 
 ## Auth Model
 

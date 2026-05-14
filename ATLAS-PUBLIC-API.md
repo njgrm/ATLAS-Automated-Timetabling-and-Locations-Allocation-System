@@ -1,9 +1,17 @@
 # ATLAS REST API Reference
 
-**Base URL:** `http://<host>:5001/api/v1`  
-**Tailscale host:** `100.88.55.125`  
+**Base URL:** `http://100.88.55.125:5001/api/v1`  
+**Default Testing (Tailnet):** `https://njgrm.buru-degree.ts.net/api/v1`  
+**Tailscale Host IP:** `100.88.55.125`  
 **Auth:** All protected endpoints require `Authorization: Bearer <token>` — the JWT issued by EnrollPro.  
 **Content-Type:** `application/json` (all request bodies)
+
+---
+
+## Testing & Validation Directives
+- **Primary Environment:** ALL testing, research, and validation MUST target the live Tailnet environment (`https://njgrm.buru-degree.ts.net`) by default.
+- **Tailscale Connectivity:** The local database and backend communicate over Tailscale tunnels. Ensure your testing tools (e.g., Playwright, curl, scripts) are configured to use the Tailnet hostname or IP (`100.88.55.125`).
+- **Localhost Exception:** Only use `localhost` if explicitly requested for a specific isolated task.
 
 ---
 
