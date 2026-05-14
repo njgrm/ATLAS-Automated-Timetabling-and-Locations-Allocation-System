@@ -219,6 +219,7 @@ export async function autoFill(schoolId, schoolYearId) {
     }
     // ─── Step 7: Persist new assignments ──────────────────────────────────────
     let created = 0;
+    const affectedTeacherIds = new Set();
     if (pendingAssignments.size > 0) {
         await prisma.$transaction(async (tx) => {
             for (const [facultyId, subjectMap_] of pendingAssignments) {
@@ -275,11 +276,19 @@ export async function autoFill(schoolId, schoolYearId) {
                             skipDuplicates: true,
                         });
                         created += newSections.length;
+                        affectedTeacherIds.add(facultyId);
                     }
                 }
             }
         });
     }
-    return { preserved, created, unresolved: unresolvedCount, warnings };
+    return {
+        preserved,
+        created,
+        assignmentsCreated: created,
+        uniqueTeachersAffected: affectedTeacherIds.size,
+        unresolved: unresolvedCount,
+        warnings,
+    };
 }
 //# sourceMappingURL=teaching-load-automation.service.js.map

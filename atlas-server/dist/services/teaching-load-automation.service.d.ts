@@ -21,6 +21,8 @@
 export interface AutoFillResult {
     preserved: number;
     created: number;
+    assignmentsCreated: number;
+    uniqueTeachersAffected: number;
     unresolved: number;
     warnings: string[];
 }

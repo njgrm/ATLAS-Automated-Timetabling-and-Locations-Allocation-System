@@ -36,6 +36,7 @@ export type SubjectRowProps = {
 	gradeLevelFilter?: string;
 	advisedSectionId?: number | null;
 	specializationAliases?: SpecializationAliasLike[];
+	strictAliasOnly?: boolean;
 };
 
 export function SubjectRow({
@@ -56,6 +57,7 @@ export function SubjectRow({
 	gradeLevelFilter = 'all',
 	advisedSectionId = null,
 	specializationAliases = [],
+	strictAliasOnly = false,
 }: SubjectRowProps) {
 	const [openGrades, setOpenGrades] = useState<Record<number, boolean>>({});
 
@@ -196,9 +198,9 @@ export function SubjectRow({
 		specializationAliases,
 	);
 	const isTier1 = tier === 1;
-	const isTier2 = tier === 2;
-	const isTier3 = tier === 3;
-	const isSpecMismatch = allowedSpecs.length > 0 && tier === null;
+	const isSpecMismatch = strictAliasOnly
+		? allowedSpecs.length > 0 && tier !== 1
+		: allowedSpecs.length > 0 && tier === null;
 
 	// HG system-assignment detection
 	const isHgSubject = subject.code === 'HG' || subject.name.toLowerCase().includes('homeroom');
@@ -230,16 +232,6 @@ export function SubjectRow({
 						{isTier1 && (
 							<Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[0.5625rem] hover:bg-emerald-100">
 								Perfect Match
-							</Badge>
-						)}
-						{isTier2 && (
-							<Badge variant="secondary" className="bg-sky-100 text-sky-700 border-sky-200 text-[0.5625rem] hover:bg-sky-100">
-								Structural Match
-							</Badge>
-						)}
-						{isTier3 && (
-							<Badge variant="outline" className="text-[0.5625rem] text-muted-foreground border-dashed">
-								Fuzzy Suggestion
 							</Badge>
 						)}
 
@@ -379,8 +371,8 @@ export function SubjectRow({
 														/>
 														)}
 														<div className="min-w-0 flex-1">
-															<div className="flex items-center gap-1">
-																<p className="truncate text-xs font-semibold leading-tight">{section.name}</p>
+															<p className="truncate text-xs font-semibold leading-tight">{section.name}</p>
+															<div className="mt-1 flex flex-wrap items-center gap-1">
 																{isSystemAssignedSection && (
 																	<Badge className="shrink-0 border-amber-400 bg-amber-100 px-1 py-0 text-[0.5rem] text-amber-800">
 																		System Assigned

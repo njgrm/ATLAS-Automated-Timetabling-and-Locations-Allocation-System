@@ -29,6 +29,8 @@ const HARD_CAP_MIN = 2_400;
 export interface AutoFillResult {
 	preserved: number;
 	created: number;
+	assignmentsCreated: number;
+	uniqueTeachersAffected: number;
 	unresolved: number;
 	warnings: string[];
 }
@@ -281,6 +283,7 @@ export async function autoFill(schoolId: number, schoolYearId: number): Promise<
 
 	// ─── Step 7: Persist new assignments ──────────────────────────────────────
 	let created = 0;
+	const affectedTeacherIds = new Set<number>();
 
 	if (pendingAssignments.size > 0) {
 		await prisma.$transaction(async (tx) => {
@@ -343,11 +346,19 @@ export async function autoFill(schoolId: number, schoolYearId: number): Promise<
 							skipDuplicates: true,
 						});
 						created += newSections.length;
+						affectedTeacherIds.add(facultyId);
 					}
 				}
 			}
 		});
 	}
 
-	return { preserved, created, unresolved: unresolvedCount, warnings };
+	return {
+		preserved,
+		created,
+		assignmentsCreated: created,
+		uniqueTeachersAffected: affectedTeacherIds.size,
+		unresolved: unresolvedCount,
+		warnings,
+	};
 }

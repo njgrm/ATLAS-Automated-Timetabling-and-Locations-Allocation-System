@@ -9,10 +9,8 @@ Info,
 RotateCcw,
 Save,
 Search,
-ShieldAlert,
 UserCog,
 Star,
-Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -27,13 +25,13 @@ buildTeachingLoadProfile,
 CLASS_ADVISER_EQUIVALENT_HOURS,
 normalizeDraftAssignments,
 type FacultyAssignmentDraft,
-type FacultyOwnershipState,
 type LoadStatus,
 } from '@/lib/faculty-assignment-helpers';
-import { gradeLabel, matchesFacultyDepartment, getQualificationTier, GRADE_COLORS } from '@/lib/grade-labels';
+import { getQualificationTier } from '@/lib/grade-labels';
 import { fetchPublicSettings } from '@/lib/settings';
 import type { ExternalSection, HomeroomHintResponse, SectionSummaryResponse, Subject } from '@/types';
-import { SubjectRow, getOwnershipKey } from '@/components/faculty-assignments/SubjectRow';
+import { OverviewHeader } from '@/components/faculty-assignments/OverviewHeader';
+import { SubjectRow } from '@/components/faculty-assignments/SubjectRow';
 import { useSpecializationAliases } from '@/hooks/useSpecializationAliases';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -41,9 +39,9 @@ import { Card, CardContent } from '@/ui/card';
 import { Checkbox } from '@/ui/checkbox';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
 import { Input } from '@/ui/input';
+import { SearchableSelect } from '@/ui/searchable-select';
 import { Skeleton } from '@/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
-import { Switch } from '@/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
 const DEFAULT_SCHOOL_ID = 1;
@@ -107,41 +105,6 @@ sectionMap,
 );
 }
 
-function buildPendingEntries(
-pendingOwnershipMap: Record<string, FacultyOwnershipState>,
-subjects: Subject[],
-sectionMap: Map<number, ExternalSection>,
-) {
-const subjectMap = new Map(subjects.map((subject) => [subject.id, subject]));
-return Object.entries(pendingOwnershipMap)
-.map(([key, ownership]) => {
-const [subjectIdRaw, sectionIdRaw] = key.split(':');
-const subjectId = Number(subjectIdRaw);
-const sectionId = Number(sectionIdRaw);
-const subject = subjectMap.get(subjectId);
-const section = sectionMap.get(sectionId);
-if (!subject || !section) {
-return null;
-}
-return {
-key,
-facultyId: ownership.facultyId,
-facultyName: ownership.facultyName,
-subjectCode: subject.code,
-subjectName: subject.name,
-sectionName: section.name,
-gradeLevel: section.displayOrder,
-};
-})
-.filter((entry): entry is NonNullable<typeof entry> => entry != null)
-.sort((left, right) =>
-left.facultyName.localeCompare(right.facultyName)
-|| left.gradeLevel - right.gradeLevel
-|| left.sectionName.localeCompare(right.sectionName)
-|| left.subjectCode.localeCompare(right.subjectCode),
-);
-}
-
 export default function FacultyAssignments() {
 const [searchParams] = useSearchParams();
 const [faculty, setFaculty] = useState<FacultySummary[]>([]);
@@ -157,10 +120,10 @@ return queryValue ? Number(queryValue) : null;
 const [searchQuery, setSearchQuery] = useState('');
 const [filterStatus, setFilterStatus] = useState<'all' | 'assigned' | 'unassigned'>('all');
 const [departmentFilter, setDepartmentFilter] = useState<string>('all');
+const [specializationFilter, setSpecializationFilter] = useState<string>('all');
 const [subjectSearch, setSubjectSearch] = useState('');
 	const [sectionFilter, setSectionFilter] = useState<'all' | 'unassigned' | 'assigned'>('all');
 	const [gradeLevelFilter, setGradeLevelFilter] = useState<string>('all');
-const [allowOutsideDepartment, setAllowOutsideDepartment] = useState(false);
 const [error, setError] = useState<string | null>(null);
 const [homeroomHint, setHomeroomHint] = useState<HomeroomHintResponse | null>(null);
 const [draftAssignmentsByFaculty, setDraftAssignmentsByFaculty] = useState<Record<number, FacultyAssignmentDraft[]>>({});
@@ -284,11 +247,6 @@ const savedConflictMap = useMemo(
 const pendingOwnershipMap = useMemo(
 () => buildPendingOwnershipMap(savedAssignmentsByFaculty, effectiveDraftAssignmentsByFaculty, facultyNames),
 [effectiveDraftAssignmentsByFaculty, facultyNames, savedAssignmentsByFaculty],
-);
-
-const pendingEntries = useMemo(
-() => buildPendingEntries(pendingOwnershipMap, subjects, sectionMap),
-[pendingOwnershipMap, sectionMap, subjects],
 );
 
 const selected = useMemo(
@@ -427,16 +385,26 @@ setSaving(false);
 
 const handleAutoFill = useCallback(async () => {
 	if (!activeSchoolYearId) return;
+	setAutoFillDialogOpen(false);
 	setAutoFillLoading(true);
 	try {
-		const result = await atlasApi.post<{ preserved: number; created: number; unresolved: number; warnings: string[] }>(
+		const result = await atlasApi.post<{
+			preserved: number;
+			created: number;
+			assignmentsCreated: number;
+			uniqueTeachersAffected: number;
+			unresolved: number;
+			warnings: string[];
+		}>(
 			'/faculty-assignments/auto-fill',
 			{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId },
 		);
 		await fetchData();
-		const { created, unresolved, warnings } = result.data;
-		if (created > 0) {
-			toast.success(`Auto-Fill complete: ${created} assignment${created !== 1 ? 's' : ''} created.${unresolved > 0 ? ` ${unresolved} pair${unresolved !== 1 ? 's' : ''} could not be assigned.` : ''}`);
+		const { assignmentsCreated, uniqueTeachersAffected, unresolved, warnings } = result.data;
+		if (assignmentsCreated > 0) {
+			toast.success(
+				`Assigned ${assignmentsCreated} subject${assignmentsCreated !== 1 ? 's' : ''} across ${uniqueTeachersAffected} teacher${uniqueTeachersAffected !== 1 ? 's' : ''}.`,
+			);
 		} else if (unresolved > 0) {
 			toast.warning(`Auto-Fill: no new assignments made. ${unresolved} pair${unresolved !== 1 ? 's' : ''} remain unresolved.`);
 		} else {
@@ -471,8 +439,11 @@ nextFaculty = nextFaculty.filter((member) => (effectiveAssignmentsByFaculty[memb
 if (departmentFilter !== 'all') {
 nextFaculty = nextFaculty.filter((member) => member.department === departmentFilter);
 }
+if (specializationFilter !== 'all') {
+	nextFaculty = nextFaculty.filter((member) => (member.specialization ?? 'General') === specializationFilter);
+}
 return nextFaculty;
-}, [departmentFilter, effectiveAssignmentsByFaculty, faculty, filterStatus, searchQuery]);
+}, [departmentFilter, effectiveAssignmentsByFaculty, faculty, filterStatus, searchQuery, specializationFilter]);
 
 const subjectsLackingFaculty = useMemo(() => {
 const assignedSubjectIds = new Set<number>();
@@ -484,22 +455,22 @@ assignedSubjectIds.add(assignment.subjectId);
 return subjects.filter((subject) => subject.isActive && !assignedSubjectIds.has(subject.id));
 }, [effectiveAssignmentsByFaculty, subjects]);
 
-const { tier1Subjects, tier2Subjects, tier3Subjects, otherSubjects } = useMemo(() => {
+const { tier1Subjects, aliasRequiredSubjects } = useMemo(() => {
 	const facultyInfo = { 
 		specialization: selected?.specialization ?? null, 
 		department: selected?.department ?? null 
 	};
 	const tier1: Subject[] = [];
-	const tier2: Subject[] = [];
-	const tier3: Subject[] = [];
-	const other: Subject[] = [];
+	const aliasRequired: Subject[] = [];
 	
 	for (const subject of subjects) {
-		const tier = getQualificationTier(facultyInfo, subject);
-		if (tier === 1) tier1.push(subject);
-		else if (tier === 2) tier2.push(subject);
-		else if (tier === 3) tier3.push(subject);
-		else other.push(subject);
+		const tier = getQualificationTier(facultyInfo, subject, specializationAliases);
+		const requiresSpecialization = (subject.allowedSpecializations?.length ?? 0) > 0;
+		if (!requiresSpecialization || tier === 1) {
+			tier1.push(subject);
+		} else {
+			aliasRequired.push(subject);
+		}
 	}
 
 	const sortByHR = (a: Subject, b: Subject) => {
@@ -511,19 +482,10 @@ const { tier1Subjects, tier2Subjects, tier3Subjects, otherSubjects } = useMemo((
 	};
 
 	tier1.sort(sortByHR);
-	tier2.sort(sortByHR);
-	tier3.sort(sortByHR);
-	other.sort((a, b) => a.name.localeCompare(b.name));
+	aliasRequired.sort((a, b) => a.name.localeCompare(b.name));
 
-	return { tier1Subjects: tier1, tier2Subjects: tier2, tier3Subjects: tier3, otherSubjects: other };
-}, [selected, subjects]);
-
-const filterBySubjectSearch = useCallback(
-        (subjectList: Subject[]) => {
-                return subjectList; // Rendering visibility is completely handled by SubjectRow filter down algorithm now
-        },
-        [],
-);
+	return { tier1Subjects: tier1, aliasRequiredSubjects: aliasRequired };
+}, [selected, subjects, specializationAliases]);
 
 
 const loadProfile = useMemo(
@@ -544,6 +506,63 @@ const departmentOptions = useMemo(
 [faculty],
 );
 
+const specializationOptions = useMemo(() => {
+	const source = departmentFilter === 'all'
+		? faculty
+		: faculty.filter((member) => member.department === departmentFilter);
+	const specs = Array.from(new Set(source.map((member) => member.specialization ?? 'General'))).sort();
+	return specs;
+}, [departmentFilter, faculty]);
+
+const advisedSectionMeta = useMemo(() => {
+	if (!homeroomHint?.advisedSectionId) {
+		return null;
+	}
+	const section = sectionMap.get(homeroomHint.advisedSectionId);
+	if (!section) {
+		return null;
+	}
+	return {
+		gradeLevel: section.displayOrder,
+		sectionName: section.name,
+	};
+}, [homeroomHint?.advisedSectionId, sectionMap]);
+
+const teachablePairTotals = useMemo(() => {
+	const activeAcademicSubjects = subjects.filter((subject) => subject.isActive && subject.code !== 'HG');
+	const teachablePairs = new Set<string>();
+	for (const subject of activeAcademicSubjects) {
+		const relevantSections = allKnownSections.filter(
+			(section) => subject.gradeLevels.length === 0 || subject.gradeLevels.includes(section.displayOrder),
+		);
+		for (const section of relevantSections) {
+			teachablePairs.add(`${subject.id}:${section.id}`);
+		}
+	}
+
+	const assignedPairs = new Set<string>();
+	const subjectMap = new Map(subjects.map((subject) => [subject.id, subject]));
+	for (const assignments of Object.values(effectiveAssignmentsByFaculty)) {
+		for (const assignment of assignments) {
+			const subject = subjectMap.get(assignment.subjectId);
+			if (!subject || subject.code === 'HG') {
+				continue;
+			}
+			for (const sectionId of assignment.sectionIds) {
+				const key = `${assignment.subjectId}:${sectionId}`;
+				if (teachablePairs.has(key)) {
+					assignedPairs.add(key);
+				}
+			}
+		}
+	}
+
+	return {
+		total: teachablePairs.size,
+		assigned: assignedPairs.size,
+	};
+}, [allKnownSections, effectiveAssignmentsByFaculty, subjects]);
+
 const assignedFacultyCount = faculty.filter((member) => (effectiveAssignmentsByFaculty[member.id]?.length ?? 0) > 0).length;
 const activeDraftCount = Object.keys(effectiveDraftAssignmentsByFaculty).length;
 const sectionsAvailable = Boolean(sectionSummary && sectionSummary.sections.length > 0);
@@ -560,7 +579,18 @@ Dismiss
 </div>
 )}
 
-<div className="mt-4 flex min-h-0 flex-1 gap-4 pb-3">
+<OverviewHeader
+	assignedPairs={teachablePairTotals.assigned}
+	totalPairs={teachablePairTotals.total}
+	assignedFacultyCount={assignedFacultyCount}
+	totalFacultyCount={faculty.length}
+	activeDraftCount={activeDraftCount}
+	autoFillLoading={autoFillLoading}
+	autoFillEnabled={Boolean(activeSchoolYearId)}
+	onAutoFillClick={() => setAutoFillDialogOpen(true)}
+/>
+
+<div className="mt-3 flex min-h-0 flex-1 gap-4 pb-3">
 <div className="flex w-80 shrink-0 flex-col rounded-lg border border-border bg-card shadow-sm">
 <div className="border-b border-border p-3">
 <div className="relative">
@@ -586,21 +616,33 @@ className="h-7 px-2 text-[0.6875rem]"
 </Button>
 ))}
 </div>
-{departmentOptions.length > 0 && (
-<Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-<SelectTrigger className="mt-2 h-7 w-full text-[0.6875rem]">
-<SelectValue placeholder="All Specializations" />
-</SelectTrigger>
-<SelectContent>
-<SelectItem value="all">All Specializations</SelectItem>
-{departmentOptions.map((department) => (
-<SelectItem key={department} value={department}>
-{department}
-</SelectItem>
-))}
-</SelectContent>
-</Select>
-)}
+<div className="mt-2 grid grid-cols-2 gap-2">
+	<SearchableSelect
+		value={departmentFilter}
+		onValueChange={(value) => {
+			setDepartmentFilter(value);
+			setSpecializationFilter('all');
+		}}
+		placeholder="All Departments"
+		triggerClassName="h-7 w-full justify-between text-[0.6875rem]"
+		className="w-[18rem]"
+		items={[
+			{ value: 'all', label: 'All Departments' },
+			...departmentOptions.map((department) => ({ value: department, label: department })),
+		]}
+	/>
+	<SearchableSelect
+		value={specializationFilter}
+		onValueChange={setSpecializationFilter}
+		placeholder="All Specializations"
+		triggerClassName="h-7 w-full justify-between text-[0.6875rem]"
+		className="w-[18rem]"
+		items={[
+			{ value: 'all', label: 'All Specializations' },
+			...specializationOptions.map((specialization) => ({ value: specialization, label: specialization })),
+		]}
+	/>
+</div>
 </div>
 
 <div className="flex-1 overflow-auto">
@@ -688,7 +730,7 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 </div>
 
 <div className="border-t border-border px-3 py-2 text-[0.6875rem] text-muted-foreground">
-{assignedFacultyCount} / {faculty.length} assigned | {activeDraftCount} draft{activeDraftCount === 1 ? '' : 's'}
+{teachablePairTotals.assigned} / {teachablePairTotals.total} teachable subject-sections assigned
 </div>
 </div>
 
@@ -718,7 +760,9 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 {selected.isClassAdviser && (
 				<Badge className="border-amber-300 bg-amber-50 text-amber-700 gap-1 flex items-center">
 					<Star className="size-3 fill-amber-500 text-amber-500" />
-					Adviser
+					{advisedSectionMeta
+						? `Adviser of GR${advisedSectionMeta.gradeLevel} - ${advisedSectionMeta.sectionName}`
+						: 'Adviser'}
 				</Badge>
 			)}
 			{!selected.isActiveForScheduling && <Badge variant="secondary">Excluded</Badge>}
@@ -780,9 +824,6 @@ loadProfile.breakdown.map((item) => (
 					</div>
 				</div>
 			)}
-
-
-
 			<Card className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden shadow-sm">
 <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3">
 <div className="flex items-center gap-3">
@@ -797,25 +838,11 @@ loadProfile.breakdown.map((item) => (
 Discard Draft
 </Button>
 )}
-<Button type="button" variant="outline" size="sm" onClick={() => setAutoFillDialogOpen(true)} disabled={autoFillLoading || saving}>
-	<Zap className="mr-1.5 size-3.5" />
-	{autoFillLoading ? 'Running...' : 'Auto-Fill Remaining'}
-</Button>
 <Button type="button" size="sm" onClick={handleSave} disabled={!dirty || saving || !selected.isActiveForScheduling || !sectionsAvailable}>
 <Save className="mr-1.5 size-3.5" />
 {saving ? 'Saving...' : 'Save Teaching Load'}
 </Button>
 </div>
-<ConfirmationModal
-	open={autoFillDialogOpen}
-	onOpenChange={setAutoFillDialogOpen}
-	title="Auto-Fill Remaining Assignments?"
-	description="This will automatically assign teachers to all unassigned subjects based on specialization and current workload. Your existing manual assignments will not be overwritten."
-	onConfirm={handleAutoFill}
-	confirmText="Run Auto-Fill"
-	variant="primary"
-	loading={autoFillLoading}
-/>
 </div>
 
 <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-5 py-2">
@@ -850,15 +877,6 @@ Discard Draft
 										<SelectItem value="10" className="text-xs">Grade 10</SelectItem>
 									</SelectContent>
 								</Select>
-								<div className="ml-auto flex items-center gap-2">
-					<ShieldAlert className={`size-3.5 ${allowOutsideDepartment ? 'text-amber-600' : 'text-muted-foreground'}`} />
-					<span className="text-[0.625rem] text-muted-foreground">Outside dept.</span>
-					<Switch
-						checked={allowOutsideDepartment}
-						onCheckedChange={setAllowOutsideDepartment}
-						aria-label="Allow outside department assignments"
-					/>
-				</div>
 			</div>
 
 			<CardContent className="flex-1 overflow-auto pt-3">
@@ -875,18 +893,6 @@ This faculty member is excluded from scheduling. Enable them first.
 <div>
 <p className="font-medium">Section roster unavailable</p>
 <p className="text-[0.75rem]">Teaching-load precision requires an active EnrollPro-backed section roster for the current school year.</p>
-</div>
-</div>
-)}
-
-{homeroomHint?.hasAdviserMapping && (
-<div className="mb-3 flex items-start gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-800">
-<Info className="mt-0.5 size-4 shrink-0" />
-<div className="min-w-0">
-<p className="font-medium">Adviser Mapping: {homeroomHint.advisedSectionName}</p>
-<p className="text-[0.75rem] leading-snug text-sky-700">
-{homeroomHint.homeroomHint}. Prioritize Homeroom Guidance and adviser-facing load review for this section.
-</p>
 </div>
 </div>
 )}
@@ -918,7 +924,10 @@ This faculty member is excluded from scheduling. Enable them first.
 							searchTerm={subjectSearch}
 							gradeLevelFilter={gradeLevelFilter}
 							sectionFilter={sectionFilter}
-							advisedSectionId={homeroomHint?.advisedSectionId ?? null}						specializationAliases={specializationAliases}						/>
+							advisedSectionId={homeroomHint?.advisedSectionId ?? null}
+							specializationAliases={specializationAliases}
+							strictAliasOnly
+						/>
 					))}
 				</div>
 			</div>
@@ -927,24 +936,21 @@ This faculty member is excluded from scheduling. Enable them first.
 
 	return (
 		<>
-			{renderTier(tier1Subjects, 'Qualified by Specialization', 'Perfect Match')}
-			{renderTier(tier2Subjects, 'Qualified by Department', 'Structural Match')}
-			{renderTier(tier3Subjects, 'Smart Suggestions', 'Fuzzy Match')}
-			
-			{otherSubjects.length > 0 && (
+			{renderTier(tier1Subjects, 'Qualified by Alias Mapping', 'Tier 1')}
+			{aliasRequiredSubjects.length > 0 && (
 				<div>
 					<div className="mb-2 flex items-center gap-2">
-						<h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Outside Department (Emergency)</h4>
-						{!allowOutsideDepartment && <Badge variant="secondary" className="text-[0.5625rem]">Disabled</Badge>}
+						<h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Alias Mapping Required</h4>
+						<Badge variant="outline" className="text-[0.5625rem] border-amber-300 text-amber-700">Not Assignable</Badge>
 					</div>
-					<div className={`space-y-2 ${allowOutsideDepartment ? '' : 'opacity-60'}`}>
-						{otherSubjects.map((subject) => (
+					<div className="space-y-2 opacity-70">
+						{aliasRequiredSubjects.map((subject) => (
 							<SubjectRow
 								key={subject.id}
 								subject={subject}
 								assignment={currentAssignments.find((a) => a.subjectId === subject.id)}
 								sections={allKnownSections.filter((sec) => subject.gradeLevels.includes(sec.displayOrder))}
-								disabled={!selected.isActiveForScheduling || !sectionsAvailable || !allowOutsideDepartment}
+								disabled
 								selectedFacultyId={selected.id}
 								savedOwnershipMap={savedOwnershipMap}
 								pendingOwnershipMap={pendingOwnershipMap}
@@ -955,8 +961,9 @@ This faculty member is excluded from scheduling. Enable them first.
 								searchTerm={subjectSearch}
 								gradeLevelFilter={gradeLevelFilter}
 								sectionFilter={sectionFilter}
-								isOutsideDepartment
+								advisedSectionId={homeroomHint?.advisedSectionId ?? null}
 								specializationAliases={specializationAliases}
+								strictAliasOnly
 							/>
 						))}
 					</div>
@@ -972,6 +979,16 @@ This faculty member is excluded from scheduling. Enable them first.
 </div>
 </div>
 </div>
+<ConfirmationModal
+	open={autoFillDialogOpen}
+	onOpenChange={setAutoFillDialogOpen}
+	title="Auto-Fill Remaining Assignments?"
+	description="This will assign teachers to currently unassigned subject-sections using specialization aliases and current teaching load. Existing manual assignments will not be overwritten."
+	onConfirm={handleAutoFill}
+	confirmText="Run Auto-Fill"
+	variant="primary"
+	loading={autoFillLoading}
+/>
 </TooltipProvider>
 );
 }
