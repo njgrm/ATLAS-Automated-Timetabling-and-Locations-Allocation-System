@@ -95,7 +95,7 @@ export interface FacultyRoomPreferenceEntry {
 }
 export interface FacultyGlobalDraftEntry {
     entryId: string;
-    facultyId: number;
+    facultyId: number | null;
     facultyName: string;
     sectionId: number;
     sectionName: string;
@@ -290,13 +290,13 @@ export declare function reviewRoomPreference(input: ReviewRoomPreferenceInput): 
         startTime: string;
         endTime: string;
         sectionId: number;
-        entryId: string;
         runId: number;
         decisionStatus: import("@prisma/client").$Enums.RoomPreferenceDecisionStatus;
         submittedAt: Date | null;
         reviewerId: number | null;
         reviewerNotes: string | null;
         reviewedAt: Date | null;
+        entryId: string;
         currentRoomId: number;
         requestedRoomId: number;
         rationale: string | null;

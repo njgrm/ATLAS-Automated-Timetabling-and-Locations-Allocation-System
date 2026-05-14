@@ -83,6 +83,7 @@ async function findApprovableCandidate(
 	const slotOccupancy = buildSlotOccupancyMap(entries);
 
 	for (const entry of entries) {
+		if (entry.facultyId == null) continue;
 		const currentRoom = roomById.get(entry.roomId);
 		if (!currentRoom) continue;
 		const slotKey = `${entry.day}:${entry.startTime}:${entry.endTime}`;
@@ -122,6 +123,7 @@ async function findBlockedCandidate(
 	roomById: Map<number, Awaited<ReturnType<typeof loadTeachingRooms>>[number]>,
 ): Promise<CandidateRequest | null> {
 	for (const sourceEntry of entries) {
+		if (sourceEntry.facultyId == null) continue;
 		for (const conflictingEntry of entries) {
 			if (sourceEntry.entryId === conflictingEntry.entryId) continue;
 			if (sourceEntry.day !== conflictingEntry.day) continue;

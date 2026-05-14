@@ -35,7 +35,7 @@ export interface RoomScheduleEntry {
 	entryId: string;
 	subjectId: number;
 	sectionId: number;
-	facultyId: number;
+	facultyId: number | null;
 	startTime: string;
 	endTime: string;
 	durationMinutes: number;

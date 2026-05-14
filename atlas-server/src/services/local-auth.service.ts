@@ -220,7 +220,7 @@ async function provisionFromEnrollPro(params: {
 	enrollProUser: EnrollProVerifiedUser;
 	password: string;
 	schoolId: number;
-}): Promise<{ account: { id: number; role: string; schoolId: number; facultyId: number | null; facultyExternalId: number | null; mustChangePassword: boolean; employeeId: string | null; accountName: string | null } }> {
+}): Promise<{ account: { id: number; role: string; schoolId: number; facultyId: number | null; facultyExternalId: number | null; mustChangePassword: boolean; email: string; employeeId: string | null; accountName: string | null } }> {
 	const role = mapEnrollProRole(params.enrollProUser.role);
 	const hash = await bcrypt.hash(params.password, 12);
 	const email = params.enrollProUser.email.trim().toLowerCase();
@@ -265,7 +265,7 @@ async function provisionFromEnrollPro(params: {
 				lockedUntil: null,
 			},
 		});
-		return { account: { id: updated.id, role: updated.role, schoolId: updated.schoolId, facultyId: updated.facultyId, facultyExternalId, mustChangePassword: updated.mustChangePassword, employeeId: updated.employeeId, accountName: updated.accountName } };
+		return { account: { id: updated.id, role: updated.role, schoolId: updated.schoolId, facultyId: updated.facultyId, facultyExternalId, mustChangePassword: updated.mustChangePassword, email: updated.email, employeeId: updated.employeeId, accountName: updated.accountName } };
 	}
 
 	const created = await prisma.atlasAuthAccount.create({
@@ -281,7 +281,7 @@ async function provisionFromEnrollPro(params: {
 			mustChangePassword: params.enrollProUser.mustChangePassword,
 		},
 	});
-	return { account: { id: created.id, role: created.role, schoolId: created.schoolId, facultyId: created.facultyId, facultyExternalId, mustChangePassword: created.mustChangePassword, employeeId: created.employeeId, accountName: created.accountName } };
+	return { account: { id: created.id, role: created.role, schoolId: created.schoolId, facultyId: created.facultyId, facultyExternalId, mustChangePassword: created.mustChangePassword, email: created.email, employeeId: created.employeeId, accountName: created.accountName } };
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -310,6 +310,15 @@ export async function login(params: {
 			status: 400,
 			code: 'INVALID_PASSWORD',
 			message: 'Password is required.',
+		};
+	}
+
+	if (!params.ipAddress || params.ipAddress.trim().length === 0) {
+		return {
+			ok: false,
+			status: 400,
+			code: 'INVALID_IP',
+			message: 'ipAddress is required.',
 		};
 	}
 
@@ -545,6 +554,20 @@ export async function login(params: {
 		token,
 		user,
 	};
+}
+
+export async function loginWithEmailPassword(params: {
+	email: string;
+	password: string;
+	ipAddress: string;
+	userAgent?: string;
+}): Promise<LocalLoginResult> {
+	return login({
+		identifier: params.email,
+		password: params.password,
+		ipAddress: params.ipAddress,
+		userAgent: params.userAgent,
+	});
 }
 
 export async function seedLocalAuthAccounts(params: {

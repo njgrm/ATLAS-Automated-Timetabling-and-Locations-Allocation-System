@@ -75,7 +75,8 @@ router.post('/batch', authenticate, requirePrivilegedRole, async (req: Request, 
 			return;
 		}
 
-		const normalized = mappings.map((entry: any) => {
+		type NormalizedMapping = { alias: string; canonicalCodes: string[] };
+		const normalized: NormalizedMapping[] = mappings.map((entry: any) => {
 			const alias = String(entry?.alias ?? '').trim();
 			const canonicalList = Array.isArray(entry?.canonicalCodes)
 				? entry.canonicalCodes.map((code: unknown) => String(code ?? '').trim()).filter(Boolean)
@@ -87,7 +88,7 @@ router.post('/batch', authenticate, requirePrivilegedRole, async (req: Request, 
 			};
 		});
 
-		if (normalized.some((entry) => !entry.alias)) {
+		if (normalized.some((entry: NormalizedMapping) => !entry.alias)) {
 			res.status(400).json({
 				code: 'INVALID_PARAM',
 				message: 'Each mapping entry must include a non-empty alias.'
@@ -106,7 +107,7 @@ router.post('/batch', authenticate, requirePrivilegedRole, async (req: Request, 
 
 				if (mapping.canonicalCodes.length > 0) {
 					await tx.specializationAlias.createMany({
-						data: mapping.canonicalCodes.map((canonical) => ({
+						data: mapping.canonicalCodes.map((canonical: string) => ({
 							schoolId,
 							alias: mapping.alias,
 							canonical,

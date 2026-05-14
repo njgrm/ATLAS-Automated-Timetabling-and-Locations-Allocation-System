@@ -35,13 +35,14 @@ function assertEqual<T>(actual: T, expected: T, label: string) {
 function runReconciliation(mode: FacultySyncMode) {
 	return buildFacultyReconciliationSummary(
 		[
-			{ id: 101, firstName: 'Maria', lastName: 'Santos', department: 'English', specialization: null, contactInfo: null },
-			{ id: 102, firstName: 'Juan', lastName: 'Dela Cruz', department: 'Math', specialization: null, contactInfo: null },
+			{ id: 101, employeeId: null, firstName: 'Maria', lastName: 'Santos', department: 'English', specialization: null, contactInfo: null },
+			{ id: 102, employeeId: null, firstName: 'Juan', lastName: 'Dela Cruz', department: 'Math', specialization: null, contactInfo: null },
 		],
 		[
 			{
 				id: 1,
 				externalId: 101,
+				employeeId: null,
 				firstName: 'Maria',
 				lastName: 'Santos',
 				department: 'English',
@@ -58,6 +59,7 @@ function runReconciliation(mode: FacultySyncMode) {
 			{
 				id: 2,
 				externalId: 999,
+				employeeId: null,
 				firstName: 'Old',
 				lastName: 'Teacher',
 				department: 'MAPEH',

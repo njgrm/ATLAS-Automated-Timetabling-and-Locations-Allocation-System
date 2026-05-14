@@ -35,6 +35,12 @@ const DEFAULT_PERIOD_SLOTS = [
     { startTime: '15:00', endTime: '15:50' },
 ];
 const STANDARD_PERIOD_MINUTES = 50;
+function intersectCandidateLists(candidateLists) {
+    if (candidateLists.length === 0)
+        return [];
+    const [first, ...rest] = candidateLists;
+    return first.filter((candidateId) => rest.every((list) => list.includes(candidateId)));
+}
 /**
  * Build schedulable class period slots from policy bounds and lunch window.
  * Special event rows are built separately via buildSpecialEventSlots().
@@ -872,7 +878,7 @@ export function constructBaseline(input) {
                             adviserName: item.adviserName ?? null,
                             metadata: isModularUnified
                                 ? {
-                                    modularGroupId: item.modularGroupId,
+                                    modularGroupId: item.modularGroupId ?? undefined,
                                     modularAssignments: modularAssignmentInfo?.assignments ?? [],
                                 }
                                 : undefined,

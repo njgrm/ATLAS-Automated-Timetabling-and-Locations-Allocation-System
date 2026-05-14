@@ -248,7 +248,7 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 						...base,
 						code: 'FACULTY_TIME_CONFLICT',
 						message: `Faculty ${a.facultyId} has overlapping assignments on ${a.day}: ${a.startTime}-${a.endTime} vs ${b.startTime}-${b.endTime}.`,
-						entities: { facultyId: a.facultyId, day: a.day, startTime: a.startTime, endTime: b.endTime, entryIds: [a.entryId, b.entryId] },
+						entities: { facultyId: a.facultyId ?? undefined, day: a.day, startTime: a.startTime, endTime: b.endTime, entryIds: [a.entryId, b.entryId] },
 					});
 				}
 			}

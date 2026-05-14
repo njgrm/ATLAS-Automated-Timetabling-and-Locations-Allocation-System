@@ -89,7 +89,7 @@ export interface AffectedEntry {
 	entryId: string;
 	subjectId: number;
 	sectionId: number;
-	facultyId: number;
+	facultyId: number | null;
 	roomId: number;
 	day: string;
 	startTime: string;

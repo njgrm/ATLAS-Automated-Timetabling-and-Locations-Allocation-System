@@ -6,14 +6,15 @@ CheckCircle2,
 ChevronDown,
 ChevronRight,
 Info,
+Redo2,
 RotateCcw,
 Save,
 Search,
+Undo2,
 UserCog,
 Star,
 } from 'lucide-react';
 import { toast } from 'sonner';
-
 import atlasApi from '@/lib/api';
 import {
 buildAssignmentSignature,
@@ -32,6 +33,7 @@ import { fetchPublicSettings } from '@/lib/settings';
 import type { ExternalSection, HomeroomHintResponse, SectionSummaryResponse, Subject } from '@/types';
 import { OverviewHeader } from '@/components/faculty-assignments/OverviewHeader';
 import { SubjectRow } from '@/components/faculty-assignments/SubjectRow';
+import { useAssignmentHistory } from '@/hooks/useAssignmentHistory';
 import { useSpecializationAliases } from '@/hooks/useSpecializationAliases';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -43,16 +45,13 @@ import { SearchableSelect } from '@/ui/searchable-select';
 import { Skeleton } from '@/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
-
 const DEFAULT_SCHOOL_ID = 1;
-
 const STATUS_COLORS: Record<LoadStatus, { text: string; bg: string; border: string }> = {
 'below-standard': { text: 'text-sky-700', bg: 'bg-sky-50', border: 'border-sky-200' },
 'compliant': { text: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
 'overload-allowed': { text: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
 'over-cap': { text: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200' },
 };
-
 type FacultyAssignmentRecord = {
 id: number;
 subjectId: number;
@@ -61,7 +60,6 @@ sectionIds: number[];
 sections: ExternalSection[];
 subject: { id: number; name: string; code: string; minMinutesPerWeek: number };
 };
-
 type FacultySummary = {
 id: number;
 externalId: number;
@@ -82,7 +80,6 @@ sectionCount: number;
 subjectHours: number;
 assignments: FacultyAssignmentRecord[];
 };
-
 function cloneAssignments(assignments: FacultyAssignmentDraft[]): FacultyAssignmentDraft[] {
 return assignments.map((assignment) => ({
 subjectId: assignment.subjectId,
@@ -90,7 +87,6 @@ sectionIds: [...assignment.sectionIds],
 gradeLevels: [...assignment.gradeLevels],
 }));
 }
-
 function toDraftAssignments(
 assignments: FacultyAssignmentRecord[],
 sectionMap: Map<number, ExternalSection>,
@@ -104,7 +100,6 @@ gradeLevels: assignment.gradeLevels,
 sectionMap,
 );
 }
-
 export default function FacultyAssignments() {
 const [searchParams] = useSearchParams();
 const [faculty, setFaculty] = useState<FacultySummary[]>([]);
@@ -129,9 +124,7 @@ const [homeroomHint, setHomeroomHint] = useState<HomeroomHintResponse | null>(nu
 const [draftAssignmentsByFaculty, setDraftAssignmentsByFaculty] = useState<Record<number, FacultyAssignmentDraft[]>>({});
 const [autoFillLoading, setAutoFillLoading] = useState(false);
 const [autoFillDialogOpen, setAutoFillDialogOpen] = useState(false);
-
 const { aliases: specializationAliases } = useSpecializationAliases(DEFAULT_SCHOOL_ID);
-
 const fetchData = useCallback(async () => {
 setLoading(true);
 try {
@@ -140,7 +133,6 @@ const schoolYearId = settings.activeSchoolYearId;
 if (!schoolYearId) {
 throw new Error('Active school year is not configured.');
 }
-
 const [facultyRes, subjectsRes, sectionsRes] = await Promise.all([
 atlasApi.get<{ faculty: FacultySummary[] }>('/faculty-assignments/summary', {
 params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId },
@@ -152,7 +144,6 @@ atlasApi.get<SectionSummaryResponse>(`/sections/summary/${schoolYearId}`, {
 params: { schoolId: DEFAULT_SCHOOL_ID },
 }),
 ]);
-
 setActiveSchoolYearId(schoolYearId);
 setFaculty(facultyRes.data.faculty);
 setSubjects(subjectsRes.data.subjects.filter((subject) => subject.isActive));
@@ -164,11 +155,9 @@ setError(requestError?.response?.data?.message ?? requestError?.message ?? 'Fail
 setLoading(false);
 }
 }, []);
-
 useEffect(() => {
 fetchData();
 }, [fetchData]);
-
 useEffect(() => {
 if (faculty.length === 0) {
 setSelectedId(null);
@@ -178,7 +167,6 @@ if (selectedId == null || !faculty.some((member) => member.id === selectedId)) {
 setSelectedId(faculty[0].id);
 }
 }, [faculty, selectedId]);
-
 const allKnownSections = useMemo(() => {
 const mergedSections = new Map<number, ExternalSection>();
 for (const section of sectionSummary?.sections ?? []) {
@@ -197,9 +185,7 @@ return Array.from(mergedSections.values()).sort(
 (left, right) => left.displayOrder - right.displayOrder || left.name.localeCompare(right.name) || left.id - right.id,
 );
 }, [faculty, sectionSummary]);
-
 const sectionMap = useMemo(() => buildSectionMap(allKnownSections), [allKnownSections]);
-
 const savedAssignmentsByFaculty = useMemo(() => {
 const result: Record<number, FacultyAssignmentDraft[]> = {};
 for (const member of faculty) {
@@ -207,7 +193,6 @@ result[member.id] = toDraftAssignments(member.assignments, sectionMap);
 }
 return result;
 }, [faculty, sectionMap]);
-
 const effectiveDraftAssignmentsByFaculty = useMemo(() => {
 const result: Record<number, FacultyAssignmentDraft[]> = {};
 for (const [facultyIdRaw, assignments] of Object.entries(draftAssignmentsByFaculty)) {
@@ -220,7 +205,6 @@ result[facultyId] = normalized;
 }
 return result;
 }, [draftAssignmentsByFaculty, savedAssignmentsByFaculty, sectionMap]);
-
 const effectiveAssignmentsByFaculty = useMemo(() => {
 const result: Record<number, FacultyAssignmentDraft[]> = {};
 for (const member of faculty) {
@@ -228,32 +212,26 @@ result[member.id] = effectiveDraftAssignmentsByFaculty[member.id] ?? savedAssign
 }
 return result;
 }, [faculty, effectiveDraftAssignmentsByFaculty, savedAssignmentsByFaculty]);
-
 const facultyNames = useMemo(
 () => Object.fromEntries(faculty.map((member) => [member.id, `${member.lastName}, ${member.firstName}`])),
 [faculty],
 );
-
 const savedOwnershipMap = useMemo(
 () => buildOwnershipMap(savedAssignmentsByFaculty, facultyNames, 'saved'),
 [facultyNames, savedAssignmentsByFaculty],
 );
-
 const savedConflictMap = useMemo(
 () => buildMultiOwnerSavedMap(savedAssignmentsByFaculty, facultyNames),
 [facultyNames, savedAssignmentsByFaculty],
 );
-
 const pendingOwnershipMap = useMemo(
 () => buildPendingOwnershipMap(savedAssignmentsByFaculty, effectiveDraftAssignmentsByFaculty, facultyNames),
 [effectiveDraftAssignmentsByFaculty, facultyNames, savedAssignmentsByFaculty],
 );
-
 const selected = useMemo(
 () => faculty.find((member) => member.id === selectedId) ?? null,
 [faculty, selectedId],
 );
-
 const currentAssignments = useMemo(
 () => (selected ? effectiveAssignmentsByFaculty[selected.id] ?? [] : []),
 [effectiveAssignmentsByFaculty, selected],
@@ -268,6 +246,15 @@ const dirty = Boolean(
 selected
 && buildAssignmentSignature(currentAssignments) !== buildAssignmentSignature(savedAssignmentsForSelected),
 );
+
+const { canUndo, canRedo, pushHistory, handleUndo, handleRedo, handleResetAssignments } = useAssignmentHistory({
+	selectedId: selected?.id ?? null,
+	subjects,
+	effectiveAssignmentsByFaculty,
+	savedAssignmentsByFaculty,
+	sectionMap,
+	setDraftAssignmentsByFaculty,
+});
 
 useEffect(() => {
 if (!selected) {
@@ -299,6 +286,7 @@ const updateSelectedAssignments = useCallback(
 if (!selected) {
 return;
 }
+	pushHistory();
 setDraftAssignmentsByFaculty((previousDrafts) => {
 const current = cloneAssignments(previousDrafts[selected.id] ?? savedAssignmentsByFaculty[selected.id] ?? []);
 const nextAssignments = normalizeDraftAssignments(updater(current), sectionMap);
@@ -314,7 +302,7 @@ return {
 };
 });
 },
-[sectionMap, selected, savedAssignmentsByFaculty],
+[pushHistory, sectionMap, selected, savedAssignmentsByFaculty],
 );
 
 const setSubjectSections = useCallback(
@@ -337,12 +325,13 @@ const discardSelectedDraft = useCallback(() => {
 if (!selected) {
 return;
 }
+	pushHistory();
 setDraftAssignmentsByFaculty((previousDrafts) => {
 const nextDrafts = { ...previousDrafts };
 delete nextDrafts[selected.id];
 return nextDrafts;
 });
-}, [selected]);
+}, [pushHistory, selected]);
 
 const handleSave = useCallback(async () => {
 if (!selected || !activeSchoolYearId) {
@@ -385,6 +374,7 @@ setSaving(false);
 
 const handleAutoFill = useCallback(async () => {
 	if (!activeSchoolYearId) return;
+	pushHistory();
 	setAutoFillDialogOpen(false);
 	setAutoFillLoading(true);
 	try {
@@ -418,7 +408,7 @@ const handleAutoFill = useCallback(async () => {
 	} finally {
 		setAutoFillLoading(false);
 	}
-}, [activeSchoolYearId, fetchData]);
+}, [activeSchoolYearId, fetchData, pushHistory]);
 
 const filteredFaculty = useMemo(() => {
 let nextFaculty = faculty;
@@ -728,12 +718,10 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 })
 )}
 </div>
-
 <div className="border-t border-border px-3 py-2 text-[0.6875rem] text-muted-foreground">
 {teachablePairTotals.assigned} / {teachablePairTotals.total} teachable subject-sections assigned
 </div>
 </div>
-
 <div className="flex-1 overflow-auto">
 {!selected ? (
 <div className="flex h-full items-center justify-center text-muted-foreground">
@@ -812,7 +800,6 @@ loadProfile.breakdown.map((item) => (
 </Tooltip>
 </div>
 </div>
-
 {subjectsLackingFaculty.length > 0 && (
 				<div className="mt-2 flex items-center gap-2 rounded border border-red-200 bg-red-50/60 px-3 py-1.5">
 					<AlertTriangle className="size-3.5 shrink-0 text-red-600" />
@@ -832,6 +819,18 @@ loadProfile.breakdown.map((item) => (
 {!sectionsAvailable && <Badge variant="outline">Roster unavailable</Badge>}
 </div>
 <div className="flex items-center gap-2">
+<Button type="button" variant="outline" size="sm" onClick={handleUndo} disabled={!canUndo || saving}>
+<Undo2 className="mr-1.5 size-3.5" />
+Undo
+</Button>
+<Button type="button" variant="outline" size="sm" onClick={handleRedo} disabled={!canRedo || saving}>
+<Redo2 className="mr-1.5 size-3.5" />
+Redo
+</Button>
+<Button type="button" variant="outline" size="sm" onClick={handleResetAssignments} disabled={saving || !selected.isActiveForScheduling || !sectionsAvailable}>
+<RotateCcw className="mr-1.5 size-3.5" />
+Reset Assignments
+</Button>
 {dirty && (
 <Button type="button" variant="secondary" size="sm" onClick={discardSelectedDraft} disabled={saving}>
 <RotateCcw className="mr-1.5 size-3.5" />
@@ -844,7 +843,6 @@ Discard Draft
 </Button>
 </div>
 </div>
-
 <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-5 py-2">
 				<div className="relative w-52 shrink-0">
 					<Search className="absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />

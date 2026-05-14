@@ -26,6 +26,12 @@ export declare function login(params: {
     ipAddress: string;
     userAgent?: string;
 }): Promise<LocalLoginResult>;
+export declare function loginWithEmailPassword(params: {
+    email: string;
+    password: string;
+    ipAddress: string;
+    userAgent?: string;
+}): Promise<LocalLoginResult>;
 export declare function seedLocalAuthAccounts(params: {
     schoolId: number;
 }): Promise<{

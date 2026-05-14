@@ -11,7 +11,7 @@ export async function syncSectionsFromExternal(
 	schoolId: number,
 	schoolYearId: number,
 	authToken?: string
-): Promise<{ synced: boolean; count: number; source: string; fetchedAt: Date }> {
+): Promise<{ synced: boolean; count: number; removed: number; source: string; fetchedAt: Date }> {
 	let result: SectionFetchResult;
 	try {
 		result = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);

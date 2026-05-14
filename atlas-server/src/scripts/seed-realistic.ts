@@ -331,6 +331,7 @@ function generateTeachers(schoolId: number, sections: ExternalSection[]): SeedTe
 		const adviserSection = sections[teacherIndex] ?? null;
 		return {
 			id: createTeacherExternalId(schoolId, teacherIndex),
+			employeeId: String(createTeacherExternalId(schoolId, teacherIndex)),
 			firstName: teacher.firstName,
 			lastName: teacher.lastName,
 			department: teacher.specialization,
@@ -549,6 +550,7 @@ async function upsertFacultyMirrors(schoolId: number, teachers: SeedTeacher[]) {
 async function saveFacultySnapshot(schoolId: number, schoolYearId: number, teachers: SeedTeacher[]) {
 	const payload: ExternalFaculty[] = teachers.map((teacher) => ({
 		id: teacher.id,
+		employeeId: teacher.employeeId ?? null,
 		firstName: teacher.firstName,
 		lastName: teacher.lastName,
 		department: teacher.department,

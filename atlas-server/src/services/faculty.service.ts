@@ -351,6 +351,7 @@ where: { schoolId },
 select: {
 id: true,
 externalId: true,
+			employeeId: true,
 firstName: true,
 lastName: true,
 department: true,

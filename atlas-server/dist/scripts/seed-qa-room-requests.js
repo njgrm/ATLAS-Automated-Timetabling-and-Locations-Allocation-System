@@ -59,6 +59,8 @@ async function findApprovableCandidate(schoolId, schoolYearId, runId, entries, r
     const roomById = new Map(rooms.map((room) => [room.id, room]));
     const slotOccupancy = buildSlotOccupancyMap(entries);
     for (const entry of entries) {
+        if (entry.facultyId == null)
+            continue;
         const currentRoom = roomById.get(entry.roomId);
         if (!currentRoom)
             continue;
@@ -90,6 +92,8 @@ async function findApprovableCandidate(schoolId, schoolYearId, runId, entries, r
 }
 async function findBlockedCandidate(schoolId, schoolYearId, runId, entries, roomById) {
     for (const sourceEntry of entries) {
+        if (sourceEntry.facultyId == null)
+            continue;
         for (const conflictingEntry of entries) {
             if (sourceEntry.entryId === conflictingEntry.entryId)
                 continue;

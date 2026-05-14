@@ -178,7 +178,7 @@ async function provisionFromEnrollPro(params) {
                 lockedUntil: null,
             },
         });
-        return { account: { id: updated.id, role: updated.role, schoolId: updated.schoolId, facultyId: updated.facultyId, facultyExternalId, mustChangePassword: updated.mustChangePassword, employeeId: updated.employeeId, accountName: updated.accountName } };
+        return { account: { id: updated.id, role: updated.role, schoolId: updated.schoolId, facultyId: updated.facultyId, facultyExternalId, mustChangePassword: updated.mustChangePassword, email: updated.email, employeeId: updated.employeeId, accountName: updated.accountName } };
     }
     const created = await prisma.atlasAuthAccount.create({
         data: {
@@ -193,7 +193,7 @@ async function provisionFromEnrollPro(params) {
             mustChangePassword: params.enrollProUser.mustChangePassword,
         },
     });
-    return { account: { id: created.id, role: created.role, schoolId: created.schoolId, facultyId: created.facultyId, facultyExternalId, mustChangePassword: created.mustChangePassword, employeeId: created.employeeId, accountName: created.accountName } };
+    return { account: { id: created.id, role: created.role, schoolId: created.schoolId, facultyId: created.facultyId, facultyExternalId, mustChangePassword: created.mustChangePassword, email: created.email, employeeId: created.employeeId, accountName: created.accountName } };
 }
 // ──────────────────────────────────────────────────────────────────────────────
 export async function login(params) {
@@ -213,6 +213,14 @@ export async function login(params) {
             status: 400,
             code: 'INVALID_PASSWORD',
             message: 'Password is required.',
+        };
+    }
+    if (!params.ipAddress || params.ipAddress.trim().length === 0) {
+        return {
+            ok: false,
+            status: 400,
+            code: 'INVALID_IP',
+            message: 'ipAddress is required.',
         };
     }
     const memoryRetryAfter = getMemoryLockRemainingSeconds(identifier, params.ipAddress, now);
@@ -427,6 +435,14 @@ export async function login(params) {
         token,
         user,
     };
+}
+export async function loginWithEmailPassword(params) {
+    return login({
+        identifier: params.email,
+        password: params.password,
+        ipAddress: params.ipAddress,
+        userAgent: params.userAgent,
+    });
 }
 export async function seedLocalAuthAccounts(params) {
     const defaultPassword = process.env.ATLAS_DEFAULT_AUTH_PASSWORD ?? 'Atlas2026!';

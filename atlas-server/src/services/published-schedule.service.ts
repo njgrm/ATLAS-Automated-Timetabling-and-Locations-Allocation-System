@@ -154,7 +154,9 @@ export async function getPublishedSchedulePayload(schoolId: number, schoolYearId
 			},
 			faculty: {
 				id: entry.facultyId,
-				name: references.facultyById.get(entry.facultyId) ?? `Faculty #${entry.facultyId}`,
+				name: entry.facultyId != null
+					? (references.facultyById.get(entry.facultyId) ?? `Faculty #${entry.facultyId}`)
+					: 'Unassigned Faculty',
 			},
 			room: {
 				id: entry.roomId,

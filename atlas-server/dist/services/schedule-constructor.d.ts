@@ -24,7 +24,7 @@ import type { RoomType } from '@prisma/client';
 export interface SubjectInput {
     id: number;
     code: string;
-    name: string;
+    name?: string;
     minMinutesPerWeek: number;
     preferredRoomType: RoomType;
     sessionPattern: 'MWF' | 'TTH' | 'ANY';
@@ -50,8 +50,8 @@ export interface InstructionalCohortInput {
 export interface FacultyInput {
     id: number;
     maxHoursPerWeek: number;
-    specialization: string | null;
-    department: string | null;
+    specialization?: string | null;
+    department?: string | null;
 }
 export interface FacultySubjectInput {
     facultyId: number;
@@ -65,6 +65,7 @@ export interface RoomInput {
     isTeachingSpace: boolean;
     capacity: number | null;
     buildingId?: number | null;
+    features?: string[];
 }
 export interface PreferenceSlotInput {
     day: string;

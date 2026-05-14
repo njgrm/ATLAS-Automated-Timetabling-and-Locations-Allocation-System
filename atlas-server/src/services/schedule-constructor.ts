@@ -49,7 +49,7 @@ const STANDARD_PERIOD_MINUTES = 50;
 export interface SubjectInput {
 	id: number;
 	code: string;
-	name: string;
+	name?: string;
 	minMinutesPerWeek: number;
 	preferredRoomType: RoomType;
 	sessionPattern: 'MWF' | 'TTH' | 'ANY';
@@ -77,8 +77,8 @@ export interface InstructionalCohortInput {
 export interface FacultyInput {
 	id: number;
 	maxHoursPerWeek: number;
-	specialization: string | null;
-	department: string | null;
+	specialization?: string | null;
+	department?: string | null;
 }
 
 export interface FacultySubjectInput {
@@ -94,6 +94,13 @@ export interface RoomInput {
 	isTeachingSpace: boolean;
 	capacity: number | null;
 	buildingId?: number | null;
+	features?: string[];
+}
+
+function intersectCandidateLists(candidateLists: number[][]): number[] {
+	if (candidateLists.length === 0) return [];
+	const [first, ...rest] = candidateLists;
+	return first.filter((candidateId) => rest.every((list) => list.includes(candidateId)));
 }
 
 export interface PreferenceSlotInput {
@@ -1200,7 +1207,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 							adviserName: item.adviserName ?? null,
 							metadata: isModularUnified
 								? {
-									modularGroupId: item.modularGroupId,
+									modularGroupId: item.modularGroupId ?? undefined,
 									modularAssignments: modularAssignmentInfo?.assignments ?? [],
 								}
 								: undefined,

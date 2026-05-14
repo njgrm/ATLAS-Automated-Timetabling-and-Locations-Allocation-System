@@ -85,7 +85,7 @@ async function buildLookupMaps(schoolId, entryIds, entries) {
     const subjectIds = [...new Set(entries.map((entry) => entry.subjectId))];
     const sectionIds = [...new Set(entries.map((entry) => entry.sectionId))];
     const roomIds = [...new Set(entries.map((entry) => entry.roomId))];
-    const facultyIds = [...new Set(entries.map((entry) => entry.facultyId))];
+    const facultyIds = [...new Set(entries.map((entry) => entry.facultyId).filter((id) => id != null))];
     const [subjects, snapshot, rooms, faculty] = await Promise.all([
         prisma.subject.findMany({
             where: { schoolId, id: { in: subjectIds } },
@@ -195,7 +195,7 @@ export async function getFacultyRoomPreferenceState(schoolId, schoolYearId, runI
                 entryId: entry.entryId,
                 subjectId: entry.subjectId,
                 sectionId: entry.sectionId,
-                facultyId: entry.facultyId,
+                facultyId,
                 currentRoomId: entry.roomId,
                 currentRoomName: roomMap.get(entry.roomId) ?? `Room #${entry.roomId}`,
                 requestedRoomId: request?.requestedRoomId ?? null,
@@ -234,7 +234,9 @@ export async function getFacultyRoomPreferenceState(schoolId, schoolYearId, runI
             .map((entry) => ({
             entryId: entry.entryId,
             facultyId: entry.facultyId,
-            facultyName: facultyMap.get(entry.facultyId) ?? `Faculty #${entry.facultyId}`,
+            facultyName: entry.facultyId != null
+                ? (facultyMap.get(entry.facultyId) ?? `Faculty #${entry.facultyId}`)
+                : 'Unassigned Faculty',
             sectionId: entry.sectionId,
             sectionName: allSectionMap.get(entry.sectionId) ?? `Section #${entry.sectionId}`,
             subjectId: entry.subjectId,

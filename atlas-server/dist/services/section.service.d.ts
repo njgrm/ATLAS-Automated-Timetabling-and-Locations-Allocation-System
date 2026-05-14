@@ -7,6 +7,7 @@ import { type SectionSummary } from './section-adapter.js';
 export declare function syncSectionsFromExternal(schoolId: number, schoolYearId: number, authToken?: string): Promise<{
     synced: boolean;
     count: number;
+    removed: number;
     source: string;
     fetchedAt: Date;
 }>;

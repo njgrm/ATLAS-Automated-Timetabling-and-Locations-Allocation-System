@@ -219,6 +219,7 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken,
         select: {
             id: true,
             externalId: true,
+            employeeId: true,
             firstName: true,
             lastName: true,
             department: true,
