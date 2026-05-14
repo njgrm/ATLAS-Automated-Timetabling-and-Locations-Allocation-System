@@ -59,6 +59,71 @@ router.post('/', authenticate, requirePrivilegedRole, async (req: Request, res: 
 });
 
 /**
+ * POST /api/v1/specialization-aliases/batch
+ * Atomically replace specialization mappings for changed terms.
+ */
+router.post('/batch', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.body?.schoolId);
+		const mappings = Array.isArray(req.body?.mappings) ? req.body.mappings : [];
+
+		if (!schoolId || mappings.length === 0) {
+			res.status(400).json({
+				code: 'INVALID_PARAM',
+				message: 'Missing required fields: schoolId, mappings[]'
+			});
+			return;
+		}
+
+		const normalized = mappings.map((entry: any) => {
+			const alias = String(entry?.alias ?? '').trim();
+			const canonicalList = Array.isArray(entry?.canonicalCodes)
+				? entry.canonicalCodes.map((code: unknown) => String(code ?? '').trim()).filter(Boolean)
+				: [];
+			const uniqueCanonical = Array.from(new Set(canonicalList));
+			return {
+				alias,
+				canonicalCodes: uniqueCanonical,
+			};
+		});
+
+		if (normalized.some((entry) => !entry.alias)) {
+			res.status(400).json({
+				code: 'INVALID_PARAM',
+				message: 'Each mapping entry must include a non-empty alias.'
+			});
+			return;
+		}
+
+		await prisma.$transaction(async (tx) => {
+			for (const mapping of normalized) {
+				await tx.specializationAlias.deleteMany({
+					where: {
+						schoolId,
+						alias: mapping.alias,
+					},
+				});
+
+				if (mapping.canonicalCodes.length > 0) {
+					await tx.specializationAlias.createMany({
+						data: mapping.canonicalCodes.map((canonical) => ({
+							schoolId,
+							alias: mapping.alias,
+							canonical,
+						})),
+						skipDuplicates: true,
+					});
+				}
+			}
+		});
+
+		res.json({ success: true, updated: normalized.length });
+	} catch (err) {
+		next(err);
+	}
+});
+
+/**
  * DELETE /api/v1/specialization-aliases/:id
  * Delete a specialization alias entry.
  */
