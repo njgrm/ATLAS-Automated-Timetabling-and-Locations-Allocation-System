@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticate, authenticateWithSystemToken } from '../middleware/authenticate.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as assignmentService from '../services/faculty-assignment.service.js';
+import { autoFill } from '../services/teaching-load-automation.service.js';
 import { fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
 const router = Router();
 // Auth: GET /faculty-assignments/summary?schoolId=X&schoolYearId=Y
@@ -92,6 +93,28 @@ router.put('/:facultyId', authenticate, requirePrivilegedRole, async (req, res, 
         }
         const updated = await assignmentService.getAssignmentsByFaculty(facultyId, Number(schoolYearId), authToken);
         res.json({ version: result.version, assignments: updated?.assignments ?? [] });
+    }
+    catch (err) {
+        next(err);
+    }
+});
+// POST /faculty-assignments/auto-fill
+// Triggers the state-preserving auto-fill algorithm for unassigned subject×section pairs.
+// Body: { schoolId: number, schoolYearId: number }
+router.post('/auto-fill', authenticate, requirePrivilegedRole, async (req, res, next) => {
+    try {
+        const schoolId = Number(req.body.schoolId);
+        const schoolYearId = Number(req.body.schoolYearId);
+        if (!schoolId || Number.isNaN(schoolId)) {
+            res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
+            return;
+        }
+        if (!schoolYearId || Number.isNaN(schoolYearId)) {
+            res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
+            return;
+        }
+        const result = await autoFill(schoolId, schoolYearId);
+        res.json(result);
     }
     catch (err) {
         next(err);

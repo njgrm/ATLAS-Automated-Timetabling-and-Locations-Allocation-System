@@ -5,10 +5,13 @@ export interface QualificationResult {
 }
 export declare class QualificationService {
     /**
-     * Tiered Qualification Matcher (Backend Implementation)
-     * Tier 1: Explicit Specialization match (Source of Truth)
-     * Tier 2: Structural Department match
-     * Tier 3: Fuzzy Keyword match (Smart Suggestion via SpecializationAlias)
+     * Tiered Qualification Matcher (Backend — Alias-Aware)
+     *
+     * Tier 1 (Explicit): An administrator-defined SpecializationAlias record maps
+     *   the faculty's specialization to this subject's code.
+     * Tier 2 (Structural): The faculty's specialization/department is in the
+     *   subject's allowedSpecializations array (legacy fallback).
+     * Tier 3 (Fuzzy): Legacy keyword heuristic.
      */
     static getQualificationTier(schoolId: number, faculty: {
         specialization: string | null;

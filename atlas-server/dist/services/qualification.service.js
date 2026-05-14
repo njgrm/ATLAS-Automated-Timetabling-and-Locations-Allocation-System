@@ -1,37 +1,37 @@
 import { prisma } from '../lib/prisma.js';
 export class QualificationService {
     /**
-     * Tiered Qualification Matcher (Backend Implementation)
-     * Tier 1: Explicit Specialization match (Source of Truth)
-     * Tier 2: Structural Department match
-     * Tier 3: Fuzzy Keyword match (Smart Suggestion via SpecializationAlias)
+     * Tiered Qualification Matcher (Backend — Alias-Aware)
+     *
+     * Tier 1 (Explicit): An administrator-defined SpecializationAlias record maps
+     *   the faculty's specialization to this subject's code.
+     * Tier 2 (Structural): The faculty's specialization/department is in the
+     *   subject's allowedSpecializations array (legacy fallback).
+     * Tier 3 (Fuzzy): Legacy keyword heuristic.
      */
     static async getQualificationTier(schoolId, faculty, subject) {
         const allowed = subject.allowedSpecializations ?? [];
-        // Tier 1: Explicit Specialization Match
-        if (faculty.specialization && allowed.includes(faculty.specialization)) {
-            return { tier: 1, reason: `Matched via Explicit Specialization: ${faculty.specialization}` };
-        }
-        // Tier 2: Structural Department Match
-        if (faculty.department && allowed.includes(faculty.department)) {
-            return { tier: 2, reason: `Matched via Structural Department: ${faculty.department}` };
-        }
-        // Tier 3: Fuzzy Match via SpecializationAlias (Dynamic Synonyms)
-        const aliases = await prisma.specializationAlias.findMany({
-            where: { schoolId }
-        });
-        const facultySpecs = new Set();
-        if (faculty.specialization)
-            facultySpecs.add(faculty.specialization);
-        if (faculty.department)
-            facultySpecs.add(faculty.department);
-        // Find if any faculty spec/dept is an alias for a canonical name that is allowed
-        for (const alias of aliases) {
-            if (facultySpecs.has(alias.alias) && allowed.includes(alias.canonical)) {
-                return { tier: 3, reason: `Matched via Specialization Alias: ${alias.alias} -> ${alias.canonical}` };
+        // Tier 1: Alias catalog match — administrator-curated source of truth
+        if (faculty.specialization) {
+            const aliasMatch = await prisma.specializationAlias.findFirst({
+                where: {
+                    schoolId,
+                    alias: faculty.specialization,
+                    canonical: subject.code,
+                },
+            });
+            if (aliasMatch) {
+                return { tier: 1, reason: `Matched via SpecializationAlias: ${faculty.specialization} → ${subject.code}` };
             }
         }
-        // Fallback Tier 3: Legacy Keyword Matching (to be phased out)
+        // Tier 2: allowedSpecializations direct match (structural / legacy)
+        if (faculty.specialization && allowed.includes(faculty.specialization)) {
+            return { tier: 2, reason: `Matched via allowedSpecializations (specialization): ${faculty.specialization}` };
+        }
+        if (faculty.department && allowed.includes(faculty.department)) {
+            return { tier: 2, reason: `Matched via allowedSpecializations (department): ${faculty.department}` };
+        }
+        // Tier 3: Legacy keyword heuristics
         if (this.matchesLegacyKeywords(faculty.department, subject.code, subject.name)) {
             return { tier: 3, reason: 'Matched via Legacy Keyword Heuristics' };
         }

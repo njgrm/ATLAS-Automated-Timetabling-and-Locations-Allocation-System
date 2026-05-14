@@ -9,41 +9,44 @@ export interface QualificationResult {
 
 export class QualificationService {
 	/**
-	 * Tiered Qualification Matcher (Backend Implementation)
-	 * Tier 1: Explicitly Mapped Specialization (Administrator-defined in Specialization Mapping)
-	 * Tier 2: Direct Specialization/Department Match (Fallback to subject.allowedSpecializations)
-	 * Tier 3: Fuzzy Keyword match (Legacy fallback)
+	 * Tiered Qualification Matcher (Backend — Alias-Aware)
+	 *
+	 * Tier 1 (Explicit): An administrator-defined SpecializationAlias record maps
+	 *   the faculty's specialization to this subject's code.
+	 * Tier 2 (Structural): The faculty's specialization/department is in the
+	 *   subject's allowedSpecializations array (legacy fallback).
+	 * Tier 3 (Fuzzy): Legacy keyword heuristic.
 	 */
 	static async getQualificationTier(
 		schoolId: number,
 		faculty: { specialization: string | null; department: string | null },
 		subject: { code: string; name: string; allowedSpecializations?: string[] }
 	): Promise<QualificationResult> {
-		// Tier 1: Explicitly Mapped Specialization (from specialization_aliases table)
+		const allowed = subject.allowedSpecializations ?? [];
+
+		// Tier 1: Alias catalog match — administrator-curated source of truth
 		if (faculty.specialization) {
-			const mappings = await prisma.specializationAlias.findMany({
-				where: { 
+			const aliasMatch = await prisma.specializationAlias.findFirst({
+				where: {
 					schoolId,
 					alias: faculty.specialization,
-					canonical: subject.code
-				}
+					canonical: subject.code,
+				},
 			});
-			if (mappings.length > 0) {
-				return { tier: 1, reason: `Matched via Explicit Mapping: ${faculty.specialization} -> ${subject.code}` };
+			if (aliasMatch) {
+				return { tier: 1, reason: `Matched via SpecializationAlias: ${faculty.specialization} → ${subject.code}` };
 			}
 		}
 
-		const allowed = subject.allowedSpecializations ?? [];
-
-		// Tier 2: Direct Specialization/Department Match (via subject.allowedSpecializations array)
+		// Tier 2: allowedSpecializations direct match (structural / legacy)
 		if (faculty.specialization && allowed.includes(faculty.specialization)) {
-			return { tier: 2, reason: `Matched via Subject Allowed Specialization: ${faculty.specialization}` };
+			return { tier: 2, reason: `Matched via allowedSpecializations (specialization): ${faculty.specialization}` };
 		}
 		if (faculty.department && allowed.includes(faculty.department)) {
-			return { tier: 2, reason: `Matched via Subject Allowed Department: ${faculty.department}` };
+			return { tier: 2, reason: `Matched via allowedSpecializations (department): ${faculty.department}` };
 		}
 
-		// Tier 3: Legacy Keyword Matching (Fuzzy fallback)
+		// Tier 3: Legacy keyword heuristics
 		if (this.matchesLegacyKeywords(faculty.department, subject.code, subject.name)) {
 			return { tier: 3, reason: 'Matched via Legacy Keyword Heuristics' };
 		}

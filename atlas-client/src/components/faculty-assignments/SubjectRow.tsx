@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Star } from 'lucide-react';
+import { ChevronDown, ChevronRight, Lock, Star } from 'lucide-react';
 import { toast } from 'sonner';
 
 import {
 	type FacultyAssignmentDraft,
 	type FacultyOwnershipState,
 } from '@/lib/faculty-assignment-helpers';
-import { gradeLabel, matchesFacultyDepartment } from '@/lib/grade-labels';
+import { getQualificationTier, gradeLabel, type SpecializationAliasLike } from '@/lib/grade-labels';
 import type { ExternalSection, Subject } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -35,6 +35,7 @@ export type SubjectRowProps = {
 	sectionFilter?: 'all' | 'unassigned' | 'assigned';
 	gradeLevelFilter?: string;
 	advisedSectionId?: number | null;
+	specializationAliases?: SpecializationAliasLike[];
 };
 
 export function SubjectRow({
@@ -54,6 +55,7 @@ export function SubjectRow({
 	sectionFilter = 'all',
 	gradeLevelFilter = 'all',
 	advisedSectionId = null,
+	specializationAliases = [],
 }: SubjectRowProps) {
 	const [openGrades, setOpenGrades] = useState<Record<number, boolean>>({});
 
@@ -186,13 +188,21 @@ export function SubjectRow({
 		onSetSections(subject.id, [...selectedSectionIds, sectionId]);
 	};
 
-	// Tiered Qualification Logic (Wave 4 Audit)
+	// Tiered Qualification Logic (Wave 4 Audit — Alias-Aware)
 	const allowedSpecs = subject.allowedSpecializations ?? [];
-	const isTier1 = Boolean(facultySpecialization && allowedSpecs.includes(facultySpecialization));
-	const isTier2 = !isTier1 && Boolean(facultyDepartment && allowedSpecs.includes(facultyDepartment));
-	const isTier3 = !isTier1 && !isTier2 && matchesFacultyDepartment(facultyDepartment, subject.code, subject.name);
-	
-	const isSpecMismatch = allowedSpecs.length > 0 && !isTier1 && !isTier2;
+	const tier = getQualificationTier(
+		{ specialization: facultySpecialization ?? null, department: facultyDepartment ?? null },
+		subject,
+		specializationAliases,
+	);
+	const isTier1 = tier === 1;
+	const isTier2 = tier === 2;
+	const isTier3 = tier === 3;
+	const isSpecMismatch = allowedSpecs.length > 0 && tier === null;
+
+	// HG system-assignment detection
+	const isHgSubject = subject.code === 'HG' || subject.name.toLowerCase().includes('homeroom');
+	const isSystemAssignedSubject = isHgSubject && advisedSectionId != null;
 
 	return (
 		<div
@@ -320,6 +330,8 @@ export function SubjectRow({
 											const isPendingOther = Boolean(pendingOwner && pendingOwner.facultyId !== selectedFacultyId);
 											const isSavedOther = Boolean(savedOwner && savedOwner.facultyId !== selectedFacultyId);
 											const blocked = !isSelected && (isPendingOther || isSavedOther || isHardConflict);
+											const isSystemAssignedSection =
+												isSystemAssignedSubject && section.id === advisedSectionId;
 											const badgeLabel = isHardConflict
 												? 'DB Conflict'
 												: isPendingOther
@@ -335,7 +347,9 @@ export function SubjectRow({
 												<div
 													key={section.id}
 													className={`flex flex-col gap-1.5 rounded-md border p-2 transition-colors ${
-														isHardConflict
+														isSystemAssignedSection
+															? 'cursor-not-allowed border-amber-300 bg-amber-50/60'
+															: isHardConflict
 															? 'cursor-not-allowed border-rose-400 bg-rose-50/60 ring-1 ring-rose-300'
 															: blocked
 															? 'cursor-not-allowed border-red-300 bg-red-50/50 opacity-70'
@@ -345,16 +359,34 @@ export function SubjectRow({
 													}`}
 												>
 													<div className="flex items-start gap-1.5">
+														{isSystemAssignedSection ? (
+															<Tooltip>
+																<TooltipTrigger asChild>
+																	<span className="mt-0.5 shrink-0">
+																		<Lock className="size-3.5 text-amber-600" aria-label="System Assigned" />
+																	</span>
+																</TooltipTrigger>
+																<TooltipContent side="top" className="max-w-xs text-xs">
+																	Automatically assigned based on Class Advisership.
+																</TooltipContent>
+															</Tooltip>
+														) : (
 														<Checkbox
 															checked={isSelected}
 															onCheckedChange={() => toggleSection(section.id)}
 															disabled={disabled || blocked}
 															className="mt-0.5 shrink-0"
 														/>
+														)}
 														<div className="min-w-0 flex-1">
 															<div className="flex items-center gap-1">
 																<p className="truncate text-xs font-semibold leading-tight">{section.name}</p>
-																{advisedSectionId && section.id === advisedSectionId && (
+																{isSystemAssignedSection && (
+																	<Badge className="shrink-0 border-amber-400 bg-amber-100 px-1 py-0 text-[0.5rem] text-amber-800">
+																		System Assigned
+																	</Badge>
+																)}
+																{!isSystemAssignedSection && advisedSectionId && section.id === advisedSectionId && (
 																	<Badge className="shrink-0 gap-0.5 border-amber-300 bg-amber-50 px-1 py-0 text-[0.5rem] text-amber-700 flex items-center">
 																		<Star className="size-2.5 fill-amber-500 text-amber-500" />
 																		Advisory

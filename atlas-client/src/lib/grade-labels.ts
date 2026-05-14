@@ -108,28 +108,40 @@ export function matchesFacultyDepartment(
 
 export type QualificationTier = 1 | 2 | 3 | null;
 
-/** 
- * Tiered Qualification Matcher (Audit Wave 4)
- * Tier 1: Explicitly Mapped Specialization (Administrator-defined in Specialization Mapping)
- * Tier 2: Direct Specialization/Department Match (Fallback to subject.allowedSpecializations)
- * Tier 3: Fuzzy Keyword match (Legacy fallback)
+export interface SpecializationAliasLike {
+	alias: string;
+	canonical: string;
+}
+
+/**
+ * Tiered Qualification Matcher (Audit Wave 4 — Alias-Aware)
+ *
+ * Tier 1 (Explicit): An administrator-defined SpecializationAlias record maps
+ *   the faculty's specialization to this subject's code.
+ * Tier 2 (Structural): The faculty's specialization/department is in the
+ *   subject's allowedSpecializations array (legacy fallback).
+ * Tier 3 (Fuzzy): Keyword heuristic match.
+ *
+ * @param aliases  - Pass the SpecializationAlias catalog fetched from the API.
+ *                   When empty or undefined, Tier 1 is skipped and the function
+ *                   gracefully falls through to Tier 2/3.
  */
 export function getQualificationTier(
 	faculty: { specialization: string | null; department: string | null },
 	subject: { code: string; name: string; allowedSpecializations?: string[] },
-	specializationAliases: Array<{ alias: string; canonical: string }> = [],
+	aliases: SpecializationAliasLike[] = [],
 ): QualificationTier {
-	// Tier 1: Explicitly Mapped Specialization (from specialization_aliases)
-	if (faculty.specialization) {
-		const isMapped = specializationAliases.some(
-			(entry) => entry.alias === faculty.specialization && entry.canonical === subject.code
+	const allowed = subject.allowedSpecializations ?? [];
+
+	// Tier 1: Alias catalog match — administrator-curated source of truth
+	if (faculty.specialization && aliases.length > 0) {
+		const matches = aliases.some(
+			(a) => a.alias === faculty.specialization && a.canonical === subject.code,
 		);
-		if (isMapped) return 1;
+		if (matches) return 1;
 	}
 
-	const allowed = subject.allowedSpecializations ?? [];
-	
-	// Tier 2: Direct Specialization/Department Match (via subject.allowedSpecializations array)
+	// Tier 2: allowedSpecializations direct match (legacy / structural)
 	if (faculty.specialization && allowed.includes(faculty.specialization)) {
 		return 2;
 	}
@@ -137,7 +149,7 @@ export function getQualificationTier(
 		return 2;
 	}
 
-	// Tier 3: Legacy Keyword Matching (Fuzzy fallback)
+	// Tier 3: Fuzzy Keyword Match
 	if (matchesFacultyDepartment(faculty.department, subject.code, subject.name)) {
 		return 3;
 	}

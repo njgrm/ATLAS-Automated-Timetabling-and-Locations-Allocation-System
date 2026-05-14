@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { sectionAdapter } from './section-adapter.js';
+import { HG_SUBJECT_CODE } from './hg-advisory.service.js';
 import { buildSectionRosterIndex, normalizeIncomingAssignmentScope, normalizeStoredAssignmentScope, } from './faculty-assignment-scope.service.js';
 export function computeTeachingLoadMinutes(assignments, formula) {
     return assignments.reduce((sum, assignment) => {
@@ -107,6 +108,8 @@ export async function setAssignments(facultyId, schoolId, schoolYearId, assigned
             schoolId: true,
             isActiveForScheduling: true,
             version: true,
+            isClassAdviser: true,
+            advisedSectionId: true,
         },
     });
     if (!faculty) {
@@ -146,6 +149,37 @@ export async function setAssignments(facultyId, schoolId, schoolYearId, assigned
             normalizedAssignments.push(normalized.value);
         }
     }
+    // ── HG Advisory Guard ──────────────────────────────────────────────────────
+    // If this faculty is a class adviser, their HG section is immutable.
+    // Reject any payload that would remove the advised section from HG.
+    // Gather adviser info before entering the transaction.
+    let advisedHgInfo = null;
+    if (faculty.isClassAdviser && faculty.advisedSectionId) {
+        const hgSubject = await prisma.subject.findFirst({
+            where: { schoolId, code: HG_SUBJECT_CODE },
+            select: { id: true },
+        });
+        if (hgSubject) {
+            const hgInPayload = normalizedAssignments.find((a) => a.subjectId === hgSubject.id);
+            if (hgInPayload && !hgInPayload.sectionIds.includes(faculty.advisedSectionId)) {
+                return buildServiceError('HG_ADVISORY_IMMUTABLE', 'Cannot remove Homeroom Guidance assignment for an active class adviser.');
+            }
+            const existingHgFs = await prisma.facultySubject.findUnique({
+                where: { facultyId_subjectId: { facultyId, subjectId: hgSubject.id } },
+                select: { id: true },
+            });
+            advisedHgInfo = {
+                hgSubjectId: hgSubject.id,
+                advisedSectionId: faculty.advisedSectionId,
+                hgFacultySubjectId: existingHgFs?.id ?? null,
+            };
+        }
+    }
+    // Filter out the adviser's HG subject from normalizedAssignments — the preserved
+    // FacultySubject record is kept intact; we do not re-create it.
+    const assignmentsToCreate = advisedHgInfo
+        ? normalizedAssignments.filter((a) => a.subjectId !== advisedHgInfo.hgSubjectId)
+        : normalizedAssignments;
     try {
         await prisma.$transaction(async (tx) => {
             const concurrentFaculty = await tx.facultyMirror.findUnique({
@@ -166,9 +200,9 @@ export async function setAssignments(facultyId, schoolId, schoolYearId, assigned
             }
             // Conflict check against normalized ownership table — authoritative DB-level source.
             // Avoids scanning FacultySubject.sectionIds arrays across all faculty.
-            if (normalizedAssignments.length > 0) {
-                const incomingSubjectIds = normalizedAssignments.map((a) => a.subjectId);
-                const incomingSectionIds = [...new Set(normalizedAssignments.flatMap((a) => a.sectionIds))];
+            if (assignmentsToCreate.length > 0) {
+                const incomingSubjectIds = assignmentsToCreate.map((a) => a.subjectId);
+                const incomingSectionIds = [...new Set(assignmentsToCreate.flatMap((a) => a.sectionIds))];
                 if (incomingSectionIds.length > 0) {
                     const blockingOwners = await tx.subjectSectionOwnership.findMany({
                         where: {
@@ -180,7 +214,7 @@ export async function setAssignments(facultyId, schoolId, schoolYearId, assigned
                         select: { subjectId: true, sectionId: true, facultyId: true },
                     });
                     // Query is a cross-product (subjectId × sectionId); filter to exact claimed pairs
-                    const incomingPairs = new Set(normalizedAssignments.flatMap((a) => a.sectionIds.map((sid) => `${a.subjectId}:${sid}`)));
+                    const incomingPairs = new Set(assignmentsToCreate.flatMap((a) => a.sectionIds.map((sid) => `${a.subjectId}:${sid}`)));
                     const realConflicts = blockingOwners.filter((o) => incomingPairs.has(`${o.subjectId}:${o.sectionId}`));
                     if (realConflicts.length > 0) {
                         const conflictFacultyIds = [...new Set(realConflicts.map((c) => c.facultyId))];
@@ -203,12 +237,18 @@ export async function setAssignments(facultyId, schoolId, schoolYearId, assigned
             if (versionUpdate.count !== 1) {
                 throw buildServiceError('VERSION_CONFLICT', 'Version conflict. Please reload.');
             }
-            // deleteMany cascade-deletes SubjectSectionOwnership rows via the FK on faculty_subjects
-            await tx.facultySubject.deleteMany({ where: { facultyId } });
-            if (normalizedAssignments.length > 0) {
+            // deleteMany cascade-deletes SubjectSectionOwnership rows via the FK on faculty_subjects.
+            // Preserve the HG FacultySubject for active class advisers (immutable by design).
+            const preservedIds = advisedHgInfo?.hgFacultySubjectId
+                ? [advisedHgInfo.hgFacultySubjectId]
+                : [];
+            await tx.facultySubject.deleteMany({
+                where: { facultyId, id: { notIn: preservedIds } },
+            });
+            if (assignmentsToCreate.length > 0) {
                 // createManyAndReturn gives us IDs needed to populate the normalized ownership index
                 const createdSubjects = await tx.facultySubject.createManyAndReturn({
-                    data: normalizedAssignments.map((assignment) => ({
+                    data: assignmentsToCreate.map((assignment) => ({
                         facultyId,
                         subjectId: assignment.subjectId,
                         schoolId,

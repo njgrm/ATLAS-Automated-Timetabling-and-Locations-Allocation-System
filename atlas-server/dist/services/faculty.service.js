@@ -12,6 +12,7 @@ import { prisma } from '../lib/prisma.js';
 import { createFacultyAdapter } from './faculty-adapter.js';
 import { invalidateStaleCompletedRuns } from './generation.service.js';
 import { seedQualifiedAssignments } from './assignment-seed.service.js';
+import { syncAdvisoryHgAssignments } from './hg-advisory.service.js';
 import { sectionAdapter } from './section-adapter.js';
 const adapter = createFacultyAdapter();
 function computeChecksum(payload) {
@@ -316,6 +317,8 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken,
     ]);
     // Auto-seed qualified assignments for faculty whose dept matches a subject's allowedSpecializations
     const seededAssignments = await seedQualifiedAssignments(schoolId, schoolYearId);
+    // Persist HG ownership records for all active class advisers
+    await syncAdvisoryHgAssignments(schoolId);
     return {
         synced: true,
         source: sourceLabel,

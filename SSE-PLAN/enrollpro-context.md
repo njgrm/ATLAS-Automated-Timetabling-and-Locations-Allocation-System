@@ -1,0 +1,4 @@
+# EnrollPro Vibecoding Context
+**Role:** Source of Truth for Users, Accounts, and Sections.
+
+"I am working on the **EnrollPro** subsystem, which serves as the Identity and Authentication hub for our integrated ERP. We have a distributed microservices environment communicating over a Tailscale Tailnet. I need to implement a 'Real-time Event Broadcaster' using **Redis Pub/Sub** and **SSE**. EnrollPro should act as the primary publisher; whenever a user logs in, a student's section is updated, or an advisory assignment is changed in our database, we need to broadcast an asynchronous event to a shared Redis bus (reachable via Tailscale IP) so that downstream subsystems (ATLAS and SMART) can synchronize their views. Please analyze my current route structures and database hooks to find the best place to emit these events without disrupting the existing enrollment logic."

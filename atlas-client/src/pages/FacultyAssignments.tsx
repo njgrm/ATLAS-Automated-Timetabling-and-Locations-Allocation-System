@@ -12,6 +12,7 @@ Search,
 ShieldAlert,
 UserCog,
 Star,
+Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -33,10 +34,12 @@ import { gradeLabel, matchesFacultyDepartment, getQualificationTier, GRADE_COLOR
 import { fetchPublicSettings } from '@/lib/settings';
 import type { ExternalSection, HomeroomHintResponse, SectionSummaryResponse, Subject } from '@/types';
 import { SubjectRow, getOwnershipKey } from '@/components/faculty-assignments/SubjectRow';
+import { useSpecializationAliases } from '@/hooks/useSpecializationAliases';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import { Checkbox } from '@/ui/checkbox';
+import { ConfirmationModal } from '@/ui/confirmation-modal';
 import { Input } from '@/ui/input';
 import { Skeleton } from '@/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
@@ -161,6 +164,10 @@ const [allowOutsideDepartment, setAllowOutsideDepartment] = useState(false);
 const [error, setError] = useState<string | null>(null);
 const [homeroomHint, setHomeroomHint] = useState<HomeroomHintResponse | null>(null);
 const [draftAssignmentsByFaculty, setDraftAssignmentsByFaculty] = useState<Record<number, FacultyAssignmentDraft[]>>({});
+const [autoFillLoading, setAutoFillLoading] = useState(false);
+const [autoFillDialogOpen, setAutoFillDialogOpen] = useState(false);
+
+const { aliases: specializationAliases } = useSpecializationAliases(DEFAULT_SCHOOL_ID);
 
 const fetchData = useCallback(async () => {
 setLoading(true);
@@ -417,6 +424,33 @@ toast.error(responseMessage);
 setSaving(false);
 }
 }, [activeSchoolYearId, currentAssignments, fetchData, selected]);
+
+const handleAutoFill = useCallback(async () => {
+	if (!activeSchoolYearId) return;
+	setAutoFillLoading(true);
+	try {
+		const result = await atlasApi.post<{ preserved: number; created: number; unresolved: number; warnings: string[] }>(
+			'/faculty-assignments/auto-fill',
+			{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId },
+		);
+		await fetchData();
+		const { created, unresolved, warnings } = result.data;
+		if (created > 0) {
+			toast.success(`Auto-Fill complete: ${created} assignment${created !== 1 ? 's' : ''} created.${unresolved > 0 ? ` ${unresolved} pair${unresolved !== 1 ? 's' : ''} could not be assigned.` : ''}`);
+		} else if (unresolved > 0) {
+			toast.warning(`Auto-Fill: no new assignments made. ${unresolved} pair${unresolved !== 1 ? 's' : ''} remain unresolved.`);
+		} else {
+			toast.info('Auto-Fill: all subject–section pairs are already assigned.');
+		}
+		for (const warning of warnings) {
+			toast.warning(warning, { duration: 8000 });
+		}
+	} catch {
+		toast.error('Auto-Fill failed. Please try again.');
+	} finally {
+		setAutoFillLoading(false);
+	}
+}, [activeSchoolYearId, fetchData]);
 
 const filteredFaculty = useMemo(() => {
 let nextFaculty = faculty;
@@ -763,11 +797,25 @@ loadProfile.breakdown.map((item) => (
 Discard Draft
 </Button>
 )}
+<Button type="button" variant="outline" size="sm" onClick={() => setAutoFillDialogOpen(true)} disabled={autoFillLoading || saving}>
+	<Zap className="mr-1.5 size-3.5" />
+	{autoFillLoading ? 'Running...' : 'Auto-Fill Remaining'}
+</Button>
 <Button type="button" size="sm" onClick={handleSave} disabled={!dirty || saving || !selected.isActiveForScheduling || !sectionsAvailable}>
 <Save className="mr-1.5 size-3.5" />
 {saving ? 'Saving...' : 'Save Teaching Load'}
 </Button>
 </div>
+<ConfirmationModal
+	open={autoFillDialogOpen}
+	onOpenChange={setAutoFillDialogOpen}
+	title="Auto-Fill Remaining Assignments?"
+	description="This will automatically assign teachers to all unassigned subjects based on specialization and current workload. Your existing manual assignments will not be overwritten."
+	onConfirm={handleAutoFill}
+	confirmText="Run Auto-Fill"
+	variant="primary"
+	loading={autoFillLoading}
+/>
 </div>
 
 <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-5 py-2">
@@ -870,8 +918,7 @@ This faculty member is excluded from scheduling. Enable them first.
 							searchTerm={subjectSearch}
 							gradeLevelFilter={gradeLevelFilter}
 							sectionFilter={sectionFilter}
-							advisedSectionId={homeroomHint?.advisedSectionId ?? null}
-						/>
+							advisedSectionId={homeroomHint?.advisedSectionId ?? null}						specializationAliases={specializationAliases}						/>
 					))}
 				</div>
 			</div>
@@ -909,6 +956,7 @@ This faculty member is excluded from scheduling. Enable them first.
 								gradeLevelFilter={gradeLevelFilter}
 								sectionFilter={sectionFilter}
 								isOutsideDepartment
+								specializationAliases={specializationAliases}
 							/>
 						))}
 					</div>

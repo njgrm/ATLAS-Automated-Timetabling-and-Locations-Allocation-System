@@ -14,6 +14,7 @@ import { prisma } from '../lib/prisma.js';
 import { createFacultyAdapter, type ExternalFaculty, type FacultyFetchResult } from './faculty-adapter.js';
 import { invalidateStaleCompletedRuns } from './generation.service.js';
 import { seedQualifiedAssignments } from './assignment-seed.service.js';
+import { syncAdvisoryHgAssignments } from './hg-advisory.service.js';
 import { sectionAdapter } from './section-adapter.js';
 
 const adapter = createFacultyAdapter();
@@ -459,6 +460,9 @@ prisma.facultyMirror.count({ where: { schoolId, isStale: true } }),
 
 // Auto-seed qualified assignments for faculty whose dept matches a subject's allowedSpecializations
 const seededAssignments = await seedQualifiedAssignments(schoolId, schoolYearId);
+
+// Persist HG ownership records for all active class advisers
+await syncAdvisoryHgAssignments(schoolId);
 
 return {
 synced: true,
