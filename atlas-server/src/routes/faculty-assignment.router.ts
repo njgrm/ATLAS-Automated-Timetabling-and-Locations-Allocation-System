@@ -112,11 +112,12 @@ router.put('/:facultyId', authenticate, requirePrivilegedRole, async (req: Reque
 
 // POST /faculty-assignments/auto-fill
 // Triggers the state-preserving auto-fill algorithm for unassigned subject×section pairs.
-// Body: { schoolId: number, schoolYearId: number }
+// Body: { schoolId: number, schoolYearId: number, previewOnly?: boolean }
 router.post('/auto-fill', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const schoolId = Number(req.body.schoolId);
 		const schoolYearId = Number(req.body.schoolYearId);
+		const previewOnly = req.body.previewOnly === true || req.body.previewOnly === 'true';
 
 		if (!schoolId || Number.isNaN(schoolId)) {
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
@@ -127,7 +128,8 @@ router.post('/auto-fill', authenticate, requirePrivilegedRole, async (req: Reque
 			return;
 		}
 
-		const result = await autoFill(schoolId, schoolYearId);
+		const authToken = req.headers.authorization?.slice(7);
+		const result = await autoFill(schoolId, schoolYearId, authToken, { previewOnly });
 		res.json(result);
 	} catch (err) {
 		next(err);

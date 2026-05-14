@@ -25,5 +25,21 @@ export interface AutoFillResult {
     uniqueTeachersAffected: number;
     unresolved: number;
     warnings: string[];
+    staffingReport: StaffingReport;
 }
-export declare function autoFill(schoolId: number, schoolYearId: number): Promise<AutoFillResult>;
+export interface StaffingCrossTrainee {
+    department: string;
+    availableTeachers: number;
+    totalSpareHours: number;
+}
+export interface StaffingReport {
+    department: string;
+    unassignedSections: number;
+    missingHoursPerWeek: number;
+    recommendedNewHires: number;
+    internalCrossTrainees: StaffingCrossTrainee[];
+    missingMinutesPerWeek: number;
+}
+export declare function autoFill(schoolId: number, schoolYearId: number, authToken?: string, options?: {
+    previewOnly?: boolean;
+}): Promise<AutoFillResult>;

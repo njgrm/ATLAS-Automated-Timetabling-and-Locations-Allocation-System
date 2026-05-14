@@ -19,7 +19,7 @@
  * - Business logic is entirely in this service; controllers are transport-only.
  */
 import { prisma } from '../lib/prisma.js';
-import { QualificationService } from './qualification.service.js';
+import { sectionAdapter } from './section-adapter.js';
 // DO 005 s.2024 weekly minute caps
 const STANDARD_CAP_MIN = 1_800;
 const HARD_CAP_MIN = 2_400;
@@ -30,8 +30,137 @@ const HARD_CAP_MIN = 2_400;
 function maxMinutes(faculty) {
     return Math.min(faculty.maxHoursPerWeek * 60, HARD_CAP_MIN);
 }
-export async function autoFill(schoolId, schoolYearId) {
+function normalizeKey(value) {
+    return (value ?? '').trim().toLowerCase();
+}
+function formatDepartmentLabel(value) {
+    const normalized = normalizeKey(value);
+    const labels = {
+        sci: 'SCIENCE',
+        science: 'SCIENCE',
+        tle: 'TLE',
+        eng: 'ENGLISH',
+        languages: 'LANGUAGES',
+        ap: 'SOCIAL STUDIES',
+        'esp': 'VALUES',
+        values: 'VALUES',
+        math: 'MATHEMATICS',
+        mathematics: 'MATHEMATICS',
+        fil: 'FILIPINO',
+        mapeh: 'MAPEH',
+        guidance: 'GUIDANCE',
+    };
+    return labels[normalized] ?? (value?.trim().toUpperCase() || 'GENERAL');
+}
+function buildStaffingReport(unresolvedByDepartment, faculty, capacityUsed) {
+    const shortageBuckets = Array.from(unresolvedByDepartment.entries())
+        .map(([department, unassignedSections]) => ({ department, unassignedSections }))
+        .sort((left, right) => {
+        if (right.unassignedSections !== left.unassignedSections) {
+            return right.unassignedSections - left.unassignedSections;
+        }
+        return left.department.localeCompare(right.department);
+    });
+    const primaryShortage = shortageBuckets[0] ?? {
+        department: 'GENERAL',
+        unassignedSections: 0,
+    };
+    const missingMinutesPerWeek = primaryShortage.unassignedSections * 30;
+    const missingHoursPerWeek = Math.round((missingMinutesPerWeek / 60) * 10) / 10;
+    const recommendedNewHires = Math.round((missingHoursPerWeek / 30) * 10) / 10;
+    const crossTraineesByDepartment = new Map();
+    for (const member of faculty) {
+        const spareMinutes = Math.max(0, maxMinutes(member) - (capacityUsed.get(member.id) ?? 0));
+        if (spareMinutes <= 0) {
+            continue;
+        }
+        const department = formatDepartmentLabel(member.department);
+        if (department === primaryShortage.department) {
+            continue;
+        }
+        const bucket = crossTraineesByDepartment.get(department) ?? {
+            availableTeachers: 0,
+            totalSpareMinutes: 0,
+        };
+        bucket.availableTeachers += 1;
+        bucket.totalSpareMinutes += spareMinutes;
+        crossTraineesByDepartment.set(department, bucket);
+    }
+    const internalCrossTrainees = Array.from(crossTraineesByDepartment.entries())
+        .map(([department, value]) => ({
+        department,
+        availableTeachers: value.availableTeachers,
+        totalSpareHours: Math.round((value.totalSpareMinutes / 60) * 10) / 10,
+    }))
+        .sort((left, right) => {
+        if (right.totalSpareHours !== left.totalSpareHours) {
+            return right.totalSpareHours - left.totalSpareHours;
+        }
+        if (right.availableTeachers !== left.availableTeachers) {
+            return right.availableTeachers - left.availableTeachers;
+        }
+        return left.department.localeCompare(right.department);
+    });
+    return {
+        department: primaryShortage.department,
+        unassignedSections: primaryShortage.unassignedSections,
+        missingHoursPerWeek,
+        recommendedNewHires,
+        internalCrossTrainees,
+        missingMinutesPerWeek,
+    };
+}
+function matchesLegacyKeywords(department, subjectCode, subjectName) {
+    if (!department)
+        return false;
+    const code = subjectCode.toLowerCase();
+    const name = subjectName.toLowerCase();
+    if (code.includes('homeroom') || name.includes('homeroom guidance') || name.includes('homeroom')) {
+        return true;
+    }
+    const JHS_DEPT_KEYWORDS = {
+        'MATHEMATICS': ['math', 'math.', 'mth', 'algebra', 'geometry', 'statistics'],
+        'SCIENCE': ['sci', 'sci.', 'biology', 'physics', 'chemistry'],
+        'ENGLISH': ['eng', 'eng.', 'english', 'reading', 'writing'],
+        'FILIPINO': ['fil', 'fil.', 'filipino', 'wika', 'panitikan'],
+        'ARALING PANLIPUNAN': ['ap', 'a.p.', 'socsci', 'history', 'geography'],
+        'MAPEH': ['mapeh', 'm.a.p.e.h.', 'pe', 'p.e.', 'music', 'arts', 'health'],
+        'TLE': ['tle', 't.l.e.', 'ict', 'agriculture', 'livelihood'],
+        'ESP': ['esp', 'e.s.p.', 'values', 'edukasyon sa pagpapakatao'],
+    };
+    const normalizedDept = department.toUpperCase();
+    const keywords = JHS_DEPT_KEYWORDS[normalizedDept] ?? [];
+    return keywords.some((keyword) => code.includes(keyword) || name.includes(keyword));
+}
+function resolveQualificationTier(faculty, subject, aliasMap) {
+    const normalizedSubjectCode = normalizeKey(subject.code);
+    const normalizedSpec = normalizeKey(faculty.specialization);
+    const normalizedDept = normalizeKey(faculty.department);
+    if (normalizedSpec) {
+        const mappedSubjects = aliasMap.get(normalizedSpec);
+        if (mappedSubjects?.has(normalizedSubjectCode)) {
+            return 1;
+        }
+    }
+    const normalizedAllowed = new Set((subject.allowedSpecializations ?? []).map((entry) => normalizeKey(entry)));
+    if (normalizedSpec && normalizedAllowed.has(normalizedSpec)) {
+        return 2;
+    }
+    if (normalizedDept && normalizedAllowed.has(normalizedDept)) {
+        return 2;
+    }
+    if (faculty.canTeachOutsideDepartment) {
+        if (matchesLegacyKeywords(faculty.department, subject.code, subject.name)) {
+            return 3;
+        }
+        // Explicit outside-specialization override: any remaining subject is eligible.
+        return 3;
+    }
+    return null;
+}
+export async function autoFill(schoolId, schoolYearId, authToken, options) {
     const warnings = [];
+    const previewOnly = options?.previewOnly ?? false;
     // ─── Step 1: Build resolved-pair set + capacity used per faculty ───────────
     const existingOwnerships = await prisma.subjectSectionOwnership.findMany({
         where: { schoolId },
@@ -94,25 +223,37 @@ export async function autoFill(schoolId, schoolYearId) {
             modularOrder: true,
         },
     });
-    // Fetch all active sections for this school (via section ownership patterns
-    // or from existing FacultySubject scope). We derive the section universe
-    // from what subjects currently know about (sectionIds in FacultySubject).
-    const sectionRows = await prisma.facultySubject.findMany({
-        where: { schoolId },
-        select: { sectionIds: true, gradeLevels: true },
-    });
-    // Build section→gradeLevel lookup from all existing FacultySubject records
+    const sectionResult = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
     const sectionGradeLevel = new Map();
-    for (const row of sectionRows) {
-        for (let i = 0; i < row.sectionIds.length; i++) {
-            if (row.gradeLevels[i] != null) {
-                sectionGradeLevel.set(row.sectionIds[i], row.gradeLevels[i]);
+    for (const grade of sectionResult.gradeLevels) {
+        for (const section of grade.sections) {
+            if (section.id > 0) {
+                sectionGradeLevel.set(section.id, section.displayOrder);
             }
         }
     }
-    // Also collect all known section IDs
     const allSectionIds = Array.from(sectionGradeLevel.keys());
+    if (allSectionIds.length === 0) {
+        warnings.push('No active sections were resolved for the selected school year. Auto-fill cannot continue.');
+        return {
+            preserved,
+            created: 0,
+            assignmentsCreated: 0,
+            uniqueTeachersAffected: 0,
+            unresolved: 0,
+            warnings,
+            staffingReport: {
+                department: 'GENERAL',
+                unassignedSections: 0,
+                missingHoursPerWeek: 0,
+                recommendedNewHires: 0,
+                internalCrossTrainees: [],
+                missingMinutesPerWeek: 0,
+            },
+        };
+    }
     const workQueue = [];
+    const unresolvedByDepartment = new Map();
     for (const subject of subjects) {
         const relevantSections = subject.gradeLevels.length > 0
             ? allSectionIds.filter((sid) => {
@@ -136,9 +277,24 @@ export async function autoFill(schoolId, schoolYearId) {
             lastName: true,
             specialization: true,
             department: true,
+            canTeachOutsideDepartment: true,
             maxHoursPerWeek: true,
         },
     });
+    const aliasEntries = await prisma.specializationAlias.findMany({
+        where: { schoolId },
+        select: { alias: true, canonical: true },
+    });
+    const aliasMap = new Map();
+    for (const entry of aliasEntries) {
+        const aliasKey = normalizeKey(entry.alias);
+        const canonicalKey = normalizeKey(entry.canonical);
+        if (!aliasKey || !canonicalKey)
+            continue;
+        const subjectSet = aliasMap.get(aliasKey) ?? new Set();
+        subjectSet.add(canonicalKey);
+        aliasMap.set(aliasKey, subjectSet);
+    }
     // ─── Step 5 & 6: Assign pairs, respecting caps and modular bundles ─────────
     // Group work queue by subjectId for modular bundle processing
     const bySubjectId = new Map();
@@ -178,7 +334,7 @@ export async function autoFill(schoolId, schoolYearId) {
         const subj = subjectMap.get(subjectId);
         capacityUsed.set(facultyId, (capacityUsed.get(facultyId) ?? 0) + subj.minMinutesPerWeek);
     }
-    async function findBestCandidate(subjectRow, sectionId) {
+    function findBestCandidate(subjectRow, _sectionId) {
         const candidates = [];
         for (const f of faculty) {
             // Cap check
@@ -186,9 +342,9 @@ export async function autoFill(schoolId, schoolYearId) {
             const limit = maxMinutes(f);
             if (used + subjectRow.minMinutesPerWeek > limit)
                 continue;
-            const result = await QualificationService.getQualificationTier(schoolId, f, subjectRow);
-            if (result.tier != null) {
-                candidates.push({ faculty: f, tier: result.tier });
+            const tier = resolveQualificationTier(f, subjectRow, aliasMap);
+            if (tier != null) {
+                candidates.push({ faculty: f, tier });
             }
         }
         if (candidates.length === 0)
@@ -210,6 +366,8 @@ export async function autoFill(schoolId, schoolYearId) {
                 unresolvedCount += 1;
                 if (subjectRow.modularGroupId) {
                     warnings.push(`Lacking Faculty: no qualified teacher for modular subject ${subjectRow.name} (section ${pair.sectionId}).`);
+                    const shortageKey = formatDepartmentLabel(subjectRow.modularGroupId);
+                    unresolvedByDepartment.set(shortageKey, (unresolvedByDepartment.get(shortageKey) ?? 0) + 1);
                 }
             }
             else {
@@ -220,7 +378,7 @@ export async function autoFill(schoolId, schoolYearId) {
     // ─── Step 7: Persist new assignments ──────────────────────────────────────
     let created = 0;
     const affectedTeacherIds = new Set();
-    if (pendingAssignments.size > 0) {
+    if (!previewOnly && pendingAssignments.size > 0) {
         await prisma.$transaction(async (tx) => {
             for (const [facultyId, subjectMap_] of pendingAssignments) {
                 for (const [subjectId, sectionIds] of subjectMap_) {
@@ -282,6 +440,7 @@ export async function autoFill(schoolId, schoolYearId) {
             }
         });
     }
+    const staffingReport = buildStaffingReport(unresolvedByDepartment, faculty, capacityUsed);
     return {
         preserved,
         created,
@@ -289,6 +448,7 @@ export async function autoFill(schoolId, schoolYearId) {
         uniqueTeachersAffected: affectedTeacherIds.size,
         unresolved: unresolvedCount,
         warnings,
+        staffingReport,
     };
 }
 //# sourceMappingURL=teaching-load-automation.service.js.map

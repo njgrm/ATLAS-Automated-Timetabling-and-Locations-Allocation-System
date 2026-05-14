@@ -19,34 +19,47 @@ export class QualificationService {
 	 */
 	static async getQualificationTier(
 		schoolId: number,
-		faculty: { specialization: string | null; department: string | null },
+		faculty: { specialization: string | null; department: string | null; canTeachOutsideDepartment?: boolean },
 		subject: { code: string; name: string; allowedSpecializations?: string[] }
 	): Promise<QualificationResult> {
-		const allowed = subject.allowedSpecializations ?? [];
+		const allowed = (subject.allowedSpecializations ?? []).map((entry) => entry.trim().toLowerCase());
+		const normalizedSpecialization = faculty.specialization?.trim().toLowerCase() ?? null;
+		const normalizedDepartment = faculty.department?.trim().toLowerCase() ?? null;
+		const normalizedSubjectCode = subject.code.trim().toLowerCase();
 
 		// Tier 1: Alias catalog match — administrator-curated source of truth
 		if (faculty.specialization) {
-			const aliasMatch = await prisma.specializationAlias.findFirst({
+			const aliasCandidates = await prisma.specializationAlias.findMany({
 				where: {
 					schoolId,
-					alias: faculty.specialization,
 					canonical: subject.code,
 				},
+				select: { alias: true },
 			});
+			const aliasMatch = aliasCandidates.some(
+				(entry) => entry.alias.trim().toLowerCase() === normalizedSpecialization,
+			);
 			if (aliasMatch) {
 				return { tier: 1, reason: `Matched via SpecializationAlias: ${faculty.specialization} → ${subject.code}` };
 			}
 		}
 
 		// Tier 2: allowedSpecializations direct match (structural / legacy)
-		if (faculty.specialization && allowed.includes(faculty.specialization)) {
+		if (normalizedSpecialization && allowed.includes(normalizedSpecialization)) {
 			return { tier: 2, reason: `Matched via allowedSpecializations (specialization): ${faculty.specialization}` };
 		}
-		if (faculty.department && allowed.includes(faculty.department)) {
+		if (normalizedDepartment && allowed.includes(normalizedDepartment)) {
 			return { tier: 2, reason: `Matched via allowedSpecializations (department): ${faculty.department}` };
 		}
 
 		// Tier 3: Legacy keyword heuristics
+		if (faculty.canTeachOutsideDepartment) {
+			if (this.matchesLegacyKeywords(faculty.department, subject.code, subject.name)) {
+				return { tier: 3, reason: 'Matched via Legacy Keyword Heuristics' };
+			}
+			return { tier: 3, reason: `Matched via outside-specialization override for ${normalizedSubjectCode}` };
+		}
+
 		if (this.matchesLegacyKeywords(faculty.department, subject.code, subject.name)) {
 			return { tier: 3, reason: 'Matched via Legacy Keyword Heuristics' };
 		}

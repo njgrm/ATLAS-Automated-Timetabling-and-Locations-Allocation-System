@@ -2,6 +2,38 @@
 
 Record dated implementation verification summaries here.
 
+### 2026-05-14 - Teaching Load Follow-up: Auto-Fill Blocker Isolation + AC-06 Re-Run
+- Phase: 4 (objective-critical parity/correctness blocker)
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PARTIAL PASS
+- Regression gate: PASS (client/server builds)
+- Operator: GitHub Copilot
+- Files updated:
+  - `atlas-server/src/services/teaching-load-automation.service.ts`
+  - `atlas-server/src/routes/faculty-assignment.router.ts`
+  - `atlas-server/src/services/qualification.service.ts`
+  - `atlas-client/src/pages/FacultyAssignments.tsx`
+  - `atlas-client/src/components/faculty-assignments/SubjectRow.tsx`
+  - `qa-artifacts/phase5-faculty-assignment-fixes-tailnet-2026-05-14.md`
+- Commands executed:
+  - `npm --prefix atlas-server run build`: PASS
+  - `npm --prefix atlas-client run build`: PASS
+  - Live Tailnet API verification (PowerShell `Invoke-RestMethod`): PASS
+- Live verification summary:
+  - Pre-run: `774 / 1357` pairs, `142 / 142` faculty assigned
+  - Auto-fill call: elapsed `0.07s`, `created=0`, `unresolved=583`, warnings=`139`
+  - Post-run: unchanged `774 / 1357` pairs, `142 / 142` faculty assigned
+  - Duplicate ownership conflicts: `0`
+- Root-cause evidence:
+  - Unresolved subject cluster has no qualified faculty under current mappings (e.g., `ADVANCED_CHEMISTRY`, `ADVANCED_PHYSICS`, `ELECTRONICS`, `BIOTECHNOLOGY`, `CONSUMERS_CHEMISTRY`, `DEVL_READING`, `ELECTRONICS_ROBOTICS`, `ENV_SCI`, `ENVIRONMENTAL_SCIENCE`, `STE_RESEARCH` all at strict qualified count `0`).
+  - `canTeachOutsideDepartment` count in active faculty is `0` in this environment, so override path is unavailable.
+- UI parity evidence:
+  - Qualification headings switched to specialization language; outside-specialization rows now explicit and disabled unless override is enabled.
+  - Faculty list load bars now use actual teaching hours (`AQUINO, GRACE` shown at `83%` from 25h actual, while credited remains 30h).
+- Gate conclusion:
+  - AC-06 remains FAIL due to qualification-supply data gap, not runtime auto-fill stability.
+
 ### 2026-05-14 - Subjects Module Data + UI Sync (Uniform Daily Grid + Modular Controls)
 - Phase: 4 (correctness/parity blocker in Subjects config and seeding workflow)
 - Scope gate: PASS

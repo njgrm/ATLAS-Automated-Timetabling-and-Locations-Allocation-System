@@ -1,4 +1,4 @@
-import { Zap } from 'lucide-react';
+import { ChartColumn, Zap } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 
@@ -9,8 +9,10 @@ type OverviewHeaderProps = {
 	totalFacultyCount: number;
 	activeDraftCount: number;
 	autoFillLoading: boolean;
+	staffingNeedsLoading: boolean;
 	autoFillEnabled: boolean;
 	onAutoFillClick: () => void;
+	onViewStaffingNeedsClick: () => void;
 };
 
 export function OverviewHeader({
@@ -20,8 +22,10 @@ export function OverviewHeader({
 	totalFacultyCount,
 	activeDraftCount,
 	autoFillLoading,
+	staffingNeedsLoading,
 	autoFillEnabled,
 	onAutoFillClick,
+	onViewStaffingNeedsClick,
 }: OverviewHeaderProps) {
 	return (
 		<div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-2.5 shadow-sm">
@@ -39,10 +43,23 @@ export function OverviewHeader({
 					</Badge>
 				)}
 			</div>
-			<Button type="button" variant="outline" size="sm" onClick={onAutoFillClick} disabled={autoFillLoading || !autoFillEnabled}>
-				<Zap className="mr-1.5 size-3.5" />
-				{autoFillLoading ? 'Running...' : 'Auto-Fill Remaining'}
-			</Button>
+			<div className="flex items-center gap-2">
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					onClick={onViewStaffingNeedsClick}
+					disabled={staffingNeedsLoading || !autoFillEnabled}
+					className="whitespace-nowrap"
+				>
+					<ChartColumn className="mr-1.5 size-3.5" />
+					{staffingNeedsLoading ? 'Checking...' : 'View Staffing Needs'}
+				</Button>
+				<Button type="button" variant="outline" size="sm" onClick={onAutoFillClick} disabled={autoFillLoading || !autoFillEnabled} className="whitespace-nowrap">
+					<Zap className="mr-1.5 size-3.5" />
+					{autoFillLoading ? 'Running...' : 'Auto-Fill Remaining'}
+				</Button>
+			</div>
 		</div>
 	);
 }

@@ -51,9 +51,87 @@ Reason:
 - Therefore, AC-06 is still not satisfied because complete subject assignment coverage is mandatory.
 
 ## Notes / Follow-ups
-- Investigate why auto-fill converges to partial subject coverage (`774 / 1357`) despite full faculty utilization.
-- Investigate long-running/re-trigger stability in the live environment (`Running...` persistence and aborted re-trigger request observed).
-- Re-run AC-06 after backend/algorithm remediation and verify:
-  - full pair coverage,
-  - full faculty coverage,
-  - no unresolved collision conflicts in UI.
+- Follow-up investigation completed (details below).
+
+## Follow-up Remediation Pass (2026-05-14)
+
+### Implemented Remediation
+- Backend auto-fill service hardened:
+  - replaced per-candidate DB qualification lookups with in-memory alias resolution,
+  - switched section universe source to active section roster by school-year,
+  - enforced outside-specialization behavior through faculty toggle semantics.
+- Teaching Load UI hardened:
+  - qualification sections now show specialization-based labels (removed Tier/alias jargon in headings),
+  - outside-specialization rows are explicitly separated and disabled when override is off,
+  - faculty list load percentage and bar now use **actual teaching hours** (not credited hours).
+- Load threshold colors updated:
+  - `<=100%` = green,
+  - `101%-150%` = yellow,
+  - `>150%` = red.
+
+### Live Re-Run (Tailnet API Evidence)
+- Login: `POST /api/v1/auth/login` (admin) -> PASS
+- AC-06 baseline snapshot (`GET /api/v1/faculty-assignments/summary`):
+  - `774 / 1357` assigned pairs
+  - `142 / 142` faculty assigned
+- Auto-fill re-run (`POST /api/v1/faculty-assignments/auto-fill`):
+  - elapsed: `0.07s`
+  - `created = 0`
+  - `unresolved = 583`
+  - warnings emitted: `139`
+- Post-run snapshot:
+  - `774 / 1357` assigned pairs (unchanged)
+  - `142 / 142` faculty assigned (unchanged)
+- Collision verification:
+  - duplicate subject-section ownership pairs: `0`
+
+### Root-Cause Blockers Confirmed
+1. **Qualification coverage gap for unresolved subjects**
+   - The unresolved cluster is dominated by subjects with zero qualified faculty under current specialization mappings.
+   - Confirmed examples with `strictQualifiedFaculty = 0`:
+     - `ADVANCED_CHEMISTRY`
+     - `ADVANCED_PHYSICS`
+     - `ELECTRONICS`
+     - `BIOTECHNOLOGY`
+     - `CONSUMERS_CHEMISTRY`
+     - `DEVL_READING`
+     - `ELECTRONICS_ROBOTICS`
+     - `ENV_SCI`
+     - `ENVIRONMENTAL_SCIENCE`
+     - `STE_RESEARCH`
+   - `SCI_ES` currently has partial alias coverage (`strictQualifiedFaculty = 5`) but remains fully unassigned (`0 / 66`).
+
+2. **Outside-specialization override disabled globally in current data**
+   - `outsideEnabledFaculty = 0` across active faculty in this environment.
+   - With no override-enabled teachers, auto-fill cannot bridge unmapped subjects.
+
+3. **Specialization mapping data, not solver runtime, is the current gate**
+   - Auto-fill now completes quickly and deterministically in this environment.
+   - The prior long-running symptom was remediated in code, but AC-06 still fails due to unresolved qualification supply.
+
+### Grace Aquino Validation (Discrepancy Follow-up)
+- Faculty: `AQUINO, GRACE`
+- Specialization: `MAJOR IN VALUES EDUCATION`
+- Alias mappings for this specialization (live): `ESP` only
+- Load math in UI after patch:
+  - actual: `25h`
+  - credited: `30h` (includes advisory equivalent)
+  - list bar/percent now reflects actual (`83%`) instead of credited (`100%`)
+
+## AC-06 Gate Outcome (After Remediation)
+Status: FAIL (still not satisfied)
+
+Reason:
+- Full faculty coverage is met (`142 / 142`).
+- Full pair coverage remains unmet (`774 / 1357`) because multiple subjects still have no qualified faculty under current specialization mapping and override configuration.
+- No unresolved DB ownership collisions are present.
+
+## Required Next Data/Workflow Checks
+- Subject workflow:
+  - populate specialization mappings for unresolved subject codes listed above,
+  - verify each unresolved subject has at least one qualified faculty path.
+- Faculty workflow:
+  - decide and configure which teachers can be marked `canTeachOutsideDepartment=true` for controlled override coverage.
+- Specialization mapping workflow:
+  - reconcile canonical subject codes against actual subject catalog entries,
+  - ensure mapping entries exist for the advanced/modular science and technology subjects that remain at `0` coverage.

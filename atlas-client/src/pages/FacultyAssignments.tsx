@@ -45,6 +45,10 @@ import { SearchableSelect } from '@/ui/searchable-select';
 import { Skeleton } from '@/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
+import {
+	AutoFillSummaryModal,
+	type AutoFillSummaryResult,
+} from '@/components/faculty-assignments/AutoFillSummaryModal';
 const DEFAULT_SCHOOL_ID = 1;
 const STATUS_COLORS: Record<LoadStatus, { text: string; bg: string; border: string }> = {
 'below-standard': { text: 'text-sky-700', bg: 'bg-sky-50', border: 'border-sky-200' },
@@ -118,13 +122,16 @@ const [departmentFilter, setDepartmentFilter] = useState<string>('all');
 const [specializationFilter, setSpecializationFilter] = useState<string>('all');
 const [subjectSearch, setSubjectSearch] = useState('');
 	const [sectionFilter, setSectionFilter] = useState<'all' | 'unassigned' | 'assigned'>('all');
+	const [staffingNeedsLoading, setStaffingNeedsLoading] = useState(false);
+	const [summaryModalOpen, setSummaryModalOpen] = useState(false);
+	const [summaryModalResult, setSummaryModalResult] = useState<AutoFillSummaryResult | null>(null);
 	const [gradeLevelFilter, setGradeLevelFilter] = useState<string>('all');
 const [error, setError] = useState<string | null>(null);
 const [homeroomHint, setHomeroomHint] = useState<HomeroomHintResponse | null>(null);
 const [draftAssignmentsByFaculty, setDraftAssignmentsByFaculty] = useState<Record<number, FacultyAssignmentDraft[]>>({});
 const [autoFillLoading, setAutoFillLoading] = useState(false);
 const [autoFillDialogOpen, setAutoFillDialogOpen] = useState(false);
-const { aliases: specializationAliases } = useSpecializationAliases(DEFAULT_SCHOOL_ID);
+const { aliases: specializationAliases, loading: aliasesLoading } = useSpecializationAliases(DEFAULT_SCHOOL_ID);
 const fetchData = useCallback(async () => {
 setLoading(true);
 try {
@@ -385,12 +392,15 @@ const handleAutoFill = useCallback(async () => {
 			uniqueTeachersAffected: number;
 			unresolved: number;
 			warnings: string[];
+			staffingReport: AutoFillSummaryResult['staffingReport'];
 		}>(
 			'/faculty-assignments/auto-fill',
 			{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId },
 		);
 		await fetchData();
 		const { assignmentsCreated, uniqueTeachersAffected, unresolved, warnings } = result.data;
+		setSummaryModalResult(result.data as AutoFillSummaryResult);
+		setSummaryModalOpen(true);
 		if (assignmentsCreated > 0) {
 			toast.success(
 				`Assigned ${assignmentsCreated} subject${assignmentsCreated !== 1 ? 's' : ''} across ${uniqueTeachersAffected} teacher${uniqueTeachersAffected !== 1 ? 's' : ''}.`,
@@ -409,6 +419,23 @@ const handleAutoFill = useCallback(async () => {
 		setAutoFillLoading(false);
 	}
 }, [activeSchoolYearId, fetchData, pushHistory]);
+
+const handleViewStaffingNeeds = useCallback(async () => {
+	if (!activeSchoolYearId) return;
+	setStaffingNeedsLoading(true);
+	try {
+		const result = await atlasApi.post<AutoFillSummaryResult>(
+			'/faculty-assignments/auto-fill',
+			{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId, previewOnly: true },
+		);
+		setSummaryModalResult(result.data);
+		setSummaryModalOpen(true);
+	} catch {
+		toast.error('Unable to load staffing needs right now.');
+	} finally {
+		setStaffingNeedsLoading(false);
+	}
+}, [activeSchoolYearId]);
 
 const filteredFaculty = useMemo(() => {
 let nextFaculty = faculty;
@@ -445,21 +472,22 @@ assignedSubjectIds.add(assignment.subjectId);
 return subjects.filter((subject) => subject.isActive && !assignedSubjectIds.has(subject.id));
 }, [effectiveAssignmentsByFaculty, subjects]);
 
-const { tier1Subjects, aliasRequiredSubjects } = useMemo(() => {
-	const facultyInfo = { 
-		specialization: selected?.specialization ?? null, 
-		department: selected?.department ?? null 
+const { specializationQualifiedSubjects, outsideSpecializationSubjects } = useMemo(() => {
+	const facultyInfo = {
+		specialization: selected?.specialization ?? null,
+		department: selected?.department ?? null,
 	};
-	const tier1: Subject[] = [];
-	const aliasRequired: Subject[] = [];
-	
+	const qualified: Subject[] = [];
+	const outside: Subject[] = [];
+
 	for (const subject of subjects) {
 		const tier = getQualificationTier(facultyInfo, subject, specializationAliases);
-		const requiresSpecialization = (subject.allowedSpecializations?.length ?? 0) > 0;
-		if (!requiresSpecialization || tier === 1) {
-			tier1.push(subject);
+		const isHgSubject = subject.code === 'HG' || subject.name.toLowerCase().includes('homeroom');
+		const isQualifiedBySpecialization = tier === 1 || (!aliasesLoading && tier === 2);
+		if ((isHgSubject && selected?.isClassAdviser) || isQualifiedBySpecialization) {
+			qualified.push(subject);
 		} else {
-			aliasRequired.push(subject);
+			outside.push(subject);
 		}
 	}
 
@@ -471,11 +499,14 @@ const { tier1Subjects, aliasRequiredSubjects } = useMemo(() => {
 		return a.name.localeCompare(b.name);
 	};
 
-	tier1.sort(sortByHR);
-	aliasRequired.sort((a, b) => a.name.localeCompare(b.name));
+	qualified.sort(sortByHR);
+	outside.sort(sortByHR);
 
-	return { tier1Subjects: tier1, aliasRequiredSubjects: aliasRequired };
-}, [selected, subjects, specializationAliases]);
+	return {
+		specializationQualifiedSubjects: qualified,
+		outsideSpecializationSubjects: outside,
+	};
+}, [aliasesLoading, selected, specializationAliases, subjects]);
 
 
 const loadProfile = useMemo(
@@ -490,6 +521,22 @@ selected?.isClassAdviser
 ),
 [currentAssignments, sectionMap, selected, subjects],
 );
+
+const memberLoadProfiles = useMemo(() => {
+	const map = new Map<number, ReturnType<typeof buildTeachingLoadProfile>>();
+	for (const member of faculty) {
+		map.set(
+			member.id,
+			buildTeachingLoadProfile(
+				effectiveAssignmentsByFaculty[member.id] ?? [],
+				subjects,
+				sectionMap,
+				member.isClassAdviser ? member.advisoryEquivalentHours || CLASS_ADVISER_EQUIVALENT_HOURS : 0,
+			),
+		);
+	}
+	return map;
+}, [effectiveAssignmentsByFaculty, faculty, sectionMap, subjects]);
 
 const departmentOptions = useMemo(
 () => Array.from(new Set(faculty.map((member) => member.department).filter(Boolean) as string[])).sort(),
@@ -576,8 +623,10 @@ Dismiss
 	totalFacultyCount={faculty.length}
 	activeDraftCount={activeDraftCount}
 	autoFillLoading={autoFillLoading}
+	staffingNeedsLoading={staffingNeedsLoading}
 	autoFillEnabled={Boolean(activeSchoolYearId)}
 	onAutoFillClick={() => setAutoFillDialogOpen(true)}
+	onViewStaffingNeedsClick={handleViewStaffingNeeds}
 />
 
 <div className="mt-3 flex min-h-0 flex-1 gap-4 pb-3">
@@ -655,6 +704,20 @@ Array.from({ length: 8 }).map((_, index) => (
 filteredFaculty.map((member) => {
 const effectiveSubjectCount = effectiveAssignmentsByFaculty[member.id]?.length ?? 0;
 const hasDraft = Boolean(effectiveDraftAssignmentsByFaculty[member.id]);
+					const memberLoadProfile = memberLoadProfiles.get(member.id);
+					const actualLoadPercentage = memberLoadProfile && member.maxHoursPerWeek > 0
+						? Math.round((memberLoadProfile.actualTeachingHours / member.maxHoursPerWeek) * 100)
+						: (member as any).loadPercentage ?? 0;
+					const loadColorClass = actualLoadPercentage > 150
+						? 'text-red-600'
+						: actualLoadPercentage > 100
+							? 'text-amber-600'
+							: 'text-emerald-600';
+					const loadBarClass = actualLoadPercentage > 150
+						? 'bg-red-500'
+						: actualLoadPercentage > 100
+							? 'bg-amber-500'
+							: 'bg-emerald-500';
 return (
 <Button
 key={member.id}
@@ -691,13 +754,13 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 			</span>
 		</div>
 		<div className="flex flex-col items-end gap-0.5 shrink-0">
-			<span className={`text-[0.6rem] font-bold ${(member as any).loadPercentage > 100 ? 'text-red-600' : (member as any).loadPercentage > 90 ? 'text-amber-600' : 'text-emerald-600'}`}>
-				{(member as any).loadPercentage}%
+			<span className={`text-[0.6rem] font-bold ${loadColorClass}`}>
+				{actualLoadPercentage}%
 			</span>
 			<div className="w-10 h-0.5 bg-muted rounded-full overflow-hidden">
 				<div 
-					className={`h-full transition-all ${(member as any).loadPercentage > 100 ? 'bg-red-500' : (member as any).loadPercentage > 90 ? 'bg-amber-500' : 'bg-emerald-500'}`}
-					style={{ width: `${Math.min((member as any).loadPercentage, 100)}%` }}
+					className={`h-full transition-all ${loadBarClass}`}
+					style={{ width: `${Math.min(actualLoadPercentage, 100)}%` }}
 				/>
 			</div>
 		</div>
@@ -902,7 +965,7 @@ This faculty member is excluded from scheduling. Enable them first.
 			<div className="mb-4">
 				<div className="mb-2 flex items-center gap-2">
 					<h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h4>
-					{badge && <Badge variant="outline" className="text-[0.5rem] bg-emerald-50 text-emerald-700 border-emerald-200">{badge}</Badge>}
+						{badge && <Badge variant="outline" className="text-[0.5rem] bg-emerald-50 text-emerald-700 border-emerald-200">{badge}</Badge>}
 				</div>
 				<div className="space-y-2">
 					{subjects.map((subject) => (
@@ -910,7 +973,7 @@ This faculty member is excluded from scheduling. Enable them first.
 							key={subject.id}
 							subject={subject}
 							assignment={currentAssignments.find((a) => a.subjectId === subject.id)}
-							sections={allKnownSections.filter((sec) => subject.gradeLevels.includes(sec.displayOrder))}
+								sections={allKnownSections.filter((sec) => subject.gradeLevels.length === 0 || subject.gradeLevels.includes(sec.displayOrder))}
 							disabled={!selected.isActiveForScheduling || !sectionsAvailable}
 							selectedFacultyId={selected.id}
 							savedOwnershipMap={savedOwnershipMap}
@@ -934,26 +997,33 @@ This faculty member is excluded from scheduling. Enable them first.
 
 	return (
 		<>
-			{renderTier(tier1Subjects, 'Qualified by Alias Mapping', 'Tier 1')}
-			{aliasRequiredSubjects.length > 0 && (
+			{renderTier(
+				specializationQualifiedSubjects,
+				'Qualified Based On Specialization',
+				selected.specialization ? selected.specialization : selected.department ?? 'Qualified Subjects',
+			)}
+			{outsideSpecializationSubjects.length > 0 && (
 				<div>
 					<div className="mb-2 flex items-center gap-2">
-						<h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Alias Mapping Required</h4>
-						<Badge variant="outline" className="text-[0.5625rem] border-amber-300 text-amber-700">Not Assignable</Badge>
+						<h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Outside Specialization</h4>
+						<Badge variant="outline" className="text-[0.5625rem] border-amber-300 text-amber-700">
+							{selected.canTeachOutsideDepartment ? 'Assignable (Override Enabled)' : 'Not Assignable'}
+						</Badge>
 					</div>
-					<div className="space-y-2 opacity-70">
-						{aliasRequiredSubjects.map((subject) => (
+					<div className={`space-y-2 ${selected.canTeachOutsideDepartment ? '' : 'opacity-70'}`}>
+						{outsideSpecializationSubjects.map((subject) => (
 							<SubjectRow
 								key={subject.id}
 								subject={subject}
 								assignment={currentAssignments.find((a) => a.subjectId === subject.id)}
-								sections={allKnownSections.filter((sec) => subject.gradeLevels.includes(sec.displayOrder))}
-								disabled
+								sections={allKnownSections.filter((sec) => subject.gradeLevels.length === 0 || subject.gradeLevels.includes(sec.displayOrder))}
+								disabled={!selected.canTeachOutsideDepartment || !selected.isActiveForScheduling || !sectionsAvailable}
 								selectedFacultyId={selected.id}
 								savedOwnershipMap={savedOwnershipMap}
 								pendingOwnershipMap={pendingOwnershipMap}
 								savedConflictMap={savedConflictMap}
 								onSetSections={setSubjectSections}
+								isOutsideDepartment
 								facultyDepartment={selected.department}
 								facultySpecialization={selected.specialization}
 								searchTerm={subjectSearch}
@@ -986,6 +1056,12 @@ This faculty member is excluded from scheduling. Enable them first.
 	confirmText="Run Auto-Fill"
 	variant="primary"
 	loading={autoFillLoading}
+/>
+
+<AutoFillSummaryModal
+	open={summaryModalOpen}
+	onOpenChange={setSummaryModalOpen}
+	result={summaryModalResult}
 />
 </TooltipProvider>
 );

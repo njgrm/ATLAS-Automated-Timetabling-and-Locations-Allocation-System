@@ -16,6 +16,7 @@ export declare class QualificationService {
     static getQualificationTier(schoolId: number, faculty: {
         specialization: string | null;
         department: string | null;
+        canTeachOutsideDepartment?: boolean;
     }, subject: {
         code: string;
         name: string;

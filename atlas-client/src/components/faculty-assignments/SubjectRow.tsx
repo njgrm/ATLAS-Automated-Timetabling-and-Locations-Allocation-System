@@ -199,7 +199,7 @@ export function SubjectRow({
 	);
 	const isTier1 = tier === 1;
 	const isSpecMismatch = strictAliasOnly
-		? allowedSpecs.length > 0 && tier !== 1
+		? tier !== 1
 		: allowedSpecs.length > 0 && tier === null;
 
 	// HG system-assignment detection
@@ -231,7 +231,7 @@ export function SubjectRow({
 						
 						{isTier1 && (
 							<Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[0.5625rem] hover:bg-emerald-100">
-								Perfect Match
+								Specialization Match
 							</Badge>
 						)}
 
@@ -242,7 +242,7 @@ export function SubjectRow({
 						)}
 						{isSpecMismatch && (
 							<Badge variant="outline" className="border-orange-300 text-[0.5625rem] text-orange-700">
-								Spec. Mismatch
+								Outside Specialization
 							</Badge>
 						)}
 						<Badge variant="secondary" className="text-[0.5625rem]">
