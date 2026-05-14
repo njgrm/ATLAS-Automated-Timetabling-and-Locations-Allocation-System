@@ -110,27 +110,34 @@ export type QualificationTier = 1 | 2 | 3 | null;
 
 /** 
  * Tiered Qualification Matcher (Audit Wave 4)
- * Tier 1: Explicit Specialization match (Source of Truth)
- * Tier 2: Structural Department match
- * Tier 3: Fuzzy Keyword match (Smart Suggestion)
+ * Tier 1: Explicitly Mapped Specialization (Administrator-defined in Specialization Mapping)
+ * Tier 2: Direct Specialization/Department Match (Fallback to subject.allowedSpecializations)
+ * Tier 3: Fuzzy Keyword match (Legacy fallback)
  */
 export function getQualificationTier(
 	faculty: { specialization: string | null; department: string | null },
 	subject: { code: string; name: string; allowedSpecializations?: string[] },
+	specializationAliases: Array<{ alias: string; canonical: string }> = [],
 ): QualificationTier {
-	const allowed = subject.allowedSpecializations ?? [];
-	
-	// Tier 1: Explicit Specialization Match
-	if (faculty.specialization && allowed.includes(faculty.specialization)) {
-		return 1;
+	// Tier 1: Explicitly Mapped Specialization (from specialization_aliases)
+	if (faculty.specialization) {
+		const isMapped = specializationAliases.some(
+			(entry) => entry.alias === faculty.specialization && entry.canonical === subject.code
+		);
+		if (isMapped) return 1;
 	}
 
-	// Tier 2: Structural Department Match
+	const allowed = subject.allowedSpecializations ?? [];
+	
+	// Tier 2: Direct Specialization/Department Match (via subject.allowedSpecializations array)
+	if (faculty.specialization && allowed.includes(faculty.specialization)) {
+		return 2;
+	}
 	if (faculty.department && allowed.includes(faculty.department)) {
 		return 2;
 	}
 
-	// Tier 3: Fuzzy Keyword Match (Legacy fallback/Suggestion)
+	// Tier 3: Legacy Keyword Matching (Fuzzy fallback)
 	if (matchesFacultyDepartment(faculty.department, subject.code, subject.name)) {
 		return 3;
 	}
