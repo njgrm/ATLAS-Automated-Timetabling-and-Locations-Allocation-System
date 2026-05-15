@@ -12,7 +12,14 @@ import {
 	type ValidationResult,
 	type Violation,
 } from './constraint-validator.js';
-import { constructBaseline, computeDemand, type ConstructorInput, type DemandItem, type UnassignedItem } from './schedule-constructor.js';
+import {
+	constructBaseline,
+	computeDemand,
+	type ConstructorInput,
+	type DemandItem,
+	type UnassignedItem,
+	type RoomAssignmentReason,
+} from './schedule-constructor.js';
 import { runHybridScheduler, type SeedQualitySummary, type RepairImpact } from './hybrid-scheduler.js';
 import { getSectionSummary } from './section.service.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
@@ -91,12 +98,29 @@ export interface RunSummary {
 		qualifiedFacultyCoverageBySubject: Array<{ subjectId: number; subjectCode: string; requiredAssignments: number; qualifiedAssignments: number; coveragePercent: number }>;
 		slotSaturationByInterval: Array<{ day: string; startTime: string; endTime: string; assigned: number; capacity: number; saturationPercent: number }>;
 		unassignedBySubjectGrade: Array<{ subjectId: number; subjectCode: string; gradeLevel: number; count: number; reasons: Record<string, number> }>;
+		roomAssignmentReasonCounts?: Record<string, number>;
 	};
+	shiftWindowPolicy?: 'ENFORCED' | 'DISABLED';
+	configuredShiftWindowCount?: number;
 	termCounts?: {
 		term1: number;
 		term2: number;
 		term3: number;
 	};
+}
+
+function buildRoomAssignmentReasonCounts(entries: ScheduledEntry[], unassignedItems: UnassignedItem[]): Record<string, number> {
+	const counts: Record<string, number> = {};
+	for (const entry of entries) {
+		const reason = entry.metadata?.roomAssignmentReason;
+		if (!reason) continue;
+		counts[reason] = (counts[reason] ?? 0) + 1;
+	}
+	for (const unassigned of unassignedItems) {
+		const reason = (unassigned.roomAssignmentReason ?? 'FALLBACK_UNRESOLVED') as RoomAssignmentReason;
+		counts[reason] = (counts[reason] ?? 0) + 1;
+	}
+	return counts;
 }
 
 function normalizeTermIndex(value: unknown): 1 | 2 | 3 {
@@ -501,6 +525,7 @@ export async function triggerGenerationRun(
 			qualifiedFacultyCoverageBySubject: buildQualifiedCoverageBySubject(demand, facultySubjects),
 			slotSaturationByInterval: buildSlotSaturation(entriesWithTerms, Math.max(rooms.length, 1)).slice(0, 20),
 			unassignedBySubjectGrade: buildUnassignedBySubjectGrade(result.unassignedItems, subjectCodeById).slice(0, 20),
+			roomAssignmentReasonCounts: buildRoomAssignmentReasonCounts(entriesWithTerms, result.unassignedItems),
 		};
 		const termCounts = buildTermCounts(entriesWithTerms);
 
@@ -530,6 +555,8 @@ export async function triggerGenerationRun(
 			seedQuality: result.seedQuality?.length > 0 ? result.seedQuality : undefined,
 			repairImpact: result.repairImpact,
 			resourceDiagnostics,
+			shiftWindowPolicy: options?.enforceShiftWindows === false ? 'DISABLED' : 'ENFORCED',
+			configuredShiftWindowCount: gradeWindows.length,
 		};
 
 		const finishedAt = new Date();

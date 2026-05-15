@@ -307,12 +307,19 @@ export interface GradeWindowInput {
 	endTime: string;
 }
 
+export type RoomAssignmentReason =
+	| 'LOCKED_ENTRY'
+	| 'GENERAL_POOL_ASSIGNED'
+	| 'MODULAR_POOL_ASSIGNED'
+	| 'FALLBACK_UNRESOLVED';
+
 export interface UnassignedItem {
 	sectionId: number;
 	subjectId: number;
 	gradeLevel: number;
 	session: number;
 	reason: 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM';
+	roomAssignmentReason?: RoomAssignmentReason;
 	entryKind?: 'SECTION' | 'COHORT';
 	programType?: string | null;
 	programCode?: string | null;
@@ -907,6 +914,9 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				durationMinutes,
 				entryKind: lock.entryKind,
 				cohortCode: lock.cohortCode ?? null,
+				metadata: {
+					roomAssignmentReason: 'LOCKED_ENTRY',
+				},
 			});
 
 			// Mark occupancy for locked placements
@@ -1207,10 +1217,13 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 							adviserName: item.adviserName ?? null,
 							metadata: isModularUnified
 								? {
+									roomAssignmentReason: 'MODULAR_POOL_ASSIGNED',
 									modularGroupId: item.modularGroupId ?? undefined,
 									modularAssignments: modularAssignmentInfo?.assignments ?? [],
 								}
-								: undefined,
+								: {
+									roomAssignmentReason: 'GENERAL_POOL_ASSIGNED',
+								},
 						});
 
 						// Mark occupancy
@@ -1262,6 +1275,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					gradeLevel: item.gradeLevel,
 					session: session + 1,
 					reason,
+					roomAssignmentReason: 'FALLBACK_UNRESOLVED',
 					entryKind: item.entryKind,
 					programType: item.programType ?? null,
 					programCode: item.programCode ?? null,

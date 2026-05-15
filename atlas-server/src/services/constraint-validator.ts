@@ -64,6 +64,7 @@ export interface ScheduledEntry {
 	adviserId?: number | null;
 	adviserName?: string | null;
 	metadata?: {
+		roomAssignmentReason?: string;
 		modularGroupId?: string;
 		modularAssignments?: Array<{
 			quarter: number;
