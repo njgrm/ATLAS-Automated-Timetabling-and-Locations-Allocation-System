@@ -585,6 +585,9 @@ export type ViolationCode =
 	| 'FACULTY_EARLY_START_PREFERENCE'
 	| 'FACULTY_LATE_END_PREFERENCE'
 	| 'FACULTY_INSUFFICIENT_DAILY_VACANT'
+	| 'SPECIALIZED_ROOM_UNAVAILABLE'
+	| 'UNASSIGNED_SECTION'
+	| 'ZONE_IMBALANCE_WARNING'
 	| 'SECTION_OVERCOMPRESSED'
 	| 'SESSION_PATTERN_VIOLATED'
 	| 'LACKING_FACULTY'
@@ -614,6 +617,10 @@ export interface RunSummary {
 	classesProcessed: number;
 	assignedCount: number;
 	unassignedCount: number;
+	roomerStrategy?: 'UNIVERSAL' | 'HOME_ROOM_FIRST';
+	homeRoomAttemptedCount?: number;
+	homeRoomAssignedCount?: number;
+	homeRoomSuccessRate?: number;
 	policyBlockedCount: number;
 	hardViolationCount: number;
 	prePlacedCount?: number;
@@ -668,7 +675,15 @@ export interface RunSummary {
 			count: number;
 			reasons: Record<string, number>;
 		}>;
+		roomAssignmentReasonCounts?: Record<string, number>;
+		zoneDistributionByTerm?: Array<{
+			termIndex: 1 | 2 | 3;
+			total: number;
+			byZone: Record<string, { count: number; percent: number }>;
+		}>;
 	};
+	shiftWindowPolicy?: 'ENFORCED' | 'DISABLED';
+	configuredShiftWindowCount?: number;
 	termCounts?: {
 		term1: number;
 		term2: number;
@@ -743,6 +758,15 @@ export interface UnassignedItem {
 	gradeLevel: number;
 	session: number;
 	reason: 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM';
+	roomAssignmentReason?:
+		| 'LOCKED_ENTRY'
+		| 'HOME_ROOM_ASSIGNED'
+		| 'HOME_ROOM_UNAVAILABLE'
+		| 'SPECIALIZED_ROOM'
+		| 'SPECIALIZED_ROOM_UNAVAILABLE'
+		| 'GENERAL_POOL_ASSIGNED'
+		| 'MODULAR_POOL_ASSIGNED'
+		| 'FALLBACK_UNRESOLVED';
 	entryKind?: 'SECTION' | 'COHORT';
 	programType?: string | null;
 	programCode?: string | null;
@@ -753,6 +777,7 @@ export interface UnassignedItem {
 	cohortExpectedEnrollment?: number | null;
 	adviserId?: number | null;
 	adviserName?: string | null;
+	homeRoomId?: number | null;
 }
 
 export interface DraftReport {

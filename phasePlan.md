@@ -155,17 +155,18 @@ PHASE 8+: Teacher X & Concurrency (⏳ FUTURE, BLOCKED UNTIL EARLIER PHASES)
 ### Refactor Unblocked Planning (Parallel to Option 1)
 
 **Phase 2 (Home-Room Algorithm):**
-- **Status:** ✅ READY TO START (Phase 1d complete; schema prepped with migration 0028)
+- **Status:** 🔄 IN PROGRESS (Slice A implemented; gates open)
 - **Scope:** Rewrite generator to prioritize section home rooms; only solve singleton/specialized rooms
 - **Planning:** [docs/phases/phase-2-home-room-algorithm-2026-05-16.md](./phases/phase-2-home-room-algorithm-2026-05-16.md)
 - **Validation & Behavior Guide:** [docs/phases/phase-2-validation-behavior-guide.md](./phases/phase-2-validation-behavior-guide.md) — User-facing workflows, metrics, screenshots, QA checklist
 - **Duration:** 2–3 weeks
 - **Estimate:** 20–30 story points
 - **Key Deliverables:**
-  - RoomingStrategy enum (UNIVERSAL vs HOME_ROOM_FIRST)
-  - Dynamic GradeShiftWindow configuration (admin-editable shift boundaries; no hardcoded shift constants)
-  - 4-phase algorithm (home-room → singletons → general pool → zone balancing)
-  - API extended with roomAssignmentReason + metrics
+  - ✅ Rooming strategy accepted at generation trigger (`HOME_ROOM_FIRST` default, `UNIVERSAL` override)
+  - ✅ Dynamic GradeShiftWindow configuration (admin-editable shift boundaries; no hardcoded shift constants)
+  - 🔄 Home-room-priority placement active in constructor for section entries with `homeRoomId`
+  - 🔄 4-phase algorithm completion pending (singletons + zone balancing + dedicated resolver extraction)
+  - 🔄 API extension in progress (roomAssignmentReason diagnostics added; full client parity pending)
   - Regression test suite + performance benchmarks (<40s target)
   - Manual QA evidence (Tailnet validation)
 - **Success Metrics:**

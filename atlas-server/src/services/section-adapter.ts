@@ -364,6 +364,8 @@ export interface ExternalSection {
 	gradeLevelId: number;
 	gradeLevelName: string;
 	displayOrder: number;
+	homeRoomId?: number | null;
+	buildingZoneId?: string | null;
 	// Wave 3.5: Special program fields
 	programType?: ProgramType;
 	programCode?: string | null;

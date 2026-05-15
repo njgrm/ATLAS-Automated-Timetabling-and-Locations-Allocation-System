@@ -500,7 +500,7 @@ export type RoomRequestAppeal = {
     history: RoomRequestAppealHistory[];
 };
 export type GenerationRunStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-export type ViolationCode = 'FACULTY_TIME_CONFLICT' | 'ROOM_TIME_CONFLICT' | 'SECTION_TIME_CONFLICT' | 'FACULTY_OVERLOAD' | 'ROOM_TYPE_MISMATCH' | 'ROOM_CAPACITY_EXCEEDED' | 'FACULTY_SUBJECT_NOT_QUALIFIED' | 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED' | 'FACULTY_BREAK_REQUIREMENT_VIOLATED' | 'FACULTY_DAILY_STANDARD_EXCEEDED' | 'FACULTY_DAILY_MAX_EXCEEDED' | 'FACULTY_EXCESSIVE_TRAVEL_DISTANCE' | 'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS' | 'FACULTY_INSUFFICIENT_TRANSITION_BUFFER' | 'FACULTY_EXCESSIVE_IDLE_GAP' | 'FACULTY_EARLY_START_PREFERENCE' | 'FACULTY_LATE_END_PREFERENCE' | 'FACULTY_INSUFFICIENT_DAILY_VACANT' | 'SECTION_OVERCOMPRESSED' | 'SESSION_PATTERN_VIOLATED';
+export type ViolationCode = 'FACULTY_TIME_CONFLICT' | 'ROOM_TIME_CONFLICT' | 'SECTION_TIME_CONFLICT' | 'FACULTY_OVERLOAD' | 'ROOM_TYPE_MISMATCH' | 'ROOM_CAPACITY_EXCEEDED' | 'FACULTY_SUBJECT_NOT_QUALIFIED' | 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED' | 'FACULTY_BREAK_REQUIREMENT_VIOLATED' | 'FACULTY_DAILY_STANDARD_EXCEEDED' | 'FACULTY_DAILY_MAX_EXCEEDED' | 'FACULTY_EXCESSIVE_TRAVEL_DISTANCE' | 'FACULTY_EXCESSIVE_BUILDING_TRANSITIONS' | 'FACULTY_INSUFFICIENT_TRANSITION_BUFFER' | 'FACULTY_EXCESSIVE_IDLE_GAP' | 'FACULTY_EARLY_START_PREFERENCE' | 'FACULTY_LATE_END_PREFERENCE' | 'FACULTY_INSUFFICIENT_DAILY_VACANT' | 'SPECIALIZED_ROOM_UNAVAILABLE' | 'UNASSIGNED_SECTION' | 'ZONE_IMBALANCE_WARNING' | 'SECTION_OVERCOMPRESSED' | 'SESSION_PATTERN_VIOLATED' | 'LACKING_FACULTY' | 'INCOMPLETE_MODULAR_GROUP';
 export type ViolationSeverity = 'HARD' | 'SOFT';
 export type ProgramFilter = 'all' | 'REGULAR' | 'SPECIAL' | 'STE' | 'SPA' | 'SPS' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER';
 export type EntryKindFilter = 'all' | 'section' | 'cohort';
@@ -522,6 +522,10 @@ export interface RunSummary {
     classesProcessed: number;
     assignedCount: number;
     unassignedCount: number;
+    roomerStrategy?: 'UNIVERSAL' | 'HOME_ROOM_FIRST';
+    homeRoomAttemptedCount?: number;
+    homeRoomAssignedCount?: number;
+    homeRoomSuccessRate?: number;
     policyBlockedCount: number;
     hardViolationCount: number;
     prePlacedCount?: number;
@@ -576,11 +580,22 @@ export interface RunSummary {
             count: number;
             reasons: Record<string, number>;
         }>;
+        roomAssignmentReasonCounts?: Record<string, number>;
+        zoneDistributionByTerm?: Array<{
+            termIndex: 1 | 2 | 3;
+            total: number;
+            byZone: Record<string, {
+                count: number;
+                percent: number;
+            }>;
+        }>;
     };
+    shiftWindowPolicy?: 'ENFORCED' | 'DISABLED';
+    configuredShiftWindowCount?: number;
 }
 export interface ScheduledEntry {
     entryId: string;
-    facultyId: number;
+    facultyId: number | null;
     roomId: number;
     subjectId: number;
     sectionId: number;
@@ -598,6 +613,15 @@ export interface ScheduledEntry {
     cohortExpectedEnrollment?: number | null;
     adviserId?: number | null;
     adviserName?: string | null;
+    metadata?: {
+        roomAssignmentReason?: string;
+        modularGroupId?: string;
+        modularAssignments?: Array<{
+            quarter: number;
+            facultyId: number;
+            subjectCode: string;
+        }>;
+    };
 }
 export interface Violation {
     code: ViolationCode;

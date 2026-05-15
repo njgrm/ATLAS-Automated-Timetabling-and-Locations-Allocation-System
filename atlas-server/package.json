@@ -30,6 +30,7 @@
     "test:phase1": "npm run test:phase1-active-draft-contract && npm run test:phase1-unified-request && npm run test:phase1-request-gate && npm run test:phase1-request-sync",
     "test:phase2-websocket-collaboration": "tsx src/__tests__/phase2-websocket-collaboration.test.ts",
     "test:phase2-concurrency": "tsx src/__tests__/phase2-concurrency-conflict.test.ts",
+    "test:phase2-home-room-strategy": "tsx src/__tests__/phase2-home-room-strategy.test.ts",
     "test:phase2": "npm run test:phase2-websocket-collaboration && npm run test:phase2-concurrency",
     "test:phase2-regression": "npm run test:phase1-request-sync && npm run test:phase1-request-gate",
     "diag:faculty-assignment-baseline": "tsx src/scripts/diagnose-faculty-assignment-baseline.ts",

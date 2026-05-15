@@ -354,6 +354,12 @@ return (
 												<span className="text-muted-foreground font-medium">Unassigned</span>
 												<span className={`font-bold ${summary.unassignedCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{summary.unassignedCount}</span>
 											</div>
+											{typeof summary.homeRoomSuccessRate === 'number' && (
+												<div className="flex items-center gap-1.5">
+													<span className="text-muted-foreground font-medium">Home-Room</span>
+													<span className="font-bold text-sky-700">{summary.homeRoomSuccessRate}%</span>
+												</div>
+											)}
 										</div>
 										{summary.resourceDiagnostics && (
 											<div className="rounded border border-border/70 bg-background/70 px-2.5 py-2 space-y-2 text-[0.625rem]">
@@ -385,6 +391,28 @@ return (
 														</div>
 													))}
 												</div>
+												{summary.resourceDiagnostics.roomAssignmentReasonCounts && (
+													<div className="space-y-1">
+														<div className="font-medium">Room assignment reasons</div>
+														{Object.entries(summary.resourceDiagnostics.roomAssignmentReasonCounts).slice(0, 3).map(([reason, count]) => (
+															<div key={`reason-${reason}`} className="flex items-center justify-between text-muted-foreground">
+																<span>{reason}</span>
+																<span className="font-semibold text-sky-700">{count}</span>
+															</div>
+														))}
+													</div>
+												)}
+												{summary.resourceDiagnostics.zoneDistributionByTerm?.[0] && (
+													<div className="space-y-1">
+														<div className="font-medium">Zone distribution (Term {summary.resourceDiagnostics.zoneDistributionByTerm[0].termIndex})</div>
+														{Object.entries(summary.resourceDiagnostics.zoneDistributionByTerm[0].byZone).slice(0, 3).map(([zone, data]) => (
+															<div key={`zone-${zone}`} className="flex items-center justify-between text-muted-foreground">
+																<span>{zone}</span>
+																<span className="font-semibold text-rose-700">{data.percent}%</span>
+															</div>
+														))}
+													</div>
+												)}
 											</div>
 										)}
 										{/* Unassigned items list */}

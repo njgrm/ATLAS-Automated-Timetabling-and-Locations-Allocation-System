@@ -1,5 +1,75 @@
 # Verification Evidence Log
 #
+### 2026-05-16 - Phase 2 Home-Room Slice A (Strategy Wiring + Constructor Priority)
+- Phase: Phase 2 (Home-Room Algorithm)
+- Operator: GitHub Copilot
+- Scope gate: PASS (Phase 2 execution work per approved phase docs)
+- Architecture gate: PASS (transport validation in route, logic in services)
+- Behavior gate: PARTIAL PASS (strategy + home-room priority in place; full phase gates still open)
+- Implemented in this slice:
+  - `POST /generation/:schoolId/:schoolYearId/runs` accepts `roomerStrategy` with validation (`UNIVERSAL` or `HOME_ROOM_FIRST`).
+  - Default strategy set to `HOME_ROOM_FIRST` with explicit `UNIVERSAL` override support.
+  - Section metadata now includes `homeRoomId` and `buildingZoneId` in section summary payload used by generation.
+  - Constructor demand model now carries section-level `homeRoomId`/`buildingZoneId`.
+  - Room ranking now prioritizes a section's home room when strategy is `HOME_ROOM_FIRST`.
+  - Assignment metadata now emits home-room-aware reasons (`HOME_ROOM_ASSIGNED`, `HOME_ROOM_UNAVAILABLE`) in addition to existing reason tags.
+  - Specialized room matches now emit `SPECIALIZED_ROOM` assignment reason for singleton/special room traceability.
+  - Run summary now logs selected `roomerStrategy` for traceability.
+- Verification executed:
+  - `npx tsc --noEmit` (atlas-server): PASS
+  - file diagnostics on touched files: PASS
+- Remaining to close Gate 2:
+  - Dedicated home-room/special-room resolver extraction and singleton phase hardening
+  - Zone balancing warning pipeline and metrics completion
+  - Regression benchmark (<40s) and manual QA Tailnet evidence
+
+### 2026-05-16 - Phase 2 Home-Room Slice B (2c-2g Acceleration Pass)
+- Phase: Phase 2 (Home-Room Algorithm)
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Architecture gate: PASS
+- Behavior gate: PARTIAL PASS (2h manual QA evidence still pending)
+- Implemented in this slice:
+  - Singleton safeguard diagnostics:
+    - `SPECIALIZED_ROOM_UNAVAILABLE` room assignment reason on unassigned specialized demand
+    - synthetic `SPECIALIZED_ROOM_UNAVAILABLE` soft violations
+  - Unassigned fallback diagnostics:
+    - synthetic `UNASSIGNED_SECTION` hard violations for unresolved placements
+  - Zone distribution and warnings:
+    - `resourceDiagnostics.zoneDistributionByTerm` in run summary
+    - `ZONE_IMBALANCE_WARNING` soft violations when zone share > 50% per term
+  - Home-room KPI metrics in run summary:
+    - `homeRoomAttemptedCount`
+    - `homeRoomAssignedCount`
+    - `homeRoomSuccessRate`
+  - Client contract updates:
+    - `types.ts` and `types.d.ts` extended for new summary and violation fields
+    - review left-rail now surfaces home-room rate, top assignment reasons, and term-zone percentages
+  - Regression tests:
+    - New `atlas-server/src/__tests__/phase2-home-room-strategy.test.ts`
+    - New script `npm run test:phase2-home-room-strategy`
+- Verification executed:
+  - `npm run test:phase2-home-room-strategy`: PASS (6/6)
+  - `npx tsc --noEmit` (atlas-server): PASS
+  - file diagnostics on all touched files: PASS
+- Remaining for 2h closure:
+  - Tailnet manual QA run + screenshots + artifact log for phase gate finalization
+
+### 2026-05-16 - Phase 2 Manual QA Attempt (2h) — Blocked by live auth/API mismatch
+- Phase: Phase 2 (Manual QA gate 2h)
+- Operator: GitHub Copilot
+- Environment: `https://njgrm.buru-degree.ts.net`
+- Attempt details:
+  - Login surface validated (successful sign-in observed with officer/admin account `1000001`).
+  - Navigation to `/timetable` successful at route level.
+  - Timetable data surface failed to hydrate due repeated 401 API responses in browser console on the live page.
+- Impact:
+  - Unable to execute full manual QA checklist for generation workflow, metrics validation, and violation-panel spot checks.
+  - Gate 2h remains open pending environment auth/API stabilization or corrected test credentials/session path.
+- Recommended unblock:
+  - Confirm active Tailnet auth token/session wiring for timetable API calls in live environment.
+  - Re-run 2h checklist immediately after 401 issue is resolved.
+
 ### 2026-05-16 - Refactor Option 1 Full Audit + Migration 0028 (homeRoomId on SectionMirror)
 - Phase: Refactor Option 1 (1a-1d) — honest closure audit
 - Operator: GitHub Copilot

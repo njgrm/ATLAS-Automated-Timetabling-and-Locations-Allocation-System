@@ -78,6 +78,10 @@ export interface RunSummary {
 	classesProcessed: number;
 	assignedCount: number;
 	unassignedCount: number;
+	roomerStrategy?: 'UNIVERSAL' | 'HOME_ROOM_FIRST';
+	homeRoomAttemptedCount?: number;
+	homeRoomAssignedCount?: number;
+	homeRoomSuccessRate?: number;
 	policyBlockedCount: number;
 	hardViolationCount: number;
 	prePlacedCount?: number;
@@ -99,6 +103,7 @@ export interface RunSummary {
 		slotSaturationByInterval: Array<{ day: string; startTime: string; endTime: string; assigned: number; capacity: number; saturationPercent: number }>;
 		unassignedBySubjectGrade: Array<{ subjectId: number; subjectCode: string; gradeLevel: number; count: number; reasons: Record<string, number> }>;
 		roomAssignmentReasonCounts?: Record<string, number>;
+		zoneDistributionByTerm?: Array<{ termIndex: 1 | 2 | 3; total: number; byZone: Record<string, { count: number; percent: number }> }>;
 	};
 	shiftWindowPolicy?: 'ENFORCED' | 'DISABLED';
 	configuredShiftWindowCount?: number;
@@ -121,6 +126,63 @@ function buildRoomAssignmentReasonCounts(entries: ScheduledEntry[], unassignedIt
 		counts[reason] = (counts[reason] ?? 0) + 1;
 	}
 	return counts;
+}
+
+function buildHomeRoomStats(entries: ScheduledEntry[], unassignedItems: UnassignedItem[]): {
+	attempted: number;
+	assigned: number;
+	successRate: number;
+} {
+	let assigned = 0;
+	let unavailable = 0;
+	let unresolved = 0;
+
+	for (const entry of entries) {
+		const reason = entry.metadata?.roomAssignmentReason;
+		if (reason === 'HOME_ROOM_ASSIGNED') assigned += 1;
+		else if (reason === 'HOME_ROOM_UNAVAILABLE') unavailable += 1;
+	}
+
+	for (const item of unassignedItems) {
+		if (item.homeRoomId != null) {
+			unresolved += 1;
+		}
+	}
+
+	const attempted = assigned + unavailable + unresolved;
+	return {
+		attempted,
+		assigned,
+		successRate: attempted > 0 ? Math.round((assigned / attempted) * 10000) / 100 : 0,
+	};
+}
+
+function buildZoneDistributionByTerm(
+	entries: ScheduledEntry[],
+	roomZoneByRoomId: Map<number, string>,
+): Array<{ termIndex: 1 | 2 | 3; total: number; byZone: Record<string, { count: number; percent: number }> }> {
+	const termAgg = new Map<1 | 2 | 3, Map<string, number>>();
+	for (const entry of entries) {
+		const termIndex = normalizeTermIndex((entry as ScheduledEntry & { termIndex?: unknown }).termIndex);
+		const zone = roomZoneByRoomId.get(entry.roomId) ?? 'UNSPECIFIED';
+		const zoneMap = termAgg.get(termIndex) ?? new Map<string, number>();
+		zoneMap.set(zone, (zoneMap.get(zone) ?? 0) + 1);
+		termAgg.set(termIndex, zoneMap);
+	}
+
+	const terms: Array<1 | 2 | 3> = [1, 2, 3];
+	return terms.map((termIndex) => {
+		const zoneMap = termAgg.get(termIndex) ?? new Map<string, number>();
+		const total = [...zoneMap.values()].reduce((sum, count) => sum + count, 0);
+		const byZone: Record<string, { count: number; percent: number }> = {};
+		for (const [zone, count] of zoneMap.entries()) {
+			byZone[zone] = {
+				count,
+				percent: total > 0 ? Math.round((count / total) * 10000) / 100 : 0,
+			};
+		}
+		return { termIndex, total, byZone };
+	});
 }
 
 function normalizeTermIndex(value: unknown): 1 | 2 | 3 {
@@ -229,7 +291,12 @@ export async function triggerGenerationRun(
 	schoolId: number,
 	schoolYearId: number,
 	actorId: number,
-	options?: { ignoreRoomRequestGate?: boolean; enforceShiftWindows?: boolean; authToken?: string },
+	options?: {
+		ignoreRoomRequestGate?: boolean;
+		enforceShiftWindows?: boolean;
+		roomerStrategy?: 'UNIVERSAL' | 'HOME_ROOM_FIRST';
+		authToken?: string;
+	},
 ) {
 	const gateStatus = await getGenerationRoomRequestGateStatus(schoolId, schoolYearId);
 	if (gateStatus.blocked && !options?.ignoreRoomRequestGate) {
@@ -289,7 +356,7 @@ export async function triggerGenerationRun(
 					isTeachingSpace: true,
 					building: { schoolId, isTeachingBuilding: true },
 				},
-				select: { id: true, type: true, isTeachingSpace: true, capacity: true, buildingId: true },
+				select: { id: true, type: true, isTeachingSpace: true, capacity: true, buildingId: true, buildingZoneId: true },
 			}),
 			prisma.subject.findMany({
 				where: { schoolId, isActive: true },
@@ -389,6 +456,7 @@ export async function triggerGenerationRun(
 		const constructorInput: ConstructorInput = {
 			schoolId,
 			schoolYearId,
+			roomingStrategy: options?.roomerStrategy ?? 'HOME_ROOM_FIRST',
 			sectionsByGrade,
 			subjects,
 			cohorts,
@@ -509,14 +577,68 @@ export async function triggerGenerationRun(
 			},
 			meta: warning.meta,
 		}));
+		const unassignedViolations: Violation[] = result.unassignedItems.map((item) => {
+			const isSpecializedUnavailable = item.roomAssignmentReason === 'SPECIALIZED_ROOM_UNAVAILABLE';
+			return {
+				code: isSpecializedUnavailable ? 'SPECIALIZED_ROOM_UNAVAILABLE' : 'UNASSIGNED_SECTION',
+				severity: isSpecializedUnavailable ? 'SOFT' : 'HARD',
+				message: isSpecializedUnavailable
+					? `Section ${item.sectionId} subject ${item.subjectId} could not be assigned to a specialized room in session ${item.session}.`
+					: `Section ${item.sectionId} subject ${item.subjectId} remained unassigned in session ${item.session}.`,
+				schoolId,
+				schoolYearId,
+				runId: run.id,
+				entities: {
+					sectionId: item.sectionId,
+					subjectId: item.subjectId,
+				},
+				meta: {
+					reason: item.reason,
+					roomAssignmentReason: item.roomAssignmentReason,
+					session: item.session,
+					gradeLevel: item.gradeLevel,
+				},
+			};
+		});
+
+		const roomZoneByRoomId = new Map<number, string>(
+			rooms.map((room) => [room.id, room.buildingZoneId ?? 'UNSPECIFIED']),
+		);
+		const zoneDistributionByTerm = buildZoneDistributionByTerm(entriesWithTerms, roomZoneByRoomId);
+		const zoneWarningViolations: Violation[] = zoneDistributionByTerm.flatMap((termZone) => {
+			const zoneRows = Object.entries(termZone.byZone);
+			if (zoneRows.length === 0 || termZone.total === 0) return [];
+			const [zone, data] = zoneRows.reduce((max, current) => (current[1].percent > max[1].percent ? current : max));
+			if (data.percent <= 50) return [];
+			return [{
+				code: 'ZONE_IMBALANCE_WARNING',
+				severity: 'SOFT',
+				message: `Term ${termZone.termIndex} zone ${zone} has ${data.percent}% of scheduled entries, exceeding the 50% balancing threshold.`,
+				schoolId,
+				schoolYearId,
+				runId: run.id,
+				entities: {},
+				meta: {
+					termIndex: termZone.termIndex,
+					zone,
+					percent: data.percent,
+					total: termZone.total,
+				},
+			}];
+		});
 		const mergedViolationCounts = { ...validationResult.counts.byCode } as Record<string, number>;
-		for (const warning of modularWarningViolations) {
+		for (const warning of [...modularWarningViolations, ...unassignedViolations, ...zoneWarningViolations]) {
 			mergedViolationCounts[warning.code] = (mergedViolationCounts[warning.code] ?? 0) + 1;
 		}
 		const mergedValidationResult: ValidationResult = {
-			violations: [...validationResult.violations, ...modularWarningViolations],
+			violations: [
+				...validationResult.violations,
+				...modularWarningViolations,
+				...unassignedViolations,
+				...zoneWarningViolations,
+			],
 			counts: {
-				total: validationResult.counts.total + modularWarningViolations.length,
+				total: validationResult.counts.total + modularWarningViolations.length + unassignedViolations.length + zoneWarningViolations.length,
 				byCode: mergedViolationCounts as ValidationResult['counts']['byCode'],
 			},
 		};
@@ -526,13 +648,19 @@ export async function triggerGenerationRun(
 			slotSaturationByInterval: buildSlotSaturation(entriesWithTerms, Math.max(rooms.length, 1)).slice(0, 20),
 			unassignedBySubjectGrade: buildUnassignedBySubjectGrade(result.unassignedItems, subjectCodeById).slice(0, 20),
 			roomAssignmentReasonCounts: buildRoomAssignmentReasonCounts(entriesWithTerms, result.unassignedItems),
+			zoneDistributionByTerm,
 		};
 		const termCounts = buildTermCounts(entriesWithTerms);
+		const homeRoomStats = buildHomeRoomStats(entriesWithTerms, result.unassignedItems);
 
 		const summary: RunSummary = {
 			classesProcessed: result.classesProcessed,
 			assignedCount: result.assignedCount,
 			unassignedCount: result.unassignedCount,
+			roomerStrategy: options?.roomerStrategy ?? 'HOME_ROOM_FIRST',
+			homeRoomAttemptedCount: homeRoomStats.attempted,
+			homeRoomAssignedCount: homeRoomStats.assigned,
+			homeRoomSuccessRate: homeRoomStats.successRate,
 			policyBlockedCount: result.policyBlockedCount,
 			hardViolationCount: mergedValidationResult.violations.filter((v) => v.severity === 'HARD').length,
 			prePlacedCount: preGenerationDrafts.prePlacedCount,
@@ -589,6 +717,7 @@ export async function triggerGenerationRun(
 					durationMs,
 					summary,
 					gateOverrideUsed: Boolean(options?.ignoreRoomRequestGate),
+					roomerStrategy: options?.roomerStrategy ?? 'HOME_ROOM_FIRST',
 					shiftWindowPolicy: options?.enforceShiftWindows === false ? 'DISABLED' : 'ENFORCED',
 					gradeWindowCount: gradeWindows.length,
 					gateOpenRequestCountAtTrigger: gateStatus.openCount,

@@ -262,6 +262,7 @@ export interface SpecializationAliasInput {
 export interface ConstructorInput {
 	schoolId: number;
 	schoolYearId: number;
+	roomingStrategy?: 'UNIVERSAL' | 'HOME_ROOM_FIRST';
 	sectionsByGrade: SectionsByGrade[];
 	subjects: SubjectInput[];
 	cohorts?: InstructionalCohortInput[];
@@ -309,6 +310,10 @@ export interface GradeWindowInput {
 
 export type RoomAssignmentReason =
 	| 'LOCKED_ENTRY'
+	| 'HOME_ROOM_ASSIGNED'
+	| 'HOME_ROOM_UNAVAILABLE'
+	| 'SPECIALIZED_ROOM'
+	| 'SPECIALIZED_ROOM_UNAVAILABLE'
 	| 'GENERAL_POOL_ASSIGNED'
 	| 'MODULAR_POOL_ASSIGNED'
 	| 'FALLBACK_UNRESOLVED';
@@ -330,6 +335,7 @@ export interface UnassignedItem {
 	cohortExpectedEnrollment?: number | null;
 	adviserId?: number | null;
 	adviserName?: string | null;
+	homeRoomId?: number | null;
 }
 
 export interface ConstructorResult {
@@ -369,6 +375,8 @@ export interface DemandItem {
 	enrolledCount: number;
 	sessionPattern: 'MWF' | 'TTH' | 'ANY';
 	entryKind: 'SECTION' | 'COHORT';
+	homeRoomId?: number | null;
+	buildingZoneId?: string | null;
 	programType?: string | null;
 	programCode?: string | null;
 	programName?: string | null;
@@ -456,6 +464,8 @@ export function computeDemand(
 					enrolledCount: section.enrolledCount,
 					sessionPattern: primary.sessionPattern ?? 'ANY',
 					entryKind: 'SECTION',
+					homeRoomId: section.homeRoomId ?? null,
+					buildingZoneId: section.buildingZoneId ?? null,
 					programType: section.programType ?? null,
 					programCode: section.programCode ?? null,
 					programName: section.programName ?? null,
@@ -527,6 +537,8 @@ export function computeDemand(
 							: applicableMembers.reduce((total, memberSection) => total + memberSection.enrolledCount, 0),
 						sessionPattern: subject.sessionPattern ?? 'ANY',
 						entryKind: 'COHORT',
+						homeRoomId: null,
+						buildingZoneId: anchorSection.buildingZoneId ?? null,
 						programType: anchorSection.programType ?? null,
 						programCode: anchorSection.programCode ?? null,
 						programName: anchorSection.programName ?? null,
@@ -553,6 +565,8 @@ export function computeDemand(
 						enrolledCount: section.enrolledCount,
 						sessionPattern: subject.sessionPattern ?? 'ANY',
 						entryKind: 'SECTION',
+						homeRoomId: section.homeRoomId ?? null,
+						buildingZoneId: section.buildingZoneId ?? null,
 						programType: section.programType ?? null,
 						programCode: section.programCode ?? null,
 						programName: section.programName ?? null,
@@ -577,6 +591,8 @@ export function computeDemand(
 					enrolledCount: section.enrolledCount,
 					sessionPattern: subject.sessionPattern ?? 'ANY',
 					entryKind: 'SECTION',
+					homeRoomId: section.homeRoomId ?? null,
+					buildingZoneId: section.buildingZoneId ?? null,
 					programType: section.programType ?? null,
 					programCode: section.programCode ?? null,
 					programName: section.programName ?? null,
@@ -678,6 +694,7 @@ function timeToMinutes(t: string): number {
 
 export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	const { subjects, faculty, facultySubjects, rooms, preferences, sectionsByGrade, policy, lockedEntries, gradeWindows } = input;
+	const useHomeRoomPriority = input.roomingStrategy === 'HOME_ROOM_FIRST';
 
 	// Build period slots dynamically from policy (lunch window, school day bounds)
 	const PERIOD_SLOTS = buildPeriodSlots(policy);
@@ -1051,6 +1068,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 	// Lab-like room types for consecutive lab check
 	const LAB_ROOM_TYPES: Set<string> = new Set(['LABORATORY', 'TLE_WORKSHOP', 'COMPUTER_LAB']);
+	const SPECIALIZED_ROOM_TYPES: Set<string> = new Set(['LABORATORY', 'TLE_WORKSHOP', 'COMPUTER_LAB', 'GYMNASIUM']);
 
 	// Section-day placement tracker for consecutive lab check: "sectionId:day" → array of {periodIdx, isLab}
 	const sectionDayLabPeriods = new Map<string, number[]>();
@@ -1066,6 +1084,9 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					gradeLevel: item.gradeLevel,
 					session: s + 1,
 					reason: 'NO_QUALIFIED_FACULTY',
+					roomAssignmentReason: item.roomTypePreference && ['LABORATORY', 'TLE_WORKSHOP', 'COMPUTER_LAB', 'GYMNASIUM'].includes(item.roomTypePreference)
+						? 'SPECIALIZED_ROOM_UNAVAILABLE'
+						: 'FALLBACK_UNRESOLVED',
 					entryKind: item.entryKind,
 					programType: item.programType ?? null,
 					programCode: item.programCode ?? null,
@@ -1076,6 +1097,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					cohortExpectedEnrollment: item.entryKind === 'COHORT' ? item.enrolledCount : null,
 					adviserId: item.adviserId ?? null,
 					adviserName: item.adviserName ?? null,
+					homeRoomId: item.homeRoomId ?? null,
 				});
 			}
 			unassignedCount += item.sessionsPerWeek;
@@ -1156,6 +1178,17 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					});
 				}
 
+				const preferredHomeRoomId = useHomeRoomPriority && item.entryKind === 'SECTION'
+					? (item.homeRoomId ?? null)
+					: null;
+				if (preferredHomeRoomId != null && compatibleRooms.length > 0) {
+					const homeRoomIndex = compatibleRooms.findIndex((room) => room.id === preferredHomeRoomId);
+					if (homeRoomIndex > 0) {
+						const [homeRoom] = compatibleRooms.splice(homeRoomIndex, 1);
+						compatibleRooms.unshift(homeRoom);
+					}
+				}
+
 				if (compatibleRooms.length === 0) {
 					sessionFailureReasons.add('NO_COMPATIBLE_ROOM');
 					continue;
@@ -1222,7 +1255,12 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 									modularAssignments: modularAssignmentInfo?.assignments ?? [],
 								}
 								: {
-									roomAssignmentReason: 'GENERAL_POOL_ASSIGNED',
+									roomAssignmentReason: preferredHomeRoomId != null
+										? (room.id === preferredHomeRoomId ? 'HOME_ROOM_ASSIGNED' : 'HOME_ROOM_UNAVAILABLE')
+										: (SPECIALIZED_ROOM_TYPES.has(room.type) && item.roomTypePreference != null
+											? 'SPECIALIZED_ROOM'
+											: 'GENERAL_POOL_ASSIGNED')
+										,
 								},
 						});
 
@@ -1269,13 +1307,14 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				else if (sessionFailureReasons.has('FACULTY_OVERLOADED')) reason = 'FACULTY_OVERLOADED';
 				else if (sessionFailureReasons.has('NO_COMPATIBLE_ROOM')) reason = 'NO_COMPATIBLE_ROOM';
 
+				const isSpecializedDemand = item.roomTypePreference != null && SPECIALIZED_ROOM_TYPES.has(item.roomTypePreference);
 				unassignedItems.push({
 					sectionId: item.sectionId,
 					subjectId: item.subjectId,
 					gradeLevel: item.gradeLevel,
 					session: session + 1,
 					reason,
-					roomAssignmentReason: 'FALLBACK_UNRESOLVED',
+					roomAssignmentReason: isSpecializedDemand ? 'SPECIALIZED_ROOM_UNAVAILABLE' : 'FALLBACK_UNRESOLVED',
 					entryKind: item.entryKind,
 					programType: item.programType ?? null,
 					programCode: item.programCode ?? null,
@@ -1286,6 +1325,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					cohortExpectedEnrollment: item.entryKind === 'COHORT' ? item.enrolledCount : null,
 					adviserId: item.adviserId ?? null,
 					adviserName: item.adviserName ?? null,
+					homeRoomId: item.homeRoomId ?? null,
 				});
 				unassignedCount++;
 			}
