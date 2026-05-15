@@ -205,7 +205,7 @@ export async function triggerGenerationRun(
 	schoolId: number,
 	schoolYearId: number,
 	actorId: number,
-	options?: { ignoreRoomRequestGate?: boolean; authToken?: string },
+	options?: { ignoreRoomRequestGate?: boolean; enforceShiftWindows?: boolean; authToken?: string },
 ) {
 	const gateStatus = await getGenerationRoomRequestGateStatus(schoolId, schoolYearId);
 	if (gateStatus.blocked && !options?.ignoreRoomRequestGate) {
@@ -299,9 +299,9 @@ export async function triggerGenerationRun(
 				where: { schoolId },
 				select: { id: true, name: true, x: true, y: true },
 			}),
-			prisma.gradeShiftWindow.findMany({
-				where: { schoolId, schoolYearId },
-			}),
+			options?.enforceShiftWindows === false
+				? Promise.resolve([])
+				: prisma.gradeShiftWindow.findMany({ where: { schoolId, schoolYearId } }),
 			prisma.instructionalCohort.findMany({
 				where: { schoolId, schoolYearId },
 				orderBy: [{ gradeLevel: 'asc' }, { cohortCode: 'asc' }],
@@ -562,6 +562,8 @@ export async function triggerGenerationRun(
 					durationMs,
 					summary,
 					gateOverrideUsed: Boolean(options?.ignoreRoomRequestGate),
+					shiftWindowPolicy: options?.enforceShiftWindows === false ? 'DISABLED' : 'ENFORCED',
+					gradeWindowCount: gradeWindows.length,
 					gateOpenRequestCountAtTrigger: gateStatus.openCount,
 				} as object,
 			},

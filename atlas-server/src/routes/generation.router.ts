@@ -42,9 +42,14 @@ router.post(
 			const actorId = req.user?.userId;
 			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
 			const ignoreRoomRequestGate = req.body?.ignoreRoomRequestGate === true;
+			const enforceShiftWindows = req.body?.enforceShiftWindows !== false;
 			const authToken = getAuthToken(req);
 
-			const run = await genService.triggerGenerationRun(schoolId, schoolYearId, actorId, { ignoreRoomRequestGate, authToken });
+			const run = await genService.triggerGenerationRun(schoolId, schoolYearId, actorId, {
+				ignoreRoomRequestGate,
+				enforceShiftWindows,
+				authToken,
+			});
 			res.status(201).json({ run });
 		} catch (e) { next(e); }
 	},

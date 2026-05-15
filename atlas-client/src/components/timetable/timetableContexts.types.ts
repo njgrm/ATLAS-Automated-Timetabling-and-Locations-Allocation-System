@@ -126,9 +126,11 @@ export type ScheduleReviewDialogsContext = {
 	unassignDraftPlacement: (placementId: number) => Promise<void>;
 	showGenerateConfirm: boolean;
 	setShowGenerateConfirm: Dispatch<SetStateAction<boolean>>;
+	enforceShiftWindows: boolean;
+	setEnforceShiftWindows: Dispatch<SetStateAction<boolean>>;
 	draftBoardSummary: DraftBoardState['counts'] | null;
 	followUps: Set<string>;
-	confirmGenerate: () => void;
+	confirmGenerate: (enforceShiftWindowsOverride?: boolean) => void;
 	showResetDraftDialog: boolean;
 	setShowResetDraftDialog: Dispatch<SetStateAction<boolean>>;
 	openPreGenerationWorkspace: (resetExisting: boolean) => Promise<void>;

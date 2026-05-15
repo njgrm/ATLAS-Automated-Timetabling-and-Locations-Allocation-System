@@ -119,6 +119,8 @@ type UseTimetableMutationsInput = {
 
 	setGenerating: React.Dispatch<React.SetStateAction<boolean>>;
 	setShowGenerateConfirm: React.Dispatch<React.SetStateAction<boolean>>;
+	enforceShiftWindows: boolean;
+	setEnforceShiftWindows: React.Dispatch<React.SetStateAction<boolean>>;
 	draftBoardSummary: DraftBoardState['counts'] | null;
 	fetchDraftBoardSummary: (syId: number) => Promise<DraftBoardState['counts'] | null>;
 	loadAll: (preserveRun?: boolean) => Promise<void>;
@@ -208,7 +210,7 @@ export type TimetableMutationState = {
 	toggleFollowUp: (entryId: string) => Promise<void>;
 	triggerGeneration: () => Promise<void>;
 	handleTriggerGenerate: () => Promise<void>;
-	confirmGenerate: () => void;
+	confirmGenerate: (enforceShiftWindowsOverride?: boolean) => void;
 	openPreGenerationWorkspace: (resetExisting: boolean) => Promise<void>;
 	handleStartNewPreGenerationDraft: () => Promise<void>;
 	handlePublishConfirm: () => void;
@@ -290,6 +292,8 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setFollowUps,
 		setGenerating,
 		setShowGenerateConfirm,
+		enforceShiftWindows,
+		setEnforceShiftWindows,
 		draftBoardSummary,
 		fetchDraftBoardSummary,
 		loadAll,
@@ -547,13 +551,17 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		}
 	}, [draft, schoolYearId, setFollowUps]);
 
-	const triggerGeneration = useCallback(async (ignoreRoomRequestGate: boolean = false) => {
+	const triggerGeneration = useCallback(async (
+		ignoreRoomRequestGate: boolean = false,
+		enforceShiftWindowsFlag: boolean = enforceShiftWindows,
+	) => {
 		if (!schoolYearId) return;
 		setGenerating(true);
 		const lockedAnchorCount = draftBoardSummary?.draft ?? 0;
 		try {
 			const { data: run } = await atlasApi.post<import('@/types').GenerationRun>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs`, {
 				ignoreRoomRequestGate,
+				enforceShiftWindows: enforceShiftWindowsFlag,
 			});
 			if (run.status === 'FAILED') {
 				toast.error(`Generation failed: ${run.error ?? 'Unknown error'}`);
@@ -586,6 +594,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		}
 	}, [
 		schoolYearId,
+		enforceShiftWindows,
 		setGenerating,
 		draftBoardSummary?.draft,
 		setCenterView,
@@ -602,13 +611,17 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	const handleTriggerGenerate = useCallback(async () => {
 		if (!schoolYearId) return;
 		if (!draftBoardSummary) await fetchDraftBoardSummary(schoolYearId);
+		setEnforceShiftWindows(true);
 		setShowGenerateConfirm(true);
-	}, [schoolYearId, draftBoardSummary, fetchDraftBoardSummary, setShowGenerateConfirm]);
+	}, [schoolYearId, draftBoardSummary, fetchDraftBoardSummary, setEnforceShiftWindows, setShowGenerateConfirm]);
 
-	const confirmGenerate = useCallback(() => {
+	const confirmGenerate = useCallback((enforceShiftWindowsOverride?: boolean) => {
+		if (typeof enforceShiftWindowsOverride === 'boolean') {
+			setEnforceShiftWindows(enforceShiftWindowsOverride);
+		}
 		setShowGenerateConfirm(false);
-		void triggerGeneration(true);
-	}, [setShowGenerateConfirm, triggerGeneration]);
+		void triggerGeneration(true, enforceShiftWindowsOverride ?? enforceShiftWindows);
+	}, [enforceShiftWindows, setEnforceShiftWindows, setShowGenerateConfirm, triggerGeneration]);
 
 	const openPreGenerationWorkspace = useCallback(async (resetExisting: boolean) => {
 		if (!schoolYearId) return;

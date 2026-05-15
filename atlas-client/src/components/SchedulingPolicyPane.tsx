@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
-import type { ConstraintOverride, SchedulingPolicy, ViolationCode } from '@/types';
+import type { ConstraintOverride, GradeShiftWindow, SchedulingPolicy, ViolationCode } from '@/types';
 
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
@@ -21,6 +21,7 @@ import { ScrollArea } from '@/ui/scroll-area';
 import { Slider } from '@/ui/slider';
 import { Switch } from '@/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
+import { Tabs, TabsList, TabsTrigger } from '@/ui/tabs';
 
 /* ─── Defaults ─── */
 
@@ -126,6 +127,34 @@ interface LocalPolicy {
 	allowFlexibleSubjectAssignment: boolean;
 	allowConsecutiveLabSessions: boolean;
 	constraintConfig: Record<string, ConstraintOverride>;
+}
+
+type LocalGradeWindow = {
+	gradeLevel: number;
+	startTime: string;
+	endTime: string;
+};
+
+const GRADE_LEVELS: number[] = [7, 8, 9, 10];
+
+const DEFAULT_GRADE_WINDOWS: LocalGradeWindow[] = [
+	{ gradeLevel: 7, startTime: '07:30', endTime: '12:00' },
+	{ gradeLevel: 8, startTime: '07:30', endTime: '12:00' },
+	{ gradeLevel: 9, startTime: '13:00', endTime: '17:00' },
+	{ gradeLevel: 10, startTime: '13:00', endTime: '17:00' },
+];
+
+function toLocalGradeWindows(windows: GradeShiftWindow[]): LocalGradeWindow[] {
+	const byGrade = new Map<number, LocalGradeWindow>(DEFAULT_GRADE_WINDOWS.map((window) => [window.gradeLevel, window]));
+	for (const window of windows) {
+		if (!GRADE_LEVELS.includes(window.gradeLevel)) continue;
+		byGrade.set(window.gradeLevel, {
+			gradeLevel: window.gradeLevel,
+			startTime: window.startTime,
+			endTime: window.endTime,
+		});
+	}
+	return GRADE_LEVELS.map((gradeLevel) => byGrade.get(gradeLevel) ?? { gradeLevel, startTime: '07:30', endTime: '12:00' });
 }
 
 function policyToLocal(p: SchedulingPolicy): LocalPolicy {
@@ -357,26 +386,33 @@ export default function SchedulingPolicyPane({
 }) {
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
+	const [activeTab, setActiveTab] = useState<'policy' | 'shift-settings'>('policy');
 	const [persisted, setPersisted] = useState<LocalPolicy | null>(null);
 	const [local, setLocal] = useState<LocalPolicy | null>(null);
+	const [persistedShiftWindows, setPersistedShiftWindows] = useState<LocalGradeWindow[]>(DEFAULT_GRADE_WINDOWS);
+	const [shiftWindows, setShiftWindows] = useState<LocalGradeWindow[]>(DEFAULT_GRADE_WINDOWS);
 
 	const isDirty = useMemo(() => {
 		if (!persisted || !local) return false;
-		return !deepEqual(persisted, local);
-	}, [persisted, local]);
+		return !deepEqual(persisted, local) || !deepEqual(persistedShiftWindows, shiftWindows);
+	}, [persisted, local, persistedShiftWindows, shiftWindows]);
 
 	const fetchPolicy = useCallback(async () => {
 		if (!schoolYearId) return;
 		setLoading(true);
 		try {
-			const { data } = await atlasApi.get<{ policy: SchedulingPolicy }>(
-				`/policies/scheduling/${schoolId}/${schoolYearId}`,
-			);
-			const lp = policyToLocal(data.policy);
+			const [policyRes, windowsRes] = await Promise.all([
+				atlasApi.get<{ policy: SchedulingPolicy }>(`/policies/scheduling/${schoolId}/${schoolYearId}`),
+				atlasApi.get<{ windows: GradeShiftWindow[] }>(`/generation/${schoolId}/${schoolYearId}/grade-windows`),
+			]);
+			const lp = policyToLocal(policyRes.data.policy);
+			const localWindows = toLocalGradeWindows(windowsRes.data.windows ?? []);
 			setPersisted(lp);
 			setLocal(lp);
+			setPersistedShiftWindows(localWindows);
+			setShiftWindows(localWindows);
 		} catch {
-			toast.error('Failed to load scheduling policy.');
+			toast.error('Failed to load scheduling policy and shift settings.');
 		} finally {
 			setLoading(false);
 		}
@@ -390,28 +426,45 @@ export default function SchedulingPolicyPane({
 		if (!schoolYearId || !local) return;
 		setSaving(true);
 		try {
+			for (const window of shiftWindows) {
+				if (!window.startTime || !window.endTime) {
+					toast.error(`Grade ${window.gradeLevel} requires both start and end times.`);
+					setSaving(false);
+					return;
+				}
+				if (window.startTime >= window.endTime) {
+					toast.error(`Grade ${window.gradeLevel} start time must be earlier than end time.`);
+					setSaving(false);
+					return;
+				}
+			}
+
 			const payload = {
 				...local,
 				enableLunchWindow: local.enableLunchWindow,
 				enforceLunchWindow: local.enableLunchWindow,
 			};
-			const { data } = await atlasApi.put<{ policy: SchedulingPolicy }>(
-				`/policies/scheduling/${schoolId}/${schoolYearId}`,
-				payload,
-			);
-			const lp = policyToLocal(data.policy);
+			const [policyRes] = await Promise.all([
+				atlasApi.put<{ policy: SchedulingPolicy }>(`/policies/scheduling/${schoolId}/${schoolYearId}`, payload),
+				atlasApi.put<{ windows: GradeShiftWindow[] }>(`/generation/${schoolId}/${schoolYearId}/grade-windows`, {
+					windows: shiftWindows,
+				}),
+			]);
+
+			const lp = policyToLocal(policyRes.data.policy);
 			setPersisted(lp);
 			setLocal(lp);
-			toast.success('Scheduling policy saved.');
+			setPersistedShiftWindows(shiftWindows);
+			toast.success('Scheduling policy and shift settings saved.');
 			onPolicySaved?.();
 		} catch (error: unknown) {
 			const apiMessage =
 				(error as { response?: { data?: { message?: string } } })?.response?.data?.message;
-			toast.error(apiMessage || 'Failed to save policy. Your changes are preserved.');
+			toast.error(apiMessage || 'Failed to save policy or shift settings. Your changes are preserved.');
 		} finally {
 			setSaving(false);
 		}
-	}, [schoolId, schoolYearId, local, onPolicySaved]);
+	}, [schoolId, schoolYearId, local, shiftWindows, onPolicySaved]);
 
 	const update = useCallback(<K extends keyof LocalPolicy>(key: K, value: LocalPolicy[K]) => {
 		setLocal((prev) => (prev ? { ...prev, [key]: value } : prev));
@@ -425,6 +478,17 @@ export default function SchedulingPolicyPane({
 			return { ...prev, constraintConfig: config };
 		});
 	}, []);
+
+	const updateShiftWindow = useCallback(
+		(gradeLevel: number, field: 'startTime' | 'endTime', value: string) => {
+			setShiftWindows((prev) =>
+				prev.map((window) =>
+					window.gradeLevel === gradeLevel ? { ...window, [field]: value } : window,
+				),
+			);
+		},
+		[],
+	);
 
 	return (
 		<div className="flex flex-col min-h-0 h-full bg-muted/30">
@@ -447,8 +511,15 @@ export default function SchedulingPolicyPane({
 				</div>
 				<div className="flex items-center gap-1.5 text-sm font-medium">
 					<Shield className="size-3.5 text-primary" />
-					Scheduling Policy
+					Scheduling Settings
 				</div>
+
+				<Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'policy' | 'shift-settings')}>
+					<TabsList className="h-7">
+						<TabsTrigger value="policy" className="text-xs">Policy</TabsTrigger>
+						<TabsTrigger value="shift-settings" className="text-xs">Shift Settings</TabsTrigger>
+					</TabsList>
+				</Tabs>
 
 				<div className="flex-1" />
 
@@ -481,7 +552,8 @@ export default function SchedulingPolicyPane({
 				</div>
 			) : (
 				/* Outer container does NOT scroll — each column card scrolls independently */
-				<div className="flex-1 min-h-0 overflow-hidden p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+				activeTab === 'policy' ? (
+					<div className="flex-1 min-h-0 overflow-hidden p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
 
 					{/* ── COL 0: Scheduling Mode ── */}
 					<SectionCard title="Teacher Movement Policy">
@@ -786,7 +858,43 @@ export default function SchedulingPolicyPane({
 						</div>
 					</SectionCard>
 
-				</div>
+					</div>
+				) : (
+					<div className="flex-1 min-h-0 overflow-hidden p-4">
+						<SectionCard title="Shift Settings">
+							<div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+								Adjusting these times will dictate the allowable scheduling boundaries for the Timetable Generator.
+							</div>
+							<div className="space-y-2">
+								{shiftWindows.map((window) => (
+									<div key={window.gradeLevel} className="rounded-md border border-border p-3">
+										<div className="mb-2 text-xs font-medium text-foreground">Grade {window.gradeLevel}</div>
+										<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+											<div className="space-y-1.5">
+												<Label className="text-[0.6875rem] uppercase tracking-wide text-muted-foreground">Start Time</Label>
+												<Input
+													type="time"
+													className="h-8 text-xs"
+													value={window.startTime}
+													onChange={(event) => updateShiftWindow(window.gradeLevel, 'startTime', event.target.value)}
+												/>
+											</div>
+											<div className="space-y-1.5">
+												<Label className="text-[0.6875rem] uppercase tracking-wide text-muted-foreground">End Time</Label>
+												<Input
+													type="time"
+													className="h-8 text-xs"
+													value={window.endTime}
+													onChange={(event) => updateShiftWindow(window.gradeLevel, 'endTime', event.target.value)}
+												/>
+											</div>
+										</div>
+									</div>
+								))}
+							</div>
+						</SectionCard>
+					</div>
+				)
 			)}
 		</div>
 	);

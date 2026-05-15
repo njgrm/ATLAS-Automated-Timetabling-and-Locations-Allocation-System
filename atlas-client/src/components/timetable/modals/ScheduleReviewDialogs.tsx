@@ -44,6 +44,8 @@ pendingUnassignId,
 unassignDraftPlacement,
 showGenerateConfirm,
 setShowGenerateConfirm,
+enforceShiftWindows,
+setEnforceShiftWindows,
 draftBoardSummary,
 followUps,
 confirmGenerate,
@@ -261,11 +263,26 @@ return (
 							) : null}
 						</DialogDescription>
 					</DialogHeader>
+					<div className="space-y-2 rounded-md border border-border bg-muted/40 px-3 py-2">
+						<div className="flex items-start gap-2">
+							<Checkbox
+								id="enforce-shift-windows"
+								checked={enforceShiftWindows}
+								onCheckedChange={(checked) => setEnforceShiftWindows(Boolean(checked))}
+							/>
+							<div className="space-y-1">
+								<label htmlFor="enforce-shift-windows" className="text-sm font-medium leading-none">Enforce Shift Windows</label>
+								<p className="text-[0.7rem] text-muted-foreground">
+									Uses the admin-configured Grade Shift Window settings as scheduling boundaries for this run.
+								</p>
+							</div>
+						</div>
+					</div>
 					<DialogFooter className="gap-2 sm:gap-0">
 						<Button variant="outline" size="sm" onClick={() => setShowGenerateConfirm(false)}>
 							Cancel
 						</Button>
-						<Button variant="default" size="sm" onClick={confirmGenerate}>
+						<Button variant="default" size="sm" onClick={() => confirmGenerate(enforceShiftWindows)}>
 							<Play className="size-3.5 mr-1.5" />
 							Generate Anyway
 						</Button>

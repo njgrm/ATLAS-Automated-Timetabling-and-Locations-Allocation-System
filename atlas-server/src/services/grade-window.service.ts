@@ -12,6 +12,15 @@ function err(statusCode: number, code: string, message: string): Error & { statu
 	return e;
 }
 
+function isValidTime(value: string): boolean {
+	return /^([01]\d|2[0-3]):([0-5]\d)$/.test(value);
+}
+
+function timeToMinutes(value: string): number {
+	const [hours, minutes] = value.split(':').map(Number);
+	return hours * 60 + minutes;
+}
+
 // ─── Types ───
 
 export interface GradeWindowInput {
@@ -52,6 +61,12 @@ export async function upsertGradeWindow(
 	}
 	if (!input.startTime || !input.endTime) {
 		throw err(400, 'MISSING_FIELDS', 'startTime and endTime are required.');
+	}
+	if (!isValidTime(input.startTime) || !isValidTime(input.endTime)) {
+		throw err(400, 'INVALID_TIME_FORMAT', 'startTime and endTime must use HH:mm format.');
+	}
+	if (timeToMinutes(input.startTime) >= timeToMinutes(input.endTime)) {
+		throw err(400, 'INVALID_TIME_RANGE', 'startTime must be earlier than endTime.');
 	}
 
 	return prisma.gradeShiftWindow.upsert({
