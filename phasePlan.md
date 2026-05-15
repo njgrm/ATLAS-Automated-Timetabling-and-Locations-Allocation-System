@@ -169,6 +169,7 @@ PHASE 8+: Teacher X & Concurrency (⏳ FUTURE, BLOCKED UNTIL EARLIER PHASES)
   - 🔄 API extension in progress (roomAssignmentReason diagnostics added; full client parity pending)
   - Regression test suite + performance benchmarks (<40s target)
   - Manual QA evidence (Tailnet validation)
+  - Latest 2h rerun (2026-05-16): ATLAS bearer auth/session wiring confirmed; recurring live 401 sourced to EnrollPro bridge-token school-year endpoint; acceptance still open due >40s run and missing live KPI parity
 - **Success Metrics:**
   - Generation time <40s for 300–500 section dataset
   - Home-room success rate 70–85%

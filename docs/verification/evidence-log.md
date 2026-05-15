@@ -1,5 +1,34 @@
 # Verification Evidence Log
 #
+### 2026-05-16 - Phase 2 Manual QA Re-run (2h) + Tailnet Auth/Session Wiring Confirmation
+- Phase: Phase 2 (Home-Room Algorithm, Task 2h rerun)
+- Operator: GitHub Copilot
+- Environment: `https://njgrm.buru-degree.ts.net`
+- Scope gate: PASS (manual QA rerun completed with live endpoint probes)
+- Auth/session wiring verdict: PASS for ATLAS local auth token path
+  - `sessionStorage.atlas_local_token` present (JWT length 367)
+  - `GET /api/v1/auth/me` with bearer token: `200`
+  - `GET /api/v1/generation/1/55/runs/latest` with bearer token: `200` (runId `19`)
+- Live integration finding:
+  - `GET /enrollpro-api/school-years`: `401 UNAUTHORIZED` without bridge token
+  - This is the recurring live 401 source observed in console during timetable bootstrapping; it is not caused by missing ATLAS local bearer injection.
+- Timetable validation observations (runId `19`, schoolYearId `55`):
+  - Duration: `263.4s` (fails `<40s` target)
+  - Assigned: `1105/2596`
+  - Hard violations: `611`
+  - Violations total: `988`
+  - Top violations: `FACULTY_SUBJECT_NOT_QUALIFIED (611)`, `FACULTY_EXCESSIVE_IDLE_GAP (137)`, `FACULTY_EXCESSIVE_TRAVEL_DISTANCE (116)`
+  - Latest draft entries endpoint returned `draftCount: 0` (no manual spot-check set from draft in this run)
+- 2h checklist result: PARTIAL / NOT CLOSED
+  - PASS: live login, route access, ATLAS bearer auth wiring, generation run fetch, screenshot capture
+  - FAIL: `<40s` generation target, home-room KPI visibility in live summary payload, spot-checkability from draft entries in this run
+- Captured screenshots:
+  - `qa-artifacts/phase2-2h-01-timetable-toolbar.png`
+  - `qa-artifacts/phase2-2h-02-violations-panel.png`
+- Decision impact:
+  - Task 2c (singleton safeguard implementation) remains code-complete locally from Slice B.
+  - Phase 2 gate closure remains blocked pending live environment parity and successful 2h acceptance checklist execution.
+
 ### 2026-05-16 - Phase 2 Home-Room Slice A (Strategy Wiring + Constructor Priority)
 - Phase: Phase 2 (Home-Room Algorithm)
 - Operator: GitHub Copilot
