@@ -11,7 +11,7 @@
  *  5. Respect DO 005 caps (standard = 1,800 min/week, hard = 2,400 min/week).
  *  6. Modular bundles: attempt entire group; persist partial if cap is hit mid-bundle.
  *  7. Persist FacultySubject + SubjectSectionOwnership in a single transaction.
- *  8. Return { preserved, created, unresolved, warnings }.
+ *  8. Return { preserved, created, unresolved, warnings, staffingReport }.
  *
  * Design invariants:
  * - NEVER overwrites an existing SubjectSectionOwnership row.
@@ -52,7 +52,13 @@ function formatDepartmentLabel(value) {
     };
     return labels[normalized] ?? (value?.trim().toUpperCase() || 'GENERAL');
 }
-function buildStaffingReport(unresolvedByDepartment, faculty, capacityUsed) {
+function isProgramScopeCompatible(scopes, sectionProgramType) {
+    if (!scopes || scopes.length === 0)
+        return true;
+    const normalizedProgramType = sectionProgramType.trim().toUpperCase();
+    return scopes.some((scope) => scope.trim().toUpperCase() === normalizedProgramType);
+}
+function buildStaffingReport(unresolvedByDepartment, shortageSections, faculty, capacityUsed) {
     const shortageBuckets = Array.from(unresolvedByDepartment.entries())
         .map(([department, unassignedSections]) => ({ department, unassignedSections }))
         .sort((left, right) => {
@@ -101,6 +107,11 @@ function buildStaffingReport(unresolvedByDepartment, faculty, capacityUsed) {
         }
         return left.department.localeCompare(right.department);
     });
+    const shortages = shortageBuckets.map((bucket) => ({
+        department: bucket.department,
+        count: bucket.unassignedSections,
+        sections: (shortageSections.get(bucket.department) ?? []).slice(0, 50),
+    }));
     return {
         department: primaryShortage.department,
         unassignedSections: primaryShortage.unassignedSections,
@@ -108,53 +119,17 @@ function buildStaffingReport(unresolvedByDepartment, faculty, capacityUsed) {
         recommendedNewHires,
         internalCrossTrainees,
         missingMinutesPerWeek,
+        shortages,
     };
-}
-function matchesLegacyKeywords(department, subjectCode, subjectName) {
-    if (!department)
-        return false;
-    const code = subjectCode.toLowerCase();
-    const name = subjectName.toLowerCase();
-    if (code.includes('homeroom') || name.includes('homeroom guidance') || name.includes('homeroom')) {
-        return true;
-    }
-    const JHS_DEPT_KEYWORDS = {
-        'MATHEMATICS': ['math', 'math.', 'mth', 'algebra', 'geometry', 'statistics'],
-        'SCIENCE': ['sci', 'sci.', 'biology', 'physics', 'chemistry'],
-        'ENGLISH': ['eng', 'eng.', 'english', 'reading', 'writing'],
-        'FILIPINO': ['fil', 'fil.', 'filipino', 'wika', 'panitikan'],
-        'ARALING PANLIPUNAN': ['ap', 'a.p.', 'socsci', 'history', 'geography'],
-        'MAPEH': ['mapeh', 'm.a.p.e.h.', 'pe', 'p.e.', 'music', 'arts', 'health'],
-        'TLE': ['tle', 't.l.e.', 'ict', 'agriculture', 'livelihood'],
-        'ESP': ['esp', 'e.s.p.', 'values', 'edukasyon sa pagpapakatao'],
-    };
-    const normalizedDept = department.toUpperCase();
-    const keywords = JHS_DEPT_KEYWORDS[normalizedDept] ?? [];
-    return keywords.some((keyword) => code.includes(keyword) || name.includes(keyword));
 }
 function resolveQualificationTier(faculty, subject, aliasMap) {
     const normalizedSubjectCode = normalizeKey(subject.code);
     const normalizedSpec = normalizeKey(faculty.specialization);
-    const normalizedDept = normalizeKey(faculty.department);
     if (normalizedSpec) {
         const mappedSubjects = aliasMap.get(normalizedSpec);
         if (mappedSubjects?.has(normalizedSubjectCode)) {
             return 1;
         }
-    }
-    const normalizedAllowed = new Set((subject.allowedSpecializations ?? []).map((entry) => normalizeKey(entry)));
-    if (normalizedSpec && normalizedAllowed.has(normalizedSpec)) {
-        return 2;
-    }
-    if (normalizedDept && normalizedAllowed.has(normalizedDept)) {
-        return 2;
-    }
-    if (faculty.canTeachOutsideDepartment) {
-        if (matchesLegacyKeywords(faculty.department, subject.code, subject.name)) {
-            return 3;
-        }
-        // Explicit outside-specialization override: any remaining subject is eligible.
-        return 3;
     }
     return null;
 }
@@ -217,6 +192,7 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
             code: true,
             name: true,
             gradeLevels: true,
+            programScopes: true,
             minMinutesPerWeek: true,
             allowedSpecializations: true,
             modularGroupId: true,
@@ -225,10 +201,15 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
     });
     const sectionResult = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
     const sectionGradeLevel = new Map();
+    const sectionMeta = new Map();
     for (const grade of sectionResult.gradeLevels) {
         for (const section of grade.sections) {
             if (section.id > 0) {
                 sectionGradeLevel.set(section.id, section.displayOrder);
+                sectionMeta.set(section.id, {
+                    sectionName: section.name,
+                    programType: section.programType ?? 'REGULAR',
+                });
             }
         }
     }
@@ -249,22 +230,37 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
                 recommendedNewHires: 0,
                 internalCrossTrainees: [],
                 missingMinutesPerWeek: 0,
+                shortages: [],
             },
         };
     }
     const workQueue = [];
     const unresolvedByDepartment = new Map();
+    const shortageSections = new Map();
     for (const subject of subjects) {
         const relevantSections = subject.gradeLevels.length > 0
             ? allSectionIds.filter((sid) => {
                 const gl = sectionGradeLevel.get(sid) ?? 0;
-                return subject.gradeLevels.includes(gl);
+                if (!subject.gradeLevels.includes(gl))
+                    return false;
+                const programType = sectionMeta.get(sid)?.programType ?? 'REGULAR';
+                return isProgramScopeCompatible(subject.programScopes, programType);
             })
-            : allSectionIds;
+            : allSectionIds.filter((sid) => {
+                const programType = sectionMeta.get(sid)?.programType ?? 'REGULAR';
+                return isProgramScopeCompatible(subject.programScopes, programType);
+            });
         for (const sectionId of relevantSections) {
             const key = `${subject.id}:${sectionId}`;
             if (!resolvedPairs.has(key)) {
-                workQueue.push({ subjectId: subject.id, sectionId, subject });
+                const sectionInfo = sectionMeta.get(sectionId);
+                workQueue.push({
+                    subjectId: subject.id,
+                    sectionId,
+                    subject,
+                    sectionName: sectionInfo?.sectionName ?? `Section ${sectionId}`,
+                    sectionProgramType: sectionInfo?.programType ?? 'REGULAR',
+                });
             }
         }
     }
@@ -361,14 +357,23 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
         const pairs = bySubjectId.get(subjectId);
         const subjectRow = subjectMap.get(subjectId);
         for (const pair of pairs) {
-            const candidate = await findBestCandidate(subjectRow, pair.sectionId);
+            const candidate = findBestCandidate(subjectRow, pair.sectionId);
             if (!candidate) {
                 unresolvedCount += 1;
-                if (subjectRow.modularGroupId) {
-                    warnings.push(`Lacking Faculty: no qualified teacher for modular subject ${subjectRow.name} (section ${pair.sectionId}).`);
-                    const shortageKey = formatDepartmentLabel(subjectRow.modularGroupId);
-                    unresolvedByDepartment.set(shortageKey, (unresolvedByDepartment.get(shortageKey) ?? 0) + 1);
-                }
+                warnings.push(`Lacking Faculty: no Tier 1 qualified teacher for ${subjectRow.name} (${pair.sectionName}).`);
+                const fallbackDepartment = subjectRow.allowedSpecializations?.[0] ?? subjectRow.modularGroupId ?? 'GENERAL';
+                const shortageKey = formatDepartmentLabel(fallbackDepartment);
+                unresolvedByDepartment.set(shortageKey, (unresolvedByDepartment.get(shortageKey) ?? 0) + 1);
+                const existing = shortageSections.get(shortageKey) ?? [];
+                existing.push({
+                    subjectId: subjectRow.id,
+                    subjectCode: subjectRow.code,
+                    subjectName: subjectRow.name,
+                    sectionId: pair.sectionId,
+                    sectionName: pair.sectionName,
+                    programType: pair.sectionProgramType,
+                });
+                shortageSections.set(shortageKey, existing);
             }
             else {
                 addPending(candidate.id, pair.subjectId, pair.sectionId);
@@ -440,7 +445,7 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
             }
         });
     }
-    const staffingReport = buildStaffingReport(unresolvedByDepartment, faculty, capacityUsed);
+    const staffingReport = buildStaffingReport(unresolvedByDepartment, shortageSections, faculty, capacityUsed);
     return {
         preserved,
         created,

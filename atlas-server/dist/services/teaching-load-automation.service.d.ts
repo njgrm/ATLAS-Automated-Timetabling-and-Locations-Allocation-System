@@ -11,7 +11,7 @@
  *  5. Respect DO 005 caps (standard = 1,800 min/week, hard = 2,400 min/week).
  *  6. Modular bundles: attempt entire group; persist partial if cap is hit mid-bundle.
  *  7. Persist FacultySubject + SubjectSectionOwnership in a single transaction.
- *  8. Return { preserved, created, unresolved, warnings }.
+ *  8. Return { preserved, created, unresolved, warnings, staffingReport }.
  *
  * Design invariants:
  * - NEVER overwrites an existing SubjectSectionOwnership row.
@@ -39,6 +39,19 @@ export interface StaffingReport {
     recommendedNewHires: number;
     internalCrossTrainees: StaffingCrossTrainee[];
     missingMinutesPerWeek: number;
+    shortages: StaffingShortageDetail[];
+}
+export interface StaffingShortageDetail {
+    department: string;
+    count: number;
+    sections: Array<{
+        subjectId: number;
+        subjectCode: string;
+        subjectName: string;
+        sectionId: number;
+        sectionName: string;
+        programType: string;
+    }>;
 }
 export declare function autoFill(schoolId: number, schoolYearId: number, authToken?: string, options?: {
     previewOnly?: boolean;

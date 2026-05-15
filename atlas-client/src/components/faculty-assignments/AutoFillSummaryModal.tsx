@@ -1,4 +1,5 @@
-import { AlertTriangle, BadgeCheck, Building2, Users2 } from 'lucide-react';
+import { useState } from 'react';
+import { AlertTriangle, BadgeCheck, Building2, ChevronDown, ChevronRight, Users2 } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import {
@@ -25,6 +26,18 @@ export type StaffingReport = {
 	recommendedNewHires: number;
 	internalCrossTrainees: StaffingCrossTrainee[];
 	missingMinutesPerWeek: number;
+	shortages: Array<{
+		department: string;
+		count: number;
+		sections: Array<{
+			subjectId: number;
+			subjectCode: string;
+			subjectName: string;
+			sectionId: number;
+			sectionName: string;
+			programType: string;
+		}>;
+	}>;
 };
 
 export type AutoFillSummaryResult = {
@@ -48,6 +61,7 @@ function formatHires(value: number): string {
 }
 
 export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSummaryModalProps) {
+	const [expandedDepartments, setExpandedDepartments] = useState<Record<string, boolean>>({});
 	const report = result?.staffingReport ?? null;
 	const hasShortage = Boolean(report && report.unassignedSections > 0);
 	const hasResult = Boolean(result);
@@ -56,6 +70,13 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 	const description = hasShortage
 		? 'We assigned as many classes as possible without overloading current staff. Some classes remain unassigned because the remaining load exceeds the current staffing supply.'
 		: 'All classes have been successfully assigned to a teacher. No one has exceeded their maximum allowed teaching hours.';
+
+	const toggleDepartment = (department: string) => {
+		setExpandedDepartments((current) => ({
+			...current,
+			[department]: !current[department],
+		}));
+	};
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -153,6 +174,57 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 								<div className="mt-4 rounded-2xl border border-sky-200 bg-white/90 p-4 text-sm leading-6 text-foreground">
 									To cover the remaining <span className="font-semibold">{report.unassignedSections} sections</span> ({report.missingHoursPerWeek} hours/week), you need to hire{' '}
 									<span className="font-semibold">~{formatHires(report.recommendedNewHires)} additional full-time Science teachers</span>.
+								</div>
+							</div>
+
+							<div className="rounded-3xl border border-border bg-card p-5">
+								<h3 className="text-base font-semibold text-foreground">Shortage Drill-Down</h3>
+								<p className="mt-1 text-sm text-muted-foreground">
+									Expand a department to see the exact subject-section pairs that remain unassigned.
+								</p>
+								<div className="mt-4 space-y-2">
+									{(report.shortages ?? []).length > 0 ? (
+										report.shortages.map((shortage) => {
+											const isOpen = expandedDepartments[shortage.department] ?? false;
+											return (
+												<div key={shortage.department} className="rounded-2xl border border-border bg-muted/20">
+													<Button
+														type="button"
+														variant="ghost"
+														onClick={() => toggleDepartment(shortage.department)}
+														className="h-auto w-full justify-between rounded-2xl px-3 py-2"
+													>
+														<span className="flex items-center gap-2 text-sm font-medium">
+															{isOpen ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+															{shortage.department}
+														</span>
+														<Badge variant="secondary">{shortage.count}</Badge>
+													</Button>
+													{isOpen && (
+														<div className="space-y-1 border-t border-border px-3 py-2">
+															{shortage.sections.length > 0 ? (
+																shortage.sections.map((item) => (
+																	<div
+																		key={`${item.subjectId}:${item.sectionId}`}
+																		className="rounded-xl border border-border bg-background px-3 py-2 text-xs"
+																	>
+																		<p className="font-semibold text-foreground">{item.subjectCode} - {item.subjectName}</p>
+																		<p className="text-muted-foreground">{item.sectionName} ({item.programType})</p>
+																	</div>
+																))
+															) : (
+																<p className="text-xs text-muted-foreground">No unresolved section details available.</p>
+															)}
+														</div>
+													)}
+												</div>
+											);
+										})
+									) : (
+										<p className="rounded-2xl border border-border bg-background px-3 py-2 text-sm text-muted-foreground">
+											No department shortage details were returned.
+										</p>
+									)}
 								</div>
 							</div>
 						</div>

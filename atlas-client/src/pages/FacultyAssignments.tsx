@@ -126,6 +126,11 @@ const [subjectSearch, setSubjectSearch] = useState('');
 	const [summaryModalOpen, setSummaryModalOpen] = useState(false);
 	const [summaryModalResult, setSummaryModalResult] = useState<AutoFillSummaryResult | null>(null);
 	const [gradeLevelFilter, setGradeLevelFilter] = useState<string>('all');
+	const [sortOrder, setSortOrder] = useState<'load-asc' | 'load-desc'>('load-asc');
+	const [loadFilter, setLoadFilter] = useState<'all' | 'overloaded' | 'optimal' | 'underloaded'>('all');
+	const [unmappedOnly, setUnmappedOnly] = useState(false);
+	const [hoveredIncomingMinutes, setHoveredIncomingMinutes] = useState(0);
+	const [swapCandidate, setSwapCandidate] = useState<{ subjectId: number; sectionId: number; fromFacultyId: number } | null>(null);
 const [error, setError] = useState<string | null>(null);
 const [homeroomHint, setHomeroomHint] = useState<HomeroomHintResponse | null>(null);
 const [draftAssignmentsByFaculty, setDraftAssignmentsByFaculty] = useState<Record<number, FacultyAssignmentDraft[]>>({});
@@ -398,7 +403,7 @@ const handleAutoFill = useCallback(async () => {
 			{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId },
 		);
 		await fetchData();
-		const { assignmentsCreated, uniqueTeachersAffected, unresolved, warnings } = result.data;
+		const { assignmentsCreated, uniqueTeachersAffected, unresolved } = result.data;
 		setSummaryModalResult(result.data as AutoFillSummaryResult);
 		setSummaryModalOpen(true);
 		if (assignmentsCreated > 0) {
@@ -409,9 +414,6 @@ const handleAutoFill = useCallback(async () => {
 			toast.warning(`Auto-Fill: no new assignments made. ${unresolved} pair${unresolved !== 1 ? 's' : ''} remain unresolved.`);
 		} else {
 			toast.info('Auto-Fill: all subject–section pairs are already assigned.');
-		}
-		for (const warning of warnings) {
-			toast.warning(warning, { duration: 8000 });
 		}
 	} catch {
 		toast.error('Auto-Fill failed. Please try again.');
@@ -459,8 +461,62 @@ nextFaculty = nextFaculty.filter((member) => member.department === departmentFil
 if (specializationFilter !== 'all') {
 	nextFaculty = nextFaculty.filter((member) => (member.specialization ?? 'General') === specializationFilter);
 }
+
+	if (unmappedOnly) {
+		nextFaculty = nextFaculty.filter((member) => {
+			const specialization = (member.specialization ?? '').trim();
+			if (!specialization) return false;
+			return !specializationAliases.some((alias) => alias.alias === specialization);
+		});
+	}
+
+	nextFaculty = nextFaculty.filter((member) => {
+		const load = buildTeachingLoadProfile(
+			effectiveAssignmentsByFaculty[member.id] ?? [],
+			subjects,
+			sectionMap,
+			member.isClassAdviser ? member.advisoryEquivalentHours || CLASS_ADVISER_EQUIVALENT_HOURS : 0,
+		).actualTeachingHours;
+		if (loadFilter === 'overloaded') return load > 30;
+		if (loadFilter === 'optimal') return load >= 25 && load <= 30;
+		if (loadFilter === 'underloaded') return load < 25;
+		return true;
+	});
+
+	nextFaculty = [...nextFaculty].sort((left, right) => {
+		const leftLoad = buildTeachingLoadProfile(
+			effectiveAssignmentsByFaculty[left.id] ?? [],
+			subjects,
+			sectionMap,
+			left.isClassAdviser ? left.advisoryEquivalentHours || CLASS_ADVISER_EQUIVALENT_HOURS : 0,
+		).actualTeachingHours;
+		const rightLoad = buildTeachingLoadProfile(
+			effectiveAssignmentsByFaculty[right.id] ?? [],
+			subjects,
+			sectionMap,
+			right.isClassAdviser ? right.advisoryEquivalentHours || CLASS_ADVISER_EQUIVALENT_HOURS : 0,
+		).actualTeachingHours;
+		if (sortOrder === 'load-asc') {
+			if (leftLoad !== rightLoad) return leftLoad - rightLoad;
+		} else if (leftLoad !== rightLoad) {
+			return rightLoad - leftLoad;
+		}
+		return `${left.lastName} ${left.firstName}`.localeCompare(`${right.lastName} ${right.firstName}`);
+	});
+
 return nextFaculty;
-}, [departmentFilter, effectiveAssignmentsByFaculty, faculty, filterStatus, searchQuery, specializationFilter]);
+}, [departmentFilter, effectiveAssignmentsByFaculty, faculty, filterStatus, searchQuery, specializationFilter, unmappedOnly, specializationAliases, loadFilter, sortOrder, sectionMap, subjects]);
+
+const groupedFaculty = useMemo(() => {
+	const grouped = new Map<string, FacultySummary[]>();
+	for (const member of filteredFaculty) {
+		const department = member.department?.trim() || 'UNASSIGNED DEPARTMENT';
+		const bucket = grouped.get(department) ?? [];
+		bucket.push(member);
+		grouped.set(department, bucket);
+	}
+	return Array.from(grouped.entries()).sort(([left], [right]) => left.localeCompare(right));
+}, [filteredFaculty]);
 
 const subjectsLackingFaculty = useMemo(() => {
 const assignedSubjectIds = new Set<number>();
@@ -521,6 +577,21 @@ selected?.isClassAdviser
 ),
 [currentAssignments, sectionMap, selected, subjects],
 );
+
+const loadCapMinutes = useMemo(() => {
+	if (!selected) return 0;
+	return Math.min(selected.maxHoursPerWeek * 60, 2400);
+}, [selected]);
+
+const remainingCapacityMinutes = useMemo(
+	() => Math.max(0, loadCapMinutes - Math.round(loadProfile.actualTeachingHours * 60)),
+	[loadCapMinutes, loadProfile.actualTeachingHours],
+);
+
+const previewLoadHours = useMemo(() => {
+	if (hoveredIncomingMinutes <= 0) return loadProfile.actualTeachingHours;
+	return Math.round(((loadProfile.actualTeachingHours * 60 + hoveredIncomingMinutes) / 60) * 10) / 10;
+}, [hoveredIncomingMinutes, loadProfile.actualTeachingHours]);
 
 const memberLoadProfiles = useMemo(() => {
 	const map = new Map<number, ReturnType<typeof buildTeachingLoadProfile>>();
@@ -604,6 +675,57 @@ const assignedFacultyCount = faculty.filter((member) => (effectiveAssignmentsByF
 const activeDraftCount = Object.keys(effectiveDraftAssignmentsByFaculty).length;
 const sectionsAvailable = Boolean(sectionSummary && sectionSummary.sections.length > 0);
 
+const executeSwap = useCallback(() => {
+	if (!selected || !swapCandidate) return;
+
+	const { subjectId, sectionId, fromFacultyId } = swapCandidate;
+	pushHistory();
+	setDraftAssignmentsByFaculty((previousDrafts) => {
+		const nextDrafts = { ...previousDrafts };
+
+		const fromCurrent = cloneAssignments(previousDrafts[fromFacultyId] ?? savedAssignmentsByFaculty[fromFacultyId] ?? []);
+		const fromNext = normalizeDraftAssignments(
+			fromCurrent
+				.map((assignment) =>
+					assignment.subjectId === subjectId
+						? { ...assignment, sectionIds: assignment.sectionIds.filter((id) => id !== sectionId) }
+						: assignment,
+				)
+				.filter((assignment) => assignment.sectionIds.length > 0),
+			sectionMap,
+		);
+		const fromSavedSignature = buildAssignmentSignature(savedAssignmentsByFaculty[fromFacultyId] ?? []);
+		if (buildAssignmentSignature(fromNext) === fromSavedSignature) {
+			delete nextDrafts[fromFacultyId];
+		} else {
+			nextDrafts[fromFacultyId] = fromNext;
+		}
+
+		const selectedCurrent = cloneAssignments(previousDrafts[selected.id] ?? savedAssignmentsByFaculty[selected.id] ?? []);
+		const selectedMap = new Map(selectedCurrent.map((assignment) => [assignment.subjectId, assignment]));
+		const existing = selectedMap.get(subjectId);
+		if (existing) {
+			if (!existing.sectionIds.includes(sectionId)) {
+				existing.sectionIds = [...existing.sectionIds, sectionId];
+			}
+		} else {
+			selectedMap.set(subjectId, { subjectId, sectionIds: [sectionId], gradeLevels: [] });
+		}
+		const selectedNext = normalizeDraftAssignments(Array.from(selectedMap.values()), sectionMap);
+		const selectedSavedSignature = buildAssignmentSignature(savedAssignmentsByFaculty[selected.id] ?? []);
+		if (buildAssignmentSignature(selectedNext) === selectedSavedSignature) {
+			delete nextDrafts[selected.id];
+		} else {
+			nextDrafts[selected.id] = selectedNext;
+		}
+
+		return nextDrafts;
+	});
+
+	setSwapCandidate(null);
+	toast.success('Ownership swapped to the selected teacher in draft mode. Save to persist changes.');
+}, [pushHistory, savedAssignmentsByFaculty, sectionMap, selected, swapCandidate]);
+
 return (
 <TooltipProvider delayDuration={200}>
 <div className="flex h-[calc(100svh-3.5rem)] flex-col px-6">
@@ -682,6 +804,44 @@ className="h-7 px-2 text-[0.6875rem]"
 		]}
 	/>
 </div>
+				<div className="mt-2 grid grid-cols-2 gap-2">
+					<Select value={sortOrder} onValueChange={(value) => setSortOrder(value as 'load-asc' | 'load-desc')}>
+						<SelectTrigger className="h-7 w-full text-[0.6875rem]">
+							<SelectValue placeholder="Sort by load" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="load-asc">Load: Lowest to Highest</SelectItem>
+							<SelectItem value="load-desc">Load: Highest to Lowest</SelectItem>
+						</SelectContent>
+					</Select>
+					<Button
+						type="button"
+						variant={unmappedOnly ? 'default' : 'secondary'}
+						onClick={() => setUnmappedOnly((current) => !current)}
+						className="h-7 px-2 text-[0.625rem]"
+					>
+						Unmapped Specs
+					</Button>
+				</div>
+				<div className="mt-2 flex flex-wrap gap-1">
+					{([
+						{ value: 'all', label: 'All Loads' },
+						{ value: 'overloaded', label: 'Overloaded' },
+						{ value: 'optimal', label: 'Optimal' },
+						{ value: 'underloaded', label: 'Under-loaded' },
+					] as const).map((item) => (
+						<Button
+							key={item.value}
+							type="button"
+							variant={loadFilter === item.value ? 'default' : 'secondary'}
+							size="sm"
+							onClick={() => setLoadFilter(item.value)}
+							className="h-6 px-2 text-[0.625rem]"
+						>
+							{item.label}
+						</Button>
+					))}
+				</div>
 </div>
 
 <div className="flex-1 overflow-auto">
@@ -701,7 +861,12 @@ Array.from({ length: 8 }).map((_, index) => (
 {faculty.length === 0 ? 'No faculty synced. Visit the Faculty page first.' : 'No results.'}
 </p>
 ) : (
-filteredFaculty.map((member) => {
+groupedFaculty.map(([departmentName, members]) => (
+	<div key={departmentName} className="border-b border-border/80">
+		<div className="bg-muted/40 px-3 py-1.5 text-[0.625rem] font-semibold uppercase tracking-wider text-muted-foreground">
+			{departmentName} ({members.length})
+		</div>
+		{members.map((member) => {
 const effectiveSubjectCount = effectiveAssignmentsByFaculty[member.id]?.length ?? 0;
 const hasDraft = Boolean(effectiveDraftAssignmentsByFaculty[member.id]);
 					const memberLoadProfile = memberLoadProfiles.get(member.id);
@@ -778,7 +943,9 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 </div>
 </Button>
 );
-})
+})}
+	</div>
+))
 )}
 </div>
 <div className="border-t border-border px-3 py-2 text-[0.6875rem] text-muted-foreground">
@@ -835,6 +1002,25 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 <Badge className={`${STATUS_COLORS[loadProfile.status].bg} ${STATUS_COLORS[loadProfile.status].text} ${STATUS_COLORS[loadProfile.status].border}`}>
 {loadProfile.statusLabel}
 </Badge>
+					<div className="w-36">
+						<p className="text-[0.625rem] text-muted-foreground">Load Preview</p>
+						<div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
+							<div
+								className="h-full bg-emerald-500 transition-all"
+								style={{ width: `${Math.min((loadProfile.actualTeachingHours * 60 / Math.max(loadCapMinutes, 1)) * 100, 100)}%` }}
+							/>
+							{hoveredIncomingMinutes > 0 && (
+								<div
+									className={`h-full -mt-2 transition-all ${previewLoadHours * 60 > 2400 ? 'bg-red-500/70' : previewLoadHours * 60 > 1800 ? 'bg-amber-400/70' : 'bg-emerald-300/80'}`}
+									style={{ width: `${Math.min((previewLoadHours * 60 / Math.max(loadCapMinutes, 1)) * 100, 100)}%` }}
+								/>
+							)}
+						</div>
+						<p className="mt-1 text-[0.625rem] text-muted-foreground">
+							{loadProfile.actualTeachingHours}h
+							{hoveredIncomingMinutes > 0 ? ` -> ${previewLoadHours}h` : ''}
+						</p>
+					</div>
 <Tooltip>
 <TooltipTrigger asChild>
 <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground">
@@ -988,6 +1174,12 @@ This faculty member is excluded from scheduling. Enable them first.
 							advisedSectionId={homeroomHint?.advisedSectionId ?? null}
 							specializationAliases={specializationAliases}
 							strictAliasOnly
+							remainingCapacityMinutes={remainingCapacityMinutes}
+							onHoverLoadMinutes={setHoveredIncomingMinutes}
+							onClearHoverLoad={() => setHoveredIncomingMinutes(0)}
+							onSwapSectionOwnership={(subjectId, sectionId, fromFacultyId) =>
+								setSwapCandidate({ subjectId, sectionId, fromFacultyId })
+							}
 						/>
 					))}
 				</div>
@@ -1032,6 +1224,12 @@ This faculty member is excluded from scheduling. Enable them first.
 								advisedSectionId={homeroomHint?.advisedSectionId ?? null}
 								specializationAliases={specializationAliases}
 								strictAliasOnly
+								remainingCapacityMinutes={remainingCapacityMinutes}
+								onHoverLoadMinutes={setHoveredIncomingMinutes}
+								onClearHoverLoad={() => setHoveredIncomingMinutes(0)}
+								onSwapSectionOwnership={(subjectId, sectionId, fromFacultyId) =>
+									setSwapCandidate({ subjectId, sectionId, fromFacultyId })
+								}
 							/>
 						))}
 					</div>
@@ -1056,6 +1254,18 @@ This faculty member is excluded from scheduling. Enable them first.
 	confirmText="Run Auto-Fill"
 	variant="primary"
 	loading={autoFillLoading}
+/>
+
+<ConfirmationModal
+	open={Boolean(swapCandidate)}
+	onOpenChange={(open) => {
+		if (!open) setSwapCandidate(null);
+	}}
+	title="Swap Section Ownership?"
+	description="This will move the selected subject-section from the current owner to the selected teacher in draft mode."
+	onConfirm={executeSwap}
+	confirmText="Swap"
+	variant="primary"
 />
 
 <AutoFillSummaryModal

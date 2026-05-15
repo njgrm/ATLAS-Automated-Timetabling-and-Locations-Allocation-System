@@ -28,6 +28,7 @@ export type SubjectRowProps = {
 	/** Multi-owner map for detecting database-level duplicate ownership conflicts. */
 	savedConflictMap?: Record<string, FacultyOwnershipState[]>;
 	onSetSections: (subjectId: number, sectionIds: number[]) => void;
+	onSwapSectionOwnership?: (subjectId: number, sectionId: number, fromFacultyId: number) => void;
 	isOutsideDepartment?: boolean;
 	facultyDepartment?: string | null;
 	facultySpecialization?: string | null;
@@ -37,6 +38,9 @@ export type SubjectRowProps = {
 	advisedSectionId?: number | null;
 	specializationAliases?: SpecializationAliasLike[];
 	strictAliasOnly?: boolean;
+	remainingCapacityMinutes?: number;
+	onHoverLoadMinutes?: (minutes: number) => void;
+	onClearHoverLoad?: () => void;
 };
 
 export function SubjectRow({
@@ -49,6 +53,7 @@ export function SubjectRow({
 	pendingOwnershipMap,
 	savedConflictMap = {},
 	onSetSections,
+	onSwapSectionOwnership,
 	isOutsideDepartment,
 	facultyDepartment,
 	facultySpecialization,
@@ -58,6 +63,9 @@ export function SubjectRow({
 	advisedSectionId = null,
 	specializationAliases = [],
 	strictAliasOnly = false,
+	remainingCapacityMinutes = Number.POSITIVE_INFINITY,
+	onHoverLoadMinutes,
+	onClearHoverLoad,
 }: SubjectRowProps) {
 	const [openGrades, setOpenGrades] = useState<Record<number, boolean>>({});
 
@@ -122,6 +130,10 @@ export function SubjectRow({
 
 	const selectableSectionIds = sections
 		.filter((section) => {
+			const programType = section.programType ?? 'REGULAR';
+			const programCompatible =
+				subject.programScopes.length === 0 || subject.programScopes.includes(programType);
+			if (!programCompatible) return false;
 			if (selectedSectionIds.has(section.id)) return true;
 			const key = getOwnershipKey(subject.id, section.id);
 			const pendingOwner = pendingOwnershipMap[key];
@@ -165,7 +177,23 @@ export function SubjectRow({
 		if (selectableSectionIds.length < sections.length) {
 			toast.warning('Sections already owned by another teacher were skipped.');
 		}
-		onSetSections(subject.id, selectableSectionIds);
+
+		const selectedWithinCap: number[] = [];
+		let remainingMinutes = remainingCapacityMinutes;
+		for (const sectionId of selectableSectionIds) {
+			if (remainingMinutes < subject.minMinutesPerWeek) {
+				break;
+			}
+			selectedWithinCap.push(sectionId);
+			remainingMinutes -= subject.minMinutesPerWeek;
+		}
+
+		if (selectedWithinCap.length === 0) {
+			toast.error('Not enough remaining capacity for additional sections.');
+			return;
+		}
+
+		onSetSections(subject.id, selectedWithinCap);
 	};
 
 	const toggleSection = (sectionId: number) => {
@@ -248,6 +276,16 @@ export function SubjectRow({
 						<Badge variant="secondary" className="text-[0.5625rem]">
 							{selectedCount} / {sections.length || 0} sections
 						</Badge>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={handleToggleAll}
+							disabled={disabled || sections.length === 0}
+							className="h-6 px-2 text-[0.625rem]"
+						>
+							Select All Eligible
+						</Button>
 						{blockedCount > 0 && (
 							<Badge variant="outline" className="border-red-200 text-[0.5625rem] text-red-700">
 								{blockedCount} blocked
@@ -321,11 +359,16 @@ export function SubjectRow({
 											const isSavedCurrent = savedOwner?.facultyId === selectedFacultyId;
 											const isPendingOther = Boolean(pendingOwner && pendingOwner.facultyId !== selectedFacultyId);
 											const isSavedOther = Boolean(savedOwner && savedOwner.facultyId !== selectedFacultyId);
-											const blocked = !isSelected && (isPendingOther || isSavedOther || isHardConflict);
+											const programType = section.programType ?? 'REGULAR';
+											const programCompatible =
+												subject.programScopes.length === 0 || subject.programScopes.includes(programType);
+											const blocked = !isSelected && (!programCompatible || isPendingOther || isSavedOther || isHardConflict);
 											const isSystemAssignedSection =
 												isSystemAssignedSubject && section.id === advisedSectionId;
 											const badgeLabel = isHardConflict
 												? 'DB Conflict'
+												: !programCompatible
+												? `Incompatible Program (${programType})`
 												: isPendingOther
 												? `Pending: ${pendingOwner?.facultyName}`
 												: isSavedOther
@@ -367,11 +410,18 @@ export function SubjectRow({
 															checked={isSelected}
 															onCheckedChange={() => toggleSection(section.id)}
 															disabled={disabled || blocked}
+																		onMouseEnter={() => {
+																			if (!isSelected && !blocked) onHoverLoadMinutes?.(subject.minMinutesPerWeek);
+																		}}
+																		onMouseLeave={() => onClearHoverLoad?.()}
 															className="mt-0.5 shrink-0"
 														/>
 														)}
 														<div className="min-w-0 flex-1">
-															<p className="truncate text-xs font-semibold leading-tight">{section.name}</p>
+																	<p className="truncate text-xs font-semibold leading-tight flex items-center gap-1">
+																		<span className={isSelected || isSavedCurrent || isPendingCurrent ? 'text-emerald-600' : 'text-amber-500'}>●</span>
+																		{section.name}
+																	</p>
 															<div className="mt-1 flex flex-wrap items-center gap-1">
 																{isSystemAssignedSection && (
 																	<Badge className="shrink-0 border-amber-400 bg-amber-100 px-1 py-0 text-[0.5rem] text-amber-800">
@@ -399,6 +449,8 @@ export function SubjectRow({
 																		className={`text-[0.5625rem] ${
 																			isHardConflict
 																				? 'border-rose-400 bg-rose-50 text-rose-700 font-semibold'
+																				: !programCompatible
+																				? 'border-violet-200 text-violet-700'
 																				: isPendingOther
 																				? 'border-red-200 text-red-700'
 																				: isSavedOther
@@ -418,12 +470,28 @@ export function SubjectRow({
 																			{conflictOwners.map((o) => o.facultyName).join(', ')}. An administrator must resolve this before it can be reassigned.
 																		</p>
 																	)}
+																		{!isHardConflict && !programCompatible && (
+																			<p>
+																				Incompatible Program: Subject requires {subject.programScopes.join(', ') || 'ANY'}, Section is {programType}.
+																			</p>
+																		)}
 																	{!isHardConflict && isPendingOther && (
 																		<p>{pendingOwner?.facultyName} has this subject-section pair in an unsaved session draft.</p>
 																	)}
 																	{!isHardConflict && isSavedOther && (
 																		<p>{savedOwner?.facultyName} already owns this subject-section pair in saved data.</p>
 																	)}
+																		{!isHardConflict && isSavedOther && onSwapSectionOwnership && (
+																			<Button
+																				type="button"
+																				variant="outline"
+																				size="sm"
+																				onClick={() => onSwapSectionOwnership(subject.id, section.id, savedOwner.facultyId)}
+																				className="h-6 px-2 text-[0.625rem]"
+																			>
+																				Swap
+																			</Button>
+																		)}
 																	{!isHardConflict && isPendingCurrent && (
 																		<p>This selection is pending in the current session and has not been saved yet.</p>
 																	)}

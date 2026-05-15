@@ -2,6 +2,30 @@
 
 Record dated implementation verification summaries here.
 
+### 2026-05-15 - Phase 6 Faculty Assignment Safeguards + Smart Grid + Staffing Drill-Down
+- Phase: Cross-phase execution approved by user (Phase 6 requirements implemented while active phase tracker remains Phase 4)
+- Scope gate: PASS (targeted Phase 6 Faculty Assignments requirements)
+- Architecture gate: PASS (service-layer/backend + view-layer/frontend boundaries preserved)
+- Behavior gate: PASS (program-scope compatibility enforcement, strict Tier 1 auto-fill, consolidated staffing modal drill-down)
+- Regression gate: PASS
+- Operator: GitHub Copilot
+- Files updated:
+  - `atlas-server/src/services/teaching-load-automation.service.ts`
+  - `atlas-client/src/components/faculty-assignments/AutoFillSummaryModal.tsx`
+  - `atlas-client/src/components/faculty-assignments/SubjectRow.tsx`
+  - `atlas-client/src/pages/FacultyAssignments.tsx`
+- Commands executed:
+  - `npm --prefix atlas-server run build`: PASS
+  - `npm --prefix atlas-client run build`: PASS
+- Verification summary:
+  - Auto-fill backend now applies strict program scope compatibility (`subject.programScopes` vs section `programType`) when building eligible subject-section pairs.
+  - Auto-fill candidate matching now enforces strict Tier 1 alias matching only (Tier 2/3 removed from queue eligibility).
+  - Staffing report now includes interactive shortage drill-down payload with unresolved subject-section detail per shortage department.
+  - Right-panel assignment grid now disables incompatible sections with explicit tooltip messaging.
+  - Right-panel includes select-all-eligible behavior, conflict swap trigger, and hover-based load impact preview.
+  - Left panel now supports department grouping, load sorting, load-status chips, and unmapped specialization quick filter.
+  - Post auto-fill warning toast spam removed; consolidated modal remains primary feedback surface.
+
 ### 2026-05-14 - Teaching Load Follow-up: Auto-Fill Blocker Isolation + AC-06 Re-Run
 - Phase: 4 (objective-critical parity/correctness blocker)
 - Scope gate: PASS
