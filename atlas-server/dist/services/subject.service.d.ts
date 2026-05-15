@@ -18,6 +18,8 @@ export declare function getSubjectsBySchool(schoolId: number, filters?: SubjectS
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
     sessionPattern: import("@prisma/client").$Enums.SessionPattern;
     modularOrder: number | null;
+    termGroupId: string | null;
+    termCount: number;
     gradeLevels: number[];
     isSeedable: boolean;
     interSectionEnabled: boolean;
@@ -38,6 +40,8 @@ export declare function getSubjectById(id: number): Promise<{
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
     sessionPattern: import("@prisma/client").$Enums.SessionPattern;
     modularOrder: number | null;
+    termGroupId: string | null;
+    termCount: number;
     gradeLevels: number[];
     isSeedable: boolean;
     interSectionEnabled: boolean;
@@ -58,6 +62,8 @@ export declare function createSubject(schoolId: number, data: {
     isSeedable?: boolean;
     modularGroupId?: string | null;
     modularOrder?: number | null;
+    termGroupId?: string | null;
+    termCount?: number;
     programScopes?: ProgramType[];
     allowedSpecializations?: string[];
     requiredFeatures?: string[];
@@ -75,6 +81,8 @@ export declare function createSubject(schoolId: number, data: {
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
     sessionPattern: import("@prisma/client").$Enums.SessionPattern;
     modularOrder: number | null;
+    termGroupId: string | null;
+    termCount: number;
     gradeLevels: number[];
     isSeedable: boolean;
     interSectionEnabled: boolean;
@@ -95,6 +103,8 @@ export declare function updateSubject(id: number, data: Partial<{
     isSeedable: boolean;
     modularGroupId: string | null;
     modularOrder: number | null;
+    termGroupId: string | null;
+    termCount: number;
     programScopes: ProgramType[];
     allowedSpecializations: string[];
     requiredFeatures: string[];
@@ -111,6 +121,8 @@ export declare function updateSubject(id: number, data: Partial<{
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
     sessionPattern: import("@prisma/client").$Enums.SessionPattern;
     modularOrder: number | null;
+    termGroupId: string | null;
+    termCount: number;
     gradeLevels: number[];
     isSeedable: boolean;
     interSectionEnabled: boolean;

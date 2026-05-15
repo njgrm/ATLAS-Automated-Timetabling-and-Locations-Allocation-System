@@ -64,6 +64,8 @@ export type Subject = {
 	allowedSpecializations: string[];
 	modularGroupId?: string | null;
 	modularOrder?: number | null;
+	termGroupId?: string | null;
+	termCount?: number;
 	requiredFeatures: string[];
 	createdAt: string;
 	updatedAt: string;
@@ -96,7 +98,10 @@ export type ExternalFaculty = {
 	isActiveForScheduling: boolean;
 	isClassAdviser: boolean;
 	advisoryEquivalentHours: number;
+	ancillaryMinutesPerWeek?: number | null;
+	ancillaryLoadSource?: 'HR' | 'LOCAL' | 'NONE';
 	canTeachOutsideDepartment: boolean;
+	isPlaceholder?: boolean;
 	maxHoursPerWeek: number;
 	version: number;
 	subjectCount: number;
@@ -302,10 +307,11 @@ export type RoomScheduleEntry = {
 	entryId: string;
 	subjectId: number;
 	sectionId: number;
-	facultyId: number;
+	facultyId: number | null;
 	startTime: string;
 	endTime: string;
 	durationMinutes: number;
+	termIndex: 1 | 2 | 3;
 };
 
 export type RoomScheduleCell = {
@@ -663,6 +669,11 @@ export interface RunSummary {
 			reasons: Record<string, number>;
 		}>;
 	};
+	termCounts?: {
+		term1: number;
+		term2: number;
+		term3: number;
+	};
 }
 
 export interface ScheduledEntry {
@@ -675,6 +686,7 @@ export interface ScheduledEntry {
 	startTime: string;
 	endTime: string;
 	durationMinutes: number;
+	termIndex?: 1 | 2 | 3;
 	entryKind?: 'SECTION' | 'COHORT';
 	programType?: string | null;
 	programCode?: string | null;

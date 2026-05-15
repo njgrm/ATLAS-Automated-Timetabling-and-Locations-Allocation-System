@@ -11,7 +11,7 @@ ATLAS exposes **unauthenticated public REST endpoints** for retrieving schedules
 
 ---
 
-## 2. Public API Endpoints
+## 2. Public API Endpoints  
 
 The following endpoints do not require a Bearer token and return only data that has been explicitly finalized and published by a Scheduling Officer.
 

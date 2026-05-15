@@ -140,8 +140,13 @@ router.get(
 			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
 			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
 			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+			const termIndex = req.query.termIndex === undefined ? undefined : Number(req.query.termIndex);
+			if (termIndex !== undefined && ![1, 2, 3].includes(termIndex)) {
+				res.status(400).json({ code: 'INVALID_PARAM', message: 'termIndex must be 1, 2, or 3 when provided.' });
+				return;
+			}
 
-			const report = await genService.getLatestRunViolations(schoolId, schoolYearId);
+			const report = await genService.getLatestRunViolations(schoolId, schoolYearId, termIndex);
 			res.json(report);
 		} catch (e) { next(e); }
 	},
@@ -216,8 +221,13 @@ router.get(
 			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
 			const runId = positiveInt(req.params.runId, 'runId');
 			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
+			const termIndex = req.query.termIndex === undefined ? undefined : Number(req.query.termIndex);
+			if (termIndex !== undefined && ![1, 2, 3].includes(termIndex)) {
+				res.status(400).json({ code: 'INVALID_PARAM', message: 'termIndex must be 1, 2, or 3 when provided.' });
+				return;
+			}
 
-			const report = await genService.getRunViolations(runId, schoolId, schoolYearId);
+			const report = await genService.getRunViolations(runId, schoolId, schoolYearId, termIndex);
 			res.json(report);
 		} catch (e) { next(e); }
 	},

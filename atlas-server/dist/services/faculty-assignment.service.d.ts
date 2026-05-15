@@ -41,6 +41,12 @@ export type OwnershipConflictDetail = {
     ownerFacultyId: number;
     ownerFacultyName: string;
 };
+export type SubjectSectionOwnershipIndexEntry = {
+    subjectId: number;
+    sectionId: number;
+    facultyId: number;
+    facultyName: string;
+};
 export declare function computeTeachingLoadMinutes(assignments: AssignmentLoadShape[], formula: TeachingLoadFormula): number;
 export declare function detectDuplicateOwnershipTuples(assignments: DuplicateOwnershipInput[]): DuplicateOwnershipTuple[];
 export declare function buildOwnershipConflictDetails(conflicts: OwnershipConflictCandidate[], ownerNamesByFacultyId: Map<number, string>): OwnershipConflictDetail[];
@@ -71,42 +77,46 @@ export declare function getAssignmentsByFaculty(facultyId: number, schoolYearId:
 } | null>;
 export declare function setAssignments(facultyId: number, schoolId: number, schoolYearId: number, assignedBy: number, expectedVersion: number, assignments: AssignmentScopeInput[], authToken?: string): Promise<AssignmentMutationResult>;
 export declare function getAssignmentSummary(schoolId: number, schoolYearId: number, authToken?: string): Promise<{
-    id: number;
-    externalId: number;
-    firstName: string;
-    lastName: string;
-    department: string | null;
-    specialization: string | null;
-    employmentStatus: string;
-    isClassAdviser: boolean;
-    advisoryEquivalentHours: number;
-    canTeachOutsideDepartment: boolean;
-    isActiveForScheduling: boolean;
-    maxHoursPerWeek: number;
-    version: number;
-    subjectCount: number;
-    sectionCount: number;
-    subjectHours: number;
-    loadPercentage: number;
-    assignments: {
-        gradeLevels: number[];
-        sectionIds: number[];
-        sections: import("./faculty-assignment-scope.service.js").ScopedSection[];
+    faculty: {
         id: number;
-        facultyId: number;
-        subjectId: number;
-        schoolId: number;
-        assignedBy: number;
-        assignedAt: Date;
+        externalId: number;
+        employeeId: string | null;
+        firstName: string;
+        lastName: string;
+        department: string | null;
+        specialization: string | null;
+        employmentStatus: string;
+        isClassAdviser: boolean;
+        advisoryEquivalentHours: number;
+        canTeachOutsideDepartment: boolean;
+        isActiveForScheduling: boolean;
+        maxHoursPerWeek: number;
         version: number;
-        createdAt: Date;
-        updatedAt: Date;
-        subject: {
+        subjectCount: number;
+        sectionCount: number;
+        subjectHours: number;
+        loadPercentage: number;
+        assignments: {
+            gradeLevels: number[];
+            sectionIds: number[];
+            sections: import("./faculty-assignment-scope.service.js").ScopedSection[];
             id: number;
-            name: string;
-            code: string;
-            minMinutesPerWeek: number;
-        };
+            facultyId: number;
+            subjectId: number;
+            schoolId: number;
+            assignedBy: number;
+            assignedAt: Date;
+            version: number;
+            createdAt: Date;
+            updatedAt: Date;
+            subject: {
+                id: number;
+                name: string;
+                code: string;
+                minMinutesPerWeek: number;
+            };
+        }[];
     }[];
-}[]>;
+    ownershipIndex: SubjectSectionOwnershipIndexEntry[];
+}>;
 export {};

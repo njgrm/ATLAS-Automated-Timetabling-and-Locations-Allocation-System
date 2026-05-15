@@ -18,6 +18,13 @@ export type FacultyOwnershipState = {
 	source: 'saved' | 'pending';
 };
 
+export type SubjectSectionOwnershipIndexEntry = {
+	subjectId: number;
+	sectionId: number;
+	facultyId: number;
+	facultyName: string;
+};
+
 export type LoadBreakdownItem = {
 	subjectId: number;
 	subjectName: string;
@@ -125,6 +132,20 @@ export function buildOwnershipMap(
 				};
 			}
 		}
+	}
+	return ownershipMap;
+}
+
+export function buildOwnershipMapFromIndex(
+	ownershipIndex: SubjectSectionOwnershipIndexEntry[],
+): Record<string, FacultyOwnershipState> {
+	const ownershipMap: Record<string, FacultyOwnershipState> = {};
+	for (const entry of ownershipIndex) {
+		ownershipMap[getAssignmentOwnershipKey(entry.subjectId, entry.sectionId)] = {
+			facultyId: entry.facultyId,
+			facultyName: entry.facultyName,
+			source: 'saved',
+		};
 	}
 	return ownershipMap;
 }

@@ -604,7 +604,9 @@ function EntryCell({
 			</div>
 			<div className="text-muted-foreground truncate">{sectionMap.get(entry.sectionId) ?? `Unknown Section (#${entry.sectionId})`}</div>
 			<div className="text-muted-foreground/80 truncate">
-				{facultyMap.get(entry.facultyId) ?? `Unknown Faculty (#${entry.facultyId})`}
+				{entry.facultyId != null
+					? (facultyMap.get(entry.facultyId) ?? `Unknown Faculty (#${entry.facultyId})`)
+					: 'Unassigned Faculty'}
 			</div>
 		</div>
 	);

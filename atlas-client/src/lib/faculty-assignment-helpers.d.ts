@@ -13,6 +13,12 @@ export type FacultyOwnershipState = {
     facultyName: string;
     source: 'saved' | 'pending';
 };
+export type SubjectSectionOwnershipIndexEntry = {
+    subjectId: number;
+    sectionId: number;
+    facultyId: number;
+    facultyName: string;
+};
 export type LoadBreakdownItem = {
     subjectId: number;
     subjectName: string;
@@ -43,6 +49,7 @@ export declare function normalizeDraftAssignments(assignments: FacultyAssignment
 export declare function buildAssignmentSignature(assignments: FacultyAssignmentDraft[]): string;
 export declare function getAssignmentOwnershipKey(subjectId: number, sectionId: number): string;
 export declare function buildOwnershipMap(assignmentsByFaculty: Record<number, FacultyAssignmentDraft[]>, facultyNames: Record<number, string>, source: FacultyOwnershipState['source']): Record<string, FacultyOwnershipState>;
+export declare function buildOwnershipMapFromIndex(ownershipIndex: SubjectSectionOwnershipIndexEntry[]): Record<string, FacultyOwnershipState>;
 /**
  * Like buildOwnershipMap but accumulates ALL owners per key instead of last-write-wins.
  * Use this to detect database-level duplicate ownership conflicts that bypass the

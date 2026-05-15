@@ -12,6 +12,7 @@ export interface RoomScheduleEntry {
     startTime: string;
     endTime: string;
     durationMinutes: number;
+    termIndex: 1 | 2 | 3;
 }
 export interface RoomScheduleCell {
     day: string;

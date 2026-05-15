@@ -12,6 +12,8 @@ const MATATAG_DEFAULTS: Array<{
 	isSeedable: boolean;
 	modularGroupId?: string;
 	modularOrder?: number;
+	termGroupId?: string;
+	termCount?: number;
 	programScopes: ProgramType[];
 }> = [
 	{ code: 'FIL', name: 'Filipino', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
@@ -81,6 +83,8 @@ export async function ensureDefaultSubjects(schoolId: number): Promise<void> {
 				sessionPattern: subject.sessionPattern ?? 'ANY',
 				modularGroupId: subject.modularGroupId ?? null,
 				modularOrder: subject.modularOrder ?? null,
+				termGroupId: subject.termGroupId ?? subject.modularGroupId ?? null,
+				termCount: subject.termCount ?? 3,
 				gradeLevels: subject.gradeLevels,
 				programScopes: subject.programScopes,
 				isSeedable: subject.isSeedable,
@@ -95,6 +99,8 @@ export async function ensureDefaultSubjects(schoolId: number): Promise<void> {
 				sessionPattern: subject.sessionPattern ?? 'ANY',
 				modularGroupId: subject.modularGroupId ?? null,
 				modularOrder: subject.modularOrder ?? null,
+				termGroupId: subject.termGroupId ?? subject.modularGroupId ?? null,
+				termCount: subject.termCount ?? 3,
 				gradeLevels: subject.gradeLevels,
 				programScopes: subject.programScopes,
 				isSeedable: subject.isSeedable,
@@ -151,6 +157,8 @@ export async function createSubject(
 		isSeedable?: boolean;
 		modularGroupId?: string | null;
 		modularOrder?: number | null;
+		termGroupId?: string | null;
+		termCount?: number;
 		programScopes?: ProgramType[];
 		allowedSpecializations?: string[];
 		requiredFeatures?: string[];
@@ -184,6 +192,8 @@ export async function createSubject(
 			interSectionGradeLevels: interGrades,
 			modularGroupId: data.modularGroupId ?? null,
 			modularOrder: data.modularOrder ?? null,
+			termGroupId: data.termGroupId ?? null,
+			termCount: data.termCount ?? 3,
 			programScopes: data.programScopes ?? ['REGULAR'],
 			allowedSpecializations: data.allowedSpecializations ?? [],
 			requiredFeatures: data.requiredFeatures ?? [],
@@ -205,6 +215,8 @@ export async function updateSubject(
 		isSeedable: boolean;
 		modularGroupId: string | null;
 		modularOrder: number | null;
+		termGroupId: string | null;
+		termCount: number;
 		programScopes: ProgramType[];
 		allowedSpecializations: string[];
 		requiredFeatures: string[];
@@ -237,6 +249,8 @@ export async function updateSubject(
 		if (data.isSeedable !== undefined) allowed.isSeedable = data.isSeedable;
 		if (data.modularGroupId !== undefined) allowed.modularGroupId = data.modularGroupId;
 		if (data.modularOrder !== undefined) allowed.modularOrder = data.modularOrder;
+		if (data.termGroupId !== undefined) allowed.termGroupId = data.termGroupId;
+		if (data.termCount !== undefined) allowed.termCount = data.termCount;
 		if (data.programScopes !== undefined) allowed.programScopes = data.programScopes;
 		if (data.allowedSpecializations !== undefined) allowed.allowedSpecializations = data.allowedSpecializations;
 		if (data.requiredFeatures !== undefined) allowed.requiredFeatures = data.requiredFeatures;
@@ -255,6 +269,8 @@ export async function updateSubject(
 	if (data.interSectionGradeLevels !== undefined) updateData.interSectionGradeLevels = data.interSectionGradeLevels;
 	if (data.modularGroupId !== undefined) updateData.modularGroupId = data.modularGroupId;
 	if (data.modularOrder !== undefined) updateData.modularOrder = data.modularOrder;
+	if (data.termGroupId !== undefined) updateData.termGroupId = data.termGroupId;
+	if (data.termCount !== undefined) updateData.termCount = data.termCount;
 	if (data.programScopes !== undefined) updateData.programScopes = data.programScopes;
 	if (data.allowedSpecializations !== undefined) updateData.allowedSpecializations = data.allowedSpecializations;
 	if (data.requiredFeatures !== undefined) updateData.requiredFeatures = data.requiredFeatures;

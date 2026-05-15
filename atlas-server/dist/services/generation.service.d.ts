@@ -48,6 +48,11 @@ export interface RunSummary {
             reasons: Record<string, number>;
         }>;
     };
+    termCounts?: {
+        term1: number;
+        term2: number;
+        term3: number;
+    };
 }
 export declare function triggerGenerationRun(schoolId: number, schoolYearId: number, actorId: number, options?: {
     ignoreRoomRequestGate?: boolean;
@@ -212,8 +217,8 @@ export interface ViolationReport {
         byCode: Record<string, number>;
     };
 }
-export declare function getRunViolations(runId: number, schoolId: number, schoolYearId: number): Promise<ViolationReport>;
-export declare function getLatestRunViolations(schoolId: number, schoolYearId: number): Promise<ViolationReport>;
+export declare function getRunViolations(runId: number, schoolId: number, schoolYearId: number, termIndex?: number): Promise<ViolationReport>;
+export declare function getLatestRunViolations(schoolId: number, schoolYearId: number, termIndex?: number): Promise<ViolationReport>;
 export interface DraftReport {
     runId: number;
     status: string;

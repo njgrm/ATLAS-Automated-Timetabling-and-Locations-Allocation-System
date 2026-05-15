@@ -139,6 +139,26 @@ function isProgramScopeCompatible(scopes: string[] | undefined, sectionProgramTy
 	return scopes.some((scope) => scope.trim().toUpperCase() === normalizedProgramType);
 }
 
+function subjectMatchesFacultyDepartment(subject: SubjectRow, faculty: FacultyRow): boolean {
+	const subjectCode = normalizeKey(subject.code);
+	const department = normalizeKey(faculty.department);
+	if (!subjectCode || !department) return false;
+
+	const departmentAliases: Record<string, string[]> = {
+		math: ['math', 'mathematics'],
+		eng: ['eng', 'english', 'languages'],
+		fil: ['fil', 'filipino'],
+		sci: ['sci', 'science'],
+		ap: ['ap', 'social studies', 'socialstudies', 'history'],
+		'esp': ['esp', 'values', 'values education', 'valueseducation'],
+		mapeh: ['mapeh'],
+		tle: ['tle'],
+	};
+
+	const subjectDepartment = departmentAliases[subjectCode] ?? [subjectCode];
+	return subjectDepartment.some((alias) => department === normalizeKey(alias));
+}
+
 function buildStaffingReport(
 	unresolvedByDepartment: Map<string, number>,
 	shortageSections: Map<string, StaffingShortageDetail['sections']>,
@@ -230,6 +250,14 @@ function resolveQualificationTier(
 		if (mappedSubjects?.has(normalizedSubjectCode)) {
 			return 1;
 		}
+	}
+
+	if (subjectMatchesFacultyDepartment(subject, faculty)) {
+		return 2;
+	}
+
+	if (faculty.canTeachOutsideDepartment) {
+		return 3;
 	}
 
 	return null;
@@ -532,50 +560,68 @@ export async function autoFill(
 					});
 
 					let facultySubjectId: number;
-					let newSections: number[];
 
 					if (existingFs) {
-						// Merge new sections into existing record
-						newSections = Array.from(new Set([...existingFs.sectionIds, ...sectionIdsArr]));
-						const newGradeLevels = Array.from(new Set([...existingFs.gradeLevels, ...gradeLevels]));
-						await tx.facultySubject.update({
-							where: { id: existingFs.id },
-							data: { sectionIds: newSections, gradeLevels: newGradeLevels },
-						});
 						facultySubjectId = existingFs.id;
-						// Only the truly new sections need ownership rows
-						newSections = sectionIdsArr.filter((sid) => !existingFs.sectionIds.includes(sid));
 					} else {
 						const fs = await tx.facultySubject.create({
 							data: {
 								facultyId,
 								subjectId,
 								schoolId,
-								gradeLevels,
-								sectionIds: sectionIdsArr,
+								gradeLevels: [],
+								sectionIds: [],
 								assignedBy: 0, // system
 							},
 							select: { id: true },
 						});
 						facultySubjectId = fs.id;
-						newSections = sectionIdsArr;
 					}
 
-					// Create SubjectSectionOwnership rows for new sections only
-					// skipDuplicates handles any race conditions
-					if (newSections.length > 0) {
-						await tx.subjectSectionOwnership.createMany({
-							data: newSections.map((sectionId) => ({
-								schoolId,
-								facultySubjectId,
-								facultyId,
-								subjectId,
-								sectionId,
-								assignedAt: new Date(),
-							})),
-							skipDuplicates: true,
+					const insertedSectionIds: number[] = [];
+					for (const sectionId of sectionIdsArr) {
+						try {
+							await tx.subjectSectionOwnership.create({
+								data: {
+									schoolId,
+									facultySubjectId,
+									facultyId,
+									subjectId,
+									sectionId,
+									assignedAt: new Date(),
+								},
+							});
+							insertedSectionIds.push(sectionId);
+						} catch (error: any) {
+							if (error?.code !== 'P2002') {
+								throw error;
+							}
+						}
+					}
+
+					const finalOwnedSections = await tx.subjectSectionOwnership.findMany({
+						where: { schoolId, facultyId, subjectId },
+						select: { sectionId: true },
+					});
+					const finalSectionIds = finalOwnedSections.map((row) => row.sectionId).sort((left, right) => left - right);
+					const finalGradeLevels = Array.from(
+						new Set(finalSectionIds.map((sid) => sectionGradeLevel.get(sid)).filter(Boolean) as number[]),
+					).sort((left, right) => left - right);
+
+					if (finalSectionIds.length === 0) {
+						await tx.facultySubject.delete({ where: { id: facultySubjectId } });
+					} else {
+						await tx.facultySubject.update({
+							where: { id: facultySubjectId },
+							data: {
+								sectionIds: finalSectionIds,
+								gradeLevels: finalGradeLevels,
+							},
 						});
-						created += newSections.length;
+					}
+
+					if (insertedSectionIds.length > 0) {
+						created += insertedSectionIds.length;
 						affectedTeacherIds.add(facultyId);
 					}
 				}

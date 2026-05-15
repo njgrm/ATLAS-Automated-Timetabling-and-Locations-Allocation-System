@@ -700,3 +700,93 @@ Replace technical mapping interactions with an operations-friendly workflow cent
 - **State:** Planned (verified with live tailnet payload)
 - **Prerequisite met:** Dynamic EnrollPro school year/source verification complete (`schoolYearId=38`)
 - **Next action:** Implement Step 1 and Step 2 in one batch, then run UI verification against tailnet-backed data.
+
+---
+
+## Phase 4 Closure — Refactor Implementation Roadmap (Approved 2026-05-15)
+
+### Stakeholder-Driven Architectural Pivots
+
+Phase 4 is transitioning to final acceptance with new stakeholder requirements triggering a **controlled, multi-phase refactor** of core architecture. All pivots have been analyzed, prioritized, and sequenced to ensure data integrity and algorithmic correctness.
+
+**Key Requirements Summary:**
+1. **Tri-Sem Calendar Model:** Shift from 4-quarter to 3-term year structure (DepEd DO 009)
+2. **Ancillary Load Read-Only Contract:** Lock HR-derived administrative deductions to prevent local mutations
+3. **Home-Room-First Scheduling:** Prioritize section home-room assignments; only solve singleton/specialized rooms
+4. **Shift Fences & Zone Transitions:** Enforce AM/PM/overlap windows per grade/program
+5. **Teacher X Placeholder Workflows:** Support ad-hoc faculty assignments via placeholder records
+6. **Draft PDF Export & Concurrency Hardening:** Phase 5+ requirement; depends on refactor completion
+
+### QA Green Light & Architectural Foresight
+
+**Date:** 2026-05-15  
+**Status:** Green light to proceed with Option 1 (Tri-Sem + Ancillary Data Contracts) as foundational priority
+
+**Rationale from QA Agent:**
+> "You cannot fix the Timetable Generator (Option 2) or build the UI for Teacher X (Option 3) if the foundational database schema is still configured for a 4-quarter year and mutable ancillary loads. Data dictates logic. Until the database expects 3 terms instead of 4, any work done on the algorithm is wasted effort."
+
+**Technical Foresight for Execution:**
+While executing Option 1 phases, developers must **simultaneously** pre-stage database schema for Options 2 and 3:
+- Add `homeRoomId` and `buildingZoneId` foreign keys to Section table
+- Add `isPlaceholder` boolean flag to Faculty table
+- Ensure Timetable output schema explicitly supports `termIndex` (1, 2, or 3)
+
+### Refactor Phase Sequence
+
+**Detailed Implementation Plan:** See [refactor-implementation-phases-2026-05-15.md](./refactor-implementation-phases-2026-05-15.md)
+
+**High-Level Timeline:**
+- **Phase 1a–1d (Tri-Sem + Ancillary + Schema):** 2–3 weeks (31–42 story points, cross-functional)
+  - 1a: Database schema updates (tri-sem, zone columns, ghost flag, termIndex)
+  - 1b: Data sync service hardening (ancillary loads read-only from EnrollPro)
+  - 1c: API contract updates (generation output schema, term-aware violations)
+  - 1d: Regression testing & acceptance gate
+- **Phase 2 (Home-Room Algorithm):** 2–3 weeks (20–30 SP) | Blocked until Phase 1d complete
+- **Phase 3 (Teacher X Placeholders):** 1–2 weeks (10–15 SP) | Blocked until Phase 1d complete
+- **Phase 4 (Concurrency & PDF):** 2–3 weeks (20–25 SP) | Blocked until Phases 2 & 3 complete
+
+### Phase 4 → Phase 5 Bridge
+
+**Phase 4 Final Acceptance Criteria:**
+- ✅ All Wave 4.x deliverables complete (auth, faculty workflow, room-request review, pre-generation workspace)
+- ✅ Teaching load data parity verified (no mismatch between UI/DB/autofill)
+- ✅ Refactor implementation phases documented and approved
+- ✅ Phase 1a–1d technical tasks sequenced and ready for handoff
+- ✅ Evidence collected in `docs/verification/evidence-log.md`
+
+**Phase 5 Kickoff Conditions (Proposed):**
+- ✅ Phase 1d gates closed (tri-sem, ancillary, API contracts all PASS)
+- ✅ Phase 5 generation workflow uses `termIndex` to organize published output
+- ✅ Phase 5 room-request approval flows respect termIndex context
+- ✅ Phase 5 faculty assignment page displays tri-sem term assignment
+
+**Updated Phase Tracker:** See [phasePlan.md](../../phasePlan.md) for master phase status
+
+---
+
+## Phase 4 Summary & Final Status
+
+**Phase Objectives:** ✅ COMPLETE
+- ✅ Review console UI with conflict overlays and filtering
+- ✅ Generate + Publish workflow with violation guardrails
+- ✅ Grid pivot modes (Section / Faculty / Room)
+- ✅ Room identity clarity + integrity hardening
+- ✅ Manual move/reassign actions with validation guards
+- ✅ Offline-safe faculty workflow (SSE, sync, preferences)
+- ✅ Pre-generation draft workspace with drag-and-drop
+- ✅ Teaching load data parity verification
+
+**Outstanding Artifacts (Pending Manual QA Capture):**
+- Bridge-auth screenshot evidence for protected-route transitions
+- Live Tailnet session QA for timetable workspace + room-request portal
+
+**Next Phase Ownership:**
+- Phase 1a–1d (Refactor): Backend + QA teams
+- Phase 5 (Publish): Full team readiness (depends on Phase 1d completion)
+
+---
+
+**Document Version:** 4.7  
+**Last Updated:** 2026-05-15  
+**Next Review:** After Phase 1d gates close (estimated 2026-06-01)  
+**Phase 4 Closure Target:** 2026-05-22 (pending manual QA evidence)

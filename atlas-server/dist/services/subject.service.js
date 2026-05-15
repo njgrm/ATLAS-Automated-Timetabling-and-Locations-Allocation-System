@@ -64,6 +64,8 @@ export async function ensureDefaultSubjects(schoolId) {
             sessionPattern: subject.sessionPattern ?? 'ANY',
             modularGroupId: subject.modularGroupId ?? null,
             modularOrder: subject.modularOrder ?? null,
+            termGroupId: subject.termGroupId ?? subject.modularGroupId ?? null,
+            termCount: subject.termCount ?? 3,
             gradeLevels: subject.gradeLevels,
             programScopes: subject.programScopes,
             isSeedable: subject.isSeedable,
@@ -78,6 +80,8 @@ export async function ensureDefaultSubjects(schoolId) {
             sessionPattern: subject.sessionPattern ?? 'ANY',
             modularGroupId: subject.modularGroupId ?? null,
             modularOrder: subject.modularOrder ?? null,
+            termGroupId: subject.termGroupId ?? subject.modularGroupId ?? null,
+            termCount: subject.termCount ?? 3,
             gradeLevels: subject.gradeLevels,
             programScopes: subject.programScopes,
             isSeedable: subject.isSeedable,
@@ -135,6 +139,8 @@ export async function createSubject(schoolId, data) {
             interSectionGradeLevels: interGrades,
             modularGroupId: data.modularGroupId ?? null,
             modularOrder: data.modularOrder ?? null,
+            termGroupId: data.termGroupId ?? null,
+            termCount: data.termCount ?? 3,
             programScopes: data.programScopes ?? ['REGULAR'],
             allowedSpecializations: data.allowedSpecializations ?? [],
             requiredFeatures: data.requiredFeatures ?? [],
@@ -174,6 +180,10 @@ export async function updateSubject(id, data) {
             allowed.modularGroupId = data.modularGroupId;
         if (data.modularOrder !== undefined)
             allowed.modularOrder = data.modularOrder;
+        if (data.termGroupId !== undefined)
+            allowed.termGroupId = data.termGroupId;
+        if (data.termCount !== undefined)
+            allowed.termCount = data.termCount;
         if (data.programScopes !== undefined)
             allowed.programScopes = data.programScopes;
         if (data.allowedSpecializations !== undefined)
@@ -205,6 +215,10 @@ export async function updateSubject(id, data) {
         updateData.modularGroupId = data.modularGroupId;
     if (data.modularOrder !== undefined)
         updateData.modularOrder = data.modularOrder;
+    if (data.termGroupId !== undefined)
+        updateData.termGroupId = data.termGroupId;
+    if (data.termCount !== undefined)
+        updateData.termCount = data.termCount;
     if (data.programScopes !== undefined)
         updateData.programScopes = data.programScopes;
     if (data.allowedSpecializations !== undefined)

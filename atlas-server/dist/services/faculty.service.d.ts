@@ -71,6 +71,8 @@ interface LocalMirrorComparable {
     isClassAdviser: boolean;
     advisoryEquivalentHours: number;
     canTeachOutsideDepartment: boolean;
+    ancillaryMinutesPerWeek?: number | null;
+    ancillaryLoadSource?: 'HR' | 'LOCAL' | 'NONE';
     contactInfo: string | null;
     advisedSectionId: number | null;
     advisedSectionName: string | null;
@@ -109,6 +111,8 @@ export declare function getFacultyById(id: number): Promise<({
             preferredRoomType: import("@prisma/client").$Enums.RoomType;
             sessionPattern: import("@prisma/client").$Enums.SessionPattern;
             modularOrder: number | null;
+            termGroupId: string | null;
+            termCount: number;
             gradeLevels: number[];
             isSeedable: boolean;
             interSectionEnabled: boolean;
@@ -147,7 +151,10 @@ export declare function getFacultyById(id: number): Promise<({
     isActiveForScheduling: boolean;
     isClassAdviser: boolean;
     advisoryEquivalentHours: number;
+    ancillaryMinutesPerWeek: number | null;
+    ancillaryLoadSource: import("@prisma/client").$Enums.AncillaryLoadSource;
     canTeachOutsideDepartment: boolean;
+    isPlaceholder: boolean;
     maxHoursPerWeek: number;
     lastSyncedAt: Date;
     isStale: boolean;
@@ -189,7 +196,10 @@ export declare function updateFacultyMirror(id: number, data: Partial<{
         isActiveForScheduling: boolean;
         isClassAdviser: boolean;
         advisoryEquivalentHours: number;
+        ancillaryMinutesPerWeek: number | null;
+        ancillaryLoadSource: import("@prisma/client").$Enums.AncillaryLoadSource;
         canTeachOutsideDepartment: boolean;
+        isPlaceholder: boolean;
         maxHoursPerWeek: number;
         lastSyncedAt: Date;
         isStale: boolean;

@@ -4,6 +4,7 @@ import { requirePrivilegedRole } from '../middleware/authorize.js';
 import { prisma } from '../lib/prisma.js';
 import * as facultyService from '../services/faculty.service.js';
 import { fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
+import { validateAncillaryLoadImmutable } from '../services/scheduling-policy.service.js';
 const router = Router();
 // Auth: GET /faculty/me?schoolId=X — resolve caller's linked faculty mirror
 router.get('/me', authenticate, async (req, res, next) => {
@@ -228,11 +229,12 @@ router.patch('/:id', authenticate, async (req, res, next) => {
             res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
             return;
         }
-        const { localNotes, isActiveForScheduling, maxHoursPerWeek, employmentStatus, isClassAdviser, advisoryEquivalentHours, canTeachOutsideDepartment, version, } = req.body;
+        const { localNotes, isActiveForScheduling, maxHoursPerWeek, employmentStatus, isClassAdviser, advisoryEquivalentHours, canTeachOutsideDepartment, ancillaryMinutesPerWeek, ancillaryLoadSource, version, } = req.body;
         if (version === undefined) {
             res.status(400).json({ code: 'MISSING_FIELDS', message: 'version is required for optimistic locking.' });
             return;
         }
+        await validateAncillaryLoadImmutable(id, ancillaryMinutesPerWeek, ancillaryLoadSource);
         const result = await facultyService.updateFacultyMirror(id, {
             localNotes,
             isActiveForScheduling,

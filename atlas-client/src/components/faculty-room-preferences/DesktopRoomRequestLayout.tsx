@@ -22,7 +22,6 @@ type TimeSlot = { startTime: string; endTime: string };
 type DesktopRoomRequestLayoutProps = {
 	days: DayOfWeek[];
 	timeSlots: TimeSlot[];
-	entries: FacultyRoomPreferenceEntry[];
 	globalBySlot: Map<string, FacultyGlobalDraftEntry[]>;
 	showFullScheduleContext: boolean;
 	selectionCountBySlot: Map<string, number>;
@@ -44,6 +43,7 @@ type DesktopRoomRequestLayoutProps = {
 	onSelectTargetFromGrid: (payload: { day: DayOfWeek; startTime: string; endTime: string; targetEntryId: string | null }) => void;
 	onUpdateSelectedRationale: (value: string) => void;
 	renderStatusBadge: (status: RoomPreferenceStatus | null, decision: RoomPreferenceDecisionStatus | null) => ReactNode;
+	entries: FacultyRoomPreferenceEntry[];
 };
 
 function slotKey(day: string, startTime: string, endTime: string) {
@@ -53,7 +53,6 @@ function slotKey(day: string, startTime: string, endTime: string) {
 export default function DesktopRoomRequestLayout({
 	days,
 	timeSlots,
-	entries,
 	globalBySlot,
 	showFullScheduleContext,
 	selectionCountBySlot,
@@ -73,6 +72,7 @@ export default function DesktopRoomRequestLayout({
 	onSelectTargetFromGrid,
 	onUpdateSelectedRationale,
 	renderStatusBadge,
+	entries,
 }: DesktopRoomRequestLayoutProps) {
 	const gridScrollRef = useRef<HTMLDivElement>(null);
 	const [heatmapMode, setHeatmapMode] = useState(false);
@@ -177,7 +177,7 @@ export default function DesktopRoomRequestLayout({
 														targetEntryId: nonOwnedEntries[0]?.entryId ?? cellEntries[0]?.entryId ?? null,
 													});
 												}}
-												className={`group min-h-[100px] rounded-2xl border-2 p-2 text-left transition-all ${
+												className={`group min-h-25 rounded-2xl border-2 p-2 text-left transition-all ${
 													heatmapMode
 														? isHighCongestion ? 'border-rose-200 bg-rose-50/50' : isOccupied ? 'border-amber-100 bg-amber-50/30' : 'border-emerald-100 bg-emerald-50/20'
 														: 'border-border bg-background hover:border-primary/40'
@@ -285,7 +285,7 @@ export default function DesktopRoomRequestLayout({
 							</div>
 						</div>
 						
-						<div className='grid gap-2 max-h-[240px] overflow-auto pr-2'>
+						<div className='grid gap-2 max-h-60 overflow-auto pr-2'>
 							{filteredRooms.map((room) => (
 								<button
 									key={room.id}
@@ -311,7 +311,7 @@ export default function DesktopRoomRequestLayout({
 								value={selectedEntry.rationale ?? ''}
 								onChange={(e) => onUpdateSelectedRationale(e.target.value)}
 								placeholder='Add a note for the scheduling officer...'
-								className='min-h-[100px] text-xs rounded-2xl p-4 bg-muted/10 border-border/50 resize-none focus:bg-background transition-colors'
+								className='min-h-25 text-xs rounded-2xl p-4 bg-muted/10 border-border/50 resize-none focus:bg-background transition-colors'
 							/>
 						</div>
 					)}

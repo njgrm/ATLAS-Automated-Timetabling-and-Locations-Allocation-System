@@ -20,6 +20,7 @@ import {
 buildAssignmentSignature,
 buildMultiOwnerSavedMap,
 buildOwnershipMap,
+buildOwnershipMapFromIndex,
 buildPendingOwnershipMap,
 buildSectionMap,
 buildTeachingLoadProfile,
@@ -27,6 +28,7 @@ CLASS_ADVISER_EQUIVALENT_HOURS,
 normalizeDraftAssignments,
 type FacultyAssignmentDraft,
 type LoadStatus,
+type SubjectSectionOwnershipIndexEntry,
 } from '@/lib/faculty-assignment-helpers';
 import { getQualificationTier } from '@/lib/grade-labels';
 import { fetchPublicSettings } from '@/lib/settings';
@@ -109,6 +111,7 @@ const [searchParams] = useSearchParams();
 const [faculty, setFaculty] = useState<FacultySummary[]>([]);
 const [subjects, setSubjects] = useState<Subject[]>([]);
 const [sectionSummary, setSectionSummary] = useState<SectionSummaryResponse | null>(null);
+const [savedOwnershipIndex, setSavedOwnershipIndex] = useState<SubjectSectionOwnershipIndexEntry[]>([]);
 const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 const [loading, setLoading] = useState(true);
 const [saving, setSaving] = useState(false);
@@ -146,7 +149,7 @@ if (!schoolYearId) {
 throw new Error('Active school year is not configured.');
 }
 const [facultyRes, subjectsRes, sectionsRes] = await Promise.all([
-atlasApi.get<{ faculty: FacultySummary[] }>('/faculty-assignments/summary', {
+atlasApi.get<{ faculty: FacultySummary[]; ownershipIndex?: SubjectSectionOwnershipIndexEntry[] }>('/faculty-assignments/summary', {
 params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId },
 }),
 atlasApi.get<{ subjects: Subject[] }>('/subjects', {
@@ -158,6 +161,7 @@ params: { schoolId: DEFAULT_SCHOOL_ID },
 ]);
 setActiveSchoolYearId(schoolYearId);
 setFaculty(facultyRes.data.faculty);
+setSavedOwnershipIndex(facultyRes.data.ownershipIndex ?? []);
 setSubjects(subjectsRes.data.subjects.filter((subject) => subject.isActive));
 setSectionSummary(sectionsRes.data);
 setError(null);
@@ -224,13 +228,16 @@ result[member.id] = effectiveDraftAssignmentsByFaculty[member.id] ?? savedAssign
 }
 return result;
 }, [faculty, effectiveDraftAssignmentsByFaculty, savedAssignmentsByFaculty]);
+const activeDraftCount = useMemo(() => Object.keys(effectiveDraftAssignmentsByFaculty).length, [effectiveDraftAssignmentsByFaculty]);
 const facultyNames = useMemo(
 () => Object.fromEntries(faculty.map((member) => [member.id, `${member.lastName}, ${member.firstName}`])),
 [faculty],
 );
 const savedOwnershipMap = useMemo(
-() => buildOwnershipMap(savedAssignmentsByFaculty, facultyNames, 'saved'),
-[facultyNames, savedAssignmentsByFaculty],
+() => (savedOwnershipIndex.length > 0
+	? buildOwnershipMapFromIndex(savedOwnershipIndex)
+	: buildOwnershipMap(savedAssignmentsByFaculty, facultyNames, 'saved')),
+[facultyNames, savedAssignmentsByFaculty, savedOwnershipIndex],
 );
 const savedConflictMap = useMemo(
 () => buildMultiOwnerSavedMap(savedAssignmentsByFaculty, facultyNames),
@@ -415,12 +422,15 @@ const handleAutoFill = useCallback(async () => {
 		} else {
 			toast.info('Auto-Fill: all subject–section pairs are already assigned.');
 		}
+		if (activeDraftCount > 0) {
+			toast.warning('Auto-Fill used saved assignments only. Unsaved drafts were not included.');
+		}
 	} catch {
 		toast.error('Auto-Fill failed. Please try again.');
 	} finally {
 		setAutoFillLoading(false);
 	}
-}, [activeSchoolYearId, fetchData, pushHistory]);
+}, [activeDraftCount, activeSchoolYearId, fetchData, pushHistory]);
 
 const handleViewStaffingNeeds = useCallback(async () => {
 	if (!activeSchoolYearId) return;
@@ -672,7 +682,6 @@ const teachablePairTotals = useMemo(() => {
 }, [allKnownSections, effectiveAssignmentsByFaculty, subjects]);
 
 const assignedFacultyCount = faculty.filter((member) => (effectiveAssignmentsByFaculty[member.id]?.length ?? 0) > 0).length;
-const activeDraftCount = Object.keys(effectiveDraftAssignmentsByFaculty).length;
 const sectionsAvailable = Boolean(sectionSummary && sectionSummary.sections.length > 0);
 
 const executeSwap = useCallback(() => {
@@ -1078,7 +1087,7 @@ Redo
 </Button>
 <Button type="button" variant="outline" size="sm" onClick={handleResetAssignments} disabled={saving || !selected.isActiveForScheduling || !sectionsAvailable}>
 <RotateCcw className="mr-1.5 size-3.5" />
-Reset Assignments
+Reset Draft (Selected)
 </Button>
 {dirty && (
 <Button type="button" variant="secondary" size="sm" onClick={discardSelectedDraft} disabled={saving}>
@@ -1249,7 +1258,9 @@ This faculty member is excluded from scheduling. Enable them first.
 	open={autoFillDialogOpen}
 	onOpenChange={setAutoFillDialogOpen}
 	title="Auto-Fill Remaining Assignments?"
-	description="This will assign teachers to currently unassigned subject-sections using specialization aliases and current teaching load. Existing manual assignments will not be overwritten."
+	description={activeDraftCount > 0
+		? `This will assign teachers to currently unassigned subject-sections using saved data only. ${activeDraftCount} unsaved draft${activeDraftCount === 1 ? '' : 's'} will be ignored.`
+		: 'This will assign teachers to currently unassigned subject-sections using specialization aliases and current teaching load. Existing manual assignments will not be overwritten.'}
 	onConfirm={handleAutoFill}
 	confirmText="Run Auto-Fill"
 	variant="primary"

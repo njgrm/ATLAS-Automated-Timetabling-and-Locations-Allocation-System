@@ -17,6 +17,7 @@ export interface ExternalFaculty {
 	isClassAdviser?: boolean;
 	advisoryEquivalentHours?: number;
 	canTeachOutsideDepartment?: boolean;
+	ancillaryMinutesPerWeek?: number | null;
 	contactInfo: string | null;
 	// Wave 3.5: Adviser mapping
 	advisedSectionId?: number | null;
@@ -98,6 +99,10 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 			isTeachingExempt?: boolean;
 			isClassAdviser?: boolean;
 			advisoryEquivalentHoursPerWeek?: number | null;
+			ancillaryMinutesPerWeek?: number | null;
+			ancillaryLoadMinutesPerWeek?: number | null;
+			ancillaryLoadMinutes?: number | null;
+			ancillaryHoursPerWeek?: number | null;
 			advisorySectionId?: number | null;
 			advisorySectionName?: string | null;
 		};
@@ -143,7 +148,21 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 
 		const teachers = (data.data ?? [])
 			.filter((t) => t.isActive)
-			.map((t) => ({
+			.map((t) => {
+				const minutesFromHours = Number.isFinite(Number(t.ancillaryHoursPerWeek))
+					? Math.max(0, Math.round(Number(t.ancillaryHoursPerWeek) * 60))
+					: null;
+				const ancillaryMinutesRaw = [
+					t.ancillaryMinutesPerWeek,
+					t.ancillaryLoadMinutesPerWeek,
+					t.ancillaryLoadMinutes,
+					minutesFromHours,
+				].find((value) => Number.isFinite(Number(value)));
+				const ancillaryMinutesPerWeek = ancillaryMinutesRaw === undefined || ancillaryMinutesRaw === null
+					? null
+					: Math.max(0, Math.round(Number(ancillaryMinutesRaw)));
+
+				return {
 				id: t.teacherId,
 				employeeId: t.employeeId || null,
 				firstName: t.firstName,
@@ -155,10 +174,12 @@ export class EnrollProFacultyAdapter implements FacultyAdapter {
 				isClassAdviser: !!(t.isClassAdviser || t.advisorySectionId),
 				advisoryEquivalentHours: t.advisoryEquivalentHoursPerWeek ?? (t.advisorySectionId ? 5 : 0),
 				canTeachOutsideDepartment: false,
+				ancillaryMinutesPerWeek,
 				contactInfo: t.email ?? t.contactNumber ?? null,
 				advisedSectionId: t.advisorySectionId ?? null,
 				advisedSectionName: t.advisorySectionName ?? null,
-			}));
+				};
+			});
 
 		return {
 			teachers,

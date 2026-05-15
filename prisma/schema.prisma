@@ -51,6 +51,9 @@ model SectionMirror {
   // ATLAS-specific metadata/overrides
   isActiveForScheduling Boolean @default(true) @map("is_active_for_scheduling")
   preferredRoomId       Int?    @map("preferred_room_id")
+  // Phase 1a-2 / Phase 2 Home-Room prereq
+  homeRoomId            Int?    @map("home_room_id")
+  buildingZoneId        String? @map("building_zone_id") @db.VarChar(32)
 
   lastSyncedAt      DateTime @default(now()) @map("last_synced_at")
   isStale           Boolean  @default(false) @map("is_stale")
@@ -123,6 +126,8 @@ model Room {
   buildingId      Int      @map("building_id")
   name            String
   floor           Int      @default(1)
+  floorNumber     Int?     @map("floor_number")
+  buildingZoneId  String?  @map("building_zone_id") @db.VarChar(32)
   type            RoomType @default(CLASSROOM)
   capacity        Int?
   isTeachingSpace Boolean  @default(true) @map("is_teaching_space")
@@ -154,6 +159,8 @@ model Subject {
   sessionPattern          SessionPattern   @default(ANY) @map("session_pattern")
   modularGroupId          String?          @db.VarChar(64) @map("modular_group_id")
   modularOrder            Int?             @map("modular_order")
+  termGroupId             String?          @db.VarChar(64) @map("term_group_id")
+  termCount               Int              @default(3) @map("term_count")
   gradeLevels             Int[]            @map("grade_levels")
   isActive                Boolean          @default(true) @map("is_active")
   isSeedable              Boolean          @default(false) @map("is_seedable")
@@ -173,6 +180,14 @@ model Subject {
   @@map("subjects")
 }
 
+enum AncillaryLoadSource {
+  HR
+  LOCAL
+  NONE
+
+  @@map("ancillary_load_source")
+}
+
 model FacultyMirror {
   id                        Int               @id @default(autoincrement())
   externalId                Int               @map("external_id")
@@ -189,7 +204,10 @@ model FacultyMirror {
   isActiveForScheduling     Boolean           @default(true) @map("is_active_for_scheduling")
   isClassAdviser            Boolean           @default(false) @map("is_class_adviser")
   advisoryEquivalentHours   Int               @default(0) @map("advisory_equivalent_hours")
+  ancillaryMinutesPerWeek   Int?              @map("ancillary_minutes_per_week")
+  ancillaryLoadSource       AncillaryLoadSource @default(NONE) @map("ancillary_load_source")
   canTeachOutsideDepartment Boolean           @default(false) @map("can_teach_outside_department")
+  isPlaceholder             Boolean           @default(false) @map("is_placeholder")
   maxHoursPerWeek           Int               @default(30) @map("max_hours_per_week")
   lastSyncedAt              DateTime          @default(now()) @map("last_synced_at")
   // Stale tracking (Wave 3.5)
@@ -417,6 +435,7 @@ model FacultyRoomPreference {
   day            DayOfWeek
   startTime      String                       @map("start_time")
   endTime        String                       @map("end_time")
+  termIndex      Int                          @default(1) @map("term_index")
   rationale      String?
   status         RoomPreferenceStatus         @default(DRAFT)
   submittedAt    DateTime?                    @map("submitted_at")
@@ -682,6 +701,7 @@ model LockedSession {
   day          DayOfWeek
   startTime    String   @map("start_time")
   endTime      String   @map("end_time")
+  termIndex    Int      @default(1) @map("term_index")
   createdBy    Int      @map("created_by")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

@@ -52,6 +52,7 @@ export interface ScheduledEntry {
 	startTime: string;    // HH:mm
 	endTime: string;      // HH:mm
 	durationMinutes: number;
+	termIndex?: 1 | 2 | 3;
 	entryKind?: 'SECTION' | 'COHORT';
 	programType?: string | null;
 	programCode?: string | null;

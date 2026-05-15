@@ -39,6 +39,7 @@ export interface RoomScheduleEntry {
 	startTime: string;
 	endTime: string;
 	durationMinutes: number;
+	termIndex: 1 | 2 | 3;
 }
 
 export interface RoomScheduleCell {
@@ -163,6 +164,7 @@ export async function getRoomScheduleView(
 				startTime: placement.startTime,
 				endTime: placement.endTime,
 				durationMinutes,
+				termIndex: placement.termIndex as 1 | 2 | 3,
 				entryKind: placement.entryKind,
 				cohortCode: placement.cohortCode ?? null,
 			} satisfies ScheduledEntry;
@@ -211,6 +213,7 @@ export async function getRoomScheduleView(
 				startTime: e.startTime,
 				endTime: e.endTime,
 				durationMinutes: e.durationMinutes,
+				termIndex: (e.termIndex ?? 1) as 1 | 2 | 3,
 			}));
 
 			const hasConflict = mapped.length > 1;

@@ -3,6 +3,8 @@
  * Business logic only; no transport concerns.
  */
 import { Prisma } from '@prisma/client';
+export declare function computeEffectiveWeeklyTeachingMinutes(maxHoursPerWeek: number, ancillaryMinutesPerWeek?: number | null): number;
+export declare function validateAncillaryLoadImmutable(facultyId: number, nextAncillaryMinutesPerWeek?: number | null, nextAncillaryLoadSource?: 'HR' | 'LOCAL' | 'NONE'): Promise<void>;
 export declare const POLICY_DEFAULTS: {
     readonly teacherMoveEnabled: true;
     readonly maxConsecutiveTeachingMinutesBeforeBreak: 120;

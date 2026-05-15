@@ -97,6 +97,7 @@ export async function getRoomScheduleView(schoolId, schoolYearId, roomId, source
                 startTime: placement.startTime,
                 endTime: placement.endTime,
                 durationMinutes,
+                termIndex: placement.termIndex,
                 entryKind: placement.entryKind,
                 cohortCode: placement.cohortCode ?? null,
             };
@@ -142,6 +143,7 @@ export async function getRoomScheduleView(schoolId, schoolYearId, roomId, source
                 startTime: e.startTime,
                 endTime: e.endTime,
                 durationMinutes: e.durationMinutes,
+                termIndex: (e.termIndex ?? 1),
             }));
             const hasConflict = mapped.length > 1;
             if (hasConflict)

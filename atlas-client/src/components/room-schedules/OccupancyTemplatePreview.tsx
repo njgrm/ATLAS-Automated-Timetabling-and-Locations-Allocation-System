@@ -56,7 +56,10 @@ function buildRows(view: RoomScheduleView, rowCount: number) {
 function formatEntry(entry: RoomScheduleEntry, subjectMap: Map<number, string>, facultyMap: Map<number, string>, sectionMap: Map<number, string>) {
 	return {
 		subject: subjectMap.get(entry.subjectId) ?? `Subject #${entry.subjectId}`,
-		faculty: facultyMap.get(entry.facultyId) ?? `Faculty #${entry.facultyId}`,
+		faculty:
+			entry.facultyId != null
+				? (facultyMap.get(entry.facultyId) ?? `Faculty #${entry.facultyId}`)
+				: 'Unassigned Faculty',
 		section: sectionMap.get(entry.sectionId) ?? `Section #${entry.sectionId}`,
 	};
 }
@@ -96,7 +99,7 @@ export function OccupancyTemplatePreview({
 						</CardHeader>
 						<CardContent className="p-0">
 							<div className="overflow-auto">
-								<table className="min-w-[860px] w-full border-collapse text-[11px]">
+								<table className="min-w-215 w-full border-collapse text-[11px]">
 									<colgroup>
 										<col className="w-28" />
 										{view.days.map((day) => <col key={day} />)}

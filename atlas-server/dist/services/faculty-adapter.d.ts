@@ -16,6 +16,7 @@ export interface ExternalFaculty {
     isClassAdviser?: boolean;
     advisoryEquivalentHours?: number;
     canTeachOutsideDepartment?: boolean;
+    ancillaryMinutesPerWeek?: number | null;
     contactInfo: string | null;
     advisedSectionId?: number | null;
     advisedSectionName?: string | null;

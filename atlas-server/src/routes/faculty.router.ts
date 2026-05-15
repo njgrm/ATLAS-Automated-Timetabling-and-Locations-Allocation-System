@@ -5,6 +5,7 @@ import { requirePrivilegedRole } from '../middleware/authorize.js';
 import { prisma } from '../lib/prisma.js';
 import * as facultyService from '../services/faculty.service.js';
 import { fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
+import { validateAncillaryLoadImmutable } from '../services/scheduling-policy.service.js';
 
 const router = Router();
 
@@ -250,12 +251,20 @@ router.patch('/:id', authenticate, async (req: Request, res: Response, next: Nex
 			isClassAdviser,
 			advisoryEquivalentHours,
 			canTeachOutsideDepartment,
+			ancillaryMinutesPerWeek,
+			ancillaryLoadSource,
 			version,
 		} = req.body;
 		if (version === undefined) {
 			res.status(400).json({ code: 'MISSING_FIELDS', message: 'version is required for optimistic locking.' });
 			return;
 		}
+		await validateAncillaryLoadImmutable(
+			id,
+			ancillaryMinutesPerWeek,
+			ancillaryLoadSource,
+		);
+
 		const result = await facultyService.updateFacultyMirror(
 			id,
 			{

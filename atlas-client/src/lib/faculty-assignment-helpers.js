@@ -63,6 +63,17 @@ export function buildOwnershipMap(assignmentsByFaculty, facultyNames, source) {
     }
     return ownershipMap;
 }
+export function buildOwnershipMapFromIndex(ownershipIndex) {
+    const ownershipMap = {};
+    for (const entry of ownershipIndex) {
+        ownershipMap[getAssignmentOwnershipKey(entry.subjectId, entry.sectionId)] = {
+            facultyId: entry.facultyId,
+            facultyName: entry.facultyName,
+            source: 'saved',
+        };
+    }
+    return ownershipMap;
+}
 /**
  * Like buildOwnershipMap but accumulates ALL owners per key instead of last-write-wins.
  * Use this to detect database-level duplicate ownership conflicts that bypass the

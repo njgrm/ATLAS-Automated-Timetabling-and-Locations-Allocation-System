@@ -148,7 +148,12 @@ router.get('/:schoolId/:schoolYearId/runs/latest/violations', authenticate, asyn
             res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId });
             return;
         }
-        const report = await genService.getLatestRunViolations(schoolId, schoolYearId);
+        const termIndex = req.query.termIndex === undefined ? undefined : Number(req.query.termIndex);
+        if (termIndex !== undefined && ![1, 2, 3].includes(termIndex)) {
+            res.status(400).json({ code: 'INVALID_PARAM', message: 'termIndex must be 1, 2, or 3 when provided.' });
+            return;
+        }
+        const report = await genService.getLatestRunViolations(schoolId, schoolYearId, termIndex);
         res.json(report);
     }
     catch (e) {
@@ -233,7 +238,12 @@ router.get('/:schoolId/:schoolYearId/runs/:runId/violations', authenticate, asyn
             res.status(400).json({ code: 'INVALID_PARAM', message: runId });
             return;
         }
-        const report = await genService.getRunViolations(runId, schoolId, schoolYearId);
+        const termIndex = req.query.termIndex === undefined ? undefined : Number(req.query.termIndex);
+        if (termIndex !== undefined && ![1, 2, 3].includes(termIndex)) {
+            res.status(400).json({ code: 'INVALID_PARAM', message: 'termIndex must be 1, 2, or 3 when provided.' });
+            return;
+        }
+        const report = await genService.getRunViolations(runId, schoolId, schoolYearId, termIndex);
         res.json(report);
     }
     catch (e) {

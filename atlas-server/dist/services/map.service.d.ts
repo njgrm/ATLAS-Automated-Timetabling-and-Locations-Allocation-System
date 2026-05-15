@@ -7,6 +7,8 @@ export declare function getBuildingsBySchool(schoolId: number): Promise<({
         floorPosition: number;
         floor: number;
         buildingId: number;
+        floorNumber: number | null;
+        buildingZoneId: string | null;
         type: import("@prisma/client").$Enums.RoomType;
         capacity: number | null;
         isTeachingSpace: boolean;
@@ -37,6 +39,8 @@ export declare function getBuilding(id: number): Promise<({
         floorPosition: number;
         floor: number;
         buildingId: number;
+        floorNumber: number | null;
+        buildingZoneId: string | null;
         type: import("@prisma/client").$Enums.RoomType;
         capacity: number | null;
         isTeachingSpace: boolean;
@@ -78,6 +82,8 @@ export declare function upsertBuilding(schoolId: number, data: {
         floorPosition: number;
         floor: number;
         buildingId: number;
+        floorNumber: number | null;
+        buildingZoneId: string | null;
         type: import("@prisma/client").$Enums.RoomType;
         capacity: number | null;
         isTeachingSpace: boolean;
@@ -119,6 +125,8 @@ export declare function updateBuilding(id: number, data: Partial<{
         floorPosition: number;
         floor: number;
         buildingId: number;
+        floorNumber: number | null;
+        buildingZoneId: string | null;
         type: import("@prisma/client").$Enums.RoomType;
         capacity: number | null;
         isTeachingSpace: boolean;
@@ -171,6 +179,8 @@ export declare function addRoom(buildingId: number, data: {
     floorPosition: number;
     floor: number;
     buildingId: number;
+    floorNumber: number | null;
+    buildingZoneId: string | null;
     type: import("@prisma/client").$Enums.RoomType;
     capacity: number | null;
     isTeachingSpace: boolean;
@@ -184,6 +194,8 @@ export declare function deleteRoom(id: number): Promise<{
     floorPosition: number;
     floor: number;
     buildingId: number;
+    floorNumber: number | null;
+    buildingZoneId: string | null;
     type: import("@prisma/client").$Enums.RoomType;
     capacity: number | null;
     isTeachingSpace: boolean;
@@ -204,6 +216,8 @@ export declare function updateRoom(id: number, data: Partial<{
     floorPosition: number;
     floor: number;
     buildingId: number;
+    floorNumber: number | null;
+    buildingZoneId: string | null;
     type: import("@prisma/client").$Enums.RoomType;
     capacity: number | null;
     isTeachingSpace: boolean;

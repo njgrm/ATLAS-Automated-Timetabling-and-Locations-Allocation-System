@@ -65,6 +65,13 @@ export type OwnershipConflictDetail = {
   ownerFacultyName: string;
 };
 
+export type SubjectSectionOwnershipIndexEntry = {
+  subjectId: number;
+  sectionId: number;
+  facultyId: number;
+  facultyName: string;
+};
+
 export function computeTeachingLoadMinutes(
   assignments: AssignmentLoadShape[],
   formula: TeachingLoadFormula,
@@ -470,7 +477,7 @@ return { success: true, version: expectedVersion + 1 };
 }
 
 export async function getAssignmentSummary(schoolId: number, schoolYearId: number, authToken?: string) {
-const [rosterIndex, faculty] = await Promise.all([
+const [rosterIndex, faculty, ownershipRows] = await Promise.all([
 buildRosterIndex(schoolId, schoolYearId, authToken),
 prisma.facultyMirror.findMany({
 where: { schoolId, isStale: false },
@@ -481,9 +488,35 @@ include: { subject: { select: { id: true, name: true, code: true, minMinutesPerW
 },
 orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
 }),
+prisma.subjectSectionOwnership.findMany({
+where: { schoolId },
+select: {
+subjectId: true,
+sectionId: true,
+facultyId: true,
+},
+}),
 ]);
 
-return faculty.map((member) => {
+const ownershipFacultyIds = Array.from(new Set(ownershipRows.map((row) => row.facultyId)));
+const ownershipFaculty = ownershipFacultyIds.length
+? await prisma.facultyMirror.findMany({
+where: { id: { in: ownershipFacultyIds } },
+select: { id: true, firstName: true, lastName: true },
+})
+: [];
+const ownershipNameByFacultyId = new Map(
+ownershipFaculty.map((member) => [member.id, formatFacultyName(member.firstName, member.lastName)]),
+);
+
+const ownershipIndex: SubjectSectionOwnershipIndexEntry[] = ownershipRows.map((row) => ({
+subjectId: row.subjectId,
+sectionId: row.sectionId,
+facultyId: row.facultyId,
+facultyName: ownershipNameByFacultyId.get(row.facultyId) ?? `Faculty #${row.facultyId}`,
+}));
+
+const facultySummary = faculty.map((member) => {
 const assignments = member.facultySubjects.map((assignment) => {
 const normalized = normalizeStoredAssignmentScope(assignment, rosterIndex);
 return toAssignmentResponse(assignment, normalized);
@@ -498,6 +531,7 @@ const loadPercentage = member.maxHoursPerWeek > 0 ? Math.round((totalHours / mem
 return {
 id: member.id,
 externalId: member.externalId,
+employeeId: member.employeeId,
 firstName: member.firstName,
 lastName: member.lastName,
 department: member.department,
@@ -516,4 +550,9 @@ loadPercentage,
 assignments,
 };
 });
+
+return {
+faculty: facultySummary,
+ownershipIndex,
+};
 }

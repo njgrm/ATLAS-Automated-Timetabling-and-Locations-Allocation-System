@@ -289,7 +289,7 @@ export async function setAssignments(facultyId, schoolId, schoolYearId, assigned
     return { success: true, version: expectedVersion + 1 };
 }
 export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
-    const [rosterIndex, faculty] = await Promise.all([
+    const [rosterIndex, faculty, ownershipRows] = await Promise.all([
         buildRosterIndex(schoolId, schoolYearId, authToken),
         prisma.facultyMirror.findMany({
             where: { schoolId, isStale: false },
@@ -300,8 +300,30 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
             },
             orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
         }),
+        prisma.subjectSectionOwnership.findMany({
+            where: { schoolId },
+            select: {
+                subjectId: true,
+                sectionId: true,
+                facultyId: true,
+            },
+        }),
     ]);
-    return faculty.map((member) => {
+    const ownershipFacultyIds = Array.from(new Set(ownershipRows.map((row) => row.facultyId)));
+    const ownershipFaculty = ownershipFacultyIds.length
+        ? await prisma.facultyMirror.findMany({
+            where: { id: { in: ownershipFacultyIds } },
+            select: { id: true, firstName: true, lastName: true },
+        })
+        : [];
+    const ownershipNameByFacultyId = new Map(ownershipFaculty.map((member) => [member.id, formatFacultyName(member.firstName, member.lastName)]));
+    const ownershipIndex = ownershipRows.map((row) => ({
+        subjectId: row.subjectId,
+        sectionId: row.sectionId,
+        facultyId: row.facultyId,
+        facultyName: ownershipNameByFacultyId.get(row.facultyId) ?? `Faculty #${row.facultyId}`,
+    }));
+    const facultySummary = faculty.map((member) => {
         const assignments = member.facultySubjects.map((assignment) => {
             const normalized = normalizeStoredAssignmentScope(assignment, rosterIndex);
             return toAssignmentResponse(assignment, normalized);
@@ -315,6 +337,7 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
         return {
             id: member.id,
             externalId: member.externalId,
+            employeeId: member.employeeId,
             firstName: member.firstName,
             lastName: member.lastName,
             department: member.department,
@@ -333,5 +356,9 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
             assignments,
         };
     });
+    return {
+        faculty: facultySummary,
+        ownershipIndex,
+    };
 }
 //# sourceMappingURL=faculty-assignment.service.js.map

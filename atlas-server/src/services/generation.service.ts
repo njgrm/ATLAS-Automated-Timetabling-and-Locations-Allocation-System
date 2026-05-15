@@ -20,6 +20,7 @@ import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-polic
 import * as preGenerationDraftService from './pre-generation-draft.service.js';
 import { resolveActiveDraftRun } from './active-draft-run-resolver.service.js';
 import { getTemplatePeriodProfiles, ensureTemplatesForProgramTypes } from './class-template.service.js';
+import { computeEffectiveWeeklyTeachingMinutes } from './scheduling-policy.service.js';
 
 // ─── Helpers ───
 
@@ -91,6 +92,44 @@ export interface RunSummary {
 		slotSaturationByInterval: Array<{ day: string; startTime: string; endTime: string; assigned: number; capacity: number; saturationPercent: number }>;
 		unassignedBySubjectGrade: Array<{ subjectId: number; subjectCode: string; gradeLevel: number; count: number; reasons: Record<string, number> }>;
 	};
+	termCounts?: {
+		term1: number;
+		term2: number;
+		term3: number;
+	};
+}
+
+function normalizeTermIndex(value: unknown): 1 | 2 | 3 {
+	const parsed = Number(value);
+	if (parsed === 2) return 2;
+	if (parsed === 3) return 3;
+	return 1;
+}
+
+function deriveTermIndexFromMetadata(entry: ScheduledEntry): 1 | 2 | 3 {
+	const firstQuarter = entry.metadata?.modularAssignments?.[0]?.quarter;
+	if (firstQuarter === 2 || firstQuarter === 3) return firstQuarter;
+	return 1;
+}
+
+function withTermIndex(entries: ScheduledEntry[]): ScheduledEntry[] {
+	return entries.map((entry) => ({
+		...entry,
+		termIndex: normalizeTermIndex((entry as ScheduledEntry & { termIndex?: unknown }).termIndex ?? deriveTermIndexFromMetadata(entry)),
+	}));
+}
+
+function buildTermCounts(entries: ScheduledEntry[]): { term1: number; term2: number; term3: number } {
+	return entries.reduce(
+		(acc, entry) => {
+			const termIndex = normalizeTermIndex((entry as ScheduledEntry & { termIndex?: unknown }).termIndex);
+			if (termIndex === 2) acc.term2 += 1;
+			else if (termIndex === 3) acc.term3 += 1;
+			else acc.term1 += 1;
+			return acc;
+		},
+		{ term1: 0, term2: 0, term3: 0 },
+	);
 }
 
 function buildQualifiedCoverageBySubject(
@@ -215,7 +254,7 @@ export async function triggerGenerationRun(
 			getSectionSummary(schoolYearId, schoolId, options?.authToken),
 			prisma.facultyMirror.findMany({
 				where: { schoolId, isActiveForScheduling: true, isStale: false },
-				select: { id: true, maxHoursPerWeek: true, specialization: true, department: true },
+				select: { id: true, maxHoursPerWeek: true, ancillaryMinutesPerWeek: true, specialization: true, department: true },
 			}),
 			prisma.facultySubject.findMany({
 				where: { schoolId },
@@ -322,13 +361,21 @@ export async function triggerGenerationRun(
 		}
 
 		const demand = computeDemand(sectionsByGrade, subjects, cohorts, classTemplatePeriods);
+		const policyMaxDailyMinutes = policyRecord.maxTeachingMinutesPerDay;
 		const constructorInput: ConstructorInput = {
 			schoolId,
 			schoolYearId,
 			sectionsByGrade,
 			subjects,
 			cohorts,
-			faculty,
+			faculty: faculty.map((member) => ({
+				id: member.id,
+				maxHoursPerWeek: Math.floor(
+					computeEffectiveWeeklyTeachingMinutes(member.maxHoursPerWeek, member.ancillaryMinutesPerWeek) / 60,
+				),
+				specialization: member.specialization,
+				department: member.department,
+			})),
 			facultySubjects,
 			rooms,
 			preferences: preferences.map((p) => ({
@@ -373,6 +420,7 @@ export async function triggerGenerationRun(
 			classTemplatePeriods,
 		};
 		const result = runHybridScheduler(constructorInput);
+		const entriesWithTerms = withTermIndex(result.entries);
 
 		// ── G.17: Diagnostic output for constructor result ──
 		console.log(`[generation][run=${run.id}] constructor: assigned=${result.assignedCount}, unassigned=${result.unassignedCount}, policyBlocked=${result.policyBlockedCount}, entries=${result.entries.length}, hybrid=${result.hybridEnabled}, selectedProfile=${result.selectedProfileId}`);
@@ -391,12 +439,13 @@ export async function triggerGenerationRun(
 		stage = 'validator';
 		const validatorCtx: ValidatorContext = {
 			schoolId, schoolYearId, runId: run.id,
-			entries: result.entries, faculty, facultySubjects, rooms, subjects,
+			entries: entriesWithTerms, faculty: constructorInput.faculty, facultySubjects, rooms, subjects,
 			sectionEnrollment: new Map(
 				sectionsByGrade.flatMap((g) => g.sections.map((s) => [s.id, s.enrolledCount] as const)),
 			),
 			policy: {
 				...constructorInput.policy!,
+				maxTeachingMinutesPerDay: policyMaxDailyMinutes,
 				enforceConsecutiveBreakAsHard: policyRecord.enforceConsecutiveBreakAsHard,
 			},
 			travelPolicy: {
@@ -450,9 +499,10 @@ export async function triggerGenerationRun(
 		const subjectCodeById = new Map(subjects.map((subject) => [subject.id, subject.code]));
 		const resourceDiagnostics: NonNullable<RunSummary['resourceDiagnostics']> = {
 			qualifiedFacultyCoverageBySubject: buildQualifiedCoverageBySubject(demand, facultySubjects),
-			slotSaturationByInterval: buildSlotSaturation(result.entries, Math.max(rooms.length, 1)).slice(0, 20),
+			slotSaturationByInterval: buildSlotSaturation(entriesWithTerms, Math.max(rooms.length, 1)).slice(0, 20),
 			unassignedBySubjectGrade: buildUnassignedBySubjectGrade(result.unassignedItems, subjectCodeById).slice(0, 20),
 		};
+		const termCounts = buildTermCounts(entriesWithTerms);
 
 		const summary: RunSummary = {
 			classesProcessed: result.classesProcessed,
@@ -467,7 +517,8 @@ export async function triggerGenerationRun(
 			lockWarnings: result.lockWarnings.length > 0 ? result.lockWarnings : undefined,
 			modularWarnings: modularWarnings.length > 0 ? modularWarnings.map((warning) => warning.message) : undefined,
 			cohortCount: cohorts.length,
-			cohortizedClassCount: result.entries.filter((entry) => entry.entryKind === 'COHORT').length,
+			cohortizedClassCount: entriesWithTerms.filter((entry) => entry.entryKind === 'COHORT').length,
+			termCounts,
 			contractWarnings: [
 				...(sectionResult.contractWarnings ?? []),
 			].length > 0 ? [
@@ -494,7 +545,7 @@ export async function triggerGenerationRun(
 				durationMs,
 				summary: summary as object,
 				violations: mergedValidationResult.violations as unknown as object[],
-				draftEntries: result.entries as unknown as object[],
+				draftEntries: entriesWithTerms as unknown as object[],
 				unassignedItems: result.unassignedItems as unknown as object[],
 			},
 		});
@@ -736,14 +787,38 @@ export interface ViolationReport {
 	};
 }
 
-export async function getRunViolations(runId: number, schoolId: number, schoolYearId: number): Promise<ViolationReport> {
+function filterViolationsByTerm(
+	violations: Violation[],
+	entries: ScheduledEntry[],
+	termIndex?: number,
+): Violation[] {
+	if (termIndex !== 1 && termIndex !== 2 && termIndex !== 3) {
+		return violations;
+	}
+
+	const entryTermById = new Map(entries.map((entry) => [entry.entryId, entry.termIndex ?? 1]));
+	return violations.filter((violation) => {
+		const explicit = violation.meta?.termIndex;
+		if (typeof explicit === 'number') {
+			return explicit === termIndex;
+		}
+		const entryIds = violation.entities?.entryIds ?? [];
+		if (Array.isArray(entryIds) && entryIds.length > 0) {
+			return entryIds.some((entryId) => entryTermById.get(entryId) === termIndex);
+		}
+		return true;
+	});
+}
+
+export async function getRunViolations(runId: number, schoolId: number, schoolYearId: number, termIndex?: number): Promise<ViolationReport> {
 	const run = await prisma.generationRun.findFirst({
 		where: { id: runId, schoolId, schoolYearId },
-		select: { id: true, status: true, violations: true, summary: true },
+		select: { id: true, status: true, violations: true, summary: true, draftEntries: true },
 	});
 	if (!run) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
 
-	const violations = (run.violations ?? []) as unknown as Violation[];
+	const entries = withTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]);
+	const violations = filterViolationsByTerm((run.violations ?? []) as unknown as Violation[], entries, termIndex);
 	const summary = (run.summary ?? {}) as Record<string, unknown>;
 	const violationCounts = (summary.violationCounts ?? {}) as Record<string, number>;
 
@@ -758,10 +833,11 @@ export async function getRunViolations(runId: number, schoolId: number, schoolYe
 	};
 }
 
-export async function getLatestRunViolations(schoolId: number, schoolYearId: number): Promise<ViolationReport> {
+export async function getLatestRunViolations(schoolId: number, schoolYearId: number, termIndex?: number): Promise<ViolationReport> {
 	const run = await getLatestValidRun(schoolId, schoolYearId);
 
-	const violations = (run.violations ?? []) as unknown as Violation[];
+	const entries = withTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]);
+	const violations = filterViolationsByTerm((run.violations ?? []) as unknown as Violation[], entries, termIndex);
 	const summary = (run.summary ?? {}) as Record<string, unknown>;
 	const violationCounts = (summary.violationCounts ?? {}) as Record<string, number>;
 
@@ -799,7 +875,7 @@ export async function getRunDraft(runId: number, schoolId: number, schoolYearId:
 	return {
 		runId: run.id,
 		status: run.status,
-		entries: (run.draftEntries ?? []) as unknown as ScheduledEntry[],
+		entries: withTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]),
 		unassignedItems: (run.unassignedItems ?? []) as unknown as UnassignedItem[],
 		summary: (run.summary ?? null) as RunSummary | null,
 		version: run.version,
@@ -814,7 +890,7 @@ export async function getLatestRunDraft(schoolId: number, schoolYearId: number):
 	return {
 		runId: run.id,
 		status: run.status,
-		entries: (run.draftEntries ?? []) as unknown as ScheduledEntry[],
+		entries: withTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]),
 		unassignedItems: (run.unassignedItems ?? []) as unknown as UnassignedItem[],
 		summary: (run.summary ?? null) as RunSummary | null,
 		version: run.version,

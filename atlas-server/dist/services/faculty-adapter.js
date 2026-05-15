@@ -69,22 +69,37 @@ export class EnrollProFacultyAdapter {
         const data = { data: allRows };
         const teachers = (data.data ?? [])
             .filter((t) => t.isActive)
-            .map((t) => ({
-            id: t.teacherId,
-            employeeId: t.employeeId || null,
-            firstName: t.firstName,
-            lastName: t.lastName,
-            // EnrollPro now emits departmentCode/departmentName in integration v1; keep backward compatibility.
-            department: t.departmentCode ?? t.department ?? t.departmentName ?? null,
-            specialization: t.specialization ?? null,
-            employmentStatus: 'PERMANENT',
-            isClassAdviser: !!(t.isClassAdviser || t.advisorySectionId),
-            advisoryEquivalentHours: t.advisoryEquivalentHoursPerWeek ?? (t.advisorySectionId ? 5 : 0),
-            canTeachOutsideDepartment: false,
-            contactInfo: t.email ?? t.contactNumber ?? null,
-            advisedSectionId: t.advisorySectionId ?? null,
-            advisedSectionName: t.advisorySectionName ?? null,
-        }));
+            .map((t) => {
+            const minutesFromHours = Number.isFinite(Number(t.ancillaryHoursPerWeek))
+                ? Math.max(0, Math.round(Number(t.ancillaryHoursPerWeek) * 60))
+                : null;
+            const ancillaryMinutesRaw = [
+                t.ancillaryMinutesPerWeek,
+                t.ancillaryLoadMinutesPerWeek,
+                t.ancillaryLoadMinutes,
+                minutesFromHours,
+            ].find((value) => Number.isFinite(Number(value)));
+            const ancillaryMinutesPerWeek = ancillaryMinutesRaw === undefined || ancillaryMinutesRaw === null
+                ? null
+                : Math.max(0, Math.round(Number(ancillaryMinutesRaw)));
+            return {
+                id: t.teacherId,
+                employeeId: t.employeeId || null,
+                firstName: t.firstName,
+                lastName: t.lastName,
+                // EnrollPro now emits departmentCode/departmentName in integration v1; keep backward compatibility.
+                department: t.departmentCode ?? t.department ?? t.departmentName ?? null,
+                specialization: t.specialization ?? null,
+                employmentStatus: 'PERMANENT',
+                isClassAdviser: !!(t.isClassAdviser || t.advisorySectionId),
+                advisoryEquivalentHours: t.advisoryEquivalentHoursPerWeek ?? (t.advisorySectionId ? 5 : 0),
+                canTeachOutsideDepartment: false,
+                ancillaryMinutesPerWeek,
+                contactInfo: t.email ?? t.contactNumber ?? null,
+                advisedSectionId: t.advisorySectionId ?? null,
+                advisedSectionName: t.advisorySectionName ?? null,
+            };
+        });
         return {
             teachers,
             source: 'enrollpro',

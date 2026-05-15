@@ -20,6 +20,7 @@ export interface ScheduledEntry {
     startTime: string;
     endTime: string;
     durationMinutes: number;
+    termIndex?: 1 | 2 | 3;
     entryKind?: 'SECTION' | 'COHORT';
     programType?: string | null;
     programCode?: string | null;

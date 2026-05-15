@@ -15,6 +15,129 @@ import { seedQualifiedAssignments } from './assignment-seed.service.js';
 import { syncAdvisoryHgAssignments } from './hg-advisory.service.js';
 import { sectionAdapter } from './section-adapter.js';
 const adapter = createFacultyAdapter();
+function normalizeIdentityPart(value) {
+    return (value ?? '').trim().toLowerCase();
+}
+function buildFacultyIdentityKey(input) {
+    return [
+        normalizeIdentityPart(input.firstName),
+        normalizeIdentityPart(input.lastName),
+        normalizeIdentityPart(input.department),
+        normalizeIdentityPart(input.specialization),
+    ].join('::');
+}
+function dedupeExternalFacultyByEmployeeIdentity(teachers) {
+    const employeeOwnerByIdentity = new Map();
+    for (const teacher of teachers) {
+        if (!teacher.employeeId)
+            continue;
+        employeeOwnerByIdentity.set(buildFacultyIdentityKey(teacher), teacher.id);
+    }
+    const canonical = [];
+    const duplicateExternalToCanonicalExternal = new Map();
+    for (const teacher of teachers) {
+        if (teacher.employeeId) {
+            canonical.push(teacher);
+            continue;
+        }
+        const ownerExternalId = employeeOwnerByIdentity.get(buildFacultyIdentityKey(teacher));
+        if (ownerExternalId && ownerExternalId !== teacher.id) {
+            duplicateExternalToCanonicalExternal.set(teacher.id, ownerExternalId);
+            continue;
+        }
+        canonical.push(teacher);
+    }
+    return { canonical, duplicateExternalToCanonicalExternal };
+}
+async function mergeFacultyAssignmentRecords(tx, schoolId, sourceFacultyId, targetFacultyId) {
+    if (sourceFacultyId === targetFacultyId)
+        return 0;
+    const sourceSubjects = await tx.facultySubject.findMany({
+        where: { schoolId, facultyId: sourceFacultyId },
+        select: {
+            id: true,
+            subjectId: true,
+            sectionIds: true,
+            gradeLevels: true,
+            assignedBy: true,
+        },
+    });
+    let transferredSections = 0;
+    for (const sourceSubject of sourceSubjects) {
+        let targetSubject = await tx.facultySubject.findUnique({
+            where: {
+                facultyId_subjectId: {
+                    facultyId: targetFacultyId,
+                    subjectId: sourceSubject.subjectId,
+                },
+            },
+            select: { id: true, sectionIds: true, gradeLevels: true },
+        });
+        if (!targetSubject) {
+            targetSubject = await tx.facultySubject.create({
+                data: {
+                    facultyId: targetFacultyId,
+                    subjectId: sourceSubject.subjectId,
+                    schoolId,
+                    sectionIds: [],
+                    gradeLevels: [],
+                    assignedBy: sourceSubject.assignedBy,
+                },
+                select: { id: true, sectionIds: true, gradeLevels: true },
+            });
+        }
+        const sourceOwnedRows = await tx.subjectSectionOwnership.findMany({
+            where: {
+                schoolId,
+                facultyId: sourceFacultyId,
+                subjectId: sourceSubject.subjectId,
+            },
+            select: { id: true, sectionId: true },
+        });
+        for (const ownershipRow of sourceOwnedRows) {
+            try {
+                await tx.subjectSectionOwnership.update({
+                    where: { id: ownershipRow.id },
+                    data: {
+                        facultyId: targetFacultyId,
+                        facultySubjectId: targetSubject.id,
+                    },
+                });
+                transferredSections += 1;
+            }
+            catch (error) {
+                // Unique ownership already exists on target faculty; source row can be safely dropped.
+                if (error?.code === 'P2002') {
+                    await tx.subjectSectionOwnership.delete({ where: { id: ownershipRow.id } });
+                    continue;
+                }
+                throw error;
+            }
+        }
+        const targetOwnedSections = await tx.subjectSectionOwnership.findMany({
+            where: {
+                schoolId,
+                facultyId: targetFacultyId,
+                subjectId: sourceSubject.subjectId,
+            },
+            select: { sectionId: true },
+        });
+        const mergedSectionIds = Array.from(new Set([
+            ...targetSubject.sectionIds,
+            ...targetOwnedSections.map((row) => row.sectionId),
+        ])).sort((left, right) => left - right);
+        const mergedGradeLevels = Array.from(new Set([...targetSubject.gradeLevels, ...sourceSubject.gradeLevels])).sort((left, right) => left - right);
+        await tx.facultySubject.update({
+            where: { id: targetSubject.id },
+            data: {
+                sectionIds: mergedSectionIds,
+                gradeLevels: mergedGradeLevels,
+            },
+        });
+    }
+    await tx.facultySubject.deleteMany({ where: { schoolId, facultyId: sourceFacultyId } });
+    return transferredSections;
+}
 function computeChecksum(payload) {
     return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 }
@@ -60,6 +183,8 @@ function toExternalComparable(faculty) {
         isClassAdviser: faculty.isClassAdviser ?? false,
         advisoryEquivalentHours: faculty.advisoryEquivalentHours ?? (faculty.isClassAdviser ? 5 : 0),
         canTeachOutsideDepartment: faculty.canTeachOutsideDepartment ?? false,
+        ancillaryMinutesPerWeek: faculty.ancillaryMinutesPerWeek ?? null,
+        ancillaryLoadSource: Number.isFinite(Number(faculty.ancillaryMinutesPerWeek)) ? 'HR' : 'NONE',
         contactInfo: faculty.contactInfo ?? null,
         advisedSectionId: faculty.advisedSectionId ?? null,
         advisedSectionName: faculty.advisedSectionName ?? null,
@@ -76,6 +201,8 @@ function isMirrorEquivalent(local, external) {
         && local.isClassAdviser === normalized.isClassAdviser
         && local.advisoryEquivalentHours === normalized.advisoryEquivalentHours
         && local.canTeachOutsideDepartment === normalized.canTeachOutsideDepartment
+        && (local.ancillaryMinutesPerWeek ?? null) === (normalized.ancillaryMinutesPerWeek ?? null)
+        && (local.ancillaryLoadSource ?? 'NONE') === (normalized.ancillaryLoadSource ?? 'NONE')
         && local.contactInfo === normalized.contactInfo
         && local.advisedSectionId === normalized.advisedSectionId
         && local.advisedSectionName === normalized.advisedSectionName
@@ -212,7 +339,8 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken,
             };
         }
     }
-    const external = fetchResult.teachers;
+    const deduped = dedupeExternalFacultyByEmployeeIdentity(fetchResult.teachers);
+    const external = deduped.canonical;
     const externalIds = new Set(external.map((f) => f.id));
     const localTeachers = await prisma.facultyMirror.findMany({
         where: { schoolId },
@@ -227,6 +355,8 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken,
             employmentStatus: true,
             isClassAdviser: true,
             advisoryEquivalentHours: true,
+            ancillaryMinutesPerWeek: true,
+            ancillaryLoadSource: true,
             canTeachOutsideDepartment: true,
             contactInfo: true,
             advisedSectionId: true,
@@ -234,11 +364,22 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken,
             isStale: true,
         },
     });
+    const localByExternalId = new Map(localTeachers.map((teacher) => [teacher.externalId, teacher]));
     const reconciliation = buildFacultyReconciliationSummary(external, localTeachers, mode);
+    const canonicalLocalIdByExternalId = new Map();
     for (const f of external) {
-        await prisma.facultyMirror.upsert({
+        const existingLocal = localByExternalId.get(f.id);
+        const hasExternalAncillary = Number.isFinite(Number(f.ancillaryMinutesPerWeek));
+        const nextAncillaryMinutes = hasExternalAncillary
+            ? Math.max(0, Math.round(Number(f.ancillaryMinutesPerWeek)))
+            : (existingLocal?.ancillaryLoadSource === 'LOCAL' ? (existingLocal.ancillaryMinutesPerWeek ?? null) : null);
+        const nextAncillarySource = hasExternalAncillary
+            ? 'HR'
+            : (existingLocal?.ancillaryLoadSource === 'LOCAL' ? 'LOCAL' : 'NONE');
+        const upserted = await prisma.facultyMirror.upsert({
             where: { schoolId_externalId: { schoolId, externalId: f.id } },
             update: {
+                employeeId: f.employeeId ?? null,
                 firstName: f.firstName,
                 lastName: f.lastName,
                 department: f.department,
@@ -246,6 +387,8 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken,
                 employmentStatus: f.employmentStatus ?? 'PERMANENT',
                 isClassAdviser: f.isClassAdviser ?? false,
                 advisoryEquivalentHours: f.advisoryEquivalentHours ?? (f.isClassAdviser ? 5 : 0),
+                ancillaryMinutesPerWeek: nextAncillaryMinutes,
+                ancillaryLoadSource: nextAncillarySource,
                 canTeachOutsideDepartment: f.canTeachOutsideDepartment ?? false,
                 contactInfo: f.contactInfo,
                 advisedSectionId: f.advisedSectionId ?? null,
@@ -258,6 +401,7 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken,
             create: {
                 externalId: f.id,
                 schoolId,
+                employeeId: f.employeeId ?? null,
                 firstName: f.firstName,
                 lastName: f.lastName,
                 department: f.department,
@@ -265,18 +409,74 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken,
                 employmentStatus: f.employmentStatus ?? 'PERMANENT',
                 isClassAdviser: f.isClassAdviser ?? false,
                 advisoryEquivalentHours: f.advisoryEquivalentHours ?? (f.isClassAdviser ? 5 : 0),
+                ancillaryMinutesPerWeek: nextAncillaryMinutes,
+                ancillaryLoadSource: nextAncillarySource,
                 canTeachOutsideDepartment: f.canTeachOutsideDepartment ?? false,
                 contactInfo: f.contactInfo,
                 advisedSectionId: f.advisedSectionId ?? null,
                 advisedSectionName: f.advisedSectionName ?? null,
+                isPlaceholder: false,
                 isActiveForScheduling: true,
                 maxHoursPerWeek: 30,
                 lastSyncedAt: new Date(),
                 isStale: false,
             },
         });
+        canonicalLocalIdByExternalId.set(f.id, upserted.id);
     }
-    const missingLocal = localTeachers.filter((local) => !externalIds.has(local.externalId));
+    const mergedFacultyIds = new Set();
+    for (const [duplicateExternalId, canonicalExternalId] of deduped.duplicateExternalToCanonicalExternal.entries()) {
+        const canonicalLocalId = canonicalLocalIdByExternalId.get(canonicalExternalId);
+        if (!canonicalLocalId)
+            continue;
+        const duplicateLocals = localTeachers.filter((local) => local.externalId === duplicateExternalId);
+        for (const duplicateLocal of duplicateLocals) {
+            if (duplicateLocal.id === canonicalLocalId)
+                continue;
+            await prisma.$transaction(async (tx) => {
+                await mergeFacultyAssignmentRecords(tx, schoolId, duplicateLocal.id, canonicalLocalId);
+                await tx.facultyMirror.update({
+                    where: { id: duplicateLocal.id },
+                    data: {
+                        isStale: true,
+                        staleReason: `Merged duplicate faculty record into externalId ${canonicalExternalId}.`,
+                        staleAt: new Date(),
+                    },
+                });
+            });
+            mergedFacultyIds.add(duplicateLocal.id);
+        }
+    }
+    const canonicalByIdentity = new Map();
+    for (const teacher of external) {
+        if (!teacher.employeeId)
+            continue;
+        const canonicalLocalId = canonicalLocalIdByExternalId.get(teacher.id);
+        if (!canonicalLocalId)
+            continue;
+        canonicalByIdentity.set(buildFacultyIdentityKey(teacher), canonicalLocalId);
+    }
+    for (const local of localTeachers) {
+        if (mergedFacultyIds.has(local.id))
+            continue;
+        const identityKey = buildFacultyIdentityKey({
+            firstName: local.firstName,
+            lastName: local.lastName,
+            department: local.department,
+            specialization: local.specialization,
+        });
+        const canonicalLocalId = canonicalByIdentity.get(identityKey);
+        if (!canonicalLocalId || canonicalLocalId === local.id)
+            continue;
+        const shouldCarryOver = local.isStale || !local.employeeId;
+        if (!shouldCarryOver)
+            continue;
+        await prisma.$transaction(async (tx) => {
+            await mergeFacultyAssignmentRecords(tx, schoolId, local.id, canonicalLocalId);
+        });
+        mergedFacultyIds.add(local.id);
+    }
+    const missingLocal = localTeachers.filter((local) => !externalIds.has(local.externalId) && !mergedFacultyIds.has(local.id));
     let deactivatedCount = 0;
     if (mode === 'prune' && missingLocal.length > 0) {
         const removedFacultyIds = missingLocal.map((local) => local.id);

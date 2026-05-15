@@ -35,7 +35,7 @@ router.get('/summary', authenticateWithSystemToken, requirePrivilegedRole, async
             schoolYearId = activeYear.id;
         }
         const summary = await assignmentService.getAssignmentSummary(schoolId, schoolYearId, upstreamAuthToken);
-        res.json({ faculty: summary, schoolYearId });
+        res.json({ faculty: summary.faculty, ownershipIndex: summary.ownershipIndex, schoolYearId });
     }
     catch (err) {
         next(err);

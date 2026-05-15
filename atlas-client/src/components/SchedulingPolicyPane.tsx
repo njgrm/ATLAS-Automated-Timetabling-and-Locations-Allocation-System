@@ -184,7 +184,7 @@ function MetricExplain({ label, explanation }: { label: string; explanation: Rea
 						{label}
 					</button>
 				</TooltipTrigger>
-				<TooltipContent className="max-w-[260px] text-xs font-normal leading-relaxed" side="bottom">
+				<TooltipContent className="max-w-65 text-xs font-normal leading-relaxed" side="bottom">
 					{explanation}
 				</TooltipContent>
 			</Tooltip>

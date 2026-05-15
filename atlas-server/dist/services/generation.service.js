@@ -12,6 +12,7 @@ import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-polic
 import * as preGenerationDraftService from './pre-generation-draft.service.js';
 import { resolveActiveDraftRun } from './active-draft-run-resolver.service.js';
 import { getTemplatePeriodProfiles, ensureTemplatesForProgramTypes } from './class-template.service.js';
+import { computeEffectiveWeeklyTeachingMinutes } from './scheduling-policy.service.js';
 function err(statusCode, code, message, options) {
     const e = new Error(message);
     e.statusCode = statusCode;
@@ -37,6 +38,38 @@ async function getActiveFacultyMirrorIdSet(schoolId) {
 }
 function getStaleFacultyIdsForRun(run, activeFacultyIds) {
     return extractDraftFacultyIds(run.draftEntries).filter((facultyId) => !activeFacultyIds.has(facultyId));
+}
+function normalizeTermIndex(value) {
+    const parsed = Number(value);
+    if (parsed === 2)
+        return 2;
+    if (parsed === 3)
+        return 3;
+    return 1;
+}
+function deriveTermIndexFromMetadata(entry) {
+    const firstQuarter = entry.metadata?.modularAssignments?.[0]?.quarter;
+    if (firstQuarter === 2 || firstQuarter === 3)
+        return firstQuarter;
+    return 1;
+}
+function withTermIndex(entries) {
+    return entries.map((entry) => ({
+        ...entry,
+        termIndex: normalizeTermIndex(entry.termIndex ?? deriveTermIndexFromMetadata(entry)),
+    }));
+}
+function buildTermCounts(entries) {
+    return entries.reduce((acc, entry) => {
+        const termIndex = normalizeTermIndex(entry.termIndex);
+        if (termIndex === 2)
+            acc.term2 += 1;
+        else if (termIndex === 3)
+            acc.term3 += 1;
+        else
+            acc.term1 += 1;
+        return acc;
+    }, { term1: 0, term2: 0, term3: 0 });
 }
 function buildQualifiedCoverageBySubject(demand, facultySubjects) {
     const qualifiedKey = new Set();
@@ -137,7 +170,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
             getSectionSummary(schoolYearId, schoolId, options?.authToken),
             prisma.facultyMirror.findMany({
                 where: { schoolId, isActiveForScheduling: true, isStale: false },
-                select: { id: true, maxHoursPerWeek: true, specialization: true, department: true },
+                select: { id: true, maxHoursPerWeek: true, ancillaryMinutesPerWeek: true, specialization: true, department: true },
             }),
             prisma.facultySubject.findMany({
                 where: { schoolId },
@@ -237,13 +270,19 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
             classTemplatePeriods[tp.programType] = tp.periodLengthMinutes;
         }
         const demand = computeDemand(sectionsByGrade, subjects, cohorts, classTemplatePeriods);
+        const policyMaxDailyMinutes = policyRecord.maxTeachingMinutesPerDay;
         const constructorInput = {
             schoolId,
             schoolYearId,
             sectionsByGrade,
             subjects,
             cohorts,
-            faculty,
+            faculty: faculty.map((member) => ({
+                id: member.id,
+                maxHoursPerWeek: Math.floor(computeEffectiveWeeklyTeachingMinutes(member.maxHoursPerWeek, member.ancillaryMinutesPerWeek) / 60),
+                specialization: member.specialization,
+                department: member.department,
+            })),
             facultySubjects,
             rooms,
             preferences: preferences.map((p) => ({
@@ -288,6 +327,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
             classTemplatePeriods,
         };
         const result = runHybridScheduler(constructorInput);
+        const entriesWithTerms = withTermIndex(result.entries);
         // ── G.17: Diagnostic output for constructor result ──
         console.log(`[generation][run=${run.id}] constructor: assigned=${result.assignedCount}, unassigned=${result.unassignedCount}, policyBlocked=${result.policyBlockedCount}, entries=${result.entries.length}, hybrid=${result.hybridEnabled}, selectedProfile=${result.selectedProfileId}`);
         if (result.lockWarnings.length > 0) {
@@ -304,10 +344,11 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
         stage = 'validator';
         const validatorCtx = {
             schoolId, schoolYearId, runId: run.id,
-            entries: result.entries, faculty, facultySubjects, rooms, subjects,
+            entries: entriesWithTerms, faculty: constructorInput.faculty, facultySubjects, rooms, subjects,
             sectionEnrollment: new Map(sectionsByGrade.flatMap((g) => g.sections.map((s) => [s.id, s.enrolledCount]))),
             policy: {
                 ...constructorInput.policy,
+                maxTeachingMinutesPerDay: policyMaxDailyMinutes,
                 enforceConsecutiveBreakAsHard: policyRecord.enforceConsecutiveBreakAsHard,
             },
             travelPolicy: {
@@ -361,9 +402,10 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
         const subjectCodeById = new Map(subjects.map((subject) => [subject.id, subject.code]));
         const resourceDiagnostics = {
             qualifiedFacultyCoverageBySubject: buildQualifiedCoverageBySubject(demand, facultySubjects),
-            slotSaturationByInterval: buildSlotSaturation(result.entries, Math.max(rooms.length, 1)).slice(0, 20),
+            slotSaturationByInterval: buildSlotSaturation(entriesWithTerms, Math.max(rooms.length, 1)).slice(0, 20),
             unassignedBySubjectGrade: buildUnassignedBySubjectGrade(result.unassignedItems, subjectCodeById).slice(0, 20),
         };
+        const termCounts = buildTermCounts(entriesWithTerms);
         const summary = {
             classesProcessed: result.classesProcessed,
             assignedCount: result.assignedCount,
@@ -377,7 +419,8 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
             lockWarnings: result.lockWarnings.length > 0 ? result.lockWarnings : undefined,
             modularWarnings: modularWarnings.length > 0 ? modularWarnings.map((warning) => warning.message) : undefined,
             cohortCount: cohorts.length,
-            cohortizedClassCount: result.entries.filter((entry) => entry.entryKind === 'COHORT').length,
+            cohortizedClassCount: entriesWithTerms.filter((entry) => entry.entryKind === 'COHORT').length,
+            termCounts,
             contractWarnings: [
                 ...(sectionResult.contractWarnings ?? []),
             ].length > 0 ? [
@@ -402,7 +445,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
                 durationMs,
                 summary: summary,
                 violations: mergedValidationResult.violations,
-                draftEntries: result.entries,
+                draftEntries: entriesWithTerms,
                 unassignedItems: result.unassignedItems,
             },
         });
@@ -588,14 +631,32 @@ export async function publishRun(schoolId, schoolYearId, runId, actorId) {
     });
     return updated;
 }
-export async function getRunViolations(runId, schoolId, schoolYearId) {
+function filterViolationsByTerm(violations, entries, termIndex) {
+    if (termIndex !== 1 && termIndex !== 2 && termIndex !== 3) {
+        return violations;
+    }
+    const entryTermById = new Map(entries.map((entry) => [entry.entryId, entry.termIndex ?? 1]));
+    return violations.filter((violation) => {
+        const explicit = violation.meta?.termIndex;
+        if (typeof explicit === 'number') {
+            return explicit === termIndex;
+        }
+        const entryIds = violation.entities?.entryIds ?? [];
+        if (Array.isArray(entryIds) && entryIds.length > 0) {
+            return entryIds.some((entryId) => entryTermById.get(entryId) === termIndex);
+        }
+        return true;
+    });
+}
+export async function getRunViolations(runId, schoolId, schoolYearId, termIndex) {
     const run = await prisma.generationRun.findFirst({
         where: { id: runId, schoolId, schoolYearId },
-        select: { id: true, status: true, violations: true, summary: true },
+        select: { id: true, status: true, violations: true, summary: true, draftEntries: true },
     });
     if (!run)
         throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
-    const violations = (run.violations ?? []);
+    const entries = withTermIndex((run.draftEntries ?? []));
+    const violations = filterViolationsByTerm((run.violations ?? []), entries, termIndex);
     const summary = (run.summary ?? {});
     const violationCounts = (summary.violationCounts ?? {});
     return {
@@ -608,9 +669,10 @@ export async function getRunViolations(runId, schoolId, schoolYearId) {
         },
     };
 }
-export async function getLatestRunViolations(schoolId, schoolYearId) {
+export async function getLatestRunViolations(schoolId, schoolYearId, termIndex) {
     const run = await getLatestValidRun(schoolId, schoolYearId);
-    const violations = (run.violations ?? []);
+    const entries = withTermIndex((run.draftEntries ?? []));
+    const violations = filterViolationsByTerm((run.violations ?? []), entries, termIndex);
     const summary = (run.summary ?? {});
     const violationCounts = (summary.violationCounts ?? {});
     return {
@@ -633,7 +695,7 @@ export async function getRunDraft(runId, schoolId, schoolYearId) {
     return {
         runId: run.id,
         status: run.status,
-        entries: (run.draftEntries ?? []),
+        entries: withTermIndex((run.draftEntries ?? [])),
         unassignedItems: (run.unassignedItems ?? []),
         summary: (run.summary ?? null),
         version: run.version,
@@ -646,7 +708,7 @@ export async function getLatestRunDraft(schoolId, schoolYearId) {
     return {
         runId: run.id,
         status: run.status,
-        entries: (run.draftEntries ?? []),
+        entries: withTermIndex((run.draftEntries ?? [])),
         unassignedItems: (run.unassignedItems ?? []),
         summary: (run.summary ?? null),
         version: run.version,

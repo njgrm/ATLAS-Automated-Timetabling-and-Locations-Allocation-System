@@ -15,6 +15,48 @@ function err(statusCode: number, code: string, message: string): Error & { statu
 	return e;
 }
 
+export function computeEffectiveWeeklyTeachingMinutes(maxHoursPerWeek: number, ancillaryMinutesPerWeek?: number | null): number {
+	const baseMinutes = Math.max(0, Math.round(maxHoursPerWeek * 60));
+	const deduction = Math.max(0, Math.round(ancillaryMinutesPerWeek ?? 0));
+	return Math.max(0, baseMinutes - deduction);
+}
+
+export async function validateAncillaryLoadImmutable(
+	facultyId: number,
+	nextAncillaryMinutesPerWeek?: number | null,
+	nextAncillaryLoadSource?: 'HR' | 'LOCAL' | 'NONE',
+): Promise<void> {
+	if (nextAncillaryMinutesPerWeek === undefined && nextAncillaryLoadSource === undefined) {
+		return;
+	}
+
+	const current = await prisma.facultyMirror.findUnique({
+		where: { id: facultyId },
+		select: {
+			ancillaryMinutesPerWeek: true,
+			ancillaryLoadSource: true,
+		},
+	});
+
+	if (!current) {
+		throw err(404, 'FACULTY_NOT_FOUND', 'Faculty mirror not found.');
+	}
+
+	if (current.ancillaryLoadSource !== 'HR') {
+		return;
+	}
+
+	const requestedMinutes = nextAncillaryMinutesPerWeek ?? current.ancillaryMinutesPerWeek;
+	const requestedSource = nextAncillaryLoadSource ?? current.ancillaryLoadSource;
+	if (requestedMinutes !== current.ancillaryMinutesPerWeek || requestedSource !== current.ancillaryLoadSource) {
+		throw err(
+			409,
+			'ANCILLARY_LOAD_IMMUTABLE',
+			'Ancillary load is managed by HR sync and cannot be edited locally.',
+		);
+	}
+}
+
 // ─── Default values ───
 
 export const POLICY_DEFAULTS = {
