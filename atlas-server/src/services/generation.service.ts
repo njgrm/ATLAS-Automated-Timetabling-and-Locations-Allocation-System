@@ -17,6 +17,7 @@ import {
 	computeDemand,
 	type ConstructorInput,
 	type DemandItem,
+	type HomeRoomFallbackCause,
 	type UnassignedItem,
 	type RoomAssignmentReason,
 } from './schedule-constructor.js';
@@ -103,6 +104,12 @@ export interface RunSummary {
 		slotSaturationByInterval: Array<{ day: string; startTime: string; endTime: string; assigned: number; capacity: number; saturationPercent: number }>;
 		unassignedBySubjectGrade: Array<{ subjectId: number; subjectCode: string; gradeLevel: number; count: number; reasons: Record<string, number> }>;
 		roomAssignmentReasonCounts?: Record<string, number>;
+		homeRoomFallbackDiagnostics?: {
+			homeRoomOccupied: number;
+			noSameZoneStandardRoom: number;
+			onlySpecializedRoomsAvailable: number;
+			policyOrShiftWindowIncompatible: number;
+		};
 		zoneDistributionByTerm?: Array<{ termIndex: 1 | 2 | 3; total: number; byZone: Record<string, { count: number; percent: number }> }>;
 	};
 	shiftWindowPolicy?: 'ENFORCED' | 'DISABLED';
@@ -155,6 +162,42 @@ function buildHomeRoomStats(entries: ScheduledEntry[], unassignedItems: Unassign
 		assigned,
 		successRate: attempted > 0 ? Math.round((assigned / attempted) * 10000) / 100 : 0,
 	};
+}
+
+function buildHomeRoomFallbackDiagnostics(
+	entries: ScheduledEntry[],
+	unassignedItems: UnassignedItem[],
+): {
+	homeRoomOccupied: number;
+	noSameZoneStandardRoom: number;
+	onlySpecializedRoomsAvailable: number;
+	policyOrShiftWindowIncompatible: number;
+} {
+	const diagnostics = {
+		homeRoomOccupied: 0,
+		noSameZoneStandardRoom: 0,
+		onlySpecializedRoomsAvailable: 0,
+		policyOrShiftWindowIncompatible: 0,
+	};
+
+	const applyCause = (cause?: HomeRoomFallbackCause) => {
+		if (cause === 'NO_SAME_ZONE_STANDARD_ROOM') diagnostics.noSameZoneStandardRoom += 1;
+		else if (cause === 'ONLY_SPECIALIZED_ROOMS_AVAILABLE') diagnostics.onlySpecializedRoomsAvailable += 1;
+		else if (cause === 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE') diagnostics.policyOrShiftWindowIncompatible += 1;
+		else diagnostics.homeRoomOccupied += 1;
+	};
+
+	for (const entry of entries) {
+		if (entry.metadata?.roomAssignmentReason !== 'HOME_ROOM_UNAVAILABLE') continue;
+		applyCause(entry.metadata?.homeRoomFallbackCause as HomeRoomFallbackCause | undefined);
+	}
+
+	for (const item of unassignedItems) {
+		if (item.homeRoomId == null) continue;
+		applyCause(item.homeRoomFallbackCause);
+	}
+
+	return diagnostics;
 }
 
 function buildZoneDistributionByTerm(
@@ -649,6 +692,7 @@ export async function triggerGenerationRun(
 			slotSaturationByInterval: buildSlotSaturation(entriesWithTerms, Math.max(rooms.length, 1)).slice(0, 20),
 			unassignedBySubjectGrade: buildUnassignedBySubjectGrade(result.unassignedItems, subjectCodeById).slice(0, 20),
 			roomAssignmentReasonCounts: buildRoomAssignmentReasonCounts(entriesWithTerms, result.unassignedItems),
+			homeRoomFallbackDiagnostics: buildHomeRoomFallbackDiagnostics(entriesWithTerms, result.unassignedItems),
 			zoneDistributionByTerm,
 		};
 		const termCounts = buildTermCounts(entriesWithTerms);

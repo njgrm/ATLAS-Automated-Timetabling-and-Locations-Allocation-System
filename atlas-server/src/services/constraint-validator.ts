@@ -68,6 +68,7 @@ export interface ScheduledEntry {
 	adviserName?: string | null;
 	metadata?: {
 		roomAssignmentReason?: string;
+		homeRoomFallbackCause?: 'HOME_ROOM_OCCUPIED' | 'NO_SAME_ZONE_STANDARD_ROOM' | 'ONLY_SPECIALIZED_ROOMS_AVAILABLE' | 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE';
 		modularGroupId?: string;
 		modularAssignments?: Array<{
 			termIndex: 1 | 2 | 3;

@@ -1,5 +1,44 @@
 # Verification Evidence Log
 #
+### 2026-05-16 - Phase 2 Home-Room KPI Recovery (prompt execution)
+- Phase: Phase 2 Home-Room KPI recovery (algorithm + diagnostics), no closure claim
+- Operator: GitHub Copilot
+- Prompt baseline (from existing evidence): `homeRoomSuccessRate = 39.68%` (run 34)
+- Scope gate: PASS
+- Verification commands executed:
+  - `npx tsc --noEmit` (atlas-server): PASS
+  - `npm run test:phase2-home-room-strategy` (atlas-server): PASS (7/7)
+  - `npx tsx src/scripts/validate-run-preferences.ts`: PASS (script execution; KPI verdict reported)
+  - `npx tsx -e "...triggerGenerationRun(1,55,1,{ roomerStrategy:'HOME_ROOM_FIRST', enforceShiftWindows:true, ignoreRoomRequestGate:true })..."`: PASS (live-equivalent generation run)
+- Files changed in this pass:
+  - `atlas-server/src/services/schedule-constructor.ts`
+  - `atlas-server/src/services/constraint-validator.ts`
+  - `atlas-server/src/services/generation.service.ts`
+  - `atlas-server/src/scripts/validate-run-preferences.ts`
+  - `atlas-server/src/__tests__/phase2-home-room-strategy.test.ts`
+- Fallback discipline now enforced for regular demand:
+  - Home room candidate is prioritized first when `HOME_ROOM_FIRST` is active.
+  - Standard classroom fallback is ordered to same-zone first, then broader standard classrooms.
+  - Shared/specialized rooms are not used as routine regular fallback (`CLASSROOM` + `!isSharedFacility` filter retained).
+- KPI visibility and diagnostics updates:
+  - Validation script now prints explicit KPI band (`70-85`), PASS/FAIL status, and explicit `NO-GO` when below target.
+  - Run summary now includes `resourceDiagnostics.homeRoomFallbackDiagnostics` with categorized causes:
+    - `homeRoomOccupied`
+    - `noSameZoneStandardRoom`
+    - `onlySpecializedRoomsAvailable`
+    - `policyOrShiftWindowIncompatible`
+- Post-change measured KPI (fresh live-equivalent run):
+  - Run `37`
+  - `homeRoomSuccessRate = 27.36%`
+  - `homeRoomAttempted = 2774`, `homeRoomAssigned = 759`
+  - `homeRoomFallbackDiagnostics = { homeRoomOccupied: 871, noSameZoneStandardRoom: 0, onlySpecializedRoomsAvailable: 0, policyOrShiftWindowIncompatible: 1144 }`
+- Target band met: NO
+- Decision: **NO-GO**
+- Remaining blockers to close this prompt:
+  - KPI remains below accepted band (`70-85%`) despite stricter fallback order.
+  - High `policyOrShiftWindowIncompatible` diagnostics indicate the dominant miss path is upstream slot/policy feasibility pressure, not specialized-room fallback leakage.
+  - Additional algorithm work is required to preserve home-room assignment under slot pressure (for example, stronger home-room slot retention before fallback commitment, and targeted conflict-resolution for home-room contention).
+
 ### 2026-05-16 - Phase 2 Tri-Sem Contract Reset (narrow scope)
 - Phase: Phase 2 tri-sem contract reset only (no closure claim)
 - Operator: GitHub Copilot

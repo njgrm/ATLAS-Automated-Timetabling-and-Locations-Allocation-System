@@ -134,10 +134,37 @@ async function main() {
     homeRoomAttemptedCount?: number;
     homeRoomAssignedCount?: number;
     homeRoomSuccessRate?: number;
+    resourceDiagnostics?: {
+      homeRoomFallbackDiagnostics?: {
+        homeRoomOccupied?: number;
+        noSameZoneStandardRoom?: number;
+        onlySpecializedRoomsAvailable?: number;
+        policyOrShiftWindowIncompatible?: number;
+      };
+    };
   };
+  const successRate = summary.homeRoomSuccessRate ?? 0;
+  const targetMin = 70;
+  const targetMax = 85;
+  const meetsTarget = successRate >= targetMin && successRate <= targetMax;
+
   console.log(`Home room attempted: ${summary.homeRoomAttemptedCount ?? 0}`);
   console.log(`Home room assigned: ${summary.homeRoomAssignedCount ?? 0}`);
-  console.log(`Home room success rate: ${summary.homeRoomSuccessRate ?? 0}`);
+  console.log(`Home room success rate: ${successRate}`);
+  console.log(`Home room KPI band: ${targetMin}-${targetMax}`);
+  console.log(`Home room KPI status: ${meetsTarget ? 'PASS' : 'FAIL'}`);
+  if (!meetsTarget) {
+    console.log('KPI verdict: NO-GO (below accepted home-room target band)');
+  }
+
+  const fallbackDiagnostics = summary.resourceDiagnostics?.homeRoomFallbackDiagnostics;
+  if (fallbackDiagnostics) {
+    console.log('\nHome-room fallback diagnostics:');
+    console.log(`- occupied home room: ${fallbackDiagnostics.homeRoomOccupied ?? 0}`);
+    console.log(`- no same-zone standard room: ${fallbackDiagnostics.noSameZoneStandardRoom ?? 0}`);
+    console.log(`- only specialized rooms available: ${fallbackDiagnostics.onlySpecializedRoomsAvailable ?? 0}`);
+    console.log(`- policy or shift-window incompatible: ${fallbackDiagnostics.policyOrShiftWindowIncompatible ?? 0}`);
+  }
 
   console.log(`\nFaculty overload count: ${overloads.length}`);
   if (overloads.length > 0) {

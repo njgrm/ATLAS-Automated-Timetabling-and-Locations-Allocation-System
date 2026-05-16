@@ -85,6 +85,16 @@ function buildBaseInput(roomingStrategy: 'HOME_ROOM_FIRST' | 'UNIVERSAL'): Const
 				isTeachingSpace: true,
 				capacity: 10,
 				buildingId: 11,
+				buildingZoneId: 'NORTH',
+				features: [],
+			},
+			{
+				id: 0,
+				type: 'CLASSROOM',
+				isTeachingSpace: true,
+				capacity: 45,
+				buildingId: 12,
+				buildingZoneId: 'SOUTH',
 				features: [],
 			},
 			{
@@ -93,11 +103,15 @@ function buildBaseInput(roomingStrategy: 'HOME_ROOM_FIRST' | 'UNIVERSAL'): Const
 				isTeachingSpace: true,
 				capacity: 45,
 				buildingId: 11,
+				buildingZoneId: 'NORTH',
 				features: [],
 			},
 		],
 		preferences: [],
-		buildings: [{ id: 11, name: 'Grade 7 Academic Wing' }],
+		buildings: [
+			{ id: 11, name: 'Grade 7 Academic Wing' },
+			{ id: 12, name: 'Grade 8 Academic Wing' },
+		],
 	};
 }
 
@@ -109,11 +123,12 @@ function run() {
 	const homeRoomEntry = homeRoomFirstResult.entries[0];
 	assertEqual(homeRoomEntry.roomId, 2, 'Home-room-first strategy falls back to alternate room when home room is incompatible');
 	assertEqual(homeRoomEntry.metadata?.roomAssignmentReason, 'HOME_ROOM_UNAVAILABLE', 'Home-room-first marks fallback reason as HOME_ROOM_UNAVAILABLE');
+	assertEqual(homeRoomEntry.roomId === 0, false, 'Home-room-first prefers same-zone standard room before broader fallback');
 
 	const universalResult = constructBaseline(buildBaseInput('UNIVERSAL'));
 	assert(universalResult.entries.length > 0, 'Universal strategy produces at least one entry');
 	const universalEntry = universalResult.entries[0];
-	assertEqual(universalEntry.roomId, 2, 'Universal strategy still assigns compatible alternate room');
+	assertEqual(universalEntry.roomId, 0, 'Universal strategy still assigns compatible alternate room');
 	assertEqual(universalEntry.metadata?.roomAssignmentReason, 'GENERAL_POOL_ASSIGNED', 'Universal strategy uses GENERAL_POOL_ASSIGNED reason');
 
 	console.log(`\nSummary: ${passCount} passed, ${failCount} failed`);
