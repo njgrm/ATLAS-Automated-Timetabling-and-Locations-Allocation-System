@@ -70,7 +70,7 @@ export interface ScheduledEntry {
 		roomAssignmentReason?: string;
 		modularGroupId?: string;
 		modularAssignments?: Array<{
-			quarter: number;
+			termIndex: 1 | 2 | 3;
 			facultyId: number;
 			subjectCode: string;
 		}>;

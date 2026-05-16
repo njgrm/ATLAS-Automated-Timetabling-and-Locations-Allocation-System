@@ -1,5 +1,45 @@
 # Verification Evidence Log
 #
+### 2026-05-16 - Phase 2 Tri-Sem Contract Reset (narrow scope)
+- Phase: Phase 2 tri-sem contract reset only (no closure claim)
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Exact commands run:
+  - `Get-ChildItem -Recurse prisma,atlas-server/src,atlas-client/src -File | Select-String -Pattern 'quarter|quarters|Q1|Q2|Q3|Q4'`
+  - `npx tsc --noEmit` (atlas-server)
+  - `npm run build` (atlas-client)
+  - `npx tsx src/__tests__/tri-sem-modular-contract.test.ts` (atlas-server)
+- Exact files changed:
+  - `prisma/seed.js`
+  - `atlas-server/src/services/subject.service.ts`
+  - `atlas-server/src/services/schedule-constructor.ts`
+  - `atlas-client/src/components/subjects/SubjectFormModal.tsx`
+  - `atlas-server/src/__tests__/tri-sem-modular-contract.test.ts`
+- Quarter-era contract removed:
+  - Removed active 4-slice SCIENCE modular defaults from seed/service contracts by taking `SCI_PHYS` out of the SCIENCE modular bundle.
+  - Updated runtime modular expected count from 4 to 3 in constructor demand logic.
+  - Updated remaining subject-form scheduling copy from modular-order wording to term-order wording.
+- Quarter-era references intentionally remaining (non-active):
+  - `prisma/migrations/0023_add_modular_subject_fields/migration.sql` contains a historical comment about quarter-based merging; this is a legacy migration artifact, not active runtime logic.
+  - `atlas-server/src/__tests__/tri-sem-modular-contract.test.ts` includes a negative assertion string/key check for `quarter` only to prove the key is absent from active metadata.
+
+### 2026-05-16 - Phase 2 Refactor Recovery (tri-sem drift, shared facilities, program windows)
+- Phase: Phase 2 recovery / closure prep
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Schema sync: PASS
+  - `npx prisma db push` applied successfully after acknowledging the new `grade_shift_windows` uniqueness shape.
+  - `npx prisma generate` refreshed the Prisma client after the Windows DLL lock workaround.
+- Validation executed:
+  - `npx tsc --noEmit` (atlas-server): PASS
+  - `npm run test:phase2-home-room-strategy`: PASS (6/6)
+  - Live generation run `34`: `homeRoomAttempted=2596`, `homeRoomAssigned=1030`, `homeRoomSuccessRate=39.68`, `Faculty overload count=0`
+- Behavior notes:
+  - Modular assignment metadata now uses `termIndex` instead of `quarter` in server/client contracts.
+  - Room selection now respects `isSharedFacility` and protects regular home-room fallback from shared spaces.
+  - Grade shift windows now accept an optional `programType` override and are checked against policy bounds.
+  - Scheduling policy editor now supports program-aware shift-window overrides.
+
 ### 2026-05-16 - Phase 2 Manual QA Re-run (2h) + Tailnet Auth/Session Wiring Confirmation
 - Phase: Phase 2 (Home-Room Algorithm, Task 2h rerun)
 - Operator: GitHub Copilot

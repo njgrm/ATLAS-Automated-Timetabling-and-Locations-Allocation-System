@@ -193,8 +193,8 @@ function normalizeTermIndex(value: unknown): 1 | 2 | 3 {
 }
 
 function deriveTermIndexFromMetadata(entry: ScheduledEntry): 1 | 2 | 3 {
-	const firstQuarter = entry.metadata?.modularAssignments?.[0]?.quarter;
-	if (firstQuarter === 2 || firstQuarter === 3) return firstQuarter;
+	const firstTermIndex = entry.metadata?.modularAssignments?.[0]?.termIndex;
+	if (firstTermIndex === 2 || firstTermIndex === 3) return firstTermIndex;
 	return 1;
 }
 
@@ -356,7 +356,7 @@ export async function triggerGenerationRun(
 					isTeachingSpace: true,
 					building: { schoolId, isTeachingBuilding: true },
 				},
-				select: { id: true, type: true, isTeachingSpace: true, capacity: true, buildingId: true, buildingZoneId: true },
+				select: { id: true, type: true, isTeachingSpace: true, isSharedFacility: true, capacity: true, buildingId: true, buildingZoneId: true },
 			}),
 			prisma.subject.findMany({
 				where: { schoolId, isActive: true },
@@ -504,6 +504,7 @@ export async function triggerGenerationRun(
 			lockedEntries: preGenerationDrafts.lockedEntries,
 			gradeWindows: gradeWindows.map((gw) => ({
 				gradeLevel: gw.gradeLevel,
+				programType: gw.programType ?? null,
 				startTime: gw.startTime,
 				endTime: gw.endTime,
 			})),

@@ -130,9 +130,14 @@ async function main() {
 
   console.log(`Run ${run.id} validation`);
   console.log(`Entries: ${entries.length}`);
-  console.log(`Home room attempted: ${run.summary.homeRoomAttemptedCount}`);
-  console.log(`Home room assigned: ${run.summary.homeRoomAssignedCount}`);
-  console.log(`Home room success rate: ${run.summary.homeRoomSuccessRate}`);
+  const summary = (run.summary ?? {}) as {
+    homeRoomAttemptedCount?: number;
+    homeRoomAssignedCount?: number;
+    homeRoomSuccessRate?: number;
+  };
+  console.log(`Home room attempted: ${summary.homeRoomAttemptedCount ?? 0}`);
+  console.log(`Home room assigned: ${summary.homeRoomAssignedCount ?? 0}`);
+  console.log(`Home room success rate: ${summary.homeRoomSuccessRate ?? 0}`);
 
   console.log(`\nFaculty overload count: ${overloads.length}`);
   if (overloads.length > 0) {

@@ -482,6 +482,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 				type: true,
 				capacity: true,
 				isTeachingSpace: true,
+				isSharedFacility: true,
 				floor: true,
 				buildingId: true,
 				building: { select: { id: true, name: true, shortCode: true, x: true, y: true } },

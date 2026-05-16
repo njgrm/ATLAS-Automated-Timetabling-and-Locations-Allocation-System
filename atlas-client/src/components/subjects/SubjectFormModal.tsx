@@ -366,7 +366,7 @@ export function SubjectFormModal({
 					<section className="rounded-lg border border-border p-4 space-y-4">
 						<div>
 							<h3 className="text-sm font-semibold">Advanced Grouping</h3>
-							<p className="text-xs text-muted-foreground">Configure cohort splitting and modular quarter ordering.</p>
+							<p className="text-xs text-muted-foreground">Configure cohort splitting and modular term ordering.</p>
 						</div>
 						<div>
 							<label className="text-xs font-medium text-muted-foreground mb-1 block">Enable TLE / Cohort Splitting</label>
@@ -441,7 +441,7 @@ export function SubjectFormModal({
 										/>
 									</div>
 									<div>
-										<label className="text-xs font-medium text-muted-foreground">Modular Order</label>
+										<label className="text-xs font-medium text-muted-foreground">Term Order</label>
 										<Input
 											type="number"
 											min={1}

@@ -4,6 +4,7 @@
  */
 
 import { prisma } from '../lib/prisma.js';
+import type { ProgramType } from '@prisma/client';
 
 function err(statusCode: number, code: string, message: string): Error & { statusCode: number; code: string } {
 	const e = new Error(message) as Error & { statusCode: number; code: string };
@@ -21,10 +22,36 @@ function timeToMinutes(value: string): number {
 	return hours * 60 + minutes;
 }
 
+async function validateAgainstPolicyBounds(
+	schoolId: number,
+	schoolYearId: number,
+	input: GradeWindowInput,
+): Promise<void> {
+	const policy = await prisma.schedulingPolicy.findUnique({
+		where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+		select: { earliestStartTime: true, latestEndTime: true },
+	});
+	if (!policy) return;
+
+	const windowStart = timeToMinutes(input.startTime);
+	const windowEnd = timeToMinutes(input.endTime);
+	const policyStart = timeToMinutes(policy.earliestStartTime);
+	const policyEnd = timeToMinutes(policy.latestEndTime);
+
+	if (windowStart < policyStart || windowEnd > policyEnd) {
+		throw err(
+			400,
+			'WINDOW_OUT_OF_POLICY_BOUNDS',
+			`Grade ${input.gradeLevel}${input.programType ? ` / ${input.programType}` : ''} shift window must stay within the scheduling policy bounds (${policy.earliestStartTime} - ${policy.latestEndTime}).`,
+		);
+	}
+}
+
 // ─── Types ───
 
 export interface GradeWindowInput {
 	gradeLevel: number;
+	programType?: ProgramType | null;
 	startTime: string;
 	endTime: string;
 }
@@ -45,7 +72,7 @@ export interface GradeWindowRow {
 export async function listGradeWindows(schoolId: number, schoolYearId: number): Promise<GradeWindowRow[]> {
 	return prisma.gradeShiftWindow.findMany({
 		where: { schoolId, schoolYearId },
-		orderBy: { gradeLevel: 'asc' },
+		orderBy: [{ gradeLevel: 'asc' }, { programType: 'asc' }],
 	});
 }
 
@@ -59,6 +86,9 @@ export async function upsertGradeWindow(
 	if (![7, 8, 9, 10].includes(input.gradeLevel)) {
 		throw err(400, 'INVALID_GRADE', 'Grade level must be 7, 8, 9, or 10.');
 	}
+	if (input.programType != null && !['REGULAR', 'STE', 'SPS', 'SPA', 'SPJ', 'SPFL', 'SPTVE', 'OTHER'].includes(input.programType)) {
+		throw err(400, 'INVALID_PROGRAM', 'programType must be a valid program type when provided.');
+	}
 	if (!input.startTime || !input.endTime) {
 		throw err(400, 'MISSING_FIELDS', 'startTime and endTime are required.');
 	}
@@ -68,16 +98,53 @@ export async function upsertGradeWindow(
 	if (timeToMinutes(input.startTime) >= timeToMinutes(input.endTime)) {
 		throw err(400, 'INVALID_TIME_RANGE', 'startTime must be earlier than endTime.');
 	}
+	await validateAgainstPolicyBounds(schoolId, schoolYearId, input);
 
-	return prisma.gradeShiftWindow.upsert({
-		where: {
-			schoolId_schoolYearId_gradeLevel: {
+	if (input.programType == null) {
+		const existing = await prisma.gradeShiftWindow.findFirst({
+			where: {
 				schoolId,
 				schoolYearId,
 				gradeLevel: input.gradeLevel,
+				programType: null,
+			},
+			select: { id: true },
+		});
+
+		if (existing) {
+			return prisma.gradeShiftWindow.update({
+				where: { id: existing.id },
+				data: {
+					startTime: input.startTime,
+					endTime: input.endTime,
+					programType: null,
+				},
+			});
+		}
+
+		return prisma.gradeShiftWindow.create({
+			data: {
+				schoolId,
+				schoolYearId,
+				gradeLevel: input.gradeLevel,
+				programType: null,
+				startTime: input.startTime,
+				endTime: input.endTime,
+			},
+		});
+	}
+
+	return prisma.gradeShiftWindow.upsert({
+		where: {
+			schoolId_schoolYearId_gradeLevel_programType: {
+				schoolId,
+				schoolYearId,
+				gradeLevel: input.gradeLevel,
+				programType: input.programType ?? null,
 			},
 		},
 		update: {
+			programType: input.programType ?? null,
 			startTime: input.startTime,
 			endTime: input.endTime,
 		},
@@ -85,6 +152,7 @@ export async function upsertGradeWindow(
 			schoolId,
 			schoolYearId,
 			gradeLevel: input.gradeLevel,
+			programType: input.programType ?? null,
 			startTime: input.startTime,
 			endTime: input.endTime,
 		},

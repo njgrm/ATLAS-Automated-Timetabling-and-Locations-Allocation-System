@@ -131,6 +131,7 @@ model Room {
   type            RoomType @default(CLASSROOM)
   capacity        Int?
   isTeachingSpace Boolean  @default(true) @map("is_teaching_space")
+  isSharedFacility Boolean  @default(false) @map("is_shared_facility")
   floorPosition   Int      @default(0) @map("floor_position")
   features        String[] @default([])
   createdAt       DateTime @default(now())
@@ -739,12 +740,13 @@ model GradeShiftWindow {
   schoolId     Int      @map("school_id")
   schoolYearId Int      @map("school_year_id")
   gradeLevel   Int      @map("grade_level")
+  programType  ProgramType? @map("program_type")
   startTime    String   @map("start_time")
   endTime      String   @map("end_time")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  @@unique([schoolId, schoolYearId, gradeLevel], map: "uq_grade_shift_window")
+  @@unique([schoolId, schoolYearId, gradeLevel, programType], map: "uq_grade_shift_window")
   @@index([schoolId, schoolYearId])
   @@map("grade_shift_windows")
 }

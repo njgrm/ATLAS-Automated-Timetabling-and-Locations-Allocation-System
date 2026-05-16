@@ -52,6 +52,7 @@ export type Subject = {
 	schoolId: number;
 	code: string;
 	name: string;
+	programType?: 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER' | null;
 	minMinutesPerWeek: number;
 	preferredRoomType: RoomType;
 	sessionPattern: SessionPattern;
@@ -715,7 +716,7 @@ export interface ScheduledEntry {
 	metadata?: {
 		modularGroupId?: string;
 		modularAssignments?: Array<{
-			quarter: number;
+			termIndex: 1 | 2 | 3;
 			facultyId: number;
 			subjectCode: string;
 		}>;

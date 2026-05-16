@@ -45,11 +45,11 @@ const subjectSeeds = [
 	{ code: 'TLE', name: 'Technology and Livelihood Education', minMinutesPerWeek: 240, preferredRoomType: 'TLE_WORKSHOP', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
 	{ code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 60, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'] },
 
-	// ── Modular Science rotation (merged during generation by modularGroupId) ─
+	// ── Tri-sem Science rotation (3-term modular bundle) ─
 	{ code: 'SCI_BIO', name: 'Science - Biology', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'], modularGroupId: 'SCIENCE', modularOrder: 1 },
 	{ code: 'SCI_CHEM', name: 'Science - Chemistry', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'], modularGroupId: 'SCIENCE', modularOrder: 2 },
 	{ code: 'SCI_ES', name: 'Science - Earth Science', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'], modularGroupId: 'SCIENCE', modularOrder: 3 },
-	{ code: 'SCI_PHYS', name: 'Science - Physics', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'], modularGroupId: 'SCIENCE', modularOrder: 4 },
+	{ code: 'SCI_PHYS', name: 'Science - Physics', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'] },
 	// ── STE track specialty subjects (per-grade per DO 010 s.2024) ────────────
 	{ code: 'ENV_SCI', name: 'Environmental Science', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [7], isSeedable: false, programScopes: ['STE'] },
 	{ code: 'STE_RESEARCH', name: 'Research', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['STE'] },
@@ -174,6 +174,7 @@ async function syncSeedBuildings(schoolId, buildingSeeds) {
 				type: r.type,
 				capacity: r.capacity,
 				isTeachingSpace: r.isTeachingSpace !== false,
+				isSharedFacility: ['LABORATORY', 'COMPUTER_LAB', 'TLE_WORKSHOP', 'GYMNASIUM'].includes(r.type),
 				buildingZoneId: r.buildingZoneId ?? b.shortCode ?? null,
 			};
 

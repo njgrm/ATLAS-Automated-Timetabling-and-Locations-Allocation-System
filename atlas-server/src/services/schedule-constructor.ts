@@ -92,6 +92,7 @@ export interface RoomInput {
 	id: number;
 	type: RoomType;
 	isTeachingSpace: boolean;
+	isSharedFacility?: boolean;
 	capacity: number | null;
 	buildingId?: number | null;
 	features?: string[];
@@ -304,6 +305,7 @@ export interface LockedEntryInput {
 
 export interface GradeWindowInput {
 	gradeLevel: number;
+	programType?: string | null;
 	startTime: string;
 	endTime: string;
 }
@@ -350,7 +352,7 @@ export interface ConstructorResult {
 }
 
 export interface ModularAssignment {
-	quarter: number;
+	termIndex: 1 | 2 | 3;
 	facultyId: number;
 	subjectCode: string;
 }
@@ -403,7 +405,7 @@ export function computeDemand(
 	classTemplatePeriods: Record<string, number> = {},
 ): DemandItem[] {
 	const EXPECTED_MODULAR_SUBJECTS: Record<string, number> = {
-		SCIENCE: 4,
+		SCIENCE: 3,
 	};
 
 	const demand: DemandItem[] = [];
@@ -812,38 +814,42 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		return { ids: available.sort((a, b) => a - b) };
 	}
 
-	function buildModularAssignments(item: DemandItem): { assignments: ModularAssignment[]; missingQuarters: number[] } {
+	function buildModularAssignments(item: DemandItem): { assignments: ModularAssignment[]; missingTerms: number[] } {
 		if (!item.modularSubjects || item.modularSubjects.length === 0) {
-			return { assignments: [], missingQuarters: [] };
+			return { assignments: [], missingTerms: [] };
 		}
 
 		const sortedModules = [...item.modularSubjects].sort((left, right) => left.modularOrder - right.modularOrder);
 		const assignments: ModularAssignment[] = [];
-		const missingQuarters: number[] = [];
+		const missingTerms: number[] = [];
 
 		for (const moduleSubject of sortedModules) {
-			const quarter = moduleSubject.modularOrder;
+			const termIndex: 1 | 2 | 3 = moduleSubject.modularOrder <= 1
+				? 1
+				: moduleSubject.modularOrder === 2
+					? 2
+					: 3;
 			const facultyIds = qualifiedMap.get(`${moduleSubject.subjectId}:${item.sectionId}`) ?? [];
 			if (facultyIds.length === 0) {
-				missingQuarters.push(quarter);
+				missingTerms.push(termIndex);
 				continue;
 			}
 			assignments.push({
-				quarter,
+				termIndex,
 				facultyId: facultyIds[0],
 				subjectCode: moduleSubject.subjectCode,
 			});
 		}
 
-		if (missingQuarters.length > 0) {
+		if (missingTerms.length > 0) {
 			modularWarnings.push({
 				code: 'LACKING_FACULTY',
 				sectionId: item.sectionId,
 				subjectId: item.subjectId,
-				message: `Lacking Faculty for modular group ${item.modularGroupId ?? item.subjectCode} in section ${item.sectionId}. Missing quarter(s): ${missingQuarters.join(', ')}.`,
+				message: `Lacking Faculty for modular group ${item.modularGroupId ?? item.subjectCode} in section ${item.sectionId}. Missing term(s): ${missingTerms.join(', ')}.`,
 				meta: {
 					modularGroupId: item.modularGroupId ?? null,
-					missingQuarters,
+					missingTerms,
 				},
 			});
 		}
@@ -863,7 +869,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			});
 		}
 
-		return { assignments, missingQuarters };
+		return { assignments, missingTerms };
 	}
 
 	// Preference lookup
@@ -958,11 +964,12 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	}
 
 	// ─── Grade window lookup ───
-	// gradeLevel → { startMin, endMin }
-	const gradeWindowMap = new Map<number, { startMin: number; endMin: number }>();
+	// gradeLevel + optional programType → { startMin, endMin }
+	const gradeWindowMap = new Map<string, { startMin: number; endMin: number }>();
 	if (gradeWindows && gradeWindows.length > 0) {
 		for (const gw of gradeWindows) {
-			gradeWindowMap.set(gw.gradeLevel, {
+			const programKey = (gw.programType ?? 'ALL').toUpperCase();
+			gradeWindowMap.set(`${gw.gradeLevel}:${programKey}`, {
 				startMin: timeToMinutes(gw.startTime),
 				endMin: timeToMinutes(gw.endTime),
 			});
@@ -1111,7 +1118,8 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 		// Grade window: narrow valid periods for this item's grade level
 		let gradeValidPeriods = validPeriodIndices ?? Array.from({ length: PERIOD_SLOTS.length }, (_, i) => i);
-		const gw = gradeWindowMap.get(item.gradeLevel);
+		const gradeProgramKey = `${item.gradeLevel}:${(item.programType ?? 'ALL').toUpperCase()}`;
+		const gw = gradeWindowMap.get(gradeProgramKey) ?? gradeWindowMap.get(`${item.gradeLevel}:ALL`);
 		if (gw) {
 			gradeValidPeriods = gradeValidPeriods.filter((pi) => {
 				const slot = PERIOD_SLOTS[pi];
@@ -1167,8 +1175,15 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				if (candidates.length === 0) continue;
 
 				// We have qualified teachers! Now try rooms
+				const preferredHomeRoomId = useHomeRoomPriority && item.entryKind === 'SECTION'
+					? (item.homeRoomId ?? null)
+					: null;
+
 				let compatibleRooms = roomsByType.get(item.roomTypePreference ?? subject.preferredRoomType) ?? [];
-				if (compatibleRooms.length > 0 && buildingGradeMap.size > 0) {
+				const isSpecializedDemand = (item.roomTypePreference ?? subject.preferredRoomType) !== 'CLASSROOM';
+				if (!isSpecializedDemand) {
+					compatibleRooms = compatibleRooms.filter((room) => room.type === 'CLASSROOM' && !room.isSharedFacility);
+				} else if (compatibleRooms.length > 0 && buildingGradeMap.size > 0) {
 					compatibleRooms = compatibleRooms.filter((room) => {
 						const buildingId = room.buildingId;
 						if (!buildingId) return true;
@@ -1177,35 +1192,17 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 						return buildingGradeLevel === item.gradeLevel;
 					});
 				}
-
-				const preferredHomeRoomId = useHomeRoomPriority && item.entryKind === 'SECTION'
-					? (item.homeRoomId ?? null)
-					: null;
-				
-				// HOME_ROOM_FIRST: Ensure home room is in the list and prioritized
 				if (preferredHomeRoomId != null) {
-					const homeRoomIndex = compatibleRooms.findIndex((room) => room.id === preferredHomeRoomId);
-					if (homeRoomIndex >= 0) {
-						// Home room is in the filtered list, move it to front
-						if (homeRoomIndex > 0) {
-							const [homeRoom] = compatibleRooms.splice(homeRoomIndex, 1);
+					const homeRoom = rooms.find((r) => r.id === preferredHomeRoomId);
+					if (homeRoom && (!homeRoom.isSharedFacility || isSpecializedDemand)) {
+						const homeRoomIndex = compatibleRooms.findIndex((room) => room.id === preferredHomeRoomId);
+						if (homeRoomIndex >= 0) {
+							if (homeRoomIndex > 0) {
+								const [selectedHomeRoom] = compatibleRooms.splice(homeRoomIndex, 1);
+								compatibleRooms.unshift(selectedHomeRoom);
+							}
+						} else if (isSpecializedDemand || homeRoom.type === 'CLASSROOM') {
 							compatibleRooms.unshift(homeRoom);
-						}
-					} else {
-						// Home room not in type-filtered list; check if it's in rooms array and add it
-						const homeRoom = rooms.find((r) => r.id === preferredHomeRoomId);
-						if (homeRoom) {
-							// Validate home room meets basic criteria (available, same grade level)
-							const buildingId = homeRoom.buildingId;
-							let isValidForGrade = true;
-							if (buildingId && buildingGradeMap.size > 0) {
-								const buildingGradeLevel = buildingGradeMap.get(buildingId);
-								isValidForGrade = buildingGradeLevel === null || buildingGradeLevel === item.gradeLevel;
-							}
-							if (isValidForGrade) {
-								// Add home room to front of compatible list
-								compatibleRooms.unshift(homeRoom);
-							}
 						}
 					}
 				}

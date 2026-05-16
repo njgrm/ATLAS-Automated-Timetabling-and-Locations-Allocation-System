@@ -17,6 +17,7 @@ import type { ConstraintOverride, GradeShiftWindow, SchedulingPolicy, ViolationC
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { ScrollArea } from '@/ui/scroll-area';
 import { Slider } from '@/ui/slider';
 import { Switch } from '@/ui/switch';
@@ -131,6 +132,7 @@ interface LocalPolicy {
 
 type LocalGradeWindow = {
 	gradeLevel: number;
+	programType?: 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER' | null;
 	startTime: string;
 	endTime: string;
 };
@@ -138,23 +140,37 @@ type LocalGradeWindow = {
 const GRADE_LEVELS: number[] = [7, 8, 9, 10];
 
 const DEFAULT_GRADE_WINDOWS: LocalGradeWindow[] = [
-	{ gradeLevel: 7, startTime: '07:30', endTime: '12:00' },
-	{ gradeLevel: 8, startTime: '07:30', endTime: '12:00' },
-	{ gradeLevel: 9, startTime: '13:00', endTime: '17:00' },
-	{ gradeLevel: 10, startTime: '13:00', endTime: '17:00' },
+	{ gradeLevel: 7, programType: null, startTime: '07:30', endTime: '12:00' },
+	{ gradeLevel: 8, programType: null, startTime: '07:30', endTime: '12:00' },
+	{ gradeLevel: 9, programType: null, startTime: '13:00', endTime: '17:00' },
+	{ gradeLevel: 10, programType: null, startTime: '13:00', endTime: '17:00' },
+];
+
+const PROGRAM_WINDOW_OPTIONS: Array<{ value: 'ALL' | 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER'; label: string }> = [
+	{ value: 'ALL', label: 'All Programs' },
+	{ value: 'REGULAR', label: 'Regular' },
+	{ value: 'STE', label: 'STE' },
+	{ value: 'SPS', label: 'SPS' },
+	{ value: 'SPA', label: 'SPA' },
+	{ value: 'SPJ', label: 'SPJ' },
+	{ value: 'SPFL', label: 'SPFL' },
+	{ value: 'SPTVE', label: 'SPTVE' },
+	{ value: 'OTHER', label: 'Other' },
 ];
 
 function toLocalGradeWindows(windows: GradeShiftWindow[]): LocalGradeWindow[] {
-	const byGrade = new Map<number, LocalGradeWindow>(DEFAULT_GRADE_WINDOWS.map((window) => [window.gradeLevel, window]));
+	const byKey = new Map<string, LocalGradeWindow>(DEFAULT_GRADE_WINDOWS.map((window) => [`${window.gradeLevel}:ALL`, window]));
 	for (const window of windows) {
 		if (!GRADE_LEVELS.includes(window.gradeLevel)) continue;
-		byGrade.set(window.gradeLevel, {
+		const key = `${window.gradeLevel}:${window.programType ?? 'ALL'}`;
+		byKey.set(key, {
 			gradeLevel: window.gradeLevel,
+			programType: (window.programType ?? null) as LocalGradeWindow['programType'],
 			startTime: window.startTime,
 			endTime: window.endTime,
 		});
 	}
-	return GRADE_LEVELS.map((gradeLevel) => byGrade.get(gradeLevel) ?? { gradeLevel, startTime: '07:30', endTime: '12:00' });
+	return [...byKey.values()].sort((left, right) => left.gradeLevel - right.gradeLevel || String(left.programType ?? 'ALL').localeCompare(String(right.programType ?? 'ALL')));
 }
 
 function policyToLocal(p: SchedulingPolicy): LocalPolicy {
@@ -480,15 +496,20 @@ export default function SchedulingPolicyPane({
 	}, []);
 
 	const updateShiftWindow = useCallback(
-		(gradeLevel: number, field: 'startTime' | 'endTime', value: string) => {
+		(index: number, field: 'gradeLevel' | 'programType' | 'startTime' | 'endTime', value: string | number | null) => {
 			setShiftWindows((prev) =>
-				prev.map((window) =>
-					window.gradeLevel === gradeLevel ? { ...window, [field]: value } : window,
-				),
+				prev.map((window, windowIndex) => (windowIndex === index ? { ...window, [field]: value } : window)),
 			);
 		},
 		[],
 	);
+
+	const addShiftWindow = useCallback(() => {
+		setShiftWindows((prev) => [
+			...prev,
+			{ gradeLevel: 7, programType: 'STE', startTime: '07:30', endTime: '12:00' },
+		]);
+	}, []);
 
 	return (
 		<div className="flex flex-col min-h-0 h-full bg-muted/30">
@@ -863,12 +884,39 @@ export default function SchedulingPolicyPane({
 					<div className="flex-1 min-h-0 overflow-hidden p-4">
 						<SectionCard title="Shift Settings">
 							<div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-								Adjusting these times will dictate the allowable scheduling boundaries for the Timetable Generator.
+								Adjust these windows to control the allowable scheduling boundaries for each grade or program override.
+							</div>
+							<div className="flex items-center justify-between gap-2">
+								<p className="text-[0.6875rem] text-muted-foreground">Base windows are applied when no program override exists.</p>
+								<Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={addShiftWindow}>
+									Add Override
+								</Button>
 							</div>
 							<div className="space-y-2">
-								{shiftWindows.map((window) => (
-									<div key={window.gradeLevel} className="rounded-md border border-border p-3">
-										<div className="mb-2 text-xs font-medium text-foreground">Grade {window.gradeLevel}</div>
+								{shiftWindows.map((window, index) => (
+									<div key={`${window.gradeLevel}:${window.programType ?? 'ALL'}:${index}`} className="rounded-md border border-border p-3 space-y-3">
+										<div className="flex items-center gap-2 justify-between">
+											<div className="text-xs font-medium text-foreground">Grade {window.gradeLevel}</div>
+											<Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => setShiftWindows((prev) => prev.filter((_, i) => i !== index))}>
+												Remove
+											</Button>
+										</div>
+										<div className="space-y-1.5">
+											<Label className="text-[0.6875rem] uppercase tracking-wide text-muted-foreground">Program</Label>
+											<Select
+												value={window.programType ?? 'ALL'}
+												onValueChange={(value) => updateShiftWindow(index, 'programType', value === 'ALL' ? null : value)}
+											>
+												<SelectTrigger className="h-8 text-xs">
+													<SelectValue placeholder="All Programs" />
+												</SelectTrigger>
+												<SelectContent>
+													{PROGRAM_WINDOW_OPTIONS.map((option) => (
+														<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+										</div>
 										<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 											<div className="space-y-1.5">
 												<Label className="text-[0.6875rem] uppercase tracking-wide text-muted-foreground">Start Time</Label>
@@ -876,7 +924,7 @@ export default function SchedulingPolicyPane({
 													type="time"
 													className="h-8 text-xs"
 													value={window.startTime}
-													onChange={(event) => updateShiftWindow(window.gradeLevel, 'startTime', event.target.value)}
+													onChange={(event) => updateShiftWindow(index, 'startTime', event.target.value)}
 												/>
 											</div>
 											<div className="space-y-1.5">
@@ -885,7 +933,7 @@ export default function SchedulingPolicyPane({
 													type="time"
 													className="h-8 text-xs"
 													value={window.endTime}
-													onChange={(event) => updateShiftWindow(window.gradeLevel, 'endTime', event.target.value)}
+													onChange={(event) => updateShiftWindow(index, 'endTime', event.target.value)}
 												/>
 											</div>
 										</div>

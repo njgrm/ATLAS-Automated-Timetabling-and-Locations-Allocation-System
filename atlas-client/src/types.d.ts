@@ -378,6 +378,7 @@ export type FacultyRoomPreferenceState = {
     runVersion: number;
     runGeneratedAt: string | null;
     entries: FacultyRoomPreferenceEntry[];
+    programType?: 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER' | null;
     globalEntries: FacultyGlobalDraftEntry[];
 };
 export type GenerationGateStatus = {
@@ -617,7 +618,7 @@ export interface ScheduledEntry {
         roomAssignmentReason?: string;
         modularGroupId?: string;
         modularAssignments?: Array<{
-            quarter: number;
+            termIndex: 1 | 2 | 3;
             facultyId: number;
             subjectCode: string;
         }>;
