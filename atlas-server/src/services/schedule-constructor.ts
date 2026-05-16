@@ -780,8 +780,8 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			candidates = [...(qualifiedMap.get(`${item.subjectId}:${item.sectionId}`) ?? [])];
 		}
 
-		// Priority 2: Fallback to Tiered Qualification
-		if (candidates.length === 0 && subject) {
+		// Priority 2: Optional fallback to tiered qualification only when policy allows flexible assignment.
+		if (candidates.length === 0 && subject && allowFlexible) {
 			candidates = faculty.filter(f => isFacultyQualified(f, subject)).map(f => f.id);
 		}
 
@@ -1181,11 +1181,32 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				const preferredHomeRoomId = useHomeRoomPriority && item.entryKind === 'SECTION'
 					? (item.homeRoomId ?? null)
 					: null;
-				if (preferredHomeRoomId != null && compatibleRooms.length > 0) {
+				
+				// HOME_ROOM_FIRST: Ensure home room is in the list and prioritized
+				if (preferredHomeRoomId != null) {
 					const homeRoomIndex = compatibleRooms.findIndex((room) => room.id === preferredHomeRoomId);
-					if (homeRoomIndex > 0) {
-						const [homeRoom] = compatibleRooms.splice(homeRoomIndex, 1);
-						compatibleRooms.unshift(homeRoom);
+					if (homeRoomIndex >= 0) {
+						// Home room is in the filtered list, move it to front
+						if (homeRoomIndex > 0) {
+							const [homeRoom] = compatibleRooms.splice(homeRoomIndex, 1);
+							compatibleRooms.unshift(homeRoom);
+						}
+					} else {
+						// Home room not in type-filtered list; check if it's in rooms array and add it
+						const homeRoom = rooms.find((r) => r.id === preferredHomeRoomId);
+						if (homeRoom) {
+							// Validate home room meets basic criteria (available, same grade level)
+							const buildingId = homeRoom.buildingId;
+							let isValidForGrade = true;
+							if (buildingId && buildingGradeMap.size > 0) {
+								const buildingGradeLevel = buildingGradeMap.get(buildingId);
+								isValidForGrade = buildingGradeLevel === null || buildingGradeLevel === item.gradeLevel;
+							}
+							if (isValidForGrade) {
+								// Add home room to front of compatible list
+								compatibleRooms.unshift(homeRoom);
+							}
+						}
 					}
 				}
 

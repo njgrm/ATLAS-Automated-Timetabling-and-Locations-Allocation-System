@@ -357,6 +357,7 @@ export function normalizeEnrollProSectionsResponse(body: unknown): { gradeLevels
 }
 
 export interface ExternalSection {
+	mirrorId?: number;
 	id: number;
 	name: string;
 	maxCapacity: number;

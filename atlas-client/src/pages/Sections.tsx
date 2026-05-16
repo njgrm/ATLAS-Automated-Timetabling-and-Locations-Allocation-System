@@ -49,17 +49,27 @@ type SortField = 'name' | 'gradeLevelId' | 'enrolledCount' | 'maxCapacity' | 'fi
 type SortDir   = 'asc' | 'desc';
 
 type SectionDetail = {
+	mirrorId?:     number;
 	id:            number;
 	name:          string;
 	maxCapacity:   number;
 	enrolledCount: number;
 	gradeLevelId:  number;
 	gradeLevelName: string;
+	homeRoomId?:   number | null;
+	buildingZoneId?: string | null;
 	// Special program fields (Wave 3.5)
 	programType?:    string;
 	programCode?:    string;
 	programName?:    string;
 	isSpecialProgram?: boolean;
+};
+
+type HomeRoomOption = {
+	id: number;
+	name: string;
+	type: string;
+	buildingName: string;
 };
 
 type SectionSummary = {
@@ -104,6 +114,8 @@ export default function Sections() {
 	const [searchQuery, setSearchQuery] = useState('');
 	const [gradeFilter, setGradeFilter] = useState<string>('all');
 	const [programFilter, setProgramFilter] = useState<string>('all');
+	const [homeRoomOptions, setHomeRoomOptions] = useState<HomeRoomOption[]>([]);
+	const [savingMirrorId, setSavingMirrorId] = useState<number | null>(null);
 
 	const fetchSections = useCallback(async () => {
 		setState({ status: 'loading' });
@@ -117,9 +129,12 @@ export default function Sections() {
 				});
 				return;
 			}
-			const res = await atlasApi.get<SectionSummary & { code?: string }>(
-				`/sections/summary/${ayId}?schoolId=${DEFAULT_SCHOOL_ID}`,
-			);
+			const [summaryRes, homeRoomRes] = await Promise.all([
+				atlasApi.get<SectionSummary & { code?: string }>(`/sections/summary/${ayId}?schoolId=${DEFAULT_SCHOOL_ID}`),
+				atlasApi.get<{ rooms: HomeRoomOption[] }>(`/sections/home-rooms/${ayId}?schoolId=${DEFAULT_SCHOOL_ID}`),
+			]);
+			const res = summaryRes;
+			setHomeRoomOptions(homeRoomRes.data.rooms ?? []);
 			if (res.data.code === 'UPSTREAM_UNAVAILABLE' && res.data.totalSections === 0) {
 				setState({
 					status: 'unavailable',
@@ -130,10 +145,42 @@ export default function Sections() {
 			setState({ status: 'ok', data: res.data });
 			setLastSyncedAt(res.data.fetchedAt ? String(res.data.fetchedAt) : null);
 		} catch {
+			setHomeRoomOptions([]);
 			setState({
 				status: 'unavailable',
 				message: 'Section data is not yet available. Sections are sourced from the enrollment service and will appear here once the upstream API is connected.',
 			});
+		}
+	}, []);
+
+	const handleHomeRoomChange = useCallback(async (section: SectionDetail, selectedValue: string) => {
+		if (!section.mirrorId) return;
+		setSavingMirrorId(section.mirrorId);
+		const nextHomeRoomId = selectedValue === 'none' ? null : Number(selectedValue);
+		try {
+			const settings = await fetchPublicSettings();
+			const ayId = settings.activeSchoolYearId;
+			if (!ayId) return;
+
+			await atlasApi.put(`/sections/home-rooms/${ayId}`, {
+				schoolId: DEFAULT_SCHOOL_ID,
+				assignments: [{ sectionId: section.mirrorId, homeRoomId: nextHomeRoomId }],
+			});
+
+			setState((prev) => {
+				if (prev.status !== 'ok') return prev;
+				return {
+					status: 'ok',
+					data: {
+						...prev.data,
+						sections: prev.data.sections.map((item) =>
+							item.id === section.id ? { ...item, homeRoomId: nextHomeRoomId } : item,
+						),
+					},
+				};
+			});
+		} finally {
+			setSavingMirrorId(null);
 		}
 	}, []);
 
@@ -403,6 +450,9 @@ export default function Sections() {
 											Fill <SortIcon field="fill" />
 										</button>
 									</th>
+									<th className="px-4 py-2.5 text-left">
+										<span className="font-semibold text-muted-foreground">Home Room</span>
+									</th>
 								</tr>
 							</thead>
 
@@ -416,11 +466,12 @@ export default function Sections() {
 											<td className="px-4 py-3 text-right"><Skeleton className="h-4 w-8 ml-auto" /></td>
 											<td className="px-4 py-3 text-right"><Skeleton className="h-4 w-8 ml-auto" /></td>
 											<td className="px-4 py-3 text-right"><Skeleton className="h-5 w-12 rounded-full ml-auto" /></td>
+											<td className="px-4 py-3"><Skeleton className="h-8 w-44" /></td>
 										</tr>
 									))
 								) : paged.length === 0 ? (
 									<tr>
-										<td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
+										<td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
 											<div className="flex flex-col items-center gap-2">
 												{state.status === 'ok' ? (
 													<>
@@ -486,6 +537,28 @@ export default function Sections() {
 													<span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${fillColor(fill)}`}>
 														{fill}%
 													</span>
+												</td>
+
+												<td className="px-4 py-3 min-w-56">
+													<Select
+														value={s.homeRoomId == null ? 'none' : String(s.homeRoomId)}
+														onValueChange={(value) => {
+															void handleHomeRoomChange(s, value);
+														}}
+														disabled={savingMirrorId === s.mirrorId}
+													>
+														<SelectTrigger className="h-8 text-xs">
+															<SelectValue placeholder="Unassigned" />
+														</SelectTrigger>
+														<SelectContent className="max-h-72">
+															<SelectItem value="none">Unassigned</SelectItem>
+															{homeRoomOptions.map((room) => (
+																<SelectItem key={room.id} value={String(room.id)}>
+																	{room.name} • {room.buildingName}
+																</SelectItem>
+															))}
+														</SelectContent>
+													</Select>
 												</td>
 											</tr>
 										);

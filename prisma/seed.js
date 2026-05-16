@@ -104,6 +104,204 @@ const facultySeeds = [
 	{ externalId: 20, firstName: 'Darren', lastName: 'Serrano', email: 't-0020@deped.local', department: 'Science', maxWeeklyHours: 30, subjects: ['SCI_PHYS'] },
 ];
 
+function makeClassroomRooms({ floorCount, perFloor, prefix, capacity = 45 }) {
+	const rooms = [];
+	for (let floor = 1; floor <= floorCount; floor++) {
+		const floorRoomCount = perFloor[floor - 1] ?? perFloor[perFloor.length - 1] ?? 6;
+		for (let i = 1; i <= floorRoomCount; i++) {
+			rooms.push({
+				name: `${prefix}${floor}${String(i).padStart(2, '0')}`,
+				floor,
+				type: 'CLASSROOM',
+				capacity,
+				floorPosition: i,
+			});
+		}
+	}
+	return rooms;
+}
+
+async function syncSeedBuildings(schoolId, buildingSeeds) {
+	for (const b of buildingSeeds) {
+		let building = await prisma.building.findFirst({
+			where: { schoolId, name: b.name },
+			select: { id: true },
+		});
+
+		if (!building) {
+			building = await prisma.building.create({
+				data: {
+					schoolId,
+					name: b.name,
+					shortCode: b.shortCode,
+					floorCount: b.floorCount || 1,
+					isTeachingBuilding: b.isTeachingBuilding !== false,
+					x: b.x,
+					y: b.y,
+					width: b.width,
+					height: b.height,
+					color: b.color,
+				},
+				select: { id: true },
+			});
+		} else {
+			await prisma.building.update({
+				where: { id: building.id },
+				data: {
+					shortCode: b.shortCode,
+					floorCount: b.floorCount || 1,
+					isTeachingBuilding: b.isTeachingBuilding !== false,
+					x: b.x,
+					y: b.y,
+					width: b.width,
+					height: b.height,
+					color: b.color,
+				},
+			});
+		}
+
+		for (const r of b.rooms) {
+			const existingRoom = await prisma.room.findFirst({
+				where: { buildingId: building.id, name: r.name },
+				select: { id: true },
+			});
+
+			const roomPayload = {
+				name: r.name,
+				floor: r.floor,
+				floorNumber: r.floor,
+				floorPosition: r.floorPosition || 1,
+				type: r.type,
+				capacity: r.capacity,
+				isTeachingSpace: r.isTeachingSpace !== false,
+				buildingZoneId: r.buildingZoneId ?? b.shortCode ?? null,
+			};
+
+			if (!existingRoom) {
+				await prisma.room.create({
+					data: {
+						buildingId: building.id,
+						...roomPayload,
+					},
+				});
+			} else {
+				await prisma.room.update({
+					where: { id: existingRoom.id },
+					data: roomPayload,
+				});
+			}
+		}
+
+		const seedRoomNames = b.rooms.map((room) => room.name);
+		await prisma.room.deleteMany({
+			where: {
+				buildingId: building.id,
+				name: { notIn: seedRoomNames },
+			},
+		});
+	}
+}
+
+async function assignSectionHomeRooms(schoolId) {
+	const schoolYears = await prisma.sectionMirror.findMany({
+		where: { schoolId, isStale: false },
+		select: { schoolYearId: true },
+		distinct: ['schoolYearId'],
+	});
+
+	if (schoolYears.length === 0) {
+		console.log('ℹ️  Skipped home-room mapping: no section mirrors found.');
+		return;
+	}
+
+	const rooms = await prisma.room.findMany({
+		where: {
+			isTeachingSpace: true,
+			building: { schoolId, isTeachingBuilding: true },
+		},
+		select: {
+			id: true,
+			type: true,
+			capacity: true,
+			buildingZoneId: true,
+			building: { select: { name: true, shortCode: true } },
+		},
+		orderBy: [{ buildingId: 'asc' }, { floor: 'asc' }, { floorPosition: 'asc' }, { id: 'asc' }],
+	});
+
+	const gradeWingPools = {
+		7: rooms.filter((room) => room.building.name.includes('Grade 7 Academic Wing') && room.type === 'CLASSROOM'),
+		8: rooms.filter((room) => room.building.name.includes('Grade 8 Academic Wing') && room.type === 'CLASSROOM'),
+		9: rooms.filter((room) => room.building.name.includes('Grade 9 Academic Wing') && room.type === 'CLASSROOM'),
+		10: rooms.filter((room) => room.building.name.includes('Grade 10 Academic Wing') && room.type === 'CLASSROOM'),
+	};
+	const stePool = rooms.filter((room) => room.building.shortCode === 'STEX' && room.type === 'CLASSROOM');
+	const spsPool = rooms.filter((room) => room.building.shortCode === 'SPS' && room.type === 'CLASSROOM');
+	const spaPool = rooms.filter((room) => room.building.shortCode === 'SPA' && room.type === 'CLASSROOM');
+	const labPool = rooms.filter((room) => room.type === 'LABORATORY' || room.type === 'COMPUTER_LAB');
+	const gymPool = rooms.filter((room) => room.type === 'GYMNASIUM');
+
+	const counters = new Map();
+	const pickRoom = (key, pool) => {
+		if (!pool || pool.length === 0) return null;
+		const index = counters.get(key) ?? 0;
+		const room = pool[index % pool.length];
+		counters.set(key, index + 1);
+		return room;
+	};
+
+	let totalMapped = 0;
+	for (const year of schoolYears) {
+		const sections = await prisma.sectionMirror.findMany({
+			where: { schoolId, schoolYearId: year.schoolYearId, isStale: false },
+			select: {
+				id: true,
+				gradeLevelName: true,
+				programType: true,
+				name: true,
+			},
+			orderBy: [{ gradeLevelId: 'asc' }, { name: 'asc' }],
+		});
+
+		for (let i = 0; i < sections.length; i++) {
+			const section = sections[i];
+			const gradeMatch = section.gradeLevelName.match(/(\d+)/);
+			const gradeLevel = gradeMatch ? Number(gradeMatch[1]) : null;
+			const gradePool = gradeLevel ? gradeWingPools[gradeLevel] : [];
+			const programType = (section.programType ?? 'REGULAR').toUpperCase();
+
+			let homeRoom = null;
+			if (programType === 'STE') {
+				homeRoom = (i % 3 === 0 ? pickRoom('STE_LAB', labPool) : null)
+					?? pickRoom('STE', stePool)
+					?? pickRoom(`G${gradeLevel}`, gradePool)
+					?? pickRoom('LAB_FALLBACK', labPool);
+			} else if (programType === 'SPS') {
+				homeRoom = (i % 3 === 0 ? pickRoom('SPS_GYM', gymPool) : null)
+					?? pickRoom('SPS', spsPool)
+					?? pickRoom(`G${gradeLevel}`, gradePool);
+			} else if (programType === 'SPA') {
+				homeRoom = (i % 3 === 0 ? pickRoom('SPA_LAB', labPool) : null)
+					?? pickRoom('SPA', spaPool)
+					?? pickRoom(`G${gradeLevel}`, gradePool);
+			} else {
+				homeRoom = pickRoom(`G${gradeLevel}`, gradePool) ?? pickRoom('REG_FALLBACK', stePool);
+			}
+
+			await prisma.sectionMirror.update({
+				where: { id: section.id },
+				data: {
+					homeRoomId: homeRoom?.id ?? null,
+					buildingZoneId: homeRoom?.buildingZoneId ?? homeRoom?.building.shortCode ?? null,
+				},
+			});
+			totalMapped += 1;
+		}
+	}
+
+	console.log(`✅ Home-room mapping refreshed for ${totalMapped} sections.`);
+}
+
 async function main() {
 	const school = await prisma.school.upsert({
 		where: { id: 1 },
@@ -169,45 +367,85 @@ async function main() {
 
 	console.log(`Seeded ${subjectSeeds.length} ATLAS subjects for school ${school.name}.`);
 
-	// Seed demo buildings + rooms aligned to occupancy-plan templates (20-room + 24-room buildings)
-	// Main Academic Building: 20 classrooms (7 per floor F1/F2, 6 per floor F3)
+	// Seed deterministic building templates and re-apply them on every seed run.
+	// Grade-level wings (20/24-room templates) are used for home-room ownership.
 	const buildingSeeds = [
 		{
-			name: 'Main Academic Building',
-			shortCode: 'MAIN',
+			name: 'Grade 7 Academic Wing',
+			shortCode: 'G7',
 			floorCount: 3,
-			x: 70, y: 80, width: 280, height: 170, color: '#2563eb',
+			x: 60, y: 70, width: 220, height: 155, color: '#16a34a',
+			rooms: makeClassroomRooms({ floorCount: 3, perFloor: [7, 7, 6], prefix: 'G7-' }),
+		},
+		{
+			name: 'Grade 8 Academic Wing',
+			shortCode: 'G8',
+			floorCount: 3,
+			x: 300, y: 70, width: 220, height: 155, color: '#ca8a04',
+			rooms: makeClassroomRooms({ floorCount: 3, perFloor: [7, 7, 6], prefix: 'G8-' }),
+		},
+		{
+			name: 'Grade 9 Academic Wing',
+			shortCode: 'G9',
+			floorCount: 3,
+			x: 540, y: 70, width: 220, height: 155, color: '#dc2626',
+			rooms: makeClassroomRooms({ floorCount: 3, perFloor: [8, 8, 8], prefix: 'G9-' }),
+		},
+		{
+			name: 'Grade 10 Academic Wing',
+			shortCode: 'G10',
+			floorCount: 3,
+			x: 780, y: 70, width: 220, height: 155, color: '#2563eb',
+			rooms: makeClassroomRooms({ floorCount: 3, perFloor: [8, 8, 8], prefix: 'G10-' }),
+		},
+		{
+			name: 'STE Innovation Center',
+			shortCode: 'STEX',
+			floorCount: 3,
+			x: 60, y: 250, width: 260, height: 180, color: '#059669',
 			rooms: [
-				// Floor 1: 7 classrooms
-				{ name: 'Room 101', floor: 1, type: 'CLASSROOM', capacity: 45, floorPosition: 1 },
-				{ name: 'Room 102', floor: 1, type: 'CLASSROOM', capacity: 45, floorPosition: 2 },
-				{ name: 'Room 103', floor: 1, type: 'CLASSROOM', capacity: 40, floorPosition: 3 },
-				{ name: 'Room 104', floor: 1, type: 'CLASSROOM', capacity: 45, floorPosition: 4 },
-				{ name: 'Room 105', floor: 1, type: 'CLASSROOM', capacity: 45, floorPosition: 5 },
-				{ name: 'Room 106', floor: 1, type: 'CLASSROOM', capacity: 40, floorPosition: 6 },
-				{ name: 'Room 107', floor: 1, type: 'CLASSROOM', capacity: 45, floorPosition: 7 },
-				// Floor 2: 7 classrooms
-				{ name: 'Room 201', floor: 2, type: 'CLASSROOM', capacity: 45, floorPosition: 1 },
-				{ name: 'Room 202', floor: 2, type: 'CLASSROOM', capacity: 45, floorPosition: 2 },
-				{ name: 'Room 203', floor: 2, type: 'CLASSROOM', capacity: 40, floorPosition: 3 },
-				{ name: 'Room 204', floor: 2, type: 'CLASSROOM', capacity: 45, floorPosition: 4 },
-				{ name: 'Room 205', floor: 2, type: 'CLASSROOM', capacity: 45, floorPosition: 5 },
-				{ name: 'Room 206', floor: 2, type: 'CLASSROOM', capacity: 40, floorPosition: 6 },
-				{ name: 'Room 207', floor: 2, type: 'CLASSROOM', capacity: 45, floorPosition: 7 },
-				// Floor 3: 6 classrooms
-				{ name: 'Room 301', floor: 3, type: 'CLASSROOM', capacity: 45, floorPosition: 1 },
-				{ name: 'Room 302', floor: 3, type: 'CLASSROOM', capacity: 45, floorPosition: 2 },
-				{ name: 'Room 303', floor: 3, type: 'CLASSROOM', capacity: 40, floorPosition: 3 },
-				{ name: 'Room 304', floor: 3, type: 'CLASSROOM', capacity: 45, floorPosition: 4 },
-				{ name: 'Room 305', floor: 3, type: 'CLASSROOM', capacity: 45, floorPosition: 5 },
-				{ name: 'Room 306', floor: 3, type: 'CLASSROOM', capacity: 40, floorPosition: 6 },
+				...makeClassroomRooms({ floorCount: 2, perFloor: [6, 6], prefix: 'STE-', capacity: 40 }),
+				{ name: 'STE-BioLab', floor: 3, type: 'LABORATORY', capacity: 35, floorPosition: 1 },
+				{ name: 'STE-ChemLab', floor: 3, type: 'LABORATORY', capacity: 35, floorPosition: 2 },
+				{ name: 'STE-PhysLab', floor: 3, type: 'LABORATORY', capacity: 35, floorPosition: 3 },
+				{ name: 'STE-Robotics', floor: 3, type: 'LABORATORY', capacity: 30, floorPosition: 4 },
+				{ name: 'STE-CompLab-1', floor: 3, type: 'COMPUTER_LAB', capacity: 40, floorPosition: 5 },
+				{ name: 'STE-CompLab-2', floor: 3, type: 'COMPUTER_LAB', capacity: 40, floorPosition: 6 },
+				{ name: 'STE-Workshop-1', floor: 3, type: 'TLE_WORKSHOP', capacity: 30, floorPosition: 7 },
+				{ name: 'STE-Workshop-2', floor: 3, type: 'TLE_WORKSHOP', capacity: 30, floorPosition: 8 },
+			],
+		},
+		{
+			name: 'SPS Sports Academy',
+			shortCode: 'SPS',
+			floorCount: 2,
+			x: 350, y: 250, width: 230, height: 165, color: '#ea580c',
+			rooms: [
+				...makeClassroomRooms({ floorCount: 2, perFloor: [3, 3], prefix: 'SPS-', capacity: 40 }),
+				{ name: 'SPS-Court-1', floor: 1, type: 'GYMNASIUM', capacity: 160, floorPosition: 4 },
+				{ name: 'SPS-Court-2', floor: 1, type: 'GYMNASIUM', capacity: 140, floorPosition: 5 },
+				{ name: 'SPS-HumanPerfLab', floor: 2, type: 'LABORATORY', capacity: 35, floorPosition: 4 },
+				{ name: 'SPS-FitnessLab', floor: 2, type: 'LABORATORY', capacity: 35, floorPosition: 5 },
+			],
+		},
+		{
+			name: 'SPA Arts Conservatory',
+			shortCode: 'SPA',
+			floorCount: 2,
+			x: 610, y: 250, width: 240, height: 165, color: '#9333ea',
+			rooms: [
+				...makeClassroomRooms({ floorCount: 2, perFloor: [3, 3], prefix: 'SPA-', capacity: 40 }),
+				{ name: 'SPA-MediaLab', floor: 1, type: 'COMPUTER_LAB', capacity: 35, floorPosition: 4 },
+				{ name: 'SPA-ArtsStudio', floor: 1, type: 'LABORATORY', capacity: 35, floorPosition: 5 },
+				{ name: 'SPA-PerformanceHall', floor: 2, type: 'GYMNASIUM', capacity: 120, floorPosition: 4 },
+				{ name: 'SPA-MakersLab', floor: 2, type: 'LABORATORY', capacity: 30, floorPosition: 5 },
 			],
 		},
 		{
 			name: 'Science and Labs',
 			shortCode: 'SCI',
 			floorCount: 2,
-			x: 390, y: 90, width: 220, height: 150, color: '#059669',
+			x: 870, y: 250, width: 220, height: 160, color: '#047857',
 			rooms: [
 				{ name: 'Chemistry Lab', floor: 1, type: 'LABORATORY', capacity: 35, floorPosition: 1 },
 				{ name: 'Biology Lab', floor: 1, type: 'LABORATORY', capacity: 35, floorPosition: 2 },
@@ -219,7 +457,7 @@ async function main() {
 			name: 'TLE Building',
 			shortCode: 'TLE',
 			floorCount: 2,
-			x: 640, y: 95, width: 180, height: 140, color: '#d97706',
+			x: 60, y: 460, width: 180, height: 140, color: '#d97706',
 			rooms: [
 				{ name: 'Workshop A', floor: 1, type: 'TLE_WORKSHOP', capacity: 35, floorPosition: 1 },
 				{ name: 'Workshop B', floor: 1, type: 'TLE_WORKSHOP', capacity: 35, floorPosition: 2 },
@@ -230,7 +468,7 @@ async function main() {
 			name: 'Gym and Covered Court',
 			shortCode: 'GYM',
 			floorCount: 1,
-			x: 100, y: 300, width: 270, height: 170, color: '#ea580c',
+			x: 260, y: 460, width: 270, height: 170, color: '#ea580c',
 			rooms: [
 				{ name: 'Court A', floor: 1, type: 'GYMNASIUM', capacity: 200, floorPosition: 1 },
 				{ name: 'Court B', floor: 1, type: 'GYMNASIUM', capacity: 150, floorPosition: 2 },
@@ -241,7 +479,7 @@ async function main() {
 			shortCode: 'ADMIN',
 			floorCount: 2,
 			isTeachingBuilding: false,
-			x: 420, y: 285, width: 250, height: 185, color: '#7c3aed',
+			x: 560, y: 460, width: 250, height: 185, color: '#7c3aed',
 			rooms: [
 				{ name: 'Library', floor: 1, type: 'LIBRARY', capacity: 80, floorPosition: 1, isTeachingSpace: false },
 				{ name: 'Principal Office', floor: 2, type: 'OFFICE', capacity: 5, floorPosition: 1, isTeachingSpace: false },
@@ -250,38 +488,9 @@ async function main() {
 		},
 	];
 
-	for (const b of buildingSeeds) {
-		const existing = await prisma.building.findFirst({
-			where: { schoolId: school.id, name: b.name },
-		});
-		if (!existing) {
-			await prisma.building.create({
-				data: {
-					schoolId: school.id,
-					name: b.name,
-					shortCode: b.shortCode,
-					floorCount: b.floorCount || 1,
-					isTeachingBuilding: b.isTeachingBuilding !== false,
-					x: b.x,
-					y: b.y,
-					width: b.width,
-					height: b.height,
-					color: b.color,
-					rooms: {
-						create: b.rooms.map((r) => ({
-							name: r.name,
-							floor: r.floor,
-							floorPosition: r.floorPosition || 1,
-							type: r.type,
-							capacity: r.capacity,
-							isTeachingSpace: r.isTeachingSpace !== false,
-						})),
-					},
-				},
-			});
-		}
-	}
+	await syncSeedBuildings(school.id, buildingSeeds);
 	console.log(`✅ Seeded ${buildingSeeds.length} buildings for school ${school.name}.`);
+	await assignSectionHomeRooms(school.id);
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// FACULTY MIRROR — Sync stub faculty for standalone mode

@@ -1070,6 +1070,7 @@ export interface GradeShiftWindowInput {
 /* ─── Section types (from enrollment adapter) ─── */
 
 export interface ExternalSection {
+	mirrorId?: number;
 	id: number;
 	name: string;
 	maxCapacity: number;
@@ -1077,6 +1078,8 @@ export interface ExternalSection {
 	gradeLevelId: number;
 	gradeLevelName: string;
 	displayOrder: number;
+	homeRoomId?: number | null;
+	buildingZoneId?: string | null;
 	programType?: 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER' | null;
 	programCode?: string | null;
 	programName?: string | null;
