@@ -176,12 +176,80 @@ PHASE 8+: Teacher X & Concurrency (⏳ FUTURE, BLOCKED UNTIL EARLIER PHASES)
   - Zone distribution within 10% variance
   - >90% test coverage
 
-**Phase 3 (Teacher X Placeholders):**
-- **Scope:** Add placeholder faculty for ad-hoc assignments; UI for managing placeholders
-- **Pre-Planning (Can Start Now):** Placeholder lifecycle design, teaching load rules, assignment UI sketches
+**Phase 3 (Teacher X Placeholders + Generator Readiness / KPI Recovery):**
+- **Status:** 🔄 READY TO START (recommended next stream after policy/window and subject/template repair)
+- **Scope:** Add placeholder faculty for ad-hoc assignments, close live data-readiness gaps, and recover generator KPIs with the real school-year dataset
+- **Pre-Planning (Can Start Now):** Placeholder lifecycle design, teaching load rules, assignment UI sketches, live DB blocker audit, demand-vs-capacity correction
 - **Duration:** 1–2 weeks after Phase 1d approval
-- **Estimate:** 10–15 story points
+- **Estimate:** 14–20 story points
 - **Blocker:** Phase 1d completion + isPlaceholder schema prepped
+
+### Phase 3 Live DB Scan Findings (2026-05-17)
+
+**Summary:** Teacher X placeholders are needed, but they are **not** the dominant reason timetabling still performs poorly. The live DB scan shows multiple structural blockers that must be addressed together in Phase 3 if KPI recovery is to be realistic.
+
+**Verified live data findings:**
+- `FacultyMirror.isPlaceholder` exists in schema, but **0 placeholder faculty rows** currently exist in the live DB.
+- Live faculty pool:
+  - `591` total faculty rows
+  - `142` active schedulable
+  - `449` stale
+  - only `2` active schedulable faculty currently have zero assignments
+- Live subject coverage:
+  - `45` total subjects
+  - `26` active
+  - `19` inactive
+  - `11` active subjects currently have **zero faculty assignments**, including:
+    - all new STE overlays: `STE_ENV_SCI`, `STE_BIOTECH`, `STE_ICT`, `STE_APPLIED_CHEM`, `STE_APPLIED_PHYS`, `STE_ROBOTICS`
+    - all exploratory TLE rows: `TLE_ICT_EXP`, `TLE_AFA_EXP`, `TLE_FCS_EXP`, `TLE_IA_EXP`
+    - `SPS_SPEC`
+- Live scheduling policy state:
+  - **no persisted `SchedulingPolicy` row** exists yet for `schoolYearId=55`
+  - only grade-level shift windows exist:
+    - G7/G8: `06:00–12:00`
+    - G9/G10: `12:00–18:00`
+  - no program-specific windows are currently persisted
+- Live cohort/TLE readiness:
+  - `0` active `InstructionalCohort` rows
+  - persisted `SectionMirror` rows do not store TLE ownership fields
+  - latest `SectionSnapshot` also showed **no TLE specialization ownership fields populated**
+- Live rooms/buildings:
+  - `12` buildings, `160` rooms, `157` teaching rooms
+  - `0` rooms currently flagged `isSharedFacility=true`
+  - specialized room stock is finite (`11` labs, `4` computer labs, `5` TLE workshops, `5` gyms)
+
+**Demand-vs-capacity mismatch (critical):**
+- `REGULAR` template weekly capacity: `2400 min`; bound subject minutes: `3420 min` (**over by 1020**)
+- `STE` template weekly capacity: `2250 min`; bound subject minutes: `2580 min` (**over by 330**)
+- `SPA` template weekly capacity: `2250 min`; bound subject minutes: `2265 min` (**over by 15**)
+- `SPS` template weekly capacity: `2250 min`; bound subject minutes: `2220 min`
+
+**Latest run evidence (run 41):**
+- `assignedCount = 939`
+- `unassignedCount = 2661`
+- `hardViolationCount = 731`
+- `homeRoomSuccessRate = 19.42%`
+- `LACKING_FACULTY = 0`
+- `SPECIALIZED_ROOM_UNAVAILABLE = 1930`
+- `policyOrShiftWindowIncompatible = 2133`
+- `termCounts = { term1: 939, term2: 0, term3: 0 }`
+
+**Interpretation:**
+- Teacher X placeholders should be included in Phase 3 because the schema is ready and some active subjects still have no faculty coverage.
+- However, current KPI failure is **not primarily a no-faculty problem**. The dominant blockers are:
+  - impossible template minute totals relative to timetable capacity
+  - specialized-room demand pressure
+  - missing persisted policy row for the active school year
+  - missing active cohorts / upstream TLE ownership context
+  - term distribution still collapsing into `term1`
+
+**Phase 3 deliverables updated to include:**
+- Placeholder faculty creation + assignment workflows
+- Subject-to-faculty coverage audit and remediation for active STE/TLE/SPS rows
+- Template demand normalization so weekly bound minutes fit the actual timetable shape
+- Persisted scheduling policy bootstrap for the active school year
+- TLE cohort / specialization ownership readiness audit
+- KPI rerun and root-cause validation after the above are repaired
 
 ---
 

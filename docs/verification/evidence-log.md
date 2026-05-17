@@ -1,5 +1,74 @@
 # Verification Evidence Log
 #
+### 2026-05-17 - Phase 3 Template Capacity + Control Math Repair (Tailnet)
+- Phase: Phase 3 template capacity/control math repair (no phase closure claim)
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Files changed in this pass:
+  - `atlas-server/src/services/subject.service.ts`
+  - `prisma/seed.js`
+  - `docs/verification/evidence-log.md`
+
+- Root cause audit (before repair, live Tailnet):
+  - Active template capacities (minutes/week):
+    - `REGULAR`: `60 * 8 * 5 = 2400`
+    - `STE`: `45 * 10 * 5 = 2250`
+    - `SPA`: `45 * 10 * 5 = 2250`
+    - `SPS`: `45 * 10 * 5 = 2250`
+  - Bound template subject totals (naive concurrent sum):
+    - `REGULAR`: `3420` (overflow `+1020`)
+    - `STE`: `2580` (overflow `+330`)
+    - `SPA`: `2310` (overflow `+60`)
+    - `SPS`: `2265` (overflow `+15`)
+  - Exact overflow combinations identified:
+    - Science tri-sem rows (`SCI_BIO`, `SCI_CHEM`, `SCI_ES`) were bound as concurrent weekly demand (3 x 240).
+    - Exploratory TLE rows (`TLE_ICT_EXP`, `TLE_AFA_EXP`, `TLE_FCS_EXP`, `TLE_IA_EXP`) were also bound concurrently (4 x 240).
+    - With no modular markers, constructor demand math treated all those rows as simultaneous.
+
+- Control/math repair applied (minimum coherent change set):
+  - Added modular control metadata for science rows in both runtime defaults and seed defaults:
+    - `SCI_BIO`: `modularGroupId=SCIENCE`, `modularOrder=1`
+    - `SCI_CHEM`: `modularGroupId=SCIENCE`, `modularOrder=2`
+    - `SCI_ES`: `modularGroupId=SCIENCE`, `modularOrder=3`
+  - Added modular control metadata for exploratory TLE rows in both runtime defaults and seed defaults:
+    - `TLE_ICT_EXP`: `modularGroupId=TLE_EXPLORATORY`, `modularOrder=1`
+    - `TLE_AFA_EXP`: `modularGroupId=TLE_EXPLORATORY`, `modularOrder=2`
+    - `TLE_FCS_EXP`: `modularGroupId=TLE_EXPLORATORY`, `modularOrder=3`
+    - `TLE_IA_EXP`: `modularGroupId=TLE_EXPLORATORY`, `modularOrder=4`
+  - No period-length or periods-per-day control edits were needed after modular repair.
+
+- Local verification commands executed:
+  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
+  - `get_errors` on touched files -> PASS
+  - `npm --prefix d:\ATLAS run db:seed` -> PASS (persisted defaults updated)
+
+- Live Tailnet checks executed:
+  - `POST /api/v1/auth/login`
+  - `GET /api/v1/class-templates?schoolId=1`
+  - `GET /api/v1/subjects?schoolId=1`
+  - `POST /api/v1/generation/1/55/runs` (fresh run)
+  - `GET /api/v1/generation/1/55/runs/latest`
+
+- Live verification results (after repair):
+  - Template controls confirmed active and unchanged where valid:
+    - `REGULAR 60x8`, `STE 45x10`, `SPA 45x10`, `SPS 45x10`
+  - Subject control flags confirmed in live API:
+    - Science rows now show `modularGroupId=SCIENCE`, ordered `1..3`
+    - Exploratory TLE rows now show `modularGroupId=TLE_EXPLORATORY`, ordered `1..4`
+  - Effective schedulable bound math (modular-aware):
+    - `REGULAR`: `2220` vs `2400` capacity (headroom `180`)
+    - `STE`: `2100` vs `2250` capacity (headroom `150`)
+    - `SPA`: `1830` vs `2250` capacity (headroom `420`)
+    - `SPS`: `1785` vs `2250` capacity (headroom `465`)
+  - Fresh post-repair generation inspection:
+    - latest run `id=44`, `status=COMPLETED`, `durationMs=3905`
+    - summary: `assigned=939`, `unassigned=1633`, `hard=790`, `homeRoomSuccessRate=25.48`, `policyBlocked=99`
+    - KPI closure remains out-of-scope for this pass.
+
+- GO/NO-GO:
+  - **GO** for this prompt scope.
+  - Rationale: every active template is now mathematically schedulable under repaired modular control math, and the repaired state is verified live on Tailnet.
+
 ### 2026-05-17 - Phase 2 Policy/Window Reconciliation Manual QA Completion (Tailnet)
 - Phase: Phase 2 policy-window reconciliation prompt (manual QA completion, no phase closure claim)
 - Operator: GitHub Copilot

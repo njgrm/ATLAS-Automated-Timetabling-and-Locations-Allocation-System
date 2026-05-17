@@ -107,12 +107,12 @@ export declare function getFacultyById(id: number): Promise<({
             isActive: boolean;
             code: string;
             allowedSpecializations: string[];
+            modularGroupId: string | null;
             termGroupId: string | null;
             gradeLevels: number[];
             minMinutesPerWeek: number;
             preferredRoomType: import("@prisma/client").$Enums.RoomType;
             sessionPattern: import("@prisma/client").$Enums.SessionPattern;
-            modularGroupId: string | null;
             modularOrder: number | null;
             termCount: number;
             isSeedable: boolean;
