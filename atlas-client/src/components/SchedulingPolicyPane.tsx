@@ -12,95 +12,43 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
-import type { ConstraintOverride, GradeShiftWindow, SchedulingPolicy, ViolationCode } from '@/types';
+import type {
+	ConstraintOverride,
+	GradeShiftWindow,
+	SchedulingPolicy,
+	SectionSummaryResponse,
+	ViolationCode,
+} from '@/types';
 
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
-import { ScrollArea } from '@/ui/scroll-area';
 import { Slider } from '@/ui/slider';
 import { Switch } from '@/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { Tabs, TabsList, TabsTrigger } from '@/ui/tabs';
 import {
 	AddOverrideDialog,
+	DEFAULT_PROGRAM_WINDOW_OPTIONS,
 	ReconciliationDialog,
 	clipWindowsToPolicyBounds,
 	normalizeProgramForKey,
 	sortShiftWindows,
 	toMinutes,
 	type EditIntent,
+	type ProgramWindowOption,
 	type ReconciliationDialogState,
 } from '@/components/scheduling-policy/SchedulingPolicyDialogs';
 import { ShiftSettingsEditor } from '@/components/scheduling-policy/ShiftSettingsEditor';
-
-/* G��G��G�� Defaults G��G��G�� */
-
-const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride> = {
-	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: { enabled: true, weight: 5, treatAsHard: false },
-	FACULTY_BREAK_REQUIREMENT_VIOLATED: { enabled: true, weight: 5, treatAsHard: false },
-	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: { enabled: true, weight: 4, treatAsHard: false },
-	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: { enabled: true, weight: 4, treatAsHard: false },
-	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: { enabled: true, weight: 3, treatAsHard: false },
-	FACULTY_EXCESSIVE_IDLE_GAP: { enabled: true, weight: 3, treatAsHard: false },
-	FACULTY_EARLY_START_PREFERENCE: { enabled: false, weight: 2, treatAsHard: false },
-	FACULTY_LATE_END_PREFERENCE: { enabled: false, weight: 2, treatAsHard: false },
-	FACULTY_INSUFFICIENT_DAILY_VACANT: { enabled: false, weight: 3, treatAsHard: false },
-	SECTION_OVERCOMPRESSED: { enabled: false, weight: 3, treatAsHard: false },
-	SESSION_PATTERN_VIOLATED: { enabled: true, weight: 3, treatAsHard: false },
-	ROOM_CAPACITY_EXCEEDED: { enabled: true, weight: 5, treatAsHard: true },
-};
-
-const SOFT_CONSTRAINT_LABELS: Record<string, { label: string; explanation: string }> = {
-	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: {
-		label: 'Consecutive Teaching Limit',
-		explanation: 'Penalizes when a faculty member teaches beyond the consecutive-minutes limit without a break.',
-	},
-	FACULTY_BREAK_REQUIREMENT_VIOLATED: {
-		label: 'Break Requirement',
-		explanation: 'Penalizes insufficient break time between consecutive teaching blocks.',
-	},
-	FACULTY_EXCESSIVE_TRAVEL_DISTANCE: {
-		label: 'Excessive Travel Distance',
-		explanation: 'Penalizes transitions between buildings that exceed the max walking distance threshold.',
-	},
-	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: {
-		label: 'Building Transitions/Day',
-		explanation: 'Penalizes too many cross-building transitions for a faculty member in a single day.',
-	},
-	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: {
-		label: 'Transition Buffer',
-		explanation: 'Penalizes back-to-back classes in different buildings with little or no gap time.',
-	},
-	FACULTY_EXCESSIVE_IDLE_GAP: {
-		label: 'Excessive Idle Gap',
-		explanation: 'Penalizes excessive total idle time between classes for a faculty member in a day.',
-	},
-	FACULTY_EARLY_START_PREFERENCE: {
-		label: 'Avoid Early First Period',
-		explanation: 'Soft preference to avoid scheduling faculty in the very first period of the day.',
-	},
-	FACULTY_LATE_END_PREFERENCE: {
-		label: 'Avoid Late Last Period',
-		explanation: 'Soft preference to avoid scheduling faculty in the very last period of the day.',
-	},
-	FACULTY_INSUFFICIENT_DAILY_VACANT: {
-		label: 'Insufficient Daily Vacant Time',
-		explanation: 'Penalizes when a faculty member has too little vacant time between their first and last class in a day.',
-	},
-	SECTION_OVERCOMPRESSED: {
-		label: 'Section Overcompressed',
-		explanation: 'Penalizes when a section has too many consecutive classes without vacant periods or exceeds compressed teaching limits.',
-	},
-	SESSION_PATTERN_VIOLATED: {
-		label: 'Session Pattern Preference',
-		explanation: 'Penalizes when a subject is scheduled on a day that violates its preferred MWF or TTH session pattern.',
-	},
-	ROOM_CAPACITY_EXCEEDED: {
-		label: 'Room Capacity Exceeded',
-		explanation: 'Flags when a section with more enrolled students than a room can hold is placed in that room.',
-	},
-};
+import {
+	ConstraintRow,
+	DEFAULT_CONSTRAINT_CONFIG,
+	MetricExplain,
+	PolicyNumberField,
+	PolicySwitch,
+	SectionCard,
+	SOFT_CONSTRAINT_LABELS,
+} from '@/components/scheduling-policy/PolicyPanePrimitives';
 
 /* G��G��G�� Types G��G��G�� */
 
@@ -155,6 +103,60 @@ const DEFAULT_GRADE_WINDOWS: LocalGradeWindow[] = [
 	{ gradeLevel: 9, programType: null, startTime: '13:00', endTime: '17:00' },
 	{ gradeLevel: 10, programType: null, startTime: '13:00', endTime: '17:00' },
 ];
+
+function createInitialOverride(): LocalGradeWindow {
+	return {
+		gradeLevel: GRADE_LEVELS[0],
+		programType: null,
+		startTime: '07:30',
+		endTime: '12:00',
+	};
+}
+
+function toProgramOptionsFromSections(summary: SectionSummaryResponse | null): ProgramWindowOption[] {
+	if (!summary) return DEFAULT_PROGRAM_WINDOW_OPTIONS;
+	const sections = summary.sections ?? [];
+	const availablePrograms = [...new Set(sections
+		.map((section) => section.programType)
+		.filter((programType): programType is NonNullable<typeof programType> => Boolean(programType)))];
+
+	if (availablePrograms.length === 0) return DEFAULT_PROGRAM_WINDOW_OPTIONS;
+
+	const labels: Record<string, string> = {
+		REGULAR: 'Regular',
+		STE: 'STE',
+		SPS: 'SPS',
+		SPA: 'SPA',
+		SPJ: 'SPJ',
+		SPFL: 'SPFL',
+		SPTVE: 'SPTVE',
+		OTHER: 'Other',
+	};
+
+	return [
+		{ value: 'ALL', label: 'All Programs' },
+		...availablePrograms
+			.sort((left, right) => left.localeCompare(right))
+			.map((programType) => ({ value: programType, label: labels[programType] ?? programType })) as ProgramWindowOption[],
+	];
+}
+
+function buildProgramContextNote(summary: SectionSummaryResponse | null): string {
+	if (!summary) {
+		return 'Program-aware windows use EnrollPro program ownership. TLE specialization ownership is also upstream-managed and synchronized into ATLAS when available.';
+	}
+	const sections = summary.sections ?? [];
+	const programs = [...new Set(sections
+		.map((section) => section.programType)
+		.filter((programType): programType is NonNullable<typeof programType> => Boolean(programType)))];
+	const sectionsWithTleSpecialization = sections.filter((section) => Boolean(section.tleSpecialization && section.tleSpecialization.trim().length > 0));
+
+	if (sectionsWithTleSpecialization.length > 0) {
+		return `Program options are sourced from EnrollPro sections (${programs.join(', ') || 'REGULAR'}). ${sectionsWithTleSpecialization.length} section(s) currently include EnrollPro TLE specialization ownership.`;
+	}
+
+	return `Program options are sourced from EnrollPro sections (${programs.join(', ') || 'REGULAR'}). No section-level TLE specialization ownership is currently present in this school-year feed.`;
+}
 
 function toLocalGradeWindows(windows: GradeShiftWindow[]): LocalGradeWindow[] {
 	const byKey = new Map<string, LocalGradeWindow>(DEFAULT_GRADE_WINDOWS.map((window) => [`${window.gradeLevel}:ALL`, window]));
@@ -215,176 +217,6 @@ function deepEqual(a: unknown, b: unknown) {
 
 /* G��G��G�� Micro-components G��G��G�� */
 
-function MetricExplain({ label, explanation }: { label: string; explanation: React.ReactNode }) {
-	return (
-		<TooltipProvider delayDuration={200}>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<button
-						type="button"
-						className="text-xs font-medium text-muted-foreground border-b border-dotted border-muted-foreground/50 cursor-help outline-none focus-visible:ring-1 focus-visible:ring-primary rounded-sm text-left transition-colors hover:text-foreground hover:border-foreground/50 pb-0.5"
-					>
-						{label}
-					</button>
-				</TooltipTrigger>
-				<TooltipContent className="max-w-65 text-xs font-normal leading-relaxed" side="bottom">
-					{explanation}
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
-	);
-}
-
-function PolicyNumberField({
-	label,
-	explanation,
-	value,
-	onChange,
-	min,
-	max,
-}: {
-	label: string;
-	explanation: string;
-	value: number;
-	onChange: (v: number) => void;
-	min: number;
-	max: number;
-}) {
-	return (
-		<div className="space-y-1.5">
-			<MetricExplain label={label} explanation={explanation} />
-			<Input
-				type="number"
-				className="h-8 text-xs"
-				value={value}
-				min={min}
-				max={max}
-				onChange={(e) => {
-					const n = parseInt(e.target.value, 10);
-					if (!isNaN(n)) onChange(Math.max(min, Math.min(max, n)));
-				}}
-			/>
-		</div>
-	);
-}
-
-function PolicySwitch({
-	label,
-	explanation,
-	checked,
-	onCheckedChange,
-	warning,
-}: {
-	label: string;
-	explanation: string;
-	checked: boolean;
-	onCheckedChange: (v: boolean) => void;
-	warning?: boolean;
-}) {
-	return (
-		<div className="flex items-center justify-between gap-3 py-0.5">
-			<MetricExplain label={label} explanation={explanation} />
-			<Switch
-				checked={checked}
-				onCheckedChange={onCheckedChange}
-				className={warning && checked ? 'data-[state=checked]:bg-amber-500' : undefined}
-			/>
-		</div>
-	);
-}
-
-function ConstraintRow({
-	label,
-	code,
-	explanation,
-	config,
-	onToggleEnabled,
-	onWeightChange,
-	onToggleTreatAsHard,
-}: {
-	code: ViolationCode;
-	label: string;
-	explanation: string;
-	config: ConstraintOverride;
-	onToggleEnabled: (v: boolean) => void;
-	onWeightChange: (v: number) => void;
-	onToggleTreatAsHard: (v: boolean) => void;
-}) {
-	return (
-		<div
-			className={`rounded-md border p-3 space-y-2 transition-opacity ${
-				config.enabled ? 'border-border' : 'border-border/40 opacity-55'
-			}`}
-		>
-			<div className="flex items-center justify-between gap-2">
-				<MetricExplain label={label} explanation={explanation} />
-				<Switch checked={config.enabled} onCheckedChange={onToggleEnabled} aria-label={`Enable ${label}`} />
-			</div>
-
-			<AnimatePresence>
-				{config.enabled && (
-					<motion.div
-						initial={{ opacity: 0, height: 0 }}
-						animate={{ opacity: 1, height: 'auto' }}
-						exit={{ opacity: 0, height: 0 }}
-						transition={{ duration: 0.15 }}
-						className="overflow-hidden space-y-2"
-					>
-						<div className="space-y-1">
-							<div className="flex items-center justify-between">
-								<Label className="text-[0.625rem] text-muted-foreground">Weight</Label>
-								<span className="text-[0.625rem] font-mono text-muted-foreground">{config.weight}/10</span>
-							</div>
-							<Slider
-								value={[config.weight]}
-								min={1}
-								max={10}
-								step={1}
-								onValueChange={([v]) => onWeightChange(v)}
-								aria-label={`${label} weight`}
-							/>
-						</div>
-						<div className="flex items-center justify-between gap-2">
-							<span className="text-[0.625rem] text-muted-foreground">Treat as Hard</span>
-							<div className="flex items-center gap-1.5">
-								{config.treatAsHard && (
-									<span className="text-[0.5625rem] text-red-600 font-medium">Blocks publish</span>
-								)}
-								<Switch
-									checked={config.treatAsHard}
-									onCheckedChange={onToggleTreatAsHard}
-									className={config.treatAsHard ? 'data-[state=checked]:bg-red-500' : undefined}
-									aria-label={`Treat ${label} as hard`}
-								/>
-							</div>
-						</div>
-					</motion.div>
-				)}
-			</AnimatePresence>
-		</div>
-	);
-}
-
-/* G��G��G�� Section Card: sticky title + independent per-column scroll G��G��G�� */
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
-	return (
-		<div className="flex flex-col min-h-0 h-full rounded-lg border border-border bg-card overflow-hidden">
-			{/* Sticky non-scrolling section header */}
-			<div className="shrink-0 px-4 pt-3 pb-2 border-b border-border/60 bg-card">
-				<h3 className="text-[0.6875rem] font-semibold text-foreground uppercase tracking-wider">
-					{title}
-				</h3>
-			</div>
-			{/* Each column independently scrollable */}
-			<ScrollArea className="flex-1 min-h-0">
-				<div className="px-4 py-3 space-y-3">
-					{children}
-				</div>
-			</ScrollArea>
-		</div>
-	);
-}
-
 /* G��G��G�� Main export G��G��G�� */
 
 export default function SchedulingPolicyPane({
@@ -405,14 +237,13 @@ export default function SchedulingPolicyPane({
 	const [local, setLocal] = useState<LocalPolicy | null>(null);
 	const [persistedShiftWindows, setPersistedShiftWindows] = useState<LocalGradeWindow[]>(DEFAULT_GRADE_WINDOWS);
 	const [shiftWindows, setShiftWindows] = useState<LocalGradeWindow[]>(DEFAULT_GRADE_WINDOWS);
+	const [programOptions, setProgramOptions] = useState<ProgramWindowOption[]>(DEFAULT_PROGRAM_WINDOW_OPTIONS);
+	const [programContextNote, setProgramContextNote] = useState<string>(
+		'Program-aware windows use EnrollPro program ownership. TLE specialization ownership is also upstream-managed and synchronized into ATLAS when available.',
+	);
 	const [editIntent, setEditIntent] = useState<EditIntent>(null);
 	const [showAddOverrideDialog, setShowAddOverrideDialog] = useState(false);
-	const [newOverride, setNewOverride] = useState<LocalGradeWindow>({
-		gradeLevel: 7,
-		programType: 'STE',
-		startTime: '07:30',
-		endTime: '12:00',
-	});
+	const [newOverride, setNewOverride] = useState<LocalGradeWindow>(createInitialOverride());
 	const [reconciliationDialog, setReconciliationDialog] = useState<ReconciliationDialogState | null>(null);
 
 	const markIntent = useCallback((intent: Exclude<EditIntent, null>) => {
@@ -428,16 +259,22 @@ export default function SchedulingPolicyPane({
 		if (!schoolYearId) return;
 		setLoading(true);
 		try {
-			const [policyRes, windowsRes] = await Promise.all([
+			const [policyRes, windowsRes, summaryRes] = await Promise.all([
 				atlasApi.get<{ policy: SchedulingPolicy }>(`/policies/scheduling/${schoolId}/${schoolYearId}`),
 				atlasApi.get<{ windows: GradeShiftWindow[] }>(`/generation/${schoolId}/${schoolYearId}/grade-windows`),
+				atlasApi
+					.get<SectionSummaryResponse>(`/sections/summary/${schoolYearId}?schoolId=${schoolId}`)
+					.catch(() => null),
 			]);
 			const lp = policyToLocal(policyRes.data.policy);
 			const localWindows = toLocalGradeWindows(windowsRes.data.windows ?? []);
+			const summary = summaryRes?.data ?? null;
 			setPersisted(lp);
 			setLocal(lp);
 			setPersistedShiftWindows(localWindows);
 			setShiftWindows(localWindows);
+			setProgramOptions(toProgramOptionsFromSections(summary));
+			setProgramContextNote(buildProgramContextNote(summary));
 			setEditIntent(null);
 			setReconciliationDialog(null);
 		} catch {
@@ -474,7 +311,7 @@ export default function SchedulingPolicyPane({
 		setEditIntent(null);
 		setReconciliationDialog(null);
 		setShowAddOverrideDialog(false);
-		setNewOverride({ gradeLevel: 7, programType: 'STE', startTime: '07:30', endTime: '12:00' });
+		setNewOverride(createInitialOverride());
 		toast.success('Scheduling policy and shift settings saved.');
 		onPolicySaved?.();
 	}, [schoolId, schoolYearId, onPolicySaved]);
@@ -655,7 +492,7 @@ export default function SchedulingPolicyPane({
 		markIntent('window');
 		setShiftWindows((prev) => sortShiftWindows([...prev, newOverride]));
 		setShowAddOverrideDialog(false);
-		setNewOverride({ gradeLevel: 7, programType: 'STE', startTime: '07:30', endTime: '12:00' });
+		setNewOverride(createInitialOverride());
 	}, [newOverride, shiftWindows, markIntent]);
 
 	return (
@@ -667,6 +504,7 @@ export default function SchedulingPolicyPane({
 				onChange={setNewOverride}
 				onConfirm={confirmAddShiftWindow}
 				gradeLevels={GRADE_LEVELS}
+				programOptions={programOptions}
 			/>
 			<ReconciliationDialog state={reconciliationDialog} onClose={() => setReconciliationDialog(null)} />
 
@@ -1044,6 +882,8 @@ export default function SchedulingPolicyPane({
 						onRemove={removeShiftWindow}
 						onUpdate={updateShiftWindow}
 						gradeLevels={GRADE_LEVELS}
+											programOptions={programOptions}
+											programContextNote={programContextNote}
 					/>
 				)
 			)}

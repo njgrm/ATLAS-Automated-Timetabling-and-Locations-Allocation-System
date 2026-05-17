@@ -1,5 +1,43 @@
 # Verification Evidence Log
 #
+### 2026-05-17 - Phase 2 Policy/Window Reconciliation Manual QA Completion (Tailnet)
+- Phase: Phase 2 policy-window reconciliation prompt (manual QA completion, no phase closure claim)
+- Operator: GitHub Copilot
+- Environment: `https://njgrm.buru-degree.ts.net/timetable`
+- Scope gate: PASS
+- Manual QA scenarios executed live:
+  - Opened `Policy` workspace from the Timetable toolbar (`Generated Run #41`).
+  - Verified `Shift Settings` explanatory context note reflects upstream source-of-truth behavior:
+    - `Program options are sourced from EnrollPro sections (REGULAR, STE)...`
+  - Verified Add Override guided dialog supports editable grade/program:
+    - Dialog title shown: `Add Grade/Program Override`
+    - Changed `Grade` from default to `Grade 9`
+    - Changed `Program` from `All Programs` to `STE`
+    - Submitted `Add Override` successfully and confirmed new row creation (`Override #5`).
+  - Verified window-first reconciliation flow:
+    - Edited shift window first (`Grade 7` start to `05:00`) and clicked `Save Policy`.
+    - Dialog shown: `Window-First Reconciliation Needed`
+    - Confirmed options:
+      - `Review Manually`
+      - `Keep Policy And Clip Windows`
+      - `Expand Policy To Fit Windows`
+      - `Close`
+  - Verified policy-first reconciliation flow:
+    - Edited policy bound first (`Latest End Time` to `16:00`) and clicked `Save Policy`.
+    - Dialog shown: `Policy-First Reconciliation Needed`
+    - Confirmed previewed clip list and actions:
+      - `Review Manually`
+      - `Reconcile And Save`
+      - `Close`
+- Runtime observations:
+  - Timetable shell intermittently logs `401` errors for non-critical upstream requests during initial load, but policy/workspace interactions completed successfully once data loaded.
+  - Guided reconciliation behavior is now deterministic and intent-specific (policy-first vs window-first).
+- Verification rerun after QA:
+  - `get_errors` on modified evidence file: PASS (no errors)
+- GO/NO-GO:
+  - **GO** for this prompt's required reconciliation UX verification and evidence capture.
+  - Not a Phase 2 closure claim.
+
 ### 2026-05-17 - Phase 2 Template-Subject Tailnet Repair Loop
 - Phase: Phase 2 template-subject Tailnet runtime repair (no phase closure claim)
 - Operator: GitHub Copilot

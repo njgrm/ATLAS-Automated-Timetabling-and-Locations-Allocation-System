@@ -30,7 +30,12 @@ export type ReconciliationDialogState = {
 	onSecondary?: () => void;
 };
 
-const PROGRAM_WINDOW_OPTIONS: Array<{ value: 'ALL' | 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER'; label: string }> = [
+export type ProgramWindowOption = {
+	value: 'ALL' | 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER';
+	label: string;
+};
+
+export const DEFAULT_PROGRAM_WINDOW_OPTIONS: ProgramWindowOption[] = [
 	{ value: 'ALL', label: 'All Programs' },
 	{ value: 'REGULAR', label: 'Regular' },
 	{ value: 'STE', label: 'STE' },
@@ -111,6 +116,7 @@ export function AddOverrideDialog({
 	onChange,
 	onConfirm,
 	gradeLevels,
+	programOptions,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
@@ -118,6 +124,7 @@ export function AddOverrideDialog({
 	onChange: (value: LocalGradeWindow) => void;
 	onConfirm: () => void;
 	gradeLevels: number[];
+	programOptions: ProgramWindowOption[];
 }) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -150,7 +157,7 @@ export function AddOverrideDialog({
 									<SelectValue placeholder="All Programs" />
 								</SelectTrigger>
 								<SelectContent>
-									{PROGRAM_WINDOW_OPTIONS.map((option) => (
+									{programOptions.map((option) => (
 										<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
 									))}
 								</SelectContent>

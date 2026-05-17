@@ -940,8 +940,17 @@ export interface ExternalSection {
     programName?: string | null;
     upstreamProgramType?: string | null;
     isSpecialProgram?: boolean;
+    tleProgramId?: number | null;
+    tleSpecialization?: string | null;
+    tleProgramCategory?: string | null;
     adviserId?: number | null;
     adviserName?: string | null;
+}
+export interface SectionsByGrade {
+    gradeLevelId: number;
+    gradeLevelName: string;
+    displayOrder: number;
+    sections: ExternalSection[];
 }
 export interface SectionSummaryResponse {
     schoolId: number;
@@ -951,6 +960,7 @@ export interface SectionSummaryResponse {
     byGradeLevel: Record<number, number>;
     enrolledByGradeLevel: Record<number, number>;
     sections: ExternalSection[];
+    gradeLevels?: SectionsByGrade[];
     source?: 'enrollpro' | 'stub' | 'cached-enrollpro';
     sourceMode?: 'stub' | 'enrollpro' | 'auto';
     fallbackReason?: string;
