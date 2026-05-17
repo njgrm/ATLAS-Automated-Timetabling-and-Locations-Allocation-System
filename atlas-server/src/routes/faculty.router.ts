@@ -216,22 +216,48 @@ router.get('/:id/homeroom-hint', authenticate, async (req: Request, res: Respons
 	}
 });
 
-// Auth: GET /faculty/:id
-router.get('/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+// Auth: POST /faculty/placeholders — create explicit Teacher X placeholder faculty
+router.post('/placeholders', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		const id = Number(req.params.id);
-		if (Number.isNaN(id)) {
-			res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
+		const schoolId = Number(req.body.schoolId);
+		if (!schoolId || Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
 			return;
 		}
-		const faculty = await facultyService.getFacultyById(id);
-		if (!faculty) {
-			res.status(404).json({ code: 'NOT_FOUND', message: 'Faculty not found.' });
-			return;
-		}
-		res.json({ faculty });
+
+		const placeholder = await facultyService.createPlaceholderFaculty({
+			schoolId,
+			firstName: typeof req.body.firstName === 'string' ? req.body.firstName : 'Teacher',
+			lastName: typeof req.body.lastName === 'string' ? req.body.lastName : 'X',
+			department: typeof req.body.department === 'string' ? req.body.department : null,
+			specialization: typeof req.body.specialization === 'string' ? req.body.specialization : null,
+			maxHoursPerWeek: req.body.maxHoursPerWeek,
+			canTeachOutsideDepartment: req.body.canTeachOutsideDepartment,
+			localNotes: typeof req.body.localNotes === 'string' ? req.body.localNotes : null,
+		});
+
+		res.status(201).json({ faculty: placeholder });
 	} catch (err) {
 		next(err);
+	}
+});
+
+// Auth: GET /faculty/:id
+router.get('/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+try {
+	const id = Number(req.params.id);
+	if (Number.isNaN(id)) {
+		res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
+		return;
+	}
+	const faculty = await facultyService.getFacultyById(id);
+	if (!faculty) {
+		res.status(404).json({ code: 'NOT_FOUND', message: 'Faculty not found.' });
+		return;
+	}
+	res.json({ faculty });
+} catch (err) {
+	next(err);
 	}
 });
 

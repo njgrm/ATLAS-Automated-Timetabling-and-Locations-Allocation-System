@@ -51,6 +51,53 @@ export declare function computeTeachingLoadMinutes(assignments: AssignmentLoadSh
 export declare function detectDuplicateOwnershipTuples(assignments: DuplicateOwnershipInput[]): DuplicateOwnershipTuple[];
 export declare function buildOwnershipConflictDetails(conflicts: OwnershipConflictCandidate[], ownerNamesByFacultyId: Map<number, string>): OwnershipConflictDetail[];
 export declare function buildDuplicateOwnershipBlockingResult(conflicts: OwnershipConflictCandidate[], ownerNamesByFacultyId: Map<number, string>): AssignmentMutationResult | null;
+export interface ActiveSubjectCoverageRow {
+    subjectId: number;
+    subjectCode: string;
+    subjectName: string;
+    isActive: boolean;
+    relevantSectionCount: number;
+    ownedSectionCount: number;
+    ownedByPlaceholderCount: number;
+    ownedByRealFacultyCount: number;
+    uncoveredSectionCount: number;
+    coveragePercent: number;
+    status: 'FULL' | 'PARTIAL' | 'ZERO';
+    placeholderFacultyIds: number[];
+}
+export interface ActiveSubjectCoverageSummary {
+    rows: ActiveSubjectCoverageRow[];
+    zeroCoverageSubjectCodes: string[];
+    partiallyCoveredSubjectCodes: string[];
+    fullyCoveredSubjectCodes: string[];
+}
+export interface PlaceholderCoverageRepairInput {
+    schoolId: number;
+    schoolYearId: number;
+    assignedBy: number;
+    authToken?: string;
+    subjectCodes?: string[];
+    apply?: boolean;
+}
+export interface PlaceholderCoverageRepairResult {
+    applied: boolean;
+    before: ActiveSubjectCoverageSummary;
+    after: ActiveSubjectCoverageSummary;
+    createdPlaceholders: Array<{
+        facultyId: number;
+        subjectCode: string;
+    }>;
+    reusedPlaceholders: Array<{
+        facultyId: number;
+        subjectCode: string;
+    }>;
+    sectionsCoveredByPlaceholder: number;
+    placeholderAssignmentsUpserted: number;
+    resolvedSubjectCodes: string[];
+    stillUncoveredSubjectCodes: string[];
+}
+export declare function getActiveSubjectCoverageSummary(schoolId: number, schoolYearId: number, authToken?: string): Promise<ActiveSubjectCoverageSummary>;
+export declare function repairActiveSubjectCoverageWithPlaceholders(input: PlaceholderCoverageRepairInput): Promise<PlaceholderCoverageRepairResult>;
 export declare function getAssignmentsByFaculty(facultyId: number, schoolYearId: number, authToken?: string): Promise<{
     facultyId: number;
     version: number;
@@ -80,6 +127,7 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
     faculty: {
         id: number;
         externalId: number;
+        isPlaceholder: boolean;
         employeeId: string | null;
         firstName: string;
         lastName: string;

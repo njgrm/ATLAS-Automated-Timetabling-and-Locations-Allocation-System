@@ -60,6 +60,278 @@ export function buildDuplicateOwnershipBlockingResult(conflicts, ownerNamesByFac
 function formatFacultyName(firstName, lastName) {
     return `${lastName}, ${firstName}`;
 }
+function normalizeProgramType(value) {
+    return (value ?? 'REGULAR').trim().toUpperCase();
+}
+function isProgramScopeCompatible(scopes, sectionProgramType) {
+    if (!scopes || scopes.length === 0)
+        return true;
+    const normalizedProgramType = normalizeProgramType(sectionProgramType);
+    return scopes.some((scope) => normalizeProgramType(scope) === normalizedProgramType);
+}
+function getRelevantSectionIdsForSubject(subject, sections) {
+    return sections
+        .filter((section) => {
+        const gradeAllowed = subject.gradeLevels.length === 0 || subject.gradeLevels.includes(section.gradeLevel);
+        if (!gradeAllowed)
+            return false;
+        return isProgramScopeCompatible(subject.programScopes, section.programType);
+    })
+        .map((section) => section.id);
+}
+async function loadCoverageContext(schoolId, schoolYearId, authToken) {
+    const [sectionResult, subjects, ownerships, facultyIndex] = await Promise.all([
+        sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken),
+        prisma.subject.findMany({
+            where: { schoolId, isActive: true },
+            select: { id: true, code: true, name: true, isActive: true, gradeLevels: true, programScopes: true },
+            orderBy: { code: 'asc' },
+        }),
+        prisma.subjectSectionOwnership.findMany({
+            where: { schoolId },
+            select: { subjectId: true, sectionId: true, facultyId: true },
+        }),
+        prisma.facultyMirror.findMany({
+            where: { schoolId, isStale: false, isActiveForScheduling: true },
+            select: { id: true, isPlaceholder: true },
+        }),
+    ]);
+    const sections = [];
+    for (const grade of sectionResult.gradeLevels) {
+        for (const section of grade.sections) {
+            if (!section.id || section.id <= 0)
+                continue;
+            sections.push({
+                id: section.id,
+                gradeLevel: grade.displayOrder,
+                programType: section.programType ?? 'REGULAR',
+            });
+        }
+    }
+    const activeFacultyIdSet = new Set(facultyIndex.map((entry) => entry.id));
+    const placeholderByFacultyId = new Map(facultyIndex.map((entry) => [entry.id, entry.isPlaceholder]));
+    const activeOwnerships = ownerships.filter((entry) => activeFacultyIdSet.has(entry.facultyId));
+    return {
+        subjects,
+        sections,
+        ownerships: activeOwnerships,
+        placeholderByFacultyId,
+    };
+}
+export async function getActiveSubjectCoverageSummary(schoolId, schoolYearId, authToken) {
+    const context = await loadCoverageContext(schoolId, schoolYearId, authToken);
+    const rows = context.subjects.map((subject) => {
+        const relevantSectionIds = getRelevantSectionIdsForSubject(subject, context.sections);
+        const relevantSectionSet = new Set(relevantSectionIds);
+        const subjectOwnership = context.ownerships.filter((entry) => entry.subjectId === subject.id && relevantSectionSet.has(entry.sectionId));
+        const ownedSectionIds = new Set(subjectOwnership.map((entry) => entry.sectionId));
+        const placeholderOwnership = subjectOwnership.filter((entry) => context.placeholderByFacultyId.get(entry.facultyId) === true);
+        const placeholderSectionIds = new Set(placeholderOwnership.map((entry) => entry.sectionId));
+        const ownedByPlaceholderCount = placeholderSectionIds.size;
+        const ownedByRealFacultyCount = Math.max(0, ownedSectionIds.size - ownedByPlaceholderCount);
+        const uncoveredSectionCount = Math.max(0, relevantSectionIds.length - ownedSectionIds.size);
+        const coveragePercent = relevantSectionIds.length > 0
+            ? Math.round((ownedSectionIds.size / relevantSectionIds.length) * 10000) / 100
+            : 100;
+        const status = coveredStatus(ownedSectionIds.size, relevantSectionIds.length);
+        return {
+            subjectId: subject.id,
+            subjectCode: subject.code,
+            subjectName: subject.name,
+            isActive: subject.isActive,
+            relevantSectionCount: relevantSectionIds.length,
+            ownedSectionCount: ownedSectionIds.size,
+            ownedByPlaceholderCount,
+            ownedByRealFacultyCount,
+            uncoveredSectionCount,
+            coveragePercent,
+            status,
+            placeholderFacultyIds: [...new Set(placeholderOwnership.map((entry) => entry.facultyId))].sort((a, b) => a - b),
+        };
+    });
+    const sortedRows = [...rows].sort((left, right) => {
+        if (left.uncoveredSectionCount !== right.uncoveredSectionCount) {
+            return right.uncoveredSectionCount - left.uncoveredSectionCount;
+        }
+        return left.subjectCode.localeCompare(right.subjectCode);
+    });
+    return {
+        rows: sortedRows,
+        zeroCoverageSubjectCodes: sortedRows.filter((row) => row.status === 'ZERO' && row.relevantSectionCount > 0).map((row) => row.subjectCode),
+        partiallyCoveredSubjectCodes: sortedRows.filter((row) => row.status === 'PARTIAL').map((row) => row.subjectCode),
+        fullyCoveredSubjectCodes: sortedRows.filter((row) => row.status === 'FULL').map((row) => row.subjectCode),
+    };
+}
+function coveredStatus(ownedCount, relevantCount) {
+    if (relevantCount === 0 || ownedCount >= relevantCount)
+        return 'FULL';
+    if (ownedCount <= 0)
+        return 'ZERO';
+    return 'PARTIAL';
+}
+async function ensureSubjectPlaceholderFaculty(tx, schoolId, subjectCode) {
+    const firstName = 'Teacher X';
+    const lastName = subjectCode;
+    const existing = await tx.facultyMirror.findFirst({
+        where: {
+            schoolId,
+            isPlaceholder: true,
+            firstName,
+            lastName,
+            isStale: false,
+        },
+        select: { id: true },
+    });
+    if (existing) {
+        return { facultyId: existing.id, created: false };
+    }
+    const minExternal = await tx.facultyMirror.aggregate({
+        where: { schoolId },
+        _min: { externalId: true },
+    });
+    const nextExternalId = minExternal._min.externalId != null
+        ? Math.min(minExternal._min.externalId - 1, -1)
+        : -1;
+    const created = await tx.facultyMirror.create({
+        data: {
+            schoolId,
+            externalId: nextExternalId,
+            firstName,
+            lastName,
+            department: 'PLACEHOLDER',
+            specialization: subjectCode,
+            employmentStatus: 'PLACEHOLDER',
+            isPlaceholder: true,
+            isActiveForScheduling: true,
+            canTeachOutsideDepartment: true,
+            maxHoursPerWeek: 30,
+            ancillaryLoadSource: 'NONE',
+            localNotes: `Auto-created coverage placeholder for ${subjectCode}`,
+            isStale: false,
+        },
+        select: { id: true },
+    });
+    return { facultyId: created.id, created: true };
+}
+export async function repairActiveSubjectCoverageWithPlaceholders(input) {
+    const apply = input.apply === true;
+    const before = await getActiveSubjectCoverageSummary(input.schoolId, input.schoolYearId, input.authToken);
+    const requested = input.subjectCodes?.length
+        ? new Set(input.subjectCodes.map((code) => code.trim().toUpperCase()))
+        : null;
+    const context = await loadCoverageContext(input.schoolId, input.schoolYearId, input.authToken);
+    const subjectsToRepair = context.subjects.filter((subject) => {
+        if (requested && !requested.has(subject.code.toUpperCase()))
+            return false;
+        const beforeRow = before.rows.find((row) => row.subjectId === subject.id);
+        return Boolean(beforeRow && beforeRow.uncoveredSectionCount > 0);
+    });
+    const createdPlaceholders = [];
+    const reusedPlaceholders = [];
+    let sectionsCoveredByPlaceholder = 0;
+    let placeholderAssignmentsUpserted = 0;
+    if (apply && subjectsToRepair.length > 0) {
+        for (const subject of subjectsToRepair) {
+            await prisma.$transaction(async (tx) => {
+                const relevantSectionIds = getRelevantSectionIdsForSubject(subject, context.sections);
+                if (relevantSectionIds.length === 0)
+                    return;
+                const existingOwnership = await tx.subjectSectionOwnership.findMany({
+                    where: {
+                        schoolId: input.schoolId,
+                        subjectId: subject.id,
+                        sectionId: { in: relevantSectionIds },
+                    },
+                    select: { sectionId: true },
+                });
+                const ownedSet = new Set(existingOwnership.map((row) => row.sectionId));
+                const uncoveredSectionIds = relevantSectionIds.filter((sectionId) => !ownedSet.has(sectionId));
+                if (uncoveredSectionIds.length === 0)
+                    return;
+                const placeholder = await ensureSubjectPlaceholderFaculty(tx, input.schoolId, subject.code);
+                if (placeholder.created) {
+                    createdPlaceholders.push({ facultyId: placeholder.facultyId, subjectCode: subject.code });
+                }
+                else {
+                    reusedPlaceholders.push({ facultyId: placeholder.facultyId, subjectCode: subject.code });
+                }
+                const existingAssignment = await tx.facultySubject.findUnique({
+                    where: { facultyId_subjectId: { facultyId: placeholder.facultyId, subjectId: subject.id } },
+                    select: { id: true, sectionIds: true, gradeLevels: true },
+                });
+                const mergedSectionIds = existingAssignment
+                    ? [...new Set([...existingAssignment.sectionIds, ...uncoveredSectionIds])].sort((a, b) => a - b)
+                    : [...new Set(uncoveredSectionIds)].sort((a, b) => a - b);
+                const gradeBySectionId = new Map(context.sections.map((section) => [section.id, section.gradeLevel]));
+                const mergedGradeLevels = [...new Set(mergedSectionIds.map((sectionId) => gradeBySectionId.get(sectionId)).filter((value) => Number.isInteger(value)))].sort((a, b) => a - b);
+                let facultySubjectId;
+                if (!existingAssignment) {
+                    const created = await tx.facultySubject.create({
+                        data: {
+                            facultyId: placeholder.facultyId,
+                            subjectId: subject.id,
+                            schoolId: input.schoolId,
+                            gradeLevels: mergedGradeLevels,
+                            sectionIds: mergedSectionIds,
+                            assignedBy: input.assignedBy,
+                        },
+                        select: { id: true },
+                    });
+                    facultySubjectId = created.id;
+                    placeholderAssignmentsUpserted += 1;
+                }
+                else {
+                    await tx.facultySubject.update({
+                        where: { id: existingAssignment.id },
+                        data: {
+                            sectionIds: mergedSectionIds,
+                            gradeLevels: mergedGradeLevels,
+                            assignedBy: input.assignedBy,
+                        },
+                    });
+                    facultySubjectId = existingAssignment.id;
+                }
+                if (uncoveredSectionIds.length > 0) {
+                    await tx.subjectSectionOwnership.createMany({
+                        data: uncoveredSectionIds.map((sectionId) => ({
+                            schoolId: input.schoolId,
+                            facultySubjectId,
+                            facultyId: placeholder.facultyId,
+                            subjectId: subject.id,
+                            sectionId,
+                            assignedAt: new Date(),
+                        })),
+                    });
+                    sectionsCoveredByPlaceholder += uncoveredSectionIds.length;
+                }
+            });
+        }
+    }
+    const after = apply
+        ? await getActiveSubjectCoverageSummary(input.schoolId, input.schoolYearId, input.authToken)
+        : before;
+    const resolvedSubjectCodes = before.rows
+        .filter((row) => row.uncoveredSectionCount > 0)
+        .filter((row) => {
+        const afterRow = after.rows.find((candidate) => candidate.subjectId === row.subjectId);
+        return (afterRow?.uncoveredSectionCount ?? row.uncoveredSectionCount) === 0;
+    })
+        .map((row) => row.subjectCode);
+    const stillUncoveredSubjectCodes = after.rows
+        .filter((row) => row.uncoveredSectionCount > 0)
+        .map((row) => row.subjectCode);
+    return {
+        applied: apply,
+        before,
+        after,
+        createdPlaceholders,
+        reusedPlaceholders,
+        sectionsCoveredByPlaceholder,
+        placeholderAssignmentsUpserted,
+        resolvedSubjectCodes,
+        stillUncoveredSubjectCodes,
+    };
+}
 function buildServiceError(code, error, details) {
     return { success: false, code, error, details };
 }
@@ -337,6 +609,7 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
         return {
             id: member.id,
             externalId: member.externalId,
+            isPlaceholder: member.isPlaceholder,
             employeeId: member.employeeId,
             firstName: member.firstName,
             lastName: member.lastName,

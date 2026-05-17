@@ -1,3 +1,147 @@
+# 2026-05-18 - Phase 3 Teacher X + Subject Coverage Repair (Tailnet + DB)
+- Phase: Phase 3 placeholder faculty and subject coverage repair (no final KPI closure claim)
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Files changed in this pass:
+  - `atlas-server/src/services/faculty.service.ts`
+  - `atlas-server/src/routes/faculty.router.ts`
+  - `atlas-server/src/services/faculty-assignment.service.ts`
+  - `atlas-server/src/routes/faculty-assignment.router.ts`
+  - `docs/verification/evidence-log.md`
+
+- Exact repairs made:
+  - Added explicit placeholder faculty creation capability:
+    - service: `createPlaceholderFaculty(...)`
+    - route: `POST /api/v1/faculty/placeholders`
+  - Added auditable active-subject coverage summary capability:
+    - service: `getActiveSubjectCoverageSummary(...)`
+    - route: `GET /api/v1/faculty-assignments/coverage/summary`
+  - Added operator-controlled placeholder coverage repair capability:
+    - service: `repairActiveSubjectCoverageWithPlaceholders(...)`
+    - route: `POST /api/v1/faculty-assignments/coverage/repair` (`apply=false` preview, `apply=true` mutate)
+  - Added `isPlaceholder` to assignment summary payload so assignment surfaces can distinguish Teacher X rows.
+
+- Active zero-coverage subjects before the pass (live Tailnet summary):
+  - `TLE_AFA_EXP`
+  - `TLE_FCS_EXP`
+  - `TLE_IA_EXP`
+  - `TLE_ICT_EXP`
+  - `STE_APPLIED_CHEM`
+  - `STE_APPLIED_PHYS`
+  - `STE_BIOTECH`
+  - `STE_ENV_SCI`
+  - `STE_ICT`
+  - `STE_ROBOTICS`
+  - Note: `SPS_SPEC` was listed in historical baseline assumptions but is currently inactive in live DB/API and therefore not in active zero-coverage list.
+
+- Live commands/checks executed:
+  - `POST /api/v1/auth/login`
+  - `GET /api/v1/faculty-assignments/coverage/summary?schoolId=1&schoolYearId=55`
+  - `POST /api/v1/faculty-assignments/coverage/repair` with `apply=false` (preview)
+  - `POST /api/v1/faculty-assignments/coverage/repair` with `apply=true` for target STE/TLE/SPS codes
+  - `GET /api/v1/faculty-assignments/coverage/summary?schoolId=1&schoolYearId=55` (after apply)
+  - `GET /api/v1/faculty?schoolId=1&includeStale=false`
+  - `GET /api/v1/faculty-assignments/summary?schoolId=1&schoolYearId=55`
+  - `POST /api/v1/generation/1/55/runs`
+  - `GET /api/v1/generation/1/55/runs/latest`
+  - `GET /api/v1/generation/1/55/runs/latest/violations`
+
+- Live results after repair:
+  - Placeholder creation/usage:
+    - created placeholders: `10`
+    - placeholder faculty rows visible in API list (`isPlaceholder=true`): `10`
+    - placeholder rows with assignment payload in assignment summary: `10`
+  - Coverage resolution:
+    - resolved from zero-coverage to covered:
+      - `STE_APPLIED_CHEM`, `STE_APPLIED_PHYS`, `STE_BIOTECH`, `STE_ENV_SCI`, `STE_ICT`, `STE_ROBOTICS`
+      - `TLE_AFA_EXP`, `TLE_FCS_EXP`, `TLE_IA_EXP`, `TLE_ICT_EXP`
+    - zero-coverage subject list after apply: empty
+    - still partially covered (non-zero, not full): `SCI_CHEM`, `MAPEH`, `ENG`
+  - Generator consumption proof:
+    - fresh run `id=50`, `status=COMPLETED`
+    - summary: `assigned=1121`, `unassigned=1451`, `hard=610`
+    - latest violation mix includes `LACKING_FACULTY=11` (reduced from prior higher baseline in earlier Phase 3 evidence), confirming repaired coverage state is being consumed.
+
+- Direct DB verification snapshot:
+  - active placeholders (`isPlaceholder=true`, active, non-stale): `10`
+  - placeholder faculty-subject assignment rows: `10`
+  - target subject ownership counts:
+    - `STE_ENV_SCI`: `2`
+    - `STE_BIOTECH`: `2`
+    - `STE_ICT`: `2`
+    - `STE_APPLIED_CHEM`: `2`
+    - `STE_APPLIED_PHYS`: `2`
+    - `STE_ROBOTICS`: `2`
+    - `TLE_ICT_EXP`: `33`
+    - `TLE_AFA_EXP`: `33`
+    - `TLE_FCS_EXP`: `33`
+    - `TLE_IA_EXP`: `33`
+    - `SPS_SPEC`: inactive (`isActive=false`, `ownershipCount=0`)
+
+- Verification gates:
+  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
+  - diagnostics on touched files -> PASS
+
+- GO/NO-GO:
+  - **GO** for this prompt scope.
+  - Rationale: Teacher X placeholders are now explicitly creatable and schedulable, active zero-coverage subjects were resolved through auditable placeholder ownership (or explicit inactive status for `SPS_SPEC`), and generation runs consume the repaired coverage state.
+
+# 2026-05-18 - Phase 3 Policy/Cohort/Room Readiness Rerun (Post-Policy-Persistence Fix)
+- Phase: Phase 3 policy/cohort/room readiness prompt rerun (no broad phase-closure claim)
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Files changed in this pass:
+  - `docs/verification/evidence-log.md`
+
+- Missing-state audit (rerun baseline):
+  - Prior blocker from this prompt (`SchedulingPolicy` persistence) is now repaired from the dedicated follow-up fix pass.
+  - Rerun objective was to verify the full persisted readiness matrix remains coherent after that fix.
+
+- Commands executed (live Tailnet):
+  - `POST /api/v1/auth/login`
+  - `GET /api/v1/policies/scheduling/1/55`
+  - `GET /api/v1/generation/1/55/grade-windows`
+  - `POST /api/v1/sections/sync`
+  - `GET /api/v1/sections/summary/55?schoolId=1`
+  - `POST /api/v1/cohorts/sync`
+  - `GET /api/v1/cohorts?schoolId=1&schoolYearId=55`
+  - `GET /api/v1/map/schools/1/buildings`
+
+- Commands executed (direct DB runtime):
+  - Prisma query pass for:
+    - `SchedulingPolicy` `(schoolId=1, schoolYearId=55)`
+    - `GradeShiftWindow` rows `(1,55)`
+    - active `InstructionalCohort` rows `(1,55)`
+    - `SectionMirror` TLE ownership field population counts
+    - `Room.isSharedFacility=true` counts for school `1`
+
+- Commands executed (verification gates):
+  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
+  - diagnostics (`get_errors`) on touched/required services -> PASS
+
+- Live Tailnet results:
+  - policy: `id=1`, window `06:00-18:00`
+  - grade windows returned: `16`
+  - sections with TLE ownership fields populated in summary: `7`
+  - cohort sync source: `derived-sections`
+  - cohorts returned for `(1,55)`: `4`
+  - rooms with `isSharedFacility=true`: `25`
+
+- Direct DB persisted-state proof:
+  - `SchedulingPolicy` row exists for `(1,55)`: `true` (`id=1`)
+  - `GradeShiftWindow` rows for `(1,55)`: `16`
+  - active `InstructionalCohort` rows for `(1,55)`: `4`
+  - `SectionMirror` rows with persisted TLE ownership fields: `7` of `66` active mirrors
+  - rooms with persisted `isSharedFacility=true` (school `1`): `25`
+
+- Upstream TLE ownership determination:
+  - Upstream-derived section data is present for a subset of sections (7 rows with TLE ownership fields), so this is not an "upstream absent" condition.
+  - Persistence/mapping path is working for those rows in both API and DB.
+
+- GO/NO-GO:
+  - **GO** for this prompt rerun scope.
+  - Rationale: active school year now has coherent persisted control/readiness state across policy, windows, cohorts, section TLE ownership fields, and room shared-facility flags, with live Tailnet + direct DB proof.
+
 # 2026-05-18 - Phase 3 Scheduling Policy Persistence Fix (Tailnet + Direct DB)
 - Phase: Phase 3 policy persistence blocker-removal prompt (no broad phase-closure claim)
 - Operator: GitHub Copilot

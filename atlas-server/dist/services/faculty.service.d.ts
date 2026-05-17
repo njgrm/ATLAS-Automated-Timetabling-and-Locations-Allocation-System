@@ -165,6 +165,47 @@ export declare function getFacultyById(id: number): Promise<({
     version: number;
     updatedAt: Date;
 }) | null>;
+export interface CreatePlaceholderFacultyInput {
+    schoolId: number;
+    firstName: string;
+    lastName: string;
+    department?: string | null;
+    specialization?: string | null;
+    maxHoursPerWeek?: number;
+    canTeachOutsideDepartment?: boolean;
+    localNotes?: string | null;
+}
+export declare function createPlaceholderFaculty(input: CreatePlaceholderFacultyInput): Promise<{
+    schoolId: number;
+    createdAt: Date;
+    id: number;
+    externalId: number;
+    employeeId: string | null;
+    firstName: string;
+    lastName: string;
+    department: string | null;
+    specialization: string | null;
+    employmentStatus: string;
+    contactInfo: string | null;
+    avatarUrl: string | null;
+    localNotes: string | null;
+    isActiveForScheduling: boolean;
+    isClassAdviser: boolean;
+    advisoryEquivalentHours: number;
+    ancillaryMinutesPerWeek: number | null;
+    ancillaryLoadSource: import("@prisma/client").$Enums.AncillaryLoadSource;
+    canTeachOutsideDepartment: boolean;
+    isPlaceholder: boolean;
+    maxHoursPerWeek: number;
+    lastSyncedAt: Date;
+    isStale: boolean;
+    staleReason: string | null;
+    staleAt: Date | null;
+    advisedSectionId: number | null;
+    advisedSectionName: string | null;
+    version: number;
+    updatedAt: Date;
+}>;
 export declare function updateFacultyMirror(id: number, data: Partial<{
     localNotes: string;
     isActiveForScheduling: boolean;

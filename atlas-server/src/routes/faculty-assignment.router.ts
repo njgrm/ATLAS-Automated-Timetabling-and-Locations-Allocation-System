@@ -45,6 +45,66 @@ router.get('/summary', authenticateWithSystemToken, requirePrivilegedRole, async
 	}
 });
 
+// Auth: GET /faculty-assignments/coverage/summary?schoolId=X&schoolYearId=Y
+router.get('/coverage/summary', authenticateWithSystemToken, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.query.schoolId);
+		const schoolYearId = Number(req.query.schoolYearId);
+		if (!schoolId || Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
+			return;
+		}
+		if (!schoolYearId || Number.isNaN(schoolYearId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId query parameter is required.' });
+			return;
+		}
+
+		const authToken = req.headers.authorization?.slice(7);
+		const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
+		const coverage = await assignmentService.getActiveSubjectCoverageSummary(schoolId, schoolYearId, upstreamAuthToken);
+		res.json(coverage);
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: POST /faculty-assignments/coverage/repair
+// Body: { schoolId: number, schoolYearId: number, apply?: boolean, subjectCodes?: string[] }
+router.post('/coverage/repair', authenticateWithSystemToken, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.body.schoolId);
+		const schoolYearId = Number(req.body.schoolYearId);
+		if (!schoolId || Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
+			return;
+		}
+		if (!schoolYearId || Number.isNaN(schoolYearId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
+			return;
+		}
+
+		const subjectCodes = Array.isArray(req.body.subjectCodes)
+			? req.body.subjectCodes.filter((value: unknown): value is string => typeof value === 'string')
+			: undefined;
+		const apply = req.body.apply === true;
+		const authToken = req.headers.authorization?.slice(7);
+		const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
+
+		const result = await assignmentService.repairActiveSubjectCoverageWithPlaceholders({
+			schoolId,
+			schoolYearId,
+			assignedBy: req.user?.userId ?? 0,
+			authToken: upstreamAuthToken,
+			subjectCodes,
+			apply,
+		});
+
+		res.json(result);
+	} catch (err) {
+		next(err);
+	}
+});
+
 // Auth: GET /faculty-assignments/:facultyId?schoolYearId=Y
 router.get('/:facultyId', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {

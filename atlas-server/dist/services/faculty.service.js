@@ -583,6 +583,53 @@ export async function getFacultyById(id) {
         },
     });
 }
+function sanitizeName(value, fallback) {
+    const normalized = (value ?? '').trim();
+    return normalized.length > 0 ? normalized : fallback;
+}
+function sanitizeOptionalText(value) {
+    const normalized = (value ?? '').trim();
+    return normalized.length > 0 ? normalized : null;
+}
+export async function createPlaceholderFaculty(input) {
+    const firstName = sanitizeName(input.firstName, 'Teacher');
+    const lastName = sanitizeName(input.lastName, 'X');
+    const department = sanitizeOptionalText(input.department) ?? 'PLACEHOLDER';
+    const specialization = sanitizeOptionalText(input.specialization);
+    const localNotes = sanitizeOptionalText(input.localNotes);
+    const maxHoursPerWeek = Number.isFinite(Number(input.maxHoursPerWeek))
+        ? Math.min(60, Math.max(1, Math.round(Number(input.maxHoursPerWeek))))
+        : 30;
+    return prisma.$transaction(async (tx) => {
+        const minExternal = await tx.facultyMirror.aggregate({
+            where: { schoolId: input.schoolId },
+            _min: { externalId: true },
+        });
+        const nextExternalId = minExternal._min.externalId != null
+            ? Math.min(minExternal._min.externalId - 1, -1)
+            : -1;
+        return tx.facultyMirror.create({
+            data: {
+                schoolId: input.schoolId,
+                externalId: nextExternalId,
+                firstName,
+                lastName,
+                department,
+                specialization,
+                employmentStatus: 'PLACEHOLDER',
+                isPlaceholder: true,
+                isActiveForScheduling: true,
+                canTeachOutsideDepartment: input.canTeachOutsideDepartment ?? true,
+                maxHoursPerWeek,
+                localNotes,
+                ancillaryLoadSource: 'NONE',
+                isStale: false,
+                staleReason: null,
+                staleAt: null,
+            },
+        });
+    });
+}
 export async function updateFacultyMirror(id, data, expectedVersion) {
     const existing = await prisma.facultyMirror.findUnique({ where: { id } });
     if (!existing)

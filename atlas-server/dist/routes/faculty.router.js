@@ -202,6 +202,30 @@ router.get('/:id/homeroom-hint', authenticate, async (req, res, next) => {
         next(err);
     }
 });
+// Auth: POST /faculty/placeholders — create explicit Teacher X placeholder faculty
+router.post('/placeholders', authenticate, requirePrivilegedRole, async (req, res, next) => {
+    try {
+        const schoolId = Number(req.body.schoolId);
+        if (!schoolId || Number.isNaN(schoolId)) {
+            res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
+            return;
+        }
+        const placeholder = await facultyService.createPlaceholderFaculty({
+            schoolId,
+            firstName: typeof req.body.firstName === 'string' ? req.body.firstName : 'Teacher',
+            lastName: typeof req.body.lastName === 'string' ? req.body.lastName : 'X',
+            department: typeof req.body.department === 'string' ? req.body.department : null,
+            specialization: typeof req.body.specialization === 'string' ? req.body.specialization : null,
+            maxHoursPerWeek: req.body.maxHoursPerWeek,
+            canTeachOutsideDepartment: req.body.canTeachOutsideDepartment,
+            localNotes: typeof req.body.localNotes === 'string' ? req.body.localNotes : null,
+        });
+        res.status(201).json({ faculty: placeholder });
+    }
+    catch (err) {
+        next(err);
+    }
+});
 // Auth: GET /faculty/:id
 router.get('/:id', authenticate, async (req, res, next) => {
     try {
