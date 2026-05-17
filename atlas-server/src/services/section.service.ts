@@ -77,6 +77,9 @@ export async function syncSectionsFromExternal(
 					programCode: s.programCode,
 					programName: s.programName,
 					isSpecialProgram: s.isSpecialProgram ?? false,
+					tleProgramId: s.tleProgramId ?? null,
+					tleSpecialization: s.tleSpecialization ?? null,
+					tleProgramCategory: s.tleProgramCategory ?? null,
 					lastSyncedAt: result.fetchedAt,
 					isStale: false,
 					staleReason: null,
@@ -95,6 +98,9 @@ export async function syncSectionsFromExternal(
 					programCode: s.programCode,
 					programName: s.programName,
 					isSpecialProgram: s.isSpecialProgram ?? false,
+					tleProgramId: s.tleProgramId ?? null,
+					tleSpecialization: s.tleSpecialization ?? null,
+					tleProgramCategory: s.tleProgramCategory ?? null,
 					lastSyncedAt: result.fetchedAt,
 				}
 			});
@@ -157,7 +163,6 @@ export async function getSectionSummary(schoolYearId: number, schoolId: number, 
 		}
 		
 		const sec = {
-			mirrorId: m.id,
 			id: m.externalId,
 			name: m.name,
 			maxCapacity: m.maxCapacity,
@@ -171,6 +176,9 @@ export async function getSectionSummary(schoolYearId: number, schoolId: number, 
 			programCode: m.programCode,
 			programName: m.programName,
 			isSpecialProgram: m.isSpecialProgram,
+			tleProgramId: m.tleProgramId,
+			tleSpecialization: m.tleSpecialization,
+			tleProgramCategory: m.tleProgramCategory,
 		};
 		
 		glMap.get(m.gradeLevelId).sections.push(sec);
@@ -278,13 +286,13 @@ export async function updateSectionHomeRooms(
 		requestedRoomIds.length === 0
 			? Promise.resolve([])
 			: prisma.room.findMany({
-					where: {
-						id: { in: requestedRoomIds },
-						isTeachingSpace: true,
-						building: { schoolId, isTeachingBuilding: true },
-					},
-					select: { id: true, buildingZoneId: true },
-				}),
+				where: {
+					id: { in: requestedRoomIds },
+					isTeachingSpace: true,
+					building: { schoolId, isTeachingBuilding: true },
+				},
+				select: { id: true, buildingZoneId: true },
+			}),
 	]);
 
 	const sectionIdSet = new Set(sections.map((section) => section.id));

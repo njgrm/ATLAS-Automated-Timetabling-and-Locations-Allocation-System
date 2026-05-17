@@ -7,11 +7,37 @@
  */
 import { prisma } from '../lib/prisma.js';
 import { sectionAdapter } from './section-adapter.js';
-const TLE_SPECIALIZATION_BLUEPRINTS = [
-    { specializationCode: 'IA', specializationName: 'Industrial Arts', preferredRoomType: 'TLE_WORKSHOP' },
-    { specializationCode: 'HE', specializationName: 'Home Economics', preferredRoomType: 'LABORATORY' },
-    { specializationCode: 'AFA', specializationName: 'Agri-Fishery Arts', preferredRoomType: 'LABORATORY' },
-];
+const TLE_SPECIALIZATION_CODE_ALIASES = {
+    INDUSTRIAL_ARTS: 'IA',
+    HOME_ECONOMICS: 'HE',
+    AGRI_FISHERY_ARTS: 'AFA',
+    AGRICULTURE_AND_FISHERY_ARTS: 'AFA',
+    AGRICULTURE_FISHERY_ARTS: 'AFA',
+    FAMILY_AND_CONSUMER_SCIENCE: 'FCS',
+    FCS: 'FCS',
+    ICT: 'ICT',
+    INFORMATION_AND_COMMUNICATIONS_TECHNOLOGY: 'ICT',
+};
+function normalizeTleSpecializationCode(section) {
+    const raw = section.tleSpecialization ?? section.tleProgramCategory ?? null;
+    if (typeof raw !== 'string' || raw.trim().length === 0)
+        return null;
+    const normalized = raw.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    return TLE_SPECIALIZATION_CODE_ALIASES[normalized] ?? normalized;
+}
+function inferTleSpecializationName(section, specializationCode) {
+    return (section.tleSpecialization ?? section.tleProgramCategory ?? specializationCode).trim();
+}
+function inferTlePreferredRoomType(section, specializationCode) {
+    const raw = `${section.tleProgramCategory ?? ''} ${section.tleSpecialization ?? ''} ${specializationCode}`.toUpperCase();
+    if (raw.includes('ICT'))
+        return 'COMPUTER_LAB';
+    if (raw.includes('SPORT'))
+        return 'GYMNASIUM';
+    if (raw.includes('IA') || raw.includes('AGRI') || raw.includes('AFA') || raw.includes('FCS') || raw.includes('HE'))
+        return 'LABORATORY';
+    return null;
+}
 function normalizeExplicitCohort(rawCohort) {
     if (!rawCohort.cohortCode || !rawCohort.specializationCode || !rawCohort.specializationName || rawCohort.gradeLevel == null) {
         return null;
@@ -28,36 +54,35 @@ function normalizeExplicitCohort(rawCohort) {
     };
 }
 export function deriveFallbackTleCohorts(gradeLevels) {
-    return gradeLevels.flatMap((gradeLevel) => {
-        const orderedSections = [...gradeLevel.sections].sort((left, right) => left.id - right.id);
-        if (orderedSections.length === 0) {
-            return [];
-        }
-        const baseSize = Math.floor(orderedSections.length / TLE_SPECIALIZATION_BLUEPRINTS.length);
-        let remainder = orderedSections.length % TLE_SPECIALIZATION_BLUEPRINTS.length;
-        let offset = 0;
-        const cohorts = [];
-        for (const template of TLE_SPECIALIZATION_BLUEPRINTS) {
-            const bucketSize = baseSize + (remainder > 0 ? 1 : 0);
-            remainder = Math.max(0, remainder - 1);
-            const memberSections = orderedSections.slice(offset, offset + bucketSize);
-            offset += bucketSize;
-            if (memberSections.length === 0) {
+    const cohortsByCode = new Map();
+    for (const gradeLevel of gradeLevels) {
+        for (const section of gradeLevel.sections) {
+            const specializationCode = normalizeTleSpecializationCode(section);
+            if (!specializationCode)
+                continue;
+            const cohortCode = `G${gradeLevel.displayOrder}-TLE-${specializationCode}`;
+            const existing = cohortsByCode.get(cohortCode);
+            if (existing) {
+                existing.memberSectionIds.push(section.id);
+                existing.expectedEnrollment += section.enrolledCount;
+                if (!existing.preferredRoomType) {
+                    existing.preferredRoomType = inferTlePreferredRoomType(section, specializationCode);
+                }
                 continue;
             }
-            cohorts.push({
-                cohortCode: `G${gradeLevel.displayOrder}-TLE-${template.specializationCode}`,
-                specializationCode: template.specializationCode,
-                specializationName: template.specializationName,
+            cohortsByCode.set(cohortCode, {
+                cohortCode,
+                specializationCode,
+                specializationName: inferTleSpecializationName(section, specializationCode),
                 gradeLevel: gradeLevel.displayOrder,
-                memberSectionIds: memberSections.map((section) => section.id),
-                expectedEnrollment: memberSections.reduce((total, section) => total + section.enrolledCount, 0),
-                preferredRoomType: template.preferredRoomType,
-                sourceRef: 'derived:section-roster',
+                memberSectionIds: [section.id],
+                expectedEnrollment: section.enrolledCount,
+                preferredRoomType: inferTlePreferredRoomType(section, specializationCode),
+                sourceRef: 'derived:section-ownership',
             });
         }
-        return cohorts;
-    });
+    }
+    return [...cohortsByCode.values()].sort((left, right) => left.gradeLevel - right.gradeLevel || left.cohortCode.localeCompare(right.cohortCode));
 }
 export function normalizeEnrollProCohortResponse(body, sectionsByGrade = []) {
     const warnings = [];
@@ -72,16 +97,13 @@ export function normalizeEnrollProCohortResponse(body, sectionsByGrade = []) {
             .filter((cohort) => cohort != null);
         return { cohorts, source: 'enrollpro', warnings };
     }
+    const derivedFromOwnership = sectionsByGrade.length > 0 ? deriveFallbackTleCohorts(sectionsByGrade) : [];
+    if (derivedFromOwnership.length > 0) {
+        warnings.push('EnrollPro did not return explicit cohorts; deriving TLE cohorts from section ownership fields.');
+        return { cohorts: derivedFromOwnership, source: 'derived-sections', warnings };
+    }
     if (Array.isArray(payload.scpProgramConfigs)) {
-        warnings.push('EnrollPro SCP config returned scpProgramConfigs without an explicit cohorts array; deriving fallback TLE cohorts from the current section roster.');
-        if (sectionsByGrade.length > 0) {
-            return {
-                cohorts: deriveFallbackTleCohorts(sectionsByGrade),
-                source: 'derived-sections',
-                warnings,
-            };
-        }
-        warnings.push('No section roster was available to derive fallback TLE cohorts.');
+        warnings.push('EnrollPro SCP config returned scpProgramConfigs without explicit cohorts, but no section TLE ownership fields were available to derive cohorts from.');
     }
     return { cohorts: [], source: 'enrollpro', warnings };
 }
@@ -236,7 +258,7 @@ export async function syncCohorts(schoolId, schoolYearId, authToken) {
         ];
         if (result.cohorts.length === 0) {
             const existingCount = await prisma.instructionalCohort.count({
-                where: { schoolId, schoolYearId },
+                where: { schoolId, schoolYearId, isActive: true },
             });
             if (existingCount > 0) {
                 return {
@@ -271,6 +293,7 @@ export async function syncCohorts(schoolId, schoolYearId, authToken) {
                     expectedEnrollment: c.expectedEnrollment,
                     preferredRoomType: c.preferredRoomType,
                     sourceRef: c.sourceRef ?? null,
+                    isActive: true,
                 })),
             }),
         ]);
@@ -297,7 +320,7 @@ export async function syncCohorts(schoolId, schoolYearId, authToken) {
  */
 export async function getCohortsBySchoolYear(schoolId, schoolYearId) {
     return prisma.instructionalCohort.findMany({
-        where: { schoolId, schoolYearId },
+        where: { schoolId, schoolYearId, isActive: true },
         orderBy: [{ gradeLevel: 'asc' }, { specializationCode: 'asc' }],
     });
 }
@@ -306,7 +329,7 @@ export async function getCohortsBySchoolYear(schoolId, schoolYearId) {
  */
 export async function getCohortsByGrade(schoolId, schoolYearId, gradeLevel) {
     return prisma.instructionalCohort.findMany({
-        where: { schoolId, schoolYearId, gradeLevel },
+        where: { schoolId, schoolYearId, gradeLevel, isActive: true },
         orderBy: { specializationCode: 'asc' },
     });
 }
@@ -315,7 +338,7 @@ export async function getCohortsByGrade(schoolId, schoolYearId, gradeLevel) {
  */
 export async function getCohortByCode(schoolId, schoolYearId, cohortCode) {
     return prisma.instructionalCohort.findFirst({
-        where: { schoolId, schoolYearId, cohortCode },
+        where: { schoolId, schoolYearId, cohortCode, isActive: true },
     });
 }
 //# sourceMappingURL=cohort.service.js.map

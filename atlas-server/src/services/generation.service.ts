@@ -24,7 +24,7 @@ import {
 	type RoomAssignmentReason,
 } from './schedule-constructor.js';
 import { runHybridScheduler, type SeedQualitySummary, type RepairImpact } from './hybrid-scheduler.js';
-import { getSectionSummary } from './section.service.js';
+import { getSectionSummary, syncSectionsFromExternal } from './section.service.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
 import * as preGenerationDraftService from './pre-generation-draft.service.js';
@@ -32,6 +32,8 @@ import { resolveActiveDraftRun } from './active-draft-run-resolver.service.js';
 import { getTemplatePeriodProfiles, ensureDefaultTemplates, ensureTemplatesForProgramTypes } from './class-template.service.js';
 import { computeEffectiveWeeklyTeachingMinutes } from './scheduling-policy.service.js';
 import { reconcileSubjectContractFromUpstream } from './subject.service.js';
+import { ensurePhase3GradeWindows } from './grade-window.service.js';
+import { syncCohorts } from './cohort.service.js';
 
 // ─── Helpers ───
 
@@ -430,6 +432,9 @@ export async function triggerGenerationRun(
 		stage = 'subject-contract-sync';
 		await reconcileSubjectContractFromUpstream(schoolId, schoolYearId, options?.authToken);
 		await ensureDefaultTemplates(schoolId);
+		await syncSectionsFromExternal(schoolId, schoolYearId, options?.authToken);
+		await ensurePhase3GradeWindows(schoolId, schoolYearId);
+		const cohortSyncResult = await syncCohorts(schoolId, schoolYearId, options?.authToken);
 
 		stage = 'sections-fetch';
 		const [sectionResult, faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, gradeWindows, cohorts, specializationAliases] = await Promise.all([
@@ -485,7 +490,7 @@ export async function triggerGenerationRun(
 				? Promise.resolve([])
 				: prisma.gradeShiftWindow.findMany({ where: { schoolId, schoolYearId } }),
 			prisma.instructionalCohort.findMany({
-				where: { schoolId, schoolYearId },
+				where: { schoolId, schoolYearId, isActive: true },
 				orderBy: [{ gradeLevel: 'asc' }, { cohortCode: 'asc' }],
 				select: {
 					cohortCode: true,
@@ -806,8 +811,10 @@ export async function triggerGenerationRun(
 			termCounts,
 			contractWarnings: [
 				...(sectionResult.contractWarnings ?? []),
+				...(cohortSyncResult.warnings ?? []),
 			].length > 0 ? [
 				...(sectionResult.contractWarnings ?? []),
+				...(cohortSyncResult.warnings ?? []),
 			] : undefined,
 			// H-ALG-5: Hybrid scheduler diagnostics
 			hybridEnabled: result.hybridEnabled,

@@ -39,6 +39,9 @@ export async function syncSectionsFromExternal(schoolId, schoolYearId, authToken
                     programCode: s.programCode,
                     programName: s.programName,
                     isSpecialProgram: s.isSpecialProgram ?? false,
+                    tleProgramId: s.tleProgramId ?? null,
+                    tleSpecialization: s.tleSpecialization ?? null,
+                    tleProgramCategory: s.tleProgramCategory ?? null,
                     lastSyncedAt: result.fetchedAt,
                     isStale: false,
                     staleReason: null,
@@ -57,6 +60,9 @@ export async function syncSectionsFromExternal(schoolId, schoolYearId, authToken
                     programCode: s.programCode,
                     programName: s.programName,
                     isSpecialProgram: s.isSpecialProgram ?? false,
+                    tleProgramId: s.tleProgramId ?? null,
+                    tleSpecialization: s.tleSpecialization ?? null,
+                    tleProgramCategory: s.tleProgramCategory ?? null,
                     lastSyncedAt: result.fetchedAt,
                 }
             });
@@ -110,7 +116,6 @@ export async function getSectionSummary(schoolYearId, schoolId, authToken) {
             });
         }
         const sec = {
-            mirrorId: m.id,
             id: m.externalId,
             name: m.name,
             maxCapacity: m.maxCapacity,
@@ -124,6 +129,9 @@ export async function getSectionSummary(schoolYearId, schoolId, authToken) {
             programCode: m.programCode,
             programName: m.programName,
             isSpecialProgram: m.isSpecialProgram,
+            tleProgramId: m.tleProgramId,
+            tleSpecialization: m.tleSpecialization,
+            tleProgramCategory: m.tleProgramCategory,
         };
         glMap.get(m.gradeLevelId).sections.push(sec);
         sections.push(sec);

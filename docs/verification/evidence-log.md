@@ -1,3 +1,108 @@
+# 2026-05-18 - Phase 3 Policy/Cohort/Room Readiness Re-Audit (Tailnet + Direct DB)
+- Phase: Phase 3 policy/cohort/room readiness (re-audit, no phase closure claim)
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Files changed in this pass:
+  - `docs/verification/evidence-log.md`
+
+- Why this re-audit was required:
+  - Previous evidence marked policy persistence as repaired, but persisted-state integrity had to be re-proven directly.
+  - Live Tailnet API still had to be checked against direct database state.
+
+- Verification commands executed:
+  - Tailnet API readiness snapshot:
+    - `POST /api/v1/auth/login`
+    - `GET /api/v1/policies/scheduling/1/55`
+    - `GET /api/v1/generation/1/55/grade-windows`
+    - `GET /api/v1/sections/summary/55?schoolId=1`
+    - `GET /api/v1/map/schools/1/buildings`
+  - Tailnet policy persistence probe:
+    - `PUT /api/v1/policies/scheduling/1/55` using current policy payload from GET response
+  - Direct DB persistence proof (Prisma client)
+  - Migration/status checks:
+    - `npm --prefix d:\ATLAS exec prisma -- migrate deploy --schema d:\ATLAS\prisma\schema.prisma`
+    - `prisma-migrate-status` (tool)
+
+- Live Tailnet API results:
+  - `policyWindow=06:00-18:00`
+  - `windowCount=16`
+  - `tleSections=7`
+  - `sharedRooms=25`
+  - Policy write probe result: `POLICY_SCHEMA_DRIFT` on `PUT /policies/scheduling/1/55`
+
+- Direct DB persisted-state results (schoolId=1, schoolYearId=55):
+  - `scheduling_policies` row exists: `false`
+  - `grade_shift_windows` rows: `16`
+  - `instructional_cohorts (active)` rows: `4`
+  - `section_mirror` rows with TLE ownership fields populated: `7`
+  - `rooms` flagged `isSharedFacility=true`: `25`
+  - `scheduling_policies` table columns exist for current model (including `enable_lunch_window`, `allow_consecutive_lab_sessions`, `constraint_config`), but target row is still absent.
+
+- Reconciliation conclusion:
+  - Policy reads are still succeeding via fallback/synthetic behavior in the Tailnet runtime path.
+  - Policy persistence for `(schoolId=1, schoolYearId=55)` is not guaranteed in live path because write operations return `POLICY_SCHEMA_DRIFT`.
+  - Other readiness dimensions (windows, cohorts, section TLE ownership, shared-facility room flags) are persisted and readable.
+
+- GO/NO-GO:
+  - **NO-GO** for this prompt scope until live policy persistence is fixed.
+  - Blocking criterion: Tailnet `PUT /api/v1/policies/scheduling/1/55` must persist without `POLICY_SCHEMA_DRIFT`, and direct DB proof must show a concrete row in `scheduling_policies` for `(1,55)`.
+
+# 2026-05-17 - Phase 3 Policy/Cohort/Room Readiness Repair (Tailnet)
+- Phase: Phase 3 policy/cohort/room readiness repair (no phase closure claim)
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Files changed in this pass:
+  - `atlas-server/src/services/section.service.ts`
+  - `atlas-server/src/services/grade-window.service.ts`
+  - `atlas-server/src/services/scheduling-policy.service.ts`
+  - `atlas-server/src/services/cohort.service.ts`
+  - `atlas-server/src/services/generation.service.ts`
+  - `prisma/schema.prisma`
+
+- Persisted repair actions:
+  - Added nullable `tleProgramId`, `tleSpecialization`, and `tleProgramCategory` columns to `SectionMirror` so real TLE ownership can persist.
+  - Bootstrapped phase-3 grade/program shift windows for grades 7-10 and program buckets `null|STE|SPA|SPS`.
+  - Bootstrapped scheduling policy defaults to `06:00`-`18:00` so policy bounds match the live window model.
+  - Updated cohort derivation to prefer real section ownership and persist only active cohorts.
+  - Updated generation bootstrap so policy/windows/section mirrors/cohorts self-heal before run construction.
+
+- Local verification commands executed:
+  - `npm run db:push` -> PASS for schema sync; Prisma client refresh hit a Windows engine rename lock after the DB update
+  - `npm --prefix atlas-server run build` -> PASS
+  - `get_errors` on touched files -> PASS
+
+- Live Tailnet checks executed:
+  - `POST /api/v1/auth/login`
+  - `GET /api/v1/policies/scheduling/1/55`
+  - `POST /api/v1/sections/sync`
+  - `GET /api/v1/sections/summary/55?schoolId=1`
+  - `POST /api/v1/cohorts/sync`
+  - `GET /api/v1/cohorts?schoolId=1&schoolYearId=55`
+  - `GET /api/v1/generation/1/55/grade-windows`
+  - `GET /api/v1/map/schools/1/buildings`
+  - `POST /api/v1/generation/1/55/runs`
+  - `GET /api/v1/generation/1/55/runs/latest`
+  - `GET /api/v1/generation/1/55/runs/latest/violations`
+
+- Live verification results:
+  - Scheduling policy window: `06:00-18:00`
+  - Phase-3 grade windows returned: `16`
+  - Sections with persisted TLE ownership fields: `7`
+  - Cohort sync source: `derived-sections`
+  - Cohorts synced: `4`
+  - Map rooms flagged `isSharedFacility=true`: `25`
+  - Fresh generation run: `id=47`, `status=COMPLETED`, `durationMs=2824`
+  - Run summary: `assigned=1121`, `unassigned=1451`, `hard=658`, `policyBlocked=99`, `cohortCount=4`, `cohortized=0`
+  - Violation breakdown: `UNASSIGNED_SECTION=658`, `SPECIALIZED_ROOM_UNAVAILABLE=793`, `LACKING_FACULTY=44`, `FACULTY_EXCESSIVE_IDLE_GAP=213`, `FACULTY_EXCESSIVE_TRAVEL_DISTANCE=295`, `FACULTY_DAILY_STANDARD_EXCEEDED=4`
+
+- Decisions Made:
+  - Confirmed the database-level schema repair is live and readable through the Tailnet API.
+  - Kept the phase open because the regenerated run still produces substantial hard and soft violations.
+
+- GO/NO-GO:
+  - **NO-GO** for phase closure.
+  - Rationale: control-state persistence is repaired, but the fresh generation run still reports 658 hard unresolved sections and significant room/faculty pressure, so readiness is not yet complete.
+
 # Verification Evidence Log
 #
 ### 2026-05-17 - Phase 3 Template Capacity + Control Math Repair (Tailnet)

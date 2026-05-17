@@ -23,4 +23,5 @@ export interface GradeWindowRow {
 export declare function listGradeWindows(schoolId: number, schoolYearId: number): Promise<GradeWindowRow[]>;
 export declare function upsertGradeWindow(schoolId: number, schoolYearId: number, input: GradeWindowInput): Promise<GradeWindowRow>;
 export declare function upsertGradeWindows(schoolId: number, schoolYearId: number, windows: GradeWindowInput[]): Promise<GradeWindowRow[]>;
+export declare function ensurePhase3GradeWindows(schoolId: number, schoolYearId: number): Promise<GradeWindowRow[]>;
 export declare function deleteGradeWindow(schoolId: number, schoolYearId: number, gradeLevel: number): Promise<void>;

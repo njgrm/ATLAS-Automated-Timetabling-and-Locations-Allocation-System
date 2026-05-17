@@ -22,6 +22,25 @@ function timeToMinutes(value: string): number {
 	return hours * 60 + minutes;
 }
 
+const PHASE3_DEFAULT_WINDOWS: Array<GradeWindowInput> = [
+	{ gradeLevel: 7, programType: null, startTime: '06:00', endTime: '12:00' },
+	{ gradeLevel: 8, programType: null, startTime: '06:00', endTime: '12:00' },
+	{ gradeLevel: 9, programType: null, startTime: '12:00', endTime: '18:00' },
+	{ gradeLevel: 10, programType: null, startTime: '12:00', endTime: '18:00' },
+	{ gradeLevel: 7, programType: 'STE', startTime: '06:00', endTime: '12:00' },
+	{ gradeLevel: 8, programType: 'STE', startTime: '06:00', endTime: '12:00' },
+	{ gradeLevel: 9, programType: 'STE', startTime: '12:00', endTime: '18:00' },
+	{ gradeLevel: 10, programType: 'STE', startTime: '12:00', endTime: '18:00' },
+	{ gradeLevel: 7, programType: 'SPA', startTime: '06:00', endTime: '12:00' },
+	{ gradeLevel: 8, programType: 'SPA', startTime: '06:00', endTime: '12:00' },
+	{ gradeLevel: 9, programType: 'SPA', startTime: '12:00', endTime: '18:00' },
+	{ gradeLevel: 10, programType: 'SPA', startTime: '12:00', endTime: '18:00' },
+	{ gradeLevel: 7, programType: 'SPS', startTime: '06:00', endTime: '12:00' },
+	{ gradeLevel: 8, programType: 'SPS', startTime: '06:00', endTime: '12:00' },
+	{ gradeLevel: 9, programType: 'SPS', startTime: '12:00', endTime: '18:00' },
+	{ gradeLevel: 10, programType: 'SPS', startTime: '12:00', endTime: '18:00' },
+];
+
 async function validateAgainstPolicyBounds(
 	schoolId: number,
 	schoolYearId: number,
@@ -172,6 +191,29 @@ export async function upsertGradeWindows(
 		results.push(await upsertGradeWindow(schoolId, schoolYearId, w));
 	}
 	return results;
+}
+
+export async function ensurePhase3GradeWindows(schoolId: number, schoolYearId: number): Promise<GradeWindowRow[]> {
+	const ensured: GradeWindowRow[] = [];
+	for (const window of PHASE3_DEFAULT_WINDOWS) {
+		const existing = await prisma.gradeShiftWindow.findFirst({
+			where: {
+				schoolId,
+				schoolYearId,
+				gradeLevel: window.gradeLevel,
+				programType: window.programType ?? null,
+			},
+		});
+
+		if (existing) {
+			ensured.push(existing);
+			continue;
+		}
+
+		ensured.push(await upsertGradeWindow(schoolId, schoolYearId, window));
+	}
+
+	return ensured;
 }
 
 // ─── Delete ───

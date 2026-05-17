@@ -130,8 +130,8 @@ Optional feature: Where [feature included], the [system] shall [action].
 ### Current Delivery Position
 
 - Canonical active phase source: `phasePlan.md`
-- Current active phase: `Phase 4 - Review and Manual Adjustment`
-- Safe default: implement only work that belongs to the active phase unless the user explicitly approves cross-phase work.
+- Current active stream: follow `phasePlan.md`; as of the latest planner update this is the Phase 3 generator-readiness stream rather than generic Phase 4 feature work.
+- Safe default: implement only work that belongs to the active stream unless the user explicitly approves cross-phase work.
 
 ### Implemented Or Established Areas
 
@@ -145,10 +145,10 @@ Optional feature: Where [feature included], the [system] shall [action].
 
 ### Still In Progress Or Sensitive
 
-- Manual schedule corrections with full validation guardrails
-- Revalidation and auditability after edits
-- Publish and dissemination flows
-- Public published schedule endpoints
+- Template-capacity and control-math correctness for the live school-year dataset
+- Persisted scheduling policy / cohort / room-readiness state for generator feasibility
+- Teacher X placeholder readiness and active-subject coverage gaps
+- KPI reruns and root-cause validation after generator-readiness repairs
 
 ---
 
@@ -217,8 +217,11 @@ Use this when the user wants a prompt enriched for an implementer.
 - `AGENTS.md`
 - `phasePlan.md`
 - `docs/phases/README.md`
-- `docs/phases/phase-4-review.md`
-- `docs/phases/requirements-phase4-review.md`
+- `docs/prompts/phase3-generator-readiness-sequence.md`
+- `docs/prompts/phase3-template-capacity-and-controls-prompt.md`
+- `docs/prompts/phase3-policy-cohort-room-readiness-prompt.md`
+- `docs/prompts/phase3-placeholder-faculty-and-coverage-prompt.md`
+- `docs/prompts/phase3-kpi-rerun-root-cause-gate-prompt.md`
 - `docs/SYSTEM-OVERVIEW.md`
 - `.github/copilot-instructions.md`
 - `.github/instructions/frontend.instructions.md`

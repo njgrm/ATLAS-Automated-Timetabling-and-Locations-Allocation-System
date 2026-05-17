@@ -47,6 +47,9 @@ model SectionMirror {
   programCode       String?  @map("program_code")
   programName       String?  @map("program_name")
   isSpecialProgram  Boolean  @default(false) @map("is_special_program")
+  tleProgramId      Int?     @map("tle_program_id")
+  tleSpecialization String?  @map("tle_specialization")
+  tleProgramCategory String? @map("tle_program_category")
 
   // ATLAS-specific metadata/overrides
   isActiveForScheduling Boolean @default(true) @map("is_active_for_scheduling")
