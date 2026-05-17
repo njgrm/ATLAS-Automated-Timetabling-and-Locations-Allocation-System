@@ -690,6 +690,17 @@ export interface RunSummary {
 		term2: number;
 		term3: number;
 	};
+	timetableShapeContracts?: Array<{
+		gradeLevel: number;
+		programType: string;
+		startTime: string;
+		endTime: string;
+		periodLengthMinutes: number;
+		periodsPerDay: number;
+		periodSlots: Array<{ startTime: string; endTime: string }>;
+		displaySlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
+	}>;
+	timetableDisplaySlots?: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
 }
 
 export interface ScheduledEntry {

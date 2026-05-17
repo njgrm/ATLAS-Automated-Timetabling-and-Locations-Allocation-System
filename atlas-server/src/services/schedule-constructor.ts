@@ -124,6 +124,8 @@ export interface PolicyInput {
 	maxTeachingMinutesPerDay: number;
 	earliestStartTime: string;
 	latestEndTime: string;
+	periodLengthMinutes?: number;
+	periodsPerDay?: number;
 	lunchStartTime?: string;
 	lunchEndTime?: string;
 	enforceLunchWindow?: boolean;
@@ -179,9 +181,16 @@ function buildPeriodSlots(policy?: PolicyInput): PeriodSlot[] {
 		}
 
 		let cursor = earliest;
+		const slotLength = policy.periodLengthMinutes && policy.periodLengthMinutes > 0
+			? policy.periodLengthMinutes
+			: STANDARD_PERIOD_MINUTES;
+		const maxPeriods = policy.periodsPerDay && policy.periodsPerDay > 0
+			? policy.periodsPerDay
+			: Number.POSITIVE_INFINITY;
+		let builtPeriods = 0;
 
-		while (cursor + STANDARD_PERIOD_MINUTES <= latest) {
-			const slotEnd = cursor + STANDARD_PERIOD_MINUTES;
+		while (cursor + slotLength <= latest && builtPeriods < maxPeriods) {
+			const slotEnd = cursor + slotLength;
 
 			const overlappingWindow = blockedWindows
 				.filter((window) => window.end > window.start)
@@ -197,6 +206,7 @@ function buildPeriodSlots(policy?: PolicyInput): PeriodSlot[] {
 				startTime: `${hh(cursor)}:${mm(cursor)}`,
 				endTime: `${hh(slotEnd)}:${mm(slotEnd)}`,
 			});
+			builtPeriods += 1;
 
 			cursor = slotEnd;
 		}
@@ -256,6 +266,117 @@ function mergeDisplaySlots(periodSlots: PeriodSlot[], specialEventSlots: PeriodS
 /** Exported for use by room-schedule service and other consumers. */
 export { buildPeriodSlots, buildSpecialEventSlots, mergeDisplaySlots, type PeriodSlot };
 
+export interface TimetableShapeContract {
+	gradeLevel: number;
+	programType: string;
+	startTime: string;
+	endTime: string;
+	periodLengthMinutes: number;
+	periodsPerDay: number;
+	periodSlots: PeriodSlot[];
+	displaySlots: PeriodSlot[];
+}
+
+function normalizeProgramType(programType?: string | null): string {
+	return (programType ?? 'REGULAR').toUpperCase();
+}
+
+export function buildTimetableShapeContract(input: {
+	gradeLevel: number;
+	programType?: string | null;
+	startTime: string;
+	endTime: string;
+	periodLengthMinutes: number;
+	periodsPerDay: number;
+	basePolicy?: PolicyInput;
+}): TimetableShapeContract {
+	const policyForShape: PolicyInput = {
+		maxConsecutiveTeachingMinutesBeforeBreak: input.basePolicy?.maxConsecutiveTeachingMinutesBeforeBreak ?? 180,
+		minBreakMinutesAfterConsecutiveBlock: input.basePolicy?.minBreakMinutesAfterConsecutiveBlock ?? 20,
+		maxTeachingMinutesPerDay: input.basePolicy?.maxTeachingMinutesPerDay ?? 420,
+		earliestStartTime: input.startTime,
+		latestEndTime: input.endTime,
+		periodLengthMinutes: input.periodLengthMinutes,
+		periodsPerDay: input.periodsPerDay,
+		lunchStartTime: input.basePolicy?.lunchStartTime,
+		lunchEndTime: input.basePolicy?.lunchEndTime,
+		enableLunchWindow: input.basePolicy?.enableLunchWindow,
+		enforceLunchWindow: input.basePolicy?.enforceLunchWindow,
+		showSpecialEventsInGrid: input.basePolicy?.showSpecialEventsInGrid,
+		enableFlagCeremony: input.basePolicy?.enableFlagCeremony,
+		flagCeremonyStartTime: input.basePolicy?.flagCeremonyStartTime,
+		flagCeremonyEndTime: input.basePolicy?.flagCeremonyEndTime,
+		enableRecess: input.basePolicy?.enableRecess,
+		recessStartTime: input.basePolicy?.recessStartTime,
+		recessEndTime: input.basePolicy?.recessEndTime,
+		enableTleTwoPassPriority: input.basePolicy?.enableTleTwoPassPriority,
+		allowFlexibleSubjectAssignment: input.basePolicy?.allowFlexibleSubjectAssignment,
+		allowConsecutiveLabSessions: input.basePolicy?.allowConsecutiveLabSessions,
+	};
+	const periodSlots = buildPeriodSlots(policyForShape);
+	const specialEventSlots = buildSpecialEventSlots(policyForShape);
+	const displaySlots = (policyForShape.showSpecialEventsInGrid ?? true)
+		? mergeDisplaySlots(periodSlots, specialEventSlots)
+		: periodSlots;
+
+	return {
+		gradeLevel: input.gradeLevel,
+		programType: normalizeProgramType(input.programType),
+		startTime: input.startTime,
+		endTime: input.endTime,
+		periodLengthMinutes: input.periodLengthMinutes,
+		periodsPerDay: input.periodsPerDay,
+		periodSlots,
+		displaySlots,
+	};
+}
+
+export function resolveTimetableShapeContract(
+	contracts: TimetableShapeContract[] | undefined,
+	gradeLevel: number,
+	programType?: string | null,
+): TimetableShapeContract | undefined {
+	if (!contracts || contracts.length === 0) return undefined;
+	const normalizedProgramType = normalizeProgramType(programType);
+	return contracts.find((contract) => contract.gradeLevel === gradeLevel && contract.programType === normalizedProgramType)
+		?? contracts.find((contract) => contract.gradeLevel === gradeLevel && contract.programType === 'REGULAR')
+		?? contracts.find((contract) => contract.gradeLevel === gradeLevel)
+		?? contracts[0];
+}
+
+export function buildUnionClassPeriodSlots(contracts: TimetableShapeContract[] | undefined): PeriodSlot[] {
+	if (!contracts || contracts.length === 0) return [];
+	const dedupe = new Map<string, PeriodSlot>();
+	for (const contract of contracts) {
+		for (const slot of contract.periodSlots) {
+			const key = `${slot.startTime}-${slot.endTime}`;
+			if (!dedupe.has(key)) dedupe.set(key, { startTime: slot.startTime, endTime: slot.endTime });
+		}
+	}
+	return [...dedupe.values()].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+}
+
+export function buildUnionDisplaySlots(contracts: TimetableShapeContract[] | undefined): PeriodSlot[] {
+	if (!contracts || contracts.length === 0) return [];
+	const dedupe = new Map<string, PeriodSlot>();
+	for (const contract of contracts) {
+		for (const slot of contract.displaySlots) {
+			const key = `${slot.startTime}-${slot.endTime}-${slot.eventName ?? ''}-${slot.isSpecialEvent ? '1' : '0'}`;
+			if (!dedupe.has(key)) dedupe.set(key, {
+				startTime: slot.startTime,
+				endTime: slot.endTime,
+				isSpecialEvent: slot.isSpecialEvent,
+				eventName: slot.eventName,
+			});
+		}
+	}
+	return [...dedupe.values()].sort((a, b) => {
+		const startDiff = timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+		if (startDiff !== 0) return startDiff;
+		return timeToMinutes(a.endTime) - timeToMinutes(b.endTime);
+	});
+}
+
 export interface SpecializationAliasInput {
 	canonical: string;
 	alias: string;
@@ -284,6 +405,7 @@ export interface ConstructorInput {
 	 * for sections of the matching program type.
 	 */
 	classTemplatePeriods?: Record<string, number>;
+	timetableShapes?: TimetableShapeContract[];
 	/**
 	 * Optional demand override — bypasses computeDemand() to allow seed profile
 	 * reordering in the hybrid multi-seed constructor (H-ALG-1).
@@ -703,11 +825,12 @@ function timeToMinutes(t: string): number {
 // ─── Main constructor ───
 
 export function constructBaseline(input: ConstructorInput): ConstructorResult {
-	const { subjects, faculty, facultySubjects, rooms, preferences, sectionsByGrade, policy, lockedEntries, gradeWindows } = input;
+	const { subjects, faculty, facultySubjects, rooms, preferences, sectionsByGrade, policy, lockedEntries, gradeWindows, timetableShapes } = input;
 	const useHomeRoomPriority = input.roomingStrategy === 'HOME_ROOM_FIRST';
 
 	// Build period slots dynamically from policy (lunch window, school day bounds)
-	const PERIOD_SLOTS = buildPeriodSlots(policy);
+	const PERIOD_SLOTS = buildUnionClassPeriodSlots(timetableShapes);
+	const FALLBACK_PERIOD_SLOTS = PERIOD_SLOTS.length > 0 ? PERIOD_SLOTS : buildPeriodSlots(policy);
 
 	// Use demandOverride when provided (H-ALG-1 multi-seed support), otherwise compute fresh demand.
 	const demand = input.demandOverride ?? computeDemand(sectionsByGrade, subjects, input.cohorts ?? [], input.classTemplatePeriods ?? {});
@@ -881,7 +1004,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	}
 
 	// Preference lookup
-	const prefLookup = buildPreferenceLookup(preferences, PERIOD_SLOTS);
+	const prefLookup = buildPreferenceLookup(preferences, FALLBACK_PERIOD_SLOTS);
 
 	// Occupancy trackers
 	const facultyOcc = new OccupancyTracker();
@@ -912,7 +1035,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 	if (lockedEntries && lockedEntries.length > 0) {
 		for (const lock of lockedEntries) {
-			const pi = PERIOD_SLOTS.findIndex(
+			const pi = FALLBACK_PERIOD_SLOTS.findIndex(
 				(s) => s.startTime === lock.startTime && s.endTime === lock.endTime,
 			);
 			if (pi < 0) {
@@ -930,7 +1053,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			}
 
 			entryCounter++;
-			const period = PERIOD_SLOTS[pi];
+			const period = FALLBACK_PERIOD_SLOTS[pi];
 			const durationMinutes = timeToMinutes(period.endTime) - timeToMinutes(period.startTime);
 
 			entries.push({
@@ -990,8 +1113,8 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		const earliestMin = timeToMinutes(policy.earliestStartTime);
 		const latestMin = timeToMinutes(policy.latestEndTime);
 		validPeriodIndices = [];
-		for (let pi = 0; pi < PERIOD_SLOTS.length; pi++) {
-			const slot = PERIOD_SLOTS[pi];
+		for (let pi = 0; pi < FALLBACK_PERIOD_SLOTS.length; pi++) {
+			const slot = FALLBACK_PERIOD_SLOTS[pi];
 			if (timeToMinutes(slot.startTime) >= earliestMin && timeToMinutes(slot.endTime) <= latestMin) {
 				validPeriodIndices.push(pi);
 			}
@@ -1013,7 +1136,10 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		let consecutive = 0;
 		for (let i = 0; i < allPeriods.length; i++) {
 			const pi = allPeriods[i];
-			const slotDuration = (pi === periodIdx) ? duration : STANDARD_PERIOD_MINUTES;
+			const period = FALLBACK_PERIOD_SLOTS[pi];
+			const slotDuration = (pi === periodIdx)
+				? duration
+				: (period ? (timeToMinutes(period.endTime) - timeToMinutes(period.startTime)) : STANDARD_PERIOD_MINUTES);
 
 			if (i === 0) {
 				consecutive = slotDuration;
@@ -1021,8 +1147,8 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			}
 
 			const prevPi = allPeriods[i - 1];
-			const prevEnd = PERIOD_SLOTS[prevPi].endTime;
-			const currStart = PERIOD_SLOTS[pi].startTime;
+			const prevEnd = FALLBACK_PERIOD_SLOTS[prevPi].endTime;
+			const currStart = FALLBACK_PERIOD_SLOTS[pi].startTime;
 			const gapMinutes = timeToMinutes(currStart) - timeToMinutes(prevEnd);
 
 			if (gapMinutes < policy.minBreakMinutesAfterConsecutiveBlock) {
@@ -1125,12 +1251,20 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 		const sessionsNeeded = Math.max(0, item.sessionsPerWeek - lockedSessions);
 
 		// Grade window: narrow valid periods for this item's grade level
-		let gradeValidPeriods = validPeriodIndices ?? Array.from({ length: PERIOD_SLOTS.length }, (_, i) => i);
+		let gradeValidPeriods = validPeriodIndices ?? Array.from({ length: FALLBACK_PERIOD_SLOTS.length }, (_, i) => i);
+		const shapeContract = resolveTimetableShapeContract(timetableShapes, item.gradeLevel, item.programType);
+		if (shapeContract) {
+			const allowedSlotKeys = new Set(shapeContract.periodSlots.map((slot) => `${slot.startTime}-${slot.endTime}`));
+			gradeValidPeriods = gradeValidPeriods.filter((pi) => {
+				const slot = FALLBACK_PERIOD_SLOTS[pi];
+				return allowedSlotKeys.has(`${slot.startTime}-${slot.endTime}`);
+			});
+		}
 		const gradeProgramKey = `${item.gradeLevel}:${(item.programType ?? 'ALL').toUpperCase()}`;
 		const gw = gradeWindowMap.get(gradeProgramKey) ?? gradeWindowMap.get(`${item.gradeLevel}:ALL`);
 		if (gw) {
 			gradeValidPeriods = gradeValidPeriods.filter((pi) => {
-				const slot = PERIOD_SLOTS[pi];
+				const slot = FALLBACK_PERIOD_SLOTS[pi];
 				return timeToMinutes(slot.startTime) >= gw.startMin && timeToMinutes(slot.endTime) <= gw.endMin;
 			});
 		}
@@ -1164,7 +1298,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				if (!allowedDays.has(day)) continue;
 
 				for (const pi of gradeValidPeriods) {
-					const slot = PERIOD_SLOTS[pi];
+					const slot = FALLBACK_PERIOD_SLOTS[pi];
 					if (getDemandSectionIds(item).some((sectionId) => sectionOcc.isOccupied(sectionId, day, slot.startTime, slot.endTime))) continue;
 
 					let score = 1;
@@ -1191,7 +1325,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			for (const slotCandidate of possibleSlots) {
 				if (placed) break;
 
-				const slot = PERIOD_SLOTS[slotCandidate.pi];
+				const slot = FALLBACK_PERIOD_SLOTS[slotCandidate.pi];
 				const isModularUnified = Boolean(item.modularGroupId);
 				const { ids: candidates, reason: qReason } = isModularUnified
 					? { ids: [0] as number[], reason: undefined }

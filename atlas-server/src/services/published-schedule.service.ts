@@ -63,6 +63,7 @@ async function resolvePublishedRun(schoolId: number, schoolYearId?: number) {
 			generatedAt: publishedRun.finishedAt?.toISOString() ?? publishedRun.createdAt.toISOString(),
 		} satisfies PublishedRunSource,
 		entries: (publishedRun.draftEntries ?? []) as unknown as ScheduledEntry[],
+		summary: (publishedRun.summary ?? null) as Record<string, unknown> | null,
 	};
 }
 
@@ -171,8 +172,21 @@ export async function getPublishedSchedulePayload(schoolId: number, schoolYearId
 		};
 	});
 
+	const summaryDisplaySlots = Array.isArray(resolved.summary?.timetableDisplaySlots)
+		? (resolved.summary?.timetableDisplaySlots as Array<{ startTime: string; endTime: string; eventName?: string; isSpecialEvent?: boolean }>)
+		: [];
+	const timeSlots = summaryDisplaySlots.length > 0
+		? summaryDisplaySlots
+		: Array.from(new Set(entries.map((entry) => `${entry.startTime}-${entry.endTime}`)))
+			.map((key) => {
+				const [startTime, endTime] = key.split('-');
+				return { startTime, endTime };
+			})
+			.sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime));
+
 	return {
 		source: resolved.source,
+		timeSlots,
 		specialEvents: buildSpecialEventsPayload(policy),
 		entries,
 	};

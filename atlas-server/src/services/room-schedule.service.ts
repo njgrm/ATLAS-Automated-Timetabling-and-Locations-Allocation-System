@@ -96,23 +96,6 @@ export async function getRoomScheduleView(
 
 	// 2) Fetch policy to build dynamic time slots
 	const policy = await policyService.getOrCreatePolicy(schoolId, schoolYearId);
-	const classPeriodSlots = buildPeriodSlots({
-		maxConsecutiveTeachingMinutesBeforeBreak: policy.maxConsecutiveTeachingMinutesBeforeBreak,
-		minBreakMinutesAfterConsecutiveBlock: policy.minBreakMinutesAfterConsecutiveBlock,
-		maxTeachingMinutesPerDay: policy.maxTeachingMinutesPerDay,
-		earliestStartTime: policy.earliestStartTime,
-		latestEndTime: policy.latestEndTime,
-		lunchStartTime: policy.lunchStartTime,
-		lunchEndTime: policy.lunchEndTime,
-		enableLunchWindow: policy.enableLunchWindow,
-		enforceLunchWindow: policy.enforceLunchWindow,
-		enableFlagCeremony: policy.enableFlagCeremony,
-		flagCeremonyStartTime: policy.flagCeremonyStartTime,
-		flagCeremonyEndTime: policy.flagCeremonyEndTime,
-		enableRecess: policy.enableRecess,
-		recessStartTime: policy.recessStartTime,
-		recessEndTime: policy.recessEndTime,
-	});
 	const specialEventSlots = buildSpecialEventSlots({
 		maxConsecutiveTeachingMinutesBeforeBreak: policy.maxConsecutiveTeachingMinutesBeforeBreak,
 		minBreakMinutesAfterConsecutiveBlock: policy.minBreakMinutesAfterConsecutiveBlock,
@@ -130,7 +113,24 @@ export async function getRoomScheduleView(
 		recessStartTime: policy.recessStartTime,
 		recessEndTime: policy.recessEndTime,
 	});
-	const PERIOD_SLOTS = (policy.showSpecialEventsInGrid ?? true)
+	let classPeriodSlots = buildPeriodSlots({
+		maxConsecutiveTeachingMinutesBeforeBreak: policy.maxConsecutiveTeachingMinutesBeforeBreak,
+		minBreakMinutesAfterConsecutiveBlock: policy.minBreakMinutesAfterConsecutiveBlock,
+		maxTeachingMinutesPerDay: policy.maxTeachingMinutesPerDay,
+		earliestStartTime: policy.earliestStartTime,
+		latestEndTime: policy.latestEndTime,
+		lunchStartTime: policy.lunchStartTime,
+		lunchEndTime: policy.lunchEndTime,
+		enableLunchWindow: policy.enableLunchWindow,
+		enforceLunchWindow: policy.enforceLunchWindow,
+		enableFlagCeremony: policy.enableFlagCeremony,
+		flagCeremonyStartTime: policy.flagCeremonyStartTime,
+		flagCeremonyEndTime: policy.flagCeremonyEndTime,
+		enableRecess: policy.enableRecess,
+		recessStartTime: policy.recessStartTime,
+		recessEndTime: policy.recessEndTime,
+	});
+	let PERIOD_SLOTS = (policy.showSpecialEventsInGrid ?? true)
 		? mergeDisplaySlots(classPeriodSlots, specialEventSlots)
 		: classPeriodSlots;
 
@@ -175,6 +175,26 @@ export async function getRoomScheduleView(
 			? await genService.getLatestRunDraft(schoolId, schoolYearId)
 			: await genService.getRunDraft(source.runId, schoolId, schoolYearId);
 		roomEntries = draft.entries.filter((e: ScheduledEntry) => e.roomId === roomId);
+
+		if (draft.summary?.timetableShapeContracts && draft.summary.timetableShapeContracts.length > 0) {
+			const dedupedClassSlots = new Map<string, { startTime: string; endTime: string }>();
+			for (const contract of draft.summary.timetableShapeContracts) {
+				for (const slot of contract.periodSlots) {
+					dedupedClassSlots.set(`${slot.startTime}-${slot.endTime}`, { startTime: slot.startTime, endTime: slot.endTime });
+				}
+			}
+			classPeriodSlots = [...dedupedClassSlots.values()].sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime));
+		}
+
+		if (draft.summary?.timetableDisplaySlots && draft.summary.timetableDisplaySlots.length > 0) {
+			PERIOD_SLOTS = draft.summary.timetableDisplaySlots.map((slot) => ({
+				startTime: slot.startTime,
+				endTime: slot.endTime,
+				isSpecialEvent: slot.isSpecialEvent,
+				eventName: slot.eventName,
+			}));
+		}
+
 		sourceRunId = draft.runId;
 		sourceStatus = draft.status;
 		sourceGeneratedAt = draft.finishedAt ?? draft.createdAt;
@@ -234,9 +254,12 @@ export async function getRoomScheduleView(
 	const entryCount = countUniqueEntryIds(roomEntries);
 	const occupiedMinutes = computeOccupiedMinutesByIntervalUnion(roomEntries, DAYS);
 
-	const totalSlots = classPeriodSlots.length * DAYS.length;
-	const slotMinutes = 50; // standard JHS period
-	const availableMinutes = totalSlots * slotMinutes;
+	const slotMinutesTotal = classPeriodSlots.reduce((total, slot) => {
+		const [startH, startM] = slot.startTime.split(':').map(Number);
+		const [endH, endM] = slot.endTime.split(':').map(Number);
+		return total + Math.max(0, (endH * 60 + endM) - (startH * 60 + startM));
+	}, 0);
+	const availableMinutes = slotMinutesTotal * DAYS.length;
 	const utilizationPercent = availableMinutes > 0
 		? Math.round((occupiedMinutes / availableMinutes) * 10000) / 100
 		: 0;

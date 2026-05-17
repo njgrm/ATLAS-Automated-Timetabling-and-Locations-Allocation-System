@@ -15,9 +15,11 @@ import {
 import {
 	constructBaseline,
 	computeDemand,
+	buildTimetableShapeContract,
 	type ConstructorInput,
 	type DemandItem,
 	type HomeRoomFallbackCause,
+	type TimetableShapeContract,
 	type UnassignedItem,
 	type RoomAssignmentReason,
 } from './schedule-constructor.js';
@@ -119,6 +121,47 @@ export interface RunSummary {
 		term2: number;
 		term3: number;
 	};
+	timetableShapeContracts?: TimetableShapeContract[];
+	timetableDisplaySlots?: Array<{ startTime: string; endTime: string; eventName?: string; isSpecialEvent?: boolean }>;
+}
+
+function normalizeProgramType(programType?: string | null): string {
+	return (programType ?? 'REGULAR').toUpperCase();
+}
+
+function buildRunTimetableShapeContracts(input: {
+	sectionsByGrade: Array<{ gradeLevelId: number; sections: Array<{ programType?: string | null }> }>;
+	gradeWindows: Array<{ gradeLevel: number; programType?: string | null; startTime: string; endTime: string }>;
+	templateProfiles: Array<{ programType: string; periodLengthMinutes: number; periodsPerDay: number }>;
+	policy: ConstructorInput['policy'];
+}): TimetableShapeContract[] {
+	const templateByProgram = new Map(input.templateProfiles.map((profile) => [normalizeProgramType(profile.programType), profile]));
+	const regularTemplate = templateByProgram.get('REGULAR') ?? { programType: 'REGULAR', periodLengthMinutes: 50, periodsPerDay: 8 };
+
+	const contracts: TimetableShapeContract[] = [];
+	for (const grade of input.sectionsByGrade) {
+		const programTypes = new Set<string>(['REGULAR']);
+		for (const section of grade.sections) {
+			programTypes.add(normalizeProgramType(section.programType));
+		}
+
+		for (const programType of programTypes) {
+			const window = input.gradeWindows.find((row) => row.gradeLevel === grade.gradeLevelId && normalizeProgramType(row.programType) === programType)
+				?? input.gradeWindows.find((row) => row.gradeLevel === grade.gradeLevelId && normalizeProgramType(row.programType) === 'ALL');
+			const template = templateByProgram.get(programType) ?? regularTemplate;
+			contracts.push(buildTimetableShapeContract({
+				gradeLevel: grade.gradeLevelId,
+				programType,
+				startTime: window?.startTime ?? input.policy?.earliestStartTime ?? '07:00',
+				endTime: window?.endTime ?? input.policy?.latestEndTime ?? '17:00',
+				periodLengthMinutes: template.periodLengthMinutes,
+				periodsPerDay: template.periodsPerDay,
+				basePolicy: input.policy,
+			}));
+		}
+	}
+
+	return contracts;
 }
 
 function buildRoomAssignmentReasonCounts(entries: ScheduledEntry[], unassignedItems: UnassignedItem[]): Record<string, number> {
@@ -493,6 +536,37 @@ export async function triggerGenerationRun(
 		for (const tp of templateProfiles) {
 			classTemplatePeriods[tp.programType] = tp.periodLengthMinutes;
 		}
+		const timetableShapeContracts = buildRunTimetableShapeContracts({
+			sectionsByGrade,
+			gradeWindows: gradeWindows.map((gw) => ({
+				gradeLevel: gw.gradeLevel,
+				programType: gw.programType ?? null,
+				startTime: gw.startTime,
+				endTime: gw.endTime,
+			})),
+			templateProfiles,
+			policy: {
+				maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
+				minBreakMinutesAfterConsecutiveBlock: policyRecord.minBreakMinutesAfterConsecutiveBlock,
+				maxTeachingMinutesPerDay: policyRecord.maxTeachingMinutesPerDay,
+				earliestStartTime: policyRecord.earliestStartTime,
+				latestEndTime: policyRecord.latestEndTime,
+				lunchStartTime: policyRecord.lunchStartTime ?? undefined,
+				lunchEndTime: policyRecord.lunchEndTime ?? undefined,
+				enableLunchWindow: policyRecord.enableLunchWindow ?? undefined,
+				enforceLunchWindow: policyRecord.enforceLunchWindow ?? undefined,
+				showSpecialEventsInGrid: policyRecord.showSpecialEventsInGrid ?? undefined,
+				enableFlagCeremony: policyRecord.enableFlagCeremony ?? undefined,
+				flagCeremonyStartTime: policyRecord.flagCeremonyStartTime ?? undefined,
+				flagCeremonyEndTime: policyRecord.flagCeremonyEndTime ?? undefined,
+				enableRecess: policyRecord.enableRecess ?? undefined,
+				recessStartTime: policyRecord.recessStartTime ?? undefined,
+				recessEndTime: policyRecord.recessEndTime ?? undefined,
+				enableTleTwoPassPriority: policyRecord.enableTleTwoPassPriority ?? true,
+				allowFlexibleSubjectAssignment: policyRecord.allowFlexibleSubjectAssignment ?? false,
+				allowConsecutiveLabSessions: policyRecord.allowConsecutiveLabSessions ?? false,
+			},
+		});
 
 		const demand = computeDemand(sectionsByGrade, subjects, cohorts, classTemplatePeriods);
 		const policyMaxDailyMinutes = policyRecord.maxTeachingMinutesPerDay;
@@ -554,6 +628,7 @@ export async function triggerGenerationRun(
 			buildings: buildings.map((b) => ({ id: b.id, name: b.name })),
 			specializationAliases,
 			classTemplatePeriods,
+			timetableShapes: timetableShapeContracts,
 		};
 		const result = runHybridScheduler(constructorInput);
 		const entriesWithTerms = withTermIndex(result.entries);
@@ -697,6 +772,13 @@ export async function triggerGenerationRun(
 		};
 		const termCounts = buildTermCounts(entriesWithTerms);
 		const homeRoomStats = buildHomeRoomStats(entriesWithTerms, result.unassignedItems);
+		const timetableDisplaySlots = timetableShapeContracts
+			.flatMap((contract) => contract.displaySlots)
+			.filter((slot, index, slots) => {
+				const key = `${slot.startTime}-${slot.endTime}-${slot.eventName ?? ''}-${slot.isSpecialEvent ? '1' : '0'}`;
+				return slots.findIndex((candidate) => `${candidate.startTime}-${candidate.endTime}-${candidate.eventName ?? ''}-${candidate.isSpecialEvent ? '1' : '0'}` === key) === index;
+			})
+			.sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime));
 
 		const summary: RunSummary = {
 			classesProcessed: result.classesProcessed,
@@ -730,6 +812,8 @@ export async function triggerGenerationRun(
 			resourceDiagnostics,
 			shiftWindowPolicy: options?.enforceShiftWindows === false ? 'DISABLED' : 'ENFORCED',
 			configuredShiftWindowCount: gradeWindows.length,
+			timetableShapeContracts,
+			timetableDisplaySlots,
 		};
 
 		const finishedAt = new Date();

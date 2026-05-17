@@ -6,7 +6,7 @@ import { fetchPublicSettings } from '@/lib/settings';
 import { getProgramBadgeLabel, matchesEntryKindFilter, matchesProgramFilter } from '@/lib/schedule-review-helpers';
 import {
 	buildViolationIndex,
-	deriveTimeSlots,
+	deriveTimeSlotsFromSummary,
 	minutesBetween,
 } from '@/lib/timetable-utils';
 import type {
@@ -410,8 +410,17 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	const timeSlots = useMemo(
 		() => isPreGenerationWorkspace && draftBoard?.periodSlots?.length
 			? draftBoard.periodSlots
-			: deriveTimeSlots(activeGridEntriesBase),
-		[activeGridEntriesBase, draftBoard?.periodSlots, isPreGenerationWorkspace],
+			: deriveTimeSlotsFromSummary(activeGridEntriesBase, {
+				timetableDisplaySlots: draft?.summary?.timetableDisplaySlots,
+				timetableShapeContracts: draft?.summary?.timetableShapeContracts,
+			}),
+		[
+			activeGridEntriesBase,
+			draft?.summary?.timetableDisplaySlots,
+			draft?.summary?.timetableShapeContracts,
+			draftBoard?.periodSlots,
+			isPreGenerationWorkspace,
+		],
 	);
 
 	const cellConflictMap = useMemo<Map<string, CellConflictInfo> | null>(() => {

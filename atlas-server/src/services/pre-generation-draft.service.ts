@@ -9,6 +9,9 @@ import {
 import {
 	buildPeriodSlots,
 	buildSpecialEventSlots,
+	buildTimetableShapeContract,
+	buildUnionClassPeriodSlots,
+	buildUnionDisplaySlots,
 	mergeDisplaySlots,
 	computeDemand,
 	getDemandAssignmentKey,
@@ -20,6 +23,7 @@ import {
 import { sectionAdapter } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
+import { getTemplatePeriodProfiles } from './class-template.service.js';
 
 function err(statusCode: number, code: string, message: string, details?: Record<string, unknown>) {
 	const error = new Error(message) as Error & { statusCode: number; code: string; details?: Record<string, unknown> };
@@ -336,6 +340,10 @@ function timeToMinutes(value: string) {
 	return hours * 60 + minutes;
 }
 
+function normalizeProgramType(programType?: string | null): string {
+	return (programType ?? 'REGULAR').toUpperCase();
+}
+
 /** Sum teaching minutes for a faculty member on a given day from a list of entries */
 function computeFacultyDailyMinutes(facultyId: number, day: string, entries: ScheduledEntry[]): number {
 	return entries
@@ -520,7 +528,50 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 
 	const sectionsById = new Map(sectionResult.gradeLevels.flatMap((grade) => grade.sections.map((section) => [section.id, section] as const)));
 	const sectionEnrollment = new Map(sectionResult.gradeLevels.flatMap((grade) => grade.sections.map((section) => [section.id, section.enrolledCount] as const)));
-	const classPeriodSlots = buildPeriodSlots({
+	const templateProfiles = await getTemplatePeriodProfiles(schoolId);
+	const templateByProgram = new Map(templateProfiles.map((profile) => [normalizeProgramType(profile.programType), profile]));
+	const regularTemplate = templateByProgram.get('REGULAR') ?? { periodLengthMinutes: 50, periodsPerDay: 8, programType: 'REGULAR' };
+
+	const shapeContracts = sectionResult.gradeLevels.flatMap((grade) => {
+		const programTypes = new Set<string>(['REGULAR']);
+		for (const section of grade.sections) {
+			programTypes.add(normalizeProgramType(section.programType));
+		}
+		return [...programTypes].map((programType) => {
+			const shiftWindow = gradeWindows.find((window) => window.gradeLevel === grade.gradeLevelId && normalizeProgramType(window.programType) === programType)
+				?? gradeWindows.find((window) => window.gradeLevel === grade.gradeLevelId && normalizeProgramType(window.programType) === 'ALL');
+			const template = templateByProgram.get(programType) ?? regularTemplate;
+			return buildTimetableShapeContract({
+				gradeLevel: grade.gradeLevelId,
+				programType,
+				startTime: shiftWindow?.startTime ?? policyRecord.earliestStartTime,
+				endTime: shiftWindow?.endTime ?? policyRecord.latestEndTime,
+				periodLengthMinutes: template.periodLengthMinutes,
+				periodsPerDay: template.periodsPerDay,
+				basePolicy: {
+					maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
+					minBreakMinutesAfterConsecutiveBlock: policyRecord.minBreakMinutesAfterConsecutiveBlock,
+					maxTeachingMinutesPerDay: policyRecord.maxTeachingMinutesPerDay,
+					earliestStartTime: policyRecord.earliestStartTime,
+					latestEndTime: policyRecord.latestEndTime,
+					lunchStartTime: policyRecord.lunchStartTime ?? undefined,
+					lunchEndTime: policyRecord.lunchEndTime ?? undefined,
+					enableLunchWindow: policyRecord.enableLunchWindow ?? undefined,
+					enforceLunchWindow: policyRecord.enforceLunchWindow ?? undefined,
+					showSpecialEventsInGrid: policyRecord.showSpecialEventsInGrid ?? undefined,
+					enableFlagCeremony: policyRecord.enableFlagCeremony ?? undefined,
+					flagCeremonyStartTime: policyRecord.flagCeremonyStartTime ?? undefined,
+					flagCeremonyEndTime: policyRecord.flagCeremonyEndTime ?? undefined,
+					enableRecess: policyRecord.enableRecess ?? undefined,
+					recessStartTime: policyRecord.recessStartTime ?? undefined,
+					recessEndTime: policyRecord.recessEndTime ?? undefined,
+				},
+			});
+		});
+	});
+
+	const classPeriodSlots = buildUnionClassPeriodSlots(shapeContracts);
+	const fallbackClassPeriodSlots = classPeriodSlots.length > 0 ? classPeriodSlots : buildPeriodSlots({
 		maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
 		minBreakMinutesAfterConsecutiveBlock: policyRecord.minBreakMinutesAfterConsecutiveBlock,
 		maxTeachingMinutesPerDay: policyRecord.maxTeachingMinutesPerDay,
@@ -554,11 +605,14 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 		recessStartTime: policyRecord.recessStartTime ?? undefined,
 		recessEndTime: policyRecord.recessEndTime ?? undefined,
 	} satisfies PolicyInput);
-	const periodSlots = (policyRecord.showSpecialEventsInGrid ?? true)
-		? mergeDisplaySlots(classPeriodSlots, specialEventSlots)
-		: classPeriodSlots;
+	const periodSlots = buildUnionDisplaySlots(shapeContracts).length > 0
+		? buildUnionDisplaySlots(shapeContracts)
+		: ((policyRecord.showSpecialEventsInGrid ?? true)
+			? mergeDisplaySlots(fallbackClassPeriodSlots, specialEventSlots)
+			: fallbackClassPeriodSlots);
 
-	const demand = computeDemand(sectionResult.gradeLevels, subjects, cohorts, {});
+	const classTemplatePeriods = Object.fromEntries(templateProfiles.map((profile) => [profile.programType, profile.periodLengthMinutes]));
+	const demand = computeDemand(sectionResult.gradeLevels, subjects, cohorts, classTemplatePeriods);
 	const demandByKey = new Map(demand.map((item) => [getDemandAssignmentKey(item), item]));
 	const qualifiedByKey = new Map<string, number[]>();
 	for (const assignment of facultySubjects) {
@@ -585,7 +639,7 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 		gradeWindows,
 		placements,
 		periodSlots,
-		classPeriodSlots,
+		classPeriodSlots: fallbackClassPeriodSlots,
 		demand,
 		demandByKey,
 		qualifiedByKey,

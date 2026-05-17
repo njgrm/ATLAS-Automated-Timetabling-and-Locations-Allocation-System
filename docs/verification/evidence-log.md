@@ -1,5 +1,42 @@
 # Verification Evidence Log
 #
+### 2026-05-16 - Phase 2 Timetable Shape Refactor (prompt execution)
+- Phase: Phase 2 timetable-shape contract refactor, no closure claim
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Verification commands executed:
+  - `npx tsc --noEmit` (atlas-server): PASS
+  - `npm run test:phase2-home-room-strategy` (atlas-server): PASS (7/7)
+  - `npx tsx src/__tests__/phase2-timetable-shape-contract.test.ts` (atlas-server): PASS (7/7)
+  - `npx tsx -e "import { triggerGenerationRun } from './src/services/generation.service.ts'; ..."`: PASS (fresh run created: `run=38`)
+  - `npx tsx src/scripts/validate-run-preferences.ts`: PASS (script execution + KPI verdict)
+- Files changed in this pass:
+  - `atlas-server/src/services/schedule-constructor.ts`
+  - `atlas-server/src/services/generation.service.ts`
+  - `atlas-server/src/services/pre-generation-draft.service.ts`
+  - `atlas-server/src/services/room-schedule.service.ts`
+  - `atlas-server/src/services/published-schedule.service.ts`
+  - `atlas-client/src/types.ts`
+  - `atlas-client/src/lib/timetable-utils.ts`
+  - `atlas-client/src/hooks/useTimetableData.ts`
+  - `atlas-server/src/__tests__/phase2-timetable-shape-contract.test.ts`
+- Shape-contract implementation outcomes:
+  - Added explicit `TimetableShapeContract` model (grade/program-specific) with `periodLengthMinutes`, `periodsPerDay`, and both class/display slot sets.
+  - Constructor now accepts `timetableShapes` and constrains candidate periods to per-grade/program shape slots before assignment.
+  - Generation run summary now emits `timetableShapeContracts` and `timetableDisplaySlots` for downstream display alignment.
+  - Pre-generation draft board now computes slots/demand using template-aware shape contracts (instead of demand `classTemplatePeriods={}` and policy-only slots).
+  - Room schedule and published schedule outputs now consume shape-aware summary slots when available.
+  - Client timetable slot derivation now prefers `draft.summary.timetableDisplaySlots` / `timetableShapeContracts` before entry-derived fallback.
+- Post-change measured KPI (fresh run):
+  - Run `38`
+  - `homeRoomSuccessRate = 24.3%`
+  - `homeRoomAttempted = 2876`, `homeRoomAssigned = 699`
+  - `homeRoomFallbackDiagnostics = { homeRoomOccupied: 774, noSameZoneStandardRoom: 0, onlySpecializedRoomsAvailable: 0, policyOrShiftWindowIncompatible: 1403 }`
+- Target band met: NO (`70-85%`)
+- Decision: **NO-GO**
+- Residual blocker signal:
+  - Despite shape-contract alignment across generator/display, dominant miss path remains `policyOrShiftWindowIncompatible`, indicating unresolved feasibility pressure in assignment strategy and/or upstream policy-window density.
+
 ### 2026-05-16 - Phase 2 Home-Room KPI Recovery (prompt execution)
 - Phase: Phase 2 Home-Room KPI recovery (algorithm + diagnostics), no closure claim
 - Operator: GitHub Copilot

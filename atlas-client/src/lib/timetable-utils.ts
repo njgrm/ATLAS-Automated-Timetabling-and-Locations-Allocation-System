@@ -71,6 +71,48 @@ export function deriveTimeSlots(entries: ScheduledEntry[]): Array<{ startTime: s
 		.sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime));
 }
 
+export function deriveTimeSlotsFromSummary(
+	entries: ScheduledEntry[],
+	options?: {
+		timetableDisplaySlots?: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
+		timetableShapeContracts?: Array<{
+			periodSlots: Array<{ startTime: string; endTime: string }>;
+		}>;
+	},
+): Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }> {
+	if (options?.timetableDisplaySlots && options.timetableDisplaySlots.length > 0) {
+		return options.timetableDisplaySlots
+			.map((slot) => ({
+				startTime: slot.startTime,
+				endTime: slot.endTime,
+				isSpecialEvent: slot.isSpecialEvent,
+				eventName: slot.eventName,
+			}))
+			.sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime));
+	}
+
+	if (options?.timetableShapeContracts && options.timetableShapeContracts.length > 0) {
+		const dedupe = new Map<string, { startTime: string; endTime: string }>();
+		for (const contract of options.timetableShapeContracts) {
+			for (const slot of contract.periodSlots) {
+				dedupe.set(`${slot.startTime}-${slot.endTime}`, { startTime: slot.startTime, endTime: slot.endTime });
+			}
+		}
+		return [...dedupe.values()].sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime));
+	}
+
+	const seen = new Set<string>();
+	for (const e of entries) {
+		seen.add(`${e.startTime}-${e.endTime}`);
+	}
+	return Array.from(seen.values())
+		.map((slotKey) => {
+			const [startTime, endTime] = slotKey.split('-');
+			return { startTime, endTime };
+		})
+		.sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime));
+}
+
 export function buildViolationIndex(violations: Violation[]): Map<string, Violation[]> {
 	const index = new Map<string, Violation[]>();
 	for (const v of violations) {
