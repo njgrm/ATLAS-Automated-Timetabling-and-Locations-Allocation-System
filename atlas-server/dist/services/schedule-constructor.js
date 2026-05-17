@@ -74,8 +74,15 @@ function buildPeriodSlots(policy) {
             });
         }
         let cursor = earliest;
-        while (cursor + STANDARD_PERIOD_MINUTES <= latest) {
-            const slotEnd = cursor + STANDARD_PERIOD_MINUTES;
+        const slotLength = policy.periodLengthMinutes && policy.periodLengthMinutes > 0
+            ? policy.periodLengthMinutes
+            : STANDARD_PERIOD_MINUTES;
+        const maxPeriods = policy.periodsPerDay && policy.periodsPerDay > 0
+            ? policy.periodsPerDay
+            : Number.POSITIVE_INFINITY;
+        let builtPeriods = 0;
+        while (cursor + slotLength <= latest && builtPeriods < maxPeriods) {
+            const slotEnd = cursor + slotLength;
             const overlappingWindow = blockedWindows
                 .filter((window) => window.end > window.start)
                 .find((window) => cursor < window.end && slotEnd > window.start);
@@ -89,6 +96,7 @@ function buildPeriodSlots(policy) {
                 startTime: `${hh(cursor)}:${mm(cursor)}`,
                 endTime: `${hh(slotEnd)}:${mm(slotEnd)}`,
             });
+            builtPeriods += 1;
             cursor = slotEnd;
         }
     }
@@ -142,9 +150,97 @@ function mergeDisplaySlots(periodSlots, specialEventSlots) {
 }
 /** Exported for use by room-schedule service and other consumers. */
 export { buildPeriodSlots, buildSpecialEventSlots, mergeDisplaySlots };
+function normalizeProgramType(programType) {
+    return (programType ?? 'REGULAR').toUpperCase();
+}
+export function buildTimetableShapeContract(input) {
+    const policyForShape = {
+        maxConsecutiveTeachingMinutesBeforeBreak: input.basePolicy?.maxConsecutiveTeachingMinutesBeforeBreak ?? 180,
+        minBreakMinutesAfterConsecutiveBlock: input.basePolicy?.minBreakMinutesAfterConsecutiveBlock ?? 20,
+        maxTeachingMinutesPerDay: input.basePolicy?.maxTeachingMinutesPerDay ?? 420,
+        earliestStartTime: input.startTime,
+        latestEndTime: input.endTime,
+        periodLengthMinutes: input.periodLengthMinutes,
+        periodsPerDay: input.periodsPerDay,
+        lunchStartTime: input.basePolicy?.lunchStartTime,
+        lunchEndTime: input.basePolicy?.lunchEndTime,
+        enableLunchWindow: input.basePolicy?.enableLunchWindow,
+        enforceLunchWindow: input.basePolicy?.enforceLunchWindow,
+        showSpecialEventsInGrid: input.basePolicy?.showSpecialEventsInGrid,
+        enableFlagCeremony: input.basePolicy?.enableFlagCeremony,
+        flagCeremonyStartTime: input.basePolicy?.flagCeremonyStartTime,
+        flagCeremonyEndTime: input.basePolicy?.flagCeremonyEndTime,
+        enableRecess: input.basePolicy?.enableRecess,
+        recessStartTime: input.basePolicy?.recessStartTime,
+        recessEndTime: input.basePolicy?.recessEndTime,
+        enableTleTwoPassPriority: input.basePolicy?.enableTleTwoPassPriority,
+        allowFlexibleSubjectAssignment: input.basePolicy?.allowFlexibleSubjectAssignment,
+        allowConsecutiveLabSessions: input.basePolicy?.allowConsecutiveLabSessions,
+    };
+    const periodSlots = buildPeriodSlots(policyForShape);
+    const specialEventSlots = buildSpecialEventSlots(policyForShape);
+    const displaySlots = (policyForShape.showSpecialEventsInGrid ?? true)
+        ? mergeDisplaySlots(periodSlots, specialEventSlots)
+        : periodSlots;
+    return {
+        gradeLevel: input.gradeLevel,
+        programType: normalizeProgramType(input.programType),
+        startTime: input.startTime,
+        endTime: input.endTime,
+        periodLengthMinutes: input.periodLengthMinutes,
+        periodsPerDay: input.periodsPerDay,
+        periodSlots,
+        displaySlots,
+    };
+}
+export function resolveTimetableShapeContract(contracts, gradeLevel, programType) {
+    if (!contracts || contracts.length === 0)
+        return undefined;
+    const normalizedProgramType = normalizeProgramType(programType);
+    return contracts.find((contract) => contract.gradeLevel === gradeLevel && contract.programType === normalizedProgramType)
+        ?? contracts.find((contract) => contract.gradeLevel === gradeLevel && contract.programType === 'REGULAR')
+        ?? contracts.find((contract) => contract.gradeLevel === gradeLevel)
+        ?? contracts[0];
+}
+export function buildUnionClassPeriodSlots(contracts) {
+    if (!contracts || contracts.length === 0)
+        return [];
+    const dedupe = new Map();
+    for (const contract of contracts) {
+        for (const slot of contract.periodSlots) {
+            const key = `${slot.startTime}-${slot.endTime}`;
+            if (!dedupe.has(key))
+                dedupe.set(key, { startTime: slot.startTime, endTime: slot.endTime });
+        }
+    }
+    return [...dedupe.values()].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+}
+export function buildUnionDisplaySlots(contracts) {
+    if (!contracts || contracts.length === 0)
+        return [];
+    const dedupe = new Map();
+    for (const contract of contracts) {
+        for (const slot of contract.displaySlots) {
+            const key = `${slot.startTime}-${slot.endTime}-${slot.eventName ?? ''}-${slot.isSpecialEvent ? '1' : '0'}`;
+            if (!dedupe.has(key))
+                dedupe.set(key, {
+                    startTime: slot.startTime,
+                    endTime: slot.endTime,
+                    isSpecialEvent: slot.isSpecialEvent,
+                    eventName: slot.eventName,
+                });
+        }
+    }
+    return [...dedupe.values()].sort((a, b) => {
+        const startDiff = timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+        if (startDiff !== 0)
+            return startDiff;
+        return timeToMinutes(a.endTime) - timeToMinutes(b.endTime);
+    });
+}
 export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemplatePeriods = {}) {
     const EXPECTED_MODULAR_SUBJECTS = {
-        SCIENCE: 4,
+        SCIENCE: 3,
     };
     const demand = [];
     const sortedGrades = [...sectionsByGrade].sort((a, b) => a.displayOrder - b.displayOrder);
@@ -200,6 +296,8 @@ export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemp
                     enrolledCount: section.enrolledCount,
                     sessionPattern: primary.sessionPattern ?? 'ANY',
                     entryKind: 'SECTION',
+                    homeRoomId: section.homeRoomId ?? null,
+                    buildingZoneId: section.buildingZoneId ?? null,
                     programType: section.programType ?? null,
                     programCode: section.programCode ?? null,
                     programName: section.programName ?? null,
@@ -265,6 +363,8 @@ export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemp
                             : applicableMembers.reduce((total, memberSection) => total + memberSection.enrolledCount, 0),
                         sessionPattern: subject.sessionPattern ?? 'ANY',
                         entryKind: 'COHORT',
+                        homeRoomId: null,
+                        buildingZoneId: anchorSection.buildingZoneId ?? null,
                         programType: anchorSection.programType ?? null,
                         programCode: anchorSection.programCode ?? null,
                         programName: anchorSection.programName ?? null,
@@ -292,6 +392,8 @@ export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemp
                         enrolledCount: section.enrolledCount,
                         sessionPattern: subject.sessionPattern ?? 'ANY',
                         entryKind: 'SECTION',
+                        homeRoomId: section.homeRoomId ?? null,
+                        buildingZoneId: section.buildingZoneId ?? null,
                         programType: section.programType ?? null,
                         programCode: section.programCode ?? null,
                         programName: section.programName ?? null,
@@ -316,6 +418,8 @@ export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemp
                     enrolledCount: section.enrolledCount,
                     sessionPattern: subject.sessionPattern ?? 'ANY',
                     entryKind: 'SECTION',
+                    homeRoomId: section.homeRoomId ?? null,
+                    buildingZoneId: section.buildingZoneId ?? null,
                     programType: section.programType ?? null,
                     programCode: section.programCode ?? null,
                     programName: section.programName ?? null,
@@ -399,9 +503,11 @@ function timeToMinutes(t) {
 }
 // ─── Main constructor ───
 export function constructBaseline(input) {
-    const { subjects, faculty, facultySubjects, rooms, preferences, sectionsByGrade, policy, lockedEntries, gradeWindows } = input;
+    const { subjects, faculty, facultySubjects, rooms, preferences, sectionsByGrade, policy, lockedEntries, gradeWindows, timetableShapes } = input;
+    const useHomeRoomPriority = input.roomingStrategy === 'HOME_ROOM_FIRST';
     // Build period slots dynamically from policy (lunch window, school day bounds)
-    const PERIOD_SLOTS = buildPeriodSlots(policy);
+    const PERIOD_SLOTS = buildUnionClassPeriodSlots(timetableShapes);
+    const FALLBACK_PERIOD_SLOTS = PERIOD_SLOTS.length > 0 ? PERIOD_SLOTS : buildPeriodSlots(policy);
     // Use demandOverride when provided (H-ALG-1 multi-seed support), otherwise compute fresh demand.
     const demand = input.demandOverride ?? computeDemand(sectionsByGrade, subjects, input.cohorts ?? [], input.classTemplatePeriods ?? {});
     // Teaching rooms sorted by id, grouped by type
@@ -472,8 +578,8 @@ export function constructBaseline(input) {
         else {
             candidates = [...(qualifiedMap.get(`${item.subjectId}:${item.sectionId}`) ?? [])];
         }
-        // Priority 2: Fallback to Tiered Qualification
-        if (candidates.length === 0 && subject) {
+        // Priority 2: Optional fallback to tiered qualification only when policy allows flexible assignment.
+        if (candidates.length === 0 && subject && allowFlexible) {
             candidates = faculty.filter(f => isFacultyQualified(f, subject)).map(f => f.id);
         }
         if (candidates.length === 0) {
@@ -501,33 +607,37 @@ export function constructBaseline(input) {
     }
     function buildModularAssignments(item) {
         if (!item.modularSubjects || item.modularSubjects.length === 0) {
-            return { assignments: [], missingQuarters: [] };
+            return { assignments: [], missingTerms: [] };
         }
         const sortedModules = [...item.modularSubjects].sort((left, right) => left.modularOrder - right.modularOrder);
         const assignments = [];
-        const missingQuarters = [];
+        const missingTerms = [];
         for (const moduleSubject of sortedModules) {
-            const quarter = moduleSubject.modularOrder;
+            const termIndex = moduleSubject.modularOrder <= 1
+                ? 1
+                : moduleSubject.modularOrder === 2
+                    ? 2
+                    : 3;
             const facultyIds = qualifiedMap.get(`${moduleSubject.subjectId}:${item.sectionId}`) ?? [];
             if (facultyIds.length === 0) {
-                missingQuarters.push(quarter);
+                missingTerms.push(termIndex);
                 continue;
             }
             assignments.push({
-                quarter,
+                termIndex,
                 facultyId: facultyIds[0],
                 subjectCode: moduleSubject.subjectCode,
             });
         }
-        if (missingQuarters.length > 0) {
+        if (missingTerms.length > 0) {
             modularWarnings.push({
                 code: 'LACKING_FACULTY',
                 sectionId: item.sectionId,
                 subjectId: item.subjectId,
-                message: `Lacking Faculty for modular group ${item.modularGroupId ?? item.subjectCode} in section ${item.sectionId}. Missing quarter(s): ${missingQuarters.join(', ')}.`,
+                message: `Lacking Faculty for modular group ${item.modularGroupId ?? item.subjectCode} in section ${item.sectionId}. Missing term(s): ${missingTerms.join(', ')}.`,
                 meta: {
                     modularGroupId: item.modularGroupId ?? null,
-                    missingQuarters,
+                    missingTerms,
                 },
             });
         }
@@ -545,10 +655,10 @@ export function constructBaseline(input) {
                 },
             });
         }
-        return { assignments, missingQuarters };
+        return { assignments, missingTerms };
     }
     // Preference lookup
-    const prefLookup = buildPreferenceLookup(preferences, PERIOD_SLOTS);
+    const prefLookup = buildPreferenceLookup(preferences, FALLBACK_PERIOD_SLOTS);
     // Occupancy trackers
     const facultyOcc = new OccupancyTracker();
     const roomOcc = new OccupancyTracker();
@@ -573,7 +683,7 @@ export function constructBaseline(input) {
     const lockSessionCounts = new Map();
     if (lockedEntries && lockedEntries.length > 0) {
         for (const lock of lockedEntries) {
-            const pi = PERIOD_SLOTS.findIndex((s) => s.startTime === lock.startTime && s.endTime === lock.endTime);
+            const pi = FALLBACK_PERIOD_SLOTS.findIndex((s) => s.startTime === lock.startTime && s.endTime === lock.endTime);
             if (pi < 0) {
                 lockWarnings.push(`Lock for section ${lock.sectionId}, subject ${lock.subjectId} at ${lock.day} ${lock.startTime}-${lock.endTime} does not match any canonical period slot and was skipped.`);
                 continue;
@@ -587,7 +697,7 @@ export function constructBaseline(input) {
                 continue;
             }
             entryCounter++;
-            const period = PERIOD_SLOTS[pi];
+            const period = FALLBACK_PERIOD_SLOTS[pi];
             const durationMinutes = timeToMinutes(period.endTime) - timeToMinutes(period.startTime);
             entries.push({
                 entryId: `entry-${entryCounter}`,
@@ -601,6 +711,9 @@ export function constructBaseline(input) {
                 durationMinutes,
                 entryKind: lock.entryKind,
                 cohortCode: lock.cohortCode ?? null,
+                metadata: {
+                    roomAssignmentReason: 'LOCKED_ENTRY',
+                },
             });
             // Mark occupancy for locked placements
             sectionOcc.mark(lock.sectionId, lock.day, period.startTime, period.endTime);
@@ -621,11 +734,12 @@ export function constructBaseline(input) {
         }
     }
     // ─── Grade window lookup ───
-    // gradeLevel → { startMin, endMin }
+    // gradeLevel + optional programType → { startMin, endMin }
     const gradeWindowMap = new Map();
     if (gradeWindows && gradeWindows.length > 0) {
         for (const gw of gradeWindows) {
-            gradeWindowMap.set(gw.gradeLevel, {
+            const programKey = (gw.programType ?? 'ALL').toUpperCase();
+            gradeWindowMap.set(`${gw.gradeLevel}:${programKey}`, {
                 startMin: timeToMinutes(gw.startTime),
                 endMin: timeToMinutes(gw.endTime),
             });
@@ -637,8 +751,8 @@ export function constructBaseline(input) {
         const earliestMin = timeToMinutes(policy.earliestStartTime);
         const latestMin = timeToMinutes(policy.latestEndTime);
         validPeriodIndices = [];
-        for (let pi = 0; pi < PERIOD_SLOTS.length; pi++) {
-            const slot = PERIOD_SLOTS[pi];
+        for (let pi = 0; pi < FALLBACK_PERIOD_SLOTS.length; pi++) {
+            const slot = FALLBACK_PERIOD_SLOTS[pi];
             if (timeToMinutes(slot.startTime) >= earliestMin && timeToMinutes(slot.endTime) <= latestMin) {
                 validPeriodIndices.push(pi);
             }
@@ -658,14 +772,17 @@ export function constructBaseline(input) {
         let consecutive = 0;
         for (let i = 0; i < allPeriods.length; i++) {
             const pi = allPeriods[i];
-            const slotDuration = (pi === periodIdx) ? duration : STANDARD_PERIOD_MINUTES;
+            const period = FALLBACK_PERIOD_SLOTS[pi];
+            const slotDuration = (pi === periodIdx)
+                ? duration
+                : (period ? (timeToMinutes(period.endTime) - timeToMinutes(period.startTime)) : STANDARD_PERIOD_MINUTES);
             if (i === 0) {
                 consecutive = slotDuration;
                 continue;
             }
             const prevPi = allPeriods[i - 1];
-            const prevEnd = PERIOD_SLOTS[prevPi].endTime;
-            const currStart = PERIOD_SLOTS[pi].startTime;
+            const prevEnd = FALLBACK_PERIOD_SLOTS[prevPi].endTime;
+            const currStart = FALLBACK_PERIOD_SLOTS[pi].startTime;
             const gapMinutes = timeToMinutes(currStart) - timeToMinutes(prevEnd);
             if (gapMinutes < policy.minBreakMinutesAfterConsecutiveBlock) {
                 consecutive += slotDuration;
@@ -720,6 +837,7 @@ export function constructBaseline(input) {
     };
     // Lab-like room types for consecutive lab check
     const LAB_ROOM_TYPES = new Set(['LABORATORY', 'TLE_WORKSHOP', 'COMPUTER_LAB']);
+    const SPECIALIZED_ROOM_TYPES = new Set(['LABORATORY', 'TLE_WORKSHOP', 'COMPUTER_LAB', 'GYMNASIUM']);
     // Section-day placement tracker for consecutive lab check: "sectionId:day" → array of {periodIdx, isLab}
     const sectionDayLabPeriods = new Map();
     for (const item of orderedDemand) {
@@ -733,6 +851,9 @@ export function constructBaseline(input) {
                     gradeLevel: item.gradeLevel,
                     session: s + 1,
                     reason: 'NO_QUALIFIED_FACULTY',
+                    roomAssignmentReason: item.roomTypePreference && ['LABORATORY', 'TLE_WORKSHOP', 'COMPUTER_LAB', 'GYMNASIUM'].includes(item.roomTypePreference)
+                        ? 'SPECIALIZED_ROOM_UNAVAILABLE'
+                        : 'FALLBACK_UNRESOLVED',
                     entryKind: item.entryKind,
                     programType: item.programType ?? null,
                     programCode: item.programCode ?? null,
@@ -743,6 +864,7 @@ export function constructBaseline(input) {
                     cohortExpectedEnrollment: item.entryKind === 'COHORT' ? item.enrolledCount : null,
                     adviserId: item.adviserId ?? null,
                     adviserName: item.adviserName ?? null,
+                    homeRoomId: item.homeRoomId ?? null,
                 });
             }
             unassignedCount += item.sessionsPerWeek;
@@ -753,11 +875,20 @@ export function constructBaseline(input) {
         const lockedSessions = lockSessionCounts.get(lockKey) ?? 0;
         const sessionsNeeded = Math.max(0, item.sessionsPerWeek - lockedSessions);
         // Grade window: narrow valid periods for this item's grade level
-        let gradeValidPeriods = validPeriodIndices ?? Array.from({ length: PERIOD_SLOTS.length }, (_, i) => i);
-        const gw = gradeWindowMap.get(item.gradeLevel);
+        let gradeValidPeriods = validPeriodIndices ?? Array.from({ length: FALLBACK_PERIOD_SLOTS.length }, (_, i) => i);
+        const shapeContract = resolveTimetableShapeContract(timetableShapes, item.gradeLevel, item.programType);
+        if (shapeContract) {
+            const allowedSlotKeys = new Set(shapeContract.periodSlots.map((slot) => `${slot.startTime}-${slot.endTime}`));
+            gradeValidPeriods = gradeValidPeriods.filter((pi) => {
+                const slot = FALLBACK_PERIOD_SLOTS[pi];
+                return allowedSlotKeys.has(`${slot.startTime}-${slot.endTime}`);
+            });
+        }
+        const gradeProgramKey = `${item.gradeLevel}:${(item.programType ?? 'ALL').toUpperCase()}`;
+        const gw = gradeWindowMap.get(gradeProgramKey) ?? gradeWindowMap.get(`${item.gradeLevel}:ALL`);
         if (gw) {
             gradeValidPeriods = gradeValidPeriods.filter((pi) => {
-                const slot = PERIOD_SLOTS[pi];
+                const slot = FALLBACK_PERIOD_SLOTS[pi];
                 return timeToMinutes(slot.startTime) >= gw.startMin && timeToMinutes(slot.endTime) <= gw.endMin;
             });
         }
@@ -767,6 +898,17 @@ export function constructBaseline(input) {
         const sessionFailureReasons = new Set();
         for (let session = 0; session < sessionsNeeded; session++) {
             let placed = false;
+            let fallbackCauseForPlacement;
+            let sawNoSameZoneStandardRoom = false;
+            let sawOnlySpecializedRooms = false;
+            let sawPolicyOrShiftWindowIncompatible = false;
+            const preferredHomeRoomId = useHomeRoomPriority && item.entryKind === 'SECTION'
+                ? (item.homeRoomId ?? null)
+                : null;
+            const preferredHomeRoom = preferredHomeRoomId != null
+                ? rooms.find((room) => room.id === preferredHomeRoomId) ?? null
+                : null;
+            const preferredZone = (item.buildingZoneId ?? preferredHomeRoom?.buildingZoneId ?? null)?.toUpperCase() ?? null;
             // Build possible slot candidates first (deterministic scoring)
             const possibleSlots = [];
             for (let di = 0; di < DAYS.length; di++) {
@@ -775,16 +917,24 @@ export function constructBaseline(input) {
                 if (!allowedDays.has(day))
                     continue;
                 for (const pi of gradeValidPeriods) {
-                    const slot = PERIOD_SLOTS[pi];
+                    const slot = FALLBACK_PERIOD_SLOTS[pi];
                     if (getDemandSectionIds(item).some((sectionId) => sectionOcc.isOccupied(sectionId, day, slot.startTime, slot.endTime)))
                         continue;
                     let score = 1;
                     if (daysUsedForPair.has(day))
                         score += 10;
+                    if (preferredHomeRoom != null) {
+                        if (roomOcc.isOccupied(preferredHomeRoom.id, day, slot.startTime, slot.endTime))
+                            score += 2;
+                        else
+                            score -= 0.5;
+                    }
                     possibleSlots.push({ day, pi, score });
                 }
             }
-            // Sort slots by score
+            if (possibleSlots.length === 0 && preferredHomeRoomId != null) {
+                sawPolicyOrShiftWindowIncompatible = true;
+            }
             possibleSlots.sort((a, b) => {
                 if (a.score !== b.score)
                     return a.score - b.score;
@@ -793,22 +943,53 @@ export function constructBaseline(input) {
                     return dayDiff;
                 return a.pi - b.pi;
             });
-            // For each slot, place with explicit faculty (standard) or modular metadata (unified modular subjects)
             for (const slotCandidate of possibleSlots) {
                 if (placed)
                     break;
-                const slot = PERIOD_SLOTS[slotCandidate.pi];
+                const slot = FALLBACK_PERIOD_SLOTS[slotCandidate.pi];
                 const isModularUnified = Boolean(item.modularGroupId);
                 const { ids: candidates, reason: qReason } = isModularUnified
                     ? { ids: [0], reason: undefined }
                     : getQualifiedFacultyIds(item, slotCandidate.day, slot, slotCandidate.pi);
-                if (qReason)
+                if (qReason) {
                     sessionFailureReasons.add(qReason);
+                    if (qReason === 'FACULTY_OVERLOADED' || qReason === 'NO_AVAILABLE_SLOT') {
+                        sawPolicyOrShiftWindowIncompatible = true;
+                    }
+                }
                 if (candidates.length === 0)
                     continue;
-                // We have qualified teachers! Now try rooms
                 let compatibleRooms = roomsByType.get(item.roomTypePreference ?? subject.preferredRoomType) ?? [];
-                if (compatibleRooms.length > 0 && buildingGradeMap.size > 0) {
+                const isSpecializedDemand = (item.roomTypePreference ?? subject.preferredRoomType) !== 'CLASSROOM';
+                let sameZoneStandardRooms = [];
+                let broaderStandardRooms = [];
+                if (!isSpecializedDemand) {
+                    compatibleRooms = compatibleRooms.filter((room) => room.type === 'CLASSROOM' && !room.isSharedFacility);
+                    if (preferredHomeRoomId != null) {
+                        const isSameZoneRoom = (room) => {
+                            if (preferredZone != null) {
+                                return (room.buildingZoneId ?? null)?.toUpperCase() === preferredZone;
+                            }
+                            if (preferredHomeRoom?.buildingId != null && room.buildingId != null) {
+                                return room.buildingId === preferredHomeRoom.buildingId;
+                            }
+                            return false;
+                        };
+                        sameZoneStandardRooms = compatibleRooms.filter((room) => room.id !== preferredHomeRoomId && isSameZoneRoom(room));
+                        broaderStandardRooms = compatibleRooms.filter((room) => room.id !== preferredHomeRoomId && !isSameZoneRoom(room));
+                        const homeRoomAllowed = preferredHomeRoom != null && preferredHomeRoom.type === 'CLASSROOM' && !preferredHomeRoom.isSharedFacility;
+                        const homeRoomCandidate = homeRoomAllowed ? [preferredHomeRoom] : [];
+                        compatibleRooms = [...homeRoomCandidate, ...sameZoneStandardRooms, ...broaderStandardRooms];
+                        if (homeRoomCandidate.length === 0 && sameZoneStandardRooms.length === 0 && broaderStandardRooms.length === 0) {
+                            const hasSpecializedInventory = teachingRooms.some((room) => room.type !== 'CLASSROOM');
+                            if (hasSpecializedInventory)
+                                sawOnlySpecializedRooms = true;
+                            else
+                                sawNoSameZoneStandardRoom = true;
+                        }
+                    }
+                }
+                else if (compatibleRooms.length > 0 && buildingGradeMap.size > 0) {
                     compatibleRooms = compatibleRooms.filter((room) => {
                         const buildingId = room.buildingId;
                         if (!buildingId)
@@ -821,40 +1002,53 @@ export function constructBaseline(input) {
                 }
                 if (compatibleRooms.length === 0) {
                     sessionFailureReasons.add('NO_COMPATIBLE_ROOM');
+                    if (preferredHomeRoomId != null && !isSpecializedDemand) {
+                        sawNoSameZoneStandardRoom = true;
+                    }
                     continue;
                 }
                 for (const facId of candidates) {
                     if (placed)
                         break;
-                    // Final policy checks for this teacher
                     if (policy && !isModularUnified) {
                         const dailyKey = `${facId}:${slotCandidate.day}`;
                         const dailyUsed = facultyDailyMinutes.get(dailyKey) ?? 0;
                         if (dailyUsed + item.durationPerSession > policy.maxTeachingMinutesPerDay) {
                             sessionFailureReasons.add('FACULTY_OVERLOADED');
+                            sawPolicyOrShiftWindowIncompatible = true;
                             continue;
                         }
                         if (wouldExceedConsecutive(facId, slotCandidate.day, slotCandidate.pi, item.durationPerSession)) {
                             policyBlockedCount++;
-                            // consecutive is a complex block, but treat as unavailable for now
                             sessionFailureReasons.add('NO_AVAILABLE_SLOT');
+                            sawPolicyOrShiftWindowIncompatible = true;
                             continue;
                         }
                     }
                     for (const room of compatibleRooms) {
-                        if (roomOcc.isOccupied(room.id, slotCandidate.day, slot.startTime, slot.endTime))
+                        if (roomOcc.isOccupied(room.id, slotCandidate.day, slot.startTime, slot.endTime)) {
                             continue;
+                        }
                         if (room.capacity != null && item.enrolledCount > room.capacity)
                             continue;
-                        // Feature check: Room must have all required features
                         if (subject.requiredFeatures && subject.requiredFeatures.length > 0) {
                             const roomFeatures = new Set(room.features || []);
-                            if (!subject.requiredFeatures.every(f => roomFeatures.has(f)))
+                            if (!subject.requiredFeatures.every((feature) => roomFeatures.has(feature)))
                                 continue;
                         }
                         if (getDemandSectionIds(item).some((sectionId) => wouldCreateConsecutiveLab(sectionId, slotCandidate.day, slotCandidate.pi, room.type)))
                             continue;
-                        // Place the entry
+                        if (preferredHomeRoomId != null && room.id !== preferredHomeRoomId) {
+                            if (sameZoneStandardRooms.some((sameZoneRoom) => sameZoneRoom.id === room.id)) {
+                                fallbackCauseForPlacement = 'HOME_ROOM_OCCUPIED';
+                            }
+                            else if (sameZoneStandardRooms.length === 0 && broaderStandardRooms.length > 0) {
+                                fallbackCauseForPlacement = 'NO_SAME_ZONE_STANDARD_ROOM';
+                            }
+                            else {
+                                fallbackCauseForPlacement = 'HOME_ROOM_OCCUPIED';
+                            }
+                        }
                         entryCounter++;
                         entries.push({
                             entryId: `entry-${entryCounter}`,
@@ -878,12 +1072,21 @@ export function constructBaseline(input) {
                             adviserName: item.adviserName ?? null,
                             metadata: isModularUnified
                                 ? {
+                                    roomAssignmentReason: 'MODULAR_POOL_ASSIGNED',
                                     modularGroupId: item.modularGroupId ?? undefined,
                                     modularAssignments: modularAssignmentInfo?.assignments ?? [],
                                 }
-                                : undefined,
+                                : {
+                                    roomAssignmentReason: preferredHomeRoomId != null
+                                        ? (room.id === preferredHomeRoomId ? 'HOME_ROOM_ASSIGNED' : 'HOME_ROOM_UNAVAILABLE')
+                                        : (SPECIALIZED_ROOM_TYPES.has(room.type) && item.roomTypePreference != null
+                                            ? 'SPECIALIZED_ROOM'
+                                            : 'GENERAL_POOL_ASSIGNED'),
+                                    homeRoomFallbackCause: preferredHomeRoomId != null && room.id !== preferredHomeRoomId
+                                        ? fallbackCauseForPlacement
+                                        : undefined,
+                                },
                         });
-                        // Mark occupancy
                         if (!isModularUnified) {
                             facultyOcc.mark(facId, slotCandidate.day, slot.startTime, slot.endTime);
                         }
@@ -925,12 +1128,23 @@ export function constructBaseline(input) {
                     reason = 'FACULTY_OVERLOADED';
                 else if (sessionFailureReasons.has('NO_COMPATIBLE_ROOM'))
                     reason = 'NO_COMPATIBLE_ROOM';
+                const isSpecializedDemand = item.roomTypePreference != null && SPECIALIZED_ROOM_TYPES.has(item.roomTypePreference);
+                const homeRoomFallbackCause = preferredHomeRoomId != null
+                    ? (sawPolicyOrShiftWindowIncompatible
+                        ? 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE'
+                        : sawOnlySpecializedRooms
+                            ? 'ONLY_SPECIALIZED_ROOMS_AVAILABLE'
+                            : sawNoSameZoneStandardRoom
+                                ? 'NO_SAME_ZONE_STANDARD_ROOM'
+                                : 'HOME_ROOM_OCCUPIED')
+                    : undefined;
                 unassignedItems.push({
                     sectionId: item.sectionId,
                     subjectId: item.subjectId,
                     gradeLevel: item.gradeLevel,
                     session: session + 1,
                     reason,
+                    roomAssignmentReason: isSpecializedDemand ? 'SPECIALIZED_ROOM_UNAVAILABLE' : 'FALLBACK_UNRESOLVED',
                     entryKind: item.entryKind,
                     programType: item.programType ?? null,
                     programCode: item.programCode ?? null,
@@ -941,6 +1155,8 @@ export function constructBaseline(input) {
                     cohortExpectedEnrollment: item.entryKind === 'COHORT' ? item.enrolledCount : null,
                     adviserId: item.adviserId ?? null,
                     adviserName: item.adviserName ?? null,
+                    homeRoomId: item.homeRoomId ?? null,
+                    homeRoomFallbackCause,
                 });
                 unassignedCount++;
             }

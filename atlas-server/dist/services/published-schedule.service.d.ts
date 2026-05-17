@@ -6,6 +6,10 @@ export declare function getPublishedSchedulePayload(schoolId: number, schoolYear
         publishedAt: string | null;
         generatedAt: string;
     };
+    timeSlots: {
+        startTime: string;
+        endTime: string;
+    }[];
     specialEvents: {
         eventName: string | undefined;
         startTime: string;
@@ -81,6 +85,10 @@ export declare function getPublishedSectionSchedule(schoolId: number, sectionId:
         publishedAt: string | null;
         generatedAt: string;
     };
+    timeSlots: {
+        startTime: string;
+        endTime: string;
+    }[];
     specialEvents: {
         eventName: string | undefined;
         startTime: string;
@@ -126,6 +134,10 @@ export declare function getPublishedFacultySchedule(schoolId: number, facultyId:
         publishedAt: string | null;
         generatedAt: string;
     };
+    timeSlots: {
+        startTime: string;
+        endTime: string;
+    }[];
     specialEvents: {
         eventName: string | undefined;
         startTime: string;
@@ -171,6 +183,10 @@ export declare function getPublishedRoomSchedule(schoolId: number, roomId: numbe
         publishedAt: string | null;
         generatedAt: string;
     };
+    timeSlots: {
+        startTime: string;
+        endTime: string;
+    }[];
     specialEvents: {
         eventName: string | undefined;
         startTime: string;

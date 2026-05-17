@@ -3,12 +3,16 @@
  * Business logic only; no transport concerns.
  */
 import { type ScheduledEntry, type Violation } from './constraint-validator.js';
-import { type UnassignedItem } from './schedule-constructor.js';
+import { type TimetableShapeContract, type UnassignedItem } from './schedule-constructor.js';
 import { type SeedQualitySummary, type RepairImpact } from './hybrid-scheduler.js';
 export interface RunSummary {
     classesProcessed: number;
     assignedCount: number;
     unassignedCount: number;
+    roomerStrategy?: 'UNIVERSAL' | 'HOME_ROOM_FIRST';
+    homeRoomAttemptedCount?: number;
+    homeRoomAssignedCount?: number;
+    homeRoomSuccessRate?: number;
     policyBlockedCount: number;
     hardViolationCount: number;
     prePlacedCount?: number;
@@ -47,15 +51,41 @@ export interface RunSummary {
             count: number;
             reasons: Record<string, number>;
         }>;
+        roomAssignmentReasonCounts?: Record<string, number>;
+        homeRoomFallbackDiagnostics?: {
+            homeRoomOccupied: number;
+            noSameZoneStandardRoom: number;
+            onlySpecializedRoomsAvailable: number;
+            policyOrShiftWindowIncompatible: number;
+        };
+        zoneDistributionByTerm?: Array<{
+            termIndex: 1 | 2 | 3;
+            total: number;
+            byZone: Record<string, {
+                count: number;
+                percent: number;
+            }>;
+        }>;
     };
+    shiftWindowPolicy?: 'ENFORCED' | 'DISABLED';
+    configuredShiftWindowCount?: number;
     termCounts?: {
         term1: number;
         term2: number;
         term3: number;
     };
+    timetableShapeContracts?: TimetableShapeContract[];
+    timetableDisplaySlots?: Array<{
+        startTime: string;
+        endTime: string;
+        eventName?: string;
+        isSpecialEvent?: boolean;
+    }>;
 }
 export declare function triggerGenerationRun(schoolId: number, schoolYearId: number, actorId: number, options?: {
     ignoreRoomRequestGate?: boolean;
+    enforceShiftWindows?: boolean;
+    roomerStrategy?: 'UNIVERSAL' | 'HOME_ROOM_FIRST';
     authToken?: string;
 }): Promise<{
     error: string | null;

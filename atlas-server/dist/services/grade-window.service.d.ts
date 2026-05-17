@@ -2,8 +2,10 @@
  * Grade shift window service — time window restrictions per grade band.
  * Business logic only; no transport concerns.
  */
+import type { ProgramType } from '@prisma/client';
 export interface GradeWindowInput {
     gradeLevel: number;
+    programType?: ProgramType | null;
     startTime: string;
     endTime: string;
 }
@@ -12,6 +14,7 @@ export interface GradeWindowRow {
     schoolId: number;
     schoolYearId: number;
     gradeLevel: number;
+    programType?: ProgramType | null;
     startTime: string;
     endTime: string;
     createdAt: Date;

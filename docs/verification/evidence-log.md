@@ -1,5 +1,36 @@
 # Verification Evidence Log
 #
+### 2026-05-17 - Phase 2 Policy/Window Reconciliation Prompt Execution
+- Phase: Phase 2 policy-window reconciliation (no phase closure claim)
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Files changed in this pass:
+  - `atlas-client/src/components/SchedulingPolicyPane.tsx`
+  - `atlas-client/src/components/scheduling-policy/SchedulingPolicyDialogs.tsx` (new)
+  - `atlas-client/src/components/scheduling-policy/ShiftSettingsEditor.tsx` (new)
+  - `atlas-client/src/types.ts`
+  - `atlas-client/src/types.d.ts`
+  - `atlas-server/src/services/grade-window.service.ts`
+- Prompt-critical behavior implemented:
+  - Override creation flow now uses guided dialog input (grade, program, start/end), replacing hardcoded insertion behavior.
+  - Shift Settings rows now support editable grade and program scope.
+  - First-touch intent tracking added (`policy` vs `window`) so reconciliation follows the initiating workflow.
+  - Save flow now performs guided policy/window reconciliation:
+    - Window-first: prompt to either expand policy bounds to preserve windows or keep policy and clip windows.
+    - Policy-first: prompt to reconcile windows to the new policy bounds before save.
+  - Known contract mismatch fixed by adding optional `programType` to client/server shift-window types.
+- Out-of-scope blocker discovered and remediated during execution:
+  - `SchedulingPolicyPane` exceeded the 1000-line guardrail during implementation; extracted dialog/helpers and shift-settings editor modules.
+  - Final line count: `989` (`atlas-client/src/components/SchedulingPolicyPane.tsx`).
+- Verification commands executed:
+  - `npm run build` (atlas-client): PASS
+  - `npm run build` (atlas-server): PASS
+  - diagnostics via `get_errors` on touched files: PASS (no errors)
+- Evidence note:
+  - Build commands updated generated `dist/` artifacts in workspace.
+- GO/NO-GO:
+  - **NO-GO for full prompt closure** pending manual QA walkthrough evidence of the required reconciliation UX scenarios on the live Tailnet surface.
+
 ### 2026-05-16 - Phase 2 Timetable Shape Refactor (prompt execution)
 - Phase: Phase 2 timetable-shape contract refactor, no closure claim
 - Operator: GitHub Copilot

@@ -110,6 +110,7 @@ export async function getSectionSummary(schoolYearId, schoolId, authToken) {
             });
         }
         const sec = {
+            mirrorId: m.id,
             id: m.externalId,
             name: m.name,
             maxCapacity: m.maxCapacity,
@@ -117,6 +118,8 @@ export async function getSectionSummary(schoolYearId, schoolId, authToken) {
             gradeLevelId: m.gradeLevelId,
             gradeLevelName: m.gradeLevelName,
             displayOrder: m.displayOrder,
+            homeRoomId: m.homeRoomId,
+            buildingZoneId: m.buildingZoneId,
             programType: m.programType,
             programCode: m.programCode,
             programName: m.programName,
@@ -142,5 +145,109 @@ export async function getSectionSummary(schoolYearId, schoolId, authToken) {
         fetchedAt: mirrors[0]?.lastSyncedAt ?? new Date(),
         isStale: false,
     };
+}
+export async function getHomeRoomControlData(schoolYearId, schoolId) {
+    const [sections, rooms] = await Promise.all([
+        prisma.sectionMirror.findMany({
+            where: { schoolId, schoolYearId, isStale: false },
+            select: {
+                id: true,
+                externalId: true,
+                name: true,
+                gradeLevelId: true,
+                gradeLevelName: true,
+                programType: true,
+                homeRoomId: true,
+                buildingZoneId: true,
+            },
+            orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+        }),
+        prisma.room.findMany({
+            where: {
+                isTeachingSpace: true,
+                building: { schoolId, isTeachingBuilding: true },
+            },
+            select: {
+                id: true,
+                name: true,
+                type: true,
+                capacity: true,
+                buildingId: true,
+                buildingZoneId: true,
+                building: {
+                    select: { name: true, shortCode: true },
+                },
+            },
+            orderBy: [{ buildingId: 'asc' }, { floor: 'asc' }, { floorPosition: 'asc' }, { id: 'asc' }],
+        }),
+    ]);
+    return {
+        schoolId,
+        schoolYearId,
+        sections: sections.map((section) => ({
+            id: section.id,
+            externalId: section.externalId,
+            name: section.name,
+            gradeLevelId: section.gradeLevelId,
+            gradeLevelName: section.gradeLevelName,
+            programType: section.programType ?? 'REGULAR',
+            homeRoomId: section.homeRoomId,
+            buildingZoneId: section.buildingZoneId,
+        })),
+        rooms: rooms.map((room) => ({
+            id: room.id,
+            name: room.name,
+            type: room.type,
+            capacity: room.capacity,
+            buildingId: room.buildingId,
+            buildingName: room.building.name,
+            shortCode: room.building.shortCode,
+            buildingZoneId: room.buildingZoneId,
+        })),
+    };
+}
+export async function updateSectionHomeRooms(schoolId, schoolYearId, assignments) {
+    if (assignments.length === 0)
+        return { updated: 0 };
+    const uniqueSectionIds = [...new Set(assignments.map((assignment) => assignment.sectionId))];
+    const requestedRoomIds = [...new Set(assignments.map((assignment) => assignment.homeRoomId).filter((value) => value != null))];
+    const [sections, rooms] = await Promise.all([
+        prisma.sectionMirror.findMany({
+            where: { id: { in: uniqueSectionIds }, schoolId, schoolYearId },
+            select: { id: true },
+        }),
+        requestedRoomIds.length === 0
+            ? Promise.resolve([])
+            : prisma.room.findMany({
+                where: {
+                    id: { in: requestedRoomIds },
+                    isTeachingSpace: true,
+                    building: { schoolId, isTeachingBuilding: true },
+                },
+                select: { id: true, buildingZoneId: true },
+            }),
+    ]);
+    const sectionIdSet = new Set(sections.map((section) => section.id));
+    const roomById = new Map(rooms.map((room) => [room.id, room]));
+    let updated = 0;
+    await prisma.$transaction(async (tx) => {
+        for (const assignment of assignments) {
+            if (!sectionIdSet.has(assignment.sectionId))
+                continue;
+            const homeRoomId = assignment.homeRoomId;
+            const room = homeRoomId == null ? null : roomById.get(homeRoomId);
+            if (homeRoomId != null && !room)
+                continue;
+            await tx.sectionMirror.update({
+                where: { id: assignment.sectionId },
+                data: {
+                    homeRoomId,
+                    buildingZoneId: room?.buildingZoneId ?? null,
+                },
+            });
+            updated += 1;
+        }
+    });
+    return { updated };
 }
 //# sourceMappingURL=section.service.js.map

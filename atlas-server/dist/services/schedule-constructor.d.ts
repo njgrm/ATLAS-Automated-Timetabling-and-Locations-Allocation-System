@@ -63,8 +63,10 @@ export interface RoomInput {
     id: number;
     type: RoomType;
     isTeachingSpace: boolean;
+    isSharedFacility?: boolean;
     capacity: number | null;
     buildingId?: number | null;
+    buildingZoneId?: string | null;
     features?: string[];
 }
 export interface PreferenceSlotInput {
@@ -84,6 +86,8 @@ export interface PolicyInput {
     maxTeachingMinutesPerDay: number;
     earliestStartTime: string;
     latestEndTime: string;
+    periodLengthMinutes?: number;
+    periodsPerDay?: number;
     lunchStartTime?: string;
     lunchEndTime?: string;
     enforceLunchWindow?: boolean;
@@ -114,6 +118,28 @@ declare function buildSpecialEventSlots(policy?: PolicyInput): PeriodSlot[];
 declare function mergeDisplaySlots(periodSlots: PeriodSlot[], specialEventSlots: PeriodSlot[]): PeriodSlot[];
 /** Exported for use by room-schedule service and other consumers. */
 export { buildPeriodSlots, buildSpecialEventSlots, mergeDisplaySlots, type PeriodSlot };
+export interface TimetableShapeContract {
+    gradeLevel: number;
+    programType: string;
+    startTime: string;
+    endTime: string;
+    periodLengthMinutes: number;
+    periodsPerDay: number;
+    periodSlots: PeriodSlot[];
+    displaySlots: PeriodSlot[];
+}
+export declare function buildTimetableShapeContract(input: {
+    gradeLevel: number;
+    programType?: string | null;
+    startTime: string;
+    endTime: string;
+    periodLengthMinutes: number;
+    periodsPerDay: number;
+    basePolicy?: PolicyInput;
+}): TimetableShapeContract;
+export declare function resolveTimetableShapeContract(contracts: TimetableShapeContract[] | undefined, gradeLevel: number, programType?: string | null): TimetableShapeContract | undefined;
+export declare function buildUnionClassPeriodSlots(contracts: TimetableShapeContract[] | undefined): PeriodSlot[];
+export declare function buildUnionDisplaySlots(contracts: TimetableShapeContract[] | undefined): PeriodSlot[];
 export interface SpecializationAliasInput {
     canonical: string;
     alias: string;
@@ -121,6 +147,7 @@ export interface SpecializationAliasInput {
 export interface ConstructorInput {
     schoolId: number;
     schoolYearId: number;
+    roomingStrategy?: 'UNIVERSAL' | 'HOME_ROOM_FIRST';
     sectionsByGrade: SectionsByGrade[];
     subjects: SubjectInput[];
     cohorts?: InstructionalCohortInput[];
@@ -143,6 +170,7 @@ export interface ConstructorInput {
      * for sections of the matching program type.
      */
     classTemplatePeriods?: Record<string, number>;
+    timetableShapes?: TimetableShapeContract[];
     /**
      * Optional demand override — bypasses computeDemand() to allow seed profile
      * reordering in the hybrid multi-seed constructor (H-ALG-1).
@@ -163,15 +191,19 @@ export interface LockedEntryInput {
 }
 export interface GradeWindowInput {
     gradeLevel: number;
+    programType?: string | null;
     startTime: string;
     endTime: string;
 }
+export type RoomAssignmentReason = 'LOCKED_ENTRY' | 'HOME_ROOM_ASSIGNED' | 'HOME_ROOM_UNAVAILABLE' | 'SPECIALIZED_ROOM' | 'SPECIALIZED_ROOM_UNAVAILABLE' | 'GENERAL_POOL_ASSIGNED' | 'MODULAR_POOL_ASSIGNED' | 'FALLBACK_UNRESOLVED';
+export type HomeRoomFallbackCause = 'HOME_ROOM_OCCUPIED' | 'NO_SAME_ZONE_STANDARD_ROOM' | 'ONLY_SPECIALIZED_ROOMS_AVAILABLE' | 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE';
 export interface UnassignedItem {
     sectionId: number;
     subjectId: number;
     gradeLevel: number;
     session: number;
     reason: 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM';
+    roomAssignmentReason?: RoomAssignmentReason;
     entryKind?: 'SECTION' | 'COHORT';
     programType?: string | null;
     programCode?: string | null;
@@ -182,6 +214,8 @@ export interface UnassignedItem {
     cohortExpectedEnrollment?: number | null;
     adviserId?: number | null;
     adviserName?: string | null;
+    homeRoomId?: number | null;
+    homeRoomFallbackCause?: HomeRoomFallbackCause;
 }
 export interface ConstructorResult {
     entries: ScheduledEntry[];
@@ -194,7 +228,7 @@ export interface ConstructorResult {
     policyBlockedCount: number;
 }
 export interface ModularAssignment {
-    quarter: number;
+    termIndex: 1 | 2 | 3;
     facultyId: number;
     subjectCode: string;
 }
@@ -215,6 +249,8 @@ export interface DemandItem {
     enrolledCount: number;
     sessionPattern: 'MWF' | 'TTH' | 'ANY';
     entryKind: 'SECTION' | 'COHORT';
+    homeRoomId?: number | null;
+    buildingZoneId?: string | null;
     programType?: string | null;
     programCode?: string | null;
     programName?: string | null;

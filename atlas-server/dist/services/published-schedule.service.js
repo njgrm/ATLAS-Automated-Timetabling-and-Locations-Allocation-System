@@ -50,6 +50,7 @@ async function resolvePublishedRun(schoolId, schoolYearId) {
             generatedAt: publishedRun.finishedAt?.toISOString() ?? publishedRun.createdAt.toISOString(),
         },
         entries: (publishedRun.draftEntries ?? []),
+        summary: (publishedRun.summary ?? null),
     };
 }
 async function loadReferenceMaps(schoolId, schoolYearId) {
@@ -150,8 +151,20 @@ export async function getPublishedSchedulePayload(schoolId, schoolYearId) {
             cohortCode: entry.cohortCode ?? null,
         };
     });
+    const summaryDisplaySlots = Array.isArray(resolved.summary?.timetableDisplaySlots)
+        ? resolved.summary?.timetableDisplaySlots
+        : [];
+    const timeSlots = summaryDisplaySlots.length > 0
+        ? summaryDisplaySlots
+        : Array.from(new Set(entries.map((entry) => `${entry.startTime}-${entry.endTime}`)))
+            .map((key) => {
+            const [startTime, endTime] = key.split('-');
+            return { startTime, endTime };
+        })
+            .sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime));
     return {
         source: resolved.source,
+        timeSlots,
         specialEvents: buildSpecialEventsPayload(policy),
         entries,
     };

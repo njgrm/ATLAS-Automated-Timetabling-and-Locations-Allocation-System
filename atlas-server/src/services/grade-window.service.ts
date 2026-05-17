@@ -61,6 +61,7 @@ export interface GradeWindowRow {
 	schoolId: number;
 	schoolYearId: number;
 	gradeLevel: number;
+	programType?: ProgramType | null;
 	startTime: string;
 	endTime: string;
 	createdAt: Date;

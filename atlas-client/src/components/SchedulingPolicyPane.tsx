@@ -2,7 +2,7 @@
  * SchedulingPolicyPane
  *
  * Inline policy configuration panel rendered in the center pane of ScheduleReview.
- * Three columns, each with an independently scrollable body and a sticky header —
+ * Three columns, each with an independently scrollable body and a sticky header G��
  * so users can scroll one panel without disturbing the others.
  */
 
@@ -17,14 +17,24 @@ import type { ConstraintOverride, GradeShiftWindow, SchedulingPolicy, ViolationC
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { ScrollArea } from '@/ui/scroll-area';
 import { Slider } from '@/ui/slider';
 import { Switch } from '@/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { Tabs, TabsList, TabsTrigger } from '@/ui/tabs';
+import {
+	AddOverrideDialog,
+	ReconciliationDialog,
+	clipWindowsToPolicyBounds,
+	normalizeProgramForKey,
+	sortShiftWindows,
+	toMinutes,
+	type EditIntent,
+	type ReconciliationDialogState,
+} from '@/components/scheduling-policy/SchedulingPolicyDialogs';
+import { ShiftSettingsEditor } from '@/components/scheduling-policy/ShiftSettingsEditor';
 
-/* ─── Defaults ─── */
+/* G��G��G�� Defaults G��G��G�� */
 
 const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride> = {
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: { enabled: true, weight: 5, treatAsHard: false },
@@ -92,7 +102,7 @@ const SOFT_CONSTRAINT_LABELS: Record<string, { label: string; explanation: strin
 	},
 };
 
-/* ─── Types ─── */
+/* G��G��G�� Types G��G��G�� */
 
 interface LocalPolicy {
 	teacherMoveEnabled: boolean;
@@ -144,18 +154,6 @@ const DEFAULT_GRADE_WINDOWS: LocalGradeWindow[] = [
 	{ gradeLevel: 8, programType: null, startTime: '07:30', endTime: '12:00' },
 	{ gradeLevel: 9, programType: null, startTime: '13:00', endTime: '17:00' },
 	{ gradeLevel: 10, programType: null, startTime: '13:00', endTime: '17:00' },
-];
-
-const PROGRAM_WINDOW_OPTIONS: Array<{ value: 'ALL' | 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER'; label: string }> = [
-	{ value: 'ALL', label: 'All Programs' },
-	{ value: 'REGULAR', label: 'Regular' },
-	{ value: 'STE', label: 'STE' },
-	{ value: 'SPS', label: 'SPS' },
-	{ value: 'SPA', label: 'SPA' },
-	{ value: 'SPJ', label: 'SPJ' },
-	{ value: 'SPFL', label: 'SPFL' },
-	{ value: 'SPTVE', label: 'SPTVE' },
-	{ value: 'OTHER', label: 'Other' },
 ];
 
 function toLocalGradeWindows(windows: GradeShiftWindow[]): LocalGradeWindow[] {
@@ -215,7 +213,7 @@ function deepEqual(a: unknown, b: unknown) {
 	return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/* ─── Micro-components ─── */
+/* G��G��G�� Micro-components G��G��G�� */
 
 function MetricExplain({ label, explanation }: { label: string; explanation: React.ReactNode }) {
 	return (
@@ -367,7 +365,7 @@ function ConstraintRow({
 	);
 }
 
-/* ─── Section Card: sticky title + independent per-column scroll ─── */
+/* G��G��G�� Section Card: sticky title + independent per-column scroll G��G��G�� */
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
 	return (
 		<div className="flex flex-col min-h-0 h-full rounded-lg border border-border bg-card overflow-hidden">
@@ -387,7 +385,7 @@ function SectionCard({ title, children }: { title: string; children: React.React
 	);
 }
 
-/* ─── Main export ─── */
+/* G��G��G�� Main export G��G��G�� */
 
 export default function SchedulingPolicyPane({
 	schoolId,
@@ -407,6 +405,19 @@ export default function SchedulingPolicyPane({
 	const [local, setLocal] = useState<LocalPolicy | null>(null);
 	const [persistedShiftWindows, setPersistedShiftWindows] = useState<LocalGradeWindow[]>(DEFAULT_GRADE_WINDOWS);
 	const [shiftWindows, setShiftWindows] = useState<LocalGradeWindow[]>(DEFAULT_GRADE_WINDOWS);
+	const [editIntent, setEditIntent] = useState<EditIntent>(null);
+	const [showAddOverrideDialog, setShowAddOverrideDialog] = useState(false);
+	const [newOverride, setNewOverride] = useState<LocalGradeWindow>({
+		gradeLevel: 7,
+		programType: 'STE',
+		startTime: '07:30',
+		endTime: '12:00',
+	});
+	const [reconciliationDialog, setReconciliationDialog] = useState<ReconciliationDialogState | null>(null);
+
+	const markIntent = useCallback((intent: Exclude<EditIntent, null>) => {
+		setEditIntent((previous) => previous ?? intent);
+	}, []);
 
 	const isDirty = useMemo(() => {
 		if (!persisted || !local) return false;
@@ -427,6 +438,8 @@ export default function SchedulingPolicyPane({
 			setLocal(lp);
 			setPersistedShiftWindows(localWindows);
 			setShiftWindows(localWindows);
+			setEditIntent(null);
+			setReconciliationDialog(null);
 		} catch {
 			toast.error('Failed to load scheduling policy and shift settings.');
 		} finally {
@@ -438,41 +451,152 @@ export default function SchedulingPolicyPane({
 		void fetchPolicy();
 	}, [fetchPolicy]);
 
+	const persistPolicyAndShiftWindows = useCallback(async (policyDraft: LocalPolicy, windowsDraft: LocalGradeWindow[]) => {
+		if (!schoolYearId) return;
+		const payload = {
+			...policyDraft,
+			enableLunchWindow: policyDraft.enableLunchWindow,
+			enforceLunchWindow: policyDraft.enableLunchWindow,
+		};
+		const [policyRes] = await Promise.all([
+			atlasApi.put<{ policy: SchedulingPolicy }>(`/policies/scheduling/${schoolId}/${schoolYearId}`, payload),
+			atlasApi.put<{ windows: GradeShiftWindow[] }>(`/generation/${schoolId}/${schoolYearId}/grade-windows`, {
+				windows: windowsDraft,
+			}),
+		]);
+
+		const lp = policyToLocal(policyRes.data.policy);
+		const sortedWindows = sortShiftWindows(windowsDraft);
+		setPersisted(lp);
+		setLocal(lp);
+		setPersistedShiftWindows(sortedWindows);
+		setShiftWindows(sortedWindows);
+		setEditIntent(null);
+		setReconciliationDialog(null);
+		setShowAddOverrideDialog(false);
+		setNewOverride({ gradeLevel: 7, programType: 'STE', startTime: '07:30', endTime: '12:00' });
+		toast.success('Scheduling policy and shift settings saved.');
+		onPolicySaved?.();
+	}, [schoolId, schoolYearId, onPolicySaved]);
+
 	const savePolicy = useCallback(async () => {
 		if (!schoolYearId || !local) return;
 		setSaving(true);
 		try {
+			const duplicateWindowKeys = new Set<string>();
 			for (const window of shiftWindows) {
 				if (!window.startTime || !window.endTime) {
-					toast.error(`Grade ${window.gradeLevel} requires both start and end times.`);
+					toast.error(`Grade ${window.gradeLevel} (${window.programType ?? 'All Programs'}) requires both start and end times.`);
 					setSaving(false);
 					return;
 				}
 				if (window.startTime >= window.endTime) {
-					toast.error(`Grade ${window.gradeLevel} start time must be earlier than end time.`);
+					toast.error(`Grade ${window.gradeLevel} (${window.programType ?? 'All Programs'}) start time must be earlier than end time.`);
 					setSaving(false);
 					return;
 				}
+
+				const key = `${window.gradeLevel}:${normalizeProgramForKey(window.programType)}`;
+				if (duplicateWindowKeys.has(key)) {
+					toast.error(`Duplicate override for Grade ${window.gradeLevel} (${window.programType ?? 'All Programs'}). Keep one row per grade/program.`);
+					setSaving(false);
+					return;
+				}
+				duplicateWindowKeys.add(key);
 			}
 
-			const payload = {
-				...local,
-				enableLunchWindow: local.enableLunchWindow,
-				enforceLunchWindow: local.enableLunchWindow,
-			};
-			const [policyRes] = await Promise.all([
-				atlasApi.put<{ policy: SchedulingPolicy }>(`/policies/scheduling/${schoolId}/${schoolYearId}`, payload),
-				atlasApi.put<{ windows: GradeShiftWindow[] }>(`/generation/${schoolId}/${schoolYearId}/grade-windows`, {
-					windows: shiftWindows,
-				}),
-			]);
+			const policyStart = local.earliestStartTime;
+			const policyEnd = local.latestEndTime;
+			const conflictingWindows = shiftWindows.filter((window) => {
+				const windowStart = toMinutes(window.startTime);
+				const windowEnd = toMinutes(window.endTime);
+				return windowStart < toMinutes(policyStart) || windowEnd > toMinutes(policyEnd);
+			});
 
-			const lp = policyToLocal(policyRes.data.policy);
-			setPersisted(lp);
-			setLocal(lp);
-			setPersistedShiftWindows(shiftWindows);
-			toast.success('Scheduling policy and shift settings saved.');
-			onPolicySaved?.();
+			if (conflictingWindows.length > 0) {
+				const affectedLabels = conflictingWindows.map(
+					(window) => `Grade ${window.gradeLevel} (${window.programType ?? 'All Programs'}) ${window.startTime}-${window.endTime}`,
+				);
+
+				if (editIntent === 'window') {
+					const expandedPolicy: LocalPolicy = {
+						...local,
+						earliestStartTime: conflictingWindows.reduce(
+							(min, window) => (window.startTime < min ? window.startTime : min),
+							local.earliestStartTime,
+						),
+						latestEndTime: conflictingWindows.reduce(
+							(max, window) => (window.endTime > max ? window.endTime : max),
+							local.latestEndTime,
+						),
+					};
+
+					const clipped = clipWindowsToPolicyBounds(shiftWindows, policyStart, policyEnd);
+					setReconciliationDialog({
+						title: 'Window-First Reconciliation Needed',
+						description: 'You edited shift windows first. Choose how policy bounds should reconcile before saving.',
+						details: [
+							'Changed windows outside current policy bounds:',
+							...affectedLabels,
+							`Current policy: ${policyStart}-${policyEnd}`,
+							`If expanded: ${expandedPolicy.earliestStartTime}-${expandedPolicy.latestEndTime}`,
+						],
+						primaryLabel: 'Expand Policy To Fit Windows',
+						onPrimary: () => {
+							setReconciliationDialog(null);
+							setSaving(true);
+							void persistPolicyAndShiftWindows(expandedPolicy, sortShiftWindows(shiftWindows))
+								.catch((error: unknown) => {
+									const apiMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+									toast.error(apiMessage || 'Failed to save policy or shift settings. Your changes are preserved.');
+								})
+								.finally(() => setSaving(false));
+						},
+						secondaryLabel: 'Keep Policy And Clip Windows',
+						onSecondary: () => {
+							setReconciliationDialog(null);
+							setSaving(true);
+							void persistPolicyAndShiftWindows(local, clipped.windows)
+								.catch((error: unknown) => {
+									const apiMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+									toast.error(apiMessage || 'Failed to save policy or shift settings. Your changes are preserved.');
+								})
+								.finally(() => setSaving(false));
+						},
+					});
+					setSaving(false);
+					return;
+				}
+
+				const clipped = clipWindowsToPolicyBounds(shiftWindows, policyStart, policyEnd);
+				const clipNotes = clipped.clipped.map(({ before, after }) =>
+					`Clip Grade ${before.gradeLevel} (${before.programType ?? 'All Programs'}) ${before.startTime}-${before.endTime} -> ${after.startTime}-${after.endTime}`,
+				);
+				const removeNotes = clipped.removed.map(
+					(window) => `Remove invalidated window: Grade ${window.gradeLevel} (${window.programType ?? 'All Programs'}) ${window.startTime}-${window.endTime}`,
+				);
+
+				setReconciliationDialog({
+					title: 'Policy-First Reconciliation Needed',
+					description: 'You edited policy bounds first. Saving now will reconcile windows to stay inside the new policy.',
+					details: [`Policy bounds now: ${policyStart}-${policyEnd}`, ...clipNotes, ...removeNotes],
+					primaryLabel: 'Reconcile And Save',
+					onPrimary: () => {
+						setReconciliationDialog(null);
+						setSaving(true);
+						void persistPolicyAndShiftWindows(local, clipped.windows)
+							.catch((error: unknown) => {
+								const apiMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+								toast.error(apiMessage || 'Failed to save policy or shift settings. Your changes are preserved.');
+							})
+							.finally(() => setSaving(false));
+					},
+				});
+				setSaving(false);
+				return;
+			}
+
+			await persistPolicyAndShiftWindows(local, sortShiftWindows(shiftWindows));
 		} catch (error: unknown) {
 			const apiMessage =
 				(error as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -480,40 +604,73 @@ export default function SchedulingPolicyPane({
 		} finally {
 			setSaving(false);
 		}
-	}, [schoolId, schoolYearId, local, shiftWindows, onPolicySaved]);
+	}, [schoolYearId, local, shiftWindows, editIntent, persistPolicyAndShiftWindows]);
 
 	const update = useCallback(<K extends keyof LocalPolicy>(key: K, value: LocalPolicy[K]) => {
+		markIntent('policy');
 		setLocal((prev) => (prev ? { ...prev, [key]: value } : prev));
-	}, []);
+	}, [markIntent]);
 
 	const updateConstraint = useCallback((code: string, field: keyof ConstraintOverride, value: unknown) => {
+		markIntent('policy');
 		setLocal((prev) => {
 			if (!prev) return prev;
 			const config = { ...prev.constraintConfig };
 			config[code] = { ...config[code], [field]: value };
 			return { ...prev, constraintConfig: config };
 		});
-	}, []);
+	}, [markIntent]);
 
 	const updateShiftWindow = useCallback(
 		(index: number, field: 'gradeLevel' | 'programType' | 'startTime' | 'endTime', value: string | number | null) => {
+			markIntent('window');
 			setShiftWindows((prev) =>
-				prev.map((window, windowIndex) => (windowIndex === index ? { ...window, [field]: value } : window)),
+				sortShiftWindows(prev.map((window, windowIndex) => (windowIndex === index ? { ...window, [field]: value } : window))),
 			);
 		},
-		[],
+		[markIntent],
 	);
 
+	const removeShiftWindow = useCallback((index: number) => {
+		markIntent('window');
+		setShiftWindows((prev) => prev.filter((_, i) => i !== index));
+	}, [markIntent]);
+
 	const addShiftWindow = useCallback(() => {
-		setShiftWindows((prev) => [
-			...prev,
-			{ gradeLevel: 7, programType: 'STE', startTime: '07:30', endTime: '12:00' },
-		]);
+		setShowAddOverrideDialog(true);
 	}, []);
+
+	const confirmAddShiftWindow = useCallback(() => {
+		if (newOverride.startTime >= newOverride.endTime) {
+			toast.error('Override start time must be earlier than end time.');
+			return;
+		}
+
+		const key = `${newOverride.gradeLevel}:${normalizeProgramForKey(newOverride.programType)}`;
+		if (shiftWindows.some((window) => `${window.gradeLevel}:${normalizeProgramForKey(window.programType)}` === key)) {
+			toast.error(`An override for Grade ${newOverride.gradeLevel} (${newOverride.programType ?? 'All Programs'}) already exists.`);
+			return;
+		}
+
+		markIntent('window');
+		setShiftWindows((prev) => sortShiftWindows([...prev, newOverride]));
+		setShowAddOverrideDialog(false);
+		setNewOverride({ gradeLevel: 7, programType: 'STE', startTime: '07:30', endTime: '12:00' });
+	}, [newOverride, shiftWindows, markIntent]);
 
 	return (
 		<div className="flex flex-col min-h-0 h-full bg-muted/30">
-			{/* ── Toolbar (non-scrolling) ── */}
+			<AddOverrideDialog
+				open={showAddOverrideDialog}
+				onOpenChange={setShowAddOverrideDialog}
+				newOverride={newOverride}
+				onChange={setNewOverride}
+				onConfirm={confirmAddShiftWindow}
+				gradeLevels={GRADE_LEVELS}
+			/>
+			<ReconciliationDialog state={reconciliationDialog} onClose={() => setReconciliationDialog(null)} />
+
+			{/* G��G�� Toolbar (non-scrolling) G��G�� */}
 			<div className="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-border bg-background/80 backdrop-blur-sm">
 				<TooltipProvider>
 					<Tooltip>
@@ -558,25 +715,25 @@ export default function SchedulingPolicyPane({
 					className="h-7 gap-1.5"
 				>
 					<Save className="size-3.5" />
-					{saving ? 'Saving…' : 'Save Policy'}
+					{saving ? 'SavingGǪ' : 'Save Policy'}
 				</Button>
 			</div>
 
-			{/* ── Content ── */}
+			{/* G��G�� Content G��G�� */}
 			{loading ? (
 				<div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-					Loading policy…
+					Loading policyGǪ
 				</div>
 			) : !local ? (
 				<div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
 					No policy data available.
 				</div>
 			) : (
-				/* Outer container does NOT scroll — each column card scrolls independently */
+				/* Outer container does NOT scroll G�� each column card scrolls independently */
 				activeTab === 'policy' ? (
 					<div className="flex-1 min-h-0 overflow-hidden p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
 
-					{/* ── COL 0: Scheduling Mode ── */}
+					{/* G��G�� COL 0: Scheduling Mode G��G�� */}
 					<SectionCard title="Teacher Movement Policy">
 						<div className="space-y-3">
 							<div className="space-y-2">
@@ -596,7 +753,7 @@ export default function SchedulingPolicyPane({
 						</div>
 					</SectionCard>
 
-					{/* ── COL 1: Core Teaching Limits ── */}
+					{/* G��G�� COL 1: Core Teaching Limits G��G�� */}
 					<SectionCard title="Core Teaching Limits">
 						<PolicyNumberField
 							label="Max Consecutive Teaching (min)"
@@ -662,7 +819,7 @@ export default function SchedulingPolicyPane({
 							</div>
 						)}
 
-						{/* ── Lunch Window ── */}
+						{/* G��G�� Lunch Window G��G�� */}
 						<div className="pt-2 mt-2 border-t border-border/60 space-y-3">
 							<PolicySwitch
 								label="Show Special Events in Grid"
@@ -720,7 +877,7 @@ export default function SchedulingPolicyPane({
 									<div className="space-y-1.5">
 										<MetricExplain
 											label="Lunch Start"
-											explanation="Start of the lunch window — no classes will overlap this range."
+											explanation="Start of the lunch window G�� no classes will overlap this range."
 										/>
 										<Input
 											type="time"
@@ -732,7 +889,7 @@ export default function SchedulingPolicyPane({
 									<div className="space-y-1.5">
 										<MetricExplain
 											label="Lunch End"
-											explanation="End of the lunch window — classes resume after this time."
+											explanation="End of the lunch window G�� classes resume after this time."
 										/>
 										<Input
 											type="time"
@@ -745,7 +902,7 @@ export default function SchedulingPolicyPane({
 							)}
 						</div>
 
-						{/* ── TLE Two-Pass Priority ── */}
+						{/* G��G�� TLE Two-Pass Priority G��G�� */}
 						<div className="pt-2 mt-2 border-t border-border/60 space-y-3">
 							<PolicySwitch
 								label="TLE Two-Pass Priority"
@@ -760,7 +917,7 @@ export default function SchedulingPolicyPane({
 							)}
 						</div>
 
-						{/* ── Flexible Subject Assignment ── */}
+						{/* G��G�� Flexible Subject Assignment G��G�� */}
 						<div className="pt-2 mt-2 border-t border-border/60 space-y-3">
 							<PolicySwitch
 								label="Allow Flexible Subject Assignment"
@@ -770,12 +927,12 @@ export default function SchedulingPolicyPane({
 							/>
 							{local.allowFlexibleSubjectAssignment && (
 								<div className="flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[0.6875rem] text-amber-700">
-									<span className="font-medium">⚠️ Warning:</span> Teachers may be assigned to subjects outside their specialization. Review assignments carefully before publishing.
+									<span className="font-medium">G��n+� Warning:</span> Teachers may be assigned to subjects outside their specialization. Review assignments carefully before publishing.
 								</div>
 							)}
 						</div>
 
-						{/* ── Consecutive Lab Sessions ── */}
+						{/* G��G�� Consecutive Lab Sessions G��G�� */}
 						<div className="pt-2 mt-2 border-t border-border/60 space-y-3">
 							<PolicySwitch
 								label="Allow Consecutive Lab Sessions"
@@ -821,7 +978,7 @@ export default function SchedulingPolicyPane({
 								/>
 								<PolicyNumberField
 									label="Max Back-to-Back Without Buffer"
-									explanation="Maximum consecutive cross-building transitions with ≤5 min gap between classes."
+									explanation="Maximum consecutive cross-building transitions with G��5 min gap between classes."
 									value={local.maxBackToBackTransitionsWithoutBuffer}
 									onChange={(v) => update('maxBackToBackTransitionsWithoutBuffer', v)}
 									min={1}
@@ -855,10 +1012,10 @@ export default function SchedulingPolicyPane({
 						)}
 					</SectionCard>
 
-					{/* ── COL 3: Per-Constraint Weights ── */}
+					{/* G��G�� COL 3: Per-Constraint Weights G��G�� */}
 					<SectionCard title="Per-Constraint Weights">
 						<p className="text-[0.6875rem] text-muted-foreground">
-							Toggle, weight (1–10), and optionally promote soft constraints to hard.
+							Toggle, weight (1G��10), and optionally promote soft constraints to hard.
 						</p>
 						<div className="space-y-2">
 							{Object.entries(SOFT_CONSTRAINT_LABELS).map(([code, info]) => {
@@ -881,67 +1038,13 @@ export default function SchedulingPolicyPane({
 
 					</div>
 				) : (
-					<div className="flex-1 min-h-0 overflow-hidden p-4">
-						<SectionCard title="Shift Settings">
-							<div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-								Adjust these windows to control the allowable scheduling boundaries for each grade or program override.
-							</div>
-							<div className="flex items-center justify-between gap-2">
-								<p className="text-[0.6875rem] text-muted-foreground">Base windows are applied when no program override exists.</p>
-								<Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={addShiftWindow}>
-									Add Override
-								</Button>
-							</div>
-							<div className="space-y-2">
-								{shiftWindows.map((window, index) => (
-									<div key={`${window.gradeLevel}:${window.programType ?? 'ALL'}:${index}`} className="rounded-md border border-border p-3 space-y-3">
-										<div className="flex items-center gap-2 justify-between">
-											<div className="text-xs font-medium text-foreground">Grade {window.gradeLevel}</div>
-											<Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => setShiftWindows((prev) => prev.filter((_, i) => i !== index))}>
-												Remove
-											</Button>
-										</div>
-										<div className="space-y-1.5">
-											<Label className="text-[0.6875rem] uppercase tracking-wide text-muted-foreground">Program</Label>
-											<Select
-												value={window.programType ?? 'ALL'}
-												onValueChange={(value) => updateShiftWindow(index, 'programType', value === 'ALL' ? null : value)}
-											>
-												<SelectTrigger className="h-8 text-xs">
-													<SelectValue placeholder="All Programs" />
-												</SelectTrigger>
-												<SelectContent>
-													{PROGRAM_WINDOW_OPTIONS.map((option) => (
-														<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
-										</div>
-										<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-											<div className="space-y-1.5">
-												<Label className="text-[0.6875rem] uppercase tracking-wide text-muted-foreground">Start Time</Label>
-												<Input
-													type="time"
-													className="h-8 text-xs"
-													value={window.startTime}
-													onChange={(event) => updateShiftWindow(index, 'startTime', event.target.value)}
-												/>
-											</div>
-											<div className="space-y-1.5">
-												<Label className="text-[0.6875rem] uppercase tracking-wide text-muted-foreground">End Time</Label>
-												<Input
-													type="time"
-													className="h-8 text-xs"
-													value={window.endTime}
-													onChange={(event) => updateShiftWindow(index, 'endTime', event.target.value)}
-												/>
-											</div>
-										</div>
-									</div>
-								))}
-							</div>
-						</SectionCard>
-					</div>
+					<ShiftSettingsEditor
+						shiftWindows={shiftWindows}
+						onAddOverride={addShiftWindow}
+						onRemove={removeShiftWindow}
+						onUpdate={updateShiftWindow}
+						gradeLevels={GRADE_LEVELS}
+					/>
 				)
 			)}
 		</div>

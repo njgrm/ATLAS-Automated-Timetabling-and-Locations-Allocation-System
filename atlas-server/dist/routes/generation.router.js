@@ -39,8 +39,19 @@ router.post('/:schoolId/:schoolYearId/runs', authenticate, async (req, res, next
             return;
         }
         const ignoreRoomRequestGate = req.body?.ignoreRoomRequestGate === true;
+        const enforceShiftWindows = req.body?.enforceShiftWindows !== false;
+        const roomerStrategy = req.body?.roomerStrategy ?? 'HOME_ROOM_FIRST';
+        if (roomerStrategy !== undefined && roomerStrategy !== 'UNIVERSAL' && roomerStrategy !== 'HOME_ROOM_FIRST') {
+            res.status(400).json({ code: 'INVALID_PARAM', message: 'roomerStrategy must be UNIVERSAL or HOME_ROOM_FIRST when provided.' });
+            return;
+        }
         const authToken = getAuthToken(req);
-        const run = await genService.triggerGenerationRun(schoolId, schoolYearId, actorId, { ignoreRoomRequestGate, authToken });
+        const run = await genService.triggerGenerationRun(schoolId, schoolYearId, actorId, {
+            ignoreRoomRequestGate,
+            enforceShiftWindows,
+            roomerStrategy,
+            authToken,
+        });
         res.status(201).json({ run });
     }
     catch (e) {

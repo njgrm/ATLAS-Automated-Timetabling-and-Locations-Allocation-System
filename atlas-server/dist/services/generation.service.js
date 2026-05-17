@@ -4,7 +4,7 @@
  */
 import { prisma } from '../lib/prisma.js';
 import { validateHardConstraints, } from './constraint-validator.js';
-import { computeDemand } from './schedule-constructor.js';
+import { computeDemand, buildTimetableShapeContract, } from './schedule-constructor.js';
 import { runHybridScheduler } from './hybrid-scheduler.js';
 import { getSectionSummary } from './section.service.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
@@ -39,6 +39,124 @@ async function getActiveFacultyMirrorIdSet(schoolId) {
 function getStaleFacultyIdsForRun(run, activeFacultyIds) {
     return extractDraftFacultyIds(run.draftEntries).filter((facultyId) => !activeFacultyIds.has(facultyId));
 }
+function normalizeProgramType(programType) {
+    return (programType ?? 'REGULAR').toUpperCase();
+}
+function buildRunTimetableShapeContracts(input) {
+    const templateByProgram = new Map(input.templateProfiles.map((profile) => [normalizeProgramType(profile.programType), profile]));
+    const regularTemplate = templateByProgram.get('REGULAR') ?? { programType: 'REGULAR', periodLengthMinutes: 50, periodsPerDay: 8 };
+    const contracts = [];
+    for (const grade of input.sectionsByGrade) {
+        const programTypes = new Set(['REGULAR']);
+        for (const section of grade.sections) {
+            programTypes.add(normalizeProgramType(section.programType));
+        }
+        for (const programType of programTypes) {
+            const window = input.gradeWindows.find((row) => row.gradeLevel === grade.gradeLevelId && normalizeProgramType(row.programType) === programType)
+                ?? input.gradeWindows.find((row) => row.gradeLevel === grade.gradeLevelId && normalizeProgramType(row.programType) === 'ALL');
+            const template = templateByProgram.get(programType) ?? regularTemplate;
+            contracts.push(buildTimetableShapeContract({
+                gradeLevel: grade.gradeLevelId,
+                programType,
+                startTime: window?.startTime ?? input.policy?.earliestStartTime ?? '07:00',
+                endTime: window?.endTime ?? input.policy?.latestEndTime ?? '17:00',
+                periodLengthMinutes: template.periodLengthMinutes,
+                periodsPerDay: template.periodsPerDay,
+                basePolicy: input.policy,
+            }));
+        }
+    }
+    return contracts;
+}
+function buildRoomAssignmentReasonCounts(entries, unassignedItems) {
+    const counts = {};
+    for (const entry of entries) {
+        const reason = entry.metadata?.roomAssignmentReason;
+        if (!reason)
+            continue;
+        counts[reason] = (counts[reason] ?? 0) + 1;
+    }
+    for (const unassigned of unassignedItems) {
+        const reason = (unassigned.roomAssignmentReason ?? 'FALLBACK_UNRESOLVED');
+        counts[reason] = (counts[reason] ?? 0) + 1;
+    }
+    return counts;
+}
+function buildHomeRoomStats(entries, unassignedItems) {
+    let assigned = 0;
+    let unavailable = 0;
+    let unresolved = 0;
+    for (const entry of entries) {
+        const reason = entry.metadata?.roomAssignmentReason;
+        if (reason === 'HOME_ROOM_ASSIGNED')
+            assigned += 1;
+        else if (reason === 'HOME_ROOM_UNAVAILABLE')
+            unavailable += 1;
+    }
+    for (const item of unassignedItems) {
+        if (item.homeRoomId != null) {
+            unresolved += 1;
+        }
+    }
+    const attempted = assigned + unavailable + unresolved;
+    return {
+        attempted,
+        assigned,
+        successRate: attempted > 0 ? Math.round((assigned / attempted) * 10000) / 100 : 0,
+    };
+}
+function buildHomeRoomFallbackDiagnostics(entries, unassignedItems) {
+    const diagnostics = {
+        homeRoomOccupied: 0,
+        noSameZoneStandardRoom: 0,
+        onlySpecializedRoomsAvailable: 0,
+        policyOrShiftWindowIncompatible: 0,
+    };
+    const applyCause = (cause) => {
+        if (cause === 'NO_SAME_ZONE_STANDARD_ROOM')
+            diagnostics.noSameZoneStandardRoom += 1;
+        else if (cause === 'ONLY_SPECIALIZED_ROOMS_AVAILABLE')
+            diagnostics.onlySpecializedRoomsAvailable += 1;
+        else if (cause === 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE')
+            diagnostics.policyOrShiftWindowIncompatible += 1;
+        else
+            diagnostics.homeRoomOccupied += 1;
+    };
+    for (const entry of entries) {
+        if (entry.metadata?.roomAssignmentReason !== 'HOME_ROOM_UNAVAILABLE')
+            continue;
+        applyCause(entry.metadata?.homeRoomFallbackCause);
+    }
+    for (const item of unassignedItems) {
+        if (item.homeRoomId == null)
+            continue;
+        applyCause(item.homeRoomFallbackCause);
+    }
+    return diagnostics;
+}
+function buildZoneDistributionByTerm(entries, roomZoneByRoomId) {
+    const termAgg = new Map();
+    for (const entry of entries) {
+        const termIndex = normalizeTermIndex(entry.termIndex);
+        const zone = roomZoneByRoomId.get(entry.roomId) ?? 'UNSPECIFIED';
+        const zoneMap = termAgg.get(termIndex) ?? new Map();
+        zoneMap.set(zone, (zoneMap.get(zone) ?? 0) + 1);
+        termAgg.set(termIndex, zoneMap);
+    }
+    const terms = [1, 2, 3];
+    return terms.map((termIndex) => {
+        const zoneMap = termAgg.get(termIndex) ?? new Map();
+        const total = [...zoneMap.values()].reduce((sum, count) => sum + count, 0);
+        const byZone = {};
+        for (const [zone, count] of zoneMap.entries()) {
+            byZone[zone] = {
+                count,
+                percent: total > 0 ? Math.round((count / total) * 10000) / 100 : 0,
+            };
+        }
+        return { termIndex, total, byZone };
+    });
+}
 function normalizeTermIndex(value) {
     const parsed = Number(value);
     if (parsed === 2)
@@ -48,9 +166,9 @@ function normalizeTermIndex(value) {
     return 1;
 }
 function deriveTermIndexFromMetadata(entry) {
-    const firstQuarter = entry.metadata?.modularAssignments?.[0]?.quarter;
-    if (firstQuarter === 2 || firstQuarter === 3)
-        return firstQuarter;
+    const firstTermIndex = entry.metadata?.modularAssignments?.[0]?.termIndex;
+    if (firstTermIndex === 2 || firstTermIndex === 3)
+        return firstTermIndex;
     return 1;
 }
 function withTermIndex(entries) {
@@ -181,7 +299,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
                     isTeachingSpace: true,
                     building: { schoolId, isTeachingBuilding: true },
                 },
-                select: { id: true, type: true, isTeachingSpace: true, capacity: true, buildingId: true },
+                select: { id: true, type: true, isTeachingSpace: true, isSharedFacility: true, capacity: true, buildingId: true, buildingZoneId: true },
             }),
             prisma.subject.findMany({
                 where: { schoolId, isActive: true },
@@ -215,9 +333,9 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
                 where: { schoolId },
                 select: { id: true, name: true, x: true, y: true },
             }),
-            prisma.gradeShiftWindow.findMany({
-                where: { schoolId, schoolYearId },
-            }),
+            options?.enforceShiftWindows === false
+                ? Promise.resolve([])
+                : prisma.gradeShiftWindow.findMany({ where: { schoolId, schoolYearId } }),
             prisma.instructionalCohort.findMany({
                 where: { schoolId, schoolYearId },
                 orderBy: [{ gradeLevel: 'asc' }, { cohortCode: 'asc' }],
@@ -269,11 +387,43 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
         for (const tp of templateProfiles) {
             classTemplatePeriods[tp.programType] = tp.periodLengthMinutes;
         }
+        const timetableShapeContracts = buildRunTimetableShapeContracts({
+            sectionsByGrade,
+            gradeWindows: gradeWindows.map((gw) => ({
+                gradeLevel: gw.gradeLevel,
+                programType: gw.programType ?? null,
+                startTime: gw.startTime,
+                endTime: gw.endTime,
+            })),
+            templateProfiles,
+            policy: {
+                maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
+                minBreakMinutesAfterConsecutiveBlock: policyRecord.minBreakMinutesAfterConsecutiveBlock,
+                maxTeachingMinutesPerDay: policyRecord.maxTeachingMinutesPerDay,
+                earliestStartTime: policyRecord.earliestStartTime,
+                latestEndTime: policyRecord.latestEndTime,
+                lunchStartTime: policyRecord.lunchStartTime ?? undefined,
+                lunchEndTime: policyRecord.lunchEndTime ?? undefined,
+                enableLunchWindow: policyRecord.enableLunchWindow ?? undefined,
+                enforceLunchWindow: policyRecord.enforceLunchWindow ?? undefined,
+                showSpecialEventsInGrid: policyRecord.showSpecialEventsInGrid ?? undefined,
+                enableFlagCeremony: policyRecord.enableFlagCeremony ?? undefined,
+                flagCeremonyStartTime: policyRecord.flagCeremonyStartTime ?? undefined,
+                flagCeremonyEndTime: policyRecord.flagCeremonyEndTime ?? undefined,
+                enableRecess: policyRecord.enableRecess ?? undefined,
+                recessStartTime: policyRecord.recessStartTime ?? undefined,
+                recessEndTime: policyRecord.recessEndTime ?? undefined,
+                enableTleTwoPassPriority: policyRecord.enableTleTwoPassPriority ?? true,
+                allowFlexibleSubjectAssignment: policyRecord.allowFlexibleSubjectAssignment ?? false,
+                allowConsecutiveLabSessions: policyRecord.allowConsecutiveLabSessions ?? false,
+            },
+        });
         const demand = computeDemand(sectionsByGrade, subjects, cohorts, classTemplatePeriods);
         const policyMaxDailyMinutes = policyRecord.maxTeachingMinutesPerDay;
         const constructorInput = {
             schoolId,
             schoolYearId,
+            roomingStrategy: options?.roomerStrategy ?? 'HOME_ROOM_FIRST',
             sectionsByGrade,
             subjects,
             cohorts,
@@ -319,12 +469,14 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
             lockedEntries: preGenerationDrafts.lockedEntries,
             gradeWindows: gradeWindows.map((gw) => ({
                 gradeLevel: gw.gradeLevel,
+                programType: gw.programType ?? null,
                 startTime: gw.startTime,
                 endTime: gw.endTime,
             })),
             buildings: buildings.map((b) => ({ id: b.id, name: b.name })),
             specializationAliases,
             classTemplatePeriods,
+            timetableShapes: timetableShapeContracts,
         };
         const result = runHybridScheduler(constructorInput);
         const entriesWithTerms = withTermIndex(result.entries);
@@ -388,14 +540,67 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
             },
             meta: warning.meta,
         }));
+        const unassignedViolations = result.unassignedItems.map((item) => {
+            const isSpecializedUnavailable = item.roomAssignmentReason === 'SPECIALIZED_ROOM_UNAVAILABLE';
+            return {
+                code: isSpecializedUnavailable ? 'SPECIALIZED_ROOM_UNAVAILABLE' : 'UNASSIGNED_SECTION',
+                severity: isSpecializedUnavailable ? 'SOFT' : 'HARD',
+                message: isSpecializedUnavailable
+                    ? `Section ${item.sectionId} subject ${item.subjectId} could not be assigned to a specialized room in session ${item.session}.`
+                    : `Section ${item.sectionId} subject ${item.subjectId} remained unassigned in session ${item.session}.`,
+                schoolId,
+                schoolYearId,
+                runId: run.id,
+                entities: {
+                    sectionId: item.sectionId,
+                    subjectId: item.subjectId,
+                },
+                meta: {
+                    reason: item.reason,
+                    roomAssignmentReason: item.roomAssignmentReason,
+                    session: item.session,
+                    gradeLevel: item.gradeLevel,
+                },
+            };
+        });
+        const roomZoneByRoomId = new Map(rooms.map((room) => [room.id, room.buildingZoneId ?? 'UNSPECIFIED']));
+        const zoneDistributionByTerm = buildZoneDistributionByTerm(entriesWithTerms, roomZoneByRoomId);
+        const zoneWarningViolations = zoneDistributionByTerm.flatMap((termZone) => {
+            const zoneRows = Object.entries(termZone.byZone);
+            if (zoneRows.length === 0 || termZone.total === 0)
+                return [];
+            const [zone, data] = zoneRows.reduce((max, current) => (current[1].percent > max[1].percent ? current : max));
+            if (data.percent <= 50)
+                return [];
+            return [{
+                    code: 'ZONE_IMBALANCE_WARNING',
+                    severity: 'SOFT',
+                    message: `Term ${termZone.termIndex} zone ${zone} has ${data.percent}% of scheduled entries, exceeding the 50% balancing threshold.`,
+                    schoolId,
+                    schoolYearId,
+                    runId: run.id,
+                    entities: {},
+                    meta: {
+                        termIndex: termZone.termIndex,
+                        zone,
+                        percent: data.percent,
+                        total: termZone.total,
+                    },
+                }];
+        });
         const mergedViolationCounts = { ...validationResult.counts.byCode };
-        for (const warning of modularWarningViolations) {
+        for (const warning of [...modularWarningViolations, ...unassignedViolations, ...zoneWarningViolations]) {
             mergedViolationCounts[warning.code] = (mergedViolationCounts[warning.code] ?? 0) + 1;
         }
         const mergedValidationResult = {
-            violations: [...validationResult.violations, ...modularWarningViolations],
+            violations: [
+                ...validationResult.violations,
+                ...modularWarningViolations,
+                ...unassignedViolations,
+                ...zoneWarningViolations,
+            ],
             counts: {
-                total: validationResult.counts.total + modularWarningViolations.length,
+                total: validationResult.counts.total + modularWarningViolations.length + unassignedViolations.length + zoneWarningViolations.length,
                 byCode: mergedViolationCounts,
             },
         };
@@ -404,12 +609,27 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
             qualifiedFacultyCoverageBySubject: buildQualifiedCoverageBySubject(demand, facultySubjects),
             slotSaturationByInterval: buildSlotSaturation(entriesWithTerms, Math.max(rooms.length, 1)).slice(0, 20),
             unassignedBySubjectGrade: buildUnassignedBySubjectGrade(result.unassignedItems, subjectCodeById).slice(0, 20),
+            roomAssignmentReasonCounts: buildRoomAssignmentReasonCounts(entriesWithTerms, result.unassignedItems),
+            homeRoomFallbackDiagnostics: buildHomeRoomFallbackDiagnostics(entriesWithTerms, result.unassignedItems),
+            zoneDistributionByTerm,
         };
         const termCounts = buildTermCounts(entriesWithTerms);
+        const homeRoomStats = buildHomeRoomStats(entriesWithTerms, result.unassignedItems);
+        const timetableDisplaySlots = timetableShapeContracts
+            .flatMap((contract) => contract.displaySlots)
+            .filter((slot, index, slots) => {
+            const key = `${slot.startTime}-${slot.endTime}-${slot.eventName ?? ''}-${slot.isSpecialEvent ? '1' : '0'}`;
+            return slots.findIndex((candidate) => `${candidate.startTime}-${candidate.endTime}-${candidate.eventName ?? ''}-${candidate.isSpecialEvent ? '1' : '0'}` === key) === index;
+        })
+            .sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime));
         const summary = {
             classesProcessed: result.classesProcessed,
             assignedCount: result.assignedCount,
             unassignedCount: result.unassignedCount,
+            roomerStrategy: options?.roomerStrategy ?? 'HOME_ROOM_FIRST',
+            homeRoomAttemptedCount: homeRoomStats.attempted,
+            homeRoomAssignedCount: homeRoomStats.assigned,
+            homeRoomSuccessRate: homeRoomStats.successRate,
             policyBlockedCount: result.policyBlockedCount,
             hardViolationCount: mergedValidationResult.violations.filter((v) => v.severity === 'HARD').length,
             prePlacedCount: preGenerationDrafts.prePlacedCount,
@@ -432,6 +652,10 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
             seedQuality: result.seedQuality?.length > 0 ? result.seedQuality : undefined,
             repairImpact: result.repairImpact,
             resourceDiagnostics,
+            shiftWindowPolicy: options?.enforceShiftWindows === false ? 'DISABLED' : 'ENFORCED',
+            configuredShiftWindowCount: gradeWindows.length,
+            timetableShapeContracts,
+            timetableDisplaySlots,
         };
         const finishedAt = new Date();
         const durationMs = finishedAt.getTime() - startedAt.getTime();
@@ -461,6 +685,9 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
                     durationMs,
                     summary,
                     gateOverrideUsed: Boolean(options?.ignoreRoomRequestGate),
+                    roomerStrategy: options?.roomerStrategy ?? 'HOME_ROOM_FIRST',
+                    shiftWindowPolicy: options?.enforceShiftWindows === false ? 'DISABLED' : 'ENFORCED',
+                    gradeWindowCount: gradeWindows.length,
                     gateOpenRequestCountAtTrigger: gateStatus.openCount,
                 },
             },

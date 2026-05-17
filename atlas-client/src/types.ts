@@ -1067,6 +1067,7 @@ export interface GradeShiftWindow {
 	schoolId: number;
 	schoolYearId: number;
 	gradeLevel: number;
+	programType?: 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER' | null;
 	startTime: string;
 	endTime: string;
 	createdAt: string;
@@ -1075,6 +1076,7 @@ export interface GradeShiftWindow {
 
 export interface GradeShiftWindowInput {
 	gradeLevel: number;
+	programType?: 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER' | null;
 	startTime: string;
 	endTime: string;
 }

@@ -539,6 +539,19 @@ export async function upsertPolicy(schoolId, schoolYearId, input) {
     if (errors.length > 0) {
         throw err(400, 'INVALID_POLICY', errors.join(' '));
     }
+    const existingWindows = await prisma.gradeShiftWindow.findMany({
+        where: { schoolId, schoolYearId },
+        select: { gradeLevel: true, programType: true, startTime: true, endTime: true },
+    });
+    const policyStart = timeToMinutes(data.earliestStartTime);
+    const policyEnd = timeToMinutes(data.latestEndTime);
+    for (const window of existingWindows) {
+        const windowStart = timeToMinutes(window.startTime);
+        const windowEnd = timeToMinutes(window.endTime);
+        if (windowStart < policyStart || windowEnd > policyEnd) {
+            throw err(400, 'POLICY_CONFLICTS_WITH_SHIFT_WINDOWS', `Scheduling policy bounds must include configured grade shift windows${window.programType ? ` for ${window.programType}` : ''}.`);
+        }
+    }
     // Prisma Json? fields need Prisma.JsonNull instead of plain null
     const constraintConfigValue = data.constraintConfig === null
         ? Prisma.JsonNull
