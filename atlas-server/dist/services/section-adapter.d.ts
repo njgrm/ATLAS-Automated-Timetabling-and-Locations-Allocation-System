@@ -30,7 +30,6 @@ export declare function normalizeEnrollProSectionsResponse(body: unknown): {
     warnings: string[];
 };
 export interface ExternalSection {
-    mirrorId?: number;
     id: number;
     name: string;
     maxCapacity: number;
@@ -48,6 +47,9 @@ export interface ExternalSection {
     adviserName?: string | null;
     upstreamProgramType?: string | null;
     isSpecialProgram?: boolean;
+    tleProgramId?: number | null;
+    tleSpecialization?: string | null;
+    tleProgramCategory?: string | null;
 }
 export interface SectionsByGrade {
     gradeLevelId: number;

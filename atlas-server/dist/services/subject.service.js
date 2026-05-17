@@ -1,25 +1,38 @@
 import { prisma } from '../lib/prisma.js';
 import { inferSubjectProgramScopes } from './subject-program-scope.service.js';
 const MATATAG_DEFAULTS = [
-    { code: 'FIL', name: 'Filipino', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
-    { code: 'ENG', name: 'English', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
-    { code: 'MATH', name: 'Mathematics', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
-    { code: 'AP', name: 'Araling Panlipunan', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
-    { code: 'MAPEH', name: 'MAPEH', minMinutesPerWeek: 240, preferredRoomType: 'GYMNASIUM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
-    { code: 'ESP', name: 'ESP/GMRC', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+    // Core bundle shared by regular + offered special programs.
+    { code: 'FIL', name: 'Filipino', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
+    { code: 'ENG', name: 'English', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
+    { code: 'MATH', name: 'Mathematics', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
+    { code: 'AP', name: 'Araling Panlipunan', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
+    { code: 'ESP', name: 'ESP/GMRC', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
+    { code: 'MAPEH', name: 'MAPEH', minMinutesPerWeek: 240, preferredRoomType: 'GYMNASIUM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
+    { code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 60, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
+    // Regular science contract (tri-sem).
+    { code: 'SCI_BIO', name: 'Science - Biology', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, termGroupId: 'SCIENCE', termCount: 3, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
+    { code: 'SCI_CHEM', name: 'Science - Chemistry', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, termGroupId: 'SCIENCE', termCount: 3, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
+    { code: 'SCI_ES', name: 'Science - Earth Science', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, termGroupId: 'SCIENCE', termCount: 3, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
+    { code: 'SCI_PHYS', name: 'Science - Physics (Transitional)', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'], isActive: false },
+    // Transitional regular TLE row retained for compatibility while exploratory/specialization rows are materialized.
     { code: 'TLE', name: 'Technology and Livelihood Education', minMinutesPerWeek: 240, preferredRoomType: 'TLE_WORKSHOP', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
-    { code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 60, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'] },
-    { code: 'SCI_BIO', name: 'Science - Biology', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'SCIENCE', modularOrder: 1, programScopes: ['REGULAR'] },
-    { code: 'SCI_CHEM', name: 'Science - Chemistry', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'SCIENCE', modularOrder: 2, programScopes: ['REGULAR'] },
-    { code: 'SCI_ES', name: 'Science - Earth Science', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'SCIENCE', modularOrder: 3, programScopes: ['REGULAR'] },
-    { code: 'SCI_PHYS', name: 'Science - Physics', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'] },
-    { code: 'ENV_SCI', name: 'Environmental Science', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [7], isSeedable: false, programScopes: ['STE'] },
-    { code: 'STE_RESEARCH', name: 'Research', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['STE'] },
-    { code: 'BIOTECHNOLOGY', name: 'Biotechnology', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [8], isSeedable: false, programScopes: ['STE'] },
-    { code: 'CONSUMERS_CHEMISTRY', name: 'Consumers Chemistry', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [9], isSeedable: false, programScopes: ['STE'] },
-    { code: 'ELECTRONICS_ROBOTICS', name: 'Electronics and Robotics', minMinutesPerWeek: 90, preferredRoomType: 'LABORATORY', gradeLevels: [10], isSeedable: false, programScopes: ['STE'] },
-    { code: 'SPA_SPEC', name: 'SPA Specialization', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'] },
-    { code: 'DEVL_READING', name: 'Developmental Reading', minMinutesPerWeek: 90, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['STE', 'SPA'] },
+    // Exploratory TLE (Grades 7-8).
+    { code: 'TLE_ICT_EXP', name: 'TLE Exploratory - ICT', minMinutesPerWeek: 240, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [7, 8], isSeedable: false, programScopes: ['REGULAR'], allowedSpecializations: ['ICT'] },
+    { code: 'TLE_AFA_EXP', name: 'TLE Exploratory - Agriculture and Fishery Arts', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8], isSeedable: false, programScopes: ['REGULAR'], allowedSpecializations: ['AFA'] },
+    { code: 'TLE_FCS_EXP', name: 'TLE Exploratory - Family and Consumer Science', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8], isSeedable: false, programScopes: ['REGULAR'], allowedSpecializations: ['FCS'] },
+    { code: 'TLE_IA_EXP', name: 'TLE Exploratory - Industrial Arts', minMinutesPerWeek: 240, preferredRoomType: 'TLE_WORKSHOP', gradeLevels: [7, 8], isSeedable: false, programScopes: ['REGULAR'], allowedSpecializations: ['IA'] },
+    // STE overlays (45-minute default overlays).
+    { code: 'STE_ENV_SCI', name: 'Environmental Science', minMinutesPerWeek: 45, preferredRoomType: 'LABORATORY', gradeLevels: [7], isSeedable: false, programScopes: ['STE'] },
+    { code: 'STE_BIOTECH', name: 'Biotechnology', minMinutesPerWeek: 45, preferredRoomType: 'LABORATORY', gradeLevels: [8], isSeedable: false, programScopes: ['STE'] },
+    { code: 'STE_ICT', name: 'ICT', minMinutesPerWeek: 45, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [8], isSeedable: false, programScopes: ['STE'], allowedSpecializations: ['ICT'] },
+    { code: 'STE_APPLIED_CHEM', name: 'Applied Chemistry', minMinutesPerWeek: 45, preferredRoomType: 'LABORATORY', gradeLevels: [9], isSeedable: false, programScopes: ['STE'] },
+    { code: 'STE_APPLIED_PHYS', name: 'Applied Physics', minMinutesPerWeek: 45, preferredRoomType: 'LABORATORY', gradeLevels: [10], isSeedable: false, programScopes: ['STE'] },
+    { code: 'STE_ROBOTICS', name: 'Robotics', minMinutesPerWeek: 45, preferredRoomType: 'LABORATORY', gradeLevels: [10], isSeedable: false, programScopes: ['STE'] },
+    { code: 'STE_RESEARCH', name: 'Research', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['STE'] },
+    // SPA / SPS umbrella specialization overlays.
+    { code: 'SPA_SPEC', name: 'Special Program in the Arts: Specialization', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'], allowedSpecializations: ['MUSIC', 'VISUAL_ARTS', 'THEATER_ARTS', 'MEDIA_ARTS', 'CREATIVE_WRITING', 'DANCE', 'TRADITIONAL_ARTS'] },
+    { code: 'SPS_SPEC', name: 'Special Program in Sports: Specialization', minMinutesPerWeek: 45, preferredRoomType: 'GYMNASIUM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPS'], allowedSpecializations: ['ATHLETICS', 'SWIMMING', 'BASKETBALL', 'VOLLEYBALL', 'FOOTBALL', 'SEPAK_TAKRAW', 'SOFTBALL', 'BASEBALL', 'BADMINTON', 'TABLE_TENNIS', 'TAEKWONDO', 'TENNIS', 'CHESS', 'GYMNASTICS', 'ARCHERY', 'ARNIS'] },
+    { code: 'DEVL_READING', name: 'Developmental Reading', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['STE', 'SPA'] },
 ];
 const DEPRECATED_SUBJECT_CODES = [
     'SCI',
@@ -32,6 +45,16 @@ const DEPRECATED_SUBJECT_CODES = [
     'RESEARCH_II',
     'RESEARCH_III',
     'RESEARCH_IV',
+    'ENV_SCI',
+    'BIOTECHNOLOGY',
+    'CONSUMERS_CHEMISTRY',
+    'ELECTRONICS_ROBOTICS',
+    'ADVANCED_CHEMISTRY',
+    'ADVANCED_PHYSICS',
+    'ADVANCED_STATISTICS',
+    'BASIC_STATISTICS',
+    'ELECTRONICS',
+    'SPA_SPECIALIZATION',
     'MUSIC',
     'VISUAL_ARTS',
     'THEATER_ARTS',
@@ -39,6 +62,137 @@ const DEPRECATED_SUBJECT_CODES = [
     'CREATIVE_WRITING',
     'DANCE',
 ];
+const PROGRAM_OVERLAY_CODES = {
+    REGULAR: [],
+    STE: ['STE_ENV_SCI', 'STE_BIOTECH', 'STE_ICT', 'STE_APPLIED_CHEM', 'STE_APPLIED_PHYS', 'STE_ROBOTICS', 'STE_RESEARCH'],
+    SPA: ['SPA_SPEC'],
+    SPS: ['SPS_SPEC'],
+    OTHER: [],
+};
+const DYNAMIC_TLE_PREFIX = 'TLE_SPEC_';
+function resolveEnrollProBaseUrl() {
+    return process.env.ENROLLPRO_API ?? 'http://localhost:5000/api';
+}
+function normalizeProgramType(value) {
+    if (typeof value !== 'string')
+        return null;
+    const normalized = value.trim().toUpperCase();
+    if (normalized === 'STE' || normalized === 'SPA' || normalized === 'SPS' || normalized === 'REGULAR') {
+        return normalized;
+    }
+    return null;
+}
+function normalizeCode(value) {
+    if (typeof value !== 'string')
+        return '';
+    return value
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+}
+function inferWorkshopType(programCategory) {
+    const normalized = (programCategory ?? '').toUpperCase();
+    if (normalized.includes('ICT'))
+        return 'COMPUTER_LAB';
+    if (normalized.includes('SPORT'))
+        return 'GYMNASIUM';
+    if (normalized.includes('AGRI') || normalized.includes('FISH') || normalized.includes('FCS'))
+        return 'LABORATORY';
+    return 'TLE_WORKSHOP';
+}
+async function fetchJsonWithAuth(url, token) {
+    const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+    const response = await fetch(url, { headers });
+    if (!response.ok) {
+        throw new Error(`Upstream request failed (${response.status}) for ${url}`);
+    }
+    return response.json();
+}
+async function fetchSectionsProgramSignals(baseUrl, token) {
+    const offered = new Set();
+    let currentPage = 1;
+    let totalPages = 1;
+    const pageSize = 200;
+    while (currentPage <= totalPages) {
+        const url = `${baseUrl}/integration/v1/sections?page=${currentPage}&limit=${pageSize}`;
+        const payload = await fetchJsonWithAuth(url, token);
+        const rows = Array.isArray(payload.data) ? payload.data : [];
+        for (const row of rows) {
+            const programType = normalizeProgramType(row.programType);
+            if (programType)
+                offered.add(programType);
+        }
+        const upstreamPages = Number(payload.meta?.totalPages ?? 0);
+        totalPages = Number.isFinite(upstreamPages) && upstreamPages > 0
+            ? upstreamPages
+            : (rows.length < pageSize ? currentPage : currentPage + 1);
+        currentPage += 1;
+    }
+    return offered;
+}
+async function fetchUpstreamProgramSignals(schoolId, schoolYearId, token) {
+    const baseUrl = resolveEnrollProBaseUrl();
+    const offeredPrograms = new Set(['REGULAR']);
+    const tleSpecializations = new Map();
+    try {
+        const offeringUrl = `${baseUrl}/integration/v1/subject-offerings?schoolId=${schoolId}&schoolYearId=${schoolYearId}`;
+        const offeringsPayload = await fetchJsonWithAuth(offeringUrl, token);
+        const offerings = Array.isArray(offeringsPayload.data) ? offeringsPayload.data : [];
+        for (const offering of offerings) {
+            const programType = normalizeProgramType(offering.programType);
+            if (programType)
+                offeredPrograms.add(programType);
+        }
+    }
+    catch {
+        // Best-effort contract sync; generation flow handles hard upstream failures elsewhere.
+    }
+    try {
+        const sectionPrograms = await fetchSectionsProgramSignals(baseUrl, token);
+        for (const programType of sectionPrograms) {
+            offeredPrograms.add(programType);
+        }
+    }
+    catch {
+        // Keep best-effort behavior.
+    }
+    try {
+        const tleUrl = `${baseUrl}/admin/tle-programs?schoolId=${schoolId}`;
+        const tlePayload = await fetchJsonWithAuth(tleUrl, token);
+        const tleRows = Array.isArray(tlePayload.data) ? tlePayload.data : [];
+        for (const row of tleRows) {
+            if (!row || typeof row !== 'object')
+                continue;
+            const record = row;
+            const code = normalizeCode(record.code ?? record.specializationCode ?? record.programCode ?? record.name);
+            if (!code)
+                continue;
+            const name = typeof record.name === 'string' && record.name.trim().length > 0
+                ? record.name.trim()
+                : code.replace(/_/g, ' ');
+            const category = typeof record.programCategory === 'string' ? record.programCategory : null;
+            const gradeLevels = Array.isArray(record.gradeLevels)
+                ? record.gradeLevels.filter((value) => Number.isFinite(value)).map(Number)
+                : [9, 10];
+            const existing = tleSpecializations.get(code);
+            if (!existing) {
+                tleSpecializations.set(code, { code, name, programCategory: category, gradeLevels: [...new Set(gradeLevels)] });
+                continue;
+            }
+            existing.gradeLevels = [...new Set([...existing.gradeLevels, ...gradeLevels])];
+            if (!existing.programCategory && category)
+                existing.programCategory = category;
+        }
+    }
+    catch {
+        // Keep sync resilient when the protected endpoint is unavailable.
+    }
+    return {
+        offeredPrograms,
+        tleSpecializations: [...tleSpecializations.values()],
+    };
+}
 export async function ensureDefaultSubjects(schoolId) {
     await prisma.subject.updateMany({
         where: {
@@ -68,8 +222,10 @@ export async function ensureDefaultSubjects(schoolId) {
             termCount: subject.termCount ?? 3,
             gradeLevels: subject.gradeLevels,
             programScopes: subject.programScopes,
+            allowedSpecializations: subject.allowedSpecializations ?? [],
+            requiredFeatures: subject.requiredFeatures ?? [],
             isSeedable: subject.isSeedable,
-            isActive: true,
+            isActive: subject.isActive ?? true,
         },
         create: {
             schoolId,
@@ -84,10 +240,82 @@ export async function ensureDefaultSubjects(schoolId) {
             termCount: subject.termCount ?? 3,
             gradeLevels: subject.gradeLevels,
             programScopes: subject.programScopes,
+            allowedSpecializations: subject.allowedSpecializations ?? [],
+            requiredFeatures: subject.requiredFeatures ?? [],
             isSeedable: subject.isSeedable,
-            isActive: true,
+            isActive: subject.isActive ?? true,
         },
     })));
+}
+async function materializeDynamicTleSubjects(schoolId, specializations) {
+    if (specializations.length === 0)
+        return;
+    const dynamicCodes = new Set();
+    for (const specialization of specializations) {
+        const code = `${DYNAMIC_TLE_PREFIX}${specialization.code}`.slice(0, 64);
+        dynamicCodes.add(code);
+        await prisma.subject.upsert({
+            where: { schoolId_code: { schoolId, code } },
+            update: {
+                name: `TLE Specialization - ${specialization.name}`,
+                gradeLevels: specialization.gradeLevels,
+                programScopes: ['REGULAR'],
+                allowedSpecializations: [specialization.code],
+                preferredRoomType: inferWorkshopType(specialization.programCategory),
+                minMinutesPerWeek: 240,
+                isSeedable: false,
+                isActive: true,
+            },
+            create: {
+                schoolId,
+                code,
+                name: `TLE Specialization - ${specialization.name}`,
+                gradeLevels: specialization.gradeLevels,
+                programScopes: ['REGULAR'],
+                allowedSpecializations: [specialization.code],
+                preferredRoomType: inferWorkshopType(specialization.programCategory),
+                minMinutesPerWeek: 240,
+                sessionPattern: 'ANY',
+                isSeedable: false,
+                isActive: true,
+            },
+        });
+    }
+    await prisma.subject.updateMany({
+        where: {
+            schoolId,
+            code: { startsWith: DYNAMIC_TLE_PREFIX, notIn: [...dynamicCodes] },
+        },
+        data: { isActive: false },
+    });
+}
+export async function reconcileSubjectContractFromUpstream(schoolId, schoolYearId, authToken) {
+    await ensureDefaultSubjects(schoolId);
+    const signals = await fetchUpstreamProgramSignals(schoolId, schoolYearId, authToken);
+    const offeredPrograms = signals.offeredPrograms;
+    for (const [programType, overlayCodes] of Object.entries(PROGRAM_OVERLAY_CODES)) {
+        if (programType === 'REGULAR' || programType === 'OTHER')
+            continue;
+        if (offeredPrograms.has(programType)) {
+            await prisma.subject.updateMany({
+                where: { schoolId, code: { in: overlayCodes } },
+                data: { isActive: true },
+            });
+        }
+        else {
+            await prisma.subject.updateMany({
+                where: { schoolId, code: { in: overlayCodes } },
+                data: { isActive: false },
+            });
+        }
+    }
+    const steOffered = offeredPrograms.has('STE');
+    const spaOffered = offeredPrograms.has('SPA');
+    await prisma.subject.updateMany({
+        where: { schoolId, code: 'DEVL_READING' },
+        data: { isActive: steOffered || spaOffered },
+    });
+    await materializeDynamicTleSubjects(schoolId, signals.tleSpecializations);
 }
 export async function getSubjectsBySchool(schoolId, filters) {
     const subjects = await prisma.subject.findMany({

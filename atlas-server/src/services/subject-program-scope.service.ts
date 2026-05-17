@@ -46,6 +46,10 @@ export function inferSubjectProgramScopes(subjectCode: string, subjectName?: str
 		return ['SPA'];
 	}
 
+	if (code.startsWith('SPS_') || name.includes('[SPS]')) {
+		return ['SPS'];
+	}
+
 	return ['REGULAR'];
 }
 
@@ -78,6 +82,16 @@ export function isSubjectAllowedForSectionProgram(
 		// SPA sections get subjects scoped to REGULAR or SPA; never STE-only
 		if (scopes.includes('STE') && !scopes.includes('REGULAR') && !scopes.includes('SPA')) return false;
 		return scopes.includes('REGULAR') || scopes.includes('SPA');
+	}
+
+	if (sectionProgram === 'SPS') {
+		// SPS sections get subjects scoped to REGULAR or SPS; never STE/SPA-only.
+		if ((scopes.includes('STE') || scopes.includes('SPA')) && !scopes.includes('REGULAR') && !scopes.includes('SPS')) return false;
+		return scopes.includes('REGULAR') || scopes.includes('SPS');
+	}
+
+	if (sectionProgram === 'OTHER') {
+		return scopes.includes('REGULAR') || scopes.includes('OTHER');
 	}
 
 	// REGULAR and all other programs: only REGULAR-scoped subjects

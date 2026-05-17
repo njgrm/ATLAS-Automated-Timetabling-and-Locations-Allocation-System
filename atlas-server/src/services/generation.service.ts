@@ -29,8 +29,9 @@ import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './facul
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
 import * as preGenerationDraftService from './pre-generation-draft.service.js';
 import { resolveActiveDraftRun } from './active-draft-run-resolver.service.js';
-import { getTemplatePeriodProfiles, ensureTemplatesForProgramTypes } from './class-template.service.js';
+import { getTemplatePeriodProfiles, ensureDefaultTemplates, ensureTemplatesForProgramTypes } from './class-template.service.js';
 import { computeEffectiveWeeklyTeachingMinutes } from './scheduling-policy.service.js';
+import { reconcileSubjectContractFromUpstream } from './subject.service.js';
 
 // ─── Helpers ───
 
@@ -426,6 +427,10 @@ export async function triggerGenerationRun(
 		}
 
 		// ── Fetch all input data for construction ──
+		stage = 'subject-contract-sync';
+		await reconcileSubjectContractFromUpstream(schoolId, schoolYearId, options?.authToken);
+		await ensureDefaultTemplates(schoolId);
+
 		stage = 'sections-fetch';
 		const [sectionResult, faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, gradeWindows, cohorts, specializationAliases] = await Promise.all([
 			getSectionSummary(schoolYearId, schoolId, options?.authToken),

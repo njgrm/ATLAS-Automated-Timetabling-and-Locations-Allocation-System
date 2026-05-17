@@ -36,7 +36,7 @@ const DEFAULT_TEMPLATE_SPECS: DefaultTemplateSpec[] = [
 		periodLengthMinutes: 60,
 		periodsPerDay: 8,
 		isDefault: true,
-		subjectCodes: ['FIL', 'ENG', 'MATH', 'SCI', 'AP', 'MAPEH', 'ESP', 'TLE', 'HG'],
+		subjectCodes: ['FIL', 'ENG', 'MATH', 'AP', 'MAPEH', 'ESP', 'HG', 'SCI_BIO', 'SCI_CHEM', 'SCI_ES', 'TLE', 'TLE_ICT_EXP', 'TLE_AFA_EXP', 'TLE_FCS_EXP', 'TLE_IA_EXP'],
 	},
 	{
 		name: 'Science, Technology & Engineering',
@@ -46,8 +46,7 @@ const DEFAULT_TEMPLATE_SPECS: DefaultTemplateSpec[] = [
 		periodLengthMinutes: 45,
 		periodsPerDay: 10,
 		isDefault: false,
-		// STE: core minus TLE, plus Research/ICT/Biotech
-		subjectCodes: ['FIL', 'ENG', 'MATH', 'SCI', 'AP', 'MAPEH', 'ESP', 'HG', 'ENV_SCI', 'RESEARCH_I', 'BIOTECHNOLOGY'],
+		subjectCodes: ['FIL', 'ENG', 'MATH', 'AP', 'MAPEH', 'ESP', 'HG', 'SCI_BIO', 'SCI_CHEM', 'SCI_ES', 'STE_ENV_SCI', 'STE_BIOTECH', 'STE_ICT', 'STE_APPLIED_CHEM', 'STE_APPLIED_PHYS', 'STE_ROBOTICS', 'STE_RESEARCH', 'DEVL_READING'],
 	},
 	{
 		name: 'Special Program in the Arts',
@@ -57,8 +56,17 @@ const DEFAULT_TEMPLATE_SPECS: DefaultTemplateSpec[] = [
 		periodLengthMinutes: 45,
 		periodsPerDay: 10,
 		isDefault: false,
-		// SPA: full core including TLE, plus SPA-specific (school adds their own SPA subjects)
-		subjectCodes: ['FIL', 'ENG', 'MATH', 'SCI', 'AP', 'MAPEH', 'ESP', 'TLE', 'HG'],
+		subjectCodes: ['FIL', 'ENG', 'MATH', 'AP', 'MAPEH', 'ESP', 'HG', 'SCI_BIO', 'SCI_CHEM', 'SCI_ES', 'SPA_SPEC', 'DEVL_READING'],
+	},
+	{
+		name: 'Special Program in Sports',
+		label: 'SPS',
+		programType: 'SPS',
+		gradeApplicability: [7, 8, 9, 10],
+		periodLengthMinutes: 45,
+		periodsPerDay: 10,
+		isDefault: false,
+		subjectCodes: ['FIL', 'ENG', 'MATH', 'AP', 'MAPEH', 'ESP', 'HG', 'SCI_BIO', 'SCI_CHEM', 'SCI_ES', 'SPS_SPEC'],
 	},
 ];
 
@@ -102,13 +110,32 @@ export async function ensureDefaultTemplates(schoolId: number): Promise<void> {
 				schoolId_programType: { schoolId, programType: spec.programType },
 			},
 		});
-		if (existing) continue;
 
 		// Resolve subject IDs from codes for this school
 		const subjects = await prisma.subject.findMany({
-			where: { schoolId, code: { in: spec.subjectCodes } },
+			where: { schoolId, code: { in: spec.subjectCodes }, isActive: true },
 			select: { id: true, code: true },
 		});
+		const bindingRows = subjects.map((s) => ({ subjectId: s.id }));
+
+		if (existing) {
+			await prisma.classTemplate.update({
+				where: { id: existing.id },
+				data: {
+					name: spec.name,
+					label: spec.label,
+					gradeApplicability: spec.gradeApplicability,
+					periodLengthMinutes: spec.periodLengthMinutes,
+					periodsPerDay: spec.periodsPerDay,
+					isDefault: spec.isDefault,
+					subjectBindings: {
+						deleteMany: {},
+						create: bindingRows,
+					},
+				},
+			});
+			continue;
+		}
 
 		await prisma.classTemplate.create({
 			data: {
@@ -122,7 +149,7 @@ export async function ensureDefaultTemplates(schoolId: number): Promise<void> {
 				isActive: true,
 				isDefault: spec.isDefault,
 				subjectBindings: {
-					create: subjects.map((s) => ({ subjectId: s.id })),
+					create: bindingRows,
 				},
 			},
 		});

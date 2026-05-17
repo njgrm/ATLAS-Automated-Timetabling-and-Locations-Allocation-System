@@ -48,6 +48,9 @@ interface EnrollProSectionPayload {
 	maxCapacity?: number;
 	enrolledCount?: number;
 	programType?: string;
+	tleProgramId?: number | null;
+	tleSpecialization?: string | null;
+	tleProgramCategory?: string | null;
 	advisingTeacher?: EnrollProAdvisingTeacher | null;
 }
 
@@ -66,6 +69,9 @@ interface EnrollProSectionsResponse {
 		maxCapacity?: number;
 		enrolledCount?: number;
 		programType?: string;
+		tleProgramId?: number | null;
+		tleSpecialization?: string | null;
+		tleProgramCategory?: string | null;
 		gradeLevel?: {
 			id?: number;
 			name?: string;
@@ -274,6 +280,9 @@ export function normalizeEnrollProSectionsResponse(body: unknown): { gradeLevels
 				name: typeof section.name === 'string' && section.name.trim().length > 0 ? section.name.trim() : 'Unnamed Section',
 				maxCapacity: typeof section.maxCapacity === 'number' ? section.maxCapacity : 0,
 				enrolledCount: typeof section.enrolledCount === 'number' ? section.enrolledCount : 0,
+				tleProgramId: typeof section.tleProgramId === 'number' ? section.tleProgramId : null,
+				tleSpecialization: typeof section.tleSpecialization === 'string' ? section.tleSpecialization.trim() : null,
+				tleProgramCategory: typeof section.tleProgramCategory === 'string' ? section.tleProgramCategory.trim() : null,
 				gradeLevelId,
 				gradeLevelName,
 				displayOrder,
@@ -331,6 +340,9 @@ export function normalizeEnrollProSectionsResponse(body: unknown): { gradeLevels
 						name: sectionName,
 						maxCapacity: typeof section.maxCapacity === 'number' ? section.maxCapacity : 0,
 						enrolledCount: typeof section.enrolledCount === 'number' ? section.enrolledCount : 0,
+						tleProgramId: typeof section.tleProgramId === 'number' ? section.tleProgramId : null,
+						tleSpecialization: typeof section.tleSpecialization === 'string' ? section.tleSpecialization.trim() : null,
+						tleProgramCategory: typeof section.tleProgramCategory === 'string' ? section.tleProgramCategory.trim() : null,
 						gradeLevelId,
 						gradeLevelName,
 						displayOrder,
@@ -357,7 +369,6 @@ export function normalizeEnrollProSectionsResponse(body: unknown): { gradeLevels
 }
 
 export interface ExternalSection {
-	mirrorId?: number;
 	id: number;
 	name: string;
 	maxCapacity: number;
@@ -376,6 +387,9 @@ export interface ExternalSection {
 	adviserName?: string | null;
 	upstreamProgramType?: string | null;
 	isSpecialProgram?: boolean;
+	tleProgramId?: number | null;
+	tleSpecialization?: string | null;
+	tleProgramCategory?: string | null;
 }
 
 export interface SectionsByGrade {
@@ -521,6 +535,9 @@ export class EnrollProSectionAdapter implements SectionAdapter {
 			maxCapacity?: number;
 			enrolledCount?: number;
 			programType?: string;
+			tleProgramId?: number | null;
+			tleSpecialization?: string | null;
+			tleProgramCategory?: string | null;
 			gradeLevel?: {
 				id?: number;
 				name?: string;

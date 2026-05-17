@@ -106,19 +106,19 @@ export declare function getFacultyById(id: number): Promise<({
             updatedAt: Date;
             isActive: boolean;
             code: string;
-            modularGroupId: string | null;
+            allowedSpecializations: string[];
+            termGroupId: string | null;
+            gradeLevels: number[];
             minMinutesPerWeek: number;
             preferredRoomType: import("@prisma/client").$Enums.RoomType;
             sessionPattern: import("@prisma/client").$Enums.SessionPattern;
+            modularGroupId: string | null;
             modularOrder: number | null;
-            termGroupId: string | null;
             termCount: number;
-            gradeLevels: number[];
             isSeedable: boolean;
             interSectionEnabled: boolean;
             interSectionGradeLevels: number[];
             programScopes: import("@prisma/client").$Enums.ProgramType[];
-            allowedSpecializations: string[];
             requiredFeatures: string[];
         };
     } & {

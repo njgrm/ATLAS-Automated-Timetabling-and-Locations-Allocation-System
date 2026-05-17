@@ -1,5 +1,31 @@
 # Verification Evidence Log
 #
+### 2026-05-17 - Phase 2 Template-Subject Contract Reset (implementation pass)
+- Phase: Phase 2 template-subject/program-scope reset (no closure claim)
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Files changed in this pass:
+  - `atlas-server/src/services/subject.service.ts`
+  - `atlas-server/src/services/class-template.service.ts`
+  - `atlas-server/src/services/subject-program-scope.service.ts`
+  - `atlas-server/src/services/section-adapter.ts`
+  - `atlas-server/src/services/generation.service.ts`
+  - `prisma/seed.js`
+- Prompt-critical behavior implemented:
+  - Subject contract reset to active-code matrix (`SCI_BIO|SCI_CHEM|SCI_ES`, STE overlays, SPA/SPS overlays, TLE exploratory rows, transitional `SCI_PHYS` deactivated).
+  - Legacy/stale subject rows (`SCI`, `RESEARCH_I..IV`, old STE rows, old SPA specialization aliases) are explicitly deprecated/deactivated.
+  - Default class templates were rebased to active subject codes and now reconcile bindings for existing templates to remove stale code references.
+  - SPS scope compatibility added in subject-program scope resolution.
+  - Section adapter now captures TLE ownership metadata (`tleProgramId`, `tleSpecialization`, `tleProgramCategory`) from EnrollPro section feeds.
+  - Generation now performs upstream-aware subject contract reconciliation before run construction:
+    - activates/deactivates special overlays based on offered programs (offerings + sections),
+    - materializes dynamic TLE specialization rows from `/admin/tle-programs` when available.
+- Verification commands executed:
+  - `get_errors` on touched files: PASS (no diagnostics)
+  - `npm run build` (atlas-server): PASS
+- GO/NO-GO:
+  - **NO-GO for full phase closure** pending live Tailnet QA evidence that runtime EnrollPro payloads produce expected activation/materialization outcomes and template-subject binding parity in the UI/API.
+
 ### 2026-05-17 - Phase 2 Policy/Window Reconciliation Prompt Execution
 - Phase: Phase 2 policy-window reconciliation (no phase closure claim)
 - Operator: GitHub Copilot
