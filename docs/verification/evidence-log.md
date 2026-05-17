@@ -1,3 +1,61 @@
+# 2026-05-18 - Phase 3 Scheduling Policy Persistence Fix (Tailnet + Direct DB)
+- Phase: Phase 3 policy persistence blocker-removal prompt (no broad phase-closure claim)
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Files changed in this pass:
+  - `atlas-server/src/services/scheduling-policy.service.ts`
+  - `docs/verification/evidence-log.md`
+
+- Blocker summary (before fix):
+  - `GET /api/v1/policies/scheduling/1/55` returned fallback policy behavior previously observed as synthetic.
+  - `PUT /api/v1/policies/scheduling/1/55` failed with `POLICY_SCHEMA_DRIFT`.
+  - Direct DB re-audit prior to this pass showed no persisted `(schoolId=1, schoolYearId=55)` policy row.
+
+- Exact root cause:
+  - `ensureSchedulingPolicyColumns()` executed a multi-command SQL batch in one `prisma.$executeRawUnsafe()` call.
+  - PostgreSQL/Prisma rejected that with `P2010` + SQL `42601` (`cannot insert multiple commands into a prepared statement`).
+  - Because schema-drift detection previously treated `P2010` as drift broadly, the service fell back to synthetic reads and surfaced `POLICY_SCHEMA_DRIFT` on writes.
+
+- Repairs made:
+  - Narrowed schema-drift classification:
+    - only explicit drift codes (`P2021`, `P2022`) or drift text patterns are treated as schema drift.
+    - `P2010` now counts as drift only when the error message explicitly indicates schema drift.
+  - Hardened policy self-healing bootstrap:
+    - added `CREATE TABLE IF NOT EXISTS scheduling_policies` baseline.
+    - added missing legacy-base columns (`teacher_move_enabled`, bounds, break controls, timestamps) via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`.
+    - ensured unique index on `(school_id, school_year_id)` for upsert conflict target.
+  - Split raw SQL into single-statement `executeRawUnsafe()` calls to avoid prepared-statement multi-command failures.
+
+- Local verification commands executed:
+  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
+  - diagnostics on `atlas-server/src/services/scheduling-policy.service.ts` -> PASS
+
+- Live Tailnet checks executed (required sequence):
+  1. `POST /api/v1/auth/login`
+  2. `GET /api/v1/policies/scheduling/1/55`
+  3. `PUT /api/v1/policies/scheduling/1/55` (payload from GET)
+  4. `GET /api/v1/policies/scheduling/1/55`
+
+- Live API results after repair:
+  - `beforeId=1`, `beforeWindow=06:00-18:00`
+  - `putId=1`, `putWindow=06:00-18:00` (no `POLICY_SCHEMA_DRIFT`)
+  - `afterId=1`, `afterWindow=06:00-18:00`
+
+- Direct DB proof after live write:
+  - `scheduling_policies` row for `(schoolId=1, schoolYearId=55)` exists: `true`
+  - Persisted row sample:
+    - `id=1`
+    - `earliestStartTime=06:00`
+    - `latestEndTime=18:00`
+    - `teacherMoveEnabled=true`
+    - `enableLunchWindow=true`
+    - `enforceLunchWindow=true`
+    - `enableTleTwoPassPriority=true`
+
+- GO/NO-GO:
+  - **GO** for this narrow policy persistence fix prompt.
+  - Rationale: live Tailnet `PUT` succeeds without `POLICY_SCHEMA_DRIFT`, direct DB confirms a real persisted policy row for `(1,55)`, and subsequent `GET` returns that persisted row.
+
 # 2026-05-18 - Phase 3 Policy/Cohort/Room Readiness Re-Audit (Tailnet + Direct DB)
 - Phase: Phase 3 policy/cohort/room readiness (re-audit, no phase closure claim)
 - Operator: GitHub Copilot

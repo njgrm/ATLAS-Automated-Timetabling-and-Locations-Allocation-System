@@ -430,7 +430,7 @@ export function validatePolicyInput(input) {
  * We also match on the PostgreSQL "column … does not exist" message
  * for generic driver-level errors without a Prisma code.
  */
-const SCHEMA_DRIFT_CODES = new Set(['P2010', 'P2022']);
+const SCHEMA_DRIFT_CODES = new Set(['P2021', 'P2022']);
 const SCHEMA_DRIFT_MSG = /column .* does not exist|relation .* does not exist|undefined column/i;
 let schemaDriftWarned = false;
 let ensureColumnsPromise = null;
@@ -441,6 +441,10 @@ function isSchemaDriftError(e) {
     if (err.code && SCHEMA_DRIFT_CODES.has(err.code))
         return true;
     const msg = err.meta?.message ?? err.message ?? '';
+    // P2010 is generic "raw query failed"; treat as schema drift only when message proves drift.
+    if (err.code === 'P2010') {
+        return SCHEMA_DRIFT_MSG.test(msg);
+    }
     return SCHEMA_DRIFT_MSG.test(msg);
 }
 /**
@@ -466,7 +470,30 @@ async function ensureSchedulingPolicyColumns() {
     if (!ensureColumnsPromise) {
         ensureColumnsPromise = (async () => {
             await prisma.$executeRawUnsafe(`
+				CREATE TABLE IF NOT EXISTS "scheduling_policies" (
+					"id" SERIAL PRIMARY KEY,
+					"school_id" INTEGER NOT NULL,
+					"school_year_id" INTEGER NOT NULL,
+					"teacher_move_enabled" BOOLEAN NOT NULL DEFAULT true,
+					"max_consecutive_teaching_minutes_before_break" INTEGER NOT NULL DEFAULT 120,
+					"min_break_minutes_after_consecutive_block" INTEGER NOT NULL DEFAULT 15,
+					"max_teaching_minutes_per_day" INTEGER NOT NULL DEFAULT 480,
+					"earliest_start_time" TEXT NOT NULL DEFAULT '06:00',
+					"latest_end_time" TEXT NOT NULL DEFAULT '18:00',
+					"enforce_consecutive_break_as_hard" BOOLEAN NOT NULL DEFAULT false,
+					"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+					"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+				);
+			`);
+            await prisma.$executeRawUnsafe(`
 				ALTER TABLE "scheduling_policies"
+				ADD COLUMN IF NOT EXISTS "teacher_move_enabled" BOOLEAN NOT NULL DEFAULT true,
+				ADD COLUMN IF NOT EXISTS "max_consecutive_teaching_minutes_before_break" INTEGER NOT NULL DEFAULT 120,
+				ADD COLUMN IF NOT EXISTS "min_break_minutes_after_consecutive_block" INTEGER NOT NULL DEFAULT 15,
+				ADD COLUMN IF NOT EXISTS "max_teaching_minutes_per_day" INTEGER NOT NULL DEFAULT 480,
+				ADD COLUMN IF NOT EXISTS "earliest_start_time" TEXT NOT NULL DEFAULT '06:00',
+				ADD COLUMN IF NOT EXISTS "latest_end_time" TEXT NOT NULL DEFAULT '18:00',
+				ADD COLUMN IF NOT EXISTS "enforce_consecutive_break_as_hard" BOOLEAN NOT NULL DEFAULT false,
 				ADD COLUMN IF NOT EXISTS "enable_travel_wellbeing_checks" BOOLEAN NOT NULL DEFAULT true,
 				ADD COLUMN IF NOT EXISTS "max_walking_distance_meters_per_transition" INTEGER NOT NULL DEFAULT 120,
 				ADD COLUMN IF NOT EXISTS "max_building_transitions_per_day" INTEGER NOT NULL DEFAULT 4,
@@ -492,11 +519,28 @@ async function ensureSchedulingPolicyColumns() {
 				ADD COLUMN IF NOT EXISTS "enable_lunch_window" BOOLEAN NOT NULL DEFAULT true,
 				ADD COLUMN IF NOT EXISTS "enable_tle_two_pass_priority" BOOLEAN NOT NULL DEFAULT true,
 				ADD COLUMN IF NOT EXISTS "allow_flexible_subject_assignment" BOOLEAN NOT NULL DEFAULT false,
-				ADD COLUMN IF NOT EXISTS "allow_consecutive_lab_sessions" BOOLEAN NOT NULL DEFAULT false;
-
-			UPDATE "scheduling_policies"
-			SET "enable_lunch_window" = "enforce_lunch_window"
-			WHERE "enable_lunch_window" IS DISTINCT FROM "enforce_lunch_window";
+				ADD COLUMN IF NOT EXISTS "allow_consecutive_lab_sessions" BOOLEAN NOT NULL DEFAULT false,
+				ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+			`);
+            await prisma.$executeRawUnsafe(`
+				CREATE UNIQUE INDEX IF NOT EXISTS "scheduling_policies_school_id_school_year_id_key"
+				ON "scheduling_policies" ("school_id", "school_year_id")
+			`);
+            await prisma.$executeRawUnsafe(`
+				UPDATE "scheduling_policies"
+				SET "enable_lunch_window" = "enforce_lunch_window"
+				WHERE "enable_lunch_window" IS DISTINCT FROM "enforce_lunch_window"
+			`);
+            await prisma.$executeRawUnsafe(`
+				UPDATE "scheduling_policies"
+				SET "createdAt" = COALESCE("createdAt", NOW())
+				WHERE "createdAt" IS NULL
+			`);
+            await prisma.$executeRawUnsafe(`
+				UPDATE "scheduling_policies"
+				SET "updatedAt" = COALESCE("updatedAt", NOW())
+				WHERE "updatedAt" IS NULL
 			`);
         })().catch((e) => {
             ensureColumnsPromise = null;
