@@ -1,5 +1,67 @@
 # Verification Evidence Log
 #
+### 2026-05-17 - Phase 2 Template-Subject Tailnet Repair Loop
+- Phase: Phase 2 template-subject Tailnet runtime repair (no phase closure claim)
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Repair loop iterations: 2
+- Files changed in this pass:
+  - `atlas-server/src/services/subject.service.ts`
+  - `atlas-server/src/routes/generation.router.ts`
+  - `docs/verification/evidence-log.md`
+- Discovered out-of-scope issue fixed in-pass:
+  - Timetable route drift: live `GET /api/v1/generation/1/55/runs/latest/timetable` returned `404` while documented in API guide.
+  - Why it blocked verification: prevented required latest timetable runtime proof from the documented path.
+  - Fix: added transport-level timetable alias routes in generation router:
+    - `GET /:schoolId/:schoolYearId/runs/latest/timetable` -> `getLatestRunDraft`
+    - `GET /:schoolId/:schoolYearId/runs/:runId/timetable` -> `getRunDraft`
+  - Re-verification: live route now returns `200` with `timetable_entries=939`.
+- Root mismatch fixed:
+  - EnrollPro program normalization bug in upstream subject reconciliation caused STE overlays to deactivate when upstream sent long-form program types.
+  - Fix: map long-form upstream values to `STE|SPA|SPS` in `normalizeProgramType` and use EnrollPro TLE catalog path `GET /bosy/tle-programs?schoolYearId=...`.
+
+- Exact commands run:
+  - `npm run build` (atlas-server)
+  - Tailnet API probes via PowerShell `Invoke-RestMethod` / `Invoke-WebRequest` for required endpoints.
+
+- Exact live endpoints checked:
+  - `POST /api/v1/auth/login`
+  - `GET /api/v1/subjects?schoolId=1`
+  - `GET /api/v1/class-templates?schoolId=1`
+  - `GET /api/v1/sections/summary/55?schoolId=1`
+  - `GET /api/v1/generation/1/55/runs/latest`
+  - `GET /api/v1/generation/1/55/runs/latest/timetable`
+  - `POST /api/v1/generation/1/55/runs` (fresh runs `40`, `41`)
+
+- Before -> After runtime deltas (live Tailnet):
+  - Subject activation parity:
+    - `SCI_PHYS`: `active=true` -> `active=false`
+    - Exploratory TLE rows `TLE_ICT_EXP|TLE_AFA_EXP|TLE_FCS_EXP|TLE_IA_EXP`: missing -> present and active
+    - STE overlays (`STE_ENV_SCI|STE_BIOTECH|STE_ICT|STE_APPLIED_CHEM|STE_APPLIED_PHYS|STE_ROBOTICS|STE_RESEARCH`): missing/inactive -> present and active
+  - Template bundles:
+    - `REGULAR`: now includes exploratory TLE rows and tri-sem science bundle
+    - `STE`: now includes grade-specific STE overlays plus tri-sem science/core bundle
+    - `SPS`/`SPA`: remain core-only for this live dataset because no SPS/SPA sections were observed in `sections/summary` (live distribution: `REGULAR=58`, `STE=8`, `SPS/SPA=0`)
+  - EnrollPro-driven TLE materialization:
+    - Runtime hook executed; no dynamic `TLE_SPEC_*` rows were materialized (`dynamic_tle_rows=0`) because live section payload currently provides no `tleSpecialization` ownership (`sections_with_tle_specialization=0`).
+  - Generation summary (baseline run `38` vs repaired run `41`):
+    - `assignedCount`: `939` -> `939`
+    - `unassignedCount`: `1937` -> `2661`
+    - `hardViolationCount`: `811` -> `731`
+    - `homeRoomSuccessRate`: `24.3` -> `19.42`
+    - `SPECIALIZED_ROOM_UNAVAILABLE`: `1126` -> `1930`
+    - `termCounts`: remained concentrated in term1 (`{"term1":939,"term2":0,"term3":0}`)
+    - Note: KPI quality remains a separate algorithm/feasibility issue outside this narrow contract-repair loop.
+
+- Verification rerun after fixes:
+  - diagnostics on touched files: PASS
+  - `npm run build` (atlas-server): PASS
+  - live Tailnet endpoint verification: PASS for required route availability and contract parity checks
+
+- Final decision:
+  - **GO** for this narrow Tailnet repair-loop scope (subject/template contract parity + timetable route availability + upstream normalization/materialization behavior verification).
+  - Not a Phase 2 closure claim.
+
 ### 2026-05-17 - Phase 2 Template-Subject Contract Reset (implementation pass)
 - Phase: Phase 2 template-subject/program-scope reset (no closure claim)
 - Operator: GitHub Copilot

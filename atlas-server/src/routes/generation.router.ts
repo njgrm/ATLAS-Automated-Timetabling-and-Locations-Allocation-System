@@ -187,6 +187,30 @@ router.get(
 	},
 );
 
+// ─── GET /:schoolId/:schoolYearId/runs/latest/timetable — latest timetable alias ───
+
+router.get(
+	'/:schoolId/:schoolYearId/runs/latest/timetable',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const role = req.user?.role;
+			if (!role || !PRIVILEGED_ROLES.has(role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view timetable entries.' });
+				return;
+			}
+
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+
+			const report = await genService.getLatestRunDraft(schoolId, schoolYearId);
+			res.json(report);
+		} catch (e) { next(e); }
+	},
+);
+
 // ─── GET /:schoolId/:schoolYearId/runs/:runId — run details ───
 
 router.get(
@@ -254,6 +278,32 @@ router.get(
 			const role = req.user?.role;
 			if (!role || !PRIVILEGED_ROLES.has(role)) {
 				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view draft entries.' });
+				return;
+			}
+
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			if (typeof schoolId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolId }); return; }
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			if (typeof schoolYearId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId }); return; }
+			const runId = positiveInt(req.params.runId, 'runId');
+			if (typeof runId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: runId }); return; }
+
+			const report = await genService.getRunDraft(runId, schoolId, schoolYearId);
+			res.json(report);
+		} catch (e) { next(e); }
+	},
+);
+
+// ─── GET /:schoolId/:schoolYearId/runs/:runId/timetable — run timetable alias ───
+
+router.get(
+	'/:schoolId/:schoolYearId/runs/:runId/timetable',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const role = req.user?.role;
+			if (!role || !PRIVILEGED_ROLES.has(role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can view timetable entries.' });
 				return;
 			}
 

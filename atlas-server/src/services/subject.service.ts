@@ -117,6 +117,15 @@ function normalizeProgramType(value: unknown): ProgramType | null {
 	if (normalized === 'STE' || normalized === 'SPA' || normalized === 'SPS' || normalized === 'REGULAR') {
 		return normalized;
 	}
+	if (normalized === 'SCIENCE_TECHNOLOGY_AND_ENGINEERING' || normalized === 'SCIENCE, TECHNOLOGY & ENGINEERING') {
+		return 'STE';
+	}
+	if (normalized === 'SPECIAL_PROGRAM_IN_THE_ARTS') {
+		return 'SPA';
+	}
+	if (normalized === 'SPECIAL_PROGRAM_IN_SPORTS') {
+		return 'SPS';
+	}
 	return null;
 }
 
@@ -197,7 +206,7 @@ async function fetchUpstreamProgramSignals(schoolId: number, schoolYearId: numbe
 	}
 
 	try {
-		const tleUrl = `${baseUrl}/admin/tle-programs?schoolId=${schoolId}`;
+		const tleUrl = `${baseUrl}/bosy/tle-programs?schoolYearId=${schoolYearId}`;
 		const tlePayload = await fetchJsonWithAuth(tleUrl, token) as { data?: unknown[] };
 		const tleRows = Array.isArray(tlePayload.data) ? tlePayload.data : [];
 		for (const row of tleRows) {
