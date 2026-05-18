@@ -601,11 +601,18 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
             return toAssignmentResponse(assignment, normalized);
         });
         const sectionCount = assignments.reduce((sum, assignment) => sum + assignment.sectionIds.length, 0);
-        const subjectMinutes = computeTeachingLoadMinutes(assignments, 'section');
-        const teachingHours = subjectMinutes / 60;
-        const totalHours = teachingHours + (member.advisoryEquivalentHours || 0);
-        const subjectHours = Math.round(totalHours * 10) / 10;
-        const loadPercentage = member.maxHoursPerWeek > 0 ? Math.round((totalHours / member.maxHoursPerWeek) * 100) : 0;
+        const sectionMinutes = computeTeachingLoadMinutes(assignments, 'section');
+        const gradeMinutes = computeTeachingLoadMinutes(assignments, 'grade');
+        const sectionTeachingHours = Math.round((sectionMinutes / 60) * 10) / 10;
+        const gradeTeachingHours = Math.round((gradeMinutes / 60) * 10) / 10;
+        const advisoryHours = Math.round(Math.max(0, Number(member.advisoryEquivalentHours || 0)) * 10) / 10;
+        const ancillaryHours = Math.round((Math.max(0, Number(member.ancillaryMinutesPerWeek || 0)) / 60) * 10) / 10;
+        const policyCreditedHours = Math.round((sectionTeachingHours + advisoryHours + ancillaryHours) * 10) / 10;
+        const policyLoadPercentage = member.maxHoursPerWeek > 0
+            ? Math.round((policyCreditedHours / member.maxHoursPerWeek) * 100)
+            : 0;
+        const loadSignalMode = member.isPlaceholder ? 'SYNTHETIC_PLACEHOLDER' : 'STANDARD';
+        const syntheticCoverageHours = member.isPlaceholder ? sectionTeachingHours : 0;
         return {
             id: member.id,
             externalId: member.externalId,
@@ -618,14 +625,23 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
             employmentStatus: member.employmentStatus,
             isClassAdviser: member.isClassAdviser,
             advisoryEquivalentHours: member.advisoryEquivalentHours,
+            ancillaryMinutesPerWeek: member.ancillaryMinutesPerWeek,
             canTeachOutsideDepartment: member.canTeachOutsideDepartment,
             isActiveForScheduling: member.isActiveForScheduling,
             maxHoursPerWeek: member.maxHoursPerWeek,
             version: member.version,
             subjectCount: assignments.length,
             sectionCount,
-            subjectHours,
-            loadPercentage,
+            subjectHours: policyCreditedHours,
+            loadPercentage: policyLoadPercentage,
+            sectionTeachingHours,
+            gradeTeachingHours,
+            advisoryHours,
+            ancillaryHours,
+            policyCreditedHours,
+            policyLoadPercentage,
+            syntheticCoverageHours,
+            loadSignalMode,
             assignments,
         };
     });

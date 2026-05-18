@@ -1,3 +1,67 @@
+# 2026-05-18 - Phase 3 Teaching-Load Policy Alignment Gate (Tailnet + DB)
+- Phase: Phase 3 teaching-load policy alignment and placeholder load-signal truthfulness
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Files changed in this pass:
+  - `atlas-server/src/services/faculty-assignment.service.ts`
+  - `atlas-client/src/pages/FacultyAssignments.tsx`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+
+- Before-state summary:
+  - Summary contract did not expose explicit policy fields for section/advisory/ancillary decomposition.
+  - UI load sorting/filtering treated all rows as standard workload signals, which could mislead when placeholder coverage rows are present.
+
+- Repair implemented (minimum coherent):
+  - Server summary now returns explicit policy-aligned fields:
+    - `sectionTeachingHours`, `gradeTeachingHours`, `advisoryHours`, `ancillaryHours`
+    - `policyCreditedHours`, `policyLoadPercentage`
+    - `syntheticCoverageHours`, `loadSignalMode`
+    - `ancillaryMinutesPerWeek`
+  - Backward-compatible fields are retained with policy-aligned values (`subjectHours`, `loadPercentage`).
+  - Faculty assignment UI now:
+    - consumes policy-aligned fields in list/sidebar/detail summaries
+    - applies placeholder-aware load display (`Synthetic Coverage` badge and synthetic hour label)
+    - avoids treating placeholder rows as standard overload/underload signals in load filter flow.
+  - Client credited-load profile now includes ancillary equivalent hours in displayed policy credits.
+
+- Build/typecheck verification:
+  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
+  - `npm --prefix d:\ATLAS\atlas-client run build` -> PASS
+
+- Tailnet ATLAS API proof:
+  - Auth: `POST /api/v1/auth/login`
+  - Summary: `GET /api/v1/faculty-assignments/summary?schoolId=1&schoolYearId=55`
+  - Live summary snapshot:
+    - `total=142`, `placeholders=0`, `normal=142`
+    - Sample normal row confirms policy fields:
+      - `sectionTeachingHours=57`
+      - `gradeTeachingHours=41`
+      - `advisoryEquivalentHours=5`
+      - `ancillaryMinutesPerWeek=0`
+      - `policyCreditedHours=62`
+      - `policyLoadPercentage=207`
+      - `loadSignalMode=STANDARD`
+  - Contract shape is present and coherent for live faculty rows.
+
+- Direct DB proof (required policy inputs):
+  - Source table: `FacultyMirror` (+ `FacultySubject` joins)
+  - Verified sampled fields for load math inputs:
+    - `maxHoursPerWeek`
+    - `advisoryEquivalentHours`
+    - `ancillaryMinutesPerWeek`
+    - `isPlaceholder`
+  - Sample computed checks matched server outputs:
+    - Example: `57h section + 5h advisory + 0h ancillary = 62h policyCreditedHours`
+    - Example: `30h section + 0h advisory + 0h ancillary = 30h policyCreditedHours`
+
+- Known live-data caveat for this run:
+  - Active dataset currently has `0` placeholder rows in summary output, so placeholder-specific runtime rendering was validated by contract and code path, not by a live placeholder record in this sample window.
+
+- GO/NO-GO:
+  - **GO** for `phase3-teaching-load-policy-alignment-prompt.md`.
+  - Rationale: policy contract is now explicit and verified end-to-end (API + DB + client build), ancillary inputs are included in credited math, and placeholder signal separation is implemented without regressing existing summary consumers.
+
 # 2026-05-18 - Phase 3 Special-Program Subject Sync and Offerings Repair (Tailnet + DB)
 - Phase: Phase 3 special-program subject sync from upstream offerings + mirrored demand
 - Operator: GitHub Copilot

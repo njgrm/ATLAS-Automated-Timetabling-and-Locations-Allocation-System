@@ -136,6 +136,7 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
         employmentStatus: string;
         isClassAdviser: boolean;
         advisoryEquivalentHours: number;
+        ancillaryMinutesPerWeek: number | null;
         canTeachOutsideDepartment: boolean;
         isActiveForScheduling: boolean;
         maxHoursPerWeek: number;
@@ -144,6 +145,14 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
         sectionCount: number;
         subjectHours: number;
         loadPercentage: number;
+        sectionTeachingHours: number;
+        gradeTeachingHours: number;
+        advisoryHours: number;
+        ancillaryHours: number;
+        policyCreditedHours: number;
+        policyLoadPercentage: number;
+        syntheticCoverageHours: number;
+        loadSignalMode: string;
         assignments: {
             gradeLevels: number[];
             sectionIds: number[];

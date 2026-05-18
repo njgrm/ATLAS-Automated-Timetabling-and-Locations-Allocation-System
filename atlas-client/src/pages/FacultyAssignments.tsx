@@ -76,14 +76,24 @@ department: string | null;
 specialization: string | null;
 employmentStatus: string;
 isActiveForScheduling: boolean;
+isPlaceholder: boolean;
 isClassAdviser: boolean;
 advisoryEquivalentHours: number;
+ancillaryMinutesPerWeek: number;
 canTeachOutsideDepartment: boolean;
 maxHoursPerWeek: number;
 version: number;
 subjectCount: number;
 sectionCount: number;
 subjectHours: number;
+sectionTeachingHours: number;
+gradeTeachingHours: number;
+advisoryHours: number;
+ancillaryHours: number;
+policyCreditedHours: number;
+policyLoadPercentage: number;
+syntheticCoverageHours: number;
+loadSignalMode: 'STANDARD' | 'SYNTHETIC_PLACEHOLDER';
 assignments: FacultyAssignmentRecord[];
 };
 function cloneAssignments(assignments: FacultyAssignmentDraft[]): FacultyAssignmentDraft[] {
@@ -449,6 +459,13 @@ const handleViewStaffingNeeds = useCallback(async () => {
 	}
 }, [activeSchoolYearId]);
 
+const getComparableLoadHours = useCallback((member: FacultySummary) => {
+	if (member.isPlaceholder) {
+		return member.gradeTeachingHours ?? member.syntheticCoverageHours ?? 0;
+	}
+	return member.policyCreditedHours ?? member.subjectHours ?? 0;
+}, []);
+
 const filteredFaculty = useMemo(() => {
 let nextFaculty = faculty;
 if (searchQuery.trim()) {
@@ -481,12 +498,10 @@ if (specializationFilter !== 'all') {
 	}
 
 	nextFaculty = nextFaculty.filter((member) => {
-		const load = buildTeachingLoadProfile(
-			effectiveAssignmentsByFaculty[member.id] ?? [],
-			subjects,
-			sectionMap,
-			member.isClassAdviser ? member.advisoryEquivalentHours || CLASS_ADVISER_EQUIVALENT_HOURS : 0,
-		).actualTeachingHours;
+		if (member.isPlaceholder) {
+			return loadFilter === 'all';
+		}
+		const load = getComparableLoadHours(member);
 		if (loadFilter === 'overloaded') return load > 30;
 		if (loadFilter === 'optimal') return load >= 25 && load <= 30;
 		if (loadFilter === 'underloaded') return load < 25;
@@ -494,18 +509,8 @@ if (specializationFilter !== 'all') {
 	});
 
 	nextFaculty = [...nextFaculty].sort((left, right) => {
-		const leftLoad = buildTeachingLoadProfile(
-			effectiveAssignmentsByFaculty[left.id] ?? [],
-			subjects,
-			sectionMap,
-			left.isClassAdviser ? left.advisoryEquivalentHours || CLASS_ADVISER_EQUIVALENT_HOURS : 0,
-		).actualTeachingHours;
-		const rightLoad = buildTeachingLoadProfile(
-			effectiveAssignmentsByFaculty[right.id] ?? [],
-			subjects,
-			sectionMap,
-			right.isClassAdviser ? right.advisoryEquivalentHours || CLASS_ADVISER_EQUIVALENT_HOURS : 0,
-		).actualTeachingHours;
+		const leftLoad = getComparableLoadHours(left);
+		const rightLoad = getComparableLoadHours(right);
 		if (sortOrder === 'load-asc') {
 			if (leftLoad !== rightLoad) return leftLoad - rightLoad;
 		} else if (leftLoad !== rightLoad) {
@@ -515,7 +520,7 @@ if (specializationFilter !== 'all') {
 	});
 
 return nextFaculty;
-}, [departmentFilter, effectiveAssignmentsByFaculty, faculty, filterStatus, searchQuery, specializationFilter, unmappedOnly, specializationAliases, loadFilter, sortOrder, sectionMap, subjects]);
+}, [departmentFilter, faculty, filterStatus, getComparableLoadHours, loadFilter, searchQuery, sortOrder, specializationAliases, specializationFilter, unmappedOnly]);
 
 const groupedFaculty = useMemo(() => {
 	const grouped = new Map<string, FacultySummary[]>();
@@ -581,9 +586,9 @@ buildTeachingLoadProfile(
 currentAssignments,
 subjects,
 sectionMap,
-selected?.isClassAdviser
+(selected?.isClassAdviser
 ? selected.advisoryEquivalentHours || CLASS_ADVISER_EQUIVALENT_HOURS
-: 0,
+: 0) + ((selected?.ancillaryMinutesPerWeek || 0) / 60),
 ),
 [currentAssignments, sectionMap, selected, subjects],
 );
@@ -602,22 +607,6 @@ const previewLoadHours = useMemo(() => {
 	if (hoveredIncomingMinutes <= 0) return loadProfile.actualTeachingHours;
 	return Math.round(((loadProfile.actualTeachingHours * 60 + hoveredIncomingMinutes) / 60) * 10) / 10;
 }, [hoveredIncomingMinutes, loadProfile.actualTeachingHours]);
-
-const memberLoadProfiles = useMemo(() => {
-	const map = new Map<number, ReturnType<typeof buildTeachingLoadProfile>>();
-	for (const member of faculty) {
-		map.set(
-			member.id,
-			buildTeachingLoadProfile(
-				effectiveAssignmentsByFaculty[member.id] ?? [],
-				subjects,
-				sectionMap,
-				member.isClassAdviser ? member.advisoryEquivalentHours || CLASS_ADVISER_EQUIVALENT_HOURS : 0,
-			),
-		);
-	}
-	return map;
-}, [effectiveAssignmentsByFaculty, faculty, sectionMap, subjects]);
 
 const departmentOptions = useMemo(
 () => Array.from(new Set(faculty.map((member) => member.department).filter(Boolean) as string[])).sort(),
@@ -878,16 +867,20 @@ groupedFaculty.map(([departmentName, members]) => (
 		{members.map((member) => {
 const effectiveSubjectCount = effectiveAssignmentsByFaculty[member.id]?.length ?? 0;
 const hasDraft = Boolean(effectiveDraftAssignmentsByFaculty[member.id]);
-					const memberLoadProfile = memberLoadProfiles.get(member.id);
-					const actualLoadPercentage = memberLoadProfile && member.maxHoursPerWeek > 0
-						? Math.round((memberLoadProfile.actualTeachingHours / member.maxHoursPerWeek) * 100)
+					const displayHours = getComparableLoadHours(member);
+					const actualLoadPercentage = member.maxHoursPerWeek > 0
+						? Math.round((displayHours / member.maxHoursPerWeek) * 100)
 						: (member as any).loadPercentage ?? 0;
-					const loadColorClass = actualLoadPercentage > 150
+					const loadColorClass = member.isPlaceholder
+						? 'text-violet-600'
+						: actualLoadPercentage > 150
 						? 'text-red-600'
 						: actualLoadPercentage > 100
 							? 'text-amber-600'
 							: 'text-emerald-600';
-					const loadBarClass = actualLoadPercentage > 150
+					const loadBarClass = member.isPlaceholder
+						? 'bg-violet-500'
+						: actualLoadPercentage > 150
 						? 'bg-red-500'
 						: actualLoadPercentage > 100
 							? 'bg-amber-500'
@@ -929,7 +922,7 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 		</div>
 		<div className="flex flex-col items-end gap-0.5 shrink-0">
 			<span className={`text-[0.6rem] font-bold ${loadColorClass}`}>
-				{actualLoadPercentage}%
+				{member.isPlaceholder ? `${Math.round(displayHours * 10) / 10}h synth` : `${actualLoadPercentage}%`}
 			</span>
 			<div className="w-10 h-0.5 bg-muted rounded-full overflow-hidden">
 				<div 
@@ -941,6 +934,7 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 	</div>
 </div>
 <div className="flex items-center gap-1.5">
+	{member.isPlaceholder && <Badge className="border-violet-200 bg-violet-50 text-[0.5625rem] text-violet-700">Placeholder</Badge>}
 {hasDraft && <Badge className="border-sky-200 bg-sky-50 text-[0.5625rem] text-sky-700">Draft</Badge>}
 {effectiveSubjectCount === 0 ? (
 <AlertTriangle className="size-4 shrink-0 text-amber-500" />
@@ -1008,6 +1002,13 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 <span className="text-[0.625rem] font-medium text-muted-foreground"> h</span>
 </p>
 </div>
+<div className="text-right">
+<p className="text-[0.625rem] text-muted-foreground">Policy %</p>
+<p className="text-sm font-bold">{selected.policyLoadPercentage}%</p>
+</div>
+{selected.isPlaceholder && (
+	<Badge className="border-violet-200 bg-violet-50 text-violet-700">Synthetic Coverage</Badge>
+)}
 <Badge className={`${STATUS_COLORS[loadProfile.status].bg} ${STATUS_COLORS[loadProfile.status].text} ${STATUS_COLORS[loadProfile.status].border}`}>
 {loadProfile.statusLabel}
 </Badge>
@@ -1041,7 +1042,9 @@ Breakdown
 <div className="space-y-1.5">
 <p className="font-semibold">Section-based teaching load</p>
 <p>Standard: 30h/wk | Max: 40h/wk</p>
-{loadProfile.equivalentHours > 0 && <p>Adviser equivalent: +{loadProfile.equivalentHours}h</p>}
+{loadProfile.equivalentHours > 0 && <p>Policy credits (adviser + ancillary): +{loadProfile.equivalentHours}h</p>}
+<p>Ancillary (policy): +{Math.round(((selected.ancillaryMinutesPerWeek || 0) / 60) * 10) / 10}h</p>
+{selected.isPlaceholder && <p className="text-violet-700">Placeholder rows represent synthetic coverage and are not treated as standard operator overload signals.</p>}
 <div className="max-h-44 space-y-1 overflow-auto border-t border-border pt-1">
 {loadProfile.breakdown.length === 0 ? (
 <p className="text-muted-foreground">No sections selected yet.</p>
