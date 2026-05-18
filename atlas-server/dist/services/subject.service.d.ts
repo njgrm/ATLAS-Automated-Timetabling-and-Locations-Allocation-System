@@ -1,6 +1,25 @@
 import type { ProgramType } from '@prisma/client';
 export declare function ensureDefaultSubjects(schoolId: number): Promise<void>;
 export declare function reconcileSubjectContractFromUpstream(schoolId: number, schoolYearId: number, authToken?: string): Promise<void>;
+export declare function syncSubjectContractFromProgramOfferings(schoolId: number, schoolYearId: number, authToken?: string): Promise<{
+    schoolId: number;
+    schoolYearId: number;
+    offeredPrograms: import("@prisma/client").$Enums.ProgramType[];
+    mirroredPrograms: import("@prisma/client").$Enums.ProgramType[];
+    activeCounts: {
+        total: number;
+        ste: number;
+        spa: number;
+        sps: number;
+        tle: number;
+    };
+    activeSubjectCodes: {
+        ste: string[];
+        spa: string[];
+        sps: string[];
+        tle: string[];
+    };
+}>;
 type SubjectScopeFilter = {
     includeSte?: boolean;
     includeSpa?: boolean;

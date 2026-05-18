@@ -155,14 +155,19 @@ async function fetchJsonWithAuth(url: string, token?: string) {
 	return response.json();
 }
 
-async function fetchSectionsProgramSignals(baseUrl: string, token?: string): Promise<Set<ProgramType>> {
+async function fetchSectionsProgramSignals(
+	baseUrl: string,
+	schoolId: number,
+	schoolYearId: number,
+	token?: string,
+): Promise<Set<ProgramType>> {
 	const offered = new Set<ProgramType>();
 	let currentPage = 1;
 	let totalPages = 1;
 	const pageSize = 200;
 
 	while (currentPage <= totalPages) {
-		const url = `${baseUrl}/integration/v1/sections?page=${currentPage}&limit=${pageSize}`;
+		const url = `${baseUrl}/integration/v1/sections?schoolId=${schoolId}&schoolYearId=${schoolYearId}&page=${currentPage}&limit=${pageSize}`;
 		const payload = await fetchJsonWithAuth(url, token) as { data?: Array<{ programType?: string }>; meta?: { totalPages?: number } };
 		const rows = Array.isArray(payload.data) ? payload.data : [];
 		for (const row of rows) {
@@ -177,6 +182,83 @@ async function fetchSectionsProgramSignals(baseUrl: string, token?: string): Pro
 	}
 
 	return offered;
+}
+
+async function fetchMirroredProgramSignals(schoolId: number, schoolYearId: number): Promise<Set<ProgramType>> {
+	const programs = await prisma.sectionMirror.findMany({
+		where: { schoolId, schoolYearId, isStale: false },
+		select: { programType: true },
+		distinct: ['programType'],
+	});
+	const offered = new Set<ProgramType>(['REGULAR']);
+	for (const row of programs) {
+		const normalized = normalizeProgramType(row.programType);
+		if (normalized) offered.add(normalized);
+	}
+	return offered;
+}
+
+async function fetchMirroredTleSignals(schoolId: number, schoolYearId: number): Promise<UpstreamProgramSignals['tleSpecializations']> {
+	const rows = await prisma.sectionMirror.findMany({
+		where: {
+			schoolId,
+			schoolYearId,
+			isStale: false,
+			tleSpecialization: { not: null },
+		},
+		select: {
+			tleSpecialization: true,
+			tleProgramCategory: true,
+			gradeLevelId: true,
+		},
+	});
+
+	const map = new Map<string, { code: string; name: string; programCategory?: string | null; gradeLevels: number[] }>();
+	for (const row of rows) {
+		if (!row.tleSpecialization) continue;
+		const code = normalizeCode(row.tleSpecialization);
+		if (!code) continue;
+		const existing = map.get(code);
+		if (!existing) {
+			map.set(code, {
+				code,
+				name: row.tleSpecialization,
+				programCategory: row.tleProgramCategory,
+				gradeLevels: [row.gradeLevelId],
+			});
+			continue;
+		}
+		existing.gradeLevels = [...new Set([...existing.gradeLevels, row.gradeLevelId])];
+		if (!existing.programCategory && row.tleProgramCategory) {
+			existing.programCategory = row.tleProgramCategory;
+		}
+	}
+
+	return [...map.values()];
+}
+
+function mergeTleSpecializations(
+	base: UpstreamProgramSignals['tleSpecializations'],
+	fallback: UpstreamProgramSignals['tleSpecializations'],
+): UpstreamProgramSignals['tleSpecializations'] {
+	const map = new Map<string, { code: string; name: string; programCategory?: string | null; gradeLevels: number[] }>();
+	for (const item of [...base, ...fallback]) {
+		const existing = map.get(item.code);
+		if (!existing) {
+			map.set(item.code, {
+				code: item.code,
+				name: item.name,
+				programCategory: item.programCategory,
+				gradeLevels: [...new Set(item.gradeLevels)],
+			});
+			continue;
+		}
+		existing.gradeLevels = [...new Set([...existing.gradeLevels, ...item.gradeLevels])];
+		if (!existing.programCategory && item.programCategory) {
+			existing.programCategory = item.programCategory;
+		}
+	}
+	return [...map.values()];
 }
 
 async function fetchUpstreamProgramSignals(schoolId: number, schoolYearId: number, token?: string): Promise<UpstreamProgramSignals> {
@@ -197,12 +279,21 @@ async function fetchUpstreamProgramSignals(schoolId: number, schoolYearId: numbe
 	}
 
 	try {
-		const sectionPrograms = await fetchSectionsProgramSignals(baseUrl, token);
+		const sectionPrograms = await fetchSectionsProgramSignals(baseUrl, schoolId, schoolYearId, token);
 		for (const programType of sectionPrograms) {
 			offeredPrograms.add(programType);
 		}
 	} catch {
 		// Keep best-effort behavior.
+	}
+
+	try {
+		const mirrorPrograms = await fetchMirroredProgramSignals(schoolId, schoolYearId);
+		for (const programType of mirrorPrograms) {
+			offeredPrograms.add(programType);
+		}
+	} catch {
+		// Mirror enrichment is best-effort.
 	}
 
 	try {
@@ -233,9 +324,11 @@ async function fetchUpstreamProgramSignals(schoolId: number, schoolYearId: numbe
 		// Keep sync resilient when the protected endpoint is unavailable.
 	}
 
+	const mirroredTleSpecializations = await fetchMirroredTleSignals(schoolId, schoolYearId);
+
 	return {
 		offeredPrograms,
-		tleSpecializations: [...tleSpecializations.values()],
+		tleSpecializations: mergeTleSpecializations([...tleSpecializations.values()], mirroredTleSpecializations),
 	};
 }
 
@@ -371,6 +464,51 @@ export async function reconcileSubjectContractFromUpstream(schoolId: number, sch
 	});
 
 	await materializeDynamicTleSubjects(schoolId, signals.tleSpecializations);
+}
+
+export async function syncSubjectContractFromProgramOfferings(schoolId: number, schoolYearId: number, authToken?: string) {
+	await reconcileSubjectContractFromUpstream(schoolId, schoolYearId, authToken);
+
+	const activeSubjects = await prisma.subject.findMany({
+		where: { schoolId, isActive: true },
+		select: { code: true, name: true, programScopes: true },
+		orderBy: { code: 'asc' },
+	});
+
+	const signals = await fetchUpstreamProgramSignals(schoolId, schoolYearId, authToken);
+	const mirrorPrograms = await fetchMirroredProgramSignals(schoolId, schoolYearId);
+
+	const offeredPrograms = [...signals.offeredPrograms].sort();
+	const mirroredPrograms = [...mirrorPrograms].sort();
+
+	const steCodes = new Set(PROGRAM_OVERLAY_CODES.STE);
+	const spaCodes = new Set(PROGRAM_OVERLAY_CODES.SPA);
+	const spsCodes = new Set(PROGRAM_OVERLAY_CODES.SPS);
+
+	const activeSteSubjects = activeSubjects.filter((subject) => steCodes.has(subject.code));
+	const activeSpaSubjects = activeSubjects.filter((subject) => spaCodes.has(subject.code));
+	const activeSpsSubjects = activeSubjects.filter((subject) => spsCodes.has(subject.code));
+	const activeTleSubjects = activeSubjects.filter((subject) => subject.code.startsWith('TLE_') || subject.code.startsWith(DYNAMIC_TLE_PREFIX) || subject.code === 'TLE');
+
+	return {
+		schoolId,
+		schoolYearId,
+		offeredPrograms,
+		mirroredPrograms,
+		activeCounts: {
+			total: activeSubjects.length,
+			ste: activeSteSubjects.length,
+			spa: activeSpaSubjects.length,
+			sps: activeSpsSubjects.length,
+			tle: activeTleSubjects.length,
+		},
+		activeSubjectCodes: {
+			ste: activeSteSubjects.map((subject) => subject.code),
+			spa: activeSpaSubjects.map((subject) => subject.code),
+			sps: activeSpsSubjects.map((subject) => subject.code),
+			tle: activeTleSubjects.map((subject) => subject.code),
+		},
+	};
 }
 
 type SubjectScopeFilter = {

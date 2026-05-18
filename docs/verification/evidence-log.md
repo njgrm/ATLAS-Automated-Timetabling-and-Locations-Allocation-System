@@ -1,3 +1,213 @@
+# 2026-05-18 - Phase 3 Special-Program Subject Sync and Offerings Repair (Tailnet + DB)
+- Phase: Phase 3 special-program subject sync from upstream offerings + mirrored demand
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Files changed in this pass:
+  - `atlas-server/src/services/subject.service.ts`
+  - `atlas-server/src/routes/subject.router.ts`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+
+- Before-state summary:
+  - Subject contract reconciliation existed, but was implicitly tied to generation flow and had no explicit operator-triggered sync endpoint.
+  - EnrollPro section-offering signal fetch in subject reconciliation was not explicitly scoped to the target `schoolId/schoolYearId`.
+  - This made subject-state refresh less auditable when offerings changed outside generation runs.
+
+- Repair implemented (minimum coherent):
+  - Added explicit operator sync path:
+    - `POST /api/v1/subjects/sync-offerings`
+    - body: `{ schoolId, schoolYearId }`
+    - returns auditable report: offered programs, mirrored programs, active subject counts/codes by STE/SPA/SPS/TLE groups.
+  - Hardened reconciliation logic in `subject.service`:
+    - scoped upstream section program signal fetch to `schoolId` + `schoolYearId`
+    - merged upstream offerings with mirrored section demand (`SectionMirror`) before activation decisions
+    - added mirrored TLE-specialization fallback signals when upstream TLE endpoint is unavailable
+    - preserved ATLAS ownership of subject semantics/minutes while using upstream/mirror reality for program activation.
+
+- Tailnet upstream proof (required):
+  - Endpoint: `https://dev-jegs.buru-degree.ts.net/api/integration/v1/sections?schoolId=16&schoolYearId=55`
+  - Observed counts in this pass:
+    - `REGULAR=36`
+    - `SCIENCE_TECHNOLOGY_AND_ENGINEERING=6`
+    - `SPECIAL_PROGRAM_IN_THE_ARTS=4`
+    - `SPECIAL_PROGRAM_IN_SPORTS=4`
+
+- Tailnet ATLAS proof after explicit sync:
+  - Auth: `POST /api/v1/auth/login`
+  - Sync trigger: `POST /api/v1/subjects/sync-offerings` with `{ schoolId:1, schoolYearId:55 }`
+  - Sync report:
+    - `offeredPrograms=[REGULAR, SPA, SPS, STE]`
+    - `mirroredPrograms=[REGULAR, SPA, SPS, STE]`
+    - `activeCounts={ total:28, ste:7, spa:1, sps:1, tle:7 }`
+    - active STE codes: `STE_APPLIED_CHEM`, `STE_APPLIED_PHYS`, `STE_BIOTECH`, `STE_ENV_SCI`, `STE_ICT`, `STE_RESEARCH`, `STE_ROBOTICS`
+    - active SPA code: `SPA_SPEC`
+    - active SPS code: `SPS_SPEC`
+    - active TLE set includes exploratory + dynamic specialization rows.
+
+- Direct DB proof (required):
+  - Query scope: `Subject` where `schoolId=1` and `isActive=true`
+  - Active group counts:
+    - `STE=7`
+    - `SPA=1`
+    - `SPS=1`
+    - `TLE=7`
+  - Sample persisted rows:
+    - `SPA_SPEC` -> `programScopes=[SPA]`, `minMinutesPerWeek=45`
+    - `SPS_SPEC` -> `programScopes=[SPS]`, `minMinutesPerWeek=45`
+    - STE overlays active with `programScopes=[STE]`
+    - TLE exploratory/dynamic rows active with `programScopes=[REGULAR]` and expected 240-minute load.
+
+- Build/typecheck verification:
+  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
+
+- GO/NO-GO:
+  - **GO** for `phase3-subject-sync-program-offerings-prompt.md`.
+  - Rationale: ATLAS now has an explicit, auditable operator-triggered refresh path for special-program subject state that reflects upstream offered programs plus mirrored section demand, without surrendering ATLAS ownership of schedulable subject semantics.
+
+# 2026-05-18 - Phase 3 Upstream Section Sync + Program Parity Gate (Tailnet + DB)
+- Phase: Phase 3 section-sync and program parity repair gate
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Files changed in this pass:
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+
+- Before-state summary (from prior docs/assumptions):
+  - Expected blocker: ATLAS mirror potentially stale with only `REGULAR/STE` while upstream had SPA/SPS.
+
+- Tailnet EnrollPro source proof:
+  - Endpoint: `https://dev-jegs.buru-degree.ts.net/api/integration/v1/sections?schoolId=16&schoolYearId=55`
+  - Live upstream mix observed during this pass:
+    - `REGULAR=36`
+    - `SCIENCE_TECHNOLOGY_AND_ENGINEERING=6`
+    - `SPECIAL_PROGRAM_IN_THE_ARTS=4`
+    - `SPECIAL_PROGRAM_IN_SPORTS=4`
+  - Sample live rows include `SPA A/B` and `SPS A/B` long-form program types.
+
+- Tailnet ATLAS API proof:
+  - Auth: `POST /api/v1/auth/login`
+  - Summary endpoint: `GET /api/v1/sections/summary/55?schoolId=1`
+  - Observed mirrored mix:
+    - `REGULAR=58`
+    - `STE=8`
+    - `SPA=8`
+    - `SPS=8`
+  - Observed SPA/SPS sample rows include correct parity fields:
+    - `programType=SPA|SPS`
+    - `programCode=SPA|SPS`
+    - `programName=Special Program in the Arts|Sports`
+    - `isSpecialProgram=true`
+
+- Sync execution path verification:
+  - Triggered: `POST /api/v1/sections/sync` with `{ schoolId: 1, schoolYearId: 55 }`
+  - Sync response: `synced=true`, `count=82`, `removed=0`, `source=enrollpro`
+  - Immediate re-read summary retained same parity mix (`58/8/8/8`).
+
+- Direct DB proof (SectionMirror):
+  - Query scope: `schoolId=1`, `schoolYearId=55`, `isStale=false`
+  - Persisted DB mix:
+    - `REGULAR=58`
+    - `STE=8`
+    - `SPA=8`
+    - `SPS=8`
+  - Sample persisted SPA/SPS rows confirm parity fields:
+    - `programType=SPA|SPS`
+    - `programCode=SPA|SPS`
+    - `programName=Special Program in the Arts|Sports`
+    - `isSpecialProgram=true`
+
+- Local verification:
+  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
+
+- Repair iteration result:
+  - No code-path repair was required in this pass; the live sync + persistence path already reflects SPA/SPS correctly.
+  - Gate was validated by explicit sync rerun plus API/DB parity proof.
+
+- GO/NO-GO:
+  - **GO** for `phase3-section-sync-program-parity-prompt.md`.
+  - Rationale: upstream feed includes SPA/SPS, ATLAS summary reflects SPA/SPS, and direct DB proves persisted mirror parity across `programType/programCode/programName/isSpecialProgram`.
+
+# 2026-05-18 - Phase 3 KPI Rerun + Root-Cause Gate (Tailnet)
+- Phase: Phase 3 KPI rerun/root-cause gate after template/control/readiness/coverage repairs
+- Operator: GitHub Copilot
+- Scope gate: PASS (measurement + classification only; no speculative major feature implementation)
+- Files changed in this pass:
+  - `docs/verification/evidence-log.md`
+
+- Baseline used (required): run `41`
+  - `assignedCount = 939`
+  - `unassignedCount = 2661`
+  - `hardViolationCount = 731`
+  - `homeRoomSuccessRate = 19.42%`
+  - `SPECIALIZED_ROOM_UNAVAILABLE = 1930`
+  - `policyOrShiftWindowIncompatible = 2133` (from run 41 home-room fallback diagnostics)
+  - `termCounts = { term1: 939, term2: 0, term3: 0 }`
+
+- Fresh rerun executed:
+  - Triggered new run via `POST /api/v1/generation/1/55/runs`
+  - Fresh run id: `52`
+  - Status: `COMPLETED`
+  - Generation duration: `4437 ms`
+
+- Live endpoints checked:
+  - `POST /api/v1/auth/login`
+  - `GET /api/v1/generation/1/55/runs/41`
+  - `GET /api/v1/generation/1/55/runs/latest` (before rerun)
+  - `POST /api/v1/generation/1/55/runs` (fresh rerun trigger)
+  - `GET /api/v1/generation/1/55/runs/latest` (after rerun)
+  - `GET /api/v1/generation/1/55/runs/latest/violations`
+  - `GET /api/v1/generation/1/55/runs/latest/timetable`
+
+- Exact KPI comparison (run 41 -> run 52):
+  - `assignedCount`: `939 -> 1121` (`+182`)
+  - `unassignedCount`: `2661 -> 1451` (`-1210`)
+  - `hardViolationCount`: `731 -> 610` (`-121`)
+  - `homeRoomSuccessRate`: `19.42% -> 32.11%` (`+12.69 pp`)
+  - `SPECIALIZED_ROOM_UNAVAILABLE`: `1930 -> 841` (`-1089`)
+  - `policyOrShiftWindowIncompatible`: `2133 -> 1044` via `homeRoomFallbackDiagnostics.policyOrShiftWindowIncompatible` (`-1089`)
+  - `termCounts`: `{939,0,0} -> {1121,0,0}` (still collapsed to term1 only)
+  - `generation duration`: `2493 ms -> 4437 ms` (`+1944 ms`, still well below 60s target)
+
+- Fresh-run diagnostics (run 52):
+  - Summary: `assigned=1121`, `unassigned=1451`, `hard=610`, `policyBlockedCount=243`, `cohortCount=4`, `cohortizedClassCount=0`
+  - Violations (`counts.byCode`):
+    - `UNASSIGNED_SECTION=610`
+    - `SPECIALIZED_ROOM_UNAVAILABLE=841`
+    - `LACKING_FACULTY=11`
+    - `FACULTY_EXCESSIVE_IDLE_GAP=209`
+    - `FACULTY_EXCESSIVE_TRAVEL_DISTANCE=344`
+  - Room assignment reasons:
+    - `HOME_ROOM_ASSIGNED=824`
+    - `FALLBACK_UNRESOLVED=610`
+    - `HOME_ROOM_UNAVAILABLE=291`
+    - `SPECIALIZED_ROOM_UNAVAILABLE=841`
+  - Home-room fallback diagnostics:
+    - `homeRoomOccupied=698`
+    - `policyOrShiftWindowIncompatible=1044`
+    - `noSameZoneStandardRoom=0`
+    - `onlySpecializedRoomsAvailable=0`
+  - Dominant unassigned reason samples:
+    - Top rows are primarily `NO_AVAILABLE_SLOT` (e.g., `SCI_BIO`, `TLE_ICT_EXP`, `ESP`)
+    - Residual qualification gap appears (`MAPEH` includes `NO_QUALIFIED_FACULTY` in top unassigned samples)
+
+- Root-cause classification (gate decision basis):
+  - **Timetable math still infeasible:** OPEN
+    - Evidence: `1451` unassigned placements and `610` hard unresolved sections remain.
+  - **Room/specialized facility shortage:** OPEN (dominant)
+    - Evidence: `SPECIALIZED_ROOM_UNAVAILABLE=841` remains the largest single blocker.
+  - **Policy/shift incompatibility:** OPEN
+    - Evidence: `homeRoomFallbackDiagnostics.policyOrShiftWindowIncompatible=1044` and `policyBlockedCount=243`.
+  - **Cohort/readiness gap:** PARTIAL
+    - Evidence: readiness rows exist (`cohortCount=4`) but `cohortizedClassCount=0` indicates cohortization impact not materialized in runtime outcomes.
+  - **Faculty/placeholder coverage gap:** PARTIAL
+    - Evidence: zero-coverage state was repaired earlier, but `LACKING_FACULTY=11` and `NO_QUALIFIED_FACULTY` still appear for selected demand slices.
+  - **Tri-sem/term distribution bug:** OPEN
+    - Evidence: term distribution remains collapsed (`term2=0`, `term3=0`) in fresh run.
+
+- GO/NO-GO:
+  - **NO-GO** for the Phase 3 KPI gate.
+  - Rationale: KPIs improved materially from baseline run 41, but critical Phase 3 blockers remain open (high unresolved sections, dominant specialized-room pressure, shift/policy incompatibility load, and term-distribution collapse).
+
 # 2026-05-18 - Phase 3 Teacher X + Subject Coverage Repair (Tailnet + DB)
 - Phase: Phase 3 placeholder faculty and subject coverage repair (no final KPI closure claim)
 - Operator: GitHub Copilot

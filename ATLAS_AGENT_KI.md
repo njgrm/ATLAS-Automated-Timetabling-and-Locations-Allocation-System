@@ -17,10 +17,11 @@ It exists to keep role context, UX guardrails, active-phase scope, and establish
 1. Read `ATLAS_AGENT_KI.md` for condensed role context.
 2. Read `AGENTS.md` for full project rules and persona contracts.
 3. Read `phasePlan.md` to confirm the active phase and scope boundary.
-4. Read `docs/phases/README.md` and the current active phase document before non-trivial implementation.
-5. Check `git status --short` before editing because the worktree may already contain user changes.
-6. For frontend work, inspect the relevant page plus shared shell/components before changing layout or interaction patterns.
-7. If library behavior is version-sensitive or uncertain, verify against official docs before introducing a new pattern.
+4. Read `docs/reference/atlas-runtime-source-of-truth-map.md` before runtime-sensitive planning, QA, or integration work.
+5. Read `docs/phases/README.md` and the current active phase document before non-trivial implementation.
+6. Check `git status --short` before editing because the worktree may already contain user changes.
+7. For frontend work, inspect the relevant page plus shared shell/components before changing layout or interaction patterns.
+8. If library behavior is version-sensitive or uncertain, verify against official docs before introducing a new pattern.
 
 ---
 
@@ -216,6 +217,7 @@ Use this when the user wants a prompt enriched for an implementer.
 
 - `AGENTS.md`
 - `phasePlan.md`
+- `docs/reference/atlas-runtime-source-of-truth-map.md`
 - `docs/phases/README.md`
 - `docs/prompts/phase3-generator-readiness-sequence.md`
 - `docs/prompts/phase3-template-capacity-and-controls-prompt.md`

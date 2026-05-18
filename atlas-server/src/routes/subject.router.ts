@@ -155,6 +155,24 @@ router.post('/seed', authenticate, requirePrivilegedRole, async (req: Request, r
 	}
 });
 
+// Auth: POST /subjects/sync-offerings — refresh special-program subject state from upstream offerings + mirrored demand
+router.post('/sync-offerings', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.body.schoolId);
+		const schoolYearId = Number(req.body.schoolYearId);
+		if (!schoolId || Number.isNaN(schoolId) || !schoolYearId || Number.isNaN(schoolYearId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId and schoolYearId are required.' });
+			return;
+		}
+
+		const authToken = req.headers.authorization?.slice(7);
+		const report = await subjectService.syncSubjectContractFromProgramOfferings(schoolId, schoolYearId, authToken);
+		res.json({ report });
+	} catch (err) {
+		next(err);
+	}
+});
+
 // Auth: GET /subjects/stats — get counts for dashboard
 router.get('/stats/:schoolId', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
