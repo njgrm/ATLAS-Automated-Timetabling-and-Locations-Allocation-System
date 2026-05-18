@@ -764,8 +764,10 @@ export async function getSpecializationCatalogBySchool(schoolId) {
     const orphanSet = new Set();
     for (const entry of specializationByKey.values()) {
         const mappedFromAlias = aliasToCanonical.get(entry.specialization) ?? [];
+        const hasInactiveAliasTargets = mappedFromAlias.some((code) => !subjectByCode.has(code));
+        const activeAliasTargets = mappedFromAlias.filter((code) => subjectByCode.has(code));
         const directCanonical = subjectByCode.has(entry.specialization) ? [entry.specialization] : [];
-        const mappedSubjectCodes = Array.from(new Set([...directCanonical, ...mappedFromAlias]));
+        const mappedSubjectCodes = Array.from(new Set([...directCanonical, ...activeAliasTargets]));
         const mappedSubjects = mappedSubjectCodes
             .filter((code) => subjectByCode.has(code))
             .map((code) => ({ code, name: subjectByCode.get(code) }));
@@ -774,7 +776,7 @@ export async function getSpecializationCatalogBySchool(schoolId) {
             status = 'unmapped';
             orphanSet.add(entry.specialization);
         }
-        else if (mappedSubjects.length < mappedSubjectCodes.length) {
+        else if (hasInactiveAliasTargets) {
             status = 'partially_mapped';
         }
         else {

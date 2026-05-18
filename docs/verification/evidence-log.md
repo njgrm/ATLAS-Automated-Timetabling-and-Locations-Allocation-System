@@ -1,3 +1,148 @@
+# 2026-05-18 - Phase 3 Schoolwide Day-Shape Alignment (Tailnet + DB)
+- Phase: Phase 3 control-model alignment for schoolwide full-day baseline plus temporary half-day override mode
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Prompt: `docs/prompts/phase3-schoolwide-day-shape-alignment-prompt.md`
+- Files changed in this pass:
+  - `atlas-server/src/services/scheduling-policy.service.ts`
+  - `atlas-server/src/services/grade-window.service.ts`
+  - `atlas-client/src/components/SchedulingPolicyPane.tsx`
+  - `atlas-client/src/components/scheduling-policy/ShiftSettingsEditor.tsx`
+  - `docs/verification/evidence-log.md`
+
+- Artifact comparison source used:
+  - PDF direct-read status in-session: unavailable due MCP path access denial.
+  - Fallback evidence used (required by prompt):
+    - `docs/analysis/phase3-schoolwide-stakeholder-pdf-deep-dive-2026-05-18.md`
+    - `docs/analysis/phase3-grade10-workbook-comparison-2026-05-18.md`
+
+- Before-state summary:
+  - Control defaults in code were still half-day-oriented in key paths:
+    - policy defaults/table defaults included broad `06:00-18:00` envelope
+    - grade-window defaults seeded `G7/8=06:00-12:00`, `G9/10=12:00-18:00`
+    - policy pane did not expose one-click dual-mode preset application for operators.
+  - Tailnet persisted state at start of this pass was already full-day (`07:30-17:00`) but this was not guaranteed by defaults and not cleanly represented as a first-class dual-mode control model.
+
+- Repair implemented (minimum coherent):
+  - Server-side defaults aligned to schoolwide full-day baseline:
+    - `SchedulingPolicy` defaults/table migration defaults -> `07:30-17:00`, lunch `11:30-13:00`
+    - `GradeShiftWindow` phase defaults -> `07:30-17:00` across grade/program rows
+  - Client policy pane now supports explicit dual-mode presets:
+    - `Apply Full-Day Baseline`
+    - `Apply SY 2026-2027 Half-Day`
+  - Preset application updates both:
+    - grade/program window rows
+    - policy envelope/lunch fields
+  - `ShiftSettingsEditor` now accepts/renders both preset callbacks.
+
+- Build/typecheck verification:
+  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
+  - `npm --prefix d:\ATLAS\atlas-client run build` -> PASS
+
+- Tailnet API verification:
+  - Auth: `POST /api/v1/auth/login`
+  - Required reads:
+    - `GET /api/v1/policies/scheduling/1/55`
+    - `GET /api/v1/generation/1/55/grade-windows`
+  - Full-day baseline verified:
+    - policy `07:30-17:00`, lunch `11:30-13:00`
+    - grade windows (regular + STE samples) `07:30-17:00`
+  - Temporary half-day override mode verified (persist + readback):
+    - policy `06:00-18:00`, lunch `11:30-12:30`
+    - grade windows `G7=06:00-12:00`, `G9=12:00-18:00` (same pattern for regular + STE)
+  - Final state restored to full-day baseline and re-verified by GET.
+
+- Direct DB proof:
+  - `SchedulingPolicy` row for `(schoolId=1, schoolYearId=55)`:
+    - `earliestStartTime=07:30`
+    - `latestEndTime=17:00`
+    - `lunchStartTime=11:30`
+    - `lunchEndTime=13:00`
+    - `recessStartTime=09:45`
+    - `recessEndTime=10:00`
+  - `GradeShiftWindow` rows for `(1,55)`:
+    - `count=16`
+    - sampled `regular7/ste7/regular9/ste9` all persisted as `07:30-17:00` in final restored state
+
+- Required representability proof (run-shape evidence):
+  - Triggered latest run after full-day restore:
+    - `POST /api/v1/generation/1/55/runs` -> run `54`, `COMPLETED`
+  - Extracted shape contracts from latest run summary:
+    - Regular contract window: `07:30-17:00`
+    - STE contract window: `07:30-16:45`
+    - Break events present: `RECESS`, `LUNCH BREAK`
+    - Late regular slots present: `15:00-16:00`, `16:00-17:00`
+    - Late special-program slots present: `15:15-16:00`, `16:00-16:45`
+
+- Required comparison points:
+  - Schoolwide full-day PDF pattern:
+    - aligned on full-day envelope (`07:30` start, late-day blocks, lunch/health break boundaries).
+  - Grade 8 workbook pattern:
+    - corroborates full-day structure, break/lunch placement, and late reading/intervention blocks; repaired model remains compatible.
+  - Grade 10 monitoring workbook (secondary evidence):
+    - continues to show late specialization/research demand; repaired model preserves representability for late special-program slots while keeping override mode available.
+
+- GO/NO-GO:
+  - **GO** for `phase3-schoolwide-day-shape-alignment-prompt.md`.
+  - Rationale: live Tailnet state now proves dual-mode representability (full-day baseline + temporary half-day override), persisted policy/window state is coherent, required run-shape evidence is present, and required artifact comparison hierarchy was followed with explicit fallback disclosure.
+
+# 2026-05-18 - Phase 3 Specialization Mapping Cleanup (Tailnet + DB)
+- Phase: Phase 3 specialization mapping cleanup and alias persistence truthfulness
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Files changed in this pass:
+  - `atlas-server/src/routes/specialization-alias.router.ts`
+  - `atlas-server/src/services/faculty.service.ts`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+
+- Before-state summary:
+  - Tailnet catalog showed `2` unmapped specialization items (`CERTIFIED SPECIALIST COACH`, `SPORTS SCIENCE`).
+  - Alias table still had legacy debt tied to inactive canonical subject codes.
+  - Pre-check counts:
+    - `specialization_aliases total = 98`
+    - `orphan alias rows (inactive canonical targets) = 19`
+    - orphan canonical sample included: `SCI`, `SCI_PHYS`, `ADVANCED_CHEMISTRY`, `ADVANCED_PHYSICS`, `ENV_SCI`.
+
+- Repair implemented (minimum coherent):
+  - Added active-canonical enforcement in alias writes:
+    - `POST /specialization-aliases` now rejects non-active canonical codes.
+    - `POST /specialization-aliases/batch` now normalizes canonical codes and ignores invalid inactive targets in persisted writes.
+  - Added explicit cleanup API:
+    - `POST /specialization-aliases/cleanup` removes alias rows where canonical target is not an active subject for the school.
+  - Updated specialization catalog mapping behavior:
+    - catalog-mapped canonical codes now include only active subject targets, preventing stale rows from inflating mapped status.
+
+- Build/typecheck verification:
+  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
+
+- Tailnet API verification:
+  - Auth: `POST /api/v1/auth/login`
+  - Cleanup trigger: `POST /api/v1/specialization-aliases/cleanup` with `{ schoolId: 1 }`
+  - Cleanup result:
+    - `removed=19`
+    - `removedCanonicalCodes=[ADVANCED_CHEMISTRY, ADVANCED_PHYSICS, ADVANCED_STATISTICS, BASIC_STATISTICS, CONSUMERS_CHEMISTRY, ENV_SCI, SCI, SCI_PHYS]`
+  - Post-cleanup reads:
+    - `GET /api/v1/faculty/specialization-catalog?schoolId=1`
+    - `GET /api/v1/specialization-aliases?schoolId=1`
+  - Post-cleanup outcome:
+    - `totalSpecializations=27`
+    - `unmapped=2` (still `CERTIFIED SPECIALIST COACH`, `SPORTS SCIENCE`)
+    - `aliasesTotal=79`
+    - `orphanAliases=0`
+
+- Direct DB proof:
+  - `specialization_aliases` post-cleanup:
+    - `aliasesTotal=79`
+    - `orphanCount=0` against active `Subject.code` set for `schoolId=1`
+  - Active mapping integrity sample preserved:
+    - `SPA_SPEC` alias mappings remain (sample aliases include `DANCE`, `FINE ARTS`, `THEATER / PERFORMING ARTS`)
+    - Core science canonical mappings remain populated (`SCI_BIO`, `SCI_CHEM`, `SCI_ES`).
+
+- GO/NO-GO:
+  - **GO** for `phase3-specialization-mapping-cleanup-prompt.md`.
+  - Rationale: legacy alias debt targeting inactive canonical subjects has been removed, alias writes are now constrained to active subject contract targets, and live catalog mapping health is no longer overstated by stale canonical rows.
+
 # 2026-05-18 - Phase 3 Teaching-Load Policy Alignment Gate (Tailnet + DB)
 - Phase: Phase 3 teaching-load policy alignment and placeholder load-signal truthfulness
 - Operator: GitHub Copilot

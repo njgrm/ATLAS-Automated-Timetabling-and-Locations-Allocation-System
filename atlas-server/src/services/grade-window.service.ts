@@ -23,22 +23,22 @@ function timeToMinutes(value: string): number {
 }
 
 const PHASE3_DEFAULT_WINDOWS: Array<GradeWindowInput> = [
-	{ gradeLevel: 7, programType: null, startTime: '06:00', endTime: '12:00' },
-	{ gradeLevel: 8, programType: null, startTime: '06:00', endTime: '12:00' },
-	{ gradeLevel: 9, programType: null, startTime: '12:00', endTime: '18:00' },
-	{ gradeLevel: 10, programType: null, startTime: '12:00', endTime: '18:00' },
-	{ gradeLevel: 7, programType: 'STE', startTime: '06:00', endTime: '12:00' },
-	{ gradeLevel: 8, programType: 'STE', startTime: '06:00', endTime: '12:00' },
-	{ gradeLevel: 9, programType: 'STE', startTime: '12:00', endTime: '18:00' },
-	{ gradeLevel: 10, programType: 'STE', startTime: '12:00', endTime: '18:00' },
-	{ gradeLevel: 7, programType: 'SPA', startTime: '06:00', endTime: '12:00' },
-	{ gradeLevel: 8, programType: 'SPA', startTime: '06:00', endTime: '12:00' },
-	{ gradeLevel: 9, programType: 'SPA', startTime: '12:00', endTime: '18:00' },
-	{ gradeLevel: 10, programType: 'SPA', startTime: '12:00', endTime: '18:00' },
-	{ gradeLevel: 7, programType: 'SPS', startTime: '06:00', endTime: '12:00' },
-	{ gradeLevel: 8, programType: 'SPS', startTime: '06:00', endTime: '12:00' },
-	{ gradeLevel: 9, programType: 'SPS', startTime: '12:00', endTime: '18:00' },
-	{ gradeLevel: 10, programType: 'SPS', startTime: '12:00', endTime: '18:00' },
+	{ gradeLevel: 7, programType: null, startTime: '07:30', endTime: '17:00' },
+	{ gradeLevel: 8, programType: null, startTime: '07:30', endTime: '17:00' },
+	{ gradeLevel: 9, programType: null, startTime: '07:30', endTime: '17:00' },
+	{ gradeLevel: 10, programType: null, startTime: '07:30', endTime: '17:00' },
+	{ gradeLevel: 7, programType: 'STE', startTime: '07:30', endTime: '17:00' },
+	{ gradeLevel: 8, programType: 'STE', startTime: '07:30', endTime: '17:00' },
+	{ gradeLevel: 9, programType: 'STE', startTime: '07:30', endTime: '17:00' },
+	{ gradeLevel: 10, programType: 'STE', startTime: '07:30', endTime: '17:00' },
+	{ gradeLevel: 7, programType: 'SPA', startTime: '07:30', endTime: '17:00' },
+	{ gradeLevel: 8, programType: 'SPA', startTime: '07:30', endTime: '17:00' },
+	{ gradeLevel: 9, programType: 'SPA', startTime: '07:30', endTime: '17:00' },
+	{ gradeLevel: 10, programType: 'SPA', startTime: '07:30', endTime: '17:00' },
+	{ gradeLevel: 7, programType: 'SPS', startTime: '07:30', endTime: '17:00' },
+	{ gradeLevel: 8, programType: 'SPS', startTime: '07:30', endTime: '17:00' },
+	{ gradeLevel: 9, programType: 'SPS', startTime: '07:30', endTime: '17:00' },
+	{ gradeLevel: 10, programType: 'SPS', startTime: '07:30', endTime: '17:00' },
 ];
 
 async function validateAgainstPolicyBounds(

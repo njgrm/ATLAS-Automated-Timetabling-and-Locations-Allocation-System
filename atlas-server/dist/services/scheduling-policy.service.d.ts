@@ -10,8 +10,8 @@ export declare const POLICY_DEFAULTS: {
     readonly maxConsecutiveTeachingMinutesBeforeBreak: 120;
     readonly minBreakMinutesAfterConsecutiveBlock: 15;
     readonly maxTeachingMinutesPerDay: 480;
-    readonly earliestStartTime: "06:00";
-    readonly latestEndTime: "18:00";
+    readonly earliestStartTime: "07:30";
+    readonly latestEndTime: "17:00";
     readonly enforceConsecutiveBreakAsHard: false;
     readonly enableTravelWellbeingChecks: true;
     readonly maxWalkingDistanceMetersPerTransition: 120;
@@ -24,8 +24,8 @@ export declare const POLICY_DEFAULTS: {
     readonly targetFacultyDailyVacantMinutes: 60;
     readonly targetSectionDailyVacantPeriods: 1;
     readonly maxCompressedTeachingMinutesPerDay: 300;
-    readonly lunchStartTime: "11:55";
-    readonly lunchEndTime: "12:55";
+    readonly lunchStartTime: "11:30";
+    readonly lunchEndTime: "13:00";
     readonly enforceLunchWindow: true;
     readonly showSpecialEventsInGrid: true;
     readonly enableFlagCeremony: true;

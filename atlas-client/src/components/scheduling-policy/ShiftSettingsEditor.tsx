@@ -8,6 +8,8 @@ import type { ProgramWindowOption } from './SchedulingPolicyDialogs';
 export function ShiftSettingsEditor({
 	shiftWindows,
 	onAddOverride,
+	onApplyFullDayPreset,
+	onApplyHalfDayPreset,
 	onRemove,
 	onUpdate,
 	gradeLevels,
@@ -16,6 +18,8 @@ export function ShiftSettingsEditor({
 }: {
 	shiftWindows: LocalGradeWindow[];
 	onAddOverride: () => void;
+	onApplyFullDayPreset: () => void;
+	onApplyHalfDayPreset: () => void;
 	onRemove: (index: number) => void;
 	onUpdate: (index: number, field: 'gradeLevel' | 'programType' | 'startTime' | 'endTime', value: string | number | null) => void;
 	gradeLevels: number[];
@@ -38,9 +42,17 @@ export function ShiftSettingsEditor({
 						</div>
 						<div className="flex items-center justify-between gap-2">
 							<p className="text-[0.6875rem] text-muted-foreground">Base windows are applied when no program override exists.</p>
-							<Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={onAddOverride}>
-								Add Override
-							</Button>
+							<div className="flex items-center gap-2">
+								<Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={onApplyFullDayPreset}>
+									Apply Full-Day Baseline
+								</Button>
+								<Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={onApplyHalfDayPreset}>
+									Apply SY 2026-2027 Half-Day
+								</Button>
+								<Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={onAddOverride}>
+									Add Override
+								</Button>
+							</div>
 						</div>
 						<div className="space-y-2">
 							{shiftWindows.map((window, index) => (

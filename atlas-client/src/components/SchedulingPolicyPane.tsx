@@ -98,10 +98,10 @@ type LocalGradeWindow = {
 const GRADE_LEVELS: number[] = [7, 8, 9, 10];
 
 const DEFAULT_GRADE_WINDOWS: LocalGradeWindow[] = [
-	{ gradeLevel: 7, programType: null, startTime: '07:30', endTime: '12:00' },
-	{ gradeLevel: 8, programType: null, startTime: '07:30', endTime: '12:00' },
-	{ gradeLevel: 9, programType: null, startTime: '13:00', endTime: '17:00' },
-	{ gradeLevel: 10, programType: null, startTime: '13:00', endTime: '17:00' },
+	{ gradeLevel: 7, programType: null, startTime: '07:30', endTime: '17:00' },
+	{ gradeLevel: 8, programType: null, startTime: '07:30', endTime: '17:00' },
+	{ gradeLevel: 9, programType: null, startTime: '07:30', endTime: '17:00' },
+	{ gradeLevel: 10, programType: null, startTime: '07:30', endTime: '17:00' },
 ];
 
 function createInitialOverride(): LocalGradeWindow {
@@ -109,8 +109,19 @@ function createInitialOverride(): LocalGradeWindow {
 		gradeLevel: GRADE_LEVELS[0],
 		programType: null,
 		startTime: '07:30',
-		endTime: '12:00',
+		endTime: '17:00',
 	};
+}
+
+function getPresetWindowRange(mode: 'FULL_DAY' | 'HALF_DAY', gradeLevel: number): { startTime: string; endTime: string } {
+	if (mode === 'HALF_DAY') {
+		if (gradeLevel <= 8) {
+			return { startTime: '06:00', endTime: '12:00' };
+		}
+		return { startTime: '12:00', endTime: '18:00' };
+	}
+
+	return { startTime: '07:30', endTime: '17:00' };
 }
 
 function toProgramOptionsFromSections(summary: SectionSummaryResponse | null): ProgramWindowOption[] {
@@ -476,6 +487,43 @@ export default function SchedulingPolicyPane({
 	const addShiftWindow = useCallback(() => {
 		setShowAddOverrideDialog(true);
 	}, []);
+
+	const applyShiftPreset = useCallback((mode: 'FULL_DAY' | 'HALF_DAY') => {
+		markIntent('window');
+		setShiftWindows((previous) =>
+			sortShiftWindows(
+				previous.map((window) => {
+					const range = getPresetWindowRange(mode, window.gradeLevel);
+					return {
+						...window,
+						startTime: range.startTime,
+						endTime: range.endTime,
+					};
+				}),
+			),
+		);
+
+		setLocal((previous) => {
+			if (!previous) return previous;
+			if (mode === 'HALF_DAY') {
+				return {
+					...previous,
+					earliestStartTime: '06:00',
+					latestEndTime: '18:00',
+					lunchStartTime: '11:30',
+					lunchEndTime: '12:30',
+				};
+			}
+
+			return {
+				...previous,
+				earliestStartTime: '07:30',
+				latestEndTime: '17:00',
+				lunchStartTime: '11:30',
+				lunchEndTime: '13:00',
+			};
+		});
+	}, [markIntent]);
 
 	const confirmAddShiftWindow = useCallback(() => {
 		if (newOverride.startTime >= newOverride.endTime) {
@@ -879,11 +927,13 @@ export default function SchedulingPolicyPane({
 					<ShiftSettingsEditor
 						shiftWindows={shiftWindows}
 						onAddOverride={addShiftWindow}
+						onApplyFullDayPreset={() => applyShiftPreset('FULL_DAY')}
+						onApplyHalfDayPreset={() => applyShiftPreset('HALF_DAY')}
 						onRemove={removeShiftWindow}
 						onUpdate={updateShiftWindow}
 						gradeLevels={GRADE_LEVELS}
-											programOptions={programOptions}
-											programContextNote={programContextNote}
+						programOptions={programOptions}
+						programContextNote={programContextNote}
 					/>
 				)
 			)}
