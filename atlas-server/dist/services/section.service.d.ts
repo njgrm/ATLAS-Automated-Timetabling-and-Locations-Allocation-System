@@ -46,4 +46,34 @@ export declare function updateSectionHomeRooms(schoolId: number, schoolYearId: n
 }>): Promise<{
     updated: number;
 }>;
+type SpecialProgramPlacementIssueCode = 'NO_PROGRAM_ROOM_AVAILABLE';
+type SpecialProgramPlacementIssue = {
+    sectionId: number;
+    externalId: number;
+    gradeLevelId: number;
+    programType: 'SPA' | 'SPS';
+    sectionName: string;
+    issueCode: SpecialProgramPlacementIssueCode;
+    message: string;
+};
+type SpecialProgramPlacementResult = {
+    affectedSections: number;
+    missingHomeRoomBefore: number;
+    missingBuildingZoneBefore: number;
+    updated: number;
+    remainingMissingHomeRoom: number;
+    remainingMissingBuildingZone: number;
+    issues: SpecialProgramPlacementIssue[];
+    assignments: Array<{
+        sectionId: number;
+        externalId: number;
+        gradeLevelId: number;
+        programType: 'SPA' | 'SPS';
+        sectionName: string;
+        homeRoomId: number;
+        buildingZoneId: string;
+        roomName: string;
+    }>;
+};
+export declare function applySpecialProgramPlacementOverlay(schoolId: number, schoolYearId: number): Promise<SpecialProgramPlacementResult>;
 export {};

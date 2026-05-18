@@ -258,4 +258,190 @@ export async function updateSectionHomeRooms(schoolId, schoolYearId, assignments
     });
     return { updated };
 }
+function normalizeProgramCode(value) {
+    const normalized = (value ?? '').trim().toUpperCase();
+    if (normalized === 'SPA' || normalized === 'SPS')
+        return normalized;
+    return null;
+}
+function roomTypePriority(type) {
+    if (type === 'CLASSROOM')
+        return 0;
+    if (type === 'LABORATORY')
+        return 1;
+    if (type === 'COMPUTER_LAB')
+        return 2;
+    if (type === 'GYMNASIUM')
+        return 3;
+    return 9;
+}
+export async function applySpecialProgramPlacementOverlay(schoolId, schoolYearId) {
+    const sections = await prisma.sectionMirror.findMany({
+        where: {
+            schoolId,
+            schoolYearId,
+            isStale: false,
+            programType: { in: ['SPA', 'SPS'] },
+        },
+        select: {
+            id: true,
+            externalId: true,
+            name: true,
+            gradeLevelId: true,
+            programType: true,
+            homeRoomId: true,
+            buildingZoneId: true,
+        },
+        orderBy: [{ gradeLevelId: 'asc' }, { programType: 'asc' }, { name: 'asc' }],
+    });
+    const missingHomeRoomBefore = sections.filter((section) => section.homeRoomId == null).length;
+    const missingBuildingZoneBefore = sections.filter((section) => !section.buildingZoneId).length;
+    const targetSections = sections.filter((section) => section.homeRoomId == null || !section.buildingZoneId);
+    if (targetSections.length === 0) {
+        return {
+            affectedSections: sections.length,
+            missingHomeRoomBefore,
+            missingBuildingZoneBefore,
+            updated: 0,
+            remainingMissingHomeRoom: 0,
+            remainingMissingBuildingZone: 0,
+            issues: [],
+            assignments: [],
+        };
+    }
+    const [rooms, currentlyAssignedRows] = await Promise.all([
+        prisma.room.findMany({
+            where: {
+                isTeachingSpace: true,
+                building: { schoolId, isTeachingBuilding: true },
+            },
+            select: {
+                id: true,
+                name: true,
+                type: true,
+                buildingZoneId: true,
+                building: {
+                    select: {
+                        shortCode: true,
+                    },
+                },
+            },
+        }),
+        prisma.sectionMirror.findMany({
+            where: {
+                schoolId,
+                schoolYearId,
+                homeRoomId: { not: null },
+            },
+            select: { homeRoomId: true },
+        }),
+    ]);
+    const assignedRoomIds = new Set(currentlyAssignedRows
+        .map((row) => row.homeRoomId)
+        .filter((roomId) => roomId != null));
+    const candidates = rooms
+        .map((room) => {
+        const buildingShortCode = room.building.shortCode?.trim().toUpperCase() ?? null;
+        const zoneCode = room.buildingZoneId?.trim().toUpperCase() ?? null;
+        return {
+            id: room.id,
+            name: room.name,
+            type: room.type,
+            buildingZoneId: room.buildingZoneId,
+            buildingShortCode: room.building.shortCode,
+            programCode: normalizeProgramCode(buildingShortCode) ?? normalizeProgramCode(zoneCode),
+        };
+    })
+        .filter((room) => room.programCode != null)
+        .sort((a, b) => {
+        const byProgram = String(a.programCode).localeCompare(String(b.programCode));
+        if (byProgram !== 0)
+            return byProgram;
+        const byType = roomTypePriority(a.type) - roomTypePriority(b.type);
+        if (byType !== 0)
+            return byType;
+        return a.id - b.id;
+    });
+    const candidatesByProgram = new Map();
+    for (const room of candidates) {
+        const programCode = room.programCode;
+        const list = candidatesByProgram.get(programCode) ?? [];
+        list.push(room);
+        candidatesByProgram.set(programCode, list);
+    }
+    const updates = [];
+    const issues = [];
+    for (const section of targetSections) {
+        const programType = normalizeProgramCode(section.programType ?? null);
+        if (!programType)
+            continue;
+        const roomList = candidatesByProgram.get(programType) ?? [];
+        const room = roomList.find((candidate) => !assignedRoomIds.has(candidate.id));
+        if (!room) {
+            issues.push({
+                sectionId: section.id,
+                externalId: section.externalId,
+                gradeLevelId: section.gradeLevelId,
+                programType,
+                sectionName: section.name,
+                issueCode: 'NO_PROGRAM_ROOM_AVAILABLE',
+                message: `No available ${programType} teaching room is currently available for overlay assignment.`,
+            });
+            continue;
+        }
+        const buildingZoneId = room.buildingZoneId?.trim() || room.buildingShortCode?.trim() || programType;
+        updates.push({
+            sectionId: section.id,
+            homeRoomId: room.id,
+            buildingZoneId,
+            roomName: room.name,
+            programType,
+            externalId: section.externalId,
+            gradeLevelId: section.gradeLevelId,
+            sectionName: section.name,
+        });
+        assignedRoomIds.add(room.id);
+    }
+    if (updates.length > 0) {
+        await prisma.$transaction(updates.map((update) => prisma.sectionMirror.update({
+            where: { id: update.sectionId },
+            data: {
+                homeRoomId: update.homeRoomId,
+                preferredRoomId: update.homeRoomId,
+                buildingZoneId: update.buildingZoneId,
+            },
+        })));
+    }
+    const after = await prisma.sectionMirror.findMany({
+        where: {
+            schoolId,
+            schoolYearId,
+            isStale: false,
+            programType: { in: ['SPA', 'SPS'] },
+        },
+        select: {
+            homeRoomId: true,
+            buildingZoneId: true,
+        },
+    });
+    return {
+        affectedSections: sections.length,
+        missingHomeRoomBefore,
+        missingBuildingZoneBefore,
+        updated: updates.length,
+        remainingMissingHomeRoom: after.filter((section) => section.homeRoomId == null).length,
+        remainingMissingBuildingZone: after.filter((section) => !section.buildingZoneId).length,
+        issues,
+        assignments: updates.map((update) => ({
+            sectionId: update.sectionId,
+            externalId: update.externalId,
+            gradeLevelId: update.gradeLevelId,
+            programType: update.programType,
+            sectionName: update.sectionName,
+            homeRoomId: update.homeRoomId,
+            buildingZoneId: update.buildingZoneId,
+            roomName: update.roomName,
+        })),
+    };
+}
 //# sourceMappingURL=section.service.js.map

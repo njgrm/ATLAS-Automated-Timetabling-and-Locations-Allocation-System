@@ -121,5 +121,38 @@ router.put('/home-rooms/:schoolYearId', authenticate, requirePrivilegedRole, asy
         next(err);
     }
 });
+// POST /sections/special-program-placement/overlay
+router.post('/special-program-placement/overlay', authenticate, requirePrivilegedRole, async (req, res, next) => {
+    try {
+        const schoolId = Number(req.body.schoolId);
+        if (!Number.isInteger(schoolId) || schoolId <= 0) {
+            res.status(400).json({ code: 'INVALID_BODY', message: 'schoolId is required and must be a positive integer.' });
+            return;
+        }
+        let schoolYearId;
+        if (req.body.schoolYearId !== undefined) {
+            schoolYearId = Number(req.body.schoolYearId);
+            if (!Number.isInteger(schoolYearId) || schoolYearId <= 0) {
+                res.status(400).json({ code: 'INVALID_BODY', message: 'schoolYearId must be a positive integer when provided.' });
+                return;
+            }
+        }
+        else {
+            const authToken = req.headers.authorization?.slice(7);
+            const activeYear = await fetchEnrollProActiveSchoolYear(authToken);
+            schoolYearId = activeYear?.id ?? 1;
+        }
+        const result = await sectionService.applySpecialProgramPlacementOverlay(schoolId, schoolYearId);
+        res.json({
+            schoolId,
+            schoolYearId,
+            ...result,
+            contract: 'EnrollPro remains source-of-truth for roster and program membership; ATLAS persists special-program placement overlays when upstream placement is absent.',
+        });
+    }
+    catch (err) {
+        next(err);
+    }
+});
 export default router;
 //# sourceMappingURL=section.router.js.map

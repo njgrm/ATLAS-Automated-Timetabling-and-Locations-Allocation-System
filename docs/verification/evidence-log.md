@@ -1,3 +1,76 @@
+# 2026-05-18 - Phase 3 Special-Program Placement Contract Repair (Tailnet + DB)
+- Phase: Phase 3 special-program placement contract repair for SPA/SPS section mirrors
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Prompt: `docs/prompts/phase3-special-program-placement-contract-prompt.md`
+- Files changed in this pass:
+  - `atlas-server/src/services/section.service.ts`
+  - `atlas-server/src/routes/section.router.ts`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+
+- Before-state summary:
+  - Tailnet `GET /api/v1/sections/summary/55?schoolId=1`:
+    - `SPA count=8`, `SPS count=8`
+    - `SPA missing homeRoomId=8`, `SPS missing homeRoomId=8`
+    - `SPA missing buildingZoneId=8`, `SPS missing buildingZoneId=8`
+  - Direct DB (`SectionMirror`, `schoolId=1`, `schoolYearId=55`, `programType in SPA/SPS`):
+    - `total=16`
+    - `missing homeRoomId=16`
+    - `missing buildingZoneId=16`
+
+- Contract decision (required):
+  - Chosen model: **hybrid contract**.
+  - EnrollPro remains source-of-truth for section roster and program membership.
+  - ATLAS now provides an explicit, auditable placement overlay path when upstream does not supply physical placement:
+    - `POST /api/v1/sections/special-program-placement/overlay`
+  - Overlay persistence target: `SectionMirror.homeRoomId`, `SectionMirror.preferredRoomId`, `SectionMirror.buildingZoneId`.
+
+- Repair implemented (minimum coherent):
+  - Added service method `applySpecialProgramPlacementOverlay(schoolId, schoolYearId)`:
+    - targets active non-stale SPA/SPS rows missing home room and/or zone
+    - selects SPA/SPS candidate teaching rooms from matching building short codes/zones
+    - avoids reusing already-assigned home rooms in the same school-year scope
+    - writes persisted overlay assignments and returns assignment/issue audit payload
+  - Added route `POST /api/v1/sections/special-program-placement/overlay`:
+    - privileged auth required
+    - accepts `schoolId` and optional `schoolYearId`
+    - returns explicit contract message plus before/after assignment statistics
+
+- Build/typecheck verification:
+  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
+
+- Tailnet API verification:
+  - Auth: `POST /api/v1/auth/login`
+  - Overlay trigger: `POST /api/v1/sections/special-program-placement/overlay` with `{ schoolId:1, schoolYearId:55 }`
+  - Overlay result:
+    - `affectedSections=16`
+    - `missingHomeRoomBefore=16`
+    - `missingBuildingZoneBefore=16`
+    - `updated=16`
+    - `remainingMissingHomeRoom=0`
+    - `remainingMissingBuildingZone=0`
+    - `issues=[]`
+  - Required summary readback:
+    - `GET /api/v1/sections/summary/55?schoolId=1`
+    - post-state counts:
+      - `SPA missing homeRoomId=0`, `SPS missing homeRoomId=0`
+      - `SPA missing buildingZoneId=0`, `SPS missing buildingZoneId=0`
+
+- Direct DB proof:
+  - `SectionMirror` post-state for SPA/SPS rows (`schoolId=1`, `schoolYearId=55`):
+    - `total=16`
+    - `missing homeRoomId=0`
+    - `missing preferredRoomId=0`
+    - `missing buildingZoneId=0`
+  - Sample persisted overlays:
+    - `SPA A (G7) -> homeRoomId 151, zone SPA`
+    - `SPS A (G7) -> homeRoomId 141, zone SPS`
+
+- GO/NO-GO:
+  - **GO** for `phase3-special-program-placement-contract-prompt.md`.
+  - Rationale: active SPA/SPS mirrored sections are no longer physically undefined, overlay behavior is explicit and auditable, and repaired state is persisted and visible on Tailnet summary + direct DB reads.
+
 # 2026-05-18 - Phase 3 Schoolwide Day-Shape Alignment (Tailnet + DB)
 - Phase: Phase 3 control-model alignment for schoolwide full-day baseline plus temporary half-day override mode
 - Operator: GitHub Copilot
