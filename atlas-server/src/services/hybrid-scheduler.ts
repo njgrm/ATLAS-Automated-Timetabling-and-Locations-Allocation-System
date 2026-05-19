@@ -26,7 +26,8 @@ export type SeedProfileId =
 	| 'MOST_CONSTRAINED_FIRST'   // fewest qualified faculty → harder classes first
 	| 'GRADE_DESC_SUBJECT_ASC'   // G10 first, then G9 etc. — promotes senior-grade room access
 	| 'SESSION_PATTERN_PRIORITY' // MWF → TTH → ANY — groups by pattern to reduce fragmentation
-	| 'PACKED_BLOCK_PRIORITY'; // cohort + heavier session loads first to reduce late-stage slot starvation
+	| 'PACKED_BLOCK_PRIORITY' // cohort + heavier session loads first to reduce late-stage slot starvation
+	| 'LOAD_DENSITY_SLOT_PRIORITY'; // dense grade/program buckets first to reduce slot starvation
 
 export interface SeedProfile {
 	id: SeedProfileId;
@@ -61,6 +62,21 @@ function getDemandConstraintScore(item: DemandItem, qualifiedCountIndex: Map<str
 		return counts.length > 0 ? Math.min(...counts) : 0;
 	}
 	return qualifiedCountIndex.get(`${item.subjectId}:${item.sectionId}`) ?? 0;
+}
+
+function getGradeProgramBucket(item: DemandItem): string {
+	const programCode = (item.programCode ?? item.programType ?? 'REGULAR').toUpperCase();
+	return `${item.gradeLevel}:${programCode}`;
+}
+
+function buildBucketLoadIndex(demand: DemandItem[]): Map<string, number> {
+	const bucketLoad = new Map<string, number>();
+	for (const item of demand) {
+		const bucket = getGradeProgramBucket(item);
+		const itemMinutes = item.sessionsPerWeek * item.durationPerSession;
+		bucketLoad.set(bucket, (bucketLoad.get(bucket) ?? 0) + itemMinutes);
+	}
+	return bucketLoad;
 }
 
 const SESSION_PATTERN_ORDER: Record<string, number> = { MWF: 0, TTH: 1, ANY: 2 };
@@ -121,6 +137,34 @@ const SEED_PROFILES: SeedProfile[] = [
 				if (a.gradeLevel !== b.gradeLevel) return b.gradeLevel - a.gradeLevel;
 				return a.subjectId - b.subjectId;
 			}),
+	},
+	{
+		id: 'LOAD_DENSITY_SLOT_PRIORITY',
+		label: 'Load-density slot priority (dense grade/program buckets first)',
+		orderDemand: (demand, input) => {
+			const qualifiedCountIndex = buildQualifiedCountIndex(input);
+			const bucketLoadIndex = buildBucketLoadIndex(demand);
+			return [...demand].sort((left, right) => {
+				const leftCohortPriority = left.entryKind === 'COHORT' ? 0 : 1;
+				const rightCohortPriority = right.entryKind === 'COHORT' ? 0 : 1;
+				if (leftCohortPriority !== rightCohortPriority) return leftCohortPriority - rightCohortPriority;
+
+				const leftBucketLoad = bucketLoadIndex.get(getGradeProgramBucket(left)) ?? 0;
+				const rightBucketLoad = bucketLoadIndex.get(getGradeProgramBucket(right)) ?? 0;
+				if (leftBucketLoad !== rightBucketLoad) return rightBucketLoad - leftBucketLoad;
+
+				const leftConstraint = getDemandConstraintScore(left, qualifiedCountIndex);
+				const rightConstraint = getDemandConstraintScore(right, qualifiedCountIndex);
+				if (leftConstraint !== rightConstraint) return leftConstraint - rightConstraint;
+
+				const leftMinutes = left.sessionsPerWeek * left.durationPerSession;
+				const rightMinutes = right.sessionsPerWeek * right.durationPerSession;
+				if (leftMinutes !== rightMinutes) return rightMinutes - leftMinutes;
+
+				if (left.gradeLevel !== right.gradeLevel) return right.gradeLevel - left.gradeLevel;
+				return left.subjectId - right.subjectId;
+			});
+		},
 	},
 ];
 

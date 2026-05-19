@@ -483,6 +483,47 @@ export function getDemandAssignmentKey(item) {
     }
     return `${item.sectionId}:${item.subjectId}`;
 }
+function getMostFrequentSlotDuration(slots) {
+    const durationCounts = new Map();
+    for (const slot of slots) {
+        const duration = timeToMinutes(slot.endTime) - timeToMinutes(slot.startTime);
+        if (duration <= 0)
+            continue;
+        durationCounts.set(duration, (durationCounts.get(duration) ?? 0) + 1);
+    }
+    let selectedDuration = 0;
+    let selectedCount = -1;
+    for (const [duration, count] of durationCounts) {
+        if (count > selectedCount) {
+            selectedDuration = duration;
+            selectedCount = count;
+        }
+    }
+    return selectedDuration;
+}
+function normalizeDemandSessionsForActiveSlots(demand, timetableShapes, fallbackPeriodSlots) {
+    if (demand.length === 0)
+        return demand;
+    const defaultSlotLength = getMostFrequentSlotDuration(fallbackPeriodSlots) || STANDARD_PERIOD_MINUTES;
+    if (defaultSlotLength <= 0)
+        return demand;
+    return demand.map((item) => {
+        const shape = resolveTimetableShapeContract(timetableShapes, item.gradeLevel, item.programType);
+        const shapeSlots = shape?.periodSlots?.length ? shape.periodSlots : fallbackPeriodSlots;
+        const slotLength = getMostFrequentSlotDuration(shapeSlots) || defaultSlotLength;
+        if (slotLength <= 0)
+            return item;
+        const totalMinutes = Math.max(1, item.sessionsPerWeek * item.durationPerSession);
+        const normalizedSessions = Math.max(1, Math.ceil(totalMinutes / slotLength));
+        if (normalizedSessions === item.sessionsPerWeek)
+            return item;
+        return {
+            ...item,
+            sessionsPerWeek: normalizedSessions,
+            durationPerSession: Math.ceil(totalMinutes / normalizedSessions),
+        };
+    });
+}
 // ─── Occupancy tracker ───
 class OccupancyTracker {
     occupied = new Map();
@@ -548,7 +589,8 @@ export function constructBaseline(input) {
     const PERIOD_SLOTS = buildUnionClassPeriodSlots(timetableShapes);
     const FALLBACK_PERIOD_SLOTS = PERIOD_SLOTS.length > 0 ? PERIOD_SLOTS : buildPeriodSlots(policy);
     // Use demandOverride when provided (H-ALG-1 multi-seed support), otherwise compute fresh demand.
-    const demand = input.demandOverride ?? computeDemand(sectionsByGrade, subjects, input.cohorts ?? [], input.classTemplatePeriods ?? {});
+    const rawDemand = input.demandOverride ?? computeDemand(sectionsByGrade, subjects, input.cohorts ?? [], input.classTemplatePeriods ?? {});
+    const demand = normalizeDemandSessionsForActiveSlots(rawDemand, timetableShapes, FALLBACK_PERIOD_SLOTS);
     // Teaching rooms sorted by id, grouped by type
     const teachingRooms = rooms.filter((r) => r.isTeachingSpace).sort((a, b) => a.id - b.id);
     const roomsByType = new Map();
@@ -634,13 +676,19 @@ export function constructBaseline(input) {
         if (candidates.length === 0) {
             return { ids: [], reason: 'NO_QUALIFIED_FACULTY' };
         }
-        // Filter candidates based on load and availability at this specific slot
-        const available = candidates.filter(facId => {
+        const canRelaxPreferenceForCohort = item.entryKind === 'COHORT';
+        const isWithinLoadAndOccupancy = (facId) => {
             const currentLoad = facultyLoad.get(facId) ?? 0;
             const maxLoad = facultyMax.get(facId) ?? 0;
             if (currentLoad + item.durationPerSession > maxLoad)
                 return false;
             if (facultyOcc.isOccupied(facId, day, slot.startTime, slot.endTime))
+                return false;
+            return true;
+        };
+        // Filter candidates based on load and availability at this specific slot
+        const available = candidates.filter((facId) => {
+            if (!isWithinLoadAndOccupancy(facId))
                 return false;
             const facPrefs = prefLookup.get(facId);
             if (facPrefs?.get(`${day}:${pi}`) === 'UNAVAILABLE')
@@ -648,8 +696,14 @@ export function constructBaseline(input) {
             return true;
         });
         if (available.length === 0) {
+            if (canRelaxPreferenceForCohort) {
+                const relaxed = candidates.filter((facId) => isWithinLoadAndOccupancy(facId));
+                if (relaxed.length > 0) {
+                    return { ids: relaxed.sort((a, b) => a - b) };
+                }
+            }
             // Check if it's overload or preference
-            const overloaded = candidates.every(facId => (facultyLoad.get(facId) ?? 0) + item.durationPerSession > (facultyMax.get(facId) ?? 0));
+            const overloaded = candidates.every((facId) => (facultyLoad.get(facId) ?? 0) + item.durationPerSession > (facultyMax.get(facId) ?? 0));
             return { ids: [], reason: overloaded ? 'FACULTY_OVERLOADED' : 'NO_AVAILABLE_SLOT' };
         }
         return { ids: available.sort((a, b) => a - b) };

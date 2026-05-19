@@ -1,3 +1,90 @@
+# 2026-05-19 - Phase 3 Slot-Fit + Fallback + Pre-Closure One-Shot (Tailnet + DB)
+- Phase: Phase 3 pre-closure contraction pass after run72
+- Operator: GitHub Copilot
+- Scope gate: PASS (execution complete); phase-gate decision: NO-GO
+- Prompt: `docs/prompts/phase3-slot-fit-fallback-and-preclosure-one-shot-prompt.md`
+- Files changed in this pass:
+  - `atlas-server/src/services/schedule-constructor.ts`
+  - `atlas-server/src/services/hybrid-scheduler.ts`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+
+- Before-state baseline (required): run `72`
+  - `assigned=2309`
+  - `unassigned=1167`
+  - `hard=1039`
+  - `homeRoom=46.50`
+  - `policyBlocked=383`
+  - `cohortized=8`
+  - `term={2228,37,44}`
+  - `UNASSIGNED_SECTION=1039`
+  - `SPECIALIZED_ROOM_UNAVAILABLE=128`
+  - `LACKING_FACULTY=68`
+  - `FACULTY_EXCESSIVE_IDLE_GAP=372`
+  - `FACULTY_EXCESSIVE_TRAVEL_DISTANCE=731`
+  - unassigned reason mix: `NO_AVAILABLE_SLOT=987`, `NO_QUALIFIED_FACULTY=180`
+  - unresolved cohort fallback rows: `8`
+
+- Blocker findings by cluster:
+  - `NO_AVAILABLE_SLOT` remained the dominant blocker (`987`) and was concentrated in grade/program slot-fit pressure, especially `9:REGULAR`.
+  - The 8 unresolved cohort rows stayed isolated and stable (`G9-TLE-IA_CARPENTRY`, `G9-TLE-HE_COOKERY`), but were not the main blocker mass.
+  - Active runtime slots are 60-minute blocks (`07:30-08:30` ... `16:00-17:00`) while demand slicing still reflected smaller template-period assumptions, inflating session count pressure and synthetic slot starvation.
+
+- Repair set implemented (2 bounded iterations):
+  - Iteration 1:
+    - Added hybrid seed profile `LOAD_DENSITY_SLOT_PRIORITY` in `hybrid-scheduler.ts` to prioritize dense grade/program demand buckets with cohort-first + constrainedness tie-breaks.
+    - Added cohort-only preference fallback in `schedule-constructor.ts` as a narrow last-resort when strict preference filtering yields zero candidates.
+    - Outcome: no live delta vs run72 (run74 remained identical), so second iteration proceeded.
+  - Iteration 2:
+    - Added demand session normalization to active slot duration in `schedule-constructor.ts`:
+      - derive dominant slot duration from timetable shape/fallback period slots,
+      - recompute `sessionsPerWeek` and `durationPerSession` from existing weekly minutes per demand item,
+      - preserve total weekly minutes while removing synthetic over-fragmentation.
+
+- Build/typecheck and targeted verification:
+  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
+  - `npx --yes tsx atlas-server/src/__tests__/phase2-home-room-strategy.test.ts` -> PASS (`7` passed)
+  - `npx --yes tsx atlas-server/src/__tests__/tri-sem-modular-contract.test.ts` -> PASS (`7` passed)
+  - `npx --yes tsx atlas-server/src/__tests__/term-scoped-violations.test.ts` -> PASS (`5` passed)
+
+- Tailnet rerun sequence executed (final pass):
+  - `POST /api/v1/auth/login` (`identifier` payload)
+  - `POST /api/v1/sections/sync` with `{ schoolId:1, schoolYearId:55 }`
+  - `POST /api/v1/subjects/sync-offerings` with `{ schoolId:1, schoolYearId:55 }`
+  - `POST /api/v1/generation/1/55/runs` with `{ roomerStrategy:"HOME_ROOM_FIRST", enforceShiftWindows:true }`
+  - Intermediate verification run: `74`
+  - Final evaluation run: `76` (`COMPLETED`)
+
+- Required KPI delta vs run72 (run72 -> run76):
+  - `assignedCount`: `2309 -> 2216` (`-93`)
+  - `unassignedCount`: `1167 -> 828` (`-339`)
+  - `hardViolationCount`: `1039 -> 705` (`-334`)
+  - `homeRoomSuccessRate`: `46.50 -> 52.72` (`+6.22pp`)
+  - `policyBlockedCount`: `383 -> 218` (`-165`)
+  - `cohortizedClassCount`: `8 -> 8` (`0`)
+  - `termCounts`: `{2228,37,44} -> {2122,42,52}`
+  - `SPECIALIZED_ROOM_UNAVAILABLE`: `128 -> 123` (`-5`)
+  - `LACKING_FACULTY`: `68 -> 68` (`0`)
+  - `FACULTY_EXCESSIVE_IDLE_GAP`: `372 -> 354` (`-18`)
+  - `FACULTY_EXCESSIVE_TRAVEL_DISTANCE`: `731 -> 704` (`-27`)
+  - `UNASSIGNED_SECTION`: `1039 -> 705` (`-334`)
+
+- Required NO_AVAILABLE/fallback tracking:
+  - `NO_AVAILABLE_SLOT`: `987 -> 690` (`-297`)
+  - `NO_QUALIFIED_FACULTY`: `180 -> 138` (`-42`)
+  - `FALLBACK_UNRESOLVED` total: `1039 -> 705` (`-334`)
+  - unresolved cohort fallback rows: `8 -> 8` (`0`, still isolated)
+
+- Residual slot-fit concentration (run76):
+  - by grade: `G9=425`, `G8=152`, `G7=99`, `G10=14`
+  - dominant bucket remains `9:REGULAR=396`
+
+- GO/NO-GO:
+  - **GO** for this one-shot prompt scope.
+  - Rationale: blocker set contracts materially on the required pre-closure axes (`hard`, `UNASSIGNED_SECTION`, `NO_AVAILABLE_SLOT`, `FALLBACK_UNRESOLVED`, `policyBlocked`, travel/idle).
+  - **NO-GO** for overall Phase 3 closure.
+  - Rationale: unresolved mass remains high (`UNASSIGNED_SECTION=705`, `FALLBACK_UNRESOLVED=705`) and the cohort unresolved subset is unchanged (`8`).
+
 # 2026-05-19 - Phase 3 Faculty Feasibility + Final Contraction One-Shot (Tailnet + DB)
 - Phase: Phase 3 generator-readiness contraction pass after run68
 - Operator: GitHub Copilot
