@@ -86,7 +86,7 @@ export default function MobileRoomRequestLayout({
 												/>
 												<div className='min-w-0 flex-1 space-y-1'>
 													<div className='flex flex-wrap items-center gap-2'>
-														<Badge variant='outline'>{entry.subjectCode}</Badge>
+														<Badge variant='outline'>{entry.subjectDisplayLabel ?? entry.subjectCode}</Badge>
 														{renderStatusBadge(entry.status, entry.decisionStatus)}
 													</div>
 													<p className='text-sm font-semibold text-foreground'>{entry.sectionName}</p>
@@ -110,7 +110,7 @@ export default function MobileRoomRequestLayout({
 									<p className='text-sm font-semibold'>Step 2: Choose New Time</p>
 									<div className='rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm'>
 										<p className='font-medium'>
-											{selectedEntry.sectionName} - {selectedEntry.subjectCode}
+											{selectedEntry.sectionName} - {selectedEntry.subjectDisplayLabel ?? selectedEntry.subjectCode}
 										</p>
 										<p className='mt-0.5 text-xs text-muted-foreground'>
 											{selectedEntry.day.slice(0, 3)} {formatTime(selectedEntry.startTime)} - {formatTime(selectedEntry.endTime)} - {selectedEntry.currentRoomName}

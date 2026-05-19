@@ -10,6 +10,7 @@ import * as genService from './generation.service.js';
 import { computeOccupiedMinutesByIntervalUnion, countUniqueEntryIds } from './room-schedule.metrics.js';
 import { buildPeriodSlots, buildSpecialEventSlots, mergeDisplaySlots } from './schedule-constructor.js';
 import * as policyService from './scheduling-policy.service.js';
+import { normalizeSubjectDisplayLabel } from './schedule-output-normalization.service.js';
 
 // ─── Constants ───
 
@@ -34,6 +35,7 @@ function timesOverlap(a: { startTime: string; endTime: string }, b: { startTime:
 export interface RoomScheduleEntry {
 	entryId: string;
 	subjectId: number;
+	subjectDisplayLabel?: string;
 	sectionId: number;
 	facultyId: number | null;
 	startTime: string;
@@ -201,6 +203,22 @@ export async function getRoomScheduleView(
 	}
 
 	// 4) Build index: day -> entries[]
+	const subjectIds = [...new Set(roomEntries.map((entry) => entry.subjectId))];
+	const subjects = subjectIds.length > 0
+		? await prisma.subject.findMany({
+			where: { schoolId, id: { in: subjectIds } },
+			select: { id: true, code: true, name: true, modularGroupId: true },
+		})
+		: [];
+	const subjectDisplayMap = new Map<number, string>(subjects.map((subject) => [
+		subject.id,
+		normalizeSubjectDisplayLabel({
+			code: subject.code,
+			name: subject.name,
+			modularGroupId: subject.modularGroupId,
+		}),
+	]));
+
 	const entriesByDay = new Map<string, ScheduledEntry[]>();
 	for (const e of roomEntries) {
 		const arr = entriesByDay.get(e.day) ?? [];
@@ -228,6 +246,7 @@ export async function getRoomScheduleView(
 			const mapped: RoomScheduleEntry[] = overlapping.map((e) => ({
 				entryId: e.entryId,
 				subjectId: e.subjectId,
+				subjectDisplayLabel: subjectDisplayMap.get(e.subjectId),
 				sectionId: e.sectionId,
 				facultyId: e.facultyId,
 				startTime: e.startTime,

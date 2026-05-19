@@ -217,7 +217,7 @@ export default function DesktopRoomRequestLayout({
 																}`}
 															>
 																<div className='flex justify-between items-start'>
-																	<span className='font-bold'>{entry.subjectCode}</span>
+																	<span className='font-bold'>{entry.subjectDisplayLabel ?? entry.subjectCode}</span>
 																	{entry.owned && <div className='size-1.5 rounded-full bg-primary-foreground' />}
 																</div>
 																<p className='truncate mt-0.5 opacity-80'>{entry.sectionName}</p>
@@ -260,7 +260,7 @@ export default function DesktopRoomRequestLayout({
 								>
 									<div className='flex justify-between items-start gap-2'>
 										<div className='min-w-0'>
-											<p className='text-xs font-bold truncate'>{entry.subjectCode}</p>
+											<p className='text-xs font-bold truncate'>{entry.subjectDisplayLabel ?? entry.subjectCode}</p>
 											<p className='text-[11px] font-medium text-muted-foreground truncate'>{entry.sectionName}</p>
 										</div>
 										{renderStatusBadge(entry.status, entry.decisionStatus)}

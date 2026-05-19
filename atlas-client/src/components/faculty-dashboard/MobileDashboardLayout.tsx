@@ -99,7 +99,7 @@ export default function MobileDashboardLayout({
 							<Card key={entry.entryId} className='rounded-xl border-border/50 overflow-hidden shadow-sm'>
 								<CardContent className='p-3 flex items-center justify-between gap-3'>
 									<div className='min-w-0'>
-										<p className='text-xs font-bold truncate'>{entry.subjectCode} • {entry.sectionName}</p>
+											<p className='text-xs font-bold truncate'>{entry.subjectDisplayLabel ?? entry.subjectCode} • {entry.sectionName}</p>
 										<p className='text-[10px] text-muted-foreground mt-0.5 truncate'>{entry.currentRoomName}</p>
 										{/* Quick-Request Link (Phase 4.2) */}
 										<Button asChild variant="link" size="sm" className="h-auto p-0 text-[10px] font-bold text-primary">

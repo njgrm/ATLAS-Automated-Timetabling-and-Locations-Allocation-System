@@ -10,6 +10,7 @@ import * as generationService from './generation.service.js';
 import * as manualEditService from './manual-edit.service.js';
 import { publishRoomPreferenceEvent } from './room-preference-events.service.js';
 import { resolveActiveDraftRun } from './active-draft-run-resolver.service.js';
+import { normalizeSubjectDisplayLabel } from './schedule-output-normalization.service.js';
 
 function err(statusCode: number, code: string, message: string): Error & { statusCode: number; code: string } {
 	const error = new Error(message) as Error & { statusCode: number; code: string };
@@ -129,6 +130,7 @@ export interface FacultyRoomPreferenceEntry {
 	submittedAt: string | null;
 	version: number | null;
 	subjectCode: string;
+	subjectDisplayLabel: string;
 	subjectName: string;
 	sectionName: string;
 	requestId: number | null;
@@ -156,6 +158,7 @@ export interface FacultyGlobalDraftEntry {
 	sectionName: string;
 	subjectId: number;
 	subjectCode: string;
+	subjectDisplayLabel: string;
 	subjectName: string;
 	roomId: number;
 	roomName: string;
@@ -187,6 +190,7 @@ export interface RoomPreferenceSummaryItem {
 	facultyName: string;
 	subjectId: number;
 	subjectCode: string;
+	subjectDisplayLabel: string;
 	subjectName: string;
 	sectionId: number;
 	sectionName: string;
@@ -321,7 +325,7 @@ async function buildLookupMaps(schoolId: number, entryIds: string[], entries: Dr
 	const [subjects, snapshot, rooms, faculty] = await Promise.all([
 		prisma.subject.findMany({
 			where: { schoolId, id: { in: subjectIds } },
-			select: { id: true, code: true, name: true, preferredRoomType: true },
+			select: { id: true, code: true, name: true, preferredRoomType: true, modularGroupId: true },
 		}),
 		prisma.sectionSnapshot.findFirst({
 			where: { schoolId },
@@ -448,6 +452,11 @@ export async function getFacultyRoomPreferenceState(
 			const request = requestMap.get(entry.entryId);
 			const decoded = decodeRationaleAndMeta(request?.rationale ?? null);
 			const subject = subjectMap.get(entry.subjectId);
+			const subjectDisplayLabel = normalizeSubjectDisplayLabel({
+				code: subject?.code,
+				name: subject?.name,
+				modularGroupId: subject?.modularGroupId,
+			});
 			const requestedRoomType = request ? roomTypeMap.get(request.requestedRoomId) : undefined;
 			const roomTypeOverride =
 				request != null &&
@@ -475,6 +484,7 @@ export async function getFacultyRoomPreferenceState(
 				submittedAt: request?.submittedAt?.toISOString() ?? null,
 				version: request?.version ?? null,
 				subjectCode: subject?.code ?? `Subject #${entry.subjectId}`,
+				subjectDisplayLabel,
 				subjectName: subject?.name ?? `Subject #${entry.subjectId}`,
 				sectionName: sectionMap.get(entry.sectionId) ?? `Section #${entry.sectionId}`,
 				requestId: request?.id ?? null,
@@ -495,6 +505,11 @@ export async function getFacultyRoomPreferenceState(
 		}),
 		globalEntries: draft.entries
 			.map((entry) => ({
+				subjectDisplayLabel: normalizeSubjectDisplayLabel({
+					code: allSubjectMap.get(entry.subjectId)?.code,
+					name: allSubjectMap.get(entry.subjectId)?.name,
+					modularGroupId: allSubjectMap.get(entry.subjectId)?.modularGroupId,
+				}),
 				entryId: entry.entryId,
 				facultyId: entry.facultyId,
 				facultyName: entry.facultyId != null
@@ -828,7 +843,7 @@ export async function getRoomPreferenceSummary(
 		}),
 		prisma.subject.findMany({
 			where: { schoolId, id: { in: [...new Set(requests.map((request) => request.subjectId))] } },
-			select: { id: true, code: true, name: true },
+			select: { id: true, code: true, name: true, modularGroupId: true },
 		}),
 		prisma.sectionSnapshot.findFirst({
 			where: { schoolId },
@@ -878,6 +893,11 @@ export async function getRoomPreferenceSummary(
 	const mappedRequests: RoomPreferenceSummaryItem[] = requests.map((request) => {
 		const entry = entryMap.get(request.entryId);
 		const subject = subjectMap.get(request.subjectId);
+		const subjectDisplayLabel = normalizeSubjectDisplayLabel({
+			code: subject?.code,
+			name: subject?.name,
+			modularGroupId: subject?.modularGroupId,
+		});
 		const appealSummary = appealByRequest.get(request.id);
 		return {
 			id: request.id,
@@ -887,6 +907,7 @@ export async function getRoomPreferenceSummary(
 			facultyName: `${request.faculty.lastName}, ${request.faculty.firstName}`,
 			subjectId: request.subjectId,
 			subjectCode: subject?.code ?? `Subject #${request.subjectId}`,
+			subjectDisplayLabel,
 			subjectName: subject?.name ?? `Subject #${request.subjectId}`,
 			sectionId: request.sectionId,
 			sectionName: sectionMap.get(request.sectionId) ?? `Section #${request.sectionId}`,

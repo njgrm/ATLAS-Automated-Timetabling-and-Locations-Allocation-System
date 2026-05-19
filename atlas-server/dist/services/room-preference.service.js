@@ -3,6 +3,7 @@ import * as generationService from './generation.service.js';
 import * as manualEditService from './manual-edit.service.js';
 import { publishRoomPreferenceEvent } from './room-preference-events.service.js';
 import { resolveActiveDraftRun } from './active-draft-run-resolver.service.js';
+import { normalizeSubjectDisplayLabel } from './schedule-output-normalization.service.js';
 function err(statusCode, code, message) {
     const error = new Error(message);
     error.statusCode = statusCode;
@@ -89,7 +90,7 @@ async function buildLookupMaps(schoolId, entryIds, entries) {
     const [subjects, snapshot, rooms, faculty] = await Promise.all([
         prisma.subject.findMany({
             where: { schoolId, id: { in: subjectIds } },
-            select: { id: true, code: true, name: true, preferredRoomType: true },
+            select: { id: true, code: true, name: true, preferredRoomType: true, modularGroupId: true },
         }),
         prisma.sectionSnapshot.findFirst({
             where: { schoolId },
@@ -186,6 +187,11 @@ export async function getFacultyRoomPreferenceState(schoolId, schoolYearId, runI
             const request = requestMap.get(entry.entryId);
             const decoded = decodeRationaleAndMeta(request?.rationale ?? null);
             const subject = subjectMap.get(entry.subjectId);
+            const subjectDisplayLabel = normalizeSubjectDisplayLabel({
+                code: subject?.code,
+                name: subject?.name,
+                modularGroupId: subject?.modularGroupId,
+            });
             const requestedRoomType = request ? roomTypeMap.get(request.requestedRoomId) : undefined;
             const roomTypeOverride = request != null &&
                 subject?.preferredRoomType != null &&
@@ -212,6 +218,7 @@ export async function getFacultyRoomPreferenceState(schoolId, schoolYearId, runI
                 submittedAt: request?.submittedAt?.toISOString() ?? null,
                 version: request?.version ?? null,
                 subjectCode: subject?.code ?? `Subject #${entry.subjectId}`,
+                subjectDisplayLabel,
                 subjectName: subject?.name ?? `Subject #${entry.subjectId}`,
                 sectionName: sectionMap.get(entry.sectionId) ?? `Section #${entry.sectionId}`,
                 requestId: request?.id ?? null,
@@ -232,6 +239,11 @@ export async function getFacultyRoomPreferenceState(schoolId, schoolYearId, runI
         }),
         globalEntries: draft.entries
             .map((entry) => ({
+            subjectDisplayLabel: normalizeSubjectDisplayLabel({
+                code: allSubjectMap.get(entry.subjectId)?.code,
+                name: allSubjectMap.get(entry.subjectId)?.name,
+                modularGroupId: allSubjectMap.get(entry.subjectId)?.modularGroupId,
+            }),
             entryId: entry.entryId,
             facultyId: entry.facultyId,
             facultyName: entry.facultyId != null
@@ -501,7 +513,7 @@ export async function getRoomPreferenceSummary(schoolId, schoolYearId, runId, fi
         }),
         prisma.subject.findMany({
             where: { schoolId, id: { in: [...new Set(requests.map((request) => request.subjectId))] } },
-            select: { id: true, code: true, name: true },
+            select: { id: true, code: true, name: true, modularGroupId: true },
         }),
         prisma.sectionSnapshot.findFirst({
             where: { schoolId },
@@ -547,6 +559,11 @@ export async function getRoomPreferenceSummary(schoolId, schoolYearId, runId, fi
     const mappedRequests = requests.map((request) => {
         const entry = entryMap.get(request.entryId);
         const subject = subjectMap.get(request.subjectId);
+        const subjectDisplayLabel = normalizeSubjectDisplayLabel({
+            code: subject?.code,
+            name: subject?.name,
+            modularGroupId: subject?.modularGroupId,
+        });
         const appealSummary = appealByRequest.get(request.id);
         return {
             id: request.id,
@@ -556,6 +573,7 @@ export async function getRoomPreferenceSummary(schoolId, schoolYearId, runId, fi
             facultyName: `${request.faculty.lastName}, ${request.faculty.firstName}`,
             subjectId: request.subjectId,
             subjectCode: subject?.code ?? `Subject #${request.subjectId}`,
+            subjectDisplayLabel,
             subjectName: subject?.name ?? `Subject #${request.subjectId}`,
             sectionId: request.sectionId,
             sectionName: sectionMap.get(request.sectionId) ?? `Section #${request.sectionId}`,

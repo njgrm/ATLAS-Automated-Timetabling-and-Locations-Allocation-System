@@ -25,6 +25,7 @@ type SubjectScopeFilter = {
     includeSpa?: boolean;
 };
 export declare function getSubjectsBySchool(schoolId: number, filters?: SubjectScopeFilter): Promise<{
+    displayCode: string;
     programScopes: import("./subject-program-scope.service.js").SubjectProgramScope[];
     schoolId: number;
     createdAt: Date;
@@ -48,6 +49,7 @@ export declare function getSubjectsBySchool(schoolId: number, filters?: SubjectS
     requiredFeatures: string[];
 }[]>;
 export declare function getSubjectById(id: number): Promise<{
+    displayCode: string;
     schoolId: number;
     createdAt: Date;
     id: number;

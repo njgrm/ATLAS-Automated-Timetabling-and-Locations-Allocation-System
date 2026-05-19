@@ -150,7 +150,7 @@ export default function RoomRequestSheet({
 					{selectedEntry && (
 						<div className='rounded-xl border border-border bg-muted/30 p-3'>
 							<p className='text-xs font-medium text-muted-foreground'>Selected class</p>
-							<p className='mt-1 text-sm font-semibold text-foreground'>{selectedEntry.subjectCode} · {selectedEntry.sectionName}</p>
+							<p className='mt-1 text-sm font-semibold text-foreground'>{selectedEntry.subjectDisplayLabel ?? selectedEntry.subjectCode} · {selectedEntry.sectionName}</p>
 							<p className='text-xs text-muted-foreground'>{selectedEntry.day.slice(0, 3)} {formatTime(selectedEntry.startTime)} - {formatTime(selectedEntry.endTime)} · {selectedEntry.currentRoomName}</p>
 						</div>
 					)}

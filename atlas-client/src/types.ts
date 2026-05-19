@@ -51,6 +51,7 @@ export type Subject = {
 	id: number;
 	schoolId: number;
 	code: string;
+	displayCode?: string;
 	name: string;
 	programType?: 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER' | null;
 	minMinutesPerWeek: number;
@@ -307,6 +308,7 @@ export type DevBulkSubmitResponse = {
 export type RoomScheduleEntry = {
 	entryId: string;
 	subjectId: number;
+	subjectDisplayLabel?: string;
 	sectionId: number;
 	facultyId: number | null;
 	startTime: string;
@@ -377,6 +379,7 @@ export type FacultyRoomPreferenceEntry = {
 	submittedAt: string | null;
 	version: number | null;
 	subjectCode: string;
+	subjectDisplayLabel?: string;
 	subjectName: string;
 	sectionName: string;
 	requestId: number | null;
@@ -404,6 +407,7 @@ export type FacultyGlobalDraftEntry = {
 	sectionName: string;
 	subjectId: number;
 	subjectCode: string;
+	subjectDisplayLabel?: string;
 	subjectName: string;
 	roomId: number;
 	roomName: string;
@@ -487,6 +491,7 @@ export type RoomPreferenceSummaryItem = {
 	facultyName: string;
 	subjectId: number;
 	subjectCode: string;
+	subjectDisplayLabel?: string;
 	subjectName: string;
 	sectionId: number;
 	sectionName: string;

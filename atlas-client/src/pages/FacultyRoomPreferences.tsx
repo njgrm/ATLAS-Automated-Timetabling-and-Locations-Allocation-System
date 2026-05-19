@@ -622,7 +622,7 @@ export default function FacultyRoomPreferences() {
 					targetEntryId: occupant?.entryId ?? null,
 					occupiedLabel: occupant
 						? showFullScheduleContext
-							? `${occupant.subjectCode} â€¢ ${occupant.sectionName}`
+							? `${occupant.subjectDisplayLabel ?? occupant.subjectCode} â€¢ ${occupant.sectionName}`
 							: 'Occupied by another class'
 						: null,
 				});

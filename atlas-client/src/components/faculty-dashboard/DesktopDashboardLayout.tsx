@@ -94,7 +94,7 @@ export default function DesktopDashboardLayout({
 									<tr key={entry.entryId} className='hover:bg-muted/30 transition-colors group'>
 										<td className='px-4 py-4'>
 											<div>
-												<p className='font-bold'>{entry.subjectCode}</p>
+														<p className='font-bold'>{entry.subjectDisplayLabel ?? entry.subjectCode}</p>
 												<p className='text-xs text-muted-foreground'>{entry.sectionName}</p>
 											</div>
 										</td>

@@ -125,7 +125,7 @@ export default function WeeklyScheduleGrid({
 														}`}
 													>
 														<div className='flex justify-between items-start gap-1'>
-															<span className='font-bold truncate'>{entry.subjectCode}</span>
+															<span className='font-bold truncate'>{entry.subjectDisplayLabel ?? entry.subjectCode}</span>
 															{renderEntryBadge?.(entry)}
 														</div>
 														<p className='truncate text-muted-foreground mt-0.5'>{entry.sectionName}</p>

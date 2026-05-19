@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { inferSubjectProgramScopes } from './subject-program-scope.service.js';
+import { normalizeSubjectDisplayLabel } from './schedule-output-normalization.service.js';
 const MATATAG_DEFAULTS = [
     // Core bundle shared by regular + offered special programs.
     { code: 'FIL', name: 'Filipino', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
@@ -7,31 +8,31 @@ const MATATAG_DEFAULTS = [
     { code: 'MATH', name: 'Mathematics', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
     { code: 'AP', name: 'Araling Panlipunan', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
     { code: 'ESP', name: 'ESP/GMRC', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
-    { code: 'MAPEH', name: 'MAPEH', minMinutesPerWeek: 240, preferredRoomType: 'GYMNASIUM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
+    { code: 'MAPEH', name: 'MAPEH', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
     { code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 60, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
     // Regular science contract (tri-sem).
-    { code: 'SCI_BIO', name: 'Science - Biology', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'SCIENCE', modularOrder: 1, termGroupId: 'SCIENCE', termCount: 3, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
-    { code: 'SCI_CHEM', name: 'Science - Chemistry', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'SCIENCE', modularOrder: 2, termGroupId: 'SCIENCE', termCount: 3, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
-    { code: 'SCI_ES', name: 'Science - Earth Science', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'SCIENCE', modularOrder: 3, termGroupId: 'SCIENCE', termCount: 3, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
+    { code: 'SCI_BIO', name: 'Science - Biology', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'SCIENCE', modularOrder: 1, termGroupId: 'SCIENCE', termCount: 3, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
+    { code: 'SCI_CHEM', name: 'Science - Chemistry', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'SCIENCE', modularOrder: 2, termGroupId: 'SCIENCE', termCount: 3, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
+    { code: 'SCI_ES', name: 'Science - Earth Science', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'SCIENCE', modularOrder: 3, termGroupId: 'SCIENCE', termCount: 3, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
     { code: 'SCI_PHYS', name: 'Science - Physics (Transitional)', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'], isActive: false },
     // Transitional regular TLE row retained for compatibility while exploratory/specialization rows are materialized.
-    { code: 'TLE', name: 'Technology and Livelihood Education', minMinutesPerWeek: 240, preferredRoomType: 'TLE_WORKSHOP', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+    { code: 'TLE', name: 'Technology and Livelihood Education', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
     // Exploratory TLE (Grades 7-8).
     { code: 'TLE_ICT_EXP', name: 'TLE Exploratory - ICT', minMinutesPerWeek: 240, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [7, 8], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 1, programScopes: ['REGULAR'], allowedSpecializations: ['ICT'] },
-    { code: 'TLE_AFA_EXP', name: 'TLE Exploratory - Agriculture and Fishery Arts', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 2, programScopes: ['REGULAR'], allowedSpecializations: ['AFA'] },
-    { code: 'TLE_FCS_EXP', name: 'TLE Exploratory - Family and Consumer Science', minMinutesPerWeek: 240, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 3, programScopes: ['REGULAR'], allowedSpecializations: ['FCS'] },
-    { code: 'TLE_IA_EXP', name: 'TLE Exploratory - Industrial Arts', minMinutesPerWeek: 240, preferredRoomType: 'TLE_WORKSHOP', gradeLevels: [7, 8], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 4, programScopes: ['REGULAR'], allowedSpecializations: ['IA'] },
+    { code: 'TLE_AFA_EXP', name: 'TLE Exploratory - Agriculture and Fishery Arts', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 2, programScopes: ['REGULAR'], allowedSpecializations: ['AFA'] },
+    { code: 'TLE_FCS_EXP', name: 'TLE Exploratory - Family and Consumer Science', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 3, programScopes: ['REGULAR'], allowedSpecializations: ['FCS'] },
+    { code: 'TLE_IA_EXP', name: 'TLE Exploratory - Industrial Arts', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 4, programScopes: ['REGULAR'], allowedSpecializations: ['IA'] },
     // STE overlays (45-minute default overlays).
-    { code: 'STE_ENV_SCI', name: 'Environmental Science', minMinutesPerWeek: 45, preferredRoomType: 'LABORATORY', gradeLevels: [7], isSeedable: false, programScopes: ['STE'] },
-    { code: 'STE_BIOTECH', name: 'Biotechnology', minMinutesPerWeek: 45, preferredRoomType: 'LABORATORY', gradeLevels: [8], isSeedable: false, programScopes: ['STE'] },
+    { code: 'STE_ENV_SCI', name: 'Environmental Science', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7], isSeedable: false, programScopes: ['STE'] },
+    { code: 'STE_BIOTECH', name: 'Biotechnology', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [8], isSeedable: false, programScopes: ['STE'] },
     { code: 'STE_ICT', name: 'ICT', minMinutesPerWeek: 45, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [8], isSeedable: false, programScopes: ['STE'], allowedSpecializations: ['ICT'] },
-    { code: 'STE_APPLIED_CHEM', name: 'Applied Chemistry', minMinutesPerWeek: 45, preferredRoomType: 'LABORATORY', gradeLevels: [9], isSeedable: false, programScopes: ['STE'] },
-    { code: 'STE_APPLIED_PHYS', name: 'Applied Physics', minMinutesPerWeek: 45, preferredRoomType: 'LABORATORY', gradeLevels: [10], isSeedable: false, programScopes: ['STE'] },
-    { code: 'STE_ROBOTICS', name: 'Robotics', minMinutesPerWeek: 45, preferredRoomType: 'LABORATORY', gradeLevels: [10], isSeedable: false, programScopes: ['STE'] },
+    { code: 'STE_APPLIED_CHEM', name: 'Applied Chemistry', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [9], isSeedable: false, programScopes: ['STE'] },
+    { code: 'STE_APPLIED_PHYS', name: 'Applied Physics', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [10], isSeedable: false, programScopes: ['STE'] },
+    { code: 'STE_ROBOTICS', name: 'Robotics', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [10], isSeedable: false, programScopes: ['STE'] },
     { code: 'STE_RESEARCH', name: 'Research', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['STE'] },
     // SPA / SPS umbrella specialization overlays.
     { code: 'SPA_SPEC', name: 'Special Program in the Arts: Specialization', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'], allowedSpecializations: ['MUSIC', 'VISUAL_ARTS', 'THEATER_ARTS', 'MEDIA_ARTS', 'CREATIVE_WRITING', 'DANCE', 'TRADITIONAL_ARTS'] },
-    { code: 'SPS_SPEC', name: 'Special Program in Sports: Specialization', minMinutesPerWeek: 45, preferredRoomType: 'GYMNASIUM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPS'], allowedSpecializations: ['ATHLETICS', 'SWIMMING', 'BASKETBALL', 'VOLLEYBALL', 'FOOTBALL', 'SEPAK_TAKRAW', 'SOFTBALL', 'BASEBALL', 'BADMINTON', 'TABLE_TENNIS', 'TAEKWONDO', 'TENNIS', 'CHESS', 'GYMNASTICS', 'ARCHERY', 'ARNIS'] },
+    { code: 'SPS_SPEC', name: 'Special Program in Sports: Specialization', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPS'], allowedSpecializations: ['ATHLETICS', 'SWIMMING', 'BASKETBALL', 'VOLLEYBALL', 'FOOTBALL', 'SEPAK_TAKRAW', 'SOFTBALL', 'BASEBALL', 'BADMINTON', 'TABLE_TENNIS', 'TAEKWONDO', 'TENNIS', 'CHESS', 'GYMNASTICS', 'ARCHERY', 'ARNIS'] },
     { code: 'DEVL_READING', name: 'Developmental Reading', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['STE', 'SPA'] },
 ];
 const DEPRECATED_SUBJECT_CODES = [
@@ -104,11 +105,7 @@ function inferWorkshopType(programCategory) {
     const normalized = (programCategory ?? '').toUpperCase();
     if (normalized.includes('ICT'))
         return 'COMPUTER_LAB';
-    if (normalized.includes('SPORT'))
-        return 'GYMNASIUM';
-    if (normalized.includes('AGRI') || normalized.includes('FISH') || normalized.includes('FCS'))
-        return 'LABORATORY';
-    return 'TLE_WORKSHOP';
+    return 'CLASSROOM';
 }
 async function fetchJsonWithAuth(url, token) {
     const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
@@ -457,6 +454,11 @@ export async function getSubjectsBySchool(schoolId, filters) {
     return subjects
         .map((subject) => ({
         ...subject,
+        displayCode: normalizeSubjectDisplayLabel({
+            code: subject.code,
+            name: subject.name,
+            modularGroupId: subject.modularGroupId,
+        }),
         programScopes: subject.programScopes.length > 0
             ? subject.programScopes
             : inferSubjectProgramScopes(subject.code, subject.name),
@@ -470,7 +472,17 @@ export async function getSubjectsBySchool(schoolId, filters) {
     });
 }
 export async function getSubjectById(id) {
-    return prisma.subject.findUnique({ where: { id } });
+    const subject = await prisma.subject.findUnique({ where: { id } });
+    if (!subject)
+        return null;
+    return {
+        ...subject,
+        displayCode: normalizeSubjectDisplayLabel({
+            code: subject.code,
+            name: subject.name,
+            modularGroupId: subject.modularGroupId,
+        }),
+    };
 }
 export async function createSubject(schoolId, data) {
     // Validate inter-section grade levels are within subject's grade levels

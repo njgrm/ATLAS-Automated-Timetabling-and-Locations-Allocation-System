@@ -75,6 +75,7 @@ export interface FacultyRoomPreferenceEntry {
     submittedAt: string | null;
     version: number | null;
     subjectCode: string;
+    subjectDisplayLabel: string;
     subjectName: string;
     sectionName: string;
     requestId: number | null;
@@ -101,6 +102,7 @@ export interface FacultyGlobalDraftEntry {
     sectionName: string;
     subjectId: number;
     subjectCode: string;
+    subjectDisplayLabel: string;
     subjectName: string;
     roomId: number;
     roomName: string;
@@ -130,6 +132,7 @@ export interface RoomPreferenceSummaryItem {
     facultyName: string;
     subjectId: number;
     subjectCode: string;
+    subjectDisplayLabel: string;
     subjectName: string;
     sectionId: number;
     sectionName: string;

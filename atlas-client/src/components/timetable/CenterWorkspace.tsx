@@ -345,7 +345,6 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 							sectionLabel={sectionLabel}
 							gradeForSection={gradeForSection}
 							subjectLabel={subjectLabel}
-							facultyLabel={facultyLabel}
 							roomLabelShort={roomLabelShort}
 							entryContextLabel={entryContextLabel}
 							onEntryClick={handleEntryClick}
@@ -401,6 +400,7 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 										formatFacultyInitials={formatFacultyInitials}
 										facultyLabel={facultyLabel}
 										viewMode={viewMode}
+										showTeacherDetails={viewMode !== 'section'}
 										pivotLabel={pivotLabel}
 										roomLabelShort={roomLabelShort}
 										dragItem={dragItem}

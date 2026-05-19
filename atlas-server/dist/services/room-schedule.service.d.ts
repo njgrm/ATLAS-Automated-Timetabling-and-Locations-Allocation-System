@@ -7,6 +7,7 @@ declare const DAYS: readonly ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRI
 export interface RoomScheduleEntry {
     entryId: string;
     subjectId: number;
+    subjectDisplayLabel?: string;
     sectionId: number;
     facultyId: number | null;
     startTime: string;

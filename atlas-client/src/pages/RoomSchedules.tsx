@@ -111,7 +111,7 @@ export default function RoomSchedules() {
 
 				const sMap = new Map<number, string>();
 				for (const s of subjectsRes.data.subjects) {
-					sMap.set(s.id, s.code || s.name);
+					sMap.set(s.id, s.displayCode ?? s.code ?? s.name);
 				}
 				setSubjectMap(sMap);
 
@@ -600,7 +600,7 @@ function EntryCell({
 	return (
 		<div className="px-1.5 py-1 text-[11px] leading-snug">
 			<div className="font-semibold text-foreground truncate">
-				{subjectMap.get(entry.subjectId) ?? `Unknown Subject (#${entry.subjectId})`}
+				{entry.subjectDisplayLabel ?? subjectMap.get(entry.subjectId) ?? `Unknown Subject (#${entry.subjectId})`}
 			</div>
 			<div className="text-muted-foreground truncate">{sectionMap.get(entry.sectionId) ?? `Unknown Section (#${entry.sectionId})`}</div>
 			<div className="text-muted-foreground/80 truncate">

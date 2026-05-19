@@ -161,6 +161,7 @@ interface TimetableGridProps {
 	formatFacultyInitials: (id: number) => string;
 	facultyLabel: (id: number) => string;
 	viewMode: 'section' | 'faculty' | 'room';
+	showTeacherDetails?: boolean;
 	pivotLabel: (id: number) => string;
 	roomLabelShort: (roomId: number) => string;
 	dragItem: GridDragSource;
@@ -187,6 +188,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 	formatFacultyInitials,
 	facultyLabel,
 	viewMode,
+	showTeacherDetails = true,
 	pivotLabel,
 	roomLabelShort,
 	dragItem,
@@ -489,7 +491,11 @@ export const TimetableGrid = memo(function TimetableGrid({
 																		<span className="font-medium text-foreground/80">{entryContextLabel(entry)}</span>
 																	</p>
 																	<p className="wrap-break-word leading-[1.2] text-muted-foreground">
-																		{entry.facultyId ? formatFacultyInitials(entry.facultyId) : 'No faculty'}{' '}
+																		{showTeacherDetails ? (
+																			<>
+																				{entry.facultyId ? formatFacultyInitials(entry.facultyId) : 'No faculty'}{' '}
+																			</>
+																		) : null}
 																		<span className="opacity-60">{roomLabelShort(entry.roomId)}</span>
 																	</p>
 																	{isFollowUp && (
@@ -509,7 +515,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 															</TooltipTrigger>
 															<TooltipContent side="right" className="space-y-1 z-100 max-w-50">
 																<div className="font-semibold">{subjectLabel(entry.subjectId)}</div>
-																{entry.facultyId && viewMode !== 'faculty' && (
+																{showTeacherDetails && entry.facultyId && viewMode !== 'faculty' && (
 																	<div className="text-xs font-medium">{facultyLabel(entry.facultyId)}</div>
 																)}
 																<div className="text-muted-foreground text-xs">{entryContextLabel(entry)} - {roomLabelShort(entry.roomId)}</div>

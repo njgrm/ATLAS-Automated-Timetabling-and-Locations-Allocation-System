@@ -1,3 +1,151 @@
+# 2026-05-19 - Phase 3 Room-Demand Contract + Master-Schedule Visibility One-Shot (Tailnet + DB)
+- Phase: Phase 3 one-shot execution for room-demand contract reset and teacher-visibility surface split
+- Operator: GitHub Copilot
+- Scope gate: PASS (prompt-scope GO); phase-gate decision: NO-GO
+- Prompt: `docs/prompts/phase3-room-demand-contract-and-master-schedule-one-shot-prompt.md`
+- Files changed in this pass:
+  - `atlas-server/src/services/subject.service.ts`
+  - `prisma/seed.js`
+  - `atlas-client/src/components/timetable/TimetableGrid.tsx`
+  - `atlas-client/src/components/timetable/ClassProgramMatrixView.tsx`
+  - `atlas-client/src/components/timetable/CenterWorkspace.tsx`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+
+- Build/typecheck verification:
+  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
+  - `npm --prefix d:\ATLAS\atlas-client run build` -> PASS
+
+- Before-state contract and pressure (reference baseline):
+  - Prior regular contract baseline: `2160` non-classroom minutes out of `3420`
+  - Prior active room-type mix: `LABORATORY=11`, `GYMNASIUM=2`, `COMPUTER_LAB=2`, `TLE_WORKSHOP=4`
+  - Run 55 pressure snapshot:
+    - `SPECIALIZED_ROOM_UNAVAILABLE=864`
+    - `UNASSIGNED_SECTION=606`
+    - `FACULTY_EXCESSIVE_TRAVEL_DISTANCE=785`
+    - `homeRoomSuccessRate=38.2`
+
+- Contract reset verification (post-sync DB reads):
+  - Active subject room-type mix:
+    - `CLASSROOM=25`, `COMPUTER_LAB=2`, `LABORATORY=1`
+  - Regular-scope subject minutes by room type:
+    - `CLASSROOM=3660`, `COMPUTER_LAB=240`, `LABORATORY=90`
+    - non-classroom demand: `330 / 3990`
+  - Remaining explicit non-classroom regular subjects:
+    - `TLE_ICT_EXP` -> `COMPUTER_LAB` (`240` minutes)
+    - `ENVIRONMENTAL_SCIENCE` -> `LABORATORY` (`90` minutes)
+
+- One-shot rerun evidence (run 55 -> run 56):
+  - `SPECIALIZED_ROOM_UNAVAILABLE`: `864 -> 190` (delta `-674`)
+  - `UNASSIGNED_SECTION`: `606 -> 1004` (delta `+398`)
+  - `FACULTY_EXCESSIVE_TRAVEL_DISTANCE`: `785 -> 863` (delta `+78`)
+  - `homeRoomSuccessRate`: `38.2 -> 51.63` (delta `+13.43pp`)
+  - Additional run summary shift:
+    - `assignedCount`: `1990 -> 2266`
+    - `hardViolationCount`: `606 -> 1004`
+
+- Teacher-visibility split verification:
+  - Section-facing master schedule now suppresses teacher identity:
+    - `CenterWorkspace` passes `showTeacherDetails={viewMode !== 'section'}` to `TimetableGrid`
+    - `TimetableGrid` renders teacher initials/names only when `showTeacherDetails` is true
+    - `ClassProgramMatrixView` no longer renders faculty label text and omits faculty from aria labels
+  - Non-section schedule surfaces preserve teacher assignment data:
+    - live room schedule payload sample still includes teacher linkage (`room=97`, `facultyId=18232`, `subject=TLE`)
+
+- GO/NO-GO:
+  - **GO** for prompt scope.
+  - Rationale: room-demand over-specialization was materially reduced and section-facing teacher masking is now implemented without removing teacher linkage from non-section surfaces.
+  - **NO-GO** for overall Phase 3 closure.
+  - Rationale: despite specialized-room relief, hard unresolved load remains high (`hardViolationCount=1004`) with worsened unassigned/travel pressure that still blocks phase-gate readiness.
+
+# 2026-05-18 - Phase 3 Placement Normalization + KPI One-Shot Rerun (Tailnet + DB)
+- Phase: Phase 3 one-shot execution for placement fidelity verification, stakeholder output normalization verification, and KPI rerun gate decision
+- Operator: GitHub Copilot
+- Scope gate: PASS (execution complete); phase-gate decision: NO-GO
+- Prompt: `docs/prompts/phase3-placement-normalization-kpi-one-shot-prompt.md`
+- Files changed in this pass:
+  - `atlas-server/src/services/schedule-output-normalization.service.ts`
+  - `atlas-server/src/services/subject.service.ts`
+  - `atlas-server/src/services/room-preference.service.ts`
+  - `atlas-server/src/services/room-schedule.service.ts`
+  - `atlas-client/src/types.ts`
+  - `atlas-client/src/hooks/useTimetableData.ts`
+  - `atlas-client/src/pages/RoomSchedules.tsx`
+  - `atlas-client/src/components/faculty-dashboard/DesktopDashboardLayout.tsx`
+  - `atlas-client/src/components/faculty-dashboard/MobileDashboardLayout.tsx`
+  - `atlas-client/src/components/faculty-shared/WeeklyScheduleGrid.tsx`
+  - `atlas-client/src/components/faculty-room-preferences/DesktopRoomRequestLayout.tsx`
+  - `atlas-client/src/components/faculty-room-preferences/MobileRoomRequestLayout.tsx`
+  - `atlas-client/src/components/faculty-room-preferences/RoomRequestSheet.tsx`
+  - `atlas-client/src/pages/FacultyRoomPreferences.tsx`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+
+- Build/typecheck verification:
+  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
+  - `npm --prefix d:\ATLAS\atlas-client run build` -> PASS
+
+- Placement fidelity verification (required before/after persistence check):
+  - Direct DB check (`SectionMirror`, `schoolId=1`, `schoolYearId=55`, `programType in [SPA,SPS]`):
+    - `specialProgramRows=16`
+    - `missingPlacement=0` (`homeRoomId`, `preferredRoomId`, `buildingZoneId` all present)
+  - Post-rerun section parity check (`GET /api/v1/sections/summary/55?schoolId=1`):
+    - `REGULAR=58`, `STE=8`, `SPA=8`, `SPS=8`
+
+- Stakeholder output normalization verification (live Tailnet):
+  - Subject contract samples (`GET /api/v1/subjects?schoolId=1`):
+    - `SCI_BIO->SCIENCE`
+    - `SCI_CHEM->SCIENCE`
+    - `SCI_ES->SCIENCE`
+    - `TLE_ICT_EXP->TLE`
+    - `SPA_SPEC->SPECIALIZATION`
+    - `SPS_SPEC->SPECIALIZATION`
+    - `STE_APPLIED_CHEM->APPLIED CHEMISTRY`
+    - `STE_RESEARCH->RESEARCH`
+  - Timetable/review label resolution sample (`GET /api/v1/generation/1/55/runs/latest/draft` + subject map):
+    - `subjectId=3061 raw=SCI_BIO display=SCIENCE`
+  - Room schedule sample (`GET /api/v1/room-schedules/1/55/rooms/:roomId?source=latest`):
+    - `room=21 Chemistry Lab subjectId=3061 subjectDisplayLabel=SCIENCE`
+    - `room=22 Biology Lab subjectId=3061 subjectDisplayLabel=SCIENCE`
+    - `room=23 Physics Lab subjectId=3061 subjectDisplayLabel=SCIENCE`
+  - Faculty-facing room-request samples (`GET /api/v1/room-preferences/1/55/latest/faculty/:facultyId`):
+    - `facultyId=18263 subjectCode=SPA_SPEC subjectDisplayLabel=SPECIALIZATION`
+    - `facultyId=18216 subjectCode=SPA_SPEC subjectDisplayLabel=SPECIALIZATION`
+    - `facultyId=18198 subjectCode=SPA_SPEC subjectDisplayLabel=SPECIALIZATION`
+
+- One-shot rerun sequence executed:
+  - `POST /api/v1/sections/sync` with `{ schoolId:1, schoolYearId:55 }`
+  - `POST /api/v1/subjects/sync-offerings` with `{ schoolId:1, schoolYearId:55 }`
+  - `POST /api/v1/generation/1/55/runs` with `{ roomerStrategy:"HOME_ROOM_FIRST", enforceShiftWindows:true }`
+  - Fresh run id: `55` (`COMPLETED`)
+
+- KPI comparison snapshots:
+  - Baseline `run 41`:
+    - `assigned=939`, `unassigned=2661`, `hard=731`, `homeRoom=19.42`, `term={939,0,0}`, `durationMs=2493`
+  - Prior checkpoint `run 52`:
+    - `assigned=1121`, `unassigned=1451`, `hard=610`, `homeRoom=32.11`, `term={1121,0,0}`, `durationMs=4437`
+  - Pre-one-shot `run 54`:
+    - `assigned=1989`, `unassigned=1471`, `hard=606`, `homeRoom=42.75`, `term={1989,0,0}`, `durationMs=5400`
+  - Post-one-shot `run 55`:
+    - `assigned=1990`, `unassigned=1470`, `hard=606`, `homeRoom=38.2`, `term={1990,0,0}`, `durationMs=4728`
+  - Delta `run 54 -> run 55`:
+    - `assigned +1`, `unassigned -1`, `hard 0`, `homeRoom -4.55pp`, `durationMs -672`
+
+- Fresh blocker diagnostics (`run 55`):
+  - `policyBlockedCount=1245`
+  - `cohortCount=4`, `cohortizedClassCount=0`
+  - Violations:
+    - `UNASSIGNED_SECTION=606`
+    - `SPECIALIZED_ROOM_UNAVAILABLE=864`
+    - `LACKING_FACULTY=68`
+    - `FACULTY_EXCESSIVE_IDLE_GAP=334`
+    - `FACULTY_EXCESSIVE_TRAVEL_DISTANCE=785`
+  - Term distribution remains collapsed to `term1` only (`term2=0`, `term3=0`).
+
+- GO/NO-GO:
+  - **NO-GO** for phase-gate closure from this one-shot prompt.
+  - Rationale: placement persistence and stakeholder-facing label normalization are now verified, but generator feasibility blockers remain materially unresolved (`606` hard unresolved, high specialized-room and policy-block pressure, and persistent term-distribution collapse).
+
 # 2026-05-18 - Phase 3 Special-Program Placement Contract Repair (Tailnet + DB)
 - Phase: Phase 3 special-program placement contract repair for SPA/SPS section mirrors
 - Operator: GitHub Copilot

@@ -944,7 +944,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 
 	const subjectLabel = useCallback((id: number) => {
 		const s = subjectMap.get(id);
-		return s ? s.code : `Unknown Subject (#${id})`;
+		return s ? (s.displayCode ?? s.code) : `Unknown Subject (#${id})`;
 	}, [subjectMap]);
 
 	const facultyLabel = useCallback((id: number) => {
