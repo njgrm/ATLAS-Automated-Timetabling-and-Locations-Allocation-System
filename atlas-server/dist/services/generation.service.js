@@ -16,6 +16,7 @@ import { computeEffectiveWeeklyTeachingMinutes } from './scheduling-policy.servi
 import { reconcileSubjectContractFromUpstream } from './subject.service.js';
 import { ensurePhase3GradeWindows } from './grade-window.service.js';
 import { syncCohorts } from './cohort.service.js';
+import { repairActiveSubjectCoverageWithPlaceholders, getActiveSubjectCoverageSummary } from './faculty-assignment.service.js';
 function err(statusCode, code, message, options) {
     const e = new Error(message);
     e.statusCode = statusCode;
@@ -31,6 +32,22 @@ function extractDraftFacultyIds(draftEntries) {
         .map((entry) => (typeof entry === 'object' && entry && 'facultyId' in entry ? entry.facultyId : undefined))
         .filter((facultyId) => typeof facultyId === 'number' && Number.isInteger(facultyId) && facultyId > 0);
     return [...new Set(facultyIds)];
+}
+function extractNoQualifiedSubjectIds(unassignedItems) {
+    if (!Array.isArray(unassignedItems))
+        return [];
+    const subjectIds = new Set();
+    for (const item of unassignedItems) {
+        if (typeof item !== 'object' || item == null)
+            continue;
+        const row = item;
+        if (row.reason !== 'NO_QUALIFIED_FACULTY')
+            continue;
+        if (typeof row.subjectId !== 'number' || !Number.isInteger(row.subjectId) || row.subjectId <= 0)
+            continue;
+        subjectIds.add(row.subjectId);
+    }
+    return [...subjectIds].sort((left, right) => left - right);
 }
 async function getActiveFacultyMirrorIdSet(schoolId) {
     const faculty = await prisma.facultyMirror.findMany({
@@ -292,6 +309,48 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
         await syncSectionsFromExternal(schoolId, schoolYearId, options?.authToken);
         await ensurePhase3GradeWindows(schoolId, schoolYearId);
         const cohortSyncResult = await syncCohorts(schoolId, schoolYearId, options?.authToken);
+        stage = 'coverage-repair';
+        const latestCompletedRun = await prisma.generationRun.findFirst({
+            where: { schoolId, schoolYearId, status: 'COMPLETED' },
+            orderBy: { id: 'desc' },
+            select: { id: true, unassignedItems: true },
+        });
+        const dynamicTleSubjects = await prisma.subject.findMany({
+            where: {
+                schoolId,
+                isActive: true,
+                code: { startsWith: 'TLE_SPEC_' },
+            },
+            select: { code: true },
+        });
+        const noQualifiedSubjectIds = extractNoQualifiedSubjectIds(latestCompletedRun?.unassignedItems);
+        const noQualifiedSubjects = noQualifiedSubjectIds.length > 0
+            ? await prisma.subject.findMany({
+                where: { schoolId, isActive: true, id: { in: noQualifiedSubjectIds } },
+                select: { code: true },
+            })
+            : [];
+        const coverageSummary = await getActiveSubjectCoverageSummary(schoolId, schoolYearId, options?.authToken);
+        const uncoveredNoRealFacultyCodes = coverageSummary.rows
+            .filter((row) => row.uncoveredSectionCount > 0 && row.ownedByRealFacultyCount === 0 && row.subjectCode !== 'HG')
+            .map((row) => row.subjectCode);
+        const targetedCoverageSubjectCodes = [
+            ...new Set([
+                ...dynamicTleSubjects.map((subject) => subject.code),
+                ...noQualifiedSubjects.map((subject) => subject.code),
+                ...uncoveredNoRealFacultyCodes,
+            ]),
+        ].filter((subjectCode) => subjectCode !== 'HG');
+        if (targetedCoverageSubjectCodes.length > 0) {
+            await repairActiveSubjectCoverageWithPlaceholders({
+                schoolId,
+                schoolYearId,
+                assignedBy: actorId,
+                apply: true,
+                subjectCodes: targetedCoverageSubjectCodes,
+                authToken: options?.authToken,
+            });
+        }
         stage = 'sections-fetch';
         const [sectionResult, faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, gradeWindows, cohorts, specializationAliases] = await Promise.all([
             getSectionSummary(schoolYearId, schoolId, options?.authToken),

@@ -168,6 +168,21 @@ function normalizeProgramType(value: string | null | undefined): string {
   return (value ?? 'REGULAR').trim().toUpperCase();
 }
 
+function normalizeGradeLevel(value: number): number {
+  if (!Number.isFinite(value)) return value;
+  if (value >= 100) {
+    const normalized = value % 100;
+    if (normalized >= 1 && normalized <= 12) return normalized;
+  }
+  return value;
+}
+
+function gradeLevelMatches(gradeLevels: number[], sectionGradeLevel: number): boolean {
+  if (!Array.isArray(gradeLevels) || gradeLevels.length === 0) return true;
+  const normalizedSectionGrade = normalizeGradeLevel(sectionGradeLevel);
+  return gradeLevels.some((gradeLevel) => gradeLevel === sectionGradeLevel || normalizeGradeLevel(gradeLevel) === normalizedSectionGrade);
+}
+
 function isProgramScopeCompatible(scopes: string[] | undefined, sectionProgramType: string): boolean {
   if (!scopes || scopes.length === 0) return true;
   const normalizedProgramType = normalizeProgramType(sectionProgramType);
@@ -180,7 +195,7 @@ function getRelevantSectionIdsForSubject(
 ): number[] {
   return sections
     .filter((section) => {
-      const gradeAllowed = subject.gradeLevels.length === 0 || subject.gradeLevels.includes(section.gradeLevel);
+      const gradeAllowed = gradeLevelMatches(subject.gradeLevels, section.gradeLevel);
       if (!gradeAllowed) return false;
       return isProgramScopeCompatible(subject.programScopes, section.programType);
     })

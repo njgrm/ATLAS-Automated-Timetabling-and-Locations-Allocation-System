@@ -25,7 +25,8 @@ export type SeedProfileId =
 	| 'GRADE_ASC_SUBJECT_ASC'    // default (mirrors existing single-seed behavior)
 	| 'MOST_CONSTRAINED_FIRST'   // fewest qualified faculty → harder classes first
 	| 'GRADE_DESC_SUBJECT_ASC'   // G10 first, then G9 etc. — promotes senior-grade room access
-	| 'SESSION_PATTERN_PRIORITY'; // MWF → TTH → ANY — groups by pattern to reduce fragmentation
+	| 'SESSION_PATTERN_PRIORITY' // MWF → TTH → ANY — groups by pattern to reduce fragmentation
+	| 'PACKED_BLOCK_PRIORITY'; // cohort + heavier session loads first to reduce late-stage slot starvation
 
 export interface SeedProfile {
 	id: SeedProfileId;
@@ -102,6 +103,24 @@ const SEED_PROFILES: SeedProfile[] = [
 					a.gradeLevel - b.gradeLevel ||
 					a.subjectId - b.subjectId,
 			),
+	},
+	{
+		id: 'PACKED_BLOCK_PRIORITY',
+		label: 'Packed block priority (cohorts + heavier weekly loads first)',
+		orderDemand: (demand) =>
+			[...demand].sort((a, b) => {
+				const cohortPriorityA = a.entryKind === 'COHORT' ? 0 : 1;
+				const cohortPriorityB = b.entryKind === 'COHORT' ? 0 : 1;
+				if (cohortPriorityA !== cohortPriorityB) return cohortPriorityA - cohortPriorityB;
+
+				const minutesA = a.sessionsPerWeek * a.durationPerSession;
+				const minutesB = b.sessionsPerWeek * b.durationPerSession;
+				if (minutesA !== minutesB) return minutesB - minutesA;
+
+				if (a.sessionsPerWeek !== b.sessionsPerWeek) return b.sessionsPerWeek - a.sessionsPerWeek;
+				if (a.gradeLevel !== b.gradeLevel) return b.gradeLevel - a.gradeLevel;
+				return a.subjectId - b.subjectId;
+			}),
 	},
 ];
 

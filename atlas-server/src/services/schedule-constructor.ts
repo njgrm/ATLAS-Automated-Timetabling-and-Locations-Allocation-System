@@ -64,6 +64,25 @@ export interface SubjectInput {
 	requiredFeatures?: string[];
 }
 
+function normalizeSpecializationCode(value?: string | null): string {
+	return (value ?? '').trim().toUpperCase();
+}
+
+function normalizeGradeLevel(value: number): number {
+	if (!Number.isFinite(value)) return value;
+	if (value >= 100) {
+		const normalized = value % 100;
+		if (normalized >= 1 && normalized <= 12) return normalized;
+	}
+	return value;
+}
+
+function gradeLevelMatches(candidates: number[] | undefined, target: number): boolean {
+	if (!Array.isArray(candidates) || candidates.length === 0) return false;
+	const targetNormalized = normalizeGradeLevel(target);
+	return candidates.some((candidate) => candidate === target || normalizeGradeLevel(candidate) === targetNormalized);
+}
+
 export interface InstructionalCohortInput {
 	cohortCode: string;
 	specializationCode: string;
@@ -549,12 +568,15 @@ export function computeDemand(
 		const gradeNum = grade.displayOrder;
 		const sortedSections = [...grade.sections].sort((a, b) => a.id - b.id);
 		const sectionsById = new Map(sortedSections.map((section) => [section.id, section]));
-		const cohortsForGrade = activeCohorts.filter((cohort) => cohort.gradeLevel === gradeNum);
+		const cohortsForGrade = activeCohorts.filter((cohort) =>
+			cohort.gradeLevel === gradeNum
+			|| normalizeGradeLevel(cohort.gradeLevel) === normalizeGradeLevel(gradeNum),
+		);
 		const modularGroups = new Map<string, SubjectInput[]>();
 		const modularSubjectIds = new Set<number>();
 
 		for (const subject of sortedSubjects) {
-			if (!subject.gradeLevels.includes(gradeNum)) continue;
+			if (!gradeLevelMatches(subject.gradeLevels, gradeNum)) continue;
 			if (!subject.modularGroupId) continue;
 			const groupId = subject.modularGroupId.trim().toUpperCase();
 			if (!groupId) continue;
@@ -617,7 +639,7 @@ export function computeDemand(
 		}
 
 		for (const subject of sortedSubjects) {
-			if (!subject.gradeLevels.includes(gradeNum)) continue;
+			if (!gradeLevelMatches(subject.gradeLevels, gradeNum)) continue;
 			if (modularSubjectIds.has(subject.id)) continue;
 
 			/**
@@ -637,12 +659,26 @@ export function computeDemand(
 			};
 
 			const usesCohorts = subject.interSectionEnabled === true
-				&& (subject.interSectionGradeLevels?.length ? subject.interSectionGradeLevels.includes(gradeNum) : true)
+				&& (subject.interSectionGradeLevels?.length ? gradeLevelMatches(subject.interSectionGradeLevels, gradeNum) : true)
 				&& cohortsForGrade.length > 0;
 
 			if (usesCohorts) {
+				const allowedSpecializationCodes = new Set(
+					(subject.allowedSpecializations ?? [])
+						.map((specializationCode) => normalizeSpecializationCode(specializationCode))
+						.filter((specializationCode) => specializationCode.length > 0),
+				);
+				const specializationBoundCohort = allowedSpecializationCodes.size > 0;
+				const eligibleCohorts = specializationBoundCohort
+					? cohortsForGrade.filter((cohort) => allowedSpecializationCodes.has(normalizeSpecializationCode(cohort.specializationCode)))
+					: cohortsForGrade;
+
+				if (eligibleCohorts.length === 0 && specializationBoundCohort) {
+					continue;
+				}
+
 				const cohortSectionIds = new Set<number>();
-				for (const cohort of cohortsForGrade) {
+				for (const cohort of eligibleCohorts) {
 					const memberSections = cohort.memberSectionIds
 						.map((memberSectionId) => sectionsById.get(memberSectionId))
 						.filter((memberSection): memberSection is SectionsByGrade['sections'][number] => memberSection != null);
@@ -650,6 +686,19 @@ export function computeDemand(
 						isSubjectAllowedForSectionProgram(subject.code, memberSection.programCode, subject.programScopes),
 					);
 					if (applicableMembers.length === 0) continue;
+
+					const maxMemberEnrollment = applicableMembers.reduce(
+						(maxEnrollment, memberSection) => Math.max(maxEnrollment, memberSection.enrolledCount),
+						0,
+					);
+					const summedMemberEnrollment = applicableMembers.reduce(
+						(total, memberSection) => total + memberSection.enrolledCount,
+						0,
+					);
+					// Inter-section cohorts use one room at a time, so capacity should match the largest member section.
+					const effectiveCohortEnrollment = maxMemberEnrollment > 0
+						? maxMemberEnrollment
+						: (cohort.expectedEnrollment > 0 ? cohort.expectedEnrollment : summedMemberEnrollment);
 
 					for (const memberSection of applicableMembers) {
 						cohortSectionIds.add(memberSection.id);
@@ -664,9 +713,7 @@ export function computeDemand(
 						gradeLevel: gradeNum,
 						sessionsPerWeek: sessions,
 						durationPerSession: duration,
-						enrolledCount: cohort.expectedEnrollment > 0
-							? cohort.expectedEnrollment
-							: applicableMembers.reduce((total, memberSection) => total + memberSection.enrolledCount, 0),
+						enrolledCount: effectiveCohortEnrollment,
 						sessionPattern: subject.sessionPattern ?? 'ANY',
 						entryKind: 'COHORT',
 						homeRoomId: null,
@@ -677,10 +724,16 @@ export function computeDemand(
 						cohortCode: cohort.cohortCode,
 						cohortName: cohort.specializationName,
 						cohortMemberSectionIds: applicableMembers.map((memberSection) => memberSection.id),
-						roomTypePreference: cohort.preferredRoomType ?? subject.preferredRoomType,
+						roomTypePreference: specializationBoundCohort
+							? subject.preferredRoomType
+							: (cohort.preferredRoomType ?? subject.preferredRoomType),
 						adviserId: null,
 						adviserName: null,
 					});
+				}
+
+				if (specializationBoundCohort) {
+					continue;
 				}
 
 				for (const section of sortedSections) {
@@ -913,9 +966,18 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			candidates = [...(qualifiedMap.get(`${item.subjectId}:${item.sectionId}`) ?? [])];
 		}
 
-		// Priority 2: Optional fallback to tiered qualification only when policy allows flexible assignment.
-		if (candidates.length === 0 && subject && allowFlexible) {
-			candidates = faculty.filter(f => isFacultyQualified(f, subject)).map(f => f.id);
+		// Priority 2: Optional fallback to tiered qualification when flexible assignment is enabled.
+		// For cohort entries, also widen the pool when explicit assignment depth is too thin
+		// to avoid single-teacher slot starvation on inter-section sessions.
+		const shouldAugmentWithTieredCandidates = subject != null
+			&& (allowFlexible || (item.entryKind === 'COHORT' && candidates.length < 2));
+		if (shouldAugmentWithTieredCandidates && subject) {
+			const tieredCandidates = faculty.filter((facultyMember) => isFacultyQualified(facultyMember, subject)).map((facultyMember) => facultyMember.id);
+			if (candidates.length === 0) {
+				candidates = tieredCandidates;
+			} else if (tieredCandidates.length > 0) {
+				candidates = [...new Set([...candidates, ...tieredCandidates])];
+			}
 		}
 
 		if (candidates.length === 0) {
@@ -1014,6 +1076,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	// Faculty load (total assigned minutes)
 	const facultyLoad = new Map<number, number>();
 	const facultyMax = new Map(faculty.map((f) => [f.id, f.maxHoursPerWeek * 60]));
+	const roomById = new Map(rooms.map((room) => [room.id, room]));
 
 	const entries: ScheduledEntry[] = [];
 	const unassignedItems: UnassignedItem[] = [];
@@ -1187,13 +1250,24 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	// When enabled, schedule TLE subjects first (Bucket A), then everything else (Bucket B)
 	const enableTwoPass = policy?.enableTleTwoPassPriority !== false;
 	let orderedDemand: DemandItem[];
+	const prioritizeCohorts = (items: DemandItem[]) =>
+		[...items].sort((left, right) => {
+			const leftPriority = left.entryKind === 'COHORT' ? 0 : 1;
+			const rightPriority = right.entryKind === 'COHORT' ? 0 : 1;
+			if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+			return 0;
+		});
+	const isTleLikeDemand = (item: DemandItem) => {
+		const code = (item.subjectCode ?? '').toUpperCase();
+		return code === 'TLE' || code.startsWith('TLE_');
+	};
 
 	if (enableTwoPass) {
-		const tleDemand = demand.filter((d) => d.subjectCode === 'TLE');
-		const otherDemand = demand.filter((d) => d.subjectCode !== 'TLE');
-		orderedDemand = [...tleDemand, ...otherDemand];
+		const tleDemand = demand.filter((item) => isTleLikeDemand(item));
+		const otherDemand = demand.filter((item) => !isTleLikeDemand(item));
+		orderedDemand = [...prioritizeCohorts(tleDemand), ...prioritizeCohorts(otherDemand)];
 	} else {
-		orderedDemand = demand;
+		orderedDemand = prioritizeCohorts(demand);
 	}
 
 	const allowFlexible = policy?.allowFlexibleSubjectAssignment === true;
@@ -1214,9 +1288,53 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	// Section-day placement tracker for consecutive lab check: "sectionId:day" → array of {periodIdx, isLab}
 	const sectionDayLabPeriods = new Map<string, number[]>();
 
+	function scoreFacultyForSlot(facultyId: number, day: string, periodIndex: number): number {
+		const dayKey = `${facultyId}:${day}`;
+		const periods = [...(facultyDayPeriods.get(dayKey) ?? [])].sort((left, right) => left - right);
+		if (periods.length === 0) {
+			// Slightly prefer using already-active teaching days for better packing.
+			return 1;
+		}
+
+		const nearestDistance = Math.min(...periods.map((existingPeriod) => Math.abs(existingPeriod - periodIndex)));
+		if (nearestDistance <= 1) return -1.5;
+		if (nearestDistance === 2) return -0.4;
+		if (nearestDistance >= 5) return 1.2;
+		return 0;
+	}
+
+	function scoreRoomForFacultyAtSlot(room: RoomInput, facultyId: number, day: string, periodIndex: number): number {
+		const dayKey = `${facultyId}:${day}`;
+		const periods = facultyDayPeriods.get(dayKey) ?? [];
+		if (periods.length === 0) return 0;
+
+		let score = 0;
+		const targetBuildingId = room.buildingId ?? null;
+		for (const existingPeriod of periods) {
+			const distance = Math.abs(existingPeriod - periodIndex);
+			if (distance > 2) continue;
+			const matchingEntry = entries.find((entry) =>
+				entry.facultyId === facultyId
+				&& entry.day === day
+				&& FALLBACK_PERIOD_SLOTS.findIndex((slot) => slot.startTime === entry.startTime && slot.endTime === entry.endTime) === existingPeriod,
+			);
+			if (!matchingEntry) continue;
+			const existingRoom = roomById.get(matchingEntry.roomId);
+			if (!existingRoom) continue;
+			if (existingRoom.buildingId != null && targetBuildingId != null && existingRoom.buildingId !== targetBuildingId) {
+				score += distance === 1 ? 2.5 : 1.2;
+			}
+		}
+
+		return score;
+	}
+
 	for (const item of orderedDemand) {
 		const subject = subjectMap.get(item.subjectId);
 		const modularAssignmentInfo = item.modularGroupId ? buildModularAssignments(item) : null;
+		const modularTermCycle = modularAssignmentInfo?.assignments
+			? [...new Set(modularAssignmentInfo.assignments.map((assignment) => assignment.termIndex))].sort((a, b) => a - b)
+			: [];
 		if (!subject) {
 			for (let s = 0; s < item.sessionsPerWeek; s++) {
 				unassignedItems.push({
@@ -1277,6 +1395,10 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 		for (let session = 0; session < sessionsNeeded; session++) {
 			let placed = false;
+			let policyBlockedForSession = false;
+			const sessionTermIndex = modularTermCycle.length > 0
+				? modularTermCycle[session % modularTermCycle.length]
+				: undefined;
 			let fallbackCauseForPlacement: HomeRoomFallbackCause | undefined;
 			let sawNoSameZoneStandardRoom = false;
 			let sawOnlySpecializedRooms = false;
@@ -1302,7 +1424,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					if (getDemandSectionIds(item).some((sectionId) => sectionOcc.isOccupied(sectionId, day, slot.startTime, slot.endTime))) continue;
 
 					let score = 1;
-					if (daysUsedForPair.has(day)) score += 10;
+					if (daysUsedForPair.has(day)) score += item.entryKind === 'COHORT' ? 1.5 : 2.5;
 					if (preferredHomeRoom != null) {
 						if (roomOcc.isOccupied(preferredHomeRoom.id, day, slot.startTime, slot.endTime)) score += 2;
 						else score -= 0.5;
@@ -1327,9 +1449,16 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 				const slot = FALLBACK_PERIOD_SLOTS[slotCandidate.pi];
 				const isModularUnified = Boolean(item.modularGroupId);
-				const { ids: candidates, reason: qReason } = isModularUnified
+				const { ids: rawCandidates, reason: qReason } = isModularUnified
 					? { ids: [0] as number[], reason: undefined }
 					: getQualifiedFacultyIds(item, slotCandidate.day, slot, slotCandidate.pi);
+				const candidates = isModularUnified
+					? rawCandidates
+					: [...rawCandidates].sort((left, right) => {
+						const scoreDiff = scoreFacultyForSlot(left, slotCandidate.day, slotCandidate.pi) - scoreFacultyForSlot(right, slotCandidate.day, slotCandidate.pi);
+						if (scoreDiff !== 0) return scoreDiff;
+						return left - right;
+					});
 
 				if (qReason) {
 					sessionFailureReasons.add(qReason);
@@ -1371,6 +1500,21 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 							else sawNoSameZoneStandardRoom = true;
 						}
 					}
+
+					const hasCapacityCompliantClassroom = compatibleRooms.some((room) => room.capacity == null || room.capacity >= item.enrolledCount);
+					if (!hasCapacityCompliantClassroom) {
+						const overflowRooms = teachingRooms
+							.filter((room) => !room.isSharedFacility)
+							.filter((room) => room.type !== 'CLASSROOM')
+							.filter((room) => room.capacity == null || room.capacity >= item.enrolledCount)
+							.sort((left, right) => {
+								const leftZoneMatch = preferredZone != null && (left.buildingZoneId ?? null)?.toUpperCase() === preferredZone ? 0 : 1;
+								const rightZoneMatch = preferredZone != null && (right.buildingZoneId ?? null)?.toUpperCase() === preferredZone ? 0 : 1;
+								if (leftZoneMatch !== rightZoneMatch) return leftZoneMatch - rightZoneMatch;
+								return left.id - right.id;
+							});
+						compatibleRooms = [...compatibleRooms, ...overflowRooms];
+					}
 				} else if (compatibleRooms.length > 0 && buildingGradeMap.size > 0) {
 					compatibleRooms = compatibleRooms.filter((room) => {
 						const buildingId = room.buildingId;
@@ -1398,18 +1542,32 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 						if (dailyUsed + item.durationPerSession > policy.maxTeachingMinutesPerDay) {
 							sessionFailureReasons.add('FACULTY_OVERLOADED');
 							sawPolicyOrShiftWindowIncompatible = true;
+							policyBlockedForSession = true;
 							continue;
 						}
 
 						if (wouldExceedConsecutive(facId, slotCandidate.day, slotCandidate.pi, item.durationPerSession)) {
-							policyBlockedCount++;
 							sessionFailureReasons.add('NO_AVAILABLE_SLOT');
 							sawPolicyOrShiftWindowIncompatible = true;
+							policyBlockedForSession = true;
 							continue;
 						}
 					}
 
-					for (const room of compatibleRooms) {
+					const roomBaseOrder = new Map(compatibleRooms.map((room, index) => [room.id, index]));
+					const sortedRooms = isModularUnified
+						? compatibleRooms
+						: [...compatibleRooms].sort((left, right) => {
+							const scoreDiff = scoreRoomForFacultyAtSlot(left, facId, slotCandidate.day, slotCandidate.pi)
+								- scoreRoomForFacultyAtSlot(right, facId, slotCandidate.day, slotCandidate.pi);
+							if (scoreDiff !== 0) return scoreDiff;
+							const baseOrderDiff = (roomBaseOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER)
+								- (roomBaseOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER);
+							if (baseOrderDiff !== 0) return baseOrderDiff;
+							return left.id - right.id;
+						});
+
+					for (const room of sortedRooms) {
 						if (roomOcc.isOccupied(room.id, slotCandidate.day, slot.startTime, slot.endTime)) {
 							continue;
 						}
@@ -1443,6 +1601,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 							startTime: slot.startTime,
 							endTime: slot.endTime,
 							durationMinutes: item.durationPerSession,
+							termIndex: sessionTermIndex,
 							entryKind: item.entryKind,
 							programType: item.programType ?? null,
 							programCode: item.programCode ?? null,
@@ -1462,7 +1621,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 								: {
 									roomAssignmentReason: preferredHomeRoomId != null
 										? (room.id === preferredHomeRoomId ? 'HOME_ROOM_ASSIGNED' : 'HOME_ROOM_UNAVAILABLE')
-										: (SPECIALIZED_ROOM_TYPES.has(room.type) && item.roomTypePreference != null
+										: (isSpecializedDemand && SPECIALIZED_ROOM_TYPES.has(room.type)
 											? 'SPECIALIZED_ROOM'
 											: 'GENERAL_POOL_ASSIGNED'),
 									homeRoomFallbackCause: preferredHomeRoomId != null && room.id !== preferredHomeRoomId
@@ -1507,6 +1666,9 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			if (placed) {
 				assignedCount++;
 			} else {
+				if (policyBlockedForSession) {
+					policyBlockedCount++;
+				}
 				// Priority of reasons: NO_QUALIFIED > FACULTY_OVERLOADED > NO_COMPATIBLE_ROOM > NO_AVAILABLE_SLOT
 				let reason: UnassignedItem['reason'] = 'NO_AVAILABLE_SLOT';
 				if (sessionFailureReasons.has('NO_QUALIFIED_FACULTY')) reason = 'NO_QUALIFIED_FACULTY';

@@ -11,7 +11,7 @@
  */
 import { type ConstructorInput, type ConstructorResult, type DemandItem } from './schedule-constructor.js';
 import type { ScheduledEntry } from './constraint-validator.js';
-export type SeedProfileId = 'GRADE_ASC_SUBJECT_ASC' | 'MOST_CONSTRAINED_FIRST' | 'GRADE_DESC_SUBJECT_ASC' | 'SESSION_PATTERN_PRIORITY';
+export type SeedProfileId = 'GRADE_ASC_SUBJECT_ASC' | 'MOST_CONSTRAINED_FIRST' | 'GRADE_DESC_SUBJECT_ASC' | 'SESSION_PATTERN_PRIORITY' | 'PACKED_BLOCK_PRIORITY';
 export interface SeedProfile {
     id: SeedProfileId;
     label: string;

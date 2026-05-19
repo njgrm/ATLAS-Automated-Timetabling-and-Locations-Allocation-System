@@ -71,6 +71,25 @@ const SEED_PROFILES = [
             a.gradeLevel - b.gradeLevel ||
             a.subjectId - b.subjectId),
     },
+    {
+        id: 'PACKED_BLOCK_PRIORITY',
+        label: 'Packed block priority (cohorts + heavier weekly loads first)',
+        orderDemand: (demand) => [...demand].sort((a, b) => {
+            const cohortPriorityA = a.entryKind === 'COHORT' ? 0 : 1;
+            const cohortPriorityB = b.entryKind === 'COHORT' ? 0 : 1;
+            if (cohortPriorityA !== cohortPriorityB)
+                return cohortPriorityA - cohortPriorityB;
+            const minutesA = a.sessionsPerWeek * a.durationPerSession;
+            const minutesB = b.sessionsPerWeek * b.durationPerSession;
+            if (minutesA !== minutesB)
+                return minutesB - minutesA;
+            if (a.sessionsPerWeek !== b.sessionsPerWeek)
+                return b.sessionsPerWeek - a.sessionsPerWeek;
+            if (a.gradeLevel !== b.gradeLevel)
+                return b.gradeLevel - a.gradeLevel;
+            return a.subjectId - b.subjectId;
+        }),
+    },
 ];
 const HARD_VIOLATION_PENALTY = 1000;
 const SOFT_VIOLATION_PENALTY = 10;

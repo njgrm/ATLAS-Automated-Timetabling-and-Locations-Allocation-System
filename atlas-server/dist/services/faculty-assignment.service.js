@@ -63,6 +63,22 @@ function formatFacultyName(firstName, lastName) {
 function normalizeProgramType(value) {
     return (value ?? 'REGULAR').trim().toUpperCase();
 }
+function normalizeGradeLevel(value) {
+    if (!Number.isFinite(value))
+        return value;
+    if (value >= 100) {
+        const normalized = value % 100;
+        if (normalized >= 1 && normalized <= 12)
+            return normalized;
+    }
+    return value;
+}
+function gradeLevelMatches(gradeLevels, sectionGradeLevel) {
+    if (!Array.isArray(gradeLevels) || gradeLevels.length === 0)
+        return true;
+    const normalizedSectionGrade = normalizeGradeLevel(sectionGradeLevel);
+    return gradeLevels.some((gradeLevel) => gradeLevel === sectionGradeLevel || normalizeGradeLevel(gradeLevel) === normalizedSectionGrade);
+}
 function isProgramScopeCompatible(scopes, sectionProgramType) {
     if (!scopes || scopes.length === 0)
         return true;
@@ -72,7 +88,7 @@ function isProgramScopeCompatible(scopes, sectionProgramType) {
 function getRelevantSectionIdsForSubject(subject, sections) {
     return sections
         .filter((section) => {
-        const gradeAllowed = subject.gradeLevels.length === 0 || subject.gradeLevels.includes(section.gradeLevel);
+        const gradeAllowed = gradeLevelMatches(subject.gradeLevels, section.gradeLevel);
         if (!gradeAllowed)
             return false;
         return isProgramScopeCompatible(subject.programScopes, section.programType);
