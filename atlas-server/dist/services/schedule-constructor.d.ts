@@ -37,6 +37,8 @@ export interface SubjectInput {
     modularGroupId?: string | null;
     modularOrder?: number | null;
     requiredFeatures?: string[];
+    ownerDepartment?: string | null;
+    qualificationPriority?: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
 }
 export interface InstructionalCohortInput {
     cohortCode: string;

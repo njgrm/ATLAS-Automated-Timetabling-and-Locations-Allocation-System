@@ -20,7 +20,7 @@
  */
 import { prisma } from '../lib/prisma.js';
 import { sectionAdapter } from './section-adapter.js';
-import { isSpecializationPrimarySubjectCode, matchesSubjectOwnershipDepartment, resolveSubjectOwnerDepartmentCode, } from './subject-ownership.service.js';
+import { matchesSubjectOwnershipDepartment, resolveSubjectOwnerDepartmentCode, resolveSubjectQualificationPriority, } from './subject-ownership.service.js';
 // DO 005 s.2024 weekly minute caps
 const STANDARD_CAP_MIN = 1_800;
 const HARD_CAP_MIN = 2_400;
@@ -127,8 +127,8 @@ function resolveQualificationTier(faculty, subject, aliasMap) {
     const normalizedSubjectCode = normalizeKey(subject.code);
     const normalizedSpec = normalizeKey(faculty.specialization);
     const normalizedDept = normalizeKey(faculty.department);
-    const specializationPrimary = isSpecializationPrimarySubjectCode(subject.code);
-    const departmentMatch = matchesSubjectOwnershipDepartment(faculty.department, subject.code, subject.name);
+    const specializationPrimary = resolveSubjectQualificationPriority(subject.code, subject.qualificationPriority) === 'SPECIALIZATION_PRIMARY';
+    const departmentMatch = matchesSubjectOwnershipDepartment(faculty.department, subject.code, subject.name, subject.ownerDepartment);
     let specializationMatch = false;
     if (normalizedSpec) {
         const mappedSubjects = aliasMap.get(normalizedSpec);
@@ -221,6 +221,8 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
             allowedSpecializations: true,
             modularGroupId: true,
             modularOrder: true,
+            ownerDepartment: true,
+            qualificationPriority: true,
         },
     });
     const sectionResult = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
@@ -385,7 +387,8 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
             if (!candidate) {
                 unresolvedCount += 1;
                 warnings.push(`Lacking Faculty: no Tier 1 qualified teacher for ${subjectRow.name} (${pair.sectionName}).`);
-                const fallbackDepartment = resolveSubjectOwnerDepartmentCode(subjectRow.code, subjectRow.name)
+                const fallbackDepartment = subjectRow.ownerDepartment
+                    ?? resolveSubjectOwnerDepartmentCode(subjectRow.code, subjectRow.name)
                     ?? subjectRow.modularGroupId
                     ?? subjectRow.allowedSpecializations?.[0]
                     ?? 'GENERAL';

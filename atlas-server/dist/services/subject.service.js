@@ -1,7 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { inferSubjectProgramScopes } from './subject-program-scope.service.js';
-import { normalizeSubjectDisplayLabel } from './schedule-output-normalization.service.js';
-import { resolveSubjectOwnerDepartmentCode, resolveSubjectQualificationPriority, resolveSubjectRotationFamily, } from './subject-ownership.service.js';
+import { resolveSubjectContractDefaults, resolveSubjectOwnerDepartmentCode, resolveSubjectQualificationPriority, resolveSubjectRotationFamily, resolveSubjectOutputLabel, } from './subject-ownership.service.js';
 const MATATAG_DEFAULTS = [
     // Core bundle shared by regular + offered special programs.
     { code: 'FIL', name: 'Filipino', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
@@ -73,17 +72,21 @@ const PROGRAM_OVERLAY_CODES = {
 };
 const DYNAMIC_TLE_PREFIX = 'TLE_SPEC_';
 function withSubjectViewMetadata(subject) {
+    const outputLabel = subject.outputLabel?.trim();
+    const ownerDepartment = subject.ownerDepartment ?? resolveSubjectOwnerDepartmentCode(subject.code, subject.name);
+    const qualificationPriority = resolveSubjectQualificationPriority(subject.code, subject.qualificationPriority ?? null);
+    const rotationFamily = subject.rotationFamily ?? resolveSubjectRotationFamily(subject.code, subject.modularGroupId ?? null);
+    const isSystemManaged = subject.isSystemManaged === true;
     return {
         ...subject,
-        displayCode: normalizeSubjectDisplayLabel({
-            code: subject.code,
-            name: subject.name,
-            modularGroupId: subject.modularGroupId ?? null,
-        }),
-        ownerDepartment: resolveSubjectOwnerDepartmentCode(subject.code, subject.name),
-        qualificationPriority: resolveSubjectQualificationPriority(subject.code),
-        rotationFamily: resolveSubjectRotationFamily(subject.code, subject.modularGroupId ?? null),
+        displayCode: outputLabel && outputLabel.length > 0
+            ? outputLabel
+            : resolveSubjectOutputLabel(subject.code, subject.name, subject.modularGroupId ?? null),
+        ownerDepartment,
+        qualificationPriority,
+        rotationFamily,
         specializationSource: (subject.allowedSpecializations ?? []).length > 0 ? 'SUBJECT_CONTRACT' : 'NONE',
+        isSystemManaged,
     };
 }
 function resolveEnrollProBaseUrl() {
@@ -296,6 +299,20 @@ async function fetchUpstreamProgramSignals(schoolId, schoolYearId, token) {
         tleSpecializations: mergeTleSpecializations([...tleSpecializations.values()], mirroredTleSpecializations),
     };
 }
+function buildSubjectContractData(subject) {
+    const defaults = resolveSubjectContractDefaults({
+        subjectCode: subject.code,
+        subjectName: subject.name,
+        modularGroupId: subject.modularGroupId ?? null,
+    });
+    return {
+        ownerDepartment: subject.ownerDepartment ?? defaults.ownerDepartment,
+        qualificationPriority: subject.qualificationPriority ?? defaults.qualificationPriority,
+        rotationFamily: subject.rotationFamily ?? defaults.rotationFamily,
+        outputLabel: subject.outputLabel?.trim() || defaults.outputLabel,
+        isSystemManaged: subject.isSystemManaged ?? defaults.isSystemManaged,
+    };
+}
 export async function ensureDefaultSubjects(schoolId) {
     await prisma.subject.updateMany({
         where: {
@@ -307,48 +324,61 @@ export async function ensureDefaultSubjects(schoolId) {
             isSeedable: false,
         },
     });
-    await prisma.$transaction(MATATAG_DEFAULTS.map((subject) => prisma.subject.upsert({
-        where: {
-            schoolId_code: {
+    await prisma.$transaction(MATATAG_DEFAULTS.map((subject) => {
+        const contract = buildSubjectContractData(subject);
+        return prisma.subject.upsert({
+            where: {
+                schoolId_code: {
+                    schoolId,
+                    code: subject.code,
+                },
+            },
+            update: {
+                name: subject.name,
+                minMinutesPerWeek: subject.minMinutesPerWeek,
+                preferredRoomType: subject.preferredRoomType,
+                sessionPattern: subject.sessionPattern ?? 'ANY',
+                modularGroupId: subject.modularGroupId ?? null,
+                modularOrder: subject.modularOrder ?? null,
+                termGroupId: subject.termGroupId ?? subject.modularGroupId ?? null,
+                termCount: subject.termCount ?? 3,
+                gradeLevels: subject.gradeLevels,
+                programScopes: subject.programScopes,
+                allowedSpecializations: subject.allowedSpecializations ?? [],
+                requiredFeatures: subject.requiredFeatures ?? [],
+                isSeedable: subject.isSeedable,
+                isActive: subject.isActive ?? true,
+                ownerDepartment: contract.ownerDepartment,
+                qualificationPriority: contract.qualificationPriority,
+                rotationFamily: contract.rotationFamily,
+                outputLabel: contract.outputLabel,
+                isSystemManaged: contract.isSystemManaged,
+            },
+            create: {
                 schoolId,
                 code: subject.code,
+                name: subject.name,
+                minMinutesPerWeek: subject.minMinutesPerWeek,
+                preferredRoomType: subject.preferredRoomType,
+                sessionPattern: subject.sessionPattern ?? 'ANY',
+                modularGroupId: subject.modularGroupId ?? null,
+                modularOrder: subject.modularOrder ?? null,
+                termGroupId: subject.termGroupId ?? subject.modularGroupId ?? null,
+                termCount: subject.termCount ?? 3,
+                gradeLevels: subject.gradeLevels,
+                programScopes: subject.programScopes,
+                allowedSpecializations: subject.allowedSpecializations ?? [],
+                requiredFeatures: subject.requiredFeatures ?? [],
+                isSeedable: subject.isSeedable,
+                isActive: subject.isActive ?? true,
+                ownerDepartment: contract.ownerDepartment,
+                qualificationPriority: contract.qualificationPriority,
+                rotationFamily: contract.rotationFamily,
+                outputLabel: contract.outputLabel,
+                isSystemManaged: contract.isSystemManaged,
             },
-        },
-        update: {
-            name: subject.name,
-            minMinutesPerWeek: subject.minMinutesPerWeek,
-            preferredRoomType: subject.preferredRoomType,
-            sessionPattern: subject.sessionPattern ?? 'ANY',
-            modularGroupId: subject.modularGroupId ?? null,
-            modularOrder: subject.modularOrder ?? null,
-            termGroupId: subject.termGroupId ?? subject.modularGroupId ?? null,
-            termCount: subject.termCount ?? 3,
-            gradeLevels: subject.gradeLevels,
-            programScopes: subject.programScopes,
-            allowedSpecializations: subject.allowedSpecializations ?? [],
-            requiredFeatures: subject.requiredFeatures ?? [],
-            isSeedable: subject.isSeedable,
-            isActive: subject.isActive ?? true,
-        },
-        create: {
-            schoolId,
-            code: subject.code,
-            name: subject.name,
-            minMinutesPerWeek: subject.minMinutesPerWeek,
-            preferredRoomType: subject.preferredRoomType,
-            sessionPattern: subject.sessionPattern ?? 'ANY',
-            modularGroupId: subject.modularGroupId ?? null,
-            modularOrder: subject.modularOrder ?? null,
-            termGroupId: subject.termGroupId ?? subject.modularGroupId ?? null,
-            termCount: subject.termCount ?? 3,
-            gradeLevels: subject.gradeLevels,
-            programScopes: subject.programScopes,
-            allowedSpecializations: subject.allowedSpecializations ?? [],
-            requiredFeatures: subject.requiredFeatures ?? [],
-            isSeedable: subject.isSeedable,
-            isActive: subject.isActive ?? true,
-        },
-    })));
+        });
+    }));
 }
 async function materializeDynamicTleSubjects(schoolId, specializations) {
     if (specializations.length === 0) {
@@ -365,6 +395,16 @@ async function materializeDynamicTleSubjects(schoolId, specializations) {
     for (const specialization of specializations) {
         const code = `${DYNAMIC_TLE_PREFIX}${specialization.code}`.slice(0, 64);
         dynamicCodes.add(code);
+        const contract = buildSubjectContractData({
+            code,
+            name: `TLE Specialization - ${specialization.name}`,
+            modularGroupId: 'TLE_EXPLORATORY',
+            ownerDepartment: 'TLE',
+            qualificationPriority: 'DEPARTMENT_FIRST',
+            rotationFamily: 'TLE_ROTATION',
+            outputLabel: 'TLE',
+            isSystemManaged: true,
+        });
         await prisma.subject.upsert({
             where: { schoolId_code: { schoolId, code } },
             update: {
@@ -378,6 +418,11 @@ async function materializeDynamicTleSubjects(schoolId, specializations) {
                 minMinutesPerWeek: 240,
                 isSeedable: false,
                 isActive: true,
+                ownerDepartment: contract.ownerDepartment,
+                qualificationPriority: contract.qualificationPriority,
+                rotationFamily: contract.rotationFamily,
+                outputLabel: contract.outputLabel,
+                isSystemManaged: contract.isSystemManaged,
             },
             create: {
                 schoolId,
@@ -393,6 +438,11 @@ async function materializeDynamicTleSubjects(schoolId, specializations) {
                 sessionPattern: 'ANY',
                 isSeedable: false,
                 isActive: true,
+                ownerDepartment: contract.ownerDepartment,
+                qualificationPriority: contract.qualificationPriority,
+                rotationFamily: contract.rotationFamily,
+                outputLabel: contract.outputLabel,
+                isSystemManaged: contract.isSystemManaged,
             },
         });
     }
@@ -513,6 +563,16 @@ export async function createSubject(schoolId, data) {
             throw Object.assign(new Error(`interSectionGradeLevels contains grades not in subject gradeLevels: ${invalid.join(', ')}`), { statusCode: 400, code: 'INVALID_INTER_SECTION_GRADES' });
         }
     }
+    const contract = buildSubjectContractData({
+        code: data.code,
+        name: data.name,
+        modularGroupId: data.modularGroupId ?? null,
+        ownerDepartment: data.ownerDepartment,
+        qualificationPriority: data.qualificationPriority,
+        rotationFamily: data.rotationFamily,
+        outputLabel: data.outputLabel,
+        isSystemManaged: data.isSystemManaged,
+    });
     return prisma.subject.create({
         data: {
             schoolId,
@@ -533,6 +593,11 @@ export async function createSubject(schoolId, data) {
             programScopes: data.programScopes ?? ['REGULAR'],
             allowedSpecializations: data.allowedSpecializations ?? [],
             requiredFeatures: data.requiredFeatures ?? [],
+            ownerDepartment: contract.ownerDepartment,
+            qualificationPriority: contract.qualificationPriority,
+            rotationFamily: contract.rotationFamily,
+            outputLabel: contract.outputLabel,
+            isSystemManaged: contract.isSystemManaged,
         },
     });
 }
@@ -579,6 +644,16 @@ export async function updateSubject(id, data) {
             allowed.allowedSpecializations = data.allowedSpecializations;
         if (data.requiredFeatures !== undefined)
             allowed.requiredFeatures = data.requiredFeatures;
+        if (data.ownerDepartment !== undefined)
+            allowed.ownerDepartment = data.ownerDepartment;
+        if (data.qualificationPriority !== undefined)
+            allowed.qualificationPriority = data.qualificationPriority;
+        if (data.rotationFamily !== undefined)
+            allowed.rotationFamily = data.rotationFamily;
+        if (data.outputLabel !== undefined)
+            allowed.outputLabel = data.outputLabel;
+        if (data.isSystemManaged !== undefined)
+            allowed.isSystemManaged = data.isSystemManaged;
         return prisma.subject.update({ where: { id }, data: allowed });
     }
     const updateData = {};
@@ -614,10 +689,22 @@ export async function updateSubject(id, data) {
         updateData.allowedSpecializations = data.allowedSpecializations;
     if (data.requiredFeatures !== undefined)
         updateData.requiredFeatures = data.requiredFeatures;
+    if (data.ownerDepartment !== undefined)
+        updateData.ownerDepartment = data.ownerDepartment;
+    if (data.qualificationPriority !== undefined)
+        updateData.qualificationPriority = data.qualificationPriority;
+    if (data.rotationFamily !== undefined)
+        updateData.rotationFamily = data.rotationFamily;
+    if (data.outputLabel !== undefined)
+        updateData.outputLabel = data.outputLabel;
+    if (data.isSystemManaged !== undefined)
+        updateData.isSystemManaged = data.isSystemManaged;
     return prisma.subject.update({ where: { id }, data: updateData });
 }
 export async function deleteSubject(id, options) {
-    const cleanupHistorical = options?.cleanupHistorical === true;
+    const cleanupAll = options?.cleanupAll === true;
+    const cleanupActive = cleanupAll || options?.cleanupActive === true;
+    const cleanupHistorical = cleanupAll || options?.cleanupHistorical === true;
     const subject = await prisma.subject.findUnique({
         where: { id },
         select: { id: true, code: true, name: true, isSeedable: true, isActive: true },
@@ -650,10 +737,13 @@ export async function deleteSubject(id, options) {
     });
     const historicalAssignments = assignments.filter((assignment) => !activeAssignments.includes(assignment));
     if (activeAssignments.length > 0) {
+        const requiresArchiveFirst = cleanupActive && subject.isActive;
         return {
             success: false,
             code: 'ACTIVE_ASSIGNMENTS',
-            error: 'This subject is still assigned in active teaching loads. Remove active assignments first.',
+            error: requiresArchiveFirst
+                ? 'Archive the subject before running destructive active-assignment cleanup.'
+                : 'This subject is still assigned in active teaching loads. Remove active assignments first.',
             details: {
                 subjectId: subject.id,
                 subjectCode: subject.code,
@@ -661,6 +751,10 @@ export async function deleteSubject(id, options) {
                 activeAssignmentCount: activeAssignments.length,
                 historicalAssignmentCount: historicalAssignments.length,
                 action: 'REMOVE_ACTIVE_ASSIGNMENTS',
+                canCleanupActive: !subject.isActive,
+                canCleanupAll: !subject.isActive,
+                requiresArchiveFirst,
+                teachingLoadPath: `/faculty-assignments?subjectId=${subject.id}`,
             },
         };
     }
@@ -676,13 +770,15 @@ export async function deleteSubject(id, options) {
                 historicalAssignmentCount: historicalAssignments.length,
                 activeAssignmentCount: 0,
                 canCleanupHistorical: true,
+                canCleanupAll: !subject.isActive,
                 recommendedAction: subject.isActive ? 'ARCHIVE_THEN_CLEANUP' : 'CLEANUP_THEN_DELETE',
+                teachingLoadPath: `/faculty-assignments?subjectId=${subject.id}`,
             },
         };
     }
     let cleanedHistoricalAssignments = 0;
     await prisma.$transaction(async (tx) => {
-        if (cleanupHistorical) {
+        if (cleanupHistorical || cleanupActive) {
             cleanedHistoricalAssignments = await tx.facultySubject.count({ where: { subjectId: id } });
             await tx.subjectSectionOwnership.deleteMany({ where: { subjectId: id } });
             await tx.facultySubject.deleteMany({ where: { subjectId: id } });

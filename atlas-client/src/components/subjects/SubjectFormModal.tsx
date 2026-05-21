@@ -5,6 +5,7 @@ import {
 	GRADE_OPTIONS,
 	PROGRAM_SCOPE_BADGE,
 	PROGRAM_SCOPE_OPTIONS,
+	QUALIFICATION_PRIORITY_OPTIONS,
 	QUALIFICATION_PRIORITY_LABELS,
 	ROOM_TYPE_LABELS,
 	SESSION_PATTERN_LABELS,
@@ -83,18 +84,6 @@ export function SubjectFormModal({
 		});
 	};
 
-	const toggleSpecialization = (specialization: string) => {
-		setForm((previous) => {
-			const hasSpecialization = previous.allowedSpecializations.includes(specialization);
-			return {
-				...previous,
-				allowedSpecializations: hasSpecialization
-					? previous.allowedSpecializations.filter((value) => value !== specialization)
-					: [...previous.allowedSpecializations, specialization],
-			};
-		});
-	};
-
 	const toggleInterSectionGrade = (gradeLevel: number) => {
 		setForm((previous) => {
 			const current = previous.interSectionGradeLevels ?? [];
@@ -146,8 +135,8 @@ export function SubjectFormModal({
 					{mode === 'edit' && subjectMeta && (
 						<section className="rounded-lg border border-border p-4 space-y-3">
 							<div>
-								<h3 className="text-sm font-semibold">Ownership Snapshot</h3>
-								<p className="text-xs text-muted-foreground">Teaching load and autofill use this metadata as the qualification baseline.</p>
+								<h3 className="text-sm font-semibold">Subject Contract Snapshot</h3>
+								<p className="text-xs text-muted-foreground">Teaching load and generation read this persisted contract directly.</p>
 							</div>
 							<div className="flex flex-wrap gap-2">
 								{subjectMeta.ownerDepartment ? (
@@ -251,27 +240,63 @@ export function SubjectFormModal({
 							)}
 						</div>
 
-						{availableSpecializations.length > 0 && (
+						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 							<div>
-								<label className="text-xs font-medium text-muted-foreground">
-									Specialization Restriction{' '}
-									<span className="font-normal text-muted-foreground/70">(leave blank = open to all)</span>
-								</label>
-								<div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-									{availableSpecializations.map((specialization) => (
-										<label key={specialization} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs">
-											<Checkbox
-												checked={form.allowedSpecializations.includes(specialization)}
-												onCheckedChange={() => toggleSpecialization(specialization)}
-												aria-label={`Toggle specialization ${specialization}`}
-											/>
-											<span>{specialization}</span>
-										</label>
+								<label className="text-xs font-medium text-muted-foreground">Output Label</label>
+								<Input
+									placeholder="e.g. TLE"
+									value={form.outputLabel}
+									onChange={(event) => setForm((previous) => ({ ...previous, outputLabel: event.target.value.toUpperCase() }))}
+								/>
+							</div>
+							<div>
+								<label className="text-xs font-medium text-muted-foreground">Owner Department</label>
+								<Input
+									placeholder="e.g. TLE"
+									value={form.ownerDepartment}
+									onChange={(event) => setForm((previous) => ({ ...previous, ownerDepartment: event.target.value.toUpperCase() }))}
+								/>
+							</div>
+							<div>
+								<label className="text-xs font-medium text-muted-foreground mb-1 block">Qualification Priority</label>
+								<Select
+									value={form.qualificationPriority}
+									onValueChange={(value) => setForm((previous) => ({ ...previous, qualificationPriority: value as SubjectFormValues['qualificationPriority'] }))}
+								>
+									<SelectTrigger className="flex h-9 w-full bg-background text-sm shadow-xs">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{QUALIFICATION_PRIORITY_OPTIONS.map((option) => (
+											<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+							<div>
+								<label className="text-xs font-medium text-muted-foreground">Rotation Family</label>
+								<Input
+									placeholder="e.g. TLE_ROTATION"
+									value={form.rotationFamily}
+									onChange={(event) => setForm((previous) => ({ ...previous, rotationFamily: event.target.value.toUpperCase() }))}
+								/>
+							</div>
+						</div>
+
+						<div>
+							<label className="text-xs font-medium text-muted-foreground">Specialization Contract</label>
+							{form.allowedSpecializations.length > 0 ? (
+								<div className="mt-2 flex flex-wrap gap-1.5">
+									{form.allowedSpecializations.map((specialization) => (
+										<Badge key={specialization} variant="outline" className="text-[0.65rem] border-violet-300 text-violet-700">
+											{specialization}
+										</Badge>
 									))}
 								</div>
-								<p className="mt-1 text-[0.65rem] text-muted-foreground">Source: subject contract and offering sync state.</p>
-							</div>
-						)}
+							) : (
+								<p className="mt-1 text-[0.7rem] text-muted-foreground">No restriction. Values are sync-driven and view-only in this form.</p>
+							)}
+						</div>
 					</section>
 
 					<section className="rounded-lg border border-border p-4 space-y-4">

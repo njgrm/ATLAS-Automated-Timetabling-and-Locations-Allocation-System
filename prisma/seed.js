@@ -65,8 +65,8 @@ const subjectSeeds = [
 	{ code: 'STE_APPLIED_PHYS', name: 'Applied Physics', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [10], isSeedable: false, programScopes: ['STE'] },
 	{ code: 'STE_ROBOTICS', name: 'Robotics', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [10], isSeedable: false, programScopes: ['STE'] },
 	{ code: 'STE_RESEARCH', name: 'Research', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['STE'] },
-	{ code: 'SPA_SPEC', name: 'Special Program in the Arts: Specialization', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'] },
-	{ code: 'SPS_SPEC', name: 'Special Program in Sports: Specialization', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPS'] },
+	{ code: 'SPA_SPEC', name: 'Special Program in the Arts: Specialization', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'], allowedSpecializations: ['MUSIC', 'VISUAL_ARTS', 'THEATER_ARTS', 'MEDIA_ARTS', 'CREATIVE_WRITING', 'DANCE', 'TRADITIONAL_ARTS'] },
+	{ code: 'SPS_SPEC', name: 'Special Program in Sports: Specialization', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPS'], allowedSpecializations: ['ATHLETICS', 'SWIMMING', 'BASKETBALL', 'VOLLEYBALL', 'FOOTBALL', 'SEPAK_TAKRAW', 'SOFTBALL', 'BASEBALL', 'BADMINTON', 'TABLE_TENNIS', 'TAEKWONDO', 'TENNIS', 'CHESS', 'GYMNASTICS', 'ARCHERY', 'ARNIS'] },
 	{ code: 'DEVL_READING', name: 'Developmental Reading', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['STE', 'SPA'] },
 ];
 
@@ -98,6 +98,46 @@ const deprecatedSubjectCodes = [
 	'CREATIVE_WRITING',
 	'DANCE',
 ];
+
+function resolveSubjectOutputLabel(code, name, modularGroupId) {
+	const normalizedCode = (code || '').trim().toUpperCase();
+	const normalizedName = (name || '').trim().toUpperCase();
+	const normalizedModular = (modularGroupId || '').trim().toUpperCase();
+
+	if (normalizedCode === 'SPA_SPEC' || normalizedCode === 'SPS_SPEC') return 'SPECIALIZATION';
+	if (normalizedCode === 'STE_RESEARCH' || normalizedCode.startsWith('RESEARCH') || normalizedName.includes('RESEARCH')) return 'RESEARCH';
+	if (normalizedModular === 'SCIENCE' || normalizedCode.startsWith('SCI_')) return 'SCIENCE';
+	if (normalizedModular === 'TLE_EXPLORATORY' || normalizedCode === 'TLE' || normalizedCode.startsWith('TLE_') || normalizedCode.startsWith('TLE_SPEC_')) return 'TLE';
+	return normalizedCode || normalizedName || 'UNKNOWN SUBJECT';
+}
+
+function resolveSubjectOwnerDepartment(code, name) {
+	const normalizedCode = (code || '').trim().toUpperCase();
+	const normalizedName = (name || '').trim().toUpperCase();
+	if (normalizedCode.startsWith('FIL')) return 'FIL';
+	if (normalizedCode.startsWith('ENG')) return 'ENG';
+	if (normalizedCode.startsWith('MATH')) return 'MATH';
+	if (normalizedCode.startsWith('AP')) return 'AP';
+	if (normalizedCode.startsWith('ESP') || normalizedCode === 'HG' || normalizedName.includes('HOMEROOM')) return 'ESP';
+	if (normalizedCode.startsWith('MAPEH')) return 'MAPEH';
+	if (normalizedCode.startsWith('TLE')) return 'TLE';
+	if (normalizedCode.startsWith('SCI') || normalizedCode.startsWith('STE')) return 'SCI';
+	if (normalizedCode.startsWith('SPA')) return 'SPA';
+	if (normalizedCode.startsWith('SPS')) return 'SPS';
+	if (normalizedCode === 'DEVL_READING') return 'ENG';
+	return null;
+}
+
+function resolveSubjectContract(subject) {
+	const code = (subject.code || '').trim().toUpperCase();
+	return {
+		outputLabel: resolveSubjectOutputLabel(subject.code, subject.name, subject.modularGroupId),
+		ownerDepartment: resolveSubjectOwnerDepartment(subject.code, subject.name),
+		qualificationPriority: code.startsWith('SPA_') || code.startsWith('SPS_') ? 'SPECIALIZATION_PRIMARY' : 'DEPARTMENT_FIRST',
+		rotationFamily: code.startsWith('TLE') ? 'TLE_ROTATION' : (subject.modularGroupId || null),
+		isSystemManaged: code.startsWith('TLE_SPEC_') || code.endsWith('_EXP'),
+	};
+}
 
 /** Stub faculty data — used when FACULTY_ADAPTER=stub */
 const facultySeeds = [
@@ -349,6 +389,7 @@ async function main() {
 	}
 
 	for (const subject of subjectSeeds) {
+		const contract = resolveSubjectContract(subject);
 		await prisma.subject.upsert({
 			where: {
 				schoolId_code: {
@@ -358,6 +399,11 @@ async function main() {
 			},
 			update: {
 				name: subject.name,
+				outputLabel: contract.outputLabel,
+				ownerDepartment: contract.ownerDepartment,
+				qualificationPriority: contract.qualificationPriority,
+				rotationFamily: contract.rotationFamily,
+				isSystemManaged: contract.isSystemManaged,
 				minMinutesPerWeek: subject.minMinutesPerWeek,
 				preferredRoomType: subject.preferredRoomType,
 				sessionPattern: subject.sessionPattern ?? 'ANY',
@@ -366,12 +412,19 @@ async function main() {
 				gradeLevels: subject.gradeLevels,
 				isSeedable: subject.isSeedable,
 				programScopes: subject.programScopes ?? ['REGULAR'],
+				allowedSpecializations: subject.allowedSpecializations ?? [],
+				requiredFeatures: subject.requiredFeatures ?? [],
 				isActive: true,
 			},
 			create: {
 				schoolId: school.id,
 				code: subject.code,
 				name: subject.name,
+				outputLabel: contract.outputLabel,
+				ownerDepartment: contract.ownerDepartment,
+				qualificationPriority: contract.qualificationPriority,
+				rotationFamily: contract.rotationFamily,
+				isSystemManaged: contract.isSystemManaged,
 				minMinutesPerWeek: subject.minMinutesPerWeek,
 				preferredRoomType: subject.preferredRoomType,
 				sessionPattern: subject.sessionPattern ?? 'ANY',
@@ -380,6 +433,8 @@ async function main() {
 				gradeLevels: subject.gradeLevels,
 				isSeedable: subject.isSeedable,
 				programScopes: subject.programScopes ?? ['REGULAR'],
+				allowedSpecializations: subject.allowedSpecializations ?? [],
+				requiredFeatures: subject.requiredFeatures ?? [],
 				isActive: true,
 			},
 		});

@@ -5,6 +5,7 @@ type SubjectWithViewMetadata = {
     qualificationPriority: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
     rotationFamily: string | null;
     specializationSource: 'SUBJECT_CONTRACT' | 'NONE';
+    isSystemManaged: boolean;
 };
 export declare function ensureDefaultSubjects(schoolId: number): Promise<void>;
 export declare function reconcileSubjectContractFromUpstream(schoolId: number, schoolYearId: number, authToken?: string): Promise<void>;
@@ -44,12 +45,17 @@ export declare function getSubjectsBySchool(schoolId: number, filters?: SubjectS
     modularGroupId: string | null;
     termGroupId: string | null;
     gradeLevels: number[];
+    outputLabel: string | null;
+    ownerDepartment: string | null;
+    qualificationPriority: import("@prisma/client").$Enums.SubjectQualificationPriority;
+    rotationFamily: string | null;
     minMinutesPerWeek: number;
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
     sessionPattern: import("@prisma/client").$Enums.SessionPattern;
     modularOrder: number | null;
     termCount: number;
     isSeedable: boolean;
+    isSystemManaged: boolean;
     interSectionEnabled: boolean;
     interSectionGradeLevels: number[];
     requiredFeatures: string[];
@@ -67,12 +73,17 @@ export declare function getSubjectById(id: number): Promise<({
     modularGroupId: string | null;
     termGroupId: string | null;
     gradeLevels: number[];
+    outputLabel: string | null;
+    ownerDepartment: string | null;
+    qualificationPriority: import("@prisma/client").$Enums.SubjectQualificationPriority;
+    rotationFamily: string | null;
     minMinutesPerWeek: number;
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
     sessionPattern: import("@prisma/client").$Enums.SessionPattern;
     modularOrder: number | null;
     termCount: number;
     isSeedable: boolean;
+    isSystemManaged: boolean;
     interSectionEnabled: boolean;
     interSectionGradeLevels: number[];
     requiredFeatures: string[];
@@ -95,6 +106,11 @@ export declare function createSubject(schoolId: number, data: {
     allowedSpecializations?: string[];
     requiredFeatures?: string[];
     isActive?: boolean;
+    ownerDepartment?: string | null;
+    qualificationPriority?: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
+    rotationFamily?: string | null;
+    outputLabel?: string | null;
+    isSystemManaged?: boolean;
 }): Promise<{
     schoolId: number;
     createdAt: Date;
@@ -107,12 +123,17 @@ export declare function createSubject(schoolId: number, data: {
     modularGroupId: string | null;
     termGroupId: string | null;
     gradeLevels: number[];
+    outputLabel: string | null;
+    ownerDepartment: string | null;
+    qualificationPriority: import("@prisma/client").$Enums.SubjectQualificationPriority;
+    rotationFamily: string | null;
     minMinutesPerWeek: number;
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
     sessionPattern: import("@prisma/client").$Enums.SessionPattern;
     modularOrder: number | null;
     termCount: number;
     isSeedable: boolean;
+    isSystemManaged: boolean;
     interSectionEnabled: boolean;
     interSectionGradeLevels: number[];
     programScopes: import("@prisma/client").$Enums.ProgramType[];
@@ -135,6 +156,11 @@ export declare function updateSubject(id: number, data: Partial<{
     programScopes: ProgramType[];
     allowedSpecializations: string[];
     requiredFeatures: string[];
+    ownerDepartment: string | null;
+    qualificationPriority: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
+    rotationFamily: string | null;
+    outputLabel: string | null;
+    isSystemManaged: boolean;
 }>): Promise<{
     schoolId: number;
     createdAt: Date;
@@ -147,12 +173,17 @@ export declare function updateSubject(id: number, data: Partial<{
     modularGroupId: string | null;
     termGroupId: string | null;
     gradeLevels: number[];
+    outputLabel: string | null;
+    ownerDepartment: string | null;
+    qualificationPriority: import("@prisma/client").$Enums.SubjectQualificationPriority;
+    rotationFamily: string | null;
     minMinutesPerWeek: number;
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
     sessionPattern: import("@prisma/client").$Enums.SessionPattern;
     modularOrder: number | null;
     termCount: number;
     isSeedable: boolean;
+    isSystemManaged: boolean;
     interSectionEnabled: boolean;
     interSectionGradeLevels: number[];
     programScopes: import("@prisma/client").$Enums.ProgramType[];
@@ -170,6 +201,8 @@ type DeleteSubjectResult = {
 };
 export declare function deleteSubject(id: number, options?: {
     cleanupHistorical?: boolean;
+    cleanupActive?: boolean;
+    cleanupAll?: boolean;
 }): Promise<DeleteSubjectResult>;
 export declare function getSubjectCountBySchool(schoolId: number): Promise<number>;
 export declare function getSubjectsWithoutFaculty(schoolId: number): Promise<{

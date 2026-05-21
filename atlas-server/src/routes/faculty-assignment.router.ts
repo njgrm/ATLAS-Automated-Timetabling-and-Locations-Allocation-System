@@ -105,6 +105,52 @@ router.post('/coverage/repair', authenticateWithSystemToken, requirePrivilegedRo
 	}
 });
 
+// Auth: POST /faculty-assignments/reset
+// Body: { schoolId: number, schoolYearId: number, previewOnly?: boolean, confirmReset?: boolean, subjectId?: number }
+router.post('/reset', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.body.schoolId);
+		const schoolYearId = Number(req.body.schoolYearId);
+		const previewOnly = req.body.previewOnly !== false;
+		const confirmReset = req.body.confirmReset === true;
+		const subjectId = req.body.subjectId !== undefined ? Number(req.body.subjectId) : undefined;
+
+		if (!schoolId || Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
+			return;
+		}
+		if (!schoolYearId || Number.isNaN(schoolYearId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
+			return;
+		}
+		if (subjectId !== undefined && (!subjectId || Number.isNaN(subjectId))) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'subjectId must be a valid number when provided.' });
+			return;
+		}
+		if (!previewOnly && !confirmReset) {
+			res.status(400).json({
+				code: 'CONFIRMATION_REQUIRED',
+				message: 'confirmReset=true is required to apply teaching-load reset.',
+			});
+			return;
+		}
+
+		const authToken = req.headers.authorization?.slice(7);
+		const result = await assignmentService.previewOrApplyTeachingLoadReset({
+			schoolId,
+			schoolYearId,
+			actorId: req.user?.userId ?? 0,
+			authToken,
+			subjectId,
+			previewOnly,
+		});
+
+		res.json(result);
+	} catch (err) {
+		next(err);
+	}
+});
+
 // Auth: GET /faculty-assignments/:facultyId?schoolYearId=Y
 router.get('/:facultyId', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {

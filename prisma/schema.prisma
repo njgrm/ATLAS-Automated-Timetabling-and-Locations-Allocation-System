@@ -153,11 +153,22 @@ enum SessionPattern {
   @@map("session_pattern")
 }
 
+enum SubjectQualificationPriority {
+  DEPARTMENT_FIRST
+  SPECIALIZATION_PRIMARY
+
+  @@map("subject_qualification_priority")
+}
+
 model Subject {
   id                      Int              @id @default(autoincrement())
   schoolId                Int              @map("school_id")
   code                    String           @db.VarChar(32)
+  outputLabel             String?          @db.VarChar(64) @map("output_label")
   name                    String
+  ownerDepartment         String?          @db.VarChar(32) @map("owner_department")
+  qualificationPriority   SubjectQualificationPriority @default(DEPARTMENT_FIRST) @map("qualification_priority")
+  rotationFamily          String?          @db.VarChar(64) @map("rotation_family")
   minMinutesPerWeek       Int              @map("min_minutes_per_week")
   preferredRoomType       RoomType         @default(CLASSROOM) @map("preferred_room_type")
   sessionPattern          SessionPattern   @default(ANY) @map("session_pattern")
@@ -168,6 +179,7 @@ model Subject {
   gradeLevels             Int[]            @map("grade_levels")
   isActive                Boolean          @default(true) @map("is_active")
   isSeedable              Boolean          @default(false) @map("is_seedable")
+  isSystemManaged         Boolean          @default(false) @map("is_system_managed")
   interSectionEnabled     Boolean          @default(false) @map("inter_section_enabled")
   interSectionGradeLevels Int[]            @default([]) @map("inter_section_grade_levels")
   programScopes           ProgramType[]    @default([REGULAR]) @map("program_scopes")

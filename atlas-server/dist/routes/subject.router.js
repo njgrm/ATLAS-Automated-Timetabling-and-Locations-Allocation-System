@@ -42,7 +42,7 @@ router.get('/:id', async (req, res, next) => {
 // Auth: POST /subjects — create a custom subject
 router.post('/', authenticate, requirePrivilegedRole, async (req, res, next) => {
     try {
-        const { schoolId, code, name, minMinutesPerWeek, preferredRoomType, gradeLevels, sessionPattern, isSeedable, interSectionEnabled, interSectionGradeLevels, modularGroupId, modularOrder, termGroupId, termCount, programScopes, allowedSpecializations, requiredFeatures, isActive, } = req.body;
+        const { schoolId, code, name, minMinutesPerWeek, preferredRoomType, gradeLevels, sessionPattern, isSeedable, interSectionEnabled, interSectionGradeLevels, modularGroupId, modularOrder, termGroupId, termCount, programScopes, allowedSpecializations, requiredFeatures, isActive, ownerDepartment, qualificationPriority, rotationFamily, outputLabel, isSystemManaged, } = req.body;
         if (!schoolId || !code || !name || !minMinutesPerWeek || !preferredRoomType || !gradeLevels) {
             res.status(400).json({ code: 'MISSING_FIELDS', message: 'schoolId, code, name, minMinutesPerWeek, preferredRoomType, gradeLevels are required.' });
             return;
@@ -65,6 +65,11 @@ router.post('/', authenticate, requirePrivilegedRole, async (req, res, next) => 
             allowedSpecializations,
             requiredFeatures,
             isActive,
+            ownerDepartment,
+            qualificationPriority,
+            rotationFamily,
+            outputLabel,
+            isSystemManaged,
         });
         res.status(201).json({ subject });
     }
@@ -104,7 +109,9 @@ router.delete('/:id', authenticate, requirePrivilegedRole, async (req, res, next
             return;
         }
         const cleanupHistorical = req.query.cleanupHistorical === 'true';
-        const result = await subjectService.deleteSubject(id, { cleanupHistorical });
+        const cleanupActive = req.query.cleanupActive === 'true';
+        const cleanupAll = req.query.cleanupAll === 'true';
+        const result = await subjectService.deleteSubject(id, { cleanupHistorical, cleanupActive, cleanupAll });
         if (!result.success) {
             const status = result.code === 'NOT_FOUND'
                 ? 404

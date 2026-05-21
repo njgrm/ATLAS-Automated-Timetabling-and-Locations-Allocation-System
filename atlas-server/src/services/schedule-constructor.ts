@@ -24,8 +24,8 @@ import type { SectionsByGrade } from './section-adapter.js';
 import type { RoomType } from '@prisma/client';
 import { isSubjectAllowedForSectionProgram } from './subject-program-scope.service.js';
 import {
-	isSpecializationPrimarySubjectCode,
 	matchesSubjectOwnershipDepartment,
+	resolveSubjectQualificationPriority,
 } from './subject-ownership.service.js';
 
 // ─── Standard time grid (JHS 8-period day) ───
@@ -66,6 +66,8 @@ export interface SubjectInput {
 	modularGroupId?: string | null;
 	modularOrder?: number | null;
 	requiredFeatures?: string[];
+	ownerDepartment?: string | null;
+	qualificationPriority?: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
 }
 
 function normalizeSpecializationCode(value?: string | null): string {
@@ -982,8 +984,8 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 	function isFacultyQualified(f: FacultyInput, s: SubjectInput): boolean {
 		const allowed = s.allowedSpecializations ?? [];
-		const specializationPrimary = isSpecializationPrimarySubjectCode(s.code);
-		const departmentMatch = matchesSubjectOwnershipDepartment(f.department, s.code, s.name);
+		const specializationPrimary = resolveSubjectQualificationPriority(s.code, s.qualificationPriority) === 'SPECIALIZATION_PRIMARY';
+		const departmentMatch = matchesSubjectOwnershipDepartment(f.department, s.code, s.name, s.ownerDepartment);
 		const specializationMatch = Boolean(
 			(f.specialization && allowed.includes(f.specialization))
 			|| (f.department && allowed.includes(f.department)),

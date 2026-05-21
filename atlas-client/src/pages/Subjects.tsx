@@ -54,6 +54,21 @@ const PAGE_SIZES = [10, 25, 50];
 type SortField = 'code' | 'name' | 'minMinutesPerWeek' | 'preferredRoomType' | 'gradeLevels';
 type SortDir = 'asc' | 'desc';
 
+type TeachingLoadResetPreview = {
+	applied: boolean;
+	scope: 'GLOBAL' | 'SUBJECT';
+	schoolId: number;
+	schoolYearId: number;
+	subjectId: number | null;
+	ownershipRowsToRemove: number;
+	facultySubjectRowsAffected: number;
+	facultySubjectRowsDeleted: number;
+	facultySubjectRowsUpdated: number;
+	affectedFacultyCount: number;
+	affectedSubjectCount: number;
+	subjectCodes: string[];
+};
+
 export default function Subjects() {
 	const [subjects, setSubjects] = useState<Subject[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -72,11 +87,21 @@ export default function Subjects() {
 			activeAssignmentCount?: number;
 			historicalAssignmentCount?: number;
 			canCleanupHistorical?: boolean;
+			canCleanupActive?: boolean;
+			canCleanupAll?: boolean;
+			requiresArchiveFirst?: boolean;
+			teachingLoadPath?: string;
 			recommendedAction?: string;
 		};
 	} | null>(null);
 	const [deleteActionLoading, setDeleteActionLoading] = useState(false);
 	const [syncingContract, setSyncingContract] = useState(false);
+	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
+	const [showSystemManaged, setShowSystemManaged] = useState(false);
+	const [resetDialogOpen, setResetDialogOpen] = useState(false);
+	const [resetPreview, setResetPreview] = useState<TeachingLoadResetPreview | null>(null);
+	const [resetLoading, setResetLoading] = useState(false);
+	const [resetConfirmText, setResetConfirmText] = useState('');
 	const [inspectSpecializations, setInspectSpecializations] = useState<Subject | null>(null);
 	const [timeMode, setTimeMode] = useState<'minutes' | 'hours'>('minutes');
 
@@ -117,9 +142,27 @@ export default function Subjects() {
 		}
 	}, []);
 
+	const ensureActiveSchoolYear = useCallback(async () => {
+		if (activeSchoolYearId) {
+			return activeSchoolYearId;
+		}
+		const settings = await fetchPublicSettings();
+		if (!settings.activeSchoolYearId) {
+			throw new Error('Active school year is not configured.');
+		}
+		setActiveSchoolYearId(settings.activeSchoolYearId);
+		return settings.activeSchoolYearId;
+	}, [activeSchoolYearId]);
+
 	useEffect(() => {
 		fetchSubjects();
 	}, [fetchSubjects]);
+
+	useEffect(() => {
+		ensureActiveSchoolYear().catch(() => {
+			// Keep page readable even if school-year context is temporarily unavailable.
+		});
+	}, [ensureActiveSchoolYear]);
 
 	const handleAssignTeacher = async (facultyId: number, subjectId: number) => {
 		try {
@@ -247,6 +290,10 @@ export default function Subjects() {
 		if (statusFilter === 'active') list = list.filter((s) => s.isActive);
 		else if (statusFilter === 'inactive') list = list.filter((s) => !s.isActive);
 
+		if (!showSystemManaged) {
+			list = list.filter((s) => !s.isSystemManaged);
+		}
+
 		// Room type filter
 		if (roomTypeFilter !== 'all') list = list.filter((s) => s.preferredRoomType === roomTypeFilter);
 
@@ -273,10 +320,10 @@ export default function Subjects() {
 		const tp = Math.max(1, Math.ceil(tf / pageSize));
 		const start = (page - 1) * pageSize;
 		return { paged: sorted.slice(start, start + pageSize), totalFiltered: tf, totalPages: tp };
-	}, [subjects, searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, sortField, sortDir, page, pageSize]);
+	}, [subjects, searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, showSystemManaged, sortField, sortDir, page, pageSize]);
 
 	// Reset page when filters change
-	useEffect(() => { setPage(1); }, [searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, pageSize]);
+	useEffect(() => { setPage(1); }, [searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, showSystemManaged, pageSize]);
 
 	const toggleSort = (field: SortField) => {
 		if (sortField === field) {
@@ -298,11 +345,16 @@ export default function Subjects() {
 			if (modalMode === 'edit' && values.id != null) {
 				await atlasApi.patch(`/subjects/${values.id}`, {
 					name: values.name,
+					outputLabel: values.outputLabel?.trim() ? values.outputLabel.trim() : null,
+					ownerDepartment: values.ownerDepartment?.trim() ? values.ownerDepartment.trim() : null,
+					qualificationPriority: values.qualificationPriority,
+					rotationFamily: values.rotationFamily?.trim() ? values.rotationFamily.trim() : null,
 					minMinutesPerWeek: values.minMinutesPerWeek,
 					preferredRoomType: values.preferredRoomType,
 					sessionPattern: values.sessionPattern,
 					isActive: values.isActive,
 					isSeedable: values.isSeedable,
+					isSystemManaged: values.isSystemManaged,
 					gradeLevels: values.gradeLevels,
 					interSectionEnabled: values.interSectionEnabled,
 					interSectionGradeLevels: values.interSectionGradeLevels,
@@ -317,6 +369,9 @@ export default function Subjects() {
 				await atlasApi.post('/subjects', {
 					schoolId: DEFAULT_SCHOOL_ID,
 					...values,
+					outputLabel: values.outputLabel?.trim() ? values.outputLabel.trim() : null,
+					ownerDepartment: values.ownerDepartment?.trim() ? values.ownerDepartment.trim() : null,
+					rotationFamily: values.rotationFamily?.trim() ? values.rotationFamily.trim() : null,
 					modularGroupId: values.modularGroupId?.trim() ? values.modularGroupId.trim() : null,
 					modularOrder: values.modularGroupId?.trim() ? values.modularOrder : null,
 				});
@@ -339,14 +394,10 @@ export default function Subjects() {
 	const handleSyncContract = async () => {
 		setSyncingContract(true);
 		try {
-			const settings = await fetchPublicSettings();
-			if (!settings.activeSchoolYearId) {
-				toast.error('Active school year is not configured. Cannot sync subject contract.');
-				return;
-			}
+			const schoolYearId = await ensureActiveSchoolYear();
 			await atlasApi.post('/subjects/sync-offerings', {
 				schoolId: DEFAULT_SCHOOL_ID,
-				schoolYearId: settings.activeSchoolYearId,
+				schoolYearId,
 			});
 			await fetchSubjects();
 			toast.success('Subject contract synced from offerings and mirrored section demand.');
@@ -357,14 +408,24 @@ export default function Subjects() {
 		}
 	};
 
-	const handleDelete = async (target: Subject, options?: { cleanupHistorical?: boolean }) => {
+	const handleDelete = async (
+		target: Subject,
+		options?: { cleanupHistorical?: boolean; cleanupActive?: boolean; cleanupAll?: boolean },
+	) => {
 		try {
+			const params: Record<string, boolean> = {};
+			if (options?.cleanupHistorical) params.cleanupHistorical = true;
+			if (options?.cleanupActive) params.cleanupActive = true;
+			if (options?.cleanupAll) params.cleanupAll = true;
 			const { data } = await atlasApi.delete<{ cleanedHistoricalAssignments?: number }>(`/subjects/${target.id}`, {
-				params: options?.cleanupHistorical ? { cleanupHistorical: true } : undefined,
+				params: Object.keys(params).length > 0 ? params : undefined,
 			});
 
 			if (typeof data?.cleanedHistoricalAssignments === 'number' && data.cleanedHistoricalAssignments > 0) {
-				toast.success(`Subject deleted. Cleaned ${data.cleanedHistoricalAssignments} historical assignment rows.`);
+				const cleanupLabel = options?.cleanupAll || options?.cleanupActive
+					? 'teaching-load assignment rows'
+					: 'historical assignment rows';
+				toast.success(`Subject deleted. Cleaned ${data.cleanedHistoricalAssignments} ${cleanupLabel}.`);
 			} else {
 				toast.success('Subject deleted.');
 			}
@@ -405,9 +466,92 @@ export default function Subjects() {
 	const handleCleanupAndDelete = async (target: Subject) => {
 		setDeleteActionLoading(true);
 		try {
-			await handleDelete(target, { cleanupHistorical: true });
+			if (target.isActive) {
+				await handleDelete(target, { cleanupHistorical: true });
+			} else {
+				await handleDelete(target, { cleanupAll: true });
+			}
 		} finally {
 			setDeleteActionLoading(false);
+		}
+	};
+
+	const handleClearActiveAssignments = async (target: Subject) => {
+		setDeleteActionLoading(true);
+		try {
+			const schoolYearId = await ensureActiveSchoolYear();
+			const preview = await atlasApi.post<TeachingLoadResetPreview>('/faculty-assignments/reset', {
+				schoolId: DEFAULT_SCHOOL_ID,
+				schoolYearId,
+				subjectId: target.id,
+				previewOnly: true,
+			});
+
+			if ((preview.data.ownershipRowsToRemove ?? 0) <= 0) {
+				toast.info('No active section ownership rows were found for this subject in the active school year.');
+				return;
+			}
+
+			const applied = await atlasApi.post<TeachingLoadResetPreview>('/faculty-assignments/reset', {
+				schoolId: DEFAULT_SCHOOL_ID,
+				schoolYearId,
+				subjectId: target.id,
+				previewOnly: false,
+				confirmReset: true,
+			});
+
+			toast.success(`Removed ${applied.data.ownershipRowsToRemove} subject-section ownership rows for ${target.code}.`);
+			setDeleteBlocker(null);
+			await fetchSubjects();
+		} catch (err: any) {
+			toast.error(err?.response?.data?.message ?? 'Failed to clear active assignments for this subject.');
+		} finally {
+			setDeleteActionLoading(false);
+		}
+	};
+
+	const openGlobalResetPreview = async () => {
+		setResetLoading(true);
+		try {
+			const schoolYearId = await ensureActiveSchoolYear();
+			const { data } = await atlasApi.post<TeachingLoadResetPreview>('/faculty-assignments/reset', {
+				schoolId: DEFAULT_SCHOOL_ID,
+				schoolYearId,
+				previewOnly: true,
+			});
+			setResetPreview(data);
+			setResetConfirmText('');
+			setResetDialogOpen(true);
+		} catch (err: any) {
+			toast.error(err?.response?.data?.message ?? 'Failed to preview teaching-load reset.');
+		} finally {
+			setResetLoading(false);
+		}
+	};
+
+	const applyGlobalReset = async () => {
+		if (resetConfirmText.trim().toUpperCase() !== 'RESET') {
+			toast.error('Type RESET to confirm global teaching-load reset.');
+			return;
+		}
+
+		setResetLoading(true);
+		try {
+			const schoolYearId = await ensureActiveSchoolYear();
+			const { data } = await atlasApi.post<TeachingLoadResetPreview>('/faculty-assignments/reset', {
+				schoolId: DEFAULT_SCHOOL_ID,
+				schoolYearId,
+				previewOnly: false,
+				confirmReset: true,
+			});
+			toast.success(`Global teaching-load reset removed ${data.ownershipRowsToRemove} ownership rows.`);
+			setResetDialogOpen(false);
+			setResetConfirmText('');
+			await fetchSubjects();
+		} catch (err: any) {
+			toast.error(err?.response?.data?.message ?? 'Failed to apply global teaching-load reset.');
+		} finally {
+			setResetLoading(false);
 		}
 	};
 
@@ -432,7 +576,7 @@ export default function Subjects() {
 						<SelectContent>
 							<SelectItem value="all">All Status</SelectItem>
 							<SelectItem value="active">Active</SelectItem>
-							<SelectItem value="inactive">Inactive</SelectItem>
+							<SelectItem value="inactive">Archived</SelectItem>
 						</SelectContent>
 					</Select>
 					<Select value={roomTypeFilter} onValueChange={(v) => setRoomTypeFilter(v as typeof roomTypeFilter)}>
@@ -482,6 +626,17 @@ export default function Subjects() {
 					<Button variant="outline" onClick={handleSyncContract} size="sm" className="h-8" disabled={syncingContract}>
 						<RefreshCw className={`mr-1 size-3.5 ${syncingContract ? 'animate-spin' : ''}`} />
 						Sync Contract
+					</Button>
+					<Button
+						variant={showSystemManaged ? 'secondary' : 'outline'}
+						size="sm"
+						className="h-8"
+						onClick={() => setShowSystemManaged((previous) => !previous)}
+					>
+						{showSystemManaged ? 'Hide System Rows' : 'Show System Rows'}
+					</Button>
+					<Button variant="outline" size="sm" className="h-8" onClick={openGlobalResetPreview} disabled={resetLoading}>
+						Reset Teaching Load
 					</Button>
 					<Button onClick={() => { setModalMode('add'); setModalSubject(null); setModalSubjectMeta(null); }} size="sm" className="h-8">
 						<Plus className="mr-1 size-3.5" /> Add Subject
@@ -535,20 +690,7 @@ export default function Subjects() {
 											Grades <SortIcon field="gradeLevels" />
 										</Button>
 									</th>
-									<th className="px-4 py-2.5 text-left">
-										<TooltipProvider delayDuration={200}>
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<span className="font-semibold text-muted-foreground cursor-help border-b border-dotted border-muted-foreground/50">
-														Inter-Section
-													</span>
-												</TooltipTrigger>
-												<TooltipContent side="bottom" className="max-w-60 text-xs">
-													Enable cross-section scheduling (manual only in v1). When enabled, select which grade levels can pool sections for this subject.
-												</TooltipContent>
-											</Tooltip>
-										</TooltipProvider>
-									</th>
+									<th className="px-4 py-2.5 text-left font-semibold text-muted-foreground">Contract</th>
 									<th className="px-4 py-2.5 text-left font-semibold text-muted-foreground">Status</th>
 									<th className="px-4 py-2.5 text-right font-semibold text-muted-foreground">Actions</th>
 								</tr>
@@ -594,34 +736,9 @@ export default function Subjects() {
 															<Badge variant="outline" className="ml-2 border-indigo-200 bg-indigo-50 text-indigo-700">Modular</Badge>
 														)}
 														{s.isSeedable && <Badge variant="secondary" className="ml-2 bg-blue-50 text-blue-700 hover:bg-blue-50 border-blue-200">DepEd Core</Badge>}
-														{(s.programScopes ?? []).length > 0 && (
-															<div className="flex flex-wrap gap-0.5 mt-0.5">
-																{(s.programScopes ?? []).map((scope) => (
-																	<Badge key={scope} variant="outline" className={`text-[0.5625rem] px-1 py-0 ${PROGRAM_SCOPE_BADGE[scope] ?? 'bg-gray-50 text-gray-600 border-gray-200'}`}>
-																		{scope}
-																	</Badge>
-																))}
-															</div>
+														{s.isSystemManaged && (
+															<Badge variant="outline" className="ml-2 border-amber-200 bg-amber-50 text-amber-700">System-managed</Badge>
 														)}
-														<div className="mt-1 flex flex-wrap gap-1">
-															{s.ownerDepartment ? (
-																<Badge variant="outline" className={`text-[0.55rem] px-1.5 py-0 ${SUBJECT_OWNER_BADGE[s.ownerDepartment] ?? 'bg-muted border-border text-foreground'}`}>
-																	{SUBJECT_OWNER_LABELS[s.ownerDepartment] ?? s.ownerDepartment}
-																</Badge>
-															) : (
-																<Badge variant="outline" className="text-[0.55rem] px-1.5 py-0">Owner: Unspecified</Badge>
-															)}
-															{s.qualificationPriority && (
-																<Badge variant="outline" className="text-[0.55rem] px-1.5 py-0 bg-slate-50 text-slate-700 border-slate-200">
-																	{QUALIFICATION_PRIORITY_LABELS[s.qualificationPriority]}
-																</Badge>
-															)}
-															{s.rotationFamily && (
-																<Badge variant="outline" className="text-[0.55rem] px-1.5 py-0 bg-violet-50 text-violet-700 border-violet-200">
-																	Rotation: {s.rotationFamily}
-																</Badge>
-															)}
-														</div>
 													</div>
 												</td>
 												<td className="px-4 py-3">
@@ -647,28 +764,33 @@ export default function Subjects() {
 													</div>
 												</td>
 												<td className="px-4 py-3">
-													<div className="flex items-center gap-1.5">
-														{s.interSectionEnabled ? (
-															<>
-																<Badge variant="outline" className="bg-violet-50 text-violet-700 border-violet-200 text-[0.6rem]">
-																	On
+													<div className="space-y-1">
+														<div className="flex flex-wrap gap-1">
+															{(s.programScopes ?? []).map((scope) => (
+																<Badge key={scope} variant="outline" className={`text-[0.55rem] px-1.5 py-0 ${PROGRAM_SCOPE_BADGE[scope] ?? 'bg-gray-50 text-gray-600 border-gray-200'}`}>
+																	{scope}
 																</Badge>
-																{(s.interSectionGradeLevels ?? []).length > 0 && (
-																	<div className="flex gap-0.5">
-																		{s.interSectionGradeLevels.map((g) => (
-																			<span
-																				key={g}
-																				className={`text-[0.55rem] font-bold px-1.5 py-0.5 rounded border ${GRADE_COLORS[String(g)] ?? 'bg-muted text-muted-foreground'}`}
-																			>
-																				G{g}
-																			</span>
-																		))}
-																	</div>
-																)}
-															</>
-														) : (
-															<span className="text-[0.65rem] text-muted-foreground">—</span>
-														)}
+															))}
+														</div>
+														<div className="flex flex-wrap gap-1">
+															{s.ownerDepartment ? (
+																<Badge variant="outline" className={`text-[0.55rem] px-1.5 py-0 ${SUBJECT_OWNER_BADGE[s.ownerDepartment] ?? 'bg-muted border-border text-foreground'}`}>
+																	{SUBJECT_OWNER_LABELS[s.ownerDepartment] ?? s.ownerDepartment}
+																</Badge>
+															) : (
+																<Badge variant="outline" className="text-[0.55rem] px-1.5 py-0">Owner: Unspecified</Badge>
+															)}
+															{s.qualificationPriority && (
+																<Badge variant="outline" className="text-[0.55rem] px-1.5 py-0 bg-slate-50 text-slate-700 border-slate-200">
+																	{QUALIFICATION_PRIORITY_LABELS[s.qualificationPriority]}
+																</Badge>
+															)}
+															{s.rotationFamily && (
+																<Badge variant="outline" className="text-[0.55rem] px-1.5 py-0 bg-violet-50 text-violet-700 border-violet-200">
+																	{s.rotationFamily}
+																</Badge>
+															)}
+														</div>
 													</div>
 												</td>
 												<td className="px-4 py-3">
@@ -676,7 +798,7 @@ export default function Subjects() {
 														{s.isActive ? (
 															<Badge className="bg-emerald-100 text-emerald-700 text-[0.6rem]">Active</Badge>
 														) : (
-															<Badge variant="secondary" className="text-[0.6rem]">Inactive</Badge>
+															<Badge variant="secondary" className="text-[0.6rem]">Archived</Badge>
 														)}
 														{(s.allowedSpecializations ?? []).length > 0 && (
 															<Button
@@ -715,13 +837,18 @@ export default function Subjects() {
 																setModalSubject({
 																	id: s.id,
 																	code: s.code,
+																	outputLabel: s.outputLabel ?? s.displayCode ?? '',
 																	name: s.name,
+																	ownerDepartment: s.ownerDepartment ?? '',
+																	qualificationPriority: s.qualificationPriority ?? 'DEPARTMENT_FIRST',
+																	rotationFamily: s.rotationFamily ?? '',
 																	minMinutesPerWeek: s.minMinutesPerWeek,
 																	sessionPattern: s.sessionPattern ?? 'ANY',
 																	preferredRoomType: s.preferredRoomType,
 																	gradeLevels: [...s.gradeLevels],
 																	isActive: s.isActive,
 																	isSeedable: s.isSeedable,
+																	isSystemManaged: s.isSystemManaged ?? false,
 																	interSectionEnabled: s.interSectionEnabled ?? false,
 																	interSectionGradeLevels: [...(s.interSectionGradeLevels ?? [])],
 																	modularGroupId: s.modularGroupId ?? '',
@@ -737,6 +864,16 @@ export default function Subjects() {
 														>
 															<Pencil className="size-3.5" />
 														</Button>
+														{s.isActive && !s.isSeedable && (
+															<Button
+																variant="outline"
+																size="sm"
+																onClick={() => handleArchiveSubject(s)}
+																disabled={deleteActionLoading}
+															>
+																<ChevronDown className="size-3.5" />
+															</Button>
+														)}
 														{!s.isSeedable && (
 															<Button
 																variant="outline"
@@ -959,14 +1096,28 @@ export default function Subjects() {
 					</div>
 					<DialogFooter className="gap-2">
 						<Button variant="outline" onClick={() => setDeleteBlocker(null)} disabled={deleteActionLoading}>Close</Button>
+						<Button asChild variant="outline" disabled={deleteActionLoading}>
+							<Link to={`/faculty-assignments?subjectId=${deleteBlocker?.target.id ?? ''}&subjectCode=${deleteBlocker?.target.code ?? ''}`}>
+								Go to Teaching Load
+							</Link>
+						</Button>
 						<Button
 							variant="outline"
 							onClick={() => deleteBlocker && handleArchiveSubject(deleteBlocker.target)}
-							disabled={deleteActionLoading}
+							disabled={deleteActionLoading || !deleteBlocker?.target.isActive}
 						>
 							Archive Subject
 						</Button>
-						{deleteBlocker?.details?.canCleanupHistorical && (
+						{deleteBlocker?.details?.canCleanupActive && (
+							<Button
+								variant="outline"
+								onClick={() => deleteBlocker && handleClearActiveAssignments(deleteBlocker.target)}
+								disabled={deleteActionLoading}
+							>
+								Remove Active Assignments
+							</Button>
+						)}
+						{deleteBlocker?.details?.canCleanupHistorical && !deleteBlocker?.details?.canCleanupAll && (
 							<Button
 								variant="destructive"
 								onClick={() => deleteBlocker && handleCleanupAndDelete(deleteBlocker.target)}
@@ -975,6 +1126,56 @@ export default function Subjects() {
 								Cleanup Historical + Delete
 							</Button>
 						)}
+						{deleteBlocker?.details?.canCleanupAll && (
+							<Button
+								variant="destructive"
+								onClick={() => deleteBlocker && handleCleanupAndDelete(deleteBlocker.target)}
+								disabled={deleteActionLoading}
+							>
+								Full Cleanup + Delete
+							</Button>
+						)}
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog open={resetDialogOpen} onOpenChange={(open) => !open && setResetDialogOpen(false)}>
+				<DialogContent className="max-w-lg">
+					<DialogHeader>
+						<DialogTitle>Global Teaching-Load Reset (Repair Tool)</DialogTitle>
+						<DialogDescription>
+							Preview-first reset for the active school year. Use only for normalization and blocker remediation.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-2 text-sm">
+						<p>Scope: <span className="font-semibold">School {DEFAULT_SCHOOL_ID}</span> · School Year <span className="font-semibold">{resetPreview?.schoolYearId ?? activeSchoolYearId ?? 'N/A'}</span></p>
+						<p>Ownership rows to remove: <span className="font-semibold">{resetPreview?.ownershipRowsToRemove ?? 0}</span></p>
+						<p>Faculty-subject rows affected: <span className="font-semibold">{resetPreview?.facultySubjectRowsAffected ?? 0}</span></p>
+						<p>Rows deleted: <span className="font-semibold">{resetPreview?.facultySubjectRowsDeleted ?? 0}</span> · Rows updated: <span className="font-semibold">{resetPreview?.facultySubjectRowsUpdated ?? 0}</span></p>
+						<p>Affected subjects: <span className="font-semibold">{resetPreview?.affectedSubjectCount ?? 0}</span></p>
+						{(resetPreview?.subjectCodes?.length ?? 0) > 0 && (
+							<div className="flex flex-wrap gap-1 pt-1">
+								{(resetPreview?.subjectCodes ?? []).slice(0, 12).map((code) => (
+									<Badge key={code} variant="outline" className="text-[0.6rem]">
+										{code}
+									</Badge>
+								))}
+							</div>
+						)}
+						<div className="pt-2">
+							<label className="text-xs font-medium text-muted-foreground">Type RESET to confirm apply</label>
+							<Input
+								value={resetConfirmText}
+								onChange={(event) => setResetConfirmText(event.target.value)}
+								placeholder="RESET"
+							/>
+						</div>
+					</div>
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setResetDialogOpen(false)} disabled={resetLoading}>Close</Button>
+						<Button variant="destructive" onClick={applyGlobalReset} disabled={resetLoading || (resetPreview?.ownershipRowsToRemove ?? 0) === 0}>
+							Apply Reset
+						</Button>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>

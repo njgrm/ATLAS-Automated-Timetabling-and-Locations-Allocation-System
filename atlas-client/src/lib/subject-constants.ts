@@ -74,14 +74,24 @@ export const QUALIFICATION_PRIORITY_LABELS: Record<'DEPARTMENT_FIRST' | 'SPECIAL
 	SPECIALIZATION_PRIMARY: 'Specialization-first',
 };
 
+export const QUALIFICATION_PRIORITY_OPTIONS = [
+	{ value: 'DEPARTMENT_FIRST', label: 'Department-first' },
+	{ value: 'SPECIALIZATION_PRIMARY', label: 'Specialization-first' },
+] as const;
+
 export type NewSubjectForm = {
 	code: string;
+	outputLabel: string;
 	name: string;
+	ownerDepartment: string;
+	qualificationPriority: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
+	rotationFamily: string;
 	minMinutesPerWeek: number;
 	preferredRoomType: RoomType;
 	sessionPattern: SessionPattern;
 	isActive: boolean;
 	isSeedable: boolean;
+	isSystemManaged: boolean;
 	gradeLevels: number[];
 	interSectionEnabled: boolean;
 	interSectionGradeLevels: number[];
@@ -94,12 +104,17 @@ export type NewSubjectForm = {
 
 export const emptyForm: NewSubjectForm = {
 	code: '',
+	outputLabel: '',
 	name: '',
+	ownerDepartment: '',
+	qualificationPriority: 'DEPARTMENT_FIRST',
+	rotationFamily: '',
 	minMinutesPerWeek: 45,
 	preferredRoomType: 'CLASSROOM',
 	sessionPattern: 'ANY',
 	isActive: true,
 	isSeedable: false,
+	isSystemManaged: false,
 	gradeLevels: [7, 8, 9, 10],
 	interSectionEnabled: false,
 	interSectionGradeLevels: [],

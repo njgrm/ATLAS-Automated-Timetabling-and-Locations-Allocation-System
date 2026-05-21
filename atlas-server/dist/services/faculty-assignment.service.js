@@ -666,4 +666,154 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
         ownershipIndex,
     };
 }
+async function resolveSchoolYearSectionIds(schoolId, schoolYearId, authToken) {
+    const sectionResult = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
+    const ids = [];
+    for (const grade of sectionResult.gradeLevels) {
+        for (const section of grade.sections) {
+            if (section.id > 0) {
+                ids.push(section.id);
+            }
+        }
+    }
+    return [...new Set(ids)];
+}
+function buildResetPreview(input, ownershipRows, facultySubjects, subjectCodesById) {
+    const removableSectionIdsByFacultySubject = new Map();
+    const affectedFacultyIds = new Set();
+    const affectedSubjectIds = new Set();
+    for (const row of ownershipRows) {
+        affectedFacultyIds.add(row.facultyId);
+        affectedSubjectIds.add(row.subjectId);
+        const existing = removableSectionIdsByFacultySubject.get(row.facultySubjectId) ?? new Set();
+        existing.add(row.sectionId);
+        removableSectionIdsByFacultySubject.set(row.facultySubjectId, existing);
+    }
+    let facultySubjectRowsDeleted = 0;
+    let facultySubjectRowsUpdated = 0;
+    for (const row of facultySubjects) {
+        const removable = removableSectionIdsByFacultySubject.get(row.id);
+        if (!removable || removable.size === 0)
+            continue;
+        const remaining = row.sectionIds.filter((sectionId) => !removable.has(sectionId));
+        if (remaining.length === 0) {
+            facultySubjectRowsDeleted += 1;
+        }
+        else {
+            facultySubjectRowsUpdated += 1;
+        }
+    }
+    const subjectCodes = [...affectedSubjectIds]
+        .map((id) => subjectCodesById.get(id) ?? `SUBJECT_${id}`)
+        .sort((left, right) => left.localeCompare(right));
+    return {
+        applied: false,
+        scope: typeof input.subjectId === 'number' ? 'SUBJECT' : 'GLOBAL',
+        schoolId: input.schoolId,
+        schoolYearId: input.schoolYearId,
+        subjectId: typeof input.subjectId === 'number' ? input.subjectId : null,
+        ownershipRowsToRemove: ownershipRows.length,
+        facultySubjectRowsAffected: facultySubjects.length,
+        facultySubjectRowsDeleted,
+        facultySubjectRowsUpdated,
+        affectedFacultyCount: affectedFacultyIds.size,
+        affectedSubjectCount: affectedSubjectIds.size,
+        subjectCodes,
+    };
+}
+export async function previewOrApplyTeachingLoadReset(input) {
+    const sectionIds = await resolveSchoolYearSectionIds(input.schoolId, input.schoolYearId, input.authToken);
+    if (sectionIds.length === 0) {
+        return {
+            applied: false,
+            scope: typeof input.subjectId === 'number' ? 'SUBJECT' : 'GLOBAL',
+            schoolId: input.schoolId,
+            schoolYearId: input.schoolYearId,
+            subjectId: typeof input.subjectId === 'number' ? input.subjectId : null,
+            ownershipRowsToRemove: 0,
+            facultySubjectRowsAffected: 0,
+            facultySubjectRowsDeleted: 0,
+            facultySubjectRowsUpdated: 0,
+            affectedFacultyCount: 0,
+            affectedSubjectCount: 0,
+            subjectCodes: [],
+        };
+    }
+    const ownershipFilter = {
+        schoolId: input.schoolId,
+        sectionId: { in: sectionIds },
+        ...(typeof input.subjectId === 'number' ? { subjectId: input.subjectId } : {}),
+    };
+    const ownershipRows = await prisma.subjectSectionOwnership.findMany({
+        where: ownershipFilter,
+        select: {
+            id: true,
+            facultySubjectId: true,
+            facultyId: true,
+            subjectId: true,
+            sectionId: true,
+        },
+    });
+    const facultySubjectIds = [...new Set(ownershipRows.map((row) => row.facultySubjectId))];
+    const subjectIds = [...new Set(ownershipRows.map((row) => row.subjectId))];
+    const [facultySubjects, subjects] = await Promise.all([
+        facultySubjectIds.length > 0
+            ? prisma.facultySubject.findMany({
+                where: { id: { in: facultySubjectIds } },
+                select: { id: true, facultyId: true, subjectId: true, sectionIds: true },
+            })
+            : Promise.resolve([]),
+        subjectIds.length > 0
+            ? prisma.subject.findMany({
+                where: { id: { in: subjectIds } },
+                select: { id: true, code: true },
+            })
+            : Promise.resolve([]),
+    ]);
+    const subjectCodesById = new Map(subjects.map((subject) => [subject.id, subject.code]));
+    const preview = buildResetPreview(input, ownershipRows, facultySubjects, subjectCodesById);
+    if (input.previewOnly !== false) {
+        return preview;
+    }
+    const removableSectionsByFacultySubject = new Map();
+    for (const row of ownershipRows) {
+        const existing = removableSectionsByFacultySubject.get(row.facultySubjectId) ?? new Set();
+        existing.add(row.sectionId);
+        removableSectionsByFacultySubject.set(row.facultySubjectId, existing);
+    }
+    await prisma.$transaction(async (tx) => {
+        if (ownershipRows.length > 0) {
+            await tx.subjectSectionOwnership.deleteMany({
+                where: { id: { in: ownershipRows.map((row) => row.id) } },
+            });
+        }
+        for (const row of facultySubjects) {
+            const removable = removableSectionsByFacultySubject.get(row.id);
+            if (!removable || removable.size === 0)
+                continue;
+            const nextSectionIds = row.sectionIds.filter((sectionId) => !removable.has(sectionId));
+            if (nextSectionIds.length === 0) {
+                const remainingOwnershipRows = await tx.subjectSectionOwnership.count({ where: { facultySubjectId: row.id } });
+                if (remainingOwnershipRows === 0) {
+                    await tx.facultySubject.delete({ where: { id: row.id } });
+                }
+                continue;
+            }
+            await tx.facultySubject.update({
+                where: { id: row.id },
+                data: { sectionIds: [...new Set(nextSectionIds)].sort((left, right) => left - right) },
+            });
+        }
+    });
+    const appliedResult = {
+        ...preview,
+        applied: true,
+    };
+    console.info('[TEACHING_LOAD_RESET_APPLY]', JSON.stringify({
+        ...appliedResult,
+        actorId: input.actorId,
+        occurredAt: new Date().toISOString(),
+    }));
+    return appliedResult;
+}
 //# sourceMappingURL=faculty-assignment.service.js.map

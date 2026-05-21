@@ -64,6 +64,11 @@ router.post('/', authenticate, requirePrivilegedRole, async (req: Request, res: 
 			allowedSpecializations,
 			requiredFeatures,
 			isActive,
+			ownerDepartment,
+			qualificationPriority,
+			rotationFamily,
+			outputLabel,
+			isSystemManaged,
 		} = req.body;
 		if (!schoolId || !code || !name || !minMinutesPerWeek || !preferredRoomType || !gradeLevels) {
 			res.status(400).json({ code: 'MISSING_FIELDS', message: 'schoolId, code, name, minMinutesPerWeek, preferredRoomType, gradeLevels are required.' });
@@ -87,6 +92,11 @@ router.post('/', authenticate, requirePrivilegedRole, async (req: Request, res: 
 			allowedSpecializations,
 			requiredFeatures,
 			isActive,
+			ownerDepartment,
+			qualificationPriority,
+			rotationFamily,
+			outputLabel,
+			isSystemManaged,
 		});
 		res.status(201).json({ subject });
 	} catch (err: any) {
@@ -126,7 +136,9 @@ router.delete('/:id', authenticate, requirePrivilegedRole, async (req: Request, 
 			return;
 		}
 		const cleanupHistorical = req.query.cleanupHistorical === 'true';
-		const result = await subjectService.deleteSubject(id, { cleanupHistorical });
+		const cleanupActive = req.query.cleanupActive === 'true';
+		const cleanupAll = req.query.cleanupAll === 'true';
+		const result = await subjectService.deleteSubject(id, { cleanupHistorical, cleanupActive, cleanupAll });
 		if (!result.success) {
 			const status = result.code === 'NOT_FOUND'
 				? 404

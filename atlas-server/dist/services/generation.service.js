@@ -396,6 +396,8 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
                     id: true,
                     code: true,
                     name: true,
+                    ownerDepartment: true,
+                    qualificationPriority: true,
                     minMinutesPerWeek: true,
                     preferredRoomType: true,
                     sessionPattern: true,

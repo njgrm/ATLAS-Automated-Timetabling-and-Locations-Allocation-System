@@ -117,7 +117,7 @@ sectionMap,
 );
 }
 export default function FacultyAssignments() {
-const [searchParams] = useSearchParams();
+const [searchParams, setSearchParams] = useSearchParams();
 const [faculty, setFaculty] = useState<FacultySummary[]>([]);
 const [subjects, setSubjects] = useState<Subject[]>([]);
 const [sectionSummary, setSectionSummary] = useState<SectionSummaryResponse | null>(null);
@@ -128,6 +128,12 @@ const [saving, setSaving] = useState(false);
 const [selectedId, setSelectedId] = useState<number | null>(() => {
 const queryValue = searchParams.get('facultyId');
 return queryValue ? Number(queryValue) : null;
+});
+const [subjectFocusId, setSubjectFocusId] = useState<number | null>(() => {
+const queryValue = searchParams.get('subjectId');
+if (!queryValue) return null;
+const parsed = Number(queryValue);
+return Number.isNaN(parsed) ? null : parsed;
 });
 const [searchQuery, setSearchQuery] = useState('');
 const [filterStatus, setFilterStatus] = useState<'all' | 'assigned' | 'unassigned'>('all');
@@ -172,7 +178,7 @@ params: { schoolId: DEFAULT_SCHOOL_ID },
 setActiveSchoolYearId(schoolYearId);
 setFaculty(facultyRes.data.faculty);
 setSavedOwnershipIndex(facultyRes.data.ownershipIndex ?? []);
-setSubjects(subjectsRes.data.subjects.filter((subject) => subject.isActive));
+setSubjects(subjectsRes.data.subjects);
 setSectionSummary(sectionsRes.data);
 setError(null);
 } catch (requestError: any) {
@@ -193,6 +199,23 @@ if (selectedId == null || !faculty.some((member) => member.id === selectedId)) {
 setSelectedId(faculty[0].id);
 }
 }, [faculty, selectedId]);
+
+useEffect(() => {
+	const queryValue = searchParams.get('subjectId');
+	if (!queryValue) {
+		setSubjectFocusId(null);
+		return;
+	}
+	const parsed = Number(queryValue);
+	setSubjectFocusId(Number.isNaN(parsed) ? null : parsed);
+}, [searchParams]);
+
+useEffect(() => {
+	if (!subjectFocusId) return;
+	const focusedSubject = subjects.find((subject) => subject.id === subjectFocusId);
+	if (!focusedSubject) return;
+	setSubjectSearch(focusedSubject.code);
+}, [subjectFocusId, subjects]);
 const allKnownSections = useMemo(() => {
 const mergedSections = new Map<number, ExternalSection>();
 for (const section of sectionSummary?.sections ?? []) {
@@ -260,6 +283,10 @@ const pendingOwnershipMap = useMemo(
 const selected = useMemo(
 () => faculty.find((member) => member.id === selectedId) ?? null,
 [faculty, selectedId],
+);
+const focusedSubject = useMemo(
+	() => (subjectFocusId ? subjects.find((subject) => subject.id === subjectFocusId) ?? null : null),
+	[subjectFocusId, subjects],
 );
 const currentAssignments = useMemo(
 () => (selected ? effectiveAssignmentsByFaculty[selected.id] ?? [] : []),
@@ -636,7 +663,7 @@ const advisedSectionMeta = useMemo(() => {
 }, [homeroomHint?.advisedSectionId, sectionMap]);
 
 const teachablePairTotals = useMemo(() => {
-	const activeAcademicSubjects = subjects.filter((subject) => subject.isActive && subject.code !== 'HG');
+	const activeAcademicSubjects = subjects.filter((subject) => (subject.isActive || subject.id === subjectFocusId) && subject.code !== 'HG');
 	const teachablePairs = new Set<string>();
 	for (const subject of activeAcademicSubjects) {
 		const relevantSections = allKnownSections.filter(
@@ -1061,7 +1088,30 @@ loadProfile.breakdown.map((item) => (
 </Tooltip>
 </div>
 </div>
-{subjectsLackingFaculty.length > 0 && (
+{focusedSubject && (
+				<div className="mt-2 flex items-center gap-2 rounded border border-blue-200 bg-blue-50/60 px-3 py-1.5">
+					<Info className="size-3.5 shrink-0 text-blue-700" />
+					<span className="text-xs text-blue-800">
+						Remediation focus: <span className="font-semibold">{focusedSubject.code}</span> - {focusedSubject.name}
+					</span>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="ml-auto h-6 px-2 text-[0.65rem]"
+						onClick={() => {
+							const next = new URLSearchParams(searchParams);
+							next.delete('subjectId');
+							next.delete('subjectCode');
+							setSearchParams(next);
+							setSubjectSearch('');
+						}}
+					>
+						Clear Focus
+					</Button>
+				</div>
+			)}
+			{subjectsLackingFaculty.length > 0 && (
 				<div className="mt-2 flex items-center gap-2 rounded border border-red-200 bg-red-50/60 px-3 py-1.5">
 					<AlertTriangle className="size-3.5 shrink-0 text-red-600" />
 					<span className="shrink-0 text-xs font-semibold text-red-700">{subjectsLackingFaculty.length} lacking faculty:</span>

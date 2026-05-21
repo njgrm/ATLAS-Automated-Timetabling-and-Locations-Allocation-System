@@ -22,9 +22,9 @@
 import { prisma } from '../lib/prisma.js';
 import { sectionAdapter } from './section-adapter.js';
 import {
-	isSpecializationPrimarySubjectCode,
 	matchesSubjectOwnershipDepartment,
 	resolveSubjectOwnerDepartmentCode,
+	resolveSubjectQualificationPriority,
 } from './subject-ownership.service.js';
 
 // DO 005 s.2024 weekly minute caps
@@ -80,6 +80,8 @@ interface SubjectRow {
 	allowedSpecializations: string[];
 	modularGroupId: string | null;
 	modularOrder: number | null;
+	ownerDepartment: string | null;
+	qualificationPriority: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
 }
 
 interface FacultyRow {
@@ -230,8 +232,13 @@ function resolveQualificationTier(
 	const normalizedSubjectCode = normalizeKey(subject.code);
 	const normalizedSpec = normalizeKey(faculty.specialization);
 	const normalizedDept = normalizeKey(faculty.department);
-	const specializationPrimary = isSpecializationPrimarySubjectCode(subject.code);
-	const departmentMatch = matchesSubjectOwnershipDepartment(faculty.department, subject.code, subject.name);
+	const specializationPrimary = resolveSubjectQualificationPriority(subject.code, subject.qualificationPriority) === 'SPECIALIZATION_PRIMARY';
+	const departmentMatch = matchesSubjectOwnershipDepartment(
+		faculty.department,
+		subject.code,
+		subject.name,
+		subject.ownerDepartment,
+	);
 
 	let specializationMatch = false;
 	if (normalizedSpec) {
@@ -340,6 +347,8 @@ export async function autoFill(
 			allowedSpecializations: true,
 			modularGroupId: true,
 			modularOrder: true,
+			ownerDepartment: true,
+			qualificationPriority: true,
 		},
 	});
 
@@ -517,7 +526,8 @@ export async function autoFill(
 			if (!candidate) {
 				unresolvedCount += 1;
 				warnings.push(`Lacking Faculty: no Tier 1 qualified teacher for ${subjectRow.name} (${pair.sectionName}).`);
-				const fallbackDepartment = resolveSubjectOwnerDepartmentCode(subjectRow.code, subjectRow.name)
+				const fallbackDepartment = subjectRow.ownerDepartment
+					?? resolveSubjectOwnerDepartmentCode(subjectRow.code, subjectRow.name)
 					?? subjectRow.modularGroupId
 					?? subjectRow.allowedSpecializations?.[0]
 					?? 'GENERAL';

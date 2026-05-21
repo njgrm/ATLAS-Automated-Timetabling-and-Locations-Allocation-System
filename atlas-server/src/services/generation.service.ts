@@ -539,6 +539,8 @@ export async function triggerGenerationRun(
 					id: true,
 					code: true,
 					name: true,
+					ownerDepartment: true,
+					qualificationPriority: true,
 					minMinutesPerWeek: true,
 					preferredRoomType: true,
 					sessionPattern: true,

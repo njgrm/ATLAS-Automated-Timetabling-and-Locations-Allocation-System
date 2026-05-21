@@ -1,5 +1,11 @@
 export type SubjectQualificationPriority = 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
 
+type SubjectContractDefaultsInput = {
+	subjectCode: string | null | undefined;
+	subjectName?: string | null;
+	modularGroupId?: string | null;
+};
+
 const SUBJECT_OWNER_DEPARTMENT_BY_PREFIX: Array<{ prefix: string; ownerDepartment: string }> = [
 	{ prefix: 'FIL', ownerDepartment: 'FIL' },
 	{ prefix: 'ENG', ownerDepartment: 'ENG' },
@@ -46,6 +52,12 @@ export function isSpecializationPrimarySubjectCode(subjectCode: string | null | 
 	return code.startsWith('SPA_') || code.startsWith('SPS_');
 }
 
+export function normalizeSubjectQualificationPriority(
+	value: string | null | undefined,
+): SubjectQualificationPriority {
+	return value === 'SPECIALIZATION_PRIMARY' ? 'SPECIALIZATION_PRIMARY' : 'DEPARTMENT_FIRST';
+}
+
 export function resolveSubjectOwnerDepartmentCode(subjectCode: string | null | undefined, subjectName?: string | null): string | null {
 	const code = (subjectCode ?? '').trim().toUpperCase();
 	if (!code) return null;
@@ -66,16 +78,71 @@ export function resolveSubjectOwnerDepartmentCode(subjectCode: string | null | u
 	return null;
 }
 
-export function resolveSubjectQualificationPriority(subjectCode: string | null | undefined): SubjectQualificationPriority {
+export function resolveSubjectQualificationPriority(
+	subjectCode: string | null | undefined,
+	explicitPriority?: string | null,
+): SubjectQualificationPriority {
+	if (explicitPriority) {
+		return normalizeSubjectQualificationPriority(explicitPriority);
+	}
 	return isSpecializationPrimarySubjectCode(subjectCode) ? 'SPECIALIZATION_PRIMARY' : 'DEPARTMENT_FIRST';
+}
+
+export function resolveSubjectOutputLabel(
+	subjectCode: string | null | undefined,
+	subjectName?: string | null,
+	modularGroupId?: string | null,
+): string {
+	const code = (subjectCode ?? '').trim().toUpperCase();
+	const name = (subjectName ?? '').trim().toUpperCase();
+	const modular = (modularGroupId ?? '').trim().toUpperCase();
+
+	if (code === 'SPA_SPEC' || code === 'SPS_SPEC') {
+		return 'SPECIALIZATION';
+	}
+	if (code === 'STE_RESEARCH' || code.startsWith('RESEARCH') || name.includes('RESEARCH')) {
+		return 'RESEARCH';
+	}
+	if (modular === 'SCIENCE' || code.startsWith('SCI_')) {
+		return 'SCIENCE';
+	}
+	if (modular === 'TLE_EXPLORATORY' || code === 'TLE' || code.startsWith('TLE_') || code.startsWith('TLE_SPEC_')) {
+		return 'TLE';
+	}
+	if (code.length > 0) {
+		return code;
+	}
+	if (name.length > 0) {
+		return name;
+	}
+	return 'UNKNOWN SUBJECT';
+}
+
+export function resolveSubjectContractDefaults(input: SubjectContractDefaultsInput): {
+	ownerDepartment: string | null;
+	qualificationPriority: SubjectQualificationPriority;
+	rotationFamily: string | null;
+	outputLabel: string;
+	isSystemManaged: boolean;
+} {
+	const code = (input.subjectCode ?? '').trim().toUpperCase();
+	const rotationFamily = resolveSubjectRotationFamily(code, input.modularGroupId ?? null);
+	return {
+		ownerDepartment: resolveSubjectOwnerDepartmentCode(code, input.subjectName),
+		qualificationPriority: resolveSubjectQualificationPriority(code),
+		rotationFamily,
+		outputLabel: resolveSubjectOutputLabel(code, input.subjectName, input.modularGroupId ?? null),
+		isSystemManaged: code.startsWith('TLE_SPEC_') || code.endsWith('_EXP'),
+	};
 }
 
 export function matchesSubjectOwnershipDepartment(
 	facultyDepartment: string | null | undefined,
 	subjectCode: string | null | undefined,
 	subjectName?: string | null,
+	explicitOwnerDepartment?: string | null,
 ): boolean {
-	const ownerDepartment = resolveSubjectOwnerDepartmentCode(subjectCode, subjectName);
+	const ownerDepartment = normalizeDepartmentCode(explicitOwnerDepartment) ?? resolveSubjectOwnerDepartmentCode(subjectCode, subjectName);
 	if (!ownerDepartment) return false;
 	const normalizedFacultyDepartment = normalizeDepartmentCode(facultyDepartment);
 	if (!normalizedFacultyDepartment) return false;

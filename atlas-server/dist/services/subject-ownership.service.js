@@ -41,6 +41,9 @@ export function isSpecializationPrimarySubjectCode(subjectCode) {
     const code = (subjectCode ?? '').trim().toUpperCase();
     return code.startsWith('SPA_') || code.startsWith('SPS_');
 }
+export function normalizeSubjectQualificationPriority(value) {
+    return value === 'SPECIALIZATION_PRIMARY' ? 'SPECIALIZATION_PRIMARY' : 'DEPARTMENT_FIRST';
+}
 export function resolveSubjectOwnerDepartmentCode(subjectCode, subjectName) {
     const code = (subjectCode ?? '').trim().toUpperCase();
     if (!code)
@@ -58,11 +61,49 @@ export function resolveSubjectOwnerDepartmentCode(subjectCode, subjectName) {
     }
     return null;
 }
-export function resolveSubjectQualificationPriority(subjectCode) {
+export function resolveSubjectQualificationPriority(subjectCode, explicitPriority) {
+    if (explicitPriority) {
+        return normalizeSubjectQualificationPriority(explicitPriority);
+    }
     return isSpecializationPrimarySubjectCode(subjectCode) ? 'SPECIALIZATION_PRIMARY' : 'DEPARTMENT_FIRST';
 }
-export function matchesSubjectOwnershipDepartment(facultyDepartment, subjectCode, subjectName) {
-    const ownerDepartment = resolveSubjectOwnerDepartmentCode(subjectCode, subjectName);
+export function resolveSubjectOutputLabel(subjectCode, subjectName, modularGroupId) {
+    const code = (subjectCode ?? '').trim().toUpperCase();
+    const name = (subjectName ?? '').trim().toUpperCase();
+    const modular = (modularGroupId ?? '').trim().toUpperCase();
+    if (code === 'SPA_SPEC' || code === 'SPS_SPEC') {
+        return 'SPECIALIZATION';
+    }
+    if (code === 'STE_RESEARCH' || code.startsWith('RESEARCH') || name.includes('RESEARCH')) {
+        return 'RESEARCH';
+    }
+    if (modular === 'SCIENCE' || code.startsWith('SCI_')) {
+        return 'SCIENCE';
+    }
+    if (modular === 'TLE_EXPLORATORY' || code === 'TLE' || code.startsWith('TLE_') || code.startsWith('TLE_SPEC_')) {
+        return 'TLE';
+    }
+    if (code.length > 0) {
+        return code;
+    }
+    if (name.length > 0) {
+        return name;
+    }
+    return 'UNKNOWN SUBJECT';
+}
+export function resolveSubjectContractDefaults(input) {
+    const code = (input.subjectCode ?? '').trim().toUpperCase();
+    const rotationFamily = resolveSubjectRotationFamily(code, input.modularGroupId ?? null);
+    return {
+        ownerDepartment: resolveSubjectOwnerDepartmentCode(code, input.subjectName),
+        qualificationPriority: resolveSubjectQualificationPriority(code),
+        rotationFamily,
+        outputLabel: resolveSubjectOutputLabel(code, input.subjectName, input.modularGroupId ?? null),
+        isSystemManaged: code.startsWith('TLE_SPEC_') || code.endsWith('_EXP'),
+    };
+}
+export function matchesSubjectOwnershipDepartment(facultyDepartment, subjectCode, subjectName, explicitOwnerDepartment) {
+    const ownerDepartment = normalizeDepartmentCode(explicitOwnerDepartment) ?? resolveSubjectOwnerDepartmentCode(subjectCode, subjectName);
     if (!ownerDepartment)
         return false;
     const normalizedFacultyDepartment = normalizeDepartmentCode(facultyDepartment);

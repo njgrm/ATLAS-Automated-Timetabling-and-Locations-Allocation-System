@@ -176,4 +176,27 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
     }[];
     ownershipIndex: SubjectSectionOwnershipIndexEntry[];
 }>;
+export interface TeachingLoadResetInput {
+    schoolId: number;
+    schoolYearId: number;
+    actorId: number;
+    authToken?: string;
+    subjectId?: number;
+    previewOnly?: boolean;
+}
+export interface TeachingLoadResetResult {
+    applied: boolean;
+    scope: 'GLOBAL' | 'SUBJECT';
+    schoolId: number;
+    schoolYearId: number;
+    subjectId: number | null;
+    ownershipRowsToRemove: number;
+    facultySubjectRowsAffected: number;
+    facultySubjectRowsDeleted: number;
+    facultySubjectRowsUpdated: number;
+    affectedFacultyCount: number;
+    affectedSubjectCount: number;
+    subjectCodes: string[];
+}
+export declare function previewOrApplyTeachingLoadReset(input: TeachingLoadResetInput): Promise<TeachingLoadResetResult>;
 export {};

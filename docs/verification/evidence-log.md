@@ -1,3 +1,57 @@
+# 2026-05-21 - Phase 3 Subject Contract Follow-Up One-Shot (Implementation + Local Verification)
+- Phase: Phase 3 generator-readiness stream, subject contract durability + remediation workflow follow-up
+- Operator: GitHub Copilot
+- Scope gate: PASS (implementation + local compile verification)
+- Files changed in this pass:
+  - `prisma/schema.prisma`
+  - `prisma/migrations/0029_add_subject_contract_fields/migration.sql`
+  - `prisma/seed.js`
+  - `atlas-server/src/services/subject-ownership.service.ts`
+  - `atlas-server/src/services/subject.service.ts`
+  - `atlas-server/src/services/teaching-load-automation.service.ts`
+  - `atlas-server/src/services/schedule-constructor.ts`
+  - `atlas-server/src/services/generation.service.ts`
+  - `atlas-server/src/services/faculty-assignment.service.ts`
+  - `atlas-server/src/routes/subject.router.ts`
+  - `atlas-server/src/routes/faculty-assignment.router.ts`
+  - `atlas-client/src/types.ts`
+  - `atlas-client/src/types.d.ts`
+  - `atlas-client/src/lib/subject-constants.ts`
+  - `atlas-client/src/components/subjects/SubjectFormModal.tsx`
+  - `atlas-client/src/pages/Subjects.tsx`
+  - `atlas-client/src/pages/FacultyAssignments.tsx`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+
+- Backend contract and workflow repairs:
+  - Subject ownership contract fields are now persisted in `Subject` rows (`outputLabel`, `ownerDepartment`, `qualificationPriority`, `rotationFamily`, `isSystemManaged`) and consumed by assignment and generation qualification logic.
+  - Delete workflow supports explicit cleanup modes: `cleanupHistorical`, `cleanupActive`, and `cleanupAll`.
+  - Added privileged preview-first teaching-load reset endpoint:
+    - `POST /api/v1/faculty-assignments/reset`
+    - defaults to preview
+    - apply requires `confirmReset=true`
+    - supports global and subject-scoped reset (`subjectId` optional)
+
+- Frontend control-surface repairs:
+  - Subjects table simplified to emphasize ownership contract summary over noisy badge stacks.
+  - System-managed rows can be hidden/shown explicitly in Subjects for better operator focus.
+  - Delete blocker modal now exposes actionable remediation: open teaching-load focus, archive, remove active assignments, and cleanup+delete paths.
+  - Added global and subject-scoped teaching-load reset UX with `RESET` confirmation for destructive apply.
+  - Faculty assignments page now supports subject-focused deep links (`?subjectId=`), including inactive target rows required for remediation loops.
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS
+  - `npm run db:generate` -> FAIL (Windows file lock `EPERM` on Prisma engine rename)
+  - `npx prisma generate --no-engine` -> PASS (types regenerated without replacing locked engine binary)
+
+- GO/NO-GO:
+  - **GO** for follow-up prompt scope implementation and local compile/build verification.
+  - **NO-GO** for phase closure until Tailnet runtime QA captures live evidence for:
+    - preview/apply behavior of `POST /api/v1/faculty-assignments/reset`
+    - subject-scoped remediation loop (`/subjects` blocker -> `/assignments?subjectId=...` -> reset/delete retry)
+    - persisted ownership contract parity in live `GET /api/v1/subjects` payloads.
+
 # 2026-05-21 - Phase 3 Subject Domain Reset + Subjects UX Contract Pass
 - Phase: Phase 3 generator-readiness stream, subject-domain authority + UX control-surface reset
 - Operator: GitHub Copilot
