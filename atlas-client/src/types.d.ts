@@ -37,6 +37,11 @@ export type Subject = {
     id: number;
     schoolId: number;
     code: string;
+    displayCode?: string;
+    ownerDepartment?: string | null;
+    qualificationPriority?: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
+    rotationFamily?: string | null;
+    specializationSource?: 'SUBJECT_CONTRACT' | 'NONE';
     name: string;
     minMinutesPerWeek: number;
     preferredRoomType: RoomType;

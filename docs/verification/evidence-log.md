@@ -1,899 +1,126 @@
-# 2026-05-19 - Phase 3 Slot-Fit + Fallback + Pre-Closure One-Shot (Tailnet + DB)
-- Phase: Phase 3 pre-closure contraction pass after run72
+# 2026-05-21 - Phase 3 Subject Domain Reset + Subjects UX Contract Pass
+- Phase: Phase 3 generator-readiness stream, subject-domain authority + UX control-surface reset
 - Operator: GitHub Copilot
-- Scope gate: PASS (execution complete); phase-gate decision: NO-GO
-- Prompt: `docs/prompts/phase3-slot-fit-fallback-and-preclosure-one-shot-prompt.md`
+- Scope gate: PASS (implementation + local compile verification)
 - Files changed in this pass:
-  - `atlas-server/src/services/schedule-constructor.ts`
-  - `atlas-server/src/services/hybrid-scheduler.ts`
-  - `docs/reference/atlas-runtime-source-of-truth-map.md`
-  - `docs/verification/evidence-log.md`
-
-- Before-state baseline (required): run `72`
-  - `assigned=2309`
-  - `unassigned=1167`
-  - `hard=1039`
-  - `homeRoom=46.50`
-  - `policyBlocked=383`
-  - `cohortized=8`
-  - `term={2228,37,44}`
-  - `UNASSIGNED_SECTION=1039`
-  - `SPECIALIZED_ROOM_UNAVAILABLE=128`
-  - `LACKING_FACULTY=68`
-  - `FACULTY_EXCESSIVE_IDLE_GAP=372`
-  - `FACULTY_EXCESSIVE_TRAVEL_DISTANCE=731`
-  - unassigned reason mix: `NO_AVAILABLE_SLOT=987`, `NO_QUALIFIED_FACULTY=180`
-  - unresolved cohort fallback rows: `8`
-
-- Blocker findings by cluster:
-  - `NO_AVAILABLE_SLOT` remained the dominant blocker (`987`) and was concentrated in grade/program slot-fit pressure, especially `9:REGULAR`.
-  - The 8 unresolved cohort rows stayed isolated and stable (`G9-TLE-IA_CARPENTRY`, `G9-TLE-HE_COOKERY`), but were not the main blocker mass.
-  - Active runtime slots are 60-minute blocks (`07:30-08:30` ... `16:00-17:00`) while demand slicing still reflected smaller template-period assumptions, inflating session count pressure and synthetic slot starvation.
-
-- Repair set implemented (2 bounded iterations):
-  - Iteration 1:
-    - Added hybrid seed profile `LOAD_DENSITY_SLOT_PRIORITY` in `hybrid-scheduler.ts` to prioritize dense grade/program demand buckets with cohort-first + constrainedness tie-breaks.
-    - Added cohort-only preference fallback in `schedule-constructor.ts` as a narrow last-resort when strict preference filtering yields zero candidates.
-    - Outcome: no live delta vs run72 (run74 remained identical), so second iteration proceeded.
-  - Iteration 2:
-    - Added demand session normalization to active slot duration in `schedule-constructor.ts`:
-      - derive dominant slot duration from timetable shape/fallback period slots,
-      - recompute `sessionsPerWeek` and `durationPerSession` from existing weekly minutes per demand item,
-      - preserve total weekly minutes while removing synthetic over-fragmentation.
-
-- Build/typecheck and targeted verification:
-  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
-  - `npx --yes tsx atlas-server/src/__tests__/phase2-home-room-strategy.test.ts` -> PASS (`7` passed)
-  - `npx --yes tsx atlas-server/src/__tests__/tri-sem-modular-contract.test.ts` -> PASS (`7` passed)
-  - `npx --yes tsx atlas-server/src/__tests__/term-scoped-violations.test.ts` -> PASS (`5` passed)
-
-- Tailnet rerun sequence executed (final pass):
-  - `POST /api/v1/auth/login` (`identifier` payload)
-  - `POST /api/v1/sections/sync` with `{ schoolId:1, schoolYearId:55 }`
-  - `POST /api/v1/subjects/sync-offerings` with `{ schoolId:1, schoolYearId:55 }`
-  - `POST /api/v1/generation/1/55/runs` with `{ roomerStrategy:"HOME_ROOM_FIRST", enforceShiftWindows:true }`
-  - Intermediate verification run: `74`
-  - Final evaluation run: `76` (`COMPLETED`)
-
-- Required KPI delta vs run72 (run72 -> run76):
-  - `assignedCount`: `2309 -> 2216` (`-93`)
-  - `unassignedCount`: `1167 -> 828` (`-339`)
-  - `hardViolationCount`: `1039 -> 705` (`-334`)
-  - `homeRoomSuccessRate`: `46.50 -> 52.72` (`+6.22pp`)
-  - `policyBlockedCount`: `383 -> 218` (`-165`)
-  - `cohortizedClassCount`: `8 -> 8` (`0`)
-  - `termCounts`: `{2228,37,44} -> {2122,42,52}`
-  - `SPECIALIZED_ROOM_UNAVAILABLE`: `128 -> 123` (`-5`)
-  - `LACKING_FACULTY`: `68 -> 68` (`0`)
-  - `FACULTY_EXCESSIVE_IDLE_GAP`: `372 -> 354` (`-18`)
-  - `FACULTY_EXCESSIVE_TRAVEL_DISTANCE`: `731 -> 704` (`-27`)
-  - `UNASSIGNED_SECTION`: `1039 -> 705` (`-334`)
-
-- Required NO_AVAILABLE/fallback tracking:
-  - `NO_AVAILABLE_SLOT`: `987 -> 690` (`-297`)
-  - `NO_QUALIFIED_FACULTY`: `180 -> 138` (`-42`)
-  - `FALLBACK_UNRESOLVED` total: `1039 -> 705` (`-334`)
-  - unresolved cohort fallback rows: `8 -> 8` (`0`, still isolated)
-
-- Residual slot-fit concentration (run76):
-  - by grade: `G9=425`, `G8=152`, `G7=99`, `G10=14`
-  - dominant bucket remains `9:REGULAR=396`
-
-- GO/NO-GO:
-  - **GO** for this one-shot prompt scope.
-  - Rationale: blocker set contracts materially on the required pre-closure axes (`hard`, `UNASSIGNED_SECTION`, `NO_AVAILABLE_SLOT`, `FALLBACK_UNRESOLVED`, `policyBlocked`, travel/idle).
-  - **NO-GO** for overall Phase 3 closure.
-  - Rationale: unresolved mass remains high (`UNASSIGNED_SECTION=705`, `FALLBACK_UNRESOLVED=705`) and the cohort unresolved subset is unchanged (`8`).
-
-# 2026-05-19 - Phase 3 Faculty Feasibility + Final Contraction One-Shot (Tailnet + DB)
-- Phase: Phase 3 generator-readiness contraction pass after run68
-- Operator: GitHub Copilot
-- Scope gate: PASS (execution complete); phase-gate decision: NO-GO
-- Prompt: `docs/prompts/phase3-faculty-feasibility-and-final-contraction-one-shot-prompt.md`
-- Files changed in this pass:
-  - `atlas-server/src/services/generation.service.ts`
-  - `atlas-server/src/services/schedule-constructor.ts`
-  - `docs/reference/atlas-runtime-source-of-truth-map.md`
-  - `docs/verification/evidence-log.md`
-
-- Before-state baseline (required): run `68`
-  - `assigned=2277`
-  - `unassigned=1199`
-  - `hard=1072`
-  - `homeRoom=46.43`
-  - `policyBlocked=1430`
-  - `cohortized=8`
-  - `term={2196,37,44}`
-  - `UNASSIGNED_SECTION=1072`
-  - `SPECIALIZED_ROOM_UNAVAILABLE=127`
-  - `LACKING_FACULTY=68`
-  - `FACULTY_EXCESSIVE_IDLE_GAP=368`
-  - `FACULTY_EXCESSIVE_TRAVEL_DISTANCE=723`
-  - unassigned reason mix: `NO_AVAILABLE_SLOT=811`, `NO_QUALIFIED_FACULTY=388`
-
-- Blocker findings in this pass:
-  - Primary unresolved faculty-feasibility mass in run68 was no longer limited to `TLE_SPEC_*`; it included core rows where placeholder repair coverage had not been widened.
-  - First rerun after widening coverage (run70) reduced hard/unassigned and `NO_QUALIFIED_FACULTY`, but surfaced inflated `policyBlockedCount` due attempt-level counting.
-  - Second bounded iteration converted policy-block counting to session-level blocked outcomes to avoid candidate-depth inflation and preserve readable contraction signals.
-
-- Repair set implemented (2 bounded iterations):
-  - Iteration 1 (`generation.service.ts`): widened pre-run placeholder coverage repair target set to include:
-    - dynamic `TLE_SPEC_*` rows,
-    - latest completed run `NO_QUALIFIED_FACULTY` subject codes,
-    - uncovered active subjects with zero real-faculty ownership from coverage summary,
-    - explicit exclusion of `HG` from placeholder expansion.
-  - Iteration 2 (`schedule-constructor.ts`): changed policy-block accounting from per-candidate increments to per-session blocked outcomes via `policyBlockedForSession`.
-
-- Build/typecheck and targeted verification:
-  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
-  - `npx --yes tsx atlas-server/src/__tests__/phase2-home-room-strategy.test.ts` -> PASS (`7` passed)
-  - `npx --yes tsx atlas-server/src/__tests__/tri-sem-modular-contract.test.ts` -> PASS (`7` passed)
-  - `npx --yes tsx atlas-server/src/__tests__/term-scoped-violations.test.ts` -> PASS (`5` passed)
-
-- Tailnet rerun sequence executed (final pass):
-  - `POST /api/v1/auth/login` (`identifier` payload)
-  - `POST /api/v1/sections/sync` with `{ schoolId:1, schoolYearId:55 }`
-  - `POST /api/v1/subjects/sync-offerings` with `{ schoolId:1, schoolYearId:55 }`
-  - `POST /api/v1/generation/1/55/runs` with `{ roomerStrategy:"HOME_ROOM_FIRST", enforceShiftWindows:true }`
-  - Intermediate verification run: `70`
-  - Final evaluation run: `72` (`COMPLETED`)
-
-- Required KPI delta vs run68 (run68 -> run72):
-  - `assignedCount`: `2277 -> 2309` (`+32`)
-  - `unassignedCount`: `1199 -> 1167` (`-32`)
-  - `hardViolationCount`: `1072 -> 1039` (`-33`)
-  - `homeRoomSuccessRate`: `46.43 -> 46.50` (`+0.07pp`)
-  - `policyBlockedCount`: `1430 -> 383` (`-1047`)
-  - `cohortizedClassCount`: `8 -> 8` (`0`)
-  - `termCounts`: `{2196,37,44} -> {2228,37,44}`
-  - `SPECIALIZED_ROOM_UNAVAILABLE`: `127 -> 128` (`+1`)
-  - `LACKING_FACULTY`: `68 -> 68` (`0`)
-  - `FACULTY_EXCESSIVE_IDLE_GAP`: `368 -> 372` (`+4`)
-  - `FACULTY_EXCESSIVE_TRAVEL_DISTANCE`: `723 -> 731` (`+8`)
-  - `UNASSIGNED_SECTION`: `1072 -> 1039` (`-33`)
-
-- Required NO_QUALIFIED/fallback contraction tracking:
-  - `NO_QUALIFIED_FACULTY`: `388 -> 180` (`-208`)
-  - `NO_AVAILABLE_SLOT`: `811 -> 987` (`+176`)
-  - `FALLBACK_UNRESOLVED` total: `1072 -> 1039` (`-33`)
-  - unresolved cohort fallback rows: `8 -> 8` (`0`, now isolated and unchanged)
-
-- Residual no-qualified concentration (run72):
-  - `TLE=96`
-  - `HG=30`
-  - `MAPEH=22`
-  - `ENG=16`
-  - `ENVIRONMENTAL_SCIENCE=16`
-
-- GO/NO-GO:
-  - **GO** for this one-shot prompt scope.
-  - Rationale: required contraction gates are met for faculty-feasibility mass (`NO_QUALIFIED_FACULTY -208`) and overall hard/unassigned pressure (`-33/-32`) without policy-block pressure shift.
-  - **NO-GO** for overall Phase 3 closure.
-  - Rationale: unresolved hard/fallback mass remains high (`UNASSIGNED_SECTION=1039`, `FALLBACK_UNRESOLVED=1039`), cohort unresolved subset is unchanged (`8`), and travel/idle soft pressure still trends upward.
-
-# 2026-05-19 - Phase 3 Cohort Fallback + Packing + KPI One-Shot (Tailnet + DB)
-- Phase: Phase 3 post-run64 blocker contraction pass (cohort fallback + packing + faculty movement/idle)
-- Operator: GitHub Copilot
-- Scope gate: PASS (execution complete); phase-gate decision: NO-GO
-- Prompt: `docs/prompts/phase3-cohort-packing-and-kpi-one-shot-prompt.md`
-- Files changed in this pass:
-  - `atlas-server/src/services/schedule-constructor.ts`
-  - `atlas-server/src/services/hybrid-scheduler.ts`
-  - `docs/reference/atlas-runtime-source-of-truth-map.md`
-  - `docs/verification/evidence-log.md`
-
-- Before-state baseline (required): run `64`
-  - `assigned=2270`
-  - `unassigned=1206`
-  - `hard=1079`
-  - `homeRoom=51.11`
-  - `policyBlocked=1466`
-  - `cohortized=8`
-  - `term={2187,39,44}`
-  - `SPECIALIZED_ROOM_UNAVAILABLE=127`
-  - `FACULTY_EXCESSIVE_IDLE_GAP=363`
-  - `FACULTY_EXCESSIVE_TRAVEL_DISTANCE=842`
-
-- Blocker findings by cluster:
-  - Remaining unresolved cohort rows in run 64 are concentrated and narrow:
-    - `8` rows total, all `entryKind=COHORT`, all `NO_AVAILABLE_SLOT`, all `roomAssignmentReason=FALLBACK_UNRESOLVED`.
-    - Dominant subject/cohort pairs:
-      - `TLE_SPEC_IA_CARPENTRY` (`subjectId=6874`) → `4` sessions
-      - `TLE_SPEC_HE_COOKERY` (`subjectId=6875`) → `4` sessions
-  - This cohort cluster is real but not the main blocker mass.
-    - run64 unassigned reason mix:
-      - `NO_AVAILABLE_SLOT=818`
-      - `NO_QUALIFIED_FACULTY=388`
-  - Dominant pressure remains general slot-fit/packing plus faculty-day constraints, not specialized-room scarcity.
-
-- Repair set implemented (2 bounded iterations):
-  - Iteration 1 (`schedule-constructor.ts` + `hybrid-scheduler.ts`):
-    - Reduced same-day spread penalty to allow denser packing before hard slot starvation.
-    - Added faculty-slot heuristic ranking for day packing.
-    - Added room selection heuristic tie-breaker to reduce short-hop building transitions.
-    - Added bounded overflow-room fallback for classroom demand when no classroom can meet enrollment capacity.
-    - Preserved home-room/same-zone room-priority ordering while applying heuristic tie-breaks.
-    - Added hybrid seed profile `PACKED_BLOCK_PRIORITY` (cohort + heavy weekly loads first).
-  - Iteration 2 (`schedule-constructor.ts`):
-    - Added bounded cohort candidate augmentation: when cohort assignment depth is thin (`<2` explicit candidates), augment with tiered specialization-qualified faculty candidates.
-
-- Build/typecheck and targeted verification:
-  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
-  - `npx --yes tsx atlas-server/src/__tests__/phase2-home-room-strategy.test.ts` -> PASS (`7` passed)
-  - `npx --yes tsx atlas-server/src/__tests__/tri-sem-modular-contract.test.ts` -> PASS (`7` passed)
-  - `npx --yes tsx atlas-server/src/__tests__/term-scoped-violations.test.ts` -> PASS (`5` passed)
-
-- Tailnet rerun sequence executed:
-  - `POST /api/v1/auth/login` (`identifier` payload)
-  - `POST /api/v1/sections/sync` with `{ schoolId:1, schoolYearId:55 }`
-  - `POST /api/v1/subjects/sync-offerings` with `{ schoolId:1, schoolYearId:55 }`
-  - `POST /api/v1/generation/1/55/runs` with `{ roomerStrategy:"HOME_ROOM_FIRST", enforceShiftWindows:true }`
-  - Validation reruns executed: `run 67`, `run 68`
-  - Final evaluation run: `run 68` (`COMPLETED`)
-
-- Required KPI delta vs run 64 (run64 -> run68):
-  - `assignedCount`: `2270 -> 2277` (`+7`)
-  - `unassignedCount`: `1206 -> 1199` (`-7`)
-  - `hardViolationCount`: `1079 -> 1072` (`-7`)
-  - `homeRoomSuccessRate`: `51.11 -> 46.43` (`-4.68pp`)
-  - `policyBlockedCount`: `1466 -> 1430` (`-36`)
-  - `cohortizedClassCount`: `8 -> 8` (`0`)
-  - `termCounts`: `{2187,39,44} -> {2196,37,44}`
-  - `SPECIALIZED_ROOM_UNAVAILABLE`: `127 -> 127` (`0`)
-  - `LACKING_FACULTY`: `68 -> 68` (`0`)
-  - `FACULTY_EXCESSIVE_IDLE_GAP`: `363 -> 368` (`+5`)
-  - `FACULTY_EXCESSIVE_TRAVEL_DISTANCE`: `842 -> 723` (`-119`)
-  - `UNASSIGNED_SECTION`: `1079 -> 1072` (`-7`)
-
-- Required unresolved cohort/fallback tracking:
-  - Remaining unresolved cohort row count: `8 -> 8` (no contraction)
-  - `FALLBACK_UNRESOLVED` total: `1079 -> 1072` (`-7`), but cohort subset unchanged:
-    - cohort fallback unresolved: `8 -> 8` (`0`)
-
-- GO/NO-GO:
-  - **NO-GO** for this one-shot prompt.
-  - Rationale: blocker set improved only marginally; while hard/unassigned/policyBlocked/travel moved down, the required contraction is not material and the cohort fallback cluster did not shrink (`8` unresolved cohort rows still `FALLBACK_UNRESOLVED`).
-
-# 2026-05-19 - Phase 3 Generation Feasibility + Term Distribution One-Shot (Tailnet + DB)
-- Phase: Phase 3 generator-readiness deep-contract pass after room-demand reset
-- Operator: GitHub Copilot
-- Scope gate: PASS (execution complete); phase-gate decision: NO-GO
-- Prompt: `docs/prompts/phase3-generation-feasibility-and-term-distribution-one-shot-prompt.md`
-- Files changed in this pass:
-  - `atlas-server/src/services/subject.service.ts`
-  - `atlas-server/src/services/generation.service.ts`
-  - `atlas-server/src/services/faculty-assignment.service.ts`
-  - `atlas-server/src/services/schedule-constructor.ts`
-  - `docs/reference/atlas-runtime-source-of-truth-map.md`
-  - `docs/verification/evidence-log.md`
-
-- Root-cause findings by cluster (run 56 revealed):
-  - Term distribution collapse was constructor-level demand metadata drift; modular demand now carries per-session term slices and latest run no longer collapses to term1 only.
-  - Cohort non-consumption had two layered blockers:
-    - grade normalization mismatch (`7-10` vs `107-110`) in cohort/assignment matching,
-    - infeasible cohort capacity modeling (combined cohort enrollment exceeded compatible room capacities).
-  - Faculty feasibility for specialized TLE rows was shallow because dynamic TLE sync did not fully expose inter-section usage flags and targeted placeholder coverage was not enforced pre-run.
-  - Post-room-demand pressure shape changed from specialized-room scarcity dominance to unresolved section fit and policy/sequence fit pressure.
-
-- Repair actions implemented:
-  - Dynamic TLE contract materialization now persists inter-section flags and grade scopes (`subject.service.ts`).
-  - Added targeted pre-run placeholder coverage repair for active `TLE_SPEC_*` rows (`generation.service.ts`).
-  - Normalized grade matching in faculty-assignment section relevance resolution (`faculty-assignment.service.ts`).
-  - Updated constructor cohort/term logic (`schedule-constructor.ts`):
-    - normalized grade + specialization-aware cohort filtering,
-    - prevented specialization-bound fallback-to-section duplication,
-    - modular per-session term index assignment,
-    - cohort-first ordering inside TLE buckets,
-    - cohort room-feasibility enrollment uses max member-section enrollment (not aggregate cohort sum) for single-room slot matching.
-
-- Build/typecheck/test verification:
-  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
-  - `npx --yes tsx atlas-server/src/__tests__/tri-sem-modular-contract.test.ts` -> PASS (`7` passed, `0` failed)
-
-- Tailnet rerun sequence executed:
-  - `POST /api/v1/auth/login` (`identifier` payload)
-  - `POST /api/v1/sections/sync` with `{ schoolId:1, schoolYearId:55 }`
-  - `POST /api/v1/subjects/sync-offerings` with `{ schoolId:1, schoolYearId:55 }`
-  - `POST /api/v1/generation/1/55/runs` with `{ roomerStrategy:"HOME_ROOM_FIRST", enforceShiftWindows:true }`
-  - Validation reruns in this pass: `run 63`, `run 64`
-  - Final evaluation run: `run 64` (`COMPLETED`)
-
-- Required KPI comparison snapshots:
-  - Baseline `run 55`:
-    - `assigned=1990`, `unassigned=1470`, `hard=606`, `homeRoom=38.2`, `policyBlocked=1245`, `cohortized=0`, `term={1990,0,0}`
-  - Post-room-demand `run 56`:
-    - `assigned=2266`, `unassigned=1194`, `hard=1004`, `homeRoom=51.63`, `policyBlocked=1513`, `cohortized=0`, `term={2266,0,0}`
-  - Final one-shot `run 64`:
-    - `assigned=2270`, `unassigned=1206`, `hard=1079`, `homeRoom=51.11`, `policyBlocked=1466`, `cohortized=8`, `term={2187,39,44}`
-
-- Required KPI deltas:
-  - Delta `run 55 -> run 56`:
-    - `assigned +276`, `unassigned -276`, `hard +398`, `homeRoom +13.43pp`
-    - `SPECIALIZED_ROOM_UNAVAILABLE -674` (`864 -> 190`)
-    - `LACKING_FACULTY 0` (`68 -> 68`)
-    - `FACULTY_EXCESSIVE_IDLE_GAP +22` (`334 -> 356`)
-    - `FACULTY_EXCESSIVE_TRAVEL_DISTANCE +78` (`785 -> 863`)
-    - `policyBlocked +268` (`1245 -> 1513`)
-    - `cohortizedClassCount 0` (`0 -> 0`)
-    - `termCounts={term1:+276, term2:+0, term3:+0}`
-  - Delta `run 56 -> run 64`:
-    - `assigned +4`, `unassigned +12`, `hard +75`, `homeRoom -0.52pp`
-    - `SPECIALIZED_ROOM_UNAVAILABLE -63` (`190 -> 127`)
-    - `LACKING_FACULTY 0` (`68 -> 68`)
-    - `FACULTY_EXCESSIVE_IDLE_GAP +7` (`356 -> 363`)
-    - `FACULTY_EXCESSIVE_TRAVEL_DISTANCE -21` (`863 -> 842`)
-    - `policyBlocked -47` (`1513 -> 1466`)
-    - `cohortizedClassCount +8` (`0 -> 8`)
-    - `termCounts={term1:-79, term2:+39, term3:+44}`
-
-- Additional verifier notes (run 64):
-  - Entry-kind split: `assigned SECTION=2262`, `assigned COHORT=8`.
-  - Remaining unassigned cohort rows: `8` (`NO_AVAILABLE_SLOT`, room reason `FALLBACK_UNRESOLVED`).
-  - Term-collapse gate is now cleared (`term2` and `term3` are non-zero).
-  - Cohort-consumption gate is partially improved (`cohortizedClassCount=8`) but not yet healthy.
-
-- GO/NO-GO:
-  - **NO-GO** for this one-shot prompt.
-  - Rationale: although term distribution is repaired and cohortized output is no longer zero, the dominant post-room-demand blocker set remains unresolved at required depth (`hardViolationCount` and `UNASSIGNED_SECTION` both worsened versus run 56), so generator-feasibility closure criteria are not yet met.
-
-# 2026-05-19 - Phase 3 Room-Demand Contract + Master-Schedule Visibility One-Shot (Tailnet + DB)
-- Phase: Phase 3 one-shot execution for room-demand contract reset and teacher-visibility surface split
-- Operator: GitHub Copilot
-- Scope gate: PASS (prompt-scope GO); phase-gate decision: NO-GO
-- Prompt: `docs/prompts/phase3-room-demand-contract-and-master-schedule-one-shot-prompt.md`
-- Files changed in this pass:
-  - `atlas-server/src/services/subject.service.ts`
-  - `prisma/seed.js`
-  - `atlas-client/src/components/timetable/TimetableGrid.tsx`
-  - `atlas-client/src/components/timetable/ClassProgramMatrixView.tsx`
-  - `atlas-client/src/components/timetable/CenterWorkspace.tsx`
-  - `docs/reference/atlas-runtime-source-of-truth-map.md`
-  - `docs/verification/evidence-log.md`
-
-- Build/typecheck verification:
-  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
-  - `npm --prefix d:\ATLAS\atlas-client run build` -> PASS
-
-- Before-state contract and pressure (reference baseline):
-  - Prior regular contract baseline: `2160` non-classroom minutes out of `3420`
-  - Prior active room-type mix: `LABORATORY=11`, `GYMNASIUM=2`, `COMPUTER_LAB=2`, `TLE_WORKSHOP=4`
-  - Run 55 pressure snapshot:
-    - `SPECIALIZED_ROOM_UNAVAILABLE=864`
-    - `UNASSIGNED_SECTION=606`
-    - `FACULTY_EXCESSIVE_TRAVEL_DISTANCE=785`
-    - `homeRoomSuccessRate=38.2`
-
-- Contract reset verification (post-sync DB reads):
-  - Active subject room-type mix:
-    - `CLASSROOM=25`, `COMPUTER_LAB=2`, `LABORATORY=1`
-  - Regular-scope subject minutes by room type:
-    - `CLASSROOM=3660`, `COMPUTER_LAB=240`, `LABORATORY=90`
-    - non-classroom demand: `330 / 3990`
-  - Remaining explicit non-classroom regular subjects:
-    - `TLE_ICT_EXP` -> `COMPUTER_LAB` (`240` minutes)
-    - `ENVIRONMENTAL_SCIENCE` -> `LABORATORY` (`90` minutes)
-
-- One-shot rerun evidence (run 55 -> run 56):
-  - `SPECIALIZED_ROOM_UNAVAILABLE`: `864 -> 190` (delta `-674`)
-  - `UNASSIGNED_SECTION`: `606 -> 1004` (delta `+398`)
-  - `FACULTY_EXCESSIVE_TRAVEL_DISTANCE`: `785 -> 863` (delta `+78`)
-  - `homeRoomSuccessRate`: `38.2 -> 51.63` (delta `+13.43pp`)
-  - Additional run summary shift:
-    - `assignedCount`: `1990 -> 2266`
-    - `hardViolationCount`: `606 -> 1004`
-
-- Teacher-visibility split verification:
-  - Section-facing master schedule now suppresses teacher identity:
-    - `CenterWorkspace` passes `showTeacherDetails={viewMode !== 'section'}` to `TimetableGrid`
-    - `TimetableGrid` renders teacher initials/names only when `showTeacherDetails` is true
-    - `ClassProgramMatrixView` no longer renders faculty label text and omits faculty from aria labels
-  - Non-section schedule surfaces preserve teacher assignment data:
-    - live room schedule payload sample still includes teacher linkage (`room=97`, `facultyId=18232`, `subject=TLE`)
-
-- GO/NO-GO:
-  - **GO** for prompt scope.
-  - Rationale: room-demand over-specialization was materially reduced and section-facing teacher masking is now implemented without removing teacher linkage from non-section surfaces.
-  - **NO-GO** for overall Phase 3 closure.
-  - Rationale: despite specialized-room relief, hard unresolved load remains high (`hardViolationCount=1004`) with worsened unassigned/travel pressure that still blocks phase-gate readiness.
-
-# 2026-05-18 - Phase 3 Placement Normalization + KPI One-Shot Rerun (Tailnet + DB)
-- Phase: Phase 3 one-shot execution for placement fidelity verification, stakeholder output normalization verification, and KPI rerun gate decision
-- Operator: GitHub Copilot
-- Scope gate: PASS (execution complete); phase-gate decision: NO-GO
-- Prompt: `docs/prompts/phase3-placement-normalization-kpi-one-shot-prompt.md`
-- Files changed in this pass:
-  - `atlas-server/src/services/schedule-output-normalization.service.ts`
-  - `atlas-server/src/services/subject.service.ts`
-  - `atlas-server/src/services/room-preference.service.ts`
-  - `atlas-server/src/services/room-schedule.service.ts`
-  - `atlas-client/src/types.ts`
-  - `atlas-client/src/hooks/useTimetableData.ts`
-  - `atlas-client/src/pages/RoomSchedules.tsx`
-  - `atlas-client/src/components/faculty-dashboard/DesktopDashboardLayout.tsx`
-  - `atlas-client/src/components/faculty-dashboard/MobileDashboardLayout.tsx`
-  - `atlas-client/src/components/faculty-shared/WeeklyScheduleGrid.tsx`
-  - `atlas-client/src/components/faculty-room-preferences/DesktopRoomRequestLayout.tsx`
-  - `atlas-client/src/components/faculty-room-preferences/MobileRoomRequestLayout.tsx`
-  - `atlas-client/src/components/faculty-room-preferences/RoomRequestSheet.tsx`
-  - `atlas-client/src/pages/FacultyRoomPreferences.tsx`
-  - `docs/reference/atlas-runtime-source-of-truth-map.md`
-  - `docs/verification/evidence-log.md`
-
-- Build/typecheck verification:
-  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
-  - `npm --prefix d:\ATLAS\atlas-client run build` -> PASS
-
-- Placement fidelity verification (required before/after persistence check):
-  - Direct DB check (`SectionMirror`, `schoolId=1`, `schoolYearId=55`, `programType in [SPA,SPS]`):
-    - `specialProgramRows=16`
-    - `missingPlacement=0` (`homeRoomId`, `preferredRoomId`, `buildingZoneId` all present)
-  - Post-rerun section parity check (`GET /api/v1/sections/summary/55?schoolId=1`):
-    - `REGULAR=58`, `STE=8`, `SPA=8`, `SPS=8`
-
-- Stakeholder output normalization verification (live Tailnet):
-  - Subject contract samples (`GET /api/v1/subjects?schoolId=1`):
-    - `SCI_BIO->SCIENCE`
-    - `SCI_CHEM->SCIENCE`
-    - `SCI_ES->SCIENCE`
-    - `TLE_ICT_EXP->TLE`
-    - `SPA_SPEC->SPECIALIZATION`
-    - `SPS_SPEC->SPECIALIZATION`
-    - `STE_APPLIED_CHEM->APPLIED CHEMISTRY`
-    - `STE_RESEARCH->RESEARCH`
-  - Timetable/review label resolution sample (`GET /api/v1/generation/1/55/runs/latest/draft` + subject map):
-    - `subjectId=3061 raw=SCI_BIO display=SCIENCE`
-  - Room schedule sample (`GET /api/v1/room-schedules/1/55/rooms/:roomId?source=latest`):
-    - `room=21 Chemistry Lab subjectId=3061 subjectDisplayLabel=SCIENCE`
-    - `room=22 Biology Lab subjectId=3061 subjectDisplayLabel=SCIENCE`
-    - `room=23 Physics Lab subjectId=3061 subjectDisplayLabel=SCIENCE`
-  - Faculty-facing room-request samples (`GET /api/v1/room-preferences/1/55/latest/faculty/:facultyId`):
-    - `facultyId=18263 subjectCode=SPA_SPEC subjectDisplayLabel=SPECIALIZATION`
-    - `facultyId=18216 subjectCode=SPA_SPEC subjectDisplayLabel=SPECIALIZATION`
-    - `facultyId=18198 subjectCode=SPA_SPEC subjectDisplayLabel=SPECIALIZATION`
-
-- One-shot rerun sequence executed:
-  - `POST /api/v1/sections/sync` with `{ schoolId:1, schoolYearId:55 }`
-  - `POST /api/v1/subjects/sync-offerings` with `{ schoolId:1, schoolYearId:55 }`
-  - `POST /api/v1/generation/1/55/runs` with `{ roomerStrategy:"HOME_ROOM_FIRST", enforceShiftWindows:true }`
-  - Fresh run id: `55` (`COMPLETED`)
-
-- KPI comparison snapshots:
-  - Baseline `run 41`:
-    - `assigned=939`, `unassigned=2661`, `hard=731`, `homeRoom=19.42`, `term={939,0,0}`, `durationMs=2493`
-  - Prior checkpoint `run 52`:
-    - `assigned=1121`, `unassigned=1451`, `hard=610`, `homeRoom=32.11`, `term={1121,0,0}`, `durationMs=4437`
-  - Pre-one-shot `run 54`:
-    - `assigned=1989`, `unassigned=1471`, `hard=606`, `homeRoom=42.75`, `term={1989,0,0}`, `durationMs=5400`
-  - Post-one-shot `run 55`:
-    - `assigned=1990`, `unassigned=1470`, `hard=606`, `homeRoom=38.2`, `term={1990,0,0}`, `durationMs=4728`
-  - Delta `run 54 -> run 55`:
-    - `assigned +1`, `unassigned -1`, `hard 0`, `homeRoom -4.55pp`, `durationMs -672`
-
-- Fresh blocker diagnostics (`run 55`):
-  - `policyBlockedCount=1245`
-  - `cohortCount=4`, `cohortizedClassCount=0`
-  - Violations:
-    - `UNASSIGNED_SECTION=606`
-    - `SPECIALIZED_ROOM_UNAVAILABLE=864`
-    - `LACKING_FACULTY=68`
-    - `FACULTY_EXCESSIVE_IDLE_GAP=334`
-    - `FACULTY_EXCESSIVE_TRAVEL_DISTANCE=785`
-  - Term distribution remains collapsed to `term1` only (`term2=0`, `term3=0`).
-
-- GO/NO-GO:
-  - **NO-GO** for phase-gate closure from this one-shot prompt.
-  - Rationale: placement persistence and stakeholder-facing label normalization are now verified, but generator feasibility blockers remain materially unresolved (`606` hard unresolved, high specialized-room and policy-block pressure, and persistent term-distribution collapse).
-
-# 2026-05-18 - Phase 3 Special-Program Placement Contract Repair (Tailnet + DB)
-- Phase: Phase 3 special-program placement contract repair for SPA/SPS section mirrors
-- Operator: GitHub Copilot
-- Scope gate: PASS
-- Prompt: `docs/prompts/phase3-special-program-placement-contract-prompt.md`
-- Files changed in this pass:
-  - `atlas-server/src/services/section.service.ts`
-  - `atlas-server/src/routes/section.router.ts`
-  - `docs/reference/atlas-runtime-source-of-truth-map.md`
-  - `docs/verification/evidence-log.md`
-
-- Before-state summary:
-  - Tailnet `GET /api/v1/sections/summary/55?schoolId=1`:
-    - `SPA count=8`, `SPS count=8`
-    - `SPA missing homeRoomId=8`, `SPS missing homeRoomId=8`
-    - `SPA missing buildingZoneId=8`, `SPS missing buildingZoneId=8`
-  - Direct DB (`SectionMirror`, `schoolId=1`, `schoolYearId=55`, `programType in SPA/SPS`):
-    - `total=16`
-    - `missing homeRoomId=16`
-    - `missing buildingZoneId=16`
-
-- Contract decision (required):
-  - Chosen model: **hybrid contract**.
-  - EnrollPro remains source-of-truth for section roster and program membership.
-  - ATLAS now provides an explicit, auditable placement overlay path when upstream does not supply physical placement:
-    - `POST /api/v1/sections/special-program-placement/overlay`
-  - Overlay persistence target: `SectionMirror.homeRoomId`, `SectionMirror.preferredRoomId`, `SectionMirror.buildingZoneId`.
-
-- Repair implemented (minimum coherent):
-  - Added service method `applySpecialProgramPlacementOverlay(schoolId, schoolYearId)`:
-    - targets active non-stale SPA/SPS rows missing home room and/or zone
-    - selects SPA/SPS candidate teaching rooms from matching building short codes/zones
-    - avoids reusing already-assigned home rooms in the same school-year scope
-    - writes persisted overlay assignments and returns assignment/issue audit payload
-  - Added route `POST /api/v1/sections/special-program-placement/overlay`:
-    - privileged auth required
-    - accepts `schoolId` and optional `schoolYearId`
-    - returns explicit contract message plus before/after assignment statistics
-
-- Build/typecheck verification:
-  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
-
-- Tailnet API verification:
-  - Auth: `POST /api/v1/auth/login`
-  - Overlay trigger: `POST /api/v1/sections/special-program-placement/overlay` with `{ schoolId:1, schoolYearId:55 }`
-  - Overlay result:
-    - `affectedSections=16`
-    - `missingHomeRoomBefore=16`
-    - `missingBuildingZoneBefore=16`
-    - `updated=16`
-    - `remainingMissingHomeRoom=0`
-    - `remainingMissingBuildingZone=0`
-    - `issues=[]`
-  - Required summary readback:
-    - `GET /api/v1/sections/summary/55?schoolId=1`
-    - post-state counts:
-      - `SPA missing homeRoomId=0`, `SPS missing homeRoomId=0`
-      - `SPA missing buildingZoneId=0`, `SPS missing buildingZoneId=0`
-
-- Direct DB proof:
-  - `SectionMirror` post-state for SPA/SPS rows (`schoolId=1`, `schoolYearId=55`):
-    - `total=16`
-    - `missing homeRoomId=0`
-    - `missing preferredRoomId=0`
-    - `missing buildingZoneId=0`
-  - Sample persisted overlays:
-    - `SPA A (G7) -> homeRoomId 151, zone SPA`
-    - `SPS A (G7) -> homeRoomId 141, zone SPS`
-
-- GO/NO-GO:
-  - **GO** for `phase3-special-program-placement-contract-prompt.md`.
-  - Rationale: active SPA/SPS mirrored sections are no longer physically undefined, overlay behavior is explicit and auditable, and repaired state is persisted and visible on Tailnet summary + direct DB reads.
-
-# 2026-05-18 - Phase 3 Schoolwide Day-Shape Alignment (Tailnet + DB)
-- Phase: Phase 3 control-model alignment for schoolwide full-day baseline plus temporary half-day override mode
-- Operator: GitHub Copilot
-- Scope gate: PASS
-- Prompt: `docs/prompts/phase3-schoolwide-day-shape-alignment-prompt.md`
-- Files changed in this pass:
-  - `atlas-server/src/services/scheduling-policy.service.ts`
-  - `atlas-server/src/services/grade-window.service.ts`
-  - `atlas-client/src/components/SchedulingPolicyPane.tsx`
-  - `atlas-client/src/components/scheduling-policy/ShiftSettingsEditor.tsx`
-  - `docs/verification/evidence-log.md`
-
-- Artifact comparison source used:
-  - PDF direct-read status in-session: unavailable due MCP path access denial.
-  - Fallback evidence used (required by prompt):
-    - `docs/analysis/phase3-schoolwide-stakeholder-pdf-deep-dive-2026-05-18.md`
-    - `docs/analysis/phase3-grade10-workbook-comparison-2026-05-18.md`
-
-- Before-state summary:
-  - Control defaults in code were still half-day-oriented in key paths:
-    - policy defaults/table defaults included broad `06:00-18:00` envelope
-    - grade-window defaults seeded `G7/8=06:00-12:00`, `G9/10=12:00-18:00`
-    - policy pane did not expose one-click dual-mode preset application for operators.
-  - Tailnet persisted state at start of this pass was already full-day (`07:30-17:00`) but this was not guaranteed by defaults and not cleanly represented as a first-class dual-mode control model.
-
-- Repair implemented (minimum coherent):
-  - Server-side defaults aligned to schoolwide full-day baseline:
-    - `SchedulingPolicy` defaults/table migration defaults -> `07:30-17:00`, lunch `11:30-13:00`
-    - `GradeShiftWindow` phase defaults -> `07:30-17:00` across grade/program rows
-  - Client policy pane now supports explicit dual-mode presets:
-    - `Apply Full-Day Baseline`
-    - `Apply SY 2026-2027 Half-Day`
-  - Preset application updates both:
-    - grade/program window rows
-    - policy envelope/lunch fields
-  - `ShiftSettingsEditor` now accepts/renders both preset callbacks.
-
-- Build/typecheck verification:
-  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
-  - `npm --prefix d:\ATLAS\atlas-client run build` -> PASS
-
-- Tailnet API verification:
-  - Auth: `POST /api/v1/auth/login`
-  - Required reads:
-    - `GET /api/v1/policies/scheduling/1/55`
-    - `GET /api/v1/generation/1/55/grade-windows`
-  - Full-day baseline verified:
-    - policy `07:30-17:00`, lunch `11:30-13:00`
-    - grade windows (regular + STE samples) `07:30-17:00`
-  - Temporary half-day override mode verified (persist + readback):
-    - policy `06:00-18:00`, lunch `11:30-12:30`
-    - grade windows `G7=06:00-12:00`, `G9=12:00-18:00` (same pattern for regular + STE)
-  - Final state restored to full-day baseline and re-verified by GET.
-
-- Direct DB proof:
-  - `SchedulingPolicy` row for `(schoolId=1, schoolYearId=55)`:
-    - `earliestStartTime=07:30`
-    - `latestEndTime=17:00`
-    - `lunchStartTime=11:30`
-    - `lunchEndTime=13:00`
-    - `recessStartTime=09:45`
-    - `recessEndTime=10:00`
-  - `GradeShiftWindow` rows for `(1,55)`:
-    - `count=16`
-    - sampled `regular7/ste7/regular9/ste9` all persisted as `07:30-17:00` in final restored state
-
-- Required representability proof (run-shape evidence):
-  - Triggered latest run after full-day restore:
-    - `POST /api/v1/generation/1/55/runs` -> run `54`, `COMPLETED`
-  - Extracted shape contracts from latest run summary:
-    - Regular contract window: `07:30-17:00`
-    - STE contract window: `07:30-16:45`
-    - Break events present: `RECESS`, `LUNCH BREAK`
-    - Late regular slots present: `15:00-16:00`, `16:00-17:00`
-    - Late special-program slots present: `15:15-16:00`, `16:00-16:45`
-
-- Required comparison points:
-  - Schoolwide full-day PDF pattern:
-    - aligned on full-day envelope (`07:30` start, late-day blocks, lunch/health break boundaries).
-  - Grade 8 workbook pattern:
-    - corroborates full-day structure, break/lunch placement, and late reading/intervention blocks; repaired model remains compatible.
-  - Grade 10 monitoring workbook (secondary evidence):
-    - continues to show late specialization/research demand; repaired model preserves representability for late special-program slots while keeping override mode available.
-
-- GO/NO-GO:
-  - **GO** for `phase3-schoolwide-day-shape-alignment-prompt.md`.
-  - Rationale: live Tailnet state now proves dual-mode representability (full-day baseline + temporary half-day override), persisted policy/window state is coherent, required run-shape evidence is present, and required artifact comparison hierarchy was followed with explicit fallback disclosure.
-
-# 2026-05-18 - Phase 3 Specialization Mapping Cleanup (Tailnet + DB)
-- Phase: Phase 3 specialization mapping cleanup and alias persistence truthfulness
-- Operator: GitHub Copilot
-- Scope gate: PASS
-- Files changed in this pass:
-  - `atlas-server/src/routes/specialization-alias.router.ts`
-  - `atlas-server/src/services/faculty.service.ts`
-  - `docs/reference/atlas-runtime-source-of-truth-map.md`
-  - `docs/verification/evidence-log.md`
-
-- Before-state summary:
-  - Tailnet catalog showed `2` unmapped specialization items (`CERTIFIED SPECIALIST COACH`, `SPORTS SCIENCE`).
-  - Alias table still had legacy debt tied to inactive canonical subject codes.
-  - Pre-check counts:
-    - `specialization_aliases total = 98`
-    - `orphan alias rows (inactive canonical targets) = 19`
-    - orphan canonical sample included: `SCI`, `SCI_PHYS`, `ADVANCED_CHEMISTRY`, `ADVANCED_PHYSICS`, `ENV_SCI`.
-
-- Repair implemented (minimum coherent):
-  - Added active-canonical enforcement in alias writes:
-    - `POST /specialization-aliases` now rejects non-active canonical codes.
-    - `POST /specialization-aliases/batch` now normalizes canonical codes and ignores invalid inactive targets in persisted writes.
-  - Added explicit cleanup API:
-    - `POST /specialization-aliases/cleanup` removes alias rows where canonical target is not an active subject for the school.
-  - Updated specialization catalog mapping behavior:
-    - catalog-mapped canonical codes now include only active subject targets, preventing stale rows from inflating mapped status.
-
-- Build/typecheck verification:
-  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
-
-- Tailnet API verification:
-  - Auth: `POST /api/v1/auth/login`
-  - Cleanup trigger: `POST /api/v1/specialization-aliases/cleanup` with `{ schoolId: 1 }`
-  - Cleanup result:
-    - `removed=19`
-    - `removedCanonicalCodes=[ADVANCED_CHEMISTRY, ADVANCED_PHYSICS, ADVANCED_STATISTICS, BASIC_STATISTICS, CONSUMERS_CHEMISTRY, ENV_SCI, SCI, SCI_PHYS]`
-  - Post-cleanup reads:
-    - `GET /api/v1/faculty/specialization-catalog?schoolId=1`
-    - `GET /api/v1/specialization-aliases?schoolId=1`
-  - Post-cleanup outcome:
-    - `totalSpecializations=27`
-    - `unmapped=2` (still `CERTIFIED SPECIALIST COACH`, `SPORTS SCIENCE`)
-    - `aliasesTotal=79`
-    - `orphanAliases=0`
-
-- Direct DB proof:
-  - `specialization_aliases` post-cleanup:
-    - `aliasesTotal=79`
-    - `orphanCount=0` against active `Subject.code` set for `schoolId=1`
-  - Active mapping integrity sample preserved:
-    - `SPA_SPEC` alias mappings remain (sample aliases include `DANCE`, `FINE ARTS`, `THEATER / PERFORMING ARTS`)
-    - Core science canonical mappings remain populated (`SCI_BIO`, `SCI_CHEM`, `SCI_ES`).
-
-- GO/NO-GO:
-  - **GO** for `phase3-specialization-mapping-cleanup-prompt.md`.
-  - Rationale: legacy alias debt targeting inactive canonical subjects has been removed, alias writes are now constrained to active subject contract targets, and live catalog mapping health is no longer overstated by stale canonical rows.
-
-# 2026-05-18 - Phase 3 Teaching-Load Policy Alignment Gate (Tailnet + DB)
-- Phase: Phase 3 teaching-load policy alignment and placeholder load-signal truthfulness
-- Operator: GitHub Copilot
-- Scope gate: PASS
-- Files changed in this pass:
-  - `atlas-server/src/services/faculty-assignment.service.ts`
-  - `atlas-client/src/pages/FacultyAssignments.tsx`
-  - `docs/reference/atlas-runtime-source-of-truth-map.md`
-  - `docs/verification/evidence-log.md`
-
-- Before-state summary:
-  - Summary contract did not expose explicit policy fields for section/advisory/ancillary decomposition.
-  - UI load sorting/filtering treated all rows as standard workload signals, which could mislead when placeholder coverage rows are present.
-
-- Repair implemented (minimum coherent):
-  - Server summary now returns explicit policy-aligned fields:
-    - `sectionTeachingHours`, `gradeTeachingHours`, `advisoryHours`, `ancillaryHours`
-    - `policyCreditedHours`, `policyLoadPercentage`
-    - `syntheticCoverageHours`, `loadSignalMode`
-    - `ancillaryMinutesPerWeek`
-  - Backward-compatible fields are retained with policy-aligned values (`subjectHours`, `loadPercentage`).
-  - Faculty assignment UI now:
-    - consumes policy-aligned fields in list/sidebar/detail summaries
-    - applies placeholder-aware load display (`Synthetic Coverage` badge and synthetic hour label)
-    - avoids treating placeholder rows as standard overload/underload signals in load filter flow.
-  - Client credited-load profile now includes ancillary equivalent hours in displayed policy credits.
-
-- Build/typecheck verification:
-  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
-  - `npm --prefix d:\ATLAS\atlas-client run build` -> PASS
-
-- Tailnet ATLAS API proof:
-  - Auth: `POST /api/v1/auth/login`
-  - Summary: `GET /api/v1/faculty-assignments/summary?schoolId=1&schoolYearId=55`
-  - Live summary snapshot:
-    - `total=142`, `placeholders=0`, `normal=142`
-    - Sample normal row confirms policy fields:
-      - `sectionTeachingHours=57`
-      - `gradeTeachingHours=41`
-      - `advisoryEquivalentHours=5`
-      - `ancillaryMinutesPerWeek=0`
-      - `policyCreditedHours=62`
-      - `policyLoadPercentage=207`
-      - `loadSignalMode=STANDARD`
-  - Contract shape is present and coherent for live faculty rows.
-
-- Direct DB proof (required policy inputs):
-  - Source table: `FacultyMirror` (+ `FacultySubject` joins)
-  - Verified sampled fields for load math inputs:
-    - `maxHoursPerWeek`
-    - `advisoryEquivalentHours`
-    - `ancillaryMinutesPerWeek`
-    - `isPlaceholder`
-  - Sample computed checks matched server outputs:
-    - Example: `57h section + 5h advisory + 0h ancillary = 62h policyCreditedHours`
-    - Example: `30h section + 0h advisory + 0h ancillary = 30h policyCreditedHours`
-
-- Known live-data caveat for this run:
-  - Active dataset currently has `0` placeholder rows in summary output, so placeholder-specific runtime rendering was validated by contract and code path, not by a live placeholder record in this sample window.
-
-- GO/NO-GO:
-  - **GO** for `phase3-teaching-load-policy-alignment-prompt.md`.
-  - Rationale: policy contract is now explicit and verified end-to-end (API + DB + client build), ancillary inputs are included in credited math, and placeholder signal separation is implemented without regressing existing summary consumers.
-
-# 2026-05-18 - Phase 3 Special-Program Subject Sync and Offerings Repair (Tailnet + DB)
-- Phase: Phase 3 special-program subject sync from upstream offerings + mirrored demand
-- Operator: GitHub Copilot
-- Scope gate: PASS
-- Files changed in this pass:
+  - `atlas-server/src/services/subject-ownership.service.ts`
   - `atlas-server/src/services/subject.service.ts`
   - `atlas-server/src/routes/subject.router.ts`
+  - `atlas-server/src/services/teaching-load-automation.service.ts`
+  - `atlas-server/src/services/schedule-constructor.ts`
+  - `atlas-client/src/lib/grade-labels.ts`
+  - `atlas-client/src/lib/subject-constants.ts`
+  - `atlas-client/src/types.ts`
+  - `atlas-client/src/types.d.ts`
+  - `atlas-client/src/components/subjects/SubjectFormModal.tsx`
+  - `atlas-client/src/pages/Subjects.tsx`
   - `docs/reference/atlas-runtime-source-of-truth-map.md`
   - `docs/verification/evidence-log.md`
 
-- Before-state summary:
-  - Subject contract reconciliation existed, but was implicitly tied to generation flow and had no explicit operator-triggered sync endpoint.
-  - EnrollPro section-offering signal fetch in subject reconciliation was not explicitly scoped to the target `schoolId/schoolYearId`.
-  - This made subject-state refresh less auditable when offerings changed outside generation runs.
+- Backend contract changes verified:
+  - Subject ownership metadata is centralized (`ownerDepartment`, `qualificationPriority`, `rotationFamily`, `displayCode`, `specializationSource`) and propagated in subject read APIs.
+  - Delete workflow now returns structured blockers with explicit categories:
+    - `ACTIVE_ASSIGNMENTS`
+    - `HISTORICAL_ASSIGNMENTS`
+  - Explicit remediation paths are available:
+    - archive: `POST /api/v1/subjects/:id/archive`
+    - cleanup delete: `DELETE /api/v1/subjects/:id?cleanupHistorical=true`
 
-- Repair implemented (minimum coherent):
-  - Added explicit operator sync path:
-    - `POST /api/v1/subjects/sync-offerings`
-    - body: `{ schoolId, schoolYearId }`
-    - returns auditable report: offered programs, mirrored programs, active subject counts/codes by STE/SPA/SPS/TLE groups.
-  - Hardened reconciliation logic in `subject.service`:
-    - scoped upstream section program signal fetch to `schoolId` + `schoolYearId`
-    - merged upstream offerings with mirrored section demand (`SectionMirror`) before activation decisions
-    - added mirrored TLE-specialization fallback signals when upstream TLE endpoint is unavailable
-    - preserved ATLAS ownership of subject semantics/minutes while using upstream/mirror reality for program activation.
+- Frontend behavior changes verified:
+  - Subjects page no longer performs passive `POST /api/v1/subjects/seed` on load.
+  - Subject contract refresh is explicit via `POST /api/v1/subjects/sync-offerings` trigger.
+  - Specialization options in subject editing now derive from persisted subject contract rows (`allowedSpecializations`) instead of `/faculty/specializations`.
+  - Subjects table now exposes ownership/qualification/rotation/display metadata and provides inspectable specialization restrictions.
+  - Delete blocker UI now surfaces active vs historical assignment counts and archive/cleanup actions.
 
-- Tailnet upstream proof (required):
-  - Endpoint: `https://dev-jegs.buru-degree.ts.net/api/integration/v1/sections?schoolId=16&schoolYearId=55`
-  - Observed counts in this pass:
-    - `REGULAR=36`
-    - `SCIENCE_TECHNOLOGY_AND_ENGINEERING=6`
-    - `SPECIAL_PROGRAM_IN_THE_ARTS=4`
-    - `SPECIAL_PROGRAM_IN_SPORTS=4`
-
-- Tailnet ATLAS proof after explicit sync:
-  - Auth: `POST /api/v1/auth/login`
-  - Sync trigger: `POST /api/v1/subjects/sync-offerings` with `{ schoolId:1, schoolYearId:55 }`
-  - Sync report:
-    - `offeredPrograms=[REGULAR, SPA, SPS, STE]`
-    - `mirroredPrograms=[REGULAR, SPA, SPS, STE]`
-    - `activeCounts={ total:28, ste:7, spa:1, sps:1, tle:7 }`
-    - active STE codes: `STE_APPLIED_CHEM`, `STE_APPLIED_PHYS`, `STE_BIOTECH`, `STE_ENV_SCI`, `STE_ICT`, `STE_RESEARCH`, `STE_ROBOTICS`
-    - active SPA code: `SPA_SPEC`
-    - active SPS code: `SPS_SPEC`
-    - active TLE set includes exploratory + dynamic specialization rows.
-
-- Direct DB proof (required):
-  - Query scope: `Subject` where `schoolId=1` and `isActive=true`
-  - Active group counts:
-    - `STE=7`
-    - `SPA=1`
-    - `SPS=1`
-    - `TLE=7`
-  - Sample persisted rows:
-    - `SPA_SPEC` -> `programScopes=[SPA]`, `minMinutesPerWeek=45`
-    - `SPS_SPEC` -> `programScopes=[SPS]`, `minMinutesPerWeek=45`
-    - STE overlays active with `programScopes=[STE]`
-    - TLE exploratory/dynamic rows active with `programScopes=[REGULAR]` and expected 240-minute load.
-
-- Build/typecheck verification:
-  - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
+- Local verification:
+  - `npm --prefix atlas-client run build` -> PASS
+  - `npm --prefix atlas-server run build` -> PASS
+  - diagnostics (`Subjects.tsx`, `SubjectFormModal.tsx`, `subject.service.ts`) -> PASS
 
 - GO/NO-GO:
-  - **GO** for `phase3-subject-sync-program-offerings-prompt.md`.
-  - Rationale: ATLAS now has an explicit, auditable operator-triggered refresh path for special-program subject state that reflects upstream offered programs plus mirrored section demand, without surrendering ATLAS ownership of schedulable subject semantics.
+  - **GO** for prompt-scope implementation and local verification.
+  - **NO-GO** for phase closure until Tailnet runtime QA captures live evidence for:
+    - explicit sync behavior on `/subjects`
+    - truthful delete blocker payloads and remediation actions
+    - specialization inspectability and ownership metadata parity on live environment.
 
-# 2026-05-18 - Phase 3 Upstream Section Sync + Program Parity Gate (Tailnet + DB)
-- Phase: Phase 3 section-sync and program parity repair gate
+# 2026-05-21 - Phase 3 MATATAG TLE Reset + Generation Gate One-Shot (Tailnet + DB)
+- Phase: Phase 3 generator-readiness stream, MATATAG TLE reset and first honest post-reset gate
 - Operator: GitHub Copilot
 - Scope gate: PASS
 - Files changed in this pass:
+  - `atlas-server/src/services/subject.service.ts`
+  - `atlas-server/src/services/schedule-constructor.ts`
+  - `atlas-server/src/services/generation.service.ts`
+  - `atlas-server/src/__tests__/phase4-cohort-review.test.ts`
   - `docs/reference/atlas-runtime-source-of-truth-map.md`
   - `docs/verification/evidence-log.md`
 
-- Before-state summary (from prior docs/assumptions):
-  - Expected blocker: ATLAS mirror potentially stale with only `REGULAR/STE` while upstream had SPA/SPS.
-
-- Tailnet EnrollPro source proof:
-  - Endpoint: `https://dev-jegs.buru-degree.ts.net/api/integration/v1/sections?schoolId=16&schoolYearId=55`
-  - Live upstream mix observed during this pass:
-    - `REGULAR=36`
-    - `SCIENCE_TECHNOLOGY_AND_ENGINEERING=6`
-    - `SPECIAL_PROGRAM_IN_THE_ARTS=4`
-    - `SPECIAL_PROGRAM_IN_SPORTS=4`
-  - Sample live rows include `SPA A/B` and `SPS A/B` long-form program types.
-
-- Tailnet ATLAS API proof:
-  - Auth: `POST /api/v1/auth/login`
-  - Summary endpoint: `GET /api/v1/sections/summary/55?schoolId=1`
-  - Observed mirrored mix:
-    - `REGULAR=58`
-    - `STE=8`
-    - `SPA=8`
-    - `SPS=8`
-  - Observed SPA/SPS sample rows include correct parity fields:
-    - `programType=SPA|SPS`
-    - `programCode=SPA|SPS`
-    - `programName=Special Program in the Arts|Sports`
-    - `isSpecialProgram=true`
-
-- Sync execution path verification:
-  - Triggered: `POST /api/v1/sections/sync` with `{ schoolId: 1, schoolYearId: 55 }`
-  - Sync response: `synced=true`, `count=82`, `removed=0`, `source=enrollpro`
-  - Immediate re-read summary retained same parity mix (`58/8/8/8`).
-
-- Direct DB proof (SectionMirror):
-  - Query scope: `schoolId=1`, `schoolYearId=55`, `isStale=false`
-  - Persisted DB mix:
-    - `REGULAR=58`
-    - `STE=8`
-    - `SPA=8`
-    - `SPS=8`
-  - Sample persisted SPA/SPS rows confirm parity fields:
-    - `programType=SPA|SPS`
-    - `programCode=SPA|SPS`
-    - `programName=Special Program in the Arts|Sports`
-    - `isSpecialProgram=true`
+- TLE contract reset implemented:
+  - Exploratory TLE subjects now apply to Grades `7-10` as section-scoped modular rotation (`TLE_EXPLORATORY`).
+  - Dynamic specialization rows (`TLE_SPEC_*`) are now deactivated when upstream specialization signals are absent.
+  - Generation now bypasses cohort-based TLE inputs when section feeds are unsplit and emits a MATATAG contract warning instead of cohort-derivation warnings.
+  - Qualification fallback now allows TLE department-based matching for TLE subjects and modular assignment fallback when explicit section-specialization rows are missing.
 
 - Local verification:
   - `npm --prefix d:\ATLAS\atlas-server run build` -> PASS
+  - `npm --prefix d:\ATLAS\atlas-server run test:phase4-review` -> PASS
+  - `npm --prefix d:\ATLAS\atlas-server run test:wave4.3` -> PASS
+  - diagnostics on touched files -> PASS
 
-- Repair iteration result:
-  - No code-path repair was required in this pass; the live sync + persistence path already reflects SPA/SPS correctly.
-  - Gate was validated by explicit sync rerun plus API/DB parity proof.
+- Required live parity checks:
+  - EnrollPro sections feed (`schoolYearId=55`):
+    - total sections = `82`
+    - `tleProgramId` count = `0`
+    - `tleSpecialization` count = `0`
+  - ATLAS section mirror (`schoolId=1`, `schoolYearId=55`, active rows):
+    - total mirrored sections = `82`
+    - TLE-tagged rows = `0`
+
+- Cohort and dynamic-TLE state after reset:
+  - active `InstructionalCohort` rows remain `4` (primitive preserved)
+  - active `TLE_SPEC_*` subjects = `0`
+  - latest run no longer consumes cohorts (`cohortCount=0`, `cohortizedClassCount=0`)
+
+- Faculty baseline parity audit (EnrollPro active vs stakeholder official):
+  - EnrollPro active (`n=142`): `SCI=18`, `MATH=25`, `ENG=33`, `TLE=13`, `FIL=14`, `ESP=11`, `MAPEH=14`, `AP=14`
+  - Stakeholder official: `SCI=19`, `MATH=22`, `ENG=22`, `TLE=22`, `FIL=16`, `ESP=11`, `MAPEH=21`, `AP=13`
+  - Classification: **mismatched and non-trivial**, but **non-blocking for this pass** because generator can now run without stale cohort contract dependence; mismatch remains a readiness risk for staffing realism.
+
+- Baseline vs fresh post-reset run comparison:
+  - Baseline required run: `63`
+  - Fresh post-reset run: `78`
+
+- Exact KPI comparison (`63` -> `78`):
+  - `assignedCount`: `2271 -> 2179` (`-92`)
+  - `unassignedCount`: `1205 -> 997` (`-208`, improved)
+  - `hardViolationCount`: `1077 -> 827` (`-250`, improved)
+  - `homeRoomSuccessRate`: `51.13 -> 49.55` (`-1.58 pp`)
+  - `policyBlockedCount`: `1357 -> 201` (`-1156`, improved)
+  - `termCounts`: `{2185,39,47} -> {1974,105,100}` (more distributed)
+  - `modularWarnings` count: `68 -> 0`
+  - stale cohort warning: **present in run 63**, **absent in run 78**
+
+- Required blocker-class metrics from fresh run `78`:
+  - `LACKING_FACULTY = 0`
+  - `SPECIALIZED_ROOM_UNAVAILABLE = 240`
+  - `FACULTY_EXCESSIVE_IDLE_GAP = 317`
+  - `FACULTY_EXCESSIVE_TRAVEL_DISTANCE = 678`
+  - residual TLE warning mass: `0` stale cohort-derived warnings; `0` modular warnings
+
+- Remaining blocker classification (post-reset reality):
+  - **Timetable capacity geometry / slot fit:** OPEN (`UNASSIGNED_SECTION=757`, hard violations remain high)
+  - **Policy-window fit:** IMPROVED but OPEN (`policyBlockedCount=201`)
+  - **Faculty depth / qualification distribution:** OPEN (`FACULTY_SUBJECT_NOT_QUALIFIED=70`, dept-count parity mismatch remains)
+  - **Room topology / travel pressure:** OPEN (`SPECIALIZED_ROOM_UNAVAILABLE=240`, travel/idle burdens remain high)
+  - **Stale cohort contract dependence:** CLOSED for active generation path (`cohortCount=0`, stale warning removed)
 
 - GO/NO-GO:
-  - **GO** for `phase3-section-sync-program-parity-prompt.md`.
-  - Rationale: upstream feed includes SPA/SPS, ATLAS summary reflects SPA/SPS, and direct DB proves persisted mirror parity across `programType/programCode/programName/isSpecialProgram`.
+  - **GO** for this prompt scope.
+  - Rationale: required MATATAG reset conditions were met (unsplit parity verified, stale cohort dependence removed from active generation, and run 78 materially improves core blocker counts vs run 63).
+  - **NO-GO** for full Phase 3 closure.
+  - Next repair cluster: slot-capacity fit + faculty qualification distribution + room/travel pressure rebalancing on the new section-scoped TLE model.
 
 # 2026-05-18 - Phase 3 KPI Rerun + Root-Cause Gate (Tailnet)
 - Phase: Phase 3 KPI rerun/root-cause gate after template/control/readiness/coverage repairs

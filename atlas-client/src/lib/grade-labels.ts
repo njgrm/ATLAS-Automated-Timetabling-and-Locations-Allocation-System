@@ -114,13 +114,13 @@ export interface SpecializationAliasLike {
 }
 
 /**
- * Tiered Qualification Matcher (Audit Wave 4 — Alias-Aware)
+ * Tiered Qualification Matcher (Phase 3 subject-domain reset)
  *
- * Tier 1 (Explicit): An administrator-defined SpecializationAlias record maps
- *   the faculty's specialization to this subject's code.
- * Tier 2 (Structural): The faculty's specialization/department is in the
- *   subject's allowedSpecializations array (legacy fallback).
- * Tier 3 (Fuzzy): Keyword heuristic match.
+ * For regular-track subjects, department ownership is primary.
+ * For SPA/SPS specialization rows, specialization matching is primary.
+ *
+ * Tier 1: Primary baseline match for the subject family.
+ * Tier 2: Secondary fallback match.
  *
  * @param aliases  - Pass the SpecializationAlias catalog fetched from the API.
  *                   When empty or undefined, Tier 1 is skipped and the function
@@ -132,26 +132,28 @@ export function getQualificationTier(
 	aliases: SpecializationAliasLike[] = [],
 ): QualificationTier {
 	const allowed = subject.allowedSpecializations ?? [];
+	const specializationPrimary = subject.code.startsWith('SPA_') || subject.code.startsWith('SPS_');
+	const departmentMatch = matchesFacultyDepartment(faculty.department, subject.code, subject.name);
 
-	// Tier 1: Alias catalog match — administrator-curated source of truth
+	let specializationMatch = false;
 	if (faculty.specialization && aliases.length > 0) {
-		const matches = aliases.some(
+		specializationMatch = aliases.some(
 			(a) => a.alias === faculty.specialization && a.canonical === subject.code,
 		);
-		if (matches) return 1;
+	}
+	if (!specializationMatch && faculty.specialization && allowed.includes(faculty.specialization)) {
+		specializationMatch = true;
+	}
+	if (!specializationMatch && faculty.department && allowed.includes(faculty.department)) {
+		specializationMatch = true;
 	}
 
-	// Tier 2: allowedSpecializations direct match (legacy / structural)
-	if (faculty.specialization && allowed.includes(faculty.specialization)) {
-		return 2;
-	}
-	if (faculty.department && allowed.includes(faculty.department)) {
-		return 2;
-	}
-
-	// Tier 3: Fuzzy Keyword Match
-	if (matchesFacultyDepartment(faculty.department, subject.code, subject.name)) {
-		return 3;
+	if (specializationPrimary) {
+		if (specializationMatch) return 1;
+		if (departmentMatch) return 2;
+	} else {
+		if (departmentMatch) return 1;
+		if (specializationMatch) return 2;
 	}
 
 	return null;

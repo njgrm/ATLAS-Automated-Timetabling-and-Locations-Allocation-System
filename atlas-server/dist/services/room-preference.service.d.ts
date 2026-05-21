@@ -290,9 +290,9 @@ export declare function reviewRoomPreference(input: ReviewRoomPreferenceInput): 
         facultyId: number;
         status: import("@prisma/client").$Enums.RoomPreferenceStatus;
         subjectId: number;
+        sectionId: number;
         startTime: string;
         endTime: string;
-        sectionId: number;
         termIndex: number;
         runId: number;
         decisionStatus: import("@prisma/client").$Enums.RoomPreferenceDecisionStatus;

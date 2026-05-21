@@ -43,6 +43,37 @@ export const SESSION_PATTERN_BADGE: Record<SessionPattern, string> = {
 	TTH: 'bg-amber-50 text-amber-700 border-amber-200',
 };
 
+export const SUBJECT_OWNER_LABELS: Record<string, string> = {
+	SCI: 'Science',
+	MATH: 'Mathematics',
+	ENG: 'English',
+	TLE: 'TLE',
+	FIL: 'Filipino',
+	ESP: 'ESP/Guidance',
+	MAPEH: 'MAPEH',
+	AP: 'Araling Panlipunan',
+	SPA: 'SPA',
+	SPS: 'SPS',
+};
+
+export const SUBJECT_OWNER_BADGE: Record<string, string> = {
+	SCI: 'bg-blue-50 text-blue-700 border-blue-200',
+	MATH: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+	ENG: 'bg-violet-50 text-violet-700 border-violet-200',
+	TLE: 'bg-amber-50 text-amber-700 border-amber-200',
+	FIL: 'bg-rose-50 text-rose-700 border-rose-200',
+	ESP: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+	MAPEH: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
+	AP: 'bg-orange-50 text-orange-700 border-orange-200',
+	SPA: 'bg-purple-50 text-purple-700 border-purple-200',
+	SPS: 'bg-lime-50 text-lime-700 border-lime-200',
+};
+
+export const QUALIFICATION_PRIORITY_LABELS: Record<'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY', string> = {
+	DEPARTMENT_FIRST: 'Department-first',
+	SPECIALIZATION_PRIMARY: 'Specialization-first',
+};
+
 export type NewSubjectForm = {
 	code: string;
 	name: string;

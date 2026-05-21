@@ -146,6 +146,19 @@ function normalizeProgramType(programType?: string | null): string {
 	return (programType ?? 'REGULAR').toUpperCase();
 }
 
+function hasTleSplitSectionOwnership(
+	gradeLevels: Array<{ sections: Array<{ tleProgramId?: number | null; tleSpecialization?: string | null; tleProgramCategory?: string | null }> }>,
+): boolean {
+	for (const grade of gradeLevels) {
+		for (const section of grade.sections) {
+			if (section.tleProgramId != null) return true;
+			if (section.tleSpecialization != null && section.tleSpecialization.trim().length > 0) return true;
+			if (section.tleProgramCategory != null && section.tleProgramCategory.trim().length > 0) return true;
+		}
+	}
+	return false;
+}
+
 function buildRunTimetableShapeContracts(input: {
 	sectionsByGrade: Array<{ gradeLevelId: number; sections: Array<{ programType?: string | null }> }>;
 	gradeWindows: Array<{ gradeLevel: number; programType?: string | null; startTime: string; endTime: string }>;
@@ -448,7 +461,15 @@ export async function triggerGenerationRun(
 		await ensureDefaultTemplates(schoolId);
 		await syncSectionsFromExternal(schoolId, schoolYearId, options?.authToken);
 		await ensurePhase3GradeWindows(schoolId, schoolYearId);
-		const cohortSyncResult = await syncCohorts(schoolId, schoolYearId, options?.authToken);
+		const sectionResult = await getSectionSummary(schoolYearId, schoolId, options?.authToken);
+		const hasTleOwnershipSignals = hasTleSplitSectionOwnership(sectionResult.gradeLevels);
+		const cohortSyncWarnings: string[] = [];
+		if (hasTleOwnershipSignals) {
+			const cohortSyncResult = await syncCohorts(schoolId, schoolYearId, options?.authToken);
+			cohortSyncWarnings.push(...(cohortSyncResult.warnings ?? []));
+		} else {
+			cohortSyncWarnings.push('MATATAG section-scoped TLE contract active; cohort-based TLE inputs are bypassed for this run.');
+		}
 
 		stage = 'coverage-repair';
 		const latestCompletedRun = await prisma.generationRun.findFirst({
@@ -496,8 +517,7 @@ export async function triggerGenerationRun(
 		}
 
 		stage = 'sections-fetch';
-		const [sectionResult, faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, gradeWindows, cohorts, specializationAliases] = await Promise.all([
-			getSectionSummary(schoolYearId, schoolId, options?.authToken),
+		const [faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, gradeWindows, specializationAliases] = await Promise.all([
 			prisma.facultyMirror.findMany({
 				where: { schoolId, isActiveForScheduling: true, isStale: false },
 				select: { id: true, maxHoursPerWeek: true, ancillaryMinutesPerWeek: true, specialization: true, department: true },
@@ -548,7 +568,14 @@ export async function triggerGenerationRun(
 			options?.enforceShiftWindows === false
 				? Promise.resolve([])
 				: prisma.gradeShiftWindow.findMany({ where: { schoolId, schoolYearId } }),
-			prisma.instructionalCohort.findMany({
+			prisma.specializationAlias.findMany({
+				where: { schoolId },
+				select: { canonical: true, alias: true },
+			}),
+		]);
+
+		const cohorts = hasTleOwnershipSignals
+			? await prisma.instructionalCohort.findMany({
 				where: { schoolId, schoolYearId, isActive: true },
 				orderBy: [{ gradeLevel: 'asc' }, { cohortCode: 'asc' }],
 				select: {
@@ -560,12 +587,8 @@ export async function triggerGenerationRun(
 					expectedEnrollment: true,
 					preferredRoomType: true,
 				},
-			}),
-			prisma.specializationAlias.findMany({
-				where: { schoolId },
-				select: { canonical: true, alias: true },
-			}),
-		]);
+			})
+			: [];
 
 		const rosterIndex = buildSectionRosterIndex(sectionResult.gradeLevels);
 		const activeFacultyIdSet = new Set(faculty.map((member) => member.id));
@@ -870,10 +893,10 @@ export async function triggerGenerationRun(
 			termCounts,
 			contractWarnings: [
 				...(sectionResult.contractWarnings ?? []),
-				...(cohortSyncResult.warnings ?? []),
+				...cohortSyncWarnings,
 			].length > 0 ? [
 				...(sectionResult.contractWarnings ?? []),
-				...(cohortSyncResult.warnings ?? []),
+				...cohortSyncWarnings,
 			] : undefined,
 			// H-ALG-5: Hybrid scheduler diagnostics
 			hybridEnabled: result.hybridEnabled,

@@ -109,7 +109,7 @@ section('Section contract normalization');
 	assertEqual(normalized.warnings.length, 0, 'Known section contract shape does not emit warnings');
 }
 
-section('Cohort fallback derivation');
+section('Cohort contract without fallback derivation');
 
 {
 	const sectionsByGrade: SectionsByGrade[] = [
@@ -130,9 +130,12 @@ section('Cohort fallback derivation');
 		sectionsByGrade,
 	);
 
-	assertEqual(normalized.source, 'derived-sections', 'scpProgramConfigs without cohorts derives fallback cohorts');
-	assertEqual(normalized.cohorts.length, 3, 'Fallback derivation creates one cohort per TLE specialization blueprint');
-	assert(normalized.warnings.some((warning) => warning.includes('deriving fallback TLE cohorts')), 'Fallback derivation emits an explicit contract warning');
+	assertEqual(normalized.source, 'enrollpro', 'scpProgramConfigs without explicit cohorts stays on enrollpro source when no ownership metadata exists');
+	assertEqual(normalized.cohorts.length, 0, 'No synthetic cohort rows are generated without explicit cohort payload');
+	assert(
+		normalized.warnings.some((warning) => warning.includes('no section TLE ownership fields were available')),
+		'Contract warning explains why no fallback cohort payload was produced',
+	);
 }
 
 section('Cohort-aware baseline construction');

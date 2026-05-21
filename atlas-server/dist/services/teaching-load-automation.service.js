@@ -20,6 +20,7 @@
  */
 import { prisma } from '../lib/prisma.js';
 import { sectionAdapter } from './section-adapter.js';
+import { isSpecializationPrimarySubjectCode, matchesSubjectOwnershipDepartment, resolveSubjectOwnerDepartmentCode, } from './subject-ownership.service.js';
 // DO 005 s.2024 weekly minute caps
 const STANDARD_CAP_MIN = 1_800;
 const HARD_CAP_MIN = 2_400;
@@ -57,24 +58,6 @@ function isProgramScopeCompatible(scopes, sectionProgramType) {
         return true;
     const normalizedProgramType = sectionProgramType.trim().toUpperCase();
     return scopes.some((scope) => scope.trim().toUpperCase() === normalizedProgramType);
-}
-function subjectMatchesFacultyDepartment(subject, faculty) {
-    const subjectCode = normalizeKey(subject.code);
-    const department = normalizeKey(faculty.department);
-    if (!subjectCode || !department)
-        return false;
-    const departmentAliases = {
-        math: ['math', 'mathematics'],
-        eng: ['eng', 'english', 'languages'],
-        fil: ['fil', 'filipino'],
-        sci: ['sci', 'science'],
-        ap: ['ap', 'social studies', 'socialstudies', 'history'],
-        'esp': ['esp', 'values', 'values education', 'valueseducation'],
-        mapeh: ['mapeh'],
-        tle: ['tle'],
-    };
-    const subjectDepartment = departmentAliases[subjectCode] ?? [subjectCode];
-    return subjectDepartment.some((alias) => department === normalizeKey(alias));
 }
 function buildStaffingReport(unresolvedByDepartment, shortageSections, faculty, capacityUsed) {
     const shortageBuckets = Array.from(unresolvedByDepartment.entries())
@@ -143,14 +126,31 @@ function buildStaffingReport(unresolvedByDepartment, shortageSections, faculty, 
 function resolveQualificationTier(faculty, subject, aliasMap) {
     const normalizedSubjectCode = normalizeKey(subject.code);
     const normalizedSpec = normalizeKey(faculty.specialization);
+    const normalizedDept = normalizeKey(faculty.department);
+    const specializationPrimary = isSpecializationPrimarySubjectCode(subject.code);
+    const departmentMatch = matchesSubjectOwnershipDepartment(faculty.department, subject.code, subject.name);
+    let specializationMatch = false;
     if (normalizedSpec) {
         const mappedSubjects = aliasMap.get(normalizedSpec);
-        if (mappedSubjects?.has(normalizedSubjectCode)) {
-            return 1;
-        }
+        specializationMatch = mappedSubjects?.has(normalizedSubjectCode) ?? false;
     }
-    if (subjectMatchesFacultyDepartment(subject, faculty)) {
-        return 2;
+    if (!specializationMatch && normalizedSpec && subject.allowedSpecializations.some((entry) => normalizeKey(entry) === normalizedSpec)) {
+        specializationMatch = true;
+    }
+    if (!specializationMatch && normalizedDept && subject.allowedSpecializations.some((entry) => normalizeKey(entry) === normalizedDept)) {
+        specializationMatch = true;
+    }
+    if (specializationPrimary) {
+        if (specializationMatch)
+            return 1;
+        if (departmentMatch)
+            return 2;
+    }
+    else {
+        if (departmentMatch)
+            return 1;
+        if (specializationMatch)
+            return 2;
     }
     if (faculty.canTeachOutsideDepartment) {
         return 3;
@@ -385,7 +385,10 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
             if (!candidate) {
                 unresolvedCount += 1;
                 warnings.push(`Lacking Faculty: no Tier 1 qualified teacher for ${subjectRow.name} (${pair.sectionName}).`);
-                const fallbackDepartment = subjectRow.allowedSpecializations?.[0] ?? subjectRow.modularGroupId ?? 'GENERAL';
+                const fallbackDepartment = resolveSubjectOwnerDepartmentCode(subjectRow.code, subjectRow.name)
+                    ?? subjectRow.modularGroupId
+                    ?? subjectRow.allowedSpecializations?.[0]
+                    ?? 'GENERAL';
                 const shortageKey = formatDepartmentLabel(fallbackDepartment);
                 unresolvedByDepartment.set(shortageKey, (unresolvedByDepartment.get(shortageKey) ?? 0) + 1);
                 const existing = shortageSections.get(shortageKey) ?? [];

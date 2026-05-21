@@ -147,7 +147,8 @@ Optional feature: Where [feature included], the [system] shall [action].
 ### Still In Progress Or Sensitive
 
 - Template-capacity and control-math correctness for the live school-year dataset
-- Persisted scheduling policy / cohort / room-readiness state for generator feasibility
+- Persisted scheduling policy / room-readiness state for generator feasibility
+- MATATAG TLE contract reset: Grades 9-10 no longer split into specialization cohorts; TLE should rotate per term like a modular subject
 - Teacher X placeholder readiness and active-subject coverage gaps
 - KPI reruns and root-cause validation after generator-readiness repairs
 
@@ -222,6 +223,8 @@ Use this when the user wants a prompt enriched for an implementer.
 - `docs/prompts/phase3-generator-readiness-sequence.md`
 - `docs/prompts/phase3-template-capacity-and-controls-prompt.md`
 - `docs/prompts/phase3-policy-cohort-room-readiness-prompt.md`
+- `docs/prompts/phase3-matatag-tle-reset-and-faculty-baseline-one-shot-prompt.md`
+- `docs/prompts/phase3-post-tle-reset-generation-gate-one-shot-prompt.md`
 - `docs/prompts/phase3-placeholder-faculty-and-coverage-prompt.md`
 - `docs/prompts/phase3-kpi-rerun-root-cause-gate-prompt.md`
 - `docs/SYSTEM-OVERVIEW.md`

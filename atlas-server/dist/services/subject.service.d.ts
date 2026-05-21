@@ -1,4 +1,11 @@
 import type { ProgramType } from '@prisma/client';
+type SubjectWithViewMetadata = {
+    displayCode: string;
+    ownerDepartment: string | null;
+    qualificationPriority: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
+    rotationFamily: string | null;
+    specializationSource: 'SUBJECT_CONTRACT' | 'NONE';
+};
 export declare function ensureDefaultSubjects(schoolId: number): Promise<void>;
 export declare function reconcileSubjectContractFromUpstream(schoolId: number, schoolYearId: number, authToken?: string): Promise<void>;
 export declare function syncSubjectContractFromProgramOfferings(schoolId: number, schoolYearId: number, authToken?: string): Promise<{
@@ -24,8 +31,7 @@ type SubjectScopeFilter = {
     includeSte?: boolean;
     includeSpa?: boolean;
 };
-export declare function getSubjectsBySchool(schoolId: number, filters?: SubjectScopeFilter): Promise<{
-    displayCode: string;
+export declare function getSubjectsBySchool(schoolId: number, filters?: SubjectScopeFilter): Promise<({
     programScopes: import("./subject-program-scope.service.js").SubjectProgramScope[];
     schoolId: number;
     createdAt: Date;
@@ -47,9 +53,9 @@ export declare function getSubjectsBySchool(schoolId: number, filters?: SubjectS
     interSectionEnabled: boolean;
     interSectionGradeLevels: number[];
     requiredFeatures: string[];
-}[]>;
-export declare function getSubjectById(id: number): Promise<{
-    displayCode: string;
+} & SubjectWithViewMetadata)[]>;
+export declare function getSubjectById(id: number): Promise<({
+    programScopes: import("./subject-program-scope.service.js").SubjectProgramScope[];
     schoolId: number;
     createdAt: Date;
     id: number;
@@ -69,9 +75,8 @@ export declare function getSubjectById(id: number): Promise<{
     isSeedable: boolean;
     interSectionEnabled: boolean;
     interSectionGradeLevels: number[];
-    programScopes: import("@prisma/client").$Enums.ProgramType[];
     requiredFeatures: string[];
-} | null>;
+} & SubjectWithViewMetadata) | null>;
 export declare function createSubject(schoolId: number, data: {
     code: string;
     name: string;
@@ -153,10 +158,19 @@ export declare function updateSubject(id: number, data: Partial<{
     programScopes: import("@prisma/client").$Enums.ProgramType[];
     requiredFeatures: string[];
 } | null>;
-export declare function deleteSubject(id: number): Promise<{
-    success: boolean;
-    error?: string;
-}>;
+type DeleteSubjectResult = {
+    success: true;
+    deletedSubjectId: number;
+    cleanedHistoricalAssignments: number;
+} | {
+    success: false;
+    code: 'NOT_FOUND' | 'SEEDABLE_SUBJECT' | 'ACTIVE_ASSIGNMENTS' | 'HISTORICAL_ASSIGNMENTS';
+    error: string;
+    details?: Record<string, unknown>;
+};
+export declare function deleteSubject(id: number, options?: {
+    cleanupHistorical?: boolean;
+}): Promise<DeleteSubjectResult>;
 export declare function getSubjectCountBySchool(schoolId: number): Promise<number>;
 export declare function getSubjectsWithoutFaculty(schoolId: number): Promise<{
     id: number;

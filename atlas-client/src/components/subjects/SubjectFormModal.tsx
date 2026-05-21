@@ -5,14 +5,18 @@ import {
 	GRADE_OPTIONS,
 	PROGRAM_SCOPE_BADGE,
 	PROGRAM_SCOPE_OPTIONS,
+	QUALIFICATION_PRIORITY_LABELS,
 	ROOM_TYPE_LABELS,
 	SESSION_PATTERN_LABELS,
+	SUBJECT_OWNER_BADGE,
+	SUBJECT_OWNER_LABELS,
 	type NewSubjectForm,
 	emptyForm,
 } from '@/lib/subject-constants';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/ui/dialog';
+import { Checkbox } from '@/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
 import { Input } from '@/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Switch } from '@/ui/switch';
@@ -27,6 +31,13 @@ type Props = {
 	open: boolean;
 	mode: 'add' | 'edit';
 	initialValues?: SubjectFormValues;
+	subjectMeta?: {
+		displayCode?: string;
+		ownerDepartment?: string | null;
+		qualificationPriority?: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
+		rotationFamily?: string | null;
+		specializationSource?: 'SUBJECT_CONTRACT' | 'NONE';
+	};
 	saving: boolean;
 	availableSpecializations: string[];
 	onSave: (values: SubjectFormValues) => void;
@@ -37,6 +48,7 @@ export function SubjectFormModal({
 	open,
 	mode,
 	initialValues,
+	subjectMeta,
 	saving,
 	availableSpecializations,
 	onSave,
@@ -45,7 +57,6 @@ export function SubjectFormModal({
 	const [form, setForm] = useState<SubjectFormValues>(initialValues ?? { ...emptyForm });
 	const [timeMode, setTimeMode] = useState<'minutes' | 'hours'>('minutes');
 
-	// Sync initialValues when modal opens
 	useEffect(() => {
 		if (open) {
 			setForm(initialValues ?? { ...emptyForm });
@@ -53,61 +64,123 @@ export function SubjectFormModal({
 		}
 	}, [open, initialValues]);
 
-	const toggleGradeLevel = (g: number) => {
-		setForm((p) => ({
-			...p,
-			gradeLevels: p.gradeLevels.includes(g)
-				? p.gradeLevels.filter((x) => x !== g)
-				: [...p.gradeLevels, g].sort((a, b) => a - b),
+	const toggleGradeLevel = (gradeLevel: number) => {
+		setForm((previous) => ({
+			...previous,
+			gradeLevels: previous.gradeLevels.includes(gradeLevel)
+				? previous.gradeLevels.filter((value) => value !== gradeLevel)
+				: [...previous.gradeLevels, gradeLevel].sort((left, right) => left - right),
 		}));
 	};
 
-	const toggleProgramScope = (value: string) => {
-		setForm((p) => {
-			const has = p.programScopes.includes(value);
-			const next = has ? p.programScopes.filter((x) => x !== value) : [...p.programScopes, value];
-			return { ...p, programScopes: next.length > 0 ? next : [value] };
+	const toggleProgramScope = (programScope: string) => {
+		setForm((previous) => {
+			const hasScope = previous.programScopes.includes(programScope);
+			const nextScopes = hasScope
+				? previous.programScopes.filter((value) => value !== programScope)
+				: [...previous.programScopes, programScope];
+			return { ...previous, programScopes: nextScopes };
 		});
 	};
 
-	const toggleSpecialization = (spec: string) => {
-		setForm((p) => {
-			const has = p.allowedSpecializations.includes(spec);
+	const toggleSpecialization = (specialization: string) => {
+		setForm((previous) => {
+			const hasSpecialization = previous.allowedSpecializations.includes(specialization);
 			return {
-				...p,
-				allowedSpecializations: has
-					? p.allowedSpecializations.filter((x) => x !== spec)
-					: [...p.allowedSpecializations, spec],
+				...previous,
+				allowedSpecializations: hasSpecialization
+					? previous.allowedSpecializations.filter((value) => value !== specialization)
+					: [...previous.allowedSpecializations, specialization],
 			};
+		});
+	};
+
+	const toggleInterSectionGrade = (gradeLevel: number) => {
+		setForm((previous) => {
+			const current = previous.interSectionGradeLevels ?? [];
+			const hasGradeLevel = current.includes(gradeLevel);
+			const next = hasGradeLevel
+				? current.filter((value) => value !== gradeLevel)
+				: [...current, gradeLevel].sort((left, right) => left - right);
+			return { ...previous, interSectionGradeLevels: next };
 		});
 	};
 
 	const [newFeature, setNewFeature] = useState('');
 	const addFeature = () => {
 		if (!newFeature.trim()) return;
-		const feat = newFeature.trim().toUpperCase();
-		if (!form.requiredFeatures.includes(feat)) {
-			setForm(p => ({ ...p, requiredFeatures: [...p.requiredFeatures, feat] }));
+		const normalizedFeature = newFeature.trim().toUpperCase();
+		if (!form.requiredFeatures.includes(normalizedFeature)) {
+			setForm((previous) => ({
+				...previous,
+				requiredFeatures: [...previous.requiredFeatures, normalizedFeature],
+			}));
 		}
 		setNewFeature('');
 	};
 
-	const removeFeature = (feat: string) => {
-		setForm(p => ({ ...p, requiredFeatures: p.requiredFeatures.filter(f => f !== feat) }));
+	const removeFeature = (feature: string) => {
+		setForm((previous) => ({
+			...previous,
+			requiredFeatures: previous.requiredFeatures.filter((value) => value !== feature),
+		}));
 	};
 
 	const isModularSubject = form.modularGroupId.trim().length > 0;
-
-	const canSave = form.code.trim().length > 0 && form.name.trim().length > 0 && !saving;
+	const canSave = form.code.trim().length > 0
+		&& form.name.trim().length > 0
+		&& form.programScopes.length > 0
+		&& !saving;
 
 	return (
-		<Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+		<Dialog open={open} onOpenChange={(value) => { if (!value) onClose(); }}>
 			<DialogContent className="max-w-2xl max-h-[90svh] overflow-y-auto">
 				<DialogHeader>
 					<DialogTitle>{mode === 'add' ? 'Add Subject' : 'Edit Subject'}</DialogTitle>
+					<DialogDescription>
+						Configure ownership, scope, and scheduling constraints for this subject.
+					</DialogDescription>
 				</DialogHeader>
 
 				<div className="space-y-5">
+					{mode === 'edit' && subjectMeta && (
+						<section className="rounded-lg border border-border p-4 space-y-3">
+							<div>
+								<h3 className="text-sm font-semibold">Ownership Snapshot</h3>
+								<p className="text-xs text-muted-foreground">Teaching load and autofill use this metadata as the qualification baseline.</p>
+							</div>
+							<div className="flex flex-wrap gap-2">
+								{subjectMeta.ownerDepartment ? (
+									<Badge variant="outline" className={SUBJECT_OWNER_BADGE[subjectMeta.ownerDepartment] ?? 'bg-muted border-border text-foreground'}>
+										Owner: {SUBJECT_OWNER_LABELS[subjectMeta.ownerDepartment] ?? subjectMeta.ownerDepartment}
+									</Badge>
+								) : (
+									<Badge variant="outline">Owner: Unspecified</Badge>
+								)}
+								{subjectMeta.qualificationPriority && (
+									<Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
+										{QUALIFICATION_PRIORITY_LABELS[subjectMeta.qualificationPriority]}
+									</Badge>
+								)}
+								{subjectMeta.rotationFamily && (
+									<Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+										Rotation: {subjectMeta.rotationFamily}
+									</Badge>
+								)}
+								{subjectMeta.displayCode && (
+									<Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+										Output Label: {subjectMeta.displayCode}
+									</Badge>
+								)}
+								{subjectMeta.specializationSource === 'SUBJECT_CONTRACT' && (
+									<Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+										Specializations sourced from subject contract
+									</Badge>
+								)}
+							</div>
+						</section>
+					)}
+
 					<section className="rounded-lg border border-border p-4 space-y-4">
 						<div>
 							<h3 className="text-sm font-semibold">Basic Identity</h3>
@@ -120,9 +193,7 @@ export function SubjectFormModal({
 									placeholder="e.g. ELEC1"
 									value={form.code}
 									readOnly={mode === 'edit'}
-									onChange={(e) =>
-										mode === 'add' && setForm((p) => ({ ...p, code: e.target.value.toUpperCase() }))
-									}
+									onChange={(event) => mode === 'add' && setForm((previous) => ({ ...previous, code: event.target.value.toUpperCase() }))}
 									className={mode === 'edit' ? 'bg-muted/40 cursor-default' : ''}
 								/>
 							</div>
@@ -131,78 +202,74 @@ export function SubjectFormModal({
 								<Input
 									placeholder="Subject name"
 									value={form.name}
-									onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+									onChange={(event) => setForm((previous) => ({ ...previous, name: event.target.value }))}
 								/>
 							</div>
 						</div>
+
 						<div className="flex items-center gap-2">
 							<Switch
 								checked={form.isActive}
-								onCheckedChange={(value) => setForm((p) => ({ ...p, isActive: value }))}
+								onCheckedChange={(value) => setForm((previous) => ({ ...previous, isActive: value }))}
 								aria-label="Set subject active status"
 							/>
 							<span className="text-xs text-muted-foreground">{form.isActive ? 'Active subject' : 'Inactive subject'}</span>
 						</div>
+
 						<div>
 							<label className="text-xs font-medium text-muted-foreground">Grade Levels</label>
-							<div className="mt-1 flex gap-2">
-								{GRADE_OPTIONS.map((g) => (
-									<button
-										key={g}
-										type="button"
-										onClick={() => toggleGradeLevel(g)}
-										className={`inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
-											form.gradeLevels.includes(g)
-												? 'border-primary bg-primary text-primary-foreground'
-												: 'border-border bg-background text-muted-foreground hover:bg-accent/10'
-										}`}
-									>
-										G{g}
-									</button>
+							<div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+								{GRADE_OPTIONS.map((gradeLevel) => (
+									<label key={gradeLevel} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs">
+										<Checkbox
+											checked={form.gradeLevels.includes(gradeLevel)}
+											onCheckedChange={() => toggleGradeLevel(gradeLevel)}
+											aria-label={`Include ${gradeLabel(gradeLevel)}`}
+										/>
+										<span>{gradeLabel(gradeLevel)}</span>
+									</label>
 								))}
 							</div>
 						</div>
+
 						<div>
 							<label className="text-xs font-medium text-muted-foreground">Program Scopes</label>
-							<div className="mt-1 flex flex-wrap gap-1.5">
+							<div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
 								{PROGRAM_SCOPE_OPTIONS.map(({ value, label }) => (
-									<button
-										key={value}
-										type="button"
-										onClick={() => toggleProgramScope(value)}
-										className={`rounded border px-2 py-1 text-xs font-medium transition-colors ${
-											form.programScopes.includes(value)
-												? `border-current ${PROGRAM_SCOPE_BADGE[value] ?? 'bg-sky-50 text-sky-700 border-sky-200'}`
-												: 'border-border text-muted-foreground hover:bg-accent/10'
-										}`}
-									>
-										{label}
-									</button>
+									<label key={value} className={`flex items-center gap-2 rounded-md border px-3 py-2 text-xs ${PROGRAM_SCOPE_BADGE[value] ?? 'bg-sky-50 text-sky-700 border-sky-200'}`}>
+										<Checkbox
+											checked={form.programScopes.includes(value)}
+											onCheckedChange={() => toggleProgramScope(value)}
+											aria-label={`Toggle ${label} program scope`}
+										/>
+										<span>{label}</span>
+									</label>
 								))}
 							</div>
+							{form.programScopes.length === 0 && (
+								<p className="mt-1 text-[0.65rem] text-red-600">Select at least one program scope.</p>
+							)}
 						</div>
+
 						{availableSpecializations.length > 0 && (
 							<div>
 								<label className="text-xs font-medium text-muted-foreground">
 									Specialization Restriction{' '}
 									<span className="font-normal text-muted-foreground/70">(leave blank = open to all)</span>
 								</label>
-								<div className="mt-1 flex flex-wrap gap-1.5">
-									{availableSpecializations.map((spec) => (
-										<button
-											key={spec}
-											type="button"
-											onClick={() => toggleSpecialization(spec)}
-											className={`rounded border px-2 py-1 text-xs font-medium transition-colors ${
-												form.allowedSpecializations.includes(spec)
-													? 'border-violet-400 bg-violet-50 text-violet-700'
-													: 'border-border text-muted-foreground hover:bg-accent/10'
-											}`}
-										>
-											{spec}
-										</button>
+								<div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+									{availableSpecializations.map((specialization) => (
+										<label key={specialization} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs">
+											<Checkbox
+												checked={form.allowedSpecializations.includes(specialization)}
+												onCheckedChange={() => toggleSpecialization(specialization)}
+												aria-label={`Toggle specialization ${specialization}`}
+											/>
+											<span>{specialization}</span>
+										</label>
 									))}
 								</div>
+								<p className="mt-1 text-[0.65rem] text-muted-foreground">Source: subject contract and offering sync state.</p>
 							</div>
 						)}
 					</section>
@@ -214,98 +281,80 @@ export function SubjectFormModal({
 						</div>
 						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 							<div>
-								<div className="flex justify-between items-center mb-1">
-									<label className="text-xs font-medium text-muted-foreground">
-										Duration ({timeMode === 'minutes' ? 'min' : 'hr'}/wk)
-									</label>
-									<div className="flex gap-1 text-[0.625rem]">
-										<button
-											type="button"
-											onClick={() => setTimeMode('minutes')}
-											className={`px-1 rounded ${timeMode === 'minutes' ? 'bg-primary/20 text-primary font-bold' : 'text-muted-foreground hover:bg-muted'}`}
-										>
-											Min
-										</button>
-										<button
-											type="button"
-											onClick={() => setTimeMode('hours')}
-											className={`px-1 rounded ${timeMode === 'hours' ? 'bg-primary/20 text-primary font-bold' : 'text-muted-foreground hover:bg-muted'}`}
-										>
-											Hr
-										</button>
-									</div>
+								<div className="flex items-center justify-between gap-2 mb-1">
+									<label className="text-xs font-medium text-muted-foreground">Duration ({timeMode === 'minutes' ? 'min' : 'hr'}/wk)</label>
+									<Select value={timeMode} onValueChange={(value) => setTimeMode(value as 'minutes' | 'hours')}>
+										<SelectTrigger className="h-8 w-28 text-xs">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="minutes">Minutes</SelectItem>
+											<SelectItem value="hours">Hours</SelectItem>
+										</SelectContent>
+									</Select>
 								</div>
 								<Input
 									type="number"
 									min={0}
 									step={timeMode === 'minutes' ? 15 : 0.5}
-									value={
-										timeMode === 'minutes'
-											? form.minMinutesPerWeek
-											: Math.round((form.minMinutesPerWeek / 60) * 10) / 10
-									}
-									onChange={(e) => {
-										const val = Number(e.target.value);
-										setForm((p) => ({
-											...p,
-											minMinutesPerWeek: timeMode === 'minutes' ? val : Math.round(val * 60),
+									value={timeMode === 'minutes' ? form.minMinutesPerWeek : Math.round((form.minMinutesPerWeek / 60) * 10) / 10}
+									onChange={(event) => {
+										const value = Number(event.target.value);
+										setForm((previous) => ({
+											...previous,
+											minMinutesPerWeek: timeMode === 'minutes' ? value : Math.round(value * 60),
 										}));
 									}}
 								/>
 								<div className="flex gap-1 mt-1">
-									{[45, 60, 200, 240].map((val) => (
-										<button
+									{[45, 60, 200, 240].map((value) => (
+										<Button
+											key={value}
 											type="button"
-											key={val}
-											onClick={() => setForm((p) => ({ ...p, minMinutesPerWeek: val }))}
-											className="rounded border bg-accent/5 px-1.5 py-0.5 text-[0.5625rem] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+											variant="outline"
+											size="sm"
+											onClick={() => setForm((previous) => ({ ...previous, minMinutesPerWeek: value }))}
+											className="h-6 px-2 text-[0.625rem]"
 										>
-											{val}m
-										</button>
+											{value}m
+										</Button>
 									))}
 								</div>
 							</div>
+
 							<div>
 								<label className="text-xs font-medium text-muted-foreground mb-1 block">Session Pattern</label>
-								<Select
-									value={form.sessionPattern}
-									onValueChange={(v) => setForm((p) => ({ ...p, sessionPattern: v as SessionPattern }))}
-								>
+								<Select value={form.sessionPattern} onValueChange={(value) => setForm((previous) => ({ ...previous, sessionPattern: value as SessionPattern }))}>
 									<SelectTrigger className="flex h-9 w-full bg-background text-sm shadow-xs">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
-										{(Object.keys(SESSION_PATTERN_LABELS) as SessionPattern[]).map((p) => (
-											<SelectItem key={p} value={p}>
-												{SESSION_PATTERN_LABELS[p]}
-											</SelectItem>
+										{(Object.keys(SESSION_PATTERN_LABELS) as SessionPattern[]).map((pattern) => (
+											<SelectItem key={pattern} value={pattern}>{SESSION_PATTERN_LABELS[pattern]}</SelectItem>
 										))}
 									</SelectContent>
 								</Select>
 							</div>
+
 							<div>
 								<label className="text-xs font-medium text-muted-foreground mb-1 block">Preferred Room Type</label>
-								<Select
-									value={form.preferredRoomType}
-									onValueChange={(v) => setForm((p) => ({ ...p, preferredRoomType: v as RoomType }))}
-								>
+								<Select value={form.preferredRoomType} onValueChange={(value) => setForm((previous) => ({ ...previous, preferredRoomType: value as RoomType }))}>
 									<SelectTrigger className="flex h-9 w-full bg-background text-sm shadow-xs">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
-										{ALL_ROOM_TYPES.map((t) => (
-											<SelectItem key={t} value={t}>
-												{ROOM_TYPE_LABELS[t]}
-											</SelectItem>
+										{ALL_ROOM_TYPES.map((roomType) => (
+											<SelectItem key={roomType} value={roomType}>{ROOM_TYPE_LABELS[roomType]}</SelectItem>
 										))}
 									</SelectContent>
 								</Select>
 							</div>
 						</div>
+
 						<div className="flex items-center gap-2">
 							<Switch
 								checked={form.isSeedable}
-								onCheckedChange={(value) => setForm((p) => ({ ...p, isSeedable: value }))}
+								onCheckedChange={(value) => setForm((previous) => ({ ...previous, isSeedable: value }))}
 								aria-label="Auto-schedule to grid"
 							/>
 							<div className="flex items-center gap-2">
@@ -322,6 +371,7 @@ export function SubjectFormModal({
 								</TooltipProvider>
 							</div>
 						</div>
+
 						<div>
 							<label className="text-xs font-medium text-muted-foreground">
 								Required Room Features{' '}
@@ -332,27 +382,30 @@ export function SubjectFormModal({
 									<Input
 										placeholder="Add a feature requirement..."
 										value={newFeature}
-										onChange={(e) => setNewFeature(e.target.value)}
-										onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addFeature(); } }}
+										onChange={(event) => setNewFeature(event.target.value)}
+										onKeyDown={(event) => {
+											if (event.key === 'Enter') {
+												event.preventDefault();
+												addFeature();
+											}
+										}}
 										className="h-8 text-xs"
 									/>
 									<Button type="button" size="sm" onClick={addFeature} className="h-8 px-3">Add</Button>
 								</div>
 								<div className="flex flex-wrap gap-1.5">
-									{form.requiredFeatures.map((feat) => (
-										<Badge
-											key={feat}
-											variant="secondary"
-											className="px-2 py-0.5 text-[0.65rem] flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200"
-										>
-											{feat}
-											<button
+									{form.requiredFeatures.map((feature) => (
+										<Badge key={feature} variant="secondary" className="px-2 py-0.5 text-[0.65rem] flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200">
+											{feature}
+											<Button
 												type="button"
-												onClick={() => removeFeature(feat)}
-												className="hover:text-red-600 transition-colors"
+												variant="ghost"
+												size="sm"
+												onClick={() => removeFeature(feature)}
+												className="h-4 w-4 p-0 text-inherit hover:text-red-600"
 											>
 												×
-											</button>
+											</Button>
 										</Badge>
 									))}
 									{form.requiredFeatures.length === 0 && (
@@ -366,66 +419,44 @@ export function SubjectFormModal({
 					<section className="rounded-lg border border-border p-4 space-y-4">
 						<div>
 							<h3 className="text-sm font-semibold">Advanced Grouping</h3>
-							<p className="text-xs text-muted-foreground">Configure cohort splitting and modular term ordering.</p>
+							<p className="text-xs text-muted-foreground">Configure section pooling and modular term ordering.</p>
 						</div>
+
 						<div>
-							<label className="text-xs font-medium text-muted-foreground mb-1 block">Enable TLE / Cohort Splitting</label>
+							<label className="text-xs font-medium text-muted-foreground mb-1 block">Enable Inter-Section Pooling</label>
 							<div className="flex items-center gap-2 mt-1">
 								<Switch
 									checked={form.interSectionEnabled ?? false}
-									onCheckedChange={(v) =>
-										setForm((p) => ({
-											...p,
-											interSectionEnabled: v,
-											interSectionGradeLevels: v ? p.interSectionGradeLevels : [],
-										}))
-									}
-									aria-label="Enable TLE / Cohort splitting"
+									onCheckedChange={(value) => setForm((previous) => ({ ...previous, interSectionEnabled: value, interSectionGradeLevels: value ? previous.interSectionGradeLevels : [] }))}
+									aria-label="Enable inter-section pooling"
 								/>
-								<span className="text-xs text-muted-foreground">
-									{form.interSectionEnabled ? 'Enabled' : 'Disabled'}
-								</span>
+								<span className="text-xs text-muted-foreground">{form.interSectionEnabled ? 'Enabled' : 'Disabled'}</span>
 							</div>
 							{form.interSectionEnabled && (
-								<div className="flex gap-1 mt-2">
-									{form.gradeLevels.map((g) => (
-										<button
-											key={g}
-											type="button"
-											onClick={() =>
-												setForm((p) => {
-													const has = (p.interSectionGradeLevels ?? []).includes(g);
-													return {
-														...p,
-														interSectionGradeLevels: has
-															? (p.interSectionGradeLevels ?? []).filter((x) => x !== g)
-															: [...(p.interSectionGradeLevels ?? []), g].sort((a, b) => a - b),
-													};
-												})
-											}
-											className={`rounded border px-1.5 py-0.5 text-[0.6rem] font-medium transition-colors ${
-												(form.interSectionGradeLevels ?? []).includes(g)
-													? 'border-primary bg-primary text-primary-foreground'
-													: 'border-border text-muted-foreground hover:bg-accent/10'
-											}`}
-										>
-											{gradeLabel(g)}
-										</button>
+								<div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+									{form.gradeLevels.map((gradeLevel) => (
+										<label key={gradeLevel} className="flex items-center gap-2 rounded-md border border-border px-2 py-1 text-xs">
+											<Checkbox
+												checked={(form.interSectionGradeLevels ?? []).includes(gradeLevel)}
+												onCheckedChange={() => toggleInterSectionGrade(gradeLevel)}
+												aria-label={`Toggle ${gradeLabel(gradeLevel)} inter-section pooling`}
+											/>
+											<span>{gradeLabel(gradeLevel)}</span>
+										</label>
 									))}
 								</div>
 							)}
 						</div>
+
 						<div className="space-y-3 rounded-md border border-dashed border-border p-3">
 							<div className="flex items-center gap-2">
 								<Switch
 									checked={isModularSubject}
-									onCheckedChange={(value) =>
-										setForm((p) => ({
-											...p,
-											modularGroupId: value ? (p.modularGroupId.trim() || 'SCIENCE') : '',
-											modularOrder: value ? (p.modularOrder ?? 1) : null,
-										}))
-									}
+									onCheckedChange={(value) => setForm((previous) => ({
+										...previous,
+										modularGroupId: value ? (previous.modularGroupId.trim() || 'SCIENCE') : '',
+										modularOrder: value ? (previous.modularOrder ?? 1) : null,
+									}))}
 									aria-label="Toggle modular subject"
 								/>
 								<span className="text-xs text-muted-foreground">Modular Subject</span>
@@ -437,7 +468,7 @@ export function SubjectFormModal({
 										<Input
 											placeholder="e.g. SCIENCE"
 											value={form.modularGroupId}
-											onChange={(e) => setForm((p) => ({ ...p, modularGroupId: e.target.value.toUpperCase() }))}
+											onChange={(event) => setForm((previous) => ({ ...previous, modularGroupId: event.target.value.toUpperCase() }))}
 										/>
 									</div>
 									<div>
@@ -446,7 +477,7 @@ export function SubjectFormModal({
 											type="number"
 											min={1}
 											value={form.modularOrder ?? 1}
-											onChange={(e) => setForm((p) => ({ ...p, modularOrder: Math.max(1, Number(e.target.value) || 1) }))}
+											onChange={(event) => setForm((previous) => ({ ...previous, modularOrder: Math.max(1, Number(event.target.value) || 1) }))}
 										/>
 									</div>
 								</div>
@@ -456,9 +487,7 @@ export function SubjectFormModal({
 				</div>
 
 				<DialogFooter>
-					<Button variant="outline" onClick={onClose} disabled={saving}>
-						Cancel
-					</Button>
+					<Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
 					<Button onClick={() => onSave(form)} disabled={!canSave}>
 						{saving ? (mode === 'add' ? 'Creating...' : 'Saving...') : (mode === 'add' ? 'Create Subject' : 'Save Changes')}
 					</Button>

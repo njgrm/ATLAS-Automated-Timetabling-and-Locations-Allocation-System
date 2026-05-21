@@ -2,6 +2,11 @@ import { prisma } from '../lib/prisma.js';
 import type { ProgramType } from '@prisma/client';
 import { inferSubjectProgramScopes } from './subject-program-scope.service.js';
 import { normalizeSubjectDisplayLabel } from './schedule-output-normalization.service.js';
+import {
+	resolveSubjectOwnerDepartmentCode,
+	resolveSubjectQualificationPriority,
+	resolveSubjectRotationFamily,
+} from './subject-ownership.service.js';
 
 const MATATAG_DEFAULTS: Array<{
 	code: string;
@@ -39,10 +44,10 @@ const MATATAG_DEFAULTS: Array<{
 	{ code: 'TLE', name: 'Technology and Livelihood Education', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
 
 	// Exploratory TLE (Grades 7-8).
-	{ code: 'TLE_ICT_EXP', name: 'TLE Exploratory - ICT', minMinutesPerWeek: 240, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [7, 8], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 1, programScopes: ['REGULAR'], allowedSpecializations: ['ICT'] },
-	{ code: 'TLE_AFA_EXP', name: 'TLE Exploratory - Agriculture and Fishery Arts', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 2, programScopes: ['REGULAR'], allowedSpecializations: ['AFA'] },
-	{ code: 'TLE_FCS_EXP', name: 'TLE Exploratory - Family and Consumer Science', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 3, programScopes: ['REGULAR'], allowedSpecializations: ['FCS'] },
-	{ code: 'TLE_IA_EXP', name: 'TLE Exploratory - Industrial Arts', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 4, programScopes: ['REGULAR'], allowedSpecializations: ['IA'] },
+	{ code: 'TLE_ICT_EXP', name: 'TLE Exploratory - ICT', minMinutesPerWeek: 240, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 1, programScopes: ['REGULAR'], allowedSpecializations: ['ICT'] },
+	{ code: 'TLE_AFA_EXP', name: 'TLE Exploratory - Agriculture and Fishery Arts', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 2, programScopes: ['REGULAR'], allowedSpecializations: ['AFA'] },
+	{ code: 'TLE_FCS_EXP', name: 'TLE Exploratory - Family and Consumer Science', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 3, programScopes: ['REGULAR'], allowedSpecializations: ['FCS'] },
+	{ code: 'TLE_IA_EXP', name: 'TLE Exploratory - Industrial Arts', minMinutesPerWeek: 240, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 4, programScopes: ['REGULAR'], allowedSpecializations: ['IA'] },
 
 	// STE overlays (45-minute default overlays).
 	{ code: 'STE_ENV_SCI', name: 'Environmental Science', minMinutesPerWeek: 45, preferredRoomType: 'CLASSROOM', gradeLevels: [7], isSeedable: false, programScopes: ['STE'] },
@@ -97,6 +102,34 @@ const PROGRAM_OVERLAY_CODES: Record<ProgramType, string[]> = {
 };
 
 const DYNAMIC_TLE_PREFIX = 'TLE_SPEC_';
+
+type SubjectWithViewMetadata = {
+	displayCode: string;
+	ownerDepartment: string | null;
+	qualificationPriority: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
+	rotationFamily: string | null;
+	specializationSource: 'SUBJECT_CONTRACT' | 'NONE';
+};
+
+function withSubjectViewMetadata<T extends {
+	code: string;
+	name: string;
+	modularGroupId?: string | null;
+	allowedSpecializations?: string[];
+}>(subject: T): T & SubjectWithViewMetadata {
+	return {
+		...subject,
+		displayCode: normalizeSubjectDisplayLabel({
+			code: subject.code,
+			name: subject.name,
+			modularGroupId: subject.modularGroupId ?? null,
+		}),
+		ownerDepartment: resolveSubjectOwnerDepartmentCode(subject.code, subject.name),
+		qualificationPriority: resolveSubjectQualificationPriority(subject.code),
+		rotationFamily: resolveSubjectRotationFamily(subject.code, subject.modularGroupId ?? null),
+		specializationSource: (subject.allowedSpecializations ?? []).length > 0 ? 'SUBJECT_CONTRACT' : 'NONE',
+	};
+}
 
 type UpstreamProgramSignals = {
 	offeredPrograms: Set<ProgramType>;
@@ -390,7 +423,16 @@ export async function ensureDefaultSubjects(schoolId: number): Promise<void> {
 }
 
 async function materializeDynamicTleSubjects(schoolId: number, specializations: UpstreamProgramSignals['tleSpecializations']) {
-	if (specializations.length === 0) return;
+	if (specializations.length === 0) {
+		await prisma.subject.updateMany({
+			where: {
+				schoolId,
+				code: { startsWith: DYNAMIC_TLE_PREFIX },
+			},
+			data: { isActive: false },
+		});
+		return;
+	}
 
 	const dynamicCodes = new Set<string>();
 
@@ -530,13 +572,8 @@ export async function getSubjectsBySchool(schoolId: number, filters?: SubjectSco
 
 	// Use stored programScopes; fall back to heuristic inference for legacy rows with empty scopes
 	return subjects
-		.map((subject) => ({
+		.map((subject) => withSubjectViewMetadata({
 			...subject,
-			displayCode: normalizeSubjectDisplayLabel({
-				code: subject.code,
-				name: subject.name,
-				modularGroupId: subject.modularGroupId,
-			}),
 			programScopes: subject.programScopes.length > 0
 				? subject.programScopes
 				: inferSubjectProgramScopes(subject.code, subject.name),
@@ -551,14 +588,12 @@ export async function getSubjectsBySchool(schoolId: number, filters?: SubjectSco
 export async function getSubjectById(id: number) {
 	const subject = await prisma.subject.findUnique({ where: { id } });
 	if (!subject) return null;
-	return {
+	return withSubjectViewMetadata({
 		...subject,
-		displayCode: normalizeSubjectDisplayLabel({
-			code: subject.code,
-			name: subject.name,
-			modularGroupId: subject.modularGroupId,
-		}),
-	};
+		programScopes: subject.programScopes.length > 0
+			? subject.programScopes
+			: inferSubjectProgramScopes(subject.code, subject.name),
+	});
 }
 
 export async function createSubject(
@@ -696,19 +731,107 @@ export async function updateSubject(
 	return prisma.subject.update({ where: { id }, data: updateData });
 }
 
-export async function deleteSubject(id: number): Promise<{ success: boolean; error?: string }> {
+type DeleteSubjectResult =
+	| {
+		success: true;
+		deletedSubjectId: number;
+		cleanedHistoricalAssignments: number;
+	  }
+	| {
+		success: false;
+		code: 'NOT_FOUND' | 'SEEDABLE_SUBJECT' | 'ACTIVE_ASSIGNMENTS' | 'HISTORICAL_ASSIGNMENTS';
+		error: string;
+		details?: Record<string, unknown>;
+	  };
+
+export async function deleteSubject(
+	id: number,
+	options?: { cleanupHistorical?: boolean },
+): Promise<DeleteSubjectResult> {
+	const cleanupHistorical = options?.cleanupHistorical === true;
 	const subject = await prisma.subject.findUnique({
 		where: { id },
-		include: { facultySubjects: { select: { id: true }, take: 1 } },
+		select: { id: true, code: true, name: true, isSeedable: true, isActive: true },
 	});
-	if (!subject) return { success: false, error: 'Subject not found.' };
-	if (subject.isSeedable) return { success: false, error: 'DepEd standard subjects cannot be deleted.' };
-	if (subject.facultySubjects.length > 0) {
-		return { success: false, error: 'Cannot delete a subject that is assigned to faculty.' };
+	if (!subject) {
+		return { success: false, code: 'NOT_FOUND', error: 'Subject not found.' };
+	}
+	if (subject.isSeedable) {
+		return { success: false, code: 'SEEDABLE_SUBJECT', error: 'DepEd standard subjects cannot be deleted.' };
 	}
 
-	await prisma.subject.delete({ where: { id } });
-	return { success: true };
+	const assignments = await prisma.facultySubject.findMany({
+		where: { subjectId: id },
+		select: {
+			id: true,
+			facultyId: true,
+			sectionIds: true,
+			faculty: {
+				select: {
+					isActiveForScheduling: true,
+					isStale: true,
+				},
+			},
+			sectionOwnerships: { select: { id: true }, take: 1 },
+		},
+	});
+
+	const activeAssignments = assignments.filter((assignment) => {
+		const ownershipRows = (assignment as { sectionOwnerships?: Array<{ id: number }> }).sectionOwnerships;
+		const hasOwnedSections = assignment.sectionIds.length > 0 || Boolean(ownershipRows && ownershipRows.length > 0);
+		return assignment.faculty.isActiveForScheduling && !assignment.faculty.isStale && hasOwnedSections;
+	});
+	const historicalAssignments = assignments.filter((assignment) => !activeAssignments.includes(assignment));
+
+	if (activeAssignments.length > 0) {
+		return {
+			success: false,
+			code: 'ACTIVE_ASSIGNMENTS',
+			error: 'This subject is still assigned in active teaching loads. Remove active assignments first.',
+			details: {
+				subjectId: subject.id,
+				subjectCode: subject.code,
+				subjectName: subject.name,
+				activeAssignmentCount: activeAssignments.length,
+				historicalAssignmentCount: historicalAssignments.length,
+				action: 'REMOVE_ACTIVE_ASSIGNMENTS',
+			},
+		};
+	}
+
+	if (historicalAssignments.length > 0 && !cleanupHistorical) {
+		return {
+			success: false,
+			code: 'HISTORICAL_ASSIGNMENTS',
+			error: 'Historical faculty-subject records still exist. Archive or run explicit cleanup before deleting.',
+			details: {
+				subjectId: subject.id,
+				subjectCode: subject.code,
+				subjectName: subject.name,
+				historicalAssignmentCount: historicalAssignments.length,
+				activeAssignmentCount: 0,
+				canCleanupHistorical: true,
+				recommendedAction: subject.isActive ? 'ARCHIVE_THEN_CLEANUP' : 'CLEANUP_THEN_DELETE',
+			},
+		};
+	}
+
+	let cleanedHistoricalAssignments = 0;
+	await prisma.$transaction(async (tx) => {
+		if (cleanupHistorical) {
+			cleanedHistoricalAssignments = await tx.facultySubject.count({ where: { subjectId: id } });
+			await tx.subjectSectionOwnership.deleteMany({ where: { subjectId: id } });
+			await tx.facultySubject.deleteMany({ where: { subjectId: id } });
+		}
+
+		await tx.subject.delete({ where: { id } });
+	});
+
+	return {
+		success: true,
+		deletedSubjectId: id,
+		cleanedHistoricalAssignments,
+	};
 }
 
 export async function getSubjectCountBySchool(schoolId: number): Promise<number> {

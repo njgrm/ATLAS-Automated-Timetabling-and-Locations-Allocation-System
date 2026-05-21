@@ -8,9 +8,11 @@ import {
 	ChevronDown,
 	ChevronLeft,
 	ChevronRight,
+	ExternalLink,
 	Map,
 	Pencil,
 	Plus,
+	RefreshCw,
 	Search,
 	Star,
 	Trash2,
@@ -27,15 +29,20 @@ import {
 	GRADE_OPTIONS,
 	PROGRAM_SCOPE_BADGE,
 	PROGRAM_SCOPE_OPTIONS,
+	QUALIFICATION_PRIORITY_LABELS,
 	ROOM_TYPE_LABELS,
 	SESSION_PATTERN_BADGE,
+	SUBJECT_OWNER_BADGE,
+	SUBJECT_OWNER_LABELS,
 } from '@/lib/subject-constants';
 import type { RoomType, Subject } from '@/types';
 import { SubjectFormModal, type SubjectFormValues } from '@/components/subjects/SubjectFormModal';
+import { fetchPublicSettings } from '@/lib/settings';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card } from '@/ui/card';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
 import { Input } from '@/ui/input';
 import { Skeleton } from '@/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
@@ -54,10 +61,24 @@ export default function Subjects() {
 	const [searchQuery, setSearchQuery] = useState('');
 	const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null);
 	const [modalSubject, setModalSubject] = useState<SubjectFormValues | null>(null);
+	const [modalSubjectMeta, setModalSubjectMeta] = useState<Subject | null>(null);
 	const [saving, setSaving] = useState(false);
 	const [deleteTarget, setDeleteTarget] = useState<Subject | null>(null);
+	const [deleteBlocker, setDeleteBlocker] = useState<{
+		target: Subject;
+		reason: string;
+		message: string;
+		details?: {
+			activeAssignmentCount?: number;
+			historicalAssignmentCount?: number;
+			canCleanupHistorical?: boolean;
+			recommendedAction?: string;
+		};
+	} | null>(null);
+	const [deleteActionLoading, setDeleteActionLoading] = useState(false);
+	const [syncingContract, setSyncingContract] = useState(false);
+	const [inspectSpecializations, setInspectSpecializations] = useState<Subject | null>(null);
 	const [timeMode, setTimeMode] = useState<'minutes' | 'hours'>('minutes');
-	const [availableSpecializations, setAvailableSpecializations] = useState<string[]>([]);
 
 	// Teacher coverage drilldown
 	const [expandedSubjectId, setExpandedSubjectId] = useState<number | null>(null);
@@ -84,7 +105,6 @@ export default function Subjects() {
 	const fetchSubjects = useCallback(async () => {
 		setLoading(true);
 		try {
-			await atlasApi.post('/subjects/seed', { schoolId: DEFAULT_SCHOOL_ID });
 			const { data } = await atlasApi.get<{ subjects: Subject[] }>('/subjects', {
 				params: { schoolId: DEFAULT_SCHOOL_ID },
 			});
@@ -99,12 +119,6 @@ export default function Subjects() {
 
 	useEffect(() => {
 		fetchSubjects();
-		// Fetch available faculty specializations (for allowedSpecializations config)
-		atlasApi.get<{ specializations: string[] }>('/faculty/specializations', {
-			params: { schoolId: DEFAULT_SCHOOL_ID },
-		}).then(({ data }) => setAvailableSpecializations(data.specializations)).catch(() => {
-			// Non-critical: silently ignore if endpoint is not yet available
-		});
 	}, [fetchSubjects]);
 
 	const handleAssignTeacher = async (facultyId: number, subjectId: number) => {
@@ -205,6 +219,18 @@ export default function Subjects() {
 		}
 	}, [expandedSubjectId, teacherCoverage, subjects]);
 
+	const availableSpecializations = useMemo(() => {
+		const values = new Set<string>();
+		for (const subject of subjects) {
+			for (const specialization of subject.allowedSpecializations ?? []) {
+				if (specialization.trim()) {
+					values.add(specialization);
+				}
+			}
+		}
+		return [...values].sort((left, right) => left.localeCompare(right));
+	}, [subjects]);
+
 	// Filtered, sorted, paginated
 	const { paged, totalFiltered, totalPages } = useMemo(() => {
 		let list = subjects;
@@ -298,6 +324,7 @@ export default function Subjects() {
 			}
 			setModalMode(null);
 			setModalSubject(null);
+			setModalSubjectMeta(null);
 			await fetchSubjects();
 		} catch (err: any) {
 			const msg = err?.response?.data?.message ?? 'Failed to save subject.';
@@ -309,15 +336,78 @@ export default function Subjects() {
 
 	const hasActiveFilters = statusFilter !== 'all' || roomTypeFilter !== 'all' || gradeLevelFilter !== 'all' || programScopeFilter !== 'all';
 
-	const handleDelete = async (id: number) => {
+	const handleSyncContract = async () => {
+		setSyncingContract(true);
 		try {
-			await atlasApi.delete(`/subjects/${id}`);
+			const settings = await fetchPublicSettings();
+			if (!settings.activeSchoolYearId) {
+				toast.error('Active school year is not configured. Cannot sync subject contract.');
+				return;
+			}
+			await atlasApi.post('/subjects/sync-offerings', {
+				schoolId: DEFAULT_SCHOOL_ID,
+				schoolYearId: settings.activeSchoolYearId,
+			});
+			await fetchSubjects();
+			toast.success('Subject contract synced from offerings and mirrored section demand.');
+		} catch (err: any) {
+			toast.error(err?.response?.data?.message ?? 'Failed to sync subject contract.');
+		} finally {
+			setSyncingContract(false);
+		}
+	};
+
+	const handleDelete = async (target: Subject, options?: { cleanupHistorical?: boolean }) => {
+		try {
+			const { data } = await atlasApi.delete<{ cleanedHistoricalAssignments?: number }>(`/subjects/${target.id}`, {
+				params: options?.cleanupHistorical ? { cleanupHistorical: true } : undefined,
+			});
+
+			if (typeof data?.cleanedHistoricalAssignments === 'number' && data.cleanedHistoricalAssignments > 0) {
+				toast.success(`Subject deleted. Cleaned ${data.cleanedHistoricalAssignments} historical assignment rows.`);
+			} else {
+				toast.success('Subject deleted.');
+			}
 			setDeleteTarget(null);
-			toast.success('Subject deleted.');
+			setDeleteBlocker(null);
 			await fetchSubjects();
 		} catch (err: any) {
-			const msg = err?.response?.data?.message ?? 'Failed to delete subject.';
+			const payload = err?.response?.data;
+			if (payload?.code === 'DELETE_BLOCKED') {
+				setDeleteBlocker({
+					target,
+					reason: payload?.reason ?? 'UNKNOWN',
+					message: payload?.message ?? 'Delete is blocked for this subject.',
+					details: payload?.details,
+				});
+				setDeleteTarget(null);
+				return;
+			}
+			const msg = payload?.message ?? 'Failed to delete subject.';
 			toast.error(msg);
+		}
+	};
+
+	const handleArchiveSubject = async (target: Subject) => {
+		setDeleteActionLoading(true);
+		try {
+			await atlasApi.post(`/subjects/${target.id}/archive`);
+			toast.success('Subject archived. You can now run historical cleanup before delete.');
+			setDeleteBlocker(null);
+			await fetchSubjects();
+		} catch (err: any) {
+			toast.error(err?.response?.data?.message ?? 'Failed to archive subject.');
+		} finally {
+			setDeleteActionLoading(false);
+		}
+	};
+
+	const handleCleanupAndDelete = async (target: Subject) => {
+		setDeleteActionLoading(true);
+		try {
+			await handleDelete(target, { cleanupHistorical: true });
+		} finally {
+			setDeleteActionLoading(false);
 		}
 	};
 
@@ -389,7 +479,11 @@ export default function Subjects() {
 						</Button>
 					)}
 					<div className="flex-1" />
-					<Button onClick={() => { setModalMode('add'); setModalSubject(null); }} size="sm" className="h-8">
+					<Button variant="outline" onClick={handleSyncContract} size="sm" className="h-8" disabled={syncingContract}>
+						<RefreshCw className={`mr-1 size-3.5 ${syncingContract ? 'animate-spin' : ''}`} />
+						Sync Contract
+					</Button>
+					<Button onClick={() => { setModalMode('add'); setModalSubject(null); setModalSubjectMeta(null); }} size="sm" className="h-8">
 						<Plus className="mr-1 size-3.5" /> Add Subject
 					</Button>
 				</div>
@@ -398,7 +492,7 @@ export default function Subjects() {
 			{error && (
 				<div className="shrink-0 mx-6 mb-2 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
 					{error}
-					<button className="ml-2 font-semibold" onClick={() => setError(null)}>Dismiss</button>
+					<Button variant="ghost" size="sm" className="ml-2 h-6 px-2 text-xs" onClick={() => setError(null)}>Dismiss</Button>
 				</div>
 			)}
 
@@ -410,36 +504,36 @@ export default function Subjects() {
 							<thead className="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm">
 								<tr className="border-b">
 									<th className="px-4 py-2.5 text-left">
-										<button onClick={() => toggleSort('code')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground">
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('code')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
 											Code <SortIcon field="code" />
-										</button>
+										</Button>
 									</th>
 									<th className="px-4 py-2.5 text-left">
-										<button onClick={() => toggleSort('name')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground">
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('name')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
 											Subject Name <SortIcon field="name" />
-										</button>
+										</Button>
 									</th>
 									<th className="px-4 py-2.5 text-left">
 										<div className="flex items-center gap-2">
-											<button onClick={() => toggleSort('minMinutesPerWeek')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground">
+											<Button variant="ghost" size="sm" onClick={() => toggleSort('minMinutesPerWeek')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
 												Duration <SortIcon field="minMinutesPerWeek" />
-											</button>
+											</Button>
 											<div className="flex gap-0.5 text-[0.625rem] bg-muted/50 p-0.5 rounded-md border border-border/50">
-												<button type="button" onClick={() => setTimeMode('minutes')} className={`px-1.5 rounded-sm transition-colors ${timeMode==='minutes' ? 'bg-background shadow-xs text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}>min</button>
-												<button type="button" onClick={() => setTimeMode('hours')} className={`px-1.5 rounded-sm transition-colors ${timeMode==='hours' ? 'bg-background shadow-xs text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}>hr</button>
+												<Button type="button" variant="ghost" size="sm" onClick={() => setTimeMode('minutes')} className={`h-5 px-1.5 rounded-sm ${timeMode === 'minutes' ? 'bg-background shadow-xs text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}>min</Button>
+												<Button type="button" variant="ghost" size="sm" onClick={() => setTimeMode('hours')} className={`h-5 px-1.5 rounded-sm ${timeMode === 'hours' ? 'bg-background shadow-xs text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}>hr</Button>
 											</div>
 										</div>
 									</th>
 									<th className="px-4 py-2.5 text-left">
-										<button onClick={() => toggleSort('preferredRoomType')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground">
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('preferredRoomType')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
 											Room Pref. <SortIcon field="preferredRoomType" />
-										</button>
+										</Button>
 									</th>
 									<th className="px-4 py-2.5 text-left font-semibold text-muted-foreground">Pattern</th>
 									<th className="px-4 py-2.5 text-left">
-										<button onClick={() => toggleSort('gradeLevels')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground">
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('gradeLevels')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
 											Grades <SortIcon field="gradeLevels" />
-										</button>
+										</Button>
 									</th>
 									<th className="px-4 py-2.5 text-left">
 										<TooltipProvider delayDuration={200}>
@@ -484,7 +578,14 @@ export default function Subjects() {
 											<Fragment key={s.id}>
 											<tr className="border-b last:border-0 hover:bg-muted/30 transition-colors">
 												<td className="px-4 py-3">
-													<code className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono">{s.code}</code>
+													<div className="flex flex-col gap-1">
+														<code className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono w-fit">{s.code}</code>
+														{s.displayCode && s.displayCode !== s.code && (
+															<Badge variant="outline" className="text-[0.55rem] px-1.5 py-0 border-emerald-200 bg-emerald-50 text-emerald-700 w-fit">
+																Label: {s.displayCode}
+															</Badge>
+														)}
+													</div>
 												</td>
 												<td className="px-4 py-3">
 													<div>
@@ -502,6 +603,25 @@ export default function Subjects() {
 																))}
 															</div>
 														)}
+														<div className="mt-1 flex flex-wrap gap-1">
+															{s.ownerDepartment ? (
+																<Badge variant="outline" className={`text-[0.55rem] px-1.5 py-0 ${SUBJECT_OWNER_BADGE[s.ownerDepartment] ?? 'bg-muted border-border text-foreground'}`}>
+																	{SUBJECT_OWNER_LABELS[s.ownerDepartment] ?? s.ownerDepartment}
+																</Badge>
+															) : (
+																<Badge variant="outline" className="text-[0.55rem] px-1.5 py-0">Owner: Unspecified</Badge>
+															)}
+															{s.qualificationPriority && (
+																<Badge variant="outline" className="text-[0.55rem] px-1.5 py-0 bg-slate-50 text-slate-700 border-slate-200">
+																	{QUALIFICATION_PRIORITY_LABELS[s.qualificationPriority]}
+																</Badge>
+															)}
+															{s.rotationFamily && (
+																<Badge variant="outline" className="text-[0.55rem] px-1.5 py-0 bg-violet-50 text-violet-700 border-violet-200">
+																	Rotation: {s.rotationFamily}
+																</Badge>
+															)}
+														</div>
 													</div>
 												</td>
 												<td className="px-4 py-3">
@@ -558,10 +678,16 @@ export default function Subjects() {
 														) : (
 															<Badge variant="secondary" className="text-[0.6rem]">Inactive</Badge>
 														)}
-														{(s as any).allowedSpecializations?.length > 0 && (
-															<Badge variant="outline" className="mt-1 block w-fit text-[0.55rem] px-1 py-0 border-violet-300 text-violet-700">
-																🔒 {(s as any).allowedSpecializations.length} specs
-															</Badge>
+														{(s.allowedSpecializations ?? []).length > 0 && (
+															<Button
+																variant="outline"
+																size="sm"
+																className="mt-1 h-6 px-2 text-[0.6rem] border-violet-300 text-violet-700 hover:text-violet-700"
+																onClick={() => setInspectSpecializations(s)}
+															>
+																<ExternalLink className="mr-1 size-3" />
+																{s.allowedSpecializations.length} specializations
+															</Button>
 														)}
 													</>
 												</td>
@@ -601,9 +727,10 @@ export default function Subjects() {
 																	modularGroupId: s.modularGroupId ?? '',
 																	modularOrder: s.modularOrder ?? null,
 																	programScopes: [...(s.programScopes ?? ['REGULAR'])],
-																	allowedSpecializations: [...((s as any).allowedSpecializations ?? [])],
-																	requiredFeatures: [...((s as any).requiredFeatures ?? [])],
+																	allowedSpecializations: [...(s.allowedSpecializations ?? [])],
+																	requiredFeatures: [...(s.requiredFeatures ?? [])],
 																});
+																setModalSubjectMeta(s);
 																setModalMode('edit');
 															}
 														}
@@ -757,10 +884,15 @@ export default function Subjects() {
 			open={modalMode !== null}
 			mode={modalMode ?? 'add'}
 			initialValues={modalSubject ?? undefined}
+			subjectMeta={modalSubjectMeta ?? undefined}
 			saving={saving}
 			availableSpecializations={availableSpecializations}
 			onSave={handleModalSave}
-			onClose={() => { setModalMode(null); setModalSubject(null); }}
+			onClose={() => {
+				setModalMode(null);
+				setModalSubject(null);
+				setModalSubjectMeta(null);
+			}}
 		/>
 			{/* Delete confirmation */}
 			<ConfirmationModal
@@ -770,8 +902,82 @@ export default function Subjects() {
 				title="Delete Subject"
 				description={`Are you sure you want to delete "${deleteTarget?.name}" (${deleteTarget?.code})? This action cannot be undone.`}
 				confirmText="Delete"
-				onConfirm={() => deleteTarget && handleDelete(deleteTarget.id)}
+				onConfirm={() => deleteTarget && handleDelete(deleteTarget)}
 			/>
+
+			<Dialog open={!!inspectSpecializations} onOpenChange={(open) => !open && setInspectSpecializations(null)}>
+				<DialogContent className="max-w-md">
+					<DialogHeader>
+						<DialogTitle>Specialization Restrictions</DialogTitle>
+						<DialogDescription>
+							{inspectSpecializations ? `${inspectSpecializations.code} - ${inspectSpecializations.name}` : 'Subject'}
+						</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-3">
+						<p className="text-xs text-muted-foreground">
+							Source: {inspectSpecializations?.specializationSource === 'SUBJECT_CONTRACT' ? 'Subject contract' : 'None'}.
+						</p>
+						{(inspectSpecializations?.allowedSpecializations ?? []).length > 0 ? (
+							<div className="flex flex-wrap gap-1.5">
+								{(inspectSpecializations?.allowedSpecializations ?? []).map((specialization) => (
+									<Badge key={specialization} variant="outline" className="text-[0.65rem] border-violet-300 text-violet-700">
+										{specialization}
+									</Badge>
+								))}
+							</div>
+						) : (
+							<p className="text-xs text-muted-foreground">No restrictions. Any qualified faculty from the owner department can be matched.</p>
+						)}
+					</div>
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setInspectSpecializations(null)}>Close</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog open={!!deleteBlocker} onOpenChange={(open) => !open && setDeleteBlocker(null)}>
+				<DialogContent className="max-w-lg">
+					<DialogHeader>
+						<DialogTitle>Delete Blocked</DialogTitle>
+						<DialogDescription>
+							{deleteBlocker?.message}
+						</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-2 text-sm">
+						<p>
+							Subject: <span className="font-medium">{deleteBlocker?.target.code}</span> - {deleteBlocker?.target.name}
+						</p>
+						{typeof deleteBlocker?.details?.activeAssignmentCount === 'number' && (
+							<p>Active assignments: <span className="font-semibold">{deleteBlocker.details.activeAssignmentCount}</span></p>
+						)}
+						{typeof deleteBlocker?.details?.historicalAssignmentCount === 'number' && (
+							<p>Historical assignments: <span className="font-semibold">{deleteBlocker.details.historicalAssignmentCount}</span></p>
+						)}
+						{deleteBlocker?.details?.recommendedAction && (
+							<p className="text-xs text-muted-foreground">Recommended action: {deleteBlocker.details.recommendedAction}</p>
+						)}
+					</div>
+					<DialogFooter className="gap-2">
+						<Button variant="outline" onClick={() => setDeleteBlocker(null)} disabled={deleteActionLoading}>Close</Button>
+						<Button
+							variant="outline"
+							onClick={() => deleteBlocker && handleArchiveSubject(deleteBlocker.target)}
+							disabled={deleteActionLoading}
+						>
+							Archive Subject
+						</Button>
+						{deleteBlocker?.details?.canCleanupHistorical && (
+							<Button
+								variant="destructive"
+								onClick={() => deleteBlocker && handleCleanupAndDelete(deleteBlocker.target)}
+								disabled={deleteActionLoading}
+							>
+								Cleanup Historical + Delete
+							</Button>
+						)}
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }

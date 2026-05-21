@@ -103,15 +103,43 @@ router.delete('/:id', authenticate, requirePrivilegedRole, async (req, res, next
             res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
             return;
         }
-        const result = await subjectService.deleteSubject(id);
+        const cleanupHistorical = req.query.cleanupHistorical === 'true';
+        const result = await subjectService.deleteSubject(id, { cleanupHistorical });
         if (!result.success) {
-            res.status(result.error?.includes('not found') ? 404 : 400).json({
+            const status = result.code === 'NOT_FOUND'
+                ? 404
+                : (result.code === 'ACTIVE_ASSIGNMENTS' || result.code === 'HISTORICAL_ASSIGNMENTS' ? 409 : 400);
+            res.status(status).json({
                 code: 'DELETE_BLOCKED',
                 message: result.error,
+                reason: result.code,
+                details: result.details,
             });
             return;
         }
-        res.status(204).end();
+        res.status(200).json({
+            deletedSubjectId: result.deletedSubjectId,
+            cleanedHistoricalAssignments: result.cleanedHistoricalAssignments,
+        });
+    }
+    catch (err) {
+        next(err);
+    }
+});
+// Auth: POST /subjects/:id/archive — explicit archive action for safe cleanup workflows
+router.post('/:id/archive', authenticate, requirePrivilegedRole, async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
+        if (Number.isNaN(id)) {
+            res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
+            return;
+        }
+        const subject = await subjectService.updateSubject(id, { isActive: false });
+        if (!subject) {
+            res.status(404).json({ code: 'NOT_FOUND', message: 'Subject not found.' });
+            return;
+        }
+        res.json({ subject, archived: true });
     }
     catch (err) {
         next(err);

@@ -186,7 +186,7 @@ PHASE 8+: Teacher X & Concurrency (⏳ FUTURE, BLOCKED UNTIL EARLIER PHASES)
 
 ### Phase 3 Live DB Scan Findings (2026-05-17)
 
-**Summary:** Teacher X placeholders are needed, but they are **not** the dominant reason timetabling still performs poorly. The live DB scan shows multiple structural blockers that must be addressed together in Phase 3 if KPI recovery is to be realistic.
+**Summary:** Teacher X placeholders are needed, but they are **not** the dominant reason timetabling still performs poorly. The live DB scan showed multiple structural blockers that had to be addressed together in Phase 3. As of `2026-05-21`, one major assumption from this section is now obsolete: TLE for Grades 9-10 no longer requires split specialization cohorts under the new MATATAG direction.
 
 **Verified live data findings:**
 - `FacultyMirror.isPlaceholder` exists in schema, but **0 placeholder faculty rows** currently exist in the live DB.
@@ -210,9 +210,10 @@ PHASE 8+: Teacher X & Concurrency (⏳ FUTURE, BLOCKED UNTIL EARLIER PHASES)
     - G9/G10: `12:00–18:00`
   - no program-specific windows are currently persisted
 - Live cohort/TLE readiness:
-  - `0` active `InstructionalCohort` rows
-  - persisted `SectionMirror` rows do not store TLE ownership fields
-  - latest `SectionSnapshot` also showed **no TLE specialization ownership fields populated**
+  - this older finding is now superseded by the `2026-05-21` MATATAG reset
+  - active EnrollPro sections for `schoolYearId=55` now expose `0` `tleProgramId` and `0` `tleSpecialization` values
+  - ATLAS `SectionMirror` now also exposes `82` real sections with `0` TLE-tagged ownership rows
+  - any remaining local `InstructionalCohort` rows should now be treated as stale TLE contract artifacts, not required readiness data
 - Live rooms/buildings:
   - `12` buildings, `160` rooms, `157` teaching rooms
   - `0` rooms currently flagged `isSharedFacility=true`
@@ -248,7 +249,8 @@ PHASE 8+: Teacher X & Concurrency (⏳ FUTURE, BLOCKED UNTIL EARLIER PHASES)
 - Subject-to-faculty coverage audit and remediation for active STE/TLE/SPS rows
 - Template demand normalization so weekly bound minutes fit the actual timetable shape
 - Persisted scheduling policy bootstrap for the active school year
-- TLE cohort / specialization ownership readiness audit
+- MATATAG TLE contract reset from split/cohort logic to term-rotation logic
+- department-baseline faculty parity audit against stakeholder official counts
 - KPI rerun and root-cause validation after the above are repaired
 
 ---

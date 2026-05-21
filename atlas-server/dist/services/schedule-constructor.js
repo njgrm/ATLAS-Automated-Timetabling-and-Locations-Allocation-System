@@ -19,6 +19,7 @@
  *  - If no valid candidate exists, count as unassigned (never fabricate invalid data)
  */
 import { isSubjectAllowedForSectionProgram } from './subject-program-scope.service.js';
+import { isSpecializationPrimarySubjectCode, matchesSubjectOwnershipDepartment, } from './subject-ownership.service.js';
 // ─── Standard time grid (JHS 8-period day) ───
 const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
 /** Default period slots — used when no policy lunch window override is provided. */
@@ -627,15 +628,17 @@ export function constructBaseline(input) {
     }
     function isFacultyQualified(f, s) {
         const allowed = s.allowedSpecializations ?? [];
-        if (allowed.length === 0)
-            return true; // No restriction
-        // Tier 1: Explicit Specialization
-        if (f.specialization && allowed.includes(f.specialization))
+        const specializationPrimary = isSpecializationPrimarySubjectCode(s.code);
+        const departmentMatch = matchesSubjectOwnershipDepartment(f.department, s.code, s.name);
+        const specializationMatch = Boolean((f.specialization && allowed.includes(f.specialization))
+            || (f.department && allowed.includes(f.department)));
+        if (!specializationPrimary && departmentMatch) {
             return true;
-        // Tier 2: Structural Department
-        if (f.department && allowed.includes(f.department))
+        }
+        if (specializationMatch) {
             return true;
-        // Tier 3: Alias Mapping
+        }
+        // Alias Mapping fallback
         if (input.specializationAliases && input.specializationAliases.length > 0) {
             const facultyTerms = [f.specialization, f.department].filter(Boolean);
             for (const alias of input.specializationAliases) {
@@ -643,6 +646,9 @@ export function constructBaseline(input) {
                     return true;
                 }
             }
+        }
+        if (specializationPrimary && departmentMatch) {
+            return true;
         }
         return false;
     }
@@ -662,8 +668,9 @@ export function constructBaseline(input) {
         // Priority 2: Optional fallback to tiered qualification when flexible assignment is enabled.
         // For cohort entries, also widen the pool when explicit assignment depth is too thin
         // to avoid single-teacher slot starvation on inter-section sessions.
+        const isTleSubject = (subject?.code ?? '').toUpperCase().startsWith('TLE');
         const shouldAugmentWithTieredCandidates = subject != null
-            && (allowFlexible || (item.entryKind === 'COHORT' && candidates.length < 2));
+            && (allowFlexible || isTleSubject || (item.entryKind === 'COHORT' && candidates.length < 2));
         if (shouldAugmentWithTieredCandidates && subject) {
             const tieredCandidates = faculty.filter((facultyMember) => isFacultyQualified(facultyMember, subject)).map((facultyMember) => facultyMember.id);
             if (candidates.length === 0) {
@@ -721,7 +728,14 @@ export function constructBaseline(input) {
                 : moduleSubject.modularOrder === 2
                     ? 2
                     : 3;
-            const facultyIds = qualifiedMap.get(`${moduleSubject.subjectId}:${item.sectionId}`) ?? [];
+            const subjectRow = subjectMap.get(moduleSubject.subjectId);
+            const explicitFacultyIds = qualifiedMap.get(`${moduleSubject.subjectId}:${item.sectionId}`) ?? [];
+            const tieredFacultyIds = subjectRow
+                ? faculty.filter((facultyMember) => isFacultyQualified(facultyMember, subjectRow)).map((facultyMember) => facultyMember.id)
+                : [];
+            const facultyIds = explicitFacultyIds.length > 0
+                ? explicitFacultyIds
+                : [...new Set(tieredFacultyIds)].sort((left, right) => left - right);
             if (facultyIds.length === 0) {
                 missingTerms.push(termIndex);
                 continue;

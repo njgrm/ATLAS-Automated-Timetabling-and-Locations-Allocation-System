@@ -52,6 +52,10 @@ export type Subject = {
 	schoolId: number;
 	code: string;
 	displayCode?: string;
+	ownerDepartment?: string | null;
+	qualificationPriority?: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
+	rotationFamily?: string | null;
+	specializationSource?: 'SUBJECT_CONTRACT' | 'NONE';
 	name: string;
 	programType?: 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER' | null;
 	minMinutesPerWeek: number;
