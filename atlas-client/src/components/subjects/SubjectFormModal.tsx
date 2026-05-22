@@ -22,7 +22,9 @@ import { Input } from '@/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Switch } from '@/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
+import { Separator } from '@/ui/separator';
 import { gradeLabel } from '@/lib/grade-labels';
+import { Info, AlertCircle, Clock, Settings2, ShieldCheck, Layout } from 'lucide-react';
 
 export type SubjectFormValues = NewSubjectForm & {
 	id?: number;
@@ -38,6 +40,8 @@ type Props = {
 		qualificationPriority?: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
 		rotationFamily?: string | null;
 		specializationSource?: 'SUBJECT_CONTRACT' | 'NONE';
+		outputLabel?: string | null;
+		isSystemManaged?: boolean;
 	};
 	saving: boolean;
 	availableSpecializations: string[];
@@ -123,234 +127,177 @@ export function SubjectFormModal({
 
 	return (
 		<Dialog open={open} onOpenChange={(value) => { if (!value) onClose(); }}>
-			<DialogContent className="max-w-2xl max-h-[90svh] overflow-y-auto">
-				<DialogHeader>
-					<DialogTitle>{mode === 'add' ? 'Add Subject' : 'Edit Subject'}</DialogTitle>
-					<DialogDescription>
-						Configure ownership, scope, and scheduling constraints for this subject.
-					</DialogDescription>
+			<DialogContent className="max-w-2xl max-h-[95svh] overflow-hidden flex flex-col p-0">
+				<DialogHeader className="p-6 pb-4 border-b">
+					<div className="flex items-center gap-2">
+						<div className="p-2 rounded-lg bg-primary/10 text-primary">
+							<Settings2 className="size-5" />
+						</div>
+						<div>
+							<DialogTitle className="text-xl font-bold">{mode === 'add' ? 'Add New Subject' : 'Configure Subject'}</DialogTitle>
+							<DialogDescription className="text-xs">
+								Define scheduling constraints and governance for this academic offering.
+							</DialogDescription>
+						</div>
+					</div>
 				</DialogHeader>
 
-				<div className="space-y-5">
+				<div className="flex-1 overflow-y-auto p-6 space-y-8">
+					{/* Metadata Alert if syncing */}
 					{mode === 'edit' && subjectMeta && (
-						<section className="rounded-lg border border-border p-4 space-y-3">
-							<div>
-								<h3 className="text-sm font-semibold">Subject Contract Snapshot</h3>
-								<p className="text-xs text-muted-foreground">Teaching load and generation read this persisted contract directly.</p>
+						<div className="rounded-xl border bg-muted/30 p-4 flex items-start gap-3">
+							<ShieldCheck className="size-5 text-emerald-600 shrink-0 mt-0.5" />
+							<div className="space-y-2 flex-1">
+								<div className="flex items-center justify-between gap-2">
+									<h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Persisted Offerings Contract</h3>
+									<Badge variant="outline" className="bg-background font-mono text-[0.6rem]">
+										{subjectMeta.displayCode || form.code}
+									</Badge>
+								</div>
+
+								{/* Output label */}
+								{subjectMeta.outputLabel && (
+									<p className="text-[0.7rem] text-muted-foreground">
+										<span className="font-semibold text-foreground">Print label:</span> {subjectMeta.outputLabel}
+									</p>
+								)}
+
+								<div className="flex flex-wrap gap-1.5">
+									{subjectMeta.isSystemManaged && (
+										<Badge variant="secondary" className="text-[0.6rem] bg-slate-100 text-slate-600 border-slate-200">
+											System-managed
+										</Badge>
+									)}
+									{subjectMeta.ownerDepartment && (
+										<Badge variant="secondary" className={`text-[0.6rem] ${SUBJECT_OWNER_BADGE[subjectMeta.ownerDepartment] ?? ''}`}>
+											{SUBJECT_OWNER_LABELS[subjectMeta.ownerDepartment] ?? subjectMeta.ownerDepartment}
+										</Badge>
+									)}
+									{subjectMeta.qualificationPriority && (
+										<Badge variant="outline" className="text-[0.6rem] border-sky-200 text-sky-700 bg-sky-50/40">
+											{subjectMeta.qualificationPriority === 'SPECIALIZATION_PRIMARY' ? 'Specialization Priority' : 'Department First'}
+										</Badge>
+									)}
+									{subjectMeta.rotationFamily && (
+										<Badge variant="outline" className="text-[0.6rem] border-indigo-200 text-indigo-700 bg-indigo-50/30">
+											{subjectMeta.rotationFamily}
+										</Badge>
+									)}
+									{subjectMeta.specializationSource === 'SUBJECT_CONTRACT' && (
+										<Badge variant="outline" className="text-[0.6rem] border-purple-200 text-purple-700 bg-purple-50/30">
+											Sync-Driven Specializations
+										</Badge>
+									)}
+								</div>
 							</div>
-							<div className="flex flex-wrap gap-2">
-								{subjectMeta.ownerDepartment ? (
-									<Badge variant="outline" className={SUBJECT_OWNER_BADGE[subjectMeta.ownerDepartment] ?? 'bg-muted border-border text-foreground'}>
-										Owner: {SUBJECT_OWNER_LABELS[subjectMeta.ownerDepartment] ?? subjectMeta.ownerDepartment}
-									</Badge>
-								) : (
-									<Badge variant="outline">Owner: Unspecified</Badge>
-								)}
-								{subjectMeta.qualificationPriority && (
-									<Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
-										{QUALIFICATION_PRIORITY_LABELS[subjectMeta.qualificationPriority]}
-									</Badge>
-								)}
-								{subjectMeta.rotationFamily && (
-									<Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
-										Rotation: {subjectMeta.rotationFamily}
-									</Badge>
-								)}
-								{subjectMeta.displayCode && (
-									<Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
-										Output Label: {subjectMeta.displayCode}
-									</Badge>
-								)}
-								{subjectMeta.specializationSource === 'SUBJECT_CONTRACT' && (
-									<Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-										Specializations sourced from subject contract
-									</Badge>
-								)}
-							</div>
-						</section>
+						</div>
 					)}
 
-					<section className="rounded-lg border border-border p-4 space-y-4">
-						<div>
-							<h3 className="text-sm font-semibold">Basic Identity</h3>
-							<p className="text-xs text-muted-foreground">Core identity and scope settings for this subject.</p>
+					{/* Section 1: Core Identity */}
+					<div className="space-y-4">
+						<div className="flex items-center gap-2 text-primary">
+							<Info className="size-4" />
+							<h3 className="text-[0.6875rem] font-bold uppercase tracking-widest">1. Identity & Scope</h3>
 						</div>
-						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-							<div>
-								<label className="text-xs font-medium text-muted-foreground">Code</label>
+						
+						<div className="grid grid-cols-2 gap-6">
+							<div className="space-y-1.5">
+								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Subject Code</label>
 								<Input
-									placeholder="e.g. ELEC1"
+									placeholder="e.g. MATH10"
 									value={form.code}
 									readOnly={mode === 'edit'}
 									onChange={(event) => mode === 'add' && setForm((previous) => ({ ...previous, code: event.target.value.toUpperCase() }))}
-									className={mode === 'edit' ? 'bg-muted/40 cursor-default' : ''}
+									className={`font-mono uppercase ${mode === 'edit' ? 'bg-muted/50 cursor-not-allowed' : ''}`}
 								/>
 							</div>
-							<div>
-								<label className="text-xs font-medium text-muted-foreground">Name</label>
+							<div className="space-y-1.5">
+								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Descriptive Name</label>
 								<Input
-									placeholder="Subject name"
+									placeholder="e.g. Mathematics Grade 10"
 									value={form.name}
 									onChange={(event) => setForm((previous) => ({ ...previous, name: event.target.value }))}
 								/>
 							</div>
 						</div>
 
-						<div className="flex items-center gap-2">
-							<Switch
-								checked={form.isActive}
-								onCheckedChange={(value) => setForm((previous) => ({ ...previous, isActive: value }))}
-								aria-label="Set subject active status"
-							/>
-							<span className="text-xs text-muted-foreground">{form.isActive ? 'Active subject' : 'Inactive subject'}</span>
-						</div>
-
-						<div>
-							<label className="text-xs font-medium text-muted-foreground">Grade Levels</label>
-							<div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-								{GRADE_OPTIONS.map((gradeLevel) => (
-									<label key={gradeLevel} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs">
-										<Checkbox
-											checked={form.gradeLevels.includes(gradeLevel)}
-											onCheckedChange={() => toggleGradeLevel(gradeLevel)}
-											aria-label={`Include ${gradeLabel(gradeLevel)}`}
-										/>
-										<span>{gradeLabel(gradeLevel)}</span>
-									</label>
-								))}
-							</div>
-						</div>
-
-						<div>
-							<label className="text-xs font-medium text-muted-foreground">Program Scopes</label>
-							<div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-								{PROGRAM_SCOPE_OPTIONS.map(({ value, label }) => (
-									<label key={value} className={`flex items-center gap-2 rounded-md border px-3 py-2 text-xs ${PROGRAM_SCOPE_BADGE[value] ?? 'bg-sky-50 text-sky-700 border-sky-200'}`}>
-										<Checkbox
-											checked={form.programScopes.includes(value)}
-											onCheckedChange={() => toggleProgramScope(value)}
-											aria-label={`Toggle ${label} program scope`}
-										/>
-										<span>{label}</span>
-									</label>
-								))}
-							</div>
-							{form.programScopes.length === 0 && (
-								<p className="mt-1 text-[0.65rem] text-red-600">Select at least one program scope.</p>
-							)}
-						</div>
-
-						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-							<div>
-								<label className="text-xs font-medium text-muted-foreground">Output Label</label>
-								<Input
-									placeholder="e.g. TLE"
-									value={form.outputLabel}
-									onChange={(event) => setForm((previous) => ({ ...previous, outputLabel: event.target.value.toUpperCase() }))}
+						<div className="flex items-center justify-between p-3 rounded-lg border bg-accent/5">
+							<div className="flex items-center gap-3">
+								<Switch
+									checked={form.isActive}
+									onCheckedChange={(v) => setForm((p) => ({ ...p, isActive: v }))}
 								/>
-							</div>
-							<div>
-								<label className="text-xs font-medium text-muted-foreground">Owner Department</label>
-								<Input
-									placeholder="e.g. TLE"
-									value={form.ownerDepartment}
-									onChange={(event) => setForm((previous) => ({ ...previous, ownerDepartment: event.target.value.toUpperCase() }))}
-								/>
-							</div>
-							<div>
-								<label className="text-xs font-medium text-muted-foreground mb-1 block">Qualification Priority</label>
-								<Select
-									value={form.qualificationPriority}
-									onValueChange={(value) => setForm((previous) => ({ ...previous, qualificationPriority: value as SubjectFormValues['qualificationPriority'] }))}
-								>
-									<SelectTrigger className="flex h-9 w-full bg-background text-sm shadow-xs">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										{QUALIFICATION_PRIORITY_OPTIONS.map((option) => (
-											<SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-							<div>
-								<label className="text-xs font-medium text-muted-foreground">Rotation Family</label>
-								<Input
-									placeholder="e.g. TLE_ROTATION"
-									value={form.rotationFamily}
-									onChange={(event) => setForm((previous) => ({ ...previous, rotationFamily: event.target.value.toUpperCase() }))}
-								/>
-							</div>
-						</div>
-
-						<div>
-							<label className="text-xs font-medium text-muted-foreground">Specialization Contract</label>
-							{form.allowedSpecializations.length > 0 ? (
-								<div className="mt-2 flex flex-wrap gap-1.5">
-									{form.allowedSpecializations.map((specialization) => (
-										<Badge key={specialization} variant="outline" className="text-[0.65rem] border-violet-300 text-violet-700">
-											{specialization}
-										</Badge>
-									))}
+								<div className="flex flex-col">
+									<span className="text-xs font-semibold">Enable for Active Year</span>
+									<span className="text-[0.65rem] text-muted-foreground">Inactive subjects are hidden from the weekly grid.</span>
 								</div>
+							</div>
+							{form.isActive ? (
+								<Badge className="bg-emerald-100 text-emerald-700 shadow-none hover:bg-emerald-100">Live</Badge>
 							) : (
-								<p className="mt-1 text-[0.7rem] text-muted-foreground">No restriction. Values are sync-driven and view-only in this form.</p>
+								<Badge variant="secondary" className="shadow-none">Archived</Badge>
 							)}
 						</div>
-					</section>
+					</div>
 
-					<section className="rounded-lg border border-border p-4 space-y-4">
-						<div>
-							<h3 className="text-sm font-semibold">Grid &amp; Time Constraints</h3>
-							<p className="text-xs text-muted-foreground">Control placement and weekly minutes on the daily grid.</p>
+					<Separator className="opacity-50" />
+
+					{/* Section 2: Capacity & Pattern */}
+					<div className="space-y-4">
+						<div className="flex items-center gap-2 text-primary">
+							<Clock className="size-4" />
+							<h3 className="text-[0.6875rem] font-bold uppercase tracking-widest">2. Scheduling & Pattern</h3>
 						</div>
-						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-							<div>
-								<div className="flex items-center justify-between gap-2 mb-1">
-									<label className="text-xs font-medium text-muted-foreground">Duration ({timeMode === 'minutes' ? 'min' : 'hr'}/wk)</label>
-									<Select value={timeMode} onValueChange={(value) => setTimeMode(value as 'minutes' | 'hours')}>
-										<SelectTrigger className="h-8 w-28 text-xs">
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="minutes">Minutes</SelectItem>
-											<SelectItem value="hours">Hours</SelectItem>
-										</SelectContent>
-									</Select>
-								</div>
-								<Input
-									type="number"
-									min={0}
-									step={timeMode === 'minutes' ? 15 : 0.5}
-									value={timeMode === 'minutes' ? form.minMinutesPerWeek : Math.round((form.minMinutesPerWeek / 60) * 10) / 10}
-									onChange={(event) => {
-										const value = Number(event.target.value);
-										setForm((previous) => ({
-											...previous,
-											minMinutesPerWeek: timeMode === 'minutes' ? value : Math.round(value * 60),
-										}));
-									}}
-								/>
-								<div className="flex gap-1 mt-1">
-									{[45, 60, 200, 240].map((value) => (
-										<Button
-											key={value}
+
+						<div className="grid grid-cols-2 gap-6">
+							<div className="space-y-2">
+								<div className="flex items-center justify-between">
+									<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Weekly Duration</label>
+									<div className="flex bg-muted rounded-md p-0.5">
+										<Button 
 											type="button"
-											variant="outline"
+											variant="ghost"
 											size="sm"
-											onClick={() => setForm((previous) => ({ ...previous, minMinutesPerWeek: value }))}
-											className="h-6 px-2 text-[0.625rem]"
+											onClick={() => setTimeMode('minutes')}
+											className={`h-6 px-2 text-[0.6rem] rounded ${timeMode === 'minutes' ? 'bg-background shadow-sm font-bold text-foreground' : 'text-muted-foreground'}`}
 										>
-											{value}m
+											min
 										</Button>
-									))}
+										<Button 
+											type="button"
+											variant="ghost"
+											size="sm"
+											onClick={() => setTimeMode('hours')}
+											className={`h-6 px-2 text-[0.6rem] rounded ${timeMode === 'hours' ? 'bg-background shadow-sm font-bold text-foreground' : 'text-muted-foreground'}`}
+										>
+											hr
+										</Button>
+									</div>
+								</div>
+								<div className="relative">
+									<Input
+										type="number"
+										min={0}
+										value={timeMode === 'minutes' ? form.minMinutesPerWeek : Math.round((form.minMinutesPerWeek / 60) * 10) / 10}
+										onChange={(event) => {
+											const value = Number(event.target.value);
+											setForm((previous) => ({
+												...previous,
+												minMinutesPerWeek: timeMode === 'minutes' ? value : Math.round(value * 60),
+											}));
+										}}
+										className="pr-12 font-medium"
+									/>
+									<span className="absolute right-3 top-1/2 -translate-y-1/2 text-[0.65rem] font-bold text-muted-foreground uppercase">
+										{timeMode}
+									</span>
 								</div>
 							</div>
 
-							<div>
-								<label className="text-xs font-medium text-muted-foreground mb-1 block">Session Pattern</label>
-								<Select value={form.sessionPattern} onValueChange={(value) => setForm((previous) => ({ ...previous, sessionPattern: value as SessionPattern }))}>
-									<SelectTrigger className="flex h-9 w-full bg-background text-sm shadow-xs">
+							<div className="space-y-2">
+								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Session Pattern</label>
+								<Select value={form.sessionPattern} onValueChange={(v) => setForm((p) => ({ ...p, sessionPattern: v as SessionPattern }))}>
+									<SelectTrigger className="h-10">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
@@ -360,11 +307,13 @@ export function SubjectFormModal({
 									</SelectContent>
 								</Select>
 							</div>
+						</div>
 
-							<div>
-								<label className="text-xs font-medium text-muted-foreground mb-1 block">Preferred Room Type</label>
-								<Select value={form.preferredRoomType} onValueChange={(value) => setForm((previous) => ({ ...previous, preferredRoomType: value as RoomType }))}>
-									<SelectTrigger className="flex h-9 w-full bg-background text-sm shadow-xs">
+						<div className="grid grid-cols-2 gap-6 pt-2">
+							<div className="space-y-2">
+								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Preferred Room Type</label>
+								<Select value={form.preferredRoomType} onValueChange={(v) => setForm((p) => ({ ...p, preferredRoomType: v as RoomType }))}>
+									<SelectTrigger className="h-10">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
@@ -374,147 +323,233 @@ export function SubjectFormModal({
 									</SelectContent>
 								</Select>
 							</div>
-						</div>
 
-						<div className="flex items-center gap-2">
-							<Switch
-								checked={form.isSeedable}
-								onCheckedChange={(value) => setForm((previous) => ({ ...previous, isSeedable: value }))}
-								aria-label="Auto-schedule to grid"
-							/>
-							<div className="flex items-center gap-2">
-								<span className="text-xs text-muted-foreground">Auto-Schedule to Grid</span>
-								<TooltipProvider delayDuration={200}>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<span className="cursor-help rounded-full border border-border px-1 text-[10px] text-muted-foreground">?</span>
-										</TooltipTrigger>
-										<TooltipContent side="top" className="max-w-72 text-xs">
-											Turn off for subjects like Homeroom Guidance that count toward teacher load but do not require physical grid placement.
-										</TooltipContent>
-									</Tooltip>
-								</TooltipProvider>
-							</div>
-						</div>
-
-						<div>
-							<label className="text-xs font-medium text-muted-foreground">
-								Required Room Features{' '}
-								<span className="font-normal text-muted-foreground/70">(e.g. Greenhouse, Welding, ICT-Lab)</span>
-							</label>
-							<div className="mt-1 flex flex-col gap-2">
-								<div className="flex gap-2">
-									<Input
-										placeholder="Add a feature requirement..."
-										value={newFeature}
-										onChange={(event) => setNewFeature(event.target.value)}
-										onKeyDown={(event) => {
-											if (event.key === 'Enter') {
-												event.preventDefault();
-												addFeature();
-											}
-										}}
-										className="h-8 text-xs"
-									/>
-									<Button type="button" size="sm" onClick={addFeature} className="h-8 px-3">Add</Button>
-								</div>
-								<div className="flex flex-wrap gap-1.5">
-									{form.requiredFeatures.map((feature) => (
-										<Badge key={feature} variant="secondary" className="px-2 py-0.5 text-[0.65rem] flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200">
-											{feature}
-											<Button
-												type="button"
-												variant="ghost"
-												size="sm"
-												onClick={() => removeFeature(feature)}
-												className="h-4 w-4 p-0 text-inherit hover:text-red-600"
-											>
-												×
-											</Button>
-										</Badge>
-									))}
-									{form.requiredFeatures.length === 0 && (
-										<span className="text-[0.65rem] text-muted-foreground italic">No specific room requirements.</span>
-									)}
+							<div className="flex items-center gap-3 p-3 rounded-lg border bg-accent/5 self-end h-10">
+								<Switch
+									checked={form.isSeedable}
+									onCheckedChange={(v) => setForm((p) => ({ ...p, isSeedable: v }))}
+								/>
+								<div className="flex items-center gap-1.5">
+									<span className="text-[0.7rem] font-semibold uppercase">Auto-Schedule</span>
+									<TooltipProvider>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<AlertCircle className="size-3 text-muted-foreground cursor-help" />
+											</TooltipTrigger>
+											<TooltipContent className="max-w-xs text-xs">
+												Disable for auxiliary subjects that count toward load but don't need fixed grid placement (e.g. HG, Consult).
+											</TooltipContent>
+										</Tooltip>
+									</TooltipProvider>
 								</div>
 							</div>
 						</div>
-					</section>
+					</div>
 
-					<section className="rounded-lg border border-border p-4 space-y-4">
-						<div>
-							<h3 className="text-sm font-semibold">Advanced Grouping</h3>
-							<p className="text-xs text-muted-foreground">Configure section pooling and modular term ordering.</p>
+					<Separator className="opacity-50" />
+
+					{/* Section 3: Governance */}
+					<div className="space-y-6">
+						<div className="flex items-center gap-2 text-primary">
+							<Layout className="size-4" />
+							<h3 className="text-[0.6875rem] font-bold uppercase tracking-widest">3. Governance & Ownership</h3>
 						</div>
 
-						<div>
-							<label className="text-xs font-medium text-muted-foreground mb-1 block">Enable Inter-Section Pooling</label>
-							<div className="flex items-center gap-2 mt-1">
+						<div className="grid grid-cols-2 gap-6">
+							<div className="space-y-2">
+								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Owner Department</label>
+								<Input
+									placeholder="e.g. TLE, SCIENCE"
+									value={form.ownerDepartment}
+									onChange={(event) => setForm((previous) => ({ ...previous, ownerDepartment: event.target.value.toUpperCase() }))}
+									className="uppercase"
+								/>
+							</div>
+							<div className="space-y-2">
+								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Match Priority</label>
+								<Select
+									value={form.qualificationPriority}
+									onValueChange={(v) => setForm((p) => ({ ...p, qualificationPriority: v as SubjectFormValues['qualificationPriority'] }))}
+								>
+									<SelectTrigger className="h-10">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{QUALIFICATION_PRIORITY_OPTIONS.map((o) => (
+											<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+						</div>
+
+						<div className="space-y-3">
+							<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Target Grade Levels</label>
+							<div className="grid grid-cols-4 gap-2">
+								{GRADE_OPTIONS.map((g) => (
+									<Button
+										key={g}
+										type="button"
+										variant={form.gradeLevels.includes(g) ? 'default' : 'outline'}
+										size="sm"
+										onClick={() => toggleGradeLevel(g)}
+										className="h-9 px-3 text-xs font-bold"
+									>
+										Grade {g}
+									</Button>
+								))}
+							</div>
+						</div>
+
+						<div className="space-y-3">
+							<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Applicable Programs</label>
+							<div className="flex flex-wrap gap-2">
+								{PROGRAM_SCOPE_OPTIONS.map(({ value, label }) => (
+									<Button
+										key={value}
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={() => toggleProgramScope(value)}
+										className={`h-8 px-4 rounded-full text-[0.65rem] font-bold transition-all ${
+											form.programScopes.includes(value)
+												? 'bg-sky-100 text-sky-800 border-sky-300 ring-1 ring-sky-300/20 hover:bg-sky-100'
+												: 'bg-background text-muted-foreground'
+										}`}
+									>
+										{label}
+									</Button>
+								))}
+							</div>
+						</div>
+					</div>
+
+					<Separator className="opacity-50" />
+
+					{/* Section 4: Advanced */}
+					<div className="space-y-6">
+						<div className="flex items-center gap-2 text-primary">
+							<Settings2 className="size-4" />
+							<h3 className="text-[0.6875rem] font-bold uppercase tracking-widest">4. Advanced Logic</h3>
+						</div>
+
+						{/* Inter-section Pooling */}
+						<div className="p-4 rounded-xl border bg-muted/20 space-y-4">
+							<div className="flex items-center justify-between">
+								<div className="flex flex-col">
+									<span className="text-xs font-bold uppercase">Inter-Section Pooling</span>
+									<span className="text-[0.65rem] text-muted-foreground">Allows teaching one session to multiple sections simultaneously.</span>
+								</div>
 								<Switch
 									checked={form.interSectionEnabled ?? false}
-									onCheckedChange={(value) => setForm((previous) => ({ ...previous, interSectionEnabled: value, interSectionGradeLevels: value ? previous.interSectionGradeLevels : [] }))}
-									aria-label="Enable inter-section pooling"
+									onCheckedChange={(v) => setForm((p) => ({ ...p, interSectionEnabled: v, interSectionGradeLevels: v ? p.interSectionGradeLevels : [] }))}
 								/>
-								<span className="text-xs text-muted-foreground">{form.interSectionEnabled ? 'Enabled' : 'Disabled'}</span>
 							</div>
+							
 							{form.interSectionEnabled && (
-								<div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-									{form.gradeLevels.map((gradeLevel) => (
-										<label key={gradeLevel} className="flex items-center gap-2 rounded-md border border-border px-2 py-1 text-xs">
-											<Checkbox
-												checked={(form.interSectionGradeLevels ?? []).includes(gradeLevel)}
-												onCheckedChange={() => toggleInterSectionGrade(gradeLevel)}
-												aria-label={`Toggle ${gradeLabel(gradeLevel)} inter-section pooling`}
-											/>
-											<span>{gradeLabel(gradeLevel)}</span>
-										</label>
+								<div className="grid grid-cols-4 gap-2 pt-2 animate-in zoom-in-95 duration-200">
+									{form.gradeLevels.map((g) => (
+										<Button
+											key={g}
+											type="button"
+											variant="outline"
+											size="sm"
+											onClick={() => toggleInterSectionGrade(g)}
+											className={`h-8 px-2 text-[0.65rem] font-bold ${ (form.interSectionGradeLevels ?? []).includes(g) ? 'bg-violet-100 text-violet-800 border-violet-300 hover:bg-violet-100' : ''}`}
+										>
+											G{g} Pool
+										</Button>
 									))}
 								</div>
 							)}
 						</div>
 
-						<div className="space-y-3 rounded-md border border-dashed border-border p-3">
-							<div className="flex items-center gap-2">
+						{/* Modular Scheduling */}
+						<div className="p-4 rounded-xl border bg-muted/20 space-y-4">
+							<div className="flex items-center justify-between">
+								<div className="flex flex-col">
+									<span className="text-xs font-bold uppercase">Modular Term Ordering</span>
+									<span className="text-[0.65rem] text-muted-foreground">Used for subjects that rotate throughout the school year.</span>
+								</div>
 								<Switch
 									checked={isModularSubject}
-									onCheckedChange={(value) => setForm((previous) => ({
-										...previous,
-										modularGroupId: value ? (previous.modularGroupId.trim() || 'SCIENCE') : '',
-										modularOrder: value ? (previous.modularOrder ?? 1) : null,
+									onCheckedChange={(v) => setForm((p) => ({
+										...p,
+										modularGroupId: v ? (p.modularGroupId.trim() || 'SCIENCE') : '',
+										modularOrder: v ? (p.modularOrder ?? 1) : null,
 									}))}
-									aria-label="Toggle modular subject"
 								/>
-								<span className="text-xs text-muted-foreground">Modular Subject</span>
 							</div>
+							
 							{isModularSubject && (
-								<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-									<div>
-										<label className="text-xs font-medium text-muted-foreground">Modular Group ID</label>
+								<div className="grid grid-cols-2 gap-4 pt-2 animate-in zoom-in-95 duration-200">
+									<div className="space-y-1.5">
+										<label className="text-[0.65rem] font-bold text-muted-foreground uppercase">Group ID</label>
 										<Input
 											placeholder="e.g. SCIENCE"
 											value={form.modularGroupId}
-											onChange={(event) => setForm((previous) => ({ ...previous, modularGroupId: event.target.value.toUpperCase() }))}
+											onChange={(e) => setForm((p) => ({ ...p, modularGroupId: e.target.value.toUpperCase() }))}
+											className="h-8 text-xs uppercase font-mono"
 										/>
 									</div>
-									<div>
-										<label className="text-xs font-medium text-muted-foreground">Term Order</label>
+									<div className="space-y-1.5">
+										<label className="text-[0.65rem] font-bold text-muted-foreground uppercase">Term Rank</label>
 										<Input
 											type="number"
 											min={1}
 											value={form.modularOrder ?? 1}
-											onChange={(event) => setForm((previous) => ({ ...previous, modularOrder: Math.max(1, Number(event.target.value) || 1) }))}
+											onChange={(e) => setForm((p) => ({ ...p, modularOrder: Math.max(1, Number(e.target.value) || 1) }))}
+											className="h-8 text-xs"
 										/>
 									</div>
 								</div>
 							)}
 						</div>
-					</section>
+
+						{/* Room Requirements */}
+						<div className="space-y-3">
+							<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Required Room Features</label>
+							<div className="flex gap-2">
+								<Input
+									placeholder="e.g. ICT-Lab, Heavy Equipment"
+									value={newFeature}
+									onChange={(e) => setNewFeature(e.target.value)}
+									onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addFeature(); } }}
+									className="h-9 text-xs"
+								/>
+								<Button type="button" size="sm" onClick={addFeature} className="h-9 font-bold">Add</Button>
+							</div>
+							<div className="flex flex-wrap gap-1.5">
+								{form.requiredFeatures.map((f) => (
+									<Badge key={f} variant="secondary" className="pl-2 pr-1 py-0.5 text-[0.65rem] font-bold flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200">
+										{f}
+										<Button
+											type="button"
+											variant="ghost"
+											size="icon"
+											onClick={() => removeFeature(f)}
+											className="size-4 p-0 hover:text-red-600 transition-colors text-current"
+										>
+											<X className="size-3" />
+										</Button>
+									</Badge>
+								))}
+								{form.requiredFeatures.length === 0 && (
+									<span className="text-[0.65rem] text-muted-foreground italic pl-1">No specific hardware requirements defined.</span>
+								)}
+							</div>
+						</div>
+					</div>
 				</div>
 
-				<DialogFooter>
-					<Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-					<Button onClick={() => onSave(form)} disabled={!canSave}>
-						{saving ? (mode === 'add' ? 'Creating...' : 'Saving...') : (mode === 'add' ? 'Create Subject' : 'Save Changes')}
+				<DialogFooter className="p-6 border-t bg-muted/20">
+					<Button variant="outline" onClick={onClose} disabled={saving} className="h-10 font-bold px-6">Cancel</Button>
+					<Button 
+						onClick={() => onSave(form)} 
+						disabled={!canSave} 
+						className="h-10 font-bold px-8 shadow-sm"
+					>
+						{saving ? (mode === 'add' ? 'Creating...' : 'Saving...') : (mode === 'add' ? 'Create Subject' : 'Update Subject')}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

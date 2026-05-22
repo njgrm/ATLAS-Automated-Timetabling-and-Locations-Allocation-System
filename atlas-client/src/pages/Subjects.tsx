@@ -9,7 +9,9 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	ExternalLink,
+	Filter,
 	Map,
+	MoreHorizontal,
 	Pencil,
 	Plus,
 	RefreshCw,
@@ -17,6 +19,7 @@ import {
 	Star,
 	Trash2,
 	Users,
+	Wrench,
 	X,
 } from 'lucide-react';
 
@@ -37,16 +40,25 @@ import {
 } from '@/lib/subject-constants';
 import type { RoomType, Subject } from '@/types';
 import { SubjectFormModal, type SubjectFormValues } from '@/components/subjects/SubjectFormModal';
+import { SubjectRow } from '@/components/subjects/SubjectRow';
 import { fetchPublicSettings } from '@/lib/settings';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card } from '@/ui/card';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from '@/ui/sheet';
 import { Input } from '@/ui/input';
 import { Skeleton } from '@/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu';
 
 const DEFAULT_SCHOOL_ID = 1;
 const PAGE_SIZES = [10, 25, 50];
@@ -98,6 +110,7 @@ export default function Subjects() {
 	const [syncingContract, setSyncingContract] = useState(false);
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [showSystemManaged, setShowSystemManaged] = useState(false);
+	const [showFilters, setShowFilters] = useState(false);
 	const [resetDialogOpen, setResetDialogOpen] = useState(false);
 	const [resetPreview, setResetPreview] = useState<TeachingLoadResetPreview | null>(null);
 	const [resetLoading, setResetLoading] = useState(false);
@@ -106,7 +119,7 @@ export default function Subjects() {
 	const [timeMode, setTimeMode] = useState<'minutes' | 'hours'>('minutes');
 
 	// Teacher coverage drilldown
-	const [expandedSubjectId, setExpandedSubjectId] = useState<number | null>(null);
+	const [coverageSubject, setCoverageSubject] = useState<Subject | null>(null);
 	const [teacherCoverage, setTeacherCoverage] = useState<Record<number, { 
 		assigned: { facultyId: number; name: string; grades: number[]; load: number }[], 
 		eligible: { facultyId: number; name: string; tier: number; load: number }[] 
@@ -167,8 +180,9 @@ export default function Subjects() {
 	const handleAssignTeacher = async (facultyId: number, subjectId: number) => {
 		try {
 			setCoverageLoading(true);
+			const schoolYearId = await ensureActiveSchoolYear();
 			const currentRes = await atlasApi.get(`/faculty-assignments/${facultyId}`, {
-				params: { schoolYearId: 1 }
+				params: { schoolYearId }
 			});
 			const { version, assignments } = currentRes.data;
 			
@@ -183,42 +197,35 @@ export default function Subjects() {
 
 			await atlasApi.put(`/faculty-assignments/${facultyId}`, {
 				schoolId: DEFAULT_SCHOOL_ID,
-				schoolYearId: 1,
+				schoolYearId,
 				version,
 				assignments: newAssignments
 			});
 
 			toast.success('Teacher assigned successfully.');
 			
-			// Force refetch by clearing state and toggling again
+			// Force refetch
 			setTeacherCoverage(prev => {
 				const newState = { ...prev };
 				delete newState[subjectId];
 				return newState;
 			});
-			setExpandedSubjectId(null);
-			setTimeout(() => toggleTeacherCoverage(subjectId), 50);
+			fetchTeacherCoverage(subjectId);
 		} catch (err: any) {
 			toast.error(err.response?.data?.message || 'Failed to assign teacher');
 			setCoverageLoading(false);
 		}
 	};
 
-	const toggleTeacherCoverage = useCallback(async (subjectId: number) => {
-		if (expandedSubjectId === subjectId) {
-			setExpandedSubjectId(null);
-			return;
-		}
-		setExpandedSubjectId(subjectId);
-		if (teacherCoverage[subjectId]) return; // already fetched
-		
+	const fetchTeacherCoverage = useCallback(async (subjectId: number) => {
 		const targetSubject = subjects.find(s => s.id === subjectId);
 		if (!targetSubject) return;
 
 		setCoverageLoading(true);
 		try {
+			const schoolYearId = await ensureActiveSchoolYear();
 			const { data } = await atlasApi.get<{ faculty: any[] }>('/faculty-assignments/summary', {
-				params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId: 1 }, 
+				params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId }, 
 			});
 			
 			const assigned: { facultyId: number; name: string; grades: number[]; load: number }[] = [];
@@ -260,7 +267,7 @@ export default function Subjects() {
 		} finally {
 			setCoverageLoading(false);
 		}
-	}, [expandedSubjectId, teacherCoverage, subjects]);
+	}, [subjects, ensureActiveSchoolYear]);
 
 	const availableSpecializations = useMemo(() => {
 		const values = new Set<string>();
@@ -389,7 +396,7 @@ export default function Subjects() {
 		}
 	};
 
-	const hasActiveFilters = statusFilter !== 'all' || roomTypeFilter !== 'all' || gradeLevelFilter !== 'all' || programScopeFilter !== 'all';
+	const hasActiveFilters = statusFilter !== 'all' || roomTypeFilter !== 'all' || gradeLevelFilter !== 'all' || programScopeFilter !== 'all' || showSystemManaged;
 
 	const handleSyncContract = async () => {
 		setSyncingContract(true);
@@ -557,628 +564,632 @@ export default function Subjects() {
 
 	return (
 		<div className="flex flex-col h-[calc(100svh-3.5rem)]">
-			{/* Compact toolbar */}
-			<div className="shrink-0 px-6 pt-3 pb-2">
-				<div className="flex items-center gap-2">
-					<div className="relative flex-1 max-w-sm">
-						<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-						<Input
-							placeholder="Search subjects..."
-							value={searchQuery}
-							onChange={(e) => setSearchQuery(e.target.value)}
-							className="pl-8 h-8 text-sm"
-						/>
-					</div>
-					<Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
-						<SelectTrigger className="h-8 w-30 text-xs">
-							<SelectValue placeholder="All Status" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Status</SelectItem>
-							<SelectItem value="active">Active</SelectItem>
-							<SelectItem value="inactive">Archived</SelectItem>
-						</SelectContent>
-					</Select>
-					<Select value={roomTypeFilter} onValueChange={(v) => setRoomTypeFilter(v as typeof roomTypeFilter)}>
-						<SelectTrigger className="h-8 w-37.5 text-xs">
-							<SelectValue placeholder="All Room Types" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Room Types</SelectItem>
-							{ALL_ROOM_TYPES.map((t) => (
-								<SelectItem key={t} value={t}>{ROOM_TYPE_LABELS[t]}</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-					<Select value={String(gradeLevelFilter)} onValueChange={(v) => setGradeLevelFilter(v === 'all' ? 'all' : Number(v))}>
-						<SelectTrigger className="h-8 w-27.5 text-xs">
-							<SelectValue placeholder="All Grades" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Grades</SelectItem>
-							{GRADE_OPTIONS.map((g) => (
-								<SelectItem key={g} value={String(g)}>G{g}</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-					<Select value={programScopeFilter} onValueChange={setProgramScopeFilter}>
-						<SelectTrigger className="h-8 w-27.5 text-xs">
-							<SelectValue placeholder="All Programs" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Programs</SelectItem>
-							{PROGRAM_SCOPE_OPTIONS.map((o) => (
-								<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-					{hasActiveFilters && (
+			{/* Top Header - Primary Actions */}
+			<div className="shrink-0 px-6 py-4 border-b bg-background/50 backdrop-blur-md">
+				<div className="flex items-center justify-between">
+					<div className="flex items-center gap-4">
+						<div className="relative w-64">
+							<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+							<Input
+								placeholder="Search name or code..."
+								value={searchQuery}
+								onChange={(e) => setSearchQuery(e.target.value)}
+								className="pl-9 h-9"
+							/>
+						</div>
 						<Button
-							variant="ghost"
+							variant={showFilters ? 'secondary' : 'outline'}
 							size="sm"
-							className="h-8 px-2 text-xs"
-							onClick={() => { setStatusFilter('all'); setRoomTypeFilter('all'); setGradeLevelFilter('all'); setProgramScopeFilter('all'); }}
+							className="h-9 gap-2"
+							onClick={() => setShowFilters(!showFilters)}
 						>
-							<X className="size-3 mr-1" /> Clear
+							<Filter className="size-4" />
+							Filters
+							{hasActiveFilters && (
+								<Badge variant="secondary" className="ml-1 h-5 px-1.5 bg-primary text-primary-foreground">
+									Active
+								</Badge>
+							)}
 						</Button>
-					)}
-					<div className="flex-1" />
-					<Button variant="outline" onClick={handleSyncContract} size="sm" className="h-8" disabled={syncingContract}>
-						<RefreshCw className={`mr-1 size-3.5 ${syncingContract ? 'animate-spin' : ''}`} />
-						Sync Contract
-					</Button>
-					<Button
-						variant={showSystemManaged ? 'secondary' : 'outline'}
-						size="sm"
-						className="h-8"
-						onClick={() => setShowSystemManaged((previous) => !previous)}
-					>
-						{showSystemManaged ? 'Hide System Rows' : 'Show System Rows'}
-					</Button>
-					<Button variant="outline" size="sm" className="h-8" onClick={openGlobalResetPreview} disabled={resetLoading}>
-						Reset Teaching Load
-					</Button>
-					<Button onClick={() => { setModalMode('add'); setModalSubject(null); setModalSubjectMeta(null); }} size="sm" className="h-8">
-						<Plus className="mr-1 size-3.5" /> Add Subject
-					</Button>
+					</div>
+
+					<div className="flex items-center gap-2">
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button variant="outline" onClick={handleSyncContract} size="sm" className="h-9" disabled={syncingContract}>
+										<RefreshCw className={`size-4 ${syncingContract ? 'animate-spin' : ''}`} />
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent>Sync Offering Contract</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button variant="outline" size="sm" className="h-9 gap-1.5">
+									<Wrench className="size-4" />
+									<MoreHorizontal className="size-3.5 text-muted-foreground" />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end" className="w-56">
+								<DropdownMenuLabel className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Advanced Tools</DropdownMenuLabel>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem
+									className="text-destructive focus:text-destructive focus:bg-destructive/10 gap-2"
+									onSelect={openGlobalResetPreview}
+									disabled={resetLoading}
+								>
+									<Trash2 className="size-4 shrink-0" />
+									<div>
+										<p className="font-semibold">Reset Teaching Load</p>
+										<p className="text-xs text-muted-foreground leading-tight">Clear all active subject-section ownership for this school year.</p>
+									</div>
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+
+						<div className="h-4 w-px bg-border mx-1" />
+
+						<Button onClick={() => { setModalMode('add'); setModalSubject(null); setModalSubjectMeta(null); }} size="sm" className="h-9 gap-2 shadow-sm">
+							<Plus className="size-4" />
+							Add Subject
+						</Button>
+					</div>
 				</div>
+
+				{/* Expanded Filters */}
+				{showFilters && (
+					<div className="flex flex-wrap items-center gap-3 pt-4 animate-in slide-in-from-top-2 duration-200">
+						<Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+							<SelectTrigger className="h-8 w-32 text-xs">
+								<SelectValue placeholder="All Status" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Status</SelectItem>
+								<SelectItem value="active">Active</SelectItem>
+								<SelectItem value="inactive">Archived</SelectItem>
+							</SelectContent>
+						</Select>
+						<Select value={roomTypeFilter} onValueChange={(v) => setRoomTypeFilter(v as typeof roomTypeFilter)}>
+							<SelectTrigger className="h-8 w-40 text-xs">
+								<SelectValue placeholder="All Room Types" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Room Types</SelectItem>
+								{ALL_ROOM_TYPES.map((t) => (
+									<SelectItem key={t} value={t}>{ROOM_TYPE_LABELS[t]}</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<Select value={String(gradeLevelFilter)} onValueChange={(v) => setGradeLevelFilter(v === 'all' ? 'all' : Number(v))}>
+							<SelectTrigger className="h-8 w-32 text-xs">
+								<SelectValue placeholder="All Grades" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Grades</SelectItem>
+								{GRADE_OPTIONS.map((g) => (
+									<SelectItem key={g} value={String(g)}>Grade {g}</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<Select value={programScopeFilter} onValueChange={setProgramScopeFilter}>
+							<SelectTrigger className="h-8 w-36 text-xs">
+								<SelectValue placeholder="All Programs" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Programs</SelectItem>
+								{PROGRAM_SCOPE_OPTIONS.map((o) => (
+									<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+
+						<div className="flex items-center gap-2 border-l pl-3">
+							<span className="text-[0.7rem] font-medium text-muted-foreground uppercase">Options:</span>
+							<Button
+								variant={showSystemManaged ? 'secondary' : 'outline'}
+								size="sm"
+								className="h-7 text-[0.65rem] px-2"
+								onClick={() => setShowSystemManaged((p) => !p)}
+							>
+								{showSystemManaged ? 'Showing System' : 'Show System'}
+							</Button>
+							<div className="flex gap-0.5 text-[0.625rem] bg-muted/50 p-0.5 rounded-md border border-border/50">
+								<Button type="button" variant="ghost" size="sm" onClick={() => setTimeMode('minutes')} className={`h-6 px-1.5 rounded-sm ${timeMode === 'minutes' ? 'bg-background shadow-sm text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}>min</Button>
+								<Button type="button" variant="ghost" size="sm" onClick={() => setTimeMode('hours')} className={`h-6 px-1.5 rounded-sm ${timeMode === 'hours' ? 'bg-background shadow-sm text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}>hr</Button>
+							</div>
+						</div>
+
+						{hasActiveFilters && (
+							<Button
+								variant="ghost"
+								size="sm"
+								className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+								onClick={() => { 
+									setStatusFilter('all'); 
+									setRoomTypeFilter('all'); 
+									setGradeLevelFilter('all'); 
+									setProgramScopeFilter('all'); 
+									setShowSystemManaged(false);
+								}}
+							>
+								Reset all
+							</Button>
+						)}
+					</div>
+				)}
 			</div>
 
 			{error && (
-				<div className="shrink-0 mx-6 mb-2 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
-					{error}
-					<Button variant="ghost" size="sm" className="ml-2 h-6 px-2 text-xs" onClick={() => setError(null)}>Dismiss</Button>
+				<div className="shrink-0 mx-6 mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 flex items-center justify-between">
+					<span>{error}</span>
+					<Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setError(null)}>Dismiss</Button>
 				</div>
 			)}
 
-			{/* Table — component-level scrolling */}
-			<div className="flex-1 min-h-0 px-6 pb-3">
-				<Card className="h-full flex flex-col shadow-sm overflow-hidden">
+			{/* Table Container */}
+			<div className="flex-1 min-h-0 px-6 py-4">
+				<Card className="h-full flex flex-col shadow-sm border-border/50">
 					<div className="flex-1 min-h-0 overflow-auto">
 						<table className="w-full text-sm">
-							<thead className="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm">
+							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md">
 								<tr className="border-b">
-									<th className="px-4 py-2.5 text-left">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('code')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
-											Code <SortIcon field="code" />
-										</Button>
-									</th>
-									<th className="px-4 py-2.5 text-left">
+									<th className="px-4 py-3 text-left">
 										<Button variant="ghost" size="sm" onClick={() => toggleSort('name')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
-											Subject Name <SortIcon field="name" />
+											Subject & Code <SortIcon field="name" />
 										</Button>
 									</th>
-									<th className="px-4 py-2.5 text-left">
-										<div className="flex items-center gap-2">
-											<Button variant="ghost" size="sm" onClick={() => toggleSort('minMinutesPerWeek')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
-												Duration <SortIcon field="minMinutesPerWeek" />
-											</Button>
-											<div className="flex gap-0.5 text-[0.625rem] bg-muted/50 p-0.5 rounded-md border border-border/50">
-												<Button type="button" variant="ghost" size="sm" onClick={() => setTimeMode('minutes')} className={`h-5 px-1.5 rounded-sm ${timeMode === 'minutes' ? 'bg-background shadow-xs text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}>min</Button>
-												<Button type="button" variant="ghost" size="sm" onClick={() => setTimeMode('hours')} className={`h-5 px-1.5 rounded-sm ${timeMode === 'hours' ? 'bg-background shadow-xs text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}>hr</Button>
-											</div>
-										</div>
+									<th className="px-4 py-3 text-left">
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('minMinutesPerWeek')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
+											Duration <SortIcon field="minMinutesPerWeek" />
+										</Button>
 									</th>
-									<th className="px-4 py-2.5 text-left">
+									<th className="px-4 py-3 text-left">
 										<Button variant="ghost" size="sm" onClick={() => toggleSort('preferredRoomType')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
 											Room Pref. <SortIcon field="preferredRoomType" />
 										</Button>
 									</th>
-									<th className="px-4 py-2.5 text-left font-semibold text-muted-foreground">Pattern</th>
-									<th className="px-4 py-2.5 text-left">
+									<th className="px-4 py-3 text-left font-semibold text-muted-foreground">Pattern</th>
+									<th className="px-4 py-3 text-left">
 										<Button variant="ghost" size="sm" onClick={() => toggleSort('gradeLevels')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
 											Grades <SortIcon field="gradeLevels" />
 										</Button>
 									</th>
-									<th className="px-4 py-2.5 text-left font-semibold text-muted-foreground">Contract</th>
-									<th className="px-4 py-2.5 text-left font-semibold text-muted-foreground">Status</th>
-									<th className="px-4 py-2.5 text-right font-semibold text-muted-foreground">Actions</th>
+									<th className="px-4 py-3 text-left font-semibold text-muted-foreground">Scope & Owner</th>
+									<th className="px-4 py-3 text-left font-semibold text-muted-foreground">Status</th>
+									<th className="px-4 py-3 text-right font-semibold text-muted-foreground">Actions</th>
 								</tr>
 							</thead>
-							<tbody>
+							<tbody className="divide-y divide-border/40">
 								{loading ? (
-									Array.from({ length: 6 }).map((_, i) => (
-										<tr key={i} className="border-b last:border-0">
-											<td className="px-4 py-3"><Skeleton className="h-5 w-16" /></td>
-											<td className="px-4 py-3"><Skeleton className="h-5 w-40" /></td>
-											<td className="px-4 py-3"><Skeleton className="h-5 w-14" /></td>
-											<td className="px-4 py-3"><Skeleton className="h-5 w-24" /></td>									<td className="px-4 py-3"><Skeleton className="h-5 w-12" /></td>											<td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
-											<td className="px-4 py-3"><Skeleton className="h-5 w-14" /></td>
-											<td className="px-4 py-3"><Skeleton className="h-5 w-14" /></td>
-											<td className="px-4 py-3"><Skeleton className="h-5 w-16 ml-auto" /></td>
+									Array.from({ length: 8 }).map((_, i) => (
+										<tr key={i}>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-48" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-16" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-12" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-20" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-14" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-8 w-24 ml-auto" /></td>
 										</tr>
 									))
 								) : paged.length === 0 ? (
 									<tr>
-										<td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">
-											{searchQuery || hasActiveFilters ? 'No subjects match your filters.' : 'No subjects configured.'}
+										<td colSpan={8} className="px-4 py-12 text-center">
+											<div className="flex flex-col items-center gap-2 text-muted-foreground">
+												<BookOpen className="size-8 opacity-20" />
+												<p>{searchQuery || hasActiveFilters ? 'No subjects match your current filters.' : 'No subjects have been configured yet.'}</p>
+											</div>
 										</td>
 									</tr>
 								) : (
-									paged.map((s) => {
-										return (
-											<Fragment key={s.id}>
-											<tr className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-												<td className="px-4 py-3">
-													<div className="flex flex-col gap-1">
-														<code className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono w-fit">{s.code}</code>
-														{s.displayCode && s.displayCode !== s.code && (
-															<Badge variant="outline" className="text-[0.55rem] px-1.5 py-0 border-emerald-200 bg-emerald-50 text-emerald-700 w-fit">
-																Label: {s.displayCode}
-															</Badge>
-														)}
-													</div>
-												</td>
-												<td className="px-4 py-3">
-													<div>
-														<span className="font-medium">{s.name}</span>
-														{s.modularGroupId && (
-															<Badge variant="outline" className="ml-2 border-indigo-200 bg-indigo-50 text-indigo-700">Modular</Badge>
-														)}
-														{s.isSeedable && <Badge variant="secondary" className="ml-2 bg-blue-50 text-blue-700 hover:bg-blue-50 border-blue-200">DepEd Core</Badge>}
-														{s.isSystemManaged && (
-															<Badge variant="outline" className="ml-2 border-amber-200 bg-amber-50 text-amber-700">System-managed</Badge>
-														)}
-													</div>
-												</td>
-												<td className="px-4 py-3">
-													<span className="tabular-nums">
-														{timeMode === 'minutes' ? `${s.minMinutesPerWeek} min` : `${Math.round((s.minMinutesPerWeek / 60) * 10) / 10} h`}
-													</span>
-												</td>
-												<td className="px-4 py-3 text-muted-foreground">
-													{ROOM_TYPE_LABELS[s.preferredRoomType] ?? s.preferredRoomType}
-												</td>
-												<td className="px-4 py-3">
-													<Badge variant="outline" className={`text-[0.6rem] px-1.5 py-0 ${SESSION_PATTERN_BADGE[s.sessionPattern ?? 'ANY']}`}>
-														{s.sessionPattern ?? 'ANY'}
-													</Badge>
-												</td>
-												<td className="px-4 py-3">
-													<div className="flex gap-1">
-														{s.gradeLevels.map((g) => (
-															<Badge key={g} variant="outline" className={`text-[0.6rem] px-1.5 py-0 ${GRADE_COLORS[String(g)] ?? ''}`}>
-																G{g}
-															</Badge>
-														))}
-													</div>
-												</td>
-												<td className="px-4 py-3">
-													<div className="space-y-1">
-														<div className="flex flex-wrap gap-1">
-															{(s.programScopes ?? []).map((scope) => (
-																<Badge key={scope} variant="outline" className={`text-[0.55rem] px-1.5 py-0 ${PROGRAM_SCOPE_BADGE[scope] ?? 'bg-gray-50 text-gray-600 border-gray-200'}`}>
-																	{scope}
-																</Badge>
-															))}
-														</div>
-														<div className="flex flex-wrap gap-1">
-															{s.ownerDepartment ? (
-																<Badge variant="outline" className={`text-[0.55rem] px-1.5 py-0 ${SUBJECT_OWNER_BADGE[s.ownerDepartment] ?? 'bg-muted border-border text-foreground'}`}>
-																	{SUBJECT_OWNER_LABELS[s.ownerDepartment] ?? s.ownerDepartment}
-																</Badge>
-															) : (
-																<Badge variant="outline" className="text-[0.55rem] px-1.5 py-0">Owner: Unspecified</Badge>
-															)}
-															{s.qualificationPriority && (
-																<Badge variant="outline" className="text-[0.55rem] px-1.5 py-0 bg-slate-50 text-slate-700 border-slate-200">
-																	{QUALIFICATION_PRIORITY_LABELS[s.qualificationPriority]}
-																</Badge>
-															)}
-															{s.rotationFamily && (
-																<Badge variant="outline" className="text-[0.55rem] px-1.5 py-0 bg-violet-50 text-violet-700 border-violet-200">
-																	{s.rotationFamily}
-																</Badge>
-															)}
-														</div>
-													</div>
-												</td>
-												<td className="px-4 py-3">
-													<>
-														{s.isActive ? (
-															<Badge className="bg-emerald-100 text-emerald-700 text-[0.6rem]">Active</Badge>
-														) : (
-															<Badge variant="secondary" className="text-[0.6rem]">Archived</Badge>
-														)}
-														{(s.allowedSpecializations ?? []).length > 0 && (
-															<Button
-																variant="outline"
-																size="sm"
-																className="mt-1 h-6 px-2 text-[0.6rem] border-violet-300 text-violet-700 hover:text-violet-700"
-																onClick={() => setInspectSpecializations(s)}
-															>
-																<ExternalLink className="mr-1 size-3" />
-																{s.allowedSpecializations.length} specializations
-															</Button>
-														)}
-													</>
-												</td>
-												<td className="px-4 py-3 text-right">
-													<div className="flex justify-end gap-1">
-														<TooltipProvider delayDuration={200}>
-															<Tooltip>
-																<TooltipTrigger asChild>
-																	<Button
-																		variant="outline"
-																		size="sm"
-																		onClick={() => toggleTeacherCoverage(s.id)}
-																		className={expandedSubjectId === s.id ? 'border-primary text-primary' : ''}
-																	>
-																		<Users className="size-3.5" />
-																	</Button>
-																</TooltipTrigger>
-																<TooltipContent>Teacher coverage</TooltipContent>
-															</Tooltip>
-														</TooltipProvider>
-														<Button
-															variant="outline"
-															size="sm"
-															onClick={() => {
-																setModalSubject({
-																	id: s.id,
-																	code: s.code,
-																	outputLabel: s.outputLabel ?? s.displayCode ?? '',
-																	name: s.name,
-																	ownerDepartment: s.ownerDepartment ?? '',
-																	qualificationPriority: s.qualificationPriority ?? 'DEPARTMENT_FIRST',
-																	rotationFamily: s.rotationFamily ?? '',
-																	minMinutesPerWeek: s.minMinutesPerWeek,
-																	sessionPattern: s.sessionPattern ?? 'ANY',
-																	preferredRoomType: s.preferredRoomType,
-																	gradeLevels: [...s.gradeLevels],
-																	isActive: s.isActive,
-																	isSeedable: s.isSeedable,
-																	isSystemManaged: s.isSystemManaged ?? false,
-																	interSectionEnabled: s.interSectionEnabled ?? false,
-																	interSectionGradeLevels: [...(s.interSectionGradeLevels ?? [])],
-																	modularGroupId: s.modularGroupId ?? '',
-																	modularOrder: s.modularOrder ?? null,
-																	programScopes: [...(s.programScopes ?? ['REGULAR'])],
-																	allowedSpecializations: [...(s.allowedSpecializations ?? [])],
-																	requiredFeatures: [...(s.requiredFeatures ?? [])],
-																});
-																setModalSubjectMeta(s);
-																setModalMode('edit');
-															}
-														}
-														>
-															<Pencil className="size-3.5" />
-														</Button>
-														{s.isActive && !s.isSeedable && (
-															<Button
-																variant="outline"
-																size="sm"
-																onClick={() => handleArchiveSubject(s)}
-																disabled={deleteActionLoading}
-															>
-																<ChevronDown className="size-3.5" />
-															</Button>
-														)}
-														{!s.isSeedable && (
-															<Button
-																variant="outline"
-																size="sm"
-																onClick={() => setDeleteTarget(s)}
-																className="text-red-500 hover:text-red-700"
-															>
-																<Trash2 className="size-3.5" />
-															</Button>
-														)}
-													</div>
-												</td>
-											</tr>
-											{/* Teacher coverage drilldown row */}
-											{expandedSubjectId === s.id && (
-												<tr className="bg-muted/20">
-													<td colSpan={9} className="px-4 py-3">
-														{coverageLoading ? (
-															<div className="text-xs text-muted-foreground">Loading teacher coverage...</div>
-														) : (
-															<div className="space-y-4">
-																{/* Assigned Section */}
-																<div>
-																	<div className="text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
-																		<Users className="size-3" /> Teachers assigned to {s.name}
-																	</div>
-																	{(teacherCoverage[s.id]?.assigned ?? []).length > 0 ? (
-																		<div className="space-y-1.5 pl-4">
-																			{(teacherCoverage[s.id].assigned).map((t, i) => (
-																				<div key={i} className="flex items-center gap-2 text-sm">
-																					<span className="font-medium min-w-40">{t.name}</span>
-																					<div className="flex gap-1 items-center">
-																						{t.grades.map((g) => (
-																							<Badge key={g} variant="outline" className={`text-[0.55rem] px-1.5 py-0 ${GRADE_COLORS[String(g)] ?? ''}`}>
-																								{gradeLabel(g)}
-																							</Badge>
-																						))}
-																						<Badge variant="secondary" className="text-[0.55rem] ml-2 bg-muted/50">
-																							{t.load}% Load
-																						</Badge>
-																					</div>
-																				</div>
-																			))}
-																		</div>
-																	) : (
-																		<div className="text-xs text-muted-foreground pl-4 italic">No teachers assigned yet.</div>
-																	)}
-																</div>
-
-																{/* Eligible Section */}
-																<div>
-																	<div className="text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
-																		<Star className="size-3 text-amber-500 fill-amber-500/20" /> Eligible but Unassigned (Capacity Sorted)
-																	</div>
-																	{(teacherCoverage[s.id]?.eligible ?? []).length > 0 ? (
-																		<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pl-4">
-																			{(teacherCoverage[s.id].eligible).map((t, i) => (
-																				<div key={i} className="flex items-center justify-between gap-2 text-xs border border-border/60 bg-background/50 rounded px-2 py-1 hover:border-primary/40 transition-colors">
-																					<div className="flex flex-col min-w-0">
-																						<span className="truncate font-medium">{t.name}</span>
-																						<span className="text-[0.65rem] text-muted-foreground">{t.load}% Load</span>
-																					</div>
-																					<div className="flex items-center gap-2">
-																						<Badge variant="outline" className={`text-[0.5rem] px-1 py-0 shrink-0 ${t.tier === 1 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-sky-50 text-sky-700 border-sky-200'}`}>
-																							{t.tier === 1 ? 'Spec' : 'Dept'}
-																						</Badge>
-																						<Button variant="outline" size="sm" className="h-5 text-[0.6rem] px-2 py-0" onClick={() => handleAssignTeacher(t.facultyId, s.id)}>
-																							Assign
-																						</Button>
-																					</div>
-																				</div>
-																			))}
-																		</div>
-																	) : (
-																		<div className="text-xs text-muted-foreground pl-4 italic">No other eligible teachers found.</div>
-																	)}
-																</div>
-
-																{s.preferredRoomType !== 'CLASSROOM' && (
-																	<div className="mt-2 pt-2 border-t border-border">
-																		<div className="text-[0.6875rem] text-muted-foreground flex items-center gap-1.5">
-																			<Map className="size-3" />
-																			Room type: {ROOM_TYPE_LABELS[s.preferredRoomType]}
-																			<Link to="/map" className="text-primary hover:underline text-[0.625rem] ml-1">
-																				View on map →
-																			</Link>
-																		</div>
-																	</div>
-																)}
-															</div>
-														)}
-													</td>
-												</tr>
-											)}
-											</Fragment>
-										);
-									})
+									paged.map((s) => (
+										<SubjectRow
+											key={s.id}
+											subject={s}
+											timeMode={timeMode}
+											onEdit={() => {
+												setModalSubject({
+													id: s.id,
+													code: s.code,
+													outputLabel: s.outputLabel ?? s.displayCode ?? '',
+													name: s.name,
+													ownerDepartment: s.ownerDepartment ?? '',
+													qualificationPriority: s.qualificationPriority ?? 'DEPARTMENT_FIRST',
+													rotationFamily: s.rotationFamily ?? '',
+													minMinutesPerWeek: s.minMinutesPerWeek,
+													sessionPattern: s.sessionPattern ?? 'ANY',
+													preferredRoomType: s.preferredRoomType,
+													gradeLevels: [...s.gradeLevels],
+													isActive: s.isActive,
+													isSeedable: s.isSeedable,
+													isSystemManaged: s.isSystemManaged ?? false,
+													interSectionEnabled: s.interSectionEnabled ?? false,
+													interSectionGradeLevels: [...(s.interSectionGradeLevels ?? [])],
+													modularGroupId: s.modularGroupId ?? '',
+													modularOrder: s.modularOrder ?? null,
+													programScopes: [...(s.programScopes ?? ['REGULAR'])],
+													allowedSpecializations: [...(s.allowedSpecializations ?? [])],
+													requiredFeatures: [...(s.requiredFeatures ?? [])],
+												});
+												setModalSubjectMeta(s);
+												setModalMode('edit');
+											}}
+											onDelete={(target) => setDeleteTarget(target)}
+											onArchive={(target) => handleArchiveSubject(target)}
+											onShowCoverage={(target) => {
+												setCoverageSubject(target);
+												fetchTeacherCoverage(target.id);
+											}}
+											onInspectSpecializations={(target) => setInspectSpecializations(target)}
+										/>
+									))
 								)}
 							</tbody>
 						</table>
 					</div>
 
-					{/* Pagination footer */}
+					{/* Pagination Footer */}
 					{!loading && subjects.length > 0 && (
-						<div className="shrink-0 flex items-center justify-between border-t border-border px-4 py-2 text-sm">
-							<div className="flex items-center gap-2 text-muted-foreground text-xs">
-								<span>{totalFiltered} result{totalFiltered !== 1 ? 's' : ''}</span>
-								<span>·</span>
-								<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-									<SelectTrigger className="h-7 w-22.5 text-xs">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s} / page</SelectItem>)}
-									</SelectContent>
-								</Select>
+						<div className="shrink-0 flex items-center justify-between border-t border-border/50 px-4 py-3 bg-muted/20">
+							<div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
+								<span>
+									{totalFiltered === 0
+										? 'No results'
+										: `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, totalFiltered)} of ${totalFiltered} results`}
+								</span>
+								<div className="flex items-center gap-2">
+									<span>Rows per page:</span>
+									<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+										<SelectTrigger className="h-7 w-20 text-xs bg-background">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
+										</SelectContent>
+									</Select>
+								</div>
 							</div>
-							<div className="flex items-center gap-1">
+							<div className="flex items-center gap-1.5">
 								<Button
 									variant="outline"
-									size="sm"
-									className="h-7 w-7 p-0"
+									size="icon"
+									className="h-8 w-8"
 									onClick={() => setPage((p) => Math.max(1, p - 1))}
 									disabled={page <= 1}
 								>
-									<ChevronLeft className="size-3.5" />
+									<ChevronLeft className="size-4" />
 								</Button>
-								<span className="px-2 text-xs tabular-nums">{page} / {totalPages}</span>
+								<div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-xs font-semibold tabular-nums">
+									<span>{page}</span>
+									<span className="text-muted-foreground/50">/</span>
+									<span className="text-muted-foreground">{totalPages}</span>
+								</div>
 								<Button
 									variant="outline"
-									size="sm"
-									className="h-7 w-7 p-0"
+									size="icon"
+									className="h-8 w-8"
 									onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
 									disabled={page >= totalPages}
 								>
-									<ChevronRight className="size-3.5" />
+									<ChevronRight className="size-4" />
 								</Button>
 							</div>
 						</div>
 					)}
 				</Card>
 			</div>
-		{/* Add / Edit subject modal */}
-		<SubjectFormModal
-			open={modalMode !== null}
-			mode={modalMode ?? 'add'}
-			initialValues={modalSubject ?? undefined}
-			subjectMeta={modalSubjectMeta ?? undefined}
-			saving={saving}
-			availableSpecializations={availableSpecializations}
-			onSave={handleModalSave}
-			onClose={() => {
-				setModalMode(null);
-				setModalSubject(null);
-				setModalSubjectMeta(null);
-			}}
-		/>
-			{/* Delete confirmation */}
-			<ConfirmationModal
-				open={!!deleteTarget}
-				onOpenChange={(open) => !open && setDeleteTarget(null)}
-				variant="danger"
-				title="Delete Subject"
-				description={`Are you sure you want to delete "${deleteTarget?.name}" (${deleteTarget?.code})? This action cannot be undone.`}
-				confirmText="Delete"
-				onConfirm={() => deleteTarget && handleDelete(deleteTarget)}
+
+			{/* Coverage Side Drawer */}
+			<Sheet open={!!coverageSubject} onOpenChange={(open) => !open && setCoverageSubject(null)}>
+				<SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
+					<SheetHeader className="pb-6 border-b">
+						<SheetTitle className="flex items-center gap-2">
+							<Users className="size-5 text-primary" />
+							Teacher Coverage
+						</SheetTitle>
+						<SheetDescription>
+							Qualification and assignment status for <span className="font-bold text-foreground">{coverageSubject?.name}</span>
+						</SheetDescription>
+					</SheetHeader>
+
+					<div className="py-6 space-y-8">
+						{coverageLoading ? (
+							<div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
+								<RefreshCw className="size-8 animate-spin opacity-20" />
+								<p className="text-sm animate-pulse">Analyzing faculty qualifications...</p>
+							</div>
+						) : coverageSubject && (
+							<>
+								{/* Assigned Teachers */}
+								<div className="space-y-4">
+									<h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+										<div className="size-1.5 rounded-full bg-emerald-500" />
+										Currently Assigned
+										<Badge variant="secondary" className="ml-auto bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-100">
+											{(teacherCoverage[coverageSubject.id]?.assigned ?? []).length}
+										</Badge>
+									</h4>
+									
+									{(teacherCoverage[coverageSubject.id]?.assigned ?? []).length > 0 ? (
+										<div className="space-y-2">
+											{teacherCoverage[coverageSubject.id].assigned.map((t) => (
+												<div key={t.facultyId} className="group p-3 rounded-lg border border-emerald-100 bg-emerald-50/30 flex items-center justify-between">
+													<div className="min-w-0 flex-1">
+														<p className="text-sm font-semibold truncate">{t.name}</p>
+														<div className="flex flex-wrap gap-1 mt-1">
+															{t.grades.map((g) => (
+																<Badge key={g} variant="outline" className={`text-[0.6rem] px-1 py-0 ${GRADE_COLORS[String(g)] ?? ''}`}>
+																	{gradeLabel(g)}
+																</Badge>
+															))}
+														</div>
+													</div>
+													<Badge variant="outline" className="ml-3 bg-white/80 border-emerald-200 text-emerald-700">
+														{t.load}% Load
+													</Badge>
+												</div>
+											))}
+										</div>
+									) : (
+										<div className="p-8 rounded-lg border border-dashed text-center">
+											<p className="text-sm text-muted-foreground italic">No teachers assigned to this subject yet.</p>
+										</div>
+									)}
+								</div>
+
+								{/* Eligible Teachers */}
+								<div className="space-y-4">
+									<h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+										<div className="size-1.5 rounded-full bg-amber-500" />
+										Qualified & Available
+										<Badge variant="secondary" className="ml-auto bg-amber-50 text-amber-700 hover:bg-amber-50 border-amber-100">
+											{(teacherCoverage[coverageSubject.id]?.eligible ?? []).length}
+										</Badge>
+									</h4>
+									
+									{(teacherCoverage[coverageSubject.id]?.eligible ?? []).length > 0 ? (
+										<div className="grid gap-2">
+											{teacherCoverage[coverageSubject.id].eligible.map((t) => (
+												<div key={t.facultyId} className="group p-3 rounded-lg border bg-background hover:border-primary/50 transition-all flex items-center justify-between shadow-xs">
+													<div className="min-w-0 flex-1">
+														<p className="text-sm font-medium truncate">{t.name}</p>
+														<div className="flex items-center gap-2 mt-1">
+															<Badge variant="outline" className={`text-[0.6rem] px-1 py-0 ${t.tier === 1 ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-sky-50 text-sky-700 border-sky-100'}`}>
+																{t.tier === 1 ? 'Specialist' : 'Dept. Match'}
+															</Badge>
+															<span className="text-[0.7rem] text-muted-foreground font-medium">{t.load}% Current Load</span>
+														</div>
+													</div>
+													<Button 
+														variant="outline" 
+														size="sm" 
+														className="h-8 text-xs font-semibold shrink-0"
+														onClick={() => handleAssignTeacher(t.facultyId, coverageSubject.id)}
+													>
+														Assign
+													</Button>
+												</div>
+											))}
+										</div>
+									) : (
+										<div className="p-8 rounded-lg border border-dashed text-center">
+											<p className="text-sm text-muted-foreground italic">No other qualified teachers identified.</p>
+										</div>
+									)}
+								</div>
+
+								{/* Facilities Requirement */}
+								{coverageSubject.preferredRoomType !== 'CLASSROOM' && (
+									<div className="p-4 rounded-lg bg-muted/40 border border-muted flex items-start gap-3">
+										<Map className="size-5 text-muted-foreground shrink-0 mt-0.5" />
+										<div className="space-y-1">
+											<p className="text-xs font-bold uppercase tracking-tight text-muted-foreground">Resource Constraint</p>
+											<p className="text-sm">Requires <span className="font-semibold">{ROOM_TYPE_LABELS[coverageSubject.preferredRoomType]}</span> facilities.</p>
+											<Link to="/map" className="text-xs text-primary font-semibold flex items-center gap-1 hover:underline pt-1">
+												View occupancy map
+												<ChevronRight className="size-3" />
+											</Link>
+										</div>
+									</div>
+								)}
+							</>
+						)}
+					</div>
+				</SheetContent>
+			</Sheet>
+
+			{/* Subject Form Modal (Add / Edit) */}
+			<SubjectFormModal
+				open={modalMode !== null}
+				mode={modalMode ?? 'add'}
+				initialValues={modalSubject ?? undefined}
+				subjectMeta={modalSubjectMeta ? {
+					displayCode: modalSubjectMeta.displayCode,
+					ownerDepartment: modalSubjectMeta.ownerDepartment,
+					qualificationPriority: modalSubjectMeta.qualificationPriority,
+					rotationFamily: modalSubjectMeta.rotationFamily,
+					specializationSource: modalSubjectMeta.specializationSource,
+					outputLabel: modalSubjectMeta.outputLabel,
+					isSystemManaged: modalSubjectMeta.isSystemManaged,
+				} : undefined}
+				saving={saving}
+				availableSpecializations={availableSpecializations}
+				onSave={handleModalSave}
+				onClose={() => { setModalMode(null); setModalSubject(null); setModalSubjectMeta(null); }}
 			/>
 
-			<Dialog open={!!inspectSpecializations} onOpenChange={(open) => !open && setInspectSpecializations(null)}>
+			{/* Delete Confirmation Modal */}
+			<ConfirmationModal
+				open={deleteTarget !== null}
+				onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+				title={`Delete "${deleteTarget?.name ?? ''}"`}
+				description={
+					<span>
+						Permanently delete this subject? This cannot be undone. Only subjects with no active faculty assignments can be deleted directly.
+					</span>
+				}
+				onConfirm={() => { if (deleteTarget) handleDelete(deleteTarget); }}
+				confirmText="Delete"
+				variant="danger"
+			/>
+
+			{/* Delete Blocker Dialog */}
+			<Dialog open={deleteBlocker !== null} onOpenChange={(open) => { if (!open) setDeleteBlocker(null); }}>
 				<DialogContent className="max-w-md">
 					<DialogHeader>
-						<DialogTitle>Specialization Restrictions</DialogTitle>
-						<DialogDescription>
-							{inspectSpecializations ? `${inspectSpecializations.code} - ${inspectSpecializations.name}` : 'Subject'}
-						</DialogDescription>
-					</DialogHeader>
-					<div className="space-y-3">
-						<p className="text-xs text-muted-foreground">
-							Source: {inspectSpecializations?.specializationSource === 'SUBJECT_CONTRACT' ? 'Subject contract' : 'None'}.
-						</p>
-						{(inspectSpecializations?.allowedSpecializations ?? []).length > 0 ? (
-							<div className="flex flex-wrap gap-1.5">
-								{(inspectSpecializations?.allowedSpecializations ?? []).map((specialization) => (
-									<Badge key={specialization} variant="outline" className="text-[0.65rem] border-violet-300 text-violet-700">
-										{specialization}
-									</Badge>
-								))}
+						<DialogTitle className="flex items-center gap-2 text-destructive">
+							<Trash2 className="size-5 shrink-0" />
+							Cannot Delete — Action Required
+						</DialogTitle>
+						<DialogDescription asChild>
+							<div className="space-y-3 pt-1">
+								<p className="text-sm text-foreground">{deleteBlocker?.message}</p>
+								{deleteBlocker?.details?.activeAssignmentCount != null && deleteBlocker.details.activeAssignmentCount > 0 && (
+									<p className="text-xs text-muted-foreground">
+										Active assignments: <span className="font-semibold text-foreground">{deleteBlocker.details.activeAssignmentCount}</span>
+									</p>
+								)}
+								{deleteBlocker?.details?.historicalAssignmentCount != null && deleteBlocker.details.historicalAssignmentCount > 0 && (
+									<p className="text-xs text-muted-foreground">
+										Historical assignment rows: <span className="font-semibold text-foreground">{deleteBlocker.details.historicalAssignmentCount}</span>
+									</p>
+								)}
+								{deleteBlocker?.details?.recommendedAction && (
+									<p className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+										Recommended: {deleteBlocker.details.recommendedAction}
+									</p>
+								)}
 							</div>
-						) : (
-							<p className="text-xs text-muted-foreground">No restrictions. Any qualified faculty from the owner department can be matched.</p>
-						)}
-					</div>
-					<DialogFooter>
-						<Button variant="outline" onClick={() => setInspectSpecializations(null)}>Close</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-
-			<Dialog open={!!deleteBlocker} onOpenChange={(open) => !open && setDeleteBlocker(null)}>
-				<DialogContent className="max-w-lg">
-					<DialogHeader>
-						<DialogTitle>Delete Blocked</DialogTitle>
-						<DialogDescription>
-							{deleteBlocker?.message}
 						</DialogDescription>
 					</DialogHeader>
-					<div className="space-y-2 text-sm">
-						<p>
-							Subject: <span className="font-medium">{deleteBlocker?.target.code}</span> - {deleteBlocker?.target.name}
-						</p>
-						{typeof deleteBlocker?.details?.activeAssignmentCount === 'number' && (
-							<p>Active assignments: <span className="font-semibold">{deleteBlocker.details.activeAssignmentCount}</span></p>
-						)}
-						{typeof deleteBlocker?.details?.historicalAssignmentCount === 'number' && (
-							<p>Historical assignments: <span className="font-semibold">{deleteBlocker.details.historicalAssignmentCount}</span></p>
-						)}
-						{deleteBlocker?.details?.recommendedAction && (
-							<p className="text-xs text-muted-foreground">Recommended action: {deleteBlocker.details.recommendedAction}</p>
-						)}
-					</div>
-					<DialogFooter className="gap-2">
-						<Button variant="outline" onClick={() => setDeleteBlocker(null)} disabled={deleteActionLoading}>Close</Button>
-						<Button asChild variant="outline" disabled={deleteActionLoading}>
-							<Link to={`/faculty-assignments?subjectId=${deleteBlocker?.target.id ?? ''}&subjectCode=${deleteBlocker?.target.code ?? ''}`}>
-								Go to Teaching Load
-							</Link>
-						</Button>
-						<Button
-							variant="outline"
-							onClick={() => deleteBlocker && handleArchiveSubject(deleteBlocker.target)}
-							disabled={deleteActionLoading || !deleteBlocker?.target.isActive}
-						>
-							Archive Subject
-						</Button>
-						{deleteBlocker?.details?.canCleanupActive && (
+					<DialogFooter className="flex flex-wrap gap-2 pt-2">
+						{deleteBlocker?.details?.requiresArchiveFirst && (
 							<Button
 								variant="outline"
+								size="sm"
+								disabled={deleteActionLoading}
+								onClick={() => deleteBlocker && handleArchiveSubject(deleteBlocker.target)}
+							>
+								Archive First
+							</Button>
+						)}
+						{(deleteBlocker?.details?.canCleanupActive || deleteBlocker?.details?.canCleanupAll) && (
+							<Button
+								variant="outline"
+								size="sm"
+								className="border-amber-300 text-amber-700 hover:bg-amber-50"
+								disabled={deleteActionLoading}
 								onClick={() => deleteBlocker && handleClearActiveAssignments(deleteBlocker.target)}
-								disabled={deleteActionLoading}
 							>
-								Remove Active Assignments
+								Clear Active Assignments
 							</Button>
 						)}
-						{deleteBlocker?.details?.canCleanupHistorical && !deleteBlocker?.details?.canCleanupAll && (
+						{(deleteBlocker?.details?.canCleanupHistorical || deleteBlocker?.details?.canCleanupAll) && (
 							<Button
 								variant="destructive"
-								onClick={() => deleteBlocker && handleCleanupAndDelete(deleteBlocker.target)}
+								size="sm"
 								disabled={deleteActionLoading}
+								onClick={() => deleteBlocker && handleCleanupAndDelete(deleteBlocker.target)}
 							>
-								Cleanup Historical + Delete
+								Clean Up &amp; Delete
 							</Button>
 						)}
-						{deleteBlocker?.details?.canCleanupAll && (
-							<Button
-								variant="destructive"
-								onClick={() => deleteBlocker && handleCleanupAndDelete(deleteBlocker.target)}
-								disabled={deleteActionLoading}
-							>
-								Full Cleanup + Delete
-							</Button>
-						)}
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-
-			<Dialog open={resetDialogOpen} onOpenChange={(open) => !open && setResetDialogOpen(false)}>
-				<DialogContent className="max-w-lg">
-					<DialogHeader>
-						<DialogTitle>Global Teaching-Load Reset (Repair Tool)</DialogTitle>
-						<DialogDescription>
-							Preview-first reset for the active school year. Use only for normalization and blocker remediation.
-						</DialogDescription>
-					</DialogHeader>
-					<div className="space-y-2 text-sm">
-						<p>Scope: <span className="font-semibold">School {DEFAULT_SCHOOL_ID}</span> · School Year <span className="font-semibold">{resetPreview?.schoolYearId ?? activeSchoolYearId ?? 'N/A'}</span></p>
-						<p>Ownership rows to remove: <span className="font-semibold">{resetPreview?.ownershipRowsToRemove ?? 0}</span></p>
-						<p>Faculty-subject rows affected: <span className="font-semibold">{resetPreview?.facultySubjectRowsAffected ?? 0}</span></p>
-						<p>Rows deleted: <span className="font-semibold">{resetPreview?.facultySubjectRowsDeleted ?? 0}</span> · Rows updated: <span className="font-semibold">{resetPreview?.facultySubjectRowsUpdated ?? 0}</span></p>
-						<p>Affected subjects: <span className="font-semibold">{resetPreview?.affectedSubjectCount ?? 0}</span></p>
-						{(resetPreview?.subjectCodes?.length ?? 0) > 0 && (
-							<div className="flex flex-wrap gap-1 pt-1">
-								{(resetPreview?.subjectCodes ?? []).slice(0, 12).map((code) => (
-									<Badge key={code} variant="outline" className="text-[0.6rem]">
-										{code}
-									</Badge>
-								))}
-							</div>
-						)}
-						<div className="pt-2">
-							<label className="text-xs font-medium text-muted-foreground">Type RESET to confirm apply</label>
-							<Input
-								value={resetConfirmText}
-								onChange={(event) => setResetConfirmText(event.target.value)}
-								placeholder="RESET"
-							/>
-						</div>
-					</div>
-					<DialogFooter>
-						<Button variant="outline" onClick={() => setResetDialogOpen(false)} disabled={resetLoading}>Close</Button>
-						<Button variant="destructive" onClick={applyGlobalReset} disabled={resetLoading || (resetPreview?.ownershipRowsToRemove ?? 0) === 0}>
-							Apply Reset
+						<Button variant="ghost" size="sm" onClick={() => setDeleteBlocker(null)}>
+							Cancel
 						</Button>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
+
+			{/* Global Teaching-Load Reset Dialog */}
+			<Dialog open={resetDialogOpen} onOpenChange={(open) => { if (!open) { setResetDialogOpen(false); setResetConfirmText(''); } }}>
+				<DialogContent className="max-w-md">
+					<DialogHeader>
+						<DialogTitle className="flex items-center gap-2 text-destructive">
+							<Wrench className="size-5 shrink-0" />
+							Reset Global Teaching Load
+						</DialogTitle>
+						<DialogDescription asChild>
+							<div className="space-y-3 pt-1">
+								<p className="text-sm text-foreground">
+									This will remove all active subject-section ownership rows for the current school year. Faculty assignment history from previous school years is not affected.
+								</p>
+								{resetPreview && (
+									<div className="rounded-lg border bg-muted/40 p-3 space-y-1 text-xs font-medium">
+										<div className="flex justify-between">
+											<span className="text-muted-foreground">Ownership rows removed</span>
+											<span className="font-bold text-destructive">{resetPreview.ownershipRowsToRemove}</span>
+										</div>
+										<div className="flex justify-between">
+											<span className="text-muted-foreground">Faculty affected</span>
+											<span>{resetPreview.affectedFacultyCount}</span>
+										</div>
+										<div className="flex justify-between">
+											<span className="text-muted-foreground">Subjects affected</span>
+											<span>{resetPreview.affectedSubjectCount}</span>
+										</div>
+									</div>
+								)}
+								<div className="space-y-1">
+									<p className="text-xs text-muted-foreground">Type <span className="font-bold font-mono text-foreground">RESET</span> to confirm:</p>
+									<Input
+										value={resetConfirmText}
+										onChange={(e) => setResetConfirmText(e.target.value)}
+										placeholder="RESET"
+										className="font-mono"
+										autoComplete="off"
+									/>
+								</div>
+							</div>
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter className="gap-2 pt-2">
+						<Button variant="ghost" size="sm" onClick={() => { setResetDialogOpen(false); setResetConfirmText(''); }}>
+							Cancel
+						</Button>
+						<Button
+							variant="destructive"
+							size="sm"
+							disabled={resetLoading || resetConfirmText.trim().toUpperCase() !== 'RESET'}
+							onClick={applyGlobalReset}
+						>
+							{resetLoading ? 'Resetting…' : 'Confirm Reset'}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* Inspect Specializations Sheet */}
+			<Sheet open={inspectSpecializations !== null} onOpenChange={(open) => { if (!open) setInspectSpecializations(null); }}>
+				<SheetContent className="w-full sm:max-w-md flex flex-col">
+					<SheetHeader className="shrink-0">
+						<SheetTitle className="flex items-center gap-2 text-sm">
+							<Star className="size-4 text-violet-600" />
+							Specializations — {inspectSpecializations?.code}
+						</SheetTitle>
+						<SheetDescription>
+							Only faculty with one of the listed specializations will be eligible as Tier-1 candidates for this subject.
+						</SheetDescription>
+					</SheetHeader>
+					<div className="flex-1 min-h-0 overflow-auto py-4">
+						{(inspectSpecializations?.allowedSpecializations ?? []).length === 0 ? (
+							<p className="text-sm text-muted-foreground italic p-4">No specialization restrictions — all qualified faculty are eligible.</p>
+						) : (
+							<div className="space-y-1.5 px-1">
+								{(inspectSpecializations?.allowedSpecializations ?? []).map((spec) => (
+									<div key={spec} className="flex items-center gap-2 rounded-md border bg-violet-50 px-3 py-2">
+										<Star className="size-3.5 text-violet-600 shrink-0" />
+										<span className="text-sm font-medium text-violet-900">{spec}</span>
+									</div>
+								))}
+							</div>
+						)}
+					</div>
+				</SheetContent>
+			</Sheet>
 		</div>
 	);
 }
