@@ -159,6 +159,7 @@ export type FacultyMirror = {
 	id: number;
 	externalId: number;
 	schoolId: number;
+	employeeId?: string | null;
 	firstName: string;
 	lastName: string;
 	department: string | null;

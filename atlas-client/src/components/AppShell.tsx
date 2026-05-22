@@ -101,7 +101,6 @@ const schedulingNav: NavItemDef[] = [
 	{ label: 'Faculty', to: '/faculty', icon: Users, adminOnly: true },
 	{ label: 'Teaching Load', to: '/assignments', icon: UserCog, adminOnly: true },
 	{ label: 'Audit', to: '/audit', icon: Shield, adminOnly: true },
-	{ label: 'Specialization Mapping', to: '/specialization-mapping', icon: ClipboardList, adminOnly: true },
 	{ label: 'Sections', to: '/sections', icon: GraduationCap, adminOnly: true },
 	{ label: 'Preferences', to: '/faculty/preferences', icon: ClipboardList, adminOnly: true },
 	{ label: 'Timetable', to: '/timetable', icon: CalendarClock, adminOnly: true },

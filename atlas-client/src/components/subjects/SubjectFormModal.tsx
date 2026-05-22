@@ -5,7 +5,6 @@ import {
 	GRADE_OPTIONS,
 	PROGRAM_SCOPE_BADGE,
 	PROGRAM_SCOPE_OPTIONS,
-	QUALIFICATION_PRIORITY_OPTIONS,
 	ROOM_TYPE_LABELS,
 	SUBJECT_OWNER_BADGE,
 	SUBJECT_OWNER_LABELS,
@@ -36,14 +35,11 @@ type Props = {
 	subjectMeta?: {
 		displayCode?: string;
 		ownerDepartment?: string | null;
-		qualificationPriority?: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
 		rotationFamily?: string | null;
-		specializationSource?: 'SUBJECT_CONTRACT' | 'NONE';
 		outputLabel?: string | null;
 		isSystemManaged?: boolean;
 	};
 	saving: boolean;
-	availableSpecializations: string[];
 	onSave: (values: SubjectFormValues) => void;
 	onClose: () => void;
 };
@@ -54,7 +50,6 @@ export function SubjectFormModal({
 	initialValues,
 	subjectMeta,
 	saving,
-	availableSpecializations,
 	onSave,
 	onClose,
 }: Props) {
@@ -172,19 +167,9 @@ export function SubjectFormModal({
 											{SUBJECT_OWNER_LABELS[subjectMeta.ownerDepartment] ?? subjectMeta.ownerDepartment}
 										</Badge>
 									)}
-									{subjectMeta.qualificationPriority && (
-										<Badge variant="outline" className="text-[0.6rem] border-sky-200 text-sky-700 bg-sky-50/40">
-											{subjectMeta.qualificationPriority === 'SPECIALIZATION_PRIMARY' ? 'Specialization Priority' : 'Department First'}
-										</Badge>
-									)}
 									{subjectMeta.rotationFamily && (
 										<Badge variant="outline" className="text-[0.6rem] border-indigo-200 text-indigo-700 bg-indigo-50/30">
 											{subjectMeta.rotationFamily}
-										</Badge>
-									)}
-									{subjectMeta.specializationSource === 'SUBJECT_CONTRACT' && (
-										<Badge variant="outline" className="text-[0.6rem] border-purple-200 text-purple-700 bg-purple-50/30">
-											Sync-Driven Specializations
 										</Badge>
 									)}
 								</div>
@@ -363,20 +348,10 @@ export function SubjectFormModal({
 								</Select>
 							</div>
 							<div className="space-y-2">
-								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Match Priority</label>
-								<Select
-									value={form.qualificationPriority}
-									onValueChange={(v) => setForm((p) => ({ ...p, qualificationPriority: v as SubjectFormValues['qualificationPriority'] }))}
-								>
-									<SelectTrigger className="h-10">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										{QUALIFICATION_PRIORITY_OPTIONS.map((o) => (
-											<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Qualification Baseline</label>
+								<div className="h-10 rounded-md border bg-muted/30 px-3 flex items-center">
+									<span className="text-xs font-semibold text-foreground">Department ownership</span>
+								</div>
 							</div>
 						</div>
 
@@ -498,6 +473,9 @@ export function SubjectFormModal({
 											onChange={(e) => setForm((p) => ({ ...p, modularOrder: Math.max(1, Number(e.target.value) || 1) }))}
 											className="h-8 text-xs"
 										/>
+										<p className="text-[0.62rem] text-muted-foreground">
+											Term Rank controls the sequence within this modular family (1 = first term).
+										</p>
 									</div>
 								</div>
 							)}

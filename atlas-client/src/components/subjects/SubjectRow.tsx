@@ -20,7 +20,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 import { GRADE_COLORS } from '@/lib/grade-labels';
 import {
 	PROGRAM_SCOPE_BADGE,
-	QUALIFICATION_PRIORITY_LABELS,
 	ROOM_TYPE_LABELS,
 	SUBJECT_OWNER_BADGE,
 	SUBJECT_OWNER_LABELS,
@@ -35,7 +34,6 @@ interface SubjectRowProps {
 	onArchive: (subject: Subject) => void;
 	onReactivate: (subject: Subject) => void;
 	onShowCoverage: (subject: Subject) => void;
-	onInspectSpecializations: (subject: Subject) => void;
 }
 
 export function SubjectRow({
@@ -46,7 +44,6 @@ export function SubjectRow({
 	onArchive,
 	onReactivate,
 	onShowCoverage,
-	onInspectSpecializations,
 }: SubjectRowProps) {
 	const duration = timeMode === 'minutes' 
 		? `${subject.minMinutesPerWeek} min` 
@@ -61,19 +58,7 @@ export function SubjectRow({
 				</div>
 			</td>
 			<td className="px-4 py-3">
-				<div className="flex flex-wrap gap-1">
-					<span className="text-xs tabular-nums font-medium">{duration}</span>
-					{subject.isSeedable && (
-						<Badge variant="outline" className="text-[0.6rem] px-1 py-0 bg-blue-50/50 text-blue-600 border-blue-200/50">
-							Core
-						</Badge>
-					)}
-					{subject.isSystemManaged && (
-						<Badge variant="outline" className="text-[0.6rem] px-1 py-0 border-amber-200 bg-amber-50/50 text-amber-700">
-							System
-						</Badge>
-					)}
-				</div>
+				<span className="text-xs tabular-nums font-medium">{duration}</span>
 			</td>
 			<td className="px-4 py-3">
 				<span className="text-xs text-muted-foreground">
@@ -92,13 +77,13 @@ export function SubjectRow({
 			<td className="px-4 py-3">
 				<div className="flex flex-col gap-1">
 					<div className="flex flex-wrap gap-1">
-						{(subject.programScopes ?? []).slice(0, 2).map((scope) => (
+						{(subject.programScopes ?? []).slice(0, 3).map((scope) => (
 							<Badge key={scope} variant="outline" className={`text-[0.55rem] px-1 py-0 ${PROGRAM_SCOPE_BADGE[scope] ?? 'bg-gray-50 text-gray-600 border-gray-200'}`}>
 								{scope}
 							</Badge>
 						))}
-						{(subject.programScopes ?? []).length > 2 && (
-							<span className="text-[0.6rem] text-muted-foreground">+{(subject.programScopes ?? []).length - 2}</span>
+						{(subject.programScopes ?? []).length > 3 && (
+							<span className="text-[0.6rem] text-muted-foreground">+{(subject.programScopes ?? []).length - 3}</span>
 						)}
 					</div>
 					<div className="flex items-center gap-1">
@@ -106,18 +91,6 @@ export function SubjectRow({
 							<Badge variant="outline" className={`text-[0.55rem] px-1 py-0 ${SUBJECT_OWNER_BADGE[subject.ownerDepartment] ?? 'bg-muted border-border text-foreground'}`}>
 								{SUBJECT_OWNER_LABELS[subject.ownerDepartment] ?? subject.ownerDepartment}
 							</Badge>
-						)}
-						{subject.qualificationPriority && subject.qualificationPriority !== 'DEPARTMENT_FIRST' && (
-							<TooltipProvider>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<div className="size-1.5 rounded-full bg-slate-400" />
-									</TooltipTrigger>
-									<TooltipContent className="text-[0.65rem]">
-										{QUALIFICATION_PRIORITY_LABELS[subject.qualificationPriority]}
-									</TooltipContent>
-								</Tooltip>
-							</TooltipProvider>
 						)}
 					</div>
 				</div>
@@ -129,16 +102,10 @@ export function SubjectRow({
 					) : (
 						<Badge variant="secondary" className="text-[0.6rem] shadow-none">Archived</Badge>
 					)}
-					{(subject.allowedSpecializations ?? []).length > 0 && (
-						<Button
-							variant="ghost"
-							size="sm"
-							onClick={() => onInspectSpecializations(subject)}
-							className="h-5 px-1 text-[0.6rem] text-violet-600 hover:text-violet-700 hover:bg-violet-50 flex items-center gap-0.5"
-						>
-							<ExternalLink className="size-2.5" />
-							{subject.allowedSpecializations.length} specs
-						</Button>
+					{subject.ownerDepartment ? (
+						<span className="text-[0.62rem] text-muted-foreground">Dept baseline active</span>
+					) : (
+						<span className="text-[0.62rem] text-amber-700">Owner department missing</span>
 					)}
 				</div>
 			</td>

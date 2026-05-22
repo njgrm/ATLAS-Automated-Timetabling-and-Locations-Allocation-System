@@ -1,14 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import {
 	AlertTriangle,
 	ArrowDown,
 	ArrowUp,
 	ArrowUpDown,
-	CheckCircle2,
-	ChevronLeft,
-	ChevronRight,
-	ClipboardList,
+	Filter,
 	RefreshCw,
 	Search,
 	Users,
@@ -22,6 +18,11 @@ import { Button } from '@/ui/button';
 import { Card } from '@/ui/card';
 import { Input } from '@/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { Skeleton } from '@/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
+import { FacultyRow } from '@/components/faculty/FacultyRow';
+import { FacultyProfileSheet } from '@/components/faculty/FacultyProfileSheet';
+import { toast } from 'sonner';
 
 const DEFAULT_SCHOOL_ID = 1;
 const PAGE_SIZES = [10, 25, 50];
@@ -37,6 +38,10 @@ export default function Faculty() {
 	const [syncError, setSyncError] = useState(false);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [error, setError] = useState<string | null>(null);
+	const [showFilters, setShowFilters] = useState(false);
+	
+	// Quick Profile
+	const [profileTarget, setProfileTarget] = useState<FacultyMirror | null>(null);
 
 	// Sorting
 	const [sortField, setSortField] = useState<SortField>('name');
@@ -54,11 +59,11 @@ export default function Faculty() {
 	const fetchFaculty = useCallback(async () => {
 		setLoading(true);
 		try {
-			const { data } = await atlasApi.get<{ faculty: FacultyMirror[]; lastSyncedAt: string | null }>('/faculty', {
+			const { data } = await atlasApi.get<{ faculty: FacultyMirror[]; fetchedAt: string | null }>('/faculty', {
 				params: { schoolId: DEFAULT_SCHOOL_ID },
 			});
 			setFaculty(data.faculty);
-			setLastSyncedAt(data.lastSyncedAt);
+			setLastSyncedAt(data.fetchedAt);
 			setSyncError(false);
 			setError(null);
 		} catch {
@@ -77,16 +82,19 @@ export default function Faculty() {
 		setSyncing(true);
 		setSyncError(false);
 		try {
-			const { data } = await atlasApi.post<{ synced: boolean; count: number }>('/faculty/sync', {
+			const { data } = await atlasApi.post<{ synced: boolean; activeCount: number }>('/faculty/sync', {
 				schoolId: DEFAULT_SCHOOL_ID,
 			});
 			if (data.synced) {
+				toast.success(`Successfully synced roster (${data.activeCount} active faculty).`);
 				await fetchFaculty();
 			} else {
 				setSyncError(true);
+				toast.error('Sync completed but reported no changes or an error.');
 			}
 		} catch {
 			setSyncError(true);
+			toast.error('EnrollPro sync service is currently unreachable.');
 		} finally {
 			setSyncing(false);
 		}
@@ -175,247 +183,270 @@ export default function Faculty() {
 
 	return (
 		<div className="flex flex-col h-[calc(100svh-3.5rem)]">
-			{/* Compact toolbar */}
-			<div className="shrink-0 px-6 pt-3 pb-2">
-				<div className="flex items-center gap-2">
-					<div className="relative flex-1 max-w-sm">
-						<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-						<Input
-							placeholder="Search by name, department, or specialization..."
-							value={searchQuery}
-							onChange={(e) => setSearchQuery(e.target.value)}
-							className="pl-8 h-8 text-sm"
-						/>
+			{/* Primary Header & Toolbar */}
+			<div className="shrink-0 px-6 py-4 border-b bg-background/50 backdrop-blur-md">
+				<div className="flex items-center justify-between gap-4">
+					<div className="flex items-center gap-4 flex-1">
+						<div className="relative w-full max-w-sm">
+							<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+							<Input
+								placeholder="Search by name, dept, or specialization..."
+								value={searchQuery}
+								onChange={(e) => setSearchQuery(e.target.value)}
+								className="pl-9 h-9 text-sm"
+							/>
+						</div>
+						<Button
+							variant={showFilters ? 'secondary' : 'outline'}
+							size="sm"
+							className="h-9 gap-2"
+							onClick={() => setShowFilters(!showFilters)}
+						>
+							<Filter className="size-4" />
+							Filters
+							{hasActiveFilters && (
+								<Badge variant="secondary" className="ml-1 h-5 px-1.5 bg-primary text-primary-foreground">
+									Active
+								</Badge>
+							)}
+						</Button>
 					</div>
-					<Select value={schedulingFilter} onValueChange={(v) => setSchedulingFilter(v as typeof schedulingFilter)}>
-						<SelectTrigger className="h-8 w-32.5 text-xs">
-							<SelectValue placeholder="All Status" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Status</SelectItem>
-							<SelectItem value="active">Active</SelectItem>
-							<SelectItem value="excluded">Excluded</SelectItem>
-						</SelectContent>
-					</Select>
-					<Select value={assignmentFilter} onValueChange={(v) => setAssignmentFilter(v as typeof assignmentFilter)}>
-						<SelectTrigger className="h-8 w-35 text-xs">
-							<SelectValue placeholder="All Assignments" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Assignments</SelectItem>
-							<SelectItem value="assigned">Has Subjects</SelectItem>
-							<SelectItem value="unassigned">No Subjects</SelectItem>
-						</SelectContent>
-					</Select>
-					{departments.length > 0 && (
-						<Select value={departmentFilter} onValueChange={(v) => setDepartmentFilter(v)}>
-							<SelectTrigger className="h-8 w-35 text-xs">
-								<SelectValue placeholder="All Departments" />
+
+					<div className="flex items-center gap-3">
+						{timeSince && (
+							<TooltipProvider delayDuration={500}>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<span className="text-[0.7rem] text-muted-foreground font-medium bg-muted px-2 py-1 rounded-md hidden md:inline-block">
+											Last synced: {timeSince}
+										</span>
+									</TooltipTrigger>
+									<TooltipContent>Synced at {new Date(lastSyncedAt!).toLocaleString()}</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+						)}
+						<Button onClick={handleSync} disabled={syncing} size="sm" className="h-9 gap-2 shadow-sm font-bold">
+							<RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
+							{syncing ? 'Syncing...' : 'Sync Faculty'}
+						</Button>
+					</div>
+				</div>
+
+				{/* Expanded Filters Section */}
+				{showFilters && (
+					<div className="flex flex-wrap items-center gap-3 pt-4 animate-in slide-in-from-top-2 duration-200">
+						<Select value={schedulingFilter} onValueChange={(v) => setSchedulingFilter(v as typeof schedulingFilter)}>
+							<SelectTrigger className="h-8 w-36 text-xs bg-background">
+								<SelectValue placeholder="All Status" />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="all">All Departments</SelectItem>
-								{departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+								<SelectItem value="all">All Status</SelectItem>
+								<SelectItem value="active">Active Schedulable</SelectItem>
+								<SelectItem value="excluded">Excluded</SelectItem>
 							</SelectContent>
 						</Select>
-					)}
-					{hasActiveFilters && (
-						<Button
-							variant="ghost"
-							size="sm"
-							className="h-8 px-2 text-xs"
-							onClick={() => { setSchedulingFilter('all'); setAssignmentFilter('all'); setDepartmentFilter('all'); }}
-						>
-							<X className="size-3 mr-1" /> Clear
-						</Button>
-					)}
-					<div className="flex-1" />
-					{timeSince && (
-						<span className="text-[0.6875rem] text-muted-foreground shrink-0">
-							Synced: {timeSince}
-						</span>
-					)}
-					<Button onClick={handleSync} disabled={syncing} size="sm" variant="outline" className="h-8">
-						<RefreshCw className={`mr-1 size-3.5 ${syncing ? 'animate-spin' : ''}`} />
-						{syncing ? 'Syncing...' : 'Sync'}
-					</Button>
-				</div>
+						<Select value={assignmentFilter} onValueChange={(v) => setAssignmentFilter(v as typeof assignmentFilter)}>
+							<SelectTrigger className="h-8 w-40 text-xs bg-background">
+								<SelectValue placeholder="All Assignments" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Assignments</SelectItem>
+								<SelectItem value="assigned">Has Subject Load</SelectItem>
+								<SelectItem value="unassigned">No Subjects Yet</SelectItem>
+							</SelectContent>
+						</Select>
+						{departments.length > 0 && (
+							<Select value={departmentFilter} onValueChange={(v) => setDepartmentFilter(v)}>
+								<SelectTrigger className="h-8 w-44 text-xs bg-background">
+									<SelectValue placeholder="All Departments" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">All Departments</SelectItem>
+									{departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+								</SelectContent>
+							</Select>
+						)}
+						{hasActiveFilters && (
+							<Button
+								variant="ghost"
+								size="sm"
+								className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+								onClick={() => { setSchedulingFilter('all'); setAssignmentFilter('all'); setDepartmentFilter('all'); }}
+							>
+								<X className="size-3 mr-1" /> Clear all
+							</Button>
+						)}
+					</div>
+				)}
 			</div>
 
-			{/* Banners */}
+			{/* Status Banners */}
 			{syncError && (
-				<div className="shrink-0 mx-6 mb-2 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
-					<AlertTriangle className="size-4 shrink-0" />
-					<span className="flex-1">EnrollPro bridge unreachable. Showing cached data.</span>
-					<Button size="sm" variant="outline" onClick={handleSync} disabled={syncing} className="shrink-0 h-7">
-						<RefreshCw className={`mr-1 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry
+				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
+					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
+					<span className="flex-1 font-medium">EnrollPro bridge is currently unreachable. Displaying cached roster data.</span>
+					<Button size="sm" variant="outline" onClick={handleSync} disabled={syncing} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold">
+						<RefreshCw className={`mr-1.5 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry Sync
 					</Button>
 				</div>
 			)}
 
 			{error && !syncError && (
-				<div className="shrink-0 mx-6 mb-2 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
-					{error}
-					<button className="ml-2 font-semibold" onClick={() => setError(null)}>Dismiss</button>
+				<div className="shrink-0 mx-6 mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-900 flex items-center justify-between shadow-sm">
+					<div className="flex items-center gap-2">
+						<AlertTriangle className="size-4 shrink-0 text-red-600" />
+						<span className="font-medium">{error}</span>
+					</div>
+					<Button variant="ghost" size="sm" className="h-7 px-2 font-bold" onClick={() => setError(null)}>Dismiss</Button>
 				</div>
 			)}
 
-			{/* Table — component-level scrolling */}
-			<div className="flex-1 min-h-0 px-6 pb-4">
-				<Card className="h-full flex flex-col shadow-sm overflow-hidden">
+			{/* Roster Table Container */}
+			<div className="flex-1 min-h-0 px-6 py-4">
+				<Card className="h-full flex flex-col shadow-sm border-border/50 overflow-hidden">
 					<div className="flex-1 min-h-0 overflow-auto">
 						<table className="w-full text-sm">
-							<thead className="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm">
-								<tr className="border-b">
-									<th className="px-4 py-2.5 text-left">
-										<button onClick={() => toggleSort('name')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground">
-											Name <SortIcon field="name" />
-										</button>
+							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md border-b">
+								<tr>
+									<th className="px-4 py-3 text-left">
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('name')} className="h-auto px-0 py-0 font-bold text-muted-foreground hover:text-foreground">
+											Name & Identity <SortIcon field="name" />
+										</Button>
 									</th>
-									<th className="px-4 py-2.5 text-left">
-										<button onClick={() => toggleSort('specialization')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground">
+									<th className="px-4 py-3 text-left">
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('specialization')} className="h-auto px-0 py-0 font-bold text-muted-foreground hover:text-foreground">
 											Dept / Specialization <SortIcon field="specialization" />
-										</button>
+										</Button>
 									</th>
-									<th className="px-4 py-2.5 text-left font-semibold text-muted-foreground">Contact</th>
-									<th className="px-4 py-2.5 text-center">
-										<button onClick={() => toggleSort('subjects')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground mx-auto">
+									<th className="px-4 py-3 text-left font-bold text-muted-foreground">Contact</th>
+									<th className="px-4 py-3 text-center">
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('subjects')} className="h-auto px-0 py-0 font-bold text-muted-foreground hover:text-foreground mx-auto">
 											Subjects <SortIcon field="subjects" />
-										</button>
+										</Button>
 									</th>
-									<th className="px-4 py-2.5 text-center">
-										<button onClick={() => toggleSort('weeklyLoad')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground mx-auto">
+									<th className="px-4 py-3 text-center">
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('weeklyLoad')} className="h-auto px-0 py-0 font-bold text-muted-foreground hover:text-foreground mx-auto">
 											Weekly Load <SortIcon field="weeklyLoad" />
-										</button>
+										</Button>
 									</th>
-									<th className="px-4 py-2.5 text-center">
-										<button onClick={() => toggleSort('status')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground mx-auto">
+									<th className="px-4 py-3 text-center">
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('status')} className="h-auto px-0 py-0 font-bold text-muted-foreground hover:text-foreground mx-auto">
 											Status <SortIcon field="status" />
-										</button>
-									</th>										<th className="px-4 py-2.5 text-right font-semibold text-muted-foreground">Actions</th>								</tr>
+										</Button>
+									</th>
+									<th className="px-4 py-3 text-right font-bold text-muted-foreground">Actions</th>
+								</tr>
 							</thead>
-							<tbody>
+							<tbody className="divide-y divide-border/40">
 								{loading ? (
-									<tr>
-											<td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
-											Loading faculty...
-										</td>
-									</tr>
+									Array.from({ length: 8 }).map((_, i) => (
+										<tr key={i}>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-48" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-32" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-40" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-12 mx-auto" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-16 mx-auto" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-10 mx-auto" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-8 w-24 ml-auto" /></td>
+										</tr>
+									))
 								) : paged.length === 0 ? (
 									<tr>
-									<td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
-											{faculty.length === 0 ? (
-												<div className="flex flex-col items-center gap-2">
-													<Users className="size-8 text-muted-foreground/50" />
-													<p>No faculty synced yet.</p>
-													<Button size="sm" onClick={handleSync} disabled={syncing}>
-														<RefreshCw className="mr-1.5 size-3.5" /> Sync from EnrollPro
-													</Button>
+										<td colSpan={7} className="px-4 py-20 text-center">
+											<div className="flex flex-col items-center gap-4 text-muted-foreground max-w-xs mx-auto">
+												<Users className="size-12 opacity-20" />
+												<div className="space-y-1">
+													<p className="font-bold text-foreground">
+														{faculty.length === 0 ? 'No faculty records found.' : 'No matches found.'}
+													</p>
+													<p className="text-xs">
+														{faculty.length === 0 
+															? 'Ensure the EnrollPro bridge is active and sync your roster to begin scheduling.'
+															: 'Try adjusting your filters or search query to find who you are looking for.'}
+													</p>
 												</div>
-											) : (
-												'No faculty match your filters.'
-											)}
+												{faculty.length === 0 && (
+													<Button size="sm" onClick={handleSync} disabled={syncing} className="font-bold">
+														<RefreshCw className={`mr-2 size-4 ${syncing ? 'animate-spin' : ''}`} />
+														Sync from EnrollPro
+													</Button>
+												)}
+											</div>
 										</td>
 									</tr>
 								) : (
-									paged.map((f) => {
-										const subjectCount = f.facultySubjects?.length ?? 0;
-										const weeklyMinutes = (f.facultySubjects ?? []).reduce(
-											(sum, fs) => sum + (fs.subject?.minMinutesPerWeek ?? 0) * fs.gradeLevels.length, 0,
-										);
-										const weeklyHours = Math.round((weeklyMinutes / 60) * 10) / 10;
-										const maxHours = f.maxHoursPerWeek;
-										const loadColor =
-											weeklyHours === 0 ? 'text-muted-foreground'
-											: weeklyHours > maxHours ? 'text-red-600'
-											: weeklyHours >= maxHours * 0.85 ? 'text-amber-600'
-											: 'text-emerald-600';
-
-										return (
-											<tr key={f.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-												<td className="px-4 py-3">
-													<div className="flex items-center gap-3">
-														<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-															{f.firstName[0]}{f.lastName[0]}
-														</div>
-														<div>
-															<p className="font-medium">{f.lastName}, {f.firstName}</p>
-															<p className="text-[0.6875rem] text-muted-foreground font-mono">ID: {f.employeeId || 'No ID'}</p>
-														</div>
-													</div>
-												</td>
-												<td className="px-4 py-3">
-													<div className="flex flex-col gap-0.5">
-														{f.department ? (
-															<span className="text-[0.6875rem] uppercase tracking-wide text-muted-foreground font-medium">{f.department}</span>
-														) : null}
-														<span className="text-sm">{f.specialization || (f.department ? 'General' : '—')}</span>
-													</div>
-												</td>
-												<td className="px-4 py-3 text-muted-foreground text-[0.8125rem]">{f.contactInfo ?? '—'}</td>
-												<td className="px-4 py-3 text-center">
-													{subjectCount > 0 ? (
-														<Badge className="bg-blue-100 text-blue-700 text-[0.6rem]">{subjectCount}</Badge>
-													) : (
-														<Badge variant="secondary" className="text-[0.6rem]">0</Badge>
-													)}
-												</td>
-												<td className="px-4 py-3 text-center">
-													<span className={`font-medium ${loadColor}`}>
-														{weeklyHours > 0 ? `${weeklyHours}h` : '—'}
-													</span>
-													<span className="text-muted-foreground text-[0.6875rem]"> / {maxHours}h</span>
-												</td>
-												<td className="px-4 py-3 text-center">
-													{f.isActiveForScheduling ? (
-														<CheckCircle2 className="mx-auto size-4 text-emerald-500" />
-													) : (
-														<Badge variant="secondary" className="text-[0.6rem]">Excluded</Badge>
-													)}
-												</td>													<td className="px-4 py-3 text-right">
-														<Link to={`/assignments?facultyId=${f.id}`}>
-															<Button variant="outline" size="sm" className="h-7 text-xs gap-1">
-																<ClipboardList className="size-3" />
-																Teaching Load
-															</Button>
-														</Link>
-													</td>											</tr>
-										);
-									})
+									paged.map((f) => (
+										<FacultyRow 
+											key={f.id} 
+											faculty={f} 
+											onViewProfile={(target) => setProfileTarget(target)}
+										/>
+									))
 								)}
 							</tbody>
 						</table>
 					</div>
 
-					{/* Pagination */}
+					{/* Pagination Footer */}
 					{!loading && faculty.length > 0 && (
-						<div className="shrink-0 flex items-center justify-between border-t border-border px-4 py-2 text-sm">
-							<div className="flex items-center gap-2 text-muted-foreground text-xs">
-								<span>{totalFiltered} result{totalFiltered !== 1 ? 's' : ''}</span>
-								<span>·</span>
-								<span>{faculty.filter((f) => f.isActiveForScheduling).length} active</span>
-								<span>·</span>
-								<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-									<SelectTrigger className="h-7 w-22.5 text-xs">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s} / page</SelectItem>)}
-									</SelectContent>
-								</Select>
+						<div className="shrink-0 flex items-center justify-between border-t border-border/50 px-4 py-3 bg-muted/20">
+							<div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
+								<div className="flex items-center gap-1.5">
+									<Users className="size-3.5" />
+									<span>{totalFiltered} result{totalFiltered !== 1 ? 's' : ''} found</span>
+									<span className="text-muted-foreground/30">|</span>
+									<span className="text-emerald-600">{faculty.filter((f) => f.isActiveForScheduling).length} active for scheduling</span>
+								</div>
+								
+								<div className="flex items-center gap-2 border-l pl-4 border-border/50">
+									<span>Rows per page:</span>
+									<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+										<SelectTrigger className="h-7 w-20 text-xs bg-background">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
+										</SelectContent>
+									</Select>
+								</div>
 							</div>
-							<div className="flex items-center gap-1">
-								<Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
-									<ChevronLeft className="size-3.5" />
+							
+							<div className="flex items-center gap-1.5">
+								<Button 
+									variant="outline" 
+									size="icon" 
+									className="h-8 w-8" 
+									onClick={() => setPage((p) => Math.max(1, p - 1))} 
+									disabled={page <= 1}
+								>
+									<ArrowUpDown className="size-4 rotate-90" />
 								</Button>
-								<span className="px-2 text-xs tabular-nums">{page} / {totalPages}</span>
-								<Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
-									<ChevronRight className="size-3.5" />
+								<div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-xs font-bold tabular-nums">
+									<span>{page}</span>
+									<span className="text-muted-foreground/50">/</span>
+									<span className="text-muted-foreground">{totalPages}</span>
+								</div>
+								<Button 
+									variant="outline" 
+									size="icon" 
+									className="h-8 w-8" 
+									onClick={() => setPage((p) => Math.min(totalPages, p + 1))} 
+									disabled={page >= totalPages}
+								>
+									<ArrowUpDown className="size-4 -rotate-90" />
 								</Button>
 							</div>
 						</div>
 					)}
 				</Card>
 			</div>
+
+			{/* Quick Profile Side Drawer */}
+			<FacultyProfileSheet 
+				faculty={profileTarget}
+				open={profileTarget !== null}
+				onOpenChange={(open) => !open && setProfileTarget(null)}
+			/>
 		</div>
 	);
 }

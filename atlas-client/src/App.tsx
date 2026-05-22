@@ -22,7 +22,6 @@ const RoomSchedules = lazy(() => import('./pages/RoomSchedules'));
 const ScheduleReview = lazy(() => import('./pages/ScheduleReview'));
 const HowItWorks = lazy(() => import('./pages/HowItWorks'));
 const Audit = lazy(() => import('./pages/Audit'));
-const SpecializationMapping = lazy(() => import('./pages/SpecializationMapping'));
 
 const router = createBrowserRouter([
 	{
@@ -92,10 +91,6 @@ const router = createBrowserRouter([
 			{
 				path: 'audit',
 				element: <Audit />,
-			},
-			{
-				path: 'specialization-mapping',
-				element: <SpecializationMapping />,
 			},
 			{ path: '*', element: <Navigate to="/" replace /> },
 		],

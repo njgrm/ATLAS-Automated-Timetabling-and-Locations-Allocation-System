@@ -1,54 +1,499 @@
-# A.T.L.A.S. (Automated Timetabling and Locations Allocation System)
+# GEMINI.md
 
-ATLAS is a Progressive Web Application (PWA) designed for automated academic schedule generation in Philippine Junior High Schools (Grades 7–10). It follows DepEd DO 010 s.2024 standards.
+## Purpose
 
-## Tech Stack
-- **Client:** React 19 (Vite 8), Tailwind CSS 4, shadcn/ui, Framer Motion, Konva.js, Radix UI.
-- **Server:** Node.js (Express 5), TypeScript 5.9+, tsx.
-- **Database:** PostgreSQL 16, Prisma 6.
-- **Testing:** Playwright 1.59+, integration tests in `src/__tests__`.
+This file is the execution contract for Gemini CLI when working inside `D:\ATLAS`.
 
-## Directory Structure
-- `atlas-client/`: React PWA frontend.
-  - `src/components/`: Reusable UI components.
-  - `src/pages/`: Page views.
-  - `src/hooks/`: Business logic and state (e.g., `useTimetableData`, `useTimetableMutations`).
-- `atlas-server/`: Express API backend.
-  - `src/routes/`: REST endpoints (`*.router.ts`).
-  - `src/services/`: Core logic (`*.service.ts`).
-  - `src/middleware/`: Auth, authz, and error handling.
-  - `src/scripts/`: Seeding and verification tools.
-- `prisma/`: Shared database schema (`schema.prisma`) and migrations.
-- `EnrollPro/`: Integrated student management system (Sub-project).
-- `mcp-servers/`: Specialized agents for file processing (Excel, Word, PDF).
-- `docs/`: Project documentation and phase plans.
-- `qa-artifacts/`: QA reports, screenshots, and Playwright test specs.
+It is not a generic project summary.
+It is a practical operating guide so Gemini can implement UI/UX and product-facing changes without drifting into:
 
-## Development Conventions
-- **Naming:**
-  - Logic/Router files: `kebab-case.ts`.
-  - React components: `PascalCase.tsx`.
-  - API endpoints: `/api/v1/` prefix.
-- **Backend Pattern:** Router -> Service -> Prisma.
-- **Frontend Pattern:** Custom Hooks for data fetching and mutations.
-- **Database:** All changes via `prisma/schema.prisma`. Output client to `atlas-server/node_modules/.prisma/client`.
-- **Testing:** 
-  - Backend integration tests use `tsx` to run individual test files.
-  - Frontend/E2E tests via Playwright in `qa-artifacts/`.
+- raw HTML controls
+- scheduler-hostile complexity
+- broken ATLAS layout patterns
+- outdated subject/specialization assumptions
+- unverified local-only conclusions
 
-## Testing & Validation Directives
-- **Primary Environment:** ALL testing, research, and validation MUST target the live Tailnet environment (`https://njgrm.buru-degree.ts.net`) by default.
-- **Localhost Exception:** Only use `localhost` if explicitly requested by the user for a specific isolated task.
-- **Tailscale Connectivity:** The local database and backend communicate over Tailscale tunnels. Ensure your testing tools (e.g., Playwright, curl, scripts) are configured to use the Tailnet hostname or IP (`100.88.55.125`).
-- **No Push/Pull Needed:** The local and remote environments are bridged via Tailscale; code changes in the workspace are reflected in the local backend, which is visible to the remote surfaces.
+If this file conflicts with `AGENTS.md`, `phasePlan.md`, or direct user instructions:
 
-## Common Commands
-- `npm run dev`: Starts both client and server.
-- `npm run db:bootstrap`: Generates Prisma client and runs migrations.
-- `npm run db:seed`: Seeds the database with demo data.
-- `npm run test:visual`: Runs Playwright visual regression tests.
-- `npm run verify:enrollpro-source`: Validates integration with EnrollPro.
+1. `AGENTS.md` wins
+2. `phasePlan.md` wins next
+3. this file follows after them
 
-## Integration with EnrollPro
-ATLAS can run in `stub` mode (mock data) or `enrollpro` mode (live integration). Integration requires matching `JWT_SECRET` values between both systems to validate bridge tokens.
+---
 
+## Required Startup Reads
+
+Before doing non-trivial work, Gemini must read:
+
+1. `AGENTS.md`
+2. `ATLAS_AGENT_KI.md`
+3. `phasePlan.md`
+4. `docs/reference/atlas-runtime-source-of-truth-map.md`
+
+For runtime-sensitive UI, QA, or workflow work, Gemini must also inspect the current page and any directly related shared components before editing.
+
+---
+
+## ATLAS Product Context
+
+- Product: `A.T.L.A.S.` (Automated Timetabling and Locations Allocation System)
+- Type: mobile-responsive PWA for Junior High School scheduling
+- Stack:
+  - client: React, Vite, Tailwind, `shadcn/ui`, `lucide-react`, `motion`
+  - server: Express, TypeScript
+  - database: PostgreSQL + Prisma
+- Architecture: strict MVC + service layer
+- API contract: REST under `/api/v1/...`
+
+ATLAS is an active multi-phase codebase.
+Do not treat it as greenfield.
+
+---
+
+## Primary Gemini Role In This Repo
+
+When the user asks Gemini to do UI/UX work, Gemini must behave as:
+
+- a frontend implementation agent
+- a scheduler-first UX simplifier
+- a strict follower of the EnrollPro-derived ATLAS design system
+
+Gemini must optimize for:
+
+- high clarity
+- low cognitive load
+- minimal visual noise
+- strong role boundaries
+- maintainable React component structure
+
+Gemini must not optimize for:
+
+- flashy complexity
+- clever custom controls when a Radix primitive already exists
+- exposing internal system theory directly to scheduler users
+
+---
+
+## Mandatory Frontend Guardrails
+
+These are non-negotiable.
+
+### 1. No raw HTML form controls
+
+Do not use:
+
+- raw `<select>`
+- raw `<option>`
+- raw styled `<button className="...">`
+- raw `<details>`
+
+Use ATLAS UI primitives instead:
+
+- `@/ui/button`
+- `@/ui/select`
+- `@/ui/dropdown-menu`
+- `@/ui/tooltip`
+- `@/ui/hover-card`
+- `@/ui/popover`
+- `@/ui/dialog`
+- `@/ui/sheet`
+- `@/ui/checkbox`
+- `@/ui/input`
+- `@/ui/searchable-select`
+
+Raw semantic elements like table markup or plain text wrappers are fine.
+The restriction is on interactive controls.
+
+### 2. No-scroll architecture
+
+Do not introduce browser-level page scrolling.
+
+Use:
+
+- root: `flex flex-col h-[calc(100svh-3.5rem)]`
+- main scrolling regions: `flex-1 min-h-0 overflow-auto`
+- sticky toolbars or headers: `shrink-0`
+
+Never break the page by creating nested layout regions that trap or duplicate scrolling unnecessarily.
+
+### 3. Keep files small enough to maintain
+
+No React component file should exceed `1000` lines.
+
+If a file approaches that size:
+
+- stop feature work
+- extract logical subcomponents into a nearby `components/` folder
+- continue only after extraction
+
+### 4. Prefer scheduler-friendly wording
+
+UI copy must be written for schedulers and staff, not for developers.
+
+Avoid exposing internal or technical terms unless necessary.
+
+Bad:
+
+- "specialization alias mismatch"
+- "tier-1 candidate"
+- "ownership index"
+- "seedable"
+
+Better:
+
+- "department mismatch"
+- "not currently eligible"
+- "already assigned"
+- "auto-scheduled"
+
+Use full words in operator-facing copy unless space is critically constrained.
+
+Bad:
+
+- "Dept"
+- "Info"
+- "Mgmt"
+
+Better:
+
+- "Department"
+- "Information"
+- "Management"
+
+### 5. Progressive disclosure over dense walls of detail
+
+If the user needs deeper inspection:
+
+- prefer `Sheet`, `Dialog`, `Popover`, or an explicit detail area
+- do not cram all detail into table rows, tiny badges, or fragile tooltips
+
+Important operational information must not live only in hover state.
+
+### 6. Readability is mandatory
+
+Avoid micro-text unless absolutely unavoidable.
+
+Treat repeated `text-[0.6rem]`, `text-[0.625rem]`, and `text-[0.6875rem]` usage as a smell.
+
+Default target:
+
+- primary content: `text-sm`
+- secondary content: `text-xs`
+- use muted color, not microscopic size, to de-emphasize
+
+Normal operator-facing copy should not go below `text-xs`.
+If Gemini believes a smaller size is necessary, it must justify that choice explicitly in its final output.
+
+When a drawer, sheet, or summary card has available space, Gemini must increase legibility instead of compressing identity data into tiny text.
+
+### 7. Keep visual hierarchy calm
+
+Avoid:
+
+- badge spam
+- too many simultaneous colors
+- too many controls in one row
+- destructive actions mixed beside common daily actions
+
+Prefer:
+
+- fewer, clearer actions
+- grouped controls
+- distinct zones for normal work vs repair/destructive work
+
+### 8. Use canonical ATLAS surface naming
+
+Scheduler-facing labels must use the product vocabulary the operator understands.
+
+Current preferred naming:
+
+- `Teachers` instead of `Faculty` for page titles, breadcrumbs, sidebar labels, and similar UI copy
+- `Teaching Load` instead of vague `Assignments` wording in routes, nav labels, and page titles where the user-facing surface is being changed
+- `GR7`, `GR8`, `GR9`, and `GR10` instead of `G7`, `G8`, `G9`, and `G10` in badges and text
+
+Database model names do not need to change just because a UI label changes.
+
+---
+
+## Current Workflow Direction Gemini Must Follow
+
+These product decisions are current and must be preserved unless the user explicitly changes them.
+
+### Core scheduler flow
+
+The main operator flow is:
+
+1. `Subjects`
+2. `Teaching Load`
+3. `Timetable`
+
+Navigation and UX should reinforce that order.
+
+### Subject qualification direction
+
+Current direction is:
+
+- qualification baseline should be department-first
+- specialization mapping should be removed or demoted out of scheduler-facing workflow
+- manual teaching-load placements are authoritative
+- scheduler should not have to reason about specialization-tier theory
+
+### Stakeholder-facing output direction
+
+The product should favor:
+
+- calm, normalized schedule labels
+- section-home-room-first assumptions
+- lighter teacher visibility in master schedule contexts
+- richer detail only where a teacher-facing or operator drilldown truly needs it
+
+### TLE direction
+
+Current Phase 3 direction after the MATATAG reset:
+
+- do not use old cohort-split assumptions for Grade 9 and 10 TLE
+- TLE should be treated like the new rotating contract, not old specialization-cohort logic
+
+---
+
+## What Gemini Must Check Before Editing A Page
+
+Before implementing a UI pass, Gemini must inspect:
+
+1. the target page file
+2. directly related components
+3. the most recent comparison baseline page if one exists
+4. current workflow documents if the page has changed meaning recently
+
+Examples:
+
+- if editing `Faculty`, inspect `Subjects` for the modern pattern baseline
+- if editing `Teaching Load`, inspect both `Subjects` and the current qualification-direction docs
+
+Do not implement based only on a prompt summary without reading the current code.
+
+---
+
+## QA And Verification Rules
+
+### Primary validation environment
+
+Default runtime validation target:
+
+- `https://njgrm.buru-degree.ts.net`
+
+Use `localhost` only if the user explicitly asks for a local-only task.
+
+### QA credentials
+
+- Admin: `1000001` / `AdminSY2026!`
+- Faculty: `maria.santos@deped.edu.ph` / `DepEd2026!`
+
+### Frontend change verification
+
+After UI changes, Gemini must:
+
+1. run the relevant build
+2. inspect for TypeScript errors
+3. verify the main states affected by the change
+4. verify that any changed client code matches the exact server response contract it consumes
+5. verify that every newly referenced icon, component, hook dependency, and type field is actually imported and declared
+
+At minimum, Gemini should verify:
+
+- loading state
+- empty state
+- normal populated state
+- disabled or error state when relevant
+
+If Gemini claims `GO`, the claim must match what was actually verified.
+Do not declare live `GO` from local-only code inspection.
+Do not treat a successful Vite bundle as proof that the touched files are type-safe if repository or project-level type checking says otherwise.
+
+When a pass changes API consumption, Gemini must inspect the exact backend route or service response shape before claiming the client contract is correct.
+When a pass changes naming, copy, or measurement labels, Gemini must ensure the words shown to users match the data unit actually displayed.
+
+---
+
+## Documentation Lookup Rule
+
+If Gemini is uncertain about:
+
+- how to import a UI primitive
+- the current API of a UI component
+- Radix or `shadcn/ui` usage details
+- `motion` usage details
+- React or Vite version-sensitive behavior
+
+Gemini must use Context7 first to fetch up-to-date documentation before implementing.
+
+Gemini must not guess import paths or component APIs from stale memory when documentation lookup is available.
+
+When the requested component already exists in the repo, Gemini should:
+
+1. inspect local usage first
+2. use Context7 to confirm current library behavior if anything is version-sensitive or unclear
+
+---
+
+## UX Standards For Specific ATLAS Pages
+
+### Subjects
+
+Purpose:
+
+- subject catalog
+- ownership/contract visibility
+- subject-level remediation entrypoint
+
+Do:
+
+- keep it scheduler-readable
+- make contract details legible
+- keep destructive/reset flows secondary
+
+Do not:
+
+- reintroduce specialization-tier complexity as the core operator model
+- overload the page with teaching-load authoring
+
+### Faculty
+
+Purpose:
+
+- roster visibility
+- sync state
+- quick inspection
+- entrypoint to Teaching Load
+
+Do:
+
+- make the roster easy to scan
+- add drilldown if needed
+- keep it calmer than Teaching Load
+
+Do not:
+
+- turn it into a second assignment workspace
+
+### Teaching Load / Faculty Assignments
+
+Purpose:
+
+- authoritative manual placement surface
+- guided assignment editing
+- repair and reset actions only where clearly separated
+
+Do:
+
+- prioritize department-first qualification logic
+- keep navigation and assignment context clear
+- separate routine actions from destructive ones
+
+Do not:
+
+- expose specialization theory as the core scheduler mental model
+- bury important load breakdowns in tooltip-only UI
+- crowd the left rail with too many filters and toggles
+
+### Timetable
+
+Purpose:
+
+- review and validate generation output
+
+Do:
+
+- preserve dense but readable workspace behavior
+- keep primary metrics compact and legible
+
+Do not:
+
+- spend time polishing cosmetic-only issues if generator readiness is still the active blocker
+
+---
+
+## Implementation Style Rules
+
+### Use existing patterns first
+
+Before inventing a new layout or interaction:
+
+- inspect whether `Subjects`, `ScheduleReview`, or `AppShell` already establishes the right pattern
+- reuse those patterns where possible
+
+### Avoid surprise mutations
+
+If a page is meant to inspect data:
+
+- do not trigger writes on page load unless explicitly intended by the product contract
+
+### Respect role boundaries
+
+If the stakeholder workflow says a decision belongs to department heads, not schedulers:
+
+- do not design a scheduler-facing control that pretends to automate that authority
+
+### Keep repair tools explicit
+
+Reset, cleanup, archive, and destructive repair actions must:
+
+- be clearly named
+- be visibly separated
+- use confirmation flows when destructive
+
+---
+
+## When Gemini Should Stop And Escalate
+
+Gemini should stop and ask for direction if:
+
+- the requested UI change conflicts with `AGENTS.md` or `phasePlan.md`
+- the user asks for a workflow that contradicts current stakeholder decisions already established in repo docs
+- the implementation would require broad schema or backend contract changes that are not reflected in the prompt
+
+Gemini should not stop just because the task is large.
+It should keep executing if the direction is already clear in repo context.
+
+---
+
+## Anti-Patterns Gemini Must Avoid
+
+- using native HTML controls when project UI primitives exist
+- treating small text as the main solution for dense pages
+- mixing destructive actions with everyday actions in the same visual tier
+- adding more badges instead of improving hierarchy
+- exposing internal qualification logic directly to schedulers
+- declaring `GO` without the verification that the prompt required
+- editing only the surface text while leaving the deeper workflow mismatch intact
+- assuming older docs still define the workflow without checking the newer analysis files
+
+---
+
+## Practical Prompt-Execution Checklist
+
+When Gemini receives a UX/UI prompt in this repo, it should follow this order:
+
+1. read `AGENTS.md`, `ATLAS_AGENT_KI.md`, `phasePlan.md`, and the runtime map
+2. inspect the target page and directly related components
+3. identify the workflow purpose of the page
+4. remove technical or role-misaligned complexity first
+5. improve layout, readability, and drilldown patterns second
+6. verify imports, backend contracts, type fields, and unit labels for touched files
+7. run build verification
+8. only then report `GO` or `NO-GO`
+
+---
+
+## Success Criteria For Gemini UX Work
+
+A Gemini UX pass is successful only if it produces pages that are:
+
+- calmer to scan
+- easier for schedulers to understand
+- less dependent on micro-text and badge clutter
+- aligned with current stakeholder workflow boundaries
+- consistent with ATLAS shared UI primitives and layout rules
+- truthfully verified
+
+If a pass looks prettier but still exposes the wrong workflow model, it is not complete.
