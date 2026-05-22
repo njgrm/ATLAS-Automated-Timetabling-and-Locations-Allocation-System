@@ -42,7 +42,8 @@ export function isSpecializationPrimarySubjectCode(subjectCode) {
     return code.startsWith('SPA_') || code.startsWith('SPS_');
 }
 export function normalizeSubjectQualificationPriority(value) {
-    return value === 'SPECIALIZATION_PRIMARY' ? 'SPECIALIZATION_PRIMARY' : 'DEPARTMENT_FIRST';
+    void value;
+    return 'DEPARTMENT_FIRST';
 }
 export function resolveSubjectOwnerDepartmentCode(subjectCode, subjectName) {
     const code = (subjectCode ?? '').trim().toUpperCase();
@@ -62,9 +63,8 @@ export function resolveSubjectOwnerDepartmentCode(subjectCode, subjectName) {
     return null;
 }
 export function resolveSubjectQualificationPriority(subjectCode, explicitPriority) {
-    if (explicitPriority) {
-        return normalizeSubjectQualificationPriority(explicitPriority);
-    }
+    void subjectCode;
+    void explicitPriority;
     return 'DEPARTMENT_FIRST';
 }
 export function resolveSubjectOutputLabel(subjectCode, subjectName, modularGroupId) {

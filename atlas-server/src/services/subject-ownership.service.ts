@@ -55,7 +55,8 @@ export function isSpecializationPrimarySubjectCode(subjectCode: string | null | 
 export function normalizeSubjectQualificationPriority(
 	value: string | null | undefined,
 ): SubjectQualificationPriority {
-	return value === 'SPECIALIZATION_PRIMARY' ? 'SPECIALIZATION_PRIMARY' : 'DEPARTMENT_FIRST';
+	void value;
+	return 'DEPARTMENT_FIRST';
 }
 
 export function resolveSubjectOwnerDepartmentCode(subjectCode: string | null | undefined, subjectName?: string | null): string | null {
@@ -82,9 +83,8 @@ export function resolveSubjectQualificationPriority(
 	subjectCode: string | null | undefined,
 	explicitPriority?: string | null,
 ): SubjectQualificationPriority {
-	if (explicitPriority) {
-		return normalizeSubjectQualificationPriority(explicitPriority);
-	}
+	void subjectCode;
+	void explicitPriority;
 	return 'DEPARTMENT_FIRST';
 }
 

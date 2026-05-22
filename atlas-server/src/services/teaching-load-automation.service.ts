@@ -24,7 +24,6 @@ import { sectionAdapter } from './section-adapter.js';
 import {
 	matchesSubjectOwnershipDepartment,
 	resolveSubjectOwnerDepartmentCode,
-	resolveSubjectQualificationPriority,
 } from './subject-ownership.service.js';
 
 // DO 005 s.2024 weekly minute caps
@@ -77,18 +76,15 @@ interface SubjectRow {
 	gradeLevels: number[];
 	programScopes: string[];
 	minMinutesPerWeek: number;
-	allowedSpecializations: string[];
 	modularGroupId: string | null;
 	modularOrder: number | null;
 	ownerDepartment: string | null;
-	qualificationPriority: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
 }
 
 interface FacultyRow {
 	id: number;
 	firstName: string;
 	lastName: string;
-	specialization: string | null;
 	department: string | null;
 	canTeachOutsideDepartment: boolean;
 	maxHoursPerWeek: number;
@@ -227,41 +223,17 @@ function buildStaffingReport(
 function resolveQualificationTier(
 	faculty: FacultyRow,
 	subject: SubjectRow,
-	aliasMap: Map<string, Set<string>>,
 ): number | null {
-	const normalizedSubjectCode = normalizeKey(subject.code);
-	const normalizedSpec = normalizeKey(faculty.specialization);
-	const normalizedDept = normalizeKey(faculty.department);
-	const specializationPrimary = resolveSubjectQualificationPriority(subject.code, subject.qualificationPriority) === 'SPECIALIZATION_PRIMARY';
 	const departmentMatch = matchesSubjectOwnershipDepartment(
 		faculty.department,
 		subject.code,
 		subject.name,
 		subject.ownerDepartment,
 	);
-
-	let specializationMatch = false;
-	if (normalizedSpec) {
-		const mappedSubjects = aliasMap.get(normalizedSpec);
-		specializationMatch = mappedSubjects?.has(normalizedSubjectCode) ?? false;
-	}
-	if (!specializationMatch && normalizedSpec && subject.allowedSpecializations.some((entry) => normalizeKey(entry) === normalizedSpec)) {
-		specializationMatch = true;
-	}
-	if (!specializationMatch && normalizedDept && subject.allowedSpecializations.some((entry) => normalizeKey(entry) === normalizedDept)) {
-		specializationMatch = true;
-	}
-
-	if (specializationPrimary) {
-		if (specializationMatch) return 1;
-		if (departmentMatch) return 2;
-	} else {
-		if (departmentMatch) return 1;
-		if (specializationMatch) return 2;
-	}
+	if (departmentMatch) return 1;
 
 	if (faculty.canTeachOutsideDepartment) {
-		return 3;
+		return 2;
 	}
 
 	return null;
@@ -344,11 +316,9 @@ export async function autoFill(
 			gradeLevels: true,
 			programScopes: true,
 			minMinutesPerWeek: true,
-			allowedSpecializations: true,
 			modularGroupId: true,
 			modularOrder: true,
 			ownerDepartment: true,
-			qualificationPriority: true,
 		},
 	});
 
@@ -428,26 +398,11 @@ export async function autoFill(
 			id: true,
 			firstName: true,
 			lastName: true,
-			specialization: true,
 			department: true,
 			canTeachOutsideDepartment: true,
 			maxHoursPerWeek: true,
 		},
 	});
-
-	const aliasEntries = await prisma.specializationAlias.findMany({
-		where: { schoolId },
-		select: { alias: true, canonical: true },
-	});
-	const aliasMap = new Map<string, Set<string>>();
-	for (const entry of aliasEntries) {
-		const aliasKey = normalizeKey(entry.alias);
-		const canonicalKey = normalizeKey(entry.canonical);
-		if (!aliasKey || !canonicalKey) continue;
-		const subjectSet = aliasMap.get(aliasKey) ?? new Set<string>();
-		subjectSet.add(canonicalKey);
-		aliasMap.set(aliasKey, subjectSet);
-	}
 
 	// ─── Step 5 & 6: Assign pairs, respecting caps and modular bundles ─────────
 	// Group work queue by subjectId for modular bundle processing
@@ -500,7 +455,7 @@ export async function autoFill(
 			const limit = maxMinutes(f);
 			if (used + subjectRow.minMinutesPerWeek > limit) continue;
 
-			const tier = resolveQualificationTier(f, subjectRow, aliasMap);
+			const tier = resolveQualificationTier(f, subjectRow);
 			if (tier != null) {
 				candidates.push({ faculty: f, tier });
 			}
@@ -525,11 +480,10 @@ export async function autoFill(
 			const candidate = findBestCandidate(subjectRow, pair.sectionId);
 			if (!candidate) {
 				unresolvedCount += 1;
-				warnings.push(`Lacking Faculty: no Tier 1 qualified teacher for ${subjectRow.name} (${pair.sectionName}).`);
+				warnings.push(`Lacking Faculty: no department-qualified teacher for ${subjectRow.name} (${pair.sectionName}).`);
 				const fallbackDepartment = subjectRow.ownerDepartment
 					?? resolveSubjectOwnerDepartmentCode(subjectRow.code, subjectRow.name)
 					?? subjectRow.modularGroupId
-					?? subjectRow.allowedSpecializations?.[0]
 					?? 'GENERAL';
 				const shortageKey = formatDepartmentLabel(fallbackDepartment);
 				unresolvedByDepartment.set(shortageKey, (unresolvedByDepartment.get(shortageKey) ?? 0) + 1);

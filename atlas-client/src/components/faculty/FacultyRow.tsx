@@ -1,36 +1,26 @@
 import {
 	CheckCircle2,
 	ClipboardList,
-	ExternalLink,
-	MoreVertical,
 	User,
+	Star
 } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from '@/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
-import type { FacultyMirror } from '@/types';
+import type { FacultySummary } from '@/types';
 import { Link } from 'react-router-dom';
 
 interface FacultyRowProps {
-	faculty: FacultyMirror;
-	onViewProfile: (faculty: FacultyMirror) => void;
+	faculty: FacultySummary;
+	onViewProfile: (faculty: FacultySummary) => void;
 }
 
 export function FacultyRow({
 	faculty,
 	onViewProfile,
 }: FacultyRowProps) {
-	const subjectCount = faculty.facultySubjects?.length ?? 0;
-	const weeklyMinutes = (faculty.facultySubjects ?? []).reduce(
-		(sum, fs) => sum + (fs.subject?.minMinutesPerWeek ?? 0) * fs.gradeLevels.length, 0,
-	);
-	const weeklyHours = Math.round((weeklyMinutes / 60) * 10) / 10;
+	const subjectCount = faculty.subjectCount ?? 0;
+	const weeklyHours = faculty.policyCreditedHours ?? 0;
 	const maxHours = faculty.maxHoursPerWeek;
 	const loadColor =
 		weeklyHours === 0 ? 'text-muted-foreground'
@@ -49,47 +39,52 @@ export function FacultyRow({
 						{faculty.firstName[0]}{faculty.lastName[0]}
 					</div>
 					<div className="min-w-0">
-						<p className="font-semibold text-foreground truncate">
-							{faculty.lastName}, {faculty.firstName}
-						</p>
-						<p className="text-[0.65rem] text-muted-foreground font-mono truncate">
-							ID: {faculty.employeeId || 'No ID'}
-						</p>
+						<div className="flex items-center gap-1.5">
+							<p className="font-semibold text-foreground truncate">
+								{faculty.lastName}, {faculty.firstName}
+							</p>
+						</div>
+						<div className="flex items-center gap-2 mt-0.5">
+							<p className="text-xs text-muted-foreground font-mono truncate">
+								ID: {faculty.employeeId || 'No ID'}
+							</p>
+							{faculty.isClassAdviser && (
+								<span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded flex items-center gap-1 truncate max-w-32">
+									<Star className="size-3 fill-amber-400 text-amber-500 shrink-0" />
+									<span className="truncate">{faculty.advisedSectionName ? `Adviser: ${faculty.advisedSectionName}` : 'Adviser'}</span>
+								</span>
+							)}
+						</div>
 					</div>
 				</div>
 			</td>
 			<td className="px-4 py-3">
 				<div className="flex flex-col gap-0.5">
-					{faculty.department ? (
-						<span className="text-[0.625rem] uppercase tracking-wider text-muted-foreground font-bold">
-							{faculty.department}
-						</span>
-					) : null}
-					<span className="text-xs font-medium text-foreground truncate">
-						{faculty.specialization || (faculty.department ? 'Generalist' : '-')}
+					<span className="text-xs font-bold text-foreground truncate uppercase tracking-wider">
+						{faculty.department || 'General'}
 					</span>
+					{faculty.specialization && (
+						<span className="text-xs text-muted-foreground truncate">
+							{faculty.specialization}
+						</span>
+					)}
 				</div>
-			</td>
-			<td className="px-4 py-3">
-				<span className="text-xs text-muted-foreground truncate block max-w-40">
-					{faculty.contactInfo ?? '-'}
-				</span>
 			</td>
 			<td className="px-4 py-3 text-center">
 				{subjectCount > 0 ? (
-					<Badge className="bg-blue-100 text-blue-700 text-[0.6rem] hover:bg-blue-100 shadow-none border-none">
+					<Badge className="bg-blue-100 text-blue-700 text-xs hover:bg-blue-100 shadow-none border-none">
 						{subjectCount}
 					</Badge>
 				) : (
-					<Badge variant="secondary" className="text-[0.6rem] shadow-none bg-muted/50">0</Badge>
+					<Badge variant="secondary" className="text-xs shadow-none bg-muted/50">0</Badge>
 				)}
 			</td>
 			<td className="px-4 py-3 text-center">
 				<div className="flex flex-col items-center">
-					<span className={`text-xs font-bold ${loadColor}`}>
+					<span className={`text-sm font-bold ${loadColor}`}>
 						{weeklyHours > 0 ? `${weeklyHours}h` : '-'}
 					</span>
-					<span className="text-[0.625rem] text-muted-foreground">/ {maxHours}h limit</span>
+					<span className="text-xs text-muted-foreground">/ {maxHours}h limit</span>
 				</div>
 			</td>
 			<td className="px-4 py-3 text-center">
@@ -105,7 +100,14 @@ export function FacultyRow({
 						</Tooltip>
 					</TooltipProvider>
 				) : (
-					<Badge variant="secondary" className="text-[0.6rem] shadow-none bg-muted/50">Excluded</Badge>
+					<TooltipProvider delayDuration={300}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Badge variant="secondary" className="text-xs shadow-none bg-muted/50 cursor-help">Excluded</Badge>
+							</TooltipTrigger>
+							<TooltipContent>Excluded in EnrollPro. Cannot be scheduled.</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 				)}
 			</td>
 			<td className="px-4 py-3 text-right">
@@ -126,7 +128,7 @@ export function FacultyRow({
 						</Tooltip>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Link to={`/assignments?facultyId=${faculty.id}`}>
+								<Link to={`/teaching-load?facultyId=${faculty.id}`}>
 									<Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-primary">
 										<ClipboardList className="size-4" />
 									</Button>
@@ -135,30 +137,6 @@ export function FacultyRow({
 							<TooltipContent>Manage Teaching Load</TooltipContent>
 						</Tooltip>
 					</TooltipProvider>
-
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button variant="ghost" size="icon" className="size-8 text-muted-foreground">
-								<MoreVertical className="size-4" />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" className="w-48">
-							<DropdownMenuItem asChild>
-								<Link to={`/assignments?facultyId=${faculty.id}`} className="flex items-center">
-									<ClipboardList className="mr-2 size-4" />
-									<span>Edit Teaching Load</span>
-								</Link>
-							</DropdownMenuItem>
-							<DropdownMenuItem onClick={() => onViewProfile(faculty)}>
-								<User className="mr-2 size-4" />
-								<span>View Full Profile</span>
-							</DropdownMenuItem>
-							<DropdownMenuItem disabled className="text-muted-foreground/50">
-								<ExternalLink className="mr-2 size-4" />
-								<span>View in EnrollPro</span>
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
 				</div>
 			</td>
 		</tr>

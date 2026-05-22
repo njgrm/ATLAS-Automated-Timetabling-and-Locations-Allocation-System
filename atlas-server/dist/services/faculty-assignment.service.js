@@ -640,6 +640,8 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
             specialization: member.specialization,
             employmentStatus: member.employmentStatus,
             isClassAdviser: member.isClassAdviser,
+            advisedSectionId: member.advisedSectionId,
+            advisedSectionName: member.advisedSectionName,
             advisoryEquivalentHours: member.advisoryEquivalentHours,
             ancillaryMinutesPerWeek: member.ancillaryMinutesPerWeek,
             canTeachOutsideDepartment: member.canTeachOutsideDepartment,

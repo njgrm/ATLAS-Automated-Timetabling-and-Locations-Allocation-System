@@ -517,10 +517,10 @@ export async function triggerGenerationRun(
 		}
 
 		stage = 'sections-fetch';
-		const [faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, gradeWindows, specializationAliases] = await Promise.all([
+		const [faculty, facultySubjectRows, rooms, subjects, preferences, policyRecord, buildings, gradeWindows] = await Promise.all([
 			prisma.facultyMirror.findMany({
 				where: { schoolId, isActiveForScheduling: true, isStale: false },
-				select: { id: true, maxHoursPerWeek: true, ancillaryMinutesPerWeek: true, specialization: true, department: true },
+				select: { id: true, maxHoursPerWeek: true, ancillaryMinutesPerWeek: true, department: true },
 			}),
 			prisma.facultySubject.findMany({
 				where: { schoolId },
@@ -569,10 +569,6 @@ export async function triggerGenerationRun(
 			options?.enforceShiftWindows === false
 				? Promise.resolve([])
 				: prisma.gradeShiftWindow.findMany({ where: { schoolId, schoolYearId } }),
-			prisma.specializationAlias.findMany({
-				where: { schoolId },
-				select: { canonical: true, alias: true },
-			}),
 		]);
 
 		const cohorts = hasTleOwnershipSignals
@@ -675,7 +671,6 @@ export async function triggerGenerationRun(
 				maxHoursPerWeek: Math.floor(
 					computeEffectiveWeeklyTeachingMinutes(member.maxHoursPerWeek, member.ancillaryMinutesPerWeek) / 60,
 				),
-				specialization: member.specialization,
 				department: member.department,
 			})),
 			facultySubjects,
@@ -719,7 +714,6 @@ export async function triggerGenerationRun(
 				endTime: gw.endTime,
 			})),
 			buildings: buildings.map((b) => ({ id: b.id, name: b.name })),
-			specializationAliases,
 			classTemplatePeriods,
 			timetableShapes: timetableShapeContracts,
 		};

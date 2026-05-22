@@ -25,7 +25,6 @@ import type { RoomType } from '@prisma/client';
 import { isSubjectAllowedForSectionProgram } from './subject-program-scope.service.js';
 import {
 	matchesSubjectOwnershipDepartment,
-	resolveSubjectQualificationPriority,
 } from './subject-ownership.service.js';
 
 // ─── Standard time grid (JHS 8-period day) ───
@@ -101,7 +100,6 @@ export interface InstructionalCohortInput {
 export interface FacultyInput {
 	id: number;
 	maxHoursPerWeek: number;
-	specialization?: string | null;
 	department?: string | null;
 }
 
@@ -401,11 +399,6 @@ export function buildUnionDisplaySlots(contracts: TimetableShapeContract[] | und
 	});
 }
 
-export interface SpecializationAliasInput {
-	canonical: string;
-	alias: string;
-}
-
 export interface ConstructorInput {
 	schoolId: number;
 	schoolYearId: number;
@@ -421,7 +414,6 @@ export interface ConstructorInput {
 	lockedEntries?: LockedEntryInput[];
 	gradeWindows?: GradeWindowInput[];
 	buildings?: Array<{ id: number; name: string }>;
-	specializationAliases?: SpecializationAliasInput[];
 	/**
 	 * Per-program period length overrides from class templates.
 	 * Key: program type (e.g. 'STE', 'SPA'). Value: period length in minutes.
@@ -977,32 +969,9 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	}
 
 	function isFacultyQualified(f: FacultyInput, s: SubjectInput): boolean {
-		const allowed = s.allowedSpecializations ?? [];
-		const specializationPrimary = resolveSubjectQualificationPriority(s.code, s.qualificationPriority) === 'SPECIALIZATION_PRIMARY';
 		const departmentMatch = matchesSubjectOwnershipDepartment(f.department, s.code, s.name, s.ownerDepartment);
-		const specializationMatch = Boolean(
-			(f.specialization && allowed.includes(f.specialization))
-			|| (f.department && allowed.includes(f.department)),
-		);
 
-		if (!specializationPrimary && departmentMatch) {
-			return true;
-		}
-		if (specializationMatch) {
-			return true;
-		}
-
-		// Alias Mapping fallback
-		if (input.specializationAliases && input.specializationAliases.length > 0) {
-			const facultyTerms = [f.specialization, f.department].filter(Boolean) as string[];
-			for (const alias of input.specializationAliases) {
-				if (facultyTerms.includes(alias.alias) && allowed.includes(alias.canonical)) {
-					return true;
-				}
-			}
-		}
-
-		if (specializationPrimary && departmentMatch) {
+		if (departmentMatch) {
 			return true;
 		}
 

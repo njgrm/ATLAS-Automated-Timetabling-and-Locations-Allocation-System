@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import {
 AlertTriangle,
 CheckCircle2,
-ChevronDown,
 ChevronRight,
 Info,
 Redo2,
@@ -30,13 +29,11 @@ type FacultyAssignmentDraft,
 type LoadStatus,
 type SubjectSectionOwnershipIndexEntry,
 } from '@/lib/faculty-assignment-helpers';
-import { getQualificationTier } from '@/lib/grade-labels';
+import { isDepartmentMatch } from '@/lib/grade-labels';
 import { fetchPublicSettings } from '@/lib/settings';
-import type { ExternalSection, HomeroomHintResponse, SectionSummaryResponse, Subject } from '@/types';
 import { OverviewHeader } from '@/components/faculty-assignments/OverviewHeader';
 import { SubjectRow } from '@/components/faculty-assignments/SubjectRow';
 import { useAssignmentHistory } from '@/hooks/useAssignmentHistory';
-import { useSpecializationAliases } from '@/hooks/useSpecializationAliases';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -52,50 +49,15 @@ import {
 	AutoFillSummaryModal,
 	type AutoFillSummaryResult,
 } from '@/components/faculty-assignments/AutoFillSummaryModal';
+import type { ExternalSection, HomeroomHintResponse, SectionSummaryResponse, Subject, FacultyAssignmentRecord, FacultySummary } from '@/types';
+
 const DEFAULT_SCHOOL_ID = 1;
-const STATUS_COLORS: Record<LoadStatus, { text: string; bg: string; border: string }> = {
-'below-standard': { text: 'text-sky-700', bg: 'bg-sky-50', border: 'border-sky-200' },
-'compliant': { text: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
-'overload-allowed': { text: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
-'over-cap': { text: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200' },
-};
-type FacultyAssignmentRecord = {
-id: number;
-subjectId: number;
-gradeLevels: number[];
-sectionIds: number[];
-sections: ExternalSection[];
-subject: { id: number; name: string; code: string; minMinutesPerWeek: number };
-};
-type FacultySummary = {
-id: number;
-externalId: number;
-employeeId: string | null;
-firstName: string;
-lastName: string;
-department: string | null;
-specialization: string | null;
-employmentStatus: string;
-isActiveForScheduling: boolean;
-isPlaceholder: boolean;
-isClassAdviser: boolean;
-advisoryEquivalentHours: number;
-ancillaryMinutesPerWeek: number;
-canTeachOutsideDepartment: boolean;
-maxHoursPerWeek: number;
-version: number;
-subjectCount: number;
-sectionCount: number;
-subjectHours: number;
-sectionTeachingHours: number;
-gradeTeachingHours: number;
-advisoryHours: number;
-ancillaryHours: number;
-policyCreditedHours: number;
-policyLoadPercentage: number;
-syntheticCoverageHours: number;
-loadSignalMode: 'STANDARD' | 'SYNTHETIC_PLACEHOLDER';
-assignments: FacultyAssignmentRecord[];
+
+const STATUS_COLORS: Record<LoadStatus, { bg: string; text: string; border: string }> = {
+	'below-standard': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
+	compliant: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+	'overload-allowed': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
+	'over-cap': { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' },
 };
 
 type TeachingLoadResetPreview = {
@@ -154,7 +116,6 @@ return Number.isNaN(parsed) ? null : parsed;
 const [searchQuery, setSearchQuery] = useState('');
 const [filterStatus, setFilterStatus] = useState<'all' | 'assigned' | 'unassigned'>('all');
 const [departmentFilter, setDepartmentFilter] = useState<string>('all');
-const [specializationFilter, setSpecializationFilter] = useState<string>('all');
 const [subjectSearch, setSubjectSearch] = useState('');
 	const [sectionFilter, setSectionFilter] = useState<'all' | 'unassigned' | 'assigned'>('all');
 	const [staffingNeedsLoading, setStaffingNeedsLoading] = useState(false);
@@ -163,7 +124,6 @@ const [subjectSearch, setSubjectSearch] = useState('');
 	const [gradeLevelFilter, setGradeLevelFilter] = useState<string>('all');
 	const [sortOrder, setSortOrder] = useState<'load-asc' | 'load-desc'>('load-asc');
 	const [loadFilter, setLoadFilter] = useState<'all' | 'overloaded' | 'optimal' | 'underloaded'>('all');
-	const [unmappedOnly, setUnmappedOnly] = useState(false);
 	const [hoveredIncomingMinutes, setHoveredIncomingMinutes] = useState(0);
 	const [swapCandidate, setSwapCandidate] = useState<{ subjectId: number; sectionId: number; fromFacultyId: number } | null>(null);
 const [resetDialogOpen, setResetDialogOpen] = useState(false);
@@ -175,7 +135,6 @@ const [homeroomHint, setHomeroomHint] = useState<HomeroomHintResponse | null>(nu
 const [draftAssignmentsByFaculty, setDraftAssignmentsByFaculty] = useState<Record<number, FacultyAssignmentDraft[]>>({});
 const [autoFillLoading, setAutoFillLoading] = useState(false);
 const [autoFillDialogOpen, setAutoFillDialogOpen] = useState(false);
-const { aliases: specializationAliases, loading: aliasesLoading } = useSpecializationAliases(DEFAULT_SCHOOL_ID);
 const fetchData = useCallback(async () => {
 setLoading(true);
 try {
@@ -211,14 +170,22 @@ useEffect(() => {
 fetchData();
 }, [fetchData]);
 useEffect(() => {
-if (faculty.length === 0) {
-setSelectedId(null);
-return;
-}
-if (selectedId == null || !faculty.some((member) => member.id === selectedId)) {
-setSelectedId(faculty[0].id);
-}
-}, [faculty, selectedId]);
+	const queryValue = searchParams.get('facultyId');
+	if (queryValue) {
+		const parsed = Number(queryValue);
+		if (!Number.isNaN(parsed) && faculty.some(m => m.id === parsed)) {
+			setSelectedId(parsed);
+			return;
+		}
+	}
+	if (faculty.length === 0) {
+		setSelectedId(null);
+		return;
+	}
+	if (selectedId == null || !faculty.some((member) => member.id === selectedId)) {
+		setSelectedId(faculty[0].id);
+	}
+}, [faculty, searchParams, selectedId]);
 
 useEffect(() => {
 	const queryValue = searchParams.get('subjectId');
@@ -477,7 +444,7 @@ const handleAutoFill = useCallback(async () => {
 		} else if (unresolved > 0) {
 			toast.warning(`Auto-Fill: no new assignments made. ${unresolved} pair${unresolved !== 1 ? 's' : ''} remain unresolved.`);
 		} else {
-			toast.info('Auto-Fill: all subject–section pairs are already assigned.');
+			toast.info('Auto-Fill: all subject-section pairs are already assigned.');
 		}
 		if (activeDraftCount > 0) {
 			toast.warning('Auto-Fill used saved assignments only. Unsaved drafts were not included.');
@@ -574,17 +541,6 @@ nextFaculty = nextFaculty.filter((member) => (effectiveAssignmentsByFaculty[memb
 if (departmentFilter !== 'all') {
 nextFaculty = nextFaculty.filter((member) => member.department === departmentFilter);
 }
-if (specializationFilter !== 'all') {
-	nextFaculty = nextFaculty.filter((member) => (member.specialization ?? 'General') === specializationFilter);
-}
-
-	if (unmappedOnly) {
-		nextFaculty = nextFaculty.filter((member) => {
-			const specialization = (member.specialization ?? '').trim();
-			if (!specialization) return false;
-			return !specializationAliases.some((alias) => alias.alias === specialization);
-		});
-	}
 
 	nextFaculty = nextFaculty.filter((member) => {
 		if (member.isPlaceholder) {
@@ -609,7 +565,7 @@ if (specializationFilter !== 'all') {
 	});
 
 return nextFaculty;
-}, [departmentFilter, faculty, filterStatus, getComparableLoadHours, loadFilter, searchQuery, sortOrder, specializationAliases, specializationFilter, unmappedOnly]);
+}, [departmentFilter, faculty, filterStatus, getComparableLoadHours, loadFilter, searchQuery, sortOrder]);
 
 const groupedFaculty = useMemo(() => {
 	const grouped = new Map<string, FacultySummary[]>();
@@ -632,19 +588,54 @@ assignedSubjectIds.add(assignment.subjectId);
 return subjects.filter((subject) => subject.isActive && !assignedSubjectIds.has(subject.id));
 }, [effectiveAssignmentsByFaculty, subjects]);
 
-const { specializationQualifiedSubjects, outsideSpecializationSubjects } = useMemo(() => {
-	const facultyInfo = {
-		specialization: selected?.specialization ?? null,
-		department: selected?.department ?? null,
+const { departmentQualifiedSubjects, outsideDepartmentSubjects } = useMemo(() => {
+	const normalizeDepartmentCode = (value: string | null | undefined): string => {
+		const normalized = (value ?? '').trim().toUpperCase();
+		if (!normalized) return '';
+		const table: Record<string, string> = {
+			SCIENCE: 'SCI',
+			SCI: 'SCI',
+			MATHEMATICS: 'MATH',
+			MATH: 'MATH',
+			ENGLISH: 'ENG',
+			ENG: 'ENG',
+			FILIPINO: 'FIL',
+			FIL: 'FIL',
+			MAPEH: 'MAPEH',
+			ESP: 'ESP',
+			VALUES: 'ESP',
+			'VALUES EDUCATION': 'ESP',
+			AP: 'AP',
+			'SOCIAL STUDIES': 'AP',
+			'ARALING PANLIPUNAN': 'AP',
+			TLE: 'TLE',
+			LANGUAGES: 'ENG',
+			SPA: 'SPA',
+			SPS: 'SPS',
+		};
+		return table[normalized] ?? normalized;
 	};
+
+	const matchesOwnershipDepartment = (facultyDepartment: string | null | undefined, subject: Subject): boolean => {
+		if (subject.ownerDepartment) {
+			const normalizedOwner = normalizeDepartmentCode(subject.ownerDepartment);
+			const normalizedFaculty = normalizeDepartmentCode(facultyDepartment);
+			if (!normalizedOwner || !normalizedFaculty) return false;
+			if (normalizedOwner === normalizedFaculty) return true;
+			if ((normalizedOwner === 'ENG' || normalizedOwner === 'FIL') && normalizedFaculty === 'ENG') return true;
+			return false;
+		}
+
+		return isDepartmentMatch(facultyDepartment ?? null, subject.code, subject.name);
+	};
+
 	const qualified: Subject[] = [];
 	const outside: Subject[] = [];
 
 	for (const subject of subjects) {
-		const tier = getQualificationTier(facultyInfo, subject, specializationAliases);
 		const isHgSubject = subject.code === 'HG' || subject.name.toLowerCase().includes('homeroom');
-		const isQualifiedBySpecialization = tier === 1 || (!aliasesLoading && tier === 2);
-		if ((isHgSubject && selected?.isClassAdviser) || isQualifiedBySpecialization) {
+		const departmentQualified = matchesOwnershipDepartment(selected?.department ?? null, subject);
+		if ((isHgSubject && selected?.isClassAdviser) || departmentQualified) {
 			qualified.push(subject);
 		} else {
 			outside.push(subject);
@@ -663,10 +654,10 @@ const { specializationQualifiedSubjects, outsideSpecializationSubjects } = useMe
 	outside.sort(sortByHR);
 
 	return {
-		specializationQualifiedSubjects: qualified,
-		outsideSpecializationSubjects: outside,
+		departmentQualifiedSubjects: qualified,
+		outsideDepartmentSubjects: outside,
 	};
-}, [aliasesLoading, selected, specializationAliases, subjects]);
+}, [selected, subjects]);
 
 
 const loadProfile = useMemo(
@@ -701,14 +692,6 @@ const departmentOptions = useMemo(
 () => Array.from(new Set(faculty.map((member) => member.department).filter(Boolean) as string[])).sort(),
 [faculty],
 );
-
-const specializationOptions = useMemo(() => {
-	const source = departmentFilter === 'all'
-		? faculty
-		: faculty.filter((member) => member.department === departmentFilter);
-	const specs = Array.from(new Set(source.map((member) => member.specialization ?? 'General'))).sort();
-	return specs;
-}, [departmentFilter, faculty]);
 
 const advisedSectionMeta = useMemo(() => {
 	if (!homeroomHint?.advisedSectionId) {
@@ -866,13 +849,10 @@ className="h-7 px-2 text-[0.6875rem]"
 </Button>
 ))}
 </div>
-<div className="mt-2 grid grid-cols-2 gap-2">
+<div className="mt-2 grid grid-cols-1 gap-2">
 	<SearchableSelect
 		value={departmentFilter}
-		onValueChange={(value) => {
-			setDepartmentFilter(value);
-			setSpecializationFilter('all');
-		}}
+		onValueChange={setDepartmentFilter}
 		placeholder="All Departments"
 		triggerClassName="h-7 w-full justify-between text-[0.6875rem]"
 		className="w-[18rem]"
@@ -881,19 +861,8 @@ className="h-7 px-2 text-[0.6875rem]"
 			...departmentOptions.map((department) => ({ value: department, label: department })),
 		]}
 	/>
-	<SearchableSelect
-		value={specializationFilter}
-		onValueChange={setSpecializationFilter}
-		placeholder="All Specializations"
-		triggerClassName="h-7 w-full justify-between text-[0.6875rem]"
-		className="w-[18rem]"
-		items={[
-			{ value: 'all', label: 'All Specializations' },
-			...specializationOptions.map((specialization) => ({ value: specialization, label: specialization })),
-		]}
-	/>
 </div>
-				<div className="mt-2 grid grid-cols-2 gap-2">
+				<div className="mt-2 grid grid-cols-1 gap-2">
 					<Select value={sortOrder} onValueChange={(value) => setSortOrder(value as 'load-asc' | 'load-desc')}>
 						<SelectTrigger className="h-7 w-full text-[0.6875rem]">
 							<SelectValue placeholder="Sort by load" />
@@ -903,14 +872,6 @@ className="h-7 px-2 text-[0.6875rem]"
 							<SelectItem value="load-desc">Load: Highest to Lowest</SelectItem>
 						</SelectContent>
 					</Select>
-					<Button
-						type="button"
-						variant={unmappedOnly ? 'default' : 'secondary'}
-						onClick={() => setUnmappedOnly((current) => !current)}
-						className="h-7 px-2 text-[0.625rem]"
-					>
-						Unmapped Specs
-					</Button>
 				</div>
 				<div className="mt-2 flex flex-wrap gap-1">
 					{([
@@ -1008,7 +969,7 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 				</span>
 			)}
 			<span className="truncate text-[0.625rem] text-muted-foreground uppercase">
-				{member.specialization || (member.department ? '' : 'General')}
+				{member.department ? 'Department Baseline' : 'Department Not Set'}
 			</span>
 		</div>
 		<div className="flex flex-col items-end gap-0.5 shrink-0">
@@ -1292,14 +1253,10 @@ This faculty member is excluded from scheduling. Enable them first.
 							pendingOwnershipMap={pendingOwnershipMap}
 							savedConflictMap={savedConflictMap}
 							onSetSections={setSubjectSections}
-							facultyDepartment={selected.department}
-							facultySpecialization={selected.specialization}
 							searchTerm={subjectSearch}
 							gradeLevelFilter={gradeLevelFilter}
 							sectionFilter={sectionFilter}
 							advisedSectionId={homeroomHint?.advisedSectionId ?? null}
-							specializationAliases={specializationAliases}
-							strictAliasOnly
 							remainingCapacityMinutes={remainingCapacityMinutes}
 							onHoverLoadMinutes={setHoveredIncomingMinutes}
 							onClearHoverLoad={() => setHoveredIncomingMinutes(0)}
@@ -1316,20 +1273,20 @@ This faculty member is excluded from scheduling. Enable them first.
 	return (
 		<>
 			{renderTier(
-				specializationQualifiedSubjects,
-				'Qualified Based On Specialization',
-				selected.specialization ? selected.specialization : selected.department ?? 'Qualified Subjects',
+				departmentQualifiedSubjects,
+				'Department Qualified',
+				selected.department ?? 'Qualified Subjects',
 			)}
-			{outsideSpecializationSubjects.length > 0 && (
+			{outsideDepartmentSubjects.length > 0 && (
 				<div>
 					<div className="mb-2 flex items-center gap-2">
-						<h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Outside Specialization</h4>
-						<Badge variant="outline" className="text-[0.5625rem] border-amber-300 text-amber-700">
+						<h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Outside Department</h4>
+						<Badge variant="outline" className="text-xs border-amber-300 text-amber-700">
 							{selected.canTeachOutsideDepartment ? 'Assignable (Override Enabled)' : 'Not Assignable'}
 						</Badge>
 					</div>
 					<div className={`space-y-2 ${selected.canTeachOutsideDepartment ? '' : 'opacity-70'}`}>
-						{outsideSpecializationSubjects.map((subject) => (
+						{outsideDepartmentSubjects.map((subject) => (
 							<SubjectRow
 								key={subject.id}
 								subject={subject}
@@ -1342,14 +1299,10 @@ This faculty member is excluded from scheduling. Enable them first.
 								savedConflictMap={savedConflictMap}
 								onSetSections={setSubjectSections}
 								isOutsideDepartment
-								facultyDepartment={selected.department}
-								facultySpecialization={selected.specialization}
 								searchTerm={subjectSearch}
 								gradeLevelFilter={gradeLevelFilter}
 								sectionFilter={sectionFilter}
 								advisedSectionId={homeroomHint?.advisedSectionId ?? null}
-								specializationAliases={specializationAliases}
-								strictAliasOnly
 								remainingCapacityMinutes={remainingCapacityMinutes}
 								onHoverLoadMinutes={setHoveredIncomingMinutes}
 								onClearHoverLoad={() => setHoveredIncomingMinutes(0)}
@@ -1377,7 +1330,7 @@ This faculty member is excluded from scheduling. Enable them first.
 	title="Auto-Fill Remaining Assignments?"
 	description={activeDraftCount > 0
 		? `This will assign teachers to currently unassigned subject-sections using saved data only. ${activeDraftCount} unsaved draft${activeDraftCount === 1 ? '' : 's'} will be ignored.`
-		: 'This will assign teachers to currently unassigned subject-sections using specialization aliases and current teaching load. Existing manual assignments will not be overwritten.'}
+		: 'This will assign teachers to currently unassigned subject-sections using department alignment and current teaching load. Existing manual assignments will not be overwritten.'}
 	onConfirm={handleAutoFill}
 	confirmText="Run Auto-Fill"
 	variant="primary"

@@ -133,7 +133,7 @@ function resolveSubjectContract(subject) {
 	return {
 		outputLabel: resolveSubjectOutputLabel(subject.code, subject.name, subject.modularGroupId),
 		ownerDepartment: resolveSubjectOwnerDepartment(subject.code, subject.name),
-		qualificationPriority: code.startsWith('SPA_') || code.startsWith('SPS_') ? 'SPECIALIZATION_PRIMARY' : 'DEPARTMENT_FIRST',
+		qualificationPriority: 'DEPARTMENT_FIRST',
 		rotationFamily: code.startsWith('TLE') ? 'TLE_ROTATION' : (subject.modularGroupId || null),
 		isSystemManaged: code.startsWith('TLE_SPEC_') || code.endsWith('_EXP'),
 	};

@@ -2,15 +2,16 @@
  * Assignment Seed Service
  *
  * Seeds FacultySubject (assignment) records for faculty×subject pairs where
- * `faculty.department` is contained in `subject.allowedSpecializations`.
+    * `faculty.department` matches the subject ownership department baseline.
  *
  * This runs automatically after every faculty sync to pre-populate the
  * FacultyAssignments page with qualified pairings that the Scheduler fills.
  */
 import { prisma } from '../lib/prisma';
+import { matchesSubjectOwnershipDepartment } from './subject-ownership.service';
 /**
  * For each non-stale active faculty member, scan all subjects whose
- * `allowedSpecializations` array includes the faculty's `department`.
+    * ownership department matches the faculty `department`.
  * Create a FacultySubject record (with empty sectionIds) if one doesn't exist.
  */
 export async function seedQualifiedAssignments(schoolId, _schoolYearId) {
@@ -28,10 +29,8 @@ export async function seedQualifiedAssignments(schoolId, _schoolYearId) {
             where: {
                 schoolId,
                 isActive: true,
-                // Only auto-seed subjects that have explicit department restrictions
-                NOT: { allowedSpecializations: { isEmpty: true } },
             },
-            select: { id: true, allowedSpecializations: true },
+            select: { id: true, code: true, name: true, ownerDepartment: true },
         }),
     ]);
     let created = 0;
@@ -40,7 +39,7 @@ export async function seedQualifiedAssignments(schoolId, _schoolYearId) {
         if (!member.department)
             continue;
         for (const subject of subjects) {
-            if (!subject.allowedSpecializations.includes(member.department)) {
+            if (!matchesSubjectOwnershipDepartment(member.department, subject.code, subject.name, subject.ownerDepartment)) {
                 continue;
             }
             // Check if assignment already exists

@@ -1,3 +1,54 @@
+# 2026-05-22 - Phase 3 Subject Qualification Reset One-Shot (Department Baseline + Mapping Removal)
+- Phase: Phase 3 generator-readiness stream, subject qualification baseline reset and workflow simplification
+- Operator: GitHub Copilot
+- Scope gate: PASS (implementation + local compile/build + DB data check)
+- Files changed in this pass:
+  - `atlas-client/src/App.tsx`
+  - `atlas-client/src/components/AppShell.tsx`
+  - `atlas-client/src/pages/Dashboard.tsx`
+  - `atlas-client/src/components/subjects/SubjectRow.tsx`
+  - `atlas-client/src/components/subjects/SubjectFormModal.tsx`
+  - `atlas-client/src/pages/Subjects.tsx`
+  - `atlas-client/src/pages/FacultyAssignments.tsx`
+  - `atlas-client/src/components/faculty-assignments/SubjectRow.tsx`
+  - `atlas-server/src/services/subject-ownership.service.ts`
+  - `atlas-server/src/services/teaching-load-automation.service.ts`
+  - `atlas-server/src/services/schedule-constructor.ts`
+  - `atlas-server/src/services/generation.service.ts`
+  - `atlas-server/src/services/assignment-seed.service.ts`
+  - `atlas-server/src/services/subject.service.ts`
+  - `prisma/seed.js`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+
+- Contract-level outcomes:
+  - Removed `Specialization Mapping` from normal operator flow (route/sidebar removed; runtime map updated).
+  - Subjects and Teaching Load UX now present department ownership as the baseline qualification model.
+  - Teaching Load row rendering removed specialization-tier and alias-driven badges/messages.
+  - Auto-fill qualification tiering is now department-first with outside-department override only.
+  - Schedule constructor qualification fallback no longer consumes specialization-alias mappings.
+  - Generation service no longer fetches/passes specialization aliases into constructor input.
+  - Assignment seeding now uses `ownerDepartment` matching instead of `allowedSpecializations` membership.
+  - Subject delete blockers now return `/assignments?subjectId=...` remediation path.
+  - Seed defaults now normalize all subject `qualificationPriority` to `DEPARTMENT_FIRST`.
+
+- Local verification:
+  - `npm --prefix atlas-client run build` -> PASS
+  - `npm --prefix atlas-server run build` -> PASS
+  - DB owner-department distribution check (`subject.groupBy`) -> PASS
+  - DB null-owner check (`active subjects with null ownerDepartment`) -> PASS (`0`)
+
+- Observed DB sample (`schoolId=1`, active subjects):
+  - `SCI=8`, `TLE=4`, `ENG=2`, `ESP=2`, `MATH=1`, `FIL=1`, `AP=1`, `MAPEH=1`, `SPA=1`, `SPS=1`
+  - `ownerDepartment IS NULL = 0`
+
+- GO/NO-GO:
+  - **GO** for one-shot prompt scope implementation and local verification.
+  - **NO-GO** for phase closure until Tailnet runtime QA confirms:
+    - `/subjects` delete-blocker remediation loop to `/assignments?subjectId=...`
+    - `/assignments` department-baseline qualification behavior during auto-fill and manual edit review
+    - live generation run no longer depends on specialization mapping/alias flow in normal qualification paths.
+
 # 2026-05-22 - Phase 3 Subject Contract Follow-Up (Session Pattern Removal + Reset Relocation)
 - Phase: Phase 3 generator-readiness stream, subject contract cleanup and operator workflow correction
 - Operator: GitHub Copilot

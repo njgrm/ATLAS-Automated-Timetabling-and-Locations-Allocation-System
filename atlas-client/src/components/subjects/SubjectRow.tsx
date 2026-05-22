@@ -1,5 +1,4 @@
 import {
-	ExternalLink,
 	MoreVertical,
 	Pencil,
 	Trash2,

@@ -51,7 +51,6 @@ export interface InstructionalCohortInput {
 export interface FacultyInput {
     id: number;
     maxHoursPerWeek: number;
-    specialization?: string | null;
     department?: string | null;
 }
 export interface FacultySubjectInput {
@@ -141,10 +140,6 @@ export declare function buildTimetableShapeContract(input: {
 export declare function resolveTimetableShapeContract(contracts: TimetableShapeContract[] | undefined, gradeLevel: number, programType?: string | null): TimetableShapeContract | undefined;
 export declare function buildUnionClassPeriodSlots(contracts: TimetableShapeContract[] | undefined): PeriodSlot[];
 export declare function buildUnionDisplaySlots(contracts: TimetableShapeContract[] | undefined): PeriodSlot[];
-export interface SpecializationAliasInput {
-    canonical: string;
-    alias: string;
-}
 export interface ConstructorInput {
     schoolId: number;
     schoolYearId: number;
@@ -163,7 +158,6 @@ export interface ConstructorInput {
         id: number;
         name: string;
     }>;
-    specializationAliases?: SpecializationAliasInput[];
     /**
      * Per-program period length overrides from class templates.
      * Key: program type (e.g. 'STE', 'SPA'). Value: period length in minutes.

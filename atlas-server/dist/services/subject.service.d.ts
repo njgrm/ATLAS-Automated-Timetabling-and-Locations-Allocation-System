@@ -51,7 +51,6 @@ export declare function getSubjectsBySchool(schoolId: number, filters?: SubjectS
     rotationFamily: string | null;
     minMinutesPerWeek: number;
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
-    sessionPattern: import("@prisma/client").$Enums.SessionPattern;
     modularOrder: number | null;
     termCount: number;
     isSeedable: boolean;
@@ -79,7 +78,6 @@ export declare function getSubjectById(id: number): Promise<({
     rotationFamily: string | null;
     minMinutesPerWeek: number;
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
-    sessionPattern: import("@prisma/client").$Enums.SessionPattern;
     modularOrder: number | null;
     termCount: number;
     isSeedable: boolean;
@@ -128,7 +126,6 @@ export declare function createSubject(schoolId: number, data: {
     rotationFamily: string | null;
     minMinutesPerWeek: number;
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
-    sessionPattern: import("@prisma/client").$Enums.SessionPattern;
     modularOrder: number | null;
     termCount: number;
     isSeedable: boolean;
@@ -177,7 +174,6 @@ export declare function updateSubject(id: number, data: Partial<{
     rotationFamily: string | null;
     minMinutesPerWeek: number;
     preferredRoomType: import("@prisma/client").$Enums.RoomType;
-    sessionPattern: import("@prisma/client").$Enums.SessionPattern;
     modularOrder: number | null;
     termCount: number;
     isSeedable: boolean;

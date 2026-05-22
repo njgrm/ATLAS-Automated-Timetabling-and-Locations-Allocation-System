@@ -1,18 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
 	AlertTriangle,
-	ArrowDown,
-	ArrowUp,
-	ArrowUpDown,
+	ChevronLeft,
+	ChevronRight,
+	ChevronsLeft,
+	ChevronsRight,
 	Filter,
 	RefreshCw,
 	Search,
 	Users,
 	X,
+	ArrowUpDown,
+	ArrowUp,
+	ArrowDown
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
-import type { FacultyMirror } from '@/types';
+import type { FacultySummary } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card } from '@/ui/card';
@@ -23,25 +27,25 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 import { FacultyRow } from '@/components/faculty/FacultyRow';
 import { FacultyProfileSheet } from '@/components/faculty/FacultyProfileSheet';
 import { toast } from 'sonner';
+import { fetchPublicSettings } from '@/lib/settings';
 
 const DEFAULT_SCHOOL_ID = 1;
-const PAGE_SIZES = [10, 25, 50];
+const PAGE_SIZES = [10, 25, 50, 100];
 
 type SortField = 'name' | 'specialization' | 'subjects' | 'weeklyLoad' | 'status';
 type SortDir = 'asc' | 'desc';
 
 export default function Faculty() {
-	const [faculty, setFaculty] = useState<FacultyMirror[]>([]);
+	const [faculty, setFaculty] = useState<FacultySummary[]>([]);
 	const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [syncing, setSyncing] = useState(false);
 	const [syncError, setSyncError] = useState(false);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [error, setError] = useState<string | null>(null);
-	const [showFilters, setShowFilters] = useState(false);
 	
 	// Quick Profile
-	const [profileTarget, setProfileTarget] = useState<FacultyMirror | null>(null);
+	const [profileTarget, setProfileTarget] = useState<FacultySummary | null>(null);
 
 	// Sorting
 	const [sortField, setSortField] = useState<SortField>('name');
@@ -59,8 +63,13 @@ export default function Faculty() {
 	const fetchFaculty = useCallback(async () => {
 		setLoading(true);
 		try {
-			const { data } = await atlasApi.get<{ faculty: FacultyMirror[]; fetchedAt: string | null }>('/faculty', {
-				params: { schoolId: DEFAULT_SCHOOL_ID },
+			const settings = await fetchPublicSettings();
+			const schoolYearId = settings.activeSchoolYearId;
+			if (!schoolYearId) {
+				throw new Error('Active school year is not configured.');
+			}
+			const { data } = await atlasApi.get<{ faculty: FacultySummary[]; fetchedAt: string | null }>('/faculty-assignments/summary', {
+				params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId },
 			});
 			setFaculty(data.faculty);
 			setLastSyncedAt(data.fetchedAt);
@@ -137,8 +146,8 @@ export default function Faculty() {
 		if (schedulingFilter === 'active') list = list.filter((f) => f.isActiveForScheduling);
 		else if (schedulingFilter === 'excluded') list = list.filter((f) => !f.isActiveForScheduling);
 
-		if (assignmentFilter === 'assigned') list = list.filter((f) => (f.facultySubjects?.length ?? 0) > 0);
-		else if (assignmentFilter === 'unassigned') list = list.filter((f) => (f.facultySubjects?.length ?? 0) === 0);
+		if (assignmentFilter === 'assigned') list = list.filter((f) => (f.subjectCount ?? 0) > 0);
+		else if (assignmentFilter === 'unassigned') list = list.filter((f) => (f.subjectCount ?? 0) === 0);
 
 		if (departmentFilter !== 'all') list = list.filter((f) => f.department === departmentFilter);
 
@@ -147,14 +156,9 @@ export default function Faculty() {
 			let cmp = 0;
 			switch (sortField) {
 				case 'name': cmp = `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`); break;
-					case 'specialization': cmp = (a.specialization ?? a.department ?? '').localeCompare(b.specialization ?? b.department ?? ''); break;
-				case 'subjects': cmp = (a.facultySubjects?.length ?? 0) - (b.facultySubjects?.length ?? 0); break;
-				case 'weeklyLoad': {
-					const aMin = (a.facultySubjects ?? []).reduce((s, fs) => s + (fs.subject?.minMinutesPerWeek ?? 0) * fs.gradeLevels.length, 0);
-					const bMin = (b.facultySubjects ?? []).reduce((s, fs) => s + (fs.subject?.minMinutesPerWeek ?? 0) * fs.gradeLevels.length, 0);
-					cmp = aMin - bMin;
-					break;
-				}
+				case 'specialization': cmp = (a.specialization ?? a.department ?? '').localeCompare(b.specialization ?? b.department ?? ''); break;
+				case 'subjects': cmp = (a.subjectCount ?? 0) - (b.subjectCount ?? 0); break;
+				case 'weeklyLoad': cmp = (a.policyCreditedHours ?? 0) - (b.policyCreditedHours ?? 0); break;
 				case 'status': cmp = Number(a.isActiveForScheduling) - Number(b.isActiveForScheduling); break;
 			}
 			return sortDir === 'desc' ? -cmp : cmp;
@@ -185,9 +189,9 @@ export default function Faculty() {
 		<div className="flex flex-col h-[calc(100svh-3.5rem)]">
 			{/* Primary Header & Toolbar */}
 			<div className="shrink-0 px-6 py-4 border-b bg-background/50 backdrop-blur-md">
-				<div className="flex items-center justify-between gap-4">
-					<div className="flex items-center gap-4 flex-1">
-						<div className="relative w-full max-w-sm">
+				<div className="flex flex-wrap items-center justify-between gap-4">
+					<div className="flex flex-wrap items-center gap-3 flex-1">
+						<div className="relative w-full max-w-xs">
 							<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
 							<Input
 								placeholder="Search by name, dept, or specialization..."
@@ -196,68 +200,31 @@ export default function Faculty() {
 								className="pl-9 h-9 text-sm"
 							/>
 						</div>
-						<Button
-							variant={showFilters ? 'secondary' : 'outline'}
-							size="sm"
-							className="h-9 gap-2"
-							onClick={() => setShowFilters(!showFilters)}
-						>
-							<Filter className="size-4" />
-							Filters
-							{hasActiveFilters && (
-								<Badge variant="secondary" className="ml-1 h-5 px-1.5 bg-primary text-primary-foreground">
-									Active
-								</Badge>
-							)}
-						</Button>
-					</div>
-
-					<div className="flex items-center gap-3">
-						{timeSince && (
-							<TooltipProvider delayDuration={500}>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<span className="text-[0.7rem] text-muted-foreground font-medium bg-muted px-2 py-1 rounded-md hidden md:inline-block">
-											Last synced: {timeSince}
-										</span>
-									</TooltipTrigger>
-									<TooltipContent>Synced at {new Date(lastSyncedAt!).toLocaleString()}</TooltipContent>
-								</Tooltip>
-							</TooltipProvider>
-						)}
-						<Button onClick={handleSync} disabled={syncing} size="sm" className="h-9 gap-2 shadow-sm font-bold">
-							<RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
-							{syncing ? 'Syncing...' : 'Sync Faculty'}
-						</Button>
-					</div>
-				</div>
-
-				{/* Expanded Filters Section */}
-				{showFilters && (
-					<div className="flex flex-wrap items-center gap-3 pt-4 animate-in slide-in-from-top-2 duration-200">
+						
+						{/* Inline Filters */}
 						<Select value={schedulingFilter} onValueChange={(v) => setSchedulingFilter(v as typeof schedulingFilter)}>
-							<SelectTrigger className="h-8 w-36 text-xs bg-background">
+							<SelectTrigger className="h-9 w-40 text-xs bg-background">
 								<SelectValue placeholder="All Status" />
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value="all">All Status</SelectItem>
-								<SelectItem value="active">Active Schedulable</SelectItem>
-								<SelectItem value="excluded">Excluded</SelectItem>
+								<SelectItem value="active">Active</SelectItem>
+								<SelectItem value="excluded">Excluded in EnrollPro</SelectItem>
 							</SelectContent>
 						</Select>
 						<Select value={assignmentFilter} onValueChange={(v) => setAssignmentFilter(v as typeof assignmentFilter)}>
-							<SelectTrigger className="h-8 w-40 text-xs bg-background">
+							<SelectTrigger className="h-9 w-36 text-xs bg-background">
 								<SelectValue placeholder="All Assignments" />
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value="all">All Assignments</SelectItem>
-								<SelectItem value="assigned">Has Subject Load</SelectItem>
-								<SelectItem value="unassigned">No Subjects Yet</SelectItem>
+								<SelectItem value="assigned">Has Load</SelectItem>
+								<SelectItem value="unassigned">No Load</SelectItem>
 							</SelectContent>
 						</Select>
 						{departments.length > 0 && (
 							<Select value={departmentFilter} onValueChange={(v) => setDepartmentFilter(v)}>
-								<SelectTrigger className="h-8 w-44 text-xs bg-background">
+								<SelectTrigger className="h-9 w-40 text-xs bg-background">
 									<SelectValue placeholder="All Departments" />
 								</SelectTrigger>
 								<SelectContent>
@@ -273,11 +240,30 @@ export default function Faculty() {
 								className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
 								onClick={() => { setSchedulingFilter('all'); setAssignmentFilter('all'); setDepartmentFilter('all'); }}
 							>
-								<X className="size-3 mr-1" /> Clear all
+								<X className="size-3 mr-1" /> Clear
 							</Button>
 						)}
 					</div>
-				)}
+
+					<div className="flex items-center gap-3">
+						{timeSince && (
+							<TooltipProvider delayDuration={500}>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<span className="text-[0.7rem] text-muted-foreground font-medium bg-muted px-2 py-1 rounded-md hidden lg:inline-block">
+											Last synced: {timeSince}
+										</span>
+									</TooltipTrigger>
+									<TooltipContent>Synced at {new Date(lastSyncedAt!).toLocaleString()}</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+						)}
+						<Button onClick={handleSync} disabled={syncing} size="sm" className="h-9 gap-2 shadow-sm font-bold">
+							<RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
+							{syncing ? 'Syncing...' : 'Sync Teachers'}
+						</Button>
+					</div>
+				</div>
 			</div>
 
 			{/* Status Banners */}
@@ -315,10 +301,9 @@ export default function Faculty() {
 									</th>
 									<th className="px-4 py-3 text-left">
 										<Button variant="ghost" size="sm" onClick={() => toggleSort('specialization')} className="h-auto px-0 py-0 font-bold text-muted-foreground hover:text-foreground">
-											Dept / Specialization <SortIcon field="specialization" />
+											Department <SortIcon field="specialization" />
 										</Button>
 									</th>
-									<th className="px-4 py-3 text-left font-bold text-muted-foreground">Contact</th>
 									<th className="px-4 py-3 text-center">
 										<Button variant="ghost" size="sm" onClick={() => toggleSort('subjects')} className="h-auto px-0 py-0 font-bold text-muted-foreground hover:text-foreground mx-auto">
 											Subjects <SortIcon field="subjects" />
@@ -326,7 +311,7 @@ export default function Faculty() {
 									</th>
 									<th className="px-4 py-3 text-center">
 										<Button variant="ghost" size="sm" onClick={() => toggleSort('weeklyLoad')} className="h-auto px-0 py-0 font-bold text-muted-foreground hover:text-foreground mx-auto">
-											Weekly Load <SortIcon field="weeklyLoad" />
+											Credited Load <SortIcon field="weeklyLoad" />
 										</Button>
 									</th>
 									<th className="px-4 py-3 text-center">
@@ -343,7 +328,6 @@ export default function Faculty() {
 										<tr key={i}>
 											<td className="px-4 py-4"><Skeleton className="h-5 w-48" /></td>
 											<td className="px-4 py-4"><Skeleton className="h-5 w-32" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-40" /></td>
 											<td className="px-4 py-4"><Skeleton className="h-5 w-12 mx-auto" /></td>
 											<td className="px-4 py-4"><Skeleton className="h-5 w-16 mx-auto" /></td>
 											<td className="px-4 py-4"><Skeleton className="h-5 w-10 mx-auto" /></td>
@@ -352,12 +336,12 @@ export default function Faculty() {
 									))
 								) : paged.length === 0 ? (
 									<tr>
-										<td colSpan={7} className="px-4 py-20 text-center">
+										<td colSpan={6} className="px-4 py-20 text-center">
 											<div className="flex flex-col items-center gap-4 text-muted-foreground max-w-xs mx-auto">
 												<Users className="size-12 opacity-20" />
 												<div className="space-y-1">
 													<p className="font-bold text-foreground">
-														{faculty.length === 0 ? 'No faculty records found.' : 'No matches found.'}
+														{faculty.length === 0 ? 'No teachers found.' : 'No matches found.'}
 													</p>
 													<p className="text-xs">
 														{faculty.length === 0 
@@ -411,29 +395,47 @@ export default function Faculty() {
 								</div>
 							</div>
 							
-							<div className="flex items-center gap-1.5">
+							<div className="flex items-center gap-1">
 								<Button 
 									variant="outline" 
 									size="icon" 
-									className="h-8 w-8" 
+									className="h-7 w-7" 
+									onClick={() => setPage(1)} 
+									disabled={page <= 1}
+								>
+									<ChevronsLeft className="size-3" />
+								</Button>
+								<Button 
+									variant="outline" 
+									size="icon" 
+									className="h-7 w-7" 
 									onClick={() => setPage((p) => Math.max(1, p - 1))} 
 									disabled={page <= 1}
 								>
-									<ArrowUpDown className="size-4 rotate-90" />
+									<ChevronLeft className="size-3" />
 								</Button>
-								<div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-xs font-bold tabular-nums">
+								<div className="flex items-center gap-1.5 px-3 h-7 rounded-md border bg-background text-xs font-bold tabular-nums">
 									<span>{page}</span>
-									<span className="text-muted-foreground/50">/</span>
+									<span className="text-muted-foreground/50">of</span>
 									<span className="text-muted-foreground">{totalPages}</span>
 								</div>
 								<Button 
 									variant="outline" 
 									size="icon" 
-									className="h-8 w-8" 
+									className="h-7 w-7" 
 									onClick={() => setPage((p) => Math.min(totalPages, p + 1))} 
 									disabled={page >= totalPages}
 								>
-									<ArrowUpDown className="size-4 -rotate-90" />
+									<ChevronRight className="size-3" />
+								</Button>
+								<Button 
+									variant="outline" 
+									size="icon" 
+									className="h-7 w-7" 
+									onClick={() => setPage(totalPages)} 
+									disabled={page >= totalPages}
+								>
+									<ChevronsRight className="size-3" />
 								</Button>
 							</div>
 						</div>

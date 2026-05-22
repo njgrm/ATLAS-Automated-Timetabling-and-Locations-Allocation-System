@@ -155,6 +155,48 @@ export type SpecializationCatalogResponse = {
 	totalDepartments: number;
 };
 
+export type FacultyAssignmentRecord = {
+	id: number;
+	subjectId: number;
+	gradeLevels: number[];
+	sectionIds: number[];
+	sections: ExternalSection[];
+	subject: { id: number; name: string; code: string; minMinutesPerWeek: number };
+};
+
+export type FacultySummary = {
+	id: number;
+	externalId: number;
+	employeeId: string | null;
+	firstName: string;
+	lastName: string;
+	department: string | null;
+	specialization: string | null;
+	employmentStatus: string;
+	isActiveForScheduling: boolean;
+	isPlaceholder: boolean;
+	isClassAdviser: boolean;
+	advisedSectionId: number | null;
+	advisedSectionName: string | null;
+	advisoryEquivalentHours: number;
+	ancillaryMinutesPerWeek: number;
+	canTeachOutsideDepartment: boolean;
+	maxHoursPerWeek: number;
+	version: number;
+	subjectCount: number;
+	sectionCount: number;
+	subjectHours: number;
+	sectionTeachingHours: number;
+	gradeTeachingHours: number;
+	advisoryHours: number;
+	ancillaryHours: number;
+	policyCreditedHours: number;
+	policyLoadPercentage: number;
+	syntheticCoverageHours: number;
+	loadSignalMode: 'STANDARD' | 'SYNTHETIC_PLACEHOLDER';
+	assignments: FacultyAssignmentRecord[];
+};
+
 export type FacultyMirror = {
 	id: number;
 	externalId: number;

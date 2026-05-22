@@ -135,6 +135,8 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
         specialization: string | null;
         employmentStatus: string;
         isClassAdviser: boolean;
+        advisedSectionId: number | null;
+        advisedSectionName: string | null;
         advisoryEquivalentHours: number;
         ancillaryMinutesPerWeek: number | null;
         canTeachOutsideDepartment: boolean;

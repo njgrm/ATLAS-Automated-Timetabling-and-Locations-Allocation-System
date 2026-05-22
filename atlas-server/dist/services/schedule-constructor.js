@@ -19,7 +19,7 @@
  *  - If no valid candidate exists, count as unassigned (never fabricate invalid data)
  */
 import { isSubjectAllowedForSectionProgram } from './subject-program-scope.service.js';
-import { matchesSubjectOwnershipDepartment, resolveSubjectQualificationPriority, } from './subject-ownership.service.js';
+import { matchesSubjectOwnershipDepartment, } from './subject-ownership.service.js';
 // ─── Standard time grid (JHS 8-period day) ───
 const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
 /** Default period slots — used when no policy lunch window override is provided. */
@@ -623,27 +623,8 @@ export function constructBaseline(input) {
         }
     }
     function isFacultyQualified(f, s) {
-        const allowed = s.allowedSpecializations ?? [];
-        const specializationPrimary = resolveSubjectQualificationPriority(s.code, s.qualificationPriority) === 'SPECIALIZATION_PRIMARY';
         const departmentMatch = matchesSubjectOwnershipDepartment(f.department, s.code, s.name, s.ownerDepartment);
-        const specializationMatch = Boolean((f.specialization && allowed.includes(f.specialization))
-            || (f.department && allowed.includes(f.department)));
-        if (!specializationPrimary && departmentMatch) {
-            return true;
-        }
-        if (specializationMatch) {
-            return true;
-        }
-        // Alias Mapping fallback
-        if (input.specializationAliases && input.specializationAliases.length > 0) {
-            const facultyTerms = [f.specialization, f.department].filter(Boolean);
-            for (const alias of input.specializationAliases) {
-                if (facultyTerms.includes(alias.alias) && allowed.includes(alias.canonical)) {
-                    return true;
-                }
-            }
-        }
-        if (specializationPrimary && departmentMatch) {
+        if (departmentMatch) {
             return true;
         }
         return false;

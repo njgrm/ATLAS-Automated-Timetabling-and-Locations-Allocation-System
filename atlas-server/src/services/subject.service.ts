@@ -1014,7 +1014,7 @@ export async function deleteSubject(
 				canCleanupActive: !subject.isActive,
 				canCleanupAll: !subject.isActive,
 				requiresArchiveFirst,
-				teachingLoadPath: `/faculty-assignments?subjectId=${subject.id}`,
+				teachingLoadPath: `/assignments?subjectId=${subject.id}`,
 			},
 		};
 	}
@@ -1033,7 +1033,7 @@ export async function deleteSubject(
 				canCleanupHistorical: true,
 				canCleanupAll: !subject.isActive,
 				recommendedAction: subject.isActive ? 'ARCHIVE_THEN_CLEANUP' : 'CLEANUP_THEN_DELETE',
-				teachingLoadPath: `/faculty-assignments?subjectId=${subject.id}`,
+				teachingLoadPath: `/assignments?subjectId=${subject.id}`,
 			},
 		};
 	}

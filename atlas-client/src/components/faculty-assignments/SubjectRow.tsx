@@ -6,7 +6,7 @@ import {
 	type FacultyAssignmentDraft,
 	type FacultyOwnershipState,
 } from '@/lib/faculty-assignment-helpers';
-import { getQualificationTier, gradeLabel, type SpecializationAliasLike } from '@/lib/grade-labels';
+import { gradeLabel } from '@/lib/grade-labels';
 import type { ExternalSection, Subject } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -30,14 +30,10 @@ export type SubjectRowProps = {
 	onSetSections: (subjectId: number, sectionIds: number[]) => void;
 	onSwapSectionOwnership?: (subjectId: number, sectionId: number, fromFacultyId: number) => void;
 	isOutsideDepartment?: boolean;
-	facultyDepartment?: string | null;
-	facultySpecialization?: string | null;
 	searchTerm?: string;
 	sectionFilter?: 'all' | 'unassigned' | 'assigned';
 	gradeLevelFilter?: string;
 	advisedSectionId?: number | null;
-	specializationAliases?: SpecializationAliasLike[];
-	strictAliasOnly?: boolean;
 	remainingCapacityMinutes?: number;
 	onHoverLoadMinutes?: (minutes: number) => void;
 	onClearHoverLoad?: () => void;
@@ -55,14 +51,10 @@ export function SubjectRow({
 	onSetSections,
 	onSwapSectionOwnership,
 	isOutsideDepartment,
-	facultyDepartment,
-	facultySpecialization,
 	searchTerm = '',
 	sectionFilter = 'all',
 	gradeLevelFilter = 'all',
 	advisedSectionId = null,
-	specializationAliases = [],
-	strictAliasOnly = false,
 	remainingCapacityMinutes = Number.POSITIVE_INFINITY,
 	onHoverLoadMinutes,
 	onClearHoverLoad,
@@ -218,18 +210,6 @@ export function SubjectRow({
 		onSetSections(subject.id, [...selectedSectionIds, sectionId]);
 	};
 
-	// Tiered Qualification Logic (Wave 4 Audit — Alias-Aware)
-	const allowedSpecs = subject.allowedSpecializations ?? [];
-	const tier = getQualificationTier(
-		{ specialization: facultySpecialization ?? null, department: facultyDepartment ?? null },
-		subject,
-		specializationAliases,
-	);
-	const isTier1 = tier === 1;
-	const isSpecMismatch = strictAliasOnly
-		? tier !== 1
-		: allowedSpecs.length > 0 && tier === null;
-
 	// HG system-assignment detection
 	const isHgSubject = subject.code === 'HG' || subject.name.toLowerCase().includes('homeroom');
 	const isSystemAssignedSubject = isHgSubject && advisedSectionId != null;
@@ -238,11 +218,9 @@ export function SubjectRow({
 		<div
 			className={`rounded-lg border p-3 transition-colors ${
 				selectedCount > 0
-					? isTier1
-						? 'border-emerald-300/60 bg-emerald-50/30'
-						: isOutsideDepartment
+					? isOutsideDepartment
 						? 'border-amber-300/60 bg-amber-50/30'
-						: 'border-primary/30 bg-primary/5'
+						: 'border-emerald-300/60 bg-emerald-50/30'
 					: 'border-border'
 			}`}
 		>
@@ -256,21 +234,10 @@ export function SubjectRow({
 					<div className="flex flex-wrap items-center gap-2">
 						<span className="text-sm font-medium">{subject.name}</span>
 						<code className="rounded bg-muted px-1 py-0.5 text-[0.6rem] font-mono">{subject.code}</code>
-						
-						{isTier1 && (
-							<Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[0.5625rem] hover:bg-emerald-100">
-								Specialization Match
-							</Badge>
-						)}
 
 						{isOutsideDepartment && (
 							<Badge variant="outline" className="border-amber-300 text-[0.5625rem] text-amber-700">
 								Outside Dept.
-							</Badge>
-						)}
-						{isSpecMismatch && (
-							<Badge variant="outline" className="border-orange-300 text-[0.5625rem] text-orange-700">
-								Outside Specialization
 							</Badge>
 						)}
 						<Badge variant="secondary" className="text-[0.5625rem]">
@@ -306,11 +273,6 @@ export function SubjectRow({
 					</div>
 					<p className="mt-1 text-[0.6875rem] text-muted-foreground">
 						{Math.round((subject.minMinutesPerWeek / 60) * 10) / 10} hrs/week per section
-						{allowedSpecs.length > 0 && (
-							<span className="ml-2 italic text-muted-foreground/60">
-								Required: {allowedSpecs.join(', ')}
-							</span>
-						)}
 					</p>
 				</div>
 			</div>

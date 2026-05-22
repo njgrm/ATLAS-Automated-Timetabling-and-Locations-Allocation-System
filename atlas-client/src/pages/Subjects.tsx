@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
 	ArrowDown,
@@ -9,15 +9,11 @@ import {
 	ChevronRight,
 	Filter,
 	Map,
-	Pencil,
 	Plus,
 	RefreshCw,
-	RotateCcw,
 	Search,
-	Star,
 	Trash2,
 	Users,
-	X,
 } from 'lucide-react';
 
 import { toast } from 'sonner';
@@ -27,12 +23,8 @@ import { gradeLabel, GRADE_COLORS } from '@/lib/grade-labels';
 import {
 	ALL_ROOM_TYPES,
 	GRADE_OPTIONS,
-	PROGRAM_SCOPE_BADGE,
 	PROGRAM_SCOPE_OPTIONS,
-	QUALIFICATION_PRIORITY_LABELS,
 	ROOM_TYPE_LABELS,
-	SUBJECT_OWNER_BADGE,
-	SUBJECT_OWNER_LABELS,
 } from '@/lib/subject-constants';
 import type { RoomType, Subject } from '@/types';
 import { SubjectFormModal, type SubjectFormValues } from '@/components/subjects/SubjectFormModal';
@@ -106,13 +98,12 @@ export default function Subjects() {
 	const [syncingContract, setSyncingContract] = useState(false);
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [showFilters, setShowFilters] = useState(false);
-	const [inspectSpecializations, setInspectSpecializations] = useState<Subject | null>(null);
 	const [timeMode, setTimeMode] = useState<'minutes' | 'hours'>('minutes');
 
 	// Teacher coverage drilldown
 	const [coverageSubject, setCoverageSubject] = useState<Subject | null>(null);
 	const [teacherCoverage, setTeacherCoverage] = useState<Record<number, { 
-		assigned: { facultyId: number; name: string; grades: number[]; load: number }[]
+		assigned: { facultyId: number; name: string; grades: number[]; load: number; sections: string[] }[]
 	}>>({});
 	const [coverageLoading, setCoverageLoading] = useState(false);
 
@@ -178,18 +169,20 @@ export default function Subjects() {
 				params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId }, 
 			});
 			
-			const assigned: { facultyId: number; name: string; grades: number[]; load: number }[] = [];
+			const assigned: { facultyId: number; name: string; grades: number[]; load: number; sections: string[] }[] = [];
 
 			for (const f of data.faculty ?? []) {
 				const isAssigned = (f.assignments ?? []).some((a: any) => a.subjectId === subjectId);
 				const load = (f as any).loadPercentage ?? 0;
 				if (isAssigned) {
 					const assignment = f.assignments.find((a: any) => a.subjectId === subjectId);
+					const sections = (assignment?.sections ?? []).map((section: any) => `G${section.displayOrder} ${section.name}`);
 					assigned.push({ 
 						facultyId: f.id,
 						name: `${f.lastName}, ${f.firstName}`, 
 						grades: assignment.gradeLevels ?? [],
-						load
+						load,
+						sections,
 					});
 				}
 			}
@@ -204,18 +197,6 @@ export default function Subjects() {
 			setCoverageLoading(false);
 		}
 	}, [subjects, ensureActiveSchoolYear]);
-
-	const availableSpecializations = useMemo(() => {
-		const values = new Set<string>();
-		for (const subject of subjects) {
-			for (const specialization of subject.allowedSpecializations ?? []) {
-				if (specialization.trim()) {
-					values.add(specialization);
-				}
-			}
-		}
-		return [...values].sort((left, right) => left.localeCompare(right));
-	}, [subjects]);
 
 	// Filtered, sorted, paginated
 	const { paged, totalFiltered, totalPages } = useMemo(() => {
@@ -286,7 +267,6 @@ export default function Subjects() {
 					name: values.name,
 					outputLabel: values.outputLabel?.trim() ? values.outputLabel.trim() : null,
 					ownerDepartment: values.ownerDepartment?.trim() ? values.ownerDepartment.trim() : null,
-					qualificationPriority: values.qualificationPriority,
 					rotationFamily: values.rotationFamily?.trim() ? values.rotationFamily.trim() : null,
 					minMinutesPerWeek: values.minMinutesPerWeek,
 					preferredRoomType: values.preferredRoomType,
@@ -299,7 +279,6 @@ export default function Subjects() {
 					modularGroupId: values.modularGroupId?.trim() ? values.modularGroupId.trim() : null,
 					modularOrder: values.modularGroupId?.trim() ? values.modularOrder : null,
 					programScopes: values.programScopes,
-					allowedSpecializations: values.allowedSpecializations,
 					requiredFeatures: values.requiredFeatures,
 				});
 				toast.success('Subject updated successfully.');
@@ -684,7 +663,6 @@ export default function Subjects() {
 												setCoverageSubject(target);
 												fetchTeacherCoverage(target.id);
 											}}
-											onInspectSpecializations={(target) => setInspectSpecializations(target)}
 										onReactivate={handleReactivateSubject}
 										/>
 									))
@@ -700,7 +678,7 @@ export default function Subjects() {
 								<span>
 									{totalFiltered === 0
 										? 'No results'
-										: `Showing ${(page - 1) * pageSize + 1}�${Math.min(page * pageSize, totalFiltered)} of ${totalFiltered} results`}
+										: `Showing ${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, totalFiltered)} of ${totalFiltered} results`}
 								</span>
 								<div className="flex items-center gap-2">
 									<span>Rows per page:</span>
@@ -753,7 +731,7 @@ export default function Subjects() {
 							Teacher Coverage
 						</SheetTitle>
 						<SheetDescription>
-							Qualification and assignment status for <span className="font-bold text-foreground">{coverageSubject?.name}</span>
+							Read-only ownership context for <span className="font-bold text-foreground">{coverageSubject?.name}</span>
 						</SheetDescription>
 					</SheetHeader>
 
@@ -788,6 +766,11 @@ export default function Subjects() {
 																</Badge>
 															))}
 														</div>
+															{t.sections.length > 0 && (
+																<p className="mt-1 text-[0.65rem] text-muted-foreground truncate">
+																	Sections: {t.sections.join(', ')}
+																</p>
+															)}
 													</div>
 													<Badge variant="outline" className="ml-3 bg-white/80 border-emerald-200 text-emerald-700">
 														{t.load}% Load
@@ -830,14 +813,11 @@ export default function Subjects() {
 				subjectMeta={modalSubjectMeta ? {
 					displayCode: modalSubjectMeta.displayCode,
 					ownerDepartment: modalSubjectMeta.ownerDepartment,
-					qualificationPriority: modalSubjectMeta.qualificationPriority,
 					rotationFamily: modalSubjectMeta.rotationFamily,
-					specializationSource: modalSubjectMeta.specializationSource,
 					outputLabel: modalSubjectMeta.outputLabel,
 					isSystemManaged: modalSubjectMeta.isSystemManaged,
 				} : undefined}
 				saving={saving}
-				availableSpecializations={availableSpecializations}
 				onSave={handleModalSave}
 				onClose={() => { setModalMode(null); setModalSubject(null); setModalSubjectMeta(null); }}
 			/>
@@ -863,7 +843,7 @@ export default function Subjects() {
 					<DialogHeader>
 						<DialogTitle className="flex items-center gap-2 text-destructive">
 							<Trash2 className="size-5 shrink-0" />
-							Cannot Delete � Action Required
+							Cannot Delete - Action Required
 						</DialogTitle>
 						<DialogDescription asChild>
 							<div className="space-y-3 pt-1">
@@ -921,41 +901,12 @@ export default function Subjects() {
 						<Button variant="ghost" size="sm" onClick={() => setDeleteBlocker(null)}>
 							Cancel
 						</Button>
-						<Link to="/faculty-assignments">
+						<Link to={deleteBlocker?.details?.teachingLoadPath ?? '/assignments'}>
 							<Button variant="outline" size="sm">View in Teaching Load</Button>
 						</Link>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
-
-			{/* Inspect Specializations Sheet */}
-			<Sheet open={inspectSpecializations !== null} onOpenChange={(open) => { if (!open) setInspectSpecializations(null); }}>
-				<SheetContent className="w-full sm:max-w-md flex flex-col">
-					<SheetHeader className="shrink-0">
-						<SheetTitle className="flex items-center gap-2 text-sm">
-							<Star className="size-4 text-violet-600" />
-							Specializations � {inspectSpecializations?.code}
-						</SheetTitle>
-						<SheetDescription>
-							Only faculty with one of the listed specializations will be eligible as Tier-1 candidates for this subject.
-						</SheetDescription>
-					</SheetHeader>
-					<div className="flex-1 min-h-0 overflow-auto py-4">
-						{(inspectSpecializations?.allowedSpecializations ?? []).length === 0 ? (
-							<p className="text-sm text-muted-foreground italic p-4">No specialization restrictions � all qualified faculty are eligible.</p>
-						) : (
-							<div className="space-y-1.5 px-1">
-								{(inspectSpecializations?.allowedSpecializations ?? []).map((spec) => (
-									<div key={spec} className="flex items-center gap-2 rounded-md border bg-violet-50 px-3 py-2">
-										<Star className="size-3.5 text-violet-600 shrink-0" />
-										<span className="text-sm font-medium text-violet-900">{spec}</span>
-									</div>
-								))}
-							</div>
-						)}
-					</div>
-				</SheetContent>
-			</Sheet>
 		</div>
 	);
 }
