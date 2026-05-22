@@ -58,7 +58,16 @@ import {
 	AutoFillSummaryModal,
 	type AutoFillSummaryResult,
 } from '@/components/faculty-assignments/AutoFillSummaryModal';
-import type { ExternalSection, HomeroomHintResponse, SectionSummaryResponse, Subject, FacultyAssignmentRecord, FacultySummary } from '@/types';
+import type {
+	ExternalSection,
+	HomeroomHintResponse,
+	SectionSummaryResponse,
+	Subject,
+	FacultyAssignmentRecord,
+	FacultySummary,
+	TeachingLoadCoverageTotals,
+	TeachingLoadIntegrityDiagnostics,
+} from '@/types';
 
 const DEFAULT_SCHOOL_ID = 1;
 
@@ -109,6 +118,8 @@ const [faculty, setFaculty] = useState<FacultySummary[]>([]);
 const [subjects, setSubjects] = useState<Subject[]>([]);
 const [sectionSummary, setSectionSummary] = useState<SectionSummaryResponse | null>(null);
 const [savedOwnershipIndex, setSavedOwnershipIndex] = useState<SubjectSectionOwnershipIndexEntry[]>([]);
+const [coverageTotals, setCoverageTotals] = useState<TeachingLoadCoverageTotals | null>(null);
+const [integrityDiagnostics, setIntegrityDiagnostics] = useState<TeachingLoadIntegrityDiagnostics | null>(null);
 const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 const [loading, setLoading] = useState(true);
 const [saving, setSaving] = useState(false);
@@ -169,6 +180,8 @@ const fetchData = useCallback(async (options?: { forceRefresh?: boolean }) => {
 				setActiveSchoolYearId(schoolYearId);
 				setFaculty(cachedSummary.data.faculty);
 				setSavedOwnershipIndex(cachedSummary.data.ownershipIndex ?? []);
+				setCoverageTotals(cachedSummary.data.coverageTotals ?? null);
+				setIntegrityDiagnostics(cachedSummary.data.integrityDiagnostics ?? null);
 				setSubjects(cachedSubjects.data);
 				setSectionSummary(cachedSections.data);
 				setDataSource('cached');
@@ -180,7 +193,13 @@ const fetchData = useCallback(async (options?: { forceRefresh?: boolean }) => {
 		const [facultyRes, subjectsRes, sectionsRes] = await Promise.all([
 			requestWithRetry(
 				() =>
-					atlasApi.get<{ faculty: FacultySummary[]; ownershipIndex?: SubjectSectionOwnershipIndexEntry[]; fetchedAt?: string | null }>(
+					atlasApi.get<{
+						faculty: FacultySummary[];
+						ownershipIndex?: SubjectSectionOwnershipIndexEntry[];
+						coverageTotals?: TeachingLoadCoverageTotals;
+						integrityDiagnostics?: TeachingLoadIntegrityDiagnostics;
+						fetchedAt?: string | null;
+					}>(
 						'/faculty-assignments/summary',
 						{ params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId } },
 					),
@@ -199,11 +218,15 @@ const fetchData = useCallback(async (options?: { forceRefresh?: boolean }) => {
 		setActiveSchoolYearId(schoolYearId);
 		setFaculty(facultyRes.data.faculty);
 		setSavedOwnershipIndex(facultyRes.data.ownershipIndex ?? []);
+		setCoverageTotals(facultyRes.data.coverageTotals ?? null);
+		setIntegrityDiagnostics(facultyRes.data.integrityDiagnostics ?? null);
 		setSubjects(subjectsRes.data.subjects);
 		setSectionSummary(sectionsRes.data);
 		setCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId, {
 			faculty: facultyRes.data.faculty,
 			ownershipIndex: facultyRes.data.ownershipIndex ?? [],
+			coverageTotals: facultyRes.data.coverageTotals,
+			integrityDiagnostics: facultyRes.data.integrityDiagnostics,
 			fetchedAt: facultyRes.data.fetchedAt ?? null,
 			schoolYearId,
 		});
@@ -221,6 +244,8 @@ const fetchData = useCallback(async (options?: { forceRefresh?: boolean }) => {
 			setActiveSchoolYearId(schoolYearId);
 			setFaculty(cachedSummary.data.faculty);
 			setSavedOwnershipIndex(cachedSummary.data.ownershipIndex ?? []);
+			setCoverageTotals(cachedSummary.data.coverageTotals ?? null);
+			setIntegrityDiagnostics(cachedSummary.data.integrityDiagnostics ?? null);
 			setSubjects(cachedSubjects.data);
 			setSectionSummary(cachedSections.data);
 			setDataSource('cached');
@@ -228,6 +253,8 @@ const fetchData = useCallback(async (options?: { forceRefresh?: boolean }) => {
 			setError(null);
 		} else {
 			setDataSource('none');
+			setCoverageTotals(null);
+			setIntegrityDiagnostics(null);
 			setDegradedNotice(null);
 			setError(requestError?.response?.data?.message ?? requestError?.message ?? 'Failed to load teaching load data.');
 		}
@@ -293,23 +320,10 @@ useEffect(() => {
 	setSubjectSearch(focusedSubject.code);
 }, [subjectFocusId, subjects]);
 const allKnownSections = useMemo(() => {
-const mergedSections = new Map<number, ExternalSection>();
-for (const section of sectionSummary?.sections ?? []) {
-mergedSections.set(section.id, section);
-}
-for (const member of faculty) {
-for (const assignment of member.assignments) {
-for (const section of assignment.sections ?? []) {
-if (!mergedSections.has(section.id)) {
-mergedSections.set(section.id, section);
-}
-}
-}
-}
-return Array.from(mergedSections.values()).sort(
-(left, right) => left.displayOrder - right.displayOrder || left.name.localeCompare(right.name) || left.id - right.id,
-);
-}, [faculty, sectionSummary]);
+	return [...(sectionSummary?.sections ?? [])].sort(
+		(left, right) => left.displayOrder - right.displayOrder || left.name.localeCompare(right.name) || left.id - right.id,
+	);
+}, [sectionSummary]);
 const sectionMap = useMemo(() => buildSectionMap(allKnownSections), [allKnownSections]);
 const savedAssignmentsByFaculty = useMemo(() => {
 const result: Record<number, FacultyAssignmentDraft[]> = {};
@@ -817,12 +831,22 @@ const advisedSectionMeta = useMemo(() => {
 }, [homeroomHint?.advisedSectionId, sectionMap]);
 
 const teachablePairTotals = useMemo(() => {
+	if (coverageTotals) {
+		return {
+			total: coverageTotals.totalPairs,
+			assigned: coverageTotals.assignedPairs,
+		};
+	}
+
 	const activeAcademicSubjects = subjects.filter((subject) => (subject.isActive || subject.id === subjectFocusId) && subject.code !== 'HG');
 	const teachablePairs = new Set<string>();
 	for (const subject of activeAcademicSubjects) {
-		const relevantSections = allKnownSections.filter(
-			(section) => subject.gradeLevels.length === 0 || subject.gradeLevels.includes(section.displayOrder),
-		);
+		const relevantSections = allKnownSections.filter((section) => {
+			const gradeCompatible = subject.gradeLevels.length === 0 || subject.gradeLevels.includes(section.displayOrder);
+			if (!gradeCompatible) return false;
+			const programType = (section.programType ?? 'REGULAR').toUpperCase();
+			return subject.programScopes.length === 0 || subject.programScopes.some((scope) => scope.toUpperCase() === programType);
+		});
 		for (const section of relevantSections) {
 			teachablePairs.add(`${subject.id}:${section.id}`);
 		}
@@ -849,7 +873,7 @@ const teachablePairTotals = useMemo(() => {
 		total: teachablePairs.size,
 		assigned: assignedPairs.size,
 	};
-}, [allKnownSections, effectiveAssignmentsByFaculty, subjects]);
+}, [allKnownSections, coverageTotals, effectiveAssignmentsByFaculty, subjectFocusId, subjects]);
 
 const assignedFacultyCount = faculty.filter((member) => (effectiveAssignmentsByFaculty[member.id]?.length ?? 0) > 0).length;
 const sectionsAvailable = Boolean(sectionSummary && sectionSummary.sections.length > 0);
@@ -936,6 +960,45 @@ Dismiss
 		>
 			Refresh live data
 		</Button>
+	</div>
+)}
+
+{integrityDiagnostics && (
+	<div className="mt-3 rounded-md border border-blue-200 bg-blue-50/60 px-4 py-3 text-sm text-blue-900">
+		<div className="flex items-center gap-2 font-semibold">
+			<AlertTriangle className="size-4 text-blue-700" />
+			Current-Year Teaching Load Integrity
+		</div>
+		<div className="mt-2 grid gap-2 text-xs md:grid-cols-2 xl:grid-cols-5">
+			<div className="rounded border border-blue-200 bg-white/80 px-2 py-1.5">
+				<p className="text-muted-foreground">Empty seeded rows</p>
+				<p className="font-semibold text-blue-900">{integrityDiagnostics.emptySectionRows}</p>
+			</div>
+			<div className="rounded border border-blue-200 bg-white/80 px-2 py-1.5">
+				<p className="text-muted-foreground">Rows missing ownership</p>
+				<p className="font-semibold text-blue-900">{integrityDiagnostics.currentYearRowsMissingOwnership}</p>
+			</div>
+			<div className="rounded border border-blue-200 bg-white/80 px-2 py-1.5">
+				<p className="text-muted-foreground">Ownership outside scope</p>
+				<p className="font-semibold text-blue-900">{integrityDiagnostics.currentYearOwnershipWithoutMatchingScope}</p>
+			</div>
+			<div className="rounded border border-blue-200 bg-white/80 px-2 py-1.5">
+				<p className="text-muted-foreground">Missing-ownership pairs</p>
+				<p className="font-semibold text-blue-900">{integrityDiagnostics.currentYearMissingOwnershipPairs}</p>
+			</div>
+			<div className="rounded border border-blue-200 bg-white/80 px-2 py-1.5">
+				<p className="text-muted-foreground">Ownership-without-scope pairs</p>
+				<p className="font-semibold text-blue-900">{integrityDiagnostics.currentYearOwnershipWithoutMatchingScopePairs}</p>
+			</div>
+		</div>
+		{integrityDiagnostics.missingOwnershipSamples.length > 0 && (
+			<p className="mt-2 text-xs text-blue-800">
+				Examples with missing ownership: {integrityDiagnostics.missingOwnershipSamples
+					.slice(0, 3)
+					.map((row) => `${row.subjectCode} (${row.facultyName})`)
+					.join(', ')}
+			</p>
+		)}
 	</div>
 )}
 
@@ -1044,9 +1107,9 @@ Array.from({ length: 8 }).map((_, index) => (
 </div>
 ))
 ) : filteredFaculty.length === 0 ? (
-<p className="p-4 text-center text-sm text-muted-foreground">
-{faculty.length === 0 ? 'No faculty synced. Visit the Faculty page first.' : 'No results.'}
-</p>
+						<p className="p-4 text-center text-sm text-muted-foreground">
+							{faculty.length === 0 ? 'No teachers synced. Visit the Teachers page first.' : 'No results.'}
+						</p>
 ) : (
 groupedFaculty.map(([departmentName, members]) => (
 	<div key={departmentName} className="border-b border-border/80">
@@ -1383,7 +1446,12 @@ This faculty member is excluded from scheduling. Enable them first.
 							key={subject.id}
 							subject={subject}
 							assignment={currentAssignments.find((a) => a.subjectId === subject.id)}
-								sections={allKnownSections.filter((sec) => subject.gradeLevels.length === 0 || subject.gradeLevels.includes(sec.displayOrder))}
+								sections={allKnownSections.filter((sec) => {
+									const gradeCompatible = subject.gradeLevels.length === 0 || subject.gradeLevels.includes(sec.displayOrder);
+									if (!gradeCompatible) return false;
+									const programType = (sec.programType ?? 'REGULAR').toUpperCase();
+									return subject.programScopes.length === 0 || subject.programScopes.some((scope) => scope.toUpperCase() === programType);
+								})}
 							disabled={!selected.isActiveForScheduling || !sectionsAvailable || isReadOnlyMode}
 							selectedFacultyId={selected.id}
 							savedOwnershipMap={savedOwnershipMap}
@@ -1428,7 +1496,12 @@ This faculty member is excluded from scheduling. Enable them first.
 								key={subject.id}
 								subject={subject}
 								assignment={currentAssignments.find((a) => a.subjectId === subject.id)}
-								sections={allKnownSections.filter((sec) => subject.gradeLevels.length === 0 || subject.gradeLevels.includes(sec.displayOrder))}
+								sections={allKnownSections.filter((sec) => {
+									const gradeCompatible = subject.gradeLevels.length === 0 || subject.gradeLevels.includes(sec.displayOrder);
+									if (!gradeCompatible) return false;
+									const programType = (sec.programType ?? 'REGULAR').toUpperCase();
+									return subject.programScopes.length === 0 || subject.programScopes.some((scope) => scope.toUpperCase() === programType);
+								})}
 								disabled={!selected.canTeachOutsideDepartment || !selected.isActiveForScheduling || !sectionsAvailable || isReadOnlyMode}
 								selectedFacultyId={selected.id}
 								savedOwnershipMap={savedOwnershipMap}

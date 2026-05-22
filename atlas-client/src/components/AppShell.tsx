@@ -99,8 +99,8 @@ const navigationNav: NavItemDef[] = [
 
 const schedulingNav: NavItemDef[] = [
 	{ label: 'Subjects', to: '/subjects', icon: BookOpen, adminOnly: true },
-	{ label: 'Faculty', to: '/faculty', icon: Users, adminOnly: true },
-	{ label: 'Teaching Load', to: '/assignments', icon: UserCog, adminOnly: true },
+	{ label: 'Teachers', to: '/teachers', icon: Users, adminOnly: true },
+	{ label: 'Teaching Load', to: '/teaching-load', icon: UserCog, adminOnly: true },
 	{ label: 'Audit', to: '/audit', icon: Shield, adminOnly: true },
 	{ label: 'Sections', to: '/sections', icon: GraduationCap, adminOnly: true },
 	{ label: 'Preferences', to: '/faculty/preferences', icon: ClipboardList, adminOnly: true },

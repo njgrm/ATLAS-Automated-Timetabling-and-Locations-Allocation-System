@@ -901,7 +901,7 @@ export default function Subjects() {
 						<Button variant="ghost" size="sm" onClick={() => setDeleteBlocker(null)}>
 							Cancel
 						</Button>
-						<Link to={deleteBlocker?.details?.teachingLoadPath ?? '/assignments'}>
+						<Link to={deleteBlocker?.details?.teachingLoadPath ?? '/teaching-load'}>
 							<Button variant="outline" size="sm">View in Teaching Load</Button>
 						</Link>
 					</DialogFooter>

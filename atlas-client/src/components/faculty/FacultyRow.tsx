@@ -128,7 +128,7 @@ export function FacultyRow({
 						</Tooltip>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Link to={`/assignments?facultyId=${faculty.id}`}>
+								<Link to={`/teaching-load?facultyId=${faculty.id}`}>
 									<Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-primary">
 										<ClipboardList className="size-4" />
 									</Button>

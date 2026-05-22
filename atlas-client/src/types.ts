@@ -160,6 +160,11 @@ export type FacultyAssignmentRecord = {
 	subjectId: number;
 	gradeLevels: number[];
 	sectionIds: number[];
+	assignmentKind?: 'REAL_OWNERSHIP' | 'BASELINE_ONLY' | 'MISSING_OWNERSHIP';
+	storedCurrentYearSectionCount?: number;
+	ownedCurrentYearSectionCount?: number;
+	missingOwnershipSectionCount?: number;
+	ownershipWithoutScopeSectionCount?: number;
 	sections: ExternalSection[];
 	subject: { id: number; name: string; code: string; minMinutesPerWeek: number };
 };
@@ -185,6 +190,9 @@ export type FacultySummary = {
 	version: number;
 	subjectCount: number;
 	sectionCount: number;
+	baselineSubjectCount?: number;
+	missingOwnershipSubjectCount?: number;
+	ownershipWithoutScopeSubjectCount?: number;
 	subjectHours: number;
 	sectionTeachingHours: number;
 	gradeTeachingHours: number;
@@ -195,6 +203,31 @@ export type FacultySummary = {
 	syntheticCoverageHours: number;
 	loadSignalMode: 'STANDARD' | 'SYNTHETIC_PLACEHOLDER';
 	assignments: FacultyAssignmentRecord[];
+};
+
+export type TeachingLoadCoverageTotals = {
+	assignedPairs: number;
+	totalPairs: number;
+	unassignedPairs: number;
+};
+
+export type TeachingLoadIntegrityDiagnosticRow = {
+	facultyId: number;
+	facultyName: string;
+	subjectId: number;
+	subjectCode: string;
+	sectionCount: number;
+};
+
+export type TeachingLoadIntegrityDiagnostics = {
+	emptySectionRows: number;
+	currentYearRowsMissingOwnership: number;
+	currentYearOwnershipWithoutMatchingScope: number;
+	currentYearMissingOwnershipPairs: number;
+	currentYearOwnershipWithoutMatchingScopePairs: number;
+	emptySectionSamples: TeachingLoadIntegrityDiagnosticRow[];
+	missingOwnershipSamples: TeachingLoadIntegrityDiagnosticRow[];
+	ownershipWithoutScopeSamples: TeachingLoadIntegrityDiagnosticRow[];
 };
 
 export type FacultyMirror = {

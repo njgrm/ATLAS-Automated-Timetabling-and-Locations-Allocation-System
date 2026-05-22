@@ -152,6 +152,46 @@ router.post('/reset', authenticate, requirePrivilegedRole, async (req: Request, 
 	}
 });
 
+// Auth: POST /faculty-assignments/integrity/reconcile
+// Body: { schoolId: number, schoolYearId: number, previewOnly?: boolean, confirmApply?: boolean }
+router.post('/integrity/reconcile', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.body.schoolId);
+		const schoolYearId = Number(req.body.schoolYearId);
+		const previewOnly = req.body.previewOnly !== false;
+		const confirmApply = req.body.confirmApply === true;
+
+		if (!schoolId || Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
+			return;
+		}
+		if (!schoolYearId || Number.isNaN(schoolYearId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
+			return;
+		}
+		if (!previewOnly && !confirmApply) {
+			res.status(400).json({
+				code: 'CONFIRMATION_REQUIRED',
+				message: 'confirmApply=true is required to apply integrity reconciliation.',
+			});
+			return;
+		}
+
+		const authToken = req.headers.authorization?.slice(7);
+		const result = await assignmentService.previewOrApplyTeachingLoadTruthReconcile({
+			schoolId,
+			schoolYearId,
+			actorId: req.user?.userId ?? 0,
+			authToken,
+			previewOnly,
+		});
+
+		res.json(result);
+	} catch (err) {
+		next(err);
+	}
+});
+
 // Auth: GET /faculty-assignments/:facultyId?schoolYearId=Y
 router.get('/:facultyId', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {

@@ -1,7 +1,13 @@
-import type { FacultySummary, SectionSummaryResponse, Subject } from '@/types';
+import type {
+	FacultySummary,
+	SectionSummaryResponse,
+	Subject,
+	TeachingLoadCoverageTotals,
+	TeachingLoadIntegrityDiagnostics,
+} from '@/types';
 import type { SubjectSectionOwnershipIndexEntry } from '@/lib/faculty-assignment-helpers';
 
-const FACULTY_SUMMARY_CACHE_PREFIX = 'atlas:faculty-summary:v1';
+const FACULTY_SUMMARY_CACHE_PREFIX = 'atlas:faculty-summary:v2';
 const SUBJECTS_CACHE_PREFIX = 'atlas:subjects:v1';
 const SECTION_SUMMARY_CACHE_PREFIX = 'atlas:section-summary:v1';
 
@@ -19,6 +25,8 @@ export type CachedResult<T> = {
 export type FacultySummarySnapshot = {
 	faculty: FacultySummary[];
 	ownershipIndex: SubjectSectionOwnershipIndexEntry[];
+	coverageTotals?: TeachingLoadCoverageTotals;
+	integrityDiagnostics?: TeachingLoadIntegrityDiagnostics;
 	fetchedAt: string | null;
 	schoolYearId: number;
 };

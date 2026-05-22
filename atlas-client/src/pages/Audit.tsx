@@ -440,7 +440,7 @@ export default function Audit() {
 															</div>
 														</div>
 														<Button asChild variant="outline" size="sm" className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-															<Link to={`/assignments?facultyId=${m.facultyId}`}>Fix in Assignments →</Link>
+															<Link to={`/teaching-load?facultyId=${m.facultyId}`}>Fix in Teaching Load →</Link>
 														</Button>
 													</div>
 												));
@@ -531,7 +531,7 @@ export default function Audit() {
 															</div>
 														</div>
 														<Button asChild variant="outline" size="sm" className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-															<Link to={`/assignments?sectionId=${r.sectionId}`}>Assign Teacher →</Link>
+															<Link to={`/teaching-load?sectionId=${r.sectionId}`}>Assign Teacher →</Link>
 														</Button>
 													</div>
 												));
@@ -633,7 +633,7 @@ export default function Audit() {
 															</p>
 														</div>
 														<Button asChild variant="outline" size="sm" className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-															<Link to="/assignments">Optimize Load →</Link>
+															<Link to="/teaching-load">Optimize Load →</Link>
 														</Button>
 													</div>
 												))
@@ -694,7 +694,7 @@ export default function Audit() {
 															/>
 														</div>
 														<Button asChild variant="outline" size="sm" className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-															<Link to={`/assignments?facultyId=${f.id}`}>View Details →</Link>
+															<Link to={`/teaching-load?facultyId=${f.id}`}>View Details →</Link>
 														</Button>
 													</div>
 												</div>

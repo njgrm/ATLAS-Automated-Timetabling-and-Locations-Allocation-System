@@ -47,6 +47,54 @@ export type SubjectSectionOwnershipIndexEntry = {
     facultyId: number;
     facultyName: string;
 };
+export type TeachingLoadAssignmentKind = 'REAL_OWNERSHIP' | 'BASELINE_ONLY' | 'MISSING_OWNERSHIP';
+export interface TeachingLoadCoverageTotals {
+    assignedPairs: number;
+    totalPairs: number;
+    unassignedPairs: number;
+}
+export interface TeachingLoadIntegrityDiagnosticRow {
+    facultyId: number;
+    facultyName: string;
+    subjectId: number;
+    subjectCode: string;
+    sectionCount: number;
+}
+export interface TeachingLoadIntegrityDiagnostics {
+    emptySectionRows: number;
+    currentYearRowsMissingOwnership: number;
+    currentYearOwnershipWithoutMatchingScope: number;
+    currentYearMissingOwnershipPairs: number;
+    currentYearOwnershipWithoutMatchingScopePairs: number;
+    emptySectionSamples: TeachingLoadIntegrityDiagnosticRow[];
+    missingOwnershipSamples: TeachingLoadIntegrityDiagnosticRow[];
+    ownershipWithoutScopeSamples: TeachingLoadIntegrityDiagnosticRow[];
+}
+export interface TeachingLoadTruthReconcileInput {
+    schoolId: number;
+    schoolYearId: number;
+    actorId: number;
+    authToken?: string;
+    previewOnly?: boolean;
+}
+export interface TeachingLoadTruthReconcileResult {
+    applied: boolean;
+    schoolId: number;
+    schoolYearId: number;
+    facultySubjectRowsScanned: number;
+    rowsWithEmptySectionIds: number;
+    rowsWithMissingOwnership: number;
+    rowsWithOwnershipWithoutScope: number;
+    rowsToUpdate: number;
+    updatedRows: number;
+    sampleUpdates: Array<{
+        facultySubjectId: number;
+        facultyId: number;
+        subjectId: number;
+        previousCurrentYearSectionCount: number;
+        nextCurrentYearSectionCount: number;
+    }>;
+}
 export declare function computeTeachingLoadMinutes(assignments: AssignmentLoadShape[], formula: TeachingLoadFormula): number;
 export declare function detectDuplicateOwnershipTuples(assignments: DuplicateOwnershipInput[]): DuplicateOwnershipTuple[];
 export declare function buildOwnershipConflictDetails(conflicts: OwnershipConflictCandidate[], ownerNamesByFacultyId: Map<number, string>): OwnershipConflictDetail[];
@@ -105,6 +153,11 @@ export declare function getAssignmentsByFaculty(facultyId: number, schoolYearId:
         gradeLevels: number[];
         sectionIds: number[];
         sections: import("./faculty-assignment-scope.service.js").ScopedSection[];
+        assignmentKind: TeachingLoadAssignmentKind;
+        storedCurrentYearSectionCount: number;
+        ownedCurrentYearSectionCount: number;
+        missingOwnershipSectionCount: number;
+        ownershipWithoutScopeSectionCount: number;
         id: number;
         facultyId: number;
         subjectId: number;
@@ -145,6 +198,9 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
         version: number;
         subjectCount: number;
         sectionCount: number;
+        baselineSubjectCount: number;
+        missingOwnershipSubjectCount: number;
+        ownershipWithoutScopeSubjectCount: number;
         subjectHours: number;
         loadPercentage: number;
         sectionTeachingHours: number;
@@ -159,6 +215,11 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
             gradeLevels: number[];
             sectionIds: number[];
             sections: import("./faculty-assignment-scope.service.js").ScopedSection[];
+            assignmentKind: TeachingLoadAssignmentKind;
+            storedCurrentYearSectionCount: number;
+            ownedCurrentYearSectionCount: number;
+            missingOwnershipSectionCount: number;
+            ownershipWithoutScopeSectionCount: number;
             id: number;
             facultyId: number;
             subjectId: number;
@@ -177,7 +238,10 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
         }[];
     }[];
     ownershipIndex: SubjectSectionOwnershipIndexEntry[];
+    coverageTotals: TeachingLoadCoverageTotals;
+    integrityDiagnostics: TeachingLoadIntegrityDiagnostics;
 }>;
+export declare function previewOrApplyTeachingLoadTruthReconcile(input: TeachingLoadTruthReconcileInput): Promise<TeachingLoadTruthReconcileResult>;
 export interface TeachingLoadResetInput {
     schoolId: number;
     schoolYearId: number;

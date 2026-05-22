@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, Navigate, RouterProvider, useLocation } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { Toaster } from 'sonner';
 
@@ -23,6 +23,11 @@ const ScheduleReview = lazy(() => import('./pages/ScheduleReview'));
 const HowItWorks = lazy(() => import('./pages/HowItWorks'));
 const Audit = lazy(() => import('./pages/Audit'));
 
+function LegacyRouteRedirect({ to }: { to: string }) {
+	const location = useLocation();
+	return <Navigate to={{ pathname: to, search: location.search }} replace />;
+}
+
 const router = createBrowserRouter([
 	{
 		path: '/login',
@@ -45,12 +50,20 @@ const router = createBrowserRouter([
 				element: <Subjects />,
 			},
 			{
-				path: 'faculty',
+				path: 'teachers',
 				element: <Faculty />,
 			},
 			{
-				path: 'assignments',
+				path: 'teaching-load',
 				element: <FacultyAssignments />,
+			},
+			{
+				path: 'faculty',
+				element: <LegacyRouteRedirect to="/teachers" />,
+			},
+			{
+				path: 'assignments',
+				element: <LegacyRouteRedirect to="/teaching-load" />,
 			},
 			{
 				path: 'sections',

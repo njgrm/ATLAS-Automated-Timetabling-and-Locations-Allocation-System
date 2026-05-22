@@ -1,7 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { sectionAdapter } from './section-adapter.js';
 import { HG_SUBJECT_CODE } from './hg-advisory.service.js';
-import { buildSectionRosterIndex, normalizeIncomingAssignmentScope, normalizeStoredAssignmentScope, } from './faculty-assignment-scope.service.js';
+import { buildSectionRosterIndex, deriveGradeLevelsFromSectionIds, normalizeIncomingAssignmentScope, normalizeStoredAssignmentScope, } from './faculty-assignment-scope.service.js';
 export function computeTeachingLoadMinutes(assignments, formula) {
     return assignments.reduce((sum, assignment) => {
         const units = formula === 'section' ? assignment.sectionIds.length : assignment.gradeLevels.length;
@@ -351,12 +351,17 @@ export async function repairActiveSubjectCoverageWithPlaceholders(input) {
 function buildServiceError(code, error, details) {
     return { success: false, code, error, details };
 }
-function toAssignmentResponse(assignment, normalized) {
+function toAssignmentResponse(assignment, normalized, metadata) {
     return {
         ...assignment,
         gradeLevels: normalized.gradeLevels,
         sectionIds: normalized.sectionIds,
         sections: normalized.sections,
+        assignmentKind: metadata?.assignmentKind ?? (normalized.sectionIds.length > 0 ? 'REAL_OWNERSHIP' : 'BASELINE_ONLY'),
+        storedCurrentYearSectionCount: metadata?.storedCurrentYearSectionCount ?? normalized.sectionIds.length,
+        ownedCurrentYearSectionCount: metadata?.ownedCurrentYearSectionCount ?? normalized.sectionIds.length,
+        missingOwnershipSectionCount: metadata?.missingOwnershipSectionCount ?? 0,
+        ownershipWithoutScopeSectionCount: metadata?.ownershipWithoutScopeSectionCount ?? 0,
     };
 }
 async function buildRosterIndex(schoolId, schoolYearId, authToken) {
@@ -372,6 +377,8 @@ export async function getAssignmentsByFaculty(facultyId, schoolYearId, authToken
         return null;
     }
     const rosterIndex = await buildRosterIndex(faculty.schoolId, schoolYearId, authToken);
+    const currentYearSectionIds = Array.from(rosterIndex.sectionMap.keys());
+    const currentYearSectionIdSet = new Set(currentYearSectionIds);
     const assignments = await prisma.facultySubject.findMany({
         where: { facultyId },
         include: {
@@ -379,12 +386,56 @@ export async function getAssignmentsByFaculty(facultyId, schoolYearId, authToken
         },
         orderBy: { subject: { name: 'asc' } },
     });
+    const ownershipRows = currentYearSectionIds.length > 0
+        ? await prisma.subjectSectionOwnership.findMany({
+            where: {
+                schoolId: faculty.schoolId,
+                facultyId,
+                sectionId: { in: currentYearSectionIds },
+            },
+            select: {
+                facultySubjectId: true,
+                sectionId: true,
+            },
+        })
+        : [];
+    const ownershipByFacultySubjectId = new Map();
+    for (const row of ownershipRows) {
+        const existing = ownershipByFacultySubjectId.get(row.facultySubjectId) ?? new Set();
+        existing.add(row.sectionId);
+        ownershipByFacultySubjectId.set(row.facultySubjectId, existing);
+    }
+    const sectionDisplayOrderMap = new Map(Array.from(rosterIndex.sectionMap.values()).map((section) => [section.id, section.displayOrder]));
     return {
         facultyId: faculty.id,
         version: faculty.version,
         assignments: assignments.map((assignment) => {
-            const normalized = normalizeStoredAssignmentScope(assignment, rosterIndex);
-            return toAssignmentResponse(assignment, normalized);
+            const storedCurrentYearSectionIds = assignment.sectionIds
+                .filter((sectionId) => currentYearSectionIdSet.has(sectionId))
+                .sort((left, right) => left - right);
+            const ownedCurrentYearSectionIds = Array.from(ownershipByFacultySubjectId.get(assignment.id) ?? [])
+                .sort((left, right) => left - right);
+            const ownedSectionIdSet = new Set(ownedCurrentYearSectionIds);
+            const storedSectionIdSet = new Set(storedCurrentYearSectionIds);
+            const missingOwnershipSectionCount = storedCurrentYearSectionIds.filter((sectionId) => !ownedSectionIdSet.has(sectionId)).length;
+            const ownershipWithoutScopeSectionCount = ownedCurrentYearSectionIds.filter((sectionId) => !storedSectionIdSet.has(sectionId)).length;
+            const normalized = normalizeStoredAssignmentScope({
+                subjectId: assignment.subjectId,
+                gradeLevels: deriveGradeLevelsFromSectionIds(ownedCurrentYearSectionIds, sectionDisplayOrderMap),
+                sectionIds: ownedCurrentYearSectionIds,
+            }, rosterIndex);
+            const assignmentKind = normalized.sectionIds.length > 0
+                ? 'REAL_OWNERSHIP'
+                : storedCurrentYearSectionIds.length > 0
+                    ? 'MISSING_OWNERSHIP'
+                    : 'BASELINE_ONLY';
+            return toAssignmentResponse(assignment, normalized, {
+                assignmentKind,
+                storedCurrentYearSectionCount: storedCurrentYearSectionIds.length,
+                ownedCurrentYearSectionCount: ownedCurrentYearSectionIds.length,
+                missingOwnershipSectionCount,
+                ownershipWithoutScopeSectionCount,
+            });
         }),
     };
 }
@@ -577,23 +628,58 @@ export async function setAssignments(facultyId, schoolId, schoolYearId, assigned
     return { success: true, version: expectedVersion + 1 };
 }
 export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
-    const [rosterIndex, faculty, ownershipRows] = await Promise.all([
-        buildRosterIndex(schoolId, schoolYearId, authToken),
+    const rosterIndex = await buildRosterIndex(schoolId, schoolYearId, authToken);
+    const currentYearSectionScope = Array.from(rosterIndex.sectionMap.values()).map((section) => ({
+        id: section.id,
+        gradeLevel: section.displayOrder,
+        programType: section.programType ?? 'REGULAR',
+    }));
+    const currentYearSectionIds = currentYearSectionScope.map((section) => section.id);
+    const currentYearSectionIdSet = new Set(currentYearSectionIds);
+    const sectionDisplayOrderMap = new Map(currentYearSectionScope.map((section) => [section.id, section.gradeLevel]));
+    const [faculty, ownershipRows, activeSubjects] = await Promise.all([
         prisma.facultyMirror.findMany({
             where: { schoolId, isStale: false },
             include: {
                 facultySubjects: {
-                    include: { subject: { select: { id: true, name: true, code: true, minMinutesPerWeek: true } } },
+                    include: {
+                        subject: {
+                            select: {
+                                id: true,
+                                name: true,
+                                code: true,
+                                minMinutesPerWeek: true,
+                            },
+                        },
+                    },
                 },
             },
             orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
         }),
-        prisma.subjectSectionOwnership.findMany({
-            where: { schoolId },
+        currentYearSectionIds.length > 0
+            ? prisma.subjectSectionOwnership.findMany({
+                where: {
+                    schoolId,
+                    sectionId: { in: currentYearSectionIds },
+                },
+                select: {
+                    facultySubjectId: true,
+                    subjectId: true,
+                    sectionId: true,
+                    facultyId: true,
+                },
+            })
+            : Promise.resolve([]),
+        prisma.subject.findMany({
+            where: {
+                schoolId,
+                isActive: true,
+                code: { not: HG_SUBJECT_CODE },
+            },
             select: {
-                subjectId: true,
-                sectionId: true,
-                facultyId: true,
+                id: true,
+                gradeLevels: true,
+                programScopes: true,
             },
         }),
     ]);
@@ -611,10 +697,119 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
         facultyId: row.facultyId,
         facultyName: ownershipNameByFacultyId.get(row.facultyId) ?? `Faculty #${row.facultyId}`,
     }));
+    const ownershipByFacultySubjectId = new Map();
+    for (const row of ownershipRows) {
+        const existing = ownershipByFacultySubjectId.get(row.facultySubjectId) ?? new Set();
+        existing.add(row.sectionId);
+        ownershipByFacultySubjectId.set(row.facultySubjectId, existing);
+    }
+    const teachablePairSet = new Set();
+    for (const subject of activeSubjects) {
+        for (const section of currentYearSectionScope) {
+            if (!gradeLevelMatches(subject.gradeLevels, section.gradeLevel)) {
+                continue;
+            }
+            if (!isProgramScopeCompatible(subject.programScopes, section.programType)) {
+                continue;
+            }
+            teachablePairSet.add(`${subject.id}:${section.id}`);
+        }
+    }
+    const assignedPairSet = new Set();
+    for (const row of ownershipRows) {
+        const key = `${row.subjectId}:${row.sectionId}`;
+        if (teachablePairSet.has(key)) {
+            assignedPairSet.add(key);
+        }
+    }
+    let emptySectionRows = 0;
+    let currentYearRowsMissingOwnership = 0;
+    let currentYearOwnershipWithoutMatchingScope = 0;
+    let currentYearMissingOwnershipPairs = 0;
+    let currentYearOwnershipWithoutMatchingScopePairs = 0;
+    const emptySectionSamples = [];
+    const missingOwnershipSamples = [];
+    const ownershipWithoutScopeSamples = [];
+    const maxDiagnosticSamples = 20;
     const facultySummary = faculty.map((member) => {
+        const facultyName = formatFacultyName(member.firstName, member.lastName);
+        let realAssignmentRowCount = 0;
+        let baselineSubjectCount = 0;
+        let missingOwnershipSubjectCount = 0;
+        let ownershipWithoutScopeSubjectCount = 0;
         const assignments = member.facultySubjects.map((assignment) => {
-            const normalized = normalizeStoredAssignmentScope(assignment, rosterIndex);
-            return toAssignmentResponse(assignment, normalized);
+            const storedCurrentYearSectionIds = assignment.sectionIds
+                .filter((sectionId) => currentYearSectionIdSet.has(sectionId))
+                .sort((left, right) => left - right);
+            const ownedCurrentYearSectionIds = Array.from(ownershipByFacultySubjectId.get(assignment.id) ?? [])
+                .sort((left, right) => left - right);
+            const ownedSectionIdSet = new Set(ownedCurrentYearSectionIds);
+            const storedSectionIdSet = new Set(storedCurrentYearSectionIds);
+            const missingOwnershipSectionCount = storedCurrentYearSectionIds.filter((sectionId) => !ownedSectionIdSet.has(sectionId)).length;
+            const ownershipWithoutScopeSectionCount = ownedCurrentYearSectionIds.filter((sectionId) => !storedSectionIdSet.has(sectionId)).length;
+            const normalized = normalizeStoredAssignmentScope({
+                subjectId: assignment.subjectId,
+                gradeLevels: deriveGradeLevelsFromSectionIds(ownedCurrentYearSectionIds, sectionDisplayOrderMap),
+                sectionIds: ownedCurrentYearSectionIds,
+            }, rosterIndex);
+            const assignmentKind = normalized.sectionIds.length > 0
+                ? 'REAL_OWNERSHIP'
+                : storedCurrentYearSectionIds.length > 0
+                    ? 'MISSING_OWNERSHIP'
+                    : 'BASELINE_ONLY';
+            if (assignmentKind === 'REAL_OWNERSHIP') {
+                realAssignmentRowCount += 1;
+            }
+            if (assignmentKind === 'BASELINE_ONLY') {
+                baselineSubjectCount += 1;
+            }
+            if (assignment.sectionIds.length === 0) {
+                emptySectionRows += 1;
+                if (emptySectionSamples.length < maxDiagnosticSamples) {
+                    emptySectionSamples.push({
+                        facultyId: member.id,
+                        facultyName,
+                        subjectId: assignment.subjectId,
+                        subjectCode: assignment.subject.code,
+                        sectionCount: 0,
+                    });
+                }
+            }
+            if (missingOwnershipSectionCount > 0) {
+                currentYearRowsMissingOwnership += 1;
+                currentYearMissingOwnershipPairs += missingOwnershipSectionCount;
+                missingOwnershipSubjectCount += 1;
+                if (missingOwnershipSamples.length < maxDiagnosticSamples) {
+                    missingOwnershipSamples.push({
+                        facultyId: member.id,
+                        facultyName,
+                        subjectId: assignment.subjectId,
+                        subjectCode: assignment.subject.code,
+                        sectionCount: missingOwnershipSectionCount,
+                    });
+                }
+            }
+            if (ownershipWithoutScopeSectionCount > 0) {
+                currentYearOwnershipWithoutMatchingScope += 1;
+                currentYearOwnershipWithoutMatchingScopePairs += ownershipWithoutScopeSectionCount;
+                ownershipWithoutScopeSubjectCount += 1;
+                if (ownershipWithoutScopeSamples.length < maxDiagnosticSamples) {
+                    ownershipWithoutScopeSamples.push({
+                        facultyId: member.id,
+                        facultyName,
+                        subjectId: assignment.subjectId,
+                        subjectCode: assignment.subject.code,
+                        sectionCount: ownershipWithoutScopeSectionCount,
+                    });
+                }
+            }
+            return toAssignmentResponse(assignment, normalized, {
+                assignmentKind,
+                storedCurrentYearSectionCount: storedCurrentYearSectionIds.length,
+                ownedCurrentYearSectionCount: ownedCurrentYearSectionIds.length,
+                missingOwnershipSectionCount,
+                ownershipWithoutScopeSectionCount,
+            });
         });
         const sectionCount = assignments.reduce((sum, assignment) => sum + assignment.sectionIds.length, 0);
         const sectionMinutes = computeTeachingLoadMinutes(assignments, 'section');
@@ -648,8 +843,11 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
             isActiveForScheduling: member.isActiveForScheduling,
             maxHoursPerWeek: member.maxHoursPerWeek,
             version: member.version,
-            subjectCount: assignments.length,
+            subjectCount: realAssignmentRowCount,
             sectionCount,
+            baselineSubjectCount,
+            missingOwnershipSubjectCount,
+            ownershipWithoutScopeSubjectCount,
             subjectHours: policyCreditedHours,
             loadPercentage: policyLoadPercentage,
             sectionTeachingHours,
@@ -663,9 +861,141 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
             assignments,
         };
     });
+    const coverageTotals = {
+        assignedPairs: assignedPairSet.size,
+        totalPairs: teachablePairSet.size,
+        unassignedPairs: Math.max(0, teachablePairSet.size - assignedPairSet.size),
+    };
+    const integrityDiagnostics = {
+        emptySectionRows,
+        currentYearRowsMissingOwnership,
+        currentYearOwnershipWithoutMatchingScope,
+        currentYearMissingOwnershipPairs,
+        currentYearOwnershipWithoutMatchingScopePairs,
+        emptySectionSamples,
+        missingOwnershipSamples,
+        ownershipWithoutScopeSamples,
+    };
     return {
         faculty: facultySummary,
         ownershipIndex,
+        coverageTotals,
+        integrityDiagnostics,
+    };
+}
+export async function previewOrApplyTeachingLoadTruthReconcile(input) {
+    const rosterIndex = await buildRosterIndex(input.schoolId, input.schoolYearId, input.authToken);
+    const currentYearSectionIds = Array.from(rosterIndex.sectionMap.keys());
+    const currentYearSectionIdSet = new Set(currentYearSectionIds);
+    const sectionDisplayOrderMap = new Map(Array.from(rosterIndex.sectionMap.values()).map((section) => [section.id, section.displayOrder]));
+    const [facultySubjects, ownershipRows] = await Promise.all([
+        prisma.facultySubject.findMany({
+            where: { schoolId: input.schoolId },
+            select: {
+                id: true,
+                facultyId: true,
+                subjectId: true,
+                sectionIds: true,
+                gradeLevels: true,
+            },
+            orderBy: { id: 'asc' },
+        }),
+        currentYearSectionIds.length > 0
+            ? prisma.subjectSectionOwnership.findMany({
+                where: {
+                    schoolId: input.schoolId,
+                    sectionId: { in: currentYearSectionIds },
+                },
+                select: {
+                    facultySubjectId: true,
+                    sectionId: true,
+                },
+            })
+            : Promise.resolve([]),
+    ]);
+    const ownershipByFacultySubjectId = new Map();
+    for (const row of ownershipRows) {
+        const existing = ownershipByFacultySubjectId.get(row.facultySubjectId) ?? new Set();
+        existing.add(row.sectionId);
+        ownershipByFacultySubjectId.set(row.facultySubjectId, existing);
+    }
+    let rowsWithEmptySectionIds = 0;
+    let rowsWithMissingOwnership = 0;
+    let rowsWithOwnershipWithoutScope = 0;
+    let rowsToUpdate = 0;
+    let updatedRows = 0;
+    const updates = [];
+    for (const row of facultySubjects) {
+        const storedCurrentYearSectionIds = row.sectionIds
+            .filter((sectionId) => currentYearSectionIdSet.has(sectionId))
+            .sort((left, right) => left - right);
+        const ownedCurrentYearSectionIds = Array.from(ownershipByFacultySubjectId.get(row.id) ?? [])
+            .sort((left, right) => left - right);
+        if (row.sectionIds.length === 0) {
+            rowsWithEmptySectionIds += 1;
+        }
+        const storedSet = new Set(storedCurrentYearSectionIds);
+        const ownedSet = new Set(ownedCurrentYearSectionIds);
+        const missingOwnershipCount = storedCurrentYearSectionIds.filter((sectionId) => !ownedSet.has(sectionId)).length;
+        const ownershipWithoutScopeCount = ownedCurrentYearSectionIds.filter((sectionId) => !storedSet.has(sectionId)).length;
+        if (missingOwnershipCount > 0) {
+            rowsWithMissingOwnership += 1;
+        }
+        if (ownershipWithoutScopeCount > 0) {
+            rowsWithOwnershipWithoutScope += 1;
+        }
+        if (missingOwnershipCount === 0 && ownershipWithoutScopeCount === 0) {
+            continue;
+        }
+        const nonCurrentYearSectionIds = row.sectionIds.filter((sectionId) => !currentYearSectionIdSet.has(sectionId));
+        const nextSectionIds = Array.from(new Set([...nonCurrentYearSectionIds, ...ownedCurrentYearSectionIds]))
+            .sort((left, right) => left - right);
+        const nextGradeLevels = deriveGradeLevelsFromSectionIds(nextSectionIds, sectionDisplayOrderMap);
+        rowsToUpdate += 1;
+        updates.push({
+            facultySubjectId: row.id,
+            facultyId: row.facultyId,
+            subjectId: row.subjectId,
+            previousCurrentYearSectionCount: storedCurrentYearSectionIds.length,
+            nextCurrentYearSectionCount: ownedCurrentYearSectionIds.length,
+            nextSectionIds,
+            nextGradeLevels,
+        });
+    }
+    if (input.previewOnly === false && updates.length > 0) {
+        await prisma.$transaction(async (tx) => {
+            for (const update of updates) {
+                await tx.facultySubject.update({
+                    where: { id: update.facultySubjectId },
+                    data: {
+                        sectionIds: update.nextSectionIds,
+                        gradeLevels: update.nextGradeLevels,
+                    },
+                });
+            }
+        });
+        updatedRows = updates.length;
+    }
+    const sampleUpdates = updates
+        .slice(0, 25)
+        .map((update) => ({
+        facultySubjectId: update.facultySubjectId,
+        facultyId: update.facultyId,
+        subjectId: update.subjectId,
+        previousCurrentYearSectionCount: update.previousCurrentYearSectionCount,
+        nextCurrentYearSectionCount: update.nextCurrentYearSectionCount,
+    }));
+    return {
+        applied: input.previewOnly === false,
+        schoolId: input.schoolId,
+        schoolYearId: input.schoolYearId,
+        facultySubjectRowsScanned: facultySubjects.length,
+        rowsWithEmptySectionIds,
+        rowsWithMissingOwnership,
+        rowsWithOwnershipWithoutScope,
+        rowsToUpdate,
+        updatedRows,
+        sampleUpdates,
     };
 }
 async function resolveSchoolYearSectionIds(schoolId, schoolYearId, authToken) {
