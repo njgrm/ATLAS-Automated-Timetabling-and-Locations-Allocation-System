@@ -27,6 +27,7 @@ import { AnimatePresence, motion } from 'motion/react';
 
 import { captureBridgeToken, getBackHref } from '@/lib/bridge';
 import { applyEnrollProAccentTheme, fetchPublicSettings, fetchSchoolYears, verifySessionToken } from '@/lib/settings';
+import { cacheActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import {
 	clearAtlasAuthStorage,
 	clearBridgeToken,
@@ -70,18 +71,18 @@ import { AccessibilityMenu } from '@/components/AccessibilityMenu';
 import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
 import { useAccessibility } from '@/hooks/useAccessibility';
 
-/* --- Constants --- */
+/* ─── Constants ─── */
 
 const ENROLLPRO_URL = import.meta.env.VITE_ENROLLPRO_URL ?? 'http://100.88.55.125:5173';
 
-/** Map an EnrollPro `/uploads/-` path to the Vite proxy prefix. */
+/** Map an EnrollPro `/uploads/…` path to the Vite proxy prefix. */
 function enrollProAsset(path: string | null): string {
 	if (!path) return '';
 	// logoUrl comes as "/uploads/logo-xxx.jpg"; rewrite to "/enrollpro-uploads/logo-xxx.jpg"
 	return path.replace(/^\/uploads/, '/enrollpro-uploads');
 }
 
-/* --- Nav structure --- */
+/* ─── Nav structure ─── */
 
 type NavItemDef = {
 	label: string;
@@ -98,8 +99,8 @@ const navigationNav: NavItemDef[] = [
 
 const schedulingNav: NavItemDef[] = [
 	{ label: 'Subjects', to: '/subjects', icon: BookOpen, adminOnly: true },
-	{ label: 'Teachers', to: '/teachers', icon: Users, adminOnly: true },
-	{ label: 'Teaching Load', to: '/teaching-load', icon: UserCog, adminOnly: true },
+	{ label: 'Faculty', to: '/faculty', icon: Users, adminOnly: true },
+	{ label: 'Teaching Load', to: '/assignments', icon: UserCog, adminOnly: true },
 	{ label: 'Audit', to: '/audit', icon: Shield, adminOnly: true },
 	{ label: 'Sections', to: '/sections', icon: GraduationCap, adminOnly: true },
 	{ label: 'Preferences', to: '/faculty/preferences', icon: ClipboardList, adminOnly: true },
@@ -122,7 +123,7 @@ const insightsNav: NavItemDef[] = [
 	{ label: 'Analytics', to: '/analytics', icon: BarChart3, disabled: true },
 ];
 
-/* --- Sidebar nav helper components (matches EnrollPro pattern) --- */
+/* ─── Sidebar nav helper components (matches EnrollPro pattern) ─── */
 
 function NavDivider({ label }: { label: string }) {
 	return (
@@ -180,7 +181,7 @@ function NavItemDisabled({
 	);
 }
 
-/* --- AppSidebar --- */
+/* ─── AppSidebar ─── */
 
 function AppSidebar({
 	schoolName,
@@ -208,7 +209,7 @@ function AppSidebar({
 	return (
 		<>
 			<Sidebar collapsible='icon' className={className}>
-				{/* -- Header: School Identity -- */}
+				{/* ── Header: School Identity ── */}
 				<SidebarHeader>
 					<SidebarMenu>
 						<SidebarMenuItem>
@@ -245,7 +246,7 @@ function AppSidebar({
 													S.Y. {activeYearLabel}
 												</span>
 												<span className='shrink-0 text-[0.625rem] font-semibold text-green-600'>
-													- ACTIVE
+													● ACTIVE
 												</span>
 											</>
 										) : (
@@ -265,7 +266,7 @@ function AppSidebar({
 
 				<SidebarSeparator />
 
-				{/* -- Navigation -- */}
+				{/* ── Navigation ── */}
 				<SidebarContent>
 					<SidebarGroup>
 						<SidebarGroupContent>
@@ -373,7 +374,7 @@ function AppSidebar({
 					</SidebarGroup>
 				</SidebarContent>
 
-				{/* -- Footer: User -- */}
+				{/* ── Footer: User ── */}
 				<SidebarFooter>
 					<SidebarMenu>
 						<SidebarMenuItem>
@@ -441,7 +442,7 @@ function AppSidebar({
 	);
 }
 
-/* --- AppShell (exported layout) --- */
+/* ─── AppShell (exported layout) ─── */
 
 export function AppShell() {
 	const navigate = useNavigate();
@@ -573,6 +574,7 @@ export function AppShell() {
 				// Fetch school years list + active label
 				if (s.activeSchoolYearId) setSelectedYearId(s.activeSchoolYearId);
 				if (s.activeSchoolYearLabel) setActiveYearLabel(s.activeSchoolYearLabel);
+				cacheActiveSchoolYearContext(s.activeSchoolYearId ?? null, s.activeSchoolYearLabel ?? null);
 				fetchSchoolYears().then((years) => {
 					setSchoolYears(years);
 					// If settings/public didn't have the label, fall back to the years list
@@ -731,7 +733,7 @@ export function AppShell() {
 							<div className='ml-auto flex items-center gap-2'>
 								<AccessibilityMenu fontSize={fontSize} setFontSize={setFontSize} />
 
-								{/* School year selector - EnrollPro-style popover */}
+								{/* School year selector — EnrollPro-style popover */}
 								{schoolYears.length > 0 && (
 									<div className='relative'>
 										<TooltipProvider>

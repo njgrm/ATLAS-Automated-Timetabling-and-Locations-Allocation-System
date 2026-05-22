@@ -30,7 +30,16 @@ type LoadStatus,
 type SubjectSectionOwnershipIndexEntry,
 } from '@/lib/faculty-assignment-helpers';
 import { isDepartmentMatch } from '@/lib/grade-labels';
-import { fetchPublicSettings } from '@/lib/settings';
+import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import {
+	getCachedFacultyAssignmentsSummary,
+	getCachedSectionSummary,
+	getCachedSubjects,
+	requestWithRetry,
+	setCachedFacultyAssignmentsSummary,
+	setCachedSectionSummary,
+	setCachedSubjects,
+} from '@/lib/faculty-teaching-load-cache';
 import { OverviewHeader } from '@/components/faculty-assignments/OverviewHeader';
 import { SubjectRow } from '@/components/faculty-assignments/SubjectRow';
 import { useAssignmentHistory } from '@/hooks/useAssignmentHistory';
@@ -131,44 +140,124 @@ const [resetPreview, setResetPreview] = useState<TeachingLoadResetPreview | null
 const [resetLoading, setResetLoading] = useState(false);
 const [resetConfirmText, setResetConfirmText] = useState('');
 const [error, setError] = useState<string | null>(null);
+const [dataSource, setDataSource] = useState<'live' | 'cached' | 'none'>('none');
+const [degradedNotice, setDegradedNotice] = useState<string | null>(null);
+const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 const [homeroomHint, setHomeroomHint] = useState<HomeroomHintResponse | null>(null);
 const [draftAssignmentsByFaculty, setDraftAssignmentsByFaculty] = useState<Record<number, FacultyAssignmentDraft[]>>({});
 const [autoFillLoading, setAutoFillLoading] = useState(false);
 const [autoFillDialogOpen, setAutoFillDialogOpen] = useState(false);
-const fetchData = useCallback(async () => {
-setLoading(true);
-try {
-const settings = await fetchPublicSettings();
-const schoolYearId = settings.activeSchoolYearId;
-if (!schoolYearId) {
-throw new Error('Active school year is not configured.');
-}
-const [facultyRes, subjectsRes, sectionsRes] = await Promise.all([
-atlasApi.get<{ faculty: FacultySummary[]; ownershipIndex?: SubjectSectionOwnershipIndexEntry[] }>('/faculty-assignments/summary', {
-params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId },
-}),
-atlasApi.get<{ subjects: Subject[] }>('/subjects', {
-params: { schoolId: DEFAULT_SCHOOL_ID },
-}),
-atlasApi.get<SectionSummaryResponse>(`/sections/summary/${schoolYearId}`, {
-params: { schoolId: DEFAULT_SCHOOL_ID },
-}),
-]);
-setActiveSchoolYearId(schoolYearId);
-setFaculty(facultyRes.data.faculty);
-setSavedOwnershipIndex(facultyRes.data.ownershipIndex ?? []);
-setSubjects(subjectsRes.data.subjects);
-setSectionSummary(sectionsRes.data);
-setError(null);
-} catch (requestError: any) {
-setError(requestError?.response?.data?.message ?? requestError?.message ?? 'Failed to load teaching load data.');
-} finally {
-setLoading(false);
-}
+const fetchData = useCallback(async (options?: { forceRefresh?: boolean }) => {
+	const forceRefresh = options?.forceRefresh === true;
+	setLoading(true);
+	setError(null);
+
+	let schoolYearId: number | null = null;
+
+	try {
+		const schoolYearContext = await resolveActiveSchoolYearContext({ forceRefresh });
+		schoolYearId = schoolYearContext.activeSchoolYearId;
+
+		if (!forceRefresh) {
+			const cachedSummary = getCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId, {
+				maxAgeMs: 3 * 60 * 1000,
+			});
+			const cachedSubjects = getCachedSubjects(DEFAULT_SCHOOL_ID, { maxAgeMs: 3 * 60 * 1000 });
+			const cachedSections = getCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId, { maxAgeMs: 3 * 60 * 1000 });
+
+			if (cachedSummary && cachedSubjects && cachedSections) {
+				setActiveSchoolYearId(schoolYearId);
+				setFaculty(cachedSummary.data.faculty);
+				setSavedOwnershipIndex(cachedSummary.data.ownershipIndex ?? []);
+				setSubjects(cachedSubjects.data);
+				setSectionSummary(cachedSections.data);
+				setDataSource('cached');
+				setDegradedNotice('Refreshing live teaching load data. Showing your last saved snapshot in the meantime.');
+				setLoading(false);
+			}
+		}
+
+		const [facultyRes, subjectsRes, sectionsRes] = await Promise.all([
+			requestWithRetry(
+				() =>
+					atlasApi.get<{ faculty: FacultySummary[]; ownershipIndex?: SubjectSectionOwnershipIndexEntry[]; fetchedAt?: string | null }>(
+						'/faculty-assignments/summary',
+						{ params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId } },
+					),
+				{ attempts: 2, delayMs: 400 },
+			),
+			requestWithRetry(
+				() => atlasApi.get<{ subjects: Subject[] }>('/subjects', { params: { schoolId: DEFAULT_SCHOOL_ID } }),
+				{ attempts: 2, delayMs: 300 },
+			),
+			requestWithRetry(
+				() => atlasApi.get<SectionSummaryResponse>(`/sections/summary/${schoolYearId}`, { params: { schoolId: DEFAULT_SCHOOL_ID } }),
+				{ attempts: 2, delayMs: 400 },
+			),
+		]);
+
+		setActiveSchoolYearId(schoolYearId);
+		setFaculty(facultyRes.data.faculty);
+		setSavedOwnershipIndex(facultyRes.data.ownershipIndex ?? []);
+		setSubjects(subjectsRes.data.subjects);
+		setSectionSummary(sectionsRes.data);
+		setCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId, {
+			faculty: facultyRes.data.faculty,
+			ownershipIndex: facultyRes.data.ownershipIndex ?? [],
+			fetchedAt: facultyRes.data.fetchedAt ?? null,
+			schoolYearId,
+		});
+		setCachedSubjects(DEFAULT_SCHOOL_ID, subjectsRes.data.subjects);
+		setCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId, sectionsRes.data);
+		setDataSource('live');
+		setDegradedNotice(null);
+		setError(null);
+	} catch (requestError: any) {
+		const cachedSummary = schoolYearId ? getCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId) : null;
+		const cachedSubjects = getCachedSubjects(DEFAULT_SCHOOL_ID);
+		const cachedSections = schoolYearId ? getCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId) : null;
+
+		if (schoolYearId && cachedSummary && cachedSubjects && cachedSections) {
+			setActiveSchoolYearId(schoolYearId);
+			setFaculty(cachedSummary.data.faculty);
+			setSavedOwnershipIndex(cachedSummary.data.ownershipIndex ?? []);
+			setSubjects(cachedSubjects.data);
+			setSectionSummary(cachedSections.data);
+			setDataSource('cached');
+			setDegradedNotice('Live teaching load data is unavailable. You are viewing your last saved snapshot in read-only mode.');
+			setError(null);
+		} else {
+			setDataSource('none');
+			setDegradedNotice(null);
+			setError(requestError?.response?.data?.message ?? requestError?.message ?? 'Failed to load teaching load data.');
+		}
+	} finally {
+		setLoading(false);
+	}
 }, []);
 useEffect(() => {
 fetchData();
 }, [fetchData]);
+useEffect(() => {
+	const handleOnline = () => setIsOnline(true);
+	const handleOffline = () => setIsOnline(false);
+
+	window.addEventListener('online', handleOnline);
+	window.addEventListener('offline', handleOffline);
+
+	return () => {
+		window.removeEventListener('online', handleOnline);
+		window.removeEventListener('offline', handleOffline);
+	};
+}, []);
+
+const isReadOnlyMode = !isOnline || dataSource !== 'live';
+const readOnlyNotice = !isOnline
+	? 'You are offline. Teaching Load is available in read-only mode until connection returns.'
+	: dataSource === 'cached'
+	? (degradedNotice ?? 'Live teaching load data is unavailable. Showing your last saved snapshot in read-only mode.')
+	: null;
+
 useEffect(() => {
 	const queryValue = searchParams.get('facultyId');
 	if (queryValue) {
@@ -380,6 +469,10 @@ const handleSave = useCallback(async () => {
 if (!selected || !activeSchoolYearId) {
 return;
 }
+	if (isReadOnlyMode) {
+		toast.error('Teaching Load is in read-only mode. Reconnect and refresh live data before saving.');
+		return;
+	}
 
 setSaving(true);
 setError(null);
@@ -394,7 +487,7 @@ sectionIds: assignment.sectionIds,
 gradeLevels: assignment.gradeLevels,
 })),
 });
-await fetchData();
+await fetchData({ forceRefresh: true });
 setDraftAssignmentsByFaculty((previousDrafts) => {
 const nextDrafts = { ...previousDrafts };
 delete nextDrafts[selected.id];
@@ -405,7 +498,7 @@ toast.success('Teaching load saved successfully.');
 const responseCode = requestError?.response?.data?.code as string | undefined;
 const responseMessage = requestError?.response?.data?.message ?? 'Failed to save teaching load.';
 if (responseCode === 'VERSION_CONFLICT') {
-await fetchData();
+await fetchData({ forceRefresh: true });
 toast.error(`${responseMessage} Latest saved data was reloaded; your local draft remains visible.`);
 } else {
 toast.error(responseMessage);
@@ -413,10 +506,14 @@ toast.error(responseMessage);
 } finally {
 setSaving(false);
 }
-}, [activeSchoolYearId, currentAssignments, fetchData, selected]);
+}, [activeSchoolYearId, currentAssignments, fetchData, isReadOnlyMode, selected]);
 
 const handleAutoFill = useCallback(async () => {
 	if (!activeSchoolYearId) return;
+	if (isReadOnlyMode) {
+		toast.error('Teaching Load is in read-only mode. Reconnect and refresh live data before running Auto-Fill.');
+		return;
+	}
 	pushHistory();
 	setAutoFillDialogOpen(false);
 	setAutoFillLoading(true);
@@ -433,7 +530,7 @@ const handleAutoFill = useCallback(async () => {
 			'/faculty-assignments/auto-fill',
 			{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId },
 		);
-		await fetchData();
+		await fetchData({ forceRefresh: true });
 		const { assignmentsCreated, uniqueTeachersAffected, unresolved } = result.data;
 		setSummaryModalResult(result.data as AutoFillSummaryResult);
 		setSummaryModalOpen(true);
@@ -454,10 +551,14 @@ const handleAutoFill = useCallback(async () => {
 	} finally {
 		setAutoFillLoading(false);
 	}
-}, [activeDraftCount, activeSchoolYearId, fetchData, pushHistory]);
+}, [activeDraftCount, activeSchoolYearId, fetchData, isReadOnlyMode, pushHistory]);
 
 const handleViewStaffingNeeds = useCallback(async () => {
 	if (!activeSchoolYearId) return;
+	if (isReadOnlyMode) {
+		toast.error('Teaching Load is in read-only mode. Refresh live data before requesting staffing needs.');
+		return;
+	}
 	setStaffingNeedsLoading(true);
 	try {
 		const result = await atlasApi.post<AutoFillSummaryResult>(
@@ -471,10 +572,14 @@ const handleViewStaffingNeeds = useCallback(async () => {
 	} finally {
 		setStaffingNeedsLoading(false);
 	}
-}, [activeSchoolYearId]);
+}, [activeSchoolYearId, isReadOnlyMode]);
 
 const openGlobalResetPreview = useCallback(async () => {
 	if (!activeSchoolYearId) return;
+	if (isReadOnlyMode) {
+		toast.error('Teaching Load is in read-only mode. Reconnect and refresh live data before resetting.');
+		return;
+	}
 	setResetLoading(true);
 	try {
 		const { data } = await atlasApi.post<TeachingLoadResetPreview>(
@@ -489,10 +594,14 @@ const openGlobalResetPreview = useCallback(async () => {
 	} finally {
 		setResetLoading(false);
 	}
-}, [activeSchoolYearId]);
+}, [activeSchoolYearId, isReadOnlyMode]);
 
 const applyGlobalReset = useCallback(async () => {
 	if (!activeSchoolYearId) return;
+	if (isReadOnlyMode) {
+		toast.error('Teaching Load is in read-only mode. Reconnect and refresh live data before resetting.');
+		return;
+	}
 	if (resetConfirmText.trim().toUpperCase() !== 'RESET') {
 		toast.error('Type RESET to confirm global teaching-load reset.');
 		return;
@@ -507,13 +616,13 @@ const applyGlobalReset = useCallback(async () => {
 		toast.success(`Global teaching-load reset removed ${data.ownershipRowsToRemove} ownership rows.`);
 		setResetDialogOpen(false);
 		setResetConfirmText('');
-		await fetchData();
+		await fetchData({ forceRefresh: true });
 	} catch (requestError: any) {
 		toast.error(requestError?.response?.data?.message ?? 'Failed to apply global teaching-load reset.');
 	} finally {
 		setResetLoading(false);
 	}
-}, [activeSchoolYearId, fetchData, resetConfirmText]);
+}, [activeSchoolYearId, fetchData, isReadOnlyMode, resetConfirmText]);
 
 const getComparableLoadHours = useCallback((member: FacultySummary) => {
 	if (member.isPlaceholder) {
@@ -746,6 +855,10 @@ const assignedFacultyCount = faculty.filter((member) => (effectiveAssignmentsByF
 const sectionsAvailable = Boolean(sectionSummary && sectionSummary.sections.length > 0);
 
 const executeSwap = useCallback(() => {
+	if (isReadOnlyMode) {
+		toast.error('Teaching Load is in read-only mode. Reconnect and refresh live data before swapping ownership.');
+		return;
+	}
 	if (!selected || !swapCandidate) return;
 
 	const { subjectId, sectionId, fromFacultyId } = swapCandidate;
@@ -794,7 +907,7 @@ const executeSwap = useCallback(() => {
 
 	setSwapCandidate(null);
 	toast.success('Ownership swapped to the selected teacher in draft mode. Save to persist changes.');
-}, [pushHistory, savedAssignmentsByFaculty, sectionMap, selected, swapCandidate]);
+}, [isReadOnlyMode, pushHistory, savedAssignmentsByFaculty, sectionMap, selected, swapCandidate]);
 
 return (
 <TooltipProvider delayDuration={200}>
@@ -808,6 +921,24 @@ Dismiss
 </div>
 )}
 
+{readOnlyNotice && (
+	<div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+		<div className="flex items-center gap-2">
+			<AlertTriangle className="size-4 shrink-0 text-amber-600" />
+			<span>{readOnlyNotice}</span>
+		</div>
+		<Button
+			variant="outline"
+			size="sm"
+			className="h-7 border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200"
+			onClick={() => fetchData({ forceRefresh: true })}
+			disabled={loading}
+		>
+			Refresh live data
+		</Button>
+	</div>
+)}
+
 <OverviewHeader
 	assignedPairs={teachablePairTotals.assigned}
 	totalPairs={teachablePairTotals.total}
@@ -816,9 +947,15 @@ Dismiss
 	activeDraftCount={activeDraftCount}
 	autoFillLoading={autoFillLoading}
 	staffingNeedsLoading={staffingNeedsLoading}
-	autoFillEnabled={Boolean(activeSchoolYearId)}
+	autoFillEnabled={Boolean(activeSchoolYearId) && !isReadOnlyMode}
 	resetLoading={resetLoading}
-	onAutoFillClick={() => setAutoFillDialogOpen(true)}
+	onAutoFillClick={() => {
+		if (isReadOnlyMode) {
+			toast.error('Teaching Load is in read-only mode. Reconnect and refresh live data before running Auto-Fill.');
+			return;
+		}
+		setAutoFillDialogOpen(true);
+	}}
 	onViewStaffingNeedsClick={handleViewStaffingNeeds}
 	onResetGlobalClick={openGlobalResetPreview}
 />
@@ -1155,25 +1292,25 @@ loadProfile.breakdown.map((item) => (
 {!sectionsAvailable && <Badge variant="outline">Roster unavailable</Badge>}
 </div>
 <div className="flex items-center gap-2">
-<Button type="button" variant="outline" size="sm" onClick={handleUndo} disabled={!canUndo || saving}>
+<Button type="button" variant="outline" size="sm" onClick={handleUndo} disabled={!canUndo || saving || isReadOnlyMode}>
 <Undo2 className="mr-1.5 size-3.5" />
 Undo
 </Button>
-<Button type="button" variant="outline" size="sm" onClick={handleRedo} disabled={!canRedo || saving}>
+<Button type="button" variant="outline" size="sm" onClick={handleRedo} disabled={!canRedo || saving || isReadOnlyMode}>
 <Redo2 className="mr-1.5 size-3.5" />
 Redo
 </Button>
-<Button type="button" variant="outline" size="sm" onClick={handleResetAssignments} disabled={saving || !selected.isActiveForScheduling || !sectionsAvailable}>
+<Button type="button" variant="outline" size="sm" onClick={handleResetAssignments} disabled={saving || !selected.isActiveForScheduling || !sectionsAvailable || isReadOnlyMode}>
 <RotateCcw className="mr-1.5 size-3.5" />
 Reset Draft (Selected)
 </Button>
 {dirty && (
-<Button type="button" variant="secondary" size="sm" onClick={discardSelectedDraft} disabled={saving}>
+<Button type="button" variant="secondary" size="sm" onClick={discardSelectedDraft} disabled={saving || isReadOnlyMode}>
 <RotateCcw className="mr-1.5 size-3.5" />
 Discard Draft
 </Button>
 )}
-<Button type="button" size="sm" onClick={handleSave} disabled={!dirty || saving || !selected.isActiveForScheduling || !sectionsAvailable}>
+<Button type="button" size="sm" onClick={handleSave} disabled={!dirty || saving || !selected.isActiveForScheduling || !sectionsAvailable || isReadOnlyMode}>
 <Save className="mr-1.5 size-3.5" />
 {saving ? 'Saving...' : 'Save Teaching Load'}
 </Button>
@@ -1247,7 +1384,7 @@ This faculty member is excluded from scheduling. Enable them first.
 							subject={subject}
 							assignment={currentAssignments.find((a) => a.subjectId === subject.id)}
 								sections={allKnownSections.filter((sec) => subject.gradeLevels.length === 0 || subject.gradeLevels.includes(sec.displayOrder))}
-							disabled={!selected.isActiveForScheduling || !sectionsAvailable}
+							disabled={!selected.isActiveForScheduling || !sectionsAvailable || isReadOnlyMode}
 							selectedFacultyId={selected.id}
 							savedOwnershipMap={savedOwnershipMap}
 							pendingOwnershipMap={pendingOwnershipMap}
@@ -1292,7 +1429,7 @@ This faculty member is excluded from scheduling. Enable them first.
 								subject={subject}
 								assignment={currentAssignments.find((a) => a.subjectId === subject.id)}
 								sections={allKnownSections.filter((sec) => subject.gradeLevels.length === 0 || subject.gradeLevels.includes(sec.displayOrder))}
-								disabled={!selected.canTeachOutsideDepartment || !selected.isActiveForScheduling || !sectionsAvailable}
+								disabled={!selected.canTeachOutsideDepartment || !selected.isActiveForScheduling || !sectionsAvailable || isReadOnlyMode}
 								selectedFacultyId={selected.id}
 								savedOwnershipMap={savedOwnershipMap}
 								pendingOwnershipMap={pendingOwnershipMap}
@@ -1403,7 +1540,7 @@ This faculty member is excluded from scheduling. Enable them first.
 			<Button
 				variant="destructive"
 				size="sm"
-				disabled={resetLoading || resetConfirmText.trim().toUpperCase() !== 'RESET'}
+				disabled={isReadOnlyMode || resetLoading || resetConfirmText.trim().toUpperCase() !== 'RESET'}
 				onClick={applyGlobalReset}
 			>
 				{resetLoading ? 'Resetting...' : 'Confirm Reset'}

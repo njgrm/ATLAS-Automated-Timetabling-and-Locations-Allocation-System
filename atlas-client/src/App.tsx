@@ -45,13 +45,14 @@ const router = createBrowserRouter([
 				element: <Subjects />,
 			},
 			{
-			        path: 'teachers',
-			        element: <Faculty />,
+				path: 'faculty',
+				element: <Faculty />,
 			},
 			{
-			        path: 'teaching-load',
-			        element: <FacultyAssignments />,
-			},			{
+				path: 'assignments',
+				element: <FacultyAssignments />,
+			},
+			{
 				path: 'sections',
 				element: <Sections />,
 			},

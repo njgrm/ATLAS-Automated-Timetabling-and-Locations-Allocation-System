@@ -1,3 +1,46 @@
+# 2026-05-22 - Phase 3 Teachers/Teaching Load Performance + Offline Readiness One-Shot
+- Phase: Phase 3 generator-readiness stream, runtime resilience for `/faculty` and `/assignments`
+- Operator: GitHub Copilot
+- Scope gate: PASS (implementation + local build + Tailnet runtime verification)
+- Files changed in this pass:
+  - `atlas-client/src/lib/enrollpro-public-settings.ts`
+  - `atlas-client/src/lib/faculty-teaching-load-cache.ts`
+  - `atlas-client/src/components/AppShell.tsx`
+  - `atlas-client/src/pages/Faculty.tsx`
+  - `atlas-client/src/pages/FacultyAssignments.tsx`
+  - `atlas-client/src/components/faculty/FacultyRow.tsx`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+
+- Runtime/performance/offline contract outcomes:
+  - Added cached active-school-year resolver (`localStorage` + in-memory) so `/faculty` and `/assignments` no longer require repeated settings bootstrap on every page switch.
+  - Added retry + last-good cache fallback for teaching-load summary and assignments bootstrap payloads.
+  - `/faculty` now truthfully distinguishes `Live data` vs `Cached snapshot` and only claims cached mode when a cached payload is actually in use.
+  - `/faculty` now explicitly shows `No cache` when bridge/settings bootstrap fails and no last-good payload exists.
+  - `/assignments` now hydrates from cached summary/subjects/sections when available, then refreshes live in background.
+  - `/assignments` enters explicit read-only mode for cached/offline states; save/auto-fill/reset/swap actions are disabled or blocked with clear guidance.
+  - Faculty row quick action link now routes directly to the active teaching-load route (`/assignments?facultyId=...`).
+
+- Local verification:
+  - `npm --prefix atlas-client run build` -> PASS
+  - `npm --prefix atlas-server run build` -> PASS
+  - diagnostics on touched frontend files -> PASS
+
+- Tailnet live QA (`https://njgrm.buru-degree.ts.net`):
+  - Direct ATLAS admin login (`1000001 / AdminSY2026!`) -> PASS
+  - `/faculty` normal load shows `Live data` status and working `/assignments?facultyId=...` quick-link -> PASS
+  - Simulated `/api/v1/faculty-assignments/summary` outage (Playwright route abort) on `/faculty` -> cached snapshot banner shown: `Live teacher data is unavailable. Showing your last saved roster snapshot.` -> PASS
+  - Simulated `/api/v1/faculty-assignments/summary` outage on `/assignments` -> read-only notice shown and mutation controls disabled (`Save Teaching Load`, `Auto-Fill Remaining`) -> PASS
+  - Simulated brief `/enrollpro-api/settings/public` outage with existing cached context -> `/faculty` remains open and status badge remains available -> PASS
+  - Simulated offline network state on `/assignments` -> offline read-only notice shown; `Auto-Fill Remaining` toggles from enabled (online) to disabled (offline) -> PASS
+  - Simulated bridge/settings outage with cache keys removed -> `/faculty` shows `No cache` badge + `Cached roster data is unavailable` guidance; no misleading cached-state claim -> PASS
+  - Simulated bridge/settings outage with cache keys removed -> `/assignments` shows explicit `Network Error`/no-data state and keeps mutation controls disabled -> PASS
+  - Removed simulated route blocks and reloaded `/faculty` + `/assignments` -> both recover to live data, with stable back/forth navigation and writable controls restored on `/assignments` -> PASS
+
+- GO/NO-GO:
+  - **GO** for this one-shot prompt scope (performance/degraded/offline-read baseline for Teachers and Teaching Load).
+  - **NO-GO** for overall Phase 3 closure (unchanged): generator readiness gates remain open and must still be closed with phase-gate evidence.
+
 # 2026-05-22 - Phase 3 Subject Qualification Reset One-Shot (Department Baseline + Mapping Removal)
 - Phase: Phase 3 generator-readiness stream, subject qualification baseline reset and workflow simplification
 - Operator: GitHub Copilot

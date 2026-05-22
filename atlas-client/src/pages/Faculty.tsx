@@ -27,7 +27,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 import { FacultyRow } from '@/components/faculty/FacultyRow';
 import { FacultyProfileSheet } from '@/components/faculty/FacultyProfileSheet';
 import { toast } from 'sonner';
-import { fetchPublicSettings } from '@/lib/settings';
+import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import type { SubjectSectionOwnershipIndexEntry } from '@/lib/faculty-assignment-helpers';
+import {
+	getCachedFacultyAssignmentsSummary,
+	requestWithRetry,
+	setCachedFacultyAssignmentsSummary,
+} from '@/lib/faculty-teaching-load-cache';
 
 const DEFAULT_SCHOOL_ID = 1;
 const PAGE_SIZES = [10, 25, 50, 100];
@@ -39,10 +45,14 @@ export default function Faculty() {
 	const [faculty, setFaculty] = useState<FacultySummary[]>([]);
 	const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
+	const [refreshing, setRefreshing] = useState(false);
 	const [syncing, setSyncing] = useState(false);
 	const [syncError, setSyncError] = useState(false);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [error, setError] = useState<string | null>(null);
+	const [dataSource, setDataSource] = useState<'live' | 'cached' | 'none'>('none');
+	const [cacheNotice, setCacheNotice] = useState<string | null>(null);
+	const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 	
 	// Quick Profile
 	const [profileTarget, setProfileTarget] = useState<FacultySummary | null>(null);
@@ -60,25 +70,74 @@ export default function Faculty() {
 	const [assignmentFilter, setAssignmentFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
 	const [departmentFilter, setDepartmentFilter] = useState<string>('all');
 
-	const fetchFaculty = useCallback(async () => {
+	const fetchFaculty = useCallback(async (options?: { forceRefresh?: boolean }) => {
+		const forceRefresh = options?.forceRefresh === true;
 		setLoading(true);
+		setRefreshing(true);
+		setError(null);
+
+		let schoolYearId: number | null = null;
 		try {
-			const settings = await fetchPublicSettings();
-			const schoolYearId = settings.activeSchoolYearId;
-			if (!schoolYearId) {
-				throw new Error('Active school year is not configured.');
+			const yearContext = await resolveActiveSchoolYearContext({ forceRefresh });
+			schoolYearId = yearContext.activeSchoolYearId;
+
+			if (!forceRefresh) {
+				const cachedPreview = getCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId, {
+					maxAgeMs: 3 * 60 * 1000,
+				});
+				if (cachedPreview) {
+					setFaculty(cachedPreview.data.faculty);
+					setLastSyncedAt(cachedPreview.data.fetchedAt);
+					setDataSource('cached');
+					setCacheNotice('Loading live teacher data. Displaying your last saved roster snapshot in the meantime.');
+					setLoading(false);
+				}
 			}
-			const { data } = await atlasApi.get<{ faculty: FacultySummary[]; fetchedAt: string | null }>('/faculty-assignments/summary', {
-				params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId },
-			});
+
+			const { data } = await requestWithRetry(
+				() =>
+					atlasApi.get<{
+						faculty: FacultySummary[];
+						ownershipIndex?: SubjectSectionOwnershipIndexEntry[];
+						fetchedAt: string | null;
+					}>('/faculty-assignments/summary', {
+						params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId },
+					}),
+				{ attempts: 2, delayMs: 400 },
+			);
+
 			setFaculty(data.faculty);
 			setLastSyncedAt(data.fetchedAt);
+			setCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId, {
+				faculty: data.faculty,
+				ownershipIndex: data.ownershipIndex ?? [],
+				fetchedAt: data.fetchedAt,
+				schoolYearId,
+			});
+			setDataSource('live');
+			setCacheNotice(null);
 			setSyncError(false);
 			setError(null);
 		} catch {
-			setSyncError(true);
-			setError('Failed to load faculty data.');
+			const cachedFallback = schoolYearId
+				? getCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId)
+				: null;
+
+			if (cachedFallback) {
+				setFaculty(cachedFallback.data.faculty);
+				setLastSyncedAt(cachedFallback.data.fetchedAt);
+				setDataSource('cached');
+				setSyncError(true);
+				setError(null);
+				setCacheNotice('Live teacher data is unavailable. Showing your last saved roster snapshot.');
+			} else {
+				setSyncError(true);
+				setDataSource('none');
+				setCacheNotice(null);
+				setError('Failed to load teachers. Check EnrollPro bridge availability, then retry.');
+			}
 		} finally {
+			setRefreshing(false);
 			setLoading(false);
 		}
 	}, []);
@@ -87,7 +146,24 @@ export default function Faculty() {
 		fetchFaculty();
 	}, [fetchFaculty]);
 
+	useEffect(() => {
+		const handleOnline = () => setIsOnline(true);
+		const handleOffline = () => setIsOnline(false);
+
+		window.addEventListener('online', handleOnline);
+		window.addEventListener('offline', handleOffline);
+
+		return () => {
+			window.removeEventListener('online', handleOnline);
+			window.removeEventListener('offline', handleOffline);
+		};
+	}, []);
+
 	const handleSync = async () => {
+		if (!isOnline) {
+			toast.error('You are offline. Reconnect before syncing Teachers.');
+			return;
+		}
 		setSyncing(true);
 		setSyncError(false);
 		try {
@@ -96,7 +172,7 @@ export default function Faculty() {
 			});
 			if (data.synced) {
 				toast.success(`Successfully synced roster (${data.activeCount} active faculty).`);
-				await fetchFaculty();
+				await fetchFaculty({ forceRefresh: true });
 			} else {
 				setSyncError(true);
 				toast.error('Sync completed but reported no changes or an error.');
@@ -246,6 +322,16 @@ export default function Faculty() {
 					</div>
 
 					<div className="flex items-center gap-3">
+						<Badge
+							variant={dataSource === 'live' ? 'secondary' : 'outline'}
+							className="h-6 px-2 text-[0.7rem] uppercase tracking-wide"
+						>
+							{dataSource === 'live'
+								? 'Live data'
+								: dataSource === 'cached'
+								? 'Cached snapshot'
+								: 'No cache'}
+						</Badge>
 						{timeSince && (
 							<TooltipProvider delayDuration={500}>
 								<Tooltip>
@@ -258,9 +344,9 @@ export default function Faculty() {
 								</Tooltip>
 							</TooltipProvider>
 						)}
-						<Button onClick={handleSync} disabled={syncing} size="sm" className="h-9 gap-2 shadow-sm font-bold">
+						<Button onClick={handleSync} disabled={syncing || !isOnline} size="sm" className="h-9 gap-2 shadow-sm font-bold">
 							<RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
-							{syncing ? 'Syncing...' : 'Sync Teachers'}
+							{syncing ? 'Syncing...' : !isOnline ? 'Offline' : refreshing ? 'Refreshing...' : 'Sync Teachers'}
 						</Button>
 					</div>
 				</div>
@@ -270,10 +356,17 @@ export default function Faculty() {
 			{syncError && (
 				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
 					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
-					<span className="flex-1 font-medium">EnrollPro bridge is currently unreachable. Displaying cached roster data.</span>
+					<span className="flex-1 font-medium">{cacheNotice ?? 'EnrollPro bridge is currently unreachable. Cached roster data is unavailable.'}</span>
 					<Button size="sm" variant="outline" onClick={handleSync} disabled={syncing} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold">
 						<RefreshCw className={`mr-1.5 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry Sync
 					</Button>
+				</div>
+			)}
+
+			{cacheNotice && !syncError && dataSource === 'cached' && (
+				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 shadow-sm animate-in fade-in duration-300">
+					<AlertTriangle className="size-4 shrink-0 text-blue-600" />
+					<span className="flex-1 font-medium">{cacheNotice}</span>
 				</div>
 			)}
 
