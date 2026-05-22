@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import type { FacultyRoomPreferenceEntry } from '@/types';
+import type { FacultyTeachingAssignmentIdentity } from '@/types';
 import ActionQueue from './ActionQueue';
 
 type DesktopDashboardLayoutProps = {
@@ -20,6 +21,7 @@ type DesktopDashboardLayoutProps = {
 	entries: FacultyRoomPreferenceEntry[];
 	renderEntryBadge: (entry: FacultyRoomPreferenceEntry) => ReactNode;
 	banners?: ReactNode;
+	teachingAssignments?: FacultyTeachingAssignmentIdentity[];
 };
 
 export default function DesktopDashboardLayout({
@@ -29,6 +31,7 @@ export default function DesktopDashboardLayout({
 	entries,
 	renderEntryBadge,
 	banners,
+	teachingAssignments = [],
 }: DesktopDashboardLayoutProps) {
 	const hasDrafts = entries.some(e => e.status === 'DRAFT');
 
@@ -66,6 +69,22 @@ export default function DesktopDashboardLayout({
 						Manage Room Requests
 					</Link>
 				</Button>
+
+				{teachingAssignments.length > 0 && (
+					<Card className='rounded-2xl border-border/50 bg-muted/10'>
+						<CardContent className='p-4 space-y-3'>
+							<p className='text-xs font-bold text-muted-foreground uppercase tracking-wider'>Teaching Identity</p>
+							<div className='space-y-2'>
+								{teachingAssignments.slice(0, 6).map((assignment) => (
+									<div key={`${assignment.subjectId}:${assignment.sectionId}`} className='rounded-xl border border-border/50 bg-background px-3 py-2'>
+										<p className='text-xs font-bold'>{assignment.subjectDisplayLabel} • {assignment.sectionName}</p>
+										<p className='text-[11px] text-muted-foreground'>G{assignment.gradeLevel} • {assignment.specializationLabel ?? assignment.subjectName}</p>
+									</div>
+								))}
+							</div>
+						</CardContent>
+					</Card>
+				)}
 			</div>
 
 			{/* Right Column: Full Schedule Preview Table */}

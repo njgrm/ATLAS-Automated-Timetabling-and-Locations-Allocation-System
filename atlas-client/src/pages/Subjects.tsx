@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+	AlertTriangle,
 	ArrowDown,
 	ArrowUp,
 	ArrowUpDown,
 	BookOpen,
 	ChevronLeft,
 	ChevronRight,
+	ChevronsLeft,
+	ChevronsRight,
 	Filter,
 	Map,
 	Plus,
@@ -49,7 +52,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 
 
 const DEFAULT_SCHOOL_ID = 1;
-const PAGE_SIZES = [10, 25, 50];
+const PAGE_SIZES = [10, 25, 50, 100];
 
 type SortField = 'code' | 'name' | 'minMinutesPerWeek' | 'preferredRoomType' | 'gradeLevels';
 type SortDir = 'asc' | 'desc';
@@ -96,6 +99,7 @@ export default function Subjects() {
 	} | null>(null);
 	const [deleteActionLoading, setDeleteActionLoading] = useState(false);
 	const [syncingContract, setSyncingContract] = useState(false);
+	const [syncError, setSyncError] = useState(false);
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [showFilters, setShowFilters] = useState(false);
 	const [timeMode, setTimeMode] = useState<'minutes' | 'hours'>('minutes');
@@ -564,16 +568,30 @@ export default function Subjects() {
 				)}
 			</div>
 
-			{error && (
-				<div className="shrink-0 mx-6 mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 flex items-center justify-between">
-					<span>{error}</span>
-					<Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setError(null)}>Dismiss</Button>
+			{/* Status Banners */}
+			{syncError && (
+				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
+					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
+					<span className="flex-1 font-medium">The offerings contract could not be fully verified against the latest enrollment state. Displaying last known contract.</span>
+					<Button size="sm" variant="outline" onClick={handleSyncContract} disabled={syncingContract} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold">
+						<RefreshCw className={`mr-1.5 size-3 ${syncingContract ? 'animate-spin' : ''}`} /> Retry Sync
+					</Button>
+				</div>
+			)}
+
+			{error && !syncError && (
+				<div className="shrink-0 mx-6 mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-900 flex items-center justify-between shadow-sm">
+					<div className="flex items-center gap-2">
+						<AlertTriangle className="size-4 shrink-0 text-red-600" />
+						<span className="font-medium">{error}</span>
+					</div>
+					<Button variant="ghost" size="sm" className="h-7 px-2 font-bold" onClick={() => setError(null)}>Dismiss</Button>
 				</div>
 			)}
 
 			{/* Table Container */}
 			<div className="flex-1 min-h-0 px-6 py-4">
-				<Card className="h-full flex flex-col shadow-sm border-border/50">
+				<Card className="h-full flex flex-col shadow-sm border-border/50 overflow-hidden">
 					<div className="flex-1 min-h-0 overflow-auto">
 						<table className="w-full text-sm">
 							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md">
@@ -618,10 +636,19 @@ export default function Subjects() {
 									))
 								) : paged.length === 0 ? (
 									<tr>
-										<td colSpan={7} className="px-4 py-12 text-center">
-											<div className="flex flex-col items-center gap-2 text-muted-foreground">
-												<BookOpen className="size-8 opacity-20" />
-												<p>{searchQuery || hasActiveFilters ? 'No subjects match your current filters.' : 'No subjects have been configured yet.'}</p>
+										<td colSpan={7} className="px-4 py-20 text-center">
+											<div className="flex flex-col items-center gap-4 text-muted-foreground max-w-xs mx-auto">
+												<BookOpen className="size-12 opacity-20" />
+												<div className="space-y-1">
+													<p className="font-bold text-foreground">
+														{subjects.length === 0 ? 'No subjects found.' : 'No matches found.'}
+													</p>
+													<p className="text-xs">
+														{subjects.length === 0 
+															? 'Ensure the offerings contract is synced to begin scheduling.'
+															: 'Try adjusting your filters or search query to find the subject you are looking for.'}
+													</p>
+												</div>
 											</div>
 										</td>
 									</tr>
@@ -680,7 +707,8 @@ export default function Subjects() {
 										? 'No results'
 										: `Showing ${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, totalFiltered)} of ${totalFiltered} results`}
 								</span>
-								<div className="flex items-center gap-2">
+								
+								<div className="flex items-center gap-2 border-l pl-4 border-border/50">
 									<span>Rows per page:</span>
 									<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
 										<SelectTrigger className="h-7 w-20 text-xs bg-background">
@@ -692,12 +720,22 @@ export default function Subjects() {
 									</Select>
 								</div>
 							</div>
+							
 							<div className="flex items-center gap-1.5">
-								<Button
-									variant="outline"
-									size="icon"
-									className="h-8 w-8"
-									onClick={() => setPage((p) => Math.max(1, p - 1))}
+								<Button 
+									variant="outline" 
+									size="icon" 
+									className="h-8 w-8" 
+									onClick={() => setPage(1)} 
+									disabled={page <= 1}
+								>
+									<ChevronsLeft className="size-4" />
+								</Button>
+								<Button 
+									variant="outline" 
+									size="icon" 
+									className="h-8 w-8" 
+									onClick={() => setPage((p) => Math.max(1, p - 1))} 
 									disabled={page <= 1}
 								>
 									<ChevronLeft className="size-4" />
@@ -707,14 +745,23 @@ export default function Subjects() {
 									<span className="text-muted-foreground/50">/</span>
 									<span className="text-muted-foreground">{totalPages}</span>
 								</div>
-								<Button
-									variant="outline"
-									size="icon"
-									className="h-8 w-8"
-									onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+								<Button 
+									variant="outline" 
+									size="icon" 
+									className="h-8 w-8" 
+									onClick={() => setPage((p) => Math.min(totalPages, p + 1))} 
 									disabled={page >= totalPages}
 								>
 									<ChevronRight className="size-4" />
+								</Button>
+								<Button 
+									variant="outline" 
+									size="icon" 
+									className="h-8 w-8" 
+									onClick={() => setPage(totalPages)} 
+									disabled={page >= totalPages}
+								>
+									<ChevronsRight className="size-4" />
 								</Button>
 							</div>
 						</div>

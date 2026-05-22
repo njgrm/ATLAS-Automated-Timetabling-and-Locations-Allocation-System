@@ -385,6 +385,11 @@ export function SubjectRow({
 																		{section.name}
 																	</p>
 															<div className="mt-1 flex flex-wrap items-center gap-1">
+																{section.assignmentSpecializationLabel && (
+																	<Badge className="shrink-0 border-sky-300 bg-sky-50 px-1 py-0 text-[0.5rem] text-sky-700">
+																		{section.assignmentSpecializationLabel}
+																	</Badge>
+																)}
 																{isSystemAssignedSection && (
 																	<Badge className="shrink-0 border-amber-400 bg-amber-100 px-1 py-0 text-[0.5rem] text-amber-800">
 																		System Assigned

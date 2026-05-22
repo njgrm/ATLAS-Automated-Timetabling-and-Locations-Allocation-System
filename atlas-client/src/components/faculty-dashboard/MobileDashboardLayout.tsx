@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import type { FacultyRoomPreferenceEntry } from '@/types';
+import type { FacultyTeachingAssignmentIdentity } from '@/types';
 import ActionQueue from './ActionQueue';
 
 type MobileDashboardLayoutProps = {
@@ -20,6 +21,7 @@ type MobileDashboardLayoutProps = {
 	schedulePreview: FacultyRoomPreferenceEntry[];
 	renderEntryBadge: (entry: FacultyRoomPreferenceEntry) => ReactNode;
 	banners?: ReactNode;
+	teachingAssignments?: FacultyTeachingAssignmentIdentity[];
 };
 
 export default function MobileDashboardLayout({
@@ -29,6 +31,7 @@ export default function MobileDashboardLayout({
 	schedulePreview,
 	renderEntryBadge,
 	banners,
+	teachingAssignments = [],
 }: MobileDashboardLayoutProps) {
 	const hasDrafts = schedulePreview.some(e => e.status === 'DRAFT');
 
@@ -76,6 +79,23 @@ export default function MobileDashboardLayout({
 					</CardContent>
 				</Card>
 			</div>
+
+			{/* Short Schedule Preview */}
+			{teachingAssignments.length > 0 && (
+				<div className='space-y-3'>
+					<h2 className='text-sm font-bold'>Teaching Identity</h2>
+					<div className='space-y-2'>
+						{teachingAssignments.slice(0, 4).map((assignment) => (
+							<Card key={`${assignment.subjectId}:${assignment.sectionId}`} className='rounded-xl border-border/50 overflow-hidden shadow-sm'>
+								<CardContent className='p-3'>
+									<p className='text-xs font-bold truncate'>{assignment.subjectDisplayLabel} • {assignment.sectionName}</p>
+									<p className='text-[10px] text-muted-foreground mt-0.5 truncate'>{assignment.specializationLabel ?? assignment.subjectName}</p>
+								</CardContent>
+							</Card>
+						))}
+					</div>
+				</div>
+			)}
 
 			{/* Short Schedule Preview */}
 			<div className='space-y-3'>

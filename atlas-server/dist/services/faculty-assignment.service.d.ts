@@ -58,6 +58,12 @@ export type SubjectSectionOwnershipIndexEntry = {
     sectionId: number;
     facultyId: number;
     facultyName: string;
+    specializationCode?: string | null;
+    specializationLabel?: string | null;
+};
+export type AssignmentSpecializationIdentity = {
+    specializationCode: string | null;
+    specializationLabel: string | null;
 };
 export type TeachingLoadAssignmentKind = 'REAL_OWNERSHIP' | 'BASELINE_ONLY' | 'MISSING_OWNERSHIP';
 export interface TeachingLoadCoverageTotals {
@@ -209,16 +215,98 @@ export interface PlaceholderCoverageRepairResult {
     resolvedSubjectCodes: string[];
     stillUncoveredSubjectCodes: string[];
 }
+export interface RealFacultyRecoveryInput {
+    schoolId: number;
+    schoolYearId: number;
+    actorId: number;
+    authToken?: string;
+    subjectCodes?: string[];
+    apply?: boolean;
+}
+export interface RealFacultyRecoveryMove {
+    mode: 'MOVE_PLACEHOLDER' | 'ASSIGN_UNCOVERED';
+    ownershipId: number | null;
+    subjectId: number;
+    subjectCode: string;
+    sectionId: number;
+    fromFacultyId: number;
+    fromFacultyName: string;
+    toFacultyId: number;
+    toFacultyName: string;
+    estimatedDeltaMinutes: number;
+}
+export interface RealFacultyRecoveryBlocker {
+    subjectCode: string;
+    sectionId: number;
+    category: 'TRUE_DEPARTMENT_SHORTAGE' | 'SKEWED_ASSIGNMENT_TOPOLOGY' | 'UNRESOLVED_AUTOMATION_SEED_BIAS' | 'ROTATION_FAMILY_MODELING_GAP' | 'SUBJECT_CONTRACT_GAP';
+    reason: string;
+}
+export interface RealFacultyRecoverySubjectDelta {
+    subjectCode: string;
+    beforeOwnedByRealFacultyCount: number;
+    beforeOwnedByPlaceholderCount: number;
+    afterOwnedByRealFacultyCount: number;
+    afterOwnedByPlaceholderCount: number;
+}
+export interface RotationGateVerdict {
+    family: 'SCIENCE' | 'TLE_ROTATION';
+    verdict: 'WORKING' | 'NOT_WORKING';
+    teacherCountWithFamilyLoad: number;
+    teacherCountWithOvercountSignal: number;
+    sampleSubjectCodes: string[];
+    reason: string;
+}
+export interface RealFacultyRecoveryResult {
+    applied: boolean;
+    schoolId: number;
+    schoolYearId: number;
+    targetSubjects: string[];
+    beforeCoverage: ActiveSubjectCoverageSummary;
+    afterCoverage: ActiveSubjectCoverageSummary;
+    placeholderMovesPlanned: number;
+    placeholderMovesApplied: number;
+    moves: RealFacultyRecoveryMove[];
+    subjectDeltas: RealFacultyRecoverySubjectDelta[];
+    blockerCounts: {
+        trueDepartmentShortage: number;
+        skewedAssignmentTopology: number;
+        unresolvedAutomationSeedBias: number;
+        rotationFamilyModelingGap: number;
+        subjectContractGap: number;
+    };
+    blockers: RealFacultyRecoveryBlocker[];
+    lowLoadRecovery: {
+        thresholdHours: number;
+        zeroLoadRealFacultyBefore: number;
+        zeroLoadRealFacultyAfter: number;
+        lowLoadRealFacultyBefore: number;
+        lowLoadRealFacultyAfter: number;
+        recoveredFromZeroLoad: number;
+    };
+    rotationGate: {
+        science: RotationGateVerdict;
+        tle: RotationGateVerdict;
+    };
+}
 export declare function getActiveSubjectCoverageSummary(schoolId: number, schoolYearId: number, authToken?: string): Promise<ActiveSubjectCoverageSummary>;
 export declare function repairActiveSubjectCoverageWithPlaceholders(input: PlaceholderCoverageRepairInput): Promise<PlaceholderCoverageRepairResult>;
+export declare function previewOrApplyRealFacultyRecovery(input: RealFacultyRecoveryInput): Promise<RealFacultyRecoveryResult>;
 export declare function previewOrApplySpecialProgramRedistribution(input: SpecialProgramRebalanceInput): Promise<SpecialProgramRebalanceResult>;
+export declare function resolveAssignmentSpecializationIdentity(input: {
+    subjectCode: string | null | undefined;
+    allowedSpecializations?: string[] | null | undefined;
+    facultySpecialization?: string | null | undefined;
+}): AssignmentSpecializationIdentity;
 export declare function getAssignmentsByFaculty(facultyId: number, schoolYearId: number, authToken?: string): Promise<{
     facultyId: number;
     version: number;
     assignments: {
         gradeLevels: number[];
         sectionIds: number[];
-        sections: import("./faculty-assignment-scope.service.js").ScopedSection[];
+        sections: (import("./faculty-assignment-scope.service.js").ScopedSection & {
+            assignmentSpecializationCode: string | null;
+            assignmentSpecializationLabel: string | null;
+        })[];
         assignmentKind: TeachingLoadAssignmentKind;
         storedCurrentYearSectionCount: number;
         ownedCurrentYearSectionCount: number;
@@ -284,7 +372,10 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
         assignments: {
             gradeLevels: number[];
             sectionIds: number[];
-            sections: import("./faculty-assignment-scope.service.js").ScopedSection[];
+            sections: (import("./faculty-assignment-scope.service.js").ScopedSection & {
+                assignmentSpecializationCode: string | null;
+                assignmentSpecializationLabel: string | null;
+            })[];
             assignmentKind: TeachingLoadAssignmentKind;
             storedCurrentYearSectionCount: number;
             ownedCurrentYearSectionCount: number;
@@ -321,6 +412,17 @@ export interface TeachingLoadResetInput {
     subjectId?: number;
     previewOnly?: boolean;
 }
+export declare function getFacultyAssignmentIdentitySummary(facultyId: number, schoolYearId: number, authToken?: string): Promise<Array<{
+    subjectId: number;
+    subjectCode: string;
+    subjectName: string;
+    subjectDisplayLabel: string;
+    sectionId: number;
+    sectionName: string;
+    gradeLevel: number;
+    specializationCode: string | null;
+    specializationLabel: string | null;
+}>>;
 export interface TeachingLoadResetResult {
     applied: boolean;
     scope: 'GLOBAL' | 'SUBJECT';

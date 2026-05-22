@@ -85,7 +85,7 @@ function withSubjectViewMetadata(subject) {
         ownerDepartment,
         qualificationPriority,
         rotationFamily,
-        specializationSource: (subject.allowedSpecializations ?? []).length > 0 ? 'SUBJECT_CONTRACT' : 'NONE',
+        specializationSource: (subject.allowedSpecializations ?? []).length > 0 ? 'REFERENCE_METADATA' : 'NONE',
         isSystemManaged,
     };
 }

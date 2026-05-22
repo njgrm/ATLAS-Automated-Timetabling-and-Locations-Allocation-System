@@ -436,6 +436,462 @@ export async function repairActiveSubjectCoverageWithPlaceholders(input) {
         stillUncoveredSubjectCodes,
     };
 }
+const DEFAULT_REAL_RECOVERY_SUBJECT_CODES = ['SCI_ES', 'TLE_FCS_EXP', 'SCI_CHEM', 'HG'];
+const REAL_FACULTY_LOW_LOAD_THRESHOLD_HOURS = 3;
+function normalizeRecoverySubjectCodes(subjectCodes) {
+    if (!subjectCodes || subjectCodes.length === 0) {
+        return DEFAULT_REAL_RECOVERY_SUBJECT_CODES;
+    }
+    return [...new Set(subjectCodes.map((value) => value.trim().toUpperCase()).filter((value) => value.length > 0))];
+}
+function getRotationGateVerdict(family, facultyRows) {
+    const matchingDetails = facultyRows
+        .filter((row) => !row.isPlaceholder)
+        .flatMap((row) => row.rotationFamilyLoadDetails ?? [])
+        .filter((detail) => detail.family === family);
+    const teacherCountWithFamilyLoad = matchingDetails.filter((detail) => detail.unitCount > 0).length;
+    const teacherCountWithOvercountSignal = matchingDetails.filter((detail) => detail.overcountHours > 0).length;
+    const sampleSubjectCodes = [...new Set(matchingDetails.flatMap((detail) => detail.subjectCodes))]
+        .sort((left, right) => left.localeCompare(right))
+        .slice(0, 12);
+    const working = teacherCountWithFamilyLoad > 0
+        && teacherCountWithOvercountSignal > 0
+        && sampleSubjectCodes.length > 0;
+    return {
+        family,
+        verdict: working ? 'WORKING' : 'NOT_WORKING',
+        teacherCountWithFamilyLoad,
+        teacherCountWithOvercountSignal,
+        sampleSubjectCodes,
+        reason: working
+            ? 'Runtime load output shows lane-collapsed family overcount signals with real-teacher ownership.'
+            : 'Runtime load output does not yet show sufficient family-level overcount/ownership evidence.',
+    };
+}
+export async function previewOrApplyRealFacultyRecovery(input) {
+    const apply = input.apply === true;
+    const targetSubjectCodes = normalizeRecoverySubjectCodes(input.subjectCodes);
+    const beforeCoverage = await getActiveSubjectCoverageSummary(input.schoolId, input.schoolYearId, input.authToken);
+    const beforeSummary = await getAssignmentSummary(input.schoolId, input.schoolYearId, input.authToken);
+    const rosterIndex = await buildRosterIndex(input.schoolId, input.schoolYearId, input.authToken);
+    const currentYearSectionIds = Array.from(rosterIndex.sectionMap.keys());
+    const currentYearSectionIdSet = new Set(currentYearSectionIds);
+    const sectionGradeMap = new Map(Array.from(rosterIndex.sectionMap.values()).map((section) => [section.id, section.displayOrder]));
+    const [subjects, facultyRows, ownershipRows] = await Promise.all([
+        prisma.subject.findMany({
+            where: {
+                schoolId: input.schoolId,
+                isActive: true,
+                code: { in: targetSubjectCodes },
+            },
+            select: {
+                id: true,
+                code: true,
+                name: true,
+                ownerDepartment: true,
+                rotationFamily: true,
+                minMinutesPerWeek: true,
+                allowedSpecializations: true,
+                gradeLevels: true,
+                programScopes: true,
+            },
+        }),
+        prisma.facultyMirror.findMany({
+            where: {
+                schoolId: input.schoolId,
+                isStale: false,
+                isActiveForScheduling: true,
+            },
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                department: true,
+                specialization: true,
+                canTeachOutsideDepartment: true,
+                isPlaceholder: true,
+                maxHoursPerWeek: true,
+            },
+        }),
+        currentYearSectionIds.length > 0
+            ? prisma.subjectSectionOwnership.findMany({
+                where: {
+                    schoolId: input.schoolId,
+                    sectionId: { in: currentYearSectionIds },
+                },
+                select: {
+                    id: true,
+                    subjectId: true,
+                    sectionId: true,
+                    facultyId: true,
+                    facultySubjectId: true,
+                    facultySubject: {
+                        select: {
+                            assignedBy: true,
+                            subject: {
+                                select: {
+                                    id: true,
+                                    code: true,
+                                    rotationFamily: true,
+                                    minMinutesPerWeek: true,
+                                },
+                            },
+                        },
+                    },
+                },
+            })
+            : Promise.resolve([]),
+    ]);
+    const subjectById = new Map(subjects.map((subject) => [subject.id, subject]));
+    const facultyById = new Map(facultyRows.map((member) => [member.id, member]));
+    const targetSubjectIds = new Set(subjects.map((subject) => subject.id));
+    const lanesByFaculty = new Map();
+    const creditedMinutesByFaculty = new Map();
+    for (const row of ownershipRows) {
+        const perUnitMinutes = Math.max(0, Number(row.facultySubject.subject.minMinutesPerWeek) || 0);
+        if (perUnitMinutes <= 0)
+            continue;
+        const family = resolveLoadRotationFamily({
+            id: row.facultySubject.subject.id,
+            code: row.facultySubject.subject.code,
+            rotationFamily: row.facultySubject.subject.rotationFamily,
+            minMinutesPerWeek: perUnitMinutes,
+        });
+        const laneKey = family
+            ? `family:${family}:${row.sectionId}`
+            : `subject:${row.facultySubject.subject.id}:${row.sectionId}`;
+        const lanes = lanesByFaculty.get(row.facultyId) ?? new Map();
+        const currentLaneMinutes = lanes.get(laneKey) ?? 0;
+        if (perUnitMinutes > currentLaneMinutes) {
+            lanes.set(laneKey, perUnitMinutes);
+            lanesByFaculty.set(row.facultyId, lanes);
+        }
+    }
+    for (const [facultyId, lanes] of lanesByFaculty.entries()) {
+        const minutes = Array.from(lanes.values()).reduce((sum, value) => sum + value, 0);
+        creditedMinutesByFaculty.set(facultyId, minutes);
+    }
+    const plannedMoves = [];
+    const blockers = [];
+    const targetRows = ownershipRows
+        .filter((row) => targetSubjectIds.has(row.subjectId))
+        .filter((row) => currentYearSectionIdSet.has(row.sectionId));
+    const ownedSectionBySubject = new Map();
+    for (const row of targetRows) {
+        const owned = ownedSectionBySubject.get(row.subjectId) ?? new Set();
+        owned.add(row.sectionId);
+        ownedSectionBySubject.set(row.subjectId, owned);
+    }
+    const pendingPairs = [];
+    for (const row of targetRows) {
+        if (facultyById.get(row.facultyId)?.isPlaceholder === true) {
+            pendingPairs.push({
+                mode: 'MOVE_PLACEHOLDER',
+                ownershipId: row.id,
+                subjectId: row.subjectId,
+                sectionId: row.sectionId,
+                fromFacultyId: row.facultyId,
+            });
+        }
+    }
+    for (const subject of subjects) {
+        const relevantSectionIds = getRelevantSectionIdsForSubject(subject, Array.from(rosterIndex.sectionMap.values()).map((section) => ({
+            id: section.id,
+            gradeLevel: section.displayOrder,
+            programType: section.programType ?? 'REGULAR',
+        })));
+        const owned = ownedSectionBySubject.get(subject.id) ?? new Set();
+        const uncoveredSectionIds = relevantSectionIds.filter((sectionId) => !owned.has(sectionId));
+        for (const sectionId of uncoveredSectionIds) {
+            pendingPairs.push({
+                mode: 'ASSIGN_UNCOVERED',
+                ownershipId: null,
+                subjectId: subject.id,
+                sectionId,
+                fromFacultyId: 0,
+            });
+        }
+    }
+    pendingPairs.sort((left, right) => {
+        if (left.subjectId !== right.subjectId)
+            return left.subjectId - right.subjectId;
+        return left.sectionId - right.sectionId;
+    });
+    for (const pair of pendingPairs) {
+        const subject = subjectById.get(pair.subjectId);
+        if (!subject) {
+            blockers.push({
+                subjectCode: `SUBJECT_${pair.subjectId}`,
+                sectionId: pair.sectionId,
+                category: 'SUBJECT_CONTRACT_GAP',
+                reason: 'Subject metadata is missing from active contract scope.',
+            });
+            continue;
+        }
+        const candidates = facultyRows
+            .filter((member) => !member.isPlaceholder)
+            .filter((member) => matchesSubjectOwnershipDepartment(member.department, subject.code, subject.name, subject.ownerDepartment)
+            || member.canTeachOutsideDepartment)
+            .sort((left, right) => {
+            const leftMinutes = creditedMinutesByFaculty.get(left.id) ?? 0;
+            const rightMinutes = creditedMinutesByFaculty.get(right.id) ?? 0;
+            if (leftMinutes !== rightMinutes)
+                return leftMinutes - rightMinutes;
+            return left.id - right.id;
+        });
+        if (candidates.length === 0) {
+            blockers.push({
+                subjectCode: subject.code,
+                sectionId: pair.sectionId,
+                category: 'TRUE_DEPARTMENT_SHORTAGE',
+                reason: `No active qualified real faculty found for ${subject.code}.`,
+            });
+            continue;
+        }
+        const family = resolveLoadRotationFamily({
+            id: subject.id,
+            code: subject.code,
+            rotationFamily: subject.rotationFamily,
+            minMinutesPerWeek: subject.minMinutesPerWeek,
+        });
+        const laneKey = family
+            ? `family:${family}:${pair.sectionId}`
+            : `subject:${subject.id}:${pair.sectionId}`;
+        const perUnitMinutes = Math.max(0, Number(subject.minMinutesPerWeek) || 0);
+        let selectedCandidate = null;
+        let selectedDeltaMinutes = 0;
+        for (const candidate of candidates) {
+            const maxMinutes = Math.min(Math.max(0, Number(candidate.maxHoursPerWeek) || 0) * 60, 2400);
+            const lanes = lanesByFaculty.get(candidate.id) ?? new Map();
+            const currentLaneMinutes = lanes.get(laneKey) ?? 0;
+            const deltaMinutes = Math.max(0, perUnitMinutes - currentLaneMinutes);
+            const nextMinutes = (creditedMinutesByFaculty.get(candidate.id) ?? 0) + deltaMinutes;
+            if (nextMinutes <= maxMinutes) {
+                selectedCandidate = candidate;
+                selectedDeltaMinutes = deltaMinutes;
+                break;
+            }
+        }
+        if (!selectedCandidate) {
+            blockers.push({
+                subjectCode: subject.code,
+                sectionId: pair.sectionId,
+                category: 'SKEWED_ASSIGNMENT_TOPOLOGY',
+                reason: `Qualified faculty exist for ${subject.code}, but all are currently load-capped for this lane.`,
+            });
+            continue;
+        }
+        const selectedLanes = lanesByFaculty.get(selectedCandidate.id) ?? new Map();
+        const currentLaneMinutes = selectedLanes.get(laneKey) ?? 0;
+        if (perUnitMinutes > currentLaneMinutes) {
+            selectedLanes.set(laneKey, perUnitMinutes);
+        }
+        lanesByFaculty.set(selectedCandidate.id, selectedLanes);
+        creditedMinutesByFaculty.set(selectedCandidate.id, (creditedMinutesByFaculty.get(selectedCandidate.id) ?? 0) + selectedDeltaMinutes);
+        plannedMoves.push({
+            mode: pair.mode,
+            ownershipId: pair.ownershipId,
+            subjectId: pair.subjectId,
+            subjectCode: subject.code,
+            sectionId: pair.sectionId,
+            fromFacultyId: pair.fromFacultyId,
+            fromFacultyName: pair.fromFacultyId > 0
+                ? formatFacultyName(facultyById.get(pair.fromFacultyId)?.firstName ?? 'Teacher', facultyById.get(pair.fromFacultyId)?.lastName ?? 'X')
+                : 'UNASSIGNED',
+            toFacultyId: selectedCandidate.id,
+            toFacultyName: formatFacultyName(selectedCandidate.firstName, selectedCandidate.lastName),
+            estimatedDeltaMinutes: selectedDeltaMinutes,
+        });
+    }
+    let appliedMoves = 0;
+    if (apply && plannedMoves.length > 0) {
+        await prisma.$transaction(async (tx) => {
+            const destinationFsByKey = new Map();
+            const touchedPairs = new Set();
+            for (const move of plannedMoves) {
+                const destinationKey = `${move.toFacultyId}:${move.subjectId}`;
+                let destinationFacultySubjectId = destinationFsByKey.get(destinationKey);
+                if (!destinationFacultySubjectId) {
+                    const existing = await tx.facultySubject.findUnique({
+                        where: {
+                            facultyId_subjectId: {
+                                facultyId: move.toFacultyId,
+                                subjectId: move.subjectId,
+                            },
+                        },
+                        select: { id: true },
+                    });
+                    if (existing) {
+                        destinationFacultySubjectId = existing.id;
+                    }
+                    else {
+                        const created = await tx.facultySubject.create({
+                            data: {
+                                facultyId: move.toFacultyId,
+                                subjectId: move.subjectId,
+                                schoolId: input.schoolId,
+                                gradeLevels: [],
+                                sectionIds: [],
+                                assignedBy: input.actorId,
+                            },
+                            select: { id: true },
+                        });
+                        destinationFacultySubjectId = created.id;
+                    }
+                    destinationFsByKey.set(destinationKey, destinationFacultySubjectId);
+                }
+                const subject = subjectById.get(move.subjectId);
+                const destinationFaculty = facultyById.get(move.toFacultyId);
+                const specializationIdentity = resolveAssignmentSpecializationIdentity({
+                    subjectCode: subject?.code,
+                    allowedSpecializations: subject?.allowedSpecializations,
+                    facultySpecialization: destinationFaculty?.specialization,
+                });
+                if (move.ownershipId) {
+                    await tx.subjectSectionOwnership.update({
+                        where: { id: move.ownershipId },
+                        data: {
+                            facultyId: move.toFacultyId,
+                            facultySubjectId: destinationFacultySubjectId,
+                            specializationCode: specializationIdentity.specializationCode,
+                            specializationLabel: specializationIdentity.specializationLabel,
+                            assignedAt: new Date(),
+                        },
+                    });
+                }
+                else {
+                    await tx.subjectSectionOwnership.create({
+                        data: {
+                            schoolId: input.schoolId,
+                            facultySubjectId: destinationFacultySubjectId,
+                            facultyId: move.toFacultyId,
+                            subjectId: move.subjectId,
+                            sectionId: move.sectionId,
+                            specializationCode: specializationIdentity.specializationCode,
+                            specializationLabel: specializationIdentity.specializationLabel,
+                            assignedAt: new Date(),
+                        },
+                    });
+                }
+                touchedPairs.add(`${move.fromFacultyId}:${move.subjectId}`);
+                touchedPairs.add(`${move.toFacultyId}:${move.subjectId}`);
+                appliedMoves += 1;
+            }
+            for (const key of touchedPairs) {
+                const [facultyIdRaw, subjectIdRaw] = key.split(':');
+                const facultyId = Number(facultyIdRaw);
+                const subjectId = Number(subjectIdRaw);
+                if (!Number.isFinite(facultyId) || !Number.isFinite(subjectId))
+                    continue;
+                const facultySubject = await tx.facultySubject.findUnique({
+                    where: { facultyId_subjectId: { facultyId, subjectId } },
+                    select: { id: true, assignedBy: true },
+                });
+                if (!facultySubject)
+                    continue;
+                const ownedRows = await tx.subjectSectionOwnership.findMany({
+                    where: {
+                        schoolId: input.schoolId,
+                        facultyId,
+                        subjectId,
+                    },
+                    select: { sectionId: true },
+                });
+                const nextSectionIds = [...new Set(ownedRows.map((row) => row.sectionId))].sort((left, right) => left - right);
+                if (nextSectionIds.length === 0) {
+                    if (facultySubject.assignedBy === 0) {
+                        await tx.facultySubject.delete({ where: { id: facultySubject.id } });
+                    }
+                    continue;
+                }
+                const nextGradeLevels = deriveGradeLevelsFromSectionIds(nextSectionIds, sectionGradeMap);
+                await tx.facultySubject.update({
+                    where: { id: facultySubject.id },
+                    data: {
+                        sectionIds: nextSectionIds,
+                        gradeLevels: nextGradeLevels,
+                    },
+                });
+            }
+        });
+    }
+    const afterCoverage = apply
+        ? await getActiveSubjectCoverageSummary(input.schoolId, input.schoolYearId, input.authToken)
+        : beforeCoverage;
+    const afterSummary = apply
+        ? await getAssignmentSummary(input.schoolId, input.schoolYearId, input.authToken)
+        : beforeSummary;
+    const beforeRowsByCode = new Map(beforeCoverage.rows.map((row) => [row.subjectCode, row]));
+    const afterRowsByCode = new Map(afterCoverage.rows.map((row) => [row.subjectCode, row]));
+    const subjectDeltas = targetSubjectCodes.map((code) => {
+        const beforeRow = beforeRowsByCode.get(code);
+        const afterRow = afterRowsByCode.get(code);
+        return {
+            subjectCode: code,
+            beforeOwnedByRealFacultyCount: beforeRow?.ownedByRealFacultyCount ?? 0,
+            beforeOwnedByPlaceholderCount: beforeRow?.ownedByPlaceholderCount ?? 0,
+            afterOwnedByRealFacultyCount: afterRow?.ownedByRealFacultyCount ?? 0,
+            afterOwnedByPlaceholderCount: afterRow?.ownedByPlaceholderCount ?? 0,
+        };
+    });
+    const realBefore = beforeSummary.faculty.filter((row) => row.loadSignalMode === 'STANDARD');
+    const realAfter = afterSummary.faculty.filter((row) => row.loadSignalMode === 'STANDARD');
+    const zeroLoadRealFacultyBefore = realBefore.filter((row) => row.sectionTeachingHours <= 0).length;
+    const zeroLoadRealFacultyAfter = realAfter.filter((row) => row.sectionTeachingHours <= 0).length;
+    const lowLoadRealFacultyBefore = realBefore.filter((row) => row.sectionTeachingHours <= REAL_FACULTY_LOW_LOAD_THRESHOLD_HOURS).length;
+    const lowLoadRealFacultyAfter = realAfter.filter((row) => row.sectionTeachingHours <= REAL_FACULTY_LOW_LOAD_THRESHOLD_HOURS).length;
+    const scienceVerdict = getRotationGateVerdict('SCIENCE', afterSummary.faculty);
+    const tleVerdict = getRotationGateVerdict('TLE_ROTATION', afterSummary.faculty);
+    if (scienceVerdict.verdict !== 'WORKING') {
+        blockers.push({
+            subjectCode: 'SCIENCE',
+            sectionId: 0,
+            category: 'ROTATION_FAMILY_MODELING_GAP',
+            reason: 'Science family runtime output lacks sufficient overcount/ownership evidence.',
+        });
+    }
+    if (tleVerdict.verdict !== 'WORKING') {
+        blockers.push({
+            subjectCode: 'TLE_ROTATION',
+            sectionId: 0,
+            category: 'ROTATION_FAMILY_MODELING_GAP',
+            reason: 'TLE family runtime output lacks sufficient overcount/ownership evidence.',
+        });
+    }
+    const blockerCounts = {
+        trueDepartmentShortage: blockers.filter((entry) => entry.category === 'TRUE_DEPARTMENT_SHORTAGE').length,
+        skewedAssignmentTopology: blockers.filter((entry) => entry.category === 'SKEWED_ASSIGNMENT_TOPOLOGY').length,
+        unresolvedAutomationSeedBias: blockers.filter((entry) => entry.category === 'UNRESOLVED_AUTOMATION_SEED_BIAS').length,
+        rotationFamilyModelingGap: blockers.filter((entry) => entry.category === 'ROTATION_FAMILY_MODELING_GAP').length,
+        subjectContractGap: blockers.filter((entry) => entry.category === 'SUBJECT_CONTRACT_GAP').length,
+    };
+    return {
+        applied: apply,
+        schoolId: input.schoolId,
+        schoolYearId: input.schoolYearId,
+        targetSubjects: targetSubjectCodes,
+        beforeCoverage,
+        afterCoverage,
+        placeholderMovesPlanned: plannedMoves.length,
+        placeholderMovesApplied: apply ? appliedMoves : 0,
+        moves: plannedMoves,
+        subjectDeltas,
+        blockerCounts,
+        blockers,
+        lowLoadRecovery: {
+            thresholdHours: REAL_FACULTY_LOW_LOAD_THRESHOLD_HOURS,
+            zeroLoadRealFacultyBefore,
+            zeroLoadRealFacultyAfter,
+            lowLoadRealFacultyBefore,
+            lowLoadRealFacultyAfter,
+            recoveredFromZeroLoad: Math.max(0, zeroLoadRealFacultyBefore - zeroLoadRealFacultyAfter),
+        },
+        rotationGate: {
+            science: scienceVerdict,
+            tle: tleVerdict,
+        },
+    };
+}
 const DEFAULT_SPECIAL_PROGRAM_SUBJECT_CODES = ['SPA_SPEC', 'SPS_SPEC'];
 function buildSpecialProgramDistributionRows(subjects, ownershipRows, facultyById) {
     return subjects.map((subject) => {
@@ -515,6 +971,8 @@ export async function previewOrApplySpecialProgramRedistribution(input) {
                     subjectId: true,
                     sectionId: true,
                     facultyId: true,
+                    specializationCode: true,
+                    specializationLabel: true,
                     facultySubjectId: true,
                     facultySubject: { select: { assignedBy: true } },
                 },
@@ -530,6 +988,7 @@ export async function previewOrApplySpecialProgramRedistribution(input) {
                 firstName: true,
                 lastName: true,
                 department: true,
+                specialization: true,
                 isPlaceholder: true,
                 isActiveForScheduling: true,
                 canTeachOutsideDepartment: true,
@@ -543,6 +1002,8 @@ export async function previewOrApplySpecialProgramRedistribution(input) {
         facultyId: row.facultyId,
         facultySubjectId: row.facultySubjectId,
         facultySubjectAssignedBy: row.facultySubject.assignedBy,
+        specializationCode: row.specializationCode ?? null,
+        specializationLabel: row.specializationLabel ?? null,
     }));
     const facultyById = new Map(allFaculty.map((member) => [member.id, member]));
     const before = buildSpecialProgramDistributionRows(targetedSubjects, normalizedOwnershipRows, facultyById);
@@ -703,11 +1164,19 @@ export async function previewOrApplySpecialProgramRedistribution(input) {
                 if (!sourceOwnership) {
                     continue;
                 }
+                const subject = targetedSubjects.find((entry) => entry.id === move.subjectId);
+                const destinationFaculty = facultyById.get(move.toFacultyId);
+                const specializationIdentity = resolveAssignmentSpecializationIdentity({
+                    subjectCode: subject?.code,
+                    facultySpecialization: destinationFaculty?.specialization,
+                });
                 await tx.subjectSectionOwnership.update({
                     where: { id: sourceOwnership.id },
                     data: {
                         facultyId: move.toFacultyId,
                         facultySubjectId: destinationFacultySubjectId,
+                        specializationCode: specializationIdentity.specializationCode,
+                        specializationLabel: specializationIdentity.specializationLabel,
                         assignedAt: new Date(),
                     },
                 });
@@ -796,12 +1265,57 @@ export async function previewOrApplySpecialProgramRedistribution(input) {
 function buildServiceError(code, error, details) {
     return { success: false, code, error, details };
 }
+function normalizeSpecializationCode(value) {
+    const trimmed = (value ?? '').trim();
+    if (trimmed.length === 0)
+        return null;
+    const normalized = trimmed.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase();
+    return normalized.length > 0 ? normalized : null;
+}
+function normalizeSpecializationLabel(value) {
+    const trimmed = (value ?? '').trim();
+    return trimmed.length > 0 ? trimmed : null;
+}
+function canonicalizeAllowedSpecialization(allowedSpecializations, candidate) {
+    const candidateCode = normalizeSpecializationCode(candidate);
+    if (!candidateCode)
+        return null;
+    const match = (allowedSpecializations ?? []).find((entry) => normalizeSpecializationCode(entry) === candidateCode);
+    return match ?? candidateCode;
+}
+function isAssignmentSpecializationSubject(subjectCode) {
+    const code = (subjectCode ?? '').trim().toUpperCase();
+    return code === 'SPA_SPEC' || code === 'SPS_SPEC' || code.startsWith('TLE_SPEC_');
+}
+export function resolveAssignmentSpecializationIdentity(input) {
+    if (!isAssignmentSpecializationSubject(input.subjectCode)) {
+        return { specializationCode: null, specializationLabel: null };
+    }
+    const specializationLabel = normalizeSpecializationLabel(input.facultySpecialization);
+    if (!specializationLabel) {
+        return { specializationCode: null, specializationLabel: null };
+    }
+    return {
+        specializationCode: canonicalizeAllowedSpecialization(input.allowedSpecializations, specializationLabel),
+        specializationLabel,
+    };
+}
+function attachSectionSpecializationMetadata(sections, specializationBySectionId) {
+    return sections.map((section) => {
+        const specialization = specializationBySectionId?.get(section.id);
+        return {
+            ...section,
+            assignmentSpecializationCode: specialization?.specializationCode ?? null,
+            assignmentSpecializationLabel: specialization?.specializationLabel ?? null,
+        };
+    });
+}
 function toAssignmentResponse(assignment, normalized, metadata) {
     return {
         ...assignment,
         gradeLevels: normalized.gradeLevels,
         sectionIds: normalized.sectionIds,
-        sections: normalized.sections,
+        sections: attachSectionSpecializationMetadata(normalized.sections, metadata?.specializationBySectionId),
         assignmentKind: metadata?.assignmentKind ?? (normalized.sectionIds.length > 0 ? 'REAL_OWNERSHIP' : 'BASELINE_ONLY'),
         storedCurrentYearSectionCount: metadata?.storedCurrentYearSectionCount ?? normalized.sectionIds.length,
         ownedCurrentYearSectionCount: metadata?.ownedCurrentYearSectionCount ?? normalized.sectionIds.length,
@@ -841,14 +1355,23 @@ export async function getAssignmentsByFaculty(facultyId, schoolYearId, authToken
             select: {
                 facultySubjectId: true,
                 sectionId: true,
+                specializationCode: true,
+                specializationLabel: true,
             },
         })
         : [];
     const ownershipByFacultySubjectId = new Map();
+    const specializationByFacultySubjectId = new Map();
     for (const row of ownershipRows) {
         const existing = ownershipByFacultySubjectId.get(row.facultySubjectId) ?? new Set();
         existing.add(row.sectionId);
         ownershipByFacultySubjectId.set(row.facultySubjectId, existing);
+        const specializationMap = specializationByFacultySubjectId.get(row.facultySubjectId) ?? new Map();
+        specializationMap.set(row.sectionId, {
+            specializationCode: row.specializationCode ?? null,
+            specializationLabel: row.specializationLabel ?? null,
+        });
+        specializationByFacultySubjectId.set(row.facultySubjectId, specializationMap);
     }
     const sectionDisplayOrderMap = new Map(Array.from(rosterIndex.sectionMap.values()).map((section) => [section.id, section.displayOrder]));
     return {
@@ -880,6 +1403,7 @@ export async function getAssignmentsByFaculty(facultyId, schoolYearId, authToken
                 ownedCurrentYearSectionCount: ownedCurrentYearSectionIds.length,
                 missingOwnershipSectionCount,
                 ownershipWithoutScopeSectionCount,
+                specializationBySectionId: specializationByFacultySubjectId.get(assignment.id),
             });
         }),
     };
@@ -894,6 +1418,7 @@ export async function setAssignments(facultyId, schoolId, schoolYearId, assigned
             version: true,
             isClassAdviser: true,
             advisedSectionId: true,
+            specialization: true,
         },
     });
     if (!faculty) {
@@ -914,13 +1439,15 @@ export async function setAssignments(facultyId, schoolId, schoolYearId, assigned
     }
     let normalizedAssignments = [];
     let rosterIndex = null;
+    let validSubjectsById = new Map();
     if (assignments.length > 0) {
         rosterIndex = await buildRosterIndex(schoolId, schoolYearId, authToken);
         const validSubjects = await prisma.subject.findMany({
             where: { schoolId, id: { in: subjectIds } },
-            select: { id: true },
+            select: { id: true, code: true, allowedSpecializations: true },
         });
         const validSubjectIds = new Set(validSubjects.map((subject) => subject.id));
+        validSubjectsById = new Map(validSubjects.map((subject) => [subject.id, subject]));
         const invalidSubjectIds = subjectIds.filter((subjectId) => !validSubjectIds.has(subjectId));
         if (invalidSubjectIds.length > 0) {
             return buildServiceError('INVALID_SUBJECTS', 'One or more subjects are not valid for the selected school.', { invalidSubjectIds });
@@ -1043,14 +1570,24 @@ export async function setAssignments(facultyId, schoolId, schoolYearId, assigned
                     select: { id: true, subjectId: true, sectionIds: true },
                 });
                 // Write normalized ownership rows — unique constraint is the final DB guardrail
-                const ownershipData = createdSubjects.flatMap((fs) => fs.sectionIds.map((sectionId) => ({
-                    schoolId,
-                    facultySubjectId: fs.id,
-                    facultyId,
-                    subjectId: fs.subjectId,
-                    sectionId,
-                    assignedAt: new Date(),
-                })));
+                const ownershipData = createdSubjects.flatMap((fs) => fs.sectionIds.map((sectionId) => {
+                    const subject = validSubjectsById.get(fs.subjectId);
+                    const specializationIdentity = resolveAssignmentSpecializationIdentity({
+                        subjectCode: subject?.code,
+                        allowedSpecializations: subject?.allowedSpecializations,
+                        facultySpecialization: faculty.specialization,
+                    });
+                    return {
+                        schoolId,
+                        facultySubjectId: fs.id,
+                        facultyId,
+                        subjectId: fs.subjectId,
+                        sectionId,
+                        specializationCode: specializationIdentity.specializationCode,
+                        specializationLabel: specializationIdentity.specializationLabel,
+                        assignedAt: new Date(),
+                    };
+                }));
                 if (ownershipData.length > 0) {
                     await tx.subjectSectionOwnership.createMany({ data: ownershipData });
                 }
@@ -1113,6 +1650,8 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
                     subjectId: true,
                     sectionId: true,
                     facultyId: true,
+                    specializationCode: true,
+                    specializationLabel: true,
                 },
             })
             : Promise.resolve([]),
@@ -1142,12 +1681,21 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
         sectionId: row.sectionId,
         facultyId: row.facultyId,
         facultyName: ownershipNameByFacultyId.get(row.facultyId) ?? `Faculty #${row.facultyId}`,
+        specializationCode: row.specializationCode ?? null,
+        specializationLabel: row.specializationLabel ?? null,
     }));
     const ownershipByFacultySubjectId = new Map();
+    const specializationByFacultySubjectId = new Map();
     for (const row of ownershipRows) {
         const existing = ownershipByFacultySubjectId.get(row.facultySubjectId) ?? new Set();
         existing.add(row.sectionId);
         ownershipByFacultySubjectId.set(row.facultySubjectId, existing);
+        const specializationMap = specializationByFacultySubjectId.get(row.facultySubjectId) ?? new Map();
+        specializationMap.set(row.sectionId, {
+            specializationCode: row.specializationCode ?? null,
+            specializationLabel: row.specializationLabel ?? null,
+        });
+        specializationByFacultySubjectId.set(row.facultySubjectId, specializationMap);
     }
     const teachablePairSet = new Set();
     for (const subject of activeSubjects) {
@@ -1265,6 +1813,7 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
                 ownedCurrentYearSectionCount: ownedCurrentYearSectionIds.length,
                 missingOwnershipSectionCount,
                 ownershipWithoutScopeSectionCount,
+                specializationBySectionId: specializationByFacultySubjectId.get(assignment.id),
             });
         });
         const sectionCount = assignments.reduce((sum, assignment) => sum + assignment.sectionIds.length, 0);
@@ -1470,6 +2019,27 @@ export async function previewOrApplyTeachingLoadTruthReconcile(input) {
         updatedRows,
         sampleUpdates,
     };
+}
+export async function getFacultyAssignmentIdentitySummary(facultyId, schoolYearId, authToken) {
+    const assignmentState = await getAssignmentsByFaculty(facultyId, schoolYearId, authToken);
+    if (!assignmentState) {
+        return [];
+    }
+    return assignmentState.assignments
+        .flatMap((assignment) => assignment.sections.map((section) => ({
+        subjectId: assignment.subject.id,
+        subjectCode: assignment.subject.code,
+        subjectName: assignment.subject.name,
+        subjectDisplayLabel: assignment.subject.code === 'SPA_SPEC' || assignment.subject.code === 'SPS_SPEC'
+            ? 'SPECIALIZATION'
+            : assignment.subject.code,
+        sectionId: section.id,
+        sectionName: section.name,
+        gradeLevel: section.displayOrder,
+        specializationCode: section.assignmentSpecializationCode ?? null,
+        specializationLabel: section.assignmentSpecializationLabel ?? null,
+    })))
+        .sort((left, right) => left.gradeLevel - right.gradeLevel || left.sectionName.localeCompare(right.sectionName) || left.subjectCode.localeCompare(right.subjectCode));
 }
 async function resolveSchoolYearSectionIds(schoolId, schoolYearId, authToken) {
     const sectionResult = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);

@@ -1,6 +1,7 @@
 import { getLatestFacultyRoomPreferenceState } from './room-preference.service.js';
 import { getFacultyRoomPreferenceState } from './room-preference.service.js';
 import { resolveActiveDraftRun } from './active-draft-run-resolver.service.js';
+import { getFacultyAssignmentIdentitySummary } from './faculty-assignment.service.js';
 
 type LifecyclePhase = 'SETUP' | 'PREFERENCE_COLLECTION' | 'GENERATION' | 'REVIEW' | 'PUBLISHED' | 'ARCHIVED';
 
@@ -32,6 +33,7 @@ export async function getFacultyPortalDashboard(params: {
 	schoolId: number;
 	schoolYearId: number;
 	facultyId: number;
+	authToken?: string;
 }) {
 	const phase = currentPhase();
 	let state: Awaited<ReturnType<typeof getLatestFacultyRoomPreferenceState>> | null = null;
@@ -69,6 +71,7 @@ export async function getFacultyPortalDashboard(params: {
 				entries: [],
 				counts: { total: 0, pending: 0, approved: 0, rejected: 0, unchanged: 0 },
 			},
+			teachingAssignments: [],
 			statuses: {
 				requestStatusLabel: 'No active draft run yet',
 				reviewStatusLabel: 'Waiting for scheduler generation',
@@ -87,6 +90,7 @@ export async function getFacultyPortalDashboard(params: {
 		rejected: state.entries.filter((entry) => entry.decisionStatus === 'REJECTED').length,
 		unchanged: state.entries.filter((entry) => !entry.requestedRoomId).length,
 	};
+	const teachingAssignments = await getFacultyAssignmentIdentitySummary(params.facultyId, params.schoolYearId, params.authToken);
 
 	return {
 		phase,
@@ -113,6 +117,7 @@ export async function getFacultyPortalDashboard(params: {
 			entries: state.entries,
 			counts,
 		},
+		teachingAssignments,
 		statuses: {
 			requestStatusLabel: counts.pending > 0 ? `${counts.pending} request(s) pending review` : 'No pending room requests',
 			reviewStatusLabel: counts.rejected > 0 ? `${counts.rejected} request(s) were rejected and need action` : 'Review status is up to date',

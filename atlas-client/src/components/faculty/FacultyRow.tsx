@@ -35,22 +35,22 @@ export function FacultyRow({
 					className="flex items-center gap-3 cursor-pointer" 
 					onClick={() => onViewProfile(faculty)}
 				>
-					<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+					<div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
 						{faculty.firstName[0]}{faculty.lastName[0]}
 					</div>
 					<div className="min-w-0">
 						<div className="flex items-center gap-1.5">
-							<p className="font-semibold text-foreground truncate">
+							<p className="font-bold text-foreground truncate leading-tight">
 								{faculty.lastName}, {faculty.firstName}
 							</p>
 						</div>
 						<div className="flex items-center gap-2 mt-0.5">
-							<p className="text-xs text-muted-foreground font-mono truncate">
+							<p className="text-[0.65rem] text-muted-foreground font-mono truncate">
 								ID: {faculty.employeeId || 'No ID'}
 							</p>
 							{faculty.isClassAdviser && (
-								<span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded flex items-center gap-1 truncate max-w-32">
-									<Star className="size-3 fill-amber-400 text-amber-500 shrink-0" />
+								<span className="text-[0.65rem] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded flex items-center gap-1 truncate max-w-32">
+									<Star className="size-2.5 fill-amber-400 text-amber-500 shrink-0" />
 									<span className="truncate">{faculty.advisedSectionName ? `Adviser: ${faculty.advisedSectionName}` : 'Adviser'}</span>
 								</span>
 							)}
@@ -64,7 +64,7 @@ export function FacultyRow({
 						{faculty.department || 'General'}
 					</span>
 					{faculty.specialization && (
-						<span className="text-xs text-muted-foreground truncate">
+						<span className="text-[0.65rem] text-muted-foreground truncate font-medium">
 							{faculty.specialization}
 						</span>
 					)}
@@ -72,19 +72,19 @@ export function FacultyRow({
 			</td>
 			<td className="px-4 py-3 text-center">
 				{subjectCount > 0 ? (
-					<Badge className="bg-blue-100 text-blue-700 text-xs hover:bg-blue-100 shadow-none border-none">
+					<Badge className="bg-blue-50 text-blue-700 text-xs font-bold hover:bg-blue-50 shadow-none border-blue-100">
 						{subjectCount}
 					</Badge>
 				) : (
-					<Badge variant="secondary" className="text-xs shadow-none bg-muted/50">0</Badge>
+					<Badge variant="secondary" className="text-xs font-bold shadow-none bg-muted/50">0</Badge>
 				)}
 			</td>
 			<td className="px-4 py-3 text-center">
 				<div className="flex flex-col items-center">
-					<span className={`text-sm font-bold ${loadColor}`}>
+					<span className={`text-sm font-bold tabular-nums ${loadColor}`}>
 						{weeklyHours > 0 ? `${weeklyHours}h` : '-'}
 					</span>
-					<span className="text-xs text-muted-foreground">/ {maxHours}h limit</span>
+					<span className="text-[0.7rem] text-muted-foreground font-medium">/ {maxHours}h limit</span>
 				</div>
 			</td>
 			<td className="px-4 py-3 text-center">
@@ -92,8 +92,8 @@ export function FacultyRow({
 					<TooltipProvider delayDuration={300}>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<div className="flex justify-center">
-									<CheckCircle2 className="size-4 text-emerald-500" />
+								<div className="flex justify-center text-emerald-600">
+									<CheckCircle2 className="size-4" />
 								</div>
 							</TooltipTrigger>
 							<TooltipContent>Active for scheduling</TooltipContent>
@@ -103,7 +103,7 @@ export function FacultyRow({
 					<TooltipProvider delayDuration={300}>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Badge variant="secondary" className="text-xs shadow-none bg-muted/50 cursor-help">Excluded</Badge>
+								<Badge variant="secondary" className="text-[0.7rem] font-bold shadow-none bg-muted/50 cursor-help">Excluded</Badge>
 							</TooltipTrigger>
 							<TooltipContent>Excluded in EnrollPro. Cannot be scheduled.</TooltipContent>
 						</Tooltip>

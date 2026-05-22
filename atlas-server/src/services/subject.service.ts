@@ -113,7 +113,7 @@ type SubjectWithViewMetadata = {
 	ownerDepartment: string | null;
 	qualificationPriority: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
 	rotationFamily: string | null;
-	specializationSource: 'SUBJECT_CONTRACT' | 'NONE';
+	specializationSource: 'REFERENCE_METADATA' | 'NONE';
 	isSystemManaged: boolean;
 };
 
@@ -142,7 +142,7 @@ function withSubjectViewMetadata<T extends {
 		ownerDepartment,
 		qualificationPriority,
 		rotationFamily,
-		specializationSource: (subject.allowedSpecializations ?? []).length > 0 ? 'SUBJECT_CONTRACT' : 'NONE',
+		specializationSource: (subject.allowedSpecializations ?? []).length > 0 ? 'REFERENCE_METADATA' : 'NONE',
 		isSystemManaged,
 	};
 }

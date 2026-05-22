@@ -3,6 +3,7 @@ export declare function getFacultyPortalDashboard(params: {
     schoolId: number;
     schoolYearId: number;
     facultyId: number;
+    authToken?: string;
 }): Promise<{
     phase: LifecyclePhase;
     phaseMessage: string;
@@ -34,6 +35,7 @@ export declare function getFacultyPortalDashboard(params: {
             unchanged: number;
         };
     };
+    teachingAssignments: never[];
     statuses: {
         requestStatusLabel: string;
         reviewStatusLabel: string;
@@ -69,6 +71,17 @@ export declare function getFacultyPortalDashboard(params: {
             unchanged: number;
         };
     };
+    teachingAssignments: {
+        subjectId: number;
+        subjectCode: string;
+        subjectName: string;
+        subjectDisplayLabel: string;
+        sectionId: number;
+        sectionName: string;
+        gradeLevel: number;
+        specializationCode: string | null;
+        specializationLabel: string | null;
+    }[];
     statuses: {
         requestStatusLabel: string;
         reviewStatusLabel: string;

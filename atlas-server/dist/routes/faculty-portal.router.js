@@ -41,7 +41,8 @@ router.get('/:schoolId/:schoolYearId/dashboard', authenticate, async (req, res, 
             res.status(403).json({ code: 'FORBIDDEN', message: 'Faculty profile mapping is required for My Portal.' });
             return;
         }
-        const dashboard = await getFacultyPortalDashboard({ schoolId, schoolYearId, facultyId: faculty.id });
+        const authToken = req.headers.authorization?.slice(7);
+        const dashboard = await getFacultyPortalDashboard({ schoolId, schoolYearId, facultyId: faculty.id, authToken });
         res.json({
             faculty: {
                 id: faculty.id,

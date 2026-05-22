@@ -1,3 +1,115 @@
+# 2026-05-23 - Phase 3 Teaching Load Real-Faculty Recovery + Rotation Gate One-Shot
+- Phase: Phase 3 generator-readiness stream, Teaching Load real-faculty recovery and runtime rotation gate proof
+- Operator: GitHub Copilot
+- Scope gate: PASS (implementation + server build + live Tailnet preview/apply verification)
+- Files changed in this pass:
+  - `atlas-client/src/lib/faculty-teaching-load-cache.ts`
+  - `atlas-server/src/services/faculty-assignment.service.ts`
+  - `atlas-server/src/routes/faculty-assignment.router.ts`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+
+- Contract outcomes:
+  - Fixed frontend summary-cache typing contract in `faculty-teaching-load-cache` by narrowing `schoolYearId` to numeric and validating `rotationFamilyLoadDetails` entries with a runtime type guard.
+  - Added one-shot recovery endpoint for targeted staffing repair:
+    - `POST /api/v1/faculty-assignments/coverage/recover-real-faculty`
+  - Recovery service now supports both:
+    - placeholder -> real reassignment (`MOVE_PLACEHOLDER`)
+    - uncovered pair -> real assignment (`ASSIGN_UNCOVERED`)
+  - Recovery payload now returns rotation gate verdicts and per-subject real/placeholder deltas for `SCI_ES`, `TLE_FCS_EXP`, `SCI_CHEM`, `HG`.
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+
+- Live Tailnet verification (`https://njgrm.buru-degree.ts.net`):
+  - Recovery preview (`apply=false`) -> PASS
+    - `placeholderMovesPlanned=3`
+    - `blockerCounts={0,0,0,0,0}`
+    - `rotationGate.science.verdict=WORKING`
+    - `rotationGate.tle.verdict=WORKING`
+  - Recovery apply (`apply=true`) -> PASS
+    - `placeholderMovesApplied=3`
+    - `subjectDeltas`:
+      - `HG`: real-owned `79 -> 82`, placeholder-owned `0 -> 0`
+      - `SCI_ES`: real-owned `0 -> 0`, placeholder-owned `0 -> 0`
+      - `TLE_FCS_EXP`: real-owned `4 -> 4`, placeholder-owned `0 -> 0`
+      - `SCI_CHEM`: real-owned `47 -> 47`, placeholder-owned `0 -> 0`
+  - Post-apply coverage summary -> PASS
+    - `HG` is now `FULL` (`uncoveredSectionCount=0`)
+    - `SCI_ES` remains `ZERO` (`uncoveredSectionCount=82`)
+    - `TLE_FCS_EXP` remains `PARTIAL` (`uncoveredSectionCount=54`)
+    - `SCI_CHEM` remains `PARTIAL` (`uncoveredSectionCount=35`)
+  - Runtime rotation-family proof samples from `/faculty-assignments/summary` -> PASS
+    - SCIENCE sample (`ELPIDIO AQUINO`): `rawHours=22.5`, `creditedHours=18.8`, `overcountHours=3.8`, `unitCount=5`, `subjectCodes=[SCI_BIO, SCI_CHEM]`
+    - TLE_ROTATION sample (`MILAGROS ALVAREZ`): `rawHours=30`, `creditedHours=30`, `overcountHours=0`, `unitCount=8`, `subjectCodes=[TLE_AFA_EXP, TLE_ICT_EXP]`
+
+- GO/NO-GO:
+  - **GO** for this one-shot prompt scope.
+  - Real-faculty recovery and rotation-gate runtime proof are now operational and auditable; remaining `SCI_ES` / `TLE_FCS_EXP` / `SCI_CHEM` gaps are true uncovered-capacity/qualification shortages rather than placeholder masking in current live data.
+
+# 2026-05-23 - Phase 3 Teaching Load Specialization Assignment Contract One-Shot
+- Phase: Phase 3 generator-readiness stream, specialization identity contract repair for Teaching Load
+- Operator: GitHub Copilot
+- Scope gate: PASS (implementation + local build/tests + DB migration + live Tailnet verification)
+- Files changed in this pass:
+  - `prisma/schema.prisma`
+  - `prisma/migrations/0031_add_subject_section_specialization_identity/migration.sql`
+  - `atlas-server/src/services/faculty-assignment.service.ts`
+  - `atlas-server/src/services/faculty-portal.service.ts`
+  - `atlas-server/src/services/subject.service.ts`
+  - `atlas-server/src/routes/faculty-portal.router.ts`
+  - `atlas-server/src/__tests__/faculty-assignment-pass5-regression.test.ts`
+  - `atlas-server/src/__tests__/faculty-dashboard-contract.test.ts`
+  - `atlas-client/src/types.ts`
+  - `atlas-client/src/components/faculty-assignments/SubjectRow.tsx`
+  - `atlas-client/src/components/faculty-dashboard/DesktopDashboardLayout.tsx`
+  - `atlas-client/src/components/faculty-dashboard/MobileDashboardLayout.tsx`
+  - `atlas-client/src/pages/MyDashboard.tsx`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+
+- Contract decisions made:
+  - `SPA_SPEC` and `SPS_SPEC` remain umbrella schedulable subjects in the master-schedule layer.
+  - Precise taught identity is now persisted at assignment level on `SubjectSectionOwnership.specializationCode` / `specializationLabel`.
+  - `Subject.allowedSpecializations` remains reference metadata only; department ownership remains the active scheduler qualification baseline.
+  - `TLE_SPEC_*` dynamic specialization logic remains compatibility-only and is not restored as the active MATATAG qualification contract.
+
+- Local implementation and validation:
+  - Added Prisma schema fields `specializationCode` and `specializationLabel` to `SubjectSectionOwnership`.
+  - Added migration `0031_add_subject_section_specialization_identity` and repaired its PostgreSQL backfill statement before successful deploy.
+  - `npm --prefix atlas-server run test:faculty-assignment-pass5` -> PASS (`12 passed, 0 failed`)
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS
+  - `npm --prefix atlas-server run test:faculty-dashboard-contract` -> PASS (`7 passed, 0 failed`)
+
+- Live Tailnet verification (`https://njgrm.buru-degree.ts.net`):
+  - DB + runtime schema alignment -> PASS
+    - initial live probe failed on missing column `subject_section_ownerships.specialization_code`
+    - applied corrected migration via `prisma migrate resolve --rolled-back 0031_add_subject_section_specialization_identity` then `prisma migrate deploy --schema prisma/schema.prisma`
+  - Umbrella subject preservation -> PASS
+    - live DB subject rows remain canonical umbrella subjects:
+      - `SPA_SPEC` / `ownerDepartment=SPA`
+      - `SPS_SPEC` / `ownerDepartment=SPS`
+  - Assignment-level specialization identity persistence -> PASS
+    - live DB ownership rows now include section-scoped specialization identity, for example:
+      - `SPA_SPEC` -> `DANCE`, `FINE_ARTS`, `MAJOR_IN_MUSIC_EDUCATION`
+      - `SPS_SPEC` -> `SPORTS_SCIENCE`
+  - Live assignment-detail API proof -> PASS
+    - `GET /api/v1/faculty-assignments/18216?schoolYearId=1` returned umbrella subject `SPA_SPEC` with section rows:
+      - `SPA A -> DANCE`
+      - `SPA B -> DANCE`
+    - `GET /api/v1/faculty-assignments/18206?schoolYearId=1` returned umbrella subject `SPS_SPEC` with section rows carrying:
+      - `assignmentSpecializationCode=SPORTS_SCIENCE`
+      - `assignmentSpecializationLabel=SPORTS SCIENCE`
+  - Live teacher-facing dashboard path -> PASS
+    - direct faculty login `maria.santos@deped.edu.ph / DepEd2026!` succeeded
+    - `GET /api/v1/faculty-portal/1/1/dashboard` returned `teachingAssignments` as an array and preserved the fallback banner contract
+    - current seed does not include a local-auth specialization teacher, so specialization-specific live teacher output was verified through assignment-detail API plus dashboard contract coverage
+
+- GO/NO-GO:
+  - **GO** for this one-shot prompt scope.
+  - Specialization identity is no longer forced into top-level subject rows, umbrella schedulable subjects remain intact, and precise taught identity is now available from assignment ownership without reintroducing specialization-tier scheduler gating.
+
 # 2026-05-23 - Phase 3 Teaching Load Runtime + Placeholder Truth One-Shot
 - Phase: Phase 3 generator-readiness stream, Teaching Load runtime stability and staffing-truth segregation
 - Operator: GitHub Copilot

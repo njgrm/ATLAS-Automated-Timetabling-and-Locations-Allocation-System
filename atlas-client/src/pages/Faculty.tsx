@@ -57,6 +57,8 @@ export default function Faculty() {
 	// Quick Profile
 	const [profileTarget, setProfileTarget] = useState<FacultySummary | null>(null);
 
+	const [showFilters, setShowFilters] = useState(false);
+
 	// Sorting
 	const [sortField, setSortField] = useState<SortField>('name');
 	const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -265,21 +267,72 @@ export default function Faculty() {
 		<div className="flex flex-col h-[calc(100svh-3.5rem)]">
 			{/* Primary Header & Toolbar */}
 			<div className="shrink-0 px-6 py-4 border-b bg-background/50 backdrop-blur-md">
-				<div className="flex flex-wrap items-center justify-between gap-4">
-					<div className="flex flex-wrap items-center gap-3 flex-1">
-						<div className="relative w-full max-w-xs">
+				<div className="flex items-center justify-between gap-4">
+					<div className="flex items-center gap-4">
+						<div className="relative w-64">
 							<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
 							<Input
-								placeholder="Search by name, dept, or specialization..."
+								placeholder="Search name or specialization..."
 								value={searchQuery}
 								onChange={(e) => setSearchQuery(e.target.value)}
-								className="pl-9 h-9 text-sm"
+								className="pl-9 h-9"
 							/>
 						</div>
 						
-						{/* Inline Filters */}
+						<Button
+							variant={showFilters ? 'secondary' : 'outline'}
+							size="sm"
+							className="h-9 gap-2"
+							onClick={() => setShowFilters(!showFilters)}
+						>
+							<Filter className="size-4" />
+							Filters
+							{hasActiveFilters && (
+								<Badge variant="secondary" className="ml-1 h-5 px-1.5 bg-primary text-primary-foreground">
+									Active
+								</Badge>
+							)}
+						</Button>
+					</div>
+
+					<div className="flex items-center gap-3">
+						<div className="flex items-center gap-2 mr-2">
+							<Badge
+								variant={dataSource === 'live' ? 'secondary' : 'outline'}
+								className="h-6 px-2 text-[0.7rem] uppercase tracking-wide"
+							>
+								{dataSource === 'live'
+									? 'Live data'
+									: dataSource === 'cached'
+									? 'Cached snapshot'
+									: 'No cache'}
+							</Badge>
+							{timeSince && (
+								<TooltipProvider delayDuration={500}>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<span className="text-[0.7rem] text-muted-foreground font-medium bg-muted px-2 py-1 rounded-md hidden lg:inline-block">
+												Last synced: {timeSince}
+											</span>
+										</TooltipTrigger>
+										<TooltipContent>Synced at {new Date(lastSyncedAt!).toLocaleString()}</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
+							)}
+						</div>
+						
+						<Button onClick={handleSync} disabled={syncing || !isOnline} size="sm" className="h-9 gap-2 shadow-sm font-bold">
+							<RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
+							{syncing ? 'Syncing...' : !isOnline ? 'Offline' : refreshing ? 'Refreshing...' : 'Sync Teachers'}
+						</Button>
+					</div>
+				</div>
+
+				{/* Expanded Filters */}
+				{showFilters && (
+					<div className="flex flex-wrap items-center gap-3 pt-4 animate-in slide-in-from-top-2 duration-200">
 						<Select value={schedulingFilter} onValueChange={(v) => setSchedulingFilter(v as typeof schedulingFilter)}>
-							<SelectTrigger className="h-9 w-40 text-xs bg-background">
+							<SelectTrigger className="h-8 w-40 text-xs bg-background">
 								<SelectValue placeholder="All Status" />
 							</SelectTrigger>
 							<SelectContent>
@@ -289,18 +342,18 @@ export default function Faculty() {
 							</SelectContent>
 						</Select>
 						<Select value={assignmentFilter} onValueChange={(v) => setAssignmentFilter(v as typeof assignmentFilter)}>
-							<SelectTrigger className="h-9 w-36 text-xs bg-background">
-								<SelectValue placeholder="All Assignments" />
+							<SelectTrigger className="h-8 w-36 text-xs bg-background">
+								<SelectValue placeholder="All Load Status" />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="all">All Assignments</SelectItem>
+								<SelectItem value="all">All Load Status</SelectItem>
 								<SelectItem value="assigned">Has Load</SelectItem>
 								<SelectItem value="unassigned">No Load</SelectItem>
 							</SelectContent>
 						</Select>
 						{departments.length > 0 && (
 							<Select value={departmentFilter} onValueChange={(v) => setDepartmentFilter(v)}>
-								<SelectTrigger className="h-9 w-40 text-xs bg-background">
+								<SelectTrigger className="h-8 w-40 text-xs bg-background">
 									<SelectValue placeholder="All Departments" />
 								</SelectTrigger>
 								<SelectContent>
@@ -316,40 +369,11 @@ export default function Faculty() {
 								className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
 								onClick={() => { setSchedulingFilter('all'); setAssignmentFilter('all'); setDepartmentFilter('all'); }}
 							>
-								<X className="size-3 mr-1" /> Clear
+								Reset all
 							</Button>
 						)}
 					</div>
-
-					<div className="flex items-center gap-3">
-						<Badge
-							variant={dataSource === 'live' ? 'secondary' : 'outline'}
-							className="h-6 px-2 text-[0.7rem] uppercase tracking-wide"
-						>
-							{dataSource === 'live'
-								? 'Live data'
-								: dataSource === 'cached'
-								? 'Cached snapshot'
-								: 'No cache'}
-						</Badge>
-						{timeSince && (
-							<TooltipProvider delayDuration={500}>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<span className="text-[0.7rem] text-muted-foreground font-medium bg-muted px-2 py-1 rounded-md hidden lg:inline-block">
-											Last synced: {timeSince}
-										</span>
-									</TooltipTrigger>
-									<TooltipContent>Synced at {new Date(lastSyncedAt!).toLocaleString()}</TooltipContent>
-								</Tooltip>
-							</TooltipProvider>
-						)}
-						<Button onClick={handleSync} disabled={syncing || !isOnline} size="sm" className="h-9 gap-2 shadow-sm font-bold">
-							<RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
-							{syncing ? 'Syncing...' : !isOnline ? 'Offline' : refreshing ? 'Refreshing...' : 'Sync Teachers'}
-						</Button>
-					</div>
-				</div>
+				)}
 			</div>
 
 			{/* Status Banners */}
@@ -357,7 +381,7 @@ export default function Faculty() {
 				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
 					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
 					<span className="flex-1 font-medium">{cacheNotice ?? 'EnrollPro bridge is currently unreachable. Cached roster data is unavailable.'}</span>
-					<Button size="sm" variant="outline" onClick={handleSync} disabled={syncing} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold">
+					<Button size="sm" variant="outline" onClick={() => fetchFaculty({ forceRefresh: true })} disabled={syncing} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold">
 						<RefreshCw className={`mr-1.5 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry Sync
 					</Button>
 				</div>
@@ -385,34 +409,34 @@ export default function Faculty() {
 				<Card className="h-full flex flex-col shadow-sm border-border/50 overflow-hidden">
 					<div className="flex-1 min-h-0 overflow-auto">
 						<table className="w-full text-sm">
-							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md border-b">
-								<tr>
+							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md">
+								<tr className="border-b">
 									<th className="px-4 py-3 text-left">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('name')} className="h-auto px-0 py-0 font-bold text-muted-foreground hover:text-foreground">
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('name')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
 											Name & Identity <SortIcon field="name" />
 										</Button>
 									</th>
 									<th className="px-4 py-3 text-left">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('specialization')} className="h-auto px-0 py-0 font-bold text-muted-foreground hover:text-foreground">
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('specialization')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
 											Department <SortIcon field="specialization" />
 										</Button>
 									</th>
 									<th className="px-4 py-3 text-center">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('subjects')} className="h-auto px-0 py-0 font-bold text-muted-foreground hover:text-foreground mx-auto">
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('subjects')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground mx-auto">
 											Subjects <SortIcon field="subjects" />
 										</Button>
 									</th>
 									<th className="px-4 py-3 text-center">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('weeklyLoad')} className="h-auto px-0 py-0 font-bold text-muted-foreground hover:text-foreground mx-auto">
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('weeklyLoad')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground mx-auto">
 											Credited Load <SortIcon field="weeklyLoad" />
 										</Button>
 									</th>
 									<th className="px-4 py-3 text-center">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('status')} className="h-auto px-0 py-0 font-bold text-muted-foreground hover:text-foreground mx-auto">
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('status')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground mx-auto">
 											Status <SortIcon field="status" />
 										</Button>
 									</th>
-									<th className="px-4 py-3 text-right font-bold text-muted-foreground">Actions</th>
+									<th className="px-4 py-3 text-right font-semibold text-muted-foreground">Actions</th>
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-border/40">
@@ -468,12 +492,11 @@ export default function Faculty() {
 					{!loading && faculty.length > 0 && (
 						<div className="shrink-0 flex items-center justify-between border-t border-border/50 px-4 py-3 bg-muted/20">
 							<div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
-								<div className="flex items-center gap-1.5">
-									<Users className="size-3.5" />
-									<span>{totalFiltered} result{totalFiltered !== 1 ? 's' : ''} found</span>
-									<span className="text-muted-foreground/30">|</span>
-									<span className="text-emerald-600">{faculty.filter((f) => f.isActiveForScheduling).length} active for scheduling</span>
-								</div>
+								<span>
+									{totalFiltered === 0
+										? 'No results'
+										: `Showing ${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, totalFiltered)} of ${totalFiltered} results`}
+								</span>
 								
 								<div className="flex items-center gap-2 border-l pl-4 border-border/50">
 									<span>Rows per page:</span>
@@ -488,47 +511,47 @@ export default function Faculty() {
 								</div>
 							</div>
 							
-							<div className="flex items-center gap-1">
+							<div className="flex items-center gap-1.5">
 								<Button 
 									variant="outline" 
 									size="icon" 
-									className="h-7 w-7" 
+									className="h-8 w-8" 
 									onClick={() => setPage(1)} 
 									disabled={page <= 1}
 								>
-									<ChevronsLeft className="size-3" />
+									<ChevronsLeft className="size-4" />
 								</Button>
 								<Button 
 									variant="outline" 
 									size="icon" 
-									className="h-7 w-7" 
+									className="h-8 w-8" 
 									onClick={() => setPage((p) => Math.max(1, p - 1))} 
 									disabled={page <= 1}
 								>
-									<ChevronLeft className="size-3" />
+									<ChevronLeft className="size-4" />
 								</Button>
-								<div className="flex items-center gap-1.5 px-3 h-7 rounded-md border bg-background text-xs font-bold tabular-nums">
+								<div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-xs font-semibold tabular-nums">
 									<span>{page}</span>
-									<span className="text-muted-foreground/50">of</span>
+									<span className="text-muted-foreground/50">/</span>
 									<span className="text-muted-foreground">{totalPages}</span>
 								</div>
 								<Button 
 									variant="outline" 
 									size="icon" 
-									className="h-7 w-7" 
+									className="h-8 w-8" 
 									onClick={() => setPage((p) => Math.min(totalPages, p + 1))} 
 									disabled={page >= totalPages}
 								>
-									<ChevronRight className="size-3" />
+									<ChevronRight className="size-4" />
 								</Button>
 								<Button 
 									variant="outline" 
 									size="icon" 
-									className="h-7 w-7" 
+									className="h-8 w-8" 
 									onClick={() => setPage(totalPages)} 
 									disabled={page >= totalPages}
 								>
-									<ChevronsRight className="size-3" />
+									<ChevronsRight className="size-4" />
 								</Button>
 							</div>
 						</div>

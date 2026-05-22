@@ -68,6 +68,7 @@ import type {
 	FacultySummary,
 	TeachingLoadCoverageTotals,
 	TeachingLoadIntegrityDiagnostics,
+	RotationFamilyLoadDetail,
 } from '@/types';
 
 const DEFAULT_SCHOOL_ID = 1;
@@ -1427,7 +1428,7 @@ Breakdown
 {rotationFamilyDetails.length > 0 && (
 	<div className="space-y-1 rounded border border-blue-100 bg-blue-50/50 px-2 py-1.5">
 		<p className="font-semibold text-blue-900">Rotation families</p>
-		{rotationFamilyDetails.map((family) => (
+		{rotationFamilyDetails.map((family: RotationFamilyLoadDetail) => (
 			<p key={family.family} className="text-[0.6875rem] text-blue-900">
 				{family.family}: {family.creditedHours}h credited ({family.rawHours}h raw)
 				{family.overcountHours > 0 ? `, ${family.overcountHours}h overlap removed` : ''}

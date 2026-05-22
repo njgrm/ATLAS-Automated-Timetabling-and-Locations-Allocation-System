@@ -4,7 +4,7 @@ type SubjectWithViewMetadata = {
     ownerDepartment: string | null;
     qualificationPriority: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
     rotationFamily: string | null;
-    specializationSource: 'SUBJECT_CONTRACT' | 'NONE';
+    specializationSource: 'REFERENCE_METADATA' | 'NONE';
     isSystemManaged: boolean;
 };
 export declare function ensureDefaultSubjects(schoolId: number): Promise<void>;

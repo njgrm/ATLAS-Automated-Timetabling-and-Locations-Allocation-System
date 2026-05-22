@@ -1,5 +1,6 @@
 import type {
 	FacultySummary,
+	RotationFamilyLoadDetail,
 	SectionSummaryResponse,
 	Subject,
 	TeachingLoadCoverageTotals,
@@ -39,6 +40,20 @@ function toArray<T>(value: unknown): T[] {
 	return Array.isArray(value) ? (value as T[]) : [];
 }
 
+function isRotationFamilyLoadDetail(value: unknown): value is RotationFamilyLoadDetail {
+	if (!value || typeof value !== 'object') return false;
+	const candidate = value as Partial<RotationFamilyLoadDetail>;
+	return (
+		typeof candidate.family === 'string'
+		&& typeof candidate.rawHours === 'number'
+		&& typeof candidate.creditedHours === 'number'
+		&& typeof candidate.overcountHours === 'number'
+		&& typeof candidate.unitCount === 'number'
+		&& Array.isArray(candidate.subjectCodes)
+		&& Array.isArray(candidate.subjectIds)
+	);
+}
+
 function normalizeCoverageTotals(value: unknown): TeachingLoadCoverageTotals | undefined {
 	if (!value || typeof value !== 'object') return undefined;
 	const candidate = value as Partial<TeachingLoadCoverageTotals>;
@@ -74,7 +89,8 @@ function normalizeIntegrityDiagnostics(value: unknown): TeachingLoadIntegrityDia
 export function normalizeFacultySummarySnapshot(value: unknown): FacultySummarySnapshot | null {
 	if (!value || typeof value !== 'object') return null;
 	const candidate = value as Partial<FacultySummarySnapshot>;
-	if (!Number.isFinite(candidate.schoolYearId)) return null;
+	const schoolYearId = Number(candidate.schoolYearId);
+	if (!Number.isFinite(schoolYearId)) return null;
 
 	const faculty = toArray<FacultySummary>(candidate.faculty).map((row) => {
 		const normalizedAssignments = toArray((row as any)?.assignments).map((assignment: any) => ({
@@ -83,10 +99,11 @@ export function normalizeFacultySummarySnapshot(value: unknown): FacultySummaryS
 			gradeLevels: toArray<number>(assignment?.gradeLevels),
 			sections: toArray(assignment?.sections),
 		}));
+		const normalizedRotationDetails = toArray((row as any)?.rotationFamilyLoadDetails).filter(isRotationFamilyLoadDetail);
 		return {
 			...row,
 			assignments: normalizedAssignments,
-			rotationFamilyLoadDetails: toArray((row as any)?.rotationFamilyLoadDetails),
+			rotationFamilyLoadDetails: normalizedRotationDetails,
 		};
 	});
 
@@ -96,7 +113,7 @@ export function normalizeFacultySummarySnapshot(value: unknown): FacultySummaryS
 		coverageTotals: normalizeCoverageTotals(candidate.coverageTotals),
 		integrityDiagnostics: normalizeIntegrityDiagnostics(candidate.integrityDiagnostics),
 		fetchedAt: typeof candidate.fetchedAt === 'string' || candidate.fetchedAt === null ? candidate.fetchedAt : null,
-		schoolYearId: candidate.schoolYearId,
+		schoolYearId,
 	};
 }
 

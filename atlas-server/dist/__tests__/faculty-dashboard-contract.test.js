@@ -39,11 +39,17 @@ async function run() {
     if (!process.env.JWT_SECRET) {
         process.env.JWT_SECRET = 'atlas-local-auth-test-secret';
     }
-    const seededPassword = process.env.ATLAS_DEFAULT_AUTH_PASSWORD ?? 'Atlas2026!';
-    const facultyAccount = await prisma.atlasAuthAccount.findFirst({
-        where: { role: 'faculty', isActive: true },
-        orderBy: { id: 'asc' },
-    });
+    const preferredFacultyEmail = process.env.ATLAS_FACULTY_TEST_EMAIL ?? 'maria.santos@deped.edu.ph';
+    const seededPassword = process.env.ATLAS_FACULTY_TEST_PASSWORD ??
+        process.env.ATLAS_DEFAULT_AUTH_PASSWORD ??
+        'DepEd2026!';
+    const facultyAccount = (await prisma.atlasAuthAccount.findFirst({
+        where: { role: 'faculty', isActive: true, email: preferredFacultyEmail },
+    })) ??
+        (await prisma.atlasAuthAccount.findFirst({
+            where: { role: 'faculty', isActive: true },
+            orderBy: { id: 'asc' },
+        }));
     if (!facultyAccount) {
         console.error('\nNo seeded faculty local auth account found. Run realistic seed first.');
         process.exitCode = 1;
@@ -77,6 +83,7 @@ async function run() {
         assertEqual(dashboard.status, 200, 'Faculty dashboard endpoint returns HTTP 200');
         assertEqual(typeof dashboard.json?.fallbackBanner?.show, 'boolean', 'Fallback banner show flag exists');
         assertEqual(dashboard.json?.fallbackBanner?.show, true, 'Fallback banner remains visible while schedule is not published');
+        assert(Array.isArray(dashboard.json?.teachingAssignments), 'Teaching assignment identity list exists on dashboard contract');
         const bannerText = `${dashboard.json?.fallbackBanner?.title ?? ''} ${dashboard.json?.fallbackBanner?.message ?? ''}`.toLowerCase();
         assert(bannerText.includes('not') || bannerText.includes('draft') || bannerText.includes('published'), 'Fallback banner copy communicates non-final status');
     }

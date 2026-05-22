@@ -301,6 +301,8 @@ model SubjectSectionOwnership {
   subjectId        Int            @map("subject_id")
   /// External section ID — matches SectionMirror.externalId (not its PK)
   sectionId        Int            @map("section_id")
+  specializationCode  String?     @map("specialization_code") @db.VarChar(64)
+  specializationLabel String?     @map("specialization_label") @db.VarChar(128)
   /// Copied from parent FacultySubject.assignedAt for repair-priority queries
   assignedAt       DateTime       @default(now()) @map("assigned_at")
   createdAt        DateTime       @default(now()) @map("created_at")

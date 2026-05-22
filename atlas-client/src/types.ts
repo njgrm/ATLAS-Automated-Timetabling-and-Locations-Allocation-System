@@ -54,7 +54,7 @@ export type Subject = {
 	ownerDepartment?: string | null;
 	qualificationPriority?: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
 	rotationFamily?: string | null;
-	specializationSource?: 'SUBJECT_CONTRACT' | 'NONE';
+	specializationSource?: 'REFERENCE_METADATA' | 'NONE';
 	isSystemManaged?: boolean;
 	name: string;
 	programType?: 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER' | null;
@@ -1202,7 +1202,21 @@ export interface ExternalSection {
 	tleProgramCategory?: string | null;
 	adviserId?: number | null;
 	adviserName?: string | null;
+	assignmentSpecializationCode?: string | null;
+	assignmentSpecializationLabel?: string | null;
 }
+
+export type FacultyTeachingAssignmentIdentity = {
+	subjectId: number;
+	subjectCode: string;
+	subjectName: string;
+	subjectDisplayLabel: string;
+	sectionId: number;
+	sectionName: string;
+	gradeLevel: number;
+	specializationCode: string | null;
+	specializationLabel: string | null;
+};
 
 export interface SectionsByGrade {
 	gradeLevelId: number;

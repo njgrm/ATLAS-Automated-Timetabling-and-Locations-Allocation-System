@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import {
 	MoreVertical,
 	Pencil,
@@ -5,6 +6,7 @@ import {
 	Users,
 	Archive,
 	RotateCcw,
+	BookOpen,
 } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -48,63 +50,82 @@ export function SubjectRow({
 		? `${subject.minMinutesPerWeek} min` 
 		: `${Math.round((subject.minMinutesPerWeek / 60) * 10) / 10} h`;
 
+	// Consolidate Grade Levels into a stronger signal
+	const gradeSummary = useMemo(() => {
+		if (!subject.gradeLevels.length) return 'No grades';
+		const sorted = [...subject.gradeLevels].sort((a, b) => a - b);
+		// Check for range
+		if (sorted.length > 2 && sorted[sorted.length - 1] - sorted[0] === sorted.length - 1) {
+			return `GR${sorted[0]}–${sorted[sorted.length - 1]}`;
+		}
+		return sorted.map(g => `GR${g}`).join(', ');
+	}, [subject.gradeLevels]);
+
 	return (
 		<tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
 			<td className="px-4 py-3">
-				<div className="flex flex-col gap-0.5">
-					<span className="font-semibold text-foreground leading-tight">{subject.name}</span>
-					<code className="text-[0.65rem] font-mono text-muted-foreground">{subject.code}</code>
+				<div className="flex items-center gap-3">
+					<div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 border border-blue-100">
+						<BookOpen className="size-4" />
+					</div>
+					<div className="flex flex-col min-w-0">
+						<span className="font-bold text-foreground leading-tight truncate">{subject.name}</span>
+						<code className="text-[0.65rem] font-mono text-muted-foreground uppercase">{subject.code}</code>
+					</div>
 				</div>
 			</td>
 			<td className="px-4 py-3">
-				<span className="text-xs tabular-nums font-medium">{duration}</span>
+				<div className="flex flex-col">
+					<span className="text-sm tabular-nums font-bold text-foreground">{duration}</span>
+					<span className="text-[0.7rem] text-muted-foreground uppercase tracking-tight">Weekly</span>
+				</div>
 			</td>
 			<td className="px-4 py-3">
-				<span className="text-xs text-muted-foreground">
-					{ROOM_TYPE_LABELS[subject.preferredRoomType] ?? subject.preferredRoomType}
+				<div className="flex flex-col">
+					<span className="text-xs font-medium text-foreground">
+						{ROOM_TYPE_LABELS[subject.preferredRoomType] ?? subject.preferredRoomType}
+					</span>
+					{subject.requiredFeatures.length > 0 && (
+						<span className="text-[0.65rem] text-blue-600 font-bold uppercase">+{subject.requiredFeatures.length} requirements</span>
+					)}
+				</div>
+			</td>
+			<td className="px-4 py-3">
+				<span className="text-xs font-bold text-foreground bg-muted/60 px-2 py-1 rounded">
+					{gradeSummary}
 				</span>
 			</td>
 			<td className="px-4 py-3">
-				<div className="flex flex-wrap gap-1 max-w-30">
-					{subject.gradeLevels.map((g) => (
-						<Badge key={g} variant="outline" className={`text-[0.6rem] px-1 py-0 min-w-6 justify-center ${GRADE_COLORS[String(g)] ?? ''}`}>
-							G{g}
-						</Badge>
-					))}
-				</div>
-			</td>
-			<td className="px-4 py-3">
-				<div className="flex flex-col gap-1">
-					<div className="flex flex-wrap gap-1">
-						{(subject.programScopes ?? []).slice(0, 3).map((scope) => (
-							<Badge key={scope} variant="outline" className={`text-[0.55rem] px-1 py-0 ${PROGRAM_SCOPE_BADGE[scope] ?? 'bg-gray-50 text-gray-600 border-gray-200'}`}>
-								{scope}
-							</Badge>
-						))}
-						{(subject.programScopes ?? []).length > 3 && (
-							<span className="text-[0.6rem] text-muted-foreground">+{(subject.programScopes ?? []).length - 3}</span>
-						)}
+				<div className="flex flex-col gap-0.5">
+					<div className="flex items-center gap-1.5">
+						<span className="text-xs font-bold text-foreground truncate">
+							{subject.ownerDepartment || 'Unassigned'}
+						</span>
 					</div>
-					<div className="flex items-center gap-1">
-						{subject.ownerDepartment && (
-							<Badge variant="outline" className={`text-[0.55rem] px-1 py-0 ${SUBJECT_OWNER_BADGE[subject.ownerDepartment] ?? 'bg-muted border-border text-foreground'}`}>
-								{SUBJECT_OWNER_LABELS[subject.ownerDepartment] ?? subject.ownerDepartment}
-							</Badge>
-						)}
+					<div className="flex flex-wrap gap-1">
+						{(subject.programScopes ?? []).map((scope) => (
+							<span key={scope} className="text-[0.6rem] text-muted-foreground font-bold uppercase tracking-widest">
+								{scope}{subject.programScopes.indexOf(scope) < subject.programScopes.length - 1 ? ' •' : ''}
+							</span>
+						))}
 					</div>
 				</div>
 			</td>
 			<td className="px-4 py-3">
 				<div className="flex flex-col gap-1 items-start">
 					{subject.isActive ? (
-						<Badge className="bg-emerald-100 text-emerald-700 text-[0.6rem] hover:bg-emerald-100 shadow-none border-none">Active</Badge>
+						<div className="flex items-center gap-1.5 text-emerald-600">
+							<div className="size-1.5 rounded-full bg-current" />
+							<span className="text-[0.7rem] font-bold uppercase tracking-wider">Active</span>
+						</div>
 					) : (
-						<Badge variant="secondary" className="text-[0.6rem] shadow-none">Archived</Badge>
+						<div className="flex items-center gap-1.5 text-muted-foreground">
+							<div className="size-1.5 rounded-full bg-current" />
+							<span className="text-[0.7rem] font-bold uppercase tracking-wider">Archived</span>
+						</div>
 					)}
-					{subject.ownerDepartment ? (
-						<span className="text-[0.62rem] text-muted-foreground">Dept baseline active</span>
-					) : (
-						<span className="text-[0.62rem] text-amber-700">Owner department missing</span>
+					{subject.isSeedable && (
+						<span className="text-[0.62rem] text-blue-600 font-bold uppercase">Auto-Schedule</span>
 					)}
 				</div>
 			</td>

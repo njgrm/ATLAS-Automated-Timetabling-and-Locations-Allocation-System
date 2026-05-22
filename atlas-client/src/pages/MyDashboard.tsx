@@ -4,6 +4,7 @@ import { AlertTriangle, RefreshCcw } from 'lucide-react';
 import atlasApi from '@/lib/api';
 import { fetchPublicSettings, fetchSchoolYears, type SchoolYear } from '@/lib/settings';
 import type { FacultyRoomPreferenceEntry } from '@/types';
+import type { FacultyTeachingAssignmentIdentity } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -80,6 +81,7 @@ type MyDashboardResponse = {
 			unchanged: number;
 		};
 	};
+	teachingAssignments: FacultyTeachingAssignmentIdentity[];
 	statuses: {
 		requestStatusLabel: string;
 		reviewStatusLabel: string;
@@ -244,6 +246,7 @@ export default function MyDashboard() {
 							phaseMessage={dashboard.phaseMessage}
 							counts={dashboard.schedulePreview.counts}
 							schedulePreview={dashboard.schedulePreview.entries}
+							teachingAssignments={dashboard.teachingAssignments}
 							renderEntryBadge={entryOutcomeBadge}
 						/>
 					) : (
@@ -252,6 +255,7 @@ export default function MyDashboard() {
 							phaseMessage={dashboard.phaseMessage}
 							counts={dashboard.schedulePreview.counts}
 							entries={dashboard.schedulePreview.entries}
+							teachingAssignments={dashboard.teachingAssignments}
 							renderEntryBadge={entryOutcomeBadge}
 						/>
 					)}

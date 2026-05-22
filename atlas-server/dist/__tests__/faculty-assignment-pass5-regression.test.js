@@ -1,4 +1,4 @@
-import { buildDuplicateOwnershipBlockingResult, computeTeachingLoadMinutes, detectDuplicateOwnershipTuples, } from '../services/faculty-assignment.service.js';
+import { buildDuplicateOwnershipBlockingResult, computeTeachingLoadMinutes, detectDuplicateOwnershipTuples, resolveAssignmentSpecializationIdentity, } from '../services/faculty-assignment.service.js';
 import { buildSectionRosterIndex, normalizeIncomingAssignmentScope, } from '../services/faculty-assignment-scope.service.js';
 let passCount = 0;
 let failCount = 0;
@@ -109,6 +109,27 @@ section('Duplicate ownership detection and blocking');
     if (blocking && !blocking.success) {
         assertEqual(blocking.code, 'DUPLICATE_SECTION_OWNERSHIP', 'Blocking result uses DUPLICATE_SECTION_OWNERSHIP code');
     }
+}
+section('Assignment specialization identity contract');
+{
+    const artsIdentity = resolveAssignmentSpecializationIdentity({
+        subjectCode: 'SPA_SPEC',
+        allowedSpecializations: ['MUSIC', 'DANCE'],
+        facultySpecialization: 'Music',
+    });
+    assertEqual(artsIdentity.specializationCode, 'MUSIC', 'SPA umbrella rows derive canonical specialization code from faculty specialization');
+    assertEqual(artsIdentity.specializationLabel, 'Music', 'SPA umbrella rows preserve readable specialization label');
+    const sportsIdentity = resolveAssignmentSpecializationIdentity({
+        subjectCode: 'SPS_SPEC',
+        allowedSpecializations: ['BASKETBALL'],
+        facultySpecialization: 'Basketball',
+    });
+    assertEqual(sportsIdentity.specializationCode, 'BASKETBALL', 'SPS umbrella rows derive canonical specialization code from faculty specialization');
+    const regularIdentity = resolveAssignmentSpecializationIdentity({
+        subjectCode: 'ENG',
+        facultySpecialization: 'English',
+    });
+    assertEqual(regularIdentity.specializationCode, null, 'Regular non-specialization subjects do not auto-persist specialization identity');
 }
 console.log(`\nSummary: ${passCount} passed, ${failCount} failed.`);
 if (failCount > 0) {
