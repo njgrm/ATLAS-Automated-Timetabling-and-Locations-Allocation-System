@@ -10,10 +10,22 @@ export type AssignmentMutationResult = {
 };
 type AssignmentLoadShape = {
     subject: {
+        id?: number;
+        code?: string | null;
+        rotationFamily?: string | null;
         minMinutesPerWeek: number;
     };
     sectionIds: number[];
     gradeLevels: number[];
+};
+export type RotationFamilyLoadDetail = {
+    family: string;
+    rawHours: number;
+    creditedHours: number;
+    overcountHours: number;
+    unitCount: number;
+    subjectCodes: string[];
+    subjectIds: number[];
 };
 export type TeachingLoadFormula = 'section' | 'grade';
 export type DuplicateOwnershipInput = {
@@ -69,6 +81,57 @@ export interface TeachingLoadIntegrityDiagnostics {
     emptySectionSamples: TeachingLoadIntegrityDiagnosticRow[];
     missingOwnershipSamples: TeachingLoadIntegrityDiagnosticRow[];
     ownershipWithoutScopeSamples: TeachingLoadIntegrityDiagnosticRow[];
+}
+export interface SpecialProgramDistributionOwnerRow {
+    facultyId: number;
+    facultyName: string;
+    sectionCount: number;
+    movableSectionCount: number;
+    department: string | null;
+    isPlaceholder: boolean;
+}
+export interface SpecialProgramDistributionRow {
+    subjectId: number;
+    subjectCode: string;
+    subjectName: string;
+    ownerDepartment: string | null;
+    relevantSectionCount: number;
+    ownedSectionCount: number;
+    unownedSectionCount: number;
+    maxSectionsOwnedBySingleFaculty: number;
+    concentrationPercent: number;
+    ownerRows: SpecialProgramDistributionOwnerRow[];
+}
+export interface SpecialProgramRebalanceMove {
+    subjectId: number;
+    subjectCode: string;
+    sectionId: number;
+    fromFacultyId: number;
+    fromFacultyName: string;
+    toFacultyId: number;
+    toFacultyName: string;
+}
+export interface SpecialProgramRebalanceInput {
+    schoolId: number;
+    schoolYearId: number;
+    actorId: number;
+    authToken?: string;
+    subjectCodes?: string[];
+    apply?: boolean;
+}
+export interface SpecialProgramRebalanceResult {
+    applied: boolean;
+    schoolId: number;
+    schoolYearId: number;
+    subjectCodes: string[];
+    before: SpecialProgramDistributionRow[];
+    after: SpecialProgramDistributionRow[];
+    proposedMoves: SpecialProgramRebalanceMove[];
+    appliedMoves: number;
+    blockedSubjects: Array<{
+        subjectCode: string;
+        reason: string;
+    }>;
 }
 export interface TeachingLoadTruthReconcileInput {
     schoolId: number;
@@ -146,6 +209,7 @@ export interface PlaceholderCoverageRepairResult {
 }
 export declare function getActiveSubjectCoverageSummary(schoolId: number, schoolYearId: number, authToken?: string): Promise<ActiveSubjectCoverageSummary>;
 export declare function repairActiveSubjectCoverageWithPlaceholders(input: PlaceholderCoverageRepairInput): Promise<PlaceholderCoverageRepairResult>;
+export declare function previewOrApplySpecialProgramRedistribution(input: SpecialProgramRebalanceInput): Promise<SpecialProgramRebalanceResult>;
 export declare function getAssignmentsByFaculty(facultyId: number, schoolYearId: number, authToken?: string): Promise<{
     facultyId: number;
     version: number;
@@ -172,6 +236,7 @@ export declare function getAssignmentsByFaculty(facultyId: number, schoolYearId:
             name: string;
             code: string;
             minMinutesPerWeek: number;
+            rotationFamily?: string | null;
         };
     }[];
 } | null>;
@@ -204,6 +269,9 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
         subjectHours: number;
         loadPercentage: number;
         sectionTeachingHours: number;
+        sectionTeachingHoursRaw: number;
+        rotationFamilyOvercountHours: number;
+        rotationFamilyLoadDetails: RotationFamilyLoadDetail[];
         gradeTeachingHours: number;
         advisoryHours: number;
         ancillaryHours: number;
@@ -234,6 +302,7 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
                 name: string;
                 code: string;
                 minMinutesPerWeek: number;
+                rotationFamily?: string | null;
             };
         }[];
     }[];

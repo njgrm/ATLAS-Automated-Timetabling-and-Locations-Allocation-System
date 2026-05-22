@@ -796,6 +796,28 @@ sectionMap,
 [currentAssignments, sectionMap, selected, subjects],
 );
 
+const rotationFamilyDetails = useMemo(() => {
+	if (selected?.rotationFamilyLoadDetails && selected.rotationFamilyLoadDetails.length > 0 && !dirty) {
+		return selected.rotationFamilyLoadDetails;
+	}
+	return loadProfile.rotationFamilies.map((family) => ({
+		family: family.family,
+		rawHours: family.rawHours,
+		creditedHours: family.creditedHours,
+		overcountHours: family.overcountHours,
+		unitCount: family.unitCount,
+		subjectCodes: family.subjectCodes,
+		subjectIds: [],
+	}));
+}, [dirty, loadProfile.rotationFamilies, selected?.rotationFamilyLoadDetails]);
+
+const rotationOvercountHours = useMemo(() => {
+	if (selected?.rotationFamilyOvercountHours != null && !dirty) {
+		return selected.rotationFamilyOvercountHours;
+	}
+	return loadProfile.rotationOvercountHours;
+}, [dirty, loadProfile.rotationOvercountHours, selected?.rotationFamilyOvercountHours]);
+
 const loadCapMinutes = useMemo(() => {
 	if (!selected) return 0;
 	return Math.min(selected.maxHoursPerWeek * 60, 2400);
@@ -1241,9 +1263,16 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 			{!selected.isActiveForScheduling && <Badge variant="secondary">Excluded</Badge>}
 <div className="ml-auto flex items-center gap-3">
 <div className="text-right">
-<p className="text-[0.625rem] text-muted-foreground">Actual</p>
+<p className="text-[0.625rem] text-muted-foreground">Actual (Adjusted)</p>
 <p className="text-sm font-black">
 {loadProfile.actualTeachingHours}
+<span className="text-[0.625rem] font-medium text-muted-foreground"> h</span>
+</p>
+</div>
+<div className="text-right">
+<p className="text-[0.625rem] text-muted-foreground">Raw Rows</p>
+<p className="text-sm font-semibold">
+{loadProfile.rawTeachingHours}
 <span className="text-[0.625rem] font-medium text-muted-foreground"> h</span>
 </p>
 </div>
@@ -1258,6 +1287,11 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 <p className="text-[0.625rem] text-muted-foreground">Policy %</p>
 <p className="text-sm font-bold">{selected.policyLoadPercentage}%</p>
 </div>
+{rotationOvercountHours > 0 && (
+	<Badge className="border-blue-200 bg-blue-50 text-blue-700">
+		Rotation adj: -{rotationOvercountHours}h
+	</Badge>
+)}
 {selected.isPlaceholder && (
 	<Badge className="border-violet-200 bg-violet-50 text-violet-700">Synthetic Coverage</Badge>
 )}
@@ -1292,11 +1326,24 @@ Breakdown
 </TooltipTrigger>
 <TooltipContent side="bottom" align="end" className="max-w-sm text-xs">
 <div className="space-y-1.5">
-<p className="font-semibold">Section-based teaching load</p>
+<p className="font-semibold">Section-based teaching load (rotation-aware)</p>
 <p>Standard: 30h/wk | Max: 40h/wk</p>
+{rotationOvercountHours > 0 && <p>Rotation-family overlap removed from concurrent load: -{rotationOvercountHours}h</p>}
 {loadProfile.equivalentHours > 0 && <p>Policy credits (adviser + ancillary): +{loadProfile.equivalentHours}h</p>}
 <p>Ancillary (policy): +{Math.round(((selected.ancillaryMinutesPerWeek || 0) / 60) * 10) / 10}h</p>
 {selected.isPlaceholder && <p className="text-violet-700">Placeholder rows represent synthetic coverage and are not treated as standard operator overload signals.</p>}
+{rotationFamilyDetails.length > 0 && (
+	<div className="space-y-1 rounded border border-blue-100 bg-blue-50/50 px-2 py-1.5">
+		<p className="font-semibold text-blue-900">Rotation families</p>
+		{rotationFamilyDetails.map((family) => (
+			<p key={family.family} className="text-[0.6875rem] text-blue-900">
+				{family.family}: {family.creditedHours}h credited ({family.rawHours}h raw)
+				{family.overcountHours > 0 ? `, ${family.overcountHours}h overlap removed` : ''}
+				{family.subjectCodes.length > 0 ? ` | ${family.subjectCodes.join(', ')}` : ''}
+			</p>
+		))}
+	</div>
+)}
 <div className="max-h-44 space-y-1 overflow-auto border-t border-border pt-1">
 {loadProfile.breakdown.length === 0 ? (
 <p className="text-muted-foreground">No sections selected yet.</p>
@@ -1304,6 +1351,7 @@ Breakdown
 loadProfile.breakdown.map((item) => (
 <p key={`${item.subjectId}:${item.sectionId}`} className="font-mono">
 {item.subjectCode} | G{item.gradeLevel} {item.sectionName}: {Math.round((item.totalMinutes / 60) * 10) / 10}h
+	{item.isRotationDuplicate ? ' (rotation lane overlap)' : ''}
 </p>
 ))
 )}

@@ -36,7 +36,14 @@ router.get('/summary', authenticateWithSystemToken, requirePrivilegedRole, async
         }
         const summary = await assignmentService.getAssignmentSummary(schoolId, schoolYearId, upstreamAuthToken);
         const fetchedAt = summary.faculty.length > 0 ? summary.faculty[0].fetchedAt || null : null;
-        res.json({ faculty: summary.faculty, ownershipIndex: summary.ownershipIndex, schoolYearId, fetchedAt });
+        res.json({
+            faculty: summary.faculty,
+            ownershipIndex: summary.ownershipIndex,
+            coverageTotals: summary.coverageTotals,
+            integrityDiagnostics: summary.integrityDiagnostics,
+            schoolYearId,
+            fetchedAt,
+        });
     }
     catch (err) {
         next(err);
@@ -88,6 +95,40 @@ router.post('/coverage/repair', authenticateWithSystemToken, requirePrivilegedRo
             schoolId,
             schoolYearId,
             assignedBy: req.user?.userId ?? 0,
+            authToken: upstreamAuthToken,
+            subjectCodes,
+            apply,
+        });
+        res.json(result);
+    }
+    catch (err) {
+        next(err);
+    }
+});
+// Auth: POST /faculty-assignments/coverage/rebalance-special-programs
+// Body: { schoolId: number, schoolYearId: number, apply?: boolean, subjectCodes?: string[] }
+router.post('/coverage/rebalance-special-programs', authenticateWithSystemToken, requirePrivilegedRole, async (req, res, next) => {
+    try {
+        const schoolId = Number(req.body.schoolId);
+        const schoolYearId = Number(req.body.schoolYearId);
+        if (!schoolId || Number.isNaN(schoolId)) {
+            res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
+            return;
+        }
+        if (!schoolYearId || Number.isNaN(schoolYearId)) {
+            res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
+            return;
+        }
+        const subjectCodes = Array.isArray(req.body.subjectCodes)
+            ? req.body.subjectCodes.filter((value) => typeof value === 'string')
+            : undefined;
+        const apply = req.body.apply === true;
+        const authToken = req.headers.authorization?.slice(7);
+        const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
+        const result = await assignmentService.previewOrApplySpecialProgramRedistribution({
+            schoolId,
+            schoolYearId,
+            actorId: req.user?.userId ?? 0,
             authToken: upstreamAuthToken,
             subjectCodes,
             apply,

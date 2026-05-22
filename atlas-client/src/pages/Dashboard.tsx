@@ -37,8 +37,8 @@ const CANVAS_HEIGHT = 580;
 
 /* ─── Lifecycle phases ─── */
 const LIFECYCLE_PHASES = [
-	{ key: 'SETUP', label: 'Setup', description: 'Configure subjects, faculty, rooms' },
-	{ key: 'PREFERENCE_COLLECTION', label: 'Preferences', description: 'Collect faculty preferences' },
+	{ key: 'SETUP', label: 'Setup', description: 'Configure subjects, teachers, rooms' },
+	{ key: 'PREFERENCE_COLLECTION', label: 'Preferences', description: 'Collect teacher preferences' },
 	{ key: 'GENERATION', label: 'Generation', description: 'Run schedule algorithm' },
 	{ key: 'REVIEW', label: 'Review', description: 'Admin review & manual edits' },
 	{ key: 'PUBLISHED', label: 'Published', description: 'Live — visible to all' },
@@ -307,8 +307,8 @@ export default function Dashboard() {
 			const isSetup = currentPhase === 'SETUP';
 			const isPrefPhase = currentPhase === 'PREFERENCE_COLLECTION';
 			return [
-				{ title: 'Subjects', value: subjectCount !== null ? String(subjectCount) : '—', icon: BookOpen, color: 'text-blue-600', bg: 'bg-blue-50', link: '/subjects', warning: unassignedSubjectCount ? `${unassignedSubjectCount} need faculty` : undefined },
-				{ title: 'Active Faculty', value: facultyCount !== null ? String(facultyCount) : '—', icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50', link: '/teachers' },
+				{ title: 'Subjects', value: subjectCount !== null ? String(subjectCount) : '—', icon: BookOpen, color: 'text-blue-600', bg: 'bg-blue-50', link: '/subjects', warning: unassignedSubjectCount ? `${unassignedSubjectCount} need teachers` : undefined },
+				{ title: 'Active Teachers', value: facultyCount !== null ? String(facultyCount) : '—', icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50', link: '/teachers' },
 				{ title: 'Sections', value: sectionCount !== null ? String(sectionCount) : '—', icon: GraduationCap, color: 'text-pink-600', bg: 'bg-pink-50', link: '/sections', warning: sectionCount === null ? 'Upstream unavailable' : undefined },
 				{ title: 'Buildings', value: String(buildings.length), icon: MapPinned, color: 'text-amber-600', bg: 'bg-amber-50', link: '/map', warning: buildingSetupStatus.subMessage },
 				{ title: 'Teaching Rooms', value: String(teachingRooms), icon: ClipboardList, color: 'text-violet-600', bg: 'bg-violet-50', link: '/map', warning: nonTeachingExcluded > 0 ? `${totalRooms} total (${nonTeachingExcluded} non-teaching)` : undefined },
@@ -327,8 +327,8 @@ export default function Dashboard() {
 			return [
 				{ label: 'Subjects configured', done: (subjectCount ?? 0) > 0, link: '/subjects' },
 				{ label: 'Department ownership reviewed', done: (subjectCount ?? 0) > 0, link: '/subjects' },
-				{ label: 'Faculty synced', done: (facultyCount ?? 0) > 0, link: '/teachers' },
-				{ label: 'Faculty assigned to subjects', done: unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, link: '/teaching-load' },
+				{ label: 'Teachers synced', done: (facultyCount ?? 0) > 0, link: '/teachers' },
+				{ label: 'Teachers assigned to subjects', done: unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, link: '/teaching-load' },
 				{ label: 'Sections sourced', done: (sectionCount ?? 0) > 0, link: '/sections', subMessage: sectionCount === null ? 'Enrollment service not connected' : sectionCount === 0 ? 'No sections found for active school year' : undefined },
 				{
 					label: 'Buildings & rooms set up',
@@ -522,7 +522,7 @@ export default function Dashboard() {
 										<Link to="/subjects"><BookOpen className="mr-1.5 size-3.5" /> Configure Subjects</Link>
 									</Button>
 									<Button asChild variant="outline" size="sm">
-										<Link to="/teachers"><Users className="mr-1.5 size-3.5" /> Manage Faculty</Link>
+										<Link to="/teachers"><Users className="mr-1.5 size-3.5" /> Manage Teachers</Link>
 									</Button>
 								</>
 							)}

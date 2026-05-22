@@ -39,7 +39,7 @@ export function OverviewHeader({
 					{assignedPairs} / {totalPairs} assigned
 				</Badge>
 				<Badge variant="outline" className="text-[0.625rem]">
-					{assignedFacultyCount} / {totalFacultyCount} faculty assigned
+					{assignedFacultyCount} / {totalFacultyCount} teachers assigned
 				</Badge>
 				{activeDraftCount > 0 && (
 					<Badge className="border-sky-200 bg-sky-50 text-[0.625rem] text-sky-700">

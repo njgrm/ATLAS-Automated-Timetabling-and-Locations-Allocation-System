@@ -97,30 +97,36 @@ const navigationNav: NavItemDef[] = [
 	{ label: 'Dashboard', to: '/', icon: LayoutDashboard },
 ];
 
-const schedulingNav: NavItemDef[] = [
+const setupNav: NavItemDef[] = [
+	{ label: 'Sections', to: '/sections', icon: GraduationCap, adminOnly: true },
+	{ label: 'Campus & Rooms', to: '/map', icon: MapPinned, adminOnly: true },
 	{ label: 'Subjects', to: '/subjects', icon: BookOpen, adminOnly: true },
+];
+
+const facultyPlanningNav: NavItemDef[] = [
 	{ label: 'Teachers', to: '/teachers', icon: Users, adminOnly: true },
 	{ label: 'Teaching Load', to: '/teaching-load', icon: UserCog, adminOnly: true },
-	{ label: 'Audit', to: '/audit', icon: Shield, adminOnly: true },
-	{ label: 'Sections', to: '/sections', icon: GraduationCap, adminOnly: true },
+];
+
+const inputCollectionNav: NavItemDef[] = [
 	{ label: 'Preferences', to: '/faculty/preferences', icon: ClipboardList, adminOnly: true },
+	{ label: 'Room Requests', to: '/faculty/room-preferences', icon: CalendarDays, adminOnly: true },
+];
+
+const buildValidateNav: NavItemDef[] = [
 	{ label: 'Timetable', to: '/timetable', icon: CalendarClock, adminOnly: true },
 	{ label: 'Room Schedules', to: '/room-schedules', icon: CalendarDays, adminOnly: true },
-	{ label: 'Room Requests', to: '/faculty/room-preferences', icon: CalendarDays, adminOnly: true },
+	{ label: 'Audit', to: '/audit', icon: Shield, adminOnly: true },
+];
+
+const advancedNav: NavItemDef[] = [
+	{ label: 'Analytics', to: '/analytics', icon: BarChart3, disabled: true },
 ];
 
 const facultyNav: NavItemDef[] = [
 	{ label: 'My Dashboard', to: '/my', icon: LayoutDashboard, facultyOnly: true },
 	{ label: 'My Preferences', to: '/my/preferences', icon: ClipboardList, facultyOnly: true },
 	{ label: 'My Room Requests', to: '/my/room-preferences', icon: CalendarDays, facultyOnly: true },
-];
-
-const campusNav: NavItemDef[] = [
-	{ label: 'Map Editor', to: '/map', icon: MapPinned, adminOnly: true },
-];
-
-const insightsNav: NavItemDef[] = [
-	{ label: 'Analytics', to: '/analytics', icon: BarChart3, disabled: true },
 ];
 
 /* ─── Sidebar nav helper components (matches EnrollPro pattern) ─── */
@@ -286,29 +292,47 @@ function AppSidebar({
 
 								{!isFaculty && (
 									<>
-										<NavDivider label='Scheduling' />
-										{schedulingNav
+										<NavDivider label='School Setup' />
+										{setupNav
 											.filter((item) => !item.adminOnly || isAdmin)
-											.map((item) =>
-												item.disabled ? (
-													<NavItemDisabled
-														key={item.to}
-														icon={item.icon}
-														label={item.label}
-													/>
-												) : (
-													<NavItem
-														key={item.to}
-														to={item.to}
-														icon={item.icon}
-														label={item.label}
-														pathname={pathname}
-													/>
-												),
-											)}
+											.map((item) => (
+												<NavItem
+													key={item.to}
+													to={item.to}
+													icon={item.icon}
+													label={item.label}
+													pathname={pathname}
+												/>
+											))}
 
-										<NavDivider label='Campus' />
-										{campusNav
+										<NavDivider label='Faculty Planning' />
+										{facultyPlanningNav
+											.filter((item) => !item.adminOnly || isAdmin)
+											.map((item) => (
+												<NavItem
+													key={item.to}
+													to={item.to}
+													icon={item.icon}
+													label={item.label}
+													pathname={pathname}
+												/>
+											))}
+
+										<NavDivider label='Input Collection' />
+										{inputCollectionNav
+											.filter((item) => !item.adminOnly || isAdmin)
+											.map((item) => (
+												<NavItem
+													key={item.to}
+													to={item.to}
+													icon={item.icon}
+													label={item.label}
+													pathname={pathname}
+												/>
+											))}
+
+										<NavDivider label='Build & Validate' />
+										{buildValidateNav
 											.filter((item) => !item.adminOnly || isAdmin)
 											.map((item) => (
 												<NavItem
@@ -339,8 +363,8 @@ function AppSidebar({
 
 								{!isFaculty && (
 									<>
-										<NavDivider label='Insights' />
-										{insightsNav.map((item) =>
+										<NavDivider label='Advanced' />
+										{advancedNav.map((item) =>
 											item.disabled ? (
 												<NavItemDisabled
 													key={item.to}
@@ -474,7 +498,14 @@ export function AppShell() {
 
 	const mobileNavItems = useMemo(() => {
 		if (isFaculty) return facultyNav;
-		const aggregated = [...navigationNav, ...schedulingNav, ...campusNav, ...insightsNav]
+		const aggregated = [
+			...navigationNav,
+			...setupNav,
+			...facultyPlanningNav,
+			...inputCollectionNav,
+			...buildValidateNav,
+			...advancedNav,
+		]
 			.filter((item) => !item.disabled)
 			.filter((item) => !item.adminOnly || isAdmin);
 		const deduped = new Map<string, NavItemDef>();
@@ -649,10 +680,12 @@ export function AppShell() {
 	const breadcrumbs = (() => {
 		const groups: { label: string; items: NavItemDef[] }[] = [
 			{ label: 'Navigation', items: navigationNav },
-			{ label: 'Scheduling', items: schedulingNav },
+			{ label: 'School Setup', items: setupNav },
+			{ label: 'Faculty Planning', items: facultyPlanningNav },
+			{ label: 'Input Collection', items: inputCollectionNav },
+			{ label: 'Build & Validate', items: buildValidateNav },
 			{ label: 'My Portal', items: facultyNav },
-			{ label: 'Campus', items: campusNav },
-			{ label: 'Insights', items: insightsNav },
+			{ label: 'Advanced', items: advancedNav },
 		];
 
 		for (const group of groups) {

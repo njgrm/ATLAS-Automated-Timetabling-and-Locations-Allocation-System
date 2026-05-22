@@ -20,7 +20,7 @@
  */
 import { prisma } from '../lib/prisma.js';
 import { sectionAdapter } from './section-adapter.js';
-import { matchesSubjectOwnershipDepartment, resolveSubjectOwnerDepartmentCode, } from './subject-ownership.service.js';
+import { matchesSubjectOwnershipDepartment, resolveSubjectRotationFamily, resolveSubjectOwnerDepartmentCode, } from './subject-ownership.service.js';
 // DO 005 s.2024 weekly minute caps
 const STANDARD_CAP_MIN = 1_800;
 const HARD_CAP_MIN = 2_400;
@@ -30,6 +30,15 @@ const HARD_CAP_MIN = 2_400;
  */
 function maxMinutes(faculty) {
     return Math.min(faculty.maxHoursPerWeek * 60, HARD_CAP_MIN);
+}
+function resolveCapacityRotationFamily(subjectCode, explicitRotationFamily) {
+    const explicit = (explicitRotationFamily ?? '').trim().toUpperCase();
+    if (explicit.length > 0) {
+        return explicit;
+    }
+    const fallback = resolveSubjectRotationFamily(subjectCode, null);
+    const normalizedFallback = (fallback ?? '').trim().toUpperCase();
+    return normalizedFallback.length > 0 ? normalizedFallback : null;
 }
 function normalizeKey(value) {
     return (value ?? '').trim().toLowerCase();
@@ -144,17 +153,34 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
             facultyId: true,
             facultySubject: {
                 select: {
-                    subject: { select: { minMinutesPerWeek: true } },
+                    subject: { select: { id: true, code: true, rotationFamily: true, minMinutesPerWeek: true } },
                 },
             },
         },
     });
     const resolvedPairs = new Set(existingOwnerships.map((o) => `${o.subjectId}:${o.sectionId}`));
     const preserved = resolvedPairs.size;
-    const capacityUsed = new Map(); // facultyId → minutes used
-    for (const o of existingOwnerships) {
-        const mins = o.facultySubject.subject.minMinutesPerWeek;
-        capacityUsed.set(o.facultyId, (capacityUsed.get(o.facultyId) ?? 0) + mins);
+    const capacityUsed = new Map(); // facultyId → credited minutes used
+    const capacityLanesByFaculty = new Map();
+    for (const ownership of existingOwnerships) {
+        const subject = ownership.facultySubject.subject;
+        const mins = Math.max(0, Number(subject.minMinutesPerWeek) || 0);
+        if (mins <= 0)
+            continue;
+        const family = resolveCapacityRotationFamily(subject.code, subject.rotationFamily);
+        const laneKey = family
+            ? `family:${family}:${ownership.sectionId}`
+            : `subject:${subject.id}:${ownership.sectionId}`;
+        const lanes = capacityLanesByFaculty.get(ownership.facultyId) ?? new Map();
+        const currentLaneMinutes = lanes.get(laneKey) ?? 0;
+        if (mins > currentLaneMinutes) {
+            lanes.set(laneKey, mins);
+        }
+        capacityLanesByFaculty.set(ownership.facultyId, lanes);
+    }
+    for (const [facultyId, lanes] of capacityLanesByFaculty.entries()) {
+        const creditedMinutes = Array.from(lanes.values()).reduce((sum, value) => sum + value, 0);
+        capacityUsed.set(facultyId, creditedMinutes);
     }
     // ─── Step 2: Verify HG records for advisers (warn if missing) ─────────────
     const advisersWithoutHg = await prisma.facultyMirror.findMany({
@@ -190,6 +216,7 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
             id: true,
             code: true,
             name: true,
+            rotationFamily: true,
             gradeLevels: true,
             programScopes: true,
             minMinutesPerWeek: true,
@@ -310,9 +337,24 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
             bySubject.set(subjectId, new Set());
         }
         bySubject.get(subjectId).add(sectionId);
-        // Update capacity
-        const subj = subjectMap.get(subjectId);
-        capacityUsed.set(facultyId, (capacityUsed.get(facultyId) ?? 0) + subj.minMinutesPerWeek);
+        // Update credited capacity with rotation-family lane collapsing.
+        const subject = subjectMap.get(subjectId);
+        const minutes = Math.max(0, Number(subject.minMinutesPerWeek) || 0);
+        if (minutes <= 0) {
+            return;
+        }
+        const family = resolveCapacityRotationFamily(subject.code, subject.rotationFamily);
+        const laneKey = family
+            ? `family:${family}:${sectionId}`
+            : `subject:${subjectId}:${sectionId}`;
+        const lanes = capacityLanesByFaculty.get(facultyId) ?? new Map();
+        const currentLaneMinutes = lanes.get(laneKey) ?? 0;
+        if (minutes > currentLaneMinutes) {
+            lanes.set(laneKey, minutes);
+        }
+        capacityLanesByFaculty.set(facultyId, lanes);
+        const creditedMinutes = Array.from(lanes.values()).reduce((sum, value) => sum + value, 0);
+        capacityUsed.set(facultyId, creditedMinutes);
     }
     function findBestCandidate(subjectRow, _sectionId) {
         const candidates = [];

@@ -166,7 +166,17 @@ export type FacultyAssignmentRecord = {
 	missingOwnershipSectionCount?: number;
 	ownershipWithoutScopeSectionCount?: number;
 	sections: ExternalSection[];
-	subject: { id: number; name: string; code: string; minMinutesPerWeek: number };
+	subject: { id: number; name: string; code: string; minMinutesPerWeek: number; rotationFamily?: string | null };
+};
+
+export type RotationFamilyLoadDetail = {
+	family: string;
+	rawHours: number;
+	creditedHours: number;
+	overcountHours: number;
+	unitCount: number;
+	subjectCodes: string[];
+	subjectIds: number[];
 };
 
 export type FacultySummary = {
@@ -195,6 +205,9 @@ export type FacultySummary = {
 	ownershipWithoutScopeSubjectCount?: number;
 	subjectHours: number;
 	sectionTeachingHours: number;
+	sectionTeachingHoursRaw?: number;
+	rotationFamilyOvercountHours?: number;
+	rotationFamilyLoadDetails?: RotationFamilyLoadDetail[];
 	gradeTeachingHours: number;
 	advisoryHours: number;
 	ancillaryHours: number;

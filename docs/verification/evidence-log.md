@@ -1,3 +1,58 @@
+# 2026-05-22 - Phase 3 Teaching Load Rotation + Redistribution One-Shot
+- Phase: Phase 3 generator-readiness stream, teaching-load truth and redistribution hardening
+- Operator: GitHub Copilot
+- Scope gate: PASS (implementation + local build + live Tailnet verification)
+- Files changed in this pass:
+  - `atlas-server/src/routes/faculty-assignment.router.ts`
+  - `atlas-server/src/services/faculty-assignment.service.ts`
+  - `atlas-server/src/services/teaching-load-automation.service.ts`
+  - `atlas-client/src/lib/faculty-assignment-helpers.ts`
+  - `atlas-client/src/pages/FacultyAssignments.tsx`
+  - `atlas-client/src/types.ts`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+
+- Contract outcomes:
+  - `GET /api/v1/faculty-assignments/summary` now exposes `coverageTotals` and `integrityDiagnostics` directly from service truth payload.
+  - Rotation-family teaching-load accounting is now lane-collapsed (family + section) for summary load fields and helper math, with inspectable raw-vs-credited family details.
+  - Added preview/apply special-program redistribution endpoint:
+    - `POST /api/v1/faculty-assignments/coverage/rebalance-special-programs`
+    - Moves only system-owned rows (`assignedBy=0`) to preserve manual scheduler authority.
+  - Auto-fill capacity accounting now uses rotation-aware credited lanes, preventing inflated-minute candidate filtering.
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS
+
+- Live Tailnet verification (`https://njgrm.buru-degree.ts.net`):
+  - Summary route payload check -> PASS
+    - `hasCoverageTotals=true`
+    - `hasIntegrityDiagnostics=true`
+  - Final live summary payload excerpt:
+    - `coverageTotals={ assignedPairs: 1026, totalPairs: 1026, unassignedPairs: 0 }`
+    - `integrityDiagnostics.currentYearRowsMissingOwnership=2`
+    - `integrityDiagnostics.currentYearMissingOwnershipPairs=6`
+  - Rotation-aware after-state examples (live summary):
+    - Science: `OSMEÑA, CORAZON` -> `sectionTeachingHours=27.3`, `sectionTeachingHoursRaw=31`, `rotationFamilyOvercountHours=3.8`
+    - TLE: `RODRIGUEZ, ROSA` -> `sectionTeachingHours=30`, `sectionTeachingHoursRaw=33.8`, `rotationFamilyOvercountHours=3.8`
+  - Before-state references captured pre-change in same session:
+    - Science example showed `31h raw-style` vs `27.2h adjusted` (+`3.8h` overcount)
+    - TLE example showed `30h raw-style` vs `26.2h adjusted` (+`3.8h` overcount)
+  - Special-program redistribution:
+    - `SPA_SPEC` concentration improved from max-owner `2/8` and remained distributed across 7 owners after corrective moves.
+    - `SPS_SPEC` remained `4/8 + 4/8`; no additional qualified non-owner candidates were available under current contract, so concentration was retained with explicit evidence.
+  - Targeted coverage actions:
+    - Auto-fill apply -> `created=14`, `unresolved=171`
+    - Coverage repair apply (targeted) created placeholders for `HG`, `SCI_CHEM`, `SCI_ES`, `TLE_FCS_EXP` and resolved those to full coverage.
+    - Final targeted coverage summary:
+      - FULL: `SCI_ES`, `TLE_FCS_EXP`, `SCI_CHEM`, `TLE_AFA_EXP`, `HG`
+      - PARTIAL (unchanged due pre-existing ownership topology): `FIL`, `ENG`, `MATH`, `AP`
+    - DB-level coverage probe (live section scope) confirms ownership rows now exist for all target subject-section pairs.
+
+- GO/NO-GO:
+  - **GO** for this prompt scope.
+  - Residual operational debt remains in integrity samples (`emptySectionRows` and 2 missing-ownership rows), but it does not block this prompt's required truth-exposure and rotation/redistribution deliverables.
+
 # 2026-05-22 - Phase 3 Teachers/Teaching Load Performance + Offline Readiness One-Shot
 - Phase: Phase 3 generator-readiness stream, runtime resilience for `/faculty` and `/assignments`
 - Operator: GitHub Copilot
