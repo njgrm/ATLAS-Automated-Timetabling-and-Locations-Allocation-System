@@ -85,7 +85,7 @@ export function resolveSubjectQualificationPriority(
 	if (explicitPriority) {
 		return normalizeSubjectQualificationPriority(explicitPriority);
 	}
-	return isSpecializationPrimarySubjectCode(subjectCode) ? 'SPECIALIZATION_PRIMARY' : 'DEPARTMENT_FIRST';
+	return 'DEPARTMENT_FIRST';
 }
 
 export function resolveSubjectOutputLabel(

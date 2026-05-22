@@ -42,6 +42,7 @@ import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import { Checkbox } from '@/ui/checkbox';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
 import { Input } from '@/ui/input';
 import { SearchableSelect } from '@/ui/searchable-select';
 import { Skeleton } from '@/ui/skeleton';
@@ -95,6 +96,21 @@ policyLoadPercentage: number;
 syntheticCoverageHours: number;
 loadSignalMode: 'STANDARD' | 'SYNTHETIC_PLACEHOLDER';
 assignments: FacultyAssignmentRecord[];
+};
+
+type TeachingLoadResetPreview = {
+	applied: boolean;
+	scope: 'GLOBAL' | 'SUBJECT';
+	schoolId: number;
+	schoolYearId: number;
+	subjectId: number | null;
+	ownershipRowsToRemove: number;
+	facultySubjectRowsAffected: number;
+	facultySubjectRowsDeleted: number;
+	facultySubjectRowsUpdated: number;
+	affectedFacultyCount: number;
+	affectedSubjectCount: number;
+	subjectCodes: string[];
 };
 function cloneAssignments(assignments: FacultyAssignmentDraft[]): FacultyAssignmentDraft[] {
 return assignments.map((assignment) => ({
@@ -150,6 +166,10 @@ const [subjectSearch, setSubjectSearch] = useState('');
 	const [unmappedOnly, setUnmappedOnly] = useState(false);
 	const [hoveredIncomingMinutes, setHoveredIncomingMinutes] = useState(0);
 	const [swapCandidate, setSwapCandidate] = useState<{ subjectId: number; sectionId: number; fromFacultyId: number } | null>(null);
+const [resetDialogOpen, setResetDialogOpen] = useState(false);
+const [resetPreview, setResetPreview] = useState<TeachingLoadResetPreview | null>(null);
+const [resetLoading, setResetLoading] = useState(false);
+const [resetConfirmText, setResetConfirmText] = useState('');
 const [error, setError] = useState<string | null>(null);
 const [homeroomHint, setHomeroomHint] = useState<HomeroomHintResponse | null>(null);
 const [draftAssignmentsByFaculty, setDraftAssignmentsByFaculty] = useState<Record<number, FacultyAssignmentDraft[]>>({});
@@ -486,6 +506,48 @@ const handleViewStaffingNeeds = useCallback(async () => {
 	}
 }, [activeSchoolYearId]);
 
+const openGlobalResetPreview = useCallback(async () => {
+	if (!activeSchoolYearId) return;
+	setResetLoading(true);
+	try {
+		const { data } = await atlasApi.post<TeachingLoadResetPreview>(
+			'/faculty-assignments/reset',
+			{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId, previewOnly: true },
+		);
+		setResetPreview(data);
+		setResetConfirmText('');
+		setResetDialogOpen(true);
+	} catch (requestError: any) {
+		toast.error(requestError?.response?.data?.message ?? 'Failed to preview global teaching-load reset.');
+	} finally {
+		setResetLoading(false);
+	}
+}, [activeSchoolYearId]);
+
+const applyGlobalReset = useCallback(async () => {
+	if (!activeSchoolYearId) return;
+	if (resetConfirmText.trim().toUpperCase() !== 'RESET') {
+		toast.error('Type RESET to confirm global teaching-load reset.');
+		return;
+	}
+
+	setResetLoading(true);
+	try {
+		const { data } = await atlasApi.post<TeachingLoadResetPreview>(
+			'/faculty-assignments/reset',
+			{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId, previewOnly: false, confirmReset: true },
+		);
+		toast.success(`Global teaching-load reset removed ${data.ownershipRowsToRemove} ownership rows.`);
+		setResetDialogOpen(false);
+		setResetConfirmText('');
+		await fetchData();
+	} catch (requestError: any) {
+		toast.error(requestError?.response?.data?.message ?? 'Failed to apply global teaching-load reset.');
+	} finally {
+		setResetLoading(false);
+	}
+}, [activeSchoolYearId, fetchData, resetConfirmText]);
+
 const getComparableLoadHours = useCallback((member: FacultySummary) => {
 	if (member.isPlaceholder) {
 		return member.gradeTeachingHours ?? member.syntheticCoverageHours ?? 0;
@@ -772,8 +834,10 @@ Dismiss
 	autoFillLoading={autoFillLoading}
 	staffingNeedsLoading={staffingNeedsLoading}
 	autoFillEnabled={Boolean(activeSchoolYearId)}
+	resetLoading={resetLoading}
 	onAutoFillClick={() => setAutoFillDialogOpen(true)}
 	onViewStaffingNeedsClick={handleViewStaffingNeeds}
+	onResetGlobalClick={openGlobalResetPreview}
 />
 
 <div className="mt-3 flex min-h-0 flex-1 gap-4 pb-3">
@@ -1337,6 +1401,63 @@ This faculty member is excluded from scheduling. Enable them first.
 	onOpenChange={setSummaryModalOpen}
 	result={summaryModalResult}
 />
+
+<Dialog open={resetDialogOpen} onOpenChange={(open) => { if (!open) { setResetDialogOpen(false); setResetConfirmText(''); } }}>
+	<DialogContent className="max-w-md">
+		<DialogHeader>
+			<DialogTitle className="flex items-center gap-2 text-destructive">
+				<AlertTriangle className="size-5 shrink-0" />
+				Reset Global Teaching Load
+			</DialogTitle>
+			<DialogDescription asChild>
+				<div className="space-y-3 pt-1">
+					<p className="text-sm text-foreground">
+						This removes all active subject-section ownership rows for the current school year. Run this only when you intend to rebuild assignments.
+					</p>
+					{resetPreview && (
+						<div className="rounded-lg border bg-muted/40 p-3 space-y-1 text-xs font-medium">
+							<div className="flex justify-between">
+								<span className="text-muted-foreground">Ownership rows removed</span>
+								<span className="font-bold text-destructive">{resetPreview.ownershipRowsToRemove}</span>
+							</div>
+							<div className="flex justify-between">
+								<span className="text-muted-foreground">Faculty affected</span>
+								<span>{resetPreview.affectedFacultyCount}</span>
+							</div>
+							<div className="flex justify-between">
+								<span className="text-muted-foreground">Subjects affected</span>
+								<span>{resetPreview.affectedSubjectCount}</span>
+							</div>
+						</div>
+					)}
+					<div className="space-y-1">
+						<p className="text-xs text-muted-foreground">Type <span className="font-bold font-mono text-foreground">RESET</span> to confirm:</p>
+						<Input
+							value={resetConfirmText}
+							onChange={(event) => setResetConfirmText(event.target.value)}
+							placeholder="RESET"
+							className="font-mono"
+							autoComplete="off"
+						/>
+					</div>
+				</div>
+			</DialogDescription>
+		</DialogHeader>
+		<DialogFooter className="gap-2 pt-2">
+			<Button variant="ghost" size="sm" onClick={() => { setResetDialogOpen(false); setResetConfirmText(''); }}>
+				Cancel
+			</Button>
+			<Button
+				variant="destructive"
+				size="sm"
+				disabled={resetLoading || resetConfirmText.trim().toUpperCase() !== 'RESET'}
+				onClick={applyGlobalReset}
+			>
+				{resetLoading ? 'Resetting...' : 'Confirm Reset'}
+			</Button>
+		</DialogFooter>
+	</DialogContent>
+</Dialog>
 </TooltipProvider>
 );
 }

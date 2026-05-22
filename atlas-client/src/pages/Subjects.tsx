@@ -1,32 +1,29 @@
-﻿import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
 	ArrowDown,
 	ArrowUp,
 	ArrowUpDown,
 	BookOpen,
-	ChevronDown,
 	ChevronLeft,
 	ChevronRight,
-	ExternalLink,
 	Filter,
 	Map,
-	MoreHorizontal,
 	Pencil,
 	Plus,
 	RefreshCw,
+	RotateCcw,
 	Search,
 	Star,
 	Trash2,
 	Users,
-	Wrench,
 	X,
 } from 'lucide-react';
 
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
-import { gradeLabel, GRADE_COLORS, getQualificationTier } from '@/lib/grade-labels';
+import { gradeLabel, GRADE_COLORS } from '@/lib/grade-labels';
 import {
 	ALL_ROOM_TYPES,
 	GRADE_OPTIONS,
@@ -34,7 +31,6 @@ import {
 	PROGRAM_SCOPE_OPTIONS,
 	QUALIFICATION_PRIORITY_LABELS,
 	ROOM_TYPE_LABELS,
-	SESSION_PATTERN_BADGE,
 	SUBJECT_OWNER_BADGE,
 	SUBJECT_OWNER_LABELS,
 } from '@/lib/subject-constants';
@@ -58,7 +54,7 @@ import { Input } from '@/ui/input';
 import { Skeleton } from '@/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu';
+
 
 const DEFAULT_SCHOOL_ID = 1;
 const PAGE_SIZES = [10, 25, 50];
@@ -109,20 +105,14 @@ export default function Subjects() {
 	const [deleteActionLoading, setDeleteActionLoading] = useState(false);
 	const [syncingContract, setSyncingContract] = useState(false);
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
-	const [showSystemManaged, setShowSystemManaged] = useState(false);
 	const [showFilters, setShowFilters] = useState(false);
-	const [resetDialogOpen, setResetDialogOpen] = useState(false);
-	const [resetPreview, setResetPreview] = useState<TeachingLoadResetPreview | null>(null);
-	const [resetLoading, setResetLoading] = useState(false);
-	const [resetConfirmText, setResetConfirmText] = useState('');
 	const [inspectSpecializations, setInspectSpecializations] = useState<Subject | null>(null);
 	const [timeMode, setTimeMode] = useState<'minutes' | 'hours'>('minutes');
 
 	// Teacher coverage drilldown
 	const [coverageSubject, setCoverageSubject] = useState<Subject | null>(null);
 	const [teacherCoverage, setTeacherCoverage] = useState<Record<number, { 
-		assigned: { facultyId: number; name: string; grades: number[]; load: number }[], 
-		eligible: { facultyId: number; name: string; tier: number; load: number }[] 
+		assigned: { facultyId: number; name: string; grades: number[]; load: number }[]
 	}>>({});
 	const [coverageLoading, setCoverageLoading] = useState(false);
 
@@ -177,46 +167,6 @@ export default function Subjects() {
 		});
 	}, [ensureActiveSchoolYear]);
 
-	const handleAssignTeacher = async (facultyId: number, subjectId: number) => {
-		try {
-			setCoverageLoading(true);
-			const schoolYearId = await ensureActiveSchoolYear();
-			const currentRes = await atlasApi.get(`/faculty-assignments/${facultyId}`, {
-				params: { schoolYearId }
-			});
-			const { version, assignments } = currentRes.data;
-			
-			const newAssignments = [
-				...assignments.map((a: any) => ({
-					subjectId: a.subject.id,
-					gradeLevels: a.gradeLevels,
-					sectionIds: a.sections.map((s: any) => s.id)
-				})),
-				{ subjectId, gradeLevels: [], sectionIds: [] }
-			];
-
-			await atlasApi.put(`/faculty-assignments/${facultyId}`, {
-				schoolId: DEFAULT_SCHOOL_ID,
-				schoolYearId,
-				version,
-				assignments: newAssignments
-			});
-
-			toast.success('Teacher assigned successfully.');
-			
-			// Force refetch
-			setTeacherCoverage(prev => {
-				const newState = { ...prev };
-				delete newState[subjectId];
-				return newState;
-			});
-			fetchTeacherCoverage(subjectId);
-		} catch (err: any) {
-			toast.error(err.response?.data?.message || 'Failed to assign teacher');
-			setCoverageLoading(false);
-		}
-	};
-
 	const fetchTeacherCoverage = useCallback(async (subjectId: number) => {
 		const targetSubject = subjects.find(s => s.id === subjectId);
 		if (!targetSubject) return;
@@ -229,7 +179,6 @@ export default function Subjects() {
 			});
 			
 			const assigned: { facultyId: number; name: string; grades: number[]; load: number }[] = [];
-			const eligible: { facultyId: number; name: string; tier: number; load: number }[] = [];
 
 			for (const f of data.faculty ?? []) {
 				const isAssigned = (f.assignments ?? []).some((a: any) => a.subjectId === subjectId);
@@ -242,25 +191,12 @@ export default function Subjects() {
 						grades: assignment.gradeLevels ?? [],
 						load
 					});
-				} else {
-					const tier = getQualificationTier(f, targetSubject);
-					if (tier === 1 || tier === 2) {
-						eligible.push({ 
-							facultyId: f.id,
-							name: `${f.lastName}, ${f.firstName}`, 
-							tier: tier as number,
-							load
-						});
-					}
 				}
 			}
 
-			// Sort eligible by load (ascending) then tier (ascending)
-			eligible.sort((a, b) => (a.load - b.load) || (a.tier - b.tier));
-
 			setTeacherCoverage((prev) => ({ 
 				...prev, 
-				[subjectId]: { assigned, eligible } 
+				[subjectId]: { assigned } 
 			}));
 		} catch {
 			toast.error('Failed to load teacher coverage');
@@ -297,10 +233,6 @@ export default function Subjects() {
 		if (statusFilter === 'active') list = list.filter((s) => s.isActive);
 		else if (statusFilter === 'inactive') list = list.filter((s) => !s.isActive);
 
-		if (!showSystemManaged) {
-			list = list.filter((s) => !s.isSystemManaged);
-		}
-
 		// Room type filter
 		if (roomTypeFilter !== 'all') list = list.filter((s) => s.preferredRoomType === roomTypeFilter);
 
@@ -327,10 +259,10 @@ export default function Subjects() {
 		const tp = Math.max(1, Math.ceil(tf / pageSize));
 		const start = (page - 1) * pageSize;
 		return { paged: sorted.slice(start, start + pageSize), totalFiltered: tf, totalPages: tp };
-	}, [subjects, searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, showSystemManaged, sortField, sortDir, page, pageSize]);
+	}, [subjects, searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, sortField, sortDir, page, pageSize]);
 
 	// Reset page when filters change
-	useEffect(() => { setPage(1); }, [searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, showSystemManaged, pageSize]);
+	useEffect(() => { setPage(1); }, [searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, pageSize]);
 
 	const toggleSort = (field: SortField) => {
 		if (sortField === field) {
@@ -358,7 +290,6 @@ export default function Subjects() {
 					rotationFamily: values.rotationFamily?.trim() ? values.rotationFamily.trim() : null,
 					minMinutesPerWeek: values.minMinutesPerWeek,
 					preferredRoomType: values.preferredRoomType,
-					sessionPattern: values.sessionPattern,
 					isActive: values.isActive,
 					isSeedable: values.isSeedable,
 					isSystemManaged: values.isSystemManaged,
@@ -396,7 +327,7 @@ export default function Subjects() {
 		}
 	};
 
-	const hasActiveFilters = statusFilter !== 'all' || roomTypeFilter !== 'all' || gradeLevelFilter !== 'all' || programScopeFilter !== 'all' || showSystemManaged;
+	const hasActiveFilters = statusFilter !== 'all' || roomTypeFilter !== 'all' || gradeLevelFilter !== 'all' || programScopeFilter !== 'all';
 
 	const handleSyncContract = async () => {
 		setSyncingContract(true);
@@ -517,48 +448,13 @@ export default function Subjects() {
 		}
 	};
 
-	const openGlobalResetPreview = async () => {
-		setResetLoading(true);
+	const handleReactivateSubject = async (target: Subject) => {
 		try {
-			const schoolYearId = await ensureActiveSchoolYear();
-			const { data } = await atlasApi.post<TeachingLoadResetPreview>('/faculty-assignments/reset', {
-				schoolId: DEFAULT_SCHOOL_ID,
-				schoolYearId,
-				previewOnly: true,
-			});
-			setResetPreview(data);
-			setResetConfirmText('');
-			setResetDialogOpen(true);
-		} catch (err: any) {
-			toast.error(err?.response?.data?.message ?? 'Failed to preview teaching-load reset.');
-		} finally {
-			setResetLoading(false);
-		}
-	};
-
-	const applyGlobalReset = async () => {
-		if (resetConfirmText.trim().toUpperCase() !== 'RESET') {
-			toast.error('Type RESET to confirm global teaching-load reset.');
-			return;
-		}
-
-		setResetLoading(true);
-		try {
-			const schoolYearId = await ensureActiveSchoolYear();
-			const { data } = await atlasApi.post<TeachingLoadResetPreview>('/faculty-assignments/reset', {
-				schoolId: DEFAULT_SCHOOL_ID,
-				schoolYearId,
-				previewOnly: false,
-				confirmReset: true,
-			});
-			toast.success(`Global teaching-load reset removed ${data.ownershipRowsToRemove} ownership rows.`);
-			setResetDialogOpen(false);
-			setResetConfirmText('');
+			await atlasApi.post(`/subjects/${target.id}/reactivate`);
+			toast.success(`${target.name} reactivated.`);
 			await fetchSubjects();
 		} catch (err: any) {
-			toast.error(err?.response?.data?.message ?? 'Failed to apply global teaching-load reset.');
-		} finally {
-			setResetLoading(false);
+			toast.error(err?.response?.data?.message ?? 'Failed to reactivate subject.');
 		}
 	};
 
@@ -605,29 +501,6 @@ export default function Subjects() {
 							</Tooltip>
 						</TooltipProvider>
 
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button variant="outline" size="sm" className="h-9 gap-1.5">
-									<Wrench className="size-4" />
-									<MoreHorizontal className="size-3.5 text-muted-foreground" />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end" className="w-56">
-								<DropdownMenuLabel className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Advanced Tools</DropdownMenuLabel>
-								<DropdownMenuSeparator />
-								<DropdownMenuItem
-									className="text-destructive focus:text-destructive focus:bg-destructive/10 gap-2"
-									onSelect={openGlobalResetPreview}
-									disabled={resetLoading}
-								>
-									<Trash2 className="size-4 shrink-0" />
-									<div>
-										<p className="font-semibold">Reset Teaching Load</p>
-										<p className="text-xs text-muted-foreground leading-tight">Clear all active subject-section ownership for this school year.</p>
-									</div>
-								</DropdownMenuItem>
-							</DropdownMenuContent>
-						</DropdownMenu>
 
 						<div className="h-4 w-px bg-border mx-1" />
 
@@ -687,17 +560,9 @@ export default function Subjects() {
 
 						<div className="flex items-center gap-2 border-l pl-3">
 							<span className="text-[0.7rem] font-medium text-muted-foreground uppercase">Options:</span>
-							<Button
-								variant={showSystemManaged ? 'secondary' : 'outline'}
-								size="sm"
-								className="h-7 text-[0.65rem] px-2"
-								onClick={() => setShowSystemManaged((p) => !p)}
-							>
-								{showSystemManaged ? 'Showing System' : 'Show System'}
-							</Button>
-							<div className="flex gap-0.5 text-[0.625rem] bg-muted/50 p-0.5 rounded-md border border-border/50">
-								<Button type="button" variant="ghost" size="sm" onClick={() => setTimeMode('minutes')} className={`h-6 px-1.5 rounded-sm ${timeMode === 'minutes' ? 'bg-background shadow-sm text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}>min</Button>
+							<div className="flex items-center p-0.5 rounded-md bg-muted gap-0.5">
 								<Button type="button" variant="ghost" size="sm" onClick={() => setTimeMode('hours')} className={`h-6 px-1.5 rounded-sm ${timeMode === 'hours' ? 'bg-background shadow-sm text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}>hr</Button>
+								<Button type="button" variant="ghost" size="sm" onClick={() => setTimeMode('minutes')} className={`h-6 px-1.5 rounded-sm ${timeMode === 'minutes' ? 'bg-background shadow-sm text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}>min</Button>
 							</div>
 						</div>
 
@@ -711,7 +576,6 @@ export default function Subjects() {
 									setRoomTypeFilter('all'); 
 									setGradeLevelFilter('all'); 
 									setProgramScopeFilter('all'); 
-									setShowSystemManaged(false);
 								}}
 							>
 								Reset all
@@ -750,7 +614,6 @@ export default function Subjects() {
 											Room Pref. <SortIcon field="preferredRoomType" />
 										</Button>
 									</th>
-									<th className="px-4 py-3 text-left font-semibold text-muted-foreground">Pattern</th>
 									<th className="px-4 py-3 text-left">
 										<Button variant="ghost" size="sm" onClick={() => toggleSort('gradeLevels')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
 											Grades <SortIcon field="gradeLevels" />
@@ -768,7 +631,6 @@ export default function Subjects() {
 											<td className="px-4 py-4"><Skeleton className="h-5 w-48" /></td>
 											<td className="px-4 py-4"><Skeleton className="h-5 w-16" /></td>
 											<td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-12" /></td>
 											<td className="px-4 py-4"><Skeleton className="h-5 w-20" /></td>
 											<td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
 											<td className="px-4 py-4"><Skeleton className="h-5 w-14" /></td>
@@ -777,7 +639,7 @@ export default function Subjects() {
 									))
 								) : paged.length === 0 ? (
 									<tr>
-										<td colSpan={8} className="px-4 py-12 text-center">
+										<td colSpan={7} className="px-4 py-12 text-center">
 											<div className="flex flex-col items-center gap-2 text-muted-foreground">
 												<BookOpen className="size-8 opacity-20" />
 												<p>{searchQuery || hasActiveFilters ? 'No subjects match your current filters.' : 'No subjects have been configured yet.'}</p>
@@ -800,7 +662,6 @@ export default function Subjects() {
 													qualificationPriority: s.qualificationPriority ?? 'DEPARTMENT_FIRST',
 													rotationFamily: s.rotationFamily ?? '',
 													minMinutesPerWeek: s.minMinutesPerWeek,
-													sessionPattern: s.sessionPattern ?? 'ANY',
 													preferredRoomType: s.preferredRoomType,
 													gradeLevels: [...s.gradeLevels],
 													isActive: s.isActive,
@@ -824,6 +685,7 @@ export default function Subjects() {
 												fetchTeacherCoverage(target.id);
 											}}
 											onInspectSpecializations={(target) => setInspectSpecializations(target)}
+										onReactivate={handleReactivateSubject}
 										/>
 									))
 								)}
@@ -838,7 +700,7 @@ export default function Subjects() {
 								<span>
 									{totalFiltered === 0
 										? 'No results'
-										: `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, totalFiltered)} of ${totalFiltered} results`}
+										: `Showing ${(page - 1) * pageSize + 1}�${Math.min(page * pageSize, totalFiltered)} of ${totalFiltered} results`}
 								</span>
 								<div className="flex items-center gap-2">
 									<span>Rows per page:</span>
@@ -940,47 +802,6 @@ export default function Subjects() {
 									)}
 								</div>
 
-								{/* Eligible Teachers */}
-								<div className="space-y-4">
-									<h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-										<div className="size-1.5 rounded-full bg-amber-500" />
-										Qualified & Available
-										<Badge variant="secondary" className="ml-auto bg-amber-50 text-amber-700 hover:bg-amber-50 border-amber-100">
-											{(teacherCoverage[coverageSubject.id]?.eligible ?? []).length}
-										</Badge>
-									</h4>
-									
-									{(teacherCoverage[coverageSubject.id]?.eligible ?? []).length > 0 ? (
-										<div className="grid gap-2">
-											{teacherCoverage[coverageSubject.id].eligible.map((t) => (
-												<div key={t.facultyId} className="group p-3 rounded-lg border bg-background hover:border-primary/50 transition-all flex items-center justify-between shadow-xs">
-													<div className="min-w-0 flex-1">
-														<p className="text-sm font-medium truncate">{t.name}</p>
-														<div className="flex items-center gap-2 mt-1">
-															<Badge variant="outline" className={`text-[0.6rem] px-1 py-0 ${t.tier === 1 ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-sky-50 text-sky-700 border-sky-100'}`}>
-																{t.tier === 1 ? 'Specialist' : 'Dept. Match'}
-															</Badge>
-															<span className="text-[0.7rem] text-muted-foreground font-medium">{t.load}% Current Load</span>
-														</div>
-													</div>
-													<Button 
-														variant="outline" 
-														size="sm" 
-														className="h-8 text-xs font-semibold shrink-0"
-														onClick={() => handleAssignTeacher(t.facultyId, coverageSubject.id)}
-													>
-														Assign
-													</Button>
-												</div>
-											))}
-										</div>
-									) : (
-										<div className="p-8 rounded-lg border border-dashed text-center">
-											<p className="text-sm text-muted-foreground italic">No other qualified teachers identified.</p>
-										</div>
-									)}
-								</div>
-
 								{/* Facilities Requirement */}
 								{coverageSubject.preferredRoomType !== 'CLASSROOM' && (
 									<div className="p-4 rounded-lg bg-muted/40 border border-muted flex items-start gap-3">
@@ -1042,7 +863,7 @@ export default function Subjects() {
 					<DialogHeader>
 						<DialogTitle className="flex items-center gap-2 text-destructive">
 							<Trash2 className="size-5 shrink-0" />
-							Cannot Delete — Action Required
+							Cannot Delete � Action Required
 						</DialogTitle>
 						<DialogDescription asChild>
 							<div className="space-y-3 pt-1">
@@ -1100,64 +921,9 @@ export default function Subjects() {
 						<Button variant="ghost" size="sm" onClick={() => setDeleteBlocker(null)}>
 							Cancel
 						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
-
-			{/* Global Teaching-Load Reset Dialog */}
-			<Dialog open={resetDialogOpen} onOpenChange={(open) => { if (!open) { setResetDialogOpen(false); setResetConfirmText(''); } }}>
-				<DialogContent className="max-w-md">
-					<DialogHeader>
-						<DialogTitle className="flex items-center gap-2 text-destructive">
-							<Wrench className="size-5 shrink-0" />
-							Reset Global Teaching Load
-						</DialogTitle>
-						<DialogDescription asChild>
-							<div className="space-y-3 pt-1">
-								<p className="text-sm text-foreground">
-									This will remove all active subject-section ownership rows for the current school year. Faculty assignment history from previous school years is not affected.
-								</p>
-								{resetPreview && (
-									<div className="rounded-lg border bg-muted/40 p-3 space-y-1 text-xs font-medium">
-										<div className="flex justify-between">
-											<span className="text-muted-foreground">Ownership rows removed</span>
-											<span className="font-bold text-destructive">{resetPreview.ownershipRowsToRemove}</span>
-										</div>
-										<div className="flex justify-between">
-											<span className="text-muted-foreground">Faculty affected</span>
-											<span>{resetPreview.affectedFacultyCount}</span>
-										</div>
-										<div className="flex justify-between">
-											<span className="text-muted-foreground">Subjects affected</span>
-											<span>{resetPreview.affectedSubjectCount}</span>
-										</div>
-									</div>
-								)}
-								<div className="space-y-1">
-									<p className="text-xs text-muted-foreground">Type <span className="font-bold font-mono text-foreground">RESET</span> to confirm:</p>
-									<Input
-										value={resetConfirmText}
-										onChange={(e) => setResetConfirmText(e.target.value)}
-										placeholder="RESET"
-										className="font-mono"
-										autoComplete="off"
-									/>
-								</div>
-							</div>
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter className="gap-2 pt-2">
-						<Button variant="ghost" size="sm" onClick={() => { setResetDialogOpen(false); setResetConfirmText(''); }}>
-							Cancel
-						</Button>
-						<Button
-							variant="destructive"
-							size="sm"
-							disabled={resetLoading || resetConfirmText.trim().toUpperCase() !== 'RESET'}
-							onClick={applyGlobalReset}
-						>
-							{resetLoading ? 'Resetting…' : 'Confirm Reset'}
-						</Button>
+						<Link to="/faculty-assignments">
+							<Button variant="outline" size="sm">View in Teaching Load</Button>
+						</Link>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
@@ -1168,7 +934,7 @@ export default function Subjects() {
 					<SheetHeader className="shrink-0">
 						<SheetTitle className="flex items-center gap-2 text-sm">
 							<Star className="size-4 text-violet-600" />
-							Specializations — {inspectSpecializations?.code}
+							Specializations � {inspectSpecializations?.code}
 						</SheetTitle>
 						<SheetDescription>
 							Only faculty with one of the listed specializations will be eligible as Tier-1 candidates for this subject.
@@ -1176,7 +942,7 @@ export default function Subjects() {
 					</SheetHeader>
 					<div className="flex-1 min-h-0 overflow-auto py-4">
 						{(inspectSpecializations?.allowedSpecializations ?? []).length === 0 ? (
-							<p className="text-sm text-muted-foreground italic p-4">No specialization restrictions — all qualified faculty are eligible.</p>
+							<p className="text-sm text-muted-foreground italic p-4">No specialization restrictions � all qualified faculty are eligible.</p>
 						) : (
 							<div className="space-y-1.5 px-1">
 								{(inspectSpecializations?.allowedSpecializations ?? []).map((spec) => (

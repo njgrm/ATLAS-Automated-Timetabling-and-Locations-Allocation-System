@@ -315,7 +315,6 @@ export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemp
                     sessionsPerWeek: sessions,
                     durationPerSession: duration,
                     enrolledCount: section.enrolledCount,
-                    sessionPattern: primary.sessionPattern ?? 'ANY',
                     entryKind: 'SECTION',
                     homeRoomId: section.homeRoomId ?? null,
                     buildingZoneId: section.buildingZoneId ?? null,
@@ -396,7 +395,6 @@ export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemp
                         sessionsPerWeek: sessions,
                         durationPerSession: duration,
                         enrolledCount: effectiveCohortEnrollment,
-                        sessionPattern: subject.sessionPattern ?? 'ANY',
                         entryKind: 'COHORT',
                         homeRoomId: null,
                         buildingZoneId: anchorSection.buildingZoneId ?? null,
@@ -430,7 +428,6 @@ export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemp
                         sessionsPerWeek: sessions,
                         durationPerSession: duration,
                         enrolledCount: section.enrolledCount,
-                        sessionPattern: subject.sessionPattern ?? 'ANY',
                         entryKind: 'SECTION',
                         homeRoomId: section.homeRoomId ?? null,
                         buildingZoneId: section.buildingZoneId ?? null,
@@ -456,7 +453,6 @@ export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemp
                     sessionsPerWeek: sessions,
                     durationPerSession: duration,
                     enrolledCount: section.enrolledCount,
-                    sessionPattern: subject.sessionPattern ?? 'ANY',
                     entryKind: 'SECTION',
                     homeRoomId: section.homeRoomId ?? null,
                     buildingZoneId: section.buildingZoneId ?? null,
@@ -958,12 +954,6 @@ export function constructBaseline(input) {
     const allowFlexible = policy?.allowFlexibleSubjectAssignment === true;
     const allowConsecutiveLab = policy?.allowConsecutiveLabSessions === true;
     const allFacultyIds = faculty.map((f) => f.id).sort((a, b) => a - b);
-    // Session pattern → allowed day sets
-    const SESSION_PATTERN_DAYS = {
-        MWF: new Set(['MONDAY', 'WEDNESDAY', 'FRIDAY']),
-        TTH: new Set(['TUESDAY', 'THURSDAY']),
-        ANY: new Set(DAYS),
-    };
     // Lab-like room types for consecutive lab check
     const LAB_ROOM_TYPES = new Set(['LABORATORY', 'TLE_WORKSHOP', 'COMPUTER_LAB']);
     const SPECIALIZED_ROOM_TYPES = new Set(['LABORATORY', 'TLE_WORKSHOP', 'COMPUTER_LAB', 'GYMNASIUM']);
@@ -1090,9 +1080,6 @@ export function constructBaseline(input) {
             const possibleSlots = [];
             for (let di = 0; di < DAYS.length; di++) {
                 const day = DAYS[di];
-                const allowedDays = SESSION_PATTERN_DAYS[item.sessionPattern] ?? SESSION_PATTERN_DAYS.ANY;
-                if (!allowedDays.has(day))
-                    continue;
                 for (const pi of gradeValidPeriods) {
                     const slot = FALLBACK_PERIOD_SLOTS[pi];
                     if (getDemandSectionIds(item).some((sectionId) => sectionOcc.isOccupied(sectionId, day, slot.startTime, slot.endTime)))

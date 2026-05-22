@@ -133,7 +133,6 @@ section('Cohort-aware baseline construction');
                 code: 'TLE',
                 minMinutesPerWeek: 100,
                 preferredRoomType: 'TLE_WORKSHOP',
-                sessionPattern: 'ANY',
                 gradeLevels: [7],
                 interSectionEnabled: true,
                 interSectionGradeLevels: [7],
@@ -192,7 +191,6 @@ section('Fallback to section entries when cohorts are absent');
                 code: 'TLE',
                 minMinutesPerWeek: 100,
                 preferredRoomType: 'TLE_WORKSHOP',
-                sessionPattern: 'ANY',
                 gradeLevels: [7],
                 interSectionEnabled: true,
                 interSectionGradeLevels: [7],
@@ -245,7 +243,7 @@ section('Cohort capacity validation');
         faculty: [{ id: 1, maxHoursPerWeek: 40 }],
         facultySubjects: [{ facultyId: 1, subjectId: 301, sectionIds: [21, 22] }],
         rooms: [{ id: 1, type: 'TLE_WORKSHOP', capacity: 40 }],
-        subjects: [{ id: 301, preferredRoomType: 'TLE_WORKSHOP', sessionPattern: 'ANY' }],
+        subjects: [{ id: 301, preferredRoomType: 'TLE_WORKSHOP' }],
         sectionEnrollment: new Map([[21, 32], [22, 31]]),
     };
     const result = validateHardConstraints(ctx);

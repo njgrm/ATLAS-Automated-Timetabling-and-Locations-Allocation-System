@@ -476,7 +476,6 @@ async function loadDraftContext(schoolId: number, schoolYearId: number, authToke
 				name: true,
 				minMinutesPerWeek: true,
 				preferredRoomType: true,
-				sessionPattern: true,
 				gradeLevels: true,
 				interSectionEnabled: true,
 				interSectionGradeLevels: true,
@@ -655,7 +654,7 @@ function buildValidatorCtx(schoolId: number, schoolYearId: number, entries: Sche
 		faculty: ctx.facultyRefs,
 		facultySubjects: ctx.facultySubjects,
 		rooms: ctx.rooms.map((room) => ({ id: room.id, type: room.type, capacity: room.capacity })),
-		subjects: ctx.subjects.map((subject) => ({ id: subject.id, preferredRoomType: subject.preferredRoomType, sessionPattern: subject.sessionPattern })),
+		subjects: ctx.subjects.map((subject) => ({ id: subject.id, preferredRoomType: subject.preferredRoomType })),
 		sectionEnrollment: ctx.sectionEnrollment,
 		policy: {
 			maxConsecutiveTeachingMinutesBeforeBreak: ctx.policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,

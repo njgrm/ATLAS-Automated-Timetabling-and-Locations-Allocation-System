@@ -1,3 +1,70 @@
+# 2026-05-22 - Phase 3 Subject Contract Follow-Up (Session Pattern Removal + Reset Relocation)
+- Phase: Phase 3 generator-readiness stream, subject contract cleanup and operator workflow correction
+- Operator: GitHub Copilot
+- Scope gate: PASS (implementation + local compile/test verification)
+- Files changed in this pass:
+  - `prisma/schema.prisma`
+  - `prisma/migrations/0030_drop_subject_session_pattern/migration.sql`
+  - `prisma/seed.js`
+  - `atlas-server/src/services/subject.service.ts`
+  - `atlas-server/src/services/schedule-constructor.ts`
+  - `atlas-server/src/services/constraint-validator.ts`
+  - `atlas-server/src/services/hybrid-scheduler.ts`
+  - `atlas-server/src/services/generation.service.ts`
+  - `atlas-server/src/services/pre-generation-draft.service.ts`
+  - `atlas-server/src/services/manual-edit.service.ts`
+  - `atlas-server/src/services/class-template.service.ts`
+  - `atlas-server/src/services/schedule-output-normalization.service.ts`
+  - `atlas-server/src/services/subject-ownership.service.ts`
+  - `atlas-server/src/routes/subject.router.ts`
+  - `atlas-server/src/scripts/benchmark-hybrid.ts`
+  - `atlas-server/src/__tests__/phase2-home-room-strategy.test.ts`
+  - `atlas-server/src/__tests__/phase2-timetable-shape-contract.test.ts`
+  - `atlas-server/src/__tests__/phase4-cohort-review.test.ts`
+  - `atlas-server/src/__tests__/tri-sem-modular-contract.test.ts`
+  - `atlas-server/src/__tests__/wave4-pre-generation-draft.test.ts`
+  - `atlas-server/src/__tests__/hybrid-scheduler.test.ts`
+  - `atlas-client/src/types.ts`
+  - `atlas-client/src/types.d.ts`
+  - `atlas-client/src/lib/subject-constants.ts`
+  - `atlas-client/src/components/subjects/SubjectAddForm.tsx`
+  - `atlas-client/src/components/subjects/SubjectFormModal.tsx`
+  - `atlas-client/src/components/subjects/SubjectRow.tsx`
+  - `atlas-client/src/pages/Subjects.tsx`
+  - `atlas-client/src/components/faculty-assignments/OverviewHeader.tsx`
+  - `atlas-client/src/pages/FacultyAssignments.tsx`
+  - `atlas-client/src/components/ExplainabilityDrawer.tsx`
+  - `atlas-client/src/hooks/useTimetableData.ts`
+  - `atlas-client/src/components/timetable/TimetableGrid.tsx`
+  - `atlas-client/src/components/timetable/ScheduleReviewWorkspace.constants.ts`
+  - `atlas-client/src/components/scheduling-policy/PolicyPanePrimitives.tsx`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+
+- Contract-level outcomes:
+  - Removed `Subject.sessionPattern` from schema, runtime inputs, validators, generation payloads, and UI types.
+  - Removed `SESSION_PATTERN_VIOLATED` from client violation-code and policy-control surfaces.
+  - Added explicit subject reactivation endpoint + UI action (`POST /api/v1/subjects/:id/reactivate`).
+  - Relocated global teaching-load reset to `/assignments` with preview-first + typed confirmation flow.
+  - Removed global reset control from `/subjects`; kept subject-scoped delete-remediation path there.
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS
+  - `npm --prefix atlas-server run test:phase2-home-room-strategy` -> PASS
+  - `npx --prefix atlas-server tsx atlas-server/src/__tests__/phase2-timetable-shape-contract.test.ts` -> PASS
+  - `npx --prefix atlas-server tsx atlas-server/src/__tests__/tri-sem-modular-contract.test.ts` -> PASS
+  - `npm run db:generate` -> FAIL (`EPERM` engine DLL rename lock on Windows)
+  - `npx prisma generate --no-engine` -> PASS
+  - diagnostics on touched pages/components/tests -> PASS
+
+- GO/NO-GO:
+  - **GO** for one-shot prompt scope implementation and local verification.
+  - **NO-GO** for phase closure until Tailnet QA verifies live behavior for:
+    - `/assignments` global reset preview/apply flow
+    - `/subjects` reactivate/archive/delete-remediation loop
+    - runtime parity of contract payloads with session-pattern fully removed.
+
 # 2026-05-21 - Phase 3 Subject Contract Follow-Up One-Shot (Implementation + Local Verification)
 - Phase: Phase 3 generator-readiness stream, subject contract durability + remediation workflow follow-up
 - Operator: GitHub Copilot

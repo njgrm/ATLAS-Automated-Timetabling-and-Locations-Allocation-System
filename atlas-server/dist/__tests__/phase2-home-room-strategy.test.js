@@ -55,7 +55,6 @@ function buildBaseInput(roomingStrategy) {
                 name: 'Mathematics',
                 minMinutesPerWeek: 50,
                 preferredRoomType: 'CLASSROOM',
-                sessionPattern: 'ANY',
                 gradeLevels: [7],
             },
         ],

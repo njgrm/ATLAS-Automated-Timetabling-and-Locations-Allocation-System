@@ -37,7 +37,6 @@ export const VIOLATION_LABELS: Record<ViolationCode, string> = {
 	FACULTY_INSUFFICIENT_DAILY_VACANT: 'Insufficient Daily Vacant',
 	SECTION_OVERCOMPRESSED: 'Section Overcompressed',
 	ROOM_CAPACITY_EXCEEDED: 'Room Capacity Exceeded',
-	SESSION_PATTERN_VIOLATED: 'Session Pattern Violated',
 	LACKING_FACULTY: 'Lacking Faculty',
 	INCOMPLETE_MODULAR_GROUP: 'Incomplete Modular Group',
 };

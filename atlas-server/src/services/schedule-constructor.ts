@@ -56,7 +56,6 @@ export interface SubjectInput {
 	name?: string;
 	minMinutesPerWeek: number;
 	preferredRoomType: RoomType;
-	sessionPattern: 'MWF' | 'TTH' | 'ANY';
 	gradeLevels: number[];
 	interSectionEnabled?: boolean;
 	interSectionGradeLevels?: number[];
@@ -530,7 +529,6 @@ export interface DemandItem {
 	sessionsPerWeek: number;
 	durationPerSession: number;
 	enrolledCount: number;
-	sessionPattern: 'MWF' | 'TTH' | 'ANY';
 	entryKind: 'SECTION' | 'COHORT';
 	homeRoomId?: number | null;
 	buildingZoneId?: string | null;
@@ -622,7 +620,6 @@ export function computeDemand(
 					sessionsPerWeek: sessions,
 					durationPerSession: duration,
 					enrolledCount: section.enrolledCount,
-					sessionPattern: primary.sessionPattern ?? 'ANY',
 					entryKind: 'SECTION',
 					homeRoomId: section.homeRoomId ?? null,
 					buildingZoneId: section.buildingZoneId ?? null,
@@ -720,7 +717,6 @@ export function computeDemand(
 						sessionsPerWeek: sessions,
 						durationPerSession: duration,
 						enrolledCount: effectiveCohortEnrollment,
-						sessionPattern: subject.sessionPattern ?? 'ANY',
 						entryKind: 'COHORT',
 						homeRoomId: null,
 						buildingZoneId: anchorSection.buildingZoneId ?? null,
@@ -754,7 +750,6 @@ export function computeDemand(
 						sessionsPerWeek: sessions,
 						durationPerSession: duration,
 						enrolledCount: section.enrolledCount,
-						sessionPattern: subject.sessionPattern ?? 'ANY',
 						entryKind: 'SECTION',
 						homeRoomId: section.homeRoomId ?? null,
 						buildingZoneId: section.buildingZoneId ?? null,
@@ -780,7 +775,6 @@ export function computeDemand(
 					sessionsPerWeek: sessions,
 					durationPerSession: duration,
 					enrolledCount: section.enrolledCount,
-					sessionPattern: subject.sessionPattern ?? 'ANY',
 					entryKind: 'SECTION',
 					homeRoomId: section.homeRoomId ?? null,
 					buildingZoneId: section.buildingZoneId ?? null,
@@ -1360,13 +1354,6 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	const allowConsecutiveLab = policy?.allowConsecutiveLabSessions === true;
 	const allFacultyIds = faculty.map((f) => f.id).sort((a, b) => a - b);
 
-	// Session pattern → allowed day sets
-	const SESSION_PATTERN_DAYS: Record<string, Set<string>> = {
-		MWF: new Set(['MONDAY', 'WEDNESDAY', 'FRIDAY']),
-		TTH: new Set(['TUESDAY', 'THURSDAY']),
-		ANY: new Set(DAYS),
-	};
-
 	// Lab-like room types for consecutive lab check
 	const LAB_ROOM_TYPES: Set<string> = new Set(['LABORATORY', 'TLE_WORKSHOP', 'COMPUTER_LAB']);
 	const SPECIALIZED_ROOM_TYPES: Set<string> = new Set(['LABORATORY', 'TLE_WORKSHOP', 'COMPUTER_LAB', 'GYMNASIUM']);
@@ -1502,8 +1489,6 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			const possibleSlots: { day: string; pi: number; score: number }[] = [];
 			for (let di = 0; di < DAYS.length; di++) {
 				const day = DAYS[di];
-				const allowedDays = SESSION_PATTERN_DAYS[item.sessionPattern] ?? SESSION_PATTERN_DAYS.ANY;
-				if (!allowedDays.has(day)) continue;
 
 				for (const pi of gradeValidPeriods) {
 					const slot = FALLBACK_PERIOD_SLOTS[pi];

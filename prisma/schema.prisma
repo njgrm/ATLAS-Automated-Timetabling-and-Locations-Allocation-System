@@ -145,14 +145,6 @@ model Room {
   @@map("rooms")
 }
 
-enum SessionPattern {
-  MWF
-  TTH
-  ANY
-
-  @@map("session_pattern")
-}
-
 enum SubjectQualificationPriority {
   DEPARTMENT_FIRST
   SPECIALIZATION_PRIMARY
@@ -171,7 +163,6 @@ model Subject {
   rotationFamily          String?          @db.VarChar(64) @map("rotation_family")
   minMinutesPerWeek       Int              @map("min_minutes_per_week")
   preferredRoomType       RoomType         @default(CLASSROOM) @map("preferred_room_type")
-  sessionPattern          SessionPattern   @default(ANY) @map("session_pattern")
   modularGroupId          String?          @db.VarChar(64) @map("modular_group_id")
   modularOrder            Int?             @map("modular_order")
   termGroupId             String?          @db.VarChar(64) @map("term_group_id")

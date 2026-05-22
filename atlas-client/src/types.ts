@@ -45,8 +45,6 @@ export type BridgeUser = {
 	accountId?: number;
 };
 
-export type SessionPattern = 'MWF' | 'TTH' | 'ANY';
-
 export type Subject = {
 	id: number;
 	schoolId: number;
@@ -62,7 +60,6 @@ export type Subject = {
 	programType?: 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER' | null;
 	minMinutesPerWeek: number;
 	preferredRoomType: RoomType;
-	sessionPattern: SessionPattern;
 	gradeLevels: number[];
 	isActive: boolean;
 	isSeedable: boolean;
@@ -601,7 +598,6 @@ export type ViolationCode =
 	| 'UNASSIGNED_SECTION'
 	| 'ZONE_IMBALANCE_WARNING'
 	| 'SECTION_OVERCOMPRESSED'
-	| 'SESSION_PATTERN_VIOLATED'
 	| 'LACKING_FACULTY'
 	| 'INCOMPLETE_MODULAR_GROUP';
 

@@ -280,7 +280,6 @@ section('H-ALG-1-01 runHybridScheduler produces valid HybridSchedulerResult shap
 				code: 'ENG',
 				minMinutesPerWeek: 200,
 				preferredRoomType: 'CLASSROOM' as const,
-				sessionPattern: 'ANY' as const,
 				gradeLevels: [7],
 			},
 		],
@@ -306,8 +305,8 @@ section('H-ALG-1-02 runHybridScheduler seedQuality profiles are deterministic');
 		schoolYearId: 1,
 		sectionsByGrade: [makeGrade(7, [{ id: 1, name: '7-A', enrolledCount: 25 }])],
 		subjects: [
-			{ id: 1, code: 'MATH', minMinutesPerWeek: 150, preferredRoomType: 'CLASSROOM' as const, sessionPattern: 'MWF' as const, gradeLevels: [7] },
-			{ id: 2, code: 'SCI', minMinutesPerWeek: 100, preferredRoomType: 'LABORATORY' as const, sessionPattern: 'TTH' as const, gradeLevels: [7] },
+			{ id: 1, code: 'MATH', minMinutesPerWeek: 150, preferredRoomType: 'CLASSROOM' as const, gradeLevels: [7] },
+			{ id: 2, code: 'SCI', minMinutesPerWeek: 100, preferredRoomType: 'LABORATORY' as const, gradeLevels: [7] },
 		],
 		faculty: [],
 		facultySubjects: [],
@@ -336,7 +335,7 @@ section('H-ALG-1-03 runHybridScheduler selects profile with fewest unassigned');
 			makeGrade(8, [{ id: 2, name: '8-A', enrolledCount: 25 }]),
 		],
 		subjects: [
-			{ id: 1, code: 'ENG', minMinutesPerWeek: 200, preferredRoomType: 'CLASSROOM' as const, sessionPattern: 'ANY' as const, gradeLevels: [7, 8] },
+			{ id: 1, code: 'ENG', minMinutesPerWeek: 200, preferredRoomType: 'CLASSROOM' as const, gradeLevels: [7, 8] },
 		],
 		faculty: [],
 		facultySubjects: [],

@@ -48,7 +48,6 @@ function buildBucketLoadIndex(demand) {
     }
     return bucketLoad;
 }
-const SESSION_PATTERN_ORDER = { MWF: 0, TTH: 1, ANY: 2 };
 /** All seed profiles. Deterministic — no randomness; identical inputs → identical output. */
 const SEED_PROFILES = [
     {
@@ -78,10 +77,8 @@ const SEED_PROFILES = [
     },
     {
         id: 'SESSION_PATTERN_PRIORITY',
-        label: 'Session pattern priority (MWF → TTH → ANY)',
-        orderDemand: (demand) => [...demand].sort((a, b) => (SESSION_PATTERN_ORDER[a.sessionPattern] ?? 2) -
-            (SESSION_PATTERN_ORDER[b.sessionPattern] ?? 2) ||
-            a.gradeLevel - b.gradeLevel ||
+        label: 'Legacy profile (grade/subject fallback)',
+        orderDemand: (demand) => [...demand].sort((a, b) => a.gradeLevel - b.gradeLevel ||
             a.subjectId - b.subjectId),
     },
     {

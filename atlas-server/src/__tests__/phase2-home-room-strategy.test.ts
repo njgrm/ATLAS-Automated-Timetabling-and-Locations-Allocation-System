@@ -59,7 +59,6 @@ function buildBaseInput(roomingStrategy: 'HOME_ROOM_FIRST' | 'UNIVERSAL'): Const
 				name: 'Mathematics',
 				minMinutesPerWeek: 50,
 				preferredRoomType: 'CLASSROOM',
-				sessionPattern: 'ANY',
 				gradeLevels: [7],
 			},
 		],

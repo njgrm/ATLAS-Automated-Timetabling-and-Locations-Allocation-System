@@ -27,7 +27,6 @@ export interface SubjectInput {
     name?: string;
     minMinutesPerWeek: number;
     preferredRoomType: RoomType;
-    sessionPattern: 'MWF' | 'TTH' | 'ANY';
     gradeLevels: number[];
     interSectionEnabled?: boolean;
     interSectionGradeLevels?: number[];
@@ -249,7 +248,6 @@ export interface DemandItem {
     sessionsPerWeek: number;
     durationPerSession: number;
     enrolledCount: number;
-    sessionPattern: 'MWF' | 'TTH' | 'ANY';
     entryKind: 'SECTION' | 'COHORT';
     homeRoomId?: number | null;
     buildingZoneId?: string | null;

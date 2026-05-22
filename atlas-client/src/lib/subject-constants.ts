@@ -1,4 +1,4 @@
-import type { RoomType, SessionPattern } from '@/types';
+import type { RoomType } from '@/types';
 
 export const ROOM_TYPE_LABELS: Record<RoomType, string> = {
 	CLASSROOM: 'Classroom',
@@ -31,18 +31,6 @@ export const PROGRAM_SCOPE_BADGE: Record<string, string> = {
 	OTHER: 'bg-gray-50 text-gray-600 border-gray-200',
 };
 
-export const SESSION_PATTERN_LABELS: Record<SessionPattern, string> = {
-	ANY: 'Any Day',
-	MWF: 'Mon / Wed / Fri',
-	TTH: 'Tue / Thu',
-};
-
-export const SESSION_PATTERN_BADGE: Record<SessionPattern, string> = {
-	ANY: 'bg-gray-100 text-gray-600 border-gray-300',
-	MWF: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-	TTH: 'bg-amber-50 text-amber-700 border-amber-200',
-};
-
 export const SUBJECT_OWNER_LABELS: Record<string, string> = {
 	SCI: 'Science',
 	MATH: 'Mathematics',
@@ -55,6 +43,20 @@ export const SUBJECT_OWNER_LABELS: Record<string, string> = {
 	SPA: 'SPA',
 	SPS: 'SPS',
 };
+
+export const SUBJECT_OWNER_OPTIONS = [
+	{ value: 'UNASSIGNED', label: 'Unassigned' },
+	{ value: 'AP', label: SUBJECT_OWNER_LABELS.AP },
+	{ value: 'ENG', label: SUBJECT_OWNER_LABELS.ENG },
+	{ value: 'ESP', label: SUBJECT_OWNER_LABELS.ESP },
+	{ value: 'FIL', label: SUBJECT_OWNER_LABELS.FIL },
+	{ value: 'MAPEH', label: SUBJECT_OWNER_LABELS.MAPEH },
+	{ value: 'MATH', label: SUBJECT_OWNER_LABELS.MATH },
+	{ value: 'SCI', label: SUBJECT_OWNER_LABELS.SCI },
+	{ value: 'TLE', label: SUBJECT_OWNER_LABELS.TLE },
+	{ value: 'SPA', label: SUBJECT_OWNER_LABELS.SPA },
+	{ value: 'SPS', label: SUBJECT_OWNER_LABELS.SPS },
+] as const;
 
 export const SUBJECT_OWNER_BADGE: Record<string, string> = {
 	SCI: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -76,7 +78,6 @@ export const QUALIFICATION_PRIORITY_LABELS: Record<'DEPARTMENT_FIRST' | 'SPECIAL
 
 export const QUALIFICATION_PRIORITY_OPTIONS = [
 	{ value: 'DEPARTMENT_FIRST', label: 'Department-first' },
-	{ value: 'SPECIALIZATION_PRIMARY', label: 'Specialization-first' },
 ] as const;
 
 export type NewSubjectForm = {
@@ -88,7 +89,6 @@ export type NewSubjectForm = {
 	rotationFamily: string;
 	minMinutesPerWeek: number;
 	preferredRoomType: RoomType;
-	sessionPattern: SessionPattern;
 	isActive: boolean;
 	isSeedable: boolean;
 	isSystemManaged: boolean;
@@ -109,9 +109,8 @@ export const emptyForm: NewSubjectForm = {
 	ownerDepartment: '',
 	qualificationPriority: 'DEPARTMENT_FIRST',
 	rotationFamily: '',
-	minMinutesPerWeek: 45,
+	minMinutesPerWeek: 225,
 	preferredRoomType: 'CLASSROOM',
-	sessionPattern: 'ANY',
 	isActive: true,
 	isSeedable: false,
 	isSystemManaged: false,

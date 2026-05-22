@@ -65,7 +65,7 @@ export function resolveSubjectQualificationPriority(subjectCode, explicitPriorit
     if (explicitPriority) {
         return normalizeSubjectQualificationPriority(explicitPriority);
     }
-    return isSpecializationPrimarySubjectCode(subjectCode) ? 'SPECIALIZATION_PRIMARY' : 'DEPARTMENT_FIRST';
+    return 'DEPARTMENT_FIRST';
 }
 export function resolveSubjectOutputLabel(subjectCode, subjectName, modularGroupId) {
     const code = (subjectCode ?? '').trim().toUpperCase();

@@ -1,4 +1,3 @@
-import { Fragment } from 'react';
 import {
 	ExternalLink,
 	MoreVertical,
@@ -6,7 +5,7 @@ import {
 	Trash2,
 	Users,
 	Archive,
-	ChevronDown,
+	RotateCcw,
 } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -23,7 +22,6 @@ import {
 	PROGRAM_SCOPE_BADGE,
 	QUALIFICATION_PRIORITY_LABELS,
 	ROOM_TYPE_LABELS,
-	SESSION_PATTERN_BADGE,
 	SUBJECT_OWNER_BADGE,
 	SUBJECT_OWNER_LABELS,
 } from '@/lib/subject-constants';
@@ -35,6 +33,7 @@ interface SubjectRowProps {
 	onEdit: (subject: Subject) => void;
 	onDelete: (subject: Subject) => void;
 	onArchive: (subject: Subject) => void;
+	onReactivate: (subject: Subject) => void;
 	onShowCoverage: (subject: Subject) => void;
 	onInspectSpecializations: (subject: Subject) => void;
 }
@@ -45,6 +44,7 @@ export function SubjectRow({
 	onEdit,
 	onDelete,
 	onArchive,
+	onReactivate,
 	onShowCoverage,
 	onInspectSpecializations,
 }: SubjectRowProps) {
@@ -81,14 +81,9 @@ export function SubjectRow({
 				</span>
 			</td>
 			<td className="px-4 py-3">
-				<Badge variant="outline" className={`text-[0.6rem] px-1.5 py-0 font-medium ${SESSION_PATTERN_BADGE[subject.sessionPattern ?? 'ANY']}`}>
-					{subject.sessionPattern ?? 'ANY'}
-				</Badge>
-			</td>
-			<td className="px-4 py-3">
-				<div className="flex flex-wrap gap-1 max-w-[120px]">
+				<div className="flex flex-wrap gap-1 max-w-30">
 					{subject.gradeLevels.map((g) => (
-						<Badge key={g} variant="outline" className={`text-[0.6rem] px-1 py-0 min-w-[1.5rem] justify-center ${GRADE_COLORS[String(g)] ?? ''}`}>
+						<Badge key={g} variant="outline" className={`text-[0.6rem] px-1 py-0 min-w-6 justify-center ${GRADE_COLORS[String(g)] ?? ''}`}>
 							G{g}
 						</Badge>
 					))}
@@ -109,7 +104,7 @@ export function SubjectRow({
 					<div className="flex items-center gap-1">
 						{subject.ownerDepartment && (
 							<Badge variant="outline" className={`text-[0.55rem] px-1 py-0 ${SUBJECT_OWNER_BADGE[subject.ownerDepartment] ?? 'bg-muted border-border text-foreground'}`}>
-								{subject.ownerDepartment}
+								{SUBJECT_OWNER_LABELS[subject.ownerDepartment] ?? subject.ownerDepartment}
 							</Badge>
 						)}
 						{subject.qualificationPriority && subject.qualificationPriority !== 'DEPARTMENT_FIRST' && (
@@ -189,6 +184,12 @@ export function SubjectRow({
 								<DropdownMenuItem onClick={() => onArchive(subject)}>
 									<Archive className="mr-2 size-4" />
 									<span>Archive</span>
+								</DropdownMenuItem>
+							)}
+							{!subject.isActive && (
+								<DropdownMenuItem onClick={() => onReactivate(subject)}>
+									<RotateCcw className="mr-2 size-4" />
+									<span>Reactivate</span>
 								</DropdownMenuItem>
 							)}
 							{!subject.isSeedable && (

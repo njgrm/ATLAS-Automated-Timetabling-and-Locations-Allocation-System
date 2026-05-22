@@ -25,7 +25,7 @@ export type SeedProfileId =
 	| 'GRADE_ASC_SUBJECT_ASC'    // default (mirrors existing single-seed behavior)
 	| 'MOST_CONSTRAINED_FIRST'   // fewest qualified faculty → harder classes first
 	| 'GRADE_DESC_SUBJECT_ASC'   // G10 first, then G9 etc. — promotes senior-grade room access
-	| 'SESSION_PATTERN_PRIORITY' // MWF → TTH → ANY — groups by pattern to reduce fragmentation
+	| 'SESSION_PATTERN_PRIORITY' // retained as a legacy profile id for deterministic fallback ordering
 	| 'PACKED_BLOCK_PRIORITY' // cohort + heavier session loads first to reduce late-stage slot starvation
 	| 'LOAD_DENSITY_SLOT_PRIORITY'; // dense grade/program buckets first to reduce slot starvation
 
@@ -79,8 +79,6 @@ function buildBucketLoadIndex(demand: DemandItem[]): Map<string, number> {
 	return bucketLoad;
 }
 
-const SESSION_PATTERN_ORDER: Record<string, number> = { MWF: 0, TTH: 1, ANY: 2 };
-
 /** All seed profiles. Deterministic — no randomness; identical inputs → identical output. */
 const SEED_PROFILES: SeedProfile[] = [
 	{
@@ -110,12 +108,10 @@ const SEED_PROFILES: SeedProfile[] = [
 	},
 	{
 		id: 'SESSION_PATTERN_PRIORITY',
-		label: 'Session pattern priority (MWF → TTH → ANY)',
+		label: 'Legacy profile (grade/subject fallback)',
 		orderDemand: (demand) =>
 			[...demand].sort(
 				(a, b) =>
-					(SESSION_PATTERN_ORDER[a.sessionPattern] ?? 2) -
-					(SESSION_PATTERN_ORDER[b.sessionPattern] ?? 2) ||
 					a.gradeLevel - b.gradeLevel ||
 					a.subjectId - b.subjectId,
 			),

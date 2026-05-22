@@ -52,7 +52,6 @@ router.post('/', authenticate, requirePrivilegedRole, async (req: Request, res: 
 			minMinutesPerWeek,
 			preferredRoomType,
 			gradeLevels,
-			sessionPattern,
 			isSeedable,
 			interSectionEnabled,
 			interSectionGradeLevels,
@@ -79,7 +78,6 @@ router.post('/', authenticate, requirePrivilegedRole, async (req: Request, res: 
 			name,
 			minMinutesPerWeek: Number(minMinutesPerWeek),
 			preferredRoomType,
-			sessionPattern,
 			gradeLevels,
 			isSeedable,
 			interSectionEnabled,
@@ -174,6 +172,25 @@ router.post('/:id/archive', authenticate, requirePrivilegedRole, async (req: Req
 			return;
 		}
 		res.json({ subject, archived: true });
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: POST /subjects/:id/reactivate — explicit reactivation action for archived subjects
+router.post('/:id/reactivate', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const id = Number(req.params.id);
+		if (Number.isNaN(id)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
+			return;
+		}
+		const subject = await subjectService.updateSubject(id, { isActive: true });
+		if (!subject) {
+			res.status(404).json({ code: 'NOT_FOUND', message: 'Subject not found.' });
+			return;
+		}
+		res.json({ subject, reactivated: true });
 	} catch (err) {
 		next(err);
 	}

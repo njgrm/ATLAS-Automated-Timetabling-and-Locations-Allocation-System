@@ -93,7 +93,6 @@ export declare function createSubject(schoolId: number, data: {
     name: string;
     minMinutesPerWeek: number;
     preferredRoomType: string;
-    sessionPattern?: string;
     gradeLevels: number[];
     interSectionEnabled?: boolean;
     interSectionGradeLevels?: number[];
@@ -143,7 +142,6 @@ export declare function updateSubject(id: number, data: Partial<{
     name: string;
     minMinutesPerWeek: number;
     preferredRoomType: string;
-    sessionPattern: string;
     gradeLevels: number[];
     isActive: boolean;
     interSectionEnabled: boolean;

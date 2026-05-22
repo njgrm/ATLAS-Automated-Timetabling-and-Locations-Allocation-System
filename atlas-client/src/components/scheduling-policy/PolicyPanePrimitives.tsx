@@ -19,7 +19,6 @@ export const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride> = {
 	FACULTY_LATE_END_PREFERENCE: { enabled: false, weight: 2, treatAsHard: false },
 	FACULTY_INSUFFICIENT_DAILY_VACANT: { enabled: false, weight: 3, treatAsHard: false },
 	SECTION_OVERCOMPRESSED: { enabled: false, weight: 3, treatAsHard: false },
-	SESSION_PATTERN_VIOLATED: { enabled: true, weight: 3, treatAsHard: false },
 	ROOM_CAPACITY_EXCEEDED: { enabled: true, weight: 5, treatAsHard: true },
 };
 
@@ -63,10 +62,6 @@ export const SOFT_CONSTRAINT_LABELS: Record<string, { label: string; explanation
 	SECTION_OVERCOMPRESSED: {
 		label: 'Section Overcompressed',
 		explanation: 'Penalizes when a section has too many consecutive classes without vacant periods or exceeds compressed teaching limits.',
-	},
-	SESSION_PATTERN_VIOLATED: {
-		label: 'Session Pattern Preference',
-		explanation: 'Penalizes when a subject is scheduled on a day that violates its preferred MWF or TTH session pattern.',
 	},
 	ROOM_CAPACITY_EXCEEDED: {
 		label: 'Room Capacity Exceeded',

@@ -1,16 +1,15 @@
 import { useState, useEffect } from 'react';
-import type { RoomType, SessionPattern } from '@/types';
+import type { RoomType } from '@/types';
 import {
 	ALL_ROOM_TYPES,
 	GRADE_OPTIONS,
 	PROGRAM_SCOPE_BADGE,
 	PROGRAM_SCOPE_OPTIONS,
 	QUALIFICATION_PRIORITY_OPTIONS,
-	QUALIFICATION_PRIORITY_LABELS,
 	ROOM_TYPE_LABELS,
-	SESSION_PATTERN_LABELS,
 	SUBJECT_OWNER_BADGE,
 	SUBJECT_OWNER_LABELS,
+	SUBJECT_OWNER_OPTIONS,
 	type NewSubjectForm,
 	emptyForm,
 } from '@/lib/subject-constants';
@@ -24,7 +23,7 @@ import { Switch } from '@/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { Separator } from '@/ui/separator';
 import { gradeLabel } from '@/lib/grade-labels';
-import { Info, AlertCircle, Clock, Settings2, ShieldCheck, Layout } from 'lucide-react';
+import { Info, AlertCircle, Clock, Settings2, ShieldCheck, Layout, X } from 'lucide-react';
 
 export type SubjectFormValues = NewSubjectForm & {
 	id?: number;
@@ -242,14 +241,14 @@ export function SubjectFormModal({
 
 					<Separator className="opacity-50" />
 
-					{/* Section 2: Capacity & Pattern */}
+					{/* Section 2: Capacity */}
 					<div className="space-y-4">
 						<div className="flex items-center gap-2 text-primary">
 							<Clock className="size-4" />
-							<h3 className="text-[0.6875rem] font-bold uppercase tracking-widest">2. Scheduling & Pattern</h3>
+							<h3 className="text-[0.6875rem] font-bold uppercase tracking-widest">2. Scheduling Capacity</h3>
 						</div>
 
-						<div className="grid grid-cols-2 gap-6">
+						<div className="space-y-2">
 							<div className="space-y-2">
 								<div className="flex items-center justify-between">
 									<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Weekly Duration</label>
@@ -292,20 +291,6 @@ export function SubjectFormModal({
 										{timeMode}
 									</span>
 								</div>
-							</div>
-
-							<div className="space-y-2">
-								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Session Pattern</label>
-								<Select value={form.sessionPattern} onValueChange={(v) => setForm((p) => ({ ...p, sessionPattern: v as SessionPattern }))}>
-									<SelectTrigger className="h-10">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										{(Object.keys(SESSION_PATTERN_LABELS) as SessionPattern[]).map((pattern) => (
-											<SelectItem key={pattern} value={pattern}>{SESSION_PATTERN_LABELS[pattern]}</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
 							</div>
 						</div>
 
@@ -358,12 +343,24 @@ export function SubjectFormModal({
 						<div className="grid grid-cols-2 gap-6">
 							<div className="space-y-2">
 								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Owner Department</label>
-								<Input
-									placeholder="e.g. TLE, SCIENCE"
-									value={form.ownerDepartment}
-									onChange={(event) => setForm((previous) => ({ ...previous, ownerDepartment: event.target.value.toUpperCase() }))}
-									className="uppercase"
-								/>
+								<Select
+									value={form.ownerDepartment || 'UNASSIGNED'}
+									onValueChange={(value) => setForm((previous) => ({
+										...previous,
+										ownerDepartment: value === 'UNASSIGNED' ? '' : value,
+									}))}
+								>
+									<SelectTrigger className="h-10">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{SUBJECT_OWNER_OPTIONS.map((option) => (
+											<SelectItem key={option.value} value={option.value}>
+												{option.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
 							</div>
 							<div className="space-y-2">
 								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Match Priority</label>

@@ -106,7 +106,6 @@ function buildInput(): ConstructorInput {
 				name: 'Science',
 				minMinutesPerWeek: 80,
 				preferredRoomType: 'CLASSROOM',
-				sessionPattern: 'ANY',
 				gradeLevels: [7],
 			},
 		],

@@ -400,7 +400,6 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
                     qualificationPriority: true,
                     minMinutesPerWeek: true,
                     preferredRoomType: true,
-                    sessionPattern: true,
                     gradeLevels: true,
                     interSectionEnabled: true,
                     interSectionGradeLevels: true,

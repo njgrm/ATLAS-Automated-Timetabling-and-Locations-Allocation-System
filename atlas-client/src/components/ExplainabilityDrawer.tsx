@@ -88,10 +88,6 @@ export const VIOLATION_EXPLANATIONS: Record<string, { why: string; fix: string }
 		why: 'The assigned room does not have enough capacity for the number of students enrolled in this section.',
 		fix: 'Move the class to a larger room, or reduce the section enrollment. Check the room capacity settings in your campus map.',
 	},
-	SESSION_PATTERN_VIOLATED: {
-		why: 'This subject has a preferred session pattern (MWF or TTH) but is scheduled on a day outside that pattern.',
-		fix: 'Move the class to a day that matches the subject\'s preferred pattern, or change the subject\'s session pattern to ANY in Subject settings.',
-	},
 };
 
 const UNASSIGNED_EXPLANATIONS: Record<string, { why: string; whatItMeans: string }> = {

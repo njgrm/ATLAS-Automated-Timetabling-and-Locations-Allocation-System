@@ -47,7 +47,7 @@ section('Cohort pre-placement reduces remaining demand');
             },
         ],
         subjects: [
-            { id: 301, code: 'TLE', minMinutesPerWeek: 100, preferredRoomType: 'TLE_WORKSHOP', sessionPattern: 'ANY', gradeLevels: [7], interSectionEnabled: true, interSectionGradeLevels: [7] },
+            { id: 301, code: 'TLE', minMinutesPerWeek: 100, preferredRoomType: 'TLE_WORKSHOP', gradeLevels: [7], interSectionEnabled: true, interSectionGradeLevels: [7] },
         ],
         cohorts: [
             { cohortCode: 'G7-TLE-IA', specializationCode: 'IA', specializationName: 'Industrial Arts', gradeLevel: 7, memberSectionIds: [101, 102], expectedEnrollment: 63, preferredRoomType: 'TLE_WORKSHOP' },
@@ -101,7 +101,7 @@ section('Invalid pre-placement still emits a lock warning');
             },
         ],
         subjects: [
-            { id: 401, code: 'SCI', minMinutesPerWeek: 50, preferredRoomType: 'LABORATORY', sessionPattern: 'ANY', gradeLevels: [8], interSectionEnabled: false, interSectionGradeLevels: [] },
+            { id: 401, code: 'SCI', minMinutesPerWeek: 50, preferredRoomType: 'LABORATORY', gradeLevels: [8], interSectionEnabled: false, interSectionGradeLevels: [] },
         ],
         cohorts: [],
         faculty: [{ id: 2, maxHoursPerWeek: 40 }],
@@ -151,8 +151,8 @@ section('Manual anchor blocks generated sessions from reusing its slot');
             },
         ],
         subjects: [
-            { id: 501, code: 'MATH', minMinutesPerWeek: 50, preferredRoomType: 'CLASSROOM', sessionPattern: 'ANY', gradeLevels: [9], interSectionEnabled: false, interSectionGradeLevels: [] },
-            { id: 502, code: 'ENG', minMinutesPerWeek: 50, preferredRoomType: 'CLASSROOM', sessionPattern: 'ANY', gradeLevels: [9], interSectionEnabled: false, interSectionGradeLevels: [] },
+            { id: 501, code: 'MATH', minMinutesPerWeek: 50, preferredRoomType: 'CLASSROOM', gradeLevels: [9], interSectionEnabled: false, interSectionGradeLevels: [] },
+            { id: 502, code: 'ENG', minMinutesPerWeek: 50, preferredRoomType: 'CLASSROOM', gradeLevels: [9], interSectionEnabled: false, interSectionGradeLevels: [] },
         ],
         cohorts: [],
         faculty: [{ id: 7, maxHoursPerWeek: 40 }],

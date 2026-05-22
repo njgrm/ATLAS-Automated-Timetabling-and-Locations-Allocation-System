@@ -42,7 +42,7 @@ router.get('/:id', async (req, res, next) => {
 // Auth: POST /subjects — create a custom subject
 router.post('/', authenticate, requirePrivilegedRole, async (req, res, next) => {
     try {
-        const { schoolId, code, name, minMinutesPerWeek, preferredRoomType, gradeLevels, sessionPattern, isSeedable, interSectionEnabled, interSectionGradeLevels, modularGroupId, modularOrder, termGroupId, termCount, programScopes, allowedSpecializations, requiredFeatures, isActive, ownerDepartment, qualificationPriority, rotationFamily, outputLabel, isSystemManaged, } = req.body;
+        const { schoolId, code, name, minMinutesPerWeek, preferredRoomType, gradeLevels, isSeedable, interSectionEnabled, interSectionGradeLevels, modularGroupId, modularOrder, termGroupId, termCount, programScopes, allowedSpecializations, requiredFeatures, isActive, ownerDepartment, qualificationPriority, rotationFamily, outputLabel, isSystemManaged, } = req.body;
         if (!schoolId || !code || !name || !minMinutesPerWeek || !preferredRoomType || !gradeLevels) {
             res.status(400).json({ code: 'MISSING_FIELDS', message: 'schoolId, code, name, minMinutesPerWeek, preferredRoomType, gradeLevels are required.' });
             return;
@@ -52,7 +52,6 @@ router.post('/', authenticate, requirePrivilegedRole, async (req, res, next) => 
             name,
             minMinutesPerWeek: Number(minMinutesPerWeek),
             preferredRoomType,
-            sessionPattern,
             gradeLevels,
             isSeedable,
             interSectionEnabled,
@@ -147,6 +146,25 @@ router.post('/:id/archive', authenticate, requirePrivilegedRole, async (req, res
             return;
         }
         res.json({ subject, archived: true });
+    }
+    catch (err) {
+        next(err);
+    }
+});
+// Auth: POST /subjects/:id/reactivate — explicit reactivation action for archived subjects
+router.post('/:id/reactivate', authenticate, requirePrivilegedRole, async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
+        if (Number.isNaN(id)) {
+            res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
+            return;
+        }
+        const subject = await subjectService.updateSubject(id, { isActive: true });
+        if (!subject) {
+            res.status(404).json({ code: 'NOT_FOUND', message: 'Subject not found.' });
+            return;
+        }
+        res.json({ subject, reactivated: true });
     }
     catch (err) {
         next(err);

@@ -1,12 +1,11 @@
 import type { Dispatch, SetStateAction } from 'react';
-import type { RoomType, SessionPattern } from '@/types';
+import type { RoomType } from '@/types';
 import {
 	ALL_ROOM_TYPES,
 	GRADE_OPTIONS,
 	PROGRAM_SCOPE_BADGE,
 	PROGRAM_SCOPE_OPTIONS,
 	ROOM_TYPE_LABELS,
-	SESSION_PATTERN_LABELS,
 	type NewSubjectForm,
 } from '@/lib/subject-constants';
 import { Button } from '@/ui/button';
@@ -136,27 +135,7 @@ export function SubjectAddForm({
 								</SelectContent>
 							</Select>
 						</div>
-						<div>
-							<label className="text-xs font-medium text-muted-foreground mb-1 block">Session Pattern</label>
-							<Select
-								value={newSubject.sessionPattern}
-								onValueChange={(v) => setNewSubject((p) => ({ ...p, sessionPattern: v as SessionPattern }))}
-							>
-								<SelectTrigger className="flex h-9 w-full bg-background text-sm shadow-xs">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{(Object.keys(SESSION_PATTERN_LABELS) as SessionPattern[]).map((p) => (
-										<SelectItem key={p} value={p}>
-											{SESSION_PATTERN_LABELS[p]}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-							<p className="text-[0.6rem] text-muted-foreground mt-1">
-								MWF = Mon/Wed/Fri only · TTH = Tue/Thu only · Any = all days
-							</p>
-						</div>
+						<div className="hidden lg:block" />
 					</div>
 
 					<div className="mt-3">

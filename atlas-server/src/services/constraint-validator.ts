@@ -35,7 +35,6 @@ export const VIOLATION_CODES = [
 	'UNASSIGNED_SECTION',
 	'ZONE_IMBALANCE_WARNING',
 	'SECTION_OVERCOMPRESSED',
-	'SESSION_PATTERN_VIOLATED',
 	'LACKING_FACULTY',
 	'INCOMPLETE_MODULAR_GROUP',
 ] as const;
@@ -101,7 +100,6 @@ export interface RoomRef {
 export interface SubjectRef {
 	id: number;
 	preferredRoomType: RoomType;
-	sessionPattern?: 'MWF' | 'TTH' | 'ANY';
 	requiredFeatures?: string[];
 }
 
@@ -400,28 +398,6 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 						...(e.cohortCode ? { cohortCode: e.cohortCode } : {}),
 						...(e.cohortName ? { cohortName: e.cohortName } : {}),
 					},
-				});
-			}
-		}
-	}
-
-	// ── 4c) Session pattern violated ──
-	{
-		const MWF_DAYS = new Set(['MONDAY', 'WEDNESDAY', 'FRIDAY']);
-		const TTH_DAYS = new Set(['TUESDAY', 'THURSDAY']);
-			for (const e of ctx.entries) {
-				const subject = subjectMap.get(e.subjectId);
-				if (!subject || !subject.sessionPattern || subject.sessionPattern === 'ANY') continue;
-				const allowed = subject.sessionPattern === 'MWF'
-					? MWF_DAYS
-					: TTH_DAYS;
-			if (!allowed.has(e.day)) {
-				violations.push({
-					...base, severity: 'SOFT',
-					code: 'SESSION_PATTERN_VIOLATED',
-					message: `Entry ${e.entryId}: subject ${e.subjectId} prefers ${subject.sessionPattern} pattern but is scheduled on ${e.day}.`,
-					entities: { subjectId: e.subjectId, sectionId: e.sectionId, day: e.day, entryIds: [e.entryId] },
-					meta: { sessionPattern: subject.sessionPattern, actualDay: e.day },
 				});
 			}
 		}

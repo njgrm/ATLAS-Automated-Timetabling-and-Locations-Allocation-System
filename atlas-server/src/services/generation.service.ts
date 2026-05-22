@@ -543,7 +543,6 @@ export async function triggerGenerationRun(
 					qualificationPriority: true,
 					minMinutesPerWeek: true,
 					preferredRoomType: true,
-					sessionPattern: true,
 					gradeLevels: true,
 					interSectionEnabled: true,
 					interSectionGradeLevels: true,
