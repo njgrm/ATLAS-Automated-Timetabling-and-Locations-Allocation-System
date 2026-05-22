@@ -116,6 +116,8 @@ export type TeachingLoadAssignmentKind = 'REAL_OWNERSHIP' | 'BASELINE_ONLY' | 'M
 
 export interface TeachingLoadCoverageTotals {
   assignedPairs: number;
+  realFacultyAssignedPairs: number;
+  syntheticPlaceholderPairs: number;
   totalPairs: number;
   unassignedPairs: number;
 }
@@ -1691,13 +1693,23 @@ export async function getAssignmentSummary(schoolId: number, schoolYearId: numbe
     }
   }
 
-  const assignedPairSet = new Set<string>();
+  const realAssignedPairSet = new Set<string>();
+  const syntheticAssignedPairSet = new Set<string>();
+  const placeholderFacultyIdSet = new Set(faculty.filter((member) => member.isPlaceholder).map((member) => member.id));
   for (const row of ownershipRows) {
     const key = `${row.subjectId}:${row.sectionId}`;
     if (teachablePairSet.has(key)) {
-      assignedPairSet.add(key);
+      if (placeholderFacultyIdSet.has(row.facultyId)) {
+        syntheticAssignedPairSet.add(key);
+      } else {
+        realAssignedPairSet.add(key);
+      }
     }
   }
+
+  const syntheticOnlyPairCount = Array.from(syntheticAssignedPairSet).filter((key) => !realAssignedPairSet.has(key)).length;
+  const realPairCount = realAssignedPairSet.size;
+  const assignedPairCount = realPairCount + syntheticOnlyPairCount;
 
   let emptySectionRows = 0;
   let currentYearRowsMissingOwnership = 0;
@@ -1875,9 +1887,11 @@ export async function getAssignmentSummary(schoolId: number, schoolYearId: numbe
   });
 
   const coverageTotals: TeachingLoadCoverageTotals = {
-    assignedPairs: assignedPairSet.size,
+    assignedPairs: assignedPairCount,
+    realFacultyAssignedPairs: realPairCount,
+    syntheticPlaceholderPairs: syntheticOnlyPairCount,
     totalPairs: teachablePairSet.size,
-    unassignedPairs: Math.max(0, teachablePairSet.size - assignedPairSet.size),
+    unassignedPairs: Math.max(0, teachablePairSet.size - assignedPairCount),
   };
 
   const integrityDiagnostics: TeachingLoadIntegrityDiagnostics = {

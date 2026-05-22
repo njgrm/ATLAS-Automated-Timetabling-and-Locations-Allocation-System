@@ -62,6 +62,8 @@ export type SubjectSectionOwnershipIndexEntry = {
 export type TeachingLoadAssignmentKind = 'REAL_OWNERSHIP' | 'BASELINE_ONLY' | 'MISSING_OWNERSHIP';
 export interface TeachingLoadCoverageTotals {
     assignedPairs: number;
+    realFacultyAssignedPairs: number;
+    syntheticPlaceholderPairs: number;
     totalPairs: number;
     unassignedPairs: number;
 }

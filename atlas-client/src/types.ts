@@ -220,6 +220,8 @@ export type FacultySummary = {
 
 export type TeachingLoadCoverageTotals = {
 	assignedPairs: number;
+	realFacultyAssignedPairs: number;
+	syntheticPlaceholderPairs: number;
 	totalPairs: number;
 	unassignedPairs: number;
 };

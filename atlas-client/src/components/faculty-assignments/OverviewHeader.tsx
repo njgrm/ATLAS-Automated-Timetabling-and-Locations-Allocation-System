@@ -3,7 +3,9 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 
 type OverviewHeaderProps = {
-	assignedPairs: number;
+	realAssignedPairs: number;
+	syntheticPlaceholderPairs: number;
+	unassignedPairs: number;
 	totalPairs: number;
 	assignedFacultyCount: number;
 	totalFacultyCount: number;
@@ -18,7 +20,9 @@ type OverviewHeaderProps = {
 };
 
 export function OverviewHeader({
-	assignedPairs,
+	realAssignedPairs,
+	syntheticPlaceholderPairs,
+	unassignedPairs,
 	totalPairs,
 	assignedFacultyCount,
 	totalFacultyCount,
@@ -36,7 +40,16 @@ export function OverviewHeader({
 			<div className="flex items-center gap-2 text-sm text-muted-foreground">
 				<span className="font-semibold text-foreground">Teaching Load Overview</span>
 				<Badge variant="secondary" className="text-[0.625rem]">
-					{assignedPairs} / {totalPairs} assigned
+					{realAssignedPairs} real staffed
+				</Badge>
+				<Badge variant="outline" className="border-violet-300 bg-violet-50 text-[0.625rem] text-violet-700">
+					{syntheticPlaceholderPairs} synthetic
+				</Badge>
+				<Badge variant="outline" className="border-amber-300 bg-amber-50 text-[0.625rem] text-amber-700">
+					{unassignedPairs} unowned
+				</Badge>
+				<Badge variant="outline" className="text-[0.625rem]">
+					{totalPairs} total pairs
 				</Badge>
 				<Badge variant="outline" className="text-[0.625rem]">
 					{assignedFacultyCount} / {totalFacultyCount} teachers assigned

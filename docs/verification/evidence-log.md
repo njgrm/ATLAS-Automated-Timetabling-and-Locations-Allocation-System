@@ -1,3 +1,64 @@
+# 2026-05-23 - Phase 3 Teaching Load Runtime + Placeholder Truth One-Shot
+- Phase: Phase 3 generator-readiness stream, Teaching Load runtime stability and staffing-truth segregation
+- Operator: GitHub Copilot
+- Scope gate: PASS (implementation + local build + live Tailnet verification)
+- Files changed in this pass:
+  - `atlas-client/src/pages/FacultyAssignments.tsx`
+  - `atlas-client/src/components/faculty-assignments/OverviewHeader.tsx`
+  - `atlas-client/src/lib/faculty-teaching-load-cache.ts`
+  - `atlas-client/src/types.ts`
+  - `atlas-server/src/services/faculty-assignment.service.ts`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+
+- Root-cause finding (live crash):
+  - Live Tailnet reproduced `TypeError: Cannot read properties of undefined (reading 'map')` in `FacultyAssignments.tsx` during `rotationFamilyDetails` memo computation.
+  - Trigger class: stale/incompatible summary/cache shape where `loadProfile.rotationFamilies` was missing while page attempted direct `.map`.
+  - Contributing contract risk: cached summary key remained at prior version and lacked strict payload validation.
+
+- Implemented runtime and cache hardening:
+  - Bumped faculty-summary cache key from `atlas:faculty-summary:v2` to `atlas:faculty-summary:v3`.
+  - Added normalization/validation for cached summary, coverage totals, and integrity diagnostics.
+  - Added defensive normalization for live summary/subjects/sections payloads before state hydration.
+  - Guarded rotation/breakdown UI memo paths so missing array-shaped fields no longer crash render.
+
+- Implemented placeholder-truth segregation:
+  - Extended server `coverageTotals` contract to expose:
+    - `realFacultyAssignedPairs`
+    - `syntheticPlaceholderPairs`
+    - retained `assignedPairs`, `totalPairs`, `unassignedPairs`
+  - Teaching Load headline now displays explicit buckets:
+    - real staffed
+    - synthetic
+    - unowned
+  - Added synthetic coverage warning banner with toggle to show/hide synthetic rows.
+  - Synthetic rows are quarantined from normal roster flow by default and grouped under a dedicated synthetic bucket when shown.
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS
+
+- Live Tailnet verification (`https://njgrm.buru-degree.ts.net`):
+  - Clean open of `/teaching-load` -> PASS (no React `map` crash)
+  - Open with legacy stale cache key (`v2`) present -> PASS (ignored by v3 contract)
+  - Open with malformed `v3` summary payload -> PASS (rejected/normalized, no crash)
+  - Open with valid `v3` cached bootstrap present -> PASS (page renders cached path and no crash)
+  - Route and label contract intact -> PASS (`/teaching-load`, header shows `Teaching Load`; `/teachers` remains scheduler teacher route)
+
+- Live staffing-truth proof:
+  - `coverageTotals = { assignedPairs: 1026, realFacultyAssignedPairs: 855, syntheticPlaceholderPairs: 171, totalPairs: 1026, unassignedPairs: 0 }`
+  - Required subject checks:
+    - `SCI_ES`: `ownedByRealFacultyCount=0`, `ownedByPlaceholderCount=82`, `status=FULL`
+    - `TLE_FCS_EXP`: `ownedByRealFacultyCount=4`, `ownedByPlaceholderCount=54`, `status=FULL`
+  - Placeholder teacher sample:
+    - `SCI_ES, Teacher X`: `sectionTeachingHours=307.5`, `policyCreditedHours=307.5`, `loadSignalMode=SYNTHETIC_PLACEHOLDER`
+  - Normal teacher sample:
+    - `AQUINO, ELPIDIO`: `sectionTeachingHours=27.3`, `sectionTeachingHoursRaw=31`, `policyCreditedHours=32.3`, `loadSignalMode=STANDARD`
+
+- GO/NO-GO:
+  - **GO** for this one-shot prompt scope.
+  - Crash is resolved live, stale cache no longer poisons page startup, and placeholder coverage is separated from real staffed headline truth.
+
 # 2026-05-22 - Phase 3 Teaching Load Rotation + Redistribution One-Shot
 - Phase: Phase 3 generator-readiness stream, teaching-load truth and redistribution hardening
 - Operator: GitHub Copilot

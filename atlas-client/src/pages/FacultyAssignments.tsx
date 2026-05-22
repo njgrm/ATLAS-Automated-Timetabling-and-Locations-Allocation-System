@@ -35,6 +35,7 @@ import {
 	getCachedFacultyAssignmentsSummary,
 	getCachedSectionSummary,
 	getCachedSubjects,
+	normalizeFacultySummarySnapshot,
 	requestWithRetry,
 	setCachedFacultyAssignmentsSummary,
 	setCachedSectionSummary,
@@ -144,6 +145,7 @@ const [subjectSearch, setSubjectSearch] = useState('');
 	const [gradeLevelFilter, setGradeLevelFilter] = useState<string>('all');
 	const [sortOrder, setSortOrder] = useState<'load-asc' | 'load-desc'>('load-asc');
 	const [loadFilter, setLoadFilter] = useState<'all' | 'overloaded' | 'optimal' | 'underloaded'>('all');
+	const [showSyntheticCoverageRows, setShowSyntheticCoverageRows] = useState(false);
 	const [hoveredIncomingMinutes, setHoveredIncomingMinutes] = useState(0);
 	const [swapCandidate, setSwapCandidate] = useState<{ subjectId: number; sectionId: number; fromFacultyId: number } | null>(null);
 const [resetDialogOpen, setResetDialogOpen] = useState(false);
@@ -215,14 +217,7 @@ const fetchData = useCallback(async (options?: { forceRefresh?: boolean }) => {
 			),
 		]);
 
-		setActiveSchoolYearId(schoolYearId);
-		setFaculty(facultyRes.data.faculty);
-		setSavedOwnershipIndex(facultyRes.data.ownershipIndex ?? []);
-		setCoverageTotals(facultyRes.data.coverageTotals ?? null);
-		setIntegrityDiagnostics(facultyRes.data.integrityDiagnostics ?? null);
-		setSubjects(subjectsRes.data.subjects);
-		setSectionSummary(sectionsRes.data);
-		setCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId, {
+		const normalizedSummary = normalizeFacultySummarySnapshot({
 			faculty: facultyRes.data.faculty,
 			ownershipIndex: facultyRes.data.ownershipIndex ?? [],
 			coverageTotals: facultyRes.data.coverageTotals,
@@ -230,8 +225,27 @@ const fetchData = useCallback(async (options?: { forceRefresh?: boolean }) => {
 			fetchedAt: facultyRes.data.fetchedAt ?? null,
 			schoolYearId,
 		});
-		setCachedSubjects(DEFAULT_SCHOOL_ID, subjectsRes.data.subjects);
-		setCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId, sectionsRes.data);
+		if (!normalizedSummary) {
+			throw new Error('Teaching Load summary payload is incompatible with the current client contract.');
+		}
+		const normalizedSubjects = Array.isArray(subjectsRes.data.subjects) ? subjectsRes.data.subjects : [];
+		const normalizedSectionSummary = {
+			...sectionsRes.data,
+			sections: Array.isArray((sectionsRes.data as any)?.sections) ? (sectionsRes.data as any).sections : [],
+			gradeLevels: Array.isArray((sectionsRes.data as any)?.gradeLevels) ? (sectionsRes.data as any).gradeLevels : [],
+			contractWarnings: Array.isArray((sectionsRes.data as any)?.contractWarnings) ? (sectionsRes.data as any).contractWarnings : [],
+		};
+
+		setActiveSchoolYearId(schoolYearId);
+		setFaculty(normalizedSummary.faculty);
+		setSavedOwnershipIndex(normalizedSummary.ownershipIndex);
+		setCoverageTotals(normalizedSummary.coverageTotals ?? null);
+		setIntegrityDiagnostics(normalizedSummary.integrityDiagnostics ?? null);
+		setSubjects(normalizedSubjects);
+		setSectionSummary(normalizedSectionSummary as SectionSummaryResponse);
+		setCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId, normalizedSummary);
+		setCachedSubjects(DEFAULT_SCHOOL_ID, normalizedSubjects);
+		setCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId, normalizedSectionSummary as SectionSummaryResponse);
 		setDataSource('live');
 		setDegradedNotice(null);
 		setError(null);
@@ -647,6 +661,9 @@ const getComparableLoadHours = useCallback((member: FacultySummary) => {
 
 const filteredFaculty = useMemo(() => {
 let nextFaculty = faculty;
+	if (!showSyntheticCoverageRows) {
+		nextFaculty = nextFaculty.filter((member) => !member.isPlaceholder);
+	}
 if (searchQuery.trim()) {
 const normalizedQuery = searchQuery.toLowerCase();
 nextFaculty = nextFaculty.filter(
@@ -667,7 +684,7 @@ nextFaculty = nextFaculty.filter((member) => member.department === departmentFil
 
 	nextFaculty = nextFaculty.filter((member) => {
 		if (member.isPlaceholder) {
-			return loadFilter === 'all';
+			return showSyntheticCoverageRows && loadFilter === 'all';
 		}
 		const load = getComparableLoadHours(member);
 		if (loadFilter === 'overloaded') return load > 30;
@@ -688,12 +705,14 @@ nextFaculty = nextFaculty.filter((member) => member.department === departmentFil
 	});
 
 return nextFaculty;
-}, [departmentFilter, faculty, filterStatus, getComparableLoadHours, loadFilter, searchQuery, sortOrder]);
+}, [departmentFilter, faculty, filterStatus, getComparableLoadHours, loadFilter, searchQuery, showSyntheticCoverageRows, sortOrder]);
 
 const groupedFaculty = useMemo(() => {
 	const grouped = new Map<string, FacultySummary[]>();
 	for (const member of filteredFaculty) {
-		const department = member.department?.trim() || 'UNASSIGNED DEPARTMENT';
+		const department = member.isPlaceholder
+			? 'SYNTHETIC PLACEHOLDER COVERAGE'
+			: member.department?.trim() || 'UNASSIGNED DEPARTMENT';
 		const bucket = grouped.get(department) ?? [];
 		bucket.push(member);
 		grouped.set(department, bucket);
@@ -797,10 +816,13 @@ sectionMap,
 );
 
 const rotationFamilyDetails = useMemo(() => {
-	if (selected?.rotationFamilyLoadDetails && selected.rotationFamilyLoadDetails.length > 0 && !dirty) {
+	if (Array.isArray(selected?.rotationFamilyLoadDetails) && selected.rotationFamilyLoadDetails.length > 0 && !dirty) {
 		return selected.rotationFamilyLoadDetails;
 	}
-	return loadProfile.rotationFamilies.map((family) => ({
+	const computedFamilies = Array.isArray((loadProfile as any).rotationFamilies)
+		? (loadProfile as any).rotationFamilies
+		: [];
+	return computedFamilies.map((family: any) => ({
 		family: family.family,
 		rawHours: family.rawHours,
 		creditedHours: family.creditedHours,
@@ -810,6 +832,11 @@ const rotationFamilyDetails = useMemo(() => {
 		subjectIds: [],
 	}));
 }, [dirty, loadProfile.rotationFamilies, selected?.rotationFamilyLoadDetails]);
+
+const loadBreakdownRows = useMemo(
+	() => (Array.isArray((loadProfile as any).breakdown) ? (loadProfile as any).breakdown : []),
+	[loadProfile],
+);
 
 const rotationOvercountHours = useMemo(() => {
 	if (selected?.rotationFamilyOvercountHours != null && !dirty) {
@@ -852,11 +879,25 @@ const advisedSectionMeta = useMemo(() => {
 	};
 }, [homeroomHint?.advisedSectionId, sectionMap]);
 
-const teachablePairTotals = useMemo(() => {
+const coverageHeadline = useMemo(() => {
 	if (coverageTotals) {
+		const realAssigned = Number.isFinite(coverageTotals.realFacultyAssignedPairs)
+			? coverageTotals.realFacultyAssignedPairs
+			: Math.max(0, coverageTotals.assignedPairs - (coverageTotals.syntheticPlaceholderPairs ?? 0));
+		const syntheticAssigned = Number.isFinite(coverageTotals.syntheticPlaceholderPairs)
+			? coverageTotals.syntheticPlaceholderPairs
+			: Math.max(0, coverageTotals.assignedPairs - realAssigned);
+		const assigned = Math.max(0, realAssigned + syntheticAssigned);
+		const total = Math.max(0, coverageTotals.totalPairs);
+		const unassigned = Number.isFinite(coverageTotals.unassignedPairs)
+			? Math.max(0, coverageTotals.unassignedPairs)
+			: Math.max(0, total - assigned);
 		return {
-			total: coverageTotals.totalPairs,
-			assigned: coverageTotals.assignedPairs,
+			total,
+			assigned,
+			realAssigned,
+			syntheticAssigned,
+			unassigned,
 		};
 	}
 
@@ -874,9 +915,13 @@ const teachablePairTotals = useMemo(() => {
 		}
 	}
 
-	const assignedPairs = new Set<string>();
+	const placeholderFacultyIdSet = new Set(faculty.filter((member) => member.isPlaceholder).map((member) => member.id));
+	const realAssignedPairs = new Set<string>();
+	const syntheticAssignedPairs = new Set<string>();
 	const subjectMap = new Map(subjects.map((subject) => [subject.id, subject]));
-	for (const assignments of Object.values(effectiveAssignmentsByFaculty)) {
+	for (const [facultyIdRaw, assignments] of Object.entries(effectiveAssignmentsByFaculty)) {
+		const facultyId = Number(facultyIdRaw);
+		const isPlaceholder = placeholderFacultyIdSet.has(facultyId);
 		for (const assignment of assignments) {
 			const subject = subjectMap.get(assignment.subjectId);
 			if (!subject || subject.code === 'HG') {
@@ -884,20 +929,39 @@ const teachablePairTotals = useMemo(() => {
 			}
 			for (const sectionId of assignment.sectionIds) {
 				const key = `${assignment.subjectId}:${sectionId}`;
-				if (teachablePairs.has(key)) {
-					assignedPairs.add(key);
+				if (!teachablePairs.has(key)) continue;
+				if (isPlaceholder) {
+					syntheticAssignedPairs.add(key);
+				} else {
+					realAssignedPairs.add(key);
 				}
 			}
 		}
 	}
 
+	const syntheticOnly = Array.from(syntheticAssignedPairs).filter((key) => !realAssignedPairs.has(key)).length;
+	const realAssigned = realAssignedPairs.size;
+	const assigned = realAssigned + syntheticOnly;
+	const total = teachablePairs.size;
 	return {
-		total: teachablePairs.size,
-		assigned: assignedPairs.size,
+		total,
+		assigned,
+		realAssigned,
+		syntheticAssigned: syntheticOnly,
+		unassigned: Math.max(0, total - assigned),
 	};
-}, [allKnownSections, coverageTotals, effectiveAssignmentsByFaculty, subjectFocusId, subjects]);
+}, [allKnownSections, coverageTotals, effectiveAssignmentsByFaculty, faculty, subjectFocusId, subjects]);
 
-const assignedFacultyCount = faculty.filter((member) => (effectiveAssignmentsByFaculty[member.id]?.length ?? 0) > 0).length;
+const assignedFacultyCount = faculty.filter((member) => !member.isPlaceholder && (effectiveAssignmentsByFaculty[member.id]?.length ?? 0) > 0).length;
+const realFacultyCount = faculty.filter((member) => !member.isPlaceholder).length;
+const syntheticCoverageTeachers = useMemo(
+	() => faculty.filter((member) => member.isPlaceholder && (effectiveAssignmentsByFaculty[member.id]?.length ?? 0) > 0),
+	[effectiveAssignmentsByFaculty, faculty],
+);
+const syntheticCoverageHours = useMemo(
+	() => syntheticCoverageTeachers.reduce((sum, member) => sum + (member.syntheticCoverageHours ?? member.sectionTeachingHours ?? 0), 0),
+	[syntheticCoverageTeachers],
+);
 const sectionsAvailable = Boolean(sectionSummary && sectionSummary.sections.length > 0);
 
 const executeSwap = useCallback(() => {
@@ -1025,10 +1089,12 @@ Dismiss
 )}
 
 <OverviewHeader
-	assignedPairs={teachablePairTotals.assigned}
-	totalPairs={teachablePairTotals.total}
+	realAssignedPairs={coverageHeadline.realAssigned}
+	syntheticPlaceholderPairs={coverageHeadline.syntheticAssigned}
+	unassignedPairs={coverageHeadline.unassigned}
+	totalPairs={coverageHeadline.total}
 	assignedFacultyCount={assignedFacultyCount}
-	totalFacultyCount={faculty.length}
+	totalFacultyCount={realFacultyCount}
 	activeDraftCount={activeDraftCount}
 	autoFillLoading={autoFillLoading}
 	staffingNeedsLoading={staffingNeedsLoading}
@@ -1044,6 +1110,26 @@ Dismiss
 	onViewStaffingNeedsClick={handleViewStaffingNeeds}
 	onResetGlobalClick={openGlobalResetPreview}
 />
+
+{syntheticCoverageTeachers.length > 0 && (
+	<div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-violet-200 bg-violet-50/70 px-4 py-2 text-sm text-violet-900">
+		<div className="flex items-center gap-2">
+			<AlertTriangle className="size-4 shrink-0 text-violet-700" />
+			<span>
+				Synthetic placeholder coverage active: {coverageHeadline.syntheticAssigned} subject-section pairs across {syntheticCoverageTeachers.length} placeholder row{syntheticCoverageTeachers.length === 1 ? '' : 's'}
+				({Math.round(syntheticCoverageHours * 10) / 10}h).
+			</span>
+		</div>
+		<Button
+			variant="outline"
+			size="sm"
+			className="h-7 border-violet-300 bg-violet-100 text-violet-900 hover:bg-violet-200"
+			onClick={() => setShowSyntheticCoverageRows((value) => !value)}
+		>
+			{showSyntheticCoverageRows ? 'Hide Synthetic Rows' : 'Show Synthetic Rows'}
+		</Button>
+	</div>
+)}
 
 <div className="mt-3 flex min-h-0 flex-1 gap-4 pb-3">
 <div className="flex w-80 shrink-0 flex-col rounded-lg border border-border bg-card shadow-sm">
@@ -1142,7 +1228,9 @@ groupedFaculty.map(([departmentName, members]) => (
 const effectiveSubjectCount = effectiveAssignmentsByFaculty[member.id]?.length ?? 0;
 const hasDraft = Boolean(effectiveDraftAssignmentsByFaculty[member.id]);
 					const displayHours = getComparableLoadHours(member);
-					const actualLoadPercentage = member.maxHoursPerWeek > 0
+					const actualLoadPercentage = member.isPlaceholder
+						? 0
+						: member.maxHoursPerWeek > 0
 						? Math.round((displayHours / member.maxHoursPerWeek) * 100)
 						: (member as any).loadPercentage ?? 0;
 					const loadColorClass = member.isPlaceholder
@@ -1198,12 +1286,16 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 			<span className={`text-[0.6rem] font-bold ${loadColorClass}`}>
 				{member.isPlaceholder ? `${Math.round(displayHours * 10) / 10}h synth` : `${actualLoadPercentage}%`}
 			</span>
-			<div className="w-10 h-0.5 bg-muted rounded-full overflow-hidden">
-				<div 
-					className={`h-full transition-all ${loadBarClass}`}
-					style={{ width: `${Math.min(actualLoadPercentage, 100)}%` }}
-				/>
-			</div>
+							{member.isPlaceholder ? (
+								<span className="text-[0.55rem] text-violet-700">Synthetic row</span>
+							) : (
+								<div className="w-10 h-0.5 bg-muted rounded-full overflow-hidden">
+									<div
+										className={`h-full transition-all ${loadBarClass}`}
+										style={{ width: `${Math.min(actualLoadPercentage, 100)}%` }}
+									/>
+								</div>
+							)}
 		</div>
 	</div>
 </div>
@@ -1226,7 +1318,7 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 )}
 </div>
 <div className="border-t border-border px-3 py-2 text-[0.6875rem] text-muted-foreground">
-{teachablePairTotals.assigned} / {teachablePairTotals.total} teachable subject-sections assigned
+{coverageHeadline.realAssigned} real staffed / {coverageHeadline.syntheticAssigned} synthetic / {coverageHeadline.unassigned} unowned (total {coverageHeadline.total})
 </div>
 </div>
 <div className="flex-1 overflow-auto">
@@ -1345,10 +1437,10 @@ Breakdown
 	</div>
 )}
 <div className="max-h-44 space-y-1 overflow-auto border-t border-border pt-1">
-{loadProfile.breakdown.length === 0 ? (
+{loadBreakdownRows.length === 0 ? (
 <p className="text-muted-foreground">No sections selected yet.</p>
 ) : (
-loadProfile.breakdown.map((item) => (
+loadBreakdownRows.map((item: any) => (
 <p key={`${item.subjectId}:${item.sectionId}`} className="font-mono">
 {item.subjectCode} | G{item.gradeLevel} {item.sectionName}: {Math.round((item.totalMinutes / 60) * 10) / 10}h
 	{item.isRotationDuplicate ? ' (rotation lane overlap)' : ''}

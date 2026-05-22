@@ -7,7 +7,7 @@ import type {
 } from '@/types';
 import type { SubjectSectionOwnershipIndexEntry } from '@/lib/faculty-assignment-helpers';
 
-const FACULTY_SUMMARY_CACHE_PREFIX = 'atlas:faculty-summary:v2';
+const FACULTY_SUMMARY_CACHE_PREFIX = 'atlas:faculty-summary:v3';
 const SUBJECTS_CACHE_PREFIX = 'atlas:subjects:v1';
 const SECTION_SUMMARY_CACHE_PREFIX = 'atlas:section-summary:v1';
 
@@ -30,6 +30,75 @@ export type FacultySummarySnapshot = {
 	fetchedAt: string | null;
 	schoolYearId: number;
 };
+
+function toNumber(value: unknown, fallback = 0): number {
+	return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function toArray<T>(value: unknown): T[] {
+	return Array.isArray(value) ? (value as T[]) : [];
+}
+
+function normalizeCoverageTotals(value: unknown): TeachingLoadCoverageTotals | undefined {
+	if (!value || typeof value !== 'object') return undefined;
+	const candidate = value as Partial<TeachingLoadCoverageTotals>;
+	const totalPairs = toNumber(candidate.totalPairs);
+	const realFacultyAssignedPairs = toNumber(candidate.realFacultyAssignedPairs, toNumber(candidate.assignedPairs));
+	const syntheticPlaceholderPairs = toNumber(candidate.syntheticPlaceholderPairs);
+	const assignedPairs = toNumber(candidate.assignedPairs, realFacultyAssignedPairs + syntheticPlaceholderPairs);
+	const unassignedPairs = toNumber(candidate.unassignedPairs, Math.max(0, totalPairs - assignedPairs));
+	return {
+		assignedPairs,
+		realFacultyAssignedPairs,
+		syntheticPlaceholderPairs,
+		totalPairs,
+		unassignedPairs,
+	};
+}
+
+function normalizeIntegrityDiagnostics(value: unknown): TeachingLoadIntegrityDiagnostics | undefined {
+	if (!value || typeof value !== 'object') return undefined;
+	const candidate = value as Partial<TeachingLoadIntegrityDiagnostics>;
+	return {
+		emptySectionRows: toNumber(candidate.emptySectionRows),
+		currentYearRowsMissingOwnership: toNumber(candidate.currentYearRowsMissingOwnership),
+		currentYearOwnershipWithoutMatchingScope: toNumber(candidate.currentYearOwnershipWithoutMatchingScope),
+		currentYearMissingOwnershipPairs: toNumber(candidate.currentYearMissingOwnershipPairs),
+		currentYearOwnershipWithoutMatchingScopePairs: toNumber(candidate.currentYearOwnershipWithoutMatchingScopePairs),
+		emptySectionSamples: toArray(candidate.emptySectionSamples),
+		missingOwnershipSamples: toArray(candidate.missingOwnershipSamples),
+		ownershipWithoutScopeSamples: toArray(candidate.ownershipWithoutScopeSamples),
+	};
+}
+
+export function normalizeFacultySummarySnapshot(value: unknown): FacultySummarySnapshot | null {
+	if (!value || typeof value !== 'object') return null;
+	const candidate = value as Partial<FacultySummarySnapshot>;
+	if (!Number.isFinite(candidate.schoolYearId)) return null;
+
+	const faculty = toArray<FacultySummary>(candidate.faculty).map((row) => {
+		const normalizedAssignments = toArray((row as any)?.assignments).map((assignment: any) => ({
+			...assignment,
+			sectionIds: toArray<number>(assignment?.sectionIds),
+			gradeLevels: toArray<number>(assignment?.gradeLevels),
+			sections: toArray(assignment?.sections),
+		}));
+		return {
+			...row,
+			assignments: normalizedAssignments,
+			rotationFamilyLoadDetails: toArray((row as any)?.rotationFamilyLoadDetails),
+		};
+	});
+
+	return {
+		faculty,
+		ownershipIndex: toArray<SubjectSectionOwnershipIndexEntry>(candidate.ownershipIndex),
+		coverageTotals: normalizeCoverageTotals(candidate.coverageTotals),
+		integrityDiagnostics: normalizeIntegrityDiagnostics(candidate.integrityDiagnostics),
+		fetchedAt: typeof candidate.fetchedAt === 'string' || candidate.fetchedAt === null ? candidate.fetchedAt : null,
+		schoolYearId: candidate.schoolYearId,
+	};
+}
 
 function readCached<T>(key: string): CacheEnvelope<T> | null {
 	try {
@@ -84,9 +153,11 @@ export function getCachedFacultyAssignmentsSummary(
 	const maxAgeMs = options?.maxAgeMs ?? null;
 	const cached = readCached<FacultySummarySnapshot>(summaryCacheKey(schoolId, schoolYearId));
 	if (!cached) return null;
+	const normalized = normalizeFacultySummarySnapshot(cached.data);
+	if (!normalized) return null;
 	return {
 		cachedAt: cached.cachedAt,
-		data: cached.data,
+		data: normalized,
 		stale: isStale(cached.cachedAt, maxAgeMs),
 	};
 }
@@ -99,6 +170,7 @@ export function getCachedSubjects(schoolId: number, options?: { maxAgeMs?: numbe
 	const maxAgeMs = options?.maxAgeMs ?? null;
 	const cached = readCached<Subject[]>(subjectsCacheKey(schoolId));
 	if (!cached) return null;
+	if (!Array.isArray(cached.data)) return null;
 	return {
 		cachedAt: cached.cachedAt,
 		data: cached.data,
@@ -118,9 +190,15 @@ export function getCachedSectionSummary(
 	const maxAgeMs = options?.maxAgeMs ?? null;
 	const cached = readCached<SectionSummaryResponse>(sectionSummaryCacheKey(schoolId, schoolYearId));
 	if (!cached) return null;
+	if (!cached.data || typeof cached.data !== 'object' || !Array.isArray((cached.data as any).sections)) return null;
 	return {
 		cachedAt: cached.cachedAt,
-		data: cached.data,
+		data: {
+			...cached.data,
+			sections: toArray((cached.data as any).sections),
+			gradeLevels: toArray((cached.data as any).gradeLevels),
+			contractWarnings: toArray((cached.data as any).contractWarnings),
+		},
 		stale: isStale(cached.cachedAt, maxAgeMs),
 	};
 }
