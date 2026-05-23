@@ -368,7 +368,7 @@ The simplified examples above are legacy-minimal examples.
 
 For current sister-system integration, use the live teaching-load contract below and the dedicated guide:
 
-- `docs/api/ATLAS-LIVE-TEACHING-LOAD-INTEGRATION.md`
+- `api/ATLAS-LIVE-TEACHING-LOAD-INTEGRATION.md`
 
 #### `GET /faculty-assignments/summary?schoolId=<id>&schoolYearId=<id>` 🔒
 
@@ -388,11 +388,16 @@ Current top-level response fields include:
 - `schoolYearId`
 - `fetchedAt`
 
-Key current rule for downstream systems:
+Key current rule for downstream systems today:
 
 - derive assigned classes per section from `faculty[].assignments[]`
 - keep `assignmentKind = "REAL_OWNERSHIP"`
 - explode `sections[]` and group by `section.id`
+
+Important:
+
+- this is the current available contract
+- this is not yet a dedicated section-first endpoint
 
 Current live-style example:
 
@@ -500,6 +505,26 @@ Important:
 
 - these teaching-load endpoints do not include timetable day/time slots
 - for final scheduled meetings, use published schedule endpoints instead
+
+### Planned Section-First Live Teaching Load Endpoint
+
+ATLAS does not yet expose a dedicated section-first teaching-load endpoint.
+
+The target contract for downstream systems is documented in:
+
+- `api/ATLAS-SECTION-FIRST-TEACHING-LOAD-ENDPOINTS.md`
+
+Use that planned endpoint family for:
+
+- assigned classes per section
+- section-first class plus teacher breakdowns
+- the upcoming `Sections` page live teaching-load breakdown
+
+Current state:
+
+- teacher-specific live assigned sessions are implemented on `GET /faculty-assignments/:facultyId?schoolYearId=<id>`
+- section-specific live assigned classes are not yet implemented as a dedicated endpoint
+- until that lands, section consumers must temporarily derive section ownership from `GET /faculty-assignments/summary`
 
 ## Sections
 

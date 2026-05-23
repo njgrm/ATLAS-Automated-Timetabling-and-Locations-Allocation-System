@@ -28,7 +28,7 @@ All endpoints in this guide require:
 Authorization: Bearer <token>
 ```
 
-## Recommended Endpoint Set
+## Current Implemented Endpoint Set
 
 ### `GET /faculty-assignments/summary?schoolId=<id>&schoolYearId=<id>`
 
@@ -36,7 +36,7 @@ Use this when you need:
 
 - school-wide live teaching load
 - section assignment coverage
-- per-section assigned classes, derived from live teacher assignments
+- temporary section assignment derivation from live teacher assignments
 - coverage and integrity context for the same school year
 
 Top-level response fields:
@@ -48,7 +48,7 @@ Top-level response fields:
 - `schoolYearId`
 - `fetchedAt`
 
-### Recommended section-level integration rule
+### Temporary section-level integration rule
 
 For section-assigned classes, use:
 
@@ -58,6 +58,10 @@ For section-assigned classes, use:
 - then group by `section.id`
 
 This is the current safest live teaching-load source for section class ownership because it is aligned to the live faculty summary contract.
+
+It is also only a temporary workaround.
+
+Downstream systems that are section-first should not be forced to invert teacher rows long-term.
 
 ### Minimal response example
 
@@ -249,7 +253,16 @@ For sister-system integration today:
 - use `GET /faculty-assignments/:facultyId` for teacher-specific session detail
 - join with `/sections/summary` and `/subjects` for display labels
 
+## Required Next Contract
+
+ATLAS still needs a dedicated section-first live teaching-load endpoint.
+
+That target contract is documented in:
+
+- [ATLAS Section-First Teaching Load Endpoint Spec](./ATLAS-SECTION-FIRST-TEACHING-LOAD-ENDPOINTS.md)
+
 ## Related Docs
 
 - [ATLAS Public API](./ATLAS-PUBLIC-API.md)
+- [ATLAS Section-First Teaching Load Endpoint Spec](./ATLAS-SECTION-FIRST-TEACHING-LOAD-ENDPOINTS.md)
 - [AIMS Fetch Published Schedules Guide](../guides/AIMS_FETCH_PUBLISHED_SCHEDULES_GUIDE.md)
