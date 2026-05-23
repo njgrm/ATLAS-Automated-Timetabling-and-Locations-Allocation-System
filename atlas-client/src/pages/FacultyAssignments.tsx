@@ -591,8 +591,8 @@ const handleViewStaffingNeeds = useCallback(async () => {
 	setStaffingNeedsLoading(true);
 	try {
 		const result = await atlasApi.post<AutoFillSummaryResult>(
-			'/faculty-assignments/auto-fill',
-			{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId, previewOnly: true },
+			'/faculty-assignments/report/staffing-needs',
+			{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId },
 		);
 		setSummaryModalResult(result.data);
 		setSummaryModalOpen(true);
@@ -760,12 +760,18 @@ const { departmentQualifiedSubjects, outsideDepartmentSubjects } = useMemo(() =>
 	};
 
 	const matchesOwnershipDepartment = (facultyDepartment: string | null | undefined, subject: Subject): boolean => {
-		if (subject.ownerDepartment) {
-			const normalizedOwner = normalizeDepartmentCode(subject.ownerDepartment);
+		const ownerDepartments = [
+			...(subject.ownerDepartment ? [subject.ownerDepartment] : []),
+			...(subject.allowedOwnerDepartments ?? []),
+		]
+			.map((value) => normalizeDepartmentCode(value))
+			.filter((value): value is string => Boolean(value));
+
+		if (ownerDepartments.length > 0) {
 			const normalizedFaculty = normalizeDepartmentCode(facultyDepartment);
-			if (!normalizedOwner || !normalizedFaculty) return false;
-			if (normalizedOwner === normalizedFaculty) return true;
-			if ((normalizedOwner === 'ENG' || normalizedOwner === 'FIL') && normalizedFaculty === 'ENG') return true;
+			if (!normalizedFaculty) return false;
+			if (ownerDepartments.includes(normalizedFaculty)) return true;
+			if ((ownerDepartments.includes('ENG') || ownerDepartments.includes('FIL')) && normalizedFaculty === 'ENG') return true;
 			return false;
 		}
 
@@ -1268,19 +1274,21 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 		<p className="truncate text-sm font-medium">
 			{member.lastName}, {member.firstName}
 		</p>
-		<span className="text-[0.6rem] font-mono text-muted-foreground shrink-0 bg-muted/50 px-1 rounded">
-			{member.employeeId || 'No ID'}
-		</span>
 	</div>
 	<div className="flex items-center gap-1.5 mt-0.5 min-w-0">
 		<div className="flex flex-col min-w-0 flex-1">
+			{member.specialization && (
+				<span className="truncate text-[0.62rem] font-semibold text-foreground">
+					{member.specialization}
+				</span>
+			)}
 			{member.department && (
 				<span className="truncate text-[0.55rem] font-bold uppercase tracking-wider text-muted-foreground/70">
 					{member.department}
 				</span>
 			)}
-			<span className="truncate text-[0.625rem] text-muted-foreground uppercase">
-				{member.department ? 'Department Baseline' : 'Department Not Set'}
+			<span className="truncate text-[0.6rem] text-muted-foreground">
+				{member.employeeId ? `ID ${member.employeeId}` : 'Employee ID not set'}
 			</span>
 		</div>
 		<div className="flex flex-col items-end gap-0.5 shrink-0">
@@ -1342,7 +1350,9 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 {selected.firstName} {selected.lastName}
 </p>
 <p className="truncate text-[0.6875rem] text-muted-foreground font-mono">
-{selected.department ?? 'No department'} | ID: {selected.employeeId || 'No ID'}
+{selected.specialization ? `${selected.specialization} · ` : ''}
+{selected.department ?? 'No department'}
+{selected.employeeId ? ` · ID ${selected.employeeId}` : ''}
 </p>
 </div>
 {selected.isClassAdviser && (

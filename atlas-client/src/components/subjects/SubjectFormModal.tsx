@@ -34,6 +34,7 @@ type Props = {
 	subjectMeta?: {
 		displayCode?: string;
 		ownerDepartment?: string | null;
+		allowedOwnerDepartments?: string[];
 		rotationFamily?: string | null;
 		outputLabel?: string | null;
 		isSystemManaged?: boolean;
@@ -78,6 +79,20 @@ export function SubjectFormModal({
 				? previous.programScopes.filter((value) => value !== programScope)
 				: [...previous.programScopes, programScope];
 			return { ...previous, programScopes: nextScopes };
+		});
+	};
+
+	const toggleAdditionalOwnerDepartment = (departmentCode: string) => {
+		setForm((previous) => {
+			const current = previous.allowedOwnerDepartments ?? [];
+			const hasDepartment = current.includes(departmentCode);
+			const next = hasDepartment
+				? current.filter((value) => value !== departmentCode)
+				: [...current, departmentCode].sort((left, right) => left.localeCompare(right));
+			return {
+				...previous,
+				allowedOwnerDepartments: next,
+			};
 		});
 	};
 
@@ -166,6 +181,15 @@ export function SubjectFormModal({
 											{SUBJECT_OWNER_LABELS[subjectMeta.ownerDepartment] ?? subjectMeta.ownerDepartment}
 										</Badge>
 									)}
+									{(subjectMeta.allowedOwnerDepartments ?? []).map((departmentCode) => (
+										<Badge
+											key={`extra-owner-${departmentCode}`}
+											variant="outline"
+											className={`text-[0.6rem] ${SUBJECT_OWNER_BADGE[departmentCode] ?? ''}`}
+										>
+											Also qualified: {SUBJECT_OWNER_LABELS[departmentCode] ?? departmentCode}
+										</Badge>
+									))}
 									{subjectMeta.rotationFamily && (
 										<Badge variant="outline" className="text-[0.6rem] border-indigo-200 text-indigo-700 bg-indigo-50/30">
 											{subjectMeta.rotationFamily}
@@ -201,6 +225,47 @@ export function SubjectFormModal({
 									value={form.name}
 									onChange={(event) => setForm((previous) => ({ ...previous, name: event.target.value }))}
 								/>
+							</div>
+						</div>
+
+						<div className="space-y-3">
+							<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Additional Qualified Departments</label>
+							<p className="text-[0.65rem] text-muted-foreground">
+								Use this when a subject can be baseline-owned by more than one department.
+							</p>
+							<div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/20 p-3">
+								{SUBJECT_OWNER_OPTIONS.filter((option) => option.value !== 'UNASSIGNED').map((option) => {
+									const isPrimary = form.ownerDepartment === option.value;
+									const isSelected = isPrimary || (form.allowedOwnerDepartments ?? []).includes(option.value);
+									return (
+										<Button
+											key={`owner-dept-${option.value}`}
+											type="button"
+											variant="ghost"
+											size="sm"
+											onClick={() => {
+												if (!isPrimary) {
+													toggleAdditionalOwnerDepartment(option.value);
+												}
+											}}
+											disabled={isPrimary}
+											className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-left text-[0.65rem] font-semibold transition ${
+												isSelected
+													? 'border-primary/40 bg-primary/10 text-primary'
+													: 'border-border bg-background text-muted-foreground hover:bg-muted/50'
+											}`}
+										>
+											<Checkbox
+												checked={isSelected}
+												onCheckedChange={() => undefined}
+												disabled={isPrimary}
+											/>
+											<span className="truncate">
+												{option.label}{isPrimary ? ' (Primary)' : ''}
+											</span>
+										</Button>
+									);
+								})}
 							</div>
 						</div>
 

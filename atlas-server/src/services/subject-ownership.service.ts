@@ -41,6 +41,8 @@ const DEPARTMENT_NORMALIZATION: Record<string, string> = {
 	LANGUAGES: 'ENG',
 };
 
+const OWNER_DEPARTMENT_FEATURE_PREFIX = 'OWNER_DEPT:';
+
 export function normalizeDepartmentCode(value: string | null | undefined): string | null {
 	const normalized = (value ?? '').trim().toUpperCase();
 	if (!normalized) return null;
@@ -86,6 +88,77 @@ export function resolveSubjectQualificationPriority(
 	void subjectCode;
 	void explicitPriority;
 	return 'DEPARTMENT_FIRST';
+}
+
+export function extractAdditionalOwnerDepartments(requiredFeatures: string[] | null | undefined): string[] {
+	if (!Array.isArray(requiredFeatures) || requiredFeatures.length === 0) {
+		return [];
+	}
+
+	const departments = new Set<string>();
+	for (const feature of requiredFeatures) {
+		const normalizedFeature = (feature ?? '').trim().toUpperCase();
+		if (!normalizedFeature.startsWith(OWNER_DEPARTMENT_FEATURE_PREFIX)) {
+			continue;
+		}
+		const departmentCode = normalizeDepartmentCode(
+			normalizedFeature.slice(OWNER_DEPARTMENT_FEATURE_PREFIX.length),
+		);
+		if (departmentCode) {
+			departments.add(departmentCode);
+		}
+	}
+
+	return [...departments].sort();
+}
+
+export function mergeRequiredFeaturesWithAdditionalOwnerDepartments(
+	requiredFeatures: string[] | null | undefined,
+	additionalOwnerDepartments: string[] | null | undefined,
+): string[] {
+	const baseFeatures = Array.isArray(requiredFeatures)
+		? requiredFeatures
+			.map((value) => (value ?? '').trim())
+			.filter((value) => value.length > 0)
+		: [];
+
+	const sanitizedFeatures = baseFeatures.filter(
+		(feature) => !feature.toUpperCase().startsWith(OWNER_DEPARTMENT_FEATURE_PREFIX),
+	);
+
+	const normalizedDepartments = new Set<string>();
+	for (const value of additionalOwnerDepartments ?? []) {
+		const normalized = normalizeDepartmentCode(value);
+		if (normalized) {
+			normalizedDepartments.add(normalized);
+		}
+	}
+
+	const ownerFeatures = [...normalizedDepartments]
+		.sort()
+		.map((department) => `${OWNER_DEPARTMENT_FEATURE_PREFIX}${department}`);
+
+	return [...sanitizedFeatures, ...ownerFeatures];
+}
+
+export function resolveSubjectAllowedOwnerDepartments(
+	explicitOwnerDepartment: string | null | undefined,
+	subjectCode: string | null | undefined,
+	subjectName: string | null | undefined,
+	requiredFeatures: string[] | null | undefined,
+): string[] {
+	const departments = new Set<string>();
+	const ownerDepartment = normalizeDepartmentCode(explicitOwnerDepartment)
+		?? resolveSubjectOwnerDepartmentCode(subjectCode, subjectName);
+	if (ownerDepartment) {
+		departments.add(ownerDepartment);
+	}
+
+	for (const additionalDepartment of extractAdditionalOwnerDepartments(requiredFeatures)) {
+		departments.add(additionalDepartment);
+	}
+
+	return [...departments].sort();
 }
 
 export function resolveSubjectOutputLabel(
@@ -141,18 +214,25 @@ export function matchesSubjectOwnershipDepartment(
 	subjectCode: string | null | undefined,
 	subjectName?: string | null,
 	explicitOwnerDepartment?: string | null,
+	requiredFeatures?: string[] | null,
 ): boolean {
-	const ownerDepartment = normalizeDepartmentCode(explicitOwnerDepartment) ?? resolveSubjectOwnerDepartmentCode(subjectCode, subjectName);
-	if (!ownerDepartment) return false;
+	const ownerDepartments = resolveSubjectAllowedOwnerDepartments(
+		explicitOwnerDepartment,
+		subjectCode,
+		subjectName,
+		requiredFeatures,
+	);
+	if (ownerDepartments.length === 0) return false;
+	const ownerDepartmentSet = new Set(ownerDepartments);
 	const normalizedFacultyDepartment = normalizeDepartmentCode(facultyDepartment);
 	if (!normalizedFacultyDepartment) return false;
 
-	if (normalizedFacultyDepartment === ownerDepartment) {
+	if (ownerDepartmentSet.has(normalizedFacultyDepartment)) {
 		return true;
 	}
 
 	// Legacy generic language departments can cover both ENG and FIL ownership.
-	if ((ownerDepartment === 'ENG' || ownerDepartment === 'FIL') && normalizedFacultyDepartment === 'ENG') {
+	if ((ownerDepartmentSet.has('ENG') || ownerDepartmentSet.has('FIL')) && normalizedFacultyDepartment === 'ENG') {
 		return true;
 	}
 

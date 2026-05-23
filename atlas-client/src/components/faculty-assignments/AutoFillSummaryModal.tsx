@@ -29,6 +29,7 @@ export type StaffingReport = {
 	shortages: Array<{
 		department: string;
 		count: number;
+		missingMinutesPerWeek: number;
 		sections: Array<{
 			subjectId: number;
 			subjectCode: string;
@@ -68,7 +69,7 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 
 	const title = hasShortage ? 'Schedule Incomplete: Staffing Shortage Detected' : 'Schedule Fully Assigned!';
 	const description = hasShortage
-		? 'We assigned as many classes as possible without overloading current staff. Some classes remain unassigned because the remaining load exceeds the current staffing supply.'
+		? 'Some current-year subject-section pairs remain uncovered based on live ownership data. Review the shortage drill-down and choose internal reassignment or staffing requests.'
 		: 'All classes have been successfully assigned to a teacher. No one has exceeded their maximum allowed teaching hours.';
 
 	const toggleDepartment = (department: string) => {
@@ -172,8 +173,8 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 								</div>
 
 								<div className="mt-4 rounded-2xl border border-sky-200 bg-white/90 p-4 text-sm leading-6 text-foreground">
-									To cover the remaining <span className="font-semibold">{report.unassignedSections} sections</span> ({report.missingHoursPerWeek} hours/week), you need to hire{' '}
-									<span className="font-semibold">~{formatHires(report.recommendedNewHires)} additional full-time Science teachers</span>.
+									To cover the remaining <span className="font-semibold">{report.unassignedSections} sections</span> ({report.missingHoursPerWeek} hours/week), request approximately{' '}
+									<span className="font-semibold">~{formatHires(report.recommendedNewHires)} additional full-time faculty slots</span> aligned to the shortage mix below.
 								</div>
 							</div>
 
@@ -198,7 +199,9 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 															{isOpen ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
 															{shortage.department}
 														</span>
-														<Badge variant="secondary">{shortage.count}</Badge>
+														<Badge variant="secondary">
+															{shortage.count} · {Math.round((shortage.missingMinutesPerWeek / 60) * 10) / 10}h
+														</Badge>
 													</Button>
 													{isOpen && (
 														<div className="space-y-1 border-t border-border px-3 py-2">

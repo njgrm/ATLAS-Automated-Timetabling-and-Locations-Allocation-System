@@ -623,7 +623,7 @@ export function constructBaseline(input) {
         }
     }
     function isFacultyQualified(f, s) {
-        const departmentMatch = matchesSubjectOwnershipDepartment(f.department, s.code, s.name, s.ownerDepartment);
+        const departmentMatch = matchesSubjectOwnershipDepartment(f.department, s.code, s.name, s.ownerDepartment, s.requiredFeatures);
         if (departmentMatch) {
             return true;
         }

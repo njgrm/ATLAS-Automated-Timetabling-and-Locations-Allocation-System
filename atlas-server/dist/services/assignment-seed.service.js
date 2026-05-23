@@ -30,7 +30,7 @@ export async function seedQualifiedAssignments(schoolId, _schoolYearId) {
                 schoolId,
                 isActive: true,
             },
-            select: { id: true, code: true, name: true, ownerDepartment: true },
+            select: { id: true, code: true, name: true, ownerDepartment: true, requiredFeatures: true },
         }),
     ]);
     let created = 0;
@@ -39,7 +39,7 @@ export async function seedQualifiedAssignments(schoolId, _schoolYearId) {
         if (!member.department)
             continue;
         for (const subject of subjects) {
-            if (!matchesSubjectOwnershipDepartment(member.department, subject.code, subject.name, subject.ownerDepartment)) {
+            if (!matchesSubjectOwnershipDepartment(member.department, subject.code, subject.name, subject.ownerDepartment, subject.requiredFeatures)) {
                 continue;
             }
             // Check if assignment already exists

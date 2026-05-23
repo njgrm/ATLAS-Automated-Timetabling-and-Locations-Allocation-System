@@ -1,3 +1,95 @@
+# 2026-05-23 - Phase 3 Teaching Load Staffing Reconciliation One-Shot
+- Phase: Phase 3 generator-readiness stream, staffing reconciliation and qualification-baseline contract hardening
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTED (local verification complete; live Tailnet rerun pending)
+- Files changed in this pass:
+  - `atlas-server/src/services/subject-ownership.service.ts`
+  - `atlas-server/src/services/subject.service.ts`
+  - `atlas-server/src/services/assignment-seed.service.ts`
+  - `atlas-server/src/services/teaching-load-automation.service.ts`
+  - `atlas-server/src/services/faculty-assignment.service.ts`
+  - `atlas-server/src/services/schedule-constructor.ts`
+  - `atlas-server/src/routes/faculty-assignment.router.ts`
+  - `atlas-server/src/routes/subject.router.ts`
+  - `atlas-client/src/components/subjects/SubjectFormModal.tsx`
+  - `atlas-client/src/components/faculty-assignments/AutoFillSummaryModal.tsx`
+  - `atlas-client/src/pages/Subjects.tsx`
+  - `atlas-client/src/pages/FacultyAssignments.tsx`
+  - `atlas-client/src/lib/subject-constants.ts`
+  - `atlas-client/src/types.ts`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+  - `CHANGELOG.md`
+
+- Contract outcomes:
+  - Teaching Load staffing-needs modal now reads from dedicated live uncovered-pair report endpoint `POST /api/v1/faculty-assignments/report/staffing-needs`.
+  - Staffing arithmetic now sums real missing minutes from uncovered subject-section pairs (`subject.minMinutesPerWeek`) rather than section-count heuristic (`* 30`).
+  - Runtime qualification baseline now supports explicit additional owner departments through `OWNER_DEPT:*` markers and subject `allowedOwnerDepartments` payload.
+  - Qualification matching now consistently applies this contract in assignment seeding, auto-fill, special-program redistribution, real-faculty recovery, and schedule construction fallback qualification checks.
+  - Recovery blocker classification now flags unresolved automation-seed/integrity debt when missing-ownership or ownership-without-scope pairs remain.
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS
+
+- Pending live verification:
+  - Tailnet rerun is still required to capture final proof for:
+    - `SCI_ES` uncovered visibility in staffing-needs modal/report
+    - updated blocker category counts in recovery preview/apply payloads
+    - specialization-priority copy and staffing modal messaging on `/teaching-load`
+
+# 2026-05-23 - Phase 3 Subject Contract TLE Retirement One-Shot
+- Phase: Phase 3 generator-readiness stream, subject contract reset for TLE and delete-maintenance semantics
+- Operator: GitHub Copilot
+- Scope gate: PASS (implementation + server/client build + live Tailnet + DB verification)
+- Files changed in this pass:
+  - `atlas-server/src/services/subject.service.ts`
+  - `prisma/seed.js`
+  - `atlas-client/src/components/subjects/SubjectRow.tsx`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+  - `CHANGELOG.md`
+
+- Contract decisions made:
+  - Umbrella `TLE` remains **compatibility-only active** in the catalog (not archived by default), but is no longer treated as protected seedable curriculum.
+  - Active schedulable TLE contract remains on exploratory family rows (`TLE_AFA_EXP`, `TLE_ICT_EXP`, `TLE_FCS_EXP`) under `rotationFamily=TLE_ROTATION`.
+  - Subject deletion is now governed by operational blockers (active/historical assignment state), not by permanent `isSeedable` protection.
+
+- Implementation outcomes:
+  - `TLE` default contract changed to `isSeedable=false` in both runtime defaults (`subject.service.ts`) and seed defaults (`prisma/seed.js`).
+  - Removed `SEEDABLE_SUBJECT` hard-stop from `deleteSubject` so authorized deletion is maintainable after remediation + explicit destructive actions.
+  - Subjects row actions now expose archive/delete paths for all rows (seedable and non-seedable) so UI behavior matches backend maintenance contract.
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS
+
+- Live Tailnet verification (`https://njgrm.buru-degree.ts.net`):
+  - Contract sync apply -> PASS
+    - `POST /api/v1/subjects/sync-offerings` with `(schoolId=1, schoolYearId=55)` completed.
+  - Live `/subjects` row state for `TLE` -> PASS
+    - `code=TLE`, `isActive=true`, `isSeedable=false`, `rotationFamily=TLE_ROTATION`, `isSystemManaged=false`
+  - Delete behavior for `TLE` -> PASS
+    - `DELETE /api/v1/subjects/:id` returns `DELETE_BLOCKED` with `reason=ACTIVE_ASSIGNMENTS` (operational/remediable), not seedable-protection.
+  - Delete behavior for previously protected seedable row (`FIL`) -> PASS
+    - `DELETE /api/v1/subjects/:id` returns `DELETE_BLOCKED` with `reason=ACTIVE_ASSIGNMENTS` (operational/remediable), not seedable-protection.
+  - Archive/reactivate behavior for `TLE` -> PASS
+    - `POST /api/v1/subjects/:id/archive` -> `archived=true` and `isActive=false`
+    - `POST /api/v1/subjects/:id/reactivate` -> `reactivated=true` and `isActive=true`
+
+- DB verification (live Prisma):
+  - `Subject(code='TLE', schoolId=1)` ->
+    - `isActive=true`
+    - `isSeedable=false`
+    - `rotationFamily='TLE_ROTATION'`
+    - `isSystemManaged=false`
+    - `ownerDepartment='TLE'`
+    - `qualificationPriority='DEPARTMENT_FIRST'`
+
+- GO/NO-GO:
+  - **GO** for this one-shot prompt scope.
+  - `TLE` no longer behaves as stale protected core curriculum; deletion semantics are now maintainable and operationally remediable rather than permanently blocked by legacy seedable assumptions.
+
 # 2026-05-23 - Phase 3 Teaching Load Real-Faculty Recovery + Rotation Gate One-Shot
 - Phase: Phase 3 generator-readiness stream, Teaching Load real-faculty recovery and runtime rotation gate proof
 - Operator: GitHub Copilot

@@ -70,8 +70,15 @@ function isProgramScopeCompatible(scopes, sectionProgramType) {
 }
 function buildStaffingReport(unresolvedByDepartment, shortageSections, faculty, capacityUsed) {
     const shortageBuckets = Array.from(unresolvedByDepartment.entries())
-        .map(([department, unassignedSections]) => ({ department, unassignedSections }))
+        .map(([department, bucket]) => ({
+        department,
+        unassignedSections: bucket.count,
+        missingMinutesPerWeek: bucket.missingMinutesPerWeek,
+    }))
         .sort((left, right) => {
+        if (right.missingMinutesPerWeek !== left.missingMinutesPerWeek) {
+            return right.missingMinutesPerWeek - left.missingMinutesPerWeek;
+        }
         if (right.unassignedSections !== left.unassignedSections) {
             return right.unassignedSections - left.unassignedSections;
         }
@@ -80,8 +87,10 @@ function buildStaffingReport(unresolvedByDepartment, shortageSections, faculty, 
     const primaryShortage = shortageBuckets[0] ?? {
         department: 'GENERAL',
         unassignedSections: 0,
+        missingMinutesPerWeek: 0,
     };
-    const missingMinutesPerWeek = primaryShortage.unassignedSections * 30;
+    const totalUnassignedSections = shortageBuckets.reduce((sum, bucket) => sum + bucket.unassignedSections, 0);
+    const missingMinutesPerWeek = shortageBuckets.reduce((sum, bucket) => sum + bucket.missingMinutesPerWeek, 0);
     const missingHoursPerWeek = Math.round((missingMinutesPerWeek / 60) * 10) / 10;
     const recommendedNewHires = Math.round((missingHoursPerWeek / 30) * 10) / 10;
     const crossTraineesByDepartment = new Map();
@@ -120,11 +129,12 @@ function buildStaffingReport(unresolvedByDepartment, shortageSections, faculty, 
     const shortages = shortageBuckets.map((bucket) => ({
         department: bucket.department,
         count: bucket.unassignedSections,
+        missingMinutesPerWeek: bucket.missingMinutesPerWeek,
         sections: (shortageSections.get(bucket.department) ?? []).slice(0, 50),
     }));
     return {
         department: primaryShortage.department,
-        unassignedSections: primaryShortage.unassignedSections,
+        unassignedSections: totalUnassignedSections,
         missingHoursPerWeek,
         recommendedNewHires,
         internalCrossTrainees,
@@ -133,7 +143,7 @@ function buildStaffingReport(unresolvedByDepartment, shortageSections, faculty, 
     };
 }
 function resolveQualificationTier(faculty, subject) {
-    const departmentMatch = matchesSubjectOwnershipDepartment(faculty.department, subject.code, subject.name, subject.ownerDepartment);
+    const departmentMatch = matchesSubjectOwnershipDepartment(faculty.department, subject.code, subject.name, subject.ownerDepartment, subject.requiredFeatures);
     if (departmentMatch)
         return 1;
     if (faculty.canTeachOutsideDepartment) {
@@ -144,6 +154,7 @@ function resolveQualificationTier(faculty, subject) {
 export async function autoFill(schoolId, schoolYearId, authToken, options) {
     const warnings = [];
     const previewOnly = options?.previewOnly ?? false;
+    const staffingOnly = options?.staffingOnly === true;
     // ─── Step 1: Build resolved-pair set + capacity used per faculty ───────────
     const existingOwnerships = await prisma.subjectSectionOwnership.findMany({
         where: { schoolId },
@@ -223,6 +234,7 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
             modularGroupId: true,
             modularOrder: true,
             ownerDepartment: true,
+            requiredFeatures: true,
         },
     });
     const sectionResult = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
@@ -263,6 +275,28 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
     const workQueue = [];
     const unresolvedByDepartment = new Map();
     const shortageSections = new Map();
+    const recordShortage = (pair) => {
+        const fallbackDepartment = pair.subject.ownerDepartment
+            ?? resolveSubjectOwnerDepartmentCode(pair.subject.code, pair.subject.name)
+            ?? pair.subject.modularGroupId
+            ?? 'GENERAL';
+        const shortageKey = formatDepartmentLabel(fallbackDepartment);
+        const subjectMinutes = Math.max(0, Number(pair.subject.minMinutesPerWeek) || 0);
+        const currentBucket = unresolvedByDepartment.get(shortageKey) ?? { count: 0, missingMinutesPerWeek: 0 };
+        currentBucket.count += 1;
+        currentBucket.missingMinutesPerWeek += subjectMinutes;
+        unresolvedByDepartment.set(shortageKey, currentBucket);
+        const existingSections = shortageSections.get(shortageKey) ?? [];
+        existingSections.push({
+            subjectId: pair.subject.id,
+            subjectCode: pair.subject.code,
+            subjectName: pair.subject.name,
+            sectionId: pair.sectionId,
+            sectionName: pair.sectionName,
+            programType: pair.sectionProgramType,
+        });
+        shortageSections.set(shortageKey, existingSections);
+    };
     for (const subject of subjects) {
         const relevantSections = subject.gradeLevels.length > 0
             ? allSectionIds.filter((sid) => {
@@ -302,6 +336,20 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
             maxHoursPerWeek: true,
         },
     });
+    if (staffingOnly) {
+        for (const pair of workQueue) {
+            recordShortage(pair);
+        }
+        return {
+            preserved,
+            created: 0,
+            assignmentsCreated: 0,
+            uniqueTeachersAffected: 0,
+            unresolved: workQueue.length,
+            warnings,
+            staffingReport: buildStaffingReport(unresolvedByDepartment, shortageSections, faculty, capacityUsed),
+        };
+    }
     // ─── Step 5 & 6: Assign pairs, respecting caps and modular bundles ─────────
     // Group work queue by subjectId for modular bundle processing
     const bySubjectId = new Map();
@@ -387,22 +435,7 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
             if (!candidate) {
                 unresolvedCount += 1;
                 warnings.push(`Lacking Faculty: no department-qualified teacher for ${subjectRow.name} (${pair.sectionName}).`);
-                const fallbackDepartment = subjectRow.ownerDepartment
-                    ?? resolveSubjectOwnerDepartmentCode(subjectRow.code, subjectRow.name)
-                    ?? subjectRow.modularGroupId
-                    ?? 'GENERAL';
-                const shortageKey = formatDepartmentLabel(fallbackDepartment);
-                unresolvedByDepartment.set(shortageKey, (unresolvedByDepartment.get(shortageKey) ?? 0) + 1);
-                const existing = shortageSections.get(shortageKey) ?? [];
-                existing.push({
-                    subjectId: subjectRow.id,
-                    subjectCode: subjectRow.code,
-                    subjectName: subjectRow.name,
-                    sectionId: pair.sectionId,
-                    sectionName: pair.sectionName,
-                    programType: pair.sectionProgramType,
-                });
-                shortageSections.set(shortageKey, existing);
+                recordShortage(pair);
             }
             else {
                 addPending(candidate.id, pair.subjectId, pair.sectionId);

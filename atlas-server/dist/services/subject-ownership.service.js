@@ -31,6 +31,7 @@ const DEPARTMENT_NORMALIZATION = {
     SPS: 'SPS',
     LANGUAGES: 'ENG',
 };
+const OWNER_DEPARTMENT_FEATURE_PREFIX = 'OWNER_DEPT:';
 export function normalizeDepartmentCode(value) {
     const normalized = (value ?? '').trim().toUpperCase();
     if (!normalized)
@@ -67,6 +68,54 @@ export function resolveSubjectQualificationPriority(subjectCode, explicitPriorit
     void explicitPriority;
     return 'DEPARTMENT_FIRST';
 }
+export function extractAdditionalOwnerDepartments(requiredFeatures) {
+    if (!Array.isArray(requiredFeatures) || requiredFeatures.length === 0) {
+        return [];
+    }
+    const departments = new Set();
+    for (const feature of requiredFeatures) {
+        const normalizedFeature = (feature ?? '').trim().toUpperCase();
+        if (!normalizedFeature.startsWith(OWNER_DEPARTMENT_FEATURE_PREFIX)) {
+            continue;
+        }
+        const departmentCode = normalizeDepartmentCode(normalizedFeature.slice(OWNER_DEPARTMENT_FEATURE_PREFIX.length));
+        if (departmentCode) {
+            departments.add(departmentCode);
+        }
+    }
+    return [...departments].sort();
+}
+export function mergeRequiredFeaturesWithAdditionalOwnerDepartments(requiredFeatures, additionalOwnerDepartments) {
+    const baseFeatures = Array.isArray(requiredFeatures)
+        ? requiredFeatures
+            .map((value) => (value ?? '').trim())
+            .filter((value) => value.length > 0)
+        : [];
+    const sanitizedFeatures = baseFeatures.filter((feature) => !feature.toUpperCase().startsWith(OWNER_DEPARTMENT_FEATURE_PREFIX));
+    const normalizedDepartments = new Set();
+    for (const value of additionalOwnerDepartments ?? []) {
+        const normalized = normalizeDepartmentCode(value);
+        if (normalized) {
+            normalizedDepartments.add(normalized);
+        }
+    }
+    const ownerFeatures = [...normalizedDepartments]
+        .sort()
+        .map((department) => `${OWNER_DEPARTMENT_FEATURE_PREFIX}${department}`);
+    return [...sanitizedFeatures, ...ownerFeatures];
+}
+export function resolveSubjectAllowedOwnerDepartments(explicitOwnerDepartment, subjectCode, subjectName, requiredFeatures) {
+    const departments = new Set();
+    const ownerDepartment = normalizeDepartmentCode(explicitOwnerDepartment)
+        ?? resolveSubjectOwnerDepartmentCode(subjectCode, subjectName);
+    if (ownerDepartment) {
+        departments.add(ownerDepartment);
+    }
+    for (const additionalDepartment of extractAdditionalOwnerDepartments(requiredFeatures)) {
+        departments.add(additionalDepartment);
+    }
+    return [...departments].sort();
+}
 export function resolveSubjectOutputLabel(subjectCode, subjectName, modularGroupId) {
     const code = (subjectCode ?? '').trim().toUpperCase();
     const name = (subjectName ?? '').trim().toUpperCase();
@@ -102,18 +151,19 @@ export function resolveSubjectContractDefaults(input) {
         isSystemManaged: code.startsWith('TLE_SPEC_') || code.endsWith('_EXP'),
     };
 }
-export function matchesSubjectOwnershipDepartment(facultyDepartment, subjectCode, subjectName, explicitOwnerDepartment) {
-    const ownerDepartment = normalizeDepartmentCode(explicitOwnerDepartment) ?? resolveSubjectOwnerDepartmentCode(subjectCode, subjectName);
-    if (!ownerDepartment)
+export function matchesSubjectOwnershipDepartment(facultyDepartment, subjectCode, subjectName, explicitOwnerDepartment, requiredFeatures) {
+    const ownerDepartments = resolveSubjectAllowedOwnerDepartments(explicitOwnerDepartment, subjectCode, subjectName, requiredFeatures);
+    if (ownerDepartments.length === 0)
         return false;
+    const ownerDepartmentSet = new Set(ownerDepartments);
     const normalizedFacultyDepartment = normalizeDepartmentCode(facultyDepartment);
     if (!normalizedFacultyDepartment)
         return false;
-    if (normalizedFacultyDepartment === ownerDepartment) {
+    if (ownerDepartmentSet.has(normalizedFacultyDepartment)) {
         return true;
     }
     // Legacy generic language departments can cover both ENG and FIL ownership.
-    if ((ownerDepartment === 'ENG' || ownerDepartment === 'FIL') && normalizedFacultyDepartment === 'ENG') {
+    if ((ownerDepartmentSet.has('ENG') || ownerDepartmentSet.has('FIL')) && normalizedFacultyDepartment === 'ENG') {
         return true;
     }
     return false;

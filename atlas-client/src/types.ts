@@ -52,6 +52,7 @@ export type Subject = {
 	outputLabel?: string | null;
 	displayCode?: string;
 	ownerDepartment?: string | null;
+	allowedOwnerDepartments?: string[];
 	qualificationPriority?: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
 	rotationFamily?: string | null;
 	specializationSource?: 'REFERENCE_METADATA' | 'NONE';

@@ -2,6 +2,7 @@ import type { ProgramType } from '@prisma/client';
 type SubjectWithViewMetadata = {
     displayCode: string;
     ownerDepartment: string | null;
+    allowedOwnerDepartments: string[];
     qualificationPriority: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
     rotationFamily: string | null;
     specializationSource: 'REFERENCE_METADATA' | 'NONE';
@@ -102,6 +103,7 @@ export declare function createSubject(schoolId: number, data: {
     programScopes?: ProgramType[];
     allowedSpecializations?: string[];
     requiredFeatures?: string[];
+    allowedOwnerDepartments?: string[];
     isActive?: boolean;
     ownerDepartment?: string | null;
     qualificationPriority?: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
@@ -151,6 +153,7 @@ export declare function updateSubject(id: number, data: Partial<{
     programScopes: ProgramType[];
     allowedSpecializations: string[];
     requiredFeatures: string[];
+    allowedOwnerDepartments: string[];
     ownerDepartment: string | null;
     qualificationPriority: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
     rotationFamily: string | null;
@@ -189,7 +192,7 @@ type DeleteSubjectResult = {
     cleanedHistoricalAssignments: number;
 } | {
     success: false;
-    code: 'NOT_FOUND' | 'SEEDABLE_SUBJECT' | 'ACTIVE_ASSIGNMENTS' | 'HISTORICAL_ASSIGNMENTS';
+    code: 'NOT_FOUND' | 'ACTIVE_ASSIGNMENTS' | 'HISTORICAL_ASSIGNMENTS';
     error: string;
     details?: Record<string, unknown>;
 };

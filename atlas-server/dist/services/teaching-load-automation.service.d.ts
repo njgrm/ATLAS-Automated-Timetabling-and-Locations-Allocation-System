@@ -44,6 +44,7 @@ export interface StaffingReport {
 export interface StaffingShortageDetail {
     department: string;
     count: number;
+    missingMinutesPerWeek: number;
     sections: Array<{
         subjectId: number;
         subjectCode: string;
@@ -55,4 +56,5 @@ export interface StaffingShortageDetail {
 }
 export declare function autoFill(schoolId: number, schoolYearId: number, authToken?: string, options?: {
     previewOnly?: boolean;
+    staffingOnly?: boolean;
 }): Promise<AutoFillResult>;

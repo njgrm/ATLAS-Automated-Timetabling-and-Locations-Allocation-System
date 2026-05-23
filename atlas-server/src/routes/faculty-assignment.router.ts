@@ -364,4 +364,29 @@ router.post('/auto-fill', authenticate, requirePrivilegedRole, async (req: Reque
 	}
 });
 
+// POST /faculty-assignments/report/staffing-needs
+// Returns staffing shortage report based on current uncovered live pairs.
+// Body: { schoolId: number, schoolYearId: number }
+router.post('/report/staffing-needs', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.body.schoolId);
+		const schoolYearId = Number(req.body.schoolYearId);
+
+		if (!schoolId || Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
+			return;
+		}
+		if (!schoolYearId || Number.isNaN(schoolYearId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
+			return;
+		}
+
+		const authToken = req.headers.authorization?.slice(7);
+		const result = await autoFill(schoolId, schoolYearId, authToken, { previewOnly: true, staffingOnly: true });
+		res.json(result);
+	} catch (err) {
+		next(err);
+	}
+});
+
 export default router;

@@ -85,6 +85,7 @@ export type NewSubjectForm = {
 	outputLabel: string;
 	name: string;
 	ownerDepartment: string;
+	allowedOwnerDepartments: string[];
 	qualificationPriority: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
 	rotationFamily: string;
 	minMinutesPerWeek: number;
@@ -107,6 +108,7 @@ export const emptyForm: NewSubjectForm = {
 	outputLabel: '',
 	name: '',
 	ownerDepartment: '',
+	allowedOwnerDepartments: [],
 	qualificationPriority: 'DEPARTMENT_FIRST',
 	rotationFamily: '',
 	minMinutesPerWeek: 225,

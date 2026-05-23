@@ -167,7 +167,7 @@ export function SubjectRow({
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end" className="w-40">
-							{subject.isActive && !subject.isSeedable && (
+							{subject.isActive && (
 								<DropdownMenuItem onClick={() => onArchive(subject)}>
 									<Archive className="mr-2 size-4" />
 									<span>Archive</span>
@@ -179,18 +179,16 @@ export function SubjectRow({
 									<span>Reactivate</span>
 								</DropdownMenuItem>
 							)}
-							{!subject.isSeedable && (
-								<>
-									<DropdownMenuSeparator />
-									<DropdownMenuItem 
-										onClick={() => onDelete(subject)}
-										className="text-red-600 focus:text-red-600"
-									>
-										<Trash2 className="mr-2 size-4" />
-										<span>Delete</span>
-									</DropdownMenuItem>
-								</>
-							)}
+							<>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem 
+									onClick={() => onDelete(subject)}
+									className="text-red-600 focus:text-red-600"
+								>
+									<Trash2 className="mr-2 size-4" />
+									<span>Delete</span>
+								</DropdownMenuItem>
+							</>
 						</DropdownMenuContent>
 					</DropdownMenu>
 				</div>

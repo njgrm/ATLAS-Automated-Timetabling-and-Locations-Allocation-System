@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { inferSubjectProgramScopes } from './subject-program-scope.service.js';
-import { resolveSubjectContractDefaults, resolveSubjectOwnerDepartmentCode, resolveSubjectQualificationPriority, resolveSubjectRotationFamily, resolveSubjectOutputLabel, } from './subject-ownership.service.js';
+import { resolveSubjectContractDefaults, resolveSubjectOwnerDepartmentCode, resolveSubjectQualificationPriority, resolveSubjectRotationFamily, resolveSubjectOutputLabel, mergeRequiredFeaturesWithAdditionalOwnerDepartments, resolveSubjectAllowedOwnerDepartments, } from './subject-ownership.service.js';
 const MATATAG_DEFAULTS = [
     // Core bundle shared by regular + offered special programs.
     { code: 'FIL', name: 'Filipino', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
@@ -15,8 +15,9 @@ const MATATAG_DEFAULTS = [
     { code: 'SCI_CHEM', name: 'Science - Chemistry', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'SCIENCE', modularOrder: 2, termGroupId: 'SCIENCE', termCount: 3, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
     { code: 'SCI_ES', name: 'Science - Earth Science', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'SCIENCE', modularOrder: 3, termGroupId: 'SCIENCE', termCount: 3, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
     { code: 'SCI_PHYS', name: 'Science - Physics (Transitional)', minMinutesPerWeek: 225, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'], isActive: false },
-    // Transitional regular TLE row retained for compatibility while exploratory/specialization rows are materialized.
-    { code: 'TLE', name: 'Technology and Livelihood Education', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR'] },
+    // Transitional umbrella TLE row retained for compatibility only.
+    // It is explicitly non-seedable so exploratory rows remain the active schedulable contract.
+    { code: 'TLE', name: 'Technology and Livelihood Education', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'] },
     // Exploratory TLE (Grades 7-8).
     { code: 'TLE_ICT_EXP', name: 'TLE Exploratory - ICT', minMinutesPerWeek: 225, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 1, programScopes: ['REGULAR'], allowedSpecializations: ['ICT'] },
     { code: 'TLE_AFA_EXP', name: 'TLE Exploratory - Agriculture and Fishery Arts', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 2, programScopes: ['REGULAR'], allowedSpecializations: ['AFA'] },
@@ -26,7 +27,7 @@ const MATATAG_DEFAULTS = [
     { code: 'STE_BIOTECH', name: 'Biotechnology', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [8], isSeedable: false, programScopes: ['STE'] },
     { code: 'STE_APPLIED_CHEM', name: 'Applied Chemistry', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [9], isSeedable: false, programScopes: ['STE'] },
     { code: 'STE_APPLIED_PHYS', name: 'Applied Physics', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [10], isSeedable: false, programScopes: ['STE'] },
-    { code: 'STE_ROBOTICS', name: 'Robotics', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [10], isSeedable: false, programScopes: ['STE'] },
+    { code: 'STE_ROBOTICS', name: 'Robotics', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [10], isSeedable: false, programScopes: ['STE'], allowedOwnerDepartments: ['TLE'] },
     { code: 'STE_RESEARCH', name: 'Research', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['STE'] },
     // SPA / SPS umbrella specialization overlays.
     { code: 'SPA_SPEC', name: 'Special Program in the Arts: Specialization', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'], allowedSpecializations: ['MUSIC', 'VISUAL_ARTS', 'THEATER_ARTS', 'MEDIA_ARTS', 'CREATIVE_WRITING', 'DANCE', 'TRADITIONAL_ARTS'] },
@@ -74,6 +75,7 @@ const DYNAMIC_TLE_PREFIX = 'TLE_SPEC_';
 function withSubjectViewMetadata(subject) {
     const outputLabel = subject.outputLabel?.trim();
     const ownerDepartment = subject.ownerDepartment ?? resolveSubjectOwnerDepartmentCode(subject.code, subject.name);
+    const allowedOwnerDepartments = resolveSubjectAllowedOwnerDepartments(subject.ownerDepartment, subject.code, subject.name, subject.requiredFeatures);
     const qualificationPriority = resolveSubjectQualificationPriority(subject.code, subject.qualificationPriority ?? null);
     const rotationFamily = subject.rotationFamily ?? resolveSubjectRotationFamily(subject.code, subject.modularGroupId ?? null);
     const isSystemManaged = subject.isSystemManaged === true;
@@ -83,6 +85,7 @@ function withSubjectViewMetadata(subject) {
             ? outputLabel
             : resolveSubjectOutputLabel(subject.code, subject.name, subject.modularGroupId ?? null),
         ownerDepartment,
+        allowedOwnerDepartments,
         qualificationPriority,
         rotationFamily,
         specializationSource: (subject.allowedSpecializations ?? []).length > 0 ? 'REFERENCE_METADATA' : 'NONE',
@@ -311,6 +314,7 @@ function buildSubjectContractData(subject) {
         rotationFamily: subject.rotationFamily ?? defaults.rotationFamily,
         outputLabel: subject.outputLabel?.trim() || defaults.outputLabel,
         isSystemManaged: subject.isSystemManaged ?? defaults.isSystemManaged,
+        requiredFeatures: mergeRequiredFeaturesWithAdditionalOwnerDepartments(subject.requiredFeatures, subject.allowedOwnerDepartments),
     };
 }
 let subjectContractSchemaReady = null;
@@ -439,7 +443,7 @@ export async function ensureDefaultSubjects(schoolId) {
                 gradeLevels: subject.gradeLevels,
                 programScopes: subject.programScopes,
                 allowedSpecializations: subject.allowedSpecializations ?? [],
-                requiredFeatures: subject.requiredFeatures ?? [],
+                requiredFeatures: contract.requiredFeatures,
                 isSeedable: subject.isSeedable,
                 isActive: subject.isActive ?? true,
                 ownerDepartment: contract.ownerDepartment,
@@ -461,7 +465,7 @@ export async function ensureDefaultSubjects(schoolId) {
                 gradeLevels: subject.gradeLevels,
                 programScopes: subject.programScopes,
                 allowedSpecializations: subject.allowedSpecializations ?? [],
-                requiredFeatures: subject.requiredFeatures ?? [],
+                requiredFeatures: contract.requiredFeatures,
                 isSeedable: subject.isSeedable,
                 isActive: subject.isActive ?? true,
                 ownerDepartment: contract.ownerDepartment,
@@ -668,6 +672,8 @@ export async function createSubject(schoolId, data) {
         rotationFamily: data.rotationFamily,
         outputLabel: data.outputLabel,
         isSystemManaged: data.isSystemManaged,
+        requiredFeatures: data.requiredFeatures,
+        allowedOwnerDepartments: data.allowedOwnerDepartments,
     });
     return prisma.subject.create({
         data: {
@@ -687,7 +693,7 @@ export async function createSubject(schoolId, data) {
             termCount: data.termCount ?? 3,
             programScopes: data.programScopes ?? ['REGULAR'],
             allowedSpecializations: data.allowedSpecializations ?? [],
-            requiredFeatures: data.requiredFeatures ?? [],
+            requiredFeatures: contract.requiredFeatures,
             ownerDepartment: contract.ownerDepartment,
             qualificationPriority: contract.qualificationPriority,
             rotationFamily: contract.rotationFamily,
@@ -711,6 +717,7 @@ export async function updateSubject(id, data) {
     }
     // Seedable subjects can update name, minMinutesPerWeek, gradeLevels, and programScopes
     if (subject.isSeedable) {
+        const resolvedRequiredFeatures = mergeRequiredFeaturesWithAdditionalOwnerDepartments(data.requiredFeatures ?? subject.requiredFeatures, data.allowedOwnerDepartments);
         const allowed = {};
         if (data.name !== undefined)
             allowed.name = data.name;
@@ -736,8 +743,9 @@ export async function updateSubject(id, data) {
             allowed.programScopes = data.programScopes;
         if (data.allowedSpecializations !== undefined)
             allowed.allowedSpecializations = data.allowedSpecializations;
-        if (data.requiredFeatures !== undefined)
-            allowed.requiredFeatures = data.requiredFeatures;
+        if (data.requiredFeatures !== undefined || data.allowedOwnerDepartments !== undefined) {
+            allowed.requiredFeatures = resolvedRequiredFeatures;
+        }
         if (data.ownerDepartment !== undefined)
             allowed.ownerDepartment = data.ownerDepartment;
         if (data.qualificationPriority !== undefined)
@@ -751,6 +759,7 @@ export async function updateSubject(id, data) {
         return prisma.subject.update({ where: { id }, data: allowed });
     }
     const updateData = {};
+    const resolvedRequiredFeatures = mergeRequiredFeaturesWithAdditionalOwnerDepartments(data.requiredFeatures ?? subject.requiredFeatures, data.allowedOwnerDepartments);
     if (data.name !== undefined)
         updateData.name = data.name;
     if (data.minMinutesPerWeek !== undefined)
@@ -779,8 +788,9 @@ export async function updateSubject(id, data) {
         updateData.programScopes = data.programScopes;
     if (data.allowedSpecializations !== undefined)
         updateData.allowedSpecializations = data.allowedSpecializations;
-    if (data.requiredFeatures !== undefined)
-        updateData.requiredFeatures = data.requiredFeatures;
+    if (data.requiredFeatures !== undefined || data.allowedOwnerDepartments !== undefined) {
+        updateData.requiredFeatures = resolvedRequiredFeatures;
+    }
     if (data.ownerDepartment !== undefined)
         updateData.ownerDepartment = data.ownerDepartment;
     if (data.qualificationPriority !== undefined)
@@ -804,9 +814,6 @@ export async function deleteSubject(id, options) {
     });
     if (!subject) {
         return { success: false, code: 'NOT_FOUND', error: 'Subject not found.' };
-    }
-    if (subject.isSeedable) {
-        return { success: false, code: 'SEEDABLE_SUBJECT', error: 'DepEd standard subjects cannot be deleted.' };
     }
     const assignments = await prisma.facultySubject.findMany({
         where: { subjectId: id },

@@ -40,7 +40,7 @@ export async function seedQualifiedAssignments(
 				schoolId,
 				isActive: true,
 			},
-			select: { id: true, code: true, name: true, ownerDepartment: true },
+			select: { id: true, code: true, name: true, ownerDepartment: true, requiredFeatures: true },
 		}),
 	]);
 
@@ -51,7 +51,7 @@ export async function seedQualifiedAssignments(
 		if (!member.department) continue;
 
 		for (const subject of subjects) {
-			if (!matchesSubjectOwnershipDepartment(member.department, subject.code, subject.name, subject.ownerDepartment)) {
+			if (!matchesSubjectOwnershipDepartment(member.department, subject.code, subject.name, subject.ownerDepartment, subject.requiredFeatures)) {
 				continue;
 			}
 

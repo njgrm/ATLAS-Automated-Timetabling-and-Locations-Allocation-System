@@ -1,7 +1,11 @@
 import { prisma } from '../lib/prisma.js';
 import { sectionAdapter } from './section-adapter.js';
 import { HG_SUBJECT_CODE } from './hg-advisory.service.js';
-import { matchesSubjectOwnershipDepartment, resolveSubjectRotationFamily } from './subject-ownership.service.js';
+import {
+  matchesSubjectOwnershipDepartment,
+  resolveSubjectAllowedOwnerDepartments,
+  resolveSubjectRotationFamily,
+} from './subject-ownership.service.js';
 import {
   buildSectionRosterIndex,
   deriveGradeLevelsFromSectionIds,
@@ -590,7 +594,16 @@ async function loadCoverageContext(schoolId: number, schoolYearId: number, authT
     sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken),
     prisma.subject.findMany({
       where: { schoolId, isActive: true },
-      select: { id: true, code: true, name: true, isActive: true, ownerDepartment: true, gradeLevels: true, programScopes: true },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        isActive: true,
+        ownerDepartment: true,
+        requiredFeatures: true,
+        gradeLevels: true,
+        programScopes: true,
+      },
       orderBy: { code: 'asc' },
     }),
     prisma.subjectSectionOwnership.findMany({
@@ -940,6 +953,7 @@ export async function previewOrApplyRealFacultyRecovery(
         code: true,
         name: true,
         ownerDepartment: true,
+        requiredFeatures: true,
         rotationFamily: true,
         minMinutesPerWeek: true,
         allowedSpecializations: true,
@@ -1097,10 +1111,32 @@ export async function previewOrApplyRealFacultyRecovery(
       continue;
     }
 
+    const ownerDepartments = resolveSubjectAllowedOwnerDepartments(
+      subject.ownerDepartment,
+      subject.code,
+      subject.name,
+      subject.requiredFeatures,
+    );
+    if (ownerDepartments.length === 0) {
+      blockers.push({
+        subjectCode: subject.code,
+        sectionId: pair.sectionId,
+        category: 'SUBJECT_CONTRACT_GAP',
+        reason: `${subject.code} has no owner department contract configured for qualification matching.`,
+      });
+      continue;
+    }
+
     const candidates = facultyRows
       .filter((member) => !member.isPlaceholder)
       .filter((member) =>
-        matchesSubjectOwnershipDepartment(member.department, subject.code, subject.name, subject.ownerDepartment)
+        matchesSubjectOwnershipDepartment(
+          member.department,
+          subject.code,
+          subject.name,
+          subject.ownerDepartment,
+          subject.requiredFeatures,
+        )
         || member.canTeachOutsideDepartment,
       )
       .sort((left, right) => {
@@ -1356,6 +1392,23 @@ export async function previewOrApplyRealFacultyRecovery(
     });
   }
 
+  if ((afterSummary.integrityDiagnostics.currentYearMissingOwnershipPairs ?? 0) > 0) {
+    blockers.push({
+      subjectCode: 'INTEGRITY',
+      sectionId: 0,
+      category: 'UNRESOLVED_AUTOMATION_SEED_BIAS',
+      reason: `Found ${afterSummary.integrityDiagnostics.currentYearMissingOwnershipPairs} current-year missing ownership pairs.`,
+    });
+  }
+  if ((afterSummary.integrityDiagnostics.currentYearOwnershipWithoutMatchingScopePairs ?? 0) > 0) {
+    blockers.push({
+      subjectCode: 'INTEGRITY',
+      sectionId: 0,
+      category: 'UNRESOLVED_AUTOMATION_SEED_BIAS',
+      reason: `Found ${afterSummary.integrityDiagnostics.currentYearOwnershipWithoutMatchingScopePairs} ownership-without-scope pairs.`,
+    });
+  }
+
   const blockerCounts = {
     trueDepartmentShortage: blockers.filter((entry) => entry.category === 'TRUE_DEPARTMENT_SHORTAGE').length,
     skewedAssignmentTopology: blockers.filter((entry) => entry.category === 'SKEWED_ASSIGNMENT_TOPOLOGY').length,
@@ -1567,7 +1620,13 @@ export async function previewOrApplySpecialProgramRedistribution(
     const qualifiedCandidates = allFaculty
       .filter((member) => member.isActiveForScheduling && !member.isPlaceholder)
       .filter((member) =>
-        matchesSubjectOwnershipDepartment(member.department, subject.code, subject.name, subject.ownerDepartment)
+        matchesSubjectOwnershipDepartment(
+          member.department,
+          subject.code,
+          subject.name,
+          subject.ownerDepartment,
+          subject.requiredFeatures,
+        )
         || member.canTeachOutsideDepartment,
       );
 

@@ -969,7 +969,13 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	}
 
 	function isFacultyQualified(f: FacultyInput, s: SubjectInput): boolean {
-		const departmentMatch = matchesSubjectOwnershipDepartment(f.department, s.code, s.name, s.ownerDepartment);
+		const departmentMatch = matchesSubjectOwnershipDepartment(
+			f.department,
+			s.code,
+			s.name,
+			s.ownerDepartment,
+			s.requiredFeatures,
+		);
 
 		if (departmentMatch) {
 			return true;
