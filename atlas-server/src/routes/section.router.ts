@@ -3,10 +3,18 @@ import type { Request, Response, NextFunction } from 'express';
 import { authenticate, authenticateWithSystemToken } from '../middleware/authenticate.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as sectionService from '../services/section.service.js';
+import * as assignmentService from '../services/faculty-assignment.service.js';
 import { syncSectionsFromExternal } from '../services/section.service.js';
 import { sectionSourceMode, fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
 
 const router = Router();
+
+function parseBooleanQueryFlag(value: unknown): boolean {
+	if (typeof value === 'boolean') return value;
+	if (typeof value !== 'string') return false;
+	const normalized = value.trim().toLowerCase();
+	return normalized === 'true' || normalized === '1' || normalized === 'yes';
+}
 
 // Auth: GET /sections/summary/:schoolYearId
 router.get('/summary/:schoolYearId', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
@@ -37,6 +45,65 @@ router.get('/summary/:schoolYearId', authenticate, requirePrivilegedRole, async 
 			});
 			return;
 		}
+		next(err);
+	}
+});
+
+// Auth: GET /sections/assigned-classes?schoolId=X&schoolYearId=Y&includeDiagnostics=true
+router.get('/assigned-classes', authenticateWithSystemToken, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.query.schoolId);
+		const schoolYearId = Number(req.query.schoolYearId);
+		if (!Number.isInteger(schoolId) || schoolId <= 0) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required and must be a positive integer.' });
+			return;
+		}
+		if (!Number.isInteger(schoolYearId) || schoolYearId <= 0) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId query parameter is required and must be a positive integer.' });
+			return;
+		}
+
+		const includeDiagnostics = parseBooleanQueryFlag(req.query.includeDiagnostics);
+		const authToken = req.headers.authorization?.slice(7);
+		const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
+		const payload = await assignmentService.getSectionAssignedClassesIndex(schoolId, schoolYearId, upstreamAuthToken, {
+			includeDiagnostics,
+		});
+
+		res.json(payload);
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: GET /sections/:sectionId/assigned-classes?schoolYearId=Y&includeDiagnostics=true
+router.get('/:sectionId/assigned-classes', authenticateWithSystemToken, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const sectionId = Number(req.params.sectionId);
+		const schoolYearId = Number(req.query.schoolYearId);
+		if (!Number.isInteger(sectionId) || sectionId <= 0) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'sectionId must be a positive integer.' });
+			return;
+		}
+		if (!Number.isInteger(schoolYearId) || schoolYearId <= 0) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId query parameter is required and must be a positive integer.' });
+			return;
+		}
+
+		const includeDiagnostics = parseBooleanQueryFlag(req.query.includeDiagnostics);
+		const authToken = req.headers.authorization?.slice(7);
+		const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
+		const payload = await assignmentService.getSectionAssignedClasses(sectionId, schoolYearId, upstreamAuthToken, {
+			includeDiagnostics,
+		});
+
+		if (!payload) {
+			res.status(404).json({ code: 'NOT_FOUND', message: 'Section not found in active school-year scope.' });
+			return;
+		}
+
+		res.json(payload);
+	} catch (err) {
 		next(err);
 	}
 });

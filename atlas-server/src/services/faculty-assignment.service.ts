@@ -4,6 +4,7 @@ import { HG_SUBJECT_CODE } from './hg-advisory.service.js';
 import {
   matchesSubjectOwnershipDepartment,
   resolveSubjectAllowedOwnerDepartments,
+  resolveSubjectOutputLabel,
   resolveSubjectRotationFamily,
 } from './subject-ownership.service.js';
 import {
@@ -525,6 +526,71 @@ export interface ActiveSubjectCoverageSummary {
   fullyCoveredSubjectCodes: string[];
 }
 
+export interface SectionAssignedClassRow {
+  subjectId: number;
+  subjectCode: string;
+  subjectName: string;
+  subjectDisplayLabel: string;
+  minMinutesPerWeek: number;
+  rotationFamily: string | null;
+  facultyId: number;
+  facultyName: string;
+  facultyDepartment: string | null;
+  facultySpecialization: string | null;
+  assignmentKind: 'REAL_OWNERSHIP';
+  specializationCode: string | null;
+  specializationLabel: string | null;
+}
+
+export interface SectionStaleOwnershipDiagnosticRow {
+  subjectId: number;
+  subjectCode: string;
+  subjectName: string;
+  sectionId: number;
+  facultyId: number;
+  facultyName: string;
+  reason: 'STALE_OWNERSHIP' | 'INACTIVE_OWNERSHIP';
+}
+
+export interface SectionUnassignedExpectedClassRow {
+  subjectId: number;
+  subjectCode: string;
+  subjectName: string;
+  subjectDisplayLabel: string;
+  minMinutesPerWeek: number;
+  rotationFamily: string | null;
+}
+
+export interface SectionAssignedClassesTotals {
+  assignedClassCount: number;
+  rotationFamilyClassCount: number;
+  unassignedClassCount: number;
+}
+
+export interface SectionAssignedClassesResult {
+  sectionId: number;
+  sectionName: string;
+  gradeLevel: number;
+  programType: string;
+  schoolYearId: number;
+  classes: SectionAssignedClassRow[];
+  totals: SectionAssignedClassesTotals;
+  staleOwnership?: SectionStaleOwnershipDiagnosticRow[];
+  unassignedExpectedClasses?: SectionUnassignedExpectedClassRow[];
+}
+
+export interface SectionAssignedClassesIndexResult {
+  schoolId: number;
+  schoolYearId: number;
+  sections: SectionAssignedClassesResult[];
+  fetchedAt: string;
+}
+
+export interface SectionAssignedClassesQueryOptions {
+  includeDiagnostics?: boolean;
+  sectionIds?: number[];
+}
+
 export interface PlaceholderCoverageRepairInput {
   schoolId: number;
   schoolYearId: number;
@@ -732,6 +798,285 @@ export async function getActiveSubjectCoverageSummary(
     partiallyCoveredSubjectCodes: sortedRows.filter((row) => row.status === 'PARTIAL').map((row) => row.subjectCode),
     fullyCoveredSubjectCodes: sortedRows.filter((row) => row.status === 'FULL').map((row) => row.subjectCode),
   };
+}
+
+export async function getSectionAssignedClassesIndex(
+  schoolId: number,
+  schoolYearId: number,
+  authToken?: string,
+  options?: SectionAssignedClassesQueryOptions,
+): Promise<SectionAssignedClassesIndexResult> {
+  const includeDiagnostics = options?.includeDiagnostics === true;
+  const sectionFilter = options?.sectionIds && options.sectionIds.length > 0
+    ? new Set(options.sectionIds.filter((value) => Number.isInteger(value) && value > 0))
+    : null;
+
+  const rosterIndex = await buildRosterIndex(schoolId, schoolYearId, authToken);
+  const sectionScope = Array.from(rosterIndex.sectionMap.values())
+    .filter((section) => (sectionFilter ? sectionFilter.has(section.id) : true))
+    .map((section) => ({
+      id: section.id,
+      name: section.name,
+      gradeLevel: section.displayOrder,
+      programType: section.programType ?? 'REGULAR',
+    }))
+    .sort((left, right) => {
+      if (left.gradeLevel !== right.gradeLevel) return left.gradeLevel - right.gradeLevel;
+      return left.name.localeCompare(right.name) || left.id - right.id;
+    });
+
+  if (sectionScope.length === 0) {
+    return {
+      schoolId,
+      schoolYearId,
+      sections: [],
+      fetchedAt: new Date().toISOString(),
+    };
+  }
+
+  const sectionIds = sectionScope.map((section) => section.id);
+  const sectionById = new Map(sectionScope.map((section) => [section.id, section]));
+
+  const subjects = await prisma.subject.findMany({
+    where: {
+      schoolId,
+      isActive: true,
+      code: { not: HG_SUBJECT_CODE },
+    },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      outputLabel: true,
+      modularGroupId: true,
+      minMinutesPerWeek: true,
+      rotationFamily: true,
+      gradeLevels: true,
+      programScopes: true,
+    },
+    orderBy: { code: 'asc' },
+  });
+
+  const subjectById = new Map(subjects.map((subject) => [subject.id, subject]));
+  const subjectIds = subjects.map((subject) => subject.id);
+  if (subjectIds.length === 0) {
+    return {
+      schoolId,
+      schoolYearId,
+      sections: sectionScope.map((section) => ({
+        sectionId: section.id,
+        sectionName: section.name,
+        gradeLevel: section.gradeLevel,
+        programType: section.programType,
+        schoolYearId,
+        classes: [],
+        totals: {
+          assignedClassCount: 0,
+          rotationFamilyClassCount: 0,
+          unassignedClassCount: 0,
+        },
+        ...(includeDiagnostics
+          ? { staleOwnership: [], unassignedExpectedClasses: [] }
+          : {}),
+      })),
+      fetchedAt: new Date().toISOString(),
+    };
+  }
+
+  const expectedSubjectIdsBySection = new Map<number, Set<number>>();
+  for (const section of sectionScope) {
+    expectedSubjectIdsBySection.set(section.id, new Set<number>());
+  }
+  for (const subject of subjects) {
+    const relevantSectionIds = getRelevantSectionIdsForSubject(subject, sectionScope);
+    for (const sectionId of relevantSectionIds) {
+      expectedSubjectIdsBySection.get(sectionId)?.add(subject.id);
+    }
+  }
+
+  const ownershipRows = await prisma.subjectSectionOwnership.findMany({
+    where: {
+      schoolId,
+      sectionId: { in: sectionIds },
+      subjectId: { in: subjectIds },
+    },
+    select: {
+      subjectId: true,
+      sectionId: true,
+      facultyId: true,
+      specializationCode: true,
+      specializationLabel: true,
+    },
+  });
+
+  const ownershipFacultyIds = Array.from(new Set(ownershipRows.map((row) => row.facultyId)));
+  const facultyById = ownershipFacultyIds.length > 0
+    ? await prisma.facultyMirror.findMany({
+      where: { id: { in: ownershipFacultyIds } },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        department: true,
+        specialization: true,
+        isPlaceholder: true,
+        isStale: true,
+        isActiveForScheduling: true,
+      },
+    })
+    : [];
+  const facultyIndex = new Map(facultyById.map((row) => [row.id, row]));
+
+  const classesBySection = new Map<number, SectionAssignedClassRow[]>();
+  const staleOwnershipBySection = new Map<number, SectionStaleOwnershipDiagnosticRow[]>();
+  const assignedSubjectIdsBySection = new Map<number, Set<number>>();
+  for (const section of sectionScope) {
+    classesBySection.set(section.id, []);
+    staleOwnershipBySection.set(section.id, []);
+    assignedSubjectIdsBySection.set(section.id, new Set<number>());
+  }
+
+  for (const row of ownershipRows) {
+    const section = sectionById.get(row.sectionId);
+    const subject = subjectById.get(row.subjectId);
+    const faculty = facultyIndex.get(row.facultyId);
+    if (!section || !subject || !faculty) {
+      continue;
+    }
+
+    const isEligibleActiveOwner = faculty.isActiveForScheduling === true && faculty.isStale !== true;
+    const isSyntheticOwner = faculty.isPlaceholder === true;
+
+    if (includeDiagnostics && (!isEligibleActiveOwner || faculty.isStale === true)) {
+      staleOwnershipBySection.get(section.id)?.push({
+        subjectId: subject.id,
+        subjectCode: subject.code,
+        subjectName: subject.name,
+        sectionId: section.id,
+        facultyId: faculty.id,
+        facultyName: formatFacultyName(faculty.firstName, faculty.lastName),
+        reason: faculty.isStale === true ? 'STALE_OWNERSHIP' : 'INACTIVE_OWNERSHIP',
+      });
+    }
+
+    if (!isEligibleActiveOwner || isSyntheticOwner) {
+      continue;
+    }
+
+    const classes = classesBySection.get(section.id);
+    if (!classes) {
+      continue;
+    }
+
+    classes.push({
+      subjectId: subject.id,
+      subjectCode: subject.code,
+      subjectName: subject.name,
+      subjectDisplayLabel:
+        subject.outputLabel?.trim() ||
+        resolveSubjectOutputLabel(subject.code, subject.name, subject.modularGroupId ?? null),
+      minMinutesPerWeek: subject.minMinutesPerWeek,
+      rotationFamily: normalizeRotationFamily(subject.rotationFamily) ??
+        normalizeRotationFamily(resolveSubjectRotationFamily(subject.code, subject.modularGroupId ?? null)),
+      facultyId: faculty.id,
+      facultyName: formatFacultyName(faculty.firstName, faculty.lastName),
+      facultyDepartment: faculty.department,
+      facultySpecialization: faculty.specialization,
+      assignmentKind: 'REAL_OWNERSHIP',
+      specializationCode: row.specializationCode ?? null,
+      specializationLabel: row.specializationLabel ?? null,
+    });
+    assignedSubjectIdsBySection.get(section.id)?.add(subject.id);
+  }
+
+  const sections: SectionAssignedClassesResult[] = sectionScope.map((section) => {
+    const sectionClasses = classesBySection.get(section.id) ?? [];
+    const sortedClasses = sectionClasses.sort((left, right) => {
+      if (left.subjectCode !== right.subjectCode) return left.subjectCode.localeCompare(right.subjectCode);
+      return left.facultyName.localeCompare(right.facultyName);
+    });
+
+    const expectedSubjectIds = expectedSubjectIdsBySection.get(section.id) ?? new Set<number>();
+    const assignedSubjectIds = assignedSubjectIdsBySection.get(section.id) ?? new Set<number>();
+    const unassignedExpectedSubjects = Array.from(expectedSubjectIds)
+      .filter((subjectId) => !assignedSubjectIds.has(subjectId))
+      .map((subjectId) => subjectById.get(subjectId))
+      .filter((subject): subject is NonNullable<typeof subject> => subject != null)
+      .map<SectionUnassignedExpectedClassRow>((subject) => ({
+        subjectId: subject.id,
+        subjectCode: subject.code,
+        subjectName: subject.name,
+        subjectDisplayLabel:
+          subject.outputLabel?.trim() ||
+          resolveSubjectOutputLabel(subject.code, subject.name, subject.modularGroupId ?? null),
+        minMinutesPerWeek: subject.minMinutesPerWeek,
+        rotationFamily: normalizeRotationFamily(subject.rotationFamily) ??
+          normalizeRotationFamily(resolveSubjectRotationFamily(subject.code, subject.modularGroupId ?? null)),
+      }))
+      .sort((left, right) => left.subjectCode.localeCompare(right.subjectCode));
+
+    const totals: SectionAssignedClassesTotals = {
+      assignedClassCount: sortedClasses.length,
+      rotationFamilyClassCount: sortedClasses.filter((entry) => Boolean(entry.rotationFamily)).length,
+      unassignedClassCount: unassignedExpectedSubjects.length,
+    };
+
+    const sectionResult: SectionAssignedClassesResult = {
+      sectionId: section.id,
+      sectionName: section.name,
+      gradeLevel: section.gradeLevel,
+      programType: section.programType,
+      schoolYearId,
+      classes: sortedClasses,
+      totals,
+    };
+
+    if (includeDiagnostics) {
+      sectionResult.staleOwnership = (staleOwnershipBySection.get(section.id) ?? []).sort((left, right) => {
+        if (left.subjectCode !== right.subjectCode) return left.subjectCode.localeCompare(right.subjectCode);
+        return left.facultyName.localeCompare(right.facultyName);
+      });
+      sectionResult.unassignedExpectedClasses = unassignedExpectedSubjects;
+    }
+
+    return sectionResult;
+  });
+
+  return {
+    schoolId,
+    schoolYearId,
+    sections,
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+export async function getSectionAssignedClasses(
+  sectionId: number,
+  schoolYearId: number,
+  authToken?: string,
+  options?: { schoolId?: number; includeDiagnostics?: boolean },
+): Promise<SectionAssignedClassesResult | null> {
+  const resolvedSchoolId = options?.schoolId ?? (
+    await prisma.sectionMirror.findFirst({
+      where: {
+        externalId: sectionId,
+        schoolYearId,
+        isActiveForScheduling: true,
+      },
+      select: { schoolId: true },
+    })
+  )?.schoolId;
+
+  if (!resolvedSchoolId) {
+    return null;
+  }
+
+  const result = await getSectionAssignedClassesIndex(resolvedSchoolId, schoolYearId, authToken, {
+    includeDiagnostics: options?.includeDiagnostics,
+    sectionIds: [sectionId],
+  });
+
+  return result.sections[0] ?? null;
 }
 
 function coveredStatus(ownedCount: number, relevantCount: number): 'FULL' | 'PARTIAL' | 'ZERO' {

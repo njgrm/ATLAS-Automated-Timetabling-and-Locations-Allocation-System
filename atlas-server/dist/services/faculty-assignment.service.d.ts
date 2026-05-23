@@ -233,6 +233,64 @@ export interface ActiveSubjectCoverageSummary {
     partiallyCoveredSubjectCodes: string[];
     fullyCoveredSubjectCodes: string[];
 }
+export interface SectionAssignedClassRow {
+    subjectId: number;
+    subjectCode: string;
+    subjectName: string;
+    subjectDisplayLabel: string;
+    minMinutesPerWeek: number;
+    rotationFamily: string | null;
+    facultyId: number;
+    facultyName: string;
+    facultyDepartment: string | null;
+    facultySpecialization: string | null;
+    assignmentKind: 'REAL_OWNERSHIP';
+    specializationCode: string | null;
+    specializationLabel: string | null;
+}
+export interface SectionStaleOwnershipDiagnosticRow {
+    subjectId: number;
+    subjectCode: string;
+    subjectName: string;
+    sectionId: number;
+    facultyId: number;
+    facultyName: string;
+    reason: 'STALE_OWNERSHIP' | 'INACTIVE_OWNERSHIP';
+}
+export interface SectionUnassignedExpectedClassRow {
+    subjectId: number;
+    subjectCode: string;
+    subjectName: string;
+    subjectDisplayLabel: string;
+    minMinutesPerWeek: number;
+    rotationFamily: string | null;
+}
+export interface SectionAssignedClassesTotals {
+    assignedClassCount: number;
+    rotationFamilyClassCount: number;
+    unassignedClassCount: number;
+}
+export interface SectionAssignedClassesResult {
+    sectionId: number;
+    sectionName: string;
+    gradeLevel: number;
+    programType: string;
+    schoolYearId: number;
+    classes: SectionAssignedClassRow[];
+    totals: SectionAssignedClassesTotals;
+    staleOwnership?: SectionStaleOwnershipDiagnosticRow[];
+    unassignedExpectedClasses?: SectionUnassignedExpectedClassRow[];
+}
+export interface SectionAssignedClassesIndexResult {
+    schoolId: number;
+    schoolYearId: number;
+    sections: SectionAssignedClassesResult[];
+    fetchedAt: string;
+}
+export interface SectionAssignedClassesQueryOptions {
+    includeDiagnostics?: boolean;
+    sectionIds?: number[];
+}
 export interface PlaceholderCoverageRepairInput {
     schoolId: number;
     schoolYearId: number;
@@ -332,6 +390,11 @@ export interface RealFacultyRecoveryResult {
     };
 }
 export declare function getActiveSubjectCoverageSummary(schoolId: number, schoolYearId: number, authToken?: string): Promise<ActiveSubjectCoverageSummary>;
+export declare function getSectionAssignedClassesIndex(schoolId: number, schoolYearId: number, authToken?: string, options?: SectionAssignedClassesQueryOptions): Promise<SectionAssignedClassesIndexResult>;
+export declare function getSectionAssignedClasses(sectionId: number, schoolYearId: number, authToken?: string, options?: {
+    schoolId?: number;
+    includeDiagnostics?: boolean;
+}): Promise<SectionAssignedClassesResult | null>;
 export declare function repairActiveSubjectCoverageWithPlaceholders(input: PlaceholderCoverageRepairInput): Promise<PlaceholderCoverageRepairResult>;
 export declare function previewOrApplyRealFacultyRecovery(input: RealFacultyRecoveryInput): Promise<RealFacultyRecoveryResult>;
 export declare function previewOrApplySpecialProgramRedistribution(input: SpecialProgramRebalanceInput): Promise<SpecialProgramRebalanceResult>;

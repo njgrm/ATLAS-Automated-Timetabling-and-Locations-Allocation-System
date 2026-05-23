@@ -1,3 +1,84 @@
+# 2026-05-23 - Phase 3 Teaching Load Section-First Read Model One-Shot
+- Phase: Phase 3 generator-readiness stream, section-first teaching-load read contract implementation
+- Operator: GitHub Copilot
+- Scope gate: PASS (implementation + backend build + required Tailnet parity verification)
+- Files changed in this pass:
+  - `atlas-server/src/services/faculty-assignment.service.ts`
+  - `atlas-server/src/routes/section.router.ts`
+  - `api/ATLAS-LIVE-TEACHING-LOAD-INTEGRATION.md`
+  - `api/ATLAS-SECTION-FIRST-TEACHING-LOAD-ENDPOINTS.md`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+  - `CHANGELOG.md`
+
+- Endpoint contracts implemented:
+  - `GET /api/v1/sections/:sectionId/assigned-classes?schoolYearId=<id>[&includeDiagnostics=true]`
+  - `GET /api/v1/sections/assigned-classes?schoolId=<id>&schoolYearId=<id>[&includeDiagnostics=true]`
+
+- Contract behavior delivered:
+  - Section-first live teaching-load rows now returned directly without faculty inversion.
+  - Normal `classes[]` output excludes stale ownership and excludes synthetic placeholder ownership.
+  - Class rows include required section-facing assignment identity fields:
+    - `subjectId`, `subjectCode`, `subjectName`, `subjectDisplayLabel`, `minMinutesPerWeek`, `rotationFamily`
+    - `facultyId`, `facultyName`, `facultyDepartment`, `facultySpecialization`
+    - `assignmentKind`, `specializationCode`, `specializationLabel`
+  - Optional diagnostics (`includeDiagnostics=true`) are separated from normal assigned classes:
+    - `staleOwnership[]`
+    - `unassignedExpectedClasses[]`
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+
+- Required Tailnet verification (`https://njgrm.buru-degree.ts.net`):
+  1) `GET /api/v1/sections/:sectionId/assigned-classes?schoolYearId=55`
+     - Probe section: `2779` (`ANDRES BONIFACIO`)
+     - `assignedClassCount=11`, `unassignedClassCount=1`
+     - `hasSyntheticOrNonRealRows=false`
+     - `includeDiagnostics=true` on same section returned `staleOwnershipCount=0`
+
+  2) `GET /api/v1/sections/assigned-classes?schoolId=1&schoolYearId=55`
+     - Returns direct schoolwide section index (`sectionCount=82`) with nested section rows and class rows.
+     - No downstream teacher inversion required.
+
+  3) Parity check versus coverage truth
+     - `GET /api/v1/faculty-assignments/coverage/summary?schoolId=1&schoolYearId=55`:
+       - `SCI_ES=82/82 uncovered (ZERO)`
+       - `SCI_CHEM=35/82 uncovered (PARTIAL)`
+       - `TLE_FCS_EXP=5/58 uncovered (PARTIAL)`
+       - `ENG=0/82 uncovered (FULL)`
+       - `FIL=0/82 uncovered (FULL)`
+     - `GET /api/v1/sections/assigned-classes?...&includeDiagnostics=true` aggregated diagnostics:
+       - `SCI_ES=82`
+       - `SCI_CHEM=35`
+       - `TLE_FCS_EXP=5`
+       - `ENG` absent from uncovered diagnostics
+       - `FIL` absent from uncovered diagnostics
+
+  4) Specialization identity checks
+     - `SPA_SPEC` / `SPS_SPEC` section rows preserve assignment-level specialization identity, e.g.:
+       - `SPA_SPEC -> DANCE`
+       - `SPS_SPEC -> SPORTS_SCIENCE`
+
+  5) Rotation-family metadata and ownership-only shape
+     - Section-first rows include `rotationFamily` values observed in live data: `SCIENCE`, `TLE_ROTATION`.
+     - Endpoint remains ownership-only (no timetable-slot fields): `day/start/end/room` fields absent in class rows.
+
+- Regression parity snapshot (unchanged from settled live truth):
+  - `/faculty-assignments/summary` coverage totals:
+    - `assignedPairs=840`, `rawAssignedPairs=840`, `unassignedPairs=122`, `rawUnassignedPairs=122`
+    - stale diagnostics remain clean: `staleOwnershipRowCount=0`, `staleOwnedCurrentYearPairCount=0`
+  - `/faculty-assignments/report/staffing-needs`:
+    - `unassignedSections=122`
+    - `missingMinutesPerWeek=27450`
+    - `missingHoursPerWeek=457.5`
+    - `concurrentUnassignedSections=87`
+    - `concurrentMissingHoursPerWeek=326.3`
+    - `rotationAdjustedMinutesPerWeek=7875`
+
+- GO/NO-GO:
+  - **GO** for this one-shot prompt scope.
+  - Section-first live read endpoints are implemented, parity-verified against summary/coverage/staffing truth, and preserve specialization/rotation-family identity without leaking stale or synthetic rows into normal assigned class output.
+
 # 2026-05-23 - Phase 3 Teaching Load Stale Ownership Reconciliation One-Shot
 - Phase: Phase 3 generator-readiness stream, backend truth reconciliation for stale current-year ownership rows
 - Operator: GitHub Copilot

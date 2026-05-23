@@ -2,7 +2,7 @@
 
 ## Status
 
-Planned contract. Not implemented yet.
+Implemented contract (2026-05-23).
 
 This file defines the dedicated section-first teaching-load endpoints required by:
 
@@ -32,7 +32,7 @@ This endpoint family is meant to answer:
 - Who is the teacher for each live assigned class in this section?
 - Which expected section classes are still unassigned or only diagnostically stale?
 
-## Proposed Endpoints
+## Implemented Endpoints
 
 ### 1. Section assigned classes summary
 
@@ -105,7 +105,7 @@ If included, the payload may add:
 - `staleOwnership`
 - `unassignedExpectedClasses`
 
-Suggested diagnostic payload shape:
+Diagnostic payload shape:
 
 ```json
 {
@@ -221,11 +221,8 @@ It should not include:
 
 Those remain the responsibility of published schedule endpoints.
 
-## Recommendation
+## Implementation Notes
 
-Implement these endpoints before treating section-class integration as finished.
-
-For now:
-
-- current integration can still use `GET /faculty-assignments/summary` as a temporary source
-- but the intended stable contract should be section-first
+- These endpoints are now the stable section-first contract for live teaching-load ownership.
+- `GET /faculty-assignments/summary` remains valid for faculty-first consumers and diagnostics.
+- Section-first consumers should use the `/sections/*/assigned-classes` family directly rather than inverting faculty rows.

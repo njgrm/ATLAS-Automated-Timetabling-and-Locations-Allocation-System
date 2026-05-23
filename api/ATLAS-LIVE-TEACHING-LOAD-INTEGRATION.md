@@ -35,8 +35,7 @@ Authorization: Bearer <token>
 Use this when you need:
 
 - school-wide live teaching load
-- section assignment coverage
-- temporary section assignment derivation from live teacher assignments
+- faculty-first diagnostics
 - coverage and integrity context for the same school year
 
 Top-level response fields:
@@ -48,20 +47,51 @@ Top-level response fields:
 - `schoolYearId`
 - `fetchedAt`
 
-### Temporary section-level integration rule
+### Section-first live endpoints (implemented)
 
-For section-assigned classes, use:
+Use these for section-centric consumers:
 
-- `faculty[].assignments`
-- then filter to `assignmentKind = "REAL_OWNERSHIP"`
-- then explode each assignment's `sections[]`
-- then group by `section.id`
+- `GET /sections/:sectionId/assigned-classes?schoolYearId=<id>[&includeDiagnostics=true]`
+- `GET /sections/assigned-classes?schoolId=<id>&schoolYearId=<id>[&includeDiagnostics=true]`
 
-This is the current safest live teaching-load source for section class ownership because it is aligned to the live faculty summary contract.
+These endpoints return section rows directly and remove the need to invert `faculty[].assignments[]` client-side.
 
-It is also only a temporary workaround.
+Normal `classes[]` rows are active/non-stale/non-placeholder ownership only.
+Optional diagnostics (`includeDiagnostics=true`) expose `staleOwnership` and `unassignedExpectedClasses` without polluting the normal class list.
 
-Downstream systems that are section-first should not be forced to invert teacher rows long-term.
+### Minimal section-first response example
+
+```json
+{
+  "sectionId": 2779,
+  "sectionName": "ANDRES BONIFACIO",
+  "gradeLevel": 7,
+  "programType": "REGULAR",
+  "schoolYearId": 55,
+  "classes": [
+    {
+      "subjectId": 3061,
+      "subjectCode": "SCI_BIO",
+      "subjectName": "Science - Biology",
+      "subjectDisplayLabel": "SCIENCE",
+      "minMinutesPerWeek": 225,
+      "rotationFamily": "SCIENCE",
+      "facultyId": 18286,
+      "facultyName": "PASCUAL, JOSEFINA",
+      "facultyDepartment": "SCI",
+      "facultySpecialization": "MAJOR IN CHEMISTRY",
+      "assignmentKind": "REAL_OWNERSHIP",
+      "specializationCode": null,
+      "specializationLabel": null
+    }
+  ],
+  "totals": {
+    "assignedClassCount": 11,
+    "rotationFamilyClassCount": 5,
+    "unassignedClassCount": 1
+  }
+}
+```
 
 ### Minimal response example
 
@@ -248,16 +278,15 @@ Do not infer staffing health only from the count of teacher assignment rows.
 
 For sister-system integration today:
 
-- use `GET /faculty-assignments/summary` as the school-wide source
-- derive section-assigned classes from `faculty[].assignments[]`
+- use `GET /sections/assigned-classes` for schoolwide section-first ownership reads
+- use `GET /sections/:sectionId/assigned-classes` for section-detail ownership reads
 - use `GET /faculty-assignments/:facultyId` for teacher-specific session detail
-- join with `/sections/summary` and `/subjects` for display labels
+- use `GET /faculty-assignments/summary` only for faculty-first diagnostics and integrity context
+- join with `/sections/summary` and `/subjects` when additional display metadata is needed
 
-## Required Next Contract
+## Section-First Contract Reference
 
-ATLAS still needs a dedicated section-first live teaching-load endpoint.
-
-That target contract is documented in:
+Section-first endpoint contract details remain documented in:
 
 - [ATLAS Section-First Teaching Load Endpoint Spec](./ATLAS-SECTION-FIRST-TEACHING-LOAD-ENDPOINTS.md)
 

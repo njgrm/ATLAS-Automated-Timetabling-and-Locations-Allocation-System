@@ -506,25 +506,26 @@ Important:
 - these teaching-load endpoints do not include timetable day/time slots
 - for final scheduled meetings, use published schedule endpoints instead
 
-### Planned Section-First Live Teaching Load Endpoint
+### Section-First Live Teaching Load Endpoint
 
-ATLAS does not yet expose a dedicated section-first teaching-load endpoint.
+ATLAS now exposes dedicated section-first live teaching-load endpoints.
 
-The target contract for downstream systems is documented in:
+The implemented contract for downstream systems is documented in:
 
 - `api/ATLAS-SECTION-FIRST-TEACHING-LOAD-ENDPOINTS.md`
 
-Use that planned endpoint family for:
+Use that endpoint family for:
 
 - assigned classes per section
 - section-first class plus teacher breakdowns
 - the upcoming `Sections` page live teaching-load breakdown
 
-Current state:
+Implemented endpoints:
 
 - teacher-specific live assigned sessions are implemented on `GET /faculty-assignments/:facultyId?schoolYearId=<id>`
-- section-specific live assigned classes are not yet implemented as a dedicated endpoint
-- until that lands, section consumers must temporarily derive section ownership from `GET /faculty-assignments/summary`
+- section-specific live assigned classes are implemented on `GET /sections/:sectionId/assigned-classes?schoolYearId=<id>`
+- school-wide section-first assigned-class index is implemented on `GET /sections/assigned-classes?schoolId=<id>&schoolYearId=<id>`
+- section consumers should no longer derive section ownership from `GET /faculty-assignments/summary` unless they explicitly need faculty-first diagnostics
 
 ## Sections
 
