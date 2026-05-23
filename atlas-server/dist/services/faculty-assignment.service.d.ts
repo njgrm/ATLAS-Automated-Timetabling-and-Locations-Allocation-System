@@ -68,10 +68,13 @@ export type AssignmentSpecializationIdentity = {
 export type TeachingLoadAssignmentKind = 'REAL_OWNERSHIP' | 'BASELINE_ONLY' | 'MISSING_OWNERSHIP';
 export interface TeachingLoadCoverageTotals {
     assignedPairs: number;
+    activeAssignedPairs: number;
     realFacultyAssignedPairs: number;
     syntheticPlaceholderPairs: number;
+    rawAssignedPairs: number;
     totalPairs: number;
     unassignedPairs: number;
+    rawUnassignedPairs: number;
 }
 export interface TeachingLoadIntegrityDiagnosticRow {
     facultyId: number;

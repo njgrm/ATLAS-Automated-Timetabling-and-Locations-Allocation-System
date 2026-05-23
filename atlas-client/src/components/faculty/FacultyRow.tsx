@@ -9,6 +9,7 @@ import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import type { FacultySummary } from '@/types';
 import { Link } from 'react-router-dom';
+import { getDepartmentColor } from '@/lib/department-colors';
 
 interface FacultyRowProps {
 	faculty: FacultySummary;
@@ -28,6 +29,8 @@ export function FacultyRow({
 		: weeklyHours >= maxHours * 0.85 ? 'text-amber-600'
 		: 'text-emerald-600';
 
+	const deptColor = getDepartmentColor(faculty.department);
+
 	return (
 		<tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
 			<td className="px-4 py-3">
@@ -35,36 +38,38 @@ export function FacultyRow({
 					className="flex items-center gap-3 cursor-pointer" 
 					onClick={() => onViewProfile(faculty)}
 				>
-					<div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+					<div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary shadow-sm border border-primary/10">
 						{faculty.firstName[0]}{faculty.lastName[0]}
 					</div>
 					<div className="min-w-0">
 						<div className="flex items-center gap-1.5">
-							<p className="font-bold text-foreground truncate leading-tight">
+							<p className="font-semibold text-foreground truncate leading-tight">
 								{faculty.lastName}, {faculty.firstName}
 							</p>
 						</div>
 						<div className="flex items-center gap-2 mt-0.5">
-							<p className="text-[0.65rem] text-muted-foreground font-mono truncate">
-								ID: {faculty.employeeId || 'No ID'}
-							</p>
 							{faculty.isClassAdviser && (
 								<span className="text-[0.65rem] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded flex items-center gap-1 truncate max-w-32">
 									<Star className="size-2.5 fill-amber-400 text-amber-500 shrink-0" />
 									<span className="truncate">{faculty.advisedSectionName ? `Adviser: ${faculty.advisedSectionName}` : 'Adviser'}</span>
 								</span>
 							)}
+							<p className="text-[0.6rem] text-muted-foreground font-mono truncate uppercase tracking-tighter opacity-70">
+								#{faculty.employeeId || 'NO-ID'}
+							</p>
 						</div>
 					</div>
 				</div>
 			</td>
 			<td className="px-4 py-3">
-				<div className="flex flex-col gap-0.5">
-					<span className="text-xs font-bold text-foreground truncate uppercase tracking-wider">
-						{faculty.department || 'General'}
-					</span>
+				<div className="flex flex-col gap-1">
+					<div className="flex items-center">
+						<Badge variant="outline" className={`text-[0.65rem] font-semibold py-0 h-5 px-1.5 border-opacity-50 ${deptColor.bg} ${deptColor.text} ${deptColor.border}`}>
+							{faculty.department || 'GENERAL'}
+						</Badge>
+					</div>
 					{faculty.specialization && (
-						<span className="text-[0.65rem] text-muted-foreground truncate font-medium">
+						<span className="text-[0.65rem] text-muted-foreground truncate font-medium pl-0.5">
 							{faculty.specialization}
 						</span>
 					)}
@@ -81,7 +86,7 @@ export function FacultyRow({
 			</td>
 			<td className="px-4 py-3 text-center">
 				<div className="flex flex-col items-center">
-					<span className={`text-sm font-bold tabular-nums ${loadColor}`}>
+					<span className={`text-sm font-semibold tabular-nums ${loadColor}`}>
 						{weeklyHours > 0 ? `${weeklyHours}h` : '-'}
 					</span>
 					<span className="text-[0.7rem] text-muted-foreground font-medium">/ {maxHours}h limit</span>

@@ -288,7 +288,7 @@ export default function Faculty() {
 							<Filter className="size-4" />
 							Filters
 							{hasActiveFilters && (
-								<Badge variant="secondary" className="ml-1 h-5 px-1.5 bg-primary text-primary-foreground">
+								<Badge variant="secondary" className="ml-1 h-5 px-1.5 bg-primary text-primary-foreground font-bold">
 									Active
 								</Badge>
 							)}
@@ -299,7 +299,7 @@ export default function Faculty() {
 						<div className="flex items-center gap-2 mr-2">
 							<Badge
 								variant={dataSource === 'live' ? 'secondary' : 'outline'}
-								className="h-6 px-2 text-[0.7rem] uppercase tracking-wide"
+								className="h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold"
 							>
 								{dataSource === 'live'
 									? 'Live data'
@@ -311,7 +311,7 @@ export default function Faculty() {
 								<TooltipProvider delayDuration={500}>
 									<Tooltip>
 										<TooltipTrigger asChild>
-											<span className="text-[0.7rem] text-muted-foreground font-medium bg-muted px-2 py-1 rounded-md hidden lg:inline-block">
+											<span className="text-[0.7rem] text-muted-foreground font-semibold bg-muted px-2 py-1 rounded-md hidden lg:inline-block uppercase tracking-tight">
 												Last synced: {timeSince}
 											</span>
 										</TooltipTrigger>
@@ -366,7 +366,7 @@ export default function Faculty() {
 							<Button
 								variant="ghost"
 								size="sm"
-								className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+								className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground font-semibold"
 								onClick={() => { setSchedulingFilter('all'); setAssignmentFilter('all'); setDepartmentFilter('all'); }}
 							>
 								Reset all
@@ -380,7 +380,7 @@ export default function Faculty() {
 			{syncError && (
 				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
 					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
-					<span className="flex-1 font-medium">{cacheNotice ?? 'EnrollPro bridge is currently unreachable. Cached roster data is unavailable.'}</span>
+					<span className="flex-1 font-semibold">{cacheNotice ?? 'EnrollPro bridge is currently unreachable. Cached roster data is unavailable.'}</span>
 					<Button size="sm" variant="outline" onClick={() => fetchFaculty({ forceRefresh: true })} disabled={syncing} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold">
 						<RefreshCw className={`mr-1.5 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry Sync
 					</Button>
@@ -390,7 +390,7 @@ export default function Faculty() {
 			{cacheNotice && !syncError && dataSource === 'cached' && (
 				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 shadow-sm animate-in fade-in duration-300">
 					<AlertTriangle className="size-4 shrink-0 text-blue-600" />
-					<span className="flex-1 font-medium">{cacheNotice}</span>
+					<span className="flex-1 font-semibold">{cacheNotice}</span>
 				</div>
 			)}
 
@@ -398,7 +398,7 @@ export default function Faculty() {
 				<div className="shrink-0 mx-6 mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-900 flex items-center justify-between shadow-sm">
 					<div className="flex items-center gap-2">
 						<AlertTriangle className="size-4 shrink-0 text-red-600" />
-						<span className="font-medium">{error}</span>
+						<span className="font-semibold">{error}</span>
 					</div>
 					<Button variant="ghost" size="sm" className="h-7 px-2 font-bold" onClick={() => setError(null)}>Dismiss</Button>
 				</div>
@@ -436,7 +436,7 @@ export default function Faculty() {
 											Status <SortIcon field="status" />
 										</Button>
 									</th>
-									<th className="px-4 py-3 text-right font-semibold text-muted-foreground">Actions</th>
+									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Actions</th>
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-border/40">
@@ -467,7 +467,7 @@ export default function Faculty() {
 													</p>
 												</div>
 												{faculty.length === 0 && (
-													<Button size="sm" onClick={handleSync} disabled={syncing} className="font-bold">
+													<Button size="sm" onClick={handleSync} disabled={syncing} className="font-bold shadow-sm">
 														<RefreshCw className={`mr-2 size-4 ${syncing ? 'animate-spin' : ''}`} />
 														Sync from EnrollPro
 													</Button>
@@ -530,10 +530,10 @@ export default function Faculty() {
 								>
 									<ChevronLeft className="size-4" />
 								</Button>
-								<div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-xs font-semibold tabular-nums">
+								<div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-[0.7rem] font-bold tabular-nums">
 									<span>{page}</span>
-									<span className="text-muted-foreground/50">/</span>
-									<span className="text-muted-foreground">{totalPages}</span>
+									<span className="text-muted-foreground/50 font-normal">/</span>
+									<span className="text-muted-foreground font-normal">{totalPages}</span>
 								</div>
 								<Button 
 									variant="outline" 

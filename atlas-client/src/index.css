@@ -1,11 +1,11 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
-@import '@fontsource-variable/instrument-sans';
+@import '@fontsource-variable/public-sans';
 
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-	--font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+	--font-sans: 'Public Sans Variable', ui-sans-serif, system-ui, sans-serif;
 
 	--animate-modal-in: modal-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 	--animate-modal-out: modal-out 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -83,7 +83,7 @@
 }
 
 @theme inline {
-	--font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+	--font-sans: 'Public Sans Variable', ui-sans-serif, system-ui, sans-serif;
 	--color-background: hsl(var(--background));
 	--color-foreground: hsl(var(--foreground));
 	--color-card: hsl(var(--card));
@@ -122,7 +122,7 @@
 		@apply border-border outline-ring/50;
 	}
 	body {
-		@apply font-medium bg-background text-foreground;
+		@apply font-normal bg-background text-foreground antialiased;
 	}
 	html {
 		@apply font-sans;
@@ -130,9 +130,6 @@
 }
 
 @layer utilities {
-	.font-normal {
-		@apply font-medium;
-	}
 	.scrollbar-thin {
 		scrollbar-width: auto;
 		scrollbar-color: hsl(var(--primary)) hsl(var(--muted));

@@ -618,9 +618,9 @@ export default function Subjects() {
 											Grades <SortIcon field="gradeLevels" />
 										</Button>
 									</th>
-									<th className="px-4 py-3 text-left font-semibold text-muted-foreground">Scope & Owner</th>
-									<th className="px-4 py-3 text-left font-semibold text-muted-foreground">Status</th>
-									<th className="px-4 py-3 text-right font-semibold text-muted-foreground">Actions</th>
+									<th className="px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Scope & Owner</th>
+									<th className="px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Status</th>
+									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Actions</th>
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-border/40">
@@ -743,10 +743,10 @@ export default function Subjects() {
 								>
 									<ChevronLeft className="size-4" />
 								</Button>
-								<div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-xs font-semibold tabular-nums">
+								<div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-[0.7rem] font-bold tabular-nums">
 									<span>{page}</span>
-									<span className="text-muted-foreground/50">/</span>
-									<span className="text-muted-foreground">{totalPages}</span>
+									<span className="text-muted-foreground/50 font-normal">/</span>
+									<span className="text-muted-foreground font-normal">{totalPages}</span>
 								</div>
 								<Button 
 									variant="outline" 
@@ -776,7 +776,7 @@ export default function Subjects() {
 			<Sheet open={!!coverageSubject} onOpenChange={(open) => !open && setCoverageSubject(null)}>
 				<SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
 					<SheetHeader className="pb-6 border-b">
-						<SheetTitle className="flex items-center gap-2">
+						<SheetTitle className="flex items-center gap-2 text-xl font-bold">
 							<Users className="size-5 text-primary" />
 							Teacher Coverage
 						</SheetTitle>
@@ -795,41 +795,53 @@ export default function Subjects() {
 							<>
 								{/* Assigned Teachers */}
 								<div className="space-y-4">
-									<h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+									<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
 										<div className="size-1.5 rounded-full bg-emerald-500" />
 										Currently Assigned
-										<Badge variant="secondary" className="ml-auto bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-100">
+										<Badge variant="secondary" className="ml-auto bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-100 font-bold">
 											{(teacherCoverage[coverageSubject.id]?.assigned ?? []).length}
 										</Badge>
 									</h4>
 									
 									{(teacherCoverage[coverageSubject.id]?.assigned ?? []).length > 0 ? (
-										<div className="space-y-2">
+										<div className="space-y-3">
 											{teacherCoverage[coverageSubject.id].assigned.map((t) => (
-												<div key={t.facultyId} className="group p-3 rounded-lg border border-emerald-100 bg-emerald-50/30 flex items-center justify-between">
-													<div className="min-w-0 flex-1">
-														<p className="text-sm font-semibold truncate">{t.name}</p>
-														<div className="flex flex-wrap gap-1 mt-1">
-															{t.grades.map((g) => (
-																<Badge key={g} variant="outline" className={`text-[0.6rem] px-1 py-0 ${GRADE_COLORS[String(g)] ?? ''}`}>
-																	{gradeLabel(g)}
-																</Badge>
-															))}
+												<div key={t.facultyId} className="group p-4 rounded-xl border border-emerald-100 bg-emerald-50/20 shadow-sm space-y-3">
+													<div className="flex items-start justify-between gap-4 border-b border-emerald-100/50 pb-2">
+														<div className="min-w-0">
+															<p className="text-sm font-bold truncate leading-tight">{t.name}</p>
+															<div className="flex flex-wrap gap-1 mt-1.5">
+																{t.grades.map((g) => (
+																	<Badge key={g} variant="outline" className={`text-[0.6rem] px-1.5 py-0 h-4 font-bold border-opacity-40 ${GRADE_COLORS[String(g)] ?? ''}`}>
+																		{gradeLabel(g)}
+																	</Badge>
+																))}
+															</div>
 														</div>
-															{t.sections.length > 0 && (
-																<p className="mt-1 text-[0.65rem] text-muted-foreground truncate">
-																	Sections: {t.sections.join(', ')}
-																</p>
-															)}
+														<Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 shadow-none border-emerald-200 font-bold">
+															{t.load}% Load
+														</Badge>
 													</div>
-													<Badge variant="outline" className="ml-3 bg-white/80 border-emerald-200 text-emerald-700">
-														{t.load}% Load
-													</Badge>
+													
+													{t.sections.length > 0 ? (
+														<div className="space-y-1.5">
+															<p className="text-[0.65rem] font-bold text-emerald-700/70 uppercase tracking-wider">Assigned Sections</p>
+															<div className="flex flex-wrap gap-1.5">
+																{t.sections.map((section, idx) => (
+																	<div key={idx} className="flex items-center gap-1.5 px-2 py-1 rounded bg-white border border-emerald-100/50 shadow-sm">
+																		<span className="text-xs font-semibold text-foreground">{section}</span>
+																	</div>
+																))}
+															</div>
+														</div>
+													) : (
+														<p className="text-[0.65rem] text-muted-foreground italic">No sections explicitly mapped.</p>
+													)}
 												</div>
 											))}
 										</div>
 									) : (
-										<div className="p-8 rounded-lg border border-dashed text-center">
+										<div className="p-10 rounded-xl border border-dashed text-center bg-muted/5">
 											<p className="text-sm text-muted-foreground italic">No teachers assigned to this subject yet.</p>
 										</div>
 									)}
@@ -837,12 +849,12 @@ export default function Subjects() {
 
 								{/* Facilities Requirement */}
 								{coverageSubject.preferredRoomType !== 'CLASSROOM' && (
-									<div className="p-4 rounded-lg bg-muted/40 border border-muted flex items-start gap-3">
+									<div className="p-4 rounded-xl bg-muted/40 border border-muted/50 flex items-start gap-3 shadow-sm">
 										<Map className="size-5 text-muted-foreground shrink-0 mt-0.5" />
 										<div className="space-y-1">
-											<p className="text-xs font-bold uppercase tracking-tight text-muted-foreground">Resource Constraint</p>
-											<p className="text-sm">Requires <span className="font-semibold">{ROOM_TYPE_LABELS[coverageSubject.preferredRoomType]}</span> facilities.</p>
-											<Link to="/map" className="text-xs text-primary font-semibold flex items-center gap-1 hover:underline pt-1">
+											<p className="text-[0.65rem] font-bold uppercase tracking-widest text-muted-foreground">Resource Constraint</p>
+											<p className="text-sm font-medium">Requires <span className="font-bold text-primary">{ROOM_TYPE_LABELS[coverageSubject.preferredRoomType]}</span> facilities.</p>
+											<Link to="/map" className="text-xs text-primary font-bold flex items-center gap-1 hover:underline pt-1 uppercase tracking-tight">
 												View occupancy map
 												<ChevronRight className="size-3" />
 											</Link>

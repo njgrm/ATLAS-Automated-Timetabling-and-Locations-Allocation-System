@@ -60,14 +60,20 @@ function normalizeCoverageTotals(value: unknown): TeachingLoadCoverageTotals | u
 	const totalPairs = toNumber(candidate.totalPairs);
 	const realFacultyAssignedPairs = toNumber(candidate.realFacultyAssignedPairs, toNumber(candidate.assignedPairs));
 	const syntheticPlaceholderPairs = toNumber(candidate.syntheticPlaceholderPairs);
-	const assignedPairs = toNumber(candidate.assignedPairs, realFacultyAssignedPairs + syntheticPlaceholderPairs);
+	const activeAssignedPairs = toNumber(candidate.activeAssignedPairs, toNumber(candidate.assignedPairs, realFacultyAssignedPairs + syntheticPlaceholderPairs));
+	const assignedPairs = activeAssignedPairs;
+	const rawAssignedPairs = toNumber(candidate.rawAssignedPairs, assignedPairs);
 	const unassignedPairs = toNumber(candidate.unassignedPairs, Math.max(0, totalPairs - assignedPairs));
+	const rawUnassignedPairs = toNumber(candidate.rawUnassignedPairs, Math.max(0, totalPairs - rawAssignedPairs));
 	return {
 		assignedPairs,
+		activeAssignedPairs,
 		realFacultyAssignedPairs,
 		syntheticPlaceholderPairs,
+		rawAssignedPairs,
 		totalPairs,
 		unassignedPairs,
+		rawUnassignedPairs,
 	};
 }
 

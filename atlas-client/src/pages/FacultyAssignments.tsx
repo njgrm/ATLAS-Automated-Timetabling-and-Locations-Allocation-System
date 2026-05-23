@@ -4,6 +4,7 @@ import {
 AlertTriangle,
 CheckCircle2,
 ChevronRight,
+Filter,
 Info,
 Redo2,
 RotateCcw,
@@ -12,6 +13,9 @@ Search,
 Undo2,
 UserCog,
 Star,
+MoreHorizontal,
+Settings2,
+Activity,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import atlasApi from '@/lib/api';
@@ -49,12 +53,21 @@ import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import { Checkbox } from '@/ui/checkbox';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/ui/dialog';
 import { Input } from '@/ui/input';
 import { SearchableSelect } from '@/ui/searchable-select';
 import { Skeleton } from '@/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
 import {
 	AutoFillSummaryModal,
 	type AutoFillSummaryResult,
@@ -159,8 +172,12 @@ const [degradedNotice, setDegradedNotice] = useState<string | null>(null);
 const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 const [homeroomHint, setHomeroomHint] = useState<HomeroomHintResponse | null>(null);
 const [draftAssignmentsByFaculty, setDraftAssignmentsByFaculty] = useState<Record<number, FacultyAssignmentDraft[]>>({});
+
+const hasActiveFilters = filterStatus !== 'all' || departmentFilter !== 'all' || sortOrder !== 'load-asc' || loadFilter !== 'all' || showSyntheticCoverageRows;
+
 const [autoFillLoading, setAutoFillLoading] = useState(false);
 const [autoFillDialogOpen, setAutoFillDialogOpen] = useState(false);
+const [showFilters, setShowFilters] = useState(false);
 const fetchData = useCallback(async (options?: { forceRefresh?: boolean }) => {
 	const forceRefresh = options?.forceRefresh === true;
 	setLoading(true);
@@ -888,23 +905,34 @@ const advisedSectionMeta = useMemo(() => {
 
 const coverageHeadline = useMemo(() => {
 	if (coverageTotals) {
+		const activeAssigned = Number.isFinite(coverageTotals.activeAssignedPairs)
+			? Math.max(0, coverageTotals.activeAssignedPairs ?? 0)
+			: Math.max(0, coverageTotals.assignedPairs);
 		const realAssigned = Number.isFinite(coverageTotals.realFacultyAssignedPairs)
 			? coverageTotals.realFacultyAssignedPairs
 			: Math.max(0, coverageTotals.assignedPairs - (coverageTotals.syntheticPlaceholderPairs ?? 0));
 		const syntheticAssigned = Number.isFinite(coverageTotals.syntheticPlaceholderPairs)
 			? coverageTotals.syntheticPlaceholderPairs
 			: Math.max(0, coverageTotals.assignedPairs - realAssigned);
-		const assigned = Math.max(0, realAssigned + syntheticAssigned);
+		const assigned = Math.max(0, activeAssigned);
 		const total = Math.max(0, coverageTotals.totalPairs);
 		const unassigned = Number.isFinite(coverageTotals.unassignedPairs)
 			? Math.max(0, coverageTotals.unassignedPairs)
 			: Math.max(0, total - assigned);
+		const rawAssigned = Number.isFinite(coverageTotals.rawAssignedPairs)
+			? Math.max(0, coverageTotals.rawAssignedPairs ?? 0)
+			: assigned;
+		const rawUnassigned = Number.isFinite(coverageTotals.rawUnassignedPairs)
+			? Math.max(0, coverageTotals.rawUnassignedPairs ?? 0)
+			: Math.max(0, total - rawAssigned);
 		return {
 			total,
 			assigned,
 			realAssigned,
 			syntheticAssigned,
 			unassigned,
+			rawAssigned,
+			rawUnassigned,
 		};
 	}
 
@@ -956,6 +984,8 @@ const coverageHeadline = useMemo(() => {
 		realAssigned,
 		syntheticAssigned: syntheticOnly,
 		unassigned: Math.max(0, total - assigned),
+		rawAssigned: assigned,
+		rawUnassigned: Math.max(0, total - assigned),
 	};
 }, [allKnownSections, coverageTotals, effectiveAssignmentsByFaculty, faculty, subjectFocusId, subjects]);
 
@@ -1026,193 +1056,256 @@ const executeSwap = useCallback(() => {
 	toast.success('Ownership swapped to the selected teacher in draft mode. Save to persist changes.');
 }, [isReadOnlyMode, pushHistory, savedAssignmentsByFaculty, sectionMap, selected, swapCandidate]);
 
-return (
+	return (
 <TooltipProvider delayDuration={200}>
 <div className="flex h-[calc(100svh-3.5rem)] flex-col px-6">
 {error && (
 <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
 <span>{error}</span>
-<Button variant="ghost" size="sm" onClick={() => setError(null)} className="h-7 px-2 text-red-700 hover:bg-red-100 hover:text-red-800">
+<Button variant="ghost" size="sm" onClick={() => setError(null)} className="h-7 px-2 text-red-700 hover:bg-red-100 hover:text-red-800 font-bold">
 Dismiss
 </Button>
 </div>
 )}
 
+<div className="flex items-center justify-between gap-4">
+	<OverviewHeader
+		realAssignedPairs={coverageHeadline.realAssigned}
+		syntheticPlaceholderPairs={coverageHeadline.syntheticAssigned}
+		unassignedPairs={coverageHeadline.unassigned}
+		rawUnassignedPairs={coverageHeadline.rawUnassigned}
+		totalPairs={coverageHeadline.total}
+		assignedFacultyCount={assignedFacultyCount}
+		totalFacultyCount={realFacultyCount}
+		activeDraftCount={activeDraftCount}
+		autoFillLoading={autoFillLoading}
+		staffingNeedsLoading={staffingNeedsLoading}
+		autoFillEnabled={Boolean(activeSchoolYearId) && !isReadOnlyMode}
+		onAutoFillClick={() => {
+			if (isReadOnlyMode) {
+				toast.error('Teaching Load is in read-only mode. Reconnect and refresh live data before running Auto-Fill.');
+				return;
+			}
+			setAutoFillDialogOpen(true);
+		}}
+		onViewStaffingNeedsClick={handleViewStaffingNeeds}
+	/>
+
+	<div className="mt-4 shrink-0">
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button variant="outline" size="sm" className="h-10 px-3 gap-2 font-bold text-muted-foreground hover:text-foreground">
+					<Settings2 className="size-4" />
+					System Tools
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="end" className="w-56">
+				<DropdownMenuLabel className="text-[0.65rem] font-bold uppercase tracking-widest text-muted-foreground/60">Data Health</DropdownMenuLabel>
+				{integrityDiagnostics && (
+					<Dialog>
+						<DialogTrigger asChild>
+							<DropdownMenuItem onSelect={(e) => e.preventDefault()} className="gap-2 cursor-pointer">
+								<Activity className="size-4 text-blue-600" />
+								<div className="flex flex-col">
+									<span className="font-bold text-xs">Integrity Diagnostics</span>
+									<span className="text-[0.65rem] text-muted-foreground">
+										{integrityDiagnostics.currentYearMissingOwnershipPairs > 0 
+											? `${integrityDiagnostics.currentYearMissingOwnershipPairs} issues found` 
+											: 'Healthy'}
+									</span>
+								</div>
+							</DropdownMenuItem>
+						</DialogTrigger>
+						<DialogContent className="max-w-2xl">
+							<DialogHeader>
+								<DialogTitle className="flex items-center gap-2">
+									<AlertTriangle className="size-5 text-blue-700" />
+									Teaching Load Integrity Diagnostics
+								</DialogTitle>
+								<DialogDescription>
+									Technical reconciliation between the subject-section contract and current ownership rows.
+								</DialogDescription>
+							</DialogHeader>
+							<div className="grid gap-3 py-4">
+								<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+									<div className="rounded-xl border p-3 bg-muted/20">
+										<p className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">Empty seeded rows</p>
+										<p className="text-xl font-bold mt-1">{integrityDiagnostics.emptySectionRows}</p>
+									</div>
+									<div className="rounded-xl border p-3 bg-muted/20">
+										<p className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">Missing ownership</p>
+										<p className="text-xl font-bold mt-1 text-blue-700">{integrityDiagnostics.currentYearRowsMissingOwnership}</p>
+									</div>
+									<div className="rounded-xl border p-3 bg-muted/20">
+										<p className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">Outside scope</p>
+										<p className="text-xl font-bold mt-1">{integrityDiagnostics.currentYearOwnershipWithoutMatchingScope}</p>
+									</div>
+								</div>
+								
+								{integrityDiagnostics.missingOwnershipSamples.length > 0 && (
+									<div className="mt-2 p-3 rounded-xl border border-blue-100 bg-blue-50/30">
+										<p className="text-xs font-bold text-blue-800 uppercase tracking-widest mb-2">Affected Examples</p>
+										<div className="flex flex-wrap gap-2">
+											{integrityDiagnostics.missingOwnershipSamples.slice(0, 10).map((row, idx) => (
+												<Badge key={idx} variant="outline" className="bg-white/80 border-blue-200 text-blue-700 font-semibold">
+													{row.subjectCode} ({row.facultyName})
+												</Badge>
+											))}
+										</div>
+									</div>
+								)}
+							</div>
+							<DialogFooter>
+								<Button variant="secondary" onClick={() => {}} className="font-bold">Close Diagnostics</Button>
+							</DialogFooter>
+						</DialogContent>
+					</Dialog>
+				)}
+				<DropdownMenuSeparator />
+				<DropdownMenuLabel className="text-[0.65rem] font-bold uppercase tracking-widest text-muted-foreground/60">Maintenance</DropdownMenuLabel>
+				<DropdownMenuItem 
+					className="text-destructive focus:text-destructive gap-2 cursor-pointer"
+					disabled={resetLoading || !activeSchoolYearId || isReadOnlyMode}
+					onSelect={openGlobalResetPreview}
+				>
+					<RotateCcw className="size-4" />
+					<span className="font-bold text-xs uppercase">Reset Global Load</span>
+				</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
+	</div>
+</div>
+
 {readOnlyNotice && (
-	<div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+	<div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 shadow-sm animate-in fade-in duration-300">
 		<div className="flex items-center gap-2">
-			<AlertTriangle className="size-4 shrink-0 text-amber-600" />
-			<span>{readOnlyNotice}</span>
+			<AlertTriangle className="size-3.5 shrink-0 text-amber-600" />
+			<span className="font-semibold">{readOnlyNotice}</span>
 		</div>
 		<Button
-			variant="outline"
+			variant="ghost"
 			size="sm"
-			className="h-7 border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200"
+			className="h-6 px-2 text-xs font-bold text-amber-900 hover:bg-amber-100"
 			onClick={() => fetchData({ forceRefresh: true })}
 			disabled={loading}
 		>
-			Refresh live data
+			Refresh
 		</Button>
 	</div>
 )}
 
-{integrityDiagnostics && (
-	<div className="mt-3 rounded-md border border-blue-200 bg-blue-50/60 px-4 py-3 text-sm text-blue-900">
-		<div className="flex items-center gap-2 font-semibold">
-			<AlertTriangle className="size-4 text-blue-700" />
-			Current-Year Teaching Load Integrity
-		</div>
-		<div className="mt-2 grid gap-2 text-xs md:grid-cols-2 xl:grid-cols-5">
-			<div className="rounded border border-blue-200 bg-white/80 px-2 py-1.5">
-				<p className="text-muted-foreground">Empty seeded rows</p>
-				<p className="font-semibold text-blue-900">{integrityDiagnostics.emptySectionRows}</p>
-			</div>
-			<div className="rounded border border-blue-200 bg-white/80 px-2 py-1.5">
-				<p className="text-muted-foreground">Rows missing ownership</p>
-				<p className="font-semibold text-blue-900">{integrityDiagnostics.currentYearRowsMissingOwnership}</p>
-			</div>
-			<div className="rounded border border-blue-200 bg-white/80 px-2 py-1.5">
-				<p className="text-muted-foreground">Ownership outside scope</p>
-				<p className="font-semibold text-blue-900">{integrityDiagnostics.currentYearOwnershipWithoutMatchingScope}</p>
-			</div>
-			<div className="rounded border border-blue-200 bg-white/80 px-2 py-1.5">
-				<p className="text-muted-foreground">Missing-ownership pairs</p>
-				<p className="font-semibold text-blue-900">{integrityDiagnostics.currentYearMissingOwnershipPairs}</p>
-			</div>
-			<div className="rounded border border-blue-200 bg-white/80 px-2 py-1.5">
-				<p className="text-muted-foreground">Ownership-without-scope pairs</p>
-				<p className="font-semibold text-blue-900">{integrityDiagnostics.currentYearOwnershipWithoutMatchingScopePairs}</p>
-			</div>
-		</div>
-		{integrityDiagnostics.missingOwnershipSamples.length > 0 && (
-			<p className="mt-2 text-xs text-blue-800">
-				Examples with missing ownership: {integrityDiagnostics.missingOwnershipSamples
-					.slice(0, 3)
-					.map((row) => `${row.subjectCode} (${row.facultyName})`)
-					.join(', ')}
-			</p>
-		)}
-	</div>
-)}
-
-<OverviewHeader
-	realAssignedPairs={coverageHeadline.realAssigned}
-	syntheticPlaceholderPairs={coverageHeadline.syntheticAssigned}
-	unassignedPairs={coverageHeadline.unassigned}
-	totalPairs={coverageHeadline.total}
-	assignedFacultyCount={assignedFacultyCount}
-	totalFacultyCount={realFacultyCount}
-	activeDraftCount={activeDraftCount}
-	autoFillLoading={autoFillLoading}
-	staffingNeedsLoading={staffingNeedsLoading}
-	autoFillEnabled={Boolean(activeSchoolYearId) && !isReadOnlyMode}
-	resetLoading={resetLoading}
-	onAutoFillClick={() => {
-		if (isReadOnlyMode) {
-			toast.error('Teaching Load is in read-only mode. Reconnect and refresh live data before running Auto-Fill.');
-			return;
-		}
-		setAutoFillDialogOpen(true);
-	}}
-	onViewStaffingNeedsClick={handleViewStaffingNeeds}
-	onResetGlobalClick={openGlobalResetPreview}
-/>
-
 {syntheticCoverageTeachers.length > 0 && (
-	<div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-violet-200 bg-violet-50/70 px-4 py-2 text-sm text-violet-900">
+	<div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-violet-200 bg-violet-50/40 px-3 py-1.5 text-xs text-violet-900 shadow-sm animate-in fade-in duration-300">
 		<div className="flex items-center gap-2">
-			<AlertTriangle className="size-4 shrink-0 text-violet-700" />
-			<span>
-				Synthetic placeholder coverage active: {coverageHeadline.syntheticAssigned} subject-section pairs across {syntheticCoverageTeachers.length} placeholder row{syntheticCoverageTeachers.length === 1 ? '' : 's'}
-				({Math.round(syntheticCoverageHours * 10) / 10}h).
+			<Info className="size-3.5 shrink-0 text-violet-700 opacity-60" />
+			<span className="font-medium">
+				Synthetic coverage: <span className="font-bold text-violet-800">{coverageHeadline.syntheticAssigned} pairs</span> across {syntheticCoverageTeachers.length} placeholder rows ({Math.round(syntheticCoverageHours * 10) / 10}h).
 			</span>
 		</div>
 		<Button
-			variant="outline"
+			variant="ghost"
 			size="sm"
-			className="h-7 border-violet-300 bg-violet-100 text-violet-900 hover:bg-violet-200"
+			className="h-6 px-2 text-xs font-bold text-violet-800 hover:bg-violet-100"
 			onClick={() => setShowSyntheticCoverageRows((value) => !value)}
 		>
-			{showSyntheticCoverageRows ? 'Hide Synthetic Rows' : 'Show Synthetic Rows'}
+			{showSyntheticCoverageRows ? 'Hide Placeholder Rows' : 'Show Placeholder Rows'}
 		</Button>
 	</div>
 )}
 
-<div className="mt-3 flex min-h-0 flex-1 gap-4 pb-3">
-<div className="flex w-80 shrink-0 flex-col rounded-lg border border-border bg-card shadow-sm">
-<div className="border-b border-border p-3">
-<div className="relative">
-<Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-<Input
-placeholder="Search faculty..."
-value={searchQuery}
-onChange={(event) => setSearchQuery(event.target.value)}
-className="h-8 pl-8 text-sm"
-/>
+<div className="mt-2 flex min-h-0 flex-1 gap-4 pb-3">
+<div className="flex w-72 shrink-0 flex-col rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+<div className="border-b border-border p-2 space-y-2 bg-muted/10">
+<div className="flex items-center gap-2">
+	<div className="relative flex-1">
+		<Search className="absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
+		<Input
+			placeholder="Search roster..."
+			value={searchQuery}
+			onChange={(event) => setSearchQuery(event.target.value)}
+			className="h-7 pl-8 text-xs bg-background"
+		/>
+	</div>
+	<Button
+		variant={showFilters ? 'secondary' : 'outline'}
+		size="icon-sm"
+		className="h-7 w-7"
+		onClick={() => setShowFilters(!showFilters)}
+	>
+		<Filter className="size-3" />
+	</Button>
 </div>
-<div className="mt-2 flex gap-1">
-{(['all', 'assigned', 'unassigned'] as const).map((status) => (
-<Button
-key={status}
-type="button"
-variant={filterStatus === status ? 'default' : 'secondary'}
-size="sm"
-onClick={() => setFilterStatus(status)}
-className="h-7 px-2 text-[0.6875rem]"
->
-{status.charAt(0).toUpperCase() + status.slice(1)}
-</Button>
-))}
-</div>
-<div className="mt-2 grid grid-cols-1 gap-2">
-	<SearchableSelect
-		value={departmentFilter}
-		onValueChange={setDepartmentFilter}
-		placeholder="All Departments"
-		triggerClassName="h-7 w-full justify-between text-[0.6875rem]"
-		className="w-[18rem]"
-		items={[
-			{ value: 'all', label: 'All Departments' },
-			...departmentOptions.map((department) => ({ value: department, label: department })),
-		]}
-	/>
-</div>
-				<div className="mt-2 grid grid-cols-1 gap-2">
-					<Select value={sortOrder} onValueChange={(value) => setSortOrder(value as 'load-asc' | 'load-desc')}>
-						<SelectTrigger className="h-7 w-full text-[0.6875rem]">
-							<SelectValue placeholder="Sort by load" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="load-asc">Load: Lowest to Highest</SelectItem>
-							<SelectItem value="load-desc">Load: Highest to Lowest</SelectItem>
-						</SelectContent>
-					</Select>
-				</div>
-				<div className="mt-2 flex flex-wrap gap-1">
-					{([
-						{ value: 'all', label: 'All Loads' },
-						{ value: 'overloaded', label: 'Overloaded' },
-						{ value: 'optimal', label: 'Optimal' },
-						{ value: 'underloaded', label: 'Under-loaded' },
-					] as const).map((item) => (
-						<Button
-							key={item.value}
-							type="button"
-							variant={loadFilter === item.value ? 'default' : 'secondary'}
-							size="sm"
-							onClick={() => setLoadFilter(item.value)}
-							className="h-6 px-2 text-[0.625rem]"
-						>
-							{item.label}
-						</Button>
-					))}
-				</div>
+
+{showFilters && (
+	<div className="space-y-1.5 pt-1 animate-in slide-in-from-top-2 duration-200">
+		<div className="flex gap-1">
+			{(['all', 'assigned', 'unassigned'] as const).map((status) => (
+				<Button
+					key={status}
+					type="button"
+					variant={filterStatus === status ? 'default' : 'outline'}
+					size="sm"
+					onClick={() => setFilterStatus(status)}
+					className="h-5 flex-1 px-0 text-[0.6rem] font-bold uppercase tracking-tight"
+				>
+					{status === 'all' ? 'Any' : status.charAt(0).toUpperCase() + status.slice(1)}
+				</Button>
+			))}
+		</div>
+		
+		<div className="grid grid-cols-1 gap-1">
+			<SearchableSelect
+				value={departmentFilter}
+				onValueChange={setDepartmentFilter}
+				placeholder="All Departments"
+				triggerClassName="h-6 w-full justify-between text-[0.7rem] font-semibold bg-background"
+				className="w-full"
+				items={[
+					{ value: 'all', label: 'All Departments' },
+					...departmentOptions.map((department) => ({ value: department, label: department })),
+				]}
+			/>
+		</div>
+		
+		<div className="grid grid-cols-1 gap-1">
+			<Select value={sortOrder} onValueChange={(value) => setSortOrder(value as 'load-asc' | 'load-desc')}>
+				<SelectTrigger className="h-6 w-full text-[0.7rem] font-semibold bg-background">
+					<SelectValue placeholder="Sort by load" />
+				</SelectTrigger>
+				<SelectContent>
+					<SelectItem value="load-asc" className="text-xs">Load: Low to High</SelectItem>
+					<SelectItem value="load-desc" className="text-xs">Load: High to Low</SelectItem>
+				</SelectContent>
+			</Select>
+		</div>
+
+		<div className="flex flex-wrap gap-1">
+			{([
+				{ value: 'all', label: 'All' },
+				{ value: 'overloaded', label: 'Over' },
+				{ value: 'optimal', label: 'Opt' },
+				{ value: 'underloaded', label: 'Under' },
+			] as const).map((item) => (
+				<Button
+					key={item.value}
+					type="button"
+					variant={loadFilter === item.value ? 'default' : 'outline'}
+					size="sm"
+					onClick={() => setLoadFilter(item.value)}
+					className="h-5 flex-1 px-0 text-[0.6rem] font-bold uppercase tracking-tight"
+				>
+					{item.label}
+				</Button>
+			))}
+		</div>
+	</div>
+)}
 </div>
 
 <div className="flex-1 overflow-auto">
 {loading ? (
-Array.from({ length: 8 }).map((_, index) => (
-<div key={index} className="flex items-center gap-3 border-b border-border px-3 py-2.5">
+Array.from({ length: 12 }).map((_, index) => (
+<div key={index} className="flex items-center gap-3 border-b border-border px-4 py-3">
 <Skeleton className="size-8 shrink-0 rounded-full" />
 <div className="flex-1 space-y-1.5">
 <Skeleton className="h-4 w-28" />
@@ -1222,14 +1315,15 @@ Array.from({ length: 8 }).map((_, index) => (
 </div>
 ))
 ) : filteredFaculty.length === 0 ? (
-						<p className="p-4 text-center text-sm text-muted-foreground">
-							{faculty.length === 0 ? 'No teachers synced. Visit the Teachers page first.' : 'No results.'}
+						<p className="p-8 text-center text-xs text-muted-foreground italic">
+							{faculty.length === 0 ? 'No teachers synced.' : 'No matches found.'}
 						</p>
 ) : (
 groupedFaculty.map(([departmentName, members]) => (
 	<div key={departmentName} className="border-b border-border/80">
-		<div className="bg-muted/40 px-3 py-1.5 text-[0.625rem] font-semibold uppercase tracking-wider text-muted-foreground">
-			{departmentName} ({members.length})
+		<div className="bg-muted/40 px-3 py-1.5 text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground flex items-center justify-between">
+			<span className="truncate">{departmentName}</span>
+			<span className="shrink-0 ml-2 opacity-60">{members.length}</span>
 		</div>
 		{members.map((member) => {
 const effectiveSubjectCount = effectiveAssignmentsByFaculty[member.id]?.length ?? 0;
@@ -1260,63 +1354,37 @@ key={member.id}
 type="button"
 variant="ghost"
 onClick={() => setSelectedId(member.id)}
-className={`h-auto w-full justify-start rounded-none border-b border-border px-3 py-2.5 text-left ${
-selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
+className={`h-auto w-full justify-start rounded-none border-b border-border/50 px-3 py-2 text-left transition-all ${
+selectedId === member.id ? 'bg-primary/5 border-l-4 border-l-primary' : 'hover:bg-muted/50 border-l-4 border-l-transparent'
 }`}
 >
-<div className="flex w-full items-center gap-3">
-<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+<div className="flex w-full items-center gap-2.5">
+<div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[0.65rem] font-bold text-primary shadow-sm border border-primary/5">
 {member.firstName[0]}
 {member.lastName[0]}
 </div>
 <div className="flex-1 min-w-0">
-	<div className="flex items-center justify-between gap-2">
-		<p className="truncate text-sm font-medium">
-			{member.lastName}, {member.firstName}
-		</p>
-	</div>
-	<div className="flex items-center gap-1.5 mt-0.5 min-w-0">
-		<div className="flex flex-col min-w-0 flex-1">
-			{member.specialization && (
-				<span className="truncate text-[0.62rem] font-semibold text-foreground">
-					{member.specialization}
-				</span>
-			)}
-			{member.department && (
-				<span className="truncate text-[0.55rem] font-bold uppercase tracking-wider text-muted-foreground/70">
-					{member.department}
-				</span>
-			)}
-			<span className="truncate text-[0.6rem] text-muted-foreground">
-				{member.employeeId ? `ID ${member.employeeId}` : 'Employee ID not set'}
+	<p className={`truncate text-xs ${selectedId === member.id ? 'font-bold text-foreground' : 'font-semibold text-muted-foreground'}`}>
+		{member.lastName}, {member.firstName}
+	</p>
+	<div className="flex items-center gap-2 mt-0.5">
+		<span className="truncate text-[0.65rem] text-muted-foreground/80 font-medium flex-1">
+			{member.specialization || member.department || 'General'}
+		</span>
+		<div className="flex flex-col items-end shrink-0">
+			<span className={`text-[0.6rem] font-bold tabular-nums ${loadColorClass}`}>
+				{member.isPlaceholder ? `${Math.round(displayHours * 10) / 10}h` : `${actualLoadPercentage}%`}
 			</span>
-		</div>
-		<div className="flex flex-col items-end gap-0.5 shrink-0">
-			<span className={`text-[0.6rem] font-bold ${loadColorClass}`}>
-				{member.isPlaceholder ? `${Math.round(displayHours * 10) / 10}h synth` : `${actualLoadPercentage}%`}
-			</span>
-							{member.isPlaceholder ? (
-								<span className="text-[0.55rem] text-violet-700">Synthetic row</span>
-							) : (
-								<div className="w-10 h-0.5 bg-muted rounded-full overflow-hidden">
-									<div
-										className={`h-full transition-all ${loadBarClass}`}
-										style={{ width: `${Math.min(actualLoadPercentage, 100)}%` }}
-									/>
-								</div>
-							)}
 		</div>
 	</div>
 </div>
-<div className="flex items-center gap-1.5">
-	{member.isPlaceholder && <Badge className="border-violet-200 bg-violet-50 text-[0.5625rem] text-violet-700">Placeholder</Badge>}
-{hasDraft && <Badge className="border-sky-200 bg-sky-50 text-[0.5625rem] text-sky-700">Draft</Badge>}
+<div className="flex items-center gap-1 shrink-0">
+{hasDraft && <div className="size-1.5 rounded-full bg-sky-500 animate-pulse" />}
 {effectiveSubjectCount === 0 ? (
-<AlertTriangle className="size-4 shrink-0 text-amber-500" />
+<AlertTriangle className="size-3 text-amber-500 opacity-60" />
 ) : (
-<CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
+<CheckCircle2 className="size-3 text-emerald-500 opacity-60" />
 )}
-<ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
 </div>
 </div>
 </Button>
@@ -1326,8 +1394,11 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 ))
 )}
 </div>
-<div className="border-t border-border px-3 py-2 text-[0.6875rem] text-muted-foreground">
-{coverageHeadline.realAssigned} real staffed / {coverageHeadline.syntheticAssigned} synthetic / {coverageHeadline.unassigned} unowned (total {coverageHeadline.total})
+<div className="border-t border-border bg-muted/20 px-3 py-1.5 text-[0.6rem] font-bold text-muted-foreground flex items-center justify-between uppercase tracking-tight">
+	<span>{coverageHeadline.realAssigned}R / {coverageHeadline.syntheticAssigned}S</span>
+	<span className={coverageHeadline.unassigned > 0 ? 'text-amber-600' : 'text-emerald-600'}>
+		{coverageHeadline.unassigned} Uncovered
+	</span>
 </div>
 </div>
 <div className="flex-1 overflow-auto">
@@ -1335,213 +1406,182 @@ selectedId === member.id ? 'bg-primary/5' : 'hover:bg-muted/50'
 <div className="flex h-full items-center justify-center text-muted-foreground">
 <div className="text-center">
 <UserCog className="mx-auto size-10 text-muted-foreground/30" />
-<p className="mt-2 text-sm">Select a faculty member to manage assignments.</p>
+<p className="mt-2 text-sm font-semibold">Select a teacher to manage assignments</p>
 </div>
 </div>
 ) : (
-<div className="flex h-full flex-col">
-<div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 shadow-sm">
-<div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-{selected.firstName[0]}
-{selected.lastName[0]}
-</div>
-<div className="min-w-0">
-<p className="truncate text-sm font-bold">
-{selected.firstName} {selected.lastName}
-</p>
-<p className="truncate text-[0.6875rem] text-muted-foreground font-mono">
-{selected.specialization ? `${selected.specialization} · ` : ''}
-{selected.department ?? 'No department'}
-{selected.employeeId ? ` · ID ${selected.employeeId}` : ''}
-</p>
-</div>
-{selected.isClassAdviser && (
-				<Badge className="border-amber-300 bg-amber-50 text-amber-700 gap-1 flex items-center">
-					<Star className="size-3 fill-amber-500 text-amber-500" />
-					{advisedSectionMeta
-						? `Adviser of GR${advisedSectionMeta.gradeLevel} - ${advisedSectionMeta.sectionName}`
-						: 'Adviser'}
-				</Badge>
-			)}
-			{!selected.isActiveForScheduling && <Badge variant="secondary">Excluded</Badge>}
-<div className="ml-auto flex items-center gap-3">
-<div className="text-right">
-<p className="text-[0.625rem] text-muted-foreground">Actual (Adjusted)</p>
-<p className="text-sm font-black">
-{loadProfile.actualTeachingHours}
-<span className="text-[0.625rem] font-medium text-muted-foreground"> h</span>
-</p>
-</div>
-<div className="text-right">
-<p className="text-[0.625rem] text-muted-foreground">Raw Rows</p>
-<p className="text-sm font-semibold">
-{loadProfile.rawTeachingHours}
-<span className="text-[0.625rem] font-medium text-muted-foreground"> h</span>
-</p>
-</div>
-<div className="text-right">
-<p className="text-[0.625rem] text-muted-foreground">Credited</p>
-<p className="text-sm font-bold">
-{loadProfile.creditedTotalHours}
-<span className="text-[0.625rem] font-medium text-muted-foreground"> h</span>
-</p>
-</div>
-<div className="text-right">
-<p className="text-[0.625rem] text-muted-foreground">Policy %</p>
-<p className="text-sm font-bold">{selected.policyLoadPercentage}%</p>
-</div>
-{rotationOvercountHours > 0 && (
-	<Badge className="border-blue-200 bg-blue-50 text-blue-700">
-		Rotation adj: -{rotationOvercountHours}h
-	</Badge>
-)}
-{selected.isPlaceholder && (
-	<Badge className="border-violet-200 bg-violet-50 text-violet-700">Synthetic Coverage</Badge>
-)}
-<Badge className={`${STATUS_COLORS[loadProfile.status].bg} ${STATUS_COLORS[loadProfile.status].text} ${STATUS_COLORS[loadProfile.status].border}`}>
-{loadProfile.statusLabel}
-</Badge>
-					<div className="w-36">
-						<p className="text-[0.625rem] text-muted-foreground">Load Preview</p>
-						<div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
+<div className="flex h-full flex-col space-y-3">
+	{/* Identity Bar - Materially Slimmer */}
+	<div className="shrink-0 flex items-center justify-between gap-4 p-3 bg-card border border-border/50 rounded-xl shadow-sm">
+		<div className="flex items-center gap-3 flex-1 min-w-0">
+			<div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary border border-primary/10 shadow-inner">
+				{selected.firstName[0]}{selected.lastName[0]}
+			</div>
+			<div className="min-w-0">
+				<div className="flex items-center gap-2">
+					<p className="truncate text-sm font-bold leading-none">
+						{selected.firstName} {selected.lastName}
+					</p>
+					{selected.isClassAdviser && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Star className="size-3.5 fill-amber-500 text-amber-600 cursor-help" />
+							</TooltipTrigger>
+							<TooltipContent className="text-xs font-bold">
+								{advisedSectionMeta ? `Adviser: GR${advisedSectionMeta.gradeLevel} - ${advisedSectionMeta.sectionName}` : 'Class Adviser'}
+							</TooltipContent>
+						</Tooltip>
+					)}
+					{!selected.isActiveForScheduling && (
+						<Badge variant="outline" className="h-4 border-red-200 bg-red-50 text-red-700 text-[0.6rem] font-bold uppercase px-1.5">Excluded</Badge>
+					)}
+				</div>
+				<p className="truncate text-[0.65rem] text-muted-foreground font-bold mt-1 uppercase tracking-widest flex items-center gap-2">
+					<span className="text-foreground/80">{selected.specialization || 'General'}</span>
+					<span className="opacity-30">•</span>
+					<span>{selected.department || 'No Dept'}</span>
+					<span className="opacity-30">•</span>
+					<code className="text-[0.6rem] font-mono opacity-50">#{selected.employeeId || 'TBD'}</code>
+				</p>
+			</div>
+		</div>
+
+		<div className="flex items-center gap-4">
+			<div className="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-muted/30 border border-border/40 shadow-inner">
+				<div className="flex flex-col">
+					<span className="text-[0.6rem] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-0.5">Current Load</span>
+					<div className="flex items-baseline gap-1.5">
+						<span className="text-lg font-black tracking-tight">{loadProfile.actualTeachingHours}h</span>
+						<Badge className={`${STATUS_COLORS[loadProfile.status].bg} ${STATUS_COLORS[loadProfile.status].text} h-4 border-none text-[0.55rem] font-black uppercase tracking-tighter px-1 shadow-none`}>
+							{loadProfile.statusLabel}
+						</Badge>
+					</div>
+				</div>
+
+				<div className="w-24 space-y-1 pt-1">
+					<div className="h-1.5 w-full bg-muted rounded-full overflow-hidden shadow-inner border border-muted/50">
+						<div
+							className="h-full bg-emerald-500 transition-all shadow-[0_0_8px_rgba(16,185,129,0.3)]"
+							style={{ width: `${Math.min((loadProfile.actualTeachingHours * 60 / Math.max(loadCapMinutes, 1)) * 100, 100)}%` }}
+						/>
+						{hoveredIncomingMinutes > 0 && (
 							<div
-								className="h-full bg-emerald-500 transition-all"
-								style={{ width: `${Math.min((loadProfile.actualTeachingHours * 60 / Math.max(loadCapMinutes, 1)) * 100, 100)}%` }}
+								className={`h-full -mt-1.5 transition-all ${previewLoadHours * 60 > 2400 ? 'bg-red-500/80' : previewLoadHours * 60 > 1800 ? 'bg-amber-400/80' : 'bg-emerald-300/80'}`}
+								style={{ width: `${Math.min((previewLoadHours * 60 / Math.max(loadCapMinutes, 1)) * 100, 100)}%` }}
 							/>
-							{hoveredIncomingMinutes > 0 && (
-								<div
-									className={`h-full -mt-2 transition-all ${previewLoadHours * 60 > 2400 ? 'bg-red-500/70' : previewLoadHours * 60 > 1800 ? 'bg-amber-400/70' : 'bg-emerald-300/80'}`}
-									style={{ width: `${Math.min((previewLoadHours * 60 / Math.max(loadCapMinutes, 1)) * 100, 100)}%` }}
-								/>
+						)}
+					</div>
+					<div className="flex justify-between text-[0.55rem] font-black uppercase tracking-tighter tabular-nums opacity-60">
+						<span>{loadProfile.actualTeachingHours}h</span>
+						<span>Max {selected.maxHoursPerWeek}h</span>
+					</div>
+				</div>
+
+				<Popover>
+					<PopoverTrigger asChild>
+						<Button variant="ghost" size="icon-sm" className="h-7 w-7 rounded-md hover:bg-primary/5 text-primary">
+							<Info className="size-4" />
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent side="bottom" align="end" className="w-80 p-0 overflow-hidden shadow-xl border-border/50">
+						<div className="bg-blue-600 p-3 text-white">
+							<h5 className="text-[0.65rem] font-black uppercase tracking-[0.15em] opacity-80 mb-0.5">Load Calculation Details</h5>
+							<p className="text-lg font-black leading-tight">{loadProfile.actualTeachingHours}h <span className="text-xs font-medium opacity-70 italic">Concurrent Weekly</span></p>
+						</div>
+						<div className="p-4 space-y-4">
+							<div className="space-y-2">
+								<p className="text-xs text-muted-foreground font-medium leading-relaxed">
+									ATLAS removes <span className="font-bold text-foreground">{rotationOvercountHours}h</span> of overlapping rotation-family sections to reflect true concurrent weekly demand.
+								</p>
+							</div>
+							<div className="grid grid-cols-3 gap-2 border-t border-border/40 pt-3">
+								<div className="flex flex-col">
+									<span className="text-[0.55rem] font-bold uppercase tracking-tighter text-muted-foreground/70">Raw Rows</span>
+									<span className="text-xs font-black text-foreground">{loadProfile.rawTeachingHours}h</span>
+								</div>
+								<div className="flex flex-col border-l border-border/40 pl-3">
+									<span className="text-[0.55rem] font-bold uppercase tracking-tighter text-muted-foreground/70">Credits</span>
+									<span className="text-xs font-black text-emerald-600">+{loadProfile.equivalentHours}h</span>
+								</div>
+								<div className="flex flex-col border-l border-border/40 pl-3">
+									<span className="text-[0.55rem] font-bold uppercase tracking-tighter text-muted-foreground/70">Load %</span>
+									<span className="text-xs font-black text-foreground">{selected.policyLoadPercentage}%</span>
+								</div>
+							</div>
+							{rotationFamilyDetails.length > 0 && (
+								<div className="border-t border-border/40 pt-3 space-y-2">
+									<span className="text-[0.55rem] font-black uppercase tracking-[0.15em] text-muted-foreground/60">Concurrent Families</span>
+									<div className="flex flex-wrap gap-1">
+										{rotationFamilyDetails.map((f, idx) => (
+											<Badge key={idx} variant="outline" className="text-[0.55rem] font-black uppercase px-1.5 py-0 h-4 bg-muted/30 border-muted">
+												{f.family}: {f.creditedHours}h
+											</Badge>
+										))}
+									</div>
+								</div>
 							)}
 						</div>
-						<p className="mt-1 text-[0.625rem] text-muted-foreground">
-							{loadProfile.actualTeachingHours}h
-							{hoveredIncomingMinutes > 0 ? ` -> ${previewLoadHours}h` : ''}
-						</p>
-					</div>
-<Tooltip>
-<TooltipTrigger asChild>
-<Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground">
-<Info className="mr-1.5 size-3.5" />
-Breakdown
-</Button>
-</TooltipTrigger>
-<TooltipContent side="bottom" align="end" className="max-w-sm text-xs">
-<div className="space-y-1.5">
-<p className="font-semibold">Section-based teaching load (rotation-aware)</p>
-<p>Standard: 30h/wk | Max: 40h/wk</p>
-{rotationOvercountHours > 0 && <p>Rotation-family overlap removed from concurrent load: -{rotationOvercountHours}h</p>}
-{loadProfile.equivalentHours > 0 && <p>Policy credits (adviser + ancillary): +{loadProfile.equivalentHours}h</p>}
-<p>Ancillary (policy): +{Math.round(((selected.ancillaryMinutesPerWeek || 0) / 60) * 10) / 10}h</p>
-{selected.isPlaceholder && <p className="text-violet-700">Placeholder rows represent synthetic coverage and are not treated as standard operator overload signals.</p>}
-{rotationFamilyDetails.length > 0 && (
-	<div className="space-y-1 rounded border border-blue-100 bg-blue-50/50 px-2 py-1.5">
-		<p className="font-semibold text-blue-900">Rotation families</p>
-		{rotationFamilyDetails.map((family: RotationFamilyLoadDetail) => (
-			<p key={family.family} className="text-[0.6875rem] text-blue-900">
-				{family.family}: {family.creditedHours}h credited ({family.rawHours}h raw)
-				{family.overcountHours > 0 ? `, ${family.overcountHours}h overlap removed` : ''}
-				{family.subjectCodes.length > 0 ? ` | ${family.subjectCodes.join(', ')}` : ''}
-			</p>
-		))}
+					</PopoverContent>
+				</Popover>
+			</div>
+		</div>
 	</div>
-)}
-<div className="max-h-44 space-y-1 overflow-auto border-t border-border pt-1">
-{loadBreakdownRows.length === 0 ? (
-<p className="text-muted-foreground">No sections selected yet.</p>
-) : (
-loadBreakdownRows.map((item: any) => (
-<p key={`${item.subjectId}:${item.sectionId}`} className="font-mono">
-{item.subjectCode} | G{item.gradeLevel} {item.sectionName}: {Math.round((item.totalMinutes / 60) * 10) / 10}h
-	{item.isRotationDuplicate ? ' (rotation lane overlap)' : ''}
-</p>
-))
-)}
-</div>
-</div>
-</TooltipContent>
-</Tooltip>
-</div>
-</div>
-{focusedSubject && (
-				<div className="mt-2 flex items-center gap-2 rounded border border-blue-200 bg-blue-50/60 px-3 py-1.5">
-					<Info className="size-3.5 shrink-0 text-blue-700" />
-					<span className="text-xs text-blue-800">
-						Remediation focus: <span className="font-semibold">{focusedSubject.code}</span> - {focusedSubject.name}
-					</span>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						className="ml-auto h-6 px-2 text-[0.65rem]"
-						onClick={() => {
-							const next = new URLSearchParams(searchParams);
-							next.delete('subjectId');
-							next.delete('subjectCode');
-							setSearchParams(next);
-							setSubjectSearch('');
-						}}
-					>
-						Clear Focus
-					</Button>
-				</div>
-			)}
-			{subjectsLackingFaculty.length > 0 && (
-				<div className="mt-2 flex items-center gap-2 rounded border border-red-200 bg-red-50/60 px-3 py-1.5">
-					<AlertTriangle className="size-3.5 shrink-0 text-red-600" />
-					<span className="shrink-0 text-xs font-semibold text-red-700">{subjectsLackingFaculty.length} lacking faculty:</span>
-					<div className="flex flex-1 items-center gap-1 overflow-x-auto">
-						{subjectsLackingFaculty.map((s) => (
-							<Badge key={s.id} variant="outline" className="shrink-0 border-red-300 bg-white px-1.5 py-0 text-[0.5625rem] text-red-700">{s.code}</Badge>
-						))}
-					</div>
-				</div>
-			)}
-			<Card className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden shadow-sm">
-<div className="flex items-center justify-between border-b border-border bg-card px-5 py-3">
+
+	{/* Workspace Card */}
+	<Card className="flex min-h-0 flex-1 flex-col overflow-hidden shadow-sm border-border/40">
+<div className="flex items-center justify-between border-b border-border/60 bg-muted/10 px-4 py-2">
 <div className="flex items-center gap-3">
-<h3 className="text-sm font-semibold text-muted-foreground">Subject Assignments</h3>
-{selected.department && <Badge variant="secondary">{selected.department}</Badge>}
-{!sectionsAvailable && <Badge variant="outline">Roster unavailable</Badge>}
+<h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.15em]">Subject Assignments</h3>
+{selected.department && <Badge variant="outline" className="border-border/40 bg-white/80 text-muted-foreground font-black text-[0.6rem] px-2 py-0 h-5 shadow-none uppercase">{selected.department}</Badge>}
 </div>
 <div className="flex items-center gap-2">
-<Button type="button" variant="outline" size="sm" onClick={handleUndo} disabled={!canUndo || saving || isReadOnlyMode}>
-<Undo2 className="mr-1.5 size-3.5" />
-Undo
-</Button>
-<Button type="button" variant="outline" size="sm" onClick={handleRedo} disabled={!canRedo || saving || isReadOnlyMode}>
-<Redo2 className="mr-1.5 size-3.5" />
-Redo
-</Button>
-<Button type="button" variant="outline" size="sm" onClick={handleResetAssignments} disabled={saving || !selected.isActiveForScheduling || !sectionsAvailable || isReadOnlyMode}>
-<RotateCcw className="mr-1.5 size-3.5" />
-Reset Draft (Selected)
-</Button>
-{dirty && (
-<Button type="button" variant="secondary" size="sm" onClick={discardSelectedDraft} disabled={saving || isReadOnlyMode}>
-<RotateCcw className="mr-1.5 size-3.5" />
-Discard Draft
-</Button>
-)}
-<Button type="button" size="sm" onClick={handleSave} disabled={!dirty || saving || !selected.isActiveForScheduling || !sectionsAvailable || isReadOnlyMode}>
-<Save className="mr-1.5 size-3.5" />
-{saving ? 'Saving...' : 'Save Teaching Load'}
+	<div className="flex items-center bg-background rounded-lg border border-border/60 p-0.5 shadow-inner mr-2">
+		<Button type="button" variant="ghost" size="icon-xs" onClick={handleUndo} disabled={!canUndo || saving || isReadOnlyMode} className="h-7 w-8 font-bold text-xs">
+			<Undo2 className="size-3.5" />
+		</Button>
+		<Button type="button" variant="ghost" size="icon-xs" onClick={handleRedo} disabled={!canRedo || saving || isReadOnlyMode} className="h-7 w-8 font-bold text-xs">
+			<Redo2 className="size-3.5" />
+		</Button>
+	</div>
+	
+	<DropdownMenu>
+		<DropdownMenuTrigger asChild>
+			<Button variant="outline" size="sm" className="h-8 px-2 gap-2 text-xs font-bold text-muted-foreground">
+				<MoreHorizontal className="size-3.5" />
+			</Button>
+		</DropdownMenuTrigger>
+		<DropdownMenuContent align="end" className="w-48">
+			<DropdownMenuItem onSelect={handleResetAssignments} disabled={saving || !selected.isActiveForScheduling || !sectionsAvailable || isReadOnlyMode} className="gap-2 cursor-pointer">
+				<RotateCcw className="size-3.5" />
+				<span className="text-xs font-bold uppercase">Reset Draft</span>
+			</DropdownMenuItem>
+			{dirty && (
+				<DropdownMenuItem onSelect={discardSelectedDraft} disabled={saving || isReadOnlyMode} className="gap-2 cursor-pointer text-amber-600">
+					<RotateCcw className="size-3.5" />
+					<span className="text-xs font-bold uppercase">Discard Changes</span>
+				</DropdownMenuItem>
+			)}
+		</DropdownMenuContent>
+	</DropdownMenu>
+
+<Button type="button" size="sm" onClick={handleSave} disabled={!dirty || saving || !selected.isActiveForScheduling || !sectionsAvailable || isReadOnlyMode} className="h-8 font-bold text-xs gap-1.5 shadow-md shadow-primary/10">
+<Save className="size-3.5" />
+{saving ? 'Saving...' : 'Save Assignments'}
 </Button>
 </div>
 </div>
-<div className="flex items-center gap-2 border-b border-border bg-muted/30 px-5 py-2">
-				<div className="relative w-52 shrink-0">
-					<Search className="absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
+<div className="flex items-center gap-4 border-b border-border bg-muted/5 px-5 py-3">
+				<div className="relative w-64 shrink-0">
+					<Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
 					<Input
 						placeholder="Search subjects or sections..."
 						value={subjectSearch}
 						onChange={(event) => setSubjectSearch(event.target.value)}
-						className="h-7 pl-8 text-xs"
+						className="h-8 pl-9 text-xs bg-background shadow-sm"
 					/>
 				</div>
 				<Select value={sectionFilter} onValueChange={(v) => setSectionFilter(v as 'all' | 'unassigned' | 'assigned')}>
-					<SelectTrigger className="h-7 w-36 text-xs">
+					<SelectTrigger className="h-8 w-40 text-xs font-semibold bg-background shadow-sm">
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
@@ -1551,7 +1591,7 @@ Discard Draft
 					</SelectContent>
 				</Select>
 								<Select value={gradeLevelFilter} onValueChange={setGradeLevelFilter}>
-									<SelectTrigger className="h-7 w-32 text-xs">
+									<SelectTrigger className="h-8 w-36 text-xs font-semibold bg-background shadow-sm">
 										<SelectValue placeholder="Grade Level" />
 									</SelectTrigger>
 									<SelectContent>
@@ -1564,20 +1604,21 @@ Discard Draft
 								</Select>
 			</div>
 
-			<CardContent className="flex-1 overflow-auto pt-3">
+			<CardContent className="flex-1 overflow-auto pt-4 space-y-4">
 {!selected.isActiveForScheduling && (
-<div className="mb-3 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-<AlertTriangle className="size-4" />
-This faculty member is excluded from scheduling. Enable them first.
+<div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm animate-in slide-in-from-left-2 duration-300">
+<AlertTriangle className="size-4 shrink-0" />
+<span className="font-semibold uppercase tracking-tight text-xs">Exclusion Notice:</span>
+<span>This teacher is excluded from scheduling. Enable them in EnrollPro to assign classes.</span>
 </div>
 )}
 
 {!sectionsAvailable && (
-<div className="mb-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+<div className="mb-4 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm">
 <AlertTriangle className="mt-0.5 size-4 shrink-0" />
 <div>
-<p className="font-medium">Section roster unavailable</p>
-<p className="text-[0.75rem]">Teaching-load precision requires an active EnrollPro-backed section roster for the current school year.</p>
+<p className="font-bold uppercase tracking-tight text-xs">Roster synchronization required</p>
+<p className="text-[0.75rem] opacity-90">Precision scheduling requires an active section roster. Please verify connection to the EnrollPro bridge.</p>
 </div>
 </div>
 )}
@@ -1586,12 +1627,13 @@ This faculty member is excluded from scheduling. Enable them first.
 	const renderTier = (subjects: Subject[], title: string, badge?: string) => {
 		if (subjects.length === 0) return null;
 		return (
-			<div className="mb-4">
-				<div className="mb-2 flex items-center gap-2">
-					<h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h4>
-						{badge && <Badge variant="outline" className="text-[0.5rem] bg-emerald-50 text-emerald-700 border-emerald-200">{badge}</Badge>}
+			<div className="mb-6 last:mb-0">
+				<div className="mb-3 flex items-center gap-3">
+					<h4 className="text-[0.7rem] font-bold uppercase tracking-[0.15em] text-muted-foreground/60">{title}</h4>
+						{badge && <Badge variant="outline" className="text-[0.6rem] font-bold bg-emerald-50 text-emerald-700 border-emerald-200 px-2 py-0 h-5 shadow-none">{badge}</Badge>}
+						<div className="flex-1 h-px bg-border/40" />
 				</div>
-				<div className="space-y-2">
+				<div className="space-y-3">
 					{subjects.map((subject) => (
 						<SubjectRow
 							key={subject.id}
@@ -1631,17 +1673,18 @@ This faculty member is excluded from scheduling. Enable them first.
 			{renderTier(
 				departmentQualifiedSubjects,
 				'Department Qualified',
-				selected.department ?? 'Qualified Subjects',
+				selected.department ?? 'Qualified',
 			)}
 			{outsideDepartmentSubjects.length > 0 && (
-				<div>
-					<div className="mb-2 flex items-center gap-2">
-						<h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Outside Department</h4>
-						<Badge variant="outline" className="text-xs border-amber-300 text-amber-700">
-							{selected.canTeachOutsideDepartment ? 'Assignable (Override Enabled)' : 'Not Assignable'}
+				<div className="pt-2">
+					<div className="mb-3 flex items-center gap-3">
+						<h4 className="text-[0.7rem] font-bold uppercase tracking-[0.15em] text-muted-foreground/60">Outside Department</h4>
+						<Badge variant="outline" className={`text-[0.6rem] font-bold px-2 py-0 h-5 shadow-none ${selected.canTeachOutsideDepartment ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-muted bg-muted/50 text-muted-foreground'}`}>
+							{selected.canTeachOutsideDepartment ? 'ASSIGNMENT ENABLED' : 'LOCKED BY POLICY'}
 						</Badge>
+						<div className="flex-1 h-px bg-border/40" />
 					</div>
-					<div className={`space-y-2 ${selected.canTeachOutsideDepartment ? '' : 'opacity-70'}`}>
+					<div className={`space-y-3 ${selected.canTeachOutsideDepartment ? '' : 'opacity-60'}`}>
 						{outsideDepartmentSubjects.map((subject) => (
 							<SubjectRow
 								key={subject.id}

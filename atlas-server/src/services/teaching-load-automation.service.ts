@@ -23,6 +23,8 @@ import { prisma } from '../lib/prisma.js';
 import { sectionAdapter } from './section-adapter.js';
 import {
 	matchesSubjectOwnershipDepartment,
+	normalizeDepartmentCode,
+	resolveSubjectAllowedOwnerDepartments,
 	resolveSubjectRotationFamily,
 	resolveSubjectOwnerDepartmentCode,
 } from './subject-ownership.service.js';
@@ -45,15 +47,27 @@ export interface StaffingCrossTrainee {
 	department: string;
 	availableTeachers: number;
 	totalSpareHours: number;
+	qualifiedRecoveryHoursPerWeek?: number;
 }
 
 export interface StaffingReport {
 	department: string;
+	dominantShortageDepartment: string;
 	unassignedSections: number;
 	missingHoursPerWeek: number;
+	concurrentUnassignedSections: number;
+	concurrentMissingHoursPerWeek: number;
+	recoverableConcurrentRows: number;
+	recoverableConcurrentMissingHoursPerWeek: number;
+	recoverableConcurrentMissingMinutesPerWeek: number;
+	constrainedConcurrentRows: number;
+	constrainedConcurrentMissingHoursPerWeek: number;
+	constrainedConcurrentMissingMinutesPerWeek: number;
 	recommendedNewHires: number;
 	internalCrossTrainees: StaffingCrossTrainee[];
 	missingMinutesPerWeek: number;
+	concurrentMissingMinutesPerWeek: number;
+	rotationAdjustedMinutesPerWeek: number;
 	shortages: StaffingShortageDetail[];
 }
 
@@ -61,6 +75,13 @@ export interface StaffingShortageDetail {
 	department: string;
 	count: number;
 	missingMinutesPerWeek: number;
+	concurrentCount: number;
+	concurrentMissingMinutesPerWeek: number;
+	recoverableConcurrentCount: number;
+	recoverableConcurrentMissingMinutesPerWeek: number;
+	constrainedConcurrentCount: number;
+	constrainedConcurrentMissingMinutesPerWeek: number;
+	rotationAdjustedMinutesPerWeek: number;
 	sections: Array<{
 		subjectId: number;
 		subjectCode: string;
@@ -104,8 +125,21 @@ interface UnresolvedPair {
 
 interface StaffingShortageBucket {
 	department: string;
-	unassignedSections: number;
-	missingMinutesPerWeek: number;
+	rawUnassignedSections: number;
+	rawMissingMinutesPerWeek: number;
+	concurrentUnassignedSections: number;
+	concurrentMissingMinutesPerWeek: number;
+	recoverableConcurrentCount: number;
+	recoverableConcurrentMissingMinutesPerWeek: number;
+	constrainedConcurrentCount: number;
+	constrainedConcurrentMissingMinutesPerWeek: number;
+	rotationAdjustedMinutesPerWeek: number;
+}
+
+interface ConcurrentLaneDemand {
+	department: string;
+	minutes: number;
+	allowedOwnerDepartments: string[];
 }
 
 /**
@@ -158,66 +192,224 @@ function isProgramScopeCompatible(scopes: string[] | undefined, sectionProgramTy
 }
 
 function buildStaffingReport(
-	unresolvedByDepartment: Map<string, { count: number; missingMinutesPerWeek: number }>,
-	shortageSections: Map<string, StaffingShortageDetail['sections']>,
+	unresolvedPairs: UnresolvedPair[],
 	faculty: FacultyRow[],
 	capacityUsed: Map<number, number>,
 ): StaffingReport {
-	const shortageBuckets = Array.from(unresolvedByDepartment.entries())
-		.map(([department, bucket]) => ({
-			department,
-			unassignedSections: bucket.count,
-			missingMinutesPerWeek: bucket.missingMinutesPerWeek,
-		}))
-		.sort((left, right) => {
-			if (right.missingMinutesPerWeek !== left.missingMinutesPerWeek) {
-				return right.missingMinutesPerWeek - left.missingMinutesPerWeek;
+	const rawByDepartment = new Map<string, { count: number; missingMinutesPerWeek: number }>();
+	const concurrentLanes = new Map<string, ConcurrentLaneDemand>();
+	const shortageSections = new Map<string, StaffingShortageDetail['sections']>();
+
+	for (const pair of unresolvedPairs) {
+		const fallbackDepartment = pair.subject.ownerDepartment
+			?? resolveSubjectOwnerDepartmentCode(pair.subject.code, pair.subject.name)
+			?? pair.subject.modularGroupId
+			?? 'GENERAL';
+		const department = formatDepartmentLabel(fallbackDepartment);
+		const subjectMinutes = Math.max(0, Number(pair.subject.minMinutesPerWeek) || 0);
+
+		const rawBucket = rawByDepartment.get(department) ?? { count: 0, missingMinutesPerWeek: 0 };
+		rawBucket.count += 1;
+		rawBucket.missingMinutesPerWeek += subjectMinutes;
+		rawByDepartment.set(department, rawBucket);
+
+		const family = resolveCapacityRotationFamily(pair.subject.code, pair.subject.rotationFamily);
+		const laneKey = family
+			? `family:${family}:${pair.sectionId}`
+			: `subject:${pair.subjectId}:${pair.sectionId}`;
+		const allowedOwnerDepartments = resolveSubjectAllowedOwnerDepartments(
+			pair.subject.ownerDepartment,
+			pair.subject.code,
+			pair.subject.name,
+			pair.subject.requiredFeatures,
+		);
+		const existingLane = concurrentLanes.get(laneKey);
+		if (!existingLane || subjectMinutes > existingLane.minutes) {
+			concurrentLanes.set(laneKey, {
+				department,
+				minutes: subjectMinutes,
+				allowedOwnerDepartments,
+			});
+		}
+
+		const sections = shortageSections.get(department) ?? [];
+		sections.push({
+			subjectId: pair.subject.id,
+			subjectCode: pair.subject.code,
+			subjectName: pair.subject.name,
+			sectionId: pair.sectionId,
+			sectionName: pair.sectionName,
+			programType: pair.sectionProgramType,
+		});
+		shortageSections.set(department, sections);
+	}
+
+	const concurrentByDepartment = new Map<string, { count: number; missingMinutesPerWeek: number }>();
+	for (const lane of concurrentLanes.values()) {
+		const bucket = concurrentByDepartment.get(lane.department) ?? { count: 0, missingMinutesPerWeek: 0 };
+		bucket.count += 1;
+		bucket.missingMinutesPerWeek += lane.minutes;
+		concurrentByDepartment.set(lane.department, bucket);
+	}
+
+	const facultySpareMinutes = new Map<number, number>();
+	const facultyDepartmentCode = new Map<number, string | null>();
+	const facultyDepartmentLabel = new Map<number, string>();
+	for (const member of faculty) {
+		const spareMinutes = Math.max(0, maxMinutes(member) - (capacityUsed.get(member.id) ?? 0));
+		facultySpareMinutes.set(member.id, spareMinutes);
+		facultyDepartmentCode.set(member.id, normalizeDepartmentCode(member.department));
+		facultyDepartmentLabel.set(member.id, formatDepartmentLabel(member.department));
+	}
+
+	const sortedConcurrentLanes = Array.from(concurrentLanes.values()).sort((left, right) => right.minutes - left.minutes);
+	const recoverabilityByDepartment = new Map<string, {
+		recoverableCount: number;
+		recoverableMinutes: number;
+		constrainedCount: number;
+		constrainedMinutes: number;
+	}>();
+	const crossTraineeTeacherIdsByDepartment = new Map<string, Set<number>>();
+
+	for (const lane of sortedConcurrentLanes) {
+		const normalizedAllowedDepartments = new Set<string>(
+			lane.allowedOwnerDepartments
+				.map((department) => normalizeDepartmentCode(department))
+				.filter((department): department is string => Boolean(department)),
+		);
+
+		let bestFacultyId: number | null = null;
+		let bestSpareMinutes = 0;
+		for (const member of faculty) {
+			const spareMinutes = facultySpareMinutes.get(member.id) ?? 0;
+			if (spareMinutes <= 0) continue;
+			const memberDepartmentCode = facultyDepartmentCode.get(member.id);
+			if (!memberDepartmentCode || !normalizedAllowedDepartments.has(memberDepartmentCode)) continue;
+			if (spareMinutes > bestSpareMinutes) {
+				bestSpareMinutes = spareMinutes;
+				bestFacultyId = member.id;
 			}
-			if (right.unassignedSections !== left.unassignedSections) {
-				return right.unassignedSections - left.unassignedSections;
+		}
+
+		const recoverabilityBucket = recoverabilityByDepartment.get(lane.department) ?? {
+			recoverableCount: 0,
+			recoverableMinutes: 0,
+			constrainedCount: 0,
+			constrainedMinutes: 0,
+		};
+
+		if (bestFacultyId != null && bestSpareMinutes >= lane.minutes) {
+			recoverabilityBucket.recoverableCount += 1;
+			recoverabilityBucket.recoverableMinutes += lane.minutes;
+			facultySpareMinutes.set(bestFacultyId, bestSpareMinutes - lane.minutes);
+
+			const teacherDepartment = facultyDepartmentLabel.get(bestFacultyId) ?? 'GENERAL';
+			if (teacherDepartment !== lane.department) {
+				const teachers = crossTraineeTeacherIdsByDepartment.get(teacherDepartment) ?? new Set<number>();
+				teachers.add(bestFacultyId);
+				crossTraineeTeacherIdsByDepartment.set(teacherDepartment, teachers);
+			}
+		} else {
+			recoverabilityBucket.constrainedCount += 1;
+			recoverabilityBucket.constrainedMinutes += lane.minutes;
+		}
+
+		recoverabilityByDepartment.set(lane.department, recoverabilityBucket);
+	}
+
+	const allDepartments = new Set<string>([
+		...rawByDepartment.keys(),
+		...concurrentByDepartment.keys(),
+	]);
+
+	const shortageBuckets = Array.from(allDepartments)
+		.map((department) => {
+			const raw = rawByDepartment.get(department) ?? { count: 0, missingMinutesPerWeek: 0 };
+			const concurrent = concurrentByDepartment.get(department) ?? { count: 0, missingMinutesPerWeek: 0 };
+			const recoverability = recoverabilityByDepartment.get(department) ?? {
+				recoverableCount: 0,
+				recoverableMinutes: 0,
+				constrainedCount: 0,
+				constrainedMinutes: 0,
+			};
+			return {
+				department,
+				rawUnassignedSections: raw.count,
+				rawMissingMinutesPerWeek: raw.missingMinutesPerWeek,
+				concurrentUnassignedSections: concurrent.count,
+				concurrentMissingMinutesPerWeek: concurrent.missingMinutesPerWeek,
+				recoverableConcurrentCount: recoverability.recoverableCount,
+				recoverableConcurrentMissingMinutesPerWeek: recoverability.recoverableMinutes,
+				constrainedConcurrentCount: recoverability.constrainedCount,
+				constrainedConcurrentMissingMinutesPerWeek: recoverability.constrainedMinutes,
+				rotationAdjustedMinutesPerWeek: Math.max(0, raw.missingMinutesPerWeek - concurrent.missingMinutesPerWeek),
+			};
+		})
+		.sort((left, right) => {
+			if (right.concurrentMissingMinutesPerWeek !== left.concurrentMissingMinutesPerWeek) {
+				return right.concurrentMissingMinutesPerWeek - left.concurrentMissingMinutesPerWeek;
+			}
+			if (right.rawMissingMinutesPerWeek !== left.rawMissingMinutesPerWeek) {
+				return right.rawMissingMinutesPerWeek - left.rawMissingMinutesPerWeek;
 			}
 			return left.department.localeCompare(right.department);
 		});
 
 	const primaryShortage: StaffingShortageBucket = shortageBuckets[0] ?? {
 		department: 'GENERAL',
-		unassignedSections: 0,
-		missingMinutesPerWeek: 0,
+		rawUnassignedSections: 0,
+		rawMissingMinutesPerWeek: 0,
+		concurrentUnassignedSections: 0,
+		concurrentMissingMinutesPerWeek: 0,
+		rotationAdjustedMinutesPerWeek: 0,
 	};
-  const totalUnassignedSections = shortageBuckets.reduce((sum, bucket) => sum + bucket.unassignedSections, 0);
+	const totalRawUnassignedSections = shortageBuckets.reduce((sum, bucket) => sum + bucket.rawUnassignedSections, 0);
+	const totalConcurrentUnassignedSections = shortageBuckets.reduce((sum, bucket) => sum + bucket.concurrentUnassignedSections, 0);
 
-	const missingMinutesPerWeek = shortageBuckets.reduce((sum, bucket) => sum + bucket.missingMinutesPerWeek, 0);
-	const missingHoursPerWeek = Math.round((missingMinutesPerWeek / 60) * 10) / 10;
-	const recommendedNewHires = Math.round((missingHoursPerWeek / 30) * 10) / 10;
+	const rawMissingMinutesPerWeek = shortageBuckets.reduce((sum, bucket) => sum + bucket.rawMissingMinutesPerWeek, 0);
+	const concurrentMissingMinutesPerWeek = shortageBuckets.reduce((sum, bucket) => sum + bucket.concurrentMissingMinutesPerWeek, 0);
+	const rawMissingHoursPerWeek = Math.round((rawMissingMinutesPerWeek / 60) * 10) / 10;
+	const concurrentMissingHoursPerWeek = Math.round((concurrentMissingMinutesPerWeek / 60) * 10) / 10;
+	const rotationAdjustedMinutesPerWeek = Math.max(0, rawMissingMinutesPerWeek - concurrentMissingMinutesPerWeek);
+	const recoverableConcurrentRows = shortageBuckets.reduce((sum, bucket) => sum + bucket.recoverableConcurrentCount, 0);
+	const recoverableConcurrentMissingMinutesPerWeek = shortageBuckets.reduce(
+		(sum, bucket) => sum + bucket.recoverableConcurrentMissingMinutesPerWeek,
+		0,
+	);
+	const constrainedConcurrentRows = shortageBuckets.reduce((sum, bucket) => sum + bucket.constrainedConcurrentCount, 0);
+	const constrainedConcurrentMissingMinutesPerWeek = shortageBuckets.reduce(
+		(sum, bucket) => sum + bucket.constrainedConcurrentMissingMinutesPerWeek,
+		0,
+	);
+	const recoverableConcurrentMissingHoursPerWeek = Math.round((recoverableConcurrentMissingMinutesPerWeek / 60) * 10) / 10;
+	const constrainedConcurrentMissingHoursPerWeek = Math.round((constrainedConcurrentMissingMinutesPerWeek / 60) * 10) / 10;
+	const recommendedNewHires = Math.round((concurrentMissingHoursPerWeek / 30) * 10) / 10;
 
-	const crossTraineesByDepartment = new Map<string, { availableTeachers: number; totalSpareMinutes: number }>();
+	const initialSpareByFaculty = new Map<number, number>();
 	for (const member of faculty) {
-		const spareMinutes = Math.max(0, maxMinutes(member) - (capacityUsed.get(member.id) ?? 0));
-		if (spareMinutes <= 0) {
-			continue;
-		}
-
-		const department = formatDepartmentLabel(member.department);
-		if (department === primaryShortage.department) {
-			continue;
-		}
-
-		const bucket = crossTraineesByDepartment.get(department) ?? {
-			availableTeachers: 0,
-			totalSpareMinutes: 0,
-		};
-		bucket.availableTeachers += 1;
-		bucket.totalSpareMinutes += spareMinutes;
-		crossTraineesByDepartment.set(department, bucket);
+		initialSpareByFaculty.set(member.id, Math.max(0, maxMinutes(member) - (capacityUsed.get(member.id) ?? 0)));
 	}
 
-	const internalCrossTrainees = Array.from(crossTraineesByDepartment.entries())
-		.map(([department, value]) => ({
-			department,
-			availableTeachers: value.availableTeachers,
-			totalSpareHours: Math.round((value.totalSpareMinutes / 60) * 10) / 10,
-		}))
+	const internalCrossTrainees = Array.from(crossTraineeTeacherIdsByDepartment.entries())
+		.map(([department, teacherIds]) => {
+			const teacherList = Array.from(teacherIds);
+			const totalSpareMinutes = teacherList.reduce((sum, facultyId) => sum + (initialSpareByFaculty.get(facultyId) ?? 0), 0);
+			const qualifiedRecoveryMinutes = teacherList.reduce((sum, facultyId) => {
+				const initial = initialSpareByFaculty.get(facultyId) ?? 0;
+				const remaining = facultySpareMinutes.get(facultyId) ?? 0;
+				return sum + Math.max(0, initial - remaining);
+			}, 0);
+			return {
+				department,
+				availableTeachers: teacherList.length,
+				totalSpareHours: Math.round((totalSpareMinutes / 60) * 10) / 10,
+				qualifiedRecoveryHoursPerWeek: Math.round((qualifiedRecoveryMinutes / 60) * 10) / 10,
+			};
+		})
 		.sort((left, right) => {
+			if ((right.qualifiedRecoveryHoursPerWeek ?? 0) !== (left.qualifiedRecoveryHoursPerWeek ?? 0)) {
+				return (right.qualifiedRecoveryHoursPerWeek ?? 0) - (left.qualifiedRecoveryHoursPerWeek ?? 0);
+			}
 			if (right.totalSpareHours !== left.totalSpareHours) {
 				return right.totalSpareHours - left.totalSpareHours;
 			}
@@ -229,18 +421,36 @@ function buildStaffingReport(
 
 	const shortages = shortageBuckets.map((bucket) => ({
 		department: bucket.department,
-		count: bucket.unassignedSections,
-		missingMinutesPerWeek: bucket.missingMinutesPerWeek,
+		count: bucket.rawUnassignedSections,
+		missingMinutesPerWeek: bucket.rawMissingMinutesPerWeek,
+		concurrentCount: bucket.concurrentUnassignedSections,
+		concurrentMissingMinutesPerWeek: bucket.concurrentMissingMinutesPerWeek,
+		recoverableConcurrentCount: bucket.recoverableConcurrentCount,
+		recoverableConcurrentMissingMinutesPerWeek: bucket.recoverableConcurrentMissingMinutesPerWeek,
+		constrainedConcurrentCount: bucket.constrainedConcurrentCount,
+		constrainedConcurrentMissingMinutesPerWeek: bucket.constrainedConcurrentMissingMinutesPerWeek,
+		rotationAdjustedMinutesPerWeek: bucket.rotationAdjustedMinutesPerWeek,
 		sections: (shortageSections.get(bucket.department) ?? []).slice(0, 50),
 	}));
 
 	return {
 		department: primaryShortage.department,
-		unassignedSections: totalUnassignedSections,
-		missingHoursPerWeek,
+		dominantShortageDepartment: primaryShortage.department,
+		unassignedSections: totalRawUnassignedSections,
+		missingHoursPerWeek: rawMissingHoursPerWeek,
+		concurrentUnassignedSections: totalConcurrentUnassignedSections,
+		concurrentMissingHoursPerWeek,
+		recoverableConcurrentRows,
+		recoverableConcurrentMissingHoursPerWeek,
+		recoverableConcurrentMissingMinutesPerWeek,
+		constrainedConcurrentRows,
+		constrainedConcurrentMissingHoursPerWeek,
+		constrainedConcurrentMissingMinutesPerWeek,
 		recommendedNewHires,
 		internalCrossTrainees,
-		missingMinutesPerWeek,
+		missingMinutesPerWeek: rawMissingMinutesPerWeek,
+		concurrentMissingMinutesPerWeek,
+		rotationAdjustedMinutesPerWeek,
 		shortages,
 	};
 }
@@ -275,9 +485,74 @@ export async function autoFill(
 	const previewOnly = options?.previewOnly ?? false;
 	const staffingOnly = options?.staffingOnly === true;
 
+	const sectionResult = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
+	const sectionGradeLevel = new Map<number, number>();
+	const sectionMeta = new Map<number, { sectionName: string; programType: string }>();
+	for (const grade of sectionResult.gradeLevels) {
+		for (const section of grade.sections) {
+			if (section.id > 0) {
+				sectionGradeLevel.set(section.id, section.displayOrder);
+				sectionMeta.set(section.id, {
+					sectionName: section.name,
+					programType: section.programType ?? 'REGULAR',
+				});
+			}
+		}
+	}
+
+	const allSectionIds = Array.from(sectionGradeLevel.keys());
+	if (allSectionIds.length === 0) {
+		warnings.push('No active sections were resolved for the selected school year. Auto-fill cannot continue.');
+		return {
+			preserved: 0,
+			created: 0,
+			assignmentsCreated: 0,
+			uniqueTeachersAffected: 0,
+			unresolved: 0,
+			warnings,
+			staffingReport: {
+				department: 'GENERAL',
+				dominantShortageDepartment: 'GENERAL',
+				unassignedSections: 0,
+				missingHoursPerWeek: 0,
+				concurrentUnassignedSections: 0,
+				concurrentMissingHoursPerWeek: 0,
+				recoverableConcurrentRows: 0,
+				recoverableConcurrentMissingHoursPerWeek: 0,
+				recoverableConcurrentMissingMinutesPerWeek: 0,
+				constrainedConcurrentRows: 0,
+				constrainedConcurrentMissingHoursPerWeek: 0,
+				constrainedConcurrentMissingMinutesPerWeek: 0,
+				recommendedNewHires: 0,
+				internalCrossTrainees: [],
+				missingMinutesPerWeek: 0,
+				concurrentMissingMinutesPerWeek: 0,
+				rotationAdjustedMinutesPerWeek: 0,
+				shortages: [],
+			},
+		};
+	}
+
+	const faculty = await prisma.facultyMirror.findMany({
+		where: { schoolId, isStale: false, isActiveForScheduling: true },
+		select: {
+			id: true,
+			firstName: true,
+			lastName: true,
+			department: true,
+			canTeachOutsideDepartment: true,
+			maxHoursPerWeek: true,
+		},
+	});
+	const activeFacultyIds = faculty.map((member) => member.id);
+
 	// ─── Step 1: Build resolved-pair set + capacity used per faculty ───────────
 	const existingOwnerships = await prisma.subjectSectionOwnership.findMany({
-		where: { schoolId },
+		where: {
+			schoolId,
+			sectionId: { in: allSectionIds },
+			facultyId: { in: activeFacultyIds },
+		},
 		select: {
 			subjectId: true,
 			sectionId: true,
@@ -368,71 +643,8 @@ export async function autoFill(
 		},
 	});
 
-	const sectionResult = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
-	const sectionGradeLevel = new Map<number, number>();
-	const sectionMeta = new Map<number, { sectionName: string; programType: string }>();
-	for (const grade of sectionResult.gradeLevels) {
-		for (const section of grade.sections) {
-			if (section.id > 0) {
-				sectionGradeLevel.set(section.id, section.displayOrder);
-				sectionMeta.set(section.id, {
-					sectionName: section.name,
-					programType: section.programType ?? 'REGULAR',
-				});
-			}
-		}
-	}
-
-	const allSectionIds = Array.from(sectionGradeLevel.keys());
-	if (allSectionIds.length === 0) {
-		warnings.push('No active sections were resolved for the selected school year. Auto-fill cannot continue.');
-		return {
-			preserved,
-			created: 0,
-			assignmentsCreated: 0,
-			uniqueTeachersAffected: 0,
-			unresolved: 0,
-			warnings,
-			staffingReport: {
-				department: 'GENERAL',
-				unassignedSections: 0,
-				missingHoursPerWeek: 0,
-				recommendedNewHires: 0,
-				internalCrossTrainees: [],
-				missingMinutesPerWeek: 0,
-				shortages: [],
-			},
-		};
-	}
-
 	const workQueue: UnresolvedPair[] = [];
-	const unresolvedByDepartment = new Map<string, { count: number; missingMinutesPerWeek: number }>();
-	const shortageSections = new Map<string, StaffingShortageDetail['sections']>();
-
-	const recordShortage = (pair: UnresolvedPair): void => {
-		const fallbackDepartment = pair.subject.ownerDepartment
-			?? resolveSubjectOwnerDepartmentCode(pair.subject.code, pair.subject.name)
-			?? pair.subject.modularGroupId
-			?? 'GENERAL';
-		const shortageKey = formatDepartmentLabel(fallbackDepartment);
-		const subjectMinutes = Math.max(0, Number(pair.subject.minMinutesPerWeek) || 0);
-
-		const currentBucket = unresolvedByDepartment.get(shortageKey) ?? { count: 0, missingMinutesPerWeek: 0 };
-		currentBucket.count += 1;
-		currentBucket.missingMinutesPerWeek += subjectMinutes;
-		unresolvedByDepartment.set(shortageKey, currentBucket);
-
-		const existingSections = shortageSections.get(shortageKey) ?? [];
-		existingSections.push({
-			subjectId: pair.subject.id,
-			subjectCode: pair.subject.code,
-			subjectName: pair.subject.name,
-			sectionId: pair.sectionId,
-			sectionName: pair.sectionName,
-			programType: pair.sectionProgramType,
-		});
-		shortageSections.set(shortageKey, existingSections);
-	};
+	const unresolvedPairs: UnresolvedPair[] = [];
 	for (const subject of subjects) {
 		const relevantSections =
 			subject.gradeLevels.length > 0
@@ -462,22 +674,9 @@ export async function autoFill(
 		}
 	}
 
-	// ─── Step 4: Load active faculty ──────────────────────────────────────────
-	const faculty = await prisma.facultyMirror.findMany({
-		where: { schoolId, isStale: false, isActiveForScheduling: true },
-		select: {
-			id: true,
-			firstName: true,
-			lastName: true,
-			department: true,
-			canTeachOutsideDepartment: true,
-			maxHoursPerWeek: true,
-		},
-	});
-
 	if (staffingOnly) {
 		for (const pair of workQueue) {
-			recordShortage(pair);
+			unresolvedPairs.push(pair);
 		}
 
 		return {
@@ -487,7 +686,7 @@ export async function autoFill(
 			uniqueTeachersAffected: 0,
 			unresolved: workQueue.length,
 			warnings,
-			staffingReport: buildStaffingReport(unresolvedByDepartment, shortageSections, faculty, capacityUsed),
+			staffingReport: buildStaffingReport(unresolvedPairs, faculty, capacityUsed),
 		};
 	}
 
@@ -583,7 +782,7 @@ export async function autoFill(
 			if (!candidate) {
 				unresolvedCount += 1;
 				warnings.push(`Lacking Faculty: no department-qualified teacher for ${subjectRow.name} (${pair.sectionName}).`);
-				recordShortage(pair);
+				unresolvedPairs.push(pair);
 			} else {
 				addPending(candidate.id, pair.subjectId, pair.sectionId);
 			}
@@ -629,26 +828,17 @@ export async function autoFill(
 						facultySubjectId = fs.id;
 					}
 
-					const insertedSectionIds: number[] = [];
-					for (const sectionId of sectionIdsArr) {
-						try {
-							await tx.subjectSectionOwnership.create({
-								data: {
-									schoolId,
-									facultySubjectId,
-									facultyId,
-									subjectId,
-									sectionId,
-									assignedAt: new Date(),
-								},
-							});
-							insertedSectionIds.push(sectionId);
-						} catch (error: any) {
-							if (error?.code !== 'P2002') {
-								throw error;
-							}
-						}
-					}
+					const insertResult = await tx.subjectSectionOwnership.createMany({
+						data: sectionIdsArr.map((sectionId) => ({
+							schoolId,
+							facultySubjectId,
+							facultyId,
+							subjectId,
+							sectionId,
+							assignedAt: new Date(),
+						})),
+						skipDuplicates: true,
+					});
 
 					const finalOwnedSections = await tx.subjectSectionOwnership.findMany({
 						where: { schoolId, facultyId, subjectId },
@@ -671,8 +861,8 @@ export async function autoFill(
 						});
 					}
 
-					if (insertedSectionIds.length > 0) {
-						created += insertedSectionIds.length;
+					if (insertResult.count > 0) {
+						created += insertResult.count;
 						affectedTeacherIds.add(facultyId);
 					}
 				}
@@ -680,7 +870,7 @@ export async function autoFill(
 		});
 	}
 
-	const staffingReport = buildStaffingReport(unresolvedByDepartment, shortageSections, faculty, capacityUsed);
+	const staffingReport = buildStaffingReport(unresolvedPairs, faculty, capacityUsed);
 
 	return {
 		preserved,

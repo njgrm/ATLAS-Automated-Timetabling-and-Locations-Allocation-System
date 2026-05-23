@@ -1745,13 +1745,24 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
             teachablePairSet.add(`${subject.id}:${section.id}`);
         }
     }
-    const realAssignedPairSet = new Set();
-    const syntheticAssignedPairSet = new Set();
-    const placeholderFacultyIdSet = new Set(faculty.filter((member) => member.isPlaceholder).map((member) => member.id));
+    const activeSchedulingFacultyIdSet = new Set(faculty.filter((member) => member.isActiveForScheduling).map((member) => member.id));
+    const activePlaceholderFacultyIdSet = new Set(faculty
+        .filter((member) => member.isActiveForScheduling && member.isPlaceholder)
+        .map((member) => member.id));
+    const rawAssignedPairSet = new Set();
     for (const row of ownershipRows) {
         const key = `${row.subjectId}:${row.sectionId}`;
         if (teachablePairSet.has(key)) {
-            if (placeholderFacultyIdSet.has(row.facultyId)) {
+            rawAssignedPairSet.add(key);
+        }
+    }
+    const activeOwnershipRows = ownershipRows.filter((row) => activeSchedulingFacultyIdSet.has(row.facultyId));
+    const realAssignedPairSet = new Set();
+    const syntheticAssignedPairSet = new Set();
+    for (const row of activeOwnershipRows) {
+        const key = `${row.subjectId}:${row.sectionId}`;
+        if (teachablePairSet.has(key)) {
+            if (activePlaceholderFacultyIdSet.has(row.facultyId)) {
                 syntheticAssignedPairSet.add(key);
             }
             else {
@@ -1762,6 +1773,7 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
     const syntheticOnlyPairCount = Array.from(syntheticAssignedPairSet).filter((key) => !realAssignedPairSet.has(key)).length;
     const realPairCount = realAssignedPairSet.size;
     const assignedPairCount = realPairCount + syntheticOnlyPairCount;
+    const rawAssignedPairCount = rawAssignedPairSet.size;
     let emptySectionRows = 0;
     let currentYearRowsMissingOwnership = 0;
     let currentYearOwnershipWithoutMatchingScope = 0;
@@ -1919,10 +1931,13 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
     });
     const coverageTotals = {
         assignedPairs: assignedPairCount,
+        activeAssignedPairs: assignedPairCount,
         realFacultyAssignedPairs: realPairCount,
         syntheticPlaceholderPairs: syntheticOnlyPairCount,
+        rawAssignedPairs: rawAssignedPairCount,
         totalPairs: teachablePairSet.size,
         unassignedPairs: Math.max(0, teachablePairSet.size - assignedPairCount),
+        rawUnassignedPairs: Math.max(0, teachablePairSet.size - rawAssignedPairCount),
     };
     const integrityDiagnostics = {
         emptySectionRows,

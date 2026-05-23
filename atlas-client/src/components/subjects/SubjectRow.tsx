@@ -22,9 +22,9 @@ import { GRADE_COLORS } from '@/lib/grade-labels';
 import {
 	PROGRAM_SCOPE_BADGE,
 	ROOM_TYPE_LABELS,
-	SUBJECT_OWNER_BADGE,
 	SUBJECT_OWNER_LABELS,
 } from '@/lib/subject-constants';
+import { getDepartmentColor } from '@/lib/department-colors';
 import type { Subject } from '@/types';
 
 interface SubjectRowProps {
@@ -50,6 +50,8 @@ export function SubjectRow({
 		? `${subject.minMinutesPerWeek} min` 
 		: `${Math.round((subject.minMinutesPerWeek / 60) * 10) / 10} h`;
 
+	const deptColor = getDepartmentColor(subject.ownerDepartment);
+
 	// Consolidate Grade Levels into a stronger signal
 	const gradeSummary = useMemo(() => {
 		if (!subject.gradeLevels.length) return 'No grades';
@@ -65,18 +67,18 @@ export function SubjectRow({
 		<tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
 			<td className="px-4 py-3">
 				<div className="flex items-center gap-3">
-					<div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 border border-blue-100">
+					<div className={`flex size-9 shrink-0 items-center justify-center rounded-lg border shadow-sm ${deptColor.accent} ${deptColor.border.replace('border-', 'border-opacity-50 border-')}`}>
 						<BookOpen className="size-4" />
 					</div>
 					<div className="flex flex-col min-w-0">
-						<span className="font-bold text-foreground leading-tight truncate">{subject.name}</span>
+						<span className="font-semibold text-foreground leading-tight truncate">{subject.name}</span>
 						<code className="text-[0.65rem] font-mono text-muted-foreground uppercase">{subject.code}</code>
 					</div>
 				</div>
 			</td>
 			<td className="px-4 py-3">
 				<div className="flex flex-col">
-					<span className="text-sm tabular-nums font-bold text-foreground">{duration}</span>
+					<span className="text-sm tabular-nums font-semibold text-foreground">{duration}</span>
 					<span className="text-[0.7rem] text-muted-foreground uppercase tracking-tight">Weekly</span>
 				</div>
 			</td>
@@ -86,25 +88,25 @@ export function SubjectRow({
 						{ROOM_TYPE_LABELS[subject.preferredRoomType] ?? subject.preferredRoomType}
 					</span>
 					{subject.requiredFeatures.length > 0 && (
-						<span className="text-[0.65rem] text-blue-600 font-bold uppercase">+{subject.requiredFeatures.length} requirements</span>
+						<span className="text-[0.65rem] text-blue-600 font-semibold uppercase">+{subject.requiredFeatures.length} requirements</span>
 					)}
 				</div>
 			</td>
 			<td className="px-4 py-3">
-				<span className="text-xs font-bold text-foreground bg-muted/60 px-2 py-1 rounded">
+				<span className="text-[0.7rem] font-semibold text-foreground bg-muted/60 px-2 py-1 rounded">
 					{gradeSummary}
 				</span>
 			</td>
 			<td className="px-4 py-3">
-				<div className="flex flex-col gap-0.5">
+				<div className="flex flex-col gap-1.5">
 					<div className="flex items-center gap-1.5">
-						<span className="text-xs font-bold text-foreground truncate">
-							{subject.ownerDepartment || 'Unassigned'}
-						</span>
+						<Badge variant="outline" className={`text-[0.65rem] font-semibold py-0 h-5 px-1.5 border-opacity-50 ${deptColor.bg} ${deptColor.text} ${deptColor.border}`}>
+							{subject.ownerDepartment || 'GENERAL'}
+						</Badge>
 					</div>
 					<div className="flex flex-wrap gap-1">
 						{(subject.programScopes ?? []).map((scope) => (
-							<span key={scope} className="text-[0.6rem] text-muted-foreground font-bold uppercase tracking-widest">
+							<span key={scope} className={`text-[0.6rem] font-bold uppercase tracking-widest ${PROGRAM_SCOPE_BADGE[scope] || 'text-muted-foreground'}`}>
 								{scope}{subject.programScopes.indexOf(scope) < subject.programScopes.length - 1 ? ' •' : ''}
 							</span>
 						))}
@@ -116,16 +118,16 @@ export function SubjectRow({
 					{subject.isActive ? (
 						<div className="flex items-center gap-1.5 text-emerald-600">
 							<div className="size-1.5 rounded-full bg-current" />
-							<span className="text-[0.7rem] font-bold uppercase tracking-wider">Active</span>
+							<span className="text-[0.7rem] font-semibold uppercase tracking-wider">Active</span>
 						</div>
 					) : (
 						<div className="flex items-center gap-1.5 text-muted-foreground">
 							<div className="size-1.5 rounded-full bg-current" />
-							<span className="text-[0.7rem] font-bold uppercase tracking-wider">Archived</span>
+							<span className="text-[0.7rem] font-semibold uppercase tracking-wider">Archived</span>
 						</div>
 					)}
 					{subject.isSeedable && (
-						<span className="text-[0.62rem] text-blue-600 font-bold uppercase">Auto-Schedule</span>
+						<span className="text-[0.62rem] text-blue-600 font-semibold uppercase">Auto-Schedule</span>
 					)}
 				</div>
 			</td>

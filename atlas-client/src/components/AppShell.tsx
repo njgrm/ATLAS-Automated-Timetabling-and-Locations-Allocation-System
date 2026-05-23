@@ -134,7 +134,7 @@ const facultyNav: NavItemDef[] = [
 function NavDivider({ label }: { label: string }) {
 	return (
 		<div className='px-3 py-2 mt-2 transition-[margin,opacity,height] duration-200 ease-linear group-data-[collapsible=icon]:m-0 group-data-[collapsible=icon]:h-0 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:opacity-0 overflow-hidden'>
-			<span className='text-[0.625rem] font-bold uppercase tracking-wider text-muted-foreground opacity-60 whitespace-nowrap'>
+			<span className='text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground opacity-80 whitespace-nowrap'>
 				{label}
 			</span>
 		</div>

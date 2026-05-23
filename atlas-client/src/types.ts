@@ -221,10 +221,13 @@ export type FacultySummary = {
 
 export type TeachingLoadCoverageTotals = {
 	assignedPairs: number;
+	activeAssignedPairs?: number;
 	realFacultyAssignedPairs: number;
 	syntheticPlaceholderPairs: number;
+	rawAssignedPairs?: number;
 	totalPairs: number;
 	unassignedPairs: number;
+	rawUnassignedPairs?: number;
 };
 
 export type TeachingLoadIntegrityDiagnosticRow = {

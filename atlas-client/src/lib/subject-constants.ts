@@ -71,6 +71,21 @@ export const SUBJECT_OWNER_BADGE: Record<string, string> = {
 	SPS: 'bg-lime-50 text-lime-700 border-lime-200',
 };
 
+/** Unified department color dictionary for consistent across-page signaling */
+export const DEPARTMENT_COLORS: Record<string, { bg: string; text: string; border: string; icon: string }> = {
+	SCI: { bg: 'bg-blue-50/50', text: 'text-blue-700', border: 'border-blue-200/50', icon: 'bg-blue-100 text-blue-600' },
+	MATH: { bg: 'bg-cyan-50/50', text: 'text-cyan-700', border: 'border-cyan-200/50', icon: 'bg-cyan-100 text-cyan-600' },
+	ENG: { bg: 'bg-violet-50/50', text: 'text-violet-700', border: 'border-violet-200/50', icon: 'bg-violet-100 text-violet-600' },
+	TLE: { bg: 'bg-amber-50/50', text: 'text-amber-700', border: 'border-amber-200/50', icon: 'bg-amber-100 text-amber-600' },
+	FIL: { bg: 'bg-rose-50/50', text: 'text-rose-700', border: 'border-rose-200/50', icon: 'bg-rose-100 text-rose-600' },
+	ESP: { bg: 'bg-emerald-50/50', text: 'text-emerald-700', border: 'border-emerald-200/50', icon: 'bg-emerald-100 text-emerald-600' },
+	MAPEH: { bg: 'bg-fuchsia-50/50', text: 'text-fuchsia-700', border: 'border-fuchsia-200/50', icon: 'bg-fuchsia-100 text-fuchsia-600' },
+	AP: { bg: 'bg-orange-50/50', text: 'text-orange-700', border: 'border-orange-200/50', icon: 'bg-orange-100 text-orange-600' },
+	SPA: { bg: 'bg-purple-50/50', text: 'text-purple-700', border: 'border-purple-200/50', icon: 'bg-purple-100 text-purple-600' },
+	SPS: { bg: 'bg-lime-50/50', text: 'text-lime-700', border: 'border-lime-200/50', icon: 'bg-lime-100 text-lime-600' },
+	UNASSIGNED: { bg: 'bg-gray-50/50', text: 'text-gray-600', border: 'border-gray-200/50', icon: 'bg-gray-100 text-gray-500' },
+};
+
 export const QUALIFICATION_PRIORITY_LABELS: Record<'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY', string> = {
 	DEPARTMENT_FIRST: 'Department-first',
 	SPECIALIZATION_PRIMARY: 'Specialization-first',

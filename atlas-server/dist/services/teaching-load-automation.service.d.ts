@@ -31,20 +31,39 @@ export interface StaffingCrossTrainee {
     department: string;
     availableTeachers: number;
     totalSpareHours: number;
+    qualifiedRecoveryHoursPerWeek?: number;
 }
 export interface StaffingReport {
     department: string;
+    dominantShortageDepartment: string;
     unassignedSections: number;
     missingHoursPerWeek: number;
+    concurrentUnassignedSections: number;
+    concurrentMissingHoursPerWeek: number;
+    recoverableConcurrentRows: number;
+    recoverableConcurrentMissingHoursPerWeek: number;
+    recoverableConcurrentMissingMinutesPerWeek: number;
+    constrainedConcurrentRows: number;
+    constrainedConcurrentMissingHoursPerWeek: number;
+    constrainedConcurrentMissingMinutesPerWeek: number;
     recommendedNewHires: number;
     internalCrossTrainees: StaffingCrossTrainee[];
     missingMinutesPerWeek: number;
+    concurrentMissingMinutesPerWeek: number;
+    rotationAdjustedMinutesPerWeek: number;
     shortages: StaffingShortageDetail[];
 }
 export interface StaffingShortageDetail {
     department: string;
     count: number;
     missingMinutesPerWeek: number;
+    concurrentCount: number;
+    concurrentMissingMinutesPerWeek: number;
+    recoverableConcurrentCount: number;
+    recoverableConcurrentMissingMinutesPerWeek: number;
+    constrainedConcurrentCount: number;
+    constrainedConcurrentMissingMinutesPerWeek: number;
+    rotationAdjustedMinutesPerWeek: number;
     sections: Array<{
         subjectId: number;
         subjectCode: string;

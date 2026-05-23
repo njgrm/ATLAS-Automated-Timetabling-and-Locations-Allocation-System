@@ -1,3 +1,129 @@
+# 2026-05-23 - Phase 3 Teaching Load Staffing Truth + Auto-Fill Fix One-Shot
+- Phase: Phase 3 generator-readiness stream, staffing truth hardening and auto-fill reliability repair
+- Operator: GitHub Copilot
+- Scope gate: PASS (implementation + local builds + required Tailnet verification)
+- Files changed in this pass:
+  - `atlas-server/src/services/teaching-load-automation.service.ts`
+  - `atlas-client/src/components/faculty-assignments/AutoFillSummaryModal.tsx`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+  - `CHANGELOG.md`
+
+- Fixes implemented:
+  - Auto-Fill persistence path now uses `createMany(..., skipDuplicates: true)` for ownership inserts, removing per-row duplicate-throw behavior that could poison the enclosing Postgres transaction.
+  - Staffing report now preserves raw-vs-concurrent split and adds explicit recoverability classification:
+    - `recoverableConcurrentRows`
+    - `recoverableConcurrentMissingMinutesPerWeek` / `recoverableConcurrentMissingHoursPerWeek`
+    - `constrainedConcurrentRows`
+    - `constrainedConcurrentMissingMinutesPerWeek` / `constrainedConcurrentMissingHoursPerWeek`
+    - `dominantShortageDepartment` (explicit dominant bucket framing)
+  - `internalCrossTrainees` is now qualification-aware and derived only from teachers whose departments are ownership-allowed for unresolved lanes; unrelated spare-capacity departments are no longer surfaced as actionable recovery candidates.
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS
+
+- Required Tailnet verification (`https://njgrm.buru-degree.ts.net`):
+  1) `POST /api/v1/faculty-assignments/auto-fill`
+     - No `500`; endpoint returned `200`.
+     - Stable result after fix: `preserved=826`, `created=0`, `assignmentsCreated=0`, `uniqueTeachersAffected=0`, `unresolved=122`.
+     - Earlier post-fix run in same pass also created new assignments (`created=2`, `uniqueTeachersAffected=2`) and completed without transaction-abort.
+
+  2) `GET /api/v1/faculty-assignments/coverage/summary?schoolId=1&schoolYearId=55`
+     - `SCI_ES`: `82 / 82` uncovered (`ZERO`)
+     - `STE_ROBOTICS`: `0 / 2` uncovered (`FULL`)
+     - `TLE_FCS_EXP`: `54 / 58` uncovered (`PARTIAL`)
+     - `SCI_CHEM`: `35 / 82` uncovered (`PARTIAL`)
+     - `ENG`: `23 / 82` uncovered (`PARTIAL`)
+     - `FIL`: `22 / 82` uncovered (`PARTIAL`)
+     - `MATH`: `12 / 82` uncovered (`PARTIAL`)
+     - `AP`: `6 / 82` uncovered (`PARTIAL`)
+
+  3) `POST /api/v1/faculty-assignments/report/staffing-needs`
+     - Raw completeness: `234 rows`, `52650 minutes`, `877.5 hours`
+     - Concurrent shortage: `199 rows`, `44775 minutes`, `746.3 hours`
+     - Recoverable under current qualification ownership: `111 rows`, `416.3 hours`
+     - Not recoverable under current qualification ownership: `88 rows`, `330.0 hours`
+     - `dominantShortageDepartment=SCIENCE` (dominant bucket only, not whole-shortage claim)
+     - `internalCrossTrainees=[]` in live result, confirming no unrelated department spare-capacity suggestions were surfaced as actionable recovery guidance.
+
+  4) `GET /api/v1/faculty-assignments/summary?schoolId=1&schoolYearId=55`
+     - `assignedPairs=728`, `activeAssignedPairs=728`, `rawAssignedPairs=962`, `unassignedPairs=234`, `rawUnassignedPairs=0`
+     - Summary remains aligned with current active-vs-raw truth contract after the auto-fill/staffing fix.
+
+- GO/NO-GO:
+  - **GO** for this one-shot prompt scope.
+  - Auto-Fill is live-stable (no transaction-abort 500), staffing report preserves raw-vs-concurrent math, recoverability guidance is qualification-aware, and required Tailnet checks were completed.
+
+# 2026-05-23 - Phase 3 Teaching Load Term-Aware Truth Closure One-Shot
+- Phase: Phase 3 generator-readiness stream, Teaching Load truth-model and term-aware staffing closure pass
+- Operator: GitHub Copilot
+- Scope gate: PASS (implementation + local build + live Tailnet verification)
+- Files changed in this pass:
+  - `atlas-server/src/services/faculty-assignment.service.ts`
+  - `atlas-server/src/services/teaching-load-automation.service.ts`
+  - `atlas-client/src/types.ts`
+  - `atlas-client/src/lib/faculty-teaching-load-cache.ts`
+  - `atlas-client/src/components/faculty-assignments/OverviewHeader.tsx`
+  - `atlas-client/src/components/faculty-assignments/AutoFillSummaryModal.tsx`
+  - `atlas-client/src/pages/FacultyAssignments.tsx`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+  - `CHANGELOG.md`
+
+- Contract changes implemented:
+  - `/faculty-assignments/summary` coverage totals now align headline truth to active-scheduling ownership and expose diagnostic raw ownership separately:
+    - `assignedPairs` / `activeAssignedPairs` / `unassignedPairs` = active truth
+    - `rawAssignedPairs` / `rawUnassignedPairs` = diagnostic all-ownership comparison
+  - `report/staffing-needs` now separates:
+    - raw uncovered completeness (`unassignedSections`, `missingMinutesPerWeek`, `missingHoursPerWeek`)
+    - concurrent weekly shortage (`concurrentUnassignedSections`, `concurrentMissingMinutesPerWeek`, `concurrentMissingHoursPerWeek`)
+    - rotation overlap adjustment (`rotationAdjustedMinutesPerWeek`)
+    - per-department raw vs concurrent fields in `shortages[]`
+  - Teaching Load UI now:
+    - shows diagnostic drift explicitly instead of collapsing metrics
+    - demotes destructive global reset action to maintenance placement
+    - adds durable visible load-interpretation guidance (not tooltip-only)
+    - updates staffing modal copy to plain-language raw-vs-concurrent explanation
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS
+
+- Required Tailnet verification (`https://njgrm.buru-degree.ts.net`):
+  1) `GET /api/v1/faculty-assignments/summary?schoolId=1&schoolYearId=55`
+     - `assignedPairs=726`, `activeAssignedPairs=726`, `unassignedPairs=236`
+     - `rawAssignedPairs=960`, `rawUnassignedPairs=2`
+     - Result: headline truth now aligns to active coverage/staffing while preserving explicit diagnostic raw metric.
+
+  2) `GET /api/v1/faculty-assignments/coverage/summary?schoolId=1&schoolYearId=55`
+     - `SCI_ES: uncovered=82 (ZERO)`
+     - `SCI_CHEM: uncovered=35 (PARTIAL)`
+     - `TLE_FCS_EXP: uncovered=54 (PARTIAL)`
+     - `ENG: uncovered=23 (PARTIAL)`
+     - `FIL: uncovered=22 (PARTIAL)`
+     - `MATH: uncovered=12 (PARTIAL)`
+     - `AP: uncovered=6 (PARTIAL)`
+     - `STE_ROBOTICS: uncovered=2 (ZERO)`
+
+  3) `POST /api/v1/faculty-assignments/report/staffing-needs`
+     - Raw completeness: `236 rows`, `53100 minutes`, `885 hours`
+     - Concurrent weekly shortage: `201 rows`, `45225 minutes`, `753.8 hours`
+     - Rotation overlap removed: `7875 minutes`
+     - `recommendedNewHires=25.1` (now computed from concurrent hours)
+     - Subject presence includes `SCI_ES`, `SCI_CHEM`, `TLE_FCS_EXP`, `STE_ROBOTICS`, `ENG`, `FIL`, `MATH`, `AP`
+
+  4) Live `/teaching-load` UI verification
+     - Selected-teacher workspace shows durable load explanation text:
+       - "Raw Rows shows all subject-section rows tied to this teacher. Actual (Adjusted) removes overlapping rotation-family rows..."
+     - Top area shows calmer overview and demoted maintenance reset action.
+     - Staffing modal language and headers explicitly show raw vs concurrent metrics.
+     - No mojibake replacement character found in live snapshot text.
+
+- GO/NO-GO:
+  - **GO** for this one-shot prompt scope.
+  - Teaching Load summary no longer contradicts coverage/staffing truth model, staffing-needs now distinguishes completeness vs concurrent shortage with rotation-family adjustment, and UI messaging now communicates the model in durable scheduler-facing language.
+
 # 2026-05-23 - Phase 3 Teaching Load Staffing Reconciliation One-Shot
 - Phase: Phase 3 generator-readiness stream, staffing reconciliation and qualification-baseline contract hardening
 - Operator: GitHub Copilot
