@@ -1699,6 +1699,7 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
             },
             select: {
                 id: true,
+                code: true,
                 gradeLevels: true,
                 programScopes: true,
             },
@@ -1708,18 +1709,10 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
     const ownershipFaculty = ownershipFacultyIds.length
         ? await prisma.facultyMirror.findMany({
             where: { id: { in: ownershipFacultyIds } },
-            select: { id: true, firstName: true, lastName: true },
+            select: { id: true, firstName: true, lastName: true, isStale: true, isPlaceholder: true },
         })
         : [];
-    const ownershipNameByFacultyId = new Map(ownershipFaculty.map((member) => [member.id, formatFacultyName(member.firstName, member.lastName)]));
-    const ownershipIndex = ownershipRows.map((row) => ({
-        subjectId: row.subjectId,
-        sectionId: row.sectionId,
-        facultyId: row.facultyId,
-        facultyName: ownershipNameByFacultyId.get(row.facultyId) ?? `Faculty #${row.facultyId}`,
-        specializationCode: row.specializationCode ?? null,
-        specializationLabel: row.specializationLabel ?? null,
-    }));
+    const ownershipFacultyById = new Map(ownershipFaculty.map((member) => [member.id, member]));
     const ownershipByFacultySubjectId = new Map();
     const specializationByFacultySubjectId = new Map();
     for (const row of ownershipRows) {
@@ -1749,6 +1742,18 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
     const activePlaceholderFacultyIdSet = new Set(faculty
         .filter((member) => member.isActiveForScheduling && member.isPlaceholder)
         .map((member) => member.id));
+    const activeOwnershipRows = ownershipRows.filter((row) => activeSchedulingFacultyIdSet.has(row.facultyId));
+    const ownershipIndex = activeOwnershipRows.map((row) => {
+        const owner = ownershipFacultyById.get(row.facultyId);
+        return {
+            subjectId: row.subjectId,
+            sectionId: row.sectionId,
+            facultyId: row.facultyId,
+            facultyName: owner ? formatFacultyName(owner.firstName, owner.lastName) : `Faculty #${row.facultyId}`,
+            specializationCode: row.specializationCode ?? null,
+            specializationLabel: row.specializationLabel ?? null,
+        };
+    });
     const rawAssignedPairSet = new Set();
     for (const row of ownershipRows) {
         const key = `${row.subjectId}:${row.sectionId}`;
@@ -1756,7 +1761,6 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
             rawAssignedPairSet.add(key);
         }
     }
-    const activeOwnershipRows = ownershipRows.filter((row) => activeSchedulingFacultyIdSet.has(row.facultyId));
     const realAssignedPairSet = new Set();
     const syntheticAssignedPairSet = new Set();
     for (const row of activeOwnershipRows) {
@@ -1779,10 +1783,44 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
     let currentYearOwnershipWithoutMatchingScope = 0;
     let currentYearMissingOwnershipPairs = 0;
     let currentYearOwnershipWithoutMatchingScopePairs = 0;
+    let staleOwnershipRowCount = 0;
     const emptySectionSamples = [];
     const missingOwnershipSamples = [];
     const ownershipWithoutScopeSamples = [];
+    const staleOwnershipSamples = [];
     const maxDiagnosticSamples = 20;
+    const subjectCodeById = new Map(activeSubjects.map((subject) => [subject.id, subject.code]));
+    const staleOwnedPairSet = new Set();
+    const stalePlaceholderPairSet = new Set();
+    const staleNonPlaceholderPairSet = new Set();
+    for (const row of ownershipRows) {
+        const owner = ownershipFacultyById.get(row.facultyId);
+        if (!owner || owner.isStale !== true) {
+            continue;
+        }
+        staleOwnershipRowCount += 1;
+        const key = `${row.subjectId}:${row.sectionId}`;
+        if (teachablePairSet.has(key)) {
+            staleOwnedPairSet.add(key);
+            if (owner.isPlaceholder) {
+                stalePlaceholderPairSet.add(key);
+            }
+            else {
+                staleNonPlaceholderPairSet.add(key);
+            }
+        }
+        if (staleOwnershipSamples.length < maxDiagnosticSamples && teachablePairSet.has(key)) {
+            const subject = subjectCodeById.get(row.subjectId);
+            staleOwnershipSamples.push({
+                facultyId: row.facultyId,
+                facultyName: formatFacultyName(owner.firstName, owner.lastName),
+                isPlaceholder: owner.isPlaceholder,
+                subjectId: row.subjectId,
+                subjectCode: subject ?? `SUBJECT_${row.subjectId}`,
+                sectionId: row.sectionId,
+            });
+        }
+    }
     const facultySummary = faculty.map((member) => {
         const facultyName = formatFacultyName(member.firstName, member.lastName);
         let realAssignmentRowCount = 0;
@@ -1945,9 +1983,14 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
         currentYearOwnershipWithoutMatchingScope,
         currentYearMissingOwnershipPairs,
         currentYearOwnershipWithoutMatchingScopePairs,
+        staleOwnershipRowCount,
+        staleOwnedCurrentYearPairCount: staleOwnedPairSet.size,
+        stalePlaceholderPairCount: stalePlaceholderPairSet.size,
+        staleNonPlaceholderPairCount: staleNonPlaceholderPairSet.size,
         emptySectionSamples,
         missingOwnershipSamples,
         ownershipWithoutScopeSamples,
+        staleOwnershipSamples,
     };
     return {
         faculty: facultySummary,
@@ -2069,6 +2112,205 @@ export async function previewOrApplyTeachingLoadTruthReconcile(input) {
         rowsToUpdate,
         updatedRows,
         sampleUpdates,
+    };
+}
+export async function previewOrApplyStaleOwnershipReconcile(input) {
+    const sectionIds = await resolveSchoolYearSectionIds(input.schoolId, input.schoolYearId, input.authToken);
+    if (sectionIds.length === 0) {
+        return {
+            applied: false,
+            schoolId: input.schoolId,
+            schoolYearId: input.schoolYearId,
+            staleOwnershipRowCount: 0,
+            staleOwnedCurrentYearPairCount: 0,
+            stalePlaceholderPairCount: 0,
+            staleNonPlaceholderPairCount: 0,
+            affectedFacultySubjectRows: 0,
+            deletedOwnershipRows: 0,
+            deletedFacultySubjectRows: 0,
+            updatedFacultySubjectRows: 0,
+            affectedSubjects: [],
+            sampleRows: [],
+        };
+    }
+    const currentYearSectionIdSet = new Set(sectionIds);
+    const ownershipRows = await prisma.subjectSectionOwnership.findMany({
+        where: {
+            schoolId: input.schoolId,
+            sectionId: { in: sectionIds },
+        },
+        select: {
+            id: true,
+            facultySubjectId: true,
+            facultyId: true,
+            subjectId: true,
+            sectionId: true,
+        },
+    });
+    const ownershipFacultyIds = [...new Set(ownershipRows.map((row) => row.facultyId))];
+    const staleFacultyRows = ownershipFacultyIds.length
+        ? await prisma.facultyMirror.findMany({
+            where: {
+                id: { in: ownershipFacultyIds },
+                isStale: true,
+            },
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                isPlaceholder: true,
+            },
+        })
+        : [];
+    const staleFacultyById = new Map(staleFacultyRows.map((row) => [row.id, row]));
+    const staleOwnershipRows = ownershipRows.filter((row) => staleFacultyById.has(row.facultyId));
+    const staleOwnedPairSet = new Set();
+    const stalePlaceholderPairSet = new Set();
+    const staleNonPlaceholderPairSet = new Set();
+    const subjectStats = new Map();
+    const sampleRows = [];
+    for (const row of staleOwnershipRows) {
+        const staleOwner = staleFacultyById.get(row.facultyId);
+        if (!staleOwner)
+            continue;
+        const pairKey = `${row.subjectId}:${row.sectionId}`;
+        staleOwnedPairSet.add(pairKey);
+        if (staleOwner.isPlaceholder) {
+            stalePlaceholderPairSet.add(pairKey);
+        }
+        else {
+            staleNonPlaceholderPairSet.add(pairKey);
+        }
+        const stat = subjectStats.get(row.subjectId) ?? { staleRowCount: 0, stalePairs: new Set() };
+        stat.staleRowCount += 1;
+        stat.stalePairs.add(pairKey);
+        subjectStats.set(row.subjectId, stat);
+        if (sampleRows.length < 30) {
+            sampleRows.push({
+                facultyId: row.facultyId,
+                facultyName: formatFacultyName(staleOwner.firstName, staleOwner.lastName),
+                isPlaceholder: staleOwner.isPlaceholder,
+                subjectId: row.subjectId,
+                subjectCode: `SUBJECT_${row.subjectId}`,
+                sectionId: row.sectionId,
+            });
+        }
+    }
+    const subjectIds = [...new Set(staleOwnershipRows.map((row) => row.subjectId))];
+    const subjectRows = subjectIds.length
+        ? await prisma.subject.findMany({
+            where: { id: { in: subjectIds } },
+            select: { id: true, code: true },
+        })
+        : [];
+    const subjectCodeById = new Map(subjectRows.map((subject) => [subject.id, subject.code]));
+    for (const sample of sampleRows) {
+        sample.subjectCode = subjectCodeById.get(sample.subjectId) ?? sample.subjectCode;
+    }
+    const affectedSubjects = [...subjectStats.entries()]
+        .map(([subjectId, stat]) => ({
+        subjectId,
+        subjectCode: subjectCodeById.get(subjectId) ?? `SUBJECT_${subjectId}`,
+        staleRowCount: stat.staleRowCount,
+        stalePairCount: stat.stalePairs.size,
+    }))
+        .sort((left, right) => right.stalePairCount - left.stalePairCount || left.subjectCode.localeCompare(right.subjectCode));
+    const affectedFacultySubjectIds = [...new Set(staleOwnershipRows.map((row) => row.facultySubjectId))];
+    if (input.previewOnly !== false || staleOwnershipRows.length === 0) {
+        return {
+            applied: false,
+            schoolId: input.schoolId,
+            schoolYearId: input.schoolYearId,
+            staleOwnershipRowCount: staleOwnershipRows.length,
+            staleOwnedCurrentYearPairCount: staleOwnedPairSet.size,
+            stalePlaceholderPairCount: stalePlaceholderPairSet.size,
+            staleNonPlaceholderPairCount: staleNonPlaceholderPairSet.size,
+            affectedFacultySubjectRows: affectedFacultySubjectIds.length,
+            deletedOwnershipRows: 0,
+            deletedFacultySubjectRows: 0,
+            updatedFacultySubjectRows: 0,
+            affectedSubjects,
+            sampleRows,
+        };
+    }
+    let deletedFacultySubjectRows = 0;
+    let updatedFacultySubjectRows = 0;
+    await prisma.$transaction(async (tx) => {
+        await tx.subjectSectionOwnership.deleteMany({
+            where: { id: { in: staleOwnershipRows.map((row) => row.id) } },
+        });
+        if (affectedFacultySubjectIds.length === 0) {
+            return;
+        }
+        const [affectedFacultySubjects, remainingOwnershipRows] = await Promise.all([
+            tx.facultySubject.findMany({
+                where: { id: { in: affectedFacultySubjectIds } },
+                select: { id: true, sectionIds: true },
+            }),
+            tx.subjectSectionOwnership.findMany({
+                where: { facultySubjectId: { in: affectedFacultySubjectIds } },
+                select: { facultySubjectId: true, sectionId: true },
+            }),
+        ]);
+        const remainingSectionsByFacultySubject = new Map();
+        for (const row of remainingOwnershipRows) {
+            const existing = remainingSectionsByFacultySubject.get(row.facultySubjectId) ?? new Set();
+            existing.add(row.sectionId);
+            remainingSectionsByFacultySubject.set(row.facultySubjectId, existing);
+        }
+        const staleSectionsByFacultySubject = new Map();
+        for (const row of staleOwnershipRows) {
+            const existing = staleSectionsByFacultySubject.get(row.facultySubjectId) ?? new Set();
+            existing.add(row.sectionId);
+            staleSectionsByFacultySubject.set(row.facultySubjectId, existing);
+        }
+        for (const row of affectedFacultySubjects) {
+            const staleSections = staleSectionsByFacultySubject.get(row.id) ?? new Set();
+            const nonCurrentOrUntouchedSections = row.sectionIds.filter((sectionId) => {
+                if (!currentYearSectionIdSet.has(sectionId)) {
+                    return true;
+                }
+                return !staleSections.has(sectionId);
+            });
+            const remainingSections = [...(remainingSectionsByFacultySubject.get(row.id) ?? new Set())];
+            const nextSectionIds = [...new Set([...nonCurrentOrUntouchedSections, ...remainingSections])].sort((left, right) => left - right);
+            if (nextSectionIds.length === 0) {
+                await tx.facultySubject.delete({ where: { id: row.id } });
+                deletedFacultySubjectRows += 1;
+            }
+            else {
+                await tx.facultySubject.update({
+                    where: { id: row.id },
+                    data: { sectionIds: nextSectionIds },
+                });
+                updatedFacultySubjectRows += 1;
+            }
+        }
+    });
+    console.info('[TEACHING_LOAD_STALE_OWNERSHIP_RECONCILE_APPLY]', JSON.stringify({
+        schoolId: input.schoolId,
+        schoolYearId: input.schoolYearId,
+        actorId: input.actorId,
+        staleOwnershipRowsRemoved: staleOwnershipRows.length,
+        staleOwnedCurrentYearPairCount: staleOwnedPairSet.size,
+        deletedFacultySubjectRows,
+        updatedFacultySubjectRows,
+        occurredAt: new Date().toISOString(),
+    }));
+    return {
+        applied: true,
+        schoolId: input.schoolId,
+        schoolYearId: input.schoolYearId,
+        staleOwnershipRowCount: staleOwnershipRows.length,
+        staleOwnedCurrentYearPairCount: staleOwnedPairSet.size,
+        stalePlaceholderPairCount: stalePlaceholderPairSet.size,
+        staleNonPlaceholderPairCount: staleNonPlaceholderPairSet.size,
+        affectedFacultySubjectRows: affectedFacultySubjectIds.length,
+        deletedOwnershipRows: staleOwnershipRows.length,
+        deletedFacultySubjectRows,
+        updatedFacultySubjectRows,
+        affectedSubjects,
+        sampleRows,
     };
 }
 export async function getFacultyAssignmentIdentitySummary(facultyId, schoolYearId, authToken) {

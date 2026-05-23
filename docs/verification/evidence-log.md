@@ -1,3 +1,88 @@
+# 2026-05-23 - Phase 3 Teaching Load Stale Ownership Reconciliation One-Shot
+- Phase: Phase 3 generator-readiness stream, backend truth reconciliation for stale current-year ownership rows
+- Operator: GitHub Copilot
+- Scope gate: PASS (implementation + local builds + required Tailnet preview/apply verification)
+- Files changed in this pass:
+  - `atlas-server/src/services/faculty-assignment.service.ts`
+  - `atlas-server/src/routes/faculty-assignment.router.ts`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+  - `CHANGELOG.md`
+
+- Contract outcomes:
+  - Added stale-ownership diagnostics to Teaching Load summary integrity contract:
+    - `staleOwnershipRowCount`
+    - `staleOwnedCurrentYearPairCount`
+    - `stalePlaceholderPairCount`
+    - `staleNonPlaceholderPairCount`
+    - `staleOwnershipSamples`
+  - Preserved active-vs-raw headline separation and aligned saved-ownership truth to active faculty ownership rows only.
+  - Added reconciliation endpoint:
+    - `POST /api/v1/faculty-assignments/integrity/reconcile-stale-ownership`
+    - supports `previewOnly=true` (default) and guarded apply (`previewOnly=false` + `confirmApply=true`).
+  - Reconciliation transaction now removes stale current-year ownership rows and safely updates/deletes affected `FacultySubject` rows.
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS
+
+- Required Tailnet verification (`https://njgrm.buru-degree.ts.net`):
+  1) `GET /api/v1/faculty-assignments/summary?schoolId=1&schoolYearId=55`
+     - Before apply:
+       - `assignedPairs=728`, `rawAssignedPairs=962`, `unassignedPairs=234`, `rawUnassignedPairs=0`
+       - `staleOwnershipRowCount=234`
+       - `staleOwnedCurrentYearPairCount=234`
+       - `stalePlaceholderPairCount=171`
+       - `staleNonPlaceholderPairCount=63`
+
+  2) `GET /api/v1/faculty-assignments/coverage/summary?schoolId=1&schoolYearId=55`
+     - Post-apply target-subject truth retained:
+       - `SCI_ES: uncovered=82/82 (ZERO)`
+       - `SCI_CHEM: uncovered=35/82 (PARTIAL)`
+       - `TLE_FCS_EXP: uncovered=54/58 (PARTIAL)`
+       - `ENG: uncovered=23/82 (PARTIAL)`
+       - `FIL: uncovered=22/82 (PARTIAL)`
+       - `STE_ROBOTICS: uncovered=0/2 (FULL)`
+
+  3) `POST /api/v1/faculty-assignments/integrity/reconcile-stale-ownership` (preview)
+     - `applied=false`
+     - `staleOwnershipRowCount=234`
+     - `staleOwnedCurrentYearPairCount=234`
+     - `affectedFacultySubjectRows=29`
+     - Top affected subjects:
+       - `SCI_ES=82`
+       - `TLE_FCS_EXP=54`
+       - `SCI_CHEM=35`
+       - `ENG=23`
+       - `FIL=22`
+
+  4) `POST /api/v1/faculty-assignments/integrity/reconcile-stale-ownership` (apply)
+     - `applied=true`
+     - `deletedOwnershipRows=234`
+     - `deletedFacultySubjectRows=18`
+     - `updatedFacultySubjectRows=11`
+
+  5) Post-apply rechecks
+     - `GET /summary` after apply:
+       - `assignedPairs=728`, `rawAssignedPairs=728`, `unassignedPairs=234`, `rawUnassignedPairs=234`
+       - `staleOwnershipRowCount=0`
+       - `staleOwnedCurrentYearPairCount=0`
+       - `stalePlaceholderPairCount=0`
+       - `staleNonPlaceholderPairCount=0`
+     - `POST /report/staffing-needs` after apply:
+       - `rawUncoveredRows=234`
+       - `concurrentRows=199`
+       - `dominantShortageDepartment=SCIENCE`
+
+- Regression checks (required):
+  - Rotation-aware load fields remained intact in live summary (sample faculty still return `rotationFamilyLoadDetails` and `rotationFamilyOvercountHours`).
+  - Specialization assignment identity remained intact for umbrella special subjects (`SPA_SPEC` / `SPS_SPEC`) with section-level `assignmentSpecializationCode` and `assignmentSpecializationLabel` still present.
+  - `STE_ROBOTICS` multi-owner behavior remains intact (`FULL`, `0/2` uncovered) after stale-row cleanup.
+
+- GO/NO-GO:
+  - **GO** for this one-shot prompt scope.
+  - Active staffing truth, saved ownership truth, coverage truth, and staffing-report truth now agree after stale current-year ownership reconciliation, with explicit stale diagnostics retained for auditability.
+
 # 2026-05-23 - Phase 3 Teaching Load Staffing Truth + Auto-Fill Fix One-Shot
 - Phase: Phase 3 generator-readiness stream, staffing truth hardening and auto-fill reliability repair
 - Operator: GitHub Copilot

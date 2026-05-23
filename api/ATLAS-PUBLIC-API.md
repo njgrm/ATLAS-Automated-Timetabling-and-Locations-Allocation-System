@@ -1,9 +1,17 @@
 # ATLAS REST API Reference
 
-**Base URL:** `http://<host>:5001/api/v1`  
-**Tailscale host:** `100.88.55.125`  
+**Base URL:** `http://100.88.55.125:5001/api/v1`  
+**Default Testing (Tailnet):** `https://njgrm.buru-degree.ts.net/api/v1`  
+**Tailscale Host IP:** `100.88.55.125`  
 **Auth:** All protected endpoints require `Authorization: Bearer <token>` — the JWT issued by EnrollPro.  
 **Content-Type:** `application/json` (all request bodies)
+
+---
+
+## Testing & Validation Directives
+- **Primary Environment:** ALL testing, research, and validation MUST target the live Tailnet environment (`https://njgrm.buru-degree.ts.net`) by default.
+- **Tailscale Connectivity:** The local database and backend communicate over Tailscale tunnels. Ensure your testing tools (e.g., Playwright, curl, scripts) are configured to use the Tailnet hostname or IP (`100.88.55.125`).
+- **Localhost Exception:** Only use `localhost` if explicitly requested for a specific isolated task.
 
 ---
 
@@ -50,10 +58,6 @@ Public read endpoints are available; write and stats endpoints are protected.
 
 ### `GET /subjects?schoolId=<id>`
 List all subjects for a school.
-
-Tri-sem fields are now included per subject:
-- `termGroupId` (nullable string): logical term bundle key
-- `termCount` (number): expected term count, default `3`
 
 | | |
 |---|---|
@@ -121,9 +125,7 @@ Create a custom subject.
   "name": "Homeroom Guidance",
   "minMinutesPerWeek": 60,
   "preferredRoomType": "REGULAR",
-  "gradeLevels": ["GRADE_7"],
-  "termGroupId": "SCIENCE",
-  "termCount": 3
+  "gradeLevels": ["GRADE_7"]
 }
 ```
 
@@ -368,7 +370,7 @@ For current sister-system integration, use the live teaching-load contract below
 
 - `docs/api/ATLAS-LIVE-TEACHING-LOAD-INTEGRATION.md`
 
-#### `GET /faculty-assignments/summary?schoolId=<id>&schoolYearId=<id>`
+#### `GET /faculty-assignments/summary?schoolId=<id>&schoolYearId=<id>` 🔒
 
 Use this endpoint for:
 
@@ -443,7 +445,7 @@ Current live-style example:
 }
 ```
 
-#### `GET /faculty-assignments/:facultyId?schoolYearId=<id>`
+#### `GET /faculty-assignments/:facultyId?schoolYearId=<id>` 🔒
 
 Use this endpoint for teacher-specific live teaching-load sessions.
 
@@ -736,9 +738,6 @@ Get the most recent generation run.
 ### `GET /generation/:schoolId/:schoolYearId/runs/latest/violations` 🔒
 Get constraint violations for the latest run.
 
-Optional query:
-- `termIndex=1|2|3` to scope violations to a specific term context.
-
 | | |
 |---|---|
 | **Auth** | Required (officer or admin) |
@@ -763,11 +762,6 @@ Optional query:
 
 ### `GET /generation/:schoolId/:schoolYearId/runs/latest/timetable` 🔒
 Full timetable entries for the latest run.
-
-Each entry now includes `termIndex` (1, 2, or 3). Run summaries also expose:
-- `summary.termCounts.term1`
-- `summary.termCounts.term2`
-- `summary.termCounts.term3`
 
 | | |
 |---|---|
@@ -921,8 +915,6 @@ Toggle or update a follow-up flag on a timetable entry.
 
 ### `GET /room-schedules/:schoolId/:schoolYearId/rooms/:roomId?source=latest` 🔒
 Get full weekly schedule for a room.
-
-Each projected room entry includes `termIndex` (1, 2, or 3).
 
 | Query `source` | |
 |---|---|

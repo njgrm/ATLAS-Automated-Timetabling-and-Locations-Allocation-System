@@ -2,6 +2,7 @@ import { ChartColumn, Zap, CheckCircle2, AlertTriangle, Users } from 'lucide-rea
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card } from '@/ui/card';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
 type OverviewHeaderProps = {
 	realAssignedPairs: number;
@@ -33,7 +34,8 @@ export function OverviewHeader({
 	autoFillEnabled,
 	onAutoFillClick,
 	onViewStaffingNeedsClick,
-}: OverviewHeaderProps) {
+	departmentStats = [],
+}: OverviewHeaderProps & { departmentStats?: { name: string; percent: number }[] }) {
 	const completenessPercent = totalPairs > 0 ? Math.round(((realAssignedPairs + syntheticPlaceholderPairs) / totalPairs) * 100) : 0;
 
 	return (
@@ -79,16 +81,34 @@ export function OverviewHeader({
 							</div>
 						</>
 					)}
-					{activeDraftCount > 0 && (
-						<>
-							<div className="h-8 w-px bg-border/60 mx-1" />
-							<div className="flex flex-col">
-								<span className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">Drafts</span>
-								<span className="text-lg font-bold text-sky-600">{activeDraftCount}</span>
-							</div>
-						</>
-					)}
 				</div>
+
+				{/* Department Progress Mini-Sparkline */}
+				{departmentStats.length > 0 && (
+					<div className="hidden xl:flex items-center gap-3">
+						<div className="h-8 w-px bg-border/60 mx-1" />
+						<div className="flex flex-col">
+							<span className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground mb-1">Dept Progress</span>
+							<div className="flex gap-1">
+								{departmentStats.map((dept) => (
+									<Tooltip key={dept.name}>
+										<TooltipTrigger asChild>
+											<div className="group relative h-4 w-2 rounded-t-sm bg-muted overflow-hidden">
+												<div 
+													className="absolute bottom-0 w-full bg-primary/40 group-hover:bg-primary transition-all" 
+													style={{ height: `${dept.percent}%` }} 
+												/>
+											</div>
+										</TooltipTrigger>
+										<TooltipContent side="top" className="text-[0.7rem] font-bold">
+											{dept.name}: {dept.percent}%
+										</TooltipContent>
+									</Tooltip>
+								))}
+							</div>
+						</div>
+					</div>
+				)}
 			</div>
 
 			{/* Actions Row */}

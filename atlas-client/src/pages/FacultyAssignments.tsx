@@ -28,6 +28,7 @@ buildPendingOwnershipMap,
 buildSectionMap,
 buildTeachingLoadProfile,
 CLASS_ADVISER_EQUIVALENT_HOURS,
+getAssignmentOwnershipKey,
 normalizeDraftAssignments,
 type FacultyAssignmentDraft,
 type LoadStatus,
@@ -178,6 +179,10 @@ const hasActiveFilters = filterStatus !== 'all' || departmentFilter !== 'all' ||
 const [autoFillLoading, setAutoFillLoading] = useState(false);
 const [autoFillDialogOpen, setAutoFillDialogOpen] = useState(false);
 const [showFilters, setShowFilters] = useState(false);
+const [showJumpList, setShowJumpList] = useState(false);
+
+const activeFacultyIds = useMemo(() => new Set(faculty.map((f) => f.id)), [faculty]);
+
 const fetchData = useCallback(async (options?: { forceRefresh?: boolean }) => {
 	const forceRefresh = options?.forceRefresh === true;
 	setLoading(true);
@@ -1001,6 +1006,65 @@ const syntheticCoverageHours = useMemo(
 );
 const sectionsAvailable = Boolean(sectionSummary && sectionSummary.sections.length > 0);
 
+const departmentStats = useMemo(() => {
+	const statsMap = new Map<string, { total: number; assigned: number }>();
+	
+	subjects.forEach(subject => {
+		if (!subject.isActive || subject.code === 'HG') return;
+		const dept = subject.ownerDepartment || 'General';
+		const current = statsMap.get(dept) ?? { total: 0, assigned: 0 };
+		
+		const relevantSections = allKnownSections.filter(sec => {
+			const gradeCompatible = subject.gradeLevels.length === 0 || subject.gradeLevels.includes(sec.displayOrder);
+			if (!gradeCompatible) return false;
+			const programType = (sec.programType ?? 'REGULAR').toUpperCase();
+			return subject.programScopes.length === 0 || subject.programScopes.some(s => s.toUpperCase() === programType);
+		});
+
+		current.total += relevantSections.length;
+		relevantSections.forEach(sec => {
+			const key = getAssignmentOwnershipKey(subject.id, sec.id);
+			const owner = savedOwnershipMap[key] || pendingOwnershipMap[key];
+			if (owner && activeFacultyIds.has(owner.facultyId)) {
+				current.assigned += 1;
+			}
+		});
+		statsMap.set(dept, current);
+	});
+
+	return Array.from(statsMap.entries())
+		.map(([name, { total, assigned }]) => ({
+			name,
+			percent: total > 0 ? Math.round((assigned / total) * 100) : 0
+		}))
+		.sort((a, b) => b.percent - a.percent);
+}, [subjects, allKnownSections, savedOwnershipMap, pendingOwnershipMap, activeFacultyIds]);
+
+const pendingChangeLedger = useMemo(() => {
+	const changes: { facultyName: string; count: number; type: 'add' | 'remove' | 'mix' }[] = [];
+	
+	for (const [facultyIdRaw, draft] of Object.entries(effectiveDraftAssignmentsByFaculty)) {
+		const facultyId = Number(facultyIdRaw);
+		const facultyName = facultyNames[facultyId] ?? `Teacher ${facultyId}`;
+		const savedCount = (savedAssignmentsByFaculty[facultyId] ?? []).reduce((sum, a) => sum + a.sectionIds.length, 0);
+		const draftCount = draft.reduce((sum, a) => sum + a.sectionIds.length, 0);
+		
+		changes.push({
+			facultyName,
+			count: Math.abs(draftCount - savedCount),
+			type: draftCount > savedCount ? 'add' : draftCount < savedCount ? 'remove' : 'mix'
+		});
+	}
+	return changes;
+}, [effectiveDraftAssignmentsByFaculty, facultyNames, savedAssignmentsByFaculty]);
+
+const jumpListItems = useMemo(() => {
+	return [
+		...departmentQualifiedSubjects.map(s => ({ id: s.id, code: s.code, type: 'qualified' })),
+		...outsideDepartmentSubjects.map(s => ({ id: s.id, code: s.code, type: 'outside' }))
+	];
+}, [departmentQualifiedSubjects, outsideDepartmentSubjects]);
+
 const executeSwap = useCallback(() => {
 	if (isReadOnlyMode) {
 		toast.error('Teaching Load is in read-only mode. Reconnect and refresh live data before swapping ownership.');
@@ -1089,9 +1153,20 @@ Dismiss
 			setAutoFillDialogOpen(true);
 		}}
 		onViewStaffingNeedsClick={handleViewStaffingNeeds}
+		departmentStats={departmentStats}
 	/>
 
-	<div className="mt-4 shrink-0">
+	<div className="mt-4 shrink-0 flex items-center gap-2">
+		<Button 
+			variant={showJumpList ? "secondary" : "outline"} 
+			size="sm" 
+			className="h-10 px-3 gap-2 font-bold"
+			onClick={() => setShowJumpList(!showJumpList)}
+		>
+			<Activity className="size-4" />
+			Jump List
+		</Button>
+		
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<Button variant="outline" size="sm" className="h-10 px-3 gap-2 font-bold text-muted-foreground hover:text-foreground">
@@ -1401,6 +1476,36 @@ selectedId === member.id ? 'bg-primary/5 border-l-4 border-l-primary' : 'hover:b
 	</span>
 </div>
 </div>
+
+{showJumpList && (
+	<div className="w-16 shrink-0 flex flex-col rounded-xl border border-border bg-card shadow-sm overflow-hidden py-2 animate-in slide-in-from-left-2 duration-300">
+		<div className="px-2 mb-2">
+			<h5 className="text-[0.55rem] font-black text-center uppercase tracking-tighter text-muted-foreground opacity-60">Jump</h5>
+		</div>
+		<div className="flex-1 overflow-auto scrollbar-none px-1 space-y-1">
+			{jumpListItems.map((item) => (
+				<Tooltip key={item.id}>
+					<TooltipTrigger asChild>
+						<Button
+							variant="ghost"
+							size="icon-xs"
+							className={`w-full h-8 font-black text-[0.65rem] ${item.type === 'qualified' ? 'text-emerald-700 hover:bg-emerald-50' : 'text-muted-foreground hover:bg-muted'}`}
+							onClick={() => {
+								document.getElementById(`subject-${item.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+							}}
+						>
+							{item.code.slice(0, 3)}
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent side="right" className="text-xs font-bold">
+						{item.code} {item.type === 'qualified' ? '(Qualified)' : '(Outside Dept)'}
+					</TooltipContent>
+				</Tooltip>
+			))}
+		</div>
+	</div>
+)}
+
 <div className="flex-1 overflow-auto">
 {!selected ? (
 <div className="flex h-full items-center justify-center text-muted-foreground">
@@ -1493,6 +1598,9 @@ selectedId === member.id ? 'bg-primary/5 border-l-4 border-l-primary' : 'hover:b
 								<p className="text-xs text-muted-foreground font-medium leading-relaxed">
 									ATLAS removes <span className="font-bold text-foreground">{rotationOvercountHours}h</span> of overlapping rotation-family sections to reflect true concurrent weekly demand.
 								</p>
+								<div className="p-2 rounded-lg bg-blue-50/50 border border-blue-100 text-[0.65rem] italic text-blue-700 leading-tight">
+									Rotation families (e.g. Science/TLE) often overlap terms. ATLAS ensures teachers aren't penalized for these non-simultaneous hours.
+								</div>
 							</div>
 							<div className="grid grid-cols-3 gap-2 border-t border-border/40 pt-3">
 								<div className="flex flex-col">
@@ -1512,8 +1620,8 @@ selectedId === member.id ? 'bg-primary/5 border-l-4 border-l-primary' : 'hover:b
 								<div className="border-t border-border/40 pt-3 space-y-2">
 									<span className="text-[0.55rem] font-black uppercase tracking-[0.15em] text-muted-foreground/60">Concurrent Families</span>
 									<div className="flex flex-wrap gap-1">
-										{rotationFamilyDetails.map((f, idx) => (
-											<Badge key={idx} variant="outline" className="text-[0.55rem] font-black uppercase px-1.5 py-0 h-4 bg-muted/30 border-muted">
+										{rotationFamilyDetails.map((f: RotationFamilyLoadDetail) => (
+											<Badge key={f.family} variant="outline" className="text-[0.55rem] font-black uppercase px-1.5 py-0 h-4 bg-muted/30 border-muted">
 												{f.family}: {f.creditedHours}h
 											</Badge>
 										))}
@@ -1535,6 +1643,29 @@ selectedId === member.id ? 'bg-primary/5 border-l-4 border-l-primary' : 'hover:b
 {selected.department && <Badge variant="outline" className="border-border/40 bg-white/80 text-muted-foreground font-black text-[0.6rem] px-2 py-0 h-5 shadow-none uppercase">{selected.department}</Badge>}
 </div>
 <div className="flex items-center gap-2">
+	{dirty && (
+		<Popover>
+			<PopoverTrigger asChild>
+				<Button variant="ghost" size="sm" className="h-8 px-2 gap-1.5 text-[0.65rem] font-black text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-100 shadow-none uppercase tracking-tighter mr-2">
+					{pendingChangeLedger.length} Pending Changes
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent className="w-64 p-3 shadow-xl">
+				<h6 className="text-[0.6rem] font-black uppercase tracking-widest text-muted-foreground mb-2">Draft Ledger</h6>
+				<div className="space-y-1 max-h-48 overflow-auto">
+					{pendingChangeLedger.map((change, idx) => (
+						<div key={idx} className="flex items-center justify-between text-[0.7rem] border-b border-border/40 py-1 last:border-0">
+							<span className="truncate font-bold mr-2">{change.facultyName.split(',')[0]}</span>
+							<Badge variant="outline" className={`h-4 text-[0.55rem] px-1 font-black ${change.type === 'add' ? 'text-emerald-600' : 'text-amber-600'}`}>
+								{change.type === 'add' ? '+' : '-'}{change.count} sections
+							</Badge>
+						</div>
+					))}
+				</div>
+			</PopoverContent>
+		</Popover>
+	)}
+
 	<div className="flex items-center bg-background rounded-lg border border-border/60 p-0.5 shadow-inner mr-2">
 		<Button type="button" variant="ghost" size="icon-xs" onClick={handleUndo} disabled={!canUndo || saving || isReadOnlyMode} className="h-7 w-8 font-bold text-xs">
 			<Undo2 className="size-3.5" />
@@ -1658,6 +1789,7 @@ selectedId === member.id ? 'bg-primary/5 border-l-4 border-l-primary' : 'hover:b
 							remainingCapacityMinutes={remainingCapacityMinutes}
 							onHoverLoadMinutes={setHoveredIncomingMinutes}
 							onClearHoverLoad={() => setHoveredIncomingMinutes(0)}
+							activeFacultyIds={activeFacultyIds}
 							onSwapSectionOwnership={(subjectId, sectionId, fromFacultyId) =>
 								setSwapCandidate({ subjectId, sectionId, fromFacultyId })
 							}
@@ -1710,6 +1842,7 @@ selectedId === member.id ? 'bg-primary/5 border-l-4 border-l-primary' : 'hover:b
 								remainingCapacityMinutes={remainingCapacityMinutes}
 								onHoverLoadMinutes={setHoveredIncomingMinutes}
 								onClearHoverLoad={() => setHoveredIncomingMinutes(0)}
+								activeFacultyIds={activeFacultyIds}
 								onSwapSectionOwnership={(subjectId, sectionId, fromFacultyId) =>
 									setSwapCandidate({ subjectId, sectionId, fromFacultyId })
 								}
@@ -1818,3 +1951,4 @@ selectedId === member.id ? 'bg-primary/5 border-l-4 border-l-primary' : 'hover:b
 </TooltipProvider>
 );
 }
+

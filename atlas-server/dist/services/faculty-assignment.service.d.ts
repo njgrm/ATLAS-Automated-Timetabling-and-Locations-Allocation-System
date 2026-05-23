@@ -83,15 +83,28 @@ export interface TeachingLoadIntegrityDiagnosticRow {
     subjectCode: string;
     sectionCount: number;
 }
+export interface TeachingLoadStaleOwnershipSample {
+    facultyId: number;
+    facultyName: string;
+    isPlaceholder: boolean;
+    subjectId: number;
+    subjectCode: string;
+    sectionId: number;
+}
 export interface TeachingLoadIntegrityDiagnostics {
     emptySectionRows: number;
     currentYearRowsMissingOwnership: number;
     currentYearOwnershipWithoutMatchingScope: number;
     currentYearMissingOwnershipPairs: number;
     currentYearOwnershipWithoutMatchingScopePairs: number;
+    staleOwnershipRowCount: number;
+    staleOwnedCurrentYearPairCount: number;
+    stalePlaceholderPairCount: number;
+    staleNonPlaceholderPairCount: number;
     emptySectionSamples: TeachingLoadIntegrityDiagnosticRow[];
     missingOwnershipSamples: TeachingLoadIntegrityDiagnosticRow[];
     ownershipWithoutScopeSamples: TeachingLoadIntegrityDiagnosticRow[];
+    staleOwnershipSamples: TeachingLoadStaleOwnershipSample[];
 }
 export interface SpecialProgramDistributionOwnerRow {
     facultyId: number;
@@ -150,6 +163,33 @@ export interface TeachingLoadTruthReconcileInput {
     actorId: number;
     authToken?: string;
     previewOnly?: boolean;
+}
+export interface StaleOwnershipReconcileInput {
+    schoolId: number;
+    schoolYearId: number;
+    actorId: number;
+    authToken?: string;
+    previewOnly?: boolean;
+}
+export interface StaleOwnershipReconcileResult {
+    applied: boolean;
+    schoolId: number;
+    schoolYearId: number;
+    staleOwnershipRowCount: number;
+    staleOwnedCurrentYearPairCount: number;
+    stalePlaceholderPairCount: number;
+    staleNonPlaceholderPairCount: number;
+    affectedFacultySubjectRows: number;
+    deletedOwnershipRows: number;
+    deletedFacultySubjectRows: number;
+    updatedFacultySubjectRows: number;
+    affectedSubjects: Array<{
+        subjectId: number;
+        subjectCode: string;
+        staleRowCount: number;
+        stalePairCount: number;
+    }>;
+    sampleRows: TeachingLoadStaleOwnershipSample[];
 }
 export interface TeachingLoadTruthReconcileResult {
     applied: boolean;
@@ -407,6 +447,7 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
     integrityDiagnostics: TeachingLoadIntegrityDiagnostics;
 }>;
 export declare function previewOrApplyTeachingLoadTruthReconcile(input: TeachingLoadTruthReconcileInput): Promise<TeachingLoadTruthReconcileResult>;
+export declare function previewOrApplyStaleOwnershipReconcile(input: StaleOwnershipReconcileInput): Promise<StaleOwnershipReconcileResult>;
 export interface TeachingLoadResetInput {
     schoolId: number;
     schoolYearId: number;
