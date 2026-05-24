@@ -11,6 +11,7 @@ import type { SubjectSectionOwnershipIndexEntry } from '@/lib/faculty-assignment
 const FACULTY_SUMMARY_CACHE_PREFIX = 'atlas:faculty-summary:v3';
 const SUBJECTS_CACHE_PREFIX = 'atlas:subjects:v1';
 const SECTION_SUMMARY_CACHE_PREFIX = 'atlas:section-summary:v1';
+const SECTION_HOME_ROOMS_CACHE_PREFIX = 'atlas:section-home-rooms:v1';
 
 type CacheEnvelope<T> = {
 	cachedAt: string;
@@ -168,6 +169,10 @@ function sectionSummaryCacheKey(schoolId: number, schoolYearId: number): string 
 	return `${SECTION_SUMMARY_CACHE_PREFIX}:${schoolId}:${schoolYearId}`;
 }
 
+function sectionHomeRoomsCacheKey(schoolId: number, schoolYearId: number): string {
+	return `${SECTION_HOME_ROOMS_CACHE_PREFIX}:${schoolId}:${schoolYearId}`;
+}
+
 export function getCachedFacultyAssignmentsSummary(
 	schoolId: number,
 	schoolYearId: number,
@@ -228,6 +233,26 @@ export function getCachedSectionSummary(
 
 export function setCachedSectionSummary(schoolId: number, schoolYearId: number, summary: SectionSummaryResponse): void {
 	writeCached(sectionSummaryCacheKey(schoolId, schoolYearId), summary);
+}
+
+export function getCachedSectionHomeRooms<T>(
+	schoolId: number,
+	schoolYearId: number,
+	options?: { maxAgeMs?: number | null },
+): CachedResult<T[]> | null {
+	const maxAgeMs = options?.maxAgeMs ?? null;
+	const cached = readCached<T[]>(sectionHomeRoomsCacheKey(schoolId, schoolYearId));
+	if (!cached) return null;
+	if (!Array.isArray(cached.data)) return null;
+	return {
+		cachedAt: cached.cachedAt,
+		data: cached.data,
+		stale: isStale(cached.cachedAt, maxAgeMs),
+	};
+}
+
+export function setCachedSectionHomeRooms<T>(schoolId: number, schoolYearId: number, rooms: T[]): void {
+	writeCached(sectionHomeRoomsCacheKey(schoolId, schoolYearId), rooms);
 }
 
 export async function requestWithRetry<T>(

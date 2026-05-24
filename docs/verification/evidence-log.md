@@ -1,3 +1,60 @@
+# 2026-05-24 - Phase 3 EnrollPro Outage Runtime Independence One-Shot
+- Phase: Phase 3 generator-readiness stream, outage runtime-independence hardening
+- Operator: GitHub Copilot
+- Scope gate: PARTIAL PASS (runtime-context + degraded read continuity verified; upstream recovery sync unavailable during outage window)
+- Files changed in this pass:
+  - `atlas-server/src/services/runtime-context.service.ts`
+  - `atlas-server/src/routes/runtime.router.ts`
+  - `atlas-server/src/services/section.service.ts`
+  - `atlas-server/src/services/faculty-assignment.service.ts`
+  - `atlas-server/src/app.ts`
+  - `atlas-client/src/lib/settings.ts`
+  - `atlas-client/src/lib/enrollpro-public-settings.ts`
+  - `atlas-client/src/lib/faculty-teaching-load-cache.ts`
+  - `atlas-client/src/components/AppShell.tsx`
+  - `atlas-client/src/pages/Sections.tsx`
+  - `atlas-client/src/pages/Faculty.tsx`
+  - `atlas-client/src/pages/FacultyAssignments.tsx`
+  - `atlas-client/src/pages/Subjects.tsx`
+  - `atlas-client/src/pages/Dashboard.tsx`
+  - `atlas-client/src/pages/Audit.tsx`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+  - `CHANGELOG.md`
+
+- Local verification:
+  - `npm --prefix atlas-client run build` -> PASS
+  - `npm --prefix atlas-server run build` -> PASS
+
+- Tailnet outage/runtime probes (`https://njgrm.buru-degree.ts.net`):
+  1) `POST /api/v1/auth/login` with direct ATLAS admin credential -> PASS (`role=officer`, local auth token issued)
+
+  2) Runtime context contract:
+     - `GET /api/v1/runtime/context?schoolId=1` -> PASS
+     - Response highlights:
+       - `activeSchoolYearId=55`
+       - `source=atlas-persisted`
+       - `stale=true`
+       - `upstream.reachable=false`
+       - `upstream.verified=false`
+       - `evidenceCount=5`
+
+  3) Degraded read continuity:
+     - `GET /api/v1/sections/summary/55?schoolId=1` -> PASS (`source=cached-enrollpro`, `totalSections=82`)
+     - `GET /api/v1/faculty-assignments/summary?schoolId=1&schoolYearId=55` -> PASS (`facultyCount=146`, `coverageTotals` present)
+
+  4) Honest no-cache/no-context failure case:
+     - `GET /api/v1/runtime/context?schoolId=999` -> PASS (`404`, `code=NO_RUNTIME_CONTEXT`)
+
+  5) Recovery sync check:
+     - `POST /api/v1/sections/sync` -> `sync-failed`
+     - `POST /api/v1/faculty/sync` -> `sync-failed`
+     - Interpretation: upstream outage persisted during probe window, so live-recovery validation could not be completed in this pass.
+
+- GO/NO-GO:
+  - **GO** for degraded read-runtime independence scope (runtime context + sections/teachers/teaching-load read continuity from ATLAS-owned context/data).
+  - **FOLLOW-UP REQUIRED** for explicit live-recovery proof once EnrollPro availability returns.
+
 # 2026-05-23 - Phase 3 Teaching Load Section-First Read Model One-Shot
 - Phase: Phase 3 generator-readiness stream, section-first teaching-load read contract implementation
 - Operator: GitHub Copilot

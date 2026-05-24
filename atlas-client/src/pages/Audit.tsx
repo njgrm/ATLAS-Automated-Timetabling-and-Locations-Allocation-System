@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
-import { fetchPublicSettings } from '@/lib/settings';
+import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/ui/card';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -32,13 +32,16 @@ export default function Audit() {
 	const [utilSearch, setUtilSearch] = useState('');
 
 	useEffect(() => {
-		fetchPublicSettings().then(s => {
-			if (s.activeSchoolYearId) {
-				setActiveSchoolYearId(s.activeSchoolYearId);
+		resolveActiveSchoolYearContext({ allowStaleOnError: true }).then((context) => {
+			if (context.activeSchoolYearId) {
+				setActiveSchoolYearId(context.activeSchoolYearId);
 			} else {
 				setLoading(false);
 				toast.error('No active school year found');
 			}
+		}).catch(() => {
+			setLoading(false);
+			toast.error('No active school year found');
 		});
 	}, []);
 

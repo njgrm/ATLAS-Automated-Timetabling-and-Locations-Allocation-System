@@ -42,7 +42,7 @@ export async function syncSectionsFromExternal(
 	schoolId: number,
 	schoolYearId: number,
 	authToken?: string
-): Promise<{ synced: boolean; count: number; removed: number; source: string; fetchedAt: Date }> {
+): Promise<{ synced: boolean; count: number; removed: number; source: SectionSummary['source']; fetchedAt: Date }> {
 	let result: SectionFetchResult;
 	try {
 		result = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
@@ -129,7 +129,8 @@ export async function syncSectionsFromExternal(
 export async function getSectionSummary(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionSummary> {
 	// For Wave 5, we prefer reading from the Mirror first to ensure speed, 
 	// but we might want to auto-sync if the mirror is empty.
-	
+	let source: SectionSummary['source'] = 'cached-enrollpro';
+
 	let mirrors = await prisma.sectionMirror.findMany({
 		where: { schoolId, schoolYearId, isStale: false },
 		orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }]
@@ -137,7 +138,8 @@ export async function getSectionSummary(schoolYearId: number, schoolId: number, 
 
 	if (mirrors.length === 0) {
 		// Initial sync
-		await syncSectionsFromExternal(schoolId, schoolYearId, authToken);
+		const syncResult = await syncSectionsFromExternal(schoolId, schoolYearId, authToken);
+		source = syncResult.source;
 		mirrors = await prisma.sectionMirror.findMany({
 			where: { schoolId, schoolYearId, isStale: false },
 			orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }]
@@ -200,7 +202,7 @@ export async function getSectionSummary(schoolYearId: number, schoolId: number, 
 		enrolledByGradeLevel,
 		gradeLevels,
 		sections,
-		source: 'enrollpro', // Re-evaluate if we want to track 'cached' here
+		source,
 		fetchedAt: mirrors[0]?.lastSyncedAt ?? new Date(),
 		isStale: false,
 	};

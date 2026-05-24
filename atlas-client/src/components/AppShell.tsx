@@ -27,7 +27,7 @@ import { AnimatePresence, motion } from 'motion/react';
 
 import { captureBridgeToken, getBackHref } from '@/lib/bridge';
 import { applyEnrollProAccentTheme, fetchPublicSettings, fetchSchoolYears, verifySessionToken } from '@/lib/settings';
-import { cacheActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { cacheActiveSchoolYearContext, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import {
 	clearAtlasAuthStorage,
 	clearBridgeToken,
@@ -580,6 +580,20 @@ export function AppShell() {
 		}
 		previousPathnameRef.current = location.pathname;
 	}, [isTimetableRoute, location.pathname]);
+
+	/* Resolve active school year from ATLAS-owned runtime/cache before EnrollPro branding fetch. */
+	useEffect(() => {
+		resolveActiveSchoolYearContext({ allowStaleOnError: true })
+			.then((context) => {
+				setSelectedYearId(context.activeSchoolYearId);
+				if (context.activeSchoolYearLabel) {
+					setActiveYearLabel(context.activeSchoolYearLabel);
+				}
+			})
+			.catch(() => {
+				// Allow branding/settings fetch to continue as a secondary source.
+			});
+	}, []);
 
 	/* Fetch EnrollPro settings + apply dynamic accent theming */
 	useEffect(() => {

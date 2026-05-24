@@ -15,7 +15,14 @@ import {
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
-import { fetchPublicSettings } from '@/lib/settings';
+import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import {
+	getCachedSectionHomeRooms,
+	getCachedSectionSummary,
+	requestWithRetry,
+	setCachedSectionHomeRooms,
+	setCachedSectionSummary,
+} from '@/lib/faculty-teaching-load-cache';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card } from '@/ui/card';
@@ -105,8 +112,12 @@ function fillColor(pct: number) {
 export default function Sections() {
 	const [state, setState]           = useState<FetchState>({ status: 'loading' });
 	const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [syncing, setSyncing]       = useState(false);
 	const [syncError, setSyncError]   = useState(false);
+	const [dataSource, setDataSource] = useState<'live' | 'cached' | 'none'>('none');
+	const [cacheNotice, setCacheNotice] = useState<string | null>(null);
+	const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 	const [sortField, setSortField]   = useState<SortField>('name');
 	const [sortDir, setSortDir]       = useState<SortDir>('asc');
 	const [page, setPage]             = useState(1);
@@ -117,52 +128,103 @@ export default function Sections() {
 	const [homeRoomOptions, setHomeRoomOptions] = useState<HomeRoomOption[]>([]);
 	const [savingMirrorId, setSavingMirrorId] = useState<number | null>(null);
 
-	const fetchSections = useCallback(async () => {
+	const fetchSections = useCallback(async (options?: { forceRefresh?: boolean }) => {
+		const forceRefresh = options?.forceRefresh === true;
 		setState({ status: 'loading' });
+		setSyncError(false);
+
+		let schoolYearId: number | null = null;
 		try {
-			const settings = await fetchPublicSettings();
-			const ayId = settings.activeSchoolYearId;
-			if (!ayId) {
+			const schoolYearContext = await resolveActiveSchoolYearContext({
+				forceRefresh,
+				allowStaleOnError: true,
+			});
+			schoolYearId = schoolYearContext.activeSchoolYearId;
+			setActiveSchoolYearId(schoolYearId);
+
+			if (!forceRefresh) {
+				const cachedSummary = getCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId, {
+					maxAgeMs: 3 * 60 * 1000,
+				});
+				const cachedHomeRooms = getCachedSectionHomeRooms<HomeRoomOption>(DEFAULT_SCHOOL_ID, schoolYearId, {
+					maxAgeMs: 3 * 60 * 1000,
+				});
+
+				if (cachedSummary && cachedHomeRooms) {
+					setState({ status: 'ok', data: cachedSummary.data });
+					setHomeRoomOptions(cachedHomeRooms.data);
+					setLastSyncedAt(cachedSummary.data.fetchedAt ? String(cachedSummary.data.fetchedAt) : null);
+					setDataSource('cached');
+					setCacheNotice('Refreshing live section data. Showing your last saved section snapshot in the meantime.');
+				}
+			}
+
+			if (!schoolYearId) {
 				setState({
 					status: 'no-year',
-					message: 'No active school year is set. Configure it in EnrollPro before sections can be loaded.',
+					message: 'No active school year is available. Run at least one successful sync, then retry.',
 				});
+				setDataSource('none');
 				return;
 			}
+
 			const [summaryRes, homeRoomRes] = await Promise.all([
-				atlasApi.get<SectionSummary & { code?: string }>(`/sections/summary/${ayId}?schoolId=${DEFAULT_SCHOOL_ID}`),
-				atlasApi.get<{ rooms: HomeRoomOption[] }>(`/sections/home-rooms/${ayId}?schoolId=${DEFAULT_SCHOOL_ID}`),
+				requestWithRetry(
+					() => atlasApi.get<SectionSummary & { code?: string }>(`/sections/summary/${schoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`),
+					{ attempts: 2, delayMs: 400 },
+				),
+				requestWithRetry(
+					() => atlasApi.get<{ rooms: HomeRoomOption[] }>(`/sections/home-rooms/${schoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`),
+					{ attempts: 2, delayMs: 350 },
+				),
 			]);
 			const res = summaryRes;
 			setHomeRoomOptions(homeRoomRes.data.rooms ?? []);
+			setCachedSectionHomeRooms(DEFAULT_SCHOOL_ID, schoolYearId, homeRoomRes.data.rooms ?? []);
 			if (res.data.code === 'UPSTREAM_UNAVAILABLE' && res.data.totalSections === 0) {
 				setState({
 					status: 'unavailable',
 					message: 'Section data source is currently unavailable. Sections are sourced from the enrollment service and will appear here once the upstream API is connected.',
 				});
+				setDataSource('none');
+				setCacheNotice(null);
 				return;
 			}
 			setState({ status: 'ok', data: res.data });
+			setCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId, res.data);
 			setLastSyncedAt(res.data.fetchedAt ? String(res.data.fetchedAt) : null);
+			setDataSource('live');
+			setCacheNotice(null);
 		} catch {
-			setHomeRoomOptions([]);
-			setState({
-				status: 'unavailable',
-				message: 'Section data is not yet available. Sections are sourced from the enrollment service and will appear here once the upstream API is connected.',
-			});
+			const cachedSummary = schoolYearId ? getCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId) : null;
+			const cachedHomeRooms = schoolYearId ? getCachedSectionHomeRooms<HomeRoomOption>(DEFAULT_SCHOOL_ID, schoolYearId) : null;
+
+			if (cachedSummary && cachedHomeRooms) {
+				setState({ status: 'ok', data: cachedSummary.data });
+				setHomeRoomOptions(cachedHomeRooms.data);
+				setLastSyncedAt(cachedSummary.data.fetchedAt ? String(cachedSummary.data.fetchedAt) : null);
+				setDataSource('cached');
+				setSyncError(true);
+				setCacheNotice('Live section data is unavailable. Showing your last saved section snapshot in read-only mode.');
+			} else {
+				setHomeRoomOptions([]);
+				setState({
+					status: 'unavailable',
+					message: 'Section data is not yet available. Run a successful sync once, then retry in degraded mode if upstream is unavailable.',
+				});
+				setDataSource('none');
+				setCacheNotice(null);
+				setSyncError(true);
+			}
 		}
 	}, []);
 
 	const handleHomeRoomChange = useCallback(async (section: SectionDetail, selectedValue: string) => {
-		if (!section.mirrorId) return;
+		if (!section.mirrorId || !activeSchoolYearId || dataSource !== 'live' || !isOnline) return;
 		setSavingMirrorId(section.mirrorId);
 		const nextHomeRoomId = selectedValue === 'none' ? null : Number(selectedValue);
 		try {
-			const settings = await fetchPublicSettings();
-			const ayId = settings.activeSchoolYearId;
-			if (!ayId) return;
-
-			await atlasApi.put(`/sections/home-rooms/${ayId}`, {
+			await atlasApi.put(`/sections/home-rooms/${activeSchoolYearId}`, {
 				schoolId: DEFAULT_SCHOOL_ID,
 				assignments: [{ sectionId: section.mirrorId, homeRoomId: nextHomeRoomId }],
 			});
@@ -182,9 +244,14 @@ export default function Sections() {
 		} finally {
 			setSavingMirrorId(null);
 		}
-	}, []);
+	}, [activeSchoolYearId, dataSource, isOnline]);
 
 	const handleSync = async () => {
+		if (!isOnline) {
+			setSyncError(true);
+			setCacheNotice('You are offline. Reconnect before syncing Sections.');
+			return;
+		}
 		setSyncing(true);
 		setSyncError(false);
 		try {
@@ -192,7 +259,7 @@ export default function Sections() {
 				schoolId: DEFAULT_SCHOOL_ID,
 			});
 			if (data.synced) {
-				await fetchSections();
+				await fetchSections({ forceRefresh: true });
 			} else {
 				setSyncError(true);
 			}
@@ -214,6 +281,19 @@ export default function Sections() {
 	}, [lastSyncedAt]);
 
 	useEffect(() => { void fetchSections(); }, [fetchSections]);
+
+	useEffect(() => {
+		const handleOnline = () => setIsOnline(true);
+		const handleOffline = () => setIsOnline(false);
+
+		window.addEventListener('online', handleOnline);
+		window.addEventListener('offline', handleOffline);
+
+		return () => {
+			window.removeEventListener('online', handleOnline);
+			window.removeEventListener('offline', handleOffline);
+		};
+	}, []);
 
 	// Reset page when filters change
 	useEffect(() => { setPage(1); }, [searchQuery, gradeFilter, programFilter, pageSize]);
@@ -272,6 +352,7 @@ export default function Sections() {
 	};
 
 	const hasActiveFilters = gradeFilter !== 'all' || searchQuery.trim() !== '' || programFilter !== 'all';
+	const isReadOnlyMode = !isOnline || dataSource !== 'live';
 
 	// Distinct grade levels present in data
 	const availableGrades = useMemo(() => {
@@ -351,6 +432,13 @@ export default function Sections() {
 
 					<div className="flex-1" />
 
+					<Badge
+						variant={dataSource === 'live' ? 'secondary' : 'outline'}
+						className="h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold"
+					>
+						{dataSource === 'live' ? 'Live data' : dataSource === 'cached' ? 'Cached snapshot' : 'No cache'}
+					</Badge>
+
 					{/* Inline stat banner — prominent, not muted */}
 					{state.status === 'ok' && (
 						<div className="flex items-center gap-3 rounded-md border border-border bg-card px-3 py-1.5 shadow-sm shrink-0">
@@ -390,11 +478,11 @@ export default function Sections() {
 						variant="outline"
 						size="sm"
 						onClick={handleSync}
-						disabled={syncing || state.status === 'loading'}
+						disabled={syncing || state.status === 'loading' || !isOnline}
 						className="h-8 shrink-0 ml-2"
 					>
 						<RefreshCw className={`mr-1 size-3.5 ${syncing ? 'animate-spin' : ''}`} />
-						{syncing ? 'Syncing...' : 'Sync'}
+						{syncing ? 'Syncing...' : !isOnline ? 'Offline' : 'Sync'}
 					</Button>
 				</div>
 			</div>
@@ -410,11 +498,22 @@ export default function Sections() {
 				<div className="shrink-0 mx-6 mb-2 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
 					<AlertTriangle className="size-4 shrink-0" />
 					<span className="flex-1">
-						{syncError ? 'EnrollPro bridge unreachable. Showing cached data.' : 'Enrollment service unavailable. Showing cached data.'}
+						{cacheNotice ?? (syncError ? 'Live section sync is unavailable. Showing cached data when available.' : 'Enrollment service unavailable. Showing cached data when available.')}
 					</span>
-					<Button size="sm" variant="outline" onClick={handleSync} disabled={syncing} className="shrink-0 h-7">
+					<Button size="sm" variant="outline" onClick={handleSync} disabled={syncing || !isOnline} className="shrink-0 h-7">
 						<RefreshCw className={`mr-1 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry Sync
 					</Button>
+				</div>
+			)}
+
+			{isReadOnlyMode && state.status === 'ok' && (
+				<div className="shrink-0 mx-6 mb-2 flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">
+					<ServerOff className="size-4 shrink-0" />
+					<span className="flex-1">
+						{!isOnline
+							? 'You are offline. Sections are available in read-only mode until connection returns.'
+							: 'You are viewing a cached section snapshot in read-only mode.'}
+					</span>
 				</div>
 			)}
 
@@ -545,7 +644,7 @@ export default function Sections() {
 														onValueChange={(value) => {
 															void handleHomeRoomChange(s, value);
 														}}
-														disabled={savingMirrorId === s.mirrorId}
+														disabled={savingMirrorId === s.mirrorId || isReadOnlyMode}
 													>
 														<SelectTrigger className="h-8 text-xs">
 															<SelectValue placeholder="Unassigned" />

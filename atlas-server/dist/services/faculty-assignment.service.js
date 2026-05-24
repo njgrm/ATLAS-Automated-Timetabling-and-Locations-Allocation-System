@@ -1601,6 +1601,56 @@ function toAssignmentResponse(assignment, normalized, metadata) {
     };
 }
 async function buildRosterIndex(schoolId, schoolYearId, authToken) {
+    const mirrorRows = await prisma.sectionMirror.findMany({
+        where: { schoolId, schoolYearId, isStale: false },
+        select: {
+            externalId: true,
+            name: true,
+            maxCapacity: true,
+            enrolledCount: true,
+            gradeLevelId: true,
+            gradeLevelName: true,
+            displayOrder: true,
+            programType: true,
+            programCode: true,
+            programName: true,
+            isSpecialProgram: true,
+            tleProgramId: true,
+            tleSpecialization: true,
+            tleProgramCategory: true,
+        },
+        orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+    });
+    if (mirrorRows.length > 0) {
+        const gradeMap = new Map();
+        for (const row of mirrorRows) {
+            if (!gradeMap.has(row.gradeLevelId)) {
+                gradeMap.set(row.gradeLevelId, {
+                    gradeLevelId: row.gradeLevelId,
+                    gradeLevelName: row.gradeLevelName,
+                    displayOrder: row.displayOrder,
+                    sections: [],
+                });
+            }
+            gradeMap.get(row.gradeLevelId).sections.push({
+                id: row.externalId,
+                name: row.name,
+                maxCapacity: row.maxCapacity,
+                enrolledCount: row.enrolledCount,
+                gradeLevelId: row.gradeLevelId,
+                gradeLevelName: row.gradeLevelName,
+                displayOrder: row.displayOrder,
+                programType: (row.programType ?? 'REGULAR'),
+                programCode: row.programCode ?? row.programType ?? 'REGULAR',
+                programName: row.programName ?? row.programCode ?? 'Regular',
+                isSpecialProgram: row.isSpecialProgram,
+                tleProgramId: row.tleProgramId,
+                tleSpecialization: row.tleSpecialization,
+                tleProgramCategory: row.tleProgramCategory,
+            });
+        }
+        return buildSectionRosterIndex(Array.from(gradeMap.values()).sort((left, right) => left.displayOrder - right.displayOrder));
+    }
     const sectionResult = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
     return buildSectionRosterIndex(sectionResult.gradeLevels);
 }
@@ -2576,6 +2626,13 @@ export async function getFacultyAssignmentIdentitySummary(facultyId, schoolYearI
         .sort((left, right) => left.gradeLevel - right.gradeLevel || left.sectionName.localeCompare(right.sectionName) || left.subjectCode.localeCompare(right.subjectCode));
 }
 async function resolveSchoolYearSectionIds(schoolId, schoolYearId, authToken) {
+    const mirrorSections = await prisma.sectionMirror.findMany({
+        where: { schoolId, schoolYearId, isStale: false },
+        select: { externalId: true },
+    });
+    if (mirrorSections.length > 0) {
+        return [...new Set(mirrorSections.map((section) => section.externalId))];
+    }
     const sectionResult = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
     const ids = [];
     for (const grade of sectionResult.gradeLevels) {

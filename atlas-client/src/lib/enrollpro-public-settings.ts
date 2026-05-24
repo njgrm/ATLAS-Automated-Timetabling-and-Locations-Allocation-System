@@ -1,4 +1,4 @@
-import { fetchPublicSettings } from './settings';
+import { fetchAtlasRuntimeContext, fetchPublicSettings } from './settings';
 
 const ACTIVE_SCHOOL_YEAR_CACHE_KEY = 'atlas:active-school-year-context:v1';
 const ACTIVE_SCHOOL_YEAR_MAX_AGE_MS = 10 * 60 * 1000;
@@ -12,7 +12,7 @@ type ActiveSchoolYearCacheRecord = {
 export type ActiveSchoolYearContext = {
 	activeSchoolYearId: number;
 	activeSchoolYearLabel: string | null;
-	source: 'network' | 'cache';
+	source: 'atlas' | 'enrollpro' | 'cache';
 	stale: boolean;
 	cachedAt: string;
 };
@@ -75,14 +75,32 @@ export async function resolveActiveSchoolYearContext(options?: {
 	const cached = readCachedActiveSchoolYear();
 	const hasFreshCache = cached ? isFresh(cached.cachedAt, maxAgeMs) : false;
 
-	if (!forceRefresh && cached && hasFreshCache) {
+	if (!forceRefresh && cached) {
 		return {
 			activeSchoolYearId: cached.activeSchoolYearId,
 			activeSchoolYearLabel: cached.activeSchoolYearLabel,
 			source: 'cache',
-			stale: false,
+			stale: !hasFreshCache,
 			cachedAt: cached.cachedAt,
 		};
+	}
+
+	try {
+		const runtimeContext = await fetchAtlasRuntimeContext();
+		if (runtimeContext?.activeSchoolYearId) {
+			cacheActiveSchoolYearContext(runtimeContext.activeSchoolYearId, runtimeContext.activeSchoolYearLabel ?? null);
+			const updated = readCachedActiveSchoolYear();
+
+			return {
+				activeSchoolYearId: runtimeContext.activeSchoolYearId,
+				activeSchoolYearLabel: runtimeContext.activeSchoolYearLabel ?? null,
+				source: 'atlas',
+				stale: runtimeContext.stale,
+				cachedAt: updated?.cachedAt ?? new Date().toISOString(),
+			};
+		}
+	} catch {
+		// Fall through to EnrollPro settings fallback.
 	}
 
 	try {
@@ -97,7 +115,7 @@ export async function resolveActiveSchoolYearContext(options?: {
 		return {
 			activeSchoolYearId: settings.activeSchoolYearId,
 			activeSchoolYearLabel: settings.activeSchoolYearLabel ?? null,
-			source: 'network',
+			source: 'enrollpro',
 			stale: false,
 			cachedAt: updated?.cachedAt ?? new Date().toISOString(),
 		};

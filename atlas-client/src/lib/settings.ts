@@ -26,6 +26,26 @@ export interface SchoolYear {
 	isActive: boolean;
 }
 
+export interface AtlasRuntimeContext {
+	schoolId: number;
+	activeSchoolYearId: number;
+	activeSchoolYearLabel: string | null;
+	source: 'atlas-persisted' | 'enrollpro-verified';
+	stale: boolean;
+	resolvedAt: string;
+	evidence: Array<{
+		type: string;
+		schoolYearId: number;
+		timestamp: string;
+		source: string;
+	}>;
+	upstream: {
+		reachable: boolean;
+		verified: boolean;
+		matched: boolean | null;
+	};
+}
+
 function relativeLuminance(hsl: string): number {
 	const parts = hsl.trim().split(/\s+/);
 	if (parts.length < 3) return 0.5;
@@ -83,6 +103,13 @@ const enrollProApiBase = '/enrollpro-api';
 
 export async function fetchPublicSettings(): Promise<EnrollProSettings> {
 	const { data } = await axios.get<EnrollProSettings>(`${enrollProApiBase}/settings/public`);
+	return data;
+}
+
+export async function fetchAtlasRuntimeContext(schoolId = 1): Promise<AtlasRuntimeContext> {
+	const { data } = await atlasApi.get<AtlasRuntimeContext>('/runtime/context', {
+		params: { schoolId },
+	});
 	return data;
 }
 

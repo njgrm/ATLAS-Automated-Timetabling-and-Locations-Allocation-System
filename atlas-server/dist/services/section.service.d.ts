@@ -35,7 +35,7 @@ export declare function syncSectionsFromExternal(schoolId: number, schoolYearId:
     synced: boolean;
     count: number;
     removed: number;
-    source: string;
+    source: SectionSummary['source'];
     fetchedAt: Date;
 }>;
 export declare function getSectionSummary(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionSummary>;

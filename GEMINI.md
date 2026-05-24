@@ -497,3 +497,16 @@ A Gemini UX pass is successful only if it produces pages that are:
 - truthfully verified
 
 If a pass looks prettier but still exposes the wrong workflow model, it is not complete.
+
+---
+
+## Technical Preferences
+
+### 1. Animations
+- **Prefer `framer-motion`** for all UI animations, transitions, and layout changes.
+- Use `motion` components for smooth layout transitions (e.g., `layout`, `initial`, `animate`, `exit`).
+- Avoid raw CSS transitions for complex layout shifts.
+
+### 2. Implementation Drafts
+- When asked to "draft the implementation", create a new file under `docs/prompts/` using the naming convention `feature-name-implementation-draft.md`.
+- The draft should contain a detailed technical plan, component architecture, and the prompt intended for a one-shot implementation if applicable.

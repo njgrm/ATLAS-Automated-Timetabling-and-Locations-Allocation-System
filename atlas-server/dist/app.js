@@ -32,6 +32,7 @@ import facultyPortalRouter from './routes/faculty-portal.router.js';
 import publishedScheduleRouter from './routes/published-schedule.router.js';
 import classTemplateRouter from './routes/class-template.router.js';
 import specializationAliasRouter from './routes/specialization-alias.router.js';
+import runtimeRouter from './routes/runtime.router.js';
 const app = express();
 app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -88,6 +89,7 @@ app.use('/api/v1/faculty-portal', facultyPortalRouter);
 app.use('/api/v1', publishedScheduleRouter);
 app.use('/api/v1/class-templates', classTemplateRouter);
 app.use('/api/v1/specialization-aliases', specializationAliasRouter);
+app.use('/api/v1/runtime', runtimeRouter);
 // Error handler
 app.use(errorHandler);
 export default app;

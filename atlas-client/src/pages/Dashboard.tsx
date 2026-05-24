@@ -24,7 +24,7 @@ import {
 import { BuildingView, ROOM_COLORS, ROOM_TYPE_LABELS } from '@/components/BuildingView';
 import { RoomScheduleOverlay } from '@/components/RoomScheduleOverlay';
 import atlasApi from '@/lib/api';
-import { fetchPublicSettings } from '@/lib/settings';
+import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import type { Building, Room, RoomScheduleView } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -136,11 +136,11 @@ export default function Dashboard() {
 				atlasApi.get<{ faculty: any[] }>(`/faculty?schoolId=${DEFAULT_SCHOOL_ID}`)
 					.then((fRes) => setFacultyCount(fRes.data.faculty.length))
 					.catch(() => setFacultyCount(null));
-				// Section count from enrollment service
-				fetchPublicSettings()
-					.then((s) => {
-						if (!s.activeSchoolYearId) { setSectionCount(null); return; }
-						return atlasApi.get<{ totalSections: number }>(`/sections/summary/${s.activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`);
+				// Section count from ATLAS runtime context
+				resolveActiveSchoolYearContext({ allowStaleOnError: true })
+					.then((context) => {
+						if (!context.activeSchoolYearId) { setSectionCount(null); return; }
+						return atlasApi.get<{ totalSections: number }>(`/sections/summary/${context.activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`);
 					})
 					.then((r) => { if (r) setSectionCount(r.data.totalSections); })
 					.catch(() => setSectionCount(null));
@@ -195,9 +195,9 @@ export default function Dashboard() {
 
 		(async () => {
 			try {
-				const settings = await fetchPublicSettings();
-				if (!settings.activeSchoolYearId || cancelled) { setUtilLoading(false); return; }
-				const syId = settings.activeSchoolYearId;
+				const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true });
+				if (!context.activeSchoolYearId || cancelled) { setUtilLoading(false); return; }
+				const syId = context.activeSchoolYearId;
 
 				const results = new Map<number, RoomUtil>();
 				// Fetch in parallel with limited concurrency (batch of 6)
@@ -991,10 +991,10 @@ function RoomSchedulePreview({ roomId, isTeachingSpace, onExpandSchedule }: { ro
 
 		(async () => {
 			try {
-				const settings = await fetchPublicSettings();
-				if (!settings.activeSchoolYearId || cancelled) return;
+				const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true });
+				if (!context.activeSchoolYearId || cancelled) return;
 				const { data } = await atlasApi.get<RoomScheduleView>(
-					`/room-schedules/${DEFAULT_SCHOOL_ID}/${settings.activeSchoolYearId}/rooms/${roomId}?source=latest`,
+					`/room-schedules/${DEFAULT_SCHOOL_ID}/${context.activeSchoolYearId}/rooms/${roomId}?source=latest`,
 				);
 				if (cancelled) return;
 				setSchedule(data);

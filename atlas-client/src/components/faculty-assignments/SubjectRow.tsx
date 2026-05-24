@@ -353,18 +353,18 @@ export function SubjectRow({
 												return (
 													<div
 														key={section.id}
-														className={`group/section relative flex items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-all duration-200 ${
+														className={`group/section relative flex items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-all duration-200 shadow-sm ${
 															isSystemAssignedSection
-																? 'border-amber-200 bg-amber-50/50'
+																? 'border-amber-300 bg-amber-50/50 shadow-inner'
 																: isHardConflict
-																? 'border-rose-300 bg-rose-50'
+																? 'border-rose-400 bg-rose-50 shadow-rose-100/50'
 																: isStaleOwner
-																? 'border-amber-300/40 bg-amber-50/30'
+																? 'border-amber-400/60 bg-amber-50/40'
 																: blocked
-																? 'border-muted bg-muted/30 opacity-60'
+																? 'border-muted bg-muted/40 opacity-70'
 																: isSelected
-																? 'border-primary/40 bg-primary/5 ring-1 ring-primary/10'
-																: 'bg-background border-border/60 hover:border-border'
+																? 'border-primary/50 bg-primary/5 ring-1 ring-primary/10 shadow-primary/5'
+																: 'bg-card border-border/80 hover:border-primary/40 hover:shadow-md'
 														}`}
 													>
 														<Checkbox
@@ -375,37 +375,37 @@ export function SubjectRow({
 																if (!isSelected && !blocked) onHoverLoadMinutes?.(subject.minMinutesPerWeek);
 															}}
 															onMouseLeave={() => onClearHoverLoad?.()}
-															className={`size-3.5 rounded-sm transition-opacity ${isSystemAssignedSection ? 'opacity-0' : 'opacity-100'}`}
+															className={`size-4 rounded-sm transition-opacity shadow-none ${isSystemAssignedSection ? 'opacity-0' : 'opacity-100'}`}
 														/>
 														
 														<div className="flex-1 min-w-0">
 															<div className="flex items-center gap-2">
-																<span className={`text-[0.75rem] font-bold leading-none truncate ${isSelected ? 'text-primary' : 'text-foreground'}`}>
+																<span className={`text-[0.75rem] font-black leading-none truncate ${isSelected ? 'text-primary' : 'text-foreground'}`}>
 																	{section.name}
 																</span>
 																{isSystemAssignedSection && (
-																	<Lock className="size-2.5 text-amber-600 shrink-0" />
+																	<Lock className="size-3 text-amber-600 shrink-0" />
 																)}
 															</div>
 															
 															{(section.assignmentSpecializationLabel || conflictLabel) && (
-																<div className="mt-1 flex items-center gap-1.5">
+																<div className="mt-1.5 flex items-center gap-1.5">
 																	{section.assignmentSpecializationLabel && (
-																		<span className="text-[0.6rem] font-bold text-sky-700/70 uppercase tracking-tighter truncate max-w-[80px]">
+																		<span className="text-[0.65rem] font-bold text-sky-700/80 uppercase tracking-tighter truncate max-w-[80px]">
 																			{section.assignmentSpecializationLabel}
 																		</span>
 																	)}
 																	{conflictLabel && (
 																		<Tooltip>
 																			<TooltipTrigger asChild>
-																				<div className="flex items-center gap-1 cursor-help">
+																				<div className="flex items-center gap-1 cursor-help bg-muted/20 px-1 rounded">
 																					<div className={`size-1.5 rounded-full shrink-0 ${isHardConflict ? 'bg-rose-500' : isStaleOwner ? 'bg-amber-400 opacity-50' : 'bg-amber-500'}`} />
-																					<span className={`text-[0.6rem] font-bold uppercase tracking-tighter truncate max-w-[60px] ${isHardConflict ? 'text-rose-700' : isStaleOwner ? 'text-amber-700/60 font-medium' : 'text-amber-700'}`}>
+																					<span className={`text-[0.65rem] font-bold uppercase tracking-tighter truncate max-w-[60px] ${isHardConflict ? 'text-rose-700' : isStaleOwner ? 'text-amber-700/70' : 'text-amber-700'}`}>
 																						{conflictLabel}
 																					</span>
 																				</div>
 																			</TooltipTrigger>
-																			<TooltipContent side="top" className="text-[0.7rem] font-medium">
+																			<TooltipContent side="top" className="text-[0.7rem] font-bold">
 																				{isHardConflict 
 																					? 'Database-level conflict detected.' 
 																					: isStaleOwner 
@@ -421,10 +421,10 @@ export function SubjectRow({
 														{isSavedOther && !disabled && (
 															<Button
 																type="button"
-																variant="ghost"
+																variant="outline"
 																size="xs"
 																onClick={() => onSwapSectionOwnership?.(subject.id, section.id, savedOwner.facultyId)}
-																className="ml-1 h-5 w-8 p-0 text-[0.6rem] font-bold text-primary opacity-0 group-hover/section:opacity-100 hover:bg-primary/10 transition-opacity uppercase"
+																className="ml-1 h-6 px-1.5 text-[0.65rem] font-black text-primary hover:bg-primary hover:text-white transition-all uppercase shadow-xs border-primary/20"
 															>
 																{isStaleOwner ? 'Fix' : 'Take'}
 															</Button>

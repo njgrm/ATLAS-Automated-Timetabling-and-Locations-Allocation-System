@@ -70,6 +70,14 @@ import {
 	DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
 import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+	SheetTrigger,
+} from '@/ui/sheet';
+import {
 	AutoFillSummaryModal,
 	type AutoFillSummaryResult,
 } from '@/components/faculty-assignments/AutoFillSummaryModal';
@@ -160,7 +168,7 @@ const [subjectSearch, setSubjectSearch] = useState('');
 	const [gradeLevelFilter, setGradeLevelFilter] = useState<string>('all');
 	const [sortOrder, setSortOrder] = useState<'load-asc' | 'load-desc'>('load-asc');
 	const [loadFilter, setLoadFilter] = useState<'all' | 'overloaded' | 'optimal' | 'underloaded'>('all');
-	const [showSyntheticCoverageRows, setShowSyntheticCoverageRows] = useState(false);
+	const [showTemporaryRoles, setShowTemporaryRoles] = useState(false);
 	const [hoveredIncomingMinutes, setHoveredIncomingMinutes] = useState(0);
 	const [swapCandidate, setSwapCandidate] = useState<{ subjectId: number; sectionId: number; fromFacultyId: number } | null>(null);
 const [resetDialogOpen, setResetDialogOpen] = useState(false);
@@ -174,7 +182,7 @@ const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 const [homeroomHint, setHomeroomHint] = useState<HomeroomHintResponse | null>(null);
 const [draftAssignmentsByFaculty, setDraftAssignmentsByFaculty] = useState<Record<number, FacultyAssignmentDraft[]>>({});
 
-const hasActiveFilters = filterStatus !== 'all' || departmentFilter !== 'all' || sortOrder !== 'load-asc' || loadFilter !== 'all' || showSyntheticCoverageRows;
+const hasActiveFilters = filterStatus !== 'all' || departmentFilter !== 'all' || sortOrder !== 'load-asc' || loadFilter !== 'all' || showTemporaryRoles;
 
 const [autoFillLoading, setAutoFillLoading] = useState(false);
 const [autoFillDialogOpen, setAutoFillDialogOpen] = useState(false);
@@ -684,7 +692,7 @@ const getComparableLoadHours = useCallback((member: FacultySummary) => {
 
 const filteredFaculty = useMemo(() => {
 let nextFaculty = faculty;
-	if (!showSyntheticCoverageRows) {
+	if (!showTemporaryRoles) {
 		nextFaculty = nextFaculty.filter((member) => !member.isPlaceholder);
 	}
 if (searchQuery.trim()) {
@@ -707,7 +715,7 @@ nextFaculty = nextFaculty.filter((member) => member.department === departmentFil
 
 	nextFaculty = nextFaculty.filter((member) => {
 		if (member.isPlaceholder) {
-			return showSyntheticCoverageRows && loadFilter === 'all';
+			return showTemporaryRoles && loadFilter === 'all';
 		}
 		const load = getComparableLoadHours(member);
 		if (loadFilter === 'overloaded') return load > 30;
@@ -728,19 +736,19 @@ nextFaculty = nextFaculty.filter((member) => member.department === departmentFil
 	});
 
 return nextFaculty;
-}, [departmentFilter, faculty, filterStatus, getComparableLoadHours, loadFilter, searchQuery, showSyntheticCoverageRows, sortOrder]);
+}, [departmentFilter, faculty, filterStatus, getComparableLoadHours, loadFilter, searchQuery, showTemporaryRoles, sortOrder]);
 
 const groupedFaculty = useMemo(() => {
-	const grouped = new Map<string, FacultySummary[]>();
-	for (const member of filteredFaculty) {
-		const department = member.isPlaceholder
-			? 'SYNTHETIC PLACEHOLDER COVERAGE'
-			: member.department?.trim() || 'UNASSIGNED DEPARTMENT';
-		const bucket = grouped.get(department) ?? [];
-		bucket.push(member);
-		grouped.set(department, bucket);
-	}
-	return Array.from(grouped.entries()).sort(([left], [right]) => left.localeCompare(right));
+const grouped = new Map<string, FacultySummary[]>();
+for (const member of filteredFaculty) {
+	const department = member.isPlaceholder
+		? 'UNSTAFFED TEMPORARY ROLES'
+		: member.department?.trim() || 'UNASSIGNED DEPARTMENT';
+	const bucket = grouped.get(department) ?? [];
+	bucket.push(member);
+	grouped.set(department, bucket);
+}
+return Array.from(grouped.entries()).sort(([left], [right]) => left.localeCompare(right));
 }, [filteredFaculty]);
 
 const subjectsLackingFaculty = useMemo(() => {
@@ -752,7 +760,6 @@ assignedSubjectIds.add(assignment.subjectId);
 }
 return subjects.filter((subject) => subject.isActive && !assignedSubjectIds.has(subject.id));
 }, [effectiveAssignmentsByFaculty, subjects]);
-
 const { departmentQualifiedSubjects, outsideDepartmentSubjects } = useMemo(() => {
 	const normalizeDepartmentCode = (value: string | null | undefined): string => {
 		const normalized = (value ?? '').trim().toUpperCase();
@@ -1157,97 +1164,131 @@ Dismiss
 	/>
 
 	<div className="mt-4 shrink-0 flex items-center gap-2">
-		<Button 
-			variant={showJumpList ? "secondary" : "outline"} 
-			size="sm" 
-			className="h-10 px-3 gap-2 font-bold"
-			onClick={() => setShowJumpList(!showJumpList)}
-		>
-			<Activity className="size-4" />
-			Jump List
-		</Button>
-		
-		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button variant="outline" size="sm" className="h-10 px-3 gap-2 font-bold text-muted-foreground hover:text-foreground">
+		<Sheet>
+			<SheetTrigger asChild>
+				<Button variant="outline" size="sm" className="h-10 px-3 gap-2 font-bold text-muted-foreground hover:text-foreground shadow-sm">
 					<Settings2 className="size-4" />
-					System Tools
+					Workspace Operations
 				</Button>
-			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end" className="w-56">
-				<DropdownMenuLabel className="text-[0.65rem] font-bold uppercase tracking-widest text-muted-foreground/60">Data Health</DropdownMenuLabel>
-				{integrityDiagnostics && (
-					<Dialog>
-						<DialogTrigger asChild>
-							<DropdownMenuItem onSelect={(e) => e.preventDefault()} className="gap-2 cursor-pointer">
-								<Activity className="size-4 text-blue-600" />
-								<div className="flex flex-col">
-									<span className="font-bold text-xs">Integrity Diagnostics</span>
-									<span className="text-[0.65rem] text-muted-foreground">
-										{integrityDiagnostics.currentYearMissingOwnershipPairs > 0 
-											? `${integrityDiagnostics.currentYearMissingOwnershipPairs} issues found` 
-											: 'Healthy'}
-									</span>
-								</div>
-							</DropdownMenuItem>
-						</DialogTrigger>
-						<DialogContent className="max-w-2xl">
-							<DialogHeader>
-								<DialogTitle className="flex items-center gap-2">
-									<AlertTriangle className="size-5 text-blue-700" />
-									Teaching Load Integrity Diagnostics
-								</DialogTitle>
-								<DialogDescription>
-									Technical reconciliation between the subject-section contract and current ownership rows.
-								</DialogDescription>
-							</DialogHeader>
-							<div className="grid gap-3 py-4">
-								<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-									<div className="rounded-xl border p-3 bg-muted/20">
-										<p className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">Empty seeded rows</p>
-										<p className="text-xl font-bold mt-1">{integrityDiagnostics.emptySectionRows}</p>
-									</div>
-									<div className="rounded-xl border p-3 bg-muted/20">
-										<p className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">Missing ownership</p>
-										<p className="text-xl font-bold mt-1 text-blue-700">{integrityDiagnostics.currentYearRowsMissingOwnership}</p>
-									</div>
-									<div className="rounded-xl border p-3 bg-muted/20">
-										<p className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">Outside scope</p>
-										<p className="text-xl font-bold mt-1">{integrityDiagnostics.currentYearOwnershipWithoutMatchingScope}</p>
-									</div>
-								</div>
-								
-								{integrityDiagnostics.missingOwnershipSamples.length > 0 && (
-									<div className="mt-2 p-3 rounded-xl border border-blue-100 bg-blue-50/30">
-										<p className="text-xs font-bold text-blue-800 uppercase tracking-widest mb-2">Affected Examples</p>
-										<div className="flex flex-wrap gap-2">
-											{integrityDiagnostics.missingOwnershipSamples.slice(0, 10).map((row, idx) => (
-												<Badge key={idx} variant="outline" className="bg-white/80 border-blue-200 text-blue-700 font-semibold">
-													{row.subjectCode} ({row.facultyName})
-												</Badge>
-											))}
+			</SheetTrigger>
+			<SheetContent className="w-80 overflow-y-auto">
+				<SheetHeader className="pb-6">
+					<SheetTitle className="text-xl font-bold flex items-center gap-2">
+						<Settings2 className="size-5 text-primary" />
+						Operations & Health
+					</SheetTitle>
+					<SheetDescription>
+						Manage workspace navigation, diagnostics, and global assignment tools.
+					</SheetDescription>
+				</SheetHeader>
+
+				<div className="space-y-8">
+					<section className="space-y-3">
+						<h5 className="text-[0.65rem] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+							<Activity className="size-3" />
+							Subject Jump List
+						</h5>
+						<div className="grid grid-cols-2 gap-2">
+							{jumpListItems.map((item) => (
+								<Button
+									key={item.id}
+									variant="outline"
+									size="sm"
+									className={`h-9 justify-start font-bold text-[0.7rem] px-3 ${item.type === 'qualified' ? 'border-emerald-200 bg-emerald-50/30 text-emerald-800 hover:bg-emerald-50' : 'text-muted-foreground'}`}
+									onClick={() => {
+										document.getElementById(`subject-${item.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+									}}
+								>
+									<span className="truncate">{item.code}</span>
+								</Button>
+							))}
+						</div>
+					</section>
+
+					<section className="space-y-3">
+						<h5 className="text-[0.65rem] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+							<CheckCircle2 className="size-3" />
+							Audit & Maintenance
+						</h5>
+						<div className="space-y-2">
+							{integrityDiagnostics && (
+								<Dialog>
+									<DialogTrigger asChild>
+										<Button variant="outline" className="w-full justify-start gap-3 h-auto py-3 px-4">
+											<Activity className="size-4 text-blue-600" />
+											<div className="flex flex-col items-start">
+												<span className="font-bold text-xs">Assignment Health Audit</span>
+												<span className="text-[0.65rem] text-muted-foreground">
+													{integrityDiagnostics.currentYearMissingOwnershipPairs > 0 
+														? `${integrityDiagnostics.currentYearMissingOwnershipPairs} issues found` 
+														: 'Healthy'}
+												</span>
+											</div>
+										</Button>
+									</DialogTrigger>
+									<DialogContent className="max-w-2xl">
+										<DialogHeader>
+											<DialogTitle className="flex items-center gap-2">
+												<AlertTriangle className="size-5 text-blue-700" />
+												Teaching Load Health Audit
+											</DialogTitle>
+											<DialogDescription>
+												Technical reconciliation between the subject-section contract and current ownership rows.
+											</DialogDescription>
+										</DialogHeader>
+										<div className="grid gap-3 py-4">
+											<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+												<div className="rounded-xl border p-3 bg-muted/20">
+													<p className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">Empty seeded rows</p>
+													<p className="text-xl font-bold mt-1">{integrityDiagnostics.emptySectionRows}</p>
+												</div>
+												<div className="rounded-xl border p-3 bg-muted/20">
+													<p className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">Missing ownership</p>
+													<p className="text-xl font-bold mt-1 text-blue-700">{integrityDiagnostics.currentYearRowsMissingOwnership}</p>
+												</div>
+												<div className="rounded-xl border p-3 bg-muted/20">
+													<p className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">Outside scope</p>
+													<p className="text-xl font-bold mt-1">{integrityDiagnostics.currentYearOwnershipWithoutMatchingScope}</p>
+												</div>
+											</div>
+											
+											{integrityDiagnostics.missingOwnershipSamples.length > 0 && (
+												<div className="mt-2 p-3 rounded-xl border border-blue-100 bg-blue-50/30">
+													<p className="text-xs font-bold text-blue-800 uppercase tracking-widest mb-2">Affected Examples</p>
+													<div className="flex flex-wrap gap-2">
+														{integrityDiagnostics.missingOwnershipSamples.slice(0, 10).map((row, idx) => (
+															<Badge key={idx} variant="outline" className="bg-white/80 border-blue-200 text-blue-700 font-semibold">
+																{row.subjectCode} ({row.facultyName})
+															</Badge>
+														))}
+													</div>
+												</div>
+											)}
 										</div>
-									</div>
-								)}
-							</div>
-							<DialogFooter>
-								<Button variant="secondary" onClick={() => {}} className="font-bold">Close Diagnostics</Button>
-							</DialogFooter>
-						</DialogContent>
-					</Dialog>
-				)}
-				<DropdownMenuSeparator />
-				<DropdownMenuLabel className="text-[0.65rem] font-bold uppercase tracking-widest text-muted-foreground/60">Maintenance</DropdownMenuLabel>
-				<DropdownMenuItem 
-					className="text-destructive focus:text-destructive gap-2 cursor-pointer"
-					disabled={resetLoading || !activeSchoolYearId || isReadOnlyMode}
-					onSelect={openGlobalResetPreview}
-				>
-					<RotateCcw className="size-4" />
-					<span className="font-bold text-xs uppercase">Reset Global Load</span>
-				</DropdownMenuItem>
-			</DropdownMenuContent>
-		</DropdownMenu>
+										<DialogFooter>
+											<Button variant="secondary" onClick={() => {}} className="font-bold">Close Audit</Button>
+										</DialogFooter>
+									</DialogContent>
+								</Dialog>
+							)}
+
+							<Button 
+								variant="outline" 
+								className="w-full justify-start gap-3 h-auto py-3 px-4 text-destructive hover:text-destructive hover:bg-destructive/5"
+								disabled={resetLoading || !activeSchoolYearId || isReadOnlyMode}
+								onClick={openGlobalResetPreview}
+							>
+								<RotateCcw className="size-4" />
+								<div className="flex flex-col items-start">
+									<span className="font-bold text-xs uppercase">Reset Global Load</span>
+									<span className="text-[0.65rem] opacity-70">Remove all current assignments</span>
+								</div>
+							</Button>
+						</div>
+					</section>
+				</div>
+			</SheetContent>
+		</Sheet>
 	</div>
 </div>
 
@@ -1274,16 +1315,16 @@ Dismiss
 		<div className="flex items-center gap-2">
 			<Info className="size-3.5 shrink-0 text-violet-700 opacity-60" />
 			<span className="font-medium">
-				Synthetic coverage: <span className="font-bold text-violet-800">{coverageHeadline.syntheticAssigned} pairs</span> across {syntheticCoverageTeachers.length} placeholder rows ({Math.round(syntheticCoverageHours * 10) / 10}h).
+				Unstaffed assignments: <span className="font-bold text-violet-800">{coverageHeadline.syntheticAssigned} pairs</span> across {syntheticCoverageTeachers.length} temporary roles ({Math.round(syntheticCoverageHours * 10) / 10}h).
 			</span>
 		</div>
 		<Button
 			variant="ghost"
 			size="sm"
 			className="h-6 px-2 text-xs font-bold text-violet-800 hover:bg-violet-100"
-			onClick={() => setShowSyntheticCoverageRows((value) => !value)}
+			onClick={() => setShowTemporaryRoles((value) => !value)}
 		>
-			{showSyntheticCoverageRows ? 'Hide Placeholder Rows' : 'Show Placeholder Rows'}
+			{showTemporaryRoles ? 'Hide Temporary Roles' : 'Show Temporary Roles'}
 		</Button>
 	</div>
 )}
@@ -1309,6 +1350,14 @@ Dismiss
 	>
 		<Filter className="size-3" />
 	</Button>
+	<Button
+		variant={showJumpList ? 'secondary' : 'outline'}
+		size="icon-sm"
+		className="h-7 w-7"
+		onClick={() => setShowJumpList(!showJumpList)}
+	>
+		<Activity className="size-3" />
+	</Button>
 </div>
 
 {showFilters && (
@@ -1321,7 +1370,7 @@ Dismiss
 					variant={filterStatus === status ? 'default' : 'outline'}
 					size="sm"
 					onClick={() => setFilterStatus(status)}
-					className="h-5 flex-1 px-0 text-[0.6rem] font-bold uppercase tracking-tight"
+					className="h-5 flex-1 px-0 text-[0.65rem] font-bold uppercase tracking-tight"
 				>
 					{status === 'all' ? 'Any' : status.charAt(0).toUpperCase() + status.slice(1)}
 				</Button>
@@ -1367,7 +1416,7 @@ Dismiss
 					variant={loadFilter === item.value ? 'default' : 'outline'}
 					size="sm"
 					onClick={() => setLoadFilter(item.value)}
-					className="h-5 flex-1 px-0 text-[0.6rem] font-bold uppercase tracking-tight"
+					className="h-5 flex-1 px-0 text-[0.65rem] font-bold uppercase tracking-tight"
 				>
 					{item.label}
 				</Button>
@@ -1396,7 +1445,7 @@ Array.from({ length: 12 }).map((_, index) => (
 ) : (
 groupedFaculty.map(([departmentName, members]) => (
 	<div key={departmentName} className="border-b border-border/80">
-		<div className="bg-muted/40 px-3 py-1.5 text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground flex items-center justify-between">
+		<div className="bg-muted/40 px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-widest text-muted-foreground flex items-center justify-between">
 			<span className="truncate">{departmentName}</span>
 			<span className="shrink-0 ml-2 opacity-60">{members.length}</span>
 		</div>
@@ -1447,7 +1496,7 @@ selectedId === member.id ? 'bg-primary/5 border-l-4 border-l-primary' : 'hover:b
 			{member.specialization || member.department || 'General'}
 		</span>
 		<div className="flex flex-col items-end shrink-0">
-			<span className={`text-[0.6rem] font-bold tabular-nums ${loadColorClass}`}>
+			<span className={`text-[0.65rem] font-bold tabular-nums ${loadColorClass}`}>
 				{member.isPlaceholder ? `${Math.round(displayHours * 10) / 10}h` : `${actualLoadPercentage}%`}
 			</span>
 		</div>
@@ -1469,10 +1518,24 @@ selectedId === member.id ? 'bg-primary/5 border-l-4 border-l-primary' : 'hover:b
 ))
 )}
 </div>
-<div className="border-t border-border bg-muted/20 px-3 py-1.5 text-[0.6rem] font-bold text-muted-foreground flex items-center justify-between uppercase tracking-tight">
-	<span>{coverageHeadline.realAssigned}R / {coverageHeadline.syntheticAssigned}S</span>
+<div className="border-t border-border bg-muted/20 px-3 py-2 text-[0.65rem] font-bold text-muted-foreground flex items-center justify-between uppercase tracking-tight">
+	<div className="flex items-center gap-3">
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<span className="cursor-help hover:text-foreground transition-colors">{coverageHeadline.realAssigned} Real</span>
+			</TooltipTrigger>
+			<TooltipContent className="text-[0.65rem] font-bold">Assignments given to actual teachers</TooltipContent>
+		</Tooltip>
+		<span className="opacity-30">/</span>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<span className="cursor-help hover:text-foreground transition-colors">{coverageHeadline.syntheticAssigned} Temp</span>
+			</TooltipTrigger>
+			<TooltipContent className="text-[0.65rem] font-bold">Coverage assigned to temporary roles to identify gaps</TooltipContent>
+		</Tooltip>
+	</div>
 	<span className={coverageHeadline.unassigned > 0 ? 'text-amber-600' : 'text-emerald-600'}>
-		{coverageHeadline.unassigned} Uncovered
+		{coverageHeadline.unassigned} Unstaffed
 	</span>
 </div>
 </div>

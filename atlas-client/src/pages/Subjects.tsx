@@ -32,7 +32,7 @@ import {
 import type { RoomType, Subject } from '@/types';
 import { SubjectFormModal, type SubjectFormValues } from '@/components/subjects/SubjectFormModal';
 import { SubjectRow } from '@/components/subjects/SubjectRow';
-import { fetchPublicSettings } from '@/lib/settings';
+import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card } from '@/ui/card';
@@ -144,12 +144,12 @@ export default function Subjects() {
 		if (activeSchoolYearId) {
 			return activeSchoolYearId;
 		}
-		const settings = await fetchPublicSettings();
-		if (!settings.activeSchoolYearId) {
+		const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true });
+		if (!context.activeSchoolYearId) {
 			throw new Error('Active school year is not configured.');
 		}
-		setActiveSchoolYearId(settings.activeSchoolYearId);
-		return settings.activeSchoolYearId;
+		setActiveSchoolYearId(context.activeSchoolYearId);
+		return context.activeSchoolYearId;
 	}, [activeSchoolYearId]);
 
 	useEffect(() => {
