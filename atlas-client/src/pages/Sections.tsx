@@ -6,12 +6,14 @@ import {
 	ArrowUpDown,
 	ChevronLeft,
 	ChevronRight,
-	GraduationCap,
 	RefreshCw,
 	Search,
 	ServerOff,
 	Users,
 	X,
+	Filter,
+	ChevronsLeft,
+	ChevronsRight,
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
@@ -29,10 +31,13 @@ import { Card } from '@/ui/card';
 import { Input } from '@/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Skeleton } from '@/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
+import { SectionRow, type SectionDetail, type HomeRoomOption } from '@/components/sections/SectionRow';
+import { SectionDetailsSheet } from '@/components/sections/SectionDetailsSheet';
 
 /* ─── Constants ─── */
 const DEFAULT_SCHOOL_ID = 1;
-const PAGE_SIZES = [10, 25, 50];
+const PAGE_SIZES = [10, 25, 50, 100];
 
 const GRADE_COLORS: Record<string, string> = {
 	'7':  'bg-green-100/80 text-green-700',
@@ -41,43 +46,9 @@ const GRADE_COLORS: Record<string, string> = {
 	'10': 'bg-blue-100/80 text-blue-700',
 };
 
-const PROGRAM_BADGE: Record<string, string> = {
-	STE:   'bg-emerald-50 text-emerald-700 border-emerald-200',
-	SPA:   'bg-purple-50 text-purple-700 border-purple-200',
-	SPS:   'bg-orange-50 text-orange-700 border-orange-200',
-	SPJ:   'bg-sky-50 text-sky-700 border-sky-200',
-	SPFL:  'bg-indigo-50 text-indigo-700 border-indigo-200',
-	SPTVE: 'bg-amber-50 text-amber-700 border-amber-200',
-	OTHER: 'bg-gray-50 text-gray-600 border-gray-200',
-};
-
 /* ─── Types ─── */
 type SortField = 'name' | 'gradeLevelId' | 'enrolledCount' | 'maxCapacity' | 'fill';
 type SortDir   = 'asc' | 'desc';
-
-type SectionDetail = {
-	mirrorId?:     number;
-	id:            number;
-	name:          string;
-	maxCapacity:   number;
-	enrolledCount: number;
-	gradeLevelId:  number;
-	gradeLevelName: string;
-	homeRoomId?:   number | null;
-	buildingZoneId?: string | null;
-	// Special program fields (Wave 3.5)
-	programType?:    string;
-	programCode?:    string;
-	programName?:    string;
-	isSpecialProgram?: boolean;
-};
-
-type HomeRoomOption = {
-	id: number;
-	name: string;
-	type: string;
-	buildingName: string;
-};
 
 type SectionSummary = {
 	schoolId:              number;
@@ -87,6 +58,8 @@ type SectionSummary = {
 	byGradeLevel:          Record<number, number>;
 	enrolledByGradeLevel:  Record<number, number>;
 	sections:              SectionDetail[];
+	fetchedAt?:            string;
+	source?:               string;
 };
 
 type FetchState =
@@ -101,13 +74,6 @@ function gradeKey(name: string) {
 	return m ? m[0] : '';
 }
 
-function fillColor(pct: number) {
-	if (pct >= 95) return 'bg-red-600 text-white';
-	if (pct >= 85) return 'bg-amber-500 text-white';
-	if (pct >= 70) return 'bg-emerald-600 text-white';
-	return 'bg-muted text-muted-foreground';
-}
-
 /* ─── Component ─── */
 export default function Sections() {
 	const [state, setState]           = useState<FetchState>({ status: 'loading' });
@@ -115,10 +81,10 @@ export default function Sections() {
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [syncing, setSyncing]       = useState(false);
 	const [syncError, setSyncError]   = useState(false);
-	const [dataSource, setDataSource] = useState<'live' | 'cached' | 'none'>('none');
+	const [dataSource, setDataSource] = useState<'live' | 'atlas-mirror' | 'cached' | 'none'>('none');
 	const [cacheNotice, setCacheNotice] = useState<string | null>(null);
 	const [isOnline, setIsOnline] = useState(() => navigator.onLine);
-	const [sortField, setSortField]   = useState<SortField>('name');
+	const [sortField, setSortField]   = useState<SortField>('gradeLevelId');
 	const [sortDir, setSortDir]       = useState<SortDir>('asc');
 	const [page, setPage]             = useState(1);
 	const [pageSize, setPageSize]     = useState(25);
@@ -127,6 +93,10 @@ export default function Sections() {
 	const [programFilter, setProgramFilter] = useState<string>('all');
 	const [homeRoomOptions, setHomeRoomOptions] = useState<HomeRoomOption[]>([]);
 	const [savingMirrorId, setSavingMirrorId] = useState<number | null>(null);
+	const [showFilters, setShowFilters] = useState(false);
+
+	// Drilldown
+	const [detailTarget, setDetailTarget] = useState<SectionDetail | null>(null);
 
 	const fetchSections = useCallback(async (options?: { forceRefresh?: boolean }) => {
 		const forceRefresh = options?.forceRefresh === true;
@@ -156,7 +126,7 @@ export default function Sections() {
 					setState({ status: 'ok', data: cachedSummary.data });
 					setHomeRoomOptions(cachedHomeRooms.data);
 					setLastSyncedAt(cachedSummary.data.fetchedAt ? String(cachedSummary.data.fetchedAt) : null);
-					setDataSource('cached');
+					setDataSource(isOnline ? 'atlas-mirror' : 'cached');
 					setCacheNotice('Refreshing live section data. Showing your last saved section snapshot in the meantime.');
 				}
 			}
@@ -195,10 +165,20 @@ export default function Sections() {
 			setState({ status: 'ok', data: res.data });
 			setCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId, res.data);
 			setLastSyncedAt(res.data.fetchedAt ? String(res.data.fetchedAt) : null);
-			const isUpstreamBacked = yearContextSource === 'enrollpro' && res.data.source === 'enrollpro';
-			setDataSource(isUpstreamBacked ? 'live' : 'cached');
+			
+			// Source logic: 
+			// - 'live' only if both context and data are verified enrollpro
+			// - 'atlas-mirror' if context or data is from atlas/mirror but we are online
+			// - 'cached' if we are offline
+			if (!isOnline) {
+				setDataSource('cached');
+			} else {
+				const isUpstreamBacked = yearContextSource === 'enrollpro' && res.data.source === 'enrollpro';
+				setDataSource(isUpstreamBacked ? 'live' : 'atlas-mirror');
+			}
+			
 			setCacheNotice(
-				isUpstreamBacked
+				dataSource === 'live'
 					? null
 					: 'Section data is available from ATLAS runtime cache while upstream verification is unavailable.',
 			);
@@ -210,9 +190,11 @@ export default function Sections() {
 				setState({ status: 'ok', data: cachedSummary.data });
 				setHomeRoomOptions(cachedHomeRooms.data);
 				setLastSyncedAt(cachedSummary.data.fetchedAt ? String(cachedSummary.data.fetchedAt) : null);
-				setDataSource('cached');
+				setDataSource(isOnline ? 'atlas-mirror' : 'cached');
 				setSyncError(true);
-				setCacheNotice('Live section data is unavailable. Showing your last saved section snapshot in read-only mode.');
+				setCacheNotice(isOnline 
+					? 'Live section data is unavailable. Showing your last saved section snapshot in degraded writable mode.'
+					: 'Live section data is unavailable. Showing your last saved section snapshot in read-only mode.');
 			} else {
 				setHomeRoomOptions([]);
 				setState({
@@ -224,10 +206,10 @@ export default function Sections() {
 				setSyncError(true);
 			}
 		}
-	}, []);
+	}, [isOnline]);
 
 	const handleHomeRoomChange = useCallback(async (section: SectionDetail, selectedValue: string) => {
-		if (!section.mirrorId || !activeSchoolYearId || dataSource !== 'live' || !isOnline) return;
+		if (!section.mirrorId || !activeSchoolYearId || (dataSource !== 'live' && dataSource !== 'atlas-mirror') || !isOnline) return;
 		setSavingMirrorId(section.mirrorId);
 		const nextHomeRoomId = selectedValue === 'none' ? null : Number(selectedValue);
 		try {
@@ -331,7 +313,11 @@ export default function Sections() {
 		const sorted = [...list].sort((a, b) => {
 			let cmp = 0;
 			if      (sortField === 'name')          cmp = a.name.localeCompare(b.name, undefined, { numeric: true });
-			else if (sortField === 'gradeLevelId')  cmp = a.gradeLevelId - b.gradeLevelId;
+			else if (sortField === 'gradeLevelId') {
+				cmp = a.gradeLevelId - b.gradeLevelId;
+				// Secondary sort by name
+				if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { numeric: true });
+			}
 			else if (sortField === 'enrolledCount') cmp = a.enrolledCount - b.enrolledCount;
 			else if (sortField === 'maxCapacity')   cmp = a.maxCapacity - b.maxCapacity;
 			else if (sortField === 'fill') {
@@ -359,7 +345,7 @@ export default function Sections() {
 	};
 
 	const hasActiveFilters = gradeFilter !== 'all' || searchQuery.trim() !== '' || programFilter !== 'all';
-	const isReadOnlyMode = !isOnline || dataSource !== 'live';
+	const isReadOnlyMode = !isOnline || (dataSource !== 'live' && dataSource !== 'atlas-mirror');
 
 	// Distinct grade levels present in data
 	const availableGrades = useMemo(() => {
@@ -380,143 +366,173 @@ export default function Sections() {
 	return (
 		<div className="flex flex-col h-[calc(100svh-3.5rem)]">
 
-			{/* ── Compact toolbar (matches Faculty pattern) ── */}
-			<div className="shrink-0 px-6 pt-3 pb-2">
-				<div className="flex items-center gap-2">
-					{/* Search */}
-					<div className="relative flex-1 max-w-sm">
-						<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-						<Input
-							placeholder="Search sections…"
-							value={searchQuery}
-							onChange={(e) => setSearchQuery(e.target.value)}
-							className="pl-8 h-8 text-sm"
-						/>
+			{/* ── Primary Header & Toolbar ── */}
+			<div className="shrink-0 px-6 py-4 border-b bg-background/50 backdrop-blur-md">
+				<div className="flex items-center justify-between gap-4">
+					<div className="flex items-center gap-4">
+						<div className="relative w-64">
+							<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+							<Input
+								placeholder="Search sections…"
+								value={searchQuery}
+								onChange={(e) => setSearchQuery(e.target.value)}
+								className="pl-9 h-9"
+							/>
+						</div>
+
+						<Button
+							variant={showFilters ? 'secondary' : 'outline'}
+							size="sm"
+							className="h-9 gap-2"
+							onClick={() => setShowFilters(!showFilters)}
+						>
+							<Filter className="size-4" />
+							Filters
+							{hasActiveFilters && (
+								<Badge variant="secondary" className="ml-1 h-5 px-1.5 bg-primary text-primary-foreground font-bold">
+									Active
+								</Badge>
+							)}
+						</Button>
 					</div>
 
-					{/* Grade filter */}
-					{availableGrades.length > 0 && (
-						<Select value={gradeFilter} onValueChange={setGradeFilter}>
-							<SelectTrigger className="h-8 w-32.5 text-xs">
-								<SelectValue placeholder="All Grades" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All Grades</SelectItem>
-								{availableGrades.map((g) => (
-									<SelectItem key={g} value={g}>G{g}</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					)}
+					<div className="flex items-center gap-3">
+						<div className="flex items-center gap-2 mr-2">
+							<Badge
+								variant={dataSource === 'live' ? 'secondary' : 'outline'}
+								className={`h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold ${
+									dataSource === 'atlas-mirror' ? 'bg-amber-100 text-amber-700 border-amber-200' : ''
+								}`}
+							>
+								{dataSource === 'live'
+									? 'Live data'
+									: dataSource === 'atlas-mirror'
+									? 'ATLAS Mirror'
+									: dataSource === 'cached'
+									? 'Cached snapshot'
+									: 'No cache'}
+							</Badge>
 
-					{/* Program filter */}
-					{availablePrograms.length > 0 && (
-						<Select value={programFilter} onValueChange={setProgramFilter}>
-							<SelectTrigger className="h-8 w-32 text-xs">
-								<SelectValue placeholder="All Programs" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All Programs</SelectItem>
-								<SelectItem value="REGULAR">Regular</SelectItem>
-								{availablePrograms.map((p) => (
-									<SelectItem key={p} value={p}>{p}</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					)}
+							{/* Inline stat banner — prominent, not muted */}
+							{state.status === 'ok' && (
+								<div className="flex items-center gap-3 rounded-md border border-border bg-card px-3 py-1 shadow-sm shrink-0">
+									<div className="flex items-center gap-1">
+										<span className="text-sm font-bold text-foreground tabular-nums">{state.data.totalSections}</span>
+										<span className="text-[0.65rem] text-muted-foreground uppercase font-bold tracking-tighter">sections</span>
+									</div>
+									<span className="text-border">·</span>
+									<div className="flex items-center gap-1.5">
+										{Object.entries(state.data.byGradeLevel)
+											.sort(([a], [b]) => Number(a) - Number(b))
+											.map(([grade, count]) => (
+												<Badge
+													key={grade}
+													variant="secondary"
+													className={`h-5 px-1.5 text-[0.65rem] font-bold border-0 ${GRADE_COLORS[grade] ?? 'bg-muted/50 text-muted-foreground'}`}
+												>
+													G{grade}: {count}
+												</Badge>
+											))}
+									</div>
+								</div>
+							)}
 
-					{/* Clear filters */}
-					{hasActiveFilters && (
-						<Button
-							variant="ghost"
-							size="sm"
-							className="h-8 px-2 text-xs"
-							onClick={() => { setSearchQuery(''); setGradeFilter('all'); setProgramFilter('all'); }}
-						>
-							<X className="size-3 mr-1" /> Clear
-						</Button>
-					)}
-
-					<div className="flex-1" />
-
-					<Badge
-						variant={dataSource === 'live' ? 'secondary' : 'outline'}
-						className="h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold"
-					>
-						{dataSource === 'live' ? 'Live data' : dataSource === 'cached' ? 'Cached snapshot' : 'No cache'}
-					</Badge>
-
-					{/* Inline stat banner — prominent, not muted */}
-					{state.status === 'ok' && (
-						<div className="flex items-center gap-3 rounded-md border border-border bg-card px-3 py-1.5 shadow-sm shrink-0">
-							<div className="flex items-center gap-1">
-								<span className="text-sm font-bold text-foreground tabular-nums">{state.data.totalSections}</span>
-								<span className="text-xs text-muted-foreground">sections</span>
-							</div>
-							<span className="text-border">·</span>
-							<div className="flex items-center gap-1">
-								<span className="text-sm font-bold text-foreground tabular-nums">{state.data.totalEnrolled}</span>
-								<span className="text-xs text-muted-foreground">enrolled</span>
-							</div>
-							<span className="text-border">·</span>
-							<div className="flex items-center gap-1.5">
-								{Object.entries(state.data.byGradeLevel)
-									.sort(([a], [b]) => Number(a) - Number(b))
-									.map(([grade, count]) => (
-										<Badge
-											key={grade}
-											variant="secondary"
-											className={`h-6 px-2 text-xs font-bold border-0 ${GRADE_COLORS[grade] ?? 'bg-muted/50 text-muted-foreground'}`}
-										>
-											G{grade}: {count}
-										</Badge>
-									))}
-							</div>
+							{timeSince && (
+								<TooltipProvider delayDuration={500}>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<span className="text-[0.7rem] text-muted-foreground font-semibold bg-muted px-2 py-1 rounded-md hidden lg:inline-block uppercase tracking-tight">
+												Last synced: {timeSince}
+											</span>
+										</TooltipTrigger>
+										<TooltipContent>Synced at {new Date(lastSyncedAt!).toLocaleString()}</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
+							)}
 						</div>
-					)}
 
-					{timeSince && (
-						<span className="text-[0.6875rem] text-muted-foreground shrink-0 ml-2">
-							Synced: {timeSince}
-						</span>
-					)}
-
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={handleSync}
-						disabled={syncing || state.status === 'loading' || !isOnline}
-						className="h-8 shrink-0 ml-2"
-					>
-						<RefreshCw className={`mr-1 size-3.5 ${syncing ? 'animate-spin' : ''}`} />
-						{syncing ? 'Syncing...' : !isOnline ? 'Offline' : 'Sync'}
-					</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={handleSync}
+							disabled={syncing || state.status === 'loading' || !isOnline}
+							className="h-9 gap-2 shadow-sm font-bold"
+						>
+							<RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
+							{syncing ? 'Syncing...' : !isOnline ? 'Offline' : 'Sync Sections'}
+						</Button>
+					</div>
 				</div>
+
+				{/* Expanded Filters */}
+				{showFilters && (
+					<div className="flex flex-wrap items-center gap-3 pt-4 animate-in slide-in-from-top-2 duration-200">
+						{availableGrades.length > 0 && (
+							<Select value={gradeFilter} onValueChange={setGradeFilter}>
+								<SelectTrigger className="h-8 w-32 text-xs bg-background">
+									<SelectValue placeholder="All Grades" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">All Grades</SelectItem>
+									{availableGrades.map((g) => (
+										<SelectItem key={g} value={g}>Grade {g}</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						)}
+
+						{availablePrograms.length > 0 && (
+							<Select value={programFilter} onValueChange={setProgramFilter}>
+								<SelectTrigger className="h-8 w-40 text-xs bg-background">
+									<SelectValue placeholder="All Programs" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">All Programs</SelectItem>
+									<SelectItem value="REGULAR">Regular</SelectItem>
+									{availablePrograms.map((p) => (
+										<SelectItem key={p} value={p}>{p}</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						)}
+
+						{hasActiveFilters && (
+							<Button
+								variant="ghost"
+								size="sm"
+								className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground font-semibold"
+								onClick={() => { setSearchQuery(''); setGradeFilter('all'); setProgramFilter('all'); }}
+							>
+								Reset all
+							</Button>
+						)}
+					</div>
+				)}
 			</div>
 
-			{/* ── Inline error banners (slim, like Faculty) ── */}
+			{/* ── Status Banners (slim, like Faculty) ── */}
 			{state.status === 'no-year' && (
-				<div className="shrink-0 mx-6 mb-2 flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">
-					<AlertTriangle className="size-4 shrink-0" />
-					<span className="flex-1">No active school year. {state.message}</span>
+				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 shadow-sm animate-in fade-in duration-300">
+					<AlertTriangle className="size-4 shrink-0 text-blue-600" />
+					<span className="flex-1 font-semibold">No active school year. {state.message}</span>
 				</div>
 			)}
 			{(state.status === 'unavailable' || syncError) && (
-				<div className="shrink-0 mx-6 mb-2 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
-					<AlertTriangle className="size-4 shrink-0" />
-					<span className="flex-1">
+				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
+					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
+					<span className="flex-1 font-semibold">
 						{cacheNotice ?? (syncError ? 'Live section sync is unavailable. Showing cached data when available.' : 'Enrollment service unavailable. Showing cached data when available.')}
 					</span>
-					<Button size="sm" variant="outline" onClick={handleSync} disabled={syncing || !isOnline} className="shrink-0 h-7">
-						<RefreshCw className={`mr-1 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry Sync
+					<Button size="sm" variant="outline" onClick={handleSync} disabled={syncing || !isOnline} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold">
+						<RefreshCw className={`mr-1.5 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry Sync
 					</Button>
 				</div>
 			)}
 
-			{isReadOnlyMode && state.status === 'ok' && (
-				<div className="shrink-0 mx-6 mb-2 flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">
-					<ServerOff className="size-4 shrink-0" />
-					<span className="flex-1">
+			{isReadOnlyMode && state.status === 'ok' && !syncError && (
+				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 shadow-sm animate-in fade-in duration-300">
+					<ServerOff className="size-4 shrink-0 text-blue-600" />
+					<span className="flex-1 font-semibold">
 						{!isOnline
 							? 'You are offline. Sections are available in read-only mode until connection returns.'
 							: 'You are viewing a cached section snapshot in read-only mode.'}
@@ -524,196 +540,177 @@ export default function Sections() {
 				</div>
 			)}
 
-			{/* ── Table (same Card shell as Faculty) ── */}
-			<div className="flex-1 min-h-0 px-6 pb-4">
-				<Card className="h-full flex flex-col shadow-sm overflow-hidden">
+			{dataSource === 'atlas-mirror' && !syncError && isOnline && (
+				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
+					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
+					<span className="flex-1 font-semibold">
+						EnrollPro is unreachable. You are working with ATLAS mirrored data. Home-room assignments will persist locally.
+					</span>
+				</div>
+			)}
+
+			{/* ── Table Container ── */}
+			<div className="flex-1 min-h-0 px-6 py-4">
+				<Card className="h-full flex flex-col shadow-sm border-border/50 overflow-hidden">
 					<div className="flex-1 min-h-0 overflow-auto">
 						<table className="w-full text-sm">
-							<thead className="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm">
+							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md">
 								<tr className="border-b">
-									<th className="px-4 py-2.5 text-left">
-										<button onClick={() => toggleSort('name')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground">
+									<th className="px-4 py-3 text-left">
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('name')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
 											Section <SortIcon field="name" />
-										</button>
+										</Button>
 									</th>
-									<th className="px-4 py-2.5 text-left">
-										<button onClick={() => toggleSort('gradeLevelId')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground">
+									<th className="px-4 py-3 text-left">
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('gradeLevelId')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
 											Grade <SortIcon field="gradeLevelId" />
-										</button>
+										</Button>
 									</th>
-									<th className="px-4 py-2.5 text-right">
-										<button onClick={() => toggleSort('enrolledCount')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground ml-auto">
+									<th className="px-4 py-3 text-right">
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('enrolledCount')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground ml-auto">
 											Enrolled <SortIcon field="enrolledCount" />
-										</button>
+										</Button>
 									</th>
-									<th className="px-4 py-2.5 text-right">
-										<button onClick={() => toggleSort('maxCapacity')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground ml-auto">
+									<th className="px-4 py-3 text-right">
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('maxCapacity')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground ml-auto">
 											Capacity <SortIcon field="maxCapacity" />
-										</button>
+										</Button>
 									</th>
-									<th className="px-4 py-2.5 text-right">
-										<button onClick={() => toggleSort('fill')} className="flex items-center gap-1 font-semibold text-muted-foreground hover:text-foreground ml-auto">
+									<th className="px-4 py-3 text-right">
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('fill')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground ml-auto">
 											Fill <SortIcon field="fill" />
-										</button>
+										</Button>
 									</th>
-									<th className="px-4 py-2.5 text-left">
-										<span className="font-semibold text-muted-foreground">Home Room</span>
-									</th>
+									<th className="px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Home Room</th>
+									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Actions</th>
 								</tr>
 							</thead>
 
-							<tbody>
+							<tbody className="divide-y divide-border/40">
 								{state.status === 'loading' ? (
-									/* Skeleton rows — same pattern as Faculty's tbody loading row */
 									Array.from({ length: 8 }).map((_, i) => (
-										<tr key={i} className="border-b last:border-0">
-											<td className="px-4 py-3"><Skeleton className="h-4 w-32" /></td>
-											<td className="px-4 py-3"><Skeleton className="h-5 w-16 rounded-full" /></td>
-											<td className="px-4 py-3 text-right"><Skeleton className="h-4 w-8 ml-auto" /></td>
-											<td className="px-4 py-3 text-right"><Skeleton className="h-4 w-8 ml-auto" /></td>
-											<td className="px-4 py-3 text-right"><Skeleton className="h-5 w-12 rounded-full ml-auto" /></td>
-											<td className="px-4 py-3"><Skeleton className="h-8 w-44" /></td>
+										<tr key={i}>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-48" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-16" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-12 ml-auto" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-12 ml-auto" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-5 w-14 ml-auto" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-8 w-44" /></td>
+											<td className="px-4 py-4"><Skeleton className="h-8 w-24 ml-auto" /></td>
 										</tr>
 									))
 								) : paged.length === 0 ? (
 									<tr>
-										<td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
-											<div className="flex flex-col items-center gap-2">
-												{state.status === 'ok' ? (
-													<>
-														<Users className="size-8 text-muted-foreground/40" />
-														<p>{hasActiveFilters ? 'No sections match your filters.' : 'No sections found.'}</p>
-													</>
-												) : (
-													<>
-														<GraduationCap className="size-8 text-muted-foreground/40" />
-														<p>Sections data unavailable.</p>
-													</>
-												)}
+										<td colSpan={7} className="px-4 py-20 text-center">
+											<div className="flex flex-col items-center gap-4 text-muted-foreground max-w-xs mx-auto">
+												<Users className="size-12 opacity-20" />
+												<div className="space-y-1">
+													<p className="font-bold text-foreground">
+														{state.status === 'ok' ? (hasActiveFilters ? 'No sections match your filters.' : 'No sections found.') : 'Sections data unavailable.'}
+													</p>
+													<p className="text-xs">
+														{state.status === 'ok' && !hasActiveFilters && 'Ensure the section roster is synced from the enrollment service.'}
+													</p>
+												</div>
 											</div>
 										</td>
 									</tr>
 								) : (
-									paged.map((s) => {
-										const fill    = s.maxCapacity > 0 ? Math.round((s.enrolledCount / s.maxCapacity) * 100) : 0;
-										const gKey    = gradeKey(s.gradeLevelName);
-										const gColor  = GRADE_COLORS[gKey] ?? 'bg-muted text-muted-foreground';
-										const gradeLabel = `G${s.gradeLevelName.replace(/^Grade\s+/i, '')}`;
-
-										return (
-											<tr key={s.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-												{/* Name cell with avatar-style initial + program badge */}
-												<td className="px-4 py-3">
-													<div className="flex items-center gap-3">
-														<div className={`flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${GRADE_COLORS[gKey] ?? 'bg-primary/10 text-primary'}`}>
-															{gKey || s.name[0]}
-														</div>
-														<div>
-															<span className="font-medium">{s.name}</span>
-															{s.isSpecialProgram && s.programCode && (
-																<Badge
-																	variant="outline"
-																	className={`ml-2 text-[0.55rem] px-1.5 py-0 ${PROGRAM_BADGE[s.programCode] ?? PROGRAM_BADGE.OTHER}`}
-																>
-																	{s.programCode}
-																</Badge>
-															)}
-														</div>
-													</div>
-												</td>
-
-												{/* Grade badge */}
-												<td className="px-4 py-3">
-													<Badge
-														variant="secondary"
-														className={`px-2 font-semibold text-[0.6875rem] border-0 ${gColor}`}
-													>
-														{gradeLabel}
-													</Badge>
-												</td>
-
-												{/* Enrolled */}
-												<td className="px-4 py-3 text-right font-medium">{s.enrolledCount}</td>
-
-												{/* Capacity */}
-												<td className="px-4 py-3 text-right text-muted-foreground">{s.maxCapacity}</td>
-
-												{/* Fill pill */}
-												<td className="px-4 py-3 text-right">
-													<span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${fillColor(fill)}`}>
-														{fill}%
-													</span>
-												</td>
-
-												<td className="px-4 py-3 min-w-56">
-													<Select
-														value={s.homeRoomId == null ? 'none' : String(s.homeRoomId)}
-														onValueChange={(value) => {
-															void handleHomeRoomChange(s, value);
-														}}
-														disabled={savingMirrorId === s.mirrorId || isReadOnlyMode}
-													>
-														<SelectTrigger className="h-8 text-xs">
-															<SelectValue placeholder="Unassigned" />
-														</SelectTrigger>
-														<SelectContent className="max-h-72">
-															<SelectItem value="none">Unassigned</SelectItem>
-															{homeRoomOptions.map((room) => (
-																<SelectItem key={room.id} value={String(room.id)}>
-																	{room.name} • {room.buildingName}
-																</SelectItem>
-															))}
-														</SelectContent>
-													</Select>
-												</td>
-											</tr>
-										);
-									})
+									paged.map((s) => (
+										<SectionRow
+											key={s.id}
+											section={s}
+											homeRoomOptions={homeRoomOptions}
+											isReadOnly={isReadOnlyMode}
+											isSaving={savingMirrorId === s.mirrorId}
+											onHomeRoomChange={handleHomeRoomChange}
+											onShowDetails={(section) => setDetailTarget(section)}
+										/>
+									))
 								)}
 							</tbody>
 						</table>
 					</div>
 
-					{/* ── Pagination footer (identical structure to Faculty) ── */}
+					{/* ── Pagination footer ── */}
 					{state.status === 'ok' && state.data.sections.length > 0 && (
-						<div className="shrink-0 flex items-center justify-between border-t border-border px-4 py-2 text-sm">
-							<div className="flex items-center gap-2 text-muted-foreground text-xs">
-								<span>{totalFiltered} result{totalFiltered !== 1 ? 's' : ''}</span>
-								<span>·</span>
-								<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-									<SelectTrigger className="h-7 w-22.5 text-xs">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s} / page</SelectItem>)}
-									</SelectContent>
-								</Select>
+						<div className="shrink-0 flex items-center justify-between border-t border-border/50 px-4 py-3 bg-muted/20">
+							<div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
+								<span>
+									{totalFiltered === 0
+										? 'No results'
+										: `Showing ${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, totalFiltered)} of ${totalFiltered} results`}
+								</span>
+								
+								<div className="flex items-center gap-2 border-l pl-4 border-border/50">
+									<span>Rows per page:</span>
+									<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+										<SelectTrigger className="h-7 w-20 text-xs bg-background">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
+										</SelectContent>
+									</Select>
+								</div>
 							</div>
-							<div className="flex items-center gap-1">
-								<Button
-									variant="outline"
-									size="sm"
-									className="h-7 w-7 p-0"
-									onClick={() => setPage((p) => Math.max(1, p - 1))}
+
+							<div className="flex items-center gap-1.5">
+								<Button 
+									variant="outline" 
+									size="icon" 
+									className="h-8 w-8" 
+									onClick={() => setPage(1)} 
 									disabled={page <= 1}
 								>
-									<ChevronLeft className="size-3.5" />
+									<ChevronsLeft className="size-4" />
 								</Button>
-								<span className="px-2 text-xs tabular-nums">{page} / {totalPages}</span>
-								<Button
-									variant="outline"
-									size="sm"
-									className="h-7 w-7 p-0"
-									onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+								<Button 
+									variant="outline" 
+									size="icon" 
+									className="h-8 w-8" 
+									onClick={() => setPage((p) => Math.max(1, p - 1))} 
+									disabled={page <= 1}
+								>
+									<ChevronLeft className="size-4" />
+								</Button>
+								<div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-[0.7rem] font-bold tabular-nums">
+									<span>{page}</span>
+									<span className="text-muted-foreground/50 font-normal">/</span>
+									<span className="text-muted-foreground font-normal">{totalPages}</span>
+								</div>
+								<Button 
+									variant="outline" 
+									size="icon" 
+									className="h-8 w-8" 
+									onClick={() => setPage((p) => Math.min(totalPages, p + 1))} 
 									disabled={page >= totalPages}
 								>
-									<ChevronRight className="size-3.5" />
+									<ChevronRight className="size-4" />
+								</Button>
+								<Button 
+									variant="outline" 
+									size="icon" 
+									className="h-8 w-8" 
+									onClick={() => setPage(totalPages)} 
+									disabled={page >= totalPages}
+								>
+									<ChevronsRight className="size-4" />
 								</Button>
 							</div>
 						</div>
 					)}
 				</Card>
 			</div>
+
+			{/* Section Detail Drilldown */}
+			<SectionDetailsSheet
+				sectionId={detailTarget?.id ?? null}
+				sectionName={detailTarget?.name ?? null}
+				schoolYearId={activeSchoolYearId}
+				open={detailTarget !== null}
+				onOpenChange={(open) => !open && setDetailTarget(null)}
+			/>
 		</div>
 	);
 }

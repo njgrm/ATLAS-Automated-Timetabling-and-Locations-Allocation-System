@@ -105,30 +105,30 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="w-[calc(100%-1rem)] max-w-4xl p-0 overflow-hidden rounded-3xl border-none shadow-2xl sm:w-[calc(100%-2rem)] max-h-[90vh]">
-				<div className="flex flex-col h-full overflow-hidden">
-					<DialogHeader className="p-6 bg-primary text-primary-foreground shrink-0 relative overflow-hidden">
-						{/* Background decorative elements */}
-						<div className="absolute top-0 right-0 p-4 opacity-10">
-							<Building2 className="size-32 -mr-6 -mt-6" />
+			<DialogContent className="max-w-4xl p-0 overflow-hidden rounded-3xl border-none shadow-2xl flex flex-col max-h-[90vh]">
+				<DialogHeader className="p-6 bg-primary text-primary-foreground shrink-0 relative overflow-hidden">
+					{/* Background decorative elements */}
+					<div className="absolute top-0 right-0 p-4 opacity-10">
+						<Building2 className="size-32 -mr-6 -mt-6" />
+					</div>
+					
+					<div className="relative z-10 flex flex-col items-start gap-3">
+						<div className="bg-white/20 p-2 rounded-xl backdrop-blur-md border border-white/20">
+							{hasShortage ? <AlertTriangle className="size-6" /> : <BadgeCheck className="size-6" />}
 						</div>
-						
-						<div className="relative z-10 flex flex-col items-start gap-3">
-							<div className="bg-white/20 p-2 rounded-xl backdrop-blur-md border border-white/20">
-								{hasShortage ? <AlertTriangle className="size-6" /> : <BadgeCheck className="size-6" />}
-							</div>
-							<div className="space-y-1">
-								<DialogTitle className="text-2xl font-bold tracking-tight">
-									{title}
-								</DialogTitle>
-								<DialogDescription className="text-primary-foreground/80 max-w-2xl text-sm font-medium leading-relaxed">
-									{description}
-								</DialogDescription>
-							</div>
+						<div className="space-y-1">
+							<DialogTitle className="text-2xl font-bold tracking-tight">
+								{title}
+							</DialogTitle>
+							<DialogDescription className="text-primary-foreground/80 max-w-2xl text-sm font-medium leading-relaxed">
+								{description}
+							</DialogDescription>
 						</div>
-					</DialogHeader>
+					</div>
+				</DialogHeader>
 
-					<div className="flex-1 overflow-auto bg-muted/30 p-6">
+				<div className="flex-1 overflow-y-auto bg-muted/30">
+					<div className="p-6">
 						{hasShortage && report ? (
 							<div className="space-y-6 max-w-3xl mx-auto">
 								{/* Dual Truth Headline */}
@@ -137,11 +137,11 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 										<div className="absolute top-3 right-3 text-emerald-500 opacity-10 group-hover:opacity-20 transition-opacity">
 											<BadgeCheck className="size-10" />
 										</div>
-										<p className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest">Contract Completeness</p>
-										<p className="text-3xl font-bold tracking-tight">{report.unassignedSections} <span className="text-sm font-normal text-muted-foreground">Rows</span></p>
-										<p className="text-xs font-medium text-foreground/70 mt-1 leading-snug">Raw subject-section pairs currently lacking an assigned teacher.</p>
+										<p className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest">Unassigned Classes</p>
+										<p className="text-3xl font-bold tracking-tight">{report.unassignedSections} <span className="text-sm font-normal text-muted-foreground">Sections</span></p>
+										<p className="text-xs font-medium text-foreground/70 mt-1 leading-snug">Individual subject-section rows that still need a teacher assigned.</p>
 										<div className="mt-3 flex items-center gap-2">
-											<Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 shadow-none font-bold uppercase text-[0.6rem] tracking-wider px-2">Action Required</Badge>
+											<Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 shadow-none font-bold uppercase text-[0.6rem] tracking-wider px-2">Coverage Target</Badge>
 										</div>
 									</Card>
 
@@ -149,11 +149,11 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 										<div className="absolute top-3 right-3 text-red-500 opacity-10 group-hover:opacity-20 transition-opacity">
 											<Users2 className="size-10" />
 										</div>
-										<p className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest">Weekly Capacity Gap</p>
+										<p className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest">Weekly Teaching Shortage</p>
 										<p className="text-3xl font-bold tracking-tight text-red-600">{concurrentHours} <span className="text-sm font-normal text-muted-foreground">Hours</span></p>
-										<p className="text-xs font-medium text-foreground/70 mt-1 leading-snug">The true concurrent workload shortage after rotation-overlap is removed.</p>
+										<p className="text-xs font-medium text-foreground/70 mt-1 leading-snug">The true concurrent workload gap after rotation-overlap is removed.</p>
 										<div className="mt-3 flex items-center gap-2">
-											<Badge className="bg-red-50 text-red-700 border-red-100 shadow-none font-bold uppercase text-[0.6rem] tracking-wider px-2">Hiring Target</Badge>
+											<Badge className="bg-red-50 text-red-700 border-red-100 shadow-none font-bold uppercase text-[0.6rem] tracking-wider px-2">Staffing Gap</Badge>
 										</div>
 									</Card>
 								</div>
@@ -162,22 +162,22 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 								<div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5 space-y-4">
 									<div className="flex items-center gap-2 text-blue-900">
 										<Info className="size-4 opacity-70" />
-										<h4 className="text-[0.7rem] font-bold uppercase tracking-widest">Staffing Truth Model</h4>
+										<h4 className="text-[0.7rem] font-bold uppercase tracking-widest">How to read this report</h4>
 									</div>
 									<div className="grid gap-5 md:grid-cols-2 text-xs leading-relaxed text-blue-900/80">
 										<p>
-											<span className="font-bold">Raw Uncovered Rows</span> track every class that needs a teacher. Schedulers must resolve all {report.unassignedSections} rows to complete the schedule.
+											<span className="font-bold">Unassigned Sections</span> represent every class row that needs a name. Schedulers must resolve all {report.unassignedSections} sections to finish the schedule.
 										</p>
 										<p>
-											<span className="font-bold">Concurrent Shortage</span> is the hiring target. Since rotating subjects share one time-slot, you only need staff for the <span className="font-bold">{concurrentHours} concurrent hours</span> per week.
+											<span className="font-bold">Weekly Shortage</span> is the actual hiring or overload target. Because rotating subjects share time-slots, you only need to cover the <span className="font-bold">{concurrentHours} concurrent hours</span> per week.
 										</p>
 									</div>
 									{overlapHours > 0 && (
 										<div className="pt-3 border-t border-blue-200/40 flex items-center gap-2">
 											<Badge variant="outline" className="bg-white/80 border-blue-200 text-blue-700 font-bold text-[0.65rem] shadow-none uppercase">
-												Overlap Found
+												Rotation Benefit
 											</Badge>
-											<span className="text-[0.65rem] font-bold text-blue-800">Rotation overlap reduced hire-needs by -{overlapHours}h/wk.</span>
+											<span className="text-[0.65rem] font-bold text-blue-800">Rotating classes reduced your total staffing need by {overlapHours}h/wk.</span>
 										</div>
 									)}
 								</div>
@@ -230,8 +230,8 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 																		className="group p-2.5 rounded-lg border border-border/40 bg-card shadow-xs hover:border-primary/30 transition-all duration-200"
 																	>
 																		<div className="flex items-start justify-between gap-2 mb-1">
-																			<p className="font-black text-foreground text-[0.65rem] truncate leading-tight tracking-tight uppercase">{item.subjectCode}</p>
-																			<Badge variant="outline" className="h-4 px-1 text-[0.6rem] font-black uppercase opacity-70 border-muted-foreground/20">
+																			<p className="font-bold text-foreground text-[0.65rem] truncate leading-tight tracking-tight uppercase">{item.subjectCode}</p>
+																			<Badge variant="outline" className="h-4 px-1 text-[0.6rem] font-bold uppercase opacity-70 border-muted-foreground/20">
 																				GR{item.sectionName.match(/\d+/)?.[0] || '?'}
 																			</Badge>
 																		</div>
@@ -265,7 +265,7 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 											<AlertTriangle className="size-3.5" /> Strategy: Hiring Request
 										</p>
 										<p className="text-xs text-primary/80 leading-relaxed font-bold">
-											Target <span className="font-black text-primary">~{formatHires(report.recommendedNewHires)} full-time hires</span> to cover the remaining <span className="font-black text-primary">{constrainedHours}h/wk</span> not recoverable with existing staff.
+											Target <span className="font-bold text-primary">~{formatHires(report.recommendedNewHires)} full-time hires</span> to cover the remaining <span className="font-bold text-primary">{constrainedHours}h/wk</span> not recoverable with existing staff.
 										</p>
 									</div>
 								</div>
@@ -299,19 +299,19 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 							</div>
 						)}
 					</div>
-
-					<DialogFooter className="p-6 bg-background border-t shrink-0 flex items-center justify-between">
-						<div className="flex items-center gap-2">
-							<Badge variant="outline" className="bg-muted text-muted-foreground font-bold uppercase tracking-widest text-[0.6rem] h-5 px-1.5 shadow-none border-border/60">
-								Audit-Mode
-							</Badge>
-							<span className="text-[0.65rem] text-muted-foreground font-bold uppercase tracking-widest">Simulation</span>
-						</div>
-						<Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="h-10 rounded-xl px-8 font-bold border-border hover:bg-muted/50 transition-colors shadow-sm text-sm uppercase">
-							Close Audit
-						</Button>
-					</DialogFooter>
 				</div>
+
+				<DialogFooter className="p-4 bg-background border-t shrink-0 flex items-center justify-between">
+					<div className="flex items-center gap-2">
+						<Badge variant="outline" className="bg-muted text-muted-foreground font-bold uppercase tracking-widest text-[0.6rem] h-5 px-1.5 shadow-none border-border/60">
+							Audit-Mode
+						</Badge>
+						<span className="text-[0.65rem] text-muted-foreground font-bold uppercase tracking-widest">Simulation</span>
+					</div>
+					<Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="h-9 rounded-xl px-8 font-bold border-border hover:bg-muted/50 transition-colors shadow-sm text-sm uppercase">
+						Close Audit
+					</Button>
+				</DialogFooter>
 			</DialogContent>
 		</Dialog>
 	);

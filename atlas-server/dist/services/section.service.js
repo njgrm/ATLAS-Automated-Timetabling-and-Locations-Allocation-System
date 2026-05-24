@@ -5,6 +5,114 @@
  */
 import { prisma } from '../lib/prisma.js';
 import { sectionAdapter } from './section-adapter.js';
+async function loadMirrorBackedSectionFetchResult(schoolId, schoolYearId, fallbackReason) {
+    const mirrors = await prisma.sectionMirror.findMany({
+        where: { schoolId, schoolYearId, isStale: false },
+        orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+        select: {
+            externalId: true,
+            name: true,
+            gradeLevelId: true,
+            gradeLevelName: true,
+            displayOrder: true,
+            maxCapacity: true,
+            enrolledCount: true,
+            programType: true,
+            programCode: true,
+            programName: true,
+            isSpecialProgram: true,
+            tleProgramId: true,
+            tleSpecialization: true,
+            tleProgramCategory: true,
+            lastSyncedAt: true,
+        },
+    });
+    if (mirrors.length === 0) {
+        return null;
+    }
+    const groupedByGrade = new Map();
+    for (const mirror of mirrors) {
+        const gradeEntry = groupedByGrade.get(mirror.gradeLevelId) ?? {
+            gradeLevelId: mirror.gradeLevelId,
+            gradeLevelName: mirror.gradeLevelName,
+            displayOrder: mirror.displayOrder,
+            sections: [],
+        };
+        gradeEntry.sections.push({
+            id: mirror.externalId,
+            name: mirror.name,
+            maxCapacity: mirror.maxCapacity,
+            enrolledCount: mirror.enrolledCount,
+            gradeLevelId: mirror.gradeLevelId,
+            gradeLevelName: mirror.gradeLevelName,
+            displayOrder: mirror.displayOrder,
+            programType: mirror.programType ?? 'REGULAR',
+            programCode: mirror.programCode,
+            programName: mirror.programName,
+            isSpecialProgram: mirror.isSpecialProgram,
+            tleProgramId: mirror.tleProgramId,
+            tleSpecialization: mirror.tleSpecialization,
+            tleProgramCategory: mirror.tleProgramCategory,
+        });
+        groupedByGrade.set(mirror.gradeLevelId, gradeEntry);
+    }
+    const gradeLevels = Array.from(groupedByGrade.values()).sort((left, right) => left.displayOrder - right.displayOrder);
+    for (const grade of gradeLevels) {
+        grade.sections.sort((left, right) => left.name.localeCompare(right.name) || left.id - right.id);
+    }
+    return {
+        gradeLevels,
+        source: 'cached-enrollpro',
+        fetchedAt: mirrors[0].lastSyncedAt,
+        fallbackReason,
+        isStale: false,
+    };
+}
+async function loadSnapshotBackedSectionFetchResult(schoolId, schoolYearId, fallbackReason) {
+    const snapshot = await prisma.sectionSnapshot.findUnique({
+        where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+        select: { payload: true, fetchedAt: true },
+    });
+    if (!snapshot) {
+        return null;
+    }
+    return {
+        gradeLevels: snapshot.payload ?? [],
+        source: 'cached-enrollpro',
+        fetchedAt: snapshot.fetchedAt,
+        fallbackReason,
+        isStale: true,
+    };
+}
+export async function fetchSectionsForRuntimeControls(schoolId, schoolYearId, options) {
+    const authToken = options?.authToken;
+    const preferLocalEvidenceFirst = options?.preferLocalEvidenceFirst !== false;
+    if (preferLocalEvidenceFirst) {
+        const mirrorResult = await loadMirrorBackedSectionFetchResult(schoolId, schoolYearId, 'atlas-mirror-preferred-runtime-control');
+        if (mirrorResult) {
+            return mirrorResult;
+        }
+        const snapshotResult = await loadSnapshotBackedSectionFetchResult(schoolId, schoolYearId, 'atlas-snapshot-preferred-runtime-control');
+        if (snapshotResult) {
+            return snapshotResult;
+        }
+    }
+    try {
+        return await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
+    }
+    catch (error) {
+        const fallbackReason = error instanceof Error ? error.message : String(error);
+        const mirrorResult = await loadMirrorBackedSectionFetchResult(schoolId, schoolYearId, fallbackReason);
+        if (mirrorResult) {
+            return mirrorResult;
+        }
+        const snapshotResult = await loadSnapshotBackedSectionFetchResult(schoolId, schoolYearId, fallbackReason);
+        if (snapshotResult) {
+            return snapshotResult;
+        }
+        throw error;
+    }
+}
 export async function syncSectionsFromExternal(schoolId, schoolYearId, authToken) {
     let result;
     try {
@@ -81,14 +189,14 @@ export async function syncSectionsFromExternal(schoolId, schoolYearId, authToken
         synced: true,
         count: externalSections.length,
         removed: deletedCount,
-        source: result.source,
+        source: 'enrollpro',
         fetchedAt: result.fetchedAt,
     };
 }
 export async function getSectionSummary(schoolYearId, schoolId, authToken) {
     // For Wave 5, we prefer reading from the Mirror first to ensure speed, 
     // but we might want to auto-sync if the mirror is empty.
-    let source = 'cached-enrollpro';
+    let source = 'atlas-mirror';
     let mirrors = await prisma.sectionMirror.findMany({
         where: { schoolId, schoolYearId, isStale: false },
         orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }]

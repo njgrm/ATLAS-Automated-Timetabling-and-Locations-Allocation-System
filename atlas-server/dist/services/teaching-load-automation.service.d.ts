@@ -18,6 +18,7 @@
  * - HG advisory records are not touched (already written by hg-advisory.service).
  * - Business logic is entirely in this service; controllers are transport-only.
  */
+import { type SectionSourceLabel } from './section-adapter.js';
 export interface AutoFillResult {
     preserved: number;
     created: number;
@@ -25,7 +26,7 @@ export interface AutoFillResult {
     uniqueTeachersAffected: number;
     unresolved: number;
     warnings: string[];
-    sectionSource: 'enrollpro' | 'stub' | 'cached-enrollpro';
+    sectionSource: SectionSourceLabel;
     sectionFallbackReason: string | null;
     staffingReport: StaffingReport;
 }

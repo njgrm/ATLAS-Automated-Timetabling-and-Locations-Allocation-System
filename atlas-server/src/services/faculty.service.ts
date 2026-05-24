@@ -708,7 +708,7 @@ prisma.facultyMirror.count({ where: { schoolId, isStale: true } }),
 const seededAssignments = await seedQualifiedAssignments(schoolId, schoolYearId);
 
 // Persist HG ownership records for all active class advisers
-await syncAdvisoryHgAssignments(schoolId);
+await syncAdvisoryHgAssignments(schoolId, schoolYearId);
 
 return {
 synced: true,

@@ -18,7 +18,7 @@ export const SYSTEM_ASSIGNED_BY = 0; // sentinel: 0 = system-generated
  *
  * Idempotent: safe to call multiple times. Existing correct records are not touched.
  */
-export async function syncAdvisoryHgAssignments(schoolId) {
+export async function syncAdvisoryHgAssignments(schoolId, schoolYearId) {
     // Find HG subject for this school
     const hgSubject = await prisma.subject.findFirst({
         where: { schoolId, code: HG_SUBJECT_CODE },
@@ -28,8 +28,14 @@ export async function syncAdvisoryHgAssignments(schoolId) {
         return { upserted: 0, skipped: 0, removed: 0 };
     }
     const hgSubjectId = hgSubject.id;
+    // Find all sections for this school year to validate adviser mappings
+    const currentYearSections = await prisma.sectionMirror.findMany({
+        where: { schoolId, schoolYearId, isStale: false },
+        select: { externalId: true },
+    });
+    const currentYearSectionIdSet = new Set(currentYearSections.map((s) => s.externalId));
     // Find all active class advisers with a known advisory section
-    const advisers = await prisma.facultyMirror.findMany({
+    const allAdvisers = await prisma.facultyMirror.findMany({
         where: {
             schoolId,
             isStale: false,
@@ -41,6 +47,8 @@ export async function syncAdvisoryHgAssignments(schoolId) {
             advisedSectionId: true,
         },
     });
+    // Only process advisers whose section belongs to the active school year
+    const advisers = allAdvisers.filter((a) => currentYearSectionIdSet.has(a.advisedSectionId));
     let upserted = 0;
     let skipped = 0;
     let removed = 0;

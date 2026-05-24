@@ -519,7 +519,7 @@ export async function syncFacultyFromExternal(schoolId, schoolYearId, authToken,
     // Auto-seed qualified assignments for faculty whose dept matches a subject's allowedSpecializations
     const seededAssignments = await seedQualifiedAssignments(schoolId, schoolYearId);
     // Persist HG ownership records for all active class advisers
-    await syncAdvisoryHgAssignments(schoolId);
+    await syncAdvisoryHgAssignments(schoolId, schoolYearId);
     return {
         synced: true,
         source: sourceLabel,

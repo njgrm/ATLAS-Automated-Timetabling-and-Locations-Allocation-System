@@ -225,6 +225,9 @@ export function SubjectRow({
 		onSetSections(subject.id, [...selectedSectionIds, sectionId]);
 	};
 
+	const isRotationFamily = Boolean(subject.rotationFamily);
+	const laneName = subject.rotationFamily === 'SCIENCE' ? 'Science Rotating Lane' : 'TLE Rotating Lane';
+
 	// HG system-assignment detection
 	const isHgSubject = subject.code === 'HG' || subject.name.toLowerCase().includes('homeroom');
 	const isSystemAssignedSubject = isHgSubject && advisedSectionId != null;
@@ -244,20 +247,37 @@ export function SubjectRow({
 							{isOutsideDepartment && (
 								<Badge variant="outline" className="text-[0.6rem] font-bold bg-amber-50 text-amber-700 border-amber-200 uppercase tracking-tight h-4 px-1.5 shadow-none">Outside Dept</Badge>
 							)}
-							{subject.rotationFamily && (
-								<Badge variant="outline" className="text-[0.6rem] font-bold bg-violet-50 text-violet-700 border-violet-200 uppercase tracking-tight h-4 px-1.5 shadow-none">Rotation Family</Badge>
+							{isRotationFamily && (
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Badge variant="outline" className="text-[0.6rem] font-bold bg-violet-50 text-violet-700 border-violet-200 uppercase tracking-tight h-4 px-1.5 shadow-none cursor-help">
+											Rotating Lane
+										</Badge>
+									</TooltipTrigger>
+									<TooltipContent side="top" className="text-[0.7rem] font-bold max-w-[280px] p-3">
+										<p className="mb-1">{laneName}</p>
+										<p className="text-muted-foreground leading-relaxed">Sections in this lane share a single weekly time-slot. Adding multiple terms of the same section increases the class count but <span className="text-foreground">DOES NOT increase the teacher's actual weekly teaching hours.</span></p>
+									</TooltipContent>
+								</Tooltip>
 							)}
 							{isSpecializationSlot && (
-								<Badge variant="outline" className="text-[0.6rem] font-bold bg-sky-50 text-sky-700 border-sky-200 uppercase tracking-tight h-4 px-1.5 shadow-none">Specialization Slots</Badge>
+								<Badge variant="outline" className="text-[0.6rem] font-bold bg-sky-50 text-sky-700 border-sky-200 uppercase tracking-tight h-4 px-1.5 shadow-none">Requires Specialization</Badge>
 							)}
 						</div>
 						<div className="flex items-center gap-2 mt-0.5">
 							<code className="text-[0.7rem] font-mono text-muted-foreground uppercase tracking-tight">{subject.code}</code>
 							<span className="text-muted-foreground/30 text-[0.6rem]">•</span>
-							<span className="text-[0.65rem] text-muted-foreground font-medium flex items-center gap-1 uppercase tracking-wide">
-								<Clock className="size-3" />
-								{subject.minMinutesPerWeek}m / week
-							</span>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="text-[0.65rem] text-muted-foreground font-medium flex items-center gap-1 uppercase tracking-wide cursor-help">
+										<Clock className="size-3" />
+										{subject.minMinutesPerWeek}m / week
+									</span>
+								</TooltipTrigger>
+								<TooltipContent side="top" className="text-[0.7rem] font-bold">
+									{isRotationFamily ? 'Total Combined Minutes' : 'Actual Weekly Load'}
+								</TooltipContent>
+							</Tooltip>
 						</div>
 					</div>
 				</div>
@@ -265,12 +285,12 @@ export function SubjectRow({
 				<div className="flex items-center gap-4">
 					<div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/30 border border-border/50 shadow-inner">
 						<div className="flex flex-col items-center">
-							<span className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-0.5">Owned</span>
+							<span className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-0.5">Assigned</span>
 							<span className={`text-sm font-bold tabular-nums leading-none ${selectedCount > 0 ? 'text-primary' : 'text-muted-foreground'}`}>{selectedCount}</span>
 						</div>
 						<div className="w-px h-5 bg-border/60 mx-1" />
 						<div className="flex flex-col items-center">
-							<span className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-0.5">Pool</span>
+							<span className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest leading-none mb-0.5">Total</span>
 							<span className="text-sm font-bold tabular-nums leading-none text-muted-foreground">{sections.length}</span>
 						</div>
 					</div>
@@ -284,7 +304,7 @@ export function SubjectRow({
 							disabled={disabled || sections.length === 0}
 							className="h-8 px-3 text-[0.7rem] font-bold uppercase tracking-tight shadow-sm"
 						>
-							{selectedCount > 0 ? 'Deselect All' : 'Select All Eligible'}
+							{selectedCount > 0 ? 'Unassign All' : 'Assign All Available'}
 						</Button>
 						<Button
 							variant="ghost"
@@ -350,7 +370,7 @@ export function SubjectRow({
 												onClick={() => handleToggleGrade(gradeLevel, gradeSections)}
 												className="h-6 px-2 text-[0.6rem] font-bold uppercase text-primary hover:bg-primary/5 border border-primary/10"
 											>
-												{selectedInGrade > 0 ? 'Deselect Grade' : 'Select All Grade'}
+												{selectedInGrade > 0 ? 'Unassign Grade' : 'Assign All in Grade'}
 											</Button>
 										</div>
 									</div>
@@ -386,9 +406,6 @@ export function SubjectRow({
 															: isSavedOther
 															? (isStaleOwner ? `Stale: ${savedOwner.facultyName}` : savedOwner.facultyName)
 															: null;
-
-														const isRotationFamily = Boolean(subject.rotationFamily);
-														const laneName = subject.rotationFamily === 'SCIENCE' ? 'Science Lane' : 'TLE Lane';
 
 														const requiredSpec = section.assignmentSpecializationCode;
 														const facultySpec = selectedFacultySpecialization;
@@ -443,20 +460,21 @@ export function SubjectRow({
 																		{isRotationFamily && !isSelected && !blocked && (
 																			<Tooltip>
 																				<TooltipTrigger asChild>
-																					<div className="size-2 rounded-full bg-violet-400 shrink-0 animate-pulse border border-violet-500/20" />
+																					<div className="size-2 rounded-full bg-violet-400 shrink-0 animate-pulse border border-violet-500/20 cursor-help" />
 																				</TooltipTrigger>
-																				<TooltipContent side="top" className="text-[0.65rem] font-bold">
-																					{laneName}: Shared Weekly Slot
+																				<TooltipContent side="top" className="text-[0.7rem] font-bold max-w-[200px] p-2">
+																					<p>{laneName}</p>
+																					<p className="text-muted-foreground text-[0.65rem] font-medium mt-1">Shared Weekly Slot: Adding this row will not increase concurrent load.</p>
 																				</TooltipContent>
 																			</Tooltip>
 																		)}
 																		{isSpecializationSlot && isPerfectMatch && (
 																			<Tooltip>
 																				<TooltipTrigger asChild>
-																					<CheckCircle className="size-3 text-emerald-600 shrink-0" />
+																					<CheckCircle className="size-3 text-emerald-600 shrink-0 cursor-help" />
 																				</TooltipTrigger>
 																				<TooltipContent side="top" className="text-[0.65rem] font-bold">
-																					Specialization Match: {section.assignmentSpecializationLabel}
+																					Direct Match: {section.assignmentSpecializationLabel}
 																				</TooltipContent>
 																			</Tooltip>
 																		)}
@@ -467,13 +485,13 @@ export function SubjectRow({
 																			{section.assignmentSpecializationLabel && (
 																				<Tooltip>
 																					<TooltipTrigger asChild>
-																						<span className={`text-[0.65rem] font-bold uppercase tracking-tighter truncate max-w-[80px] ${isPerfectMatch ? 'text-emerald-700' : isApprovedCompatibility ? 'text-sky-700' : 'text-muted-foreground/60'}`}>
+																						<span className={`text-[0.65rem] font-bold uppercase tracking-tighter truncate max-w-[80px] cursor-help ${isPerfectMatch ? 'text-emerald-700' : isApprovedCompatibility ? 'text-sky-700' : 'text-muted-foreground/60'}`}>
 																							{section.assignmentSpecializationLabel}
 																						</span>
 																					</TooltipTrigger>
 																					<TooltipContent side="top" className="text-[0.65rem] font-bold">
 																						Required: {section.assignmentSpecializationLabel}
-																						{isApprovedCompatibility && " (ATLAS Approved Compatibility)"}
+																						{isApprovedCompatibility && " (ATLAS Approved Alternative)"}
 																					</TooltipContent>
 																				</Tooltip>
 																			)}
@@ -506,9 +524,9 @@ export function SubjectRow({
 																		variant="outline"
 																		size="xs"
 																		onClick={() => onSwapSectionOwnership?.(subject.id, section.id, savedOwner.facultyId)}
-																		className="ml-1 h-6 px-1.5 text-[0.65rem] font-black text-primary hover:bg-primary hover:text-white transition-all uppercase shadow-none border-primary/20"
+																		className="ml-1 h-5 px-1 text-[0.55rem] font-bold text-primary hover:bg-primary hover:text-white transition-all uppercase shadow-none border-primary/20"
 																	>
-																		{isStaleOwner ? <RotateCcw className="size-3" /> : 'Take'}
+																		{isStaleOwner ? <RotateCcw className="size-2.5" /> : 'Take'}
 																	</Button>
 																)}
 															</div>

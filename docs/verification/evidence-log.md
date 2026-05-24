@@ -1,3 +1,54 @@
+# 2026-05-24 - Phase 3 Teaching Load Runtime Decoupling + Rotation Truth One-Shot
+- Phase: Phase 3 generator-readiness stream, runtime control decoupling and rotation-lane truth contract
+- Operator: GitHub Copilot
+- Scope gate: PASS (runtime decoupling + lane-impact contract + live latency verification)
+- Files changed in this pass:
+  - `atlas-server/src/services/section.service.ts`
+  - `atlas-server/src/services/teaching-load-automation.service.ts`
+  - `atlas-server/src/services/faculty-assignment.service.ts`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+  - `CHANGELOG.md`
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS
+
+- Tailnet verification (`https://njgrm.buru-degree.ts.net`):
+  1) Runtime context/degraded truth
+    - `GET /api/v1/runtime/context?schoolId=1` -> PASS
+    - `source=atlas-persisted`, `upstream.reachable=false`, `activeSchoolYearId=55`
+
+  2) Control-path latency after decoupling (ATLAS section evidence present)
+    - `GET /api/v1/faculty-assignments/summary?schoolId=1&schoolYearId=55` -> ~`200ms`
+    - `POST /api/v1/faculty-assignments/report/staffing-needs` -> ~`48ms`
+    - `POST /api/v1/faculty-assignments/auto-fill` (`previewOnly=true`) -> ~`35ms`
+    - Prior baseline from prompt context: staffing/auto-fill ~`10.5s`/`10.7s`
+
+  3) Source honesty after decoupling
+    - staffing response: `sectionSource=cached-enrollpro`, `sectionFallbackReason=atlas-mirror-preferred-runtime-control`
+    - auto-fill preview: `sectionSource=cached-enrollpro`, `sectionFallbackReason=atlas-mirror-preferred-runtime-control`
+
+  4) Blocker-shape non-regression
+    - staffing dominant shortage remains `SCIENCE`
+    - residual TLE shortage remains on `TLE_FCS_EXP`
+    - observed shortage structure preserved (raw/concurrent contract still consistent with prior live findings)
+
+  5) Section-first continuity
+    - `GET /api/v1/sections/assigned-classes?schoolId=1&schoolYearId=55&includeDiagnostics=true` -> PASS (`sectionCount=82`)
+
+  6) Rotation-lane truth contract availability (assignment read model)
+    - `GET /api/v1/faculty-assignments/:facultyId?schoolYearId=55` sample includes:
+     - `assignmentRotationFamily`
+     - `assignmentRotationLaneId`
+     - `assignmentRawMinutesPerWeek`
+     - `assignmentConcurrentDeltaMinutesPerWeek`
+     - `assignmentExpandsConcurrentDemand`
+    - Sample verified for `TLE_AFA_EXP`: lane `family:TLE_ROTATION:<sectionId>`, delta present.
+
+- GO/NO-GO:
+  - **GO** for this one-shot scope.
+
 # 2026-05-24 - Phase 3 Teaching Load Degraded Write + Specialization Slots + Capability Overrides One-Shot
 - Phase: Phase 3 generator-readiness stream, degraded writable operations and specialization-slot/capability-override hardening
 - Operator: GitHub Copilot

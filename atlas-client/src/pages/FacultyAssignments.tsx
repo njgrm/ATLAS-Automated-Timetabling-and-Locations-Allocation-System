@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
 	AlertTriangle,
@@ -1137,45 +1137,44 @@ export default function FacultyAssignments() {
 					</div>
 				)}
 
-				<div className="flex items-center justify-between gap-4">
-					<OverviewHeader
-						realAssignedPairs={coverageHeadline.realAssigned}
-						syntheticPlaceholderPairs={coverageHeadline.syntheticAssigned}
-						unassignedPairs={coverageHeadline.unassigned}
-						rawUnassignedPairs={coverageHeadline.rawUnassigned}
-						totalPairs={coverageHeadline.total}
-						assignedFacultyCount={assignedFacultyCount}
-						totalFacultyCount={realFacultyCount}
-						activeDraftCount={activeDraftCount}
-						autoFillLoading={autoFillLoading}
-						staffingNeedsLoading={staffingNeedsLoading}
-						autoFillEnabled={Boolean(activeSchoolYearId) && canPersistAssignments}
-						onAutoFillClick={() => {
-							if (!canPersistAssignments) {
-								toast.error('Auto-Fill requires writable runtime evidence. Refresh and try again.');
-								return;
-							}
-							handleAutoFill();
-						}}
-						onViewStaffingNeedsClick={handleViewStaffingNeeds}
-						departmentStats={departmentStats}
-						viewMode={viewMode}
-						onViewModeChange={setViewMode}
-					/>
+				<div className="flex items-center justify-between gap-4 py-1">
+					<div className="flex-1 min-w-0">
+						<OverviewHeader
+							realAssignedPairs={coverageHeadline.realAssigned}
+							syntheticPlaceholderPairs={coverageHeadline.syntheticAssigned}
+							unassignedPairs={coverageHeadline.unassigned}
+							rawUnassignedPairs={coverageHeadline.rawUnassigned}
+							totalPairs={coverageHeadline.total}
+							assignedFacultyCount={assignedFacultyCount}
+							totalFacultyCount={realFacultyCount}
+							activeDraftCount={activeDraftCount}
+							autoFillLoading={autoFillLoading}
+							staffingNeedsLoading={staffingNeedsLoading}
+							autoFillEnabled={Boolean(activeSchoolYearId) && canPersistAssignments}
+							onAutoFillClick={() => {
+								if (!canPersistAssignments) {
+									toast.error('Auto-Fill requires writable runtime evidence. Refresh and try again.');
+									return;
+								}
+								setAutoFillDialogOpen(true);
+							}}
+							onViewStaffingNeedsClick={handleViewStaffingNeeds}
+							departmentStats={departmentStats}
+							viewMode={viewMode}
+							onViewModeChange={setViewMode}
+							dataSource={dataSource}
+							degradedWriteEnabled={degradedWriteEnabled}
+							isOnline={isOnline}
+							/>
+							</div>
 
-					<div className="mt-4 shrink-0 flex items-center gap-2">
-						<div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border/50 bg-background shadow-sm">
-							<div className={`size-2 rounded-full ${dataSource === 'live' ? 'bg-emerald-500 animate-pulse' : degradedWriteEnabled ? 'bg-amber-500 animate-pulse' : 'bg-muted'}`} />
-							<span className="text-[0.65rem] font-bold uppercase tracking-widest text-muted-foreground/80">
-								{dataSource === 'live' ? 'Live Mode' : degradedWriteEnabled ? 'Degraded Writable' : 'Read-Only Cache'}
-							</span>
-						</div>
-
-						<Sheet>
+							<div className="shrink-0 flex items-center gap-2">
+							<Sheet>
 							<SheetTrigger asChild>
-								<Button variant="outline" size="sm" className="h-10 px-3 gap-2 font-bold text-muted-foreground hover:text-foreground shadow-sm">
-									<Settings2 className="size-4" />
-									Workspace Operations
+								<Button variant="outline" size="sm" className="h-7 px-2 gap-2 font-semibold text-muted-foreground hover:text-foreground shadow-sm bg-background border-border/60">
+									<Settings2 className="size-3" />
+									<span className="hidden lg:inline text-[0.65rem] uppercase tracking-tight">Workspace Ops</span>
+									<span className="lg:hidden text-[0.65rem] uppercase tracking-tight">Ops</span>
 								</Button>
 							</SheetTrigger>
 							<SheetContent className="w-80 overflow-y-auto">
@@ -1199,7 +1198,7 @@ export default function FacultyAssignments() {
 											{integrityDiagnostics && (
 												<Dialog>
 													<SheetTrigger asChild>
-														<Button variant="outline" className="w-full justify-start gap-3 h-auto py-3 px-4">
+														<Button variant="outline" className="w-full justify-start gap-3 h-auto py-2.5 px-4">
 															<Activity className="size-4 text-blue-600" />
 															<div className="flex flex-col items-start">
 																<span className="font-bold text-xs">Assignment Health Audit</span>
@@ -1228,6 +1227,18 @@ export default function FacultyAssignments() {
 																	<p className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">Outside scope</p>
 																	<p className="text-xl font-bold mt-1">{integrityDiagnostics.currentYearOwnershipWithoutMatchingScope}</p>
 																</div>
+																{(integrityDiagnostics.quarantinedZombieCount ?? 0) > 0 && (
+																	<div className="rounded-xl border p-3 bg-muted/20">
+																		<p className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">Quarantined Zombies</p>
+																		<p className="text-xl font-bold mt-1 text-amber-700">{integrityDiagnostics.quarantinedZombieCount}</p>
+																	</div>
+																)}
+																{(integrityDiagnostics.staleAdvisoryCount ?? 0) > 0 && (
+																	<div className="rounded-xl border p-3 bg-muted/20">
+																		<p className="text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">Stale Advisories</p>
+																		<p className="text-xl font-bold mt-1 text-amber-700">{integrityDiagnostics.staleAdvisoryCount}</p>
+																	</div>
+																)}
 															</div>
 														</div>
 													</DialogContent>
@@ -1236,7 +1247,7 @@ export default function FacultyAssignments() {
 
 											<Button 
 												variant="outline" 
-												className="w-full justify-start gap-3 h-auto py-3 px-4 text-destructive hover:text-destructive hover:bg-destructive/5"
+												className="w-full justify-start gap-3 h-auto py-2.5 px-4 text-destructive hover:text-destructive hover:bg-destructive/5"
 												disabled={resetLoading || !canRunGlobalReset}
 												onClick={openGlobalResetPreview}
 											>
@@ -1250,14 +1261,14 @@ export default function FacultyAssignments() {
 									</section>
 								</div>
 							</SheetContent>
-						</Sheet>
-					</div>
-				</div>
+							</Sheet>
+							</div>
+							</div>
 
-				<div className="mt-2 flex min-h-0 flex-1 gap-4 pb-3">
-					{/* Roster Panel */}
-					<div className="flex w-72 shrink-0 flex-col rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-						<div className="border-b border-border p-2 space-y-2 bg-muted/10">
+							<div className="mt-0.5 flex min-h-0 flex-1 gap-3 pb-2">
+							{/* Roster Panel */}
+							<div className="flex w-64 shrink-0 flex-col rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+							<div className="border-b border-border p-1.5 space-y-1.5 bg-muted/10">
 							<div className="flex items-center gap-2">
 								<div className="relative flex-1">
 									<Search className="absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
@@ -1265,7 +1276,7 @@ export default function FacultyAssignments() {
 										placeholder="Search roster..."
 										value={searchQuery}
 										onChange={(event) => setSearchQuery(event.target.value)}
-										className="h-7 pl-8 text-xs bg-background"
+										className="h-7 pl-8 text-[0.7rem] bg-background"
 									/>
 								</div>
 								<Button
@@ -1279,7 +1290,7 @@ export default function FacultyAssignments() {
 							</div>
 
 							{showFilters && (
-								<div className="space-y-1.5 pt-1 animate-in slide-in-from-top-2 duration-200">
+								<div className="space-y-1 pt-1 animate-in slide-in-from-top-2 duration-200">
 									<div className="flex gap-1">
 										{(['all', 'assigned', 'unassigned'] as const).map((status) => (
 											<Button
@@ -1288,19 +1299,19 @@ export default function FacultyAssignments() {
 												variant={filterStatus === status ? 'default' : 'outline'}
 												size="sm"
 												onClick={() => setFilterStatus(status)}
-												className="h-5 flex-1 px-0 text-[0.65rem] font-bold uppercase tracking-tight"
+												className="h-5 flex-1 px-0 text-[0.6rem] font-bold uppercase tracking-tight"
 											>
 												{status === 'all' ? 'Any' : status.charAt(0).toUpperCase() + status.slice(1)}
 											</Button>
 										))}
 									</div>
-									
+
 									<div className="grid grid-cols-1 gap-1">
 										<SearchableSelect
 											value={departmentFilter}
 											onValueChange={setDepartmentFilter}
 											placeholder="All Departments"
-											triggerClassName="h-6 w-full justify-between text-[0.7rem] font-semibold bg-background"
+											triggerClassName="h-6 w-full justify-between text-[0.65rem] font-semibold bg-background"
 											className="w-full"
 											items={[
 												{ value: 'all', label: 'All Departments' },
@@ -1308,23 +1319,23 @@ export default function FacultyAssignments() {
 											]}
 										/>
 									</div>
-									
+
 									<div className="grid grid-cols-1 gap-1">
 										<Select value={sortOrder} onValueChange={(value) => setSortOrder(value as 'load-asc' | 'load-desc')}>
-											<SelectTrigger className="h-6 w-full text-[0.7rem] font-semibold bg-background">
+											<SelectTrigger className="h-6 w-full text-[0.65rem] font-semibold bg-background">
 												<SelectValue placeholder="Sort by load" />
 											</SelectTrigger>
 											<SelectContent>
-												<SelectItem value="load-asc" className="text-xs">Load: Low to High</SelectItem>
-												<SelectItem value="load-desc" className="text-xs">Load: High to Low</SelectItem>
+												<SelectItem value="load-asc" className="text-[0.65rem] font-semibold uppercase">Load: Low to High</SelectItem>
+												<SelectItem value="load-desc" className="text-[0.65rem] font-semibold uppercase">Load: High to Low</SelectItem>
 											</SelectContent>
 										</Select>
 									</div>
 								</div>
 							)}
-						</div>
+							</div>
 
-						<div className="flex-1 overflow-auto">
+							<div className="flex-1 overflow-auto">
 							{loading ? (
 								Array.from({ length: 12 }).map((_, index) => (
 									<div key={index} className="flex items-center gap-3 border-b border-border px-4 py-3">
@@ -1343,9 +1354,9 @@ export default function FacultyAssignments() {
 							) : (
 								groupedFaculty.map(([departmentName, members]) => (
 									<div key={departmentName} className="border-b border-border/80">
-										<div className="bg-muted/40 px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-widest text-muted-foreground flex items-center justify-between">
+										<div className="bg-muted/40 px-3 py-1 text-[0.55rem] font-bold uppercase tracking-widest text-muted-foreground/60 flex items-center justify-between">
 											<span className="truncate">{departmentName}</span>
-											<span className="shrink-0 ml-2 opacity-60">{members.length}</span>
+											<span className="shrink-0 ml-2 opacity-40">{members.length}</span>
 										</div>
 										{members.map((member) => {
 											const effectiveSubjectCount = effectiveAssignmentsByFaculty[member.id]?.length ?? 0;
@@ -1367,12 +1378,12 @@ export default function FacultyAssignments() {
 													type="button"
 													variant="ghost"
 													onClick={() => setSelectedId(member.id)}
-													className={`h-auto w-full justify-start rounded-none border-b border-border/50 px-3 py-2 text-left transition-all ${
-														selectedId === member.id ? 'bg-primary/5 border-l-4 border-l-primary' : 'hover:bg-muted/50 border-l-4 border-l-transparent'
+													className={`h-auto w-full justify-start rounded-none border-b border-border/50 px-3 py-1.5 text-left transition-all ${
+														selectedId === member.id ? 'bg-primary/5 border-l-2 border-l-primary' : 'hover:bg-muted/50 border-l-2 border-l-transparent'
 													}`}
 												>
-													<div className="flex w-full items-center gap-2.5">
-														<div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[0.65rem] font-bold text-primary shadow-sm border border-primary/5">
+													<div className="flex w-full items-center gap-2">
+														<div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[0.6rem] font-bold text-primary border border-primary/5">
 															{member.firstName[0]}
 															{member.lastName[0]}
 														</div>
@@ -1380,8 +1391,8 @@ export default function FacultyAssignments() {
 															<p className={`truncate text-xs ${selectedId === member.id ? 'font-bold text-foreground' : 'font-semibold text-muted-foreground'}`}>
 																{member.lastName}, {member.firstName}
 															</p>
-															<div className="flex items-center gap-2 mt-0.5">
-																<span className="truncate text-[0.65rem] text-muted-foreground/80 font-medium flex-1">
+															<div className="flex items-center gap-2">
+																<span className="truncate text-[0.65rem] text-muted-foreground/70 font-semibold flex-1">
 																	{member.specialization || member.department || 'General'}
 																</span>
 																<span className={`text-[0.65rem] font-bold tabular-nums ${loadColorClass}`}>
@@ -1404,34 +1415,34 @@ export default function FacultyAssignments() {
 									</div>
 								))
 							)}
-						</div>
-						<div className="border-t border-border bg-muted/20 px-3 py-2 text-[0.65rem] font-bold text-muted-foreground flex items-center justify-between uppercase tracking-tight">
+							</div>
+							<div className="border-t border-border bg-muted/20 px-3 py-1 text-[0.6rem] font-bold text-muted-foreground flex items-center justify-between uppercase tracking-tight">
 							<div className="flex items-center gap-3">
-								<span className="cursor-help hover:text-foreground transition-colors">{coverageHeadline.realAssigned} Real</span>
+								<span className="cursor-help hover:text-foreground transition-colors">{coverageHeadline.realAssigned} Staffed</span>
 								<span className="opacity-30">/</span>
 								<span className="cursor-help hover:text-foreground transition-colors">{coverageHeadline.syntheticAssigned} Temp</span>
 							</div>
 							<span className={coverageHeadline.unassigned > 0 ? 'text-amber-600' : 'text-emerald-600'}>
-								{coverageHeadline.unassigned} Unstaffed
+								{coverageHeadline.unassigned} Unassigned
 							</span>
-						</div>
-					</div>
+							</div>
+							</div>
 
-					{/* Main Workspace Area */}
-					<div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-						{!selected ? (
+							{/* Main Workspace Area */}
+							<div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+							{!selected ? (
 							<div className="flex-1 flex h-full items-center justify-center text-muted-foreground bg-muted/5 border border-dashed border-border/60 rounded-xl">
 								<div className="text-center">
 									<UserCog className="mx-auto size-10 text-muted-foreground/30" />
-									<p className="mt-2 text-sm font-semibold">Select a teacher to manage assignments</p>
+									<p className="mt-2 text-sm font-semibold">Select a teacher from the roster to manage assignments</p>
 								</div>
 							</div>
-						) : (
-							<div className="flex-1 flex flex-col space-y-2.5 min-h-0">
-								{/* Identity Bar - Materially Slimmer */}
-								<div className="shrink-0 flex items-center justify-between gap-4 p-2.5 bg-card border border-border/50 rounded-xl shadow-sm">
+							) : (
+							<div className="flex-1 flex flex-col space-y-1.5 min-h-0">
+								{/* Identity Bar - Optimized vertical space */}
+								<div className="shrink-0 flex items-center justify-between gap-4 p-1.5 px-3 bg-card border border-border/50 rounded-xl shadow-sm">
 									<div className="flex items-center gap-3 flex-1 min-w-0">
-										<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary border border-primary/10 shadow-inner">
+										<div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[0.65rem] font-bold text-primary border border-primary/10">
 											{selected.firstName[0]}{selected.lastName[0]}
 										</div>
 										<div className="min-w-0">
@@ -1444,36 +1455,36 @@ export default function FacultyAssignments() {
 														<TooltipTrigger asChild>
 															<Star className="size-3 fill-amber-500 text-amber-600 cursor-help" />
 														</TooltipTrigger>
-														<TooltipContent className="text-xs font-bold">
+														<TooltipContent className="text-[0.65rem] font-bold">
 															{advisedSectionMeta ? `Adviser: GR${advisedSectionMeta.gradeLevel} - ${advisedSectionMeta.sectionName}` : 'Class Adviser'}
 														</TooltipContent>
 													</Tooltip>
 												)}
 											</div>
-											<p className="truncate text-[0.6rem] text-muted-foreground font-bold mt-1 uppercase tracking-widest flex items-center gap-2">
-												<span className="text-foreground/80">{selected.specialization || 'General'}</span>
+											<p className="truncate text-[0.6rem] text-muted-foreground font-semibold mt-0.5 uppercase tracking-widest flex items-center gap-1.5">
+												<span className="text-foreground/70">{selected.specialization || 'General'}</span>
 												<span className="opacity-30">•</span>
 												<span>{selected.department || 'No Dept'}</span>
 											</p>
 										</div>
 									</div>
 
-									<div className="flex items-center gap-4">
-										<div className="flex items-center gap-3 px-3 py-1 rounded-lg bg-muted/30 border border-border/40">
+									<div className="flex items-center gap-3">
+										<div className="flex items-center gap-2.5 px-2 py-0.5 rounded-lg bg-muted/30 border border-border/40">
 											<div className="flex flex-col">
-												<span className="text-[0.55rem] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none mb-0.5">Current Load</span>
-												<div className="flex items-baseline gap-1.5">
-													<span className="text-sm font-bold tracking-tight">{loadProfile.actualTeachingHours}h</span>
-													<Badge className={`${STATUS_COLORS[loadProfile.status].bg} ${STATUS_COLORS[loadProfile.status].text} h-3.5 border-none text-[0.5rem] font-bold uppercase px-1 shadow-none`}>
+												<span className="text-[0.5rem] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none mb-0.5">Weekly Load</span>
+												<div className="flex items-baseline gap-1">
+													<span className="text-[0.75rem] font-bold tracking-tight leading-none">{loadProfile.actualTeachingHours}h</span>
+													<Badge className={`${STATUS_COLORS[loadProfile.status].bg} ${STATUS_COLORS[loadProfile.status].text} h-3 border-none text-[0.45rem] font-bold uppercase px-1 shadow-none leading-none`}>
 														{loadProfile.statusLabel}
 													</Badge>
 												</div>
 											</div>
 
-											<div className="w-20 space-y-1 pt-0.5">
-												<div className="h-1.5 w-full bg-muted rounded-full overflow-hidden shadow-inner border border-muted/50 relative">
+											<div className="w-16 space-y-0.5 pt-0.5">
+												<div className="h-1 w-full bg-muted rounded-full overflow-hidden border border-muted/50 relative">
 													<div
-														className="h-full bg-emerald-500 transition-all shadow-[0_0_8px_rgba(16,185,129,0.3)] absolute left-0 top-0 z-10"
+														className="h-full bg-emerald-500 transition-all absolute left-0 top-0 z-10"
 														style={{ width: `${Math.min((loadProfile.actualTeachingHours * 60 / Math.max(loadCapMinutes, 1)) * 100, 100)}%` }}
 													/>
 													{hoveredIncomingMinutes > 0 && (
@@ -1483,35 +1494,34 @@ export default function FacultyAssignments() {
 														/>
 													)}
 												</div>
-												<div className="flex justify-between text-[0.5rem] font-bold uppercase tracking-tighter tabular-nums opacity-60">
-													<span>{loadProfile.actualTeachingHours}h</span>
-													<span>Max {selected.maxHoursPerWeek}h</span>
+												<div className="flex justify-between text-[0.45rem] font-bold uppercase tracking-tighter tabular-nums opacity-60">
+													<span>{loadProfile.actualTeachingHours}h / {selected.maxHoursPerWeek}h Max</span>
 												</div>
 											</div>
 
 											<Popover>
 												<PopoverTrigger asChild>
-													<Button variant="ghost" size="icon-xs" className="h-6 w-6 rounded-md hover:bg-primary/5 text-primary">
-														<Info className="size-3.5" />
+													<Button variant="ghost" size="icon-xs" className="h-5 w-5 rounded hover:bg-primary/5 text-primary">
+														<Info className="size-3" />
 													</Button>
 												</PopoverTrigger>
 												<PopoverContent side="bottom" align="end" className="w-80 p-0 overflow-hidden shadow-xl border-border/50">
 													<div className="bg-blue-600 p-3 text-white">
-														<h5 className="text-[0.65rem] font-bold uppercase tracking-[0.15em] opacity-80 mb-0.5">Load Calculation Details</h5>
+														<h5 className="text-[0.65rem] font-bold uppercase tracking-[0.15em] opacity-80 mb-0.5">Teaching Load Truth</h5>
 														<p className="text-lg font-bold leading-tight">{loadProfile.actualTeachingHours}h <span className="text-xs font-medium opacity-70 italic">Concurrent Weekly</span></p>
 													</div>
 													<div className="p-4 space-y-4">
 														<div className="space-y-2">
 															<p className="text-xs text-muted-foreground font-medium leading-relaxed">
-																ATLAS removes <span className="font-bold text-foreground">{rotationOvercountHours}h</span> of overlapping rotation-family sections to reflect true concurrent weekly demand.
+																ATLAS removes <span className="font-bold text-foreground">{rotationOvercountHours}h</span> of overlapping rotating classes (Science/TLE) to reflect the teacher's true weekly burden.
 															</p>
 															<div className="p-2 rounded-lg bg-blue-50/50 border border-blue-100 text-[0.65rem] italic text-blue-700 leading-tight font-bold">
-																Rotation families (Science/TLE) share a single time-slot. You are not penalized for non-simultaneous hours.
+																Rotating sections share a single time-slot. Teachers are not penalized for non-simultaneous hours across terms.
 															</div>
 														</div>
 														<div className="grid grid-cols-3 gap-2 border-t border-border/40 pt-3">
 															<div className="flex flex-col">
-																<span className="text-[0.55rem] font-bold uppercase tracking-tighter text-muted-foreground/70">Raw Rows</span>
+																<span className="text-[0.55rem] font-bold uppercase tracking-tighter text-muted-foreground/70">Total Rows</span>
 																<span className="text-xs font-bold text-foreground">{loadProfile.rawTeachingHours}h</span>
 															</div>
 															<div className="flex flex-col border-l border-border/40 pl-3">
@@ -1524,8 +1534,8 @@ export default function FacultyAssignments() {
 															</div>
 														</div>
 														{rotationFamilyDetails.length > 0 && (
-															<div className="border-t border-border/40 pt-3 space-y-2">
-																<span className="text-[0.55rem] font-bold uppercase tracking-[0.15em] text-muted-foreground/60">Concurrent Families</span>
+															<div className="border-t border-border/40 pt-3 space-y-1">
+																<span className="text-[0.55rem] font-bold uppercase tracking-[0.15em] text-muted-foreground/60">Concurrent Rotating Lanes</span>
 																<div className="flex flex-wrap gap-1">
 																	{rotationFamilyDetails.map((f: RotationFamilyLoadDetail) => (
 																		<Badge key={f.family} variant="outline" className="text-[0.55rem] font-bold uppercase px-1.5 py-0 h-4 bg-muted/30 border-muted">
@@ -1540,46 +1550,44 @@ export default function FacultyAssignments() {
 											</Popover>
 										</div>
 
-										<div className="flex items-center gap-2 border-l border-border/50 pl-4">
+										<div className="flex items-center gap-2 border-l border-border/50 pl-3">
 											<div className="flex items-center bg-background rounded-lg border border-border/60 p-0.5 shadow-inner">
-												<Button type="button" variant="ghost" size="icon-xs" onClick={handleUndo} disabled={!canUndo || saving || isReadOnlyMode} className="h-7 w-8">
-													<Undo2 className="size-3.5" />
+												<Button type="button" variant="ghost" size="icon-xs" onClick={handleUndo} disabled={!canUndo || saving || isReadOnlyMode} className="h-6 w-7">
+													<Undo2 className="size-3" />
 												</Button>
-												<Button type="button" variant="ghost" size="icon-xs" onClick={handleRedo} disabled={!canRedo || saving || isReadOnlyMode} className="h-7 w-8">
-													<Redo2 className="size-3.5" />
+												<Button type="button" variant="ghost" size="icon-xs" onClick={handleRedo} disabled={!canRedo || saving || isReadOnlyMode} className="h-6 w-7">
+													<Redo2 className="size-3" />
 												</Button>
 											</div>
 
 											<DropdownMenu>
 												<DropdownMenuTrigger asChild>
-													<Button variant={dirty ? 'secondary' : 'outline'} size="sm" className="h-8 font-bold text-[0.65rem] gap-1.5 shadow-sm uppercase">
-														<Settings2 className="size-3.5" />
+													<Button variant={dirty ? 'secondary' : 'outline'} size="xs" className="h-7 font-bold text-[0.6rem] gap-1.5 shadow-sm uppercase px-2">
+														<Settings2 className="size-3" />
 														{dirty ? 'Draft' : 'Tools'}
 													</Button>
 												</DropdownMenuTrigger>
-												<DropdownMenuContent align="end" className="w-56">
-													<DropdownMenuItem onSelect={handleResetAssignments} disabled={saving || !selected.isActiveForScheduling || isReadOnlyMode || dataSource !== 'live'} className="gap-2 cursor-pointer font-bold uppercase text-xs">
-														<RotateCcw className="size-3.5" />
+												<DropdownMenuContent align="end" className="w-52">
+													<DropdownMenuItem onSelect={handleResetAssignments} disabled={saving || !selected.isActiveForScheduling || isReadOnlyMode || dataSource !== 'live'} className="gap-2 cursor-pointer font-bold uppercase text-[0.65rem]">
+														<RotateCcw className="size-3" />
 														Reset Teacher Draft
 													</DropdownMenuItem>
 													{dirty && (
-														<DropdownMenuItem onSelect={discardSelectedDraft} disabled={saving || isReadOnlyMode} className="gap-2 cursor-pointer text-amber-600 font-bold uppercase text-xs">
-															<RotateCcw className="size-3.5" />
+														<DropdownMenuItem onSelect={discardSelectedDraft} disabled={saving || isReadOnlyMode} className="gap-2 cursor-pointer text-amber-600 font-bold uppercase text-[0.65rem]">
+															<RotateCcw className="size-3" />
 															Discard Changes
 														</DropdownMenuItem>
 													)}
 												</DropdownMenuContent>
 											</DropdownMenu>
 
-											<Button type="button" size="sm" onClick={handleSave} disabled={!dirty || saving || !selected.isActiveForScheduling || isReadOnlyMode} className="h-8 font-bold text-[0.65rem] gap-1.5 shadow-md shadow-primary/10 uppercase">
-												<Save className="size-3.5" />
+											<Button type="button" size="xs" onClick={handleSave} disabled={!dirty || saving || !selected.isActiveForScheduling || isReadOnlyMode} className="h-7 font-bold text-[0.6rem] gap-1.5 shadow-md shadow-primary/10 uppercase px-2">
+												<Save className="size-3" />
 												{saving ? 'Saving...' : 'Save Draft'}
 											</Button>
 										</div>
 									</div>
-								</div>
-
-								{/* Content Row with Jump List and Assignment Card */}
+								</div>								{/* Content Row with Jump List and Assignment Card */}
 								<div className="flex-1 flex min-h-0 gap-3">
 									<AnimatePresence mode="popLayout">
 										{showJumpList && (
@@ -1774,7 +1782,7 @@ export default function FacultyAssignments() {
 															<div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-amber-50 border border-amber-100">
 																<AlertTriangle className="size-4 text-amber-600 shrink-0" />
 																<p className="text-xs text-amber-900/80 font-bold leading-relaxed">
-																	Showing <span className="text-amber-900 font-bold">{shortageSubjects.length} subjects</span> with unassigned sections. Prioritize these to complete the schedule.
+																	Showing <span className="text-amber-900 font-bold">{shortageSubjects.length} subjects</span> with unassigned sections. Prioritize these to complete the school year staffing.
 																</p>
 															</div>
 															{shortageSubjects.map((subject) => (
@@ -1813,7 +1821,7 @@ export default function FacultyAssignments() {
 															<div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-blue-50 border border-blue-100">
 																<Users className="size-4 text-blue-600 shrink-0" />
 																<p className="text-xs text-blue-900/80 font-bold leading-relaxed">
-																	Showing <span className="text-blue-900 font-bold">{underloadedFaculty.length} teachers</span> with less than 80% load. Use these for redistribution or covering gaps.
+																	Showing <span className="text-blue-900 font-bold">{underloadedFaculty.length} teachers</span> with spare capacity (less than 80% load). These can cover the remaining unassigned rows.
 																</p>
 															</div>
 															<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1824,7 +1832,6 @@ export default function FacultyAssignments() {
 																		onClick={() => {
 																			setSelectedId(f.id);
 																			setViewMode('assignments');
-																			// Smooth scroll to top of roster or identity bar
 																			window.scrollTo({ top: 0, behavior: 'smooth' });
 																		}}
 																	>
@@ -1840,7 +1847,7 @@ export default function FacultyAssignments() {
 																			</div>
 																			<div className="text-right">
 																				<p className="text-xs font-bold text-blue-600">{f.policyLoadPercentage}%</p>
-																				<p className="text-[0.55rem] text-muted-foreground font-bold uppercase">{f.policyCreditedHours}h / {f.maxHoursPerWeek}h</p>
+																				<p className="text-[0.55rem] text-muted-foreground font-bold uppercase tracking-tighter">{f.policyCreditedHours}h / {f.maxHoursPerWeek}h</p>
 																			</div>
 																		</div>
 																	</Card>
@@ -1860,7 +1867,7 @@ export default function FacultyAssignments() {
 															<div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-violet-50 border border-violet-100">
 																<Layers className="size-4 text-violet-600 shrink-0" />
 																<p className="text-xs text-violet-900/80 font-bold leading-relaxed">
-																	Showing <span className="text-violet-900 font-bold">{specialSubjects.length} Special Programs</span>. Use this view to redistribute ownership for SPA, SPS, or STE sections across the staff.
+																	Showing <span className="text-violet-900 font-bold">{specialSubjects.length} Special Programs</span>. Audit concentrated ownership here to redistribute load for SPA, SPS, or STE sections.
 																</p>
 															</div>
 															{specialSubjects.map((subject) => (
@@ -1889,7 +1896,6 @@ export default function FacultyAssignments() {
 														</div>
 													);
 												}
-
 												return null;
 											})()}
 										</CardContent>
@@ -1903,7 +1909,7 @@ export default function FacultyAssignments() {
 
 			<ConfirmationModal
 				open={autoFillDialogOpen}
-				onOpenChange={() => {}}
+				onOpenChange={setAutoFillDialogOpen}
 				title="Auto-Fill Remaining Assignments?"
 				description="This will assign teachers to currently unassigned subject-sections using department alignment and current teaching load."
 				onConfirm={handleAutoFill}

@@ -3,7 +3,12 @@
  * Bridges to section adapter and maintains a local SectionMirror
  * for high availability and local overrides.
  */
-import { type SectionSummary } from './section-adapter.js';
+import { type SectionSummary, type SectionFetchResult } from './section-adapter.js';
+type RuntimeSectionSourceOptions = {
+    authToken?: string;
+    preferLocalEvidenceFirst?: boolean;
+};
+export declare function fetchSectionsForRuntimeControls(schoolId: number, schoolYearId: number, options?: RuntimeSectionSourceOptions): Promise<SectionFetchResult>;
 type HomeRoomProgramType = 'REGULAR' | 'STE' | 'SPS' | 'SPA' | 'SPJ' | 'SPFL' | 'SPTVE' | 'OTHER';
 type HomeRoomControlSection = {
     id: number;
@@ -35,7 +40,7 @@ export declare function syncSectionsFromExternal(schoolId: number, schoolYearId:
     synced: boolean;
     count: number;
     removed: number;
-    source: SectionSummary['source'];
+    source: 'enrollpro';
     fetchedAt: Date;
 }>;
 export declare function getSectionSummary(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionSummary>;

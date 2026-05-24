@@ -57,7 +57,7 @@ export interface SectionsByGrade {
     displayOrder: number;
     sections: ExternalSection[];
 }
-export type SectionSourceLabel = 'enrollpro' | 'stub' | 'cached-enrollpro';
+export type SectionSourceLabel = 'enrollpro' | 'stub' | 'cached-enrollpro' | 'atlas-mirror';
 export interface SectionFetchResult {
     gradeLevels: SectionsByGrade[];
     source: SectionSourceLabel;

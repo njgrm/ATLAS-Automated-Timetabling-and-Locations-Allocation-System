@@ -19,67 +19,16 @@
  * - Business logic is entirely in this service; controllers are transport-only.
  */
 import { prisma } from '../lib/prisma.js';
-import { sectionAdapter } from './section-adapter.js';
+import { fetchSectionsForRuntimeControls } from './section.service.js';
 import { matchesSubjectOwnershipDepartment, normalizeDepartmentCode, resolveSubjectAllowedOwnerDepartments, resolveSubjectRotationFamily, resolveSubjectOwnerDepartmentCode, } from './subject-ownership.service.js';
 // DO 005 s.2024 weekly minute caps
 const STANDARD_CAP_MIN = 1_800;
 const HARD_CAP_MIN = 2_400;
 async function fetchSectionsForAutoFill(schoolId, schoolYearId, authToken) {
-    try {
-        return await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
-    }
-    catch {
-        const mirroredSections = await prisma.sectionMirror.findMany({
-            where: {
-                schoolId,
-                schoolYearId,
-                isActiveForScheduling: true,
-            },
-            select: {
-                externalId: true,
-                name: true,
-                gradeLevelId: true,
-                gradeLevelName: true,
-                displayOrder: true,
-                maxCapacity: true,
-                enrolledCount: true,
-                programType: true,
-                programCode: true,
-                programName: true,
-                isSpecialProgram: true,
-            },
-            orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
-        });
-        const groupedByGrade = new Map();
-        for (const section of mirroredSections) {
-            const entry = groupedByGrade.get(section.displayOrder) ?? {
-                gradeLevelId: section.gradeLevelId,
-                gradeLevelName: section.gradeLevelName,
-                displayOrder: section.displayOrder,
-                sections: [],
-            };
-            entry.sections.push({
-                id: section.externalId,
-                name: section.name,
-                maxCapacity: section.maxCapacity,
-                enrolledCount: section.enrolledCount,
-                gradeLevelId: section.gradeLevelId,
-                gradeLevelName: section.gradeLevelName,
-                displayOrder: section.displayOrder,
-                programType: section.programType ?? 'REGULAR',
-                programCode: section.programCode ?? null,
-                programName: section.programName ?? null,
-                isSpecialProgram: section.isSpecialProgram,
-            });
-            groupedByGrade.set(section.displayOrder, entry);
-        }
-        return {
-            gradeLevels: Array.from(groupedByGrade.values()).sort((left, right) => left.displayOrder - right.displayOrder),
-            source: 'cached-enrollpro',
-            fetchedAt: new Date(),
-            fallbackReason: 'section-adapter-fetch-failed',
-        };
-    }
+    return fetchSectionsForRuntimeControls(schoolId, schoolYearId, {
+        authToken,
+        preferLocalEvidenceFirst: true,
+    });
 }
 /**
  * Convert maxHoursPerWeek to minutes/week for capacity calculations.

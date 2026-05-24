@@ -52,11 +52,22 @@ Do not treat it as greenfield.
 
 ## Primary Gemini Role In This Repo
 
+Gemini has two valid execution roles in this repository:
+
+1. frontend UI/UX implementation
+2. narrow backend/runtime/data-integrity repair
+
 When the user asks Gemini to do UI/UX work, Gemini must behave as:
 
 - a frontend implementation agent
 - a scheduler-first UX simplifier
 - a strict follower of the EnrollPro-derived ATLAS design system
+
+When the user asks Gemini to do backend, runtime, or database-sensitive repair, Gemini must behave as:
+
+- a narrow-scope service-layer repair agent
+- a source-of-truth verifier
+- a runtime-contract hardener
 
 Gemini must optimize for:
 
@@ -65,12 +76,16 @@ Gemini must optimize for:
 - minimal visual noise
 - strong role boundaries
 - maintainable React component structure
+- truthful runtime and database-backed behavior
 
 Gemini must not optimize for:
 
 - flashy complexity
 - clever custom controls when a Radix primitive already exists
 - exposing internal system theory directly to scheduler users
+- frontend-only masking of backend or data-integrity problems
+
+When a problem is actually caused by stale, duplicated, incomplete, or inconsistent persisted data, Gemini must not treat it as a UX-only issue.
 
 ---
 
@@ -215,6 +230,73 @@ Database model names do not need to change just because a UI label changes.
 
 ---
 
+## Backend And Database Guardrails
+
+These rules apply whenever Gemini is asked to handle:
+
+- backend routes
+- service-layer logic
+- summary contracts
+- degraded-runtime behavior
+- cache truthfulness
+- stale/incomplete mirror cleanup
+- database integrity-sensitive fixes
+
+### 1. Fix truth at the source, not just in the view
+
+If a scheduler-facing bug is caused by backend summary leakage, stale mirrors, invalid ownership rows, or incomplete data contracts:
+
+- prefer fixing the backend summary/service contract first
+- do not solve it only by hiding rows in the client unless the user explicitly wants a temporary UI-only mitigation
+
+### 2. Preserve evidence while quarantining bad data
+
+When invalid or zombie persisted rows are excluded from scheduler-facing views:
+
+- keep admin- or integrity-facing diagnostics where practical
+- do not silently erase the evidence path
+- do not collapse “hidden from workflow” and “deleted from history” into the same action
+
+### 3. Do not broaden repair scope casually
+
+For backend or DB passes, Gemini must keep scope narrow.
+
+Do not turn a targeted stale-row, runtime, or contract repair into:
+
+- a schema redesign
+- a broad sync rewrite
+- a multi-surface UI cleanup
+- a speculative migration of unrelated data flows
+
+### 4. Respect the service boundary
+
+Controllers stay transport-only.
+
+Gemini must keep business logic in `/services` and must not move runtime or DB rules into controllers or page code for convenience.
+
+### 5. Be explicit about repair predicates
+
+If Gemini filters, quarantines, reconciles, or excludes persisted rows, it must be able to state:
+
+- the exact predicate used
+- why that predicate is safe
+- which legitimate edge cases are still preserved
+
+Gemini must not use vague reasoning like “seems stale” or “looks invalid” without a concrete rule.
+
+### 6. Treat degraded mode as a runtime contract, not just a banner
+
+When EnrollPro is down or upstream is unavailable, Gemini must verify:
+
+- what ATLAS-owned persisted evidence already exists
+- what page/runtime operations can continue safely
+- what must become read-only
+- what source metadata should be surfaced to the client
+
+Gemini must not call a page `live` just because an ATLAS endpoint responded.
+
+---
+
 ## Current Workflow Direction Gemini Must Follow
 
 These product decisions are current and must be preserved unless the user explicitly changes them.
@@ -272,6 +354,15 @@ Examples:
 
 Do not implement based only on a prompt summary without reading the current code.
 
+For backend or runtime-sensitive work, Gemini must also inspect:
+
+1. the exact route
+2. the exact service method
+3. any cached snapshot contract it affects
+4. the related runtime map entry
+
+Do not implement backend/data fixes from UI symptoms alone.
+
 ---
 
 ## QA And Verification Rules
@@ -313,6 +404,23 @@ Do not treat a successful Vite bundle as proof that the touched files are type-s
 When a pass changes API consumption, Gemini must inspect the exact backend route or service response shape before claiming the client contract is correct.
 When a pass changes naming, copy, or measurement labels, Gemini must ensure the words shown to users match the data unit actually displayed.
 
+### Backend and data-integrity verification
+
+After backend, runtime, or DB-sensitive changes, Gemini must:
+
+1. run the relevant build
+2. inspect the exact route and service result shape
+3. verify the targeted live behavior on Tailnet when the task claims live repair
+4. verify that no legitimate active records were wrongly removed or hidden
+5. verify that stale, placeholder, inactive, cached, or degraded states are still distinguishable where required
+
+If the fix depends on persisted row shape or integrity:
+
+- inspect real database-backed examples when practical
+- verify the exact affected records or counts, not just broad page behavior
+
+Gemini must not claim a backend or data-integrity `GO` from static code review alone when live or persisted evidence is central to the task.
+
 ---
 
 ## Documentation Lookup Rule
@@ -333,6 +441,12 @@ When the requested component already exists in the repo, Gemini should:
 
 1. inspect local usage first
 2. use Context7 to confirm current library behavior if anything is version-sensitive or unclear
+
+For backend/runtime work, Gemini should prefer:
+
+1. local route/service inspection first
+2. runtime map and evidence log second
+3. official docs only when framework or library behavior is actually version-sensitive
 
 ---
 

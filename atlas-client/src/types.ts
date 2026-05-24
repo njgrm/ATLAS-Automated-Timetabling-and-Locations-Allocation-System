@@ -238,15 +238,33 @@ export type TeachingLoadIntegrityDiagnosticRow = {
 	sectionCount: number;
 };
 
+export type TeachingLoadStaleOwnershipSample = {
+	facultyId: number;
+	facultyName: string;
+	isPlaceholder: boolean;
+	subjectId: number;
+	subjectCode: string;
+	sectionId: number;
+};
+
 export type TeachingLoadIntegrityDiagnostics = {
 	emptySectionRows: number;
 	currentYearRowsMissingOwnership: number;
 	currentYearOwnershipWithoutMatchingScope: number;
 	currentYearMissingOwnershipPairs: number;
 	currentYearOwnershipWithoutMatchingScopePairs: number;
+	staleOwnershipRowCount: number;
+	staleOwnedCurrentYearPairCount: number;
+	stalePlaceholderPairCount: number;
+	staleNonPlaceholderPairCount: number;
 	emptySectionSamples: TeachingLoadIntegrityDiagnosticRow[];
 	missingOwnershipSamples: TeachingLoadIntegrityDiagnosticRow[];
 	ownershipWithoutScopeSamples: TeachingLoadIntegrityDiagnosticRow[];
+	staleOwnershipSamples: TeachingLoadStaleOwnershipSample[];
+	quarantinedZombieCount?: number;
+	quarantinedZombieSamples?: TeachingLoadIntegrityDiagnosticRow[];
+	staleAdvisoryCount?: number;
+	staleAdvisorySamples?: TeachingLoadIntegrityDiagnosticRow[];
 };
 
 export type FacultyMirror = {
@@ -1238,7 +1256,7 @@ export interface SectionSummaryResponse {
 	enrolledByGradeLevel: Record<number, number>;
 	sections: ExternalSection[];
 	gradeLevels?: SectionsByGrade[];
-	source?: 'enrollpro' | 'stub' | 'cached-enrollpro';
+	source?: 'enrollpro' | 'stub' | 'cached-enrollpro' | 'atlas-mirror';
 	sourceMode?: 'stub' | 'enrollpro' | 'auto';
 	fallbackReason?: string;
 	contractWarnings?: string[];

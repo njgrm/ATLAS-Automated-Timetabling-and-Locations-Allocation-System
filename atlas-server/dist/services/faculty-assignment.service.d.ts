@@ -109,6 +109,10 @@ export interface TeachingLoadIntegrityDiagnostics {
     missingOwnershipSamples: TeachingLoadIntegrityDiagnosticRow[];
     ownershipWithoutScopeSamples: TeachingLoadIntegrityDiagnosticRow[];
     staleOwnershipSamples: TeachingLoadStaleOwnershipSample[];
+    quarantinedZombieCount: number;
+    quarantinedZombieSamples: TeachingLoadIntegrityDiagnosticRow[];
+    staleAdvisoryCount: number;
+    staleAdvisorySamples: TeachingLoadIntegrityDiagnosticRow[];
 }
 export interface SpecialProgramDistributionOwnerRow {
     facultyId: number;
@@ -474,6 +478,11 @@ export declare function getAssignmentsByFaculty(facultyId: number, schoolYearId:
         sections: (import("./faculty-assignment-scope.service.js").ScopedSection & {
             assignmentSpecializationCode: string | null;
             assignmentSpecializationLabel: string | null;
+            assignmentRotationFamily: string | null;
+            assignmentRotationLaneId: string | null;
+            assignmentRawMinutesPerWeek: number | null;
+            assignmentConcurrentDeltaMinutesPerWeek: number | null;
+            assignmentExpandsConcurrentDemand: boolean | null;
         })[];
         assignmentKind: TeachingLoadAssignmentKind;
         storedCurrentYearSectionCount: number;
@@ -543,6 +552,11 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
             sections: (import("./faculty-assignment-scope.service.js").ScopedSection & {
                 assignmentSpecializationCode: string | null;
                 assignmentSpecializationLabel: string | null;
+                assignmentRotationFamily: string | null;
+                assignmentRotationLaneId: string | null;
+                assignmentRawMinutesPerWeek: number | null;
+                assignmentConcurrentDeltaMinutesPerWeek: number | null;
+                assignmentExpandsConcurrentDemand: boolean | null;
             })[];
             assignmentKind: TeachingLoadAssignmentKind;
             storedCurrentYearSectionCount: number;

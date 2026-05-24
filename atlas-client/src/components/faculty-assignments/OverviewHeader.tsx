@@ -48,76 +48,74 @@ export function OverviewHeader({
 	const completenessPercent = totalPairs > 0 ? Math.round(((realAssignedPairs + syntheticPlaceholderPairs) / totalPairs) * 100) : 0;
 
 	const statusConfig = useMemo(() => {
-		if (!isOnline) return { label: 'Offline', color: 'bg-muted', description: 'You are currently disconnected. Changes will be saved locally.' };
-		if (dataSource === 'live') return { label: 'Synced', color: 'bg-emerald-500 animate-pulse', description: 'Live connection to EnrollPro is active. All data is up to date.' };
-		if (degradedWriteEnabled) return { label: 'Independent', color: 'bg-amber-500 animate-pulse', description: 'Upstream is unavailable, but you can continue working using local ATLAS data.' };
-		return { label: 'Read-Only', color: 'bg-blue-500', description: 'Viewing last known data. Upstream is unavailable and local evidence is insufficient for writes.' };
+		if (!isOnline) return { label: 'Offline', color: 'bg-muted', description: 'Disconnected. Changes saved locally only.' };
+		if (dataSource === 'live') return { label: 'Connected: Live Data', color: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]', description: 'Connected to EnrollPro. All changes verified against live database.' };
+		if (degradedWriteEnabled) return { label: 'Active: ATLAS Mode', color: 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]', description: 'Upstream database currently unavailable. Using local ATLAS state for assignments.' };
+		return { label: 'Review Only: Backup', color: 'bg-blue-500', description: 'Viewing last known snapshot from backup. Assignments are temporarily disabled.' };
 	}, [isOnline, dataSource, degradedWriteEnabled]);
 
 	return (
-		<div className="mt-2 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-lg border border-border/40 bg-background px-4 py-2 shadow-xs">
-			<div className="flex flex-wrap items-center gap-6">
+		<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 rounded-xl border border-border/40 bg-background px-3 py-1 shadow-sm">
+			<div className="flex flex-wrap items-center gap-4">
 				{/* Workspace Status Badge */}
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<div className="flex items-center gap-2 px-2 py-1 rounded-md bg-muted/30 border border-border/50 cursor-help">
-							<div className={`size-1.5 rounded-full ${statusConfig.color}`} />
-							<span className="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/80">{statusConfig.label}</span>
+						<div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted/20 border border-border/40 cursor-help shrink-0 hover:bg-muted/30 transition-colors">
+							<div className={`size-1 rounded-full ${statusConfig.color}`} />
+							<span className="text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/80 leading-none">{statusConfig.label}</span>
 						</div>
 					</TooltipTrigger>
-					<TooltipContent side="bottom" className="text-[0.65rem] font-bold max-w-[200px]">
+					<TooltipContent side="bottom" className="text-[0.65rem] font-semibold max-w-[250px] p-2.5">
 						{statusConfig.description}
 					</TooltipContent>
 				</Tooltip>
 
-				<div className="h-6 w-px bg-border/40 hidden xl:inline" />
+				<div className="h-5 w-px bg-border/40 hidden xl:inline" />
 
 				{/* Coverage & Staffing Truth */}
 				<div className="flex items-center gap-4">
 					<div className="flex items-center gap-3">
-						<div className="flex flex-col">
-							<span className="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/60 leading-none mb-0.5">Coverage</span>
-							<div className="flex items-baseline gap-1.5">
-								<span className="text-base font-black tracking-tight">{realAssignedPairs + syntheticPlaceholderPairs}</span>
-								<span className="text-[0.65rem] font-bold text-muted-foreground/50">/ {totalPairs}</span>
-								<Badge variant="outline" className={`ml-1 h-3.5 px-1 text-[0.55rem] font-black border-none shadow-none ${completenessPercent === 100 ? 'bg-emerald-500/10 text-emerald-700' : 'bg-amber-500/10 text-amber-700'}`}>
+						<div className="flex items-center gap-2">
+							<span className="text-[0.55rem] font-bold uppercase tracking-wider text-muted-foreground/50 leading-none">Coverage</span>
+							<div className="flex items-baseline gap-0.5">
+								<span className="text-[0.8rem] font-bold tracking-tight leading-none">{realAssignedPairs + syntheticPlaceholderPairs}</span>
+								<span className="text-[0.55rem] font-semibold text-muted-foreground/40">/ {totalPairs}</span>
+								<Badge variant="outline" className={`ml-1 h-3 px-1 text-[0.5rem] font-bold border-none shadow-none ${completenessPercent === 100 ? 'bg-emerald-500/10 text-emerald-700' : 'bg-amber-500/10 text-amber-700'}`}>
 									{completenessPercent}%
 								</Badge>
 							</div>
 						</div>
-						<div className="h-6 w-px bg-border/40" />
-						<div className="flex flex-col">
-							<span className="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/60 leading-none mb-0.5">Unassigned</span>
-							<span className={`text-base font-black tabular-nums leading-none ${unassignedPairs > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+						<div className="h-4 w-px bg-border/30" />
+						<div className="flex items-center gap-2">
+							<span className="text-[0.55rem] font-bold uppercase tracking-wider text-muted-foreground/50 leading-none">Unassigned</span>
+							<span className={`text-[0.8rem] font-bold tabular-nums leading-none ${unassignedPairs > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
 								{unassignedPairs}
 							</span>
 						</div>
 					</div>
 
-					<div className="h-8 w-px bg-border/60 mx-1" />
+					<div className="h-6 w-px bg-border/40 mx-0.5" />
 
-					<div className="flex flex-col">
-						<span className="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/60 leading-none mb-0.5">Staffing Needs</span>
-						<div className="flex items-baseline gap-1.5">
-							<span className={`text-base font-black tracking-tight leading-none ${syntheticPlaceholderPairs > 0 ? 'text-violet-600' : 'text-emerald-600'}`}>
-								{syntheticPlaceholderPairs > 0 ? `${syntheticPlaceholderPairs} Slots` : 'Zero'}
-							</span>
-						</div>
+					<div className="flex items-center gap-2">
+						<span className="text-[0.55rem] font-bold uppercase tracking-wider text-muted-foreground/50 leading-none">Temp Roles</span>
+						<span className={`text-[0.8rem] font-bold tracking-tight leading-none ${syntheticPlaceholderPairs > 0 ? 'text-violet-600' : 'text-emerald-600/60'}`}>
+							{syntheticPlaceholderPairs > 0 ? syntheticPlaceholderPairs : '0'}
+						</span>
 					</div>
 				</div>
 
 				{/* Workspace View Mode Selector */}
 				{onViewModeChange && (
-					<div className="flex items-center gap-4">
-						<div className="h-8 w-px bg-border/60 mx-1" />
-						<div className="flex items-center gap-3">
-							<span className="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/60 hidden sm:inline">Mode</span>
-							<Tabs value={viewMode} onValueChange={onViewModeChange} className="h-7">
-								<TabsList className="h-7 p-0.5 bg-muted/40 border border-border/40">
-									<TabsTrigger value="assignments" className="h-6 text-[0.6rem] font-bold uppercase px-3 data-[state=active]:bg-background">Work</TabsTrigger>
-									<TabsTrigger value="shortage" className="h-6 text-[0.6rem] font-bold uppercase px-3 data-[state=active]:bg-background">Gap</TabsTrigger>
-									<TabsTrigger value="utilization" className="h-6 text-[0.6rem] font-bold uppercase px-3 data-[state=active]:bg-background">Load</TabsTrigger>
-									<TabsTrigger value="redistribution" className="h-6 text-[0.6rem] font-bold uppercase px-3 data-[state=active]:bg-background">Spec</TabsTrigger>
+					<div className="flex items-center gap-3">
+						<div className="h-6 w-px bg-border/40 mx-0.5" />
+						<div className="flex items-center gap-2">
+							<span className="text-[0.55rem] font-bold uppercase tracking-wider text-muted-foreground/50 hidden sm:inline">View</span>
+							<Tabs value={viewMode} onValueChange={onViewModeChange} className="h-6">
+								<TabsList className="h-6 p-0.5 bg-muted/40 border border-border/40">
+									<TabsTrigger value="assignments" className="h-5 text-[0.55rem] font-bold uppercase px-2 data-[state=active]:bg-background">Assign</TabsTrigger>
+									<TabsTrigger value="shortage" className="h-5 text-[0.55rem] font-bold uppercase px-2 data-[state=active]:bg-background">Shortage</TabsTrigger>
+									<TabsTrigger value="utilization" className="h-5 text-[0.55rem] font-bold uppercase px-2 data-[state=active]:bg-background">Teachers</TabsTrigger>
+									<TabsTrigger value="redistribution" className="h-5 text-[0.55rem] font-bold uppercase px-2 data-[state=active]:bg-background">Special</TabsTrigger>
 								</TabsList>
 							</Tabs>
 						</div>
@@ -129,14 +127,14 @@ export function OverviewHeader({
 			<div className="flex items-center gap-2">
 				<Button
 					type="button"
-					variant="outline"
+					variant="ghost"
 					size="sm"
 					onClick={onViewStaffingNeedsClick}
 					disabled={staffingNeedsLoading || !autoFillEnabled}
-					className="h-8 text-[0.65rem] font-bold border-blue-200/50 bg-blue-50/50 text-blue-700 hover:bg-blue-100 shadow-none gap-1.5 px-2.5 uppercase tracking-tight"
+					className="h-7 text-[0.6rem] font-bold border-transparent bg-transparent text-blue-700 hover:bg-blue-50 hover:text-blue-800 shadow-none gap-1.5 px-2.5 uppercase tracking-tight"
 				>
 					<ChartColumn className="size-3" />
-					Audit
+					Shortage Audit
 				</Button>
 				<Button 
 					type="button" 
@@ -144,7 +142,7 @@ export function OverviewHeader({
 					size="sm"
 					onClick={onAutoFillClick} 
 					disabled={autoFillLoading || !autoFillEnabled} 
-					className="h-8 text-[0.65rem] font-bold gap-1.5 px-2.5 uppercase tracking-tight shadow-none border border-primary/10"
+					className="h-7 text-[0.6rem] font-bold gap-1.5 px-2.5 uppercase tracking-tight shadow-sm border border-primary/10 bg-primary/5 text-primary hover:bg-primary/10 transition-all"
 				>
 					<Zap className="size-3" />
 					Auto-Fill

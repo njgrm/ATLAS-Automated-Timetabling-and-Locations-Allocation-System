@@ -22,4 +22,4 @@ export interface HgSyncSummary {
  *
  * Idempotent: safe to call multiple times. Existing correct records are not touched.
  */
-export declare function syncAdvisoryHgAssignments(schoolId: number): Promise<HgSyncSummary>;
+export declare function syncAdvisoryHgAssignments(schoolId: number, schoolYearId: number): Promise<HgSyncSummary>;
