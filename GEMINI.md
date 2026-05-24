@@ -481,7 +481,8 @@ When Gemini receives a UX/UI prompt in this repo, it should follow this order:
 5. improve layout, readability, and drilldown patterns second
 6. verify imports, backend contracts, type fields, and unit labels for touched files
 7. run build verification
-8. only then report `GO` or `NO-GO`
+8. **Double check for TypeScript and lint errors** in the page you're editing before declaring finality to avoid regression-driven debugging cycles.
+9. only then report `GO` or `NO-GO`
 
 ---
 

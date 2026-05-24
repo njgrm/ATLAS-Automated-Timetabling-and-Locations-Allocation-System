@@ -1,3 +1,48 @@
+# 2026-05-24 - Phase 3 Teaching Load Special Program Redistribution + Degraded Truthfulness One-Shot
+- Phase: Phase 3 generator-readiness stream, special-program redistribution intelligence and degraded-source truthfulness
+- Operator: GitHub Copilot
+- Scope gate: PASS (backend contract + degraded continuity + truthful source labeling)
+- Files changed in this pass:
+  - `atlas-server/src/services/faculty-assignment.service.ts`
+  - `atlas-server/src/services/teaching-load-automation.service.ts`
+  - `atlas-client/src/pages/Faculty.tsx`
+  - `atlas-client/src/pages/Sections.tsx`
+  - `atlas-client/src/pages/FacultyAssignments.tsx`
+  - `atlas-client/src/pages/Audit.tsx`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+  - `CHANGELOG.md`
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> FAIL (pre-existing JSX/import issues in `atlas-client/src/pages/FacultyAssignments.tsx` unrelated to this pass)
+
+- Tailnet verification (`https://njgrm.buru-degree.ts.net`):
+  1) Runtime/degraded context
+     - `GET /api/v1/runtime/context?schoolId=1` -> PASS
+     - `source=atlas-persisted`, `upstream.reachable=false`
+
+  2) Degraded staffing report continuity
+     - `POST /api/v1/faculty-assignments/report/staffing-needs` -> PASS
+     - Response now includes degraded-source metadata:
+       - `sectionSource=cached-enrollpro`
+       - `sectionFallbackReason=section-adapter-fetch-failed`
+       - warning message for cached section evidence
+
+  3) Special-program redistribution diagnostics
+     - `POST /api/v1/faculty-assignments/coverage/rebalance-special-programs` (preview) -> PASS
+     - Response now includes `redistributionInsights` for `SPA_SPEC`/`SPS_SPEC` with:
+       - concentration risk,
+       - underutilized MAPEH candidate signals,
+       - specialization-constrained section hints.
+
+  4) Section source truth probe
+     - `GET /api/v1/sections/summary/55?schoolId=1` -> PASS (`source=cached-enrollpro`, `totalSections=82`)
+
+- GO/NO-GO:
+  - **GO** for this one-shot scope.
+  - Client full-build closure remains blocked by pre-existing `FacultyAssignments.tsx` syntax/import issues outside this pass.
+
 # 2026-05-24 - Phase 3 EnrollPro Outage Runtime Independence One-Shot
 - Phase: Phase 3 generator-readiness stream, outage runtime-independence hardening
 - Operator: GitHub Copilot

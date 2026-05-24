@@ -20,7 +20,7 @@
  */
 
 import { prisma } from '../lib/prisma.js';
-import { sectionAdapter } from './section-adapter.js';
+import { sectionAdapter, type ProgramType } from './section-adapter.js';
 import {
 	matchesSubjectOwnershipDepartment,
 	normalizeDepartmentCode,
@@ -40,6 +40,8 @@ export interface AutoFillResult {
 	uniqueTeachersAffected: number;
 	unresolved: number;
 	warnings: string[];
+	sectionSource: 'enrollpro' | 'stub' | 'cached-enrollpro';
+	sectionFallbackReason: string | null;
 	staffingReport: StaffingReport;
 }
 
@@ -140,6 +142,89 @@ interface ConcurrentLaneDemand {
 	department: string;
 	minutes: number;
 	allowedOwnerDepartments: string[];
+}
+
+async function fetchSectionsForAutoFill(
+	schoolId: number,
+	schoolYearId: number,
+	authToken?: string,
+): Promise<Awaited<ReturnType<typeof sectionAdapter.fetchSectionsBySchoolYear>>> {
+	try {
+		return await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
+	} catch {
+		const mirroredSections = await prisma.sectionMirror.findMany({
+			where: {
+				schoolId,
+				schoolYearId,
+				isActiveForScheduling: true,
+			},
+			select: {
+				externalId: true,
+				name: true,
+				gradeLevelId: true,
+				gradeLevelName: true,
+				displayOrder: true,
+				maxCapacity: true,
+				enrolledCount: true,
+				programType: true,
+				programCode: true,
+				programName: true,
+				isSpecialProgram: true,
+			},
+			orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+		});
+
+		const groupedByGrade = new Map<number, {
+			gradeLevelId: number;
+			gradeLevelName: string;
+			displayOrder: number;
+			sections: Array<{
+				id: number;
+				name: string;
+				maxCapacity: number;
+				enrolledCount: number;
+				gradeLevelId: number;
+				gradeLevelName: string;
+				displayOrder: number;
+				programType: ProgramType;
+				programCode: string | null;
+				programName: string | null;
+				isSpecialProgram: boolean;
+			}>;
+		}>();
+
+		for (const section of mirroredSections) {
+			const entry = groupedByGrade.get(section.displayOrder) ?? {
+				gradeLevelId: section.gradeLevelId,
+				gradeLevelName: section.gradeLevelName,
+				displayOrder: section.displayOrder,
+				sections: [],
+			};
+
+			entry.sections.push({
+				id: section.externalId,
+				name: section.name,
+				maxCapacity: section.maxCapacity,
+				enrolledCount: section.enrolledCount,
+				gradeLevelId: section.gradeLevelId,
+				gradeLevelName: section.gradeLevelName,
+				displayOrder: section.displayOrder,
+				programType: (section.programType as ProgramType) ?? 'REGULAR',
+				programCode: section.programCode ?? null,
+				programName: section.programName ?? null,
+				isSpecialProgram: section.isSpecialProgram,
+			});
+
+			groupedByGrade.set(section.displayOrder, entry);
+		}
+
+		return {
+			gradeLevels: Array.from(groupedByGrade.values()).sort((left, right) => left.displayOrder - right.displayOrder),
+			source: 'cached-enrollpro',
+			fetchedAt: new Date(),
+			fallbackReason: 'section-adapter-fetch-failed',
+		};
+	}
 }
 
 /**
@@ -485,7 +570,14 @@ export async function autoFill(
 	const previewOnly = options?.previewOnly ?? false;
 	const staffingOnly = options?.staffingOnly === true;
 
-	const sectionResult = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
+	const sectionResult = await fetchSectionsForAutoFill(schoolId, schoolYearId, authToken);
+	if (sectionResult.source !== 'enrollpro') {
+		warnings.push(
+			sectionResult.source === 'cached-enrollpro'
+				? 'Staffing report is running on ATLAS-cached section data because EnrollPro is currently unavailable.'
+				: 'Staffing report is running on stubbed section data.',
+		);
+	}
 	const sectionGradeLevel = new Map<number, number>();
 	const sectionMeta = new Map<number, { sectionName: string; programType: string }>();
 	for (const grade of sectionResult.gradeLevels) {
@@ -510,6 +602,8 @@ export async function autoFill(
 			uniqueTeachersAffected: 0,
 			unresolved: 0,
 			warnings,
+			sectionSource: sectionResult.source,
+			sectionFallbackReason: sectionResult.fallbackReason ?? null,
 			staffingReport: {
 				department: 'GENERAL',
 				dominantShortageDepartment: 'GENERAL',
@@ -686,6 +780,8 @@ export async function autoFill(
 			uniqueTeachersAffected: 0,
 			unresolved: workQueue.length,
 			warnings,
+			sectionSource: sectionResult.source,
+			sectionFallbackReason: sectionResult.fallbackReason ?? null,
 			staffingReport: buildStaffingReport(unresolvedPairs, faculty, capacityUsed),
 		};
 	}
@@ -879,6 +975,8 @@ export async function autoFill(
 		uniqueTeachersAffected: affectedTeacherIds.size,
 		unresolved: unresolvedCount,
 		warnings,
+		sectionSource: sectionResult.source,
+		sectionFallbackReason: sectionResult.fallbackReason ?? null,
 		staffingReport,
 	};
 }

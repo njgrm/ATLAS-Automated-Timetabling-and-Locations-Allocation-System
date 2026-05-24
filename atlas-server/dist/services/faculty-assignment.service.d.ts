@@ -46,12 +46,16 @@ export type OwnershipConflictCandidate = {
     subjectId: number;
     sectionId: number;
     facultyId: number;
+    subjectName?: string;
+    sectionName?: string;
 };
 export type OwnershipConflictDetail = {
     subjectId: number;
     sectionId: number;
     ownerFacultyId: number;
     ownerFacultyName: string;
+    subjectName?: string;
+    sectionName?: string;
 };
 export type SubjectSectionOwnershipIndexEntry = {
     subjectId: number;
@@ -150,12 +154,41 @@ export interface SpecialProgramRebalanceResult {
     subjectCodes: string[];
     before: SpecialProgramDistributionRow[];
     after: SpecialProgramDistributionRow[];
+    redistributionInsights: SpecialProgramRedistributionInsight[];
     proposedMoves: SpecialProgramRebalanceMove[];
     appliedMoves: number;
     blockedSubjects: Array<{
         subjectCode: string;
         reason: string;
     }>;
+}
+export interface SpecialProgramCandidateSignal {
+    facultyId: number;
+    facultyName: string;
+    department: string | null;
+    specialization: string | null;
+    currentSubjectSectionCount: number;
+    currentTotalAssignedPairs: number;
+    specializationExactMatchSectionCount: number;
+    specializationSupportedSectionCount: number;
+    canCoverConstrainedSection: boolean;
+    isUnderutilizedMapeh: boolean;
+}
+export interface SpecialProgramConstrainedSection {
+    sectionId: number;
+    sectionName: string;
+    requiredSpecializationCode: string;
+    qualifiedCandidateCount: number;
+}
+export interface SpecialProgramRedistributionInsight {
+    subjectId: number;
+    subjectCode: string;
+    subjectName: string;
+    ownershipConcentrationPercent: number;
+    maxSectionsOwnedBySingleFaculty: number;
+    underutilizedMapehCandidates: SpecialProgramCandidateSignal[];
+    candidateSignals: SpecialProgramCandidateSignal[];
+    constrainedSections: SpecialProgramConstrainedSection[];
 }
 export interface TeachingLoadTruthReconcileInput {
     schoolId: number;

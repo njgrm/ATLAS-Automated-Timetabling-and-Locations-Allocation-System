@@ -25,6 +25,8 @@ export interface AutoFillResult {
     uniqueTeachersAffected: number;
     unresolved: number;
     warnings: string[];
+    sectionSource: 'enrollpro' | 'stub' | 'cached-enrollpro';
+    sectionFallbackReason: string | null;
     staffingReport: StaffingReport;
 }
 export interface StaffingCrossTrainee {

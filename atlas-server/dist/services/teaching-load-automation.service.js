@@ -24,6 +24,63 @@ import { matchesSubjectOwnershipDepartment, normalizeDepartmentCode, resolveSubj
 // DO 005 s.2024 weekly minute caps
 const STANDARD_CAP_MIN = 1_800;
 const HARD_CAP_MIN = 2_400;
+async function fetchSectionsForAutoFill(schoolId, schoolYearId, authToken) {
+    try {
+        return await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
+    }
+    catch {
+        const mirroredSections = await prisma.sectionMirror.findMany({
+            where: {
+                schoolId,
+                schoolYearId,
+                isActiveForScheduling: true,
+            },
+            select: {
+                externalId: true,
+                name: true,
+                gradeLevelId: true,
+                gradeLevelName: true,
+                displayOrder: true,
+                maxCapacity: true,
+                enrolledCount: true,
+                programType: true,
+                programCode: true,
+                programName: true,
+                isSpecialProgram: true,
+            },
+            orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+        });
+        const groupedByGrade = new Map();
+        for (const section of mirroredSections) {
+            const entry = groupedByGrade.get(section.displayOrder) ?? {
+                gradeLevelId: section.gradeLevelId,
+                gradeLevelName: section.gradeLevelName,
+                displayOrder: section.displayOrder,
+                sections: [],
+            };
+            entry.sections.push({
+                id: section.externalId,
+                name: section.name,
+                maxCapacity: section.maxCapacity,
+                enrolledCount: section.enrolledCount,
+                gradeLevelId: section.gradeLevelId,
+                gradeLevelName: section.gradeLevelName,
+                displayOrder: section.displayOrder,
+                programType: section.programType ?? 'REGULAR',
+                programCode: section.programCode ?? null,
+                programName: section.programName ?? null,
+                isSpecialProgram: section.isSpecialProgram,
+            });
+            groupedByGrade.set(section.displayOrder, entry);
+        }
+        return {
+            gradeLevels: Array.from(groupedByGrade.values()).sort((left, right) => left.displayOrder - right.displayOrder),
+            source: 'cached-enrollpro',
+            fetchedAt: new Date(),
+            fallbackReason: 'section-adapter-fetch-failed',
+        };
+    }
+}
 /**
  * Convert maxHoursPerWeek to minutes/week for capacity calculations.
  * FacultyMirror.maxHoursPerWeek stores the limit in hours (default 30).
@@ -304,7 +361,12 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
     const warnings = [];
     const previewOnly = options?.previewOnly ?? false;
     const staffingOnly = options?.staffingOnly === true;
-    const sectionResult = await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
+    const sectionResult = await fetchSectionsForAutoFill(schoolId, schoolYearId, authToken);
+    if (sectionResult.source !== 'enrollpro') {
+        warnings.push(sectionResult.source === 'cached-enrollpro'
+            ? 'Staffing report is running on ATLAS-cached section data because EnrollPro is currently unavailable.'
+            : 'Staffing report is running on stubbed section data.');
+    }
     const sectionGradeLevel = new Map();
     const sectionMeta = new Map();
     for (const grade of sectionResult.gradeLevels) {
@@ -328,6 +390,8 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
             uniqueTeachersAffected: 0,
             unresolved: 0,
             warnings,
+            sectionSource: sectionResult.source,
+            sectionFallbackReason: sectionResult.fallbackReason ?? null,
             staffingReport: {
                 department: 'GENERAL',
                 dominantShortageDepartment: 'GENERAL',
@@ -488,6 +552,8 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
             uniqueTeachersAffected: 0,
             unresolved: workQueue.length,
             warnings,
+            sectionSource: sectionResult.source,
+            sectionFallbackReason: sectionResult.fallbackReason ?? null,
             staffingReport: buildStaffingReport(unresolvedPairs, faculty, capacityUsed),
         };
     }
@@ -661,6 +727,8 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
         uniqueTeachersAffected: affectedTeacherIds.size,
         unresolved: unresolvedCount,
         warnings,
+        sectionSource: sectionResult.source,
+        sectionFallbackReason: sectionResult.fallbackReason ?? null,
         staffingReport,
     };
 }

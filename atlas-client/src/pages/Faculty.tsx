@@ -79,9 +79,11 @@ export default function Faculty() {
 		setError(null);
 
 		let schoolYearId: number | null = null;
+		let yearContextSource: 'atlas' | 'enrollpro' | 'cache' = 'cache';
 		try {
 			const yearContext = await resolveActiveSchoolYearContext({ forceRefresh });
 			schoolYearId = yearContext.activeSchoolYearId;
+			yearContextSource = yearContext.source;
 
 			if (!forceRefresh) {
 				const cachedPreview = getCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId, {
@@ -116,8 +118,13 @@ export default function Faculty() {
 				fetchedAt: data.fetchedAt,
 				schoolYearId,
 			});
-			setDataSource('live');
-			setCacheNotice(null);
+			const isUpstreamBacked = yearContextSource === 'enrollpro';
+			setDataSource(isUpstreamBacked ? 'live' : 'cached');
+			setCacheNotice(
+				isUpstreamBacked
+					? null
+					: 'Teacher roster is available from ATLAS runtime cache while upstream verification is unavailable.',
+			);
 			setSyncError(false);
 			setError(null);
 		} catch {

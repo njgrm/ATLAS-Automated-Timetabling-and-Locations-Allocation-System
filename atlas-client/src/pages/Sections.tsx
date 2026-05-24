@@ -134,12 +134,14 @@ export default function Sections() {
 		setSyncError(false);
 
 		let schoolYearId: number | null = null;
+		let yearContextSource: 'atlas' | 'enrollpro' | 'cache' = 'cache';
 		try {
 			const schoolYearContext = await resolveActiveSchoolYearContext({
 				forceRefresh,
 				allowStaleOnError: true,
 			});
 			schoolYearId = schoolYearContext.activeSchoolYearId;
+			yearContextSource = schoolYearContext.source;
 			setActiveSchoolYearId(schoolYearId);
 
 			if (!forceRefresh) {
@@ -193,8 +195,13 @@ export default function Sections() {
 			setState({ status: 'ok', data: res.data });
 			setCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId, res.data);
 			setLastSyncedAt(res.data.fetchedAt ? String(res.data.fetchedAt) : null);
-			setDataSource('live');
-			setCacheNotice(null);
+			const isUpstreamBacked = yearContextSource === 'enrollpro' && res.data.source === 'enrollpro';
+			setDataSource(isUpstreamBacked ? 'live' : 'cached');
+			setCacheNotice(
+				isUpstreamBacked
+					? null
+					: 'Section data is available from ATLAS runtime cache while upstream verification is unavailable.',
+			);
 		} catch {
 			const cachedSummary = schoolYearId ? getCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId) : null;
 			const cachedHomeRooms = schoolYearId ? getCachedSectionHomeRooms<HomeRoomOption>(DEFAULT_SCHOOL_ID, schoolYearId) : null;

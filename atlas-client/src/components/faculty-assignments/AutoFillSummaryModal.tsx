@@ -253,7 +253,7 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 										<p className="text-[0.65rem] font-bold text-amber-700 uppercase tracking-widest flex items-center gap-2">
 											<Users2 className="size-3.5" /> Strategy: Internal Balance
 										</p>
-										<p className="text-xs text-amber-900/80 leading-relaxed font-bold">
+										<p className="text-xs text-blue-900/80 leading-relaxed font-bold">
 											{report.internalCrossTrainees.length > 0 
 												? `Qualified cross-department support can recover ~${recoverableHours}h/wk (${report.recoverableConcurrentRows ?? 0} concurrent rows), led by ${report.internalCrossTrainees.slice(0, 2).map(d => d.department).join(', ')}.`
 												: 'No qualified cross-department recovery candidates were found under current rules.'}

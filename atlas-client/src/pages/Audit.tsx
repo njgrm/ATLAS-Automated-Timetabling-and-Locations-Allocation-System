@@ -25,6 +25,9 @@ export default function Audit() {
 	const [rooms, setRooms] = useState<any[]>([]);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
+	const [activeYearSource, setActiveYearSource] = useState<'atlas' | 'enrollpro' | 'cache'>('cache');
+	const [dataSource, setDataSource] = useState<'live' | 'cached' | 'none'>('none');
+	const [degradedReasons, setDegradedReasons] = useState<string[]>([]);
 	const [mismatchSearch, setMismatchSearch] = useState('');
 	const [clashSearch, setClashSearch] = useState('');
 	const [rosterSearch, setRosterSearch] = useState('');
@@ -35,6 +38,7 @@ export default function Audit() {
 		resolveActiveSchoolYearContext({ allowStaleOnError: true }).then((context) => {
 			if (context.activeSchoolYearId) {
 				setActiveSchoolYearId(context.activeSchoolYearId);
+				setActiveYearSource(context.source);
 			} else {
 				setLoading(false);
 				toast.error('No active school year found');
@@ -55,7 +59,7 @@ export default function Audit() {
 		if (!activeSchoolYearId) return;
 		setLoading(true);
 		try {
-			const [facRes, subRes, aliasRes, prefRes, secRes, templateRes, roomRes] = await Promise.all([
+			const [facRes, subRes, aliasRes, prefRes, secRes, templateRes, roomRes] = await Promise.allSettled([
 				atlasApi.get('/faculty-assignments/summary', { params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId } }),
 				atlasApi.get('/subjects', { params: { schoolId: DEFAULT_SCHOOL_ID } }),
 				atlasApi.get(`/specialization-aliases?schoolId=${DEFAULT_SCHOOL_ID}`),
@@ -64,17 +68,82 @@ export default function Audit() {
 				atlasApi.get(`/class-templates?schoolId=${DEFAULT_SCHOOL_ID}`),
 				atlasApi.get(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`)
 			]);
-			setFaculty(facRes.data.faculty);
-			setSubjects(subRes.data.subjects);
-			setAliases(aliasRes.data.aliases);
-			setPrefAudit(prefRes.data.audit);
-			setSections(secRes.data.sections);
-			setTemplates(templateRes.data.templates);
-			
-			// Flatten rooms from buildings
-			const allRooms = (roomRes.data.buildings || []).flatMap((b: any) => b.rooms || []);
-			setRooms(allRooms);
+
+			const reasons: string[] = [];
+
+			if (facRes.status === 'fulfilled') {
+				setFaculty(facRes.value.data.faculty ?? []);
+			} else {
+				reasons.push('Teaching load summary is unavailable.');
+				setFaculty([]);
+			}
+
+			if (subRes.status === 'fulfilled') {
+				setSubjects(subRes.value.data.subjects ?? []);
+			} else {
+				reasons.push('Subject catalog is unavailable.');
+				setSubjects([]);
+			}
+
+			if (aliasRes.status === 'fulfilled') {
+				setAliases(aliasRes.value.data.aliases ?? []);
+			} else {
+				reasons.push('Specialization aliases are unavailable.');
+				setAliases([]);
+			}
+
+			if (prefRes.status === 'fulfilled') {
+				setPrefAudit(prefRes.value.data.audit ?? []);
+			} else {
+				reasons.push('Preference audit is unavailable.');
+				setPrefAudit([]);
+			}
+
+			let sectionSource: string | null = null;
+			if (secRes.status === 'fulfilled') {
+				setSections(secRes.value.data.sections ?? []);
+				sectionSource = secRes.value.data.source ?? null;
+			} else {
+				reasons.push('Section summary is unavailable.');
+				setSections([]);
+			}
+
+			if (templateRes.status === 'fulfilled') {
+				setTemplates(templateRes.value.data.templates ?? []);
+			} else {
+				reasons.push('Class templates are unavailable.');
+				setTemplates([]);
+			}
+
+			if (roomRes.status === 'fulfilled') {
+				const allRooms = (roomRes.value.data.buildings || []).flatMap((b: any) => b.rooms || []);
+				setRooms(allRooms);
+			} else {
+				reasons.push('Room map data is unavailable.');
+				setRooms([]);
+			}
+
+			const hasLocalEvidence =
+				facRes.status === 'fulfilled' &&
+				subRes.status === 'fulfilled' &&
+				secRes.status === 'fulfilled';
+
+			if (!hasLocalEvidence) {
+				setDataSource('none');
+				setDegradedReasons(reasons);
+				toast.error('Audit cannot run: local ATLAS evidence is incomplete for this school year.');
+				return;
+			}
+
+			const isUpstreamBacked = activeYearSource === 'enrollpro' && sectionSource === 'enrollpro';
+			setDataSource(isUpstreamBacked ? 'live' : 'cached');
+			setDegradedReasons(reasons);
+			if (!isUpstreamBacked || reasons.length > 0) {
+				toast.warning('Audit loaded in degraded mode using ATLAS-cached evidence.');
+			}
 		} catch {
+			setDataSource('none');
+			setDegradedReasons(['Failed to load audit data.']);
 			toast.error('Failed to load audit data');
 		} finally {
 			setLoading(false);
@@ -242,6 +311,12 @@ export default function Audit() {
 						</div>
 					</div>
 					<div className="flex items-center gap-3">
+						<Badge
+							variant={dataSource === 'live' ? 'secondary' : 'outline'}
+							className="h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold"
+						>
+							{dataSource === 'live' ? 'Live upstream-backed' : dataSource === 'cached' ? 'ATLAS cached' : 'No cache'}
+						</Badge>
 						<Button variant="outline" size="sm" className="h-8 gap-2" onClick={loadData}>
 							<RefreshCw className="size-3.5" />
 							Refresh
@@ -254,6 +329,15 @@ export default function Audit() {
 					</div>
 				</div>
 			</header>
+
+			{degradedReasons.length > 0 && (
+				<div className="shrink-0 mx-6 mt-3 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+					<AlertTriangle className="size-4 shrink-0" />
+					<span className="flex-1">
+						Audit is running with partial data. Missing: {degradedReasons.join(' ')}
+					</span>
+				</div>
+			)}
 
 			<div className="flex-1 flex overflow-hidden">
 				{/* Left Rail - Summaries & Verdict */}

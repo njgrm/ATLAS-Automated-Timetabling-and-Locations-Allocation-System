@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BookOpen, ChevronDown, ChevronRight, Clock, Lock, Star } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronRight, Clock, Lock, Star, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
 import {
@@ -7,12 +7,13 @@ import {
 	type FacultyOwnershipState,
 	getAssignmentOwnershipKey as getOwnershipKey,
 } from '@/lib/faculty-assignment-helpers';
-import { gradeLabel } from '@/lib/grade-labels';
+import { gradeLabel, GRADE_COLORS } from '@/lib/grade-labels';
 import type { ExternalSection, Subject } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Checkbox } from '@/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export type SubjectRowProps = {
 	subject: Subject;
@@ -287,8 +288,10 @@ export function SubjectRow({
 				) : (
 					<div className="divide-y divide-border/30">
 						{groupedSections.map(({ gradeLevel, sections: gradeSections }) => {
-							const isOpen = openGrades[gradeLevel] ?? (searchTerm ? true : false);
+							const isOpen = openGrades[gradeLevel] ?? Boolean(searchTerm);
 							const selectedInGrade = gradeSections.filter((section) => selectedSectionIds.has(section.id)).length;
+							const gradeColorClass = GRADE_COLORS[gradeLevel.toString()]?.split(' ')[1] || 'text-muted-foreground';
+
 							return (
 								<div key={gradeLevel} className="group/grade">
 									<div className={`flex items-center justify-between px-4 py-2 transition-colors ${isOpen ? 'bg-muted/20 border-b border-border/30' : ''}`}>
@@ -298,14 +301,16 @@ export function SubjectRow({
 											onClick={() =>
 												setOpenGrades((current) => ({
 													...current,
-													[gradeLevel]: !(current[gradeLevel] ?? true),
+													[gradeLevel]: !isOpen,
 												}))
 											}
 											className="h-auto p-0 hover:bg-transparent"
 										>
-											<span className="flex items-center gap-2.5 text-[0.75rem] font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors">
+											<span className={`flex items-center gap-2.5 text-[0.75rem] font-bold uppercase tracking-widest transition-colors ${isOpen ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
 												{isOpen ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-												{gradeLabel(gradeLevel)}
+												<span className={gradeColorClass}>
+													{gradeLabel(gradeLevel)}
+												</span>
 											</span>
 										</Button>
 										
@@ -325,115 +330,140 @@ export function SubjectRow({
 											</Button>
 										</div>
 									</div>
-									{isOpen && (
-										<div className="flex flex-wrap gap-2 p-4 animate-in slide-in-from-top-2 duration-300">
-											{gradeSections.map((section) => {
-												const key = getOwnershipKey(subject.id, section.id);
-												const savedOwner = savedOwnershipMap[key];
-												const pendingOwner = pendingOwnershipMap[key];
-												const conflictOwners = savedConflictMap[key];
-												const isHardConflict = (conflictOwners?.length ?? 0) > 1;
-												const isSelected = selectedSectionIds.has(section.id);
-												const isPendingOther = Boolean(pendingOwner && pendingOwner.facultyId !== selectedFacultyId);
-												const isSavedOther = Boolean(savedOwner && savedOwner.facultyId !== selectedFacultyId);
-												const isStaleOwner = isSavedOther && !activeFacultyIds.has(savedOwner.facultyId);
-												const programType = section.programType ?? 'REGULAR';
-												const programCompatible =
-													subject.programScopes.length === 0 || subject.programScopes.includes(programType);
-												const blocked = !isSelected && (!programCompatible || isPendingOther || (isSavedOther && !isStaleOwner) || isHardConflict);
-												const isSystemAssignedSection = isSystemAssignedSubject && section.id === advisedSectionId;
-												const conflictLabel = isHardConflict
-													? 'DB Conflict'
-													: isPendingOther
-													? pendingOwner?.facultyName
-													: isSavedOther
-													? (isStaleOwner ? `Stale: ${savedOwner.facultyName}` : savedOwner.facultyName)
-													: null;
+									<AnimatePresence initial={false}>
+										{isOpen && (
+											<motion.div
+												initial={{ height: 0, opacity: 0 }}
+												animate={{ height: 'auto', opacity: 1 }}
+												exit={{ height: 0, opacity: 0 }}
+												transition={{ duration: 0.2 }}
+												className="overflow-hidden"
+											>
+												<div className="flex flex-wrap gap-2 p-4">
+													{gradeSections.map((section) => {
+														const key = getOwnershipKey(subject.id, section.id);
+														const savedOwner = savedOwnershipMap[key];
+														const pendingOwner = pendingOwnershipMap[key];
+														const conflictOwners = savedConflictMap[key];
+														const isHardConflict = (conflictOwners?.length ?? 0) > 1;
+														const isSelected = selectedSectionIds.has(section.id);
+														const isPendingOther = Boolean(pendingOwner && pendingOwner.facultyId !== selectedFacultyId);
+														const isSavedOther = Boolean(savedOwner && savedOwner.facultyId !== selectedFacultyId);
+														const isStaleOwner = isSavedOther && !activeFacultyIds.has(savedOwner.facultyId);
+														const programType = section.programType ?? 'REGULAR';
+														const programCompatible =
+															subject.programScopes.length === 0 || subject.programScopes.includes(programType);
+														const blocked = !isSelected && (!programCompatible || isPendingOther || (isSavedOther && !isStaleOwner) || isHardConflict);
+														const isSystemAssignedSection = isSystemAssignedSubject && section.id === advisedSectionId;
+														const conflictLabel = isHardConflict
+															? 'DB Conflict'
+															: isPendingOther
+															? pendingOwner?.facultyName
+															: isSavedOther
+															? (isStaleOwner ? `Stale: ${savedOwner.facultyName}` : savedOwner.facultyName)
+															: null;
 
-												return (
-													<div
-														key={section.id}
-														className={`group/section relative flex items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-all duration-200 shadow-sm ${
-															isSystemAssignedSection
-																? 'border-amber-300 bg-amber-50/50 shadow-inner'
-																: isHardConflict
-																? 'border-rose-400 bg-rose-50 shadow-rose-100/50'
-																: isStaleOwner
-																? 'border-amber-400/60 bg-amber-50/40'
-																: blocked
-																? 'border-muted bg-muted/40 opacity-70'
-																: isSelected
-																? 'border-primary/50 bg-primary/5 ring-1 ring-primary/10 shadow-primary/5'
-																: 'bg-card border-border/80 hover:border-primary/40 hover:shadow-md'
-														}`}
-													>
-														<Checkbox
-															checked={isSelected}
-															onCheckedChange={() => toggleSection(section.id)}
-															disabled={disabled || blocked || isSystemAssignedSection}
-															onMouseEnter={() => {
-																if (!isSelected && !blocked) onHoverLoadMinutes?.(subject.minMinutesPerWeek);
-															}}
-															onMouseLeave={() => onClearHoverLoad?.()}
-															className={`size-4 rounded-sm transition-opacity shadow-none ${isSystemAssignedSection ? 'opacity-0' : 'opacity-100'}`}
-														/>
-														
-														<div className="flex-1 min-w-0">
-															<div className="flex items-center gap-2">
-																<span className={`text-[0.75rem] font-black leading-none truncate ${isSelected ? 'text-primary' : 'text-foreground'}`}>
-																	{section.name}
-																</span>
-																{isSystemAssignedSection && (
-																	<Lock className="size-3 text-amber-600 shrink-0" />
-																)}
-															</div>
-															
-															{(section.assignmentSpecializationLabel || conflictLabel) && (
-																<div className="mt-1.5 flex items-center gap-1.5">
-																	{section.assignmentSpecializationLabel && (
-																		<span className="text-[0.65rem] font-bold text-sky-700/80 uppercase tracking-tighter truncate max-w-[80px]">
-																			{section.assignmentSpecializationLabel}
+														const isRotationFamily = Boolean(subject.rotationFamily);
+														const laneName = subject.rotationFamily === 'SCIENCE' ? 'Science Lane' : 'TLE Lane';
+
+														return (
+															<div
+																key={section.id}
+																className={`group/section relative flex items-center gap-2.5 rounded-lg border px-2.5 py-1.5 transition-all duration-200 shadow-sm ${
+																	isSystemAssignedSection
+																		? 'border-amber-300 bg-amber-50/50 shadow-inner'
+																		: isHardConflict
+																		? 'border-rose-400 bg-rose-50 shadow-rose-100/50'
+																		: isStaleOwner
+																		? 'border-amber-400/60 bg-amber-50/40'
+																		: blocked
+																		? 'border-muted bg-muted/40 opacity-70'
+																		: isSelected
+																		? 'border-primary/50 bg-primary/5 ring-1 ring-primary/10 shadow-primary/5'
+																		: isRotationFamily 
+																		? 'bg-card border-violet-200 hover:border-violet-400 hover:shadow-md'
+																		: 'bg-card border-border/80 hover:border-primary/40 hover:shadow-md'
+																}`}
+															>
+																<Checkbox
+																	checked={isSelected}
+																	onCheckedChange={() => toggleSection(section.id)}
+																	disabled={disabled || blocked || isSystemAssignedSection}
+																	onMouseEnter={() => {
+																		if (!isSelected && !blocked) onHoverLoadMinutes?.(subject.minMinutesPerWeek);
+																	}}
+																	onMouseLeave={() => onClearHoverLoad?.()}
+																	className={`size-4 rounded-sm transition-opacity shadow-none ${isSystemAssignedSection ? 'opacity-0' : 'opacity-100'}`}
+																/>
+																
+																<div className="flex-1 min-w-0">
+																	<div className="flex items-center gap-2">
+																		<span className={`text-[0.75rem] font-black leading-none truncate ${isSelected ? 'text-primary' : 'text-foreground'}`}>
+																			{section.name}
 																		</span>
-																	)}
-																	{conflictLabel && (
-																		<Tooltip>
-																			<TooltipTrigger asChild>
-																				<div className="flex items-center gap-1 cursor-help bg-muted/20 px-1 rounded">
-																					<div className={`size-1.5 rounded-full shrink-0 ${isHardConflict ? 'bg-rose-500' : isStaleOwner ? 'bg-amber-400 opacity-50' : 'bg-amber-500'}`} />
-																					<span className={`text-[0.65rem] font-bold uppercase tracking-tighter truncate max-w-[60px] ${isHardConflict ? 'text-rose-700' : isStaleOwner ? 'text-amber-700/70' : 'text-amber-700'}`}>
-																						{conflictLabel}
-																					</span>
-																				</div>
-																			</TooltipTrigger>
-																			<TooltipContent side="top" className="text-[0.7rem] font-bold">
-																				{isHardConflict 
-																					? 'Database-level conflict detected.' 
-																					: isStaleOwner 
-																					? `Stale historical owner: ${savedOwner.facultyName}. Selection will replace this record.`
-																					: `Already owned by ${conflictLabel}`}
-																			</TooltipContent>
-																		</Tooltip>
+																		{isSystemAssignedSection && (
+																			<Lock className="size-3 text-amber-600 shrink-0" />
+																		)}
+																		{isRotationFamily && !isSelected && !blocked && (
+																			<Tooltip>
+																				<TooltipTrigger asChild>
+																					<div className="size-2 rounded-full bg-violet-400 shrink-0 animate-pulse border border-violet-500/20" />
+																				</TooltipTrigger>
+																				<TooltipContent side="top" className="text-[0.65rem] font-bold">
+																					{laneName}: Shared Weekly Slot
+																				</TooltipContent>
+																			</Tooltip>
+																		)}
+																	</div>
+																	
+																	{(section.assignmentSpecializationLabel || conflictLabel) && (
+																		<div className="mt-1 flex items-center gap-1.5">
+																			{section.assignmentSpecializationLabel && (
+																				<span className="text-[0.65rem] font-bold text-sky-700/70 uppercase tracking-tighter truncate max-w-[80px]">
+																					{section.assignmentSpecializationLabel}
+																				</span>
+																			)}
+																			{conflictLabel && (
+																				<Tooltip>
+																					<TooltipTrigger asChild>
+																						<div className="flex items-center gap-1 cursor-help bg-muted/20 px-1 rounded">
+																							<div className={`size-1.5 rounded-full shrink-0 ${isHardConflict ? 'bg-rose-500' : isStaleOwner ? 'bg-amber-400 opacity-50' : 'bg-amber-500'}`} />
+																							<span className={`text-[0.65rem] font-bold uppercase tracking-tighter truncate max-w-[60px] ${isHardConflict ? 'text-rose-700' : isStaleOwner ? 'text-amber-700/70' : 'text-amber-700'}`}>
+																								{conflictLabel}
+																							</span>
+																						</div>
+																					</TooltipTrigger>
+																					<TooltipContent side="top" className="text-[0.7rem] font-bold">
+																						{isHardConflict 
+																							? 'Database-level conflict detected.' 
+																							: isStaleOwner 
+																							? `Stale historical owner: ${savedOwner.facultyName}. Selection will replace this record.`
+																							: `Already owned by ${conflictLabel}`}
+																					</TooltipContent>
+																				</Tooltip>
+																			)}
+																		</div>
 																	)}
 																</div>
-															)}
-														</div>
 
-														{isSavedOther && !disabled && (
-															<Button
-																type="button"
-																variant="outline"
-																size="xs"
-																onClick={() => onSwapSectionOwnership?.(subject.id, section.id, savedOwner.facultyId)}
-																className="ml-1 h-6 px-1.5 text-[0.65rem] font-black text-primary hover:bg-primary hover:text-white transition-all uppercase shadow-xs border-primary/20"
-															>
-																{isStaleOwner ? 'Fix' : 'Take'}
-															</Button>
-														)}
-													</div>
-												);
-											})}
-										</div>
-									)}
+																{isSavedOther && !disabled && (
+																	<Button
+																		type="button"
+																		variant="outline"
+																		size="xs"
+																		onClick={() => onSwapSectionOwnership?.(subject.id, section.id, savedOwner.facultyId)}
+																		className="ml-1 h-6 px-1.5 text-[0.65rem] font-black text-primary hover:bg-primary hover:text-white transition-all uppercase shadow-none border-primary/20"
+																	>
+																		{isStaleOwner ? <RotateCcw className="size-3" /> : 'Take'}
+																	</Button>
+																)}
+															</div>
+														);
+													})}
+												</div>
+											</motion.div>
+										)}
+									</AnimatePresence>
 								</div>
 							);
 						})}

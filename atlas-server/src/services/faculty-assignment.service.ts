@@ -3,6 +3,7 @@ import { sectionAdapter, type ProgramType } from './section-adapter.js';
 import { HG_SUBJECT_CODE } from './hg-advisory.service.js';
 import {
   matchesSubjectOwnershipDepartment,
+  normalizeDepartmentCode,
   resolveSubjectAllowedOwnerDepartments,
   resolveSubjectOutputLabel,
   resolveSubjectRotationFamily,
@@ -101,6 +102,8 @@ export type OwnershipConflictCandidate = {
   subjectId: number;
   sectionId: number;
   facultyId: number;
+  subjectName?: string;
+  sectionName?: string;
 };
 
 export type OwnershipConflictDetail = {
@@ -108,6 +111,8 @@ export type OwnershipConflictDetail = {
   sectionId: number;
   ownerFacultyId: number;
   ownerFacultyName: string;
+  subjectName?: string;
+  sectionName?: string;
 };
 
 export type SubjectSectionOwnershipIndexEntry = {
@@ -218,9 +223,41 @@ export interface SpecialProgramRebalanceResult {
   subjectCodes: string[];
   before: SpecialProgramDistributionRow[];
   after: SpecialProgramDistributionRow[];
+  redistributionInsights: SpecialProgramRedistributionInsight[];
   proposedMoves: SpecialProgramRebalanceMove[];
   appliedMoves: number;
   blockedSubjects: Array<{ subjectCode: string; reason: string }>;
+}
+
+export interface SpecialProgramCandidateSignal {
+  facultyId: number;
+  facultyName: string;
+  department: string | null;
+  specialization: string | null;
+  currentSubjectSectionCount: number;
+  currentTotalAssignedPairs: number;
+  specializationExactMatchSectionCount: number;
+  specializationSupportedSectionCount: number;
+  canCoverConstrainedSection: boolean;
+  isUnderutilizedMapeh: boolean;
+}
+
+export interface SpecialProgramConstrainedSection {
+  sectionId: number;
+  sectionName: string;
+  requiredSpecializationCode: string;
+  qualifiedCandidateCount: number;
+}
+
+export interface SpecialProgramRedistributionInsight {
+  subjectId: number;
+  subjectCode: string;
+  subjectName: string;
+  ownershipConcentrationPercent: number;
+  maxSectionsOwnedBySingleFaculty: number;
+  underutilizedMapehCandidates: SpecialProgramCandidateSignal[];
+  candidateSignals: SpecialProgramCandidateSignal[];
+  constrainedSections: SpecialProgramConstrainedSection[];
 }
 
 export interface TeachingLoadTruthReconcileInput {
@@ -437,6 +474,8 @@ export function buildOwnershipConflictDetails(
     sectionId: conflict.sectionId,
     ownerFacultyId: conflict.facultyId,
     ownerFacultyName: ownerNamesByFacultyId.get(conflict.facultyId) ?? `Faculty #${conflict.facultyId}`,
+    subjectName: conflict.subjectName,
+    sectionName: conflict.sectionName,
   }));
 }
 
@@ -455,7 +494,7 @@ export function buildDuplicateOwnershipBlockingResult(
       .slice(0, 3)
       .map(
         (conflict) =>
-          `${conflict.ownerFacultyName} already owns subject ${conflict.subjectId} / section ${conflict.sectionId}`,
+          `${conflict.ownerFacultyName} already owns ${conflict.subjectName || `subject ${conflict.subjectId}`} / ${conflict.sectionName || `section ${conflict.sectionId}`}`,
       )
       .join('; ')}${details.length > 3 ? ` (+${details.length - 3} more)` : ''}`,
     { conflicts: details },
@@ -696,9 +735,92 @@ export interface RealFacultyRecoveryResult {
   };
 }
 
+async function fetchSectionsForCoverage(
+  schoolId: number,
+  schoolYearId: number,
+  authToken?: string,
+): Promise<Awaited<ReturnType<typeof sectionAdapter.fetchSectionsBySchoolYear>>> {
+  try {
+    return await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
+  } catch {
+    const mirroredSections = await prisma.sectionMirror.findMany({
+      where: {
+        schoolId,
+        schoolYearId,
+        isActiveForScheduling: true,
+      },
+      select: {
+        externalId: true,
+        name: true,
+        gradeLevelId: true,
+        gradeLevelName: true,
+        displayOrder: true,
+        maxCapacity: true,
+        enrolledCount: true,
+        programType: true,
+        programCode: true,
+        programName: true,
+        isSpecialProgram: true,
+      },
+      orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+    });
+
+    const groupedByGrade = new Map<number, {
+      gradeLevelId: number;
+      gradeLevelName: string;
+      displayOrder: number;
+      sections: Array<{
+        id: number;
+        name: string;
+        maxCapacity: number;
+        enrolledCount: number;
+        gradeLevelId: number;
+        gradeLevelName: string;
+        displayOrder: number;
+        programType: ProgramType;
+        programCode: string | null;
+        programName: string | null;
+        isSpecialProgram: boolean;
+      }>;
+    }>();
+
+    for (const section of mirroredSections) {
+      const entry = groupedByGrade.get(section.displayOrder) ?? {
+        gradeLevelId: section.gradeLevelId,
+        gradeLevelName: section.gradeLevelName,
+        displayOrder: section.displayOrder,
+        sections: [],
+      };
+
+      entry.sections.push({
+        id: section.externalId,
+        name: section.name,
+        maxCapacity: section.maxCapacity,
+        enrolledCount: section.enrolledCount,
+        gradeLevelId: section.gradeLevelId,
+        gradeLevelName: section.gradeLevelName,
+        displayOrder: section.displayOrder,
+        programType: (section.programType as ProgramType) ?? 'REGULAR',
+        programCode: section.programCode ?? null,
+        programName: section.programName ?? null,
+        isSpecialProgram: section.isSpecialProgram,
+      });
+
+      groupedByGrade.set(section.displayOrder, entry);
+    }
+
+    return {
+      gradeLevels: Array.from(groupedByGrade.values()).sort((left, right) => left.displayOrder - right.displayOrder),
+      source: 'cached-enrollpro',
+      fetchedAt: new Date(),
+      fallbackReason: 'section-adapter-fetch-failed',
+    };
+  }
+}
+
 async function loadCoverageContext(schoolId: number, schoolYearId: number, authToken?: string) {
   const [sectionResult, subjects, ownerships, facultyIndex] = await Promise.all([
-    sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken),
+    fetchSectionsForCoverage(schoolId, schoolYearId, authToken),
     prisma.subject.findMany({
       where: { schoolId, isActive: true },
       select: {
@@ -723,12 +845,13 @@ async function loadCoverageContext(schoolId: number, schoolYearId: number, authT
     }),
   ]);
 
-  const sections: Array<{ id: number; gradeLevel: number; programType: string }> = [];
+  const sections: Array<{ id: number; name: string; gradeLevel: number; programType: string }> = [];
   for (const grade of sectionResult.gradeLevels) {
     for (const section of grade.sections) {
       if (!section.id || section.id <= 0) continue;
       sections.push({
         id: section.id,
+        name: section.name,
         gradeLevel: grade.displayOrder,
         programType: section.programType ?? 'REGULAR',
       });
@@ -1855,6 +1978,149 @@ type SpecialProgramCandidate = {
 
 const DEFAULT_SPECIAL_PROGRAM_SUBJECT_CODES = ['SPA_SPEC', 'SPS_SPEC'];
 
+function resolveRowRequiredSpecializationCode(
+  row: RebalanceOwnershipRow,
+  facultyById: Map<number, SpecialProgramCandidate>,
+): string | null {
+  if (row.specializationCode) {
+    return normalizeSpecializationCode(row.specializationCode);
+  }
+  if (row.specializationLabel) {
+    return normalizeSpecializationCode(row.specializationLabel);
+  }
+
+  const currentOwner = facultyById.get(row.facultyId);
+  return normalizeSpecializationCode(currentOwner?.specialization);
+}
+
+function buildSpecialProgramRedistributionInsights(
+  subjects: Array<{
+    id: number;
+    code: string;
+    name: string;
+    ownerDepartment: string | null;
+    requiredFeatures: string[];
+    relevantSectionIds: number[];
+  }>,
+  beforeRows: SpecialProgramDistributionRow[],
+  ownershipRows: RebalanceOwnershipRow[],
+  facultyById: Map<number, SpecialProgramCandidate>,
+  totalLoadByFacultyId: Map<number, number>,
+  sectionNameById: Map<number, string>,
+): SpecialProgramRedistributionInsight[] {
+  return subjects.map((subject) => {
+    const subjectBefore = beforeRows.find((entry) => entry.subjectId === subject.id);
+    const relevantSectionSet = new Set(subject.relevantSectionIds);
+    const subjectRows = ownershipRows.filter((entry) => entry.subjectId === subject.id && relevantSectionSet.has(entry.sectionId));
+    const currentCountByFaculty = new Map<number, number>();
+    for (const row of subjectRows) {
+      currentCountByFaculty.set(row.facultyId, (currentCountByFaculty.get(row.facultyId) ?? 0) + 1);
+    }
+
+    const qualifiedCandidates = [...facultyById.values()]
+      .filter((member) => member.isActiveForScheduling && !member.isPlaceholder)
+      .filter((member) =>
+        matchesSubjectOwnershipDepartment(
+          member.department,
+          subject.code,
+          subject.name,
+          subject.ownerDepartment,
+          subject.requiredFeatures,
+        )
+        || member.canTeachOutsideDepartment,
+      );
+
+    const requiredSpecializationBySection = new Map<number, string>();
+    for (const row of subjectRows) {
+      const requiredCode = resolveRowRequiredSpecializationCode(row, facultyById);
+      if (!requiredCode) continue;
+      if (!requiredSpecializationBySection.has(row.sectionId)) {
+        requiredSpecializationBySection.set(row.sectionId, requiredCode);
+      }
+    }
+
+    const candidateSignals: SpecialProgramCandidateSignal[] = qualifiedCandidates
+      .map((candidate) => {
+        const candidateSpecializationCode = normalizeSpecializationCode(candidate.specialization);
+        let specializationExactMatchSectionCount = 0;
+        let specializationSupportedSectionCount = 0;
+
+        for (const sectionId of subject.relevantSectionIds) {
+          const requiredCode = requiredSpecializationBySection.get(sectionId);
+          if (!requiredCode) {
+            specializationSupportedSectionCount += 1;
+            continue;
+          }
+          if (candidateSpecializationCode && candidateSpecializationCode === requiredCode) {
+            specializationExactMatchSectionCount += 1;
+            specializationSupportedSectionCount += 1;
+          }
+        }
+
+        const currentSubjectSectionCount = currentCountByFaculty.get(candidate.id) ?? 0;
+        const currentTotalAssignedPairs = totalLoadByFacultyId.get(candidate.id) ?? 0;
+        const isMapeh = normalizeDepartmentCode(candidate.department) === 'MAPEH';
+        const isUnderutilizedMapeh = isMapeh && currentSubjectSectionCount === 0 && currentTotalAssignedPairs <= 2;
+
+        return {
+          facultyId: candidate.id,
+          facultyName: formatFacultyName(candidate.firstName, candidate.lastName),
+          department: candidate.department,
+          specialization: candidate.specialization,
+          currentSubjectSectionCount,
+          currentTotalAssignedPairs,
+          specializationExactMatchSectionCount,
+          specializationSupportedSectionCount,
+          canCoverConstrainedSection: specializationExactMatchSectionCount > 0,
+          isUnderutilizedMapeh,
+        };
+      })
+      .sort((left, right) => {
+        if (right.specializationExactMatchSectionCount !== left.specializationExactMatchSectionCount) {
+          return right.specializationExactMatchSectionCount - left.specializationExactMatchSectionCount;
+        }
+        if (left.currentSubjectSectionCount !== right.currentSubjectSectionCount) {
+          return left.currentSubjectSectionCount - right.currentSubjectSectionCount;
+        }
+        if (left.currentTotalAssignedPairs !== right.currentTotalAssignedPairs) {
+          return left.currentTotalAssignedPairs - right.currentTotalAssignedPairs;
+        }
+        return left.facultyName.localeCompare(right.facultyName);
+      });
+
+    const constrainedSections: SpecialProgramConstrainedSection[] = [];
+    for (const sectionId of subject.relevantSectionIds) {
+      const requiredCode = requiredSpecializationBySection.get(sectionId);
+      if (!requiredCode) continue;
+
+      const qualifiedCandidateCount = candidateSignals.filter((entry) => {
+        const candidateCode = normalizeSpecializationCode(entry.specialization);
+        return candidateCode === requiredCode;
+      }).length;
+
+      if (qualifiedCandidateCount <= 1) {
+        constrainedSections.push({
+          sectionId,
+          sectionName: sectionNameById.get(sectionId) ?? `Section ${sectionId}`,
+          requiredSpecializationCode: requiredCode,
+          qualifiedCandidateCount,
+        });
+      }
+    }
+
+    return {
+      subjectId: subject.id,
+      subjectCode: subject.code,
+      subjectName: subject.name,
+      ownershipConcentrationPercent: subjectBefore?.concentrationPercent ?? 0,
+      maxSectionsOwnedBySingleFaculty: subjectBefore?.maxSectionsOwnedBySingleFaculty ?? 0,
+      underutilizedMapehCandidates: candidateSignals.filter((entry) => entry.isUnderutilizedMapeh),
+      candidateSignals,
+      constrainedSections,
+    };
+  });
+}
+
 function buildSpecialProgramDistributionRows(
   subjects: Array<{ id: number; code: string; name: string; ownerDepartment: string | null; relevantSectionIds: number[] }>,
   ownershipRows: RebalanceOwnershipRow[],
@@ -1972,6 +2238,20 @@ export async function previewOrApplySpecialProgramRedistribution(
     }),
   ]);
 
+  const totalLoadRows = allFaculty.length > 0 && context.sections.length > 0
+    ? await prisma.subjectSectionOwnership.groupBy({
+      by: ['facultyId'],
+      where: {
+        schoolId: input.schoolId,
+        facultyId: { in: allFaculty.map((member) => member.id) },
+        sectionId: { in: context.sections.map((section) => section.id) },
+      },
+      _count: { _all: true },
+    })
+    : [];
+  const totalLoadByFacultyId = new Map(totalLoadRows.map((row) => [row.facultyId, row._count._all]));
+  const sectionNameById = new Map(context.sections.map((section) => [section.id, section.name]));
+
   const normalizedOwnershipRows: RebalanceOwnershipRow[] = ownershipRows.map((row) => ({
     id: row.id,
     subjectId: row.subjectId,
@@ -1988,6 +2268,14 @@ export async function previewOrApplySpecialProgramRedistribution(
   );
 
   const before = buildSpecialProgramDistributionRows(targetedSubjects, normalizedOwnershipRows, facultyById);
+  const redistributionInsights = buildSpecialProgramRedistributionInsights(
+    targetedSubjects,
+    before,
+    normalizedOwnershipRows,
+    facultyById,
+    totalLoadByFacultyId,
+    sectionNameById,
+  );
 
   const proposedMoves: SpecialProgramRebalanceMove[] = [];
   const blockedSubjects: Array<{ subjectCode: string; reason: string }> = [];
@@ -2032,11 +2320,42 @@ export async function previewOrApplySpecialProgramRedistribution(
     const baseTarget = Math.floor(totalOwned / candidateFaculty.length);
     let extra = totalOwned % candidateFaculty.length;
 
+    const candidateSpecializationSupportById = new Map<number, number>();
+    const sectionSpecializationCodeBySectionId = new Map<number, string>();
+    for (const row of subjectRows) {
+      const requiredCode = resolveRowRequiredSpecializationCode(row, facultyById);
+      if (requiredCode && !sectionSpecializationCodeBySectionId.has(row.sectionId)) {
+        sectionSpecializationCodeBySectionId.set(row.sectionId, requiredCode);
+      }
+    }
+    for (const candidate of candidateFaculty) {
+      const candidateSpecializationCode = normalizeSpecializationCode(candidate.specialization);
+      let matchCount = 0;
+      for (const sectionId of subject.relevantSectionIds) {
+        const requiredCode = sectionSpecializationCodeBySectionId.get(sectionId);
+        if (!requiredCode) continue;
+        if (candidateSpecializationCode && candidateSpecializationCode === requiredCode) {
+          matchCount += 1;
+        }
+      }
+      candidateSpecializationSupportById.set(candidate.id, matchCount);
+    }
+
     const sortedCandidates = [...candidateFaculty].sort((left, right) => {
       const leftCount = currentCountByFaculty.get(left.id) ?? 0;
       const rightCount = currentCountByFaculty.get(right.id) ?? 0;
       if (leftCount !== rightCount) {
         return leftCount - rightCount;
+      }
+      const leftSupport = candidateSpecializationSupportById.get(left.id) ?? 0;
+      const rightSupport = candidateSpecializationSupportById.get(right.id) ?? 0;
+      if (leftSupport !== rightSupport) {
+        return rightSupport - leftSupport;
+      }
+      const leftTotalLoad = totalLoadByFacultyId.get(left.id) ?? 0;
+      const rightTotalLoad = totalLoadByFacultyId.get(right.id) ?? 0;
+      if (leftTotalLoad !== rightTotalLoad) {
+        return leftTotalLoad - rightTotalLoad;
       }
       return left.id - right.id;
     });
@@ -2281,6 +2600,7 @@ export async function previewOrApplySpecialProgramRedistribution(
     subjectCodes: targetedSubjects.map((subject) => subject.code),
     before,
     after,
+    redistributionInsights,
     proposedMoves,
     appliedMoves,
     blockedSubjects,
@@ -2746,10 +3066,49 @@ throw buildServiceError('VERSION_CONFLICT', 'Version conflict. Please reload.');
             const nameMap = new Map(
               conflictFaculty.map((f) => [f.id, formatFacultyName(f.firstName, f.lastName)]),
             );
-            const blockingResult = buildDuplicateOwnershipBlockingResult(realConflicts, nameMap);
-            if (blockingResult) {
-              throw blockingResult;
+
+            // AUTHORITATIVE STEAL LOGIC: Remove conflicting sections from old owners
+            // This ensures "Take" functionality works by repairing the old owner's record
+            for (const conflict of realConflicts) {
+              const oldOwnerFs = await tx.facultySubject.findFirst({
+                where: {
+                  facultyId: conflict.facultyId,
+                  subjectId: conflict.subjectId,
+                  schoolId,
+                },
+                select: { id: true, sectionIds: true },
+              });
+
+              if (oldOwnerFs) {
+                const nextSectionIds = (oldOwnerFs.sectionIds as number[]).filter(
+                  (sid) => sid !== conflict.sectionId,
+                );
+                if (nextSectionIds.length === 0) {
+                  // If no sections left for this subject, delete the record
+                  await tx.facultySubject.delete({
+                    where: { id: oldOwnerFs.id },
+                  });
+                } else {
+                  // Otherwise update the array
+                  await tx.facultySubject.update({
+                    where: { id: oldOwnerFs.id },
+                    data: { sectionIds: nextSectionIds },
+                  });
+                }
+              }
+
+              // Explicitly delete conflicting ownership row to clear the unique constraint path
+              await tx.subjectSectionOwnership.deleteMany({
+                where: {
+                  schoolId,
+                  subjectId: conflict.subjectId,
+                  sectionId: conflict.sectionId,
+                  facultyId: conflict.facultyId,
+                },
+              });
             }
+
+            // Note: We no longer throw the blockingResult here because we've performed the repair.
           }
         }
       }

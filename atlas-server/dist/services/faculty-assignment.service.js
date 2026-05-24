@@ -1,7 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { sectionAdapter } from './section-adapter.js';
 import { HG_SUBJECT_CODE } from './hg-advisory.service.js';
-import { matchesSubjectOwnershipDepartment, resolveSubjectAllowedOwnerDepartments, resolveSubjectOutputLabel, resolveSubjectRotationFamily, } from './subject-ownership.service.js';
+import { matchesSubjectOwnershipDepartment, normalizeDepartmentCode, resolveSubjectAllowedOwnerDepartments, resolveSubjectOutputLabel, resolveSubjectRotationFamily, } from './subject-ownership.service.js';
 import { buildSectionRosterIndex, deriveGradeLevelsFromSectionIds, normalizeIncomingAssignmentScope, normalizeStoredAssignmentScope, } from './faculty-assignment-scope.service.js';
 function roundHours(minutes) {
     return Math.round((minutes / 60) * 10) / 10;
@@ -133,6 +133,8 @@ export function buildOwnershipConflictDetails(conflicts, ownerNamesByFacultyId) 
         sectionId: conflict.sectionId,
         ownerFacultyId: conflict.facultyId,
         ownerFacultyName: ownerNamesByFacultyId.get(conflict.facultyId) ?? `Faculty #${conflict.facultyId}`,
+        subjectName: conflict.subjectName,
+        sectionName: conflict.sectionName,
     }));
 }
 export function buildDuplicateOwnershipBlockingResult(conflicts, ownerNamesByFacultyId) {
@@ -142,7 +144,7 @@ export function buildDuplicateOwnershipBlockingResult(conflicts, ownerNamesByFac
     const details = buildOwnershipConflictDetails(conflicts, ownerNamesByFacultyId);
     return buildServiceError('DUPLICATE_SECTION_OWNERSHIP', `One or more subject-section pairs are already assigned to another faculty member. ${details
         .slice(0, 3)
-        .map((conflict) => `${conflict.ownerFacultyName} already owns subject ${conflict.subjectId} / section ${conflict.sectionId}`)
+        .map((conflict) => `${conflict.ownerFacultyName} already owns ${conflict.subjectName || `subject ${conflict.subjectId}`} / ${conflict.sectionName || `section ${conflict.sectionId}`}`)
         .join('; ')}${details.length > 3 ? ` (+${details.length - 3} more)` : ''}`, { conflicts: details });
 }
 function formatFacultyName(firstName, lastName) {
@@ -183,9 +185,66 @@ function getRelevantSectionIdsForSubject(subject, sections) {
     })
         .map((section) => section.id);
 }
+async function fetchSectionsForCoverage(schoolId, schoolYearId, authToken) {
+    try {
+        return await sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken);
+    }
+    catch {
+        const mirroredSections = await prisma.sectionMirror.findMany({
+            where: {
+                schoolId,
+                schoolYearId,
+                isActiveForScheduling: true,
+            },
+            select: {
+                externalId: true,
+                name: true,
+                gradeLevelId: true,
+                gradeLevelName: true,
+                displayOrder: true,
+                maxCapacity: true,
+                enrolledCount: true,
+                programType: true,
+                programCode: true,
+                programName: true,
+                isSpecialProgram: true,
+            },
+            orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+        });
+        const groupedByGrade = new Map();
+        for (const section of mirroredSections) {
+            const entry = groupedByGrade.get(section.displayOrder) ?? {
+                gradeLevelId: section.gradeLevelId,
+                gradeLevelName: section.gradeLevelName,
+                displayOrder: section.displayOrder,
+                sections: [],
+            };
+            entry.sections.push({
+                id: section.externalId,
+                name: section.name,
+                maxCapacity: section.maxCapacity,
+                enrolledCount: section.enrolledCount,
+                gradeLevelId: section.gradeLevelId,
+                gradeLevelName: section.gradeLevelName,
+                displayOrder: section.displayOrder,
+                programType: section.programType ?? 'REGULAR',
+                programCode: section.programCode ?? null,
+                programName: section.programName ?? null,
+                isSpecialProgram: section.isSpecialProgram,
+            });
+            groupedByGrade.set(section.displayOrder, entry);
+        }
+        return {
+            gradeLevels: Array.from(groupedByGrade.values()).sort((left, right) => left.displayOrder - right.displayOrder),
+            source: 'cached-enrollpro',
+            fetchedAt: new Date(),
+            fallbackReason: 'section-adapter-fetch-failed',
+        };
+    }
+}
 async function loadCoverageContext(schoolId, schoolYearId, authToken) {
     const [sectionResult, subjects, ownerships, facultyIndex] = await Promise.all([
-        sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken),
+        fetchSectionsForCoverage(schoolId, schoolYearId, authToken),
         prisma.subject.findMany({
             where: { schoolId, isActive: true },
             select: {
@@ -216,6 +275,7 @@ async function loadCoverageContext(schoolId, schoolYearId, authToken) {
                 continue;
             sections.push({
                 id: section.id,
+                name: section.name,
                 gradeLevel: grade.displayOrder,
                 programType: section.programType ?? 'REGULAR',
             });
@@ -1170,6 +1230,113 @@ export async function previewOrApplyRealFacultyRecovery(input) {
     };
 }
 const DEFAULT_SPECIAL_PROGRAM_SUBJECT_CODES = ['SPA_SPEC', 'SPS_SPEC'];
+function resolveRowRequiredSpecializationCode(row, facultyById) {
+    if (row.specializationCode) {
+        return normalizeSpecializationCode(row.specializationCode);
+    }
+    if (row.specializationLabel) {
+        return normalizeSpecializationCode(row.specializationLabel);
+    }
+    const currentOwner = facultyById.get(row.facultyId);
+    return normalizeSpecializationCode(currentOwner?.specialization);
+}
+function buildSpecialProgramRedistributionInsights(subjects, beforeRows, ownershipRows, facultyById, totalLoadByFacultyId, sectionNameById) {
+    return subjects.map((subject) => {
+        const subjectBefore = beforeRows.find((entry) => entry.subjectId === subject.id);
+        const relevantSectionSet = new Set(subject.relevantSectionIds);
+        const subjectRows = ownershipRows.filter((entry) => entry.subjectId === subject.id && relevantSectionSet.has(entry.sectionId));
+        const currentCountByFaculty = new Map();
+        for (const row of subjectRows) {
+            currentCountByFaculty.set(row.facultyId, (currentCountByFaculty.get(row.facultyId) ?? 0) + 1);
+        }
+        const qualifiedCandidates = [...facultyById.values()]
+            .filter((member) => member.isActiveForScheduling && !member.isPlaceholder)
+            .filter((member) => matchesSubjectOwnershipDepartment(member.department, subject.code, subject.name, subject.ownerDepartment, subject.requiredFeatures)
+            || member.canTeachOutsideDepartment);
+        const requiredSpecializationBySection = new Map();
+        for (const row of subjectRows) {
+            const requiredCode = resolveRowRequiredSpecializationCode(row, facultyById);
+            if (!requiredCode)
+                continue;
+            if (!requiredSpecializationBySection.has(row.sectionId)) {
+                requiredSpecializationBySection.set(row.sectionId, requiredCode);
+            }
+        }
+        const candidateSignals = qualifiedCandidates
+            .map((candidate) => {
+            const candidateSpecializationCode = normalizeSpecializationCode(candidate.specialization);
+            let specializationExactMatchSectionCount = 0;
+            let specializationSupportedSectionCount = 0;
+            for (const sectionId of subject.relevantSectionIds) {
+                const requiredCode = requiredSpecializationBySection.get(sectionId);
+                if (!requiredCode) {
+                    specializationSupportedSectionCount += 1;
+                    continue;
+                }
+                if (candidateSpecializationCode && candidateSpecializationCode === requiredCode) {
+                    specializationExactMatchSectionCount += 1;
+                    specializationSupportedSectionCount += 1;
+                }
+            }
+            const currentSubjectSectionCount = currentCountByFaculty.get(candidate.id) ?? 0;
+            const currentTotalAssignedPairs = totalLoadByFacultyId.get(candidate.id) ?? 0;
+            const isMapeh = normalizeDepartmentCode(candidate.department) === 'MAPEH';
+            const isUnderutilizedMapeh = isMapeh && currentSubjectSectionCount === 0 && currentTotalAssignedPairs <= 2;
+            return {
+                facultyId: candidate.id,
+                facultyName: formatFacultyName(candidate.firstName, candidate.lastName),
+                department: candidate.department,
+                specialization: candidate.specialization,
+                currentSubjectSectionCount,
+                currentTotalAssignedPairs,
+                specializationExactMatchSectionCount,
+                specializationSupportedSectionCount,
+                canCoverConstrainedSection: specializationExactMatchSectionCount > 0,
+                isUnderutilizedMapeh,
+            };
+        })
+            .sort((left, right) => {
+            if (right.specializationExactMatchSectionCount !== left.specializationExactMatchSectionCount) {
+                return right.specializationExactMatchSectionCount - left.specializationExactMatchSectionCount;
+            }
+            if (left.currentSubjectSectionCount !== right.currentSubjectSectionCount) {
+                return left.currentSubjectSectionCount - right.currentSubjectSectionCount;
+            }
+            if (left.currentTotalAssignedPairs !== right.currentTotalAssignedPairs) {
+                return left.currentTotalAssignedPairs - right.currentTotalAssignedPairs;
+            }
+            return left.facultyName.localeCompare(right.facultyName);
+        });
+        const constrainedSections = [];
+        for (const sectionId of subject.relevantSectionIds) {
+            const requiredCode = requiredSpecializationBySection.get(sectionId);
+            if (!requiredCode)
+                continue;
+            const qualifiedCandidateCount = candidateSignals.filter((entry) => {
+                const candidateCode = normalizeSpecializationCode(entry.specialization);
+                return candidateCode === requiredCode;
+            }).length;
+            if (qualifiedCandidateCount <= 1) {
+                constrainedSections.push({
+                    sectionId,
+                    sectionName: sectionNameById.get(sectionId) ?? `Section ${sectionId}`,
+                    requiredSpecializationCode: requiredCode,
+                    qualifiedCandidateCount,
+                });
+            }
+        }
+        return {
+            subjectId: subject.id,
+            subjectCode: subject.code,
+            subjectName: subject.name,
+            ownershipConcentrationPercent: subjectBefore?.concentrationPercent ?? 0,
+            maxSectionsOwnedBySingleFaculty: subjectBefore?.maxSectionsOwnedBySingleFaculty ?? 0,
+            underutilizedMapehCandidates: candidateSignals.filter((entry) => entry.isUnderutilizedMapeh),
+            candidateSignals,
+            constrainedSections,
+        };
+    });
+}
 function buildSpecialProgramDistributionRows(subjects, ownershipRows, facultyById) {
     return subjects.map((subject) => {
         const relevantSet = new Set(subject.relevantSectionIds);
@@ -1272,6 +1439,19 @@ export async function previewOrApplySpecialProgramRedistribution(input) {
             },
         }),
     ]);
+    const totalLoadRows = allFaculty.length > 0 && context.sections.length > 0
+        ? await prisma.subjectSectionOwnership.groupBy({
+            by: ['facultyId'],
+            where: {
+                schoolId: input.schoolId,
+                facultyId: { in: allFaculty.map((member) => member.id) },
+                sectionId: { in: context.sections.map((section) => section.id) },
+            },
+            _count: { _all: true },
+        })
+        : [];
+    const totalLoadByFacultyId = new Map(totalLoadRows.map((row) => [row.facultyId, row._count._all]));
+    const sectionNameById = new Map(context.sections.map((section) => [section.id, section.name]));
     const normalizedOwnershipRows = ownershipRows.map((row) => ({
         id: row.id,
         subjectId: row.subjectId,
@@ -1284,6 +1464,7 @@ export async function previewOrApplySpecialProgramRedistribution(input) {
     }));
     const facultyById = new Map(allFaculty.map((member) => [member.id, member]));
     const before = buildSpecialProgramDistributionRows(targetedSubjects, normalizedOwnershipRows, facultyById);
+    const redistributionInsights = buildSpecialProgramRedistributionInsights(targetedSubjects, before, normalizedOwnershipRows, facultyById, totalLoadByFacultyId, sectionNameById);
     const proposedMoves = [];
     const blockedSubjects = [];
     for (const subject of targetedSubjects) {
@@ -1312,11 +1493,42 @@ export async function previewOrApplySpecialProgramRedistribution(input) {
         const totalOwned = subjectRows.length;
         const baseTarget = Math.floor(totalOwned / candidateFaculty.length);
         let extra = totalOwned % candidateFaculty.length;
+        const candidateSpecializationSupportById = new Map();
+        const sectionSpecializationCodeBySectionId = new Map();
+        for (const row of subjectRows) {
+            const requiredCode = resolveRowRequiredSpecializationCode(row, facultyById);
+            if (requiredCode && !sectionSpecializationCodeBySectionId.has(row.sectionId)) {
+                sectionSpecializationCodeBySectionId.set(row.sectionId, requiredCode);
+            }
+        }
+        for (const candidate of candidateFaculty) {
+            const candidateSpecializationCode = normalizeSpecializationCode(candidate.specialization);
+            let matchCount = 0;
+            for (const sectionId of subject.relevantSectionIds) {
+                const requiredCode = sectionSpecializationCodeBySectionId.get(sectionId);
+                if (!requiredCode)
+                    continue;
+                if (candidateSpecializationCode && candidateSpecializationCode === requiredCode) {
+                    matchCount += 1;
+                }
+            }
+            candidateSpecializationSupportById.set(candidate.id, matchCount);
+        }
         const sortedCandidates = [...candidateFaculty].sort((left, right) => {
             const leftCount = currentCountByFaculty.get(left.id) ?? 0;
             const rightCount = currentCountByFaculty.get(right.id) ?? 0;
             if (leftCount !== rightCount) {
                 return leftCount - rightCount;
+            }
+            const leftSupport = candidateSpecializationSupportById.get(left.id) ?? 0;
+            const rightSupport = candidateSpecializationSupportById.get(right.id) ?? 0;
+            if (leftSupport !== rightSupport) {
+                return rightSupport - leftSupport;
+            }
+            const leftTotalLoad = totalLoadByFacultyId.get(left.id) ?? 0;
+            const rightTotalLoad = totalLoadByFacultyId.get(right.id) ?? 0;
+            if (leftTotalLoad !== rightTotalLoad) {
+                return leftTotalLoad - rightTotalLoad;
             }
             return left.id - right.id;
         });
@@ -1534,6 +1746,7 @@ export async function previewOrApplySpecialProgramRedistribution(input) {
         subjectCodes: targetedSubjects.map((subject) => subject.code),
         before,
         after,
+        redistributionInsights,
         proposedMoves,
         appliedMoves,
         blockedSubjects,
@@ -1861,10 +2074,44 @@ export async function setAssignments(facultyId, schoolId, schoolYearId, assigned
                             select: { id: true, firstName: true, lastName: true },
                         });
                         const nameMap = new Map(conflictFaculty.map((f) => [f.id, formatFacultyName(f.firstName, f.lastName)]));
-                        const blockingResult = buildDuplicateOwnershipBlockingResult(realConflicts, nameMap);
-                        if (blockingResult) {
-                            throw blockingResult;
+                        // AUTHORITATIVE STEAL LOGIC: Remove conflicting sections from old owners
+                        // This ensures "Take" functionality works by repairing the old owner's record
+                        for (const conflict of realConflicts) {
+                            const oldOwnerFs = await tx.facultySubject.findFirst({
+                                where: {
+                                    facultyId: conflict.facultyId,
+                                    subjectId: conflict.subjectId,
+                                    schoolId,
+                                },
+                                select: { id: true, sectionIds: true },
+                            });
+                            if (oldOwnerFs) {
+                                const nextSectionIds = oldOwnerFs.sectionIds.filter((sid) => sid !== conflict.sectionId);
+                                if (nextSectionIds.length === 0) {
+                                    // If no sections left for this subject, delete the record
+                                    await tx.facultySubject.delete({
+                                        where: { id: oldOwnerFs.id },
+                                    });
+                                }
+                                else {
+                                    // Otherwise update the array
+                                    await tx.facultySubject.update({
+                                        where: { id: oldOwnerFs.id },
+                                        data: { sectionIds: nextSectionIds },
+                                    });
+                                }
+                            }
+                            // Explicitly delete conflicting ownership row to clear the unique constraint path
+                            await tx.subjectSectionOwnership.deleteMany({
+                                where: {
+                                    schoolId,
+                                    subjectId: conflict.subjectId,
+                                    sectionId: conflict.sectionId,
+                                    facultyId: conflict.facultyId,
+                                },
+                            });
                         }
+                        // Note: We no longer throw the blockingResult here because we've performed the repair.
                     }
                 }
             }
