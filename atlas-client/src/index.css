@@ -1,11 +1,11 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
-@import '@fontsource-variable/public-sans';
+@import '@fontsource-variable/instrument-sans';
 
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-	--font-sans: 'Public Sans Variable', ui-sans-serif, system-ui, sans-serif;
+	--font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
 
 	--animate-modal-in: modal-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 	--animate-modal-out: modal-out 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -44,7 +44,7 @@
 
 :root {
 	/* ─── PERMANENT MAIN LAYER — matches EnrollPro ─── */
-	--background: 0 0% 96%;
+	--background: 0 0% 100%;
 	--foreground: 222 47% 11%;
 	--muted: 220 14% 96%;
 	--muted-foreground: 215 16% 47%;
@@ -83,7 +83,7 @@
 }
 
 @theme inline {
-	--font-sans: 'Public Sans Variable', ui-sans-serif, system-ui, sans-serif;
+	--font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
 	--color-background: hsl(var(--background));
 	--color-foreground: hsl(var(--foreground));
 	--color-card: hsl(var(--card));
@@ -122,7 +122,7 @@
 		@apply border-border outline-ring/50;
 	}
 	body {
-		@apply font-normal bg-background text-foreground antialiased;
+		@apply bg-background text-foreground antialiased;
 	}
 	html {
 		@apply font-sans;
@@ -130,6 +130,10 @@
 }
 
 @layer utilities {
+	/* tone down boldness: remap black to extrabold and maintain standard weight */
+	.font-black {
+		@apply font-extrabold;
+	}
 	.scrollbar-thin {
 		scrollbar-width: auto;
 		scrollbar-color: hsl(var(--primary)) hsl(var(--muted));

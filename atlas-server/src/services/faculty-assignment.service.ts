@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js';
+import { Prisma } from '@prisma/client';
 import { sectionAdapter, type ProgramType } from './section-adapter.js';
 import { HG_SUBJECT_CODE } from './hg-advisory.service.js';
 import {
@@ -16,6 +17,7 @@ import {
   type AssignmentScopeInput,
   type NormalizedAssignmentScope,
 } from './faculty-assignment-scope.service.js';
+import { getOrCreatePolicy } from './scheduling-policy.service.js';
 
 export type AssignmentMutationResult =
 | {
@@ -258,6 +260,35 @@ export interface SpecialProgramRedistributionInsight {
   underutilizedMapehCandidates: SpecialProgramCandidateSignal[];
   candidateSignals: SpecialProgramCandidateSignal[];
   constrainedSections: SpecialProgramConstrainedSection[];
+}
+
+export interface TeachingLoadCapabilityOverride {
+  facultyId: number;
+  subjectCode: string | null;
+  specializationCode: string | null;
+  specializationLabel: string | null;
+  approvedBy: number;
+  approvedAt: string;
+  note: string | null;
+}
+
+export interface TeachingLoadCapabilityOverrideMutationInput {
+  schoolId: number;
+  schoolYearId: number;
+  facultyId: number;
+  subjectCode?: string | null;
+  specializationCode?: string | null;
+  specializationLabel?: string | null;
+  approvedBy: number;
+  note?: string | null;
+}
+
+export interface TeachingLoadCapabilityOverrideDeleteInput {
+  schoolId: number;
+  schoolYearId: number;
+  facultyId: number;
+  subjectCode?: string | null;
+  specializationCode?: string | null;
 }
 
 export interface TeachingLoadTruthReconcileInput {
@@ -2007,6 +2038,7 @@ function buildSpecialProgramRedistributionInsights(
   facultyById: Map<number, SpecialProgramCandidate>,
   totalLoadByFacultyId: Map<number, number>,
   sectionNameById: Map<number, string>,
+  overridesByFacultyId: Map<number, TeachingLoadCapabilityOverride[]>,
 ): SpecialProgramRedistributionInsight[] {
   return subjects.map((subject) => {
     const subjectBefore = beforeRows.find((entry) => entry.subjectId === subject.id);
@@ -2017,19 +2049,6 @@ function buildSpecialProgramRedistributionInsights(
       currentCountByFaculty.set(row.facultyId, (currentCountByFaculty.get(row.facultyId) ?? 0) + 1);
     }
 
-    const qualifiedCandidates = [...facultyById.values()]
-      .filter((member) => member.isActiveForScheduling && !member.isPlaceholder)
-      .filter((member) =>
-        matchesSubjectOwnershipDepartment(
-          member.department,
-          subject.code,
-          subject.name,
-          subject.ownerDepartment,
-          subject.requiredFeatures,
-        )
-        || member.canTeachOutsideDepartment,
-      );
-
     const requiredSpecializationBySection = new Map<number, string>();
     for (const row of subjectRows) {
       const requiredCode = resolveRowRequiredSpecializationCode(row, facultyById);
@@ -2038,6 +2057,37 @@ function buildSpecialProgramRedistributionInsights(
         requiredSpecializationBySection.set(row.sectionId, requiredCode);
       }
     }
+
+    const requiredSpecializationCodes = new Set(requiredSpecializationBySection.values());
+
+    const qualifiedCandidates = [...facultyById.values()]
+      .filter((member) => member.isActiveForScheduling && !member.isPlaceholder)
+      .filter((member) => {
+        const departmentQualified = matchesSubjectOwnershipDepartment(
+          member.department,
+          subject.code,
+          subject.name,
+          subject.ownerDepartment,
+          subject.requiredFeatures,
+        );
+        if (departmentQualified || member.canTeachOutsideDepartment) {
+          return true;
+        }
+
+        const specialProgramBaseline = isSpecialProgramSpecializationSubject(subject.code)
+          && isSpecialProgramBaselineDepartment(member.department);
+        if (specialProgramBaseline) {
+          return true;
+        }
+
+        if (requiredSpecializationCodes.size === 0) {
+          return hasApprovedCapabilityOverride(overridesByFacultyId, member.id, subject.code, null);
+        }
+
+        return Array.from(requiredSpecializationCodes).some((requiredCode) =>
+          hasApprovedCapabilityOverride(overridesByFacultyId, member.id, subject.code, requiredCode),
+        );
+      });
 
     const candidateSignals: SpecialProgramCandidateSignal[] = qualifiedCandidates
       .map((candidate) => {
@@ -2051,8 +2101,16 @@ function buildSpecialProgramRedistributionInsights(
             specializationSupportedSectionCount += 1;
             continue;
           }
+          const overrideSupports = hasApprovedCapabilityOverride(
+            overridesByFacultyId,
+            candidate.id,
+            subject.code,
+            requiredCode,
+          );
           if (candidateSpecializationCode && candidateSpecializationCode === requiredCode) {
             specializationExactMatchSectionCount += 1;
+            specializationSupportedSectionCount += 1;
+          } else if (overrideSupports) {
             specializationSupportedSectionCount += 1;
           }
         }
@@ -2071,7 +2129,11 @@ function buildSpecialProgramRedistributionInsights(
           currentTotalAssignedPairs,
           specializationExactMatchSectionCount,
           specializationSupportedSectionCount,
-          canCoverConstrainedSection: specializationExactMatchSectionCount > 0,
+          canCoverConstrainedSection:
+            specializationExactMatchSectionCount > 0
+            || Array.from(requiredSpecializationCodes).some((requiredCode) =>
+              hasApprovedCapabilityOverride(overridesByFacultyId, candidate.id, subject.code, requiredCode),
+            ),
           isUnderutilizedMapeh,
         };
       })
@@ -2095,7 +2157,8 @@ function buildSpecialProgramRedistributionInsights(
 
       const qualifiedCandidateCount = candidateSignals.filter((entry) => {
         const candidateCode = normalizeSpecializationCode(entry.specialization);
-        return candidateCode === requiredCode;
+        return candidateCode === requiredCode
+          || hasApprovedCapabilityOverride(overridesByFacultyId, entry.facultyId, subject.code, requiredCode);
       }).length;
 
       if (qualifiedCandidateCount <= 1) {
@@ -2180,6 +2243,98 @@ function buildSpecialProgramDistributionRows(
   });
 }
 
+export async function listTeachingLoadCapabilityOverrides(
+  schoolId: number,
+  schoolYearId: number,
+): Promise<TeachingLoadCapabilityOverride[]> {
+  const policy = await getOrCreatePolicy(schoolId, schoolYearId);
+  const overrides = getTeachingLoadCapabilityOverridesFromConfig(policy.constraintConfig as Prisma.JsonValue | null);
+  return [...overrides].sort((left, right) => {
+    if (left.facultyId !== right.facultyId) {
+      return left.facultyId - right.facultyId;
+    }
+    const leftSubject = left.subjectCode ?? '';
+    const rightSubject = right.subjectCode ?? '';
+    if (leftSubject !== rightSubject) {
+      return leftSubject.localeCompare(rightSubject);
+    }
+    const leftSpecialization = left.specializationCode ?? '';
+    const rightSpecialization = right.specializationCode ?? '';
+    return leftSpecialization.localeCompare(rightSpecialization);
+  });
+}
+
+export async function upsertTeachingLoadCapabilityOverride(
+  input: TeachingLoadCapabilityOverrideMutationInput,
+): Promise<TeachingLoadCapabilityOverride[]> {
+  const policy = await getOrCreatePolicy(input.schoolId, input.schoolYearId);
+  const current = getTeachingLoadCapabilityOverridesFromConfig(policy.constraintConfig as Prisma.JsonValue | null);
+
+  const subjectCode = normalizeOverrideSubjectCode(input.subjectCode);
+  const specializationCode = normalizeSpecializationCode(input.specializationCode);
+  const specializationLabel = normalizeSpecializationLabel(input.specializationLabel);
+  const note = normalizeSpecializationLabel(input.note);
+
+  const nextEntry: TeachingLoadCapabilityOverride = {
+    facultyId: input.facultyId,
+    subjectCode,
+    specializationCode,
+    specializationLabel,
+    approvedBy: input.approvedBy,
+    approvedAt: new Date().toISOString(),
+    note,
+  };
+
+  const nextOverrides = [
+    ...current.filter((entry) => !(
+      entry.facultyId === nextEntry.facultyId
+      && (entry.subjectCode ?? null) === (nextEntry.subjectCode ?? null)
+      && (entry.specializationCode ?? null) === (nextEntry.specializationCode ?? null)
+    )),
+    nextEntry,
+  ];
+
+  await prisma.schedulingPolicy.update({
+    where: { schoolId_schoolYearId: { schoolId: input.schoolId, schoolYearId: input.schoolYearId } },
+    data: {
+      constraintConfig: buildConstraintConfigWithTeachingLoadOverrides(
+        policy.constraintConfig as Prisma.JsonValue | null,
+        nextOverrides,
+      ),
+    },
+  });
+
+  return listTeachingLoadCapabilityOverrides(input.schoolId, input.schoolYearId);
+}
+
+export async function deleteTeachingLoadCapabilityOverride(
+  input: TeachingLoadCapabilityOverrideDeleteInput,
+): Promise<TeachingLoadCapabilityOverride[]> {
+  const policy = await getOrCreatePolicy(input.schoolId, input.schoolYearId);
+  const current = getTeachingLoadCapabilityOverridesFromConfig(policy.constraintConfig as Prisma.JsonValue | null);
+
+  const subjectCode = normalizeOverrideSubjectCode(input.subjectCode);
+  const specializationCode = normalizeSpecializationCode(input.specializationCode);
+
+  const nextOverrides = current.filter((entry) => !(
+    entry.facultyId === input.facultyId
+    && (entry.subjectCode ?? null) === (subjectCode ?? null)
+    && (entry.specializationCode ?? null) === (specializationCode ?? null)
+  ));
+
+  await prisma.schedulingPolicy.update({
+    where: { schoolId_schoolYearId: { schoolId: input.schoolId, schoolYearId: input.schoolYearId } },
+    data: {
+      constraintConfig: buildConstraintConfigWithTeachingLoadOverrides(
+        policy.constraintConfig as Prisma.JsonValue | null,
+        nextOverrides,
+      ),
+    },
+  });
+
+  return listTeachingLoadCapabilityOverrides(input.schoolId, input.schoolYearId);
+}
+
 export async function previewOrApplySpecialProgramRedistribution(
   input: SpecialProgramRebalanceInput,
 ): Promise<SpecialProgramRebalanceResult> {
@@ -2200,7 +2355,7 @@ export async function previewOrApplySpecialProgramRedistribution(
 
   const relevantSectionIds = [...new Set(targetedSubjects.flatMap((subject) => subject.relevantSectionIds))];
 
-  const [ownershipRows, allFaculty] = await Promise.all([
+  const [ownershipRows, allFaculty, capabilityOverrides] = await Promise.all([
     targetedSubjects.length > 0 && relevantSectionIds.length > 0
       ? prisma.subjectSectionOwnership.findMany({
         where: {
@@ -2236,6 +2391,7 @@ export async function previewOrApplySpecialProgramRedistribution(
         canTeachOutsideDepartment: true,
       },
     }),
+    listTeachingLoadCapabilityOverrides(input.schoolId, input.schoolYearId),
   ]);
 
   const totalLoadRows = allFaculty.length > 0 && context.sections.length > 0
@@ -2266,6 +2422,12 @@ export async function previewOrApplySpecialProgramRedistribution(
   const facultyById = new Map<number, SpecialProgramCandidate>(
     allFaculty.map((member) => [member.id, member]),
   );
+  const overridesByFacultyId = new Map<number, TeachingLoadCapabilityOverride[]>();
+  for (const override of capabilityOverrides) {
+    const entries = overridesByFacultyId.get(override.facultyId) ?? [];
+    entries.push(override);
+    overridesByFacultyId.set(override.facultyId, entries);
+  }
 
   const before = buildSpecialProgramDistributionRows(targetedSubjects, normalizedOwnershipRows, facultyById);
   const redistributionInsights = buildSpecialProgramRedistributionInsights(
@@ -2275,6 +2437,7 @@ export async function previewOrApplySpecialProgramRedistribution(
     facultyById,
     totalLoadByFacultyId,
     sectionNameById,
+    overridesByFacultyId,
   );
 
   const proposedMoves: SpecialProgramRebalanceMove[] = [];
@@ -2291,18 +2454,43 @@ export async function previewOrApplySpecialProgramRedistribution(
       currentCountByFaculty.set(row.facultyId, (currentCountByFaculty.get(row.facultyId) ?? 0) + 1);
     }
 
+    const sectionSpecializationCodeBySectionId = new Map<number, string>();
+    for (const row of subjectRows) {
+      const requiredCode = resolveRowRequiredSpecializationCode(row, facultyById);
+      if (requiredCode && !sectionSpecializationCodeBySectionId.has(row.sectionId)) {
+        sectionSpecializationCodeBySectionId.set(row.sectionId, requiredCode);
+      }
+    }
+    const requiredSpecializationCodes = new Set(sectionSpecializationCodeBySectionId.values());
+
     const qualifiedCandidates = allFaculty
       .filter((member) => member.isActiveForScheduling && !member.isPlaceholder)
-      .filter((member) =>
-        matchesSubjectOwnershipDepartment(
+      .filter((member) => {
+        const departmentQualified = matchesSubjectOwnershipDepartment(
           member.department,
           subject.code,
           subject.name,
           subject.ownerDepartment,
           subject.requiredFeatures,
-        )
-        || member.canTeachOutsideDepartment,
-      );
+        );
+        if (departmentQualified || member.canTeachOutsideDepartment) {
+          return true;
+        }
+
+        const specialProgramBaseline = isSpecialProgramSpecializationSubject(subject.code)
+          && isSpecialProgramBaselineDepartment(member.department);
+        if (specialProgramBaseline) {
+          return true;
+        }
+
+        if (requiredSpecializationCodes.size === 0) {
+          return hasApprovedCapabilityOverride(overridesByFacultyId, member.id, subject.code, null);
+        }
+
+        return Array.from(requiredSpecializationCodes).some((requiredCode) =>
+          hasApprovedCapabilityOverride(overridesByFacultyId, member.id, subject.code, requiredCode),
+        );
+      });
 
     const candidateFaculty = qualifiedCandidates.length > 0
       ? qualifiedCandidates
@@ -2321,20 +2509,16 @@ export async function previewOrApplySpecialProgramRedistribution(
     let extra = totalOwned % candidateFaculty.length;
 
     const candidateSpecializationSupportById = new Map<number, number>();
-    const sectionSpecializationCodeBySectionId = new Map<number, string>();
-    for (const row of subjectRows) {
-      const requiredCode = resolveRowRequiredSpecializationCode(row, facultyById);
-      if (requiredCode && !sectionSpecializationCodeBySectionId.has(row.sectionId)) {
-        sectionSpecializationCodeBySectionId.set(row.sectionId, requiredCode);
-      }
-    }
     for (const candidate of candidateFaculty) {
       const candidateSpecializationCode = normalizeSpecializationCode(candidate.specialization);
       let matchCount = 0;
       for (const sectionId of subject.relevantSectionIds) {
         const requiredCode = sectionSpecializationCodeBySectionId.get(sectionId);
         if (!requiredCode) continue;
-        if (candidateSpecializationCode && candidateSpecializationCode === requiredCode) {
+        if (
+          (candidateSpecializationCode && candidateSpecializationCode === requiredCode)
+          || hasApprovedCapabilityOverride(overridesByFacultyId, candidate.id, subject.code, requiredCode)
+        ) {
           matchCount += 1;
         }
       }
@@ -2416,9 +2600,32 @@ export async function previewOrApplySpecialProgramRedistribution(
         }
 
         const donorRows = movableRowsByFaculty.get(donor.candidate.id) ?? [];
-        const rowToMove = donorRows.shift();
+        const compatibleRowIndex = donorRows.findIndex((candidateRow) => {
+          const requiredCode = sectionSpecializationCodeBySectionId.get(candidateRow.sectionId) ?? null;
+          if (!requiredCode) {
+            return true;
+          }
+          const candidateSpecializationCode = normalizeSpecializationCode(deficitEntry.candidate.specialization);
+          if (candidateSpecializationCode && candidateSpecializationCode === requiredCode) {
+            return true;
+          }
+          return hasApprovedCapabilityOverride(
+            overridesByFacultyId,
+            deficitEntry.candidate.id,
+            subject.code,
+            requiredCode,
+          );
+        });
+
+        const rowToMove = compatibleRowIndex >= 0
+          ? donorRows.splice(compatibleRowIndex, 1)[0]
+          : undefined;
         movableRowsByFaculty.set(donor.candidate.id, donorRows);
         if (!rowToMove) {
+          blockedSubjects.push({
+            subjectCode: subject.code,
+            reason: 'No specialization-compatible movable section is available for the target candidate.',
+          });
           break;
         }
 
@@ -2625,6 +2832,118 @@ return normalized.length > 0 ? normalized : null;
 function normalizeSpecializationLabel(value: string | null | undefined): string | null {
 const trimmed = (value ?? '').trim();
 return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeOverrideSubjectCode(value: string | null | undefined): string | null {
+  const normalized = (value ?? '').trim().toUpperCase();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function getTeachingLoadCapabilityOverridesFromConfig(
+  constraintConfig: Prisma.JsonValue | null | undefined,
+): TeachingLoadCapabilityOverride[] {
+  if (!constraintConfig || typeof constraintConfig !== 'object' || Array.isArray(constraintConfig)) {
+    return [];
+  }
+
+  const rawOverrides = (constraintConfig as Record<string, unknown>).teachingLoadCapabilityOverrides;
+  if (!Array.isArray(rawOverrides)) {
+    return [];
+  }
+
+  const parsed: TeachingLoadCapabilityOverride[] = [];
+  for (const entry of rawOverrides) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    const row = entry as Record<string, unknown>;
+    const facultyId = Number(row.facultyId);
+    if (!Number.isInteger(facultyId) || facultyId <= 0) continue;
+
+    const subjectCode = normalizeOverrideSubjectCode(typeof row.subjectCode === 'string' ? row.subjectCode : null);
+    const specializationCode = normalizeSpecializationCode(
+      typeof row.specializationCode === 'string' ? row.specializationCode : null,
+    );
+    const specializationLabel = normalizeSpecializationLabel(
+      typeof row.specializationLabel === 'string' ? row.specializationLabel : null,
+    );
+
+    const approvedBy = Number(row.approvedBy);
+    const approvedAtRaw = typeof row.approvedAt === 'string' ? row.approvedAt : new Date().toISOString();
+    const approvedAt = Number.isNaN(Date.parse(approvedAtRaw)) ? new Date().toISOString() : approvedAtRaw;
+    const note = normalizeSpecializationLabel(typeof row.note === 'string' ? row.note : null);
+
+    parsed.push({
+      facultyId,
+      subjectCode,
+      specializationCode,
+      specializationLabel,
+      approvedBy: Number.isFinite(approvedBy) ? approvedBy : 0,
+      approvedAt,
+      note,
+    });
+  }
+
+  return parsed;
+}
+
+function buildConstraintConfigWithTeachingLoadOverrides(
+  constraintConfig: Prisma.JsonValue | null | undefined,
+  overrides: TeachingLoadCapabilityOverride[],
+): Prisma.InputJsonValue {
+  const base: Record<string, unknown> =
+    constraintConfig && typeof constraintConfig === 'object' && !Array.isArray(constraintConfig)
+      ? { ...(constraintConfig as Record<string, unknown>) }
+      : {};
+
+  base.teachingLoadCapabilityOverrides = overrides.map((entry) => ({
+    facultyId: entry.facultyId,
+    subjectCode: entry.subjectCode,
+    specializationCode: entry.specializationCode,
+    specializationLabel: entry.specializationLabel,
+    approvedBy: entry.approvedBy,
+    approvedAt: entry.approvedAt,
+    note: entry.note,
+  }));
+
+  return base as Prisma.InputJsonValue;
+}
+
+function capabilityOverrideMatches(
+  override: TeachingLoadCapabilityOverride,
+  subjectCode: string,
+  requiredSpecializationCode: string | null,
+): boolean {
+  const normalizedSubjectCode = normalizeOverrideSubjectCode(subjectCode);
+  if (!normalizedSubjectCode) return false;
+
+  if (override.subjectCode && override.subjectCode !== normalizedSubjectCode) {
+    return false;
+  }
+
+  if (override.specializationCode) {
+    return override.specializationCode === requiredSpecializationCode;
+  }
+
+  return true;
+}
+
+function isSpecialProgramSpecializationSubject(subjectCode: string | null | undefined): boolean {
+  const code = (subjectCode ?? '').trim().toUpperCase();
+  return code === 'SPA_SPEC' || code === 'SPS_SPEC';
+}
+
+function isSpecialProgramBaselineDepartment(department: string | null | undefined): boolean {
+  const normalized = normalizeDepartmentCode(department);
+  return normalized === 'MAPEH' || normalized === 'SPA' || normalized === 'SPS';
+}
+
+function hasApprovedCapabilityOverride(
+  overridesByFacultyId: Map<number, TeachingLoadCapabilityOverride[]>,
+  facultyId: number,
+  subjectCode: string,
+  requiredSpecializationCode: string | null,
+): boolean {
+  const overrides = overridesByFacultyId.get(facultyId) ?? [];
+  return overrides.some((override) => capabilityOverrideMatches(override, subjectCode, requiredSpecializationCode));
 }
 
 function canonicalizeAllowedSpecialization(

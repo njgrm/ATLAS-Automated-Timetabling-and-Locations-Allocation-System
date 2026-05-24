@@ -1,3 +1,41 @@
+# 2026-05-24 - Phase 3 Teaching Load Degraded Write + Specialization Slots + Capability Overrides One-Shot
+- Phase: Phase 3 generator-readiness stream, degraded writable operations and specialization-slot/capability-override hardening
+- Operator: GitHub Copilot
+- Scope gate: PASS (backend contract + UI degraded-write gate + live parity probes)
+- Files changed in this pass:
+  - `atlas-server/src/services/faculty-assignment.service.ts`
+  - `atlas-server/src/routes/faculty-assignment.router.ts`
+  - `atlas-client/src/pages/FacultyAssignments.tsx`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+  - `CHANGELOG.md`
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS
+
+- Tailnet verification (`https://njgrm.buru-degree.ts.net`):
+  1) Runtime degraded context
+     - `GET /api/v1/runtime/context?schoolId=1` -> PASS
+     - `source=atlas-persisted`, `upstream.reachable=false`
+
+  2) Capability override persistence surface
+     - `GET /api/v1/faculty-assignments/capability-overrides?schoolId=1&schoolYearId=55` -> PASS
+     - response contract available (`overrides[]`, count observed: `0` on current dataset)
+
+  3) Special-program redistribution candidate expansion (preview)
+     - `POST /api/v1/faculty-assignments/coverage/rebalance-special-programs`
+     - subject insights observed:
+       - `SPA_SPEC`: `candidateSignals=29`, `MAPEH candidates=29`, `constrainedSections=6`
+       - `SPS_SPEC`: `candidateSignals=29`, `MAPEH candidates=29`, `constrainedSections=8`
+
+  4) Degraded staffing continuity (non-regression)
+     - `POST /api/v1/faculty-assignments/report/staffing-needs` -> PASS
+     - `sectionSource=cached-enrollpro`, `sectionFallbackReason=section-adapter-fetch-failed`, `unresolved=122`
+
+- GO/NO-GO:
+  - **GO** for this one-shot scope.
+
 # 2026-05-24 - Phase 3 Teaching Load Special Program Redistribution + Degraded Truthfulness One-Shot
 - Phase: Phase 3 generator-readiness stream, special-program redistribution intelligence and degraded-source truthfulness
 - Operator: GitHub Copilot

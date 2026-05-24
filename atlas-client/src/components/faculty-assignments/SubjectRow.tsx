@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BookOpen, ChevronDown, ChevronRight, Clock, Lock, Star, RotateCcw } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronRight, Clock, Lock, Star, RotateCcw, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import {
@@ -36,6 +36,22 @@ export type SubjectRowProps = {
 	onHoverLoadMinutes?: (minutes: number) => void;
 	onClearHoverLoad?: () => void;
 	activeFacultyIds?: Set<number>;
+	selectedFacultySpecialization?: string | null;
+};
+
+const PROGRAM_BADGE: Record<string, string> = {
+	SPA:   'bg-blue-50 text-blue-700 border-blue-200',
+	SPS:   'bg-emerald-50 text-emerald-700 border-emerald-200',
+	STE:   'bg-violet-50 text-violet-700 border-violet-200',
+	SPTVE: 'bg-amber-50 text-amber-700 border-amber-200',
+	OTHER: 'bg-gray-50 text-gray-600 border-gray-200',
+};
+
+const GRADE_TINTS: Record<string, string> = {
+	'7': 'bg-green-500/5 border-green-200/50',
+	'8': 'bg-yellow-500/5 border-yellow-200/50',
+	'9': 'bg-red-500/5 border-red-200/50',
+	'10': 'bg-blue-500/5 border-blue-200/50',
 };
 
 export function SubjectRow({
@@ -58,6 +74,7 @@ export function SubjectRow({
 	onHoverLoadMinutes,
 	onClearHoverLoad,
 	activeFacultyIds = new Set(),
+	selectedFacultySpecialization = null,
 }: SubjectRowProps) {
 	const [openGrades, setOpenGrades] = useState<Record<number, boolean>>({});
 
@@ -86,7 +103,8 @@ export function SubjectRow({
 					(sec) =>
 						sec.name.toLowerCase().includes(term) ||
 						`g${sec.displayOrder}`.toLowerCase().includes(term) ||
-						sec.displayOrder.toString().includes(term),
+						sec.displayOrder.toString().includes(term) ||
+						(sec.assignmentSpecializationLabel || '').toLowerCase().includes(term),
 				);
 			}
 		}
@@ -113,6 +131,8 @@ export function SubjectRow({
 
 	const selectedSectionIds = new Set(assignment?.sectionIds ?? []);
 	const selectedCount = selectedSectionIds.size;
+
+	const isSpecializationSlot = subject.code === 'SPA_SPEC' || subject.code === 'SPS_SPEC';
 
 	const selectableSections = useMemo(() => {
 		return sections.filter((section) => {
@@ -227,6 +247,9 @@ export function SubjectRow({
 							{subject.rotationFamily && (
 								<Badge variant="outline" className="text-[0.6rem] font-bold bg-violet-50 text-violet-700 border-violet-200 uppercase tracking-tight h-4 px-1.5 shadow-none">Rotation Family</Badge>
 							)}
+							{isSpecializationSlot && (
+								<Badge variant="outline" className="text-[0.6rem] font-bold bg-sky-50 text-sky-700 border-sky-200 uppercase tracking-tight h-4 px-1.5 shadow-none">Specialization Slots</Badge>
+							)}
 						</div>
 						<div className="flex items-center gap-2 mt-0.5">
 							<code className="text-[0.7rem] font-mono text-muted-foreground uppercase tracking-tight">{subject.code}</code>
@@ -291,6 +314,7 @@ export function SubjectRow({
 							const isOpen = openGrades[gradeLevel] ?? Boolean(searchTerm);
 							const selectedInGrade = gradeSections.filter((section) => selectedSectionIds.has(section.id)).length;
 							const gradeColorClass = GRADE_COLORS[gradeLevel.toString()]?.split(' ')[1] || 'text-muted-foreground';
+							const gradeTint = GRADE_TINTS[gradeLevel.toString()] || 'bg-muted/10';
 
 							return (
 								<div key={gradeLevel} className="group/grade">
@@ -339,7 +363,7 @@ export function SubjectRow({
 												transition={{ duration: 0.2 }}
 												className="overflow-hidden"
 											>
-												<div className="flex flex-wrap gap-2 p-4">
+												<div className={`flex flex-wrap gap-2 p-4 border-l-4 ${gradeTint}`}>
 													{gradeSections.map((section) => {
 														const key = getOwnershipKey(subject.id, section.id);
 														const savedOwner = savedOwnershipMap[key];
@@ -366,6 +390,11 @@ export function SubjectRow({
 														const isRotationFamily = Boolean(subject.rotationFamily);
 														const laneName = subject.rotationFamily === 'SCIENCE' ? 'Science Lane' : 'TLE Lane';
 
+														const requiredSpec = section.assignmentSpecializationCode;
+														const facultySpec = selectedFacultySpecialization;
+														const isPerfectMatch = Boolean(requiredSpec && facultySpec && requiredSpec === facultySpec);
+														const isApprovedCompatibility = Boolean(isSpecializationSlot && !isPerfectMatch && !blocked);
+
 														return (
 															<div
 																key={section.id}
@@ -380,6 +409,8 @@ export function SubjectRow({
 																		? 'border-muted bg-muted/40 opacity-70'
 																		: isSelected
 																		? 'border-primary/50 bg-primary/5 ring-1 ring-primary/10 shadow-primary/5'
+																		: isPerfectMatch
+																		? 'border-emerald-300 bg-emerald-50/30'
 																		: isRotationFamily 
 																		? 'bg-card border-violet-200 hover:border-violet-400 hover:shadow-md'
 																		: 'bg-card border-border/80 hover:border-primary/40 hover:shadow-md'
@@ -398,11 +429,16 @@ export function SubjectRow({
 																
 																<div className="flex-1 min-w-0">
 																	<div className="flex items-center gap-2">
-																		<span className={`text-[0.75rem] font-black leading-none truncate ${isSelected ? 'text-primary' : 'text-foreground'}`}>
+																		<span className={`text-[0.75rem] font-bold leading-none truncate ${isSelected ? 'text-primary' : 'text-foreground'}`}>
 																			{section.name}
 																		</span>
 																		{isSystemAssignedSection && (
 																			<Lock className="size-3 text-amber-600 shrink-0" />
+																		)}
+																		{section.isSpecialProgram && section.programCode && PROGRAM_BADGE[section.programCode] && (
+																			<Badge variant="outline" className={`h-3.5 px-1 text-[0.5rem] font-bold uppercase border-none shadow-none ${PROGRAM_BADGE[section.programCode]}`}>
+																				{section.programCode}
+																			</Badge>
 																		)}
 																		{isRotationFamily && !isSelected && !blocked && (
 																			<Tooltip>
@@ -414,21 +450,39 @@ export function SubjectRow({
 																				</TooltipContent>
 																			</Tooltip>
 																		)}
+																		{isSpecializationSlot && isPerfectMatch && (
+																			<Tooltip>
+																				<TooltipTrigger asChild>
+																					<CheckCircle className="size-3 text-emerald-600 shrink-0" />
+																				</TooltipTrigger>
+																				<TooltipContent side="top" className="text-[0.65rem] font-bold">
+																					Specialization Match: {section.assignmentSpecializationLabel}
+																				</TooltipContent>
+																			</Tooltip>
+																		)}
 																	</div>
 																	
 																	{(section.assignmentSpecializationLabel || conflictLabel) && (
 																		<div className="mt-1 flex items-center gap-1.5">
 																			{section.assignmentSpecializationLabel && (
-																				<span className="text-[0.65rem] font-bold text-sky-700/70 uppercase tracking-tighter truncate max-w-[80px]">
-																					{section.assignmentSpecializationLabel}
-																				</span>
+																				<Tooltip>
+																					<TooltipTrigger asChild>
+																						<span className={`text-[0.65rem] font-bold uppercase tracking-tighter truncate max-w-[80px] ${isPerfectMatch ? 'text-emerald-700' : isApprovedCompatibility ? 'text-sky-700' : 'text-muted-foreground/60'}`}>
+																							{section.assignmentSpecializationLabel}
+																						</span>
+																					</TooltipTrigger>
+																					<TooltipContent side="top" className="text-[0.65rem] font-bold">
+																						Required: {section.assignmentSpecializationLabel}
+																						{isApprovedCompatibility && " (ATLAS Approved Compatibility)"}
+																					</TooltipContent>
+																				</Tooltip>
 																			)}
 																			{conflictLabel && (
 																				<Tooltip>
 																					<TooltipTrigger asChild>
-																						<div className="flex items-center gap-1 cursor-help bg-muted/20 px-1 rounded">
+																						<div className="flex items-center gap-1 cursor-help bg-muted/20 px-1 rounded max-w-[120px]">
 																							<div className={`size-1.5 rounded-full shrink-0 ${isHardConflict ? 'bg-rose-500' : isStaleOwner ? 'bg-amber-400 opacity-50' : 'bg-amber-500'}`} />
-																							<span className={`text-[0.65rem] font-bold uppercase tracking-tighter truncate max-w-[60px] ${isHardConflict ? 'text-rose-700' : isStaleOwner ? 'text-amber-700/70' : 'text-amber-700'}`}>
+																							<span className={`text-[0.65rem] font-bold uppercase tracking-tighter ${isHardConflict ? 'text-rose-700' : isStaleOwner ? 'text-amber-700/70' : 'text-amber-700'}`}>
 																								{conflictLabel}
 																							</span>
 																						</div>

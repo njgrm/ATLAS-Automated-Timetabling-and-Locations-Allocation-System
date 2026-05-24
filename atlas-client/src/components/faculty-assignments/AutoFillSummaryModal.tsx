@@ -3,6 +3,7 @@ import { AlertTriangle, BadgeCheck, Building2, ChevronDown, ChevronRight, Users2
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card } from '@/ui/card';
+import { ScrollArea } from '@/ui/scroll-area';
 import {
 	Dialog,
 	DialogContent,

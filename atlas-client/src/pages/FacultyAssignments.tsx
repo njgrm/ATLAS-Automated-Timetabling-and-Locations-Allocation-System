@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
 	AlertTriangle,
 	CheckCircle2,
+	ChevronDown,
 	ChevronRight,
 	Filter,
 	Info,
@@ -38,7 +39,7 @@ import {
 	type LoadStatus,
 	type SubjectSectionOwnershipIndexEntry,
 } from '@/lib/faculty-assignment-helpers';
-import { isDepartmentMatch } from '@/lib/grade-labels';
+import { isDepartmentMatch, gradeLabel, GRADE_COLORS } from '@/lib/grade-labels';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import {
 	getCachedFacultyAssignmentsSummary,
@@ -191,6 +192,18 @@ export default function FacultyAssignments() {
 	const [showJumpList, setShowJumpList] = useState(false);
 	const [viewMode, setViewMode] = useState('assignments');
 
+	const hasLocalWriteEvidence = Boolean(
+		activeSchoolYearId
+		&& (sectionSummary?.sections?.length ?? 0) > 0
+		&& subjects.length > 0
+		&& faculty.length > 0,
+	);
+	const degradedWriteEnabled = isOnline && dataSource === 'cached' && hasLocalWriteEvidence;
+	const canPersistAssignments = isOnline && (dataSource === 'live' || degradedWriteEnabled);
+	const canRunStaffingNeeds = isOnline && dataSource !== 'none' && Boolean(activeSchoolYearId);
+	const canRunGlobalReset = isOnline && dataSource === 'live' && Boolean(activeSchoolYearId);
+	const isReadOnlyMode = !canPersistAssignments;
+
 	const activeFacultyIds = useMemo(() => new Set(faculty.map((f) => f.id)), [faculty]);
 
 	const fetchData = useCallback(async (options?: { forceRefresh?: boolean }) => {
@@ -333,13 +346,6 @@ export default function FacultyAssignments() {
 			window.removeEventListener('offline', handleOffline);
 		};
 	}, []);
-
-	const isReadOnlyMode = !isOnline || dataSource !== 'live';
-	const readOnlyNotice = !isOnline
-		? 'You are offline. Teaching Load is available in read-only mode until connection returns.'
-		: dataSource === 'cached'
-		? (degradedNotice ?? 'Live teaching load data is unavailable. Showing your last saved snapshot in read-only mode.')
-		: null;
 
 	useEffect(() => {
 		const queryValue = searchParams.get('facultyId');
@@ -547,7 +553,7 @@ export default function FacultyAssignments() {
 		if (!selected || !activeSchoolYearId) {
 			return;
 		}
-		if (isReadOnlyMode) {
+		if (!canPersistAssignments) {
 			toast.error('Teaching Load is in read-only mode. Reconnect and refresh live data before saving.');
 			return;
 		}
@@ -584,12 +590,12 @@ export default function FacultyAssignments() {
 		} finally {
 			setSaving(false);
 		}
-	}, [activeSchoolYearId, currentAssignments, fetchData, isReadOnlyMode, selected]);
+	}, [activeSchoolYearId, canPersistAssignments, currentAssignments, fetchData, selected]);
 
 	const handleAutoFill = useCallback(async () => {
 		if (!activeSchoolYearId) return;
-		if (isReadOnlyMode) {
-			toast.error('Teaching Load is in read-only mode. Reconnect and refresh live data before running Auto-Fill.');
+		if (!canPersistAssignments) {
+			toast.error('Auto-Fill requires writable runtime evidence. Refresh ATLAS context and try again.');
 			return;
 		}
 		pushHistory();
@@ -628,12 +634,12 @@ export default function FacultyAssignments() {
 		} finally {
 			setAutoFillLoading(false);
 		}
-	}, [activeDraftCount, activeSchoolYearId, fetchData, isReadOnlyMode, pushHistory]);
+	}, [activeDraftCount, activeSchoolYearId, canPersistAssignments, fetchData, pushHistory]);
 
 	const handleViewStaffingNeeds = useCallback(async () => {
 		if (!activeSchoolYearId) return;
-		if (isReadOnlyMode) {
-			toast.error('Teaching Load is in read-only mode. Refresh live data before requesting staffing needs.');
+		if (!canRunStaffingNeeds) {
+			toast.error('Staffing needs requires active runtime connectivity. Refresh and try again.');
 			return;
 		}
 		setStaffingNeedsLoading(true);
@@ -649,12 +655,12 @@ export default function FacultyAssignments() {
 		} finally {
 			setStaffingNeedsLoading(false);
 		}
-	}, [activeSchoolYearId, isReadOnlyMode]);
+	}, [activeSchoolYearId, canRunStaffingNeeds]);
 
 	const openGlobalResetPreview = useCallback(async () => {
 		if (!activeSchoolYearId) return;
-		if (isReadOnlyMode) {
-			toast.error('Teaching Load is in read-only mode. Reconnect and refresh live data before resetting.');
+		if (!canRunGlobalReset) {
+			toast.error('Global reset is restricted to live-upstream mode.');
 			return;
 		}
 		setResetLoading(true);
@@ -671,12 +677,12 @@ export default function FacultyAssignments() {
 		} finally {
 			setResetLoading(false);
 		}
-	}, [activeSchoolYearId, isReadOnlyMode]);
+	}, [activeSchoolYearId, canRunGlobalReset]);
 
 	const applyGlobalReset = useCallback(async () => {
 		if (!activeSchoolYearId) return;
-		if (isReadOnlyMode) {
-			toast.error('Teaching Load is in read-only mode. Reconnect and refresh live data before resetting.');
+		if (!canRunGlobalReset) {
+			toast.error('Global reset is restricted to live-upstream mode.');
 			return;
 		}
 		if (resetConfirmText.trim().toUpperCase() !== 'RESET') {
@@ -699,7 +705,7 @@ export default function FacultyAssignments() {
 		} finally {
 			setResetLoading(false);
 		}
-	}, [activeSchoolYearId, fetchData, isReadOnlyMode, resetConfirmText]);
+	}, [activeSchoolYearId, canRunGlobalReset, fetchData, resetConfirmText]);
 
 	const getComparableLoadHours = useCallback((member: FacultySummary) => {
 		if (member.isPlaceholder) {
@@ -862,6 +868,16 @@ export default function FacultyAssignments() {
 	}, [currentAssignments, sectionMap, selected, subjects]);
 
 	const sectionsBySubject = useMemo(() => {
+		const specializationBySubjectSection = new Map<string, { code: string | null; label: string | null }>();
+		for (const assignment of selected?.assignments ?? []) {
+			for (const section of assignment.sections ?? []) {
+				specializationBySubjectSection.set(`${assignment.subjectId}:${section.id}`, {
+					code: section.assignmentSpecializationCode ?? null,
+					label: section.assignmentSpecializationLabel ?? null,
+				});
+			}
+		}
+
 		const map: Record<number, ExternalSection[]> = {};
 		subjects.forEach((subject) => {
 			map[subject.id] = allKnownSections.filter((sec) => {
@@ -869,10 +885,21 @@ export default function FacultyAssignments() {
 				if (!gradeCompatible) return false;
 				const programType = (sec.programType ?? 'REGULAR').toUpperCase();
 				return subject.programScopes.length === 0 || subject.programScopes.some((scope) => scope.toUpperCase() === programType);
+			}).map((section) => {
+				const specialization = specializationBySubjectSection.get(`${subject.id}:${section.id}`);
+				if (!specialization) {
+					return section;
+				}
+
+				return {
+					...section,
+					assignmentSpecializationCode: specialization.code,
+					assignmentSpecializationLabel: specialization.label,
+				};
 			});
 		});
 		return map;
-	}, [allKnownSections, subjects]);
+	}, [allKnownSections, selected?.assignments, subjects]);
 
 	const rotationFamilyDetails = useMemo(() => {
 		if (Array.isArray(selected?.rotationFamilyLoadDetails) && selected.rotationFamilyLoadDetails.length > 0 && !dirty) {
@@ -1040,8 +1067,8 @@ export default function FacultyAssignments() {
 	}, [departmentQualifiedSubjects, outsideDepartmentSubjects]);
 
 	const executeSwap = useCallback(() => {
-		if (isReadOnlyMode) {
-			toast.error('Teaching Load is in read-only mode. Reconnect and refresh live data before swapping ownership.');
+		if (!canPersistAssignments) {
+			toast.error('Teaching Load cannot swap ownership while runtime evidence is read-only.');
 			return;
 		}
 		if (!selected || !swapCandidate) return;
@@ -1092,7 +1119,7 @@ export default function FacultyAssignments() {
 
 		setSwapCandidate(null);
 		toast.success('Ownership swapped to the selected teacher in draft mode. Save to persist changes.');
-	}, [isReadOnlyMode, pushHistory, savedAssignmentsByFaculty, sectionMap, selected, swapCandidate]);
+	}, [canPersistAssignments, pushHistory, savedAssignmentsByFaculty, sectionMap, selected, swapCandidate]);
 
 	const handleSwapRequest = (subjectId: number, sectionId: number, fromFacultyId: number) => {
 		setSwapCandidate({ subjectId, sectionId, fromFacultyId });
@@ -1122,10 +1149,10 @@ export default function FacultyAssignments() {
 						activeDraftCount={activeDraftCount}
 						autoFillLoading={autoFillLoading}
 						staffingNeedsLoading={staffingNeedsLoading}
-						autoFillEnabled={Boolean(activeSchoolYearId) && !isReadOnlyMode}
+						autoFillEnabled={Boolean(activeSchoolYearId) && canPersistAssignments}
 						onAutoFillClick={() => {
-							if (isReadOnlyMode) {
-								toast.error('Teaching Load is in read-only mode. Reconnect and refresh live data before running Auto-Fill.');
+							if (!canPersistAssignments) {
+								toast.error('Auto-Fill requires writable runtime evidence. Refresh and try again.');
 								return;
 							}
 							handleAutoFill();
@@ -1137,6 +1164,13 @@ export default function FacultyAssignments() {
 					/>
 
 					<div className="mt-4 shrink-0 flex items-center gap-2">
+						<div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border/50 bg-background shadow-sm">
+							<div className={`size-2 rounded-full ${dataSource === 'live' ? 'bg-emerald-500 animate-pulse' : degradedWriteEnabled ? 'bg-amber-500 animate-pulse' : 'bg-muted'}`} />
+							<span className="text-[0.65rem] font-bold uppercase tracking-widest text-muted-foreground/80">
+								{dataSource === 'live' ? 'Live Mode' : degradedWriteEnabled ? 'Degraded Writable' : 'Read-Only Cache'}
+							</span>
+						</div>
+
 						<Sheet>
 							<SheetTrigger asChild>
 								<Button variant="outline" size="sm" className="h-10 px-3 gap-2 font-bold text-muted-foreground hover:text-foreground shadow-sm">
@@ -1203,7 +1237,7 @@ export default function FacultyAssignments() {
 											<Button 
 												variant="outline" 
 												className="w-full justify-start gap-3 h-auto py-3 px-4 text-destructive hover:text-destructive hover:bg-destructive/5"
-												disabled={resetLoading || !activeSchoolYearId || isReadOnlyMode}
+												disabled={resetLoading || !canRunGlobalReset}
 												onClick={openGlobalResetPreview}
 											>
 												<RotateCcw className="size-4" />
@@ -1219,24 +1253,6 @@ export default function FacultyAssignments() {
 						</Sheet>
 					</div>
 				</div>
-
-				{readOnlyNotice && (
-					<div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 shadow-sm animate-in fade-in duration-300">
-						<div className="flex items-center gap-2">
-							<AlertTriangle className="size-3.5 shrink-0 text-amber-600" />
-							<span className="font-semibold">{readOnlyNotice}</span>
-						</div>
-						<Button
-							variant="ghost"
-							size="sm"
-							className="h-6 px-2 text-xs font-bold text-amber-900 hover:bg-amber-100"
-							onClick={() => fetchData({ forceRefresh: true })}
-							disabled={loading}
-						>
-							Refresh
-						</Button>
-					</div>
-				)}
 
 				<div className="mt-2 flex min-h-0 flex-1 gap-4 pb-3">
 					{/* Roster Panel */}
@@ -1420,7 +1436,7 @@ export default function FacultyAssignments() {
 										</div>
 										<div className="min-w-0">
 											<div className="flex items-center gap-2">
-												<p className="truncate text-xs font-black leading-none uppercase tracking-tight">
+												<p className="truncate text-xs font-bold leading-none uppercase tracking-tight">
 													{selected.firstName} {selected.lastName}
 												</p>
 												{selected.isClassAdviser && (
@@ -1434,7 +1450,7 @@ export default function FacultyAssignments() {
 													</Tooltip>
 												)}
 											</div>
-											<p className="truncate text-[0.6rem] text-muted-foreground font-black mt-1 uppercase tracking-widest flex items-center gap-2">
+											<p className="truncate text-[0.6rem] text-muted-foreground font-bold mt-1 uppercase tracking-widest flex items-center gap-2">
 												<span className="text-foreground/80">{selected.specialization || 'General'}</span>
 												<span className="opacity-30">•</span>
 												<span>{selected.department || 'No Dept'}</span>
@@ -1445,10 +1461,10 @@ export default function FacultyAssignments() {
 									<div className="flex items-center gap-4">
 										<div className="flex items-center gap-3 px-3 py-1 rounded-lg bg-muted/30 border border-border/40">
 											<div className="flex flex-col">
-												<span className="text-[0.55rem] font-black text-muted-foreground/60 uppercase tracking-widest leading-none mb-0.5">Current Load</span>
+												<span className="text-[0.55rem] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none mb-0.5">Current Load</span>
 												<div className="flex items-baseline gap-1.5">
-													<span className="text-sm font-black tracking-tight">{loadProfile.actualTeachingHours}h</span>
-													<Badge className={`${STATUS_COLORS[loadProfile.status].bg} ${STATUS_COLORS[loadProfile.status].text} h-3.5 border-none text-[0.5rem] font-black uppercase px-1 shadow-none`}>
+													<span className="text-sm font-bold tracking-tight">{loadProfile.actualTeachingHours}h</span>
+													<Badge className={`${STATUS_COLORS[loadProfile.status].bg} ${STATUS_COLORS[loadProfile.status].text} h-3.5 border-none text-[0.5rem] font-bold uppercase px-1 shadow-none`}>
 														{loadProfile.statusLabel}
 													</Badge>
 												</div>
@@ -1467,7 +1483,7 @@ export default function FacultyAssignments() {
 														/>
 													)}
 												</div>
-												<div className="flex justify-between text-[0.5rem] font-black uppercase tracking-tighter tabular-nums opacity-60">
+												<div className="flex justify-between text-[0.5rem] font-bold uppercase tracking-tighter tabular-nums opacity-60">
 													<span>{loadProfile.actualTeachingHours}h</span>
 													<span>Max {selected.maxHoursPerWeek}h</span>
 												</div>
@@ -1481,8 +1497,8 @@ export default function FacultyAssignments() {
 												</PopoverTrigger>
 												<PopoverContent side="bottom" align="end" className="w-80 p-0 overflow-hidden shadow-xl border-border/50">
 													<div className="bg-blue-600 p-3 text-white">
-														<h5 className="text-[0.65rem] font-black uppercase tracking-[0.15em] opacity-80 mb-0.5">Load Calculation Details</h5>
-														<p className="text-lg font-black leading-tight">{loadProfile.actualTeachingHours}h <span className="text-xs font-medium opacity-70 italic">Concurrent Weekly</span></p>
+														<h5 className="text-[0.65rem] font-bold uppercase tracking-[0.15em] opacity-80 mb-0.5">Load Calculation Details</h5>
+														<p className="text-lg font-bold leading-tight">{loadProfile.actualTeachingHours}h <span className="text-xs font-medium opacity-70 italic">Concurrent Weekly</span></p>
 													</div>
 													<div className="p-4 space-y-4">
 														<div className="space-y-2">
@@ -1496,23 +1512,23 @@ export default function FacultyAssignments() {
 														<div className="grid grid-cols-3 gap-2 border-t border-border/40 pt-3">
 															<div className="flex flex-col">
 																<span className="text-[0.55rem] font-bold uppercase tracking-tighter text-muted-foreground/70">Raw Rows</span>
-																<span className="text-xs font-black text-foreground">{loadProfile.rawTeachingHours}h</span>
+																<span className="text-xs font-bold text-foreground">{loadProfile.rawTeachingHours}h</span>
 															</div>
 															<div className="flex flex-col border-l border-border/40 pl-3">
 																<span className="text-[0.55rem] font-bold uppercase tracking-tighter text-muted-foreground/70">Credits</span>
-																<span className="text-xs font-black text-emerald-600">+{loadProfile.equivalentHours}h</span>
+																<span className="text-xs font-bold text-emerald-600">+{loadProfile.equivalentHours}h</span>
 															</div>
 															<div className="flex flex-col border-l border-border/40 pl-3">
 																<span className="text-[0.55rem] font-bold uppercase tracking-tighter text-muted-foreground/70">Load %</span>
-																<span className="text-xs font-black text-foreground">{selected.policyLoadPercentage}%</span>
+																<span className="text-xs font-bold text-foreground">{selected.policyLoadPercentage}%</span>
 															</div>
 														</div>
 														{rotationFamilyDetails.length > 0 && (
 															<div className="border-t border-border/40 pt-3 space-y-2">
-																<span className="text-[0.55rem] font-black uppercase tracking-[0.15em] text-muted-foreground/60">Concurrent Families</span>
+																<span className="text-[0.55rem] font-bold uppercase tracking-[0.15em] text-muted-foreground/60">Concurrent Families</span>
 																<div className="flex flex-wrap gap-1">
 																	{rotationFamilyDetails.map((f: RotationFamilyLoadDetail) => (
-																		<Badge key={f.family} variant="outline" className="text-[0.55rem] font-black uppercase px-1.5 py-0 h-4 bg-muted/30 border-muted">
+																		<Badge key={f.family} variant="outline" className="text-[0.55rem] font-bold uppercase px-1.5 py-0 h-4 bg-muted/30 border-muted">
 																			{f.family}: {f.creditedHours}h
 																		</Badge>
 																	))}
@@ -1536,13 +1552,13 @@ export default function FacultyAssignments() {
 
 											<DropdownMenu>
 												<DropdownMenuTrigger asChild>
-													<Button variant={dirty ? 'secondary' : 'outline'} size="sm" className="h-8 font-black text-[0.65rem] gap-1.5 shadow-sm uppercase">
+													<Button variant={dirty ? 'secondary' : 'outline'} size="sm" className="h-8 font-bold text-[0.65rem] gap-1.5 shadow-sm uppercase">
 														<Settings2 className="size-3.5" />
 														{dirty ? 'Draft' : 'Tools'}
 													</Button>
 												</DropdownMenuTrigger>
 												<DropdownMenuContent align="end" className="w-56">
-													<DropdownMenuItem onSelect={handleResetAssignments} disabled={saving || !selected.isActiveForScheduling || isReadOnlyMode} className="gap-2 cursor-pointer font-bold uppercase text-xs">
+													<DropdownMenuItem onSelect={handleResetAssignments} disabled={saving || !selected.isActiveForScheduling || isReadOnlyMode || dataSource !== 'live'} className="gap-2 cursor-pointer font-bold uppercase text-xs">
 														<RotateCcw className="size-3.5" />
 														Reset Teacher Draft
 													</DropdownMenuItem>
@@ -1555,7 +1571,7 @@ export default function FacultyAssignments() {
 												</DropdownMenuContent>
 											</DropdownMenu>
 
-											<Button type="button" size="sm" onClick={handleSave} disabled={!dirty || saving || !selected.isActiveForScheduling || isReadOnlyMode} className="h-8 font-black text-[0.65rem] gap-1.5 shadow-md shadow-primary/10 uppercase">
+											<Button type="button" size="sm" onClick={handleSave} disabled={!dirty || saving || !selected.isActiveForScheduling || isReadOnlyMode} className="h-8 font-bold text-[0.65rem] gap-1.5 shadow-md shadow-primary/10 uppercase">
 												<Save className="size-3.5" />
 												{saving ? 'Saving...' : 'Save Draft'}
 											</Button>
@@ -1574,7 +1590,7 @@ export default function FacultyAssignments() {
 												transition={{ type: 'spring', damping: 25, stiffness: 200 }}
 												className="shrink-0 flex flex-col rounded-xl border border-border bg-card shadow-sm overflow-hidden py-2"
 											>
-												<h5 className="text-[0.55rem] font-black text-center uppercase tracking-tighter text-muted-foreground opacity-60">Jump</h5>
+												<h5 className="text-[0.55rem] font-bold text-center uppercase tracking-tighter text-muted-foreground opacity-60">Jump</h5>
 												<div className="flex-1 overflow-auto no-scrollbar space-y-1 px-2 mt-2">
 													{jumpListItems.map((item) => (
 														<Tooltip key={item.id}>
@@ -1582,7 +1598,7 @@ export default function FacultyAssignments() {
 																<Button
 																	variant="ghost"
 																	size="icon-xs"
-																	className={`w-full h-8 font-black text-[0.65rem] ${item.type === 'qualified' ? 'text-emerald-700 hover:bg-emerald-50' : 'text-muted-foreground hover:bg-muted'}`}
+																	className={`w-full h-8 font-bold text-[0.65rem] ${item.type === 'qualified' ? 'text-emerald-700 hover:bg-emerald-50' : 'text-muted-foreground hover:bg-muted'}`}
 																	onClick={() => {
 																		document.getElementById(`subject-${item.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 																	}}
@@ -1654,7 +1670,7 @@ export default function FacultyAssignments() {
 															{departmentQualifiedSubjects.length > 0 && (
 																<section className="space-y-3">
 																	<div className="flex items-center gap-3">
-																		<h4 className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-emerald-600/70">Department Qualified</h4>
+																		<h4 className="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-emerald-600/70">Department Qualified</h4>
 																		<div className="flex-1 h-px bg-emerald-500/10" />
 																	</div>
 																	<div className="space-y-3">
@@ -1679,6 +1695,7 @@ export default function FacultyAssignments() {
 																				onClearHoverLoad={() => setHoveredIncomingMinutes(0)}
 																				activeFacultyIds={activeFacultyIds}
 																				onSwapSectionOwnership={handleSwapRequest}
+																				selectedFacultySpecialization={selected.specialization}
 																			/>
 																		))}
 																	</div>
@@ -1688,7 +1705,7 @@ export default function FacultyAssignments() {
 															{outsideDepartmentSubjects.length > 0 && (
 																<section className="space-y-3 pt-2">
 																	<div className="flex items-center gap-3">
-																		<h4 className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-muted-foreground/50">Outside Department</h4>
+																		<h4 className="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-muted-foreground/50">Outside Department</h4>
 																		<div className="flex-1 h-px bg-border/40" />
 																	</div>
 																	<div className="space-y-3">
@@ -1714,6 +1731,7 @@ export default function FacultyAssignments() {
 																				onClearHoverLoad={() => setHoveredIncomingMinutes(0)}
 																				activeFacultyIds={activeFacultyIds}
 																				onSwapSectionOwnership={handleSwapRequest}
+																				selectedFacultySpecialization={selected.specialization}
 																			/>
 																		))}
 																	</div>
@@ -1744,7 +1762,7 @@ export default function FacultyAssignments() {
 																	<CheckCircle2 className="size-8" />
 																</div>
 																<div className="space-y-1">
-																	<p className="text-sm font-black uppercase tracking-tight">Full Coverage Achieved</p>
+																	<p className="text-sm font-bold uppercase tracking-tight">Full Coverage Achieved</p>
 																	<p className="text-xs text-muted-foreground font-medium">All active subject-sections have been assigned to teachers.</p>
 																</div>
 															</div>
@@ -1756,7 +1774,7 @@ export default function FacultyAssignments() {
 															<div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-amber-50 border border-amber-100">
 																<AlertTriangle className="size-4 text-amber-600 shrink-0" />
 																<p className="text-xs text-amber-900/80 font-bold leading-relaxed">
-																	Showing <span className="text-amber-900 font-black">{shortageSubjects.length} subjects</span> with unassigned sections. Prioritize these to complete the schedule.
+																	Showing <span className="text-amber-900 font-bold">{shortageSubjects.length} subjects</span> with unassigned sections. Prioritize these to complete the schedule.
 																</p>
 															</div>
 															{shortageSubjects.map((subject) => (
@@ -1780,6 +1798,7 @@ export default function FacultyAssignments() {
 																	onClearHoverLoad={() => setHoveredIncomingMinutes(0)}
 																	activeFacultyIds={activeFacultyIds}
 																	onSwapSectionOwnership={handleSwapRequest}
+																	selectedFacultySpecialization={selected.specialization}
 																/>
 															))}
 														</div>
@@ -1794,7 +1813,7 @@ export default function FacultyAssignments() {
 															<div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-blue-50 border border-blue-100">
 																<Users className="size-4 text-blue-600 shrink-0" />
 																<p className="text-xs text-blue-900/80 font-bold leading-relaxed">
-																	Showing <span className="text-blue-900 font-black">{underloadedFaculty.length} teachers</span> with less than 80% load. Use these for redistribution or covering gaps.
+																	Showing <span className="text-blue-900 font-bold">{underloadedFaculty.length} teachers</span> with less than 80% load. Use these for redistribution or covering gaps.
 																</p>
 															</div>
 															<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1815,12 +1834,12 @@ export default function FacultyAssignments() {
 																					{f.firstName[0]}{f.lastName[0]}
 																				</div>
 																				<div className="min-w-0">
-																					<p className="text-xs font-black truncate group-hover:text-primary transition-colors uppercase tracking-tight">{f.lastName}, {f.firstName}</p>
+																					<p className="text-xs font-bold truncate group-hover:text-primary transition-colors uppercase tracking-tight">{f.lastName}, {f.firstName}</p>
 																					<p className="text-[0.6rem] text-muted-foreground font-bold uppercase tracking-widest">{f.department || 'No Dept'}</p>
 																				</div>
 																			</div>
 																			<div className="text-right">
-																				<p className="text-xs font-black text-blue-600">{f.policyLoadPercentage}%</p>
+																				<p className="text-xs font-bold text-blue-600">{f.policyLoadPercentage}%</p>
 																				<p className="text-[0.55rem] text-muted-foreground font-bold uppercase">{f.policyCreditedHours}h / {f.maxHoursPerWeek}h</p>
 																			</div>
 																		</div>
@@ -1841,7 +1860,7 @@ export default function FacultyAssignments() {
 															<div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-violet-50 border border-violet-100">
 																<Layers className="size-4 text-violet-600 shrink-0" />
 																<p className="text-xs text-violet-900/80 font-bold leading-relaxed">
-																	Showing <span className="text-violet-900 font-black">{specialSubjects.length} Special Programs</span>. Use this view to redistribute ownership for SPA, SPS, or STE sections across the staff.
+																	Showing <span className="text-violet-900 font-bold">{specialSubjects.length} Special Programs</span>. Use this view to redistribute ownership for SPA, SPS, or STE sections across the staff.
 																</p>
 															</div>
 															{specialSubjects.map((subject) => (
@@ -1864,6 +1883,7 @@ export default function FacultyAssignments() {
 																	onClearHoverLoad={() => setHoveredIncomingMinutes(0)}
 																	activeFacultyIds={activeFacultyIds}
 																	onSwapSectionOwnership={handleSwapRequest}
+																	selectedFacultySpecialization={selected.specialization}
 																/>
 															))}
 														</div>
@@ -1946,7 +1966,7 @@ export default function FacultyAssignments() {
 								<Button
 									variant="destructive"
 									size="sm"
-									disabled={isReadOnlyMode || resetLoading || resetConfirmText.trim().toUpperCase() !== 'RESET'}
+									disabled={!canRunGlobalReset || resetLoading || resetConfirmText.trim().toUpperCase() !== 'RESET'}
 									onClick={applyGlobalReset}
 								>
 									{resetLoading ? 'Resetting...' : 'Confirm Reset'}

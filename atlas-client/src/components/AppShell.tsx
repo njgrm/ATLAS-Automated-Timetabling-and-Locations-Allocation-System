@@ -717,7 +717,80 @@ export function AppShell() {
 	const currentPageTitle = breadcrumbs[breadcrumbs.length - 1]?.label ?? 'ATLAS';
 
 	return (
-		<SidebarProvider open={isMobile ? false : sidebarOpen} onOpenChange={setSidebarOpen}>
+		<SidebarProvider open={isMobile ? false : sidebarOpen} onOpenChange={setSidebarOpen} className="relative">
+			<div
+				className="pointer-events-none absolute inset-0"
+				aria-hidden="true"
+			>
+				<svg
+					className="absolute inset-0 h-full w-full opacity-[0.04]"
+					xmlns="http://www.w3.org/2000/svg"
+				>
+					<defs>
+						<pattern
+							id="pixel-grid-app-layout"
+							x="0"
+							y="0"
+							width="80"
+							height="80"
+							patternUnits="userSpaceOnUse"
+						>
+							<rect
+								x="2"
+								y="2"
+								width="36"
+								height="36"
+								rx="2"
+								fill="none"
+								stroke="hsl(var(--primary))"
+								strokeWidth="1.5"
+							/>
+							<rect
+								x="42"
+								y="2"
+								width="36"
+								height="36"
+								rx="2"
+								fill="none"
+								stroke="hsl(var(--primary))"
+								strokeWidth="1.5"
+							/>
+							<rect
+								x="2"
+								y="42"
+								width="36"
+								height="36"
+								rx="2"
+								fill="none"
+								stroke="hsl(var(--primary))"
+								strokeWidth="1.5"
+							/>
+							<rect
+								x="42"
+								y="42"
+								width="36"
+								height="36"
+								rx="2"
+								fill="none"
+								stroke="hsl(var(--primary))"
+								strokeWidth="1.5"
+							/>
+						</pattern>
+					</defs>
+					<rect
+						width="100%"
+						height="100%"
+						fill="url(#pixel-grid-app-layout)"
+					/>
+				</svg>
+				<div
+					className="absolute inset-0"
+					style={{
+						background:
+							'radial-gradient(circle at center, hsl(var(--primary)/0.05) 0%, transparent 70%)',
+					}}
+				/>
+			</div>
 			{!isMobile && (
 				<AppSidebar
 					className='hidden lg:flex'
@@ -730,7 +803,7 @@ export function AppShell() {
 				/>
 			)}
 
-			<SidebarInset>
+			<SidebarInset style={{ backgroundColor: 'transparent' }}>
 				{/* Top bar */}
 				<header className='flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-4'>
 					{isMobile ? (

@@ -1,0 +1,1 @@
+import{a as e,u as t}from"./utils-B2WZu7i4.js";var n=t(e(),1);function r(e){let t=n.useRef(e);return n.useEffect(()=>{t.current=e}),n.useMemo(()=>(...e)=>t.current?.(...e),[])}export{r as t};

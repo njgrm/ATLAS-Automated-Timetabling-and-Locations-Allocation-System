@@ -313,6 +313,101 @@ router.post('/integrity/reconcile-stale-ownership', authenticate, requirePrivile
 	}
 });
 
+// Auth: GET /faculty-assignments/capability-overrides?schoolId=X&schoolYearId=Y
+router.get('/capability-overrides', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.query.schoolId);
+		const schoolYearId = Number(req.query.schoolYearId);
+
+		if (!schoolId || Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
+			return;
+		}
+		if (!schoolYearId || Number.isNaN(schoolYearId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId query parameter is required.' });
+			return;
+		}
+
+		const overrides = await assignmentService.listTeachingLoadCapabilityOverrides(schoolId, schoolYearId);
+		res.json({ overrides });
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: PUT /faculty-assignments/capability-overrides
+// Body: { schoolId, schoolYearId, facultyId, subjectCode?, specializationCode?, specializationLabel?, note? }
+router.put('/capability-overrides', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.body.schoolId);
+		const schoolYearId = Number(req.body.schoolYearId);
+		const facultyId = Number(req.body.facultyId);
+
+		if (!schoolId || Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
+			return;
+		}
+		if (!schoolYearId || Number.isNaN(schoolYearId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
+			return;
+		}
+		if (!facultyId || Number.isNaN(facultyId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'facultyId is required.' });
+			return;
+		}
+
+		const overrides = await assignmentService.upsertTeachingLoadCapabilityOverride({
+			schoolId,
+			schoolYearId,
+			facultyId,
+			subjectCode: typeof req.body.subjectCode === 'string' ? req.body.subjectCode : null,
+			specializationCode: typeof req.body.specializationCode === 'string' ? req.body.specializationCode : null,
+			specializationLabel: typeof req.body.specializationLabel === 'string' ? req.body.specializationLabel : null,
+			note: typeof req.body.note === 'string' ? req.body.note : null,
+			approvedBy: req.user?.userId ?? 0,
+		});
+
+		res.json({ overrides });
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: DELETE /faculty-assignments/capability-overrides
+// Body: { schoolId, schoolYearId, facultyId, subjectCode?, specializationCode? }
+router.delete('/capability-overrides', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.body.schoolId);
+		const schoolYearId = Number(req.body.schoolYearId);
+		const facultyId = Number(req.body.facultyId);
+
+		if (!schoolId || Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
+			return;
+		}
+		if (!schoolYearId || Number.isNaN(schoolYearId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
+			return;
+		}
+		if (!facultyId || Number.isNaN(facultyId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'facultyId is required.' });
+			return;
+		}
+
+		const overrides = await assignmentService.deleteTeachingLoadCapabilityOverride({
+			schoolId,
+			schoolYearId,
+			facultyId,
+			subjectCode: typeof req.body.subjectCode === 'string' ? req.body.subjectCode : null,
+			specializationCode: typeof req.body.specializationCode === 'string' ? req.body.specializationCode : null,
+		});
+
+		res.json({ overrides });
+	} catch (err) {
+		next(err);
+	}
+});
+
 // Auth: GET /faculty-assignments/:facultyId?schoolYearId=Y
 router.get('/:facultyId', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {

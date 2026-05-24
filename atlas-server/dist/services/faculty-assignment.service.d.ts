@@ -190,6 +190,32 @@ export interface SpecialProgramRedistributionInsight {
     candidateSignals: SpecialProgramCandidateSignal[];
     constrainedSections: SpecialProgramConstrainedSection[];
 }
+export interface TeachingLoadCapabilityOverride {
+    facultyId: number;
+    subjectCode: string | null;
+    specializationCode: string | null;
+    specializationLabel: string | null;
+    approvedBy: number;
+    approvedAt: string;
+    note: string | null;
+}
+export interface TeachingLoadCapabilityOverrideMutationInput {
+    schoolId: number;
+    schoolYearId: number;
+    facultyId: number;
+    subjectCode?: string | null;
+    specializationCode?: string | null;
+    specializationLabel?: string | null;
+    approvedBy: number;
+    note?: string | null;
+}
+export interface TeachingLoadCapabilityOverrideDeleteInput {
+    schoolId: number;
+    schoolYearId: number;
+    facultyId: number;
+    subjectCode?: string | null;
+    specializationCode?: string | null;
+}
 export interface TeachingLoadTruthReconcileInput {
     schoolId: number;
     schoolYearId: number;
@@ -430,6 +456,9 @@ export declare function getSectionAssignedClasses(sectionId: number, schoolYearI
 }): Promise<SectionAssignedClassesResult | null>;
 export declare function repairActiveSubjectCoverageWithPlaceholders(input: PlaceholderCoverageRepairInput): Promise<PlaceholderCoverageRepairResult>;
 export declare function previewOrApplyRealFacultyRecovery(input: RealFacultyRecoveryInput): Promise<RealFacultyRecoveryResult>;
+export declare function listTeachingLoadCapabilityOverrides(schoolId: number, schoolYearId: number): Promise<TeachingLoadCapabilityOverride[]>;
+export declare function upsertTeachingLoadCapabilityOverride(input: TeachingLoadCapabilityOverrideMutationInput): Promise<TeachingLoadCapabilityOverride[]>;
+export declare function deleteTeachingLoadCapabilityOverride(input: TeachingLoadCapabilityOverrideDeleteInput): Promise<TeachingLoadCapabilityOverride[]>;
 export declare function previewOrApplySpecialProgramRedistribution(input: SpecialProgramRebalanceInput): Promise<SpecialProgramRebalanceResult>;
 export declare function resolveAssignmentSpecializationIdentity(input: {
     subjectCode: string | null | undefined;
