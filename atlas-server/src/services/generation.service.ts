@@ -45,6 +45,13 @@ type ServiceError = Error & {
 	details?: Record<string, unknown>;
 };
 
+type RunSummaryRecord = Record<string, unknown>;
+
+type PublishedStateReconciliationResult = {
+	reconciledCount: number;
+	reconciledRunIds: number[];
+};
+
 function err(
 	statusCode: number,
 	code: string,
@@ -57,6 +64,119 @@ function err(
 	e.actionHint = options?.actionHint;
 	e.details = options?.details;
 	return e;
+}
+
+function asSummaryRecord(summary: unknown): RunSummaryRecord {
+	if (!summary || typeof summary !== 'object' || Array.isArray(summary)) {
+		return {};
+	}
+	return summary as RunSummaryRecord;
+}
+
+function hasPublishedMarkers(summary: unknown): boolean {
+	const candidate = asSummaryRecord(summary);
+	if (candidate.isPublished === true) return true;
+	if (typeof candidate.publishedAt === 'string' && candidate.publishedAt.length > 0) return true;
+	return typeof candidate.publishedBy === 'number';
+}
+
+function buildUnpublishedSummary(
+	summary: unknown,
+	context: {
+		reason: string;
+		previousStatus: GenerationRunStatus;
+		reconciledAtIso: string;
+	},
+): RunSummaryRecord {
+	const candidate = asSummaryRecord(summary);
+	const existingIntegrity = asSummaryRecord(candidate.publicationIntegrity);
+	return {
+		...candidate,
+		isPublished: false,
+		publishedAt: null,
+		publishedBy: null,
+		publicationIntegrity: {
+			...existingIntegrity,
+			reconciledAt: context.reconciledAtIso,
+			reason: context.reason,
+			previousStatus: context.previousStatus,
+		},
+	};
+}
+
+function countViolationsBySeverity(violations: unknown, severity: 'HARD' | 'SOFT'): number {
+	if (!Array.isArray(violations)) return 0;
+	return violations.reduce((count, violation) => {
+		if (typeof violation !== 'object' || violation == null) return count;
+		return (violation as { severity?: unknown }).severity === severity ? count + 1 : count;
+	}, 0);
+}
+
+export async function reconcileInvalidPublishedRunStates(
+	schoolId: number,
+	options?: {
+		schoolYearId?: number;
+		reason?: string;
+		actorId?: number;
+	},
+): Promise<PublishedStateReconciliationResult> {
+	const reason = options?.reason ?? 'PUBLISHED_STATE_CONTRACT_RECONCILIATION';
+	const candidates = await prisma.generationRun.findMany({
+		where: {
+			schoolId,
+			...(options?.schoolYearId ? { schoolYearId: options.schoolYearId } : {}),
+			NOT: { status: 'COMPLETED' },
+		},
+		select: {
+			id: true,
+			schoolYearId: true,
+			status: true,
+			summary: true,
+		},
+	});
+
+	const invalidPublishedRuns = candidates.filter((run) => hasPublishedMarkers(run.summary));
+	if (invalidPublishedRuns.length === 0) {
+		return { reconciledCount: 0, reconciledRunIds: [] };
+	}
+
+	const reconciledAtIso = new Date().toISOString();
+	await prisma.$transaction(async (tx) => {
+		for (const run of invalidPublishedRuns) {
+			const nextSummary = buildUnpublishedSummary(run.summary, {
+				reason,
+				previousStatus: run.status,
+				reconciledAtIso,
+			});
+			await tx.generationRun.update({
+				where: { id: run.id },
+				data: { summary: nextSummary as object },
+			});
+
+			if (typeof options?.actorId === 'number' && Number.isInteger(options.actorId) && options.actorId > 0) {
+				await tx.auditLog.create({
+					data: {
+						schoolId,
+						schoolYearId: run.schoolYearId,
+						action: 'GENERATION_RUN_PUBLICATION_RECONCILED',
+						actorId: options.actorId,
+						targetIds: [run.id],
+						metadata: {
+							runId: run.id,
+							reason,
+							reconciledAt: reconciledAtIso,
+							previousStatus: run.status,
+						} as object,
+					},
+				});
+			}
+		}
+	});
+
+	return {
+		reconciledCount: invalidPublishedRuns.length,
+		reconciledRunIds: invalidPublishedRuns.map((run) => run.id),
+	};
 }
 
 function extractDraftFacultyIds(draftEntries: unknown): number[] {
@@ -1107,7 +1227,16 @@ export async function publishRun(
 	schoolYearId: number,
 	runId: number,
 	actorId: number,
+	options?: {
+		acknowledgeSoftViolations?: boolean;
+	},
 ) {
+	await reconcileInvalidPublishedRunStates(schoolId, {
+		schoolYearId,
+		reason: 'PRE_PUBLISH_RECONCILIATION',
+		actorId,
+	});
+
 	const run = await getRunById(runId, schoolId, schoolYearId);
 	if (run.status !== 'COMPLETED') {
 		throw err(422, 'RUN_NOT_COMPLETED', 'Only completed generation runs can be published.');
@@ -1122,12 +1251,23 @@ export async function publishRun(
 		});
 	}
 
+	const softViolationCount = countViolationsBySeverity(run.violations, 'SOFT');
+	const acknowledgeSoftViolations = options?.acknowledgeSoftViolations === true;
+	if (softViolationCount > 0 && !acknowledgeSoftViolations) {
+		throw err(422, 'PUBLISH_ACK_REQUIRED_SOFT_VIOLATIONS', 'Soft warnings require explicit acknowledgment before publish.', {
+			details: { runId, softViolationCount },
+			actionHint: 'Acknowledge soft warnings in the publish dialog and retry publish.',
+		});
+	}
+
 	const publishedAtIso = new Date().toISOString();
 	const nextSummary = {
 		...summary,
 		isPublished: true,
 		publishedAt: publishedAtIso,
 		publishedBy: actorId,
+		publishedSoftViolationCount: softViolationCount,
+		softViolationsAcknowledged: softViolationCount > 0 ? acknowledgeSoftViolations : false,
 	};
 
 	const updated = await prisma.generationRun.update({
@@ -1144,7 +1284,13 @@ export async function publishRun(
 			action: 'GENERATION_RUN_PUBLISHED',
 			actorId,
 			targetIds: [run.id],
-			metadata: { runId: run.id, publishedAt: publishedAtIso } as object,
+			metadata: {
+				runId: run.id,
+				publishedAt: publishedAtIso,
+				hardViolationCount,
+				softViolationCount,
+				acknowledgeSoftViolations,
+			} as object,
 		},
 	});
 
@@ -1280,26 +1426,47 @@ export async function invalidateStaleCompletedRuns(schoolId: number, schoolYearI
 		prisma.generationRun.findMany({
 			where: { schoolId, schoolYearId, status: 'COMPLETED' },
 			orderBy: { createdAt: 'desc' },
-			select: { id: true, draftEntries: true },
+			select: { id: true, schoolYearId: true, status: true, draftEntries: true, summary: true },
 		}),
 		getActiveFacultyMirrorIdSet(schoolId),
 	]);
 
-	const staleRunIds = runs
-		.filter((run) => getStaleFacultyIdsForRun(run, activeFacultyIds).length > 0)
-		.map((run) => run.id);
+	const staleRuns = runs.filter((run) => getStaleFacultyIdsForRun(run, activeFacultyIds).length > 0);
+	const staleRunIds = staleRuns.map((run) => run.id);
 
 	if (staleRunIds.length === 0) {
-		return { invalidatedCount: 0, staleRunIds: [] as number[] };
+		return { invalidatedCount: 0, staleRunIds: [] as number[], unpublishedRunIds: [] as number[] };
 	}
 
-	await prisma.generationRun.updateMany({
-		where: { id: { in: staleRunIds } },
-		data: {
-			status: 'FAILED',
-			error: 'INVALIDATED_BY_MIRROR_RESET',
-		},
+	const reconciledAtIso = new Date().toISOString();
+	const unpublishedRunIds: number[] = [];
+	await prisma.$transaction(async (tx) => {
+		for (const run of staleRuns) {
+			const wasPublished = hasPublishedMarkers(run.summary);
+			const data: {
+				status: 'FAILED';
+				error: string;
+				summary?: object;
+			} = {
+				status: 'FAILED',
+				error: 'INVALIDATED_BY_MIRROR_RESET',
+			};
+
+			if (wasPublished) {
+				data.summary = buildUnpublishedSummary(run.summary, {
+					reason: 'INVALIDATED_BY_MIRROR_RESET',
+					previousStatus: run.status,
+					reconciledAtIso,
+				}) as object;
+				unpublishedRunIds.push(run.id);
+			}
+
+			await tx.generationRun.update({
+				where: { id: run.id },
+				data,
+			});
+		}
 	});
 
-	return { invalidatedCount: staleRunIds.length, staleRunIds };
+	return { invalidatedCount: staleRunIds.length, staleRunIds, unpublishedRunIds };
 }

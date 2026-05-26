@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { buildSpecialEventSlots } from './schedule-constructor.js';
 import { getOrCreatePolicy } from './scheduling-policy.service.js';
+import { reconcileInvalidPublishedRunStates } from './generation.service.js';
 function err(statusCode, code, message) {
     const e = new Error(message);
     e.statusCode = statusCode;
@@ -19,6 +20,10 @@ function isRunPublished(summary) {
     return summary.isPublished === true;
 }
 async function resolvePublishedRun(schoolId, schoolYearId) {
+    await reconcileInvalidPublishedRunStates(schoolId, {
+        schoolYearId,
+        reason: 'PUBLISHED_ENDPOINT_INTEGRITY_RECONCILIATION',
+    });
     const candidates = await prisma.generationRun.findMany({
         where: {
             schoolId,

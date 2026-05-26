@@ -79,6 +79,8 @@ generating,
 generationElapsed,
 showPublishDialog,
 setShowPublishDialog,
+	publishAcknowledged,
+	setPublishAcknowledged,
 softCount,
 handlePublishConfirm,
 showPreGenConfirm,
@@ -559,7 +561,13 @@ return (
 			</Dialog>
 
 			{/* -- Publish Dialog -- */}
-			<Dialog open={showPublishDialog} onOpenChange={setShowPublishDialog}>
+			<Dialog
+				open={showPublishDialog}
+				onOpenChange={(open) => {
+					setShowPublishDialog(open);
+					if (!open) setPublishAcknowledged(false);
+				}}
+			>
 				<DialogContent className="sm:max-w-md">
 					<DialogHeader>
 						<DialogTitle>Publish Schedule</DialogTitle>
@@ -567,7 +575,7 @@ return (
 							{softCount > 0 ? (
 								<>
 									This draft has <span className="font-semibold text-amber-600">{softCount}</span> soft
-									violation{softCount !== 1 ? 's' : ''} (informational — does not block publish).
+									 warning{softCount !== 1 ? 's' : ''}. Acknowledge these warnings to continue publishing.
 								</>
 							) : (
 								'This draft has no violations. Ready to publish.'
@@ -585,29 +593,41 @@ return (
 									: 'Teachers remain constrained to their assigned building context.'}
 							</p>
 						</div>
+
+						{softCount > 0 ? (
+							<div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3">
+								<Checkbox
+									id="publish-soft-warning-ack"
+									checked={publishAcknowledged}
+									onCheckedChange={(checked) => setPublishAcknowledged(checked === true)}
+								/>
+								<label htmlFor="publish-soft-warning-ack" className="text-xs leading-5 text-amber-900">
+									I reviewed and acknowledge these soft warnings. Continue with publish.
+								</label>
+							</div>
+						) : null}
 					</div>
 
 					<DialogFooter className="gap-2 sm:gap-0">
-						<Button variant="outline" size="sm" onClick={() => setShowPublishDialog(false)}>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => {
+								setPublishAcknowledged(false);
+								setShowPublishDialog(false);
+							}}
+						>
 							Cancel
 						</Button>
-						<TooltipProvider>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span>
-										<Button
-											variant="default"
-											size="sm"
-																						onClick={handlePublishConfirm}
-										>
-											<Send className="size-3.5 mr-1.5" />
-											Publish
-										</Button>
-									</span>
-								</TooltipTrigger>
-								<TooltipContent>Publish API implementation is Phase 5 scope</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<Button
+							variant="default"
+							size="sm"
+							onClick={handlePublishConfirm}
+							disabled={softCount > 0 && !publishAcknowledged}
+						>
+							<Send className="size-3.5 mr-1.5" />
+							Publish
+						</Button>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>

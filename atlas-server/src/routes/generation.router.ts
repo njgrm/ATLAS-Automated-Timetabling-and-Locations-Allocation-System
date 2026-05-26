@@ -81,8 +81,11 @@ router.post(
 
 			const actorId = req.user?.userId;
 			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
+			const acknowledgeSoftViolations = req.body?.acknowledgeSoftViolations === true;
 
-			const run = await genService.publishRun(schoolId, schoolYearId, runId, actorId);
+			const run = await genService.publishRun(schoolId, schoolYearId, runId, actorId, {
+				acknowledgeSoftViolations,
+			});
 			res.json({ run });
 		} catch (e) { next(e); }
 	},

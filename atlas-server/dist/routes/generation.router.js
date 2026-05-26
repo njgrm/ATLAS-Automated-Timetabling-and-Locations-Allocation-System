@@ -85,7 +85,10 @@ router.post('/:schoolId/:schoolYearId/runs/:runId/publish', authenticate, async 
             res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' });
             return;
         }
-        const run = await genService.publishRun(schoolId, schoolYearId, runId, actorId);
+        const acknowledgeSoftViolations = req.body?.acknowledgeSoftViolations === true;
+        const run = await genService.publishRun(schoolId, schoolYearId, runId, actorId, {
+            acknowledgeSoftViolations,
+        });
         res.json({ run });
     }
     catch (e) {

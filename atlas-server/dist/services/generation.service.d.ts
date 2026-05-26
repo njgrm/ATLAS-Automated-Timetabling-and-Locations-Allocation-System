@@ -5,6 +5,15 @@
 import { type ScheduledEntry, type Violation } from './constraint-validator.js';
 import { type TimetableShapeContract, type UnassignedItem } from './schedule-constructor.js';
 import { type SeedQualitySummary, type RepairImpact } from './hybrid-scheduler.js';
+type PublishedStateReconciliationResult = {
+    reconciledCount: number;
+    reconciledRunIds: number[];
+};
+export declare function reconcileInvalidPublishedRunStates(schoolId: number, options?: {
+    schoolYearId?: number;
+    reason?: string;
+    actorId?: number;
+}): Promise<PublishedStateReconciliationResult>;
 export interface RunSummary {
     classesProcessed: number;
     assignedCount: number;
@@ -219,7 +228,9 @@ export declare function listRuns(schoolId: number, schoolYearId: number, limit?:
     draftEntries: import(".prisma/client/runtime/library").JsonValue | null;
     unassignedItems: import(".prisma/client/runtime/library").JsonValue | null;
 }[]>;
-export declare function publishRun(schoolId: number, schoolYearId: number, runId: number, actorId: number): Promise<{
+export declare function publishRun(schoolId: number, schoolYearId: number, runId: number, actorId: number, options?: {
+    acknowledgeSoftViolations?: boolean;
+}): Promise<{
     error: string | null;
     schoolId: number;
     schoolYearId: number;
@@ -264,4 +275,6 @@ export declare function getLatestRunDraft(schoolId: number, schoolYearId: number
 export declare function invalidateStaleCompletedRuns(schoolId: number, schoolYearId: number): Promise<{
     invalidatedCount: number;
     staleRunIds: number[];
+    unpublishedRunIds: number[];
 }>;
+export {};

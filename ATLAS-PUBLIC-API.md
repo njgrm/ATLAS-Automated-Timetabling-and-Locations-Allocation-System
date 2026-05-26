@@ -987,6 +987,7 @@ Behavior notes:
 - `GET /schools/:schoolId/schedules/published` always resolves the latest published run for that school.
 - If no published run exists, the API returns `404` with `code: "PUBLISHED_RUN_NOT_FOUND"`.
 - These endpoints never expose draft/review/unpublished entries.
+- If legacy rows contain invalid `FAILED + published` marker combinations, the service reconciles those rows by clearing publication markers before resolving the published payload.
 
 ### `GET /schools/:schoolId/schedules/published`
 Get the current published schedule payload for a school.

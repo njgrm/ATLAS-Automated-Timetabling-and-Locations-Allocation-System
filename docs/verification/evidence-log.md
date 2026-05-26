@@ -1,3 +1,123 @@
+# 2026-05-26 - Publish Dissemination Guard and Soft-Acknowledgment Contract Hardening
+- Phase: Phase 3 publish/dissemination closure stream (review-console publish contract hardening)
+- Operator: GitHub Copilot
+- Scope gate: PARTIAL PASS (contract implementation complete; closure proof remains blocked by live data)
+- Files changed in this pass:
+  - `atlas-server/src/routes/generation.router.ts`
+  - `atlas-server/src/services/generation.service.ts`
+  - `atlas-client/src/hooks/useTimetableMutations.ts`
+  - `atlas-client/src/components/timetable/ScheduleReviewWorkspace.tsx`
+  - `atlas-client/src/components/timetable/modals/ScheduleReviewDialogs.tsx`
+  - `atlas-client/src/components/timetable/timetableContexts.types.ts`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+
+- Contract changes implemented:
+  1) **Server-side soft-ack enforcement**
+    - `publishRun(...)` now requires explicit `acknowledgeSoftViolations=true` when a completed run has soft warnings.
+    - New error contract: `PUBLISH_ACK_REQUIRED_SOFT_VIOLATIONS` with `softViolationCount` details.
+  2) **Hard-block remains publish gate**
+    - `PUBLISH_BLOCKED_HARD_VIOLATIONS` remains the terminal block when hard violations exist.
+  3) **Transport wiring**
+    - Publish route now accepts `acknowledgeSoftViolations` from request body and passes it to service-layer publish logic.
+  4) **Review-console UX enforcement**
+    - Publish dialog now requires an explicit soft-warning acknowledgment checkbox before enabling the Publish button when soft warnings are present.
+    - Removed outdated publish-dialog tooltip copy claiming publish API is future-scope.
+    - Client publish mutation now sends `acknowledgeSoftViolations` and surfaces targeted publish failure messages by code.
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS
+
+- Tailnet verification (`https://njgrm.buru-degree.ts.net`):
+  1) Active runtime context:
+    - `GET /api/v1/runtime/context` -> `activeSchoolYearId=55`
+  2) Active-year publishability reality:
+    - `GET /api/v1/generation/1/55/runs/latest` -> `404` `{ "code": "NO_RUNS", "message": "No completed generation runs found for this school/year." }`
+  3) Completed-run scan:
+    - Only one completed run found across scanned school years for school `1`: `schoolYearId=45`, `runId=17`, `hard=514`, `soft=332`
+  4) Hard-block publish proof (with and without soft acknowledgment body):
+    - `POST /api/v1/generation/1/45/runs/17/publish` body `{ acknowledgeSoftViolations:false }` -> `422` `PUBLISH_BLOCKED_HARD_VIOLATIONS`
+    - `POST /api/v1/generation/1/45/runs/17/publish` body `{ acknowledgeSoftViolations:true }` -> `422` `PUBLISH_BLOCKED_HARD_VIOLATIONS`
+  5) Lifecycle guard ordering proof:
+    - `POST /api/v1/generation/1/1/runs/14/publish` -> `422` `{ "code": "RUN_NOT_COMPLETED", "message": "Only completed generation runs can be published." }`
+  6) Dissemination truth remains consistent:
+    - Public endpoints still return truthful no-published responses:
+     - `GET /api/v1/schools/1/schedules/published` -> `404` `PUBLISHED_RUN_NOT_FOUND`
+     - `GET /api/v1/schools/1/schedules/published/sections/1` -> `404` `PUBLISHED_RUN_NOT_FOUND`
+    - Faculty published endpoint also aligns:
+     - `GET /api/v1/schools/1/schedules/published/55/faculty/:facultyId` -> `404` `PUBLISHED_RUN_NOT_FOUND`
+
+- GO/NO-GO:
+  - **NO-GO** for full publish/dissemination stream closure in current live data.
+  - Contract hardening is implemented and verified where feasible, but live environment lacks a completed run with `hardViolationCount=0`, so end-to-end successful publish plus post-publish dissemination proof cannot yet be produced.
+
+# 2026-05-26 - Phase 3 Published Run Integrity Reconciliation One-Shot
+- Phase: Phase 3 generator-readiness stream, published-run integrity reconciliation for public/faculty dissemination truth
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Files changed in this pass:
+  - `atlas-server/src/services/generation.service.ts`
+  - `atlas-server/src/services/published-schedule.service.ts`
+  - `ATLAS-PUBLIC-API.md`
+  - `api/ATLAS-PUBLIC-API.md`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+
+- Root-cause classification:
+  - **Publish-path bug residue** from stale-run invalidation flow.
+  - `invalidateStaleCompletedRuns(...)` was flipping stale completed runs to `FAILED` with `error=INVALIDATED_BY_MIRROR_RESET` but did not clear legacy publication markers in `summary`.
+  - This left contradictory rows (`status=FAILED` + `summary.isPublished=true` + `publishedAt`) that were hidden by published resolver filters (`status=COMPLETED` only), producing runtime truth drift.
+
+- Before DB truth (direct query):
+  - `PUBLISHED_RUNS` contained:
+    - run `18`, `schoolYearId=55`, `status=FAILED`, `publishedAt=2026-05-14T16:12:31.987Z`, `error=INVALIDATED_BY_MIRROR_RESET`
+    - run `14`, `schoolYearId=1`, `status=FAILED`, `publishedAt=2026-05-12T13:31:51.426Z`, `error=INVALIDATED_BY_MIRROR_RESET`
+  - `INVALID_PUBLISHED_RUNS` count: `2`
+
+- Implemented reconciliation rule:
+  - A run is publish-valid only when both are true:
+    - `status = COMPLETED`
+    - publication markers indicate published (`summary.isPublished=true` with publish metadata)
+  - Any non-completed run carrying publish markers is invalid and must be reconciled by clearing publication markers (`isPublished=false`, `publishedAt=null`, `publishedBy=null`) and writing `publicationIntegrity` context metadata.
+
+- Contract hardening changes:
+  1) Added reusable reconciliation service in generation layer:
+     - `reconcileInvalidPublishedRunStates(...)` in `generation.service.ts`
+  2) Added pre-publish sanity reconciliation:
+     - `publishRun(...)` now reconciles invalid non-completed published markers in scope before publish attempt.
+  3) Fixed future stale-invalidation drift:
+     - `invalidateStaleCompletedRuns(...)` now clears publication markers when a stale run is demoted to `FAILED`.
+  4) Added runtime reconciliation on published read path:
+     - `published-schedule.service.ts` now reconciles invalid non-completed published markers before selecting the latest published run.
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS
+
+- Tailnet verification (`https://njgrm.buru-degree.ts.net`):
+  1) `GET /api/v1/schools/1/schedules/published`
+     - `404`
+     - body: `{ "code": "PUBLISHED_RUN_NOT_FOUND", "message": "No published schedule is available for the requested scope." }`
+  2) `GET /api/v1/schools/1/schedules/published/sections/1`
+     - `404`
+     - body: `{ "code": "PUBLISHED_RUN_NOT_FOUND", "message": "No published schedule is available for the requested scope." }`
+
+- After DB truth (direct query, post-reconciliation trigger):
+  - `PUBLISHED_MARKER_RUNS=[]`
+  - `INVALID_PUBLISHED_RUNS=[]`
+  - Verified former drift rows:
+    - run `14`: `status=FAILED`, `isPublished=false`, `publishedAt=null`, `publishedBy=null`, `publicationIntegrity.reason=PUBLISHED_ENDPOINT_INTEGRITY_RECONCILIATION`
+    - run `18`: `status=FAILED`, `isPublished=false`, `publishedAt=null`, `publishedBy=null`, `publicationIntegrity.reason=PUBLISHED_ENDPOINT_INTEGRITY_RECONCILIATION`
+
+- Truthful post-reconciliation dissemination status:
+  - **No valid published schedule remains** for school `1` at this time.
+  - Public/faculty published APIs now truthfully report no published run without contradictory DB state.
+
+- GO/NO-GO:
+  - **GO** for this one-shot scope.
+  - Published-run integrity is internally consistent after reconciliation, invalid `FAILED + published` states were repaired, and dissemination surfaces now reflect reconciled truth honestly.
+
 # 2026-05-26 - Phase 3 Student/Public Published Schedule Runtime and Public Page One-Shot
 - Phase: Phase 3 generator-readiness stream, student/public published schedule runtime + unauthenticated page foundation
 - Operator: GitHub Copilot

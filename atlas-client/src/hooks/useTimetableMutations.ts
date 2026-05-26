@@ -140,7 +140,10 @@ type UseTimetableMutationsInput = {
 	setPreGenSaving: React.Dispatch<React.SetStateAction<boolean>>;
 	setShowResetDraftDialog: React.Dispatch<React.SetStateAction<boolean>>;
 	draftBoard: DraftBoardState | null;
+	violations: Violation[];
 	setShowPublishDialog: React.Dispatch<React.SetStateAction<boolean>>;
+	publishAcknowledged: boolean;
+	setPublishAcknowledged: React.Dispatch<React.SetStateAction<boolean>>;
 	setSwapAction: React.Dispatch<React.SetStateAction<PendingSwapAction | null>>;
 	setShowSwapConfirm: React.Dispatch<React.SetStateAction<boolean>>;
 	setSwapSaving: React.Dispatch<React.SetStateAction<boolean>>;
@@ -313,7 +316,10 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setPreGenSaving,
 		setShowResetDraftDialog,
 		draftBoard,
+		violations,
 		setShowPublishDialog,
+		publishAcknowledged,
+		setPublishAcknowledged,
 		setSwapAction,
 		setShowSwapConfirm,
 		setSwapSaving,
@@ -666,19 +672,60 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			toast.error('No active run selected for publish.');
 			return;
 		}
+
+		const softViolationCount = violations.filter((violation) => violation.severity === 'SOFT').length;
+		if (softViolationCount > 0 && !publishAcknowledged) {
+			toast.error('Review and acknowledge soft warnings before publishing.');
+			return;
+		}
+
 		try {
 			const { data } = await atlasApi.post<{ run: import('@/types').GenerationRun }>(
 				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${draft.runId}/publish`,
+				{
+					acknowledgeSoftViolations: softViolationCount > 0 && publishAcknowledged,
+				},
 			);
+			setPublishAcknowledged(false);
 			setShowPublishDialog(false);
 			toast.success(`Run #${data.run.id} published. Final schedule is now viewable.`);
 			await loadAll(false);
 		} catch (e: unknown) {
-			const axiosErr = e as { response?: { data?: { message?: string } } };
+			const axiosErr = e as {
+				response?: {
+					data?: {
+						code?: string;
+						message?: string;
+						details?: {
+							hardViolationCount?: number;
+							softViolationCount?: number;
+						};
+					};
+				};
+			};
+			const code = axiosErr?.response?.data?.code;
+			if (code === 'PUBLISH_BLOCKED_HARD_VIOLATIONS') {
+				const hardViolationCount = axiosErr?.response?.data?.details?.hardViolationCount;
+				toast.error(
+					typeof hardViolationCount === 'number'
+						? `Publish blocked: ${hardViolationCount} hard violation(s) remain.`
+						: 'Publish blocked: hard violations remain unresolved.',
+				);
+				return;
+			}
+			if (code === 'PUBLISH_ACK_REQUIRED_SOFT_VIOLATIONS') {
+				const softViolationCount = axiosErr?.response?.data?.details?.softViolationCount;
+				toast.error(
+					typeof softViolationCount === 'number'
+						? `Publish requires acknowledgment of ${softViolationCount} soft warning(s).`
+						: 'Publish requires acknowledgment of soft warnings.',
+				);
+				return;
+			}
 			const msg = axiosErr?.response?.data?.message ?? (e instanceof Error ? e.message : 'Publish request failed.');
 			toast.error(msg);
 		}
-	}, [schoolYearId, draft?.runId, setShowPublishDialog, loadAll]);
+	}, [schoolYearId, draft?.runId, violations, publishAcknowledged, setPublishAcknowledged, setShowPublishDialog, loadAll]);
 
 	const runIdNumeric = draft?.runId ?? null;
 	const runVersion = draft?.version ?? 0;

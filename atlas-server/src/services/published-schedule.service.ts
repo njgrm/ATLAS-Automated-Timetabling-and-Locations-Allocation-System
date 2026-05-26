@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma.js';
 import type { ScheduledEntry } from './constraint-validator.js';
 import { buildSpecialEventSlots } from './schedule-constructor.js';
 import { getOrCreatePolicy } from './scheduling-policy.service.js';
+import { reconcileInvalidPublishedRunStates } from './generation.service.js';
 
 type PublishedRunSource = {
 	runId: number;
@@ -39,6 +40,11 @@ function isRunPublished(summary: unknown): boolean {
 }
 
 async function resolvePublishedRun(schoolId: number, schoolYearId?: number) {
+	await reconcileInvalidPublishedRunStates(schoolId, {
+		schoolYearId,
+		reason: 'PUBLISHED_ENDPOINT_INTEGRITY_RECONCILIATION',
+	});
+
 	const candidates = await prisma.generationRun.findMany({
 		where: {
 			schoolId,

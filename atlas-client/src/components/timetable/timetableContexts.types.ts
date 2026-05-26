@@ -161,6 +161,8 @@ export type ScheduleReviewDialogsContext = {
 	generationElapsed: number;
 	showPublishDialog: boolean;
 	setShowPublishDialog: Dispatch<SetStateAction<boolean>>;
+	publishAcknowledged: boolean;
+	setPublishAcknowledged: Dispatch<SetStateAction<boolean>>;
 	softCount: number;
 	policy: { teacherMoveEnabled: boolean } | null;
 	handlePublishConfirm: () => void;
