@@ -45,6 +45,29 @@ export type RotationFamilyLoadDetail = {
         subjectIds: number[];
     }>;
 };
+export type RotationTermBucketBreakdown = {
+    termRank: number | null;
+    termLabel: string | null;
+    termGroupId: string | null;
+    termCount: number | null;
+    rawMinutesPerWeek: number;
+    creditedMinutesPerWeek: number;
+    isPeakTerm: boolean;
+    sectionIds: number[];
+    sectionNames: string[];
+    subjectCodes: string[];
+    subjectIds: number[];
+};
+export type RotationFamilyTermBreakdown = {
+    family: string;
+    rawMinutesPerWeek: number;
+    peakTermMinutesPerWeek: number;
+    peakTermRank: number | null;
+    peakTermLabel: string | null;
+    termGroupId: string | null;
+    termCount: number | null;
+    termBuckets: RotationTermBucketBreakdown[];
+};
 export type TeachingLoadFormula = 'section' | 'grade';
 export type DuplicateOwnershipInput = {
     facultyId: number;
@@ -291,6 +314,25 @@ export interface TeachingLoadTruthReconcileResult {
     }>;
 }
 export declare function computeTeachingLoadMinutes(assignments: AssignmentLoadShape[], formula: TeachingLoadFormula): number;
+type AssignmentRotationBreakdownInput = {
+    subjectId: number;
+    subject: {
+        id?: number;
+        name?: string | null;
+        code?: string | null;
+        rotationFamily?: string | null;
+        modularGroupId?: string | null;
+        modularOrder?: number | null;
+        termGroupId?: string | null;
+        termCount?: number | null;
+        minMinutesPerWeek: number;
+    };
+    sections: Array<{
+        id: number;
+        name: string;
+    }>;
+};
+export declare function buildRotationTermBreakdown(assignments: AssignmentRotationBreakdownInput[]): RotationFamilyTermBreakdown[];
 export declare function detectDuplicateOwnershipTuples(assignments: DuplicateOwnershipInput[]): DuplicateOwnershipTuple[];
 export declare function buildOwnershipConflictDetails(conflicts: OwnershipConflictCandidate[], ownerNamesByFacultyId: Map<number, string>): OwnershipConflictDetail[];
 export declare function buildDuplicateOwnershipBlockingResult(conflicts: OwnershipConflictCandidate[], ownerNamesByFacultyId: Map<number, string>): AssignmentMutationResult | null;
@@ -540,6 +582,7 @@ export declare function getAssignmentsByFaculty(facultyId: number, schoolYearId:
             rotationFamily?: string | null;
         };
     }[];
+    rotationTermBreakdown: RotationFamilyTermBreakdown[];
 } | null>;
 export declare function setAssignments(facultyId: number, schoolId: number, schoolYearId: number, assignedBy: number, expectedVersion: number, assignments: AssignmentScopeInput[], authToken?: string): Promise<AssignmentMutationResult>;
 export declare function getAssignmentSummary(schoolId: number, schoolYearId: number, authToken?: string): Promise<{
@@ -573,6 +616,7 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
         sectionTeachingHoursRaw: number;
         rotationFamilyOvercountHours: number;
         rotationFamilyLoadDetails: RotationFamilyLoadDetail[];
+        rotationTermBreakdown: RotationFamilyTermBreakdown[];
         gradeTeachingHours: number;
         advisoryHours: number;
         ancillaryHours: number;

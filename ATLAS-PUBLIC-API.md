@@ -386,6 +386,11 @@ Current top-level response fields include:
 - `schoolYearId`
 - `fetchedAt`
 
+Each `faculty[]` entry also includes rotational diagnostics:
+
+- `rotationFamilyLoadDetails` (family-level hour summary)
+- `rotationTermBreakdown` (Term 1/Term 2/Term 3 bucket breakdown with peak-term marker)
+
 Key current rule for downstream systems today:
 
 - derive assigned classes per section from `faculty[].assignments[]`
@@ -457,6 +462,7 @@ Current top-level response fields:
 - `facultyId`
 - `version`
 - `assignments`
+- `rotationTermBreakdown`
 
 Current live-style example:
 
@@ -464,6 +470,41 @@ Current live-style example:
 {
   "facultyId": 18189,
   "version": 4,
+  "rotationTermBreakdown": [
+    {
+      "family": "SCIENCE",
+      "rawMinutesPerWeek": 675,
+      "peakTermMinutesPerWeek": 450,
+      "peakTermRank": 1,
+      "peakTermLabel": "Term 1",
+      "termGroupId": "SCIENCE",
+      "termCount": 3,
+      "termBuckets": [
+        {
+          "termRank": 1,
+          "termLabel": "Term 1",
+          "rawMinutesPerWeek": 450,
+          "creditedMinutesPerWeek": 450,
+          "isPeakTerm": true,
+          "sectionIds": [101, 102],
+          "sectionNames": ["ANDRES BONIFACIO", "7-LUNA"],
+          "subjectCodes": ["SCI_BIO"],
+          "subjectIds": [3021]
+        },
+        {
+          "termRank": 2,
+          "termLabel": "Term 2",
+          "rawMinutesPerWeek": 225,
+          "creditedMinutesPerWeek": 225,
+          "isPeakTerm": false,
+          "sectionIds": [101],
+          "sectionNames": ["ANDRES BONIFACIO"],
+          "subjectCodes": ["SCI_ES"],
+          "subjectIds": [3022]
+        }
+      ]
+    }
+  ],
   "assignments": [
     {
       "id": 345,
@@ -503,6 +544,7 @@ Important:
 
 - these teaching-load endpoints do not include timetable day/time slots
 - for final scheduled meetings, use published schedule endpoints instead
+- rotational families are credited by the heaviest single term bucket only (`Term 1`, `Term 2`, or `Term 3`)
 
 ### Section-First Live Teaching Load Endpoint
 

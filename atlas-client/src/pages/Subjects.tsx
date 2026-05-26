@@ -85,6 +85,13 @@ function resolveSubjectTermRank(subject: Pick<Subject, 'rotationTermRank' | 'mod
 function resolveSubjectTermLabel(subject: Pick<Subject, 'rotationTermLabel' | 'rotationTermRank' | 'modularOrder'>): string | null {
 	const explicit = (subject.rotationTermLabel ?? '').trim();
 	if (explicit.length > 0) {
+		const rankMatch = explicit.match(/(\d+)/);
+		if (rankMatch) {
+			const parsed = Number(rankMatch[1]);
+			if (Number.isInteger(parsed) && parsed > 0) {
+				return `Term ${parsed}`;
+			}
+		}
 		return explicit;
 	}
 	const rank = resolveSubjectTermRank(subject);

@@ -1,3 +1,61 @@
+# 2026-05-26 - Phase 3 Rotational Subject Peak-Term Capacity Correction One-Shot
+- Phase: Phase 3 generator-readiness stream, rotational subject peak-term capacity correction
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Files changed in this pass:
+  - `atlas-server/src/services/subject-ownership.service.ts`
+  - `atlas-server/src/services/faculty-assignment.service.ts`
+  - `atlas-server/src/services/teaching-load-automation.service.ts`
+  - `atlas-server/src/__tests__/faculty-assignment-pass5-regression.test.ts`
+  - `atlas-client/src/types.ts`
+  - `atlas-client/src/lib/faculty-assignment-helpers.ts`
+  - `atlas-client/src/pages/FacultyAssignments.tsx`
+  - `atlas-client/src/components/faculty-assignments/SubjectRow.tsx`
+  - `atlas-client/src/components/faculty-assignments/AutoFillSummaryModal.tsx`
+  - `atlas-client/src/pages/Subjects.tsx`
+  - `atlas-client/src/components/subjects/SubjectRow.tsx`
+  - `atlas-client/src/components/subjects/SubjectFormModal.tsx`
+  - `atlas-client/src/components/sections/SectionDetailsSheet.tsx`
+  - `ATLAS-PUBLIC-API.md`
+  - `api/ATLAS-PUBLIC-API.md`
+  - `api/ATLAS-LIVE-TEACHING-LOAD-INTEGRATION.md`
+  - `api/ATLAS-SECTION-FIRST-TEACHING-LOAD-ENDPOINTS.md`
+  - `docs/verification/evidence-log.md`
+
+- Core correction outcomes:
+  1. Rotational family credited weekly load now uses the heaviest single term bucket (peak term), not sum of all terms.
+  2. Hard-cap candidate checks now use incremental credited delta against the current peak-term state.
+  3. Teacher payloads now expose `rotationTermBreakdown` with per-term raw/credited minutes, subjects, sections, and `isPeakTerm` markers.
+  4. Official term wording is normalized to `Term 1`, `Term 2`, `Term 3` across backend and frontend surfaces.
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-server run test:faculty-assignment-pass5` -> PASS (`28 passed`, `0 failed`)
+  - `npm --prefix atlas-client run build` -> PASS
+
+- Tailnet verification (`http://100.88.55.125:5001/api/v1`):
+  1. Live staffing probe (`POST /faculty-assignments/report/staffing-needs`, `schoolId=1`, `schoolYearId=55`):
+     - `REAL_FACULTY_STANDARD`: `unresolved=0`, `rowsClosedByRealFaculty=70`, `concurrentMissingHours=0`, `scienceShortageRows=0`
+     - `REAL_FACULTY_HARD_CAP`: `unresolved=0`, `rowsClosedByRealFaculty=70`, `concurrentMissingHours=0`, `scienceShortageRows=0`
+     - `REAL_FACULTY_THEN_TEACHER_X`: `unresolved=0`, `rowsClosedByRealFaculty=70`, `rowsClosedByTeacherX=0`, `scienceShortageRows=0`
+  2. Teacher-first contract checks:
+     - `GET /faculty-assignments/summary?schoolId=1&schoolYearId=55` returns `rotationTermBreakdown` on faculty rows.
+     - Sample row: `ALVAREZ, MILAGROS` -> `peakTermLabel=Term 2`, `candidateTermLabels=Term 1, Term 2`.
+     - `GET /faculty-assignments/:facultyId?schoolYearId=55` returns top-level `rotationTermBreakdown`.
+  3. Section-first contract checks:
+     - `GET /sections/:sectionId/assigned-classes?schoolYearId=55&includeDiagnostics=true` sample rotational class row includes `rotationTermLabel=Term 1`, `rotationTermRank=1`, `rotationFamily=SCIENCE`.
+  4. Subject-term label normalization:
+     - `GET /subjects?schoolId=1` rotational labels observed: `Term 1`, `Term 2`, `Term 3`; no ordinal labels (`1st/2nd/3rd`).
+
+- SCI_ES shortage verdict (required):
+  - Before baseline (prior evidence): unresolved shortage remained (`70` rows) and SCI_ES was still heavily uncovered.
+  - After this pass: live staffing probes now report `scienceShortageRows=0` and `concurrentMissingHours=0` across tested modes.
+  - Verdict: **SCI_ES shortage changed materially and is now resolved in the current live staffing-needs model.**
+
+- GO/NO-GO:
+  - **GO** for this one-shot scope.
+  - Peak-term rotational crediting, hard-cap delta behavior, term-aware API contracts, and scheduler-visible term breakdowns are implemented and verified.
+
 # 2026-05-26 - Phase 3 Rotational Subject Term Awareness Full-Stack One-Shot
 - Phase: Phase 3 generator-readiness stream, rotational subject term-awareness truth + operator-surface visibility
 - Operator: GitHub Copilot

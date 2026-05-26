@@ -83,6 +83,13 @@ interface SectionDetailsSheetProps {
 function resolveRotationTermLabel(input: { rotationTermLabel?: string | null; rotationTermRank?: number | null }): string | null {
 	const explicitLabel = (input.rotationTermLabel ?? '').trim();
 	if (explicitLabel.length > 0) {
+		const rankMatch = explicitLabel.match(/(\d+)/);
+		if (rankMatch) {
+			const parsed = Number(rankMatch[1]);
+			if (Number.isInteger(parsed) && parsed > 0) {
+				return `Term ${parsed}`;
+			}
+		}
 		return explicitLabel;
 	}
 	if (typeof input.rotationTermRank === 'number' && Number.isInteger(input.rotationTermRank) && input.rotationTermRank > 0) {

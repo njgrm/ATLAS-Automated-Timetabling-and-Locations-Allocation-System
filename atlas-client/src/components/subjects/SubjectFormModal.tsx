@@ -48,6 +48,27 @@ type Props = {
 	onClose: () => void;
 };
 
+function resolveCanonicalRotationTermLabel(termLabel: string | null | undefined, termRank: number | null | undefined): string | null {
+	if (typeof termRank === 'number' && Number.isInteger(termRank) && termRank > 0) {
+		return `Term ${termRank}`;
+	}
+
+	const normalizedLabel = (termLabel ?? '').trim();
+	if (!normalizedLabel) {
+		return null;
+	}
+
+	const rankMatch = normalizedLabel.match(/(\d+)/);
+	if (rankMatch) {
+		const parsed = Number(rankMatch[1]);
+		if (Number.isInteger(parsed) && parsed > 0) {
+			return `Term ${parsed}`;
+		}
+	}
+
+	return normalizedLabel;
+}
+
 export function SubjectFormModal({
 	open,
 	mode,
@@ -136,6 +157,10 @@ export function SubjectFormModal({
 		&& form.name.trim().length > 0
 		&& form.programScopes.length > 0
 		&& !saving;
+	const subjectMetaRotationLabel = resolveCanonicalRotationTermLabel(
+		subjectMeta?.rotationTermLabel,
+		subjectMeta?.rotationTermRank ?? null,
+	);
 
 	return (
 		<Dialog open={open} onOpenChange={(value) => { if (!value) onClose(); }}>
@@ -199,9 +224,9 @@ export function SubjectFormModal({
 											{subjectMeta.rotationFamily}
 										</Badge>
 									)}
-									{(subjectMeta.rotationTermLabel || (subjectMeta.rotationTermRank && subjectMeta.rotationTermRank > 0)) && (
+									{subjectMetaRotationLabel && (
 										<Badge variant="outline" className="text-[0.6rem] border-indigo-300 text-indigo-900 bg-indigo-100/60">
-											{subjectMeta.rotationTermLabel || `Term ${subjectMeta.rotationTermRank}`}
+											{subjectMetaRotationLabel}
 										</Badge>
 									)}
 								</div>

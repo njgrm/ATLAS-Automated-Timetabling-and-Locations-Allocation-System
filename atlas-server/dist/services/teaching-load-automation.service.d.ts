@@ -112,5 +112,7 @@ export interface StaffingShortageDetail {
         programType: string;
     }>;
 }
+export declare function __testComputeCreditedCapacityMinutes(lanes: Map<string, number>): number;
+export declare function __testEstimateCapacityLaneDeltaMinutes(lanes: Map<string, number>, laneKey: string, nextLaneMinutes: number): number;
 export declare function autoFill(schoolId: number, schoolYearId: number, authToken?: string, options?: AutoFillOptions): Promise<AutoFillResult>;
 export {};

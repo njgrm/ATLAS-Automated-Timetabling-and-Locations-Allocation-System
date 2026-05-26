@@ -94,6 +94,7 @@ import type {
 	TeachingLoadCoverageTotals,
 	TeachingLoadIntegrityDiagnostics,
 	RotationFamilyLoadDetail,
+	RotationFamilyTermBreakdown,
 } from '@/types';
 
 const DEFAULT_SCHOOL_ID = 1;
@@ -173,6 +174,27 @@ function resolveRotationLaneKey(subject: Pick<Subject, 'rotationFamily' | 'rotat
 		return null;
 	}
 	return `${family}:term:${resolveRotationTermRank(subject)}`;
+}
+
+function resolveCanonicalRotationTermLabel(termLabel: string | null | undefined, termRank: number | null | undefined): string | null {
+	if (typeof termRank === 'number' && Number.isInteger(termRank) && termRank > 0) {
+		return `Term ${termRank}`;
+	}
+
+	const normalizedLabel = (termLabel ?? '').trim();
+	if (normalizedLabel.length === 0) {
+		return null;
+	}
+
+	const rankMatch = normalizedLabel.match(/(\d+)/);
+	if (rankMatch) {
+		const parsed = Number(rankMatch[1]);
+		if (Number.isInteger(parsed) && parsed > 0) {
+			return `Term ${parsed}`;
+		}
+	}
+
+	return normalizedLabel;
 }
 
 export default function FacultyAssignments() {
@@ -960,6 +982,166 @@ export default function FacultyAssignments() {
 		});
 		return map;
 	}, [allKnownSections, selected?.assignments, subjects]);
+
+	const rotationTermBreakdown = useMemo<RotationFamilyTermBreakdown[]>(() => {
+		if (Array.isArray(selected?.rotationTermBreakdown) && selected.rotationTermBreakdown.length > 0 && !dirty) {
+			return selected.rotationTermBreakdown
+				.map((family) => {
+					const normalizedBuckets = (family.termBuckets ?? [])
+						.map((bucket) => ({
+							...bucket,
+							termLabel: resolveCanonicalRotationTermLabel(bucket.termLabel, bucket.termRank),
+						}))
+						.sort((left, right) => {
+							const leftRank = typeof left.termRank === 'number' && left.termRank > 0 ? left.termRank : 0;
+							const rightRank = typeof right.termRank === 'number' && right.termRank > 0 ? right.termRank : 0;
+							if (leftRank !== rightRank) {
+								return leftRank - rightRank;
+							}
+							return right.creditedMinutesPerWeek - left.creditedMinutesPerWeek;
+						});
+
+					const peak = [...normalizedBuckets]
+						.sort((left, right) => {
+							if (right.creditedMinutesPerWeek !== left.creditedMinutesPerWeek) {
+								return right.creditedMinutesPerWeek - left.creditedMinutesPerWeek;
+							}
+							const leftRank = typeof left.termRank === 'number' && left.termRank > 0 ? left.termRank : 0;
+							const rightRank = typeof right.termRank === 'number' && right.termRank > 0 ? right.termRank : 0;
+							return leftRank - rightRank;
+						})[0] ?? null;
+
+					return {
+						...family,
+						peakTermLabel: resolveCanonicalRotationTermLabel(family.peakTermLabel, family.peakTermRank),
+						termBuckets: normalizedBuckets.map((bucket) => ({
+							...bucket,
+							isPeakTerm:
+								(bucket.isPeakTerm ?? false)
+								|| (peak !== null
+									&& peak.termRank === bucket.termRank
+									&& peak.creditedMinutesPerWeek === bucket.creditedMinutesPerWeek),
+						})),
+					};
+				})
+				.sort((left, right) => right.peakTermMinutesPerWeek - left.peakTermMinutesPerWeek || left.family.localeCompare(right.family));
+		}
+
+		const familyMap = new Map<string, {
+			rawMinutesPerWeek: number;
+			termBuckets: Map<number, {
+				termRank: number | null;
+				termLabel: string | null;
+				termGroupId: string | null;
+				termCount: number | null;
+				rawMinutesPerWeek: number;
+				laneMinutesBySection: Map<number, number>;
+				sectionNamesById: Map<number, string>;
+				subjectCodes: Set<string>;
+				subjectIds: Set<number>;
+			}>;
+		}>();
+
+		for (const entry of loadProfile.breakdown) {
+			const family = (entry.rotationFamily ?? '').trim().toUpperCase();
+			if (family.length === 0) {
+				continue;
+			}
+
+			const termRank = typeof entry.rotationTermRank === 'number' && Number.isInteger(entry.rotationTermRank) && entry.rotationTermRank > 0
+				? entry.rotationTermRank
+				: null;
+			const termKey = termRank ?? 0;
+
+			const familyEntry = familyMap.get(family) ?? {
+				rawMinutesPerWeek: 0,
+				termBuckets: new Map(),
+			};
+			const termBucket = familyEntry.termBuckets.get(termKey) ?? {
+				termRank,
+				termLabel: resolveCanonicalRotationTermLabel(entry.rotationTermLabel, termRank),
+				termGroupId: entry.rotationTermGroupId ?? null,
+				termCount: entry.rotationTermCount ?? null,
+				rawMinutesPerWeek: 0,
+				laneMinutesBySection: new Map<number, number>(),
+				sectionNamesById: new Map<number, string>(),
+				subjectCodes: new Set<string>(),
+				subjectIds: new Set<number>(),
+			};
+
+			termBucket.rawMinutesPerWeek += Math.max(0, entry.minutesPerWeek);
+			familyEntry.rawMinutesPerWeek += Math.max(0, entry.minutesPerWeek);
+
+			const existingLaneMinutes = termBucket.laneMinutesBySection.get(entry.sectionId) ?? 0;
+			if (entry.minutesPerWeek > existingLaneMinutes) {
+				termBucket.laneMinutesBySection.set(entry.sectionId, entry.minutesPerWeek);
+			}
+			termBucket.sectionNamesById.set(entry.sectionId, entry.sectionName);
+			termBucket.subjectCodes.add(entry.subjectCode);
+			termBucket.subjectIds.add(entry.subjectId);
+
+			familyEntry.termBuckets.set(termKey, termBucket);
+			familyMap.set(family, familyEntry);
+		}
+
+		return Array.from(familyMap.entries())
+			.map(([family, familyEntry]) => {
+				const termBuckets = Array.from(familyEntry.termBuckets.values())
+					.map((bucket) => {
+						const sectionIds = Array.from(bucket.laneMinutesBySection.keys()).sort((left, right) => left - right);
+						const creditedMinutesPerWeek = Array.from(bucket.laneMinutesBySection.values()).reduce((sum, value) => sum + value, 0);
+						return {
+							termRank: bucket.termRank,
+							termLabel: resolveCanonicalRotationTermLabel(bucket.termLabel, bucket.termRank),
+							termGroupId: bucket.termGroupId,
+							termCount: bucket.termCount,
+							rawMinutesPerWeek: bucket.rawMinutesPerWeek,
+							creditedMinutesPerWeek,
+							isPeakTerm: false,
+							sectionIds,
+							sectionNames: sectionIds.map((sectionId) => bucket.sectionNamesById.get(sectionId) ?? `Section ${sectionId}`),
+							subjectCodes: Array.from(bucket.subjectCodes).sort((left, right) => left.localeCompare(right)),
+							subjectIds: Array.from(bucket.subjectIds).sort((left, right) => left - right),
+						};
+					})
+					.sort((left, right) => {
+						const leftRank = typeof left.termRank === 'number' && left.termRank > 0 ? left.termRank : 0;
+						const rightRank = typeof right.termRank === 'number' && right.termRank > 0 ? right.termRank : 0;
+						if (leftRank !== rightRank) {
+							return leftRank - rightRank;
+						}
+						return right.creditedMinutesPerWeek - left.creditedMinutesPerWeek;
+					});
+
+				const peakTerm = [...termBuckets]
+					.sort((left, right) => {
+						if (right.creditedMinutesPerWeek !== left.creditedMinutesPerWeek) {
+							return right.creditedMinutesPerWeek - left.creditedMinutesPerWeek;
+						}
+						const leftRank = typeof left.termRank === 'number' && left.termRank > 0 ? left.termRank : 0;
+						const rightRank = typeof right.termRank === 'number' && right.termRank > 0 ? right.termRank : 0;
+						return leftRank - rightRank;
+					})[0] ?? null;
+
+				return {
+					family,
+					rawMinutesPerWeek: familyEntry.rawMinutesPerWeek,
+					peakTermMinutesPerWeek: peakTerm?.creditedMinutesPerWeek ?? 0,
+					peakTermRank: peakTerm?.termRank ?? null,
+					peakTermLabel: peakTerm?.termLabel ?? null,
+					termGroupId: peakTerm?.termGroupId ?? null,
+					termCount: peakTerm?.termCount ?? null,
+					termBuckets: termBuckets.map((bucket) => ({
+						...bucket,
+						isPeakTerm:
+							peakTerm !== null
+							&& bucket.termRank === peakTerm.termRank
+							&& bucket.creditedMinutesPerWeek === peakTerm.creditedMinutesPerWeek,
+					})),
+				};
+			})
+			.sort((left, right) => right.peakTermMinutesPerWeek - left.peakTermMinutesPerWeek || left.family.localeCompare(right.family));
+	}, [dirty, loadProfile.breakdown, selected?.rotationTermBreakdown]);
 
 	const rotationFamilyDetails = useMemo(() => {
 		if (Array.isArray(selected?.rotationFamilyLoadDetails) && selected.rotationFamilyLoadDetails.length > 0 && !dirty) {
@@ -1761,9 +1943,7 @@ export default function FacultyAssignments() {
 																<h6 className="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground">Rotation Term-Lane Breakdown</h6>
 																<div className="space-y-2">
 																	{rotationFamilyDetails.map((f: RotationFamilyLoadDetail) => {
-																		const termLabel = (f.dominantTermLabel ?? '').trim().length > 0
-																			? f.dominantTermLabel
-																			: (typeof f.dominantTermRank === 'number' && f.dominantTermRank > 0 ? `Term ${f.dominantTermRank}` : null);
+																		const termLabel = resolveCanonicalRotationTermLabel(f.dominantTermLabel, f.dominantTermRank ?? null);
 																		return (
 																		<div key={f.family} className="flex flex-col gap-1 p-2 rounded-lg border border-violet-100 bg-violet-50/30">
 																			<div className="flex items-center justify-between">
@@ -1834,7 +2014,62 @@ export default function FacultyAssignments() {
 											</Button>
 										</div>
 									</div>
-								</div>								{/* Content Row with Jump List and Assignment Card */}
+								</div>
+
+								{rotationTermBreakdown.length > 0 && (
+									<div className="shrink-0 rounded-xl border border-sky-100 bg-sky-50/40 px-3 py-2.5 shadow-sm">
+										<div className="flex items-center justify-between gap-3">
+											<p className="text-[0.6rem] font-bold uppercase tracking-[0.18em] text-sky-800">Rotational Term Distribution</p>
+											<p className="text-[0.6rem] font-semibold text-sky-700/80 uppercase tracking-tight">
+												Only the peak term contributes to weekly credited load
+											</p>
+										</div>
+										<div className="mt-2 grid gap-2 xl:grid-cols-2">
+											{rotationTermBreakdown.map((family) => (
+												<div key={family.family} className="rounded-lg border border-sky-200/70 bg-white/90 px-2.5 py-2">
+													<div className="flex items-center justify-between gap-2">
+														<div className="flex items-center gap-1.5 min-w-0">
+															<span className="text-[0.62rem] font-black uppercase tracking-tight text-sky-900 truncate">{family.family}</span>
+															{family.peakTermLabel && (
+																<Badge variant="outline" className="h-4 px-1.5 text-[0.55rem] font-bold uppercase border-sky-300 bg-sky-100 text-sky-800">
+																	Peak: {family.peakTermLabel}
+																</Badge>
+															)}
+														</div>
+														<span className="text-[0.6rem] font-bold text-sky-800 tabular-nums">
+															{(family.peakTermMinutesPerWeek / 60).toFixed(1)}h credited
+														</span>
+													</div>
+													<div className="mt-2 grid gap-1 sm:grid-cols-3">
+														{family.termBuckets.map((bucket) => (
+															<div
+																key={`${family.family}-${bucket.termRank ?? 0}`}
+																className={`rounded-md border px-2 py-1.5 ${bucket.isPeakTerm ? 'border-sky-400 bg-sky-100/70' : 'border-sky-100 bg-sky-50/40'}`}
+															>
+																<div className="flex items-center justify-between gap-2">
+																	<span className="text-[0.55rem] font-black uppercase tracking-tight text-sky-900">
+																		{resolveCanonicalRotationTermLabel(bucket.termLabel, bucket.termRank) ?? 'Term ?'}
+																	</span>
+																	{bucket.isPeakTerm && (
+																		<span className="text-[0.5rem] font-bold uppercase text-sky-700">Credited</span>
+																	)}
+																</div>
+																<div className="mt-1 text-[0.55rem] font-bold text-sky-800/90 tabular-nums">
+																	{(bucket.creditedMinutesPerWeek / 60).toFixed(1)}h concurrent
+																</div>
+																<div className="text-[0.5rem] font-semibold text-sky-700/70 uppercase tracking-tight">
+																	{bucket.sectionIds.length} sections • {bucket.subjectCodes.length} subjects
+																</div>
+															</div>
+														))}
+													</div>
+												</div>
+											))}
+										</div>
+									</div>
+								)}
+
+										{/* Content Row with Jump List and Assignment Card */}
 								<div className="flex-1 flex min-h-0 gap-3">
 									<AnimatePresence mode="popLayout">
 										{showJumpList && (

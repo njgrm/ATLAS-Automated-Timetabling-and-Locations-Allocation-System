@@ -87,6 +87,27 @@ type RotationTermMetadata = {
 	termCount: number | null;
 };
 
+function toCanonicalRotationTermLabel(termLabel: string | null | undefined, termRank: number | null): string | null {
+	if (typeof termRank === 'number' && Number.isInteger(termRank) && termRank > 0) {
+		return `Term ${termRank}`;
+	}
+
+	const trimmed = (termLabel ?? '').trim();
+	if (!trimmed) {
+		return null;
+	}
+
+	const rankMatch = trimmed.match(/(\d+)/);
+	if (rankMatch) {
+		const parsed = Number(rankMatch[1]);
+		if (Number.isInteger(parsed) && parsed > 0) {
+			return `Term ${parsed}`;
+		}
+	}
+
+	return trimmed;
+}
+
 function resolveRotationTermMetadata(subject: Subject): RotationTermMetadata {
 	const explicitTermRank =
 		typeof subject.rotationTermRank === 'number' && Number.isInteger(subject.rotationTermRank) && subject.rotationTermRank > 0
@@ -109,7 +130,7 @@ function resolveRotationTermMetadata(subject: Subject): RotationTermMetadata {
 	const termCount = explicitTermCount ?? derivedTermCount;
 
 	const explicitTermLabel = (subject.rotationTermLabel ?? '').trim();
-	const termLabel = explicitTermLabel.length > 0 ? explicitTermLabel : termRank ? `Term ${termRank}` : null;
+	const termLabel = toCanonicalRotationTermLabel(explicitTermLabel, termRank);
 
 	const explicitTermGroupId = (subject.rotationTermGroupId ?? '').trim();
 	const derivedTermGroupId = (subject.termGroupId ?? '').trim();
@@ -319,12 +340,11 @@ export function buildTeachingLoadProfile(
 	const subjectMap = new Map(subjects.map((subject) => [subject.id, subject]));
 	const breakdown: LoadBreakdownItem[] = [];
 	let rawMinutes = 0;
-	const creditedLanes = new Map<string, number>();
+	const nonRotationLanes = new Map<string, number>();
 	const familyAccumulators = new Map<
 		string,
 		{
 			rawMinutes: number;
-			laneMinutes: Map<string, number>;
 			subjectCodes: Set<string>;
 			termBuckets: Map<
 				number,
@@ -339,6 +359,31 @@ export function buildTeachingLoadProfile(
 		}
 	>();
 
+	const computeTermBucketMinutes = (bucket: { laneMinutes: Map<number, number> }): number =>
+		Array.from(bucket.laneMinutes.values()).reduce((sum, value) => sum + value, 0);
+
+	const computeFamilyPeakMinutes = (
+		termBuckets: Map<
+			number,
+			{
+				termRank: number | null;
+				termLabel: string | null;
+				termGroupId: string | null;
+				termCount: number | null;
+				laneMinutes: Map<number, number>;
+			}
+		>,
+	): number => {
+		let peak = 0;
+		for (const bucket of termBuckets.values()) {
+			const bucketMinutes = computeTermBucketMinutes(bucket);
+			if (bucketMinutes > peak) {
+				peak = bucketMinutes;
+			}
+		}
+		return peak;
+	};
+
 	for (const assignment of assignments) {
 		const subject = subjectMap.get(assignment.subjectId);
 		if (!subject) continue;
@@ -347,14 +392,62 @@ export function buildTeachingLoadProfile(
 		for (const sectionId of assignment.sectionIds) {
 			const section = sectionMap.get(sectionId);
 			if (!section) continue;
-			const laneKey = rotationFamily
-				? `family:${rotationFamily}:term:${normalizeRotationTermLaneKey(rotationTermMetadata.termRank)}:${sectionId}`
-				: `subject:${subject.id}:${sectionId}`;
-			const currentLaneMinutes = creditedLanes.get(laneKey) ?? 0;
-			if (subject.minMinutesPerWeek > currentLaneMinutes) {
-				creditedLanes.set(laneKey, subject.minMinutesPerWeek);
+			let isRotationDuplicate = false;
+
+			if (rotationFamily) {
+				const accumulator = familyAccumulators.get(rotationFamily) ?? {
+					rawMinutes: 0,
+					subjectCodes: new Set<string>(),
+					termBuckets: new Map(),
+				};
+
+				const termKey = normalizeRotationTermLaneKey(rotationTermMetadata.termRank);
+				const termBucket = accumulator.termBuckets.get(termKey) ?? {
+					termRank: rotationTermMetadata.termRank,
+					termLabel: rotationTermMetadata.termLabel,
+					termGroupId: rotationTermMetadata.termGroupId,
+					termCount: rotationTermMetadata.termCount,
+					laneMinutes: new Map<number, number>(),
+				};
+
+				if (!termBucket.termLabel && rotationTermMetadata.termLabel) {
+					termBucket.termLabel = rotationTermMetadata.termLabel;
+				}
+				if (!termBucket.termGroupId && rotationTermMetadata.termGroupId) {
+					termBucket.termGroupId = rotationTermMetadata.termGroupId;
+				}
+				if (!termBucket.termCount && rotationTermMetadata.termCount) {
+					termBucket.termCount = rotationTermMetadata.termCount;
+				}
+				if (!termBucket.termRank && rotationTermMetadata.termRank) {
+					termBucket.termRank = rotationTermMetadata.termRank;
+				}
+
+				const familyPeakBefore = computeFamilyPeakMinutes(accumulator.termBuckets);
+				const termBucketBeforeMinutes = computeTermBucketMinutes(termBucket);
+				const currentTermLaneMinutes = termBucket.laneMinutes.get(sectionId) ?? 0;
+				const laneIncrease = Math.max(0, subject.minMinutesPerWeek - currentTermLaneMinutes);
+				const termBucketAfterMinutes = termBucketBeforeMinutes + laneIncrease;
+				const familyPeakAfter = Math.max(familyPeakBefore, termBucketAfterMinutes);
+				isRotationDuplicate = laneIncrease <= 0 || familyPeakAfter <= familyPeakBefore;
+
+				if (laneIncrease > 0) {
+					termBucket.laneMinutes.set(sectionId, subject.minMinutesPerWeek);
+				}
+
+				termBucket.termLabel = toCanonicalRotationTermLabel(termBucket.termLabel, termBucket.termRank);
+				accumulator.rawMinutes += subject.minMinutesPerWeek;
+				accumulator.subjectCodes.add(subject.code);
+				accumulator.termBuckets.set(termKey, termBucket);
+				familyAccumulators.set(rotationFamily, accumulator);
+			} else {
+				const laneKey = `subject:${subject.id}:${sectionId}`;
+				const currentLaneMinutes = nonRotationLanes.get(laneKey) ?? 0;
+				if (subject.minMinutesPerWeek > currentLaneMinutes) {
+					nonRotationLanes.set(laneKey, subject.minMinutesPerWeek);
+				}
 			}
-			const isRotationDuplicate = rotationFamily ? subject.minMinutesPerWeek <= currentLaneMinutes : false;
+
 			breakdown.push({
 				subjectId: subject.id,
 				subjectName: subject.name,
@@ -372,53 +465,45 @@ export function buildTeachingLoadProfile(
 				totalMinutes: subject.minMinutesPerWeek,
 			});
 			rawMinutes += subject.minMinutesPerWeek;
-
-			if (rotationFamily) {
-				const accumulator = familyAccumulators.get(rotationFamily) ?? {
-					rawMinutes: 0,
-					laneMinutes: new Map<string, number>(),
-					subjectCodes: new Set<string>(),
-					termBuckets: new Map(),
-				};
-				accumulator.rawMinutes += subject.minMinutesPerWeek;
-				const familyLaneMinutes = accumulator.laneMinutes.get(laneKey) ?? 0;
-				if (subject.minMinutesPerWeek > familyLaneMinutes) {
-					accumulator.laneMinutes.set(laneKey, subject.minMinutesPerWeek);
-				}
-
-				const termKey = normalizeRotationTermLaneKey(rotationTermMetadata.termRank);
-				const termBucket = accumulator.termBuckets.get(termKey) ?? {
-					termRank: rotationTermMetadata.termRank,
-					termLabel: rotationTermMetadata.termLabel,
-					termGroupId: rotationTermMetadata.termGroupId,
-					termCount: rotationTermMetadata.termCount,
-					laneMinutes: new Map<number, number>(),
-				};
-				if (!termBucket.termLabel && rotationTermMetadata.termLabel) {
-					termBucket.termLabel = rotationTermMetadata.termLabel;
-				}
-				if (!termBucket.termGroupId && rotationTermMetadata.termGroupId) {
-					termBucket.termGroupId = rotationTermMetadata.termGroupId;
-				}
-				if (!termBucket.termCount && rotationTermMetadata.termCount) {
-					termBucket.termCount = rotationTermMetadata.termCount;
-				}
-				if (!termBucket.termRank && rotationTermMetadata.termRank) {
-					termBucket.termRank = rotationTermMetadata.termRank;
-				}
-				const termLaneMinutes = termBucket.laneMinutes.get(sectionId) ?? 0;
-				if (subject.minMinutesPerWeek > termLaneMinutes) {
-					termBucket.laneMinutes.set(sectionId, subject.minMinutesPerWeek);
-				}
-				accumulator.termBuckets.set(termKey, termBucket);
-
-				accumulator.subjectCodes.add(subject.code);
-				familyAccumulators.set(rotationFamily, accumulator);
-			}
 		}
 	}
 
-	const creditedMinutes = Array.from(creditedLanes.values()).reduce((sum, value) => sum + value, 0);
+	const nonRotationCreditedMinutes = Array.from(nonRotationLanes.values()).reduce((sum, value) => sum + value, 0);
+	const rotationFamilyComputations = Array.from(familyAccumulators.entries()).map(([family, stats]) => {
+		const termBuckets = Array.from(stats.termBuckets.values()).map((bucket) => ({
+			termRank: bucket.termRank,
+			termLabel: bucket.termLabel,
+			termGroupId: bucket.termGroupId,
+			termCount: bucket.termCount,
+			creditedMinutes: computeTermBucketMinutes(bucket),
+			unitCount: bucket.laneMinutes.size,
+		}));
+		const dominantTerm = [...termBuckets].sort((left, right) => {
+			if (right.creditedMinutes !== left.creditedMinutes) {
+				return right.creditedMinutes - left.creditedMinutes;
+			}
+			return normalizeRotationTermLaneKey(left.termRank) - normalizeRotationTermLaneKey(right.termRank);
+		})[0] ?? null;
+		const creditedFamilyMinutes = dominantTerm?.creditedMinutes ?? 0;
+
+		return {
+			creditedFamilyMinutes,
+			detail: {
+				family,
+				rawHours: Math.round((stats.rawMinutes / 60) * 10) / 10,
+				creditedHours: Math.round((creditedFamilyMinutes / 60) * 10) / 10,
+				overcountHours: Math.round(((stats.rawMinutes - creditedFamilyMinutes) / 60) * 10) / 10,
+				unitCount: termBuckets.reduce((sum, bucket) => sum + bucket.unitCount, 0),
+				dominantTermRank: dominantTerm?.termRank ?? null,
+				dominantTermLabel: dominantTerm?.termLabel ?? null,
+				termGroupId: dominantTerm?.termGroupId ?? null,
+				termCount: dominantTerm?.termCount ?? null,
+				subjectCodes: Array.from(stats.subjectCodes).sort((left, right) => left.localeCompare(right)),
+			} satisfies RotationFamilyBreakdownItem,
+		};
+	});
+	const creditedMinutes = nonRotationCreditedMinutes
+		+ rotationFamilyComputations.reduce((sum, family) => sum + family.creditedFamilyMinutes, 0);
 	const actualTeachingHours = Math.round((creditedMinutes / 60) * 10) / 10;
 	const rawTeachingHours = Math.round((rawMinutes / 60) * 10) / 10;
 	const rotationOvercountHours = Math.round(Math.max(0, rawTeachingHours - actualTeachingHours) * 10) / 10;
@@ -427,35 +512,8 @@ export function buildTeachingLoadProfile(
 	const overloadHours = Math.round(Math.max(actualTeachingHours - STANDARD_WEEKLY_TEACHING_HOURS, 0) * 10) / 10;
 	const overCapHours = Math.round(Math.max(actualTeachingHours - MAX_WEEKLY_TEACHING_HOURS, 0) * 10) / 10;
 	const { status, label } = deriveLoadStatus(actualTeachingHours);
-	const rotationFamilies: RotationFamilyBreakdownItem[] = Array.from(familyAccumulators.entries())
-		.map(([family, stats]) => {
-			const creditedFamilyMinutes = Array.from(stats.laneMinutes.values()).reduce((sum, value) => sum + value, 0);
-			const termBuckets = Array.from(stats.termBuckets.values()).map((bucket) => ({
-				termRank: bucket.termRank,
-				termLabel: bucket.termLabel,
-				termGroupId: bucket.termGroupId,
-				termCount: bucket.termCount,
-				creditedMinutes: Array.from(bucket.laneMinutes.values()).reduce((sum, value) => sum + value, 0),
-			}));
-			const dominantTerm = termBuckets.sort((left, right) => {
-				if (right.creditedMinutes !== left.creditedMinutes) {
-					return right.creditedMinutes - left.creditedMinutes;
-				}
-				return normalizeRotationTermLaneKey(left.termRank) - normalizeRotationTermLaneKey(right.termRank);
-			})[0] ?? null;
-			return {
-				family,
-				rawHours: Math.round((stats.rawMinutes / 60) * 10) / 10,
-				creditedHours: Math.round((creditedFamilyMinutes / 60) * 10) / 10,
-				overcountHours: Math.round(((stats.rawMinutes - creditedFamilyMinutes) / 60) * 10) / 10,
-				unitCount: stats.laneMinutes.size,
-				dominantTermRank: dominantTerm?.termRank ?? null,
-				dominantTermLabel: dominantTerm?.termLabel ?? null,
-				termGroupId: dominantTerm?.termGroupId ?? null,
-				termCount: dominantTerm?.termCount ?? null,
-				subjectCodes: Array.from(stats.subjectCodes).sort((left, right) => left.localeCompare(right)),
-			};
-		})
+	const rotationFamilies: RotationFamilyBreakdownItem[] = rotationFamilyComputations
+		.map((entry) => entry.detail)
 		.sort((left, right) => right.overcountHours - left.overcountHours || left.family.localeCompare(right.family));
 
 	return {

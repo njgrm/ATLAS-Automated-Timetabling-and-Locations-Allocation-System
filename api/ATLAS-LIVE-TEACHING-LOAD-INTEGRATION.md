@@ -47,6 +47,11 @@ Top-level response fields:
 - `schoolYearId`
 - `fetchedAt`
 
+Each `faculty[]` row now includes rotational-load diagnostics:
+
+- `rotationFamilyLoadDetails` (hour-level family summary)
+- `rotationTermBreakdown` (per-term raw and credited minutes with peak-term marker)
+
 ### Section-first live endpoints (implemented)
 
 Use these for section-centric consumers:
@@ -76,6 +81,10 @@ Optional diagnostics (`includeDiagnostics=true`) expose `staleOwnership` and `un
       "subjectDisplayLabel": "SCIENCE",
       "minMinutesPerWeek": 225,
       "rotationFamily": "SCIENCE",
+      "rotationTermRank": 1,
+      "rotationTermLabel": "Term 1",
+      "rotationTermGroupId": "SCIENCE",
+      "rotationTermCount": 3,
       "facultyId": 18286,
       "facultyName": "PASCUAL, JOSEFINA",
       "facultyDepartment": "SCI",
@@ -169,6 +178,7 @@ Top-level response fields:
 - `facultyId`
 - `version`
 - `assignments`
+- `rotationTermBreakdown`
 
 ### Minimal response example
 
@@ -176,6 +186,41 @@ Top-level response fields:
 {
   "facultyId": 18189,
   "version": 4,
+  "rotationTermBreakdown": [
+    {
+      "family": "SCIENCE",
+      "rawMinutesPerWeek": 675,
+      "peakTermMinutesPerWeek": 450,
+      "peakTermRank": 1,
+      "peakTermLabel": "Term 1",
+      "termGroupId": "SCIENCE",
+      "termCount": 3,
+      "termBuckets": [
+        {
+          "termRank": 1,
+          "termLabel": "Term 1",
+          "rawMinutesPerWeek": 450,
+          "creditedMinutesPerWeek": 450,
+          "isPeakTerm": true,
+          "sectionIds": [101, 102],
+          "sectionNames": ["ANDRES BONIFACIO", "7-LUNA"],
+          "subjectCodes": ["SCI_BIO"],
+          "subjectIds": [3021]
+        },
+        {
+          "termRank": 2,
+          "termLabel": "Term 2",
+          "rawMinutesPerWeek": 225,
+          "creditedMinutesPerWeek": 225,
+          "isPeakTerm": false,
+          "sectionIds": [101],
+          "sectionNames": ["ANDRES BONIFACIO"],
+          "subjectCodes": ["SCI_ES"],
+          "subjectIds": [3022]
+        }
+      ]
+    }
+  ],
   "assignments": [
     {
       "id": 345,
@@ -264,6 +309,11 @@ For umbrella subjects such as `SPA_SPEC` and `SPS_SPEC`, the precise taught iden
 Subjects in families such as `SCIENCE` and `TLE_ROTATION` still appear as normal assignment rows.
 
 The rotation-family effect changes weekly load computation, not the basic ownership shape of the assignment record.
+
+Current credited-load rule:
+
+- rotational families are credited using only the heaviest single term bucket (`Term 1`, `Term 2`, or `Term 3`)
+- non-peak term buckets remain visible in `rotationTermBreakdown`, but do not increase credited weekly load unless they become the new peak
 
 ### 4. Coverage and diagnostics are available in the summary payload
 

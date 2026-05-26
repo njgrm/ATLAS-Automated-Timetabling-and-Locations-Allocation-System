@@ -53,12 +53,106 @@ function resolveRealFacultyCapMinutes(faculty, mode) {
 function resolveRealCoverageMode(coverageMode) {
     return coverageMode === REAL_ONLY_STANDARD_MODE ? REAL_ONLY_STANDARD_MODE : REAL_ONLY_HARD_CAP_MODE;
 }
-function cloneCapacityLanes(source) {
+function cloneCapacityLedgers(source) {
     const cloned = new Map();
-    for (const [facultyId, lanes] of source.entries()) {
-        cloned.set(facultyId, new Map(lanes));
+    for (const [facultyId, ledger] of source.entries()) {
+        cloned.set(facultyId, {
+            lanes: new Map(ledger.lanes),
+            nonRotationMinutes: ledger.nonRotationMinutes,
+            rotationFamilyTermTotals: new Map(Array.from(ledger.rotationFamilyTermTotals.entries()).map(([family, totals]) => [family, new Map(totals)])),
+            creditedMinutes: ledger.creditedMinutes,
+        });
     }
     return cloned;
+}
+function parseCapacityLaneDescriptor(laneKey) {
+    const rotationMatch = /^family:([^:]+):term:(\d+):\d+$/.exec(laneKey);
+    if (rotationMatch) {
+        return {
+            kind: 'rotation',
+            family: rotationMatch[1],
+            termKey: Number(rotationMatch[2]),
+        };
+    }
+    return { kind: 'non-rotation' };
+}
+function getFamilyPeakMinutes(termTotals) {
+    let peak = 0;
+    for (const value of termTotals.values()) {
+        if (value > peak) {
+            peak = value;
+        }
+    }
+    return peak;
+}
+function createEmptyCapacityLedger() {
+    return {
+        lanes: new Map(),
+        nonRotationMinutes: 0,
+        rotationFamilyTermTotals: new Map(),
+        creditedMinutes: 0,
+    };
+}
+function estimateCapacityLaneDeltaMinutes(ledger, laneKey, nextLaneMinutes) {
+    const normalizedMinutes = Math.max(0, Number(nextLaneMinutes) || 0);
+    if (normalizedMinutes <= 0) {
+        return 0;
+    }
+    const currentLaneMinutes = ledger.lanes.get(laneKey) ?? 0;
+    if (normalizedMinutes <= currentLaneMinutes) {
+        return 0;
+    }
+    const laneIncrease = normalizedMinutes - currentLaneMinutes;
+    const descriptor = parseCapacityLaneDescriptor(laneKey);
+    if (descriptor.kind === 'non-rotation') {
+        return laneIncrease;
+    }
+    const termTotals = ledger.rotationFamilyTermTotals.get(descriptor.family) ?? new Map();
+    const termTotalBefore = termTotals.get(descriptor.termKey) ?? 0;
+    const peakBefore = getFamilyPeakMinutes(termTotals);
+    const termTotalAfter = termTotalBefore + laneIncrease;
+    const peakAfter = Math.max(peakBefore, termTotalAfter);
+    return Math.max(0, peakAfter - peakBefore);
+}
+function applyCapacityLaneMinutesToLedger(ledger, laneKey, nextLaneMinutes) {
+    const deltaMinutes = estimateCapacityLaneDeltaMinutes(ledger, laneKey, nextLaneMinutes);
+    if (deltaMinutes <= 0) {
+        return 0;
+    }
+    const normalizedMinutes = Math.max(0, Number(nextLaneMinutes) || 0);
+    const currentLaneMinutes = ledger.lanes.get(laneKey) ?? 0;
+    const laneIncrease = normalizedMinutes - currentLaneMinutes;
+    ledger.lanes.set(laneKey, normalizedMinutes);
+    const descriptor = parseCapacityLaneDescriptor(laneKey);
+    if (descriptor.kind === 'non-rotation') {
+        ledger.nonRotationMinutes += laneIncrease;
+    }
+    else {
+        const termTotals = ledger.rotationFamilyTermTotals.get(descriptor.family) ?? new Map();
+        const termTotalBefore = termTotals.get(descriptor.termKey) ?? 0;
+        termTotals.set(descriptor.termKey, termTotalBefore + laneIncrease);
+        ledger.rotationFamilyTermTotals.set(descriptor.family, termTotals);
+    }
+    ledger.creditedMinutes += deltaMinutes;
+    return deltaMinutes;
+}
+function createCapacityLedgerFromLanes(lanes) {
+    const ledger = createEmptyCapacityLedger();
+    for (const [laneKey, laneMinutes] of lanes.entries()) {
+        const normalized = Math.max(0, Number(laneMinutes) || 0);
+        if (normalized <= 0) {
+            continue;
+        }
+        applyCapacityLaneMinutesToLedger(ledger, laneKey, normalized);
+    }
+    return ledger;
+}
+export function __testComputeCreditedCapacityMinutes(lanes) {
+    return createCapacityLedgerFromLanes(lanes).creditedMinutes;
+}
+export function __testEstimateCapacityLaneDeltaMinutes(lanes, laneKey, nextLaneMinutes) {
+    const ledger = createCapacityLedgerFromLanes(lanes);
+    return estimateCapacityLaneDeltaMinutes(ledger, laneKey, nextLaneMinutes);
 }
 function resolveCapacityRotationFamily(subjectCode, explicitRotationFamily, modularGroupId) {
     const explicit = (explicitRotationFamily ?? '').trim().toUpperCase();
@@ -378,24 +472,43 @@ function buildInitialCapacityTracking(existingOwnerships) {
         }
         capacityLanesByFaculty.set(ownership.facultyId, lanes);
     }
+    const capacityLedgersByFaculty = new Map();
     const capacityUsed = new Map();
     for (const [facultyId, lanes] of capacityLanesByFaculty.entries()) {
-        const creditedMinutes = Array.from(lanes.values()).reduce((sum, value) => sum + value, 0);
-        capacityUsed.set(facultyId, creditedMinutes);
+        const ledger = createCapacityLedgerFromLanes(lanes);
+        capacityLedgersByFaculty.set(facultyId, ledger);
+        capacityUsed.set(facultyId, ledger.creditedMinutes);
     }
-    return { capacityLanesByFaculty, capacityUsed };
+    return { capacityLedgersByFaculty, capacityUsed };
 }
-function findBestCandidateForMode(subjectRow, faculty, coverageMode, capacityUsed) {
+function findBestCandidateForMode(subjectRow, sectionId, faculty, coverageMode, capacityLedgersByFaculty, capacityUsed) {
     const candidates = [];
     const realCoverageMode = resolveRealCoverageMode(coverageMode);
+    const subjectMinutes = Math.max(0, Number(subjectRow.minMinutesPerWeek) || 0);
+    const laneKey = buildCapacityLaneKey({
+        subjectId: subjectRow.id,
+        subjectCode: subjectRow.code,
+        rotationFamily: subjectRow.rotationFamily,
+        modularGroupId: subjectRow.modularGroupId,
+        modularOrder: subjectRow.modularOrder,
+        termGroupId: subjectRow.termGroupId,
+        termCount: subjectRow.termCount,
+        sectionId,
+    });
     for (const member of faculty) {
+        const ledger = capacityLedgersByFaculty.get(member.id) ?? createEmptyCapacityLedger();
         const used = capacityUsed.get(member.id) ?? 0;
+        const deltaMinutes = estimateCapacityLaneDeltaMinutes(ledger, laneKey, subjectMinutes);
         const limit = resolveRealFacultyCapMinutes(member, realCoverageMode);
-        if (used + subjectRow.minMinutesPerWeek > limit)
+        if (used + deltaMinutes > limit)
             continue;
         const tier = resolveQualificationTier(member, subjectRow);
         if (tier != null) {
-            candidates.push({ faculty: member, tier });
+            candidates.push({
+                faculty: member,
+                tier,
+                projectedUsedMinutes: used + deltaMinutes,
+            });
         }
     }
     if (candidates.length === 0)
@@ -403,16 +516,15 @@ function findBestCandidateForMode(subjectRow, faculty, coverageMode, capacityUse
     candidates.sort((a, b) => {
         if (a.tier !== b.tier)
             return a.tier - b.tier;
-        return (capacityUsed.get(a.faculty.id) ?? 0) - (capacityUsed.get(b.faculty.id) ?? 0);
+        return a.projectedUsedMinutes - b.projectedUsedMinutes;
     });
     return candidates[0].faculty;
 }
 function simulateRealFacultyCoverage(input) {
-    const capacityLanesByFaculty = cloneCapacityLanes(input.baseCapacityLanesByFaculty);
+    const capacityLedgersByFaculty = cloneCapacityLedgers(input.baseCapacityLedgersByFaculty);
     const capacityUsed = new Map();
-    for (const [facultyId, lanes] of capacityLanesByFaculty.entries()) {
-        const creditedMinutes = Array.from(lanes.values()).reduce((sum, value) => sum + value, 0);
-        capacityUsed.set(facultyId, creditedMinutes);
+    for (const [facultyId, ledger] of capacityLedgersByFaculty.entries()) {
+        capacityUsed.set(facultyId, ledger.creditedMinutes);
     }
     const bySubjectId = new Map();
     for (const pair of input.candidatePairs) {
@@ -452,13 +564,10 @@ function simulateRealFacultyCoverage(input) {
             termCount: subject.termCount,
             sectionId,
         });
-        const lanes = capacityLanesByFaculty.get(facultyId) ?? new Map();
-        const currentLaneMinutes = lanes.get(laneKey) ?? 0;
-        if (minutes > currentLaneMinutes) {
-            lanes.set(laneKey, minutes);
-        }
-        capacityLanesByFaculty.set(facultyId, lanes);
-        capacityUsed.set(facultyId, Array.from(lanes.values()).reduce((sum, value) => sum + value, 0));
+        const ledger = capacityLedgersByFaculty.get(facultyId) ?? createEmptyCapacityLedger();
+        applyCapacityLaneMinutesToLedger(ledger, laneKey, minutes);
+        capacityLedgersByFaculty.set(facultyId, ledger);
+        capacityUsed.set(facultyId, ledger.creditedMinutes);
     };
     for (const subjectId of orderedSubjectIds) {
         const pairs = bySubjectId.get(subjectId) ?? [];
@@ -466,7 +575,7 @@ function simulateRealFacultyCoverage(input) {
         if (!subjectRow)
             continue;
         for (const pair of pairs) {
-            const candidate = findBestCandidateForMode(subjectRow, input.realFaculty, input.coverageMode, capacityUsed);
+            const candidate = findBestCandidateForMode(subjectRow, pair.sectionId, input.realFaculty, input.coverageMode, capacityLedgersByFaculty, capacityUsed);
             if (!candidate) {
                 unresolvedPairs.push(pair);
                 continue;
@@ -627,8 +736,8 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
     const resolvedPairs = new Set(existingOwnerships.map((o) => `${o.subjectId}:${o.sectionId}`));
     const preserved = resolvedPairs.size;
     const realOwnershipRows = existingOwnerships.filter((ownership) => realFacultyIds.includes(ownership.facultyId));
-    const { capacityLanesByFaculty: baseRealCapacityLanesByFaculty, capacityUsed: baseRealCapacityUsed, } = buildInitialCapacityTracking(realOwnershipRows);
-    const capacityLanesByFaculty = cloneCapacityLanes(baseRealCapacityLanesByFaculty);
+    const { capacityLedgersByFaculty: baseRealCapacityLedgersByFaculty, capacityUsed: baseRealCapacityUsed, } = buildInitialCapacityTracking(realOwnershipRows);
+    const capacityLedgersByFaculty = cloneCapacityLedgers(baseRealCapacityLedgersByFaculty);
     const capacityUsed = new Map(baseRealCapacityUsed);
     // ─── Step 2: Verify HG records for advisers (warn if missing) ─────────────
     const advisersWithoutHg = await prisma.facultyMirror.findMany({
@@ -734,13 +843,13 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
         coverageMode: REAL_ONLY_STANDARD_MODE,
         realFaculty,
         candidatePairs: realCoverageQueue,
-        baseCapacityLanesByFaculty: baseRealCapacityLanesByFaculty,
+        baseCapacityLedgersByFaculty: baseRealCapacityLedgersByFaculty,
     });
     const hardCapSimulation = simulateRealFacultyCoverage({
         coverageMode: REAL_ONLY_HARD_CAP_MODE,
         realFaculty,
         candidatePairs: realCoverageQueue,
-        baseCapacityLanesByFaculty: baseRealCapacityLanesByFaculty,
+        baseCapacityLedgersByFaculty: baseRealCapacityLedgersByFaculty,
     });
     const staffingTruth = buildStaffingTruthComparison({
         totalTeachableRows: allTeachablePairs.length,
@@ -824,20 +933,16 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
             termCount: subject.termCount,
             sectionId,
         });
-        const lanes = capacityLanesByFaculty.get(facultyId) ?? new Map();
-        const currentLaneMinutes = lanes.get(laneKey) ?? 0;
-        if (minutes > currentLaneMinutes) {
-            lanes.set(laneKey, minutes);
-        }
-        capacityLanesByFaculty.set(facultyId, lanes);
-        const creditedMinutes = Array.from(lanes.values()).reduce((sum, value) => sum + value, 0);
-        capacityUsed.set(facultyId, creditedMinutes);
+        const ledger = capacityLedgersByFaculty.get(facultyId) ?? createEmptyCapacityLedger();
+        applyCapacityLaneMinutesToLedger(ledger, laneKey, minutes);
+        capacityLedgersByFaculty.set(facultyId, ledger);
+        capacityUsed.set(facultyId, ledger.creditedMinutes);
     }
     for (const subjectId of orderedSubjectIds) {
         const pairs = bySubjectId.get(subjectId);
         const subjectRow = subjectMap.get(subjectId);
         for (const pair of pairs) {
-            const candidate = findBestCandidateForMode(subjectRow, realFaculty, realCoverageMode, capacityUsed);
+            const candidate = findBestCandidateForMode(subjectRow, pair.sectionId, realFaculty, realCoverageMode, capacityLedgersByFaculty, capacityUsed);
             if (!candidate) {
                 warnings.push(`Lacking Faculty: no department-qualified teacher for ${subjectRow.name} (${pair.sectionName}).`);
                 unresolvedPairs.push(pair);

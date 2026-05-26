@@ -1,9 +1,14 @@
 import {
+  buildRotationTermBreakdown,
   buildDuplicateOwnershipBlockingResult,
   computeTeachingLoadMinutes,
   detectDuplicateOwnershipTuples,
   resolveAssignmentSpecializationIdentity,
 } from '../services/faculty-assignment.service.js';
+import {
+  __testComputeCreditedCapacityMinutes,
+  __testEstimateCapacityLaneDeltaMinutes,
+} from '../services/teaching-load-automation.service.js';
 import {
   buildSectionRosterIndex,
   normalizeIncomingAssignmentScope,
@@ -161,6 +166,145 @@ section('Assignment specialization identity contract');
     facultySpecialization: 'English',
   });
   assertEqual(regularIdentity.specializationCode, null, 'Regular non-specialization subjects do not auto-persist specialization identity');
+}
+
+section('Rotational peak-term credited load contract');
+{
+  const scienceTerm1 = {
+    id: 301,
+    code: 'SCI_BIO',
+    rotationFamily: 'SCIENCE',
+    modularGroupId: 'SCIENCE',
+    modularOrder: 1,
+    termGroupId: 'SCIENCE',
+    termCount: 3,
+    minMinutesPerWeek: 225,
+  };
+  const scienceTerm2 = {
+    id: 302,
+    code: 'SCI_ES',
+    rotationFamily: 'SCIENCE',
+    modularGroupId: 'SCIENCE',
+    modularOrder: 2,
+    termGroupId: 'SCIENCE',
+    termCount: 3,
+    minMinutesPerWeek: 225,
+  };
+
+  const peakOnlyMinutes = computeTeachingLoadMinutes(
+    [
+      { subject: scienceTerm1, sectionIds: [701, 702], gradeLevels: [7] },
+      { subject: scienceTerm2, sectionIds: [701, 702], gradeLevels: [7] },
+    ],
+    'section',
+  );
+  assertEqual(peakOnlyMinutes, 450, 'Rotational family credits only the heaviest single term lane total');
+
+  const englishYearRound = {
+    id: 303,
+    code: 'ENG',
+    rotationFamily: null,
+    modularGroupId: null,
+    modularOrder: null,
+    termGroupId: null,
+    termCount: null,
+    minMinutesPerWeek: 240,
+  };
+  const mixedMinutes = computeTeachingLoadMinutes(
+    [
+      { subject: englishYearRound, sectionIds: [701, 702], gradeLevels: [7] },
+      { subject: scienceTerm1, sectionIds: [701, 702], gradeLevels: [7] },
+      { subject: scienceTerm2, sectionIds: [701, 702], gradeLevels: [7] },
+    ],
+    'section',
+  );
+  assertEqual(mixedMinutes, 930, 'Year-round subjects stack on top of rotational peak-term credited load');
+}
+
+section('Hard-cap delta respects rotational peak terms');
+{
+  const baselineLanes = new Map<string, number>([
+    ['family:SCIENCE:term:1:701', 225],
+    ['family:SCIENCE:term:1:702', 225],
+  ]);
+
+  const baselineCredited = __testComputeCreditedCapacityMinutes(baselineLanes);
+  assertEqual(baselineCredited, 450, 'Capacity ledger baseline credits only current peak term minutes');
+
+  const nonPeakDelta = __testEstimateCapacityLaneDeltaMinutes(
+    baselineLanes,
+    'family:SCIENCE:term:3:701',
+    225,
+  );
+  assertEqual(nonPeakDelta, 0, 'Adding a non-peak term lane does not consume additional credited hard-cap minutes');
+
+  const peakGrowthDelta = __testEstimateCapacityLaneDeltaMinutes(
+    baselineLanes,
+    'family:SCIENCE:term:1:703',
+    225,
+  );
+  assertEqual(peakGrowthDelta, 225, 'Adding to the current peak term lane consumes incremental credited hard-cap minutes');
+}
+
+section('Teacher per-term rotational breakdown contract');
+{
+  const breakdown = buildRotationTermBreakdown([
+    {
+      subjectId: 301,
+      subject: {
+        id: 301,
+        name: 'Science - Biology',
+        code: 'SCI_BIO',
+        rotationFamily: 'SCIENCE',
+        modularGroupId: 'SCIENCE',
+        modularOrder: 1,
+        termGroupId: 'SCIENCE',
+        termCount: 3,
+        minMinutesPerWeek: 225,
+      },
+      sections: [
+        { id: 701, name: '7-Rizal' },
+        { id: 702, name: '7-Luna' },
+      ],
+    },
+    {
+      subjectId: 302,
+      subject: {
+        id: 302,
+        name: 'Science - Earth Science',
+        code: 'SCI_ES',
+        rotationFamily: 'SCIENCE',
+        modularGroupId: 'SCIENCE',
+        modularOrder: 2,
+        termGroupId: 'SCIENCE',
+        termCount: 3,
+        minMinutesPerWeek: 225,
+      },
+      sections: [
+        { id: 701, name: '7-Rizal' },
+      ],
+    },
+  ]);
+
+  assertEqual(breakdown.length, 1, 'Breakdown groups rotational assignments per family');
+  const scienceBreakdown = breakdown[0];
+  assertEqual(scienceBreakdown.family, 'SCIENCE', 'Breakdown family key is normalized');
+  assertEqual(scienceBreakdown.peakTermLabel, 'Term 1', 'Breakdown exposes canonical peak term labels');
+  assertEqual(scienceBreakdown.peakTermMinutesPerWeek, 450, 'Breakdown exposes peak-term credited weekly minutes');
+  assertEqual(scienceBreakdown.termBuckets.length, 2, 'Breakdown includes each active rotational term bucket');
+
+  const termOne = scienceBreakdown.termBuckets.find((bucket) => bucket.termRank === 1);
+  const termTwo = scienceBreakdown.termBuckets.find((bucket) => bucket.termRank === 2);
+  assert(Boolean(termOne), 'Term 1 bucket is present');
+  assert(Boolean(termTwo), 'Term 2 bucket is present');
+  if (termOne) {
+    assertEqual(termOne.creditedMinutesPerWeek, 450, 'Term 1 credited minutes include both section lanes');
+    assertEqual(termOne.isPeakTerm, true, 'Term 1 bucket is marked as peak term');
+  }
+  if (termTwo) {
+    assertEqual(termTwo.creditedMinutesPerWeek, 225, 'Term 2 credited minutes are retained for visibility');
+    assertEqual(termTwo.isPeakTerm, false, 'Non-peak term bucket is flagged correctly');
+  }
 }
 
 console.log(`\nSummary: ${passCount} passed, ${failCount} failed.`);

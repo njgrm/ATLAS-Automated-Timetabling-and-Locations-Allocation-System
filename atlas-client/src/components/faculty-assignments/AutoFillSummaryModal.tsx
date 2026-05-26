@@ -249,7 +249,7 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 											<span className="font-bold">Unassigned Sections</span> represent every class row that needs a name. Schedulers must resolve all {report.unassignedSections} sections to finish the schedule.
 										</p>
 										<p>
-											<span className="font-bold">Weekly Shortage</span> is the actual hiring or overload target. Because rotating subjects share time-slots, you only need to cover the <span className="font-bold">{concurrentHours} concurrent hours</span> per week.
+											<span className="font-bold">Weekly Shortage</span> is the actual hiring or overload target. Rotational subjects are credited by peak term only, so only the busiest Term 1, Term 2, or Term 3 lane per family contributes to the <span className="font-bold">{concurrentHours} concurrent hours</span> per week.
 										</p>
 									</div>
 									{overlapHours > 0 && (
@@ -257,7 +257,7 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 											<Badge variant="outline" className="bg-white/80 border-blue-200 text-blue-700 font-bold text-[0.65rem] shadow-none uppercase">
 												Rotation Benefit
 											</Badge>
-											<span className="text-[0.65rem] font-bold text-blue-800">Rotating classes reduced your total staffing need by {overlapHours}h/wk.</span>
+											<span className="text-[0.65rem] font-bold text-blue-800">Peak-term crediting reduced total staffing demand by {overlapHours}h/wk.</span>
 										</div>
 									)}
 								</div>

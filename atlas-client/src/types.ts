@@ -212,6 +212,31 @@ export type RotationFamilyLoadDetail = {
 	subjectIds: number[];
 };
 
+export type RotationTermBucketBreakdown = {
+	termRank: number | null;
+	termLabel: string | null;
+	termGroupId: string | null;
+	termCount: number | null;
+	rawMinutesPerWeek: number;
+	creditedMinutesPerWeek: number;
+	isPeakTerm: boolean;
+	sectionIds: number[];
+	sectionNames: string[];
+	subjectCodes: string[];
+	subjectIds: number[];
+};
+
+export type RotationFamilyTermBreakdown = {
+	family: string;
+	rawMinutesPerWeek: number;
+	peakTermMinutesPerWeek: number;
+	peakTermRank: number | null;
+	peakTermLabel: string | null;
+	termGroupId: string | null;
+	termCount: number | null;
+	termBuckets: RotationTermBucketBreakdown[];
+};
+
 export type FacultySummary = {
 	id: number;
 	externalId: number;
@@ -241,6 +266,7 @@ export type FacultySummary = {
 	sectionTeachingHoursRaw?: number;
 	rotationFamilyOvercountHours?: number;
 	rotationFamilyLoadDetails?: RotationFamilyLoadDetail[];
+	rotationTermBreakdown?: RotationFamilyTermBreakdown[];
 	gradeTeachingHours: number;
 	advisoryHours: number;
 	ancillaryHours: number;

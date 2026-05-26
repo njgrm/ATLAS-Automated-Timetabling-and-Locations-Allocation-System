@@ -290,25 +290,12 @@ function inferRotationTermRankFromSubjectCode(subjectCode: string | null | undef
 	return toPositiveInteger(suffixMatch[1]);
 }
 
-function toOrdinal(value: number): string {
-	const remainder100 = value % 100;
-	if (remainder100 >= 11 && remainder100 <= 13) {
-		return `${value}th`;
-	}
-
-	const remainder10 = value % 10;
-	if (remainder10 === 1) return `${value}st`;
-	if (remainder10 === 2) return `${value}nd`;
-	if (remainder10 === 3) return `${value}rd`;
-	return `${value}th`;
-}
-
 export function formatRotationTermLabel(termRank: number | null | undefined): string | null {
 	const normalizedRank = toPositiveInteger(termRank);
 	if (!normalizedRank) {
 		return null;
 	}
-	return `${toOrdinal(normalizedRank)} Term`;
+	return `Term ${normalizedRank}`;
 }
 
 export function resolveRotationTermCount(termCount: number | null | undefined): number | null {

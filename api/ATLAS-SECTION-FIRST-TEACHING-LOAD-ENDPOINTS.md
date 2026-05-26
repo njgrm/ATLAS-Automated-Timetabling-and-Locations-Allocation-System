@@ -69,6 +69,10 @@ Response:
       "subjectDisplayLabel": "Science",
       "minMinutesPerWeek": 225,
       "rotationFamily": "SCIENCE",
+      "rotationTermRank": 1,
+      "rotationTermLabel": "Term 1",
+      "rotationTermGroupId": "SCIENCE",
+      "rotationTermCount": 3,
       "facultyId": 18189,
       "facultyName": "AQUINO, ELPIDIO",
       "facultyDepartment": "SCI",
@@ -94,6 +98,8 @@ Rules:
 - only active non-stale faculty ownership in the default `classes` array
 - if stale ownership exists for the same section, it should not appear as a normal assigned class
 - include `rotationFamily` for per-term families such as `SCIENCE` and `TLE_ROTATION`
+- include `rotationTermRank`, `rotationTermLabel`, `rotationTermGroupId`, and `rotationTermCount` for rotational rows
+- rotation term labels must use canonical UI wording: `Term 1`, `Term 2`, `Term 3`
 - include assignment-level specialization identity for umbrella special-program subjects such as `SPA_SPEC` and `SPS_SPEC`
 
 Optional diagnostic extension:
@@ -123,7 +129,11 @@ Diagnostic payload shape:
       "subjectId": 3023,
       "subjectCode": "SCI_ES",
       "subjectName": "Science - Earth Science",
-      "rotationFamily": "SCIENCE"
+      "rotationFamily": "SCIENCE",
+      "rotationTermRank": 2,
+      "rotationTermLabel": "Term 2",
+      "rotationTermGroupId": "SCIENCE",
+      "rotationTermCount": 3
     }
   ]
 }
