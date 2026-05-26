@@ -19,16 +19,52 @@
  * - Business logic is entirely in this service; controllers are transport-only.
  */
 import { type SectionSourceLabel } from './section-adapter.js';
+export type CoverageMode = 'REAL_FACULTY_STANDARD' | 'REAL_FACULTY_HARD_CAP' | 'REAL_FACULTY_THEN_TEACHER_X';
+export declare const COVERAGE_MODES: CoverageMode[];
+interface AutoFillOptions {
+    previewOnly?: boolean;
+    staffingOnly?: boolean;
+    coverageMode?: CoverageMode;
+}
+export interface StaffingTruthBucket {
+    shortageRows: number;
+    shortageConcurrentHoursPerWeek: number;
+    shortageConcurrentMinutesPerWeek: number;
+    rowsClosedByRealFaculty: number;
+    rowsClosedByTeacherX: number;
+}
+export interface StaffingTruthComparison {
+    baseline: {
+        totalTeachableRows: number;
+        realCoveredRows: number;
+        syntheticCoveredRows: number;
+        unassignedRows: number;
+    };
+    realOnly: StaffingTruthBucket;
+    hardCap: StaffingTruthBucket;
+    teacherX: StaffingTruthBucket;
+}
 export interface AutoFillResult {
     preserved: number;
     created: number;
     assignmentsCreated: number;
     uniqueTeachersAffected: number;
     unresolved: number;
+    coverageMode: CoverageMode;
     warnings: string[];
     sectionSource: SectionSourceLabel;
     sectionFallbackReason: string | null;
     staffingReport: StaffingReport;
+    staffingTruth: StaffingTruthComparison;
+    teacherXResolution?: {
+        applied: boolean;
+        rowsClosedByTeacherX: number;
+        createdPlaceholders: number;
+        reusedPlaceholders: number;
+        placeholderAssignmentsUpserted: number;
+        resolvedSubjectCodes: string[];
+        stillUncoveredSubjectCodes: string[];
+    };
 }
 export interface StaffingCrossTrainee {
     department: string;
@@ -76,7 +112,5 @@ export interface StaffingShortageDetail {
         programType: string;
     }>;
 }
-export declare function autoFill(schoolId: number, schoolYearId: number, authToken?: string, options?: {
-    previewOnly?: boolean;
-    staffingOnly?: boolean;
-}): Promise<AutoFillResult>;
+export declare function autoFill(schoolId: number, schoolYearId: number, authToken?: string, options?: AutoFillOptions): Promise<AutoFillResult>;
+export {};

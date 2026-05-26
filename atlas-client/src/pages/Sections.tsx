@@ -262,6 +262,8 @@ export default function Sections() {
 					? `${queuedEditsForYear.length} home-room change${queuedEditsForYear.length === 1 ? '' : 's'} queued for sync.`
 					: nextSource === 'live'
 					? null
+					: (yearContextSource === 'enrollpro' || yearContextSource === 'enrollpro-verified')
+					? 'Section data is sourced from ATLAS mirror. EnrollPro connection is active.'
 					: 'Section data is available from ATLAS runtime cache while upstream verification is unavailable.',
 			);
 		} catch {

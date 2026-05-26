@@ -140,7 +140,7 @@ export default function Dashboard() {
 				// Section count from ATLAS runtime context
 				resolveActiveSchoolYearContext({ allowStaleOnError: true })
 					.then((context) => {
-						setDataSource(context.source === 'enrollpro' ? 'live' : 'cached');
+						setDataSource(context.source === 'enrollpro' || context.source === 'enrollpro-verified' ? 'live' : 'cached');
 						if (!context.activeSchoolYearId) { setSectionCount(null); return; }
 						return atlasApi.get<{ totalSections: number }>(`/sections/summary/${context.activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`);
 					})

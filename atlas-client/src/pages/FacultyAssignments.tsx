@@ -105,6 +105,21 @@ const STATUS_COLORS: Record<LoadStatus, { bg: string; text: string; border: stri
 	'over-cap': { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' },
 };
 
+const COVERAGE_MODE_CONFIG: Record<CoverageMode, { label: string; description: string }> = {
+	REAL_FACULTY_STANDARD: {
+		label: 'Real Faculty Standard',
+		description: 'Use current default policy load caps for real faculty coverage.',
+	},
+	REAL_FACULTY_HARD_CAP: {
+		label: 'Real Faculty Hard Cap',
+		description: 'Use real faculty only and stop at policy credited-load limits.',
+	},
+	REAL_FACULTY_THEN_TEACHER_X: {
+		label: 'Real Faculty Then Teacher X',
+		description: 'Fill with real faculty first, then create Teacher X placeholders for remaining gaps.',
+	},
+};
+
 type TeachingLoadResetPreview = {
 	applied: boolean;
 	scope: 'GLOBAL' | 'SUBJECT';
@@ -296,12 +311,15 @@ export default function FacultyAssignments() {
 			setCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId, normalizedSummary);
 			setCachedSubjects(DEFAULT_SCHOOL_ID, normalizedSubjects);
 			setCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId, normalizedSectionSummary as SectionSummaryResponse);
-			const isUpstreamBacked = yearContextSource === 'enrollpro' && normalizedSectionSummary.source === 'enrollpro';
+			const isUpstreamContext = yearContextSource === 'enrollpro';
+			const isUpstreamBacked = isUpstreamContext && normalizedSectionSummary.source === 'enrollpro';
 			setDataSource(isUpstreamBacked ? 'live' : 'cached');
 			setDegradedNotice(
 				isUpstreamBacked
 					? null
-					: 'Teaching Load is available from ATLAS runtime cache while upstream verification is unavailable.',
+					: isUpstreamContext
+					? 'Teaching load context is sourced from ATLAS mirror. EnrollPro connection is active.'
+					: 'Teaching load data is available from ATLAS runtime cache while upstream verification is unavailable.',
 			);
 			setError(null);
 		} catch (requestError: any) {
@@ -603,21 +621,13 @@ export default function FacultyAssignments() {
 		pushHistory();
 		setAutoFillLoading(true);
 		try {
-			const result = await atlasApi.post<{
-				preserved: number;
-				created: number;
-				assignmentsCreated: number;
-				uniqueTeachersAffected: number;
-				unresolved: number;
-				warnings: string[];
-				staffingReport: AutoFillSummaryResult['staffingReport'];
-			}>(
+			const result = await atlasApi.post<AutoFillSummaryResult>(
 				'/faculty-assignments/auto-fill',
-				{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId },
+				{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId, coverageMode },
 			);
 			await fetchData({ forceRefresh: true });
-			const { assignmentsCreated, uniqueTeachersAffected, unresolved } = result.data;
-			setSummaryModalResult(result.data as AutoFillSummaryResult);
+			const { assignmentsCreated, uniqueTeachersAffected, unresolved, teacherXResolution } = result.data;
+			setSummaryModalResult(result.data);
 			setSummaryModalOpen(true);
 			if (assignmentsCreated > 0) {
 				toast.success(
@@ -628,6 +638,12 @@ export default function FacultyAssignments() {
 			} else {
 				toast.info('Auto-Fill: all subject-section pairs are already assigned.');
 			}
+			if (coverageMode === 'REAL_FACULTY_THEN_TEACHER_X' && teacherXResolution?.createdPlaceholders) {
+				toast.success(
+					`Teacher X created ${teacherXResolution.createdPlaceholders} role${teacherXResolution.createdPlaceholders !== 1 ? 's' : ''} and closed ${teacherXResolution.rowsClosedByTeacherX} remaining pair${teacherXResolution.rowsClosedByTeacherX !== 1 ? 's' : ''}.`,
+				);
+				setShowTemporaryRoles(true);
+			}
 			if (activeDraftCount > 0) {
 				toast.warning('Auto-Fill used saved assignments only. Unsaved drafts were not included.');
 			}
@@ -636,7 +652,7 @@ export default function FacultyAssignments() {
 		} finally {
 			setAutoFillLoading(false);
 		}
-	}, [activeDraftCount, activeSchoolYearId, canPersistAssignments, fetchData, pushHistory]);
+	}, [activeDraftCount, activeSchoolYearId, canPersistAssignments, coverageMode, fetchData, pushHistory]);
 
 	const handleViewStaffingNeeds = useCallback(async () => {
 		if (!activeSchoolYearId) return;
@@ -648,16 +664,17 @@ export default function FacultyAssignments() {
 		try {
 			const result = await atlasApi.post<AutoFillSummaryResult>(
 				'/faculty-assignments/report/staffing-needs',
-				{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId },
+				{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId, coverageMode },
 			);
 			setSummaryModalResult(result.data);
 			setSummaryModalOpen(true);
+			toast.info(`Showing staffing needs using ${COVERAGE_MODE_CONFIG[coverageMode].label}.`);
 		} catch {
 			toast.error('Unable to load staffing needs right now.');
 		} finally {
 			setStaffingNeedsLoading(false);
 		}
-	}, [activeSchoolYearId, canRunStaffingNeeds]);
+	}, [activeSchoolYearId, canRunStaffingNeeds, coverageMode]);
 
 	const openGlobalResetPreview = useCallback(async () => {
 		if (!activeSchoolYearId) return;
@@ -1032,26 +1049,18 @@ export default function FacultyAssignments() {
 		setSelectedId(teacherXRoster[0].id);
 		toast.success('Teacher X roster is now visible. You can assign sections manually and save.');
 	}, [teacherXRoster]);
-	const coverageModeConfig = useMemo(() => {
-		switch (coverageMode) {
-			case 'REAL_FACULTY_HARD_CAP':
-				return {
-					label: 'Real Faculty Hard Cap',
-					description: 'Use real faculty only and stop at policy credited-load limits.',
-				};
-			case 'REAL_FACULTY_THEN_TEACHER_X':
-				return {
-					label: 'Real Faculty Then Teacher X',
-					description: 'Fill with real faculty first, then create Teacher X placeholders for remaining gaps.',
-				};
-			case 'REAL_FACULTY_STANDARD':
-			default:
-				return {
-					label: 'Real Faculty Standard',
-					description: 'Use current default policy load caps for real faculty coverage.',
-				};
+	const toggleTeacherXRoster = useCallback(() => {
+		if (showTemporaryRoles) {
+			setShowTemporaryRoles(false);
+			if (selected?.isPlaceholder) {
+				setSelectedId(null);
+			}
+			toast.info('Teacher X placeholders are now hidden from the faculty roster.');
+			return;
 		}
-	}, [coverageMode]);
+		selectTeacherXPlaceholder();
+	}, [selectTeacherXPlaceholder, selected?.isPlaceholder, showTemporaryRoles]);
+	const coverageModeConfig = COVERAGE_MODE_CONFIG[coverageMode];
 	const sectionsAvailable = Boolean(sectionSummary && sectionSummary.sections.length > 0);
 
 	const departmentStats = useMemo(() => {
@@ -1216,6 +1225,47 @@ export default function FacultyAssignments() {
 							</div>
 
 							<div className="shrink-0 flex items-center gap-2">
+								<div className="hidden lg:flex items-center gap-2 rounded-md border border-border/60 bg-background/80 px-2 py-1 shadow-sm">
+									<span className="text-[0.58rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Coverage</span>
+									<Select value={coverageMode} onValueChange={(value) => setCoverageMode(value as CoverageMode)}>
+										<SelectTrigger className="h-7 w-55 text-xs">
+											<SelectValue aria-label={coverageModeConfig.label}>
+												{coverageModeConfig.label}
+											</SelectValue>
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="REAL_FACULTY_STANDARD">Real Faculty Standard</SelectItem>
+											<SelectItem value="REAL_FACULTY_HARD_CAP">Real Faculty Hard Cap</SelectItem>
+											<SelectItem value="REAL_FACULTY_THEN_TEACHER_X">Real Faculty Then Teacher X</SelectItem>
+										</SelectContent>
+									</Select>
+								</div>
+
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											variant={showTemporaryRoles ? 'secondary' : 'outline'}
+											size="sm"
+											onClick={toggleTeacherXRoster}
+											disabled={teacherXRoster.length === 0 && !showTemporaryRoles}
+											className="h-7 px-2 gap-2 font-semibold text-muted-foreground hover:text-foreground shadow-sm bg-background border-border/60"
+										>
+											<Users className="size-3" />
+											<span className="hidden xl:inline text-[0.65rem] uppercase tracking-tight">
+												{showTemporaryRoles ? 'Hide Teacher X' : 'Teacher X'}
+											</span>
+											<span className="xl:hidden text-[0.65rem] uppercase tracking-tight">
+												{showTemporaryRoles ? 'Hide TX' : 'TX'}
+											</span>
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent side="bottom" className="max-w-xs text-xs">
+										{showTemporaryRoles
+											? 'Hide Teacher X placeholders from roster view.'
+											: 'Open Teacher X placeholders for manual section assignment and save workflow.'}
+									</TooltipContent>
+								</Tooltip>
+
 							<Sheet>
 							<SheetTrigger asChild>
 								<Button variant="outline" size="sm" className="h-7 px-2 gap-2 font-semibold text-muted-foreground hover:text-foreground shadow-sm bg-background border-border/60">
@@ -1236,6 +1286,33 @@ export default function FacultyAssignments() {
 								</SheetHeader>
 
 								<div className="space-y-8">
+									<section className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-3">
+										<h5 className="text-[0.65rem] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+											<Layers className="size-3" />
+											Coverage Strategy
+										</h5>
+										<Select value={coverageMode} onValueChange={(value) => setCoverageMode(value as CoverageMode)}>
+											<SelectTrigger className="h-9 w-full text-xs">
+												<SelectValue aria-label={coverageModeConfig.label}>{coverageModeConfig.label}</SelectValue>
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="REAL_FACULTY_STANDARD">Real Faculty Standard</SelectItem>
+												<SelectItem value="REAL_FACULTY_HARD_CAP">Real Faculty Hard Cap</SelectItem>
+												<SelectItem value="REAL_FACULTY_THEN_TEACHER_X">Real Faculty Then Teacher X</SelectItem>
+											</SelectContent>
+										</Select>
+										<p className="text-[0.7rem] text-muted-foreground leading-snug">{coverageModeConfig.description}</p>
+										<Button
+											variant={showTemporaryRoles ? 'secondary' : 'outline'}
+											className="w-full justify-start gap-2"
+											onClick={toggleTeacherXRoster}
+											disabled={teacherXRoster.length === 0 && !showTemporaryRoles}
+										>
+											<Users className="size-4" />
+											{showTemporaryRoles ? 'Hide Teacher X Placeholder Roster' : 'Open Teacher X Placeholder Roster'}
+										</Button>
+									</section>
+
 									<section className="space-y-3">
 										<h5 className="text-[0.65rem] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
 											<CheckCircle2 className="size-3" />
@@ -1518,7 +1595,7 @@ export default function FacultyAssignments() {
 
 									<div className="flex items-center gap-3">
 										<div className="flex items-center gap-4 px-4 py-2 rounded-xl bg-muted/30 border border-border/40 shadow-inner">
-											<div className="flex flex-col min-w-[240px]">
+											<div className="flex flex-col min-w-60">
 												<div className="flex items-center gap-2 mb-1.5">
 													<span className="text-xs font-bold text-muted-foreground/80 tracking-tight leading-none">Weekly Load Calculation</span>
 													{rotationOvercountHours > 0 ? (
@@ -2039,7 +2116,7 @@ export default function FacultyAssignments() {
 				open={autoFillDialogOpen}
 				onOpenChange={setAutoFillDialogOpen}
 				title="Auto-Fill Remaining Assignments?"
-				description="This will assign teachers to currently unassigned subject-sections using department alignment and current teaching load."
+				description={`Coverage mode: ${coverageModeConfig.label}. ${coverageModeConfig.description}`}
 				onConfirm={handleAutoFill}
 				confirmText="Run Auto-Fill"
 				variant="primary"

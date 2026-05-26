@@ -25,7 +25,7 @@ export default function Audit() {
 	const [rooms, setRooms] = useState<any[]>([]);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
-	const [activeYearSource, setActiveYearSource] = useState<'atlas' | 'enrollpro' | 'cache'>('cache');
+	const [activeYearSource, setActiveYearSource] = useState<'atlas' | 'atlas-persisted' | 'enrollpro-verified' | 'enrollpro' | 'cache'>('cache');
 	const [dataSource, setDataSource] = useState<'live' | 'cached' | 'none'>('none');
 	const [degradedReasons, setDegradedReasons] = useState<string[]>([]);
 	const [mismatchSearch, setMismatchSearch] = useState('');

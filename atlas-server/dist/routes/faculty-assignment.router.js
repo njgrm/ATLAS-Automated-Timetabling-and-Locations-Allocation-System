@@ -2,9 +2,22 @@ import { Router } from 'express';
 import { authenticate, authenticateWithSystemToken } from '../middleware/authenticate.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as assignmentService from '../services/faculty-assignment.service.js';
-import { autoFill } from '../services/teaching-load-automation.service.js';
+import { autoFill, COVERAGE_MODES } from '../services/teaching-load-automation.service.js';
 import { fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
 const router = Router();
+function parseCoverageMode(value) {
+    if (value == null) {
+        return null;
+    }
+    if (typeof value !== 'string') {
+        return null;
+    }
+    const normalized = value.trim().toUpperCase();
+    if (!COVERAGE_MODES.includes(normalized)) {
+        return null;
+    }
+    return normalized;
+}
 // Auth: GET /faculty-assignments/summary?schoolId=X&schoolYearId=Y
 router.get('/summary', authenticateWithSystemToken, requirePrivilegedRole, async (req, res, next) => {
     try {
@@ -436,12 +449,13 @@ router.put('/:facultyId', authenticate, requirePrivilegedRole, async (req, res, 
 });
 // POST /faculty-assignments/auto-fill
 // Triggers the state-preserving auto-fill algorithm for unassigned subject×section pairs.
-// Body: { schoolId: number, schoolYearId: number, previewOnly?: boolean }
+// Body: { schoolId: number, schoolYearId: number, previewOnly?: boolean, coverageMode?: CoverageMode }
 router.post('/auto-fill', authenticate, requirePrivilegedRole, async (req, res, next) => {
     try {
         const schoolId = Number(req.body.schoolId);
         const schoolYearId = Number(req.body.schoolYearId);
         const previewOnly = req.body.previewOnly === true || req.body.previewOnly === 'true';
+        const coverageMode = parseCoverageMode(req.body.coverageMode);
         if (!schoolId || Number.isNaN(schoolId)) {
             res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
             return;
@@ -450,8 +464,15 @@ router.post('/auto-fill', authenticate, requirePrivilegedRole, async (req, res, 
             res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
             return;
         }
+        if (req.body.coverageMode != null && !coverageMode) {
+            res.status(400).json({
+                code: 'INVALID_PARAM',
+                message: `coverageMode must be one of: ${COVERAGE_MODES.join(', ')}`,
+            });
+            return;
+        }
         const authToken = req.headers.authorization?.slice(7);
-        const result = await autoFill(schoolId, schoolYearId, authToken, { previewOnly });
+        const result = await autoFill(schoolId, schoolYearId, authToken, { previewOnly, coverageMode: coverageMode ?? undefined });
         res.json(result);
     }
     catch (err) {
@@ -460,11 +481,12 @@ router.post('/auto-fill', authenticate, requirePrivilegedRole, async (req, res, 
 });
 // POST /faculty-assignments/report/staffing-needs
 // Returns staffing shortage report based on current uncovered live pairs.
-// Body: { schoolId: number, schoolYearId: number }
+// Body: { schoolId: number, schoolYearId: number, coverageMode?: CoverageMode }
 router.post('/report/staffing-needs', authenticate, requirePrivilegedRole, async (req, res, next) => {
     try {
         const schoolId = Number(req.body.schoolId);
         const schoolYearId = Number(req.body.schoolYearId);
+        const coverageMode = parseCoverageMode(req.body.coverageMode);
         if (!schoolId || Number.isNaN(schoolId)) {
             res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
             return;
@@ -473,8 +495,19 @@ router.post('/report/staffing-needs', authenticate, requirePrivilegedRole, async
             res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
             return;
         }
+        if (req.body.coverageMode != null && !coverageMode) {
+            res.status(400).json({
+                code: 'INVALID_PARAM',
+                message: `coverageMode must be one of: ${COVERAGE_MODES.join(', ')}`,
+            });
+            return;
+        }
         const authToken = req.headers.authorization?.slice(7);
-        const result = await autoFill(schoolId, schoolYearId, authToken, { previewOnly: true, staffingOnly: true });
+        const result = await autoFill(schoolId, schoolYearId, authToken, {
+            previewOnly: true,
+            staffingOnly: true,
+            coverageMode: coverageMode ?? undefined,
+        });
         res.json(result);
     }
     catch (err) {

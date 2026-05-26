@@ -98,7 +98,7 @@ export async function resolveActiveSchoolYearContext(options?: {
 			return {
 				activeSchoolYearId: runtimeContext.activeSchoolYearId,
 				activeSchoolYearLabel: runtimeContext.activeSchoolYearLabel ?? null,
-				source: 'atlas',
+				source: runtimeContext.source ?? 'atlas-persisted',
 				stale: runtimeContext.stale,
 				cachedAt: updated?.cachedAt ?? new Date().toISOString(),
 			};

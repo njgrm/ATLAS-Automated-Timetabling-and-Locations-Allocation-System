@@ -79,7 +79,7 @@ export default function Faculty() {
 		setError(null);
 
 		let schoolYearId: number | null = null;
-		let yearContextSource: 'atlas' | 'enrollpro' | 'cache' = 'cache';
+		let yearContextSource: 'atlas' | 'atlas-persisted' | 'enrollpro-verified' | 'enrollpro' | 'cache' = 'cache';
 		try {
 			const yearContext = await resolveActiveSchoolYearContext({ forceRefresh });
 			schoolYearId = yearContext.activeSchoolYearId;

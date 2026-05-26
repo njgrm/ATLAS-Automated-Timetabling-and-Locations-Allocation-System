@@ -4,6 +4,7 @@
  * for high availability and local overrides.
  */
 import { prisma } from '../lib/prisma.js';
+import { resolveRuntimeContext } from './runtime-context.service.js';
 import { sectionAdapter } from './section-adapter.js';
 async function loadMirrorBackedSectionFetchResult(schoolId, schoolYearId, fallbackReason) {
     const mirrors = await prisma.sectionMirror.findMany({
@@ -197,6 +198,11 @@ export async function getSectionSummary(schoolYearId, schoolId, authToken) {
     // For Wave 5, we prefer reading from the Mirror first to ensure speed, 
     // but we might want to auto-sync if the mirror is empty.
     let source = 'atlas-mirror';
+    const runtimeCtx = await resolveRuntimeContext(schoolId);
+    const isUpstreamVerified = runtimeCtx?.source === 'enrollpro-verified' && runtimeCtx?.activeSchoolYearId === schoolYearId;
+    if (isUpstreamVerified) {
+        source = 'enrollpro';
+    }
     let mirrors = await prisma.sectionMirror.findMany({
         where: { schoolId, schoolYearId, isStale: false },
         orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }]
