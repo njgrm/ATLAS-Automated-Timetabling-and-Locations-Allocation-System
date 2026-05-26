@@ -17,7 +17,9 @@ import {
 	replaceOutboxActions,
 	type RoomPreferenceOutboxAction,
 } from '@/lib/roomPreferenceOutbox';
-import { fetchPublicSettings, fetchSchoolYears, type SchoolYear } from '@/lib/settings';
+import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { cacheFacultyIdentity, readCachedFacultyIdentity } from '@/lib/faculty-identity-cache';
+import { buildFacultyCacheKey, isLikelyOfflineError, readFacultySnapshot, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
 import { scopePreviewToCandidate } from '@/lib/timetable-utils';
 import { formatTime } from '@/lib/utils';
 import type {
@@ -50,37 +52,7 @@ import RoomRequestSheet from '@/components/faculty-room-preferences/RoomRequestS
 import { useMobileConflictPreview } from '@/hooks/useMobileConflictPreview';
 
 const DEFAULT_SCHOOL_ID = 1;
-const FALLBACK_SCHOOL_YEAR_ID = 1;
-
-function resolveSchoolYearContext(settingsActiveSchoolYearId: number | null, years: SchoolYear[]) {
-	if (settingsActiveSchoolYearId) {
-		return {
-			schoolYearId: settingsActiveSchoolYearId,
-			notice: null as string | null,
-		};
-	}
-
-	const sortedYears = [...years].sort((left, right) => right.id - left.id);
-	const inferredActive = sortedYears.find((year) => year.isActive || year.status?.toUpperCase() === 'ACTIVE');
-	if (inferredActive) {
-		return {
-			schoolYearId: inferredActive.id,
-			notice: `Showing School Year ${inferredActive.yearLabel}.`,
-		};
-	}
-
-	if (sortedYears[0]) {
-		return {
-			schoolYearId: sortedYears[0].id,
-			notice: `Showing School Year ${sortedYears[0].yearLabel}.`,
-		};
-	}
-
-	return {
-		schoolYearId: FALLBACK_SCHOOL_YEAR_ID,
-		notice: 'Showing a fallback school year while setup is being completed.',
-	};
-}
+const ROOM_BOOTSTRAP_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 type RoomOption = Room & { buildingName: string };
 
@@ -96,6 +68,14 @@ type OutboxSyncFeedback = {
 	status: 'SYNCED' | 'FAILED';
 	message: string;
 	at: string;
+};
+
+type FacultyRoomBootstrapSnapshot = {
+	facultyId: number;
+	rooms: RoomOption[];
+	buildings: Building[];
+	campusImageUrl: string | null;
+	state: FacultyRoomPreferenceState;
 };
 
 const ACTION_LABELS: Record<RequestActionType, string> = {
@@ -184,6 +164,8 @@ export default function FacultyRoomPreferences() {
 	const [outboxFeedback, setOutboxFeedback] = useState<OutboxSyncFeedback[]>([]);
 	const [liveUpdateCount, setLiveUpdateCount] = useState(0);
 	const [schoolYearNotice, setSchoolYearNotice] = useState<string | null>(null);
+	const [usingCachedBootstrap, setUsingCachedBootstrap] = useState(false);
+	const [cachedBootstrapAt, setCachedBootstrapAt] = useState<string | null>(null);
 	const [initialEntries, setInitialEntries] = useState<FacultyRoomPreferenceEntry[]>([]);
 	const [entries, setEntries] = useState<FacultyRoomPreferenceEntry[]>([]);
 	const [globalEntries, setGlobalEntries] = useState<FacultyGlobalDraftEntry[]>([]);
@@ -241,51 +223,112 @@ export default function FacultyRoomPreferences() {
 	const loadBootstrap = useCallback(async () => {
 		setLoading(true);
 		try {
-			const [settings, years] = await Promise.all([fetchPublicSettings(), fetchSchoolYears()]);
-			const schoolYearContext = resolveSchoolYearContext(settings.activeSchoolYearId, years);
-			const schoolYearId = schoolYearContext.schoolYearId;
+			const schoolYearContext = await resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false });
+			const schoolYearId = schoolYearContext.activeSchoolYearId;
 			setActiveSchoolYearId(schoolYearId);
-			setSchoolYearNotice(schoolYearContext.notice);
+			setSchoolYearNotice(
+				schoolYearContext.source === 'atlas' && !schoolYearContext.stale
+					? null
+					: schoolYearContext.activeSchoolYearLabel
+					? `Working from saved ATLAS school-year context (${schoolYearContext.activeSchoolYearLabel}).`
+					: 'Working from saved ATLAS school-year context.',
+			);
 
-			const { data: facultyMe } = await atlasApi.get<{ faculty: FacultyMirror }>(`/faculty/me`, {
-				params: { schoolId: DEFAULT_SCHOOL_ID },
-			});
-			const facultyMatch = facultyMe.faculty;
-			if (!facultyMatch?.id) {
-				setError('Your account is not linked to a faculty record in this school.');
-				return;
-			}
-			setFacultyId(facultyMatch.id);
-
-			const [roomState, buildingsResponse, campusImageResponse] = await Promise.all([
-				atlasApi.get<FacultyRoomPreferenceState>(`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/latest/faculty/${facultyMatch.id}`),
-				atlasApi.get<{ buildings: Building[] }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
-				atlasApi.get<{ campusImageUrl: string | null }>(`/map/schools/${DEFAULT_SCHOOL_ID}/campus-image`),
-			]);
-
-			const nextRooms: RoomOption[] = [];
-			for (const building of buildingsResponse.data.buildings) {
-				for (const room of building.rooms ?? []) {
-					if (!room.isTeachingSpace) continue;
-					nextRooms.push({ ...room, buildingName: building.shortCode || building.name });
+			let resolvedFacultyId: number;
+			try {
+				const { data: facultyMe } = await atlasApi.get<{ faculty: FacultyMirror }>(`/faculty/me`, {
+					params: { schoolId: DEFAULT_SCHOOL_ID },
+				});
+				const facultyMatch = facultyMe.faculty;
+				if (!facultyMatch?.id) {
+					setError('Your account is not linked to a faculty record in this school.');
+					return;
+				}
+				resolvedFacultyId = facultyMatch.id;
+				cacheFacultyIdentity(DEFAULT_SCHOOL_ID, facultyMatch.id);
+			} catch (facultyError) {
+				const cachedIdentity = readCachedFacultyIdentity(DEFAULT_SCHOOL_ID);
+				if (cachedIdentity && isLikelyOfflineError(facultyError)) {
+					resolvedFacultyId = cachedIdentity.facultyId;
+					setSchoolYearNotice((current) => current ?? 'Using your last saved faculty account link while offline.');
+				} else {
+					throw facultyError;
 				}
 			}
-			nextRooms.sort((left, right) => left.name.localeCompare(right.name) || left.floor - right.floor);
-			setRooms(nextRooms);
-			setBuildings(buildingsResponse.data.buildings);
-			setCampusImageUrl(campusImageResponse.data.campusImageUrl ?? null);
-			applyServerState(roomState.data);
-			setGate(null);
-			setError(null);
-		} catch (err) {
-			const responseData = (err as { response?: { data?: { code?: string; message?: string; actionHint?: string } } })?.response?.data;
-			const noDraftMessage = responseData?.code === 'NO_ACTIVE_DRAFT'
-				? [responseData.message, responseData.actionHint].filter(Boolean).join(' ')
-				: null;
-			const staleMessage = responseData?.code === 'STALE_RUN_DATA'
-				? [responseData.message, responseData.actionHint].filter(Boolean).join(' ')
-				: null;
-			setError(noDraftMessage ?? staleMessage ?? responseData?.message ?? "Your schedule isn't ready yet. Please wait for the scheduler to generate the draft.");
+
+			setFacultyId(resolvedFacultyId);
+			const cacheKey = buildFacultyCacheKey('room-preferences-bootstrap', DEFAULT_SCHOOL_ID, schoolYearId, resolvedFacultyId);
+			const cachedSnapshot = readFacultySnapshot<FacultyRoomBootstrapSnapshot>(cacheKey, {
+				maxAgeMs: ROOM_BOOTSTRAP_CACHE_MAX_AGE_MS,
+				validate: (value): value is FacultyRoomBootstrapSnapshot => {
+					if (!value || typeof value !== 'object') return false;
+					const candidate = value as Partial<FacultyRoomBootstrapSnapshot>;
+					return (
+						typeof candidate.facultyId === 'number'
+						&& Array.isArray(candidate.rooms)
+						&& Array.isArray(candidate.buildings)
+						&& Boolean(candidate.state)
+					);
+				},
+			});
+
+			try {
+				const [roomState, buildingsResponse, campusImageResponse] = await Promise.all([
+					atlasApi.get<FacultyRoomPreferenceState>(`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/latest/faculty/${resolvedFacultyId}`),
+					atlasApi.get<{ buildings: Building[] }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
+					atlasApi.get<{ campusImageUrl: string | null }>(`/map/schools/${DEFAULT_SCHOOL_ID}/campus-image`),
+				]);
+
+				const nextRooms: RoomOption[] = [];
+				for (const building of buildingsResponse.data.buildings) {
+					for (const room of building.rooms ?? []) {
+						if (!room.isTeachingSpace) continue;
+						nextRooms.push({ ...room, buildingName: building.shortCode || building.name });
+					}
+				}
+				nextRooms.sort((left, right) => left.name.localeCompare(right.name) || left.floor - right.floor);
+				setRooms(nextRooms);
+				setBuildings(buildingsResponse.data.buildings);
+				setCampusImageUrl(campusImageResponse.data.campusImageUrl ?? null);
+				applyServerState(roomState.data);
+				setGate(null);
+				setUsingCachedBootstrap(false);
+				setCachedBootstrapAt(null);
+				setError(null);
+
+				writeFacultySnapshot(cacheKey, {
+					facultyId: resolvedFacultyId,
+					rooms: nextRooms,
+					buildings: buildingsResponse.data.buildings,
+					campusImageUrl: campusImageResponse.data.campusImageUrl ?? null,
+					state: roomState.data,
+				});
+			} catch (err) {
+				if (cachedSnapshot && isLikelyOfflineError(err)) {
+					setRooms(cachedSnapshot.data.rooms);
+					setBuildings(cachedSnapshot.data.buildings);
+					setCampusImageUrl(cachedSnapshot.data.campusImageUrl);
+					applyServerState(cachedSnapshot.data.state);
+					setGate(null);
+					setUsingCachedBootstrap(true);
+					setCachedBootstrapAt(cachedSnapshot.cachedAt);
+					setError(null);
+					return;
+				}
+
+				const responseData = (err as { response?: { data?: { code?: string; message?: string; actionHint?: string } } })?.response?.data;
+				const noDraftMessage = responseData?.code === 'NO_ACTIVE_DRAFT'
+					? [responseData.message, responseData.actionHint].filter(Boolean).join(' ')
+					: null;
+				const staleMessage = responseData?.code === 'STALE_RUN_DATA'
+					? [responseData.message, responseData.actionHint].filter(Boolean).join(' ')
+					: null;
+				setUsingCachedBootstrap(false);
+				setCachedBootstrapAt(null);
+				setError(noDraftMessage ?? staleMessage ?? responseData?.message ?? "Your schedule isn't ready yet. Please wait for the scheduler to generate the draft.");
+			}
+		} catch {
+			setError("We couldn't load room-request bootstrap details. Please tap Retry.");
 		} finally {
 			setLoading(false);
 		}
@@ -582,12 +625,13 @@ export default function FacultyRoomPreferences() {
 	const reasonRequired = actionType === 'SWAP_WITH_OCCUPIED' && (requestPreview?.hardViolations.length ?? 0) > 0;
 	const syncLifecycleState = useMemo(() => {
 		if (!online) return 'queued-offline' as const;
+		if (usingCachedBootstrap) return 'failed' as const;
 		if (syncingOutbox || outboxStatusCounts.syncing > 0) return 'syncing' as const;
 		if (outboxStatusCounts.failed > 0) return 'failed' as const;
 		if (outboxStatusCounts.queued > 0) return 'queued' as const;
 		if (lastSyncedFeedback) return 'synced' as const;
 		return 'idle' as const;
-	}, [lastSyncedFeedback, online, outboxStatusCounts.failed, outboxStatusCounts.queued, outboxStatusCounts.syncing, syncingOutbox]);
+	}, [lastSyncedFeedback, online, outboxStatusCounts.failed, outboxStatusCounts.queued, outboxStatusCounts.syncing, syncingOutbox, usingCachedBootstrap]);
 	const timeSlots = useMemo(() => {
 		const unique = new Map<string, { startTime: string; endTime: string }>();
 		for (const entry of globalEntries) {
@@ -759,6 +803,17 @@ export default function FacultyRoomPreferences() {
 	};
 
 	const advisory = useMemo(() => {
+		if (usingCachedBootstrap) {
+			const savedAt = cachedBootstrapAt ? new Date(cachedBootstrapAt).toLocaleString() : null;
+			return {
+				title: 'Saved request view',
+				message: savedAt
+					? `Live room-request data is unavailable. Showing your last saved view from ${savedAt}.`
+					: 'Live room-request data is unavailable. Showing your last saved view.',
+				variant: 'warning' as const,
+			};
+		}
+
 		if (gate?.blocked) {
 			return {
 				title: 'Update paused',
@@ -771,7 +826,7 @@ export default function FacultyRoomPreferences() {
 			message: 'Submit your request and wait for scheduler decision.',
 			variant: 'info' as const
 		};
-	}, [gate]);
+	}, [cachedBootstrapAt, gate, usingCachedBootstrap]);
 
 	if (loading) {
 		return (
@@ -822,7 +877,7 @@ export default function FacultyRoomPreferences() {
 				liveViewers={compactPresence.visible.length + compactPresence.hiddenCount}
 				realtimeConnected={collaborationConnected}
 				advisory={advisory}
-				onRetryFailed={retryFailedOutboxActions}
+				onRetryFailed={usingCachedBootstrap ? () => void loadBootstrap() : retryFailedOutboxActions}
 			>
 				{schoolYearNotice && (
 					<div className='rounded-xl border border-amber-200 bg-amber-50 px-3 py-1 text-[10px] font-bold text-amber-900 uppercase'>

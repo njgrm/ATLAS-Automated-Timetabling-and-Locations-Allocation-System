@@ -1,3 +1,120 @@
+# 2026-05-26 - Phase 3 Faculty Offline Publish Readiness One-Shot
+- Phase: Phase 3 generator-readiness stream, faculty offline publish readiness closure scope
+- Operator: GitHub Copilot
+- Scope gate: PASS (local-auth continuity hardening + faculty published route + offline/degraded honesty + reconnect recovery)
+- Files changed in this pass:
+  - `atlas-client/src/App.tsx`
+  - `atlas-client/src/components/AppShell.tsx`
+  - `atlas-client/src/components/faculty-shared/AvailabilityPicker.tsx`
+  - `atlas-client/src/lib/__tests__/auth-session.test.ts`
+  - `atlas-client/src/lib/auth.ts`
+  - `atlas-client/src/lib/enrollpro-public-settings.ts`
+  - `atlas-client/src/lib/settings.ts`
+  - `atlas-client/src/lib/faculty-offline-cache.ts`
+  - `atlas-client/src/lib/faculty-identity-cache.ts`
+  - `atlas-client/src/main.tsx`
+  - `atlas-client/src/pages/Login.tsx`
+  - `atlas-client/src/pages/MyDashboard.tsx`
+  - `atlas-client/src/pages/MySchedule.tsx`
+  - `atlas-client/src/pages/FacultyPreferences.tsx`
+  - `atlas-client/src/pages/FacultyRoomPreferences.tsx`
+  - `atlas-client/index.html`
+  - `atlas-client/public/manifest.webmanifest`
+  - `atlas-client/public/sw.js`
+  - `atlas-client/public/pwa-icon.svg`
+  - `atlas-client/public/pwa-icon-maskable.svg`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+  - `CHANGELOG.md`
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS
+  - `npm --prefix atlas-client run test:auth-session` -> PASS (`6` passed)
+  - `npm --prefix atlas-server run test:auth` -> FAIL in current dataset assumptions (`local-auth.test.ts` expectations mismatch seeded/runtime behavior); no server auth code changed in this pass.
+
+- Tailnet verification (`https://njgrm.buru-degree.ts.net`) using faculty login (`maria.santos@deped.edu.ph` / `DepEd2026!`):
+  1) Faculty local login + route continuity:
+     - Login redirects to `/my` successfully.
+     - `/my`, `/my/preferences`, and `/my/room-preferences` continue to load with ATLAS runtime-context notice.
+  2) New published schedule route:
+     - `/my/schedule` loads and returns explicit published-truth status.
+     - Current live state shows honest no-published guidance (`Your published schedule is not available yet...`) when no published run exists.
+  3) Preferences crash closure + degraded honesty:
+     - `/my/preferences` no longer throws `Info is not defined`.
+     - Offline run keeps page readable and disables save/submit with explicit copy (`Connect to the internet to save or submit preference changes.`).
+  4) Offline + reconnect recovery probe:
+     - Forced browser offline state (`context.setOffline(true)`) while authenticated.
+     - `/my` remains accessible with cached context and offline status indicators.
+      - `/my/room-preferences` stays honest under offline failure (`Cannot load room requests`) and keeps retry affordance visible.
+     - Re-enabled connectivity (`context.setOffline(false)`) and reloaded `/my/preferences`; route returns to online status with interaction controls restored.
+      - Re-ran `/my/room-preferences` retry after reconnect; route recovered to live no-draft guidance (`No active draft timetable run is available...`) instead of offline transport errors.
+
+- GO/NO-GO:
+  - **GO** for this one-shot scope.
+  - Faculty routes now rely on ATLAS-owned runtime context, `/my/schedule` is wired to published-truth contracts, offline states are explicit and non-misleading, and reconnect behavior is observable.
+
+# 2026-05-25 - Phase 3 Offline Runtime Closure Multi-Page One-Shot
+- Phase: Phase 3 generator-readiness stream, offline runtime closure for bootstrap continuity and degraded local workflow safety
+- Operator: GitHub Copilot
+- Scope gate: PASS (runtime bootstrap migration + degraded continuity evidence + sync-safe local section workflow)
+- Files changed in this pass:
+  - `atlas-client/src/lib/enrollpro-public-settings.ts`
+  - `atlas-client/src/hooks/useTimetableData.ts`
+  - `atlas-client/src/components/AppShell.tsx`
+  - `atlas-client/src/components/RoomScheduleOverlay.tsx`
+  - `atlas-client/src/components/timetable/ScheduleReviewWorkspace.tsx`
+  - `atlas-client/src/pages/RoomSchedules.tsx`
+  - `atlas-client/src/pages/OfficerPreferences.tsx`
+  - `atlas-client/src/pages/FacultyPreferences.tsx`
+  - `atlas-client/src/pages/OfficerRoomPreferences.tsx`
+  - `atlas-client/src/pages/FacultyRoomPreferences.tsx`
+  - `atlas-client/src/pages/MyDashboard.tsx`
+  - `atlas-client/src/pages/Sections.tsx`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+  - `CHANGELOG.md`
+
+- Local verification:
+  - `npm --prefix atlas-client run build` -> PASS
+  - `npm --prefix atlas-server run build` -> PASS
+
+- Tailnet outage verification (`https://njgrm.buru-degree.ts.net`) with simulated settings outage (`/enrollpro-api/settings/public` forced failure):
+  1) Bootstrap continuity under settings outage:
+     - Request failures observed: `GET /enrollpro-api/settings/public -> net::ERR_FAILED`
+     - `GET /my` still renders base faculty dashboard with notice:
+       - `Working from saved ATLAS school-year context (2026-2027).`
+
+  2) Scheduler surface continuity:
+     - `GET /timetable` renders run workspace controls despite settings failures:
+       - `Generated Run #78`
+       - `Generate` button present
+       - Run filters and violation panel render
+     - `GET /room-schedules` opens base room-schedule workspace:
+       - `Select room...`
+       - `Room Schedule` / `Occupancy Preview` toggles present
+
+  3) Faculty-facing continuity:
+     - `GET /my/room-preferences` opens base view and surfaces honest draft dependency guidance:
+       - `Cannot load room requests`
+       - `No active draft timetable run is available for this school year...`
+
+  4) Sections degraded local work path:
+     - `GET /sections` shows degraded state banner:
+       - `ATLAS Mirror`
+       - `EnrollPro is unreachable. You are working with ATLAS mirrored data. Home-room assignments will persist locally.`
+     - Home-room controls remain present in degraded view (`combobox` rendered per section row).
+
+- Residual findings (outside this one-shot closure scope):
+  - `GET /my/preferences` currently throws a route-level render error on Tailnet:
+    - `ReferenceError: Info is not defined`
+    - Source component in runtime stack: `AvailabilityPicker`
+  - This is not a school-year bootstrap regression; it is a separate UI defect that should be tracked as a follow-up fix.
+
+- GO/NO-GO:
+  - **GO** for this one-shot scope.
+  - Runtime bootstrap now resolves from ATLAS-owned context first, degraded page continuity is preserved, and `Sections` keeps safe local home-room workflow behavior with reconnect replay path.
+
 # 2026-05-24 - Phase 3 Teaching Load Runtime Decoupling + Rotation Truth One-Shot
 - Phase: Phase 3 generator-readiness stream, runtime control decoupling and rotation-lane truth contract
 - Operator: GitHub Copilot

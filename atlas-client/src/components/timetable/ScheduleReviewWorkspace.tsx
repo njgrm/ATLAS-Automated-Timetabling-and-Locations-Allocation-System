@@ -4,7 +4,6 @@ import { AlertCircle, RefreshCw } from 'lucide-react';
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent, DragOverEvent, DragStartEvent } from '@dnd-kit/core';
 import { toast } from 'sonner';
-import { fetchPublicSettings } from '@/lib/settings';
 import {
 	getDefaultUnassignedReasonDetail,
 	getProgramBadgeLabel,

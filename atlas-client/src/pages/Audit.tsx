@@ -311,12 +311,23 @@ export default function Audit() {
 						</div>
 					</div>
 					<div className="flex items-center gap-3">
-						<Badge
-							variant={dataSource === 'live' ? 'secondary' : 'outline'}
-							className="h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold"
-						>
-							{dataSource === 'live' ? 'Live upstream-backed' : dataSource === 'cached' ? 'ATLAS cached' : 'No cache'}
-						</Badge>
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Badge
+										variant={dataSource === 'live' ? 'secondary' : 'outline'}
+										className="h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold cursor-help"
+									>
+										{dataSource === 'live' ? 'Verified Live' : dataSource === 'cached' ? 'Working from Saved Data' : 'No Saved Data'}
+									</Badge>
+								</TooltipTrigger>
+								<TooltipContent side="bottom" className="text-[0.65rem] font-semibold p-2">
+									{dataSource === 'live' 
+										? 'Data freshly verified with EnrollPro.' 
+										: 'Using data saved in ATLAS. Changes will sync when EnrollPro returns.'}
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
 						<Button variant="outline" size="sm" className="h-8 gap-2" onClick={loadData}>
 							<RefreshCw className="size-3.5" />
 							Refresh
@@ -331,11 +342,14 @@ export default function Audit() {
 			</header>
 
 			{degradedReasons.length > 0 && (
-				<div className="shrink-0 mx-6 mt-3 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
-					<AlertTriangle className="size-4 shrink-0" />
-					<span className="flex-1">
-						Audit is running with partial data. Missing: {degradedReasons.join(' ')}
-					</span>
+				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800 shadow-sm">
+					<div className="size-5 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+						<AlertTriangle className='size-3 text-amber-600' />
+					</div>
+					<div className="flex-1">
+						<p className="text-xs font-bold">Running with saved data</p>
+						<p className="text-[11px] mt-0.5 opacity-90">Some live records are currently unreachable. Audit is using saved ATLAS evidence. Missing: {degradedReasons.join(' ')}</p>
+					</div>
 				</div>
 			)}
 

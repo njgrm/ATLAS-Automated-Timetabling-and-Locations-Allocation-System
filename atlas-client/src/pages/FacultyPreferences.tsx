@@ -10,7 +10,9 @@ import { AnimatePresence, motion } from 'motion/react';
 
 import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
-import { fetchPublicSettings, fetchSchoolYears, type SchoolYear } from '@/lib/settings';
+import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { cacheFacultyIdentity, readCachedFacultyIdentity } from '@/lib/faculty-identity-cache';
+import { buildFacultyCacheKey, isLikelyOfflineError, readFacultySnapshot, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
 import type {
 	FacultyPreference,
 	TimeSlotPreference,
@@ -26,36 +28,7 @@ import DesktopPreferencesLayout from '@/components/faculty-preferences/DesktopPr
 /* ─── Constants ─── */
 
 const DEFAULT_SCHOOL_ID = 1;
-
-function resolveSchoolYearContext(settingsActiveSchoolYearId: number | null, years: SchoolYear[]) {
-	if (settingsActiveSchoolYearId) {
-		return {
-			schoolYearId: settingsActiveSchoolYearId,
-			notice: null as string | null,
-		};
-	}
-
-	const sortedYears = [...years].sort((left, right) => right.id - left.id);
-	const inferredActive = sortedYears.find((year) => year.isActive || year.status?.toUpperCase() === 'ACTIVE');
-	if (inferredActive) {
-		return {
-			schoolYearId: inferredActive.id,
-			notice: `Showing School Year ${inferredActive.yearLabel}.`,
-		};
-	}
-
-	if (sortedYears[0]) {
-		return {
-			schoolYearId: sortedYears[0].id,
-			notice: `Showing School Year ${sortedYears[0].yearLabel}.`,
-		};
-	}
-
-	return {
-		schoolYearId: 1,
-		notice: 'Showing a fallback school year while setup is being completed.',
-	};
-}
+const PREFERENCE_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 type SlotRow = {
 	day: string;
@@ -80,6 +53,16 @@ const DEFAULT_WELLBEING: WellbeingState = {
 	avoidUpperFloors: false,
 };
 
+type FacultyPreferenceSnapshot = {
+	preference: FacultyPreference | null;
+	slots: SlotRow[];
+	notes: string;
+	version: number;
+	wellbeing: WellbeingState;
+	locked: boolean;
+	lockedMsg: string;
+};
+
 /* ─── Page ─── */
 
 export default function FacultyPreferences() {
@@ -99,6 +82,8 @@ export default function FacultyPreferences() {
 	const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 1023px)').matches);
 	const [sseConnected, setSseConnected] = useState(false);
 	const [sseError, setSseError] = useState<string | null>(null);
+	const [usingCachedPreference, setUsingCachedPreference] = useState(false);
+	const [cachedPreferenceAt, setCachedPreferenceAt] = useState<string | null>(null);
 
 	const [preference, setPreference] = useState<FacultyPreference | null>(null);
 	const [slots, setSlots] = useState<SlotRow[]>([]);
@@ -106,24 +91,51 @@ export default function FacultyPreferences() {
 	const [version, setVersion] = useState(1);
 	const [wellbeing, setWellbeing] = useState<WellbeingState>(DEFAULT_WELLBEING);
 
+	const applyPreferenceSnapshot = useCallback((snapshot: FacultyPreferenceSnapshot) => {
+		setPreference(snapshot.preference);
+		setSlots(snapshot.slots);
+		setNotes(snapshot.notes);
+		setVersion(snapshot.version);
+		setWellbeing(snapshot.wellbeing);
+		setLocked(snapshot.locked);
+		setLockedMsg(snapshot.lockedMsg);
+	}, []);
+
 	/* ── Resolve session context ── */
 	useEffect(() => {
 		(async () => {
 			try {
-				const [settings, years] = await Promise.all([fetchPublicSettings(), fetchSchoolYears()]);
-				const schoolYearContext = resolveSchoolYearContext(settings.activeSchoolYearId, years);
-				setActiveSchoolYearId(schoolYearContext.schoolYearId);
-				setSchoolYearNotice(schoolYearContext.notice);
+				const schoolYearContext = await resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false });
+				setActiveSchoolYearId(schoolYearContext.activeSchoolYearId);
+				setSchoolYearNotice(
+					schoolYearContext.source === 'atlas' && !schoolYearContext.stale
+						? null
+						: schoolYearContext.activeSchoolYearLabel
+						? `Working from saved ATLAS school-year context (${schoolYearContext.activeSchoolYearLabel}).`
+						: 'Working from saved ATLAS school-year context.',
+				);
 
-				const { data: facultyMe } = await atlasApi.get<{ faculty: { id: number } }>('/faculty/me', {
-					params: { schoolId: DEFAULT_SCHOOL_ID },
-				});
-				if (!facultyMe?.faculty?.id) {
-					setError('Your account is not linked to a faculty record in this school. Contact your scheduling officer.');
-					setLoading(false);
-					return;
+				try {
+					const { data: facultyMe } = await atlasApi.get<{ faculty: { id: number } }>('/faculty/me', {
+						params: { schoolId: DEFAULT_SCHOOL_ID },
+					});
+					if (!facultyMe?.faculty?.id) {
+						setError('Your account is not linked to a faculty record in this school. Contact your scheduling officer.');
+						setLoading(false);
+						return;
+					}
+					setFacultyId(facultyMe.faculty.id);
+					cacheFacultyIdentity(DEFAULT_SCHOOL_ID, facultyMe.faculty.id);
+				} catch (facultyError) {
+					const cachedIdentity = readCachedFacultyIdentity(DEFAULT_SCHOOL_ID);
+					if (cachedIdentity && isLikelyOfflineError(facultyError)) {
+						setFacultyId(cachedIdentity.facultyId);
+						setSchoolYearNotice((current) => current ?? 'Using your last saved faculty account link while offline.');
+						setError(null);
+						return;
+					}
+					throw facultyError;
 				}
-				setFacultyId(facultyMe.faculty.id);
 			} catch {
 				setError("We couldn't load your account details. Please tap Retry.");
 				setLoading(false);
@@ -135,42 +147,72 @@ export default function FacultyPreferences() {
 	const loadPreference = useCallback(async () => {
 		if (!activeSchoolYearId || !facultyId) return;
 		setLoading(true);
+		const cacheKey = buildFacultyCacheKey('preferences', DEFAULT_SCHOOL_ID, activeSchoolYearId, facultyId);
+		const cachedSnapshot = readFacultySnapshot<FacultyPreferenceSnapshot>(cacheKey, {
+			maxAgeMs: PREFERENCE_CACHE_MAX_AGE_MS,
+			validate: (value): value is FacultyPreferenceSnapshot => {
+				if (!value || typeof value !== 'object') return false;
+				const candidate = value as Partial<FacultyPreferenceSnapshot>;
+				return typeof candidate.version === 'number' && Array.isArray(candidate.slots) && typeof candidate.notes === 'string';
+			},
+		});
 		try {
 			const { data } = await atlasApi.get<{ preference: FacultyPreference | null }>(
 				`/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/faculty/${facultyId}`,
 			);
 			if (data.preference) {
 				const pref = data.preference;
-				setPreference(pref);
-				setVersion(pref.version);
-				setNotes(pref.notes ?? '');
-				setWellbeing({
-					pregnancySupport: pref.pregnancySupport,
-					physicalAilmentSupport: pref.physicalAilmentSupport,
-					minimizeTravelTime: pref.minimizeTravelTime,
-					avoidUpperFloors: pref.avoidUpperFloors,
-				});
-				setSlots(pref.timeSlots.map(ts => ({
-					day: ts.day,
-					startTime: ts.startTime,
-					endTime: ts.endTime,
-					preference: ts.preference,
-				})));
+				const nextSnapshot: FacultyPreferenceSnapshot = {
+					preference: pref,
+					slots: pref.timeSlots.map((ts) => ({
+						day: ts.day,
+						startTime: ts.startTime,
+						endTime: ts.endTime,
+						preference: ts.preference,
+					})),
+					notes: pref.notes ?? '',
+					version: pref.version,
+					wellbeing: {
+						pregnancySupport: pref.pregnancySupport,
+						physicalAilmentSupport: pref.physicalAilmentSupport,
+						minimizeTravelTime: pref.minimizeTravelTime,
+						avoidUpperFloors: pref.avoidUpperFloors,
+					},
+					locked: false,
+					lockedMsg: '',
+				};
+				applyPreferenceSnapshot(nextSnapshot);
+				writeFacultySnapshot(cacheKey, nextSnapshot);
 			} else {
-				setPreference(null);
-				setSlots([]);
-				setNotes('');
-				setVersion(1);
-				setWellbeing(DEFAULT_WELLBEING);
+				const emptySnapshot: FacultyPreferenceSnapshot = {
+					preference: null,
+					slots: [],
+					notes: '',
+					version: 1,
+					wellbeing: DEFAULT_WELLBEING,
+					locked: false,
+					lockedMsg: '',
+				};
+				applyPreferenceSnapshot(emptySnapshot);
+				writeFacultySnapshot(cacheKey, emptySnapshot);
 			}
+			setUsingCachedPreference(false);
+			setCachedPreferenceAt(null);
 			setError(null);
 			setLocked(false);
-		} catch {
+		} catch (err) {
+			if (cachedSnapshot && isLikelyOfflineError(err)) {
+				applyPreferenceSnapshot(cachedSnapshot.data);
+				setUsingCachedPreference(true);
+				setCachedPreferenceAt(cachedSnapshot.cachedAt);
+				setError(null);
+				return;
+			}
 			setError('Failed to load your preferences.');
 		} finally {
 			setLoading(false);
 		}
-	}, [activeSchoolYearId, facultyId]);
+	}, [activeSchoolYearId, applyPreferenceSnapshot, facultyId]);
 
 	useEffect(() => {
 		if (activeSchoolYearId && facultyId) loadPreference();
@@ -302,6 +344,17 @@ export default function FacultyPreferences() {
 	const preferenceStep = locked || isSubmitted ? 3 : 2;
 	
 	const advisory = useMemo(() => {
+		if (usingCachedPreference) {
+			const savedAt = cachedPreferenceAt ? new Date(cachedPreferenceAt).toLocaleString() : null;
+			return {
+				title: 'Saved preferences view',
+				message: savedAt
+					? `Live preference data is unavailable. Showing your last saved data from ${savedAt}.`
+					: 'Live preference data is unavailable. Showing your last saved data.',
+				variant: 'warning' as const,
+			};
+		}
+
 		if (locked) {
 			return {
 				title: 'Preferences locked',
@@ -324,7 +377,7 @@ export default function FacultyPreferences() {
 			};
 		}
 		return undefined;
-	}, [locked, lockedMsg, isSubmitted, preference?.submittedAt, reviewUpdates]);
+	}, [cachedPreferenceAt, isSubmitted, locked, lockedMsg, preference?.submittedAt, reviewUpdates, usingCachedPreference]);
 
 	if (loading) {
 		return (
@@ -369,9 +422,10 @@ export default function FacultyPreferences() {
 				]}
 				activeStep={preferenceStep}
 				online={online}
-				syncState={online ? 'idle' : 'queued-offline'}
+				syncState={usingCachedPreference ? 'failed' : online ? 'idle' : 'queued-offline'}
 				realtimeConnected={sseConnected}
 				advisory={advisory}
+				onRetryFailed={usingCachedPreference ? () => void loadPreference() : undefined}
 			>
 				{schoolYearNotice && (
 					<div className='rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-[10px] font-bold text-amber-900 uppercase'>
@@ -420,7 +474,7 @@ export default function FacultyPreferences() {
 							<Button
 								variant='outline'
 								onClick={saveDraft}
-								disabled={saving || submitting}
+								disabled={saving || submitting || !online}
 								className='flex-1 sm:flex-none h-12 sm:h-10 rounded-xl font-bold gap-2'
 							>
 								{saving ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
@@ -428,7 +482,7 @@ export default function FacultyPreferences() {
 							</Button>
 							<Button
 								onClick={submitPreference}
-								disabled={saving || submitting}
+								disabled={saving || submitting || !online}
 								className='flex-1 sm:flex-none h-12 sm:h-10 rounded-xl font-bold gap-2 shadow-sm'
 							>
 								{submitting ? <Loader2 className='size-4 animate-spin' /> : <Send className='size-4' />}
@@ -436,6 +490,11 @@ export default function FacultyPreferences() {
 							</Button>
 						</div>
 					</div>
+					{!online && (
+						<p className='mt-3 text-xs font-medium text-amber-700'>
+							Connect to the internet to save or submit preference changes.
+						</p>
+					)}
 				</div>
 			)}
 		</div>

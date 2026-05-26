@@ -38,6 +38,7 @@ import { SectionDetailsSheet } from '@/components/sections/SectionDetailsSheet';
 /* ─── Constants ─── */
 const DEFAULT_SCHOOL_ID = 1;
 const PAGE_SIZES = [10, 25, 50, 100];
+const HOME_ROOM_QUEUE_CACHE_PREFIX = 'atlas:sections-home-room-queue:v1';
 
 const GRADE_COLORS: Record<string, string> = {
 	'7':  'bg-green-100/80 text-green-700',
@@ -68,10 +69,67 @@ type FetchState =
 	| { status: 'unavailable'; message: string }
 	| { status: 'no-year'; message: string };
 
+type HomeRoomQueueEntry = {
+	sectionId: number;
+	homeRoomId: number | null;
+	queuedAt: string;
+};
+
 /* ─── Helpers ─── */
 function gradeKey(name: string) {
 	const m = name.match(/\d+/);
 	return m ? m[0] : '';
+}
+
+function homeRoomQueueKey(schoolId: number, schoolYearId: number): string {
+	return `${HOME_ROOM_QUEUE_CACHE_PREFIX}:${schoolId}:${schoolYearId}`;
+}
+
+function readQueuedHomeRoomEdits(schoolId: number, schoolYearId: number): HomeRoomQueueEntry[] {
+	try {
+		const raw = localStorage.getItem(homeRoomQueueKey(schoolId, schoolYearId));
+		if (!raw) return [];
+		const parsed = JSON.parse(raw) as HomeRoomQueueEntry[];
+		if (!Array.isArray(parsed)) return [];
+		return parsed.filter((item) => typeof item.sectionId === 'number');
+	} catch {
+		return [];
+	}
+}
+
+function writeQueuedHomeRoomEdits(schoolId: number, schoolYearId: number, entries: HomeRoomQueueEntry[]): void {
+	try {
+		if (entries.length === 0) {
+			localStorage.removeItem(homeRoomQueueKey(schoolId, schoolYearId));
+			return;
+		}
+		localStorage.setItem(homeRoomQueueKey(schoolId, schoolYearId), JSON.stringify(entries));
+	} catch {
+		// Ignore storage restrictions.
+	}
+}
+
+function mergeQueuedHomeRoomEdit(
+	current: HomeRoomQueueEntry[],
+	sectionId: number,
+	homeRoomId: number | null,
+): HomeRoomQueueEntry[] {
+	const next = current.filter((entry) => entry.sectionId !== sectionId);
+	next.push({ sectionId, homeRoomId, queuedAt: new Date().toISOString() });
+	return next;
+}
+
+function applyQueuedHomeRoomEdits(sections: SectionDetail[], queued: HomeRoomQueueEntry[]): SectionDetail[] {
+	if (queued.length === 0) return sections;
+	const homeRoomBySection = new Map<number, number | null>(queued.map((entry) => [entry.sectionId, entry.homeRoomId]));
+	return sections.map((section) => {
+		if (!section.mirrorId) return section;
+		if (!homeRoomBySection.has(section.mirrorId)) return section;
+		return {
+			...section,
+			homeRoomId: homeRoomBySection.get(section.mirrorId) ?? null,
+		};
+	});
 }
 
 /* ─── Component ─── */
@@ -84,6 +142,8 @@ export default function Sections() {
 	const [dataSource, setDataSource] = useState<'live' | 'atlas-mirror' | 'cached' | 'none'>('none');
 	const [cacheNotice, setCacheNotice] = useState<string | null>(null);
 	const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+	const [queuedHomeRoomEdits, setQueuedHomeRoomEdits] = useState<HomeRoomQueueEntry[]>([]);
+	const [syncingQueuedEdits, setSyncingQueuedEdits] = useState(false);
 	const [sortField, setSortField]   = useState<SortField>('gradeLevelId');
 	const [sortDir, setSortDir]       = useState<SortDir>('asc');
 	const [page, setPage]             = useState(1);
@@ -113,6 +173,8 @@ export default function Sections() {
 			schoolYearId = schoolYearContext.activeSchoolYearId;
 			yearContextSource = schoolYearContext.source;
 			setActiveSchoolYearId(schoolYearId);
+			const queuedEditsForYear = readQueuedHomeRoomEdits(DEFAULT_SCHOOL_ID, schoolYearId);
+			setQueuedHomeRoomEdits(queuedEditsForYear);
 
 			if (!forceRefresh) {
 				const cachedSummary = getCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId, {
@@ -123,11 +185,21 @@ export default function Sections() {
 				});
 
 				if (cachedSummary && cachedHomeRooms) {
-					setState({ status: 'ok', data: cachedSummary.data });
+					setState({
+						status: 'ok',
+						data: {
+							...cachedSummary.data,
+							sections: applyQueuedHomeRoomEdits(cachedSummary.data.sections, queuedEditsForYear),
+						},
+					});
 					setHomeRoomOptions(cachedHomeRooms.data);
 					setLastSyncedAt(cachedSummary.data.fetchedAt ? String(cachedSummary.data.fetchedAt) : null);
 					setDataSource(isOnline ? 'atlas-mirror' : 'cached');
-					setCacheNotice('Refreshing live section data. Showing your last saved section snapshot in the meantime.');
+					setCacheNotice(
+						queuedEditsForYear.length > 0
+							? `Showing saved section data with ${queuedEditsForYear.length} queued home-room change${queuedEditsForYear.length === 1 ? '' : 's'}.`
+							: 'Refreshing live section data. Showing your last saved section snapshot in the meantime.',
+					);
 				}
 			}
 
@@ -162,39 +234,61 @@ export default function Sections() {
 				setCacheNotice(null);
 				return;
 			}
-			setState({ status: 'ok', data: res.data });
-			setCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId, res.data);
+
+			const summaryWithQueuedEdits: SectionSummary = {
+				...res.data,
+				sections: applyQueuedHomeRoomEdits(res.data.sections, queuedEditsForYear),
+			};
+
+			setState({ status: 'ok', data: summaryWithQueuedEdits });
+			setCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId, summaryWithQueuedEdits);
 			setLastSyncedAt(res.data.fetchedAt ? String(res.data.fetchedAt) : null);
 			
 			// Source logic: 
 			// - 'live' only if both context and data are verified enrollpro
 			// - 'atlas-mirror' if context or data is from atlas/mirror but we are online
 			// - 'cached' if we are offline
+			let nextSource: 'live' | 'atlas-mirror' | 'cached';
 			if (!isOnline) {
-				setDataSource('cached');
+				nextSource = 'cached';
 			} else {
 				const isUpstreamBacked = yearContextSource === 'enrollpro' && res.data.source === 'enrollpro';
-				setDataSource(isUpstreamBacked ? 'live' : 'atlas-mirror');
+				nextSource = isUpstreamBacked ? 'live' : 'atlas-mirror';
 			}
+			setDataSource(nextSource);
 			
 			setCacheNotice(
-				dataSource === 'live'
+				queuedEditsForYear.length > 0
+					? `${queuedEditsForYear.length} home-room change${queuedEditsForYear.length === 1 ? '' : 's'} queued for sync.`
+					: nextSource === 'live'
 					? null
 					: 'Section data is available from ATLAS runtime cache while upstream verification is unavailable.',
 			);
 		} catch {
 			const cachedSummary = schoolYearId ? getCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId) : null;
 			const cachedHomeRooms = schoolYearId ? getCachedSectionHomeRooms<HomeRoomOption>(DEFAULT_SCHOOL_ID, schoolYearId) : null;
+			const queuedEditsForYear = schoolYearId ? readQueuedHomeRoomEdits(DEFAULT_SCHOOL_ID, schoolYearId) : [];
+			setQueuedHomeRoomEdits(queuedEditsForYear);
 
 			if (cachedSummary && cachedHomeRooms) {
-				setState({ status: 'ok', data: cachedSummary.data });
+				setState({
+					status: 'ok',
+					data: {
+						...cachedSummary.data,
+						sections: applyQueuedHomeRoomEdits(cachedSummary.data.sections, queuedEditsForYear),
+					},
+				});
 				setHomeRoomOptions(cachedHomeRooms.data);
 				setLastSyncedAt(cachedSummary.data.fetchedAt ? String(cachedSummary.data.fetchedAt) : null);
 				setDataSource(isOnline ? 'atlas-mirror' : 'cached');
 				setSyncError(true);
 				setCacheNotice(isOnline 
-					? 'Live section data is unavailable. Showing your last saved section snapshot in degraded writable mode.'
-					: 'Live section data is unavailable. Showing your last saved section snapshot in read-only mode.');
+					? queuedEditsForYear.length > 0
+						? `Live section data is unavailable. Showing saved data with ${queuedEditsForYear.length} queued home-room change${queuedEditsForYear.length === 1 ? '' : 's'}.`
+						: 'Live section data is unavailable. Showing your last saved section snapshot in degraded writable mode.'
+					: queuedEditsForYear.length > 0
+					? `Offline mode: ${queuedEditsForYear.length} queued home-room change${queuedEditsForYear.length === 1 ? '' : 's'} will sync after reconnect.`
+					: 'Live section data is unavailable. Showing your last saved section snapshot in offline mode.');
 			} else {
 				setHomeRoomOptions([]);
 				setState({
@@ -209,31 +303,57 @@ export default function Sections() {
 	}, [isOnline]);
 
 	const handleHomeRoomChange = useCallback(async (section: SectionDetail, selectedValue: string) => {
-		if (!section.mirrorId || !activeSchoolYearId || (dataSource !== 'live' && dataSource !== 'atlas-mirror') || !isOnline) return;
+		if (!section.mirrorId || !activeSchoolYearId || state.status !== 'ok' || dataSource === 'none') return;
 		setSavingMirrorId(section.mirrorId);
 		const nextHomeRoomId = selectedValue === 'none' ? null : Number(selectedValue);
+
+		const applyOptimisticHomeRoom = () => {
+			setState((prev) => {
+				if (prev.status !== 'ok') return prev;
+				const nextData = {
+					...prev.data,
+					sections: prev.data.sections.map((item) =>
+						item.id === section.id ? { ...item, homeRoomId: nextHomeRoomId } : item,
+					),
+				};
+				setCachedSectionSummary(DEFAULT_SCHOOL_ID, activeSchoolYearId, nextData);
+				return {
+					status: 'ok',
+					data: nextData,
+				};
+			});
+		};
+
+		if (!isOnline) {
+			applyOptimisticHomeRoom();
+			setQueuedHomeRoomEdits((current) => {
+				const next = mergeQueuedHomeRoomEdit(current, section.mirrorId!, nextHomeRoomId);
+				writeQueuedHomeRoomEdits(DEFAULT_SCHOOL_ID, activeSchoolYearId, next);
+				return next;
+			});
+			setCacheNotice('Home-room change saved locally and queued for sync when your connection is restored.');
+			setSavingMirrorId(null);
+			return;
+		}
+
 		try {
 			await atlasApi.put(`/sections/home-rooms/${activeSchoolYearId}`, {
 				schoolId: DEFAULT_SCHOOL_ID,
 				assignments: [{ sectionId: section.mirrorId, homeRoomId: nextHomeRoomId }],
 			});
-
-			setState((prev) => {
-				if (prev.status !== 'ok') return prev;
-				return {
-					status: 'ok',
-					data: {
-						...prev.data,
-						sections: prev.data.sections.map((item) =>
-							item.id === section.id ? { ...item, homeRoomId: nextHomeRoomId } : item,
-						),
-					},
-				};
+			applyOptimisticHomeRoom();
+		} catch {
+			applyOptimisticHomeRoom();
+			setQueuedHomeRoomEdits((current) => {
+				const next = mergeQueuedHomeRoomEdit(current, section.mirrorId!, nextHomeRoomId);
+				writeQueuedHomeRoomEdits(DEFAULT_SCHOOL_ID, activeSchoolYearId, next);
+				return next;
 			});
+			setCacheNotice('Home-room change saved locally. It will sync after the section service is reachable.');
 		} finally {
 			setSavingMirrorId(null);
 		}
-	}, [activeSchoolYearId, dataSource, isOnline]);
+	}, [activeSchoolYearId, dataSource, isOnline, state.status]);
 
 	const handleSync = async () => {
 		if (!isOnline) {
@@ -283,6 +403,52 @@ export default function Sections() {
 			window.removeEventListener('offline', handleOffline);
 		};
 	}, []);
+
+	useEffect(() => {
+		if (!activeSchoolYearId) {
+			setQueuedHomeRoomEdits([]);
+			return;
+		}
+		setQueuedHomeRoomEdits(readQueuedHomeRoomEdits(DEFAULT_SCHOOL_ID, activeSchoolYearId));
+	}, [activeSchoolYearId]);
+
+	const flushQueuedHomeRoomEdits = useCallback(async () => {
+		if (!activeSchoolYearId || !isOnline || syncingQueuedEdits || queuedHomeRoomEdits.length === 0) {
+			return;
+		}
+
+		const dedupedAssignments = Array.from(
+			queuedHomeRoomEdits.reduce((map, item) => {
+				map.set(item.sectionId, item.homeRoomId);
+				return map;
+			}, new Map<number, number | null>()).entries(),
+		).map(([sectionId, homeRoomId]) => ({ sectionId, homeRoomId }));
+
+		if (dedupedAssignments.length === 0) return;
+
+		setSyncingQueuedEdits(true);
+		try {
+			await atlasApi.put(`/sections/home-rooms/${activeSchoolYearId}`, {
+				schoolId: DEFAULT_SCHOOL_ID,
+				assignments: dedupedAssignments,
+			});
+
+			writeQueuedHomeRoomEdits(DEFAULT_SCHOOL_ID, activeSchoolYearId, []);
+			setQueuedHomeRoomEdits([]);
+			setCacheNotice('Queued home-room changes were synced successfully.');
+			setSyncError(false);
+			await fetchSections({ forceRefresh: true });
+		} catch {
+			setSyncError(true);
+			setCacheNotice('Queued home-room changes are still pending sync.');
+		} finally {
+			setSyncingQueuedEdits(false);
+		}
+	}, [activeSchoolYearId, fetchSections, isOnline, queuedHomeRoomEdits, syncingQueuedEdits]);
+
+	useEffect(() => {
+		void flushQueuedHomeRoomEdits();
+	}, [flushQueuedHomeRoomEdits]);
 
 	// Reset page when filters change
 	useEffect(() => { setPage(1); }, [searchQuery, gradeFilter, programFilter, pageSize]);
@@ -345,7 +511,7 @@ export default function Sections() {
 	};
 
 	const hasActiveFilters = gradeFilter !== 'all' || searchQuery.trim() !== '' || programFilter !== 'all';
-	const isReadOnlyMode = !isOnline || (dataSource !== 'live' && dataSource !== 'atlas-mirror');
+	const isReadOnlyMode = state.status !== 'ok' || dataSource === 'none' || !activeSchoolYearId;
 
 	// Distinct grade levels present in data
 	const availableGrades = useMemo(() => {
@@ -398,20 +564,38 @@ export default function Sections() {
 
 					<div className="flex items-center gap-3">
 						<div className="flex items-center gap-2 mr-2">
-							<Badge
-								variant={dataSource === 'live' ? 'secondary' : 'outline'}
-								className={`h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold ${
-									dataSource === 'atlas-mirror' ? 'bg-amber-100 text-amber-700 border-amber-200' : ''
-								}`}
-							>
-								{dataSource === 'live'
-									? 'Live data'
-									: dataSource === 'atlas-mirror'
-									? 'ATLAS Mirror'
-									: dataSource === 'cached'
-									? 'Cached snapshot'
-									: 'No cache'}
-							</Badge>
+							<TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Badge
+											variant={dataSource === 'live' ? 'secondary' : 'outline'}
+											className={`h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold cursor-help ${
+												dataSource === 'atlas-mirror' ? 'bg-amber-100 text-amber-700 border-amber-200' : ''
+											}`}
+										>
+											{dataSource === 'live'
+												? 'Verified Live'
+												: (dataSource === 'atlas-mirror' || dataSource === 'cached')
+												? 'Working from Saved Data'
+												: 'No Saved Data'}
+										</Badge>
+									</TooltipTrigger>
+									<TooltipContent side="bottom" className="text-[0.65rem] font-semibold p-2">
+										{dataSource === 'live' 
+											? 'Data freshly verified with EnrollPro.' 
+											: 'Using data saved in ATLAS. Changes will sync when EnrollPro returns.'}
+									</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+
+								{queuedHomeRoomEdits.length > 0 && (
+									<Badge
+										variant='outline'
+										className='h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold border-blue-200 bg-blue-50 text-blue-700'
+									>
+										Queued: {queuedHomeRoomEdits.length}
+									</Badge>
+								)}
 
 							{/* Inline stat banner — prominent, not muted */}
 							{state.status === 'ok' && (
@@ -455,11 +639,11 @@ export default function Sections() {
 							variant="outline"
 							size="sm"
 							onClick={handleSync}
-							disabled={syncing || state.status === 'loading' || !isOnline}
+							disabled={syncing || syncingQueuedEdits || state.status === 'loading' || !isOnline}
 							className="h-9 gap-2 shadow-sm font-bold"
 						>
-							<RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
-							{syncing ? 'Syncing...' : !isOnline ? 'Offline' : 'Sync Sections'}
+							<RefreshCw className={`size-4 ${syncing || syncingQueuedEdits ? 'animate-spin' : ''}`} />
+							{syncing || syncingQueuedEdits ? 'Syncing...' : !isOnline ? 'Offline' : 'Sync Sections'}
 						</Button>
 					</div>
 				</div>
@@ -521,7 +705,7 @@ export default function Sections() {
 				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
 					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
 					<span className="flex-1 font-semibold">
-						{cacheNotice ?? (syncError ? 'Live section sync is unavailable. Showing cached data when available.' : 'Enrollment service unavailable. Showing cached data when available.')}
+						{cacheNotice ?? (syncError ? 'EnrollPro is temporarily unavailable. Showing data saved in ATLAS.' : 'Enrollment service unavailable. Showing saved data.')}
 					</span>
 					<Button size="sm" variant="outline" onClick={handleSync} disabled={syncing || !isOnline} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold">
 						<RefreshCw className={`mr-1.5 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry Sync
@@ -529,13 +713,22 @@ export default function Sections() {
 				</div>
 			)}
 
-			{isReadOnlyMode && state.status === 'ok' && !syncError && (
+			{state.status === 'ok' && queuedHomeRoomEdits.length > 0 && (
 				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 shadow-sm animate-in fade-in duration-300">
 					<ServerOff className="size-4 shrink-0 text-blue-600" />
 					<span className="flex-1 font-semibold">
-						{!isOnline
-							? 'You are offline. Sections are available in read-only mode until connection returns.'
-							: 'You are viewing a cached section snapshot in read-only mode.'}
+						{isOnline
+							? `${queuedHomeRoomEdits.length} home-room change${queuedHomeRoomEdits.length === 1 ? '' : 's'} are queued and syncing.`
+							: `${queuedHomeRoomEdits.length} home-room change${queuedHomeRoomEdits.length === 1 ? '' : 's'} saved locally and will sync after reconnect.`}
+					</span>
+				</div>
+			)}
+
+			{state.status === 'ok' && !syncError && !isOnline && queuedHomeRoomEdits.length === 0 && (
+				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 shadow-sm animate-in fade-in duration-300">
+					<ServerOff className="size-4 shrink-0 text-blue-600" />
+					<span className="flex-1 font-semibold">
+						You are offline. Home-room changes made here will be saved locally and synced when connection returns.
 					</span>
 				</div>
 			)}
@@ -543,8 +736,8 @@ export default function Sections() {
 			{dataSource === 'atlas-mirror' && !syncError && isOnline && (
 				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
 					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
-					<span className="flex-1 font-semibold">
-						EnrollPro is unreachable. You are working with ATLAS mirrored data. Home-room assignments will persist locally.
+					<span className="flex-1">
+						<span className="font-bold">Working from saved ATLAS data.</span> EnrollPro is temporarily unreachable. You can keep working; your changes are safe and will sync automatically when the connection returns.
 					</span>
 				</div>
 			)}

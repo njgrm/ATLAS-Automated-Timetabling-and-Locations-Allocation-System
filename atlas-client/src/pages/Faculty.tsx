@@ -304,16 +304,27 @@ export default function Faculty() {
 
 					<div className="flex items-center gap-3">
 						<div className="flex items-center gap-2 mr-2">
-							<Badge
-								variant={dataSource === 'live' ? 'secondary' : 'outline'}
-								className="h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold"
-							>
-								{dataSource === 'live'
-									? 'Live data'
-									: dataSource === 'cached'
-									? 'Cached snapshot'
-									: 'No cache'}
-							</Badge>
+							<TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Badge
+											variant={dataSource === 'live' ? 'secondary' : 'outline'}
+											className="h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold cursor-help"
+										>
+											{dataSource === 'live'
+												? 'Verified Live'
+												: dataSource === 'cached'
+												? 'Working from Saved Data'
+												: 'No Saved Data'}
+										</Badge>
+									</TooltipTrigger>
+									<TooltipContent side="bottom" className="text-[0.65rem] font-semibold p-2">
+										{dataSource === 'live' 
+											? 'Data freshly verified with EnrollPro.' 
+											: 'Using data saved in ATLAS. Changes will sync when EnrollPro returns.'}
+									</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
 							{timeSince && (
 								<TooltipProvider delayDuration={500}>
 									<Tooltip>
@@ -387,7 +398,7 @@ export default function Faculty() {
 			{syncError && (
 				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
 					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
-					<span className="flex-1 font-semibold">{cacheNotice ?? 'EnrollPro bridge is currently unreachable. Cached roster data is unavailable.'}</span>
+					<span className="flex-1 font-semibold">{cacheNotice ?? 'EnrollPro is temporarily unavailable. Showing data saved in ATLAS.'}</span>
 					<Button size="sm" variant="outline" onClick={() => fetchFaculty({ forceRefresh: true })} disabled={syncing} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold">
 						<RefreshCw className={`mr-1.5 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry Sync
 					</Button>
@@ -397,7 +408,9 @@ export default function Faculty() {
 			{cacheNotice && !syncError && dataSource === 'cached' && (
 				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 shadow-sm animate-in fade-in duration-300">
 					<AlertTriangle className="size-4 shrink-0 text-blue-600" />
-					<span className="flex-1 font-semibold">{cacheNotice}</span>
+					<span className="flex-1 font-semibold">
+						<span className="font-bold">Working from saved ATLAS data.</span> {cacheNotice}
+					</span>
 				</div>
 			)}
 

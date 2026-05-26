@@ -74,6 +74,45 @@ import { useAccessibility } from '@/hooks/useAccessibility';
 /* ─── Constants ─── */
 
 const ENROLLPRO_URL = import.meta.env.VITE_ENROLLPRO_URL ?? 'http://100.88.55.125:5173';
+const SHELL_BRANDING_CACHE_KEY = 'atlas:shell-branding:v1';
+const DEFAULT_SHELL_SCHOOL_NAME = 'ATLAS High School';
+
+type ShellBrandingCache = {
+	schoolName: string;
+	logoUrl: string | null;
+	cachedAt: string;
+};
+
+function readShellBrandingCache(): ShellBrandingCache | null {
+	try {
+		const raw = localStorage.getItem(SHELL_BRANDING_CACHE_KEY);
+		if (!raw) return null;
+		const parsed = JSON.parse(raw) as ShellBrandingCache;
+		if (!parsed || typeof parsed.schoolName !== 'string' || !parsed.cachedAt) {
+			return null;
+		}
+		return {
+			schoolName: parsed.schoolName,
+			logoUrl: parsed.logoUrl ?? null,
+			cachedAt: parsed.cachedAt,
+		};
+	} catch {
+		return null;
+	}
+}
+
+function writeShellBrandingCache(schoolName: string, logoUrl: string | null): void {
+	try {
+		const payload: ShellBrandingCache = {
+			schoolName,
+			logoUrl,
+			cachedAt: new Date().toISOString(),
+		};
+		localStorage.setItem(SHELL_BRANDING_CACHE_KEY, JSON.stringify(payload));
+	} catch {
+		// Ignore storage restrictions.
+	}
+}
 
 /** Map an EnrollPro `/uploads/…` path to the Vite proxy prefix. */
 function enrollProAsset(path: string | null): string {
@@ -125,6 +164,7 @@ const advancedNav: NavItemDef[] = [
 
 const facultyNav: NavItemDef[] = [
 	{ label: 'My Dashboard', to: '/my', icon: LayoutDashboard, facultyOnly: true },
+	{ label: 'My Schedule', to: '/my/schedule', icon: CalendarClock, facultyOnly: true },
 	{ label: 'My Preferences', to: '/my/preferences', icon: ClipboardList, facultyOnly: true },
 	{ label: 'My Room Requests', to: '/my/room-preferences', icon: CalendarDays, facultyOnly: true },
 ];
@@ -256,12 +296,19 @@ function AppSidebar({
 												</span>
 											</>
 										) : (
-											<>
-												<AlertTriangle className='size-3 shrink-0 text-amber-500' />
-												<span className='text-[0.6875rem] text-muted-foreground'>
-													No Active Year
-												</span>
-											</>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<div className="flex items-center gap-1 cursor-help">
+														<AlertTriangle className='size-3 shrink-0 text-amber-500' />
+														<span className='text-[0.6875rem] text-muted-foreground'>
+															Working from Saved Data
+														</span>
+													</div>
+												</TooltipTrigger>
+												<TooltipContent side="right" className="text-[0.65rem] font-semibold p-2">
+													Connection to EnrollPro is temporarily unavailable. <br/> Using last known school year data saved in ATLAS.
+												</TooltipContent>
+											</Tooltip>
 										)}
 									</div>
 								</div>
@@ -479,8 +526,8 @@ export function AppShell() {
 		: <div className="p-6"><Skeleton className="h-100 w-full rounded-lg" /></div>;
 	const [sidebarOpen, setSidebarOpen] = useState(() => !window.location.pathname.startsWith('/timetable'));
 	const previousPathnameRef = useRef(location.pathname);
-	const [schoolName, setSchoolName] = useState('');
-	const [logoUrl, setLogoUrl] = useState<string | null>(null);
+	const [schoolName, setSchoolName] = useState(() => readShellBrandingCache()?.schoolName ?? DEFAULT_SHELL_SCHOOL_NAME);
+	const [logoUrl, setLogoUrl] = useState<string | null>(() => readShellBrandingCache()?.logoUrl ?? null);
 	const [activeYearLabel, setActiveYearLabel] = useState<string | null>(null);
 	const [schoolYears, setSchoolYears] = useState<SchoolYear[]>([]);
 	const [selectedYearId, setSelectedYearId] = useState<number | null>(null);
@@ -601,8 +648,10 @@ export function AppShell() {
 			.then((s) => {
 				const raw = s.schoolName || 'High School';
 				const hsLabel = /high\s*school/i.test(raw) ? raw : `${raw}`;
-				setSchoolName(`ATLAS ${hsLabel}`);
+				const nextSchoolName = `ATLAS ${hsLabel}`;
+				setSchoolName(nextSchoolName);
 				setLogoUrl(s.logoUrl);
+				writeShellBrandingCache(nextSchoolName, s.logoUrl ?? null);
 
 				// Set favicon from school logo
 				if (s.logoUrl) {
@@ -631,7 +680,16 @@ export function AppShell() {
 
 				applyEnrollProAccentTheme(s.selectedAccentHsl);
 			})
-			.catch(() => {});
+			.catch(() => {
+				const cached = readShellBrandingCache();
+				if (cached) {
+					setSchoolName(cached.schoolName);
+					setLogoUrl(cached.logoUrl ?? null);
+					return;
+				}
+				setSchoolName(DEFAULT_SHELL_SCHOOL_NAME);
+				setLogoUrl(null);
+			});
 	}, []);
 
 	/* Verify session identity */

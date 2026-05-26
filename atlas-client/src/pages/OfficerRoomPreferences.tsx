@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { createRoomPreferenceCollaborationSocket } from '@/lib/roomPreferenceCollaboration';
-import { fetchPublicSettings } from '@/lib/settings';
+import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { scopePreviewToCandidate } from '@/lib/timetable-utils';
 import { formatTime } from '@/lib/utils';
 import type {
@@ -86,16 +86,11 @@ export default function OfficerRoomPreferences() {
 	useEffect(() => {
 		(async () => {
 			try {
-				const settings = await fetchPublicSettings();
-				if (!settings.activeSchoolYearId) {
-					setError('No active school year configured.');
-					setLoading(false);
-					return;
-				}
-				setActiveSchoolYearId(settings.activeSchoolYearId);
-				await loadSummary(settings.activeSchoolYearId, statusFilter, decisionFilter);
+				const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true });
+				setActiveSchoolYearId(context.activeSchoolYearId);
+				await loadSummary(context.activeSchoolYearId, statusFilter, decisionFilter);
 			} catch {
-				setError('Failed to load school-year settings.');
+				setError('Failed to resolve active school year context.');
 				setLoading(false);
 			}
 		})();

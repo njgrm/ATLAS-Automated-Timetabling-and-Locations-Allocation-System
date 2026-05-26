@@ -109,7 +109,12 @@ test('verifySessionToken falls back to bridge token after local token failure', 
 		const authHeader = config?.headers?.authorization ?? '';
 		calls.push(authHeader);
 		if (authHeader === 'Bearer local-invalid') {
-			throw new Error('Unauthorized');
+			throw {
+				isAxiosError: true,
+				response: {
+					status: 401,
+				},
+			};
 		}
 		return {
 			data: {
@@ -130,8 +135,40 @@ test('verifySessionToken falls back to bridge token after local token failure', 
 	assert.equal(localStorage.getItem(ATLAS_LOCAL_TOKEN_KEY), null);
 });
 
+test('verifySessionToken reuses cached local identity when network is unavailable', async () => {
+	sessionStorage.setItem(ATLAS_LOCAL_TOKEN_KEY, 'local-valid');
+
+	atlasApiMutable.get = async () => ({
+		data: {
+			user: {
+				userId: 42,
+				role: 'faculty',
+				authSource: 'local',
+			},
+		},
+	});
+
+	const first = await verifySessionToken();
+	assert.equal(first?.authSource, 'local');
+	assert.equal(first?.role, 'faculty');
+
+	atlasApiMutable.get = async () => {
+		throw {
+			isAxiosError: true,
+			code: 'ERR_NETWORK',
+			message: 'Network Error',
+		};
+	};
+
+	const fallback = await verifySessionToken();
+	assert.equal(fallback?.authSource, 'local');
+	assert.equal(fallback?.role, 'faculty');
+	assert.equal(sessionStorage.getItem(ATLAS_LOCAL_TOKEN_KEY), 'local-valid');
+});
+
 test('faculty route guard only allows My portal routes', () => {
 	assert.equal(isFacultyPortalRoute('/my'), true);
+	assert.equal(isFacultyPortalRoute('/my/schedule'), true);
 	assert.equal(isFacultyPortalRoute('/my/preferences'), true);
 	assert.equal(isFacultyPortalRoute('/my/room-preferences'), true);
 	assert.equal(isFacultyPortalRoute('/'), false);

@@ -87,9 +87,18 @@ function normalizeIntegrityDiagnostics(value: unknown): TeachingLoadIntegrityDia
 		currentYearOwnershipWithoutMatchingScope: toNumber(candidate.currentYearOwnershipWithoutMatchingScope),
 		currentYearMissingOwnershipPairs: toNumber(candidate.currentYearMissingOwnershipPairs),
 		currentYearOwnershipWithoutMatchingScopePairs: toNumber(candidate.currentYearOwnershipWithoutMatchingScopePairs),
+		staleOwnershipRowCount: toNumber(candidate.staleOwnershipRowCount),
+		staleOwnedCurrentYearPairCount: toNumber(candidate.staleOwnedCurrentYearPairCount),
+		stalePlaceholderPairCount: toNumber(candidate.stalePlaceholderPairCount),
+		staleNonPlaceholderPairCount: toNumber(candidate.staleNonPlaceholderPairCount),
 		emptySectionSamples: toArray(candidate.emptySectionSamples),
 		missingOwnershipSamples: toArray(candidate.missingOwnershipSamples),
 		ownershipWithoutScopeSamples: toArray(candidate.ownershipWithoutScopeSamples),
+		staleOwnershipSamples: toArray(candidate.staleOwnershipSamples),
+		quarantinedZombieCount: toNumber(candidate.quarantinedZombieCount),
+		quarantinedZombieSamples: toArray(candidate.quarantinedZombieSamples),
+		staleAdvisoryCount: toNumber(candidate.staleAdvisoryCount),
+		staleAdvisorySamples: toArray(candidate.staleAdvisorySamples),
 	};
 }
 

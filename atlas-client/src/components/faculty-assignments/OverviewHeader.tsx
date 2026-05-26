@@ -48,10 +48,10 @@ export function OverviewHeader({
 	const completenessPercent = totalPairs > 0 ? Math.round(((realAssignedPairs + syntheticPlaceholderPairs) / totalPairs) * 100) : 0;
 
 	const statusConfig = useMemo(() => {
-		if (!isOnline) return { label: 'Offline', color: 'bg-muted', description: 'Disconnected. Changes saved locally only.' };
-		if (dataSource === 'live') return { label: 'Connected: Live Data', color: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]', description: 'Connected to EnrollPro. All changes verified against live database.' };
-		if (degradedWriteEnabled) return { label: 'Active: ATLAS Mode', color: 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]', description: 'Upstream database currently unavailable. Using local ATLAS state for assignments.' };
-		return { label: 'Review Only: Backup', color: 'bg-blue-500', description: 'Viewing last known snapshot from backup. Assignments are temporarily disabled.' };
+		if (!isOnline) return { label: 'Working Offline', color: 'bg-amber-500', description: 'Disconnected from EnrollPro. Changes are saved locally and will sync when you reconnect.' };
+		if (dataSource === 'live') return { label: 'Verified Live', color: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]', description: 'Freshly verified with EnrollPro. All changes are synced immediately.' };
+		if (degradedWriteEnabled) return { label: 'Working from Saved Data', color: 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]', description: 'EnrollPro is temporarily unreachable. Using data saved in ATLAS. You can keep working; changes will sync later.' };
+		return { label: 'Viewing Saved Data (Read-Only)', color: 'bg-blue-500', description: 'Viewing saved data from backup. Editing is temporarily disabled until EnrollPro returns.' };
 	}, [isOnline, dataSource, degradedWriteEnabled]);
 
 	return (

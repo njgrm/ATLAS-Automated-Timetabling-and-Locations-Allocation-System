@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 
 import atlasApi from '@/lib/api';
-import { fetchPublicSettings } from '@/lib/settings';
+import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { getProgramBadgeLabel, matchesEntryKindFilter, matchesProgramFilter } from '@/lib/schedule-review-helpers';
 import {
 	buildViolationIndex,
@@ -712,9 +712,9 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	}, [pivotEntityIds, entityFilter, setEntityFilter]);
 
 	const fetchSchoolYear = useCallback(async () => {
-		const settings = await fetchPublicSettings();
-		if (settings.activeSchoolYearId) setSchoolYearId(settings.activeSchoolYearId);
-		return settings.activeSchoolYearId ?? null;
+		const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true });
+		if (context.activeSchoolYearId) setSchoolYearId(context.activeSchoolYearId);
+		return context.activeSchoolYearId ?? null;
 	}, [setSchoolYearId]);
 
 	const fetchRuns = useCallback(async (syId: number) => {

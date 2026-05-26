@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, RefreshCcw } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
-import { fetchPublicSettings, fetchSchoolYears, type SchoolYear } from '@/lib/settings';
+import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { buildFacultyCacheKey, isLikelyOfflineError, readFacultySnapshot, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
 import type { FacultyRoomPreferenceEntry } from '@/types';
 import type { FacultyTeachingAssignmentIdentity } from '@/types';
 import { Badge } from '@/ui/badge';
@@ -14,37 +15,7 @@ import MobileDashboardLayout from '@/components/faculty-dashboard/MobileDashboar
 import DesktopDashboardLayout from '@/components/faculty-dashboard/DesktopDashboardLayout';
 
 const DEFAULT_SCHOOL_ID = 1;
-const FALLBACK_SCHOOL_YEAR_ID = 1;
-
-function resolveSchoolYearContext(settingsActiveSchoolYearId: number | null, years: SchoolYear[]) {
-	if (settingsActiveSchoolYearId) {
-		return {
-			schoolYearId: settingsActiveSchoolYearId,
-			notice: null as string | null,
-		};
-	}
-
-	const sortedYears = [...years].sort((left, right) => right.id - left.id);
-	const inferredActive = sortedYears.find((year) => year.isActive || year.status?.toUpperCase() === 'ACTIVE');
-	if (inferredActive) {
-		return {
-			schoolYearId: inferredActive.id,
-			notice: `Showing School Year ${inferredActive.yearLabel}.`,
-		};
-	}
-
-	if (sortedYears[0]) {
-		return {
-			schoolYearId: sortedYears[0].id,
-			notice: `Showing School Year ${sortedYears[0].yearLabel}.`,
-		};
-	}
-
-	return {
-		schoolYearId: FALLBACK_SCHOOL_YEAR_ID,
-		notice: 'Showing a fallback school year while setup is being completed.',
-	};
-}
+const DASHBOARD_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 type MyDashboardResponse = {
 	faculty: {
@@ -105,23 +76,57 @@ export default function MyDashboard() {
 	const [error, setError] = useState<string | null>(null);
 	const [dashboard, setDashboard] = useState<MyDashboardResponse | null>(null);
 	const [schoolYearNotice, setSchoolYearNotice] = useState<string | null>(null);
+	const [usingCachedDashboard, setUsingCachedDashboard] = useState(false);
+	const [cachedDashboardAt, setCachedDashboardAt] = useState<string | null>(null);
 	const [online, setOnline] = useState<boolean>(navigator.onLine);
 	const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 1023px)').matches);
 
 	const loadDashboard = async () => {
 		setLoading(true);
 		try {
-			const [settings, years] = await Promise.all([fetchPublicSettings(), fetchSchoolYears()]);
-			const schoolYearContext = resolveSchoolYearContext(settings.activeSchoolYearId, years);
-			const schoolYearId = schoolYearContext.schoolYearId;
-			setSchoolYearNotice(schoolYearContext.notice);
-			const { data } = await atlasApi.get<MyDashboardResponse>(`/faculty-portal/${DEFAULT_SCHOOL_ID}/${schoolYearId}/dashboard`);
-			setDashboard(data);
-			setError(null);
+			const schoolYearContext = await resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false });
+			const schoolYearId = schoolYearContext.activeSchoolYearId;
+			const cacheKey = buildFacultyCacheKey('dashboard', DEFAULT_SCHOOL_ID, schoolYearId);
+			const cachedSnapshot = readFacultySnapshot<MyDashboardResponse>(cacheKey, {
+				maxAgeMs: DASHBOARD_CACHE_MAX_AGE_MS,
+				validate: (value): value is MyDashboardResponse => {
+					if (!value || typeof value !== 'object') return false;
+					const candidate = value as Partial<MyDashboardResponse>;
+					return Boolean(candidate.faculty && typeof candidate.phaseMessage === 'string' && candidate.schedulePreview);
+				},
+			});
+			setSchoolYearNotice(
+				schoolYearContext.source === 'atlas' && !schoolYearContext.stale
+					? null
+					: schoolYearContext.activeSchoolYearLabel
+					? `Working from saved ATLAS school-year context (${schoolYearContext.activeSchoolYearLabel}).`
+					: 'Working from saved ATLAS school-year context.',
+			);
+
+			try {
+				const { data } = await atlasApi.get<MyDashboardResponse>(`/faculty-portal/${DEFAULT_SCHOOL_ID}/${schoolYearId}/dashboard`);
+				setDashboard(data);
+				setUsingCachedDashboard(false);
+				setCachedDashboardAt(null);
+				writeFacultySnapshot(cacheKey, data);
+				setError(null);
+			} catch (err) {
+				if (cachedSnapshot && isLikelyOfflineError(err)) {
+					setDashboard(cachedSnapshot.data);
+					setUsingCachedDashboard(true);
+					setCachedDashboardAt(cachedSnapshot.cachedAt);
+					setError(null);
+					return;
+				}
+
+				const payload = (err as { response?: { data?: { message?: string; actionHint?: string } } })?.response?.data;
+				const message = [payload?.message, payload?.actionHint].filter(Boolean).join(' ');
+				setError(message ?? 'Unable to load your faculty dashboard.');
+			}
 		} catch (err) {
 			const payload = (err as { response?: { data?: { message?: string; actionHint?: string } } })?.response?.data;
 			const message = [payload?.message, payload?.actionHint].filter(Boolean).join(' ');
-			setError(message ?? 'Unable to load your faculty dashboard.');
+			setError(message ?? "We couldn't load your school-year context from ATLAS.");
 		} finally {
 			setLoading(false);
 		}
@@ -149,6 +154,17 @@ export default function MyDashboard() {
 
 	const advisory = useMemo(() => {
 		if (!dashboard) return undefined;
+
+		if (usingCachedDashboard) {
+			const savedAt = cachedDashboardAt ? new Date(cachedDashboardAt).toLocaleString() : null;
+			return {
+				title: 'Saved dashboard view',
+				message: savedAt
+					? `Live dashboard is unavailable. Showing your last saved data from ${savedAt}.`
+					: 'Live dashboard is unavailable. Showing your last saved data.',
+				variant: 'warning' as const,
+			};
+		}
 		
 		if (dashboard.fallbackBanner.show) {
 			return {
@@ -171,7 +187,7 @@ export default function MyDashboard() {
 			message: 'You are viewing a review draft. You can submit room requests now.',
 			variant: 'warning' as const
 		};
-	}, [dashboard]);
+	}, [cachedDashboardAt, dashboard, usingCachedDashboard]);
 
 	const dashboardStep = useMemo(() => {
 		if (!dashboard) return 1;
@@ -227,9 +243,10 @@ export default function MyDashboard() {
 				]}
 				activeStep={dashboardStep}
 				online={online}
-				syncState={online ? 'idle' : 'queued-offline'}
+				syncState={usingCachedDashboard ? 'failed' : online ? 'idle' : 'queued-offline'}
 				realtimeConnected={true}
 				advisory={advisory}
+				onRetryFailed={usingCachedDashboard ? () => void loadDashboard() : undefined}
 			>
 				{schoolYearNotice && (
 					<div className='rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-[10px] font-bold text-amber-900 uppercase tracking-tight'>

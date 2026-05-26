@@ -67,23 +67,27 @@ export async function resolveActiveSchoolYearContext(options?: {
 	forceRefresh?: boolean;
 	allowStaleOnError?: boolean;
 	maxAgeMs?: number;
+	allowEnrollProFallback?: boolean;
 }): Promise<ActiveSchoolYearContext> {
 	const forceRefresh = options?.forceRefresh === true;
 	const allowStaleOnError = options?.allowStaleOnError !== false;
 	const maxAgeMs = options?.maxAgeMs ?? ACTIVE_SCHOOL_YEAR_MAX_AGE_MS;
+	const allowEnrollProFallback = options?.allowEnrollProFallback !== false;
 
 	const cached = readCachedActiveSchoolYear();
 	const hasFreshCache = cached ? isFresh(cached.cachedAt, maxAgeMs) : false;
 
-	if (!forceRefresh && cached) {
+	if (!forceRefresh && cached && hasFreshCache) {
 		return {
 			activeSchoolYearId: cached.activeSchoolYearId,
 			activeSchoolYearLabel: cached.activeSchoolYearLabel,
 			source: 'cache',
-			stale: !hasFreshCache,
+			stale: false,
 			cachedAt: cached.cachedAt,
 		};
 	}
+
+	let runtimeContextError: unknown = null;
 
 	try {
 		const runtimeContext = await fetchAtlasRuntimeContext();
@@ -99,8 +103,23 @@ export async function resolveActiveSchoolYearContext(options?: {
 				cachedAt: updated?.cachedAt ?? new Date().toISOString(),
 			};
 		}
-	} catch {
-		// Fall through to EnrollPro settings fallback.
+	} catch (error) {
+		runtimeContextError = error;
+		// Fall through to optional EnrollPro settings fallback.
+	}
+
+	if (!allowEnrollProFallback) {
+		if (!allowStaleOnError || !cached) {
+			throw runtimeContextError ?? new Error('Active school-year context is unavailable from ATLAS runtime data.');
+		}
+
+		return {
+			activeSchoolYearId: cached.activeSchoolYearId,
+			activeSchoolYearLabel: cached.activeSchoolYearLabel,
+			source: 'cache',
+			stale: true,
+			cachedAt: cached.cachedAt,
+		};
 	}
 
 	try {

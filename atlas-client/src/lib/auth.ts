@@ -5,6 +5,7 @@ export type AuthSource = 'bridge' | 'local';
 
 const FACULTY_PORTAL_ROUTES = new Set([
 	'/my',
+	'/my/schedule',
 	'/my/preferences',
 	'/my/room-preferences',
 ]);

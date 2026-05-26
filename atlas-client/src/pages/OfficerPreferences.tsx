@@ -20,7 +20,7 @@ import { AnimatePresence, motion } from 'motion/react';
 
 import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
-import { fetchPublicSettings } from '@/lib/settings';
+import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { formatTime } from '@/lib/utils';
 import type {
 	OfficerSummaryCounts,
@@ -132,17 +132,12 @@ export default function OfficerPreferences() {
 
 	/* ── Resolve school year ── */
 	useEffect(() => {
-		fetchPublicSettings()
-			.then((s) => {
-				if (!s.activeSchoolYearId) {
-					setError('No active school year configured.');
-					setLoading(false);
-					return;
-				}
-				setActiveSchoolYearId(s.activeSchoolYearId);
+		resolveActiveSchoolYearContext({ allowStaleOnError: true })
+			.then((context) => {
+				setActiveSchoolYearId(context.activeSchoolYearId);
 			})
 			.catch(() => {
-				setError('Failed to load settings.');
+				setError('Failed to resolve active school year context.');
 				setLoading(false);
 			});
 	}, []);

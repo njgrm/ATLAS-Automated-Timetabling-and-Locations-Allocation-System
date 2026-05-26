@@ -10,6 +10,84 @@ import {
 } from './auth';
 import type { BridgeUser } from '@/types';
 
+const SESSION_USER_CACHE_KEY = 'atlas:session-user:v1';
+
+type SessionUserCacheRecord = {
+	cachedAt: string;
+	user: BridgeUser;
+};
+
+function readCachedSessionUser(): BridgeUser | null {
+	try {
+		const raw = localStorage.getItem(SESSION_USER_CACHE_KEY);
+		if (!raw) return null;
+		const parsed = JSON.parse(raw) as SessionUserCacheRecord;
+		if (!parsed || typeof parsed.cachedAt !== 'string' || !parsed.user || typeof parsed.user.role !== 'string') {
+			return null;
+		}
+		return parsed.user;
+	} catch {
+		return null;
+	}
+}
+
+function writeCachedSessionUser(user: BridgeUser): void {
+	try {
+		const payload: SessionUserCacheRecord = {
+			cachedAt: new Date().toISOString(),
+			user,
+		};
+		localStorage.setItem(SESSION_USER_CACHE_KEY, JSON.stringify(payload));
+	} catch {
+		// Ignore storage restrictions.
+	}
+}
+
+function clearCachedSessionUser(): void {
+	try {
+		localStorage.removeItem(SESSION_USER_CACHE_KEY);
+	} catch {
+		// Ignore storage restrictions.
+	}
+}
+
+function isAuthFailure(error: unknown): boolean {
+	if (!axios.isAxiosError(error)) return false;
+	const status = error.response?.status;
+	return status === 401 || status === 403;
+}
+
+function canReuseCachedSession(user: BridgeUser): boolean {
+	if (user.authSource === 'local') {
+		return Boolean(getLocalToken());
+	}
+	if (user.authSource === 'bridge') {
+		return Boolean(getBridgeToken());
+	}
+	return Boolean(getPreferredAccessToken());
+}
+
+function resolveCachedSessionFallback(preferredSource: 'local' | 'bridge'): BridgeUser | null {
+	const cached = readCachedSessionUser();
+	if (!cached || !canReuseCachedSession(cached)) {
+		return null;
+	}
+
+	if (cached.authSource === preferredSource) {
+		return cached;
+	}
+
+	if (preferredSource === 'local' && cached.authSource === 'bridge' && getBridgeToken()) {
+		return cached;
+	}
+
+	if (preferredSource === 'bridge' && cached.authSource === 'local' && getLocalToken()) {
+		return cached;
+	}
+
+	return null;
+}
+
 export interface EnrollProSettings {
 	schoolName: string;
 	logoUrl: string | null;
@@ -143,7 +221,10 @@ export async function fetchActiveSchoolYear(activeId: number | null): Promise<st
 }
 
 export async function verifySessionToken(): Promise<BridgeUser | null> {
-	if (!getPreferredAccessToken()) return null;
+	if (!getPreferredAccessToken()) {
+		clearCachedSessionUser();
+		return null;
+	}
 
 	const localToken = getLocalToken();
 	if (localToken) {
@@ -153,12 +234,23 @@ export async function verifySessionToken(): Promise<BridgeUser | null> {
 					authorization: `Bearer ${localToken}`,
 				},
 			});
-			return {
+			const resolvedUser: BridgeUser = {
 				...data.user,
 				authSource: data.user.authSource ?? 'local',
 			};
-		} catch {
-			clearLocalToken();
+			writeCachedSessionUser(resolvedUser);
+			return resolvedUser;
+		} catch (error) {
+			if (isAuthFailure(error)) {
+				clearLocalToken();
+				const cached = readCachedSessionUser();
+				if (cached?.authSource === 'local') {
+					clearCachedSessionUser();
+				}
+			} else {
+				const cached = resolveCachedSessionFallback('local');
+				if (cached) return cached;
+			}
 		}
 	}
 
@@ -171,13 +263,23 @@ export async function verifySessionToken(): Promise<BridgeUser | null> {
 				authorization: `Bearer ${bridgeToken}`,
 			},
 		});
-		return {
+		const resolvedUser: BridgeUser = {
 			...data.user,
 			authSource: data.user.authSource ?? 'bridge',
 		};
-	} catch {
-		clearBridgeToken();
-		return null;
+		writeCachedSessionUser(resolvedUser);
+		return resolvedUser;
+	} catch (error) {
+		if (isAuthFailure(error)) {
+			clearBridgeToken();
+			const cached = readCachedSessionUser();
+			if (cached?.authSource === 'bridge') {
+				clearCachedSessionUser();
+			}
+			return null;
+		}
+
+		return resolveCachedSessionFallback('bridge');
 	}
 }
 

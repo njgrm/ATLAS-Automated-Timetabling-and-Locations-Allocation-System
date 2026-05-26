@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Copy, Trash2, Undo2, Zap, Clock8, Sun, Moon } from 'lucide-react';
+import { Copy, Trash2, Undo2, Zap, Clock8, Sun, Moon, Info } from 'lucide-react';
 import { formatTime } from '@/lib/utils';
 import type { DayOfWeek, TimeSlotPreference } from '@/types';
 import { Button } from '@/ui/button';

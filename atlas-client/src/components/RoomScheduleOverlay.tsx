@@ -17,7 +17,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { formatTime } from '@/lib/utils';
 import type { RoomScheduleView, RoomScheduleEntry } from '@/types';
 import atlasApi from '@/lib/api';
-import { fetchPublicSettings } from '@/lib/settings';
+import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { ScrollArea } from '@/ui/scroll-area';
@@ -78,8 +78,8 @@ export function RoomScheduleOverlay({
 
 		(async () => {
 			try {
-				const settings = await fetchPublicSettings();
-				const activeSchoolYearId = settings.activeSchoolYearId;
+				const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true });
+				const activeSchoolYearId = context.activeSchoolYearId;
 
 				const [subjectsRes, facultyRes, sectionsRes] = await Promise.all([
 					atlasApi.get<{ subjects: Array<{ id: number; code: string; name: string }> }>(

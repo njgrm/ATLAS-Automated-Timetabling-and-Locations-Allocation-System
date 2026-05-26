@@ -22,12 +22,38 @@ import {
 import atlasApi from '@/lib/api';
 import { captureBridgeToken } from '@/lib/bridge';
 import { clearAtlasAuthStorage, hasAnyAuthToken, setLocalToken } from '@/lib/auth';
-import { applyEnrollProAccentTheme, fetchPublicSettings, verifySessionToken } from '@/lib/settings';
+import { verifySessionToken } from '@/lib/settings';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { Checkbox } from '@/ui/checkbox';
+
+const SHELL_BRANDING_CACHE_KEY = 'atlas:shell-branding:v1';
+
+type ShellBrandingCache = {
+	schoolName: string;
+	logoUrl: string | null;
+	cachedAt: string;
+};
+
+function readShellBrandingCache(): ShellBrandingCache | null {
+	try {
+		const raw = localStorage.getItem(SHELL_BRANDING_CACHE_KEY);
+		if (!raw) return null;
+		const parsed = JSON.parse(raw) as ShellBrandingCache;
+		if (!parsed || typeof parsed.schoolName !== 'string' || typeof parsed.cachedAt !== 'string') {
+			return null;
+		}
+		return {
+			schoolName: parsed.schoolName,
+			logoUrl: parsed.logoUrl ?? null,
+			cachedAt: parsed.cachedAt,
+		};
+	} catch {
+		return null;
+	}
+}
 
 type LoginResponse = {
 	token: string;
@@ -88,25 +114,13 @@ export default function Login() {
 
 	useEffect(() => {
 		captureBridgeToken();
-		fetchPublicSettings()
-			.then((settings) => {
-				applyEnrollProAccentTheme(settings.selectedAccentHsl);
-				setLogoUrl(settings.logoUrl);
-				if (settings.schoolName?.trim()) {
-					setSchoolName(settings.schoolName.trim());
-				}
-
-				const details = settings as {
-					schoolAddress?: string;
-					schoolDivision?: string;
-					schoolRegion?: string;
-				};
-
-				setSchoolAddress(details.schoolAddress?.trim() || null);
-				setSchoolDivision(details.schoolDivision?.trim() || null);
-				setSchoolRegion(details.schoolRegion?.trim() || null);
-			})
-			.catch(() => {});
+		const cachedBranding = readShellBrandingCache();
+		if (cachedBranding?.schoolName?.trim()) {
+			setSchoolName(cachedBranding.schoolName.trim());
+		}
+		if (cachedBranding?.logoUrl) {
+			setLogoUrl(cachedBranding.logoUrl);
+		}
 
 		verifySessionToken()
 			.then((user) => {

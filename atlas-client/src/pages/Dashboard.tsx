@@ -102,6 +102,7 @@ export default function Dashboard() {
 	const [roomUtilMap, setRoomUtilMap] = useState<Map<number, RoomUtil>>(new Map());
 	const [utilLoading, setUtilLoading] = useState(false);
 	const utilCacheRef = useRef<Map<number, Map<number, RoomUtil>>>(new Map()); // buildingId → roomId → util
+	const [dataSource, setDataSource] = useState<'live' | 'cached' | 'none'>('none');
 
 	// Persist selection to localStorage
 	const selectBuilding = useCallback((id: number | null) => {
@@ -139,6 +140,7 @@ export default function Dashboard() {
 				// Section count from ATLAS runtime context
 				resolveActiveSchoolYearContext({ allowStaleOnError: true })
 					.then((context) => {
+						setDataSource(context.source === 'enrollpro' ? 'live' : 'cached');
 						if (!context.activeSchoolYearId) { setSectionCount(null); return; }
 						return atlasApi.get<{ totalSections: number }>(`/sections/summary/${context.activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`);
 					})

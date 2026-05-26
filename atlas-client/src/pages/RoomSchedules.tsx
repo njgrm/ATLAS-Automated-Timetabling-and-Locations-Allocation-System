@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
-import { fetchPublicSettings } from '@/lib/settings';
+import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { formatTime } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -75,18 +75,20 @@ export default function RoomSchedules() {
 	useEffect(() => {
 		(async () => {
 			try {
-				const [settings, buildingsRes, subjectsRes, facultyRes] = await Promise.all([
-					fetchPublicSettings(),
+				const yearContext = await resolveActiveSchoolYearContext({ allowStaleOnError: true });
+				const activeSchoolYearId = yearContext.activeSchoolYearId;
+
+				const [buildingsRes, subjectsRes, facultyRes] = await Promise.all([
 					atlasApi.get<{ buildings: Building[] }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
 					atlasApi.get<{ subjects: Subject[] }>(`/subjects?schoolId=${DEFAULT_SCHOOL_ID}`).catch(() => ({ data: { subjects: [] as Subject[] } })),
 					atlasApi.get<{ faculty: FacultyMirror[] }>(`/faculty?schoolId=${DEFAULT_SCHOOL_ID}`).catch(() => ({ data: { faculty: [] as FacultyMirror[] } })),
 				]);
 
-				setSchoolYearId(settings.activeSchoolYearId);
+				setSchoolYearId(activeSchoolYearId);
 
 				// Fetch section names
-				if (settings.activeSchoolYearId) {
-					atlasApi.get<SectionSummaryResponse>(`/sections/summary/${settings.activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`)
+				if (activeSchoolYearId) {
+					atlasApi.get<SectionSummaryResponse>(`/sections/summary/${activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`)
 						.then((r) => {
 							const secMap = new Map<number, string>();
 							for (const s of r.data.sections) secMap.set(s.id, s.name);

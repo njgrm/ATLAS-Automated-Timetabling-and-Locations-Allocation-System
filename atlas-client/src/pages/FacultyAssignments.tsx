@@ -852,6 +852,18 @@ export default function FacultyAssignments() {
 		};
 	}, [selected, subjects]);
 
+	const assignedRotationLanes = useMemo(() => {
+		const map = new Map<string, Set<number>>();
+		for (const a of currentAssignments) {
+			const sub = subjects.find((s) => s.id === a.subjectId);
+			if (!sub || !sub.rotationFamily) continue;
+			const set = map.get(sub.rotationFamily) ?? new Set<number>();
+			a.sectionIds.forEach((id) => set.add(id));
+			map.set(sub.rotationFamily, set);
+		}
+		return map;
+	}, [currentAssignments, subjects]);
+
 	const loadProfile = useMemo(() => {
 		const profile = buildTeachingLoadProfile(
 			currentAssignments,
@@ -1388,24 +1400,24 @@ export default function FacultyAssignments() {
 															{member.lastName[0]}
 														</div>
 														<div className="flex-1 min-w-0">
-															<p className={`truncate text-xs ${selectedId === member.id ? 'font-bold text-foreground' : 'font-semibold text-muted-foreground'}`}>
+															<p className={`truncate text-sm ${selectedId === member.id ? 'font-black text-foreground' : 'font-bold text-muted-foreground'}`}>
 																{member.lastName}, {member.firstName}
 															</p>
-															<div className="flex items-center gap-2">
-																<span className="truncate text-[0.65rem] text-muted-foreground/70 font-semibold flex-1">
+															<div className="flex items-center gap-2 mt-0.5">
+																<span className="truncate text-xs text-muted-foreground/80 font-bold flex-1">
 																	{member.specialization || member.department || 'General'}
 																</span>
-																<span className={`text-[0.65rem] font-bold tabular-nums ${loadColorClass}`}>
+																<span className={`text-xs font-black tabular-nums ${loadColorClass}`}>
 																	{member.isPlaceholder ? `${Math.round(displayHours * 10) / 10}h` : `${actualLoadPercentage}%`}
 																</span>
 															</div>
 														</div>
 														<div className="flex items-center gap-1 shrink-0">
-															{hasDraft && <div className="size-1.5 rounded-full bg-sky-500 animate-pulse" />}
+															{hasDraft && <div className="size-2 rounded-full bg-sky-500 animate-pulse" />}
 															{effectiveSubjectCount === 0 ? (
-																<AlertTriangle className="size-3 text-amber-500 opacity-60" />
+																<AlertTriangle className="size-3.5 text-amber-500 opacity-70" />
 															) : (
-																<CheckCircle2 className="size-3 text-emerald-500 opacity-60" />
+																<CheckCircle2 className="size-3.5 text-emerald-500 opacity-70" />
 															)}
 														</div>
 													</div>
@@ -1416,8 +1428,8 @@ export default function FacultyAssignments() {
 								))
 							)}
 							</div>
-							<div className="border-t border-border bg-muted/20 px-3 py-1 text-[0.6rem] font-bold text-muted-foreground flex items-center justify-between uppercase tracking-tight">
-							<div className="flex items-center gap-3">
+							<div className="border-t border-border bg-muted/20 px-4 py-2 text-xs font-bold text-muted-foreground/80 flex items-center justify-between uppercase tracking-tight">
+							<div className="flex items-center gap-4">
 								<span className="cursor-help hover:text-foreground transition-colors">{coverageHeadline.realAssigned} Staffed</span>
 								<span className="opacity-30">/</span>
 								<span className="cursor-help hover:text-foreground transition-colors">{coverageHeadline.syntheticAssigned} Temp</span>
@@ -1447,21 +1459,21 @@ export default function FacultyAssignments() {
 										</div>
 										<div className="min-w-0">
 											<div className="flex items-center gap-2">
-												<p className="truncate text-xs font-bold leading-none uppercase tracking-tight">
+												<p className="truncate text-sm font-bold leading-none uppercase tracking-tight">
 													{selected.firstName} {selected.lastName}
 												</p>
 												{selected.isClassAdviser && (
 													<Tooltip>
 														<TooltipTrigger asChild>
-															<Star className="size-3 fill-amber-500 text-amber-600 cursor-help" />
+															<Star className="size-3.5 fill-amber-500 text-amber-600 cursor-help" />
 														</TooltipTrigger>
-														<TooltipContent className="text-[0.65rem] font-bold">
+														<TooltipContent className="text-xs font-bold">
 															{advisedSectionMeta ? `Adviser: GR${advisedSectionMeta.gradeLevel} - ${advisedSectionMeta.sectionName}` : 'Class Adviser'}
 														</TooltipContent>
 													</Tooltip>
 												)}
 											</div>
-											<p className="truncate text-[0.6rem] text-muted-foreground font-semibold mt-0.5 uppercase tracking-widest flex items-center gap-1.5">
+											<p className="truncate text-[11px] text-muted-foreground font-bold mt-1 uppercase tracking-wider flex items-center gap-1.5 leading-none">
 												<span className="text-foreground/70">{selected.specialization || 'General'}</span>
 												<span className="opacity-30">•</span>
 												<span>{selected.department || 'No Dept'}</span>
@@ -1470,21 +1482,54 @@ export default function FacultyAssignments() {
 									</div>
 
 									<div className="flex items-center gap-3">
-										<div className="flex items-center gap-2.5 px-2 py-0.5 rounded-lg bg-muted/30 border border-border/40">
-											<div className="flex flex-col">
-												<span className="text-[0.5rem] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none mb-0.5">Weekly Load</span>
-												<div className="flex items-baseline gap-1">
-													<span className="text-[0.75rem] font-bold tracking-tight leading-none">{loadProfile.actualTeachingHours}h</span>
-													<Badge className={`${STATUS_COLORS[loadProfile.status].bg} ${STATUS_COLORS[loadProfile.status].text} h-3 border-none text-[0.45rem] font-bold uppercase px-1 shadow-none leading-none`}>
+										<div className="flex items-center gap-4 px-4 py-2 rounded-xl bg-muted/30 border border-border/40 shadow-inner">
+											<div className="flex flex-col min-w-[240px]">
+												<div className="flex items-center gap-2 mb-1.5">
+													<span className="text-xs font-bold text-muted-foreground/80 tracking-tight leading-none">Weekly Load Calculation</span>
+													{rotationOvercountHours > 0 ? (
+														<span className="text-[11px] font-bold text-amber-700 bg-amber-100/60 px-1.5 py-0.5 rounded animate-pulse">Rotation Adjusted</span>
+													) : (
+														<span className="text-[11px] font-bold text-emerald-700/70 bg-emerald-50/50 px-1.5 py-0.5 rounded">No overlap</span>
+													)}
+												</div>
+												<div className="flex items-baseline gap-2.5">
+													<div className="flex flex-col items-center">
+														<span className="text-sm font-black tabular-nums leading-none">{loadProfile.rawTeachingHours}h</span>
+														<span className="text-[10px] font-bold text-muted-foreground/60 uppercase mt-1">Raw</span>
+													</div>
+													<span className="text-xs text-muted-foreground font-medium mb-3">-</span>
+													<div className="flex flex-col items-center">
+														<span className={`text-sm font-black tabular-nums leading-none ${rotationOvercountHours > 0 ? 'text-amber-600' : 'text-muted-foreground/30'}`}>
+															{rotationOvercountHours}h
+														</span>
+														<span className={`text-[10px] font-bold uppercase mt-1 ${rotationOvercountHours > 0 ? 'text-amber-600/60' : 'text-muted-foreground/30'}`}>Overlap</span>
+													</div>
+													<span className="text-xs text-muted-foreground font-medium mb-3">+</span>
+													<div className="flex flex-col items-center">
+														<span className="text-sm font-black text-emerald-600 tabular-nums leading-none">{loadProfile.equivalentHours}h</span>
+														<span className="text-[10px] font-bold text-emerald-600/60 uppercase mt-1">Credits</span>
+													</div>
+													<span className="text-xs text-muted-foreground font-medium mb-3">=</span>
+													<div className="flex flex-col items-center">
+														<span className="text-base font-black text-foreground tabular-nums leading-none">{loadProfile.creditedTotalHours}h</span>
+														<span className="text-[10px] font-bold text-primary/70 uppercase mt-1">Total</span>
+													</div>
+													<Badge className={`${STATUS_COLORS[loadProfile.status].bg} ${STATUS_COLORS[loadProfile.status].text} h-4 border-none text-[10px] font-bold uppercase px-1.5 shadow-none ml-2 mb-3`}>
 														{loadProfile.statusLabel}
 													</Badge>
 												</div>
+												{/* Persistent layman explanation - clearer and larger */}
+												<p className="text-[11px] font-medium text-muted-foreground mt-1.5 leading-tight italic">
+													{rotationOvercountHours > 0 
+														? 'Same-lane Science or TLE rows detected; overlap removed.'
+														: 'No shared weekly Science or TLE rotation overlap to remove.'}
+												</p>
 											</div>
 
-											<div className="w-16 space-y-0.5 pt-0.5">
-												<div className="h-1 w-full bg-muted rounded-full overflow-hidden border border-muted/50 relative">
+											<div className="w-20 space-y-1.5 pt-1 border-l border-border/40 pl-4">
+												<div className="h-2 w-full bg-muted rounded-full overflow-hidden border border-muted/50 relative shadow-inner">
 													<div
-														className="h-full bg-emerald-500 transition-all absolute left-0 top-0 z-10"
+														className="h-full bg-emerald-500 transition-all absolute left-0 top-0 z-10 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
 														style={{ width: `${Math.min((loadProfile.actualTeachingHours * 60 / Math.max(loadCapMinutes, 1)) * 100, 100)}%` }}
 													/>
 													{hoveredIncomingMinutes > 0 && (
@@ -1494,53 +1539,97 @@ export default function FacultyAssignments() {
 														/>
 													)}
 												</div>
-												<div className="flex justify-between text-[0.45rem] font-bold uppercase tracking-tighter tabular-nums opacity-60">
-													<span>{loadProfile.actualTeachingHours}h / {selected.maxHoursPerWeek}h Max</span>
+												<div className="flex justify-between text-[10px] font-bold uppercase tracking-tight tabular-nums text-muted-foreground/80">
+													<span>{loadProfile.creditedTotalHours}h / {selected.maxHoursPerWeek}h</span>
 												</div>
 											</div>
 
 											<Popover>
 												<PopoverTrigger asChild>
-													<Button variant="ghost" size="icon-xs" className="h-5 w-5 rounded hover:bg-primary/5 text-primary">
-														<Info className="size-3" />
+													<Button variant="ghost" size="icon-xs" className="h-6 w-6 rounded-md hover:bg-primary/5 text-primary ml-2 border border-primary/10">
+														<Info className="size-3.5" />
 													</Button>
 												</PopoverTrigger>
-												<PopoverContent side="bottom" align="end" className="w-80 p-0 overflow-hidden shadow-xl border-border/50">
-													<div className="bg-blue-600 p-3 text-white">
-														<h5 className="text-[0.65rem] font-bold uppercase tracking-[0.15em] opacity-80 mb-0.5">Teaching Load Truth</h5>
-														<p className="text-lg font-bold leading-tight">{loadProfile.actualTeachingHours}h <span className="text-xs font-medium opacity-70 italic">Concurrent Weekly</span></p>
-													</div>
-													<div className="p-4 space-y-4">
-														<div className="space-y-2">
-															<p className="text-xs text-muted-foreground font-medium leading-relaxed">
-																ATLAS removes <span className="font-bold text-foreground">{rotationOvercountHours}h</span> of overlapping rotating classes (Science/TLE) to reflect the teacher's true weekly burden.
-															</p>
-															<div className="p-2 rounded-lg bg-blue-50/50 border border-blue-100 text-[0.65rem] italic text-blue-700 leading-tight font-bold">
-																Rotating sections share a single time-slot. Teachers are not penalized for non-simultaneous hours across terms.
-															</div>
-														</div>
-														<div className="grid grid-cols-3 gap-2 border-t border-border/40 pt-3">
+												<PopoverContent side="bottom" align="end" className="w-96 p-0 overflow-hidden shadow-xl border-border/50">
+													<div className="bg-primary p-4 text-white">
+														<h5 className="text-[0.6rem] font-bold uppercase tracking-[0.2em] opacity-80 mb-1">Worked Weekly Calculation</h5>
+														<div className="flex items-center gap-3">
 															<div className="flex flex-col">
-																<span className="text-[0.55rem] font-bold uppercase tracking-tighter text-muted-foreground/70">Total Rows</span>
-																<span className="text-xs font-bold text-foreground">{loadProfile.rawTeachingHours}h</span>
+																<span className="text-2xl font-bold leading-none">{loadProfile.creditedTotalHours}h</span>
+																<span className="text-[0.6rem] font-medium opacity-70 uppercase tracking-wider">Final Policy Load</span>
 															</div>
-															<div className="flex flex-col border-l border-border/40 pl-3">
-																<span className="text-[0.55rem] font-bold uppercase tracking-tighter text-muted-foreground/70">Credits</span>
-																<span className="text-xs font-bold text-emerald-600">+{loadProfile.equivalentHours}h</span>
-															</div>
-															<div className="flex flex-col border-l border-border/40 pl-3">
-																<span className="text-[0.55rem] font-bold uppercase tracking-tighter text-muted-foreground/70">Load %</span>
-																<span className="text-xs font-bold text-foreground">{selected.policyLoadPercentage}%</span>
+															<div className="h-8 w-px bg-white/20" />
+															<div className="text-[0.65rem] font-medium opacity-90 leading-tight">
+																Calculation includes teaching hours, <br />
+																rotation adjustments, and credits.
 															</div>
 														</div>
+													</div>
+													
+													<div className="p-4 space-y-4 bg-card">
+														<div className="space-y-3">
+															<h6 className="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground">Step-by-Step Arithmetic</h6>
+															
+															<div className="space-y-2">
+																<div className="flex items-center justify-between text-xs p-2 rounded-lg bg-muted/30 border border-border/40">
+																	<div className="flex flex-col">
+																		<span className="font-bold">Raw Teaching Rows</span>
+																		<span className="text-[0.6rem] text-muted-foreground uppercase">Sum of all assigned classes</span>
+																	</div>
+																	<span className="font-mono font-bold">{(loadProfile?.rawTeachingHours ?? 0).toFixed(1)}h</span>
+																</div>
+
+																<div className="flex items-center justify-between text-xs p-2 rounded-lg bg-amber-50 border border-amber-100 text-amber-900">
+																	<div className="flex flex-col">
+																		<span className="font-bold">Rotation Overlap Removed</span>
+																		<span className="text-[0.6rem] text-amber-700/70 uppercase">Shared Science/TLE weekly lanes</span>
+																	</div>
+																	<span className="font-mono font-bold">-{(loadProfile?.rotationOvercountHours ?? 0).toFixed(1)}h</span>
+																</div>
+
+																<div className="flex items-center justify-between text-xs p-2 rounded-lg bg-blue-50 border border-blue-100 text-blue-900 italic">
+																	<div className="flex flex-col">
+																		<span className="font-bold">Concurrent Teaching Load</span>
+																		<span className="text-[0.6rem] text-blue-700/70 uppercase">Actual time spent in classroom</span>
+																	</div>
+																	<span className="font-mono font-bold">{((loadProfile?.rawTeachingHours ?? 0) - (loadProfile?.rotationOvercountHours ?? 0)).toFixed(1)}h</span>
+																</div>
+
+																<div className="flex items-center justify-between text-xs p-2 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-900">
+																	<div className="flex flex-col">
+																		<span className="font-bold">Advisory & Ancillary Credits</span>
+																		<span className="text-[0.6rem] text-emerald-700/70 uppercase">Non-teaching responsibilities</span>
+																	</div>
+																	<span className="font-mono font-bold">+{(loadProfile?.equivalentHours ?? 0).toFixed(1)}h</span>
+																</div>
+
+																<div className="flex items-center justify-between text-sm p-3 rounded-lg bg-primary/5 border border-primary/20 text-primary">
+																	<span className="font-bold uppercase tracking-tight">Final Policy-Credited Load</span>
+																	<span className="font-mono font-black">{(loadProfile?.creditedTotalHours ?? 0).toFixed(1)}h</span>
+																</div>
+															</div>
+														</div>
+
 														{rotationFamilyDetails.length > 0 && (
-															<div className="border-t border-border/40 pt-3 space-y-1">
-																<span className="text-[0.55rem] font-bold uppercase tracking-[0.15em] text-muted-foreground/60">Concurrent Rotating Lanes</span>
-																<div className="flex flex-wrap gap-1">
+															<div className="border-t border-border/40 pt-4 space-y-3">
+																<h6 className="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground">Rotation Family Breakdown</h6>
+																<div className="space-y-2">
 																	{rotationFamilyDetails.map((f: RotationFamilyLoadDetail) => (
-																		<Badge key={f.family} variant="outline" className="text-[0.55rem] font-bold uppercase px-1.5 py-0 h-4 bg-muted/30 border-muted">
-																			{f.family}: {f.creditedHours}h
-																		</Badge>
+																		<div key={f.family} className="flex flex-col gap-1 p-2 rounded-lg border border-violet-100 bg-violet-50/30">
+																			<div className="flex items-center justify-between">
+																				<span className="text-[0.65rem] font-black text-violet-700 uppercase tracking-tighter">{f.family}</span>
+																				<Badge variant="outline" className="h-4 text-[0.55rem] font-bold bg-white text-violet-600 border-violet-200">
+																					{f.unitCount} sections sharing {f.creditedHours}h
+																				</Badge>
+																			</div>
+																			<div className="flex items-center gap-2 text-[0.6rem] font-bold text-violet-600/70 uppercase tracking-tight">
+																				<span>{f.rawHours}h raw</span>
+																				<span>•</span>
+																				<span className="text-violet-900">{f.creditedHours}h concurrent</span>
+																				<span>•</span>
+																				<span>{f.overcountHours}h overlap removed</span>
+																			</div>
+																		</div>
 																	))}
 																</div>
 															</div>
@@ -1704,6 +1793,7 @@ export default function FacultyAssignments() {
 																				activeFacultyIds={activeFacultyIds}
 																				onSwapSectionOwnership={handleSwapRequest}
 																				selectedFacultySpecialization={selected.specialization}
+																				assignedRotationLanes={assignedRotationLanes}
 																			/>
 																		))}
 																	</div>
@@ -1740,6 +1830,7 @@ export default function FacultyAssignments() {
 																				activeFacultyIds={activeFacultyIds}
 																				onSwapSectionOwnership={handleSwapRequest}
 																				selectedFacultySpecialization={selected.specialization}
+																				assignedRotationLanes={assignedRotationLanes}
 																			/>
 																		))}
 																	</div>
@@ -1807,6 +1898,7 @@ export default function FacultyAssignments() {
 																	activeFacultyIds={activeFacultyIds}
 																	onSwapSectionOwnership={handleSwapRequest}
 																	selectedFacultySpecialization={selected.specialization}
+																	assignedRotationLanes={assignedRotationLanes}
 																/>
 															))}
 														</div>
@@ -1891,6 +1983,7 @@ export default function FacultyAssignments() {
 																	activeFacultyIds={activeFacultyIds}
 																	onSwapSectionOwnership={handleSwapRequest}
 																	selectedFacultySpecialization={selected.specialization}
+																	assignedRotationLanes={assignedRotationLanes}
 																/>
 															))}
 														</div>
