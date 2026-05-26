@@ -175,4 +175,106 @@ export function resolveSubjectRotationFamily(subjectCode, modularGroupId) {
     }
     return modularGroupId?.trim() || null;
 }
+const ROTATION_TERM_RANK_BY_SUBJECT_CODE = {
+    SCI_BIO: 1,
+    SCI_CHEM: 2,
+    SCI_ES: 3,
+    TLE_ICT_EXP: 1,
+    TLE_AFA_EXP: 2,
+    TLE_FCS_EXP: 3,
+};
+function toPositiveInteger(value) {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+        return null;
+    }
+    return parsed;
+}
+function inferRotationTermRankFromSubjectCode(subjectCode) {
+    const normalizedCode = (subjectCode ?? '').trim().toUpperCase();
+    if (!normalizedCode) {
+        return null;
+    }
+    const mapped = ROTATION_TERM_RANK_BY_SUBJECT_CODE[normalizedCode];
+    if (mapped) {
+        return mapped;
+    }
+    const suffixMatch = normalizedCode.match(/_(\d+)$/);
+    if (!suffixMatch) {
+        return null;
+    }
+    return toPositiveInteger(suffixMatch[1]);
+}
+function toOrdinal(value) {
+    const remainder100 = value % 100;
+    if (remainder100 >= 11 && remainder100 <= 13) {
+        return `${value}th`;
+    }
+    const remainder10 = value % 10;
+    if (remainder10 === 1)
+        return `${value}st`;
+    if (remainder10 === 2)
+        return `${value}nd`;
+    if (remainder10 === 3)
+        return `${value}rd`;
+    return `${value}th`;
+}
+export function formatRotationTermLabel(termRank) {
+    const normalizedRank = toPositiveInteger(termRank);
+    if (!normalizedRank) {
+        return null;
+    }
+    return `${toOrdinal(normalizedRank)} Term`;
+}
+export function resolveRotationTermCount(termCount) {
+    return toPositiveInteger(termCount);
+}
+export function resolveRotationTermRank(subjectCode, modularOrder, termCount) {
+    const normalizedTermCount = toPositiveInteger(termCount);
+    const modularRank = toPositiveInteger(modularOrder);
+    const inferredRank = inferRotationTermRankFromSubjectCode(subjectCode);
+    const rank = modularRank ?? inferredRank;
+    if (!rank) {
+        return null;
+    }
+    if (normalizedTermCount && rank > normalizedTermCount) {
+        return null;
+    }
+    return rank;
+}
+export function resolveRotationTermGroupId(termGroupId, modularGroupId, rotationFamily) {
+    const fromTermGroup = (termGroupId ?? '').trim();
+    if (fromTermGroup) {
+        return fromTermGroup.toUpperCase();
+    }
+    const fromModularGroup = (modularGroupId ?? '').trim();
+    if (fromModularGroup) {
+        return fromModularGroup.toUpperCase();
+    }
+    const fromFamily = (rotationFamily ?? '').trim();
+    if (fromFamily) {
+        return fromFamily.toUpperCase();
+    }
+    return null;
+}
+export function resolveRotationTermMetadata(input) {
+    const normalizedFamily = (input.rotationFamily ?? '').trim().toUpperCase()
+        || (resolveSubjectRotationFamily(input.subjectCode, input.modularGroupId ?? null) ?? '').trim().toUpperCase();
+    if (!normalizedFamily) {
+        return {
+            termRank: null,
+            termLabel: null,
+            termCount: null,
+            termGroupId: null,
+        };
+    }
+    const normalizedTermCount = resolveRotationTermCount(input.termCount ?? null) ?? 3;
+    const termRank = resolveRotationTermRank(input.subjectCode, input.modularOrder ?? null, normalizedTermCount);
+    return {
+        termRank,
+        termLabel: formatRotationTermLabel(termRank),
+        termCount: normalizedTermCount,
+        termGroupId: resolveRotationTermGroupId(input.termGroupId ?? null, input.modularGroupId ?? null, normalizedFamily),
+    };
+}
 //# sourceMappingURL=subject-ownership.service.js.map

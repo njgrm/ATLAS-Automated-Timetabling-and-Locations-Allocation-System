@@ -25,6 +25,7 @@ import { fetchSectionsForRuntimeControls } from './section.service.js';
 import {
 	matchesSubjectOwnershipDepartment,
 	normalizeDepartmentCode,
+	resolveRotationTermMetadata,
 	resolveSubjectAllowedOwnerDepartments,
 	resolveSubjectRotationFamily,
 	resolveSubjectOwnerDepartmentCode,
@@ -158,6 +159,8 @@ interface SubjectRow {
 	minMinutesPerWeek: number;
 	modularGroupId: string | null;
 	modularOrder: number | null;
+	termGroupId: string | null;
+	termCount: number | null;
 	ownerDepartment: string | null;
 	requiredFeatures: string[];
 }
@@ -242,14 +245,51 @@ function cloneCapacityLanes(source: Map<number, Map<string, number>>): Map<numbe
 	return cloned;
 }
 
-function resolveCapacityRotationFamily(subjectCode: string | null | undefined, explicitRotationFamily: string | null | undefined): string | null {
+function resolveCapacityRotationFamily(
+	subjectCode: string | null | undefined,
+	explicitRotationFamily: string | null | undefined,
+	modularGroupId?: string | null,
+): string | null {
 	const explicit = (explicitRotationFamily ?? '').trim().toUpperCase();
 	if (explicit.length > 0) {
 		return explicit;
 	}
-	const fallback = resolveSubjectRotationFamily(subjectCode, null);
+	const fallback = resolveSubjectRotationFamily(subjectCode, modularGroupId ?? null);
 	const normalizedFallback = (fallback ?? '').trim().toUpperCase();
 	return normalizedFallback.length > 0 ? normalizedFallback : null;
+}
+
+function normalizeRotationTermLaneKey(termRank: number | null): number {
+	return Number.isInteger(termRank) && Number(termRank) > 0 ? Number(termRank) : 0;
+}
+
+function buildCapacityLaneKey(input: {
+	subjectId: number;
+	subjectCode: string | null | undefined;
+	rotationFamily: string | null | undefined;
+	modularGroupId?: string | null;
+	modularOrder?: number | null;
+	termGroupId?: string | null;
+	termCount?: number | null;
+	sectionId: number;
+}): string {
+	const rotationFamily = resolveCapacityRotationFamily(
+		input.subjectCode,
+		input.rotationFamily,
+		input.modularGroupId ?? null,
+	);
+	if (!rotationFamily) {
+		return `subject:${input.subjectId}:${input.sectionId}`;
+	}
+	const termMetadata = resolveRotationTermMetadata({
+		subjectCode: input.subjectCode,
+		rotationFamily,
+		modularGroupId: input.modularGroupId ?? null,
+		modularOrder: input.modularOrder ?? null,
+		termGroupId: input.termGroupId ?? null,
+		termCount: input.termCount ?? null,
+	});
+	return `family:${rotationFamily}:term:${normalizeRotationTermLaneKey(termMetadata.termRank)}:${input.sectionId}`;
 }
 
 function normalizeKey(value: string | null | undefined): string {
@@ -307,10 +347,16 @@ function buildStaffingReport(
 		rawBucket.missingMinutesPerWeek += subjectMinutes;
 		rawByDepartment.set(department, rawBucket);
 
-		const family = resolveCapacityRotationFamily(pair.subject.code, pair.subject.rotationFamily);
-		const laneKey = family
-			? `family:${family}:${pair.sectionId}`
-			: `subject:${pair.subjectId}:${pair.sectionId}`;
+		const laneKey = buildCapacityLaneKey({
+			subjectId: pair.subjectId,
+			subjectCode: pair.subject.code,
+			rotationFamily: pair.subject.rotationFamily,
+			modularGroupId: pair.subject.modularGroupId,
+			modularOrder: pair.subject.modularOrder,
+			termGroupId: pair.subject.termGroupId,
+			termCount: pair.subject.termCount,
+			sectionId: pair.sectionId,
+		});
 		const allowedOwnerDepartments = resolveSubjectAllowedOwnerDepartments(
 			pair.subject.ownerDepartment,
 			pair.subject.code,
@@ -577,6 +623,10 @@ type ExistingOwnershipRow = {
 		subject: {
 			id: number;
 			code: string;
+			modularGroupId: string | null;
+			modularOrder: number | null;
+			termGroupId: string | null;
+			termCount: number | null;
 			rotationFamily: string | null;
 			minMinutesPerWeek: number;
 		};
@@ -592,10 +642,16 @@ function buildInitialCapacityTracking(existingOwnerships: ExistingOwnershipRow[]
 		const subject = ownership.facultySubject.subject;
 		const mins = Math.max(0, Number(subject.minMinutesPerWeek) || 0);
 		if (mins <= 0) continue;
-		const family = resolveCapacityRotationFamily(subject.code, subject.rotationFamily);
-		const laneKey = family
-			? `family:${family}:${ownership.sectionId}`
-			: `subject:${subject.id}:${ownership.sectionId}`;
+		const laneKey = buildCapacityLaneKey({
+			subjectId: subject.id,
+			subjectCode: subject.code,
+			rotationFamily: subject.rotationFamily,
+			modularGroupId: subject.modularGroupId,
+			modularOrder: subject.modularOrder,
+			termGroupId: subject.termGroupId,
+			termCount: subject.termCount,
+			sectionId: ownership.sectionId,
+		});
 		const lanes = capacityLanesByFaculty.get(ownership.facultyId) ?? new Map<string, number>();
 		const currentLaneMinutes = lanes.get(laneKey) ?? 0;
 		if (mins > currentLaneMinutes) {
@@ -681,10 +737,16 @@ function simulateRealFacultyCoverage(input: {
 	const applyCapacityLane = (facultyId: number, subject: SubjectRow, sectionId: number) => {
 		const minutes = Math.max(0, Number(subject.minMinutesPerWeek) || 0);
 		if (minutes <= 0) return;
-		const family = resolveCapacityRotationFamily(subject.code, subject.rotationFamily);
-		const laneKey = family
-			? `family:${family}:${sectionId}`
-			: `subject:${subject.id}:${sectionId}`;
+		const laneKey = buildCapacityLaneKey({
+			subjectId: subject.id,
+			subjectCode: subject.code,
+			rotationFamily: subject.rotationFamily,
+			modularGroupId: subject.modularGroupId,
+			modularOrder: subject.modularOrder,
+			termGroupId: subject.termGroupId,
+			termCount: subject.termCount,
+			sectionId,
+		});
 		const lanes = capacityLanesByFaculty.get(facultyId) ?? new Map<string, number>();
 		const currentLaneMinutes = lanes.get(laneKey) ?? 0;
 		if (minutes > currentLaneMinutes) {
@@ -873,7 +935,18 @@ export async function autoFill(
 			facultyId: true,
 			facultySubject: {
 				select: {
-					subject: { select: { id: true, code: true, rotationFamily: true, minMinutesPerWeek: true } },
+					subject: {
+						select: {
+							id: true,
+							code: true,
+							modularGroupId: true,
+							modularOrder: true,
+							termGroupId: true,
+							termCount: true,
+							rotationFamily: true,
+							minMinutesPerWeek: true,
+						},
+					},
 				},
 			},
 		},
@@ -938,6 +1011,8 @@ export async function autoFill(
 			minMinutesPerWeek: true,
 			modularGroupId: true,
 			modularOrder: true,
+			termGroupId: true,
+			termCount: true,
 			ownerDepartment: true,
 			requiredFeatures: true,
 		},
@@ -1092,10 +1167,16 @@ export async function autoFill(
 		if (minutes <= 0) {
 			return;
 		}
-		const family = resolveCapacityRotationFamily(subject.code, subject.rotationFamily);
-		const laneKey = family
-			? `family:${family}:${sectionId}`
-			: `subject:${subjectId}:${sectionId}`;
+		const laneKey = buildCapacityLaneKey({
+			subjectId,
+			subjectCode: subject.code,
+			rotationFamily: subject.rotationFamily,
+			modularGroupId: subject.modularGroupId,
+			modularOrder: subject.modularOrder,
+			termGroupId: subject.termGroupId,
+			termCount: subject.termCount,
+			sectionId,
+		});
 		const lanes = capacityLanesByFaculty.get(facultyId) ?? new Map<string, number>();
 		const currentLaneMinutes = lanes.get(laneKey) ?? 0;
 		if (minutes > currentLaneMinutes) {

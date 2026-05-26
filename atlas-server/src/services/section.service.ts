@@ -321,6 +321,7 @@ export async function getSectionSummary(schoolYearId: number, schoolId: number, 
 		}
 		
 		const sec = {
+			mirrorId: m.id,
 			id: m.externalId,
 			name: m.name,
 			maxCapacity: m.maxCapacity,
@@ -438,8 +439,8 @@ export async function updateSectionHomeRooms(
 
 	const [sections, rooms] = await Promise.all([
 		prisma.sectionMirror.findMany({
-			where: { id: { in: uniqueSectionIds }, schoolId, schoolYearId },
-			select: { id: true },
+			where: { externalId: { in: uniqueSectionIds }, schoolId, schoolYearId },
+			select: { id: true, externalId: true },
 		}),
 		requestedRoomIds.length === 0
 			? Promise.resolve([])
@@ -453,20 +454,23 @@ export async function updateSectionHomeRooms(
 			}),
 	]);
 
-	const sectionIdSet = new Set(sections.map((section) => section.id));
+	const sectionIdSet = new Set(sections.map((section) => section.externalId));
 	const roomById = new Map(rooms.map((room) => [room.id, room]));
+	const mirrorIdByExternalId = new Map(sections.map((s) => [s.externalId, s.id]));
 
 	let updated = 0;
 	await prisma.$transaction(async (tx) => {
 		for (const assignment of assignments) {
 			if (!sectionIdSet.has(assignment.sectionId)) continue;
+			const mirrorId = mirrorIdByExternalId.get(assignment.sectionId);
+			if (!mirrorId) continue;
 
 			const homeRoomId = assignment.homeRoomId;
 			const room = homeRoomId == null ? null : roomById.get(homeRoomId);
 			if (homeRoomId != null && !room) continue;
 
 			await tx.sectionMirror.update({
-				where: { id: assignment.sectionId },
+				where: { id: mirrorId },
 				data: {
 					homeRoomId,
 					buildingZoneId: room?.buildingZoneId ?? null,

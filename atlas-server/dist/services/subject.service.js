@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { inferSubjectProgramScopes } from './subject-program-scope.service.js';
-import { resolveSubjectContractDefaults, resolveSubjectOwnerDepartmentCode, resolveSubjectQualificationPriority, resolveSubjectRotationFamily, resolveSubjectOutputLabel, mergeRequiredFeaturesWithAdditionalOwnerDepartments, resolveSubjectAllowedOwnerDepartments, } from './subject-ownership.service.js';
+import { resolveSubjectContractDefaults, resolveSubjectOwnerDepartmentCode, resolveSubjectQualificationPriority, resolveSubjectRotationFamily, resolveSubjectOutputLabel, mergeRequiredFeaturesWithAdditionalOwnerDepartments, resolveSubjectAllowedOwnerDepartments, resolveRotationTermMetadata, } from './subject-ownership.service.js';
 const MATATAG_DEFAULTS = [
     // Core bundle shared by regular + offered special programs.
     { code: 'FIL', name: 'Filipino', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
@@ -76,6 +76,14 @@ function withSubjectViewMetadata(subject) {
     const allowedOwnerDepartments = resolveSubjectAllowedOwnerDepartments(subject.ownerDepartment, subject.code, subject.name, subject.requiredFeatures);
     const qualificationPriority = resolveSubjectQualificationPriority(subject.code, subject.qualificationPriority ?? null);
     const rotationFamily = subject.rotationFamily ?? resolveSubjectRotationFamily(subject.code, subject.modularGroupId ?? null);
+    const rotationTermMetadata = resolveRotationTermMetadata({
+        subjectCode: subject.code,
+        rotationFamily,
+        modularGroupId: subject.modularGroupId ?? null,
+        modularOrder: subject.modularOrder ?? null,
+        termGroupId: subject.termGroupId ?? null,
+        termCount: subject.termCount ?? null,
+    });
     const isSystemManaged = subject.isSystemManaged === true;
     return {
         ...subject,
@@ -86,6 +94,10 @@ function withSubjectViewMetadata(subject) {
         allowedOwnerDepartments,
         qualificationPriority,
         rotationFamily,
+        rotationTermRank: rotationTermMetadata.termRank,
+        rotationTermLabel: rotationTermMetadata.termLabel,
+        rotationTermGroupId: rotationTermMetadata.termGroupId,
+        rotationTermCount: rotationTermMetadata.termCount,
         specializationSource: (subject.allowedSpecializations ?? []).length > 0 ? 'REFERENCE_METADATA' : 'NONE',
         isSystemManaged,
     };

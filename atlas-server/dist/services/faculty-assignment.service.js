@@ -1,7 +1,7 @@
 import { prisma } from '../lib/prisma.js';
 import { fetchSectionsForRuntimeControls } from './section.service.js';
 import { HG_SUBJECT_CODE } from './hg-advisory.service.js';
-import { matchesSubjectOwnershipDepartment, normalizeDepartmentCode, resolveSubjectAllowedOwnerDepartments, resolveSubjectOutputLabel, resolveSubjectRotationFamily, } from './subject-ownership.service.js';
+import { matchesSubjectOwnershipDepartment, resolveRotationTermMetadata, normalizeDepartmentCode, resolveSubjectAllowedOwnerDepartments, resolveSubjectOutputLabel, resolveSubjectRotationFamily, } from './subject-ownership.service.js';
 import { buildSectionRosterIndex, deriveGradeLevelsFromSectionIds, normalizeIncomingAssignmentScope, normalizeStoredAssignmentScope, } from './faculty-assignment-scope.service.js';
 import { getOrCreatePolicy } from './scheduling-policy.service.js';
 function roundHours(minutes) {
@@ -17,6 +17,39 @@ function resolveLoadRotationFamily(subject) {
         return explicitFamily;
     }
     return normalizeRotationFamily(resolveSubjectRotationFamily(subject.code, null));
+}
+function resolveLoadRotationTermMetadata(subject) {
+    const rotationFamily = resolveLoadRotationFamily(subject);
+    return resolveRotationTermMetadata({
+        subjectCode: subject.code,
+        rotationFamily,
+        modularGroupId: subject.modularGroupId ?? null,
+        modularOrder: subject.modularOrder ?? null,
+        termGroupId: subject.termGroupId ?? null,
+        termCount: subject.termCount ?? null,
+    });
+}
+function normalizeRotationTermLaneKey(termRank) {
+    return Number.isInteger(termRank) && Number(termRank) > 0 ? Number(termRank) : 0;
+}
+function buildRotationConcurrentLaneId(rotationFamily, termRank, unit) {
+    return `family:${rotationFamily}:term:${normalizeRotationTermLaneKey(termRank)}:${unit}`;
+}
+function resolveDominantRotationBucket(termBuckets) {
+    if (termBuckets.length === 0) {
+        return null;
+    }
+    return [...termBuckets].sort((left, right) => {
+        if (right.creditedMinutes !== left.creditedMinutes) {
+            return right.creditedMinutes - left.creditedMinutes;
+        }
+        const leftRank = normalizeRotationTermLaneKey(left.termRank);
+        const rightRank = normalizeRotationTermLaneKey(right.termRank);
+        if (leftRank !== rightRank) {
+            return leftRank - rightRank;
+        }
+        return (left.termLabel ?? '').localeCompare(right.termLabel ?? '');
+    })[0] ?? null;
 }
 function uniquePositiveUnits(values) {
     return [...new Set(values.filter((value) => Number.isInteger(value) && value > 0))].sort((left, right) => left - right);
@@ -36,11 +69,12 @@ function computeTeachingLoadMinuteComputation(assignments, formula) {
         const normalizedSubjectId = Number.isInteger(subjectId) && subjectId > 0 ? subjectId : null;
         const subjectCode = (assignment.subject.code ?? '').trim().toUpperCase();
         const rotationFamily = resolveLoadRotationFamily(assignment.subject);
+        const rotationTermMetadata = resolveLoadRotationTermMetadata(assignment.subject);
         for (const unit of units) {
             rawMinutes += perUnitMinutes;
             const subjectLaneIdentity = normalizedSubjectId ?? (subjectCode.length > 0 ? subjectCode : 'unknown');
             const laneKey = rotationFamily
-                ? `family:${rotationFamily}:${unit}`
+                ? buildRotationConcurrentLaneId(rotationFamily, rotationTermMetadata.termRank, unit)
                 : `subject:${subjectLaneIdentity}:${unit}`;
             const currentLaneMinutes = laneMinutes.get(laneKey) ?? 0;
             if (perUnitMinutes > currentLaneMinutes) {
@@ -49,21 +83,42 @@ function computeTeachingLoadMinuteComputation(assignments, formula) {
             if (rotationFamily) {
                 const familyEntry = rotationFamilyStats.get(rotationFamily) ?? {
                     rawMinutes: 0,
-                    laneMinutes: new Map(),
+                    termBuckets: new Map(),
+                };
+                familyEntry.rawMinutes += perUnitMinutes;
+                const termKey = normalizeRotationTermLaneKey(rotationTermMetadata.termRank);
+                const termBucket = familyEntry.termBuckets.get(termKey) ?? {
+                    termRank: rotationTermMetadata.termRank,
+                    termLabel: rotationTermMetadata.termLabel,
+                    termGroupId: rotationTermMetadata.termGroupId,
+                    termCount: rotationTermMetadata.termCount,
+                    laneMinutesByUnit: new Map(),
                     subjectCodes: new Set(),
                     subjectIds: new Set(),
                 };
-                familyEntry.rawMinutes += perUnitMinutes;
-                const familyLaneMinutes = familyEntry.laneMinutes.get(unit) ?? 0;
-                if (perUnitMinutes > familyLaneMinutes) {
-                    familyEntry.laneMinutes.set(unit, perUnitMinutes);
+                if (termBucket.termLabel === null && rotationTermMetadata.termLabel) {
+                    termBucket.termLabel = rotationTermMetadata.termLabel;
+                }
+                if (termBucket.termGroupId === null && rotationTermMetadata.termGroupId) {
+                    termBucket.termGroupId = rotationTermMetadata.termGroupId;
+                }
+                if (termBucket.termCount === null && rotationTermMetadata.termCount) {
+                    termBucket.termCount = rotationTermMetadata.termCount;
+                }
+                if (termBucket.termRank === null && rotationTermMetadata.termRank !== null) {
+                    termBucket.termRank = rotationTermMetadata.termRank;
+                }
+                const termLaneMinutes = termBucket.laneMinutesByUnit.get(unit) ?? 0;
+                if (perUnitMinutes > termLaneMinutes) {
+                    termBucket.laneMinutesByUnit.set(unit, perUnitMinutes);
                 }
                 if (subjectCode.length > 0) {
-                    familyEntry.subjectCodes.add(subjectCode);
+                    termBucket.subjectCodes.add(subjectCode);
                 }
                 if (normalizedSubjectId) {
-                    familyEntry.subjectIds.add(normalizedSubjectId);
+                    termBucket.subjectIds.add(normalizedSubjectId);
                 }
+                familyEntry.termBuckets.set(termKey, termBucket);
                 rotationFamilyStats.set(rotationFamily, familyEntry);
             }
         }
@@ -71,15 +126,53 @@ function computeTeachingLoadMinuteComputation(assignments, formula) {
     const creditedMinutes = Array.from(laneMinutes.values()).reduce((sum, value) => sum + value, 0);
     const rotationFamilies = Array.from(rotationFamilyStats.entries())
         .map(([family, value]) => {
-        const credited = Array.from(value.laneMinutes.values()).reduce((sum, laneValue) => sum + laneValue, 0);
+        const termBuckets = Array.from(value.termBuckets.values())
+            .map((bucket) => ({
+            termRank: bucket.termRank,
+            termLabel: bucket.termLabel,
+            termGroupId: bucket.termGroupId,
+            termCount: bucket.termCount,
+            creditedMinutes: Array.from(bucket.laneMinutesByUnit.values()).reduce((sum, laneValue) => sum + laneValue, 0),
+            unitCount: bucket.laneMinutesByUnit.size,
+            subjectCodes: Array.from(bucket.subjectCodes).sort((left, right) => left.localeCompare(right)),
+            subjectIds: Array.from(bucket.subjectIds).sort((left, right) => left - right),
+        }))
+            .sort((left, right) => {
+            const leftRank = normalizeRotationTermLaneKey(left.termRank);
+            const rightRank = normalizeRotationTermLaneKey(right.termRank);
+            if (leftRank !== rightRank) {
+                return leftRank - rightRank;
+            }
+            if (right.creditedMinutes !== left.creditedMinutes) {
+                return right.creditedMinutes - left.creditedMinutes;
+            }
+            return (left.termLabel ?? '').localeCompare(right.termLabel ?? '');
+        });
+        const credited = termBuckets.reduce((sum, bucket) => sum + bucket.creditedMinutes, 0);
+        const dominantTermBucket = resolveDominantRotationBucket(termBuckets);
+        const allSubjectCodes = new Set();
+        const allSubjectIds = new Set();
+        for (const bucket of termBuckets) {
+            for (const code of bucket.subjectCodes) {
+                allSubjectCodes.add(code);
+            }
+            for (const id of bucket.subjectIds) {
+                allSubjectIds.add(id);
+            }
+        }
         return {
             family,
             rawMinutes: value.rawMinutes,
             creditedMinutes: credited,
             overcountMinutes: Math.max(0, value.rawMinutes - credited),
-            unitCount: value.laneMinutes.size,
-            subjectCodes: Array.from(value.subjectCodes).sort((left, right) => left.localeCompare(right)),
-            subjectIds: Array.from(value.subjectIds).sort((left, right) => left - right),
+            unitCount: termBuckets.reduce((sum, bucket) => sum + bucket.unitCount, 0),
+            dominantTermRank: dominantTermBucket?.termRank ?? null,
+            dominantTermLabel: dominantTermBucket?.termLabel ?? null,
+            termGroupId: dominantTermBucket?.termGroupId ?? null,
+            termCount: dominantTermBucket?.termCount ?? null,
+            termBuckets,
+            subjectCodes: Array.from(allSubjectCodes).sort((left, right) => left.localeCompare(right)),
+            subjectIds: Array.from(allSubjectIds).sort((left, right) => left - right),
         };
     })
         .sort((left, right) => {
@@ -326,6 +419,9 @@ export async function getSectionAssignedClassesIndex(schoolId, schoolYearId, aut
             name: true,
             outputLabel: true,
             modularGroupId: true,
+            modularOrder: true,
+            termGroupId: true,
+            termCount: true,
             minMinutesPerWeek: true,
             rotationFamily: true,
             gradeLevels: true,
@@ -434,6 +530,16 @@ export async function getSectionAssignedClassesIndex(schoolId, schoolYearId, aut
         if (!classes) {
             continue;
         }
+        const rotationFamily = normalizeRotationFamily(subject.rotationFamily) ??
+            normalizeRotationFamily(resolveSubjectRotationFamily(subject.code, subject.modularGroupId ?? null));
+        const rotationTermMetadata = resolveRotationTermMetadata({
+            subjectCode: subject.code,
+            rotationFamily,
+            modularGroupId: subject.modularGroupId ?? null,
+            modularOrder: subject.modularOrder ?? null,
+            termGroupId: subject.termGroupId ?? null,
+            termCount: subject.termCount ?? null,
+        });
         classes.push({
             subjectId: subject.id,
             subjectCode: subject.code,
@@ -441,8 +547,11 @@ export async function getSectionAssignedClassesIndex(schoolId, schoolYearId, aut
             subjectDisplayLabel: subject.outputLabel?.trim() ||
                 resolveSubjectOutputLabel(subject.code, subject.name, subject.modularGroupId ?? null),
             minMinutesPerWeek: subject.minMinutesPerWeek,
-            rotationFamily: normalizeRotationFamily(subject.rotationFamily) ??
-                normalizeRotationFamily(resolveSubjectRotationFamily(subject.code, subject.modularGroupId ?? null)),
+            rotationFamily,
+            rotationTermRank: rotationTermMetadata.termRank,
+            rotationTermLabel: rotationTermMetadata.termLabel,
+            rotationTermGroupId: rotationTermMetadata.termGroupId,
+            rotationTermCount: rotationTermMetadata.termCount,
             facultyId: faculty.id,
             facultyName: formatFacultyName(faculty.firstName, faculty.lastName),
             facultyDepartment: faculty.department,
@@ -467,14 +576,31 @@ export async function getSectionAssignedClassesIndex(schoolId, schoolYearId, aut
             .map((subjectId) => subjectById.get(subjectId))
             .filter((subject) => subject != null)
             .map((subject) => ({
+            ...(function resolveUnassignedMetadata() {
+                const rotationFamily = normalizeRotationFamily(subject.rotationFamily) ??
+                    normalizeRotationFamily(resolveSubjectRotationFamily(subject.code, subject.modularGroupId ?? null));
+                const termMetadata = resolveRotationTermMetadata({
+                    subjectCode: subject.code,
+                    rotationFamily,
+                    modularGroupId: subject.modularGroupId ?? null,
+                    modularOrder: subject.modularOrder ?? null,
+                    termGroupId: subject.termGroupId ?? null,
+                    termCount: subject.termCount ?? null,
+                });
+                return {
+                    rotationFamily,
+                    rotationTermRank: termMetadata.termRank,
+                    rotationTermLabel: termMetadata.termLabel,
+                    rotationTermGroupId: termMetadata.termGroupId,
+                    rotationTermCount: termMetadata.termCount,
+                };
+            })(),
             subjectId: subject.id,
             subjectCode: subject.code,
             subjectName: subject.name,
             subjectDisplayLabel: subject.outputLabel?.trim() ||
                 resolveSubjectOutputLabel(subject.code, subject.name, subject.modularGroupId ?? null),
             minMinutesPerWeek: subject.minMinutesPerWeek,
-            rotationFamily: normalizeRotationFamily(subject.rotationFamily) ??
-                normalizeRotationFamily(resolveSubjectRotationFamily(subject.code, subject.modularGroupId ?? null)),
         }))
             .sort((left, right) => left.subjectCode.localeCompare(right.subjectCode));
         const totals = {
@@ -750,6 +876,10 @@ export async function previewOrApplyRealFacultyRecovery(input) {
                 name: true,
                 ownerDepartment: true,
                 requiredFeatures: true,
+                modularGroupId: true,
+                modularOrder: true,
+                termGroupId: true,
+                termCount: true,
                 rotationFamily: true,
                 minMinutesPerWeek: true,
                 allowedSpecializations: true,
@@ -793,6 +923,10 @@ export async function previewOrApplyRealFacultyRecovery(input) {
                                 select: {
                                     id: true,
                                     code: true,
+                                    modularGroupId: true,
+                                    modularOrder: true,
+                                    termGroupId: true,
+                                    termCount: true,
                                     rotationFamily: true,
                                     minMinutesPerWeek: true,
                                 },
@@ -815,11 +949,23 @@ export async function previewOrApplyRealFacultyRecovery(input) {
         const family = resolveLoadRotationFamily({
             id: row.facultySubject.subject.id,
             code: row.facultySubject.subject.code,
+            modularGroupId: row.facultySubject.subject.modularGroupId,
+            modularOrder: row.facultySubject.subject.modularOrder,
+            termGroupId: row.facultySubject.subject.termGroupId,
+            termCount: row.facultySubject.subject.termCount,
             rotationFamily: row.facultySubject.subject.rotationFamily,
             minMinutesPerWeek: perUnitMinutes,
         });
+        const termMetadata = resolveRotationTermMetadata({
+            subjectCode: row.facultySubject.subject.code,
+            rotationFamily: family,
+            modularGroupId: row.facultySubject.subject.modularGroupId,
+            modularOrder: row.facultySubject.subject.modularOrder,
+            termGroupId: row.facultySubject.subject.termGroupId,
+            termCount: row.facultySubject.subject.termCount,
+        });
         const laneKey = family
-            ? `family:${family}:${row.sectionId}`
+            ? buildRotationConcurrentLaneId(family, termMetadata.termRank, row.sectionId)
             : `subject:${row.facultySubject.subject.id}:${row.sectionId}`;
         const lanes = lanesByFaculty.get(row.facultyId) ?? new Map();
         const currentLaneMinutes = lanes.get(laneKey) ?? 0;
@@ -922,11 +1068,23 @@ export async function previewOrApplyRealFacultyRecovery(input) {
         const family = resolveLoadRotationFamily({
             id: subject.id,
             code: subject.code,
+            modularGroupId: subject.modularGroupId,
+            modularOrder: subject.modularOrder,
+            termGroupId: subject.termGroupId,
+            termCount: subject.termCount,
             rotationFamily: subject.rotationFamily,
             minMinutesPerWeek: subject.minMinutesPerWeek,
         });
+        const termMetadata = resolveRotationTermMetadata({
+            subjectCode: subject.code,
+            rotationFamily: family,
+            modularGroupId: subject.modularGroupId,
+            modularOrder: subject.modularOrder,
+            termGroupId: subject.termGroupId,
+            termCount: subject.termCount,
+        });
         const laneKey = family
-            ? `family:${family}:${pair.sectionId}`
+            ? buildRotationConcurrentLaneId(family, termMetadata.termRank, pair.sectionId)
             : `subject:${subject.id}:${pair.sectionId}`;
         const perUnitMinutes = Math.max(0, Number(subject.minMinutesPerWeek) || 0);
         let selectedCandidate = null;
@@ -1947,9 +2105,17 @@ function buildAssignmentLaneImpactByPair(assignments) {
     for (const assignment of orderedAssignments) {
         const minutes = Math.max(0, Number(assignment.subject.minMinutesPerWeek) || 0);
         const family = resolveLoadRotationFamily(assignment.subject);
+        const termMetadata = resolveRotationTermMetadata({
+            subjectCode: assignment.subject.code,
+            rotationFamily: family,
+            modularGroupId: assignment.subject.modularGroupId ?? null,
+            modularOrder: assignment.subject.modularOrder ?? null,
+            termGroupId: assignment.subject.termGroupId ?? null,
+            termCount: assignment.subject.termCount ?? null,
+        });
         for (const sectionId of [...assignment.sectionIds].sort((left, right) => left - right)) {
             const laneId = family
-                ? `family:${family}:${sectionId}`
+                ? buildRotationConcurrentLaneId(family, termMetadata.termRank, sectionId)
                 : `subject:${assignment.subjectId}:${sectionId}`;
             const creditedSoFar = laneCredits.get(laneId) ?? 0;
             const concurrentDeltaMinutesPerWeek = Math.max(0, minutes - creditedSoFar);
@@ -1959,6 +2125,10 @@ function buildAssignmentLaneImpactByPair(assignments) {
             impactByPair.set(`${assignment.subjectId}:${sectionId}`, {
                 rotationFamily: family,
                 rotationLaneId: laneId,
+                rotationTermRank: termMetadata.termRank,
+                rotationTermLabel: termMetadata.termLabel,
+                rotationTermGroupId: termMetadata.termGroupId,
+                rotationTermCount: termMetadata.termCount,
                 rawMinutesPerWeek: minutes,
                 concurrentDeltaMinutesPerWeek,
                 expandsConcurrentDemand: concurrentDeltaMinutesPerWeek > 0,
@@ -1977,6 +2147,10 @@ function attachSectionSpecializationMetadata(sections, specializationBySectionId
             assignmentSpecializationLabel: specialization?.specializationLabel ?? null,
             assignmentRotationFamily: laneImpact?.rotationFamily ?? null,
             assignmentRotationLaneId: laneImpact?.rotationLaneId ?? null,
+            assignmentRotationTermRank: laneImpact?.rotationTermRank ?? null,
+            assignmentRotationTermLabel: laneImpact?.rotationTermLabel ?? null,
+            assignmentRotationTermGroupId: laneImpact?.rotationTermGroupId ?? null,
+            assignmentRotationTermCount: laneImpact?.rotationTermCount ?? null,
             assignmentRawMinutesPerWeek: laneImpact?.rawMinutesPerWeek ?? null,
             assignmentConcurrentDeltaMinutesPerWeek: laneImpact?.concurrentDeltaMinutesPerWeek ?? null,
             assignmentExpandsConcurrentDemand: laneImpact?.expandsConcurrentDemand ?? null,
@@ -2067,7 +2241,19 @@ export async function getAssignmentsByFaculty(facultyId, schoolYearId, authToken
     const assignments = await prisma.facultySubject.findMany({
         where: { facultyId },
         include: {
-            subject: { select: { id: true, name: true, code: true, minMinutesPerWeek: true, rotationFamily: true } },
+            subject: {
+                select: {
+                    id: true,
+                    name: true,
+                    code: true,
+                    modularGroupId: true,
+                    modularOrder: true,
+                    termGroupId: true,
+                    termCount: true,
+                    minMinutesPerWeek: true,
+                    rotationFamily: true,
+                },
+            },
         },
         orderBy: { subject: { name: 'asc' } },
     });
@@ -2137,13 +2323,30 @@ export async function getAssignmentsByFaculty(facultyId, schoolYearId, authToken
                 specializationBySectionId: specializationByFacultySubjectId.get(assignment.id),
                 laneImpactBySectionId: new Map(ownedCurrentYearSectionIds.map((sectionId) => [
                     sectionId,
-                    laneImpactByPair.get(`${assignment.subjectId}:${sectionId}`) ?? {
-                        rotationFamily: resolveLoadRotationFamily(assignment.subject),
-                        rotationLaneId: `subject:${assignment.subjectId}:${sectionId}`,
-                        rawMinutesPerWeek: Math.max(0, Number(assignment.subject.minMinutesPerWeek) || 0),
-                        concurrentDeltaMinutesPerWeek: Math.max(0, Number(assignment.subject.minMinutesPerWeek) || 0),
-                        expandsConcurrentDemand: true,
-                    },
+                    laneImpactByPair.get(`${assignment.subjectId}:${sectionId}`) ?? (() => {
+                        const fallbackFamily = resolveLoadRotationFamily(assignment.subject);
+                        const fallbackTermMetadata = resolveRotationTermMetadata({
+                            subjectCode: assignment.subject.code,
+                            rotationFamily: fallbackFamily,
+                            modularGroupId: assignment.subject.modularGroupId,
+                            modularOrder: assignment.subject.modularOrder,
+                            termGroupId: assignment.subject.termGroupId,
+                            termCount: assignment.subject.termCount,
+                        });
+                        return {
+                            rotationFamily: fallbackFamily,
+                            rotationLaneId: fallbackFamily
+                                ? buildRotationConcurrentLaneId(fallbackFamily, fallbackTermMetadata.termRank, sectionId)
+                                : `subject:${assignment.subjectId}:${sectionId}`,
+                            rotationTermRank: fallbackTermMetadata.termRank,
+                            rotationTermLabel: fallbackTermMetadata.termLabel,
+                            rotationTermGroupId: fallbackTermMetadata.termGroupId,
+                            rotationTermCount: fallbackTermMetadata.termCount,
+                            rawMinutesPerWeek: Math.max(0, Number(assignment.subject.minMinutesPerWeek) || 0),
+                            concurrentDeltaMinutesPerWeek: Math.max(0, Number(assignment.subject.minMinutesPerWeek) || 0),
+                            expandsConcurrentDemand: true,
+                        };
+                    })(),
                 ])),
             });
         }),
@@ -2405,6 +2608,10 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
                                 id: true,
                                 name: true,
                                 code: true,
+                                modularGroupId: true,
+                                modularOrder: true,
+                                termGroupId: true,
+                                termCount: true,
                                 minMinutesPerWeek: true,
                                 rotationFamily: true,
                             },
@@ -2691,13 +2898,30 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
                 specializationBySectionId: specializationByFacultySubjectId.get(assignment.id),
                 laneImpactBySectionId: new Map(ownedCurrentYearSectionIds.map((sectionId) => [
                     sectionId,
-                    laneImpactByPair.get(`${assignment.subjectId}:${sectionId}`) ?? {
-                        rotationFamily: resolveLoadRotationFamily(assignment.subject),
-                        rotationLaneId: `subject:${assignment.subjectId}:${sectionId}`,
-                        rawMinutesPerWeek: Math.max(0, Number(assignment.subject.minMinutesPerWeek) || 0),
-                        concurrentDeltaMinutesPerWeek: Math.max(0, Number(assignment.subject.minMinutesPerWeek) || 0),
-                        expandsConcurrentDemand: true,
-                    },
+                    laneImpactByPair.get(`${assignment.subjectId}:${sectionId}`) ?? (() => {
+                        const fallbackFamily = resolveLoadRotationFamily(assignment.subject);
+                        const fallbackTermMetadata = resolveRotationTermMetadata({
+                            subjectCode: assignment.subject.code,
+                            rotationFamily: fallbackFamily,
+                            modularGroupId: assignment.subject.modularGroupId,
+                            modularOrder: assignment.subject.modularOrder,
+                            termGroupId: assignment.subject.termGroupId,
+                            termCount: assignment.subject.termCount,
+                        });
+                        return {
+                            rotationFamily: fallbackFamily,
+                            rotationLaneId: fallbackFamily
+                                ? buildRotationConcurrentLaneId(fallbackFamily, fallbackTermMetadata.termRank, sectionId)
+                                : `subject:${assignment.subjectId}:${sectionId}`,
+                            rotationTermRank: fallbackTermMetadata.termRank,
+                            rotationTermLabel: fallbackTermMetadata.termLabel,
+                            rotationTermGroupId: fallbackTermMetadata.termGroupId,
+                            rotationTermCount: fallbackTermMetadata.termCount,
+                            rawMinutesPerWeek: Math.max(0, Number(assignment.subject.minMinutesPerWeek) || 0),
+                            concurrentDeltaMinutesPerWeek: Math.max(0, Number(assignment.subject.minMinutesPerWeek) || 0),
+                            expandsConcurrentDemand: true,
+                        };
+                    })(),
                 ])),
             });
         });
@@ -2756,6 +2980,20 @@ export async function getAssignmentSummary(schoolId, schoolYearId, authToken) {
                 creditedHours: roundHours(family.creditedMinutes),
                 overcountHours: roundHours(family.overcountMinutes),
                 unitCount: family.unitCount,
+                dominantTermRank: family.dominantTermRank,
+                dominantTermLabel: family.dominantTermLabel,
+                termGroupId: family.termGroupId,
+                termCount: family.termCount,
+                termBuckets: family.termBuckets.map((bucket) => ({
+                    termRank: bucket.termRank,
+                    termLabel: bucket.termLabel,
+                    termGroupId: bucket.termGroupId,
+                    termCount: bucket.termCount,
+                    creditedHours: roundHours(bucket.creditedMinutes),
+                    unitCount: bucket.unitCount,
+                    subjectCodes: bucket.subjectCodes,
+                    subjectIds: bucket.subjectIds,
+                })),
                 subjectCodes: family.subjectCodes,
                 subjectIds: family.subjectIds,
             })),

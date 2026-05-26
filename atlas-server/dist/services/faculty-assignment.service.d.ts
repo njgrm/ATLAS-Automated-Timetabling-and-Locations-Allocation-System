@@ -13,6 +13,10 @@ type AssignmentLoadShape = {
         id?: number;
         code?: string | null;
         rotationFamily?: string | null;
+        modularGroupId?: string | null;
+        modularOrder?: number | null;
+        termGroupId?: string | null;
+        termCount?: number | null;
         minMinutesPerWeek: number;
     };
     sectionIds: number[];
@@ -26,6 +30,20 @@ export type RotationFamilyLoadDetail = {
     unitCount: number;
     subjectCodes: string[];
     subjectIds: number[];
+    dominantTermRank?: number | null;
+    dominantTermLabel?: string | null;
+    termGroupId?: string | null;
+    termCount?: number | null;
+    termBuckets?: Array<{
+        termRank: number | null;
+        termLabel: string | null;
+        termGroupId: string | null;
+        termCount: number | null;
+        creditedHours: number;
+        unitCount: number;
+        subjectCodes: string[];
+        subjectIds: number[];
+    }>;
 };
 export type TeachingLoadFormula = 'section' | 'grade';
 export type DuplicateOwnershipInput = {
@@ -303,6 +321,10 @@ export interface SectionAssignedClassRow {
     subjectDisplayLabel: string;
     minMinutesPerWeek: number;
     rotationFamily: string | null;
+    rotationTermRank: number | null;
+    rotationTermLabel: string | null;
+    rotationTermGroupId: string | null;
+    rotationTermCount: number | null;
     facultyId: number;
     facultyName: string;
     facultyDepartment: string | null;
@@ -327,6 +349,10 @@ export interface SectionUnassignedExpectedClassRow {
     subjectDisplayLabel: string;
     minMinutesPerWeek: number;
     rotationFamily: string | null;
+    rotationTermRank: number | null;
+    rotationTermLabel: string | null;
+    rotationTermGroupId: string | null;
+    rotationTermCount: number | null;
 }
 export interface SectionAssignedClassesTotals {
     assignedClassCount: number;
@@ -480,6 +506,10 @@ export declare function getAssignmentsByFaculty(facultyId: number, schoolYearId:
             assignmentSpecializationLabel: string | null;
             assignmentRotationFamily: string | null;
             assignmentRotationLaneId: string | null;
+            assignmentRotationTermRank: number | null;
+            assignmentRotationTermLabel: string | null;
+            assignmentRotationTermGroupId: string | null;
+            assignmentRotationTermCount: number | null;
             assignmentRawMinutesPerWeek: number | null;
             assignmentConcurrentDeltaMinutesPerWeek: number | null;
             assignmentExpandsConcurrentDemand: boolean | null;
@@ -502,6 +532,10 @@ export declare function getAssignmentsByFaculty(facultyId: number, schoolYearId:
             id: number;
             name: string;
             code: string;
+            modularGroupId?: string | null;
+            modularOrder?: number | null;
+            termGroupId?: string | null;
+            termCount?: number | null;
             minMinutesPerWeek: number;
             rotationFamily?: string | null;
         };
@@ -554,6 +588,10 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
                 assignmentSpecializationLabel: string | null;
                 assignmentRotationFamily: string | null;
                 assignmentRotationLaneId: string | null;
+                assignmentRotationTermRank: number | null;
+                assignmentRotationTermLabel: string | null;
+                assignmentRotationTermGroupId: string | null;
+                assignmentRotationTermCount: number | null;
                 assignmentRawMinutesPerWeek: number | null;
                 assignmentConcurrentDeltaMinutesPerWeek: number | null;
                 assignmentExpandsConcurrentDemand: boolean | null;
@@ -576,6 +614,10 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
                 id: number;
                 name: string;
                 code: string;
+                modularGroupId?: string | null;
+                modularOrder?: number | null;
+                termGroupId?: string | null;
+                termCount?: number | null;
                 minMinutesPerWeek: number;
                 rotationFamily?: string | null;
             };

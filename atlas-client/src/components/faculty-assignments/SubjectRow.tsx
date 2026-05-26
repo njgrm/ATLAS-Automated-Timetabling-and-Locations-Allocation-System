@@ -55,6 +55,33 @@ const GRADE_TINTS: Record<string, string> = {
 	'10': 'bg-blue-500/5 border-blue-200/50',
 };
 
+function resolveRotationTermRank(subject: Pick<Subject, 'rotationTermRank' | 'modularOrder'>): number {
+	if (typeof subject.rotationTermRank === 'number' && Number.isInteger(subject.rotationTermRank) && subject.rotationTermRank > 0) {
+		return subject.rotationTermRank;
+	}
+	if (typeof subject.modularOrder === 'number' && Number.isInteger(subject.modularOrder) && subject.modularOrder > 0) {
+		return subject.modularOrder;
+	}
+	return 0;
+}
+
+function resolveRotationTermLabel(subject: Pick<Subject, 'rotationTermLabel' | 'rotationTermRank' | 'modularOrder'>): string | null {
+	const explicitLabel = (subject.rotationTermLabel ?? '').trim();
+	if (explicitLabel.length > 0) {
+		return explicitLabel;
+	}
+	const termRank = resolveRotationTermRank(subject);
+	return termRank > 0 ? `Term ${termRank}` : null;
+}
+
+function resolveRotationLaneKey(subject: Pick<Subject, 'rotationFamily' | 'rotationTermRank' | 'modularOrder'>): string | null {
+	const family = (subject.rotationFamily ?? '').trim().toUpperCase();
+	if (family.length === 0) {
+		return null;
+	}
+	return `${family}:term:${resolveRotationTermRank(subject)}`;
+}
+
 export function SubjectRow({
 	subject,
 	assignment,
@@ -227,8 +254,9 @@ export function SubjectRow({
 		onSetSections(subject.id, [...selectedSectionIds, sectionId]);
 	};
 
-	const isRotationFamily = Boolean(subject.rotationFamily);
-	const laneName = subject.rotationFamily === 'SCIENCE' ? 'Science Rotating Lane' : 'TLE Rotating Lane';
+	const rotationLaneKey = resolveRotationLaneKey(subject);
+	const rotationTermLabel = resolveRotationTermLabel(subject);
+	const isRotationFamily = Boolean(rotationLaneKey);
 
 	// HG system-assignment detection
 	const isHgSubject = subject.code === 'HG' || subject.name.toLowerCase().includes('homeroom');
@@ -253,18 +281,23 @@ export function SubjectRow({
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<Badge variant="outline" className="text-[10px] font-bold bg-violet-50 text-violet-700 border-violet-200 uppercase tracking-tight h-4 px-1.5 shadow-none cursor-help">
-											Rotating Weekly Lane
+											Rotating Term Lane
 										</Badge>
 									</TooltipTrigger>
 									<TooltipContent side="top" className="text-xs font-bold max-w-[280px] p-3">
-										<p className="mb-1">Shared Weekly Slot</p>
+										<p className="mb-1">Term-Scoped Weekly Slot</p>
 										<p className="text-muted-foreground leading-relaxed font-medium">
-											Sections in this Science/TLE family share a single weekly classroom slot across different terms. 
+											Only classes in the same rotation family and term share a single weekly classroom lane.
 											<br/><br/>
-											<span className="text-foreground">Assigning the same section across terms DOES NOT increase classroom teaching time.</span>
+											<span className="text-foreground">Same-section classes in different terms are counted separately.</span>
 										</p>
 									</TooltipContent>
 								</Tooltip>
+							)}
+							{isRotationFamily && rotationTermLabel && (
+								<Badge variant="outline" className="text-[10px] font-bold bg-violet-100 text-violet-900 border-violet-300 uppercase tracking-tight h-4 px-1.5 shadow-none">
+									{rotationTermLabel}
+								</Badge>
 							)}
 							{isSpecializationSlot && (
 								<Badge variant="outline" className="text-[10px] font-bold bg-sky-50 text-sky-700 border-sky-200 uppercase tracking-tight h-4 px-1.5 shadow-none">Requires Specialization</Badge>
@@ -415,8 +448,8 @@ export function SubjectRow({
 
 														const isLaneSharedAcrossSubjects = Boolean(
 															!isSelected && 
-															subject.rotationFamily && 
-															assignedRotationLanes.get(subject.rotationFamily)?.has(section.id)
+															rotationLaneKey && 
+															assignedRotationLanes.get(rotationLaneKey)?.has(section.id)
 														);
 
 														const requiredSpec = section.assignmentSpecializationCode;
@@ -480,8 +513,8 @@ export function SubjectRow({
 																					<p className="mb-1">Rotating Weekly Lane</p>
 																					<p className="text-muted-foreground font-medium leading-tight">
 																						{isLaneSharedAcrossSubjects 
-																							? 'Same section lane across terms. Counts as shared rotation time (0h added).' 
-																							: 'New weekly lane. This will increase concurrent weekly load.'}
+																							? 'Same section already assigned in this term lane. Adds 0h concurrent load.' 
+																							: 'New term lane for this section. Increases concurrent weekly load.'}
 																					</p>
 																				</TooltipContent>
 																			</Tooltip>

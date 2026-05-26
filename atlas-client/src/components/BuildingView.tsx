@@ -99,28 +99,24 @@ type BuildingViewProps = {
 	onRoomSelect?: (room: Room | null) => void;
 	/** Room utilization data: Map of roomId → percentage (0-100) */
 	roomUtilization?: Map<number, number>;
+	/** Room occupancy data: Map of roomId → sectionName */
+	roomOccupancy?: Map<number, string>;
 };
 
-export function BuildingView({ building, height: fixedHeight = 400, showToolbar = true, selectedRoomId, onRoomSelect, roomUtilization }: BuildingViewProps) {
+export function BuildingView({ 
+	building, 
+	height: fixedHeight = 400, 
+	showToolbar = true, 
+	selectedRoomId, 
+	onRoomSelect, 
+	roomUtilization,
+	roomOccupancy
+}: BuildingViewProps) {
 	const [hoveredRoomId, setHoveredRoomId] = useState<number | null>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [containerW, setContainerW] = useState(600);
 	const [scale, setScale] = useState(1);
 	const [pos, setPos] = useState({ x: 0, y: 0 });
-
-	// Responsive width
-	useEffect(() => {
-		const el = containerRef.current;
-		if (!el) return;
-		const obs = new ResizeObserver((entries) => {
-			const w = entries[0]?.contentRect.width;
-			if (w) setContainerW(Math.floor(w));
-		});
-		obs.observe(el);
-		return () => obs.disconnect();
-	}, []);
-
-	const canvasH = fixedHeight;
 
 	// Floor data (ascending: ground → top)
 	const floorMap = useMemo(() => {
@@ -152,26 +148,47 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 	const floorTotalH = ROOM_H + FLOOR_PAD_Y * 2;
 	const buildingContentH = ROOF_H + floorsAsc.length * floorTotalH + (floorsAsc.length - 1) * FLOOR_GAP;
 
+	const calculateCenter = useCallback((w: number, h: number, s: number) => {
+		return {
+			x: (w - buildingContentW * s) / 2,
+			y: (h - buildingContentH * s) / 2
+		};
+	}, [buildingContentW, buildingContentH]);
+
+	// Responsive width
+	useEffect(() => {
+		const el = containerRef.current;
+		if (!el) return;
+		const obs = new ResizeObserver((entries) => {
+			const w = entries[0]?.contentRect.width;
+			if (w) {
+				setContainerW(Math.floor(w));
+				// Re-center on width change if we already have a scale
+				setPos(p => calculateCenter(w, fixedHeight, scale));
+			}
+		});
+		obs.observe(el);
+		return () => obs.disconnect();
+	}, [fixedHeight, scale, calculateCenter]);
+
 	// Auto-fit scale on mount / building change
 	useEffect(() => {
-		const sx = (containerW - 16) / buildingContentW;
-		const sy = (canvasH - 16) / buildingContentH;
-		const fitScale = Math.min(sx, sy, 1.4);
-		setScale(Math.max(0.3, fitScale));
-		// Center the building
-		const scaledW = buildingContentW * fitScale;
-		const scaledH = buildingContentH * fitScale;
-		setPos({ x: (containerW - scaledW) / 2, y: (canvasH - scaledH) / 2 });
-	}, [containerW, canvasH, buildingContentW, buildingContentH]);
-
-	const resetView = useCallback(() => {
-		const sx = (containerW - 16) / buildingContentW;
-		const sy = (canvasH - 16) / buildingContentH;
+		const sx = (containerW - 32) / buildingContentW;
+		const sy = (fixedHeight - 32) / buildingContentH;
 		const fitScale = Math.min(sx, sy, 1.4);
 		const s = Math.max(0.3, fitScale);
 		setScale(s);
-		setPos({ x: (containerW - buildingContentW * s) / 2, y: (canvasH - buildingContentH * s) / 2 });
-	}, [containerW, canvasH, buildingContentW, buildingContentH]);
+		setPos(calculateCenter(containerW, fixedHeight, s));
+	}, [containerW, fixedHeight, buildingContentW, buildingContentH, calculateCenter, building.id]);
+
+	const resetView = useCallback(() => {
+		const sx = (containerW - 32) / buildingContentW;
+		const sy = (fixedHeight - 32) / buildingContentH;
+		const fitScale = Math.min(sx, sy, 1.4);
+		const s = Math.max(0.3, fitScale);
+		setScale(s);
+		setPos(calculateCenter(containerW, fixedHeight, s));
+	}, [containerW, fixedHeight, buildingContentW, buildingContentH, calculateCenter]);
 
 	if (building.rooms.length === 0) {
 		return (
@@ -222,6 +239,7 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 					const colors = ROOM_FILLS[room.type] ?? ROOM_FILLS.OTHER;
 					const roomX = FLOOR_LABEL_W + FLOOR_PAD_X + ri * (ROOM_MIN_W + ROOM_GAP);
 					const utilization = roomUtilization?.get(room.id) ?? 0;
+					const occupancy = roomOccupancy?.get(room.id);
 					const roomY = FLOOR_PAD_Y;
 					const isHovered = hoveredRoomId === room.id;
 					const isInspected = selectedRoomId === room.id;
@@ -261,7 +279,7 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 							{/* Room type label */}
 							<Text
 								x={4}
-								y={20}
+								y={18}
 								width={ROOM_MIN_W - 8}
 								text={ROOM_TYPE_LABELS[room.type]}
 								fontSize={8}
@@ -269,22 +287,44 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 								wrap="none"
 								ellipsis
 							/>
-							{/* Capacity indicator */}
-							{room.capacity != null && (
+							
+							{/* Occupancy Section - Home Room marker */}
+							{occupancy ? (
+								<Group x={4} y={32}>
+									<Rect 
+										width={ROOM_MIN_W - UTILIZATION_BAR_W - 12} 
+										height={14} 
+										fill={isInspected ? "rgba(255,255,255,0.2)" : "rgba(16,185,129,0.1)"} 
+										cornerRadius={2}
+									/>
+									<Text
+										x={2}
+										y={3}
+										width={ROOM_MIN_W - UTILIZATION_BAR_W - 16}
+										text={occupancy}
+										fontSize={8}
+										fontStyle="bold"
+										fill={isInspected ? colors.text : "#059669"}
+										wrap="none"
+										ellipsis
+									/>
+								</Group>
+							) : room.capacity != null ? (
 								<Text
 									x={4}
-									y={34}
+									y={32}
 									width={ROOM_MIN_W - 8}
 									text={`Cap: ${room.capacity}`}
 									fontSize={8}
 									fill="#9ca3af"
 								/>
-							)}
+							) : null}
+
 							{/* Non-teaching indicator */}
 							{!room.isTeachingSpace && (
 								<Text
 									x={4}
-									y={room.capacity != null ? 46 : 34}
+									y={46}
 									width={ROOM_MIN_W - 8}
 									text="Non-teaching"
 									fontSize={7}
@@ -292,6 +332,7 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 									fontStyle="italic"
 								/>
 							)}
+
 							{/* Utilization bar background */}
 							<Rect
 								x={ROOM_MIN_W - UTILIZATION_BAR_W - 4}
@@ -368,7 +409,7 @@ export function BuildingView({ building, height: fixedHeight = 400, showToolbar 
 			<div ref={containerRef} className="overflow-hidden rounded-md border border-border bg-slate-50">
 				<Stage
 					width={containerW}
-					height={canvasH}
+					height={fixedHeight}
 					draggable
 					x={pos.x}
 					y={pos.y}

@@ -398,6 +398,67 @@ At minimum, Gemini should verify:
 - disabled or error state when relevant
 
 If Gemini claims `GO`, the claim must match what was actually verified.
+
+### Mandatory live workflow verification for feature work
+
+For any feature-changing pass, Gemini must verify the real feature path, not just the code shape or build.
+
+That means:
+
+1. identify the exact user path that should trigger the feature
+2. execute that path on the primary Tailnet environment whenever feasible
+3. confirm the expected UI state appears
+4. confirm the expected persisted result or API-side result appears
+
+Examples:
+
+- if Gemini adds a confirmation modal, it must prove the modal actually opens from the real trigger path
+- if Gemini adds a save flow, it must prove the saved result persists and is reflected after reload or re-fetch
+- if Gemini adds a source-state fix, it must prove the state after real route re-entry, not just after a browser `online` event
+
+Build success alone is never enough for a feature `GO`.
+
+### Mandatory fix-and-retest loop
+
+If live or runtime validation shows that the feature still does not do the thing it was supposed to do, Gemini must not stop at the first implementation attempt.
+
+Gemini must:
+
+1. inspect the failure cause
+2. patch the code
+3. rerun the validation
+4. repeat until the feature works or a precise blocker is proven
+
+Do not hand back a half-working feature with a `GO` verdict.
+
+### Mandatory evidence log update
+
+For every non-trivial implementation pass, Gemini must append a dated entry to:
+
+- `docs/verification/evidence-log.md`
+
+The entry must include:
+
+- scope
+- files changed
+- commands run
+- live/Tailnet verification performed
+- exact observed outcomes
+- final verdict: `GO` or `NO-GO`
+
+If Gemini could not perform the required live verification, it must say so in the evidence log and default to `NO-GO` unless the user explicitly accepted a narrower proof standard.
+
+### Mandatory reuse check before inventing parallel UI
+
+Before creating a new room view, schedule view, building view, or similar workflow surface, Gemini must search the repo for an existing ATLAS component that already serves that purpose.
+
+If a suitable component already exists:
+
+- reuse it
+- adapt it narrowly
+- do not create a parallel custom version unless there is a concrete blocker
+
+If Gemini chooses not to reuse an existing component, it must state the blocker explicitly in its final output.
 Do not declare live `GO` from local-only code inspection.
 Do not treat a successful Vite bundle as proof that the touched files are type-safe if repository or project-level type checking says otherwise.
 

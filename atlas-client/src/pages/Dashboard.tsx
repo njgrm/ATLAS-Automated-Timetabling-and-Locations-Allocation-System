@@ -93,6 +93,7 @@ export default function Dashboard() {
 	const [buildingFocus, setBuildingFocus] = useState(false);
 	const [hoveredBuildingId, setHoveredBuildingId] = useState<number | null>(null);
 	const [inspectedRoom, setInspectedRoom] = useState<Room | null>(null);
+	const [allSections, setAllSections] = useState<any[]>([]);
 
 	/* ── Room schedule overlay state ── */
 	const [overlayRoom, setOverlayRoom] = useState<{ id: number; name: string; schedule: RoomScheduleView | null } | null>(null);
@@ -142,9 +143,14 @@ export default function Dashboard() {
 					.then((context) => {
 						setDataSource(context.source === 'enrollpro' || context.source === 'enrollpro-verified' ? 'live' : 'cached');
 						if (!context.activeSchoolYearId) { setSectionCount(null); return; }
-						return atlasApi.get<{ totalSections: number }>(`/sections/summary/${context.activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`);
+						return atlasApi.get<{ totalSections: number; sections: any[] }>(`/sections/summary/${context.activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`);
 					})
-					.then((r) => { if (r) setSectionCount(r.data.totalSections); })
+					.then((r) => { 
+						if (r) {
+							setSectionCount(r.data.totalSections);
+							setAllSections(r.data.sections ?? []);
+						}
+					})
 					.catch(() => setSectionCount(null));
 			})
 			.catch(() => {
@@ -275,6 +281,15 @@ export default function Dashboard() {
 		});
 		return map;
 	}, [roomUtilMap]);
+
+	/* ── Room occupancy map for BuildingView ── */
+	const buildingRoomOccupancy = useMemo(() => {
+		const map = new Map<number, string>();
+		allSections.forEach((s) => {
+			if (s.homeRoomId) map.set(s.homeRoomId, s.name);
+		});
+		return map;
+	}, [allSections]);
 
 	// Declared before any memo/logic that reads it to avoid TDZ risk.
 	// v1: always SETUP until generation is implemented; will become state later.
@@ -602,6 +617,7 @@ export default function Dashboard() {
 								selectedRoomId={inspectedRoom?.id ?? null} 
 								onRoomSelect={setInspectedRoom}
 								roomUtilization={buildingRoomUtilization}
+								roomOccupancy={buildingRoomOccupancy}
 							/>
 							</>
 						) : (

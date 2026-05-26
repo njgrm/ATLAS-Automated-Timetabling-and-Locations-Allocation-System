@@ -32,8 +32,10 @@ import { Input } from '@/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Skeleton } from '@/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
-import { SectionRow, type SectionDetail, type HomeRoomOption } from '@/components/sections/SectionRow';
+import { SectionRow, type SectionDetail } from '@/components/sections/SectionRow';
+import { type RoomOption as HomeRoomOption } from '@/components/sections/SectionRoomPicker';
 import { SectionDetailsSheet } from '@/components/sections/SectionDetailsSheet';
+import { SwapConfirmationModal, UnassignConfirmationModal } from '@/components/sections/SectionHomeRoomModals';
 
 /* ─── Constants ─── */
 const DEFAULT_SCHOOL_ID = 1;
@@ -73,6 +75,15 @@ type HomeRoomQueueEntry = {
 	sectionId: number;
 	homeRoomId: number | null;
 	queuedAt: string;
+};
+
+type PendingAssignment = {
+	section: SectionDetail;
+	roomId: number | null;
+	type: 'unassign' | 'swap' | 'direct';
+	displacedSection?: string;
+	currentRoomName?: string | null;
+	targetRoomName?: string;
 };
 
 /* ─── Helpers ─── */
@@ -139,7 +150,7 @@ export default function Sections() {
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [syncing, setSyncing]       = useState(false);
 	const [syncError, setSyncError]   = useState(false);
-	const [dataSource, setDataSource] = useState<'live' | 'atlas-mirror' | 'cached' | 'none'>('none');
+	const [dataSource, setDataSource] = useState<'live' | 'atlas-mirror' | 'cached' | 'refreshing' | 'none'>('none');
 	const [cacheNotice, setCacheNotice] = useState<string | null>(null);
 	const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 	const [queuedHomeRoomEdits, setQueuedHomeRoomEdits] = useState<HomeRoomQueueEntry[]>([]);
@@ -154,6 +165,7 @@ export default function Sections() {
 	const [homeRoomOptions, setHomeRoomOptions] = useState<HomeRoomOption[]>([]);
 	const [savingMirrorId, setSavingMirrorId] = useState<number | null>(null);
 	const [showFilters, setShowFilters] = useState(false);
+	const [pendingAssignment, setPendingAssignment] = useState<PendingAssignment | null>(null);
 
 	// Drilldown
 	const [detailTarget, setDetailTarget] = useState<SectionDetail | null>(null);
@@ -164,7 +176,7 @@ export default function Sections() {
 		setSyncError(false);
 
 		let schoolYearId: number | null = null;
-		let yearContextSource: 'atlas' | 'enrollpro' | 'cache' = 'cache';
+		let yearContextSource: 'atlas' | 'atlas-persisted' | 'enrollpro-verified' | 'enrollpro' | 'cache' = 'cache';
 		try {
 			const schoolYearContext = await resolveActiveSchoolYearContext({
 				forceRefresh,
@@ -194,7 +206,7 @@ export default function Sections() {
 					});
 					setHomeRoomOptions(cachedHomeRooms.data);
 					setLastSyncedAt(cachedSummary.data.fetchedAt ? String(cachedSummary.data.fetchedAt) : null);
-					setDataSource(isOnline ? 'atlas-mirror' : 'cached');
+					setDataSource(isOnline ? 'refreshing' : 'cached');
 					setCacheNotice(
 						queuedEditsForYear.length > 0
 							? `Showing saved section data with ${queuedEditsForYear.length} queued home-room change${queuedEditsForYear.length === 1 ? '' : 's'}.`
@@ -245,15 +257,20 @@ export default function Sections() {
 			setLastSyncedAt(res.data.fetchedAt ? String(res.data.fetchedAt) : null);
 			
 			// Source logic: 
-			// - 'live' only if both context and data are verified enrollpro
-			// - 'atlas-mirror' if context or data is from atlas/mirror but we are online
+			// - 'live' if both context and data are verified enrollpro
+			// - 'atlas-mirror' if context is enrollpro-verified/enrollpro but payload is atlas-mirror
+			// - 'atlas-mirror' if context is atlas/atlas-persisted but we are online
 			// - 'cached' if we are offline
 			let nextSource: 'live' | 'atlas-mirror' | 'cached';
 			if (!isOnline) {
 				nextSource = 'cached';
 			} else {
-				const isUpstreamBacked = yearContextSource === 'enrollpro' && res.data.source === 'enrollpro';
-				nextSource = isUpstreamBacked ? 'live' : 'atlas-mirror';
+				const isUpstreamContext = yearContextSource === 'enrollpro' || yearContextSource === 'enrollpro-verified';
+				if (isUpstreamContext && res.data.source === 'enrollpro') {
+					nextSource = 'live';
+				} else {
+					nextSource = 'atlas-mirror';
+				}
 			}
 			setDataSource(nextSource);
 			
@@ -304,19 +321,20 @@ export default function Sections() {
 		}
 	}, [isOnline]);
 
-	const handleHomeRoomChange = useCallback(async (section: SectionDetail, selectedValue: string) => {
-		if (!section.mirrorId || !activeSchoolYearId || state.status !== 'ok' || dataSource === 'none') return;
-		setSavingMirrorId(section.mirrorId);
-		const nextHomeRoomId = selectedValue === 'none' ? null : Number(selectedValue);
+	const performHomeRoomUpdate = useCallback(async (section: SectionDetail, nextHomeRoomId: number | null, swapTarget?: { sectionId: number, homeRoomId: number | null }) => {
+		if (!section.id || !activeSchoolYearId || state.status !== 'ok') return;
+		setSavingMirrorId(section.id);
 
 		const applyOptimisticHomeRoom = () => {
 			setState((prev) => {
 				if (prev.status !== 'ok') return prev;
 				const nextData = {
 					...prev.data,
-					sections: prev.data.sections.map((item) =>
-						item.id === section.id ? { ...item, homeRoomId: nextHomeRoomId } : item,
-					),
+					sections: prev.data.sections.map((item) => {
+						if (item.id === section.id) return { ...item, homeRoomId: nextHomeRoomId };
+						if (swapTarget && item.id === swapTarget.sectionId) return { ...item, homeRoomId: swapTarget.homeRoomId };
+						return item;
+					}),
 				};
 				setCachedSectionSummary(DEFAULT_SCHOOL_ID, activeSchoolYearId, nextData);
 				return {
@@ -329,7 +347,10 @@ export default function Sections() {
 		if (!isOnline) {
 			applyOptimisticHomeRoom();
 			setQueuedHomeRoomEdits((current) => {
-				const next = mergeQueuedHomeRoomEdit(current, section.mirrorId!, nextHomeRoomId);
+				let next = mergeQueuedHomeRoomEdit(current, section.id, nextHomeRoomId);
+				if (swapTarget) {
+					next = mergeQueuedHomeRoomEdit(next, swapTarget.sectionId, swapTarget.homeRoomId);
+				}
 				writeQueuedHomeRoomEdits(DEFAULT_SCHOOL_ID, activeSchoolYearId, next);
 				return next;
 			});
@@ -339,15 +360,24 @@ export default function Sections() {
 		}
 
 		try {
+			const assignments = [{ sectionId: section.id, homeRoomId: nextHomeRoomId }];
+			if (swapTarget) {
+				assignments.push({ sectionId: swapTarget.sectionId, homeRoomId: swapTarget.homeRoomId });
+			}
+
 			await atlasApi.put(`/sections/home-rooms/${activeSchoolYearId}`, {
 				schoolId: DEFAULT_SCHOOL_ID,
-				assignments: [{ sectionId: section.mirrorId, homeRoomId: nextHomeRoomId }],
+				assignments,
 			});
 			applyOptimisticHomeRoom();
-		} catch {
+		} catch (error) {
+			console.error('Failed to update home room:', error);
 			applyOptimisticHomeRoom();
 			setQueuedHomeRoomEdits((current) => {
-				const next = mergeQueuedHomeRoomEdit(current, section.mirrorId!, nextHomeRoomId);
+				let next = mergeQueuedHomeRoomEdit(current, section.id, nextHomeRoomId);
+				if (swapTarget) {
+					next = mergeQueuedHomeRoomEdit(next, swapTarget.sectionId, swapTarget.homeRoomId);
+				}
 				writeQueuedHomeRoomEdits(DEFAULT_SCHOOL_ID, activeSchoolYearId, next);
 				return next;
 			});
@@ -355,7 +385,49 @@ export default function Sections() {
 		} finally {
 			setSavingMirrorId(null);
 		}
-	}, [activeSchoolYearId, dataSource, isOnline, state.status]);
+	}, [activeSchoolYearId, isOnline, state.status]);
+
+	const roomOccupancyMap = useMemo(() => {
+		const map = new Map<number, string>();
+		if (state.status !== 'ok') return map;
+		state.data.sections.forEach((s) => {
+			if (s.homeRoomId) map.set(s.homeRoomId, s.name);
+		});
+		return map;
+	}, [state]);
+
+	const handleHomeRoomChange = useCallback(async (section: SectionDetail, nextHomeRoomId: number | null) => {
+		if (!section.id || !activeSchoolYearId || state.status !== 'ok' || dataSource === 'none') return;
+		
+		// 1. Confirmed Unassign
+		if (nextHomeRoomId === null && section.homeRoomId) {
+			setPendingAssignment({
+				section,
+				roomId: null,
+				type: 'unassign',
+				currentRoomName: homeRoomOptions.find(r => r.id === section.homeRoomId)?.name ?? 'Unknown Room'
+			});
+			return;
+		}
+		
+		// 2. Occupied Swap
+		if (nextHomeRoomId !== null && roomOccupancyMap.has(nextHomeRoomId) && section.homeRoomId !== nextHomeRoomId) {
+			const displacedSectionName = roomOccupancyMap.get(nextHomeRoomId)!;
+			const targetRoomName = homeRoomOptions.find(r => r.id === nextHomeRoomId)?.name ?? 'Unknown Room';
+			setPendingAssignment({
+				section,
+				roomId: nextHomeRoomId,
+				type: 'swap',
+				displacedSection: displacedSectionName,
+				currentRoomName: section.homeRoomId ? (homeRoomOptions.find(r => r.id === section.homeRoomId)?.name ?? 'Unknown Room') : null,
+				targetRoomName
+			});
+			return;
+		}
+
+		// 3. Direct Update
+		void performHomeRoomUpdate(section, nextHomeRoomId);
+	}, [activeSchoolYearId, dataSource, homeRoomOptions, roomOccupancyMap, state.status, performHomeRoomUpdate]);
 
 	const handleSync = async () => {
 		if (!isOnline) {
@@ -391,10 +463,15 @@ export default function Sections() {
 		return `${hours} hr${hours !== 1 ? 's' : ''} ago`;
 	}, [lastSyncedAt]);
 
-	useEffect(() => { void fetchSections(); }, [fetchSections]);
+	useEffect(() => { 
+		void fetchSections({ forceRefresh: navigator.onLine }); 
+	}, [fetchSections]);
 
 	useEffect(() => {
-		const handleOnline = () => setIsOnline(true);
+		const handleOnline = () => {
+			setIsOnline(true);
+			void fetchSections({ forceRefresh: true });
+		};
 		const handleOffline = () => setIsOnline(false);
 
 		window.addEventListener('online', handleOnline);
@@ -404,7 +481,7 @@ export default function Sections() {
 			window.removeEventListener('online', handleOnline);
 			window.removeEventListener('offline', handleOffline);
 		};
-	}, []);
+	}, [fetchSections]);
 
 	useEffect(() => {
 		if (!activeSchoolYearId) {
@@ -572,19 +649,24 @@ export default function Sections() {
 										<Badge
 											variant={dataSource === 'live' ? 'secondary' : 'outline'}
 											className={`h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold cursor-help ${
-												dataSource === 'atlas-mirror' ? 'bg-amber-100 text-amber-700 border-amber-200' : ''
+												(dataSource === 'atlas-mirror' || dataSource === 'cached') ? 'bg-amber-100 text-amber-700 border-amber-200' : 
+												dataSource === 'refreshing' ? 'bg-blue-50 text-blue-700 border-blue-200 animate-pulse' : ''
 											}`}
 										>
 											{dataSource === 'live'
-												? 'Verified Live'
+												? 'Verified with EnrollPro'
+												: dataSource === 'refreshing'
+												? 'Refreshing...'
 												: (dataSource === 'atlas-mirror' || dataSource === 'cached')
-												? 'Working from Saved Data'
+												? 'Working from saved data'
 												: 'No Saved Data'}
 										</Badge>
 									</TooltipTrigger>
 									<TooltipContent side="bottom" className="text-[0.65rem] font-semibold p-2">
 										{dataSource === 'live' 
 											? 'Data freshly verified with EnrollPro.' 
+											: dataSource === 'refreshing'
+											? 'Verifying EnrollPro connection and fetching latest section data...'
 											: 'Using data saved in ATLAS. Changes will sync when EnrollPro returns.'}
 									</TooltipContent>
 								</Tooltip>
@@ -706,7 +788,7 @@ export default function Sections() {
 			{(state.status === 'unavailable' || syncError) && (
 				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
 					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
-					<span className="flex-1 font-semibold">
+					<span className="flex-1 font-semibold text-amber-900">
 						{cacheNotice ?? (syncError ? 'EnrollPro is temporarily unavailable. Showing data saved in ATLAS.' : 'Enrollment service unavailable. Showing saved data.')}
 					</span>
 					<Button size="sm" variant="outline" onClick={handleSync} disabled={syncing || !isOnline} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold">
@@ -718,7 +800,7 @@ export default function Sections() {
 			{state.status === 'ok' && queuedHomeRoomEdits.length > 0 && (
 				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 shadow-sm animate-in fade-in duration-300">
 					<ServerOff className="size-4 shrink-0 text-blue-600" />
-					<span className="flex-1 font-semibold">
+					<span className="flex-1 font-semibold text-blue-900">
 						{isOnline
 							? `${queuedHomeRoomEdits.length} home-room change${queuedHomeRoomEdits.length === 1 ? '' : 's'} are queued and syncing.`
 							: `${queuedHomeRoomEdits.length} home-room change${queuedHomeRoomEdits.length === 1 ? '' : 's'} saved locally and will sync after reconnect.`}
@@ -729,17 +811,18 @@ export default function Sections() {
 			{state.status === 'ok' && !syncError && !isOnline && queuedHomeRoomEdits.length === 0 && (
 				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 shadow-sm animate-in fade-in duration-300">
 					<ServerOff className="size-4 shrink-0 text-blue-600" />
-					<span className="flex-1 font-semibold">
+					<span className="flex-1 font-semibold text-blue-900">
 						You are offline. Home-room changes made here will be saved locally and synced when connection returns.
 					</span>
 				</div>
 			)}
 
 			{dataSource === 'atlas-mirror' && !syncError && isOnline && (
-				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
-					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
+				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 shadow-sm animate-in fade-in duration-300">
+					<RefreshCw className="size-4 shrink-0 text-blue-600" />
 					<span className="flex-1">
-						<span className="font-bold">Working from saved data.</span> EnrollPro is temporarily unreachable. You can keep working; your changes are safe and will sync automatically when the connection returns.
+						<span className="font-bold uppercase tracking-tight mr-1">Using saved mirror.</span>
+						EnrollPro connection is active, but this page is still showing saved data. Sync your roster to fetch the latest updates.
 					</span>
 				</div>
 			)}
@@ -820,6 +903,8 @@ export default function Sections() {
 											isSaving={savingMirrorId === s.mirrorId}
 											onHomeRoomChange={handleHomeRoomChange}
 											onShowDetails={(section) => setDetailTarget(section)}
+											schoolId={DEFAULT_SCHOOL_ID}
+											roomOccupancy={roomOccupancyMap}
 										/>
 									))
 								)}
@@ -906,6 +991,43 @@ export default function Sections() {
 				open={detailTarget !== null}
 				onOpenChange={(open) => !open && setDetailTarget(null)}
 			/>
+
+			{/* Home Room Modals */}
+			{pendingAssignment && (
+				<>
+					<SwapConfirmationModal
+						open={pendingAssignment.type === 'swap'}
+						onOpenChange={(open) => !open && setPendingAssignment(null)}
+						onConfirm={() => {
+							const { section, roomId } = pendingAssignment;
+							if (state.status !== 'ok') return;
+							const displaced = state.data.sections.find(s => s.homeRoomId === roomId);
+							void performHomeRoomUpdate(
+								section, 
+								roomId, 
+								displaced ? { sectionId: displaced.id, homeRoomId: section.homeRoomId ?? null } : undefined
+							);
+							setPendingAssignment(null);
+						}}
+						sourceSectionName={pendingAssignment.section.name}
+						targetRoomName={pendingAssignment.targetRoomName ?? ''}
+						displacedSectionName={pendingAssignment.displacedSection ?? ''}
+						currentRoomName={pendingAssignment.currentRoomName}
+						isSaving={savingMirrorId !== null}
+					/>
+					<UnassignConfirmationModal
+						open={pendingAssignment.type === 'unassign'}
+						onOpenChange={(open) => !open && setPendingAssignment(null)}
+						onConfirm={() => {
+							void performHomeRoomUpdate(pendingAssignment.section, null);
+							setPendingAssignment(null);
+						}}
+						sectionName={pendingAssignment.section.name}
+						currentRoomName={pendingAssignment.currentRoomName ?? ''}
+						isSaving={savingMirrorId !== null}
+					/>
+				</>
+			)}
 		</div>
 	);
 }

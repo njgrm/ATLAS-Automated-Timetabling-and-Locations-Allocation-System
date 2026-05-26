@@ -30,6 +30,10 @@ export type LoadBreakdownItem = {
 	subjectName: string;
 	subjectCode: string;
 	rotationFamily: string | null;
+	rotationTermRank: number | null;
+	rotationTermLabel: string | null;
+	rotationTermGroupId: string | null;
+	rotationTermCount: number | null;
 	isRotationDuplicate: boolean;
 	sectionId: number;
 	sectionName: string;
@@ -44,6 +48,10 @@ export type RotationFamilyBreakdownItem = {
 	creditedHours: number;
 	overcountHours: number;
 	unitCount: number;
+	dominantTermRank?: number | null;
+	dominantTermLabel?: string | null;
+	termGroupId?: string | null;
+	termCount?: number | null;
 	subjectCodes: string[];
 };
 
@@ -70,6 +78,53 @@ function resolveRotationFamily(subject: Pick<Subject, 'code' | 'rotationFamily'>
 	if (code.startsWith('TLE')) return 'TLE_ROTATION';
 	if (code.startsWith('SCI_')) return 'SCIENCE';
 	return null;
+}
+
+type RotationTermMetadata = {
+	termRank: number | null;
+	termLabel: string | null;
+	termGroupId: string | null;
+	termCount: number | null;
+};
+
+function resolveRotationTermMetadata(subject: Subject): RotationTermMetadata {
+	const explicitTermRank =
+		typeof subject.rotationTermRank === 'number' && Number.isInteger(subject.rotationTermRank) && subject.rotationTermRank > 0
+			? subject.rotationTermRank
+			: null;
+	const derivedTermRank =
+		typeof subject.modularOrder === 'number' && Number.isInteger(subject.modularOrder) && subject.modularOrder > 0
+			? subject.modularOrder
+			: null;
+	const termRank = explicitTermRank ?? derivedTermRank;
+
+	const explicitTermCount =
+		typeof subject.rotationTermCount === 'number' && Number.isInteger(subject.rotationTermCount) && subject.rotationTermCount > 0
+			? subject.rotationTermCount
+			: null;
+	const derivedTermCount =
+		typeof subject.termCount === 'number' && Number.isInteger(subject.termCount) && subject.termCount > 0
+			? subject.termCount
+			: null;
+	const termCount = explicitTermCount ?? derivedTermCount;
+
+	const explicitTermLabel = (subject.rotationTermLabel ?? '').trim();
+	const termLabel = explicitTermLabel.length > 0 ? explicitTermLabel : termRank ? `Term ${termRank}` : null;
+
+	const explicitTermGroupId = (subject.rotationTermGroupId ?? '').trim();
+	const derivedTermGroupId = (subject.termGroupId ?? '').trim();
+	const termGroupId = explicitTermGroupId || derivedTermGroupId || null;
+
+	return {
+		termRank,
+		termLabel,
+		termGroupId,
+		termCount,
+	};
+}
+
+function normalizeRotationTermLaneKey(termRank: number | null): number {
+	return typeof termRank === 'number' && Number.isInteger(termRank) && termRank > 0 ? termRank : 0;
 }
 
 function uniqueSortedPositiveInts(values: readonly number[] | null | undefined): number[] {
@@ -267,17 +322,34 @@ export function buildTeachingLoadProfile(
 	const creditedLanes = new Map<string, number>();
 	const familyAccumulators = new Map<
 		string,
-		{ rawMinutes: number; laneMinutes: Map<number, number>; subjectCodes: Set<string> }
+		{
+			rawMinutes: number;
+			laneMinutes: Map<string, number>;
+			subjectCodes: Set<string>;
+			termBuckets: Map<
+				number,
+				{
+					termRank: number | null;
+					termLabel: string | null;
+					termGroupId: string | null;
+					termCount: number | null;
+					laneMinutes: Map<number, number>;
+				}
+			>;
+		}
 	>();
 
 	for (const assignment of assignments) {
 		const subject = subjectMap.get(assignment.subjectId);
 		if (!subject) continue;
 		const rotationFamily = resolveRotationFamily(subject);
+		const rotationTermMetadata = resolveRotationTermMetadata(subject);
 		for (const sectionId of assignment.sectionIds) {
 			const section = sectionMap.get(sectionId);
 			if (!section) continue;
-			const laneKey = rotationFamily ? `family:${rotationFamily}:${sectionId}` : `subject:${subject.id}:${sectionId}`;
+			const laneKey = rotationFamily
+				? `family:${rotationFamily}:term:${normalizeRotationTermLaneKey(rotationTermMetadata.termRank)}:${sectionId}`
+				: `subject:${subject.id}:${sectionId}`;
 			const currentLaneMinutes = creditedLanes.get(laneKey) ?? 0;
 			if (subject.minMinutesPerWeek > currentLaneMinutes) {
 				creditedLanes.set(laneKey, subject.minMinutesPerWeek);
@@ -288,6 +360,10 @@ export function buildTeachingLoadProfile(
 				subjectName: subject.name,
 				subjectCode: subject.code,
 				rotationFamily,
+				rotationTermRank: rotationTermMetadata.termRank,
+				rotationTermLabel: rotationTermMetadata.termLabel,
+				rotationTermGroupId: rotationTermMetadata.termGroupId,
+				rotationTermCount: rotationTermMetadata.termCount,
 				isRotationDuplicate,
 				sectionId,
 				sectionName: section.name,
@@ -300,14 +376,42 @@ export function buildTeachingLoadProfile(
 			if (rotationFamily) {
 				const accumulator = familyAccumulators.get(rotationFamily) ?? {
 					rawMinutes: 0,
-					laneMinutes: new Map<number, number>(),
+					laneMinutes: new Map<string, number>(),
 					subjectCodes: new Set<string>(),
+					termBuckets: new Map(),
 				};
 				accumulator.rawMinutes += subject.minMinutesPerWeek;
-				const familyLaneMinutes = accumulator.laneMinutes.get(sectionId) ?? 0;
+				const familyLaneMinutes = accumulator.laneMinutes.get(laneKey) ?? 0;
 				if (subject.minMinutesPerWeek > familyLaneMinutes) {
-					accumulator.laneMinutes.set(sectionId, subject.minMinutesPerWeek);
+					accumulator.laneMinutes.set(laneKey, subject.minMinutesPerWeek);
 				}
+
+				const termKey = normalizeRotationTermLaneKey(rotationTermMetadata.termRank);
+				const termBucket = accumulator.termBuckets.get(termKey) ?? {
+					termRank: rotationTermMetadata.termRank,
+					termLabel: rotationTermMetadata.termLabel,
+					termGroupId: rotationTermMetadata.termGroupId,
+					termCount: rotationTermMetadata.termCount,
+					laneMinutes: new Map<number, number>(),
+				};
+				if (!termBucket.termLabel && rotationTermMetadata.termLabel) {
+					termBucket.termLabel = rotationTermMetadata.termLabel;
+				}
+				if (!termBucket.termGroupId && rotationTermMetadata.termGroupId) {
+					termBucket.termGroupId = rotationTermMetadata.termGroupId;
+				}
+				if (!termBucket.termCount && rotationTermMetadata.termCount) {
+					termBucket.termCount = rotationTermMetadata.termCount;
+				}
+				if (!termBucket.termRank && rotationTermMetadata.termRank) {
+					termBucket.termRank = rotationTermMetadata.termRank;
+				}
+				const termLaneMinutes = termBucket.laneMinutes.get(sectionId) ?? 0;
+				if (subject.minMinutesPerWeek > termLaneMinutes) {
+					termBucket.laneMinutes.set(sectionId, subject.minMinutesPerWeek);
+				}
+				accumulator.termBuckets.set(termKey, termBucket);
+
 				accumulator.subjectCodes.add(subject.code);
 				familyAccumulators.set(rotationFamily, accumulator);
 			}
@@ -326,12 +430,29 @@ export function buildTeachingLoadProfile(
 	const rotationFamilies: RotationFamilyBreakdownItem[] = Array.from(familyAccumulators.entries())
 		.map(([family, stats]) => {
 			const creditedFamilyMinutes = Array.from(stats.laneMinutes.values()).reduce((sum, value) => sum + value, 0);
+			const termBuckets = Array.from(stats.termBuckets.values()).map((bucket) => ({
+				termRank: bucket.termRank,
+				termLabel: bucket.termLabel,
+				termGroupId: bucket.termGroupId,
+				termCount: bucket.termCount,
+				creditedMinutes: Array.from(bucket.laneMinutes.values()).reduce((sum, value) => sum + value, 0),
+			}));
+			const dominantTerm = termBuckets.sort((left, right) => {
+				if (right.creditedMinutes !== left.creditedMinutes) {
+					return right.creditedMinutes - left.creditedMinutes;
+				}
+				return normalizeRotationTermLaneKey(left.termRank) - normalizeRotationTermLaneKey(right.termRank);
+			})[0] ?? null;
 			return {
 				family,
 				rawHours: Math.round((stats.rawMinutes / 60) * 10) / 10,
 				creditedHours: Math.round((creditedFamilyMinutes / 60) * 10) / 10,
 				overcountHours: Math.round(((stats.rawMinutes - creditedFamilyMinutes) / 60) * 10) / 10,
 				unitCount: stats.laneMinutes.size,
+				dominantTermRank: dominantTerm?.termRank ?? null,
+				dominantTermLabel: dominantTerm?.termLabel ?? null,
+				termGroupId: dominantTerm?.termGroupId ?? null,
+				termCount: dominantTerm?.termCount ?? null,
 				subjectCodes: Array.from(stats.subjectCodes).sort((left, right) => left.localeCompare(right)),
 			};
 		})

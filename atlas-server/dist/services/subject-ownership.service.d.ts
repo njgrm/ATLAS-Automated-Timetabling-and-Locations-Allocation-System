@@ -22,4 +22,22 @@ export declare function resolveSubjectContractDefaults(input: SubjectContractDef
 };
 export declare function matchesSubjectOwnershipDepartment(facultyDepartment: string | null | undefined, subjectCode: string | null | undefined, subjectName?: string | null, explicitOwnerDepartment?: string | null, requiredFeatures?: string[] | null): boolean;
 export declare function resolveSubjectRotationFamily(subjectCode: string | null | undefined, modularGroupId: string | null | undefined): string | null;
+export type RotationTermMetadata = {
+    termRank: number | null;
+    termLabel: string | null;
+    termCount: number | null;
+    termGroupId: string | null;
+};
+export declare function formatRotationTermLabel(termRank: number | null | undefined): string | null;
+export declare function resolveRotationTermCount(termCount: number | null | undefined): number | null;
+export declare function resolveRotationTermRank(subjectCode: string | null | undefined, modularOrder: number | null | undefined, termCount?: number | null): number | null;
+export declare function resolveRotationTermGroupId(termGroupId: string | null | undefined, modularGroupId: string | null | undefined, rotationFamily: string | null | undefined): string | null;
+export declare function resolveRotationTermMetadata(input: {
+    subjectCode: string | null | undefined;
+    rotationFamily: string | null | undefined;
+    modularGroupId?: string | null;
+    modularOrder?: number | null;
+    termGroupId?: string | null;
+    termCount?: number | null;
+}): RotationTermMetadata;
 export {};

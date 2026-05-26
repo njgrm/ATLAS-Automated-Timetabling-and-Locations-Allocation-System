@@ -5,6 +5,10 @@ type SubjectWithViewMetadata = {
     allowedOwnerDepartments: string[];
     qualificationPriority: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
     rotationFamily: string | null;
+    rotationTermRank: number | null;
+    rotationTermLabel: string | null;
+    rotationTermGroupId: string | null;
+    rotationTermCount: number | null;
     specializationSource: 'REFERENCE_METADATA' | 'NONE';
     isSystemManaged: boolean;
 };

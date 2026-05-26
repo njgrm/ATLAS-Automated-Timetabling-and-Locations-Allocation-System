@@ -30,6 +30,7 @@ export declare function normalizeEnrollProSectionsResponse(body: unknown): {
     warnings: string[];
 };
 export interface ExternalSection {
+    mirrorId?: number;
     id: number;
     name: string;
     maxCapacity: number;

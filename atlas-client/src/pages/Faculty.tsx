@@ -118,7 +118,7 @@ export default function Faculty() {
 				fetchedAt: data.fetchedAt,
 				schoolYearId,
 			});
-			const isUpstreamBacked = yearContextSource === 'enrollpro';
+			const isUpstreamBacked = yearContextSource === 'enrollpro' || yearContextSource === 'enrollpro-verified';
 			setDataSource(isUpstreamBacked ? 'live' : 'cached');
 			setCacheNotice(
 				isUpstreamBacked
@@ -152,11 +152,14 @@ export default function Faculty() {
 	}, []);
 
 	useEffect(() => {
-		fetchFaculty();
+		void fetchFaculty({ forceRefresh: navigator.onLine });
 	}, [fetchFaculty]);
 
 	useEffect(() => {
-		const handleOnline = () => setIsOnline(true);
+		const handleOnline = () => {
+			setIsOnline(true);
+			void fetchFaculty({ forceRefresh: true });
+		};
 		const handleOffline = () => setIsOnline(false);
 
 		window.addEventListener('online', handleOnline);
@@ -166,7 +169,7 @@ export default function Faculty() {
 			window.removeEventListener('online', handleOnline);
 			window.removeEventListener('offline', handleOffline);
 		};
-	}, []);
+	}, [fetchFaculty]);
 
 	const handleSync = async () => {
 		if (!isOnline) {
@@ -309,12 +312,14 @@ export default function Faculty() {
 									<TooltipTrigger asChild>
 										<Badge
 											variant={dataSource === 'live' ? 'secondary' : 'outline'}
-											className="h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold cursor-help"
+											className={`h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold cursor-help ${
+												dataSource === 'cached' ? 'bg-amber-100 text-amber-700 border-amber-200' : ''
+											}`}
 										>
 											{dataSource === 'live'
-												? 'Verified Live'
+												? 'Verified with EnrollPro'
 												: dataSource === 'cached'
-												? 'Working from Saved Data'
+												? 'Working from saved data'
 												: 'No Saved Data'}
 										</Badge>
 									</TooltipTrigger>
@@ -406,10 +411,11 @@ export default function Faculty() {
 			)}
 
 			{cacheNotice && !syncError && dataSource === 'cached' && (
-				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 shadow-sm animate-in fade-in duration-300">
-					<AlertTriangle className="size-4 shrink-0 text-blue-600" />
-					<span className="flex-1 font-semibold">
-						<span className="font-bold">Working from saved ATLAS data.</span> {cacheNotice}
+				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
+					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
+					<span className="flex-1 font-semibold text-amber-900">
+						<span className="font-bold uppercase tracking-tight mr-1">Working from saved data.</span>
+						EnrollPro is temporarily unreachable. You can keep working; your changes are safe and will sync automatically when the connection returns.
 					</span>
 				</div>
 			)}

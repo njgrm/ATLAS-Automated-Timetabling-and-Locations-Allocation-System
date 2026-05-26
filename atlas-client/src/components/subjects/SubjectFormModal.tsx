@@ -36,6 +36,10 @@ type Props = {
 		ownerDepartment?: string | null;
 		allowedOwnerDepartments?: string[];
 		rotationFamily?: string | null;
+		rotationTermLabel?: string | null;
+		rotationTermRank?: number | null;
+		rotationTermGroupId?: string | null;
+		rotationTermCount?: number | null;
 		outputLabel?: string | null;
 		isSystemManaged?: boolean;
 	};
@@ -193,6 +197,11 @@ export function SubjectFormModal({
 									{subjectMeta.rotationFamily && (
 										<Badge variant="outline" className="text-[0.6rem] border-indigo-200 text-indigo-700 bg-indigo-50/30">
 											{subjectMeta.rotationFamily}
+										</Badge>
+									)}
+									{(subjectMeta.rotationTermLabel || (subjectMeta.rotationTermRank && subjectMeta.rotationTermRank > 0)) && (
+										<Badge variant="outline" className="text-[0.6rem] border-indigo-300 text-indigo-900 bg-indigo-100/60">
+											{subjectMeta.rotationTermLabel || `Term ${subjectMeta.rotationTermRank}`}
 										</Badge>
 									)}
 								</div>

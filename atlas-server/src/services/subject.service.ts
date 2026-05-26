@@ -9,6 +9,7 @@ import {
 	resolveSubjectOutputLabel,
 	mergeRequiredFeaturesWithAdditionalOwnerDepartments,
 	resolveSubjectAllowedOwnerDepartments,
+	resolveRotationTermMetadata,
 } from './subject-ownership.service.js';
 
 const MATATAG_DEFAULTS: Array<{
@@ -115,6 +116,10 @@ type SubjectWithViewMetadata = {
 	allowedOwnerDepartments: string[];
 	qualificationPriority: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
 	rotationFamily: string | null;
+	rotationTermRank: number | null;
+	rotationTermLabel: string | null;
+	rotationTermGroupId: string | null;
+	rotationTermCount: number | null;
 	specializationSource: 'REFERENCE_METADATA' | 'NONE';
 	isSystemManaged: boolean;
 };
@@ -123,6 +128,9 @@ function withSubjectViewMetadata<T extends {
 	code: string;
 	name: string;
 	modularGroupId?: string | null;
+	modularOrder?: number | null;
+	termGroupId?: string | null;
+	termCount?: number | null;
 	outputLabel?: string | null;
 	ownerDepartment?: string | null;
 	qualificationPriority?: string | null;
@@ -141,6 +149,14 @@ function withSubjectViewMetadata<T extends {
 	);
 	const qualificationPriority = resolveSubjectQualificationPriority(subject.code, subject.qualificationPriority ?? null);
 	const rotationFamily = subject.rotationFamily ?? resolveSubjectRotationFamily(subject.code, subject.modularGroupId ?? null);
+	const rotationTermMetadata = resolveRotationTermMetadata({
+		subjectCode: subject.code,
+		rotationFamily,
+		modularGroupId: subject.modularGroupId ?? null,
+		modularOrder: subject.modularOrder ?? null,
+		termGroupId: subject.termGroupId ?? null,
+		termCount: subject.termCount ?? null,
+	});
 	const isSystemManaged = subject.isSystemManaged === true;
 
 	return {
@@ -152,6 +168,10 @@ function withSubjectViewMetadata<T extends {
 		allowedOwnerDepartments,
 		qualificationPriority,
 		rotationFamily,
+		rotationTermRank: rotationTermMetadata.termRank,
+		rotationTermLabel: rotationTermMetadata.termLabel,
+		rotationTermGroupId: rotationTermMetadata.termGroupId,
+		rotationTermCount: rotationTermMetadata.termCount,
 		specializationSource: (subject.allowedSpecializations ?? []).length > 0 ? 'REFERENCE_METADATA' : 'NONE',
 		isSystemManaged,
 	};

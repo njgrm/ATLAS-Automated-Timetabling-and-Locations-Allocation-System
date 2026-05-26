@@ -29,6 +29,10 @@ export interface SectionAssignedClassRow {
 	subjectDisplayLabel: string;
 	minMinutesPerWeek: number;
 	rotationFamily: string | null;
+	rotationTermRank: number | null;
+	rotationTermLabel: string | null;
+	rotationTermGroupId: string | null;
+	rotationTermCount: number | null;
 	facultyId: number;
 	facultyName: string;
 	facultyDepartment: string | null;
@@ -45,6 +49,10 @@ export interface SectionUnassignedExpectedClassRow {
 	subjectDisplayLabel: string;
 	minMinutesPerWeek: number;
 	rotationFamily: string | null;
+	rotationTermRank: number | null;
+	rotationTermLabel: string | null;
+	rotationTermGroupId: string | null;
+	rotationTermCount: number | null;
 }
 
 export interface SectionAssignedClassesTotals {
@@ -70,6 +78,17 @@ interface SectionDetailsSheetProps {
 	schoolYearId: number | null;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+}
+
+function resolveRotationTermLabel(input: { rotationTermLabel?: string | null; rotationTermRank?: number | null }): string | null {
+	const explicitLabel = (input.rotationTermLabel ?? '').trim();
+	if (explicitLabel.length > 0) {
+		return explicitLabel;
+	}
+	if (typeof input.rotationTermRank === 'number' && Number.isInteger(input.rotationTermRank) && input.rotationTermRank > 0) {
+		return `Term ${input.rotationTermRank}`;
+	}
+	return null;
 }
 
 export function SectionDetailsSheet({
@@ -164,6 +183,16 @@ export function SectionDetailsSheet({
 															<div className="flex items-center gap-2">
 																<p className="text-sm font-bold truncate leading-tight">{cls.subjectName}</p>
 																<code className="text-[0.6rem] font-mono text-muted-foreground uppercase px-1.5 py-0.5 bg-background rounded border">{cls.subjectCode}</code>
+																{cls.rotationFamily && (
+																	<Badge variant="outline" className="h-4 px-1 text-[0.55rem] font-bold uppercase bg-violet-50 text-violet-700 border-violet-200">
+																		{cls.rotationFamily}
+																	</Badge>
+																)}
+																{resolveRotationTermLabel(cls) && (
+																	<Badge variant="outline" className="h-4 px-1 text-[0.55rem] font-bold uppercase bg-violet-100 text-violet-900 border-violet-300">
+																		{resolveRotationTermLabel(cls)}
+																	</Badge>
+																)}
 															</div>
 															<div className="flex items-center gap-1.5 mt-1">
 																<Users className="size-3 text-muted-foreground" />
@@ -212,7 +241,19 @@ export function SectionDetailsSheet({
 													</div>
 													<div>
 														<p className="text-xs font-bold text-amber-900">{cls.subjectName}</p>
-														<p className="text-[0.6rem] text-amber-700/70 font-mono">{cls.subjectCode}</p>
+														<div className="flex flex-wrap items-center gap-1 mt-0.5">
+															<p className="text-[0.6rem] text-amber-700/70 font-mono">{cls.subjectCode}</p>
+															{cls.rotationFamily && (
+																<Badge variant="outline" className="h-4 px-1 text-[0.55rem] font-bold uppercase bg-violet-50 text-violet-700 border-violet-200">
+																	{cls.rotationFamily}
+																</Badge>
+															)}
+															{resolveRotationTermLabel(cls) && (
+																<Badge variant="outline" className="h-4 px-1 text-[0.55rem] font-bold uppercase bg-violet-100 text-violet-900 border-violet-300">
+																	{resolveRotationTermLabel(cls)}
+																</Badge>
+															)}
+														</div>
 													</div>
 												</div>
 												<div className="text-right">

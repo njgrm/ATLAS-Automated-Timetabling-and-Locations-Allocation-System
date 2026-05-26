@@ -157,6 +157,24 @@ function toDraftAssignments(
 	);
 }
 
+function resolveRotationTermRank(subject: Pick<Subject, 'rotationTermRank' | 'modularOrder'>): number {
+	if (typeof subject.rotationTermRank === 'number' && Number.isInteger(subject.rotationTermRank) && subject.rotationTermRank > 0) {
+		return subject.rotationTermRank;
+	}
+	if (typeof subject.modularOrder === 'number' && Number.isInteger(subject.modularOrder) && subject.modularOrder > 0) {
+		return subject.modularOrder;
+	}
+	return 0;
+}
+
+function resolveRotationLaneKey(subject: Pick<Subject, 'rotationFamily' | 'rotationTermRank' | 'modularOrder'>): string | null {
+	const family = (subject.rotationFamily ?? '').trim().toUpperCase();
+	if (family.length === 0) {
+		return null;
+	}
+	return `${family}:term:${resolveRotationTermRank(subject)}`;
+}
+
 export default function FacultyAssignments() {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const [faculty, setFaculty] = useState<FacultySummary[]>([]);
@@ -875,10 +893,12 @@ export default function FacultyAssignments() {
 		const map = new Map<string, Set<number>>();
 		for (const a of currentAssignments) {
 			const sub = subjects.find((s) => s.id === a.subjectId);
-			if (!sub || !sub.rotationFamily) continue;
-			const set = map.get(sub.rotationFamily) ?? new Set<number>();
+			if (!sub) continue;
+			const laneKey = resolveRotationLaneKey(sub);
+			if (!laneKey) continue;
+			const set = map.get(laneKey) ?? new Set<number>();
 			a.sectionIds.forEach((id) => set.add(id));
-			map.set(sub.rotationFamily, set);
+			map.set(laneKey, set);
 		}
 		return map;
 	}, [currentAssignments, subjects]);
@@ -926,6 +946,15 @@ export default function FacultyAssignments() {
 					...section,
 					assignmentSpecializationCode: specialization.code,
 					assignmentSpecializationLabel: specialization.label,
+					assignmentRotationFamily: section.assignmentRotationFamily ?? null,
+					assignmentRotationLaneId: section.assignmentRotationLaneId ?? null,
+					assignmentRotationTermRank: section.assignmentRotationTermRank ?? null,
+					assignmentRotationTermLabel: section.assignmentRotationTermLabel ?? null,
+					assignmentRotationTermGroupId: section.assignmentRotationTermGroupId ?? null,
+					assignmentRotationTermCount: section.assignmentRotationTermCount ?? null,
+					assignmentRawMinutesPerWeek: section.assignmentRawMinutesPerWeek ?? null,
+					assignmentConcurrentDeltaMinutesPerWeek: section.assignmentConcurrentDeltaMinutesPerWeek ?? null,
+					assignmentExpandsConcurrentDemand: section.assignmentExpandsConcurrentDemand ?? null,
 				};
 			});
 		});
@@ -945,6 +974,11 @@ export default function FacultyAssignments() {
 			creditedHours: family.creditedHours,
 			overcountHours: family.overcountHours,
 			unitCount: family.unitCount,
+			dominantTermRank: family.dominantTermRank ?? null,
+			dominantTermLabel: family.dominantTermLabel ?? null,
+			termGroupId: family.termGroupId ?? null,
+			termCount: family.termCount ?? null,
+			termBuckets: family.termBuckets ?? [],
 			subjectCodes: family.subjectCodes,
 			subjectIds: [],
 		}));
@@ -1694,7 +1728,7 @@ export default function FacultyAssignments() {
 																<div className="flex items-center justify-between text-xs p-2 rounded-lg bg-amber-50 border border-amber-100 text-amber-900">
 																	<div className="flex flex-col">
 																		<span className="font-bold">Rotation Overlap Removed</span>
-																		<span className="text-[0.6rem] text-amber-700/70 uppercase">Shared Science/TLE weekly lanes</span>
+																		<span className="text-[0.6rem] text-amber-700/70 uppercase">Shared Science/TLE term lanes</span>
 																	</div>
 																	<span className="font-mono font-bold">-{(loadProfile?.rotationOvercountHours ?? 0).toFixed(1)}h</span>
 																</div>
@@ -1724,14 +1758,25 @@ export default function FacultyAssignments() {
 
 														{rotationFamilyDetails.length > 0 && (
 															<div className="border-t border-border/40 pt-4 space-y-3">
-																<h6 className="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground">Rotation Family Breakdown</h6>
+																<h6 className="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground">Rotation Term-Lane Breakdown</h6>
 																<div className="space-y-2">
-																	{rotationFamilyDetails.map((f: RotationFamilyLoadDetail) => (
+																	{rotationFamilyDetails.map((f: RotationFamilyLoadDetail) => {
+																		const termLabel = (f.dominantTermLabel ?? '').trim().length > 0
+																			? f.dominantTermLabel
+																			: (typeof f.dominantTermRank === 'number' && f.dominantTermRank > 0 ? `Term ${f.dominantTermRank}` : null);
+																		return (
 																		<div key={f.family} className="flex flex-col gap-1 p-2 rounded-lg border border-violet-100 bg-violet-50/30">
 																			<div className="flex items-center justify-between">
-																				<span className="text-[0.65rem] font-black text-violet-700 uppercase tracking-tighter">{f.family}</span>
+																				<div className="flex items-center gap-1.5">
+																					<span className="text-[0.65rem] font-black text-violet-700 uppercase tracking-tighter">{f.family}</span>
+																					{termLabel && (
+																						<Badge variant="outline" className="h-4 text-[0.55rem] font-bold bg-violet-100 text-violet-800 border-violet-300 uppercase">
+																							{termLabel}
+																						</Badge>
+																					)}
+																				</div>
 																				<Badge variant="outline" className="h-4 text-[0.55rem] font-bold bg-white text-violet-600 border-violet-200">
-																					{f.unitCount} sections sharing {f.creditedHours}h
+																					{f.unitCount} term lanes sharing {f.creditedHours}h
 																				</Badge>
 																			</div>
 																			<div className="flex items-center gap-2 text-[0.6rem] font-bold text-violet-600/70 uppercase tracking-tight">
@@ -1742,7 +1787,8 @@ export default function FacultyAssignments() {
 																				<span>{f.overcountHours}h overlap removed</span>
 																			</div>
 																		</div>
-																	))}
+																		);
+																	})}
 																</div>
 															</div>
 														)}

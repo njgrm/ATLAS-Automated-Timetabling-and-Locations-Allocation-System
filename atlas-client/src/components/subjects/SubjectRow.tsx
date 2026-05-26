@@ -51,6 +51,19 @@ export function SubjectRow({
 		: `${Math.round((subject.minMinutesPerWeek / 60) * 10) / 10} h`;
 
 	const deptColor = getDepartmentColor(subject.ownerDepartment);
+	const rotationTermLabel = useMemo(() => {
+		const explicit = (subject.rotationTermLabel ?? '').trim();
+		if (explicit.length > 0) {
+			return explicit;
+		}
+		const rank =
+			typeof subject.rotationTermRank === 'number' && Number.isInteger(subject.rotationTermRank) && subject.rotationTermRank > 0
+				? subject.rotationTermRank
+				: typeof subject.modularOrder === 'number' && Number.isInteger(subject.modularOrder) && subject.modularOrder > 0
+				? subject.modularOrder
+				: null;
+		return rank ? `Term ${rank}` : null;
+	}, [subject.modularOrder, subject.rotationTermLabel, subject.rotationTermRank]);
 
 	// Consolidate Grade Levels into a stronger signal
 	const gradeSummary = useMemo(() => {
@@ -72,7 +85,19 @@ export function SubjectRow({
 					</div>
 					<div className="flex flex-col min-w-0">
 						<span className="font-semibold text-foreground leading-tight truncate">{subject.name}</span>
-						<code className="text-[0.65rem] font-mono text-muted-foreground uppercase">{subject.code}</code>
+						<div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+							<code className="text-[0.65rem] font-mono text-muted-foreground uppercase">{subject.code}</code>
+							{subject.rotationFamily && (
+								<Badge variant="outline" className="h-4 px-1 text-[0.55rem] font-bold uppercase bg-violet-50 text-violet-700 border-violet-200">
+									{subject.rotationFamily}
+								</Badge>
+							)}
+							{rotationTermLabel && (
+								<Badge variant="outline" className="h-4 px-1 text-[0.55rem] font-bold uppercase bg-violet-100 text-violet-900 border-violet-300">
+									{rotationTermLabel}
+								</Badge>
+							)}
+						</div>
 					</div>
 				</div>
 			</td>

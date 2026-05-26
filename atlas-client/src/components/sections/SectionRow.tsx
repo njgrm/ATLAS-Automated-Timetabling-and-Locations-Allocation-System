@@ -11,9 +11,9 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { Link } from 'react-router-dom';
+import { SectionRoomPicker, type RoomOption } from './SectionRoomPicker';
 
 /* ─── Constants (matching Sections.tsx) ─── */
 const GRADE_COLORS: Record<string, string> = {
@@ -62,20 +62,15 @@ export type SectionDetail = {
 	isSpecialProgram?: boolean;
 };
 
-export type HomeRoomOption = {
-	id: number;
-	name: string;
-	type: string;
-	buildingName: string;
-};
-
 interface SectionRowProps {
 	section: SectionDetail;
-	homeRoomOptions: HomeRoomOption[];
+	homeRoomOptions: RoomOption[];
 	isReadOnly: boolean;
 	isSaving: boolean;
-	onHomeRoomChange: (section: SectionDetail, value: string) => void;
+	onHomeRoomChange: (section: SectionDetail, value: number | null) => void;
 	onShowDetails: (section: SectionDetail) => void;
+	schoolId: number;
+	roomOccupancy?: Map<number, string>;
 }
 
 export function SectionRow({
@@ -85,6 +80,8 @@ export function SectionRow({
 	isSaving,
 	onHomeRoomChange,
 	onShowDetails,
+	schoolId,
+	roomOccupancy,
 }: SectionRowProps) {
 	const fill = section.maxCapacity > 0 ? Math.round((section.enrolledCount / section.maxCapacity) * 100) : 0;
 	const gKey = gradeKey(section.gradeLevelName);
@@ -150,23 +147,17 @@ export function SectionRow({
 			</td>
 
 			<td className="px-4 py-3 min-w-56">
-				<Select
-					value={section.homeRoomId == null ? 'none' : String(section.homeRoomId)}
-					onValueChange={(value) => onHomeRoomChange(section, value)}
-					disabled={isSaving || isReadOnly}
-				>
-					<SelectTrigger className="h-8 text-xs bg-background/50">
-						<SelectValue placeholder="Unassigned" />
-					</SelectTrigger>
-					<SelectContent className="max-h-72">
-						<SelectItem value="none">Unassigned</SelectItem>
-						{homeRoomOptions.map((room) => (
-							<SelectItem key={room.id} value={String(room.id)}>
-								{room.name} • {room.buildingName}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
+				<SectionRoomPicker
+					sectionId={section.id}
+					sectionName={section.name}
+					value={section.homeRoomId ?? null}
+					options={homeRoomOptions}
+					onSelect={(roomId) => onHomeRoomChange(section, roomId)}
+					disabled={isReadOnly}
+					isSaving={isSaving}
+					schoolId={schoolId}
+					roomOccupancy={roomOccupancy}
+				/>
 			</td>
 
 			<td className="px-4 py-3 text-right">

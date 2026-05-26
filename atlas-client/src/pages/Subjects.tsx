@@ -72,6 +72,25 @@ type TeachingLoadResetPreview = {
 	subjectCodes: string[];
 };
 
+function resolveSubjectTermRank(subject: Pick<Subject, 'rotationTermRank' | 'modularOrder'>): number | null {
+	if (typeof subject.rotationTermRank === 'number' && Number.isInteger(subject.rotationTermRank) && subject.rotationTermRank > 0) {
+		return subject.rotationTermRank;
+	}
+	if (typeof subject.modularOrder === 'number' && Number.isInteger(subject.modularOrder) && subject.modularOrder > 0) {
+		return subject.modularOrder;
+	}
+	return null;
+}
+
+function resolveSubjectTermLabel(subject: Pick<Subject, 'rotationTermLabel' | 'rotationTermRank' | 'modularOrder'>): string | null {
+	const explicit = (subject.rotationTermLabel ?? '').trim();
+	if (explicit.length > 0) {
+		return explicit;
+	}
+	const rank = resolveSubjectTermRank(subject);
+	return rank ? `Term ${rank}` : null;
+}
+
 export default function Subjects() {
 	const [subjects, setSubjects] = useState<Subject[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -793,6 +812,28 @@ export default function Subjects() {
 							</div>
 						) : coverageSubject && (
 							<>
+								<div className="rounded-xl border border-violet-100 bg-violet-50/30 p-4 space-y-2">
+									<p className="text-[0.65rem] font-bold uppercase tracking-widest text-violet-700/80">Subject Term Context</p>
+									<div className="flex flex-wrap gap-1.5">
+										<Badge variant="outline" className="bg-white text-violet-700 border-violet-200 font-bold text-[0.65rem] uppercase">
+											{coverageSubject.code}
+										</Badge>
+										{coverageSubject.rotationFamily && (
+											<Badge variant="outline" className="bg-violet-100 text-violet-900 border-violet-300 font-bold text-[0.65rem] uppercase">
+												{coverageSubject.rotationFamily}
+											</Badge>
+										)}
+										{resolveSubjectTermLabel(coverageSubject) && (
+											<Badge variant="outline" className="bg-violet-100 text-violet-900 border-violet-300 font-bold text-[0.65rem] uppercase">
+												{resolveSubjectTermLabel(coverageSubject)}
+											</Badge>
+										)}
+									</div>
+									<p className="text-xs text-violet-800/80">
+										Coverage and load calculations are scoped by rotation family plus term.
+									</p>
+								</div>
+
 								{/* Assigned Teachers */}
 								<div className="space-y-4">
 									<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
@@ -877,6 +918,10 @@ export default function Subjects() {
 					ownerDepartment: modalSubjectMeta.ownerDepartment,
 					allowedOwnerDepartments: modalSubjectMeta.allowedOwnerDepartments,
 					rotationFamily: modalSubjectMeta.rotationFamily,
+					rotationTermLabel: modalSubjectMeta.rotationTermLabel,
+					rotationTermRank: modalSubjectMeta.rotationTermRank,
+					rotationTermGroupId: modalSubjectMeta.rotationTermGroupId,
+					rotationTermCount: modalSubjectMeta.rotationTermCount,
 					outputLabel: modalSubjectMeta.outputLabel,
 					isSystemManaged: modalSubjectMeta.isSystemManaged,
 				} : undefined}

@@ -1,3 +1,75 @@
+# 2026-05-26 - Phase 3 Rotational Subject Term Awareness Full-Stack One-Shot
+- Phase: Phase 3 generator-readiness stream, rotational subject term-awareness truth + operator-surface visibility
+- Operator: GitHub Copilot
+- Scope gate: PASS
+- Files changed in this pass:
+  - `atlas-server/src/services/subject-ownership.service.ts`
+  - `atlas-server/src/services/subject.service.ts`
+  - `atlas-server/src/services/faculty-assignment.service.ts`
+  - `atlas-server/src/services/teaching-load-automation.service.ts`
+  - `atlas-client/src/types.ts`
+  - `atlas-client/src/lib/faculty-assignment-helpers.ts`
+  - `atlas-client/src/pages/FacultyAssignments.tsx`
+  - `atlas-client/src/components/faculty-assignments/SubjectRow.tsx`
+  - `atlas-client/src/pages/Subjects.tsx`
+  - `atlas-client/src/components/subjects/SubjectRow.tsx`
+  - `atlas-client/src/components/subjects/SubjectFormModal.tsx`
+  - `atlas-client/src/components/sections/SectionDetailsSheet.tsx`
+  - `docs/verification/evidence-log.md`
+
+- What the old model did:
+  - Rotational-family load collapsed by family+section lane identity and did not carry a complete term-aware lane contract across summary, staffing, and assignment delta surfaces.
+  - Operator-facing views could show rotational subject codes but did not consistently expose a normalized term label/rank contract everywhere schedulers make assignment decisions.
+
+- Why it was wrong:
+  - Schedulers could not reliably audit concurrent demand by term lane from all required surfaces (`Subjects`, `Teaching Load`, `Sections`).
+  - Staffing conclusions could be hard to trust because lane identity and explanatory metadata were not aligned end-to-end for rotational families.
+
+- Backend term-aware model now in place:
+  - Teaching-load minute computation and lane impact modeling now use a term-aware rotational lane identity (family + term + unit path) instead of family+section-only collapse.
+  - Auto-fill and staffing paths now consume the same term-aware lane truth used by summary load fields.
+  - API payloads now expose normalized rotational term metadata (`rotationTermRank`, `rotationTermLabel`, group/count metadata) for frontend-safe rendering.
+
+- Frontend visibility outcomes (live Tailnet):
+  - `Subjects` shows rotational term context directly in row identity and detail drawer (including explicit term label/rank).
+  - `Teaching Load` shows rotational term lane context and term-aware lane wording in assignment rows.
+  - `Sections` details show rotational-family term badges in assigned-class rows.
+
+- Before/after live load proof:
+  - Before reference (settled pre-fix baseline from prior evidence):
+    - `AQUINO, ELPIDIO` sample in old model path showed rotational overcount (`sectionTeachingHoursRaw=31`, `sectionTeachingHours=27.3`, `rotationFamilyOvercountHours=3.8`) with family-level collapsed interpretation.
+  - After this pass (live summary rerun, school `1`, schoolYear `55`):
+    - `AQUINO, ELPIDIO`: `sectionTeachingHoursRaw=42.3`, `sectionTeachingHours=42.3`, `rotationFamilyOvercountHours=0`.
+    - `rotationFamilyLoadDetails` now exposes explicit SCIENCE term buckets:
+      - `1st Term`: `SCI_BIO`, `creditedHours=18.8`
+      - `2nd Term`: `SCI_CHEM`, `creditedHours=11.3`
+      - `3rd Term`: `SCI_ES`, `creditedHours=3.8`
+
+- Before/after live staffing proof:
+  - Before (settled baseline from prompt):
+    - `REAL_FACULTY_STANDARD -> unresolved=70`
+    - `REAL_FACULTY_HARD_CAP -> unresolved=70`
+    - `REAL_FACULTY_THEN_TEACHER_X -> unresolved=0`
+  - After this pass (live `POST /api/v1/faculty-assignments/auto-fill`, preview mode):
+    - `REAL_FACULTY_STANDARD -> unresolved=70`, `rowsClosedByRealFaculty=0`
+    - `REAL_FACULTY_HARD_CAP -> unresolved=70`, `rowsClosedByRealFaculty=0`
+    - `REAL_FACULTY_THEN_TEACHER_X -> unresolved=0`, `rowsClosedByTeacherX=70`
+  - Live staffing report (`REAL_FACULTY_STANDARD`) remains SCIENCE-dominant with `shortageRows=70`, `concurrentMissingHoursPerWeek=262.5`, and shortage sections all mapped to `SCI_ES`.
+
+- Explicit SCI_ES verdict after correction:
+  - Live coverage summary row (`schoolId=1`, `schoolYearId=55`):
+    - `SCI_ES`: `relevantSectionCount=82`, `ownedSectionCount=12`, `uncoveredSectionCount=70`, `coveragePercent=14.63`, `status=PARTIAL`.
+  - Verdict: **SCI_ES shortage remains mostly real after the term-awareness correction**. The fix improved truth/visibility consistency and lane explainability, but did not produce additional real-faculty closure in STANDARD or HARD_CAP modes; `Teacher X` is still required for full closure under current faculty capacity/qualification data.
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-server run test:faculty-assignment-pass5` -> PASS (`12 passed`, `0 failed`)
+  - `npm --prefix atlas-client run build` -> PASS
+
+- GO/NO-GO:
+  - **GO** for this prompt scope.
+  - Term-aware rotational truth and required operator-facing term visibility are implemented and verified; Science shortage conclusion is now explicit and evidence-backed.
+
 # 2026-05-26 - Publish Dissemination Guard and Soft-Acknowledgment Contract Hardening
 - Phase: Phase 3 publish/dissemination closure stream (review-console publish contract hardening)
 - Operator: GitHub Copilot
@@ -4376,3 +4448,76 @@ px tsc --noEmit (atlas-server): PASS
   - Manual bridged runtime QA (gesture-level latency + keyboard parity + responsive verification screenshots) is pending.
 - Decision:
   - Accepted for code verification; manual bridged UX evidence pending.
+#   2 0 2 6 - 0 5 - 2 6   -   P h a s e   3   S e c t i o n s   H o m e - R o o m   E 2 E   R e p a i r 
+ 
+ -   S c o p e :   R e p l a c e d   c u s t o m   g r i d   w i t h   B u i l d i n g V i e w ,   f i x e d   u n a s s i g n / s w a p   c o n f i r m a t i o n s ,   f i x e d   s o u r c e   t r u t h 
+ 
+ -   F i l e s   c h a n g e d :   a t l a s - c l i e n t / s r c / c o m p o n e n t s / s e c t i o n s / S e c t i o n R o o m M a p M o d a l . t s x ,   a t l a s - c l i e n t / s r c / p a g e s / S e c t i o n s . t s x ,   a t l a s - c l i e n t / s r c / c o m p o n e n t s / s e c t i o n s / S e c t i o n R o o m P i c k e r . t s x 
+ 
+ -   C o m m a n d s   r u n :   n p m   - - p r e f i x   a t l a s - c l i e n t   r u n   b u i l d 
+ 
+ -   T a i l n e t   v e r i f i c a t i o n :   V e r i f i e d   B u i l d i n g V i e w   r e n d e r i n g ,   d i r e c t   a s s i g n ,   u n a s s i g n   c o n f i r m a t i o n   m o d a l ,   s w a p   c o n f i r m a t i o n   m o d a l ,   a n d   c o r r e c t   s o u r c e   t r u t h   o n   r e - e n t r y   ( l i v e   v e r i f i e d   s t a t e ) . 
+ 
+ -   V e r d i c t :   G O 
+ 
+ #   2 0 2 6 - 0 5 - 2 6   -   P h a s e   3   S e c t i o n s   H o m e - R o o m   E v e n t   R e f a c t o r 
+ 
+ -   S c o p e :   R e f a c t o r e d   s e l e c t i o n   e v e n t   c h a i n   ( p i c k e r ,   r o w ,   m a p   m o d a l )   t o   u s e   a   u n i f i e d   n u m e r i c   h a n d l e r   ( n u m b e r   |   n u l l )   t r i g g e r i n g   c o n f i r m e d   u n a s s i g n ,   o c c u p i e d   s w a p ,   a n d   d i r e c t   a s s i g n   f l o w s 
+ 
+ -   F i l e s   c h a n g e d :   a t l a s - c l i e n t / s r c / p a g e s / S e c t i o n s . t s x ,   a t l a s - c l i e n t / s r c / c o m p o n e n t s / s e c t i o n s / S e c t i o n R o o m P i c k e r . t s x ,   a t l a s - c l i e n t / s r c / c o m p o n e n t s / s e c t i o n s / S e c t i o n R o w . t s x 
+ 
+ -   C o m m a n d s   r u n :   n p m   - - p r e f i x   a t l a s - c l i e n t   r u n   b u i l d 
+ 
+ -   T a i l n e t   v e r i f i c a t i o n :   V e r i f i e d   t h a t   t h e   ' n o t h i n g   h a p p e n s '   b u g   i s   r e s o l v e d .   S e l e c t   a c t i o n s   i n   t h e   m a p   m o d a l   a n d   t h e   c o m p a c t   p i c k e r   n o w   u n i f o r m l y   t r i g g e r   t h e   a p p r o p r i a t e   S w a p C o n f i r m a t i o n M o d a l   o r   U n a s s i g n C o n f i r m a t i o n M o d a l   b a s e d   o n   t h e   d e s t i n a t i o n   r o o m ' s   o c c u p a n c y   s t a t u s   a n d   t h e   n e w   u n i f i e d   l o g i c   p a t h . 
+ 
+ -   V e r d i c t :   G O 
+ 
+ #   2 0 2 6 - 0 5 - 2 6   -   M a p   M o d a l   R e a c t   C r a s h   F i x 
+ 
+ -   S c o p e :   F i x e d   ' O b j e c t s   a r e   n o t   v a l i d   a s   a   R e a c t   c h i l d '   c r a s h   i n   S e c t i o n R o o m M a p M o d a l   a n d   r e s t o r e d   p r o p e r   s w a p   p e r s i s t e n c e   I D   m a p p i n g 
+ 
+ -   F i l e s   c h a n g e d :   a t l a s - c l i e n t / s r c / p a g e s / S e c t i o n s . t s x 
+ 
+ -   C o m m a n d s   r u n :   n p m   - - p r e f i x   a t l a s - c l i e n t   r u n   b u i l d 
+ 
+ -   T a i l n e t   v e r i f i c a t i o n :   V e r i f i e d   t h a t   t h e   M a p   M o d a l   n o w   r e n d e r s   c l e a n l y   w i t h o u t   c r a s h i n g .   R e v e r t i n g   t h e   o c c u p a n c y   m a p   t o   u s e   s t r i n g s   s a f e l y   s u p p o r t s   t h e   i n t e r a c t i v e   m a p   r e n d e r   c y c l e ,   w h i l e   s w a p   c o n f i r m a t i o n   l o o k u p   s a f e l y   t a r g e t s   t h e   c o r r e c t   m i r r o r I d   r e q u i r e d   b y   t h e   b a c k e n d   A P I   p a y l o a d . 
+ 
+ -   V e r d i c t :   G O 
+ 
+ #   2 0 2 6 - 0 5 - 2 6   -   H o m e - R o o m   A s s i g n m e n t   S i l e n t   A b o r t   F i x 
+ 
+ -   S c o p e :   F i x e d   h a n d l e H o m e R o o m C h a n g e   s i l e n t   a b o r t   a n d   a l i g n e d   b a c k e n d   p a y l o a d   m a p p i n g . 
+ 
+ -   F i l e s   c h a n g e d :   a t l a s - c l i e n t / s r c / p a g e s / S e c t i o n s . t s x ,   a t l a s - s e r v e r / s r c / s e r v i c e s / s e c t i o n . s e r v i c e . t s ,   a t l a s - s e r v e r / s r c / s e r v i c e s / s e c t i o n - a d a p t e r . t s 
+ 
+ -   C o m m a n d s   r u n :   n p m   - - p r e f i x   a t l a s - c l i e n t   r u n   b u i l d 
+ 
+ -   T a i l n e t   v e r i f i c a t i o n :   T h e   C R U D   b u g   w a s   c a u s e d   b y   a   f a l l b a c k   m a p p i n g   u s i n g   ' s e c t i o n . m i r r o r I d '   w h i c h   i s n ' t   p o p u l a t e d   o n   t h e   c l i e n t   s i d e   w i t h o u t   a   s e r v e r   r e s t a r t / p a y l o a d   m o d i f i c a t i o n .   M o d i f y i n g   h a n d l e H o m e R o o m C h a n g e   t o   u s e   ' s e c t i o n . i d '   d i r e c t l y   ( w h i c h   m a t c h e s   ' e x t e r n a l I d '   o n   b a c k e n d )   a l l o w s   t h e   e v e n t   l o o p   t o   f i r e   p r o p e r l y .   M o d i f y i n g   t h e   b a c k e n d   u p d a t e   s e r v i c e   t o   u s e   ' e x t e r n a l I d '   a l l o w s   t h e   d a t a b a s e   m a p p i n g   t o   c o r r e c t l y   t a r g e t   t h e   i n t e r n a l   m i r r o r   r e c o r d .   B u i l d i n g   c o r r e c t l y . 
+ 
+ -   V e r d i c t :   G O 
+ 
+ #   2 0 2 6 - 0 5 - 2 6   -   S e c t i o n s   H o m e - R o o m   Q o L   a n d   V i s i b i l i t y 
+ 
+ -   S c o p e :   I m p l e m e n t e d   o c c u p a n c y   v i s i b i l i t y   a c r o s s   a l l   s e l e c t o r s   ( d r o p d o w n ,   m o d a l ,   m a p ) ,   f i x e d   b u i l d i n g   s o r t   o r d e r ,   i m p r o v e d   m o d a l   n a v i g a t i o n ,   a n d   a l i g n e d   D a s h b o a r d   b u i l d i n g   f o c u s . 
+ 
+ -   F i l e s   c h a n g e d :   a t l a s - c l i e n t / s r c / c o m p o n e n t s / B u i l d i n g V i e w . t s x ,   a t l a s - c l i e n t / s r c / p a g e s / D a s h b o a r d . t s x ,   a t l a s - c l i e n t / s r c / c o m p o n e n t s / s e c t i o n s / S e c t i o n R o o m P i c k e r . t s x ,   a t l a s - c l i e n t / s r c / c o m p o n e n t s / s e c t i o n s / S e c t i o n R o o m M a p M o d a l . t s x 
+ 
+ -   C o m m a n d s   r u n :   n p m   - - p r e f i x   a t l a s - c l i e n t   r u n   b u i l d 
+ 
+ -   T a i l n e t   v e r i f i c a t i o n :   V e r i f i e d   t h a t   a s s i g n e d   s e c t i o n   n a m e s   a r e   n o w   v i s i b l e   i n s i d e   t h e   r o o m   c a r d s   i n   B u i l d i n g V i e w   ( b o t h   i n   m o d a l   a n d   d a s h b o a r d ) ,   a n d   i n   t h e   p i c k e r / s i d e b a r   l i s t s .   V e r i f i e d   n u m e r i c   s o r t i n g   o f   b u i l d i n g s   ( G r a d e   1 0   i s   n o   l o n g e r   f i r s t ) .   V e r i f i e d   t h a t   c l o s i n g   a   b u i l d i n g   d r o p d o w n   r e t u r n s   t o   c a m p u s   v i e w   a n d   o p e n i n g   a n o t h e r   s w i t c h e s   c o r r e c t l y .   V e r i f i e d   a u t o - c e n t e r i n g   o f   B u i l d i n g V i e w   a n d   a u t o - s c r o l l   t o   s e l e c t e d   r o o m   i n   m o d a l   s i d e b a r .   V e r i f i e d   b u t t o n   l a y o u t   a l i g n m e n t   i n   m o d a l   h e a d e r . 
+ 
+ -   V e r d i c t :   G O 
+ 
+ #   2 0 2 6 - 0 5 - 2 6   -   B u i l d i n g V i e w   R e f e r e n c e   E r r o r   F i x 
+ 
+ -   S c o p e :   F i x e d   R e f e r e n c e E r r o r   ' c a n v a s H   i s   n o t   d e f i n e d '   i n   B u i l d i n g V i e w . t s x 
+ 
+ -   F i l e s   c h a n g e d :   a t l a s - c l i e n t / s r c / c o m p o n e n t s / B u i l d i n g V i e w . t s x 
+ 
+ -   C o m m a n d s   r u n :   n p m   - - p r e f i x   a t l a s - c l i e n t   r u n   b u i l d 
+ 
+ -   T a i l n e t   v e r i f i c a t i o n :   V e r i f i e d   t h a t   t h e   b u i l d i n g   i n t e r i o r   v i e w   a n d   d a s h b o a r d   f o c u s   m o d e   n o   l o n g e r   c r a s h .   T h e   u n d e f i n e d   ' c a n v a s H '   v a r i a b l e   w a s   c o r r e c t l y   r e p l a c e d   w i t h   t h e   ' f i x e d H e i g h t '   p r o p   i n   t h e   S t a g e   c o m p o n e n t .   B u i l d   p a s s e s   w i t h o u t   r e f e r e n c e   e r r o r s . 
+ 
+ -   V e r d i c t :   G O 
+ 
+ 

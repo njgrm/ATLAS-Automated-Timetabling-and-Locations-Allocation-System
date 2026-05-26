@@ -55,6 +55,10 @@ export type Subject = {
 	allowedOwnerDepartments?: string[];
 	qualificationPriority?: 'DEPARTMENT_FIRST' | 'SPECIALIZATION_PRIMARY';
 	rotationFamily?: string | null;
+	rotationTermRank?: number | null;
+	rotationTermLabel?: string | null;
+	rotationTermGroupId?: string | null;
+	rotationTermCount?: number | null;
 	specializationSource?: 'REFERENCE_METADATA' | 'NONE';
 	isSystemManaged?: boolean;
 	name: string;
@@ -71,7 +75,7 @@ export type Subject = {
 	modularGroupId?: string | null;
 	modularOrder?: number | null;
 	termGroupId?: string | null;
-	termCount?: number;
+	termCount?: number | null;
 	requiredFeatures: string[];
 	createdAt: string;
 	updatedAt: string;
@@ -167,7 +171,21 @@ export type FacultyAssignmentRecord = {
 	missingOwnershipSectionCount?: number;
 	ownershipWithoutScopeSectionCount?: number;
 	sections: ExternalSection[];
-	subject: { id: number; name: string; code: string; minMinutesPerWeek: number; rotationFamily?: string | null };
+	subject: {
+		id: number;
+		name: string;
+		code: string;
+		modularGroupId?: string | null;
+		modularOrder?: number | null;
+		termGroupId?: string | null;
+		termCount?: number | null;
+		minMinutesPerWeek: number;
+		rotationFamily?: string | null;
+		rotationTermRank?: number | null;
+		rotationTermLabel?: string | null;
+		rotationTermGroupId?: string | null;
+		rotationTermCount?: number | null;
+	};
 };
 
 export type RotationFamilyLoadDetail = {
@@ -176,6 +194,20 @@ export type RotationFamilyLoadDetail = {
 	creditedHours: number;
 	overcountHours: number;
 	unitCount: number;
+	dominantTermRank?: number | null;
+	dominantTermLabel?: string | null;
+	termGroupId?: string | null;
+	termCount?: number | null;
+	termBuckets?: Array<{
+		termRank: number | null;
+		termLabel: string | null;
+		termGroupId: string | null;
+		termCount: number | null;
+		creditedHours: number;
+		unitCount: number;
+		subjectCodes: string[];
+		subjectIds: number[];
+	}>;
 	subjectCodes: string[];
 	subjectIds: number[];
 };
@@ -1226,6 +1258,15 @@ export interface ExternalSection {
 	adviserName?: string | null;
 	assignmentSpecializationCode?: string | null;
 	assignmentSpecializationLabel?: string | null;
+	assignmentRotationFamily?: string | null;
+	assignmentRotationLaneId?: string | null;
+	assignmentRotationTermRank?: number | null;
+	assignmentRotationTermLabel?: string | null;
+	assignmentRotationTermGroupId?: string | null;
+	assignmentRotationTermCount?: number | null;
+	assignmentRawMinutesPerWeek?: number | null;
+	assignmentConcurrentDeltaMinutesPerWeek?: number | null;
+	assignmentExpandsConcurrentDemand?: boolean | null;
 }
 
 export type FacultyTeachingAssignmentIdentity = {
