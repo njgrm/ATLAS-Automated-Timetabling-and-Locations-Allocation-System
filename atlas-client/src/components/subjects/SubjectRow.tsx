@@ -91,16 +91,27 @@ export function SubjectRow({
 						<BookOpen className="size-4" />
 					</div>
 					<div className="flex flex-col min-w-0">
-						<span className="font-semibold text-foreground leading-tight truncate">{subject.name}</span>
-						<div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-							<code className="text-[0.65rem] font-mono text-muted-foreground uppercase">{subject.code}</code>
+						<span className="font-bold text-foreground leading-tight truncate">{subject.name}</span>
+						<div className="mt-1 flex flex-wrap items-center gap-2">
+							<code className="text-[0.65rem] font-mono text-muted-foreground uppercase px-1.5 py-0.5 bg-muted/30 rounded border border-border/40 font-bold tracking-tight">{subject.code}</code>
 							{subject.rotationFamily && (
-								<Badge variant="outline" className="h-4 px-1 text-[0.55rem] font-bold uppercase bg-violet-50 text-violet-700 border-violet-200">
-									{subject.rotationFamily}
-								</Badge>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Badge variant="outline" className="h-4 px-1 text-[0.55rem] font-black uppercase bg-violet-50 text-violet-700 border-violet-200 cursor-help shadow-none">
+											Rotating
+										</Badge>
+									</TooltipTrigger>
+									<TooltipContent side="top" className="text-xs font-bold max-w-[250px] p-3">
+										<p className="mb-1 uppercase tracking-widest text-[0.6rem] text-violet-600">Rotating Subject Family</p>
+										<p className="text-foreground font-medium leading-relaxed">
+											Part of the <span className="font-bold">{subject.rotationFamily}</span> group. 
+											One weekly classroom lane is shared across terms.
+										</p>
+									</TooltipContent>
+								</Tooltip>
 							)}
 							{rotationTermLabel && (
-								<Badge variant="outline" className="h-4 px-1 text-[0.55rem] font-bold uppercase bg-violet-100 text-violet-900 border-violet-300">
+								<Badge variant="outline" className="h-4 px-1 text-[0.55rem] font-black uppercase bg-violet-100 text-violet-900 border-violet-300 shadow-none">
 									{rotationTermLabel}
 								</Badge>
 							)}

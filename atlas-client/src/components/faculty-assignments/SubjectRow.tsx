@@ -14,6 +14,7 @@ import { Button } from '@/ui/button';
 import { Checkbox } from '@/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
 import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 export type SubjectRowProps = {
 	subject: Subject;
@@ -37,7 +38,7 @@ export type SubjectRowProps = {
 	onClearHoverLoad?: () => void;
 	activeFacultyIds?: Set<number>;
 	selectedFacultySpecialization?: string | null;
-	assignedRotationLanes?: Map<string, Set<number>>;
+	resolveSectionHoverDeltaMinutes?: (subject: Subject, sectionId: number) => number;
 };
 
 const PROGRAM_BADGE: Record<string, string> = {
@@ -110,7 +111,7 @@ export function SubjectRow({
 	onClearHoverLoad,
 	activeFacultyIds = new Set(),
 	selectedFacultySpecialization = null,
-	assignedRotationLanes = new Map(),
+	resolveSectionHoverDeltaMinutes,
 }: SubjectRowProps) {
 	const [openGrades, setOpenGrades] = useState<Record<number, boolean>>({});
 
@@ -452,12 +453,11 @@ export function SubjectRow({
 															: isSavedOther
 															? (isStaleOwner ? `Stale: ${savedOwner.facultyName}` : savedOwner.facultyName)
 															: null;
-
-														const isLaneSharedAcrossSubjects = Boolean(
-															!isSelected && 
-															rotationLaneKey && 
-															assignedRotationLanes.get(rotationLaneKey)?.has(section.id)
-														);
+																	const hoverDeltaMinutes =
+																		!isSelected && isRotationFamily && !blocked
+																			? Math.max(0, resolveSectionHoverDeltaMinutes?.(subject, section.id) ?? subject.minMinutesPerWeek)
+																			: 0;
+																	const isNoWeeklyIncrease = isRotationFamily && !isSelected && !blocked && hoverDeltaMinutes <= 0;
 
 														const requiredSpec = section.assignmentSpecializationCode;
 														const facultySpec = selectedFacultySpecialization;
@@ -490,8 +490,11 @@ export function SubjectRow({
 																	onCheckedChange={() => toggleSection(section.id)}
 																	disabled={disabled || blocked || isSystemAssignedSection}
 																	onMouseEnter={() => {
-																		if (!isSelected && !blocked && !isLaneSharedAcrossSubjects) {
-																			onHoverLoadMinutes?.(subject.minMinutesPerWeek);
+																			if (!isSelected && !blocked) {
+																				const delta = isRotationFamily ? hoverDeltaMinutes : subject.minMinutesPerWeek;
+																				if (delta > 0) {
+																					onHoverLoadMinutes?.(delta);
+																				}
 																		}
 																	}}
 																	onMouseLeave={() => onClearHoverLoad?.()}
@@ -514,56 +517,64 @@ export function SubjectRow({
 																		{isRotationFamily && !isSelected && !blocked && (
 																			<Tooltip>
 																				<TooltipTrigger asChild>
-																					<div className={`size-2.5 rounded-full shrink-0 border border-violet-500/20 cursor-help ${isLaneSharedAcrossSubjects ? 'bg-violet-600 shadow-[0_0_8px_rgba(139,92,246,0.5)]' : 'bg-violet-300 animate-pulse'}`} />
+																					<div className="flex items-center gap-1.5 cursor-help">
+																						<div className={`size-2.5 rounded-full shrink-0 border border-violet-500/20 ${isNoWeeklyIncrease ? 'bg-violet-600 shadow-[0_0_8px_rgba(139,92,246,0.5)]' : 'bg-violet-300 animate-pulse'}`} />
+																						<span className={cn("text-[10px] font-black uppercase tracking-tighter", isNoWeeklyIncrease ? "text-violet-700" : "text-violet-400")}>
+																							{isNoWeeklyIncrease ? 'No increase' : 'Adds load'}
+																						</span>
+																					</div>
 																				</TooltipTrigger>
 																				<TooltipContent side="top" className="text-xs font-bold max-w-[220px] p-2.5">
 																					<p className="mb-1">Rotating Weekly Lane</p>
 																					<p className="text-muted-foreground font-medium leading-tight">
-																						{isLaneSharedAcrossSubjects 
-																							? 'Same section already assigned in this term lane. Adds 0h concurrent load.' 
-																							: 'New term lane for this section. Increases concurrent weekly load.'}
+																						{isNoWeeklyIncrease
+																							? 'This assignment does not raise concurrent weekly demand in this rotation family.'
+																							: `Raises concurrent load by ${hoverDeltaMinutes} minute${hoverDeltaMinutes === 1 ? '' : 's'} per week.`}
 																					</p>
 																				</TooltipContent>
 																			</Tooltip>
 																		)}
 																	</div>
 																	
-																	{(section.assignmentSpecializationLabel || conflictLabel) && (
-																		<div className="mt-1.5 flex items-center gap-2">
-																			{section.assignmentSpecializationLabel && (
-																				<Tooltip>
-																					<TooltipTrigger asChild>
-																						<span className={`text-[11px] font-bold uppercase tracking-tight truncate max-w-[90px] cursor-help ${isPerfectMatch ? 'text-emerald-700' : isApprovedCompatibility ? 'text-sky-700' : 'text-muted-foreground/60'}`}>
-																							{section.assignmentSpecializationLabel}
+																	<div className="mt-1.5 flex items-center gap-2 flex-wrap">
+																		{isRotationFamily && rotationTermLabel && (
+																			<Badge variant="outline" className="h-4 px-1 text-[10px] font-black uppercase bg-violet-100 text-violet-900 border-violet-300 shadow-none">
+																				{rotationTermLabel}
+																			</Badge>
+																		)}
+																		{section.assignmentSpecializationLabel && (
+																			<Tooltip>
+																				<TooltipTrigger asChild>
+																					<span className={`text-[11px] font-bold uppercase tracking-tight truncate max-w-[90px] cursor-help ${isPerfectMatch ? 'text-emerald-700' : isApprovedCompatibility ? 'text-sky-700' : 'text-muted-foreground/60'}`}>
+																						{section.assignmentSpecializationLabel}
+																					</span>
+																				</TooltipTrigger>
+																				<TooltipContent side="top" className="text-xs font-bold">
+																					Required: {section.assignmentSpecializationLabel}
+																					{isApprovedCompatibility && " (Approved Alternative)"}
+																				</TooltipContent>
+																			</Tooltip>
+																		)}
+																		{conflictLabel && (
+																			<Tooltip>
+																				<TooltipTrigger asChild>
+																					<div className="flex items-center gap-1.5 cursor-help bg-muted/30 px-1.5 py-0.5 rounded-md max-w-[130px]">
+																						<div className={`size-2 rounded-full shrink-0 ${isHardConflict ? 'bg-rose-500' : isStaleOwner ? 'bg-amber-400 opacity-50' : 'bg-amber-500'}`} />
+																						<span className={`text-[11px] font-bold uppercase tracking-tight truncate ${isHardConflict ? 'text-rose-700' : isStaleOwner ? 'text-amber-700/70' : 'text-amber-700'}`}>
+																							{conflictLabel}
 																						</span>
-																					</TooltipTrigger>
-																					<TooltipContent side="top" className="text-xs font-bold">
-																						Required: {section.assignmentSpecializationLabel}
-																						{isApprovedCompatibility && " (Approved Alternative)"}
-																					</TooltipContent>
-																				</Tooltip>
-																			)}
-																			{conflictLabel && (
-																				<Tooltip>
-																					<TooltipTrigger asChild>
-																						<div className="flex items-center gap-1.5 cursor-help bg-muted/30 px-1.5 py-0.5 rounded-md max-w-[130px]">
-																							<div className={`size-2 rounded-full shrink-0 ${isHardConflict ? 'bg-rose-500' : isStaleOwner ? 'bg-amber-400 opacity-50' : 'bg-amber-500'}`} />
-																							<span className={`text-[11px] font-bold uppercase tracking-tight truncate ${isHardConflict ? 'text-rose-700' : isStaleOwner ? 'text-amber-700/70' : 'text-amber-700'}`}>
-																								{conflictLabel}
-																							</span>
-																						</div>
-																					</TooltipTrigger>
-																					<TooltipContent side="top" className="text-xs font-bold">
-																						{isHardConflict 
-																							? 'Database-level conflict detected.' 
-																							: isStaleOwner 
-																							? `Stale historical owner: ${savedOwner.facultyName}. Selection will replace this record.`
-																							: `Already owned by ${conflictLabel}`}
-																					</TooltipContent>
-																				</Tooltip>
-																			)}
-																		</div>
-																	)}
+																					</div>
+																				</TooltipTrigger>
+																				<TooltipContent side="top" className="text-xs font-bold">
+																					{isHardConflict 
+																						? 'Database-level conflict detected.' 
+																						: isStaleOwner 
+																						? `Stale historical owner: ${savedOwner.facultyName}. Selection will replace this record.`
+																						: `Already owned by ${conflictLabel}`}
+																				</TooltipContent>
+																			</Tooltip>
+																		)}
+																	</div>
 																</div>
 
 																{isSavedOther && !disabled && (

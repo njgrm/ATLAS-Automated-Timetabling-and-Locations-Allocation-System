@@ -17,6 +17,11 @@ import {
 	Search,
 	Trash2,
 	Users,
+	Zap,
+	X,
+	Info,
+	Clock,
+	RotateCcw,
 } from 'lucide-react';
 
 import { toast } from 'sonner';
@@ -819,25 +824,40 @@ export default function Subjects() {
 							</div>
 						) : coverageSubject && (
 							<>
-								<div className="rounded-xl border border-violet-100 bg-violet-50/30 p-4 space-y-2">
-									<p className="text-[0.65rem] font-bold uppercase tracking-widest text-violet-700/80">Subject Term Context</p>
+								<div className="rounded-xl border border-violet-100 bg-violet-50/30 p-4 space-y-3">
+									<div className="flex items-center justify-between">
+										<p className="text-[0.65rem] font-black uppercase tracking-widest text-violet-700/80">Subject Term Context</p>
+										{coverageSubject.rotationFamily && (
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<div className="flex items-center gap-1.5 cursor-help">
+														<Info className="size-3 text-violet-400" />
+														<span className="text-[10px] font-bold text-violet-600 uppercase tracking-tight">Rotating Subject</span>
+													</div>
+												</TooltipTrigger>
+												<TooltipContent side="top" className="text-xs font-bold max-w-[200px]">
+													Weekly classroom lane is shared with other subjects in this family across terms.
+												</TooltipContent>
+											</Tooltip>
+										)}
+									</div>
 									<div className="flex flex-wrap gap-1.5">
-										<Badge variant="outline" className="bg-white text-violet-700 border-violet-200 font-bold text-[0.65rem] uppercase">
+										<Badge variant="outline" className="bg-white text-violet-700 border-violet-200 font-bold text-[0.65rem] uppercase px-1.5 h-5 shadow-none">
 											{coverageSubject.code}
 										</Badge>
 										{coverageSubject.rotationFamily && (
-											<Badge variant="outline" className="bg-violet-100 text-violet-900 border-violet-300 font-bold text-[0.65rem] uppercase">
-												{coverageSubject.rotationFamily}
+											<Badge variant="outline" className="bg-violet-100 text-violet-900 border-violet-300 font-black text-[0.65rem] uppercase px-1.5 h-5 shadow-none">
+												Rotating
 											</Badge>
 										)}
 										{resolveSubjectTermLabel(coverageSubject) && (
-											<Badge variant="outline" className="bg-violet-100 text-violet-900 border-violet-300 font-bold text-[0.65rem] uppercase">
+											<Badge variant="outline" className="bg-violet-100 text-violet-900 border-violet-300 font-black text-[0.65rem] uppercase px-1.5 h-5 shadow-none">
 												{resolveSubjectTermLabel(coverageSubject)}
 											</Badge>
 										)}
 									</div>
-									<p className="text-xs text-violet-800/80">
-										Coverage and load calculations are scoped by rotation family plus term.
+									<p className="text-[11px] text-violet-800/80 leading-relaxed font-medium italic">
+										Calculations are scoped by <span className="font-bold">rotation family</span> and <span className="font-bold">term rank</span> to ensure weekly load accuracy.
 									</p>
 								</div>
 

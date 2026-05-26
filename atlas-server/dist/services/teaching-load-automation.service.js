@@ -21,7 +21,7 @@
 import { prisma } from '../lib/prisma.js';
 import { fetchSectionsForRuntimeControls } from './section.service.js';
 import { matchesSubjectOwnershipDepartment, normalizeDepartmentCode, resolveRotationTermMetadata, resolveSubjectAllowedOwnerDepartments, resolveSubjectRotationFamily, resolveSubjectOwnerDepartmentCode, } from './subject-ownership.service.js';
-import { repairActiveSubjectCoverageWithPlaceholders } from './faculty-assignment.service.js';
+import { previewOrApplyStaleOwnershipReconcile, repairActiveSubjectCoverageWithPlaceholders, } from './faculty-assignment.service.js';
 // DO 005 s.2024 weekly minute caps
 const STANDARD_CAP_MIN = 1_800;
 const HARD_CAP_MIN = 2_400;
@@ -616,6 +616,28 @@ function buildStaffingTruthComparison(input) {
         teacherX: toBucket(input.hardCapSimulation, teacherXRowsClosed, true),
     };
 }
+function buildSectionSourceWarning(sectionResult) {
+    if (sectionResult.source === 'enrollpro') {
+        return null;
+    }
+    if (sectionResult.source === 'stub') {
+        return 'Staffing report is running on stubbed section data.';
+    }
+    if (sectionResult.source === 'atlas-mirror') {
+        return 'Staffing report is running on ATLAS mirror-backed section data.';
+    }
+    const fallbackReason = (sectionResult.fallbackReason ?? '').trim();
+    if (fallbackReason === 'atlas-mirror-preferred-runtime-control') {
+        return 'Staffing report is running on ATLAS mirror-backed section data by runtime policy (not due to an upstream outage).';
+    }
+    if (fallbackReason === 'atlas-snapshot-preferred-runtime-control') {
+        return 'Staffing report is running on ATLAS snapshot-backed section data by runtime policy.';
+    }
+    if (fallbackReason.length > 0) {
+        return `Staffing report is running on ATLAS-cached section data (${fallbackReason}).`;
+    }
+    return 'Staffing report is running on ATLAS-cached section data.';
+}
 export async function autoFill(schoolId, schoolYearId, authToken, options) {
     const warnings = [];
     const previewOnly = options?.previewOnly ?? false;
@@ -623,10 +645,9 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
     const coverageMode = options?.coverageMode ?? DEFAULT_COVERAGE_MODE;
     const realCoverageMode = resolveRealCoverageMode(coverageMode);
     const sectionResult = await fetchSectionsForAutoFill(schoolId, schoolYearId, authToken);
-    if (sectionResult.source !== 'enrollpro') {
-        warnings.push(sectionResult.source === 'cached-enrollpro'
-            ? 'Staffing report is running on ATLAS-cached section data because EnrollPro is currently unavailable.'
-            : 'Staffing report is running on stubbed section data.');
+    const sectionSourceWarning = buildSectionSourceWarning(sectionResult);
+    if (sectionSourceWarning) {
+        warnings.push(sectionSourceWarning);
     }
     const sectionGradeLevel = new Map();
     const sectionMeta = new Map();
@@ -687,6 +708,22 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
             staffingReport: emptyReport,
             staffingTruth: emptyTruth,
         };
+    }
+    const shouldApplyStaleReconcile = !previewOnly && !staffingOnly;
+    const staleReconcile = await previewOrApplyStaleOwnershipReconcile({
+        schoolId,
+        schoolYearId,
+        actorId: 0,
+        authToken,
+        previewOnly: !shouldApplyStaleReconcile,
+    });
+    if (staleReconcile.staleOwnedCurrentYearPairCount > 0) {
+        if (staleReconcile.applied) {
+            warnings.push(`Removed ${staleReconcile.deletedOwnershipRows} stale ownership row${staleReconcile.deletedOwnershipRows === 1 ? '' : 's'} before coverage simulation so saved coverage truth can persist.`);
+        }
+        else {
+            warnings.push(`Detected ${staleReconcile.staleOwnedCurrentYearPairCount} stale owned pair${staleReconcile.staleOwnedCurrentYearPairCount === 1 ? '' : 's'}. Simulated recoverability may exceed saved coverage until stale ownership reconciliation is applied.`);
+        }
     }
     const faculty = await prisma.facultyMirror.findMany({
         where: { schoolId, isStale: false, isActiveForScheduling: true },

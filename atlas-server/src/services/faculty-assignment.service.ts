@@ -1861,7 +1861,7 @@ export async function previewOrApplyRealFacultyRecovery(
     Array.from(rosterIndex.sectionMap.values()).map((section) => [section.id, section.displayOrder]),
   );
 
-  const [subjects, facultyRows, ownershipRows] = await Promise.all([
+  const [subjects, activeFacultyRows, ownershipRows] = await Promise.all([
     prisma.subject.findMany({
       where: {
         schoolId: input.schoolId,
@@ -1936,8 +1936,29 @@ export async function previewOrApplyRealFacultyRecovery(
       : Promise.resolve([]),
   ]);
 
+  const ownershipFacultyIds = [...new Set(ownershipRows.map((row) => row.facultyId))];
+  const ownershipFacultyRows = ownershipFacultyIds.length > 0
+    ? await prisma.facultyMirror.findMany({
+      where: { id: { in: ownershipFacultyIds } },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        department: true,
+        specialization: true,
+        canTeachOutsideDepartment: true,
+        isPlaceholder: true,
+        isActiveForScheduling: true,
+        isStale: true,
+        maxHoursPerWeek: true,
+      },
+    })
+    : [];
+
   const subjectById = new Map(subjects.map((subject) => [subject.id, subject]));
-  const facultyById = new Map(facultyRows.map((member) => [member.id, member]));
+  const activeFacultyById = new Map(activeFacultyRows.map((member) => [member.id, member]));
+  const ownershipFacultyById = new Map(ownershipFacultyRows.map((member) => [member.id, member]));
+  const candidateFacultyRows = activeFacultyRows.filter((member) => !member.isPlaceholder);
   const targetSubjectIds = new Set(subjects.map((subject) => subject.id));
 
   const lanesByFaculty = new Map<number, Map<string, number>>();
@@ -1988,8 +2009,17 @@ export async function previewOrApplyRealFacultyRecovery(
     .filter((row) => targetSubjectIds.has(row.subjectId))
     .filter((row) => currentYearSectionIdSet.has(row.sectionId));
 
+  const isOwnershipActive = (facultyId: number): boolean => {
+    const owner = ownershipFacultyById.get(facultyId);
+    if (!owner) return false;
+    return owner.isStale !== true && owner.isActiveForScheduling === true;
+  };
+
   const ownedSectionBySubject = new Map<number, Set<number>>();
   for (const row of targetRows) {
+    if (!isOwnershipActive(row.facultyId)) {
+      continue;
+    }
     const owned = ownedSectionBySubject.get(row.subjectId) ?? new Set<number>();
     owned.add(row.sectionId);
     ownedSectionBySubject.set(row.subjectId, owned);
@@ -2002,9 +2032,16 @@ export async function previewOrApplyRealFacultyRecovery(
     sectionId: number;
     fromFacultyId: number;
   }> = [];
+  const pendingMovePairKeys = new Set<string>();
 
   for (const row of targetRows) {
-    if (facultyById.get(row.facultyId)?.isPlaceholder === true) {
+    const owner = ownershipFacultyById.get(row.facultyId);
+    const ownerMissing = !owner;
+    const ownerInactive = owner?.isActiveForScheduling !== true;
+    const ownerStale = owner?.isStale === true;
+    const ownerPlaceholder = owner?.isPlaceholder === true;
+
+    if (ownerMissing || ownerInactive || ownerStale || ownerPlaceholder) {
       pendingPairs.push({
         mode: 'MOVE_PLACEHOLDER',
         ownershipId: row.id,
@@ -2012,6 +2049,7 @@ export async function previewOrApplyRealFacultyRecovery(
         sectionId: row.sectionId,
         fromFacultyId: row.facultyId,
       });
+      pendingMovePairKeys.add(`${row.subjectId}:${row.sectionId}`);
     }
   }
 
@@ -2022,7 +2060,12 @@ export async function previewOrApplyRealFacultyRecovery(
       programType: section.programType ?? 'REGULAR',
     })));
     const owned = ownedSectionBySubject.get(subject.id) ?? new Set<number>();
-    const uncoveredSectionIds = relevantSectionIds.filter((sectionId) => !owned.has(sectionId));
+    const uncoveredSectionIds = relevantSectionIds.filter((sectionId) => {
+      if (owned.has(sectionId)) {
+        return false;
+      }
+      return !pendingMovePairKeys.has(`${subject.id}:${sectionId}`);
+    });
     for (const sectionId of uncoveredSectionIds) {
       pendingPairs.push({
         mode: 'ASSIGN_UNCOVERED',
@@ -2067,8 +2110,7 @@ export async function previewOrApplyRealFacultyRecovery(
       continue;
     }
 
-    const candidates = facultyRows
-      .filter((member) => !member.isPlaceholder)
+    const candidates = candidateFacultyRows
       .filter((member) =>
         matchesSubjectOwnershipDepartment(
           member.department,
@@ -2165,8 +2207,8 @@ export async function previewOrApplyRealFacultyRecovery(
       fromFacultyId: pair.fromFacultyId,
       fromFacultyName: pair.fromFacultyId > 0
         ? formatFacultyName(
-          facultyById.get(pair.fromFacultyId)?.firstName ?? 'Teacher',
-          facultyById.get(pair.fromFacultyId)?.lastName ?? 'X',
+          ownershipFacultyById.get(pair.fromFacultyId)?.firstName ?? 'Teacher',
+          ownershipFacultyById.get(pair.fromFacultyId)?.lastName ?? 'X',
         )
         : 'UNASSIGNED',
       toFacultyId: selectedCandidate.id,
@@ -2217,7 +2259,7 @@ export async function previewOrApplyRealFacultyRecovery(
         }
 
         const subject = subjectById.get(move.subjectId);
-        const destinationFaculty = facultyById.get(move.toFacultyId);
+        const destinationFaculty = activeFacultyById.get(move.toFacultyId);
         const specializationIdentity = resolveAssignmentSpecializationIdentity({
           subjectCode: subject?.code,
           allowedSpecializations: subject?.allowedSpecializations,
@@ -2278,7 +2320,8 @@ export async function previewOrApplyRealFacultyRecovery(
 
         const nextSectionIds = [...new Set(ownedRows.map((row) => row.sectionId))].sort((left, right) => left - right);
         if (nextSectionIds.length === 0) {
-          if (facultySubject.assignedBy === 0) {
+          const isStaleOwner = ownershipFacultyById.get(facultyId)?.isStale === true;
+          if (facultySubject.assignedBy === 0 || isStaleOwner) {
             await tx.facultySubject.delete({ where: { id: facultySubject.id } });
           }
           continue;

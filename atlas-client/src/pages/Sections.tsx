@@ -14,6 +14,10 @@ import {
 	Filter,
 	ChevronsLeft,
 	ChevronsRight,
+	Map as MapIcon,
+	Building2,
+	CheckCircle2,
+	Info,
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
@@ -36,6 +40,9 @@ import { SectionRow, type SectionDetail } from '@/components/sections/SectionRow
 import { type RoomOption as HomeRoomOption } from '@/components/sections/SectionRoomPicker';
 import { SectionDetailsSheet } from '@/components/sections/SectionDetailsSheet';
 import { SwapConfirmationModal, UnassignConfirmationModal } from '@/components/sections/SectionHomeRoomModals';
+import { SectionRoomMapModal } from '@/components/sections/SectionRoomMapModal';
+import { cn } from '@/lib/utils';
+import type { Building, RoomSectionMetadata } from '@/components/BuildingView';
 
 /* ─── Constants ─── */
 const DEFAULT_SCHOOL_ID = 1;
@@ -134,11 +141,11 @@ function applyQueuedHomeRoomEdits(sections: SectionDetail[], queued: HomeRoomQue
 	if (queued.length === 0) return sections;
 	const homeRoomBySection = new Map<number, number | null>(queued.map((entry) => [entry.sectionId, entry.homeRoomId]));
 	return sections.map((section) => {
-		if (!section.mirrorId) return section;
-		if (!homeRoomBySection.has(section.mirrorId)) return section;
+		if (!section.id) return section;
+		if (!homeRoomBySection.has(section.id)) return section;
 		return {
 			...section,
-			homeRoomId: homeRoomBySection.get(section.mirrorId) ?? null,
+			homeRoomId: homeRoomBySection.get(section.id) ?? null,
 		};
 	});
 }
@@ -166,6 +173,8 @@ export default function Sections() {
 	const [savingMirrorId, setSavingMirrorId] = useState<number | null>(null);
 	const [showFilters, setShowFilters] = useState(false);
 	const [pendingAssignment, setPendingAssignment] = useState<PendingAssignment | null>(null);
+	const [globalBrowseModalOpen, setGlobalBrowseModalOpen] = useState(false);
+	const [buildings, setBuildings] = useState<Building[]>([]);
 
 	// Drilldown
 	const [detailTarget, setDetailTarget] = useState<SectionDetail | null>(null);
@@ -224,7 +233,7 @@ export default function Sections() {
 				return;
 			}
 
-			const [summaryRes, homeRoomRes] = await Promise.all([
+			const [summaryRes, homeRoomRes, bRes] = await Promise.all([
 				requestWithRetry(
 					() => atlasApi.get<SectionSummary & { code?: string }>(`/sections/summary/${schoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`),
 					{ attempts: 2, delayMs: 400 },
@@ -233,11 +242,13 @@ export default function Sections() {
 					() => atlasApi.get<{ rooms: HomeRoomOption[] }>(`/sections/home-rooms/${schoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`),
 					{ attempts: 2, delayMs: 350 },
 				),
+				atlasApi.get<{ buildings: Building[] }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
 			]);
-			const res = summaryRes;
+			
+			setBuildings(bRes.data.buildings);
 			setHomeRoomOptions(homeRoomRes.data.rooms ?? []);
 			setCachedSectionHomeRooms(DEFAULT_SCHOOL_ID, schoolYearId, homeRoomRes.data.rooms ?? []);
-			if (res.data.code === 'UPSTREAM_UNAVAILABLE' && res.data.totalSections === 0) {
+			if (summaryRes.data.code === 'UPSTREAM_UNAVAILABLE' && summaryRes.data.totalSections === 0) {
 				setState({
 					status: 'unavailable',
 					message: 'Section data source is currently unavailable. Sections are sourced from the enrollment service and will appear here once the upstream API is connected.',
@@ -248,25 +259,20 @@ export default function Sections() {
 			}
 
 			const summaryWithQueuedEdits: SectionSummary = {
-				...res.data,
-				sections: applyQueuedHomeRoomEdits(res.data.sections, queuedEditsForYear),
+				...summaryRes.data,
+				sections: applyQueuedHomeRoomEdits(summaryRes.data.sections, queuedEditsForYear),
 			};
 
 			setState({ status: 'ok', data: summaryWithQueuedEdits });
 			setCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId, summaryWithQueuedEdits);
-			setLastSyncedAt(res.data.fetchedAt ? String(res.data.fetchedAt) : null);
+			setLastSyncedAt(summaryRes.data.fetchedAt ? String(summaryRes.data.fetchedAt) : null);
 			
-			// Source logic: 
-			// - 'live' if both context and data are verified enrollpro
-			// - 'atlas-mirror' if context is enrollpro-verified/enrollpro but payload is atlas-mirror
-			// - 'atlas-mirror' if context is atlas/atlas-persisted but we are online
-			// - 'cached' if we are offline
 			let nextSource: 'live' | 'atlas-mirror' | 'cached';
 			if (!isOnline) {
 				nextSource = 'cached';
 			} else {
 				const isUpstreamContext = yearContextSource === 'enrollpro' || yearContextSource === 'enrollpro-verified';
-				if (isUpstreamContext && res.data.source === 'enrollpro') {
+				if (isUpstreamContext && summaryRes.data.source === 'enrollpro') {
 					nextSource = 'live';
 				} else {
 					nextSource = 'atlas-mirror';
@@ -337,10 +343,7 @@ export default function Sections() {
 					}),
 				};
 				setCachedSectionSummary(DEFAULT_SCHOOL_ID, activeSchoolYearId, nextData);
-				return {
-					status: 'ok',
-					data: nextData,
-				};
+				return { status: 'ok', data: nextData };
 			});
 		};
 
@@ -348,9 +351,7 @@ export default function Sections() {
 			applyOptimisticHomeRoom();
 			setQueuedHomeRoomEdits((current) => {
 				let next = mergeQueuedHomeRoomEdit(current, section.id, nextHomeRoomId);
-				if (swapTarget) {
-					next = mergeQueuedHomeRoomEdit(next, swapTarget.sectionId, swapTarget.homeRoomId);
-				}
+				if (swapTarget) next = mergeQueuedHomeRoomEdit(next, swapTarget.sectionId, swapTarget.homeRoomId);
 				writeQueuedHomeRoomEdits(DEFAULT_SCHOOL_ID, activeSchoolYearId, next);
 				return next;
 			});
@@ -361,9 +362,7 @@ export default function Sections() {
 
 		try {
 			const assignments = [{ sectionId: section.id, homeRoomId: nextHomeRoomId }];
-			if (swapTarget) {
-				assignments.push({ sectionId: swapTarget.sectionId, homeRoomId: swapTarget.homeRoomId });
-			}
+			if (swapTarget) assignments.push({ sectionId: swapTarget.sectionId, homeRoomId: swapTarget.homeRoomId });
 
 			await atlasApi.put(`/sections/home-rooms/${activeSchoolYearId}`, {
 				schoolId: DEFAULT_SCHOOL_ID,
@@ -375,9 +374,7 @@ export default function Sections() {
 			applyOptimisticHomeRoom();
 			setQueuedHomeRoomEdits((current) => {
 				let next = mergeQueuedHomeRoomEdit(current, section.id, nextHomeRoomId);
-				if (swapTarget) {
-					next = mergeQueuedHomeRoomEdit(next, swapTarget.sectionId, swapTarget.homeRoomId);
-				}
+				if (swapTarget) next = mergeQueuedHomeRoomEdit(next, swapTarget.sectionId, swapTarget.homeRoomId);
 				writeQueuedHomeRoomEdits(DEFAULT_SCHOOL_ID, activeSchoolYearId, next);
 				return next;
 			});
@@ -396,10 +393,24 @@ export default function Sections() {
 		return map;
 	}, [state]);
 
+	const roomSectionDataMap = useMemo(() => {
+		const map = new Map<number, RoomSectionMetadata>();
+		if (state.status !== 'ok') return map;
+		state.data.sections.forEach((s) => {
+			if (s.homeRoomId) {
+				map.set(s.homeRoomId, {
+					sectionName: s.name,
+					gradeKey: gradeKey(s.gradeLevelName),
+					programCode: s.programCode,
+				});
+			}
+		});
+		return map;
+	}, [state]);
+
 	const handleHomeRoomChange = useCallback(async (section: SectionDetail, nextHomeRoomId: number | null) => {
 		if (!section.id || !activeSchoolYearId || state.status !== 'ok' || dataSource === 'none') return;
 		
-		// 1. Confirmed Unassign
 		if (nextHomeRoomId === null && section.homeRoomId) {
 			setPendingAssignment({
 				section,
@@ -410,7 +421,6 @@ export default function Sections() {
 			return;
 		}
 		
-		// 2. Occupied Swap
 		if (nextHomeRoomId !== null && roomOccupancyMap.has(nextHomeRoomId) && section.homeRoomId !== nextHomeRoomId) {
 			const displacedSectionName = roomOccupancyMap.get(nextHomeRoomId)!;
 			const targetRoomName = homeRoomOptions.find(r => r.id === nextHomeRoomId)?.name ?? 'Unknown Room';
@@ -425,7 +435,6 @@ export default function Sections() {
 			return;
 		}
 
-		// 3. Direct Update
 		void performHomeRoomUpdate(section, nextHomeRoomId);
 	}, [activeSchoolYearId, dataSource, homeRoomOptions, roomOccupancyMap, state.status, performHomeRoomUpdate]);
 
@@ -438,14 +447,9 @@ export default function Sections() {
 		setSyncing(true);
 		setSyncError(false);
 		try {
-			const { data } = await atlasApi.post('/sections/sync', {
-				schoolId: DEFAULT_SCHOOL_ID,
-			});
-			if (data.synced) {
-				await fetchSections({ forceRefresh: true });
-			} else {
-				setSyncError(true);
-			}
+			const { data } = await atlasApi.post('/sections/sync', { schoolId: DEFAULT_SCHOOL_ID });
+			if (data.synced) await fetchSections({ forceRefresh: true });
+			else setSyncError(true);
 		} catch {
 			setSyncError(true);
 		} finally {
@@ -468,33 +472,18 @@ export default function Sections() {
 	}, [fetchSections]);
 
 	useEffect(() => {
-		const handleOnline = () => {
-			setIsOnline(true);
-			void fetchSections({ forceRefresh: true });
-		};
+		const handleOnline = () => { setIsOnline(true); void fetchSections({ forceRefresh: true }); };
 		const handleOffline = () => setIsOnline(false);
-
 		window.addEventListener('online', handleOnline);
 		window.addEventListener('offline', handleOffline);
-
 		return () => {
 			window.removeEventListener('online', handleOnline);
 			window.removeEventListener('offline', handleOffline);
 		};
 	}, [fetchSections]);
 
-	useEffect(() => {
-		if (!activeSchoolYearId) {
-			setQueuedHomeRoomEdits([]);
-			return;
-		}
-		setQueuedHomeRoomEdits(readQueuedHomeRoomEdits(DEFAULT_SCHOOL_ID, activeSchoolYearId));
-	}, [activeSchoolYearId]);
-
 	const flushQueuedHomeRoomEdits = useCallback(async () => {
-		if (!activeSchoolYearId || !isOnline || syncingQueuedEdits || queuedHomeRoomEdits.length === 0) {
-			return;
-		}
+		if (!activeSchoolYearId || !isOnline || syncingQueuedEdits || queuedHomeRoomEdits.length === 0) return;
 
 		const dedupedAssignments = Array.from(
 			queuedHomeRoomEdits.reduce((map, item) => {
@@ -503,68 +492,51 @@ export default function Sections() {
 			}, new Map<number, number | null>()).entries(),
 		).map(([sectionId, homeRoomId]) => ({ sectionId, homeRoomId }));
 
-		if (dedupedAssignments.length === 0) return;
-
 		setSyncingQueuedEdits(true);
 		try {
 			await atlasApi.put(`/sections/home-rooms/${activeSchoolYearId}`, {
 				schoolId: DEFAULT_SCHOOL_ID,
 				assignments: dedupedAssignments,
 			});
-
 			writeQueuedHomeRoomEdits(DEFAULT_SCHOOL_ID, activeSchoolYearId, []);
 			setQueuedHomeRoomEdits([]);
-			setCacheNotice('Queued home-room changes were synced successfully.');
 			setSyncError(false);
 			await fetchSections({ forceRefresh: true });
 		} catch {
 			setSyncError(true);
-			setCacheNotice('Queued home-room changes are still pending sync.');
 		} finally {
 			setSyncingQueuedEdits(false);
 		}
 	}, [activeSchoolYearId, fetchSections, isOnline, queuedHomeRoomEdits, syncingQueuedEdits]);
 
-	useEffect(() => {
-		void flushQueuedHomeRoomEdits();
-	}, [flushQueuedHomeRoomEdits]);
+	useEffect(() => { void flushQueuedHomeRoomEdits(); }, [flushQueuedHomeRoomEdits]);
 
-	// Reset page when filters change
 	useEffect(() => { setPage(1); }, [searchQuery, gradeFilter, programFilter, pageSize]);
 
-	const { paged, totalFiltered, totalPages } = useMemo(() => {
-		if (state.status !== 'ok') return { paged: [], totalFiltered: 0, totalPages: 1 };
+	const { paged, totalFiltered, totalPages, assignedCount } = useMemo(() => {
+		if (state.status !== 'ok') return { paged: [], totalFiltered: 0, totalPages: 1, assignedCount: 0 };
 		let list = state.data.sections;
+		const ac = list.filter(s => !!s.homeRoomId).length;
 
-		// Search
 		if (searchQuery.trim()) {
 			const q = searchQuery.toLowerCase();
 			list = list.filter((s) => s.name.toLowerCase().includes(q) || s.gradeLevelName.toLowerCase().includes(q));
 		}
-		// Grade filter
-		if (gradeFilter !== 'all') {
-			list = list.filter((s) => gradeKey(s.gradeLevelName) === gradeFilter);
-		}
-		// Program filter
+		if (gradeFilter !== 'all') list = list.filter((s) => gradeKey(s.gradeLevelName) === gradeFilter);
 		if (programFilter !== 'all') {
-			if (programFilter === 'REGULAR') {
-				list = list.filter((s) => !s.isSpecialProgram);
-			} else {
-				list = list.filter((s) => s.programType === programFilter);
-			}
+			if (programFilter === 'REGULAR') list = list.filter((s) => !s.isSpecialProgram);
+			else list = list.filter((s) => s.programType === programFilter);
 		}
 
-		// Sort
 		const sorted = [...list].sort((a, b) => {
 			let cmp = 0;
-			if      (sortField === 'name')          cmp = a.name.localeCompare(b.name, undefined, { numeric: true });
+			if (sortField === 'name') cmp = a.name.localeCompare(b.name, undefined, { numeric: true });
 			else if (sortField === 'gradeLevelId') {
 				cmp = a.gradeLevelId - b.gradeLevelId;
-				// Secondary sort by name
 				if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { numeric: true });
 			}
 			else if (sortField === 'enrolledCount') cmp = a.enrolledCount - b.enrolledCount;
-			else if (sortField === 'maxCapacity')   cmp = a.maxCapacity - b.maxCapacity;
+			else if (sortField === 'maxCapacity') cmp = a.maxCapacity - b.maxCapacity;
 			else if (sortField === 'fill') {
 				const fA = a.maxCapacity > 0 ? a.enrolledCount / a.maxCapacity : 0;
 				const fB = b.maxCapacity > 0 ? b.enrolledCount / b.maxCapacity : 0;
@@ -576,8 +548,35 @@ export default function Sections() {
 		const tf = sorted.length;
 		const tp = Math.max(1, Math.ceil(tf / pageSize));
 		const start = (page - 1) * pageSize;
-		return { paged: sorted.slice(start, start + pageSize), totalFiltered: tf, totalPages: tp };
+		return { paged: sorted.slice(start, start + pageSize), totalFiltered: tf, totalPages: tp, assignedCount: ac };
 	}, [state, searchQuery, gradeFilter, programFilter, sortField, sortDir, page, pageSize]);
+
+	const hasActiveFilters = gradeFilter !== 'all' || searchQuery.trim() !== '' || programFilter !== 'all';
+
+	const buildingOccupancy = useMemo(() => {
+		const map = new Map<number, number>();
+		buildings.forEach(b => {
+			if (!b.rooms || b.rooms.length === 0) {
+				map.set(b.id, 0);
+				return;
+			}
+			// Be robust: treat as teaching space if explicitly true or if type is a standard teaching type
+			const teachingRooms = b.rooms.filter((r: import('@/types').Room) => 
+				r.isTeachingSpace === true || 
+				(!['LIBRARY', 'FACULTY_ROOM', 'OFFICE', 'OTHER'].includes(r.type))
+			);
+			
+			if (teachingRooms.length === 0) { 
+				map.set(b.id, 0); 
+				return; 
+			}
+			
+			const occupiedCount = teachingRooms.filter((r: import('@/types').Room) => roomOccupancyMap.has(r.id)).length;
+			const pct = (occupiedCount / teachingRooms.length) * 100;
+			map.set(b.id, pct);
+		});
+		return map;
+	}, [buildings, roomOccupancyMap]);
 
 	const toggleSort = (field: SortField) => {
 		if (sortField === field) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -589,10 +588,6 @@ export default function Sections() {
 		return sortDir === 'asc' ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />;
 	};
 
-	const hasActiveFilters = gradeFilter !== 'all' || searchQuery.trim() !== '' || programFilter !== 'all';
-	const isReadOnlyMode = state.status !== 'ok' || dataSource === 'none' || !activeSchoolYearId;
-
-	// Distinct grade levels present in data
 	const availableGrades = useMemo(() => {
 		if (state.status !== 'ok') return [];
 		const keys = new Set<string>();
@@ -600,7 +595,6 @@ export default function Sections() {
 		return Array.from(keys).sort((a, b) => Number(a) - Number(b));
 	}, [state]);
 
-	// Distinct special programs in data
 	const availablePrograms = useMemo(() => {
 		if (state.status !== 'ok') return [];
 		const types = new Set<string>();
@@ -608,177 +602,220 @@ export default function Sections() {
 		return Array.from(types).sort();
 	}, [state]);
 
+	const isReadOnlyMode = state.status !== 'ok' || dataSource === 'none' || !activeSchoolYearId;
+
+	const PROGRAM_FILTER_COLORS: Record<string, string> = {
+		STE:   'bg-emerald-100/80 text-emerald-700',
+		SPA:   'bg-purple-100/80 text-purple-700',
+		SPS:   'bg-orange-100/80 text-orange-700',
+		SPJ:   'bg-sky-100/80 text-sky-700',
+		SPFL:  'bg-indigo-100/80 text-indigo-700',
+		SPTVE: 'bg-amber-100/80 text-amber-700',
+		REGULAR: 'bg-slate-100/80 text-slate-700',
+	};
+
 	return (
 		<div className="flex flex-col h-[calc(100svh-3.5rem)]">
-
-			{/* ── Primary Header & Toolbar ── */}
 			<div className="shrink-0 px-6 py-4 border-b bg-background/50 backdrop-blur-md">
 				<div className="flex items-center justify-between gap-4">
 					<div className="flex items-center gap-4">
 						<div className="relative w-64">
 							<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-							<Input
-								placeholder="Search sections…"
-								value={searchQuery}
-								onChange={(e) => setSearchQuery(e.target.value)}
-								className="pl-9 h-9"
-							/>
+							<Input placeholder="Search sections…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-9" />
 						</div>
 
-						<Button
-							variant={showFilters ? 'secondary' : 'outline'}
-							size="sm"
-							className="h-9 gap-2"
+						<Button 
+							variant={showFilters ? 'secondary' : 'outline'} 
+							size="sm" 
+							className="h-9 gap-2 font-bold" 
 							onClick={() => setShowFilters(!showFilters)}
 						>
-							<Filter className="size-4" />
+							<Filter className="size-4" /> 
 							Filters
 							{hasActiveFilters && (
-								<Badge variant="secondary" className="ml-1 h-5 px-1.5 bg-primary text-primary-foreground font-bold">
-									Active
-								</Badge>
+								<Badge variant="secondary" className="ml-1 h-5 px-1.5 bg-primary text-primary-foreground font-bold">Active</Badge>
 							)}
 						</Button>
 					</div>
 
 					<div className="flex items-center gap-3">
 						<div className="flex items-center gap-2 mr-2">
+							{state.status === 'ok' && (
+								<TooltipProvider>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<div className="flex items-center gap-2 px-3 py-1 bg-primary/5 rounded-full border border-primary/20 cursor-help hidden lg:flex">
+												<div className="flex items-center gap-1.5">
+													<Building2 className="size-3.5 text-primary" />
+													<span className="text-[0.7rem] font-black uppercase tracking-widest text-primary">Assignment Progress</span>
+												</div>
+												<div className="h-3 w-32 bg-muted rounded-full overflow-hidden border border-border/30">
+													<div 
+														className="h-full bg-primary transition-all duration-500" 
+														style={{ width: `${(assignedCount / state.data.totalSections) * 100}%` }}
+													/>
+												</div>
+												<span className="text-[0.7rem] font-bold text-primary tabular-nums">
+													{assignedCount}/{state.data.totalSections}
+												</span>
+											</div>
+										</TooltipTrigger>
+										<TooltipContent className="text-[0.65rem] font-bold">
+											{Math.round((assignedCount / state.data.totalSections) * 100)}% of sections have a home-room assigned.
+										</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
+							)}
+
+							<Button 
+								variant="outline" 
+								size="sm" 
+								className="h-9 gap-2 font-bold bg-primary/5 border-primary/20 text-primary hover:bg-primary/10"
+								onClick={() => setGlobalBrowseModalOpen(true)}
+							>
+								<MapIcon className="size-4" />
+								<span className="hidden sm:inline">Browse Map</span>
+							</Button>
+
 							<TooltipProvider>
 								<Tooltip>
 									<TooltipTrigger asChild>
-										<Badge
-											variant={dataSource === 'live' ? 'secondary' : 'outline'}
-											className={`h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold cursor-help ${
-												(dataSource === 'atlas-mirror' || dataSource === 'cached') ? 'bg-amber-100 text-amber-700 border-amber-200' : 
-												dataSource === 'refreshing' ? 'bg-blue-50 text-blue-700 border-blue-200 animate-pulse' : ''
-											}`}
-										>
-											{dataSource === 'live'
-												? 'Verified with EnrollPro'
-												: dataSource === 'refreshing'
-												? 'Refreshing...'
-												: (dataSource === 'atlas-mirror' || dataSource === 'cached')
-												? 'Working from saved data'
-												: 'No Saved Data'}
+										<Badge variant={dataSource === 'live' ? 'secondary' : 'outline'} className={cn("h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold cursor-help", (dataSource === 'atlas-mirror' || dataSource === 'cached') ? 'bg-amber-100 text-amber-700 border-amber-200' : dataSource === 'refreshing' ? 'bg-blue-50 text-blue-700 border-blue-200 animate-pulse' : '')}>
+											{dataSource === 'live' ? 'Verified' : dataSource === 'refreshing' ? 'Refreshing...' : 'Saved Data'}
 										</Badge>
 									</TooltipTrigger>
 									<TooltipContent side="bottom" className="text-[0.65rem] font-semibold p-2">
-										{dataSource === 'live' 
-											? 'Data freshly verified with EnrollPro.' 
-											: dataSource === 'refreshing'
-											? 'Verifying EnrollPro connection and fetching latest section data...'
-											: 'Using data saved in ATLAS. Changes will sync when EnrollPro returns.'}
+										{dataSource === 'live' ? 'Data freshly verified with EnrollPro.' : dataSource === 'refreshing' ? 'Verifying EnrollPro connection...' : 'Using data saved in ATLAS.'}
 									</TooltipContent>
 								</Tooltip>
 							</TooltipProvider>
 
-								{queuedHomeRoomEdits.length > 0 && (
-									<Badge
-										variant='outline'
-										className='h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold border-blue-200 bg-blue-50 text-blue-700'
-									>
-										Queued: {queuedHomeRoomEdits.length}
-									</Badge>
-								)}
-
-							{/* Inline stat banner — prominent, not muted */}
-							{state.status === 'ok' && (
-								<div className="flex items-center gap-3 rounded-md border border-border bg-card px-3 py-1 shadow-sm shrink-0">
-									<div className="flex items-center gap-1">
-										<span className="text-sm font-bold text-foreground tabular-nums">{state.data.totalSections}</span>
-										<span className="text-[0.65rem] text-muted-foreground uppercase font-bold tracking-tighter">sections</span>
-									</div>
-									<span className="text-border">·</span>
-									<div className="flex items-center gap-1.5">
-										{Object.entries(state.data.byGradeLevel)
-											.sort(([a], [b]) => Number(a) - Number(b))
-											.map(([grade, count]) => (
-												<Badge
-													key={grade}
-													variant="secondary"
-													className={`h-5 px-1.5 text-[0.65rem] font-bold border-0 ${GRADE_COLORS[grade] ?? 'bg-muted/50 text-muted-foreground'}`}
-												>
-													G{grade}: {count}
-												</Badge>
-											))}
-									</div>
-								</div>
-							)}
-
-							{timeSince && (
-								<TooltipProvider delayDuration={500}>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<span className="text-[0.7rem] text-muted-foreground font-semibold bg-muted px-2 py-1 rounded-md hidden lg:inline-block uppercase tracking-tight">
-												Last synced: {timeSince}
-											</span>
-										</TooltipTrigger>
-										<TooltipContent>Synced at {new Date(lastSyncedAt!).toLocaleString()}</TooltipContent>
-									</Tooltip>
-								</TooltipProvider>
+							{queuedHomeRoomEdits.length > 0 && (
+								<Badge variant='outline' className='h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold border-blue-200 bg-blue-50 text-blue-700'>
+									Queued: {queuedHomeRoomEdits.length}
+								</Badge>
 							)}
 						</div>
 
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={handleSync}
-							disabled={syncing || syncingQueuedEdits || state.status === 'loading' || !isOnline}
-							className="h-9 gap-2 shadow-sm font-bold"
-						>
+						<Button variant="outline" size="sm" onClick={handleSync} disabled={syncing || syncingQueuedEdits || state.status === 'loading' || !isOnline} className="h-9 gap-2 shadow-sm font-bold">
 							<RefreshCw className={`size-4 ${syncing || syncingQueuedEdits ? 'animate-spin' : ''}`} />
-							{syncing || syncingQueuedEdits ? 'Syncing...' : !isOnline ? 'Offline' : 'Sync Sections'}
+							<span className="hidden sm:inline">{syncing || syncingQueuedEdits ? 'Syncing...' : !isOnline ? 'Offline' : 'Sync Sections'}</span>
+							<span className="sm:hidden">{syncing || syncingQueuedEdits ? '' : 'Sync'}</span>
 						</Button>
 					</div>
 				</div>
 
 				{/* Expanded Filters */}
 				{showFilters && (
-					<div className="flex flex-wrap items-center gap-3 pt-4 animate-in slide-in-from-top-2 duration-200">
-						{availableGrades.length > 0 && (
+					<div className="flex flex-col gap-4 pt-4 border-t mt-4 animate-in slide-in-from-top-2 duration-200">
+						{/* Mobile: Dropdowns */}
+						<div className="flex md:hidden items-center gap-2">
 							<Select value={gradeFilter} onValueChange={setGradeFilter}>
-								<SelectTrigger className="h-8 w-32 text-xs bg-background">
+								<SelectTrigger className="h-8 flex-1 text-xs">
 									<SelectValue placeholder="All Grades" />
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="all">All Grades</SelectItem>
-									{availableGrades.map((g) => (
+									{availableGrades.map(g => (
 										<SelectItem key={g} value={g}>Grade {g}</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
-						)}
-
-						{availablePrograms.length > 0 && (
 							<Select value={programFilter} onValueChange={setProgramFilter}>
-								<SelectTrigger className="h-8 w-40 text-xs bg-background">
+								<SelectTrigger className="h-8 flex-1 text-xs">
 									<SelectValue placeholder="All Programs" />
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="all">All Programs</SelectItem>
-									<SelectItem value="REGULAR">Regular</SelectItem>
-									{availablePrograms.map((p) => (
+									<SelectItem value="REGULAR">Regular Program</SelectItem>
+									{availablePrograms.map(p => (
 										<SelectItem key={p} value={p}>{p}</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
-						)}
+						</div>
 
-						{hasActiveFilters && (
-							<Button
-								variant="ghost"
-								size="sm"
-								className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground font-semibold"
-								onClick={() => { setSearchQuery(''); setGradeFilter('all'); setProgramFilter('all'); }}
-							>
-								Reset all
-							</Button>
-						)}
+						{/* Desktop: Toggle Groups */}
+						<div className="hidden md:flex flex-wrap items-center gap-6">
+							<div className="flex items-center gap-2">
+								<span className="text-[0.6rem] font-black uppercase tracking-widest text-muted-foreground">Grade Level:</span>
+								<div className="flex bg-muted/30 p-0.5 rounded-lg border border-border/50">
+									<Button 
+										variant={gradeFilter === 'all' ? 'secondary' : 'ghost'} 
+										size="sm" 
+										className="h-8 px-3 text-xs font-bold" 
+										onClick={() => setGradeFilter('all')}
+									>
+										All
+									</Button>
+									{availableGrades.map(g => (
+										<Button 
+											key={g} 
+											variant={gradeFilter === g ? 'secondary' : 'ghost'} 
+											size="sm" 
+											className={cn("h-8 px-3 text-xs font-bold", gradeFilter === g && GRADE_COLORS[g])} 
+											onClick={() => setGradeFilter(g)}
+										>
+											G{g}
+										</Button>
+									))}
+								</div>
+							</div>
+
+							<div className="flex items-center gap-2">
+								<span className="text-[0.6rem] font-black uppercase tracking-widest text-muted-foreground">Program Type:</span>
+								<div className="flex bg-muted/30 p-0.5 rounded-lg border border-border/50 flex-wrap">
+									<Button 
+										variant={programFilter === 'all' ? 'secondary' : 'ghost'} 
+										size="sm" 
+										className="h-8 px-3 text-xs font-bold" 
+										onClick={() => setProgramFilter('all')}
+									>
+										All
+									</Button>
+									<Button 
+										variant={programFilter === 'REGULAR' ? 'secondary' : 'ghost'} 
+										size="sm" 
+										className={cn("h-8 px-3 text-xs font-bold", programFilter === 'REGULAR' && PROGRAM_FILTER_COLORS.REGULAR)} 
+										onClick={() => setProgramFilter('REGULAR')}
+									>
+										Regular
+									</Button>
+									{availablePrograms.map(p => (
+										<Button 
+											key={p} 
+											variant={programFilter === p ? 'secondary' : 'ghost'} 
+											size="sm" 
+											className={cn("h-8 px-3 text-xs font-bold", programFilter === p && (PROGRAM_FILTER_COLORS[p] || 'bg-blue-50 text-blue-700'))} 
+											onClick={() => setProgramFilter(p)}
+										>
+											{p}
+										</Button>
+									))}
+								</div>
+							</div>
+
+							{hasActiveFilters && (
+								<Button
+									variant="ghost"
+									size="sm"
+									className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground font-bold"
+									onClick={() => { 
+										setGradeFilter('all'); 
+										setProgramFilter('all'); 
+										setSearchQuery('');
+									}}
+								>
+									<X className="size-3 mr-1" />
+									Reset Filters
+								</Button>
+							)}
+						</div>
 					</div>
 				)}
 			</div>
 
-			{/* ── Status Banners (slim, like Faculty) ── */}
+			{/* Status Banners */}
 			{state.status === 'no-year' && (
 				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 shadow-sm animate-in fade-in duration-300">
 					<AlertTriangle className="size-4 shrink-0 text-blue-600" />
@@ -788,46 +825,11 @@ export default function Sections() {
 			{(state.status === 'unavailable' || syncError) && (
 				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
 					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
-					<span className="flex-1 font-semibold text-amber-900">
-						{cacheNotice ?? (syncError ? 'EnrollPro is temporarily unavailable. Showing data saved in ATLAS.' : 'Enrollment service unavailable. Showing saved data.')}
-					</span>
-					<Button size="sm" variant="outline" onClick={handleSync} disabled={syncing || !isOnline} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold">
-						<RefreshCw className={`mr-1.5 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry Sync
-					</Button>
+					<span className="flex-1 font-semibold text-amber-900">{cacheNotice ?? (syncError ? 'EnrollPro is temporarily unavailable.' : 'Enrollment service unavailable.')}</span>
+					<Button size="sm" variant="outline" onClick={handleSync} disabled={syncing || !isOnline} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold"><RefreshCw className={`mr-1.5 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry Sync</Button>
 				</div>
 			)}
 
-			{state.status === 'ok' && queuedHomeRoomEdits.length > 0 && (
-				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 shadow-sm animate-in fade-in duration-300">
-					<ServerOff className="size-4 shrink-0 text-blue-600" />
-					<span className="flex-1 font-semibold text-blue-900">
-						{isOnline
-							? `${queuedHomeRoomEdits.length} home-room change${queuedHomeRoomEdits.length === 1 ? '' : 's'} are queued and syncing.`
-							: `${queuedHomeRoomEdits.length} home-room change${queuedHomeRoomEdits.length === 1 ? '' : 's'} saved locally and will sync after reconnect.`}
-					</span>
-				</div>
-			)}
-
-			{state.status === 'ok' && !syncError && !isOnline && queuedHomeRoomEdits.length === 0 && (
-				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 shadow-sm animate-in fade-in duration-300">
-					<ServerOff className="size-4 shrink-0 text-blue-600" />
-					<span className="flex-1 font-semibold text-blue-900">
-						You are offline. Home-room changes made here will be saved locally and synced when connection returns.
-					</span>
-				</div>
-			)}
-
-			{dataSource === 'atlas-mirror' && !syncError && isOnline && (
-				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 shadow-sm animate-in fade-in duration-300">
-					<RefreshCw className="size-4 shrink-0 text-blue-600" />
-					<span className="flex-1">
-						<span className="font-bold uppercase tracking-tight mr-1">Using saved mirror.</span>
-						EnrollPro connection is active, but this page is still showing saved data. Sync your roster to fetch the latest updates.
-					</span>
-				</div>
-			)}
-
-			{/* ── Table Container ── */}
 			<div className="flex-1 min-h-0 px-6 py-4">
 				<Card className="h-full flex flex-col shadow-sm border-border/50 overflow-hidden">
 					<div className="flex-1 min-h-0 overflow-auto">
@@ -835,197 +837,74 @@ export default function Sections() {
 							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md">
 								<tr className="border-b">
 									<th className="px-4 py-3 text-left">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('name')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
-											Section <SortIcon field="name" />
-										</Button>
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('name')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">Section <SortIcon field="name" /></Button>
 									</th>
 									<th className="px-4 py-3 text-left">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('gradeLevelId')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
-											Grade <SortIcon field="gradeLevelId" />
-										</Button>
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('gradeLevelId')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">Grade <SortIcon field="gradeLevelId" /></Button>
 									</th>
 									<th className="px-4 py-3 text-right">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('enrolledCount')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground ml-auto">
-											Enrolled <SortIcon field="enrolledCount" />
-										</Button>
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('enrolledCount')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground ml-auto">Enrolled <SortIcon field="enrolledCount" /></Button>
 									</th>
 									<th className="px-4 py-3 text-right">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('maxCapacity')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground ml-auto">
-											Capacity <SortIcon field="maxCapacity" />
-										</Button>
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('maxCapacity')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground ml-auto">Capacity <SortIcon field="maxCapacity" /></Button>
 									</th>
 									<th className="px-4 py-3 text-right">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('fill')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground ml-auto">
-											Fill <SortIcon field="fill" />
-										</Button>
+										<Button variant="ghost" size="sm" onClick={() => toggleSort('fill')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground ml-auto">Status <SortIcon field="fill" /></Button>
 									</th>
 									<th className="px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Home Room</th>
 									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Actions</th>
 								</tr>
 							</thead>
-
 							<tbody className="divide-y divide-border/40">
 								{state.status === 'loading' ? (
 									Array.from({ length: 8 }).map((_, i) => (
-										<tr key={i}>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-48" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-16" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-12 ml-auto" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-12 ml-auto" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-14 ml-auto" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-8 w-44" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-8 w-24 ml-auto" /></td>
-										</tr>
+										<tr key={i}><td className="px-4 py-4"><Skeleton className="h-5 w-48" /></td><td className="px-4 py-4"><Skeleton className="h-5 w-16" /></td><td className="px-4 py-4"><Skeleton className="h-5 w-12 ml-auto" /></td><td className="px-4 py-4"><Skeleton className="h-5 w-12 ml-auto" /></td><td className="px-4 py-4"><Skeleton className="h-5 w-14 ml-auto" /></td><td className="px-4 py-4"><Skeleton className="h-8 w-44" /></td><td className="px-4 py-4"><Skeleton className="h-8 w-24 ml-auto" /></td></tr>
 									))
 								) : paged.length === 0 ? (
-									<tr>
-										<td colSpan={7} className="px-4 py-20 text-center">
-											<div className="flex flex-col items-center gap-4 text-muted-foreground max-w-xs mx-auto">
-												<Users className="size-12 opacity-20" />
-												<div className="space-y-1">
-													<p className="font-bold text-foreground">
-														{state.status === 'ok' ? (hasActiveFilters ? 'No sections match your filters.' : 'No sections found.') : 'Sections data unavailable.'}
-													</p>
-													<p className="text-xs">
-														{state.status === 'ok' && !hasActiveFilters && 'Ensure the section roster is synced from the enrollment service.'}
-													</p>
-												</div>
-											</div>
-										</td>
-									</tr>
+									<tr><td colSpan={7} className="px-4 py-20 text-center"><div className="flex flex-col items-center gap-4 text-muted-foreground max-w-xs mx-auto"><Users className="size-12 opacity-20" /><div className="space-y-1"><p className="font-bold text-foreground">{state.status === 'ok' ? 'No sections match your filters.' : 'Sections data unavailable.'}</p></div></div></td></tr>
 								) : (
 									paged.map((s) => (
-										<SectionRow
-											key={s.id}
-											section={s}
-											homeRoomOptions={homeRoomOptions}
-											isReadOnly={isReadOnlyMode}
-											isSaving={savingMirrorId === s.mirrorId}
-											onHomeRoomChange={handleHomeRoomChange}
-											onShowDetails={(section) => setDetailTarget(section)}
-											schoolId={DEFAULT_SCHOOL_ID}
-											roomOccupancy={roomOccupancyMap}
-										/>
+										<SectionRow key={s.id} section={s} homeRoomOptions={homeRoomOptions} isReadOnly={isReadOnlyMode} isSaving={savingMirrorId === s.id} onHomeRoomChange={handleHomeRoomChange} onShowDetails={(section) => setDetailTarget(section)} schoolId={DEFAULT_SCHOOL_ID} roomOccupancy={roomOccupancyMap} />
 									))
 								)}
 							</tbody>
 						</table>
 					</div>
 
-					{/* ── Pagination footer ── */}
 					{state.status === 'ok' && state.data.sections.length > 0 && (
 						<div className="shrink-0 flex items-center justify-between border-t border-border/50 px-4 py-3 bg-muted/20">
 							<div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
-								<span>
-									{totalFiltered === 0
-										? 'No results'
-										: `Showing ${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, totalFiltered)} of ${totalFiltered} results`}
-								</span>
-								
+								<span>{totalFiltered === 0 ? 'No results' : `Showing ${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, totalFiltered)} of ${totalFiltered} results`}</span>
 								<div className="flex items-center gap-2 border-l pl-4 border-border/50">
 									<span>Rows per page:</span>
-									<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-										<SelectTrigger className="h-7 w-20 text-xs bg-background">
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
-										</SelectContent>
-									</Select>
+									<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}><SelectTrigger className="h-7 w-20 text-xs bg-background"><SelectValue /></SelectTrigger><SelectContent>{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}</SelectContent></Select>
 								</div>
 							</div>
-
-							<div className="flex items-center gap-1.5">
-								<Button 
-									variant="outline" 
-									size="icon" 
-									className="h-8 w-8" 
-									onClick={() => setPage(1)} 
-									disabled={page <= 1}
-								>
-									<ChevronsLeft className="size-4" />
-								</Button>
-								<Button 
-									variant="outline" 
-									size="icon" 
-									className="h-8 w-8" 
-									onClick={() => setPage((p) => Math.max(1, p - 1))} 
-									disabled={page <= 1}
-								>
-									<ChevronLeft className="size-4" />
-								</Button>
-								<div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-[0.7rem] font-bold tabular-nums">
-									<span>{page}</span>
-									<span className="text-muted-foreground/50 font-normal">/</span>
-									<span className="text-muted-foreground font-normal">{totalPages}</span>
-								</div>
-								<Button 
-									variant="outline" 
-									size="icon" 
-									className="h-8 w-8" 
-									onClick={() => setPage((p) => Math.min(totalPages, p + 1))} 
-									disabled={page >= totalPages}
-								>
-									<ChevronRight className="size-4" />
-								</Button>
-								<Button 
-									variant="outline" 
-									size="icon" 
-									className="h-8 w-8" 
-									onClick={() => setPage(totalPages)} 
-									disabled={page >= totalPages}
-								>
-									<ChevronsRight className="size-4" />
-								</Button>
-							</div>
+							<div className="flex items-center gap-1.5"><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(1)} disabled={page <= 1}><ChevronsLeft className="size-4" /></Button><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}><ChevronLeft className="size-4" /></Button><div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-[0.7rem] font-bold tabular-nums"><span>{page}</span><span className="text-muted-foreground/50 font-normal">/</span><span className="text-muted-foreground font-normal">{totalPages}</span></div><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}><ChevronRight className="size-4" /></Button><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(totalPages)} disabled={page >= totalPages}><ChevronsRight className="size-4" /></Button></div>
 						</div>
 					)}
 				</Card>
 			</div>
 
-			{/* Section Detail Drilldown */}
-			<SectionDetailsSheet
-				sectionId={detailTarget?.id ?? null}
-				sectionName={detailTarget?.name ?? null}
-				schoolYearId={activeSchoolYearId}
-				open={detailTarget !== null}
-				onOpenChange={(open) => !open && setDetailTarget(null)}
+			<SectionDetailsSheet sectionId={detailTarget?.id ?? null} sectionName={detailTarget?.name ?? null} schoolYearId={activeSchoolYearId} open={detailTarget !== null} onOpenChange={(open) => !open && setDetailTarget(null)} />
+
+			<SectionRoomMapModal 
+				open={globalBrowseModalOpen} 
+				onOpenChange={setGlobalBrowseModalOpen} 
+				sectionName="Global Browse" 
+				sectionId={0} 
+				currentRoomId={null} 
+				onSelect={() => {}} 
+				schoolId={DEFAULT_SCHOOL_ID} 
+				roomOccupancy={roomOccupancyMap}
+				roomSectionData={roomSectionDataMap}
+				buildingOccupancy={buildingOccupancy}
 			/>
 
-			{/* Home Room Modals */}
 			{pendingAssignment && (
 				<>
-					<SwapConfirmationModal
-						open={pendingAssignment.type === 'swap'}
-						onOpenChange={(open) => !open && setPendingAssignment(null)}
-						onConfirm={() => {
-							const { section, roomId } = pendingAssignment;
-							if (state.status !== 'ok') return;
-							const displaced = state.data.sections.find(s => s.homeRoomId === roomId);
-							void performHomeRoomUpdate(
-								section, 
-								roomId, 
-								displaced ? { sectionId: displaced.id, homeRoomId: section.homeRoomId ?? null } : undefined
-							);
-							setPendingAssignment(null);
-						}}
-						sourceSectionName={pendingAssignment.section.name}
-						targetRoomName={pendingAssignment.targetRoomName ?? ''}
-						displacedSectionName={pendingAssignment.displacedSection ?? ''}
-						currentRoomName={pendingAssignment.currentRoomName}
-						isSaving={savingMirrorId !== null}
-					/>
-					<UnassignConfirmationModal
-						open={pendingAssignment.type === 'unassign'}
-						onOpenChange={(open) => !open && setPendingAssignment(null)}
-						onConfirm={() => {
-							void performHomeRoomUpdate(pendingAssignment.section, null);
-							setPendingAssignment(null);
-						}}
-						sectionName={pendingAssignment.section.name}
-						currentRoomName={pendingAssignment.currentRoomName ?? ''}
-						isSaving={savingMirrorId !== null}
-					/>
+					<SwapConfirmationModal open={pendingAssignment.type === 'swap'} onOpenChange={(open) => !open && setPendingAssignment(null)} onConfirm={() => { const { section, roomId } = pendingAssignment; if (state.status !== 'ok') return; const displaced = state.data.sections.find(s => s.homeRoomId === roomId); void performHomeRoomUpdate(section, roomId, displaced ? { sectionId: displaced.id, homeRoomId: section.homeRoomId ?? null } : undefined); setPendingAssignment(null); }} sourceSectionName={pendingAssignment.section.name} targetRoomName={pendingAssignment.targetRoomName ?? ''} displacedSectionName={pendingAssignment.displacedSection ?? ''} currentRoomName={pendingAssignment.currentRoomName} isSaving={savingMirrorId !== null} />
+					<UnassignConfirmationModal open={pendingAssignment.type === 'unassign'} onOpenChange={(open) => !open && setPendingAssignment(null)} onConfirm={() => { void performHomeRoomUpdate(pendingAssignment.section, null); setPendingAssignment(null); }} sectionName={pendingAssignment.section.name} currentRoomName={pendingAssignment.currentRoomName ?? ''} isSaving={savingMirrorId !== null} />
 				</>
 			)}
 		</div>

@@ -1,5 +1,5 @@
-import { Fragment, useMemo, useState } from 'react';
-import { Layer, Rect, Stage, Text } from 'react-konva';
+import { Fragment, useCallback, useMemo, useState } from 'react';
+import { Group, Layer, Rect, Stage, Text } from 'react-konva';
 import { Minus, Plus, RotateCcw } from 'lucide-react';
 
 import type { Building } from '../types';
@@ -8,9 +8,17 @@ type CampusMapProps = {
 	buildings: Building[];
 	activeBuildingId: number | null;
 	onSelect: (buildingId: number | null) => void;
+	/** Map of buildingId -> occupancy percentage (0-100) */
+	buildingOccupancy?: Map<number, number>;
 };
 
-export function CampusMap({ buildings, activeBuildingId, onSelect }: CampusMapProps) {
+const DEPED_COLORS = {
+	roof: '#95d1af',
+	roofStroke: '#6fb890',
+	walls: '#f1edca',
+} as const;
+
+export function CampusMap({ buildings, activeBuildingId, onSelect, buildingOccupancy }: CampusMapProps) {
 	const [scale, setScale] = useState(1);
 	const [position, setPosition] = useState({ x: 0, y: 0 });
 
@@ -19,33 +27,41 @@ export function CampusMap({ buildings, activeBuildingId, onSelect }: CampusMapPr
 		[buildings, activeBuildingId],
 	);
 
+	const getOccupancyColor = (pct: number) => {
+		if (pct >= 90) return '#dc2626'; // Red
+		if (pct >= 70) return '#ea580c'; // Orange
+		if (pct >= 50) return '#ca8a04'; // Yellow
+		return '#16a34a'; // Green
+	};
+
 	return (
-		<div className="rounded-lg border border-border bg-card p-3 shadow-sm">
+		<div className="h-full flex flex-col">
 			{/* Toolbar */}
-			<div className="mb-2 flex items-center gap-2">
+			<div className="shrink-0 mb-3 flex items-center gap-1.5 px-4 pt-4">
 				<button
-					className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-xs font-medium text-foreground hover:border-primary hover:text-primary transition-colors"
+					className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-xs font-bold text-foreground hover:border-primary hover:text-primary transition-all shadow-sm"
 					onClick={() => setScale((s) => Math.min(s + 0.15, 2.5))}
 				>
 					<Plus className="size-3.5" /> Zoom In
 				</button>
 				<button
-					className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-xs font-medium text-foreground hover:border-primary hover:text-primary transition-colors"
+					className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-xs font-bold text-foreground hover:border-primary hover:text-primary transition-all shadow-sm"
 					onClick={() => setScale((s) => Math.max(s - 0.15, 0.4))}
 				>
 					<Minus className="size-3.5" /> Zoom Out
 				</button>
 				<button
-					className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-xs font-medium text-foreground hover:border-primary hover:text-primary transition-colors"
-					onClick={() => { setScale(1); setPosition({ x: 0, y: 0 }); onSelect(null); }}
+					className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-xs font-bold text-foreground hover:border-primary hover:text-primary transition-all shadow-sm"
+					onClick={() => { setScale(1); setPosition({ x: 0, y: 0 }); }}
 				>
 					<RotateCcw className="size-3.5" /> Reset
 				</button>
-				<span className="ml-auto text-[0.6875rem] text-muted-foreground">Published Overlay Preview</span>
+				<div className="h-4 w-px bg-border mx-2" />
+				<span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Campus Map View</span>
 			</div>
 
 			{/* Canvas */}
-			<div className="overflow-auto rounded-md border border-border">
+			<div className="flex-1 overflow-hidden relative bg-slate-50 shadow-inner">
 				<Stage
 					width={920}
 					height={520}
@@ -55,53 +71,90 @@ export function CampusMap({ buildings, activeBuildingId, onSelect }: CampusMapPr
 					scaleX={scale}
 					scaleY={scale}
 					onDragEnd={(e) => setPosition({ x: e.target.x(), y: e.target.y() })}
+					style={{ cursor: 'grab' }}
 				>
 					<Layer>
-						<Rect x={0} y={0} width={920} height={520} fill="hsl(40 30% 95%)" cornerRadius={8} />
+						<Rect x={-2000} y={-2000} width={4000} height={4000} fill="hsl(40 30% 95%)" />
 						{buildings.map((b) => {
-							const selected = active?.id === b.id;
+							const isSelected = active?.id === b.id;
+							const occupancy = buildingOccupancy?.get(b.id) ?? 0;
+							const occColor = getOccupancyColor(occupancy);
+							
 							return (
-								<Fragment key={b.id}>
+								<Group 
+									key={b.id} 
+									x={b.x} y={b.y} 
+									rotation={b.rotation ?? 0}
+									onClick={() => onSelect(b.id)}
+									onTap={() => onSelect(b.id)}
+								>
+									{/* Building Shadow */}
 									<Rect
-										x={b.x} y={b.y} width={b.width} height={b.height}
-										fill={b.color}
-										opacity={selected ? 0.95 : 0.78}
+										x={4} y={4}
+										width={b.width} height={b.height}
+										fill="rgba(0,0,0,0.08)"
 										cornerRadius={8}
-										stroke={selected ? '#111827' : '#ffffff'}
-										strokeWidth={selected ? 4 : 2}
-										onClick={() => onSelect(b.id)}
+										listening={false}
 									/>
+									{/* Building Body */}
+									<Rect
+										width={b.width} height={b.height}
+										fill={b.color}
+										opacity={isSelected ? 1 : 0.85}
+										cornerRadius={8}
+										stroke={isSelected ? '#111827' : '#ffffff'}
+										strokeWidth={isSelected ? 4 : 2}
+										shadowColor="rgba(0,0,0,0.15)"
+										shadowBlur={isSelected ? 10 : 4}
+										shadowOffsetY={2}
+									/>
+									
+									{/* Name on Roof */}
 									<Text
-										x={b.x + 10} y={b.y + 12}
+										x={8} y={8}
+										width={b.width - 16}
 										text={b.name}
-										fontSize={16} fill="#ffffff" fontStyle="bold"
+										fontSize={Math.max(10, b.width / 8)} 
+										fill="#ffffff" 
+										fontStyle="bold"
+										align="center"
+										listening={false}
 									/>
-								</Fragment>
+
+									{/* Occupancy Indicator */}
+									<Group x={6} y={b.height - 18}>
+										<Rect
+											width={b.width - 12}
+											height={12}
+											fill="rgba(255,255,255,0.2)"
+											cornerRadius={4}
+										/>
+										{occupancy > 0 && (
+											<Rect
+												width={(b.width - 12) * (occupancy / 100)}
+												height={12}
+												fill={occColor}
+												cornerRadius={4}
+												opacity={0.9}
+											/>
+										)}
+										<Text
+											x={0} y={2.5}
+											width={b.width - 12}
+											text={`${Math.round(occupancy)}% FILLED`}
+											fontSize={7}
+											fontStyle="black"
+											fill="#ffffff"
+											align="center"
+											listening={false}
+										/>
+									</Group>
+								</Group>
 							);
 						})}
 					</Layer>
 				</Stage>
 			</div>
-
-			{/* Inspector */}
-			{active ? (
-				<div className="mt-3 rounded-md border border-border bg-muted/50 p-3">
-					<p className="text-sm font-bold text-foreground">{active.name}</p>
-					<p className="mt-0.5 text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">Rooms</p>
-					<ul className="mt-1 space-y-0.5 text-sm text-foreground">
-						{active.rooms.map((room) => (
-							<li key={room.id} className="flex items-center gap-1.5">
-								<span className="size-1.5 rounded-full bg-primary" />
-								{room.name}
-							</li>
-						))}
-					</ul>
-				</div>
-			) : (
-				<p className="mt-3 text-[0.8125rem] text-muted-foreground">
-					Select a building to inspect rooms and active class blocks.
-				</p>
-			)}
 		</div>
 	);
 }

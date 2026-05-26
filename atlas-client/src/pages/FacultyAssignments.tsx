@@ -23,6 +23,7 @@ import {
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import { cn } from '@/lib/utils';
 import atlasApi from '@/lib/api';
 import {
 	buildAssignmentSignature,
@@ -136,6 +137,20 @@ type TeachingLoadResetPreview = {
 	subjectCodes: string[];
 };
 
+type RealFacultyRecoveryApplyResult = {
+	applied: boolean;
+	placeholderMovesPlanned: number;
+	placeholderMovesApplied: number;
+	blockers: Array<{ category: string; reason: string }>;
+	blockerCounts?: {
+		trueDepartmentShortage: number;
+		skewedAssignmentTopology: number;
+		unresolvedAutomationSeedBias: number;
+		rotationFamilyModelingGap: number;
+		subjectContractGap: number;
+	};
+};
+
 function cloneAssignments(assignments: FacultyAssignmentDraft[]): FacultyAssignmentDraft[] {
 	return assignments.map((assignment) => ({
 		subjectId: assignment.subjectId,
@@ -166,14 +181,6 @@ function resolveRotationTermRank(subject: Pick<Subject, 'rotationTermRank' | 'mo
 		return subject.modularOrder;
 	}
 	return 0;
-}
-
-function resolveRotationLaneKey(subject: Pick<Subject, 'rotationFamily' | 'rotationTermRank' | 'modularOrder'>): string | null {
-	const family = (subject.rotationFamily ?? '').trim().toUpperCase();
-	if (family.length === 0) {
-		return null;
-	}
-	return `${family}:term:${resolveRotationTermRank(subject)}`;
 }
 
 function resolveCanonicalRotationTermLabel(termLabel: string | null | undefined, termRank: number | null | undefined): string | null {
@@ -236,6 +243,7 @@ export default function FacultyAssignments() {
 	const [resetDialogOpen, setResetDialogOpen] = useState(false);
 	const [resetPreview, setResetPreview] = useState<TeachingLoadResetPreview | null>(null);
 	const [resetLoading, setResetLoading] = useState(false);
+	const [recoveryApplyLoading, setRecoveryApplyLoading] = useState(false);
 	const [resetConfirmText, setResetConfirmText] = useState('');
 	const [error, setError] = useState<string | null>(null);
 	const [dataSource, setDataSource] = useState<'live' | 'cached' | 'none'>('none');
@@ -716,6 +724,41 @@ export default function FacultyAssignments() {
 		}
 	}, [activeSchoolYearId, canRunStaffingNeeds, coverageMode]);
 
+		const handleApplyRealFacultyRecovery = useCallback(async () => {
+			if (!activeSchoolYearId) {
+				return;
+			}
+			if (!canPersistAssignments) {
+				toast.error('Recovery apply requires writable runtime evidence. Refresh and try again.');
+				return;
+			}
+
+			setRecoveryApplyLoading(true);
+			try {
+				const { data } = await atlasApi.post<RealFacultyRecoveryApplyResult>(
+					'/faculty-assignments/coverage/recover-real-faculty',
+					{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId, apply: true },
+				);
+				await fetchData({ forceRefresh: true });
+
+				if (data.placeholderMovesApplied > 0) {
+					toast.success(
+						`Saved coverage reconciled: moved ${data.placeholderMovesApplied} row${data.placeholderMovesApplied === 1 ? '' : 's'} to real faculty.`,
+					);
+				} else {
+					toast.info('Recovery apply completed. No additional rows needed reassignment.');
+				}
+
+				if (data.blockers.length > 0) {
+					toast.warning(`Recovery blockers remain on ${data.blockers.length} row${data.blockers.length === 1 ? '' : 's'}. Review staffing diagnostics.`);
+				}
+			} catch (requestError: any) {
+				toast.error(requestError?.response?.data?.message ?? 'Real-faculty recovery apply failed.');
+			} finally {
+				setRecoveryApplyLoading(false);
+			}
+		}, [activeSchoolYearId, canPersistAssignments, fetchData]);
+
 	const openGlobalResetPreview = useCallback(async () => {
 		if (!activeSchoolYearId) return;
 		if (!canRunGlobalReset) {
@@ -911,19 +954,92 @@ export default function FacultyAssignments() {
 		};
 	}, [selected, subjects]);
 
-	const assignedRotationLanes = useMemo(() => {
-		const map = new Map<string, Set<number>>();
-		for (const a of currentAssignments) {
-			const sub = subjects.find((s) => s.id === a.subjectId);
-			if (!sub) continue;
-			const laneKey = resolveRotationLaneKey(sub);
-			if (!laneKey) continue;
-			const set = map.get(laneKey) ?? new Set<number>();
-			a.sectionIds.forEach((id) => set.add(id));
-			map.set(laneKey, set);
+	const rotationHoverStateByFamily = useMemo(() => {
+		type FamilyState = {
+			termLaneMinutes: Map<number, Map<number, number>>;
+			termTotals: Map<number, number>;
+			peakMinutes: number;
+		};
+
+		const subjectById = new Map(subjects.map((subject) => [subject.id, subject]));
+		const familyStateByFamily = new Map<string, FamilyState>();
+
+		for (const assignment of currentAssignments) {
+			const subject = subjectById.get(assignment.subjectId);
+			if (!subject) {
+				continue;
+			}
+
+			const family = (subject.rotationFamily ?? '').trim().toUpperCase();
+			if (family.length === 0) {
+				continue;
+			}
+
+			const termKey = (() => {
+				const rank = resolveRotationTermRank(subject);
+				return rank > 0 ? rank : 0;
+			})();
+			const perUnitMinutes = Math.max(0, Number(subject.minMinutesPerWeek) || 0);
+
+			const familyState = familyStateByFamily.get(family) ?? {
+				termLaneMinutes: new Map<number, Map<number, number>>(),
+				termTotals: new Map<number, number>(),
+				peakMinutes: 0,
+			};
+			const laneMinutes = familyState.termLaneMinutes.get(termKey) ?? new Map<number, number>();
+
+			for (const sectionId of assignment.sectionIds) {
+				const currentMinutes = laneMinutes.get(sectionId) ?? 0;
+				if (perUnitMinutes > currentMinutes) {
+					laneMinutes.set(sectionId, perUnitMinutes);
+				}
+			}
+
+			familyState.termLaneMinutes.set(termKey, laneMinutes);
+			familyStateByFamily.set(family, familyState);
 		}
-		return map;
+
+		for (const familyState of familyStateByFamily.values()) {
+			let peakMinutes = 0;
+			for (const [termKey, laneMinutes] of familyState.termLaneMinutes.entries()) {
+				const termTotal = Array.from(laneMinutes.values()).reduce((sum, value) => sum + value, 0);
+				familyState.termTotals.set(termKey, termTotal);
+				if (termTotal > peakMinutes) {
+					peakMinutes = termTotal;
+				}
+			}
+			familyState.peakMinutes = peakMinutes;
+		}
+
+		return familyStateByFamily;
 	}, [currentAssignments, subjects]);
+
+	const resolveSectionHoverDeltaMinutes = useCallback((subject: Subject, sectionId: number): number => {
+		const perUnitMinutes = Math.max(0, Number(subject.minMinutesPerWeek) || 0);
+		if (perUnitMinutes <= 0) {
+			return 0;
+		}
+
+		const family = (subject.rotationFamily ?? '').trim().toUpperCase();
+		if (family.length === 0) {
+			return perUnitMinutes;
+		}
+
+		const termRank = resolveRotationTermRank(subject);
+		const termKey = termRank > 0 ? termRank : 0;
+		const familyState = rotationHoverStateByFamily.get(family);
+		const laneMinutes = familyState?.termLaneMinutes.get(termKey);
+		const currentLaneMinutes = laneMinutes?.get(sectionId) ?? 0;
+		const laneIncrease = Math.max(0, perUnitMinutes - currentLaneMinutes);
+		if (laneIncrease <= 0) {
+			return 0;
+		}
+
+		const currentTermTotal = familyState?.termTotals.get(termKey) ?? 0;
+		const currentPeak = familyState?.peakMinutes ?? 0;
+		const nextTermTotal = currentTermTotal + laneIncrease;
+		return Math.max(0, nextTermTotal - currentPeak);
+	}, [rotationHoverStateByFamily]);
 
 	const loadProfile = useMemo(() => {
 		const profile = buildTeachingLoadProfile(
@@ -936,7 +1052,7 @@ export default function FacultyAssignments() {
 		);
 		return {
 			...profile,
-			remainingHours: Math.round(((selected?.maxHoursPerWeek || 0) - profile.actualTeachingHours) * 10) / 10,
+			remainingHours: Math.round(((selected?.maxHoursPerWeek || 0) - profile.creditedTotalHours) * 10) / 10,
 		};
 	}, [currentAssignments, sectionMap, selected, subjects]);
 
@@ -1183,9 +1299,9 @@ export default function FacultyAssignments() {
 	}, [loadProfile.remainingHours]);
 
 	const previewLoadHours = useMemo(() => {
-		if (hoveredIncomingMinutes <= 0) return loadProfile.actualTeachingHours;
-		return Math.round(((loadProfile.actualTeachingHours * 60 + hoveredIncomingMinutes) / 60) * 10) / 10;
-	}, [hoveredIncomingMinutes, loadProfile.actualTeachingHours]);
+		if (hoveredIncomingMinutes <= 0) return loadProfile.creditedTotalHours;
+		return Math.round(((loadProfile.creditedTotalHours * 60 + hoveredIncomingMinutes) / 60) * 10) / 10;
+	}, [hoveredIncomingMinutes, loadProfile.creditedTotalHours]);
 
 	const departmentOptions = useMemo(
 		() => Array.from(new Set(faculty.map((member) => member.department).filter(Boolean) as string[])).sort(),
@@ -1535,6 +1651,19 @@ export default function FacultyAssignments() {
 											Audit & Maintenance
 										</h5>
 										<div className="space-y-2">
+											<Button
+												variant="outline"
+												className="w-full justify-start gap-3 h-auto py-2.5 px-4"
+												onClick={handleApplyRealFacultyRecovery}
+												disabled={recoveryApplyLoading || !canPersistAssignments || !activeSchoolYearId}
+											>
+												<Redo2 className="size-4 text-emerald-600" />
+												<div className="flex flex-col items-start">
+													<span className="font-bold text-xs">Reconcile Saved Coverage</span>
+													<span className="text-[0.65rem] text-muted-foreground">Apply recoverable real-faculty rows now</span>
+												</div>
+											</Button>
+
 											{integrityDiagnostics && (
 												<Dialog>
 													<SheetTrigger asChild>
@@ -1810,72 +1939,109 @@ export default function FacultyAssignments() {
 									</div>
 
 									<div className="flex items-center gap-3">
-										<div className="flex items-center gap-4 px-4 py-2 rounded-xl bg-muted/30 border border-border/40 shadow-inner">
-											<div className="flex flex-col min-w-60">
-												<div className="flex items-center gap-2 mb-1.5">
-													<span className="text-xs font-bold text-muted-foreground/80 tracking-tight leading-none">Weekly Load Calculation</span>
-													{rotationOvercountHours > 0 ? (
-														<span className="text-[11px] font-bold text-amber-700 bg-amber-100/60 px-1.5 py-0.5 rounded animate-pulse">Rotation Adjusted</span>
-													) : (
-														<span className="text-[11px] font-bold text-emerald-700/70 bg-emerald-50/50 px-1.5 py-0.5 rounded">No overlap</span>
-													)}
-												</div>
-												<div className="flex items-baseline gap-2.5">
-													<div className="flex flex-col items-center">
-														<span className="text-sm font-black tabular-nums leading-none">{loadProfile.rawTeachingHours}h</span>
-														<span className="text-[10px] font-bold text-muted-foreground/60 uppercase mt-1">Raw</span>
-													</div>
-													<span className="text-xs text-muted-foreground font-medium mb-3">-</span>
-													<div className="flex flex-col items-center">
-														<span className={`text-sm font-black tabular-nums leading-none ${rotationOvercountHours > 0 ? 'text-amber-600' : 'text-muted-foreground/30'}`}>
-															{rotationOvercountHours}h
-														</span>
-														<span className={`text-[10px] font-bold uppercase mt-1 ${rotationOvercountHours > 0 ? 'text-amber-600/60' : 'text-muted-foreground/30'}`}>Overlap</span>
-													</div>
-													<span className="text-xs text-muted-foreground font-medium mb-3">+</span>
-													<div className="flex flex-col items-center">
-														<span className="text-sm font-black text-emerald-600 tabular-nums leading-none">{loadProfile.equivalentHours}h</span>
-														<span className="text-[10px] font-bold text-emerald-600/60 uppercase mt-1">Credits</span>
-													</div>
-													<span className="text-xs text-muted-foreground font-medium mb-3">=</span>
-													<div className="flex flex-col items-center">
-														<span className="text-base font-black text-foreground tabular-nums leading-none">{loadProfile.creditedTotalHours}h</span>
-														<span className="text-[10px] font-bold text-primary/70 uppercase mt-1">Total</span>
-													</div>
-													<Badge className={`${STATUS_COLORS[loadProfile.status].bg} ${STATUS_COLORS[loadProfile.status].text} h-4 border-none text-[10px] font-bold uppercase px-1.5 shadow-none ml-2 mb-3`}>
+										<div className="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-muted/30 border border-border/40 shadow-inner">
+											<div className="flex flex-col items-center">
+												<span className="text-[0.55rem] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none mb-1">Weekly Load</span>
+												<div className="flex items-center gap-2">
+													<span className="text-lg font-black tabular-nums leading-none text-foreground">{loadProfile.creditedTotalHours}h</span>
+													<Badge className={`${STATUS_COLORS[loadProfile.status].bg} ${STATUS_COLORS[loadProfile.status].text} h-4 border-none text-[0.6rem] font-bold uppercase px-1.5 shadow-none`}>
 														{loadProfile.statusLabel}
 													</Badge>
 												</div>
-												{/* Persistent layman explanation - clearer and larger */}
-												<p className="text-[11px] font-medium text-muted-foreground mt-1.5 leading-tight italic">
-													{rotationOvercountHours > 0 
-														? 'Same-lane Science or TLE rows detected; overlap removed.'
-														: 'No shared weekly Science or TLE rotation overlap to remove.'}
-												</p>
 											</div>
 
-											<div className="w-20 space-y-1.5 pt-1 border-l border-border/40 pl-4">
-												<div className="h-2 w-full bg-muted rounded-full overflow-hidden border border-muted/50 relative shadow-inner">
-													<div
-														className="h-full bg-emerald-500 transition-all absolute left-0 top-0 z-10 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
-														style={{ width: `${Math.min((loadProfile.actualTeachingHours * 60 / Math.max(loadCapMinutes, 1)) * 100, 100)}%` }}
-													/>
-													{hoveredIncomingMinutes > 0 && (
-														<div
-															className={`h-full transition-all absolute left-0 top-0 z-0 ${previewLoadHours * 60 > 2400 ? 'bg-red-500/60' : previewLoadHours * 60 > 1800 ? 'bg-amber-400/60' : 'bg-emerald-300/60'}`}
-															style={{ width: `${Math.min((previewLoadHours * 60 / Math.max(loadCapMinutes, 1)) * 100, 100)}%` }}
-														/>
-													)}
-												</div>
-												<div className="flex justify-between text-[10px] font-bold uppercase tracking-tight tabular-nums text-muted-foreground/80">
-													<span>{loadProfile.creditedTotalHours}h / {selected.maxHoursPerWeek}h</span>
+											{rotationOvercountHours > 0 && (
+												<div className="h-8 w-px bg-border/40" />
+											)}
+
+											{rotationOvercountHours > 0 && (
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<div className="flex flex-col items-center cursor-help">
+															<span className="text-[0.55rem] font-bold text-amber-700/60 uppercase tracking-widest leading-none mb-1">Peak Adjusted</span>
+															<span className="text-xs font-black text-amber-600 tabular-nums leading-none">-{rotationOvercountHours}h</span>
+														</div>
+													</TooltipTrigger>
+													<TooltipContent className="text-xs font-bold">
+														Overlap removed from Science/TLE rotation lanes.
+													</TooltipContent>
+												</Tooltip>
+											)}
+
+											<div className="h-8 w-px bg-border/40" />
+
+											{/* Compact Per-Term Cues */}
+											<div className="flex flex-col items-center">
+												<span className="text-[0.55rem] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none mb-1">Term Load</span>
+												<div className="flex gap-1 items-end h-4">
+													{[1, 2, 3].map(term => {
+														const familyWithTerm = rotationTermBreakdown.find(f => f.termBuckets.some(b => b.termRank === term));
+														const termHours = rotationTermBreakdown.reduce((sum, f) => {
+															const bucket = f.termBuckets.find(b => b.termRank === term);
+															return sum + (bucket?.creditedMinutesPerWeek ?? 0) / 60;
+														}, 0);
+														// Also add non-rotational hours (this is a simplified cue)
+														const totalTermHours = termHours + (loadProfile.actualTeachingHours - (rotationTermBreakdown.reduce((sum, f) => sum + f.peakTermMinutesPerWeek, 0) / 60));
+														const height = Math.max(2, Math.min(100, (totalTermHours / (selected.maxHoursPerWeek || 30)) * 100));
+														
+														return (
+															<Tooltip key={term}>
+																<TooltipTrigger asChild>
+																	<div className="w-2.5 bg-muted rounded-t-sm relative group overflow-hidden border border-border/20">
+																		<div 
+																			className={cn("absolute bottom-0 left-0 right-0 transition-all duration-500", termHours > 0 ? "bg-violet-400" : "bg-primary/40")}
+																			style={{ height: `${height}%` }}
+																		/>
+																	</div>
+																</TooltipTrigger>
+																<TooltipContent className="text-[0.65rem] font-bold">
+																	Term {term}: {Math.round(totalTermHours * 10) / 10}h
+																</TooltipContent>
+															</Tooltip>
+														);
+													})}
 												</div>
 											</div>
+
+											<div className="h-8 w-px bg-border/40" />
+
+											<div className="w-16 space-y-1">
+												<div className="h-1.5 w-full bg-muted rounded-full overflow-hidden border border-muted/50 relative shadow-inner">
+													<div
+														className="h-full bg-emerald-500 transition-all absolute left-0 top-0 z-10"
+															style={{ width: `${Math.min((loadProfile.creditedTotalHours * 60 / Math.max(loadCapMinutes, 1)) * 100, 100)}%` }}
+													/>
+												</div>
+												<div className="flex justify-center text-[0.6rem] font-black uppercase tracking-tighter tabular-nums text-muted-foreground/80">
+													<span>{Math.round((loadProfile.creditedTotalHours / selected.maxHoursPerWeek) * 100)}% Cap</span>
+												</div>
+											</div>
+
+													<div className="h-8 w-px bg-border/40" />
+
+													<div className="flex flex-col items-center">
+														<span className="text-[0.55rem] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none mb-1">Remaining</span>
+														<span className={cn('text-xs font-black tabular-nums leading-none', loadProfile.remainingHours < 0 ? 'text-rose-600' : 'text-emerald-700')}>
+															{loadProfile.remainingHours.toFixed(1)}h
+														</span>
+													</div>
+
+													{hoveredIncomingMinutes > 0 && (
+														<>
+															<div className="h-8 w-px bg-border/40" />
+															<div className="flex flex-col items-center">
+																<span className="text-[0.55rem] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none mb-1">Projected</span>
+																<span className={cn('text-xs font-black tabular-nums leading-none', previewLoadHours > selected.maxHoursPerWeek ? 'text-rose-600' : 'text-primary')}>
+																	{previewLoadHours.toFixed(1)}h
+																</span>
+															</div>
+														</>
+													)}
 
 											<Popover>
 												<PopoverTrigger asChild>
-													<Button variant="ghost" size="icon-xs" className="h-6 w-6 rounded-md hover:bg-primary/5 text-primary ml-2 border border-primary/10">
-														<Info className="size-3.5" />
+													<Button variant="ghost" size="icon-xs" className="h-7 w-7 rounded-lg hover:bg-primary/5 text-primary ml-1 border border-primary/10">
+														<Info className="size-4" />
 													</Button>
 												</PopoverTrigger>
 												<PopoverContent side="bottom" align="end" className="w-96 p-0 overflow-hidden shadow-xl border-border/50">
@@ -1910,7 +2076,7 @@ export default function FacultyAssignments() {
 																<div className="flex items-center justify-between text-xs p-2 rounded-lg bg-amber-50 border border-amber-100 text-amber-900">
 																	<div className="flex flex-col">
 																		<span className="font-bold">Rotation Overlap Removed</span>
-																		<span className="text-[0.6rem] text-amber-700/70 uppercase">Shared Science/TLE term lanes</span>
+																		<span className="text-[0.6rem] text-amber-700/70 uppercase tracking-tight font-black">Shared Science/TLE term lanes</span>
 																	</div>
 																	<span className="font-mono font-bold">-{(loadProfile?.rotationOvercountHours ?? 0).toFixed(1)}h</span>
 																</div>
@@ -1938,37 +2104,33 @@ export default function FacultyAssignments() {
 															</div>
 														</div>
 
-														{rotationFamilyDetails.length > 0 && (
+														{rotationTermBreakdown.length > 0 && (
 															<div className="border-t border-border/40 pt-4 space-y-3">
 																<h6 className="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground">Rotation Term-Lane Breakdown</h6>
 																<div className="space-y-2">
-																	{rotationFamilyDetails.map((f: RotationFamilyLoadDetail) => {
-																		const termLabel = resolveCanonicalRotationTermLabel(f.dominantTermLabel, f.dominantTermRank ?? null);
-																		return (
-																		<div key={f.family} className="flex flex-col gap-1 p-2 rounded-lg border border-violet-100 bg-violet-50/30">
+																	{rotationTermBreakdown.map((f) => (
+																		<div key={f.family} className="flex flex-col gap-1.5 p-2.5 rounded-lg border border-violet-100 bg-violet-50/30">
 																			<div className="flex items-center justify-between">
-																				<div className="flex items-center gap-1.5">
-																					<span className="text-[0.65rem] font-black text-violet-700 uppercase tracking-tighter">{f.family}</span>
-																					{termLabel && (
-																						<Badge variant="outline" className="h-4 text-[0.55rem] font-bold bg-violet-100 text-violet-800 border-violet-300 uppercase">
-																							{termLabel}
-																						</Badge>
-																					)}
-																				</div>
+																				<span className="text-[0.65rem] font-black text-violet-700 uppercase tracking-tighter">{f.family}</span>
 																				<Badge variant="outline" className="h-4 text-[0.55rem] font-bold bg-white text-violet-600 border-violet-200">
-																					{f.unitCount} term lanes sharing {f.creditedHours}h
+																					Peak: {f.peakTermLabel || `Term ${f.peakTermRank}`} • {f.peakTermMinutesPerWeek / 60}h
 																				</Badge>
 																			</div>
-																			<div className="flex items-center gap-2 text-[0.6rem] font-bold text-violet-600/70 uppercase tracking-tight">
-																				<span>{f.rawHours}h raw</span>
-																				<span>•</span>
-																				<span className="text-violet-900">{f.creditedHours}h concurrent</span>
-																				<span>•</span>
-																				<span>{f.overcountHours}h overlap removed</span>
+																			<div className="flex gap-1.5">
+																				{[1, 2, 3].map(term => {
+																					const bucket = f.termBuckets.find(b => b.termRank === term);
+																					return (
+																						<div key={term} className={cn("flex-1 p-1 rounded border text-center transition-colors", bucket?.isPeakTerm ? "bg-violet-100 border-violet-300 shadow-sm" : "bg-background border-border/50 opacity-60")}>
+																							<p className="text-[0.5rem] font-black text-muted-foreground uppercase leading-none mb-1">T{term}</p>
+																							<p className={cn("text-[0.6rem] font-bold tabular-nums leading-none", bucket?.isPeakTerm ? "text-violet-800" : "text-muted-foreground")}>
+																								{bucket ? `${bucket.creditedMinutesPerWeek / 60}h` : '0h'}
+																							</p>
+																						</div>
+																					);
+																				})}
 																			</div>
 																		</div>
-																		);
-																	})}
+																	))}
 																</div>
 															</div>
 														)}
@@ -2186,7 +2348,7 @@ export default function FacultyAssignments() {
 																				activeFacultyIds={activeFacultyIds}
 																				onSwapSectionOwnership={handleSwapRequest}
 																				selectedFacultySpecialization={selected.specialization}
-																				assignedRotationLanes={assignedRotationLanes}
+																				resolveSectionHoverDeltaMinutes={resolveSectionHoverDeltaMinutes}
 																			/>
 																		))}
 																	</div>
@@ -2223,7 +2385,7 @@ export default function FacultyAssignments() {
 																				activeFacultyIds={activeFacultyIds}
 																				onSwapSectionOwnership={handleSwapRequest}
 																				selectedFacultySpecialization={selected.specialization}
-																				assignedRotationLanes={assignedRotationLanes}
+																				resolveSectionHoverDeltaMinutes={resolveSectionHoverDeltaMinutes}
 																			/>
 																		))}
 																	</div>
@@ -2291,7 +2453,7 @@ export default function FacultyAssignments() {
 																	activeFacultyIds={activeFacultyIds}
 																	onSwapSectionOwnership={handleSwapRequest}
 																	selectedFacultySpecialization={selected.specialization}
-																	assignedRotationLanes={assignedRotationLanes}
+																	resolveSectionHoverDeltaMinutes={resolveSectionHoverDeltaMinutes}
 																/>
 															))}
 														</div>
@@ -2376,7 +2538,7 @@ export default function FacultyAssignments() {
 																	activeFacultyIds={activeFacultyIds}
 																	onSwapSectionOwnership={handleSwapRequest}
 																	selectedFacultySpecialization={selected.specialization}
-																	assignedRotationLanes={assignedRotationLanes}
+																	resolveSectionHoverDeltaMinutes={resolveSectionHoverDeltaMinutes}
 																/>
 															))}
 														</div>

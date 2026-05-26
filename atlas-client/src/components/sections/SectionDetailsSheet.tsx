@@ -191,12 +191,12 @@ export function SectionDetailsSheet({
 																<p className="text-sm font-bold truncate leading-tight">{cls.subjectName}</p>
 																<code className="text-[0.6rem] font-mono text-muted-foreground uppercase px-1.5 py-0.5 bg-background rounded border">{cls.subjectCode}</code>
 																{cls.rotationFamily && (
-																	<Badge variant="outline" className="h-4 px-1 text-[0.55rem] font-bold uppercase bg-violet-50 text-violet-700 border-violet-200">
-																		{cls.rotationFamily}
+																	<Badge variant="outline" className="h-4 px-1.5 text-[0.55rem] font-black uppercase bg-violet-50 text-violet-700 border-violet-200 shadow-none">
+																		Rotating
 																	</Badge>
 																)}
 																{resolveRotationTermLabel(cls) && (
-																	<Badge variant="outline" className="h-4 px-1 text-[0.55rem] font-bold uppercase bg-violet-100 text-violet-900 border-violet-300">
+																	<Badge variant="outline" className="h-4 px-1.5 text-[0.55rem] font-black uppercase bg-violet-100 text-violet-900 border-violet-300 shadow-none">
 																		{resolveRotationTermLabel(cls)}
 																	</Badge>
 																)}

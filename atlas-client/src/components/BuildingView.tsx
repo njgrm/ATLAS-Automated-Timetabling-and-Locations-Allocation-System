@@ -4,6 +4,7 @@ import { DoorOpen, Minus, Plus, RotateCcw } from 'lucide-react';
 
 import type { Building, Room, RoomType } from '@/types';
 import { Button } from '@/ui/button';
+import { Badge } from '@/ui/badge';
 
 /* ─── Room-type color tokens (canvas fills) ─── */
 const ROOM_FILLS: Record<RoomType, { bg: string; text: string; accent: string }> = {
@@ -62,23 +63,33 @@ const FLOOR_PAD_X = 8;
 const FLOOR_PAD_Y = 6;
 const ROOF_H = 32;
 const ROOF_OVERHANG = 14;
-const DOOR_W = 8;
-const DOOR_H = 16;
 const UTILIZATION_BAR_W = 10;
 const UTILIZATION_BAR_H = 50;
+
+/* ─── Grade-level color tokens (matching Sections.tsx) ─── */
+const GRADE_ROOM_COLORS: Record<string, string> = {
+	'7':  '#22c55e', // Green
+	'8':  '#eab308', // Yellow
+	'9':  '#ef4444', // Red
+	'10': '#3b82f6', // Blue
+};
+
+const PROGRAM_BADGE_COLORS: Record<string, string> = {
+	STE:   '#10b981', // emerald
+	SPA:   '#8b5cf6', // purple
+	SPS:   '#f59e0b', // orange
+};
 
 /** Returns a color based on utilization percentage (green → yellow → red) */
 function getUtilizationColor(pct: number): string {
 	const clamped = Math.max(0, Math.min(100, pct));
 	if (clamped <= 50) {
-		// Green to yellow (0-50%)
 		const ratio = clamped / 50;
 		const r = Math.round(34 + (234 - 34) * ratio);
 		const g = Math.round(197 + (179 - 197) * ratio);
 		const b = Math.round(94 + (8 - 94) * ratio);
 		return `rgb(${r},${g},${b})`;
 	} else {
-		// Yellow to red (50-100%)
 		const ratio = (clamped - 50) / 50;
 		const r = Math.round(234 + (220 - 234) * ratio);
 		const g = Math.round(179 + (38 - 179) * ratio);
@@ -86,6 +97,12 @@ function getUtilizationColor(pct: number): string {
 		return `rgb(${r},${g},${b})`;
 	}
 }
+
+export type RoomSectionMetadata = {
+	sectionName: string;
+	gradeKey: string;
+	programCode?: string;
+};
 
 type BuildingViewProps = {
 	building: Building;
@@ -99,8 +116,10 @@ type BuildingViewProps = {
 	onRoomSelect?: (room: Room | null) => void;
 	/** Room utilization data: Map of roomId → percentage (0-100) */
 	roomUtilization?: Map<number, number>;
-	/** Room occupancy data: Map of roomId → sectionName */
+	/** Room occupancy data: Map of roomId → sectionName (kept for backward compatibility) */
 	roomOccupancy?: Map<number, string>;
+	/** Rich room occupancy data: Map of roomId → Section metadata */
+	roomSectionData?: Map<number, RoomSectionMetadata>;
 };
 
 export function BuildingView({ 
@@ -110,9 +129,11 @@ export function BuildingView({
 	selectedRoomId, 
 	onRoomSelect, 
 	roomUtilization,
-	roomOccupancy
+	roomOccupancy,
+	roomSectionData
 }: BuildingViewProps) {
 	const [hoveredRoomId, setHoveredRoomId] = useState<number | null>(null);
+	const [tooltipPos, setTooltipPos] = useState<{ x: number, y: number, roomId: number } | null>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [containerW, setContainerW] = useState(600);
 	const [scale, setScale] = useState(1);
@@ -132,13 +153,11 @@ export function BuildingView({
 		return map;
 	}, [building.rooms]);
 
-	// Floors ascending (floor 1 at bottom)
 	const floorsAsc = useMemo(
 		() => Array.from({ length: building.floorCount }, (_, i) => i + 1),
 		[building.floorCount],
 	);
 
-	// Compute the virtual building layout dimensions
 	const maxRoomsOnFloor = useMemo(
 		() => Math.max(1, ...floorsAsc.map((f) => (floorMap.get(f) ?? []).length)),
 		[floorsAsc, floorMap],
@@ -155,7 +174,6 @@ export function BuildingView({
 		};
 	}, [buildingContentW, buildingContentH]);
 
-	// Responsive width
 	useEffect(() => {
 		const el = containerRef.current;
 		if (!el) return;
@@ -163,15 +181,13 @@ export function BuildingView({
 			const w = entries[0]?.contentRect.width;
 			if (w) {
 				setContainerW(Math.floor(w));
-				// Re-center on width change if we already have a scale
-				setPos(p => calculateCenter(w, fixedHeight, scale));
+				setPos(calculateCenter(w, fixedHeight, scale));
 			}
 		});
 		obs.observe(el);
 		return () => obs.disconnect();
 	}, [fixedHeight, scale, calculateCenter]);
 
-	// Auto-fit scale on mount / building change
 	useEffect(() => {
 		const sx = (containerW - 32) / buildingContentW;
 		const sy = (fixedHeight - 32) / buildingContentH;
@@ -199,15 +215,12 @@ export function BuildingView({
 		);
 	}
 
-	// Render floors from bottom-up. Y origin = top of floors area.
 	const floorsRendered = floorsAsc.map((floorNum, idx) => {
 		const rooms = floorMap.get(floorNum) ?? [];
-		// Floor 1 at bottom, calculate from top: (totalFloors - 1 - idx) * (height + gap)
 		const floorY = (floorsAsc.length - 1 - idx) * (floorTotalH + FLOOR_GAP);
 
 		return (
 			<Group key={floorNum} x={0} y={floorY}>
-				{/* Floor slab background (DepEd cream walls) */}
 				<Rect
 					x={FLOOR_LABEL_W}
 					y={0}
@@ -216,13 +229,11 @@ export function BuildingView({
 					fill={DEPED_COLORS.walls}
 					cornerRadius={2}
 				/>
-				{/* Floor separator line */}
 				<Line
 					points={[FLOOR_LABEL_W, floorTotalH, buildingContentW, floorTotalH]}
 					stroke="#d4cfa8"
 					strokeWidth={1.5}
 				/>
-				{/* Floor label */}
 				<Rect x={0} y={0} width={FLOOR_LABEL_W - 2} height={floorTotalH} fill={DEPED_COLORS.floorLabel} cornerRadius={[4, 0, 0, 4]} />
 				<Text
 					x={2}
@@ -234,12 +245,15 @@ export function BuildingView({
 					fill="#0d9488"
 					align="center"
 				/>
-				{/* Rooms */}
 				{rooms.map((room, ri) => {
 					const colors = ROOM_FILLS[room.type] ?? ROOM_FILLS.OTHER;
 					const roomX = FLOOR_LABEL_W + FLOOR_PAD_X + ri * (ROOM_MIN_W + ROOM_GAP);
 					const utilization = roomUtilization?.get(room.id) ?? 0;
-					const occupancy = roomOccupancy?.get(room.id);
+					
+					const sectionData = roomSectionData?.get(room.id);
+					const occupancy = sectionData?.sectionName ?? roomOccupancy?.get(room.id);
+					const gradeColor = sectionData ? GRADE_ROOM_COLORS[sectionData.gradeKey] : null;
+					
 					const roomY = FLOOR_PAD_Y;
 					const isHovered = hoveredRoomId === room.id;
 					const isInspected = selectedRoomId === room.id;
@@ -248,23 +262,38 @@ export function BuildingView({
 							key={room.id}
 							x={roomX}
 							y={roomY}
-							onMouseEnter={() => setHoveredRoomId(room.id)}
-							onMouseLeave={() => setHoveredRoomId(null)}
-								onClick={() => onRoomSelect?.(isInspected ? null : room)}
+							onMouseEnter={(e) => {
+								setHoveredRoomId(room.id);
+								const stage = e.target.getStage();
+								if (stage) {
+									const p = stage.getPointerPosition();
+									if (p) setTooltipPos({ ...p, roomId: room.id });
+								}
+							}}
+							onMouseMove={(e) => {
+								const stage = e.target.getStage();
+								if (stage) {
+									const p = stage.getPointerPosition();
+									if (p) setTooltipPos({ ...p, roomId: room.id });
+								}
+							}}
+							onMouseLeave={() => {
+								setHoveredRoomId(null);
+								setTooltipPos(null);
+							}}
+							onClick={() => onRoomSelect?.(isInspected ? null : room)}
 						>
-							{/* Room body */}
 							<Rect
 								width={ROOM_MIN_W}
 								height={ROOM_H}
 								fill={colors.bg}
-								stroke={isInspected ? '#6366f1' : isHovered ? colors.text : colors.accent}
-								strokeWidth={isInspected ? 2 : 1}
+								stroke={isInspected ? '#6366f1' : (gradeColor || (isHovered ? colors.text : colors.accent))}
+								strokeWidth={isInspected || gradeColor ? 2 : 1}
 								cornerRadius={3}
 								shadowColor="rgba(0,0,0,0.06)"
 								shadowBlur={isHovered ? 4 : 0}
 								shadowOffsetY={isHovered ? 1 : 0}
 							/>
-							{/* Room name */}
 							<Text
 								x={4}
 								y={6}
@@ -272,11 +301,10 @@ export function BuildingView({
 								text={room.name}
 								fontSize={10}
 								fontStyle="bold"
-								fill={colors.text}
+								fill={gradeColor || colors.text}
 								wrap="none"
 								ellipsis
 							/>
-							{/* Room type label */}
 							<Text
 								x={4}
 								y={18}
@@ -288,23 +316,30 @@ export function BuildingView({
 								ellipsis
 							/>
 							
-							{/* Occupancy Section - Home Room marker */}
 							{occupancy ? (
 								<Group x={4} y={32}>
 									<Rect 
 										width={ROOM_MIN_W - UTILIZATION_BAR_W - 12} 
 										height={14} 
-										fill={isInspected ? "rgba(255,255,255,0.2)" : "rgba(16,185,129,0.1)"} 
+										fill={isInspected ? "rgba(255,255,255,0.2)" : (gradeColor ? `${gradeColor}20` : "rgba(16,185,129,0.1)")} 
 										cornerRadius={2}
 									/>
+									{sectionData?.programCode && PROGRAM_BADGE_COLORS[sectionData.programCode] && (
+										<Rect
+											width={2}
+											height={14}
+											fill={PROGRAM_BADGE_COLORS[sectionData.programCode]}
+											cornerRadius={[2, 0, 0, 2]}
+										/>
+									)}
 									<Text
-										x={2}
+										x={sectionData?.programCode ? 5 : 2}
 										y={3}
 										width={ROOM_MIN_W - UTILIZATION_BAR_W - 16}
 										text={occupancy}
 										fontSize={8}
 										fontStyle="bold"
-										fill={isInspected ? colors.text : "#059669"}
+										fill={isInspected ? colors.text : (gradeColor || "#059669")}
 										wrap="none"
 										ellipsis
 									/>
@@ -320,7 +355,26 @@ export function BuildingView({
 								/>
 							) : null}
 
-							{/* Non-teaching indicator */}
+							{sectionData?.programCode && PROGRAM_BADGE_COLORS[sectionData.programCode] && (
+								<Group x={ROOM_MIN_W - 24} y={6}>
+									<Rect
+										width={20}
+										height={10}
+										fill={PROGRAM_BADGE_COLORS[sectionData.programCode]}
+										cornerRadius={2}
+									/>
+									<Text
+										width={20}
+										y={1.5}
+										text={sectionData.programCode}
+										fontSize={6}
+										fontStyle="bold"
+										fill="#ffffff"
+										align="center"
+									/>
+								</Group>
+							)}
+
 							{!room.isTeachingSpace && (
 								<Text
 									x={4}
@@ -333,7 +387,6 @@ export function BuildingView({
 								/>
 							)}
 
-							{/* Utilization bar background */}
 							<Rect
 								x={ROOM_MIN_W - UTILIZATION_BAR_W - 4}
 								y={8}
@@ -344,7 +397,6 @@ export function BuildingView({
 								strokeWidth={0.5}
 								cornerRadius={2}
 							/>
-							{/* Utilization bar fill (bottom-up) */}
 							{utilization > 0 && (
 								<Rect
 									x={ROOM_MIN_W - UTILIZATION_BAR_W - 4 + 1}
@@ -356,7 +408,6 @@ export function BuildingView({
 									cornerRadius={[0, 0, 1, 1]}
 								/>
 							)}
-							{/* Utilization percentage - bottom left */}
 							<Text
 								x={4}
 								y={ROOM_H - 14}
@@ -370,7 +421,6 @@ export function BuildingView({
 						</Group>
 					);
 				})}
-				{/* Empty floor placeholder */}
 				{rooms.length === 0 && (
 					<Text
 						x={FLOOR_LABEL_W + FLOOR_PAD_X}
@@ -387,7 +437,6 @@ export function BuildingView({
 
 	return (
 		<div className="relative">
-			{/* Zoom toolbar */}
 			{showToolbar && (
 				<div className="mb-2 flex items-center gap-1">
 					<Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setScale((s) => Math.min(s * 1.15, 3))}>
@@ -405,8 +454,7 @@ export function BuildingView({
 				</div>
 			)}
 
-			{/* Canvas */}
-			<div ref={containerRef} className="overflow-hidden rounded-md border border-border bg-slate-50">
+			<div ref={containerRef} className="overflow-hidden rounded-md border border-border bg-slate-50 relative">
 				<Stage
 					width={containerW}
 					height={fixedHeight}
@@ -419,7 +467,6 @@ export function BuildingView({
 					style={{ cursor: 'grab' }}
 				>
 					<Layer>
-                    {/* ── Roof (DepEd green trapezoid with overhang) ── */}
 						<Line
 							points={[
 								FLOOR_LABEL_W - ROOF_OVERHANG, ROOF_H,
@@ -432,13 +479,11 @@ export function BuildingView({
 							stroke={DEPED_COLORS.roofStroke}
 							strokeWidth={1.5}
 						/>
-						{/* Roof accent line at base */}
 						<Line
 							points={[FLOOR_LABEL_W - ROOF_OVERHANG + 2, ROOF_H, buildingContentW + ROOF_OVERHANG - 2, ROOF_H]}
 							stroke={DEPED_COLORS.roofStroke}
 							strokeWidth={2}
 						/>
-						{/* Building name on flat roof area */}
 						<Text
 							x={FLOOR_LABEL_W + 24}
 							y={ROOF_H / 2 - 6}
@@ -450,9 +495,7 @@ export function BuildingView({
 							align="center"
 						/>
 
-						{/* ── Floors group (offset below roof) ── */}
 						<Group y={ROOF_H}>
-							{/* Outer wall background (DepEd cream) */}
 							<Rect
 								x={FLOOR_LABEL_W}
 								y={0}
@@ -469,6 +512,53 @@ export function BuildingView({
 						</Group>
 					</Layer>
 				</Stage>
+
+				{tooltipPos && (
+					<div 
+						className="absolute z-50 pointer-events-none bg-popover/95 backdrop-blur-sm border shadow-xl rounded-lg p-2.5 text-[0.7rem] flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-100 min-w-32"
+						style={{ left: tooltipPos.x + 15, top: tooltipPos.y - 10 }}
+					>
+						{(() => {
+							const r = building.rooms.find(rm => rm.id === tooltipPos.roomId);
+							const meta = roomSectionData?.get(tooltipPos.roomId);
+							if (!r) return null;
+							return (
+								<>
+									<div className="flex items-center justify-between border-b pb-1.5 mb-1">
+										<span className="font-bold text-foreground">{r.name}</span>
+										<Badge variant="outline" className="h-4 px-1 text-[0.6rem] uppercase tracking-tighter">
+											F{r.floor}
+										</Badge>
+									</div>
+									<div className="flex justify-between gap-4">
+										<span className="text-muted-foreground uppercase font-black text-[0.55rem] tracking-widest">Type</span>
+										<span className="font-bold uppercase">{ROOM_TYPE_LABELS[r.type]}</span>
+									</div>
+									<div className="flex justify-between gap-4">
+										<span className="text-muted-foreground uppercase font-black text-[0.55rem] tracking-widest">Capacity</span>
+										<span className="font-bold tabular-nums">{r.capacity ?? '—'}</span>
+									</div>
+									{meta && (
+										<div className="mt-1 pt-1 border-t flex flex-col gap-1">
+											<div className="flex items-center gap-1.5">
+												<div className="size-1.5 rounded-full" style={{ backgroundColor: GRADE_ROOM_COLORS[meta.gradeKey] }} />
+												<span className="font-bold text-foreground">{meta.sectionName}</span>
+											</div>
+											{meta.programCode && (
+												<div className="flex items-center gap-1">
+													<Badge className="h-3.5 px-1 text-[0.55rem] font-black" style={{ backgroundColor: PROGRAM_BADGE_COLORS[meta.programCode] || '#94a3b8' }}>
+														{meta.programCode}
+													</Badge>
+													<span className="text-[0.6rem] text-muted-foreground uppercase font-bold">Home Room</span>
+												</div>
+											)}
+										</div>
+									)}
+								</>
+							);
+						})()}
+					</div>
+				)}
 			</div>
 		</div>
 	);

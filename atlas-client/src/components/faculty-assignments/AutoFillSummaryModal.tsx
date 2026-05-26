@@ -92,6 +92,8 @@ export type AutoFillSummaryResult = {
 	unresolved: number;
 	coverageMode?: CoverageMode;
 	warnings: string[];
+	sectionSource?: 'enrollpro' | 'stub' | 'cached-enrollpro' | 'atlas-mirror';
+	sectionFallbackReason?: string | null;
 	staffingReport: StaffingReport;
 	staffingTruth?: StaffingTruthComparison;
 	teacherXResolution?: {
@@ -128,11 +130,24 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 	const constrainedHours = report?.constrainedConcurrentMissingHoursPerWeek ?? Math.max(0, concurrentHours - recoverableHours);
 	const dominantDepartment = report?.dominantShortageDepartment ?? report?.department ?? 'GENERAL';
 	const overlapHours = Math.round(((report?.rotationAdjustedMinutesPerWeek ?? 0) / 60) * 10) / 10;
+	const sectionSource = result?.sectionSource ?? 'enrollpro';
 	const coverageModeLabel: Record<CoverageMode, string> = {
 		REAL_FACULTY_STANDARD: 'Real Faculty Standard (30h)',
 		REAL_FACULTY_HARD_CAP: 'Real Faculty Hard Cap (40h)',
 		REAL_FACULTY_THEN_TEACHER_X: 'Real Faculty then Teacher X',
 	};
+	const sourceLabelMap: Record<NonNullable<AutoFillSummaryResult['sectionSource']>, string> = {
+		enrollpro: 'Live EnrollPro',
+		'atlas-mirror': 'ATLAS Mirror',
+		'cached-enrollpro': 'ATLAS Cached',
+		stub: 'Stub Data',
+	};
+	const sectionSourceLabel = sourceLabelMap[sectionSource];
+	const sourceToneClass = sectionSource === 'enrollpro'
+		? 'border-emerald-200 bg-emerald-50/60 text-emerald-900'
+		: sectionSource === 'stub'
+			? 'border-amber-200 bg-amber-50/60 text-amber-900'
+			: 'border-blue-200 bg-blue-50/60 text-blue-900';
 
 	const title = hasShortage ? 'Coverage Incomplete: Review Next Staffing Actions' : 'Schedule Fully Assigned!';
 	const description = hasShortage
@@ -175,6 +190,23 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 
 				<div className="flex-1 overflow-y-auto bg-muted/30">
 					<div className="p-6">
+						{hasResult && result && (
+							<div className={`mb-4 rounded-xl border px-3 py-2 ${sourceToneClass}`}>
+								<div className="flex items-center justify-between gap-2">
+									<p className="text-[0.6rem] font-bold uppercase tracking-[0.14em]">Section Data Source</p>
+									<Badge variant="outline" className="h-4 border-current/30 bg-white/60 px-1.5 text-[0.55rem] font-bold uppercase">
+										{sectionSourceLabel}
+									</Badge>
+								</div>
+								{result.warnings.length > 0 && (
+									<p className="mt-1.5 text-[0.7rem] font-semibold leading-snug">{result.warnings[0]}</p>
+								)}
+								{result.sectionFallbackReason && result.sectionFallbackReason.length > 0 && (
+									<p className="mt-1 text-[0.65rem] font-medium opacity-80">Fallback reason: {result.sectionFallbackReason}</p>
+								)}
+							</div>
+						)}
+
 						{hasShortage && report ? (
 							<div className="space-y-6 max-w-3xl mx-auto">
 								{/* Dual Truth Headline */}

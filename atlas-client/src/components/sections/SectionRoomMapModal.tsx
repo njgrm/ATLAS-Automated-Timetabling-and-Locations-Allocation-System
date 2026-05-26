@@ -37,6 +37,8 @@ interface SectionRoomMapModalProps {
 	onSelect: (roomId: number | null) => void;
 	schoolId: number;
 	roomOccupancy?: Map<number, string>; // roomId -> sectionName
+	roomSectionData?: Map<number, import('@/components/BuildingView').RoomSectionMetadata>;
+	buildingOccupancy?: Map<number, number>;
 }
 
 export function SectionRoomMapModal({
@@ -48,6 +50,8 @@ export function SectionRoomMapModal({
 	onSelect,
 	schoolId,
 	roomOccupancy,
+	roomSectionData,
+	buildingOccupancy,
 }: SectionRoomMapModalProps) {
 	const [buildings, setBuildings] = React.useState<Building[]>([]);
 	const [loading, setLoading] = React.useState(true);
@@ -345,6 +349,7 @@ export function SectionRoomMapModal({
 													setViewMode('building');
 												}
 											}} 
+											buildingOccupancy={buildingOccupancy}
 										/>
 									</div>
 								</div>
@@ -368,6 +373,7 @@ export function SectionRoomMapModal({
 												onRoomSelect={handleRoomSelectFromMap}
 												height={500}
 												roomOccupancy={roomOccupancy}
+												roomSectionData={roomSectionData}
 											/>
 										) : (
 											<div className="flex-1 flex flex-col items-center justify-center text-muted-foreground opacity-50 h-full">

@@ -154,14 +154,14 @@ function uniqueSortedPositiveInts(values: readonly number[] | null | undefined):
 	);
 }
 
-export function deriveLoadStatus(actualTeachingHours: number): { status: LoadStatus; label: string } {
-	if (actualTeachingHours > MAX_WEEKLY_TEACHING_HOURS) {
+export function deriveLoadStatus(policyCreditedHours: number): { status: LoadStatus; label: string } {
+	if (policyCreditedHours > MAX_WEEKLY_TEACHING_HOURS) {
 		return { status: 'over-cap', label: 'Over Cap' };
 	}
-	if (actualTeachingHours >= STANDARD_WEEKLY_TEACHING_HOURS) {
+	if (policyCreditedHours >= STANDARD_WEEKLY_TEACHING_HOURS) {
 		return {
 			status: 'overload-allowed',
-			label: actualTeachingHours > STANDARD_WEEKLY_TEACHING_HOURS ? 'Overload Allowed' : 'Compliant',
+			label: policyCreditedHours > STANDARD_WEEKLY_TEACHING_HOURS ? 'Overload Allowed' : 'Compliant',
 		};
 	}
 	return { status: 'below-standard', label: 'Below Standard' };
@@ -509,9 +509,9 @@ export function buildTeachingLoadProfile(
 	const rotationOvercountHours = Math.round(Math.max(0, rawTeachingHours - actualTeachingHours) * 10) / 10;
 	const normalizedEquivalentHours = Math.round(equivalentHours * 10) / 10;
 	const creditedTotalHours = Math.round((actualTeachingHours + normalizedEquivalentHours) * 10) / 10;
-	const overloadHours = Math.round(Math.max(actualTeachingHours - STANDARD_WEEKLY_TEACHING_HOURS, 0) * 10) / 10;
-	const overCapHours = Math.round(Math.max(actualTeachingHours - MAX_WEEKLY_TEACHING_HOURS, 0) * 10) / 10;
-	const { status, label } = deriveLoadStatus(actualTeachingHours);
+	const overloadHours = Math.round(Math.max(creditedTotalHours - STANDARD_WEEKLY_TEACHING_HOURS, 0) * 10) / 10;
+	const overCapHours = Math.round(Math.max(creditedTotalHours - MAX_WEEKLY_TEACHING_HOURS, 0) * 10) / 10;
+	const { status, label } = deriveLoadStatus(creditedTotalHours);
 	const rotationFamilies: RotationFamilyBreakdownItem[] = rotationFamilyComputations
 		.map((entry) => entry.detail)
 		.sort((left, right) => right.overcountHours - left.overcountHours || left.family.localeCompare(right.family));

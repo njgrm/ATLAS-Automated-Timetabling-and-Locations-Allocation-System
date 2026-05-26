@@ -35,6 +35,7 @@ export function SectionRoomPicker({
 	const [query, setQuery] = React.useState('');
 	const [mapModalOpen, setMapModalOpen] = React.useState(false);
 	const inputRef = React.useRef<HTMLInputElement>(null);
+	const activeItemRef = React.useRef<HTMLButtonElement>(null);
 
 	const selectedRoom = React.useMemo(() => options.find((opt) => opt.id === value), [options, value]);
 
@@ -62,6 +63,20 @@ export function SectionRoomPicker({
 				return a.label.localeCompare(b.label);
 			});
 	}, [filteredOptions]);
+
+	// Auto-focus and scroll to active room when opening
+	React.useEffect(() => {
+		if (open) {
+			// Small timeout to allow popover to render
+			setTimeout(() => {
+				if (activeItemRef.current) {
+					activeItemRef.current.scrollIntoView({ behavior: 'auto', block: 'center' });
+				} else if (inputRef.current) {
+					inputRef.current.focus();
+				}
+			}, 50);
+		}
+	}, [open]);
 
 	return (
 		<>
@@ -101,7 +116,7 @@ export function SectionRoomPicker({
 				<PopoverContent 
 					className="w-[280px] p-0 shadow-xl border-border/40 flex flex-col h-[400px]" 
 					align="start"
-					onOpenAutoFocus={(e) => { e.preventDefault(); inputRef.current?.focus(); }}
+					onOpenAutoFocus={(e) => { e.preventDefault(); }}
 				>
 					{/* Header */}
 					<div className="shrink-0 flex items-center border-b px-2 py-1.5 bg-muted/30">
@@ -160,9 +175,11 @@ export function SectionRoomPicker({
 									<div className="grid gap-0.5 mt-0.5">
 										{group.items.map((item) => {
 											const occupying = roomOccupancy?.get(item.id);
+											const isSelected = value === item.id;
 											return (
 												<button
 													key={item.id}
+													ref={isSelected ? activeItemRef : null}
 													type="button"
 													onClick={() => {
 														onSelect(item.id);
@@ -171,17 +188,17 @@ export function SectionRoomPicker({
 													className={cn(
 														'flex w-full items-center justify-start px-2 py-2 h-auto text-xs transition-all rounded-md outline-none',
 														'hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground group',
-														value === item.id ? 'bg-accent/60 font-bold' : 'transparent'
+														isSelected ? 'bg-accent/60 font-bold' : 'transparent'
 													)}
 												>
-													<Check className={cn('mr-2 size-3.5 shrink-0 text-primary group-hover:text-primary-foreground', value === item.id ? 'opacity-100' : 'opacity-0')} />
+													<Check className={cn('mr-2 size-3.5 shrink-0 text-primary group-hover:text-primary-foreground', isSelected ? 'opacity-100' : 'opacity-0')} />
 													<div className="flex flex-col items-start min-w-0 flex-1">
 														<div className="flex items-center gap-2 w-full">
 															<span className="truncate group-hover:text-primary-foreground">{item.name}</span>
 															{occupying && (
 																<Badge variant="outline" className={cn(
 																	"ml-auto h-4 px-1 text-[8px] font-black uppercase border-opacity-50",
-																	value === item.id ? "bg-white/10 text-white border-white/20" : "bg-amber-50 text-amber-600 border-amber-200"
+																	isSelected ? "bg-white/10 text-white border-white/20" : "bg-amber-50 text-amber-600 border-amber-200"
 																)}>
 																	{occupying}
 																</Badge>

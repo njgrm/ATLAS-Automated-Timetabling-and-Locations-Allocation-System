@@ -4578,4 +4578,16 @@ px tsc --noEmit (atlas-server): PASS
  
  -   V e r d i c t :   G O 
  
+ #   2 0 2 6 - 0 5 - 2 6   -   S e c t i o n s   A d v a n c e d   Q o L   &   V i s u a l i z a t i o n 
  
+ -   S c o p e :   I m p l e m e n t e d   g r a d e - l e v e l   n a v i g a t i o n ,   p r o g r e s s   b a d g e s ,   c a p a c i t y   a l e r t s ,   a n d   r i c h   m a p   v i s u a l i z a t i o n s   ( g r a d e   c o l o r s ,   p r o g r a m   b a d g e s ,   b u i l d i n g   o c c u p a n c y ) . 
+ 
+ -   F i l e s   c h a n g e d :   a t l a s - c l i e n t / s r c / p a g e s / S e c t i o n s . t s x ,   a t l a s - c l i e n t / s r c / c o m p o n e n t s / B u i l d i n g V i e w . t s x ,   a t l a s - c l i e n t / s r c / c o m p o n e n t s / C a m p u s M a p . t s x ,   a t l a s - c l i e n t / s r c / c o m p o n e n t s / s e c t i o n s / S e c t i o n R o o m P i c k e r . t s x 
+ 
+ -   C o m m a n d s   r u n :   n p m   - - p r e f i x   a t l a s - c l i e n t   r u n   b u i l d 
+ 
+ -   T a i l n e t   v e r i f i c a t i o n :   V e r i f i e d   n e w   G r a d e - L e v e l   t a b   b a r   a n d   a s s i g n m e n t   p r o g r e s s   b a r   i n   S e c t i o n s   h e a d e r .   V e r i f i e d   c a p a c i t y   a l e r t s   ( a m b e r / r e d )   i n   t h e   t a b l e .   V e r i f i e d   B u i l d i n g V i e w   t o o l t i p s   w i t h   c a p a c i t y / m e t a d a t a .   V e r i f i e d   c o l o r - c o d e d   r o o m s   i n   m a p   ( m a t c h i n g   g r a d e   l e v e l s )   a n d   S T E / S P A / S P S   b a d g e s .   V e r i f i e d   b u i l d i n g   o c c u p a n c y   p e r c e n t a g e s   o n   c a m p u s   m a p .   V e r i f i e d   d r o p d o w n   a u t o - f o c u s / s c r o l l   t o   c u r r e n t   r o o m   a n d   s t a n d a l o n e   ' B r o w s e   M a p '   b u t t o n . 
+ 
+ -   V e r d i c t :   G O 
+ 
+ `n## 2026-05-26 - Phase 3 Rotational Subject Term Awareness UX Follow-Up`n- Scope: Finalize scheduler-facing UX for rotational subject term awareness.`n- Files changed:`n  - atlas-client/src/pages/FacultyAssignments.tsx`n  - atlas-client/src/pages/Subjects.tsx`n  - atlas-client/src/components/faculty-assignments/SubjectRow.tsx`n  - atlas-client/src/components/subjects/SubjectRow.tsx`n  - atlas-client/src/components/sections/SectionDetailsSheet.tsx`n- Outcomes:`n  - Term rank promoted to first-class identity chips (Term 1, 2, 3) on all surfaces.`n  - Teaching Load identity bar decluttered: arithmetic demoted to Info popover, added compact per-term load cues.`n  - Subject assignment rows now use plain concurrent delta language (e.g., \"Adds load\", \"No increase\").`n  - Rotation family breakdown integrated into identity bar popover with peak-term highlighting.`n  - Uniform ATLAS language system for term-awareness established across all major surfaces.`n- Verdict: GO
