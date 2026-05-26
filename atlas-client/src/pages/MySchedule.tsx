@@ -118,8 +118,8 @@ export default function MySchedule() {
 				schoolYearContext.source === 'atlas' && !schoolYearContext.stale
 					? null
 					: schoolYearContext.activeSchoolYearLabel
-					? `Working from saved ATLAS school-year context (${schoolYearContext.activeSchoolYearLabel}).`
-					: 'Working from saved ATLAS school-year context.',
+					? `Verified with saved school year data (${schoolYearContext.activeSchoolYearLabel}).`
+					: 'Working from saved school year data.',
 			);
 
 			let resolvedFacultyId: number;
@@ -138,7 +138,7 @@ export default function MySchedule() {
 				const cachedIdentity = readCachedFacultyIdentity(DEFAULT_SCHOOL_ID);
 				if (cachedIdentity && isLikelyOfflineError(facultyError)) {
 					resolvedFacultyId = cachedIdentity.facultyId;
-					setSchoolYearNotice((current) => current ?? 'Using your last saved faculty account link while offline.');
+					setSchoolYearNotice((current) => current ?? 'Working from your saved account while offline.');
 				} else {
 					throw facultyError;
 				}
@@ -243,10 +243,10 @@ export default function MySchedule() {
 		if (usingCachedSchedule) {
 			const savedAt = cachedScheduleAt ? new Date(cachedScheduleAt).toLocaleString() : null;
 			return {
-				title: 'Saved published schedule',
+				title: 'Your saved schedule',
 				message: savedAt
-					? `Live published schedule is unavailable. Showing your last saved copy from ${savedAt}.`
-					: 'Live published schedule is unavailable. Showing your last saved copy.',
+					? `Unable to reach EnrollPro. Showing your saved schedule from ${savedAt}.`
+					: 'Unable to reach EnrollPro. Showing your saved schedule.',
 				variant: 'warning' as const,
 			};
 		}
@@ -326,7 +326,10 @@ export default function MySchedule() {
 							<CardTitle className="text-sm font-semibold text-muted-foreground">Published Run</CardTitle>
 						</CardHeader>
 						<CardContent className="space-y-1">
-							<p className="text-xl font-bold">#{schedule?.source.runId ?? 'N/A'}</p>
+							<div className="flex items-center gap-2">
+								<p className="text-xl font-bold">#{schedule?.source.runId ?? 'N/A'}</p>
+								<Badge variant="outline" className="text-[10px] h-4 px-1 uppercase">S.Y. {schedule?.source.schoolYearId ?? '...'}</Badge>
+							</div>
 							<p className="text-xs text-muted-foreground">Published: {formatTimestamp(schedule?.source.publishedAt ?? null)}</p>
 						</CardContent>
 					</Card>

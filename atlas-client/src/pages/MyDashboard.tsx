@@ -61,8 +61,6 @@ type MyDashboardResponse = {
 
 import { CheckCircle2, XCircle, Eye, Clock, FileEdit } from 'lucide-react';
 
-// ... (keep resolveSchoolYearContext)
-
 function entryOutcomeBadge(entry: FacultyRoomPreferenceEntry) {
 	if (entry.decisionStatus === 'APPROVED') return <Badge variant='success' className='text-xs h-5 px-1.5 gap-1'><CheckCircle2 className="size-3" /> Approved</Badge>;
 	if (entry.decisionStatus === 'REJECTED') return <Badge variant='destructive' className='text-xs h-5 px-1.5 gap-1'><XCircle className="size-3" /> Rejected</Badge>;
@@ -99,8 +97,8 @@ export default function MyDashboard() {
 				schoolYearContext.source === 'atlas' && !schoolYearContext.stale
 					? null
 					: schoolYearContext.activeSchoolYearLabel
-					? `Working from saved ATLAS school-year context (${schoolYearContext.activeSchoolYearLabel}).`
-					: 'Working from saved ATLAS school-year context.',
+					? `Verified with saved school year data (${schoolYearContext.activeSchoolYearLabel}).`
+					: 'Working from saved school year data.',
 			);
 
 			try {
@@ -158,10 +156,10 @@ export default function MyDashboard() {
 		if (usingCachedDashboard) {
 			const savedAt = cachedDashboardAt ? new Date(cachedDashboardAt).toLocaleString() : null;
 			return {
-				title: 'Saved dashboard view',
+				title: 'Working from saved data',
 				message: savedAt
-					? `Live dashboard is unavailable. Showing your last saved data from ${savedAt}.`
-					: 'Live dashboard is unavailable. Showing your last saved data.',
+					? `EnrollPro is currently unreachable. Showing your last saved view from ${savedAt}.`
+					: 'EnrollPro is currently unreachable. Showing your last saved dashboard view.',
 				variant: 'warning' as const,
 			};
 		}

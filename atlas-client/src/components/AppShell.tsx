@@ -301,12 +301,12 @@ function AppSidebar({
 													<div className="flex items-center gap-1 cursor-help">
 														<AlertTriangle className='size-3 shrink-0 text-amber-500' />
 														<span className='text-[0.6875rem] text-muted-foreground'>
-															Working from Saved Data
+															Working from saved data
 														</span>
 													</div>
 												</TooltipTrigger>
 												<TooltipContent side="right" className="text-[0.65rem] font-semibold p-2">
-													Connection to EnrollPro is temporarily unavailable. <br/> Using last known school year data saved in ATLAS.
+													Unable to reach EnrollPro. Using saved school year data.
 												</TooltipContent>
 											</Tooltip>
 										)}

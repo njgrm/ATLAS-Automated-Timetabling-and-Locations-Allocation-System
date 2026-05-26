@@ -737,7 +737,7 @@ export default function Sections() {
 				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
 					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
 					<span className="flex-1">
-						<span className="font-bold">Working from saved ATLAS data.</span> EnrollPro is temporarily unreachable. You can keep working; your changes are safe and will sync automatically when the connection returns.
+						<span className="font-bold">Working from saved data.</span> EnrollPro is temporarily unreachable. You can keep working; your changes are safe and will sync automatically when the connection returns.
 					</span>
 				</div>
 			)}

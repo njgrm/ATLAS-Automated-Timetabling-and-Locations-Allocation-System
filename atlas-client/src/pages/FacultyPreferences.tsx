@@ -111,8 +111,8 @@ export default function FacultyPreferences() {
 					schoolYearContext.source === 'atlas' && !schoolYearContext.stale
 						? null
 						: schoolYearContext.activeSchoolYearLabel
-						? `Working from saved ATLAS school-year context (${schoolYearContext.activeSchoolYearLabel}).`
-						: 'Working from saved ATLAS school-year context.',
+						? `Verified with saved school year data (${schoolYearContext.activeSchoolYearLabel}).`
+						: 'Working from saved school year data.',
 				);
 
 				try {

@@ -84,8 +84,8 @@ export default function Login() {
 	const hasToken = hasAnyAuthToken();
 	const rememberedRole = localStorage.getItem('userRole');
 	const defaultLandingRoute = rememberedRole === 'faculty' ? '/my' : '/';
-	const projectTagline = 'ATLAS Scheduling System';
-	const projectFullName = 'ATLAS Scheduling System';
+	const projectTagline = 'Automated Timetabling and Locations Allocation System';
+	const projectFullName = 'Automated Timetabling and Locations Allocation System';
 	const jhsScopeLabel = 'Junior High School (Grades 7-10)';
 
 	const acronym = useMemo(() => {
