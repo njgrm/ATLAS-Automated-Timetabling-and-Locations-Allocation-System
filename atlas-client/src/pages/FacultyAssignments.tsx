@@ -82,6 +82,7 @@ import {
 import {
 	AutoFillSummaryModal,
 	type AutoFillSummaryResult,
+	type CoverageMode,
 } from '@/components/faculty-assignments/AutoFillSummaryModal';
 import type {
 	ExternalSection,
@@ -170,6 +171,7 @@ export default function FacultyAssignments() {
 	const [staffingNeedsLoading, setStaffingNeedsLoading] = useState(false);
 	const [summaryModalOpen, setSummaryModalOpen] = useState(false);
 	const [summaryModalResult, setSummaryModalResult] = useState<AutoFillSummaryResult | null>(null);
+	const [coverageMode, setCoverageMode] = useState<CoverageMode>('REAL_FACULTY_STANDARD');
 	const [gradeLevelFilter, setGradeLevelFilter] = useState<string>('all');
 	const [sortOrder, setSortOrder] = useState<'load-asc' | 'load-desc'>('load-asc');
 	const [loadFilter, setLoadFilter] = useState<'all' | 'overloaded' | 'optimal' | 'underloaded'>('all');
@@ -1017,6 +1019,39 @@ export default function FacultyAssignments() {
 		() => syntheticCoverageTeachers.reduce((sum, member) => sum + (member.syntheticCoverageHours ?? member.sectionTeachingHours ?? 0), 0),
 		[syntheticCoverageTeachers],
 	);
+	const teacherXRoster = useMemo(
+		() => faculty.filter((member) => member.isPlaceholder).sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`)),
+		[faculty],
+	);
+	const selectTeacherXPlaceholder = useCallback(() => {
+		if (teacherXRoster.length === 0) {
+			toast.info('No Teacher X roles exist yet. Run Auto-Fill with Teacher X mode to create placeholders.');
+			return;
+		}
+		setShowTemporaryRoles(true);
+		setSelectedId(teacherXRoster[0].id);
+		toast.success('Teacher X roster is now visible. You can assign sections manually and save.');
+	}, [teacherXRoster]);
+	const coverageModeConfig = useMemo(() => {
+		switch (coverageMode) {
+			case 'REAL_FACULTY_HARD_CAP':
+				return {
+					label: 'Real Faculty Hard Cap',
+					description: 'Use real faculty only and stop at policy credited-load limits.',
+				};
+			case 'REAL_FACULTY_THEN_TEACHER_X':
+				return {
+					label: 'Real Faculty Then Teacher X',
+					description: 'Fill with real faculty first, then create Teacher X placeholders for remaining gaps.',
+				};
+			case 'REAL_FACULTY_STANDARD':
+			default:
+				return {
+					label: 'Real Faculty Standard',
+					description: 'Use current default policy load caps for real faculty coverage.',
+				};
+		}
+	}, [coverageMode]);
 	const sectionsAvailable = Boolean(sectionSummary && sectionSummary.sections.length > 0);
 
 	const departmentStats = useMemo(() => {

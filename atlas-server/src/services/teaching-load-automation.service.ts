@@ -29,10 +29,52 @@ import {
 	resolveSubjectRotationFamily,
 	resolveSubjectOwnerDepartmentCode,
 } from './subject-ownership.service.js';
+import { repairActiveSubjectCoverageWithPlaceholders } from './faculty-assignment.service.js';
 
 // DO 005 s.2024 weekly minute caps
 const STANDARD_CAP_MIN = 1_800;
 const HARD_CAP_MIN = 2_400;
+
+export type CoverageMode =
+	| 'REAL_FACULTY_STANDARD'
+	| 'REAL_FACULTY_HARD_CAP'
+	| 'REAL_FACULTY_THEN_TEACHER_X';
+
+export const COVERAGE_MODES: CoverageMode[] = [
+	'REAL_FACULTY_STANDARD',
+	'REAL_FACULTY_HARD_CAP',
+	'REAL_FACULTY_THEN_TEACHER_X',
+];
+
+const DEFAULT_COVERAGE_MODE: CoverageMode = 'REAL_FACULTY_STANDARD';
+const REAL_ONLY_STANDARD_MODE: CoverageMode = 'REAL_FACULTY_STANDARD';
+const REAL_ONLY_HARD_CAP_MODE: CoverageMode = 'REAL_FACULTY_HARD_CAP';
+
+interface AutoFillOptions {
+	previewOnly?: boolean;
+	staffingOnly?: boolean;
+	coverageMode?: CoverageMode;
+}
+
+export interface StaffingTruthBucket {
+	shortageRows: number;
+	shortageConcurrentHoursPerWeek: number;
+	shortageConcurrentMinutesPerWeek: number;
+	rowsClosedByRealFaculty: number;
+	rowsClosedByTeacherX: number;
+}
+
+export interface StaffingTruthComparison {
+	baseline: {
+		totalTeachableRows: number;
+		realCoveredRows: number;
+		syntheticCoveredRows: number;
+		unassignedRows: number;
+	};
+	realOnly: StaffingTruthBucket;
+	hardCap: StaffingTruthBucket;
+	teacherX: StaffingTruthBucket;
+}
 
 export interface AutoFillResult {
 	preserved: number;
@@ -40,10 +82,21 @@ export interface AutoFillResult {
 	assignmentsCreated: number;
 	uniqueTeachersAffected: number;
 	unresolved: number;
+	coverageMode: CoverageMode;
 	warnings: string[];
 	sectionSource: SectionSourceLabel;
 	sectionFallbackReason: string | null;
 	staffingReport: StaffingReport;
+	staffingTruth: StaffingTruthComparison;
+	teacherXResolution?: {
+		applied: boolean;
+		rowsClosedByTeacherX: number;
+		createdPlaceholders: number;
+		reusedPlaceholders: number;
+		placeholderAssignmentsUpserted: number;
+		resolvedSubjectCodes: string[];
+		stillUncoveredSubjectCodes: string[];
+	};
 }
 
 export interface StaffingCrossTrainee {
@@ -116,6 +169,7 @@ interface FacultyRow {
 	department: string | null;
 	canTeachOutsideDepartment: boolean;
 	maxHoursPerWeek: number;
+	isPlaceholder: boolean;
 }
 
 interface UnresolvedPair {
@@ -124,6 +178,13 @@ interface UnresolvedPair {
 	subject: SubjectRow;
 	sectionName: string;
 	sectionProgramType: string;
+}
+
+interface CoverageSimulationResult {
+	rowsClosedByRealFaculty: number;
+	unresolvedPairs: UnresolvedPair[];
+	capacityUsed: Map<number, number>;
+	staffingReport: StaffingReport;
 }
 
 interface StaffingShortageBucket {
@@ -160,8 +221,25 @@ async function fetchSectionsForAutoFill(
  * Convert maxHoursPerWeek to minutes/week for capacity calculations.
  * FacultyMirror.maxHoursPerWeek stores the limit in hours (default 30).
  */
-function maxMinutes(faculty: FacultyRow): number {
-	return Math.min(faculty.maxHoursPerWeek * 60, HARD_CAP_MIN);
+function resolveRealFacultyCapMinutes(faculty: FacultyRow, mode: CoverageMode): number {
+	if (mode === REAL_ONLY_STANDARD_MODE) {
+		return Math.min(Math.max(0, faculty.maxHoursPerWeek * 60), STANDARD_CAP_MIN);
+	}
+
+	// Hard-cap modes explicitly allow up to 40h/week policy-credited load.
+	return HARD_CAP_MIN;
+}
+
+function resolveRealCoverageMode(coverageMode: CoverageMode): CoverageMode {
+	return coverageMode === REAL_ONLY_STANDARD_MODE ? REAL_ONLY_STANDARD_MODE : REAL_ONLY_HARD_CAP_MODE;
+}
+
+function cloneCapacityLanes(source: Map<number, Map<string, number>>): Map<number, Map<string, number>> {
+	const cloned = new Map<number, Map<string, number>>();
+	for (const [facultyId, lanes] of source.entries()) {
+		cloned.set(facultyId, new Map<string, number>(lanes));
+	}
+	return cloned;
 }
 
 function resolveCapacityRotationFamily(subjectCode: string | null | undefined, explicitRotationFamily: string | null | undefined): string | null {
@@ -209,7 +287,9 @@ function buildStaffingReport(
 	unresolvedPairs: UnresolvedPair[],
 	faculty: FacultyRow[],
 	capacityUsed: Map<number, number>,
+	coverageMode: CoverageMode = REAL_ONLY_STANDARD_MODE,
 ): StaffingReport {
+	const effectiveCoverageMode = resolveRealCoverageMode(coverageMode);
 	const rawByDepartment = new Map<string, { count: number; missingMinutesPerWeek: number }>();
 	const concurrentLanes = new Map<string, ConcurrentLaneDemand>();
 	const shortageSections = new Map<string, StaffingShortageDetail['sections']>();
@@ -270,7 +350,7 @@ function buildStaffingReport(
 	const facultyDepartmentCode = new Map<number, string | null>();
 	const facultyDepartmentLabel = new Map<number, string>();
 	for (const member of faculty) {
-		const spareMinutes = Math.max(0, maxMinutes(member) - (capacityUsed.get(member.id) ?? 0));
+		const spareMinutes = Math.max(0, resolveRealFacultyCapMinutes(member, effectiveCoverageMode) - (capacityUsed.get(member.id) ?? 0));
 		facultySpareMinutes.set(member.id, spareMinutes);
 		facultyDepartmentCode.set(member.id, normalizeDepartmentCode(member.department));
 		facultyDepartmentLabel.set(member.id, formatDepartmentLabel(member.department));
@@ -401,7 +481,7 @@ function buildStaffingReport(
 
 	const initialSpareByFaculty = new Map<number, number>();
 	for (const member of faculty) {
-		initialSpareByFaculty.set(member.id, Math.max(0, maxMinutes(member) - (capacityUsed.get(member.id) ?? 0)));
+		initialSpareByFaculty.set(member.id, Math.max(0, resolveRealFacultyCapMinutes(member, effectiveCoverageMode) - (capacityUsed.get(member.id) ?? 0)));
 	}
 
 	const internalCrossTrainees = Array.from(crossTraineeTeacherIdsByDepartment.entries())
@@ -489,15 +569,209 @@ function resolveQualificationTier(
 	return null;
 }
 
+type ExistingOwnershipRow = {
+	subjectId: number;
+	sectionId: number;
+	facultyId: number;
+	facultySubject: {
+		subject: {
+			id: number;
+			code: string;
+			rotationFamily: string | null;
+			minMinutesPerWeek: number;
+		};
+	};
+};
+
+function buildInitialCapacityTracking(existingOwnerships: ExistingOwnershipRow[]): {
+	capacityLanesByFaculty: Map<number, Map<string, number>>;
+	capacityUsed: Map<number, number>;
+} {
+	const capacityLanesByFaculty = new Map<number, Map<string, number>>();
+	for (const ownership of existingOwnerships) {
+		const subject = ownership.facultySubject.subject;
+		const mins = Math.max(0, Number(subject.minMinutesPerWeek) || 0);
+		if (mins <= 0) continue;
+		const family = resolveCapacityRotationFamily(subject.code, subject.rotationFamily);
+		const laneKey = family
+			? `family:${family}:${ownership.sectionId}`
+			: `subject:${subject.id}:${ownership.sectionId}`;
+		const lanes = capacityLanesByFaculty.get(ownership.facultyId) ?? new Map<string, number>();
+		const currentLaneMinutes = lanes.get(laneKey) ?? 0;
+		if (mins > currentLaneMinutes) {
+			lanes.set(laneKey, mins);
+		}
+		capacityLanesByFaculty.set(ownership.facultyId, lanes);
+	}
+
+	const capacityUsed = new Map<number, number>();
+	for (const [facultyId, lanes] of capacityLanesByFaculty.entries()) {
+		const creditedMinutes = Array.from(lanes.values()).reduce((sum, value) => sum + value, 0);
+		capacityUsed.set(facultyId, creditedMinutes);
+	}
+
+	return { capacityLanesByFaculty, capacityUsed };
+}
+
+function findBestCandidateForMode(
+	subjectRow: SubjectRow,
+	faculty: FacultyRow[],
+	coverageMode: CoverageMode,
+	capacityUsed: Map<number, number>,
+): FacultyRow | null {
+	const candidates: Array<{ faculty: FacultyRow; tier: number }> = [];
+	const realCoverageMode = resolveRealCoverageMode(coverageMode);
+
+	for (const member of faculty) {
+		const used = capacityUsed.get(member.id) ?? 0;
+		const limit = resolveRealFacultyCapMinutes(member, realCoverageMode);
+		if (used + subjectRow.minMinutesPerWeek > limit) continue;
+
+		const tier = resolveQualificationTier(member, subjectRow);
+		if (tier != null) {
+			candidates.push({ faculty: member, tier });
+		}
+	}
+
+	if (candidates.length === 0) return null;
+
+	candidates.sort((a, b) => {
+		if (a.tier !== b.tier) return a.tier - b.tier;
+		return (capacityUsed.get(a.faculty.id) ?? 0) - (capacityUsed.get(b.faculty.id) ?? 0);
+	});
+
+	return candidates[0].faculty;
+}
+
+function simulateRealFacultyCoverage(input: {
+	coverageMode: CoverageMode;
+	realFaculty: FacultyRow[];
+	candidatePairs: UnresolvedPair[];
+	baseCapacityLanesByFaculty: Map<number, Map<string, number>>;
+}): CoverageSimulationResult {
+	const capacityLanesByFaculty = cloneCapacityLanes(input.baseCapacityLanesByFaculty);
+	const capacityUsed = new Map<number, number>();
+	for (const [facultyId, lanes] of capacityLanesByFaculty.entries()) {
+		const creditedMinutes = Array.from(lanes.values()).reduce((sum, value) => sum + value, 0);
+		capacityUsed.set(facultyId, creditedMinutes);
+	}
+
+	const bySubjectId = new Map<number, UnresolvedPair[]>();
+	for (const pair of input.candidatePairs) {
+		const bucket = bySubjectId.get(pair.subjectId) ?? [];
+		bucket.push(pair);
+		bySubjectId.set(pair.subjectId, bucket);
+	}
+
+	const subjectMap = new Map<number, SubjectRow>(input.candidatePairs.map((pair) => [pair.subjectId, pair.subject]));
+	const orderedSubjectIds = Array.from(bySubjectId.keys()).sort((a, b) => {
+		const sa = subjectMap.get(a);
+		const sb = subjectMap.get(b);
+		if (!sa || !sb) return a - b;
+		if (!sa.modularGroupId && !sb.modularGroupId) return 0;
+		if (!sa.modularGroupId) return -1;
+		if (!sb.modularGroupId) return 1;
+		if (sa.modularGroupId !== sb.modularGroupId) return sa.modularGroupId.localeCompare(sb.modularGroupId);
+		return (sa.modularOrder ?? 0) - (sb.modularOrder ?? 0);
+	});
+
+	const unresolvedPairs: UnresolvedPair[] = [];
+	let rowsClosedByRealFaculty = 0;
+
+	const applyCapacityLane = (facultyId: number, subject: SubjectRow, sectionId: number) => {
+		const minutes = Math.max(0, Number(subject.minMinutesPerWeek) || 0);
+		if (minutes <= 0) return;
+		const family = resolveCapacityRotationFamily(subject.code, subject.rotationFamily);
+		const laneKey = family
+			? `family:${family}:${sectionId}`
+			: `subject:${subject.id}:${sectionId}`;
+		const lanes = capacityLanesByFaculty.get(facultyId) ?? new Map<string, number>();
+		const currentLaneMinutes = lanes.get(laneKey) ?? 0;
+		if (minutes > currentLaneMinutes) {
+			lanes.set(laneKey, minutes);
+		}
+		capacityLanesByFaculty.set(facultyId, lanes);
+		capacityUsed.set(
+			facultyId,
+			Array.from(lanes.values()).reduce((sum, value) => sum + value, 0),
+		);
+	};
+
+	for (const subjectId of orderedSubjectIds) {
+		const pairs = bySubjectId.get(subjectId) ?? [];
+		const subjectRow = subjectMap.get(subjectId);
+		if (!subjectRow) continue;
+
+		for (const pair of pairs) {
+			const candidate = findBestCandidateForMode(subjectRow, input.realFaculty, input.coverageMode, capacityUsed);
+			if (!candidate) {
+				unresolvedPairs.push(pair);
+				continue;
+			}
+
+			rowsClosedByRealFaculty += 1;
+			applyCapacityLane(candidate.id, subjectRow, pair.sectionId);
+		}
+	}
+
+	return {
+		rowsClosedByRealFaculty,
+		unresolvedPairs,
+		capacityUsed,
+		staffingReport: buildStaffingReport(unresolvedPairs, input.realFaculty, capacityUsed, input.coverageMode),
+	};
+}
+
+function buildStaffingTruthComparison(input: {
+	totalTeachableRows: number;
+	realCoveredRows: number;
+	syntheticCoveredRows: number;
+	unassignedRows: number;
+	standardSimulation: CoverageSimulationResult;
+	hardCapSimulation: CoverageSimulationResult;
+}): StaffingTruthComparison {
+	const toBucket = (
+		simulation: CoverageSimulationResult,
+		rowsClosedByTeacherX: number,
+		forceZeroShortage = false,
+	): StaffingTruthBucket => ({
+		shortageRows: forceZeroShortage ? 0 : simulation.unresolvedPairs.length,
+		shortageConcurrentHoursPerWeek: forceZeroShortage
+			? 0
+			: simulation.staffingReport.concurrentMissingHoursPerWeek,
+		shortageConcurrentMinutesPerWeek: forceZeroShortage
+			? 0
+			: simulation.staffingReport.concurrentMissingMinutesPerWeek,
+		rowsClosedByRealFaculty: simulation.rowsClosedByRealFaculty,
+		rowsClosedByTeacherX,
+	});
+
+	const teacherXRowsClosed = input.hardCapSimulation.unresolvedPairs.length;
+
+	return {
+		baseline: {
+			totalTeachableRows: input.totalTeachableRows,
+			realCoveredRows: input.realCoveredRows,
+			syntheticCoveredRows: input.syntheticCoveredRows,
+			unassignedRows: input.unassignedRows,
+		},
+		realOnly: toBucket(input.standardSimulation, 0),
+		hardCap: toBucket(input.hardCapSimulation, 0),
+		teacherX: toBucket(input.hardCapSimulation, teacherXRowsClosed, true),
+	};
+}
+
 export async function autoFill(
 	schoolId: number,
 	schoolYearId: number,
 	authToken?: string,
-	options?: { previewOnly?: boolean; staffingOnly?: boolean },
+	options?: AutoFillOptions,
 ): Promise<AutoFillResult> {
 	const warnings: string[] = [];
 	const previewOnly = options?.previewOnly ?? false;
 	const staffingOnly = options?.staffingOnly === true;
+	const coverageMode = options?.coverageMode ?? DEFAULT_COVERAGE_MODE;
+	const realCoverageMode = resolveRealCoverageMode(coverageMode);
 
 	const sectionResult = await fetchSectionsForAutoFill(schoolId, schoolYearId, authToken);
 	if (sectionResult.source !== 'enrollpro') {
@@ -524,35 +798,48 @@ export async function autoFill(
 	const allSectionIds = Array.from(sectionGradeLevel.keys());
 	if (allSectionIds.length === 0) {
 		warnings.push('No active sections were resolved for the selected school year. Auto-fill cannot continue.');
+		const emptyReport = buildStaffingReport([], [], new Map<number, number>(), realCoverageMode);
+		const emptyTruth: StaffingTruthComparison = {
+			baseline: {
+				totalTeachableRows: 0,
+				realCoveredRows: 0,
+				syntheticCoveredRows: 0,
+				unassignedRows: 0,
+			},
+			realOnly: {
+				shortageRows: 0,
+				shortageConcurrentHoursPerWeek: 0,
+				shortageConcurrentMinutesPerWeek: 0,
+				rowsClosedByRealFaculty: 0,
+				rowsClosedByTeacherX: 0,
+			},
+			hardCap: {
+				shortageRows: 0,
+				shortageConcurrentHoursPerWeek: 0,
+				shortageConcurrentMinutesPerWeek: 0,
+				rowsClosedByRealFaculty: 0,
+				rowsClosedByTeacherX: 0,
+			},
+			teacherX: {
+				shortageRows: 0,
+				shortageConcurrentHoursPerWeek: 0,
+				shortageConcurrentMinutesPerWeek: 0,
+				rowsClosedByRealFaculty: 0,
+				rowsClosedByTeacherX: 0,
+			},
+		};
 		return {
 			preserved: 0,
 			created: 0,
 			assignmentsCreated: 0,
 			uniqueTeachersAffected: 0,
 			unresolved: 0,
+			coverageMode,
 			warnings,
 			sectionSource: sectionResult.source,
 			sectionFallbackReason: sectionResult.fallbackReason ?? null,
-			staffingReport: {
-				department: 'GENERAL',
-				dominantShortageDepartment: 'GENERAL',
-				unassignedSections: 0,
-				missingHoursPerWeek: 0,
-				concurrentUnassignedSections: 0,
-				concurrentMissingHoursPerWeek: 0,
-				recoverableConcurrentRows: 0,
-				recoverableConcurrentMissingHoursPerWeek: 0,
-				recoverableConcurrentMissingMinutesPerWeek: 0,
-				constrainedConcurrentRows: 0,
-				constrainedConcurrentMissingHoursPerWeek: 0,
-				constrainedConcurrentMissingMinutesPerWeek: 0,
-				recommendedNewHires: 0,
-				internalCrossTrainees: [],
-				missingMinutesPerWeek: 0,
-				concurrentMissingMinutesPerWeek: 0,
-				rotationAdjustedMinutesPerWeek: 0,
-				shortages: [],
-			},
+			staffingReport: emptyReport,
+			staffingTruth: emptyTruth,
 		};
 	}
 
@@ -565,9 +852,13 @@ export async function autoFill(
 			department: true,
 			canTeachOutsideDepartment: true,
 			maxHoursPerWeek: true,
+			isPlaceholder: true,
 		},
 	});
 	const activeFacultyIds = faculty.map((member) => member.id);
+	const realFaculty = faculty.filter((member) => !member.isPlaceholder);
+	const realFacultyIds = realFaculty.map((member) => member.id);
+	const placeholderFacultyIds = new Set(faculty.filter((member) => member.isPlaceholder).map((member) => member.id));
 
 	// ─── Step 1: Build resolved-pair set + capacity used per faculty ───────────
 	const existingOwnerships = await prisma.subjectSectionOwnership.findMany({
@@ -593,28 +884,14 @@ export async function autoFill(
 	);
 	const preserved = resolvedPairs.size;
 
-	const capacityUsed = new Map<number, number>(); // facultyId → credited minutes used
-	const capacityLanesByFaculty = new Map<number, Map<string, number>>();
-	for (const ownership of existingOwnerships) {
-		const subject = ownership.facultySubject.subject;
-		const mins = Math.max(0, Number(subject.minMinutesPerWeek) || 0);
-		if (mins <= 0) continue;
-		const family = resolveCapacityRotationFamily(subject.code, subject.rotationFamily);
-		const laneKey = family
-			? `family:${family}:${ownership.sectionId}`
-			: `subject:${subject.id}:${ownership.sectionId}`;
-		const lanes = capacityLanesByFaculty.get(ownership.facultyId) ?? new Map<string, number>();
-		const currentLaneMinutes = lanes.get(laneKey) ?? 0;
-		if (mins > currentLaneMinutes) {
-			lanes.set(laneKey, mins);
-		}
-		capacityLanesByFaculty.set(ownership.facultyId, lanes);
-	}
+	const realOwnershipRows = existingOwnerships.filter((ownership) => realFacultyIds.includes(ownership.facultyId));
+	const {
+		capacityLanesByFaculty: baseRealCapacityLanesByFaculty,
+		capacityUsed: baseRealCapacityUsed,
+	} = buildInitialCapacityTracking(realOwnershipRows as ExistingOwnershipRow[]);
 
-	for (const [facultyId, lanes] of capacityLanesByFaculty.entries()) {
-		const creditedMinutes = Array.from(lanes.values()).reduce((sum, value) => sum + value, 0);
-		capacityUsed.set(facultyId, creditedMinutes);
-	}
+	const capacityLanesByFaculty = cloneCapacityLanes(baseRealCapacityLanesByFaculty);
+	const capacityUsed = new Map<number, number>(baseRealCapacityUsed);
 
 	// ─── Step 2: Verify HG records for advisers (warn if missing) ─────────────
 	const advisersWithoutHg = await prisma.facultyMirror.findMany({
@@ -668,6 +945,8 @@ export async function autoFill(
 
 	const workQueue: UnresolvedPair[] = [];
 	const unresolvedPairs: UnresolvedPair[] = [];
+	const allTeachablePairs: UnresolvedPair[] = [];
+	const teachablePairKeySet = new Set<string>();
 	for (const subject of subjects) {
 		const relevantSections =
 			subject.gradeLevels.length > 0
@@ -684,34 +963,93 @@ export async function autoFill(
 
 		for (const sectionId of relevantSections) {
 			const key = `${subject.id}:${sectionId}`;
+			const sectionInfo = sectionMeta.get(sectionId);
+			const pair: UnresolvedPair = {
+				subjectId: subject.id,
+				sectionId,
+				subject,
+				sectionName: sectionInfo?.sectionName ?? `Section ${sectionId}`,
+				sectionProgramType: sectionInfo?.programType ?? 'REGULAR',
+			};
+			allTeachablePairs.push(pair);
+			teachablePairKeySet.add(key);
 			if (!resolvedPairs.has(key)) {
-					const sectionInfo = sectionMeta.get(sectionId);
-					workQueue.push({
-						subjectId: subject.id,
-						sectionId,
-						subject,
-						sectionName: sectionInfo?.sectionName ?? `Section ${sectionId}`,
-						sectionProgramType: sectionInfo?.programType ?? 'REGULAR',
-					});
+				workQueue.push(pair);
 			}
 		}
 	}
 
-	if (staffingOnly) {
-		for (const pair of workQueue) {
-			unresolvedPairs.push(pair);
+	const realAssignedPairSet = new Set<string>();
+	const syntheticAssignedPairSet = new Set<string>();
+	for (const ownership of existingOwnerships) {
+		const pairKey = `${ownership.subjectId}:${ownership.sectionId}`;
+		if (!teachablePairKeySet.has(pairKey)) {
+			continue;
 		}
+		if (placeholderFacultyIds.has(ownership.facultyId)) {
+			syntheticAssignedPairSet.add(pairKey);
+		} else {
+			realAssignedPairSet.add(pairKey);
+		}
+	}
 
+	const syntheticOnlyPairSet = new Set<string>(
+		Array.from(syntheticAssignedPairSet).filter((pairKey) => !realAssignedPairSet.has(pairKey)),
+	);
+	const anyAssignedPairSet = new Set<string>([
+		...Array.from(realAssignedPairSet),
+		...Array.from(syntheticAssignedPairSet),
+	]);
+
+	const realCoverageQueue = allTeachablePairs.filter(
+		(pair) => !realAssignedPairSet.has(`${pair.subjectId}:${pair.sectionId}`),
+	);
+
+	const standardSimulation = simulateRealFacultyCoverage({
+		coverageMode: REAL_ONLY_STANDARD_MODE,
+		realFaculty,
+		candidatePairs: realCoverageQueue,
+		baseCapacityLanesByFaculty: baseRealCapacityLanesByFaculty,
+	});
+	const hardCapSimulation = simulateRealFacultyCoverage({
+		coverageMode: REAL_ONLY_HARD_CAP_MODE,
+		realFaculty,
+		candidatePairs: realCoverageQueue,
+		baseCapacityLanesByFaculty: baseRealCapacityLanesByFaculty,
+	});
+
+	const staffingTruth = buildStaffingTruthComparison({
+		totalTeachableRows: allTeachablePairs.length,
+		realCoveredRows: realAssignedPairSet.size,
+		syntheticCoveredRows: syntheticOnlyPairSet.size,
+		unassignedRows: Math.max(0, allTeachablePairs.length - anyAssignedPairSet.size),
+		standardSimulation,
+		hardCapSimulation,
+	});
+
+	const selectedSimulation = coverageMode === REAL_ONLY_STANDARD_MODE
+		? standardSimulation
+		: hardCapSimulation;
+	const selectedStaffingReport = coverageMode === 'REAL_FACULTY_THEN_TEACHER_X'
+		? buildStaffingReport([], realFaculty, hardCapSimulation.capacityUsed, REAL_ONLY_HARD_CAP_MODE)
+		: selectedSimulation.staffingReport;
+	const selectedUnresolvedForMode = coverageMode === 'REAL_FACULTY_THEN_TEACHER_X'
+		? 0
+		: selectedSimulation.unresolvedPairs.length;
+
+	if (staffingOnly) {
 		return {
 			preserved,
 			created: 0,
 			assignmentsCreated: 0,
 			uniqueTeachersAffected: 0,
-			unresolved: workQueue.length,
+			unresolved: selectedUnresolvedForMode,
+			coverageMode,
 			warnings,
 			sectionSource: sectionResult.source,
 			sectionFallbackReason: sectionResult.fallbackReason ?? null,
-			staffingReport: buildStaffingReport(unresolvedPairs, faculty, capacityUsed),
+			staffingReport: selectedStaffingReport,
+			staffingTruth,
 		};
 	}
 
@@ -738,7 +1076,6 @@ export async function autoFill(
 
 	// Track new assignments to persist: facultyId → { subjectId → Set<sectionId> }
 	const pendingAssignments = new Map<number, Map<number, Set<number>>>();
-	let unresolvedCount = 0;
 
 	function addPending(facultyId: number, subjectId: number, sectionId: number): void {
 		if (!pendingAssignments.has(facultyId)) {
@@ -769,43 +1106,13 @@ export async function autoFill(
 		capacityUsed.set(facultyId, creditedMinutes);
 	}
 
-	function findBestCandidate(
-		subjectRow: SubjectRow,
-		_sectionId: number,
-	): FacultyRow | null {
-		const candidates: Array<{ faculty: FacultyRow; tier: number }> = [];
-
-		for (const f of faculty) {
-			// Cap check
-			const used = capacityUsed.get(f.id) ?? 0;
-			const limit = maxMinutes(f);
-			if (used + subjectRow.minMinutesPerWeek > limit) continue;
-
-			const tier = resolveQualificationTier(f, subjectRow);
-			if (tier != null) {
-				candidates.push({ faculty: f, tier });
-			}
-		}
-
-		if (candidates.length === 0) return null;
-
-		// Sort: best tier first (1 > 2 > 3), then lowest current load
-		candidates.sort((a, b) => {
-			if (a.tier !== b.tier) return a.tier - b.tier;
-			return (capacityUsed.get(a.faculty.id) ?? 0) - (capacityUsed.get(b.faculty.id) ?? 0);
-		});
-
-		return candidates[0].faculty;
-	}
-
 	for (const subjectId of orderedSubjectIds) {
 		const pairs = bySubjectId.get(subjectId)!;
 		const subjectRow = subjectMap.get(subjectId)!;
 
 		for (const pair of pairs) {
-			const candidate = findBestCandidate(subjectRow, pair.sectionId);
+			const candidate = findBestCandidateForMode(subjectRow, realFaculty, realCoverageMode, capacityUsed);
 			if (!candidate) {
-				unresolvedCount += 1;
 				warnings.push(`Lacking Faculty: no department-qualified teacher for ${subjectRow.name} (${pair.sectionName}).`);
 				unresolvedPairs.push(pair);
 			} else {
@@ -895,17 +1202,71 @@ export async function autoFill(
 		});
 	}
 
-	const staffingReport = buildStaffingReport(unresolvedPairs, faculty, capacityUsed);
+	let teacherXResolution: AutoFillResult['teacherXResolution'] | undefined;
+	let teacherXRowsClosed = 0;
+	let teacherXPlaceholderTeacherCount = 0;
+
+	if (coverageMode === 'REAL_FACULTY_THEN_TEACHER_X') {
+		const unresolvedSubjectCodes = [...new Set(unresolvedPairs.map((pair) => pair.subject.code.trim().toUpperCase()))];
+
+		if (!previewOnly && unresolvedSubjectCodes.length > 0) {
+			const repairResult = await repairActiveSubjectCoverageWithPlaceholders({
+				schoolId,
+				schoolYearId,
+				assignedBy: 0,
+				authToken,
+				subjectCodes: unresolvedSubjectCodes,
+				apply: true,
+			});
+
+			teacherXRowsClosed = repairResult.sectionsCoveredByPlaceholder;
+			teacherXPlaceholderTeacherCount = new Set<number>([
+				...repairResult.createdPlaceholders.map((entry) => entry.facultyId),
+				...repairResult.reusedPlaceholders.map((entry) => entry.facultyId),
+			]).size;
+
+			teacherXResolution = {
+				applied: true,
+				rowsClosedByTeacherX: repairResult.sectionsCoveredByPlaceholder,
+				createdPlaceholders: repairResult.createdPlaceholders.length,
+				reusedPlaceholders: repairResult.reusedPlaceholders.length,
+				placeholderAssignmentsUpserted: repairResult.placeholderAssignmentsUpserted,
+				resolvedSubjectCodes: repairResult.resolvedSubjectCodes,
+				stillUncoveredSubjectCodes: repairResult.stillUncoveredSubjectCodes,
+			};
+		} else {
+			teacherXRowsClosed = staffingTruth.teacherX.rowsClosedByTeacherX;
+			teacherXResolution = {
+				applied: false,
+				rowsClosedByTeacherX: teacherXRowsClosed,
+				createdPlaceholders: 0,
+				reusedPlaceholders: 0,
+				placeholderAssignmentsUpserted: 0,
+				resolvedSubjectCodes: [],
+				stillUncoveredSubjectCodes: [],
+			};
+		}
+	}
+
+	const totalCreated = created + teacherXRowsClosed;
+	const uniqueTeachersAffected = affectedTeacherIds.size + teacherXPlaceholderTeacherCount;
+	const finalUnresolved = coverageMode === 'REAL_FACULTY_THEN_TEACHER_X' ? 0 : selectedUnresolvedForMode;
+	const staffingReport = coverageMode === 'REAL_FACULTY_THEN_TEACHER_X'
+		? buildStaffingReport([], realFaculty, capacityUsed, REAL_ONLY_HARD_CAP_MODE)
+		: selectedStaffingReport;
 
 	return {
 		preserved,
-		created,
-		assignmentsCreated: created,
-		uniqueTeachersAffected: affectedTeacherIds.size,
-		unresolved: unresolvedCount,
+		created: totalCreated,
+		assignmentsCreated: totalCreated,
+		uniqueTeachersAffected,
+		unresolved: finalUnresolved,
+		coverageMode,
 		warnings,
 		sectionSource: sectionResult.source,
 		sectionFallbackReason: sectionResult.fallbackReason ?? null,
 		staffingReport,
+		staffingTruth,
+		teacherXResolution,
 	};
 }
