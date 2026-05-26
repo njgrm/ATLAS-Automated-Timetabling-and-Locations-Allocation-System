@@ -96,6 +96,8 @@ import type {
 	TeachingLoadIntegrityDiagnostics,
 	RotationFamilyLoadDetail,
 	RotationFamilyTermBreakdown,
+	SpecialProgramRebalancePreviewResult,
+	TeachingLoadSplitBrainReconcileResult,
 } from '@/types';
 
 const DEFAULT_SCHOOL_ID = 1;
@@ -212,6 +214,9 @@ export default function FacultyAssignments() {
 	const [savedOwnershipIndex, setSavedOwnershipIndex] = useState<SubjectSectionOwnershipIndexEntry[]>([]);
 	const [coverageTotals, setCoverageTotals] = useState<TeachingLoadCoverageTotals | null>(null);
 	const [integrityDiagnostics, setIntegrityDiagnostics] = useState<TeachingLoadIntegrityDiagnostics | null>(null);
+	const [splitBrainIncident, setSplitBrainIncident] = useState<TeachingLoadSplitBrainReconcileResult | null>(null);
+	const [splitBrainLoading, setSplitBrainLoading] = useState(false);
+	const [splitBrainApplyLoading, setSplitBrainApplyLoading] = useState(false);
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
@@ -267,9 +272,30 @@ export default function FacultyAssignments() {
 	const canPersistAssignments = isOnline && (dataSource === 'live' || degradedWriteEnabled);
 	const canRunStaffingNeeds = isOnline && dataSource !== 'none' && Boolean(activeSchoolYearId);
 	const canRunGlobalReset = isOnline && dataSource === 'live' && Boolean(activeSchoolYearId);
-	const isReadOnlyMode = !canPersistAssignments;
+	const splitBrainQuarantineRequired = splitBrainIncident?.quarantine.required === true;
+	const splitBrainReasonLabel = splitBrainIncident?.quarantine.message ?? 'Repair pending: assignment edits are temporarily blocked.';
+	const isReadOnlyMode = !canPersistAssignments || splitBrainQuarantineRequired;
 
 	const activeFacultyIds = useMemo(() => new Set(faculty.map((f) => f.id)), [faculty]);
+
+	const fetchSplitBrainIncident = useCallback(async (schoolYearId: number) => {
+		setSplitBrainLoading(true);
+		try {
+			const { data } = await atlasApi.post<TeachingLoadSplitBrainReconcileResult>(
+				'/faculty-assignments/integrity/reconcile-split-brain',
+				{
+					schoolId: DEFAULT_SCHOOL_ID,
+					schoolYearId,
+					previewOnly: true,
+				},
+			);
+			setSplitBrainIncident(data);
+		} catch {
+			setSplitBrainIncident(null);
+		} finally {
+			setSplitBrainLoading(false);
+		}
+	}, []);
 
 	const fetchData = useCallback(async (options?: { forceRefresh?: boolean }) => {
 		const forceRefresh = options?.forceRefresh === true;
@@ -370,6 +396,7 @@ export default function FacultyAssignments() {
 					: 'Teaching load data is available from ATLAS runtime cache while upstream verification is unavailable.',
 			);
 			setError(null);
+			void fetchSplitBrainIncident(schoolYearId);
 		} catch (requestError: any) {
 			const cachedSummary = schoolYearId ? getCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId) : null;
 			const cachedSubjects = getCachedSubjects(DEFAULT_SCHOOL_ID);
@@ -386,17 +413,19 @@ export default function FacultyAssignments() {
 				setDataSource('cached');
 				setDegradedNotice('Live teaching load data is unavailable. You are viewing your last saved snapshot in read-only mode.');
 				setError(null);
+				void fetchSplitBrainIncident(schoolYearId);
 			} else {
 				setDataSource('none');
 				setCoverageTotals(null);
 				setIntegrityDiagnostics(null);
+				setSplitBrainIncident(null);
 				setDegradedNotice(null);
 				setError(requestError?.response?.data?.message ?? requestError?.message ?? 'Failed to load teaching load data.');
 			}
 		} finally {
 			setLoading(false);
 		}
-	}, []);
+	}, [fetchSplitBrainIncident]);
 
 	useEffect(() => {
 		fetchData();
@@ -662,6 +691,10 @@ export default function FacultyAssignments() {
 
 	const handleAutoFill = useCallback(async () => {
 		if (!activeSchoolYearId) return;
+		if (splitBrainQuarantineRequired) {
+			toast.error(splitBrainReasonLabel);
+			return;
+		}
 		if (!canPersistAssignments) {
 			toast.error('Auto-Fill requires writable runtime evidence. Refresh ATLAS context and try again.');
 			return;
@@ -700,7 +733,7 @@ export default function FacultyAssignments() {
 		} finally {
 			setAutoFillLoading(false);
 		}
-	}, [activeDraftCount, activeSchoolYearId, canPersistAssignments, coverageMode, fetchData, pushHistory]);
+	}, [activeDraftCount, activeSchoolYearId, canPersistAssignments, coverageMode, fetchData, pushHistory, splitBrainQuarantineRequired, splitBrainReasonLabel]);
 
 	const handleViewStaffingNeeds = useCallback(async () => {
 		if (!activeSchoolYearId) return;
@@ -710,13 +743,47 @@ export default function FacultyAssignments() {
 		}
 		setStaffingNeedsLoading(true);
 		try {
-			const result = await atlasApi.post<AutoFillSummaryResult>(
-				'/faculty-assignments/report/staffing-needs',
-				{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId, coverageMode },
-			);
-			setSummaryModalResult(result.data);
+			const [staffingResult, specialProgramResult] = await Promise.all([
+				atlasApi.post<AutoFillSummaryResult>(
+					'/faculty-assignments/report/staffing-needs',
+					{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId, coverageMode },
+				),
+				atlasApi.post<SpecialProgramRebalancePreviewResult>(
+					'/faculty-assignments/coverage/rebalance-special-programs',
+					{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId, apply: false },
+				),
+			]);
+
+			const specialProgramApprovalQueue = specialProgramResult.data.redistributionInsights
+				.flatMap((insight) =>
+					(insight.approvalRequiredCandidates ?? []).map((candidate) => ({
+						subjectCode: insight.subjectCode,
+						subjectName: insight.subjectName,
+						facultyId: candidate.facultyId,
+						facultyName: candidate.facultyName,
+						department: candidate.department,
+						specialization: candidate.specialization,
+						currentTotalAssignedPairs: candidate.currentTotalAssignedPairs,
+						requiredSpecializationCodes: candidate.requiredSpecializationCodes,
+						reason: candidate.reason,
+					})),
+				)
+				.filter((entry, index, collection) =>
+					index === collection.findIndex((candidate) =>
+						candidate.subjectCode === entry.subjectCode
+						&& candidate.facultyId === entry.facultyId,
+					),
+				);
+
+			setSummaryModalResult({
+				...staffingResult.data,
+				specialProgramApprovalQueue,
+			});
 			setSummaryModalOpen(true);
 			toast.info(`Showing staffing needs using ${COVERAGE_MODE_CONFIG[coverageMode].label}.`);
+			if (specialProgramApprovalQueue.length > 0) {
+				toast.warning(`Manual approval needed for ${specialProgramApprovalQueue.length} special-program candidate${specialProgramApprovalQueue.length === 1 ? '' : 's'}.`);
+			}
 		} catch {
 			toast.error('Unable to load staffing needs right now.');
 		} finally {
@@ -758,6 +825,43 @@ export default function FacultyAssignments() {
 				setRecoveryApplyLoading(false);
 			}
 		}, [activeSchoolYearId, canPersistAssignments, fetchData]);
+
+	const handlePreviewSplitBrain = useCallback(async () => {
+		if (!activeSchoolYearId) {
+			return;
+		}
+		await fetchSplitBrainIncident(activeSchoolYearId);
+		toast.info('Teaching Load incident preview refreshed.');
+	}, [activeSchoolYearId, fetchSplitBrainIncident]);
+
+	const handleApplySplitBrainRepair = useCallback(async () => {
+		if (!activeSchoolYearId) {
+			return;
+		}
+		if (!canPersistAssignments) {
+			toast.error('Split-brain repair apply requires writable runtime evidence.');
+			return;
+		}
+
+		setSplitBrainApplyLoading(true);
+		try {
+			await atlasApi.post<TeachingLoadSplitBrainReconcileResult>(
+				'/faculty-assignments/integrity/reconcile-split-brain',
+				{
+					schoolId: DEFAULT_SCHOOL_ID,
+					schoolYearId: activeSchoolYearId,
+					previewOnly: false,
+					confirmApply: true,
+				},
+			);
+			toast.success('Applied split-brain reconciliation workflow. Reloading current Teaching Load truth.');
+			await fetchData({ forceRefresh: true });
+		} catch (requestError: any) {
+			toast.error(requestError?.response?.data?.message ?? 'Split-brain reconciliation apply failed.');
+		} finally {
+			setSplitBrainApplyLoading(false);
+		}
+	}, [activeSchoolYearId, canPersistAssignments, fetchData]);
 
 	const openGlobalResetPreview = useCallback(async () => {
 		if (!activeSchoolYearId) return;
@@ -1455,6 +1559,10 @@ export default function FacultyAssignments() {
 	}, [departmentQualifiedSubjects, outsideDepartmentSubjects]);
 
 	const executeSwap = useCallback(() => {
+		if (splitBrainQuarantineRequired) {
+			toast.error(splitBrainReasonLabel);
+			return;
+		}
 		if (!canPersistAssignments) {
 			toast.error('Teaching Load cannot swap ownership while runtime evidence is read-only.');
 			return;
@@ -1507,7 +1615,7 @@ export default function FacultyAssignments() {
 
 		setSwapCandidate(null);
 		toast.success('Ownership swapped to the selected teacher in draft mode. Save to persist changes.');
-	}, [canPersistAssignments, pushHistory, savedAssignmentsByFaculty, sectionMap, selected, swapCandidate]);
+	}, [canPersistAssignments, pushHistory, savedAssignmentsByFaculty, sectionMap, selected, splitBrainQuarantineRequired, splitBrainReasonLabel, swapCandidate]);
 
 	const handleSwapRequest = (subjectId: number, sectionId: number, fromFacultyId: number) => {
 		setSwapCandidate({ subjectId, sectionId, fromFacultyId });
@@ -1525,6 +1633,33 @@ export default function FacultyAssignments() {
 					</div>
 				)}
 
+				{splitBrainIncident && splitBrainIncident.quarantine.severity !== 'NONE' && (
+					<div className={cn(
+						'mt-2 flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2 text-xs font-semibold',
+						splitBrainIncident.quarantine.required
+							? 'border-rose-200 bg-rose-50 text-rose-900'
+							: 'border-amber-200 bg-amber-50 text-amber-900',
+					)}>
+						<div className="flex min-w-0 flex-col gap-0.5">
+							<span className="font-black uppercase tracking-[0.12em]">
+								{splitBrainIncident.quarantine.required ? 'Data Truth Quarantine Active' : 'Data Truth Warning'}
+							</span>
+							<span className="truncate">{splitBrainIncident.quarantine.message}</span>
+							<span className="text-[0.65rem] font-bold uppercase tracking-tight opacity-80">
+								Pending: {splitBrainIncident.counters.truthRowsToUpdate} truth rows • {splitBrainIncident.counters.realFacultyMovesPlanned} recoverable moves • {splitBrainIncident.counters.specialProgramApprovalCandidates} approval checks
+							</span>
+						</div>
+						<div className="flex items-center gap-2">
+							<Button type="button" size="sm" variant="outline" className="h-7 px-2 text-[0.65rem] font-bold uppercase" onClick={handlePreviewSplitBrain} disabled={splitBrainLoading}>
+								{splitBrainLoading ? 'Refreshing...' : 'Refresh Incident'}
+							</Button>
+							<Button type="button" size="sm" className="h-7 px-2 text-[0.65rem] font-bold uppercase" onClick={handleApplySplitBrainRepair} disabled={splitBrainApplyLoading || !canPersistAssignments}>
+								{splitBrainApplyLoading ? 'Applying...' : 'Apply Repair'}
+							</Button>
+						</div>
+					</div>
+				)}
+
 				<div className="flex items-center justify-between gap-4 py-1">
 					<div className="flex-1 min-w-0">
 						<OverviewHeader
@@ -1538,8 +1673,12 @@ export default function FacultyAssignments() {
 							activeDraftCount={activeDraftCount}
 							autoFillLoading={autoFillLoading}
 							staffingNeedsLoading={staffingNeedsLoading}
-							autoFillEnabled={Boolean(activeSchoolYearId) && canPersistAssignments}
+							autoFillEnabled={Boolean(activeSchoolYearId) && canPersistAssignments && !splitBrainQuarantineRequired}
 							onAutoFillClick={() => {
+								if (splitBrainQuarantineRequired) {
+									toast.error(splitBrainReasonLabel);
+									return;
+								}
 								if (!canPersistAssignments) {
 									toast.error('Auto-Fill requires writable runtime evidence. Refresh and try again.');
 									return;
@@ -1553,6 +1692,7 @@ export default function FacultyAssignments() {
 							dataSource={dataSource}
 							degradedWriteEnabled={degradedWriteEnabled}
 							isOnline={isOnline}
+							dataSourceNotice={degradedNotice}
 							/>
 							</div>
 
@@ -1651,6 +1791,32 @@ export default function FacultyAssignments() {
 											Audit & Maintenance
 										</h5>
 										<div className="space-y-2">
+											<Button
+												variant="outline"
+												className="w-full justify-start gap-3 h-auto py-2.5 px-4"
+												onClick={handlePreviewSplitBrain}
+												disabled={splitBrainLoading || !activeSchoolYearId}
+											>
+												<Activity className="size-4 text-amber-600" />
+												<div className="flex flex-col items-start">
+													<span className="font-bold text-xs">Preview Data Truth Incident</span>
+													<span className="text-[0.65rem] text-muted-foreground">Inspect contradictions before any repair apply</span>
+												</div>
+											</Button>
+
+											<Button
+												variant="outline"
+												className="w-full justify-start gap-3 h-auto py-2.5 px-4"
+												onClick={handleApplySplitBrainRepair}
+												disabled={splitBrainApplyLoading || !activeSchoolYearId || !canPersistAssignments}
+											>
+												<CheckCircle2 className="size-4 text-rose-600" />
+												<div className="flex flex-col items-start">
+													<span className="font-bold text-xs">Apply Data Truth Repair</span>
+													<span className="text-[0.65rem] text-muted-foreground">Run stale cleanup, truth reconcile, and real-faculty recovery</span>
+												</div>
+											</Button>
+
 											<Button
 												variant="outline"
 												className="w-full justify-start gap-3 h-auto py-2.5 px-4"
@@ -1939,6 +2105,12 @@ export default function FacultyAssignments() {
 									</div>
 
 									<div className="flex items-center gap-3">
+										{splitBrainQuarantineRequired ? (
+											<div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50/70 px-3 py-1.5 text-[0.62rem] font-bold uppercase tracking-tight text-rose-800">
+												<AlertTriangle className="size-3.5" />
+												<span>Teacher Arithmetic Hidden While Data Truth Repair Is Pending</span>
+											</div>
+										) : (
 										<div className="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-muted/30 border border-border/40 shadow-inner">
 											<div className="flex flex-col items-center">
 												<span className="text-[0.55rem] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none mb-1">Weekly Load</span>
@@ -2138,6 +2310,7 @@ export default function FacultyAssignments() {
 												</PopoverContent>
 											</Popover>
 										</div>
+										)}
 
 										<div className="flex items-center gap-2 border-l border-border/50 pl-3">
 											<div className="flex items-center bg-background rounded-lg border border-border/60 p-0.5 shadow-inner">
@@ -2178,7 +2351,7 @@ export default function FacultyAssignments() {
 									</div>
 								</div>
 
-								{rotationTermBreakdown.length > 0 && (
+								{!splitBrainQuarantineRequired && rotationTermBreakdown.length > 0 && (
 									<div className="shrink-0 rounded-xl border border-sky-100 bg-sky-50/40 px-3 py-2.5 shadow-sm">
 										<div className="flex items-center justify-between gap-3">
 											<p className="text-[0.6rem] font-bold uppercase tracking-[0.18em] text-sky-800">Rotational Term Distribution</p>
@@ -2349,6 +2522,8 @@ export default function FacultyAssignments() {
 																				onSwapSectionOwnership={handleSwapRequest}
 																				selectedFacultySpecialization={selected.specialization}
 																				resolveSectionHoverDeltaMinutes={resolveSectionHoverDeltaMinutes}
+																				quarantined={splitBrainQuarantineRequired}
+																				quarantineLabel={splitBrainReasonLabel}
 																			/>
 																		))}
 																	</div>
@@ -2386,6 +2561,8 @@ export default function FacultyAssignments() {
 																				onSwapSectionOwnership={handleSwapRequest}
 																				selectedFacultySpecialization={selected.specialization}
 																				resolveSectionHoverDeltaMinutes={resolveSectionHoverDeltaMinutes}
+																				quarantined={splitBrainQuarantineRequired}
+																				quarantineLabel={splitBrainReasonLabel}
 																			/>
 																		))}
 																	</div>
@@ -2454,6 +2631,8 @@ export default function FacultyAssignments() {
 																	onSwapSectionOwnership={handleSwapRequest}
 																	selectedFacultySpecialization={selected.specialization}
 																	resolveSectionHoverDeltaMinutes={resolveSectionHoverDeltaMinutes}
+																	quarantined={splitBrainQuarantineRequired}
+																	quarantineLabel={splitBrainReasonLabel}
 																/>
 															))}
 														</div>
@@ -2539,6 +2718,8 @@ export default function FacultyAssignments() {
 																	onSwapSectionOwnership={handleSwapRequest}
 																	selectedFacultySpecialization={selected.specialization}
 																	resolveSectionHoverDeltaMinutes={resolveSectionHoverDeltaMinutes}
+																	quarantined={splitBrainQuarantineRequired}
+																	quarantineLabel={splitBrainReasonLabel}
 																/>
 															))}
 														</div>

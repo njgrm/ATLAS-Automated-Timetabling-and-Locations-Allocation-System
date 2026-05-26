@@ -31,6 +31,11 @@ import {
 	resolveSubjectOwnerDepartmentCode,
 } from './subject-ownership.service.js';
 import {
+	getActiveSubjectCoverageSummary,
+	getAssignmentSummary,
+	previewOrApplyRealFacultyRecovery,
+	previewOrApplySpecialProgramRedistribution,
+	previewOrApplyTeachingLoadTruthReconcile,
 	previewOrApplyStaleOwnershipReconcile,
 	repairActiveSubjectCoverageWithPlaceholders,
 } from './faculty-assignment.service.js';
@@ -101,6 +106,84 @@ export interface AutoFillResult {
 		resolvedSubjectCodes: string[];
 		stillUncoveredSubjectCodes: string[];
 	};
+}
+
+export type TeachingLoadSplitBrainReasonCode =
+	| 'ASSIGNED_PAIR_MISMATCH'
+	| 'UNASSIGNED_PAIR_MISMATCH'
+	| 'TOTAL_PAIR_MISMATCH'
+	| 'INTEGRITY_MISSING_OWNERSHIP'
+	| 'INTEGRITY_OWNERSHIP_WITHOUT_SCOPE'
+	| 'STALE_OWNERSHIP_PRESENT'
+	| 'TRUTH_RECONCILE_PENDING'
+	| 'REAL_FACULTY_RECOVERY_PENDING'
+	| 'REAL_FACULTY_RECOVERY_BLOCKERS'
+	| 'SPECIAL_PROGRAM_APPROVAL_REQUIRED';
+
+export interface TeachingLoadSplitBrainReconcileInput {
+	schoolId: number;
+	schoolYearId: number;
+	actorId: number;
+	authToken?: string;
+	previewOnly?: boolean;
+}
+
+export interface TeachingLoadSplitBrainApprovalRequiredCandidate {
+	subjectCode: string;
+	subjectName: string;
+	facultyId: number;
+	facultyName: string;
+	department: string | null;
+	specialization: string | null;
+	currentTotalAssignedPairs: number;
+	requiredSpecializationCodes: string[];
+	reason: string;
+}
+
+export interface TeachingLoadSplitBrainReconcileResult {
+	applied: boolean;
+	schoolId: number;
+	schoolYearId: number;
+	quarantine: {
+		required: boolean;
+		severity: 'NONE' | 'WARNING' | 'BLOCKING';
+		reasonCodes: TeachingLoadSplitBrainReasonCode[];
+		message: string;
+	};
+	counters: {
+		summaryAssignedPairs: number;
+		summaryUnassignedPairs: number;
+		summaryTotalPairs: number;
+		coverageAssignedPairs: number;
+		coverageUnassignedPairs: number;
+		coverageTotalPairs: number;
+		assignmentPairDelta: number;
+		unassignedPairDelta: number;
+		totalPairDelta: number;
+		integrityMissingOwnershipPairs: number;
+		integrityOwnershipWithoutScopePairs: number;
+		staleOwnedCurrentYearPairs: number;
+		truthRowsToUpdate: number;
+		realFacultyMovesPlanned: number;
+		realFacultyBlockers: number;
+		specialProgramApprovalCandidates: number;
+	};
+	repairPreview: {
+		truthReconcile: {
+			rowsToUpdate: number;
+			updatedRows: number;
+		};
+		staleReconcile: {
+			staleOwnedCurrentYearPairCount: number;
+			deletedOwnershipRows: number;
+		};
+		realFacultyRecovery: {
+			placeholderMovesPlanned: number;
+			placeholderMovesApplied: number;
+			blockerCount: number;
+		};
+	};
+	specialProgramApprovalQueue: TeachingLoadSplitBrainApprovalRequiredCandidate[];
 }
 
 export interface StaffingCrossTrainee {
@@ -807,6 +890,37 @@ function buildInitialCapacityTracking(existingOwnerships: ExistingOwnershipRow[]
 	return { capacityLedgersByFaculty, capacityUsed };
 }
 
+type CoverageCandidateRankSnapshot = {
+	facultyId: number;
+	tier: number;
+	subjectAssignedCount: number;
+	rotationLaneAssignedCount: number;
+	projectedUsedMinutes: number;
+};
+
+function compareCoverageCandidateRank(
+	left: CoverageCandidateRankSnapshot,
+	right: CoverageCandidateRankSnapshot,
+): number {
+	if (left.tier !== right.tier) return left.tier - right.tier;
+	if (left.subjectAssignedCount !== right.subjectAssignedCount) {
+		return left.subjectAssignedCount - right.subjectAssignedCount;
+	}
+	if (left.rotationLaneAssignedCount !== right.rotationLaneAssignedCount) {
+		return left.rotationLaneAssignedCount - right.rotationLaneAssignedCount;
+	}
+	if (left.projectedUsedMinutes !== right.projectedUsedMinutes) {
+		return left.projectedUsedMinutes - right.projectedUsedMinutes;
+	}
+	return left.facultyId - right.facultyId;
+}
+
+export function __testRankCoverageCandidates(candidates: CoverageCandidateRankSnapshot[]): number[] {
+	return [...candidates]
+		.sort((left, right) => compareCoverageCandidateRank(left, right))
+		.map((entry) => entry.facultyId);
+}
+
 function findBestCandidateForMode(
 	subjectRow: SubjectRow,
 	sectionId: number,
@@ -814,8 +928,16 @@ function findBestCandidateForMode(
 	coverageMode: CoverageMode,
 	capacityLedgersByFaculty: Map<number, CapacityLedger>,
 	capacityUsed: Map<number, number>,
+	subjectAssignmentCountByFacultyId?: Map<number, number>,
+	rotationLaneAssignmentCountByFacultyId?: Map<number, number>,
 ): FacultyRow | null {
-	const candidates: Array<{ faculty: FacultyRow; tier: number; projectedUsedMinutes: number }> = [];
+	const candidates: Array<{
+		faculty: FacultyRow;
+		tier: number;
+		projectedUsedMinutes: number;
+		subjectAssignedCount: number;
+		rotationLaneAssignedCount: number;
+	}> = [];
 	const realCoverageMode = resolveRealCoverageMode(coverageMode);
 	const subjectMinutes = Math.max(0, Number(subjectRow.minMinutesPerWeek) || 0);
 	const laneKey = buildCapacityLaneKey({
@@ -842,16 +964,27 @@ function findBestCandidateForMode(
 				faculty: member,
 				tier,
 				projectedUsedMinutes: used + deltaMinutes,
+				subjectAssignedCount: subjectAssignmentCountByFacultyId?.get(member.id) ?? 0,
+				rotationLaneAssignedCount: rotationLaneAssignmentCountByFacultyId?.get(member.id) ?? 0,
 			});
 		}
 	}
 
 	if (candidates.length === 0) return null;
 
-	candidates.sort((a, b) => {
-		if (a.tier !== b.tier) return a.tier - b.tier;
-		return a.projectedUsedMinutes - b.projectedUsedMinutes;
-	});
+	candidates.sort((a, b) => compareCoverageCandidateRank({
+		facultyId: a.faculty.id,
+		tier: a.tier,
+		subjectAssignedCount: a.subjectAssignedCount,
+		rotationLaneAssignedCount: a.rotationLaneAssignedCount,
+		projectedUsedMinutes: a.projectedUsedMinutes,
+	}, {
+		facultyId: b.faculty.id,
+		tier: b.tier,
+		subjectAssignedCount: b.subjectAssignedCount,
+		rotationLaneAssignedCount: b.rotationLaneAssignedCount,
+		projectedUsedMinutes: b.projectedUsedMinutes,
+	}));
 
 	return candidates[0].faculty;
 }
@@ -914,6 +1047,25 @@ function simulateRealFacultyCoverage(input: {
 		const subjectRow = subjectMap.get(subjectId);
 		if (!subjectRow) continue;
 
+		const subjectAssignmentCountByFacultyId = new Map<number, number>();
+		const rotationLaneAssignmentCountByFacultyId = new Map<number, number>();
+		const rotationFamily = resolveCapacityRotationFamily(
+			subjectRow.code,
+			subjectRow.rotationFamily,
+			subjectRow.modularGroupId,
+		);
+		const rotationTermMetadata = resolveRotationTermMetadata({
+			subjectCode: subjectRow.code,
+			rotationFamily,
+			modularGroupId: subjectRow.modularGroupId,
+			modularOrder: subjectRow.modularOrder,
+			termGroupId: subjectRow.termGroupId,
+			termCount: subjectRow.termCount,
+		});
+		const rotationLaneDistributionKey = rotationFamily
+			? `${rotationFamily}:term:${normalizeRotationTermLaneKey(rotationTermMetadata.termRank)}`
+			: null;
+
 		for (const pair of pairs) {
 			const candidate = findBestCandidateForMode(
 				subjectRow,
@@ -922,6 +1074,8 @@ function simulateRealFacultyCoverage(input: {
 				input.coverageMode,
 				capacityLedgersByFaculty,
 				capacityUsed,
+				subjectAssignmentCountByFacultyId,
+				rotationLaneAssignmentCountByFacultyId,
 			);
 			if (!candidate) {
 				unresolvedPairs.push(pair);
@@ -930,6 +1084,13 @@ function simulateRealFacultyCoverage(input: {
 
 			rowsClosedByRealFaculty += 1;
 			applyCapacityLane(candidate.id, subjectRow, pair.sectionId);
+			subjectAssignmentCountByFacultyId.set(candidate.id, (subjectAssignmentCountByFacultyId.get(candidate.id) ?? 0) + 1);
+			if (rotationLaneDistributionKey) {
+				rotationLaneAssignmentCountByFacultyId.set(
+					candidate.id,
+					(rotationLaneAssignmentCountByFacultyId.get(candidate.id) ?? 0) + 1,
+				);
+			}
 		}
 	}
 
@@ -1390,6 +1551,24 @@ export async function autoFill(
 	for (const subjectId of orderedSubjectIds) {
 		const pairs = bySubjectId.get(subjectId)!;
 		const subjectRow = subjectMap.get(subjectId)!;
+		const subjectAssignmentCountByFacultyId = new Map<number, number>();
+		const rotationLaneAssignmentCountByFacultyId = new Map<number, number>();
+		const rotationFamily = resolveCapacityRotationFamily(
+			subjectRow.code,
+			subjectRow.rotationFamily,
+			subjectRow.modularGroupId,
+		);
+		const rotationTermMetadata = resolveRotationTermMetadata({
+			subjectCode: subjectRow.code,
+			rotationFamily,
+			modularGroupId: subjectRow.modularGroupId,
+			modularOrder: subjectRow.modularOrder,
+			termGroupId: subjectRow.termGroupId,
+			termCount: subjectRow.termCount,
+		});
+		const rotationLaneDistributionKey = rotationFamily
+			? `${rotationFamily}:term:${normalizeRotationTermLaneKey(rotationTermMetadata.termRank)}`
+			: null;
 
 		for (const pair of pairs) {
 			const candidate = findBestCandidateForMode(
@@ -1399,12 +1578,21 @@ export async function autoFill(
 				realCoverageMode,
 				capacityLedgersByFaculty,
 				capacityUsed,
+				subjectAssignmentCountByFacultyId,
+				rotationLaneAssignmentCountByFacultyId,
 			);
 			if (!candidate) {
 				warnings.push(`Lacking Faculty: no department-qualified teacher for ${subjectRow.name} (${pair.sectionName}).`);
 				unresolvedPairs.push(pair);
 			} else {
 				addPending(candidate.id, pair.subjectId, pair.sectionId);
+				subjectAssignmentCountByFacultyId.set(candidate.id, (subjectAssignmentCountByFacultyId.get(candidate.id) ?? 0) + 1);
+				if (rotationLaneDistributionKey) {
+					rotationLaneAssignmentCountByFacultyId.set(
+						candidate.id,
+						(rotationLaneAssignmentCountByFacultyId.get(candidate.id) ?? 0) + 1,
+					);
+				}
 			}
 		}
 	}
@@ -1556,5 +1744,183 @@ export async function autoFill(
 		staffingReport,
 		staffingTruth,
 		teacherXResolution,
+	};
+}
+
+function aggregateCoverageRows(rows: Array<{ relevantSectionCount: number; ownedSectionCount: number; uncoveredSectionCount: number }>) {
+	return rows.reduce(
+		(accumulator, row) => ({
+			totalPairs: accumulator.totalPairs + Math.max(0, row.relevantSectionCount),
+			assignedPairs: accumulator.assignedPairs + Math.max(0, row.ownedSectionCount),
+			unassignedPairs: accumulator.unassignedPairs + Math.max(0, row.uncoveredSectionCount),
+		}),
+		{ totalPairs: 0, assignedPairs: 0, unassignedPairs: 0 },
+	);
+}
+
+export async function previewOrApplyTeachingLoadSplitBrainReconcile(
+	input: TeachingLoadSplitBrainReconcileInput,
+): Promise<TeachingLoadSplitBrainReconcileResult> {
+	const apply = input.previewOnly === false;
+
+	const [beforeSummary, beforeCoverage] = await Promise.all([
+		getAssignmentSummary(input.schoolId, input.schoolYearId, input.authToken),
+		getActiveSubjectCoverageSummary(input.schoolId, input.schoolYearId, input.authToken),
+	]);
+
+	const [truthReconcile, staleReconcile, realFacultyRecovery, specialProgramRebalance] = await Promise.all([
+		previewOrApplyTeachingLoadTruthReconcile({
+			schoolId: input.schoolId,
+			schoolYearId: input.schoolYearId,
+			actorId: input.actorId,
+			authToken: input.authToken,
+			previewOnly: !apply,
+		}),
+		previewOrApplyStaleOwnershipReconcile({
+			schoolId: input.schoolId,
+			schoolYearId: input.schoolYearId,
+			actorId: input.actorId,
+			authToken: input.authToken,
+			previewOnly: !apply,
+		}),
+		previewOrApplyRealFacultyRecovery({
+			schoolId: input.schoolId,
+			schoolYearId: input.schoolYearId,
+			actorId: input.actorId,
+			authToken: input.authToken,
+			apply,
+		}),
+		previewOrApplySpecialProgramRedistribution({
+			schoolId: input.schoolId,
+			schoolYearId: input.schoolYearId,
+			actorId: input.actorId,
+			authToken: input.authToken,
+			apply: false,
+		}),
+	]);
+
+	const [finalSummary, finalCoverage] = apply
+		? await Promise.all([
+			getAssignmentSummary(input.schoolId, input.schoolYearId, input.authToken),
+			getActiveSubjectCoverageSummary(input.schoolId, input.schoolYearId, input.authToken),
+		])
+		: [beforeSummary, beforeCoverage];
+
+	const summaryTotals = finalSummary.coverageTotals;
+	const coverageTotals = aggregateCoverageRows(finalCoverage.rows);
+	const assignmentPairDelta = summaryTotals.assignedPairs - coverageTotals.assignedPairs;
+	const unassignedPairDelta = summaryTotals.unassignedPairs - coverageTotals.unassignedPairs;
+	const totalPairDelta = summaryTotals.totalPairs - coverageTotals.totalPairs;
+
+	const specialProgramApprovalQueue: TeachingLoadSplitBrainApprovalRequiredCandidate[] = specialProgramRebalance.redistributionInsights
+		.flatMap((insight) =>
+			insight.approvalRequiredCandidates.map((candidate) => ({
+				subjectCode: insight.subjectCode,
+				subjectName: insight.subjectName,
+				facultyId: candidate.facultyId,
+				facultyName: candidate.facultyName,
+				department: candidate.department,
+				specialization: candidate.specialization,
+				currentTotalAssignedPairs: candidate.currentTotalAssignedPairs,
+				requiredSpecializationCodes: candidate.requiredSpecializationCodes,
+				reason: candidate.reason,
+			})),
+		)
+		.filter((entry, index, collection) =>
+			index === collection.findIndex((candidate) =>
+				candidate.subjectCode === entry.subjectCode
+				&& candidate.facultyId === entry.facultyId,
+			),
+		)
+		.sort((left, right) => {
+			if (left.subjectCode !== right.subjectCode) {
+				return left.subjectCode.localeCompare(right.subjectCode);
+			}
+			if (left.currentTotalAssignedPairs !== right.currentTotalAssignedPairs) {
+				return left.currentTotalAssignedPairs - right.currentTotalAssignedPairs;
+			}
+			return left.facultyName.localeCompare(right.facultyName);
+		});
+
+	const reasonCodes: TeachingLoadSplitBrainReasonCode[] = [];
+	if (assignmentPairDelta !== 0) reasonCodes.push('ASSIGNED_PAIR_MISMATCH');
+	if (unassignedPairDelta !== 0) reasonCodes.push('UNASSIGNED_PAIR_MISMATCH');
+	if (totalPairDelta !== 0) reasonCodes.push('TOTAL_PAIR_MISMATCH');
+	if ((finalSummary.integrityDiagnostics.currentYearMissingOwnershipPairs ?? 0) > 0) reasonCodes.push('INTEGRITY_MISSING_OWNERSHIP');
+	if ((finalSummary.integrityDiagnostics.currentYearOwnershipWithoutMatchingScopePairs ?? 0) > 0) {
+		reasonCodes.push('INTEGRITY_OWNERSHIP_WITHOUT_SCOPE');
+	}
+	if ((finalSummary.integrityDiagnostics.staleOwnedCurrentYearPairCount ?? 0) > 0) reasonCodes.push('STALE_OWNERSHIP_PRESENT');
+	if (truthReconcile.rowsToUpdate > 0) reasonCodes.push('TRUTH_RECONCILE_PENDING');
+	if (realFacultyRecovery.placeholderMovesPlanned > 0) reasonCodes.push('REAL_FACULTY_RECOVERY_PENDING');
+	if (realFacultyRecovery.blockers.length > 0) reasonCodes.push('REAL_FACULTY_RECOVERY_BLOCKERS');
+	if (specialProgramApprovalQueue.length > 0) reasonCodes.push('SPECIAL_PROGRAM_APPROVAL_REQUIRED');
+
+	const dedupedReasonCodes = [...new Set(reasonCodes)];
+	const blockingReasons = new Set<TeachingLoadSplitBrainReasonCode>([
+		'ASSIGNED_PAIR_MISMATCH',
+		'UNASSIGNED_PAIR_MISMATCH',
+		'TOTAL_PAIR_MISMATCH',
+		'INTEGRITY_MISSING_OWNERSHIP',
+		'INTEGRITY_OWNERSHIP_WITHOUT_SCOPE',
+		'STALE_OWNERSHIP_PRESENT',
+		'TRUTH_RECONCILE_PENDING',
+		'REAL_FACULTY_RECOVERY_PENDING',
+	]);
+	const hasBlockingReason = dedupedReasonCodes.some((code) => blockingReasons.has(code));
+	const severity: TeachingLoadSplitBrainReconcileResult['quarantine']['severity'] = hasBlockingReason
+		? 'BLOCKING'
+		: dedupedReasonCodes.length > 0
+		? 'WARNING'
+		: 'NONE';
+
+	return {
+		applied: apply,
+		schoolId: input.schoolId,
+		schoolYearId: input.schoolYearId,
+		quarantine: {
+			required: hasBlockingReason,
+			severity,
+			reasonCodes: dedupedReasonCodes,
+			message: hasBlockingReason
+				? 'Teaching Load data truth is inconsistent. Quarantine assignment edits until reconcile actions are applied.'
+				: dedupedReasonCodes.length > 0
+				? 'Teaching Load has warnings that require scheduler review before final publish.'
+				: 'Teaching Load data paths are currently consistent.',
+		},
+		counters: {
+			summaryAssignedPairs: summaryTotals.assignedPairs,
+			summaryUnassignedPairs: summaryTotals.unassignedPairs,
+			summaryTotalPairs: summaryTotals.totalPairs,
+			coverageAssignedPairs: coverageTotals.assignedPairs,
+			coverageUnassignedPairs: coverageTotals.unassignedPairs,
+			coverageTotalPairs: coverageTotals.totalPairs,
+			assignmentPairDelta,
+			unassignedPairDelta,
+			totalPairDelta,
+			integrityMissingOwnershipPairs: finalSummary.integrityDiagnostics.currentYearMissingOwnershipPairs ?? 0,
+			integrityOwnershipWithoutScopePairs: finalSummary.integrityDiagnostics.currentYearOwnershipWithoutMatchingScopePairs ?? 0,
+			staleOwnedCurrentYearPairs: finalSummary.integrityDiagnostics.staleOwnedCurrentYearPairCount ?? 0,
+			truthRowsToUpdate: truthReconcile.rowsToUpdate,
+			realFacultyMovesPlanned: realFacultyRecovery.placeholderMovesPlanned,
+			realFacultyBlockers: realFacultyRecovery.blockers.length,
+			specialProgramApprovalCandidates: specialProgramApprovalQueue.length,
+		},
+		repairPreview: {
+			truthReconcile: {
+				rowsToUpdate: truthReconcile.rowsToUpdate,
+				updatedRows: truthReconcile.updatedRows,
+			},
+			staleReconcile: {
+				staleOwnedCurrentYearPairCount: staleReconcile.staleOwnedCurrentYearPairCount,
+				deletedOwnershipRows: staleReconcile.deletedOwnershipRows,
+			},
+			realFacultyRecovery: {
+				placeholderMovesPlanned: realFacultyRecovery.placeholderMovesPlanned,
+				placeholderMovesApplied: realFacultyRecovery.placeholderMovesApplied,
+				blockerCount: realFacultyRecovery.blockers.length,
+			},
+		},
+		specialProgramApprovalQueue,
 	};
 }

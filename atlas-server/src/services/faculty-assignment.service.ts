@@ -329,6 +329,16 @@ export interface SpecialProgramCandidateSignal {
   isUnderutilizedMapeh: boolean;
 }
 
+export interface SpecialProgramApprovalRequiredCandidate {
+  facultyId: number;
+  facultyName: string;
+  department: string | null;
+  specialization: string | null;
+  currentTotalAssignedPairs: number;
+  requiredSpecializationCodes: string[];
+  reason: string;
+}
+
 export interface SpecialProgramConstrainedSection {
   sectionId: number;
   sectionName: string;
@@ -345,6 +355,7 @@ export interface SpecialProgramRedistributionInsight {
   underutilizedMapehCandidates: SpecialProgramCandidateSignal[];
   candidateSignals: SpecialProgramCandidateSignal[];
   constrainedSections: SpecialProgramConstrainedSection[];
+  approvalRequiredCandidates: SpecialProgramApprovalRequiredCandidate[];
 }
 
 export interface TeachingLoadCapabilityOverride {
@@ -2034,6 +2045,66 @@ export async function previewOrApplyRealFacultyRecovery(
   }> = [];
   const pendingMovePairKeys = new Set<string>();
 
+  const subjectCountBySubjectAndFaculty = new Map<number, Map<number, number>>();
+  const rotationLaneCountBySubjectAndFaculty = new Map<string, Map<number, number>>();
+  const rotationLaneKeyBySubjectId = new Map<number, string | null>();
+
+  const incrementNestedCount = (
+    outerMap: Map<number | string, Map<number, number>>,
+    outerKey: number | string,
+    facultyId: number,
+    delta: number,
+  ) => {
+    const bucket = outerMap.get(outerKey) ?? new Map<number, number>();
+    const next = (bucket.get(facultyId) ?? 0) + delta;
+    if (next <= 0) {
+      bucket.delete(facultyId);
+    } else {
+      bucket.set(facultyId, next);
+    }
+    if (bucket.size > 0) {
+      outerMap.set(outerKey, bucket);
+    } else {
+      outerMap.delete(outerKey);
+    }
+  };
+
+  for (const subject of subjects) {
+    const family = resolveLoadRotationFamily({
+      id: subject.id,
+      code: subject.code,
+      modularGroupId: subject.modularGroupId,
+      modularOrder: subject.modularOrder,
+      termGroupId: subject.termGroupId,
+      termCount: subject.termCount,
+      rotationFamily: subject.rotationFamily,
+      minMinutesPerWeek: subject.minMinutesPerWeek,
+    });
+    const termMetadata = resolveRotationTermMetadata({
+      subjectCode: subject.code,
+      rotationFamily: family,
+      modularGroupId: subject.modularGroupId,
+      modularOrder: subject.modularOrder,
+      termGroupId: subject.termGroupId,
+      termCount: subject.termCount,
+    });
+    rotationLaneKeyBySubjectId.set(
+      subject.id,
+      family ? `${family}:term:${normalizeRotationTermLaneKey(termMetadata.termRank)}` : null,
+    );
+  }
+
+  for (const row of targetRows) {
+    if (!isOwnershipActive(row.facultyId)) {
+      continue;
+    }
+    incrementNestedCount(subjectCountBySubjectAndFaculty as Map<number | string, Map<number, number>>, row.subjectId, row.facultyId, 1);
+    const laneKey = rotationLaneKeyBySubjectId.get(row.subjectId);
+    if (laneKey) {
+      incrementNestedCount(rotationLaneCountBySubjectAndFaculty as Map<number | string, Map<number, number>>, laneKey, row.facultyId, 1);
+    }
+  }
+
   for (const row of targetRows) {
     const owner = ownershipFacultyById.get(row.facultyId);
     const ownerMissing = !owner;
@@ -2122,6 +2193,21 @@ export async function previewOrApplyRealFacultyRecovery(
         || member.canTeachOutsideDepartment,
       )
       .sort((left, right) => {
+        const leftSubjectLoad = subjectCountBySubjectAndFaculty.get(subject.id)?.get(left.id) ?? 0;
+        const rightSubjectLoad = subjectCountBySubjectAndFaculty.get(subject.id)?.get(right.id) ?? 0;
+        if (leftSubjectLoad !== rightSubjectLoad) {
+          return leftSubjectLoad - rightSubjectLoad;
+        }
+
+        const rotationLaneKey = rotationLaneKeyBySubjectId.get(subject.id);
+        if (rotationLaneKey) {
+          const leftLaneLoad = rotationLaneCountBySubjectAndFaculty.get(rotationLaneKey)?.get(left.id) ?? 0;
+          const rightLaneLoad = rotationLaneCountBySubjectAndFaculty.get(rotationLaneKey)?.get(right.id) ?? 0;
+          if (leftLaneLoad !== rightLaneLoad) {
+            return leftLaneLoad - rightLaneLoad;
+          }
+        }
+
         const leftMinutes = creditedMinutesByFaculty.get(left.id) ?? 0;
         const rightMinutes = creditedMinutesByFaculty.get(right.id) ?? 0;
         if (leftMinutes !== rightMinutes) return leftMinutes - rightMinutes;
@@ -2215,6 +2301,19 @@ export async function previewOrApplyRealFacultyRecovery(
       toFacultyName: formatFacultyName(selectedCandidate.firstName, selectedCandidate.lastName),
       estimatedDeltaMinutes: selectedDeltaMinutes,
     });
+
+    incrementNestedCount(subjectCountBySubjectAndFaculty as Map<number | string, Map<number, number>>, pair.subjectId, selectedCandidate.id, 1);
+    const rotationLaneKey = rotationLaneKeyBySubjectId.get(pair.subjectId);
+    if (rotationLaneKey) {
+      incrementNestedCount(rotationLaneCountBySubjectAndFaculty as Map<number | string, Map<number, number>>, rotationLaneKey, selectedCandidate.id, 1);
+    }
+
+    if (pair.fromFacultyId > 0) {
+      incrementNestedCount(subjectCountBySubjectAndFaculty as Map<number | string, Map<number, number>>, pair.subjectId, pair.fromFacultyId, -1);
+      if (rotationLaneKey) {
+        incrementNestedCount(rotationLaneCountBySubjectAndFaculty as Map<number | string, Map<number, number>>, rotationLaneKey, pair.fromFacultyId, -1);
+      }
+    }
   }
 
   let appliedMoves = 0;
@@ -2626,6 +2725,24 @@ function buildSpecialProgramRedistributionInsights(
       }
     }
 
+    const constrainedRequiredCodes = [...new Set(constrainedSections.map((entry) => entry.requiredSpecializationCode))]
+      .sort((left, right) => left.localeCompare(right));
+
+    const approvalRequiredCandidates: SpecialProgramApprovalRequiredCandidate[] = constrainedRequiredCodes.length > 0
+      ? candidateSignals
+        .filter((entry) => entry.isUnderutilizedMapeh)
+        .filter((entry) => !entry.canCoverConstrainedSection)
+        .map((entry) => ({
+          facultyId: entry.facultyId,
+          facultyName: entry.facultyName,
+          department: entry.department,
+          specialization: entry.specialization,
+          currentTotalAssignedPairs: entry.currentTotalAssignedPairs,
+          requiredSpecializationCodes: constrainedRequiredCodes,
+          reason: `${entry.facultyName} needs explicit capability approval before covering constrained ${subject.code} sections.`,
+        }))
+      : [];
+
     return {
       subjectId: subject.id,
       subjectCode: subject.code,
@@ -2635,6 +2752,7 @@ function buildSpecialProgramRedistributionInsights(
       underutilizedMapehCandidates: candidateSignals.filter((entry) => entry.isUnderutilizedMapeh),
       candidateSignals,
       constrainedSections,
+      approvalRequiredCandidates,
     };
   });
 }

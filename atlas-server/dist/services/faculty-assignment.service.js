@@ -1181,6 +1181,56 @@ export async function previewOrApplyRealFacultyRecovery(input) {
     }
     const pendingPairs = [];
     const pendingMovePairKeys = new Set();
+    const subjectCountBySubjectAndFaculty = new Map();
+    const rotationLaneCountBySubjectAndFaculty = new Map();
+    const rotationLaneKeyBySubjectId = new Map();
+    const incrementNestedCount = (outerMap, outerKey, facultyId, delta) => {
+        const bucket = outerMap.get(outerKey) ?? new Map();
+        const next = (bucket.get(facultyId) ?? 0) + delta;
+        if (next <= 0) {
+            bucket.delete(facultyId);
+        }
+        else {
+            bucket.set(facultyId, next);
+        }
+        if (bucket.size > 0) {
+            outerMap.set(outerKey, bucket);
+        }
+        else {
+            outerMap.delete(outerKey);
+        }
+    };
+    for (const subject of subjects) {
+        const family = resolveLoadRotationFamily({
+            id: subject.id,
+            code: subject.code,
+            modularGroupId: subject.modularGroupId,
+            modularOrder: subject.modularOrder,
+            termGroupId: subject.termGroupId,
+            termCount: subject.termCount,
+            rotationFamily: subject.rotationFamily,
+            minMinutesPerWeek: subject.minMinutesPerWeek,
+        });
+        const termMetadata = resolveRotationTermMetadata({
+            subjectCode: subject.code,
+            rotationFamily: family,
+            modularGroupId: subject.modularGroupId,
+            modularOrder: subject.modularOrder,
+            termGroupId: subject.termGroupId,
+            termCount: subject.termCount,
+        });
+        rotationLaneKeyBySubjectId.set(subject.id, family ? `${family}:term:${normalizeRotationTermLaneKey(termMetadata.termRank)}` : null);
+    }
+    for (const row of targetRows) {
+        if (!isOwnershipActive(row.facultyId)) {
+            continue;
+        }
+        incrementNestedCount(subjectCountBySubjectAndFaculty, row.subjectId, row.facultyId, 1);
+        const laneKey = rotationLaneKeyBySubjectId.get(row.subjectId);
+        if (laneKey) {
+            incrementNestedCount(rotationLaneCountBySubjectAndFaculty, laneKey, row.facultyId, 1);
+        }
+    }
     for (const row of targetRows) {
         const owner = ownershipFacultyById.get(row.facultyId);
         const ownerMissing = !owner;
@@ -1251,6 +1301,19 @@ export async function previewOrApplyRealFacultyRecovery(input) {
             .filter((member) => matchesSubjectOwnershipDepartment(member.department, subject.code, subject.name, subject.ownerDepartment, subject.requiredFeatures)
             || member.canTeachOutsideDepartment)
             .sort((left, right) => {
+            const leftSubjectLoad = subjectCountBySubjectAndFaculty.get(subject.id)?.get(left.id) ?? 0;
+            const rightSubjectLoad = subjectCountBySubjectAndFaculty.get(subject.id)?.get(right.id) ?? 0;
+            if (leftSubjectLoad !== rightSubjectLoad) {
+                return leftSubjectLoad - rightSubjectLoad;
+            }
+            const rotationLaneKey = rotationLaneKeyBySubjectId.get(subject.id);
+            if (rotationLaneKey) {
+                const leftLaneLoad = rotationLaneCountBySubjectAndFaculty.get(rotationLaneKey)?.get(left.id) ?? 0;
+                const rightLaneLoad = rotationLaneCountBySubjectAndFaculty.get(rotationLaneKey)?.get(right.id) ?? 0;
+                if (leftLaneLoad !== rightLaneLoad) {
+                    return leftLaneLoad - rightLaneLoad;
+                }
+            }
             const leftMinutes = creditedMinutesByFaculty.get(left.id) ?? 0;
             const rightMinutes = creditedMinutesByFaculty.get(right.id) ?? 0;
             if (leftMinutes !== rightMinutes)
@@ -1332,6 +1395,17 @@ export async function previewOrApplyRealFacultyRecovery(input) {
             toFacultyName: formatFacultyName(selectedCandidate.firstName, selectedCandidate.lastName),
             estimatedDeltaMinutes: selectedDeltaMinutes,
         });
+        incrementNestedCount(subjectCountBySubjectAndFaculty, pair.subjectId, selectedCandidate.id, 1);
+        const rotationLaneKey = rotationLaneKeyBySubjectId.get(pair.subjectId);
+        if (rotationLaneKey) {
+            incrementNestedCount(rotationLaneCountBySubjectAndFaculty, rotationLaneKey, selectedCandidate.id, 1);
+        }
+        if (pair.fromFacultyId > 0) {
+            incrementNestedCount(subjectCountBySubjectAndFaculty, pair.subjectId, pair.fromFacultyId, -1);
+            if (rotationLaneKey) {
+                incrementNestedCount(rotationLaneCountBySubjectAndFaculty, rotationLaneKey, pair.fromFacultyId, -1);
+            }
+        }
     }
     let appliedMoves = 0;
     if (apply && plannedMoves.length > 0) {
@@ -1655,6 +1729,22 @@ function buildSpecialProgramRedistributionInsights(subjects, beforeRows, ownersh
                 });
             }
         }
+        const constrainedRequiredCodes = [...new Set(constrainedSections.map((entry) => entry.requiredSpecializationCode))]
+            .sort((left, right) => left.localeCompare(right));
+        const approvalRequiredCandidates = constrainedRequiredCodes.length > 0
+            ? candidateSignals
+                .filter((entry) => entry.isUnderutilizedMapeh)
+                .filter((entry) => !entry.canCoverConstrainedSection)
+                .map((entry) => ({
+                facultyId: entry.facultyId,
+                facultyName: entry.facultyName,
+                department: entry.department,
+                specialization: entry.specialization,
+                currentTotalAssignedPairs: entry.currentTotalAssignedPairs,
+                requiredSpecializationCodes: constrainedRequiredCodes,
+                reason: `${entry.facultyName} needs explicit capability approval before covering constrained ${subject.code} sections.`,
+            }))
+            : [];
         return {
             subjectId: subject.id,
             subjectCode: subject.code,
@@ -1664,6 +1754,7 @@ function buildSpecialProgramRedistributionInsights(subjects, beforeRows, ownersh
             underutilizedMapehCandidates: candidateSignals.filter((entry) => entry.isUnderutilizedMapeh),
             candidateSignals,
             constrainedSections,
+            approvalRequiredCandidates,
         };
     });
 }

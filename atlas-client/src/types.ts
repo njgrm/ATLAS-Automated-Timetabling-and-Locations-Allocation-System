@@ -325,6 +325,97 @@ export type TeachingLoadIntegrityDiagnostics = {
 	staleAdvisorySamples?: TeachingLoadIntegrityDiagnosticRow[];
 };
 
+export type TeachingLoadSplitBrainReasonCode =
+	| 'ASSIGNED_PAIR_MISMATCH'
+	| 'UNASSIGNED_PAIR_MISMATCH'
+	| 'TOTAL_PAIR_MISMATCH'
+	| 'INTEGRITY_MISSING_OWNERSHIP'
+	| 'INTEGRITY_OWNERSHIP_WITHOUT_SCOPE'
+	| 'STALE_OWNERSHIP_PRESENT'
+	| 'TRUTH_RECONCILE_PENDING'
+	| 'REAL_FACULTY_RECOVERY_PENDING'
+	| 'REAL_FACULTY_RECOVERY_BLOCKERS'
+	| 'SPECIAL_PROGRAM_APPROVAL_REQUIRED';
+
+export type TeachingLoadSplitBrainApprovalRequiredCandidate = {
+	subjectCode: string;
+	subjectName: string;
+	facultyId: number;
+	facultyName: string;
+	department: string | null;
+	specialization: string | null;
+	currentTotalAssignedPairs: number;
+	requiredSpecializationCodes: string[];
+	reason: string;
+};
+
+export type TeachingLoadSplitBrainReconcileResult = {
+	applied: boolean;
+	schoolId: number;
+	schoolYearId: number;
+	quarantine: {
+		required: boolean;
+		severity: 'NONE' | 'WARNING' | 'BLOCKING';
+		reasonCodes: TeachingLoadSplitBrainReasonCode[];
+		message: string;
+	};
+	counters: {
+		summaryAssignedPairs: number;
+		summaryUnassignedPairs: number;
+		summaryTotalPairs: number;
+		coverageAssignedPairs: number;
+		coverageUnassignedPairs: number;
+		coverageTotalPairs: number;
+		assignmentPairDelta: number;
+		unassignedPairDelta: number;
+		totalPairDelta: number;
+		integrityMissingOwnershipPairs: number;
+		integrityOwnershipWithoutScopePairs: number;
+		staleOwnedCurrentYearPairs: number;
+		truthRowsToUpdate: number;
+		realFacultyMovesPlanned: number;
+		realFacultyBlockers: number;
+		specialProgramApprovalCandidates: number;
+	};
+	repairPreview: {
+		truthReconcile: {
+			rowsToUpdate: number;
+			updatedRows: number;
+		};
+		staleReconcile: {
+			staleOwnedCurrentYearPairCount: number;
+			deletedOwnershipRows: number;
+		};
+		realFacultyRecovery: {
+			placeholderMovesPlanned: number;
+			placeholderMovesApplied: number;
+			blockerCount: number;
+		};
+	};
+	specialProgramApprovalQueue: TeachingLoadSplitBrainApprovalRequiredCandidate[];
+};
+
+export type SpecialProgramApprovalRequiredCandidate = {
+	facultyId: number;
+	facultyName: string;
+	department: string | null;
+	specialization: string | null;
+	currentTotalAssignedPairs: number;
+	requiredSpecializationCodes: string[];
+	reason: string;
+};
+
+export type SpecialProgramRedistributionInsight = {
+	subjectId: number;
+	subjectCode: string;
+	subjectName: string;
+	approvalRequiredCandidates: SpecialProgramApprovalRequiredCandidate[];
+};
+
+export type SpecialProgramRebalancePreviewResult = {
+	redistributionInsights: SpecialProgramRedistributionInsight[];
+};
+
 export type FacultyMirror = {
 	id: number;
 	externalId: number;

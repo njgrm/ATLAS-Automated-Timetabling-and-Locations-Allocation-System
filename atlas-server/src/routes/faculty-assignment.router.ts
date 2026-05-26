@@ -3,7 +3,12 @@ import type { Request, Response, NextFunction } from 'express';
 import { authenticate, authenticateWithSystemToken } from '../middleware/authenticate.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import * as assignmentService from '../services/faculty-assignment.service.js';
-import { autoFill, COVERAGE_MODES, type CoverageMode } from '../services/teaching-load-automation.service.js';
+import {
+	autoFill,
+	COVERAGE_MODES,
+	previewOrApplyTeachingLoadSplitBrainReconcile,
+	type CoverageMode,
+} from '../services/teaching-load-automation.service.js';
 import { fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
 
 const router = Router();
@@ -314,6 +319,46 @@ router.post('/integrity/reconcile-stale-ownership', authenticate, requirePrivile
 
 		const authToken = req.headers.authorization?.slice(7);
 		const result = await assignmentService.previewOrApplyStaleOwnershipReconcile({
+			schoolId,
+			schoolYearId,
+			actorId: req.user?.userId ?? 0,
+			authToken,
+			previewOnly,
+		});
+
+		res.json(result);
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: POST /faculty-assignments/integrity/reconcile-split-brain
+// Body: { schoolId: number, schoolYearId: number, previewOnly?: boolean, confirmApply?: boolean }
+router.post('/integrity/reconcile-split-brain', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const schoolId = Number(req.body.schoolId);
+		const schoolYearId = Number(req.body.schoolYearId);
+		const previewOnly = req.body.previewOnly !== false;
+		const confirmApply = req.body.confirmApply === true;
+
+		if (!schoolId || Number.isNaN(schoolId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId is required.' });
+			return;
+		}
+		if (!schoolYearId || Number.isNaN(schoolYearId)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolYearId is required.' });
+			return;
+		}
+		if (!previewOnly && !confirmApply) {
+			res.status(400).json({
+				code: 'CONFIRMATION_REQUIRED',
+				message: 'confirmApply=true is required to apply split-brain reconciliation.',
+			});
+			return;
+		}
+
+		const authToken = req.headers.authorization?.slice(7);
+		const result = await previewOrApplyTeachingLoadSplitBrainReconcile({
 			schoolId,
 			schoolYearId,
 			actorId: req.user?.userId ?? 0,

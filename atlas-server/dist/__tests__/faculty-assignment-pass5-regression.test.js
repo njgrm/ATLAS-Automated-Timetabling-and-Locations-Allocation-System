@@ -1,5 +1,5 @@
 import { buildRotationTermBreakdown, buildDuplicateOwnershipBlockingResult, computeTeachingLoadMinutes, detectDuplicateOwnershipTuples, resolveAssignmentSpecializationIdentity, } from '../services/faculty-assignment.service.js';
-import { __testComputeCreditedCapacityMinutes, __testEstimateCapacityLaneDeltaMinutes, } from '../services/teaching-load-automation.service.js';
+import { __testComputeCreditedCapacityMinutes, __testEstimateCapacityLaneDeltaMinutes, __testRankCoverageCandidates, } from '../services/teaching-load-automation.service.js';
 import { buildSectionRosterIndex, normalizeIncomingAssignmentScope, } from '../services/faculty-assignment-scope.service.js';
 let passCount = 0;
 let failCount = 0;
@@ -246,6 +246,47 @@ section('Teacher per-term rotational breakdown contract');
         assertEqual(termTwo.creditedMinutesPerWeek, 225, 'Term 2 credited minutes are retained for visibility');
         assertEqual(termTwo.isPeakTerm, false, 'Non-peak term bucket is flagged correctly');
     }
+}
+section('Coverage candidate ranking balances subject and lane load before minutes');
+{
+    const ranked = __testRankCoverageCandidates([
+        {
+            facultyId: 41,
+            tier: 0,
+            subjectAssignedCount: 2,
+            rotationLaneAssignedCount: 0,
+            projectedUsedMinutes: 100,
+        },
+        {
+            facultyId: 42,
+            tier: 0,
+            subjectAssignedCount: 1,
+            rotationLaneAssignedCount: 2,
+            projectedUsedMinutes: 50,
+        },
+        {
+            facultyId: 43,
+            tier: 0,
+            subjectAssignedCount: 1,
+            rotationLaneAssignedCount: 0,
+            projectedUsedMinutes: 500,
+        },
+        {
+            facultyId: 40,
+            tier: 0,
+            subjectAssignedCount: 1,
+            rotationLaneAssignedCount: 0,
+            projectedUsedMinutes: 500,
+        },
+        {
+            facultyId: 44,
+            tier: 1,
+            subjectAssignedCount: 0,
+            rotationLaneAssignedCount: 0,
+            projectedUsedMinutes: 0,
+        },
+    ]);
+    assertEqual(JSON.stringify(ranked), JSON.stringify([40, 43, 42, 41, 44]), 'Ranking prefers lower subject load, then lane load, then projected minutes, then faculty id');
 }
 console.log(`\nSummary: ${passCount} passed, ${failCount} failed.`);
 if (failCount > 0) {

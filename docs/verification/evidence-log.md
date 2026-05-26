@@ -1,3 +1,39 @@
+# 2026-05-26 - Teaching Load Split-Brain Incident Reconcile and Quarantine Hardening
+- Phase: Phase 3 generator-readiness stream, teaching-load data-truth incident handling
+- Operator: GitHub Copilot
+- Scope gate: PASS (local build/test), Tailnet mutation: NOT EXECUTED in this pass
+- Files changed in this pass:
+  - `atlas-server/src/services/faculty-assignment.service.ts`
+  - `atlas-server/src/services/teaching-load-automation.service.ts`
+  - `atlas-server/src/routes/faculty-assignment.router.ts`
+  - `atlas-server/src/__tests__/faculty-assignment-pass5-regression.test.ts`
+  - `atlas-client/src/types.ts`
+  - `atlas-client/src/components/faculty-assignments/OverviewHeader.tsx`
+  - `atlas-client/src/components/faculty-assignments/AutoFillSummaryModal.tsx`
+  - `atlas-client/src/components/faculty-assignments/SubjectRow.tsx`
+  - `atlas-client/src/pages/FacultyAssignments.tsx`
+  - `CHANGELOG.md`
+  - `docs/verification/evidence-log.md`
+
+- Scope outcomes:
+  1. Added unified split-brain preview/apply orchestration (`truth reconcile + stale reconcile + real-faculty recovery + approval queue surfacing`) behind explicit operator confirmation.
+  2. Added quarantine-first UI behavior so assignment actions do not proceed while contradictory runtime state is active.
+  3. Added manual capability approval queue surfacing for special-program redistribution candidates (`SPA_SPEC`, `SPS_SPEC`) that require explicit human approval.
+  4. Balanced candidate ranking for recovery/coverage by subject load and rotation-lane load before projected minutes.
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS
+  - `npm --prefix atlas-server run test:faculty-assignment-pass5` -> PASS (`29 passed`, `0 failed`)
+
+- Tailnet verification:
+  - Not executed in this coding pass to respect incident safety constraint and avoid automatic live mutation.
+  - Required next manual QA: preview split-brain incident, verify quarantine blocks assignment controls, then run explicit apply flow with operator confirmation and capture resulting counters/reason-code transitions.
+
+- GO/NO-GO:
+  - **GO** for code-level incident contract and quarantine hardening.
+  - **NO-GO** for phase closure until Tailnet manual QA evidence for preview/apply and quarantine lift is captured.
+
 # 2026-05-26 - Phase 3 Rotational Subject Peak-Term Capacity Correction One-Shot
 - Phase: Phase 3 generator-readiness stream, rotational subject peak-term capacity correction
 - Operator: GitHub Copilot

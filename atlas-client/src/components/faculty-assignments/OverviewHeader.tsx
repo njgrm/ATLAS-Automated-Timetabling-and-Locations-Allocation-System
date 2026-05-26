@@ -24,6 +24,7 @@ type OverviewHeaderProps = {
 	dataSource?: 'live' | 'cached' | 'none';
 	degradedWriteEnabled?: boolean;
 	isOnline?: boolean;
+	dataSourceNotice?: string | null;
 };
 
 export function OverviewHeader({
@@ -44,15 +45,26 @@ export function OverviewHeader({
 	dataSource = 'live',
 	degradedWriteEnabled = false,
 	isOnline = true,
+	dataSourceNotice = null,
 }: OverviewHeaderProps & { departmentStats?: { name: string; percent: number }[] }) {
 	const completenessPercent = totalPairs > 0 ? Math.round(((realAssignedPairs + syntheticPlaceholderPairs) / totalPairs) * 100) : 0;
 
 	const statusConfig = useMemo(() => {
 		if (!isOnline) return { label: 'Working Offline', color: 'bg-amber-500', description: 'Disconnected from EnrollPro. Changes are saved locally and will sync when you reconnect.' };
 		if (dataSource === 'live') return { label: 'Verified Live', color: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]', description: 'Freshly verified with EnrollPro. All changes are synced immediately.' };
-		if (degradedWriteEnabled) return { label: 'Working from Saved Data', color: 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]', description: 'EnrollPro is temporarily unreachable. Using data saved in ATLAS. You can keep working; changes will sync later.' };
-		return { label: 'Viewing Saved Data (Read-Only)', color: 'bg-blue-500', description: 'Viewing saved data from backup. Editing is temporarily disabled until EnrollPro returns.' };
-	}, [isOnline, dataSource, degradedWriteEnabled]);
+		if (degradedWriteEnabled) {
+			return {
+				label: 'Working from Saved Data',
+				color: 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]',
+				description: dataSourceNotice ?? 'Using ATLAS-saved section evidence while upstream verification is unavailable.',
+			};
+		}
+		return {
+			label: 'Viewing Saved Data (Read-Only)',
+			color: 'bg-blue-500',
+			description: dataSourceNotice ?? 'Viewing ATLAS-saved section evidence in read-only mode.',
+		};
+	}, [isOnline, dataSource, degradedWriteEnabled, dataSourceNotice]);
 
 	return (
 		<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 rounded-xl border border-border/40 bg-background px-3 py-1 shadow-sm">

@@ -39,6 +39,8 @@ export type SubjectRowProps = {
 	activeFacultyIds?: Set<number>;
 	selectedFacultySpecialization?: string | null;
 	resolveSectionHoverDeltaMinutes?: (subject: Subject, sectionId: number) => number;
+	quarantined?: boolean;
+	quarantineLabel?: string | null;
 };
 
 const PROGRAM_BADGE: Record<string, string> = {
@@ -112,6 +114,8 @@ export function SubjectRow({
 	activeFacultyIds = new Set(),
 	selectedFacultySpecialization = null,
 	resolveSectionHoverDeltaMinutes,
+	quarantined = false,
+	quarantineLabel = null,
 }: SubjectRowProps) {
 	const [openGrades, setOpenGrades] = useState<Record<number, boolean>>({});
 
@@ -218,6 +222,10 @@ export function SubjectRow({
 	};
 
 	const handleToggleAll = () => {
+		if (quarantined) {
+			toast.error(quarantineLabel ?? 'Assignment edits are temporarily blocked while data truth is being reconciled.');
+			return;
+		}
 		if (selectedCount > 0) {
 			onSetSections(subject.id, []);
 			return;
@@ -241,6 +249,10 @@ export function SubjectRow({
 	};
 
 	const toggleSection = (sectionId: number) => {
+		if (quarantined) {
+			toast.error(quarantineLabel ?? 'Assignment edits are temporarily blocked while data truth is being reconciled.');
+			return;
+		}
 		if (selectedSectionIds.has(sectionId)) {
 			onSetSections(
 				subject.id,
@@ -310,6 +322,9 @@ export function SubjectRow({
 							{isSpecializationSlot && (
 								<Badge variant="outline" className="text-[10px] font-bold bg-sky-50 text-sky-700 border-sky-200 uppercase tracking-tight h-4 px-1.5 shadow-none">Requires Specialization</Badge>
 							)}
+							{quarantined && (
+								<Badge variant="outline" className="text-[10px] font-bold bg-rose-50 text-rose-700 border-rose-200 uppercase tracking-tight h-4 px-1.5 shadow-none">Quarantined</Badge>
+							)}
 						</div>
 						<div className="flex items-center gap-2 mt-1">
 							<code className="text-xs font-mono text-muted-foreground/80 font-bold uppercase tracking-tight">{subject.code}</code>
@@ -348,7 +363,7 @@ export function SubjectRow({
 							variant="outline"
 							size="sm"
 							onClick={handleToggleAll}
-							disabled={disabled || sections.length === 0}
+							disabled={disabled || sections.length === 0 || quarantined}
 							className="h-8 px-4 text-xs font-bold uppercase tracking-tight shadow-sm"
 						>
 							{selectedCount > 0 ? 'Unassign All' : 'Assign Available'}
@@ -413,7 +428,7 @@ export function SubjectRow({
 												type="button"
 												variant="ghost"
 												size="xs"
-												disabled={disabled}
+												disabled={disabled || quarantined}
 												onClick={() => handleToggleGrade(gradeLevel, gradeSections)}
 												className="h-7 px-3 text-[11px] font-bold uppercase text-primary hover:bg-primary/5 border border-primary/20"
 											>
@@ -444,7 +459,7 @@ export function SubjectRow({
 														const programType = section.programType ?? 'REGULAR';
 														const programCompatible =
 															subject.programScopes.length === 0 || subject.programScopes.includes(programType);
-														const blocked = !isSelected && (!programCompatible || isPendingOther || (isSavedOther && !isStaleOwner) || isHardConflict);
+														const blocked = !isSelected && (!programCompatible || isPendingOther || (isSavedOther && !isStaleOwner) || isHardConflict || quarantined);
 														const isSystemAssignedSection = isSystemAssignedSubject && section.id === advisedSectionId;
 														const conflictLabel = isHardConflict
 															? 'DB Conflict'
@@ -573,6 +588,9 @@ export function SubjectRow({
 																						: `Already owned by ${conflictLabel}`}
 																				</TooltipContent>
 																			</Tooltip>
+																		)}
+																		{quarantined && !conflictLabel && (
+																			<span className="text-[11px] font-bold uppercase tracking-tight text-rose-700">Repair Pending</span>
 																		)}
 																	</div>
 																</div>

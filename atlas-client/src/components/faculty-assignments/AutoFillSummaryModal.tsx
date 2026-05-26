@@ -44,6 +44,18 @@ export type StaffingTruthComparison = {
 	teacherX: StaffingTruthBucket;
 };
 
+export type SpecialProgramApprovalQueueEntry = {
+	subjectCode: string;
+	subjectName: string;
+	facultyId: number;
+	facultyName: string;
+	department: string | null;
+	specialization: string | null;
+	currentTotalAssignedPairs: number;
+	requiredSpecializationCodes: string[];
+	reason: string;
+};
+
 export type StaffingReport = {
 	department: string;
 	dominantShortageDepartment?: string;
@@ -105,6 +117,7 @@ export type AutoFillSummaryResult = {
 		resolvedSubjectCodes: string[];
 		stillUncoveredSubjectCodes: string[];
 	};
+	specialProgramApprovalQueue?: SpecialProgramApprovalQueueEntry[];
 };
 
 type AutoFillSummaryModalProps = {
@@ -153,6 +166,7 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 	const description = hasShortage
 		? `Some subject rows are still uncovered across multiple departments. Dominant concurrent shortage bucket: ${dominantDepartment}.`
 		: 'All classes have been successfully assigned to a teacher. No one has exceeded their maximum allowed teaching hours.';
+	const specialProgramApprovalQueue = result?.specialProgramApprovalQueue ?? [];
 
 	const toggleDepartment = (department: string) => {
 		setExpandedDepartments((current) => ({
@@ -204,6 +218,31 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 								{result.sectionFallbackReason && result.sectionFallbackReason.length > 0 && (
 									<p className="mt-1 text-[0.65rem] font-medium opacity-80">Fallback reason: {result.sectionFallbackReason}</p>
 								)}
+							</div>
+						)}
+
+						{specialProgramApprovalQueue.length > 0 && (
+							<div className="mb-4 rounded-xl border border-amber-300 bg-amber-50/60 px-3 py-2.5 text-amber-950">
+								<div className="flex items-center justify-between gap-2">
+									<p className="text-[0.6rem] font-bold uppercase tracking-[0.14em]">Manual Capability Approval Required</p>
+									<Badge variant="outline" className="h-4 border-amber-300 bg-white/70 px-1.5 text-[0.55rem] font-bold uppercase text-amber-800">
+										{specialProgramApprovalQueue.length} Candidate{specialProgramApprovalQueue.length === 1 ? '' : 's'}
+									</Badge>
+								</div>
+								<p className="mt-1 text-[0.68rem] font-semibold leading-snug text-amber-900/90">
+									These candidates are plausible for SPA/SPS redistribution but remain blocked until a scheduler grants an explicit capability override.
+								</p>
+								<div className="mt-2 grid gap-1.5">
+									{specialProgramApprovalQueue.slice(0, 6).map((candidate) => (
+										<div key={`${candidate.subjectCode}:${candidate.facultyId}`} className="rounded-lg border border-amber-200 bg-white/70 px-2 py-1.5 text-[0.65rem] font-semibold">
+											<div className="flex items-center justify-between gap-2">
+												<span className="font-bold text-amber-900">{candidate.subjectCode} • {candidate.facultyName}</span>
+												<span className="text-amber-700/90">{candidate.currentTotalAssignedPairs} pairs</span>
+											</div>
+											<p className="mt-1 text-amber-800/90">Needs: {candidate.requiredSpecializationCodes.join(', ')}</p>
+										</div>
+									))}
+								</div>
 							</div>
 						)}
 

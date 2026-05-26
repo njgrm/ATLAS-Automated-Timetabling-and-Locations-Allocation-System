@@ -219,6 +219,15 @@ export interface SpecialProgramCandidateSignal {
     canCoverConstrainedSection: boolean;
     isUnderutilizedMapeh: boolean;
 }
+export interface SpecialProgramApprovalRequiredCandidate {
+    facultyId: number;
+    facultyName: string;
+    department: string | null;
+    specialization: string | null;
+    currentTotalAssignedPairs: number;
+    requiredSpecializationCodes: string[];
+    reason: string;
+}
 export interface SpecialProgramConstrainedSection {
     sectionId: number;
     sectionName: string;
@@ -234,6 +243,7 @@ export interface SpecialProgramRedistributionInsight {
     underutilizedMapehCandidates: SpecialProgramCandidateSignal[];
     candidateSignals: SpecialProgramCandidateSignal[];
     constrainedSections: SpecialProgramConstrainedSection[];
+    approvalRequiredCandidates: SpecialProgramApprovalRequiredCandidate[];
 }
 export interface TeachingLoadCapabilityOverride {
     facultyId: number;
