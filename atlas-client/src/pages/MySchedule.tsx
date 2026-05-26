@@ -115,11 +115,13 @@ export default function MySchedule() {
 			});
 			const schoolYearId = schoolYearContext.activeSchoolYearId;
 			setSchoolYearNotice(
-				schoolYearContext.source === 'atlas' && !schoolYearContext.stale
+				schoolYearContext.source === 'enrollpro'
+					? `Verified with EnrollPro (${schoolYearContext.activeSchoolYearLabel}).`
+					: schoolYearContext.source === 'atlas' && !schoolYearContext.stale
 					? null
 					: schoolYearContext.activeSchoolYearLabel
-					? `Verified with saved school year data (${schoolYearContext.activeSchoolYearLabel}).`
-					: 'Working from saved school year data.',
+					? `Working from saved data (${schoolYearContext.activeSchoolYearLabel}).`
+					: 'Working from saved data.',
 			);
 
 			let resolvedFacultyId: number;

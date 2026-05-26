@@ -23,6 +23,7 @@ const RoomSchedules = lazy(() => import('./pages/RoomSchedules'));
 const ScheduleReview = lazy(() => import('./pages/ScheduleReview'));
 const HowItWorks = lazy(() => import('./pages/HowItWorks'));
 const Audit = lazy(() => import('./pages/Audit'));
+const PublicPublishedSchedule = lazy(() => import('./pages/PublicPublishedSchedule'));
 
 function LegacyRouteRedirect({ to }: { to: string }) {
 	const location = useLocation();
@@ -33,6 +34,14 @@ const router = createBrowserRouter([
 	{
 		path: '/login',
 		element: <Login />,
+	},
+	{
+		path: '/public/schedules',
+		element: <PublicPublishedSchedule />,
+	},
+	{
+		path: '/public/schedule',
+		element: <LegacyRouteRedirect to="/public/schedules" />,
 	},
 	{
 		path: '/',

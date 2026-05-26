@@ -30,6 +30,11 @@ export declare function getPublishedSchedulePayload(schoolId: number, schoolYear
         section: {
             id: number;
             name: string;
+            gradeLevel: number | null;
+            gradeLevelName: string | null;
+            programType: string | null;
+            programCode: string | null;
+            programName: string | null;
         };
         faculty: {
             id: number | null;
@@ -62,6 +67,11 @@ export declare function getPublishedSectionSchedule(schoolId: number, sectionId:
         section: {
             id: number;
             name: string;
+            gradeLevel: number | null;
+            gradeLevelName: string | null;
+            programType: string | null;
+            programCode: string | null;
+            programName: string | null;
         };
         faculty: {
             id: number | null;
@@ -111,6 +121,11 @@ export declare function getPublishedFacultySchedule(schoolId: number, facultyId:
         section: {
             id: number;
             name: string;
+            gradeLevel: number | null;
+            gradeLevelName: string | null;
+            programType: string | null;
+            programCode: string | null;
+            programName: string | null;
         };
         faculty: {
             id: number | null;
@@ -160,6 +175,11 @@ export declare function getPublishedRoomSchedule(schoolId: number, roomId: numbe
         section: {
             id: number;
             name: string;
+            gradeLevel: number | null;
+            gradeLevelName: string | null;
+            programType: string | null;
+            programCode: string | null;
+            programName: string | null;
         };
         faculty: {
             id: number | null;

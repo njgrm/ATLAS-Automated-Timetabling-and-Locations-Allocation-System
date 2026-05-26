@@ -112,7 +112,7 @@ export default function FacultyPreferences() {
 						? null
 						: schoolYearContext.activeSchoolYearLabel
 						? `Verified with saved school year data (${schoolYearContext.activeSchoolYearLabel}).`
-						: 'Working from saved school year data.',
+						: 'Working from saved data.',
 				);
 
 				try {
@@ -130,7 +130,7 @@ export default function FacultyPreferences() {
 					const cachedIdentity = readCachedFacultyIdentity(DEFAULT_SCHOOL_ID);
 					if (cachedIdentity && isLikelyOfflineError(facultyError)) {
 						setFacultyId(cachedIdentity.facultyId);
-						setSchoolYearNotice((current) => current ?? 'Using your last saved faculty account link while offline.');
+						setSchoolYearNotice((current) => current ?? 'Working from your saved account while offline.');
 						setError(null);
 						return;
 					}

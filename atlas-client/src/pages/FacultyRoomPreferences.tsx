@@ -227,11 +227,13 @@ export default function FacultyRoomPreferences() {
 			const schoolYearId = schoolYearContext.activeSchoolYearId;
 			setActiveSchoolYearId(schoolYearId);
 			setSchoolYearNotice(
-				schoolYearContext.source === 'atlas' && !schoolYearContext.stale
+				schoolYearContext.source === 'enrollpro'
+					? `Verified with EnrollPro (${schoolYearContext.activeSchoolYearLabel}).`
+					: schoolYearContext.source === 'atlas' && !schoolYearContext.stale
 					? null
 					: schoolYearContext.activeSchoolYearLabel
-					? `Verified with saved school year data (${schoolYearContext.activeSchoolYearLabel}).`
-					: 'Working from saved school year data.',
+					? `Working from saved data (${schoolYearContext.activeSchoolYearLabel}).`
+					: 'Working from saved data.',
 			);
 
 			let resolvedFacultyId: number;
@@ -250,7 +252,7 @@ export default function FacultyRoomPreferences() {
 				const cachedIdentity = readCachedFacultyIdentity(DEFAULT_SCHOOL_ID);
 				if (cachedIdentity && isLikelyOfflineError(facultyError)) {
 					resolvedFacultyId = cachedIdentity.facultyId;
-					setSchoolYearNotice((current) => current ?? 'Using your last saved faculty account link while offline.');
+					setSchoolYearNotice((current) => current ?? 'Working from your saved account while offline.');
 				} else {
 					throw facultyError;
 				}

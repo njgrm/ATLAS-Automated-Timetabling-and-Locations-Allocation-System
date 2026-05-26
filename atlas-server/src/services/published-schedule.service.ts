@@ -11,6 +11,15 @@ type PublishedRunSource = {
 	generatedAt: string | null;
 };
 
+type SectionReference = {
+	name: string;
+	gradeLevel: number | null;
+	gradeLevelName: string | null;
+	programType: string | null;
+	programCode: string | null;
+	programName: string | null;
+};
+
 function err(statusCode: number, code: string, message: string): Error & { statusCode: number; code: string } {
 	const e = new Error(message) as Error & { statusCode: number; code: string };
 	e.statusCode = statusCode;
@@ -67,8 +76,8 @@ async function resolvePublishedRun(schoolId: number, schoolYearId?: number) {
 	};
 }
 
-async function loadReferenceMaps(schoolId: number, schoolYearId: number) {
-	const [subjects, faculty, rooms, sectionSnapshot] = await Promise.all([
+async function loadReferenceMaps(schoolId: number, schoolYearId: number, sectionIds: number[]) {
+	const [subjects, faculty, rooms, sectionSnapshot, sectionMirrors] = await Promise.all([
 		prisma.subject.findMany({ where: { schoolId }, select: { id: true, code: true, name: true } }),
 		prisma.facultyMirror.findMany({
 			where: { schoolId },
@@ -81,6 +90,22 @@ async function loadReferenceMaps(schoolId: number, schoolYearId: number) {
 		prisma.sectionSnapshot.findUnique({
 			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 			select: { payload: true },
+		}),
+		prisma.sectionMirror.findMany({
+			where: {
+				schoolId,
+				schoolYearId,
+				...(sectionIds.length > 0 ? { externalId: { in: sectionIds } } : {}),
+			},
+			select: {
+				externalId: true,
+				name: true,
+				gradeLevelId: true,
+				gradeLevelName: true,
+				programType: true,
+				programCode: true,
+				programName: true,
+			},
 		}),
 	]);
 
@@ -95,10 +120,23 @@ async function loadReferenceMaps(schoolId: number, schoolYearId: number) {
 		}
 	}
 
+	const sectionById = new Map<number, SectionReference>();
+	for (const section of sectionMirrors) {
+		sectionById.set(section.externalId, {
+			name: section.name,
+			gradeLevel: section.gradeLevelId,
+			gradeLevelName: section.gradeLevelName,
+			programType: section.programType,
+			programCode: section.programCode,
+			programName: section.programName,
+		});
+	}
+
 	return {
 		subjectById: new Map(subjects.map((subject) => [subject.id, subject])),
 		facultyById: new Map(faculty.map((member) => [member.id, `${member.lastName}, ${member.firstName}`])),
 		roomById: new Map(rooms.map((room) => [room.id, room])),
+		sectionById,
 		sectionNameById,
 	};
 }
@@ -133,11 +171,13 @@ function buildSpecialEventsPayload(policy: Awaited<ReturnType<typeof getOrCreate
 export async function getPublishedSchedulePayload(schoolId: number, schoolYearId?: number) {
 	const resolved = await resolvePublishedRun(schoolId, schoolYearId);
 	const policy = await getOrCreatePolicy(resolved.source.schoolId, resolved.source.schoolYearId);
-	const references = await loadReferenceMaps(resolved.source.schoolId, resolved.source.schoolYearId);
+	const sectionIds = Array.from(new Set(resolved.entries.map((entry) => entry.sectionId)));
+	const references = await loadReferenceMaps(resolved.source.schoolId, resolved.source.schoolYearId, sectionIds);
 
 	const entries = resolved.entries.map((entry) => {
 		const subject = references.subjectById.get(entry.subjectId);
 		const room = references.roomById.get(entry.roomId);
+		const section = references.sectionById.get(entry.sectionId);
 		return {
 			entryId: entry.entryId,
 			day: entry.day,
@@ -151,7 +191,12 @@ export async function getPublishedSchedulePayload(schoolId: number, schoolYearId
 			},
 			section: {
 				id: entry.sectionId,
-				name: references.sectionNameById.get(entry.sectionId) ?? `Section #${entry.sectionId}`,
+				name: section?.name ?? references.sectionNameById.get(entry.sectionId) ?? `Section #${entry.sectionId}`,
+				gradeLevel: section?.gradeLevel ?? null,
+				gradeLevelName: section?.gradeLevelName ?? null,
+				programType: section?.programType ?? null,
+				programCode: section?.programCode ?? null,
+				programName: section?.programName ?? null,
 			},
 			faculty: {
 				id: entry.facultyId,

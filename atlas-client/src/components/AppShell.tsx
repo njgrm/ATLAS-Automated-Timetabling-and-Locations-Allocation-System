@@ -292,7 +292,7 @@ function AppSidebar({
 													S.Y. {activeYearLabel}
 												</span>
 												<span className='shrink-0 text-[0.625rem] font-semibold text-green-600'>
-													● ACTIVE
+													• ACTIVE
 												</span>
 											</>
 										) : (

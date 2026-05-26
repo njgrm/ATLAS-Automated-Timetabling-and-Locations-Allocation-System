@@ -53,8 +53,8 @@ async function resolvePublishedRun(schoolId, schoolYearId) {
         summary: (publishedRun.summary ?? null),
     };
 }
-async function loadReferenceMaps(schoolId, schoolYearId) {
-    const [subjects, faculty, rooms, sectionSnapshot] = await Promise.all([
+async function loadReferenceMaps(schoolId, schoolYearId, sectionIds) {
+    const [subjects, faculty, rooms, sectionSnapshot, sectionMirrors] = await Promise.all([
         prisma.subject.findMany({ where: { schoolId }, select: { id: true, code: true, name: true } }),
         prisma.facultyMirror.findMany({
             where: { schoolId },
@@ -68,6 +68,22 @@ async function loadReferenceMaps(schoolId, schoolYearId) {
             where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
             select: { payload: true },
         }),
+        prisma.sectionMirror.findMany({
+            where: {
+                schoolId,
+                schoolYearId,
+                ...(sectionIds.length > 0 ? { externalId: { in: sectionIds } } : {}),
+            },
+            select: {
+                externalId: true,
+                name: true,
+                gradeLevelId: true,
+                gradeLevelName: true,
+                programType: true,
+                programCode: true,
+                programName: true,
+            },
+        }),
     ]);
     const sectionNameById = new Map();
     if (sectionSnapshot?.payload && Array.isArray(sectionSnapshot.payload)) {
@@ -79,10 +95,22 @@ async function loadReferenceMaps(schoolId, schoolYearId) {
             }
         }
     }
+    const sectionById = new Map();
+    for (const section of sectionMirrors) {
+        sectionById.set(section.externalId, {
+            name: section.name,
+            gradeLevel: section.gradeLevelId,
+            gradeLevelName: section.gradeLevelName,
+            programType: section.programType,
+            programCode: section.programCode,
+            programName: section.programName,
+        });
+    }
     return {
         subjectById: new Map(subjects.map((subject) => [subject.id, subject])),
         facultyById: new Map(faculty.map((member) => [member.id, `${member.lastName}, ${member.firstName}`])),
         roomById: new Map(rooms.map((room) => [room.id, room])),
+        sectionById,
         sectionNameById,
     };
 }
@@ -114,10 +142,12 @@ function buildSpecialEventsPayload(policy) {
 export async function getPublishedSchedulePayload(schoolId, schoolYearId) {
     const resolved = await resolvePublishedRun(schoolId, schoolYearId);
     const policy = await getOrCreatePolicy(resolved.source.schoolId, resolved.source.schoolYearId);
-    const references = await loadReferenceMaps(resolved.source.schoolId, resolved.source.schoolYearId);
+    const sectionIds = Array.from(new Set(resolved.entries.map((entry) => entry.sectionId)));
+    const references = await loadReferenceMaps(resolved.source.schoolId, resolved.source.schoolYearId, sectionIds);
     const entries = resolved.entries.map((entry) => {
         const subject = references.subjectById.get(entry.subjectId);
         const room = references.roomById.get(entry.roomId);
+        const section = references.sectionById.get(entry.sectionId);
         return {
             entryId: entry.entryId,
             day: entry.day,
@@ -131,7 +161,12 @@ export async function getPublishedSchedulePayload(schoolId, schoolYearId) {
             },
             section: {
                 id: entry.sectionId,
-                name: references.sectionNameById.get(entry.sectionId) ?? `Section #${entry.sectionId}`,
+                name: section?.name ?? references.sectionNameById.get(entry.sectionId) ?? `Section #${entry.sectionId}`,
+                gradeLevel: section?.gradeLevel ?? null,
+                gradeLevelName: section?.gradeLevelName ?? null,
+                programType: section?.programType ?? null,
+                programCode: section?.programCode ?? null,
+                programName: section?.programName ?? null,
             },
             faculty: {
                 id: entry.facultyId,

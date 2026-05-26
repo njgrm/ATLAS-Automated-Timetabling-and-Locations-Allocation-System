@@ -1,3 +1,50 @@
+# 2026-05-26 - Phase 3 Student/Public Published Schedule Runtime and Public Page One-Shot
+- Phase: Phase 3 generator-readiness stream, student/public published schedule runtime + unauthenticated page foundation
+- Operator: GitHub Copilot
+- Scope gate: PARTIAL PASS (implementation complete; live published-data proof blocked by current environment state)
+- Files changed in this pass:
+  - `atlas-server/src/services/published-schedule.service.ts`
+  - `atlas-client/src/App.tsx`
+  - `atlas-client/src/lib/public-schedule-cache.ts`
+  - `atlas-client/src/pages/PublicPublishedSchedule.tsx`
+  - `ATLAS-PUBLIC-API.md`
+  - `api/ATLAS-PUBLIC-API.md`
+  - `docs/verification/evidence-log.md`
+
+- Local verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS
+  - `get_errors` still reports an editor-only unresolved-module diagnostic for `atlas-client/src/App.tsx` (`./pages/PublicPublishedSchedule`), but production build resolves and emits `PublicPublishedSchedule-*.js` successfully.
+
+- Tailnet verification (`https://njgrm.buru-degree.ts.net`) in unauthenticated state:
+  1) Public route access and no-login behavior:
+     - `GET /public/schedules` loads directly without auth redirect.
+     - Public page shows no-auth header copy and status badges as expected.
+
+  2) Legacy alias route:
+     - `GET /public/schedule` redirects to `/public/schedules` and preserves public experience.
+
+  3) No-draft-leakage network proof:
+     - Browser network capture on reload shows only one ATLAS API request:
+       - `GET /api/v1/schools/1/schedules/published`
+     - No draft/review/private schedule APIs were requested by the public page.
+
+  4) Live published endpoint state (no published run yet):
+     - `GET /api/v1/schools/1/schedules/published` (unauthenticated) -> `404`
+     - Response body: `{ "code": "PUBLISHED_RUN_NOT_FOUND", "message": "No published schedule is available for the requested scope." }`
+     - UI correctly renders honest empty state (`No published schedule yet`) rather than synthetic data.
+
+  5) Saved-data degraded continuity (forced offline simulation):
+     - Injected a valid cached snapshot into `localStorage` key `atlas:public-schedule:v1:school:1`.
+     - Forced browser offline and reloaded `/public/schedules`.
+     - UI switched to `Saved Published Data` mode and rendered section-first browse + schedule cards from cached snapshot.
+     - Re-enabled online mode, cleared injected cache, and page returned to honest no-published state.
+
+- GO/NO-GO:
+  - **NO-GO** for full objective closure in this environment.
+  - Implementation is complete and behavior is correct for unauth, section-first browsing, URL-state filters, honesty, and saved-data fallback.
+  - Closure remains blocked by missing live published-run evidence on Tailnet, so the required proof that latest published live data renders end-to-end is not yet obtainable.
+
 # 2026-05-26 - Phase 3 Faculty Offline Publish Readiness One-Shot
 - Phase: Phase 3 generator-readiness stream, faculty offline publish readiness closure scope
 - Operator: GitHub Copilot

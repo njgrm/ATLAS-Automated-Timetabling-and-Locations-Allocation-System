@@ -983,6 +983,11 @@ Each projected room entry includes `termIndex` (1, 2, or 3).
 
 **Public endpoints** (no auth required). These return only `Published` schedules.
 
+Behavior notes:
+- `GET /schools/:schoolId/schedules/published` always resolves the latest published run for that school.
+- If no published run exists, the API returns `404` with `code: "PUBLISHED_RUN_NOT_FOUND"`.
+- These endpoints never expose draft/review/unpublished entries.
+
 ### `GET /schools/:schoolId/schedules/published`
 Get the current published schedule payload for a school.
 
@@ -1014,18 +1019,59 @@ Get term-specific published schedule view for a room.
 
 ```json
 {
-  "schoolId": 1,
-  "termId": 1,
-  "publishedAt": "2026-05-11T03:30:00.000Z",
+  "source": {
+    "runId": 82,
+    "schoolId": 1,
+    "schoolYearId": 55,
+    "publishedAt": "2026-05-11T03:30:00.000Z",
+    "generatedAt": "2026-05-11T03:20:00.000Z"
+  },
+  "timeSlots": [
+    { "startTime": "07:00", "endTime": "08:00" }
+  ],
+  "specialEvents": [
+    {
+      "eventName": "Flag Ceremony",
+      "startTime": "07:00",
+      "endTime": "07:30",
+      "days": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"]
+    }
+  ],
   "entries": [
     {
-      "sectionId": 101,
-      "facultyId": 7947,
-      "roomId": 3,
+      "entryId": "1-101-ENG-MONDAY-07:00",
       "day": "MONDAY",
       "startTime": "07:00",
       "endTime": "08:00",
-      "subjectCode": "ENG"
+      "durationMinutes": 60,
+      "subject": {
+        "id": 11,
+        "code": "ENG",
+        "name": "English"
+      },
+      "section": {
+        "id": 101,
+        "name": "7-Rizal",
+        "gradeLevel": 7,
+        "gradeLevelName": "Grade 7",
+        "programType": "REGULAR",
+        "programCode": "REG",
+        "programName": "Regular"
+      },
+      "faculty": {
+        "id": 7947,
+        "name": "Santos, Maria"
+      },
+      "room": {
+        "id": 3,
+        "name": "Room 101",
+        "type": "CLASSROOM",
+        "floor": 1,
+        "buildingId": 1,
+        "buildingName": "Main Building"
+      },
+      "entryKind": "SECTION",
+      "cohortCode": null
     }
   ]
 }
