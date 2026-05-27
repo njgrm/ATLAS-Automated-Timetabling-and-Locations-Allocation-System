@@ -28,6 +28,8 @@ export type LeftRailContentContext = {
 	setViolationSearch: Dispatch<SetStateAction<string>>;
 	filteredViolations: Violation[];
 	violationsByCode: Map<ViolationCode, Violation[]>;
+	violationsGroupPage: number;
+	setViolationsGroupPage: Dispatch<SetStateAction<number>>;
 	selectedViolation: Violation | null;
 	setDrawerViolation: (violation: Violation) => void;
 	formatConstraintMessage: (message: string) => string;
@@ -42,6 +44,8 @@ export type LeftRailContentContext = {
 	} | null;
 	filteredUnassignedItems: UnassignedItem[];
 	programKindFilteredUnassignedItems: UnassignedItem[];
+	unassignedPageSize: number;
+	setUnassignedPageSize: Dispatch<SetStateAction<number>>;
 	UNASSIGNED_REASON_LABELS: Record<string, { label: string; className: string }>;
 	unassignedReasonFilter: 'all' | string;
 	setUnassignedReasonFilter: Dispatch<SetStateAction<any>>;

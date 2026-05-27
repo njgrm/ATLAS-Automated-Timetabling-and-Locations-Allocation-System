@@ -250,6 +250,7 @@ export default function ScheduleReviewWorkspace() {
 	const [pinsSectionFilter, setPinsSectionFilter] = useState<number | 'all'>('all');
 	const [pinsQueuePage, setPinsQueuePage] = useState(30);
 	const [violationsGroupPage, setViolationsGroupPage] = useState(10);
+	const [unassignedPageSize, setUnassignedPageSize] = useState(40);
 	/** Ref for auto-preview debounce in PreGenConfirmSheet */
 	const autoPreviewRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const lastOverCellRef = useRef<{ day: string; startTime: string; endTime: string; key: string } | null>(null);
@@ -907,21 +908,14 @@ export default function ScheduleReviewWorkspace() {
 		(entry: ScheduledEntry | UnassignedItem): string => {
 			if (entry.entryKind === 'COHORT' && entry.cohortCode) {
 				const memberCount = entry.cohortMemberSectionIds?.length ?? 0;
-				const specializationLabel = entry.specializationName?.trim() ?? entry.cohortName?.trim();
+				const specializationLabel = entry.cohortName?.trim();
 				const labelPrefix = specializationLabel && specializationLabel.length > 0
 					? `${entry.cohortCode} · ${specializationLabel}`
 					: entry.cohortCode;
 				return `${labelPrefix}${memberCount > 0 ? ` · ${memberCount} section${memberCount === 1 ? '' : 's'}` : ''}`;
-			}
-			const sectionContext = sectionLabel(entry.sectionId);
-			const specializationLabel = entry.specializationName?.trim() || entry.specializationCode?.trim();
-			const adviser = entry.adviserName ?? sectionMap.get(entry.sectionId)?.adviserName;
-			if (specializationLabel) {
-				return adviser
-					? `${sectionContext} · ${specializationLabel} · Adviser ${adviser}`
-					: `${sectionContext} · ${specializationLabel}`;
-			}
-			return adviser ? `${sectionContext} · Adviser ${adviser}` : sectionContext;
+		}
+		const adviser = entry.adviserName ?? sectionMap.get(entry.sectionId)?.adviserName;
+		return adviser ? `${sectionLabel(entry.sectionId)} · Adviser ${adviser}` : sectionLabel(entry.sectionId);
 		},
 		[sectionLabel, sectionMap],
 	);
@@ -1230,15 +1224,159 @@ export default function ScheduleReviewWorkspace() {
 	const softCount = violations.filter((v) => v.severity === 'SOFT').length;
 	const selectedMapBuilding = buildings.find((b) => b.id === mapBuildingId) ?? null;
 	const selectedMapBuildingFloors = selectedMapBuilding ? Array.from({ length: selectedMapBuilding.floorCount }, (_, i) => selectedMapBuilding.floorCount - i) : [];
-	const { leftRailContentContext, centerWorkspaceContext, rightPanelContext, headerContext, overlaysContext } = (() => {
-		const leftRailContentContext = buildLeftRailContext({ leftTab, isPreGenerationWorkspace, hardViolationCount, topBlockers, violations, handleViolationSelect, setSeverityFilter, VIOLATION_LABELS, violationSearch, setViolationSearch, filteredViolations, violationsByCode, selectedViolation, setDrawerViolation, formatConstraintMessage, draftBoard, isDesktop, setDragItem, toast, summary, filteredUnassignedItems, programKindFilteredUnassignedItems, unassignedReasonFilter, setUnassignedReasonFilter, resolveEntryProgramType, resolveEntryProgramCode, sectionLabel, subjectLabel, kbSelectedSource, followUps, expandedUnassigned, setExpandedUnassigned, unassignedFixSuggestions, fixLoading, schoolYearId, runs, selectedRunId, setFixLoading, setUnassignedFixSuggestions, entryContextLabel, previewEdit, setDrawerUnassigned, setFollowUps, showSoftConfirm, unassignDropActive, setUnassignDropActive, pinnedRailDropActive, fetchDraftBoardSummary, preGenPending, pinsSearch, setPinsSearch, pinsGradeFilter, setPinsGradeFilter, pinsSectionFilter, setPinsSectionFilter, pinsSubjectFilter, setPinsSubjectFilter, getDraggedDraftPlacementId, dragItem, setPendingUnassignId, setShowUnassignConfirm, pinsQueuePage, setPinsQueuePage, preGenKbSource, setPreGenKbSource, setKbSelectedSource, rightPanelRef, selectedEntry, setSelectedEntry, setSelectedViolation, preGenEntries, gradeForSection, formatFacultyInitials, roomLabelShort, roomRequestSummary, requestSearch, setRequestSearch, requestStatusFilter, setRequestStatusFilter, requestDecisionFilter, setRequestDecisionFilter, roomRequestError, roomRequestLoading, filteredRoomRequests, selectedRequestId, focusRequestInGrid, openRequestPreview, isPrivilegedUser, focusPinnedPlacement });
+	const workspaceContexts = useMemo(() => {
+		const leftRailContentContext = buildLeftRailContext({ leftTab, isPreGenerationWorkspace, hardViolationCount, topBlockers, violations, handleViolationSelect, setSeverityFilter, VIOLATION_LABELS, violationSearch, setViolationSearch, filteredViolations, violationsByCode, violationsGroupPage, setViolationsGroupPage, selectedViolation, setDrawerViolation, formatConstraintMessage, draftBoard, isDesktop, setDragItem, toast, summary, filteredUnassignedItems, programKindFilteredUnassignedItems, unassignedPageSize, setUnassignedPageSize, unassignedReasonFilter, setUnassignedReasonFilter, resolveEntryProgramType, resolveEntryProgramCode, sectionLabel, subjectLabel, kbSelectedSource, followUps, expandedUnassigned, setExpandedUnassigned, unassignedFixSuggestions, fixLoading, schoolYearId, runs, selectedRunId, setFixLoading, setUnassignedFixSuggestions, entryContextLabel, previewEdit, setDrawerUnassigned, setFollowUps, showSoftConfirm, unassignDropActive, setUnassignDropActive, pinnedRailDropActive, fetchDraftBoardSummary, preGenPending, pinsSearch, setPinsSearch, pinsGradeFilter, setPinsGradeFilter, pinsSectionFilter, setPinsSectionFilter, pinsSubjectFilter, setPinsSubjectFilter, getDraggedDraftPlacementId, dragItem, setPendingUnassignId, setShowUnassignConfirm, pinsQueuePage, setPinsQueuePage, preGenKbSource, setPreGenKbSource, setKbSelectedSource, rightPanelRef, selectedEntry, setSelectedEntry, setSelectedViolation, preGenEntries, gradeForSection, formatFacultyInitials, roomLabelShort, roomRequestSummary, requestSearch, setRequestSearch, requestStatusFilter, setRequestStatusFilter, requestDecisionFilter, setRequestDecisionFilter, roomRequestError, roomRequestLoading, filteredRoomRequests, selectedRequestId, focusRequestInGrid, openRequestPreview, isPrivilegedUser, focusPinnedPlacement });
 		const centerWorkspaceContext = buildCenterWorkspaceContext({ centerView, selectedEntry, violationIndex, followUps, toggleFollowUp, exitPolicyView, handleRefresh, schoolYearId, pendingAction, roomMap, facultyMap, subjectMap, draft, previewEdit, commitEdit, previewLoading, commitLoading, subjectLabel, facultyLabel, sectionLabel, gradeForSection, roomLabel, isStaleRoom, timeSlots, preGenOnboarding, setCenterView, buildings, mapBuildingId, setMapBuildingId, openBuildingWorkspace, selectedMapBuilding, selectedMapBuildingFloors, mapRoomId, openRoomGridWorkspace, presentationMode, draftBoard, runs, entityFilter, pivotLabel, viewMode, setPreGenOnboarding, gridEntries, highlightedEntryIds, handleEntryClick, entryContextLabel, formatFacultyInitials, roomLabelShort, dragItem, kbSelectedSource, handleKbPlace, cellConflictMap, navToFaculty, navToSection, navToRoom, preGenPending, preGenPreviewLoading, preGenPreviewError, preGenPreview, commitPreGenPending, preGenSaving, setPreGenPending, setPreGenPreview, setPreGenPreviewError, setPreGenAllowSoftOverride });
 		const rightPanelContext = buildRightPanelContext({ rightPanelRef, setIsRightCollapsed, isRightCollapsed, isPreGenerationWorkspace, preGenKbSource, selectedEntry, setPreGenKbSource, setKbSelectedSource, initials, facultyMap, formatFacultyInitials, isDesktop, subjectLabel, toggleFollowUp, followUps, setSelectedEntry, gradeForSection, violationIndex, sectionLabel, facultyLabel, roomLabel, roomRequestSummary, previewResult, formatConstraintMessage, violationLabels: VIOLATION_LABELS, violationExplanations: VIOLATION_EXPLANATIONS, setSelectedViolation, toast, draftBoard, parseDraftPlacementId, deletingPlacementId, setPendingUnassignId, setShowUnassignConfirm, enterManualEditView });
 				const headerContext = buildHeaderContext({ isPreGenerationWorkspace, activeGeneratedRunId, selectedRunId, handleRunChange, runs, centerView, newDraftLoading, schoolYearId, handleStartNewPreGenerationDraft, draftBoard, openPreGenerationWorkspace, returnToGeneratedRun, generating, loading, handleTriggerGenerate, draft, hardCount, setPublishAcknowledged, setShowPublishDialog, exitPolicyView, switchCenterViewWithGuard, enterPolicyView, openMapWorkspace, handleRefresh, revertLoading, editHistory, revertLastEdit, setShowEditHistory, tutorial, summary, statusColor, formatDuration, formatTimestamp, viewMode, setViewMode, setEntityFilter, setSelectedEntry, setSelectedViolation, setPreGenKbSource, setKbSelectedSource, entityFilter, groupedPivotEntities, pivotLabel, programFilter, setProgramFilter, entryKindFilter, setEntryKindFilter, violations, severityFilter, setSeverityFilter, softCount, presentationMode, setPresentationMode: handlePresentationModeChange, policy });
 		const dialogContext = buildDialogContext({ showUnassignConfirm, setShowUnassignConfirm, setPendingUnassignId, pendingUnassignId, unassignDraftPlacement, showGenerateConfirm, setShowGenerateConfirm, enforceShiftWindows, setEnforceShiftWindows, draftBoardSummary, followUps, confirmGenerate, showResetDraftDialog, setShowResetDraftDialog, openPreGenerationWorkspace, showLeavePreGenDialog, setShowLeavePreGenDialog, pendingCenterSwitch, setPendingCenterSwitch, requestPreview, requestPreviewLoading, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason, requestPreviewHardConflicts, requestPreviewSoftWarnings, requestAppeals, appealsLoading, isPrivilegedUser, updateAppealStatus, appealReason, appealSubmitting, submitAppeal, requestReviewerNotes, setRequestReviewerNotes, requestReviewSaving, reviewRoomRequest, generating, generationElapsed, showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, policy, handlePublishConfirm, showPreGenConfirm, setShowPreGenConfirm, setPreGenConfirmCtx, setConfirmPreview, setConfirmRawPreview, setConfirmPreviewError, setConfirmAllowSoftOverride, setConfirmAllowDailyOverride, preGenConfirmCtx, confirmFacultyId, setConfirmFacultyId, confirmPreview, confirmRoomId, setConfirmRoomId, facultyMap, roomMap, confirmPreviewLoading, confirmPreviewError, confirmDisplacedPlacement, toast, openSwapPrompt, confirmAllowDailyOverride, confirmSaving, commitConfirmPlacement, showSwapConfirm, setShowSwapConfirm, setSwapAction, swapAction, formatFacultyInitials, roomLabelShort, subjectLabel, sectionLabel, swapSaving, executeSwapAction, swapPreview, regularSwapPreview: regularSwapPreview, regularSwapPending, setRegularSwapPending, regularSwapSaving, regularSwapStrategy, setRegularSwapStrategy, executeRegularSwap, showSoftConfirm, setShowSoftConfirm, softConfirmWarnings, commitLoading, formatConstraintMessage, setPendingCommitProposal, setPreviewResult, setSoftConfirmWarnings, setDragItem, pendingCommitProposal, commitEdit, showAssignmentPicker, setShowAssignmentPicker, setAssignPickerTarget, assignPickerTarget, assignPickerFacultyId, setAssignPickerFacultyId, assignPickerRoomId, setAssignPickerRoomId, confirmAssignmentPicker, showEditHistory, setShowEditHistory, editHistory } as any);
 		const overlaysContext = buildOverlaysContext({ dialogContext, tutorial, blockerModalData, setBlockerModalData, showExplainDrawer, setDrawerViolation, setDrawerUnassigned, drawerViolation, drawerUnassigned });
 		return { leftRailContentContext, centerWorkspaceContext, rightPanelContext, headerContext, overlaysContext };
-	})();
+	}, [
+		leftTab,
+		isPreGenerationWorkspace,
+		hardViolationCount,
+		topBlockers,
+		violations,
+		handleViolationSelect,
+		violationSearch,
+		filteredViolations,
+		violationsByCode,
+		selectedViolation,
+		draftBoard,
+		isDesktop,
+		summary,
+		filteredUnassignedItems,
+		programKindFilteredUnassignedItems,
+		unassignedReasonFilter,
+		kbSelectedSource,
+		followUps,
+		expandedUnassigned,
+		unassignedFixSuggestions,
+		fixLoading,
+		schoolYearId,
+		runs,
+		selectedRunId,
+		showSoftConfirm,
+		unassignDropActive,
+		pinnedRailDropActive,
+		preGenPending,
+		pinsSearch,
+		pinsGradeFilter,
+		pinsSectionFilter,
+		pinsSubjectFilter,
+		dragItem,
+		pinsQueuePage,
+		violationsGroupPage,
+		unassignedPageSize,
+		preGenKbSource,
+		selectedEntry,
+		preGenEntries,
+		roomRequestSummary,
+		requestSearch,
+		requestStatusFilter,
+		requestDecisionFilter,
+		roomRequestError,
+		roomRequestLoading,
+		filteredRoomRequests,
+		selectedRequestId,
+		isPrivilegedUser,
+		centerView,
+		violationIndex,
+		pendingAction,
+		roomMap,
+		facultyMap,
+		subjectMap,
+		draft,
+		previewLoading,
+		commitLoading,
+		timeSlots,
+		preGenOnboarding,
+		buildings,
+		mapBuildingId,
+		selectedMapBuilding,
+		selectedMapBuildingFloors,
+		mapRoomId,
+		presentationMode,
+		entityFilter,
+		viewMode,
+		gridEntries,
+		highlightedEntryIds,
+		cellConflictMap,
+		preGenPreviewLoading,
+		preGenPreviewError,
+		preGenPreview,
+		preGenSaving,
+		isRightCollapsed,
+		previewResult,
+		deletingPlacementId,
+		activeGeneratedRunId,
+		handleRunChange,
+		newDraftLoading,
+		generating,
+		loading,
+		hardCount,
+		softCount,
+		revertLoading,
+		editHistory,
+		severityFilter,
+		policy,
+		showUnassignConfirm,
+		pendingUnassignId,
+		showGenerateConfirm,
+		enforceShiftWindows,
+		draftBoardSummary,
+		showResetDraftDialog,
+		showLeavePreGenDialog,
+		pendingCenterSwitch,
+		requestPreview,
+		requestPreviewLoading,
+		requestPreviewHardConflicts,
+		requestPreviewSoftWarnings,
+		requestAppeals,
+		appealsLoading,
+		appealReason,
+		appealSubmitting,
+		requestReviewerNotes,
+		requestReviewSaving,
+		generationElapsed,
+		showPublishDialog,
+		publishAcknowledged,
+		showPreGenConfirm,
+		preGenConfirmCtx,
+		confirmFacultyId,
+		confirmPreview,
+		confirmRoomId,
+		confirmPreviewLoading,
+		confirmPreviewError,
+		confirmDisplacedPlacement,
+		confirmAllowDailyOverride,
+		confirmSaving,
+		showSwapConfirm,
+		swapAction,
+		swapSaving,
+		swapPreview,
+		regularSwapPreview,
+		regularSwapPending,
+		regularSwapSaving,
+		regularSwapStrategy,
+		softConfirmWarnings,
+		pendingCommitProposal,
+		showAssignmentPicker,
+		assignPickerTarget,
+		assignPickerFacultyId,
+		assignPickerRoomId,
+		showEditHistory,
+		blockerModalData,
+		showExplainDrawer,
+		drawerViolation,
+		drawerUnassigned,
+		groupedPivotEntities,
+		programFilter,
+		entryKindFilter,
+		handlePresentationModeChange,
+	]);
+	const { leftRailContentContext, centerWorkspaceContext, rightPanelContext, headerContext, overlaysContext } = workspaceContexts;
 
 	const showTopLoadingStrip = loading
 		|| generating

@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
+import { useEffect } from 'react';
 import {
 AlertTriangle,
 Check,
@@ -52,6 +53,8 @@ violationSearch,
 setViolationSearch,
 filteredViolations,
 violationsByCode,
+violationsGroupPage,
+setViolationsGroupPage,
 selectedViolation,
 setDrawerViolation,
 formatConstraintMessage,
@@ -62,6 +65,8 @@ toast,
 summary,
 filteredUnassignedItems,
 programKindFilteredUnassignedItems,
+unassignedPageSize,
+setUnassignedPageSize,
 UNASSIGNED_REASON_LABELS,
 unassignedReasonFilter,
 setUnassignedReasonFilter,
@@ -186,6 +191,19 @@ focusPinnedPlacement,
 			return pinsGradeFilter === 'all' || grade === pinsGradeFilter;
 		}).map((placement): [number, string] => [placement.sectionId, sectionLabel(placement.sectionId)]),
 	]).entries());
+	const violationGroups = Array.from(violationsByCode.entries());
+	const visibleViolationGroups = violationGroups.slice(0, violationsGroupPage);
+	const hasMoreViolationGroups = violationGroups.length > visibleViolationGroups.length;
+	const visibleUnassignedItems = filteredUnassignedItems.slice(0, unassignedPageSize);
+	const hasMoreUnassignedItems = filteredUnassignedItems.length > visibleUnassignedItems.length;
+
+	useEffect(() => {
+		setViolationsGroupPage(10);
+	}, [violationSearch, filteredViolations.length, setViolationsGroupPage]);
+
+	useEffect(() => {
+		setUnassignedPageSize(40);
+	}, [unassignedReasonFilter, filteredUnassignedItems.length, setUnassignedPageSize]);
 return (
 <>{leftTab === 'violations' && !isPreGenerationWorkspace ? (
 						<div id="panel-violations" role="tabpanel" aria-labelledby="tab-violations" className="flex flex-col flex-1 min-h-0">
@@ -261,7 +279,7 @@ return (
 											{violations.length === 0 ? 'No violations found' : 'No matching violations'}
 										</div>
 									) : (
-										Array.from(violationsByCode.entries()).map(([code, vList]) => (
+										visibleViolationGroups.map(([code, vList]) => (
 											<ViolationGroup
 												key={code}
 												code={code}
@@ -273,6 +291,18 @@ return (
 												labels={VIOLATION_LABELS}
 											/>
 										))
+									)}
+									{hasMoreViolationGroups && (
+										<div className="pt-1">
+											<Button
+												variant="outline"
+												size="sm"
+												className="h-6 w-full text-[0.625rem]"
+												onClick={() => setViolationsGroupPage((prev) => prev + 10)}
+											>
+												Load more groups ({violationGroups.length - visibleViolationGroups.length} left)
+											</Button>
+										</div>
 									)}
 								</div>
 							</ScrollArea>
@@ -444,7 +474,7 @@ return (
 												<span className="text-[0.6875rem] font-medium text-muted-foreground">
 														Use recovery tools only when a session stays blocked after generation
 													</span>
-												{filteredUnassignedItems.map((item, i) => {
+												{visibleUnassignedItems.map((item, i) => {
 													const grade = item.gradeLevel;
 													const gradeBadge = grade ? GRADE_BADGE[grade] : undefined;
 													const isKbSelected = kbSelectedSource?.type === 'unassigned'
@@ -705,6 +735,16 @@ return (
 														</DraggableUnassignedPin>
 													);
 												})}
+												{hasMoreUnassignedItems && (
+													<Button
+														variant="outline"
+														size="sm"
+														className="h-6 w-full text-[0.625rem]"
+														onClick={() => setUnassignedPageSize((prev) => prev + 40)}
+													>
+														Load more sessions ({filteredUnassignedItems.length - visibleUnassignedItems.length} left)
+													</Button>
+												)}
 											</div>
 										)}
 										{summary.unassignedCount === 0 && (

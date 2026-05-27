@@ -1,3 +1,33 @@
+# 2026-05-28 - Timetable Load-Path Optimization Hardening (Frontend)
+- Phase: Phase 3 generator-readiness stream, `/timetable` repeated-entry performance hardening
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, BUILD VERIFIED
+- Files changed in this pass:
+  - atlas-client/src/hooks/useTimetableData.ts
+  - atlas-client/src/components/timetable/ScheduleReviewWorkspace.tsx
+  - atlas-client/src/components/timetable/LeftRailContent.tsx
+  - atlas-client/src/components/timetable/timetableContexts.types.ts
+  - docs/reference/atlas-runtime-source-of-truth-map.md
+  - docs/verification/evidence-log.md
+
+- Implemented load-path changes:
+  1. Added route-lifetime warm caches in `useTimetableData` for runs, run payloads, reference data, draft board summary, and room-request summary with TTL-based reuse and background refresh.
+  2. Updated `loadAll()` to a critical-first sequence (school-year/runs/reference/run payload first) and deferred secondary rail diagnostics (`pre-generation drafts`, `room-request summary`) to non-blocking background refresh.
+  3. Avoided map/building cold-boot refetch by only reloading reference data when local maps are empty.
+  4. Scoped cell conflict-map computation to drag/keyboard placement contexts only, reducing idle recomputation cost on normal browse/open flows.
+  5. Replaced inline context-building IIFE in `ScheduleReviewWorkspace` with memoized context construction to reduce identity churn and unnecessary subtree rerenders.
+  6. Added pragmatic left-rail pagination/chunking for violation groups and unassigned sessions with explicit "Load more" controls to reduce first paint work on large runs.
+
+- Automated verification:
+  - `npm --prefix atlas-client run build` -> PASS
+
+- Manual/live verification status:
+  - Tailnet manual `/timetable` interaction matrix was not executed in this pass.
+
+- Verdict:
+  - GO for implementation/build scope
+  - NO-GO for phase-gate closure until live Tailnet repeated-navigation timing and interaction checks are recorded
+
 # 2026-05-28 - Phase 3 Timetable Wellbeing Soft/Hard Semantics Alignment (Runs 124/125/126)
 - Phase: Phase 3 generator-readiness stream, wellbeing semantics hard/soft contract alignment
 - Operator: GitHub Copilot
