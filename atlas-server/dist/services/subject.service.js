@@ -464,7 +464,6 @@ export async function ensureDefaultSubjects(schoolId) {
                 allowedSpecializations: subject.allowedSpecializations ?? [],
                 requiredFeatures: contract.requiredFeatures,
                 isSeedable: subject.isSeedable,
-                isActive: subject.isActive ?? true,
                 ownerDepartment: contract.ownerDepartment,
                 qualificationPriority: contract.qualificationPriority,
                 rotationFamily: contract.rotationFamily,
@@ -677,25 +676,21 @@ export async function reconcileSubjectContractFromUpstream(schoolId, schoolYearI
     for (const [programType, overlayCodes] of Object.entries(PROGRAM_OVERLAY_CODES)) {
         if (programType === 'REGULAR' || programType === 'OTHER')
             continue;
-        if (offeredPrograms.has(programType)) {
+        if (!offeredPrograms.has(programType)) {
             await prisma.subject.updateMany({
-                where: { schoolId, code: { in: overlayCodes } },
-                data: { isActive: true },
-            });
-        }
-        else {
-            await prisma.subject.updateMany({
-                where: { schoolId, code: { in: overlayCodes } },
+                where: { schoolId, code: { in: overlayCodes }, isSystemManaged: true },
                 data: { isActive: false },
             });
         }
     }
     const spaOffered = offeredPrograms.has('SPA');
     const spsOffered = offeredPrograms.has('SPS');
-    await prisma.subject.updateMany({
-        where: { schoolId, code: 'DEVL_READING' },
-        data: { isActive: spaOffered || spsOffered },
-    });
+    if (!spaOffered && !spsOffered) {
+        await prisma.subject.updateMany({
+            where: { schoolId, code: 'DEVL_READING', isSystemManaged: true },
+            data: { isActive: false },
+        });
+    }
     await materializeDynamicTleSubjects(schoolId, signals.tleSpecializations);
 }
 export async function syncSubjectContractFromProgramOfferings(schoolId, schoolYearId, authToken) {

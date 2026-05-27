@@ -674,7 +674,8 @@ export function constructBaseline(input) {
         if (candidates.length === 0) {
             return { ids: [], reason: 'NO_QUALIFIED_FACULTY' };
         }
-        const canRelaxPreferenceForCohort = item.entryKind === 'COHORT';
+        const canRelaxPreferenceForEntry = item.entryKind === 'COHORT'
+            || (useHomeRoomPriority && item.entryKind === 'SECTION');
         const isWithinLoadAndOccupancy = (facId) => {
             const currentLoad = facultyLoad.get(facId) ?? 0;
             const maxLoad = facultyMax.get(facId) ?? 0;
@@ -694,7 +695,7 @@ export function constructBaseline(input) {
             return true;
         });
         if (available.length === 0) {
-            if (canRelaxPreferenceForCohort) {
+            if (canRelaxPreferenceForEntry) {
                 const relaxed = candidates.filter((facId) => isWithinLoadAndOccupancy(facId));
                 if (relaxed.length > 0) {
                     return { ids: relaxed.sort((a, b) => a - b) };
@@ -1097,6 +1098,8 @@ export function constructBaseline(input) {
             let sawNoSameZoneStandardRoom = false;
             let sawOnlySpecializedRooms = false;
             let sawPolicyOrShiftWindowIncompatible = false;
+            let sawCapacityOverflow = false;
+            let sawCapacityBlockedRoomForSession = false;
             const preferredHomeRoomId = useHomeRoomPriority && item.entryKind === 'SECTION'
                 ? (item.homeRoomId ?? null)
                 : null;
@@ -1198,6 +1201,7 @@ export function constructBaseline(input) {
                         }
                     }
                     const hasCapacityCompliantClassroom = compatibleRooms.some((room) => room.capacity == null || room.capacity >= item.enrolledCount);
+                    sawCapacityOverflow = compatibleRooms.length > 0 && !hasCapacityCompliantClassroom;
                     if (!hasCapacityCompliantClassroom) {
                         const overflowRooms = teachingRooms
                             .filter((room) => !room.isSharedFacility)
@@ -1225,7 +1229,7 @@ export function constructBaseline(input) {
                     });
                 }
                 if (compatibleRooms.length === 0) {
-                    sessionFailureReasons.add('NO_COMPATIBLE_ROOM');
+                    sessionFailureReasons.add(sawCapacityOverflow ? 'ROOM_CAPACITY_EXCEEDED' : 'NO_COMPATIBLE_ROOM');
                     if (preferredHomeRoomId != null) {
                         sawNoSameZoneStandardRoom = true;
                     }
@@ -1264,12 +1268,27 @@ export function constructBaseline(input) {
                                 return baseOrderDiff;
                             return left.id - right.id;
                         });
+                    let capacityRejectedForFaculty = false;
+                    let capacityOverrideUsedForPlacement = false;
                     for (const room of sortedRooms) {
                         if (roomOcc.isOccupied(room.id, slotCandidate.day, slot.startTime, slot.endTime)) {
                             continue;
                         }
-                        if (room.capacity != null && item.enrolledCount > room.capacity)
+                        const exceedsRoomCapacity = room.capacity != null && item.enrolledCount > room.capacity;
+                        const canBypassCapacityForHomeRoom = exceedsRoomCapacity
+                            && useHomeRoomPriority
+                            && item.entryKind === 'SECTION'
+                            && item.gradeLevel >= 9
+                            && preferredHomeRoomId != null
+                            && room.id === preferredHomeRoomId
+                            && room.type === 'CLASSROOM';
+                        if (exceedsRoomCapacity && !canBypassCapacityForHomeRoom) {
+                            capacityRejectedForFaculty = true;
                             continue;
+                        }
+                        if (canBypassCapacityForHomeRoom) {
+                            capacityOverrideUsedForPlacement = true;
+                        }
                         if (!deferSpecializedRoomTypePreference && subject.requiredFeatures && subject.requiredFeatures.length > 0) {
                             const roomFeatures = new Set(room.features || []);
                             if (!subject.requiredFeatures.every((feature) => roomFeatures.has(feature)))
@@ -1327,6 +1346,7 @@ export function constructBaseline(input) {
                                     homeRoomFallbackCause: preferredHomeRoomId != null && room.id !== preferredHomeRoomId
                                         ? fallbackCauseForPlacement
                                         : undefined,
+                                    capacityOverflowBypass: capacityOverrideUsedForPlacement || undefined,
                                     deferredRoomTypePreference: deferSpecializedRoomTypePreference || undefined,
                                     deferredPreferredRoomType: deferSpecializedRoomTypePreference ? requestedRoomType : undefined,
                                 },
@@ -1358,6 +1378,12 @@ export function constructBaseline(input) {
                         }
                         break;
                     }
+                    if (!placed && capacityRejectedForFaculty) {
+                        sawCapacityBlockedRoomForSession = true;
+                    }
+                }
+                if (!placed && sawCapacityBlockedRoomForSession) {
+                    sessionFailureReasons.add('ROOM_CAPACITY_EXCEEDED');
                 }
             }
             if (placed) {
@@ -1367,12 +1393,14 @@ export function constructBaseline(input) {
                 if (policyBlockedForSession) {
                     policyBlockedCount++;
                 }
-                // Priority of reasons: NO_QUALIFIED > FACULTY_OVERLOADED > NO_COMPATIBLE_ROOM > NO_AVAILABLE_SLOT
+                // Priority of reasons: NO_QUALIFIED > FACULTY_OVERLOADED > ROOM_CAPACITY_EXCEEDED > NO_COMPATIBLE_ROOM > NO_AVAILABLE_SLOT
                 let reason = 'NO_AVAILABLE_SLOT';
                 if (sessionFailureReasons.has('NO_QUALIFIED_FACULTY'))
                     reason = 'NO_QUALIFIED_FACULTY';
                 else if (sessionFailureReasons.has('FACULTY_OVERLOADED'))
                     reason = 'FACULTY_OVERLOADED';
+                else if (sessionFailureReasons.has('ROOM_CAPACITY_EXCEEDED'))
+                    reason = 'ROOM_CAPACITY_EXCEEDED';
                 else if (sessionFailureReasons.has('NO_COMPATIBLE_ROOM'))
                     reason = 'NO_COMPATIBLE_ROOM';
                 const requestedRoomType = item.roomTypePreference ?? subject.preferredRoomType;

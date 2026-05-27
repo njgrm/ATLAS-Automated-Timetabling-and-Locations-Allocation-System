@@ -581,6 +581,7 @@ export async function triggerGenerationRun(
 
 	let stage = 'init';
 	try {
+		const enforceShiftWindows = options?.enforceShiftWindows === true;
 		stage = 'pre-generation-drafts';
 		const preGenerationDrafts = await preGenerationDraftService.consumeDraftPlacementsForRun(run.id, schoolId, schoolYearId, options?.authToken);
 
@@ -705,9 +706,9 @@ export async function triggerGenerationRun(
 				where: { schoolId },
 				select: { id: true, name: true, x: true, y: true },
 			}),
-			options?.enforceShiftWindows === false
-				? Promise.resolve([])
-				: prisma.gradeShiftWindow.findMany({ where: { schoolId, schoolYearId } }),
+			enforceShiftWindows
+				? prisma.gradeShiftWindow.findMany({ where: { schoolId, schoolYearId } })
+				: Promise.resolve([]),
 		]);
 
 		const cohorts = await prisma.instructionalCohort.findMany({
@@ -1034,7 +1035,7 @@ export async function triggerGenerationRun(
 			seedQuality: result.seedQuality?.length > 0 ? result.seedQuality : undefined,
 			repairImpact: result.repairImpact,
 			resourceDiagnostics,
-			shiftWindowPolicy: options?.enforceShiftWindows === false ? 'DISABLED' : 'ENFORCED',
+			shiftWindowPolicy: enforceShiftWindows ? 'ENFORCED' : 'DISABLED',
 			configuredShiftWindowCount: gradeWindows.length,
 			timetableShapeContracts,
 			timetableDisplaySlots,
@@ -1071,7 +1072,7 @@ export async function triggerGenerationRun(
 					summary,
 					gateOverrideUsed: Boolean(options?.ignoreRoomRequestGate),
 					roomerStrategy: options?.roomerStrategy ?? 'HOME_ROOM_FIRST',
-					shiftWindowPolicy: options?.enforceShiftWindows === false ? 'DISABLED' : 'ENFORCED',
+					shiftWindowPolicy: enforceShiftWindows ? 'ENFORCED' : 'DISABLED',
 					gradeWindowCount: gradeWindows.length,
 					gateOpenRequestCountAtTrigger: gateStatus.openCount,
 				} as object,

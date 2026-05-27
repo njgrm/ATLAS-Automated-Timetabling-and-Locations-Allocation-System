@@ -1,3 +1,52 @@
+# 2026-05-27 - Phase 3 G9 Slot Starvation And Special-Program Plotting Follow-Up (One-Shot)
+- Phase: Phase 3 generator-readiness stream, one-shot closure follow-up
+- Operator: GitHub Copilot
+- Scope gate: PARTIAL (G9 starvation + manual subject/template intent drift fixed; SPA/SPS slot-pressure remains active)
+- Safety gate: PASS (server/client builds and targeted constructor regressions passed; fresh Tailnet rerun captured)
+- Files changed in this pass:
+  - atlas-server/src/services/schedule-constructor.ts
+  - atlas-server/src/services/constraint-validator.ts
+  - atlas-server/src/services/subject.service.ts
+  - atlas-server/src/services/class-template.service.ts
+  - atlas-server/src/routes/generation.router.ts
+  - atlas-server/src/services/generation.service.ts
+  - atlas-server/src/__tests__/phase2-home-room-strategy.test.ts
+  - atlas-client/src/components/timetable/ScheduleReviewWorkspace.tsx
+  - atlas-client/src/components/timetable/ScheduleReviewWorkspace.constants.ts
+  - atlas-client/src/types.ts
+  - docs/reference/atlas-runtime-source-of-truth-map.md
+  - docs/verification/evidence-log.md
+
+- Repair delivered:
+  1. Preserved operator-intent for subject/template cleanup: default subject/template sync paths no longer silently reactivate or overwrite already-managed records.
+  2. Shift-window enforcement is now explicit opt-in (`enforceShiftWindows === true`) at route + service orchestration layers.
+  3. Constructor diagnostics now elevate pure capacity blocks to `ROOM_CAPACITY_EXCEEDED` (instead of generic `NO_AVAILABLE_SLOT`).
+  4. HOME_ROOM_FIRST now supports Grade 9+ homeroom capacity-overflow bypass for section rows to prevent zero-placement starvation while emitting explicit metadata (`capacityOverflowBypass`) for validator/reporting truth.
+  5. Timetable context labels now surface specialization truth for cohort rows (`cohortCode + cohortName`) and client reason mappings now include `ROOM_CAPACITY_EXCEEDED`.
+
+- Automated verification:
+  - `npx --prefix atlas-server tsx atlas-server/src/__tests__/phase2-home-room-strategy.test.ts` -> PASS (`26 passed, 0 failed`)
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS
+
+- Live Tailnet verification:
+  - Fresh reruns after patch: `runId=93`, `runId=94`.
+  - Subject intent persistence check (`STE_ROBOTICS` manually deactivated before sync):
+    - before sync: `STE_APPLIED_PHYS=true`, `STE_ROBOTICS=false`
+    - after `/subjects/sync-offerings`: `STE_APPLIED_PHYS=true`, `STE_ROBOTICS=false`
+    - after fresh generation: `STE_APPLIED_PHYS=true`, `STE_ROBOTICS=false`
+  - G9 starvation status:
+    - pre-fix baseline (`runId=93`): `regularG9Entries=0`, `regularG9Unassigned=480`, reason `ROOM_CAPACITY_EXCEEDED`
+    - post-fix (`runId=94`): `regularG9Entries=480`, `regularG9Unassigned=0`, `capacityOverflowBypassEntries=360`
+  - Shift-window contract check (`runId=94`): `shiftWindowPolicy=DISABLED`, `configuredShiftWindowCount=0`
+  - Special-program plotting/truth check (`runId=94`):
+    - specialization labels present in cohortized rows (`cohortNamedEntries=10`)
+    - SPA/SPS residual unassigned remains: `SPA:NO_AVAILABLE_SLOT=70`, `SPS:NO_AVAILABLE_SLOT=70`
+
+- Verdict: NO-GO (phase closure)
+  - GO for this pass's targeted blockers: G9 zero-placement starvation no longer reproduces; manual subject cleanup no longer rehydrates after sync/generation; capacity-only failures now report explicitly.
+  - NO-GO for overall phase closure: SPA/SPS slot-pressure (`NO_AVAILABLE_SLOT`) remains unresolved and total hard-violation budget is still above closure thresholds.
+
 # 2026-05-27 - Phase 3 Timetable G9 Placement And Room-Mismatch Follow-Up
 - Phase: Phase 3 generator-readiness stream, G9 placement + contract-respect follow-up
 - Operator: GitHub Copilot

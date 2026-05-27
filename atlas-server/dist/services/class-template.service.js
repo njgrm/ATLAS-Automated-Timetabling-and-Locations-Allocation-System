@@ -63,30 +63,15 @@ export async function ensureDefaultTemplates(schoolId) {
                 schoolId_programType: { schoolId, programType: spec.programType },
             },
         });
+        if (existing) {
+            continue;
+        }
         // Resolve subject IDs from codes for this school
         const subjects = await prisma.subject.findMany({
             where: { schoolId, code: { in: spec.subjectCodes }, isActive: true },
             select: { id: true, code: true },
         });
         const bindingRows = subjects.map((s) => ({ subjectId: s.id }));
-        if (existing) {
-            await prisma.classTemplate.update({
-                where: { id: existing.id },
-                data: {
-                    name: spec.name,
-                    label: spec.label,
-                    gradeApplicability: spec.gradeApplicability,
-                    periodLengthMinutes: spec.periodLengthMinutes,
-                    periodsPerDay: spec.periodsPerDay,
-                    isDefault: spec.isDefault,
-                    subjectBindings: {
-                        deleteMany: {},
-                        create: bindingRows,
-                    },
-                },
-            });
-            continue;
-        }
         await prisma.classTemplate.create({
             data: {
                 schoolId,

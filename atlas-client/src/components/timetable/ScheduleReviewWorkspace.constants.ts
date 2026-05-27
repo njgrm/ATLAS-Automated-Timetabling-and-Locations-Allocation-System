@@ -202,5 +202,6 @@ export const UNASSIGNED_REASON_LABELS: Record<string, { label: string; className
 	NO_QUALIFIED_FACULTY: { label: 'No Qualified Faculty', className: 'border-red-300 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 dark:border-red-800' },
 	FACULTY_OVERLOADED: { label: 'Faculty Overloaded', className: 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800' },
 	NO_AVAILABLE_SLOT: { label: 'No Available Slot', className: 'border-orange-300 bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800' },
+	ROOM_CAPACITY_EXCEEDED: { label: 'Room Capacity Exceeded', className: 'border-rose-300 bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300 dark:border-rose-800' },
 	NO_COMPATIBLE_ROOM: { label: 'No Compatible Room', className: 'border-purple-300 bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800' },
 };

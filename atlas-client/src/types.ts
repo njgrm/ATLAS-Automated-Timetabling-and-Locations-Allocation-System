@@ -1088,7 +1088,7 @@ export interface UnassignedItem {
 	subjectId: number;
 	gradeLevel: number;
 	session: number;
-	reason: 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM';
+	reason: 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM' | 'ROOM_CAPACITY_EXCEEDED';
 	roomAssignmentReason?:
 		| 'LOCKED_ENTRY'
 		| 'HOME_ROOM_ASSIGNED'

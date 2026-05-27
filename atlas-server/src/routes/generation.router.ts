@@ -42,7 +42,7 @@ router.post(
 			const actorId = req.user?.userId;
 			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
 			const ignoreRoomRequestGate = req.body?.ignoreRoomRequestGate === true;
-			const enforceShiftWindows = req.body?.enforceShiftWindows !== false;
+			const enforceShiftWindows = req.body?.enforceShiftWindows === true;
 			const roomerStrategy = req.body?.roomerStrategy ?? 'HOME_ROOM_FIRST';
 			if (roomerStrategy !== undefined && roomerStrategy !== 'UNIVERSAL' && roomerStrategy !== 'HOME_ROOM_FIRST') {
 				res.status(400).json({ code: 'INVALID_PARAM', message: 'roomerStrategy must be UNIVERSAL or HOME_ROOM_FIRST when provided.' });

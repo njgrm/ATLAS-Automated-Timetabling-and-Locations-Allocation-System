@@ -216,6 +216,103 @@ function run() {
 		'Home-room-first keeps fallback cause within homeroom-fidelity diagnostics when strict zone fidelity blocks broader fallback',
 	);
 
+	const preferenceRelaxInput = buildBaseInput('HOME_ROOM_FIRST');
+	preferenceRelaxInput.preferences = [
+		{
+			facultyId: 1001,
+			status: 'SUBMITTED',
+			timeSlots: [
+				{ day: 'MONDAY', startTime: '07:00', endTime: '18:00', preference: 'UNAVAILABLE' },
+				{ day: 'TUESDAY', startTime: '07:00', endTime: '18:00', preference: 'UNAVAILABLE' },
+				{ day: 'WEDNESDAY', startTime: '07:00', endTime: '18:00', preference: 'UNAVAILABLE' },
+				{ day: 'THURSDAY', startTime: '07:00', endTime: '18:00', preference: 'UNAVAILABLE' },
+				{ day: 'FRIDAY', startTime: '07:00', endTime: '18:00', preference: 'UNAVAILABLE' },
+			],
+		},
+	];
+	const preferenceRelaxResult = constructBaseline(preferenceRelaxInput);
+	assert(preferenceRelaxResult.entries.length > 0, 'Home-room-first relaxes strict UNAVAILABLE preference blocking when section slot starvation would otherwise occur');
+	assertEqual(preferenceRelaxResult.unassignedItems.length, 0, 'Preference-relax fallback avoids false NO_AVAILABLE_SLOT starvation for section demand');
+
+	const capacityBlockedInput = buildBaseInput('HOME_ROOM_FIRST');
+	capacityBlockedInput.sectionsByGrade[0].gradeLevelId = 9;
+	capacityBlockedInput.sectionsByGrade[0].gradeLevelName = 'Grade 9';
+	capacityBlockedInput.sectionsByGrade[0].displayOrder = 9;
+	capacityBlockedInput.sectionsByGrade[0].sections[0].gradeLevelId = 9;
+	capacityBlockedInput.sectionsByGrade[0].sections[0].gradeLevelName = 'Grade 9';
+	capacityBlockedInput.sectionsByGrade[0].sections[0].displayOrder = 9;
+	capacityBlockedInput.subjects[0].gradeLevels = [9];
+	capacityBlockedInput.facultySubjects[0].gradeLevels = [9];
+	capacityBlockedInput.rooms = [
+		{
+			id: 1,
+			type: 'CLASSROOM',
+			isTeachingSpace: true,
+			capacity: 10,
+			buildingId: 11,
+			buildingZoneId: 'NORTH',
+			features: [],
+		},
+		{
+			id: 2,
+			type: 'CLASSROOM',
+			isTeachingSpace: true,
+			capacity: 12,
+			buildingId: 11,
+			buildingZoneId: 'NORTH',
+			features: [],
+		},
+		{
+			id: 3,
+			type: 'LABORATORY',
+			isTeachingSpace: true,
+			capacity: 8,
+			buildingId: 11,
+			buildingZoneId: 'NORTH',
+			features: [],
+		},
+	];
+	capacityBlockedInput.sectionsByGrade[0].sections[0].enrolledCount = 30;
+	const capacityBlockedResult = constructBaseline(capacityBlockedInput);
+	assertEqual(capacityBlockedResult.entries.length, 1, 'HOME_ROOM_FIRST still places section demand in the homeroom when all classroom candidates are under capacity');
+	assertEqual(capacityBlockedResult.entries[0]?.roomId, 1, 'Capacity overflow placement prefers the configured homeroom');
+	assertEqual(Boolean(capacityBlockedResult.entries[0]?.metadata?.capacityOverflowBypass), true, 'Capacity overflow homeroom placement records an explicit bypass marker');
+	assertEqual(capacityBlockedResult.unassignedItems.length, 0, 'Capacity overflow homeroom bypass prevents false NO_AVAILABLE_SLOT starvation in section master schedule');
+
+	const universalCapacityBlockedInput = buildBaseInput('UNIVERSAL');
+	universalCapacityBlockedInput.sectionsByGrade[0].gradeLevelId = 9;
+	universalCapacityBlockedInput.sectionsByGrade[0].gradeLevelName = 'Grade 9';
+	universalCapacityBlockedInput.sectionsByGrade[0].displayOrder = 9;
+	universalCapacityBlockedInput.sectionsByGrade[0].sections[0].gradeLevelId = 9;
+	universalCapacityBlockedInput.sectionsByGrade[0].sections[0].gradeLevelName = 'Grade 9';
+	universalCapacityBlockedInput.sectionsByGrade[0].sections[0].displayOrder = 9;
+	universalCapacityBlockedInput.subjects[0].gradeLevels = [9];
+	universalCapacityBlockedInput.facultySubjects[0].gradeLevels = [9];
+	universalCapacityBlockedInput.rooms = [
+		{
+			id: 1,
+			type: 'CLASSROOM',
+			isTeachingSpace: true,
+			capacity: 10,
+			buildingId: 11,
+			buildingZoneId: 'NORTH',
+			features: [],
+		},
+		{
+			id: 2,
+			type: 'CLASSROOM',
+			isTeachingSpace: true,
+			capacity: 12,
+			buildingId: 11,
+			buildingZoneId: 'NORTH',
+			features: [],
+		},
+	];
+	universalCapacityBlockedInput.sectionsByGrade[0].sections[0].enrolledCount = 30;
+	const universalCapacityBlockedResult = constructBaseline(universalCapacityBlockedInput);
+	assertEqual(universalCapacityBlockedResult.entries.length, 0, 'UNIVERSAL strategy does not bypass room-capacity constraints');
+	assertEqual(universalCapacityBlockedResult.unassignedItems[0]?.reason, 'ROOM_CAPACITY_EXCEEDED', 'UNIVERSAL strategy keeps explicit ROOM_CAPACITY_EXCEEDED diagnostics when blocked');
+
 	console.log(`\nSummary: ${passCount} passed, ${failCount} failed`);
 	if (failCount > 0) {
 		process.exitCode = 1;

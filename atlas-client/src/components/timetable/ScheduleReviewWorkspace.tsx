@@ -908,7 +908,11 @@ export default function ScheduleReviewWorkspace() {
 		(entry: ScheduledEntry | UnassignedItem): string => {
 			if (entry.entryKind === 'COHORT' && entry.cohortCode) {
 				const memberCount = entry.cohortMemberSectionIds?.length ?? 0;
-return `${entry.cohortCode}${memberCount > 0 ? ` · ${memberCount} section${memberCount === 1 ? '' : 's'}` : ''}`;
+				const specializationLabel = entry.cohortName?.trim();
+				const labelPrefix = specializationLabel && specializationLabel.length > 0
+					? `${entry.cohortCode} · ${specializationLabel}`
+					: entry.cohortCode;
+				return `${labelPrefix}${memberCount > 0 ? ` · ${memberCount} section${memberCount === 1 ? '' : 's'}` : ''}`;
 		}
 		const adviser = entry.adviserName ?? sectionMap.get(entry.sectionId)?.adviserName;
 		return adviser ? `${sectionLabel(entry.sectionId)} · Adviser ${adviser}` : sectionLabel(entry.sectionId);
