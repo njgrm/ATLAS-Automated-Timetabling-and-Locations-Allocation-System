@@ -35,7 +35,6 @@ import {
 	getActiveSubjectCoverageSummary,
 	getAssignmentSummary,
 	previewOrApplyRealFacultyRecovery,
-	previewOrApplySpecialProgramRedistribution,
 	previewOrApplyTeachingLoadTruthReconcile,
 	previewOrApplyStaleOwnershipReconcile,
 	repairActiveSubjectCoverageWithPlaceholders,
@@ -1926,7 +1925,7 @@ export async function previewOrApplyTeachingLoadSplitBrainReconcile(
 		getActiveSubjectCoverageSummary(input.schoolId, input.schoolYearId, input.authToken),
 	]);
 
-	const [truthReconcile, staleReconcile, realFacultyRecovery, specialProgramRebalance] = await Promise.all([
+	const [truthReconcile, staleReconcile, realFacultyRecovery] = await Promise.all([
 		previewOrApplyTeachingLoadTruthReconcile({
 			schoolId: input.schoolId,
 			schoolYearId: input.schoolYearId,
@@ -1948,13 +1947,6 @@ export async function previewOrApplyTeachingLoadSplitBrainReconcile(
 			authToken: input.authToken,
 			apply,
 		}),
-		previewOrApplySpecialProgramRedistribution({
-			schoolId: input.schoolId,
-			schoolYearId: input.schoolYearId,
-			actorId: input.actorId,
-			authToken: input.authToken,
-			apply: false,
-		}),
 	]);
 
 	const [finalSummary, finalCoverage] = apply
@@ -1971,35 +1963,7 @@ export async function previewOrApplyTeachingLoadSplitBrainReconcile(
 	const unassignedPairDelta = summaryTotals.unassignedPairs - coverageTotals.unassignedPairs;
 	const totalPairDelta = summaryTotals.totalPairs - coverageTotals.totalPairs;
 
-	const specialProgramApprovalQueue: TeachingLoadSplitBrainApprovalRequiredCandidate[] = specialProgramRebalance.redistributionInsights
-		.flatMap((insight) =>
-			insight.approvalRequiredCandidates.map((candidate) => ({
-				subjectCode: insight.subjectCode,
-				subjectName: insight.subjectName,
-				facultyId: candidate.facultyId,
-				facultyName: candidate.facultyName,
-				department: candidate.department,
-				specialization: candidate.specialization,
-				currentTotalAssignedPairs: candidate.currentTotalAssignedPairs,
-				requiredSpecializationCodes: candidate.requiredSpecializationCodes,
-				reason: candidate.reason,
-			})),
-		)
-		.filter((entry, index, collection) =>
-			index === collection.findIndex((candidate) =>
-				candidate.subjectCode === entry.subjectCode
-				&& candidate.facultyId === entry.facultyId,
-			),
-		)
-		.sort((left, right) => {
-			if (left.subjectCode !== right.subjectCode) {
-				return left.subjectCode.localeCompare(right.subjectCode);
-			}
-			if (left.currentTotalAssignedPairs !== right.currentTotalAssignedPairs) {
-				return left.currentTotalAssignedPairs - right.currentTotalAssignedPairs;
-			}
-			return left.facultyName.localeCompare(right.facultyName);
-		});
+	const specialProgramApprovalQueue: TeachingLoadSplitBrainApprovalRequiredCandidate[] = [];
 
 	const truthRowsPending = finalSummary.faculty.reduce(
 		(total, facultyRow) =>
@@ -2077,8 +2041,6 @@ export async function previewOrApplyTeachingLoadSplitBrainReconcile(
 	if (truthRowsPending > 0) reasonCodes.push('TRUTH_RECONCILE_PENDING');
 	if (pendingRealFacultyMoves > 0) reasonCodes.push('REAL_FACULTY_RECOVERY_PENDING');
 	if (realFacultyRecovery.blockers.length > 0) reasonCodes.push('REAL_FACULTY_RECOVERY_BLOCKERS');
-	if (specialProgramApprovalQueue.length > 0) reasonCodes.push('SPECIAL_PROGRAM_APPROVAL_REQUIRED');
-
 	const dedupedReasonCodes = [...new Set(reasonCodes)];
 	const quarantine = resolveSplitBrainQuarantine(dedupedReasonCodes);
 

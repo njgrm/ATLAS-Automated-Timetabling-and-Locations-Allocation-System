@@ -505,8 +505,8 @@ SET
     WHEN code LIKE 'MAPEH%' THEN 'MAPEH'
     WHEN code LIKE 'TLE%' THEN 'TLE'
     WHEN code LIKE 'SCI%' OR code LIKE 'STE_%' THEN 'SCI'
-    WHEN code LIKE 'SPA_%' THEN 'SPA'
-    WHEN code LIKE 'SPS_%' THEN 'SPS'
+		WHEN code LIKE 'SPA_%' THEN 'MAPEH'
+		WHEN code LIKE 'SPS_%' THEN 'MAPEH'
     WHEN code = 'DEVL_READING' THEN 'ENG'
     ELSE owner_department
   END,
@@ -526,6 +526,14 @@ WHERE
   OR qualification_priority IS NULL
   OR rotation_family IS NULL
   OR (code LIKE 'TLE_%_EXP' OR code LIKE 'TLE_SPEC_%')
+			`);
+
+			await prisma.$executeRawUnsafe(`
+UPDATE subjects
+SET owner_department = 'MAPEH'
+WHERE code IN ('SPA_SPEC', 'SPS_SPEC')
+   OR code LIKE 'SPA_%'
+   OR code LIKE 'SPS_%'
 			`);
 
 			await prisma.$executeRawUnsafe(`

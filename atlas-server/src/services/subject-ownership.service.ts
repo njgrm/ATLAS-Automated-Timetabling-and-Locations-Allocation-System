@@ -16,8 +16,8 @@ const SUBJECT_OWNER_DEPARTMENT_BY_PREFIX: Array<{ prefix: string; ownerDepartmen
 	{ prefix: 'TLE', ownerDepartment: 'TLE' },
 	{ prefix: 'SCI', ownerDepartment: 'SCI' },
 	{ prefix: 'STE', ownerDepartment: 'SCI' },
-	{ prefix: 'SPA', ownerDepartment: 'SPA' },
-	{ prefix: 'SPS', ownerDepartment: 'SPS' },
+	{ prefix: 'SPA', ownerDepartment: 'MAPEH' },
+	{ prefix: 'SPS', ownerDepartment: 'MAPEH' },
 ];
 
 const DEPARTMENT_NORMALIZATION: Record<string, string> = {
@@ -36,8 +36,8 @@ const DEPARTMENT_NORMALIZATION: Record<string, string> = {
 	'SOCIAL STUDIES': 'AP',
 	'ARALING PANLIPUNAN': 'AP',
 	TLE: 'TLE',
-	SPA: 'SPA',
-	SPS: 'SPS',
+	SPA: 'MAPEH',
+	SPS: 'MAPEH',
 	LANGUAGES: 'ENG',
 };
 

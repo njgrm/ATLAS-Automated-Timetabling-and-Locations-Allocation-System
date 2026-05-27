@@ -100,7 +100,6 @@ import type {
 	TeachingLoadIntegrityDiagnostics,
 	RotationFamilyLoadDetail,
 	RotationFamilyTermBreakdown,
-	SpecialProgramRebalancePreviewResult,
 	TeachingLoadSplitBrainReconcileResult,
 } from '@/types';
 
@@ -755,47 +754,14 @@ export default function FacultyAssignments() {
 		}
 		setStaffingNeedsLoading(true);
 		try {
-			const [staffingResult, specialProgramResult] = await Promise.all([
-				atlasApi.post<AutoFillSummaryResult>(
-					'/faculty-assignments/report/staffing-needs',
-					{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId, coverageMode },
-				),
-				atlasApi.post<SpecialProgramRebalancePreviewResult>(
-					'/faculty-assignments/coverage/rebalance-special-programs',
-					{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId, apply: false },
-				),
-			]);
+			const staffingResult = await atlasApi.post<AutoFillSummaryResult>(
+				'/faculty-assignments/report/staffing-needs',
+				{ schoolId: DEFAULT_SCHOOL_ID, schoolYearId: activeSchoolYearId, coverageMode },
+			);
 
-			const specialProgramApprovalQueue = specialProgramResult.data.redistributionInsights
-				.flatMap((insight) =>
-					(insight.approvalRequiredCandidates ?? []).map((candidate) => ({
-						subjectCode: insight.subjectCode,
-						subjectName: insight.subjectName,
-						facultyId: candidate.facultyId,
-						facultyName: candidate.facultyName,
-						department: candidate.department,
-						specialization: candidate.specialization,
-						currentTotalAssignedPairs: candidate.currentTotalAssignedPairs,
-						requiredSpecializationCodes: candidate.requiredSpecializationCodes,
-						reason: candidate.reason,
-					})),
-				)
-				.filter((entry, index, collection) =>
-					index === collection.findIndex((candidate) =>
-						candidate.subjectCode === entry.subjectCode
-						&& candidate.facultyId === entry.facultyId,
-					),
-				);
-
-			setSummaryModalResult({
-				...staffingResult.data,
-				specialProgramApprovalQueue,
-			});
+			setSummaryModalResult(staffingResult.data);
 			setSummaryModalOpen(true);
 			toast.info(`Showing staffing needs using ${COVERAGE_MODE_CONFIG[coverageMode].label}.`);
-			if (specialProgramApprovalQueue.length > 0) {
-				toast.warning(`Manual approval needed for ${specialProgramApprovalQueue.length} special-program candidate${specialProgramApprovalQueue.length === 1 ? '' : 's'}.`);
-			}
 		} catch {
 			toast.error('Unable to load staffing needs right now.');
 		} finally {
@@ -1652,7 +1618,7 @@ export default function FacultyAssignments() {
 							</span>
 							<span className="truncate">{splitBrainIncident.quarantine.message}</span>
 							<span className="text-[0.65rem] font-bold uppercase tracking-tight opacity-80">
-								Pending: {splitBrainIncident.counters.truthRowsToUpdate} truth rows * {splitBrainIncident.counters.realFacultyMovesPlanned} recoverable moves * {splitBrainIncident.counters.trueLoadOutlierRows ?? splitBrainIncident.counters.overloadedFacultyRows} true outliers * {splitBrainIncident.counters.loadReviewRows ?? 0} review-only overloads * {splitBrainIncident.counters.specialProgramApprovalCandidates} approval checks
+								Pending: {splitBrainIncident.counters.truthRowsToUpdate} truth rows * {splitBrainIncident.counters.realFacultyMovesPlanned} recoverable moves * {splitBrainIncident.counters.trueLoadOutlierRows ?? splitBrainIncident.counters.overloadedFacultyRows} true outliers * {splitBrainIncident.counters.loadReviewRows ?? 0} review-only overloads
 							</span>
 							<span className="text-[0.62rem] font-semibold uppercase tracking-tight opacity-75">
 								Integrity: {splitBrainIncident.counters.integrityMissingOwnershipPairs} missing ownership * {splitBrainIncident.counters.integrityOwnershipWithoutScopePairs} ownership-without-scope * {splitBrainIncident.counters.integrityOutOfSubjectScopePairs ?? 0} out-of-subject-scope
@@ -1684,7 +1650,7 @@ export default function FacultyAssignments() {
 							<span className="font-medium opacity-90">{splitBrainIncident.quarantine.message}</span>
 							<span className="opacity-40">*</span>
 							<span className="opacity-80">
-								{splitBrainIncident.counters.loadReviewRows ?? 0} Overloads * {splitBrainIncident.counters.specialProgramApprovalCandidates} Special Programs
+								{splitBrainIncident.counters.loadReviewRows ?? 0} Overloads
 							</span>
 						</div>
 						<Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-[0.6rem] font-bold uppercase text-amber-700 hover:bg-amber-100/50" onClick={handleViewStaffingNeeds}>

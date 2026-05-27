@@ -2842,24 +2842,6 @@ function buildSpecialProgramRedistributionInsights(
       }
     }
 
-    const constrainedRequiredCodes = [...new Set(constrainedSections.map((entry) => entry.requiredSpecializationCode))]
-      .sort((left, right) => left.localeCompare(right));
-
-    const approvalRequiredCandidates: SpecialProgramApprovalRequiredCandidate[] = constrainedRequiredCodes.length > 0
-      ? candidateSignals
-        .filter((entry) => entry.isUnderutilizedMapeh)
-        .filter((entry) => !entry.canCoverConstrainedSection)
-        .map((entry) => ({
-          facultyId: entry.facultyId,
-          facultyName: entry.facultyName,
-          department: entry.department,
-          specialization: entry.specialization,
-          currentTotalAssignedPairs: entry.currentTotalAssignedPairs,
-          requiredSpecializationCodes: constrainedRequiredCodes,
-          reason: `${entry.facultyName} needs explicit capability approval before covering constrained ${subject.code} sections.`,
-        }))
-      : [];
-
     return {
       subjectId: subject.id,
       subjectCode: subject.code,
@@ -2869,7 +2851,7 @@ function buildSpecialProgramRedistributionInsights(
       underutilizedMapehCandidates: candidateSignals.filter((entry) => entry.isUnderutilizedMapeh),
       candidateSignals,
       constrainedSections,
-      approvalRequiredCandidates,
+      approvalRequiredCandidates: [],
     };
   });
 }
@@ -3623,7 +3605,7 @@ function isSpecialProgramSpecializationSubject(subjectCode: string | null | unde
 
 function isSpecialProgramBaselineDepartment(department: string | null | undefined): boolean {
   const normalized = normalizeDepartmentCode(department);
-  return normalized === 'MAPEH' || normalized === 'SPA' || normalized === 'SPS';
+  return normalized === 'MAPEH';
 }
 
 function hasApprovedCapabilityOverride(

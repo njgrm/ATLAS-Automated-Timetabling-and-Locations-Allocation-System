@@ -132,8 +132,6 @@ export function OverviewHeader({
 							{splitBrainIncident?.quarantine.message}
 							<div className="mt-1 flex items-center gap-2 opacity-70">
 								<span>{splitBrainIncident?.counters.loadReviewRows ?? 0} Overloads</span>
-								<span>*</span>
-								<span>{splitBrainIncident?.counters.specialProgramApprovalCandidates} Special Programs</span>
 							</div>
 						</TooltipContent>
 					</Tooltip>

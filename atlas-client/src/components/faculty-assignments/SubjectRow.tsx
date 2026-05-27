@@ -1,4 +1,4 @@
-import { useMemo, useState, memo } from 'react';
+import { useMemo, useState, memo, useCallback } from 'react';
 import { BookOpen, ChevronDown, ChevronRight, Clock, Lock, Star, RotateCcw, CheckCircle, X, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -194,11 +194,7 @@ export const SubjectRow = memo(({
 
 	const selectableSectionIds = selectableSections.map((s) => s.id);
 
-	if (groupedSections.length === 0 && (searchTerm || sectionFilter !== 'all' || gradeLevelFilter !== 'all')) {
-		return null;
-	}
-
-	const handleToggleGrade = (gradeLevel: number, gradeSections: ExternalSection[]) => {
+	const handleToggleGrade = useCallback((gradeLevel: number, gradeSections: ExternalSection[]) => {
 		const gradeSectionIds = gradeSections.map((s) => s.id);
 		const currentSelectedInGrade = gradeSectionIds.filter((id) => selectedSectionIds.has(id));
 		
@@ -220,9 +216,9 @@ export const SubjectRow = memo(({
 
 		const nextSelection = Array.from(new Set([...Array.from(selectedSectionIds), ...eligibleInGrade]));
 		onSetSections(subject.id, nextSelection);
-	};
+	}, [selectedSectionIds, subject.id, onSetSections, selectableSectionIds]);
 
-	const handleToggleAll = () => {
+	const handleToggleAll = useCallback(() => {
 		if (quarantined) {
 			toast.error(quarantineLabel ?? 'Assignments temporarily locked while data review finishes');
 			return;
@@ -247,9 +243,9 @@ export const SubjectRow = memo(({
 		}
 
 		onSetSections(subject.id, selectedWithinCap);
-	};
+	}, [quarantined, quarantineLabel, selectedCount, subject.id, subject.minMinutesPerWeek, onSetSections, selectableSectionIds, remainingCapacityMinutes]);
 
-	const toggleSection = (sectionId: number) => {
+	const toggleSection = useCallback((sectionId: number) => {
 		if (quarantined) {
 			toast.error(quarantineLabel ?? 'Assignments temporarily locked while data review finishes');
 			return;
@@ -273,7 +269,7 @@ export const SubjectRow = memo(({
 			return;
 		}
 		onSetSections(subject.id, [...selectedSectionIds, sectionId]);
-	};
+	}, [quarantined, quarantineLabel, selectedSectionIds, subject.id, onSetSections, pendingOwnershipMap, selectedFacultyId, savedOwnershipMap, activeFacultyIds]);
 
 	const rotationLaneKey = resolveRotationLaneKey(subject);
 	const rotationTermLabel = resolveRotationTermLabel(subject);
@@ -282,6 +278,10 @@ export const SubjectRow = memo(({
 	// HG system-assignment detection
 	const isHgSubject = subject.code === 'HG' || subject.name.toLowerCase().includes('homeroom');
 	const isSystemAssignedSubject = isHgSubject && advisedSectionId != null;
+
+	if (groupedSections.length === 0 && (searchTerm || sectionFilter !== 'all' || gradeLevelFilter !== 'all')) {
+		return null;
+	}
 
 	return (
 		<div id={`subject-${subject.id}`} className={`rounded-xl border shadow-sm transition-all duration-200 overflow-hidden ${
@@ -401,25 +401,23 @@ export const SubjectRow = memo(({
 
 							return (
 								<div key={gradeLevel} className="group/grade">
-									<div className={`flex items-center justify-between px-5 py-2.5 transition-colors ${isOpen ? 'bg-muted/20 border-b border-border/30' : ''}`}>
-										<Button
-											type="button"
-											variant="ghost"
-											onClick={() =>
-												setOpenGrades((current) => ({
-													...current,
-													[gradeLevel]: !isOpen,
-												}))
-											}
-											className="h-auto p-0 hover:bg-transparent"
-										>
-											<span className={`flex items-center gap-3 text-xs font-bold uppercase tracking-widest transition-colors ${isOpen ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
-												{isOpen ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+									<div 
+										className={`flex items-center justify-between px-5 py-2.5 transition-colors cursor-pointer select-none ${isOpen ? 'bg-muted/20 border-b border-border/30' : 'hover:bg-muted/10'}`}
+										onClick={() =>
+											setOpenGrades((current) => ({
+												...current,
+												[gradeLevel]: !isOpen,
+											}))
+										}
+									>
+										<div className="flex items-center gap-3">
+											{isOpen ? <ChevronDown className="size-4 text-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}
+											<span className={cn("text-xs font-bold uppercase tracking-widest", isOpen ? "text-foreground" : "text-muted-foreground")}>
 												<span className={gradeColorClass}>
 													{gradeLabel(gradeLevel)}
 												</span>
 											</span>
-										</Button>
+										</div>
 										
 										<div className="flex items-center gap-4">
 											<Badge variant="secondary" className="text-xs font-black h-6 px-2 bg-muted/60 text-muted-foreground shadow-none tabular-nums">
@@ -430,7 +428,10 @@ export const SubjectRow = memo(({
 												variant="ghost"
 												size="xs"
 												disabled={disabled || quarantined}
-												onClick={() => handleToggleGrade(gradeLevel, gradeSections)}
+												onClick={(e) => {
+													e.stopPropagation();
+													handleToggleGrade(gradeLevel, gradeSections);
+												}}
 												className="h-7 px-3 text-[11px] font-bold uppercase text-primary hover:bg-primary/5 border border-primary/20"
 											>
 												{selectedInGrade > 0 ? 'Unassign Grade' : 'Assign Grade'}
@@ -473,7 +474,6 @@ export const SubjectRow = memo(({
 																		!isSelected && isRotationFamily && !blocked
 																			? Math.max(0, resolveSectionHoverDeltaMinutes?.(subject, section.id) ?? subject.minMinutesPerWeek)
 																			: 0;
-																	const isNoWeeklyIncrease = isRotationFamily && !isSelected && !blocked && hoverDeltaMinutes <= 0;
 
 														const requiredSpec = section.assignmentSpecializationCode;
 														const facultySpec = selectedFacultySpecialization;
@@ -483,7 +483,19 @@ export const SubjectRow = memo(({
 														return (
 															<div
 																key={section.id}
-																className={`group/section relative flex flex-col items-start gap-2 rounded-xl border px-3.5 py-3 transition-all duration-200 shadow-sm ${
+																onClick={() => !disabled && !blocked && !isSystemAssignedSection && toggleSection(section.id)}
+																onMouseEnter={() => {
+																	if (!isSelected && !blocked) {
+																		const delta = isRotationFamily ? hoverDeltaMinutes : subject.minMinutesPerWeek;
+																		if (delta > 0) {
+																			onHoverLoadMinutes?.(delta);
+																		}
+																	}
+																}}
+																onMouseLeave={() => onClearHoverLoad?.()}
+																className={cn(
+																	"group/section relative flex flex-col items-start gap-2 rounded-xl border px-3.5 py-3 transition-all duration-200 shadow-sm select-none",
+																	!disabled && !blocked && !isSystemAssignedSection && "cursor-pointer",
 																	isSystemAssignedSection
 																		? 'border-amber-300 bg-amber-50/50 shadow-inner'
 																		: isHardConflict
@@ -491,15 +503,15 @@ export const SubjectRow = memo(({
 																		: isStaleOwner
 																		? 'border-amber-400/60 bg-amber-50/40'
 																		: blocked
-																		? 'border-muted bg-muted/40 opacity-70'
+																		? 'border-muted bg-muted/40 opacity-70 cursor-not-allowed'
 																		: isSelected
 																		? 'border-primary/50 bg-primary/5 ring-1 ring-primary/10 shadow-primary/5'
 																		: isPerfectMatch
-																		? 'border-emerald-300 bg-emerald-50/30'
+																		? 'border-emerald-300 bg-emerald-50/30 hover:border-primary/40 hover:shadow-md'
 																		: isRotationFamily 
 																		? 'bg-card border-violet-200 hover:border-violet-400 hover:shadow-md'
 																		: 'bg-card border-border/80 hover:border-primary/40 hover:shadow-md'
-																}`}
+																)}
 															>
 																<div className="flex items-center justify-between w-full mb-1">
 																	<div className="flex items-center gap-2.5 min-w-0">
@@ -507,16 +519,10 @@ export const SubjectRow = memo(({
 																			checked={isSelected}
 																			onCheckedChange={() => toggleSection(section.id)}
 																			disabled={disabled || blocked || isSystemAssignedSection}
-																			onMouseEnter={() => {
-																					if (!isSelected && !blocked) {
-																						const delta = isRotationFamily ? hoverDeltaMinutes : subject.minMinutesPerWeek;
-																						if (delta > 0) {
-																							onHoverLoadMinutes?.(delta);
-																						}
-																				}
-																			}}
-																			onMouseLeave={() => onClearHoverLoad?.()}
-																			className={`size-4 rounded transition-opacity shadow-none border-border/60 ${isSystemAssignedSection ? 'opacity-0' : 'opacity-100'}`}
+																			className={cn(
+																				"size-4 rounded transition-opacity shadow-none border-border/60 pointer-events-none",
+																				isSystemAssignedSection ? 'opacity-0' : 'opacity-100'
+																			)}
 																		/>
 																		<span className={`text-[0.75rem] font-black leading-tight truncate ${isSelected ? 'text-primary' : 'text-foreground'}`}>
 																			{section.name}
@@ -526,22 +532,6 @@ export const SubjectRow = memo(({
 																	<div className="flex items-center gap-1.5 shrink-0 ml-2">
 																		{isSystemAssignedSection && (
 																			<Lock className="size-3 text-amber-600" />
-																		)}
-																		{isSelected && !disabled && !isSystemAssignedSubject && (
-																			<Tooltip>
-																				<TooltipTrigger asChild>
-																					<div
-																						onClick={(e) => {
-																							e.stopPropagation();
-																							toggleSection(section.id);
-																						}}
-																						className="opacity-0 group-hover/section:opacity-100 transition-opacity bg-rose-500 hover:bg-rose-600 text-white rounded-full p-0.5 shadow-sm cursor-pointer"
-																					>
-																						<X className="size-2.5" />
-																					</div>
-																				</TooltipTrigger>
-																				<TooltipContent side="top" className="text-xs font-bold">Remove assignment</TooltipContent>
-																			</Tooltip>
 																		)}
 																	</div>
 																</div>

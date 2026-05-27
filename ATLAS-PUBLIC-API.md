@@ -210,6 +210,7 @@ Refresh special-program subject contract state from upstream offerings plus mirr
 Notes:
 - `activeSpecialProgramTracks` is derived from persisted specialization ownership truth and is intended for SPA/SPS breakout lane visibility.
 - This endpoint is the operator-facing contract for specialization track exposure used by teaching-load and review surfaces.
+- `SPA_SPEC` and `SPS_SPEC` subject rows normalize their owner-department truth to `MAPEH`, so ordinary MAPEH staffing remains the default qualification baseline for breakout lanes.
 
 ---
 
@@ -1072,6 +1073,8 @@ Get the current published schedule payload for a school.
 
 ### `GET /schools/:schoolId/schedules/published/:termId`
 Get published schedule payload for a specific term.
+
+Published entries may include `cohortName`, `specializationCode`, and `specializationLabel` so downstream consumers can distinguish explicit breakout lanes from umbrella subject rows.
 
 ### `GET /schools/:schoolId/schedules/published/sections/:sectionId`
 Get current published schedule view for a section.

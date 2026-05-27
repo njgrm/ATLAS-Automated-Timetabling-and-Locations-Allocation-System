@@ -19,6 +19,7 @@ import { useTeachingLoadUI } from '@/hooks/useTeachingLoadUI';
 import { TeacherGridMode } from '@/components/faculty-assignments/TeacherGridMode';
 import { SectionGridMode } from '@/components/faculty-assignments/SectionGridMode';
 import { WorkloadInspector } from '@/components/faculty-assignments/WorkloadInspector';
+import { SectionInspector } from '@/components/faculty-assignments/SectionInspector';
 import { WorkspaceToolbar } from '@/components/faculty-assignments/WorkspaceToolbar';
 import { TeachingLoadModals } from '@/components/faculty-assignments/TeachingLoadModals';
 import { StaffingAuditSheet } from '@/components/faculty-assignments/StaffingAuditSheet';
@@ -241,9 +242,11 @@ export default function TeachingLoad() {
 			const gradeMatch = ui.gradeLevelFilter === 'all' || section.displayOrder === Number(ui.gradeLevelFilter);
 			if (!gradeMatch) continue;
 			data.subjects.forEach((subject) => {
+				const gradeCompatible = subject.gradeLevels.length === 0 || subject.gradeLevels.includes(section.displayOrder);
 				const programType = (section.programType ?? 'REGULAR').toUpperCase();
 				const programCompatible = subject.programScopes.length === 0 || subject.programScopes.some(s => s.toUpperCase() === programType);
-				if (programCompatible) {
+				
+				if (gradeCompatible && programCompatible) {
 					if (!grouped[subject.id]) grouped[subject.id] = [];
 					grouped[subject.id].push(section);
 				}
@@ -374,37 +377,52 @@ export default function TeachingLoad() {
 								sectionModeFilter={ui.sectionModeFilter}
 								onSectionModeFilterChange={ui.setSectionModeFilter}
 								effectiveAssignmentsByFaculty={data.effectiveAssignmentsByFaculty}
+								selectedSectionId={ui.selectedSectionId}
+								onSelectSection={ui.setSelectedSectionId}
+								onSave={handleSave}
+								hasDraft={data.activeDraftCount > 0}
+								onSwapSectionOwnership={handleSwapRequest}
 							/>
 						)}
 					</div>
 
 					{/* Persistent Inspector Area */}
 					<div className="w-80 shrink-0 border-l border-border/40 shadow-xl z-10 bg-background">
-						<WorkloadInspector
-							selected={data.selected}
-							loadProfile={ui.loadProfile}
-							rotationTermBreakdown={ui.loadProfile.rotationFamilies.map(f => ({
-								family: f.family,
-								peakTermMinutesPerWeek: f.creditedHours * 60,
-								peakTermRank: f.dominantTermRank ?? 1,
-								peakTermLabel: f.dominantTermLabel ?? '',
-								termGroupId: f.termGroupId ?? '',
-								termCount: f.termCount ?? 3,
-								termBuckets: f.termBuckets.map(b => ({
-									termRank: b.termRank,
-									termLabel: b.termLabel,
-									termGroupId: b.termGroupId,
-									termCount: b.termCount,
-									creditedMinutesPerWeek: b.creditedMinutes,
-									unitCount: b.unitCount,
-									subjectCodes: b.subjectCodes,
-								})),
-								isPeakTerm: false // added for type compatibility if needed
-							}))}
-							hoveredIncomingMinutes={ui.hoveredIncomingMinutes}
-							previewLoadHours={previewLoadHours}
-							isReadOnlyMode={data.isReadOnlyMode}
-						/>
+						{ui.viewMode === 'teacher' ? (
+							<WorkloadInspector
+								selected={data.selected}
+								loadProfile={ui.loadProfile}
+								rotationTermBreakdown={ui.loadProfile.rotationFamilies.map(f => ({
+									family: f.family,
+									peakTermMinutesPerWeek: f.creditedHours * 60,
+									peakTermRank: f.dominantTermRank ?? 1,
+									peakTermLabel: f.dominantTermLabel ?? '',
+									termGroupId: f.termGroupId ?? '',
+									termCount: f.termCount ?? 3,
+									termBuckets: f.termBuckets.map(b => ({
+										termRank: b.termRank,
+										termLabel: b.termLabel,
+										termGroupId: b.termGroupId,
+										termCount: b.termCount,
+										creditedMinutesPerWeek: b.creditedMinutes,
+										unitCount: b.unitCount,
+										subjectCodes: b.subjectCodes,
+									})),
+									isPeakTerm: false // added for type compatibility if needed
+								}))}
+								hoveredIncomingMinutes={ui.hoveredIncomingMinutes}
+								previewLoadHours={previewLoadHours}
+								isReadOnlyMode={data.isReadOnlyMode}
+							/>
+						) : (
+							<SectionInspector
+								section={ui.selectedSectionId ? data.sectionMap.get(ui.selectedSectionId) ?? null : null}
+								subjects={data.subjects}
+								assignmentsByFaculty={data.effectiveAssignmentsByFaculty}
+								savedOwnershipMap={data.savedOwnershipMap}
+								pendingOwnershipMap={data.pendingOwnershipMap}
+							/>
+						)}
 					</div>
 				</div>
 			</div>

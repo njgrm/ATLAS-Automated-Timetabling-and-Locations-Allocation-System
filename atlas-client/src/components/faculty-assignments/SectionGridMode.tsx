@@ -11,6 +11,7 @@ import {
 	Users,
 	UserPlus,
 	RotateCcw,
+	Save,
 	X,
 	Check,
 	UserCheck,
@@ -24,8 +25,8 @@ import { Skeleton } from '@/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { cn } from '@/lib/utils';
-import { getAssignmentOwnershipKey, matchesOwnershipDepartment } from '@/lib/faculty-assignment-helpers';
-import type { Subject, ExternalSection, FacultySummary, FacultyOwnershipState, FacultyAssignmentDraft } from '@/types';
+import { getAssignmentOwnershipKey, matchesOwnershipDepartment, type FacultyOwnershipState } from '@/lib/faculty-assignment-helpers';
+import type { Subject, ExternalSection, FacultySummary, FacultyAssignmentDraft } from '@/types';
 
 type SectionGridModeProps = {
 	loading: boolean;
@@ -44,6 +45,11 @@ type SectionGridModeProps = {
 	sectionModeFilter: 'all' | 'unassigned' | 'constrained';
 	onSectionModeFilterChange: (v: any) => void;
 	effectiveAssignmentsByFaculty: Record<number, FacultyAssignmentDraft[]>;
+	selectedSectionId?: number | null;
+	onSelectSection?: (id: number | null) => void;
+	onSave?: () => void;
+	hasDraft?: boolean;
+	onSwapSectionOwnership?: (subjectId: number, sectionId: number, fromFacultyId: number) => void;
 };
 
 export function SectionGridMode({
@@ -63,9 +69,13 @@ export function SectionGridMode({
 	sectionModeFilter,
 	onSectionModeFilterChange,
 	effectiveAssignmentsByFaculty,
+	selectedSectionId,
+	onSelectSection,
+	onSave,
+	hasDraft,
+	onSwapSectionOwnership,
 }: SectionGridModeProps) {
 	const [searchQuery, setSearchQuery] = useState('');
-	const [expandedSectionId, setExpandedSectionId] = useState<number | null>(null);
 
 	const sectionRows = useMemo(() => {
 		// Identify unique sections from sectionsBySubject
@@ -120,12 +130,17 @@ export function SectionGridMode({
 	}, [subjects, sectionsBySubject, savedOwnershipMap, pendingOwnershipMap, activeFacultyIds, searchQuery, sectionModeFilter]);
 
 	const handleRowClick = (id: number) => {
-		setExpandedSectionId(expandedSectionId === id ? null : id);
+		onSelectSection?.(selectedSectionId === id ? null : id);
 	};
 
-	const handleAssign = (subjectId: number, sectionId: number, facultyId: number) => {
+	const handleAssign = (subjectId: number, sectionId: number, facultyId: number, currentOwnerId?: number) => {
 		if (isReadOnlyMode || saving) return;
 		
+		if (currentOwnerId && currentOwnerId !== facultyId) {
+			onSwapSectionOwnership?.(subjectId, sectionId, currentOwnerId);
+			return;
+		}
+
 		const teacherAssignments = effectiveAssignmentsByFaculty[facultyId] ?? [];
 		const existingSubjectAssignment = teacherAssignments.find(a => a.subjectId === subjectId);
 		
@@ -152,31 +167,48 @@ export function SectionGridMode({
 
 	return (
 		<div className="flex-1 flex flex-col min-h-0 bg-muted/5">
-			<div className="shrink-0 p-6 border-b border-border/40 bg-background/50 backdrop-blur-sm">
-				<div className="flex flex-wrap items-center gap-3">
-					<div className="relative flex-1 min-w-[200px] max-w-sm">
-						<Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-						<Input 
-							placeholder="Search sections..." 
-							value={searchQuery}
-							onChange={(e) => setSearchQuery(e.target.value)}
-							className="pl-10 h-10 bg-background shadow-sm border-border/60"
-						/>
+			<div className="shrink-0 p-6 border-b border-border/40 bg-background/50 backdrop-blur-sm space-y-4">
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<div className="flex items-center gap-3 flex-1 min-w-0">
+						<div className="relative flex-1 min-w-[200px] max-w-sm">
+							<Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+							<Input 
+								placeholder="Search sections..." 
+								value={searchQuery}
+								onChange={(e) => setSearchQuery(e.target.value)}
+								className="pl-10 h-10 bg-background shadow-sm border-border/60"
+							/>
+						</div>
+
+						<Select value={sectionModeFilter} onValueChange={onSectionModeFilterChange}>
+							<SelectTrigger className="w-[180px] h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
+								<div className="flex items-center gap-2">
+									<ListFilter className="size-3.5 opacity-50" />
+									<SelectValue placeholder="Filter View" />
+								</div>
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All Sections</SelectItem>
+								<SelectItem value="unassigned" className="text-xs font-bold uppercase tracking-tight">Needs Staffing</SelectItem>
+								<SelectItem value="constrained" className="text-xs font-bold uppercase tracking-tight">Special Programs</SelectItem>
+							</SelectContent>
+						</Select>
 					</div>
 
-					<Select value={sectionModeFilter} onValueChange={onSectionModeFilterChange}>
-						<SelectTrigger className="w-[180px] h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
-							<div className="flex items-center gap-2">
-								<ListFilter className="size-3.5 opacity-50" />
-								<SelectValue placeholder="Filter View" />
-							</div>
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All Sections</SelectItem>
-							<SelectItem value="unassigned" className="text-xs font-bold uppercase tracking-tight">Needs Staffing</SelectItem>
-							<SelectItem value="constrained" className="text-xs font-bold uppercase tracking-tight">Special Programs</SelectItem>
-						</SelectContent>
-					</Select>
+					{hasDraft && (
+						<div className="flex items-center gap-2 bg-sky-50 border border-sky-200 px-3 py-1 rounded-xl shadow-sm animate-in fade-in slide-in-from-right-2">
+							<span className="text-[0.65rem] font-black uppercase text-sky-700 tracking-widest mr-2">Pending Changes</span>
+							<Button 
+								size="sm" 
+								onClick={onSave} 
+								disabled={saving || isReadOnlyMode}
+								className="h-8 px-4 text-xs font-black uppercase tracking-widest gap-2 bg-sky-600 hover:bg-sky-700 shadow-md ring-2 ring-sky-600/20"
+							>
+								<Save className="size-3.5" />
+								{saving ? 'Saving...' : 'Save All'}
+							</Button>
+						</div>
+					)}
 				</div>
 			</div>
 
@@ -188,7 +220,7 @@ export function SectionGridMode({
 						<p className="text-xs text-muted-foreground/40 mt-1">All sections match your current coverage contract.</p>
 					</div>
 				) : sectionRows.map((row) => {
-					const isExpanded = expandedSectionId === row.section.id;
+					const isExpanded = selectedSectionId === row.section.id;
 					
 					return (
 						<div 
@@ -280,19 +312,29 @@ export function SectionGridMode({
 															.filter(f => !f.isPlaceholder && matchesOwnershipDepartment(f.department ?? null, subject))
 															.map(f => {
 																const isCurrentOwner = owner?.facultyId === f.id;
+																const loadPct = Math.round(f.policyLoadPercentage ?? 0);
 																return (
 																	<button
 																		key={f.id}
 																		disabled={isCurrentOwner || saving || isReadOnlyMode}
-																		onClick={() => handleAssign(subject.id, row.section.id, f.id)}
+																		onClick={() => handleAssign(subject.id, row.section.id, f.id, owner?.facultyId)}
+																		onMouseEnter={() => onHoverTeacher(f.id)}
+																		onMouseLeave={() => onClearHover()}
 																		className={cn(
 																			"flex items-center justify-between p-2 rounded-lg border transition-all text-left",
-																			isCurrentOwner ? "bg-emerald-50 border-emerald-200" : "bg-background border-border/40 hover:border-primary/40 hover:shadow-sm"
+																			isCurrentOwner ? "bg-emerald-50 border-emerald-200 ring-1 ring-emerald-500/10 shadow-sm" : "bg-background border-border/40 hover:border-primary/40 hover:shadow-sm"
 																		)}
 																	>
 																		<div className="min-w-0">
-																			<p className="text-[0.65rem] font-black uppercase truncate">{f.lastName}, {f.firstName}</p>
-																			<p className="text-[0.55rem] font-bold text-muted-foreground uppercase tracking-widest">{Math.round(f.policyLoadPercentage ?? 0)}% Load</p>
+																			<p className={cn("text-[0.65rem] font-black uppercase truncate", isCurrentOwner ? "text-emerald-900" : "text-foreground")}>
+																				{f.lastName}, {f.firstName}
+																			</p>
+																			<p className={cn(
+																				"text-[0.55rem] font-bold uppercase tracking-widest",
+																				loadPct > 100 ? "text-rose-600" : loadPct > 80 ? "text-amber-600" : "text-emerald-600"
+																			)}>
+																				{loadPct}% Load
+																			</p>
 																		</div>
 																		{isCurrentOwner ? <UserCheck className="size-3 text-emerald-600" /> : <UserPlus className="size-3 text-muted-foreground" />}
 																	</button>

@@ -12,6 +12,7 @@ import {
 	RotateCcw,
 	Undo2,
 	Redo2,
+	Star,
 	LayoutGrid,
 	ListFilter
 } from 'lucide-react';
@@ -24,8 +25,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/ui/switch';
 import { Label } from '@/ui/label';
 import { cn } from '@/lib/utils';
-import { getFacultyComparableLoadHours } from '@/lib/faculty-assignment-helpers';
-import type { FacultySummary, FacultyAssignmentDraft, Subject, ExternalSection, FacultyOwnershipState } from '@/types';
+import { getFacultyComparableLoadHours, type FacultyOwnershipState } from '@/lib/faculty-assignment-helpers';
+import type { FacultySummary, FacultyAssignmentDraft, Subject, ExternalSection } from '@/types';
 import { SubjectRow } from './SubjectRow';
 
 type TeacherGridModeProps = {
@@ -253,6 +254,14 @@ export function TeacherGridMode({
 													<h4 className="text-sm font-black uppercase tracking-tight truncate">
 														{member.lastName}, {member.firstName}
 													</h4>
+													{member.isClassAdviser && (
+														<Tooltip>
+															<TooltipTrigger asChild>
+																<Star className="size-3 text-amber-500 fill-amber-500 shrink-0" />
+															</TooltipTrigger>
+															<TooltipContent side="top" className="text-[0.6rem] font-black uppercase">Class Adviser</TooltipContent>
+														</Tooltip>
+													)}
 													{hasDraft && <Badge variant="secondary" className="h-4 px-1.5 text-[0.6rem] font-black uppercase bg-sky-100 text-sky-700 animate-pulse">Draft</Badge>}
 												</div>
 												<p className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest truncate">
@@ -290,7 +299,7 @@ export function TeacherGridMode({
 										{isExpanded && (
 											<div className="p-3 bg-muted/5 space-y-4">
 												{/* Actions Bar (Sticky) */}
-												<div className="sticky top-0 z-20 flex items-center justify-between gap-0 bg-background/95 backdrop-blur-sm p-2 rounded-lg border border-border/40 shadow-sm mb-2">
+												<div className="sticky top-[calc(0px-1.5rem)] z-20 flex items-center justify-between gap-0 bg-background/95 backdrop-blur-sm p-2 border-b border-border/40 shadow-sm">
 													<div className="flex items-center gap-2">
 														<div className="flex items-center bg-muted/20 rounded-md p-0.5 border border-border/40">
 															<Button size="icon-xs" variant="ghost" className="h-6 w-7" onClick={onUndo} disabled={!canUndo || saving || isReadOnlyMode}><Undo2 className="size-3" /></Button>

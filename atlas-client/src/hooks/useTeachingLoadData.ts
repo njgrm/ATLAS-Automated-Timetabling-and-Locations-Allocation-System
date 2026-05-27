@@ -90,7 +90,7 @@ export function useTeachingLoadData() {
 	const canPersistAssignments = isOnline && Boolean(activeSchoolYearId) && (dataSource === 'live' || hasLocalWriteEvidence);
 	const canRunStaffingNeeds = isOnline && hasSettledRuntimeSource && Boolean(activeSchoolYearId);
 	const canRunGlobalReset = isOnline && dataSource === 'live' && Boolean(activeSchoolYearId);
-	const splitBrainQuarantineRequired = splitBrainIncident?.quarantine.required === true;
+	const splitBrainQuarantineRequired = splitBrainIncident?.quarantine.required === true && splitBrainIncident?.quarantine.severity !== 'WARNING';
 	const splitBrainReasonLabel = splitBrainIncident?.quarantine.message ?? 'Assignments temporarily locked while data review finishes';
 	const isReadOnlyMode = !canPersistAssignments || splitBrainQuarantineRequired;
 
