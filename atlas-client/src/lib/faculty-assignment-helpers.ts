@@ -1,11 +1,22 @@
-import type { ExternalSection, Subject, FacultySummary } from '../types';
+import type { 
+	ExternalSection, 
+	Subject, 
+	FacultySummary,
+	LoadStatus,
+	FacultyAssignmentDraft,
+	FacultyOwnershipState,
+	SubjectSectionOwnershipIndexEntry,
+	LoadBreakdownItem,
+	RotationFamilyBreakdownItem,
+	LoadProfile,
+} from '../types';
 import { isDepartmentMatch } from './grade-labels';
+
+export type { FacultyAssignmentDraft, FacultyOwnershipState, LoadStatus, SubjectSectionOwnershipIndexEntry };
 
 export const STANDARD_WEEKLY_TEACHING_HOURS = 30;
 export const MAX_WEEKLY_TEACHING_HOURS = 40;
 export const CLASS_ADVISER_EQUIVALENT_HOURS = 5;
-
-export type LoadStatus = 'below-standard' | 'compliant' | 'overload-allowed' | 'over-cap';
 
 export function normalizeDepartmentCode(value: string | null | undefined): string {
 	const normalized = (value ?? '').trim().toUpperCase();
@@ -59,78 +70,6 @@ export function getFacultyComparableLoadHours(member: FacultySummary): number {
 	}
 	return member.policyCreditedHours ?? member.subjectHours ?? 0;
 }
-
-export type FacultyAssignmentDraft = {
-	subjectId: number;
-	sectionIds: number[];
-	gradeLevels: number[];
-};
-
-export type FacultyOwnershipState = {
-	facultyId: number;
-	facultyName: string;
-	source: 'saved' | 'pending';
-};
-
-export type SubjectSectionOwnershipIndexEntry = {
-	subjectId: number;
-	sectionId: number;
-	facultyId: number;
-	facultyName: string;
-};
-
-export type LoadBreakdownItem = {
-	subjectId: number;
-	subjectName: string;
-	subjectCode: string;
-	rotationFamily: string | null;
-	rotationTermRank: number | null;
-	rotationTermLabel: string | null;
-	rotationTermGroupId: string | null;
-	rotationTermCount: number | null;
-	isRotationDuplicate: boolean;
-	sectionId: number;
-	sectionName: string;
-	gradeLevel: number;
-	minutesPerWeek: number;
-	totalMinutes: number;
-};
-
-export type RotationFamilyBreakdownItem = {
-	family: string;
-	rawHours: number;
-	creditedHours: number;
-	overcountHours: number;
-	unitCount: number;
-	dominantTermRank?: number | null;
-	dominantTermLabel?: string | null;
-	termGroupId?: string | null;
-	termCount?: number | null;
-	termBuckets: {
-		termRank: number | null;
-		termLabel: string | null;
-		termGroupId: string | null;
-		termCount: number | null;
-		creditedMinutes: number;
-		unitCount: number;
-		subjectCodes: string[];
-	}[];
-	subjectCodes: string[];
-};
-
-export type LoadProfile = {
-	actualTeachingHours: number;
-	rawTeachingHours: number;
-	rotationOvercountHours: number;
-	equivalentHours: number;
-	creditedTotalHours: number;
-	overloadHours: number;
-	overCapHours: number;
-	status: LoadStatus;
-	statusLabel: string;
-	rotationFamilies: RotationFamilyBreakdownItem[];
-	breakdown: LoadBreakdownItem[];
-};
 
 function resolveRotationFamily(subject: Pick<Subject, 'code' | 'rotationFamily'>): string | null {
 	const explicit = (subject.rotationFamily ?? '').trim().toUpperCase();

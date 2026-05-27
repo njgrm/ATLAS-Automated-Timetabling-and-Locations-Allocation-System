@@ -191,7 +191,7 @@ export function SectionGridMode({
 			<div className="shrink-0 p-6 border-b border-border/40 bg-background/50 backdrop-blur-sm space-y-4">
 				<div className="flex flex-wrap items-center justify-between gap-3">
 					<div className="flex items-center gap-3 flex-1 min-w-0">
-						<div className="relative flex-1 min-w-[200px] max-w-sm">
+						<div className="relative flex-1 min-w-50 max-w-sm">
 							<Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
 							<Input 
 								placeholder="Search sections..." 
@@ -202,7 +202,7 @@ export function SectionGridMode({
 						</div>
 
 						<Select value={sectionModeFilter} onValueChange={onSectionModeFilterChange}>
-							<SelectTrigger className="w-[180px] h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
+							<SelectTrigger className="w-45 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
 								<div className="flex items-center gap-2">
 									<ListFilter className="size-3.5 opacity-50" />
 									<SelectValue placeholder="Filter View" />
@@ -280,7 +280,7 @@ export function SectionGridMode({
 								</div>
 
 								<div className="flex items-center gap-6 px-4">
-									<div className="text-right min-w-[6rem]">
+									<div className="text-right min-w-24">
 										<p className={cn(
 											"text-xs font-semibold tabular-nums",
 											row.isCompleted ? "text-emerald-600" : "text-amber-600"
@@ -346,7 +346,7 @@ export function SectionGridMode({
 																		<p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 mb-1">Qualified Candidates</p>
 																		<p className="text-xs font-bold text-foreground truncate">{subject.name}</p>
 																	</div>
-																	<div className="max-h-[300px] overflow-auto no-scrollbar p-1">
+																	<div className="max-h-75 overflow-auto no-scrollbar p-1">
 																		{candidates.length === 0 ? (
 																			<p className="p-4 text-center text-xs font-bold text-muted-foreground italic uppercase">No qualified teachers found</p>
 																		) : candidates.map(f => {

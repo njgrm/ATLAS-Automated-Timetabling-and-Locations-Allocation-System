@@ -54,6 +54,8 @@ app.use(
 				process.env.ENROLLPRO_CLIENT_URL || 'http://100.88.55.125:5173',
 				'http://100.88.55.125:5173',
 				'http://100.88.55.125:5174',
+				'http://localhost:5173',
+				'http://localhost:5174',
 				'http://localhost:5175',
 				'http://localhost:5176',
 				// Tailscale / LAN origins — comma-separated via env

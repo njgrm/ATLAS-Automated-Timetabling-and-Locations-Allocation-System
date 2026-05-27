@@ -1627,3 +1627,179 @@ export interface TutorialStep {
 	content: string;
 	roles?: string[];
 }
+
+export type CoverageMode =
+	| 'REAL_FACULTY_STANDARD'
+	| 'REAL_FACULTY_HARD_CAP'
+	| 'REAL_FACULTY_THEN_TEACHER_X';
+
+export type StaffingCrossTrainee = {
+	department: string;
+	availableTeachers: number;
+	totalSpareHours: number;
+	qualifiedRecoveryHoursPerWeek?: number;
+};
+
+export type StaffingTruthBucket = {
+	shortageRows: number;
+	shortageConcurrentHoursPerWeek: number;
+	shortageConcurrentMinutesPerWeek: number;
+	rowsClosedByRealFaculty: number;
+	rowsClosedByTeacherX: number;
+};
+
+export type StaffingTruthComparison = {
+	baseline: {
+		totalTeachableRows: number;
+		realCoveredRows: number;
+		syntheticCoveredRows: number;
+		unassignedRows: number;
+	};
+	realOnly: StaffingTruthBucket;
+	hardCap: StaffingTruthBucket;
+	teacherX: StaffingTruthBucket;
+};
+
+export type StaffingReport = {
+	department: string;
+	dominantShortageDepartment?: string;
+	unassignedSections: number;
+	missingHoursPerWeek: number;
+	concurrentUnassignedSections?: number;
+	concurrentMissingHoursPerWeek?: number;
+	recoverableConcurrentRows?: number;
+	recoverableConcurrentMissingHoursPerWeek?: number;
+	recoverableConcurrentMissingMinutesPerWeek?: number;
+	constrainedConcurrentRows?: number;
+	constrainedConcurrentMissingHoursPerWeek?: number;
+	constrainedConcurrentMissingMinutesPerWeek?: number;
+	recommendedNewHires: number;
+	internalCrossTrainees: StaffingCrossTrainee[];
+	missingMinutesPerWeek: number;
+	concurrentMissingMinutesPerWeek?: number;
+	rotationAdjustedMinutesPerWeek?: number;
+	shortages: Array<{
+		department: string;
+		count: number;
+		missingMinutesPerWeek: number;
+		concurrentCount?: number;
+		concurrentMissingMinutesPerWeek?: number;
+		recoverableConcurrentCount?: number;
+		recoverableConcurrentMissingMinutesPerWeek?: number;
+		constrainedConcurrentCount?: number;
+		constrainedConcurrentMissingMinutesPerWeek?: number;
+		rotationAdjustedMinutesPerWeek?: number;
+		sections: Array<{
+			subjectId: number;
+			subjectCode: string;
+			subjectName: string;
+			sectionId: number;
+			sectionName: string;
+			programType: string;
+		}>;
+	}>;
+};
+
+export type AutoFillSummaryResult = {
+	preserved: number;
+	created: number;
+	assignmentsCreated: number;
+	uniqueTeachersAffected: number;
+	unresolved: number;
+	coverageMode?: CoverageMode;
+	warnings: string[];
+	sectionSource?: 'enrollpro' | 'stub' | 'cached-enrollpro' | 'atlas-mirror';
+	sectionFallbackReason?: string | null;
+	staffingReport: StaffingReport;
+	staffingTruth?: StaffingTruthComparison;
+	teacherXResolution?: {
+		applied: boolean;
+		rowsClosedByTeacherX: number;
+		createdPlaceholders: number;
+		reusedPlaceholders: number;
+		placeholderAssignmentsUpserted: number;
+		resolvedSubjectCodes: string[];
+		stillUncoveredSubjectCodes: string[];
+	};
+	specialProgramApprovalQueue?: {
+		subjectCode: string;
+		subjectName: string;
+		facultyId: number;
+		facultyName: string;
+		department: string | null;
+		specialization: string | null;
+		currentTotalAssignedPairs: number;
+		requiredSpecializationCodes: string[];
+		reason: string;
+	}[];
+};
+
+export type LoadStatus = 'below-standard' | 'compliant' | 'overload-allowed' | 'over-cap';
+
+export type LoadBreakdownItem = {
+	subjectId: number;
+	subjectName: string;
+	subjectCode: string;
+	rotationFamily: string | null;
+	rotationTermRank: number | null;
+	rotationTermLabel: string | null;
+	rotationTermGroupId: string | null;
+	rotationTermCount: number | null;
+	isRotationDuplicate: boolean;
+	sectionId: number;
+	sectionName: string;
+	gradeLevel: number;
+	minutesPerWeek: number;
+	totalMinutes: number;
+};
+
+export type RotationFamilyBreakdownItem = {
+	family: string;
+	rawHours: number;
+	creditedHours: number;
+	overcountHours: number;
+	unitCount: number;
+	dominantTermRank?: number | null;
+	dominantTermLabel?: string | null;
+	termGroupId?: string | null;
+	termCount?: number | null;
+	termBuckets: {
+		termRank: number | null;
+		termLabel: string | null;
+		termGroupId: string | null;
+		termCount: number | null;
+		creditedMinutes: number;
+		unitCount: number;
+		subjectCodes: string[];
+	}[];
+	subjectCodes: string[];
+};
+
+export type LoadProfile = {
+	actualTeachingHours: number;
+	rawTeachingHours: number;
+	rotationOvercountHours: number;
+	equivalentHours: number;
+	creditedTotalHours: number;
+	overloadHours: number;
+	overCapHours: number;
+	status: LoadStatus;
+	statusLabel: string;
+	rotationFamilies: RotationFamilyBreakdownItem[];
+	breakdown: LoadBreakdownItem[];
+};
+
+export type FacultyOwnershipState = {
+	facultyId: number;
+	facultyName: string;
+	source: 'saved' | 'pending';
+};
+
+export type SubjectSectionOwnershipIndexEntry = {
+	subjectId: number;
+	sectionId: number;
+	facultyId: number;
+	facultyName: string;
+};
+
+

@@ -305,7 +305,7 @@ export const SubjectRow = memo(({
 											Rotating Term Lane
 										</Badge>
 									</TooltipTrigger>
-											<TooltipContent side="top" className="text-xs font-bold max-w-[280px] p-3">
+											<TooltipContent side="top" className="text-xs font-bold max-w-70 p-3">
 												<p className="mb-1">Rotational Weekly Lane</p>
 												<p className="text-muted-foreground leading-relaxed font-medium italic">
 													Year-round classes stay every week. Rotational Science/TLE contributes only from the busiest term.
@@ -570,7 +570,7 @@ export const SubjectRow = memo(({
 																					<TooltipTrigger asChild>
 																						<div className="flex items-center gap-1 cursor-help">
 																							<div className={`size-1.5 rounded-full shrink-0 ${isHardConflict ? 'bg-rose-500' : isStaleOwner ? 'bg-amber-400 opacity-50' : 'bg-amber-500'}`} />
-																							<span className={`text-xs font-bold uppercase tracking-tight truncate max-w-[80px] ${isHardConflict ? 'text-rose-700' : isStaleOwner ? 'text-amber-700/70' : 'text-amber-700'}`}>
+																							<span className={`text-xs font-bold uppercase tracking-tight truncate max-w-20 ${isHardConflict ? 'text-rose-700' : isStaleOwner ? 'text-amber-700/70' : 'text-amber-700'}`}>
 																								{conflictLabel}
 																							</span>
 																						</div>

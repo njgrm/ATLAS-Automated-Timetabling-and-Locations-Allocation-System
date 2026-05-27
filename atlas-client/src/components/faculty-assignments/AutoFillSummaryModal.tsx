@@ -11,38 +11,16 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from '@/ui/dialog';
+import type { 
+	StaffingCrossTrainee, 
+	CoverageMode, 
+	StaffingTruthBucket, 
+	StaffingTruthComparison,
+	StaffingReport,
+	AutoFillSummaryResult
+} from '@/types';
 
-export type StaffingCrossTrainee = {
-	department: string;
-	availableTeachers: number;
-	totalSpareHours: number;
-	qualifiedRecoveryHoursPerWeek?: number;
-};
-
-export type CoverageMode =
-	| 'REAL_FACULTY_STANDARD'
-	| 'REAL_FACULTY_HARD_CAP'
-	| 'REAL_FACULTY_THEN_TEACHER_X';
-
-export type StaffingTruthBucket = {
-	shortageRows: number;
-	shortageConcurrentHoursPerWeek: number;
-	shortageConcurrentMinutesPerWeek: number;
-	rowsClosedByRealFaculty: number;
-	rowsClosedByTeacherX: number;
-};
-
-export type StaffingTruthComparison = {
-	baseline: {
-		totalTeachableRows: number;
-		realCoveredRows: number;
-		syntheticCoveredRows: number;
-		unassignedRows: number;
-	};
-	realOnly: StaffingTruthBucket;
-	hardCap: StaffingTruthBucket;
-	teacherX: StaffingTruthBucket;
-};
+export type { AutoFillSummaryResult, CoverageMode };
 
 export type SpecialProgramApprovalQueueEntry = {
 	subjectCode: string;
@@ -54,70 +32,6 @@ export type SpecialProgramApprovalQueueEntry = {
 	currentTotalAssignedPairs: number;
 	requiredSpecializationCodes: string[];
 	reason: string;
-};
-
-export type StaffingReport = {
-	department: string;
-	dominantShortageDepartment?: string;
-	unassignedSections: number;
-	missingHoursPerWeek: number;
-	concurrentUnassignedSections?: number;
-	concurrentMissingHoursPerWeek?: number;
-	recoverableConcurrentRows?: number;
-	recoverableConcurrentMissingHoursPerWeek?: number;
-	recoverableConcurrentMissingMinutesPerWeek?: number;
-	constrainedConcurrentRows?: number;
-	constrainedConcurrentMissingHoursPerWeek?: number;
-	constrainedConcurrentMissingMinutesPerWeek?: number;
-	recommendedNewHires: number;
-	internalCrossTrainees: StaffingCrossTrainee[];
-	missingMinutesPerWeek: number;
-	concurrentMissingMinutesPerWeek?: number;
-	rotationAdjustedMinutesPerWeek?: number;
-	shortages: Array<{
-		department: string;
-		count: number;
-		missingMinutesPerWeek: number;
-		concurrentCount?: number;
-		concurrentMissingMinutesPerWeek?: number;
-		recoverableConcurrentCount?: number;
-		recoverableConcurrentMissingMinutesPerWeek?: number;
-		constrainedConcurrentCount?: number;
-		constrainedConcurrentMissingMinutesPerWeek?: number;
-		rotationAdjustedMinutesPerWeek?: number;
-		sections: Array<{
-			subjectId: number;
-			subjectCode: string;
-			subjectName: string;
-			sectionId: number;
-			sectionName: string;
-			programType: string;
-		}>;
-	}>;
-};
-
-export type AutoFillSummaryResult = {
-	preserved: number;
-	created: number;
-	assignmentsCreated: number;
-	uniqueTeachersAffected: number;
-	unresolved: number;
-	coverageMode?: CoverageMode;
-	warnings: string[];
-	sectionSource?: 'enrollpro' | 'stub' | 'cached-enrollpro' | 'atlas-mirror';
-	sectionFallbackReason?: string | null;
-	staffingReport: StaffingReport;
-	staffingTruth?: StaffingTruthComparison;
-	teacherXResolution?: {
-		applied: boolean;
-		rowsClosedByTeacherX: number;
-		createdPlaceholders: number;
-		reusedPlaceholders: number;
-		placeholderAssignmentsUpserted: number;
-		resolvedSubjectCodes: string[];
-		stillUncoveredSubjectCodes: string[];
-	};
-	specialProgramApprovalQueue?: SpecialProgramApprovalQueueEntry[];
 };
 
 type AutoFillSummaryModalProps = {

@@ -4,10 +4,11 @@ import type {
 	Subject, 
 	ExternalSection, 
 	FacultyAssignmentDraft,
+	CoverageMode,
+	AutoFillSummaryResult,
 	TeachingLoadCoverageTotals,
 	TeachingLoadIntegrityDiagnostics,
 	TeachingLoadSplitBrainReconcileResult,
-	AutoFillSummaryResult,
 } from '@/types';
 import { 
 	getFacultyComparableLoadHours, 

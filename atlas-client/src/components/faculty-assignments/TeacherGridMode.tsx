@@ -160,7 +160,7 @@ export function TeacherGridMode({
 			{/* Familiar Discovery Controls */}
 			<div className="shrink-0 p-6 border-b border-border/40 bg-background/50 backdrop-blur-sm space-y-4">
 				<div className="flex flex-wrap items-center gap-3">
-					<div className="relative flex-1 min-w-[200px] max-w-sm">
+					<div className="relative flex-1 min-w-50 max-w-sm">
 						<Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
 						<Input 
 							placeholder="Search teachers..." 
@@ -171,7 +171,7 @@ export function TeacherGridMode({
 					</div>
 					
 					<Select value={departmentFilter} onValueChange={onDepartmentFilterChange}>
-						<SelectTrigger className="w-[180px] h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
+						<SelectTrigger className="w-45 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
 							<div className="flex items-center gap-2">
 								<LayoutGrid className="size-3.5 opacity-50" />
 								<SelectValue placeholder="Department" />
@@ -186,7 +186,7 @@ export function TeacherGridMode({
 					</Select>
 
 					<Select value={filterStatus} onValueChange={onFilterStatusChange}>
-						<SelectTrigger className="w-[160px] h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
+						<SelectTrigger className="w-40 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
 							<div className="flex items-center gap-2">
 								<ListFilter className="size-3.5 opacity-50" />
 								<SelectValue placeholder="Status" />
@@ -200,7 +200,7 @@ export function TeacherGridMode({
 					</Select>
 
 					<Select value={loadFilter} onValueChange={onLoadFilterChange}>
-						<SelectTrigger className="w-[160px] h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
+						<SelectTrigger className="w-40 h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
 							<div className="flex items-center gap-2">
 								<Star className="size-3.5 opacity-50" />
 								<SelectValue placeholder="Load" />
@@ -299,11 +299,11 @@ export function TeacherGridMode({
 													</p>
 													<p className="text-xs font-bold text-muted-foreground uppercase tracking-tighter">Load Status</p>
 												</div>
-												<div className="text-right min-w-[3.5rem]">
+												<div className="text-right min-w-14">
 													<p className="text-xs font-semibold tabular-nums">{subjectsCount}</p>
 													<p className="text-xs font-bold text-muted-foreground uppercase tracking-tighter">Subjects</p>
 												</div>
-												<div className="text-right min-w-[3.5rem]">
+												<div className="text-right min-w-14">
 													<p className="text-xs font-semibold tabular-nums">{sectionsCount}</p>
 													<p className="text-xs font-bold text-muted-foreground uppercase tracking-tighter">Sections</p>
 												</div>

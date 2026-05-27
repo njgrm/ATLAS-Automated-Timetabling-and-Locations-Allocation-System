@@ -1551,7 +1551,7 @@ export default function FacultyAssignments() {
 				fromCurrent
 					.map((assignment) =>
 						assignment.subjectId === subjectId
-							? { ...assignment, sectionIds: assignment.sectionIds.filter((id) => id !== sectionId) }
+							? { ...assignment, sectionIds: assignment.sectionIds.filter((id: number) => id !== sectionId) }
 							: assignment,
 					)
 					.filter((assignment) => assignment.sectionIds.length > 0),
@@ -2129,7 +2129,7 @@ export default function FacultyAssignments() {
 														<TooltipTrigger asChild>
 															<Info className="size-3 text-muted-foreground/40 cursor-help" />
 														</TooltipTrigger>
-														<TooltipContent className="text-[0.65rem] font-bold max-w-[200px]">
+														<TooltipContent className="text-[0.65rem] font-bold max-w-50">
 															Active time spent in the classroom during the busiest term.
 														</TooltipContent>
 													</Tooltip>

@@ -438,6 +438,7 @@ export function useTeachingLoadData() {
 		setSubjectFocusId,
 		dataSource,
 		degradedNotice,
+		degradedWriteEnabled,
 		isOnline,
 		homeroomHint,
 		draftAssignmentsByFaculty,

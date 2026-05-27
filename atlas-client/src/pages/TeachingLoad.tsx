@@ -27,6 +27,7 @@ import type {
 	AutoFillSummaryResult, 
 	CoverageMode, 
 	ExternalSection,
+	Subject,
 	SectionAssignedClassesResult,
 	SpecialProgramRebalancePreviewResult 
 } from '@/types';
@@ -185,7 +186,7 @@ export default function TeachingLoad() {
 				if (fromIndex >= 0) {
 					fromCurrent[fromIndex] = {
 						...fromCurrent[fromIndex],
-						sectionIds: fromCurrent[fromIndex].sectionIds.filter((id) => id !== sectionId),
+						sectionIds: fromCurrent[fromIndex].sectionIds.filter((id: number) => id !== sectionId),
 					};
 				}
 
@@ -402,7 +403,7 @@ export default function TeachingLoad() {
 						onAutoFillClick={() => ui.setAutoFillDialogOpen(true)}
 						onViewStaffingNeedsClick={handleViewStaffingNeeds}
 						viewMode={ui.viewMode}
-						onViewModeChange={ui.setViewMode}
+						onViewModeChange={(value) => ui.setViewMode(value as 'teacher' | 'allocation')}
 						dataSource={data.dataSource}
 						degradedWriteEnabled={data.degradedWriteEnabled}
 						isWorkspaceWritable={data.canPersistAssignments}
@@ -462,7 +463,7 @@ export default function TeachingLoad() {
 										title="Dismiss Review Warning"
 									>
 										<span className="sr-only">Dismiss</span>
-										<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinelinejoin="round" className="lucide lucide-x size-4"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+										<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-x size-4"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
 									</Button>
 								)}
 							</div>
@@ -494,7 +495,7 @@ export default function TeachingLoad() {
 								onSwapSectionOwnership={handleSwapRequest}
 								departmentQualifiedSubjects={ui.departmentQualifiedSubjects}
 								outsideDepartmentSubjects={ui.outsideDepartmentSubjects}
-								homeroomHint={data.homeroomHint}
+								homeroomHint={data.homeroomHint ? { advisedSectionId: data.homeroomHint.advisedSectionId ?? null } : null}
 								loadProfile={ui.loadProfile}
 								onHoverLoadMinutes={ui.setHoveredIncomingMinutes}
 								onClearHoverLoad={() => ui.setHoveredIncomingMinutes(0)}
@@ -558,24 +559,7 @@ export default function TeachingLoad() {
 							<WorkloadInspector
 								selected={data.selected}
 								loadProfile={ui.loadProfile}
-								rotationTermBreakdown={ui.loadProfile.rotationFamilies.map(f => ({
-									family: f.family,
-									peakTermMinutesPerWeek: f.creditedHours * 60,
-									peakTermRank: f.dominantTermRank ?? 1,
-									peakTermLabel: f.dominantTermLabel ?? '',
-									termGroupId: f.termGroupId ?? '',
-									termCount: f.termCount ?? 3,
-									termBuckets: f.termBuckets.map(b => ({
-										termRank: b.termRank,
-										termLabel: b.termLabel,
-										termGroupId: b.termGroupId,
-										termCount: b.termCount,
-										creditedMinutesPerWeek: b.creditedMinutes,
-										unitCount: b.unitCount,
-										subjectCodes: b.subjectCodes,
-									})),
-									isPeakTerm: false // added for type compatibility if needed
-								}))}
+								rotationTermBreakdown={data.selected?.rotationTermBreakdown ?? []}
 								hoveredIncomingMinutes={ui.hoveredIncomingMinutes}
 								previewLoadHours={previewLoadHours}
 								isReadOnlyMode={data.isReadOnlyMode}

@@ -1,4 +1,5 @@
 import type {
+	SubjectSectionOwnershipIndexEntry,
 	FacultySummary,
 	RotationFamilyLoadDetail,
 	SectionSummaryResponse,
@@ -6,7 +7,6 @@ import type {
 	TeachingLoadCoverageTotals,
 	TeachingLoadIntegrityDiagnostics,
 } from '@/types';
-import type { SubjectSectionOwnershipIndexEntry } from '@/lib/faculty-assignment-helpers';
 
 const FACULTY_SUMMARY_CACHE_PREFIX = 'atlas:faculty-summary:v3';
 const SUBJECTS_CACHE_PREFIX = 'atlas:subjects:v1';
