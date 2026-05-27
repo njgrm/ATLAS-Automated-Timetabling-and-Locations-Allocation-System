@@ -257,14 +257,14 @@ export function TeacherGridMode({
 													{member.isClassAdviser && (
 														<Tooltip>
 															<TooltipTrigger asChild>
-																<Star className="size-3 text-amber-500 fill-amber-500 shrink-0" />
+																<Star className="size-3.5 text-amber-500 fill-amber-500 shrink-0" />
 															</TooltipTrigger>
-															<TooltipContent side="top" className="text-[0.6rem] font-black uppercase">Class Adviser</TooltipContent>
+															<TooltipContent side="top" className="text-xs font-black uppercase">Class Adviser</TooltipContent>
 														</Tooltip>
 													)}
-													{hasDraft && <Badge variant="secondary" className="h-4 px-1.5 text-[0.6rem] font-black uppercase bg-sky-100 text-sky-700 animate-pulse">Draft</Badge>}
+													{hasDraft && <Badge variant="secondary" className="h-4 px-1.5 text-xs font-black uppercase bg-sky-100 text-sky-700 animate-pulse">Draft</Badge>}
 												</div>
-												<p className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest truncate">
+												<p className="text-xs font-bold text-muted-foreground uppercase tracking-widest truncate">
 													{member.specialization || 'General'}
 												</p>
 											</div>
@@ -278,20 +278,20 @@ export function TeacherGridMode({
 													)}>
 														{member.isPlaceholder ? `${displayHours.toFixed(1)}h` : `${loadPercentage}%`}
 													</p>
-													<p className="text-[0.55rem] font-bold text-muted-foreground uppercase tracking-tighter">Load Status</p>
+													<p className="text-xs font-bold text-muted-foreground uppercase tracking-tighter">Load Status</p>
 												</div>
-												<div className="text-right min-w-[3rem]">
+												<div className="text-right min-w-[3.5rem]">
 													<p className="text-xs font-black tabular-nums">{subjectsCount}</p>
-													<p className="text-[0.55rem] font-bold text-muted-foreground uppercase tracking-tighter">Subjects</p>
+													<p className="text-xs font-bold text-muted-foreground uppercase tracking-tighter">Subjects</p>
 												</div>
-												<div className="text-right min-w-[3rem]">
+												<div className="text-right min-w-[3.5rem]">
 													<p className="text-xs font-black tabular-nums">{sectionsCount}</p>
-													<p className="text-[0.55rem] font-bold text-muted-foreground uppercase tracking-tighter">Sections</p>
+													<p className="text-xs font-bold text-muted-foreground uppercase tracking-tighter">Sections</p>
 												</div>
 											</div>
 
 											<div className="flex items-center gap-2 border-l border-border/40 pl-4">
-												{isExpanded ? <ChevronDown className="size-4 text-muted-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}
+												{isExpanded ? <ChevronDown className="size-5 text-muted-foreground" /> : <ChevronRight className="size-5 text-muted-foreground" />}
 											</div>
 										</div>
 
@@ -302,17 +302,17 @@ export function TeacherGridMode({
 												<div className="sticky top-[calc(0px-1.5rem)] z-20 flex items-center justify-between gap-0 bg-background/95 backdrop-blur-sm p-2 border-b border-border/40 shadow-sm">
 													<div className="flex items-center gap-2">
 														<div className="flex items-center bg-muted/20 rounded-md p-0.5 border border-border/40">
-															<Button size="icon-xs" variant="ghost" className="h-6 w-7" onClick={onUndo} disabled={!canUndo || saving || isReadOnlyMode}><Undo2 className="size-3" /></Button>
-															<Button size="icon-xs" variant="ghost" className="h-6 w-7" onClick={onRedo} disabled={!canRedo || saving || isReadOnlyMode}><Redo2 className="size-3" /></Button>
+															<Button size="icon-xs" variant="ghost" className="h-7 w-8" onClick={onUndo} disabled={!canUndo || saving || isReadOnlyMode}><Undo2 className="size-3.5" /></Button>
+															<Button size="icon-xs" variant="ghost" className="h-7 w-8" onClick={onRedo} disabled={!canRedo || saving || isReadOnlyMode}><Redo2 className="size-3.5" /></Button>
 														</div>
 														<Button 
 															size="xs" 
 															variant="outline" 
-															className="h-6 text-[0.6rem] font-black uppercase tracking-widest gap-1.5"
+															className="h-7 text-xs font-black uppercase tracking-widest gap-1.5"
 															onClick={onResetAssignments}
 															disabled={saving || isReadOnlyMode}
 														>
-															<RotateCcw className="size-3" />
+															<RotateCcw className="size-3.5" />
 															Reset
 														</Button>
 													</div>
@@ -322,7 +322,7 @@ export function TeacherGridMode({
 															<Button 
 																size="xs" 
 																variant="ghost" 
-																className="h-6 text-[0.6rem] font-black uppercase tracking-widest text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+																className="h-7 text-xs font-black uppercase tracking-widest text-amber-600 hover:text-amber-700 hover:bg-amber-50"
 																onClick={onDiscardDraft}
 															>
 																Discard
@@ -330,11 +330,11 @@ export function TeacherGridMode({
 														)}
 														<Button 
 															size="xs" 
-															className="h-6 text-[0.6rem] font-black uppercase tracking-widest gap-1.5 px-3"
+															className="h-7 text-xs font-black uppercase tracking-widest gap-1.5 px-3"
 															onClick={onSave}
 															disabled={!hasDraft || saving || isReadOnlyMode}
 														>
-															<Save className="size-3" />
+															<Save className="size-3.5" />
 															{saving ? 'Saving...' : 'Save Draft'}
 														</Button>
 													</div>
@@ -345,7 +345,7 @@ export function TeacherGridMode({
 													{departmentQualifiedSubjects.length > 0 && (
 														<div className="space-y-3">
 															<div className="flex items-center gap-3">
-																<span className="text-[0.55rem] font-black uppercase tracking-[0.2em] text-emerald-600/70">Qualified Subjects</span>
+																<span className="text-xs font-black uppercase tracking-[0.2em] text-emerald-600/70">Qualified Subjects</span>
 																<div className="flex-1 h-px bg-emerald-500/10" />
 															</div>
 															<div className="grid gap-3">

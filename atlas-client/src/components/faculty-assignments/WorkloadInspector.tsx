@@ -60,8 +60,8 @@ export function WorkloadInspector({
 		<div className="flex h-full flex-col bg-background border-l border-border/50">
 			<div className="shrink-0 p-6 border-b border-border/40 space-y-4">
 				<div className="flex items-center justify-between">
-					<h3 className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Teacher Workload</h3>
-					<Badge variant="outline" className={cn("h-5 font-black uppercase tracking-tighter shadow-none", status.bg, status.text, status.border)}>
+					<h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground/60">Teacher Workload</h3>
+					<Badge variant="outline" className={cn("h-5 font-black uppercase tracking-tighter shadow-none text-xs", status.bg, status.text, status.border)}>
 						{loadProfile.statusLabel}
 					</Badge>
 				</div>
@@ -79,7 +79,7 @@ export function WorkloadInspector({
 						<h4 className="text-base font-black uppercase tracking-tight truncate leading-tight">
 							{selected.lastName}, {selected.firstName}
 						</h4>
-						<p className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest truncate">
+						<p className="text-xs font-bold text-muted-foreground uppercase tracking-widest truncate">
 							{selected.department || 'No Department'}
 						</p>
 					</div>
@@ -91,8 +91,8 @@ export function WorkloadInspector({
 							<Star className="size-3.5 text-amber-600 fill-amber-600" />
 						</div>
 						<div className="min-w-0">
-							<p className="text-[0.55rem] font-black text-amber-800/60 uppercase tracking-widest leading-none mb-1">Advisory Assignment</p>
-							<p className="text-[0.7rem] font-black text-amber-900 uppercase truncate">
+							<p className="text-xs font-black text-amber-800/60 uppercase tracking-widest leading-none mb-1">Advisory Assignment</p>
+							<p className="text-sm font-black text-amber-900 uppercase truncate">
 								{selected.advisedSectionName || 'Section Unassigned'}
 							</p>
 						</div>
@@ -104,7 +104,7 @@ export function WorkloadInspector({
 				{/* Capacity Gauge */}
 				<section className="space-y-4">
 					<div className="flex items-center justify-between">
-						<span className="text-[0.6rem] font-black uppercase tracking-widest text-muted-foreground/60">Weekly Capacity</span>
+						<span className="text-xs font-black uppercase tracking-widest text-muted-foreground/60">Weekly Capacity</span>
 						<span className="text-sm font-black tabular-nums">{loadProfile.creditedTotalHours} / {selected.maxHoursPerWeek}h</span>
 					</div>
 					<div className="space-y-2">
@@ -114,7 +114,7 @@ export function WorkloadInspector({
 								style={{ width: `${Math.min(100, (loadProfile.creditedTotalHours / selected.maxHoursPerWeek) * 100)}%` }} 
 							/>
 						</div>
-						<div className="flex justify-between items-center text-[0.55rem] font-black uppercase tracking-tighter text-muted-foreground/60">
+						<div className="flex justify-between items-center text-xs font-black uppercase tracking-tighter text-muted-foreground/60">
 							<span>0%</span>
 							<span>{Math.round((loadProfile.creditedTotalHours / selected.maxHoursPerWeek) * 100)}% Utilized</span>
 							<span>100%</span>
@@ -125,11 +125,11 @@ export function WorkloadInspector({
 				{/* Primary Stats Grid */}
 				<div className="grid grid-cols-2 gap-3">
 					<div className="p-4 rounded-xl border border-border/40 bg-muted/5 space-y-1">
-						<span className="text-[0.55rem] font-bold text-muted-foreground/60 uppercase tracking-widest block">Credited</span>
+						<span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest block">Credited</span>
 						<p className="text-xl font-black tracking-tight tabular-nums">{loadProfile.creditedTotalHours}h</p>
 					</div>
 					<div className="p-4 rounded-xl border border-border/40 bg-muted/5 space-y-1">
-						<span className="text-[0.55rem] font-bold text-muted-foreground/60 uppercase tracking-widest block">Remaining</span>
+						<span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest block">Remaining</span>
 						<p className={cn("text-xl font-black tracking-tight tabular-nums", loadProfile.remainingHours < 0 ? 'text-rose-600' : 'text-emerald-600')}>
 							{loadProfile.remainingHours.toFixed(1)}h
 						</p>
@@ -138,26 +138,26 @@ export function WorkloadInspector({
 
 				{/* Handled Classes Summary */}
 				<section className="space-y-4">
-					<h5 className="text-[0.6rem] font-black uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Handled Classes</h5>
+					<h5 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Handled Classes</h5>
 					{loadProfile.breakdown.length === 0 ? (
 						<div className="p-4 rounded-xl border border-dashed border-border/60 bg-muted/5 text-center">
-							<p className="text-[0.65rem] font-bold text-muted-foreground/40 uppercase tracking-widest italic">No sections assigned yet</p>
+							<p className="text-xs font-bold text-muted-foreground/40 uppercase tracking-widest italic">No sections assigned yet</p>
 						</div>
 					) : (
 						<div className="space-y-2">
 							{loadProfile.breakdown.map((item, idx) => (
 								<div key={`${item.subjectId}-${item.sectionId}-${idx}`} className="flex items-center gap-3 p-2 rounded-lg border border-border/40 bg-background shadow-sm">
-									<div className="size-8 rounded bg-primary/5 border border-primary/10 flex items-center justify-center shrink-0">
-										<span className="text-[0.6rem] font-black text-primary">{item.subjectCode}</span>
-									</div>
+									<Badge variant="secondary" className="px-2 py-0.5 text-xs font-black uppercase bg-primary/5 text-primary border-primary/10">
+										{item.subjectCode}
+									</Badge>
 									<div className="flex-1 min-w-0">
-										<p className="text-[0.7rem] font-black uppercase truncate leading-tight">{item.sectionName}</p>
+										<p className="text-sm font-black uppercase truncate leading-tight">{item.sectionName}</p>
 										<div className="flex items-center gap-1.5 mt-0.5">
-											<span className="text-[0.55rem] font-bold text-muted-foreground uppercase tracking-widest">{gradeLabel(item.gradeLevel)}</span>
+											<span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{gradeLabel(item.gradeLevel)}</span>
 											{item.rotationFamily && (
 												<>
 													<span className="text-muted-foreground/30">•</span>
-													<span className="text-[0.55rem] font-black text-violet-600 uppercase tracking-tighter">{item.rotationTermLabel || 'Rotational'}</span>
+													<span className="text-xs font-black text-violet-600 uppercase tracking-tighter">{item.rotationTermLabel || 'Rotational'}</span>
 												</>
 											)}
 										</div>
@@ -170,11 +170,11 @@ export function WorkloadInspector({
 
 				{/* Arithmetic Breakdown */}
 				<section className="space-y-4">
-					<h5 className="text-[0.6rem] font-black uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Load Arithmetic</h5>
+					<h5 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Load Arithmetic</h5>
 					<div className="space-y-2.5">
 						<div className="flex items-center justify-between text-xs font-bold">
 							<div className="flex items-center gap-2 text-muted-foreground">
-								<BookOpen className="size-3.5 opacity-40" />
+								<BookOpen className="size-4 opacity-40" />
 								<span>Total Classes Sum</span>
 							</div>
 							<span className="tabular-nums">{(loadProfile.rawTeachingHours).toFixed(1)}h</span>
@@ -183,7 +183,7 @@ export function WorkloadInspector({
 						{loadProfile.rotationOvercountHours > 0 && (
 							<div className="flex items-center justify-between text-xs font-bold text-violet-700 bg-violet-50/50 p-2 rounded-lg border border-violet-100/50">
 								<div className="flex items-center gap-2">
-									<Layers className="size-3.5 opacity-60" />
+									<Layers className="size-4 opacity-60" />
 									<span>Rotation Deduction</span>
 								</div>
 								<span className="tabular-nums">-{(loadProfile.rotationOvercountHours).toFixed(1)}h</span>
@@ -192,7 +192,7 @@ export function WorkloadInspector({
 
 						<div className="flex items-center justify-between text-xs font-bold">
 							<div className="flex items-center gap-2 text-muted-foreground">
-								<Clock className="size-3.5 opacity-40" />
+								<Clock className="size-4 opacity-40" />
 								<span>Actual Teaching</span>
 							</div>
 							<span className="tabular-nums">{(loadProfile.actualTeachingHours).toFixed(1)}h</span>
@@ -201,7 +201,7 @@ export function WorkloadInspector({
 						{loadProfile.equivalentHours > 0 && (
 							<div className="flex items-center justify-between text-xs font-bold text-emerald-700">
 								<div className="flex items-center gap-2">
-									<Star className="size-3.5 opacity-60" />
+									<Star className="size-4 opacity-60" />
 									<span>Advisory / Ancillary</span>
 								</div>
 								<span className="tabular-nums">+{(loadProfile.equivalentHours).toFixed(1)}h</span>
@@ -218,20 +218,20 @@ export function WorkloadInspector({
 				{/* Rotational Families */}
 				{rotationTermBreakdown.length > 0 && (
 					<section className="space-y-4">
-						<h5 className="text-[0.6rem] font-black uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Rotational Groups</h5>
+						<h5 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Rotational Groups</h5>
 						<div className="space-y-4">
 							{rotationTermBreakdown.map((family) => (
 								<div key={family.family} className="p-4 rounded-xl border border-sky-100 bg-sky-50/20 space-y-4">
 									<div className="flex items-center justify-between gap-2">
 										<div className="min-w-0">
-											<span className="text-[0.55rem] font-black uppercase tracking-widest text-sky-900/40 block leading-none mb-1">Group</span>
+											<span className="text-xs font-black uppercase tracking-widest text-sky-900/40 block leading-none mb-1">Group</span>
 											<span className="text-sm font-black uppercase tracking-tight text-sky-900 truncate block">{family.family}</span>
 										</div>
 										<div className="text-right">
 											<span className="text-lg font-black text-sky-900 tabular-nums leading-none">
 												{(family.peakTermMinutesPerWeek / 60).toFixed(1)}h
 											</span>
-											<span className="text-[0.5rem] font-bold text-sky-600/70 uppercase tracking-tighter block mt-1">Peak Weekly</span>
+											<span className="text-xs font-bold text-sky-600/70 uppercase tracking-tighter block mt-1">Peak Weekly</span>
 										</div>
 									</div>
 
@@ -249,7 +249,7 @@ export function WorkloadInspector({
 															: "border-sky-100 bg-sky-50/50 opacity-60"
 													)}
 												>
-													<span className={cn("text-[0.5rem] font-black uppercase tracking-widest", isPeak ? "text-sky-900" : "text-sky-700/60")}>
+													<span className={cn("text-xs font-black uppercase tracking-widest", isPeak ? "text-sky-900" : "text-sky-700/60")}>
 														T{term}
 													</span>
 													<div className={cn("text-xs font-black tabular-nums leading-none", isPeak ? "text-sky-800" : "text-sky-700/60")}>
@@ -267,11 +267,11 @@ export function WorkloadInspector({
 
 				{/* Guidance */}
 				<div className="p-4 rounded-xl border border-dashed border-border bg-muted/20">
-					<h6 className="text-[0.6rem] font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2">
-						<Info className="size-3.5" />
+					<h6 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2">
+						<Info className="size-4" />
 						Scheduling Guidance
 					</h6>
-					<p className="text-[0.7rem] text-muted-foreground/80 font-medium leading-relaxed italic">
+					<p className="text-sm text-muted-foreground/80 font-medium leading-relaxed italic">
 						{loadProfile.status === 'over-cap' 
 							? "This teacher exceeds the 40h legal limit. Reduce their assignments immediately to ensure timetable feasibility."
 							: loadProfile.status === 'overload-allowed'

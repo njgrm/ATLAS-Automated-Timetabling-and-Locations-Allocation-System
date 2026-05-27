@@ -60,6 +60,86 @@
 
 - Verdict: GO
 
+# 2026-05-27 - Phase 3 Teaching Load Read/Write Unblock And Scope Reconcile
+- Phase: Phase 3 generator-readiness stream, Teaching Load runtime editability correction
+- Operator: GitHub Copilot
+- Scope gate: PASS (recoverable split-brain warning state no longer hard-locks Teaching Load; DEVL_READING scope drift reconciled; live page now shows writable review state)
+- Safety gate: PASS (hard integrity blockers still classify as blocking; live reconcile apply used existing preview-first service path with confirmation)
+- Files changed in this pass:
+  - atlas-server/src/services/teaching-load-automation.service.ts
+  - atlas-server/src/__tests__/faculty-assignment-pass5-regression.test.ts
+  - atlas-client/src/pages/TeachingLoad.tsx
+  - atlas-client/src/components/faculty-assignments/WorkspaceToolbar.tsx
+  - docs/reference/atlas-runtime-source-of-truth-map.md
+  - docs/verification/evidence-log.md
+
+- Repair delivered:
+  1. Split-brain quarantine policy now keeps recoverable Teaching Load states writable. `INTEGRITY_OUT_OF_SUBJECT_SCOPE`, `TRUTH_RECONCILE_PENDING`, and `REAL_FACULTY_RECOVERY_PENDING` no longer force blocking quarantine by themselves; true integrity contradictions and load-outlier corruption still do.
+  2. Teaching Load now exposes an explicit `Reconcile Saved Coverage` action and auto-fill runs that reconcile preflight automatically when saved-truth scope drift is pending.
+  3. Teaching Load save persistence now uses the live optimistic-lock mutation contract `PUT /api/v1/faculty-assignments/:facultyId` instead of the stale `/faculty-assignments/batch` endpoint.
+  4. Writable mirror-backed runtime states now surface as `Saved Data` instead of the misleading `Read-Only` status badge.
+
+- Exact pre-fix verified live split-brain baseline (from year-55 live audit before this pass):
+  - `quarantine.required = true`
+  - `severity = BLOCKING`
+  - `reasonCodes = [INTEGRITY_OUT_OF_SUBJECT_SCOPE, FACULTY_LOAD_REVIEW_REQUIRED, TRUTH_RECONCILE_PENDING, REAL_FACULTY_RECOVERY_PENDING, REAL_FACULTY_RECOVERY_BLOCKERS]`
+  - `summaryAssignedPairs = 954`
+  - `summaryUnassignedPairs = 80`
+  - `summaryTotalPairs = 1034`
+  - `integrityOutOfSubjectScopePairs = 8`
+  - `truthRowsToUpdate = 7`
+  - `loadReviewRows = 12`
+  - `realFacultyMovesPlanned = 7`
+  - `realFacultyBlockers = 24`
+  - `specialProgramApprovalCandidates = 0`
+
+- Exact post-fix preview after quarantine reclassification, before live reconcile apply (`POST /api/v1/faculty-assignments/integrity/reconcile-split-brain`, previewOnly=true):
+  - `quarantine.required = false`
+  - `severity = WARNING`
+  - `reasonCodes = [INTEGRITY_OUT_OF_SUBJECT_SCOPE, FACULTY_LOAD_REVIEW_REQUIRED, TRUTH_RECONCILE_PENDING, REAL_FACULTY_RECOVERY_PENDING, REAL_FACULTY_RECOVERY_BLOCKERS]`
+  - `summaryAssignedPairs = 954`
+  - `summaryUnassignedPairs = 80`
+  - `summaryTotalPairs = 1034`
+  - `integrityOutOfSubjectScopePairs = 8`
+  - `truthRowsToUpdate = 7`
+  - `loadReviewRows = 12`
+  - `realFacultyMovesPlanned = 7`
+  - `realFacultyBlockers = 24`
+  - `specialProgramApprovalCandidates = 0`
+
+- Exact post-reconcile live state (`POST /api/v1/faculty-assignments/integrity/reconcile-split-brain`, previewOnly=false, confirmApply=true; final shared-page reload matches this state):
+  - `quarantine.required = false`
+  - `severity = WARNING`
+  - `reasonCodes = [FACULTY_LOAD_REVIEW_REQUIRED, REAL_FACULTY_RECOVERY_BLOCKERS]`
+  - `summaryAssignedPairs = 961`
+  - `summaryUnassignedPairs = 73`
+  - `summaryTotalPairs = 1034`
+  - `integrityOutOfSubjectScopePairs = 0`
+  - `truthRowsToUpdate = 0`
+  - `loadReviewRows = 12`
+  - `realFacultyMovesPlanned = 0`
+  - `realFacultyBlockers = 14`
+  - `specialProgramApprovalCandidates = 0`
+  - `DEVL_READING` scope-drift rows reconciled: `updatedRows = 7`, `outOfSubjectScopePairCount = 0`
+  - Remaining warning debt is real `TLE_FCS_EXP` recovery work only; it remains visible but no longer locks CRUD.
+
+- Verification:
+  - `npm --prefix atlas-server run test:faculty-assignment-pass5` -> PASS (`54 passed, 0 failed`)
+  - `npm --prefix atlas-client run build` -> PASS
+  - `npm --prefix atlas-server run build` -> PASS
+  - Tailnet direct auth -> PASS (`POST /api/v1/auth/login` with `identifier=1000001`)
+  - Tailnet split-brain preview after policy change -> PASS (`required=false`, `severity=WARNING` while counters still showed recoverable debt)
+  - Tailnet split-brain apply -> PASS (`INTEGRITY_OUT_OF_SUBJECT_SCOPE=0`, `truthRowsToUpdate=0`, `realFacultyMovesPlanned=0` after final apply)
+  - Tailnet shared browser page reload -> PASS (`SAVED DATA`, `REVIEW NEEDED`, `AUTO-FILL` visible/enabled, final counters `961 / 1034`, `UNASSIGNED 73`)
+  - Direct save contract smoke (`PUT /api/v1/faculty-assignments/:facultyId`) -> PASS locally with reversible mutation and restore on `facultyId=18211`
+
+- UI verification notes:
+  - `By Teacher` controls are no longer disabled; live page exposes `RESET`, `SAVE DRAFT`, grade unassign/assign actions, and `AUTO-FILL` while only review warnings remain.
+  - `Section Allocation` continues to use the same shared `handleSave` persistence path as `By Teacher`; the save endpoint correction therefore restores section-mode persistence through the same optimistic-lock contract.
+  - The page remains honest about remaining work: final live banner still shows review-only warning state with `14` recovery blockers (all `TLE_FCS_EXP` lane-cap blockers).
+
+- Verdict: GO for Teaching Load read/write unblock and saved-scope reconcile under current year-55 state.
+
 # 2026-05-27 - Phase 3 Teaching Load Major Frontend Refactor and Workflow Clarity
 ... rest of file ...
 `r`n## 2026-05-27: Teaching Load Dual-Mode Grid and Inspector Refactor`r`n- **Scope**: Frontend UX refactor of Teaching Load page.`r`n- **Files Changed**: `r`n  - `atlas-client/src/pages/TeachingLoad.tsx``r`n  - `atlas-client/src/hooks/useTeachingLoadUI.ts``r`n  - `atlas-client/src/components/faculty-assignments/WorkloadInspector.tsx` (New)`r`n  - `atlas-client/src/components/faculty-assignments/TeacherGridMode.tsx` (New)`r`n  - `atlas-client/src/components/faculty-assignments/SectionGridMode.tsx` (New)`r`n  - `atlas-client/src/components/faculty-assignments/WorkspaceToolbar.tsx``r`n- **Components**: `r`n  - `By Teacher` mode: `TeacherGridMode``r`n  - `By Section / Shortage` mode: `SectionGridMode``r`n  - Inspector: `WorkloadInspector` (Persistent right-hand drawer)`r`n- **Removal UX**: Preserved inline removal in `SubjectRow` (accessible via `TeacherGridMode`).`r`n- **Tooltips**: Replaced raw `title` usage in `WorkspaceToolbar` with proper `Tooltip` primitives.`r`n- **Build**: Successfully verified via `npm run build`.`r`n- **Verdict**: GO
@@ -151,3 +231,26 @@
   - [x] Runtime crash in Section Allocation mode resolved.
 - **Verdict**: GO
 
+
+# 2026-05-27 - Phase 3 Teaching Load Auto-Fill Route Contract Fix
+- Phase: Phase 3 generator-readiness stream, teaching-load integration repair
+- Operator: Gemini CLI
+- Scope gate: PASS (Teaching Load auto-fill frontend contract corrected; route and payload now match live server expectations)
+- Safety gate: PASS (Surgical frontend integration fix; no changes to backend logic or staffing algorithms)
+- Files changed in this pass:
+  - `atlas-client/src/pages/TeachingLoad.tsx`
+  - `docs/verification/evidence-log.md`
+
+- Repair delivered:
+  1. Corrected the auto-fill endpoint path from `/faculty-assignments/autofill` to `/faculty-assignments/auto-fill`.
+  2. Corrected the request body field from `mode` to `coverageMode` to match the server's `parseCoverageMode` expectations.
+  3. Preserved existing preflight behavior (split-brain reconcile) and writable workspace state.
+
+- Verification:
+  - `npm --prefix atlas-client run build` -> PASS
+  - Live connectivity check (`https://njgrm.buru-degree.ts.net/api/v1/health`) -> PASS (200 OK)
+  - Endpoint discovery (POST `/api/v1/faculty-assignments/autofill`) -> PASS (404 Not Found, confirmed legacy/broken)
+  - Endpoint discovery (POST `/api/v1/faculty-assignments/auto-fill` without auth) -> PASS (401 Unauthorized, confirmed existence)
+  - Live contract verification (POST `/api/v1/faculty-assignments/auto-fill` with token and `coverageMode`) -> PASS (200 OK, `assignmentsCreated = 64`)
+
+- Verdict: GO

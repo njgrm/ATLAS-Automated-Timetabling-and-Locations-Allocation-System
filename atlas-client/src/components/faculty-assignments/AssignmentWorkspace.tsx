@@ -100,20 +100,20 @@ export function AssignmentWorkspace({
 						transition={{ type: 'spring', damping: 25, stiffness: 200 }}
 						className="shrink-0 flex flex-col rounded-xl border border-border bg-card shadow-sm overflow-hidden py-2"
 					>
-						<h5 className="text-[0.55rem] font-bold text-center uppercase tracking-tighter text-muted-foreground opacity-60">Jump</h5>
+						<h5 className="text-xs font-bold text-center uppercase tracking-tighter text-muted-foreground opacity-60">Jump</h5>
 						<div className="flex-1 overflow-auto no-scrollbar space-y-1 px-2 mt-2">
 							{jumpListItems.map((item) => (
 								<Tooltip key={item.id}>
 									<TooltipTrigger asChild>
 										<Button
 											variant="ghost"
-											size="icon-xs"
-											className={`w-full h-8 font-bold text-[0.65rem] ${item.type === 'qualified' ? 'text-emerald-700 hover:bg-emerald-50' : 'text-muted-foreground hover:bg-muted'}`}
+											size="xs"
+											className={`w-full h-8 font-bold text-xs ${item.type === 'qualified' ? 'text-emerald-700 hover:bg-emerald-50' : 'text-muted-foreground hover:bg-muted'}`}
 											onClick={() => {
 												document.getElementById(`subject-${item.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 											}}
 										>
-											{item.code.slice(0, 3)}
+											{item.code}
 										</Button>
 									</TooltipTrigger>
 									<TooltipContent side="right" className="text-xs font-bold">
@@ -180,7 +180,7 @@ export function AssignmentWorkspace({
 									{departmentQualifiedSubjects.length > 0 && (
 										<section className="space-y-3">
 											<div className="flex items-center gap-3">
-												<h4 className="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-emerald-600/70">Qualified</h4>
+												<h4 className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-600/70">Qualified</h4>
 												<div className="flex-1 h-px bg-emerald-500/10" />
 											</div>
 											<div className="space-y-3">
@@ -231,7 +231,7 @@ export function AssignmentWorkspace({
 									{outsideDepartmentSubjects.length > 0 && (
 										<section className="space-y-3 pt-2">
 											<div className="flex items-center gap-3">
-												<h4 className="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-muted-foreground/50">Cross-Dept</h4>
+												<h4 className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground/50">Cross-Dept</h4>
 												<div className="flex-1 h-px bg-border/40" />
 											</div>
 											<div className="space-y-3">
@@ -373,17 +373,17 @@ export function AssignmentWorkspace({
 											>
 												<div className="flex items-center justify-between">
 													<div className="flex items-center gap-2">
-														<div className="size-7 rounded-full bg-primary/10 flex items-center justify-center text-[0.65rem] font-bold text-primary">
+														<div className="size-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
 															{f.firstName[0]}{f.lastName[0]}
 														</div>
 														<div className="min-w-0">
 															<p className="text-xs font-bold truncate group-hover:text-primary transition-colors uppercase tracking-tight">{f.lastName}, {f.firstName}</p>
-															<p className="text-[0.6rem] text-muted-foreground font-bold uppercase tracking-widest">{f.department || 'No Dept'}</p>
+															<p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">{f.department || 'No Dept'}</p>
 														</div>
 													</div>
 													<div className="text-right">
 														<p className="text-xs font-bold text-blue-600">{f.policyLoadPercentage}%</p>
-														<p className="text-[0.55rem] text-muted-foreground font-bold uppercase tracking-tighter">{f.policyCreditedHours}h / {f.maxHoursPerWeek}h</p>
+														<p className="text-xs text-muted-foreground font-bold uppercase tracking-tighter">{f.policyCreditedHours}h / {f.maxHoursPerWeek}h</p>
 													</div>
 												</div>
 											</Card>

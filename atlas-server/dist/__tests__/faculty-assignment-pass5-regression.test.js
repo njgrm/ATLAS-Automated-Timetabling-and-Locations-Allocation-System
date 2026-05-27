@@ -365,8 +365,17 @@ section('Approval-only split-brain warnings do not force blocking quarantine');
     assertEqual(reviewOnlyLoad.required, false, 'Review-only load drift remains non-blocking while awaiting scheduler review');
     assertEqual(reviewOnlyLoad.severity, 'WARNING', 'Review-only load drift maps to warning severity');
     const outOfSubjectScope = __testResolveSplitBrainQuarantine(['INTEGRITY_OUT_OF_SUBJECT_SCOPE']);
-    assertEqual(outOfSubjectScope.required, true, 'Out-of-subject-scope integrity drift keeps quarantine blocking');
-    assertEqual(outOfSubjectScope.severity, 'BLOCKING', 'Out-of-subject-scope integrity drift maps to blocking severity');
+    assertEqual(outOfSubjectScope.required, false, 'Out-of-subject-scope scope drift remains recoverable without forcing blocking quarantine');
+    assertEqual(outOfSubjectScope.severity, 'WARNING', 'Out-of-subject-scope scope drift maps to warning severity');
+    const truthReconcilePending = __testResolveSplitBrainQuarantine(['TRUTH_RECONCILE_PENDING']);
+    assertEqual(truthReconcilePending.required, false, 'Saved-truth reconcile debt stays writable while operators repair recoverable scope drift');
+    assertEqual(truthReconcilePending.severity, 'WARNING', 'Saved-truth reconcile debt maps to warning severity');
+    const recoveryPending = __testResolveSplitBrainQuarantine(['REAL_FACULTY_RECOVERY_PENDING']);
+    assertEqual(recoveryPending.required, false, 'Recoverable real-faculty recovery debt does not hard-lock Teaching Load');
+    assertEqual(recoveryPending.severity, 'WARNING', 'Recoverable real-faculty recovery debt maps to warning severity');
+    const hardIntegrityStillBlocks = __testResolveSplitBrainQuarantine(['INTEGRITY_OWNERSHIP_WITHOUT_SCOPE', 'TRUTH_RECONCILE_PENDING']);
+    assertEqual(hardIntegrityStillBlocks.required, true, 'True integrity contradictions still keep blocking quarantine even when reconcile debt is also present');
+    assertEqual(hardIntegrityStillBlocks.severity, 'BLOCKING', 'True integrity contradictions still map to blocking severity');
 }
 console.log(`\nSummary: ${passCount} passed, ${failCount} failed.`);
 if (failCount > 0) {

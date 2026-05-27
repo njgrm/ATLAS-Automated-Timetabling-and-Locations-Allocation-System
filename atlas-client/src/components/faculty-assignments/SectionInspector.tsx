@@ -63,8 +63,8 @@ export function SectionInspector({
 		<div className="flex h-full flex-col bg-background border-l border-border/50">
 			<div className="shrink-0 p-6 border-b border-border/40 space-y-4">
 				<div className="flex items-center justify-between">
-					<h3 className="text-[0.65rem] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Section Staffing</h3>
-					<Badge variant="outline" className={cn("h-5 font-black uppercase tracking-tighter shadow-none", missingCount === 0 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200")}>
+					<h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground/60">Section Staffing</h3>
+					<Badge variant="outline" className={cn("h-5 font-black uppercase tracking-tighter shadow-none text-xs", missingCount === 0 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200")}>
 						{missingCount === 0 ? "Fully Staffed" : `${missingCount} Subjects Missing`}
 					</Badge>
 				</div>
@@ -83,11 +83,11 @@ export function SectionInspector({
 							{section.name}
 						</h4>
 						<div className="flex items-center gap-2 mt-0.5">
-							<span className={cn("text-[0.65rem] font-black uppercase tracking-widest", gradeColorClass)}>
+							<span className={cn("text-xs font-black uppercase tracking-widest", gradeColorClass)}>
 								{gradeLabel(section.displayOrder)}
 							</span>
 							<span className="text-muted-foreground/30">•</span>
-							<span className="text-[0.65rem] font-bold text-muted-foreground uppercase tracking-widest">
+							<span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
 								{section.programName || 'Regular Program'}
 							</span>
 						</div>
@@ -100,8 +100,8 @@ export function SectionInspector({
 							<Star className="size-3.5 text-primary fill-primary/20" />
 						</div>
 						<div className="min-w-0">
-							<p className="text-[0.55rem] font-black text-primary/60 uppercase tracking-widest leading-none mb-1">Class Adviser</p>
-							<p className="text-[0.7rem] font-black text-primary uppercase truncate">
+							<p className="text-xs font-black text-primary/60 uppercase tracking-widest leading-none mb-1">Class Adviser</p>
+							<p className="text-sm font-black text-primary uppercase truncate">
 								{section.adviserName}
 							</p>
 						</div>
@@ -113,11 +113,11 @@ export function SectionInspector({
 				{/* Staffing Overview */}
 				<div className="grid grid-cols-2 gap-3">
 					<div className="p-4 rounded-xl border border-border/40 bg-muted/5 space-y-1">
-						<span className="text-[0.55rem] font-bold text-muted-foreground/60 uppercase tracking-widest block">Assigned</span>
+						<span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest block">Assigned</span>
 						<p className="text-xl font-black tracking-tight tabular-nums">{assignedCount}</p>
 					</div>
 					<div className="p-4 rounded-xl border border-border/40 bg-muted/5 space-y-1">
-						<span className="text-[0.55rem] font-bold text-muted-foreground/60 uppercase tracking-widest block">Missing</span>
+						<span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest block">Missing</span>
 						<p className={cn("text-xl font-black tracking-tight tabular-nums", missingCount > 0 ? 'text-rose-600' : 'text-emerald-600')}>
 							{missingCount}
 						</p>
@@ -126,7 +126,7 @@ export function SectionInspector({
 
 				{/* Subjects List */}
 				<section className="space-y-4">
-					<h5 className="text-[0.6rem] font-black uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Subject Coverage</h5>
+					<h5 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Subject Coverage</h5>
 					<div className="space-y-2">
 						{staffing.map(({ subject, owner, isPending }) => (
 							<div key={subject.id} className={cn(
@@ -135,33 +135,29 @@ export function SectionInspector({
 									? "bg-background border-border/40 shadow-sm" 
 									: "bg-muted/10 border-dashed border-border/60 opacity-60"
 							)}>
-								<div className={cn("size-8 rounded bg-muted flex items-center justify-center shrink-0 border border-border/20", 
-									owner && (isPending ? "bg-sky-50 border-sky-100" : "bg-primary/5 border-primary/10")
-								)}>
-									<span className={cn("text-[0.6rem] font-black", owner ? "text-primary" : "text-muted-foreground/40")}>
-										{subject.subjectCode}
-									</span>
-								</div>
+								<Badge variant="secondary" className={cn("px-2 py-0.5 text-xs font-black uppercase", owner ? "bg-primary/5 text-primary border-primary/10" : "bg-muted text-muted-foreground/40")}>
+									{subject.subjectCode}
+								</Badge>
 								
 								<div className="flex-1 min-w-0">
-									<p className="text-[0.7rem] font-black uppercase truncate leading-tight">
+									<p className="text-sm font-black uppercase truncate leading-tight">
 										{subject.subjectName}
 									</p>
 									<div className="flex items-center gap-1.5 mt-0.5">
 										{owner ? (
 											<>
-												<span className={cn("text-[0.6rem] font-bold uppercase truncate", isPending ? "text-sky-600" : "text-muted-foreground")}>
+												<span className={cn("text-xs font-bold uppercase truncate", isPending ? "text-sky-600" : "text-muted-foreground")}>
 													{owner.facultyName}
 												</span>
 												{isPending && (
-													<Badge variant="secondary" className="h-3.5 px-1 text-[8px] font-black uppercase bg-sky-100 text-sky-700 animate-pulse">Draft</Badge>
+													<Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-black uppercase bg-sky-100 text-sky-700 animate-pulse">Draft</Badge>
 												)}
 											</>
 										) : (
-											<span className="text-[0.6rem] font-bold text-rose-500 uppercase tracking-widest italic">Unassigned</span>
+											<span className="text-xs font-bold text-rose-500 uppercase tracking-widest italic">Unassigned</span>
 										)}
 										{subject.specializationLabel ? (
-											<Badge variant="outline" className="h-3.5 px-1 text-[8px] font-black uppercase bg-background">
+											<Badge variant="outline" className="h-4 px-1.5 text-[10px] font-black uppercase bg-background">
 												{subject.specializationLabel}
 											</Badge>
 										) : null}
@@ -169,7 +165,7 @@ export function SectionInspector({
 								</div>
 
 								{!owner && (
-									<AlertTriangle className="size-3.5 text-amber-500 shrink-0" />
+									<AlertTriangle className="size-4 text-amber-500 shrink-0" />
 								)}
 							</div>
 						))}
@@ -178,11 +174,11 @@ export function SectionInspector({
 
 				{/* Guidance */}
 				<div className="p-4 rounded-xl border border-dashed border-border bg-muted/20">
-					<h6 className="text-[0.6rem] font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2">
-						<Info className="size-3.5" />
+					<h6 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2">
+						<Info className="size-4" />
 						Staffing Guidance
 					</h6>
-					<p className="text-[0.7rem] text-muted-foreground/80 font-medium leading-relaxed italic">
+					<p className="text-sm text-muted-foreground/80 font-medium leading-relaxed italic">
 						{missingCount > 0 
 							? "Identify available teachers from the qualified department list. Prioritize those with lower load percentages."
 							: "This section is fully covered. Review individual teacher loads for potential optimizations."}

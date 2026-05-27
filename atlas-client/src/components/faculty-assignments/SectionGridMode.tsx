@@ -283,64 +283,90 @@ export function SectionGridMode({
 											const isStaffed = owner && activeFacultyIds.has(owner.facultyId);
 											
 											return (
-												<div key={subject.id} className="space-y-3">
+												<div key={subject.id} className="space-y-3 p-4 rounded-xl border border-border/40 bg-background/50">
 													<div className="flex items-center justify-between gap-3">
-														<div className="flex items-center gap-2 min-w-0">
-															<Badge variant="outline" className="h-5 px-1.5 text-[0.6rem] font-black uppercase border-border/60 text-muted-foreground shrink-0">
+														<div className="flex items-center gap-3 min-w-0">
+															<Badge variant="outline" className="h-6 px-2 text-xs font-black uppercase border-primary/20 bg-primary/5 text-primary shrink-0">
 																{subject.code}
 															</Badge>
-															<span className="text-xs font-bold uppercase truncate">{subject.name}</span>
+															<span className="text-sm font-black uppercase truncate">{subject.name}</span>
 														</div>
 														<div className="flex items-center gap-3 shrink-0">
 															{isStaffed ? (
-																<div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-100">
-																	<Check className="size-3 text-emerald-600" />
-																	<span className="text-[0.65rem] font-black text-emerald-700 uppercase">{owner.facultyName}</span>
+																<div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-100 shadow-sm animate-in fade-in duration-300">
+																	<UserCheck className="size-4 text-emerald-600" />
+																	<div className="flex flex-col">
+																		<span className="text-xs font-black text-emerald-900 uppercase leading-none mb-0.5">{owner.facultyName}</span>
+																		<span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tighter leading-none">Current Owner</span>
+																	</div>
 																</div>
 															) : (
-																<div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-amber-50 border border-amber-100">
-																	<AlertTriangle className="size-3 text-amber-600" />
-																	<span className="text-[0.65rem] font-black text-amber-700 uppercase">Unassigned</span>
+																<div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-100 shadow-sm animate-in fade-in duration-300">
+																	<AlertTriangle className="size-4 text-amber-600" />
+																	<span className="text-xs font-black text-amber-700 uppercase">Unassigned</span>
 																</div>
 															)}
+
+															<Popover>
+																<PopoverTrigger asChild>
+																	<Button 
+																		variant="outline" 
+																		size="sm" 
+																		className="h-9 gap-2 font-black uppercase tracking-widest text-xs border-primary/30 hover:border-primary hover:bg-primary/5 shadow-sm"
+																		disabled={saving || isReadOnlyMode}
+																	>
+																		{isStaffed ? 'Reassign' : 'Assign Teacher'}
+																		<ChevronDown className="size-4 opacity-50" />
+																	</Button>
+																</PopoverTrigger>
+																<PopoverContent align="end" className="w-80 p-0 overflow-hidden rounded-xl shadow-2xl border-primary/20">
+																	<div className="p-3 border-b border-border/40 bg-muted/20">
+																		<p className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 mb-1">Qualified Candidates</p>
+																		<p className="text-xs font-bold text-foreground truncate">{subject.name}</p>
+																	</div>
+																	<div className="max-h-[300px] overflow-auto no-scrollbar p-1">
+																		{candidates.length === 0 ? (
+																			<p className="p-4 text-center text-xs font-bold text-muted-foreground italic uppercase">No qualified teachers found</p>
+																		) : candidates.map(f => {
+																			const isCurrentOwner = owner?.facultyId === f.id;
+																			const loadPct = Math.round(f.policyLoadPercentage ?? 0);
+																			return (
+																				<Button
+																					key={f.id}
+																					variant="ghost"
+																					disabled={isCurrentOwner}
+																					onClick={() => handleAssign(subject.id, row.section.id, f.id, owner?.facultyId)}
+																					className={cn(
+																						"w-full flex items-center justify-between p-3 h-auto hover:bg-primary/5 transition-all text-left border-b border-border/10 last:border-0",
+																						isCurrentOwner && "bg-emerald-50/50"
+																					)}
+																				>
+																					<div className="min-w-0">
+																						<p className={cn("text-xs font-black uppercase truncate", isCurrentOwner ? "text-emerald-900" : "text-foreground")}>
+																							{f.lastName}, {f.firstName}
+																						</p>
+																						<div className="flex items-center gap-2 mt-0.5">
+																							<span className={cn(
+																								"text-[10px] font-black uppercase tracking-tighter",
+																								loadPct > 100 ? "text-rose-600" : loadPct > 80 ? "text-amber-600" : "text-emerald-600"
+																							)}>
+																								{loadPct}% Load
+																							</span>
+																							<span className="text-muted-foreground/30">•</span>
+																							<span className="text-[10px] font-bold text-muted-foreground uppercase truncate">
+																								{f.department || 'No Dept'}
+																							</span>
+																						</div>
+																					</div>
+																					{isCurrentOwner ? <UserCheck className="size-4 text-emerald-600" /> : <UserPlus className="size-4 text-primary/40 group-hover:text-primary transition-colors" />}
+																				</Button>
+																			);
+																		})}
+																	</div>
+																</PopoverContent>
+															</Popover>
 														</div>
 													</div>
-
-													<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-														{faculty
-															.filter(f => !f.isPlaceholder && matchesOwnershipDepartment(f.department ?? null, subject))
-															.map(f => {
-																const isCurrentOwner = owner?.facultyId === f.id;
-																const loadPct = Math.round(f.policyLoadPercentage ?? 0);
-																return (
-																	<button
-																		key={f.id}
-																		disabled={isCurrentOwner || saving || isReadOnlyMode}
-																		onClick={() => handleAssign(subject.id, row.section.id, f.id, owner?.facultyId)}
-																		onMouseEnter={() => onHoverTeacher(f.id)}
-																		onMouseLeave={() => onClearHover()}
-																		className={cn(
-																			"flex items-center justify-between p-2 rounded-lg border transition-all text-left",
-																			isCurrentOwner ? "bg-emerald-50 border-emerald-200 ring-1 ring-emerald-500/10 shadow-sm" : "bg-background border-border/40 hover:border-primary/40 hover:shadow-sm"
-																		)}
-																	>
-																		<div className="min-w-0">
-																			<p className={cn("text-[0.65rem] font-black uppercase truncate", isCurrentOwner ? "text-emerald-900" : "text-foreground")}>
-																				{f.lastName}, {f.firstName}
-																			</p>
-																			<p className={cn(
-																				"text-[0.55rem] font-bold uppercase tracking-widest",
-																				loadPct > 100 ? "text-rose-600" : loadPct > 80 ? "text-amber-600" : "text-emerald-600"
-																			)}>
-																				{loadPct}% Load
-																			</p>
-																		</div>
-																		{isCurrentOwner ? <UserCheck className="size-3 text-emerald-600" /> : <UserPlus className="size-3 text-muted-foreground" />}
-																	</button>
-																);
-															})}
-													</div>
-													<div className="h-px bg-border/20" />
 												</div>
 											);
 										})}

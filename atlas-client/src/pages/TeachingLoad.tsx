@@ -67,6 +67,51 @@ export default function TeachingLoad() {
 	const [resetLoading, setResetLoading] = useState(false);
 
 	const dirty = Boolean(data.effectiveDraftAssignmentsByFaculty[data.selectedId ?? 0]);
+	const splitBrainNeedsReconcile = Boolean(
+		data.splitBrainIncident
+		&& (
+			(data.splitBrainIncident.counters.truthRowsToUpdate ?? 0) > 0
+			|| (data.splitBrainIncident.counters.integrityOutOfSubjectScopePairs ?? 0) > 0
+		)
+	);
+	const splitBrainNeedsAttention = Boolean(
+		data.splitBrainIncident
+		&& data.splitBrainIncident.quarantine.severity !== 'NONE'
+	);
+
+	const applySplitBrainReconcile = useCallback(async (options?: { silent?: boolean }) => {
+		if (!data.activeSchoolYearId) {
+			return false;
+		}
+		if (!data.canPersistAssignments) {
+			if (!options?.silent) {
+				toast.error('Saved-truth reconcile requires writable runtime evidence. Refresh and try again.');
+			}
+			return false;
+		}
+
+		data.setSplitBrainApplyLoading(true);
+		try {
+			await atlasApi.post('/faculty-assignments/integrity/reconcile-split-brain', {
+				schoolId: DEFAULT_SCHOOL_ID,
+				schoolYearId: data.activeSchoolYearId,
+				previewOnly: false,
+				confirmApply: true,
+			});
+			if (!options?.silent) {
+				toast.success('Saved coverage reconcile applied. Reloading current Teaching Load truth.');
+			}
+			await data.fetchData({ forceRefresh: true });
+			return true;
+		} catch (error: any) {
+			if (!options?.silent) {
+				toast.error(error?.response?.data?.message ?? 'Saved coverage reconcile failed.');
+			}
+			return false;
+		} finally {
+			data.setSplitBrainApplyLoading(false);
+		}
+	}, [data]);
 
 	const handleSave = useCallback(async () => {
 		if (!data.activeSchoolYearId) return;
@@ -77,9 +122,12 @@ export default function TeachingLoad() {
 			for (const [facultyIdRaw, assignments] of draftEntries) {
 				const facultyId = Number(facultyIdRaw);
 				if (!Number.isFinite(facultyId)) continue;
-				await atlasApi.post('/faculty-assignments/batch', {
+				const facultyRow = data.faculty.find((member) => member.id === facultyId);
+				if (!facultyRow) continue;
+				await atlasApi.put(`/faculty-assignments/${facultyId}`, {
 					schoolId: DEFAULT_SCHOOL_ID,
 					schoolYearId: data.activeSchoolYearId,
+					version: facultyRow.version,
 					facultyId,
 					assignments,
 				});
@@ -91,7 +139,12 @@ export default function TeachingLoad() {
 			);
 			await data.fetchData({ forceRefresh: true });
 		} catch (error: any) {
-			toast.error(error?.response?.data?.message ?? 'Failed to save assignments.');
+			if (error?.response?.data?.code === 'VERSION_CONFLICT') {
+				await data.fetchData({ forceRefresh: true });
+				toast.error(`${error?.response?.data?.message ?? 'Failed to save assignments.'} Latest saved data was reloaded; your local draft remains visible.`);
+			} else {
+				toast.error(error?.response?.data?.message ?? 'Failed to save assignments.');
+			}
 		} finally {
 			data.setSaving(false);
 		}
@@ -179,14 +232,21 @@ export default function TeachingLoad() {
 	const handleAutoFill = useCallback(async () => {
 		if (!data.activeSchoolYearId) return;
 		ui.setAutoFillDialogOpen(false);
+		if (splitBrainNeedsReconcile) {
+			const reconciled = await applySplitBrainReconcile({ silent: true });
+			if (!reconciled) {
+				toast.error('Auto-fill could not start because saved coverage reconcile failed.');
+				return;
+			}
+		}
 		const toastId = toast.loading(`Running auto-fill (${COVERAGE_MODE_CONFIG[ui.coverageMode].label})...`);
 		try {
 			const { data: result } = await atlasApi.post<AutoFillSummaryResult>(
-				'/faculty-assignments/autofill',
+				'/faculty-assignments/auto-fill',
 				{
 					schoolId: DEFAULT_SCHOOL_ID,
 					schoolYearId: data.activeSchoolYearId,
-					mode: ui.coverageMode,
+					coverageMode: ui.coverageMode,
 				},
 			);
 			setAutoFillResult(result);
@@ -196,7 +256,7 @@ export default function TeachingLoad() {
 		} catch (error: any) {
 			toast.error(error?.response?.data?.message ?? 'Auto-fill failed.', { id: toastId });
 		}
-	}, [data, ui]);
+	}, [applySplitBrainReconcile, data, splitBrainNeedsReconcile, ui]);
 
 	const handleViewStaffingNeeds = useCallback(() => {
 		ui.setStaffingAuditOpen(true);
@@ -344,6 +404,7 @@ export default function TeachingLoad() {
 						onViewModeChange={ui.setViewMode}
 						dataSource={data.dataSource}
 						degradedWriteEnabled={data.degradedWriteEnabled}
+						isWorkspaceWritable={data.canPersistAssignments}
 						isOnline={data.isOnline}
 						dataSourceNotice={data.degradedNotice}
 						splitBrainIncident={data.splitBrainIncident}
@@ -354,8 +415,47 @@ export default function TeachingLoad() {
 						coverageModeConfig={COVERAGE_MODE_CONFIG}
 						onGlobalResetClick={() => ui.setResetDialogOpen(true)}
 						canRunGlobalReset={data.canRunGlobalReset}
+						onReconcileClick={() => {
+							void applySplitBrainReconcile();
+						}}
+						reconcileLoading={data.splitBrainApplyLoading}
+						showReconcileAction={splitBrainNeedsReconcile}
+						reconcileEnabled={data.canPersistAssignments}
 					/>
 				</div>
+
+				{splitBrainNeedsAttention && data.splitBrainIncident && (
+					<div className="shrink-0 px-6 py-3 border-b border-border/30 bg-amber-50/60">
+						<div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900 shadow-sm">
+							<div className="space-y-1">
+								<div className="flex items-center gap-2">
+									<AlertTriangle className="size-4" />
+									<span className="text-[0.7rem] font-black uppercase tracking-[0.18em]">
+										{data.splitBrainQuarantineRequired ? 'Teaching Load Lock Active' : 'Teaching Load Review Required'}
+									</span>
+								</div>
+								<p className="text-sm font-semibold leading-relaxed">{data.splitBrainIncident.quarantine.message}</p>
+								<p className="text-xs font-medium text-amber-800/90">
+									Integrity: {data.splitBrainIncident.counters.integrityOutOfSubjectScopePairs ?? 0} out-of-subject-scope rows, {data.splitBrainIncident.counters.truthRowsToUpdate ?? 0} saved-truth rows, {data.splitBrainIncident.counters.realFacultyMovesPlanned ?? 0} recoverable staffing moves, {data.splitBrainIncident.counters.realFacultyBlockers ?? 0} recovery blockers.
+								</p>
+							</div>
+							{splitBrainNeedsReconcile && (
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => {
+										void applySplitBrainReconcile();
+									}}
+									disabled={data.splitBrainApplyLoading || !data.canPersistAssignments}
+									className="h-9 shrink-0 border-amber-300 bg-white text-amber-900 hover:bg-amber-100"
+								>
+									{data.splitBrainApplyLoading ? 'Reconciling...' : 'Repair Saved Scope Drift'}
+								</Button>
+							)}
+						</div>
+					</div>
+				)}
 
 				<div className="flex-1 flex min-h-0">
 					{/* Main Grid Area */}

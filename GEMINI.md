@@ -389,6 +389,22 @@ After UI changes, Gemini must:
 3. verify the main states affected by the change
 4. verify that any changed client code matches the exact server response contract it consumes
 5. verify that every newly referenced icon, component, hook dependency, and type field is actually imported and declared
+6. open the actual target page and directly exercise every touched page surface or related component path that the user would hit
+7. verify that touched drawers, sheets, popovers, tabs, and other disclosure surfaces actually open without runtime crash
+
+For page-scoped UI work, Gemini must not stop at “the page rendered once.”
+
+Gemini must explicitly test the touched page and the touched related components/surfaces before declaring `GO`, especially when the pass changes:
+
+- imported icons
+- conditional inspector rails
+- sheets or drawers
+- popovers or pickers
+- mode switches
+- expansion rows
+- component extraction boundaries
+
+If a touched surface cannot be reached or opened during verification, Gemini must say so and default to `NO-GO` unless the user explicitly accepted a narrower proof standard.
 
 At minimum, Gemini should verify:
 
@@ -664,7 +680,8 @@ When Gemini receives a UX/UI prompt in this repo, it should follow this order:
 6. verify imports, backend contracts, type fields, and unit labels for touched files
 7. run build verification
 8. **Double check for TypeScript and lint errors** in the page you're editing before declaring finality to avoid regression-driven debugging cycles.
-9. only then report `GO` or `NO-GO`
+9. open and exercise the touched page plus touched related component surfaces to catch missing imports, disclosure crashes, and mode-switch regressions
+10. only then report `GO` or `NO-GO`
 
 ---
 
