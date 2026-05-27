@@ -90,6 +90,10 @@ import {
 	scopePreviewToCandidate,
 	statusColor,
 } from '@/lib/timetable-utils';
+import {
+	findRegularSwapCandidate,
+	resolveDraftPlacementFromEntry,
+} from '@/lib/timetable-swap-routing';
 
 export default function ScheduleReviewWorkspace() {
 	/* -- Data state -- */
@@ -667,29 +671,27 @@ export default function ScheduleReviewWorkspace() {
 				return;
 			}
 			if (activeDragItem.type === 'entry' && centerView === 'pre-generation') {
-				const placementId = parseDraftPlacementId(activeDragItem.entry.entryId);
-				if (placementId != null) {
-					const placement = draftBoard?.placements.find((candidate) => candidate.id === placementId);
-					if (placement) {
-						await stagePreGenDrop({ type: 'draftPlacement', placement }, day, startTime, endTime);
-						dragItemRef.current = null;
-						setDragItem(null);
-						return;
-					}
+				const placement = resolveDraftPlacementFromEntry(activeDragItem.entry, draftBoard?.placements ?? []);
+				if (placement) {
+					await stagePreGenDrop({ type: 'draftPlacement', placement }, day, startTime, endTime);
+					dragItemRef.current = null;
+					setDragItem(null);
+					return;
 				}
+				toast.error('Swap-safe draft placement could not be resolved. Refresh the pre-generation workspace and retry.');
+				dragItemRef.current = null;
+				setDragItem(null);
+				return;
 			}
 			const entry = activeDragItem.entry;
-			// Detect if target slot is occupied — scope to same pivot entity for current viewMode
-			const targetKey = `${day}-${startTime}`;
-			const pivotId = viewMode === 'section' ? entry.sectionId : viewMode === 'faculty' ? entry.facultyId : entry.roomId;
-			const cellOccupants = (gridIndex.get(targetKey) ?? []).filter((occ) => {
-				if (occ.entryId === entry.entryId) return false;
-				if (viewMode === 'section') return occ.sectionId === pivotId;
-				if (viewMode === 'faculty') return occ.facultyId === pivotId;
-				return occ.roomId === pivotId;
-			});
-			if (cellOccupants.length > 0) {
-				openRegularSwapPrompt(entry, cellOccupants[0]);
+			const slotEntries = (draft?.entries ?? []).filter((candidate) => (
+				candidate.day === day
+				&& candidate.startTime === startTime
+				&& candidate.endTime === endTime
+			));
+			const swapCandidate = findRegularSwapCandidate(entry, slotEntries);
+			if (swapCandidate) {
+				openRegularSwapPrompt(entry, swapCandidate);
 				dragItemRef.current = null;
 				setDragItem(null);
 				return;
@@ -730,7 +732,7 @@ export default function ScheduleReviewWorkspace() {
 			});
 			dragItemRef.current = null;
 		},
-		[dragItem, entityFilter, viewMode, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard?.placements, gridIndex, openRegularSwapPrompt],
+		[dragItem, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, toast],
 	);
 
 	/** Keyboard-accessible placement confirm */
@@ -746,15 +748,15 @@ export default function ScheduleReviewWorkspace() {
 				return;
 			}
 
-			// Fix 1: draft placement entry KB-placed in pre-gen mode ? route to pre-gen commit path
-			if (fakeItem.type === 'entry' && centerView === 'pre-generation' && fakeItem.entry.entryId.startsWith('draft-placement-')) {
-				const pid = Number(fakeItem.entry.entryId.replace('draft-placement-', ''));
-				const placement = draftBoard?.placements.find((p) => p.id === pid);
+			if (fakeItem.type === 'entry' && centerView === 'pre-generation') {
+				const placement = resolveDraftPlacementFromEntry(fakeItem.entry, draftBoard?.placements ?? []);
 				if (placement) {
 					setPreGenKbSource(null);
 					await stagePreGenDrop({ type: 'draftPlacement', placement }, day, startTime, endTime);
 					return;
 				}
+				toast.error('Swap-safe draft placement could not be resolved. Refresh the pre-generation workspace and retry.');
+				return;
 			}
 
 			if (fakeItem.type === 'unassigned') {
@@ -775,18 +777,15 @@ export default function ScheduleReviewWorkspace() {
 				return;
 			}
 
-			// Detect occupied slot ? scope to same pivot entity for current viewMode
 			if (fakeItem.type === 'entry') {
-				const targetKey = `${day}-${startTime}`;
-				const kbPivotId = viewMode === 'section' ? fakeItem.entry.sectionId : viewMode === 'faculty' ? fakeItem.entry.facultyId : fakeItem.entry.roomId;
-				const kbOccupants = (gridIndex.get(targetKey) ?? []).filter((occ) => {
-					if (occ.entryId === fakeItem.entry.entryId) return false;
-					if (viewMode === 'section') return occ.sectionId === kbPivotId;
-					if (viewMode === 'faculty') return occ.facultyId === kbPivotId;
-					return occ.roomId === kbPivotId;
-				});
-				if (kbOccupants.length > 0) {
-					openRegularSwapPrompt(fakeItem.entry, kbOccupants[0]);
+				const slotEntries = (draft?.entries ?? []).filter((candidate) => (
+					candidate.day === day
+					&& candidate.startTime === startTime
+					&& candidate.endTime === endTime
+				));
+				const swapCandidate = findRegularSwapCandidate(fakeItem.entry, slotEntries);
+				if (swapCandidate) {
+					openRegularSwapPrompt(fakeItem.entry, swapCandidate);
 					return;
 				}
 			}
@@ -824,7 +823,7 @@ export default function ScheduleReviewWorkspace() {
 					: 'Move applied.',
 			});
 		},
-		[kbSelectedSource, entityFilter, viewMode, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard?.placements, gridIndex, openRegularSwapPrompt],
+		[kbSelectedSource, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, toast],
 	);
 
 	/** Confirm assignment picker and submit the unassigned placement */
@@ -1062,11 +1061,7 @@ export default function ScheduleReviewWorkspace() {
 
 		if (data.type === 'entry' && data.entry) {
 			if (centerView === 'pre-generation') {
-				const placementId = parseDraftPlacementId(data.entry.entryId);
-				// Relax to any status — consistent with the draftPlacement path above.
-				const placement = placementId != null
-					? (draftBoard?.placements ?? []).find((candidate) => candidate.id === placementId) ?? null
-					: null;
+				const placement = resolveDraftPlacementFromEntry(data.entry, draftBoard?.placements ?? []);
 				if (placement) {
 					dragItemRef.current = { type: 'draftPlacement', placement };
 					setDragItem(dragItemRef.current);

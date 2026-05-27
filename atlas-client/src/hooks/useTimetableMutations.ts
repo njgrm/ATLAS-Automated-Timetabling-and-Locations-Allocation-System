@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
 import { parseDraftPlacementId, scopePreviewToCandidate } from '@/lib/timetable-utils';
+import { resolvePreGenSlotDisplacement } from '@/lib/timetable-swap-routing';
 import type { PendingSwapAction } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import type {
 	CommitResult,
@@ -1047,6 +1048,33 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		endTime: string,
 	) => {
 		if (!schoolYearId) return;
+		const sourcePlacementId = source.type === 'draftPlacement' ? source.placement.id : undefined;
+		const slotDisplacement = resolvePreGenSlotDisplacement(
+			draftBoard?.placements ?? [],
+			{ day, startTime, endTime },
+			sourcePlacementId,
+		);
+		if (slotDisplacement.kind === 'single' && slotDisplacement.placement) {
+			const candidateFacultyId = source.type === 'draftQueue' ? choosePreGenFaculty(source.item) : (source.placement.facultyId ?? 0);
+			const candidateRoomId = source.type === 'draftQueue' ? choosePreGenRoom(source.item) : (source.placement.roomId ?? 0);
+			if (!candidateFacultyId || !candidateRoomId) {
+				toast.error('Cannot place this session yet. Select a faculty and room from a compatible context first.');
+				return;
+			}
+			const pendingForLabel = buildPreGenPendingPlacement(source, day, startTime, endTime, candidateFacultyId, candidateRoomId);
+			openSwapPrompt(
+				source,
+				{ day, startTime, endTime, facultyId: candidateFacultyId, roomId: candidateRoomId },
+				slotDisplacement.placement,
+				pendingForLabel.sourceLabel,
+			);
+			return;
+		}
+		if (slotDisplacement.kind === 'multiple') {
+			toast.error('Swap could not start because multiple sessions already occupy this slot. Choose a clean slot or resolve one conflict first.');
+			return;
+		}
+
 		const candidateFacultyId = source.type === 'draftQueue' ? choosePreGenFaculty(source.item) : (source.placement.facultyId ?? 0);
 		const candidateRoomId = source.type === 'draftQueue' ? choosePreGenRoom(source.item) : (source.placement.roomId ?? 0);
 
@@ -1056,16 +1084,6 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		}
 
 		const pending = buildPreGenPendingPlacement(source, day, startTime, endTime, candidateFacultyId, candidateRoomId);
-
-		if (source.type === 'draftPlacement') {
-			const conflictsAtTarget = (draftBoard?.placements ?? []).filter(
-				(p) => p.status === 'DRAFT' && p.day === day && p.startTime === startTime && p.endTime === endTime && p.id !== source.placement.id,
-			);
-			if (conflictsAtTarget.length === 1) {
-				openSwapPrompt(source, { day, startTime, endTime, facultyId: candidateFacultyId, roomId: candidateRoomId }, conflictsAtTarget[0]!, pending.sourceLabel);
-				return;
-			}
-		}
 
 		setPreGenPending(pending);
 		setPreGenPreview(null);

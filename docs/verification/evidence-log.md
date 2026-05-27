@@ -1,3 +1,38 @@
+# 2026-05-27 - Phase 3 Timetable Swap Regression Repair One-Shot
+- Phase: Phase 3 generator-readiness stream, timetable swap regression repair
+- Operator: GitHub Copilot
+- Scope gate: PASS (post-run and pre-generation occupied-slot swap routing restored in live runtime)
+- Safety gate: PASS (targeted regression tests and client build passed; live Tailnet interaction checks captured)
+- Files changed in this pass:
+  - atlas-client/src/lib/timetable-swap-routing.ts
+  - atlas-client/src/components/timetable/ScheduleReviewWorkspace.tsx
+  - atlas-client/src/hooks/useTimetableMutations.ts
+  - atlas-client/src/lib/__tests__/timetable-swap-routing.test.ts
+  - docs/reference/atlas-runtime-source-of-truth-map.md
+  - docs/verification/evidence-log.md
+
+- Repair delivered:
+  1. Centralized swap routing decisions in a shared helper module for pre-generation and regular timetable flows.
+  2. Restored pre-generation draft placement resolution for entries whose IDs are not `draft-placement-*`.
+  3. Updated occupied-slot detection to evaluate all target-slot entries and open swap first when a candidate exists.
+  4. Added explicit multi-occupancy guardrails in pre-generation placement routing to prevent silent overlap-style fallback.
+
+- Automated verification:
+  - `Push-Location atlas-client; npx tsx --test src/lib/__tests__/timetable-swap-routing.test.ts; Pop-Location` -> PASS (`4 passed, 0 failed`)
+  - `npm --prefix atlas-client run build` -> PASS
+  - `get_errors` on changed files -> PASS
+
+- Live Tailnet verification (`https://njgrm.buru-degree.ts.net/timetable`):
+  1. Post-run occupied-slot drag (`entry-3176` -> occupied `MONDAY-09:00-09:45`) opened `Confirm Occupied-Slot Swap` dialog.
+  2. Pre-generation queue drag (`queue-pin-2721:1-2` -> occupied `MONDAY-07:30-08:15`) opened `Review Placement Swap` dialog.
+  3. Pre-generation keyboard-source placement path (select queue source, then place on occupied slot) also opened `Review Placement Swap` dialog.
+  4. No silent direct-commit fallback was observed for occupied-slot interactions in the tested paths.
+
+- Residual note:
+  - A deterministic live fixture for true multi-occupant target-slot ambiguity was not present in this session's active board view; the explicit ambiguity guard is covered by new routing tests.
+
+- Verdict: GO (prompt scope)
+
 # 2026-05-27 - Phase 3 G9 Slot Starvation And Special-Program Plotting Follow-Up (One-Shot)
 - Phase: Phase 3 generator-readiness stream, one-shot closure follow-up
 - Operator: GitHub Copilot
