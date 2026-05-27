@@ -63,14 +63,14 @@ export function SectionInspector({
 		<div className="flex h-full flex-col bg-background border-l border-border/50">
 			<div className="shrink-0 p-6 border-b border-border/40 space-y-4">
 				<div className="flex items-center justify-between">
-					<h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground/60">Section Staffing</h3>
-					<Badge variant="outline" className={cn("h-5 font-black uppercase tracking-tighter shadow-none text-xs", missingCount === 0 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200")}>
+					<h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">Section Staffing</h3>
+					<Badge variant="outline" className={cn("h-5 font-semibold uppercase tracking-tighter shadow-none text-xs", missingCount === 0 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200")}>
 						{missingCount === 0 ? "Fully Staffed" : `${missingCount} Subjects Missing`}
 					</Badge>
 				</div>
 
 				<div className="flex items-center gap-4">
-					<div className={cn("size-12 rounded-xl flex items-center justify-center text-lg font-black border shadow-sm", 
+					<div className={cn("size-12 rounded-xl flex items-center justify-center text-lg font-semibold border shadow-sm", 
 						section.displayOrder === 7 ? "bg-green-50 border-green-200 text-green-700" :
 						section.displayOrder === 8 ? "bg-yellow-50 border-yellow-200 text-yellow-700" :
 						section.displayOrder === 9 ? "bg-red-50 border-red-200 text-red-700" :
@@ -79,11 +79,11 @@ export function SectionInspector({
 						{section.name[0]}
 					</div>
 					<div className="min-w-0">
-						<h4 className="text-base font-black uppercase tracking-tight truncate leading-tight">
+						<h4 className="text-base font-semibold uppercase tracking-tight truncate leading-tight">
 							{section.name}
 						</h4>
 						<div className="flex items-center gap-2 mt-0.5">
-							<span className={cn("text-xs font-black uppercase tracking-widest", gradeColorClass)}>
+							<span className={cn("text-xs font-semibold uppercase tracking-widest", gradeColorClass)}>
 								{gradeLabel(section.displayOrder)}
 							</span>
 							<span className="text-muted-foreground/30">•</span>
@@ -100,8 +100,8 @@ export function SectionInspector({
 							<Star className="size-3.5 text-primary fill-primary/20" />
 						</div>
 						<div className="min-w-0">
-							<p className="text-xs font-black text-primary/60 uppercase tracking-widest leading-none mb-1">Class Adviser</p>
-							<p className="text-sm font-black text-primary uppercase truncate">
+							<p className="text-xs font-semibold text-primary/60 uppercase tracking-widest leading-none mb-1">Class Adviser</p>
+							<p className="text-sm font-semibold text-primary uppercase truncate">
 								{section.adviserName}
 							</p>
 						</div>
@@ -114,11 +114,11 @@ export function SectionInspector({
 				<div className="grid grid-cols-2 gap-3">
 					<div className="p-4 rounded-xl border border-border/40 bg-muted/5 space-y-1">
 						<span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest block">Assigned</span>
-						<p className="text-xl font-black tracking-tight tabular-nums">{assignedCount}</p>
+						<p className="text-xl font-semibold tracking-tight tabular-nums">{assignedCount}</p>
 					</div>
 					<div className="p-4 rounded-xl border border-border/40 bg-muted/5 space-y-1">
 						<span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest block">Missing</span>
-						<p className={cn("text-xl font-black tracking-tight tabular-nums", missingCount > 0 ? 'text-rose-600' : 'text-emerald-600')}>
+						<p className={cn("text-xl font-semibold tracking-tight tabular-nums", missingCount > 0 ? 'text-rose-600' : 'text-emerald-600')}>
 							{missingCount}
 						</p>
 					</div>
@@ -126,7 +126,7 @@ export function SectionInspector({
 
 				{/* Subjects List */}
 				<section className="space-y-4">
-					<h5 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Subject Coverage</h5>
+					<h5 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Subject Coverage</h5>
 					<div className="space-y-2">
 						{staffing.map(({ subject, owner, isPending }) => (
 							<div key={subject.id} className={cn(
@@ -135,12 +135,12 @@ export function SectionInspector({
 									? "bg-background border-border/40 shadow-sm" 
 									: "bg-muted/10 border-dashed border-border/60 opacity-60"
 							)}>
-								<Badge variant="secondary" className={cn("px-2 py-0.5 text-xs font-black uppercase", owner ? "bg-primary/5 text-primary border-primary/10" : "bg-muted text-muted-foreground/40")}>
+								<Badge variant="secondary" className={cn("px-2 py-0.5 text-xs font-semibold uppercase", owner ? "bg-primary/5 text-primary border-primary/10" : "bg-muted text-muted-foreground/40")}>
 									{subject.subjectCode}
 								</Badge>
 								
 								<div className="flex-1 min-w-0">
-									<p className="text-sm font-black uppercase truncate leading-tight">
+									<p className="text-sm font-semibold uppercase truncate leading-tight">
 										{subject.subjectName}
 									</p>
 									<div className="flex items-center gap-1.5 mt-0.5">
@@ -150,14 +150,14 @@ export function SectionInspector({
 													{owner.facultyName}
 												</span>
 												{isPending && (
-													<Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-black uppercase bg-sky-100 text-sky-700 animate-pulse">Draft</Badge>
+													<Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-semibold uppercase bg-sky-100 text-sky-700 animate-pulse">Draft</Badge>
 												)}
 											</>
 										) : (
 											<span className="text-xs font-bold text-rose-500 uppercase tracking-widest italic">Unassigned</span>
 										)}
 										{subject.specializationLabel ? (
-											<Badge variant="outline" className="h-4 px-1.5 text-[10px] font-black uppercase bg-background">
+											<Badge variant="outline" className="h-4 px-1.5 text-[10px] font-semibold uppercase bg-background">
 												{subject.specializationLabel}
 											</Badge>
 										) : null}
@@ -174,7 +174,7 @@ export function SectionInspector({
 
 				{/* Guidance */}
 				<div className="p-4 rounded-xl border border-dashed border-border bg-muted/20">
-					<h6 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2">
+					<h6 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2">
 						<Info className="size-4" />
 						Staffing Guidance
 					</h6>

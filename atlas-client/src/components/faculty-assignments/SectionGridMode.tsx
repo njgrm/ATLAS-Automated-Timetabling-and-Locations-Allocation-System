@@ -197,12 +197,12 @@ export function SectionGridMode({
 
 					{hasDraft && (
 						<div className="flex items-center gap-2 bg-sky-50 border border-sky-200 px-3 py-1 rounded-xl shadow-sm animate-in fade-in slide-in-from-right-2">
-							<span className="text-[0.65rem] font-black uppercase text-sky-700 tracking-widest mr-2">Pending Changes</span>
+							<span className="text-[0.65rem] font-semibold uppercase text-sky-700 tracking-widest mr-2">Pending Changes</span>
 							<Button 
 								size="sm" 
 								onClick={onSave} 
 								disabled={saving || isReadOnlyMode}
-								className="h-8 px-4 text-xs font-black uppercase tracking-widest gap-2 bg-sky-600 hover:bg-sky-700 shadow-md ring-2 ring-sky-600/20"
+								className="h-8 px-4 text-xs font-semibold uppercase tracking-widest gap-2 bg-sky-600 hover:bg-sky-700 shadow-md ring-2 ring-sky-600/20"
 							>
 								<Save className="size-3.5" />
 								{saving ? 'Saving...' : 'Save All'}
@@ -216,7 +216,7 @@ export function SectionGridMode({
 				{sectionRows.length === 0 ? (
 					<div className="flex flex-col items-center justify-center p-12 text-center bg-background border border-dashed border-border/60 rounded-2xl">
 						<CheckCircle2 className="size-10 text-emerald-500/40 mb-4" />
-						<h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground/60">No sections require attention</h3>
+						<h3 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/60">No sections require attention</h3>
 						<p className="text-xs text-muted-foreground/40 mt-1">All sections match your current coverage contract.</p>
 					</div>
 				) : sectionRows.map((row) => {
@@ -244,11 +244,11 @@ export function SectionGridMode({
 
 								<div className="flex-1 min-w-0">
 									<div className="flex items-center gap-2">
-										<h4 className="text-sm font-black uppercase tracking-tight truncate">
+										<h4 className="text-sm font-semibold uppercase tracking-tight truncate">
 											{row.section.name}
 										</h4>
 										{row.section.isSpecialProgram && (
-											<Badge variant="outline" className="h-4 px-1.5 text-[0.6rem] font-black uppercase bg-violet-50 text-violet-700 border-violet-100">
+											<Badge variant="outline" className="h-4 px-1.5 text-[0.6rem] font-semibold uppercase bg-violet-50 text-violet-700 border-violet-100">
 												{row.section.programCode}
 											</Badge>
 										)}
@@ -261,7 +261,7 @@ export function SectionGridMode({
 								<div className="flex items-center gap-6 px-4">
 									<div className="text-right min-w-[6rem]">
 										<p className={cn(
-											"text-xs font-black tabular-nums",
+											"text-xs font-semibold tabular-nums",
 											row.isCompleted ? "text-emerald-600" : "text-amber-600"
 										)}>
 											{row.totalCount - row.unassignedCount} / {row.totalCount}
@@ -287,24 +287,24 @@ export function SectionGridMode({
 												<div key={subject.id} className="space-y-3 p-4 rounded-xl border border-border/40 bg-background/50">
 													<div className="flex items-center justify-between gap-3">
 														<div className="flex items-center gap-3 min-w-0">
-															<Badge variant="outline" className="h-6 px-2 text-xs font-black uppercase border-primary/20 bg-primary/5 text-primary shrink-0">
+															<Badge variant="outline" className="h-6 px-2 text-xs font-semibold uppercase border-primary/20 bg-primary/5 text-primary shrink-0">
 																{subject.code}
 															</Badge>
-															<span className="text-sm font-black uppercase truncate">{subject.name}</span>
+															<span className="text-sm font-semibold uppercase truncate">{subject.name}</span>
 														</div>
 														<div className="flex items-center gap-3 shrink-0">
 															{isStaffed ? (
 																<div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-100 shadow-sm animate-in fade-in duration-300">
 																	<UserCheck className="size-4 text-emerald-600" />
 																	<div className="flex flex-col">
-																		<span className="text-xs font-black text-emerald-900 uppercase leading-none mb-0.5">{owner.facultyName}</span>
+																		<span className="text-xs font-semibold text-emerald-900 uppercase leading-none mb-0.5">{owner.facultyName}</span>
 																		<span className="text-xs font-bold text-emerald-600 uppercase tracking-tighter leading-none">Current Owner</span>
 																	</div>
 																</div>
 															) : (
 																<div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-100 shadow-sm animate-in fade-in duration-300">
 																	<AlertTriangle className="size-4 text-amber-600" />
-																	<span className="text-xs font-black text-amber-700 uppercase">Unassigned</span>
+																	<span className="text-xs font-semibold text-amber-700 uppercase">Unassigned</span>
 																</div>
 															)}
 
@@ -313,7 +313,7 @@ export function SectionGridMode({
 																	<Button 
 																		variant="outline" 
 																		size="sm" 
-																		className="h-9 gap-2 font-black uppercase tracking-widest text-xs border-primary/30 hover:border-primary hover:bg-primary/5 shadow-sm"
+																		className="h-9 gap-2 font-semibold uppercase tracking-widest text-xs border-primary/30 hover:border-primary hover:bg-primary/5 shadow-sm"
 																		disabled={saving || isReadOnlyMode}
 																	>
 																		{isStaffed ? 'Reassign' : 'Assign Teacher'}
@@ -322,7 +322,7 @@ export function SectionGridMode({
 																</PopoverTrigger>
 																<PopoverContent align="end" className="w-80 p-0 overflow-hidden rounded-xl shadow-2xl border-primary/20">
 																	<div className="p-3 border-b border-border/40 bg-muted/20">
-																		<p className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 mb-1">Qualified Candidates</p>
+																		<p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 mb-1">Qualified Candidates</p>
 																		<p className="text-xs font-bold text-foreground truncate">{subject.name}</p>
 																	</div>
 																	<div className="max-h-[300px] overflow-auto no-scrollbar p-1">
@@ -343,12 +343,12 @@ export function SectionGridMode({
 																						)}
 																					>
 																						<div className="min-w-0">
-																							<p className={cn("text-xs font-black uppercase truncate", isCurrentOwner ? "text-emerald-900" : "text-foreground")}>
+																							<p className={cn("text-xs font-semibold uppercase truncate", isCurrentOwner ? "text-emerald-900" : "text-foreground")}>
 																								{f.lastName}, {f.firstName}
 																							</p>
 																							<div className="flex items-center gap-2 mt-0.5">
 																								<span className={cn(
-																									"text-xs font-black uppercase tracking-tighter",
+																									"text-xs font-semibold uppercase tracking-tighter",
 																									loadPct > 100 ? "text-rose-600" : loadPct > 80 ? "text-amber-600" : "text-emerald-600"
 																								)}>
 																									{loadPct}% Load

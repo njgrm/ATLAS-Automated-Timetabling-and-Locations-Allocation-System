@@ -652,7 +652,7 @@ export default function Sections() {
 											<div className="flex items-center gap-2 px-3 py-1 bg-primary/5 rounded-full border border-primary/20 cursor-help hidden lg:flex">
 												<div className="flex items-center gap-1.5">
 													<Building2 className="size-3.5 text-primary" />
-													<span className="text-[0.7rem] font-black uppercase tracking-widest text-primary">Assignment Progress</span>
+													<span className="text-[0.7rem] font-semibold uppercase tracking-widest text-primary">Assignment Progress</span>
 												</div>
 												<div className="h-3 w-32 bg-muted rounded-full overflow-hidden border border-border/30">
 													<div 
@@ -743,7 +743,7 @@ export default function Sections() {
 						{/* Desktop: Toggle Groups */}
 						<div className="hidden md:flex flex-wrap items-center gap-6">
 							<div className="flex items-center gap-2">
-								<span className="text-[0.6rem] font-black uppercase tracking-widest text-muted-foreground">Grade Level:</span>
+								<span className="text-[0.6rem] font-semibold uppercase tracking-widest text-muted-foreground">Grade Level:</span>
 								<div className="flex bg-muted/30 p-0.5 rounded-lg border border-border/50">
 									<Button 
 										variant={gradeFilter === 'all' ? 'secondary' : 'ghost'} 
@@ -768,7 +768,7 @@ export default function Sections() {
 							</div>
 
 							<div className="flex items-center gap-2">
-								<span className="text-[0.6rem] font-black uppercase tracking-widest text-muted-foreground">Program Type:</span>
+								<span className="text-[0.6rem] font-semibold uppercase tracking-widest text-muted-foreground">Program Type:</span>
 								<div className="flex bg-muted/30 p-0.5 rounded-lg border border-border/50 flex-wrap">
 									<Button 
 										variant={programFilter === 'all' ? 'secondary' : 'ghost'} 

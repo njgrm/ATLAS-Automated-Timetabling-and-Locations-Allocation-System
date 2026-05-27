@@ -122,6 +122,56 @@ function run() {
     const universalEntry = universalResult.entries[0];
     assertEqual(universalEntry.roomId, 0, 'Universal strategy still assigns compatible alternate room');
     assertEqual(universalEntry.metadata?.roomAssignmentReason, 'GENERAL_POOL_ASSIGNED', 'Universal strategy uses GENERAL_POOL_ASSIGNED reason');
+    const specializedSubjectInput = buildBaseInput('HOME_ROOM_FIRST');
+    specializedSubjectInput.subjects = [
+        {
+            id: 601,
+            code: 'SCI_LAB',
+            name: 'Science Lab',
+            minMinutesPerWeek: 50,
+            preferredRoomType: 'LABORATORY',
+            gradeLevels: [7],
+        },
+    ];
+    specializedSubjectInput.facultySubjects = [
+        {
+            facultyId: 1001,
+            subjectId: 601,
+            gradeLevels: [7],
+            sectionIds: [101],
+        },
+    ];
+    const specializedResult = constructBaseline(specializedSubjectInput);
+    assert(specializedResult.entries.length > 0, 'Home-room-first still places specialized subjects in the master schedule');
+    assertEqual(specializedResult.entries[0]?.roomId, 2, 'Home-room-first keeps specialized subjects on the section homeroom fallback path');
+    assertEqual(Boolean(specializedResult.entries[0]?.metadata?.deferredRoomTypePreference), true, 'Home-room-first marks deferred specialized-room expectations for section master schedules');
+    assertEqual(specializedResult.unassignedItems.length, 0, 'Deferred specialized-room expectations no longer block section master-schedule placement');
+    const specializedWithoutHomeRoomInput = buildBaseInput('HOME_ROOM_FIRST');
+    specializedWithoutHomeRoomInput.sectionsByGrade[0].sections[0].homeRoomId = null;
+    specializedWithoutHomeRoomInput.sectionsByGrade[0].sections[0].buildingZoneId = null;
+    specializedWithoutHomeRoomInput.subjects = [
+        {
+            id: 701,
+            code: 'TLE_ICT_EXP',
+            name: 'TLE Exploratory ICT',
+            minMinutesPerWeek: 50,
+            preferredRoomType: 'COMPUTER_LAB',
+            gradeLevels: [7],
+        },
+    ];
+    specializedWithoutHomeRoomInput.facultySubjects = [
+        {
+            facultyId: 1001,
+            subjectId: 701,
+            gradeLevels: [7],
+            sectionIds: [101],
+        },
+    ];
+    const specializedWithoutHomeRoomResult = constructBaseline(specializedWithoutHomeRoomInput);
+    assert(specializedWithoutHomeRoomResult.entries.length > 0, 'Home-room-first still places specialized section demand when home room is missing');
+    assertEqual(specializedWithoutHomeRoomResult.entries[0]?.roomId, 0, 'Home-room-first uses classroom fallback pool when no home room is set');
+    assertEqual(Boolean(specializedWithoutHomeRoomResult.entries[0]?.metadata?.deferredRoomTypePreference), true, 'Classroom fallback without home room still records deferred specialized-room diagnostics');
+    assertEqual(specializedWithoutHomeRoomResult.unassignedItems.some((item) => item.roomAssignmentReason === 'SPECIALIZED_ROOM_UNAVAILABLE'), false, 'Missing home-room sections do not emit SPECIALIZED_ROOM_UNAVAILABLE under home-room-first contraction');
     console.log(`\nSummary: ${passCount} passed, ${failCount} failed`);
     if (failCount > 0) {
         process.exitCode = 1;

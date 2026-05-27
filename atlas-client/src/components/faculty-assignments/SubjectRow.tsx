@@ -349,12 +349,12 @@ export const SubjectRow = memo(({
 					<div className="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-muted/30 border border-border/50 shadow-inner">
 						<div className="flex flex-col items-center">
 							<span className="text-xs font-bold text-muted-foreground/70 uppercase tracking-wider leading-none mb-1">Assigned</span>
-							<span className={`text-sm font-black tabular-nums leading-none ${selectedCount > 0 ? 'text-primary' : 'text-muted-foreground'}`}>{selectedCount}</span>
+							<span className={`text-sm font-semibold tabular-nums leading-none ${selectedCount > 0 ? 'text-primary' : 'text-muted-foreground'}`}>{selectedCount}</span>
 						</div>
 						<div className="w-px h-6 bg-border/60 mx-1" />
 						<div className="flex flex-col items-center">
 							<span className="text-xs font-bold text-muted-foreground/70 uppercase tracking-wider leading-none mb-1">Total</span>
-							<span className="text-sm font-black tabular-nums leading-none text-muted-foreground">{sections.length}</span>
+							<span className="text-sm font-semibold tabular-nums leading-none text-muted-foreground">{sections.length}</span>
 						</div>
 					</div>
 
@@ -420,7 +420,7 @@ export const SubjectRow = memo(({
 										</div>
 										
 										<div className="flex items-center gap-4">
-											<Badge variant="secondary" className="text-xs font-black h-6 px-2 bg-muted/60 text-muted-foreground shadow-none tabular-nums">
+											<Badge variant="secondary" className="text-xs font-semibold h-6 px-2 bg-muted/60 text-muted-foreground shadow-none tabular-nums">
 												{selectedInGrade} / {gradeSections.length}
 											</Badge>
 											<Button
@@ -524,7 +524,7 @@ export const SubjectRow = memo(({
 																				isSystemAssignedSection ? 'opacity-0' : 'opacity-100'
 																			)}
 																		/>
-																		<span className={`text-[0.75rem] font-black leading-tight truncate ${isSelected ? 'text-primary' : 'text-foreground'}`}>
+																		<span className={`text-[0.75rem] font-semibold leading-tight truncate ${isSelected ? 'text-primary' : 'text-foreground'}`}>
 																			{section.name}
 																		</span>
 																	</div>
@@ -539,12 +539,12 @@ export const SubjectRow = memo(({
 																<div className="w-full space-y-1.5">
 																	<div className="flex flex-wrap items-center gap-1.5">
 																		{section.isSpecialProgram && section.programCode && PROGRAM_BADGE[section.programCode] && (
-																			<Badge variant="outline" className={`h-4 px-1.5 text-xs font-black uppercase border-none shadow-none ${PROGRAM_BADGE[section.programCode]}`}>
+																			<Badge variant="outline" className={`h-4 px-1.5 text-xs font-semibold uppercase border-none shadow-none ${PROGRAM_BADGE[section.programCode]}`}>
 																				{section.programCode}
 																			</Badge>
 																		)}
 																		{isRotationFamily && rotationTermLabel && (
-																			<Badge variant="outline" className={`h-4 px-1.5 text-xs font-black uppercase bg-violet-100 text-violet-900 border-violet-300 shadow-none`}>
+																			<Badge variant="outline" className={`h-4 px-1.5 text-xs font-semibold uppercase bg-violet-100 text-violet-900 border-violet-300 shadow-none`}>
 																				{rotationTermLabel}
 																			</Badge>
 																		)}
@@ -587,18 +587,25 @@ export const SubjectRow = memo(({
 																		</div>
 
 																		{isSavedOther && !disabled && (
-																			<Button
-																				type="button"
-																				variant="outline"
-																				size="icon-xs"
-																				onClick={(e) => {
-																					e.stopPropagation();
-																					onSwapSectionOwnership?.(subject.id, section.id, savedOwner.facultyId);
-																				}}
-																				className="h-6 w-6 text-primary border-primary/30 hover:bg-primary hover:text-white"
-																			>
-																				{isStaleOwner ? <RotateCcw className="size-3" /> : <ArrowRight className="size-3" />}
-																			</Button>
+																			<Tooltip>
+																				<TooltipTrigger asChild>
+																					<Button
+																						type="button"
+																						variant="outline"
+																						size="icon-xs"
+																						onClick={(e) => {
+																							e.stopPropagation();
+																							onSwapSectionOwnership?.(subject.id, section.id, savedOwner.facultyId);
+																						}}
+																						className="h-6 w-6 text-primary border-primary/30 hover:bg-primary hover:text-white"
+																					>
+																						{isStaleOwner ? <RotateCcw className="size-3" /> : <ArrowLeftRight className="size-3" />}
+																					</Button>
+																				</TooltipTrigger>
+																				<TooltipContent side="top" className="text-xs font-bold">
+																					{isStaleOwner ? 'Restore historical ownership' : 'Swap ownership to current teacher'}
+																				</TooltipContent>
+																			</Tooltip>
 																		)}
 																	</div>
 																</div>

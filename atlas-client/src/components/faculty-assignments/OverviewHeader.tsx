@@ -125,7 +125,7 @@ export function OverviewHeader({
 								className="h-6 px-2 gap-1.5 bg-amber-50 border border-amber-100 text-amber-700 hover:bg-amber-100/50"
 							>
 								<Info className="size-3" />
-								<span className="text-[0.6rem] font-black uppercase tracking-tight">Review Required</span>
+								<span className="text-[0.6rem] font-semibold uppercase tracking-tight">Review Required</span>
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent side="bottom" className="text-[0.65rem] font-bold max-w-[200px]">

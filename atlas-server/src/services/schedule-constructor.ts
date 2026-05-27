@@ -1381,13 +1381,19 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			: [];
 		if (!subject) {
 			for (let s = 0; s < item.sessionsPerWeek; s++) {
+				const requestedRoomType = item.roomTypePreference;
+				const deferSpecializedRoomTypePreference =
+					useHomeRoomPriority
+					&& item.entryKind === 'SECTION'
+					&& requestedRoomType != null
+					&& requestedRoomType !== 'CLASSROOM';
 				unassignedItems.push({
 					sectionId: item.sectionId,
 					subjectId: item.subjectId,
 					gradeLevel: item.gradeLevel,
 					session: s + 1,
 					reason: 'NO_QUALIFIED_FACULTY',
-					roomAssignmentReason: item.roomTypePreference && ['LABORATORY', 'TLE_WORKSHOP', 'COMPUTER_LAB', 'GYMNASIUM'].includes(item.roomTypePreference)
+					roomAssignmentReason: !deferSpecializedRoomTypePreference && item.roomTypePreference && ['LABORATORY', 'TLE_WORKSHOP', 'COMPUTER_LAB', 'GYMNASIUM'].includes(item.roomTypePreference)
 						? 'SPECIALIZED_ROOM_UNAVAILABLE'
 						: 'FALLBACK_UNRESOLVED',
 					entryKind: item.entryKind,
@@ -1510,8 +1516,14 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				}
 				if (candidates.length === 0) continue;
 
-				let compatibleRooms = roomsByType.get(item.roomTypePreference ?? subject.preferredRoomType) ?? [];
-				const isSpecializedDemand = (item.roomTypePreference ?? subject.preferredRoomType) !== 'CLASSROOM';
+				const requestedRoomType = item.roomTypePreference ?? subject.preferredRoomType;
+				const deferSpecializedRoomTypePreference =
+					useHomeRoomPriority
+					&& item.entryKind === 'SECTION'
+					&& requestedRoomType !== 'CLASSROOM';
+				const effectiveRoomTypePreference = deferSpecializedRoomTypePreference ? 'CLASSROOM' : requestedRoomType;
+				let compatibleRooms = roomsByType.get(effectiveRoomTypePreference) ?? [];
+				const isSpecializedDemand = effectiveRoomTypePreference !== 'CLASSROOM';
 				let sameZoneStandardRooms: RoomInput[] = [];
 				let broaderStandardRooms: RoomInput[] = [];
 
@@ -1569,7 +1581,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 				if (compatibleRooms.length === 0) {
 					sessionFailureReasons.add('NO_COMPATIBLE_ROOM');
-					if (preferredHomeRoomId != null && !isSpecializedDemand) {
+					if (preferredHomeRoomId != null) {
 						sawNoSameZoneStandardRoom = true;
 					}
 					continue;
@@ -1615,7 +1627,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 						}
 						if (room.capacity != null && item.enrolledCount > room.capacity) continue;
 
-						if (subject.requiredFeatures && subject.requiredFeatures.length > 0) {
+						if (!deferSpecializedRoomTypePreference && subject.requiredFeatures && subject.requiredFeatures.length > 0) {
 							const roomFeatures = new Set(room.features || []);
 							if (!subject.requiredFeatures.every((feature) => roomFeatures.has(feature))) continue;
 						}
@@ -1669,6 +1681,8 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 									homeRoomFallbackCause: preferredHomeRoomId != null && room.id !== preferredHomeRoomId
 										? fallbackCauseForPlacement
 										: undefined,
+									deferredRoomTypePreference: deferSpecializedRoomTypePreference || undefined,
+									deferredPreferredRoomType: deferSpecializedRoomTypePreference ? requestedRoomType : undefined,
 								},
 						});
 
@@ -1717,7 +1731,12 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 				else if (sessionFailureReasons.has('FACULTY_OVERLOADED')) reason = 'FACULTY_OVERLOADED';
 				else if (sessionFailureReasons.has('NO_COMPATIBLE_ROOM')) reason = 'NO_COMPATIBLE_ROOM';
 
-				const isSpecializedDemand = item.roomTypePreference != null && SPECIALIZED_ROOM_TYPES.has(item.roomTypePreference);
+				const requestedRoomType = item.roomTypePreference ?? subject.preferredRoomType;
+				const deferSpecializedRoomTypePreference =
+					useHomeRoomPriority
+					&& item.entryKind === 'SECTION'
+					&& requestedRoomType !== 'CLASSROOM';
+				const isSpecializedDemand = !deferSpecializedRoomTypePreference && SPECIALIZED_ROOM_TYPES.has(requestedRoomType);
 				const homeRoomFallbackCause: HomeRoomFallbackCause | undefined = preferredHomeRoomId != null
 					? (sawPolicyOrShiftWindowIncompatible
 						? 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE'

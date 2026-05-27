@@ -178,14 +178,14 @@ export function RosterSidebar({
 												{member.lastName[0]}
 											</div>
 											<div className="flex-1 min-w-0">
-												<p className={`truncate text-sm ${selectedId === member.id ? 'font-black text-foreground' : 'font-bold text-muted-foreground'}`}>
+												<p className={`truncate text-sm ${selectedId === member.id ? 'font-semibold text-foreground' : 'font-bold text-muted-foreground'}`}>
 													{member.lastName}, {member.firstName}
 												</p>
 												<div className="flex items-center gap-2 mt-0.5">
 													<span className="truncate text-xs text-muted-foreground/80 font-bold flex-1">
 														{member.specialization || member.department || 'General'}
 													</span>
-													<span className={`text-xs font-black tabular-nums ${loadColorClass}`}>
+													<span className={`text-xs font-semibold tabular-nums ${loadColorClass}`}>
 														{member.isPlaceholder ? `${Math.round(displayHours * 10) / 10}h` : `${actualLoadPercentage}%`}
 													</span>
 												</div>

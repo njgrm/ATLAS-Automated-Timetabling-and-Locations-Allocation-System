@@ -60,14 +60,14 @@ export function WorkloadInspector({
 		<div className="flex h-full flex-col bg-background border-l border-border/50">
 			<div className="shrink-0 p-6 border-b border-border/40 space-y-4">
 				<div className="flex items-center justify-between">
-					<h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground/60">Teacher Workload</h3>
-					<Badge variant="outline" className={cn("h-5 font-black uppercase tracking-tighter shadow-none text-xs", status.bg, status.text, status.border)}>
+					<h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">Teacher Workload</h3>
+					<Badge variant="outline" className={cn("h-5 font-semibold uppercase tracking-tighter shadow-none text-xs whitespace-nowrap", status.bg, status.text, status.border)}>
 						{loadProfile.statusLabel}
 					</Badge>
 				</div>
 
 				<div className="flex items-center gap-4">
-					<div className="size-12 rounded-full bg-primary/10 flex items-center justify-center text-lg font-black text-primary border border-primary/20 relative">
+					<div className="size-12 rounded-full bg-primary/10 flex items-center justify-center text-lg font-semibold text-primary border border-primary/20 relative">
 						{selected.firstName[0]}{selected.lastName[0]}
 						{selected.isClassAdviser && (
 							<div className="absolute -bottom-1 -right-1 size-5 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center shadow-sm">
@@ -76,7 +76,7 @@ export function WorkloadInspector({
 						)}
 					</div>
 					<div className="min-w-0">
-						<h4 className="text-base font-black uppercase tracking-tight truncate leading-tight">
+						<h4 className="text-base font-semibold uppercase tracking-tight truncate leading-tight">
 							{selected.lastName}, {selected.firstName}
 						</h4>
 						<p className="text-xs font-bold text-muted-foreground uppercase tracking-widest truncate">
@@ -91,8 +91,8 @@ export function WorkloadInspector({
 							<Star className="size-3.5 text-amber-600 fill-amber-600" />
 						</div>
 						<div className="min-w-0">
-							<p className="text-xs font-black text-amber-800/60 uppercase tracking-widest leading-none mb-1">Advisory Assignment</p>
-							<p className="text-sm font-black text-amber-900 uppercase truncate">
+							<p className="text-xs font-semibold text-amber-800/60 uppercase tracking-widest leading-none mb-1">Advisory Assignment</p>
+							<p className="text-sm font-semibold text-amber-900 uppercase truncate">
 								{selected.advisedSectionName || 'Section Unassigned'}
 							</p>
 						</div>
@@ -104,8 +104,8 @@ export function WorkloadInspector({
 				{/* Capacity Gauge */}
 				<section className="space-y-4">
 					<div className="flex items-center justify-between">
-						<span className="text-xs font-black uppercase tracking-widest text-muted-foreground/60">Weekly Capacity</span>
-						<span className="text-sm font-black tabular-nums">{loadProfile.creditedTotalHours} / {selected.maxHoursPerWeek}h</span>
+						<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">Weekly Capacity</span>
+						<span className="text-sm font-semibold tabular-nums">{loadProfile.creditedTotalHours} / {selected.maxHoursPerWeek}h</span>
 					</div>
 					<div className="space-y-2">
 						<div className="h-2 w-full bg-muted border border-border/20 shadow-inner rounded-full overflow-hidden">
@@ -114,7 +114,7 @@ export function WorkloadInspector({
 								style={{ width: `${Math.min(100, (loadProfile.creditedTotalHours / selected.maxHoursPerWeek) * 100)}%` }} 
 							/>
 						</div>
-						<div className="flex justify-between items-center text-xs font-black uppercase tracking-tighter text-muted-foreground/60">
+						<div className="flex justify-between items-center text-xs font-semibold uppercase tracking-tighter text-muted-foreground/60">
 							<span>0%</span>
 							<span>{Math.round((loadProfile.creditedTotalHours / selected.maxHoursPerWeek) * 100)}% Utilized</span>
 							<span>100%</span>
@@ -138,7 +138,7 @@ export function WorkloadInspector({
 
 				{/* Handled Classes Summary */}
 				<section className="space-y-4">
-					<h5 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Handled Classes</h5>
+					<h5 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Handled Classes</h5>
 					{loadProfile.breakdown.length === 0 ? (
 						<div className="p-4 rounded-xl border border-dashed border-border/60 bg-muted/5 text-center">
 							<p className="text-xs font-bold text-muted-foreground/40 uppercase tracking-widest italic">No sections assigned yet</p>
@@ -147,17 +147,17 @@ export function WorkloadInspector({
 						<div className="space-y-2">
 							{loadProfile.breakdown.map((item, idx) => (
 								<div key={`${item.subjectId}-${item.sectionId}-${idx}`} className="flex items-center gap-3 p-2 rounded-lg border border-border/40 bg-background shadow-sm">
-									<Badge variant="secondary" className="px-2 py-0.5 text-xs font-black uppercase bg-primary/5 text-primary border-primary/10">
+									<Badge variant="secondary" className="px-2 py-0.5 text-xs font-semibold uppercase bg-primary/5 text-primary border-primary/10">
 										{item.subjectCode}
 									</Badge>
 									<div className="flex-1 min-w-0">
-										<p className="text-sm font-black uppercase truncate leading-tight">{item.sectionName}</p>
+										<p className="text-sm font-semibold uppercase truncate leading-tight">{item.sectionName}</p>
 										<div className="flex items-center gap-1.5 mt-0.5">
 											<span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{gradeLabel(item.gradeLevel)}</span>
 											{item.rotationFamily && (
 												<>
 													<span className="text-muted-foreground/30">•</span>
-													<span className="text-xs font-black text-violet-600 uppercase tracking-tighter">{item.rotationTermLabel || 'Rotational'}</span>
+													<span className="text-xs font-semibold text-violet-600 uppercase tracking-tighter">{item.rotationTermLabel || 'Rotational'}</span>
 												</>
 											)}
 										</div>
@@ -170,7 +170,7 @@ export function WorkloadInspector({
 
 				{/* Arithmetic Breakdown */}
 				<section className="space-y-4">
-					<h5 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Load Arithmetic</h5>
+					<h5 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Load Arithmetic</h5>
 					<div className="space-y-2.5">
 						<div className="flex items-center justify-between text-xs font-bold">
 							<div className="flex items-center gap-2 text-muted-foreground">
@@ -209,8 +209,8 @@ export function WorkloadInspector({
 						)}
 
 						<div className="pt-2 mt-2 border-t border-dashed border-border/60 flex items-center justify-between">
-							<span className="text-sm font-black uppercase tracking-tight text-primary">Total Credited</span>
-							<span className="text-lg font-black tabular-nums text-primary">{loadProfile.creditedTotalHours.toFixed(1)}h</span>
+							<span className="text-sm font-semibold uppercase tracking-tight text-primary">Total Credited</span>
+							<span className="text-lg font-semibold tabular-nums text-primary">{loadProfile.creditedTotalHours.toFixed(1)}h</span>
 						</div>
 					</div>
 				</section>
@@ -218,17 +218,17 @@ export function WorkloadInspector({
 				{/* Rotational Families */}
 				{rotationTermBreakdown.length > 0 && (
 					<section className="space-y-4">
-						<h5 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Rotational Groups</h5>
+						<h5 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60 border-b border-border/40 pb-2">Rotational Groups</h5>
 						<div className="space-y-4">
 							{rotationTermBreakdown.map((family) => (
 								<div key={family.family} className="p-4 rounded-xl border border-sky-100 bg-sky-50/20 space-y-4">
 									<div className="flex items-center justify-between gap-2">
 										<div className="min-w-0">
-											<span className="text-xs font-black uppercase tracking-widest text-sky-900/40 block leading-none mb-1">Group</span>
-											<span className="text-sm font-black uppercase tracking-tight text-sky-900 truncate block">{family.family}</span>
+											<span className="text-xs font-semibold uppercase tracking-widest text-sky-900/40 block leading-none mb-1">Group</span>
+											<span className="text-sm font-semibold uppercase tracking-tight text-sky-900 truncate block">{family.family}</span>
 										</div>
 										<div className="text-right">
-											<span className="text-lg font-black text-sky-900 tabular-nums leading-none">
+											<span className="text-lg font-semibold text-sky-900 tabular-nums leading-none">
 												{(family.peakTermMinutesPerWeek / 60).toFixed(1)}h
 											</span>
 											<span className="text-xs font-bold text-sky-600/70 uppercase tracking-tighter block mt-1">Peak Weekly</span>
@@ -249,10 +249,10 @@ export function WorkloadInspector({
 															: "border-sky-100 bg-sky-50/50 opacity-60"
 													)}
 												>
-													<span className={cn("text-xs font-black uppercase tracking-widest", isPeak ? "text-sky-900" : "text-sky-700/60")}>
+													<span className={cn("text-xs font-semibold uppercase tracking-widest", isPeak ? "text-sky-900" : "text-sky-700/60")}>
 														T{term}
 													</span>
-													<div className={cn("text-xs font-black tabular-nums leading-none", isPeak ? "text-sky-800" : "text-sky-700/60")}>
+													<div className={cn("text-xs font-semibold tabular-nums leading-none", isPeak ? "text-sky-800" : "text-sky-700/60")}>
 														{bucket ? `${(bucket.creditedMinutesPerWeek / 60).toFixed(1)}h` : '0.0h'}
 													</div>
 												</div>
@@ -267,7 +267,7 @@ export function WorkloadInspector({
 
 				{/* Guidance */}
 				<div className="p-4 rounded-xl border border-dashed border-border bg-muted/20">
-					<h6 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2">
+					<h6 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2">
 						<Info className="size-4" />
 						Scheduling Guidance
 					</h6>

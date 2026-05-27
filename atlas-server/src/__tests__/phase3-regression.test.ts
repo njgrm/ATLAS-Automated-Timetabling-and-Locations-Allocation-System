@@ -294,6 +294,28 @@ section('Core hard constraint detection');
 }
 
 {
+	// Deferred homeroom room-type mismatch stays SOFT for section-facing master schedules
+	const entries: ScheduledEntry[] = [
+		makeEntry({
+			entryId: 'e-soft-room',
+			subjectId: 2,
+			roomId: 1,
+			metadata: {
+				roomAssignmentReason: 'HOME_ROOM_ASSIGNED',
+				deferredRoomTypePreference: true,
+				deferredPreferredRoomType: 'SCIENCE_LAB' as any,
+			},
+		}),
+	];
+	const ctx = makeCtx(entries);
+	const result = validateHardConstraints(ctx);
+
+	const mismatches = result.violations.filter((v) => v.code === 'ROOM_TYPE_MISMATCH');
+	assert(mismatches.length > 0, 'Deferred homeroom mismatch still emits a diagnostic');
+	assert(mismatches.every((v) => v.severity === 'SOFT'), 'Deferred homeroom mismatch is downgraded to SOFT');
+}
+
+{
 	// Faculty-subject not qualified
 	const entries: ScheduledEntry[] = [
 		makeEntry({ entryId: 'e1', facultyId: 1, subjectId: 2 }), // Faculty 1 not assigned to subject 2

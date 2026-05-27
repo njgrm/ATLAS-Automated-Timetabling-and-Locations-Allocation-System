@@ -68,6 +68,8 @@ type TeacherGridModeProps = {
 	onSearchQueryChange: (q: string) => void;
 	filterStatus: string;
 	onFilterStatusChange: (s: any) => void;
+	loadFilter: string;
+	onLoadFilterChange: (s: any) => void;
 	departmentFilter: string;
 	onDepartmentFilterChange: (d: string) => void;
 	departmentOptions: string[];
@@ -118,6 +120,8 @@ export function TeacherGridMode({
 	onSearchQueryChange,
 	filterStatus,
 	onFilterStatusChange,
+	loadFilter,
+	onLoadFilterChange,
 	departmentFilter,
 	onDepartmentFilterChange,
 	departmentOptions,
@@ -195,6 +199,21 @@ export function TeacherGridMode({
 						</SelectContent>
 					</Select>
 
+					<Select value={loadFilter} onValueChange={onLoadFilterChange}>
+						<SelectTrigger className="w-[160px] h-10 bg-background shadow-sm border-border/60 text-xs font-bold uppercase tracking-tight">
+							<div className="flex items-center gap-2">
+								<Star className="size-3.5 opacity-50" />
+								<SelectValue placeholder="Load" />
+							</div>
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all" className="text-xs font-bold uppercase tracking-tight">All Loads</SelectItem>
+							<SelectItem value="overloaded" className="text-xs font-bold uppercase tracking-tight text-amber-700">Overload ({">"}30h)</SelectItem>
+							<SelectItem value="optimal" className="text-xs font-bold uppercase tracking-tight text-emerald-700">Optimal (25-30h)</SelectItem>
+							<SelectItem value="underloaded" className="text-xs font-bold uppercase tracking-tight text-sky-700">Underload ({"<"}25h)</SelectItem>
+						</SelectContent>
+					</Select>
+
 					<div className="flex items-center gap-4 border-l border-border/40 pl-4 h-10">
 						<div className="flex items-center gap-2">
 							<Switch 
@@ -202,7 +221,7 @@ export function TeacherGridMode({
 								checked={showOutsideDept} 
 								onCheckedChange={onToggleOutsideDept} 
 							/>
-							<Label htmlFor="show-outside-dept" className="text-[0.65rem] font-black uppercase tracking-widest cursor-pointer text-muted-foreground">
+							<Label htmlFor="show-outside-dept" className="text-xs font-semibold uppercase tracking-widest cursor-pointer text-muted-foreground">
 								Cross-Dept
 							</Label>
 						</div>
@@ -214,7 +233,7 @@ export function TeacherGridMode({
 				{groupedFaculty.map(([dept, members]) => (
 					<div key={dept} className="space-y-2">
 						<div className="flex items-center gap-3 px-2">
-							<h3 className="text-[0.6rem] font-black uppercase tracking-[0.2em] text-muted-foreground/50">{dept}</h3>
+							<h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/50">{dept}</h3>
 							<div className="flex-1 h-px bg-border/40" />
 						</div>
 						
@@ -245,13 +264,13 @@ export function TeacherGridMode({
 											)}
 											onClick={() => handleTeacherClick(member.id)}
 										>
-											<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-black text-primary border border-primary/10">
+											<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary border border-primary/10">
 												{member.firstName[0]}{member.lastName[0]}
 											</div>
 											
 											<div className="flex-1 min-w-0">
 												<div className="flex items-center gap-2">
-													<h4 className="text-sm font-black uppercase tracking-tight truncate">
+													<h4 className="text-sm font-semibold uppercase tracking-tight truncate">
 														{member.lastName}, {member.firstName}
 													</h4>
 													{member.isClassAdviser && (
@@ -259,10 +278,10 @@ export function TeacherGridMode({
 															<TooltipTrigger asChild>
 																<Star className="size-3.5 text-amber-500 fill-amber-500 shrink-0" />
 															</TooltipTrigger>
-															<TooltipContent side="top" className="text-xs font-black uppercase">Class Adviser</TooltipContent>
+															<TooltipContent side="top" className="text-xs font-semibold uppercase">Class Adviser</TooltipContent>
 														</Tooltip>
 													)}
-													{hasDraft && <Badge variant="secondary" className="h-4 px-1.5 text-xs font-black uppercase bg-sky-100 text-sky-700 animate-pulse">Draft</Badge>}
+													{hasDraft && <Badge variant="secondary" className="h-4 px-1.5 text-xs font-semibold uppercase bg-sky-100 text-sky-700 animate-pulse">Draft</Badge>}
 												</div>
 												<p className="text-xs font-bold text-muted-foreground uppercase tracking-widest truncate">
 													{member.specialization || 'General'}
@@ -273,7 +292,7 @@ export function TeacherGridMode({
 											<div className="flex items-center gap-6 px-4">
 												<div className="text-right">
 													<p className={cn(
-														"text-xs font-black tabular-nums",
+														"text-xs font-semibold tabular-nums",
 														displayHours > 40 ? "text-rose-600" : displayHours > 30 ? "text-amber-600" : "text-emerald-600"
 													)}>
 														{member.isPlaceholder ? `${displayHours.toFixed(1)}h` : `${loadPercentage}%`}
@@ -281,11 +300,11 @@ export function TeacherGridMode({
 													<p className="text-xs font-bold text-muted-foreground uppercase tracking-tighter">Load Status</p>
 												</div>
 												<div className="text-right min-w-[3.5rem]">
-													<p className="text-xs font-black tabular-nums">{subjectsCount}</p>
+													<p className="text-xs font-semibold tabular-nums">{subjectsCount}</p>
 													<p className="text-xs font-bold text-muted-foreground uppercase tracking-tighter">Subjects</p>
 												</div>
 												<div className="text-right min-w-[3.5rem]">
-													<p className="text-xs font-black tabular-nums">{sectionsCount}</p>
+													<p className="text-xs font-semibold tabular-nums">{sectionsCount}</p>
 													<p className="text-xs font-bold text-muted-foreground uppercase tracking-tighter">Sections</p>
 												</div>
 											</div>
@@ -308,7 +327,7 @@ export function TeacherGridMode({
 														<Button 
 															size="xs" 
 															variant="outline" 
-															className="h-7 text-xs font-black uppercase tracking-widest gap-1.5"
+															className="h-7 text-xs font-semibold uppercase tracking-widest gap-1.5"
 															onClick={onResetAssignments}
 															disabled={saving || isReadOnlyMode}
 														>
@@ -322,7 +341,7 @@ export function TeacherGridMode({
 															<Button 
 																size="xs" 
 																variant="ghost" 
-																className="h-7 text-xs font-black uppercase tracking-widest text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+																className="h-7 text-xs font-semibold uppercase tracking-widest text-amber-600 hover:text-amber-700 hover:bg-amber-50"
 																onClick={onDiscardDraft}
 															>
 																Discard
@@ -330,7 +349,7 @@ export function TeacherGridMode({
 														)}
 														<Button 
 															size="xs" 
-															className="h-7 text-xs font-black uppercase tracking-widest gap-1.5 px-3"
+															className="h-7 text-xs font-semibold uppercase tracking-widest gap-1.5 px-3"
 															onClick={onSave}
 															disabled={!hasDraft || saving || isReadOnlyMode}
 														>
@@ -345,7 +364,7 @@ export function TeacherGridMode({
 													{departmentQualifiedSubjects.length > 0 && (
 														<div className="space-y-3">
 															<div className="flex items-center gap-3">
-																<span className="text-xs font-black uppercase tracking-[0.2em] text-emerald-600/70">Qualified Subjects</span>
+																<span className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600/70">Qualified Subjects</span>
 																<div className="flex-1 h-px bg-emerald-500/10" />
 															</div>
 															<div className="grid gap-3">
@@ -380,7 +399,7 @@ export function TeacherGridMode({
 													{showOutsideDept && outsideDepartmentSubjects.length > 0 && (
 														<div className="space-y-3">
 															<div className="flex items-center gap-3">
-																<span className="text-[0.55rem] font-black uppercase tracking-[0.2em] text-muted-foreground/50">Cross-Department</span>
+																<span className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/50">Cross-Department</span>
 																<div className="flex-1 h-px bg-border/40" />
 															</div>
 															<div className="grid gap-3">

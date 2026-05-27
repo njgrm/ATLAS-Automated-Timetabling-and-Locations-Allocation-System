@@ -391,7 +391,7 @@ export default function Dashboard() {
 									) : (
 										<>
 											<div className="flex-1 flex items-center justify-center w-full">
-												<div className="text-4xl font-black tracking-tight">
+												<div className="text-4xl font-semibold tracking-tight">
 													{stat.link && !stat.muted ? (
 														<Link to={stat.link} className="hover:underline">{stat.value}</Link>
 													) : (

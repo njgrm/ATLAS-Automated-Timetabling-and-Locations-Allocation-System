@@ -31,6 +31,37 @@
 
 - Verdict: GO
 
+# 2026-05-27 - Phase 3 Timetable Homeroom-First Master-Schedule Reframe
+- Phase: Phase 3 generator-readiness stream, timetable pass-2 scope and runtime reframe
+- Operator: Codex
+- Scope gate: PASS (prompt contract, constructor semantics, validator severity, and runtime documentation aligned to homeroom-first class-program replication)
+- Safety gate: PARTIAL (local code/test verification complete; fresh Tailnet generation rerun and stakeholder-section sampling still pending)
+- Files changed in this pass:
+  - atlas-server/src/services/schedule-constructor.ts
+  - atlas-server/src/services/constraint-validator.ts
+  - atlas-server/src/__tests__/phase2-home-room-strategy.test.ts
+  - atlas-server/src/__tests__/phase3-regression.test.ts
+  - docs/prompts/phase3-timetable-room-demand-and-home-room-reconcile-one-shot-prompt.md
+  - docs/reference/atlas-runtime-source-of-truth-map.md
+  - docs/verification/evidence-log.md
+
+- Repair delivered:
+  1. `HOME_ROOM_FIRST` section scheduling now defers specialized room-type fit to the section home-room/classroom path instead of using specialized rooms as a hard placement gate.
+  2. Deferred specialized room-type and feature mismatches now emit soft diagnostics in validation rather than hard violations when the placement was intentionally kept on the section homeroom contract.
+  3. The pass-2 Copilot prompt now explicitly targets stakeholder class-program replication and states that lab/facility booking is out of the master-schedule scope for this pass.
+
+- Local verification:
+  - `npx tsx atlas-server/src/__tests__/phase2-home-room-strategy.test.ts` -> PASS (`11 passed, 0 failed`)
+  - `npx tsx atlas-server/src/__tests__/phase3-regression.test.ts` -> PASS (`51 passed, 0 failed`)
+  - `npm --prefix atlas-server run build` -> PASS
+
+- Tailnet verification still required:
+  - rerun generation for the active school/year
+  - confirm stakeholder-audited section home rooms remain stable in `/sections` and `/timetable`
+  - confirm specialized-room pressure no longer blocks ordinary section master-schedule output
+
+- Verdict: PENDING LIVE QA
+
 # 2026-05-27 - Phase 3 Teaching Load Closure Read/Write, STE Contract, And MAPEH Redistribution
 - Phase: Phase 3 generator-readiness stream, teaching-load closure pass
 - Operator: GitHub Copilot
@@ -325,4 +356,79 @@
 - Operator: Gemini CLI
 - Description: Added missing export for `getFacultyComparableLoadHours` in `atlas-client/src/lib/faculty-assignment-helpers.ts` which was causing a module load error in the browser.
 - Verification: Build succeeds without errors.
+- Verdict: GO
+
+# 2026-05-27 - Hotfix: Teaching Load UX Polish (Typography & Overload Filter)
+- Phase: Post UX-Hardening
+- Operator: Gemini CLI
+- Description: Responded to user feedback regarding heavy typography, banner height, and overload filtering.
+  1. Replaced all `font-black` occurrences with `font-semibold` globally across `atlas-client/src/components/faculty-assignments` and `TeachingLoad.tsx`.
+  2. Compacted the 'Review Required' split-brain banner in `TeachingLoad.tsx` by reducing padding/margins.
+  3. Added an explicit 'Overload (>30h)' filter option to `TeacherGridMode.tsx` referencing the existing `loadFilter` state in the hook.
+- Verification: Build succeeds without errors.
+- Verdict: GO
+
+# 2026-05-27 - Hotfix: loadFilter ReferenceError Crash
+- Phase: Post UX-Hardening
+- Operator: Gemini CLI
+- Description: Resolved a `ReferenceError: loadFilter is not defined` crash in `TeacherGridMode.tsx` that was introduced when surfacing the Load filter in the UI. Added `loadFilter` to the props interface and fixed a duplicate closing tag typo.
+- Verification: Build succeeds without errors.
+- Verdict: GO
+
+# 2026-05-27 - Phase 3 Timetable Homeroom-First Master-Schedule Reconcile (One-Shot)
+- Phase: Phase 3 generator-readiness stream, timetable second re-entry pass
+- Operator: GitHub Copilot
+- Scope gate: PASS (home-room-first section contract applied; specialized-room pressure kept diagnostic for section master schedules)
+- Safety gate: PASS (hard room/resource collision protections retained; no topology reseed in this pass)
+- Files changed in this pass:
+  - atlas-server/src/services/schedule-constructor.ts
+  - atlas-server/src/__tests__/phase2-home-room-strategy.test.ts
+  - docs/reference/atlas-runtime-source-of-truth-map.md
+  - docs/verification/evidence-log.md
+
+- Repair delivered:
+  1. `HOME_ROOM_FIRST` now defers specialized room preferences for all section-level entries, including sections with missing `homeRoomId`, keeping section output classroom/homeroom first.
+  2. Specialized expectations remain diagnostics through deferred metadata and validator soft diagnostics, instead of blocking section master-schedule placement.
+  3. Real hard collisions remain protected: room overlap conflicts are unchanged and still hard.
+
+- Explicit room/building assumptions downgraded to diagnostics:
+  - Section-level specialist room-type requirement during master scheduling (`ROOM_TYPE_MISMATCH` when deferred).
+  - Section-level specialist room-feature requirement during master scheduling (`ROOM_FEATURE_MISMATCH` when deferred).
+  - Specialized-room scarcity as a section-blocking path (`SPECIALIZED_ROOM_UNAVAILABLE` no longer blocks section placement under homeroom-first contraction).
+
+- Hard constraints retained:
+  - `ROOM_TIME_CONFLICT` (double-booking) remains hard.
+  - Shared/singleton facility collision protection remains hard via room occupancy conflict checks.
+
+- Verification:
+  - `npm --prefix atlas-server run test:phase2-home-room-strategy` -> PASS (15/15)
+  - `npx --prefix atlas-server tsx atlas-server/src/__tests__/phase3-regression.test.ts` -> PASS (51/51)
+  - `npm --prefix atlas-server run build` -> PASS
+  - Tailnet generation rerun with `roomerStrategy=HOME_ROOM_FIRST` -> new completed run `82`
+  - Tailnet run comparison (`81 -> 82`):
+    - `assignedCount`: `2095 -> 2286`
+    - `unassignedCount`: `759 -> 568`
+    - `SPECIALIZED_ROOM_UNAVAILABLE`: `0 -> 0`
+    - `FACULTY_EXCESSIVE_TRAVEL_DISTANCE`: `788 -> 764`
+    - `FACULTY_EXCESSIVE_IDLE_GAP`: `324 -> 304`
+    - `homeRoomSuccessRate` on run `82`: `58.57`
+  - Tailnet section-home-room coherence after rerun:
+    - `/sections/summary/55?schoolId=1` -> `total=82`, `missingHomeRoom=0`, `missingBuildingZone=0`
+    - `/sections/home-rooms/55?schoolId=1` -> coherent options (`157`)
+
+- Topology/home-room reconciliation:
+  - No room/building reseed or topology identity shift was executed in this pass.
+  - No section `homeRoomId` / `buildingZoneId` repair operation was required.
+
+- Verdict: GO
+
+# 2026-05-27 - Hotfix: Teaching Load Polish II (Swap UI & Dismissible Banners)
+- Phase: Post UX-Hardening
+- Operator: Gemini CLI
+- Description: Responded to user feedback regarding swap logic, swap UI, overflowing badges, and dismissible warnings.
+  1. Fixed the swap logic in `executeSwap` to use the latest `prev` state instead of a potentially stale closure, ensuring ownership transfers correctly update the UI.
+  2. Changed the swap icon to `ArrowLeftRight` and wrapped it in a Tooltip for clarity.
+  3. Refactored the `Teaching Load Review Required` banner to be dismissible via a close button. Dismissing it also hides the toolbar badge.
+  4. Fixed badge text overflow using `whitespace-nowrap` and re-introduced `font-black` specifically for the primary arithmetic values in the Workload Inspector.
+- Verification: Build succeeds without errors. The swap action transfers correctly without creating conflicts.
 - Verdict: GO

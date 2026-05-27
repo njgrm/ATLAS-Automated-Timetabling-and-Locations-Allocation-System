@@ -1613,7 +1613,7 @@ export default function FacultyAssignments() {
 							: 'border-amber-200 bg-amber-50 text-amber-900',
 					)}>
 						<div className="flex min-w-0 flex-col gap-0.5">
-							<span className="font-black uppercase tracking-[0.12em]">
+							<span className="font-semibold uppercase tracking-[0.12em]">
 								{splitBrainIncident.quarantine.required ? 'Data Truth Quarantine Active' : 'Data Truth Warning'}
 							</span>
 							<span className="truncate">{splitBrainIncident.quarantine.message}</span>
@@ -2020,14 +2020,14 @@ export default function FacultyAssignments() {
 															{member.lastName[0]}
 														</div>
 														<div className="flex-1 min-w-0">
-															<p className={`truncate text-sm ${selectedId === member.id ? 'font-black text-foreground' : 'font-bold text-muted-foreground'}`}>
+															<p className={`truncate text-sm ${selectedId === member.id ? 'font-semibold text-foreground' : 'font-bold text-muted-foreground'}`}>
 																{member.lastName}, {member.firstName}
 															</p>
 															<div className="flex items-center gap-2 mt-0.5">
 																<span className="truncate text-xs text-muted-foreground/80 font-bold flex-1">
 																	{member.specialization || member.department || 'General'}
 																</span>
-																<span className={`text-xs font-black tabular-nums ${loadColorClass}`}>
+																<span className={`text-xs font-semibold tabular-nums ${loadColorClass}`}>
 																	{member.isPlaceholder ? `${Math.round(displayHours * 10) / 10}h` : `${actualLoadPercentage}%`}
 																</span>
 															</div>
@@ -2112,7 +2112,7 @@ export default function FacultyAssignments() {
 											<div className="flex flex-col items-center">
 												<span className="text-[0.55rem] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none mb-1">Credited Weekly Load</span>
 												<div className="flex items-center gap-2">
-													<span className="text-lg font-black tabular-nums leading-none text-foreground">{loadProfile.creditedTotalHours}h</span>
+													<span className="text-lg font-semibold tabular-nums leading-none text-foreground">{loadProfile.creditedTotalHours}h</span>
 													<Badge className={`${STATUS_COLORS[loadProfile.status].bg} ${STATUS_COLORS[loadProfile.status].text} h-4 border-none text-[0.6rem] font-bold uppercase px-1.5 shadow-none`}>
 														{loadProfile.statusLabel}
 													</Badge>
@@ -2124,7 +2124,7 @@ export default function FacultyAssignments() {
 											<div className="flex flex-col items-center">
 												<span className="text-[0.55rem] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none mb-1">Concurrent Teaching</span>
 												<div className="flex items-center gap-2">
-													<span className="text-sm font-black tabular-nums leading-none text-foreground">{loadProfile.actualTeachingHours}h</span>
+													<span className="text-sm font-semibold tabular-nums leading-none text-foreground">{loadProfile.actualTeachingHours}h</span>
 													<Tooltip>
 														<TooltipTrigger asChild>
 															<Info className="size-3 text-muted-foreground/40 cursor-help" />
@@ -2145,7 +2145,7 @@ export default function FacultyAssignments() {
 													<TooltipTrigger asChild>
 														<div className="flex flex-col items-center cursor-help">
 															<span className="text-[0.55rem] font-bold text-amber-700/60 uppercase tracking-widest leading-none mb-1">Rotation Adjustment</span>
-															<span className="text-xs font-black text-amber-600 tabular-nums leading-none">-{rotationOvercountHours}h</span>
+															<span className="text-xs font-semibold text-amber-600 tabular-nums leading-none">-{rotationOvercountHours}h</span>
 														</div>
 													</TooltipTrigger>
 													<TooltipContent className="text-[0.65rem] font-bold">
@@ -2163,7 +2163,7 @@ export default function FacultyAssignments() {
 															style={{ width: `${Math.min((loadProfile.creditedTotalHours * 60 / Math.max(loadCapMinutes, 1)) * 100, 100)}%` }}
 													/>
 												</div>
-												<div className="flex justify-center text-[0.6rem] font-black uppercase tracking-tighter tabular-nums text-muted-foreground/80">
+												<div className="flex justify-center text-[0.6rem] font-semibold uppercase tracking-tighter tabular-nums text-muted-foreground/80">
 													<span>{Math.round((loadProfile.creditedTotalHours / selected.maxHoursPerWeek) * 100)}% Cap</span>
 												</div>
 											</div>
@@ -2172,7 +2172,7 @@ export default function FacultyAssignments() {
 
 													<div className="flex flex-col items-center">
 														<span className="text-[0.55rem] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none mb-1">Remaining</span>
-														<span className={cn('text-xs font-black tabular-nums leading-none', loadProfile.remainingHours < 0 ? 'text-rose-600' : 'text-emerald-700')}>
+														<span className={cn('text-xs font-semibold tabular-nums leading-none', loadProfile.remainingHours < 0 ? 'text-rose-600' : 'text-emerald-700')}>
 															{loadProfile.remainingHours.toFixed(1)}h
 														</span>
 													</div>
@@ -2182,7 +2182,7 @@ export default function FacultyAssignments() {
 															<div className="h-8 w-px bg-border/40" />
 															<div className="flex flex-col items-center">
 																<span className="text-[0.55rem] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none mb-1">Projected</span>
-																<span className={cn('text-xs font-black tabular-nums leading-none', previewLoadHours > selected.maxHoursPerWeek ? 'text-rose-600' : 'text-primary')}>
+																<span className={cn('text-xs font-semibold tabular-nums leading-none', previewLoadHours > selected.maxHoursPerWeek ? 'text-rose-600' : 'text-primary')}>
 																	{previewLoadHours.toFixed(1)}h
 																</span>
 															</div>
@@ -2227,7 +2227,7 @@ export default function FacultyAssignments() {
 																<div className="flex items-center justify-between text-xs p-2 rounded-lg bg-amber-50 border border-amber-100 text-amber-900">
 																	<div className="flex flex-col">
 																		<span className="font-bold">Rotation Adjustment</span>
-																		<span className="text-[0.6rem] text-amber-700/70 uppercase tracking-tight font-black">Shared Science/TLE term lanes</span>
+																		<span className="text-[0.6rem] text-amber-700/70 uppercase tracking-tight font-semibold">Shared Science/TLE term lanes</span>
 																	</div>
 																	<span className="font-mono font-bold">-{(loadProfile?.rotationOvercountHours ?? 0).toFixed(1)}h</span>
 																</div>
@@ -2250,7 +2250,7 @@ export default function FacultyAssignments() {
 
 																<div className="flex items-center justify-between text-sm p-3 rounded-lg bg-primary/5 border border-primary/20 text-primary">
 																	<span className="font-bold uppercase tracking-tight">Credited Weekly Load</span>
-																	<span className="font-mono font-black">{(loadProfile?.creditedTotalHours ?? 0).toFixed(1)}h</span>
+																	<span className="font-mono font-semibold">{(loadProfile?.creditedTotalHours ?? 0).toFixed(1)}h</span>
 																</div>
 															</div>
 														</div>
@@ -2267,7 +2267,7 @@ export default function FacultyAssignments() {
 																	{rotationTermBreakdown.map((f) => (
 																		<div key={f.family} className="flex flex-col gap-1.5 p-2.5 rounded-lg border border-violet-100 bg-violet-50/30">
 																			<div className="flex items-center justify-between">
-																				<span className="text-[0.65rem] font-black text-violet-700 uppercase tracking-tighter">{f.family}</span>
+																				<span className="text-[0.65rem] font-semibold text-violet-700 uppercase tracking-tighter">{f.family}</span>
 																				<Badge variant="outline" className="h-4 text-[0.55rem] font-bold bg-white text-violet-600 border-violet-200">
 																					Peak: {f.peakTermLabel || `Term ${f.peakTermRank}`} * {f.peakTermMinutesPerWeek / 60}h
 																				</Badge>
@@ -2277,7 +2277,7 @@ export default function FacultyAssignments() {
 																					const bucket = f.termBuckets.find(b => b.termRank === term);
 																					return (
 																						<div key={term} className={cn("flex-1 p-1 rounded border text-center transition-colors", bucket?.isPeakTerm ? "bg-violet-100 border-violet-300 shadow-sm" : "bg-background border-border/50 opacity-60")}>
-																							<p className="text-[0.5rem] font-black text-muted-foreground uppercase leading-none mb-1">T{term}</p>
+																							<p className="text-[0.5rem] font-semibold text-muted-foreground uppercase leading-none mb-1">T{term}</p>
 																							<p className={cn("text-[0.6rem] font-bold tabular-nums leading-none", bucket?.isPeakTerm ? "text-violet-800" : "text-muted-foreground")}>
 																								{bucket ? `${bucket.creditedMinutesPerWeek / 60}h` : '0h'}
 																							</p>
@@ -2342,7 +2342,7 @@ export default function FacultyAssignments() {
 									<div className="shrink-0 rounded-xl border border-sky-100 bg-sky-50/40 px-4 py-3 shadow-sm">
 										<div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
 											<div className="flex flex-col gap-1">
-												<p className="text-[0.6rem] font-black uppercase tracking-[0.15em] text-sky-800 flex items-center gap-1.5">
+												<p className="text-[0.6rem] font-semibold uppercase tracking-[0.15em] text-sky-800 flex items-center gap-1.5">
 													<Layers className="size-3" />
 													Rotational Family Breakdown
 												</p>
@@ -2357,15 +2357,15 @@ export default function FacultyAssignments() {
 												<div key={family.family} className="rounded-lg border border-sky-200/70 bg-white/90 px-3 py-2.5 shadow-sm">
 													<div className="flex items-center justify-between gap-2 border-b border-sky-100 pb-2 mb-2">
 														<div className="flex items-center gap-2 min-w-0">
-															<span className="text-[0.65rem] font-black uppercase tracking-tight text-sky-900 truncate">{family.family}</span>
+															<span className="text-[0.65rem] font-semibold uppercase tracking-tight text-sky-900 truncate">{family.family}</span>
 															{family.peakTermLabel && (
-																<Badge variant="outline" className="h-4.5 px-2 text-[0.6rem] font-black uppercase border-sky-400 bg-sky-50 text-sky-800 shadow-none">
+																<Badge variant="outline" className="h-4.5 px-2 text-[0.6rem] font-semibold uppercase border-sky-400 bg-sky-50 text-sky-800 shadow-none">
 																	Peak: {family.peakTermLabel}
 																</Badge>
 															)}
 														</div>
 														<div className="flex flex-col items-end">
-															<span className="text-[0.65rem] font-black text-sky-900 tabular-nums">
+															<span className="text-[0.65rem] font-semibold text-sky-900 tabular-nums">
 																{(family.peakTermMinutesPerWeek / 60).toFixed(1)}h credited
 															</span>
 															<span className="text-[0.55rem] font-bold text-sky-600/70 uppercase">Weekly Contribution</span>
@@ -2378,14 +2378,14 @@ export default function FacultyAssignments() {
 																className={`rounded-md border p-2 transition-all ${bucket.isPeakTerm ? 'border-sky-400 bg-sky-100/50 ring-1 ring-sky-400/20 shadow-inner' : 'border-sky-100 bg-sky-50/30 opacity-70'}`}
 															>
 																<div className="flex items-center justify-between gap-2 mb-1">
-																	<span className={cn("text-[0.55rem] font-black uppercase tracking-tight", bucket.isPeakTerm ? "text-sky-900" : "text-sky-700/60")}>
+																	<span className={cn("text-[0.55rem] font-semibold uppercase tracking-tight", bucket.isPeakTerm ? "text-sky-900" : "text-sky-700/60")}>
 																		{resolveCanonicalRotationTermLabel(bucket.termLabel, bucket.termRank) ?? 'Term ?'}
 																	</span>
 																	{bucket.isPeakTerm && (
 																		<CheckCircle2 className="size-2.5 text-sky-600" />
 																	)}
 																</div>
-																<div className={cn("text-[0.6rem] font-black tabular-nums leading-tight", bucket.isPeakTerm ? "text-sky-800" : "text-sky-700/60")}>
+																<div className={cn("text-[0.6rem] font-semibold tabular-nums leading-tight", bucket.isPeakTerm ? "text-sky-800" : "text-sky-700/60")}>
 																	{(bucket.creditedMinutesPerWeek / 60).toFixed(1)}h 
 																	<span className="ml-1 text-[0.5rem] font-bold uppercase opacity-70">active</span>
 																</div>

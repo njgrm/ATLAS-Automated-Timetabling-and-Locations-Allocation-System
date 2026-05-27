@@ -77,6 +77,7 @@ export default function TeachingLoad() {
 	const splitBrainNeedsAttention = Boolean(
 		data.splitBrainIncident
 		&& data.splitBrainIncident.quarantine.severity !== 'NONE'
+		&& (!ui.reviewDismissed || data.splitBrainQuarantineRequired)
 	);
 
 	const applySplitBrainReconcile = useCallback(async (options?: { silent?: boolean }) => {
@@ -376,7 +377,7 @@ export default function TeachingLoad() {
 			<div className="flex h-[calc(100svh-3.5rem)] items-center justify-center p-6">
 				<Card className="max-w-md border-red-200 bg-red-50 p-8 text-center shadow-lg">
 					<AlertTriangle className="mx-auto size-12 text-red-600 mb-4" />
-					<h3 className="text-lg font-black text-red-900 uppercase tracking-tight mb-2">Workspace Unavailable</h3>
+					<h3 className="text-lg font-semibold text-red-900 uppercase tracking-tight mb-2">Workspace Unavailable</h3>
 					<p className="text-sm text-red-700 font-medium mb-6 leading-relaxed">{data.error}</p>
 					<Button onClick={() => data.fetchData()} variant="destructive" className="font-bold uppercase tracking-widest px-8">
 						Retry Connection
@@ -421,38 +422,50 @@ export default function TeachingLoad() {
 						reconcileLoading={data.splitBrainApplyLoading}
 						showReconcileAction={splitBrainNeedsReconcile}
 						reconcileEnabled={data.canPersistAssignments}
+						reviewDismissed={ui.reviewDismissed}
 					/>
 				</div>
 
 				{splitBrainNeedsAttention && data.splitBrainIncident && (
-					<div className="shrink-0 px-6 py-3 border-b border-border/30 bg-amber-50/60">
-						<div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900 shadow-sm">
-							<div className="space-y-1">
-								<div className="flex items-center gap-2">
-									<AlertTriangle className="size-4" />
-									<span className="text-xs font-black uppercase tracking-widest">
-										{data.splitBrainQuarantineRequired ? 'Teaching Load Lock Active' : 'Teaching Load Review Required'}
+					<div className="shrink-0 px-6 py-2 border-b border-border/30 bg-amber-50/60">
+						<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-amber-900 shadow-sm">
+							<div className="flex items-center gap-3">
+								<AlertTriangle className="size-4 text-amber-600" />
+								<div>
+									<span className="text-xs font-semibold uppercase tracking-widest text-amber-800">
+										{data.splitBrainQuarantineRequired ? 'Lock Active' : 'Review Required'}
 									</span>
+									<span className="text-sm font-semibold ml-2 text-amber-900">{data.splitBrainIncident.quarantine.message}</span>
 								</div>
-								<p className="text-sm font-semibold leading-relaxed">{data.splitBrainIncident.quarantine.message}</p>
-								<p className="text-xs font-medium text-amber-800/90">
-									Integrity: {data.splitBrainIncident.counters.integrityOutOfSubjectScopePairs ?? 0} out-of-subject-scope rows, {data.splitBrainIncident.counters.truthRowsToUpdate ?? 0} saved-truth rows, {data.splitBrainIncident.counters.realFacultyMovesPlanned ?? 0} recoverable staffing moves, {data.splitBrainIncident.counters.realFacultyBlockers ?? 0} recovery blockers.
-								</p>
 							</div>
-							{splitBrainNeedsReconcile && (
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									onClick={() => {
-										void applySplitBrainReconcile();
-									}}
-									disabled={data.splitBrainApplyLoading || !data.canPersistAssignments}
-									className="h-9 shrink-0 border-amber-300 bg-white text-amber-900 hover:bg-amber-100"
-								>
-									{data.splitBrainApplyLoading ? 'Reconciling...' : 'Repair Saved Scope Drift'}
-								</Button>
-							)}
+							<div className="flex items-center gap-2">
+								{splitBrainNeedsReconcile && (
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={() => {
+											void applySplitBrainReconcile();
+										}}
+										disabled={data.splitBrainApplyLoading || !data.canPersistAssignments}
+										className="h-8 shrink-0 border-amber-300 bg-white text-amber-900 hover:bg-amber-100"
+									>
+										{data.splitBrainApplyLoading ? 'Reconciling...' : 'Repair Saved Scope Drift'}
+									</Button>
+								)}
+								{!data.splitBrainQuarantineRequired && (
+									<Button 
+										variant="ghost" 
+										size="icon-xs" 
+										onClick={() => ui.setReviewDismissed(true)} 
+										className="h-8 w-8 hover:bg-amber-200 text-amber-800"
+										title="Dismiss Review Warning"
+									>
+										<span className="sr-only">Dismiss</span>
+										<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinelinejoin="round" className="lucide lucide-x size-4"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+									</Button>
+								)}
+							</div>
 						</div>
 					</div>
 				)}
@@ -500,6 +513,8 @@ export default function TeachingLoad() {
 								onSearchQueryChange={ui.setSearchQuery}
 								filterStatus={ui.filterStatus}
 								onFilterStatusChange={ui.setFilterStatus}
+								loadFilter={ui.loadFilter}
+								onLoadFilterChange={ui.setLoadFilter}
 								departmentFilter={ui.departmentFilter}
 								onDepartmentFilterChange={ui.setDepartmentFilter}
 								departmentOptions={departmentOptions}

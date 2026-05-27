@@ -284,17 +284,17 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 										<div className="grid gap-3 md:grid-cols-3">
 											<div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-1">
 												<p className="text-[0.6rem] font-bold uppercase tracking-widest text-amber-700">Real Only</p>
-												<p className="text-lg font-black text-amber-900">{staffingTruth.realOnly.shortageRows} rows</p>
+												<p className="text-lg font-semibold text-amber-900">{staffingTruth.realOnly.shortageRows} rows</p>
 												<p className="text-[0.65rem] font-semibold text-amber-800/80">{staffingTruth.realOnly.shortageConcurrentHoursPerWeek}h shortage</p>
 											</div>
 											<div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3 space-y-1">
 												<p className="text-[0.6rem] font-bold uppercase tracking-widest text-blue-700">Hard Cap 40h</p>
-												<p className="text-lg font-black text-blue-900">{staffingTruth.hardCap.shortageRows} rows</p>
+												<p className="text-lg font-semibold text-blue-900">{staffingTruth.hardCap.shortageRows} rows</p>
 												<p className="text-[0.65rem] font-semibold text-blue-800/80">{staffingTruth.hardCap.shortageConcurrentHoursPerWeek}h shortage</p>
 											</div>
 											<div className="rounded-xl border border-violet-200 bg-violet-50/50 p-3 space-y-1">
 												<p className="text-[0.6rem] font-bold uppercase tracking-widest text-violet-700">Teacher X Fallback</p>
-												<p className="text-lg font-black text-violet-900">{staffingTruth.teacherX.shortageRows} rows</p>
+												<p className="text-lg font-semibold text-violet-900">{staffingTruth.teacherX.shortageRows} rows</p>
 												<p className="text-[0.65rem] font-semibold text-violet-800/80">{staffingTruth.teacherX.rowsClosedByTeacherX} rows closed by Teacher X</p>
 											</div>
 										</div>

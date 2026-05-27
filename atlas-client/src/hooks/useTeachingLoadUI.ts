@@ -50,6 +50,7 @@ export function useTeachingLoadUI({
 	const [gradeLevelFilter, setGradeLevelFilter] = useState<string>('all');
 	const [sortOrder, setSortOrder] = useState<'load-asc' | 'load-desc'>('load-asc');
 	const [loadFilter, setLoadFilter] = useState<'all' | 'overloaded' | 'optimal' | 'underloaded'>('all');
+	const [reviewDismissed, setReviewDismissed] = useState(false);
 	const [showTemporaryRoles, setShowTemporaryRoles] = useState(false);
 	const [showFilters, setShowFilters] = useState(false);
 	const [showJumpList, setShowJumpList] = useState(false);

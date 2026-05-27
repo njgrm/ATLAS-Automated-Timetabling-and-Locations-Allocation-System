@@ -829,7 +829,7 @@ export default function Subjects() {
 							<>
 								<div className="rounded-xl border border-violet-100 bg-violet-50/30 p-4 space-y-3">
 									<div className="flex items-center justify-between">
-										<p className="text-[0.65rem] font-black uppercase tracking-widest text-violet-700/80">Subject Term Context</p>
+										<p className="text-[0.65rem] font-semibold uppercase tracking-widest text-violet-700/80">Subject Term Context</p>
 										{coverageSubject.rotationFamily && (
 											<Tooltip>
 												<TooltipTrigger asChild>
@@ -849,12 +849,12 @@ export default function Subjects() {
 											{coverageSubject.code}
 										</Badge>
 										{coverageSubject.rotationFamily && (
-											<Badge variant="outline" className="bg-violet-100 text-violet-900 border-violet-300 font-black text-[0.65rem] uppercase px-1.5 h-5 shadow-none">
+											<Badge variant="outline" className="bg-violet-100 text-violet-900 border-violet-300 font-semibold text-[0.65rem] uppercase px-1.5 h-5 shadow-none">
 												Rotating
 											</Badge>
 										)}
 										{resolveSubjectTermLabel(coverageSubject) && (
-											<Badge variant="outline" className="bg-violet-100 text-violet-900 border-violet-300 font-black text-[0.65rem] uppercase px-1.5 h-5 shadow-none">
+											<Badge variant="outline" className="bg-violet-100 text-violet-900 border-violet-300 font-semibold text-[0.65rem] uppercase px-1.5 h-5 shadow-none">
 												{resolveSubjectTermLabel(coverageSubject)}
 											</Badge>
 										)}

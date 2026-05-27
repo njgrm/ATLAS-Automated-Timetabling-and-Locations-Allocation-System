@@ -401,7 +401,7 @@ export default function PublicPublishedSchedule() {
 					<CardHeader className="pb-3">
 						<div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
 							<div className="space-y-1">
-								<CardTitle className="text-2xl font-black tracking-tight">Student Schedule Lookup</CardTitle>
+								<CardTitle className="text-2xl font-semibold tracking-tight">Student Schedule Lookup</CardTitle>
 								<CardDescription>
 									Browse the latest published class schedule by section. No sign in is required.
 								</CardDescription>
@@ -465,7 +465,7 @@ export default function PublicPublishedSchedule() {
 						<CardContent className="flex items-start gap-4 py-8">
 							<AlertCircle className="mt-1 size-6 shrink-0 text-destructive" />
 							<div className="space-y-2">
-								<p className="text-lg font-black text-destructive">Unable to load public schedule</p>
+								<p className="text-lg font-semibold text-destructive">Unable to load public schedule</p>
 								<p className="text-sm text-muted-foreground">{error}</p>
 								<Button variant="outline" size="sm" className="rounded-xl" onClick={() => void loadPublishedSchedule()}>
 									<RefreshCcw className="mr-2 size-4" /> Try again
@@ -478,7 +478,7 @@ export default function PublicPublishedSchedule() {
 				{!loading && !error && !payload && (
 					<Card className="mt-4 rounded-2xl border-border/70">
 						<CardContent className="py-10">
-							<p className="text-lg font-black">No published schedule yet</p>
+							<p className="text-lg font-semibold">No published schedule yet</p>
 							<p className="mt-2 text-sm text-muted-foreground">
 								The schedule is not published for this school yet. Students can view schedules here after the scheduling officer publishes a run.
 							</p>
@@ -490,7 +490,7 @@ export default function PublicPublishedSchedule() {
 					<div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
 						<Card className="rounded-2xl border-border/70">
 							<CardHeader className="pb-2">
-								<CardTitle className="text-base font-black">Section-first browse</CardTitle>
+								<CardTitle className="text-base font-semibold">Section-first browse</CardTitle>
 								<CardDescription>Search a section, then open its published classes.</CardDescription>
 							</CardHeader>
 							<CardContent className="space-y-4">
@@ -599,7 +599,7 @@ export default function PublicPublishedSchedule() {
 							<CardHeader className="pb-3">
 								<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 									<div className="space-y-1">
-										<CardTitle className="text-lg font-black">{selectedSection ? selectedSection.name : 'Select a section'}</CardTitle>
+										<CardTitle className="text-lg font-semibold">{selectedSection ? selectedSection.name : 'Select a section'}</CardTitle>
 										<CardDescription>
 											{selectedSection
 												? 'Published classes for the selected section.'

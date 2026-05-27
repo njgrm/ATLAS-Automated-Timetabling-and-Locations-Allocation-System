@@ -91,7 +91,7 @@ export function TeachingLoadModals({
 							You will need to run Auto-Fill or re-assign sections manually.
 						</p>
 						<div className="space-y-2">
-							<label htmlFor="reset-confirm" className="text-[0.65rem] font-black uppercase tracking-widest text-rose-800/60">
+							<label htmlFor="reset-confirm" className="text-xs font-semibold uppercase tracking-widest text-rose-800/60">
 								Type "RESET" to confirm
 							</label>
 							<Input
@@ -99,14 +99,14 @@ export function TeachingLoadModals({
 								value={resetConfirmText}
 								onChange={(e) => onResetConfirmTextChange(e.target.value)}
 								placeholder="RESET"
-								className="h-9 border-rose-200 focus:ring-rose-500 font-black uppercase text-center"
+								className="h-9 border-rose-200 focus:ring-rose-500 font-semibold uppercase text-center"
 							/>
 						</div>
 					</div>
 
 					<DialogFooter className="mt-2">
 						<div className="flex w-full items-center justify-between">
-							<p className="text-[0.6rem] font-bold text-muted-foreground italic uppercase">Requires live connection</p>
+							<p className="text-xs font-bold text-muted-foreground italic uppercase">Requires live connection</p>
 							<div className="flex justify-end gap-2 pt-2">
 								<Button variant="ghost" size="sm" onClick={() => { onResetDialogOpenChange(false); onResetConfirmTextChange(''); }}>
 									Cancel

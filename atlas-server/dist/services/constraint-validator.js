@@ -184,12 +184,21 @@ export function validateHardConstraints(ctx) {
             continue;
         // Type match
         if (room.type !== subject.preferredRoomType) {
+            const deferredRoomTypePreference = e.metadata?.deferredRoomTypePreference === true;
             violations.push({
                 ...base,
+                severity: deferredRoomTypePreference ? 'SOFT' : 'HARD',
                 code: 'ROOM_TYPE_MISMATCH',
-                message: `Entry ${e.entryId}: room ${e.roomId} type "${room.type}" does not match subject ${e.subjectId} preferred type "${subject.preferredRoomType}".`,
+                message: deferredRoomTypePreference
+                    ? `Entry ${e.entryId}: room ${e.roomId} stays on the section homeroom contract even though subject ${e.subjectId} prefers "${subject.preferredRoomType}".`
+                    : `Entry ${e.entryId}: room ${e.roomId} type "${room.type}" does not match subject ${e.subjectId} preferred type "${subject.preferredRoomType}".`,
                 entities: { roomId: e.roomId, subjectId: e.subjectId, sectionId: e.sectionId, entryIds: [e.entryId] },
-                meta: { roomType: room.type, preferredRoomType: subject.preferredRoomType },
+                meta: {
+                    roomType: room.type,
+                    preferredRoomType: subject.preferredRoomType,
+                    deferredRoomTypePreference,
+                    roomAssignmentReason: e.metadata?.roomAssignmentReason,
+                },
             });
         }
         // Feature match
@@ -197,12 +206,22 @@ export function validateHardConstraints(ctx) {
             const roomFeatures = new Set(room.features || []);
             const missing = subject.requiredFeatures.filter(f => !roomFeatures.has(f));
             if (missing.length > 0) {
+                const deferredRoomTypePreference = e.metadata?.deferredRoomTypePreference === true;
                 violations.push({
                     ...base,
+                    severity: deferredRoomTypePreference ? 'SOFT' : 'HARD',
                     code: 'ROOM_FEATURE_MISMATCH',
-                    message: `Entry ${e.entryId}: room ${e.roomId} lacks required features: ${missing.join(', ')}.`,
+                    message: deferredRoomTypePreference
+                        ? `Entry ${e.entryId}: room ${e.roomId} remains on the section homeroom contract without required specialist features: ${missing.join(', ')}.`
+                        : `Entry ${e.entryId}: room ${e.roomId} lacks required features: ${missing.join(', ')}.`,
                     entities: { roomId: e.roomId, subjectId: e.subjectId, sectionId: e.sectionId, entryIds: [e.entryId] },
-                    meta: { required: subject.requiredFeatures, actual: room.features || [], missing },
+                    meta: {
+                        required: subject.requiredFeatures,
+                        actual: room.features || [],
+                        missing,
+                        deferredRoomTypePreference,
+                        roomAssignmentReason: e.metadata?.roomAssignmentReason,
+                    },
                 });
             }
         }

@@ -115,7 +115,7 @@ export function TeacherIdentityStrip({
 						<div className="flex flex-col items-center">
 							<span className="text-[0.55rem] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none mb-1">Credited Weekly Load</span>
 							<div className="flex items-center gap-2">
-								<span className="text-lg font-black tabular-nums leading-none text-foreground">{loadProfile.creditedTotalHours}h</span>
+								<span className="text-lg font-semibold tabular-nums leading-none text-foreground">{loadProfile.creditedTotalHours}h</span>
 								<Badge className={`${STATUS_COLORS[loadProfile.status].bg} ${STATUS_COLORS[loadProfile.status].text} h-4 border-none text-[0.6rem] font-bold uppercase px-1.5 shadow-none`}>
 									{loadProfile.statusLabel}
 								</Badge>
@@ -127,7 +127,7 @@ export function TeacherIdentityStrip({
 						<div className="flex flex-col items-center">
 							<span className="text-[0.55rem] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none mb-1">Concurrent Teaching</span>
 							<div className="flex items-center gap-2">
-								<span className="text-sm font-black tabular-nums leading-none text-foreground">{loadProfile.actualTeachingHours}h</span>
+								<span className="text-sm font-semibold tabular-nums leading-none text-foreground">{loadProfile.actualTeachingHours}h</span>
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<Info className="size-3 text-muted-foreground/40 cursor-help" />
@@ -153,7 +153,7 @@ export function TeacherIdentityStrip({
 									>
 										<span className="text-[0.55rem] font-bold text-amber-700/60 uppercase tracking-widest leading-none mb-1 group-hover:text-amber-800">Rotation Adjustment</span>
 										<div className="flex items-center gap-1">
-											<span className="text-xs font-black text-amber-600 tabular-nums leading-none">-{rotationOvercountHours}h</span>
+											<span className="text-xs font-semibold text-amber-600 tabular-nums leading-none">-{rotationOvercountHours}h</span>
 											<Layers className="size-3 text-amber-500/40 group-hover:text-amber-500" />
 										</div>
 									</Button>
@@ -175,11 +175,11 @@ export function TeacherIdentityStrip({
 											<div key={family.family} className="rounded-xl border border-sky-200/70 bg-sky-50/30 p-4 shadow-sm">
 												<div className="flex items-center justify-between gap-2 border-b border-sky-100 pb-3 mb-4">
 													<div className="flex flex-col gap-0.5 min-w-0">
-														<span className="text-[0.65rem] font-black uppercase tracking-widest text-sky-900/40 leading-none">Rotation Group</span>
-														<span className="text-sm font-black uppercase tracking-tight text-sky-900 truncate">{family.family}</span>
+														<span className="text-[0.65rem] font-semibold uppercase tracking-widest text-sky-900/40 leading-none">Rotation Group</span>
+														<span className="text-sm font-semibold uppercase tracking-tight text-sky-900 truncate">{family.family}</span>
 													</div>
 													<div className="flex flex-col items-end">
-														<span className="text-lg font-black text-sky-900 tabular-nums leading-none">
+														<span className="text-lg font-semibold text-sky-900 tabular-nums leading-none">
 															{(family.peakTermMinutesPerWeek / 60).toFixed(1)}h
 														</span>
 														<span className="text-[0.55rem] font-bold text-sky-600/70 uppercase tracking-tighter">Peak Weekly Credit</span>
@@ -200,14 +200,14 @@ export function TeacherIdentityStrip({
 																		: "border-sky-100 bg-sky-50/50 opacity-60"
 																)}
 															>
-																<span className={cn("text-[0.55rem] font-black uppercase tracking-widest", isPeak ? "text-sky-900" : "text-sky-700/60")}>
+																<span className={cn("text-[0.55rem] font-semibold uppercase tracking-widest", isPeak ? "text-sky-900" : "text-sky-700/60")}>
 																	Term {term}
 																</span>
-																<div className={cn("text-xs font-black tabular-nums leading-none", isPeak ? "text-sky-800" : "text-sky-700/60")}>
+																<div className={cn("text-xs font-semibold tabular-nums leading-none", isPeak ? "text-sky-800" : "text-sky-700/60")}>
 																	{bucket ? `${(bucket.creditedMinutesPerWeek / 60).toFixed(1)}h` : '0.0h'}
 																</div>
 																{isPeak && (
-																	<Badge variant="outline" className="h-3.5 px-1 text-[0.45rem] font-black uppercase border-sky-300 bg-sky-50 text-sky-700 shadow-none">
+																	<Badge variant="outline" className="h-3.5 px-1 text-[0.45rem] font-semibold uppercase border-sky-300 bg-sky-50 text-sky-700 shadow-none">
 																		Peak
 																	</Badge>
 																)}
@@ -254,7 +254,7 @@ export function TeacherIdentityStrip({
 										style={{ width: `${Math.min((loadProfile.creditedTotalHours * 60 / Math.max(loadCapMinutes, 1)) * 100, 100)}%` }}
 								/>
 							</div>
-							<div className="flex justify-center text-[0.6rem] font-black uppercase tracking-tighter tabular-nums text-muted-foreground/80">
+							<div className="flex justify-center text-[0.6rem] font-semibold uppercase tracking-tighter tabular-nums text-muted-foreground/80">
 								<span>{Math.round((loadProfile.creditedTotalHours / selected.maxHoursPerWeek) * 100)}% Cap</span>
 							</div>
 						</div>
@@ -263,7 +263,7 @@ export function TeacherIdentityStrip({
 
 						<div className="flex flex-col items-center">
 							<span className="text-[0.55rem] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none mb-1">Remaining</span>
-							<span className={cn('text-xs font-black tabular-nums leading-none', loadProfile.remainingHours < 0 ? 'text-rose-600' : 'text-emerald-700')}>
+							<span className={cn('text-xs font-semibold tabular-nums leading-none', loadProfile.remainingHours < 0 ? 'text-rose-600' : 'text-emerald-700')}>
 								{loadProfile.remainingHours.toFixed(1)}h
 							</span>
 						</div>
@@ -273,7 +273,7 @@ export function TeacherIdentityStrip({
 								<div className="h-8 w-px bg-border/40" />
 								<div className="flex flex-col items-center">
 									<span className="text-[0.55rem] font-bold text-muted-foreground/60 uppercase tracking-widest leading-none mb-1">Projected</span>
-									<span className={cn('text-xs font-black tabular-nums leading-none', previewLoadHours > selected.maxHoursPerWeek ? 'text-rose-600' : 'text-primary')}>
+									<span className={cn('text-xs font-semibold tabular-nums leading-none', previewLoadHours > selected.maxHoursPerWeek ? 'text-rose-600' : 'text-primary')}>
 										{previewLoadHours.toFixed(1)}h
 									</span>
 								</div>
@@ -318,7 +318,7 @@ export function TeacherIdentityStrip({
 											<div className="flex items-center justify-between text-xs p-2 rounded-lg bg-amber-50 border border-amber-100 text-amber-900">
 												<div className="flex flex-col">
 													<span className="font-bold">Rotation Adjustment</span>
-													<span className="text-[0.6rem] text-amber-700/70 uppercase tracking-tight font-black">Shared Science/TLE term lanes</span>
+													<span className="text-[0.6rem] text-amber-700/70 uppercase tracking-tight font-semibold">Shared Science/TLE term lanes</span>
 												</div>
 												<span className="font-mono font-bold">-{(loadProfile?.rotationOvercountHours ?? 0).toFixed(1)}h</span>
 											</div>
@@ -341,7 +341,7 @@ export function TeacherIdentityStrip({
 
 											<div className="flex items-center justify-between text-sm p-3 rounded-lg bg-primary/5 border border-primary/20 text-primary">
 												<span className="font-bold uppercase tracking-tight">Credited Weekly Load</span>
-												<span className="font-mono font-black">{(loadProfile?.creditedTotalHours ?? 0).toFixed(1)}h</span>
+												<span className="font-mono font-semibold">{(loadProfile?.creditedTotalHours ?? 0).toFixed(1)}h</span>
 											</div>
 										</div>
 									</div>
