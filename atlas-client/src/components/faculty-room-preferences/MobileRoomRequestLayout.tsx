@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import type { ReactNode } from 'react';
 
 import { formatTime } from '@/lib/utils';
-import type { DayOfWeek, FacultyRoomPreferenceEntry, PreviewResult, RoomPreferenceDecisionStatus, RoomPreferenceStatus } from '@/types';
+import type { DayOfWeek, FacultyRoomPreferenceEntry, FacultyTeachingAssignmentIdentity, PreviewResult, RoomPreferenceDecisionStatus, RoomPreferenceStatus } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -20,6 +20,7 @@ type MobileTarget = {
 type MobileRoomRequestLayoutProps = {
 	mobileStep: 1 | 2 | 3;
 	entries: FacultyRoomPreferenceEntry[];
+	teachingAssignments: FacultyTeachingAssignmentIdentity[];
 	selectedSourceEntryId: string | null;
 	selectedEntry: FacultyRoomPreferenceEntry | null;
 	mobileTargets: MobileTarget[];
@@ -39,6 +40,7 @@ type MobileRoomRequestLayoutProps = {
 export default function MobileRoomRequestLayout({
 	mobileStep,
 	entries,
+	teachingAssignments,
 	selectedSourceEntryId,
 	selectedEntry,
 	mobileTargets,
@@ -67,7 +69,18 @@ export default function MobileRoomRequestLayout({
 								</div>
 								<p className='text-xs text-muted-foreground'>Tap the class you want to move, then press Choose Target.</p>
 								<div className='space-y-2'>
-									{entries.map((entry) => (
+									{entries.length === 0 ? (
+										<div className='rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center'>
+											<p className='text-sm font-bold text-foreground'>
+												{teachingAssignments.length > 0 ? 'Classes not plotted for requests yet' : 'No teaching load linked yet'}
+											</p>
+											<p className='mt-1 text-xs leading-relaxed text-muted-foreground'>
+												{teachingAssignments.length > 0
+													? 'Your teaching load exists, but the review draft has not placed classes for room-request review yet.'
+													: 'Ask the scheduling officer to check your teaching load before room requests open.'}
+											</p>
+										</div>
+									) : entries.map((entry) => (
 										<button
 											key={`mobile-source-${entry.entryId}`}
 											type='button'
@@ -204,7 +217,7 @@ export default function MobileRoomRequestLayout({
 						Back
 					</Button>
 				)}
-				{mobileStep === 1 && (
+				{mobileStep === 1 && entries.length > 0 && (
 					<Button className='min-h-12 flex-1' disabled={!selectedSourceEntryId} onClick={onStepForward}>
 						Choose Target
 					</Button>

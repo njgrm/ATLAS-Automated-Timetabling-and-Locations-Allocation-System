@@ -31,6 +31,7 @@ import type {
 	FacultyMirror,
 	FacultyRoomPreferenceEntry,
 	FacultyRoomPreferenceState,
+	FacultyTeachingAssignmentIdentity,
 	GenerationGateStatus,
 	PreviewResult,
 	Room,
@@ -76,6 +77,10 @@ type FacultyRoomBootstrapSnapshot = {
 	buildings: Building[];
 	campusImageUrl: string | null;
 	state: FacultyRoomPreferenceState;
+};
+
+type FacultyPortalObjectiveLookup = {
+	teachingAssignments: FacultyTeachingAssignmentIdentity[];
 };
 
 const ACTION_LABELS: Record<RequestActionType, string> = {
@@ -169,6 +174,7 @@ export default function FacultyRoomPreferences() {
 	const [initialEntries, setInitialEntries] = useState<FacultyRoomPreferenceEntry[]>([]);
 	const [entries, setEntries] = useState<FacultyRoomPreferenceEntry[]>([]);
 	const [globalEntries, setGlobalEntries] = useState<FacultyGlobalDraftEntry[]>([]);
+	const [teachingAssignments, setTeachingAssignments] = useState<FacultyTeachingAssignmentIdentity[]>([]);
 	const [selectedSourceEntryId, setSelectedSourceEntryId] = useState<string | null>(null);
 	const [targetSlot, setTargetSlot] = useState<SlotTarget | null>(null);
 	const [requestSheetOpen, setRequestSheetOpen] = useState(false);
@@ -210,6 +216,7 @@ export default function FacultyRoomPreferences() {
 		setInitialEntries(state.entries);
 		setEntries(state.entries);
 		setGlobalEntries(state.globalEntries ?? []);
+		setTeachingAssignments(state.teachingAssignments ?? []);
 		
 		const entryIdParam = searchParams.get('entryId');
 		if (entryIdParam && state.entries.some(e => e.entryId === entryIdParam)) {
@@ -319,8 +326,20 @@ export default function FacultyRoomPreferences() {
 				}
 
 				const responseData = (err as { response?: { data?: { code?: string; message?: string; actionHint?: string } } })?.response?.data;
+				let objectiveMessage: string | null = null;
+				if (responseData?.code === 'NO_ACTIVE_DRAFT') {
+					try {
+						const { data: objectiveLookup } = await atlasApi.get<FacultyPortalObjectiveLookup>(`/faculty-portal/${DEFAULT_SCHOOL_ID}/${schoolYearId}/dashboard`);
+						setTeachingAssignments(objectiveLookup.teachingAssignments ?? []);
+						objectiveMessage = (objectiveLookup.teachingAssignments?.length ?? 0) > 0
+							? 'Your teaching load is linked, but no review draft has been generated for room requests yet.'
+							: 'No teaching load is linked to your account yet. Ask the scheduling officer to check your teaching load before room requests open.';
+					} catch {
+						objectiveMessage = null;
+					}
+				}
 				const noDraftMessage = responseData?.code === 'NO_ACTIVE_DRAFT'
-					? [responseData.message, responseData.actionHint].filter(Boolean).join(' ')
+					? objectiveMessage ?? [responseData.message, responseData.actionHint].filter(Boolean).join(' ')
 					: null;
 				const staleMessage = responseData?.code === 'STALE_RUN_DATA'
 					? [responseData.message, responseData.actionHint].filter(Boolean).join(' ')
@@ -602,6 +621,7 @@ export default function FacultyRoomPreferences() {
 	const initialMap = useMemo(() => new Map(initialEntries.map((entry) => [entry.entryId, entry])), [initialEntries]);
 	const selectedEntry = entries.find((entry) => entry.entryId === selectedSourceEntryId) ?? null;
 	const dirtyEntries = entries.filter((entry) => isEntryDirty(entry, initialMap.get(entry.entryId)));
+	const dirtyCount = dirtyEntries.length;
 	const filteredRooms = rooms.filter((room) => `${room.name} ${room.buildingName}`.toLowerCase().includes(roomSearch.toLowerCase()));
 	const requestRoomOptions = rooms.filter((room) => `${room.name} ${room.buildingName}`.toLowerCase().includes(requestRoomSearch.toLowerCase()));
 	const draftCount = entries.filter((entry) => entry.status === 'DRAFT').length;
@@ -613,6 +633,35 @@ export default function FacultyRoomPreferences() {
 			hiddenCount: Math.max(0, sorted.length - 3),
 		};
 	}, [presence]);
+	const presenceLabelByConnection = useMemo(() => {
+		return new Map(presence.map((item) => [item.connectionId, item.email ?? item.role ?? 'Another user']));
+	}, [presence]);
+	const slotSelectionDetails = useMemo(() => {
+		const details = new Map<string, { count: number; actors: string[] }>();
+		for (const [connectionId, selection] of Object.entries(remoteSelections)) {
+			if (!selection.day || !selection.startTime || !selection.endTime) continue;
+			const key = slotKey(selection.day, selection.startTime, selection.endTime);
+			const current = details.get(key) ?? { count: 0, actors: [] };
+			current.count += 1;
+			current.actors.push(presenceLabelByConnection.get(connectionId) ?? 'Another user');
+			details.set(key, current);
+		}
+		return details;
+	}, [presenceLabelByConnection, remoteSelections]);
+	const entrySelectionDetails = useMemo(() => {
+		const details = new Map<string, { count: number; actors: string[] }>();
+		for (const [connectionId, selection] of Object.entries(remoteSelections)) {
+			if (!selection.entryId) continue;
+			const current = details.get(selection.entryId) ?? { count: 0, actors: [] };
+			current.count += 1;
+			current.actors.push(presenceLabelByConnection.get(connectionId) ?? 'Another user');
+			details.set(selection.entryId, current);
+		}
+		return details;
+	}, [presenceLabelByConnection, remoteSelections]);
+	const selectionCountBySlot = useMemo(() => {
+		return new Map([...slotSelectionDetails.entries()].map(([key, details]) => [key, details.count]));
+	}, [slotSelectionDetails]);
 	const outboxStatusCounts = useMemo(() => {
 		return {
 			queued: outboxActions.filter((action) => action.status === 'queued' || action.status === 'retried').length,
@@ -825,7 +874,7 @@ export default function FacultyRoomPreferences() {
 		}
 		return {
 			title: 'Review schedule active',
-			message: 'Submit your request and wait for scheduler decision.',
+			message: 'Free slots create move requests. Occupied slots create swap requests for scheduler decision.',
 			variant: 'info' as const
 		};
 	}, [cachedBootstrapAt, gate, usingCachedBootstrap]);
@@ -888,9 +937,10 @@ export default function FacultyRoomPreferences() {
 				)}
 				
 				<div className='flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5 text-xs sm:text-sm'>
-					<span className='font-bold text-foreground'>{entries.length} classes</span>
+					<span className='font-bold text-foreground'>{entries.length} review class{entries.length === 1 ? '' : 'es'}</span>
 					<span className='text-border/60'>•</span>
 					<span className='text-muted-foreground'>{submittedCount} pending</span>
+					{entries.length === 0 && teachingAssignments.length > 0 && <Badge variant='warning' className="h-5 px-1.5 text-[10px]">Teaching load linked</Badge>}
 					{dirtyCount > 0 && <Badge variant='warning' className="h-5 px-1.5 text-[10px]">Unsaved changes</Badge>}
 					<div className="flex-1" />
 					<div className='flex items-center gap-2' data-tutorial='context-toggle'>
@@ -908,6 +958,7 @@ export default function FacultyRoomPreferences() {
 				<MobileRoomRequestLayout
 					mobileStep={mobileStep}
 					entries={entries}
+					teachingAssignments={teachingAssignments}
 					selectedSourceEntryId={selectedSourceEntryId}
 					selectedEntry={selectedEntry}
 					mobileTargets={mobileTargets}
@@ -991,6 +1042,7 @@ export default function FacultyRoomPreferences() {
 					onUpdateSelectedRationale={updateSelectedRationale}
 					renderStatusBadge={statusBadge}
 					entries={entries}
+					teachingAssignments={teachingAssignments}
 				/>
 			</div>
 

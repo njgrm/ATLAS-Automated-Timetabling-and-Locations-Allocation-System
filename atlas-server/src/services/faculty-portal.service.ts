@@ -14,6 +14,74 @@ const PHASE_COPY: Record<LifecyclePhase, string> = {
 	ARCHIVED: 'This school year schedule is archived.',
 };
 
+function buildObjectiveState(input: {
+	phase: LifecyclePhase;
+	hasActiveDraft: boolean;
+	teachingAssignmentCount: number;
+	draftEntryCount: number;
+}) {
+	const hasTeachingLoad = input.teachingAssignmentCount > 0;
+	const hasDraftEntries = input.draftEntryCount > 0;
+
+	if (!hasTeachingLoad) {
+		return {
+			code: 'NO_TEACHING_LOAD' as const,
+			hasTeachingLoad,
+			hasActiveDraft: input.hasActiveDraft,
+			hasDraftEntries,
+			publishedScheduleAvailable: input.phase === 'PUBLISHED',
+			title: 'No teaching load is linked yet',
+			message: 'Your account is active, but ATLAS has not found assignment-bearing classes for this school year.',
+			roomRequestMessage: 'Room requests open after a teaching load is linked and a review draft places your classes.',
+			nextActionLabel: 'Ask the scheduling officer to check your teaching load',
+		};
+	}
+
+	if (!input.hasActiveDraft) {
+		return {
+			code: 'LOAD_WAITING_FOR_DRAFT' as const,
+			hasTeachingLoad,
+			hasActiveDraft: false,
+			hasDraftEntries,
+			publishedScheduleAvailable: input.phase === 'PUBLISHED',
+			title: 'Teaching load ready, draft timetable not generated',
+			message: 'Your teaching load is linked, but there is no active review draft yet.',
+			roomRequestMessage: 'Room requests will open after the scheduler generates the review draft.',
+			nextActionLabel: 'Wait for the review draft',
+		};
+	}
+
+	if (!hasDraftEntries) {
+		return {
+			code: 'LOAD_WITHOUT_DRAFT_ENTRIES' as const,
+			hasTeachingLoad,
+			hasActiveDraft: true,
+			hasDraftEntries,
+			publishedScheduleAvailable: input.phase === 'PUBLISHED',
+			title: 'Teaching load ready, classes not plotted yet',
+			message: 'ATLAS found your teaching load, but this review draft has not placed those classes on the timetable.',
+			roomRequestMessage: 'Room requests will appear after your classes are plotted in the review draft.',
+			nextActionLabel: 'Check back after draft plotting',
+		};
+	}
+
+	return {
+		code: input.phase === 'PUBLISHED' ? 'PUBLISHED_SCHEDULE_AVAILABLE' as const : 'DRAFT_ENTRIES_READY' as const,
+		hasTeachingLoad,
+		hasActiveDraft: true,
+		hasDraftEntries,
+		publishedScheduleAvailable: input.phase === 'PUBLISHED',
+		title: input.phase === 'PUBLISHED' ? 'Published schedule available' : 'Review draft ready',
+		message: input.phase === 'PUBLISHED'
+			? 'Your published timetable is available. Room changes now follow the published-schedule process.'
+			: 'Your classes are plotted in the review draft. You can submit room or time requests for scheduler decision.',
+		roomRequestMessage: input.phase === 'PUBLISHED'
+			? 'Use room requests only when the published-schedule workflow allows changes.'
+			: 'Free slots create move requests. Occupied slots create swap requests for scheduler review.',
+		nextActionLabel: input.phase === 'PUBLISHED' ? 'View published schedule' : 'Review room requests',
+	};
+}
+
 function currentPhase(): LifecyclePhase {
 	const value = (process.env.ATLAS_LIFECYCLE_PHASE ?? 'REVIEW').toUpperCase();
 	if (
@@ -38,6 +106,7 @@ export async function getFacultyPortalDashboard(params: {
 	const phase = currentPhase();
 	let state: Awaited<ReturnType<typeof getLatestFacultyRoomPreferenceState>> | null = null;
 	let resolvedRun: Awaited<ReturnType<typeof resolveActiveDraftRun>> | null = null;
+	const teachingAssignments = await getFacultyAssignmentIdentitySummary(params.facultyId, params.schoolYearId, params.authToken);
 
 	try {
 		resolvedRun = await resolveActiveDraftRun(params.schoolId, params.schoolYearId);
@@ -71,10 +140,18 @@ export async function getFacultyPortalDashboard(params: {
 				entries: [],
 				counts: { total: 0, pending: 0, approved: 0, rejected: 0, unchanged: 0 },
 			},
-			teachingAssignments: [],
+			teachingAssignments,
+			objectiveState: buildObjectiveState({
+				phase,
+				hasActiveDraft: false,
+				teachingAssignmentCount: teachingAssignments.length,
+				draftEntryCount: 0,
+			}),
 			statuses: {
 				requestStatusLabel: 'No active draft run yet',
-				reviewStatusLabel: 'Waiting for scheduler generation',
+				reviewStatusLabel: teachingAssignments.length > 0
+					? 'Teaching load linked; waiting for draft generation'
+					: 'Waiting for teaching load and draft generation',
 			},
 		};
 	}
@@ -90,7 +167,12 @@ export async function getFacultyPortalDashboard(params: {
 		rejected: state.entries.filter((entry) => entry.decisionStatus === 'REJECTED').length,
 		unchanged: state.entries.filter((entry) => !entry.requestedRoomId).length,
 	};
-	const teachingAssignments = await getFacultyAssignmentIdentitySummary(params.facultyId, params.schoolYearId, params.authToken);
+	const objectiveState = buildObjectiveState({
+		phase,
+		hasActiveDraft: true,
+		teachingAssignmentCount: teachingAssignments.length,
+		draftEntryCount: counts.total,
+	});
 
 	return {
 		phase,
@@ -105,8 +187,8 @@ export async function getFacultyPortalDashboard(params: {
 		},
 		fallbackBanner: {
 			show: phase !== 'PUBLISHED',
-			title: 'Active draft run (not final / not yet published)',
-			message: 'This preview reflects the latest generated draft and active room-request reviews. Final room assignments apply only after publish.',
+			title: objectiveState.title,
+			message: objectiveState.roomRequestMessage,
 			runId: state.runId,
 			generatedAt: state.runGeneratedAt,
 		},
@@ -118,6 +200,7 @@ export async function getFacultyPortalDashboard(params: {
 			counts,
 		},
 		teachingAssignments,
+		objectiveState,
 		statuses: {
 			requestStatusLabel: counts.pending > 0 ? `${counts.pending} request(s) pending review` : 'No pending room requests',
 			reviewStatusLabel: counts.rejected > 0 ? `${counts.rejected} request(s) were rejected and need action` : 'Review status is up to date',

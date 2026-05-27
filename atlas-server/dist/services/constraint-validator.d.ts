@@ -36,7 +36,10 @@ export interface ScheduledEntry {
     adviserName?: string | null;
     metadata?: {
         roomAssignmentReason?: string;
-        homeRoomFallbackCause?: 'HOME_ROOM_OCCUPIED' | 'NO_SAME_ZONE_STANDARD_ROOM' | 'ONLY_SPECIALIZED_ROOMS_AVAILABLE' | 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE';
+        homeRoomFallbackCause?: 'HOME_ROOM_OCCUPIED' | 'NO_SAME_ZONE_STANDARD_ROOM' | 'CROSS_BUILDING_STANDARD_ROOM_EXHAUSTED' | 'ONLY_SPECIALIZED_ROOMS_AVAILABLE' | 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE';
+        crossBuildingFallbackUsed?: boolean;
+        fallbackTier?: 'HOME_ROOM' | 'SAME_ZONE' | 'CROSS_BUILDING' | 'GENERAL_POOL';
+        fallbackTrace?: string[];
         capacityOverflowBypass?: boolean;
         deferredRoomTypePreference?: boolean;
         deferredPreferredRoomType?: RoomType;

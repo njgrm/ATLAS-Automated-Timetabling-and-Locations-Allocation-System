@@ -35,7 +35,67 @@ export declare function getFacultyPortalDashboard(params: {
             unchanged: number;
         };
     };
-    teachingAssignments: never[];
+    teachingAssignments: {
+        subjectId: number;
+        subjectCode: string;
+        subjectName: string;
+        subjectDisplayLabel: string;
+        sectionId: number;
+        sectionName: string;
+        gradeLevel: number;
+        specializationCode: string | null;
+        specializationLabel: string | null;
+        rotationFamily: string | null;
+        rotationLaneId: string | null;
+        rotationTermRank: number | null;
+        rotationTermLabel: string | null;
+        rotationTermGroupId: string | null;
+        rotationTermCount: number | null;
+        rawMinutesPerWeek: number | null;
+        concurrentDeltaMinutesPerWeek: number | null;
+        expandsConcurrentDemand: boolean | null;
+    }[];
+    objectiveState: {
+        code: "NO_TEACHING_LOAD";
+        hasTeachingLoad: false;
+        hasActiveDraft: boolean;
+        hasDraftEntries: boolean;
+        publishedScheduleAvailable: boolean;
+        title: string;
+        message: string;
+        roomRequestMessage: string;
+        nextActionLabel: string;
+    } | {
+        code: "LOAD_WAITING_FOR_DRAFT";
+        hasTeachingLoad: true;
+        hasActiveDraft: boolean;
+        hasDraftEntries: boolean;
+        publishedScheduleAvailable: boolean;
+        title: string;
+        message: string;
+        roomRequestMessage: string;
+        nextActionLabel: string;
+    } | {
+        code: "LOAD_WITHOUT_DRAFT_ENTRIES";
+        hasTeachingLoad: true;
+        hasActiveDraft: boolean;
+        hasDraftEntries: false;
+        publishedScheduleAvailable: boolean;
+        title: string;
+        message: string;
+        roomRequestMessage: string;
+        nextActionLabel: string;
+    } | {
+        code: "PUBLISHED_SCHEDULE_AVAILABLE" | "DRAFT_ENTRIES_READY";
+        hasTeachingLoad: true;
+        hasActiveDraft: boolean;
+        hasDraftEntries: true;
+        publishedScheduleAvailable: boolean;
+        title: string;
+        message: string;
+        roomRequestMessage: string;
+        nextActionLabel: string;
+    };
     statuses: {
         requestStatusLabel: string;
         reviewStatusLabel: string;
@@ -81,7 +141,57 @@ export declare function getFacultyPortalDashboard(params: {
         gradeLevel: number;
         specializationCode: string | null;
         specializationLabel: string | null;
+        rotationFamily: string | null;
+        rotationLaneId: string | null;
+        rotationTermRank: number | null;
+        rotationTermLabel: string | null;
+        rotationTermGroupId: string | null;
+        rotationTermCount: number | null;
+        rawMinutesPerWeek: number | null;
+        concurrentDeltaMinutesPerWeek: number | null;
+        expandsConcurrentDemand: boolean | null;
     }[];
+    objectiveState: {
+        code: "NO_TEACHING_LOAD";
+        hasTeachingLoad: false;
+        hasActiveDraft: boolean;
+        hasDraftEntries: boolean;
+        publishedScheduleAvailable: boolean;
+        title: string;
+        message: string;
+        roomRequestMessage: string;
+        nextActionLabel: string;
+    } | {
+        code: "LOAD_WAITING_FOR_DRAFT";
+        hasTeachingLoad: true;
+        hasActiveDraft: boolean;
+        hasDraftEntries: boolean;
+        publishedScheduleAvailable: boolean;
+        title: string;
+        message: string;
+        roomRequestMessage: string;
+        nextActionLabel: string;
+    } | {
+        code: "LOAD_WITHOUT_DRAFT_ENTRIES";
+        hasTeachingLoad: true;
+        hasActiveDraft: boolean;
+        hasDraftEntries: false;
+        publishedScheduleAvailable: boolean;
+        title: string;
+        message: string;
+        roomRequestMessage: string;
+        nextActionLabel: string;
+    } | {
+        code: "PUBLISHED_SCHEDULE_AVAILABLE" | "DRAFT_ENTRIES_READY";
+        hasTeachingLoad: true;
+        hasActiveDraft: boolean;
+        hasDraftEntries: true;
+        publishedScheduleAvailable: boolean;
+        title: string;
+        message: string;
+        roomRequestMessage: string;
+        nextActionLabel: string;
+    };
     statuses: {
         requestStatusLabel: string;
         reviewStatusLabel: string;

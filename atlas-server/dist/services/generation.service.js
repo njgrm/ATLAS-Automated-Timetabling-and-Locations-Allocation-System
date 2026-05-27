@@ -253,12 +253,15 @@ function buildHomeRoomFallbackDiagnostics(entries, unassignedItems) {
     const diagnostics = {
         homeRoomOccupied: 0,
         noSameZoneStandardRoom: 0,
+        crossBuildingStandardRoomExhausted: 0,
         onlySpecializedRoomsAvailable: 0,
         policyOrShiftWindowIncompatible: 0,
     };
     const applyCause = (cause) => {
         if (cause === 'NO_SAME_ZONE_STANDARD_ROOM')
             diagnostics.noSameZoneStandardRoom += 1;
+        else if (cause === 'CROSS_BUILDING_STANDARD_ROOM_EXHAUSTED')
+            diagnostics.crossBuildingStandardRoomExhausted += 1;
         else if (cause === 'ONLY_SPECIALIZED_ROOMS_AVAILABLE')
             diagnostics.onlySpecializedRoomsAvailable += 1;
         else if (cause === 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE')
@@ -382,7 +385,7 @@ function buildUnassignedBySubjectGrade(unassignedItems, subjectCodeById) {
         const key = `${item.subjectId}:${item.gradeLevel}`;
         const row = agg.get(key) ?? {
             subjectId: item.subjectId,
-            subjectCode: item.subjectCode ?? subjectCodeById.get(item.subjectId) ?? `SUBJECT_${item.subjectId}`,
+            subjectCode: subjectCodeById.get(item.subjectId) ?? `SUBJECT_${item.subjectId}`,
             gradeLevel: item.gradeLevel,
             count: 0,
             reasons: {},

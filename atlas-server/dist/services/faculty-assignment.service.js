@@ -3890,6 +3890,15 @@ export async function getFacultyAssignmentIdentitySummary(facultyId, schoolYearI
         gradeLevel: section.displayOrder,
         specializationCode: section.assignmentSpecializationCode ?? null,
         specializationLabel: section.assignmentSpecializationLabel ?? null,
+        rotationFamily: section.assignmentRotationFamily ?? null,
+        rotationLaneId: section.assignmentRotationLaneId ?? null,
+        rotationTermRank: section.assignmentRotationTermRank ?? null,
+        rotationTermLabel: section.assignmentRotationTermLabel ?? null,
+        rotationTermGroupId: section.assignmentRotationTermGroupId ?? null,
+        rotationTermCount: section.assignmentRotationTermCount ?? null,
+        rawMinutesPerWeek: section.assignmentRawMinutesPerWeek ?? null,
+        concurrentDeltaMinutesPerWeek: section.assignmentConcurrentDeltaMinutesPerWeek ?? null,
+        expandsConcurrentDemand: section.assignmentExpandsConcurrentDemand ?? null,
     })))
         .sort((left, right) => left.gradeLevel - right.gradeLevel || left.sectionName.localeCompare(right.sectionName) || left.subjectCode.localeCompare(right.subjectCode));
 }

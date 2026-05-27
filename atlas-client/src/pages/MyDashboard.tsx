@@ -5,6 +5,7 @@ import atlasApi from '@/lib/api';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { buildFacultyCacheKey, isLikelyOfflineError, readFacultySnapshot, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
 import type { FacultyRoomPreferenceEntry } from '@/types';
+import type { FacultyPortalObjectiveState } from '@/types';
 import type { FacultyTeachingAssignmentIdentity } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -53,6 +54,7 @@ type MyDashboardResponse = {
 		};
 	};
 	teachingAssignments: FacultyTeachingAssignmentIdentity[];
+	objectiveState: FacultyPortalObjectiveState;
 	statuses: {
 		requestStatusLabel: string;
 		reviewStatusLabel: string;
@@ -90,7 +92,7 @@ export default function MyDashboard() {
 				validate: (value): value is MyDashboardResponse => {
 					if (!value || typeof value !== 'object') return false;
 					const candidate = value as Partial<MyDashboardResponse>;
-					return Boolean(candidate.faculty && typeof candidate.phaseMessage === 'string' && candidate.schedulePreview);
+					return Boolean(candidate.faculty && typeof candidate.phaseMessage === 'string' && candidate.schedulePreview && candidate.objectiveState);
 				},
 			});
 			setSchoolYearNotice(
@@ -168,8 +170,8 @@ export default function MyDashboard() {
 		
 		if (dashboard.fallbackBanner.show) {
 			return {
-				title: 'Limited visibility',
-				message: dashboard.fallbackBanner.message,
+				title: dashboard.objectiveState.title,
+				message: dashboard.objectiveState.roomRequestMessage,
 				variant: 'warning' as const
 			};
 		}
@@ -183,15 +185,15 @@ export default function MyDashboard() {
 		}
 
 		return {
-			title: 'Review in progress',
-			message: 'You are viewing a review draft. You can submit room requests now.',
+			title: dashboard.objectiveState.title,
+			message: dashboard.objectiveState.roomRequestMessage,
 			variant: 'warning' as const
 		};
 	}, [cachedDashboardAt, dashboard, usingCachedDashboard]);
 
 	const dashboardStep = useMemo(() => {
 		if (!dashboard) return 1;
-		if (dashboard.runContext.state === 'NO_ACTIVE_DRAFT') return 1;
+		if (!dashboard.objectiveState.hasDraftEntries) return 1;
 		if (dashboard.schedulePreview.counts.pending > 0) return 3;
 		return 2;
 	}, [dashboard]);
@@ -235,7 +237,7 @@ export default function MyDashboard() {
 		<div className='flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-background'>
 			<FacultyGlobalHeader
 				title='Faculty Portal'
-				subtitle='Track your class assignments and request room changes.'
+				subtitle='Track classes and room requests.'
 				steps={[
 					{ id: 1, label: '1 Review' },
 					{ id: 2, label: '2 Request' },
@@ -264,6 +266,7 @@ export default function MyDashboard() {
 							counts={dashboard.schedulePreview.counts}
 							schedulePreview={dashboard.schedulePreview.entries}
 							teachingAssignments={dashboard.teachingAssignments}
+							objectiveState={dashboard.objectiveState}
 							renderEntryBadge={entryOutcomeBadge}
 						/>
 					) : (
@@ -273,6 +276,7 @@ export default function MyDashboard() {
 							counts={dashboard.schedulePreview.counts}
 							entries={dashboard.schedulePreview.entries}
 							teachingAssignments={dashboard.teachingAssignments}
+							objectiveState={dashboard.objectiveState}
 							renderEntryBadge={entryOutcomeBadge}
 						/>
 					)}

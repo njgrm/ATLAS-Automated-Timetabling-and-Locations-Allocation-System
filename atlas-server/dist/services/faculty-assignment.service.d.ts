@@ -722,6 +722,15 @@ export declare function getFacultyAssignmentIdentitySummary(facultyId: number, s
     gradeLevel: number;
     specializationCode: string | null;
     specializationLabel: string | null;
+    rotationFamily: string | null;
+    rotationLaneId: string | null;
+    rotationTermRank: number | null;
+    rotationTermLabel: string | null;
+    rotationTermGroupId: string | null;
+    rotationTermCount: number | null;
+    rawMinutesPerWeek: number | null;
+    concurrentDeltaMinutesPerWeek: number | null;
+    expandsConcurrentDemand: boolean | null;
 }>>;
 export interface TeachingLoadResetResult {
     applied: boolean;

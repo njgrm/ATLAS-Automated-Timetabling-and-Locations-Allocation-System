@@ -122,6 +122,7 @@ function run() {
 	const homeRoomEntry = homeRoomFirstResult.entries[0];
 	assertEqual(homeRoomEntry.roomId, 2, 'Home-room-first strategy falls back to alternate room when home room is incompatible');
 	assertEqual(homeRoomEntry.metadata?.roomAssignmentReason, 'HOME_ROOM_UNAVAILABLE', 'Home-room-first marks fallback reason as HOME_ROOM_UNAVAILABLE');
+	assertEqual(homeRoomEntry.metadata?.fallbackTier, 'SAME_ZONE', 'Home-room-first same-zone fallback records SAME_ZONE fallback tier');
 	assertEqual(homeRoomEntry.roomId === 0, false, 'Home-room-first prefers same-zone standard room before broader fallback');
 
 	const universalResult = constructBaseline(buildBaseInput('UNIVERSAL'));
@@ -208,13 +209,12 @@ function run() {
 		},
 	];
 	const strictZoneResult = constructBaseline(strictZoneInput);
-	assertEqual(strictZoneResult.entries.length, 0, 'Home-room-first does not drift into broader-zone classrooms when no same-zone fallback exists');
-	assertEqual(strictZoneResult.unassignedItems.length, 1, 'Home-room-first records unresolved section demand when only broader-zone classrooms are available');
-	assert(
-		strictZoneResult.unassignedItems[0]?.homeRoomFallbackCause === 'NO_SAME_ZONE_STANDARD_ROOM'
-			|| strictZoneResult.unassignedItems[0]?.homeRoomFallbackCause === 'HOME_ROOM_OCCUPIED',
-		'Home-room-first keeps fallback cause within homeroom-fidelity diagnostics when strict zone fidelity blocks broader fallback',
-	);
+	assertEqual(strictZoneResult.entries.length, 1, 'Home-room-first uses bounded cross-building fallback when no same-zone classroom remains');
+	assertEqual(strictZoneResult.unassignedItems.length, 0, 'Cross-building fallback prevents false unresolved demand when broader classroom capacity exists');
+	assertEqual(strictZoneResult.entries[0]?.roomId, 0, 'Cross-building fallback lands on the broader-zone classroom candidate');
+	assertEqual(strictZoneResult.entries[0]?.metadata?.roomAssignmentReason, 'CROSS_BUILDING_FALLBACK_ASSIGNED', 'Cross-building fallback uses explicit room assignment reason');
+	assertEqual(Boolean(strictZoneResult.entries[0]?.metadata?.crossBuildingFallbackUsed), true, 'Cross-building fallback sets explicit metadata marker');
+	assertEqual(strictZoneResult.entries[0]?.metadata?.fallbackTier, 'CROSS_BUILDING', 'Cross-building fallback records CROSS_BUILDING fallback tier');
 
 	const preferenceRelaxInput = buildBaseInput('HOME_ROOM_FIRST');
 	preferenceRelaxInput.preferences = [

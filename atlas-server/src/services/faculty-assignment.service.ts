@@ -5479,6 +5479,15 @@ export async function getFacultyAssignmentIdentitySummary(
   gradeLevel: number;
   specializationCode: string | null;
   specializationLabel: string | null;
+  rotationFamily: string | null;
+  rotationLaneId: string | null;
+  rotationTermRank: number | null;
+  rotationTermLabel: string | null;
+  rotationTermGroupId: string | null;
+  rotationTermCount: number | null;
+  rawMinutesPerWeek: number | null;
+  concurrentDeltaMinutesPerWeek: number | null;
+  expandsConcurrentDemand: boolean | null;
 }>> {
   const assignmentState = await getAssignmentsByFaculty(facultyId, schoolYearId, authToken);
   if (!assignmentState) {
@@ -5498,6 +5507,15 @@ export async function getFacultyAssignmentIdentitySummary(
       gradeLevel: section.displayOrder,
       specializationCode: section.assignmentSpecializationCode ?? null,
       specializationLabel: section.assignmentSpecializationLabel ?? null,
+      rotationFamily: section.assignmentRotationFamily ?? null,
+      rotationLaneId: section.assignmentRotationLaneId ?? null,
+      rotationTermRank: section.assignmentRotationTermRank ?? null,
+      rotationTermLabel: section.assignmentRotationTermLabel ?? null,
+      rotationTermGroupId: section.assignmentRotationTermGroupId ?? null,
+      rotationTermCount: section.assignmentRotationTermCount ?? null,
+      rawMinutesPerWeek: section.assignmentRawMinutesPerWeek ?? null,
+      concurrentDeltaMinutesPerWeek: section.assignmentConcurrentDeltaMinutesPerWeek ?? null,
+      expandsConcurrentDemand: section.assignmentExpandsConcurrentDemand ?? null,
     })))
     .sort((left, right) => left.gradeLevel - right.gradeLevel || left.sectionName.localeCompare(right.sectionName) || left.subjectCode.localeCompare(right.subjectCode));
 }

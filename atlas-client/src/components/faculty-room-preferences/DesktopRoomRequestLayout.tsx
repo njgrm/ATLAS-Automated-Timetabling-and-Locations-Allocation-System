@@ -6,6 +6,7 @@ import type {
 	DayOfWeek,
 	FacultyGlobalDraftEntry,
 	FacultyRoomPreferenceEntry,
+	FacultyTeachingAssignmentIdentity,
 	Room,
 	RoomPreferenceDecisionStatus,
 	RoomPreferenceStatus,
@@ -44,6 +45,7 @@ type DesktopRoomRequestLayoutProps = {
 	onUpdateSelectedRationale: (value: string) => void;
 	renderStatusBadge: (status: RoomPreferenceStatus | null, decision: RoomPreferenceDecisionStatus | null) => ReactNode;
 	entries: FacultyRoomPreferenceEntry[];
+	teachingAssignments: FacultyTeachingAssignmentIdentity[];
 };
 
 function slotKey(day: string, startTime: string, endTime: string) {
@@ -73,6 +75,7 @@ export default function DesktopRoomRequestLayout({
 	onUpdateSelectedRationale,
 	renderStatusBadge,
 	entries,
+	teachingAssignments,
 }: DesktopRoomRequestLayoutProps) {
 	const gridScrollRef = useRef<HTMLDivElement>(null);
 	const [heatmapMode, setHeatmapMode] = useState(false);
@@ -240,7 +243,7 @@ export default function DesktopRoomRequestLayout({
 			<div className='flex flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-sm'>
 				<div className='border-b border-border px-6 py-4 bg-muted/30'>
 					<h3 className='text-sm font-bold text-foreground'>Request Details</h3>
-					<p className='text-xs text-muted-foreground mt-0.5'>Configure and review your room change.</p>
+						<p className='text-xs text-muted-foreground mt-0.5'>Configure and review your room change.</p>
 				</div>
 
 				<div className='flex-1 overflow-auto p-6 space-y-6'>
@@ -248,7 +251,18 @@ export default function DesktopRoomRequestLayout({
 					<div className='space-y-4'>
 						<p className='text-[10px] font-bold text-muted-foreground uppercase tracking-wider'>Selected Class</p>
 						<div className='grid gap-3'>
-							{entries.map((entry) => (
+							{entries.length === 0 ? (
+								<div className='rounded-2xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center'>
+									<p className='text-sm font-bold text-foreground'>
+										{teachingAssignments.length > 0 ? 'Classes not plotted for requests yet' : 'No teaching load linked yet'}
+									</p>
+									<p className='mt-1 text-xs leading-relaxed text-muted-foreground'>
+										{teachingAssignments.length > 0
+											? 'Your teaching load exists, but the review draft has not placed classes for room-request review yet.'
+											: 'Ask the scheduling officer to check your teaching load before room requests open.'}
+									</p>
+								</div>
+							) : entries.map((entry) => (
 								<button
 									key={entry.entryId}
 									onClick={() => onSelectSourceEntry(entry.entryId)}

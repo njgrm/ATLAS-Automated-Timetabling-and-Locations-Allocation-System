@@ -745,6 +745,7 @@ export type FacultyRoomPreferenceState = {
 	runGeneratedAt: string | null;
 	entries: FacultyRoomPreferenceEntry[];
 	globalEntries: FacultyGlobalDraftEntry[];
+	teachingAssignments?: FacultyTeachingAssignmentIdentity[];
 };
 
 export type GenerationGateStatus = {
@@ -1027,7 +1028,6 @@ export interface ScheduledEntry {
 	facultyId: number | null;
 	roomId: number;
 	subjectId: number;
-	subjectCode?: string | null;
 	sectionId: number;
 	day: string;
 	startTime: string;
@@ -1040,8 +1040,6 @@ export interface ScheduledEntry {
 	programName?: string | null;
 	cohortCode?: string | null;
 	cohortName?: string | null;
-	specializationCode?: string | null;
-	specializationName?: string | null;
 	cohortMemberSectionIds?: number[];
 	cohortExpectedEnrollment?: number | null;
 	adviserId?: number | null;
@@ -1089,7 +1087,6 @@ export interface ViolationReport {
 export interface UnassignedItem {
 	sectionId: number;
 	subjectId: number;
-	subjectCode?: string | null;
 	gradeLevel: number;
 	session: number;
 	reason: 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM' | 'ROOM_CAPACITY_EXCEEDED';
@@ -1097,10 +1094,15 @@ export interface UnassignedItem {
 		| 'LOCKED_ENTRY'
 		| 'HOME_ROOM_ASSIGNED'
 		| 'HOME_ROOM_UNAVAILABLE'
+		| 'CROSS_BUILDING_FALLBACK_ASSIGNED'
 		| 'SPECIALIZED_ROOM'
 		| 'SPECIALIZED_ROOM_UNAVAILABLE'
 		| 'GENERAL_POOL_ASSIGNED'
 		| 'MODULAR_POOL_ASSIGNED'
+		| 'ROOM_PATH_EXHAUSTED'
+		| 'NO_QUALIFIED_FACULTY'
+		| 'FACULTY_SLOT_UNAVAILABLE'
+		| 'POLICY_SLOT_BLOCKED'
 		| 'FALLBACK_UNRESOLVED';
 	entryKind?: 'SECTION' | 'COHORT';
 	programType?: string | null;
@@ -1108,14 +1110,17 @@ export interface UnassignedItem {
 	programName?: string | null;
 	cohortCode?: string | null;
 	cohortName?: string | null;
-	specializationCode?: string | null;
-	specializationName?: string | null;
 	cohortMemberSectionIds?: number[];
 	cohortExpectedEnrollment?: number | null;
 	adviserId?: number | null;
 	adviserName?: string | null;
 	homeRoomId?: number | null;
-	homeRoomFallbackCause?: 'HOME_ROOM_OCCUPIED' | 'NO_SAME_ZONE_STANDARD_ROOM' | 'ONLY_SPECIALIZED_ROOMS_AVAILABLE' | 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE';
+	homeRoomFallbackCause?:
+		| 'HOME_ROOM_OCCUPIED'
+		| 'NO_SAME_ZONE_STANDARD_ROOM'
+		| 'CROSS_BUILDING_STANDARD_ROOM_EXHAUSTED'
+		| 'ONLY_SPECIALIZED_ROOMS_AVAILABLE'
+		| 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE';
 }
 
 export interface DraftReport {
@@ -1453,6 +1458,32 @@ export type FacultyTeachingAssignmentIdentity = {
 	gradeLevel: number;
 	specializationCode: string | null;
 	specializationLabel: string | null;
+	rotationFamily: string | null;
+	rotationLaneId: string | null;
+	rotationTermRank: number | null;
+	rotationTermLabel: string | null;
+	rotationTermGroupId: string | null;
+	rotationTermCount: number | null;
+	rawMinutesPerWeek: number | null;
+	concurrentDeltaMinutesPerWeek: number | null;
+	expandsConcurrentDemand: boolean | null;
+};
+
+export type FacultyPortalObjectiveState = {
+	code:
+		| 'NO_TEACHING_LOAD'
+		| 'LOAD_WAITING_FOR_DRAFT'
+		| 'LOAD_WITHOUT_DRAFT_ENTRIES'
+		| 'DRAFT_ENTRIES_READY'
+		| 'PUBLISHED_SCHEDULE_AVAILABLE';
+	hasTeachingLoad: boolean;
+	hasActiveDraft: boolean;
+	hasDraftEntries: boolean;
+	publishedScheduleAvailable: boolean;
+	title: string;
+	message: string;
+	roomRequestMessage: string;
+	nextActionLabel: string;
 };
 
 export interface SectionsByGrade {

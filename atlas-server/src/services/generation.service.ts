@@ -245,6 +245,7 @@ export interface RunSummary {
 		homeRoomFallbackDiagnostics?: {
 			homeRoomOccupied: number;
 			noSameZoneStandardRoom: number;
+			crossBuildingStandardRoomExhausted: number;
 			onlySpecializedRoomsAvailable: number;
 			policyOrShiftWindowIncompatible: number;
 		};
@@ -378,18 +379,21 @@ function buildHomeRoomFallbackDiagnostics(
 ): {
 	homeRoomOccupied: number;
 	noSameZoneStandardRoom: number;
+	crossBuildingStandardRoomExhausted: number;
 	onlySpecializedRoomsAvailable: number;
 	policyOrShiftWindowIncompatible: number;
 } {
 	const diagnostics = {
 		homeRoomOccupied: 0,
 		noSameZoneStandardRoom: 0,
+		crossBuildingStandardRoomExhausted: 0,
 		onlySpecializedRoomsAvailable: 0,
 		policyOrShiftWindowIncompatible: 0,
 	};
 
 	const applyCause = (cause?: HomeRoomFallbackCause) => {
 		if (cause === 'NO_SAME_ZONE_STANDARD_ROOM') diagnostics.noSameZoneStandardRoom += 1;
+		else if (cause === 'CROSS_BUILDING_STANDARD_ROOM_EXHAUSTED') diagnostics.crossBuildingStandardRoomExhausted += 1;
 		else if (cause === 'ONLY_SPECIALIZED_ROOMS_AVAILABLE') diagnostics.onlySpecializedRoomsAvailable += 1;
 		else if (cause === 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE') diagnostics.policyOrShiftWindowIncompatible += 1;
 		else diagnostics.homeRoomOccupied += 1;
@@ -524,7 +528,7 @@ function buildUnassignedBySubjectGrade(unassignedItems: UnassignedItem[], subjec
 		const key = `${item.subjectId}:${item.gradeLevel}`;
 		const row = agg.get(key) ?? {
 			subjectId: item.subjectId,
-			subjectCode: item.subjectCode ?? subjectCodeById.get(item.subjectId) ?? `SUBJECT_${item.subjectId}`,
+			subjectCode: subjectCodeById.get(item.subjectId) ?? `SUBJECT_${item.subjectId}`,
 			gradeLevel: item.gradeLevel,
 			count: 0,
 			reasons: {},
@@ -928,14 +932,9 @@ export async function triggerGenerationRun(
 		}));
 		const unassignedViolations: Violation[] = result.unassignedItems.map((item) => {
 			const isSpecializedUnavailable = item.roomAssignmentReason === 'SPECIALIZED_ROOM_UNAVAILABLE';
-			const isHomeRoomSlotPressure =
-				item.reason === 'NO_AVAILABLE_SLOT'
-				&& item.roomAssignmentReason === 'FALLBACK_UNRESOLVED'
-				&& item.homeRoomFallbackCause === 'HOME_ROOM_OCCUPIED';
-			const isSoftUnassigned = isSpecializedUnavailable || isHomeRoomSlotPressure;
 			return {
 				code: isSpecializedUnavailable ? 'SPECIALIZED_ROOM_UNAVAILABLE' : 'UNASSIGNED_SECTION',
-				severity: isSoftUnassigned ? 'SOFT' : 'HARD',
+				severity: isSpecializedUnavailable ? 'SOFT' : 'HARD',
 				message: isSpecializedUnavailable
 					? `Section ${item.sectionId} subject ${item.subjectId} could not be assigned to a specialized room in session ${item.session}.`
 					: `Section ${item.sectionId} subject ${item.subjectId} remained unassigned in session ${item.session}.`,
@@ -949,8 +948,6 @@ export async function triggerGenerationRun(
 				meta: {
 					reason: item.reason,
 					roomAssignmentReason: item.roomAssignmentReason,
-					homeRoomFallbackCause: item.homeRoomFallbackCause,
-					softenedForPhase3: isSoftUnassigned || undefined,
 					session: item.session,
 					gradeLevel: item.gradeLevel,
 				},

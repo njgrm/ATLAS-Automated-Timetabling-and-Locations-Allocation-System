@@ -10,6 +10,7 @@ import * as generationService from './generation.service.js';
 import * as manualEditService from './manual-edit.service.js';
 import { publishRoomPreferenceEvent } from './room-preference-events.service.js';
 import { resolveActiveDraftRun } from './active-draft-run-resolver.service.js';
+import { getFacultyAssignmentIdentitySummary } from './faculty-assignment.service.js';
 import { normalizeSubjectDisplayLabel } from './schedule-output-normalization.service.js';
 
 function err(statusCode: number, code: string, message: string): Error & { statusCode: number; code: string } {
@@ -180,6 +181,7 @@ export interface FacultyRoomPreferenceState {
 	runGeneratedAt: string | null;
 	entries: FacultyRoomPreferenceEntry[];
 	globalEntries: FacultyGlobalDraftEntry[];
+	teachingAssignments: Awaited<ReturnType<typeof getFacultyAssignmentIdentitySummary>>;
 }
 
 export interface RoomPreferenceSummaryItem {
@@ -443,11 +445,13 @@ export async function getFacultyRoomPreferenceState(
 		draft.entries.map((entry) => entry.entryId),
 		draft.entries,
 	);
+	const teachingAssignments = await getFacultyAssignmentIdentitySummary(facultyId, schoolYearId);
 
 	return {
 		runId: draft.runId,
 		runVersion: draft.version,
 		runGeneratedAt: draft.finishedAt ?? draft.createdAt,
+		teachingAssignments,
 		entries: assignedEntries.map((entry) => {
 			const request = requestMap.get(entry.entryId);
 			const decoded = decodeRationaleAndMeta(request?.rationale ?? null);

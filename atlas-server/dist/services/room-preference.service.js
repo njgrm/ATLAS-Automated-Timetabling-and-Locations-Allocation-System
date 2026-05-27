@@ -3,6 +3,7 @@ import * as generationService from './generation.service.js';
 import * as manualEditService from './manual-edit.service.js';
 import { publishRoomPreferenceEvent } from './room-preference-events.service.js';
 import { resolveActiveDraftRun } from './active-draft-run-resolver.service.js';
+import { getFacultyAssignmentIdentitySummary } from './faculty-assignment.service.js';
 import { normalizeSubjectDisplayLabel } from './schedule-output-normalization.service.js';
 function err(statusCode, code, message) {
     const error = new Error(message);
@@ -179,10 +180,12 @@ export async function getFacultyRoomPreferenceState(schoolId, schoolYearId, runI
     const requestMap = new Map(requests.map((request) => [request.entryId, request]));
     const { subjectMap, sectionMap, roomMap, roomTypeMap } = await buildLookupMaps(schoolId, assignedEntries.map((entry) => entry.entryId), assignedEntries);
     const { subjectMap: allSubjectMap, sectionMap: allSectionMap, roomMap: allRoomMap, facultyMap } = await buildLookupMaps(schoolId, draft.entries.map((entry) => entry.entryId), draft.entries);
+    const teachingAssignments = await getFacultyAssignmentIdentitySummary(facultyId, schoolYearId);
     return {
         runId: draft.runId,
         runVersion: draft.version,
         runGeneratedAt: draft.finishedAt ?? draft.createdAt,
+        teachingAssignments,
         entries: assignedEntries.map((entry) => {
             const request = requestMap.get(entry.entryId);
             const decoded = decodeRationaleAndMeta(request?.rationale ?? null);

@@ -1,6 +1,7 @@
 import type { DayOfWeek, RoomRequestAppealHistoryAction, RoomRequestAppealStatus, RoomPreferenceDecisionStatus, RoomPreferenceStatus } from '@prisma/client';
 import * as generationService from './generation.service.js';
 import * as manualEditService from './manual-edit.service.js';
+import { getFacultyAssignmentIdentitySummary } from './faculty-assignment.service.js';
 type DraftEntry = generationService.DraftReport['entries'][number];
 export interface SaveRoomPreferenceDraftInput {
     schoolId: number;
@@ -123,6 +124,7 @@ export interface FacultyRoomPreferenceState {
     runGeneratedAt: string | null;
     entries: FacultyRoomPreferenceEntry[];
     globalEntries: FacultyGlobalDraftEntry[];
+    teachingAssignments: Awaited<ReturnType<typeof getFacultyAssignmentIdentitySummary>>;
 }
 export interface RoomPreferenceSummaryItem {
     id: number;

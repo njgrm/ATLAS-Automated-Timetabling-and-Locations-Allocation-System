@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
+import type { FacultyPortalObjectiveState } from '@/types';
 
 type ActionItem = {
 	id: string;
@@ -24,9 +25,10 @@ type ActionQueueProps = {
 	};
 	hasDraftPreferences?: boolean;
 	hasDraftRoomRequests?: boolean;
+	objectiveState?: FacultyPortalObjectiveState;
 };
 
-export default function ActionQueue({ counts, hasDraftPreferences, hasDraftRoomRequests }: ActionQueueProps) {
+export default function ActionQueue({ counts, hasDraftPreferences, hasDraftRoomRequests, objectiveState }: ActionQueueProps) {
 	const actions: ActionItem[] = [];
 
 	if (counts.rejected > 0) {
@@ -66,6 +68,25 @@ export default function ActionQueue({ counts, hasDraftPreferences, hasDraftRoomR
 	}
 
 	if (actions.length === 0) {
+		if (objectiveState && counts.total === 0) {
+			const tone = objectiveState.hasTeachingLoad ? 'border-sky-100 bg-sky-50/70 text-sky-900' : 'border-amber-100 bg-amber-50/70 text-amber-900';
+			const Icon = objectiveState.hasTeachingLoad ? Info : AlertCircle;
+
+			return (
+				<Card className={`rounded-2xl shadow-sm overflow-hidden ${tone}`}>
+					<CardContent className="p-4 flex items-center gap-3">
+						<div className="size-10 rounded-full bg-background/70 flex items-center justify-center shrink-0">
+							<Icon className="size-5" />
+						</div>
+						<div className="min-w-0 flex-1">
+							<p className="text-sm font-bold">{objectiveState.title}</p>
+							<p className="text-xs opacity-80">{objectiveState.roomRequestMessage}</p>
+						</div>
+					</CardContent>
+				</Card>
+			);
+		}
+
 		return (
 			<Card className="rounded-2xl border-emerald-100 bg-emerald-50/50 shadow-sm overflow-hidden">
 				<CardContent className="p-4 flex items-center gap-3">

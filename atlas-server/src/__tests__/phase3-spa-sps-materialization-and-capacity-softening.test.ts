@@ -78,7 +78,7 @@ function buildBaseInput(): ConstructorInput {
 				interSectionEnabled: true,
 				interSectionGradeLevels: [7],
 				programScopes: ['SPA'],
-				allowedSpecializations: ['VISUAL_ARTS'],
+				allowedSpecializations: ['SPA_VA'],
 			},
 		],
 		cohorts: [
@@ -144,10 +144,9 @@ function run() {
 			45,
 		);
 		const cohortDemand = demand.find((item) => item.entryKind === 'COHORT' && item.subjectId === 501);
-		assert(Boolean(cohortDemand), 'SPA demand materializes from cohort truth even when allowedSpecializations mismatches raw specialization code');
+		assert(Boolean(cohortDemand), 'SPA demand materializes from cohort truth when specialization ownership aligns with cohort mapping');
 		assertEqual(cohortDemand?.cohortCode, 'G7-SPA-VA', 'Materialized cohort demand keeps cohort code identity');
-		assertEqual(cohortDemand?.specializationCode, 'SPA_VA', 'Materialized cohort demand keeps specialization code identity');
-		assertEqual(cohortDemand?.specializationName, 'Visual Arts', 'Materialized cohort demand keeps specialization label identity');
+		assertEqual(cohortDemand?.cohortName, 'Visual Arts', 'Materialized cohort demand keeps cohort label identity');
 	}
 
 	{
@@ -155,9 +154,9 @@ function run() {
 		const result = constructBaseline(input);
 		assert(result.entries.length > 0, 'Construct baseline places SPA cohort demand when qualified faculty and slots exist');
 		const placed = result.entries.find((entry) => entry.subjectId === 501);
-		assertEqual(placed?.subjectCode, 'SPA_SPEC', 'Placed draft entry carries subject code identity');
-		assertEqual(placed?.specializationCode, 'SPA_VA', 'Placed draft entry carries specialization code identity');
-		assertEqual(placed?.specializationName, 'Visual Arts', 'Placed draft entry carries specialization label identity');
+		assertEqual(placed?.entryKind, 'COHORT', 'Placed draft entry preserves cohort entry kind');
+		assertEqual(placed?.cohortCode, 'G7-SPA-VA', 'Placed draft entry preserves cohort code identity');
+		assertEqual(placed?.cohortName, 'Visual Arts', 'Placed draft entry preserves cohort label identity');
 	}
 
 	{
@@ -166,9 +165,51 @@ function run() {
 		const result = constructBaseline(input);
 		assert(result.unassignedItems.length > 0, 'Constructor emits unassigned diagnostics when no faculty pairing exists');
 		const unassigned = result.unassignedItems[0];
-		assertEqual(unassigned.subjectCode, 'SPA_SPEC', 'Unassigned diagnostics preserve subject code identity');
-		assertEqual(unassigned.specializationCode, 'SPA_VA', 'Unassigned diagnostics preserve specialization code identity');
-		assertEqual(unassigned.specializationName, 'Visual Arts', 'Unassigned diagnostics preserve specialization label identity');
+		assertEqual(unassigned.entryKind, 'COHORT', 'Unassigned diagnostics preserve cohort entry kind identity');
+		assertEqual(unassigned.cohortCode, 'G7-SPA-VA', 'Unassigned diagnostics preserve cohort code identity');
+		assertEqual(unassigned.cohortName, 'Visual Arts', 'Unassigned diagnostics preserve cohort label identity');
+		assertEqual(unassigned.reason, 'NO_QUALIFIED_FACULTY', 'Coverage gaps are classified as NO_QUALIFIED_FACULTY');
+		assertEqual(unassigned.roomAssignmentReason, 'NO_QUALIFIED_FACULTY', 'Coverage gaps surface explicit NO_QUALIFIED_FACULTY room-assignment reason');
+	}
+
+	{
+		const input = buildBaseInput();
+		input.cohorts = [];
+		input.subjects = [
+			{
+				id: 801,
+				code: 'ENG',
+				name: 'English',
+				minMinutesPerWeek: 45,
+				preferredRoomType: 'CLASSROOM',
+				gradeLevels: [7],
+			},
+		];
+		input.facultySubjects = [
+			{
+				facultyId: 1001,
+				subjectId: 801,
+				gradeLevels: [7],
+				sectionIds: [101],
+			},
+		];
+		input.sectionsByGrade[0].sections = [input.sectionsByGrade[0].sections[0]];
+		input.rooms = [
+			{
+				id: 1,
+				type: 'CLASSROOM',
+				isTeachingSpace: true,
+				capacity: 40,
+				buildingId: 11,
+				buildingZoneId: 'NORTH',
+				features: ['PROJECTOR'],
+			},
+		];
+		input.subjects[0].requiredFeatures = ['SCIENCE_KIT'];
+		const result = constructBaseline(input);
+		assertEqual(result.entries.length, 0, 'Feature-incompatible room inventory blocks placement when no compatible room exists');
+		assertEqual(result.unassignedItems[0]?.reason, 'NO_COMPATIBLE_ROOM', 'Room-path exhaustion classifies as NO_COMPATIBLE_ROOM');
+		assertEqual(result.unassignedItems[0]?.roomAssignmentReason, 'ROOM_PATH_EXHAUSTED', 'Room-path exhaustion emits ROOM_PATH_EXHAUSTED assignment reason');
 	}
 
 	{

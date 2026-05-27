@@ -368,28 +368,13 @@ export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemp
                 const allowedSpecializationCodes = new Set((subject.allowedSpecializations ?? [])
                     .map((specializationCode) => normalizeSpecializationCode(specializationCode))
                     .filter((specializationCode) => specializationCode.length > 0));
-                const normalizedSubjectCode = normalizeSpecializationCode(subject.code);
-                const specializationProgramLane = normalizedSubjectCode.startsWith('SPA')
-                    ? 'SPA'
-                    : (normalizedSubjectCode.startsWith('SPS') ? 'SPS' : null);
-                const matchesSpecializationProgramLane = (cohort) => {
-                    if (specializationProgramLane == null)
-                        return false;
-                    const normalizedCohortSpecialization = normalizeSpecializationCode(cohort.specializationCode);
-                    const normalizedCohortCode = normalizeSpecializationCode(cohort.cohortCode);
-                    return normalizedCohortSpecialization.startsWith(specializationProgramLane)
-                        || normalizedCohortCode.includes(specializationProgramLane);
-                };
                 const specializationBoundCohort = allowedSpecializationCodes.size > 0;
-                const explicitEligibleCohorts = specializationBoundCohort
+                const eligibleCohorts = specializationBoundCohort
                     ? cohortsForGrade.filter((cohort) => allowedSpecializationCodes.has(normalizeSpecializationCode(cohort.specializationCode)))
                     : cohortsForGrade;
-                const eligibleCohorts = specializationBoundCohort && explicitEligibleCohorts.length === 0
-                    ? (() => {
-                        const laneCohorts = cohortsForGrade.filter((cohort) => matchesSpecializationProgramLane(cohort));
-                        return laneCohorts.length > 0 ? laneCohorts : cohortsForGrade;
-                    })()
-                    : explicitEligibleCohorts;
+                if (eligibleCohorts.length === 0 && specializationBoundCohort) {
+                    continue;
+                }
                 const cohortSectionIds = new Set();
                 for (const cohort of eligibleCohorts) {
                     const memberSections = cohort.memberSectionIds
@@ -419,8 +404,6 @@ export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemp
                         durationPerSession: duration,
                         enrolledCount: effectiveCohortEnrollment,
                         entryKind: 'COHORT',
-                        specializationCode: cohort.specializationCode,
-                        specializationName: cohort.specializationName,
                         homeRoomId: null,
                         buildingZoneId: anchorSection.buildingZoneId ?? null,
                         programType: anchorSection.programType ?? null,
@@ -452,8 +435,6 @@ export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemp
                         durationPerSession: duration,
                         enrolledCount: section.enrolledCount,
                         entryKind: 'SECTION',
-                        specializationCode: null,
-                        specializationName: null,
                         homeRoomId: section.homeRoomId ?? null,
                         buildingZoneId: section.buildingZoneId ?? null,
                         programType: section.programType ?? null,
@@ -480,8 +461,6 @@ export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemp
                     durationPerSession: duration,
                     enrolledCount: section.enrolledCount,
                     entryKind: 'SECTION',
-                    specializationCode: null,
-                    specializationName: null,
                     homeRoomId: section.homeRoomId ?? null,
                     buildingZoneId: section.buildingZoneId ?? null,
                     programType: section.programType ?? null,
@@ -835,7 +814,6 @@ export function constructBaseline(input) {
                 facultyId: lock.facultyId,
                 roomId: lock.roomId,
                 subjectId: lock.subjectId,
-                subjectCode: subjectMap.get(lock.subjectId)?.code ?? null,
                 sectionId: lock.sectionId,
                 day: lock.day,
                 startTime: period.startTime,
@@ -843,8 +821,6 @@ export function constructBaseline(input) {
                 durationMinutes,
                 entryKind: lock.entryKind,
                 cohortCode: lock.cohortCode ?? null,
-                specializationCode: null,
-                specializationName: null,
                 metadata: {
                     roomAssignmentReason: 'LOCKED_ENTRY',
                 },
@@ -1004,6 +980,7 @@ export function constructBaseline(input) {
     // Lab-like room types for consecutive lab check
     const LAB_ROOM_TYPES = new Set(['LABORATORY', 'TLE_WORKSHOP', 'COMPUTER_LAB']);
     const SPECIALIZED_ROOM_TYPES = new Set(['LABORATORY', 'TLE_WORKSHOP', 'COMPUTER_LAB', 'GYMNASIUM']);
+    const MAX_CROSS_BUILDING_FALLBACK_ROOMS = 8;
     // Section-day placement tracker for consecutive lab check: "sectionId:day" → array of {periodIdx, isLab}
     const sectionDayLabPeriods = new Map();
     function scoreFacultyForSlot(facultyId, day, periodIndex) {
@@ -1063,7 +1040,6 @@ export function constructBaseline(input) {
                 unassignedItems.push({
                     sectionId: item.sectionId,
                     subjectId: item.subjectId,
-                    subjectCode: item.subjectCode,
                     gradeLevel: item.gradeLevel,
                     session: s + 1,
                     reason: 'NO_QUALIFIED_FACULTY',
@@ -1076,8 +1052,6 @@ export function constructBaseline(input) {
                     programName: item.programName ?? null,
                     cohortCode: item.cohortCode ?? null,
                     cohortName: item.cohortName ?? null,
-                    specializationCode: item.specializationCode ?? null,
-                    specializationName: item.specializationName ?? null,
                     cohortMemberSectionIds: item.cohortMemberSectionIds,
                     cohortExpectedEnrollment: item.entryKind === 'COHORT' ? item.enrolledCount : null,
                     adviserId: item.adviserId ?? null,
@@ -1123,16 +1097,15 @@ export function constructBaseline(input) {
                 : undefined;
             let fallbackCauseForPlacement;
             let sawNoSameZoneStandardRoom = false;
+            let sawCrossBuildingFallbackOptions = false;
             let sawOnlySpecializedRooms = false;
             let sawPolicyOrShiftWindowIncompatible = false;
+            let sawFacultySlotUnavailable = false;
             let sawCapacityOverflow = false;
             let sawCapacityBlockedRoomForSession = false;
             const preferredHomeRoomId = useHomeRoomPriority && item.entryKind === 'SECTION'
                 ? (item.homeRoomId ?? null)
                 : null;
-            if (gradeValidPeriods.length === 0 && preferredHomeRoomId != null) {
-                sawPolicyOrShiftWindowIncompatible = true;
-            }
             const preferredHomeRoom = preferredHomeRoomId != null
                 ? rooms.find((room) => room.id === preferredHomeRoomId) ?? null
                 : null;
@@ -1156,6 +1129,9 @@ export function constructBaseline(input) {
                     }
                     possibleSlots.push({ day, pi, score });
                 }
+            }
+            if (possibleSlots.length === 0 && preferredHomeRoomId != null) {
+                sawPolicyOrShiftWindowIncompatible = true;
             }
             possibleSlots.sort((a, b) => {
                 if (a.score !== b.score)
@@ -1187,6 +1163,8 @@ export function constructBaseline(input) {
                     });
                 if (qReason) {
                     sessionFailureReasons.add(qReason);
+                    if (qReason === 'FACULTY_OVERLOADED' || qReason === 'NO_AVAILABLE_SLOT')
+                        sawFacultySlotUnavailable = true;
                 }
                 if (candidates.length === 0)
                     continue;
@@ -1212,7 +1190,10 @@ export function constructBaseline(input) {
                             return false;
                         };
                         sameZoneStandardRooms = compatibleRooms.filter((room) => room.id !== preferredHomeRoomId && isSameZoneRoom(room));
-                        broaderStandardRooms = compatibleRooms.filter((room) => room.id !== preferredHomeRoomId && !isSameZoneRoom(room));
+                        broaderStandardRooms = compatibleRooms
+                            .filter((room) => room.id !== preferredHomeRoomId && !isSameZoneRoom(room))
+                            .slice(0, MAX_CROSS_BUILDING_FALLBACK_ROOMS);
+                        sawCrossBuildingFallbackOptions = broaderStandardRooms.length > 0;
                         const homeRoomAllowed = preferredHomeRoom != null && preferredHomeRoom.type === 'CLASSROOM' && !preferredHomeRoom.isSharedFacility;
                         const homeRoomCandidate = homeRoomAllowed ? [preferredHomeRoom] : [];
                         compatibleRooms = [...homeRoomCandidate, ...sameZoneStandardRooms, ...broaderStandardRooms];
@@ -1222,6 +1203,9 @@ export function constructBaseline(input) {
                                 sawOnlySpecializedRooms = true;
                             else
                                 sawNoSameZoneStandardRoom = true;
+                        }
+                        else if (sameZoneStandardRooms.length === 0 && broaderStandardRooms.length > 0) {
+                            sawNoSameZoneStandardRoom = true;
                         }
                     }
                     const hasCapacityCompliantClassroom = compatibleRooms.some((room) => room.capacity == null || room.capacity >= item.enrolledCount);
@@ -1267,11 +1251,13 @@ export function constructBaseline(input) {
                         const dailyUsed = facultyDailyMinutes.get(dailyKey) ?? 0;
                         if (dailyUsed + item.durationPerSession > policy.maxTeachingMinutesPerDay) {
                             sessionFailureReasons.add('FACULTY_OVERLOADED');
+                            sawPolicyOrShiftWindowIncompatible = true;
                             policyBlockedForSession = true;
                             continue;
                         }
                         if (wouldExceedConsecutive(facId, slotCandidate.day, slotCandidate.pi, item.durationPerSession)) {
                             sessionFailureReasons.add('NO_AVAILABLE_SLOT');
+                            sawPolicyOrShiftWindowIncompatible = true;
                             policyBlockedForSession = true;
                             continue;
                         }
@@ -1292,23 +1278,25 @@ export function constructBaseline(input) {
                         });
                     let capacityRejectedForFaculty = false;
                     let capacityOverrideUsedForPlacement = false;
+                    let sawOpenRoomForFaculty = false;
                     for (const room of sortedRooms) {
                         if (roomOcc.isOccupied(room.id, slotCandidate.day, slot.startTime, slot.endTime)) {
                             continue;
                         }
+                        sawOpenRoomForFaculty = true;
                         const exceedsRoomCapacity = room.capacity != null && item.enrolledCount > room.capacity;
-                        const canBypassCapacityForSectionMasterSchedule = exceedsRoomCapacity
+                        const canBypassCapacityForHomeRoom = exceedsRoomCapacity
                             && useHomeRoomPriority
                             && item.entryKind === 'SECTION'
                             && item.gradeLevel >= 9
                             && preferredHomeRoomId != null
                             && room.id === preferredHomeRoomId
                             && room.type === 'CLASSROOM';
-                        if (exceedsRoomCapacity && !canBypassCapacityForSectionMasterSchedule) {
+                        if (exceedsRoomCapacity && !canBypassCapacityForHomeRoom) {
                             capacityRejectedForFaculty = true;
                             continue;
                         }
-                        if (canBypassCapacityForSectionMasterSchedule) {
+                        if (canBypassCapacityForHomeRoom) {
                             capacityOverrideUsedForPlacement = true;
                         }
                         if (!deferSpecializedRoomTypePreference && subject.requiredFeatures && subject.requiredFeatures.length > 0) {
@@ -1330,12 +1318,22 @@ export function constructBaseline(input) {
                             }
                         }
                         entryCounter++;
+                        const usedCrossBuildingFallback = preferredHomeRoomId != null && broaderStandardRooms.some((broaderRoom) => broaderRoom.id === room.id);
+                        const usedSameZoneFallback = preferredHomeRoomId != null && sameZoneStandardRooms.some((sameZoneRoom) => sameZoneRoom.id === room.id);
+                        const fallbackTier = preferredHomeRoomId == null
+                            ? 'GENERAL_POOL'
+                            : room.id === preferredHomeRoomId
+                                ? 'HOME_ROOM'
+                                : usedSameZoneFallback
+                                    ? 'SAME_ZONE'
+                                    : usedCrossBuildingFallback
+                                        ? 'CROSS_BUILDING'
+                                        : 'GENERAL_POOL';
                         entries.push({
                             entryId: `entry-${entryCounter}`,
                             facultyId: isModularUnified ? null : facId,
                             roomId: room.id,
                             subjectId: item.subjectId,
-                            subjectCode: item.subjectCode,
                             sectionId: item.sectionId,
                             day: slotCandidate.day,
                             startTime: slot.startTime,
@@ -1348,8 +1346,6 @@ export function constructBaseline(input) {
                             programName: item.programName ?? null,
                             cohortCode: item.cohortCode ?? null,
                             cohortName: item.cohortName ?? null,
-                            specializationCode: item.specializationCode ?? null,
-                            specializationName: item.specializationName ?? null,
                             cohortMemberSectionIds: item.cohortMemberSectionIds,
                             cohortExpectedEnrollment: item.entryKind === 'COHORT' ? item.enrolledCount : null,
                             adviserId: item.adviserId ?? null,
@@ -1364,13 +1360,20 @@ export function constructBaseline(input) {
                                 }
                                 : {
                                     roomAssignmentReason: preferredHomeRoomId != null
-                                        ? (room.id === preferredHomeRoomId ? 'HOME_ROOM_ASSIGNED' : 'HOME_ROOM_UNAVAILABLE')
+                                        ? (room.id === preferredHomeRoomId
+                                            ? 'HOME_ROOM_ASSIGNED'
+                                            : usedCrossBuildingFallback
+                                                ? 'CROSS_BUILDING_FALLBACK_ASSIGNED'
+                                                : 'HOME_ROOM_UNAVAILABLE')
                                         : (isSpecializedDemand && SPECIALIZED_ROOM_TYPES.has(room.type)
                                             ? 'SPECIALIZED_ROOM'
                                             : 'GENERAL_POOL_ASSIGNED'),
                                     homeRoomFallbackCause: preferredHomeRoomId != null && room.id !== preferredHomeRoomId
                                         ? fallbackCauseForPlacement
                                         : undefined,
+                                    crossBuildingFallbackUsed: usedCrossBuildingFallback || undefined,
+                                    fallbackTier,
+                                    fallbackTrace: preferredHomeRoomId != null ? ['HOME_ROOM', 'SAME_ZONE', 'CROSS_BUILDING'] : undefined,
                                     capacityOverflowBypass: capacityOverrideUsedForPlacement || undefined,
                                     deferredRoomTypePreference: deferSpecializedRoomTypePreference || undefined,
                                     deferredPreferredRoomType: deferSpecializedRoomTypePreference ? requestedRoomType : undefined,
@@ -1406,6 +1409,9 @@ export function constructBaseline(input) {
                     if (!placed && capacityRejectedForFaculty) {
                         sawCapacityBlockedRoomForSession = true;
                     }
+                    else if (!placed && !sawOpenRoomForFaculty) {
+                        sessionFailureReasons.add('NO_COMPATIBLE_ROOM');
+                    }
                 }
                 if (!placed && sawCapacityBlockedRoomForSession) {
                     sessionFailureReasons.add('ROOM_CAPACITY_EXCEEDED');
@@ -1433,31 +1439,39 @@ export function constructBaseline(input) {
                     && item.entryKind === 'SECTION'
                     && requestedRoomType !== 'CLASSROOM';
                 const isSpecializedDemand = !deferSpecializedRoomTypePreference && SPECIALIZED_ROOM_TYPES.has(requestedRoomType);
+                const roomAssignmentReason = isSpecializedDemand
+                    ? 'SPECIALIZED_ROOM_UNAVAILABLE'
+                    : reason === 'NO_QUALIFIED_FACULTY'
+                        ? 'NO_QUALIFIED_FACULTY'
+                        : reason === 'FACULTY_OVERLOADED' || sawFacultySlotUnavailable
+                            ? 'FACULTY_SLOT_UNAVAILABLE'
+                            : sawPolicyOrShiftWindowIncompatible
+                                ? 'POLICY_SLOT_BLOCKED'
+                                : reason === 'NO_COMPATIBLE_ROOM' || reason === 'ROOM_CAPACITY_EXCEEDED'
+                                    ? 'ROOM_PATH_EXHAUSTED'
+                                    : 'FALLBACK_UNRESOLVED';
                 const homeRoomFallbackCause = preferredHomeRoomId != null
                     ? (sawPolicyOrShiftWindowIncompatible
                         ? 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE'
                         : sawOnlySpecializedRooms
                             ? 'ONLY_SPECIALIZED_ROOMS_AVAILABLE'
                             : sawNoSameZoneStandardRoom
-                                ? 'NO_SAME_ZONE_STANDARD_ROOM'
+                                ? (sawCrossBuildingFallbackOptions ? 'CROSS_BUILDING_STANDARD_ROOM_EXHAUSTED' : 'NO_SAME_ZONE_STANDARD_ROOM')
                                 : 'HOME_ROOM_OCCUPIED')
                     : undefined;
                 unassignedItems.push({
                     sectionId: item.sectionId,
                     subjectId: item.subjectId,
-                    subjectCode: item.subjectCode,
                     gradeLevel: item.gradeLevel,
                     session: session + 1,
                     reason,
-                    roomAssignmentReason: isSpecializedDemand ? 'SPECIALIZED_ROOM_UNAVAILABLE' : 'FALLBACK_UNRESOLVED',
+                    roomAssignmentReason,
                     entryKind: item.entryKind,
                     programType: item.programType ?? null,
                     programCode: item.programCode ?? null,
                     programName: item.programName ?? null,
                     cohortCode: item.cohortCode ?? null,
                     cohortName: item.cohortName ?? null,
-                    specializationCode: item.specializationCode ?? null,
-                    specializationName: item.specializationName ?? null,
                     cohortMemberSectionIds: item.cohortMemberSectionIds,
                     cohortExpectedEnrollment: item.entryKind === 'COHORT' ? item.enrolledCount : null,
                     adviserId: item.adviserId ?? null,

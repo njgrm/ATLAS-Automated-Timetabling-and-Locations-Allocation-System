@@ -5,8 +5,11 @@ import type { ReactNode } from 'react';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import type { FacultyRoomPreferenceEntry } from '@/types';
+import type { FacultyPortalObjectiveState } from '@/types';
 import type { FacultyTeachingAssignmentIdentity } from '@/types';
 import ActionQueue from './ActionQueue';
+import FacultyObjectiveStateCard from './FacultyObjectiveStateCard';
+import TeachingIdentityPanel from './TeachingIdentityPanel';
 
 type MobileDashboardLayoutProps = {
 	facultyName: string;
@@ -22,6 +25,7 @@ type MobileDashboardLayoutProps = {
 	renderEntryBadge: (entry: FacultyRoomPreferenceEntry) => ReactNode;
 	banners?: ReactNode;
 	teachingAssignments?: FacultyTeachingAssignmentIdentity[];
+	objectiveState: FacultyPortalObjectiveState;
 };
 
 export default function MobileDashboardLayout({
@@ -32,6 +36,7 @@ export default function MobileDashboardLayout({
 	renderEntryBadge,
 	banners,
 	teachingAssignments = [],
+	objectiveState,
 }: MobileDashboardLayoutProps) {
 	const hasDrafts = schedulePreview.some(e => e.status === 'DRAFT');
 
@@ -53,7 +58,9 @@ export default function MobileDashboardLayout({
 			</div>
 
 			{/* Phase 3: Action Queue (Attention Center) */}
-			<ActionQueue counts={counts} hasDraftRoomRequests={hasDrafts} />
+			<ActionQueue counts={counts} hasDraftRoomRequests={hasDrafts} objectiveState={objectiveState} />
+
+			<FacultyObjectiveStateCard objectiveState={objectiveState} compact />
 
 			{/* Status Banners (Progressive Disclosure) - Optional if redundant with GlobalHeader */}
 			{banners && <div className='space-y-3'>{banners}</div>}
@@ -62,8 +69,8 @@ export default function MobileDashboardLayout({
 			<div className='grid grid-cols-3 gap-3'>
 				<Card className='rounded-2xl border-border/50 bg-muted/20'>
 					<CardContent className='p-3 text-center'>
-						<p className='text-xs font-bold text-muted-foreground uppercase'>Classes</p>
-						<p className='text-lg font-bold mt-1'>{counts.total}</p>
+						<p className='text-xs font-bold text-muted-foreground uppercase'>Teaching Load</p>
+						<p className='text-lg font-bold mt-1'>{teachingAssignments.length}</p>
 					</CardContent>
 				</Card>
 				<Card className='rounded-2xl border-border/50 bg-blue-50/50'>
@@ -81,21 +88,7 @@ export default function MobileDashboardLayout({
 			</div>
 
 			{/* Short Schedule Preview */}
-			{teachingAssignments.length > 0 && (
-				<div className='space-y-3'>
-					<h2 className='text-sm font-bold'>Teaching Identity</h2>
-					<div className='space-y-2'>
-						{teachingAssignments.slice(0, 4).map((assignment) => (
-							<Card key={`${assignment.subjectId}:${assignment.sectionId}`} className='rounded-xl border-border/50 overflow-hidden shadow-sm'>
-								<CardContent className='p-3'>
-									<p className='text-xs font-bold truncate'>{assignment.subjectDisplayLabel} • {assignment.sectionName}</p>
-									<p className='text-[10px] text-muted-foreground mt-0.5 truncate'>{assignment.specializationLabel ?? assignment.subjectName}</p>
-								</CardContent>
-							</Card>
-						))}
-					</div>
-				</div>
-			)}
+			<TeachingIdentityPanel assignments={teachingAssignments} maxSections={4} compact />
 
 			{/* Short Schedule Preview */}
 			<div className='space-y-3'>
@@ -111,9 +104,10 @@ export default function MobileDashboardLayout({
 
 				<div className='space-y-2'>
 					{schedulePreview.length === 0 ? (
-						<p className='text-xs text-muted-foreground py-8 text-center border-2 border-dashed rounded-2xl'>
-							No classes scheduled for review yet.
-						</p>
+						<div className='rounded-2xl border-2 border-dashed px-4 py-8 text-center'>
+							<p className='text-xs font-bold text-foreground'>{objectiveState.title}</p>
+							<p className='mt-1 text-xs leading-relaxed text-muted-foreground'>{objectiveState.roomRequestMessage}</p>
+						</div>
 					) : (
 						schedulePreview.slice(0, 5).map((entry) => (
 							<Card key={entry.entryId} className='rounded-xl border-border/50 overflow-hidden shadow-sm'>

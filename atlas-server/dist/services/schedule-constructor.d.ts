@@ -190,12 +190,11 @@ export interface GradeWindowInput {
     startTime: string;
     endTime: string;
 }
-export type RoomAssignmentReason = 'LOCKED_ENTRY' | 'HOME_ROOM_ASSIGNED' | 'HOME_ROOM_UNAVAILABLE' | 'SPECIALIZED_ROOM' | 'SPECIALIZED_ROOM_UNAVAILABLE' | 'GENERAL_POOL_ASSIGNED' | 'MODULAR_POOL_ASSIGNED' | 'FALLBACK_UNRESOLVED';
-export type HomeRoomFallbackCause = 'HOME_ROOM_OCCUPIED' | 'NO_SAME_ZONE_STANDARD_ROOM' | 'ONLY_SPECIALIZED_ROOMS_AVAILABLE' | 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE';
+export type RoomAssignmentReason = 'LOCKED_ENTRY' | 'HOME_ROOM_ASSIGNED' | 'HOME_ROOM_UNAVAILABLE' | 'CROSS_BUILDING_FALLBACK_ASSIGNED' | 'SPECIALIZED_ROOM' | 'SPECIALIZED_ROOM_UNAVAILABLE' | 'GENERAL_POOL_ASSIGNED' | 'MODULAR_POOL_ASSIGNED' | 'ROOM_PATH_EXHAUSTED' | 'NO_QUALIFIED_FACULTY' | 'FACULTY_SLOT_UNAVAILABLE' | 'POLICY_SLOT_BLOCKED' | 'FALLBACK_UNRESOLVED';
+export type HomeRoomFallbackCause = 'HOME_ROOM_OCCUPIED' | 'NO_SAME_ZONE_STANDARD_ROOM' | 'CROSS_BUILDING_STANDARD_ROOM_EXHAUSTED' | 'ONLY_SPECIALIZED_ROOMS_AVAILABLE' | 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE';
 export interface UnassignedItem {
     sectionId: number;
     subjectId: number;
-    subjectCode?: string | null;
     gradeLevel: number;
     session: number;
     reason: 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM' | 'ROOM_CAPACITY_EXCEEDED';
@@ -206,8 +205,6 @@ export interface UnassignedItem {
     programName?: string | null;
     cohortCode?: string | null;
     cohortName?: string | null;
-    specializationCode?: string | null;
-    specializationName?: string | null;
     cohortMemberSectionIds?: number[];
     cohortExpectedEnrollment?: number | null;
     adviserId?: number | null;
@@ -254,8 +251,6 @@ export interface DemandItem {
     programName?: string | null;
     cohortCode?: string | null;
     cohortName?: string | null;
-    specializationCode?: string | null;
-    specializationName?: string | null;
     cohortMemberSectionIds?: number[];
     roomTypePreference?: RoomType;
     adviserId?: number | null;

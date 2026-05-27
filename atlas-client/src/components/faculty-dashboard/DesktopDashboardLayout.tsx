@@ -5,8 +5,11 @@ import type { ReactNode } from 'react';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import type { FacultyRoomPreferenceEntry } from '@/types';
+import type { FacultyPortalObjectiveState } from '@/types';
 import type { FacultyTeachingAssignmentIdentity } from '@/types';
 import ActionQueue from './ActionQueue';
+import FacultyObjectiveStateCard from './FacultyObjectiveStateCard';
+import TeachingIdentityPanel from './TeachingIdentityPanel';
 
 type DesktopDashboardLayoutProps = {
 	facultyName: string;
@@ -22,6 +25,7 @@ type DesktopDashboardLayoutProps = {
 	renderEntryBadge: (entry: FacultyRoomPreferenceEntry) => ReactNode;
 	banners?: ReactNode;
 	teachingAssignments?: FacultyTeachingAssignmentIdentity[];
+	objectiveState: FacultyPortalObjectiveState;
 };
 
 export default function DesktopDashboardLayout({
@@ -32,6 +36,7 @@ export default function DesktopDashboardLayout({
 	renderEntryBadge,
 	banners,
 	teachingAssignments = [],
+	objectiveState,
 }: DesktopDashboardLayoutProps) {
 	const hasDrafts = entries.some(e => e.status === 'DRAFT');
 
@@ -44,15 +49,17 @@ export default function DesktopDashboardLayout({
 					<p className='text-muted-foreground'>{phaseMessage}</p>
 				</div>
 
-				<ActionQueue counts={counts} hasDraftRoomRequests={hasDrafts} />
+				<ActionQueue counts={counts} hasDraftRoomRequests={hasDrafts} objectiveState={objectiveState} />
+
+				<FacultyObjectiveStateCard objectiveState={objectiveState} />
 
 				{banners}
 
 				<div className='grid grid-cols-2 gap-4'>
 					<Card className='rounded-2xl border-border/50 bg-muted/10'>
 						<CardContent className='p-4'>
-							<p className='text-xs font-bold text-muted-foreground uppercase tracking-wider'>Total Classes</p>
-							<p className='text-3xl font-bold mt-1'>{counts.total}</p>
+							<p className='text-xs font-bold text-muted-foreground uppercase tracking-wider'>Teaching Load</p>
+							<p className='text-3xl font-bold mt-1'>{teachingAssignments.length}</p>
 						</CardContent>
 					</Card>
 					<Card className='rounded-2xl border-border/50 bg-blue-50/50'>
@@ -70,21 +77,7 @@ export default function DesktopDashboardLayout({
 					</Link>
 				</Button>
 
-				{teachingAssignments.length > 0 && (
-					<Card className='rounded-2xl border-border/50 bg-muted/10'>
-						<CardContent className='p-4 space-y-3'>
-							<p className='text-xs font-bold text-muted-foreground uppercase tracking-wider'>Teaching Identity</p>
-							<div className='space-y-2'>
-								{teachingAssignments.slice(0, 6).map((assignment) => (
-									<div key={`${assignment.subjectId}:${assignment.sectionId}`} className='rounded-xl border border-border/50 bg-background px-3 py-2'>
-										<p className='text-xs font-bold'>{assignment.subjectDisplayLabel} • {assignment.sectionName}</p>
-										<p className='text-[11px] text-muted-foreground'>G{assignment.gradeLevel} • {assignment.specializationLabel ?? assignment.subjectName}</p>
-									</div>
-								))}
-							</div>
-						</CardContent>
-					</Card>
-				)}
+				<TeachingIdentityPanel assignments={teachingAssignments} maxSections={6} />
 			</div>
 
 			{/* Right Column: Full Schedule Preview Table */}
@@ -109,7 +102,14 @@ export default function DesktopDashboardLayout({
 								</tr>
 							</thead>
 							<tbody className='divide-y divide-border/40'>
-								{entries.map((entry) => (
+								{entries.length === 0 ? (
+									<tr>
+										<td colSpan={4} className='px-4 py-12 text-center'>
+											<p className='text-sm font-bold text-foreground'>{objectiveState.title}</p>
+											<p className='mx-auto mt-1 max-w-md text-xs leading-relaxed text-muted-foreground'>{objectiveState.roomRequestMessage}</p>
+										</td>
+									</tr>
+								) : entries.map((entry) => (
 									<tr key={entry.entryId} className='hover:bg-muted/30 transition-colors group'>
 										<td className='px-4 py-4'>
 											<div>

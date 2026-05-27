@@ -414,7 +414,7 @@ export default function FacultyPreferences() {
 		<div className='flex flex-col h-[calc(100svh-3.5rem)] overflow-hidden bg-background'>
 			<FacultyGlobalHeader
 				title='My Preferences'
-				subtitle='Set your preferred teaching hours and accessibility needs.'
+				subtitle='Set availability and wellbeing. Room changes are separate.'
 				steps={[
 					{ id: 1, label: '1 Set times' },
 					{ id: 2, label: '2 Draft' },

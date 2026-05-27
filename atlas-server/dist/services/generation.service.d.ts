@@ -63,6 +63,7 @@ export interface RunSummary {
         homeRoomFallbackDiagnostics?: {
             homeRoomOccupied: number;
             noSameZoneStandardRoom: number;
+            crossBuildingStandardRoomExhausted: number;
             onlySpecializedRoomsAvailable: number;
             policyOrShiftWindowIncompatible: number;
         };
