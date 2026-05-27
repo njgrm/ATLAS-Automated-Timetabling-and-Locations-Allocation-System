@@ -203,7 +203,7 @@ export function RightPanel(props: RightPanelProps) {
 										)}
 										<div className="rounded border border-primary/20 bg-primary/5 px-2.5 py-2 text-[0.625rem] text-primary flex items-start gap-2">
 											<Crosshair className="size-3 shrink-0 mt-0.5" />
-											<span>{isDesktop ? 'Click or drag onto a time slot in the grid to place this session.' : 'Tap a time slot in the grid to place this session.'}</span>
+											<span>{isDesktop ? 'Recovery only: click or drag onto a slot when a generated session remains blocked.' : 'Recovery only: tap a slot when a generated session remains blocked.'}</span>
 										</div>
 									</div>
 								</ScrollArea>
@@ -399,12 +399,13 @@ export function RightPanel(props: RightPanelProps) {
 										</>
 									) : (
 										<>
-											<p className="text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground">Manual Edits</p>
+											<p className="text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground">Recovery Actions</p>
+											<p className="text-[0.625rem] text-muted-foreground">Use only for residual blocked sessions after generation and Teaching Load review.</p>
 											<Button variant="outline" size="sm" className="w-full h-7 text-xs justify-start" onClick={() => {
 												setKbSelectedSource({ type: 'entry', entry: selectedEntry! });
 												setSelectedEntry(null);
 												setSelectedViolation(null);
-												toast.info('Click a target cell in the grid to move this session. Click an occupied cell to swap.');
+												toast.info('Recovery move selected. Click a target cell to relocate the blocked session.');
 											}} aria-label="Move timeslot">
 												<Clock className="size-3 mr-1.5" />Move Timeslot
 											</Button>

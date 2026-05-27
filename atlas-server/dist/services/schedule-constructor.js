@@ -217,9 +217,10 @@ export function resolveTimetableShapeContract(contracts, gradeLevel, programType
     if (!contracts || contracts.length === 0)
         return undefined;
     const normalizedProgramType = normalizeProgramType(programType);
-    return contracts.find((contract) => contract.gradeLevel === gradeLevel && contract.programType === normalizedProgramType)
-        ?? contracts.find((contract) => contract.gradeLevel === gradeLevel && contract.programType === 'REGULAR')
-        ?? contracts.find((contract) => contract.gradeLevel === gradeLevel)
+    const normalizedGradeLevel = normalizeGradeLevel(gradeLevel);
+    return contracts.find((contract) => normalizeGradeLevel(contract.gradeLevel) === normalizedGradeLevel && contract.programType === normalizedProgramType)
+        ?? contracts.find((contract) => normalizeGradeLevel(contract.gradeLevel) === normalizedGradeLevel && contract.programType === 'REGULAR')
+        ?? contracts.find((contract) => normalizeGradeLevel(contract.gradeLevel) === normalizedGradeLevel)
         ?? contracts[0];
 }
 export function buildUnionClassPeriodSlots(contracts) {
@@ -314,6 +315,7 @@ export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemp
                     subjectId: primary.id,
                     subjectCode: groupId,
                     gradeLevel: gradeNum,
+                    sourceMinutesPerWeek: maxMinutesPerWeek,
                     sessionsPerWeek: sessions,
                     durationPerSession: duration,
                     enrolledCount: section.enrolledCount,
@@ -397,6 +399,7 @@ export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemp
                         subjectId: subject.id,
                         subjectCode: subject.code,
                         gradeLevel: gradeNum,
+                        sourceMinutesPerWeek: subject.minMinutesPerWeek,
                         sessionsPerWeek: sessions,
                         durationPerSession: duration,
                         enrolledCount: effectiveCohortEnrollment,
@@ -427,6 +430,7 @@ export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemp
                         subjectId: subject.id,
                         subjectCode: subject.code,
                         gradeLevel: gradeNum,
+                        sourceMinutesPerWeek: subject.minMinutesPerWeek,
                         sessionsPerWeek: sessions,
                         durationPerSession: duration,
                         enrolledCount: section.enrolledCount,
@@ -452,6 +456,7 @@ export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemp
                     subjectId: subject.id,
                     subjectCode: subject.code,
                     gradeLevel: gradeNum,
+                    sourceMinutesPerWeek: subject.minMinutesPerWeek,
                     sessionsPerWeek: sessions,
                     durationPerSession: duration,
                     enrolledCount: section.enrolledCount,
@@ -512,7 +517,7 @@ function normalizeDemandSessionsForActiveSlots(demand, timetableShapes, fallback
         const slotLength = getMostFrequentSlotDuration(shapeSlots) || defaultSlotLength;
         if (slotLength <= 0)
             return item;
-        const totalMinutes = Math.max(1, item.sessionsPerWeek * item.durationPerSession);
+        const totalMinutes = Math.max(1, item.sourceMinutesPerWeek ?? (item.sessionsPerWeek * item.durationPerSession));
         const normalizedSessions = Math.max(1, Math.ceil(totalMinutes / slotLength));
         if (normalizedSessions === item.sessionsPerWeek)
             return item;
@@ -637,8 +642,17 @@ export function constructBaseline(input) {
         let candidates = [];
         if (item.entryKind === 'COHORT' && item.cohortMemberSectionIds && item.cohortMemberSectionIds.length > 0) {
             const candidateLists = item.cohortMemberSectionIds.map((sectionId) => qualifiedMap.get(`${item.subjectId}:${sectionId}`) ?? []);
-            if (!candidateLists.some((candidateList) => candidateList.length === 0)) {
-                candidates = intersectCandidateLists(candidateLists);
+            const hasAnyCandidates = candidateLists.some((candidateList) => candidateList.length > 0);
+            if (hasAnyCandidates) {
+                const intersection = candidateLists.some((candidateList) => candidateList.length === 0)
+                    ? []
+                    : intersectCandidateLists(candidateLists);
+                if (intersection.length > 0) {
+                    candidates = intersection;
+                }
+                else {
+                    candidates = [...new Set(candidateLists.flat())];
+                }
             }
         }
         else {
@@ -647,9 +661,7 @@ export function constructBaseline(input) {
         // Priority 2: Optional fallback to tiered qualification when flexible assignment is enabled.
         // For cohort entries, also widen the pool when explicit assignment depth is too thin
         // to avoid single-teacher slot starvation on inter-section sessions.
-        const isTleSubject = (subject?.code ?? '').toUpperCase().startsWith('TLE');
-        const shouldAugmentWithTieredCandidates = subject != null
-            && (allowFlexible || isTleSubject || (item.entryKind === 'COHORT' && candidates.length < 2));
+        const shouldAugmentWithTieredCandidates = subject != null && allowFlexible;
         if (shouldAugmentWithTieredCandidates && subject) {
             const tieredCandidates = faculty.filter((facultyMember) => isFacultyQualified(facultyMember, subject)).map((facultyMember) => facultyMember.id);
             if (candidates.length === 0) {
@@ -836,7 +848,8 @@ export function constructBaseline(input) {
     if (gradeWindows && gradeWindows.length > 0) {
         for (const gw of gradeWindows) {
             const programKey = (gw.programType ?? 'ALL').toUpperCase();
-            gradeWindowMap.set(`${gw.gradeLevel}:${programKey}`, {
+            const normalizedGradeLevel = normalizeGradeLevel(gw.gradeLevel);
+            gradeWindowMap.set(`${normalizedGradeLevel}:${programKey}`, {
                 startMin: timeToMinutes(gw.startTime),
                 endMin: timeToMinutes(gw.endTime),
             });
@@ -922,6 +935,29 @@ export function constructBaseline(input) {
             return leftPriority - rightPriority;
         return 0;
     });
+    const interleaveByGradeLevel = (items) => {
+        const queues = new Map();
+        for (const item of items) {
+            const gradeLevel = normalizeGradeLevel(item.gradeLevel);
+            const queue = queues.get(gradeLevel) ?? [];
+            queue.push(item);
+            queues.set(gradeLevel, queue);
+        }
+        const orderedGrades = [...queues.keys()].sort((left, right) => left - right);
+        const ordered = [];
+        let hasRemaining = true;
+        while (hasRemaining) {
+            hasRemaining = false;
+            for (const gradeLevel of orderedGrades) {
+                const queue = queues.get(gradeLevel);
+                if (!queue || queue.length === 0)
+                    continue;
+                ordered.push(queue.shift());
+                hasRemaining = true;
+            }
+        }
+        return ordered;
+    };
     const isTleLikeDemand = (item) => {
         const code = (item.subjectCode ?? '').toUpperCase();
         return code === 'TLE' || code.startsWith('TLE_');
@@ -929,10 +965,13 @@ export function constructBaseline(input) {
     if (enableTwoPass) {
         const tleDemand = demand.filter((item) => isTleLikeDemand(item));
         const otherDemand = demand.filter((item) => !isTleLikeDemand(item));
-        orderedDemand = [...prioritizeCohorts(tleDemand), ...prioritizeCohorts(otherDemand)];
+        orderedDemand = [
+            ...interleaveByGradeLevel(prioritizeCohorts(tleDemand)),
+            ...interleaveByGradeLevel(prioritizeCohorts(otherDemand)),
+        ];
     }
     else {
-        orderedDemand = prioritizeCohorts(demand);
+        orderedDemand = interleaveByGradeLevel(prioritizeCohorts(demand));
     }
     const allowFlexible = policy?.allowFlexibleSubjectAssignment === true;
     const allowConsecutiveLab = policy?.allowConsecutiveLabSessions === true;
@@ -1035,8 +1074,9 @@ export function constructBaseline(input) {
                 return allowedSlotKeys.has(`${slot.startTime}-${slot.endTime}`);
             });
         }
-        const gradeProgramKey = `${item.gradeLevel}:${(item.programType ?? 'ALL').toUpperCase()}`;
-        const gw = gradeWindowMap.get(gradeProgramKey) ?? gradeWindowMap.get(`${item.gradeLevel}:ALL`);
+        const normalizedItemGradeLevel = normalizeGradeLevel(item.gradeLevel);
+        const gradeProgramKey = `${normalizedItemGradeLevel}:${(item.programType ?? 'ALL').toUpperCase()}`;
+        const gw = gradeWindowMap.get(gradeProgramKey) ?? gradeWindowMap.get(`${normalizedItemGradeLevel}:ALL`);
         if (gw) {
             gradeValidPeriods = gradeValidPeriods.filter((pi) => {
                 const slot = FALLBACK_PERIOD_SLOTS[pi];
@@ -1106,6 +1146,10 @@ export function constructBaseline(input) {
                 const candidates = isModularUnified
                     ? rawCandidates
                     : [...rawCandidates].sort((left, right) => {
+                        const leftLoad = facultyLoad.get(left) ?? 0;
+                        const rightLoad = facultyLoad.get(right) ?? 0;
+                        if (leftLoad !== rightLoad)
+                            return leftLoad - rightLoad;
                         const scoreDiff = scoreFacultyForSlot(left, slotCandidate.day, slotCandidate.pi) - scoreFacultyForSlot(right, slotCandidate.day, slotCandidate.pi);
                         if (scoreDiff !== 0)
                             return scoreDiff;
@@ -1141,7 +1185,7 @@ export function constructBaseline(input) {
                             return false;
                         };
                         sameZoneStandardRooms = compatibleRooms.filter((room) => room.id !== preferredHomeRoomId && isSameZoneRoom(room));
-                        broaderStandardRooms = compatibleRooms.filter((room) => room.id !== preferredHomeRoomId && !isSameZoneRoom(room));
+                        broaderStandardRooms = [];
                         const homeRoomAllowed = preferredHomeRoom != null && preferredHomeRoom.type === 'CLASSROOM' && !preferredHomeRoom.isSharedFacility;
                         const homeRoomCandidate = homeRoomAllowed ? [preferredHomeRoom] : [];
                         compatibleRooms = [...homeRoomCandidate, ...sameZoneStandardRooms, ...broaderStandardRooms];
@@ -1271,6 +1315,8 @@ export function constructBaseline(input) {
                                     roomAssignmentReason: 'MODULAR_POOL_ASSIGNED',
                                     modularGroupId: item.modularGroupId ?? undefined,
                                     modularAssignments: modularAssignmentInfo?.assignments ?? [],
+                                    deferredRoomTypePreference: true,
+                                    deferredPreferredRoomType: requestedRoomType,
                                 }
                                 : {
                                     roomAssignmentReason: preferredHomeRoomId != null

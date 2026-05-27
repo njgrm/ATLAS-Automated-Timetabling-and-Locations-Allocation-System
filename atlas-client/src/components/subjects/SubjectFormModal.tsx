@@ -262,47 +262,6 @@ export function SubjectFormModal({
 							</div>
 						</div>
 
-						<div className="space-y-3">
-							<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Additional Qualified Departments</label>
-							<p className="text-[0.65rem] text-muted-foreground">
-								Use this when a subject can be baseline-owned by more than one department.
-							</p>
-							<div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/20 p-3">
-								{SUBJECT_OWNER_OPTIONS.filter((option) => option.value !== 'UNASSIGNED').map((option) => {
-									const isPrimary = form.ownerDepartment === option.value;
-									const isSelected = isPrimary || (form.allowedOwnerDepartments ?? []).includes(option.value);
-									return (
-										<Button
-											key={`owner-dept-${option.value}`}
-											type="button"
-											variant="ghost"
-											size="sm"
-											onClick={() => {
-												if (!isPrimary) {
-													toggleAdditionalOwnerDepartment(option.value);
-												}
-											}}
-											disabled={isPrimary}
-											className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-left text-[0.65rem] font-semibold transition ${
-												isSelected
-													? 'border-primary/40 bg-primary/10 text-primary'
-													: 'border-border bg-background text-muted-foreground hover:bg-muted/50'
-											}`}
-										>
-											<Checkbox
-												checked={isSelected}
-												onCheckedChange={() => undefined}
-												disabled={isPrimary}
-											/>
-											<span className="truncate">
-												{option.label}{isPrimary ? ' (Primary)' : ''}
-											</span>
-										</Button>
-									);
-								})}
-							</div>
-						</div>
-
 						<div className="flex items-center justify-between p-3 rounded-lg border bg-accent/5">
 							<div className="flex items-center gap-3">
 								<Switch
@@ -450,6 +409,47 @@ export function SubjectFormModal({
 								<div className="h-10 rounded-md border bg-muted/30 px-3 flex items-center">
 									<span className="text-xs font-semibold text-foreground">Department ownership</span>
 								</div>
+							</div>
+						</div>
+
+							<div className="space-y-3">
+							<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Additional Qualified Departments</label>
+							<p className="text-[0.65rem] text-muted-foreground">
+								Use this when a subject can be baseline-owned by more than one department.
+							</p>
+							<div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/20 p-3">
+								{SUBJECT_OWNER_OPTIONS.filter((option) => option.value !== 'UNASSIGNED').map((option) => {
+									const isPrimary = form.ownerDepartment === option.value;
+									const isSelected = isPrimary || (form.allowedOwnerDepartments ?? []).includes(option.value);
+									return (
+										<Button
+											key={`owner-dept-${option.value}`}
+											type="button"
+											variant="ghost"
+											size="sm"
+											onClick={() => {
+												if (!isPrimary) {
+													toggleAdditionalOwnerDepartment(option.value);
+												}
+											}}
+											disabled={isPrimary}
+											className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-left text-[0.65rem] font-semibold transition ${
+												isSelected
+													? 'border-primary/40 bg-primary/10 text-primary'
+													: 'border-border bg-background text-muted-foreground hover:bg-muted/50'
+											}`}
+										>
+											<Checkbox
+												checked={isSelected}
+												onCheckedChange={() => undefined}
+												disabled={isPrimary}
+											/>
+											<span className="truncate">
+												{option.label}{isPrimary ? ' (Primary)' : ''}
+											</span>
+										</Button>
+									);
+								})}
 							</div>
 						</div>
 

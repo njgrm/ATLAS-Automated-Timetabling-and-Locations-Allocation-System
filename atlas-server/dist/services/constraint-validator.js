@@ -185,18 +185,21 @@ export function validateHardConstraints(ctx) {
         // Type match
         if (room.type !== subject.preferredRoomType) {
             const deferredRoomTypePreference = e.metadata?.deferredRoomTypePreference === true;
+            const isModularPoolAssignment = e.metadata?.roomAssignmentReason === 'MODULAR_POOL_ASSIGNED';
+            const shouldDeferRoomType = deferredRoomTypePreference || isModularPoolAssignment;
             violations.push({
                 ...base,
-                severity: deferredRoomTypePreference ? 'SOFT' : 'HARD',
+                severity: shouldDeferRoomType ? 'SOFT' : 'HARD',
                 code: 'ROOM_TYPE_MISMATCH',
-                message: deferredRoomTypePreference
+                message: shouldDeferRoomType
                     ? `Entry ${e.entryId}: room ${e.roomId} stays on the section homeroom contract even though subject ${e.subjectId} prefers "${subject.preferredRoomType}".`
                     : `Entry ${e.entryId}: room ${e.roomId} type "${room.type}" does not match subject ${e.subjectId} preferred type "${subject.preferredRoomType}".`,
                 entities: { roomId: e.roomId, subjectId: e.subjectId, sectionId: e.sectionId, entryIds: [e.entryId] },
                 meta: {
                     roomType: room.type,
                     preferredRoomType: subject.preferredRoomType,
-                    deferredRoomTypePreference,
+                    deferredRoomTypePreference: shouldDeferRoomType,
+                    deferredByModularPool: isModularPoolAssignment,
                     roomAssignmentReason: e.metadata?.roomAssignmentReason,
                 },
             });
@@ -207,11 +210,13 @@ export function validateHardConstraints(ctx) {
             const missing = subject.requiredFeatures.filter(f => !roomFeatures.has(f));
             if (missing.length > 0) {
                 const deferredRoomTypePreference = e.metadata?.deferredRoomTypePreference === true;
+                const isModularPoolAssignment = e.metadata?.roomAssignmentReason === 'MODULAR_POOL_ASSIGNED';
+                const shouldDeferRoomFeatures = deferredRoomTypePreference || isModularPoolAssignment;
                 violations.push({
                     ...base,
-                    severity: deferredRoomTypePreference ? 'SOFT' : 'HARD',
+                    severity: shouldDeferRoomFeatures ? 'SOFT' : 'HARD',
                     code: 'ROOM_FEATURE_MISMATCH',
-                    message: deferredRoomTypePreference
+                    message: shouldDeferRoomFeatures
                         ? `Entry ${e.entryId}: room ${e.roomId} remains on the section homeroom contract without required specialist features: ${missing.join(', ')}.`
                         : `Entry ${e.entryId}: room ${e.roomId} lacks required features: ${missing.join(', ')}.`,
                     entities: { roomId: e.roomId, subjectId: e.subjectId, sectionId: e.sectionId, entryIds: [e.entryId] },
@@ -219,7 +224,8 @@ export function validateHardConstraints(ctx) {
                         required: subject.requiredFeatures,
                         actual: room.features || [],
                         missing,
-                        deferredRoomTypePreference,
+                        deferredRoomTypePreference: shouldDeferRoomFeatures,
+                        deferredByModularPool: isModularPoolAssignment,
                         roomAssignmentReason: e.metadata?.roomAssignmentReason,
                     },
                 });
@@ -257,7 +263,27 @@ export function validateHardConstraints(ctx) {
     for (const e of ctx.entries) {
         if (e.facultyId == null)
             continue;
-        for (const sectionId of getEffectiveSectionIds(e)) {
+        const effectiveSectionIds = getEffectiveSectionIds(e);
+        if (e.entryKind === 'COHORT') {
+            const cohortPairs = effectiveSectionIds.map((sectionId) => `${e.facultyId}:${e.subjectId}:${sectionId}`);
+            const cohortQualified = cohortPairs.some((pairKey) => qualifiedSet.has(pairKey));
+            const cohortKey = `COHORT:${e.facultyId}:${e.subjectId}:${effectiveSectionIds.join(',')}`;
+            if (!checkedPairs.has(cohortKey) && !cohortQualified) {
+                checkedPairs.add(cohortKey);
+                violations.push({
+                    ...base,
+                    code: 'FACULTY_SUBJECT_NOT_QUALIFIED',
+                    message: `Faculty ${e.facultyId} is not qualified/assigned for subject ${e.subjectId} in any member section of cohort ${e.cohortCode ?? e.sectionId}.`,
+                    entities: { facultyId: e.facultyId, subjectId: e.subjectId, sectionId: effectiveSectionIds[0] },
+                    meta: {
+                        cohortCode: e.cohortCode ?? null,
+                        memberSectionIds: effectiveSectionIds,
+                    },
+                });
+            }
+            continue;
+        }
+        for (const sectionId of effectiveSectionIds) {
             const pairKey = `${e.facultyId}:${e.subjectId}:${sectionId}`;
             if (checkedPairs.has(pairKey))
                 continue;

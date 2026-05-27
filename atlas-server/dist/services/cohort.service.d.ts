@@ -59,9 +59,9 @@ export declare function getCohortsBySchoolYear(schoolId: number, schoolYearId: n
     specializationCode: string;
     preferredRoomType: import("@prisma/client").$Enums.RoomType | null;
     cohortCode: string;
+    memberSectionIds: number[];
     gradeLevel: number;
     specializationName: string;
-    memberSectionIds: number[];
     expectedEnrollment: number;
     sourceRef: string | null;
 }[]>;
@@ -78,9 +78,9 @@ export declare function getCohortsByGrade(schoolId: number, schoolYearId: number
     specializationCode: string;
     preferredRoomType: import("@prisma/client").$Enums.RoomType | null;
     cohortCode: string;
+    memberSectionIds: number[];
     gradeLevel: number;
     specializationName: string;
-    memberSectionIds: number[];
     expectedEnrollment: number;
     sourceRef: string | null;
 }[]>;
@@ -97,9 +97,9 @@ export declare function getCohortByCode(schoolId: number, schoolYearId: number, 
     specializationCode: string;
     preferredRoomType: import("@prisma/client").$Enums.RoomType | null;
     cohortCode: string;
+    memberSectionIds: number[];
     gradeLevel: number;
     specializationName: string;
-    memberSectionIds: number[];
     expectedEnrollment: number;
     sourceRef: string | null;
 } | null>;

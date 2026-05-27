@@ -9,6 +9,7 @@ import {
 	buildOwnershipMap,
 	buildOwnershipMapFromIndex,
 	buildPendingOwnershipMap,
+	buildEffectiveOwnershipMap,
 	buildSectionMap,
 	buildTeachingLoadProfile,
 	CLASS_ADVISER_EQUIVALENT_HOURS,
@@ -378,6 +379,11 @@ export function useTeachingLoadData() {
 		[effectiveDraftAssignmentsByFaculty, facultyNames, savedAssignmentsByFaculty],
 	);
 
+	const effectiveOwnershipMap = useMemo(
+		() => buildEffectiveOwnershipMap(effectiveAssignmentsByFaculty, facultyNames, pendingOwnershipMap),
+		[effectiveAssignmentsByFaculty, facultyNames, pendingOwnershipMap],
+	);
+
 	const selected = useMemo(
 		() => faculty.find((member) => member.id === selectedId) ?? null,
 		[faculty, selectedId],
@@ -464,6 +470,7 @@ export function useTeachingLoadData() {
 		savedOwnershipMap,
 		savedConflictMap,
 		pendingOwnershipMap,
+		effectiveOwnershipMap,
 		selected,
 		canUndo,
 		canRedo,

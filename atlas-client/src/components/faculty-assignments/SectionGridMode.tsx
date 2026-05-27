@@ -29,29 +29,31 @@ import { cn } from '@/lib/utils';
 import { getAssignmentOwnershipKey, matchesOwnershipDepartment, type FacultyOwnershipState } from '@/lib/faculty-assignment-helpers';
 import type { Subject, ExternalSection, FacultySummary, FacultyAssignmentDraft } from '@/types';
 
-type SectionGridModeProps = {
+export type SectionGridModeProps = {
 	loading: boolean;
 	subjects: Subject[];
 	sectionsBySubject: Record<number, ExternalSection[]>;
 	faculty: FacultySummary[];
 	savedOwnershipMap: Record<string, FacultyOwnershipState>;
 	pendingOwnershipMap: Record<string, FacultyOwnershipState>;
+	effectiveOwnershipMap: Record<string, FacultyOwnershipState & { isPending: boolean }>;
 	onSetSections: (subjectId: number, sectionIds: number[], facultyId?: number) => void;
 	onSelectTeacher: (id: number) => void;
-	onHoverTeacher: (id: number) => void;
+	onHoverTeacher: (id: number | null) => void;
 	onClearHover: () => void;
 	saving: boolean;
 	isReadOnlyMode: boolean;
 	activeFacultyIds: Set<number>;
-	sectionModeFilter: 'all' | 'unassigned' | 'constrained';
-	onSectionModeFilterChange: (v: any) => void;
+	sectionModeFilter: string;
+	onSectionModeFilterChange: (v: 'all' | 'unassigned' | 'constrained') => void;
 	effectiveAssignmentsByFaculty: Record<number, FacultyAssignmentDraft[]>;
-	selectedSectionId?: number | null;
-	onSelectSection?: (id: number | null) => void;
-	onSave?: () => void;
-	hasDraft?: boolean;
+	selectedSectionId: number | null;
+	onSelectSection: (id: number | null) => void;
+	onSave: () => void;
+	hasDraft: boolean;
 	onSwapSectionOwnership?: (subjectId: number, sectionId: number, fromFacultyId: number, toFacultyId?: number) => void;
 };
+
 
 export function SectionGridMode({
 	loading,
@@ -60,6 +62,7 @@ export function SectionGridMode({
 	faculty,
 	savedOwnershipMap,
 	pendingOwnershipMap,
+	effectiveOwnershipMap,
 	onSetSections,
 	onSelectTeacher,
 	onHoverTeacher,
@@ -77,27 +80,6 @@ export function SectionGridMode({
 	onSwapSectionOwnership,
 }: SectionGridModeProps) {
 	const [searchQuery, setSearchQuery] = useState('');
-	const [gradeFilter, setGradeFilter] = useState('all');
-
-	const effectiveOwnershipMap = useMemo(() => {
-		const map: Record<string, { facultyId: number; facultyName: string; isPending: boolean }> = {};
-		for (const [facultyIdStr, assignments] of Object.entries(effectiveAssignmentsByFaculty)) {
-			const facultyId = Number(facultyIdStr);
-			const f = faculty.find(fac => fac.id === facultyId);
-			const facultyName = f ? `${f.lastName}, ${f.firstName}` : `Faculty ${facultyId}`;
-			for (const a of assignments) {
-				for (const sectionId of a.sectionIds) {
-					const key = getAssignmentOwnershipKey(a.subjectId, sectionId);
-					map[key] = {
-						facultyId,
-						facultyName,
-						isPending: Boolean(pendingOwnershipMap[key] && pendingOwnershipMap[key].facultyId === facultyId)
-					};
-				}
-			}
-		}
-		return map;
-	}, [effectiveAssignmentsByFaculty, faculty, pendingOwnershipMap]);
 
 	const sectionRows = useMemo(() => {
 		// Identify unique sections from sectionsBySubject
@@ -121,7 +103,7 @@ export function SectionGridMode({
 			let unassigned = 0;
 			for (const sub of sectionSubjects) {
 				const key = getAssignmentOwnershipKey(sub.id, section.id);
-				const owner = savedOwnershipMap[key] || pendingOwnershipMap[key];
+				const owner = effectiveOwnershipMap[key];
 				const isStaffed = owner && activeFacultyIds.has(owner.facultyId);
 				if (!isStaffed) unassigned++;
 			}
@@ -148,7 +130,7 @@ export function SectionGridMode({
 			if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
 			return a.section.displayOrder - b.section.displayOrder || a.section.name.localeCompare(b.section.name);
 		});
-	}, [subjects, sectionsBySubject, savedOwnershipMap, pendingOwnershipMap, activeFacultyIds, searchQuery, sectionModeFilter]);
+	}, [subjects, sectionsBySubject, effectiveOwnershipMap, activeFacultyIds, searchQuery, sectionModeFilter]);
 
 	const handleRowClick = (id: number) => {
 		onSelectSection?.(selectedSectionId === id ? null : id);
@@ -301,9 +283,13 @@ export function SectionGridMode({
 									<div className="space-y-4">
 										{row.subjects.map(subject => {
 											const key = getAssignmentOwnershipKey(subject.id, row.section.id);
-											const owner = savedOwnershipMap[key] || pendingOwnershipMap[key];
+											const owner = effectiveOwnershipMap[key];
 											const isStaffed = owner && activeFacultyIds.has(owner.facultyId);
 											
+											const candidates = faculty
+												.filter(f => matchesOwnershipDepartment(f.department, subject))
+												.sort((a, b) => a.lastName.localeCompare(b.lastName));
+
 											return (
 												<div key={subject.id} className="space-y-3 p-4 rounded-xl border border-border/40 bg-background/50">
 													<div className="flex items-center justify-between gap-3">
@@ -319,7 +305,7 @@ export function SectionGridMode({
 																	<UserCheck className="size-4 text-emerald-600" />
 																	<div className="flex flex-col">
 																		<span className="text-xs font-semibold text-emerald-900 uppercase leading-none mb-0.5">{owner.facultyName}</span>
-																		<span className="text-xs font-bold text-emerald-600 uppercase tracking-tighter leading-none">Current Owner</span>
+																		<span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tighter leading-none">{owner.isPending ? 'Pending Assignment' : 'Current Owner'}</span>
 																	</div>
 																</div>
 															) : (
@@ -369,13 +355,13 @@ export function SectionGridMode({
 																							</p>
 																							<div className="flex items-center gap-2 mt-0.5">
 																								<span className={cn(
-																									"text-xs font-semibold uppercase tracking-tighter",
+																									"text-[10px] font-bold uppercase tracking-tighter",
 																									loadPct > 100 ? "text-rose-600" : loadPct > 80 ? "text-amber-600" : "text-emerald-600"
 																								)}>
 																									{loadPct}% Load
 																								</span>
 																								<span className="text-muted-foreground/30">•</span>
-																								<span className="text-xs font-bold text-muted-foreground uppercase truncate">
+																								<span className="text-[10px] font-bold text-muted-foreground uppercase truncate">
 																									{f.department || 'No Dept'}
 																								</span>
 																							</div>

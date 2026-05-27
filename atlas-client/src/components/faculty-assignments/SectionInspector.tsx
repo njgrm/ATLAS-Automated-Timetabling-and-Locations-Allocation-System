@@ -8,15 +8,13 @@ import type { ExternalSection, SectionAssignedClassesResult } from '@/types';
 type SectionInspectorProps = {
 	section: ExternalSection | null;
 	sectionContract: SectionAssignedClassesResult | null;
-	savedOwnershipMap: Record<string, FacultyOwnershipState>;
-	pendingOwnershipMap: Record<string, FacultyOwnershipState>;
+	effectiveOwnershipMap: Record<string, FacultyOwnershipState & { isPending: boolean }>;
 };
 
 export function SectionInspector({
 	section,
 	sectionContract,
-	savedOwnershipMap,
-	pendingOwnershipMap
+	effectiveOwnershipMap
 }: SectionInspectorProps) {
 	if (!section) {
 		return (
@@ -46,12 +44,11 @@ export function SectionInspector({
 
 	const staffing = contractRows.map((subject) => {
 		const key = getAssignmentOwnershipKey(subject.id, section.id);
-		const saved = savedOwnershipMap[key];
-		const pending = pendingOwnershipMap[key];
+		const owner = effectiveOwnershipMap[key];
 		return {
 			subject,
-			owner: pending || saved || null,
-			isPending: !!pending
+			owner: owner || null,
+			isPending: !!owner?.isPending
 		};
 	});
 

@@ -324,7 +324,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 						/>
 						<div className="h-4 w-px bg-border mx-1" />
 						<span className="text-[0.625rem] font-medium text-foreground">
-							Manual Review: <span className="font-semibold">{(context.policy?.teacherMoveEnabled ?? true) ? 'Enabled' : 'Disabled'}</span>
+							Recovery Tools: <span className="font-semibold">{(context.policy?.teacherMoveEnabled ?? true) ? 'Enabled' : 'Locked'}</span>
 						</span>
 					</div>
 				)}

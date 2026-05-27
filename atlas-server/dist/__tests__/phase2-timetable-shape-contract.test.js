@@ -149,6 +149,57 @@ function run() {
     const steSlotKeys = new Set((steShape?.periodSlots ?? []).map((slot) => `${slot.startTime}-${slot.endTime}`));
     assert(regularEntries.every((entry) => regularSlotKeys.has(`${entry.startTime}-${entry.endTime}`)), 'regular section assignments remain inside REGULAR shape slots');
     assert(steEntries.every((entry) => steSlotKeys.has(`${entry.startTime}-${entry.endTime}`)), 'STE section assignments remain inside STE shape slots');
+    const normalizedGradeInput = buildInput();
+    normalizedGradeInput.sectionsByGrade[0].gradeLevelId = 107;
+    normalizedGradeInput.sectionsByGrade[0].displayOrder = 7;
+    normalizedGradeInput.sectionsByGrade[0].sections = normalizedGradeInput.sectionsByGrade[0].sections.map((section) => ({
+        ...section,
+        gradeLevelId: 107,
+        displayOrder: 7,
+    }));
+    normalizedGradeInput.timetableShapes = [
+        buildTimetableShapeContract({
+            gradeLevel: 107,
+            programType: 'REGULAR',
+            startTime: '07:30',
+            endTime: '12:30',
+            periodLengthMinutes: 50,
+            periodsPerDay: 4,
+            basePolicy: {
+                maxConsecutiveTeachingMinutesBeforeBreak: 180,
+                minBreakMinutesAfterConsecutiveBlock: 20,
+                maxTeachingMinutesPerDay: 420,
+                earliestStartTime: '07:30',
+                latestEndTime: '12:30',
+                enableLunchWindow: false,
+                enableFlagCeremony: false,
+                enableRecess: false,
+            },
+        }),
+        buildTimetableShapeContract({
+            gradeLevel: 107,
+            programType: 'STE',
+            startTime: '08:00',
+            endTime: '12:00',
+            periodLengthMinutes: 40,
+            periodsPerDay: 5,
+            basePolicy: {
+                maxConsecutiveTeachingMinutesBeforeBreak: 180,
+                minBreakMinutesAfterConsecutiveBlock: 20,
+                maxTeachingMinutesPerDay: 420,
+                earliestStartTime: '08:00',
+                latestEndTime: '12:00',
+                enableLunchWindow: false,
+                enableFlagCeremony: false,
+                enableRecess: false,
+            },
+        }),
+    ];
+    const normalizedGradeResult = constructBaseline(normalizedGradeInput);
+    const normalizedSteEntries = normalizedGradeResult.entries.filter((entry) => entry.sectionId === 102);
+    const normalizedSteShape = normalizedGradeInput.timetableShapes[1];
+    const normalizedSteSlotKeys = new Set((normalizedSteShape?.periodSlots ?? []).map((slot) => `${slot.startTime}-${slot.endTime}`));
+    assert(normalizedSteEntries.length > 0 && normalizedSteEntries.every((entry) => normalizedSteSlotKeys.has(`${entry.startTime}-${entry.endTime}`)), 'normalized grade-level IDs still resolve to the correct program shape slots');
     console.log(`\nSummary: ${passCount} passed, ${failCount} failed`);
     if (failCount > 0) {
         process.exitCode = 1;

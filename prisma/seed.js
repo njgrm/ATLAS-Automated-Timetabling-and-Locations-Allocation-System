@@ -42,19 +42,17 @@ const subjectSeeds = [
 	{ code: 'AP', name: 'Araling Panlipunan', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
 	{ code: 'MAPEH', name: 'MAPEH', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
 	{ code: 'ESP', name: 'ESP/GMRC', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: true, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
-	{ code: 'TLE', name: 'Technology and Livelihood Education', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'] },
 	{ code: 'HG', name: 'Homeroom Guidance', minMinutesPerWeek: 60, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'] },
 
 	// ── Tri-sem Science rotation (3-term modular bundle) ─
 	{ code: 'SCI_BIO', name: 'Science - Biology', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'], modularGroupId: 'SCIENCE', modularOrder: 1 },
 	{ code: 'SCI_CHEM', name: 'Science - Chemistry', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'], modularGroupId: 'SCIENCE', modularOrder: 2 },
 	{ code: 'SCI_ES', name: 'Science - Earth Science', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'], modularGroupId: 'SCIENCE', modularOrder: 3 },
-	{ code: 'SCI_PHYS', name: 'Science - Physics (Transitional)', minMinutesPerWeek: 225, preferredRoomType: 'LABORATORY', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['REGULAR'], isActive: false },
 
 	// ── TLE exploratory (Grades 7-8) ─────────────────────────────────────────
-	{ code: 'TLE_ICT_EXP', name: 'TLE Exploratory - ICT', minMinutesPerWeek: 225, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [7, 8], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 1, programScopes: ['REGULAR'], allowedSpecializations: ['ICT'] },
-	{ code: 'TLE_AFA_EXP', name: 'TLE Exploratory - Agriculture and Fishery Arts', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 2, programScopes: ['REGULAR'], allowedSpecializations: ['AFA'] },
-	{ code: 'TLE_FCS_EXP', name: 'TLE Exploratory - Family and Consumer Science', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 3, programScopes: ['REGULAR'], allowedSpecializations: ['FCS'] },
+	{ code: 'TLE_ICT_EXP', name: 'TLE Exploratory - ICT', minMinutesPerWeek: 225, preferredRoomType: 'COMPUTER_LAB', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 1, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'], allowedSpecializations: ['ICT'] },
+	{ code: 'TLE_AFA_EXP', name: 'TLE Exploratory - Agriculture and Fishery Arts', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 2, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'], allowedSpecializations: ['AFA'] },
+	{ code: 'TLE_FCS_EXP', name: 'TLE Exploratory - Family and Consumer Science', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, modularGroupId: 'TLE_EXPLORATORY', modularOrder: 3, programScopes: ['REGULAR', 'STE', 'SPA', 'SPS'], allowedSpecializations: ['FCS'] },
 
 	// ── STE / SPA / SPS overlays ─────────────────────────────────────────────
 	{ code: 'STE_ENV_SCI', name: 'Environmental Science', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7], isSeedable: false, programScopes: ['STE'] },
@@ -65,7 +63,7 @@ const subjectSeeds = [
 	{ code: 'STE_RESEARCH', name: 'Research', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['STE'] },
 	{ code: 'SPA_SPEC', name: 'Special Program in the Arts: Specialization', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'], allowedSpecializations: ['MUSIC', 'VISUAL_ARTS', 'THEATER_ARTS', 'MEDIA_ARTS', 'CREATIVE_WRITING', 'DANCE', 'TRADITIONAL_ARTS'] },
 	{ code: 'SPS_SPEC', name: 'Special Program in Sports: Specialization', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPS'], allowedSpecializations: ['ATHLETICS', 'SWIMMING', 'BASKETBALL', 'VOLLEYBALL', 'FOOTBALL', 'SEPAK_TAKRAW', 'SOFTBALL', 'BASEBALL', 'BADMINTON', 'TABLE_TENNIS', 'TAEKWONDO', 'TENNIS', 'CHESS', 'GYMNASTICS', 'ARCHERY', 'ARNIS'] },
-	{ code: 'DEVL_READING', name: 'Developmental Reading', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['STE', 'SPA'] },
+	{ code: 'DEVL_READING', name: 'Developmental Reading', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA', 'SPS'] },
 ];
 
 const deprecatedSubjectCodes = [
@@ -96,6 +94,8 @@ const deprecatedSubjectCodes = [
 	'CREATIVE_WRITING',
 	'DANCE',
 	'TLE_IA_EXP',
+	'TLE',
+	'SCI_PHYS',
 	'STE_ICT',
 ];
 
@@ -160,7 +160,7 @@ const facultySeeds = [
 	{ externalId: 17, firstName: 'Mika', lastName: 'Ramos', email: 't-0017@deped.local', department: 'TLE', maxWeeklyHours: 30, subjects: ['TLE'] },
 	{ externalId: 18, firstName: 'Jonas', lastName: 'Domingo', email: 't-0018@deped.local', department: 'Mathematics', maxWeeklyHours: 30, subjects: ['MATH'] },
 	{ externalId: 19, firstName: 'Ella', lastName: 'Rivera', email: 't-0019@deped.local', department: 'Science', maxWeeklyHours: 30, subjects: ['SCI_ES'] },
-	{ externalId: 20, firstName: 'Darren', lastName: 'Serrano', email: 't-0020@deped.local', department: 'Science', maxWeeklyHours: 30, subjects: ['SCI_PHYS'] },
+	{ externalId: 20, firstName: 'Darren', lastName: 'Serrano', email: 't-0020@deped.local', department: 'Science', maxWeeklyHours: 30, subjects: ['SCI_ES'] },
 ];
 
 function makeClassroomRooms({ floorCount, perFloor, prefix, capacity = 45 }) {

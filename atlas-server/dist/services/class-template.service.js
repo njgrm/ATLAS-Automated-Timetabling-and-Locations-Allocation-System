@@ -19,7 +19,7 @@ const DEFAULT_TEMPLATE_SPECS = [
         periodLengthMinutes: 60,
         periodsPerDay: 8,
         isDefault: true,
-        subjectCodes: ['FIL', 'ENG', 'MATH', 'AP', 'MAPEH', 'ESP', 'HG', 'SCI_BIO', 'SCI_CHEM', 'SCI_ES', 'TLE', 'TLE_ICT_EXP', 'TLE_AFA_EXP', 'TLE_FCS_EXP'],
+        subjectCodes: ['FIL', 'ENG', 'MATH', 'AP', 'MAPEH', 'ESP', 'HG', 'SCI_BIO', 'SCI_CHEM', 'SCI_ES', 'TLE_ICT_EXP', 'TLE_AFA_EXP', 'TLE_FCS_EXP'],
     },
     {
         name: 'Science, Technology & Engineering',
@@ -29,7 +29,7 @@ const DEFAULT_TEMPLATE_SPECS = [
         periodLengthMinutes: 45,
         periodsPerDay: 10,
         isDefault: false,
-        subjectCodes: ['FIL', 'ENG', 'MATH', 'AP', 'MAPEH', 'ESP', 'HG', 'SCI_BIO', 'SCI_CHEM', 'SCI_ES', 'STE_ENV_SCI', 'STE_BIOTECH', 'STE_APPLIED_CHEM', 'STE_APPLIED_PHYS', 'STE_ROBOTICS', 'STE_RESEARCH', 'DEVL_READING'],
+        subjectCodes: ['FIL', 'ENG', 'MATH', 'AP', 'MAPEH', 'ESP', 'HG', 'SCI_BIO', 'SCI_CHEM', 'SCI_ES', 'TLE_ICT_EXP', 'TLE_AFA_EXP', 'TLE_FCS_EXP', 'STE_ENV_SCI', 'STE_BIOTECH', 'STE_APPLIED_CHEM', 'STE_APPLIED_PHYS', 'STE_ROBOTICS', 'STE_RESEARCH'],
     },
     {
         name: 'Special Program in the Arts',
@@ -39,7 +39,7 @@ const DEFAULT_TEMPLATE_SPECS = [
         periodLengthMinutes: 45,
         periodsPerDay: 10,
         isDefault: false,
-        subjectCodes: ['FIL', 'ENG', 'MATH', 'AP', 'MAPEH', 'ESP', 'HG', 'SCI_BIO', 'SCI_CHEM', 'SCI_ES', 'SPA_SPEC', 'DEVL_READING'],
+        subjectCodes: ['FIL', 'ENG', 'MATH', 'AP', 'MAPEH', 'ESP', 'HG', 'SCI_BIO', 'SCI_CHEM', 'SCI_ES', 'TLE_ICT_EXP', 'TLE_AFA_EXP', 'TLE_FCS_EXP', 'SPA_SPEC', 'DEVL_READING'],
     },
     {
         name: 'Special Program in Sports',
@@ -49,7 +49,7 @@ const DEFAULT_TEMPLATE_SPECS = [
         periodLengthMinutes: 45,
         periodsPerDay: 10,
         isDefault: false,
-        subjectCodes: ['FIL', 'ENG', 'MATH', 'AP', 'MAPEH', 'ESP', 'HG', 'SCI_BIO', 'SCI_CHEM', 'SCI_ES', 'SPS_SPEC'],
+        subjectCodes: ['FIL', 'ENG', 'MATH', 'AP', 'MAPEH', 'ESP', 'HG', 'SCI_BIO', 'SCI_CHEM', 'SCI_ES', 'TLE_ICT_EXP', 'TLE_AFA_EXP', 'TLE_FCS_EXP', 'SPS_SPEC', 'DEVL_READING'],
     },
 ];
 /**

@@ -57,14 +57,6 @@ function run() {
       modularOrder: 3,
       programScopes: ['REGULAR'],
     },
-    {
-      id: 4,
-      code: 'SCI_PHYS',
-      minMinutesPerWeek: 240,
-      preferredRoomType: 'LABORATORY',
-      gradeLevels: [7],
-      programScopes: ['REGULAR'],
-    },
   ];
 
   const sectionsByGrade = [
@@ -99,7 +91,7 @@ function run() {
   assertEqual(scienceDemand?.modularExpectedCount ?? 0, 3, 'Science modular expected count is tri-sem');
 
   const physicsDemand = demand.find((item) => item.subjectCode === 'SCI_PHYS');
-  assert(Boolean(physicsDemand), 'Physics is modeled as standalone non-modular demand');
+  assertEqual(Boolean(physicsDemand), false, 'Physics transitional subject is not part of the active default demand set');
 
   const input: ConstructorInput = {
     schoolId: 1,
@@ -112,13 +104,11 @@ function run() {
       { id: 1001, maxHoursPerWeek: 30 },
       { id: 1002, maxHoursPerWeek: 30 },
       { id: 1003, maxHoursPerWeek: 30 },
-      { id: 1004, maxHoursPerWeek: 30 },
     ],
     facultySubjects: [
       { facultyId: 1001, subjectId: 1, gradeLevels: [7], sectionIds: [101] },
       { facultyId: 1002, subjectId: 2, gradeLevels: [7], sectionIds: [101] },
       { facultyId: 1003, subjectId: 3, gradeLevels: [7], sectionIds: [101] },
-      { facultyId: 1004, subjectId: 4, gradeLevels: [7], sectionIds: [101] },
     ],
     rooms: [
       { id: 11, type: 'LABORATORY', isTeachingSpace: true, isSharedFacility: true, capacity: 45, buildingId: 1, features: [] },

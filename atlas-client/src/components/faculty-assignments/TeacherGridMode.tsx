@@ -42,8 +42,7 @@ type TeacherGridModeProps = {
 	sectionsBySubject: Record<number, ExternalSection[]>;
 	saving: boolean;
 	isReadOnlyMode: boolean;
-	savedOwnershipMap: Record<string, FacultyOwnershipState>;
-	pendingOwnershipMap: Record<string, FacultyOwnershipState>;
+	effectiveOwnershipMap: Record<string, FacultyOwnershipState & { isPending: boolean }>;
 	savedConflictMap: Record<string, FacultyOwnershipState[]>;
 	onSetSections: (subjectId: number, sectionIds: number[]) => void;
 	onSwapSectionOwnership: (subjectId: number, sectionId: number, fromFacultyId: number) => void;
@@ -94,8 +93,7 @@ export function TeacherGridMode({
 	sectionsBySubject,
 	saving,
 	isReadOnlyMode,
-	savedOwnershipMap,
-	pendingOwnershipMap,
+	effectiveOwnershipMap,
 	savedConflictMap,
 	onSetSections,
 	onSwapSectionOwnership,
@@ -376,8 +374,7 @@ export function TeacherGridMode({
 																		sections={sectionsBySubject[subject.id] ?? []}
 																		disabled={saving || !member.isActiveForScheduling || isReadOnlyMode}
 																		selectedFacultyId={member.id}
-																		savedOwnershipMap={savedOwnershipMap}
-																		pendingOwnershipMap={pendingOwnershipMap}
+																		effectiveOwnershipMap={effectiveOwnershipMap}
 																		savedConflictMap={savedConflictMap}
 																		onSetSections={onSetSections}
 																		advisedSectionId={homeroomHint?.advisedSectionId}
@@ -411,8 +408,7 @@ export function TeacherGridMode({
 																		sections={sectionsBySubject[subject.id] ?? []}
 																		disabled={saving || !member.isActiveForScheduling || isReadOnlyMode}
 																		selectedFacultyId={member.id}
-																		savedOwnershipMap={savedOwnershipMap}
-																		pendingOwnershipMap={pendingOwnershipMap}
+																		effectiveOwnershipMap={effectiveOwnershipMap}
 																		savedConflictMap={savedConflictMap}
 																		onSetSections={onSetSections}
 																		isOutsideDepartment

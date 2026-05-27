@@ -22,8 +22,7 @@ export type SubjectRowProps = {
 	sections: ExternalSection[];
 	disabled: boolean;
 	selectedFacultyId: number;
-	savedOwnershipMap: Record<string, FacultyOwnershipState>;
-	pendingOwnershipMap: Record<string, FacultyOwnershipState>;
+	effectiveOwnershipMap: Record<string, FacultyOwnershipState & { isPending: boolean }>;
 	/** Multi-owner map for detecting database-level duplicate ownership conflicts. */
 	savedConflictMap?: Record<string, FacultyOwnershipState[]>;
 	onSetSections: (subjectId: number, sectionIds: number[]) => void;
@@ -98,8 +97,7 @@ export const SubjectRow = memo(({
 	sections,
 	disabled,
 	selectedFacultyId,
-	savedOwnershipMap,
-	pendingOwnershipMap,
+	effectiveOwnershipMap,
 	savedConflictMap = {},
 	onSetSections,
 	onSwapSectionOwnership,
@@ -130,7 +128,7 @@ export const SubjectRow = memo(({
 		if (sectionFilter !== 'all') {
 			result = result.filter((sec) => {
 				const key = getOwnershipKey(subject.id, sec.id);
-				const isAssigned = Boolean(savedOwnershipMap[key]) || Boolean(pendingOwnershipMap[key]);
+				const isAssigned = Boolean(effectiveOwnershipMap[key]);
 				return sectionFilter === 'assigned' ? isAssigned : !isAssigned;
 			});
 		}
@@ -151,7 +149,7 @@ export const SubjectRow = memo(({
 		}
 
 		return result;
-	}, [sections, sectionFilter, gradeLevelFilter, searchTerm, subject, savedOwnershipMap, pendingOwnershipMap]);
+	}, [sections, sectionFilter, gradeLevelFilter, searchTerm, subject, effectiveOwnershipMap]);
 
 	const groupedSections = useMemo(() => {
 		const sectionGroups = new Map<number, ExternalSection[]>();
@@ -184,13 +182,11 @@ export const SubjectRow = memo(({
 			if (!programCompatible) return false;
 			if (selectedSectionIds.has(section.id)) return true;
 			const key = getOwnershipKey(subject.id, section.id);
-			const pendingOwner = pendingOwnershipMap[key];
-			if (pendingOwner && pendingOwner.facultyId !== selectedFacultyId) return false;
-			const savedOwner = savedOwnershipMap[key];
-			if (savedOwner && savedOwner.facultyId !== selectedFacultyId && activeFacultyIds.has(savedOwner.facultyId)) return false;
+			const owner = effectiveOwnershipMap[key];
+			if (owner && owner.facultyId !== selectedFacultyId && activeFacultyIds.has(owner.facultyId)) return false;
 			return true;
 		});
-	}, [sections, subject.programScopes, selectedSectionIds, pendingOwnershipMap, selectedFacultyId, savedOwnershipMap, activeFacultyIds]);
+	}, [sections, subject.programScopes, selectedSectionIds, effectiveOwnershipMap, selectedFacultyId, activeFacultyIds]);
 
 	const selectableSectionIds = selectableSections.map((s) => s.id);
 
@@ -258,18 +254,13 @@ export const SubjectRow = memo(({
 			return;
 		}
 		const key = getOwnershipKey(subject.id, sectionId);
-		const pendingOwner = pendingOwnershipMap[key];
-		if (pendingOwner && pendingOwner.facultyId !== selectedFacultyId) {
-			toast.error(`Pending conflict: ${pendingOwner.facultyName} already selected this.`);
-			return;
-		}
-		const savedOwner = savedOwnershipMap[key];
-		if (savedOwner && savedOwner.facultyId !== selectedFacultyId && activeFacultyIds.has(savedOwner.facultyId)) {
-			toast.error(`Ownership conflict: ${savedOwner.facultyName} already owns this class.`);
+		const owner = effectiveOwnershipMap[key];
+		if (owner && owner.facultyId !== selectedFacultyId && activeFacultyIds.has(owner.facultyId)) {
+			toast.error(`${owner.isPending ? 'Pending conflict' : 'Ownership conflict'}: ${owner.facultyName} already ${owner.isPending ? 'selected' : 'owns'} this.`);
 			return;
 		}
 		onSetSections(subject.id, [...selectedSectionIds, sectionId]);
-	}, [quarantined, quarantineLabel, selectedSectionIds, subject.id, onSetSections, pendingOwnershipMap, selectedFacultyId, savedOwnershipMap, activeFacultyIds]);
+	}, [quarantined, quarantineLabel, selectedSectionIds, subject.id, onSetSections, effectiveOwnershipMap, selectedFacultyId, activeFacultyIds]);
 
 	const rotationLaneKey = resolveRotationLaneKey(subject);
 	const rotationTermLabel = resolveRotationTermLabel(subject);
@@ -450,25 +441,22 @@ export const SubjectRow = memo(({
 												<div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-5 border-l-4 ${gradeTint}`}>
 													{gradeSections.map((section) => {
 														const key = getOwnershipKey(subject.id, section.id);
-														const savedOwner = savedOwnershipMap[key];
-														const pendingOwner = pendingOwnershipMap[key];
+														const owner = effectiveOwnershipMap[key];
 														const conflictOwners = savedConflictMap[key];
 														const isHardConflict = (conflictOwners?.length ?? 0) > 1;
 														const isSelected = selectedSectionIds.has(section.id);
-														const isPendingOther = Boolean(pendingOwner && pendingOwner.facultyId !== selectedFacultyId);
-														const isSavedOther = Boolean(savedOwner && savedOwner.facultyId !== selectedFacultyId);
-														const isStaleOwner = isSavedOther && !activeFacultyIds.has(savedOwner.facultyId);
-														const programType = section.programType ?? 'REGULAR';
-														const programCompatible =
-															subject.programScopes.length === 0 || subject.programScopes.includes(programType);
-														const blocked = !isSelected && (!programCompatible || isPendingOther || (isSavedOther && !isStaleOwner) || isHardConflict || quarantined);
+														const isOwnedByOther = Boolean(owner && owner.facultyId !== selectedFacultyId);
+														const isPendingOther = Boolean(isOwnedByOther && owner?.isPending);
+														const isSavedOther = Boolean(isOwnedByOther && !owner?.isPending);
+														
+														// Note: isStaleOwner logic might need adjustment if we use effectiveOwnershipMap exclusively
+														// but for now let's keep it simple: if someone else effectively owns it, it's blocked.
+														const blocked = !isSelected && (isOwnedByOther || isHardConflict || quarantined);
 														const isSystemAssignedSection = isSystemAssignedSubject && section.id === advisedSectionId;
 														const conflictLabel = isHardConflict
 															? 'DB Conflict'
-															: isPendingOther
-															? pendingOwner?.facultyName
-															: isSavedOther
-															? (isStaleOwner ? `Stale: ${savedOwner.facultyName}` : savedOwner.facultyName)
+															: isOwnedByOther
+															? owner?.facultyName
 															: null;
 																	const hoverDeltaMinutes =
 																		!isSelected && isRotationFamily && !blocked
@@ -500,8 +488,6 @@ export const SubjectRow = memo(({
 																		? 'border-amber-300 bg-amber-50/50 shadow-inner'
 																		: isHardConflict
 																		? 'border-rose-400 bg-rose-50 shadow-rose-100/50'
-																		: isStaleOwner
-																		? 'border-amber-400/60 bg-amber-50/40'
 																		: blocked
 																		? 'border-muted bg-muted/40 opacity-70 cursor-not-allowed'
 																		: isSelected
@@ -569,8 +555,8 @@ export const SubjectRow = memo(({
 																				<Tooltip>
 																					<TooltipTrigger asChild>
 																						<div className="flex items-center gap-1 cursor-help">
-																							<div className={`size-1.5 rounded-full shrink-0 ${isHardConflict ? 'bg-rose-500' : isStaleOwner ? 'bg-amber-400 opacity-50' : 'bg-amber-500'}`} />
-																							<span className={`text-xs font-bold uppercase tracking-tight truncate max-w-20 ${isHardConflict ? 'text-rose-700' : isStaleOwner ? 'text-amber-700/70' : 'text-amber-700'}`}>
+																							<div className={`size-1.5 rounded-full shrink-0 ${isHardConflict ? 'bg-rose-500' : owner?.isPending ? 'bg-amber-400' : 'bg-amber-500'}`} />
+																							<span className={`text-xs font-bold uppercase tracking-tight truncate max-w-20 ${isHardConflict ? 'text-rose-700' : 'text-amber-700'}`}>
 																								{conflictLabel}
 																							</span>
 																						</div>
@@ -578,15 +564,15 @@ export const SubjectRow = memo(({
 																					<TooltipContent side="top" className="text-xs font-bold">
 																						{isHardConflict 
 																							? 'Database-level conflict detected.' 
-																							: isStaleOwner 
-																							? `Stale historical owner: ${savedOwner.facultyName}. Selection will replace this record.`
-																							: `Already owned by ${conflictLabel}`}
+																							: owner?.isPending
+																							? `Pending selection by ${owner.facultyName}`
+																							: `Already owned by ${owner?.facultyName}`}
 																					</TooltipContent>
 																				</Tooltip>
 																			)}
 																		</div>
 
-																		{isSavedOther && !disabled && (
+																		{isOwnedByOther && !disabled && (
 																			<Tooltip>
 																				<TooltipTrigger asChild>
 																					<Button
@@ -595,15 +581,15 @@ export const SubjectRow = memo(({
 																						size="icon-xs"
 																						onClick={(e) => {
 																							e.stopPropagation();
-																							onSwapSectionOwnership?.(subject.id, section.id, savedOwner.facultyId);
+																							onSwapSectionOwnership?.(subject.id, section.id, owner.facultyId);
 																						}}
 																						className="h-6 w-6 text-primary border-primary/30 hover:bg-primary hover:text-white"
 																					>
-																						{isStaleOwner ? <RotateCcw className="size-3" /> : <ArrowLeftRight className="size-3" />}
+																						<ArrowLeftRight className="size-3" />
 																					</Button>
 																				</TooltipTrigger>
 																				<TooltipContent side="top" className="text-xs font-bold">
-																					{isStaleOwner ? 'Restore historical ownership' : 'Swap ownership to current teacher'}
+																					{owner.isPending ? 'Swap from pending owner' : 'Swap ownership to current teacher'}
 																				</TooltipContent>
 																			</Tooltip>
 																		)}

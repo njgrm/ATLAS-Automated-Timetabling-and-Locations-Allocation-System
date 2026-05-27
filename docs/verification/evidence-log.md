@@ -1,3 +1,54 @@
+# 2026-05-27 - Phase 3 Timetable G9 Placement And Room-Mismatch Follow-Up
+- Phase: Phase 3 generator-readiness stream, G9 placement + contract-respect follow-up
+- Operator: GitHub Copilot
+- Scope gate: PARTIAL (4/5 runtime contract repairs landed; regular G9 zero-placement persists)
+- Safety gate: PASS (backend build + focused regressions passed; live Tailnet reruns executed)
+- Files changed in this pass:
+  - atlas-server/src/services/schedule-constructor.ts
+  - atlas-server/src/services/generation.service.ts
+  - atlas-server/src/services/constraint-validator.ts
+  - atlas-server/src/__tests__/phase2-home-room-strategy.test.ts
+  - atlas-server/src/__tests__/phase2-timetable-shape-contract.test.ts
+  - atlas-server/src/__tests__/phase3-room-mismatch-semantics.test.ts
+  - docs/reference/atlas-runtime-source-of-truth-map.md
+  - docs/verification/evidence-log.md
+
+- Repair delivered:
+  1. Normalized timetable shape/grade-window resolution for normalized vs legacy grade IDs (`7` vs `107` style).
+  2. Enforced stricter homeroom-zone fidelity in `HOME_ROOM_FIRST` by removing broader cross-zone classroom fallback for homeroom-bound ordinary section rows.
+  3. Downgraded modular pool room-type/feature mismatches to soft diagnostics for this phase (`ROOM_TYPE_MISMATCH` no longer hard in this path).
+  4. Excluded `HG` from generated timetable demand in generation input.
+  5. Aligned cohort qualification handling with section-scoped ownership truth (intersection-first, union fallback) and cohort qualification validation semantics.
+
+- Automated verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npx --prefix atlas-server tsx atlas-server/src/__tests__/phase2-home-room-strategy.test.ts` -> PASS (`18 passed, 0 failed`)
+  - `npx --prefix atlas-server tsx atlas-server/src/__tests__/phase2-timetable-shape-contract.test.ts` -> PASS (`8 passed, 0 failed`)
+  - `npx --prefix atlas-server tsx atlas-server/src/__tests__/phase3-day-shape-and-qualification-authority.test.ts` -> PASS (`3 passed, 0 failed`)
+  - `npx --prefix atlas-server tsx atlas-server/src/__tests__/phase3-room-mismatch-semantics.test.ts` -> PASS (`3 passed, 0 failed`)
+
+- Live Tailnet verification:
+  - Triggered fresh runs: `runId=88`, `runId=89`, `runId=90`.
+  - Latest run used for closure check: `runId=90`.
+  - Confirmed fixed in latest run:
+    - `lowerToG10=0` (lower-grade regular spill into `G10-*` resolved)
+    - `hgAssigned=0`, `hgUnassigned=0` (HG excluded from generated artifact)
+    - `spaNoQualified=0` (SPA specialization contradiction cleared)
+    - `ROOM_TYPE_MISMATCH` bucket now diagnostic-soft for modular pool path (`SOFT|MODULAR_POOL_ASSIGNED|deferred=true`: `310`)
+  - Remaining blocker in latest run:
+    - `regularG9Sections=12`
+    - `regularG9Entries=0`
+    - `regularG9Unassigned=480`
+    - `regularG9UnassignedByReason={ NO_AVAILABLE_SLOT: 480 }`
+
+- Root-cause status:
+  - Root cause narrowed and reproduced as persistent slot-availability starvation for regular G9 demand under current live run contract (`NO_AVAILABLE_SLOT`), not map/home-room null data and not HG/SPA contradiction drift.
+  - G9 room/building data remains valid in ATLAS controls; unresolved failure is in generation feasibility/slot assignment outcome.
+
+- Verdict: NO-GO
+  - Closure criteria met for room-mismatch semantics, HG exclusion, cross-grade G10 drift removal, and SPA qualification contradiction.
+  - Closure criteria not met for regular G9 placement; follow-up pass is required specifically for G9 slot-feasibility resolution.
+
 # 2026-05-27 - Phase 3 Timetable Day-Shape Policy Control And Bootstrap Schema Alignment
 - Phase: Phase 3 generator-readiness stream, timetable block-baseline control pass
 - Operator: GitHub Copilot
@@ -338,6 +389,45 @@
   - [x] Adviser star and homeroom context restored.
   - [x] Sticky action strip gap fixed.
   - [x] Redundant X gone and click targets improved.
+
+  # 2026-05-27 - Phase 3 Day-Shape Normalization And Qualification Authority Repair (Follow-Up)
+  - Phase: Phase 3 generator-readiness stream, day-shape and qualification authority follow-up
+  - Operator: GitHub Copilot
+  - Scope gate: PARTIAL (server/client code-path fixes landed; live post-change generation proof still incomplete)
+  - Safety gate: PASS (server/client builds clean, targeted regression test added and passing)
+  - Files changed in this pass:
+    - atlas-server/src/services/generation.service.ts
+    - atlas-server/src/services/schedule-constructor.ts
+    - atlas-server/src/__tests__/phase3-day-shape-and-qualification-authority.test.ts
+    - atlas-client/src/components/timetable/ScheduleReviewWorkspaceHeader.tsx
+    - atlas-client/src/components/timetable/RightPanel.tsx
+    - docs/reference/atlas-runtime-source-of-truth-map.md
+    - docs/verification/evidence-log.md
+
+  - Repair delivered:
+    1. Added `sourceMinutesPerWeek` to demand items and switched demand normalization to use authoritative weekly minutes, preventing normalization drift from reconstructed `sessions x duration` values.
+    2. Tightened qualification authority in constructor assignment candidate expansion: tiered department fallback is now disabled unless `allowFlexibleSubjectAssignment=true`, so saved Teaching Load pairings remain the primary authority.
+    3. Ensured constructor policy input receives persisted day-shape fields (`periodLengthMinutes`, `periodsPerDay`) directly from scheduling policy.
+    4. Reframed timetable manual tooling copy to explicit recovery semantics (`Recovery Tools`, `Recovery Actions`) instead of normal completion language.
+
+  - Verification:
+    - `npm --prefix atlas-server run build` -> PASS
+    - `npx --prefix atlas-server tsx atlas-server/src/__tests__/phase3-day-shape-and-qualification-authority.test.ts` -> PASS (`3 passed, 0 failed`)
+    - `npm --prefix atlas-client run build` -> PASS
+    - `get_errors` on modified source files -> PASS (no new diagnostics)
+    - Tailnet baseline probe (`/policies/scheduling/1/55`, `/generation/1/55/runs/latest/draft`, `/generation/1/55/runs/latest/violations`) -> PASS for read access:
+      - `periodLengthMinutes=45`, `periodsPerDay=10`
+      - latest summary still showed `FACULTY_SUBJECT_NOT_QUALIFIED=3`, `UNASSIGNED_SECTION=734`
+    - Tailnet `225`-minute session audit before fresh rerun still showed mixed session distributions (`2/3/4/5/6`) with many `6`-session rows.
+    - Fresh post-change rerun attempt via `POST /api/v1/generation/1/55/runs` with polling was attempted but aborted by runtime request timeouts (no confirmed completed-run evidence captured in this pass).
+
+  - Evidence interpretation:
+    - Local code-path and regression evidence indicates the 225-minute normalization defect and non-authoritative qualification fallback are repaired in source.
+    - Live closure remains unproven until a successful post-change Tailnet generation rerun completes and confirms:
+      - consistent 45-minute session mapping for required subjects,
+      - reduced/eliminated non-authoritative `FACULTY_SUBJECT_NOT_QUALIFIED` violations.
+
+  - Verdict: NO-GO (remaining blocker is missing successful post-change Tailnet rerun evidence, not unresolved local compile/test defects).
   - [x] Section candidate loads color-coded.
   - [x] Swap behavior updates both source and destination draft state.
 - **Verdict**: GO

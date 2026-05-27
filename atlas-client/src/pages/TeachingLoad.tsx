@@ -178,19 +178,26 @@ export default function TeachingLoad() {
 		const { subjectId, sectionId, fromFacultyId, toFacultyId } = ui.swapCandidate;
 		const destinationFacultyId = toFacultyId ?? data.selectedId;
 		if (!destinationFacultyId) return;
+
 		try {
 			data.pushHistory();
 			data.setDraftAssignmentsByFaculty((prev) => {
-				const fromCurrent = [...(data.effectiveAssignmentsByFaculty[fromFacultyId] ?? [])];
+				const getBase = (id: number) => prev[id] ?? data.savedAssignmentsByFaculty[id] ?? [];
+				
+				// 1. Update donor faculty (remove section)
+				let fromCurrent = [...getBase(fromFacultyId)];
 				const fromIndex = fromCurrent.findIndex((a) => a.subjectId === subjectId);
 				if (fromIndex >= 0) {
-					fromCurrent[fromIndex] = {
-						...fromCurrent[fromIndex],
-						sectionIds: fromCurrent[fromIndex].sectionIds.filter((id: number) => id !== sectionId),
-					};
+					const nextSectionIds = fromCurrent[fromIndex].sectionIds.filter((id: number) => id !== sectionId);
+					if (nextSectionIds.length === 0) {
+						fromCurrent.splice(fromIndex, 1);
+					} else {
+						fromCurrent[fromIndex] = { ...fromCurrent[fromIndex], sectionIds: nextSectionIds };
+					}
 				}
 
-				const toCurrent = [...(data.effectiveAssignmentsByFaculty[destinationFacultyId] ?? [])];
+				// 2. Update recipient faculty (add section)
+				let toCurrent = [...getBase(destinationFacultyId)];
 				const toIndex = toCurrent.findIndex((a) => a.subjectId === subjectId);
 				if (toIndex >= 0) {
 					toCurrent[toIndex] = {
@@ -201,7 +208,11 @@ export default function TeachingLoad() {
 					toCurrent.push({ subjectId, sectionIds: [sectionId], gradeLevels: [] });
 				}
 
-				return { ...prev, [fromFacultyId]: fromCurrent, [destinationFacultyId]: toCurrent };
+				return { 
+					...prev, 
+					[fromFacultyId]: fromCurrent, 
+					[destinationFacultyId]: toCurrent 
+				};
 			});
 			toast.success('Ownership swapped in draft mode.');
 		} catch (err: any) {
@@ -488,8 +499,7 @@ export default function TeachingLoad() {
 								sectionsBySubject={sectionsBySubject}
 								saving={data.saving}
 								isReadOnlyMode={data.isReadOnlyMode}
-								savedOwnershipMap={data.savedOwnershipMap}
-								pendingOwnershipMap={data.pendingOwnershipMap}
+								effectiveOwnershipMap={data.effectiveOwnershipMap}
 								savedConflictMap={data.savedConflictMap}
 								onSetSections={handleSetSections}
 								onSwapSectionOwnership={handleSwapRequest}
@@ -534,6 +544,7 @@ export default function TeachingLoad() {
 								faculty={data.faculty}
 								savedOwnershipMap={data.savedOwnershipMap}
 								pendingOwnershipMap={data.pendingOwnershipMap}
+								effectiveOwnershipMap={data.effectiveOwnershipMap}
 								onSetSections={handleSetSections}
 								onSelectTeacher={data.setSelectedId}
 								onHoverTeacher={data.setSelectedId}
@@ -568,8 +579,7 @@ export default function TeachingLoad() {
 							<SectionInspector
 								section={ui.selectedSectionId ? data.sectionMap.get(ui.selectedSectionId) ?? null : null}
 								sectionContract={selectedSectionContract}
-								savedOwnershipMap={data.savedOwnershipMap}
-								pendingOwnershipMap={data.pendingOwnershipMap}
+								effectiveOwnershipMap={data.effectiveOwnershipMap}
 							/>
 						)}
 					</div>

@@ -265,6 +265,15 @@ function normalizeProgramType(programType?: string | null): string {
 	return (programType ?? 'REGULAR').toUpperCase();
 }
 
+function normalizeGradeLevel(value: number): number {
+	if (!Number.isFinite(value)) return value;
+	if (value >= 100) {
+		const normalized = value % 100;
+		if (normalized >= 1 && normalized <= 12) return normalized;
+	}
+	return value;
+}
+
 function buildRunTimetableShapeContracts(input: {
 	sectionsByGrade: Array<{ gradeLevelId: number; sections: Array<{ programType?: string | null }> }>;
 	gradeWindows: Array<{ gradeLevel: number; programType?: string | null; startTime: string; endTime: string }>;
@@ -279,22 +288,29 @@ function buildRunTimetableShapeContracts(input: {
 	const policyPeriodsPerDay = input.policy && 'periodsPerDay' in input.policy
 		? (input.policy as { periodsPerDay?: number }).periodsPerDay
 		: undefined;
+	const effectivePeriodLengthMinutes = policyPeriodLengthMinutes && policyPeriodLengthMinutes > 0
+		? policyPeriodLengthMinutes
+		: 45;
+	const effectivePeriodsPerDay = policyPeriodsPerDay && policyPeriodsPerDay > 0
+		? policyPeriodsPerDay
+		: 10;
 
 	const contracts: TimetableShapeContract[] = [];
 	for (const grade of input.sectionsByGrade) {
+		const normalizedGradeLevel = normalizeGradeLevel(grade.gradeLevelId);
 		const programTypes = new Set<string>(['REGULAR']);
 		for (const section of grade.sections) {
 			programTypes.add(normalizeProgramType(section.programType));
 		}
 
 		for (const programType of programTypes) {
-			const window = input.gradeWindows.find((row) => row.gradeLevel === grade.gradeLevelId && normalizeProgramType(row.programType) === programType)
-				?? input.gradeWindows.find((row) => row.gradeLevel === grade.gradeLevelId && normalizeProgramType(row.programType) === 'ALL');
+			const window = input.gradeWindows.find((row) => normalizeGradeLevel(row.gradeLevel) === normalizedGradeLevel && normalizeProgramType(row.programType) === programType)
+				?? input.gradeWindows.find((row) => normalizeGradeLevel(row.gradeLevel) === normalizedGradeLevel && normalizeProgramType(row.programType) === 'ALL');
 			const template = templateByProgram.get(programType) ?? regularTemplate;
-			const periodLengthMinutes = policyPeriodLengthMinutes ?? template.periodLengthMinutes;
-			const periodsPerDay = policyPeriodsPerDay ?? template.periodsPerDay;
+			const periodLengthMinutes = effectivePeriodLengthMinutes || template.periodLengthMinutes;
+			const periodsPerDay = effectivePeriodsPerDay || template.periodsPerDay;
 			contracts.push(buildTimetableShapeContract({
-				gradeLevel: grade.gradeLevelId,
+				gradeLevel: normalizedGradeLevel,
 				programType,
 				startTime: window?.startTime ?? input.policy?.earliestStartTime ?? '07:00',
 				endTime: window?.endTime ?? input.policy?.latestEndTime ?? '17:00',
@@ -780,14 +796,15 @@ export async function triggerGenerationRun(
 			},
 		});
 
-		const demand = computeDemand(sectionsByGrade, subjects, cohorts, classTemplatePeriods);
+		const schedulableSubjects = subjects.filter((subject) => subject.code !== 'HG');
+		const demand = computeDemand(sectionsByGrade, schedulableSubjects, cohorts, classTemplatePeriods);
 		const policyMaxDailyMinutes = policyRecord.maxTeachingMinutesPerDay;
 		const constructorInput: ConstructorInput = {
 			schoolId,
 			schoolYearId,
 			roomingStrategy: options?.roomerStrategy ?? 'HOME_ROOM_FIRST',
 			sectionsByGrade,
-			subjects,
+			subjects: schedulableSubjects,
 			cohorts,
 			faculty: faculty.map((member) => ({
 				id: member.id,
@@ -809,6 +826,8 @@ export async function triggerGenerationRun(
 				})),
 			})),
 			policy: {
+				periodLengthMinutes: (policyRecord as typeof policyRecord & { periodLengthMinutes?: number }).periodLengthMinutes,
+				periodsPerDay: (policyRecord as typeof policyRecord & { periodsPerDay?: number }).periodsPerDay,
 				maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
 				minBreakMinutesAfterConsecutiveBlock: policyRecord.minBreakMinutesAfterConsecutiveBlock,
 				maxTeachingMinutesPerDay: policyRecord.maxTeachingMinutesPerDay,

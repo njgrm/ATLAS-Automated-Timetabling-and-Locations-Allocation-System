@@ -239,6 +239,7 @@ export interface DemandItem {
     subjectId: number;
     subjectCode: string;
     gradeLevel: number;
+    sourceMinutesPerWeek?: number;
     sessionsPerWeek: number;
     durationPerSession: number;
     enrolledCount: number;

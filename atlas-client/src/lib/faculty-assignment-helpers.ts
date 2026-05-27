@@ -333,6 +333,39 @@ export function buildPendingOwnershipMap(
 	return pendingOwnershipMap;
 }
 
+/**
+ * Builds a map of subject-section ownership that reflects the actual state of the world
+ * including all active drafts. If a faculty member has a draft, their draft COMPLETELY
+ * overrides their saved assignments for the purpose of this map.
+ */
+export function buildEffectiveOwnershipMap(
+	effectiveAssignmentsByFaculty: Record<number, FacultyAssignmentDraft[]>,
+	facultyNames: Record<number, string>,
+	pendingOwnershipMap: Record<string, FacultyOwnershipState>,
+): Record<string, FacultyOwnershipState & { isPending: boolean }> {
+	const map: Record<string, FacultyOwnershipState & { isPending: boolean }> = {};
+	
+	for (const [facultyIdRaw, assignments] of Object.entries(effectiveAssignmentsByFaculty)) {
+		const facultyId = Number(facultyIdRaw);
+		const facultyName = facultyNames[facultyId] ?? `Faculty ${facultyId}`;
+		
+		for (const a of assignments) {
+			for (const sectionId of a.sectionIds) {
+				const key = getAssignmentOwnershipKey(a.subjectId, sectionId);
+				const isPending = pendingOwnershipMap[key]?.facultyId === facultyId;
+				
+				map[key] = {
+					facultyId,
+					facultyName,
+					source: isPending ? 'pending' : 'saved',
+					isPending
+				};
+			}
+		}
+	}
+	return map;
+}
+
 export function computeSectionAssignmentDeltaMinutes(
 	subject: Subject,
 	sectionId: number,

@@ -172,6 +172,32 @@ function run() {
     assertEqual(specializedWithoutHomeRoomResult.entries[0]?.roomId, 0, 'Home-room-first uses classroom fallback pool when no home room is set');
     assertEqual(Boolean(specializedWithoutHomeRoomResult.entries[0]?.metadata?.deferredRoomTypePreference), true, 'Classroom fallback without home room still records deferred specialized-room diagnostics');
     assertEqual(specializedWithoutHomeRoomResult.unassignedItems.some((item) => item.roomAssignmentReason === 'SPECIALIZED_ROOM_UNAVAILABLE'), false, 'Missing home-room sections do not emit SPECIALIZED_ROOM_UNAVAILABLE under home-room-first contraction');
+    const strictZoneInput = buildBaseInput('HOME_ROOM_FIRST');
+    strictZoneInput.rooms = [
+        {
+            id: 1,
+            type: 'CLASSROOM',
+            isTeachingSpace: true,
+            capacity: 10,
+            buildingId: 11,
+            buildingZoneId: 'NORTH',
+            features: [],
+        },
+        {
+            id: 0,
+            type: 'CLASSROOM',
+            isTeachingSpace: true,
+            capacity: 45,
+            buildingId: 12,
+            buildingZoneId: 'SOUTH',
+            features: [],
+        },
+    ];
+    const strictZoneResult = constructBaseline(strictZoneInput);
+    assertEqual(strictZoneResult.entries.length, 0, 'Home-room-first does not drift into broader-zone classrooms when no same-zone fallback exists');
+    assertEqual(strictZoneResult.unassignedItems.length, 1, 'Home-room-first records unresolved section demand when only broader-zone classrooms are available');
+    assert(strictZoneResult.unassignedItems[0]?.homeRoomFallbackCause === 'NO_SAME_ZONE_STANDARD_ROOM'
+        || strictZoneResult.unassignedItems[0]?.homeRoomFallbackCause === 'HOME_ROOM_OCCUPIED', 'Home-room-first keeps fallback cause within homeroom-fidelity diagnostics when strict zone fidelity blocks broader fallback');
     console.log(`\nSummary: ${passCount} passed, ${failCount} failed`);
     if (failCount > 0) {
         process.exitCode = 1;
