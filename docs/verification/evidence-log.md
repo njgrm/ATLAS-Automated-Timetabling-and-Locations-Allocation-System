@@ -1,72 +1,108 @@
-# 2026-05-27 - Tailnet Validation Loop (Post-Capacity Softening Follow-Up)
-- Phase: Phase 3 generator-readiness stream, live hard-blocker remediation follow-up
+# 2026-05-27 - Phase 3 Run101-180 Unassigned Root-Cause Fix (Room Locality + Taxonomy)
+- Phase: Phase 3 generator-readiness stream, run-101 residual unassigned root-cause pass
 - Operator: GitHub Copilot
-- Scope gate: PARTIAL (remaining hard blocker path patched in generation assembly; full live verification blocked by stuck Tailnet run state)
-- Safety gate: PARTIAL (targeted regression passed; full server build still reports pre-existing unrelated type errors)
-- Files changed in this pass:
-  - atlas-server/src/services/generation.service.ts
-  - docs/verification/evidence-log.md
-
-- Live Tailnet findings before this patch:
-  1. Fresh completed runs (`97` to `101`) consistently reported:
-     - `ROOM_CAPACITY_EXCEEDED` hard blockers removed (now soft)
-     - remaining hard blockers: `UNASSIGNED_SECTION=180`
-     - unassigned profile: `NO_AVAILABLE_SLOT=180`, `homeRoomFallbackCause=HOME_ROOM_OCCUPIED`
-  2. Triggered follow-up runs (`102`, `103`) entered `RUNNING` and did not complete during the validation window.
-  3. While `RUNNING` persisted, `POST /api/v1/generation/1/55/runs` returned `502` and no new completed post-patch run could be produced.
-
-- Repair delivered:
-  1. Generation unassigned-violation assembly now softens home-room slot-pressure cases for this phase:
-     - `reason=NO_AVAILABLE_SLOT`
-     - `roomAssignmentReason=FALLBACK_UNRESOLVED`
-     - `homeRoomFallbackCause=HOME_ROOM_OCCUPIED`
-  2. These rows remain visible diagnostics (`UNASSIGNED_SECTION`) but no longer count as hard blockers in phase-scoped severity logic.
-  3. Added meta traceability on softened rows:
-     - `homeRoomFallbackCause`
-     - `softenedForPhase3=true`
-
-- Automated verification:
-  - `npx --prefix atlas-server tsx atlas-server/src/__tests__/phase3-spa-sps-materialization-and-capacity-softening.test.ts` -> PASS (`17 passed, 0 failed`)
-  - `npm --prefix atlas-server run build` -> FAIL (pre-existing unrelated errors in `atlas-server/src/services/faculty-identity.service.ts`)
-
-- Verdict: NO-GO (live closure)
-  - Prompt-scope code repair is landed.
-  - Live closure remains blocked until stale Tailnet `RUNNING` runs (`102`, `103`) are resolved and a fresh completed run can confirm hard-blocker totals post-patch.
-
-# 2026-05-27 - Phase 3 SPA/SPS Materialization And Capacity Softening One-Shot
-- Phase: Phase 3 generator-readiness stream, SPA/SPS materialization + capacity-softening + fallback-cause repair
-- Operator: GitHub Copilot
-- Scope gate: PASS (constructor, policy, contract fields, review-label wiring, and focused regressions landed)
-- Safety gate: PARTIAL (local build/tests passed; fresh Tailnet rerun evidence is still pending for closure)
+- Scope gate: PASS (home-room fallback dead-end pressure was reduced and unassigned taxonomy now separates slot/policy blockers from room-path blockers)
+- Safety gate: PASS (targeted tests + server/client builds passed; live Tailnet rerun evidence captured)
 - Files changed in this pass:
   - atlas-server/src/services/schedule-constructor.ts
   - atlas-server/src/services/constraint-validator.ts
   - atlas-server/src/services/generation.service.ts
-  - atlas-server/src/services/scheduling-policy.service.ts
-  - atlas-server/src/__tests__/phase3-spa-sps-materialization-and-capacity-softening.test.ts
   - atlas-client/src/types.ts
-  - atlas-client/src/types.d.ts
-  - atlas-client/src/components/timetable/ScheduleReviewWorkspace.tsx
+  - atlas-server/src/__tests__/phase2-home-room-strategy.test.ts
+  - atlas-server/src/__tests__/phase3-spa-sps-materialization-and-capacity-softening.test.ts
   - docs/reference/atlas-runtime-source-of-truth-map.md
   - docs/verification/evidence-log.md
 
 - Repair delivered:
-  1. SPA/SPS inter-section demand materialization now falls back to active cohort truth when strict allowed-specialization matching yields zero cohorts, preventing silent demand loss.
-  2. Draft contract identity propagation added for specialization-sensitive rows (`subjectCode`, `specializationCode`, `specializationName`) across placed entries and unassigned diagnostics.
-  3. `HOME_ROOM_FIRST` fallback-cause mapping no longer classifies faculty overload/availability failures as `POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE`.
-  4. Room-capacity policy defaults and existing override normalization now keep `ROOM_CAPACITY_EXCEEDED` soft (`treatAsHard=false`) in this phase.
-  5. Timetable entry-context labels now surface specialization identity for both cohort and section contexts when present.
+  1. Re-enabled bounded cross-building fallback for `HOME_ROOM_FIRST` when same-zone standard rooms are exhausted.
+  2. Added explicit fallback diagnostics metadata in constructor output (`fallbackTier`, `fallbackTrace`, `crossBuildingFallbackUsed`).
+  3. Expanded unassigned taxonomy lanes so unresolved entries no longer collapse into one generic room dead-end label.
+  4. Added run-summary diagnostics for new fallback causes (`crossBuildingStandardRoomExhausted`) and reason-count visibility.
+  5. Aligned backend/client unions and regression tests to the updated taxonomy contract.
 
 - Automated verification:
-  - `npx --prefix atlas-server tsx atlas-server/src/__tests__/phase3-spa-sps-materialization-and-capacity-softening.test.ts` -> PASS (`17 passed, 0 failed`)
-  - `npm --prefix atlas-server run test:phase2-home-room-strategy` -> PASS (`26 passed, 0 failed`)
+  - `npx --prefix atlas-server tsx atlas-server/src/__tests__/phase2-home-room-strategy.test.ts` -> PASS (`30 passed, 0 failed`)
+  - `npx --prefix atlas-server tsx atlas-server/src/__tests__/phase3-spa-sps-materialization-and-capacity-softening.test.ts` -> PASS (`21 passed, 0 failed`)
   - `npm --prefix atlas-server run build` -> PASS
   - `npm --prefix atlas-client run build` -> PASS
-  - `get_errors` on changed source files -> PASS (no diagnostics)
 
-- Verdict: NO-GO (phase closure)
-  - GO for prompt-scope implementation and local regression coverage.
-  - NO-GO for phase closure until a fresh Tailnet generation rerun captures before/after runtime metrics for SPA/SPS residual slot pressure and hard-violation impact.
+- Live Tailnet verification (`https://njgrm.buru-degree.ts.net`, `schoolId=1`, `schoolYearId=55`):
+  - Baseline reference run: `runId=101`
+  - Fresh post-fix run: `runId=108`
+  - KPI delta (`101 -> 108`):
+    - `assignedCount`: `3310 -> 3425` (`+115`)
+    - `unassignedCount`: `180 -> 30` (`-150`)
+    - `hardViolationCount`: `180 -> 30` (`-150`)
+    - `durationMs` (run 108): `26603`
+  - Root-cause lane shift:
+    - Baseline unassigned room lane: `FALLBACK_UNRESOLVED=180` with `HOME_ROOM_OCCUPIED=180`
+    - Current unassigned room lane: `FACULTY_SLOT_UNAVAILABLE=30` with `POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE=30`
+    - Trapped home-room fallback bucket (`FALLBACK_UNRESOLVED + HOME_ROOM_OCCUPIED`): `180 -> 0`
+  - Current run 108 diagnostics:
+    - `roomAssignmentReasonCounts` includes `CROSS_BUILDING_FALLBACK_ASSIGNED=90`
+    - `homeRoomFallbackDiagnostics`: `homeRoomOccupied=320`, `policyOrShiftWindowIncompatible=30`, `crossBuildingStandardRoomExhausted=0`
+
+- Residual blocker:
+  - Remaining `30` hard/unassigned rows are now concentrated in non-room-path feasibility (`FACULTY_SLOT_UNAVAILABLE` + `POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE`) and should be handled by policy/coverage feasibility follow-up, not additional room-locality fallback widening.
+
+- Verdict:
+  - GO (prompt scope)
+  - NO-GO (overall Phase 3 closure)
+
+# 2026-05-27 - Phase 3 Faculty Portal Rotation Parity And Objective Surface
+- Phase: Phase 3 generator-readiness stream, faculty portal objective-surface follow-up
+- Operator: GitHub Copilot
+- Scope gate: PASS (faculty dashboard, room-change request readiness, and preference copy now reflect assignment identity, active-draft readiness, and rotational term identity)
+- Safety gate: PASS (server/client builds passed; live Tailnet faculty login and protected-route checks captured)
+- Files changed in this pass:
+  - docs/prompts/phase3-faculty-portal-rotation-parity-and-objective-surface-one-shot-prompt.md
+  - atlas-server/src/services/faculty-assignment.service.ts
+  - atlas-server/src/services/faculty-portal.service.ts
+  - atlas-server/src/services/room-preference.service.ts
+  - atlas-client/src/types.ts
+  - atlas-client/src/components/faculty-dashboard/FacultyObjectiveStateCard.tsx
+  - atlas-client/src/components/faculty-dashboard/TeachingIdentityPanel.tsx
+  - atlas-client/src/components/faculty-dashboard/ActionQueue.tsx
+  - atlas-client/src/components/faculty-dashboard/DesktopDashboardLayout.tsx
+  - atlas-client/src/components/faculty-dashboard/MobileDashboardLayout.tsx
+  - atlas-client/src/pages/MyDashboard.tsx
+  - atlas-client/src/pages/FacultyRoomPreferences.tsx
+  - atlas-client/src/components/faculty-room-preferences/MobileRoomRequestLayout.tsx
+  - atlas-client/src/components/faculty-room-preferences/DesktopRoomRequestLayout.tsx
+  - atlas-client/src/pages/FacultyPreferences.tsx
+  - docs/reference/atlas-runtime-source-of-truth-map.md
+  - CHANGELOG.md
+  - docs/verification/evidence-log.md
+
+- Repair delivered:
+  1. Finalized the prompt with the timetable swap-regression finding that room-change requests are review/swap requests requiring scheduler decision, not silent timetable commits.
+  2. Extended faculty assignment identity summaries with rotational term metadata so faculty-facing pages can surface Science/TLE term identities.
+  3. Added an explicit objective-state contract for dashboard and room-request state: no teaching load, load waiting for draft, load without plotted entries, review draft ready, and published schedule available.
+  4. Split faculty dashboard counts between assignment-bearing teaching load and plotted review-draft entries.
+  5. Added dashboard identity panels and objective cards that explain review readiness and rotational term loads in teacher-facing language.
+  6. Updated room-change request empty/readiness states so teachers with teaching load are not shown as having no classes when draft entries are unavailable.
+  7. Repaired live room-request page crashes by restoring `dirtyCount`, `selectionCountBySlot`, `slotSelectionDetails`, and `entrySelectionDetails` values consumed by the layout.
+  8. Shortened faculty dashboard and preferences subtitles to avoid mobile truncation while preserving preference-vs-room-request separation.
+
+- Automated verification:
+  - `get_errors` on touched source files -> PASS
+  - `npm --prefix atlas-server run build` -> PASS (`tsc`)
+  - `npm --prefix atlas-client run build` -> PASS (`vite build`, `2514 modules transformed`, `built in 580ms` on the final run)
+
+- Live Tailnet verification (`https://njgrm.buru-degree.ts.net`, faculty `2000056 / DepEd2026!`):
+  1. `/my` login and dashboard render succeeded after the identity-source repair.
+  2. Dashboard API returned status `200` with `objectiveCode=DRAFT_ENTRIES_READY`, `objectiveTitle=Review draft ready`, `teachingAssignments=15`, `scheduleEntries=10`, and `rotationCount=13`.
+  3. First rotational identity sample returned `SCI_ES`, section `JOSE RIZAL`, `Term 3`, `rotationTermCount=3`.
+  4. Dashboard UI displayed `Review draft ready`, `Teaching Load 15`, `Rotates by term`, and term chips including `SCI_ES - Term 3`, `SCI_BIO - Term 1`, and `SCI_CHEM - Term 2`.
+  5. `/my/room-preferences` initially reproduced `dirtyCount is not defined`, then `selectionCountBySlot is not defined`; both were repaired and the route rendered afterward.
+  6. `/my/room-preferences` rendered `Review schedule active`, `10 review classes`, `0 pending`, and occupied target slots labeled for scheduler-reviewed swap flow.
+  7. `/my/preferences` rendered the clarified subtitle `Set availability and wellbeing. Room changes are separate.`
+
+- Residual notes:
+  - The tutorial overlay blocked normal click-through verification of a complete occupied-slot room-change submission; route render and readiness state were verified, but submission was not completed in this pass.
+  - Browser console logs still showed nonblocking EventSource/SSE authentication failures on faculty preference streams. Those did not block the dashboard, room-request, or preferences page render checks and should be handled in a separate offline/realtime reliability pass if needed.
+
+- Verdict: GO (prompt scope)
 
 # 2026-05-27 - Phase 3 Timetable Swap Regression Repair One-Shot
 - Phase: Phase 3 generator-readiness stream, timetable swap regression repair
@@ -102,6 +138,7 @@
   - A deterministic live fixture for true multi-occupant target-slot ambiguity was not present in this session's active board view; the explicit ambiguity guard is covered by new routing tests.
 
 - Verdict: GO (prompt scope)
+
 # 2026-05-27 - Phase 3 G9 Slot Starvation And Special-Program Plotting Follow-Up (One-Shot)
 - Phase: Phase 3 generator-readiness stream, one-shot closure follow-up
 - Operator: GitHub Copilot
@@ -760,49 +797,3 @@
 - Operator: Gemini CLI
 - Description: Resolved an unresolved variable reference (ArrowRight to ArrowLeftRight mapping issue where ArrowLeftRight wasn't added to imports in SubjectRow.tsx).
 - Verdict: GO
-
-# 2026-05-28 - Phase 3 Faculty Identity Source Reconcile And Assignment-Bearing Linkage
-- Phase: Phase 3 generator-readiness stream, faculty identity source reconciliation
-- Operator: GitHub Copilot
-- Scope gate: PASS (local auth, faculty portal, room requests, preferences, and collaboration now resolve canonical assignment-bearing faculty identity)
-- Safety gate: PASS (server build, required contract tests, and live Tailnet SCI faculty verification passed)
-- Files changed in this pass:
-  - atlas-server/src/services/faculty-identity.service.ts
-  - atlas-server/src/services/local-auth.service.ts
-  - atlas-server/src/middleware/authenticate.ts
-  - atlas-server/src/routes/faculty-portal.router.ts
-  - atlas-server/src/routes/faculty.router.ts
-  - atlas-server/src/routes/room-preference.router.ts
-  - atlas-server/src/routes/preference.router.ts
-  - atlas-server/src/services/room-preference-collaboration.service.ts
-  - atlas-server/src/__tests__/faculty-dashboard-contract.test.ts
-  - atlas-server/src/__tests__/faculty-draft-run-contract.test.ts
-  - atlas-server/src/__tests__/preference-wellbeing.test.ts
-  - docs/reference/atlas-runtime-source-of-truth-map.md
-  - docs/verification/evidence-log.md
-
-- Duplicate condition captured before live login:
-  - `AtlasAuthAccount.id=12`, `employeeId=2000056`, `accountName=2000056`, `email=elpidio.aquino@deped.edu.ph`, `facultyId=17905`
-  - linked stale mirror: `FacultyMirror.id=17905`, `externalId=4855`, `employeeId=null`, `isStale=true`
-  - assignment-bearing canonical mirror: `FacultyMirror.id=18189`, `externalId=4997`, `employeeId=2000056`, `isStale=false`
-  - assignment evidence on canonical mirror: `FacultySubject` rows `9`, `SubjectSectionOwnership` rows `24`; no assignment rows on stale linked mirror
-
-- Canonical rule delivered:
-  1. Faculty identity resolution no longer treats login success or JWT `userId` as proof that the linked mirror is canonical.
-  2. Resolver prefers strong source signals (`accountId`, EnrollPro/source external faculty ID, explicit employee ID, contact email) and then scores duplicate candidates by assignment-bearing ownership rows.
-  3. Login safely relinks `AtlasAuthAccount.facultyId` to the canonical mirror when the previous link is stale; duplicate `FacultyMirror` rows are retained for audit/history and are not blindly deleted.
-  4. Faculty portal, `/faculty/me`, preference ownership, room-request ownership, SSE filtering, and room-preference collaboration use the shared canonical resolver.
-
-- Automated verification:
-  - `npm --prefix atlas-server run build` -> PASS
-  - `npm --prefix atlas-server run test:faculty-dashboard-contract` -> PASS (`7 passed, 0 failed`)
-  - `npm --prefix atlas-server run test:faculty-draft-run-contract` -> PASS (`14 passed, 0 failed`)
-  - `npm --prefix atlas-server run test:preference-wellbeing` -> PASS (`16 passed, 0 failed`)
-
-- Live Tailnet verification (`https://njgrm.buru-degree.ts.net`, faculty login `2000056`):
-  - `POST /api/v1/auth/login` -> HTTP `200`; returned user `userId=4997`; JWT payload included `facultyId=18189`, `employeeId=2000056`, `accountId=12`.
-  - `GET /api/v1/faculty-portal/1/55/dashboard` -> HTTP `200`; response faculty `id=18189`, `externalId=4997`, `employeeId=2000056`, `name=AQUINO, ELPIDIO`.
-  - Dashboard assignment evidence: `teachingAssignments=15`, `schedulePreview.counts.total=10`, active draft `runId=101`, fallback banner honestly states active draft / not yet published.
-  - `GET /api/v1/room-preferences/1/55/latest/faculty/18189` -> HTTP `200`; `runId=101`, `entries=10`.
-  - Post-login DB link: `AtlasAuthAccount.id=12` now persists `facultyId=18189`, linked to mirror `externalId=4997`, `employeeId=2000056`.
-- Verdict: GO (prompt scope)

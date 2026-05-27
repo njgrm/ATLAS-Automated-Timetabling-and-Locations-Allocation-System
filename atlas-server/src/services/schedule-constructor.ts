@@ -1659,6 +1659,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 				for (const facId of candidates) {
 					if (placed) break;
+					let policyBlockedForFaculty = false;
 
 					if (policy && !isModularUnified) {
 						const dailyKey = `${facId}:${slotCandidate.day}`;
@@ -1667,6 +1668,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 							sessionFailureReasons.add('FACULTY_OVERLOADED');
 							sawPolicyOrShiftWindowIncompatible = true;
 							policyBlockedForSession = true;
+							policyBlockedForFaculty = true;
 							continue;
 						}
 
@@ -1674,6 +1676,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 							sessionFailureReasons.add('NO_AVAILABLE_SLOT');
 							sawPolicyOrShiftWindowIncompatible = true;
 							policyBlockedForSession = true;
+							policyBlockedForFaculty = true;
 							continue;
 						}
 					}
@@ -1828,7 +1831,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 					if (!placed && capacityRejectedForFaculty) {
 						sawCapacityBlockedRoomForSession = true;
-					} else if (!placed && !sawOpenRoomForFaculty) {
+					} else if (!placed && !policyBlockedForFaculty) {
 						sessionFailureReasons.add('NO_COMPATIBLE_ROOM');
 					}
 				}

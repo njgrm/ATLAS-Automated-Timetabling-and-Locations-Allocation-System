@@ -1246,6 +1246,7 @@ export function constructBaseline(input) {
                 for (const facId of candidates) {
                     if (placed)
                         break;
+                    let policyBlockedForFaculty = false;
                     if (policy && !isModularUnified) {
                         const dailyKey = `${facId}:${slotCandidate.day}`;
                         const dailyUsed = facultyDailyMinutes.get(dailyKey) ?? 0;
@@ -1253,12 +1254,14 @@ export function constructBaseline(input) {
                             sessionFailureReasons.add('FACULTY_OVERLOADED');
                             sawPolicyOrShiftWindowIncompatible = true;
                             policyBlockedForSession = true;
+                            policyBlockedForFaculty = true;
                             continue;
                         }
                         if (wouldExceedConsecutive(facId, slotCandidate.day, slotCandidate.pi, item.durationPerSession)) {
                             sessionFailureReasons.add('NO_AVAILABLE_SLOT');
                             sawPolicyOrShiftWindowIncompatible = true;
                             policyBlockedForSession = true;
+                            policyBlockedForFaculty = true;
                             continue;
                         }
                     }
@@ -1409,7 +1412,7 @@ export function constructBaseline(input) {
                     if (!placed && capacityRejectedForFaculty) {
                         sawCapacityBlockedRoomForSession = true;
                     }
-                    else if (!placed && !sawOpenRoomForFaculty) {
+                    else if (!placed && !policyBlockedForFaculty) {
                         sessionFailureReasons.add('NO_COMPATIBLE_ROOM');
                     }
                 }
