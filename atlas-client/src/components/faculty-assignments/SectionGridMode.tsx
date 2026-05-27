@@ -24,6 +24,7 @@ import { Input } from '@/ui/input';
 import { Skeleton } from '@/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { Popover, PopoverContent, PopoverTrigger, PopoverClose } from '@/ui/popover';
 import { cn } from '@/lib/utils';
 import { getAssignmentOwnershipKey, matchesOwnershipDepartment, type FacultyOwnershipState } from '@/lib/faculty-assignment-helpers';
 import type { Subject, ExternalSection, FacultySummary, FacultyAssignmentDraft } from '@/types';
@@ -297,7 +298,7 @@ export function SectionGridMode({
 																	<UserCheck className="size-4 text-emerald-600" />
 																	<div className="flex flex-col">
 																		<span className="text-xs font-black text-emerald-900 uppercase leading-none mb-0.5">{owner.facultyName}</span>
-																		<span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tighter leading-none">Current Owner</span>
+																		<span className="text-xs font-bold text-emerald-600 uppercase tracking-tighter leading-none">Current Owner</span>
 																	</div>
 																</div>
 															) : (
@@ -331,35 +332,36 @@ export function SectionGridMode({
 																			const isCurrentOwner = owner?.facultyId === f.id;
 																			const loadPct = Math.round(f.policyLoadPercentage ?? 0);
 																			return (
-																				<Button
-																					key={f.id}
-																					variant="ghost"
-																					disabled={isCurrentOwner}
-																					onClick={() => handleAssign(subject.id, row.section.id, f.id, owner?.facultyId)}
-																					className={cn(
-																						"w-full flex items-center justify-between p-3 h-auto hover:bg-primary/5 transition-all text-left border-b border-border/10 last:border-0",
-																						isCurrentOwner && "bg-emerald-50/50"
-																					)}
-																				>
-																					<div className="min-w-0">
-																						<p className={cn("text-xs font-black uppercase truncate", isCurrentOwner ? "text-emerald-900" : "text-foreground")}>
-																							{f.lastName}, {f.firstName}
-																						</p>
-																						<div className="flex items-center gap-2 mt-0.5">
-																							<span className={cn(
-																								"text-[10px] font-black uppercase tracking-tighter",
-																								loadPct > 100 ? "text-rose-600" : loadPct > 80 ? "text-amber-600" : "text-emerald-600"
-																							)}>
-																								{loadPct}% Load
-																							</span>
-																							<span className="text-muted-foreground/30">•</span>
-																							<span className="text-[10px] font-bold text-muted-foreground uppercase truncate">
-																								{f.department || 'No Dept'}
-																							</span>
+																				<PopoverClose asChild key={f.id}>
+																					<Button
+																						variant="ghost"
+																						disabled={isCurrentOwner}
+																						onClick={() => handleAssign(subject.id, row.section.id, f.id, owner?.facultyId)}
+																						className={cn(
+																							"w-full flex items-center justify-between p-3 h-auto hover:bg-primary/5 transition-all text-left border-b border-border/10 last:border-0",
+																							isCurrentOwner && "bg-emerald-50/50"
+																						)}
+																					>
+																						<div className="min-w-0">
+																							<p className={cn("text-xs font-black uppercase truncate", isCurrentOwner ? "text-emerald-900" : "text-foreground")}>
+																								{f.lastName}, {f.firstName}
+																							</p>
+																							<div className="flex items-center gap-2 mt-0.5">
+																								<span className={cn(
+																									"text-xs font-black uppercase tracking-tighter",
+																									loadPct > 100 ? "text-rose-600" : loadPct > 80 ? "text-amber-600" : "text-emerald-600"
+																								)}>
+																									{loadPct}% Load
+																								</span>
+																								<span className="text-muted-foreground/30">•</span>
+																								<span className="text-xs font-bold text-muted-foreground uppercase truncate">
+																									{f.department || 'No Dept'}
+																								</span>
+																							</div>
 																						</div>
-																					</div>
-																					{isCurrentOwner ? <UserCheck className="size-4 text-emerald-600" /> : <UserPlus className="size-4 text-primary/40 group-hover:text-primary transition-colors" />}
-																				</Button>
+																						{isCurrentOwner ? <UserCheck className="size-4 text-emerald-600" /> : <UserPlus className="size-4 text-primary/40 group-hover:text-primary transition-colors" />}
+																					</Button>
+																				</PopoverClose>
 																			);
 																		})}
 																	</div>

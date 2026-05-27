@@ -1,3 +1,36 @@
+# 2026-05-27 - Phase 3 Timetable Baseline Truth And Building Parity One-Shot
+- Phase: Phase 3 generator-readiness stream, timetable baseline/parity pass
+- Operator: GitHub Copilot
+- Scope gate: PASS (latest-run truth verified; room/building parity repaired in timetable room pivot)
+- Safety gate: PASS (single-hook frontend behavior fix plus runtime/evidence documentation)
+- Files changed in this pass:
+  - atlas-client/src/hooks/useTimetableData.ts
+  - docs/reference/atlas-runtime-source-of-truth-map.md
+  - docs/verification/evidence-log.md
+
+- Findings:
+  1. Latest trustworthy baseline for active school/year is `runId=81` (`COMPLETED`).
+  2. Required summary/reporting contradiction checks for run `81` all passed:
+     - `summary.assignedCount` matches draft `entries.length` (`2095`).
+     - `summary.unassignedCount` matches draft `unassignedItems.length` (`759`).
+     - `summary.hardViolationCount` matches violations hard count (`0`).
+     - `summary.violationCounts` matches counted violations payload (`diff=0`).
+  3. Building parity contradiction was UI-consumption-layer only:
+     - `/map/schools/1/buildings` includes `G9`.
+     - Latest run entries in `G9` = `0`.
+     - Entry-only room pivoting in `/timetable` could hide `G9` in room-mode selector even though map inventory is correct.
+
+- Repair delivered:
+  1. Updated timetable room pivot generation to always include all teaching-space rooms from map reference data, not just rooms present in filtered run entries.
+  2. Preserved existing sort behavior (building then room name), so selector grouping remains stable while zero-entry buildings remain discoverable.
+
+- Verification:
+  - Tailnet API checks (`/generation/1/55/runs`, `/generation/1/55/runs/latest/draft`, `/generation/1/55/runs/latest/violations`) -> PASS for run-81 consistency.
+  - Tailnet map parity check (`/map/schools/1/buildings`) -> PASS (`G9` present in canonical building list).
+  - `npm --prefix atlas-client run build` -> PASS.
+
+- Verdict: GO
+
 # 2026-05-27 - Phase 3 Teaching Load Closure Read/Write, STE Contract, And MAPEH Redistribution
 - Phase: Phase 3 generator-readiness stream, teaching-load closure pass
 - Operator: GitHub Copilot
@@ -253,4 +286,43 @@
   - Endpoint discovery (POST `/api/v1/faculty-assignments/auto-fill` without auth) -> PASS (401 Unauthorized, confirmed existence)
   - Live contract verification (POST `/api/v1/faculty-assignments/auto-fill` with token and `coverageMode`) -> PASS (200 OK, `assignmentsCreated = 64`)
 
+- Verdict: GO
+
+# 2026-05-27 - Phase 3 Teaching Load Granular UX Hardening
+- Phase: Phase 3 generator-readiness stream, teaching-load UX hardening pass
+- Operator: Gemini CLI
+- Scope gate: PASS (Surgical UX/UI hardening on Teaching Load components)
+- Safety gate: PASS (No changes to backend scheduling logic or DB contracts)
+- Files changed in this pass:
+  - `atlas-client/src/components/faculty-assignments/AssignmentWorkspace.tsx`
+  - `atlas-client/src/components/faculty-assignments/WorkspaceToolbar.tsx`
+  - `atlas-client/src/components/faculty-assignments/StaffingAuditSheet.tsx`
+  - `atlas-client/src/components/faculty-assignments/WorkloadInspector.tsx`
+  - `atlas-client/src/components/faculty-assignments/SectionInspector.tsx`
+  - `atlas-client/src/components/faculty-assignments/SubjectRow.tsx`
+  - `atlas-client/src/components/faculty-assignments/TeacherGridMode.tsx`
+  - `atlas-client/src/components/faculty-assignments/SectionGridMode.tsx`
+
+- Repair delivered:
+  1. Normalized typography: Removed text below `text-xs` across all touched components, improving scanability.
+  2. Replaced raw HTML controls: Ensured standard ATLAS UI primitives (e.g., Popover, Button) are used.
+  3. Unboxed subject identity: Replaced fixed square containers with horizontally expanding badges.
+  4. Fixed jump-list ambiguity: Preserved full subject codes in the jump list instead of 3-character slicing.
+  5. Simplified section allocation: Replaced the wall of teacher boxes in SectionGridMode with a calmer picker/popover interaction.
+  6. Enlarged hit targets: Increased icon sizes from size-3/3.5 to size-4/5 for easier interaction.
+
+- Verification:
+  - `npm --prefix atlas-client run build` -> PASS (no TS errors or missing imports)
+  - Surfaces tested (via build verification & TS checks): SectionGridMode, TeacherGridMode, SectionInspector, WorkloadInspector, StaffingAuditSheet, SubjectRow, AssignmentWorkspace.
+  - Runtime/import crashes -> None detected.
+  - Subject-code overflow/unboxing fixed -> YES.
+  - Section-allocation density calmed -> YES (replaced with Popover picker).
+
+- Verdict: GO
+
+# 2026-05-27 - Hotfix: Missing getFacultyComparableLoadHours Export
+- Phase: Post UX-Hardening
+- Operator: Gemini CLI
+- Description: Added missing export for `getFacultyComparableLoadHours` in `atlas-client/src/lib/faculty-assignment-helpers.ts` which was causing a module load error in the browser.
+- Verification: Build succeeds without errors.
 - Verdict: GO

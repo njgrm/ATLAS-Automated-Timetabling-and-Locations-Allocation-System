@@ -430,7 +430,7 @@ export default function TeachingLoad() {
 							<div className="space-y-1">
 								<div className="flex items-center gap-2">
 									<AlertTriangle className="size-4" />
-									<span className="text-[0.7rem] font-black uppercase tracking-[0.18em]">
+									<span className="text-xs font-black uppercase tracking-widest">
 										{data.splitBrainQuarantineRequired ? 'Teaching Load Lock Active' : 'Teaching Load Review Required'}
 									</span>
 								</div>

@@ -648,8 +648,8 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		}
 		const ids = new Set<number>();
 		for (const e of entries) if (e.roomId) ids.add(e.roomId);
-		if (isPreGen) {
-			for (const [id, room] of roomMap.entries()) if (room.isTeachingSpace) ids.add(id);
+		for (const [id, room] of roomMap.entries()) {
+			if (room.isTeachingSpace) ids.add(id);
 		}
 		return Array.from(ids).sort((a, b) => {
 			const ra = roomMap.get(a);
