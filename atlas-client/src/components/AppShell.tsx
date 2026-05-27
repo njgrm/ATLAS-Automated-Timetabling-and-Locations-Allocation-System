@@ -531,6 +531,10 @@ export function AppShell() {
 	const [activeYearLabel, setActiveYearLabel] = useState<string | null>(null);
 	const [schoolYears, setSchoolYears] = useState<SchoolYear[]>([]);
 	const [selectedYearId, setSelectedYearId] = useState<number | null>(null);
+	const runtimeYearRef = useRef<{ id: number | null; label: string | null }>({
+		id: null,
+		label: null,
+	});
 	const [bridgeUser, setBridgeUser] = useState<BridgeUser | null>(null);
 	const [authSource, setAuthSource] = useState<'bridge' | 'local' | null>(null);
 	const [syOpen, setSyOpen] = useState(false);
@@ -630,8 +634,12 @@ export function AppShell() {
 
 	/* Resolve active school year from ATLAS-owned runtime/cache before EnrollPro branding fetch. */
 	useEffect(() => {
-		resolveActiveSchoolYearContext({ allowStaleOnError: true })
+		resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false })
 			.then((context) => {
+				runtimeYearRef.current = {
+					id: context.activeSchoolYearId,
+					label: context.activeSchoolYearLabel ?? null,
+				};
 				setSelectedYearId(context.activeSchoolYearId);
 				if (context.activeSchoolYearLabel) {
 					setActiveYearLabel(context.activeSchoolYearLabel);
@@ -646,6 +654,8 @@ export function AppShell() {
 	useEffect(() => {
 		fetchPublicSettings()
 			.then((s) => {
+				const runtimeYearId = runtimeYearRef.current.id;
+				const runtimeYearLabel = runtimeYearRef.current.label;
 				const raw = s.schoolName || 'High School';
 				const hsLabel = /high\s*school/i.test(raw) ? raw : `${raw}`;
 				const nextSchoolName = `ATLAS ${hsLabel}`;
@@ -665,15 +675,22 @@ export function AppShell() {
 					link.href = faviconUrl;
 				}
 
-				// Fetch school years list + active label
-				if (s.activeSchoolYearId) setSelectedYearId(s.activeSchoolYearId);
-				if (s.activeSchoolYearLabel) setActiveYearLabel(s.activeSchoolYearLabel);
-				cacheActiveSchoolYearContext(s.activeSchoolYearId ?? null, s.activeSchoolYearLabel ?? null);
+				// Keep runtime-context active year authoritative; only use settings as fallback.
+				if (!runtimeYearId && s.activeSchoolYearId) {
+					setSelectedYearId(s.activeSchoolYearId);
+				}
+				if (!runtimeYearLabel && s.activeSchoolYearLabel) {
+					setActiveYearLabel(s.activeSchoolYearLabel);
+				}
+				if (!runtimeYearId) {
+					cacheActiveSchoolYearContext(s.activeSchoolYearId ?? null, s.activeSchoolYearLabel ?? null);
+				}
 				fetchSchoolYears().then((years) => {
 					setSchoolYears(years);
-					// If settings/public didn't have the label, fall back to the years list
-					if (!s.activeSchoolYearLabel) {
-						const active = years.find((y) => y.id === s.activeSchoolYearId);
+					// If runtime/settings did not have a label, fall back to the years list.
+					if (!runtimeYearLabel && !s.activeSchoolYearLabel) {
+						const effectiveYearId = runtimeYearId ?? s.activeSchoolYearId;
+						const active = years.find((y) => y.id === effectiveYearId);
 						if (active) setActiveYearLabel(active.yearLabel);
 					}
 				});

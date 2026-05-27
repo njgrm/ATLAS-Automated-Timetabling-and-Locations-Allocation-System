@@ -214,6 +214,17 @@ type AssignmentLaneImpact = {
 
 export type TeachingLoadAssignmentKind = 'REAL_OWNERSHIP' | 'BASELINE_ONLY' | 'MISSING_OWNERSHIP';
 
+type AssignmentOwnedSectionScopeResolution = {
+  storedRelevantCurrentYearSectionIds: number[];
+  ownedCurrentYearSectionIds: number[];
+  storedOutOfSubjectScopeSectionIds: number[];
+  ownedOutOfSubjectScopeSectionIds: number[];
+  outOfSubjectScopeSectionIds: number[];
+  missingOwnershipSectionCount: number;
+  ownershipWithoutScopeSectionCount: number;
+  outOfSubjectScopeSectionCount: number;
+};
+
 export interface TeachingLoadCoverageTotals {
   assignedPairs: number;
   activeAssignedPairs: number;
@@ -248,6 +259,8 @@ export interface TeachingLoadIntegrityDiagnostics {
   currentYearOwnershipWithoutMatchingScope: number;
   currentYearMissingOwnershipPairs: number;
   currentYearOwnershipWithoutMatchingScopePairs: number;
+  currentYearOutOfSubjectScopeRows: number;
+  currentYearOutOfSubjectScopePairs: number;
   staleOwnershipRowCount: number;
   staleOwnedCurrentYearPairCount: number;
   stalePlaceholderPairCount: number;
@@ -255,6 +268,7 @@ export interface TeachingLoadIntegrityDiagnostics {
   emptySectionSamples: TeachingLoadIntegrityDiagnosticRow[];
   missingOwnershipSamples: TeachingLoadIntegrityDiagnosticRow[];
   ownershipWithoutScopeSamples: TeachingLoadIntegrityDiagnosticRow[];
+  outOfSubjectScopeSamples: TeachingLoadIntegrityDiagnosticRow[];
   staleOwnershipSamples: TeachingLoadStaleOwnershipSample[];
   quarantinedZombieCount: number;
   quarantinedZombieSamples: TeachingLoadIntegrityDiagnosticRow[];
@@ -427,6 +441,8 @@ export interface TeachingLoadTruthReconcileResult {
   rowsWithEmptySectionIds: number;
   rowsWithMissingOwnership: number;
   rowsWithOwnershipWithoutScope: number;
+  rowsWithOutOfSubjectScope: number;
+  outOfSubjectScopePairCount: number;
   rowsToUpdate: number;
   updatedRows: number;
   sampleUpdates: Array<{
@@ -435,6 +451,7 @@ export interface TeachingLoadTruthReconcileResult {
     subjectId: number;
     previousCurrentYearSectionCount: number;
     nextCurrentYearSectionCount: number;
+    outOfSubjectScopeSectionCount: number;
   }>;
 }
 
@@ -500,6 +517,52 @@ function normalizeRotationTermLaneKey(termRank: number | null): number {
 
 function buildRotationConcurrentLaneId(rotationFamily: string, termRank: number | null, unit: number): string {
   return `family:${rotationFamily}:term:${normalizeRotationTermLaneKey(termRank)}:${unit}`;
+}
+
+function parseRotationConcurrentLaneKey(laneKey: string): { family: string; termKey: number } | null {
+  const match = /^family:([^:]+):term:(\d+):\d+$/.exec(laneKey);
+  if (!match) {
+    return null;
+  }
+  return {
+    family: match[1],
+    termKey: Number(match[2]),
+  };
+}
+
+function estimateProjectedRotationFamilyPeakMinutes(
+  lanes: Map<string, number>,
+  laneKey: string,
+  nextLaneMinutes: number,
+): number {
+  const descriptor = parseRotationConcurrentLaneKey(laneKey);
+  if (!descriptor) {
+    return 0;
+  }
+
+  const termTotals = new Map<number, number>();
+  for (const [key, laneMinutes] of lanes.entries()) {
+    const laneDescriptor = parseRotationConcurrentLaneKey(key);
+    if (!laneDescriptor || laneDescriptor.family !== descriptor.family) {
+      continue;
+    }
+    termTotals.set(
+      laneDescriptor.termKey,
+      (termTotals.get(laneDescriptor.termKey) ?? 0) + Math.max(0, Number(laneMinutes) || 0),
+    );
+  }
+
+  const currentLaneMinutes = lanes.get(laneKey) ?? 0;
+  const laneIncrease = Math.max(0, Math.max(0, Number(nextLaneMinutes) || 0) - currentLaneMinutes);
+  termTotals.set(descriptor.termKey, (termTotals.get(descriptor.termKey) ?? 0) + laneIncrease);
+
+  let peak = 0;
+  for (const total of termTotals.values()) {
+    if (total > peak) {
+      peak = total;
+    }
+  }
+  return peak;
 }
 
 function resolveDominantRotationBucket(
@@ -1210,7 +1273,7 @@ async function loadCoverageContext(schoolId: number, schoolYearId: number, authT
   const [sectionResult, subjects, ownerships, facultyIndex] = await Promise.all([
     fetchSectionsForCoverage(schoolId, schoolYearId, authToken),
     prisma.subject.findMany({
-      where: { schoolId, isActive: true },
+      where: { schoolId, isActive: true, code: { not: HG_SUBJECT_CODE } },
       select: {
         id: true,
         code: true,
@@ -2048,6 +2111,8 @@ export async function previewOrApplyRealFacultyRecovery(
   const subjectCountBySubjectAndFaculty = new Map<number, Map<number, number>>();
   const rotationLaneCountBySubjectAndFaculty = new Map<string, Map<number, number>>();
   const rotationLaneKeyBySubjectId = new Map<number, string | null>();
+  const rotationFamilyBySubjectId = new Map<number, string | null>();
+  const rotationFamilyCountByFamilyAndFaculty = new Map<string, Map<number, number>>();
 
   const incrementNestedCount = (
     outerMap: Map<number | string, Map<number, number>>,
@@ -2092,6 +2157,7 @@ export async function previewOrApplyRealFacultyRecovery(
       subject.id,
       family ? `${family}:term:${normalizeRotationTermLaneKey(termMetadata.termRank)}` : null,
     );
+    rotationFamilyBySubjectId.set(subject.id, family);
   }
 
   for (const row of targetRows) {
@@ -2102,6 +2168,10 @@ export async function previewOrApplyRealFacultyRecovery(
     const laneKey = rotationLaneKeyBySubjectId.get(row.subjectId);
     if (laneKey) {
       incrementNestedCount(rotationLaneCountBySubjectAndFaculty as Map<number | string, Map<number, number>>, laneKey, row.facultyId, 1);
+    }
+    const family = rotationFamilyBySubjectId.get(row.subjectId);
+    if (family) {
+      incrementNestedCount(rotationFamilyCountByFamilyAndFaculty as Map<number | string, Map<number, number>>, family, row.facultyId, 1);
     }
   }
 
@@ -2181,6 +2251,29 @@ export async function previewOrApplyRealFacultyRecovery(
       continue;
     }
 
+    const family = resolveLoadRotationFamily({
+      id: subject.id,
+      code: subject.code,
+      modularGroupId: subject.modularGroupId,
+      modularOrder: subject.modularOrder,
+      termGroupId: subject.termGroupId,
+      termCount: subject.termCount,
+      rotationFamily: subject.rotationFamily,
+      minMinutesPerWeek: subject.minMinutesPerWeek,
+    });
+    const termMetadata = resolveRotationTermMetadata({
+      subjectCode: subject.code,
+      rotationFamily: family,
+      modularGroupId: subject.modularGroupId,
+      modularOrder: subject.modularOrder,
+      termGroupId: subject.termGroupId,
+      termCount: subject.termCount,
+    });
+    const laneKey = family
+      ? buildRotationConcurrentLaneId(family, termMetadata.termRank, pair.sectionId)
+      : `subject:${subject.id}:${pair.sectionId}`;
+    const perUnitMinutes = Math.max(0, Number(subject.minMinutesPerWeek) || 0);
+
     const candidates = candidateFacultyRows
       .filter((member) =>
         matchesSubjectOwnershipDepartment(
@@ -2197,6 +2290,23 @@ export async function previewOrApplyRealFacultyRecovery(
         const rightSubjectLoad = subjectCountBySubjectAndFaculty.get(subject.id)?.get(right.id) ?? 0;
         if (leftSubjectLoad !== rightSubjectLoad) {
           return leftSubjectLoad - rightSubjectLoad;
+        }
+
+        const rotationFamily = rotationFamilyBySubjectId.get(subject.id);
+        if (rotationFamily) {
+          const leftFamilyLoad = rotationFamilyCountByFamilyAndFaculty.get(rotationFamily)?.get(left.id) ?? 0;
+          const rightFamilyLoad = rotationFamilyCountByFamilyAndFaculty.get(rotationFamily)?.get(right.id) ?? 0;
+          if (leftFamilyLoad !== rightFamilyLoad) {
+            return leftFamilyLoad - rightFamilyLoad;
+          }
+        }
+
+        const leftLanes = lanesByFaculty.get(left.id) ?? new Map<string, number>();
+        const rightLanes = lanesByFaculty.get(right.id) ?? new Map<string, number>();
+        const leftProjectedFamilyPeakMinutes = estimateProjectedRotationFamilyPeakMinutes(leftLanes, laneKey, perUnitMinutes);
+        const rightProjectedFamilyPeakMinutes = estimateProjectedRotationFamilyPeakMinutes(rightLanes, laneKey, perUnitMinutes);
+        if (leftProjectedFamilyPeakMinutes !== rightProjectedFamilyPeakMinutes) {
+          return leftProjectedFamilyPeakMinutes - rightProjectedFamilyPeakMinutes;
         }
 
         const rotationLaneKey = rotationLaneKeyBySubjectId.get(subject.id);
@@ -2223,29 +2333,6 @@ export async function previewOrApplyRealFacultyRecovery(
       });
       continue;
     }
-
-    const family = resolveLoadRotationFamily({
-      id: subject.id,
-      code: subject.code,
-      modularGroupId: subject.modularGroupId,
-      modularOrder: subject.modularOrder,
-      termGroupId: subject.termGroupId,
-      termCount: subject.termCount,
-      rotationFamily: subject.rotationFamily,
-      minMinutesPerWeek: subject.minMinutesPerWeek,
-    });
-    const termMetadata = resolveRotationTermMetadata({
-      subjectCode: subject.code,
-      rotationFamily: family,
-      modularGroupId: subject.modularGroupId,
-      modularOrder: subject.modularOrder,
-      termGroupId: subject.termGroupId,
-      termCount: subject.termCount,
-    });
-    const laneKey = family
-      ? buildRotationConcurrentLaneId(family, termMetadata.termRank, pair.sectionId)
-      : `subject:${subject.id}:${pair.sectionId}`;
-    const perUnitMinutes = Math.max(0, Number(subject.minMinutesPerWeek) || 0);
 
     let selectedCandidate: (typeof candidates)[number] | null = null;
     let selectedDeltaMinutes = 0;
@@ -2307,11 +2394,18 @@ export async function previewOrApplyRealFacultyRecovery(
     if (rotationLaneKey) {
       incrementNestedCount(rotationLaneCountBySubjectAndFaculty as Map<number | string, Map<number, number>>, rotationLaneKey, selectedCandidate.id, 1);
     }
+    const rotationFamily = rotationFamilyBySubjectId.get(pair.subjectId);
+    if (rotationFamily) {
+      incrementNestedCount(rotationFamilyCountByFamilyAndFaculty as Map<number | string, Map<number, number>>, rotationFamily, selectedCandidate.id, 1);
+    }
 
     if (pair.fromFacultyId > 0) {
       incrementNestedCount(subjectCountBySubjectAndFaculty as Map<number | string, Map<number, number>>, pair.subjectId, pair.fromFacultyId, -1);
       if (rotationLaneKey) {
         incrementNestedCount(rotationLaneCountBySubjectAndFaculty as Map<number | string, Map<number, number>>, rotationLaneKey, pair.fromFacultyId, -1);
+      }
+      if (rotationFamily) {
+        incrementNestedCount(rotationFamilyCountByFamilyAndFaculty as Map<number | string, Map<number, number>>, rotationFamily, pair.fromFacultyId, -1);
       }
     }
   }
@@ -2486,21 +2580,44 @@ export async function previewOrApplyRealFacultyRecovery(
     });
   }
 
-  if ((afterSummary.integrityDiagnostics.currentYearMissingOwnershipPairs ?? 0) > 0) {
-    blockers.push({
-      subjectCode: 'INTEGRITY',
-      sectionId: 0,
-      category: 'UNRESOLVED_AUTOMATION_SEED_BIAS',
-      reason: `Found ${afterSummary.integrityDiagnostics.currentYearMissingOwnershipPairs} current-year missing ownership pairs.`,
-    });
+  const integrityDiagnostics = afterSummary.integrityDiagnostics;
+  const addIntegrityBlockerSamples = (
+    samples: TeachingLoadIntegrityDiagnosticRow[] | undefined,
+    reasonPrefix: string,
+    fallbackSubjectCode: string,
+  ) => {
+    for (const sample of (samples ?? []).slice(0, 10)) {
+      blockers.push({
+        subjectCode: sample.subjectCode || fallbackSubjectCode,
+        sectionId: 0,
+        category: 'UNRESOLVED_AUTOMATION_SEED_BIAS',
+        reason: `${reasonPrefix} Faculty ${sample.facultyName} has ${sample.sectionCount} affected section pair(s).`,
+      });
+    }
+  };
+
+  if ((integrityDiagnostics.currentYearMissingOwnershipPairs ?? 0) > 0) {
+    addIntegrityBlockerSamples(
+      integrityDiagnostics.missingOwnershipSamples,
+      'Missing ownership pairs remain.',
+      'INTEGRITY_MISSING_OWNERSHIP',
+    );
   }
-  if ((afterSummary.integrityDiagnostics.currentYearOwnershipWithoutMatchingScopePairs ?? 0) > 0) {
-    blockers.push({
-      subjectCode: 'INTEGRITY',
-      sectionId: 0,
-      category: 'UNRESOLVED_AUTOMATION_SEED_BIAS',
-      reason: `Found ${afterSummary.integrityDiagnostics.currentYearOwnershipWithoutMatchingScopePairs} ownership-without-scope pairs.`,
-    });
+
+  if ((integrityDiagnostics.currentYearOwnershipWithoutMatchingScopePairs ?? 0) > 0) {
+    addIntegrityBlockerSamples(
+      integrityDiagnostics.ownershipWithoutScopeSamples,
+      'Ownership exists outside stored assignment scope.',
+      'INTEGRITY_OWNERSHIP_WITHOUT_SCOPE',
+    );
+  }
+
+  if ((integrityDiagnostics.currentYearOutOfSubjectScopePairs ?? 0) > 0) {
+    addIntegrityBlockerSamples(
+      integrityDiagnostics.outOfSubjectScopeSamples,
+      'Subject scope leakage detected.',
+      'INTEGRITY_OUT_OF_SUBJECT_SCOPE',
+    );
   }
 
   const blockerCounts = {
@@ -3711,6 +3828,7 @@ metadata?: {
   ownedCurrentYearSectionCount?: number;
   missingOwnershipSectionCount?: number;
   ownershipWithoutScopeSectionCount?: number;
+  outOfSubjectScopeSectionCount?: number;
   specializationBySectionId?: Map<number, AssignmentSpecializationIdentity>;
   laneImpactBySectionId?: Map<number, AssignmentLaneImpact>;
 },
@@ -3730,7 +3848,67 @@ storedCurrentYearSectionCount: metadata?.storedCurrentYearSectionCount ?? normal
 ownedCurrentYearSectionCount: metadata?.ownedCurrentYearSectionCount ?? normalized.sectionIds.length,
 missingOwnershipSectionCount: metadata?.missingOwnershipSectionCount ?? 0,
 ownershipWithoutScopeSectionCount: metadata?.ownershipWithoutScopeSectionCount ?? 0,
+outOfSubjectScopeSectionCount: metadata?.outOfSubjectScopeSectionCount ?? 0,
 };
+}
+
+function resolveOwnedCurrentYearSectionScope(
+  storedCurrentYearSectionIds: number[],
+  ownedCurrentYearSectionIdsRaw: number[],
+  relevantSectionIds: number[],
+): AssignmentOwnedSectionScopeResolution {
+  const relevantSectionIdSet = new Set(relevantSectionIds);
+  const storedRelevantCurrentYearSectionIds = storedCurrentYearSectionIds
+    .filter((sectionId) => relevantSectionIdSet.has(sectionId))
+    .sort((left, right) => left - right);
+  const storedSectionIdSet = new Set(storedRelevantCurrentYearSectionIds);
+
+  const ownedCurrentYearSectionIds = ownedCurrentYearSectionIdsRaw
+    .filter((sectionId) => relevantSectionIdSet.has(sectionId))
+    .sort((left, right) => left - right);
+
+  const ownedSectionIdSet = new Set(ownedCurrentYearSectionIds);
+  const missingOwnershipSectionCount = storedRelevantCurrentYearSectionIds
+    .filter((sectionId) => !ownedSectionIdSet.has(sectionId))
+    .length;
+
+  const storedOutOfSubjectScopeSectionIds = storedCurrentYearSectionIds
+    .filter((sectionId) => !relevantSectionIdSet.has(sectionId));
+
+  const ownedOutOfSubjectScopeSectionIds = ownedCurrentYearSectionIdsRaw
+    .filter((sectionId) => !relevantSectionIdSet.has(sectionId));
+
+  const outOfSubjectScopeSectionIds = Array.from(new Set([
+    ...storedOutOfSubjectScopeSectionIds,
+    ...ownedOutOfSubjectScopeSectionIds,
+  ])).sort((left, right) => left - right);
+
+  const ownershipWithoutStoredScopeCount = ownedCurrentYearSectionIds
+    .filter((sectionId) => !storedSectionIdSet.has(sectionId))
+    .length;
+
+  return {
+    storedRelevantCurrentYearSectionIds,
+    ownedCurrentYearSectionIds,
+    storedOutOfSubjectScopeSectionIds,
+    ownedOutOfSubjectScopeSectionIds,
+    outOfSubjectScopeSectionIds,
+    missingOwnershipSectionCount,
+    ownershipWithoutScopeSectionCount: ownershipWithoutStoredScopeCount,
+    outOfSubjectScopeSectionCount: outOfSubjectScopeSectionIds.length,
+  };
+}
+
+export function __testResolveOwnedCurrentYearSectionScope(
+  storedCurrentYearSectionIds: number[],
+  ownedCurrentYearSectionIdsRaw: number[],
+  relevantSectionIds: number[],
+): AssignmentOwnedSectionScopeResolution {
+  return resolveOwnedCurrentYearSectionScope(
+    storedCurrentYearSectionIds,
+    ownedCurrentYearSectionIdsRaw,
+    relevantSectionIds,
+  );
 }
 
 async function buildRosterIndex(schoolId: number, schoolYearId: number, authToken?: string) {
@@ -3839,6 +4017,9 @@ subject: {
     id: true,
     name: true,
     code: true,
+    isActive: true,
+    gradeLevels: true,
+    programScopes: true,
     modularGroupId: true,
     modularOrder: true,
     termGroupId: true,
@@ -3885,24 +4066,40 @@ for (const row of ownershipRows) {
 const sectionDisplayOrderMap = new Map<number, number>(
   Array.from(rosterIndex.sectionMap.values()).map((section) => [section.id, section.displayOrder]),
 );
+const currentYearSectionScope = Array.from(rosterIndex.sectionMap.values()).map((section) => ({
+  id: section.id,
+  gradeLevel: section.displayOrder,
+  programType: section.programType ?? 'REGULAR',
+}));
+const schedulableAssignments = assignments.filter(
+  (assignment) => assignment.subject.isActive && assignment.subject.code !== HG_SUBJECT_CODE,
+);
 const laneImpactByPair = buildAssignmentLaneImpactByPair(
-  assignments.map((assignment) => ({
+  schedulableAssignments.map((assignment) => ({
     subjectId: assignment.subjectId,
     sectionIds: assignment.sectionIds,
     subject: assignment.subject,
   })),
 );
 
-const assignmentResponses = assignments.map((assignment) => {
+const assignmentResponses = schedulableAssignments.map((assignment) => {
 const storedCurrentYearSectionIds = assignment.sectionIds
   .filter((sectionId) => currentYearSectionIdSet.has(sectionId))
   .sort((left, right) => left - right);
-const ownedCurrentYearSectionIds = Array.from(ownershipByFacultySubjectId.get(assignment.id) ?? [])
+const ownedCurrentYearSectionIdsRaw = Array.from(ownershipByFacultySubjectId.get(assignment.id) ?? [])
   .sort((left, right) => left - right);
-const ownedSectionIdSet = new Set(ownedCurrentYearSectionIds);
-const storedSectionIdSet = new Set(storedCurrentYearSectionIds);
-const missingOwnershipSectionCount = storedCurrentYearSectionIds.filter((sectionId) => !ownedSectionIdSet.has(sectionId)).length;
-const ownershipWithoutScopeSectionCount = ownedCurrentYearSectionIds.filter((sectionId) => !storedSectionIdSet.has(sectionId)).length;
+const relevantSectionIds = getRelevantSectionIdsForSubject(assignment.subject, currentYearSectionScope);
+const {
+  storedRelevantCurrentYearSectionIds,
+  ownedCurrentYearSectionIds,
+  missingOwnershipSectionCount,
+  ownershipWithoutScopeSectionCount,
+  outOfSubjectScopeSectionCount,
+} = resolveOwnedCurrentYearSectionScope(
+  storedCurrentYearSectionIds,
+  ownedCurrentYearSectionIdsRaw,
+  relevantSectionIds,
+);
 
 const normalized = normalizeStoredAssignmentScope(
   {
@@ -3915,16 +4112,17 @@ const normalized = normalizeStoredAssignmentScope(
 
 const assignmentKind: TeachingLoadAssignmentKind = normalized.sectionIds.length > 0
   ? 'REAL_OWNERSHIP'
-  : storedCurrentYearSectionIds.length > 0
+  : storedRelevantCurrentYearSectionIds.length > 0
     ? 'MISSING_OWNERSHIP'
     : 'BASELINE_ONLY';
 
 return toAssignmentResponse(assignment, normalized, {
   assignmentKind,
-  storedCurrentYearSectionCount: storedCurrentYearSectionIds.length,
+  storedCurrentYearSectionCount: storedRelevantCurrentYearSectionIds.length,
   ownedCurrentYearSectionCount: ownedCurrentYearSectionIds.length,
   missingOwnershipSectionCount,
   ownershipWithoutScopeSectionCount,
+  outOfSubjectScopeSectionCount,
   specializationBySectionId: specializationByFacultySubjectId.get(assignment.id),
   laneImpactBySectionId: new Map(
   ownedCurrentYearSectionIds.map((sectionId) => [
@@ -4287,6 +4485,9 @@ export async function getAssignmentSummary(schoolId: number, schoolYearId: numbe
                 id: true,
                 name: true,
                 code: true,
+                isActive: true,
+                gradeLevels: true,
+                programScopes: true,
                 modularGroupId: true,
                 modularOrder: true,
                 termGroupId: true,
@@ -4342,9 +4543,20 @@ export async function getAssignmentSummary(schoolId: number, schoolYearId: numbe
     ownershipFaculty.map((member) => [member.id, member]),
   );
 
+  const facultySubjectOwnerById = new Map<number, number>();
+  for (const member of faculty) {
+    for (const assignment of member.facultySubjects) {
+      facultySubjectOwnerById.set(assignment.id, member.id);
+    }
+  }
+
   const ownershipByFacultySubjectId = new Map<number, Set<number>>();
   const specializationByFacultySubjectId = new Map<number, Map<number, AssignmentSpecializationIdentity>>();
   for (const row of ownershipRows) {
+    if (facultySubjectOwnerById.get(row.facultySubjectId) !== row.facultyId) {
+      continue;
+    }
+
     const existing = ownershipByFacultySubjectId.get(row.facultySubjectId) ?? new Set<number>();
     existing.add(row.sectionId);
     ownershipByFacultySubjectId.set(row.facultySubjectId, existing);
@@ -4424,6 +4636,8 @@ export async function getAssignmentSummary(schoolId: number, schoolYearId: numbe
   let currentYearOwnershipWithoutMatchingScope = 0;
   let currentYearMissingOwnershipPairs = 0;
   let currentYearOwnershipWithoutMatchingScopePairs = 0;
+  let currentYearOutOfSubjectScopeRows = 0;
+  let currentYearOutOfSubjectScopePairs = 0;
   let staleOwnershipRowCount = 0;
   let quarantinedZombieCount = 0;
   let staleAdvisoryCount = 0;
@@ -4431,6 +4645,7 @@ export async function getAssignmentSummary(schoolId: number, schoolYearId: numbe
   const emptySectionSamples: TeachingLoadIntegrityDiagnosticRow[] = [];
   const missingOwnershipSamples: TeachingLoadIntegrityDiagnosticRow[] = [];
   const ownershipWithoutScopeSamples: TeachingLoadIntegrityDiagnosticRow[] = [];
+  const outOfSubjectScopeSamples: TeachingLoadIntegrityDiagnosticRow[] = [];
   const staleOwnershipSamples: TeachingLoadStaleOwnershipSample[] = [];
   const quarantinedZombieSamples: TeachingLoadIntegrityDiagnosticRow[] = [];
   const staleAdvisorySamples: TeachingLoadIntegrityDiagnosticRow[] = [];
@@ -4519,8 +4734,11 @@ export async function getAssignmentSummary(schoolId: number, schoolYearId: numbe
     })
     .map((member) => {
     const facultyName = formatFacultyName(member.firstName, member.lastName);
+    const schedulableAssignments = member.facultySubjects.filter(
+      (assignment) => assignment.subject.isActive && assignment.subject.code !== HG_SUBJECT_CODE,
+    );
     const laneImpactByPair = buildAssignmentLaneImpactByPair(
-    member.facultySubjects.map((assignment) => ({
+    schedulableAssignments.map((assignment) => ({
       subjectId: assignment.subjectId,
       sectionIds: assignment.sectionIds,
       subject: assignment.subject,
@@ -4532,18 +4750,24 @@ export async function getAssignmentSummary(schoolId: number, schoolYearId: numbe
     let missingOwnershipSubjectCount = 0;
     let ownershipWithoutScopeSubjectCount = 0;
 
-    const assignments = member.facultySubjects.map((assignment) => {
+    const assignments = schedulableAssignments.map((assignment) => {
       const storedCurrentYearSectionIds = assignment.sectionIds
         .filter((sectionId) => currentYearSectionIdSet.has(sectionId))
         .sort((left, right) => left - right);
-      const ownedCurrentYearSectionIds = Array.from(ownershipByFacultySubjectId.get(assignment.id) ?? [])
+      const ownedCurrentYearSectionIdsRaw = Array.from(ownershipByFacultySubjectId.get(assignment.id) ?? [])
         .sort((left, right) => left - right);
-
-      const ownedSectionIdSet = new Set(ownedCurrentYearSectionIds);
-      const storedSectionIdSet = new Set(storedCurrentYearSectionIds);
-
-      const missingOwnershipSectionCount = storedCurrentYearSectionIds.filter((sectionId) => !ownedSectionIdSet.has(sectionId)).length;
-      const ownershipWithoutScopeSectionCount = ownedCurrentYearSectionIds.filter((sectionId) => !storedSectionIdSet.has(sectionId)).length;
+      const relevantSectionIds = getRelevantSectionIdsForSubject(assignment.subject, currentYearSectionScope);
+      const {
+        storedRelevantCurrentYearSectionIds,
+        ownedCurrentYearSectionIds,
+        missingOwnershipSectionCount,
+        ownershipWithoutScopeSectionCount,
+        outOfSubjectScopeSectionCount,
+      } = resolveOwnedCurrentYearSectionScope(
+        storedCurrentYearSectionIds,
+        ownedCurrentYearSectionIdsRaw,
+        relevantSectionIds,
+      );
 
       const normalized = normalizeStoredAssignmentScope(
         {
@@ -4556,7 +4780,7 @@ export async function getAssignmentSummary(schoolId: number, schoolYearId: numbe
 
       const assignmentKind: TeachingLoadAssignmentKind = normalized.sectionIds.length > 0
         ? 'REAL_OWNERSHIP'
-        : storedCurrentYearSectionIds.length > 0
+        : storedRelevantCurrentYearSectionIds.length > 0
           ? 'MISSING_OWNERSHIP'
           : 'BASELINE_ONLY';
 
@@ -4611,12 +4835,27 @@ export async function getAssignmentSummary(schoolId: number, schoolYearId: numbe
         }
       }
 
+      if (outOfSubjectScopeSectionCount > 0) {
+        currentYearOutOfSubjectScopeRows += 1;
+        currentYearOutOfSubjectScopePairs += outOfSubjectScopeSectionCount;
+        if (outOfSubjectScopeSamples.length < maxDiagnosticSamples) {
+          outOfSubjectScopeSamples.push({
+            facultyId: member.id,
+            facultyName,
+            subjectId: assignment.subjectId,
+            subjectCode: assignment.subject.code,
+            sectionCount: outOfSubjectScopeSectionCount,
+          });
+        }
+      }
+
       return toAssignmentResponse(assignment, normalized, {
         assignmentKind,
-        storedCurrentYearSectionCount: storedCurrentYearSectionIds.length,
+        storedCurrentYearSectionCount: storedRelevantCurrentYearSectionIds.length,
         ownedCurrentYearSectionCount: ownedCurrentYearSectionIds.length,
         missingOwnershipSectionCount,
         ownershipWithoutScopeSectionCount,
+        outOfSubjectScopeSectionCount,
         specializationBySectionId: specializationByFacultySubjectId.get(assignment.id),
         laneImpactBySectionId: new Map(
       ownedCurrentYearSectionIds.map((sectionId) => [
@@ -4754,6 +4993,8 @@ export async function getAssignmentSummary(schoolId: number, schoolYearId: numbe
     currentYearOwnershipWithoutMatchingScope,
     currentYearMissingOwnershipPairs,
     currentYearOwnershipWithoutMatchingScopePairs,
+    currentYearOutOfSubjectScopeRows,
+    currentYearOutOfSubjectScopePairs,
     staleOwnershipRowCount,
     staleOwnedCurrentYearPairCount: staleOwnedPairSet.size,
     stalePlaceholderPairCount: stalePlaceholderPairSet.size,
@@ -4761,6 +5002,7 @@ export async function getAssignmentSummary(schoolId: number, schoolYearId: numbe
     emptySectionSamples,
     missingOwnershipSamples,
     ownershipWithoutScopeSamples,
+    outOfSubjectScopeSamples,
     staleOwnershipSamples,
     quarantinedZombieCount,
     quarantinedZombieSamples,
@@ -4796,6 +5038,14 @@ export async function previewOrApplyTeachingLoadTruthReconcile(
         subjectId: true,
         sectionIds: true,
         gradeLevels: true,
+        subject: {
+          select: {
+            code: true,
+            isActive: true,
+            gradeLevels: true,
+            programScopes: true,
+          },
+        },
       },
       orderBy: { id: 'asc' },
     }),
@@ -4823,6 +5073,8 @@ export async function previewOrApplyTeachingLoadTruthReconcile(
   let rowsWithEmptySectionIds = 0;
   let rowsWithMissingOwnership = 0;
   let rowsWithOwnershipWithoutScope = 0;
+  let rowsWithOutOfSubjectScope = 0;
+  let outOfSubjectScopePairCount = 0;
   let rowsToUpdate = 0;
   let updatedRows = 0;
 
@@ -4832,34 +5084,63 @@ export async function previewOrApplyTeachingLoadTruthReconcile(
     subjectId: number;
     previousCurrentYearSectionCount: number;
     nextCurrentYearSectionCount: number;
+    outOfSubjectScopeSectionCount: number;
+    outOfSubjectScopeOwnedSectionIds: number[];
     nextSectionIds: number[];
     nextGradeLevels: number[];
   }> = [];
 
+  const currentYearSectionScope = Array.from(rosterIndex.sectionMap.values()).map((section) => ({
+    id: section.id,
+    gradeLevel: section.displayOrder,
+    programType: section.programType ?? 'REGULAR',
+  }));
+
   for (const row of facultySubjects) {
+    if (!row.subject?.isActive || row.subject.code === HG_SUBJECT_CODE) {
+      continue;
+    }
+
     const storedCurrentYearSectionIds = row.sectionIds
       .filter((sectionId) => currentYearSectionIdSet.has(sectionId))
       .sort((left, right) => left - right);
-    const ownedCurrentYearSectionIds = Array.from(ownershipByFacultySubjectId.get(row.id) ?? [])
+    const ownedCurrentYearSectionIdsRaw = Array.from(ownershipByFacultySubjectId.get(row.id) ?? [])
       .sort((left, right) => left - right);
+
+    const relevantSectionIds = getRelevantSectionIdsForSubject(row.subject, currentYearSectionScope);
+    const {
+      storedRelevantCurrentYearSectionIds,
+      ownedCurrentYearSectionIds,
+      missingOwnershipSectionCount,
+      ownershipWithoutScopeSectionCount,
+      outOfSubjectScopeSectionCount,
+      ownedOutOfSubjectScopeSectionIds,
+    } = resolveOwnedCurrentYearSectionScope(
+      storedCurrentYearSectionIds,
+      ownedCurrentYearSectionIdsRaw,
+      relevantSectionIds,
+    );
 
     if (row.sectionIds.length === 0) {
       rowsWithEmptySectionIds += 1;
     }
 
-    const storedSet = new Set(storedCurrentYearSectionIds);
-    const ownedSet = new Set(ownedCurrentYearSectionIds);
-    const missingOwnershipCount = storedCurrentYearSectionIds.filter((sectionId) => !ownedSet.has(sectionId)).length;
-    const ownershipWithoutScopeCount = ownedCurrentYearSectionIds.filter((sectionId) => !storedSet.has(sectionId)).length;
-
-    if (missingOwnershipCount > 0) {
+    if (missingOwnershipSectionCount > 0) {
       rowsWithMissingOwnership += 1;
     }
-    if (ownershipWithoutScopeCount > 0) {
+    if (ownershipWithoutScopeSectionCount > 0) {
       rowsWithOwnershipWithoutScope += 1;
     }
+    if (outOfSubjectScopeSectionCount > 0) {
+      rowsWithOutOfSubjectScope += 1;
+      outOfSubjectScopePairCount += outOfSubjectScopeSectionCount;
+    }
 
-    if (missingOwnershipCount === 0 && ownershipWithoutScopeCount === 0) {
+    if (
+      missingOwnershipSectionCount === 0
+      && ownershipWithoutScopeSectionCount === 0
+      && outOfSubjectScopeSectionCount === 0
+    ) {
       continue;
     }
 
@@ -4873,8 +5154,10 @@ export async function previewOrApplyTeachingLoadTruthReconcile(
       facultySubjectId: row.id,
       facultyId: row.facultyId,
       subjectId: row.subjectId,
-      previousCurrentYearSectionCount: storedCurrentYearSectionIds.length,
+      previousCurrentYearSectionCount: storedRelevantCurrentYearSectionIds.length,
       nextCurrentYearSectionCount: ownedCurrentYearSectionIds.length,
+      outOfSubjectScopeSectionCount,
+  		outOfSubjectScopeOwnedSectionIds: ownedOutOfSubjectScopeSectionIds,
       nextSectionIds,
       nextGradeLevels,
     });
@@ -4883,6 +5166,16 @@ export async function previewOrApplyTeachingLoadTruthReconcile(
   if (input.previewOnly === false && updates.length > 0) {
     await prisma.$transaction(async (tx) => {
       for (const update of updates) {
+        if (update.outOfSubjectScopeOwnedSectionIds.length > 0) {
+          await tx.subjectSectionOwnership.deleteMany({
+            where: {
+              schoolId: input.schoolId,
+              facultySubjectId: update.facultySubjectId,
+              sectionId: { in: update.outOfSubjectScopeOwnedSectionIds },
+            },
+          });
+        }
+
         await tx.facultySubject.update({
           where: { id: update.facultySubjectId },
           data: {
@@ -4903,6 +5196,7 @@ export async function previewOrApplyTeachingLoadTruthReconcile(
       subjectId: update.subjectId,
       previousCurrentYearSectionCount: update.previousCurrentYearSectionCount,
       nextCurrentYearSectionCount: update.nextCurrentYearSectionCount,
+      outOfSubjectScopeSectionCount: update.outOfSubjectScopeSectionCount,
     }));
 
   return {
@@ -4913,6 +5207,8 @@ export async function previewOrApplyTeachingLoadTruthReconcile(
     rowsWithEmptySectionIds,
     rowsWithMissingOwnership,
     rowsWithOwnershipWithoutScope,
+    rowsWithOutOfSubjectScope,
+    outOfSubjectScopePairCount,
     rowsToUpdate,
     updatedRows,
     sampleUpdates,

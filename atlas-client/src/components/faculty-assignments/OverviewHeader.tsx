@@ -5,6 +5,21 @@ import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
 import { Tabs, TabsList, TabsTrigger } from '@/ui/tabs';
 
+import {
+	ExternalSection,
+	HomeroomHintResponse,
+	SectionSummaryResponse,
+	Subject,
+	FacultyAssignmentRecord,
+	FacultySummary,
+	TeachingLoadCoverageTotals,
+	TeachingLoadIntegrityDiagnostics,
+	RotationFamilyLoadDetail,
+	RotationFamilyTermBreakdown,
+	SpecialProgramRebalancePreviewResult,
+	TeachingLoadSplitBrainReconcileResult,
+} from '@/types';
+
 type OverviewHeaderProps = {
 	realAssignedPairs: number;
 	syntheticPlaceholderPairs: number;
@@ -21,10 +36,11 @@ type OverviewHeaderProps = {
 	onViewStaffingNeedsClick: () => void;
 	viewMode?: string;
 	onViewModeChange?: (value: string) => void;
-	dataSource?: 'live' | 'cached' | 'none';
+	dataSource?: 'live' | 'cached' | 'refreshing' | 'none';
 	degradedWriteEnabled?: boolean;
 	isOnline?: boolean;
 	dataSourceNotice?: string | null;
+	splitBrainIncident?: TeachingLoadSplitBrainReconcileResult | null;
 };
 
 export function OverviewHeader({
@@ -46,11 +62,19 @@ export function OverviewHeader({
 	degradedWriteEnabled = false,
 	isOnline = true,
 	dataSourceNotice = null,
+	splitBrainIncident = null,
 }: OverviewHeaderProps & { departmentStats?: { name: string; percent: number }[] }) {
 	const completenessPercent = totalPairs > 0 ? Math.round(((realAssignedPairs + syntheticPlaceholderPairs) / totalPairs) * 100) : 0;
 
 	const statusConfig = useMemo(() => {
 		if (!isOnline) return { label: 'Working Offline', color: 'bg-amber-500', description: 'Disconnected from EnrollPro. Changes are saved locally and will sync when you reconnect.' };
+		if (dataSource === 'refreshing') {
+			return {
+				label: 'Verifying Live Source',
+				color: 'bg-blue-500 animate-pulse',
+				description: dataSourceNotice ?? 'Showing cached data while ATLAS verifies active school-year and live assignment evidence.',
+			};
+		}
 		if (dataSource === 'live') return { label: 'Verified Live', color: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]', description: 'Freshly verified with EnrollPro. All changes are synced immediately.' };
 		if (degradedWriteEnabled) {
 			return {
@@ -65,6 +89,15 @@ export function OverviewHeader({
 			description: dataSourceNotice ?? 'Viewing ATLAS-saved section evidence in read-only mode.',
 		};
 	}, [isOnline, dataSource, degradedWriteEnabled, dataSourceNotice]);
+
+	const showReviewBadge = useMemo(() => {
+		if (!splitBrainIncident) return false;
+		if (splitBrainIncident.quarantine.required) return false;
+		if (splitBrainIncident.counters.truthRowsToUpdate > 0) return false;
+		if ((splitBrainIncident.counters.integrityMissingOwnershipPairs ?? 0) > 0) return false;
+		if ((splitBrainIncident.counters.integrityOwnershipWithoutScopePairs ?? 0) > 0) return false;
+		return splitBrainIncident.quarantine.severity === 'WARNING';
+	}, [splitBrainIncident]);
 
 	return (
 		<div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 rounded-xl border border-border/40 bg-background px-3 py-1 shadow-sm">
@@ -81,6 +114,30 @@ export function OverviewHeader({
 						{statusConfig.description}
 					</TooltipContent>
 				</Tooltip>
+
+				{showReviewBadge && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={onViewStaffingNeedsClick}
+								className="h-6 px-2 gap-1.5 bg-amber-50 border border-amber-100 text-amber-700 hover:bg-amber-100/50"
+							>
+								<Info className="size-3" />
+								<span className="text-[0.6rem] font-black uppercase tracking-tight">Review Required</span>
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent side="bottom" className="text-[0.65rem] font-bold max-w-[200px]">
+							{splitBrainIncident?.quarantine.message}
+							<div className="mt-1 flex items-center gap-2 opacity-70">
+								<span>{splitBrainIncident?.counters.loadReviewRows ?? 0} Overloads</span>
+								<span>*</span>
+								<span>{splitBrainIncident?.counters.specialProgramApprovalCandidates} Special Programs</span>
+							</div>
+						</TooltipContent>
+					</Tooltip>
+				)}
 
 				<div className="h-5 w-px bg-border/40 hidden xl:inline" />
 

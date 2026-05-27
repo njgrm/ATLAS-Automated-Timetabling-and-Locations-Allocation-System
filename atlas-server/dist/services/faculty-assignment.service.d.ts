@@ -111,6 +111,16 @@ export type AssignmentSpecializationIdentity = {
     specializationLabel: string | null;
 };
 export type TeachingLoadAssignmentKind = 'REAL_OWNERSHIP' | 'BASELINE_ONLY' | 'MISSING_OWNERSHIP';
+type AssignmentOwnedSectionScopeResolution = {
+    storedRelevantCurrentYearSectionIds: number[];
+    ownedCurrentYearSectionIds: number[];
+    storedOutOfSubjectScopeSectionIds: number[];
+    ownedOutOfSubjectScopeSectionIds: number[];
+    outOfSubjectScopeSectionIds: number[];
+    missingOwnershipSectionCount: number;
+    ownershipWithoutScopeSectionCount: number;
+    outOfSubjectScopeSectionCount: number;
+};
 export interface TeachingLoadCoverageTotals {
     assignedPairs: number;
     activeAssignedPairs: number;
@@ -142,6 +152,8 @@ export interface TeachingLoadIntegrityDiagnostics {
     currentYearOwnershipWithoutMatchingScope: number;
     currentYearMissingOwnershipPairs: number;
     currentYearOwnershipWithoutMatchingScopePairs: number;
+    currentYearOutOfSubjectScopeRows: number;
+    currentYearOutOfSubjectScopePairs: number;
     staleOwnershipRowCount: number;
     staleOwnedCurrentYearPairCount: number;
     stalePlaceholderPairCount: number;
@@ -149,6 +161,7 @@ export interface TeachingLoadIntegrityDiagnostics {
     emptySectionSamples: TeachingLoadIntegrityDiagnosticRow[];
     missingOwnershipSamples: TeachingLoadIntegrityDiagnosticRow[];
     ownershipWithoutScopeSamples: TeachingLoadIntegrityDiagnosticRow[];
+    outOfSubjectScopeSamples: TeachingLoadIntegrityDiagnosticRow[];
     staleOwnershipSamples: TeachingLoadStaleOwnershipSample[];
     quarantinedZombieCount: number;
     quarantinedZombieSamples: TeachingLoadIntegrityDiagnosticRow[];
@@ -313,6 +326,8 @@ export interface TeachingLoadTruthReconcileResult {
     rowsWithEmptySectionIds: number;
     rowsWithMissingOwnership: number;
     rowsWithOwnershipWithoutScope: number;
+    rowsWithOutOfSubjectScope: number;
+    outOfSubjectScopePairCount: number;
     rowsToUpdate: number;
     updatedRows: number;
     sampleUpdates: Array<{
@@ -321,6 +336,7 @@ export interface TeachingLoadTruthReconcileResult {
         subjectId: number;
         previousCurrentYearSectionCount: number;
         nextCurrentYearSectionCount: number;
+        outOfSubjectScopeSectionCount: number;
     }>;
 }
 export declare function computeTeachingLoadMinutes(assignments: AssignmentLoadShape[], formula: TeachingLoadFormula): number;
@@ -547,6 +563,7 @@ export declare function resolveAssignmentSpecializationIdentity(input: {
     allowedSpecializations?: string[] | null | undefined;
     facultySpecialization?: string | null | undefined;
 }): AssignmentSpecializationIdentity;
+export declare function __testResolveOwnedCurrentYearSectionScope(storedCurrentYearSectionIds: number[], ownedCurrentYearSectionIdsRaw: number[], relevantSectionIds: number[]): AssignmentOwnedSectionScopeResolution;
 export declare function getAssignmentsByFaculty(facultyId: number, schoolYearId: number, authToken?: string): Promise<{
     facultyId: number;
     version: number;
@@ -571,6 +588,7 @@ export declare function getAssignmentsByFaculty(facultyId: number, schoolYearId:
         ownedCurrentYearSectionCount: number;
         missingOwnershipSectionCount: number;
         ownershipWithoutScopeSectionCount: number;
+        outOfSubjectScopeSectionCount: number;
         id: number;
         facultyId: number;
         subjectId: number;
@@ -655,6 +673,7 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
             ownedCurrentYearSectionCount: number;
             missingOwnershipSectionCount: number;
             ownershipWithoutScopeSectionCount: number;
+            outOfSubjectScopeSectionCount: number;
             id: number;
             facultyId: number;
             subjectId: number;

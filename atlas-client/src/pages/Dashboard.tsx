@@ -24,7 +24,7 @@ import {
 import { BuildingView, ROOM_COLORS, ROOM_TYPE_LABELS } from '@/components/BuildingView';
 import { RoomScheduleOverlay } from '@/components/RoomScheduleOverlay';
 import atlasApi from '@/lib/api';
-import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { resolveActiveSchoolYearContext, isUpstreamBackedSchoolYearSource } from '@/lib/enrollpro-public-settings';
 import type { Building, Room, RoomScheduleView } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -139,9 +139,9 @@ export default function Dashboard() {
 					.then((fRes) => setFacultyCount(fRes.data.faculty.length))
 					.catch(() => setFacultyCount(null));
 				// Section count from ATLAS runtime context
-				resolveActiveSchoolYearContext({ allowStaleOnError: true })
+				resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false })
 					.then((context) => {
-						setDataSource(context.source === 'enrollpro' || context.source === 'enrollpro-verified' ? 'live' : 'cached');
+						setDataSource(isUpstreamBackedSchoolYearSource(context.source) ? 'live' : 'cached');
 						if (!context.activeSchoolYearId) { setSectionCount(null); return; }
 						return atlasApi.get<{ totalSections: number; sections: any[] }>(`/sections/summary/${context.activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`);
 					})
@@ -203,7 +203,7 @@ export default function Dashboard() {
 
 		(async () => {
 			try {
-				const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true });
+				const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false });
 				if (!context.activeSchoolYearId || cancelled) { setUtilLoading(false); return; }
 				const syId = context.activeSchoolYearId;
 
@@ -1009,7 +1009,7 @@ function RoomSchedulePreview({ roomId, isTeachingSpace, onExpandSchedule }: { ro
 
 		(async () => {
 			try {
-				const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true });
+				const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false });
 				if (!context.activeSchoolYearId || cancelled) return;
 				const { data } = await atlasApi.get<RoomScheduleView>(
 					`/room-schedules/${DEFAULT_SCHOOL_ID}/${context.activeSchoolYearId}/rooms/${roomId}?source=latest`,

@@ -175,7 +175,10 @@ export default function Subjects() {
 		if (activeSchoolYearId) {
 			return activeSchoolYearId;
 		}
-		const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true });
+		const context = await resolveActiveSchoolYearContext({
+			allowStaleOnError: true,
+			allowEnrollProFallback: false,
+		});
 		if (!context.activeSchoolYearId) {
 			throw new Error('Active school year is not configured.');
 		}

@@ -6,6 +6,12 @@ export type RuntimeContextEvidence = {
     timestamp: string;
     source: string;
 };
+export type RuntimeYearEvidence = {
+    yearId: number;
+    timestamp: Date;
+    type: RuntimeContextEvidenceType;
+    source: string;
+};
 export type RuntimeContextResult = {
     schoolId: number;
     activeSchoolYearId: number;
@@ -20,5 +26,6 @@ export type RuntimeContextResult = {
         matched: boolean | null;
     };
 };
+export declare function pickBestRuntimeYear(evidence: RuntimeYearEvidence[]): RuntimeYearEvidence | null;
 export declare function resolveRuntimeContext(schoolId: number, authToken?: string): Promise<RuntimeContextResult | null>;
 export {};

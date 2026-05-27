@@ -66,7 +66,28 @@ export interface AutoFillResult {
         stillUncoveredSubjectCodes: string[];
     };
 }
-export type TeachingLoadSplitBrainReasonCode = 'ASSIGNED_PAIR_MISMATCH' | 'UNASSIGNED_PAIR_MISMATCH' | 'TOTAL_PAIR_MISMATCH' | 'INTEGRITY_MISSING_OWNERSHIP' | 'INTEGRITY_OWNERSHIP_WITHOUT_SCOPE' | 'STALE_OWNERSHIP_PRESENT' | 'TRUTH_RECONCILE_PENDING' | 'REAL_FACULTY_RECOVERY_PENDING' | 'REAL_FACULTY_RECOVERY_BLOCKERS' | 'SPECIAL_PROGRAM_APPROVAL_REQUIRED';
+export type TeachingLoadSplitBrainReasonCode = 'ASSIGNED_PAIR_MISMATCH' | 'UNASSIGNED_PAIR_MISMATCH' | 'TOTAL_PAIR_MISMATCH' | 'FACULTY_LOAD_OUTLIER' | 'FACULTY_LOAD_REVIEW_REQUIRED' | 'INTEGRITY_MISSING_OWNERSHIP' | 'INTEGRITY_OWNERSHIP_WITHOUT_SCOPE' | 'INTEGRITY_OUT_OF_SUBJECT_SCOPE' | 'STALE_OWNERSHIP_PRESENT' | 'TRUTH_RECONCILE_PENDING' | 'REAL_FACULTY_RECOVERY_PENDING' | 'REAL_FACULTY_RECOVERY_BLOCKERS' | 'SPECIAL_PROGRAM_APPROVAL_REQUIRED';
+export interface TeachingLoadSplitBrainOutlierFacultyRow {
+    facultyId: number;
+    facultyName: string;
+    policyCreditedHours: number;
+    maxHoursPerWeek: number;
+    overloadHours: number;
+    subjectCodes: string[];
+}
+export interface TeachingLoadSplitBrainIntegrityDetailRow {
+    facultyId: number;
+    facultyName: string;
+    subjectId: number;
+    subjectCode: string;
+    sectionCount: number;
+}
+export interface TeachingLoadSplitBrainRecoveryBlocker {
+    subjectCode: string;
+    sectionId: number;
+    category: 'TRUE_DEPARTMENT_SHORTAGE' | 'SKEWED_ASSIGNMENT_TOPOLOGY' | 'UNRESOLVED_AUTOMATION_SEED_BIAS' | 'ROTATION_FAMILY_MODELING_GAP' | 'SUBJECT_CONTRACT_GAP';
+    reason: string;
+}
 export interface TeachingLoadSplitBrainReconcileInput {
     schoolId: number;
     schoolYearId: number;
@@ -107,7 +128,12 @@ export interface TeachingLoadSplitBrainReconcileResult {
         totalPairDelta: number;
         integrityMissingOwnershipPairs: number;
         integrityOwnershipWithoutScopePairs: number;
+        integrityOutOfSubjectScopePairs: number;
         staleOwnedCurrentYearPairs: number;
+        overloadedFacultyRows: number;
+        trueLoadOutlierRows: number;
+        loadReviewRows: number;
+        approvalLinkedLoadRows: number;
         truthRowsToUpdate: number;
         realFacultyMovesPlanned: number;
         realFacultyBlockers: number;
@@ -117,6 +143,8 @@ export interface TeachingLoadSplitBrainReconcileResult {
         truthReconcile: {
             rowsToUpdate: number;
             updatedRows: number;
+            rowsWithOutOfSubjectScope: number;
+            outOfSubjectScopePairCount: number;
         };
         staleReconcile: {
             staleOwnedCurrentYearPairCount: number;
@@ -126,6 +154,15 @@ export interface TeachingLoadSplitBrainReconcileResult {
             placeholderMovesPlanned: number;
             placeholderMovesApplied: number;
             blockerCount: number;
+            blockers: TeachingLoadSplitBrainRecoveryBlocker[];
+        };
+        integrity: {
+            missingOwnershipSamples: TeachingLoadSplitBrainIntegrityDetailRow[];
+            ownershipWithoutScopeSamples: TeachingLoadSplitBrainIntegrityDetailRow[];
+            outOfSubjectScopeSamples: TeachingLoadSplitBrainIntegrityDetailRow[];
+        };
+        loadOutliers: {
+            rows: TeachingLoadSplitBrainOutlierFacultyRow[];
         };
     };
     specialProgramApprovalQueue: TeachingLoadSplitBrainApprovalRequiredCandidate[];
@@ -182,10 +219,26 @@ type CoverageCandidateRankSnapshot = {
     facultyId: number;
     tier: number;
     subjectAssignedCount: number;
-    rotationLaneAssignedCount: number;
+    rotationLaneAssignedCount?: number;
+    rotationFamilyAssignedCount?: number;
+    projectedRotationFamilyPeakMinutes?: number;
     projectedUsedMinutes: number;
 };
 export declare function __testRankCoverageCandidates(candidates: CoverageCandidateRankSnapshot[]): number[];
 export declare function autoFill(schoolId: number, schoolYearId: number, authToken?: string, options?: AutoFillOptions): Promise<AutoFillResult>;
+export declare function __testAggregateSplitBrainCoverageTotals(rows: Array<{
+    subjectCode: string;
+    relevantSectionCount: number;
+    ownedSectionCount: number;
+    uncoveredSectionCount: number;
+}>): {
+    totalPairs: number;
+    assignedPairs: number;
+    unassignedPairs: number;
+};
+export declare function __testResolveSplitBrainQuarantine(reasonCodes: TeachingLoadSplitBrainReasonCode[]): {
+    required: boolean;
+    severity: TeachingLoadSplitBrainReconcileResult["quarantine"]["severity"];
+};
 export declare function previewOrApplyTeachingLoadSplitBrainReconcile(input: TeachingLoadSplitBrainReconcileInput): Promise<TeachingLoadSplitBrainReconcileResult>;
 export {};

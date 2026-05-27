@@ -236,7 +236,7 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 									{specialProgramApprovalQueue.slice(0, 6).map((candidate) => (
 										<div key={`${candidate.subjectCode}:${candidate.facultyId}`} className="rounded-lg border border-amber-200 bg-white/70 px-2 py-1.5 text-[0.65rem] font-semibold">
 											<div className="flex items-center justify-between gap-2">
-												<span className="font-bold text-amber-900">{candidate.subjectCode} • {candidate.facultyName}</span>
+												<span className="font-bold text-amber-900">{candidate.subjectCode} * {candidate.facultyName}</span>
 												<span className="text-amber-700/90">{candidate.currentTotalAssignedPairs} pairs</span>
 											</div>
 											<p className="mt-1 text-amber-800/90">Needs: {candidate.requiredSpecializationCodes.join(', ')}</p>

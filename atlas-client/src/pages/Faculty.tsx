@@ -27,7 +27,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 import { FacultyRow } from '@/components/faculty/FacultyRow';
 import { FacultyProfileSheet } from '@/components/faculty/FacultyProfileSheet';
 import { toast } from 'sonner';
-import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import {
+	resolveActiveSchoolYearContext,
+	type ActiveSchoolYearContextSource,
+	isUpstreamBackedSchoolYearSource,
+} from '@/lib/enrollpro-public-settings';
 import type { SubjectSectionOwnershipIndexEntry } from '@/lib/faculty-assignment-helpers';
 import {
 	getCachedFacultyAssignmentsSummary,
@@ -50,7 +54,7 @@ export default function Faculty() {
 	const [syncError, setSyncError] = useState(false);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [error, setError] = useState<string | null>(null);
-	const [dataSource, setDataSource] = useState<'live' | 'cached' | 'none'>('none');
+	const [dataSource, setDataSource] = useState<'live' | 'cached' | 'refreshing' | 'none'>('none');
 	const [cacheNotice, setCacheNotice] = useState<string | null>(null);
 	const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 	
@@ -79,9 +83,12 @@ export default function Faculty() {
 		setError(null);
 
 		let schoolYearId: number | null = null;
-		let yearContextSource: 'atlas' | 'atlas-persisted' | 'enrollpro-verified' | 'enrollpro' | 'cache' = 'cache';
+		let yearContextSource: ActiveSchoolYearContextSource = 'cache';
 		try {
-			const yearContext = await resolveActiveSchoolYearContext({ forceRefresh });
+			const yearContext = await resolveActiveSchoolYearContext({
+				forceRefresh,
+				allowEnrollProFallback: false,
+			});
 			schoolYearId = yearContext.activeSchoolYearId;
 			yearContextSource = yearContext.source;
 
@@ -92,8 +99,12 @@ export default function Faculty() {
 				if (cachedPreview) {
 					setFaculty(cachedPreview.data.faculty);
 					setLastSyncedAt(cachedPreview.data.fetchedAt);
-					setDataSource('cached');
-					setCacheNotice('Loading live teacher data. Displaying your last saved roster snapshot in the meantime.');
+					setDataSource(isOnline ? 'refreshing' : 'cached');
+					setCacheNotice(
+						isOnline
+							? 'Verifying live teacher data before enabling final status. Displaying your last saved roster snapshot in the meantime.'
+							: 'Offline mode: displaying your last saved roster snapshot.',
+					);
 					setLoading(false);
 				}
 			}
@@ -118,7 +129,7 @@ export default function Faculty() {
 				fetchedAt: data.fetchedAt,
 				schoolYearId,
 			});
-			const isUpstreamBacked = yearContextSource === 'enrollpro' || yearContextSource === 'enrollpro-verified';
+			const isUpstreamBacked = isUpstreamBackedSchoolYearSource(yearContextSource);
 			setDataSource(isUpstreamBacked ? 'live' : 'cached');
 			setCacheNotice(
 				isUpstreamBacked
@@ -313,19 +324,27 @@ export default function Faculty() {
 										<Badge
 											variant={dataSource === 'live' ? 'secondary' : 'outline'}
 											className={`h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold cursor-help ${
-												dataSource === 'cached' ? 'bg-amber-100 text-amber-700 border-amber-200' : ''
+												dataSource === 'cached'
+													? 'bg-amber-100 text-amber-700 border-amber-200'
+													: dataSource === 'refreshing'
+													? 'bg-blue-50 text-blue-700 border-blue-200 animate-pulse'
+													: ''
 											}`}
 										>
 											{dataSource === 'live'
 												? 'Verified with EnrollPro'
+												: dataSource === 'refreshing'
+												? 'Verifying runtime...'
 												: dataSource === 'cached'
 												? 'Working from saved data'
 												: 'No Saved Data'}
 										</Badge>
 									</TooltipTrigger>
 									<TooltipContent side="bottom" className="text-[0.65rem] font-semibold p-2">
-										{dataSource === 'live' 
-											? 'Data freshly verified with EnrollPro.' 
+										{dataSource === 'live'
+											? 'Data freshly verified with EnrollPro.'
+											: dataSource === 'refreshing'
+											? 'Checking runtime active school-year and live roster evidence.'
 											: 'Using data saved in ATLAS. Changes will sync when EnrollPro returns.'}
 									</TooltipContent>
 								</Tooltip>
@@ -410,12 +429,18 @@ export default function Faculty() {
 				</div>
 			)}
 
-			{cacheNotice && !syncError && dataSource === 'cached' && (
-				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
-					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
-					<span className="flex-1 font-semibold text-amber-900">
-						<span className="font-bold uppercase tracking-tight mr-1">Working from saved data.</span>
-						EnrollPro is temporarily unreachable. You can keep working; your changes are safe and will sync automatically when the connection returns.
+			{cacheNotice && !syncError && (dataSource === 'cached' || dataSource === 'refreshing') && (
+				<div className={`shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm shadow-sm animate-in fade-in duration-300 ${
+					dataSource === 'refreshing'
+						? 'border border-blue-200 bg-blue-50 text-blue-900'
+						: 'border border-amber-200 bg-amber-50 text-amber-900'
+				}`}>
+					<AlertTriangle className={`size-4 shrink-0 ${dataSource === 'refreshing' ? 'text-blue-600' : 'text-amber-600'}`} />
+					<span className={`flex-1 font-semibold ${dataSource === 'refreshing' ? 'text-blue-900' : 'text-amber-900'}`}>
+						<span className="font-bold uppercase tracking-tight mr-1">
+							{dataSource === 'refreshing' ? 'Verifying runtime context.' : 'Working from saved data.'}
+						</span>
+						{cacheNotice}
 					</span>
 				</div>
 			)}

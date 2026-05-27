@@ -17,6 +17,13 @@ export type RuntimeContextEvidence = {
 	source: string;
 };
 
+export type RuntimeYearEvidence = {
+	yearId: number;
+	timestamp: Date;
+	type: RuntimeContextEvidenceType;
+	source: string;
+};
+
 export type RuntimeContextResult = {
 	schoolId: number;
 	activeSchoolYearId: number;
@@ -33,33 +40,80 @@ export type RuntimeContextResult = {
 };
 
 const CONTEXT_STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
-
-type YearEvidence = {
-	yearId: number;
-	timestamp: Date;
-	type: RuntimeContextEvidenceType;
-	source: string;
+const EVIDENCE_FRESHNESS_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+const EVIDENCE_TYPE_WEIGHT: Record<RuntimeContextEvidenceType, number> = {
+	'section-mirror': 100,
+	'section-snapshot': 90,
+	'faculty-snapshot': 75,
+	'generation-run': 60,
+	'scheduling-policy': 40,
 };
 
-function pickBestRuntimeYear(evidence: YearEvidence[]): YearEvidence | null {
-	if (evidence.length === 0) return null;
+type YearScore = {
+	yearId: number;
+	score: number;
+	strongestWeight: number;
+	evidenceCount: number;
+	latestTimestamp: Date;
+	representative: RuntimeYearEvidence;
+};
 
-	const priority: RuntimeContextEvidenceType[] = [
-		'scheduling-policy',
-		'section-mirror',
-		'section-snapshot',
-		'faculty-snapshot',
-		'generation-run',
-	];
+function calculateEvidenceScore(evidence: RuntimeYearEvidence, nowMs: number): number {
+	const baseWeight = EVIDENCE_TYPE_WEIGHT[evidence.type];
+	const ageMs = Math.max(0, nowMs - evidence.timestamp.getTime());
+	const freshnessRatio = Math.max(0, 1 - ageMs / EVIDENCE_FRESHNESS_WINDOW_MS);
+	const freshnessMultiplier = 0.5 + freshnessRatio;
+	return baseWeight * freshnessMultiplier;
+}
 
-	for (const type of priority) {
-		const matches = evidence.filter((item) => item.type === type);
-		if (matches.length === 0) continue;
-		matches.sort((left, right) => right.timestamp.getTime() - left.timestamp.getTime());
-		return matches[0];
+function rankRuntimeYears(evidence: RuntimeYearEvidence[]): YearScore[] {
+	if (evidence.length === 0) return [];
+
+	const nowMs = Date.now();
+	const grouped = new Map<number, RuntimeYearEvidence[]>();
+	for (const item of evidence) {
+		const entries = grouped.get(item.yearId);
+		if (entries) {
+			entries.push(item);
+		} else {
+			grouped.set(item.yearId, [item]);
+		}
 	}
 
-	return null;
+	const ranked: YearScore[] = [];
+	for (const [yearId, entries] of grouped) {
+		const latest = entries.reduce((current, candidate) => (
+			candidate.timestamp.getTime() > current.timestamp.getTime() ? candidate : current
+		));
+		const strongestWeight = entries.reduce((current, candidate) => {
+			const candidateWeight = EVIDENCE_TYPE_WEIGHT[candidate.type];
+			return candidateWeight > current ? candidateWeight : current;
+		}, 0);
+		const scoreFromSignals = entries.reduce((total, item) => total + calculateEvidenceScore(item, nowMs), 0);
+		const consensusBonus = Math.max(0, entries.length - 1) * 10;
+
+		ranked.push({
+			yearId,
+			score: scoreFromSignals + consensusBonus,
+			strongestWeight,
+			evidenceCount: entries.length,
+			latestTimestamp: latest.timestamp,
+			representative: latest,
+		});
+	}
+
+	ranked.sort((left, right) => {
+		if (right.score !== left.score) return right.score - left.score;
+		if (right.strongestWeight !== left.strongestWeight) return right.strongestWeight - left.strongestWeight;
+		if (right.evidenceCount !== left.evidenceCount) return right.evidenceCount - left.evidenceCount;
+		return right.latestTimestamp.getTime() - left.latestTimestamp.getTime();
+	});
+
+	return ranked;
+}
+
+export function pickBestRuntimeYear(evidence: RuntimeYearEvidence[]): RuntimeYearEvidence | null {
+	return rankRuntimeYears(evidence)[0]?.representative ?? null;
 }
 
 export async function resolveRuntimeContext(schoolId: number, authToken?: string): Promise<RuntimeContextResult | null> {
@@ -91,7 +145,7 @@ export async function resolveRuntimeContext(schoolId: number, authToken?: string
 		}),
 	]);
 
-	const evidence: YearEvidence[] = [];
+	const evidence: RuntimeYearEvidence[] = [];
 	if (policy) {
 		evidence.push({
 			yearId: policy.schoolYearId,
@@ -133,8 +187,10 @@ export async function resolveRuntimeContext(schoolId: number, authToken?: string
 		});
 	}
 
-	const selected = pickBestRuntimeYear(evidence);
-	if (!selected) return null;
+	const rankedYears = rankRuntimeYears(evidence);
+	let selectedRank = rankedYears[0] ?? null;
+	if (!selectedRank) return null;
+	let selected = selectedRank.representative;
 
 	let source: RuntimeContextSource = 'atlas-persisted';
 	let activeSchoolYearLabel: string | null = null;
@@ -146,11 +202,22 @@ export async function resolveRuntimeContext(schoolId: number, authToken?: string
 		const upstreamYear = await fetchEnrollProActiveSchoolYear(authToken);
 		if (upstreamYear) {
 			upstreamReachable = true;
-			activeSchoolYearLabel = upstreamYear.yearLabel;
+
+			const upstreamRank = rankedYears.find((entry) => entry.yearId === upstreamYear.id) ?? null;
+			if (upstreamRank && selectedRank) {
+				const strongerSignal = upstreamRank.strongestWeight > selectedRank.strongestWeight;
+				const competitiveScore = upstreamRank.score >= selectedRank.score * 0.9;
+				if (strongerSignal || competitiveScore) {
+					selectedRank = upstreamRank;
+					selected = upstreamRank.representative;
+				}
+			}
+
 			upstreamMatched = upstreamYear.id === selected.yearId;
 			if (upstreamMatched) {
 				source = 'enrollpro-verified';
 				upstreamVerified = true;
+				activeSchoolYearLabel = upstreamYear.yearLabel;
 			}
 		}
 	} catch {

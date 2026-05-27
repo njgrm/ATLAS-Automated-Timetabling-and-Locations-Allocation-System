@@ -1,4 +1,5 @@
 import {
+  __testResolveOwnedCurrentYearSectionScope,
   buildRotationTermBreakdown,
   buildDuplicateOwnershipBlockingResult,
   computeTeachingLoadMinutes,
@@ -6,9 +7,11 @@ import {
   resolveAssignmentSpecializationIdentity,
 } from '../services/faculty-assignment.service.js';
 import {
+  __testAggregateSplitBrainCoverageTotals,
   __testComputeCreditedCapacityMinutes,
   __testEstimateCapacityLaneDeltaMinutes,
   __testRankCoverageCandidates,
+  __testResolveSplitBrainQuarantine,
 } from '../services/teaching-load-automation.service.js';
 import {
   buildSectionRosterIndex,
@@ -348,7 +351,98 @@ section('Coverage candidate ranking balances subject and lane load before minute
     },
   ]);
 
-  assertEqual(JSON.stringify(ranked), JSON.stringify([40, 43, 42, 41, 44]), 'Ranking prefers lower subject load, then lane load, then projected minutes, then faculty id');
+  assertEqual(JSON.stringify(ranked), JSON.stringify([40, 43, 42, 41, 44]), 'Ranking preserves subject-load and lane-load balancing for legacy candidate snapshots');
+}
+
+section('Coverage ranking prefers lower family concentration and projected family peak');
+{
+  const ranked = __testRankCoverageCandidates([
+    {
+      facultyId: 71,
+      tier: 0,
+      subjectAssignedCount: 0,
+      rotationFamilyAssignedCount: 2,
+      projectedRotationFamilyPeakMinutes: 540,
+      rotationLaneAssignedCount: 0,
+      projectedUsedMinutes: 120,
+    },
+    {
+      facultyId: 72,
+      tier: 0,
+      subjectAssignedCount: 0,
+      rotationFamilyAssignedCount: 0,
+      projectedRotationFamilyPeakMinutes: 720,
+      rotationLaneAssignedCount: 3,
+      projectedUsedMinutes: 360,
+    },
+    {
+      facultyId: 73,
+      tier: 0,
+      subjectAssignedCount: 0,
+      rotationFamilyAssignedCount: 0,
+      projectedRotationFamilyPeakMinutes: 480,
+      rotationLaneAssignedCount: 2,
+      projectedUsedMinutes: 420,
+    },
+  ]);
+
+  assertEqual(JSON.stringify(ranked), JSON.stringify([73, 72, 71]), 'Ranking prioritizes lower family concentration and lower projected family peak before lane/minute ties');
+}
+
+section('Split-brain counter basis excludes HG rows');
+{
+  const totals = __testAggregateSplitBrainCoverageTotals([
+    {
+      subjectCode: 'ENG',
+      relevantSectionCount: 962,
+      ownedSectionCount: 962,
+      uncoveredSectionCount: 0,
+    },
+    {
+      subjectCode: 'HG',
+      relevantSectionCount: 82,
+      ownedSectionCount: 82,
+      uncoveredSectionCount: 0,
+    },
+  ]);
+
+  assertEqual(totals.totalPairs, 962, 'Coverage aggregation for split-brain counters excludes HG totals');
+  assertEqual(totals.assignedPairs, 962, 'Coverage aggregation for split-brain counters excludes HG assigned pairs');
+  assertEqual(totals.unassignedPairs, 0, 'Coverage aggregation for split-brain counters excludes HG uncovered pairs');
+}
+
+section('Assignment hydration drops out-of-scope ownership rows');
+{
+  const scope = __testResolveOwnedCurrentYearSectionScope([701, 702], [701, 702, 801], [701, 702]);
+
+  assertEqual(JSON.stringify(scope.storedRelevantCurrentYearSectionIds), JSON.stringify([701, 702]), 'Stored section scope keeps only subject-relevant sections');
+  assertEqual(JSON.stringify(scope.ownedCurrentYearSectionIds), JSON.stringify([701, 702]), 'Owned section scope keeps only subject-relevant sections');
+  assertEqual(scope.missingOwnershipSectionCount, 0, 'Missing ownership count remains zero when stored rows are covered');
+  assertEqual(scope.ownershipWithoutScopeSectionCount, 0, 'Ownership-without-scope excludes out-of-subject rows and only tracks in-scope mismatches');
+  assertEqual(scope.outOfSubjectScopeSectionCount, 1, 'Out-of-subject-scope counter captures ownership rows outside the subject section universe');
+}
+
+section('Approval-only split-brain warnings do not force blocking quarantine');
+{
+  const approvalOnly = __testResolveSplitBrainQuarantine(['SPECIAL_PROGRAM_APPROVAL_REQUIRED']);
+  assertEqual(approvalOnly.required, false, 'Approval-only warning does not require blocking quarantine');
+  assertEqual(approvalOnly.severity, 'WARNING', 'Approval-only warning keeps warning-level quarantine severity');
+
+  const mixed = __testResolveSplitBrainQuarantine(['SPECIAL_PROGRAM_APPROVAL_REQUIRED', 'ASSIGNED_PAIR_MISMATCH']);
+  assertEqual(mixed.required, true, 'Blocking arithmetic mismatch still requires quarantine even with approval warnings');
+  assertEqual(mixed.severity, 'BLOCKING', 'Blocking arithmetic mismatch keeps blocking severity');
+
+  const loadOutlier = __testResolveSplitBrainQuarantine(['FACULTY_LOAD_OUTLIER']);
+  assertEqual(loadOutlier.required, true, 'Policy-load outlier keeps quarantine blocking');
+  assertEqual(loadOutlier.severity, 'BLOCKING', 'Policy-load outlier maps to blocking severity');
+
+  const reviewOnlyLoad = __testResolveSplitBrainQuarantine(['FACULTY_LOAD_REVIEW_REQUIRED']);
+  assertEqual(reviewOnlyLoad.required, false, 'Review-only load drift remains non-blocking while awaiting scheduler review');
+  assertEqual(reviewOnlyLoad.severity, 'WARNING', 'Review-only load drift maps to warning severity');
+
+  const outOfSubjectScope = __testResolveSplitBrainQuarantine(['INTEGRITY_OUT_OF_SUBJECT_SCOPE']);
+  assertEqual(outOfSubjectScope.required, true, 'Out-of-subject-scope integrity drift keeps quarantine blocking');
+  assertEqual(outOfSubjectScope.severity, 'BLOCKING', 'Out-of-subject-scope integrity drift maps to blocking severity');
 }
 
 console.log(`\nSummary: ${passCount} passed, ${failCount} failed.`);

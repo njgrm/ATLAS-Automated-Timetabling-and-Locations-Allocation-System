@@ -311,6 +311,8 @@ export type TeachingLoadIntegrityDiagnostics = {
 	currentYearOwnershipWithoutMatchingScope: number;
 	currentYearMissingOwnershipPairs: number;
 	currentYearOwnershipWithoutMatchingScopePairs: number;
+	currentYearOutOfSubjectScopeRows?: number;
+	currentYearOutOfSubjectScopePairs?: number;
 	staleOwnershipRowCount: number;
 	staleOwnedCurrentYearPairCount: number;
 	stalePlaceholderPairCount: number;
@@ -318,6 +320,7 @@ export type TeachingLoadIntegrityDiagnostics = {
 	emptySectionSamples: TeachingLoadIntegrityDiagnosticRow[];
 	missingOwnershipSamples: TeachingLoadIntegrityDiagnosticRow[];
 	ownershipWithoutScopeSamples: TeachingLoadIntegrityDiagnosticRow[];
+	outOfSubjectScopeSamples?: TeachingLoadIntegrityDiagnosticRow[];
 	staleOwnershipSamples: TeachingLoadStaleOwnershipSample[];
 	quarantinedZombieCount?: number;
 	quarantinedZombieSamples?: TeachingLoadIntegrityDiagnosticRow[];
@@ -329,13 +332,45 @@ export type TeachingLoadSplitBrainReasonCode =
 	| 'ASSIGNED_PAIR_MISMATCH'
 	| 'UNASSIGNED_PAIR_MISMATCH'
 	| 'TOTAL_PAIR_MISMATCH'
+	| 'FACULTY_LOAD_OUTLIER'
+	| 'FACULTY_LOAD_REVIEW_REQUIRED'
 	| 'INTEGRITY_MISSING_OWNERSHIP'
 	| 'INTEGRITY_OWNERSHIP_WITHOUT_SCOPE'
+	| 'INTEGRITY_OUT_OF_SUBJECT_SCOPE'
 	| 'STALE_OWNERSHIP_PRESENT'
 	| 'TRUTH_RECONCILE_PENDING'
 	| 'REAL_FACULTY_RECOVERY_PENDING'
 	| 'REAL_FACULTY_RECOVERY_BLOCKERS'
 	| 'SPECIAL_PROGRAM_APPROVAL_REQUIRED';
+
+export type TeachingLoadSplitBrainOutlierFacultyRow = {
+	facultyId: number;
+	facultyName: string;
+	policyCreditedHours: number;
+	maxHoursPerWeek: number;
+	overloadHours: number;
+	subjectCodes: string[];
+};
+
+export type TeachingLoadSplitBrainIntegrityDetailRow = {
+	facultyId: number;
+	facultyName: string;
+	subjectId: number;
+	subjectCode: string;
+	sectionCount: number;
+};
+
+export type TeachingLoadSplitBrainRecoveryBlocker = {
+	subjectCode: string;
+	sectionId: number;
+	category:
+		| 'TRUE_DEPARTMENT_SHORTAGE'
+		| 'SKEWED_ASSIGNMENT_TOPOLOGY'
+		| 'UNRESOLVED_AUTOMATION_SEED_BIAS'
+		| 'ROTATION_FAMILY_MODELING_GAP'
+		| 'SUBJECT_CONTRACT_GAP';
+	reason: string;
+};
 
 export type TeachingLoadSplitBrainApprovalRequiredCandidate = {
 	subjectCode: string;
@@ -371,7 +406,12 @@ export type TeachingLoadSplitBrainReconcileResult = {
 		totalPairDelta: number;
 		integrityMissingOwnershipPairs: number;
 		integrityOwnershipWithoutScopePairs: number;
+		integrityOutOfSubjectScopePairs?: number;
 		staleOwnedCurrentYearPairs: number;
+		overloadedFacultyRows: number;
+		trueLoadOutlierRows?: number;
+		loadReviewRows?: number;
+		approvalLinkedLoadRows?: number;
 		truthRowsToUpdate: number;
 		realFacultyMovesPlanned: number;
 		realFacultyBlockers: number;
@@ -381,6 +421,8 @@ export type TeachingLoadSplitBrainReconcileResult = {
 		truthReconcile: {
 			rowsToUpdate: number;
 			updatedRows: number;
+			rowsWithOutOfSubjectScope?: number;
+			outOfSubjectScopePairCount?: number;
 		};
 		staleReconcile: {
 			staleOwnedCurrentYearPairCount: number;
@@ -390,6 +432,15 @@ export type TeachingLoadSplitBrainReconcileResult = {
 			placeholderMovesPlanned: number;
 			placeholderMovesApplied: number;
 			blockerCount: number;
+			blockers?: TeachingLoadSplitBrainRecoveryBlocker[];
+		};
+		integrity?: {
+			missingOwnershipSamples: TeachingLoadSplitBrainIntegrityDetailRow[];
+			ownershipWithoutScopeSamples: TeachingLoadSplitBrainIntegrityDetailRow[];
+			outOfSubjectScopeSamples: TeachingLoadSplitBrainIntegrityDetailRow[];
+		};
+		loadOutliers?: {
+			rows: TeachingLoadSplitBrainOutlierFacultyRow[];
 		};
 	};
 	specialProgramApprovalQueue: TeachingLoadSplitBrainApprovalRequiredCandidate[];

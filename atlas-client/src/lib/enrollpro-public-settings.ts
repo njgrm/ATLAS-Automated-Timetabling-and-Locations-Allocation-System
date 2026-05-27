@@ -9,13 +9,19 @@ type ActiveSchoolYearCacheRecord = {
 	cachedAt: string;
 };
 
+export type ActiveSchoolYearContextSource = 'atlas-persisted' | 'enrollpro-verified' | 'enrollpro' | 'cache';
+
 export type ActiveSchoolYearContext = {
 	activeSchoolYearId: number;
 	activeSchoolYearLabel: string | null;
-	source: 'atlas' | 'enrollpro' | 'cache';
+	source: ActiveSchoolYearContextSource;
 	stale: boolean;
 	cachedAt: string;
 };
+
+export function isUpstreamBackedSchoolYearSource(source: ActiveSchoolYearContextSource): boolean {
+	return source === 'enrollpro' || source === 'enrollpro-verified';
+}
 
 let activeSchoolYearMemory: ActiveSchoolYearCacheRecord | null = null;
 

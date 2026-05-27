@@ -21,7 +21,11 @@ import {
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
-import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import {
+	resolveActiveSchoolYearContext,
+	type ActiveSchoolYearContextSource,
+	isUpstreamBackedSchoolYearSource,
+} from '@/lib/enrollpro-public-settings';
 import {
 	getCachedSectionHomeRooms,
 	getCachedSectionSummary,
@@ -185,11 +189,12 @@ export default function Sections() {
 		setSyncError(false);
 
 		let schoolYearId: number | null = null;
-		let yearContextSource: 'atlas' | 'atlas-persisted' | 'enrollpro-verified' | 'enrollpro' | 'cache' = 'cache';
+		let yearContextSource: ActiveSchoolYearContextSource = 'cache';
 		try {
 			const schoolYearContext = await resolveActiveSchoolYearContext({
 				forceRefresh,
 				allowStaleOnError: true,
+				allowEnrollProFallback: false,
 			});
 			schoolYearId = schoolYearContext.activeSchoolYearId;
 			yearContextSource = schoolYearContext.source;
@@ -271,7 +276,7 @@ export default function Sections() {
 			if (!isOnline) {
 				nextSource = 'cached';
 			} else {
-				const isUpstreamContext = yearContextSource === 'enrollpro' || yearContextSource === 'enrollpro-verified';
+				const isUpstreamContext = isUpstreamBackedSchoolYearSource(yearContextSource);
 				if (isUpstreamContext && summaryRes.data.source === 'enrollpro') {
 					nextSource = 'live';
 				} else {
@@ -285,7 +290,7 @@ export default function Sections() {
 					? `${queuedEditsForYear.length} home-room change${queuedEditsForYear.length === 1 ? '' : 's'} queued for sync.`
 					: nextSource === 'live'
 					? null
-					: (yearContextSource === 'enrollpro' || yearContextSource === 'enrollpro-verified')
+					: isUpstreamBackedSchoolYearSource(yearContextSource)
 					? 'Section data is sourced from ATLAS mirror. EnrollPro connection is active.'
 					: 'Section data is available from ATLAS runtime cache while upstream verification is unavailable.',
 			);
@@ -328,7 +333,7 @@ export default function Sections() {
 	}, [isOnline]);
 
 	const performHomeRoomUpdate = useCallback(async (section: SectionDetail, nextHomeRoomId: number | null, swapTarget?: { sectionId: number, homeRoomId: number | null }) => {
-		if (!section.id || !activeSchoolYearId || state.status !== 'ok') return;
+		if (!section.id || !activeSchoolYearId || state.status !== 'ok' || dataSource === 'refreshing') return;
 		setSavingMirrorId(section.id);
 
 		const applyOptimisticHomeRoom = () => {
@@ -382,7 +387,7 @@ export default function Sections() {
 		} finally {
 			setSavingMirrorId(null);
 		}
-	}, [activeSchoolYearId, isOnline, state.status]);
+	}, [activeSchoolYearId, dataSource, isOnline, state.status]);
 
 	const roomOccupancyMap = useMemo(() => {
 		const map = new Map<number, string>();
@@ -409,7 +414,7 @@ export default function Sections() {
 	}, [state]);
 
 	const handleHomeRoomChange = useCallback(async (section: SectionDetail, nextHomeRoomId: number | null) => {
-		if (!section.id || !activeSchoolYearId || state.status !== 'ok' || dataSource === 'none') return;
+		if (!section.id || !activeSchoolYearId || state.status !== 'ok' || dataSource === 'none' || dataSource === 'refreshing') return;
 		
 		if (nextHomeRoomId === null && section.homeRoomId) {
 			setPendingAssignment({
@@ -602,7 +607,7 @@ export default function Sections() {
 		return Array.from(types).sort();
 	}, [state]);
 
-	const isReadOnlyMode = state.status !== 'ok' || dataSource === 'none' || !activeSchoolYearId;
+	const isReadOnlyMode = state.status !== 'ok' || dataSource === 'none' || dataSource === 'refreshing' || !activeSchoolYearId;
 
 	const PROGRAM_FILTER_COLORS: Record<string, string> = {
 		STE:   'bg-emerald-100/80 text-emerald-700',

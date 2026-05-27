@@ -20,11 +20,14 @@
  */
 import { prisma } from '../lib/prisma.js';
 import { fetchSectionsForRuntimeControls } from './section.service.js';
+import { HG_SUBJECT_CODE } from './hg-advisory.service.js';
 import { matchesSubjectOwnershipDepartment, normalizeDepartmentCode, resolveRotationTermMetadata, resolveSubjectAllowedOwnerDepartments, resolveSubjectRotationFamily, resolveSubjectOwnerDepartmentCode, } from './subject-ownership.service.js';
 import { getActiveSubjectCoverageSummary, getAssignmentSummary, previewOrApplyRealFacultyRecovery, previewOrApplySpecialProgramRedistribution, previewOrApplyTeachingLoadTruthReconcile, previewOrApplyStaleOwnershipReconcile, repairActiveSubjectCoverageWithPlaceholders, } from './faculty-assignment.service.js';
 // DO 005 s.2024 weekly minute caps
 const STANDARD_CAP_MIN = 1_800;
 const HARD_CAP_MIN = 2_400;
+const TRUE_LOAD_OUTLIER_OVERLOAD_HOURS = 24;
+const TRUE_LOAD_OUTLIER_POLICY_MULTIPLIER = 2;
 export const COVERAGE_MODES = [
     'REAL_FACULTY_STANDARD',
     'REAL_FACULTY_HARD_CAP',
@@ -113,6 +116,20 @@ function estimateCapacityLaneDeltaMinutes(ledger, laneKey, nextLaneMinutes) {
     const termTotalAfter = termTotalBefore + laneIncrease;
     const peakAfter = Math.max(peakBefore, termTotalAfter);
     return Math.max(0, peakAfter - peakBefore);
+}
+function estimateProjectedRotationFamilyPeakMinutes(ledger, laneKey, nextLaneMinutes) {
+    const descriptor = parseCapacityLaneDescriptor(laneKey);
+    if (descriptor.kind === 'non-rotation') {
+        return 0;
+    }
+    const normalizedMinutes = Math.max(0, Number(nextLaneMinutes) || 0);
+    const currentLaneMinutes = ledger.lanes.get(laneKey) ?? 0;
+    const termTotals = ledger.rotationFamilyTermTotals.get(descriptor.family) ?? new Map();
+    const termTotalBefore = termTotals.get(descriptor.termKey) ?? 0;
+    const peakBefore = getFamilyPeakMinutes(termTotals);
+    const laneIncrease = Math.max(0, normalizedMinutes - currentLaneMinutes);
+    const termTotalAfter = termTotalBefore + laneIncrease;
+    return Math.max(peakBefore, termTotalAfter);
 }
 function applyCapacityLaneMinutesToLedger(ledger, laneKey, nextLaneMinutes) {
     const deltaMinutes = estimateCapacityLaneDeltaMinutes(ledger, laneKey, nextLaneMinutes);
@@ -487,8 +504,20 @@ function compareCoverageCandidateRank(left, right) {
     if (left.subjectAssignedCount !== right.subjectAssignedCount) {
         return left.subjectAssignedCount - right.subjectAssignedCount;
     }
-    if (left.rotationLaneAssignedCount !== right.rotationLaneAssignedCount) {
-        return left.rotationLaneAssignedCount - right.rotationLaneAssignedCount;
+    const leftFamilyAssignedCount = left.rotationFamilyAssignedCount ?? 0;
+    const rightFamilyAssignedCount = right.rotationFamilyAssignedCount ?? 0;
+    if (leftFamilyAssignedCount !== rightFamilyAssignedCount) {
+        return leftFamilyAssignedCount - rightFamilyAssignedCount;
+    }
+    const leftProjectedFamilyPeak = left.projectedRotationFamilyPeakMinutes ?? 0;
+    const rightProjectedFamilyPeak = right.projectedRotationFamilyPeakMinutes ?? 0;
+    if (leftProjectedFamilyPeak !== rightProjectedFamilyPeak) {
+        return leftProjectedFamilyPeak - rightProjectedFamilyPeak;
+    }
+    const leftLaneAssignedCount = left.rotationLaneAssignedCount ?? 0;
+    const rightLaneAssignedCount = right.rotationLaneAssignedCount ?? 0;
+    if (leftLaneAssignedCount !== rightLaneAssignedCount) {
+        return leftLaneAssignedCount - rightLaneAssignedCount;
     }
     if (left.projectedUsedMinutes !== right.projectedUsedMinutes) {
         return left.projectedUsedMinutes - right.projectedUsedMinutes;
@@ -500,7 +529,7 @@ export function __testRankCoverageCandidates(candidates) {
         .sort((left, right) => compareCoverageCandidateRank(left, right))
         .map((entry) => entry.facultyId);
 }
-function findBestCandidateForMode(subjectRow, sectionId, faculty, coverageMode, capacityLedgersByFaculty, capacityUsed, subjectAssignmentCountByFacultyId, rotationLaneAssignmentCountByFacultyId) {
+function findBestCandidateForMode(subjectRow, sectionId, faculty, coverageMode, capacityLedgersByFaculty, capacityUsed, subjectAssignmentCountByFacultyId, rotationLaneAssignmentCountByFacultyId, rotationFamilyAssignmentCountByFacultyId) {
     const candidates = [];
     const realCoverageMode = resolveRealCoverageMode(coverageMode);
     const subjectMinutes = Math.max(0, Number(subjectRow.minMinutesPerWeek) || 0);
@@ -529,6 +558,8 @@ function findBestCandidateForMode(subjectRow, sectionId, faculty, coverageMode, 
                 projectedUsedMinutes: used + deltaMinutes,
                 subjectAssignedCount: subjectAssignmentCountByFacultyId?.get(member.id) ?? 0,
                 rotationLaneAssignedCount: rotationLaneAssignmentCountByFacultyId?.get(member.id) ?? 0,
+                rotationFamilyAssignedCount: rotationFamilyAssignmentCountByFacultyId?.get(member.id) ?? 0,
+                projectedRotationFamilyPeakMinutes: estimateProjectedRotationFamilyPeakMinutes(ledger, laneKey, subjectMinutes),
             });
         }
     }
@@ -539,12 +570,16 @@ function findBestCandidateForMode(subjectRow, sectionId, faculty, coverageMode, 
         tier: a.tier,
         subjectAssignedCount: a.subjectAssignedCount,
         rotationLaneAssignedCount: a.rotationLaneAssignedCount,
+        rotationFamilyAssignedCount: a.rotationFamilyAssignedCount,
+        projectedRotationFamilyPeakMinutes: a.projectedRotationFamilyPeakMinutes,
         projectedUsedMinutes: a.projectedUsedMinutes,
     }, {
         facultyId: b.faculty.id,
         tier: b.tier,
         subjectAssignedCount: b.subjectAssignedCount,
         rotationLaneAssignedCount: b.rotationLaneAssignedCount,
+        rotationFamilyAssignedCount: b.rotationFamilyAssignedCount,
+        projectedRotationFamilyPeakMinutes: b.projectedRotationFamilyPeakMinutes,
         projectedUsedMinutes: b.projectedUsedMinutes,
     }));
     return candidates[0].faculty;
@@ -579,6 +614,7 @@ function simulateRealFacultyCoverage(input) {
     });
     const unresolvedPairs = [];
     let rowsClosedByRealFaculty = 0;
+    const rotationFamilyAssignmentCountsByFamily = new Map();
     const applyCapacityLane = (facultyId, subject, sectionId) => {
         const minutes = Math.max(0, Number(subject.minMinutesPerWeek) || 0);
         if (minutes <= 0)
@@ -617,8 +653,11 @@ function simulateRealFacultyCoverage(input) {
         const rotationLaneDistributionKey = rotationFamily
             ? `${rotationFamily}:term:${normalizeRotationTermLaneKey(rotationTermMetadata.termRank)}`
             : null;
+        const rotationFamilyAssignmentCountByFacultyId = rotationFamily
+            ? (rotationFamilyAssignmentCountsByFamily.get(rotationFamily) ?? new Map())
+            : undefined;
         for (const pair of pairs) {
-            const candidate = findBestCandidateForMode(subjectRow, pair.sectionId, input.realFaculty, input.coverageMode, capacityLedgersByFaculty, capacityUsed, subjectAssignmentCountByFacultyId, rotationLaneAssignmentCountByFacultyId);
+            const candidate = findBestCandidateForMode(subjectRow, pair.sectionId, input.realFaculty, input.coverageMode, capacityLedgersByFaculty, capacityUsed, subjectAssignmentCountByFacultyId, rotationLaneAssignmentCountByFacultyId, rotationFamilyAssignmentCountByFacultyId);
             if (!candidate) {
                 unresolvedPairs.push(pair);
                 continue;
@@ -628,6 +667,10 @@ function simulateRealFacultyCoverage(input) {
             subjectAssignmentCountByFacultyId.set(candidate.id, (subjectAssignmentCountByFacultyId.get(candidate.id) ?? 0) + 1);
             if (rotationLaneDistributionKey) {
                 rotationLaneAssignmentCountByFacultyId.set(candidate.id, (rotationLaneAssignmentCountByFacultyId.get(candidate.id) ?? 0) + 1);
+            }
+            if (rotationFamily && rotationFamilyAssignmentCountByFacultyId) {
+                rotationFamilyAssignmentCountByFacultyId.set(candidate.id, (rotationFamilyAssignmentCountByFacultyId.get(candidate.id) ?? 0) + 1);
+                rotationFamilyAssignmentCountsByFamily.set(rotationFamily, rotationFamilyAssignmentCountByFacultyId);
             }
         }
     }
@@ -1194,6 +1237,46 @@ function aggregateCoverageRows(rows) {
         unassignedPairs: accumulator.unassignedPairs + Math.max(0, row.uncoveredSectionCount),
     }), { totalPairs: 0, assignedPairs: 0, unassignedPairs: 0 });
 }
+function filterCoverageRowsForSplitBrain(rows) {
+    return rows.filter((row) => row.subjectCode !== HG_SUBJECT_CODE);
+}
+const BLOCKING_SPLIT_BRAIN_REASON_CODES = new Set([
+    'ASSIGNED_PAIR_MISMATCH',
+    'UNASSIGNED_PAIR_MISMATCH',
+    'TOTAL_PAIR_MISMATCH',
+    'FACULTY_LOAD_OUTLIER',
+    'INTEGRITY_MISSING_OWNERSHIP',
+    'INTEGRITY_OWNERSHIP_WITHOUT_SCOPE',
+    'INTEGRITY_OUT_OF_SUBJECT_SCOPE',
+    'STALE_OWNERSHIP_PRESENT',
+    'TRUTH_RECONCILE_PENDING',
+    'REAL_FACULTY_RECOVERY_PENDING',
+]);
+function resolveSplitBrainQuarantine(reasonCodes) {
+    const hasBlockingReason = reasonCodes.some((code) => BLOCKING_SPLIT_BRAIN_REASON_CODES.has(code));
+    if (hasBlockingReason) {
+        return {
+            required: true,
+            severity: 'BLOCKING',
+        };
+    }
+    if (reasonCodes.length > 0) {
+        return {
+            required: false,
+            severity: 'WARNING',
+        };
+    }
+    return {
+        required: false,
+        severity: 'NONE',
+    };
+}
+export function __testAggregateSplitBrainCoverageTotals(rows) {
+    return aggregateCoverageRows(filterCoverageRowsForSplitBrain(rows));
+}
+export function __testResolveSplitBrainQuarantine(reasonCodes) {
+    return resolveSplitBrainQuarantine(reasonCodes);
+}
 export async function previewOrApplyTeachingLoadSplitBrainReconcile(input) {
     const apply = input.previewOnly === false;
     const [beforeSummary, beforeCoverage] = await Promise.all([
@@ -1237,7 +1320,8 @@ export async function previewOrApplyTeachingLoadSplitBrainReconcile(input) {
         ])
         : [beforeSummary, beforeCoverage];
     const summaryTotals = finalSummary.coverageTotals;
-    const coverageTotals = aggregateCoverageRows(finalCoverage.rows);
+    const coverageRowsForComparison = filterCoverageRowsForSplitBrain(finalCoverage.rows);
+    const coverageTotals = aggregateCoverageRows(coverageRowsForComparison);
     const assignmentPairDelta = summaryTotals.assignedPairs - coverageTotals.assignedPairs;
     const unassignedPairDelta = summaryTotals.unassignedPairs - coverageTotals.unassignedPairs;
     const totalPairDelta = summaryTotals.totalPairs - coverageTotals.totalPairs;
@@ -1264,6 +1348,44 @@ export async function previewOrApplyTeachingLoadSplitBrainReconcile(input) {
         }
         return left.facultyName.localeCompare(right.facultyName);
     });
+    const truthRowsPending = finalSummary.faculty.reduce((total, facultyRow) => total
+        + facultyRow.assignments.filter((assignment) => (assignment.missingOwnershipSectionCount ?? 0) > 0
+            || (assignment.ownershipWithoutScopeSectionCount ?? 0) > 0
+            || (assignment.outOfSubjectScopeSectionCount ?? 0) > 0).length, 0);
+    const truthRowsWithOutOfSubjectScopePending = finalSummary.faculty.reduce((total, facultyRow) => total
+        + facultyRow.assignments.filter((assignment) => (assignment.outOfSubjectScopeSectionCount ?? 0) > 0).length, 0);
+    const truthOutOfSubjectScopePairCountPending = finalSummary.faculty.reduce((total, facultyRow) => total
+        + facultyRow.assignments.reduce((assignmentTotal, assignment) => assignmentTotal + (assignment.outOfSubjectScopeSectionCount ?? 0), 0), 0);
+    const pendingRealFacultyMoves = apply
+        ? Math.max(0, realFacultyRecovery.placeholderMovesPlanned - realFacultyRecovery.placeholderMovesApplied)
+        : realFacultyRecovery.placeholderMovesPlanned;
+    const approvalFacultyIdSet = new Set(specialProgramApprovalQueue.map((candidate) => candidate.facultyId));
+    const overloadedFacultyRows = finalSummary.faculty
+        .filter((facultyRow) => !facultyRow.isPlaceholder)
+        .filter((facultyRow) => (Number(facultyRow.maxHoursPerWeek) || 0) > 0)
+        .filter((facultyRow) => (Number(facultyRow.policyCreditedHours) || 0) > (Number(facultyRow.maxHoursPerWeek) || 0) + 0.1);
+    const approvalLinkedLoadRows = overloadedFacultyRows.filter((facultyRow) => approvalFacultyIdSet.has(facultyRow.id));
+    const nonApprovalOverloadRows = overloadedFacultyRows.filter((facultyRow) => !approvalFacultyIdSet.has(facultyRow.id));
+    const trueLoadOutlierRows = nonApprovalOverloadRows.filter((facultyRow) => {
+        const maxHours = Number(facultyRow.maxHoursPerWeek) || 0;
+        const policyHours = Number(facultyRow.policyCreditedHours) || 0;
+        const overloadHours = Math.max(0, (Number(facultyRow.policyCreditedHours) || 0) - maxHours);
+        const isMultiplierOutlier = maxHours > 0 && policyHours >= maxHours * TRUE_LOAD_OUTLIER_POLICY_MULTIPLIER;
+        return overloadHours >= TRUE_LOAD_OUTLIER_OVERLOAD_HOURS || isMultiplierOutlier;
+    });
+    const trueLoadOutlierFacultyIdSet = new Set(trueLoadOutlierRows.map((facultyRow) => facultyRow.id));
+    const loadReviewRows = nonApprovalOverloadRows.filter((facultyRow) => !trueLoadOutlierFacultyIdSet.has(facultyRow.id));
+    const overloadedFacultyDiagnostics = trueLoadOutlierRows
+        .map((facultyRow) => ({
+        facultyId: facultyRow.id,
+        facultyName: `${facultyRow.firstName ?? ''} ${facultyRow.lastName ?? ''}`.trim() || `Faculty #${facultyRow.id}`,
+        policyCreditedHours: Number(facultyRow.policyCreditedHours) || 0,
+        maxHoursPerWeek: Number(facultyRow.maxHoursPerWeek) || 0,
+        overloadHours: Math.max(0, (Number(facultyRow.policyCreditedHours) || 0) - (Number(facultyRow.maxHoursPerWeek) || 0)),
+        subjectCodes: facultyRow.assignments.map((assignment) => assignment.subject.code),
+    }))
+        .sort((left, right) => right.overloadHours - left.overloadHours || left.facultyName.localeCompare(right.facultyName))
+        .slice(0, 25);
     const reasonCodes = [];
     if (assignmentPairDelta !== 0)
         reasonCodes.push('ASSIGNED_PAIR_MISMATCH');
@@ -1276,42 +1398,34 @@ export async function previewOrApplyTeachingLoadSplitBrainReconcile(input) {
     if ((finalSummary.integrityDiagnostics.currentYearOwnershipWithoutMatchingScopePairs ?? 0) > 0) {
         reasonCodes.push('INTEGRITY_OWNERSHIP_WITHOUT_SCOPE');
     }
+    if ((finalSummary.integrityDiagnostics.currentYearOutOfSubjectScopePairs ?? 0) > 0) {
+        reasonCodes.push('INTEGRITY_OUT_OF_SUBJECT_SCOPE');
+    }
     if ((finalSummary.integrityDiagnostics.staleOwnedCurrentYearPairCount ?? 0) > 0)
         reasonCodes.push('STALE_OWNERSHIP_PRESENT');
-    if (truthReconcile.rowsToUpdate > 0)
+    if (trueLoadOutlierRows.length > 0)
+        reasonCodes.push('FACULTY_LOAD_OUTLIER');
+    if (loadReviewRows.length > 0)
+        reasonCodes.push('FACULTY_LOAD_REVIEW_REQUIRED');
+    if (truthRowsPending > 0)
         reasonCodes.push('TRUTH_RECONCILE_PENDING');
-    if (realFacultyRecovery.placeholderMovesPlanned > 0)
+    if (pendingRealFacultyMoves > 0)
         reasonCodes.push('REAL_FACULTY_RECOVERY_PENDING');
     if (realFacultyRecovery.blockers.length > 0)
         reasonCodes.push('REAL_FACULTY_RECOVERY_BLOCKERS');
     if (specialProgramApprovalQueue.length > 0)
         reasonCodes.push('SPECIAL_PROGRAM_APPROVAL_REQUIRED');
     const dedupedReasonCodes = [...new Set(reasonCodes)];
-    const blockingReasons = new Set([
-        'ASSIGNED_PAIR_MISMATCH',
-        'UNASSIGNED_PAIR_MISMATCH',
-        'TOTAL_PAIR_MISMATCH',
-        'INTEGRITY_MISSING_OWNERSHIP',
-        'INTEGRITY_OWNERSHIP_WITHOUT_SCOPE',
-        'STALE_OWNERSHIP_PRESENT',
-        'TRUTH_RECONCILE_PENDING',
-        'REAL_FACULTY_RECOVERY_PENDING',
-    ]);
-    const hasBlockingReason = dedupedReasonCodes.some((code) => blockingReasons.has(code));
-    const severity = hasBlockingReason
-        ? 'BLOCKING'
-        : dedupedReasonCodes.length > 0
-            ? 'WARNING'
-            : 'NONE';
+    const quarantine = resolveSplitBrainQuarantine(dedupedReasonCodes);
     return {
         applied: apply,
         schoolId: input.schoolId,
         schoolYearId: input.schoolYearId,
         quarantine: {
-            required: hasBlockingReason,
-            severity,
+            required: quarantine.required,
+            severity: quarantine.severity,
             reasonCodes: dedupedReasonCodes,
-            message: hasBlockingReason
+            message: quarantine.required
                 ? 'Teaching Load data truth is inconsistent. Quarantine assignment edits until reconcile actions are applied.'
                 : dedupedReasonCodes.length > 0
                     ? 'Teaching Load has warnings that require scheduler review before final publish.'
@@ -1329,16 +1443,23 @@ export async function previewOrApplyTeachingLoadSplitBrainReconcile(input) {
             totalPairDelta,
             integrityMissingOwnershipPairs: finalSummary.integrityDiagnostics.currentYearMissingOwnershipPairs ?? 0,
             integrityOwnershipWithoutScopePairs: finalSummary.integrityDiagnostics.currentYearOwnershipWithoutMatchingScopePairs ?? 0,
+            integrityOutOfSubjectScopePairs: finalSummary.integrityDiagnostics.currentYearOutOfSubjectScopePairs ?? 0,
             staleOwnedCurrentYearPairs: finalSummary.integrityDiagnostics.staleOwnedCurrentYearPairCount ?? 0,
-            truthRowsToUpdate: truthReconcile.rowsToUpdate,
-            realFacultyMovesPlanned: realFacultyRecovery.placeholderMovesPlanned,
+            overloadedFacultyRows: trueLoadOutlierRows.length,
+            trueLoadOutlierRows: trueLoadOutlierRows.length,
+            loadReviewRows: loadReviewRows.length,
+            approvalLinkedLoadRows: approvalLinkedLoadRows.length,
+            truthRowsToUpdate: truthRowsPending,
+            realFacultyMovesPlanned: pendingRealFacultyMoves,
             realFacultyBlockers: realFacultyRecovery.blockers.length,
             specialProgramApprovalCandidates: specialProgramApprovalQueue.length,
         },
         repairPreview: {
             truthReconcile: {
-                rowsToUpdate: truthReconcile.rowsToUpdate,
+                rowsToUpdate: truthRowsPending,
                 updatedRows: truthReconcile.updatedRows,
+                rowsWithOutOfSubjectScope: truthRowsWithOutOfSubjectScopePending,
+                outOfSubjectScopePairCount: truthOutOfSubjectScopePairCountPending,
             },
             staleReconcile: {
                 staleOwnedCurrentYearPairCount: staleReconcile.staleOwnedCurrentYearPairCount,
@@ -1348,6 +1469,20 @@ export async function previewOrApplyTeachingLoadSplitBrainReconcile(input) {
                 placeholderMovesPlanned: realFacultyRecovery.placeholderMovesPlanned,
                 placeholderMovesApplied: realFacultyRecovery.placeholderMovesApplied,
                 blockerCount: realFacultyRecovery.blockers.length,
+                blockers: realFacultyRecovery.blockers.slice(0, 25).map((blocker) => ({
+                    subjectCode: blocker.subjectCode,
+                    sectionId: blocker.sectionId,
+                    category: blocker.category,
+                    reason: blocker.reason,
+                })),
+            },
+            integrity: {
+                missingOwnershipSamples: finalSummary.integrityDiagnostics.missingOwnershipSamples,
+                ownershipWithoutScopeSamples: finalSummary.integrityDiagnostics.ownershipWithoutScopeSamples,
+                outOfSubjectScopeSamples: finalSummary.integrityDiagnostics.outOfSubjectScopeSamples,
+            },
+            loadOutliers: {
+                rows: overloadedFacultyDiagnostics,
             },
         },
         specialProgramApprovalQueue,

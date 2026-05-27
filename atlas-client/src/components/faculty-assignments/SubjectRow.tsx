@@ -304,14 +304,14 @@ export function SubjectRow({
 											Rotating Term Lane
 										</Badge>
 									</TooltipTrigger>
-									<TooltipContent side="top" className="text-xs font-bold max-w-[280px] p-3">
-										<p className="mb-1">Term-Scoped Weekly Slot</p>
-										<p className="text-muted-foreground leading-relaxed font-medium">
-											Only classes in the same rotation family and term share a single weekly classroom lane.
-											<br/><br/>
-											<span className="text-foreground">Same-section classes in different terms are counted separately.</span>
-										</p>
-									</TooltipContent>
+											<TooltipContent side="top" className="text-xs font-bold max-w-[280px] p-3">
+												<p className="mb-1">Rotational Weekly Lane</p>
+												<p className="text-muted-foreground leading-relaxed font-medium italic">
+													Year-round classes stay every week. Rotational Science/TLE contributes only from the busiest term.
+													<br/><br/>
+													<span className="text-foreground">Credited load = year-round classes + peak rotational term.</span>
+												</p>
+											</TooltipContent>
 								</Tooltip>
 							)}
 							{isRotationFamily && rotationTermLabel && (
@@ -328,7 +328,7 @@ export function SubjectRow({
 						</div>
 						<div className="flex items-center gap-2 mt-1">
 							<code className="text-xs font-mono text-muted-foreground/80 font-bold uppercase tracking-tight">{subject.code}</code>
-							<span className="text-muted-foreground/30 text-[10px]">•</span>
+							<span className="text-muted-foreground/30 text-[10px]">*</span>
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<span className="text-xs text-muted-foreground font-semibold flex items-center gap-1 uppercase tracking-tight cursor-help">

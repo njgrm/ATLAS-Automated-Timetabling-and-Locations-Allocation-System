@@ -281,7 +281,7 @@ export function buildMultiOwnerSavedMap(
 
 /**
  * Returns the set of ownership keys (subjectId:sectionId) that are owned by more
- * than one faculty in saved data — these are hard database-level conflicts.
+ * than one faculty in saved data - these are hard database-level conflicts.
  */
 export function detectSavedConflictKeys(
 	multiOwnerMap: Record<string, FacultyOwnershipState[]>,
@@ -478,13 +478,13 @@ export function buildTeachingLoadProfile(
 			creditedMinutes: computeTermBucketMinutes(bucket),
 			unitCount: bucket.laneMinutes.size,
 		}));
-		const dominantTerm = [...termBuckets].sort((left, right) => {
-			if (right.creditedMinutes !== left.creditedMinutes) {
-				return right.creditedMinutes - left.creditedMinutes;
-			}
-			return normalizeRotationTermLaneKey(left.termRank) - normalizeRotationTermLaneKey(right.termRank);
-		})[0] ?? null;
-		const creditedFamilyMinutes = dominantTerm?.creditedMinutes ?? 0;
+		const peakMinutes = [...termBuckets].reduce((max, b) => Math.max(max, b.creditedMinutes), 0);
+		const peakBuckets = termBuckets.filter(b => b.creditedMinutes === peakMinutes && b.creditedMinutes > 0);
+		const peakLabels = peakBuckets
+			.map(b => toCanonicalRotationTermLabel(b.termLabel, b.termRank))
+			.filter(Boolean) as string[];
+
+		const creditedFamilyMinutes = peakMinutes;
 
 		return {
 			creditedFamilyMinutes,
@@ -494,10 +494,10 @@ export function buildTeachingLoadProfile(
 				creditedHours: Math.round((creditedFamilyMinutes / 60) * 10) / 10,
 				overcountHours: Math.round(((stats.rawMinutes - creditedFamilyMinutes) / 60) * 10) / 10,
 				unitCount: termBuckets.reduce((sum, bucket) => sum + bucket.unitCount, 0),
-				dominantTermRank: dominantTerm?.termRank ?? null,
-				dominantTermLabel: dominantTerm?.termLabel ?? null,
-				termGroupId: dominantTerm?.termGroupId ?? null,
-				termCount: dominantTerm?.termCount ?? null,
+				dominantTermRank: peakBuckets[0]?.termRank ?? null,
+				dominantTermLabel: peakLabels.length > 1 ? `Tied: ${peakLabels.join(', ')}` : (peakLabels[0] ?? null),
+				termGroupId: peakBuckets[0]?.termGroupId ?? null,
+				termCount: peakBuckets[0]?.termCount ?? null,
 				subjectCodes: Array.from(stats.subjectCodes).sort((left, right) => left.localeCompare(right)),
 			} satisfies RotationFamilyBreakdownItem,
 		};
