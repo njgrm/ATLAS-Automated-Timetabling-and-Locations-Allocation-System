@@ -50,6 +50,9 @@ export declare function getPublishedSchedulePayload(schoolId: number, schoolYear
         };
         entryKind: "SECTION" | "COHORT";
         cohortCode: string | null;
+        cohortName: string | null;
+        specializationCode: string | null;
+        specializationLabel: string | null;
     }[];
 }>;
 export declare function getPublishedSectionSchedule(schoolId: number, sectionId: number, schoolYearId?: number): Promise<{
@@ -87,6 +90,9 @@ export declare function getPublishedSectionSchedule(schoolId: number, sectionId:
         };
         entryKind: "SECTION" | "COHORT";
         cohortCode: string | null;
+        cohortName: string | null;
+        specializationCode: string | null;
+        specializationLabel: string | null;
     }[];
     source: {
         runId: number;
@@ -141,6 +147,9 @@ export declare function getPublishedFacultySchedule(schoolId: number, facultyId:
         };
         entryKind: "SECTION" | "COHORT";
         cohortCode: string | null;
+        cohortName: string | null;
+        specializationCode: string | null;
+        specializationLabel: string | null;
     }[];
     source: {
         runId: number;
@@ -195,6 +204,9 @@ export declare function getPublishedRoomSchedule(schoolId: number, roomId: numbe
         };
         entryKind: "SECTION" | "COHORT";
         cohortCode: string | null;
+        cohortName: string | null;
+        specializationCode: string | null;
+        specializationLabel: string | null;
     }[];
     source: {
         runId: number;

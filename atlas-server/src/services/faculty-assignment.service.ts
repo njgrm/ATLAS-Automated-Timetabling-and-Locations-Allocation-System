@@ -306,6 +306,8 @@ export interface SpecialProgramRebalanceMove {
   fromFacultyName: string;
   toFacultyId: number;
   toFacultyName: string;
+  preservedSpecializationCode: string | null;
+  preservedSpecializationLabel: string | null;
 }
 
 export interface SpecialProgramRebalanceInput {
@@ -3182,15 +3184,16 @@ export async function previewOrApplySpecialProgramRedistribution(
 
     const candidateSpecializationSupportById = new Map<number, number>();
     for (const candidate of candidateFaculty) {
-      const candidateSpecializationCode = normalizeSpecializationCode(candidate.specialization);
       let matchCount = 0;
       for (const sectionId of subject.relevantSectionIds) {
         const requiredCode = sectionSpecializationCodeBySectionId.get(sectionId);
         if (!requiredCode) continue;
-        if (
-          (candidateSpecializationCode && candidateSpecializationCode === requiredCode)
-          || hasApprovedCapabilityOverride(overridesByFacultyId, candidate.id, subject.code, requiredCode)
-        ) {
+        if (canFulfillSpecialProgramRequirement({
+          subjectCode: subject.code,
+          requiredSpecializationCode: requiredCode,
+          candidate,
+          overridesByFacultyId,
+        })) {
           matchCount += 1;
         }
       }
@@ -3274,19 +3277,12 @@ export async function previewOrApplySpecialProgramRedistribution(
         const donorRows = movableRowsByFaculty.get(donor.candidate.id) ?? [];
         const compatibleRowIndex = donorRows.findIndex((candidateRow) => {
           const requiredCode = sectionSpecializationCodeBySectionId.get(candidateRow.sectionId) ?? null;
-          if (!requiredCode) {
-            return true;
-          }
-          const candidateSpecializationCode = normalizeSpecializationCode(deficitEntry.candidate.specialization);
-          if (candidateSpecializationCode && candidateSpecializationCode === requiredCode) {
-            return true;
-          }
-          return hasApprovedCapabilityOverride(
+          return canFulfillSpecialProgramRequirement({
+            subjectCode: subject.code,
+            requiredSpecializationCode: requiredCode,
+            candidate: deficitEntry.candidate,
             overridesByFacultyId,
-            deficitEntry.candidate.id,
-            subject.code,
-            requiredCode,
-          );
+          });
         });
 
         const rowToMove = compatibleRowIndex >= 0
@@ -3313,6 +3309,8 @@ export async function previewOrApplySpecialProgramRedistribution(
           fromFacultyName: formatFacultyName(donor.candidate.firstName, donor.candidate.lastName),
           toFacultyId: deficitEntry.candidate.id,
           toFacultyName: formatFacultyName(deficitEntry.candidate.firstName, deficitEntry.candidate.lastName),
+          preservedSpecializationCode: rowToMove.specializationCode ?? null,
+          preservedSpecializationLabel: rowToMove.specializationLabel ?? null,
         });
       }
     }
@@ -3378,10 +3376,15 @@ export async function previewOrApplySpecialProgramRedistribution(
 
         const subject = targetedSubjects.find((entry) => entry.id === move.subjectId);
         const destinationFaculty = facultyById.get(move.toFacultyId);
-        const specializationIdentity = resolveAssignmentSpecializationIdentity({
-          subjectCode: subject?.code,
-          facultySpecialization: destinationFaculty?.specialization,
-        });
+        const specializationIdentity = isSpecialProgramSpecializationSubject(subject?.code)
+          ? {
+            specializationCode: move.preservedSpecializationCode,
+            specializationLabel: move.preservedSpecializationLabel,
+          }
+          : resolveAssignmentSpecializationIdentity({
+            subjectCode: subject?.code,
+            facultySpecialization: destinationFaculty?.specialization,
+          });
 
         await tx.subjectSectionOwnership.update({
           where: { id: sourceOwnership.id },
@@ -3606,6 +3609,39 @@ function isSpecialProgramSpecializationSubject(subjectCode: string | null | unde
 function isSpecialProgramBaselineDepartment(department: string | null | undefined): boolean {
   const normalized = normalizeDepartmentCode(department);
   return normalized === 'MAPEH';
+}
+
+function isSpecialProgramGeneralistSpecialization(specialization: string | null | undefined): boolean {
+  const normalized = normalizeSpecializationCode(specialization);
+  return normalized === 'MAJOR_IN_MAPEH' || normalized === 'MAPEH';
+}
+
+function canFulfillSpecialProgramRequirement(input: {
+  subjectCode: string;
+  requiredSpecializationCode: string | null;
+  candidate: Pick<SpecialProgramCandidate, 'id' | 'department' | 'specialization'>;
+  overridesByFacultyId: Map<number, TeachingLoadCapabilityOverride[]>;
+}): boolean {
+  const { subjectCode, requiredSpecializationCode, candidate, overridesByFacultyId } = input;
+
+  if (!requiredSpecializationCode) {
+    return true;
+  }
+
+  const candidateSpecializationCode = normalizeSpecializationCode(candidate.specialization);
+  if (candidateSpecializationCode && candidateSpecializationCode === requiredSpecializationCode) {
+    return true;
+  }
+
+  if (hasApprovedCapabilityOverride(overridesByFacultyId, candidate.id, subjectCode, requiredSpecializationCode)) {
+    return true;
+  }
+
+  return (
+    isSpecialProgramSpecializationSubject(subjectCode)
+    && isSpecialProgramBaselineDepartment(candidate.department)
+    && isSpecialProgramGeneralistSpecialization(candidate.specialization)
+  );
 }
 
 function hasApprovedCapabilityOverride(

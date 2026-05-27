@@ -1471,6 +1471,72 @@ export interface SectionSummaryResponse {
 	contractWarnings?: string[];
 }
 
+export interface SectionAssignedClassRow {
+	subjectId: number;
+	subjectCode: string;
+	subjectName: string;
+	subjectDisplayLabel: string;
+	minMinutesPerWeek: number;
+	rotationFamily: string | null;
+	rotationTermRank: number | null;
+	rotationTermLabel: string | null;
+	rotationTermGroupId: string | null;
+	rotationTermCount: number | null;
+	facultyId: number;
+	facultyName: string;
+	facultyDepartment: string | null;
+	facultySpecialization: string | null;
+	assignmentKind: 'REAL_OWNERSHIP';
+	specializationCode: string | null;
+	specializationLabel: string | null;
+}
+
+export interface SectionUnassignedExpectedClassRow {
+	subjectId: number;
+	subjectCode: string;
+	subjectName: string;
+	subjectDisplayLabel: string;
+	minMinutesPerWeek: number;
+	rotationFamily: string | null;
+	rotationTermRank: number | null;
+	rotationTermLabel: string | null;
+	rotationTermGroupId: string | null;
+	rotationTermCount: number | null;
+}
+
+export interface SectionAssignedClassesTotals {
+	assignedClassCount: number;
+	rotationFamilyClassCount: number;
+	unassignedClassCount: number;
+}
+
+export interface SectionAssignedClassesResult {
+	sectionId: number;
+	sectionName: string;
+	gradeLevel: number;
+	programType: string;
+	schoolYearId: number;
+	classes: SectionAssignedClassRow[];
+	totals: SectionAssignedClassesTotals;
+	staleOwnership?: Array<{
+		subjectId: number;
+		subjectCode: string;
+		subjectName: string;
+		sectionId: number;
+		facultyId: number;
+		facultyName: string;
+		reason: 'STALE_OWNERSHIP' | 'INACTIVE_OWNERSHIP';
+	}>;
+	unassignedExpectedClasses?: SectionUnassignedExpectedClassRow[];
+}
+
+export interface SectionAssignedClassesIndexResult {
+	schoolId: number;
+	schoolYearId: number;
+	sections: SectionAssignedClassesResult[];
+	fetchedAt: string;
+}
+
 /* ─── Scheduling Policy types ─── */
 
 export interface ConstraintOverride {

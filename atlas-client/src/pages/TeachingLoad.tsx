@@ -26,6 +26,8 @@ import { StaffingAuditSheet } from '@/components/faculty-assignments/StaffingAud
 import type { 
 	AutoFillSummaryResult, 
 	CoverageMode, 
+	ExternalSection,
+	SectionAssignedClassesResult,
 	SpecialProgramRebalancePreviewResult 
 } from '@/types';
 
@@ -67,16 +69,26 @@ export default function TeachingLoad() {
 	const dirty = Boolean(data.effectiveDraftAssignmentsByFaculty[data.selectedId ?? 0]);
 
 	const handleSave = useCallback(async () => {
-		if (!data.selectedId || !data.activeSchoolYearId) return;
+		if (!data.activeSchoolYearId) return;
+		const draftEntries = Object.entries(data.effectiveDraftAssignmentsByFaculty);
+		if (draftEntries.length === 0) return;
 		data.setSaving(true);
 		try {
-			await atlasApi.post('/faculty-assignments/batch', {
-				schoolId: DEFAULT_SCHOOL_ID,
-				schoolYearId: data.activeSchoolYearId,
-				facultyId: data.selectedId,
-				assignments: data.effectiveDraftAssignmentsByFaculty[data.selectedId],
-			});
-			toast.success(`Assignments for ${data.selected?.lastName} have been successfully updated.`);
+			for (const [facultyIdRaw, assignments] of draftEntries) {
+				const facultyId = Number(facultyIdRaw);
+				if (!Number.isFinite(facultyId)) continue;
+				await atlasApi.post('/faculty-assignments/batch', {
+					schoolId: DEFAULT_SCHOOL_ID,
+					schoolYearId: data.activeSchoolYearId,
+					facultyId,
+					assignments,
+				});
+			}
+			toast.success(
+				draftEntries.length === 1 && data.selected
+					? `Assignments for ${data.selected.lastName} have been successfully updated.`
+					: `Saved ${draftEntries.length} teaching-load draft ${draftEntries.length === 1 ? 'change' : 'changes'}.`,
+			);
 			await data.fetchData({ forceRefresh: true });
 		} catch (error: any) {
 			toast.error(error?.response?.data?.message ?? 'Failed to save assignments.');
@@ -102,13 +114,15 @@ export default function TeachingLoad() {
 		});
 	}, [data]);
 
-	const handleSwapRequest = useCallback((subjectId: number, sectionId: number, fromFacultyId: number) => {
-		ui.setSwapCandidate({ subjectId, sectionId, fromFacultyId });
+	const handleSwapRequest = useCallback((subjectId: number, sectionId: number, fromFacultyId: number, toFacultyId?: number) => {
+		ui.setSwapCandidate({ subjectId, sectionId, fromFacultyId, toFacultyId: toFacultyId ?? null });
 	}, [ui]);
 
 	const executeSwap = useCallback(async () => {
-		if (!ui.swapCandidate || !data.selectedId) return;
-		const { subjectId, sectionId, fromFacultyId } = ui.swapCandidate;
+		if (!ui.swapCandidate) return;
+		const { subjectId, sectionId, fromFacultyId, toFacultyId } = ui.swapCandidate;
+		const destinationFacultyId = toFacultyId ?? data.selectedId;
+		if (!destinationFacultyId) return;
 		try {
 			data.pushHistory();
 			data.setDraftAssignmentsByFaculty((prev) => {
@@ -121,7 +135,7 @@ export default function TeachingLoad() {
 					};
 				}
 
-				const toCurrent = [...(data.effectiveAssignmentsByFaculty[data.selectedId!] ?? [])];
+				const toCurrent = [...(data.effectiveAssignmentsByFaculty[destinationFacultyId] ?? [])];
 				const toIndex = toCurrent.findIndex((a) => a.subjectId === subjectId);
 				if (toIndex >= 0) {
 					toCurrent[toIndex] = {
@@ -132,7 +146,7 @@ export default function TeachingLoad() {
 					toCurrent.push({ subjectId, sectionIds: [sectionId], gradeLevels: [] });
 				}
 
-				return { ...prev, [fromFacultyId]: fromCurrent, [data.selectedId!]: toCurrent };
+				return { ...prev, [fromFacultyId]: fromCurrent, [destinationFacultyId]: toCurrent };
 			});
 			toast.success('Ownership swapped in draft mode.');
 		} catch (err: any) {
@@ -238,22 +252,59 @@ export default function TeachingLoad() {
 
 	const sectionsBySubject = useMemo(() => {
 		const grouped: Record<number, ExternalSection[]> = {};
-		for (const section of data.allKnownSections) {
+		for (const sectionResult of data.sectionAssignedClassesIndex?.sections ?? []) {
+			const section = data.sectionMap.get(sectionResult.sectionId);
+			if (!section) continue;
 			const gradeMatch = ui.gradeLevelFilter === 'all' || section.displayOrder === Number(ui.gradeLevelFilter);
 			if (!gradeMatch) continue;
-			data.subjects.forEach((subject) => {
-				const gradeCompatible = subject.gradeLevels.length === 0 || subject.gradeLevels.includes(section.displayOrder);
-				const programType = (section.programType ?? 'REGULAR').toUpperCase();
-				const programCompatible = subject.programScopes.length === 0 || subject.programScopes.some(s => s.toUpperCase() === programType);
-				
-				if (gradeCompatible && programCompatible) {
-					if (!grouped[subject.id]) grouped[subject.id] = [];
-					grouped[subject.id].push(section);
-				}
-			});
+
+			const contractRows = [
+				...sectionResult.classes.map((entry) => ({
+					subjectId: entry.subjectId,
+					specializationCode: entry.specializationCode,
+					specializationLabel: entry.specializationLabel,
+					rotationFamily: entry.rotationFamily,
+					rotationTermRank: entry.rotationTermRank,
+					rotationTermLabel: entry.rotationTermLabel,
+					rotationTermGroupId: entry.rotationTermGroupId,
+					rotationTermCount: entry.rotationTermCount,
+					minMinutesPerWeek: entry.minMinutesPerWeek,
+				})),
+				...((sectionResult.unassignedExpectedClasses ?? []).map((entry) => ({
+					subjectId: entry.subjectId,
+					specializationCode: null,
+					specializationLabel: null,
+					rotationFamily: entry.rotationFamily,
+					rotationTermRank: entry.rotationTermRank,
+					rotationTermLabel: entry.rotationTermLabel,
+					rotationTermGroupId: entry.rotationTermGroupId,
+					rotationTermCount: entry.rotationTermCount,
+					minMinutesPerWeek: entry.minMinutesPerWeek,
+				}))),
+			];
+
+			for (const contractRow of contractRows) {
+				if (!grouped[contractRow.subjectId]) grouped[contractRow.subjectId] = [];
+				grouped[contractRow.subjectId].push({
+					...section,
+					assignmentSpecializationCode: contractRow.specializationCode,
+					assignmentSpecializationLabel: contractRow.specializationLabel,
+					assignmentRotationFamily: contractRow.rotationFamily,
+					assignmentRotationTermRank: contractRow.rotationTermRank,
+					assignmentRotationTermLabel: contractRow.rotationTermLabel,
+					assignmentRotationTermGroupId: contractRow.rotationTermGroupId,
+					assignmentRotationTermCount: contractRow.rotationTermCount,
+					assignmentRawMinutesPerWeek: contractRow.minMinutesPerWeek,
+				});
+			}
 		}
 		return grouped;
-	}, [data.allKnownSections, data.subjects, ui.gradeLevelFilter]);
+	}, [data.sectionAssignedClassesIndex, data.sectionMap, ui.gradeLevelFilter]);
+
+	const selectedSectionContract = useMemo<SectionAssignedClassesResult | null>(() => {
+		if (!ui.selectedSectionId) return null;
+		return data.sectionAssignedClassesIndex?.sections.find((section) => section.sectionId === ui.selectedSectionId) ?? null;
+	}, [data.sectionAssignedClassesIndex, ui.selectedSectionId]);
 
 	const departmentOptions = useMemo(() => {
 		const depts = new Set(data.faculty.map((f) => f.department).filter(Boolean) as string[]);
@@ -417,8 +468,7 @@ export default function TeachingLoad() {
 						) : (
 							<SectionInspector
 								section={ui.selectedSectionId ? data.sectionMap.get(ui.selectedSectionId) ?? null : null}
-								subjects={data.subjects}
-								assignmentsByFaculty={data.effectiveAssignmentsByFaculty}
+								sectionContract={selectedSectionContract}
 								savedOwnershipMap={data.savedOwnershipMap}
 								pendingOwnershipMap={data.pendingOwnershipMap}
 							/>

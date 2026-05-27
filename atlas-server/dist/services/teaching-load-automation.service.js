@@ -22,7 +22,7 @@ import { prisma } from '../lib/prisma.js';
 import { fetchSectionsForRuntimeControls } from './section.service.js';
 import { HG_SUBJECT_CODE } from './hg-advisory.service.js';
 import { matchesSubjectOwnershipDepartment, normalizeDepartmentCode, resolveRotationTermMetadata, resolveSubjectAllowedOwnerDepartments, resolveSubjectRotationFamily, resolveSubjectOwnerDepartmentCode, } from './subject-ownership.service.js';
-import { getActiveSubjectCoverageSummary, getAssignmentSummary, previewOrApplyRealFacultyRecovery, previewOrApplySpecialProgramRedistribution, previewOrApplyTeachingLoadTruthReconcile, previewOrApplyStaleOwnershipReconcile, repairActiveSubjectCoverageWithPlaceholders, } from './faculty-assignment.service.js';
+import { getActiveSubjectCoverageSummary, getAssignmentSummary, previewOrApplyRealFacultyRecovery, previewOrApplyTeachingLoadTruthReconcile, previewOrApplyStaleOwnershipReconcile, repairActiveSubjectCoverageWithPlaceholders, } from './faculty-assignment.service.js';
 // DO 005 s.2024 weekly minute caps
 const STANDARD_CAP_MIN = 1_800;
 const HARD_CAP_MIN = 2_400;
@@ -1283,7 +1283,7 @@ export async function previewOrApplyTeachingLoadSplitBrainReconcile(input) {
         getAssignmentSummary(input.schoolId, input.schoolYearId, input.authToken),
         getActiveSubjectCoverageSummary(input.schoolId, input.schoolYearId, input.authToken),
     ]);
-    const [truthReconcile, staleReconcile, realFacultyRecovery, specialProgramRebalance] = await Promise.all([
+    const [truthReconcile, staleReconcile, realFacultyRecovery] = await Promise.all([
         previewOrApplyTeachingLoadTruthReconcile({
             schoolId: input.schoolId,
             schoolYearId: input.schoolYearId,
@@ -1305,13 +1305,6 @@ export async function previewOrApplyTeachingLoadSplitBrainReconcile(input) {
             authToken: input.authToken,
             apply,
         }),
-        previewOrApplySpecialProgramRedistribution({
-            schoolId: input.schoolId,
-            schoolYearId: input.schoolYearId,
-            actorId: input.actorId,
-            authToken: input.authToken,
-            apply: false,
-        }),
     ]);
     const [finalSummary, finalCoverage] = apply
         ? await Promise.all([
@@ -1325,29 +1318,7 @@ export async function previewOrApplyTeachingLoadSplitBrainReconcile(input) {
     const assignmentPairDelta = summaryTotals.assignedPairs - coverageTotals.assignedPairs;
     const unassignedPairDelta = summaryTotals.unassignedPairs - coverageTotals.unassignedPairs;
     const totalPairDelta = summaryTotals.totalPairs - coverageTotals.totalPairs;
-    const specialProgramApprovalQueue = specialProgramRebalance.redistributionInsights
-        .flatMap((insight) => insight.approvalRequiredCandidates.map((candidate) => ({
-        subjectCode: insight.subjectCode,
-        subjectName: insight.subjectName,
-        facultyId: candidate.facultyId,
-        facultyName: candidate.facultyName,
-        department: candidate.department,
-        specialization: candidate.specialization,
-        currentTotalAssignedPairs: candidate.currentTotalAssignedPairs,
-        requiredSpecializationCodes: candidate.requiredSpecializationCodes,
-        reason: candidate.reason,
-    })))
-        .filter((entry, index, collection) => index === collection.findIndex((candidate) => candidate.subjectCode === entry.subjectCode
-        && candidate.facultyId === entry.facultyId))
-        .sort((left, right) => {
-        if (left.subjectCode !== right.subjectCode) {
-            return left.subjectCode.localeCompare(right.subjectCode);
-        }
-        if (left.currentTotalAssignedPairs !== right.currentTotalAssignedPairs) {
-            return left.currentTotalAssignedPairs - right.currentTotalAssignedPairs;
-        }
-        return left.facultyName.localeCompare(right.facultyName);
-    });
+    const specialProgramApprovalQueue = [];
     const truthRowsPending = finalSummary.faculty.reduce((total, facultyRow) => total
         + facultyRow.assignments.filter((assignment) => (assignment.missingOwnershipSectionCount ?? 0) > 0
             || (assignment.ownershipWithoutScopeSectionCount ?? 0) > 0
@@ -1413,8 +1384,6 @@ export async function previewOrApplyTeachingLoadSplitBrainReconcile(input) {
         reasonCodes.push('REAL_FACULTY_RECOVERY_PENDING');
     if (realFacultyRecovery.blockers.length > 0)
         reasonCodes.push('REAL_FACULTY_RECOVERY_BLOCKERS');
-    if (specialProgramApprovalQueue.length > 0)
-        reasonCodes.push('SPECIAL_PROGRAM_APPROVAL_REQUIRED');
     const dedupedReasonCodes = [...new Set(reasonCodes)];
     const quarantine = resolveSplitBrainQuarantine(dedupedReasonCodes);
     return {

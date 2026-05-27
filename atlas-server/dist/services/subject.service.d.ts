@@ -12,6 +12,15 @@ type SubjectWithViewMetadata = {
     specializationSource: 'REFERENCE_METADATA' | 'NONE';
     isSystemManaged: boolean;
 };
+type SpecialProgramTrack = {
+    code: string;
+    label: string;
+    sectionCount: number;
+};
+type ActiveSpecialProgramTracks = {
+    spa: SpecialProgramTrack[];
+    sps: SpecialProgramTrack[];
+};
 export declare function ensureDefaultSubjects(schoolId: number): Promise<void>;
 export declare function reconcileSubjectContractFromUpstream(schoolId: number, schoolYearId: number, authToken?: string): Promise<void>;
 export declare function syncSubjectContractFromProgramOfferings(schoolId: number, schoolYearId: number, authToken?: string): Promise<{
@@ -32,6 +41,7 @@ export declare function syncSubjectContractFromProgramOfferings(schoolId: number
         sps: string[];
         tle: string[];
     };
+    activeSpecialProgramTracks: ActiveSpecialProgramTracks;
 }>;
 type SubjectScopeFilter = {
     includeSte?: boolean;
@@ -47,6 +57,7 @@ export declare function getSubjectsBySchool(schoolId: number, filters?: SubjectS
     isActive: boolean;
     code: string;
     allowedSpecializations: string[];
+    interSectionEnabled: boolean;
     modularGroupId: string | null;
     termGroupId: string | null;
     gradeLevels: number[];
@@ -60,7 +71,6 @@ export declare function getSubjectsBySchool(schoolId: number, filters?: SubjectS
     termCount: number;
     isSeedable: boolean;
     isSystemManaged: boolean;
-    interSectionEnabled: boolean;
     interSectionGradeLevels: number[];
     requiredFeatures: string[];
 } & SubjectWithViewMetadata)[]>;
@@ -74,6 +84,7 @@ export declare function getSubjectById(id: number): Promise<({
     isActive: boolean;
     code: string;
     allowedSpecializations: string[];
+    interSectionEnabled: boolean;
     modularGroupId: string | null;
     termGroupId: string | null;
     gradeLevels: number[];
@@ -87,7 +98,6 @@ export declare function getSubjectById(id: number): Promise<({
     termCount: number;
     isSeedable: boolean;
     isSystemManaged: boolean;
-    interSectionEnabled: boolean;
     interSectionGradeLevels: number[];
     requiredFeatures: string[];
 } & SubjectWithViewMetadata) | null>;
@@ -123,6 +133,7 @@ export declare function createSubject(schoolId: number, data: {
     isActive: boolean;
     code: string;
     allowedSpecializations: string[];
+    interSectionEnabled: boolean;
     modularGroupId: string | null;
     termGroupId: string | null;
     gradeLevels: number[];
@@ -136,7 +147,6 @@ export declare function createSubject(schoolId: number, data: {
     termCount: number;
     isSeedable: boolean;
     isSystemManaged: boolean;
-    interSectionEnabled: boolean;
     interSectionGradeLevels: number[];
     programScopes: import("@prisma/client").$Enums.ProgramType[];
     requiredFeatures: string[];
@@ -172,6 +182,7 @@ export declare function updateSubject(id: number, data: Partial<{
     isActive: boolean;
     code: string;
     allowedSpecializations: string[];
+    interSectionEnabled: boolean;
     modularGroupId: string | null;
     termGroupId: string | null;
     gradeLevels: number[];
@@ -185,7 +196,6 @@ export declare function updateSubject(id: number, data: Partial<{
     termCount: number;
     isSeedable: boolean;
     isSystemManaged: boolean;
-    interSectionEnabled: boolean;
     interSectionGradeLevels: number[];
     programScopes: import("@prisma/client").$Enums.ProgramType[];
     requiredFeatures: string[];

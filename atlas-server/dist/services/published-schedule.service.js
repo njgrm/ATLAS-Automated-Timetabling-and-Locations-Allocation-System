@@ -58,8 +58,8 @@ async function resolvePublishedRun(schoolId, schoolYearId) {
         summary: (publishedRun.summary ?? null),
     };
 }
-async function loadReferenceMaps(schoolId, schoolYearId, sectionIds) {
-    const [subjects, faculty, rooms, sectionSnapshot, sectionMirrors] = await Promise.all([
+async function loadReferenceMaps(schoolId, schoolYearId, sectionIds, subjectIds) {
+    const [subjects, faculty, rooms, sectionSnapshot, sectionMirrors, cohorts, ownershipRows] = await Promise.all([
         prisma.subject.findMany({ where: { schoolId }, select: { id: true, code: true, name: true } }),
         prisma.facultyMirror.findMany({
             where: { schoolId },
@@ -89,6 +89,33 @@ async function loadReferenceMaps(schoolId, schoolYearId, sectionIds) {
                 programName: true,
             },
         }),
+        prisma.instructionalCohort.findMany({
+            where: { schoolId, schoolYearId, isActive: true },
+            select: {
+                cohortCode: true,
+                specializationCode: true,
+                specializationName: true,
+            },
+        }),
+        sectionIds.length > 0 && subjectIds.length > 0
+            ? prisma.subjectSectionOwnership.findMany({
+                where: {
+                    schoolId,
+                    sectionId: { in: sectionIds },
+                    subjectId: { in: subjectIds },
+                    OR: [
+                        { specializationCode: { not: null } },
+                        { specializationLabel: { not: null } },
+                    ],
+                },
+                select: {
+                    subjectId: true,
+                    sectionId: true,
+                    specializationCode: true,
+                    specializationLabel: true,
+                },
+            })
+            : Promise.resolve([]),
     ]);
     const sectionNameById = new Map();
     if (sectionSnapshot?.payload && Array.isArray(sectionSnapshot.payload)) {
@@ -111,12 +138,28 @@ async function loadReferenceMaps(schoolId, schoolYearId, sectionIds) {
             programName: section.programName,
         });
     }
+    const specializationBySubjectSection = new Map();
+    for (const row of ownershipRows) {
+        const key = `${row.subjectId}:${row.sectionId}`;
+        if (specializationBySubjectSection.has(key))
+            continue;
+        specializationBySubjectSection.set(key, {
+            specializationCode: row.specializationCode ?? null,
+            specializationLabel: row.specializationLabel ?? null,
+        });
+    }
+    const cohortByCode = new Map(cohorts.map((cohort) => [cohort.cohortCode, {
+            specializationCode: cohort.specializationCode,
+            specializationName: cohort.specializationName,
+        }]));
     return {
         subjectById: new Map(subjects.map((subject) => [subject.id, subject])),
         facultyById: new Map(faculty.map((member) => [member.id, `${member.lastName}, ${member.firstName}`])),
         roomById: new Map(rooms.map((room) => [room.id, room])),
         sectionById,
         sectionNameById,
+        cohortByCode,
+        specializationBySubjectSection,
     };
 }
 function buildSpecialEventsPayload(policy) {
@@ -148,11 +191,16 @@ export async function getPublishedSchedulePayload(schoolId, schoolYearId) {
     const resolved = await resolvePublishedRun(schoolId, schoolYearId);
     const policy = await getOrCreatePolicy(resolved.source.schoolId, resolved.source.schoolYearId);
     const sectionIds = Array.from(new Set(resolved.entries.map((entry) => entry.sectionId)));
-    const references = await loadReferenceMaps(resolved.source.schoolId, resolved.source.schoolYearId, sectionIds);
+    const subjectIds = Array.from(new Set(resolved.entries.map((entry) => entry.subjectId)));
+    const references = await loadReferenceMaps(resolved.source.schoolId, resolved.source.schoolYearId, sectionIds, subjectIds);
     const entries = resolved.entries.map((entry) => {
         const subject = references.subjectById.get(entry.subjectId);
         const room = references.roomById.get(entry.roomId);
         const section = references.sectionById.get(entry.sectionId);
+        const cohort = entry.cohortCode ? references.cohortByCode.get(entry.cohortCode) : null;
+        const ownershipSpecialization = references.specializationBySubjectSection.get(`${entry.subjectId}:${entry.sectionId}`);
+        const specializationCode = cohort?.specializationCode ?? ownershipSpecialization?.specializationCode ?? null;
+        const specializationLabel = cohort?.specializationName ?? ownershipSpecialization?.specializationLabel ?? null;
         return {
             entryId: entry.entryId,
             day: entry.day,
@@ -189,6 +237,9 @@ export async function getPublishedSchedulePayload(schoolId, schoolYearId) {
             },
             entryKind: entry.entryKind ?? 'SECTION',
             cohortCode: entry.cohortCode ?? null,
+            cohortName: entry.cohortName ?? cohort?.specializationName ?? null,
+            specializationCode,
+            specializationLabel,
         };
     });
     const summaryDisplaySlots = Array.isArray(resolved.summary?.timetableDisplaySlots)

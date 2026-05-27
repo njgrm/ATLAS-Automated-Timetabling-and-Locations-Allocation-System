@@ -107,6 +107,7 @@ export declare function getFacultyById(id: number): Promise<({
             isActive: boolean;
             code: string;
             allowedSpecializations: string[];
+            interSectionEnabled: boolean;
             modularGroupId: string | null;
             termGroupId: string | null;
             gradeLevels: number[];
@@ -120,7 +121,6 @@ export declare function getFacultyById(id: number): Promise<({
             termCount: number;
             isSeedable: boolean;
             isSystemManaged: boolean;
-            interSectionEnabled: boolean;
             interSectionGradeLevels: number[];
             programScopes: import("@prisma/client").$Enums.ProgramType[];
             requiredFeatures: string[];
@@ -134,9 +134,9 @@ export declare function getFacultyById(id: number): Promise<({
         facultyId: number;
         gradeLevels: number[];
         subjectId: number;
+        assignedAt: Date;
         sectionIds: number[];
         assignedBy: number;
-        assignedAt: Date;
     })[];
 } & {
     schoolId: number;

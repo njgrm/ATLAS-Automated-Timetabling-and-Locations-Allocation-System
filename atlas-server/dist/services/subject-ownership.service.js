@@ -8,8 +8,8 @@ const SUBJECT_OWNER_DEPARTMENT_BY_PREFIX = [
     { prefix: 'TLE', ownerDepartment: 'TLE' },
     { prefix: 'SCI', ownerDepartment: 'SCI' },
     { prefix: 'STE', ownerDepartment: 'SCI' },
-    { prefix: 'SPA', ownerDepartment: 'SPA' },
-    { prefix: 'SPS', ownerDepartment: 'SPS' },
+    { prefix: 'SPA', ownerDepartment: 'MAPEH' },
+    { prefix: 'SPS', ownerDepartment: 'MAPEH' },
 ];
 const DEPARTMENT_NORMALIZATION = {
     SCIENCE: 'SCI',
@@ -27,8 +27,8 @@ const DEPARTMENT_NORMALIZATION = {
     'SOCIAL STUDIES': 'AP',
     'ARALING PANLIPUNAN': 'AP',
     TLE: 'TLE',
-    SPA: 'SPA',
-    SPS: 'SPS',
+    SPA: 'MAPEH',
+    SPS: 'MAPEH',
     LANGUAGES: 'ENG',
 };
 const OWNER_DEPARTMENT_FEATURE_PREFIX = 'OWNER_DEPT:';

@@ -49,7 +49,7 @@ type SectionGridModeProps = {
 	onSelectSection?: (id: number | null) => void;
 	onSave?: () => void;
 	hasDraft?: boolean;
-	onSwapSectionOwnership?: (subjectId: number, sectionId: number, fromFacultyId: number) => void;
+	onSwapSectionOwnership?: (subjectId: number, sectionId: number, fromFacultyId: number, toFacultyId?: number) => void;
 };
 
 export function SectionGridMode({
@@ -79,7 +79,7 @@ export function SectionGridMode({
 
 	const sectionRows = useMemo(() => {
 		// Identify unique sections from sectionsBySubject
-		const uniqueSections = Array.from(new Set(Object.values(sectionsBySubject).flat())).filter((s, i, self) => self.findIndex(t => t.id === s.id) === i);
+		const uniqueSections = Array.from(new Map(Object.values(sectionsBySubject).flat().map((section) => [section.id, section])).values());
 
 		const rows: Array<{ 
 			section: ExternalSection; 
@@ -90,10 +90,9 @@ export function SectionGridMode({
 		}> = [];
 
 		for (const section of uniqueSections) {
-			const sectionSubjects = subjects.filter(s => {
-				const programType = (section.programType ?? 'REGULAR').toUpperCase();
-				return s.isActive && (s.programScopes.length === 0 || s.programScopes.some(ps => ps.toUpperCase() === programType));
-			});
+			const sectionSubjects = subjects.filter((subject) =>
+				(sectionsBySubject[subject.id] ?? []).some((candidateSection) => candidateSection.id === section.id),
+			);
 
 			if (sectionSubjects.length === 0) continue;
 
@@ -137,7 +136,7 @@ export function SectionGridMode({
 		if (isReadOnlyMode || saving) return;
 		
 		if (currentOwnerId && currentOwnerId !== facultyId) {
-			onSwapSectionOwnership?.(subjectId, sectionId, currentOwnerId);
+			onSwapSectionOwnership?.(subjectId, sectionId, currentOwnerId, facultyId);
 			return;
 		}
 

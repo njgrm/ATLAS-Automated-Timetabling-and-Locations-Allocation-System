@@ -27,7 +27,7 @@ export type SubjectRowProps = {
 	/** Multi-owner map for detecting database-level duplicate ownership conflicts. */
 	savedConflictMap?: Record<string, FacultyOwnershipState[]>;
 	onSetSections: (subjectId: number, sectionIds: number[]) => void;
-	onSwapSectionOwnership?: (subjectId: number, sectionId: number, fromFacultyId: number) => void;
+	onSwapSectionOwnership?: (subjectId: number, sectionId: number, fromFacultyId: number, toFacultyId?: number) => void;
 	isOutsideDepartment?: boolean;
 	searchTerm?: string;
 	sectionFilter?: 'all' | 'unassigned' | 'assigned';

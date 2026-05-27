@@ -27,8 +27,8 @@ const MATATAG_DEFAULTS = [
     { code: 'STE_ROBOTICS', name: 'Robotics', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [10], isSeedable: false, programScopes: ['STE'], allowedOwnerDepartments: ['TLE'] },
     { code: 'STE_RESEARCH', name: 'Research', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['STE'] },
     // SPA / SPS umbrella specialization overlays.
-    { code: 'SPA_SPEC', name: 'Special Program in the Arts: Specialization', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'], allowedSpecializations: ['MUSIC', 'VISUAL_ARTS', 'THEATER_ARTS', 'MEDIA_ARTS', 'CREATIVE_WRITING', 'DANCE', 'TRADITIONAL_ARTS'] },
-    { code: 'SPS_SPEC', name: 'Special Program in Sports: Specialization', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPS'], allowedSpecializations: ['ATHLETICS', 'SWIMMING', 'BASKETBALL', 'VOLLEYBALL', 'FOOTBALL', 'SEPAK_TAKRAW', 'SOFTBALL', 'BASEBALL', 'BADMINTON', 'TABLE_TENNIS', 'TAEKWONDO', 'TENNIS', 'CHESS', 'GYMNASTICS', 'ARCHERY', 'ARNIS'] },
+    { code: 'SPA_SPEC', name: 'Special Program in the Arts: Specialization', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPA'], allowedSpecializations: ['MUSIC', 'VISUAL_ARTS', 'THEATER_ARTS', 'MEDIA_ARTS', 'CREATIVE_WRITING', 'DANCE', 'TRADITIONAL_ARTS'], interSectionEnabled: true, interSectionGradeLevels: [7, 8, 9, 10] },
+    { code: 'SPS_SPEC', name: 'Special Program in Sports: Specialization', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['SPS'], allowedSpecializations: ['ATHLETICS', 'SWIMMING', 'BASKETBALL', 'VOLLEYBALL', 'FOOTBALL', 'SEPAK_TAKRAW', 'SOFTBALL', 'BASEBALL', 'BADMINTON', 'TABLE_TENNIS', 'TAEKWONDO', 'TENNIS', 'CHESS', 'GYMNASTICS', 'ARCHERY', 'ARNIS'], interSectionEnabled: true, interSectionGradeLevels: [7, 8, 9, 10] },
     { code: 'DEVL_READING', name: 'Developmental Reading', minMinutesPerWeek: 225, preferredRoomType: 'CLASSROOM', gradeLevels: [7, 8, 9, 10], isSeedable: false, programScopes: ['STE', 'SPA'] },
 ];
 const DEPRECATED_SUBJECT_CODES = [
@@ -379,8 +379,8 @@ SET
     WHEN code LIKE 'MAPEH%' THEN 'MAPEH'
     WHEN code LIKE 'TLE%' THEN 'TLE'
     WHEN code LIKE 'SCI%' OR code LIKE 'STE_%' THEN 'SCI'
-    WHEN code LIKE 'SPA_%' THEN 'SPA'
-    WHEN code LIKE 'SPS_%' THEN 'SPS'
+		WHEN code LIKE 'SPA_%' THEN 'MAPEH'
+		WHEN code LIKE 'SPS_%' THEN 'MAPEH'
     WHEN code = 'DEVL_READING' THEN 'ENG'
     ELSE owner_department
   END,
@@ -400,6 +400,13 @@ WHERE
   OR qualification_priority IS NULL
   OR rotation_family IS NULL
   OR (code LIKE 'TLE_%_EXP' OR code LIKE 'TLE_SPEC_%')
+			`);
+            await prisma.$executeRawUnsafe(`
+UPDATE subjects
+SET owner_department = 'MAPEH'
+WHERE code IN ('SPA_SPEC', 'SPS_SPEC')
+   OR code LIKE 'SPA_%'
+   OR code LIKE 'SPS_%'
 			`);
             await prisma.$executeRawUnsafe(`
 UPDATE subjects
@@ -451,6 +458,8 @@ export async function ensureDefaultSubjects(schoolId) {
                 termGroupId: subject.termGroupId ?? subject.modularGroupId ?? null,
                 termCount: subject.termCount ?? 3,
                 gradeLevels: subject.gradeLevels,
+                interSectionEnabled: subject.interSectionEnabled ?? false,
+                interSectionGradeLevels: subject.interSectionGradeLevels ?? [],
                 programScopes: subject.programScopes,
                 allowedSpecializations: subject.allowedSpecializations ?? [],
                 requiredFeatures: contract.requiredFeatures,
@@ -473,6 +482,8 @@ export async function ensureDefaultSubjects(schoolId) {
                 termGroupId: subject.termGroupId ?? subject.modularGroupId ?? null,
                 termCount: subject.termCount ?? 3,
                 gradeLevels: subject.gradeLevels,
+                interSectionEnabled: subject.interSectionEnabled ?? false,
+                interSectionGradeLevels: subject.interSectionGradeLevels ?? [],
                 programScopes: subject.programScopes,
                 allowedSpecializations: subject.allowedSpecializations ?? [],
                 requiredFeatures: contract.requiredFeatures,
@@ -486,6 +497,105 @@ export async function ensureDefaultSubjects(schoolId) {
             },
         });
     }));
+}
+async function fetchActiveSpecialProgramTracks(schoolId, schoolYearId) {
+    const specialSections = await prisma.sectionMirror.findMany({
+        where: {
+            schoolId,
+            schoolYearId,
+            isStale: false,
+            programType: { in: ['SPA', 'SPS'] },
+        },
+        select: { externalId: true, programType: true },
+    });
+    if (specialSections.length === 0) {
+        return { spa: [], sps: [] };
+    }
+    const sectionProgramById = new Map();
+    for (const section of specialSections) {
+        if (section.programType === 'SPA' || section.programType === 'SPS') {
+            sectionProgramById.set(section.externalId, section.programType);
+        }
+    }
+    const specialSubjects = await prisma.subject.findMany({
+        where: {
+            schoolId,
+            OR: [
+                { code: 'SPA_SPEC' },
+                { code: 'SPS_SPEC' },
+            ],
+        },
+        select: { id: true, code: true },
+    });
+    if (specialSubjects.length === 0) {
+        return { spa: [], sps: [] };
+    }
+    const subjectProgramById = new Map(specialSubjects
+        .map((subject) => {
+        if (subject.code.startsWith('SPA'))
+            return [subject.id, 'SPA'];
+        if (subject.code.startsWith('SPS'))
+            return [subject.id, 'SPS'];
+        return null;
+    })
+        .filter((entry) => entry != null));
+    const ownershipRows = await prisma.subjectSectionOwnership.findMany({
+        where: {
+            schoolId,
+            subjectId: { in: specialSubjects.map((subject) => subject.id) },
+            sectionId: { in: [...sectionProgramById.keys()] },
+            OR: [
+                { specializationCode: { not: null } },
+                { specializationLabel: { not: null } },
+            ],
+        },
+        select: {
+            subjectId: true,
+            sectionId: true,
+            specializationCode: true,
+            specializationLabel: true,
+        },
+    });
+    const trackBuckets = {
+        SPA: new Map(),
+        SPS: new Map(),
+    };
+    for (const row of ownershipRows) {
+        const inferredProgram = sectionProgramById.get(row.sectionId) ?? subjectProgramById.get(row.subjectId);
+        if (!inferredProgram)
+            continue;
+        const normalizedCode = normalizeCode(row.specializationCode ?? row.specializationLabel);
+        if (!normalizedCode)
+            continue;
+        const label = typeof row.specializationLabel === 'string' && row.specializationLabel.trim().length > 0
+            ? row.specializationLabel.trim()
+            : normalizedCode.replace(/_/g, ' ');
+        const bucket = trackBuckets[inferredProgram];
+        const existing = bucket.get(normalizedCode);
+        if (!existing) {
+            bucket.set(normalizedCode, {
+                code: normalizedCode,
+                label,
+                sectionIds: new Set([row.sectionId]),
+            });
+            continue;
+        }
+        existing.sectionIds.add(row.sectionId);
+        if (existing.label.length === 0 && label.length > 0) {
+            existing.label = label;
+        }
+    }
+    const toTracks = (bucket) => ([...bucket.values()]
+        .map((value) => ({
+        code: value.code,
+        label: value.label,
+        sectionCount: value.sectionIds.size,
+    }))
+        .sort((left, right) => left.label.localeCompare(right.label) || left.code.localeCompare(right.code)));
+    return {
+        spa: toTracks(trackBuckets.SPA),
+        sps: toTracks(trackBuckets.SPS),
+    };
 }
 async function materializeDynamicTleSubjects(schoolId, specializations) {
     if (specializations.length === 0) {
@@ -598,6 +708,7 @@ export async function syncSubjectContractFromProgramOfferings(schoolId, schoolYe
     });
     const signals = await fetchUpstreamProgramSignals(schoolId, schoolYearId, authToken);
     const mirrorPrograms = await fetchMirroredProgramSignals(schoolId, schoolYearId);
+    const activeSpecialProgramTracks = await fetchActiveSpecialProgramTracks(schoolId, schoolYearId);
     const offeredPrograms = [...signals.offeredPrograms].sort();
     const mirroredPrograms = [...mirrorPrograms].sort();
     const steCodes = new Set(PROGRAM_OVERLAY_CODES.STE);
@@ -625,6 +736,7 @@ export async function syncSubjectContractFromProgramOfferings(schoolId, schoolYe
             sps: activeSpsSubjects.map((subject) => subject.code),
             tle: activeTleSubjects.map((subject) => subject.code),
         },
+        activeSpecialProgramTracks,
     };
 }
 export async function getSubjectsBySchool(schoolId, filters) {

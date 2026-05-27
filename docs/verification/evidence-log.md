@@ -1,3 +1,33 @@
+# 2026-05-27 - Phase 3 Teaching Load Closure Read/Write, STE Contract, And MAPEH Redistribution
+- Phase: Phase 3 generator-readiness stream, teaching-load closure pass
+- Operator: GitHub Copilot
+- Scope gate: PARTIAL (live backend/data closure reached; Tailnet browser shell still serves an older frontend bundle)
+- Safety gate: PASS (service-layer redistribution patch preserved section specialization truth; live apply executed only after preview showed 16 moves and 0 blockers)
+- Files changed in this pass:
+  - atlas-client/src/hooks/useTeachingLoadData.ts
+  - atlas-server/src/services/faculty-assignment.service.ts
+  - docs/reference/atlas-runtime-source-of-truth-map.md
+  - docs/verification/evidence-log.md
+
+- Repair delivered:
+  1. Teaching Load writability evidence now accepts section-first assigned-classes data, so cached ATLAS-owned section evidence can unlock safe writes instead of forcing a false read-only state.
+  2. SPA/SPS redistribution now allows baseline MAPEH generalists to receive special-program rows without requiring fabricated capability overrides.
+  3. Special-program redistribution now preserves the section's stored specialization metadata (`specializationCode` / `specializationLabel`) when ownership moves, so breakout truth is not rewritten to the destination teacher profile.
+
+- Verification:
+  - npm --prefix atlas-client run build -> PASS
+  - npm --prefix atlas-server run build -> PASS
+  - Tailnet GET /api/v1/faculty-assignments/summary?schoolId=1&schoolYearId=55 -> active eligible MAPEH at 0 load before apply = 6 (`ILAGAN, WENDY`, `MACALINTAL, VICTOR`, `NAVARRO, ZACARIAS`, `QUINTO, YOLANDA`, `TUASON, XAVIER`, `YAMBAO, ALICIA`)
+  - Tailnet POST /api/v1/faculty-assignments/coverage/rebalance-special-programs (preview) -> 16 proposed moves, 0 blocked subjects
+  - Tailnet POST /api/v1/faculty-assignments/coverage/rebalance-special-programs (apply) -> appliedMoves = 16
+  - Tailnet GET /api/v1/faculty-assignments/summary?schoolId=1&schoolYearId=55 after apply -> active eligible MAPEH at 0 load = 0
+  - Tailnet GET /api/v1/sections/assigned-classes?schoolId=1&schoolYearId=55&includeDiagnostics=true after apply -> SPA owner breadth = 8, SPS owner breadth = 8
+  - Tailnet GET /api/v1/sections/assigned-classes?schoolId=1&schoolYearId=55&includeDiagnostics=true after apply -> STE samples (`SIRIUS`, `VEGA`, `ARCTURUS`) stayed at assigned=12, rotation=3, unassigned=0
+  - Tailnet browser check after storage/service-worker reset -> still renders `READ-ONLY` in `/teaching-load`, indicating the Tailnet frontend shell is older than the workspace client code even though the live backend/API state reflects this pass
+  - Local browser check against http://localhost:5174/login -> sign-in currently returns 500, so fresh local UI validation is blocked by a separate runtime issue
+
+- Verdict: NO-GO for full frontend closure, GO for backend/data closure. Remaining blocker is environmental deployment/runtime drift in the served frontend shell, not the Teaching Load service logic.
+
 # 2026-05-27 - Phase 3 Teaching Load Refactor Stabilization and Regression Closure
 - Phase: Phase 3 generator-readiness stream, teaching-load stabilization
 - Operator: Gemini CLI

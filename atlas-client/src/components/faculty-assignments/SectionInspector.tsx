@@ -1,34 +1,20 @@
-import { 
-	BookOpen, 
-	Users, 
-	Activity, 
-	CheckCircle2, 
-	AlertTriangle, 
-	Clock,
-	Layers,
-	Layout,
-	ArrowRight,
-	Star,
-	Info
-} from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Layout, Star, Info } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { cn } from '@/lib/utils';
 import { gradeLabel, GRADE_COLORS } from '@/lib/grade-labels';
-import { type FacultyOwnershipState } from '@/lib/faculty-assignment-helpers';
-import type { ExternalSection, Subject, FacultyAssignmentDraft } from '@/types';
+import { getAssignmentOwnershipKey, type FacultyOwnershipState } from '@/lib/faculty-assignment-helpers';
+import type { ExternalSection, SectionAssignedClassesResult } from '@/types';
 
 type SectionInspectorProps = {
 	section: ExternalSection | null;
-	subjects: Subject[];
-	assignmentsByFaculty: Record<number, FacultyAssignmentDraft[]>;
+	sectionContract: SectionAssignedClassesResult | null;
 	savedOwnershipMap: Record<string, FacultyOwnershipState>;
 	pendingOwnershipMap: Record<string, FacultyOwnershipState>;
 };
 
 export function SectionInspector({
 	section,
-	subjects,
-	assignmentsByFaculty,
+	sectionContract,
 	savedOwnershipMap,
 	pendingOwnershipMap
 }: SectionInspectorProps) {
@@ -43,14 +29,23 @@ export function SectionInspector({
 		);
 	}
 
-	const programType = (section.programType ?? 'REGULAR').toUpperCase();
-	const compatibleSubjects = subjects.filter(s => 
-		(s.gradeLevels.length === 0 || s.gradeLevels.includes(section.displayOrder)) &&
-		(s.programScopes.length === 0 || s.programScopes.some(p => p.toUpperCase() === programType))
-	);
+	const contractRows = [
+		...(sectionContract?.classes ?? []).map((entry) => ({
+			id: entry.subjectId,
+			subjectCode: entry.subjectCode,
+			subjectName: entry.subjectName,
+			specializationLabel: entry.specializationLabel,
+		})),
+		...((sectionContract?.unassignedExpectedClasses ?? []).map((entry) => ({
+			id: entry.subjectId,
+			subjectCode: entry.subjectCode,
+			subjectName: entry.subjectName,
+			specializationLabel: null,
+		}))),
+	];
 
-	const staffing = compatibleSubjects.map(subject => {
-		const key = `${subject.id}:${section.id}`;
+	const staffing = contractRows.map((subject) => {
+		const key = getAssignmentOwnershipKey(subject.id, section.id);
 		const saved = savedOwnershipMap[key];
 		const pending = pendingOwnershipMap[key];
 		return {
@@ -144,13 +139,13 @@ export function SectionInspector({
 									owner && (isPending ? "bg-sky-50 border-sky-100" : "bg-primary/5 border-primary/10")
 								)}>
 									<span className={cn("text-[0.6rem] font-black", owner ? "text-primary" : "text-muted-foreground/40")}>
-										{subject.code}
+										{subject.subjectCode}
 									</span>
 								</div>
 								
 								<div className="flex-1 min-w-0">
 									<p className="text-[0.7rem] font-black uppercase truncate leading-tight">
-										{subject.name}
+										{subject.subjectName}
 									</p>
 									<div className="flex items-center gap-1.5 mt-0.5">
 										{owner ? (
@@ -165,6 +160,11 @@ export function SectionInspector({
 										) : (
 											<span className="text-[0.6rem] font-bold text-rose-500 uppercase tracking-widest italic">Unassigned</span>
 										)}
+										{subject.specializationLabel ? (
+											<Badge variant="outline" className="h-3.5 px-1 text-[8px] font-black uppercase bg-background">
+												{subject.specializationLabel}
+											</Badge>
+										) : null}
 									</div>
 								</div>
 

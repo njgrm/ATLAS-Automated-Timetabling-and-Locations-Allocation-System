@@ -196,6 +196,8 @@ export interface SpecialProgramRebalanceMove {
     fromFacultyName: string;
     toFacultyId: number;
     toFacultyName: string;
+    preservedSpecializationCode: string | null;
+    preservedSpecializationLabel: string | null;
 }
 export interface SpecialProgramRebalanceInput {
     schoolId: number;

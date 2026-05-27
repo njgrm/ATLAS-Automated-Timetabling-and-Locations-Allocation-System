@@ -36,6 +36,7 @@ import { useAssignmentHistory } from '@/hooks/useAssignmentHistory';
 import type {
 	ExternalSection,
 	HomeroomHintResponse,
+	SectionAssignedClassesIndexResult,
 	SectionSummaryResponse,
 	Subject,
 	FacultyAssignmentRecord,
@@ -52,6 +53,7 @@ export function useTeachingLoadData() {
 	const [faculty, setFaculty] = useState<FacultySummary[]>([]);
 	const [subjects, setSubjects] = useState<Subject[]>([]);
 	const [sectionSummary, setSectionSummary] = useState<SectionSummaryResponse | null>(null);
+	const [sectionAssignedClassesIndex, setSectionAssignedClassesIndex] = useState<SectionAssignedClassesIndexResult | null>(null);
 	const [savedOwnershipIndex, setSavedOwnershipIndex] = useState<SubjectSectionOwnershipIndexEntry[]>([]);
 	const [coverageTotals, setCoverageTotals] = useState<TeachingLoadCoverageTotals | null>(null);
 	const [integrityDiagnostics, setIntegrityDiagnostics] = useState<TeachingLoadIntegrityDiagnostics | null>(null);
@@ -78,9 +80,13 @@ export function useTeachingLoadData() {
 	const [draftAssignmentsByFaculty, setDraftAssignmentsByFaculty] = useState<Record<number, FacultyAssignmentDraft[]>>({});
 	const [error, setError] = useState<string | null>(null);
 
+	const hasSectionWorkspaceEvidence =
+		(sectionAssignedClassesIndex?.sections?.length ?? 0) > 0
+		|| (sectionSummary?.sections?.length ?? 0) > 0;
+
 	const hasLocalWriteEvidence = Boolean(
 		activeSchoolYearId
-		&& (sectionSummary?.sections?.length ?? 0) > 0
+		&& hasSectionWorkspaceEvidence
 		&& subjects.length > 0
 		&& faculty.length > 0,
 	);
@@ -156,7 +162,7 @@ export function useTeachingLoadData() {
 				}
 			}
 
-			const [facultyRes, subjectsRes, sectionsRes] = await Promise.all([
+			const [facultyRes, subjectsRes, sectionsRes, sectionAssignedClassesRes] = await Promise.all([
 				requestWithRetry(
 					() =>
 						atlasApi.get<{
@@ -177,6 +183,12 @@ export function useTeachingLoadData() {
 				),
 				requestWithRetry(
 					() => atlasApi.get<SectionSummaryResponse>(`/sections/summary/${schoolYearId}`, { params: { schoolId: DEFAULT_SCHOOL_ID } }),
+					{ attempts: 2, delayMs: 400 },
+				),
+				requestWithRetry(
+					() => atlasApi.get<SectionAssignedClassesIndexResult>('/sections/assigned-classes', {
+						params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId, includeDiagnostics: true },
+					}),
 					{ attempts: 2, delayMs: 400 },
 				),
 			]);
@@ -207,6 +219,7 @@ export function useTeachingLoadData() {
 			setIntegrityDiagnostics(normalizedSummary.integrityDiagnostics ?? null);
 			setSubjects(normalizedSubjects);
 			setSectionSummary(normalizedSectionSummary as SectionSummaryResponse);
+			setSectionAssignedClassesIndex(sectionAssignedClassesRes.data);
 			setCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId, normalizedSummary);
 			setCachedSubjects(DEFAULT_SCHOOL_ID, normalizedSubjects);
 			setCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId, normalizedSectionSummary as SectionSummaryResponse);
@@ -237,6 +250,7 @@ export function useTeachingLoadData() {
 				setIntegrityDiagnostics(cachedSummary.data.integrityDiagnostics ?? null);
 				setSubjects(cachedSubjects.data);
 				setSectionSummary(cachedSections.data);
+				setSectionAssignedClassesIndex(null);
 				setDataSource('cached');
 				setDegradedNotice('Live teaching load data is unavailable. You are viewing your last saved snapshot in read-only mode.');
 				setError(null);
@@ -246,6 +260,7 @@ export function useTeachingLoadData() {
 				setCoverageTotals(null);
 				setIntegrityDiagnostics(null);
 				setSplitBrainIncident(null);
+				setSectionAssignedClassesIndex(null);
 				setDegradedNotice(null);
 				setError(requestError?.response?.data?.message ?? requestError?.message ?? 'Failed to load teaching load data.');
 			}
@@ -406,6 +421,7 @@ export function useTeachingLoadData() {
 		faculty,
 		subjects,
 		sectionSummary,
+		sectionAssignedClassesIndex,
 		coverageTotals,
 		integrityDiagnostics,
 		splitBrainIncident,

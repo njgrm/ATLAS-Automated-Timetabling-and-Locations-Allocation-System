@@ -156,19 +156,6 @@ function getStaleFacultyIdsForRun(run, activeFacultyIds) {
 function normalizeProgramType(programType) {
     return (programType ?? 'REGULAR').toUpperCase();
 }
-function hasTleSplitSectionOwnership(gradeLevels) {
-    for (const grade of gradeLevels) {
-        for (const section of grade.sections) {
-            if (section.tleProgramId != null)
-                return true;
-            if (section.tleSpecialization != null && section.tleSpecialization.trim().length > 0)
-                return true;
-            if (section.tleProgramCategory != null && section.tleProgramCategory.trim().length > 0)
-                return true;
-        }
-    }
-    return false;
-}
 function buildRunTimetableShapeContracts(input) {
     const templateByProgram = new Map(input.templateProfiles.map((profile) => [normalizeProgramType(profile.programType), profile]));
     const regularTemplate = templateByProgram.get('REGULAR') ?? { programType: 'REGULAR', periodLengthMinutes: 50, periodsPerDay: 8 };
@@ -416,14 +403,16 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
         await syncSectionsFromExternal(schoolId, schoolYearId, options?.authToken);
         await ensurePhase3GradeWindows(schoolId, schoolYearId);
         const sectionResult = await getSectionSummary(schoolYearId, schoolId, options?.authToken);
-        const hasTleOwnershipSignals = hasTleSplitSectionOwnership(sectionResult.gradeLevels);
+        const cohortSyncResult = await syncCohorts(schoolId, schoolYearId, options?.authToken);
         const cohortSyncWarnings = [];
-        if (hasTleOwnershipSignals) {
-            const cohortSyncResult = await syncCohorts(schoolId, schoolYearId, options?.authToken);
+        if (cohortSyncResult.synced) {
             cohortSyncWarnings.push(...(cohortSyncResult.warnings ?? []));
+            if (cohortSyncResult.count === 0) {
+                cohortSyncWarnings.push('No instructional cohorts are currently active for this run; inter-section breakout lanes will fall back to section-scoped demand where needed.');
+            }
         }
         else {
-            cohortSyncWarnings.push('MATATAG section-scoped TLE contract active; cohort-based TLE inputs are bypassed for this run.');
+            cohortSyncWarnings.push(`Instructional cohort sync failed for this run: ${cohortSyncResult.error ?? 'unknown error'}. Existing cached cohorts (if any) were used.`);
         }
         stage = 'coverage-repair';
         const latestCompletedRun = await prisma.generationRun.findFirst({
@@ -521,21 +510,19 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
                 ? Promise.resolve([])
                 : prisma.gradeShiftWindow.findMany({ where: { schoolId, schoolYearId } }),
         ]);
-        const cohorts = hasTleOwnershipSignals
-            ? await prisma.instructionalCohort.findMany({
-                where: { schoolId, schoolYearId, isActive: true },
-                orderBy: [{ gradeLevel: 'asc' }, { cohortCode: 'asc' }],
-                select: {
-                    cohortCode: true,
-                    specializationCode: true,
-                    specializationName: true,
-                    gradeLevel: true,
-                    memberSectionIds: true,
-                    expectedEnrollment: true,
-                    preferredRoomType: true,
-                },
-            })
-            : [];
+        const cohorts = await prisma.instructionalCohort.findMany({
+            where: { schoolId, schoolYearId, isActive: true },
+            orderBy: [{ gradeLevel: 'asc' }, { cohortCode: 'asc' }],
+            select: {
+                cohortCode: true,
+                specializationCode: true,
+                specializationName: true,
+                gradeLevel: true,
+                memberSectionIds: true,
+                expectedEnrollment: true,
+                preferredRoomType: true,
+            },
+        });
         const rosterIndex = buildSectionRosterIndex(sectionResult.gradeLevels);
         const activeFacultyIdSet = new Set(faculty.map((member) => member.id));
         const facultySubjects = facultySubjectRows

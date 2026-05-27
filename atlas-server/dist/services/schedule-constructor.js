@@ -411,9 +411,6 @@ export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemp
                         adviserName: null,
                     });
                 }
-                if (specializationBoundCohort) {
-                    continue;
-                }
                 for (const section of sortedSections) {
                     if (cohortSectionIds.has(section.id))
                         continue;

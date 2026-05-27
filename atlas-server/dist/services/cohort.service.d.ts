@@ -19,7 +19,7 @@ export interface ExternalCohort {
 }
 export interface CohortFetchResult {
     cohorts: ExternalCohort[];
-    source: 'enrollpro' | 'stub' | 'derived-sections' | 'cached-enrollpro';
+    source: 'enrollpro' | 'stub' | 'derived-sections' | 'derived-special-program' | 'cached-enrollpro';
     fetchedAt: Date;
     contractWarnings?: string[];
 }
@@ -36,7 +36,7 @@ export declare function normalizeEnrollProCohortResponse(body: unknown, sections
 };
 export interface CohortSyncResult {
     synced: boolean;
-    source: 'enrollpro' | 'stub' | 'derived-sections' | 'cached-enrollpro' | 'preserved-existing';
+    source: 'enrollpro' | 'stub' | 'derived-sections' | 'derived-special-program' | 'cached-enrollpro' | 'preserved-existing';
     fetchedAt: Date;
     count: number;
     error?: string;

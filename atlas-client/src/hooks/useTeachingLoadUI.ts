@@ -67,7 +67,7 @@ export function useTeachingLoadUI({
 	const [resetDialogOpen, setResetDialogOpen] = useState(false);
 	const [resetConfirmText, setResetConfirmText] = useState('');
 	const [hoveredIncomingMinutes, setHoveredIncomingMinutes] = useState(0);
-	const [swapCandidate, setSwapCandidate] = useState<{ subjectId: number; sectionId: number; fromFacultyId: number } | null>(null);
+	const [swapCandidate, setSwapCandidate] = useState<{ subjectId: number; sectionId: number; fromFacultyId: number; toFacultyId?: number | null } | null>(null);
 
 	const filteredFaculty = useMemo(() => {
 		let nextFaculty = faculty;
