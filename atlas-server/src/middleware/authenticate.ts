@@ -9,7 +9,10 @@ export interface AuthPayload {
 	authSource?: 'bridge' | 'local' | 'system';
 	schoolId?: number;
 	accountId?: number;
+	facultyId?: number | null;
 	email?: string;
+	employeeId?: string | null;
+	accountName?: string | null;
 }
 
 declare global {

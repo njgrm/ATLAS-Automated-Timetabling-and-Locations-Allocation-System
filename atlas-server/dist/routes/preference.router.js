@@ -3,27 +3,22 @@ import { authenticate } from '../middleware/authenticate.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import jwt from 'jsonwebtoken';
 import * as prefService from '../services/preference.service.js';
+import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-identity.service.js';
 import { subscribePreferenceEvents, getPreferenceEventsSince } from '../services/preference-events.service.js';
 import { prisma } from '../lib/prisma.js';
 const router = Router();
 // ─── Helpers ───
 /** Verify the authenticated user owns the faculty record or is an officer/admin. */
-async function assertFacultyOwnerOrOfficer(req, res, schoolId, facultyId) {
+async function assertFacultyOwnerOrOfficer(req, res, schoolId, facultyId, schoolYearId) {
     const role = req.user?.role;
     if (role === 'admin' || role === 'officer' || role === 'SYSTEM_ADMIN')
         return true;
-    // For faculty role, userId must map to the requested facultyId via externalId
-    const userId = req.user?.userId;
-    if (!userId) {
+    const identity = await resolveCanonicalFacultyFromAuthPayload(req.user, { schoolId, schoolYearId });
+    if (!identity) {
         res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' });
         return false;
     }
-    const { prisma } = await import('../lib/prisma.js');
-    const faculty = await prisma.facultyMirror.findFirst({
-        where: { id: facultyId, schoolId, externalId: userId },
-        select: { id: true },
-    });
-    if (!faculty) {
+    if (identity.faculty.id !== facultyId) {
         res.status(403).json({ code: 'FORBIDDEN', message: 'You do not have permission to access this faculty preference.' });
         return false;
     }
@@ -84,7 +79,7 @@ router.get('/:schoolId/:schoolYearId/faculty/:facultyId', authenticate, async (r
             return;
         }
         // Auth guard: faculty can only access own preference
-        const allowed = await assertFacultyOwnerOrOfficer(req, res, schoolId, facultyId);
+        const allowed = await assertFacultyOwnerOrOfficer(req, res, schoolId, facultyId, schoolYearId);
         if (!allowed)
             return;
         const pref = await prefService.getPreference(schoolId, schoolYearId, facultyId);
@@ -160,7 +155,7 @@ router.put('/:schoolId/:schoolYearId/faculty/:facultyId/draft', authenticate, as
             return;
         }
         // Auth guard: faculty can only save own draft
-        const allowed = await assertFacultyOwnerOrOfficer(req, res, schoolId, facultyId);
+        const allowed = await assertFacultyOwnerOrOfficer(req, res, schoolId, facultyId, schoolYearId);
         if (!allowed)
             return;
         // Lifecycle guard
@@ -213,7 +208,7 @@ router.post('/:schoolId/:schoolYearId/faculty/:facultyId/submit', authenticate, 
             return;
         }
         // Auth guard: faculty can only submit own preference
-        const allowed = await assertFacultyOwnerOrOfficer(req, res, schoolId, facultyId);
+        const allowed = await assertFacultyOwnerOrOfficer(req, res, schoolId, facultyId, schoolYearId);
         if (!allowed)
             return;
         // Lifecycle guard

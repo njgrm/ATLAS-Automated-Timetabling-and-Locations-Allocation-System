@@ -85,10 +85,11 @@ async function run() {
 		assertEqual(login.status, 200, 'Faculty login returns HTTP 200');
 		const token = login.json?.token as string | undefined;
 		assert(Boolean(token), 'Faculty login token exists');
-		if (!token) return;
+		if (!token) throw new Error('Faculty login did not return a token.');
 
 		section('MY-DASH-01 fallback disclaimer contract is present');
-		const dashboard = await requestJson(baseUrl, '/faculty-portal/1/1/dashboard', {
+		const schoolYearId = Number(process.env.ATLAS_TEST_SCHOOL_YEAR_ID ?? 55);
+		const dashboard = await requestJson(baseUrl, `/faculty-portal/${facultyAccount.schoolId}/${schoolYearId}/dashboard`, {
 			headers: { authorization: `Bearer ${token}` },
 		});
 		assertEqual(dashboard.status, 200, 'Faculty dashboard endpoint returns HTTP 200');

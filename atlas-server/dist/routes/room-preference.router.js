@@ -2,6 +2,7 @@ import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { authenticate } from '../middleware/authenticate.js';
 import { prisma } from '../lib/prisma.js';
+import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-identity.service.js';
 import * as roomPreferenceService from '../services/room-preference.service.js';
 import { hasPrivilegedRole } from '../middleware/authorize.js';
 import { getRoomPreferenceEventsSince, subscribeRoomPreferenceEvents } from '../services/room-preference-events.service.js';
@@ -17,37 +18,27 @@ function positiveInt(raw, name) {
         return `${name} must be a positive integer.`;
     return parsed;
 }
-async function assertFacultyOwnerOrOfficer(req, res, schoolId, facultyId) {
+async function assertFacultyOwnerOrOfficer(req, res, schoolId, facultyId, schoolYearId) {
     const role = req.user?.role;
     if (role === 'admin' || role === 'officer' || role === 'SYSTEM_ADMIN')
         return true;
-    const userId = req.user?.userId;
-    if (!userId) {
+    const identity = await resolveCanonicalFacultyFromAuthPayload(req.user, { schoolId, schoolYearId });
+    if (!identity) {
         res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' });
         return false;
     }
-    const faculty = await prisma.facultyMirror.findFirst({
-        where: { id: facultyId, schoolId, externalId: userId },
-        select: { id: true },
-    });
-    if (!faculty) {
+    if (identity.faculty.id !== facultyId) {
         res.status(403).json({ code: 'FORBIDDEN', message: 'You do not have permission to access this faculty room preference.' });
         return false;
     }
     return true;
 }
-async function resolveRequestingFacultyId(req, schoolId) {
+async function resolveRequestingFacultyId(req, schoolId, schoolYearId) {
     const role = req.user?.role;
     if (role && PRIVILEGED_ROLES.has(role))
         return null;
-    const userId = req.user?.userId;
-    if (!userId)
-        return null;
-    const faculty = await prisma.facultyMirror.findFirst({
-        where: { schoolId, externalId: userId },
-        select: { id: true },
-    });
-    return faculty?.id ?? null;
+    const identity = await resolveCanonicalFacultyFromAuthPayload(req.user, { schoolId, schoolYearId });
+    return identity?.faculty.id ?? null;
 }
 function resolveSseUser(req) {
     if (req.user)
@@ -103,7 +94,7 @@ async function assertRequestOwnerOrOfficer(req, res, scope, requestId) {
         res.status(404).json({ code: 'ROOM_PREFERENCE_NOT_FOUND', message: 'Room preference request was not found in this run scope.' });
         return null;
     }
-    const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, request.facultyId);
+    const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, request.facultyId, scope.schoolYearId);
     if (!allowed)
         return null;
     return request;
@@ -125,7 +116,7 @@ router.get('/:schoolId/:schoolYearId/latest/faculty/:facultyId', authenticate, a
             res.status(400).json({ code: 'INVALID_PARAM', message: facultyId });
             return;
         }
-        const allowed = await assertFacultyOwnerOrOfficer(req, res, schoolId, facultyId);
+        const allowed = await assertFacultyOwnerOrOfficer(req, res, schoolId, facultyId, schoolYearId);
         if (!allowed)
             return;
         const result = await roomPreferenceService.getLatestFacultyRoomPreferenceState(schoolId, schoolYearId, facultyId);
@@ -145,7 +136,7 @@ router.get('/:schoolId/:schoolYearId/runs/:runId/faculty/:facultyId', authentica
             res.status(400).json({ code: 'INVALID_PARAM', message: facultyId });
             return;
         }
-        const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, facultyId);
+        const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, facultyId, scope.schoolYearId);
         if (!allowed)
             return;
         const result = await roomPreferenceService.getFacultyRoomPreferenceState(scope.schoolId, scope.schoolYearId, scope.runId, facultyId);
@@ -165,7 +156,7 @@ router.put('/:schoolId/:schoolYearId/runs/:runId/faculty/:facultyId/entries/:ent
             res.status(400).json({ code: 'INVALID_PARAM', message: facultyId });
             return;
         }
-        const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, facultyId);
+        const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, facultyId, scope.schoolYearId);
         if (!allowed)
             return;
         const requestedRoomId = req.body.requestedRoomId == null ? undefined : positiveInt(req.body.requestedRoomId, 'requestedRoomId');
@@ -210,7 +201,7 @@ router.post('/:schoolId/:schoolYearId/runs/:runId/faculty/:facultyId/entries/:en
             res.status(400).json({ code: 'INVALID_PARAM', message: facultyId });
             return;
         }
-        const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, facultyId);
+        const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, facultyId, scope.schoolYearId);
         if (!allowed)
             return;
         const requestedRoomId = req.body.requestedRoomId == null ? undefined : positiveInt(req.body.requestedRoomId, 'requestedRoomId');
@@ -254,7 +245,7 @@ router.post('/:schoolId/:schoolYearId/runs/:runId/faculty/:facultyId/entries/:en
             res.status(400).json({ code: 'INVALID_PARAM', message: facultyId });
             return;
         }
-        const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, facultyId);
+        const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, facultyId, scope.schoolYearId);
         if (!allowed)
             return;
         const requestedRoomId = req.body.requestedRoomId == null ? undefined : positiveInt(req.body.requestedRoomId, 'requestedRoomId');
@@ -299,7 +290,7 @@ router.delete('/:schoolId/:schoolYearId/runs/:runId/faculty/:facultyId/entries/:
             res.status(400).json({ code: 'INVALID_PARAM', message: facultyId });
             return;
         }
-        const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, facultyId);
+        const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, facultyId, scope.schoolYearId);
         if (!allowed)
             return;
         const entryId = typeof req.params.entryId === 'string' ? req.params.entryId : undefined;
@@ -324,7 +315,7 @@ router.post('/:schoolId/:schoolYearId/runs/:runId/faculty/:facultyId/sync', auth
             res.status(400).json({ code: 'INVALID_PARAM', message: facultyId });
             return;
         }
-        const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, facultyId);
+        const allowed = await assertFacultyOwnerOrOfficer(req, res, scope.schoolId, facultyId, scope.schoolYearId);
         if (!allowed)
             return;
         const actions = Array.isArray(req.body?.actions) ? req.body.actions : null;
@@ -364,7 +355,7 @@ router.get('/:schoolId/:schoolYearId/events', async (req, res, next) => {
             return;
         }
         const role = req.user?.role;
-        const requestingFacultyId = await resolveRequestingFacultyId(req, schoolId);
+        const requestingFacultyId = await resolveRequestingFacultyId(req, schoolId, schoolYearId);
         if (!hasPrivilegedRole(role) && requestingFacultyId == null) {
             res.status(403).json({ code: 'FORBIDDEN', message: 'Faculty profile mapping is required to subscribe to room request updates.' });
             return;
@@ -431,7 +422,7 @@ router.get('/:schoolId/:schoolYearId/latest/summary', authenticate, async (req, 
         const statusQuery = req.query.status;
         const decisionStatusQuery = req.query.decisionStatus;
         const requestedFacultyId = req.query.facultyId != null ? positiveInt(req.query.facultyId, 'facultyId') : undefined;
-        const ownFacultyId = await resolveRequestingFacultyId(req, schoolId);
+        const ownFacultyId = await resolveRequestingFacultyId(req, schoolId, schoolYearId);
         if (!PRIVILEGED_ROLES.has(role) && ownFacultyId == null) {
             res.status(403).json({ code: 'FORBIDDEN', message: 'Faculty profile mapping is required to view room requests.' });
             return;
@@ -483,7 +474,7 @@ router.get('/:schoolId/:schoolYearId/runs/:runId/summary', authenticate, async (
         const statusQuery = req.query.status;
         const decisionStatusQuery = req.query.decisionStatus;
         const requestedFacultyId = req.query.facultyId != null ? positiveInt(req.query.facultyId, 'facultyId') : undefined;
-        const ownFacultyId = await resolveRequestingFacultyId(req, scope.schoolId);
+        const ownFacultyId = await resolveRequestingFacultyId(req, scope.schoolId, scope.schoolYearId);
         if (!PRIVILEGED_ROLES.has(role) && ownFacultyId == null) {
             res.status(403).json({ code: 'FORBIDDEN', message: 'Faculty profile mapping is required to view room requests.' });
             return;

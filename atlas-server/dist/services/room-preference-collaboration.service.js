@@ -2,6 +2,7 @@ import { URL } from 'node:url';
 import jwt from 'jsonwebtoken';
 import { WebSocketServer, WebSocket } from 'ws';
 import { prisma } from '../lib/prisma.js';
+import { resolveCanonicalFacultyMirror } from './faculty-identity.service.js';
 import { onRoomPreferenceEvent } from './room-preference-events.service.js';
 const DEFAULT_WS_PATH = '/api/v1/room-preferences/collaboration/ws';
 const DEFAULT_HEARTBEAT_TIMEOUT_MS = 30000;
@@ -91,9 +92,18 @@ export function registerRoomPreferenceCollaborationSocket(server, options) {
         safeSend(state.ws, { type: 'collab.error', code, message });
         state.ws.close();
     }
-    async function resolveFacultyIdForUser(schoolId, userId) {
-        const faculty = await prisma.facultyMirror.findFirst({ where: { schoolId, externalId: userId }, select: { id: true } });
-        return faculty?.id ?? null;
+    async function resolveFacultyIdForUser(auth, channel) {
+        const identity = await resolveCanonicalFacultyMirror({
+            schoolId: channel.schoolId,
+            schoolYearId: channel.schoolYearId,
+            accountId: auth.accountId ?? null,
+            linkedFacultyId: auth.facultyId ?? null,
+            tokenUserId: auth.userId,
+            email: auth.email ?? null,
+            employeeId: auth.employeeId ?? null,
+            accountName: auth.accountName ?? null,
+        });
+        return identity?.faculty.id ?? null;
     }
     async function canJoinChannel(auth, channel) {
         const run = await prisma.generationRun.findFirst({
@@ -106,7 +116,7 @@ export function registerRoomPreferenceCollaborationSocket(server, options) {
         if (auth.role === 'admin' || auth.role === 'officer' || auth.role === 'SYSTEM_ADMIN') {
             return { ok: true, facultyId: null };
         }
-        const facultyId = await resolveFacultyIdForUser(channel.schoolId, auth.userId);
+        const facultyId = await resolveFacultyIdForUser(auth, channel);
         if (!facultyId) {
             return { ok: false, code: 'FACULTY_MAPPING_REQUIRED', message: 'Faculty profile mapping is required for collaboration.' };
         }

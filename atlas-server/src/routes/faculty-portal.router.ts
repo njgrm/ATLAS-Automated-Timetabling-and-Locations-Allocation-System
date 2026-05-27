@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
 
 import { authenticate } from '../middleware/authenticate.js';
-import { prisma } from '../lib/prisma.js';
+import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-identity.service.js';
 import { getFacultyPortalDashboard } from '../services/faculty-portal.service.js';
 
 const router = Router();
@@ -26,34 +26,20 @@ router.get('/:schoolId/:schoolYearId/dashboard', authenticate, async (req: Reque
 			return;
 		}
 
-		const userId = req.user?.userId;
-		if (!userId) {
-			res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' });
-			return;
-		}
-
-		const faculty = await prisma.facultyMirror.findFirst({
-			where: {
-				schoolId,
-				externalId: userId,
-			},
-			select: {
-				id: true,
-				firstName: true,
-				lastName: true,
-			},
-		});
-		if (!faculty) {
+		const identity = await resolveCanonicalFacultyFromAuthPayload(req.user, { schoolId, schoolYearId });
+		if (!identity) {
 			res.status(403).json({ code: 'FORBIDDEN', message: 'Faculty profile mapping is required for My Portal.' });
 			return;
 		}
 
 		const authToken = req.headers.authorization?.slice(7);
-		const dashboard = await getFacultyPortalDashboard({ schoolId, schoolYearId, facultyId: faculty.id, authToken });
+		const dashboard = await getFacultyPortalDashboard({ schoolId, schoolYearId, facultyId: identity.faculty.id, authToken });
 		res.json({
 			faculty: {
-				id: faculty.id,
-				name: `${faculty.lastName}, ${faculty.firstName}`,
+				id: identity.faculty.id,
+				externalId: identity.faculty.externalId,
+				employeeId: identity.faculty.employeeId,
+				name: `${identity.faculty.lastName}, ${identity.faculty.firstName}`,
 			},
 			...dashboard,
 		});

@@ -88,7 +88,7 @@ export const DEFAULT_CONSTRAINT_CONFIG = {
     FACULTY_INSUFFICIENT_DAILY_VACANT: { enabled: false, weight: 3, treatAsHard: false },
     SECTION_OVERCOMPRESSED: { enabled: false, weight: 3, treatAsHard: false },
     SESSION_PATTERN_VIOLATED: { enabled: true, weight: 3, treatAsHard: false },
-    ROOM_CAPACITY_EXCEEDED: { enabled: true, weight: 5, treatAsHard: true },
+    ROOM_CAPACITY_EXCEEDED: { enabled: true, weight: 5, treatAsHard: false },
 };
 // ─── Validation ───
 const HH_MM = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -468,6 +468,28 @@ function buildSyntheticPolicy(schoolId, schoolYearId) {
         updatedAt: new Date(),
     };
 }
+function normalizeRoomCapacityConstraintConfig(config) {
+    if (!config || typeof config !== 'object' || Array.isArray(config)) {
+        return config;
+    }
+    const root = config;
+    const roomCapacityOverride = root.ROOM_CAPACITY_EXCEEDED;
+    if (!roomCapacityOverride || typeof roomCapacityOverride !== 'object' || Array.isArray(roomCapacityOverride)) {
+        return config;
+    }
+    const normalizedOverride = roomCapacityOverride;
+    if (normalizedOverride.treatAsHard === false) {
+        return config;
+    }
+    return {
+        ...root,
+        ROOM_CAPACITY_EXCEEDED: {
+            enabled: typeof normalizedOverride.enabled === 'boolean' ? normalizedOverride.enabled : true,
+            weight: typeof normalizedOverride.weight === 'number' ? normalizedOverride.weight : 5,
+            treatAsHard: false,
+        },
+    };
+}
 /**
  * Best-effort runtime healing for policy schema drift.
  * Handles cases where migration history says "up to date" but columns are missing.
@@ -566,8 +588,16 @@ export async function getOrCreatePolicy(schoolId, schoolYearId) {
         const existing = await prisma.schedulingPolicy.findUnique({
             where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
         });
-        if (existing)
+        if (existing) {
+            const normalizedConstraintConfig = normalizeRoomCapacityConstraintConfig(existing.constraintConfig);
+            if (normalizedConstraintConfig !== existing.constraintConfig && normalizedConstraintConfig != null) {
+                return await prisma.schedulingPolicy.update({
+                    where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+                    data: { constraintConfig: normalizedConstraintConfig },
+                });
+            }
             return existing;
+        }
         // Auto-create with defaults
         return await prisma.schedulingPolicy.create({
             data: { schoolId, schoolYearId, ...POLICY_DEFAULTS },

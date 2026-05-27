@@ -49,18 +49,18 @@ type SubjectScopeFilter = {
 };
 export declare function getSubjectsBySchool(schoolId: number, filters?: SubjectScopeFilter): Promise<({
     programScopes: import("./subject-program-scope.service.js").SubjectProgramScope[];
+    id: number;
     schoolId: number;
     createdAt: Date;
-    id: number;
-    name: string;
     updatedAt: Date;
+    name: string;
+    gradeLevels: number[];
     isActive: boolean;
     code: string;
     allowedSpecializations: string[];
     interSectionEnabled: boolean;
     modularGroupId: string | null;
     termGroupId: string | null;
-    gradeLevels: number[];
     outputLabel: string | null;
     ownerDepartment: string | null;
     qualificationPriority: import("@prisma/client").$Enums.SubjectQualificationPriority;
@@ -76,18 +76,18 @@ export declare function getSubjectsBySchool(schoolId: number, filters?: SubjectS
 } & SubjectWithViewMetadata)[]>;
 export declare function getSubjectById(id: number): Promise<({
     programScopes: import("./subject-program-scope.service.js").SubjectProgramScope[];
+    id: number;
     schoolId: number;
     createdAt: Date;
-    id: number;
-    name: string;
     updatedAt: Date;
+    name: string;
+    gradeLevels: number[];
     isActive: boolean;
     code: string;
     allowedSpecializations: string[];
     interSectionEnabled: boolean;
     modularGroupId: string | null;
     termGroupId: string | null;
-    gradeLevels: number[];
     outputLabel: string | null;
     ownerDepartment: string | null;
     qualificationPriority: import("@prisma/client").$Enums.SubjectQualificationPriority;
@@ -125,18 +125,18 @@ export declare function createSubject(schoolId: number, data: {
     outputLabel?: string | null;
     isSystemManaged?: boolean;
 }): Promise<{
+    id: number;
     schoolId: number;
     createdAt: Date;
-    id: number;
-    name: string;
     updatedAt: Date;
+    name: string;
+    gradeLevels: number[];
     isActive: boolean;
     code: string;
     allowedSpecializations: string[];
     interSectionEnabled: boolean;
     modularGroupId: string | null;
     termGroupId: string | null;
-    gradeLevels: number[];
     outputLabel: string | null;
     ownerDepartment: string | null;
     qualificationPriority: import("@prisma/client").$Enums.SubjectQualificationPriority;
@@ -174,18 +174,18 @@ export declare function updateSubject(id: number, data: Partial<{
     outputLabel: string | null;
     isSystemManaged: boolean;
 }>): Promise<{
+    id: number;
     schoolId: number;
     createdAt: Date;
-    id: number;
-    name: string;
     updatedAt: Date;
+    name: string;
+    gradeLevels: number[];
     isActive: boolean;
     code: string;
     allowedSpecializations: string[];
     interSectionEnabled: boolean;
     modularGroupId: string | null;
     termGroupId: string | null;
-    gradeLevels: number[];
     outputLabel: string | null;
     ownerDepartment: string | null;
     qualificationPriority: import("@prisma/client").$Enums.SubjectQualificationPriority;

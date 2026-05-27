@@ -1,7 +1,7 @@
 /** List all follow-up flags for a generation run (scope-verified). */
 export declare function listByRun(runId: number, schoolId: number, schoolYearId: number): Promise<{
-    createdAt: Date;
     id: number;
+    createdAt: Date;
     createdBy: number;
     note: string | null;
     runId: number;

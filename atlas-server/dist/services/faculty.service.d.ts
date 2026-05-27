@@ -99,18 +99,18 @@ export declare function getFacultyBySchool(schoolId: number, options?: GetFacult
 export declare function getFacultyById(id: number): Promise<({
     facultySubjects: ({
         subject: {
+            id: number;
             schoolId: number;
             createdAt: Date;
-            id: number;
-            name: string;
             updatedAt: Date;
+            name: string;
+            gradeLevels: number[];
             isActive: boolean;
             code: string;
             allowedSpecializations: string[];
             interSectionEnabled: boolean;
             modularGroupId: string | null;
             termGroupId: string | null;
-            gradeLevels: number[];
             outputLabel: string | null;
             ownerDepartment: string | null;
             qualificationPriority: import("@prisma/client").$Enums.SubjectQualificationPriority;
@@ -126,24 +126,23 @@ export declare function getFacultyById(id: number): Promise<({
             requiredFeatures: string[];
         };
     } & {
-        schoolId: number;
-        createdAt: Date;
         id: number;
+        schoolId: number;
         version: number;
+        createdAt: Date;
         updatedAt: Date;
         facultyId: number;
-        gradeLevels: number[];
         subjectId: number;
         assignedAt: Date;
+        gradeLevels: number[];
         sectionIds: number[];
         assignedBy: number;
     })[];
 } & {
-    schoolId: number;
-    createdAt: Date;
     id: number;
     externalId: number;
     employeeId: string | null;
+    schoolId: number;
     firstName: string;
     lastName: string;
     department: string | null;
@@ -167,6 +166,7 @@ export declare function getFacultyById(id: number): Promise<({
     advisedSectionId: number | null;
     advisedSectionName: string | null;
     version: number;
+    createdAt: Date;
     updatedAt: Date;
 }) | null>;
 export interface CreatePlaceholderFacultyInput {
@@ -180,11 +180,10 @@ export interface CreatePlaceholderFacultyInput {
     localNotes?: string | null;
 }
 export declare function createPlaceholderFaculty(input: CreatePlaceholderFacultyInput): Promise<{
-    schoolId: number;
-    createdAt: Date;
     id: number;
     externalId: number;
     employeeId: string | null;
+    schoolId: number;
     firstName: string;
     lastName: string;
     department: string | null;
@@ -208,6 +207,7 @@ export declare function createPlaceholderFaculty(input: CreatePlaceholderFaculty
     advisedSectionId: number | null;
     advisedSectionName: string | null;
     version: number;
+    createdAt: Date;
     updatedAt: Date;
 }>;
 export declare function updateFacultyMirror(id: number, data: Partial<{
@@ -225,11 +225,10 @@ export declare function updateFacultyMirror(id: number, data: Partial<{
 } | {
     success: true;
     faculty: {
-        schoolId: number;
-        createdAt: Date;
         id: number;
         externalId: number;
         employeeId: string | null;
+        schoolId: number;
         firstName: string;
         lastName: string;
         department: string | null;
@@ -253,6 +252,7 @@ export declare function updateFacultyMirror(id: number, data: Partial<{
         advisedSectionId: number | null;
         advisedSectionName: string | null;
         version: number;
+        createdAt: Date;
         updatedAt: Date;
     };
     error?: undefined;

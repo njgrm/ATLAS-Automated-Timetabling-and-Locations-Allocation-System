@@ -49,6 +49,7 @@ export interface ScheduledEntry {
 	facultyId: number | null;
 	roomId: number;
 	subjectId: number;
+	subjectCode?: string | null;
 	sectionId: number;
 	day: string;          // e.g. 'MONDAY'
 	startTime: string;    // HH:mm
@@ -61,6 +62,8 @@ export interface ScheduledEntry {
 	programName?: string | null;
 	cohortCode?: string | null;
 	cohortName?: string | null;
+	specializationCode?: string | null;
+	specializationName?: string | null;
 	cohortMemberSectionIds?: number[];
 	cohortExpectedEnrollment?: number | null;
 	adviserId?: number | null;

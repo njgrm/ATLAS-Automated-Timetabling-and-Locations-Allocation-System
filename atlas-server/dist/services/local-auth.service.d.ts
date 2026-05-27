@@ -5,6 +5,7 @@ export type LocalAuthUser = {
     authSource: 'local';
     schoolId: number;
     accountId: number;
+    facultyId?: number | null;
     email: string;
     employeeId?: string | null;
     accountName?: string | null;

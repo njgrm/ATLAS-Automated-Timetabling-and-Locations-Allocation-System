@@ -4,6 +4,7 @@ import { authenticate } from '../middleware/authenticate.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import jwt from 'jsonwebtoken';
 import * as prefService from '../services/preference.service.js';
+import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-identity.service.js';
 import { subscribePreferenceEvents, getPreferenceEventsSince } from '../services/preference-events.service.js';
 import type { DayOfWeek, TimeSlotPreference } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
@@ -18,20 +19,15 @@ async function assertFacultyOwnerOrOfficer(
 	res: Response,
 	schoolId: number,
 	facultyId: number,
+	schoolYearId?: number,
 ): Promise<boolean> {
 	const role = req.user?.role;
 	if (role === 'admin' || role === 'officer' || role === 'SYSTEM_ADMIN') return true;
 
-	// For faculty role, userId must map to the requested facultyId via externalId
-	const userId = req.user?.userId;
-	if (!userId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return false; }
+	const identity = await resolveCanonicalFacultyFromAuthPayload(req.user, { schoolId, schoolYearId });
+	if (!identity) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return false; }
 
-	const { prisma } = await import('../lib/prisma.js');
-	const faculty = await prisma.facultyMirror.findFirst({
-		where: { id: facultyId, schoolId, externalId: userId },
-		select: { id: true },
-	});
-	if (!faculty) {
+	if (identity.faculty.id !== facultyId) {
 		res.status(403).json({ code: 'FORBIDDEN', message: 'You do not have permission to access this faculty preference.' });
 		return false;
 	}
@@ -88,7 +84,7 @@ router.get(
 			if (typeof facultyId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: facultyId }); return; }
 
 			// Auth guard: faculty can only access own preference
-			const allowed = await assertFacultyOwnerOrOfficer(req, res, schoolId, facultyId);
+			const allowed = await assertFacultyOwnerOrOfficer(req, res, schoolId, facultyId, schoolYearId);
 			if (!allowed) return;
 
 			const pref = await prefService.getPreference(schoolId, schoolYearId, facultyId);
@@ -164,7 +160,7 @@ router.put(
 			if (typeof facultyId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: facultyId }); return; }
 
 			// Auth guard: faculty can only save own draft
-			const allowed = await assertFacultyOwnerOrOfficer(req, res, schoolId, facultyId);
+			const allowed = await assertFacultyOwnerOrOfficer(req, res, schoolId, facultyId, schoolYearId);
 			if (!allowed) return;
 
 			// Lifecycle guard
@@ -208,7 +204,7 @@ router.post(
 			if (typeof facultyId === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: facultyId }); return; }
 
 			// Auth guard: faculty can only submit own preference
-			const allowed = await assertFacultyOwnerOrOfficer(req, res, schoolId, facultyId);
+			const allowed = await assertFacultyOwnerOrOfficer(req, res, schoolId, facultyId, schoolYearId);
 			if (!allowed) return;
 
 			// Lifecycle guard

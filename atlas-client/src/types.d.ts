@@ -604,6 +604,7 @@ export interface ScheduledEntry {
     facultyId: number | null;
     roomId: number;
     subjectId: number;
+    subjectCode?: string | null;
     sectionId: number;
     day: string;
     startTime: string;
@@ -615,6 +616,8 @@ export interface ScheduledEntry {
     programName?: string | null;
     cohortCode?: string | null;
     cohortName?: string | null;
+    specializationCode?: string | null;
+    specializationName?: string | null;
     cohortMemberSectionIds?: number[];
     cohortExpectedEnrollment?: number | null;
     adviserId?: number | null;
@@ -660,19 +663,24 @@ export interface ViolationReport {
 export interface UnassignedItem {
     sectionId: number;
     subjectId: number;
+    subjectCode?: string | null;
     gradeLevel: number;
     session: number;
-    reason: 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM';
+    reason: 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM' | 'ROOM_CAPACITY_EXCEEDED';
     entryKind?: 'SECTION' | 'COHORT';
     programType?: string | null;
     programCode?: string | null;
     programName?: string | null;
     cohortCode?: string | null;
     cohortName?: string | null;
+    specializationCode?: string | null;
+    specializationName?: string | null;
     cohortMemberSectionIds?: number[];
     cohortExpectedEnrollment?: number | null;
     adviserId?: number | null;
     adviserName?: string | null;
+    homeRoomId?: number | null;
+    homeRoomFallbackCause?: 'HOME_ROOM_OCCUPIED' | 'NO_SAME_ZONE_STANDARD_ROOM' | 'ONLY_SPECIALIZED_ROOMS_AVAILABLE' | 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE';
 }
 export interface DraftReport {
     runId: number;

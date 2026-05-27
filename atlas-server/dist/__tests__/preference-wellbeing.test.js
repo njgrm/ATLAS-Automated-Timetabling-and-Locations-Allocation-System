@@ -49,7 +49,7 @@ async function run() {
     if (!process.env.JWT_SECRET) {
         process.env.JWT_SECRET = 'atlas-local-auth-test-secret';
     }
-    const seededPassword = process.env.ATLAS_DEFAULT_AUTH_PASSWORD ?? 'Atlas2026!';
+    const seededPassword = process.env.ATLAS_FACULTY_TEST_PASSWORD ?? process.env.ATLAS_DEFAULT_AUTH_PASSWORD ?? 'DepEd2026!';
     // Resolve a faculty account linked to faculty_mirror
     const facultyAccount = await prisma.atlasAuthAccount.findFirst({
         where: { role: 'faculty', isActive: true, facultyId: { not: null } },
@@ -60,10 +60,9 @@ async function run() {
         process.exitCode = 1;
         return;
     }
-    const facultyId = facultyAccount.facultyId;
+    let facultyId = facultyAccount.facultyId;
     const schoolId = facultyAccount.schoolId;
-    // Use a fixed schoolYearId (ATLAS stores this as a plain integer, no DB model).
-    const syId = 1;
+    const syId = Number(process.env.ATLAS_TEST_SCHOOL_YEAR_ID ?? 55);
     // Clean up any existing preference for this faculty/year to start fresh
     await prisma.facultyPreference.deleteMany({ where: { facultyId, schoolYearId: syId } });
     const server = http.createServer(app);
@@ -86,6 +85,8 @@ async function run() {
         assertEqual(loginRes.status, 200, 'Faculty login returns HTTP 200');
         const token = loginRes.json?.token ?? '';
         assert(!!token, 'Faculty login returns a token');
+        facultyId = loginRes.json?.user?.facultyId ?? facultyId;
+        await prisma.facultyPreference.deleteMany({ where: { facultyId, schoolYearId: syId } });
         const authHeader = { 'content-type': 'application/json', Authorization: `Bearer ${token}` };
         /* ── Section 1: Save draft with well-being fields ── */
         section('Save draft persists well-being fields');

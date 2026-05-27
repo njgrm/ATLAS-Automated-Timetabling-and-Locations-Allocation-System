@@ -50,13 +50,13 @@ export declare function syncCohorts(schoolId: number, schoolYearId: number, auth
  * Get all cohorts for a school/year from local persistence.
  */
 export declare function getCohortsBySchoolYear(schoolId: number, schoolYearId: number): Promise<{
-    schoolId: number;
-    schoolYearId: number;
-    createdAt: Date;
     id: number;
+    schoolId: number;
+    createdAt: Date;
     updatedAt: Date;
-    isActive: boolean;
+    schoolYearId: number;
     specializationCode: string;
+    isActive: boolean;
     preferredRoomType: import("@prisma/client").$Enums.RoomType | null;
     cohortCode: string;
     memberSectionIds: number[];
@@ -69,13 +69,13 @@ export declare function getCohortsBySchoolYear(schoolId: number, schoolYearId: n
  * Get cohorts by grade level.
  */
 export declare function getCohortsByGrade(schoolId: number, schoolYearId: number, gradeLevel: number): Promise<{
-    schoolId: number;
-    schoolYearId: number;
-    createdAt: Date;
     id: number;
+    schoolId: number;
+    createdAt: Date;
     updatedAt: Date;
-    isActive: boolean;
+    schoolYearId: number;
     specializationCode: string;
+    isActive: boolean;
     preferredRoomType: import("@prisma/client").$Enums.RoomType | null;
     cohortCode: string;
     memberSectionIds: number[];
@@ -88,13 +88,13 @@ export declare function getCohortsByGrade(schoolId: number, schoolYearId: number
  * Get a single cohort by code.
  */
 export declare function getCohortByCode(schoolId: number, schoolYearId: number, cohortCode: string): Promise<{
-    schoolId: number;
-    schoolYearId: number;
-    createdAt: Date;
     id: number;
+    schoolId: number;
+    createdAt: Date;
     updatedAt: Date;
-    isActive: boolean;
+    schoolYearId: number;
     specializationCode: string;
+    isActive: boolean;
     preferredRoomType: import("@prisma/client").$Enums.RoomType | null;
     cohortCode: string;
     memberSectionIds: number[];

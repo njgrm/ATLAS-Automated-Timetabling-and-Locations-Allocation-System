@@ -7,6 +7,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 
 import { prisma } from '../lib/prisma.js';
 import type { AuthPayload } from '../middleware/authenticate.js';
+import { resolveCanonicalFacultyMirror } from './faculty-identity.service.js';
 import { onRoomPreferenceEvent } from './room-preference-events.service.js';
 
 export type CollaborationViewMode = 'FACULTY_ACTIVE_DRAFT' | 'SCHEDULER_REVIEW' | 'SCHEDULER_QUEUE';
@@ -165,9 +166,18 @@ export function registerRoomPreferenceCollaborationSocket(server: HttpServer, op
 		state.ws.close();
 	}
 
-	async function resolveFacultyIdForUser(schoolId: number, userId: number): Promise<number | null> {
-		const faculty = await prisma.facultyMirror.findFirst({ where: { schoolId, externalId: userId }, select: { id: true } });
-		return faculty?.id ?? null;
+	async function resolveFacultyIdForUser(auth: AuthPayload, channel: { schoolId: number; schoolYearId: number }): Promise<number | null> {
+		const identity = await resolveCanonicalFacultyMirror({
+			schoolId: channel.schoolId,
+			schoolYearId: channel.schoolYearId,
+			accountId: auth.accountId ?? null,
+			linkedFacultyId: auth.facultyId ?? null,
+			tokenUserId: auth.userId,
+			email: auth.email ?? null,
+			employeeId: auth.employeeId ?? null,
+			accountName: auth.accountName ?? null,
+		});
+		return identity?.faculty.id ?? null;
 	}
 
 	async function canJoinChannel(auth: AuthPayload, channel: { schoolId: number; schoolYearId: number; runId: number }) {
@@ -183,7 +193,7 @@ export function registerRoomPreferenceCollaborationSocket(server: HttpServer, op
 			return { ok: true, facultyId: null } as const;
 		}
 
-		const facultyId = await resolveFacultyIdForUser(channel.schoolId, auth.userId);
+		const facultyId = await resolveFacultyIdForUser(auth, channel);
 		if (!facultyId) {
 			return { ok: false, code: 'FACULTY_MAPPING_REQUIRED', message: 'Faculty profile mapping is required for collaboration.' } as const;
 		}

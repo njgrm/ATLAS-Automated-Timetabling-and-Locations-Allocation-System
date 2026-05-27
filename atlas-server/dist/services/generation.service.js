@@ -382,7 +382,7 @@ function buildUnassignedBySubjectGrade(unassignedItems, subjectCodeById) {
         const key = `${item.subjectId}:${item.gradeLevel}`;
         const row = agg.get(key) ?? {
             subjectId: item.subjectId,
-            subjectCode: subjectCodeById.get(item.subjectId) ?? `SUBJECT_${item.subjectId}`,
+            subjectCode: item.subjectCode ?? subjectCodeById.get(item.subjectId) ?? `SUBJECT_${item.subjectId}`,
             gradeLevel: item.gradeLevel,
             count: 0,
             reasons: {},

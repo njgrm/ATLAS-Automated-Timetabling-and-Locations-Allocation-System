@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import type { Prisma } from '@prisma/client';
 
 import { prisma } from '../lib/prisma.js';
+import { resolveCanonicalFacultyMirror } from './faculty-identity.service.js';
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? '8h';
 const MAX_FAILED_ATTEMPTS = Number(process.env.ATLAS_AUTH_MAX_FAILED_ATTEMPTS ?? 5);
@@ -27,6 +28,7 @@ export type LocalAuthUser = {
 	authSource: 'local';
 	schoolId: number;
 	accountId: number;
+	facultyId?: number | null;
 	email: string;
 	employeeId?: string | null;
 	accountName?: string | null;
@@ -185,31 +187,14 @@ async function findLinkedFacultyMirror(params: {
 	}
 
 	const externalId = getEnrollProFacultyExternalId(params.enrollProUser);
-	if (externalId !== null) {
-		const mirror = await prisma.facultyMirror.findFirst({
-			where: { schoolId: params.schoolId, externalId },
-			select: { id: true, externalId: true },
-		});
-		if (mirror) return mirror;
-	}
-
-	if (params.employeeId) {
-		const mirror = await prisma.facultyMirror.findUnique({
-			where: { employeeId: params.employeeId },
-			select: { id: true, externalId: true },
-		});
-		if (mirror) return mirror;
-	}
-
-	const mirror = await prisma.facultyMirror.findFirst({
-		where: {
-			schoolId: params.schoolId,
-			contactInfo: { equals: params.email, mode: 'insensitive' },
-		},
-		select: { id: true, externalId: true },
+	const resolution = await resolveCanonicalFacultyMirror({
+		schoolId: params.schoolId,
+		sourceExternalId: externalId,
+		employeeId: params.employeeId,
+		email: params.email,
 	});
 
-	return mirror ?? null;
+	return resolution ? { id: resolution.faculty.id, externalId: resolution.faculty.externalId } : null;
 }
 
 /**
@@ -345,7 +330,10 @@ export async function login(params: {
 		include: {
 			faculty: {
 				select: {
+					id: true,
 					externalId: true,
+					employeeId: true,
+					contactInfo: true,
 				},
 			},
 		},
@@ -374,6 +362,7 @@ export async function login(params: {
 				authSource: 'local',
 				schoolId: provisioned.schoolId,
 				accountId: provisioned.id,
+				facultyId: provisioned.facultyId,
 				email: provisioned.email,
 				employeeId: provisioned.employeeId,
 				accountName: provisioned.accountName,
@@ -438,6 +427,7 @@ export async function login(params: {
 				authSource: 'local',
 				schoolId: provisioned.schoolId,
 				accountId: provisioned.id,
+				facultyId: provisioned.facultyId,
 				email: provisioned.email,
 				employeeId: provisioned.employeeId,
 				accountName: provisioned.accountName,
@@ -501,9 +491,23 @@ export async function login(params: {
 		};
 	}
 
-	const userId = account.role === 'faculty' && account.faculty?.externalId
-		? account.faculty.externalId
+	const canonicalFaculty = account.role === 'faculty'
+		? await resolveCanonicalFacultyMirror({
+			schoolId: account.schoolId,
+			accountId: account.id,
+			linkedFacultyId: account.facultyId,
+			tokenUserId: account.faculty?.externalId ?? null,
+			email: account.email,
+			employeeId: account.employeeId,
+			accountName: account.accountName,
+		})
+		: null;
+	const userId = account.role === 'faculty' && canonicalFaculty
+		? canonicalFaculty.faculty.externalId
 		: account.id;
+	const facultyId = account.role === 'faculty'
+		? canonicalFaculty?.faculty.id ?? account.facultyId ?? null
+		: null;
 
 	const user: LocalAuthUser = {
 		userId,
@@ -512,6 +516,7 @@ export async function login(params: {
 		authSource: 'local',
 		schoolId: account.schoolId,
 		accountId: account.id,
+		facultyId,
 		email: account.email,
 		employeeId: account.employeeId,
 		accountName: account.accountName,
@@ -530,6 +535,7 @@ export async function login(params: {
 	await prisma.atlasAuthAccount.update({
 		where: { id: account.id },
 		data: {
+			facultyId,
 			failedLoginCount: 0,
 			lockedUntil: null,
 			lastLoginAt: new Date(now),

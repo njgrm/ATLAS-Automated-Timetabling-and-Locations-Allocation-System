@@ -280,17 +280,17 @@ export declare function updateRoomRequestAppealStatus(input: {
 }>;
 export declare function reviewRoomPreference(input: ReviewRoomPreferenceInput): Promise<{
     request: {
-        day: import("@prisma/client").$Enums.DayOfWeek;
-        schoolId: number;
-        schoolYearId: number;
-        createdAt: Date;
         id: number;
+        schoolId: number;
         version: number;
+        createdAt: Date;
         updatedAt: Date;
-        facultyId: number;
-        status: import("@prisma/client").$Enums.RoomPreferenceStatus;
-        subjectId: number;
+        schoolYearId: number;
         sectionId: number;
+        facultyId: number;
+        subjectId: number;
+        day: import("@prisma/client").$Enums.DayOfWeek;
+        status: import("@prisma/client").$Enums.RoomPreferenceStatus;
         startTime: string;
         endTime: string;
         termIndex: number;

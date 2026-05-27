@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { authenticate, authenticateWithSystemToken } from '../middleware/authenticate.js';
 import { requirePrivilegedRole } from '../middleware/authorize.js';
 import { prisma } from '../lib/prisma.js';
+import { resolveCanonicalFacultyFromAuthPayload } from '../services/faculty-identity.service.js';
 import * as facultyService from '../services/faculty.service.js';
 import { fetchEnrollProActiveSchoolYear } from '../services/section-adapter.js';
 import { validateAncillaryLoadImmutable } from '../services/scheduling-policy.service.js';
@@ -12,20 +13,16 @@ const router = Router();
 // Auth: GET /faculty/me?schoolId=X — resolve caller's linked faculty mirror
 router.get('/me', authenticate, async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		const userId = req.user?.userId;
-		if (!userId) {
-			res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' });
-			return;
-		}
 		const schoolId = Number(req.query.schoolId);
 		if (!schoolId || Number.isNaN(schoolId)) {
 			res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter is required.' });
 			return;
 		}
 
-		const faculty = await prisma.facultyMirror.findFirst({
-			where: { schoolId, externalId: userId },
-		});
+		const identity = await resolveCanonicalFacultyFromAuthPayload(req.user, { schoolId });
+		const faculty = identity
+			? await prisma.facultyMirror.findUnique({ where: { id: identity.faculty.id } })
+			: null;
 		if (!faculty) {
 			res.status(404).json({ code: 'FACULTY_NOT_LINKED', message: 'No faculty profile is linked to this account for the selected school.' });
 			return;

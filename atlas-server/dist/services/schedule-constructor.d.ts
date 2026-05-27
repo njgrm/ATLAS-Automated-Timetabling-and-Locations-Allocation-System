@@ -195,6 +195,7 @@ export type HomeRoomFallbackCause = 'HOME_ROOM_OCCUPIED' | 'NO_SAME_ZONE_STANDAR
 export interface UnassignedItem {
     sectionId: number;
     subjectId: number;
+    subjectCode?: string | null;
     gradeLevel: number;
     session: number;
     reason: 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM' | 'ROOM_CAPACITY_EXCEEDED';
@@ -205,6 +206,8 @@ export interface UnassignedItem {
     programName?: string | null;
     cohortCode?: string | null;
     cohortName?: string | null;
+    specializationCode?: string | null;
+    specializationName?: string | null;
     cohortMemberSectionIds?: number[];
     cohortExpectedEnrollment?: number | null;
     adviserId?: number | null;
@@ -251,6 +254,8 @@ export interface DemandItem {
     programName?: string | null;
     cohortCode?: string | null;
     cohortName?: string | null;
+    specializationCode?: string | null;
+    specializationName?: string | null;
     cohortMemberSectionIds?: number[];
     roomTypePreference?: RoomType;
     adviserId?: number | null;
