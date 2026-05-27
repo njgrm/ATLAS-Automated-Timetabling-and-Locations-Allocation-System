@@ -42,7 +42,7 @@ const VIOLATION_LABELS: Record<ViolationCode, string> = {
 	SECTION_TIME_CONFLICT: 'Section Time Conflict',
 	FACULTY_OVERLOAD: 'Faculty Overload',
 	ROOM_TYPE_MISMATCH: 'Room Type Mismatch',
-	FACULTY_SUBJECT_NOT_QUALIFIED: 'Not Qualified',
+	FACULTY_SUBJECT_NOT_QUALIFIED: 'Teaching Load Review',
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: 'Consecutive Limit',
 	FACULTY_BREAK_REQUIREMENT_VIOLATED: 'Break Requirement',
 	FACULTY_DAILY_STANDARD_EXCEEDED: 'Daily Load Warning',

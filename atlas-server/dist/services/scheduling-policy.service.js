@@ -42,6 +42,8 @@ export async function validateAncillaryLoadImmutable(facultyId, nextAncillaryMin
 // ─── Default values ───
 export const POLICY_DEFAULTS = {
     teacherMoveEnabled: true,
+    periodLengthMinutes: 45,
+    periodsPerDay: 10,
     maxConsecutiveTeachingMinutesBeforeBreak: 120,
     minBreakMinutesAfterConsecutiveBlock: 15,
     maxTeachingMinutesPerDay: 480,
@@ -119,6 +121,8 @@ export function validatePolicyInput(input) {
     const maxConsecutive = requirePositiveInt(input.maxConsecutiveTeachingMinutesBeforeBreak, 'maxConsecutiveTeachingMinutesBeforeBreak', 30, 600, POLICY_DEFAULTS.maxConsecutiveTeachingMinutesBeforeBreak);
     const minBreak = requirePositiveInt(input.minBreakMinutesAfterConsecutiveBlock, 'minBreakMinutesAfterConsecutiveBlock', 5, 120, POLICY_DEFAULTS.minBreakMinutesAfterConsecutiveBlock);
     const maxDaily = requirePositiveInt(input.maxTeachingMinutesPerDay, 'maxTeachingMinutesPerDay', 60, 600, POLICY_DEFAULTS.maxTeachingMinutesPerDay);
+    const periodLengthMinutes = requirePositiveInt(input.periodLengthMinutes, 'periodLengthMinutes', 30, 90, POLICY_DEFAULTS.periodLengthMinutes);
+    const periodsPerDay = requirePositiveInt(input.periodsPerDay, 'periodsPerDay', 4, 12, POLICY_DEFAULTS.periodsPerDay);
     // --- times ---
     function requireTime(val, name, fallback) {
         if (val === undefined || val === null)
@@ -136,8 +140,8 @@ export function validatePolicyInput(input) {
     if (errors.length === 0 && earliestMinutes >= latestMinutes) {
         errors.push('earliestStartTime must be before latestEndTime.');
     }
-    if (errors.length === 0 && latestMinutes - earliestMinutes < STANDARD_PERIOD_MINUTES) {
-        errors.push(`The schedule window must be at least ${STANDARD_PERIOD_MINUTES} minutes to fit one class period.`);
+    if (errors.length === 0 && latestMinutes - earliestMinutes < periodLengthMinutes) {
+        errors.push(`The schedule window must be at least ${periodLengthMinutes} minutes to fit one class period.`);
     }
     // --- bool ---
     let teacherMoveEnabled = POLICY_DEFAULTS.teacherMoveEnabled;
@@ -384,6 +388,8 @@ export function validatePolicyInput(input) {
     return {
         data: {
             teacherMoveEnabled,
+            periodLengthMinutes,
+            periodsPerDay,
             maxConsecutiveTeachingMinutesBeforeBreak: maxConsecutive,
             minBreakMinutesAfterConsecutiveBlock: minBreak,
             maxTeachingMinutesPerDay: maxDaily,
@@ -475,6 +481,8 @@ async function ensureSchedulingPolicyColumns() {
 					"school_id" INTEGER NOT NULL,
 					"school_year_id" INTEGER NOT NULL,
 					"teacher_move_enabled" BOOLEAN NOT NULL DEFAULT true,
+					"period_length_minutes" INTEGER NOT NULL DEFAULT 45,
+					"periods_per_day" INTEGER NOT NULL DEFAULT 10,
 					"max_consecutive_teaching_minutes_before_break" INTEGER NOT NULL DEFAULT 120,
 					"min_break_minutes_after_consecutive_block" INTEGER NOT NULL DEFAULT 15,
 					"max_teaching_minutes_per_day" INTEGER NOT NULL DEFAULT 480,
@@ -488,6 +496,8 @@ async function ensureSchedulingPolicyColumns() {
             await prisma.$executeRawUnsafe(`
 				ALTER TABLE "scheduling_policies"
 				ADD COLUMN IF NOT EXISTS "teacher_move_enabled" BOOLEAN NOT NULL DEFAULT true,
+				ADD COLUMN IF NOT EXISTS "period_length_minutes" INTEGER NOT NULL DEFAULT 45,
+				ADD COLUMN IF NOT EXISTS "periods_per_day" INTEGER NOT NULL DEFAULT 10,
 				ADD COLUMN IF NOT EXISTS "max_consecutive_teaching_minutes_before_break" INTEGER NOT NULL DEFAULT 120,
 				ADD COLUMN IF NOT EXISTS "min_break_minutes_after_consecutive_block" INTEGER NOT NULL DEFAULT 15,
 				ADD COLUMN IF NOT EXISTS "max_teaching_minutes_per_day" INTEGER NOT NULL DEFAULT 480,

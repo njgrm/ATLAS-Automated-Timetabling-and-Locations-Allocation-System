@@ -81,13 +81,13 @@ export interface FacultyPreferenceInput {
     timeSlots: PreferenceSlotInput[];
 }
 export interface PolicyInput {
+    periodLengthMinutes?: number;
+    periodsPerDay?: number;
     maxConsecutiveTeachingMinutesBeforeBreak: number;
     minBreakMinutesAfterConsecutiveBlock: number;
     maxTeachingMinutesPerDay: number;
     earliestStartTime: string;
     latestEndTime: string;
-    periodLengthMinutes?: number;
-    periodsPerDay?: number;
     lunchStartTime?: string;
     lunchEndTime?: string;
     enforceLunchWindow?: boolean;
@@ -263,7 +263,7 @@ export interface DemandItem {
     }>;
     modularExpectedCount?: number;
 }
-export declare function computeDemand(sectionsByGrade: SectionsByGrade[], subjects: SubjectInput[], cohorts?: InstructionalCohortInput[], classTemplatePeriods?: Record<string, number>): DemandItem[];
+export declare function computeDemand(sectionsByGrade: SectionsByGrade[], subjects: SubjectInput[], cohorts?: InstructionalCohortInput[], classTemplatePeriods?: Record<string, number>, policyPeriodLengthMinutes?: number): DemandItem[];
 export declare function getDemandSectionIds(item: DemandItem): number[];
 export declare function getDemandAssignmentKey(item: DemandItem): string;
 export declare function constructBaseline(input: ConstructorInput): ConstructorResult;

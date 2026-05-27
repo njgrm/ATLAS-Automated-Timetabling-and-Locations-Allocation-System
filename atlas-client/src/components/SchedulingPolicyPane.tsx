@@ -54,6 +54,8 @@ import {
 
 interface LocalPolicy {
 	teacherMoveEnabled: boolean;
+	periodLengthMinutes: number;
+	periodsPerDay: number;
 	maxConsecutiveTeachingMinutesBeforeBreak: number;
 	minBreakMinutesAfterConsecutiveBlock: number;
 	maxTeachingMinutesPerDay: number;
@@ -187,6 +189,8 @@ function toLocalGradeWindows(windows: GradeShiftWindow[]): LocalGradeWindow[] {
 function policyToLocal(p: SchedulingPolicy): LocalPolicy {
 	return {
 		teacherMoveEnabled: p.teacherMoveEnabled ?? true,
+		periodLengthMinutes: p.periodLengthMinutes ?? 45,
+		periodsPerDay: p.periodsPerDay ?? 10,
 		maxConsecutiveTeachingMinutesBeforeBreak: p.maxConsecutiveTeachingMinutesBeforeBreak,
 		minBreakMinutesAfterConsecutiveBlock: p.minBreakMinutesAfterConsecutiveBlock,
 		maxTeachingMinutesPerDay: p.maxTeachingMinutesPerDay,
@@ -638,6 +642,35 @@ export default function SchedulingPolicyPane({
 							</div>
 						</div>
 					</SectionCard>
+
+						<SectionCard title="Active Day Shape">
+							<div className="space-y-2">
+								<p className="text-xs text-muted-foreground leading-relaxed">
+									This operator-owned block contract drives the generated timetable baseline for the active school year.
+								</p>
+								<div className="grid grid-cols-2 gap-3">
+									<PolicyNumberField
+										label="Block Length (min)"
+										explanation="Length of one generated timetable block. This controls session normalization and the visible timetable slot grid."
+										value={local.periodLengthMinutes}
+										onChange={(v) => update('periodLengthMinutes', v)}
+										min={30}
+										max={90}
+									/>
+									<PolicyNumberField
+										label="Periods Per Day"
+										explanation="Maximum schedulable blocks in one day before protected breaks and special events are applied."
+										value={local.periodsPerDay}
+										onChange={(v) => update('periodsPerDay', v)}
+										min={4}
+										max={12}
+									/>
+								</div>
+								<div className="rounded-md border border-sky-200 bg-sky-50 px-2.5 py-2 text-[0.6875rem] text-sky-700 leading-relaxed">
+									Full-day fidelity uses 45-minute blocks with protected lunch, recess, and special-event windows. Shift-window overrides remain available separately in the Shift Settings tab.
+								</div>
+							</div>
+						</SectionCard>
 
 					{/* G��G�� COL 1: Core Teaching Limits G��G�� */}
 					<SectionCard title="Core Teaching Limits">

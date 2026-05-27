@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { AlertTriangle, CalendarClock, Check, Clock, Crosshair, GraduationCap, History, Lightbulb, Loader2, Play, RefreshCw, Send, Settings2, ShieldAlert, Undo2, Users } from 'lucide-react';
+import { CalendarClock, Check, Clock, Crosshair, GraduationCap, History, Lightbulb, Loader2, Play, RefreshCw, Send, Settings2, ShieldAlert, Undo2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
@@ -54,7 +54,6 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		statusColor,
 		formatDuration,
 		formatTimestamp,
-		contractWarnings,
 		VIEW_MODE_LABELS,
 		viewMode,
 		setViewMode,
@@ -313,14 +312,6 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 							className={summary.hardViolationCount > 0 ? 'text-red-600 font-semibold' : ''}
 							explanation="Critical policy violations. A schedule with any Hard Violations cannot be published."
 						/>
-						{summary.cohortizedClassCount && summary.cohortizedClassCount > 0 && (
-							<StatItem
-								icon={Users}
-								label="Cohorts"
-								value={String(summary.cohortizedClassCount)}
-								explanation="Scheduled entries that were generated as cohort-aware inter-section classes."
-							/>
-						)}
 						<StatItem
 							icon={Clock}
 							label="Duration"
@@ -333,19 +324,11 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 						/>
 						<div className="h-4 w-px bg-border mx-1" />
 						<span className="text-[0.625rem] font-medium text-foreground">
-							Teacher's Move: <span className="font-semibold">{(context.policy?.teacherMoveEnabled ?? true) ? 'Enabled' : 'Disabled'}</span>
+							Manual Review: <span className="font-semibold">{(context.policy?.teacherMoveEnabled ?? true) ? 'Enabled' : 'Disabled'}</span>
 						</span>
 					</div>
 				)}
 			</div>
-
-			{contractWarnings.length > 0 && (
-				<div className="mx-4 mb-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-					<AlertTriangle className="size-3.5 shrink-0" />
-					<span className="font-semibold">Contract warnings</span>
-					<span className="text-amber-800/80">{contractWarnings.join(' ')}</span>
-				</div>
-			)}
 
 			<TimetableToolbar
 				viewMode={viewMode}

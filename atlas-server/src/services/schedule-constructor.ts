@@ -45,7 +45,7 @@ const DEFAULT_PERIOD_SLOTS = [
 	{ startTime: '15:00', endTime: '15:50' },
 ] as const;
 
-const STANDARD_PERIOD_MINUTES = 50;
+const STANDARD_PERIOD_MINUTES = 45;
 
 // ─── Input types ───
 
@@ -141,13 +141,13 @@ export interface FacultyPreferenceInput {
 }
 
 export interface PolicyInput {
+	periodLengthMinutes?: number;
+	periodsPerDay?: number;
 	maxConsecutiveTeachingMinutesBeforeBreak: number;
 	minBreakMinutesAfterConsecutiveBlock: number;
 	maxTeachingMinutesPerDay: number;
 	earliestStartTime: string;
 	latestEndTime: string;
-	periodLengthMinutes?: number;
-	periodsPerDay?: number;
 	lunchStartTime?: string;
 	lunchEndTime?: string;
 	enforceLunchWindow?: boolean;
@@ -548,6 +548,7 @@ export function computeDemand(
 	subjects: SubjectInput[],
 	cohorts: InstructionalCohortInput[] = [],
 	classTemplatePeriods: Record<string, number> = {},
+	policyPeriodLengthMinutes?: number,
 ): DemandItem[] {
 	const EXPECTED_MODULAR_SUBJECTS: Record<string, number> = {
 		SCIENCE: 3,
@@ -600,7 +601,9 @@ export function computeDemand(
 				);
 				if (applicableModules.length === 0) continue;
 
-				const periodLength = classTemplatePeriods[(section.programCode ?? '').toUpperCase()] ?? STANDARD_PERIOD_MINUTES;
+				const periodLength = (policyPeriodLengthMinutes && policyPeriodLengthMinutes > 0)
+					? policyPeriodLengthMinutes
+					: (classTemplatePeriods[(section.programCode ?? '').toUpperCase()] ?? STANDARD_PERIOD_MINUTES);
 				const sessions = Math.ceil(maxMinutesPerWeek / periodLength);
 				const duration = Math.ceil(maxMinutesPerWeek / sessions);
 
@@ -638,11 +641,14 @@ export function computeDemand(
 			if (modularSubjectIds.has(subject.id)) continue;
 
 			/**
-			 * Resolve period length for a section based on its program type.
-			 * Uses classTemplatePeriods override if provided; falls back to STANDARD_PERIOD_MINUTES.
+			 * Resolve period length for a section from the active policy day shape.
+			 * Class-template values remain fallback-only for older rows.
 			 */
 			const getPeriodLength = (programCode: string | null | undefined): number => {
 				const code = (programCode ?? '').toUpperCase();
+				if (policyPeriodLengthMinutes && policyPeriodLengthMinutes > 0) {
+					return policyPeriodLengthMinutes;
+				}
 				return classTemplatePeriods[code] ?? STANDARD_PERIOD_MINUTES;
 			};
 
@@ -917,12 +923,18 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 	const { subjects, faculty, facultySubjects, rooms, preferences, sectionsByGrade, policy, lockedEntries, gradeWindows, timetableShapes } = input;
 	const useHomeRoomPriority = input.roomingStrategy === 'HOME_ROOM_FIRST';
 
-	// Build period slots dynamically from policy (lunch window, school day bounds)
+	// Build period slots dynamically from the active policy day shape.
 	const PERIOD_SLOTS = buildUnionClassPeriodSlots(timetableShapes);
 	const FALLBACK_PERIOD_SLOTS = PERIOD_SLOTS.length > 0 ? PERIOD_SLOTS : buildPeriodSlots(policy);
 
 	// Use demandOverride when provided (H-ALG-1 multi-seed support), otherwise compute fresh demand.
-	const rawDemand = input.demandOverride ?? computeDemand(sectionsByGrade, subjects, input.cohorts ?? [], input.classTemplatePeriods ?? {});
+	const rawDemand = input.demandOverride ?? computeDemand(
+		sectionsByGrade,
+		subjects,
+		input.cohorts ?? [],
+		input.classTemplatePeriods ?? {},
+		input.policy?.periodLengthMinutes,
+	);
 	const demand = normalizeDemandSessionsForActiveSlots(rawDemand, timetableShapes, FALLBACK_PERIOD_SLOTS);
 
 	// Teaching rooms sorted by id, grouped by type

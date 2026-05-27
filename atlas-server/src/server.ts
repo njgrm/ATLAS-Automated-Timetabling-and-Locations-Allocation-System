@@ -17,6 +17,8 @@ async function checkPolicySchema() {
 		'enable_vacant_aware_constraints',
 		'target_faculty_daily_vacant_minutes',
 		'target_section_daily_vacant_periods',
+		'period_length_minutes',
+		'periods_per_day',
 		'max_compressed_teaching_minutes_per_day',
 		'lunch_start_time',
 		'lunch_end_time',

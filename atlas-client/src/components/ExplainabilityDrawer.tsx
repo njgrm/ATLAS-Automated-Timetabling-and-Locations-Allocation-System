@@ -33,8 +33,8 @@ export const VIOLATION_EXPLANATIONS: Record<string, { why: string; fix: string }
 		fix: 'Move to a room that has the required features, or update the room features in the Campus Map editor.',
 	},
 	FACULTY_SUBJECT_NOT_QUALIFIED: {
-		why: 'This teacher is not assigned to teach this particular subject at this grade level.',
-		fix: 'Reassign to a qualified teacher, or update Faculty Assignments to add this subject to the teacher.',
+		why: 'This teaching-load assignment does not currently cover this subject at this grade level.',
+		fix: 'Verify the saved teaching load, or update Faculty Assignments if the assignment is missing.',
 	},
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: {
 		why: 'This teacher has too many consecutive teaching periods without a break.',

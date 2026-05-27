@@ -534,6 +534,8 @@ model SchedulingPolicy {
   schoolId                                 Int      @map("school_id")
   schoolYearId                             Int      @map("school_year_id")
   teacherMoveEnabled                       Boolean  @default(true) @map("teacher_move_enabled")
+  periodLengthMinutes                      Int      @default(45) @map("period_length_minutes")
+  periodsPerDay                            Int      @default(10) @map("periods_per_day")
   maxConsecutiveTeachingMinutesBeforeBreak  Int      @default(120) @map("max_consecutive_teaching_minutes_before_break")
   minBreakMinutesAfterConsecutiveBlock      Int      @default(15) @map("min_break_minutes_after_consecutive_block")
   maxTeachingMinutesPerDay                  Int      @default(400) @map("max_teaching_minutes_per_day")

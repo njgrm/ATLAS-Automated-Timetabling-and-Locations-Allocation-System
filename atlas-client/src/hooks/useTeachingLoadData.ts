@@ -427,6 +427,7 @@ export function useTeachingLoadData() {
 		splitBrainIncident,
 		splitBrainLoading,
 		splitBrainApplyLoading,
+		setSplitBrainApplyLoading,
 		activeSchoolYearId,
 		loading,
 		saving,

@@ -667,7 +667,7 @@ return (
 							{preGenConfirmCtx?.source.type === 'draftQueue' && preGenConfirmCtx.source.item.hasNoTeacher && (
 								<div className="flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[0.6875rem] text-amber-700">
 									<UserX className="size-3.5 shrink-0" />
-									No faculty is assigned in teaching load for this session. Any available teacher may be selected.
+									No teaching-load assignment is saved for this session. Any available teacher may be selected.
 								</div>
 							)}
 							<Select value={confirmFacultyId} onValueChange={(v) => { setConfirmFacultyId(v); setConfirmPreview(null); }}>

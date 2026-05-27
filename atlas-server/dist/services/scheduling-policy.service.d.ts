@@ -7,6 +7,8 @@ export declare function computeEffectiveWeeklyTeachingMinutes(maxHoursPerWeek: n
 export declare function validateAncillaryLoadImmutable(facultyId: number, nextAncillaryMinutesPerWeek?: number | null, nextAncillaryLoadSource?: 'HR' | 'LOCAL' | 'NONE'): Promise<void>;
 export declare const POLICY_DEFAULTS: {
     readonly teacherMoveEnabled: true;
+    readonly periodLengthMinutes: 45;
+    readonly periodsPerDay: 10;
     readonly maxConsecutiveTeachingMinutesBeforeBreak: 120;
     readonly minBreakMinutesAfterConsecutiveBlock: 15;
     readonly maxTeachingMinutesPerDay: 480;
@@ -47,6 +49,8 @@ export interface ConstraintOverride {
 export declare const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride>;
 export interface SchedulingPolicyData {
     teacherMoveEnabled: boolean;
+    periodLengthMinutes: number;
+    periodsPerDay: number;
     maxConsecutiveTeachingMinutesBeforeBreak: number;
     minBreakMinutesAfterConsecutiveBlock: number;
     maxTeachingMinutesPerDay: number;
@@ -82,6 +86,8 @@ export interface SchedulingPolicyData {
 }
 export interface PolicyInput {
     teacherMoveEnabled?: unknown;
+    periodLengthMinutes?: unknown;
+    periodsPerDay?: unknown;
     maxConsecutiveTeachingMinutesBeforeBreak?: unknown;
     minBreakMinutesAfterConsecutiveBlock?: unknown;
     maxTeachingMinutesPerDay?: unknown;
@@ -133,6 +139,8 @@ export declare function getOrCreatePolicy(schoolId: number, schoolYearId: number
     enableFlagCeremony: boolean;
     enableRecess: boolean;
     enableLunchWindow: boolean;
+    periodLengthMinutes: number;
+    periodsPerDay: number;
     enforceLunchWindow: boolean;
     lunchStartTime: string;
     lunchEndTime: string;
@@ -173,6 +181,8 @@ export declare function upsertPolicy(schoolId: number, schoolYearId: number, inp
     enableFlagCeremony: boolean;
     enableRecess: boolean;
     enableLunchWindow: boolean;
+    periodLengthMinutes: number;
+    periodsPerDay: number;
     enforceLunchWindow: boolean;
     lunchStartTime: string;
     lunchEndTime: string;

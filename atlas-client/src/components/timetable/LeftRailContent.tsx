@@ -365,7 +365,7 @@ return (
 											<div className="rounded border border-border/70 bg-background/70 px-2.5 py-2 space-y-2 text-[0.625rem]">
 												<div className="font-semibold text-muted-foreground uppercase tracking-wide">Resource Diagnostics</div>
 												<div className="space-y-1">
-													<div className="font-medium">Lowest qualified-faculty coverage</div>
+													<div className="font-medium">Lowest teaching-load coverage</div>
 													{summary.resourceDiagnostics.qualifiedFacultyCoverageBySubject.slice(0, 3).map((row) => (
 														<div key={`coverage-${row.subjectId}`} className="flex items-center justify-between text-muted-foreground">
 															<span>{row.subjectCode}</span>
@@ -442,8 +442,8 @@ return (
 													})}
 												</div>
 												<span className="text-[0.6875rem] font-medium text-muted-foreground">
-													Drag to grid or expand for triage actions
-												</span>
+														Use recovery tools only when a session stays blocked after generation
+													</span>
 												{filteredUnassignedItems.map((item, i) => {
 													const grade = item.gradeLevel;
 													const gradeBadge = grade ? GRADE_BADGE[grade] : undefined;
@@ -540,8 +540,8 @@ return (
 																			{/* Impact */}
 																			<div className="flex items-center gap-1.5 text-[0.625rem]">
 																				<ShieldAlert className="size-2.5 text-red-600 shrink-0" />
-																				<span className="text-red-700 font-medium">Publish blocker</span>
-																				<span className="text-muted-foreground">— must be resolved before publishing</span>
+																				<span className="text-red-700 font-medium">Recovery required</span>
+																				<span className="text-muted-foreground">— this session still needs an operator review before publishing</span>
 																			</div>
 																			{(item.entryKind === 'COHORT' || item.adviserName) && (
 																				<div className="rounded border border-border bg-background px-2 py-1.5 text-[0.625rem] text-muted-foreground">

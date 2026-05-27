@@ -35,7 +35,7 @@ const DEFAULT_PERIOD_SLOTS = [
     { startTime: '14:10', endTime: '15:00' },
     { startTime: '15:00', endTime: '15:50' },
 ];
-const STANDARD_PERIOD_MINUTES = 50;
+const STANDARD_PERIOD_MINUTES = 45;
 function normalizeSpecializationCode(value) {
     return (value ?? '').trim().toUpperCase();
 }
@@ -258,7 +258,7 @@ export function buildUnionDisplaySlots(contracts) {
         return timeToMinutes(a.endTime) - timeToMinutes(b.endTime);
     });
 }
-export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemplatePeriods = {}) {
+export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemplatePeriods = {}, policyPeriodLengthMinutes) {
     const EXPECTED_MODULAR_SUBJECTS = {
         SCIENCE: 3,
     };
@@ -304,7 +304,9 @@ export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemp
                 const applicableModules = orderedModules.filter((moduleSubject) => isSubjectAllowedForSectionProgram(moduleSubject.code, section.programCode, moduleSubject.programScopes));
                 if (applicableModules.length === 0)
                     continue;
-                const periodLength = classTemplatePeriods[(section.programCode ?? '').toUpperCase()] ?? STANDARD_PERIOD_MINUTES;
+                const periodLength = (policyPeriodLengthMinutes && policyPeriodLengthMinutes > 0)
+                    ? policyPeriodLengthMinutes
+                    : (classTemplatePeriods[(section.programCode ?? '').toUpperCase()] ?? STANDARD_PERIOD_MINUTES);
                 const sessions = Math.ceil(maxMinutesPerWeek / periodLength);
                 const duration = Math.ceil(maxMinutesPerWeek / sessions);
                 demand.push({
@@ -341,11 +343,14 @@ export function computeDemand(sectionsByGrade, subjects, cohorts = [], classTemp
             if (modularSubjectIds.has(subject.id))
                 continue;
             /**
-             * Resolve period length for a section based on its program type.
-             * Uses classTemplatePeriods override if provided; falls back to STANDARD_PERIOD_MINUTES.
+             * Resolve period length for a section from the active policy day shape.
+             * Class-template values remain fallback-only for older rows.
              */
             const getPeriodLength = (programCode) => {
                 const code = (programCode ?? '').toUpperCase();
+                if (policyPeriodLengthMinutes && policyPeriodLengthMinutes > 0) {
+                    return policyPeriodLengthMinutes;
+                }
                 return classTemplatePeriods[code] ?? STANDARD_PERIOD_MINUTES;
             };
             const computeSessions = (programCode) => {
@@ -579,11 +584,11 @@ function timeToMinutes(t) {
 export function constructBaseline(input) {
     const { subjects, faculty, facultySubjects, rooms, preferences, sectionsByGrade, policy, lockedEntries, gradeWindows, timetableShapes } = input;
     const useHomeRoomPriority = input.roomingStrategy === 'HOME_ROOM_FIRST';
-    // Build period slots dynamically from policy (lunch window, school day bounds)
+    // Build period slots dynamically from the active policy day shape.
     const PERIOD_SLOTS = buildUnionClassPeriodSlots(timetableShapes);
     const FALLBACK_PERIOD_SLOTS = PERIOD_SLOTS.length > 0 ? PERIOD_SLOTS : buildPeriodSlots(policy);
     // Use demandOverride when provided (H-ALG-1 multi-seed support), otherwise compute fresh demand.
-    const rawDemand = input.demandOverride ?? computeDemand(sectionsByGrade, subjects, input.cohorts ?? [], input.classTemplatePeriods ?? {});
+    const rawDemand = input.demandOverride ?? computeDemand(sectionsByGrade, subjects, input.cohorts ?? [], input.classTemplatePeriods ?? {}, input.policy?.periodLengthMinutes);
     const demand = normalizeDemandSessionsForActiveSlots(rawDemand, timetableShapes, FALLBACK_PERIOD_SLOTS);
     // Teaching rooms sorted by id, grouped by type
     const teachingRooms = rooms.filter((r) => r.isTeachingSpace).sort((a, b) => a.id - b.id);

@@ -158,7 +158,13 @@ function normalizeProgramType(programType) {
 }
 function buildRunTimetableShapeContracts(input) {
     const templateByProgram = new Map(input.templateProfiles.map((profile) => [normalizeProgramType(profile.programType), profile]));
-    const regularTemplate = templateByProgram.get('REGULAR') ?? { programType: 'REGULAR', periodLengthMinutes: 50, periodsPerDay: 8 };
+    const regularTemplate = templateByProgram.get('REGULAR') ?? { programType: 'REGULAR', periodLengthMinutes: 45, periodsPerDay: 10 };
+    const policyPeriodLengthMinutes = input.policy && 'periodLengthMinutes' in input.policy
+        ? input.policy.periodLengthMinutes
+        : undefined;
+    const policyPeriodsPerDay = input.policy && 'periodsPerDay' in input.policy
+        ? input.policy.periodsPerDay
+        : undefined;
     const contracts = [];
     for (const grade of input.sectionsByGrade) {
         const programTypes = new Set(['REGULAR']);
@@ -169,18 +175,25 @@ function buildRunTimetableShapeContracts(input) {
             const window = input.gradeWindows.find((row) => row.gradeLevel === grade.gradeLevelId && normalizeProgramType(row.programType) === programType)
                 ?? input.gradeWindows.find((row) => row.gradeLevel === grade.gradeLevelId && normalizeProgramType(row.programType) === 'ALL');
             const template = templateByProgram.get(programType) ?? regularTemplate;
+            const periodLengthMinutes = policyPeriodLengthMinutes ?? template.periodLengthMinutes;
+            const periodsPerDay = policyPeriodsPerDay ?? template.periodsPerDay;
             contracts.push(buildTimetableShapeContract({
                 gradeLevel: grade.gradeLevelId,
                 programType,
                 startTime: window?.startTime ?? input.policy?.earliestStartTime ?? '07:00',
                 endTime: window?.endTime ?? input.policy?.latestEndTime ?? '17:00',
-                periodLengthMinutes: template.periodLengthMinutes,
-                periodsPerDay: template.periodsPerDay,
+                periodLengthMinutes,
+                periodsPerDay,
                 basePolicy: input.policy,
             }));
         }
     }
     return contracts;
+}
+function selectPrimaryTimetableShapeContract(contracts) {
+    if (contracts.length === 0)
+        return null;
+    return contracts.find((contract) => contract.programType === 'REGULAR') ?? contracts[0] ?? null;
 }
 function buildRoomAssignmentReasonCounts(entries, unassignedItems) {
     const counts = {};
@@ -566,6 +579,8 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
             })),
             templateProfiles,
             policy: {
+                periodLengthMinutes: policyRecord.periodLengthMinutes,
+                periodsPerDay: policyRecord.periodsPerDay,
                 maxConsecutiveTeachingMinutesBeforeBreak: policyRecord.maxConsecutiveTeachingMinutesBeforeBreak,
                 minBreakMinutesAfterConsecutiveBlock: policyRecord.minBreakMinutesAfterConsecutiveBlock,
                 maxTeachingMinutesPerDay: policyRecord.maxTeachingMinutesPerDay,
@@ -782,13 +797,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
         };
         const termCounts = buildTermCounts(entriesWithTerms);
         const homeRoomStats = buildHomeRoomStats(entriesWithTerms, result.unassignedItems);
-        const timetableDisplaySlots = timetableShapeContracts
-            .flatMap((contract) => contract.displaySlots)
-            .filter((slot, index, slots) => {
-            const key = `${slot.startTime}-${slot.endTime}-${slot.eventName ?? ''}-${slot.isSpecialEvent ? '1' : '0'}`;
-            return slots.findIndex((candidate) => `${candidate.startTime}-${candidate.endTime}-${candidate.eventName ?? ''}-${candidate.isSpecialEvent ? '1' : '0'}` === key) === index;
-        })
-            .sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime));
+        const timetableDisplaySlots = selectPrimaryTimetableShapeContract(timetableShapeContracts)?.displaySlots ?? [];
         const summary = {
             classesProcessed: result.classesProcessed,
             assignedCount: result.assignedCount,
@@ -806,7 +815,6 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
             lockWarnings: result.lockWarnings.length > 0 ? result.lockWarnings : undefined,
             modularWarnings: modularWarnings.length > 0 ? modularWarnings.map((warning) => warning.message) : undefined,
             cohortCount: cohorts.length,
-            cohortizedClassCount: entriesWithTerms.filter((entry) => entry.entryKind === 'COHORT').length,
             termCounts,
             contractWarnings: [
                 ...(sectionResult.contractWarnings ?? []),

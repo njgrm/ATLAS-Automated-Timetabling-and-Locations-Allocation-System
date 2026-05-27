@@ -950,7 +950,6 @@ export interface RunSummary {
 	violationCounts?: Record<string, number>;
 	lockWarnings?: string[];
 	cohortCount?: number;
-	cohortizedClassCount?: number;
 	contractWarnings?: string[];
 	hybridEnabled?: boolean;
 	selectedSeedProfile?: string;
@@ -1550,6 +1549,8 @@ export interface SchedulingPolicy {
 	schoolId: number;
 	schoolYearId: number;
 	teacherMoveEnabled: boolean;
+	periodLengthMinutes: number;
+	periodsPerDay: number;
 	maxConsecutiveTeachingMinutesBeforeBreak: number;
 	minBreakMinutesAfterConsecutiveBlock: number;
 	maxTeachingMinutesPerDay: number;

@@ -230,6 +230,7 @@ export function useTeachingLoadUI({
 		gradeLevelFilter, setGradeLevelFilter,
 		sortOrder, setSortOrder,
 		loadFilter, setLoadFilter,
+		reviewDismissed, setReviewDismissed,
 		showTemporaryRoles, setShowTemporaryRoles,
 		showFilters, setShowFilters,
 		showJumpList, setShowJumpList,

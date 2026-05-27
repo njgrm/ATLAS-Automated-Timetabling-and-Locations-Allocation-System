@@ -77,6 +77,27 @@ export function SectionGridMode({
 	onSwapSectionOwnership,
 }: SectionGridModeProps) {
 	const [searchQuery, setSearchQuery] = useState('');
+	const [gradeFilter, setGradeFilter] = useState('all');
+
+	const effectiveOwnershipMap = useMemo(() => {
+		const map: Record<string, { facultyId: number; facultyName: string; isPending: boolean }> = {};
+		for (const [facultyIdStr, assignments] of Object.entries(effectiveAssignmentsByFaculty)) {
+			const facultyId = Number(facultyIdStr);
+			const f = faculty.find(fac => fac.id === facultyId);
+			const facultyName = f ? `${f.lastName}, ${f.firstName}` : `Faculty ${facultyId}`;
+			for (const a of assignments) {
+				for (const sectionId of a.sectionIds) {
+					const key = getAssignmentOwnershipKey(a.subjectId, sectionId);
+					map[key] = {
+						facultyId,
+						facultyName,
+						isPending: Boolean(pendingOwnershipMap[key] && pendingOwnershipMap[key].facultyId === facultyId)
+					};
+				}
+			}
+		}
+		return map;
+	}, [effectiveAssignmentsByFaculty, faculty, pendingOwnershipMap]);
 
 	const sectionRows = useMemo(() => {
 		// Identify unique sections from sectionsBySubject

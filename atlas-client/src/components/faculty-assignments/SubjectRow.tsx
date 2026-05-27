@@ -1,5 +1,5 @@
 import { useMemo, useState, memo, useCallback } from 'react';
-import { BookOpen, ChevronDown, ChevronRight, Clock, Lock, Star, RotateCcw, CheckCircle, X, ArrowRight } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronRight, Clock, Lock, Star, RotateCcw, CheckCircle, X, ArrowLeftRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 import {

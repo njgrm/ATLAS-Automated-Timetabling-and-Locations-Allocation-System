@@ -73,11 +73,9 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 		assignedCount: number;
 		classesProcessed: number;
 		hardViolationCount: number;
-		cohortizedClassCount?: number;
 	} | null;
 	statusColor: (value: string) => string;
 	formatDuration: (value: number | null) => string;
-	contractWarnings: string[];
 	groupedPivotEntities: TimetableToolbarGroup[];
 	pivotLabel: (id: number) => string;
 	setSelectedEntry: Dispatch<SetStateAction<ScheduledEntry | null>>;

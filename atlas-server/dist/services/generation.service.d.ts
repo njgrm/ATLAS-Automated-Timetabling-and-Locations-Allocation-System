@@ -31,7 +31,6 @@ export interface RunSummary {
     lockWarnings?: string[];
     modularWarnings?: string[];
     cohortCount?: number;
-    cohortizedClassCount?: number;
     contractWarnings?: string[];
     hybridEnabled?: boolean;
     selectedSeedProfile?: string;

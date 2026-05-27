@@ -23,7 +23,7 @@ export const VIOLATION_LABELS: Record<ViolationCode, string> = {
 	SECTION_TIME_CONFLICT: 'Section Time Conflict',
 	FACULTY_OVERLOAD: 'Faculty Overload',
 	ROOM_TYPE_MISMATCH: 'Room Type Mismatch',
-	FACULTY_SUBJECT_NOT_QUALIFIED: 'Not Qualified',
+	FACULTY_SUBJECT_NOT_QUALIFIED: 'Teaching Load Review',
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: 'Consecutive Limit',
 	FACULTY_BREAK_REQUIREMENT_VIOLATED: 'Break Requirement',
 	FACULTY_DAILY_STANDARD_EXCEEDED: 'Daily Load Warning',
@@ -141,7 +141,7 @@ export const TUTORIAL_STEPS = [
 	{
 		target: '[data-tutorial="left-tabs"]',
 		title: 'Violations & Unassigned',
-		content: 'Two panels here: Violations shows constraint issues, Unassigned shows sessions that couldn\'t be placed. Both need attention before you can publish.',
+		content: 'Violations shows constraint issues. Unassigned is a residual diagnostics queue; use recovery tools only when you need to clear blocked sessions.',
 	},
 	{
 		target: '[data-tutorial="grid-controls"]',
@@ -151,7 +151,7 @@ export const TUTORIAL_STEPS = [
 	{
 		target: '[data-tutorial="center-grid"]',
 		title: 'Timetable Grid',
-		content: 'Click any entry in the grid to see its details. Drag entries or unassigned items to different slots. The system will preview the impact before applying.',
+		content: 'Click any entry in the grid to see its details. Drag entries to repair placements; treat unassigned items as exceptions that need review, not as the normal finishing step.',
 	},
 	{
 		target: '[data-tutorial="manual-edit-actions"]',

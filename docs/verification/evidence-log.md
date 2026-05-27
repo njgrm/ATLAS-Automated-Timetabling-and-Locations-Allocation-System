@@ -1,3 +1,75 @@
+# 2026-05-27 - Phase 3 Timetable Day-Shape Policy Control And Bootstrap Schema Alignment
+- Phase: Phase 3 generator-readiness stream, timetable block-baseline control pass
+- Operator: GitHub Copilot
+- Scope gate: PASS (policy-day-shape fields added to the persisted contract; review copy and startup drift diagnostics aligned)
+- Safety gate: PARTIAL (local build validation passed; live Tailnet response still shows the older policy payload and will need a redeploy/restart to reflect the new fields)
+- Files changed in this pass:
+  - atlas-server/src/services/scheduling-policy.service.ts
+  - atlas-server/src/services/schedule-constructor.ts
+  - atlas-server/src/services/generation.service.ts
+  - atlas-server/src/server.ts
+  - atlas-client/src/types.ts
+  - atlas-client/src/components/SchedulingPolicyPane.tsx
+  - atlas-client/src/components/timetable/ScheduleReviewWorkspace.constants.ts
+  - atlas-client/src/components/timetable/LeftRailContent.tsx
+  - prisma/schema.prisma
+  - docs/reference/atlas-runtime-source-of-truth-map.md
+
+- Repair delivered:
+  1. Scheduling policy now owns the active day-shape contract with persisted `periodLengthMinutes` and `periodsPerDay` fields.
+  2. Constructor and generation inputs now prefer the policy contract over stale template defaults for timetable block math.
+  3. The policy pane now exposes the active day-shape controls directly to operators.
+  4. Unassigned workflow language now frames the queue as recovery/diagnostic work instead of the expected completion path.
+  5. Startup schema diagnostics now include the new day-shape columns.
+
+- Verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS
+  - `npx prisma generate --no-engine` -> PASS
+  - `get_errors` on `atlas-server/src/server.ts` -> PASS
+  - Live Tailnet GET `/api/v1/policies/scheduling/1/55` -> still returned the older policy payload without the new day-shape fields
+
+- Verdict: NO-GO for live Tailnet closure until the server process or deployment is refreshed to expose the new policy contract
+
+# 2026-05-27 - Phase 3 Timetable Contract Cleanup And Outdated Logic Retirement
+- Phase: Phase 3 generator-readiness stream, timetable contract cleanup pass
+- Operator: GitHub Copilot
+- Scope gate: PASS (single canonical timetable display contract restored; stale cohort/stat/banner copy removed from review surfaces)
+- Safety gate: PASS (backend and client edits stayed within timetable/readiness surfaces; live Tailnet rerun captured after validation)
+- Files changed in this pass:
+  - atlas-server/src/services/generation.service.ts
+  - atlas-client/src/types.ts
+  - atlas-client/src/components/timetable/buildScheduleReviewWorkspaceContexts.ts
+  - atlas-client/src/components/timetable/ScheduleReviewWorkspaceHeader.tsx
+  - atlas-client/src/components/timetable/ScheduleReviewWorkspace.tsx
+  - atlas-client/src/components/timetable/ScheduleReviewWorkspace.constants.ts
+  - atlas-client/src/components/timetable/TimetableGrid.tsx
+  - atlas-client/src/components/ExplainabilityDrawer.tsx
+  - atlas-client/src/components/timetable/modals/ScheduleReviewDialogs.tsx
+  - atlas-client/src/components/timetable/LeftRailContent.tsx
+  - atlas-client/src/hooks/useTimetableData.ts
+  - docs/reference/atlas-runtime-source-of-truth-map.md
+  - docs/verification/evidence-log.md
+
+- Repair delivered:
+  1. The live generation summary now exposes a single canonical display contract for timetable slots instead of reconstructing the grid from a mixed program-shape union.
+  2. The timetable review header no longer shows the stale cohort count stat or the contract-warning banner.
+  3. Teacher-qualification copy was softened to teaching-load wording across timetable surfaces so already-approved assignments are not framed as a generic qualification failure in the review UI.
+  4. The live run output keeps the G9 building present in map inventory while making it clear that a given run can still place zero entries there; selector visibility is now driven by reference data, not latest-run occupancy.
+
+- Verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS
+  - `npx --prefix atlas-server tsx atlas-server/src/__tests__/phase2-timetable-shape-contract.test.ts` -> PASS (`7 passed, 0 failed`)
+  - Tailnet login -> PASS
+  - Tailnet POST `/api/v1/generation/1/55/runs` -> PASS, created `runId=84`
+  - Tailnet GET `/api/v1/generation/1/55/runs/latest/draft` -> PASS, `summary.assignedCount=2289`, `summary.unassignedCount=565`, `summary.hardViolationCount=838`, `summary.homeRoomSuccessRate=58.62`, `summary.policyBlockedCount=257`
+  - Tailnet GET `/api/v1/map/schools/1/buildings` -> PASS, `G9` rooms present in the live map inventory
+  - Tailnet GET `/api/v1/generation/1/55/runs/latest/draft` joined against map inventory -> PASS, `G9` building received `0` entries in run `84`
+  - `get_errors` on modified source files -> PASS, no new errors
+
+- Verdict: NO-GO overall for phase closure because hard violations remain high, but the timetable contract cleanup and stale copy retirement are live.
+
 # 2026-05-27 - Phase 3 Timetable Baseline Truth And Building Parity One-Shot
 - Phase: Phase 3 generator-readiness stream, timetable baseline/parity pass
 - Operator: GitHub Copilot
@@ -431,4 +503,17 @@
   3. Refactored the `Teaching Load Review Required` banner to be dismissible via a close button. Dismissing it also hides the toolbar badge.
   4. Fixed badge text overflow using `whitespace-nowrap` and re-introduced `font-black` specifically for the primary arithmetic values in the Workload Inspector.
 - Verification: Build succeeds without errors. The swap action transfers correctly without creating conflicts.
+- Verdict: GO
+
+# 2026-05-27 - Hotfix: ArrowLeftRight Icon Import Crash
+- Phase: Post UX-Hardening
+- Operator: Gemini CLI
+- Description: Added missing import for `ArrowLeftRight` from `lucide-react` in `atlas-client/src/components/faculty-assignments/SubjectRow.tsx` to resolve a ReferenceError crash in the browser.
+- Verification: Client build passes without import errors.
+- Verdict: GO
+
+# 2026-05-27 - Hotfix: Timetable UI Unresolved Import Fix
+- Phase: Post UX-Hardening
+- Operator: Gemini CLI
+- Description: Resolved an unresolved variable reference (ArrowRight to ArrowLeftRight mapping issue where ArrowLeftRight wasn't added to imports in SubjectRow.tsx).
 - Verdict: GO
