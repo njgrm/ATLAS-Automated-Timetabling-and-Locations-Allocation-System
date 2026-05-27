@@ -974,6 +974,13 @@ export function constructBaseline(input) {
     else {
         orderedDemand = interleaveByGradeLevel(prioritizeCohorts(demand));
     }
+    const sectionWeeklyDemandSessions = new Map();
+    for (const demandItem of orderedDemand) {
+        if (demandItem.entryKind !== 'SECTION')
+            continue;
+        const existing = sectionWeeklyDemandSessions.get(demandItem.sectionId) ?? 0;
+        sectionWeeklyDemandSessions.set(demandItem.sectionId, existing + demandItem.sessionsPerWeek);
+    }
     const allowFlexible = policy?.allowFlexibleSubjectAssignment === true;
     const allowConsecutiveLab = policy?.allowConsecutiveLabSessions === true;
     const allFacultyIds = faculty.map((f) => f.id).sort((a, b) => a - b);
@@ -1070,11 +1077,18 @@ export function constructBaseline(input) {
         let gradeValidPeriods = validPeriodIndices ?? Array.from({ length: FALLBACK_PERIOD_SLOTS.length }, (_, i) => i);
         const shapeContract = resolveTimetableShapeContract(timetableShapes, item.gradeLevel, item.programType);
         if (shapeContract) {
-            const allowedSlotKeys = new Set(shapeContract.periodSlots.map((slot) => `${slot.startTime}-${slot.endTime}`));
-            gradeValidPeriods = gradeValidPeriods.filter((pi) => {
-                const slot = FALLBACK_PERIOD_SLOTS[pi];
-                return allowedSlotKeys.has(`${slot.startTime}-${slot.endTime}`);
-            });
+            const sectionDemandSessions = item.entryKind === 'SECTION'
+                ? (sectionWeeklyDemandSessions.get(item.sectionId) ?? item.sessionsPerWeek)
+                : item.sessionsPerWeek;
+            const shapeWeeklyCapacity = shapeContract.periodSlots.length * DAYS.length;
+            const shouldBypassShapeFilter = item.entryKind === 'SECTION' && sectionDemandSessions > shapeWeeklyCapacity;
+            if (!shouldBypassShapeFilter) {
+                const allowedSlotKeys = new Set(shapeContract.periodSlots.map((slot) => `${slot.startTime}-${slot.endTime}`));
+                gradeValidPeriods = gradeValidPeriods.filter((pi) => {
+                    const slot = FALLBACK_PERIOD_SLOTS[pi];
+                    return allowedSlotKeys.has(`${slot.startTime}-${slot.endTime}`);
+                });
+            }
         }
         const normalizedItemGradeLevel = normalizeGradeLevel(item.gradeLevel);
         const gradeProgramKey = `${normalizedItemGradeLevel}:${(item.programType ?? 'ALL').toUpperCase()}`;

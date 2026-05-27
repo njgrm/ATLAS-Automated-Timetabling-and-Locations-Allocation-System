@@ -170,14 +170,34 @@ export default function TeachingLoad() {
 	}, [data]);
 
 	const handleSwapRequest = useCallback((subjectId: number, sectionId: number, fromFacultyId: number, toFacultyId?: number) => {
-		ui.setSwapCandidate({ subjectId, sectionId, fromFacultyId, toFacultyId: toFacultyId ?? null });
-	}, [ui]);
+		const subject = data.subjects.find((s) => s.id === subjectId);
+		const section = data.sectionMap.get(sectionId);
+		const fromFaculty = data.faculty.find((f) => f.id === fromFacultyId);
+		const toFaculty = toFacultyId != null
+			? data.faculty.find((f) => f.id === toFacultyId)
+			: data.selected;
+		ui.setSwapCandidate({
+			subjectId,
+			sectionId,
+			fromFacultyId,
+			toFacultyId: toFacultyId ?? null,
+			subjectName: subject?.name,
+			subjectCode: subject?.code,
+			sectionName: section?.name,
+			fromFacultyName: fromFaculty ? `${fromFaculty.lastName}, ${fromFaculty.firstName}` : undefined,
+			toFacultyName: toFaculty ? `${toFaculty.lastName}, ${toFaculty.firstName}` : undefined,
+		});
+	}, [data, ui]);
 
 	const executeSwap = useCallback(async () => {
 		if (!ui.swapCandidate) return;
 		const { subjectId, sectionId, fromFacultyId, toFacultyId } = ui.swapCandidate;
 		const destinationFacultyId = toFacultyId ?? data.selectedId;
-		if (!destinationFacultyId) return;
+		if (!destinationFacultyId) {
+			toast.error('Cannot transfer: no destination teacher is selected. Select a teacher first, then retry the swap.');
+			ui.setSwapCandidate(null);
+			return;
+		}
 
 		try {
 			data.pushHistory();

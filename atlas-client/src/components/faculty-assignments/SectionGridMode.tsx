@@ -154,7 +154,7 @@ export function SectionGridMode({
 			newSectionIds = [sectionId];
 		}
 		
-		onSelectTeacher(facultyId);
+		// Intentionally do NOT call onSelectTeacher here — doing so bleeds into Teacher Grid mode selection
 		onSetSections(subjectId, newSectionIds, facultyId);
 	};
 
@@ -338,6 +338,7 @@ export function SectionGridMode({
 																		) : candidates.map(f => {
 																			const isCurrentOwner = owner?.facultyId === f.id;
 																			const loadPct = Math.round(f.policyLoadPercentage ?? 0);
+																			const hasDraftChanges = (effectiveAssignmentsByFaculty[f.id]?.length ?? 0) > 0;
 																			return (
 																				<PopoverClose asChild key={f.id}>
 																					<Button
@@ -358,7 +359,7 @@ export function SectionGridMode({
 																									"text-[10px] font-bold uppercase tracking-tighter",
 																									loadPct > 100 ? "text-rose-600" : loadPct > 80 ? "text-amber-600" : "text-emerald-600"
 																								)}>
-																									{loadPct}% Load
+																									{loadPct}% Load{hasDraftChanges ? ' *' : ''}
 																								</span>
 																								<span className="text-muted-foreground/30">•</span>
 																								<span className="text-[10px] font-bold text-muted-foreground uppercase truncate">
@@ -371,6 +372,9 @@ export function SectionGridMode({
 																				</PopoverClose>
 																			);
 																		})}
+																	{candidates.some(f => (effectiveAssignmentsByFaculty[f.id]?.length ?? 0) > 0) && (
+																		<p className="px-3 py-1.5 text-[10px] font-semibold text-amber-700 italic border-t border-border/20">* Load% may be higher — draft changes are pending save.</p>
+																	)}
 																	</div>
 																</PopoverContent>
 															</Popover>

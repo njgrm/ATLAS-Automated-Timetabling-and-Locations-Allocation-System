@@ -28,7 +28,7 @@ async function assertFacultyOwnerOrOfficer(
 	if (!identity) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return false; }
 
 	if (identity.faculty.id !== facultyId) {
-		res.status(403).json({ code: 'FORBIDDEN', message: 'You do not have permission to access this faculty preference.' });
+		res.status(403).json({ code: 'FORBIDDEN', message: 'You do not have permission to access this teacher preference.' });
 		return false;
 	}
 	return true;
@@ -45,6 +45,7 @@ const VALID_PREFS: Set<string> = new Set(['PREFERRED', 'AVAILABLE', 'UNAVAILABLE
 const VALID_STATUSES: Set<string> = new Set(['DRAFT', 'SUBMITTED', 'MISSING']);
 
 function validateTimeSlots(slots: unknown): prefService.TimeSlotInput[] | string {
+	if (slots == null) return [];
 	if (!Array.isArray(slots)) return 'timeSlots must be an array.';
 	for (let i = 0; i < slots.length; i++) {
 		const s = slots[i];

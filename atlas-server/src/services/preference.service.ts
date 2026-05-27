@@ -6,6 +6,7 @@
 import { prisma } from '../lib/prisma.js';
 import type { DayOfWeek, TimeSlotPreference, PreferenceStatus, ReviewStatus } from '@prisma/client';
 import { publishPreferenceEvent } from './preference-events.service.js';
+import { resolveCanonicalFacultyMirror } from './faculty-identity.service.js';
 
 // ─── Types ───
 
@@ -28,7 +29,7 @@ export interface SaveDraftInput {
 	schoolYearId: number;
 	facultyId: number;
 	notes?: string | null;
-	timeSlots: TimeSlotInput[];
+	timeSlots?: TimeSlotInput[];
 	version?: number;
 	wellbeing?: WellbeingInput;
 }
@@ -72,13 +73,81 @@ export function checkPreferenceWindow(currentPhase: string): ServiceError | null
 	);
 }
 
+const ENABLE_LEGACY_TIME_PREFERENCES = process.env.ATLAS_ENABLE_LEGACY_TIME_PREFERENCES === 'true';
+
+function persistedTimeSlots(timeSlots?: TimeSlotInput[]): TimeSlotInput[] {
+	return ENABLE_LEGACY_TIME_PREFERENCES ? timeSlots ?? [] : [];
+}
+
+type PreferenceFacultyContext = {
+	faculty: { id: number; firstName: string; lastName: string };
+	candidateFacultyIds: number[];
+};
+
+function preferenceIdentityKeys(member: { externalId?: number | null; employeeId?: string | null; contactInfo?: string | null }) {
+	return [
+		member.externalId != null ? `external:${member.externalId}` : null,
+		member.employeeId ? `employee:${member.employeeId.trim().toLowerCase()}` : null,
+		member.contactInfo ? `email:${member.contactInfo.trim().toLowerCase()}` : null,
+	].filter((value): value is string => Boolean(value));
+}
+
+async function resolvePreferenceFacultyContext(
+	schoolId: number,
+	schoolYearId: number,
+	facultyId: number,
+): Promise<PreferenceFacultyContext> {
+	const requested = await prisma.facultyMirror.findFirst({
+		where: { id: facultyId, schoolId },
+		select: { id: true, externalId: true, employeeId: true, contactInfo: true, firstName: true, lastName: true },
+	});
+	if (!requested) throw err(404, 'TEACHER_NOT_FOUND', 'Teacher not found in this school.');
+
+	const resolution = await resolveCanonicalFacultyMirror({
+		schoolId,
+		schoolYearId,
+		linkedFacultyId: requested.id,
+		sourceExternalId: requested.externalId,
+		employeeId: requested.employeeId,
+		email: requested.contactInfo,
+	});
+	const canonicalId = resolution?.faculty.id ?? requested.id;
+	const faculty = canonicalId === requested.id
+		? requested
+		: await prisma.facultyMirror.findFirst({
+			where: { id: canonicalId, schoolId },
+			select: { id: true, firstName: true, lastName: true },
+		}) ?? requested;
+
+	return {
+		faculty,
+		candidateFacultyIds: [...new Set([canonicalId, requested.id, ...(resolution?.duplicateCandidateIds ?? [])])],
+	};
+}
+
+async function selectPreferenceForTeacher(schoolId: number, schoolYearId: number, context: PreferenceFacultyContext) {
+	const preferences = await prisma.facultyPreference.findMany({
+		where: { schoolId, schoolYearId, facultyId: { in: context.candidateFacultyIds } },
+		include: { timeSlots: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } },
+		orderBy: [{ facultyId: 'asc' }, { updatedAt: 'desc' }],
+	});
+	const exact = preferences.find((pref) => pref.facultyId === context.faculty.id);
+	if (exact) return exact;
+	const legacy = preferences.find((pref) => pref.status === 'SUBMITTED') ?? preferences[0] ?? null;
+	if (!legacy) return null;
+
+	return prisma.facultyPreference.update({
+		where: { id: legacy.id },
+		data: { facultyId: context.faculty.id, version: { increment: 1 } },
+		include: { timeSlots: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } },
+	});
+}
+
 // ─── Faculty self operations ───
 
 export async function getPreference(schoolId: number, schoolYearId: number, facultyId: number) {
-	const pref = await prisma.facultyPreference.findUnique({
-		where: { schoolId_schoolYearId_facultyId: { schoolId, schoolYearId, facultyId } },
-		include: { timeSlots: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } },
-	});
+	const context = await resolvePreferenceFacultyContext(schoolId, schoolYearId, facultyId);
+	const pref = await selectPreferenceForTeacher(schoolId, schoolYearId, context);
 	return pref;
 }
 
@@ -94,15 +163,10 @@ function wellbeingData(wb?: WellbeingInput) {
 export async function saveDraft(input: SaveDraftInput) {
 	const { schoolId, schoolYearId, facultyId, notes, timeSlots, version, wellbeing } = input;
 
-	// Verify faculty exists
-	const faculty = await prisma.facultyMirror.findFirst({
-		where: { id: facultyId, schoolId },
-	});
-	if (!faculty) throw err(404, 'FACULTY_NOT_FOUND', 'Faculty member not found in this school.');
-
-	const existing = await prisma.facultyPreference.findUnique({
-		where: { schoolId_schoolYearId_facultyId: { schoolId, schoolYearId, facultyId } },
-	});
+	const context = await resolvePreferenceFacultyContext(schoolId, schoolYearId, facultyId);
+	const faculty = context.faculty;
+	const existing = await selectPreferenceForTeacher(schoolId, schoolYearId, context);
+	const slotsToPersist = persistedTimeSlots(timeSlots);
 
 	if (existing) {
 		// Optimistic lock check
@@ -117,21 +181,22 @@ export async function saveDraft(input: SaveDraftInput) {
 			return tx.facultyPreference.update({
 				where: { id: existing.id },
 				data: {
+					facultyId: faculty.id,
 					notes,
 					status: 'DRAFT',
 					submittedAt: null,
 					version: { increment: 1 },
 					...wellbeingData(wellbeing),
-					timeSlots: {
+					...(slotsToPersist.length > 0 ? { timeSlots: {
 						createMany: {
-							data: timeSlots.map((ts) => ({
+							data: slotsToPersist.map((ts) => ({
 								day: ts.day,
 								startTime: ts.startTime,
 								endTime: ts.endTime,
 								preference: ts.preference,
 							})),
 						},
-					},
+					} } : {}),
 				},
 				include: { timeSlots: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } },
 			});
@@ -141,7 +206,7 @@ export async function saveDraft(input: SaveDraftInput) {
 			type: 'PREFERENCE_DRAFT_SAVED',
 			schoolId,
 			schoolYearId,
-			facultyId,
+			facultyId: faculty.id,
 			preferenceId: saved.id,
 			message: `${faculty.firstName} ${faculty.lastName} saved a preference draft.`,
 		});
@@ -153,20 +218,20 @@ export async function saveDraft(input: SaveDraftInput) {
 		data: {
 			schoolId,
 			schoolYearId,
-			facultyId,
+			facultyId: faculty.id,
 			notes,
 			status: 'DRAFT',
 			...wellbeingData(wellbeing),
-			timeSlots: {
+			...(slotsToPersist.length > 0 ? { timeSlots: {
 				createMany: {
-					data: timeSlots.map((ts) => ({
+					data: slotsToPersist.map((ts) => ({
 						day: ts.day,
 						startTime: ts.startTime,
 						endTime: ts.endTime,
 						preference: ts.preference,
 					})),
 				},
-			},
+			} } : {}),
 		},
 		include: { timeSlots: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } },
 	});
@@ -175,7 +240,7 @@ export async function saveDraft(input: SaveDraftInput) {
 		type: 'PREFERENCE_DRAFT_SAVED',
 		schoolId,
 		schoolYearId,
-		facultyId,
+		facultyId: faculty.id,
 		preferenceId: created.id,
 		message: `${faculty.firstName} ${faculty.lastName} started a preference draft.`,
 	});
@@ -185,15 +250,10 @@ export async function saveDraft(input: SaveDraftInput) {
 export async function submitPreference(input: SubmitInput) {
 	const { schoolId, schoolYearId, facultyId, notes, timeSlots, version, wellbeing } = input;
 
-	// Verify faculty exists
-	const faculty = await prisma.facultyMirror.findFirst({
-		where: { id: facultyId, schoolId },
-	});
-	if (!faculty) throw err(404, 'FACULTY_NOT_FOUND', 'Faculty member not found in this school.');
-
-	const existing = await prisma.facultyPreference.findUnique({
-		where: { schoolId_schoolYearId_facultyId: { schoolId, schoolYearId, facultyId } },
-	});
+	const context = await resolvePreferenceFacultyContext(schoolId, schoolYearId, facultyId);
+	const faculty = context.faculty;
+	const existing = await selectPreferenceForTeacher(schoolId, schoolYearId, context);
+	const slotsToPersist = persistedTimeSlots(timeSlots);
 
 	if (existing) {
 		if (version !== existing.version) {
@@ -205,21 +265,22 @@ export async function submitPreference(input: SubmitInput) {
 			return tx.facultyPreference.update({
 				where: { id: existing.id },
 				data: {
+					facultyId: faculty.id,
 					notes,
 					status: 'SUBMITTED',
 					submittedAt: new Date(),
 					version: { increment: 1 },
 					...wellbeingData(wellbeing),
-					timeSlots: {
+					...(slotsToPersist.length > 0 ? { timeSlots: {
 						createMany: {
-							data: timeSlots.map((ts) => ({
+							data: slotsToPersist.map((ts) => ({
 								day: ts.day,
 								startTime: ts.startTime,
 								endTime: ts.endTime,
 								preference: ts.preference,
 							})),
 						},
-					},
+					} } : {}),
 				},
 				include: { timeSlots: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } },
 			});
@@ -229,9 +290,9 @@ export async function submitPreference(input: SubmitInput) {
 			type: 'PREFERENCE_SUBMITTED',
 			schoolId,
 			schoolYearId,
-			facultyId,
+			facultyId: faculty.id,
 			preferenceId: submitted.id,
-			message: `${faculty.firstName} ${faculty.lastName} submitted their preferences.`,
+			message: `${faculty.firstName} ${faculty.lastName} submitted teacher preferences.`,
 			metadata: {
 				pregnancySupport: submitted.pregnancySupport,
 				physicalAilmentSupport: submitted.physicalAilmentSupport,
@@ -247,21 +308,21 @@ export async function submitPreference(input: SubmitInput) {
 		data: {
 			schoolId,
 			schoolYearId,
-			facultyId,
+			facultyId: faculty.id,
 			notes,
 			status: 'SUBMITTED',
 			submittedAt: new Date(),
 			...wellbeingData(wellbeing),
-			timeSlots: {
+			...(slotsToPersist.length > 0 ? { timeSlots: {
 				createMany: {
-					data: timeSlots.map((ts) => ({
+					data: slotsToPersist.map((ts) => ({
 						day: ts.day,
 						startTime: ts.startTime,
 						endTime: ts.endTime,
 						preference: ts.preference,
 					})),
 				},
-			},
+			} } : {}),
 		},
 		include: { timeSlots: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } },
 	});
@@ -270,9 +331,9 @@ export async function submitPreference(input: SubmitInput) {
 		type: 'PREFERENCE_SUBMITTED',
 		schoolId,
 		schoolYearId,
-		facultyId,
+		facultyId: faculty.id,
 		preferenceId: created.id,
-		message: `${faculty.firstName} ${faculty.lastName} submitted their preferences.`,
+		message: `${faculty.firstName} ${faculty.lastName} submitted teacher preferences.`,
 		metadata: {
 			pregnancySupport: created.pregnancySupport,
 			physicalAilmentSupport: created.physicalAilmentSupport,
@@ -373,15 +434,6 @@ export async function triggerReminder(
 
 // ─── Seed preferences (idempotent) ───
 
-/** Default Mon–Fri 07:00–17:00 AVAILABLE template for seeded preferences. */
-const DEFAULT_SEED_SLOTS: { day: DayOfWeek; startTime: string; endTime: string; preference: TimeSlotPreference }[] = [
-	{ day: 'MONDAY', startTime: '07:00', endTime: '17:00', preference: 'AVAILABLE' },
-	{ day: 'TUESDAY', startTime: '07:00', endTime: '17:00', preference: 'AVAILABLE' },
-	{ day: 'WEDNESDAY', startTime: '07:00', endTime: '17:00', preference: 'AVAILABLE' },
-	{ day: 'THURSDAY', startTime: '07:00', endTime: '17:00', preference: 'AVAILABLE' },
-	{ day: 'FRIDAY', startTime: '07:00', endTime: '17:00', preference: 'AVAILABLE' },
-];
-
 export async function seedPreferencesForSchoolYear(
 	schoolId: number,
 	schoolYearId: number,
@@ -414,9 +466,6 @@ export async function seedPreferencesForSchoolYear(
 						facultyId: f.id,
 						status: 'DRAFT',
 						notes: null,
-						timeSlots: {
-							createMany: { data: DEFAULT_SEED_SLOTS },
-						},
 					},
 				});
 			}
@@ -459,7 +508,7 @@ export async function getOfficerSummaryWithReviews(
 	const allFaculty = await prisma.facultyMirror.findMany({
 		where: { schoolId, isActiveForScheduling: true },
 		orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-		select: { id: true, firstName: true, lastName: true, department: true },
+		select: { id: true, externalId: true, employeeId: true, contactInfo: true, firstName: true, lastName: true, department: true },
 	});
 
 	const preferences = await prisma.facultyPreference.findMany({
@@ -473,6 +522,7 @@ export async function getOfficerSummaryWithReviews(
 			physicalAilmentSupport: true,
 			minimizeTravelTime: true,
 			avoidUpperFloors: true,
+			faculty: { select: { externalId: true, employeeId: true, contactInfo: true } },
 			review: {
 				select: {
 					reviewStatus: true,
@@ -485,6 +535,15 @@ export async function getOfficerSummaryWithReviews(
 	});
 
 	const prefMap = new Map(preferences.map((p) => [p.facultyId, p]));
+	const prefByIdentityKey = new Map<string, (typeof preferences)[number]>();
+	for (const pref of preferences) {
+		for (const key of preferenceIdentityKeys(pref.faculty)) {
+			const current = prefByIdentityKey.get(key);
+			if (!current || (pref.status === 'SUBMITTED' && current.status !== 'SUBMITTED')) {
+				prefByIdentityKey.set(key, pref);
+			}
+		}
+	}
 
 	type FacultySummaryWithReview = {
 		facultyId: number;
@@ -504,7 +563,7 @@ export async function getOfficerSummaryWithReviews(
 	};
 
 	const items: FacultySummaryWithReview[] = allFaculty.map((f) => {
-		const pref = prefMap.get(f.id);
+		const pref = prefMap.get(f.id) ?? preferenceIdentityKeys(f).map((key) => prefByIdentityKey.get(key)).find(Boolean);
 		return {
 			facultyId: f.id,
 			firstName: f.firstName,
@@ -544,8 +603,11 @@ export async function getPreferenceDetail(
 	schoolYearId: number,
 	facultyId: number,
 ) {
+	const context = await resolvePreferenceFacultyContext(schoolId, schoolYearId, facultyId);
+	const selected = await selectPreferenceForTeacher(schoolId, schoolYearId, context);
+	if (!selected) throw err(404, 'PREFERENCE_NOT_FOUND', 'No preference record found for this teacher.');
 	const pref = await prisma.facultyPreference.findUnique({
-		where: { schoolId_schoolYearId_facultyId: { schoolId, schoolYearId, facultyId } },
+		where: { id: selected.id },
 		include: {
 			timeSlots: { orderBy: [{ day: 'asc' }, { startTime: 'asc' }] },
 			review: true,
@@ -554,7 +616,7 @@ export async function getPreferenceDetail(
 			},
 		},
 	});
-	if (!pref) throw err(404, 'PREFERENCE_NOT_FOUND', 'No preference record found for this faculty.');
+	if (!pref) throw err(404, 'PREFERENCE_NOT_FOUND', 'No preference record found for this teacher.');
 	return pref;
 }
 

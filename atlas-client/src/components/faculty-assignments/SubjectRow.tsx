@@ -581,7 +581,7 @@ export const SubjectRow = memo(({
 																						size="icon-xs"
 																						onClick={(e) => {
 																							e.stopPropagation();
-																							onSwapSectionOwnership?.(subject.id, section.id, owner.facultyId);
+																							onSwapSectionOwnership?.(subject.id, section.id, owner.facultyId, selectedFacultyId);
 																						}}
 																						className="h-6 w-6 text-primary border-primary/30 hover:bg-primary hover:text-white"
 																					>

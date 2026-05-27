@@ -10,7 +10,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const MapEditor = lazy(() => import('./pages/MapEditor'));
 const Subjects = lazy(() => import('./pages/Subjects'));
 const Faculty = lazy(() => import('./pages/Faculty'));
-const FacultyAssignments = lazy(() => import('./pages/TeachingLoad'));
+const TeachingLoad = lazy(() => import('./pages/TeachingLoad'));
 const Sections = lazy(() => import('./pages/Sections'));
 const FacultyPreferences = lazy(() => import('./pages/FacultyPreferences'));
 const FacultyRoomPreferences = lazy(() => import('./pages/FacultyRoomPreferences'));
@@ -69,7 +69,7 @@ const router = createBrowserRouter([
 			},
 			{
 				path: 'teaching-load',
-				element: <FacultyAssignments />,
+				element: <TeachingLoad />,
 			},
 			{
 				path: 'faculty',
