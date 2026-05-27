@@ -446,6 +446,13 @@ The entry must include:
 - exact observed outcomes
 - final verdict: `GO` or `NO-GO`
 
+Append-only rule:
+
+- append only
+- do not overwrite, truncate, replace, or reformat prior evidence-log entries for cleanliness
+- preserve all earlier dated entries exactly as they exist unless the user explicitly asks for evidence-log repair
+- if the file contains malformed or messy prior content, append a new dated correction note instead of rewriting the file
+
 If Gemini could not perform the required live verification, it must say so in the evidence log and default to `NO-GO` unless the user explicitly accepted a narrower proof standard.
 
 ### Mandatory reuse check before inventing parallel UI

@@ -266,19 +266,6 @@ function normalizeProgramType(programType?: string | null): string {
 	return (programType ?? 'REGULAR').toUpperCase();
 }
 
-function hasTleSplitSectionOwnership(
-	gradeLevels: Array<{ sections: Array<{ tleProgramId?: number | null; tleSpecialization?: string | null; tleProgramCategory?: string | null }> }>,
-): boolean {
-	for (const grade of gradeLevels) {
-		for (const section of grade.sections) {
-			if (section.tleProgramId != null) return true;
-			if (section.tleSpecialization != null && section.tleSpecialization.trim().length > 0) return true;
-			if (section.tleProgramCategory != null && section.tleProgramCategory.trim().length > 0) return true;
-		}
-	}
-	return false;
-}
-
 function buildRunTimetableShapeContracts(input: {
 	sectionsByGrade: Array<{ gradeLevelId: number; sections: Array<{ programType?: string | null }> }>;
 	gradeWindows: Array<{ gradeLevel: number; programType?: string | null; startTime: string; endTime: string }>;
@@ -582,13 +569,17 @@ export async function triggerGenerationRun(
 		await syncSectionsFromExternal(schoolId, schoolYearId, options?.authToken);
 		await ensurePhase3GradeWindows(schoolId, schoolYearId);
 		const sectionResult = await getSectionSummary(schoolYearId, schoolId, options?.authToken);
-		const hasTleOwnershipSignals = hasTleSplitSectionOwnership(sectionResult.gradeLevels);
+		const cohortSyncResult = await syncCohorts(schoolId, schoolYearId, options?.authToken);
 		const cohortSyncWarnings: string[] = [];
-		if (hasTleOwnershipSignals) {
-			const cohortSyncResult = await syncCohorts(schoolId, schoolYearId, options?.authToken);
+		if (cohortSyncResult.synced) {
 			cohortSyncWarnings.push(...(cohortSyncResult.warnings ?? []));
+			if (cohortSyncResult.count === 0) {
+				cohortSyncWarnings.push('No instructional cohorts are currently active for this run; inter-section breakout lanes will fall back to section-scoped demand where needed.');
+			}
 		} else {
-			cohortSyncWarnings.push('MATATAG section-scoped TLE contract active; cohort-based TLE inputs are bypassed for this run.');
+			cohortSyncWarnings.push(
+				`Instructional cohort sync failed for this run: ${cohortSyncResult.error ?? 'unknown error'}. Existing cached cohorts (if any) were used.`,
+			);
 		}
 
 		stage = 'coverage-repair';
@@ -691,21 +682,19 @@ export async function triggerGenerationRun(
 				: prisma.gradeShiftWindow.findMany({ where: { schoolId, schoolYearId } }),
 		]);
 
-		const cohorts = hasTleOwnershipSignals
-			? await prisma.instructionalCohort.findMany({
-				where: { schoolId, schoolYearId, isActive: true },
-				orderBy: [{ gradeLevel: 'asc' }, { cohortCode: 'asc' }],
-				select: {
-					cohortCode: true,
-					specializationCode: true,
-					specializationName: true,
-					gradeLevel: true,
-					memberSectionIds: true,
-					expectedEnrollment: true,
-					preferredRoomType: true,
-				},
-			})
-			: [];
+		const cohorts = await prisma.instructionalCohort.findMany({
+			where: { schoolId, schoolYearId, isActive: true },
+			orderBy: [{ gradeLevel: 'asc' }, { cohortCode: 'asc' }],
+			select: {
+				cohortCode: true,
+				specializationCode: true,
+				specializationName: true,
+				gradeLevel: true,
+				memberSectionIds: true,
+				expectedEnrollment: true,
+				preferredRoomType: true,
+			},
+		});
 
 		const rosterIndex = buildSectionRosterIndex(sectionResult.gradeLevels);
 		const activeFacultyIdSet = new Set(faculty.map((member) => member.id));

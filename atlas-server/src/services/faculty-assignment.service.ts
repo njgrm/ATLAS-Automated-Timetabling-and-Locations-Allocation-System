@@ -3618,7 +3618,7 @@ function capabilityOverrideMatches(
 
 function isSpecialProgramSpecializationSubject(subjectCode: string | null | undefined): boolean {
   const code = (subjectCode ?? '').trim().toUpperCase();
-  return code === 'SPA_SPEC' || code === 'SPS_SPEC';
+  return code === 'SPA_SPEC' || code === 'SPS_SPEC' || code.startsWith('SPA_') || code.startsWith('SPS_');
 }
 
 function isSpecialProgramBaselineDepartment(department: string | null | undefined): boolean {
@@ -3648,7 +3648,7 @@ return match ?? candidateCode;
 
 function isAssignmentSpecializationSubject(subjectCode: string | null | undefined): boolean {
 const code = (subjectCode ?? '').trim().toUpperCase();
-return code === 'SPA_SPEC' || code === 'SPS_SPEC' || code.startsWith('TLE_SPEC_');
+return code === 'SPA_SPEC' || code === 'SPS_SPEC' || code.startsWith('SPA_') || code.startsWith('SPS_') || code.startsWith('TLE_SPEC_');
 }
 
 export function resolveAssignmentSpecializationIdentity(input: {

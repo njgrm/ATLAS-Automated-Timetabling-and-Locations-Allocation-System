@@ -177,6 +177,42 @@ Seed the 9 default DepEd JHS subjects for a school (idempotent).
 
 ---
 
+### `POST /subjects/sync-offerings` 🔒
+Refresh special-program subject contract state from upstream offerings plus mirrored/ownership demand signals.
+
+**Body:** `{ "schoolId": 1, "schoolYearId": 55 }`
+
+| | |
+|---|---|
+| **Auth** | Required (officer/admin) |
+| **Success** | `200 OK` |
+
+```json
+{
+  "message": "Subject contract synchronized from offerings and mirrored section demand.",
+  "report": {
+    "schoolId": 1,
+    "schoolYearId": 55,
+    "offeredPrograms": ["REGULAR", "SPA", "SPS", "STE"],
+    "mirroredPrograms": ["REGULAR", "SPA", "SPS", "STE"],
+    "activeSpecialProgramTracks": {
+      "spa": [
+        { "code": "DANCE", "label": "DANCE", "sectionCount": 3 }
+      ],
+      "sps": [
+        { "code": "SPORTS_SCIENCE", "label": "SPORTS SCIENCE", "sectionCount": 8 }
+      ]
+    }
+  }
+}
+```
+
+Notes:
+- `activeSpecialProgramTracks` is derived from persisted specialization ownership truth and is intended for SPA/SPS breakout lane visibility.
+- This endpoint is the operator-facing contract for specialization track exposure used by teaching-load and review surfaces.
+
+---
+
 ## Faculty
 
 ### `GET /faculty?schoolId=<id>` 🔒
@@ -1114,11 +1150,20 @@ Get term-specific published schedule view for a room.
         "buildingName": "Main Building"
       },
       "entryKind": "SECTION",
-      "cohortCode": null
+      "cohortCode": null,
+      "cohortName": null,
+      "specializationCode": null,
+      "specializationLabel": null
     }
   ]
 }
 ```
+
+Published entry lane fields:
+- `cohortCode`: cohort identity when the generated class is cohortized (`entryKind="COHORT"`).
+- `cohortName`: human-readable cohort/specialization lane label.
+- `specializationCode`: normalized specialization lane identity (from cohort or section ownership truth).
+- `specializationLabel`: display label for the specialization lane.
 
 ---
 

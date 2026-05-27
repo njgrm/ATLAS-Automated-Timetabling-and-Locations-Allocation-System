@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { BookOpen, ChevronDown, ChevronRight, Clock, Lock, Star, RotateCcw, CheckCircle } from 'lucide-react';
+import { useMemo, useState, memo } from 'react';
+import { BookOpen, ChevronDown, ChevronRight, Clock, Lock, Star, RotateCcw, CheckCircle, X, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 import {
@@ -92,7 +92,7 @@ function resolveRotationLaneKey(subject: Pick<Subject, 'rotationFamily' | 'rotat
 	return `${family}:term:${resolveRotationTermRank(subject)}`;
 }
 
-export function SubjectRow({
+export const SubjectRow = memo(({
 	subject,
 	assignment,
 	sections,
@@ -116,7 +116,7 @@ export function SubjectRow({
 	resolveSectionHoverDeltaMinutes,
 	quarantined = false,
 	quarantineLabel = null,
-}: SubjectRowProps) {
+}: SubjectRowProps) => {
 	const [openGrades, setOpenGrades] = useState<Record<number, boolean>>({});
 
 	// Compute filtered sections locally based on global searchTerm and sectionFilter
@@ -173,7 +173,8 @@ export function SubjectRow({
 	const selectedSectionIds = new Set(assignment?.sectionIds ?? []);
 	const selectedCount = selectedSectionIds.size;
 
-	const isSpecializationSlot = subject.code === 'SPA_SPEC' || subject.code === 'SPS_SPEC';
+	const subjectCode = subject.code.toUpperCase();
+	const isSpecializationSlot = subjectCode === 'SPA_SPEC' || subjectCode === 'SPS_SPEC' || subjectCode.startsWith('SPA_') || subjectCode.startsWith('SPS_');
 
 	const selectableSections = useMemo(() => {
 		return sections.filter((section) => {
@@ -223,7 +224,7 @@ export function SubjectRow({
 
 	const handleToggleAll = () => {
 		if (quarantined) {
-			toast.error(quarantineLabel ?? 'Assignment edits are temporarily blocked while data truth is being reconciled.');
+			toast.error(quarantineLabel ?? 'Assignments temporarily locked while data review finishes');
 			return;
 		}
 		if (selectedCount > 0) {
@@ -250,7 +251,7 @@ export function SubjectRow({
 
 	const toggleSection = (sectionId: number) => {
 		if (quarantined) {
-			toast.error(quarantineLabel ?? 'Assignment edits are temporarily blocked while data truth is being reconciled.');
+			toast.error(quarantineLabel ?? 'Assignments temporarily locked while data review finishes');
 			return;
 		}
 		if (selectedSectionIds.has(sectionId)) {
@@ -445,7 +446,7 @@ export function SubjectRow({
 												transition={{ duration: 0.2 }}
 												className="overflow-hidden"
 											>
-												<div className={`flex flex-wrap gap-2.5 p-5 border-l-4 ${gradeTint}`}>
+												<div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-5 border-l-4 ${gradeTint}`}>
 													{gradeSections.map((section) => {
 														const key = getOwnershipKey(subject.id, section.id);
 														const savedOwner = savedOwnershipMap[key];
@@ -482,7 +483,7 @@ export function SubjectRow({
 														return (
 															<div
 																key={section.id}
-																className={`group/section relative flex items-center gap-3 rounded-xl border px-3 py-2 transition-all duration-200 shadow-sm ${
+																className={`group/section relative flex flex-col items-start gap-2 rounded-xl border px-3.5 py-3 transition-all duration-200 shadow-sm ${
 																	isSystemAssignedSection
 																		? 'border-amber-300 bg-amber-50/50 shadow-inner'
 																		: isHardConflict
@@ -500,112 +501,117 @@ export function SubjectRow({
 																		: 'bg-card border-border/80 hover:border-primary/40 hover:shadow-md'
 																}`}
 															>
-																<Checkbox
-																	checked={isSelected}
-																	onCheckedChange={() => toggleSection(section.id)}
-																	disabled={disabled || blocked || isSystemAssignedSection}
-																	onMouseEnter={() => {
-																			if (!isSelected && !blocked) {
-																				const delta = isRotationFamily ? hoverDeltaMinutes : subject.minMinutesPerWeek;
-																				if (delta > 0) {
-																					onHoverLoadMinutes?.(delta);
+																<div className="flex items-center justify-between w-full mb-1">
+																	<div className="flex items-center gap-2.5 min-w-0">
+																		<Checkbox
+																			checked={isSelected}
+																			onCheckedChange={() => toggleSection(section.id)}
+																			disabled={disabled || blocked || isSystemAssignedSection}
+																			onMouseEnter={() => {
+																					if (!isSelected && !blocked) {
+																						const delta = isRotationFamily ? hoverDeltaMinutes : subject.minMinutesPerWeek;
+																						if (delta > 0) {
+																							onHoverLoadMinutes?.(delta);
+																						}
 																				}
-																		}
-																	}}
-																	onMouseLeave={() => onClearHoverLoad?.()}
-																	className={`size-5 rounded-md transition-opacity shadow-none border-border/60 ${isSystemAssignedSection ? 'opacity-0' : 'opacity-100'}`}
-																/>
-																
-																<div className="flex-1 min-w-0">
-																	<div className="flex items-center gap-2">
-																		<span className={`text-sm font-black leading-none truncate ${isSelected ? 'text-primary' : 'text-foreground'}`}>
+																			}}
+																			onMouseLeave={() => onClearHoverLoad?.()}
+																			className={`size-4 rounded transition-opacity shadow-none border-border/60 ${isSystemAssignedSection ? 'opacity-0' : 'opacity-100'}`}
+																		/>
+																		<span className={`text-[0.75rem] font-black leading-tight truncate ${isSelected ? 'text-primary' : 'text-foreground'}`}>
 																			{section.name}
 																		</span>
-																		{isSystemAssignedSection && (
-																			<Lock className="size-3.5 text-amber-600 shrink-0" />
-																		)}
-																		{section.isSpecialProgram && section.programCode && PROGRAM_BADGE[section.programCode] && (
-																			<Badge variant="outline" className={`h-4 px-1 text-[10px] font-black uppercase border-none shadow-none ${PROGRAM_BADGE[section.programCode]}`}>
-																				{section.programCode}
-																			</Badge>
-																		)}
-																		{isRotationFamily && !isSelected && !blocked && (
-																			<Tooltip>
-																				<TooltipTrigger asChild>
-																					<div className="flex items-center gap-1.5 cursor-help">
-																						<div className={`size-2.5 rounded-full shrink-0 border border-violet-500/20 ${isNoWeeklyIncrease ? 'bg-violet-600 shadow-[0_0_8px_rgba(139,92,246,0.5)]' : 'bg-violet-300 animate-pulse'}`} />
-																						<span className={cn("text-[10px] font-black uppercase tracking-tighter", isNoWeeklyIncrease ? "text-violet-700" : "text-violet-400")}>
-																							{isNoWeeklyIncrease ? 'No increase' : 'Adds load'}
-																						</span>
-																					</div>
-																				</TooltipTrigger>
-																				<TooltipContent side="top" className="text-xs font-bold max-w-[220px] p-2.5">
-																					<p className="mb-1">Rotating Weekly Lane</p>
-																					<p className="text-muted-foreground font-medium leading-tight">
-																						{isNoWeeklyIncrease
-																							? 'This assignment does not raise concurrent weekly demand in this rotation family.'
-																							: `Raises concurrent load by ${hoverDeltaMinutes} minute${hoverDeltaMinutes === 1 ? '' : 's'} per week.`}
-																					</p>
-																				</TooltipContent>
-																			</Tooltip>
-																		)}
 																	</div>
 																	
-																	<div className="mt-1.5 flex items-center gap-2 flex-wrap">
-																		{isRotationFamily && rotationTermLabel && (
-																			<Badge variant="outline" className="h-4 px-1 text-[10px] font-black uppercase bg-violet-100 text-violet-900 border-violet-300 shadow-none">
-																				{rotationTermLabel}
-																			</Badge>
+																	<div className="flex items-center gap-1.5 shrink-0 ml-2">
+																		{isSystemAssignedSection && (
+																			<Lock className="size-3 text-amber-600" />
 																		)}
-																		{section.assignmentSpecializationLabel && (
+																		{isSelected && !disabled && !isSystemAssignedSubject && (
 																			<Tooltip>
 																				<TooltipTrigger asChild>
-																					<span className={`text-[11px] font-bold uppercase tracking-tight truncate max-w-[90px] cursor-help ${isPerfectMatch ? 'text-emerald-700' : isApprovedCompatibility ? 'text-sky-700' : 'text-muted-foreground/60'}`}>
-																						{section.assignmentSpecializationLabel}
-																					</span>
-																				</TooltipTrigger>
-																				<TooltipContent side="top" className="text-xs font-bold">
-																					Required: {section.assignmentSpecializationLabel}
-																					{isApprovedCompatibility && " (Approved Alternative)"}
-																				</TooltipContent>
-																			</Tooltip>
-																		)}
-																		{conflictLabel && (
-																			<Tooltip>
-																				<TooltipTrigger asChild>
-																					<div className="flex items-center gap-1.5 cursor-help bg-muted/30 px-1.5 py-0.5 rounded-md max-w-[130px]">
-																						<div className={`size-2 rounded-full shrink-0 ${isHardConflict ? 'bg-rose-500' : isStaleOwner ? 'bg-amber-400 opacity-50' : 'bg-amber-500'}`} />
-																						<span className={`text-[11px] font-bold uppercase tracking-tight truncate ${isHardConflict ? 'text-rose-700' : isStaleOwner ? 'text-amber-700/70' : 'text-amber-700'}`}>
-																							{conflictLabel}
-																						</span>
+																					<div
+																						onClick={(e) => {
+																							e.stopPropagation();
+																							toggleSection(section.id);
+																						}}
+																						className="opacity-0 group-hover/section:opacity-100 transition-opacity bg-rose-500 hover:bg-rose-600 text-white rounded-full p-0.5 shadow-sm cursor-pointer"
+																					>
+																						<X className="size-2.5" />
 																					</div>
 																				</TooltipTrigger>
-																				<TooltipContent side="top" className="text-xs font-bold">
-																					{isHardConflict 
-																						? 'Database-level conflict detected.' 
-																						: isStaleOwner 
-																						? `Stale historical owner: ${savedOwner.facultyName}. Selection will replace this record.`
-																						: `Already owned by ${conflictLabel}`}
-																				</TooltipContent>
+																				<TooltipContent side="top" className="text-xs font-bold">Remove assignment</TooltipContent>
 																			</Tooltip>
-																		)}
-																		{quarantined && !conflictLabel && (
-																			<span className="text-[11px] font-bold uppercase tracking-tight text-rose-700">Repair Pending</span>
 																		)}
 																	</div>
 																</div>
 
-																{isSavedOther && !disabled && (
-																	<Button
-																		type="button"
-																		variant="outline"
-																		size="xs"
-																		onClick={() => onSwapSectionOwnership?.(subject.id, section.id, savedOwner.facultyId)}
-																		className="ml-1 h-6 px-2 text-[11px] font-bold text-primary hover:bg-primary hover:text-white transition-all uppercase shadow-sm border-primary/30"
-																	>
-																		{isStaleOwner ? <RotateCcw className="size-3" /> : 'Take'}
-																	</Button>
-																)}
+																<div className="w-full space-y-1.5">
+																	<div className="flex flex-wrap items-center gap-1.5">
+																		{section.isSpecialProgram && section.programCode && PROGRAM_BADGE[section.programCode] && (
+																			<Badge variant="outline" className={`h-3.5 px-1 text-[9px] font-black uppercase border-none shadow-none ${PROGRAM_BADGE[section.programCode]}`}>
+																				{section.programCode}
+																			</Badge>
+																		)}
+																		{isRotationFamily && rotationTermLabel && (
+																			<Badge variant="outline" className="h-3.5 px-1 text-[9px] font-black uppercase bg-violet-100 text-violet-900 border-violet-300 shadow-none">
+																				{rotationTermLabel}
+																			</Badge>
+																		)}
+																	</div>
+
+																	<div className="flex items-center justify-between w-full mt-1">
+																		<div className="min-w-0">
+																			{section.assignmentSpecializationLabel && (
+																				<Tooltip>
+																					<TooltipTrigger asChild>
+																						<span className={`text-[10px] font-bold uppercase tracking-tight truncate block cursor-help ${isPerfectMatch ? 'text-emerald-700' : isApprovedCompatibility ? 'text-sky-700' : 'text-muted-foreground/60'}`}>
+																							{section.assignmentSpecializationLabel}
+																						</span>
+																					</TooltipTrigger>
+																					<TooltipContent side="top" className="text-xs font-bold">
+																						Required: {section.assignmentSpecializationLabel}
+																						{isApprovedCompatibility && " (Approved Alternative)"}
+																					</TooltipContent>
+																				</Tooltip>
+																			)}
+																			{conflictLabel && (
+																				<Tooltip>
+																					<TooltipTrigger asChild>
+																						<div className="flex items-center gap-1 cursor-help">
+																							<div className={`size-1.5 rounded-full shrink-0 ${isHardConflict ? 'bg-rose-500' : isStaleOwner ? 'bg-amber-400 opacity-50' : 'bg-amber-500'}`} />
+																							<span className={`text-[10px] font-bold uppercase tracking-tight truncate max-w-[80px] ${isHardConflict ? 'text-rose-700' : isStaleOwner ? 'text-amber-700/70' : 'text-amber-700'}`}>
+																								{conflictLabel}
+																							</span>
+																						</div>
+																					</TooltipTrigger>
+																					<TooltipContent side="top" className="text-xs font-bold">
+																						{isHardConflict 
+																							? 'Database-level conflict detected.' 
+																							: isStaleOwner 
+																							? `Stale historical owner: ${savedOwner.facultyName}. Selection will replace this record.`
+																							: `Already owned by ${conflictLabel}`}
+																					</TooltipContent>
+																				</Tooltip>
+																			)}
+																		</div>
+
+																		{isSavedOther && !disabled && (
+																			<Button
+																				type="button"
+																				variant="outline"
+																				size="icon-xs"
+																				onClick={(e) => {
+																					e.stopPropagation();
+																					onSwapSectionOwnership?.(subject.id, section.id, savedOwner.facultyId);
+																				}}
+																				className="h-5 w-5 text-primary border-primary/30 hover:bg-primary hover:text-white"
+																			>
+																				{isStaleOwner ? <RotateCcw className="size-2.5" /> : <ArrowRight className="size-2.5" />}
+																			</Button>
+																		)}
+																	</div>
+																</div>
 															</div>
 														);
 													})}
@@ -621,4 +627,4 @@ export function SubjectRow({
 			</div>
 		</div>
 	);
-}
+});

@@ -1,10 +1,64 @@
-import type { ExternalSection, Subject } from '../types';
+import type { ExternalSection, Subject, FacultySummary } from '../types';
+import { isDepartmentMatch } from './grade-labels';
 
 export const STANDARD_WEEKLY_TEACHING_HOURS = 30;
 export const MAX_WEEKLY_TEACHING_HOURS = 40;
 export const CLASS_ADVISER_EQUIVALENT_HOURS = 5;
 
 export type LoadStatus = 'below-standard' | 'compliant' | 'overload-allowed' | 'over-cap';
+
+export function normalizeDepartmentCode(value: string | null | undefined): string {
+	const normalized = (value ?? '').trim().toUpperCase();
+	if (!normalized) return '';
+	const table: Record<string, string> = {
+		SCIENCE: 'SCI',
+		SCI: 'SCI',
+		MATHEMATICS: 'MATH',
+		MATH: 'MATH',
+		ENGLISH: 'ENG',
+		ENG: 'ENG',
+		FILIPINO: 'FIL',
+		FIL: 'FIL',
+		MAPEH: 'MAPEH',
+		ESP: 'ESP',
+		VALUES: 'ESP',
+		'VALUES EDUCATION': 'ESP',
+		AP: 'AP',
+		'SOCIAL STUDIES': 'AP',
+		'ARALING PANLIPUNAN': 'AP',
+		TLE: 'TLE',
+		LANGUAGES: 'ENG',
+		SPA: 'SPA',
+		SPS: 'SPS',
+	};
+	return table[normalized] ?? normalized;
+}
+
+export function matchesOwnershipDepartment(facultyDepartment: string | null | undefined, subject: Subject): boolean {
+	const ownerDepartments = [
+		...(subject.ownerDepartment ? [subject.ownerDepartment] : []),
+		...(subject.allowedOwnerDepartments ?? []),
+	]
+		.map((value) => normalizeDepartmentCode(value))
+		.filter((value): value is string => Boolean(value));
+
+	if (ownerDepartments.length > 0) {
+		const normalizedFaculty = normalizeDepartmentCode(facultyDepartment);
+		if (!normalizedFaculty) return false;
+		if (ownerDepartments.includes(normalizedFaculty)) return true;
+		if ((ownerDepartments.includes('ENG') || ownerDepartments.includes('FIL')) && normalizedFaculty === 'ENG') return true;
+		return false;
+	}
+
+	return isDepartmentMatch(facultyDepartment ?? null, subject.code, subject.name);
+}
+
+export function getFacultyComparableLoadHours(member: FacultySummary): number {
+	if (member.isPlaceholder) {
+		return member.gradeTeachingHours ?? member.syntheticCoverageHours ?? 0;
+	}
+	return member.policyCreditedHours ?? member.subjectHours ?? 0;
+}
 
 export type FacultyAssignmentDraft = {
 	subjectId: number;
@@ -52,6 +106,15 @@ export type RotationFamilyBreakdownItem = {
 	dominantTermLabel?: string | null;
 	termGroupId?: string | null;
 	termCount?: number | null;
+	termBuckets: {
+		termRank: number | null;
+		termLabel: string | null;
+		termGroupId: string | null;
+		termCount: number | null;
+		creditedMinutes: number;
+		unitCount: number;
+		subjectCodes: string[];
+	}[];
 	subjectCodes: string[];
 };
 
@@ -331,6 +394,32 @@ export function buildPendingOwnershipMap(
 	return pendingOwnershipMap;
 }
 
+export function computeSectionAssignmentDeltaMinutes(
+	subject: Subject,
+	sectionId: number,
+	currentAssignments: FacultyAssignmentDraft[],
+	subjects: Subject[],
+	sectionMap: Map<number, ExternalSection>,
+	equivalentHours: number,
+): number {
+	const currentProfile = buildTeachingLoadProfile(currentAssignments, subjects, sectionMap, equivalentHours);
+	const currentMinutes = currentProfile.actualTeachingHours * 60;
+
+	const nextAssignments = currentAssignments.map((a) =>
+		a.subjectId === subject.id
+			? { ...a, sectionIds: Array.from(new Set([...a.sectionIds, sectionId])) }
+			: a,
+	);
+	if (!currentAssignments.some((a) => a.subjectId === subject.id)) {
+		nextAssignments.push({ subjectId: subject.id, sectionIds: [sectionId], gradeLevels: [] });
+	}
+
+	const nextProfile = buildTeachingLoadProfile(nextAssignments, subjects, sectionMap, equivalentHours);
+	const nextMinutes = nextProfile.actualTeachingHours * 60;
+
+	return Math.max(0, nextMinutes - currentMinutes);
+}
+
 export function buildTeachingLoadProfile(
 	assignments: FacultyAssignmentDraft[],
 	subjects: Subject[],
@@ -498,6 +587,10 @@ export function buildTeachingLoadProfile(
 				dominantTermLabel: peakLabels.length > 1 ? `Tied: ${peakLabels.join(', ')}` : (peakLabels[0] ?? null),
 				termGroupId: peakBuckets[0]?.termGroupId ?? null,
 				termCount: peakBuckets[0]?.termCount ?? null,
+				termBuckets: termBuckets.map(b => ({
+					...b,
+					subjectCodes: Array.from(stats.subjectCodes).sort((left, right) => left.localeCompare(right))
+				})),
 				subjectCodes: Array.from(stats.subjectCodes).sort((left, right) => left.localeCompare(right)),
 			} satisfies RotationFamilyBreakdownItem,
 		};

@@ -726,10 +726,6 @@ export function computeDemand(
 					});
 				}
 
-				if (specializationBoundCohort) {
-					continue;
-				}
-
 				for (const section of sortedSections) {
 					if (cohortSectionIds.has(section.id)) continue;
 					if (!isSubjectAllowedForSectionProgram(subject.code, section.programCode, subject.programScopes)) continue;
