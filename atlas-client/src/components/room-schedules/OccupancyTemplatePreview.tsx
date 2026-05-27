@@ -59,7 +59,7 @@ function formatEntry(entry: RoomScheduleEntry, subjectMap: Map<number, string>, 
 		faculty:
 			entry.facultyId != null
 				? (facultyMap.get(entry.facultyId) ?? `Faculty #${entry.facultyId}`)
-				: 'Unassigned Faculty',
+				: 'Unassigned Teacher',
 		section: sectionMap.get(entry.sectionId) ?? `Section #${entry.sectionId}`,
 	};
 }

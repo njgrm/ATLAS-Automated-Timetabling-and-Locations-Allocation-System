@@ -32,6 +32,7 @@ import type {
 	FacultyRoomPreferenceEntry,
 	FacultyRoomPreferenceState,
 	FacultyTeachingAssignmentIdentity,
+	RoomPreferenceSummaryItem,
 	GenerationGateStatus,
 	PreviewResult,
 	Room,
@@ -175,6 +176,7 @@ export default function FacultyRoomPreferences() {
 	const [entries, setEntries] = useState<FacultyRoomPreferenceEntry[]>([]);
 	const [globalEntries, setGlobalEntries] = useState<FacultyGlobalDraftEntry[]>([]);
 	const [teachingAssignments, setTeachingAssignments] = useState<FacultyTeachingAssignmentIdentity[]>([]);
+	const [recentRequests, setRecentRequests] = useState<RoomPreferenceSummaryItem[]>([]);
 	const [selectedSourceEntryId, setSelectedSourceEntryId] = useState<string | null>(null);
 	const [targetSlot, setTargetSlot] = useState<SlotTarget | null>(null);
 	const [requestSheetOpen, setRequestSheetOpen] = useState(false);
@@ -217,13 +219,19 @@ export default function FacultyRoomPreferences() {
 		setEntries(state.entries);
 		setGlobalEntries(state.globalEntries ?? []);
 		setTeachingAssignments(state.teachingAssignments ?? []);
+		setRecentRequests(state.recentRequests ?? []);
 		
 		const entryIdParam = searchParams.get('entryId');
 		if (entryIdParam && state.entries.some(e => e.entryId === entryIdParam)) {
 			setSelectedSourceEntryId(entryIdParam);
 			if (isMobileViewport) setMobileStep(2);
 		} else {
-			setSelectedSourceEntryId((current) => (current && state.entries.some((entry) => entry.entryId === current) ? current : state.entries[0]?.entryId ?? null));
+			if (isMobileViewport) {
+				setSelectedSourceEntryId(null);
+				setMobileStep(1);
+			} else {
+				setSelectedSourceEntryId((current) => (current && state.entries.some((entry) => entry.entryId === current) ? current : state.entries[0]?.entryId ?? null));
+			}
 		}
 	}, [searchParams, isMobileViewport]);
 
@@ -250,7 +258,7 @@ export default function FacultyRoomPreferences() {
 				});
 				const facultyMatch = facultyMe.faculty;
 				if (!facultyMatch?.id) {
-					setError('Your account is not linked to a faculty record in this school.');
+					setError('Your account is not linked to a teacher record in this school.');
 					return;
 				}
 				resolvedFacultyId = facultyMatch.id;
@@ -600,7 +608,11 @@ export default function FacultyRoomPreferences() {
 				}
 				setLiveUpdateCount((count) => count + 1);
 				if (payload.message) {
-					toast.info(payload.message);
+					if (payload.type === 'ROOM_REQUEST_REVIEWED') {
+						toast.success(payload.message);
+					} else {
+						toast.info(payload.message);
+					}
 				}
 				void loadBootstrap();
 			} catch {
@@ -912,7 +924,7 @@ export default function FacultyRoomPreferences() {
 	return (
 		<div className='flex h-[calc(100svh-3.5rem)] min-h-0 flex-col overflow-hidden'>
 			<FacultyGlobalHeader
-				title='Room Change Requests'
+				title='My Room Requests'
 				subtitle={currentStep === 1 ? 'Pick the class you want to move.' : currentStep === 2 ? 'Pick the new time slot.' : 'Review the check and submit.'}
 				steps={[
 					{ id: 1, label: '1 Select Class' },
@@ -962,6 +974,7 @@ export default function FacultyRoomPreferences() {
 					selectedSourceEntryId={selectedSourceEntryId}
 					selectedEntry={selectedEntry}
 					mobileTargets={mobileTargets}
+					recentRequests={recentRequests}
 					showFullScheduleContext={showFullScheduleContext}
 					previewSlot={mobilePreview.previewSlot}
 					inlinePreview={mobilePreview.preview}

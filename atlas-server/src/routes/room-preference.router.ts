@@ -41,7 +41,7 @@ async function assertFacultyOwnerOrOfficer(
 	}
 
 	if (identity.faculty.id !== facultyId) {
-		res.status(403).json({ code: 'FORBIDDEN', message: 'You do not have permission to access this faculty room preference.' });
+		res.status(403).json({ code: 'FORBIDDEN', message: 'You do not have permission to access this teacher room request.' });
 		return false;
 	}
 
@@ -436,7 +436,7 @@ router.get(
 			const role = req.user?.role;
 			const requestingFacultyId = await resolveRequestingFacultyId(req, schoolId, schoolYearId);
 			if (!hasPrivilegedRole(role) && requestingFacultyId == null) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Faculty profile mapping is required to subscribe to room request updates.' });
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Teacher profile mapping is required to subscribe to room request updates.' });
 				return;
 			}
 
@@ -516,7 +516,7 @@ router.get(
 			const requestedFacultyId = req.query.facultyId != null ? positiveInt(req.query.facultyId, 'facultyId') : undefined;
 			const ownFacultyId = await resolveRequestingFacultyId(req, schoolId, schoolYearId);
 			if (!PRIVILEGED_ROLES.has(role) && ownFacultyId == null) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Faculty profile mapping is required to view room requests.' });
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Teacher profile mapping is required to view room requests.' });
 				return;
 			}
 			const facultyId = ownFacultyId ?? requestedFacultyId;
@@ -525,7 +525,7 @@ router.get(
 				return;
 			}
 			if (ownFacultyId != null && requestedFacultyId != null && requestedFacultyId !== ownFacultyId) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Faculty users can only view their own room requests.' });
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Teachers can only view their own room requests.' });
 				return;
 			}
 			const requestedRoomId = req.query.requestedRoomId != null ? positiveInt(req.query.requestedRoomId, 'requestedRoomId') : undefined;
@@ -575,7 +575,7 @@ router.get(
 			const requestedFacultyId = req.query.facultyId != null ? positiveInt(req.query.facultyId, 'facultyId') : undefined;
 			const ownFacultyId = await resolveRequestingFacultyId(req, scope.schoolId, scope.schoolYearId);
 			if (!PRIVILEGED_ROLES.has(role) && ownFacultyId == null) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Faculty profile mapping is required to view room requests.' });
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Teacher profile mapping is required to view room requests.' });
 				return;
 			}
 			const facultyId = ownFacultyId ?? requestedFacultyId;
@@ -584,7 +584,7 @@ router.get(
 				return;
 			}
 			if (ownFacultyId != null && requestedFacultyId != null && requestedFacultyId !== ownFacultyId) {
-				res.status(403).json({ code: 'FORBIDDEN', message: 'Faculty users can only view their own room requests.' });
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Teachers can only view their own room requests.' });
 				return;
 			}
 			const requestedRoomId = req.query.requestedRoomId != null ? positiveInt(req.query.requestedRoomId, 'requestedRoomId') : undefined;

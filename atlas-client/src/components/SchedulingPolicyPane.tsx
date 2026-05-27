@@ -676,7 +676,7 @@ export default function SchedulingPolicyPane({
 					<SectionCard title="Core Teaching Limits">
 						<PolicyNumberField
 							label="Max Consecutive Teaching (min)"
-							explanation="Maximum minutes a faculty member can teach without a break. Controls the Consecutive Limit check."
+							explanation="Maximum minutes a teacher can teach without a break. Controls the Consecutive Limit check."
 							value={local.maxConsecutiveTeachingMinutesBeforeBreak}
 							onChange={(v) => update('maxConsecutiveTeachingMinutesBeforeBreak', v)}
 							min={30}
@@ -692,7 +692,7 @@ export default function SchedulingPolicyPane({
 						/>
 						<PolicyNumberField
 							label="Max Teaching Per Day (min)"
-							explanation="Daily ceiling on total teaching minutes per faculty. Exceeding this is always a HARD violation."
+							explanation="Daily ceiling on total teaching minutes per teacher. Exceeding this is always a HARD violation."
 							value={local.maxTeachingMinutesPerDay}
 							onChange={(v) => update('maxTeachingMinutesPerDay', v)}
 							min={60}
@@ -840,7 +840,7 @@ export default function SchedulingPolicyPane({
 						<div className="pt-2 mt-2 border-t border-border/60 space-y-3">
 							<PolicySwitch
 								label="Allow Flexible Subject Assignment"
-								explanation="When ON, teachers may be assigned to teach ANY subject during generation, regardless of their registered subject specializations. Use this when faculty availability is limited or for emergency coverage scenarios."
+									explanation="When ON, teachers may be assigned to teach ANY subject during generation, regardless of their registered subject specializations. Use this when teacher availability is limited or for emergency coverage scenarios."
 								checked={local.allowFlexibleSubjectAssignment}
 								onCheckedChange={(v) => update('allowFlexibleSubjectAssignment', v)}
 							/>
@@ -889,7 +889,7 @@ export default function SchedulingPolicyPane({
 								/>
 								<PolicyNumberField
 									label="Max Building Transitions/Day"
-									explanation="Maximum number of cross-building moves per faculty member per day."
+									explanation="Maximum number of cross-building moves per teacher per day."
 									value={local.maxBuildingTransitionsPerDay}
 									onChange={(v) => update('maxBuildingTransitionsPerDay', v)}
 									min={1}
@@ -913,13 +913,13 @@ export default function SchedulingPolicyPane({
 								/>
 								<PolicySwitch
 									label="Avoid Early First Period"
-									explanation="Generates a soft violation when faculty are scheduled in the first period (within 15 min of earliest start)."
+									explanation="Generates a soft violation when teachers are scheduled in the first period (within 15 min of earliest start)."
 									checked={local.avoidEarlyFirstPeriod}
 									onCheckedChange={(v) => update('avoidEarlyFirstPeriod', v)}
 								/>
 								<PolicySwitch
 									label="Avoid Late Last Period"
-									explanation="Generates a soft violation when faculty are scheduled in the last period (within 15 min of latest end)."
+									explanation="Generates a soft violation when teachers are scheduled in the last period (within 15 min of latest end)."
 									checked={local.avoidLateLastPeriod}
 									onCheckedChange={(v) => update('avoidLateLastPeriod', v)}
 								/>

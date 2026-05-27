@@ -1,7 +1,3 @@
-/**
- * Generation run service — lifecycle management for timetable generation runs.
- * Business logic only; no transport concerns.
- */
 import { type ScheduledEntry, type Violation } from './constraint-validator.js';
 import { type TimetableShapeContract, type UnassignedItem } from './schedule-constructor.js';
 import { type SeedQualitySummary, type RepairImpact } from './hybrid-scheduler.js';
@@ -65,7 +61,9 @@ export interface RunSummary {
             noSameZoneStandardRoom: number;
             crossBuildingStandardRoomExhausted: number;
             onlySpecializedRoomsAvailable: number;
-            policyOrShiftWindowIncompatible: number;
+            facultyDailyLimitExceeded: number;
+            facultyConsecutiveLimitExceeded: number;
+            noValidPeriodInPolicyWindow: number;
         };
         zoneDistributionByTerm?: Array<{
             termIndex: 1 | 2 | 3;

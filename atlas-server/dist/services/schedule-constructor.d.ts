@@ -88,6 +88,7 @@ export interface PolicyInput {
     maxTeachingMinutesPerDay: number;
     earliestStartTime: string;
     latestEndTime: string;
+    enforceConsecutiveBreakAsHard?: boolean;
     lunchStartTime?: string;
     lunchEndTime?: string;
     enforceLunchWindow?: boolean;
@@ -191,7 +192,7 @@ export interface GradeWindowInput {
     endTime: string;
 }
 export type RoomAssignmentReason = 'LOCKED_ENTRY' | 'HOME_ROOM_ASSIGNED' | 'HOME_ROOM_UNAVAILABLE' | 'CROSS_BUILDING_FALLBACK_ASSIGNED' | 'SPECIALIZED_ROOM' | 'SPECIALIZED_ROOM_UNAVAILABLE' | 'GENERAL_POOL_ASSIGNED' | 'MODULAR_POOL_ASSIGNED' | 'ROOM_PATH_EXHAUSTED' | 'NO_QUALIFIED_FACULTY' | 'FACULTY_SLOT_UNAVAILABLE' | 'POLICY_SLOT_BLOCKED' | 'FALLBACK_UNRESOLVED';
-export type HomeRoomFallbackCause = 'HOME_ROOM_OCCUPIED' | 'NO_SAME_ZONE_STANDARD_ROOM' | 'CROSS_BUILDING_STANDARD_ROOM_EXHAUSTED' | 'ONLY_SPECIALIZED_ROOMS_AVAILABLE' | 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE';
+export type HomeRoomFallbackCause = 'HOME_ROOM_OCCUPIED' | 'NO_SAME_ZONE_STANDARD_ROOM' | 'CROSS_BUILDING_STANDARD_ROOM_EXHAUSTED' | 'ONLY_SPECIALIZED_ROOMS_AVAILABLE' | 'FACULTY_DAILY_LIMIT_EXCEEDED' | 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED' | 'NO_VALID_PERIOD_IN_POLICY_WINDOW';
 export interface UnassignedItem {
     sectionId: number;
     subjectId: number;

@@ -76,6 +76,18 @@ export const POLICY_DEFAULTS = {
     allowFlexibleSubjectAssignment: false,
     allowConsecutiveLabSessions: false,
 };
+/**
+ * Canonical generator/validator contract for which wellbeing limits block placement.
+ * Daily hard ceiling never exceeds the baseline 8-hour cap; consecutive/break hardness
+ * follows the explicit policy switch.
+ */
+export function resolvePolicyPlacementSemantics(policy) {
+    const hardDailyLimitMinutes = Math.min(Math.max(0, Math.round(policy.maxTeachingMinutesPerDay)), POLICY_DEFAULTS.maxTeachingMinutesPerDay);
+    return {
+        hardDailyLimitMinutes,
+        enforceConsecutiveBreakAsHard: policy.enforceConsecutiveBreakAsHard === true,
+    };
+}
 export const DEFAULT_CONSTRAINT_CONFIG = {
     FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: { enabled: true, weight: 5, treatAsHard: false },
     FACULTY_BREAK_REQUIREMENT_VIOLATED: { enabled: true, weight: 5, treatAsHard: false },

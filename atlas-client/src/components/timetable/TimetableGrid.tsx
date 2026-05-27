@@ -27,10 +27,10 @@ const DAY_SHORT: Record<string, string> = {
 };
 
 const VIOLATION_LABELS: Record<ViolationCode, string> = {
-	FACULTY_TIME_CONFLICT: 'Faculty Time Conflict',
+	FACULTY_TIME_CONFLICT: 'Teacher Time Conflict',
 	ROOM_TIME_CONFLICT: 'Room Time Conflict',
 	SECTION_TIME_CONFLICT: 'Section Time Conflict',
-	FACULTY_OVERLOAD: 'Faculty Overload',
+	FACULTY_OVERLOAD: 'Teacher Overload',
 	ROOM_TYPE_MISMATCH: 'Room Type Mismatch',
 	FACULTY_SUBJECT_NOT_QUALIFIED: 'Teaching Load Review',
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: 'Consecutive Limit',
@@ -46,7 +46,7 @@ const VIOLATION_LABELS: Record<ViolationCode, string> = {
 	FACULTY_INSUFFICIENT_DAILY_VACANT: 'Insufficient Daily Vacant',
 	SECTION_OVERCOMPRESSED: 'Section Overcompressed',
 	ROOM_CAPACITY_EXCEEDED: 'Room Capacity Exceeded',
-	LACKING_FACULTY: 'Lacking Faculty',
+	LACKING_FACULTY: 'Lacking Teacher',
 	INCOMPLETE_MODULAR_GROUP: 'Incomplete Modular Group',
 };
 
@@ -391,7 +391,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 																		else onNavToRoom(displaced.entityId);
 																	}}
 																>
-																	- View {displaced.conflictType === 'faculty' ? 'Faculty' : displaced.conflictType === 'section' ? 'Section' : 'Room'}
+																		- View {displaced.conflictType === 'faculty' ? 'Teacher' : displaced.conflictType === 'section' ? 'Section' : 'Room'}
 																</button>
 															))}
 														</div>
@@ -492,7 +492,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 																	<p className="wrap-break-word leading-[1.2] text-muted-foreground">
 																		{showTeacherDetails ? (
 																			<>
-																				{entry.facultyId ? formatFacultyInitials(entry.facultyId) : 'No faculty'}{' '}
+																				{entry.facultyId ? formatFacultyInitials(entry.facultyId) : 'No teacher'}{' '}
 																			</>
 																		) : null}
 																		<span className="opacity-60">{roomLabelShort(entry.roomId)}</span>

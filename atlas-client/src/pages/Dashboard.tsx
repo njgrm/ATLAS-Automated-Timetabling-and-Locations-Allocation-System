@@ -329,7 +329,7 @@ export default function Dashboard() {
 				{ title: 'Sections', value: sectionCount !== null ? String(sectionCount) : '—', icon: GraduationCap, color: 'text-pink-600', bg: 'bg-pink-50', link: '/sections', warning: sectionCount === null ? 'Upstream unavailable' : undefined },
 				{ title: 'Buildings', value: String(buildings.length), icon: MapPinned, color: 'text-amber-600', bg: 'bg-amber-50', link: '/map', warning: buildingSetupStatus.subMessage },
 				{ title: 'Teaching Rooms', value: String(teachingRooms), icon: ClipboardList, color: 'text-violet-600', bg: 'bg-violet-50', link: '/map', warning: nonTeachingExcluded > 0 ? `${totalRooms} total (${nonTeachingExcluded} non-teaching)` : undefined },
-				{ title: 'Faculty Preferences', value: isPrefPhase ? '—' : '—', icon: Clock, color: isPrefPhase ? 'text-orange-600' : 'text-muted-foreground', bg: isPrefPhase ? 'bg-orange-50' : 'bg-muted', muted: isSetup, warning: isSetup ? 'Available in Preference Collection' : undefined },
+				{ title: 'Teacher Preferences', value: isPrefPhase ? '—' : '—', icon: Clock, color: isPrefPhase ? 'text-orange-600' : 'text-muted-foreground', bg: isPrefPhase ? 'bg-orange-50' : 'bg-muted', muted: isSetup, warning: isSetup ? 'Available in Preference Collection' : undefined },
 			];
 		},
 		// currentPhase is a constant today; include it so the dep array stays correct

@@ -15,13 +15,10 @@ import {
 	Plus,
 	RefreshCw,
 	Search,
-	Trash2,
 	Users,
 	Zap,
 	X,
 	Info,
-	Clock,
-	RotateCcw,
 } from 'lucide-react';
 
 import { toast } from 'sonner';
@@ -42,7 +39,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card } from '@/ui/card';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
+import { DeleteSubjectDialog } from '@/components/subjects/DeleteSubjectDialog';
 import {
 	Sheet,
 	SheetContent,
@@ -365,107 +362,23 @@ export default function Subjects() {
 		}
 	};
 
-	const handleDelete = async (
-		target: Subject,
-		options?: { cleanupHistorical?: boolean; cleanupActive?: boolean; cleanupAll?: boolean },
-	) => {
-		try {
-			const params: Record<string, boolean> = {};
-			if (options?.cleanupHistorical) params.cleanupHistorical = true;
-			if (options?.cleanupActive) params.cleanupActive = true;
-			if (options?.cleanupAll) params.cleanupAll = true;
-			const { data } = await atlasApi.delete<{ cleanedHistoricalAssignments?: number }>(`/subjects/${target.id}`, {
-				params: Object.keys(params).length > 0 ? params : undefined,
-			});
 
-			if (typeof data?.cleanedHistoricalAssignments === 'number' && data.cleanedHistoricalAssignments > 0) {
-				const cleanupLabel = options?.cleanupAll || options?.cleanupActive
-					? 'teaching-load assignment rows'
-					: 'historical assignment rows';
-				toast.success(`Subject deleted. Cleaned ${data.cleanedHistoricalAssignments} ${cleanupLabel}.`);
-			} else {
-				toast.success('Subject deleted.');
-			}
-			setDeleteTarget(null);
-			setDeleteBlocker(null);
-			await fetchSubjects();
-		} catch (err: any) {
-			const payload = err?.response?.data;
-			if (payload?.code === 'DELETE_BLOCKED') {
-				setDeleteBlocker({
-					target,
-					reason: payload?.reason ?? 'UNKNOWN',
-					message: payload?.message ?? 'Delete is blocked for this subject.',
-					details: payload?.details,
-				});
-				setDeleteTarget(null);
-				return;
-			}
-			const msg = payload?.message ?? 'Failed to delete subject.';
-			toast.error(msg);
-		}
-	};
 
 	const handleArchiveSubject = async (target: Subject) => {
-		setDeleteActionLoading(true);
+		setArchivingLoading(true);
 		try {
 			await atlasApi.post(`/subjects/${target.id}/archive`);
-			toast.success('Subject archived. You can now run historical cleanup before delete.');
-			setDeleteBlocker(null);
+			toast.success(`"${target.name}" archived.`);
+			setArchiveTarget(null);
 			await fetchSubjects();
 		} catch (err: any) {
 			toast.error(err?.response?.data?.message ?? 'Failed to archive subject.');
 		} finally {
-			setDeleteActionLoading(false);
+			setArchivingLoading(false);
 		}
 	};
 
-	const handleCleanupAndDelete = async (target: Subject) => {
-		setDeleteActionLoading(true);
-		try {
-			if (target.isActive) {
-				await handleDelete(target, { cleanupHistorical: true });
-			} else {
-				await handleDelete(target, { cleanupAll: true });
-			}
-		} finally {
-			setDeleteActionLoading(false);
-		}
-	};
 
-	const handleClearActiveAssignments = async (target: Subject) => {
-		setDeleteActionLoading(true);
-		try {
-			const schoolYearId = await ensureActiveSchoolYear();
-			const preview = await atlasApi.post<TeachingLoadResetPreview>('/faculty-assignments/reset', {
-				schoolId: DEFAULT_SCHOOL_ID,
-				schoolYearId,
-				subjectId: target.id,
-				previewOnly: true,
-			});
-
-			if ((preview.data.ownershipRowsToRemove ?? 0) <= 0) {
-				toast.info('No active section ownership rows were found for this subject in the active school year.');
-				return;
-			}
-
-			const applied = await atlasApi.post<TeachingLoadResetPreview>('/faculty-assignments/reset', {
-				schoolId: DEFAULT_SCHOOL_ID,
-				schoolYearId,
-				subjectId: target.id,
-				previewOnly: false,
-				confirmReset: true,
-			});
-
-			toast.success(`Removed ${applied.data.ownershipRowsToRemove} subject-section ownership rows for ${target.code}.`);
-			setDeleteBlocker(null);
-			await fetchSubjects();
-		} catch (err: any) {
-			toast.error(err?.response?.data?.message ?? 'Failed to clear active assignments for this subject.');
-		} finally {
-			setDeleteActionLoading(false);
-		}
-	};
 
 	const handleReactivateSubject = async (target: Subject) => {
 		try {
@@ -823,7 +736,7 @@ export default function Subjects() {
 						{coverageLoading ? (
 							<div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
 								<RefreshCw className="size-8 animate-spin opacity-20" />
-								<p className="text-sm animate-pulse">Analyzing faculty qualifications...</p>
+								<p className="text-sm animate-pulse">Analyzing teacher qualifications...</p>
 							</div>
 						) : coverageSubject && (
 							<>
@@ -967,7 +880,7 @@ export default function Subjects() {
 				title={`Delete "${deleteTarget?.name ?? ''}"`}
 				description={
 					<span>
-						Permanently delete this subject? This cannot be undone. Only subjects with no active faculty assignments can be deleted directly.
+						Permanently delete this subject? This cannot be undone. Only subjects with no active teacher assignments can be deleted directly.
 					</span>
 				}
 				onConfirm={() => { if (deleteTarget) handleDelete(deleteTarget); }}

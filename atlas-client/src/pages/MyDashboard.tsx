@@ -123,7 +123,7 @@ export default function MyDashboard() {
 
 				const payload = (err as { response?: { data?: { message?: string; actionHint?: string } } })?.response?.data;
 				const message = [payload?.message, payload?.actionHint].filter(Boolean).join(' ');
-				setError(message ?? 'Unable to load your faculty dashboard.');
+				setError(message ?? 'Unable to load your teacher dashboard.');
 			}
 		} catch (err) {
 			const payload = (err as { response?: { data?: { message?: string; actionHint?: string } } })?.response?.data;
@@ -236,7 +236,7 @@ export default function MyDashboard() {
 	return (
 		<div className='flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-background'>
 			<FacultyGlobalHeader
-				title='Faculty Portal'
+				title='Teacher Portal'
 				subtitle='Track classes and room requests.'
 				steps={[
 					{ id: 1, label: '1 Review' },

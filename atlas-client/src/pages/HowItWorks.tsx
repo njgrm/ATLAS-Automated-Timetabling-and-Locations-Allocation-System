@@ -28,7 +28,7 @@ const SECTIONS = [
 		span: 'col-span-1 xl:col-span-2',
 		items: [
 			{ term: 'Subjects', desc: 'Each subject has a required room type and minimum weekly minutes — these come from your Subject setup page.' },
-			{ term: 'Faculty', desc: 'Teachers have assigned subjects, grade levels, and weekly hour limits. Their preferences (available/unavailable slots) are collected beforehand.' },
+			{ term: 'Teachers', desc: 'Teachers have assigned subjects, grade levels, and weekly hour limits. Support preferences are collected beforehand.' },
 			{ term: 'Sections', desc: 'Student sections are pulled from your enrollment system — grade level and section size determine how many class sessions are needed.' },
 			{ term: 'Rooms', desc: 'Each room has a type (lab, classroom, etc.), capacity, and belongs to a building floor. The scheduler matches rooms to subject requirements.' },
 			{ term: 'Scheduling Policy', desc: 'Your policy sets things like max consecutive teaching minutes, break requirements, travel limits, and lunch windows.' },
@@ -62,12 +62,12 @@ const SECTIONS = [
 		color: 'text-amber-600 bg-amber-50',
 		span: 'col-span-1 xl:col-span-2',
 		items: [
-			{ term: 'No Qualified Faculty', desc: "No teacher is assigned to this subject+grade combination, or all qualified teachers are already scheduled at the available times." },
-			{ term: 'Faculty Overloaded', desc: "All qualified teachers have hit their weekly or daily hour limits." },
+			{ term: 'No Qualified Teacher', desc: "No teacher is assigned to this subject+grade combination, or all qualified teachers are already scheduled at the available times." },
+			{ term: 'Teacher Overloaded', desc: "All qualified teachers have hit their weekly or daily hour limits." },
 			{ term: 'No Available Slot', desc: "Every potential time slot creates a hard conflict or violates a hard constraint." },
 			{ term: 'No Compatible Room', desc: "No room of the required type is free at any potential time slot." },
 		],
-		callout: 'Unassigned sessions are publish blockers. You must either fix them manually or adjust your setup (add faculty, rooms, or relax constraints) and regenerate.',
+		callout: 'Unassigned sessions are publish blockers. You must either fix them manually or adjust your setup (add teachers, rooms, or relax constraints) and regenerate.',
 	},
 	{
 		icon: Eye,
@@ -89,7 +89,7 @@ const SECTIONS = [
 		items: [
 			{ term: 'Zero hard violations', desc: 'The Publish button is disabled until every hard violation is resolved. You can see the count in the header.' },
 			{ term: 'Soft acknowledgement', desc: "If soft violations remain, you'll be asked to acknowledge them before publishing." },
-			{ term: 'After publish', desc: 'Published schedules become visible to faculty and students. Faculty receive push notifications for any changes that affect their classes.' },
+			{ term: 'After publish', desc: 'Published schedules become visible to teachers and students. Teachers receive push notifications for any changes that affect their classes.' },
 		],
 	},
 ];
@@ -154,7 +154,7 @@ export default function HowItWorks() {
 											<div>
 												<p className="text-base font-semibold text-foreground">In a nutshell</p>
 												<p className="text-sm text-muted-foreground leading-relaxed mt-1">
-													ATLAS takes your subjects, faculty, sections, rooms, and policies — then automatically
+													ATLAS takes your subjects, teachers, sections, rooms, and policies — then automatically
 													builds a timetable that avoids conflicts and respects everyone's constraints. What it can't
 													place automatically becomes "unassigned" for you to fix manually. Once all hard issues are
 													resolved, you can publish.

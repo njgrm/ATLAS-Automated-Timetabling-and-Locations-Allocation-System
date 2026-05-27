@@ -1,12 +1,10 @@
-import { motion } from 'motion/react';
-import { Heart, Clock, MessageSquare } from 'lucide-react';
+import { Heart, MessageSquare, Send } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { Card, CardContent } from '@/ui/card';
 import { Label } from '@/ui/label';
 import { Textarea } from '@/ui/textarea';
 import { Switch } from '@/ui/switch';
-import AvailabilityPicker from '@/components/faculty-shared/AvailabilityPicker';
 
 type WellbeingState = {
 	pregnancySupport: boolean;
@@ -39,8 +37,6 @@ const WELLBEING_ITEMS: { key: keyof WellbeingState; label: string; description: 
 ];
 
 type MobilePreferencesLayoutProps = {
-	slots: any[];
-	onSlotsChange: (slots: any[]) => void;
 	wellbeing: WellbeingState;
 	onWellbeingChange: (key: keyof WellbeingState, checked: boolean) => void;
 	notes: string;
@@ -50,8 +46,6 @@ type MobilePreferencesLayoutProps = {
 };
 
 export default function MobilePreferencesLayout({
-	slots,
-	onSlotsChange,
 	wellbeing,
 	onWellbeingChange,
 	notes,
@@ -63,25 +57,13 @@ export default function MobilePreferencesLayout({
 		<div className='flex flex-col gap-8 pb-24'>
 			{banners && <div className='space-y-3'>{banners}</div>}
 
-			{/* Section 1: Availability */}
-			<section className='space-y-4'>
-				<div className='flex items-center gap-2 px-1'>
-					<Clock className='size-5 text-primary' />
-					<h2 className='text-lg font-bold tracking-tight'>Weekly Availability</h2>
-				</div>
-				<AvailabilityPicker
-					slots={slots}
-					onChange={onSlotsChange}
-					disabled={!canEdit}
-				/>
-			</section>
-
-			{/* Section 2: Well-being */}
+			{/* Section 1: Support needs */}
 			<section className='space-y-4'>
 				<div className='flex items-center gap-2 px-1'>
 					<Heart className='size-5 text-rose-500' />
-					<h2 className='text-lg font-bold tracking-tight'>Well-being Preferences</h2>
+					<h2 className='text-lg font-bold tracking-tight'>Support Needs</h2>
 				</div>
+				<p className='px-1 text-sm text-muted-foreground'>These requests go to the scheduler for review and manual consideration.</p>
 				<div className='grid gap-3'>
 					{WELLBEING_ITEMS.map(({ key, label, description }) => (
 						<div
@@ -106,23 +88,31 @@ export default function MobilePreferencesLayout({
 				</div>
 			</section>
 
-			{/* Section 3: Notes */}
+			{/* Section 2: Notes */}
 			<section className='space-y-4'>
 				<div className='flex items-center gap-2 px-1'>
 					<MessageSquare className='size-5 text-amber-500' />
-					<h2 className='text-lg font-bold tracking-tight'>Additional Notes</h2>
+					<h2 className='text-lg font-bold tracking-tight'>Notes For The Scheduler</h2>
 				</div>
 				<Card className='rounded-2xl border-border/50 overflow-hidden shadow-sm'>
 					<CardContent className='p-0'>
 						<Textarea
-							placeholder='Any other specific requests or considerations for the scheduling officer...'
+							placeholder='Add context the scheduler should know before reviewing your support request.'
 							value={notes}
 							onChange={(e) => onNotesChange(e.target.value)}
 							disabled={!canEdit}
-							className='min-h-[120px] resize-none border-0 rounded-none focus-visible:ring-0 p-4 text-sm'
+							className='min-h-30 resize-none border-0 rounded-none focus-visible:ring-0 p-4 text-sm'
 						/>
 					</CardContent>
 				</Card>
+			</section>
+
+			<section className='rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-4 text-sm text-muted-foreground'>
+				<div className='flex items-center gap-2 font-semibold text-foreground'>
+					<Send className='size-4 text-primary' />
+					Submit when ready
+				</div>
+				<p className='mt-1'>The scheduler can see submitted support needs and mark each review as complete or needing follow-up.</p>
 			</section>
 		</div>
 	);

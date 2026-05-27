@@ -25,7 +25,7 @@ export const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride> = {
 export const SOFT_CONSTRAINT_LABELS: Record<string, { label: string; explanation: string }> = {
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: {
 		label: 'Consecutive Teaching Limit',
-		explanation: 'Penalizes when a faculty member teaches beyond the consecutive-minutes limit without a break.',
+		explanation: 'Penalizes when a teacher teaches beyond the consecutive-minutes limit without a break.',
 	},
 	FACULTY_BREAK_REQUIREMENT_VIOLATED: {
 		label: 'Break Requirement',
@@ -37,7 +37,7 @@ export const SOFT_CONSTRAINT_LABELS: Record<string, { label: string; explanation
 	},
 	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: {
 		label: 'Building Transitions/Day',
-		explanation: 'Penalizes too many cross-building transitions for a faculty member in a single day.',
+		explanation: 'Penalizes too many cross-building transitions for a teacher in a single day.',
 	},
 	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: {
 		label: 'Transition Buffer',
@@ -45,19 +45,19 @@ export const SOFT_CONSTRAINT_LABELS: Record<string, { label: string; explanation
 	},
 	FACULTY_EXCESSIVE_IDLE_GAP: {
 		label: 'Excessive Idle Gap',
-		explanation: 'Penalizes excessive total idle time between classes for a faculty member in a day.',
+		explanation: 'Penalizes excessive total idle time between classes for a teacher in a day.',
 	},
 	FACULTY_EARLY_START_PREFERENCE: {
 		label: 'Avoid Early First Period',
-		explanation: 'Soft preference to avoid scheduling faculty in the very first period of the day.',
+		explanation: 'Soft preference to avoid scheduling teachers in the very first period of the day.',
 	},
 	FACULTY_LATE_END_PREFERENCE: {
 		label: 'Avoid Late Last Period',
-		explanation: 'Soft preference to avoid scheduling faculty in the very last period of the day.',
+		explanation: 'Soft preference to avoid scheduling teachers in the very last period of the day.',
 	},
 	FACULTY_INSUFFICIENT_DAILY_VACANT: {
 		label: 'Insufficient Daily Vacant Time',
-		explanation: 'Penalizes when a faculty member has too little vacant time between their first and last class in a day.',
+		explanation: 'Penalizes when a teacher has too little vacant time between their first and last class in a day.',
 	},
 	SECTION_OVERCOMPRESSED: {
 		label: 'Section Overcompressed',

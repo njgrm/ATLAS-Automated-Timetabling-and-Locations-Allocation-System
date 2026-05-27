@@ -8,6 +8,7 @@
  */
 
 import type { RoomType } from '@prisma/client';
+import { resolvePolicyPlacementSemantics } from './scheduling-policy.service.js';
 
 // ─── Violation codes ───
 
@@ -70,7 +71,15 @@ export interface ScheduledEntry {
 	adviserName?: string | null;
 	metadata?: {
 		roomAssignmentReason?: string;
-		homeRoomFallbackCause?: 'HOME_ROOM_OCCUPIED' | 'NO_SAME_ZONE_STANDARD_ROOM' | 'CROSS_BUILDING_STANDARD_ROOM_EXHAUSTED' | 'ONLY_SPECIALIZED_ROOMS_AVAILABLE' | 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE';
+		homeRoomFallbackCause?:
+			| 'HOME_ROOM_OCCUPIED'
+			| 'NO_SAME_ZONE_STANDARD_ROOM'
+			| 'CROSS_BUILDING_STANDARD_ROOM_EXHAUSTED'
+			| 'ONLY_SPECIALIZED_ROOMS_AVAILABLE'
+			| 'FACULTY_DAILY_LIMIT_EXCEEDED'
+			| 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED'
+			| 'NO_VALID_PERIOD_IN_POLICY_WINDOW'
+			| 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE';
 		crossBuildingFallbackUsed?: boolean;
 		fallbackTier?: 'HOME_ROOM' | 'SAME_ZONE' | 'CROSS_BUILDING' | 'GENERAL_POOL';
 		fallbackTrace?: string[];
@@ -480,9 +489,10 @@ export function validateHardConstraints(ctx: ValidatorContext): ValidationResult
 	// ── 6) Policy-based checks (consecutive, daily max, break requirement) ──
 	if (ctx.policy) {
 		const policy = ctx.policy;
-		const severity = policy.enforceConsecutiveBreakAsHard ? 'HARD' as const : 'SOFT' as const;
+		const placementSemantics = resolvePolicyPlacementSemantics(policy);
+		const severity = placementSemantics.enforceConsecutiveBreakAsHard ? 'HARD' as const : 'SOFT' as const;
 		const standardDailyLimitMinutes = 360;
-		const hardDailyLimitMinutes = Math.min(policy.maxTeachingMinutesPerDay, 480);
+		const hardDailyLimitMinutes = placementSemantics.hardDailyLimitMinutes;
 
 		// Group entries by faculty+day, sorted by startTime
 		const facDayEntries = new Map<string, ScheduledEntry[]>();

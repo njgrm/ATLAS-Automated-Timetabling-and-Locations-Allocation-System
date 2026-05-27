@@ -745,6 +745,7 @@ export type FacultyRoomPreferenceState = {
 	runGeneratedAt: string | null;
 	entries: FacultyRoomPreferenceEntry[];
 	globalEntries: FacultyGlobalDraftEntry[];
+	recentRequests?: RoomPreferenceSummaryItem[];
 	teachingAssignments?: FacultyTeachingAssignmentIdentity[];
 };
 
@@ -836,6 +837,8 @@ export type RoomPreferenceSummaryItem = {
 	openAppealCount: number;
 	latestAppealStatus: RoomRequestAppealStatus | null;
 	latestAppealUpdatedAt: string | null;
+	currentRun?: boolean;
+	superseded?: boolean;
 };
 
 export type RoomPreferenceSummaryResponse = {

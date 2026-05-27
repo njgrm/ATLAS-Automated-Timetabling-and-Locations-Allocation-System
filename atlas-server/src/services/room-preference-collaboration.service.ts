@@ -195,7 +195,7 @@ export function registerRoomPreferenceCollaborationSocket(server: HttpServer, op
 
 		const facultyId = await resolveFacultyIdForUser(auth, channel);
 		if (!facultyId) {
-			return { ok: false, code: 'FACULTY_MAPPING_REQUIRED', message: 'Faculty profile mapping is required for collaboration.' } as const;
+			return { ok: false, code: 'FACULTY_MAPPING_REQUIRED', message: 'Teacher profile mapping is required for collaboration.' } as const;
 		}
 
 		return { ok: true, facultyId } as const;

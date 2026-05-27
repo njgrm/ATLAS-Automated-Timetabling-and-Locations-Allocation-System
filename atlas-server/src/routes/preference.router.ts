@@ -94,7 +94,7 @@ router.get(
 	},
 );
 
-// ─── Officer: get audit summary (unavailability %) ───
+// ─── Officer: get audit summary (teacher support requests) ───
 
 router.get(
 	'/:schoolId/:schoolYearId/audit',
@@ -114,29 +114,37 @@ router.get(
 
 			const preferences = await prisma.facultyPreference.findMany({
 				where: { schoolId, schoolYearId },
-				include: { timeSlots: true }
+				select: {
+					facultyId: true,
+					status: true,
+					pregnancySupport: true,
+					physicalAilmentSupport: true,
+					minimizeTravelTime: true,
+					avoidUpperFloors: true,
+					notes: true,
+				}
 			});
 
 			const prefMap = new Map(preferences.map(p => [p.facultyId, p]));
 
-			// Standard school day is roughly 10 periods (07:30 - 15:50) * 5 days = 50 total slots
-			const TOTAL_WEEKLY_SLOTS = 50;
-
 			const audit = faculty.map(f => {
 				const pref = prefMap.get(f.id);
-				if (!pref) return { facultyId: f.id, unavailabilityPercent: 0, status: 'MISSING' };
-
-				const unavailableCount = pref.timeSlots.filter(ts => ts.preference === 'UNAVAILABLE').length;
-				// This is a rough heuristic. In a more precise system, we'd overlap with canonical slots.
-				// For now, percentage of standard day blocked.
-				const percent = Math.round((unavailableCount / TOTAL_WEEKLY_SLOTS) * 100);
+				if (!pref) return { facultyId: f.id, supportRequestCount: 0, hasNotes: false, status: 'MISSING' };
+				const supportRequestCount = [
+					pref.pregnancySupport,
+					pref.physicalAilmentSupport,
+					pref.minimizeTravelTime,
+					pref.avoidUpperFloors,
+				].filter(Boolean).length;
 
 				return {
 					facultyId: f.id,
 					name: `${f.lastName}, ${f.firstName}`,
 					specialization: f.specialization,
 					department: f.department,
-					unavailabilityPercent: percent,
+					supportRequestCount,
+					hasNotes: Boolean(pref.notes?.trim()),
+					respectMode: supportRequestCount > 0 ? 'SCHEDULER_REVIEWED_MANUAL_SUPPORT' : 'NONE_REQUESTED',
 					status: pref.status
 				};
 			});
@@ -342,7 +350,7 @@ router.post(
 	},
 );
 
-// ─── Officer: get single faculty preference detail (for review) ───
+// ─── Officer: get single teacher preference detail (for review) ───
 
 router.get(
 	'/:schoolId/:schoolYearId/faculty/:facultyId/detail',
@@ -446,7 +454,7 @@ router.get(
 			}
 			if (!decoded) { res.status(401).json({ code: 'INVALID_TOKEN', message: 'Invalid token.' }); return; }
 
-			// Determine scope: faculty users get filtered to their own events
+			// Determine scope: teacher users get filtered to their own events
 			const isPrivileged = decoded.role === 'admin' || decoded.role === 'officer' || decoded.role === 'SYSTEM_ADMIN';
 			let scopeFacultyId: number | null = null;
 			if (!isPrivileged) {
@@ -460,7 +468,7 @@ router.get(
 					if (!faculty) {
 						res.status(403).json({
 							code: 'FORBIDDEN',
-							message: 'Faculty profile mapping is required to subscribe to preference updates.',
+							message: 'Teacher profile mapping is required to subscribe to preference updates.',
 						});
 						return;
 					}

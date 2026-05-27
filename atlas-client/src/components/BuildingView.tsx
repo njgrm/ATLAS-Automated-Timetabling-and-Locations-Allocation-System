@@ -26,7 +26,7 @@ export const ROOM_TYPE_LABELS: Record<RoomType, string> = {
 	TLE_WORKSHOP: 'TLE',
 	LIBRARY: 'Library',
 	GYMNASIUM: 'Gym',
-	FACULTY_ROOM: 'Faculty',
+	FACULTY_ROOM: 'Teacher',
 	OFFICE: 'Office',
 	OTHER: 'Other',
 };

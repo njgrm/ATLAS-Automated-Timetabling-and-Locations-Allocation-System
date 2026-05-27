@@ -59,9 +59,9 @@ export function AutoFillSummaryModal({ open, onOpenChange, result }: AutoFillSum
 	const overlapHours = Math.round(((report?.rotationAdjustedMinutesPerWeek ?? 0) / 60) * 10) / 10;
 	const sectionSource = result?.sectionSource ?? 'enrollpro';
 	const coverageModeLabel: Record<CoverageMode, string> = {
-		REAL_FACULTY_STANDARD: 'Real Faculty Standard (30h)',
-		REAL_FACULTY_HARD_CAP: 'Real Faculty Hard Cap (40h)',
-		REAL_FACULTY_THEN_TEACHER_X: 'Real Faculty then Teacher X',
+		REAL_FACULTY_STANDARD: 'Real Teacher Standard (30h)',
+		REAL_FACULTY_HARD_CAP: 'Real Teacher Hard Cap (40h)',
+		REAL_FACULTY_THEN_TEACHER_X: 'Real Teacher then Teacher X',
 	};
 	const sourceLabelMap: Record<NonNullable<AutoFillSummaryResult['sectionSource']>, string> = {
 		enrollpro: 'Live EnrollPro',

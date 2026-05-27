@@ -69,7 +69,7 @@ const ROOM_TYPES: { value: RoomType; label: string }[] = [
 	{ value: 'TLE_WORKSHOP', label: 'TLE Workshop' },
 	{ value: 'LIBRARY', label: 'Library' },
 	{ value: 'GYMNASIUM', label: 'Gymnasium' },
-	{ value: 'FACULTY_ROOM', label: 'Faculty Room' },
+	{ value: 'FACULTY_ROOM', label: 'Teacher Room' },
 	{ value: 'OFFICE', label: 'Office' },
 	{ value: 'OTHER', label: 'Other' },
 ];

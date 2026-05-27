@@ -412,7 +412,7 @@ export function RightPanel(props: RightPanelProps) {
 											<Button variant="outline" size="sm" className="w-full h-7 text-xs justify-start" onClick={() => enterManualEditView('CHANGE_ROOM')} aria-label="Change room">
 												<DoorOpen className="size-3 mr-1.5" />Change Room
 											</Button>
-											<Button variant="outline" size="sm" className="w-full h-7 text-xs justify-start" onClick={() => enterManualEditView('CHANGE_FACULTY')} aria-label="Reassign faculty">
+											<Button variant="outline" size="sm" className="w-full h-7 text-xs justify-start" onClick={() => enterManualEditView('CHANGE_FACULTY')} aria-label="Reassign teacher">
 												<Users className="size-3 mr-1.5" />Reassign Faculty
 											</Button>
 										</>

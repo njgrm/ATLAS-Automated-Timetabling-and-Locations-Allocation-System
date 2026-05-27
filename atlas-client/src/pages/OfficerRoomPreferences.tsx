@@ -104,7 +104,15 @@ export default function OfficerRoomPreferences() {
 		const streamUrl = `${import.meta.env.VITE_ATLAS_API ?? '/api/v1'}/room-preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/events?accessToken=${encodeURIComponent(token)}`;
 		const source = new EventSource(streamUrl);
 
-		const queueRefresh = () => {
+		const queueRefresh = (event?: MessageEvent<string>) => {
+			if (event?.type === 'ROOM_REQUEST_SUBMITTED') {
+				try {
+					const payload = JSON.parse(event.data) as { message?: string };
+					toast.info(payload.message ?? 'Teacher submitted a room request for review.');
+				} catch {
+					toast.info('Teacher submitted a room request for review.');
+				}
+			}
 			if (refreshTimeoutRef.current) {
 				window.clearTimeout(refreshTimeoutRef.current);
 			}
@@ -360,8 +368,8 @@ export default function OfficerRoomPreferences() {
 			<div className='shrink-0 space-y-4 px-6 pt-6 pb-3'>
 				<div className='flex flex-wrap items-center gap-3'>
 					<div>
-						<h1 className='text-2xl font-semibold tracking-tight'>Officer Room Request Queue</h1>
-						<p className='text-sm text-muted-foreground'>Review faculty room requests against the draft timetable before committing room changes into the active run.</p>
+						<h1 className='text-2xl font-semibold tracking-tight'>Scheduler Room Request Queue</h1>
+						<p className='text-sm text-muted-foreground'>Review teacher room requests against the draft timetable before committing room changes into the active run.</p>
 					</div>
 					<Button variant='outline' size='sm' className='ml-auto' onClick={() => activeSchoolYearId && void loadSummary(activeSchoolYearId, statusFilter, decisionFilter)}>
 						<RefreshCw className='mr-1.5 size-4' /> Refresh
@@ -417,7 +425,7 @@ export default function OfficerRoomPreferences() {
 				<div className='flex flex-wrap items-center gap-3'>
 					<div className='flex min-w-55 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2'>
 						<Search className='size-4 text-muted-foreground' />
-						<Input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder='Search faculty, subject, section, or room' className='border-0 bg-transparent px-0 shadow-none focus-visible:ring-0' />
+						<Input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder='Search teacher, subject, section, or room' className='border-0 bg-transparent px-0 shadow-none focus-visible:ring-0' />
 					</div>
 					<Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'ALL' | RoomPreferenceStatus)}>
 						<SelectTrigger className='w-45'><SelectValue placeholder='Submission status' /></SelectTrigger>
@@ -458,6 +466,7 @@ export default function OfficerRoomPreferences() {
 									<div className='flex flex-wrap items-center gap-2'>
 										<Badge variant='outline'>{request.subjectCode}</Badge>
 										{decisionBadge(request.decisionStatus)}
+										{request.superseded && <Badge variant='warning'>Previous draft</Badge>}
 										{liveCount > 0 && (
 											<Badge variant='outline'>Live {liveCount}</Badge>
 										)}
@@ -562,7 +571,7 @@ export default function OfficerRoomPreferences() {
 							</div>
 
 							<div className='pb-24'>
-								<Textarea value={reviewerNotes} onChange={(event) => setReviewerNotes(event.target.value)} placeholder='Add an officer note for the faculty member or review log.' className='min-h-28' />
+								<Textarea value={reviewerNotes} onChange={(event) => setReviewerNotes(event.target.value)} placeholder='Add a scheduler note for the teacher or review log.' className='min-h-28' />
 							</div>
 
 							<div className='sticky bottom-0 z-10 -mx-1 border-t border-border bg-background/95 px-1 py-3 backdrop-blur'>

@@ -1,8 +1,9 @@
 import { AnimatePresence, motion } from 'motion/react';
 import type { ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 
 import { formatTime } from '@/lib/utils';
-import type { DayOfWeek, FacultyRoomPreferenceEntry, FacultyTeachingAssignmentIdentity, PreviewResult, RoomPreferenceDecisionStatus, RoomPreferenceStatus } from '@/types';
+import type { DayOfWeek, FacultyRoomPreferenceEntry, FacultyTeachingAssignmentIdentity, PreviewResult, RoomPreferenceDecisionStatus, RoomPreferenceStatus, RoomPreferenceSummaryItem } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -17,6 +18,9 @@ type MobileTarget = {
 	occupiedLabel: string | null;
 };
 
+const DAY_OPTIONS: DayOfWeek[] = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
+type TargetFilter = 'FREE' | 'SWAP' | 'ALL';
+
 type MobileRoomRequestLayoutProps = {
 	mobileStep: 1 | 2 | 3;
 	entries: FacultyRoomPreferenceEntry[];
@@ -24,6 +28,7 @@ type MobileRoomRequestLayoutProps = {
 	selectedSourceEntryId: string | null;
 	selectedEntry: FacultyRoomPreferenceEntry | null;
 	mobileTargets: MobileTarget[];
+	recentRequests: RoomPreferenceSummaryItem[];
 	showFullScheduleContext: boolean;
 	previewSlot: MobilePreviewSlot | null;
 	inlinePreview: PreviewResult | null;
@@ -44,6 +49,7 @@ export default function MobileRoomRequestLayout({
 	selectedSourceEntryId,
 	selectedEntry,
 	mobileTargets,
+	recentRequests,
 	showFullScheduleContext,
 	previewSlot,
 	inlinePreview,
@@ -56,10 +62,45 @@ export default function MobileRoomRequestLayout({
 	onStepForward,
 	renderStatusBadge,
 }: MobileRoomRequestLayoutProps) {
+	const [selectedDay, setSelectedDay] = useState<DayOfWeek>('MONDAY');
+	const [targetFilter, setTargetFilter] = useState<TargetFilter>('FREE');
+	const visibleTargets = useMemo(() => {
+		return mobileTargets.filter((target) => {
+			if (target.day !== selectedDay) return false;
+			if (targetFilter === 'FREE') return target.targetEntryId == null;
+			if (targetFilter === 'SWAP') return target.targetEntryId != null;
+			return true;
+		});
+	}, [mobileTargets, selectedDay, targetFilter]);
+
 	return (
 		<>
 			<div className='flex-1 min-h-0 overflow-auto px-4 pb-28 lg:hidden'>
 				<div className='space-y-4'>
+					{recentRequests.length > 0 && (
+						<Card className='rounded-2xl border-primary/20 bg-primary/5'>
+							<CardContent className='space-y-2 p-4'>
+								<div className='flex items-center justify-between gap-2'>
+									<p className='text-sm font-semibold'>Recent scheduler decisions</p>
+									<Badge variant='outline' className='text-[11px]'>{recentRequests.length}</Badge>
+								</div>
+								{recentRequests.slice(0, 3).map((request) => (
+									<div key={`recent-${request.id}`} className='rounded-xl border border-border bg-background px-3 py-2 text-xs'>
+										<div className='flex items-center justify-between gap-2'>
+											<span className='font-semibold text-foreground'>{request.subjectDisplayLabel}</span>
+											{renderStatusBadge(request.status, request.decisionStatus)}
+										</div>
+										<p className='mt-1 text-muted-foreground'>
+											{request.sectionName} · {request.requestedRoomName}
+											{request.superseded ? ' · previous draft' : ''}
+										</p>
+										{request.reviewerNotes && <p className='mt-1 text-muted-foreground'>Scheduler note: {request.reviewerNotes}</p>}
+									</div>
+								))}
+							</CardContent>
+						</Card>
+					)}
+
 					{mobileStep === 1 && (
 						<Card className='rounded-2xl border-border' data-tutorial='my-classes-panel'>
 							<CardContent className='space-y-3 p-4'>
@@ -81,11 +122,11 @@ export default function MobileRoomRequestLayout({
 											</p>
 										</div>
 									) : entries.map((entry) => (
-										<button
+										<Button
 											key={`mobile-source-${entry.entryId}`}
-											type='button'
+											variant='outline'
 											onClick={() => onSelectSourceEntry(entry.entryId)}
-											className={`w-full rounded-xl border-2 p-4 text-left transition-colors ${
+											className={`h-auto w-full justify-start rounded-xl border-2 p-4 text-left transition-colors ${
 												selectedSourceEntryId === entry.entryId
 													? 'border-primary bg-primary/5'
 													: 'border-border hover:border-primary/40 active:bg-muted'
@@ -109,7 +150,7 @@ export default function MobileRoomRequestLayout({
 													<p className='text-xs text-muted-foreground'>Room: {entry.currentRoomName}</p>
 												</div>
 											</div>
-										</button>
+										</Button>
 									))}
 								</div>
 							</CardContent>
@@ -120,7 +161,7 @@ export default function MobileRoomRequestLayout({
 						<>
 							<Card className='rounded-2xl border-border' data-tutorial='target-slot-map'>
 								<CardContent className='space-y-3 p-4'>
-									<p className='text-sm font-semibold'>Step 2: Choose New Time</p>
+									<p className='text-sm font-semibold'>Step 2: Choose Target</p>
 									<div className='rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm'>
 										<p className='font-medium'>
 											{selectedEntry.sectionName} - {selectedEntry.subjectDisplayLabel ?? selectedEntry.subjectCode}
@@ -129,19 +170,53 @@ export default function MobileRoomRequestLayout({
 											{selectedEntry.day.slice(0, 3)} {formatTime(selectedEntry.startTime)} - {formatTime(selectedEntry.endTime)} - {selectedEntry.currentRoomName}
 										</p>
 									</div>
-									<p className='text-xs text-muted-foreground'>Free slots = move request. Occupied slots = swap request.</p>
+									<p className='text-xs text-muted-foreground'>Free slots create a move request. Occupied slots create a swap request.</p>
+									<div className='flex gap-1 overflow-x-auto pb-1'>
+										{DAY_OPTIONS.map((day) => (
+											<Button
+												key={day}
+												variant={selectedDay === day ? 'default' : 'outline'}
+												size='sm'
+												className='h-9 min-w-14 shrink-0 px-3 text-xs'
+												onClick={() => setSelectedDay(day)}
+											>
+												{day.slice(0, 3)}
+											</Button>
+										))}
+									</div>
+									<div className='grid grid-cols-3 gap-1'>
+										{([
+											['FREE', 'Free slots'],
+											['SWAP', 'Swap'],
+											['ALL', 'All'],
+										] as const).map(([value, label]) => (
+											<Button
+												key={value}
+												variant={targetFilter === value ? 'default' : 'outline'}
+												size='sm'
+												className='h-9 px-2 text-xs'
+												onClick={() => setTargetFilter(value)}
+											>
+												{label}
+											</Button>
+										))}
+									</div>
 									<div className='space-y-2'>
-										{mobileTargets.map((target) => {
+										{visibleTargets.length === 0 ? (
+											<div className='rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center text-xs text-muted-foreground'>
+												No targets match this day and filter.
+											</div>
+										) : visibleTargets.map((target) => {
 											const isSelected =
 												previewSlot?.day === target.day &&
 												previewSlot.startTime === target.startTime &&
 												previewSlot.endTime === target.endTime;
 											return (
-												<button
+												<Button
 													key={`mobile-target-${target.day}-${target.startTime}-${target.endTime}`}
-													type='button'
+													variant='outline'
 													onClick={() => onSelectTargetSlot(target)}
-													className={`w-full rounded-xl border-2 p-4 text-left transition-colors ${
+													className={`h-auto w-full justify-start rounded-xl border-2 p-4 text-left transition-colors ${
 														isSelected
 															? 'border-primary bg-primary/5 shadow-sm'
 															: target.occupiedLabel
@@ -161,11 +236,11 @@ export default function MobileRoomRequestLayout({
 															? 'Selected — see conflict check below'
 															: target.occupiedLabel
 																? showFullScheduleContext
-																	? `Occupied - ${target.occupiedLabel}`
-																	: 'Occupied by another class'
-																: 'Free - move here'}
+																			? `Ask to swap - ${target.occupiedLabel}`
+																			: 'Ask to swap with another class'
+																		: 'Ask to move here'}
 													</p>
-												</button>
+												</Button>
 											);
 										})}
 									</div>

@@ -582,7 +582,7 @@ export default function ManualEditPanel({
 										size="sm"
 										className="h-7 text-xs gap-1"
 										onClick={() => switchAction('CHANGE_FACULTY')}
-										aria-label="Reassign Faculty"
+										aria-label="Reassign Teacher"
 									>
 										<Users className="size-3" />
 										Faculty
@@ -750,7 +750,7 @@ export default function ManualEditPanel({
 											groups={facultySearchGroups}
 											value={targetFacultyId}
 											onValueChange={setTargetFacultyId}
-											placeholder="Search faculty…"
+											placeholder="Search teachers…"
 											triggerClassName="h-8 text-xs w-full"
 										/>
 									</div>

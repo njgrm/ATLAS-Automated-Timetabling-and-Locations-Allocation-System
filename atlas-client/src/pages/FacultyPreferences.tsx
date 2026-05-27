@@ -15,7 +15,6 @@ import { cacheFacultyIdentity, readCachedFacultyIdentity } from '@/lib/faculty-i
 import { buildFacultyCacheKey, isLikelyOfflineError, readFacultySnapshot, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
 import type {
 	FacultyPreference,
-	TimeSlotPreference,
 } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -29,13 +28,6 @@ import DesktopPreferencesLayout from '@/components/faculty-preferences/DesktopPr
 
 const DEFAULT_SCHOOL_ID = 1;
 const PREFERENCE_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-
-type SlotRow = {
-	day: string;
-	startTime: string;
-	endTime: string;
-	preference: TimeSlotPreference;
-};
 
 /* ─── Well-being ─── */
 
@@ -55,7 +47,6 @@ const DEFAULT_WELLBEING: WellbeingState = {
 
 type FacultyPreferenceSnapshot = {
 	preference: FacultyPreference | null;
-	slots: SlotRow[];
 	notes: string;
 	version: number;
 	wellbeing: WellbeingState;
@@ -86,14 +77,12 @@ export default function FacultyPreferences() {
 	const [cachedPreferenceAt, setCachedPreferenceAt] = useState<string | null>(null);
 
 	const [preference, setPreference] = useState<FacultyPreference | null>(null);
-	const [slots, setSlots] = useState<SlotRow[]>([]);
 	const [notes, setNotes] = useState('');
 	const [version, setVersion] = useState(1);
 	const [wellbeing, setWellbeing] = useState<WellbeingState>(DEFAULT_WELLBEING);
 
 	const applyPreferenceSnapshot = useCallback((snapshot: FacultyPreferenceSnapshot) => {
 		setPreference(snapshot.preference);
-		setSlots(snapshot.slots);
 		setNotes(snapshot.notes);
 		setVersion(snapshot.version);
 		setWellbeing(snapshot.wellbeing);
@@ -120,7 +109,7 @@ export default function FacultyPreferences() {
 						params: { schoolId: DEFAULT_SCHOOL_ID },
 					});
 					if (!facultyMe?.faculty?.id) {
-						setError('Your account is not linked to a faculty record in this school. Contact your scheduling officer.');
+						setError('Your account is not linked to a teacher record in this school. Contact your scheduling officer.');
 						setLoading(false);
 						return;
 					}
@@ -153,7 +142,7 @@ export default function FacultyPreferences() {
 			validate: (value): value is FacultyPreferenceSnapshot => {
 				if (!value || typeof value !== 'object') return false;
 				const candidate = value as Partial<FacultyPreferenceSnapshot>;
-				return typeof candidate.version === 'number' && Array.isArray(candidate.slots) && typeof candidate.notes === 'string';
+				return typeof candidate.version === 'number' && typeof candidate.notes === 'string';
 			},
 		});
 		try {
@@ -164,12 +153,6 @@ export default function FacultyPreferences() {
 				const pref = data.preference;
 				const nextSnapshot: FacultyPreferenceSnapshot = {
 					preference: pref,
-					slots: pref.timeSlots.map((ts) => ({
-						day: ts.day,
-						startTime: ts.startTime,
-						endTime: ts.endTime,
-						preference: ts.preference,
-					})),
 					notes: pref.notes ?? '',
 					version: pref.version,
 					wellbeing: {
@@ -186,7 +169,6 @@ export default function FacultyPreferences() {
 			} else {
 				const emptySnapshot: FacultyPreferenceSnapshot = {
 					preference: null,
-					slots: [],
 					notes: '',
 					version: 1,
 					wellbeing: DEFAULT_WELLBEING,
@@ -275,7 +257,7 @@ export default function FacultyPreferences() {
 	function buildPayload() {
 		return {
 			notes: notes.trim() || null,
-			timeSlots: slots,
+			timeSlots: [],
 			wellbeing,
 			version,
 		};
@@ -341,7 +323,7 @@ export default function FacultyPreferences() {
 	/* ── Derived state ── */
 	const isSubmitted = preference?.status === 'SUBMITTED';
 	const canEdit = !locked;
-	const preferenceStep = locked || isSubmitted ? 3 : 2;
+	const preferenceStep = locked || isSubmitted ? 3 : wellbeing && Object.values(wellbeing).some(Boolean) ? 2 : 1;
 	
 	const advisory = useMemo(() => {
 		if (usingCachedPreference) {
@@ -413,11 +395,11 @@ export default function FacultyPreferences() {
 	return (
 		<div className='flex flex-col h-[calc(100svh-3.5rem)] overflow-hidden bg-background'>
 			<FacultyGlobalHeader
-				title='My Preferences'
-				subtitle='Set availability and wellbeing. Room changes are separate.'
+				title='My Teacher Preferences'
+				subtitle='Share support needs for scheduler review. Room changes are separate.'
 				steps={[
-					{ id: 1, label: '1 Set times' },
-					{ id: 2, label: '2 Draft' },
+					{ id: 1, label: '1 Support' },
+					{ id: 2, label: '2 Notes' },
 					{ id: 3, label: '3 Submit' },
 				]}
 				activeStep={preferenceStep}
@@ -438,8 +420,6 @@ export default function FacultyPreferences() {
 				<div className='max-w-7xl mx-auto h-full'>
 					{isMobile ? (
 						<MobilePreferencesLayout
-							slots={slots}
-							onSlotsChange={setSlots}
 							wellbeing={wellbeing}
 							onWellbeingChange={(key, checked) => setWellbeing(prev => ({ ...prev, [key]: checked }))}
 							notes={notes}
@@ -448,8 +428,6 @@ export default function FacultyPreferences() {
 						/>
 					) : (
 						<DesktopPreferencesLayout
-							slots={slots}
-							onSlotsChange={setSlots}
 							wellbeing={wellbeing}
 							onWellbeingChange={(key, checked) => setWellbeing(prev => ({ ...prev, [key]: checked }))}
 							notes={notes}

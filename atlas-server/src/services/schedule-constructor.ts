@@ -26,6 +26,7 @@ import { isSubjectAllowedForSectionProgram } from './subject-program-scope.servi
 import {
 	matchesSubjectOwnershipDepartment,
 } from './subject-ownership.service.js';
+import { resolvePolicyPlacementSemantics } from './scheduling-policy.service.js';
 
 // ─── Standard time grid (JHS 8-period day) ───
 
@@ -148,6 +149,7 @@ export interface PolicyInput {
 	maxTeachingMinutesPerDay: number;
 	earliestStartTime: string;
 	latestEndTime: string;
+	enforceConsecutiveBreakAsHard?: boolean;
 	lunchStartTime?: string;
 	lunchEndTime?: string;
 	enforceLunchWindow?: boolean;
@@ -470,7 +472,9 @@ export type HomeRoomFallbackCause =
 	| 'NO_SAME_ZONE_STANDARD_ROOM'
 	| 'CROSS_BUILDING_STANDARD_ROOM_EXHAUSTED'
 	| 'ONLY_SPECIALIZED_ROOMS_AVAILABLE'
-	| 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE';
+	| 'FACULTY_DAILY_LIMIT_EXCEEDED'
+	| 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED'
+	| 'NO_VALID_PERIOD_IN_POLICY_WINDOW';
 
 export interface UnassignedItem {
 	sectionId: number;
@@ -1387,6 +1391,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 
 	const allowFlexible = policy?.allowFlexibleSubjectAssignment === true;
 	const allowConsecutiveLab = policy?.allowConsecutiveLabSessions === true;
+	const placementSemantics = policy ? resolvePolicyPlacementSemantics(policy) : null;
 	const allFacultyIds = faculty.map((f) => f.id).sort((a, b) => a - b);
 
 	// Lab-like room types for consecutive lab check
@@ -1526,7 +1531,9 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			let sawNoSameZoneStandardRoom = false;
 			let sawCrossBuildingFallbackOptions = false;
 			let sawOnlySpecializedRooms = false;
-			let sawPolicyOrShiftWindowIncompatible = false;
+			let sawDailyHardLimit = false;
+			let sawConsecutiveHardLimit = false;
+			let sawNoValidPeriodInPolicyWindow = false;
 			let sawFacultySlotUnavailable = false;
 			let sawCapacityOverflow = false;
 			let sawCapacityBlockedRoomForSession = false;
@@ -1559,7 +1566,7 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 			}
 
 			if (possibleSlots.length === 0 && preferredHomeRoomId != null) {
-				sawPolicyOrShiftWindowIncompatible = true;
+				sawNoValidPeriodInPolicyWindow = true;
 			}
 
 			possibleSlots.sort((a, b) => {
@@ -1678,17 +1685,21 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					if (policy && !isModularUnified) {
 						const dailyKey = `${facId}:${slotCandidate.day}`;
 						const dailyUsed = facultyDailyMinutes.get(dailyKey) ?? 0;
-						if (dailyUsed + item.durationPerSession > policy.maxTeachingMinutesPerDay) {
+						const hardDailyLimitMinutes = placementSemantics?.hardDailyLimitMinutes ?? policy.maxTeachingMinutesPerDay;
+						if (dailyUsed + item.durationPerSession > hardDailyLimitMinutes) {
 							sessionFailureReasons.add('FACULTY_OVERLOADED');
-							sawPolicyOrShiftWindowIncompatible = true;
+							sawDailyHardLimit = true;
 							policyBlockedForSession = true;
 							policyBlockedForFaculty = true;
 							continue;
 						}
 
-						if (wouldExceedConsecutive(facId, slotCandidate.day, slotCandidate.pi, item.durationPerSession)) {
+						if (
+							placementSemantics?.enforceConsecutiveBreakAsHard === true
+							&& wouldExceedConsecutive(facId, slotCandidate.day, slotCandidate.pi, item.durationPerSession)
+						) {
 							sessionFailureReasons.add('NO_AVAILABLE_SLOT');
-							sawPolicyOrShiftWindowIncompatible = true;
+							sawConsecutiveHardLimit = true;
 							policyBlockedForSession = true;
 							policyBlockedForFaculty = true;
 							continue;
@@ -1878,16 +1889,20 @@ export function constructBaseline(input: ConstructorInput): ConstructorResult {
 					? 'SPECIALIZED_ROOM_UNAVAILABLE'
 					: reason === 'NO_QUALIFIED_FACULTY'
 						? 'NO_QUALIFIED_FACULTY'
-						: reason === 'FACULTY_OVERLOADED' || sawFacultySlotUnavailable
+						: sawDailyHardLimit || sawConsecutiveHardLimit
+							? 'POLICY_SLOT_BLOCKED'
+							: reason === 'FACULTY_OVERLOADED' || sawFacultySlotUnavailable
 							? 'FACULTY_SLOT_UNAVAILABLE'
-							: sawPolicyOrShiftWindowIncompatible
-								? 'POLICY_SLOT_BLOCKED'
 								: reason === 'NO_COMPATIBLE_ROOM' || reason === 'ROOM_CAPACITY_EXCEEDED'
 									? 'ROOM_PATH_EXHAUSTED'
 									: 'FALLBACK_UNRESOLVED';
 				const homeRoomFallbackCause: HomeRoomFallbackCause | undefined = preferredHomeRoomId != null
-					? (sawPolicyOrShiftWindowIncompatible
-						? 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE'
+					? (sawDailyHardLimit
+						? 'FACULTY_DAILY_LIMIT_EXCEEDED'
+						: sawConsecutiveHardLimit
+							? 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED'
+							: sawNoValidPeriodInPolicyWindow
+								? 'NO_VALID_PERIOD_IN_POLICY_WINDOW'
 						: sawOnlySpecializedRooms
 							? 'ONLY_SPECIALIZED_ROOMS_AVAILABLE'
 							: sawNoSameZoneStandardRoom

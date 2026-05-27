@@ -1,53 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { isAxiosError } from 'axios';
 import { Link, useSearchParams } from 'react-router-dom';
-import {
-	AlertCircle,
-	BookOpen,
-	CalendarDays,
-	Clock3,
-	MapPin,
-	RefreshCcw,
-	Search,
-	Wifi,
-	WifiOff,
-} from 'lucide-react';
+import { AlertCircle, BookOpen, CalendarDays, Clock3, MapPin, RefreshCcw, Search, Users, Wifi, WifiOff } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
-import {
-	buildPublicScheduleCacheKey,
-	isLikelyOfflinePublicError,
-	readPublicScheduleSnapshot,
-	writePublicScheduleSnapshot,
-} from '@/lib/public-schedule-cache';
+import { buildPublicScheduleCacheKey, isLikelyOfflinePublicError, readPublicScheduleSnapshot, writePublicScheduleSnapshot } from '@/lib/public-schedule-cache';
+import { PublishedTimetableMatrix, DAY_ORDER, type DayKey, formatShortTime, humanizeProgram } from '@/components/published-schedule/PublishedTimetableMatrix';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { ScrollArea } from '@/ui/scroll-area';
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from '@/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Skeleton } from '@/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger } from '@/ui/tabs';
 
 const DEFAULT_SCHOOL_ID = 1;
 const PUBLIC_SCHEDULE_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
-const DAY_ORDER = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
-type DayKey = (typeof DAY_ORDER)[number];
-
-const DAY_LABELS: Record<DayKey, string> = {
-	MONDAY: 'Monday',
-	TUESDAY: 'Tuesday',
-	WEDNESDAY: 'Wednesday',
-	THURSDAY: 'Thursday',
-	FRIDAY: 'Friday',
-};
+type ScheduleMode = 'sections' | 'teachers' | 'rooms';
 
 type PublishedScheduleEntry = {
 	entryId: string;
@@ -107,50 +79,41 @@ type SectionBrowseItem = {
 	entryCount: number;
 };
 
+type FacultyBrowseItem = { id: number; name: string; entryCount: number };
+type RoomBrowseItem = { id: number; name: string; buildingName: string | null; entryCount: number };
+
 function parsePositiveInt(raw: string | null): number | null {
 	if (!raw) return null;
 	const parsed = Number(raw);
-	if (!Number.isInteger(parsed) || parsed < 1) return null;
-	return parsed;
-}
-
-function isPublishedSchedulePayload(value: unknown): value is PublicScheduleSnapshot {
-	if (!value || typeof value !== 'object') return false;
-	const payload = value as Partial<PublicScheduleSnapshot>;
-	return (
-		Boolean(payload.payload) &&
-		typeof payload.payload?.source?.runId === 'number' &&
-		Array.isArray(payload.payload?.entries)
-	);
+	return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 function normalizeDay(day: string): string {
 	return String(day ?? '').trim().toUpperCase();
 }
 
-function formatShortTime(time: string): string {
-	const [rawHour, rawMinute] = time.split(':').map(Number);
-	if (!Number.isFinite(rawHour) || !Number.isFinite(rawMinute)) return time;
-	const period = rawHour >= 12 ? 'PM' : 'AM';
-	const hour = rawHour % 12 || 12;
-	const minute = String(rawMinute).padStart(2, '0');
-	return `${hour}:${minute} ${period}`;
+function isPublishedSchedulePayload(value: unknown): value is PublicScheduleSnapshot {
+	if (!value || typeof value !== 'object') return false;
+	const payload = value as Partial<PublicScheduleSnapshot>;
+	return Boolean(payload.payload) && typeof payload.payload?.source?.runId === 'number' && Array.isArray(payload.payload?.entries);
 }
 
 function formatTimestamp(value: string | null): string {
 	if (!value) return 'Not available';
 	const parsed = new Date(value);
-	if (Number.isNaN(parsed.getTime())) return value;
-	return parsed.toLocaleString();
+	return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
 }
 
-function humanizeProgram(value: string): string {
-	return value
-		.toLowerCase()
-		.split('_')
-		.filter(Boolean)
-		.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-		.join(' ');
+function modeLabel(mode: ScheduleMode): string {
+	if (mode === 'teachers') return 'Teachers';
+	if (mode === 'rooms') return 'Rooms';
+	return 'Sections';
+}
+
+function modeDescription(mode: ScheduleMode): string {
+	if (mode === 'teachers') return 'Browse the published timetable by teacher.';
+	if (mode === 'rooms') return 'Browse the published timetable by room.';
+	return 'Browse the published timetable by section.';
 }
 
 export default function PublicPublishedSchedule() {
@@ -163,48 +126,43 @@ export default function PublicPublishedSchedule() {
 	const [error, setError] = useState<string | null>(null);
 	const [online, setOnline] = useState<boolean>(navigator.onLine);
 
-	const schoolId = useMemo(() => {
-		return parsePositiveInt(searchParams.get('schoolId')) ?? DEFAULT_SCHOOL_ID;
+	const schoolId = useMemo(() => parsePositiveInt(searchParams.get('schoolId')) ?? DEFAULT_SCHOOL_ID, [searchParams]);
+	const mode = useMemo<ScheduleMode>(() => {
+		const raw = (searchParams.get('mode') ?? 'sections').toLowerCase();
+		return raw === 'teachers' || raw === 'rooms' ? raw : 'sections';
 	}, [searchParams]);
-
-	const sectionQuery = (searchParams.get('q') ?? '').trim();
+	const entityQuery = (searchParams.get('q') ?? '').trim();
 	const gradeFilter = searchParams.get('grade') ?? 'all';
 	const programFilter = searchParams.get('program') ?? 'all';
 	const requestedDay = normalizeDay(searchParams.get('day') ?? 'all');
-	const dayFilter: DayKey | 'all' = DAY_ORDER.includes(requestedDay as DayKey)
-		? (requestedDay as DayKey)
-		: 'all';
+	const dayFilter: DayKey | 'all' = DAY_ORDER.includes(requestedDay as DayKey) ? (requestedDay as DayKey) : 'all';
 	const selectedSectionId = parsePositiveInt(searchParams.get('sectionId'));
+	const selectedFacultyId = parsePositiveInt(searchParams.get('facultyId'));
+	const selectedRoomId = parsePositiveInt(searchParams.get('roomId'));
 
-	const updateSearchParams = useCallback(
-		(updates: Record<string, string | null>) => {
-			const next = new URLSearchParams(searchParams);
-			let changed = false;
-			for (const [key, value] of Object.entries(updates)) {
-				const current = next.get(key);
-				if (value === null || value.trim().length === 0) {
-					if (current !== null) {
-						next.delete(key);
-						changed = true;
-					}
-					continue;
-				}
-				if (current !== value) {
-					next.set(key, value);
+	const updateSearchParams = useCallback((updates: Record<string, string | null>) => {
+		const next = new URLSearchParams(searchParams);
+		let changed = false;
+		for (const [key, value] of Object.entries(updates)) {
+			const current = next.get(key);
+			if (value === null || value.trim().length === 0) {
+				if (current !== null) {
+					next.delete(key);
 					changed = true;
 				}
+				continue;
 			}
-
-			if (!changed) return;
-			setSearchParams(next, { replace: true });
-		},
-		[searchParams, setSearchParams],
-	);
+			if (current !== value) {
+				next.set(key, value);
+				changed = true;
+			}
+		}
+		if (changed) setSearchParams(next, { replace: true });
+	}, [searchParams, setSearchParams]);
 
 	const loadPublishedSchedule = useCallback(async () => {
 		setLoading(true);
 		setError(null);
-
 		const cacheKey = buildPublicScheduleCacheKey(schoolId);
 		const cachedSnapshot = readPublicScheduleSnapshot<PublicScheduleSnapshot>(cacheKey, {
 			maxAgeMs: PUBLIC_SCHEDULE_CACHE_MAX_AGE_MS,
@@ -220,12 +178,8 @@ export default function PublicPublishedSchedule() {
 			writePublicScheduleSnapshot(cacheKey, { payload: data });
 		} catch (fetchError) {
 			const status = isAxiosError(fetchError) ? fetchError.response?.status : undefined;
-			const responseData = isAxiosError(fetchError)
-				? (fetchError.response?.data as { code?: string; message?: string } | undefined)
-				: undefined;
-			const canUseSaved =
-				Boolean(cachedSnapshot) &&
-				(isLikelyOfflinePublicError(fetchError) || (typeof status === 'number' && status >= 500));
+			const responseData = isAxiosError(fetchError) ? (fetchError.response?.data as { code?: string; message?: string } | undefined) : undefined;
+			const canUseSaved = Boolean(cachedSnapshot) && (isLikelyOfflinePublicError(fetchError) || (typeof status === 'number' && status >= 500));
 
 			if (canUseSaved && cachedSnapshot) {
 				setPayload(cachedSnapshot.data.payload);
@@ -242,7 +196,6 @@ export default function PublicPublishedSchedule() {
 				setSourceMode('none');
 				setSavedAt(null);
 				setSavedIsStale(false);
-				setError(null);
 				setLoading(false);
 				return;
 			}
@@ -257,10 +210,7 @@ export default function PublicPublishedSchedule() {
 		setLoading(false);
 	}, [schoolId]);
 
-	useEffect(() => {
-		void loadPublishedSchedule();
-	}, [loadPublishedSchedule]);
-
+	useEffect(() => { void loadPublishedSchedule(); }, [loadPublishedSchedule]);
 	useEffect(() => {
 		const updateOnline = () => setOnline(navigator.onLine);
 		window.addEventListener('online', updateOnline);
@@ -274,37 +224,43 @@ export default function PublicPublishedSchedule() {
 	const sections = useMemo<SectionBrowseItem[]>(() => {
 		const byId = new Map<number, SectionBrowseItem>();
 		for (const entry of payload?.entries ?? []) {
-			const gradeLabel =
-				entry.section.gradeLevelName ??
-				(entry.section.gradeLevel ? `Grade ${entry.section.gradeLevel}` : null);
-			const programLabel =
-				entry.section.programName ??
-				entry.section.programCode ??
-				(entry.section.programType ? humanizeProgram(entry.section.programType) : null);
-
+			const gradeLabel = entry.section.gradeLevelName ?? (entry.section.gradeLevel ? `Grade ${entry.section.gradeLevel}` : null);
+			const programLabel = entry.section.programName ?? entry.section.programCode ?? (entry.section.programType ? humanizeProgram(entry.section.programType) : null);
 			const existing = byId.get(entry.section.id);
 			if (existing) {
 				existing.entryCount += 1;
 				continue;
 			}
-
-			byId.set(entry.section.id, {
-				id: entry.section.id,
-				name: entry.section.name,
-				gradeLevel: entry.section.gradeLevel,
-				gradeLabel,
-				programType: entry.section.programType,
-				programLabel,
-				entryCount: 1,
-			});
+			byId.set(entry.section.id, { id: entry.section.id, name: entry.section.name, gradeLevel: entry.section.gradeLevel, gradeLabel, programType: entry.section.programType, programLabel, entryCount: 1 });
 		}
+		return [...byId.values()].sort((left, right) => (left.gradeLevel ?? Number.MAX_SAFE_INTEGER) - (right.gradeLevel ?? Number.MAX_SAFE_INTEGER) || left.name.localeCompare(right.name));
+	}, [payload?.entries]);
 
-		return [...byId.values()].sort((left, right) => {
-			const leftGrade = left.gradeLevel ?? Number.MAX_SAFE_INTEGER;
-			const rightGrade = right.gradeLevel ?? Number.MAX_SAFE_INTEGER;
-			if (leftGrade !== rightGrade) return leftGrade - rightGrade;
-			return left.name.localeCompare(right.name);
-		});
+	const faculty = useMemo<FacultyBrowseItem[]>(() => {
+		const byId = new Map<number, FacultyBrowseItem>();
+		for (const entry of payload?.entries ?? []) {
+			if (!entry.faculty.id) continue;
+			const existing = byId.get(entry.faculty.id);
+			if (existing) {
+				existing.entryCount += 1;
+				continue;
+			}
+			byId.set(entry.faculty.id, { id: entry.faculty.id, name: entry.faculty.name, entryCount: 1 });
+		}
+		return [...byId.values()].sort((left, right) => left.name.localeCompare(right.name));
+	}, [payload?.entries]);
+
+	const rooms = useMemo<RoomBrowseItem[]>(() => {
+		const byId = new Map<number, RoomBrowseItem>();
+		for (const entry of payload?.entries ?? []) {
+			const existing = byId.get(entry.room.id);
+			if (existing) {
+				existing.entryCount += 1;
+				continue;
+			}
+			byId.set(entry.room.id, { id: entry.room.id, name: entry.room.name, buildingName: entry.room.buildingName, entryCount: 1 });
+		}
+		return [...byId.values()].sort((left, right) => (left.buildingName ?? '').localeCompare(right.buildingName ?? '') || left.name.localeCompare(right.name));
 	}, [payload?.entries]);
 
 	const gradeOptions = useMemo(() => {
@@ -326,268 +282,289 @@ export default function PublicPublishedSchedule() {
 	}, [sections]);
 
 	const filteredSections = useMemo(() => {
-		const normalizedQuery = sectionQuery.toLowerCase();
+		const normalizedQuery = entityQuery.toLowerCase();
 		return sections.filter((section) => {
-			const matchesQuery =
-				normalizedQuery.length === 0 ||
-				section.name.toLowerCase().includes(normalizedQuery) ||
-				(section.gradeLabel ?? '').toLowerCase().includes(normalizedQuery) ||
-				(section.programLabel ?? '').toLowerCase().includes(normalizedQuery);
-			const matchesGrade =
-				gradeFilter === 'all' ||
-				(section.gradeLevel !== null && String(section.gradeLevel) === gradeFilter);
-			const matchesProgram =
-				programFilter === 'all' ||
-				(section.programType !== null && section.programType === programFilter);
+			const matchesQuery = normalizedQuery.length === 0 || section.name.toLowerCase().includes(normalizedQuery) || (section.gradeLabel ?? '').toLowerCase().includes(normalizedQuery) || (section.programLabel ?? '').toLowerCase().includes(normalizedQuery);
+			const matchesGrade = gradeFilter === 'all' || (section.gradeLevel !== null && String(section.gradeLevel) === gradeFilter);
+			const matchesProgram = programFilter === 'all' || (section.programType !== null && section.programType === programFilter);
 			return matchesQuery && matchesGrade && matchesProgram;
 		});
-	}, [gradeFilter, programFilter, sectionQuery, sections]);
+	}, [gradeFilter, programFilter, entityQuery, sections]);
+
+	const filteredFaculty = useMemo(() => {
+		const normalizedQuery = entityQuery.toLowerCase();
+		return faculty.filter((item) => normalizedQuery.length === 0 || item.name.toLowerCase().includes(normalizedQuery));
+	}, [entityQuery, faculty]);
+
+	const filteredRooms = useMemo(() => {
+		const normalizedQuery = entityQuery.toLowerCase();
+		return rooms.filter((item) => normalizedQuery.length === 0 || item.name.toLowerCase().includes(normalizedQuery) || (item.buildingName ?? '').toLowerCase().includes(normalizedQuery));
+	}, [entityQuery, rooms]);
 
 	useEffect(() => {
 		if (loading || !payload) return;
-		if (filteredSections.length === 0) {
-			if (selectedSectionId !== null) {
-				updateSearchParams({ sectionId: null });
+		if (mode === 'sections') {
+			if (filteredSections.length === 0) {
+				if (selectedSectionId !== null) updateSearchParams({ sectionId: null });
+				return;
 			}
+			const selectedExists = selectedSectionId !== null && filteredSections.some((section) => section.id === selectedSectionId);
+			if (!selectedExists) updateSearchParams({ sectionId: String(filteredSections[0].id) });
 			return;
 		}
-
-		const selectedExists = selectedSectionId !== null && filteredSections.some((section) => section.id === selectedSectionId);
-		if (!selectedExists) {
-			updateSearchParams({ sectionId: String(filteredSections[0].id) });
+		if (mode === 'teachers') {
+			if (filteredFaculty.length === 0) {
+				if (selectedFacultyId !== null) updateSearchParams({ facultyId: null });
+				return;
+			}
+			const selectedExists = selectedFacultyId !== null && filteredFaculty.some((item) => item.id === selectedFacultyId);
+			if (!selectedExists) updateSearchParams({ facultyId: String(filteredFaculty[0].id) });
+			return;
 		}
-	}, [filteredSections, loading, payload, selectedSectionId, updateSearchParams]);
+		if (filteredRooms.length === 0) {
+			if (selectedRoomId !== null) updateSearchParams({ roomId: null });
+			return;
+		}
+		const selectedExists = selectedRoomId !== null && filteredRooms.some((item) => item.id === selectedRoomId);
+		if (!selectedExists) updateSearchParams({ roomId: String(filteredRooms[0].id) });
+	}, [filteredFaculty, filteredRooms, filteredSections, loading, mode, payload, selectedFacultyId, selectedRoomId, selectedSectionId, updateSearchParams]);
 
-	const selectedSection = useMemo(() => {
-		if (selectedSectionId === null) return null;
-		return filteredSections.find((section) => section.id === selectedSectionId) ?? null;
-	}, [filteredSections, selectedSectionId]);
+	const selectedSection = useMemo(() => (selectedSectionId === null ? null : filteredSections.find((section) => section.id === selectedSectionId) ?? null), [filteredSections, selectedSectionId]);
+	const selectedFaculty = useMemo(() => (selectedFacultyId === null ? null : filteredFaculty.find((item) => item.id === selectedFacultyId) ?? null), [filteredFaculty, selectedFacultyId]);
+	const selectedRoom = useMemo(() => (selectedRoomId === null ? null : filteredRooms.find((item) => item.id === selectedRoomId) ?? null), [filteredRooms, selectedRoomId]);
 
-	const sectionEntries = useMemo(() => {
-		if (!selectedSection || !payload) return [];
+	const selectedEntries = useMemo(() => {
+		if (!payload) return [];
+		const selectedId = mode === 'teachers' ? selectedFacultyId : mode === 'rooms' ? selectedRoomId : selectedSectionId;
+		if (selectedId === null) return [];
 		return payload.entries
-			.filter((entry) => entry.section.id === selectedSection.id)
+			.filter((entry) => {
+				if (mode === 'teachers') return entry.faculty.id === selectedId;
+				if (mode === 'rooms') return entry.room.id === selectedId;
+				return entry.section.id === selectedId;
+			})
 			.filter((entry) => dayFilter === 'all' || normalizeDay(entry.day) === dayFilter)
-			.sort((left, right) => {
-				const leftDay = DAY_ORDER.indexOf(normalizeDay(left.day) as DayKey);
-				const rightDay = DAY_ORDER.indexOf(normalizeDay(right.day) as DayKey);
-				if (leftDay !== rightDay) return leftDay - rightDay;
-				return left.startTime.localeCompare(right.startTime) || left.endTime.localeCompare(right.endTime);
-			});
-	}, [dayFilter, payload, selectedSection]);
+			.sort((left, right) => DAY_ORDER.indexOf(normalizeDay(left.day) as DayKey) - DAY_ORDER.indexOf(normalizeDay(right.day) as DayKey) || left.startTime.localeCompare(right.startTime) || left.endTime.localeCompare(right.endTime));
+	}, [dayFilter, mode, payload, selectedFacultyId, selectedRoomId, selectedSectionId]);
 
-	const daysToRender = useMemo<DayKey[]>(() => {
-		if (dayFilter === 'all') return [...DAY_ORDER];
-		return [dayFilter];
-	}, [dayFilter]);
+	const summary = useMemo(() => {
+		const entries = payload?.entries ?? [];
+		return {
+			classCount: entries.length,
+			sectionCount: new Set(entries.map((entry) => entry.section.name)).size,
+			facultyCount: new Set(entries.map((entry) => entry.faculty.name).filter(Boolean)).size,
+			roomCount: new Set(entries.map((entry) => entry.room.name)).size,
+		};
+	}, [payload?.entries]);
 
-	const groupedEntries = useMemo(() => {
-		const group = new Map<DayKey, PublishedScheduleEntry[]>();
-		for (const day of daysToRender) {
-			group.set(day, []);
+	const renderSelectedEntryDetails = useCallback((entry: PublishedScheduleEntry) => {
+		if (mode === 'sections') {
+			return (
+				<>
+					<p className="flex items-center gap-1.5"><Clock3 className="size-3.5 shrink-0" /> {formatShortTime(entry.startTime)} - {formatShortTime(entry.endTime)}</p>
+					<p className="flex items-center gap-1.5"><Users className="size-3.5 shrink-0" /> {entry.faculty.name}</p>
+					<p className="flex items-center gap-1.5"><MapPin className="size-3.5 shrink-0" /> {entry.room.name}{entry.room.buildingName ? ` (${entry.room.buildingName})` : ''}</p>
+				</>
+			);
 		}
-		for (const entry of sectionEntries) {
-			const normalizedDay = normalizeDay(entry.day) as DayKey;
-			if (!group.has(normalizedDay)) continue;
-			group.get(normalizedDay)?.push(entry);
+
+		if (mode === 'teachers') {
+			return (
+				<>
+					<p className="flex items-center gap-1.5"><Clock3 className="size-3.5 shrink-0" /> {formatShortTime(entry.startTime)} - {formatShortTime(entry.endTime)}</p>
+					<p className="flex items-center gap-1.5"><BookOpen className="size-3.5 shrink-0" /> {entry.section.name}</p>
+					<p className="flex items-center gap-1.5"><MapPin className="size-3.5 shrink-0" /> {entry.room.name}{entry.room.buildingName ? ` (${entry.room.buildingName})` : ''}</p>
+				</>
+			);
 		}
-		return group;
-	}, [daysToRender, sectionEntries]);
+
+		return (
+			<>
+				<p className="flex items-center gap-1.5"><Clock3 className="size-3.5 shrink-0" /> {formatShortTime(entry.startTime)} - {formatShortTime(entry.endTime)}</p>
+				<p className="flex items-center gap-1.5"><BookOpen className="size-3.5 shrink-0" /> {entry.section.name}</p>
+				<p className="flex items-center gap-1.5"><Users className="size-3.5 shrink-0" /> {entry.faculty.name}</p>
+			</>
+		);
+	}, [mode]);
+
+	if (loading) {
+		return (
+			<div className="flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-background">
+				<div className="flex-1 min-h-0 overflow-auto px-4 py-4 sm:px-6">
+					<div className="mx-auto w-full max-w-7xl space-y-3">
+						<Skeleton className="h-24 w-full rounded-2xl" />
+						<Skeleton className="h-24 w-full rounded-2xl" />
+						<Skeleton className="h-[36rem] w-full rounded-2xl" />
+					</div>
+				</div>
+			</div>
+		);
+	}
+
+	if (error && !payload) {
+		return (
+			<div className="flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-background">
+				<div className="flex-1 min-h-0 overflow-auto px-4 py-6 sm:px-6">
+					<div className="mx-auto w-full max-w-4xl">
+						<Card className="rounded-2xl border-destructive/20">
+							<CardContent className="flex items-start gap-4 py-8">
+								<AlertCircle className="mt-1 size-6 shrink-0 text-destructive" />
+								<div className="flex-1 min-w-0 space-y-2">
+									<p className="text-lg font-bold text-destructive">Unable to load public schedule</p>
+									<p className="text-sm text-muted-foreground">{error}</p>
+									<Button variant="outline" size="sm" className="rounded-xl" onClick={() => void loadPublishedSchedule()}>
+										<RefreshCcw className="mr-2 size-4" /> Try again
+									</Button>
+								</div>
+							</CardContent>
+						</Card>
+					</div>
+				</div>
+			</div>
+		);
+	}
+
+	if (!payload) {
+		return (
+			<div className="flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-background">
+				<div className="flex-1 min-h-0 overflow-auto px-4 py-6 sm:px-6">
+					<div className="mx-auto w-full max-w-4xl">
+						<Card className="rounded-2xl border-border/70">
+							<CardContent className="py-10">
+								<p className="text-lg font-semibold">No published schedule yet</p>
+								<p className="mt-2 text-sm text-muted-foreground">The schedule is not published for this school yet. Students, teachers, and rooms will appear here after the scheduler publishes a run.</p>
+							</CardContent>
+						</Card>
+					</div>
+				</div>
+			</div>
+		);
+	}
+
+	const selectedTitle = mode === 'teachers' ? selectedFaculty?.name ?? 'Select a teacher' : mode === 'rooms' ? (selectedRoom ? `${selectedRoom.name}${selectedRoom.buildingName ? ` (${selectedRoom.buildingName})` : ''}` : 'Select a room') : selectedSection?.name ?? 'Select a section';
+	const selectedSubtitle = mode === 'teachers'
+		? selectedFaculty ? `${selectedEntries.length} class${selectedEntries.length === 1 ? '' : 'es'} in the published timetable.` : 'Choose a teacher from the list.'
+		: mode === 'rooms'
+			? selectedRoom ? `${selectedEntries.length} class${selectedEntries.length === 1 ? '' : 'es'} in the published timetable.` : 'Choose a room from the list.'
+			: selectedSection ? `${selectedEntries.length} class${selectedEntries.length === 1 ? '' : 'es'} in the published timetable.` : 'Choose a section from the list.';
+	const listEmptyMessage = mode === 'teachers' ? 'No teachers matched your search.' : mode === 'rooms' ? 'No rooms matched your search.' : 'No sections matched your search.';
 
 	return (
-		<div className="min-h-screen bg-background">
-			<div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-				<Card className="rounded-2xl border-border/70">
-					<CardHeader className="pb-3">
-						<div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-							<div className="space-y-1">
-								<CardTitle className="text-2xl font-semibold tracking-tight">Student Schedule Lookup</CardTitle>
-								<CardDescription>
-									Browse the latest published class schedule by section. No sign in is required.
-								</CardDescription>
+		<div className="flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-background">
+			<div className="flex-1 min-h-0 overflow-auto px-4 py-4 sm:px-6 sm:py-6">
+				<div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+					<Card className="rounded-2xl border-border/70">
+						<CardHeader className="pb-3">
+							<div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+								<div className="space-y-1">
+									<CardTitle className="text-2xl font-semibold tracking-tight">Published Schedule Family</CardTitle>
+									<CardDescription>Table-first published timetables for students, teachers, and rooms.</CardDescription>
+								</div>
+								<div className="flex flex-wrap items-center gap-2">
+									<Badge variant="outline" className={online ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'}>
+										{online ? <Wifi className="mr-1 size-3" /> : <WifiOff className="mr-1 size-3" />}
+										{online ? 'Online' : 'Offline'}
+									</Badge>
+									<Badge variant="outline" className={sourceMode === 'live' ? 'border-sky-200 bg-sky-50 text-sky-700' : sourceMode === 'saved' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-muted bg-muted text-muted-foreground'}>
+										{sourceMode === 'live' ? 'Live Published Data' : sourceMode === 'saved' ? 'Saved Published Data' : 'No Published Data'}
+									</Badge>
+									<Button variant="outline" size="sm" className="rounded-xl" onClick={() => void loadPublishedSchedule()}>
+										<RefreshCcw className="mr-2 size-4" /> Refresh
+									</Button>
+									<Button asChild variant="ghost" size="sm" className="rounded-xl"><Link to="/login">Sign In</Link></Button>
+								</div>
 							</div>
+						</CardHeader>
+						<CardContent className="space-y-3 pt-0 text-sm text-muted-foreground">
 							<div className="flex flex-wrap items-center gap-2">
-								<Badge
-									variant="outline"
-									className={online ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'}
-								>
-									{online ? <Wifi className="mr-1 size-3" /> : <WifiOff className="mr-1 size-3" />}
-									{online ? 'Online' : 'Offline'}
-								</Badge>
-								<Badge
-									variant="outline"
-									className={
-										sourceMode === 'live'
-											? 'border-sky-200 bg-sky-50 text-sky-700'
-											: sourceMode === 'saved'
-											? 'border-amber-200 bg-amber-50 text-amber-800'
-											: 'border-muted bg-muted text-muted-foreground'
-									}
-								>
-									{sourceMode === 'live' ? 'Live Published Data' : sourceMode === 'saved' ? 'Saved Published Data' : 'No Published Data'}
-								</Badge>
-								<Button variant="outline" size="sm" className="rounded-xl" onClick={() => void loadPublishedSchedule()}>
-									<RefreshCcw className="mr-2 size-4" /> Refresh
-								</Button>
-								<Button asChild variant="ghost" size="sm" className="rounded-xl">
-									<Link to="/login">Sign In</Link>
-								</Button>
+								<Badge variant="outline">Run #{payload.source.runId}</Badge>
+								<Badge variant="outline">School Year {payload.source.schoolYearId}</Badge>
+								<Badge variant="outline">School {schoolId}</Badge>
+								<Badge variant="outline">{summary.classCount} class{summary.classCount === 1 ? '' : 'es'}</Badge>
+								<Badge variant="outline">{summary.sectionCount} section{summary.sectionCount === 1 ? '' : 's'}</Badge>
+								<Badge variant="outline">{summary.facultyCount} teacher{summary.facultyCount === 1 ? '' : 's'}</Badge>
+								<Badge variant="outline">{summary.roomCount} room{summary.roomCount === 1 ? '' : 's'}</Badge>
 							</div>
-						</div>
-					</CardHeader>
-					<CardContent className="space-y-2 pt-0 text-sm text-muted-foreground">
-						<p>
-							Latest published run: {payload ? `#${payload.source.runId}` : 'Not available'}
-							{payload ? ` • School Year ${payload.source.schoolYearId}` : ''}
-							 • School {schoolId}
-						</p>
-						{sourceMode === 'saved' && savedAt && (
-							<p>
-								Showing your saved published data from {formatTimestamp(savedAt)}
-								{savedIsStale ? '. This saved copy may be out of date.' : '.'}
-							</p>
-						)}
-						{sourceMode === 'live' && payload && (
-							<p>Published at {formatTimestamp(payload.source.publishedAt)}.</p>
-						)}
-					</CardContent>
-				</Card>
-
-				{loading && (
-					<div className="mt-4 space-y-3">
-						<Skeleton className="h-28 w-full rounded-2xl" />
-						<Skeleton className="h-96 w-full rounded-2xl" />
-					</div>
-				)}
-
-				{!loading && error && !payload && (
-					<Card className="mt-4 rounded-2xl border-destructive/20">
-						<CardContent className="flex items-start gap-4 py-8">
-							<AlertCircle className="mt-1 size-6 shrink-0 text-destructive" />
-							<div className="space-y-2">
-								<p className="text-lg font-semibold text-destructive">Unable to load public schedule</p>
-								<p className="text-sm text-muted-foreground">{error}</p>
-								<Button variant="outline" size="sm" className="rounded-xl" onClick={() => void loadPublishedSchedule()}>
-									<RefreshCcw className="mr-2 size-4" /> Try again
-								</Button>
-							</div>
+							<p>Latest published run: #{payload.source.runId} • Published at {formatTimestamp(payload.source.publishedAt)}</p>
+							{sourceMode === 'saved' && savedAt && <p>Showing your saved published data from {formatTimestamp(savedAt)}{savedIsStale ? '. This saved copy may be out of date.' : '.'}</p>}
 						</CardContent>
 					</Card>
-				)}
 
-				{!loading && !error && !payload && (
-					<Card className="mt-4 rounded-2xl border-border/70">
-						<CardContent className="py-10">
-							<p className="text-lg font-semibold">No published schedule yet</p>
-							<p className="mt-2 text-sm text-muted-foreground">
-								The schedule is not published for this school yet. Students can view schedules here after the scheduling officer publishes a run.
-							</p>
-						</CardContent>
-					</Card>
-				)}
-
-				{!loading && payload && (
-					<div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+					<div className="grid gap-4 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
 						<Card className="rounded-2xl border-border/70">
-							<CardHeader className="pb-2">
-								<CardTitle className="text-base font-semibold">Section-first browse</CardTitle>
-								<CardDescription>Search a section, then open its published classes.</CardDescription>
+							<CardHeader className="pb-3">
+								<div className="space-y-2">
+									<Tabs value={mode} onValueChange={(value) => updateSearchParams({ mode: value, sectionId: null, facultyId: null, roomId: null })}>
+										<TabsList className="grid w-full grid-cols-3">
+											<TabsTrigger value="sections">Sections</TabsTrigger>
+											<TabsTrigger value="teachers">Teachers</TabsTrigger>
+											<TabsTrigger value="rooms">Rooms</TabsTrigger>
+										</TabsList>
+									</Tabs>
+									<CardTitle className="text-base font-semibold">{modeLabel(mode)}</CardTitle>
+									<CardDescription>{modeDescription(mode)}</CardDescription>
+								</div>
 							</CardHeader>
 							<CardContent className="space-y-4">
 								<div className="space-y-1.5">
-									<Label htmlFor="public-section-search">Search sections</Label>
+									<Label htmlFor="public-schedule-search">Search {modeLabel(mode).toLowerCase()}</Label>
 									<div className="relative">
 										<Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" />
-										<Input
-											id="public-section-search"
-											value={sectionQuery}
-											onChange={(event) => updateSearchParams({ q: event.target.value || null, sectionId: null })}
-											placeholder="Search by section, grade, or program"
-											className="pl-9"
-										/>
+										<Input id="public-schedule-search" value={entityQuery} onChange={(event) => updateSearchParams({ q: event.target.value || null })} placeholder={`Search ${modeLabel(mode).toLowerCase()}`} className="pl-9" />
 									</div>
 								</div>
 
-								<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-									<div className="space-y-1.5">
-										<Label>Grade filter</Label>
-										<Select value={gradeFilter} onValueChange={(value) => updateSearchParams({ grade: value, sectionId: null })}>
-											<SelectTrigger>
-												<SelectValue placeholder="Any grade" />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="all">Any grade</SelectItem>
-												{gradeOptions.map((option) => (
-													<SelectItem key={option.value} value={option.value}>
-														{option.label}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
+								{mode === 'sections' && (
+									<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+										<div className="space-y-1.5">
+											<Label>Grade filter</Label>
+											<Select value={gradeFilter} onValueChange={(value) => updateSearchParams({ grade: value, sectionId: null })}>
+												<SelectTrigger><SelectValue placeholder="Any grade" /></SelectTrigger>
+												<SelectContent>
+													<SelectItem value="all">Any grade</SelectItem>
+													{gradeOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+												</SelectContent>
+											</Select>
+										</div>
+										<div className="space-y-1.5">
+											<Label>Program filter</Label>
+											<Select value={programFilter} onValueChange={(value) => updateSearchParams({ program: value, sectionId: null })}>
+												<SelectTrigger><SelectValue placeholder="Any program" /></SelectTrigger>
+												<SelectContent>
+													<SelectItem value="all">Any program</SelectItem>
+													{programOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+												</SelectContent>
+											</Select>
+										</div>
 									</div>
-									<div className="space-y-1.5">
-										<Label>Program filter</Label>
-										<Select value={programFilter} onValueChange={(value) => updateSearchParams({ program: value, sectionId: null })}>
-											<SelectTrigger>
-												<SelectValue placeholder="Any program" />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="all">Any program</SelectItem>
-												{programOptions.map((option) => (
-													<SelectItem key={option.value} value={option.value}>
-														{option.label}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
-									</div>
-								</div>
+								)}
 
-								<Button
-									variant="ghost"
-									size="sm"
-									className="w-fit rounded-xl"
-									onClick={() =>
-										updateSearchParams({
-											q: null,
-											grade: null,
-											program: null,
-											sectionId: null,
-										})
-									}
-								>
-									Clear filters
-								</Button>
+								<Button variant="ghost" size="sm" className="w-fit rounded-xl" onClick={() => updateSearchParams({ q: null, grade: null, program: null, sectionId: null, facultyId: null, roomId: null })}>Clear filters</Button>
 
 								<div className="overflow-hidden rounded-xl border border-border/70">
 									<div className="flex items-center justify-between border-b border-border/70 px-3 py-2">
-										<p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Sections</p>
-										<Badge variant="outline" className="text-[10px]">{filteredSections.length}</Badge>
+										<p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{modeLabel(mode)}</p>
+										<Badge variant="outline" className="text-[10px]">{mode === 'teachers' ? filteredFaculty.length : mode === 'rooms' ? filteredRooms.length : filteredSections.length}</Badge>
 									</div>
 									<ScrollArea className="h-72">
 										<div className="space-y-1 p-2">
-											{filteredSections.length === 0 && (
-												<p className="px-2 py-4 text-sm text-muted-foreground">No sections matched your filters.</p>
-											)}
-											{filteredSections.map((section) => {
+											{mode === 'teachers' && filteredFaculty.length === 0 && <p className="px-2 py-4 text-sm text-muted-foreground">{listEmptyMessage}</p>}
+											{mode === 'rooms' && filteredRooms.length === 0 && <p className="px-2 py-4 text-sm text-muted-foreground">{listEmptyMessage}</p>}
+											{mode === 'sections' && filteredSections.length === 0 && <p className="px-2 py-4 text-sm text-muted-foreground">{listEmptyMessage}</p>}
+
+											{mode === 'teachers' && filteredFaculty.map((item) => {
+												const isActive = selectedFaculty?.id === item.id;
+												return <Button key={item.id} variant={isActive ? 'secondary' : 'ghost'} onClick={() => updateSearchParams({ facultyId: String(item.id) })} className="h-auto w-full items-start justify-start rounded-lg px-2 py-2 text-left"><div className="space-y-1"><p className="text-sm font-semibold leading-tight">{item.name}</p><div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"><span>{item.entryCount} class{item.entryCount === 1 ? '' : 'es'}</span></div></div></Button>;
+											})}
+
+											{mode === 'rooms' && filteredRooms.map((item) => {
+												const isActive = selectedRoom?.id === item.id;
+												return <Button key={item.id} variant={isActive ? 'secondary' : 'ghost'} onClick={() => updateSearchParams({ roomId: String(item.id) })} className="h-auto w-full items-start justify-start rounded-lg px-2 py-2 text-left"><div className="space-y-1"><p className="text-sm font-semibold leading-tight">{item.name}</p><div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">{item.buildingName && <Badge variant="outline" className="text-[10px]">{item.buildingName}</Badge>}<span>{item.entryCount} class{item.entryCount === 1 ? '' : 'es'}</span></div></div></Button>;
+											})}
+
+											{mode === 'sections' && filteredSections.map((section) => {
 												const isActive = selectedSection?.id === section.id;
-												return (
-													<Button
-														key={section.id}
-														variant={isActive ? 'secondary' : 'ghost'}
-														onClick={() => updateSearchParams({ sectionId: String(section.id) })}
-														className="h-auto w-full items-start justify-start rounded-lg px-2 py-2 text-left"
-													>
-														<div className="space-y-1">
-															<p className="text-sm font-semibold leading-tight">{section.name}</p>
-															<div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-																<span>{section.entryCount} class{section.entryCount === 1 ? '' : 'es'}</span>
-																{section.gradeLabel && <Badge variant="outline" className="text-[10px]">{section.gradeLabel}</Badge>}
-																{section.programLabel && <Badge variant="outline" className="text-[10px]">{section.programLabel}</Badge>}
-															</div>
-														</div>
-													</Button>
-												);
+												return <Button key={section.id} variant={isActive ? 'secondary' : 'ghost'} onClick={() => updateSearchParams({ sectionId: String(section.id) })} className="h-auto w-full items-start justify-start rounded-lg px-2 py-2 text-left"><div className="space-y-1"><p className="text-sm font-semibold leading-tight">{section.name}</p><div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"><span>{section.entryCount} class{section.entryCount === 1 ? '' : 'es'}</span>{section.gradeLabel && <Badge variant="outline" className="text-[10px]">{section.gradeLabel}</Badge>}{section.programLabel && <Badge variant="outline" className="text-[10px]">{section.programLabel}</Badge>}</div></div></Button>;
 											})}
 										</div>
 									</ScrollArea>
@@ -599,91 +576,51 @@ export default function PublicPublishedSchedule() {
 							<CardHeader className="pb-3">
 								<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 									<div className="space-y-1">
-										<CardTitle className="text-lg font-semibold">{selectedSection ? selectedSection.name : 'Select a section'}</CardTitle>
-										<CardDescription>
-											{selectedSection
-												? 'Published classes for the selected section.'
-												: 'Choose a section from the left panel to view the published timetable.'}
-										</CardDescription>
-										{selectedSection && (
-											<div className="mt-1 flex flex-wrap items-center gap-1.5">
-												{selectedSection.gradeLabel && <Badge variant="outline">{selectedSection.gradeLabel}</Badge>}
-												{selectedSection.programLabel && <Badge variant="outline">{selectedSection.programLabel}</Badge>}
-												<Badge variant="secondary">{sectionEntries.length} class{sectionEntries.length === 1 ? '' : 'es'}</Badge>
-											</div>
-										)}
+										<CardTitle className="text-lg font-semibold">{selectedTitle}</CardTitle>
+										<CardDescription>{selectedSubtitle}</CardDescription>
+										<div className="mt-1 flex flex-wrap items-center gap-1.5">
+											<Badge variant="outline">{modeLabel(mode)}</Badge>
+											{mode === 'sections' && selectedSection?.gradeLabel && <Badge variant="outline">{selectedSection.gradeLabel}</Badge>}
+											{mode === 'sections' && selectedSection?.programLabel && <Badge variant="outline">{selectedSection.programLabel}</Badge>}
+											{mode === 'teachers' && selectedFaculty && <Badge variant="outline">{selectedFaculty.entryCount} class{selectedFaculty.entryCount === 1 ? '' : 'es'}</Badge>}
+											{mode === 'rooms' && selectedRoom && <Badge variant="outline">{selectedRoom.entryCount} class{selectedRoom.entryCount === 1 ? '' : 'es'}</Badge>}
+										</div>
 									</div>
 									<div className="w-full sm:w-48">
 										<Label className="mb-1.5 inline-block">Day view</Label>
 										<Select value={dayFilter} onValueChange={(value) => updateSearchParams({ day: value === 'all' ? null : value })}>
-											<SelectTrigger>
-												<SelectValue placeholder="All days" />
-											</SelectTrigger>
+											<SelectTrigger><SelectValue placeholder="All days" /></SelectTrigger>
 											<SelectContent>
 												<SelectItem value="all">All days</SelectItem>
-												{DAY_ORDER.map((day) => (
-													<SelectItem key={day} value={day}>{DAY_LABELS[day]}</SelectItem>
-												))}
+												{DAY_ORDER.map((day) => <SelectItem key={day} value={day}>{day}</SelectItem>)}
 											</SelectContent>
 										</Select>
 									</div>
 								</div>
 							</CardHeader>
 							<CardContent>
-								{!selectedSection && (
-									<p className="text-sm text-muted-foreground">Select a section to view its published classes.</p>
+								{mode === 'sections' && !selectedSection && <p className="text-sm text-muted-foreground">Select a section to view its published timetable.</p>}
+								{mode === 'teachers' && !selectedFaculty && <p className="text-sm text-muted-foreground">Select a teacher to view their published timetable.</p>}
+								{mode === 'rooms' && !selectedRoom && <p className="text-sm text-muted-foreground">Select a room to view its published timetable.</p>}
+								{selectedEntries.length === 0 && (selectedSection || selectedFaculty || selectedRoom) && <p className="text-sm text-muted-foreground">No published classes were found for this view in the current day filter.</p>}
+								{selectedEntries.length > 0 && (
+									<PublishedTimetableMatrix
+										entries={selectedEntries}
+										dayFilter={dayFilter}
+										emptyMessage="No published classes were found for this view."
+										renderEntryDetails={renderSelectedEntryDetails}
+									/>
 								)}
-								{selectedSection && sectionEntries.length === 0 && (
-									<p className="text-sm text-muted-foreground">
-										No published classes were found for this section in the current day view.
-									</p>
-								)}
-								{selectedSection && sectionEntries.length > 0 && (
-									<div className="space-y-4">
-										{daysToRender.map((day) => {
-											const dayEntries = groupedEntries.get(day) ?? [];
-											if (dayEntries.length === 0) return null;
-											return (
-												<div key={day} className="space-y-2">
-													<div className="flex items-center gap-2">
-														<CalendarDays className="size-4 text-primary" />
-														<p className="text-sm font-bold">{DAY_LABELS[day]}</p>
-														<Badge variant="outline" className="text-[10px]">{dayEntries.length} class(es)</Badge>
-													</div>
-													<div className="space-y-2">
-														{dayEntries.map((entry) => (
-															<div key={entry.entryId} className="rounded-xl border border-border/70 bg-card px-3 py-2">
-																<div className="flex flex-wrap items-center gap-2">
-																	<Badge variant="secondary" className="text-xs">
-																		<Clock3 className="mr-1 size-3" />
-																		{formatShortTime(entry.startTime)} - {formatShortTime(entry.endTime)}
-																	</Badge>
-																	<p className="text-sm font-semibold">{entry.subject.name}</p>
-																	<Badge variant="outline" className="text-[10px]">{entry.subject.code}</Badge>
-																</div>
-																<div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-																	<span className="inline-flex items-center gap-1">
-																		<MapPin className="size-3" />
-																		{entry.room.name}{entry.room.buildingName ? ` (${entry.room.buildingName})` : ''}
-																	</span>
-																	<span className="inline-flex items-center gap-1">
-																		<BookOpen className="size-3" />
-																		{entry.faculty.name}
-																	</span>
-																</div>
-															</div>
-														))}
-													</div>
-												</div>
-											);
-										})}
-									</div>
-								)}
-							</CardContent>
-						</Card>
-					</div>
-				)}
+						</CardContent>
+					</Card>
+				</div>
+
+				<div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-card px-4 py-3 text-sm text-muted-foreground">
+					<p>Published schedule view</p>
+					{sourceMode === 'saved' ? <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">Saved snapshot</Badge> : <Badge variant="outline">Live publish</Badge>}
+				</div>
 			</div>
+		</div>
 		</div>
 	);
 }

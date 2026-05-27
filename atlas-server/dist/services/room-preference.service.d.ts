@@ -124,6 +124,7 @@ export interface FacultyRoomPreferenceState {
     runGeneratedAt: string | null;
     entries: FacultyRoomPreferenceEntry[];
     globalEntries: FacultyGlobalDraftEntry[];
+    recentRequests: RoomPreferenceSummaryItem[];
     teachingAssignments: Awaited<ReturnType<typeof getFacultyAssignmentIdentitySummary>>;
 }
 export interface RoomPreferenceSummaryItem {
@@ -162,6 +163,8 @@ export interface RoomPreferenceSummaryItem {
     openAppealCount: number;
     latestAppealStatus: RoomRequestAppealStatus | null;
     latestAppealUpdatedAt: string | null;
+    currentRun?: boolean;
+    superseded?: boolean;
 }
 export interface RoomPreferenceSummaryResponse {
     runId: number;
@@ -243,7 +246,19 @@ export declare function getLatestRoomPreferenceSummary(schoolId: number, schoolY
     decisionStatus?: RoomPreferenceDecisionStatus;
     facultyId?: number;
     requestedRoomId?: number;
-}): Promise<RoomPreferenceSummaryResponse>;
+}): Promise<{
+    counts: {
+        total: number;
+        draft: number;
+        submitted: number;
+        pending: number;
+        approved: number;
+        rejected: number;
+    };
+    requests: RoomPreferenceSummaryItem[];
+    runId: number;
+    runVersion: number;
+}>;
 export declare function getRoomPreferenceDetail(schoolId: number, schoolYearId: number, runId: number, requestId: number): Promise<{
     request: RoomPreferenceSummaryItem;
     runVersion: number;

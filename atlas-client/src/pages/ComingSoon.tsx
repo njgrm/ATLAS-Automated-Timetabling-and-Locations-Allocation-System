@@ -7,7 +7,7 @@ const PAGE_INFO: Record<string, { icon: typeof Construction; title: string; desc
 		icon: CalendarClock,
 		title: 'Timetable Generation',
 		description: 'Schedule generation, review, and publishing will be available once Setup phase is complete.',
-		note: 'Complete all Setup checklist items (subjects, faculty, assignments, sections, and buildings) before this feature unlocks.',
+		note: 'Complete all Setup checklist items (subjects, teachers, assignments, sections, and buildings) before this feature unlocks.',
 	},
 	analytics: {
 		icon: Construction,

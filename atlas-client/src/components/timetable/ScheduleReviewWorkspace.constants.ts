@@ -18,10 +18,10 @@ export const DAY_SHORT: Record<string, string> = {
 };
 
 export const VIOLATION_LABELS: Record<ViolationCode, string> = {
-	FACULTY_TIME_CONFLICT: 'Faculty Time Conflict',
+	FACULTY_TIME_CONFLICT: 'Teacher Time Conflict',
 	ROOM_TIME_CONFLICT: 'Room Time Conflict',
 	SECTION_TIME_CONFLICT: 'Section Time Conflict',
-	FACULTY_OVERLOAD: 'Faculty Overload',
+	FACULTY_OVERLOAD: 'Teacher Overload',
 	ROOM_TYPE_MISMATCH: 'Room Type Mismatch',
 	FACULTY_SUBJECT_NOT_QUALIFIED: 'Teaching Load Review',
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: 'Consecutive Limit',
@@ -37,7 +37,7 @@ export const VIOLATION_LABELS: Record<ViolationCode, string> = {
 	FACULTY_INSUFFICIENT_DAILY_VACANT: 'Insufficient Daily Vacant',
 	SECTION_OVERCOMPRESSED: 'Section Overcompressed',
 	ROOM_CAPACITY_EXCEEDED: 'Room Capacity Exceeded',
-	LACKING_FACULTY: 'Lacking Faculty',
+	LACKING_FACULTY: 'Lacking Teacher',
 	INCOMPLETE_MODULAR_GROUP: 'Incomplete Modular Group',
 };
 
@@ -146,7 +146,7 @@ export const TUTORIAL_STEPS = [
 	{
 		target: '[data-tutorial="grid-controls"]',
 		title: 'Grid Controls & Filters',
-		content: 'Switch between Section, Faculty, or Room views. Use severity filters to focus on what matters most.',
+		content: 'Switch between Section, Teacher, or Room views. Use severity filters to focus on what matters most.',
 	},
 	{
 		target: '[data-tutorial="center-grid"]',
@@ -156,7 +156,7 @@ export const TUTORIAL_STEPS = [
 	{
 		target: '[data-tutorial="manual-edit-actions"]',
 		title: 'Manual Edit Actions',
-		content: 'Select an entry, then use these buttons to move its timeslot, change room, or reassign faculty. Every edit shows a preview first.',
+		content: 'Select an entry, then use these buttons to move its timeslot, change room, or reassign teacher. Every edit shows a preview first.',
 		roles: ['admin', 'officer', 'SYSTEM_ADMIN'],
 	},
 	{
@@ -175,7 +175,7 @@ export const TUTORIAL_STEPS = [
 
 export const VIEW_MODE_LABELS: Record<ViewMode, string> = {
 	section: 'Section',
-	faculty: 'Faculty',
+	faculty: 'Teacher',
 	room: 'Room',
 };
 
@@ -199,8 +199,8 @@ export const ENTRY_KIND_FILTER_OPTIONS = [
 ] as const;
 
 export const UNASSIGNED_REASON_LABELS: Record<string, { label: string; className: string }> = {
-	NO_QUALIFIED_FACULTY: { label: 'No Qualified Faculty', className: 'border-red-300 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 dark:border-red-800' },
-	FACULTY_OVERLOADED: { label: 'Faculty Overloaded', className: 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800' },
+	NO_QUALIFIED_FACULTY: { label: 'No Qualified Teacher', className: 'border-red-300 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 dark:border-red-800' },
+	FACULTY_OVERLOADED: { label: 'Teacher Overloaded', className: 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800' },
 	NO_AVAILABLE_SLOT: { label: 'No Available Slot', className: 'border-orange-300 bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800' },
 	ROOM_CAPACITY_EXCEEDED: { label: 'Room Capacity Exceeded', className: 'border-rose-300 bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300 dark:border-rose-800' },
 	NO_COMPATIBLE_ROOM: { label: 'No Compatible Room', className: 'border-purple-300 bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800' },

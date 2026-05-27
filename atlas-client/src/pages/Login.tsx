@@ -303,7 +303,7 @@ export default function Login() {
 							{
 								icon: BookOpen,
 								title: 'Preference Collection',
-								desc: 'Collect faculty time and room preferences before generation.',
+								desc: 'Collect teacher support and room requests before generation.',
 							},
 							{
 								icon: BarChart3,

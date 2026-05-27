@@ -537,7 +537,7 @@ export default function SpecializationMapping() {
 							<h1 className='text-lg font-bold tracking-tight'>Specialization to Subject Mapping</h1>
 						</div>
 						<p className='text-xs text-muted-foreground'>
-							Map each Faculty Specialization to one or more Subjects for use in schedule generation.
+							Map each teacher specialization to one or more subjects for use in schedule generation.
 						</p>
 						<div className='flex items-center gap-2 pt-1'>
 							<div className='flex-1 max-w-xs h-1.5 rounded-full bg-muted overflow-hidden'>

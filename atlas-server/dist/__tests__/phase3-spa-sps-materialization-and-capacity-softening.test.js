@@ -283,7 +283,7 @@ function run() {
         const result = constructBaseline(input);
         assertEqual(result.unassignedItems.length, 1, 'Overloaded faculty scenario leaves one session unassigned');
         assertEqual(result.unassignedItems[0]?.reason, 'FACULTY_OVERLOADED', 'Unassigned reason remains faculty-overload driven');
-        assert(result.unassignedItems[0]?.homeRoomFallbackCause !== 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE', 'Fallback cause does not misclassify faculty overload as policy-or-shift incompatibility');
+        assert(result.unassignedItems[0]?.homeRoomFallbackCause === 'FACULTY_DAILY_LIMIT_EXCEEDED', 'Faculty overload maps to explicit FACULTY_DAILY_LIMIT_EXCEEDED fallback cause');
     }
     console.log(`\nSummary: ${passCount} passed, ${failCount} failed`);
     if (failCount > 0) {

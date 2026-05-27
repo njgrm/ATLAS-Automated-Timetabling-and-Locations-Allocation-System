@@ -672,7 +672,7 @@ return (
 							)}
 							<Select value={confirmFacultyId} onValueChange={(v) => { setConfirmFacultyId(v); setConfirmPreview(null); }}>
 								<SelectTrigger className="h-8 text-xs">
-									<SelectValue placeholder="Select faculty…" />
+									<SelectValue placeholder="Select teacher…" />
 								</SelectTrigger>
 								<SelectContent>
 									{preGenConfirmCtx?.source.type === 'draftQueue' && preGenConfirmCtx.source.item.facultyOptionsEnriched.length > 0
@@ -788,7 +788,7 @@ return (
 															const facultyId = Number(confirmFacultyId);
 															const roomId = Number(confirmRoomId);
 															if (!facultyId || !roomId) {
-																toast.error('Select faculty and room before swapping.');
+																	toast.error('Select teacher and room before swapping.');
 																return;
 															}
 															openSwapPrompt(
@@ -915,7 +915,7 @@ return (
 												title: buildPlacementLabel(swapAction.source.placement).title,
 												contextText: buildPlacementLabel(swapAction.source.placement).context,
 												slot: formatSwapSlot(swapAction.source.placement.day, swapAction.source.placement.startTime, swapAction.source.placement.endTime),
-												facultyText: swapAction.source.placement.facultyId ? formatFacultyInitials(swapAction.source.placement.facultyId) : 'No faculty assigned',
+														facultyText: swapAction.source.placement.facultyId ? formatFacultyInitials(swapAction.source.placement.facultyId) : 'No teacher assigned',
 												roomText: swapAction.source.placement.roomId ? roomLabelShort(swapAction.source.placement.roomId) : 'No room assigned',
 											})}
 											<div className="hidden justify-center md:flex"><ArrowRight className="size-5 text-muted-foreground" /></div>
@@ -924,7 +924,7 @@ return (
 												title: buildPlacementLabel(swapAction.displaced).title,
 												contextText: buildPlacementLabel(swapAction.displaced).context,
 												slot: formatSwapSlot(swapAction.displaced.day, swapAction.displaced.startTime, swapAction.displaced.endTime),
-												facultyText: swapAction.displaced.facultyId ? formatFacultyInitials(swapAction.displaced.facultyId) : 'No faculty assigned',
+														facultyText: swapAction.displaced.facultyId ? formatFacultyInitials(swapAction.displaced.facultyId) : 'No teacher assigned',
 												roomText: swapAction.displaced.roomId ? roomLabelShort(swapAction.displaced.roomId) : 'No room assigned',
 											})}
 										</div>
@@ -947,7 +947,7 @@ return (
 												title: buildPlacementLabel(swapAction.displaced).title,
 												contextText: buildPlacementLabel(swapAction.displaced).context,
 												slot: formatSwapSlot(swapAction.source.placement.day, swapAction.source.placement.startTime, swapAction.source.placement.endTime),
-												facultyText: swapAction.source.placement.facultyId ? formatFacultyInitials(swapAction.source.placement.facultyId) : 'No faculty assigned',
+														facultyText: swapAction.source.placement.facultyId ? formatFacultyInitials(swapAction.source.placement.facultyId) : 'No teacher assigned',
 												roomText: swapAction.source.placement.roomId ? roomLabelShort(swapAction.source.placement.roomId) : 'No room assigned',
 												tone: 'accent',
 											})}
@@ -987,7 +987,7 @@ return (
 												title: buildPlacementLabel(swapAction.displaced).title,
 												contextText: buildPlacementLabel(swapAction.displaced).context,
 												slot: formatSwapSlot(swapAction.displaced.day, swapAction.displaced.startTime, swapAction.displaced.endTime),
-												facultyText: swapAction.displaced.facultyId ? formatFacultyInitials(swapAction.displaced.facultyId) : 'No faculty assigned',
+														facultyText: swapAction.displaced.facultyId ? formatFacultyInitials(swapAction.displaced.facultyId) : 'No teacher assigned',
 												roomText: swapAction.displaced.roomId ? roomLabelShort(swapAction.displaced.roomId) : 'No room assigned',
 											})}
 											<div className="hidden justify-center md:flex"><ArrowRight className="size-5 text-amber-700" /></div>
@@ -1329,7 +1329,7 @@ return (
 										}, new Map<string, Array<{ value: string; label: string }>>())
 										.entries(),
 								).map(([label, items]) => ({ label, items }))}
-								placeholder="Select a faculty member…"
+								placeholder="Select a teacher…"
 								triggerClassName="h-8 text-xs"
 							/>
 						</div>

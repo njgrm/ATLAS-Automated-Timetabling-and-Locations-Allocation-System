@@ -323,7 +323,7 @@ return (
 																	</Badge>
 																)}
 																{item.hasNoTeacher && (
-																	<UserX className="size-3 text-amber-500 shrink-0" aria-label="No faculty assigned in teaching load" />
+																	<UserX className="size-3 text-amber-500 shrink-0" aria-label="No teacher assigned in teaching load" />
 																)}
 																<span className="font-medium truncate min-w-0">{item.subjectCode}</span>
 															</div>
@@ -966,7 +966,7 @@ return (
 														</p>
 														<div className="mt-1 pl-4.5 space-y-0.5 text-[0.625rem] text-muted-foreground">
 															<p className="truncate">{DAY_SHORT[placement.day] ?? placement.day} {formatTime(placement.startTime)}–{formatTime(placement.endTime)}</p>
-															<p className="truncate">{placement.facultyId ? formatFacultyInitials(placement.facultyId) : 'No faculty'} · {placement.roomId ? roomLabelShort(placement.roomId) : 'No room'}</p>
+																					<p className="truncate">{placement.facultyId ? formatFacultyInitials(placement.facultyId) : 'No teacher'} · {placement.roomId ? roomLabelShort(placement.roomId) : 'No room'}</p>
 														</div>
 														<div className="mt-1 flex flex-wrap gap-1 pl-4.5">
 															<Button type="button" variant="outline" size="sm" className="h-5 px-1.5 text-[0.5625rem]" onClick={(event) => { event.stopPropagation(); focusPinnedPlacement(placement, 'room'); }} disabled={!placement.roomId}>
@@ -1010,7 +1010,7 @@ return (
 								</div>
 								<div className="grid grid-cols-1 gap-2">
 									<Input
-										placeholder="Search faculty, subject, section, room"
+										placeholder="Search teacher, subject, section, room"
 										value={requestSearch}
 										onChange={(event) => setRequestSearch(event.target.value)}
 										className="h-8 text-xs"

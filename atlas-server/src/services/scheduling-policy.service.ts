@@ -96,6 +96,31 @@ export const POLICY_DEFAULTS = {
 	allowConsecutiveLabSessions: false,
 } as const;
 
+export interface PolicyPlacementSemantics {
+	hardDailyLimitMinutes: number;
+	enforceConsecutiveBreakAsHard: boolean;
+}
+
+/**
+ * Canonical generator/validator contract for which wellbeing limits block placement.
+ * Daily hard ceiling never exceeds the baseline 8-hour cap; consecutive/break hardness
+ * follows the explicit policy switch.
+ */
+export function resolvePolicyPlacementSemantics(policy: {
+	maxTeachingMinutesPerDay: number;
+	enforceConsecutiveBreakAsHard?: boolean;
+}): PolicyPlacementSemantics {
+	const hardDailyLimitMinutes = Math.min(
+		Math.max(0, Math.round(policy.maxTeachingMinutesPerDay)),
+		POLICY_DEFAULTS.maxTeachingMinutesPerDay,
+	);
+
+	return {
+		hardDailyLimitMinutes,
+		enforceConsecutiveBreakAsHard: policy.enforceConsecutiveBreakAsHard === true,
+	};
+}
+
 export interface ConstraintOverride {
 	enabled: boolean;
 	weight: number; // 1–10

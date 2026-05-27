@@ -6,6 +6,7 @@
  * reference data (faculty loads, faculty-subject qualifications, room types,
  * subject preferred room types) and emits a typed violation array.
  */
+import { resolvePolicyPlacementSemantics } from './scheduling-policy.service.js';
 // ─── Violation codes ───
 export const VIOLATION_CODES = [
     'FACULTY_TIME_CONFLICT',
@@ -301,9 +302,10 @@ export function validateHardConstraints(ctx) {
     // ── 6) Policy-based checks (consecutive, daily max, break requirement) ──
     if (ctx.policy) {
         const policy = ctx.policy;
-        const severity = policy.enforceConsecutiveBreakAsHard ? 'HARD' : 'SOFT';
+        const placementSemantics = resolvePolicyPlacementSemantics(policy);
+        const severity = placementSemantics.enforceConsecutiveBreakAsHard ? 'HARD' : 'SOFT';
         const standardDailyLimitMinutes = 360;
-        const hardDailyLimitMinutes = Math.min(policy.maxTeachingMinutesPerDay, 480);
+        const hardDailyLimitMinutes = placementSemantics.hardDailyLimitMinutes;
         // Group entries by faculty+day, sorted by startTime
         const facDayEntries = new Map();
         for (const e of ctx.entries) {

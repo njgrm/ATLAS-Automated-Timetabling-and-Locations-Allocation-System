@@ -118,7 +118,7 @@ export function registerRoomPreferenceCollaborationSocket(server, options) {
         }
         const facultyId = await resolveFacultyIdForUser(auth, channel);
         if (!facultyId) {
-            return { ok: false, code: 'FACULTY_MAPPING_REQUIRED', message: 'Faculty profile mapping is required for collaboration.' };
+            return { ok: false, code: 'FACULTY_MAPPING_REQUIRED', message: 'Teacher profile mapping is required for collaboration.' };
         }
         return { ok: true, facultyId };
     }

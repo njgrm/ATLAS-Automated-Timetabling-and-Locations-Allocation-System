@@ -62,7 +62,7 @@ function detectConflictTypes(entries: RoomScheduleEntry[]): string[] {
 	const facultyIds = entries.map((e) => e.facultyId);
 	const duplicateFaculty = facultyIds.filter((id, i) => facultyIds.indexOf(id) !== i);
 	if (duplicateFaculty.length > 0) {
-		types.push('Faculty Time Conflict — a teacher is double-booked in this slot.');
+		types.push('Teacher Time Conflict — a teacher is double-booked in this slot.');
 	}
 
 	if (types.length === 0) {

@@ -352,7 +352,7 @@ function AppSidebar({
 												/>
 											))}
 
-										<NavDivider label='Faculty Planning' />
+										<NavDivider label='Teacher Planning' />
 										{facultyPlanningNav
 											.filter((item) => !item.adminOnly || isAdmin)
 											.map((item) => (
@@ -483,7 +483,7 @@ function AppSidebar({
 										)}
 										{isFaculty && (
 											<span className='truncate text-[0.6875rem] text-muted-foreground'>
-												Faculty
+												Teacher
 											</span>
 										)}
 										{!isAdmin && !isFaculty && (
@@ -770,7 +770,7 @@ export function AppShell() {
 		const groups: { label: string; items: NavItemDef[] }[] = [
 			{ label: 'Navigation', items: navigationNav },
 			{ label: 'School Setup', items: setupNav },
-			{ label: 'Faculty Planning', items: facultyPlanningNav },
+			{ label: 'Teacher Planning', items: facultyPlanningNav },
 			{ label: 'Input Collection', items: inputCollectionNav },
 			{ label: 'Build & Validate', items: buildValidateNav },
 			{ label: 'My Portal', items: facultyNav },

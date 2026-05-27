@@ -19,7 +19,7 @@ async function assertFacultyOwnerOrOfficer(req, res, schoolId, facultyId, school
         return false;
     }
     if (identity.faculty.id !== facultyId) {
-        res.status(403).json({ code: 'FORBIDDEN', message: 'You do not have permission to access this faculty preference.' });
+        res.status(403).json({ code: 'FORBIDDEN', message: 'You do not have permission to access this teacher preference.' });
         return false;
     }
     return true;
@@ -34,6 +34,8 @@ const VALID_DAYS = new Set(['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDA
 const VALID_PREFS = new Set(['PREFERRED', 'AVAILABLE', 'UNAVAILABLE']);
 const VALID_STATUSES = new Set(['DRAFT', 'SUBMITTED', 'MISSING']);
 function validateTimeSlots(slots) {
+    if (slots == null)
+        return [];
     if (!Array.isArray(slots))
         return 'timeSlots must be an array.';
     for (let i = 0; i < slots.length; i++) {
@@ -89,7 +91,7 @@ router.get('/:schoolId/:schoolYearId/faculty/:facultyId', authenticate, async (r
         next(e);
     }
 });
-// ─── Officer: get audit summary (unavailability %) ───
+// ─── Officer: get audit summary (teacher support requests) ───
 router.get('/:schoolId/:schoolYearId/audit', authenticate, requirePrivilegedRole, async (req, res, next) => {
     try {
         const schoolId = positiveInt(req.params.schoolId, 'schoolId');
@@ -108,25 +110,35 @@ router.get('/:schoolId/:schoolYearId/audit', authenticate, requirePrivilegedRole
         });
         const preferences = await prisma.facultyPreference.findMany({
             where: { schoolId, schoolYearId },
-            include: { timeSlots: true }
+            select: {
+                facultyId: true,
+                status: true,
+                pregnancySupport: true,
+                physicalAilmentSupport: true,
+                minimizeTravelTime: true,
+                avoidUpperFloors: true,
+                notes: true,
+            }
         });
         const prefMap = new Map(preferences.map(p => [p.facultyId, p]));
-        // Standard school day is roughly 10 periods (07:30 - 15:50) * 5 days = 50 total slots
-        const TOTAL_WEEKLY_SLOTS = 50;
         const audit = faculty.map(f => {
             const pref = prefMap.get(f.id);
             if (!pref)
-                return { facultyId: f.id, unavailabilityPercent: 0, status: 'MISSING' };
-            const unavailableCount = pref.timeSlots.filter(ts => ts.preference === 'UNAVAILABLE').length;
-            // This is a rough heuristic. In a more precise system, we'd overlap with canonical slots.
-            // For now, percentage of standard day blocked.
-            const percent = Math.round((unavailableCount / TOTAL_WEEKLY_SLOTS) * 100);
+                return { facultyId: f.id, supportRequestCount: 0, hasNotes: false, status: 'MISSING' };
+            const supportRequestCount = [
+                pref.pregnancySupport,
+                pref.physicalAilmentSupport,
+                pref.minimizeTravelTime,
+                pref.avoidUpperFloors,
+            ].filter(Boolean).length;
             return {
                 facultyId: f.id,
                 name: `${f.lastName}, ${f.firstName}`,
                 specialization: f.specialization,
                 department: f.department,
-                unavailabilityPercent: percent,
+                supportRequestCount,
+                hasNotes: Boolean(pref.notes?.trim()),
+                respectMode: supportRequestCount > 0 ? 'SCHEDULER_REVIEWED_MANUAL_SUPPORT' : 'NONE_REQUESTED',
                 status: pref.status
             };
         });
@@ -349,7 +361,7 @@ router.post('/:schoolId/:schoolYearId/remind', authenticate, async (req, res, ne
         next(e);
     }
 });
-// ─── Officer: get single faculty preference detail (for review) ───
+// ─── Officer: get single teacher preference detail (for review) ───
 router.get('/:schoolId/:schoolYearId/faculty/:facultyId/detail', authenticate, async (req, res, next) => {
     try {
         const schoolId = positiveInt(req.params.schoolId, 'schoolId');
@@ -471,7 +483,7 @@ router.get('/:schoolId/:schoolYearId/events', async (req, res, next) => {
             res.status(401).json({ code: 'INVALID_TOKEN', message: 'Invalid token.' });
             return;
         }
-        // Determine scope: faculty users get filtered to their own events
+        // Determine scope: teacher users get filtered to their own events
         const isPrivileged = decoded.role === 'admin' || decoded.role === 'officer' || decoded.role === 'SYSTEM_ADMIN';
         let scopeFacultyId = null;
         if (!isPrivileged) {
@@ -486,7 +498,7 @@ router.get('/:schoolId/:schoolYearId/events', async (req, res, next) => {
                 if (!faculty) {
                     res.status(403).json({
                         code: 'FORBIDDEN',
-                        message: 'Faculty profile mapping is required to subscribe to preference updates.',
+                        message: 'Teacher profile mapping is required to subscribe to preference updates.',
                     });
                     return;
                 }

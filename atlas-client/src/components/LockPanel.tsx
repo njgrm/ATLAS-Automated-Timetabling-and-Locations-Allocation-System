@@ -550,7 +550,7 @@ export default function LockPanel({ schoolId, schoolYearId, sections, subjects, 
 																	className="cursor-pointer rounded border border-border bg-muted/40 px-1.5 py-1"
 																>
 																	<div className="truncate text-[0.625rem] font-medium">{subject?.code ?? `Subj #${placement.subjectId}`}</div>
-																	<div className="truncate text-[0.5625rem] text-muted-foreground">{faculty.get(placement.facultyId ?? 0)?.lastName ?? 'Assign faculty'} · {rooms.get(placement.roomId ?? 0)?.name ?? 'Assign room'}</div>
+																	<div className="truncate text-[0.5625rem] text-muted-foreground">{faculty.get(placement.facultyId ?? 0)?.lastName ?? 'Assign teacher'} · {rooms.get(placement.roomId ?? 0)?.name ?? 'Assign room'}</div>
 																</div>
 															);
 														})}
@@ -607,7 +607,7 @@ export default function LockPanel({ schoolId, schoolYearId, sections, subjects, 
 												groups={filteredFacultyGroups as SearchableSelectGroup[]}
 												value={pending.facultyId ? String(pending.facultyId) : ''}
 												onValueChange={(value) => setPending((current) => current ? { ...current, facultyId: Number(value) } : current)}
-												placeholder="Select faculty"
+													placeholder="Select teacher"
 												triggerClassName="h-8 w-full text-xs"
 												className="w-[320px]"
 											/>
@@ -621,7 +621,7 @@ export default function LockPanel({ schoolId, schoolYearId, sections, subjects, 
 											/>
 										</div>
 										<div className="mt-2 text-[0.625rem] text-muted-foreground">
-											{pendingFaculty ? `${pendingFaculty.lastName}, ${pendingFaculty.firstName}` : 'Select faculty'} · {pendingRoom ? `${pendingRoom.buildingShortCode || pendingRoom.buildingName} / ${pendingRoom.name}` : 'Select room'}
+													{pendingFaculty ? `${pendingFaculty.lastName}, ${pendingFaculty.firstName}` : 'Select teacher'} · {pendingRoom ? `${pendingRoom.buildingShortCode || pendingRoom.buildingName} / ${pendingRoom.name}` : 'Select room'}
 										</div>
 									</div>
 

@@ -43,7 +43,7 @@ const DEFAULT_CONSTRAINT_CONFIG: Record<string, ConstraintOverride> = {
 const SOFT_CONSTRAINT_LABELS: Record<string, { label: string; explanation: string }> = {
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: {
 		label: 'Consecutive Teaching Limit',
-		explanation: 'Penalizes when a faculty member teaches beyond the consecutive-minutes limit without a break.',
+		explanation: 'Penalizes when a teacher teaches beyond the consecutive-minutes limit without a break.',
 	},
 	FACULTY_BREAK_REQUIREMENT_VIOLATED: {
 		label: 'Break Requirement',
@@ -55,7 +55,7 @@ const SOFT_CONSTRAINT_LABELS: Record<string, { label: string; explanation: strin
 	},
 	FACULTY_EXCESSIVE_BUILDING_TRANSITIONS: {
 		label: 'Building Transitions/Day',
-		explanation: 'Penalizes too many cross-building transitions for a faculty member in a single day.',
+		explanation: 'Penalizes too many cross-building transitions for a teacher in a single day.',
 	},
 	FACULTY_INSUFFICIENT_TRANSITION_BUFFER: {
 		label: 'Transition Buffer',
@@ -63,15 +63,15 @@ const SOFT_CONSTRAINT_LABELS: Record<string, { label: string; explanation: strin
 	},
 	FACULTY_EXCESSIVE_IDLE_GAP: {
 		label: 'Excessive Idle Gap',
-		explanation: 'Penalizes excessive total idle time between classes for a faculty member in a day.',
+		explanation: 'Penalizes excessive total idle time between classes for a teacher in a day.',
 	},
 	FACULTY_EARLY_START_PREFERENCE: {
 		label: 'Avoid Early First Period',
-		explanation: 'Soft preference to avoid scheduling faculty in the very first period of the day.',
+		explanation: 'Soft preference to avoid scheduling teachers in the very first period of the day.',
 	},
 	FACULTY_LATE_END_PREFERENCE: {
 		label: 'Avoid Late Last Period',
-		explanation: 'Soft preference to avoid scheduling faculty in the very last period of the day.',
+		explanation: 'Soft preference to avoid scheduling teachers in the very last period of the day.',
 	},
 };
 
@@ -259,7 +259,7 @@ export default function SchedulingPolicySheet({
 								{/* Max Consecutive Before Break */}
 								<PolicyNumberField
 									label="Max Consecutive Teaching (min)"
-									explanation="Maximum minutes a faculty member can teach without a break. Controls the FACULTY_CONSECUTIVE_LIMIT_EXCEEDED check."
+									explanation="Maximum minutes a teacher can teach without a break. Controls the consecutive-limit check."
 									value={local.maxConsecutiveTeachingMinutesBeforeBreak}
 									onChange={(v) => update('maxConsecutiveTeachingMinutesBeforeBreak', v)}
 									min={30} max={600}
@@ -277,7 +277,7 @@ export default function SchedulingPolicySheet({
 								{/* Max Teaching Per Day */}
 								<PolicyNumberField
 									label="Max Teaching Per Day (min)"
-									explanation="Daily limit on total teaching minutes per faculty member. Exceeding this is always a HARD violation."
+									explanation="Daily limit on total teaching minutes per teacher. Exceeding this is always a HARD violation."
 									value={local.maxTeachingMinutesPerDay}
 									onChange={(v) => update('maxTeachingMinutesPerDay', v)}
 									min={60} max={600}
@@ -346,7 +346,7 @@ export default function SchedulingPolicySheet({
 
 										<PolicyNumberField
 											label="Max Building Transitions/Day"
-											explanation="Maximum number of cross-building moves per faculty member per day."
+											explanation="Maximum number of cross-building moves per teacher per day."
 											value={local.maxBuildingTransitionsPerDay}
 											onChange={(v) => update('maxBuildingTransitionsPerDay', v)}
 											min={1} max={20}
@@ -362,7 +362,7 @@ export default function SchedulingPolicySheet({
 
 										<PolicyNumberField
 											label="Max Idle Gap/Day (min)"
-											explanation="Maximum total idle (non-teaching) minutes between a faculty member's first and last class in a day."
+											explanation="Maximum total idle (non-teaching) minutes between a teacher's first and last class in a day."
 											value={local.maxIdleGapMinutesPerDay}
 											onChange={(v) => update('maxIdleGapMinutesPerDay', v)}
 											min={10} max={300}
@@ -370,14 +370,14 @@ export default function SchedulingPolicySheet({
 
 										<PolicySwitch
 											label="Avoid Early First Period"
-											explanation="When ON, generates a soft violation when faculty are scheduled in the first period (within 15 min of earliest start time)."
+											explanation="When ON, generates a soft violation when teachers are scheduled in the first period (within 15 min of earliest start time)."
 											checked={local.avoidEarlyFirstPeriod}
 											onCheckedChange={(v) => update('avoidEarlyFirstPeriod', v)}
 										/>
 
 										<PolicySwitch
 											label="Avoid Late Last Period"
-											explanation="When ON, generates a soft violation when faculty are scheduled in the last period (within 15 min of latest end time)."
+											explanation="When ON, generates a soft violation when teachers are scheduled in the last period (within 15 min of latest end time)."
 											checked={local.avoidLateLastPeriod}
 											onCheckedChange={(v) => update('avoidLateLastPeriod', v)}
 										/>

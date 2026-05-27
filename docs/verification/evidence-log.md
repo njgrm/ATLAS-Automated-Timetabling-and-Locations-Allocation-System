@@ -1,3 +1,149 @@
+# 2026-05-28 - Phase 3 Timetable Wellbeing Soft/Hard Semantics Alignment (Runs 124/125/126)
+- Phase: Phase 3 generator-readiness stream, wellbeing semantics hard/soft contract alignment
+- Operator: GitHub Copilot
+- Scope gate: PASS (constructor/validator semantics aligned; realistic-policy live rerun materially improved and reached zero with targeted ownership rebalance)
+- Safety gate: PASS (server build + targeted regression pass; live Tailnet reruns completed)
+- Files changed in this pass:
+  - atlas-server/src/services/schedule-constructor.ts
+  - atlas-server/src/services/constraint-validator.ts
+  - atlas-server/src/services/generation.service.ts
+  - atlas-server/src/services/scheduling-policy.service.ts
+  - atlas-server/src/__tests__/phase3-wellbeing-semantics-alignment.test.ts
+  - atlas-server/src/__tests__/phase3-spa-sps-materialization-and-capacity-softening.test.ts
+  - docs/reference/atlas-runtime-source-of-truth-map.md
+  - docs/verification/evidence-log.md
+
+- Code-path semantics repair delivered:
+  1. Added shared policy-placement semantics resolver (`resolvePolicyPlacementSemantics`) so constructor and validator use one hard/soft contract.
+  2. Constructor now hard-blocks only true hard placement ceilings (daily hard cap and consecutive/break only when explicitly hardened).
+  3. Review-level consecutive/break semantics no longer strand placeable rows during construction; validator still emits review-visible violations.
+  4. Removed stale generic fallback emission (`POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE`) from constructor output and replaced it with explicit causes:
+     - `FACULTY_DAILY_LIMIT_EXCEEDED`
+     - `FACULTY_CONSECUTIVE_LIMIT_EXCEEDED`
+     - `NO_VALID_PERIOD_IN_POLICY_WINDOW`
+  5. Generation diagnostics now surface these explicit fallback causes in run summaries and unassigned violation metadata.
+
+- Automated verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npx --yes tsx atlas-server/src/__tests__/phase3-wellbeing-semantics-alignment.test.ts` -> PASS (`10 passed, 0 failed`)
+
+- Live Tailnet verification (`https://njgrm.buru-degree.ts.net`, `schoolId=1`, `schoolYearId=55`):
+  - Realistic policy pinned before reruns:
+    - `maxTeachingMinutesPerDay=480`
+    - `maxConsecutiveTeachingMinutesBeforeBreak=120`
+    - `minBreakMinutesAfterConsecutiveBlock=15`
+    - `allowFlexibleSubjectAssignment=false`
+  - Baseline latest run before fix validation: `runId=124`
+    - `assigned=3425`, `unassigned=30`, `hardViolationCount=30`, `policyBlockedCount=30`
+  - Fresh rerun after semantics fix: `runId=125`
+    - `assigned=3450`, `unassigned=5`, `hardViolationCount=5`, `policyBlockedCount=0`
+    - residual lanes narrowed to `sectionId=2978`, `subjectId=7 (ESP)` only
+    - residual room taxonomy: `roomAssignmentReason=FACULTY_SLOT_UNAVAILABLE`, `homeRoomFallbackCause=HOME_ROOM_OCCUPIED`
+  - Final closure rerun under same realistic policy after targeted ESP ownership rebalance (`2978:7`, `18191 -> 18196`): `runId=126`
+    - `assigned=3455`, `unassigned=0`, `hardViolationCount=0`, `policyBlockedCount=0`
+
+- Residual hard blocker isolation outcome:
+  - After semantics alignment alone, remaining blockers were no longer policy-gated (`policyBlockedCount=0`) and reduced to one true faculty-slot feasibility lane.
+  - That single lane was resolved via ownership rebalance, not policy inflation.
+
+- Verdict:
+  - GO (prompt scope)
+  - GO (realistic-policy closure achieved without reverting to `600/600/5`)
+
+# [2026-05-27] - Published Schedule Table-First Family Refactor
+
+### Added
+- Added a shared published timetable matrix component for stakeholder-style table-first schedule reading.
+- Added a faculty published schedule view that renders published data in the shared matrix.
+- Added a public published schedule family view with sections, teachers, and rooms modes plus search/filter controls.
+
+### Changed
+- Changed `/my/schedule` to present published timetable data in a matrix rather than a stacked card list.
+- Changed `/public/schedules` from a section-first lookup into a broader published schedule family surface.
+- Preserved honest `PUBLISHED_RUN_NOT_FOUND` handling and saved-snapshot fallback behavior for transient offline or 5xx reads.
+
+### Decisions Made
+- Chose a shared matrix renderer to keep student, teacher, and room published views visually consistent.
+- Kept the public route published-truth only and avoided any draft or review schedule synthesis.
+
+### Open Questions
+- None.
+
+# 2026-05-28 - Teacher Preferences And Room Request Hardening Implementation
+- Phase: Phase 3 generator-readiness stream, teacher preference and room-request acknowledgement/mobile hardening
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, BUILD VERIFIED
+- Files changed in this pass:
+  - atlas-server/src/services/preference.service.ts
+  - atlas-server/src/routes/preference.router.ts
+  - atlas-server/src/services/generation.service.ts
+  - atlas-server/src/services/room-preference.service.ts
+  - atlas-server/src/routes/room-preference.router.ts
+  - atlas-server/src/services/room-preference-collaboration.service.ts
+  - atlas-client/src/types.ts
+  - atlas-client/src/pages/FacultyPreferences.tsx
+  - atlas-client/src/components/faculty-preferences/MobilePreferencesLayout.tsx
+  - atlas-client/src/components/faculty-preferences/DesktopPreferencesLayout.tsx
+  - atlas-client/src/pages/OfficerPreferences.tsx
+  - atlas-client/src/pages/FacultyRoomPreferences.tsx
+  - atlas-client/src/components/faculty-room-preferences/MobileRoomRequestLayout.tsx
+  - atlas-client/src/components/faculty-room-preferences/RoomRequestSheet.tsx
+  - atlas-client/src/pages/OfficerRoomPreferences.tsx
+  - atlas-client/src/components/AppShell.tsx
+  - atlas-client/src/pages/HowItWorks.tsx
+  - atlas-client/src/pages/Dashboard.tsx
+  - atlas-client/src/pages/ComingSoon.tsx
+  - atlas-client/src/pages/MyDashboard.tsx
+  - atlas-client/src/pages/MySchedule.tsx
+  - atlas-client/src/pages/Audit.tsx
+  - atlas-client/src/pages/Subjects.tsx
+  - atlas-client/src/pages/FacultyAssignments.tsx
+  - atlas-client/src/pages/TeachingLoad.tsx
+  - atlas-client/src/pages/Login.tsx
+  - atlas-client/src/pages/SpecializationMapping.tsx
+  - atlas-client/src/components/BuildingView.tsx
+  - atlas-client/src/components/BuildingPanel.tsx
+  - atlas-client/src/components/ConflictInspectorSheet.tsx
+  - atlas-client/src/components/ExplainabilityDrawer.tsx
+  - atlas-client/src/components/ManualEditPanel.tsx
+  - atlas-client/src/components/LockPanel.tsx
+  - atlas-client/src/components/SchedulingPolicySheet.tsx
+  - atlas-client/src/components/SchedulingPolicyPane.tsx
+  - atlas-client/src/components/scheduling-policy/PolicyPanePrimitives.tsx
+  - atlas-client/src/components/faculty-assignments/AutoFillSummaryModal.tsx
+  - atlas-client/src/components/room-schedules/OccupancyTemplatePreview.tsx
+  - atlas-client/src/components/timetable/CenterWorkspace.tsx
+  - atlas-client/src/components/timetable/TimetableGrid.tsx
+  - atlas-client/src/components/timetable/LeftRailContent.tsx
+  - atlas-client/src/components/timetable/RightPanel.tsx
+  - atlas-client/src/components/timetable/ScheduleReviewWorkspace.constants.ts
+  - atlas-client/src/components/timetable/modals/ScheduleReviewDialogs.tsx
+  - docs/reference/atlas-runtime-source-of-truth-map.md
+  - docs/verification/evidence-log.md
+  - CHANGELOG.md
+
+- Implemented behavior:
+  1. Teacher preference draft/submit APIs now accept missing `timeSlots`, persist no weekly time-slot rows by default, and keep legacy time slots behind `ATLAS_ENABLE_LEGACY_TIME_PREFERENCES=true`.
+  2. Generation input now sends empty preference time slots by default, so teacher-submitted time availability no longer blocks timetable construction unless the legacy flag is explicitly enabled.
+  3. Preference reads/writes and officer detail/summary paths resolve stale teacher preference ownership to canonical assignment-bearing teacher identity where possible.
+  4. Teacher preference UI no longer shows weekly availability; mobile and desktop flows now collect support needs and notes for scheduler review.
+  5. Scheduler preference review no longer shows a time-slot table and labels support needs as manual scheduler review signals.
+  6. Latest room-request teacher state now includes recent request history from current and superseded drafts, preserving scheduler decisions after a newer draft becomes active.
+  7. Latest scheduler room-request queue includes superseded submitted/reviewed requests so pending teacher requests do not vanish when the active draft advances.
+  8. Room-request SSE already existed; this pass added scheduler toast alerts for submitted teacher requests and teacher-side decision toasts for reviewed requests.
+  9. Mobile room-request UX now starts at class selection unless a valid `entryId` deep link is present and includes day/free/swap/all target filters.
+  10. Visible touched UI strings now use teacher/scheduler wording instead of faculty/officer wording where user-facing, with an additional broader terminology sweep across obvious labels, placeholders, toasts, policy explanations, and timetable labels.
+
+- Automated verification:
+  - `npm --prefix atlas-server run build` -> PASS
+  - `npm --prefix atlas-client run build` -> PASS (initial preference/room-request pass)
+  - `npm --prefix atlas-client run build` -> PASS (after broader teacher terminology sweep)
+  - `npm --prefix atlas-client run build` -> PASS (after Tailwind diagnostic cleanup)
+
+- Verdict:
+  - GO for implementation/build scope
+  - Live Tailnet QA still recommended before phase-gate closure because this pass did not run browser/manual Tailnet verification after code changes.
+
 # 2026-05-28 - Faculty Preferences And Room Request Audit Prompt
 - Phase: Phase 3 generator-readiness stream, faculty preferences and room-request UX audit
 - Operator: GitHub Copilot

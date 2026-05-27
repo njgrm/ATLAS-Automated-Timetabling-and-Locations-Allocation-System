@@ -499,7 +499,7 @@ export default function Audit() {
 										<div className="relative flex-1 max-w-sm">
 											<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
 											<Input 
-												placeholder="Search faculty or subjects..." 
+												placeholder="Search teachers or subjects..." 
 												value={mismatchSearch}
 												onChange={(e) => setMismatchSearch(e.target.value)}
 												className="pl-8 h-8 text-xs bg-background"
@@ -557,7 +557,7 @@ export default function Audit() {
 										<div className="relative max-w-sm">
 											<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
 											<Input 
-												placeholder="Search faculty..." 
+												placeholder="Search teachers..." 
 												value={clashSearch}
 												onChange={(e) => setClashSearch(e.target.value)}
 												className="pl-8 h-8 text-xs bg-background"
@@ -825,7 +825,7 @@ export default function Audit() {
 															</div>
 														</div>
 														<Button asChild variant="ghost" size="sm" className="h-7 text-xs">
-															<Link to="/faculty">Fix in Faculty Profile →</Link>
+															<Link to="/faculty">Fix in Teacher Profile →</Link>
 														</Button>
 													</div>
 												))

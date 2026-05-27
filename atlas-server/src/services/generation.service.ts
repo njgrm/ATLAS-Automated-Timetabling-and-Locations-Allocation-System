@@ -1,3 +1,4 @@
+const ENABLE_LEGACY_TIME_PREFERENCES = process.env.ATLAS_ENABLE_LEGACY_TIME_PREFERENCES === 'true';
 /**
  * Generation run service — lifecycle management for timetable generation runs.
  * Business logic only; no transport concerns.
@@ -247,7 +248,9 @@ export interface RunSummary {
 			noSameZoneStandardRoom: number;
 			crossBuildingStandardRoomExhausted: number;
 			onlySpecializedRoomsAvailable: number;
-			policyOrShiftWindowIncompatible: number;
+			facultyDailyLimitExceeded: number;
+			facultyConsecutiveLimitExceeded: number;
+			noValidPeriodInPolicyWindow: number;
 		};
 		zoneDistributionByTerm?: Array<{ termIndex: 1 | 2 | 3; total: number; byZone: Record<string, { count: number; percent: number }> }>;
 	};
@@ -381,21 +384,27 @@ function buildHomeRoomFallbackDiagnostics(
 	noSameZoneStandardRoom: number;
 	crossBuildingStandardRoomExhausted: number;
 	onlySpecializedRoomsAvailable: number;
-	policyOrShiftWindowIncompatible: number;
+	facultyDailyLimitExceeded: number;
+	facultyConsecutiveLimitExceeded: number;
+	noValidPeriodInPolicyWindow: number;
 } {
 	const diagnostics = {
 		homeRoomOccupied: 0,
 		noSameZoneStandardRoom: 0,
 		crossBuildingStandardRoomExhausted: 0,
 		onlySpecializedRoomsAvailable: 0,
-		policyOrShiftWindowIncompatible: 0,
+		facultyDailyLimitExceeded: 0,
+		facultyConsecutiveLimitExceeded: 0,
+		noValidPeriodInPolicyWindow: 0,
 	};
 
 	const applyCause = (cause?: HomeRoomFallbackCause) => {
 		if (cause === 'NO_SAME_ZONE_STANDARD_ROOM') diagnostics.noSameZoneStandardRoom += 1;
 		else if (cause === 'CROSS_BUILDING_STANDARD_ROOM_EXHAUSTED') diagnostics.crossBuildingStandardRoomExhausted += 1;
 		else if (cause === 'ONLY_SPECIALIZED_ROOMS_AVAILABLE') diagnostics.onlySpecializedRoomsAvailable += 1;
-		else if (cause === 'POLICY_OR_SHIFT_WINDOW_INCOMPATIBLE') diagnostics.policyOrShiftWindowIncompatible += 1;
+		else if (cause === 'FACULTY_DAILY_LIMIT_EXCEEDED') diagnostics.facultyDailyLimitExceeded += 1;
+		else if (cause === 'FACULTY_CONSECUTIVE_LIMIT_EXCEEDED') diagnostics.facultyConsecutiveLimitExceeded += 1;
+		else if (cause === 'NO_VALID_PERIOD_IN_POLICY_WINDOW') diagnostics.noValidPeriodInPolicyWindow += 1;
 		else diagnostics.homeRoomOccupied += 1;
 	};
 
@@ -702,7 +711,9 @@ export async function triggerGenerationRun(
 				select: {
 					facultyId: true,
 					status: true,
-					timeSlots: { select: { day: true, startTime: true, endTime: true, preference: true } },
+					timeSlots: ENABLE_LEGACY_TIME_PREFERENCES
+						? { select: { day: true, startTime: true, endTime: true, preference: true } }
+						: false,
 				},
 			}),
 			getOrCreatePolicy(schoolId, schoolYearId),
@@ -823,12 +834,12 @@ export async function triggerGenerationRun(
 			preferences: preferences.map((p) => ({
 				facultyId: p.facultyId,
 				status: p.status,
-				timeSlots: p.timeSlots.map((ts) => ({
+				timeSlots: ENABLE_LEGACY_TIME_PREFERENCES && 'timeSlots' in p && Array.isArray(p.timeSlots) ? p.timeSlots.map((ts) => ({
 					day: ts.day,
 					startTime: ts.startTime,
 					endTime: ts.endTime,
 					preference: ts.preference,
-				})),
+				})) : [],
 			})),
 			policy: {
 				periodLengthMinutes: (policyRecord as typeof policyRecord & { periodLengthMinutes?: number }).periodLengthMinutes,
@@ -948,6 +959,7 @@ export async function triggerGenerationRun(
 				meta: {
 					reason: item.reason,
 					roomAssignmentReason: item.roomAssignmentReason,
+					homeRoomFallbackCause: item.homeRoomFallbackCause,
 					session: item.session,
 					gradeLevel: item.gradeLevel,
 				},

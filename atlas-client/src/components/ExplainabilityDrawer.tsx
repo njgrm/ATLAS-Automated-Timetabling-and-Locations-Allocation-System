@@ -22,7 +22,7 @@ export const VIOLATION_EXPLANATIONS: Record<string, { why: string; fix: string }
 	},
 	FACULTY_OVERLOAD: {
 		why: "This teacher's total teaching hours exceed their configured weekly maximum.",
-		fix: 'Reduce this teacher\'s load by reassigning some of their classes to other qualified faculty.',
+		fix: 'Reduce this teacher\'s load by reassigning some of their classes to other qualified teachers.',
 	},
 	ROOM_TYPE_MISMATCH: {
 		why: "The subject requires a specific room type (e.g., Lab) but is placed in a different type (e.g., Classroom).",
@@ -34,7 +34,7 @@ export const VIOLATION_EXPLANATIONS: Record<string, { why: string; fix: string }
 	},
 	FACULTY_SUBJECT_NOT_QUALIFIED: {
 		why: 'This teaching-load assignment does not currently cover this subject at this grade level.',
-		fix: 'Verify the saved teaching load, or update Faculty Assignments if the assignment is missing.',
+		fix: 'Verify the saved teaching load, or update Teacher Assignments if the assignment is missing.',
 	},
 	FACULTY_CONSECUTIVE_LIMIT_EXCEEDED: {
 		why: 'This teacher has too many consecutive teaching periods without a break.',
@@ -97,7 +97,7 @@ const UNASSIGNED_EXPLANATIONS: Record<string, { why: string; whatItMeans: string
 	},
 	FACULTY_OVERLOADED: {
 		why: 'Teachers who can teach this subject have already reached their maximum weekly or daily teaching hours.',
-		whatItMeans: 'Either increase their hour limits in Faculty settings, or assign additional teachers to this subject.',
+		whatItMeans: 'Either increase their hour limits in Teacher settings, or assign additional teachers to this subject.',
 	},
 	NO_AVAILABLE_SLOT: {
 		why: 'Every time slot that could host this session already causes a hard conflict (teacher or room double-booking).',

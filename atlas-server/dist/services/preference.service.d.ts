@@ -20,7 +20,7 @@ export interface SaveDraftInput {
     schoolYearId: number;
     facultyId: number;
     notes?: string | null;
-    timeSlots: TimeSlotInput[];
+    timeSlots?: TimeSlotInput[];
     version?: number;
     wellbeing?: WellbeingInput;
 }

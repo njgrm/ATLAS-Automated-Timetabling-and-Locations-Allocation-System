@@ -79,7 +79,7 @@ function ensureFacultyOwnsEntry(entry, facultyId) {
         throw err(404, 'ENTRY_NOT_FOUND', 'Draft entry was not found in this generation run.');
     }
     if (entry.facultyId !== facultyId) {
-        throw err(403, 'FORBIDDEN', 'This draft entry is not assigned to the requested faculty member.');
+        throw err(403, 'FORBIDDEN', 'This draft entry is not assigned to the requested teacher.');
     }
     return entry;
 }
@@ -181,11 +181,13 @@ export async function getFacultyRoomPreferenceState(schoolId, schoolYearId, runI
     const { subjectMap, sectionMap, roomMap, roomTypeMap } = await buildLookupMaps(schoolId, assignedEntries.map((entry) => entry.entryId), assignedEntries);
     const { subjectMap: allSubjectMap, sectionMap: allSectionMap, roomMap: allRoomMap, facultyMap } = await buildLookupMaps(schoolId, draft.entries.map((entry) => entry.entryId), draft.entries);
     const teachingAssignments = await getFacultyAssignmentIdentitySummary(facultyId, schoolYearId);
+    const recentRequests = await getFacultyRoomPreferenceHistory(schoolId, schoolYearId, facultyId, draft.runId);
     return {
         runId: draft.runId,
         runVersion: draft.version,
         runGeneratedAt: draft.finishedAt ?? draft.createdAt,
         teachingAssignments,
+        recentRequests,
         entries: assignedEntries.map((entry) => {
             const request = requestMap.get(entry.entryId);
             const decoded = decodeRationaleAndMeta(request?.rationale ?? null);
@@ -250,8 +252,8 @@ export async function getFacultyRoomPreferenceState(schoolId, schoolYearId, runI
             entryId: entry.entryId,
             facultyId: entry.facultyId,
             facultyName: entry.facultyId != null
-                ? (facultyMap.get(entry.facultyId) ?? `Faculty #${entry.facultyId}`)
-                : 'Unassigned Faculty',
+                ? (facultyMap.get(entry.facultyId) ?? `Teacher #${entry.facultyId}`)
+                : 'Unassigned teacher',
             sectionId: entry.sectionId,
             sectionName: allSectionMap.get(entry.sectionId) ?? `Section #${entry.sectionId}`,
             subjectId: entry.subjectId,
@@ -344,7 +346,7 @@ async function upsertRoomPreference(input, status) {
         where: { runId_entryId: { runId: input.runId, entryId: input.entryId } },
     });
     if (existing && existing.facultyId !== input.facultyId) {
-        throw err(403, 'FORBIDDEN', 'This room preference belongs to a different faculty member.');
+        throw err(403, 'FORBIDDEN', 'This room request belongs to a different teacher.');
     }
     if (existing?.decisionStatus === 'APPROVED') {
         throw err(422, 'ALREADY_APPROVED', 'An approved room preference can no longer be modified.');
@@ -416,8 +418,8 @@ async function upsertRoomPreference(input, status) {
         requestId: preference.id,
         entryId: input.entryId,
         message: status === 'SUBMITTED'
-            ? 'Faculty submitted a room request for review.'
-            : 'Faculty saved a room request draft.',
+            ? 'Teacher submitted a room request for review.'
+            : 'Teacher saved a room request draft.',
         metadata: {
             requestedRoomId: requestedRoom.id,
             actionType: target.actionType,
@@ -444,7 +446,7 @@ export async function deleteRoomPreferenceDraft(schoolId, schoolYearId, runId, f
         throw err(404, 'ROOM_PREFERENCE_NOT_FOUND', 'Room preference request was not found in this run scope.');
     }
     if (existing.facultyId !== facultyId) {
-        throw err(403, 'FORBIDDEN', 'This room preference belongs to a different faculty member.');
+        throw err(403, 'FORBIDDEN', 'This room request belongs to a different teacher.');
     }
     if (existing.decisionStatus === 'APPROVED') {
         throw err(422, 'ALREADY_APPROVED', 'An approved room preference can no longer be deleted.');
@@ -472,7 +474,7 @@ export async function deleteRoomPreferenceDraft(schoolId, schoolYearId, runId, f
         facultyId,
         requestId: existing.id,
         entryId,
-        message: 'Faculty cleared a room request.',
+        message: 'Teacher cleared a room request.',
         metadata: {
             requestedRoomId: existing.requestedRoomId,
         },
@@ -620,9 +622,147 @@ export async function getRoomPreferenceSummary(schoolId, schoolYearId, runId, fi
         runVersion: draft.version,
     };
 }
+async function getHistoricalRoomPreferenceSummaryItems(schoolId, schoolYearId, params) {
+    const rows = await prisma.facultyRoomPreference.findMany({
+        where: {
+            schoolId,
+            schoolYearId,
+            runId: { not: params.currentRunId },
+            status: params.status,
+            decisionStatus: params.decisionStatus,
+            facultyId: params.facultyId,
+            requestedRoomId: params.requestedRoomId,
+        },
+        include: {
+            faculty: { select: { firstName: true, lastName: true } },
+            requestedRoom: { select: { id: true, name: true, building: { select: { name: true, shortCode: true } } } },
+        },
+        orderBy: [{ reviewedAt: 'desc' }, { submittedAt: 'desc' }, { updatedAt: 'desc' }],
+        take: params.limit ?? 20,
+    });
+    if (rows.length === 0)
+        return [];
+    const [currentRooms, subjects, snapshot, appealRows] = await Promise.all([
+        prisma.room.findMany({
+            where: { id: { in: [...new Set(rows.map((row) => row.currentRoomId))] } },
+            select: { id: true, name: true, building: { select: { name: true, shortCode: true } } },
+        }),
+        prisma.subject.findMany({
+            where: { schoolId, id: { in: [...new Set(rows.map((row) => row.subjectId))] } },
+            select: { id: true, code: true, name: true, modularGroupId: true },
+        }),
+        prisma.sectionSnapshot.findFirst({
+            where: { schoolId },
+            orderBy: { fetchedAt: 'desc' },
+            select: { payload: true },
+        }),
+        prisma.roomRequestAppeal.findMany({
+            where: { requestId: { in: rows.map((row) => row.id) } },
+            select: { requestId: true, status: true, updatedAt: true },
+            orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+        }),
+    ]);
+    const currentRoomMap = new Map(currentRooms.map((room) => [room.id, `${room.name} · ${room.building.shortCode || room.building.name}`]));
+    const subjectMap = new Map(subjects.map((subject) => [subject.id, subject]));
+    const sectionMap = new Map();
+    if (Array.isArray(snapshot?.payload)) {
+        for (const grade of snapshot.payload) {
+            for (const section of grade.sections ?? [])
+                sectionMap.set(section.id, section.name);
+        }
+    }
+    const appealByRequest = new Map();
+    for (const row of appealRows) {
+        const existing = appealByRequest.get(row.requestId) ?? { count: 0, openCount: 0, latestStatus: null, latestUpdatedAt: null };
+        existing.count += 1;
+        if (row.status === 'OPEN' || row.status === 'UNDER_REVIEW')
+            existing.openCount += 1;
+        if (existing.latestStatus == null) {
+            existing.latestStatus = row.status;
+            existing.latestUpdatedAt = row.updatedAt.toISOString();
+        }
+        appealByRequest.set(row.requestId, existing);
+    }
+    return rows.map((request) => {
+        const subject = subjectMap.get(request.subjectId);
+        const subjectDisplayLabel = normalizeSubjectDisplayLabel({
+            code: subject?.code,
+            name: subject?.name,
+            modularGroupId: subject?.modularGroupId,
+        });
+        const appealSummary = appealByRequest.get(request.id);
+        return {
+            id: request.id,
+            runId: request.runId,
+            entryId: request.entryId,
+            facultyId: request.facultyId,
+            facultyName: `${request.faculty.lastName}, ${request.faculty.firstName}`,
+            subjectId: request.subjectId,
+            subjectCode: subject?.code ?? `Subject #${request.subjectId}`,
+            subjectDisplayLabel,
+            subjectName: subject?.name ?? `Subject #${request.subjectId}`,
+            sectionId: request.sectionId,
+            sectionName: sectionMap.get(request.sectionId) ?? `Section #${request.sectionId}`,
+            currentRoomId: request.currentRoomId,
+            currentRoomName: currentRoomMap.get(request.currentRoomId) ?? `Room #${request.currentRoomId}`,
+            requestedRoomId: request.requestedRoomId,
+            requestedRoomName: `${request.requestedRoom.name} · ${request.requestedRoom.building.shortCode || request.requestedRoom.building.name}`,
+            day: request.day,
+            startTime: request.startTime,
+            endTime: request.endTime,
+            status: request.status,
+            decisionStatus: request.decisionStatus,
+            rationale: decodeRationaleAndMeta(request.rationale).rationale,
+            submittedAt: request.submittedAt?.toISOString() ?? null,
+            version: request.version,
+            reviewerId: request.reviewerId,
+            reviewerNotes: request.reviewerNotes,
+            reviewedAt: request.reviewedAt?.toISOString() ?? null,
+            appealCount: appealSummary?.count ?? 0,
+            openAppealCount: appealSummary?.openCount ?? 0,
+            latestAppealStatus: appealSummary?.latestStatus ?? null,
+            latestAppealUpdatedAt: appealSummary?.latestUpdatedAt ?? null,
+            currentRun: false,
+            superseded: true,
+        };
+    });
+}
+async function getFacultyRoomPreferenceHistory(schoolId, schoolYearId, facultyId, currentRunId) {
+    const [current, superseded] = await Promise.all([
+        getRoomPreferenceSummary(schoolId, schoolYearId, currentRunId, { facultyId }),
+        getHistoricalRoomPreferenceSummaryItems(schoolId, schoolYearId, { currentRunId, facultyId, limit: 12 }),
+    ]);
+    return [
+        ...current.requests.map((request) => ({ ...request, currentRun: true, superseded: false })),
+        ...superseded,
+    ].sort((left, right) => (right.reviewedAt ?? right.submittedAt ?? '').localeCompare(left.reviewedAt ?? left.submittedAt ?? ''));
+}
 export async function getLatestRoomPreferenceSummary(schoolId, schoolYearId, filters) {
     const run = await resolveActiveDraftRun(schoolId, schoolYearId);
-    return getRoomPreferenceSummary(schoolId, schoolYearId, run.id, filters);
+    const current = await getRoomPreferenceSummary(schoolId, schoolYearId, run.id, filters);
+    const superseded = await getHistoricalRoomPreferenceSummaryItems(schoolId, schoolYearId, {
+        currentRunId: run.id,
+        facultyId: filters?.facultyId,
+        status: filters?.status,
+        decisionStatus: filters?.decisionStatus,
+        requestedRoomId: filters?.requestedRoomId,
+    });
+    const requests = [
+        ...current.requests.map((request) => ({ ...request, currentRun: true, superseded: false })),
+        ...superseded,
+    ].sort((left, right) => (right.submittedAt ?? '').localeCompare(left.submittedAt ?? ''));
+    return {
+        ...current,
+        counts: {
+            total: requests.length,
+            draft: requests.filter((request) => request.status === 'DRAFT').length,
+            submitted: requests.filter((request) => request.status === 'SUBMITTED').length,
+            pending: requests.filter((request) => request.decisionStatus === 'PENDING').length,
+            approved: requests.filter((request) => request.decisionStatus === 'APPROVED').length,
+            rejected: requests.filter((request) => request.decisionStatus === 'REJECTED').length,
+        },
+        requests,
+    };
 }
 export async function getRoomPreferenceDetail(schoolId, schoolYearId, runId, requestId) {
     const summary = await getRoomPreferenceSummary(schoolId, schoolYearId, runId);
@@ -717,7 +857,7 @@ export async function listRoomRequestAppeals(schoolId, schoolYearId, runId, requ
         history: appeal.history.map((item) => ({
             id: item.id,
             actorId: item.actorId,
-            actorName: actorMap.get(item.actorId) ?? `Faculty #${item.actorId}`,
+            actorName: actorMap.get(item.actorId) ?? `Teacher #${item.actorId}`,
             action: item.action,
             fromStatus: item.fromStatus,
             toStatus: item.toStatus,

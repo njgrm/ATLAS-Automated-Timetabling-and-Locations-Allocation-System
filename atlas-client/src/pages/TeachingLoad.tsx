@@ -36,7 +36,7 @@ const DEFAULT_SCHOOL_ID = 1;
 
 const COVERAGE_MODE_CONFIG: Record<CoverageMode, { label: string; description: string }> = {
 	REAL_FACULTY_STANDARD: {
-		label: 'Standard Faculty Load (30h)',
+		label: 'Standard Teacher Load (30h)',
 		description: 'Fills qualified real teachers up to 30h. Some sections may remain unassigned.',
 	},
 	REAL_FACULTY_HARD_CAP: {

@@ -21,7 +21,6 @@ import { AnimatePresence, motion } from 'motion/react';
 import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
-import { formatTime } from '@/lib/utils';
 import type {
 	OfficerSummaryCounts,
 	OfficerSummaryFacultyWithReview,
@@ -79,20 +78,6 @@ function reviewBadge(status: ReviewStatus | null) {
 			return null;
 	}
 }
-
-const DAY_LABELS: Record<string, string> = {
-	MONDAY: 'Mon',
-	TUESDAY: 'Tue',
-	WEDNESDAY: 'Wed',
-	THURSDAY: 'Thu',
-	FRIDAY: 'Fri',
-};
-
-const PREF_COLORS: Record<string, string> = {
-	PREFERRED: 'text-green-600',
-	AVAILABLE: 'text-foreground',
-	UNAVAILABLE: 'text-red-600',
-};
 
 /* ─── Page ─── */
 
@@ -242,7 +227,7 @@ export default function OfficerPreferences() {
 				{ facultyIds: [...selectedIds] },
 			);
 			toast.success(
-				`Reminder sent to ${data.reminded} faculty member${data.reminded > 1 ? 's' : ''}. Audit ID: ${data.auditId}`,
+				`Reminder sent to ${data.reminded} teacher${data.reminded > 1 ? 's' : ''}. Audit ID: ${data.auditId}`,
 			);
 			clearSelection();
 		} catch (err) {
@@ -436,7 +421,7 @@ export default function OfficerPreferences() {
 					<div className='relative flex-1 min-w-50 max-w-sm'>
 						<Search className='absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground' />
 						<Input
-							placeholder='Search faculty…'
+							placeholder='Search teachers…'
 							value={searchQuery}
 							onChange={(e) => setSearchQuery(e.target.value)}
 							className='pl-8 h-8 text-sm'
@@ -482,16 +467,16 @@ export default function OfficerPreferences() {
 				</div>
 			</div>
 
-			{/* Faculty table */}
+			{/* Teacher table */}
 			<div className='flex-1 min-h-0 px-6 pb-4'>
 				<Card className="h-full flex flex-col shadow-sm overflow-hidden">
 					<div className='flex-1 min-h-0 overflow-auto'>
 						{totalFiltered === 0 ? (
 							<div className='flex flex-col items-center justify-center py-12 text-muted-foreground'>
 								<FileQuestion className='size-10 mb-3 opacity-40' />
-								<p className='text-sm font-medium'>No faculty found</p>
+								<p className='text-sm font-medium'>No teachers found</p>
 								<p className='text-xs mt-1'>
-									{searchQuery ? 'Try a different search term.' : 'No faculty match the current filter.'}
+									{searchQuery ? 'Try a different search term.' : 'No teachers match the current filter.'}
 								</p>
 							</div>
 						) : (
@@ -668,49 +653,24 @@ export default function OfficerPreferences() {
 								</div>
 							</div>
 
-							{/* Faculty notes */}
+							{/* Teacher notes */}
 							{reviewDetail.notes && (
 								<div>
-									<p className='text-xs text-muted-foreground mb-1'>Faculty Notes</p>
+									<p className='text-xs text-muted-foreground mb-1'>Teacher Notes</p>
 									<p className='text-sm bg-muted/50 rounded p-2'>{reviewDetail.notes}</p>
 								</div>
 							)}
 
-							{/* Time slots */}
-							<div>
-								<p className='text-xs text-muted-foreground mb-2'>Time Slot Preferences</p>
-								<div className='border rounded-md overflow-hidden'>
-									<table className='w-full text-xs'>
-										<thead className='bg-muted/60'>
-											<tr>
-												<th className='px-2 py-1.5 text-left font-medium'>Day</th>
-												<th className='px-2 py-1.5 text-left font-medium'>Start</th>
-												<th className='px-2 py-1.5 text-left font-medium'>End</th>
-												<th className='px-2 py-1.5 text-left font-medium'>Preference</th>
-											</tr>
-										</thead>
-										<tbody>
-											{reviewDetail.timeSlots.map((ts) => (
-												<tr key={ts.id} className='border-t'>
-													<td className='px-2 py-1.5'>{DAY_LABELS[ts.day] ?? ts.day}</td>
-											<td className='px-2 py-1.5 font-mono'>{formatTime(ts.startTime)}</td>
-											<td className='px-2 py-1.5 font-mono'>{formatTime(ts.endTime)}</td>
-													<td className={`px-2 py-1.5 font-medium ${PREF_COLORS[ts.preference] ?? ''}`}>
-														{ts.preference}
-													</td>
-												</tr>
-											))}
-										</tbody>
-									</table>
-								</div>
+							<div className='rounded-md border border-dashed border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground'>
+								Teacher time availability is no longer collected here. Support needs are scheduler-reviewed and handled manually when building or adjusting the timetable.
 							</div>
 
-							{/* Well-being preferences */}
+							{/* Support needs */}
 							{(reviewDetail.pregnancySupport || reviewDetail.physicalAilmentSupport || reviewDetail.minimizeTravelTime || reviewDetail.avoidUpperFloors) && (
 								<div>
 									<p className='text-xs text-muted-foreground mb-2 flex items-center gap-1'>
 										<Heart className='size-3 text-rose-400' />
-										Well-being Preferences Requested
+										Support Needs Requested
 									</p>
 									<div className='flex flex-wrap gap-1.5'>
 										{reviewDetail.pregnancySupport && (

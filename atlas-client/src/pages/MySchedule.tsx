@@ -1,34 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-	AlertCircle,
-	BookOpen,
-	CalendarDays,
-	Clock3,
-	MapPin,
-	RefreshCcw,
-} from 'lucide-react';
+import { AlertCircle, CalendarDays, Clock3, MapPin, RefreshCcw, School, Users } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { cacheFacultyIdentity, readCachedFacultyIdentity } from '@/lib/faculty-identity-cache';
 import { buildFacultyCacheKey, isLikelyOfflineError, readFacultySnapshot, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
 import FacultyGlobalHeader from '@/components/faculty-shared/FacultyGlobalHeader';
+import { PublishedTimetableMatrix, formatShortTime } from '@/components/published-schedule/PublishedTimetableMatrix';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/ui/card';
+import { Card, CardContent } from '@/ui/card';
 import { Skeleton } from '@/ui/skeleton';
 
 const DEFAULT_SCHOOL_ID = 1;
 const SCHEDULE_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-
 const DAY_ORDER = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
-const DAY_LABELS: Record<(typeof DAY_ORDER)[number], string> = {
-	MONDAY: 'Monday',
-	TUESDAY: 'Tuesday',
-	WEDNESDAY: 'Wednesday',
-	THURSDAY: 'Thursday',
-	FRIDAY: 'Friday',
-};
 
 type PublishedFacultyScheduleEntry = {
 	entryId: string;
@@ -81,20 +67,21 @@ function isPublishedScheduleSnapshot(value: unknown): value is PublishedSchedule
 	return typeof candidate.facultyId === 'number' && Boolean(candidate.payload) && Array.isArray(candidate.payload?.entries);
 }
 
-function formatShortTime(time: string): string {
-	const [rawHour, rawMinute] = time.split(':').map(Number);
-	if (!Number.isFinite(rawHour) || !Number.isFinite(rawMinute)) return time;
-	const period = rawHour >= 12 ? 'PM' : 'AM';
-	const hour = rawHour % 12 || 12;
-	const minute = String(rawMinute).padStart(2, '0');
-	return `${hour}:${minute} ${period}`;
-}
-
 function formatTimestamp(value: string | null): string {
 	if (!value) return 'Not available';
 	const parsed = new Date(value);
 	if (Number.isNaN(parsed.getTime())) return value;
 	return parsed.toLocaleString();
+}
+
+function buildSummary(entries: PublishedFacultyScheduleEntry[]) {
+	const sectionNames = new Set(entries.map((entry) => entry.section.name));
+	const buildingNames = new Set(entries.map((entry) => entry.room.buildingName).filter(Boolean));
+	return {
+		classCount: entries.length,
+		sectionCount: sectionNames.size,
+		buildingCount: buildingNames.size,
+	};
 }
 
 export default function MySchedule() {
@@ -109,28 +96,23 @@ export default function MySchedule() {
 	const loadSchedule = useCallback(async () => {
 		setLoading(true);
 		try {
-			const schoolYearContext = await resolveActiveSchoolYearContext({
-				allowStaleOnError: true,
-				allowEnrollProFallback: false,
-			});
+			const schoolYearContext = await resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false });
 			const schoolYearId = schoolYearContext.activeSchoolYearId;
 			setSchoolYearNotice(
 				schoolYearContext.source === 'enrollpro'
 					? `Verified with EnrollPro (${schoolYearContext.activeSchoolYearLabel}).`
 					: schoolYearContext.source === 'atlas' && !schoolYearContext.stale
-					? null
-					: schoolYearContext.activeSchoolYearLabel
-					? `Working from saved data (${schoolYearContext.activeSchoolYearLabel}).`
-					: 'Working from saved data.',
-			);
+						? null
+						: schoolYearContext.activeSchoolYearLabel
+							? `Working from saved data (${schoolYearContext.activeSchoolYearLabel}).`
+							: 'Working from saved data.',
+				);
 
 			let resolvedFacultyId: number;
 			try {
-				const { data } = await atlasApi.get<{ faculty: { id: number } }>('/faculty/me', {
-					params: { schoolId: DEFAULT_SCHOOL_ID },
-				});
+				const { data } = await atlasApi.get<{ faculty: { id: number } }>('/faculty/me', { params: { schoolId: DEFAULT_SCHOOL_ID } });
 				if (!data?.faculty?.id) {
-					setError('Your account is not linked to a faculty record in this school.');
+					setError('Your account is not linked to a teacher record in this school.');
 					setSchedule(null);
 					return;
 				}
@@ -153,17 +135,12 @@ export default function MySchedule() {
 			});
 
 			try {
-				const { data } = await atlasApi.get<PublishedFacultySchedulePayload>(
-					`/schools/${DEFAULT_SCHOOL_ID}/schedules/published/${schoolYearId}/faculty/${resolvedFacultyId}`,
-				);
+				const { data } = await atlasApi.get<PublishedFacultySchedulePayload>(`/schools/${DEFAULT_SCHOOL_ID}/schedules/published/${schoolYearId}/faculty/${resolvedFacultyId}`);
 				setSchedule(data);
 				setError(null);
 				setUsingCachedSchedule(false);
 				setCachedScheduleAt(null);
-				writeFacultySnapshot(cacheKey, {
-					facultyId: resolvedFacultyId,
-					payload: data,
-				});
+				writeFacultySnapshot(cacheKey, { facultyId: resolvedFacultyId, payload: data });
 			} catch (requestError) {
 				if (cachedSnapshot && isLikelyOfflineError(requestError)) {
 					setSchedule(cachedSnapshot.data.payload);
@@ -211,44 +188,14 @@ export default function MySchedule() {
 		};
 	}, []);
 
-	const groupedEntries = useMemo(() => {
-		const group = new Map<string, PublishedFacultyScheduleEntry[]>();
-		for (const day of DAY_ORDER) {
-			group.set(day, []);
-		}
-		for (const entry of schedule?.entries ?? []) {
-			const dayKey = DAY_ORDER.includes(entry.day as (typeof DAY_ORDER)[number])
-				? entry.day
-				: String(entry.day).toUpperCase();
-			const rows = group.get(dayKey) ?? [];
-			rows.push(entry);
-			group.set(dayKey, rows);
-		}
-		for (const rows of group.values()) {
-			rows.sort((left, right) => left.startTime.localeCompare(right.startTime) || left.endTime.localeCompare(right.endTime));
-		}
-		return group;
-	}, [schedule?.entries]);
-
-	const summary = useMemo(() => {
-		const entries = schedule?.entries ?? [];
-		const sectionNames = new Set(entries.map((entry) => entry.section.name));
-		const buildingNames = new Set(entries.map((entry) => entry.room.buildingName).filter(Boolean));
-		return {
-			classCount: entries.length,
-			sectionCount: sectionNames.size,
-			buildingCount: buildingNames.size,
-		};
-	}, [schedule?.entries]);
+	const summary = useMemo(() => buildSummary(schedule?.entries ?? []), [schedule?.entries]);
 
 	const advisory = useMemo(() => {
 		if (usingCachedSchedule) {
 			const savedAt = cachedScheduleAt ? new Date(cachedScheduleAt).toLocaleString() : null;
 			return {
 				title: 'Your saved schedule',
-				message: savedAt
-					? `Unable to reach EnrollPro. Showing your saved schedule from ${savedAt}.`
-					: 'Unable to reach EnrollPro. Showing your saved schedule.',
+				message: savedAt ? `Unable to reach EnrollPro. Showing your saved schedule from ${savedAt}.` : 'Unable to reach EnrollPro. Showing your saved schedule.',
 				variant: 'warning' as const,
 			};
 		}
@@ -275,7 +222,7 @@ export default function MySchedule() {
 					<div className="space-y-3">
 						<Skeleton className="h-20 w-full rounded-2xl" />
 						<Skeleton className="h-24 w-full rounded-2xl" />
-						<Skeleton className="h-72 w-full rounded-2xl" />
+						<Skeleton className="h-[36rem] w-full rounded-2xl" />
 					</div>
 				</div>
 			</div>
@@ -307,7 +254,7 @@ export default function MySchedule() {
 		<div className="flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-background">
 			<FacultyGlobalHeader
 				title="My Published Schedule"
-				subtitle="Review the timetable that students and faculty can already see."
+				subtitle="Review the timetable that students and teachers can already see."
 				online={online}
 				syncState={usingCachedSchedule ? 'failed' : online ? 'idle' : 'queued-offline'}
 				realtimeConnected={false}
@@ -315,95 +262,74 @@ export default function MySchedule() {
 				onRetryFailed={usingCachedSchedule ? () => void loadSchedule() : undefined}
 			>
 				{schoolYearNotice && (
-					<div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-[10px] font-bold text-amber-900 uppercase tracking-tight">
+					<div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-tight text-amber-900">
 						{schoolYearNotice}
 					</div>
 				)}
 			</FacultyGlobalHeader>
 
 			<div className="flex-1 min-h-0 overflow-auto px-4 py-6 sm:px-6 sm:py-8">
-				<div className="mx-auto grid w-full max-w-7xl gap-4 md:grid-cols-3">
+				<div className="mx-auto w-full max-w-7xl space-y-4">
 					<Card className="rounded-2xl border-border/70">
-						<CardHeader className="pb-2">
-							<CardTitle className="text-sm font-semibold text-muted-foreground">Published Run</CardTitle>
-						</CardHeader>
-						<CardContent className="space-y-1">
-							<div className="flex items-center gap-2">
-								<p className="text-xl font-bold">#{schedule?.source.runId ?? 'N/A'}</p>
-								<Badge variant="outline" className="text-[10px] h-4 px-1 uppercase">S.Y. {schedule?.source.schoolYearId ?? '...'}</Badge>
+						<CardContent className="flex flex-wrap items-center gap-3 py-4">
+							<div className="flex min-w-[11rem] flex-1 items-center gap-2 rounded-xl border border-border/70 px-3 py-2">
+								<CalendarDays className="size-4 text-primary" />
+								<div>
+									<p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Published run</p>
+									<p className="text-sm font-semibold text-foreground">#{schedule?.source.runId ?? 'N/A'}</p>
+								</div>
 							</div>
-							<p className="text-xs text-muted-foreground">Published: {formatTimestamp(schedule?.source.publishedAt ?? null)}</p>
+							<div className="flex min-w-[11rem] flex-1 items-center gap-2 rounded-xl border border-border/70 px-3 py-2">
+								<School className="size-4 text-primary" />
+								<div>
+									<p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">School year</p>
+									<p className="text-sm font-semibold text-foreground">S.Y. {schedule?.source.schoolYearId ?? '...'}</p>
+								</div>
+							</div>
+							<div className="flex min-w-[11rem] flex-1 items-center gap-2 rounded-xl border border-border/70 px-3 py-2">
+								<Users className="size-4 text-primary" />
+								<div>
+									<p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Sections</p>
+									<p className="text-sm font-semibold text-foreground">{summary.sectionCount}</p>
+								</div>
+							</div>
+							<div className="flex min-w-[11rem] flex-1 items-center gap-2 rounded-xl border border-border/70 px-3 py-2">
+								<MapPin className="size-4 text-primary" />
+								<div>
+									<p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Buildings</p>
+									<p className="text-sm font-semibold text-foreground">{summary.buildingCount}</p>
+								</div>
+							</div>
+							<div className="flex min-w-[11rem] flex-1 items-center gap-2 rounded-xl border border-border/70 px-3 py-2">
+								<Clock3 className="size-4 text-primary" />
+								<div>
+									<p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Published at</p>
+									<p className="text-sm font-semibold text-foreground">{formatTimestamp(schedule?.source.publishedAt ?? null)}</p>
+								</div>
+							</div>
 						</CardContent>
 					</Card>
-					<Card className="rounded-2xl border-border/70">
-						<CardHeader className="pb-2">
-							<CardTitle className="text-sm font-semibold text-muted-foreground">Classes This Week</CardTitle>
-						</CardHeader>
-						<CardContent className="space-y-1">
-							<p className="text-xl font-bold">{summary.classCount}</p>
-							<p className="text-xs text-muted-foreground">Across {summary.sectionCount} section(s)</p>
-						</CardContent>
-					</Card>
-					<Card className="rounded-2xl border-border/70">
-						<CardHeader className="pb-2">
-							<CardTitle className="text-sm font-semibold text-muted-foreground">Campus Coverage</CardTitle>
-						</CardHeader>
-						<CardContent className="space-y-1">
-							<p className="text-xl font-bold">{summary.buildingCount}</p>
-							<p className="text-xs text-muted-foreground">Building zone(s) in this schedule</p>
-						</CardContent>
-					</Card>
-				</div>
 
-				<div className="mx-auto mt-5 w-full max-w-7xl space-y-4">
-					{DAY_ORDER.map((day) => {
-						const entries = groupedEntries.get(day) ?? [];
-						return (
-							<Card key={day} className="rounded-2xl border-border/70">
-								<CardHeader className="pb-2">
-									<CardTitle className="flex items-center gap-2 text-base">
-										<CalendarDays className="size-4 text-primary" />
-										{DAY_LABELS[day]}
-										<Badge variant="outline" className="ml-auto text-xs">{entries.length} class(es)</Badge>
-									</CardTitle>
-								</CardHeader>
-								<CardContent>
-									{entries.length === 0 ? (
-										<p className="text-sm text-muted-foreground">No published classes on this day.</p>
-									) : (
-										<div className="space-y-2">
-											{entries.map((entry) => (
-												<div
-													key={entry.entryId}
-													className="rounded-xl border border-border/70 bg-card px-3 py-2"
-												>
-													<div className="flex flex-wrap items-center gap-2">
-														<Badge variant="secondary" className="text-xs">
-															<Clock3 className="mr-1 size-3" />
-															{formatShortTime(entry.startTime)} - {formatShortTime(entry.endTime)}
-														</Badge>
-														<span className="text-sm font-semibold">{entry.subject.name}</span>
-														<Badge variant="outline" className="text-[10px]">{entry.subject.code}</Badge>
-													</div>
-													<div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-														<span className="inline-flex items-center gap-1">
-															<BookOpen className="size-3" />
-															{entry.section.name}
-														</span>
-														<span className="inline-flex items-center gap-1">
-															<MapPin className="size-3" />
-															{entry.room.name}
-															{entry.room.buildingName ? ` (${entry.room.buildingName})` : ''}
-														</span>
-													</div>
-												</div>
-											))}
-										</div>
-									)}
-								</CardContent>
-							</Card>
-						);
-					})}
+					<Card className="rounded-2xl border-border/70">
+						<CardContent className="py-5">
+							<PublishedTimetableMatrix
+								entries={schedule?.entries ?? []}
+								emptyMessage="A published run exists, but no classes are currently assigned to your account."
+								renderEntryDetails={(entry) => (
+									<>
+										<p className="flex items-center gap-1.5"><Clock3 className="size-3.5 shrink-0" /> {formatShortTime(entry.startTime)} - {formatShortTime(entry.endTime)}</p>
+										<p className="flex items-center gap-1.5"><BookOpen className="size-3.5 shrink-0" /> {entry.section.name}</p>
+										<p className="flex items-center gap-1.5"><MapPin className="size-3.5 shrink-0" /> {entry.room.name}{entry.room.buildingName ? ` (${entry.room.buildingName})` : ''}</p>
+									</>
+								)}
+							/>
+						</CardContent>
+					</Card>
+
+					<div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-card px-4 py-3 text-sm text-muted-foreground">
+						<p>Published schedule view</p>
+						{usingCachedSchedule ? <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">Saved snapshot</Badge> : <Badge variant="outline">Live publish</Badge>}
+					</div>
 				</div>
 			</div>
 		</div>

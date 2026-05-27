@@ -376,7 +376,7 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 													}`}
 													title={pivotLabel(Number(entityFilter))}
 												>
-													{viewMode === 'faculty' ? 'Faculty' : viewMode === 'room' ? 'Room' : 'Section'}: {pivotLabel(Number(entityFilter))}
+													{viewMode === 'faculty' ? 'Teacher' : viewMode === 'room' ? 'Room' : 'Section'}: {pivotLabel(Number(entityFilter))}
 												</Badge>
 											) : null}
 											<Button variant="outline" size="sm" className="h-6 px-2 text-[0.625rem] gap-1" onClick={() => { setCenterView('map'); setPreGenOnboarding(true); }}>

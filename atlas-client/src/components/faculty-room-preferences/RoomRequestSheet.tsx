@@ -142,8 +142,8 @@ export default function RoomRequestSheet({
 		<Sheet open={open} onOpenChange={onOpenChange}>
 			<SheetContent side='bottom' className='h-[88dvh] overflow-auto rounded-t-2xl pb-[calc(env(safe-area-inset-bottom)+0.5rem)]' data-tutorial='room-request-sheet'>
 				<SheetHeader>
-					<SheetTitle>Request a Room Change</SheetTitle>
-					<SheetDescription>Step 3: Review your request, pick a room, then submit for scheduler approval.</SheetDescription>
+					<SheetTitle>Send Room Request</SheetTitle>
+					<SheetDescription>Step 3: Review your request, pick a room if needed, then send it to the scheduler.</SheetDescription>
 				</SheetHeader>
 
 				<div className='mt-4 space-y-4'>
@@ -365,7 +365,7 @@ export default function RoomRequestSheet({
 							disabled={submitting || !selectedEntry || !targetSlot || (reasonRequired && !reason.trim())}
 						>
 							{submitting ? <Loader2 className='mr-1.5 size-4 animate-spin' /> : <Send className='mr-1.5 size-4' />}
-							Submit request
+							Send to scheduler
 						</Button>
 					</div>
 				</div>
