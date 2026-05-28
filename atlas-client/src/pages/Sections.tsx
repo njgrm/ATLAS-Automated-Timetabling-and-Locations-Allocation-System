@@ -22,6 +22,7 @@ import {
 
 import atlasApi from '@/lib/api';
 import {
+	promoteActiveSchoolYearContext,
 	resolveActiveSchoolYearContext,
 	type ActiveSchoolYearContextSource,
 	isUpstreamBackedSchoolYearSource,
@@ -192,7 +193,9 @@ export default function Sections() {
 		let yearContextSource: ActiveSchoolYearContextSource = 'cache';
 		try {
 			const schoolYearContext = await resolveActiveSchoolYearContext({
-				forceRefresh,
+				// SWR: return cached school-year immediately; background re-verify when stale.
+				preferCache: !forceRefresh,
+				backgroundRefresh: !forceRefresh,
 				allowStaleOnError: true,
 				allowEnrollProFallback: false,
 			});
@@ -272,13 +275,16 @@ export default function Sections() {
 			setCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId, summaryWithQueuedEdits);
 			setLastSyncedAt(summaryRes.data.fetchedAt ? String(summaryRes.data.fetchedAt) : null);
 			
-			let nextSource: 'live' | 'atlas-mirror' | 'cached';
+			const summaryIsLive = summaryRes.data.source === 'enrollpro';
+			let nextSource: 'live' | 'atlas-mirror' | 'cached' | 'refreshing';
 			if (!isOnline) {
 				nextSource = 'cached';
 			} else {
 				const isUpstreamContext = isUpstreamBackedSchoolYearSource(yearContextSource);
-				if (isUpstreamContext && summaryRes.data.source === 'enrollpro') {
+				if (isUpstreamContext && summaryIsLive) {
 					nextSource = 'live';
+				} else if (summaryIsLive) {
+					nextSource = 'refreshing';
 				} else {
 					nextSource = 'atlas-mirror';
 				}
@@ -288,12 +294,43 @@ export default function Sections() {
 			setCacheNotice(
 				queuedEditsForYear.length > 0
 					? `${queuedEditsForYear.length} home-room change${queuedEditsForYear.length === 1 ? '' : 's'} queued for sync.`
+					: nextSource === 'refreshing'
+					? 'Verifying runtime source before finalizing live section status.'
 					: nextSource === 'live'
 					? null
 					: isUpstreamBackedSchoolYearSource(yearContextSource)
 					? 'Section data is sourced from ATLAS mirror. EnrollPro connection is active.'
 					: 'Section data is available from ATLAS runtime cache while upstream verification is unavailable.',
 			);
+
+			if (nextSource === 'refreshing') {
+				void promoteActiveSchoolYearContext({ allowEnrollProFallback: false, allowStaleOnError: true })
+					.then((promotedContext) => {
+						if (isUpstreamBackedSchoolYearSource(promotedContext.source) && summaryIsLive) {
+							setDataSource('live');
+							setCacheNotice(
+								queuedEditsForYear.length > 0
+									? `${queuedEditsForYear.length} home-room change${queuedEditsForYear.length === 1 ? '' : 's'} queued for sync.`
+									: null,
+							);
+							return;
+						}
+						setDataSource('atlas-mirror');
+						setCacheNotice(
+							queuedEditsForYear.length > 0
+								? `${queuedEditsForYear.length} home-room change${queuedEditsForYear.length === 1 ? '' : 's'} queued for sync.`
+								: 'Section data is available from ATLAS runtime cache while upstream verification is unavailable.',
+						);
+					})
+					.catch(() => {
+						setDataSource('atlas-mirror');
+						setCacheNotice(
+							queuedEditsForYear.length > 0
+								? `${queuedEditsForYear.length} home-room change${queuedEditsForYear.length === 1 ? '' : 's'} queued for sync.`
+								: 'Section data is available from ATLAS runtime cache while upstream verification is unavailable.',
+						);
+					});
+			}
 		} catch {
 			const cachedSummary = schoolYearId ? getCachedSectionSummary(DEFAULT_SCHOOL_ID, schoolYearId) : null;
 			const cachedHomeRooms = schoolYearId ? getCachedSectionHomeRooms<HomeRoomOption>(DEFAULT_SCHOOL_ID, schoolYearId) : null;
@@ -473,7 +510,7 @@ export default function Sections() {
 	}, [lastSyncedAt]);
 
 	useEffect(() => { 
-		void fetchSections({ forceRefresh: navigator.onLine }); 
+		void fetchSections({}); 
 	}, [fetchSections]);
 
 	useEffect(() => {
@@ -649,7 +686,7 @@ export default function Sections() {
 								<TooltipProvider>
 									<Tooltip>
 										<TooltipTrigger asChild>
-											<div className="flex items-center gap-2 px-3 py-1 bg-primary/5 rounded-full border border-primary/20 cursor-help hidden lg:flex">
+											<div className="flex max-lg:hidden items-center gap-2 px-3 py-1 bg-primary/5 rounded-full border border-primary/20 cursor-help">
 												<div className="flex items-center gap-1.5">
 													<Building2 className="size-3.5 text-primary" />
 													<span className="text-[0.7rem] font-semibold uppercase tracking-widest text-primary">Assignment Progress</span>

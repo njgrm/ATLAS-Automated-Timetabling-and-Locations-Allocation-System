@@ -7,8 +7,8 @@
  * This runs automatically after every faculty sync to pre-populate the
  * FacultyAssignments page with qualified pairings that the Scheduler fills.
  */
-import { prisma } from '../lib/prisma';
-import { matchesSubjectOwnershipDepartment } from './subject-ownership.service';
+import { prisma } from '../lib/prisma.js';
+import { matchesSubjectOwnershipDepartment } from './subject-ownership.service.js';
 /**
  * For each non-stale active faculty member, scan all subjects whose
     * ownership department matches the faculty `department`.

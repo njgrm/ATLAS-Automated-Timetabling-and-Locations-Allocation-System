@@ -169,25 +169,6 @@ export declare function getLatestRun(schoolId: number, schoolYearId: number): Pr
     draftEntries: import(".prisma/client/runtime/library").JsonValue | null;
     unassignedItems: import(".prisma/client/runtime/library").JsonValue | null;
 }>;
-export declare function getLatestValidRun(schoolId: number, schoolYearId: number): Promise<{
-    error: string | null;
-    id: number;
-    schoolId: number;
-    version: number;
-    createdAt: Date;
-    updatedAt: Date;
-    schoolYearId: number;
-    status: import("@prisma/client").$Enums.GenerationRunStatus;
-    runType: string;
-    triggeredBy: number;
-    startedAt: Date | null;
-    finishedAt: Date | null;
-    durationMs: number | null;
-    summary: import(".prisma/client/runtime/library").JsonValue | null;
-    violations: import(".prisma/client/runtime/library").JsonValue | null;
-    draftEntries: import(".prisma/client/runtime/library").JsonValue | null;
-    unassignedItems: import(".prisma/client/runtime/library").JsonValue | null;
-}>;
 export declare function assertLatestRunIsCurrent(schoolId: number, schoolYearId: number): Promise<{
     error: string | null;
     id: number;

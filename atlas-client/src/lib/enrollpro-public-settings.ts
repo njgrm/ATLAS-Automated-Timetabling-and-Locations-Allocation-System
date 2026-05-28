@@ -19,6 +19,11 @@ export type ActiveSchoolYearContext = {
 	cachedAt: string;
 };
 
+type PromotionOptions = {
+	allowStaleOnError?: boolean;
+	allowEnrollProFallback?: boolean;
+};
+
 export function isUpstreamBackedSchoolYearSource(source: ActiveSchoolYearContextSource): boolean {
 	return source === 'enrollpro' || source === 'enrollpro-verified';
 }
@@ -69,19 +74,49 @@ function isFresh(cachedAtIso: string, maxAgeMs: number): boolean {
 	return Date.now() - cachedAtMs <= maxAgeMs;
 }
 
+// Deduplicate in-flight verification calls so rapid navigations don't spawn
+// parallel requests for the same school.
+let _inflight: Promise<ActiveSchoolYearContext> | null = null;
+
 export async function resolveActiveSchoolYearContext(options?: {
 	forceRefresh?: boolean;
+	/** Return cached data immediately without waiting for upstream, even if stale. */
+	preferCache?: boolean;
+	/** Fire background re-verification and update the cache without blocking the caller. */
+	backgroundRefresh?: boolean;
 	allowStaleOnError?: boolean;
 	maxAgeMs?: number;
 	allowEnrollProFallback?: boolean;
 }): Promise<ActiveSchoolYearContext> {
 	const forceRefresh = options?.forceRefresh === true;
+	const preferCache = options?.preferCache === true;
+	const backgroundRefresh = options?.backgroundRefresh === true;
 	const allowStaleOnError = options?.allowStaleOnError !== false;
 	const maxAgeMs = options?.maxAgeMs ?? ACTIVE_SCHOOL_YEAR_MAX_AGE_MS;
 	const allowEnrollProFallback = options?.allowEnrollProFallback !== false;
 
 	const cached = readCachedActiveSchoolYear();
 	const hasFreshCache = cached ? isFresh(cached.cachedAt, maxAgeMs) : false;
+
+	// preferCache: return cached immediately (even if stale) and optionally
+	// kick off a background re-verification so the next caller gets fresher data.
+	if (preferCache && cached) {
+		if (backgroundRefresh) {
+			// Fire-and-forget — deduplicate so rapid mounts don't stack requests.
+			if (!_inflight) {
+				_inflight = _fetchRuntimeContext(allowEnrollProFallback, allowStaleOnError, cached)
+					.finally(() => { _inflight = null; });
+				void _inflight;
+			}
+		}
+		return {
+			activeSchoolYearId: cached.activeSchoolYearId,
+			activeSchoolYearLabel: cached.activeSchoolYearLabel,
+			source: 'cache',
+			stale: !hasFreshCache,
+			cachedAt: cached.cachedAt,
+		};
+	}
 
 	if (!forceRefresh && cached && hasFreshCache) {
 		return {
@@ -92,6 +127,25 @@ export async function resolveActiveSchoolYearContext(options?: {
 			cachedAt: cached.cachedAt,
 		};
 	}
+
+	// Deduplicate concurrent calls so a single page mount doesn't spawn
+	// multiple overlapping verification requests.
+	if (_inflight && !forceRefresh) {
+		return _inflight;
+	}
+	const promise = _fetchRuntimeContext(allowEnrollProFallback, allowStaleOnError, cached);
+	if (!forceRefresh) {
+		_inflight = promise.finally(() => { _inflight = null; });
+		return _inflight;
+	}
+	return promise;
+}
+
+async function _fetchRuntimeContext(
+	allowEnrollProFallback: boolean,
+	allowStaleOnError: boolean,
+	cachedFallback: ActiveSchoolYearCacheRecord | null,
+): Promise<ActiveSchoolYearContext> {
 
 	let runtimeContextError: unknown = null;
 
@@ -115,16 +169,16 @@ export async function resolveActiveSchoolYearContext(options?: {
 	}
 
 	if (!allowEnrollProFallback) {
-		if (!allowStaleOnError || !cached) {
+		if (!allowStaleOnError || !cachedFallback) {
 			throw runtimeContextError ?? new Error('Active school-year context is unavailable from ATLAS runtime data.');
 		}
 
 		return {
-			activeSchoolYearId: cached.activeSchoolYearId,
-			activeSchoolYearLabel: cached.activeSchoolYearLabel,
+			activeSchoolYearId: cachedFallback.activeSchoolYearId,
+			activeSchoolYearLabel: cachedFallback.activeSchoolYearLabel,
 			source: 'cache',
 			stale: true,
-			cachedAt: cached.cachedAt,
+			cachedAt: cachedFallback.cachedAt,
 		};
 	}
 
@@ -145,16 +199,31 @@ export async function resolveActiveSchoolYearContext(options?: {
 			cachedAt: updated?.cachedAt ?? new Date().toISOString(),
 		};
 	} catch (error) {
-		if (!allowStaleOnError || !cached) {
+		if (!allowStaleOnError || !cachedFallback) {
 			throw error;
 		}
 
 		return {
-			activeSchoolYearId: cached.activeSchoolYearId,
-			activeSchoolYearLabel: cached.activeSchoolYearLabel,
+			activeSchoolYearId: cachedFallback.activeSchoolYearId,
+			activeSchoolYearLabel: cachedFallback.activeSchoolYearLabel,
 			source: 'cache',
 			stale: true,
-			cachedAt: cached.cachedAt,
+			cachedAt: cachedFallback.cachedAt,
 		};
 	}
+}
+
+export function promoteActiveSchoolYearContext(options?: PromotionOptions): Promise<ActiveSchoolYearContext> {
+	const allowStaleOnError = options?.allowStaleOnError !== false;
+	const allowEnrollProFallback = options?.allowEnrollProFallback !== false;
+	const cached = readCachedActiveSchoolYear();
+
+	if (_inflight) {
+		return _inflight;
+	}
+
+	_inflight = _fetchRuntimeContext(allowEnrollProFallback, allowStaleOnError, cached)
+		.finally(() => { _inflight = null; });
+
+	return _inflight;
 }

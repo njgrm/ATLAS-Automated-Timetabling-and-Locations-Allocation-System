@@ -462,11 +462,15 @@ function deriveTermIndexFromMetadata(entry: ScheduledEntry): 1 | 2 | 3 {
 	return 1;
 }
 
-function withTermIndex(entries: ScheduledEntry[]): ScheduledEntry[] {
-	return entries.map((entry) => ({
-		...entry,
-		termIndex: normalizeTermIndex((entry as ScheduledEntry & { termIndex?: unknown }).termIndex ?? deriveTermIndexFromMetadata(entry)),
-	}));
+function resolveEntryTermIndex(entry: ScheduledEntry): 1 | 2 | 3 {
+	return normalizeTermIndex((entry as ScheduledEntry & { termIndex?: unknown }).termIndex ?? deriveTermIndexFromMetadata(entry));
+}
+
+function ensureEntriesHaveTermIndex(entries: ScheduledEntry[]): ScheduledEntry[] {
+	for (const entry of entries) {
+		entry.termIndex = resolveEntryTermIndex(entry);
+	}
+	return entries;
 }
 
 function buildTermCounts(entries: ScheduledEntry[]): { term1: number; term2: number; term3: number } {
@@ -876,7 +880,7 @@ export async function triggerGenerationRun(
 			timetableShapes: timetableShapeContracts,
 		};
 		const result = runHybridScheduler(constructorInput);
-		const entriesWithTerms = withTermIndex(result.entries);
+		const entriesWithTerms = ensureEntriesHaveTermIndex(result.entries);
 
 		// ── G.17: Diagnostic output for constructor result ──
 		console.log(`[generation][run=${run.id}] constructor: assigned=${result.assignedCount}, unassigned=${result.unassignedCount}, policyBlocked=${result.policyBlockedCount}, entries=${result.entries.length}, hybrid=${result.hybridEnabled}, selectedProfile=${result.selectedProfileId}`);
@@ -1182,68 +1186,59 @@ export async function getRunById(runId: number, schoolId: number, schoolYearId: 
 }
 
 export async function getLatestRun(schoolId: number, schoolYearId: number) {
-	return getLatestValidRun(schoolId, schoolYearId);
+	const runId = await resolveLatestValidRunId(schoolId, schoolYearId);
+	return getRunById(runId, schoolId, schoolYearId);
 }
 
-export async function getLatestValidRun(schoolId: number, schoolYearId: number) {
-	const [runs, activeFacultyIds] = await Promise.all([
+async function resolveLatestValidRunId(schoolId: number, schoolYearId: number): Promise<number> {
+	const [runCandidates, activeFacultyIds] = await Promise.all([
 		prisma.generationRun.findMany({
 			where: { schoolId, schoolYearId, status: 'COMPLETED' },
 			orderBy: { createdAt: 'desc' },
+			select: {
+				id: true,
+				schoolYearId: true,
+				status: true,
+				createdAt: true,
+				summary: true,
+			},
 		}),
 		getActiveFacultyMirrorIdSet(schoolId),
 	]);
 
-	if (runs.length === 0) {
+	if (runCandidates.length === 0) {
 		throw err(404, 'NO_RUNS', 'No completed generation runs found for this school/year.');
 	}
 
-	for (const run of runs) {
-		if (getStaleFacultyIdsForRun(run, activeFacultyIds).length === 0) {
-			return run;
+	for (const candidate of runCandidates) {
+		const runDraft = await prisma.generationRun.findUnique({
+			where: { id: candidate.id },
+			select: { id: true, draftEntries: true },
+		});
+		if (runDraft && getStaleFacultyIdsForRun(runDraft, activeFacultyIds).length === 0) {
+			return candidate.id;
 		}
 	}
 
-	const latestRun = runs[0];
-	const staleFacultyIds = getStaleFacultyIdsForRun(latestRun, activeFacultyIds);
+	const latestRun = await prisma.generationRun.findUnique({
+		where: { id: runCandidates[0].id },
+		select: { id: true, draftEntries: true },
+	});
+	const staleFacultyIds = latestRun ? getStaleFacultyIdsForRun(latestRun, activeFacultyIds) : [];
 	throw err(
 		409,
 		'STALE_RUN_DATA',
 		'Latest completed timetable run references stale faculty assignments. Generate a fresh run after faculty sync before using room preferences.',
 		{
 			actionHint: 'Trigger a new timetable generation run after mirror reseed or faculty sync so draft entries bind to current faculty_mirrors IDs.',
-			details: { latestRunId: latestRun.id, staleFacultyIds },
+			details: { latestRunId: runCandidates[0].id, staleFacultyIds },
 		},
 	);
 }
 
 export async function assertLatestRunIsCurrent(schoolId: number, schoolYearId: number) {
-	const [latestRun, activeFacultyIds] = await Promise.all([
-		prisma.generationRun.findFirst({
-			where: { schoolId, schoolYearId, status: 'COMPLETED' },
-			orderBy: { createdAt: 'desc' },
-		}),
-		getActiveFacultyMirrorIdSet(schoolId),
-	]);
-
-	if (!latestRun) {
-		throw err(404, 'NO_RUNS', 'No completed generation runs found for this school/year.');
-	}
-
-	const staleFacultyIds = getStaleFacultyIdsForRun(latestRun, activeFacultyIds);
-	if (staleFacultyIds.length > 0) {
-		throw err(
-			409,
-			'STALE_RUN_DATA',
-			'Latest completed timetable run references stale faculty assignments. Generate a fresh run after faculty sync before using room preferences.',
-			{
-				actionHint: 'Trigger a new timetable generation run after mirror reseed or faculty sync so draft entries bind to current faculty_mirrors IDs.',
-				details: { latestRunId: latestRun.id, staleFacultyIds },
-			},
-		);
-	}
-
-	return latestRun;
+	const runId = await resolveLatestValidRunId(schoolId, schoolYearId);
+	return getRunById(runId, schoolId, schoolYearId);
 }
 
 export async function listRuns(schoolId: number, schoolYearId: number, limit: number = 20) {
@@ -1350,7 +1345,7 @@ function filterViolationsByTerm(
 		return violations;
 	}
 
-	const entryTermById = new Map(entries.map((entry) => [entry.entryId, entry.termIndex ?? 1]));
+	const entryTermById = new Map(entries.map((entry) => [entry.entryId, resolveEntryTermIndex(entry)]));
 	return violations.filter((violation) => {
 		const explicit = violation.meta?.termIndex;
 		if (typeof explicit === 'number') {
@@ -1371,7 +1366,7 @@ export async function getRunViolations(runId: number, schoolId: number, schoolYe
 	});
 	if (!run) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
 
-	const entries = withTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]);
+	const entries = ensureEntriesHaveTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]);
 	const violations = filterViolationsByTerm((run.violations ?? []) as unknown as Violation[], entries, termIndex);
 	const summary = (run.summary ?? {}) as Record<string, unknown>;
 	const violationCounts = (summary.violationCounts ?? {}) as Record<string, number>;
@@ -1388,9 +1383,14 @@ export async function getRunViolations(runId: number, schoolId: number, schoolYe
 }
 
 export async function getLatestRunViolations(schoolId: number, schoolYearId: number, termIndex?: number): Promise<ViolationReport> {
-	const run = await getLatestValidRun(schoolId, schoolYearId);
+	const runId = await resolveLatestValidRunId(schoolId, schoolYearId);
+	const run = await prisma.generationRun.findFirst({
+		where: { id: runId, schoolId, schoolYearId },
+		select: { id: true, status: true, violations: true, summary: true, draftEntries: true },
+	});
+	if (!run) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
 
-	const entries = withTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]);
+	const entries = ensureEntriesHaveTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]);
 	const violations = filterViolationsByTerm((run.violations ?? []) as unknown as Violation[], entries, termIndex);
 	const summary = (run.summary ?? {}) as Record<string, unknown>;
 	const violationCounts = (summary.violationCounts ?? {}) as Record<string, number>;
@@ -1429,7 +1429,7 @@ export async function getRunDraft(runId: number, schoolId: number, schoolYearId:
 	return {
 		runId: run.id,
 		status: run.status,
-		entries: withTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]),
+		entries: ensureEntriesHaveTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]),
 		unassignedItems: (run.unassignedItems ?? []) as unknown as UnassignedItem[],
 		summary: (run.summary ?? null) as RunSummary | null,
 		version: run.version,
@@ -1439,12 +1439,17 @@ export async function getRunDraft(runId: number, schoolId: number, schoolYearId:
 }
 
 export async function getLatestRunDraft(schoolId: number, schoolYearId: number): Promise<DraftReport> {
-	const run = await getLatestValidRun(schoolId, schoolYearId);
+	const runId = await resolveLatestValidRunId(schoolId, schoolYearId);
+	const run = await prisma.generationRun.findFirst({
+		where: { id: runId, schoolId, schoolYearId },
+		select: { id: true, status: true, draftEntries: true, unassignedItems: true, summary: true, version: true, finishedAt: true, createdAt: true },
+	});
+	if (!run) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
 
 	return {
 		runId: run.id,
 		status: run.status,
-		entries: withTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]),
+		entries: ensureEntriesHaveTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]),
 		unassignedItems: (run.unassignedItems ?? []) as unknown as UnassignedItem[],
 		summary: (run.summary ?? null) as RunSummary | null,
 		version: run.version,

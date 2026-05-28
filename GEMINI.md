@@ -274,6 +274,22 @@ Controllers stay transport-only.
 
 Gemini must keep business logic in `/services` and must not move runtime or DB rules into controllers or page code for convenience.
 
+### 4a. Keep server imports Node-ESM-safe
+
+In `atlas-server/src`, Gemini must use explicit `.js` endings for relative runtime imports.
+
+Do not add:
+
+- `import { prisma } from '../lib/prisma'`
+- `import { helper } from './x.service'`
+
+Use:
+
+- `import { prisma } from '../lib/prisma.js'`
+- `import { helper } from './x.service.js'`
+
+Gemini must treat extensionless relative imports in server code as a runtime defect even if TypeScript compiles.
+
 ### 5. Be explicit about repair predicates
 
 If Gemini filters, quarantines, reconciles, or excludes persisted rows, it must be able to state:
@@ -294,6 +310,28 @@ When EnrollPro is down or upstream is unavailable, Gemini must verify:
 - what source metadata should be surfaced to the client
 
 Gemini must not call a page `live` just because an ATLAS endpoint responded.
+
+### 7. Treat timetable latest-run routes as memory-sensitive
+
+When touching:
+
+- latest-run resolution
+- `getLatestRun`
+- `getLatestRunDraft`
+- `getLatestRunViolations`
+- `/generation/.../runs/latest/timetable`
+- `/generation/.../runs/latest/violations`
+
+Gemini must not:
+
+- load every completed `GenerationRun` row with full JSON payloads just to find the latest valid run
+- duplicate whole `draftEntries` arrays on read paths without strong justification
+
+Preferred pattern:
+
+1. fetch lightweight run candidates first
+2. inspect heavy JSON only for the minimum candidate set needed
+3. normalize entry term metadata in place when safe instead of cloning the whole payload
 
 ---
 
@@ -504,6 +542,17 @@ If the fix depends on persisted row shape or integrity:
 - verify the exact affected records or counts, not just broad page behavior
 
 Gemini must not claim a backend or data-integrity `GO` from static code review alone when live or persisted evidence is central to the task.
+
+### Mandatory server runtime proof after backend changes
+
+For backend changes that affect startup, route loading, or large timetable payload reads, Gemini must additionally verify:
+
+1. the server binds to the expected port
+2. `/api/v1/health` returns successfully
+3. the exact touched route returns successfully
+4. the process is still alive after that route is called
+
+This is mandatory for timetable latest-run endpoints because they can pass build and still kill the process under real payload load.
 
 ---
 

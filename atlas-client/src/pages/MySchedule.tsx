@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CalendarDays, Clock3, MapPin, RefreshCcw, School, Users } from 'lucide-react';
+import { AlertCircle, BookOpen, CalendarDays, Clock3, MapPin, RefreshCcw, School, Users } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { cacheFacultyIdentity, readCachedFacultyIdentity } from '@/lib/faculty-identity-cache';
 import { buildFacultyCacheKey, isLikelyOfflineError, readFacultySnapshot, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
 import FacultyGlobalHeader from '@/components/faculty-shared/FacultyGlobalHeader';
-import { PublishedTimetableMatrix, formatShortTime } from '@/components/published-schedule/PublishedTimetableMatrix';
+import { PublishedTimetableMatrix, formatShortTime, type PublishedScheduleMatrixEntry } from '@/components/published-schedule/PublishedTimetableMatrix';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -101,7 +101,7 @@ export default function MySchedule() {
 			setSchoolYearNotice(
 				schoolYearContext.source === 'enrollpro'
 					? `Verified with EnrollPro (${schoolYearContext.activeSchoolYearLabel}).`
-					: schoolYearContext.source === 'atlas' && !schoolYearContext.stale
+					: schoolYearContext.source === 'atlas-persisted' && !schoolYearContext.stale
 						? null
 						: schoolYearContext.activeSchoolYearLabel
 							? `Working from saved data (${schoolYearContext.activeSchoolYearLabel}).`
@@ -190,6 +190,27 @@ export default function MySchedule() {
 
 	const summary = useMemo(() => buildSummary(schedule?.entries ?? []), [schedule?.entries]);
 
+	const matrixEntries = useMemo<PublishedScheduleMatrixEntry[]>(() => (
+		(schedule?.entries ?? []).map((entry) => ({
+			entryId: entry.entryId,
+			day: entry.day,
+			startTime: entry.startTime,
+			endTime: entry.endTime,
+			durationMinutes: entry.durationMinutes,
+			subject: entry.subject,
+			section: {
+				name: entry.section.name,
+				gradeLevelName: null,
+				programName: null,
+			},
+			faculty: entry.faculty,
+			room: {
+				name: entry.room.name,
+				buildingName: entry.room.buildingName,
+			},
+		}))
+	), [schedule?.entries]);
+
 	const advisory = useMemo(() => {
 		if (usingCachedSchedule) {
 			const savedAt = cachedScheduleAt ? new Date(cachedScheduleAt).toLocaleString() : null;
@@ -222,7 +243,7 @@ export default function MySchedule() {
 					<div className="space-y-3">
 						<Skeleton className="h-20 w-full rounded-2xl" />
 						<Skeleton className="h-24 w-full rounded-2xl" />
-						<Skeleton className="h-[36rem] w-full rounded-2xl" />
+						<Skeleton className="h-144 w-full rounded-2xl" />
 					</div>
 				</div>
 			</div>
@@ -272,35 +293,35 @@ export default function MySchedule() {
 				<div className="mx-auto w-full max-w-7xl space-y-4">
 					<Card className="rounded-2xl border-border/70">
 						<CardContent className="flex flex-wrap items-center gap-3 py-4">
-							<div className="flex min-w-[11rem] flex-1 items-center gap-2 rounded-xl border border-border/70 px-3 py-2">
+							<div className="flex min-w-44 flex-1 items-center gap-2 rounded-xl border border-border/70 px-3 py-2">
 								<CalendarDays className="size-4 text-primary" />
 								<div>
 									<p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Published run</p>
 									<p className="text-sm font-semibold text-foreground">#{schedule?.source.runId ?? 'N/A'}</p>
 								</div>
 							</div>
-							<div className="flex min-w-[11rem] flex-1 items-center gap-2 rounded-xl border border-border/70 px-3 py-2">
+							<div className="flex min-w-44 flex-1 items-center gap-2 rounded-xl border border-border/70 px-3 py-2">
 								<School className="size-4 text-primary" />
 								<div>
 									<p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">School year</p>
 									<p className="text-sm font-semibold text-foreground">S.Y. {schedule?.source.schoolYearId ?? '...'}</p>
 								</div>
 							</div>
-							<div className="flex min-w-[11rem] flex-1 items-center gap-2 rounded-xl border border-border/70 px-3 py-2">
+							<div className="flex min-w-44 flex-1 items-center gap-2 rounded-xl border border-border/70 px-3 py-2">
 								<Users className="size-4 text-primary" />
 								<div>
 									<p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Sections</p>
 									<p className="text-sm font-semibold text-foreground">{summary.sectionCount}</p>
 								</div>
 							</div>
-							<div className="flex min-w-[11rem] flex-1 items-center gap-2 rounded-xl border border-border/70 px-3 py-2">
+							<div className="flex min-w-44 flex-1 items-center gap-2 rounded-xl border border-border/70 px-3 py-2">
 								<MapPin className="size-4 text-primary" />
 								<div>
 									<p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Buildings</p>
 									<p className="text-sm font-semibold text-foreground">{summary.buildingCount}</p>
 								</div>
 							</div>
-							<div className="flex min-w-[11rem] flex-1 items-center gap-2 rounded-xl border border-border/70 px-3 py-2">
+							<div className="flex min-w-44 flex-1 items-center gap-2 rounded-xl border border-border/70 px-3 py-2">
 								<Clock3 className="size-4 text-primary" />
 								<div>
 									<p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Published at</p>
@@ -313,13 +334,13 @@ export default function MySchedule() {
 					<Card className="rounded-2xl border-border/70">
 						<CardContent className="py-5">
 							<PublishedTimetableMatrix
-								entries={schedule?.entries ?? []}
+								entries={matrixEntries}
 								emptyMessage="A published run exists, but no classes are currently assigned to your account."
 								renderEntryDetails={(entry) => (
 									<>
 										<p className="flex items-center gap-1.5"><Clock3 className="size-3.5 shrink-0" /> {formatShortTime(entry.startTime)} - {formatShortTime(entry.endTime)}</p>
-										<p className="flex items-center gap-1.5"><BookOpen className="size-3.5 shrink-0" /> {entry.section.name}</p>
-										<p className="flex items-center gap-1.5"><MapPin className="size-3.5 shrink-0" /> {entry.room.name}{entry.room.buildingName ? ` (${entry.room.buildingName})` : ''}</p>
+										{entry.section && <p className="flex items-center gap-1.5"><BookOpen className="size-3.5 shrink-0" /> {entry.section.name}</p>}
+										{entry.room && <p className="flex items-center gap-1.5"><MapPin className="size-3.5 shrink-0" /> {entry.room.name}{entry.room.buildingName ? ` (${entry.room.buildingName})` : ''}</p>}
 									</>
 								)}
 							/>

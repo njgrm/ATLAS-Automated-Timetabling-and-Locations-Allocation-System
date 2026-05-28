@@ -59,21 +59,6 @@ const PAGE_SIZES = [10, 25, 50, 100];
 type SortField = 'code' | 'name' | 'minMinutesPerWeek' | 'preferredRoomType' | 'gradeLevels';
 type SortDir = 'asc' | 'desc';
 
-type TeachingLoadResetPreview = {
-	applied: boolean;
-	scope: 'GLOBAL' | 'SUBJECT';
-	schoolId: number;
-	schoolYearId: number;
-	subjectId: number | null;
-	ownershipRowsToRemove: number;
-	facultySubjectRowsAffected: number;
-	facultySubjectRowsDeleted: number;
-	facultySubjectRowsUpdated: number;
-	affectedFacultyCount: number;
-	affectedSubjectCount: number;
-	subjectCodes: string[];
-};
-
 function resolveSubjectTermRank(subject: Pick<Subject, 'rotationTermRank' | 'modularOrder'>): number | null {
 	if (typeof subject.rotationTermRank === 'number' && Number.isInteger(subject.rotationTermRank) && subject.rotationTermRank > 0) {
 		return subject.rotationTermRank;
@@ -110,22 +95,8 @@ export default function Subjects() {
 	const [modalSubjectMeta, setModalSubjectMeta] = useState<Subject | null>(null);
 	const [saving, setSaving] = useState(false);
 	const [deleteTarget, setDeleteTarget] = useState<Subject | null>(null);
-	const [deleteBlocker, setDeleteBlocker] = useState<{
-		target: Subject;
-		reason: string;
-		message: string;
-		details?: {
-			activeAssignmentCount?: number;
-			historicalAssignmentCount?: number;
-			canCleanupHistorical?: boolean;
-			canCleanupActive?: boolean;
-			canCleanupAll?: boolean;
-			requiresArchiveFirst?: boolean;
-			teachingLoadPath?: string;
-			recommendedAction?: string;
-		};
-	} | null>(null);
-	const [deleteActionLoading, setDeleteActionLoading] = useState(false);
+	const [archiveTarget, setArchiveTarget] = useState<Subject | null>(null);
+	const [archivingLoading, setArchivingLoading] = useState(false);
 	const [syncingContract, setSyncingContract] = useState(false);
 	const [syncError, setSyncError] = useState(false);
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
@@ -635,7 +606,7 @@ export default function Subjects() {
 												setModalMode('edit');
 											}}
 											onDelete={(target) => setDeleteTarget(target)}
-											onArchive={(target) => handleArchiveSubject(target)}
+											onArchive={(target) => setArchiveTarget(target)}
 											onShowCoverage={(target) => {
 												setCoverageSubject(target);
 												fetchTeacherCoverage(target.id);
@@ -721,7 +692,7 @@ export default function Subjects() {
 
 			{/* Coverage Side Drawer */}
 			<Sheet open={!!coverageSubject} onOpenChange={(open) => !open && setCoverageSubject(null)}>
-				<SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
+				<SheetContent className="w-100 sm:w-135 overflow-y-auto">
 					<SheetHeader className="pb-6 border-b">
 						<SheetTitle className="flex items-center gap-2 text-xl font-bold">
 							<Users className="size-5 text-primary" />
@@ -751,7 +722,7 @@ export default function Subjects() {
 														<span className="text-[10px] font-bold text-violet-600 uppercase tracking-tight">Rotating Subject</span>
 													</div>
 												</TooltipTrigger>
-												<TooltipContent side="top" className="text-xs font-bold max-w-[200px]">
+												<TooltipContent side="top" className="text-xs font-bold max-w-50">
 													Weekly classroom lane is shared with other subjects in this family across terms.
 												</TooltipContent>
 											</Tooltip>
@@ -873,91 +844,25 @@ export default function Subjects() {
 				onClose={() => { setModalMode(null); setModalSubject(null); setModalSubjectMeta(null); }}
 			/>
 
-			{/* Delete Confirmation Modal */}
 			<ConfirmationModal
-				open={deleteTarget !== null}
-				onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
-				title={`Delete "${deleteTarget?.name ?? ''}"`}
-				description={
-					<span>
-						Permanently delete this subject? This cannot be undone. Only subjects with no active teacher assignments can be deleted directly.
-					</span>
-				}
-				onConfirm={() => { if (deleteTarget) handleDelete(deleteTarget); }}
-				confirmText="Delete"
-				variant="danger"
+				open={archiveTarget !== null}
+				onOpenChange={(open) => { if (!open) setArchiveTarget(null); }}
+				title={`Archive "${archiveTarget?.name ?? ''}"`}
+				description="Archived subjects won't appear in new scheduling proposals. You can reactivate them at any time."
+				confirmText="Archive"
+				variant="warning"
+				loading={archivingLoading}
+				onConfirm={() => { if (archiveTarget) handleArchiveSubject(archiveTarget); }}
 			/>
 
-			{/* Delete Blocker Dialog */}
-			<Dialog open={deleteBlocker !== null} onOpenChange={(open) => { if (!open) setDeleteBlocker(null); }}>
-				<DialogContent className="max-w-md">
-					<DialogHeader>
-						<DialogTitle className="flex items-center gap-2 text-destructive">
-							<Trash2 className="size-5 shrink-0" />
-							Cannot Delete - Action Required
-						</DialogTitle>
-						<DialogDescription asChild>
-							<div className="space-y-3 pt-1">
-								<p className="text-sm text-foreground">{deleteBlocker?.message}</p>
-								{deleteBlocker?.details?.activeAssignmentCount != null && deleteBlocker.details.activeAssignmentCount > 0 && (
-									<p className="text-xs text-muted-foreground">
-										Active assignments: <span className="font-semibold text-foreground">{deleteBlocker.details.activeAssignmentCount}</span>
-									</p>
-								)}
-								{deleteBlocker?.details?.historicalAssignmentCount != null && deleteBlocker.details.historicalAssignmentCount > 0 && (
-									<p className="text-xs text-muted-foreground">
-										Historical assignment rows: <span className="font-semibold text-foreground">{deleteBlocker.details.historicalAssignmentCount}</span>
-									</p>
-								)}
-								{deleteBlocker?.details?.recommendedAction && (
-									<p className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-										Recommended: {deleteBlocker.details.recommendedAction}
-									</p>
-								)}
-							</div>
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter className="flex flex-wrap gap-2 pt-2">
-						{deleteBlocker?.details?.requiresArchiveFirst && (
-							<Button
-								variant="outline"
-								size="sm"
-								disabled={deleteActionLoading}
-								onClick={() => deleteBlocker && handleArchiveSubject(deleteBlocker.target)}
-							>
-								Archive First
-							</Button>
-						)}
-						{(deleteBlocker?.details?.canCleanupActive || deleteBlocker?.details?.canCleanupAll) && (
-							<Button
-								variant="outline"
-								size="sm"
-								className="border-amber-300 text-amber-700 hover:bg-amber-50"
-								disabled={deleteActionLoading}
-								onClick={() => deleteBlocker && handleClearActiveAssignments(deleteBlocker.target)}
-							>
-								Clear Active Assignments
-							</Button>
-						)}
-						{(deleteBlocker?.details?.canCleanupHistorical || deleteBlocker?.details?.canCleanupAll) && (
-							<Button
-								variant="destructive"
-								size="sm"
-								disabled={deleteActionLoading}
-								onClick={() => deleteBlocker && handleCleanupAndDelete(deleteBlocker.target)}
-							>
-								Clean Up &amp; Delete
-							</Button>
-						)}
-						<Button variant="ghost" size="sm" onClick={() => setDeleteBlocker(null)}>
-							Cancel
-						</Button>
-						<Link to={deleteBlocker?.details?.teachingLoadPath ?? '/teaching-load'}>
-							<Button variant="outline" size="sm">View in Teaching Load</Button>
-						</Link>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			<DeleteSubjectDialog
+				target={deleteTarget}
+				onClose={() => setDeleteTarget(null)}
+				onDeleted={() => {
+					void fetchSubjects();
+				}}
+				onEnsureSchoolYear={ensureActiveSchoolYear}
+			/>
 		</div>
 	);
 }

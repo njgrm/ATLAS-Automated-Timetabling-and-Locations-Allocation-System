@@ -966,7 +966,7 @@ export default function FacultyRoomPreferences() {
 				</div>
 			</FacultyGlobalHeader>
 
-			<div className="flex-1 min-h-0 overflow-hidden">
+			<div className="flex flex-1 min-h-0 overflow-hidden">
 				<MobileRoomRequestLayout
 					mobileStep={mobileStep}
 					entries={entries}

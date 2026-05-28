@@ -8,8 +8,8 @@
  * FacultyAssignments page with qualified pairings that the Scheduler fills.
  */
 
-import { prisma } from '../lib/prisma';
-import { matchesSubjectOwnershipDepartment } from './subject-ownership.service';
+import { prisma } from '../lib/prisma.js';
+import { matchesSubjectOwnershipDepartment } from './subject-ownership.service.js';
 
 export interface AssignmentSeedResult {
 	created: number;

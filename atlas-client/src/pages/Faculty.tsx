@@ -28,6 +28,7 @@ import { FacultyRow } from '@/components/faculty/FacultyRow';
 import { FacultyProfileSheet } from '@/components/faculty/FacultyProfileSheet';
 import { toast } from 'sonner';
 import {
+	promoteActiveSchoolYearContext,
 	resolveActiveSchoolYearContext,
 	type ActiveSchoolYearContextSource,
 	isUpstreamBackedSchoolYearSource,
@@ -86,7 +87,10 @@ export default function Faculty() {
 		let yearContextSource: ActiveSchoolYearContextSource = 'cache';
 		try {
 			const yearContext = await resolveActiveSchoolYearContext({
-				forceRefresh,
+				// SWR: always return cached school-year immediately if available;
+				// background re-verification happens automatically when stale.
+				preferCache: !forceRefresh,
+				backgroundRefresh: !forceRefresh,
 				allowEnrollProFallback: false,
 			});
 			schoolYearId = yearContext.activeSchoolYearId;
@@ -130,12 +134,30 @@ export default function Faculty() {
 				schoolYearId,
 			});
 			const isUpstreamBacked = isUpstreamBackedSchoolYearSource(yearContextSource);
-			setDataSource(isUpstreamBacked ? 'live' : 'cached');
-			setCacheNotice(
-				isUpstreamBacked
-					? null
-					: 'Teacher roster is available from ATLAS runtime cache while upstream verification is unavailable.',
-			);
+			if (isUpstreamBacked) {
+				setDataSource('live');
+				setCacheNotice(null);
+			} else if (!isOnline) {
+				setDataSource('cached');
+				setCacheNotice('Teacher roster is available from ATLAS runtime cache while upstream verification is unavailable.');
+			} else {
+				setDataSource('refreshing');
+				setCacheNotice('Verifying runtime source before finalizing live status.');
+				void promoteActiveSchoolYearContext({ allowEnrollProFallback: false, allowStaleOnError: true })
+					.then((promotedContext) => {
+						if (isUpstreamBackedSchoolYearSource(promotedContext.source)) {
+							setDataSource('live');
+							setCacheNotice(null);
+							return;
+						}
+						setDataSource('cached');
+						setCacheNotice('Teacher roster is available from ATLAS runtime cache while upstream verification is unavailable.');
+					})
+					.catch(() => {
+						setDataSource('cached');
+						setCacheNotice('Teacher roster is available from ATLAS runtime cache while upstream verification is unavailable.');
+					});
+			}
 			setSyncError(false);
 			setError(null);
 		} catch {
@@ -163,7 +185,7 @@ export default function Faculty() {
 	}, []);
 
 	useEffect(() => {
-		void fetchFaculty({ forceRefresh: navigator.onLine });
+		void fetchFaculty({});
 	}, [fetchFaculty]);
 
 	useEffect(() => {

@@ -75,7 +75,7 @@ export default function MobileRoomRequestLayout({
 
 	return (
 		<>
-			<div className='flex-1 min-h-0 overflow-auto px-4 pb-28 lg:hidden'>
+			<div className='h-full flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-32 lg:hidden'>
 				<div className='space-y-4'>
 					{recentRequests.length > 0 && (
 						<Card className='rounded-2xl border-primary/20 bg-primary/5'>

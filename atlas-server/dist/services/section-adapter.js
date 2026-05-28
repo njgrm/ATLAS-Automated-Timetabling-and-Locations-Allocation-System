@@ -17,6 +17,7 @@ export async function fetchEnrollProActiveSchoolYear(authToken) {
     const token = authToken ?? process.env.ENROLLPRO_SERVICE_TOKEN;
     try {
         const res = await fetch(`${baseUrl}/integration/v1/school-year`, {
+            signal: AbortSignal.timeout(4000),
             headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
         if (!res.ok)

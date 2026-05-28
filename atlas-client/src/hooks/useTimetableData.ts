@@ -799,7 +799,13 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	}, [pivotEntityIds, entityFilter, setEntityFilter]);
 
 	const fetchSchoolYear = useCallback(async () => {
-		const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true });
+		const context = await resolveActiveSchoolYearContext({
+			// Prefer cached school-year immediately so timetable bootstrap doesn't
+			// block waiting on a forced upstream verification on every navigation.
+			preferCache: true,
+			backgroundRefresh: true,
+			allowStaleOnError: true,
+		});
 		if (context.activeSchoolYearId) setSchoolYearId(context.activeSchoolYearId);
 		return context.activeSchoolYearId ?? null;
 	}, [setSchoolYearId]);

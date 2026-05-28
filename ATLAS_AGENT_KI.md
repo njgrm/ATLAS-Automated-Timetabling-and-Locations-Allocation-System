@@ -212,6 +212,14 @@ Use this when the user wants a prompt enriched for an implementer.
 1. Re-read the touched files to confirm the guidance is internally consistent.
 2. Verify references point to real files in the repo.
 
+### For Server / Timetable Backend Changes
+
+1. In `atlas-server/src`, keep relative runtime imports explicitly ESM-safe with `.js` endings.
+2. Do not trust `tsc` alone for backend safety; direct Node startup must still succeed after build.
+3. Treat latest-run timetable reads as memory-sensitive.
+4. Do not bulk-load all completed `GenerationRun` rows with full JSON payloads just to find the latest valid run.
+5. Avoid whole-array cloning of `draftEntries` on timetable read paths when a narrower or in-place transformation is sufficient.
+
 ---
 
 ## File Pointers I Should Reach For First
@@ -243,3 +251,4 @@ When in doubt, prefer evidence over assumption:
 - inspect the phase scope before implementing
 - preserve established UX patterns before inventing new ones
 - verify version-sensitive UI behavior with official docs when needed
+- for backend/runtime changes, prove both startup health and the exact touched route path

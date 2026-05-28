@@ -1206,25 +1206,20 @@ export default function ScheduleReviewWorkspace() {
 	}, [draftBoard?.placements, focusPinnedPlacement, handleCellDrop, parseDraftPlacementId, setPinnedRailDropActive, setPendingUnassignId, setShowUnassignConfirm, setUnassignDropActive, toast]);
 
 	/* -- Render -- */
-
-	if (loading && !draft) {
-		return <TimetableSkeleton />;
-	}
-
-	if (error) {
-		return (
-			<div className="flex flex-col h-[calc(100svh-3.5rem)] items-center justify-center gap-4">
-				<div className="flex items-center gap-2 text-destructive"><AlertCircle className="size-5" /><span className="text-sm font-medium">{error}</span></div>
-				<Button variant="outline" size="sm" onClick={() => loadAll()}><RefreshCw className="size-3.5 mr-1.5" />Retry</Button>
-			</div>
-		);
-	}
-
 	const hardCount = violations.filter((v) => v.severity === 'HARD').length;
 	const softCount = violations.filter((v) => v.severity === 'SOFT').length;
 	const selectedMapBuilding = buildings.find((b) => b.id === mapBuildingId) ?? null;
 	const selectedMapBuildingFloors = selectedMapBuilding ? Array.from({ length: selectedMapBuilding.floorCount }, (_, i) => selectedMapBuilding.floorCount - i) : [];
 	const workspaceContexts = useMemo(() => {
+		if ((loading && !draft) || error) {
+			return {
+				leftRailContentContext: undefined as unknown as ReturnType<typeof buildLeftRailContext>,
+				centerWorkspaceContext: undefined as unknown as ReturnType<typeof buildCenterWorkspaceContext>,
+				rightPanelContext: undefined as unknown as ReturnType<typeof buildRightPanelContext>,
+				headerContext: undefined as unknown as ReturnType<typeof buildHeaderContext>,
+				overlaysContext: undefined as unknown as ReturnType<typeof buildOverlaysContext>,
+			};
+		}
 		const leftRailContentContext = buildLeftRailContext({ leftTab, isPreGenerationWorkspace, hardViolationCount, topBlockers, violations, handleViolationSelect, setSeverityFilter, VIOLATION_LABELS, violationSearch, setViolationSearch, filteredViolations, violationsByCode, violationsGroupPage, setViolationsGroupPage, selectedViolation, setDrawerViolation, formatConstraintMessage, draftBoard, isDesktop, setDragItem, toast, summary, filteredUnassignedItems, programKindFilteredUnassignedItems, unassignedPageSize, setUnassignedPageSize, unassignedReasonFilter, setUnassignedReasonFilter, resolveEntryProgramType, resolveEntryProgramCode, sectionLabel, subjectLabel, kbSelectedSource, followUps, expandedUnassigned, setExpandedUnassigned, unassignedFixSuggestions, fixLoading, schoolYearId, runs, selectedRunId, setFixLoading, setUnassignedFixSuggestions, entryContextLabel, previewEdit, setDrawerUnassigned, setFollowUps, showSoftConfirm, unassignDropActive, setUnassignDropActive, pinnedRailDropActive, fetchDraftBoardSummary, preGenPending, pinsSearch, setPinsSearch, pinsGradeFilter, setPinsGradeFilter, pinsSectionFilter, setPinsSectionFilter, pinsSubjectFilter, setPinsSubjectFilter, getDraggedDraftPlacementId, dragItem, setPendingUnassignId, setShowUnassignConfirm, pinsQueuePage, setPinsQueuePage, preGenKbSource, setPreGenKbSource, setKbSelectedSource, rightPanelRef, selectedEntry, setSelectedEntry, setSelectedViolation, preGenEntries, gradeForSection, formatFacultyInitials, roomLabelShort, roomRequestSummary, requestSearch, setRequestSearch, requestStatusFilter, setRequestStatusFilter, requestDecisionFilter, setRequestDecisionFilter, roomRequestError, roomRequestLoading, filteredRoomRequests, selectedRequestId, focusRequestInGrid, openRequestPreview, isPrivilegedUser, focusPinnedPlacement });
 		const centerWorkspaceContext = buildCenterWorkspaceContext({ centerView, selectedEntry, violationIndex, followUps, toggleFollowUp, exitPolicyView, handleRefresh, schoolYearId, pendingAction, roomMap, facultyMap, subjectMap, draft, previewEdit, commitEdit, previewLoading, commitLoading, subjectLabel, facultyLabel, sectionLabel, gradeForSection, roomLabel, isStaleRoom, timeSlots, preGenOnboarding, setCenterView, buildings, mapBuildingId, setMapBuildingId, openBuildingWorkspace, selectedMapBuilding, selectedMapBuildingFloors, mapRoomId, openRoomGridWorkspace, presentationMode, draftBoard, runs, entityFilter, pivotLabel, viewMode, setPreGenOnboarding, gridEntries, highlightedEntryIds, handleEntryClick, entryContextLabel, formatFacultyInitials, roomLabelShort, dragItem, kbSelectedSource, handleKbPlace, cellConflictMap, navToFaculty, navToSection, navToRoom, preGenPending, preGenPreviewLoading, preGenPreviewError, preGenPreview, commitPreGenPending, preGenSaving, setPreGenPending, setPreGenPreview, setPreGenPreviewError, setPreGenAllowSoftOverride });
 		const rightPanelContext = buildRightPanelContext({ rightPanelRef, setIsRightCollapsed, isRightCollapsed, isPreGenerationWorkspace, preGenKbSource, selectedEntry, setPreGenKbSource, setKbSelectedSource, initials, facultyMap, formatFacultyInitials, isDesktop, subjectLabel, toggleFollowUp, followUps, setSelectedEntry, gradeForSection, violationIndex, sectionLabel, facultyLabel, roomLabel, roomRequestSummary, previewResult, formatConstraintMessage, violationLabels: VIOLATION_LABELS, violationExplanations: VIOLATION_EXPLANATIONS, setSelectedViolation, toast, draftBoard, parseDraftPlacementId, deletingPlacementId, setPendingUnassignId, setShowUnassignConfirm, enterManualEditView });
@@ -1315,6 +1310,7 @@ export default function ScheduleReviewWorkspace() {
 		newDraftLoading,
 		generating,
 		loading,
+		error,
 		hardCount,
 		softCount,
 		revertLoading,
@@ -1377,6 +1373,19 @@ export default function ScheduleReviewWorkspace() {
 		handlePresentationModeChange,
 	]);
 	const { leftRailContentContext, centerWorkspaceContext, rightPanelContext, headerContext, overlaysContext } = workspaceContexts;
+
+	if (loading && !draft) {
+		return <TimetableSkeleton />;
+	}
+
+	if (error) {
+		return (
+			<div className="flex flex-col h-[calc(100svh-3.5rem)] items-center justify-center gap-4">
+				<div className="flex items-center gap-2 text-destructive"><AlertCircle className="size-5" /><span className="text-sm font-medium">{error}</span></div>
+				<Button variant="outline" size="sm" onClick={() => loadAll()}><RefreshCw className="size-3.5 mr-1.5" />Retry</Button>
+			</div>
+		);
+	}
 
 	const showTopLoadingStrip = loading
 		|| generating

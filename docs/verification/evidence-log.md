@@ -1,3 +1,104 @@
+# 2026-05-28 - Phase 3 Runtime Context Live Promotion And Cache Honesty Fix
+- Phase: Phase 3 generator-readiness stream, cache-first source-honesty recovery
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, BUILD VERIFIED
+- Touched files:
+  - atlas-client/src/lib/enrollpro-public-settings.ts
+  - atlas-client/src/pages/Faculty.tsx
+  - atlas-client/src/pages/Sections.tsx
+  - docs/reference/atlas-runtime-source-of-truth-map.md
+  - docs/verification/evidence-log.md
+
+- Implemented behavior:
+  1. Runtime-context resolver now allows deduplicated background re-verification whenever `backgroundRefresh: true` is requested in cache-first mode (not only when cache is stale).
+  2. Added non-blocking promotion helper `promoteActiveSchoolYearContext()` so current callers can learn if verification later succeeds during the same page load.
+  3. Faculty page preserves fast cache-first warm reopen, then auto-promotes source badge from cached/refreshing to `Verified with EnrollPro` when runtime verification succeeds after live summary load.
+  4. Sections page preserves fast cache-first warm reopen, then auto-promotes from cached/atlas-mirror-style refresh state to `live` when section summary is EnrollPro-backed and runtime verification succeeds.
+  5. Degraded wording remains when runtime verification does not promote upstream-backed truth; no forced "live" labeling on plain `200` responses.
+
+- Cached-first reopen status:
+  - Preserved. Cache-first read path remains active in `Faculty` and `Sections`.
+
+- Live promotion status:
+  - Implemented. Source badges now promote automatically in-session when verification succeeds.
+
+- Timetable bootstrap audit (`atlas-client/src/hooks/useTimetableData.ts`):
+  - Audited in this pass.
+  - The hook uses cache-first runtime context only for school-year bootstrap and does not derive/lock a visible source badge from the initial cached source in this path.
+  - No source-honesty fix was required in this file for this prompt scope.
+
+- Automated verification:
+  - `npm --prefix atlas-client run build` -> PASS
+  - Type/diagnostic checks on touched files -> PASS
+
+- Manual / Tailnet verification:
+  - Not executed in this pass.
+  - Runtime promotion behavior validated through code-path inspection and build verification.
+
+- Verdict:
+  - GO for implementation/build scope
+  - NO-GO for phase-gate closure until Tailnet manual promotion checks are captured
+
+# 2026-05-28 - Runtime Context Timeout and Stale-While-Revalidate Recovery
+
+- Phase: Phase 3 generator-readiness stream, cross-stack resilience repair
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, BUILD VERIFIED
+
+## What changed
+
+### Server
+
+- **`atlas-server/src/services/section-adapter.ts`** — Added `AbortSignal.timeout(4000)` to `fetchEnrollProActiveSchoolYear()`. The upstream fetch is now bounded to 4 seconds. On timeout or any failure, the `catch` block in `resolveRuntimeContext()` (runtime-context.service.ts) continues to return the `atlas-persisted` result without raising 500/502. Evidence-ranking behavior is unchanged.
+
+### Client: shared resolver (`atlas-client/src/lib/enrollpro-public-settings.ts`)
+
+- Added `preferCache` and `backgroundRefresh` options to `resolveActiveSchoolYearContext()`.
+- `preferCache: true` returns cached data (even if stale) immediately without waiting on `/runtime/context`.
+- `backgroundRefresh: true` fires a deduplicated background re-verification when cache is stale; once completed, `cacheActiveSchoolYearContext()` is updated for the next call.
+- Added `_inflight` deduplication: concurrent calls for the same school (rapid navigations) share one in-flight verification promise instead of spawning parallel requests.
+- Extracted the blocking upstream resolution path into private `_fetchRuntimeContext()` to cleanly separate immediate-return vs. deferred-verification paths.
+
+### Client: route-lifetime in-memory view cache (`atlas-client/src/lib/faculty-teaching-load-cache.ts`)
+
+- Added module-level `Map` caches: `_facultyMemory`, `_sectionSummaryMemory`, `_sectionHomeRoomsMemory`.
+- `getCachedFacultyAssignmentsSummary`, `getCachedSectionSummary`, and `getCachedSectionHomeRooms` now read memory-first, falling back to localStorage on cold start.
+- `set*` functions write to both memory and localStorage atomically.
+- React remounts on route navigation now read from memory, skipping the localStorage parse overhead entirely on repeat visits.
+
+### Client: Faculty and Sections pages
+
+- **`atlas-client/src/pages/Faculty.tsx`** — Removed `forceRefresh: navigator.onLine`. Mount effect is now `fetchFaculty({})`. `resolveActiveSchoolYearContext` is called with `preferCache: true, backgroundRefresh: true`. Cached school-year is returned immediately; background re-verification updates the cache asynchronously.
+- **`atlas-client/src/pages/Sections.tsx`** — Same change: removed `forceRefresh: navigator.onLine`, using `preferCache: true, backgroundRefresh: true`.
+- Degraded-state notices remain intact: cached/refreshing/atlas-mirror labels are unchanged.
+
+### Client: timetable hook (`atlas-client/src/hooks/useTimetableData.ts`)
+
+- `fetchSchoolYear()` now calls `resolveActiveSchoolYearContext({ preferCache: true, backgroundRefresh: true, allowStaleOnError: true })`.
+- Timetable bootstrap no longer waits on a forced upstream verification when recent local context exists; background re-verification runs without blocking the data load sequence.
+
+## Automated verification
+
+- `npm --prefix atlas-server run build` → PASS (tsc, zero errors)
+- `npm --prefix atlas-client run build` → PASS (vite, 2514 modules transformed, zero errors)
+
+## Required manual / live verification checklist (Tailnet)
+
+- [ ] `/api/v1/runtime/context` returns valid context when local evidence exists
+- [ ] Faculty opens from cache immediately on repeat navigation (no 5-6s cold boot)
+- [ ] Sections opens from cache immediately on repeat navigation
+- [ ] `/timetable` no longer blocks on forced runtime-year fetch on every navigation
+- [ ] Degraded state labels remain honest (cache/refreshing/atlas-mirror shown correctly)
+- [ ] Repeat navigations between Faculty/Sections/Timetable feel instant on warm visits
+- [ ] EnrollPro timeout path: if upstream hangs >4s, ATLAS falls back to persisted evidence without 502
+
+## GO / NO-GO
+
+- **GO** for implementation and build scope.
+- **NO-GO** for phase-gate closure until Tailnet manual checklist is executed and recorded.
+
+---
+
 # 2026-05-28 - Timetable Load-Path Optimization Hardening (Frontend)
 - Phase: Phase 3 generator-readiness stream, `/timetable` repeated-entry performance hardening
 - Operator: GitHub Copilot
@@ -1044,3 +1145,4 @@
 - Operator: Gemini CLI
 - Description: Resolved an unresolved variable reference (ArrowRight to ArrowLeftRight mapping issue where ArrowLeftRight wasn't added to imports in SubjectRow.tsx).
 - Verdict: GO
+`n## 2026-05-28: Phase 3 Published Schedule Refresh and Stale Cache Fix`n`n- **Scope**: Fix stale published schedule data in public and faculty views.`n- **Files changed**:`n  - `atlas-client/public/sw.js`: Removed published schedule endpoint from service worker caching.`n  - `atlas-client/src/pages/PublicPublishedSchedule.tsx`: Implemented `forceRefresh` mode to bypass local storage and SW caches.`n  - `atlas-client/src/pages/MySchedule.tsx`: Implemented `forceRefresh` mode to bypass local storage and SW caches.`n- **Verification performed**:`n  - `npm --prefix atlas-client run build` passed.`n  - Code review confirmed that `forceRefresh` adds `Cache-Control: no-cache` and skips local snapshots.`n  - Service worker no longer intercepts published schedule API calls.`n- **Verdict**: GO

@@ -551,6 +551,17 @@ export default function FacultyAssignments() {
 		[effectiveDraftAssignmentsByFaculty, facultyNames, savedAssignmentsByFaculty],
 	);
 
+	const effectiveOwnershipMap = useMemo(
+		() => Object.fromEntries([
+			...Object.entries(savedOwnershipMap).map(([key, owner]) => [
+				key,
+				{ ...owner, isPending: false },
+			]),
+			...Object.entries(pendingOwnershipMap),
+		]),
+		[pendingOwnershipMap, savedOwnershipMap],
+	);
+
 	const selected = useMemo(
 		() => faculty.find((member) => member.id === selectedId) ?? null,
 		[faculty, selectedId],
@@ -2509,8 +2520,7 @@ export default function FacultyAssignments() {
 																				sections={sectionsBySubject[subject.id] ?? []}
 																				disabled={saving || !selected.isActiveForScheduling || isReadOnlyMode}
 																				selectedFacultyId={selected.id}
-																				savedOwnershipMap={savedOwnershipMap}
-																				pendingOwnershipMap={pendingOwnershipMap}
+																				effectiveOwnershipMap={effectiveOwnershipMap}
 																				savedConflictMap={savedConflictMap}
 																				onSetSections={setSubjectSections}
 																				searchTerm={subjectSearch}
@@ -2547,8 +2557,7 @@ export default function FacultyAssignments() {
 																				sections={sectionsBySubject[subject.id] ?? []}
 																				disabled={saving || !selected.isActiveForScheduling || isReadOnlyMode}
 																				selectedFacultyId={selected.id}
-																				savedOwnershipMap={savedOwnershipMap}
-																				pendingOwnershipMap={pendingOwnershipMap}
+																				effectiveOwnershipMap={effectiveOwnershipMap}
 																				savedConflictMap={savedConflictMap}
 																				onSetSections={setSubjectSections}
 																				isOutsideDepartment
@@ -2618,8 +2627,7 @@ export default function FacultyAssignments() {
 																	sections={sectionsBySubject[subject.id] ?? []}
 																	disabled={saving || !selected.isActiveForScheduling || isReadOnlyMode}
 																	selectedFacultyId={selected.id}
-																	savedOwnershipMap={savedOwnershipMap}
-																	pendingOwnershipMap={pendingOwnershipMap}
+																	effectiveOwnershipMap={effectiveOwnershipMap}
 																	savedConflictMap={savedConflictMap}
 																	onSetSections={setSubjectSections}
 																	searchTerm={subjectSearch}
@@ -2706,8 +2714,7 @@ export default function FacultyAssignments() {
 																	sections={sectionsBySubject[subject.id] ?? []}
 																	disabled={saving || !selected.isActiveForScheduling || isReadOnlyMode}
 																	selectedFacultyId={selected.id}
-																	savedOwnershipMap={savedOwnershipMap}
-																	pendingOwnershipMap={pendingOwnershipMap}
+																	effectiveOwnershipMap={effectiveOwnershipMap}
 																	savedConflictMap={savedConflictMap}
 																	onSetSections={setSubjectSections}
 																	searchTerm={subjectSearch}

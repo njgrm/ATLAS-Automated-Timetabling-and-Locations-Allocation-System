@@ -13,6 +13,13 @@ const SUBJECTS_CACHE_PREFIX = 'atlas:subjects:v1';
 const SECTION_SUMMARY_CACHE_PREFIX = 'atlas:section-summary:v1';
 const SECTION_HOME_ROOMS_CACHE_PREFIX = 'atlas:section-home-rooms:v1';
 
+// ─── Route-lifetime in-memory caches ─────────────────────────────────────────
+// Module-level Maps so React remounts do not always cold-boot from localStorage.
+// Key pattern: `${schoolId}:${schoolYearId}` (or just `${schoolId}` for subjects).
+const _facultyMemory = new Map<string, CacheEnvelope<FacultySummarySnapshot>>();
+const _sectionSummaryMemory = new Map<string, CacheEnvelope<SectionSummaryResponse>>();
+const _sectionHomeRoomsMemory = new Map<string, CacheEnvelope<unknown[]>>();
+
 type CacheEnvelope<T> = {
 	cachedAt: string;
 	data: T;
@@ -188,18 +195,26 @@ export function getCachedFacultyAssignmentsSummary(
 	options?: { maxAgeMs?: number | null },
 ): CachedResult<FacultySummarySnapshot> | null {
 	const maxAgeMs = options?.maxAgeMs ?? null;
-	const cached = readCached<FacultySummarySnapshot>(summaryCacheKey(schoolId, schoolYearId));
-	if (!cached) return null;
-	const normalized = normalizeFacultySummarySnapshot(cached.data);
+	const memKey = `${schoolId}:${schoolYearId}`;
+	// Prefer in-memory cache for route-lifetime instant rereads.
+	const memCached = _facultyMemory.get(memKey);
+	const rawCached = memCached ?? readCached<FacultySummarySnapshot>(summaryCacheKey(schoolId, schoolYearId));
+	if (!rawCached) return null;
+	const normalized = normalizeFacultySummarySnapshot(rawCached.data);
 	if (!normalized) return null;
+	// Warm memory cache if we just read from localStorage.
+	if (!memCached) _facultyMemory.set(memKey, rawCached);
 	return {
-		cachedAt: cached.cachedAt,
+		cachedAt: rawCached.cachedAt,
 		data: normalized,
-		stale: isStale(cached.cachedAt, maxAgeMs),
+		stale: isStale(rawCached.cachedAt, maxAgeMs),
 	};
 }
 
 export function setCachedFacultyAssignmentsSummary(schoolId: number, schoolYearId: number, data: FacultySummarySnapshot): void {
+	const memKey = `${schoolId}:${schoolYearId}`;
+	const envelope: CacheEnvelope<FacultySummarySnapshot> = { cachedAt: new Date().toISOString(), data };
+	_facultyMemory.set(memKey, envelope);
 	writeCached(summaryCacheKey(schoolId, schoolYearId), data);
 }
 
@@ -225,22 +240,28 @@ export function getCachedSectionSummary(
 	options?: { maxAgeMs?: number | null },
 ): CachedResult<SectionSummaryResponse> | null {
 	const maxAgeMs = options?.maxAgeMs ?? null;
-	const cached = readCached<SectionSummaryResponse>(sectionSummaryCacheKey(schoolId, schoolYearId));
-	if (!cached) return null;
-	if (!cached.data || typeof cached.data !== 'object' || !Array.isArray((cached.data as any).sections)) return null;
+	const memKey = `${schoolId}:${schoolYearId}`;
+	const memCached = _sectionSummaryMemory.get(memKey) as CacheEnvelope<SectionSummaryResponse> | undefined;
+	const rawCached = memCached ?? readCached<SectionSummaryResponse>(sectionSummaryCacheKey(schoolId, schoolYearId));
+	if (!rawCached) return null;
+	if (!rawCached.data || typeof rawCached.data !== 'object' || !Array.isArray((rawCached.data as any).sections)) return null;
+	if (!memCached) _sectionSummaryMemory.set(memKey, rawCached);
 	return {
-		cachedAt: cached.cachedAt,
+		cachedAt: rawCached.cachedAt,
 		data: {
-			...cached.data,
-			sections: toArray((cached.data as any).sections),
-			gradeLevels: toArray((cached.data as any).gradeLevels),
-			contractWarnings: toArray((cached.data as any).contractWarnings),
+			...rawCached.data,
+			sections: toArray((rawCached.data as any).sections),
+			gradeLevels: toArray((rawCached.data as any).gradeLevels),
+			contractWarnings: toArray((rawCached.data as any).contractWarnings),
 		},
-		stale: isStale(cached.cachedAt, maxAgeMs),
+		stale: isStale(rawCached.cachedAt, maxAgeMs),
 	};
 }
 
 export function setCachedSectionSummary(schoolId: number, schoolYearId: number, summary: SectionSummaryResponse): void {
+	const memKey = `${schoolId}:${schoolYearId}`;
+	const envelope: CacheEnvelope<SectionSummaryResponse> = { cachedAt: new Date().toISOString(), data: summary };
+	_sectionSummaryMemory.set(memKey, envelope);
 	writeCached(sectionSummaryCacheKey(schoolId, schoolYearId), summary);
 }
 
@@ -250,17 +271,22 @@ export function getCachedSectionHomeRooms<T>(
 	options?: { maxAgeMs?: number | null },
 ): CachedResult<T[]> | null {
 	const maxAgeMs = options?.maxAgeMs ?? null;
-	const cached = readCached<T[]>(sectionHomeRoomsCacheKey(schoolId, schoolYearId));
-	if (!cached) return null;
-	if (!Array.isArray(cached.data)) return null;
+	const memKey = `${schoolId}:${schoolYearId}`;
+	const memCached = _sectionHomeRoomsMemory.get(memKey) as CacheEnvelope<T[]> | undefined;
+	const rawCached = memCached ?? readCached<T[]>(sectionHomeRoomsCacheKey(schoolId, schoolYearId));
+	if (!rawCached) return null;
+	if (!Array.isArray(rawCached.data)) return null;
+	if (!memCached) _sectionHomeRoomsMemory.set(memKey, rawCached as CacheEnvelope<unknown[]>);
 	return {
-		cachedAt: cached.cachedAt,
-		data: cached.data,
-		stale: isStale(cached.cachedAt, maxAgeMs),
+		cachedAt: rawCached.cachedAt,
+		data: rawCached.data,
+		stale: isStale(rawCached.cachedAt, maxAgeMs),
 	};
 }
 
 export function setCachedSectionHomeRooms<T>(schoolId: number, schoolYearId: number, rooms: T[]): void {
+	const memKey = `${schoolId}:${schoolYearId}`;
+	_sectionHomeRoomsMemory.set(memKey, { cachedAt: new Date().toISOString(), data: rooms });
 	writeCached(sectionHomeRoomsCacheKey(schoolId, schoolYearId), rooms);
 }
 
