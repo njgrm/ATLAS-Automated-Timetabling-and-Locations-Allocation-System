@@ -1,22 +1,5 @@
 import {
-	AlertTriangle,
-	BarChart3,
-	BookOpen,
-	CalendarClock,
-	CalendarDays,
-	ChevronsUpDown,
-	ClipboardList,
-	ExternalLink,
-	GraduationCap,
-	LayoutDashboard,
-	Lock,
-	LogOut,
-	MapPinned,
 	Menu,
-	School,
-	Shield,
-	UserCog,
-	Users,
 	Wifi,
 	WifiOff,
 	X,
@@ -25,7 +8,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, Suspense 
 import { Link, useLocation, useNavigate, useOutlet } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 
-import { captureBridgeToken, getBackHref } from '@/lib/bridge';
+import { captureBridgeToken, getBackHref as _getBackHref } from '@/lib/bridge';
 import { applyEnrollProAccentTheme, fetchPublicSettings, fetchSchoolYears, verifySessionToken } from '@/lib/settings';
 import { cacheActiveSchoolYearContext, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import {
@@ -51,25 +34,31 @@ import {
 import { Separator } from '@/ui/separator';
 import { Skeleton } from '@/ui/skeleton';
 import {
-	Sidebar,
-	SidebarContent,
-	SidebarFooter,
-	SidebarGroup,
-	SidebarGroupContent,
-	SidebarHeader,
 	SidebarInset,
-	SidebarMenu,
-	SidebarMenuButton,
-	SidebarMenuItem,
 	SidebarProvider,
-	SidebarSeparator,
 	SidebarTrigger,
 } from '@/ui/sidebar';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
-import { ConfirmationModal } from '@/ui/confirmation-modal';
 import { AccessibilityMenu } from '@/components/AccessibilityMenu';
 import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
 import { useAccessibility } from '@/hooks/useAccessibility';
+
+import { AppSidebar } from './app-shell/AppSidebar';
+import { MobileNavigationDrawer } from './app-shell/MobileNavigationDrawer';
+import { SchoolYearSwitcher } from './app-shell/SchoolYearSwitcher';
+import {
+	advancedNav,
+	breadcrumbGroups,
+	buildValidateNav,
+	facultyNav,
+	facultyPlanningNav,
+	inputCollectionNav,
+	navigationNav,
+	setupNav,
+	type NavItemDef,
+} from './app-shell/navigation';
+
+// Re-import to satisfy linter without unused warning when bridge href is used elsewhere later.
+void _getBackHref;
 
 /* ─── Constants ─── */
 
@@ -88,9 +77,7 @@ function readShellBrandingCache(): ShellBrandingCache | null {
 		const raw = localStorage.getItem(SHELL_BRANDING_CACHE_KEY);
 		if (!raw) return null;
 		const parsed = JSON.parse(raw) as ShellBrandingCache;
-		if (!parsed || typeof parsed.schoolName !== 'string' || !parsed.cachedAt) {
-			return null;
-		}
+		if (!parsed || typeof parsed.schoolName !== 'string' || !parsed.cachedAt) return null;
 		return {
 			schoolName: parsed.schoolName,
 			logoUrl: parsed.logoUrl ?? null,
@@ -114,406 +101,12 @@ function writeShellBrandingCache(schoolName: string, logoUrl: string | null): vo
 	}
 }
 
-/** Map an EnrollPro `/uploads/…` path to the Vite proxy prefix. */
 function enrollProAsset(path: string | null): string {
 	if (!path) return '';
-	// logoUrl comes as "/uploads/logo-xxx.jpg"; rewrite to "/enrollpro-uploads/logo-xxx.jpg"
 	return path.replace(/^\/uploads/, '/enrollpro-uploads');
 }
 
-/* ─── Nav structure ─── */
-
-type NavItemDef = {
-	label: string;
-	to: string;
-	icon: typeof LayoutDashboard;
-	adminOnly?: boolean;
-	facultyOnly?: boolean;
-	disabled?: boolean;
-};
-
-const navigationNav: NavItemDef[] = [
-	{ label: 'Dashboard', to: '/', icon: LayoutDashboard },
-];
-
-const setupNav: NavItemDef[] = [
-	{ label: 'Sections', to: '/sections', icon: GraduationCap, adminOnly: true },
-	{ label: 'Campus & Rooms', to: '/map', icon: MapPinned, adminOnly: true },
-	{ label: 'Subjects', to: '/subjects', icon: BookOpen, adminOnly: true },
-];
-
-const facultyPlanningNav: NavItemDef[] = [
-	{ label: 'Teachers', to: '/teachers', icon: Users, adminOnly: true },
-	{ label: 'Teaching Load', to: '/teaching-load', icon: UserCog, adminOnly: true },
-];
-
-const inputCollectionNav: NavItemDef[] = [
-	{ label: 'Preferences', to: '/faculty/preferences', icon: ClipboardList, adminOnly: true },
-	{ label: 'Room Requests', to: '/faculty/room-preferences', icon: CalendarDays, adminOnly: true },
-];
-
-const buildValidateNav: NavItemDef[] = [
-	{ label: 'Timetable', to: '/timetable', icon: CalendarClock, adminOnly: true },
-	{ label: 'Room Schedules', to: '/room-schedules', icon: CalendarDays, adminOnly: true },
-	{ label: 'Audit', to: '/audit', icon: Shield, adminOnly: true },
-];
-
-const advancedNav: NavItemDef[] = [
-	{ label: 'Analytics', to: '/analytics', icon: BarChart3, disabled: true },
-];
-
-const facultyNav: NavItemDef[] = [
-	{ label: 'My Dashboard', to: '/my', icon: LayoutDashboard, facultyOnly: true },
-	{ label: 'My Schedule', to: '/my/schedule', icon: CalendarClock, facultyOnly: true },
-	{ label: 'My Preferences', to: '/my/preferences', icon: ClipboardList, facultyOnly: true },
-	{ label: 'My Room Requests', to: '/my/room-preferences', icon: CalendarDays, facultyOnly: true },
-];
-
-/* ─── Sidebar nav helper components (matches EnrollPro pattern) ─── */
-
-function NavDivider({ label }: { label: string }) {
-	return (
-		<div className='px-3 py-2 mt-2 transition-[margin,opacity,height] duration-200 ease-linear group-data-[collapsible=icon]:m-0 group-data-[collapsible=icon]:h-0 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:opacity-0 overflow-hidden'>
-			<span className='text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground opacity-80 whitespace-nowrap'>
-				{label}
-			</span>
-		</div>
-	);
-}
-
-function NavItem({
-	to,
-	icon: Icon,
-	label,
-	pathname,
-}: {
-	to: string;
-	icon: React.ElementType;
-	label: string;
-	pathname: string;
-}) {
-	const isActive = pathname === to;
-	return (
-		<SidebarMenuItem>
-			<SidebarMenuButton asChild isActive={isActive} tooltip={label}>
-				<Link to={to}>
-					<Icon className='size-4' />
-					<span>{label}</span>
-				</Link>
-			</SidebarMenuButton>
-		</SidebarMenuItem>
-	);
-}
-
-function NavItemDisabled({
-	icon: Icon,
-	label,
-}: {
-	icon: React.ElementType;
-	label: string;
-}) {
-	return (
-		<SidebarMenuItem>
-			<SidebarMenuButton
-				tooltip={`${label} (Coming Soon)`}
-				className='cursor-not-allowed opacity-40'
-				disabled
-			>
-				<Icon className='size-4' />
-				<span>{label}</span>
-				<Lock className='ml-auto size-3' />
-			</SidebarMenuButton>
-		</SidebarMenuItem>
-	);
-}
-
-/* ─── AppSidebar ─── */
-
-function AppSidebar({
-	schoolName,
-	logoUrl,
-	activeYearLabel,
-	bridgeUser,
-	pathname,
-	onLogout,
-	className,
-}: {
-	schoolName: string;
-	logoUrl: string | null;
-	activeYearLabel: string | null;
-	bridgeUser: BridgeUser | null;
-	pathname: string;
-	onLogout: () => void;
-	className?: string;
-}) {
-	const isAdmin = bridgeUser?.role === 'admin' || bridgeUser?.role === 'SYSTEM_ADMIN' || bridgeUser?.role === 'officer';
-	const isFaculty = bridgeUser?.role === 'faculty';
-	// Faculty top-nav is intentionally empty; all faculty links live under the "My Portal" group below.
-	const topNavigation = isFaculty ? [] : navigationNav;
-	const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-
-	return (
-		<>
-			<Sidebar collapsible='icon' className={className}>
-				{/* ── Header: School Identity ── */}
-				<SidebarHeader>
-					<SidebarMenu>
-						<SidebarMenuItem>
-							<SidebarMenuButton
-								size='lg'
-								className='data-[state=open]:bg-sidebar-accent cursor-default'
-								tooltip={schoolName}
-							>
-								{logoUrl ? (
-									<div className='flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden shrink-0'>
-										<img
-											src={enrollProAsset(logoUrl)}
-											alt='Logo'
-											className='size-8 object-contain'
-										/>
-									</div>
-								) : (
-									<div className='flex aspect-square size-8 items-center justify-center rounded-lg bg-muted shrink-0'>
-										<School className='size-4 text-muted-foreground' />
-									</div>
-								)}
-								<div className='grid flex-1 text-left text-sm leading-tight overflow-hidden'>
-									{schoolName ? (
-										<span className='truncate font-semibold'>
-											{schoolName}
-										</span>
-									) : (
-										<Skeleton className='h-3.5 w-28 my-0.5' />
-									)}
-									<div className='flex items-center gap-1 mt-0.5'>
-										{activeYearLabel ? (
-											<>
-												<span className='truncate text-[0.6875rem] text-foreground'>
-													S.Y. {activeYearLabel}
-												</span>
-												<span className='shrink-0 text-[0.625rem] font-semibold text-green-600'>
-													• ACTIVE
-												</span>
-											</>
-										) : (
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<div className="flex items-center gap-1 cursor-help">
-														<AlertTriangle className='size-3 shrink-0 text-amber-500' />
-														<span className='text-[0.6875rem] text-muted-foreground'>
-															Working from saved data
-														</span>
-													</div>
-												</TooltipTrigger>
-												<TooltipContent side="right" className="text-[0.65rem] font-semibold p-2">
-													Unable to reach EnrollPro. Using saved school year data.
-												</TooltipContent>
-											</Tooltip>
-										)}
-									</div>
-								</div>
-							</SidebarMenuButton>
-						</SidebarMenuItem>
-					</SidebarMenu>
-				</SidebarHeader>
-
-				<SidebarSeparator />
-
-				{/* ── Navigation ── */}
-				<SidebarContent>
-					<SidebarGroup>
-						<SidebarGroupContent>
-							<SidebarMenu>
-								<NavDivider label='Navigation' />
-								{topNavigation
-									.filter((item) => !item.adminOnly || isAdmin)
-									.map((item) => (
-										<NavItem
-											key={item.to}
-											to={item.to}
-											icon={item.icon}
-											label={item.label}
-											pathname={pathname}
-										/>
-									))}
-
-								{!isFaculty && (
-									<>
-										<NavDivider label='School Setup' />
-										{setupNav
-											.filter((item) => !item.adminOnly || isAdmin)
-											.map((item) => (
-												<NavItem
-													key={item.to}
-													to={item.to}
-													icon={item.icon}
-													label={item.label}
-													pathname={pathname}
-												/>
-											))}
-
-										<NavDivider label='Teacher Planning' />
-										{facultyPlanningNav
-											.filter((item) => !item.adminOnly || isAdmin)
-											.map((item) => (
-												<NavItem
-													key={item.to}
-													to={item.to}
-													icon={item.icon}
-													label={item.label}
-													pathname={pathname}
-												/>
-											))}
-
-										<NavDivider label='Input Collection' />
-										{inputCollectionNav
-											.filter((item) => !item.adminOnly || isAdmin)
-											.map((item) => (
-												<NavItem
-													key={item.to}
-													to={item.to}
-													icon={item.icon}
-													label={item.label}
-													pathname={pathname}
-												/>
-											))}
-
-										<NavDivider label='Build & Validate' />
-										{buildValidateNav
-											.filter((item) => !item.adminOnly || isAdmin)
-											.map((item) => (
-												<NavItem
-													key={item.to}
-													to={item.to}
-													icon={item.icon}
-													label={item.label}
-													pathname={pathname}
-												/>
-											))}
-									</>
-								)}
-
-								{isFaculty && (
-									<>
-										<NavDivider label='My Portal' />
-										{facultyNav.map((item) => (
-											<NavItem
-												key={item.to}
-												to={item.to}
-												icon={item.icon}
-												label={item.label}
-												pathname={pathname}
-											/>
-										))}
-									</>
-								)}
-
-								{!isFaculty && (
-									<>
-										<NavDivider label='Advanced' />
-										{advancedNav.map((item) =>
-											item.disabled ? (
-												<NavItemDisabled
-													key={item.to}
-													icon={item.icon}
-													label={item.label}
-												/>
-											) : (
-												<NavItem
-													key={item.to}
-													to={item.to}
-													icon={item.icon}
-													label={item.label}
-													pathname={pathname}
-												/>
-											),
-										)}
-									</>
-								)}
-
-								<NavDivider label='Platform' />
-								<SidebarMenuItem>
-									<SidebarMenuButton asChild tooltip='Back to EnrollPro'>
-										<a href={getBackHref()}>
-											<ExternalLink className='size-4' />
-											<span>Back to EnrollPro</span>
-										</a>
-									</SidebarMenuButton>
-								</SidebarMenuItem>
-							</SidebarMenu>
-						</SidebarGroupContent>
-					</SidebarGroup>
-				</SidebarContent>
-
-				{/* ── Footer: User ── */}
-				<SidebarFooter>
-					<SidebarMenu>
-						<SidebarMenuItem>
-							<SidebarMenuButton
-								size='lg'
-								tooltip={bridgeUser?.role ?? 'User'}
-								onClick={() => setShowLogoutConfirm(true)}
-								className='relative'
-							>
-								{/* Collapsed State: LogOut Icon only */}
-								<div className='absolute inset-0 flex items-center justify-center transition-all duration-200 opacity-0 group-data-[collapsible=icon]:opacity-100 group-data-[collapsible=icon]:scale-100 scale-75'>
-									<LogOut className='size-4 text-muted-foreground' />
-								</div>
-
-								{/* Expanded State: Full Profile */}
-								<div className='flex w-full items-center gap-2 transition-all duration-200 opacity-100 group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:scale-95 group-data-[collapsible=icon]:pointer-events-none'>
-									<div className='flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground overflow-hidden'>
-										<span className='text-xs font-semibold'>
-											{bridgeUser?.role
-												? bridgeUser.role.charAt(0).toUpperCase()
-												: 'G'}
-										</span>
-									</div>
-									<div className='grid flex-1 text-left text-sm leading-tight overflow-hidden'>
-										<span className='truncate font-semibold'>
-											{bridgeUser?.role ?? 'Guest'}
-										</span>
-										{isAdmin && (
-											<Badge
-												variant='outline'
-												className='mt-0.5 w-fit h-4 px-1 text-[0.5625rem] font-bold border-purple-200 bg-purple-50 text-purple-700'
-											>
-												Admin
-											</Badge>
-										)}
-										{isFaculty && (
-											<span className='truncate text-[0.6875rem] text-muted-foreground'>
-												Teacher
-											</span>
-										)}
-										{!isAdmin && !isFaculty && (
-											<span className='truncate text-[0.6875rem] text-muted-foreground'>
-												Portal access
-											</span>
-										)}
-									</div>
-									<LogOut className='ml-auto size-4 shrink-0 text-muted-foreground' />
-								</div>
-							</SidebarMenuButton>
-						</SidebarMenuItem>
-					</SidebarMenu>
-				</SidebarFooter>
-			</Sidebar>
-
-			<ConfirmationModal
-				open={showLogoutConfirm}
-				onOpenChange={setShowLogoutConfirm}
-				title='Sign Out'
-				description='Are you sure you want to sign out of your account?'
-				confirmText='Sign Out'
-				onConfirm={onLogout}
-				variant='primary'
-			/>
-		</>
-	);
-}
-
-/* ─── AppShell (exported layout) ─── */
+/* ─── AppShell ─── */
 
 export function AppShell() {
 	const navigate = useNavigate();
@@ -531,10 +124,7 @@ export function AppShell() {
 	const [activeYearLabel, setActiveYearLabel] = useState<string | null>(null);
 	const [schoolYears, setSchoolYears] = useState<SchoolYear[]>([]);
 	const [selectedYearId, setSelectedYearId] = useState<number | null>(null);
-	const runtimeYearRef = useRef<{ id: number | null; label: string | null }>({
-		id: null,
-		label: null,
-	});
+	const runtimeYearRef = useRef<{ id: number | null; label: string | null }>({ id: null, label: null });
 	const [bridgeUser, setBridgeUser] = useState<BridgeUser | null>(null);
 	const [authSource, setAuthSource] = useState<'bridge' | 'local' | null>(null);
 	const [syOpen, setSyOpen] = useState(false);
@@ -579,11 +169,7 @@ export function AppShell() {
 		const updateSyncState = () => {
 			const online = navigator.onLine;
 			setIsOnline(online);
-			if (!online) {
-				setMobileSyncLabel('Offline');
-				return;
-			}
-
+			if (!online) { setMobileSyncLabel('Offline'); return; }
 			let hasQueued = false;
 			for (let index = 0; index < localStorage.length; index += 1) {
 				const key = localStorage.key(index);
@@ -592,15 +178,11 @@ export function AppShell() {
 				if (!raw) continue;
 				try {
 					const parsed = JSON.parse(raw) as Array<{ status?: string }>;
-					if (Array.isArray(parsed) && parsed.length > 0) {
-						hasQueued = true;
-						break;
-					}
+					if (Array.isArray(parsed) && parsed.length > 0) { hasQueued = true; break; }
 				} catch {
 					continue;
 				}
 			}
-
 			setMobileSyncLabel(hasQueued ? 'Syncing' : 'Online');
 		};
 
@@ -615,24 +197,16 @@ export function AppShell() {
 		};
 	}, [location.pathname]);
 
-	useEffect(() => {
-		setMobileNavOpen(false);
-	}, [location.pathname]);
+	useEffect(() => { setMobileNavOpen(false); }, [location.pathname]);
 
-	/* Capture bridge token on mount */
-	useLayoutEffect(() => {
-		captureBridgeToken();
-	}, []);
+	useLayoutEffect(() => { captureBridgeToken(); }, []);
 
 	useLayoutEffect(() => {
 		const wasTimetableRoute = previousPathnameRef.current.startsWith('/timetable');
-		if (isTimetableRoute && !wasTimetableRoute) {
-			setSidebarOpen(false);
-		}
+		if (isTimetableRoute && !wasTimetableRoute) setSidebarOpen(false);
 		previousPathnameRef.current = location.pathname;
 	}, [isTimetableRoute, location.pathname]);
 
-	/* Resolve active school year from ATLAS-owned runtime/cache before EnrollPro branding fetch. */
 	useEffect(() => {
 		resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false })
 			.then((context) => {
@@ -641,16 +215,11 @@ export function AppShell() {
 					label: context.activeSchoolYearLabel ?? null,
 				};
 				setSelectedYearId(context.activeSchoolYearId);
-				if (context.activeSchoolYearLabel) {
-					setActiveYearLabel(context.activeSchoolYearLabel);
-				}
+				if (context.activeSchoolYearLabel) setActiveYearLabel(context.activeSchoolYearLabel);
 			})
-			.catch(() => {
-				// Allow branding/settings fetch to continue as a secondary source.
-			});
+			.catch(() => {});
 	}, []);
 
-	/* Fetch EnrollPro settings + apply dynamic accent theming */
 	useEffect(() => {
 		fetchPublicSettings()
 			.then((s) => {
@@ -663,7 +232,6 @@ export function AppShell() {
 				setLogoUrl(s.logoUrl);
 				writeShellBrandingCache(nextSchoolName, s.logoUrl ?? null);
 
-				// Set favicon from school logo
 				if (s.logoUrl) {
 					const faviconUrl = enrollProAsset(s.logoUrl);
 					let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
@@ -675,19 +243,11 @@ export function AppShell() {
 					link.href = faviconUrl;
 				}
 
-				// Keep runtime-context active year authoritative; only use settings as fallback.
-				if (!runtimeYearId && s.activeSchoolYearId) {
-					setSelectedYearId(s.activeSchoolYearId);
-				}
-				if (!runtimeYearLabel && s.activeSchoolYearLabel) {
-					setActiveYearLabel(s.activeSchoolYearLabel);
-				}
-				if (!runtimeYearId) {
-					cacheActiveSchoolYearContext(s.activeSchoolYearId ?? null, s.activeSchoolYearLabel ?? null);
-				}
+				if (!runtimeYearId && s.activeSchoolYearId) setSelectedYearId(s.activeSchoolYearId);
+				if (!runtimeYearLabel && s.activeSchoolYearLabel) setActiveYearLabel(s.activeSchoolYearLabel);
+				if (!runtimeYearId) cacheActiveSchoolYearContext(s.activeSchoolYearId ?? null, s.activeSchoolYearLabel ?? null);
 				fetchSchoolYears().then((years) => {
 					setSchoolYears(years);
-					// If runtime/settings did not have a label, fall back to the years list.
 					if (!runtimeYearLabel && !s.activeSchoolYearLabel) {
 						const effectiveYearId = runtimeYearId ?? s.activeSchoolYearId;
 						const active = years.find((y) => y.id === effectiveYearId);
@@ -709,7 +269,6 @@ export function AppShell() {
 			});
 	}, []);
 
-	/* Verify session identity */
 	useEffect(() => {
 		if (!hasAnyAuthToken()) {
 			setBridgeUser(null);
@@ -745,9 +304,7 @@ export function AppShell() {
 
 	useEffect(() => {
 		if (bridgeUser?.role !== 'faculty') return;
-		if (!isFacultyPortalRoute(location.pathname)) {
-			navigate('/my', { replace: true });
-		}
+		if (!isFacultyPortalRoute(location.pathname)) navigate('/my', { replace: true });
 	}, [bridgeUser?.role, location.pathname, navigate]);
 
 	const handleLogout = () => {
@@ -757,7 +314,6 @@ export function AppShell() {
 			window.location.href = `${ENROLLPRO_URL}/login`;
 			return;
 		}
-
 		clearLocalToken();
 		clearUserRoleCache();
 		setBridgeUser(null);
@@ -765,24 +321,11 @@ export function AppShell() {
 		navigate('/login', { replace: true });
 	};
 
-	/* Breadcrumbs from current route */
 	const breadcrumbs = (() => {
-		const groups: { label: string; items: NavItemDef[] }[] = [
-			{ label: 'Navigation', items: navigationNav },
-			{ label: 'School Setup', items: setupNav },
-			{ label: 'Teacher Planning', items: facultyPlanningNav },
-			{ label: 'Input Collection', items: inputCollectionNav },
-			{ label: 'Build & Validate', items: buildValidateNav },
-			{ label: 'My Portal', items: facultyNav },
-			{ label: 'Advanced', items: advancedNav },
-		];
-
-		for (const group of groups) {
+		for (const group of breadcrumbGroups) {
 			for (const item of group.items) {
 				if (location.pathname === item.to) {
-					if (group.label === 'Navigation') {
-						return [{ label: item.label }];
-					}
+					if (group.label === 'Navigation') return [{ label: item.label }];
 					return [{ label: group.label }, { label: item.label }];
 				}
 			}
@@ -793,79 +336,24 @@ export function AppShell() {
 
 	return (
 		<SidebarProvider open={isMobile ? false : sidebarOpen} onOpenChange={setSidebarOpen} className="relative">
-			<div
-				className="pointer-events-none absolute inset-0"
-				aria-hidden="true"
-			>
-				<svg
-					className="absolute inset-0 h-full w-full opacity-[0.04]"
-					xmlns="http://www.w3.org/2000/svg"
-				>
+			<div className="pointer-events-none absolute inset-0" aria-hidden="true">
+				<svg className="absolute inset-0 h-full w-full opacity-[0.04]" xmlns="http://www.w3.org/2000/svg">
 					<defs>
-						<pattern
-							id="pixel-grid-app-layout"
-							x="0"
-							y="0"
-							width="80"
-							height="80"
-							patternUnits="userSpaceOnUse"
-						>
-							<rect
-								x="2"
-								y="2"
-								width="36"
-								height="36"
-								rx="2"
-								fill="none"
-								stroke="hsl(var(--primary))"
-								strokeWidth="1.5"
-							/>
-							<rect
-								x="42"
-								y="2"
-								width="36"
-								height="36"
-								rx="2"
-								fill="none"
-								stroke="hsl(var(--primary))"
-								strokeWidth="1.5"
-							/>
-							<rect
-								x="2"
-								y="42"
-								width="36"
-								height="36"
-								rx="2"
-								fill="none"
-								stroke="hsl(var(--primary))"
-								strokeWidth="1.5"
-							/>
-							<rect
-								x="42"
-								y="42"
-								width="36"
-								height="36"
-								rx="2"
-								fill="none"
-								stroke="hsl(var(--primary))"
-								strokeWidth="1.5"
-							/>
+						<pattern id="pixel-grid-app-layout" x="0" y="0" width="80" height="80" patternUnits="userSpaceOnUse">
+							<rect x="2" y="2" width="36" height="36" rx="2" fill="none" stroke="hsl(var(--primary))" strokeWidth="1.5" />
+							<rect x="42" y="2" width="36" height="36" rx="2" fill="none" stroke="hsl(var(--primary))" strokeWidth="1.5" />
+							<rect x="2" y="42" width="36" height="36" rx="2" fill="none" stroke="hsl(var(--primary))" strokeWidth="1.5" />
+							<rect x="42" y="42" width="36" height="36" rx="2" fill="none" stroke="hsl(var(--primary))" strokeWidth="1.5" />
 						</pattern>
 					</defs>
-					<rect
-						width="100%"
-						height="100%"
-						fill="url(#pixel-grid-app-layout)"
-					/>
+					<rect width="100%" height="100%" fill="url(#pixel-grid-app-layout)" />
 				</svg>
 				<div
 					className="absolute inset-0"
-					style={{
-						background:
-							'radial-gradient(circle at center, hsl(var(--primary)/0.05) 0%, transparent 70%)',
-					}}
+					style={{ background: 'radial-gradient(circle at center, hsl(var(--primary)/0.05) 0%, transparent 70%)' }}
 				/>
 			</div>
+
 			{!isMobile && (
 				<AppSidebar
 					className='hidden lg:flex'
@@ -879,7 +367,6 @@ export function AppShell() {
 			)}
 
 			<SidebarInset style={{ backgroundColor: 'transparent' }}>
-				{/* Top bar */}
 				<header className='flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-4'>
 					{isMobile ? (
 						<>
@@ -914,9 +401,7 @@ export function AppShell() {
 												{i === breadcrumbs.length - 1 ? (
 													<BreadcrumbPage>{crumb.label}</BreadcrumbPage>
 												) : (
-													<span className='text-sm text-muted-foreground'>
-														{crumb.label}
-													</span>
+													<span className='text-sm text-muted-foreground'>{crumb.label}</span>
 												)}
 											</BreadcrumbItem>
 										</React.Fragment>
@@ -924,126 +409,34 @@ export function AppShell() {
 								</BreadcrumbList>
 							</Breadcrumb>
 
-							{/* Right-side header controls */}
 							<div className='ml-auto flex items-center gap-2'>
 								<AccessibilityMenu fontSize={fontSize} setFontSize={setFontSize} />
-
-								{/* School year selector — EnrollPro-style popover */}
-								{schoolYears.length > 0 && (
-									<div className='relative'>
-										<TooltipProvider>
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<Button
-														variant='outline'
-														size='sm'
-														className='h-8 gap-1.5 text-xs font-medium'
-														onClick={() => setSyOpen(!syOpen)}
-													>
-														<CalendarDays className='size-3.5' />
-														<span>
-															{schoolYears.find((y) => y.id === selectedYearId)?.yearLabel ?? 'No Year'}
-														</span>
-														<ChevronsUpDown className='size-3 opacity-50' />
-													</Button>
-												</TooltipTrigger>
-												<TooltipContent>Switch School Year</TooltipContent>
-											</Tooltip>
-										</TooltipProvider>
-										{syOpen && (
-											<>
-												<div className='fixed inset-0 z-40' onClick={() => setSyOpen(false)} />
-												<div className='absolute right-0 top-full z-50 mt-1 min-w-45 rounded-md border border-border bg-popover p-1 shadow-md'>
-													{schoolYears.map((sy) => (
-														<button
-															key={sy.id}
-															onClick={() => {
-																setSelectedYearId(sy.id);
-																setActiveYearLabel(sy.yearLabel);
-																setSyOpen(false);
-															}}
-															className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs ${
-																sy.id === selectedYearId
-																	? 'bg-accent text-accent-foreground'
-																	: 'hover:bg-sidebar-accent hover:text-accent-foreground'
-															}`}
-														>
-															<span className='flex-1 text-left'>{sy.yearLabel}</span>
-															<span className={`rounded px-1 py-0.5 text-[0.625rem] font-medium ${
-																sy.isActive
-																	? 'bg-green-100 text-green-700'
-																	: (sy.status === 'UPCOMING'
-																		? 'bg-blue-100 text-blue-700'
-																		: sy.status === 'DRAFT'
-																			? 'bg-yellow-100 text-yellow-700'
-																			: 'bg-gray-100 text-gray-500')
-															}`}>
-																{sy.isActive ? 'ACTIVE' : (sy.status ?? 'CLOSED')}
-															</span>
-														</button>
-													))}
-												</div>
-											</>
-										)}
-									</div>
-								)}
+								<SchoolYearSwitcher
+									schoolYears={schoolYears}
+									selectedYearId={selectedYearId}
+									open={syOpen}
+									onToggle={() => setSyOpen(!syOpen)}
+									onSelect={(sy) => {
+										setSelectedYearId(sy.id);
+										setActiveYearLabel(sy.yearLabel);
+										setSyOpen(false);
+									}}
+								/>
 							</div>
 						</>
 					)}
 				</header>
 
-				<AnimatePresence initial={false}>
-					{isMobile && mobileNavOpen && (
-						<>
-							<motion.button
-								type='button'
-								className='fixed inset-0 top-14 z-40 bg-black/30 will-change-[opacity]'
-								initial={{ opacity: 0 }}
-								animate={{ opacity: 1 }}
-								exit={{ opacity: 0 }}
-								transition={{ duration: 0.16, ease: 'easeOut' }}
-								onClick={() => setMobileNavOpen(false)}
-							/>
-							<motion.nav
-								className='fixed inset-x-2 top-14 z-50 overflow-hidden rounded-b-2xl border border-border bg-background shadow-xl transform-gpu will-change-transform'
-								initial={{ opacity: 0, y: -16 }}
-								animate={{ opacity: 1, y: 0 }}
-								exit={{ opacity: 0, y: -16 }}
-								transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-							>
-								<div className='space-y-1 p-3'>
-									{mobileNavItems.map((item) => (
-										<Button
-											key={item.to}
-											variant={location.pathname === item.to ? 'secondary' : 'ghost'}
-											className='h-11 w-full justify-start text-sm'
-											onClick={() => {
-												navigate(item.to);
-												setMobileNavOpen(false);
-											}}
-										>
-											<item.icon className='mr-2 size-4' />
-											{item.label}
-										</Button>
-									))}
-									<Separator className='my-2' />
-									<Button asChild variant='ghost' className='h-11 w-full justify-start text-sm'>
-										<a href={getBackHref()}>
-											<ExternalLink className='mr-2 size-4' />
-											Back to EnrollPro
-										</a>
-									</Button>
-									<Button variant='ghost' className='h-11 w-full justify-start text-sm text-destructive' onClick={handleLogout}>
-										<LogOut className='mr-2 size-4' />
-										Sign out
-									</Button>
-								</div>
-							</motion.nav>
-						</>
-					)}
-				</AnimatePresence>
+				{isMobile && (
+					<MobileNavigationDrawer
+						open={mobileNavOpen}
+						onClose={() => setMobileNavOpen(false)}
+						items={mobileNavItems}
+						currentPathname={location.pathname}
+						onLogout={handleLogout}
+					/>
+				)}
 
-				{/* Page content */}
 				<AnimatePresence mode="wait">
 					<motion.div
 						key={location.pathname}

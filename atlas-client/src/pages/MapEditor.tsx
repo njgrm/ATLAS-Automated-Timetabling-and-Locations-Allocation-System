@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { MapPinned } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { MapPinned, MousePointer2, Pencil } from 'lucide-react';
 
 import { CampusMapEditor } from '@/components/CampusMapEditor';
 import { BuildingPanel } from '@/components/BuildingPanel';
+import { CampusMapOverview } from '@/components/campus-map/CampusMapOverview';
 import atlasApi from '@/lib/api';
 import type { Building, Room } from '@/types';
+import { Button } from '@/ui/button';
 import { Skeleton } from '@/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
 type EditorBuilding = Building & { dirty?: boolean; isNew?: boolean };
 
@@ -15,8 +18,11 @@ const DEFAULT_SCHOOL_ID = 1;
 const MAX_HISTORY = 30;
 
 export default function MapEditor() {
-	const [searchParams] = useSearchParams();
+	const [searchParams, setSearchParams] = useSearchParams();
+	const navigate = useNavigate();
 	const queryBuildingId = searchParams.get('buildingId');
+	const rawMode = searchParams.get('mode');
+	const mode: 'overview' | 'editor' = rawMode === 'editor' ? 'editor' : 'overview';
 
 	const [buildings, setBuildings] = useState<EditorBuilding[]>([]);
 	const [campusImageUrl, setCampusImageUrl] = useState<string | null>(null);
@@ -167,10 +173,38 @@ export default function MapEditor() {
 		);
 	}
 
+	if (mode === 'overview') {
+		return (
+			<>
+				<ModeToggle mode={mode} onChange={(next) => {
+					const next2 = new URLSearchParams(searchParams);
+					if (next === 'overview') next2.delete('mode'); else next2.set('mode', 'editor');
+					setSearchParams(next2);
+				}} />
+				<CampusMapOverview buildings={buildings} campusImageUrl={campusImageUrl} />
+			</>
+		);
+	}
+
 	return (
 		<div className="flex h-[calc(100svh-3.5rem)] overflow-hidden">
 			{/* Canvas area */}
 			<div className="flex-1 min-w-0 overflow-hidden p-4">
+				<div className="mb-3 flex items-center justify-between gap-3">
+					<div>
+						<p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+							Scheduling Portal
+						</p>
+						<h1 className="text-lg font-semibold tracking-tight text-foreground">
+							Campus map editor
+						</h1>
+					</div>
+					<ModeToggle mode={mode} inline onChange={(next) => {
+						const next2 = new URLSearchParams(searchParams);
+						if (next === 'overview') next2.delete('mode'); else next2.set('mode', 'editor');
+						setSearchParams(next2);
+					}} />
+				</div>
 				<CampusMapEditor
 					schoolId={DEFAULT_SCHOOL_ID}
 					buildings={buildings}
@@ -214,5 +248,53 @@ export default function MapEditor() {
 				)}
 			</div>
 		</div>
+	);
+}
+
+function ModeToggle({
+	mode,
+	onChange,
+	inline = false,
+}: {
+	mode: 'overview' | 'editor';
+	onChange: (next: 'overview' | 'editor') => void;
+	inline?: boolean;
+}) {
+	const wrapperClass = inline
+		? 'inline-flex rounded-md border border-border bg-card p-0.5'
+		: 'fixed right-6 top-20 z-30 inline-flex rounded-md border border-border bg-card p-0.5 shadow-sm';
+	return (
+		<TooltipProvider>
+			<div className={wrapperClass} role="tablist" aria-label="Campus map mode">
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant={mode === 'overview' ? 'default' : 'ghost'}
+							size="sm"
+							className="h-8"
+							aria-pressed={mode === 'overview'}
+							onClick={() => onChange('overview')}
+						>
+							<MousePointer2 className="size-3.5" /> Overview
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>Read-only view of buildings and rooms</TooltipContent>
+				</Tooltip>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant={mode === 'editor' ? 'default' : 'ghost'}
+							size="sm"
+							className="h-8"
+							aria-pressed={mode === 'editor'}
+							onClick={() => onChange('editor')}
+						>
+							<Pencil className="size-3.5" /> Edit map
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>Draw, move, and label buildings</TooltipContent>
+				</Tooltip>
+			</div>
+		</TooltipProvider>
 	);
 }

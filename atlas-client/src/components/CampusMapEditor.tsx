@@ -1,12 +1,19 @@
 import Konva from 'konva';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Group, Layer, Line, Rect, Stage, Text, Transformer } from 'react-konva';
-import { Minus, MousePointer2, Plus, Redo2, RotateCcw, Save, Square, Undo2, Upload } from 'lucide-react';
+import { ImageOff, Minus, MousePointer2, Plus, Redo2, RotateCcw, Save, Square, Undo2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
 import type { Building } from '@/types';
 import { Button } from '@/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
+import {
+	CALM_BUILDING_COLORS,
+	MAP_DEFAULT_STROKE,
+	MAP_SELECTED_STROKE,
+	MAP_TRANSFORMER_STROKE,
+} from '@/components/campus-map/campusMapPalette';
 
 type EditorBuilding = Building & { dirty?: boolean; isNew?: boolean };
 
@@ -33,7 +40,7 @@ const MIN_HEIGHT = 40;
 const CANVAS_WIDTH = 920;
 const CANVAS_HEIGHT = 580;
 
-const COLORS = ['#2563eb', '#059669', '#ea580c', '#7c3aed', '#dc2626', '#0891b2', '#ca8a04', '#4f46e5'];
+const COLORS = CALM_BUILDING_COLORS;
 
 /**
  * Smart-threshold label rotation:
@@ -484,7 +491,6 @@ export function CampusMapEditor({
 				headers: { 'Content-Type': 'multipart/form-data' },
 			});
 			toast.success('Campus image updated.');
-			// Reload the campus image
 			onSaved();
 		} catch (err) {
 			toast.error('Failed to update campus image.');
@@ -492,91 +498,194 @@ export function CampusMapEditor({
 		}
 	}, [schoolId, onSaved]);
 
+	const handleImageRemove = useCallback(async () => {
+		try {
+			await atlasApi.delete(`/map/schools/${schoolId}/campus-image`);
+			toast.success('Campus photo removed.');
+			onSaved();
+		} catch (err) {
+			toast.error('Failed to remove campus photo.');
+			console.error('Image remove failed:', err);
+		}
+	}, [schoolId, onSaved]);
+
 	const hasDirty = buildings.some((b) => b.dirty);
+	const saveState: 'saved' | 'dirty' | 'saving' = saving ? 'saving' : hasDirty ? 'dirty' : 'saved';
+	const saveStateClass = saveState === 'saved'
+		? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+		: saveState === 'saving'
+			? 'border-sky-200 bg-sky-50 text-sky-700'
+			: 'border-amber-200 bg-amber-50 text-amber-800';
+	const saveStateLabel = saveState === 'saved' ? 'All changes saved' : saveState === 'saving' ? 'Saving…' : 'Unsaved changes';
 
 	return (
 		<div className="flex flex-col gap-2">
-			{/* Toolbar */}
+			{/* Task-grouped toolbar */}
 			<div className="flex flex-wrap items-center gap-2">
-				<Button
-					variant={tool === 'select' ? 'default' : 'outline'}
-					size="sm"
-					onClick={() => setTool('select')}
-				>
-					<MousePointer2 className="size-3.5" /> Select
-				</Button>
-				<Button
-					variant={tool === 'add' ? 'default' : 'outline'}
-					size="sm"
-					onClick={() => setTool('add')}
-				>
-					<Square className="size-3.5" /> Add Building
-				</Button>
+				<TooltipProvider>
+					{/* Group: mode */}
+					<div className="inline-flex rounded-md border border-border bg-card p-0.5" role="tablist" aria-label="Map mode">
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant={tool === 'select' ? 'default' : 'ghost'}
+									size="sm"
+									onClick={() => setTool('select')}
+									aria-pressed={tool === 'select'}
+									aria-label="Select buildings"
+									className="h-8"
+								>
+									<MousePointer2 className="size-3.5" /> Select
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Select and edit buildings</TooltipContent>
+						</Tooltip>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant={tool === 'add' ? 'default' : 'ghost'}
+									size="sm"
+									onClick={() => setTool('add')}
+									aria-pressed={tool === 'add'}
+									aria-label="Draw building"
+									className="h-8"
+								>
+									<Square className="size-3.5" /> Draw building
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Draw a new building rectangle</TooltipContent>
+						</Tooltip>
+					</div>
 
-				<div className="h-6 w-px bg-border" />
+					{/* Group: view */}
+					<div className="inline-flex items-center gap-1">
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button variant="outline" size="icon-xs" onClick={() => setScale((s) => Math.min(s + 0.15, 2.5))} aria-label="Zoom in">
+									<Plus className="size-3.5" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Zoom in</TooltipContent>
+						</Tooltip>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button variant="outline" size="icon-xs" onClick={() => setScale((s) => Math.max(s - 0.15, 0.4))} aria-label="Zoom out">
+									<Minus className="size-3.5" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Zoom out</TooltipContent>
+						</Tooltip>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant="outline"
+									size="icon-xs"
+									onClick={() => {
+										setScale(1);
+										setPosition({ x: 0, y: 0 });
+									}}
+									aria-label="Reset view"
+								>
+									<RotateCcw className="size-3.5" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Reset view</TooltipContent>
+						</Tooltip>
+					</div>
 
-				<Button variant="outline" size="sm" onClick={() => setScale((s) => Math.min(s + 0.15, 2.5))}>
-					<Plus className="size-3.5" /> Zoom In
-				</Button>
-				<Button variant="outline" size="sm" onClick={() => setScale((s) => Math.max(s - 0.15, 0.4))}>
-					<Minus className="size-3.5" /> Zoom Out
-				</Button>
-				<Button
-					variant="outline"
-					size="sm"
-					onClick={() => {
-						setScale(1);
-						setPosition({ x: 0, y: 0 });
-					}}
-				>
-					<RotateCcw className="size-3.5" /> Reset View
-				</Button>
+					{/* Group: campus photo */}
+					<div className="inline-flex items-center gap-1">
+						<label className="cursor-pointer">
+							<Button variant="outline" size="sm" asChild aria-label="Upload campus photo">
+								<span>
+									<Upload className="size-3.5" /> Campus photo
+								</span>
+							</Button>
+							<input
+								type="file"
+								accept="image/png,image/jpeg,image/webp"
+								className="hidden"
+								onChange={handleImageUpload}
+							/>
+						</label>
+						{campusImageUrl && (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button
+										variant="ghost"
+										size="icon-xs"
+										className="text-muted-foreground hover:text-destructive"
+										onClick={handleImageRemove}
+										aria-label="Remove campus photo"
+									>
+										<ImageOff className="size-3.5" />
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent>Remove campus photo</TooltipContent>
+							</Tooltip>
+						)}
+					</div>
 
-				<div className="h-6 w-px bg-border" />
+					{/* Group: history */}
+					<div className="inline-flex items-center gap-1">
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant="outline"
+									size="icon-xs"
+									disabled={historyStack.length === 0}
+									onClick={onUndo}
+									aria-label="Undo"
+								>
+									<Undo2 className="size-3.5" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Undo</TooltipContent>
+						</Tooltip>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant="outline"
+									size="icon-xs"
+									disabled={redoStack.length === 0}
+									onClick={onRedo}
+									aria-label="Redo"
+								>
+									<Redo2 className="size-3.5" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Redo</TooltipContent>
+						</Tooltip>
+					</div>
 
-				<label className="cursor-pointer">
-					<Button variant="outline" size="sm" asChild>
-						<span>
-							<Upload className="size-3.5" /> Background
-						</span>
-					</Button>
-					<input
-						type="file"
-						accept="image/png,image/jpeg,image/webp"
-						className="hidden"
-						onChange={handleImageUpload}
-					/>
-				</label>
+					<div className="flex-1" />
 
-				<div className="h-6 w-px bg-border" />
+					<span
+						role="status"
+						aria-live="polite"
+						className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.7rem] font-medium ${saveStateClass}`}
+					>
+						<span className={`size-1.5 rounded-full ${
+							saveState === 'saved' ? 'bg-emerald-500' : saveState === 'saving' ? 'bg-sky-500 animate-pulse' : 'bg-amber-500'
+						}`} />
+						{saveStateLabel}
+					</span>
 
-				<Button
-					variant="outline"
-					size="sm"
-					disabled={historyStack.length === 0}
-					onClick={onUndo}
-				>
-					<Undo2 className="size-3.5" /> Undo
-				</Button>
-				<Button
-					variant="outline"
-					size="sm"
-					disabled={redoStack.length === 0}
-					onClick={onRedo}
-				>
-					<Redo2 className="size-3.5" /> Redo
-				</Button>
-
-				<div className="flex-1" />
-
-				<Button
-					size="sm"
-					disabled={!hasDirty || saving}
-					onClick={handleSave}
-				>
-					<Save className="size-3.5" />
-					{saving ? 'Saving...' : 'Save Changes'}
-				</Button>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								size="sm"
+								disabled={!hasDirty || saving}
+								onClick={handleSave}
+								aria-label="Save campus map changes"
+							>
+								<Save className="size-3.5" />
+								{saving ? 'Saving...' : 'Save changes'}
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Save building changes</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
 			</div>
 
 			{/* Canvas */}
@@ -659,7 +768,7 @@ export function CampusMapEditor({
 										fill={b.color}
 										opacity={selected ? 0.95 : 0.78}
 										cornerRadius={8}
-										stroke={selected ? '#6366f1' : '#ffffff'}
+										stroke={selected ? MAP_SELECTED_STROKE : MAP_DEFAULT_STROKE}
 										strokeWidth={selected ? 3 : 2}
 										shadowColor={selected ? 'rgba(99,102,241,0.35)' : 'rgba(0,0,0,0.12)'}
 										shadowBlur={selected ? 12 : 3}
@@ -760,10 +869,10 @@ export function CampusMapEditor({
 								}
 								return newBox;
 							}}
-							borderStroke="#6366f1"
+							borderStroke={MAP_TRANSFORMER_STROKE}
 							borderStrokeWidth={2}
 							anchorFill="#ffffff"
-							anchorStroke="#6366f1"
+							anchorStroke={MAP_TRANSFORMER_STROKE}
 							anchorSize={10}
 							anchorCornerRadius={3}
 							anchorStrokeWidth={2}
@@ -773,9 +882,9 @@ export function CampusMapEditor({
 						{/* Alignment guides */}
 						{guides.map((g, i) =>
 							g.x !== undefined ? (
-								<Line key={`gv-${i}`} points={[g.x, 0, g.x, CANVAS_HEIGHT]} stroke="#6366f1" strokeWidth={1} dash={[4, 4]} opacity={0.6} />
+								<Line key={`gv-${i}`} points={[g.x, 0, g.x, CANVAS_HEIGHT]} stroke={MAP_TRANSFORMER_STROKE} strokeWidth={1} dash={[4, 4]} opacity={0.6} />
 							) : g.y !== undefined ? (
-								<Line key={`gh-${i}`} points={[0, g.y, CANVAS_WIDTH, g.y]} stroke="#6366f1" strokeWidth={1} dash={[4, 4]} opacity={0.6} />
+								<Line key={`gh-${i}`} points={[0, g.y, CANVAS_WIDTH, g.y]} stroke={MAP_TRANSFORMER_STROKE} strokeWidth={1} dash={[4, 4]} opacity={0.6} />
 							) : null,
 						)}
 

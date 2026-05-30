@@ -118,6 +118,46 @@ async function assertRequestOwnerOrOfficer(
 }
 
 router.get(
+	'/:schoolId/:schoolYearId/latest/me',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			if (typeof schoolId === 'string') {
+				res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
+				return;
+			}
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			if (typeof schoolYearId === 'string') {
+				res.status(400).json({ code: 'INVALID_PARAM', message: schoolYearId });
+				return;
+			}
+
+			// Self-service self-identity resolution: avoids depending on the
+			// client knowing its faculty-mirror id (was prone to userId vs
+			// facultyId drift and produced spurious 403s).
+			const identity = await resolveCanonicalFacultyFromAuthPayload(req.user, { schoolId, schoolYearId });
+			if (!identity) {
+				res.status(403).json({
+					code: 'FACULTY_NOT_LINKED',
+					message: 'Your account is not linked to a teacher record for this school.',
+				});
+				return;
+			}
+
+			const result = await roomPreferenceService.getLatestFacultyRoomPreferenceState(
+				schoolId,
+				schoolYearId,
+				identity.faculty.id,
+			);
+			res.json({ ...result, facultyId: identity.faculty.id });
+		} catch (error) {
+			next(error);
+		}
+	},
+);
+
+router.get(
 	'/:schoolId/:schoolYearId/latest/faculty/:facultyId',
 	authenticate,
 	async (req: Request, res: Response, next: NextFunction) => {

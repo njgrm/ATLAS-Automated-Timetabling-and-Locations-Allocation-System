@@ -153,6 +153,17 @@ router.post('/schools/:schoolId/campus-image', authenticate, requirePrivilegedRo
 	res.json({ campusImageUrl: imageUrl });
 });
 
+// Auth required: remove campus image
+router.delete('/schools/:schoolId/campus-image', authenticate, requirePrivilegedRole, async (req: Request, res: Response) => {
+	const schoolId = Number(req.params.schoolId);
+	if (Number.isNaN(schoolId)) {
+		res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId must be a number.' });
+		return;
+	}
+	await mapService.removeCampusImage(schoolId);
+	res.status(204).end();
+});
+
 // Public: get campus image URL
 router.get('/schools/:schoolId/campus-image', async (req: Request, res: Response) => {
 	const schoolId = Number(req.params.schoolId);

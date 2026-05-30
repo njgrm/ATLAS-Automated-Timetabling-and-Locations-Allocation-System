@@ -239,3 +239,11 @@ export declare function setCampusImage(schoolId: number, imageUrl: string): Prom
     shortName: string;
     campusImageUrl: string | null;
 }>;
+export declare function removeCampusImage(schoolId: number): Promise<{
+    id: number;
+    createdAt: Date;
+    updatedAt: Date;
+    name: string;
+    shortName: string;
+    campusImageUrl: string | null;
+}>;

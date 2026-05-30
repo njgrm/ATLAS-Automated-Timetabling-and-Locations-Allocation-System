@@ -37,6 +37,7 @@ import { Label } from '@/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Switch } from '@/ui/switch';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/ui/tooltip';
+import { CALM_BUILDING_SWATCHES } from '@/components/campus-map/campusMapPalette';
 
 type EditorBuilding = Building & { dirty?: boolean; isNew?: boolean };
 type RoomEditForm = {
@@ -74,7 +75,7 @@ const ROOM_TYPES: { value: RoomType; label: string }[] = [
 	{ value: 'OTHER', label: 'Other' },
 ];
 
-const COLORS = ['#2563eb', '#059669', '#ea580c', '#7c3aed', '#dc2626', '#0891b2', '#ca8a04', '#4f46e5', '#be185d', '#374151'];
+// (calm palette imported from @/components/campus-map/campusMapPalette)
 
 /** Room types that default to non-teaching when created */
 const NON_TEACHING_TYPES: RoomType[] = ['LIBRARY', 'FACULTY_ROOM', 'OFFICE', 'OTHER'];
@@ -329,7 +330,7 @@ export function BuildingPanel({
 
 						<div>
 							<label className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
-								Short Code
+								Room label prefix
 							</label>
 							<Input
 								value={building.shortCode ?? ''}
@@ -341,7 +342,7 @@ export function BuildingPanel({
 								className="mt-1"
 							/>
 							<p className="mt-1 text-[0.6875rem] text-muted-foreground">
-								Used for room labels and stable seeded-map matching.
+								Shown in front of every room number in this building.
 							</p>
 						</div>
 
@@ -351,74 +352,78 @@ export function BuildingPanel({
 								Color
 							</label>
 							<div className="mt-1.5 flex flex-wrap gap-1.5">
-								{COLORS.map((c) => (
+								{CALM_BUILDING_SWATCHES.map((s) => (
 									<Button
-										key={c}
+										key={s.id}
 										type="button"
 										variant="outline"
 										size="icon-xs"
-										aria-label={`Set color ${c}`}
-										onClick={() => onUpdate({ color: c, dirty: true })}
+										aria-label={`Set color: ${s.label}`}
+										title={s.label}
+										onClick={() => onUpdate({ color: s.value, dirty: true })}
 										className={`border-2 transition-all ${
-											building.color === c ? 'border-foreground scale-110' : 'border-transparent'
+											building.color === s.value ? 'border-foreground scale-110' : 'border-transparent'
 										}`}
-										style={{ backgroundColor: c }}
+										style={{ backgroundColor: s.value }}
 									/>
 								))}
 							</div>
 						</div>
 
-						{/* Position (editable) */}
-						<div className="grid grid-cols-2 gap-2">
-							<div>
-								<label className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
-									X
-								</label>
-								<Input
-									type="number"
-									value={Math.round(building.x)}
-									onChange={(e) => onUpdate({ x: Number(e.target.value), dirty: true })}
-									className="mt-1"
-								/>
+						{/* Advanced placement (collapsed by default) */}
+						<details className="rounded-md border border-border bg-muted/30 px-3 py-2">
+							<summary className="cursor-pointer select-none text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
+								Advanced placement
+							</summary>
+							<div className="mt-3 grid grid-cols-2 gap-2">
+								<div>
+									<label className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
+										X
+									</label>
+									<Input
+										type="number"
+										value={Math.round(building.x)}
+										onChange={(e) => onUpdate({ x: Number(e.target.value), dirty: true })}
+										className="mt-1"
+									/>
+								</div>
+								<div>
+									<label className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
+										Y
+									</label>
+									<Input
+										type="number"
+										value={Math.round(building.y)}
+										onChange={(e) => onUpdate({ y: Number(e.target.value), dirty: true })}
+										className="mt-1"
+									/>
+								</div>
+								<div>
+									<label className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
+										Width
+									</label>
+									<Input
+										type="number"
+										min={60}
+										value={Math.round(building.width)}
+										onChange={(e) => onUpdate({ width: Math.max(60, Number(e.target.value)), dirty: true })}
+										className="mt-1"
+									/>
+								</div>
+								<div>
+									<label className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
+										Height
+									</label>
+									<Input
+										type="number"
+										min={40}
+										value={Math.round(building.height)}
+										onChange={(e) => onUpdate({ height: Math.max(40, Number(e.target.value)), dirty: true })}
+										className="mt-1"
+									/>
+								</div>
 							</div>
-							<div>
-								<label className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
-									Y
-								</label>
-								<Input
-									type="number"
-									value={Math.round(building.y)}
-									onChange={(e) => onUpdate({ y: Number(e.target.value), dirty: true })}
-									className="mt-1"
-								/>
-							</div>
-						</div>
-						<div className="grid grid-cols-2 gap-2">
-							<div>
-								<label className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
-									Width
-								</label>
-								<Input
-									type="number"
-									min={60}
-									value={Math.round(building.width)}
-									onChange={(e) => onUpdate({ width: Math.max(60, Number(e.target.value)), dirty: true })}
-									className="mt-1"
-								/>
-							</div>
-							<div>
-								<label className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
-									Height
-								</label>
-								<Input
-									type="number"
-									min={40}
-									value={Math.round(building.height)}
-									onChange={(e) => onUpdate({ height: Math.max(40, Number(e.target.value)), dirty: true })}
-									className="mt-1"
-								/>
-							</div>
-						</div>
+						</details>
 
 						{/* Floor count */}
 						<div>
@@ -593,14 +598,15 @@ export function BuildingPanel({
 			{!readOnly && (
 				<div className="border-t border-border px-4 py-3">
 					<Button
-						variant="destructive"
+						variant="ghost"
 						size="sm"
-						className="w-full"
+						className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
 						onClick={() => building.isNew ? handleDeleteBuilding() : setShowDeleteBuilding(true)}
 						disabled={deleting}
+						aria-label="Delete this building"
 					>
 						<Trash2 className="size-3.5" />
-						{deleting ? 'Deleting...' : 'Delete Building'}
+						{deleting ? 'Deleting...' : 'Delete building'}
 					</Button>
 				</div>
 			)}
@@ -742,20 +748,31 @@ export function BuildingPanel({
 									{editingRoom.features.map(f => (
 										<Badge key={f} variant="secondary" className="text-[0.65rem] bg-sky-50 text-sky-700 border-sky-100 flex items-center gap-1">
 											{f}
-											<button onClick={() => setEditingRoom({ ...editingRoom, features: editingRoom.features.filter(x => x !== f) })}>×</button>
+											<Button
+												type="button"
+												variant="ghost"
+												size="icon-xs"
+												className="size-4 -mr-1 text-sky-700 hover:bg-sky-100"
+												aria-label={`Remove ${f}`}
+												onClick={() => setEditingRoom({ ...editingRoom, features: editingRoom.features.filter(x => x !== f) })}
+											>
+												<X className="size-2.5" />
+											</Button>
 										</Badge>
 									))}
 								</div>
 								<div className="flex flex-wrap gap-1">
 									{['PROJECTOR', 'SMART_TV', 'GAS_STOVE', 'GREENHOUSE', 'ICT-LAB', 'WELDING'].filter(s => !editingRoom.features.includes(s)).map(s => (
-										<button
+										<Button
 											key={s}
 											type="button"
+											variant="outline"
+											size="xs"
+											aria-label={`Add feature: ${s}`}
 											onClick={() => setEditingRoom({ ...editingRoom, features: [...editingRoom.features, s] })}
-											className="text-[0.6rem] bg-muted/50 hover:bg-muted px-1.5 py-0.5 rounded border border-border/50"
 										>
-											+ {s}
-										</button>
+											<Plus className="size-2.5" /> {s}
+										</Button>
 									))}
 								</div>
 							</div>
@@ -826,7 +843,7 @@ function SortableRoomTile({
 					</Badge>
 					{room.capacity != null && room.capacity > 0 && (
 						<span className="text-[0.6875rem] text-muted-foreground">
-							Cap: {room.capacity}
+							Capacity {room.capacity}
 						</span>
 					)}
 					{!room.isTeachingSpace && (
@@ -903,7 +920,7 @@ function RoomTileReadOnly({ room }: { room: Room }) {
 					</Badge>
 					{room.capacity != null && room.capacity > 0 && (
 						<span className="text-[0.6875rem] text-muted-foreground">
-							Cap: {room.capacity}
+							Capacity {room.capacity}
 						</span>
 					)}
 					{!room.isTeachingSpace && (

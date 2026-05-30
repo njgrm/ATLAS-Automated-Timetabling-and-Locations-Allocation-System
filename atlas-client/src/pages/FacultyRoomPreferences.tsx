@@ -17,7 +17,7 @@ import {
 	replaceOutboxActions,
 	type RoomPreferenceOutboxAction,
 } from '@/lib/roomPreferenceOutbox';
-import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { describeSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { cacheFacultyIdentity, readCachedFacultyIdentity } from '@/lib/faculty-identity-cache';
 import { buildFacultyCacheKey, isLikelyOfflineError, readFacultySnapshot, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
 import { scopePreviewToCandidate } from '@/lib/timetable-utils';
@@ -241,15 +241,7 @@ export default function FacultyRoomPreferences() {
 			const schoolYearContext = await resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false });
 			const schoolYearId = schoolYearContext.activeSchoolYearId;
 			setActiveSchoolYearId(schoolYearId);
-			setSchoolYearNotice(
-				schoolYearContext.source === 'enrollpro'
-					? `Verified with EnrollPro (${schoolYearContext.activeSchoolYearLabel}).`
-					: schoolYearContext.source === 'atlas' && !schoolYearContext.stale
-					? null
-					: schoolYearContext.activeSchoolYearLabel
-					? `Working from saved data (${schoolYearContext.activeSchoolYearLabel}).`
-					: 'Working from saved data.',
-			);
+			setSchoolYearNotice(describeSchoolYearSource(schoolYearContext));
 
 			let resolvedFacultyId: number;
 			try {
@@ -291,7 +283,7 @@ export default function FacultyRoomPreferences() {
 
 			try {
 				const [roomState, buildingsResponse, campusImageResponse] = await Promise.all([
-					atlasApi.get<FacultyRoomPreferenceState>(`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/latest/faculty/${resolvedFacultyId}`),
+					atlasApi.get<FacultyRoomPreferenceState & { facultyId?: number }>(`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/latest/me`),
 					atlasApi.get<{ buildings: Building[] }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
 					atlasApi.get<{ campusImageUrl: string | null }>(`/map/schools/${DEFAULT_SCHOOL_ID}/campus-image`),
 				]);

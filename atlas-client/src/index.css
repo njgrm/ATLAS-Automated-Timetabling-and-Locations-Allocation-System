@@ -43,7 +43,7 @@
 }
 
 :root {
-	/* ─── PERMANENT MAIN LAYER — matches EnrollPro ─── */
+	/* ─── Base surface tokens (light slate / white, SMART-aligned) ─── */
 	--background: 0 0% 100%;
 	--foreground: 222 47% 11%;
 	--muted: 220 14% 96%;
@@ -59,20 +59,35 @@
 	--secondary: 220 14% 96%;
 	--secondary-foreground: 222 47% 11%;
 
-	/* ─── DEFAULT ACCENT LAYER — synced from EnrollPro settings ─── */
-	--accent: 221 83% 53%;
+	/* ─── Default accent: emerald (SMART scheduling portal identity).
+	   May be overridden at runtime by applyEnrollProAccentTheme() when a
+	   school sets a custom brand color in EnrollPro. ─── */
+	--accent: 158 64% 40%;
 	--accent-foreground: 0 0% 100%;
-	--accent-muted: 213 97% 94%;
-	--accent-ring: 221 83% 53%;
+	--accent-muted: 152 81% 92%;
+	--accent-ring: 158 64% 40%;
 
 	/* shadcn aliases */
 	--primary: var(--accent);
 	--primary-foreground: var(--accent-foreground);
 	--ring: var(--accent-ring);
-	--radius: 0.5rem;
+	--radius: 0.75rem;
 
-	/* sidebar tokens */
-	--sidebar-background: 0 0% 94%;
+	/* SMART-compatible theme aliases. UI may reference --theme-primary/--theme-accent
+	   directly to match SMART component patterns; values are sourced from the school's
+	   --primary/--accent tokens (overridden at runtime by applyEnrollProAccentTheme). */
+	--theme-primary: hsl(var(--primary));
+	--theme-accent: hsl(var(--accent));
+
+	/* SMART-aligned soft shadow tokens */
+	--shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+	--shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
+	--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+	--shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+	--shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.06), 0 10px 10px -5px rgba(0, 0, 0, 0.03);
+
+	/* sidebar tokens — light slate shell */
+	--sidebar-background: 210 20% 96%;
 	--sidebar-foreground: 222 47% 11%;
 	--sidebar-primary: var(--accent);
 	--sidebar-primary-foreground: var(--accent-foreground);
@@ -129,15 +144,48 @@
 		@apply border-border outline-ring/50;
 	}
 	body {
-		@apply bg-background text-foreground antialiased font-normal;
+		@apply text-foreground antialiased font-normal;
 		font-variation-settings: "wght" 500;
+		/* Token-driven page wash: subtle white -> primary tint so HNHS maroon, EnrollPro
+		   custom brand, or the default emerald all read as a unified school surface. */
+		background:
+			linear-gradient(
+				135deg,
+				hsl(0 0% 100%) 0%,
+				hsl(var(--primary) / 0.04) 50%,
+				hsl(var(--primary) / 0.07) 100%
+			);
+		background-attachment: fixed;
+		letter-spacing: -0.01em;
 	}
 	html {
 		@apply font-sans;
 	}
+	h1, h2, h3, h4, h5, h6 {
+		letter-spacing: -0.025em;
+		line-height: 1.25;
+	}
 }
 
 @layer utilities {
+	.bg-app-surface {
+		background-color: transparent;
+	}
+	.shadow-soft {
+		box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+	}
+	.shadow-soft-xl {
+		box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.06), 0 10px 10px -5px rgba(0, 0, 0, 0.03);
+	}
+	.shadow-primary-glow {
+		box-shadow: 0 10px 30px -5px hsl(var(--primary) / 0.35);
+	}
+	.shadow-primary-sm {
+		box-shadow: 0 4px 14px -3px hsl(var(--primary) / 0.28);
+	}
+	.animate-fade-in {
+		animation: fade-in 0.3s ease-out forwards;
+	}
 	.scrollbar-thin {
 		scrollbar-width: auto;
 		scrollbar-color: hsl(var(--primary)) hsl(var(--muted));

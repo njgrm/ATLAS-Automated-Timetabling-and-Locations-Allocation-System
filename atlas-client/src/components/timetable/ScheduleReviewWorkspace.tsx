@@ -13,6 +13,7 @@ import {
 	type ProgramFilter,
 } from '@/lib/schedule-review-helpers';
 import { formatTime } from '@/lib/utils';
+import atlasApi from '@/lib/api';
 import type {
 	Building,
 	DraftReport,
@@ -290,14 +291,10 @@ export default function ScheduleReviewWorkspace() {
 		const fetchPolicy = async () => {
 			try {
 				const schoolId = DEFAULT_SCHOOL_ID;
-				const response = await fetch(
-					`/api/v1/policies/scheduling/${schoolId}/${schoolYearId}`,
-					{ credentials: 'include' }
+				const { data } = await atlasApi.get<{ policy: { teacherMoveEnabled: boolean } }>(
+					`/policies/scheduling/${schoolId}/${schoolYearId}`,
 				);
-				if (response.ok) {
-					const data = (await response.json()) as { policy: { teacherMoveEnabled: boolean } };
-					setPolicy(data.policy);
-				}
+				setPolicy(data.policy);
 			} catch (err) {
 				console.error('Failed to fetch policy:', err);
 			}
@@ -914,8 +911,11 @@ export default function ScheduleReviewWorkspace() {
 					: entry.cohortCode;
 				return `${labelPrefix}${memberCount > 0 ? ` · ${memberCount} section${memberCount === 1 ? '' : 's'}` : ''}`;
 		}
-		const adviser = entry.adviserName ?? sectionMap.get(entry.sectionId)?.adviserName;
-		return adviser ? `${sectionLabel(entry.sectionId)} · Adviser ${adviser}` : sectionLabel(entry.sectionId);
+		const section = sectionMap.get(entry.sectionId);
+		const grade = section?.displayOrder;
+		const gradePrefix = grade ? `G${grade} · ` : '';
+		const adviser = entry.adviserName ?? section?.adviserName;
+		return adviser ? `${gradePrefix}${sectionLabel(entry.sectionId)} · Adviser ${adviser}` : `${gradePrefix}${sectionLabel(entry.sectionId)}`;
 		},
 		[sectionLabel, sectionMap],
 	);

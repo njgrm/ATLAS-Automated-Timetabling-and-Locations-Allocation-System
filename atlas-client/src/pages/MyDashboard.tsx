@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, RefreshCcw } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
-import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { describeSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { buildFacultyCacheKey, isLikelyOfflineError, readFacultySnapshot, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
 import type { FacultyRoomPreferenceEntry } from '@/types';
 import type { FacultyPortalObjectiveState } from '@/types';
@@ -95,15 +95,7 @@ export default function MyDashboard() {
 					return Boolean(candidate.faculty && typeof candidate.phaseMessage === 'string' && candidate.schedulePreview && candidate.objectiveState);
 				},
 			});
-			setSchoolYearNotice(
-				schoolYearContext.source === 'enrollpro'
-					? `Verified with EnrollPro (${schoolYearContext.activeSchoolYearLabel}).`
-					: schoolYearContext.source === 'atlas' && !schoolYearContext.stale
-					? null
-					: schoolYearContext.activeSchoolYearLabel
-					? `Working from saved data (${schoolYearContext.activeSchoolYearLabel}).`
-					: 'Working from saved data.',
-			);
+			setSchoolYearNotice(describeSchoolYearSource(schoolYearContext));
 
 			try {
 				const { data } = await atlasApi.get<MyDashboardResponse>(`/faculty-portal/${DEFAULT_SCHOOL_ID}/${schoolYearId}/dashboard`);

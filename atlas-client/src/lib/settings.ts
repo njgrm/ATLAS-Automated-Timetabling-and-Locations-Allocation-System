@@ -192,10 +192,19 @@ export async function fetchAtlasRuntimeContext(schoolId = 1): Promise<AtlasRunti
 }
 
 export async function fetchSchoolYears(): Promise<SchoolYear[]> {
+	// EnrollPro school-years requires a bridge token (issued only when the user
+	// arrives through the EnrollPro -> ATLAS bridge). For direct-ATLAS logins
+	// (faculty, locally-authenticated admins) there is no bridge token, and
+	// calling this endpoint just produces repeated 401 noise on otherwise
+	// healthy pages. Skip the call silently in that case — the active
+	// school-year context is already owned by the ATLAS runtime resolver, and
+	// the school-year switcher is an admin-bridge-only feature in v1.
+	const token = sessionStorage.getItem(ATLAS_BRIDGE_TOKEN_KEY);
+	if (!token) {
+		return [];
+	}
 	try {
-		const token = sessionStorage.getItem(ATLAS_BRIDGE_TOKEN_KEY);
-		const headers: Record<string, string> = {};
-		if (token) headers.Authorization = `Bearer ${token}`;
+		const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
 		const { data } = await axios.get<{ years?: SchoolYear[]; schoolYears?: SchoolYear[] }>(`${enrollProApiBase}/school-years`, { headers });
 		// EnrollPro returns { years: [...] }; handle both shapes for safety
 		const list = data.years ?? data.schoolYears ?? [];
@@ -207,10 +216,10 @@ export async function fetchSchoolYears(): Promise<SchoolYear[]> {
 
 export async function fetchActiveSchoolYear(activeId: number | null): Promise<string | null> {
 	if (!activeId) return null;
+	const token = sessionStorage.getItem(ATLAS_BRIDGE_TOKEN_KEY);
+	if (!token) return null;
 	try {
-		const token = sessionStorage.getItem(ATLAS_BRIDGE_TOKEN_KEY);
-		const headers: Record<string, string> = {};
-		if (token) headers.Authorization = `Bearer ${token}`;
+		const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
 		const { data } = await axios.get<{ years?: SchoolYear[]; schoolYears?: SchoolYear[] }>(`${enrollProApiBase}/school-years`, { headers });
 		const list = data.years ?? data.schoolYears ?? [];
 		const active = list.find((sy) => sy.id === activeId);

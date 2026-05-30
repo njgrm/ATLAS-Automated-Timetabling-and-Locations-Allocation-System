@@ -445,35 +445,35 @@ router.get(
 
 			const secret = process.env.JWT_SECRET;
 			if (!secret) { res.status(500).json({ code: 'SERVER_ERROR', message: 'JWT secret not configured.' }); return; }
-			let decoded: { userId: number; role: string; facultyId?: number | null } | null = null;
+			let decoded: import('../middleware/authenticate.js').AuthPayload | null = null;
 			try {
-				decoded = jwt.verify(token, secret) as { userId: number; role: string; facultyId?: number | null };
+				decoded = jwt.verify(token, secret) as import('../middleware/authenticate.js').AuthPayload;
 			} catch {
 				res.status(401).json({ code: 'INVALID_TOKEN', message: 'Invalid or expired token.' });
 				return;
 			}
 			if (!decoded) { res.status(401).json({ code: 'INVALID_TOKEN', message: 'Invalid token.' }); return; }
 
-			// Determine scope: teacher users get filtered to their own events
+			// Determine scope: teacher users get filtered to their own events.
+			// Use the canonical resolver so identity matches all other faculty
+			// routes (avoids SSE-only auth drift where a teacher's externalId
+			// does not equal their token userId, which previously returned 403
+			// and showed up as net::ERR_FAILED on the EventSource client).
 			const isPrivileged = decoded.role === 'admin' || decoded.role === 'officer' || decoded.role === 'SYSTEM_ADMIN';
 			let scopeFacultyId: number | null = null;
 			if (!isPrivileged) {
-				if (typeof decoded.facultyId === 'number' && decoded.facultyId > 0) {
-					scopeFacultyId = decoded.facultyId;
-				} else {
-					const faculty = await prisma.facultyMirror.findFirst({
-						where: { schoolId, externalId: decoded.userId },
-						select: { id: true },
+				const identity = await resolveCanonicalFacultyFromAuthPayload(
+					{ ...decoded, authSource: decoded.authSource ?? 'local' },
+					{ schoolId, schoolYearId },
+				);
+				if (!identity) {
+					res.status(403).json({
+						code: 'FORBIDDEN',
+						message: 'Teacher profile mapping is required to subscribe to preference updates.',
 					});
-					if (!faculty) {
-						res.status(403).json({
-							code: 'FORBIDDEN',
-							message: 'Teacher profile mapping is required to subscribe to preference updates.',
-						});
-						return;
-					}
-					scopeFacultyId = faculty.id;
+					return;
 				}
+				scopeFacultyId = identity.faculty.id;
 			}
 
 			// Reconnect: replay missed events since Last-Event-ID

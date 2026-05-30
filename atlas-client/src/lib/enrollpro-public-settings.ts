@@ -28,6 +28,30 @@ export function isUpstreamBackedSchoolYearSource(source: ActiveSchoolYearContext
 	return source === 'enrollpro' || source === 'enrollpro-verified';
 }
 
+/**
+ * Returns true when the school-year context is current enough to be presented as live to the user.
+ * Live = any non-cache source AND not flagged stale. Cache-only or stale records are not "live".
+ */
+export function isLiveSchoolYearContext(context: Pick<ActiveSchoolYearContext, 'source' | 'stale'>): boolean {
+	if (context.stale) return false;
+	return context.source !== 'cache';
+}
+
+/**
+ * Compute the user-facing source-of-truth notice for faculty surfaces.
+ * Returns null when the page is operating on live, healthy upstream data (no banner needed).
+ * Returns honest degraded wording when the context is cache-only or stale.
+ */
+export function describeSchoolYearSource(context: ActiveSchoolYearContext): string | null {
+	if (isLiveSchoolYearContext(context)) {
+		return null;
+	}
+	if (context.activeSchoolYearLabel) {
+		return `Working from saved data (${context.activeSchoolYearLabel}).`;
+	}
+	return 'Working from saved data.';
+}
+
 let activeSchoolYearMemory: ActiveSchoolYearCacheRecord | null = null;
 
 function readCachedActiveSchoolYear(): ActiveSchoolYearCacheRecord | null {

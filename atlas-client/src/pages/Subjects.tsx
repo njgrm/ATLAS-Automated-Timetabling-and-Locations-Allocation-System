@@ -59,6 +59,21 @@ const PAGE_SIZES = [10, 25, 50, 100];
 type SortField = 'code' | 'name' | 'minMinutesPerWeek' | 'preferredRoomType' | 'gradeLevels';
 type SortDir = 'asc' | 'desc';
 
+type TeachingLoadResetPreview = {
+	applied: boolean;
+	scope: 'GLOBAL' | 'SUBJECT';
+	schoolId: number;
+	schoolYearId: number;
+	subjectId: number | null;
+	ownershipRowsToRemove: number;
+	facultySubjectRowsAffected: number;
+	facultySubjectRowsDeleted: number;
+	facultySubjectRowsUpdated: number;
+	affectedFacultyCount: number;
+	affectedSubjectCount: number;
+	subjectCodes: string[];
+};
+
 function resolveSubjectTermRank(subject: Pick<Subject, 'rotationTermRank' | 'modularOrder'>): number | null {
 	if (typeof subject.rotationTermRank === 'number' && Number.isInteger(subject.rotationTermRank) && subject.rotationTermRank > 0) {
 		return subject.rotationTermRank;
@@ -845,14 +860,14 @@ export default function Subjects() {
 			/>
 
 			<ConfirmationModal
-				open={archiveTarget !== null}
-				onOpenChange={(open) => { if (!open) setArchiveTarget(null); }}
-				title={`Archive "${archiveTarget?.name ?? ''}"`}
-				description="Archived subjects won't appear in new scheduling proposals. You can reactivate them at any time."
+				open={!!archiveTarget}
+				title="Archive Subject"
+				description={archiveTarget ? `Archive "${archiveTarget.name}"? It will be hidden from new assignments but historical data is preserved.` : ''}
 				confirmText="Archive"
 				variant="warning"
 				loading={archivingLoading}
-				onConfirm={() => { if (archiveTarget) handleArchiveSubject(archiveTarget); }}
+				onConfirm={() => archiveTarget && handleArchiveSubject(archiveTarget)}
+				onCancel={() => setArchiveTarget(null)}
 			/>
 
 			<DeleteSubjectDialog

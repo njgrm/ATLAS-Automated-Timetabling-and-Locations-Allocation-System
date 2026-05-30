@@ -11,6 +11,7 @@ import {
 import atlasApi from '@/lib/api';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { formatTime } from '@/lib/utils';
+import { pivotDraftToView, type PivotEntityKind } from '@/lib/schedule-pivot';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
@@ -18,7 +19,10 @@ import { SearchableSelect } from '@/ui/searchable-select';
 import { Skeleton } from '@/ui/skeleton';
 import { ConflictInspectorSheet, type ConflictInspectorData } from '@/components/ConflictInspectorSheet';
 import { OccupancyTemplatePreview } from '@/components/room-schedules/OccupancyTemplatePreview';
-import type { Building, Room, Subject, FacultyMirror, RoomScheduleView, RoomScheduleEntry, SectionSummaryResponse, ExternalSection } from '@/types';
+import { GradeLevelBadge, parseGradeFromSectionName } from '@/components/GradeLevelBadge';
+import type { Building, Room, Subject, FacultyMirror, RoomScheduleView, RoomScheduleEntry, SectionSummaryResponse, DraftReport } from '@/types';
+
+type SectionInfo = { name: string; gradeLevel: number | null };
 
 // ─── Constants ───
 
@@ -35,6 +39,7 @@ const DAY_SHORT: Record<string, string> = {
 // ─── Types ───
 
 type SourceMode = 'latest' | 'run';
+type ViewMode = 'rooms' | 'teachers' | 'sections';
 
 type FetchState =
 	| { status: 'idle' }
@@ -52,14 +57,19 @@ export default function RoomSchedules() {
 
 	/* Lookup data */
 	const [rooms, setRooms] = useState<(Room & { buildingName: string })[]>([]);
+	const [facultyList, setFacultyList] = useState<FacultyMirror[]>([]);
+	const [sectionList, setSectionList] = useState<{ id: number; name: string; gradeLevelName: string }[]>([]);
 	const [subjectMap, setSubjectMap] = useState<Map<number, string>>(new Map());
 	const [facultyMap, setFacultyMap] = useState<Map<number, string>>(new Map());
-	const [sectionMap, setSectionMap] = useState<Map<number, string>>(new Map());
+	const [sectionMap, setSectionMap] = useState<Map<number, SectionInfo>>(new Map());
 	const [schoolYearId, setSchoolYearId] = useState<number | null>(null);
 	const [roomsLoading, setRoomsLoading] = useState(true);
 
 	/* Selections */
+	const [viewMode, setViewMode] = useState<ViewMode>('rooms');
 	const [selectedRoomId, setSelectedRoomId] = useState<string>('');
+	const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
+	const [selectedSectionId, setSelectedSectionId] = useState<string>('');
 	const [sourceMode, setSourceMode] = useState<SourceMode>((querySource === 'latest' || querySource === 'run') ? querySource : 'latest');
 	const [runIdInput, setRunIdInput] = useState('');
 	const [presentationMode, setPresentationMode] = useState<'schedule' | 'occupancy'>('schedule');
@@ -70,6 +80,30 @@ export default function RoomSchedules() {
 
 	/* Conflict inspector */
 	const [conflictData, setConflictData] = useState<ConflictInspectorData | null>(null);
+
+	/* Derive a name-only sectionMap for legacy consumers that don't need grade info. */
+	const sectionNameMap = useMemo(() => {
+		const m = new Map<number, string>();
+		for (const [id, info] of sectionMap) m.set(id, info.name);
+		return m;
+	}, [sectionMap]);
+
+	/* Derive a roomMap (id -> label) for non-room views */
+	const roomMap = useMemo(() => {
+		const m = new Map<number, string>();
+		for (const r of rooms) m.set(r.id, r.name);
+		return m;
+	}, [rooms]);
+
+	/* Current selection id based on viewMode */
+	const selectedEntityId =
+		viewMode === 'rooms' ? selectedRoomId
+			: viewMode === 'teachers' ? selectedTeacherId
+				: selectedSectionId;
+	const setSelectedEntityId =
+		viewMode === 'rooms' ? setSelectedRoomId
+			: viewMode === 'teachers' ? setSelectedTeacherId
+				: setSelectedSectionId;
 
 	/* Load lookup data on mount */
 	useEffect(() => {
@@ -90,9 +124,15 @@ export default function RoomSchedules() {
 				if (activeSchoolYearId) {
 					atlasApi.get<SectionSummaryResponse>(`/sections/summary/${activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`)
 						.then((r) => {
-							const secMap = new Map<number, string>();
-							for (const s of r.data.sections) secMap.set(s.id, s.name);
+							const secMap = new Map<number, SectionInfo>();
+							const list: { id: number; name: string; gradeLevelName: string }[] = [];
+							for (const s of r.data.sections) {
+								const grade = parseGradeFromSectionName(s.gradeLevelName) ?? parseGradeFromSectionName(s.name);
+								secMap.set(s.id, { name: s.name, gradeLevel: grade });
+								list.push({ id: s.id, name: s.name, gradeLevelName: s.gradeLevelName });
+							}
 							setSectionMap(secMap);
+							setSectionList(list);
 						})
 						.catch(() => { /* best-effort */ });
 				}
@@ -118,10 +158,13 @@ export default function RoomSchedules() {
 				setSubjectMap(sMap);
 
 				const fMap = new Map<number, string>();
+				const activeFaculty: FacultyMirror[] = [];
 				for (const f of facultyRes.data.faculty) {
 					fMap.set(f.id, `${f.lastName}, ${f.firstName.charAt(0)}.`);
+					if (f.isActiveForScheduling !== false) activeFaculty.push(f);
 				}
 				setFacultyMap(fMap);
+				setFacultyList(activeFaculty);
 			} catch {
 				/* rooms unavailable */
 			} finally {
@@ -143,7 +186,7 @@ export default function RoomSchedules() {
 	const isRunIdValid = sourceMode === 'latest' || (sourceMode === 'run' && /^[1-9]\d*$/.test(debouncedRunId));
 
 	const fetchSchedule = useCallback(async () => {
-		if (!selectedRoomId || !schoolYearId) return;
+		if (!selectedEntityId || !schoolYearId) return;
 
 		// Client-side guard: prevent 400 for missing/invalid runId
 		if (sourceMode === 'run' && !/^[1-9]\d*$/.test(debouncedRunId)) {
@@ -153,37 +196,73 @@ export default function RoomSchedules() {
 
 		setState({ status: 'loading' });
 		try {
-			const params = new URLSearchParams({ source: sourceMode });
-			if (sourceMode === 'run') params.set('runId', debouncedRunId);
+			if (viewMode === 'rooms') {
+				const params = new URLSearchParams({ source: sourceMode });
+				if (sourceMode === 'run') params.set('runId', debouncedRunId);
 
-			const { data } = await atlasApi.get<RoomScheduleView>(
-				`/room-schedules/${DEFAULT_SCHOOL_ID}/${schoolYearId}/rooms/${selectedRoomId}?${params}`,
-			);
-			setState({ status: 'ok', data });
+				const { data } = await atlasApi.get<RoomScheduleView>(
+					`/room-schedules/${DEFAULT_SCHOOL_ID}/${schoolYearId}/rooms/${selectedEntityId}?${params}`,
+				);
+				setState({ status: 'ok', data });
+			} else {
+				// Teachers / Sections: pivot the latest (or specific run) timetable client-side
+				const url = sourceMode === 'latest'
+					? `/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/latest/timetable`
+					: `/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${debouncedRunId}/timetable`;
+
+				const { data: report } = await atlasApi.get<DraftReport>(url);
+
+				const entityId = Number(selectedEntityId);
+				let entity: { id: number; name: string; subtitle?: string };
+				if (viewMode === 'teachers') {
+					const f = facultyList.find((x) => x.id === entityId);
+					entity = {
+						id: entityId,
+						name: f ? `${f.lastName}, ${f.firstName}` : `Teacher #${entityId}`,
+						subtitle: f?.department ?? undefined,
+					};
+				} else {
+					const s = sectionList.find((x) => x.id === entityId);
+					entity = {
+						id: entityId,
+						name: s?.name ?? `Section #${entityId}`,
+						subtitle: s?.gradeLevelName,
+					};
+				}
+
+				const view = pivotDraftToView(report, viewMode, entityId, entity, subjectMap);
+				setState({ status: 'ok', data: view });
+			}
 		} catch (e: unknown) {
 			const resp = (e as { response?: { data?: { code?: string; message?: string } } })?.response;
 			const code = resp?.data?.code;
-			const msg = resp?.data?.message ?? 'Failed to load room schedule.';
+			const msg = resp?.data?.message ?? 'Failed to load schedule.';
 			if (code === 'NO_RUNS') {
 				setState({ status: 'empty', message: msg });
 			} else {
 				setState({ status: 'error', message: msg });
 			}
 		}
-	}, [selectedRoomId, schoolYearId, sourceMode, debouncedRunId]);
+	}, [viewMode, selectedEntityId, schoolYearId, sourceMode, debouncedRunId, facultyList, sectionList, subjectMap]);
 
-	/* Auto-fetch when room, source mode, or valid runId changes */
+	/* Auto-fetch when selection, view mode, source mode, or valid runId changes */
 	useEffect(() => {
-		if (!selectedRoomId || !schoolYearId) return;
+		if (!selectedEntityId || !schoolYearId) return;
 		if (sourceMode === 'run' && !/^[1-9]\d*$/.test(debouncedRunId)) {
-			// Show validation hint only if user has started interacting
 			if (debouncedRunId !== '') {
 				setState({ status: 'empty', message: 'Enter a valid Run ID to view this source.' });
 			}
 			return;
 		}
 		fetchSchedule();
-	}, [selectedRoomId, schoolYearId, sourceMode, debouncedRunId, fetchSchedule]);
+	}, [selectedEntityId, schoolYearId, sourceMode, debouncedRunId, fetchSchedule]);
+
+	/* Reset state when switching view modes if no current selection */
+	useEffect(() => {
+		if (!selectedEntityId) {
+			setState({ status: 'idle' });
+		}
+	}, [viewMode, selectedEntityId]);
 
 	/* Grouped rooms for searchable selector */
 	const roomGroups = useMemo(() => {
@@ -199,20 +278,105 @@ export default function RoomSchedules() {
 			.map(([label, items]) => ({ label, items }));
 	}, [rooms]);
 
+	/* Grouped teachers by department */
+	const teacherGroups = useMemo(() => {
+		const byDept = new Map<string, { value: string; label: string }[]>();
+		const sorted = [...facultyList].sort(
+			(a, b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName),
+		);
+		for (const f of sorted) {
+			const key = f.department || 'Unassigned';
+			const list = byDept.get(key) ?? [];
+			list.push({
+				value: String(f.id),
+				label: `${f.lastName}, ${f.firstName}`,
+			});
+			byDept.set(key, list);
+		}
+		return Array.from(byDept.entries())
+			.sort((a, b) => a[0].localeCompare(b[0]))
+			.map(([label, items]) => ({ label, items }));
+	}, [facultyList]);
+
+	/* Grouped sections by grade level */
+	const sectionGroups = useMemo(() => {
+		const byGrade = new Map<string, { value: string; label: string }[]>();
+		const sorted = [...sectionList].sort(
+			(a, b) => a.gradeLevelName.localeCompare(b.gradeLevelName) || a.name.localeCompare(b.name),
+		);
+		for (const s of sorted) {
+			const key = s.gradeLevelName || 'Other';
+			const list = byGrade.get(key) ?? [];
+			list.push({ value: String(s.id), label: s.name });
+			byGrade.set(key, list);
+		}
+		return Array.from(byGrade.entries())
+			.sort((a, b) => a[0].localeCompare(b[0]))
+			.map(([label, items]) => ({ label, items }));
+	}, [sectionList]);
+
+	/* Active selector config */
+	const activeSelector = useMemo(() => {
+		if (viewMode === 'rooms') {
+			return { groups: roomGroups, placeholder: 'Select room…' };
+		}
+		if (viewMode === 'teachers') {
+			return { groups: teacherGroups, placeholder: 'Select teacher…' };
+		}
+		return { groups: sectionGroups, placeholder: 'Select section…' };
+	}, [viewMode, roomGroups, teacherGroups, sectionGroups]);
+
 	return (
 		<div className="flex flex-col h-[calc(100svh-3.5rem)]">
 			{/* ── Toolbar row ── */}
 			<div className="shrink-0 px-6 pt-4 pb-2 flex items-center gap-3 flex-wrap">
-				{/* Room selector */}
+				{/* View mode toggle */}
+				<div className="flex items-center gap-1.5 rounded-md border border-border bg-background px-1.5 py-1">
+					<Button
+						variant={viewMode === 'rooms' ? 'default' : 'outline'}
+						size="sm"
+						className="h-7 px-2.5 text-[11px]"
+						onClick={() => {
+							setViewMode('rooms');
+							if (presentationMode === 'occupancy') setPresentationMode('schedule');
+						}}
+					>
+						Rooms
+					</Button>
+					<Button
+						variant={viewMode === 'teachers' ? 'default' : 'outline'}
+						size="sm"
+						className="h-7 px-2.5 text-[11px]"
+						onClick={() => {
+							setViewMode('teachers');
+							setPresentationMode('schedule');
+						}}
+					>
+						Teachers
+					</Button>
+					<Button
+						variant={viewMode === 'sections' ? 'default' : 'outline'}
+						size="sm"
+						className="h-7 px-2.5 text-[11px]"
+						onClick={() => {
+							setViewMode('sections');
+							setPresentationMode('schedule');
+						}}
+					>
+						Sections
+					</Button>
+				</div>
+
+				{/* Entity selector (rooms / teachers / sections) */}
 				<div className="min-w-55">
 					{roomsLoading ? (
 						<Skeleton className="h-8 w-full" />
 					) : (
 						<SearchableSelect
-							value={selectedRoomId}
-							onValueChange={setSelectedRoomId}
-							groups={roomGroups}
-							placeholder="Select room…"
+							value={selectedEntityId}
+							onValueChange={setSelectedEntityId}
+							groups={activeSelector.groups}
+							placeholder={activeSelector.placeholder}
 							triggerClassName="h-8 text-sm w-full"
 						/>
 					)}
@@ -226,17 +390,19 @@ export default function RoomSchedules() {
 						className="h-8 px-3 text-xs"
 						onClick={() => setPresentationMode('schedule')}
 					>
-						Room Schedule
+						Schedule
 					</Button>
-					<Button
-						variant={presentationMode === 'occupancy' ? 'default' : 'outline'}
-						size="sm"
-						className="h-8 px-3 text-xs"
-						onClick={() => setPresentationMode('occupancy')}
-					>
-						Occupancy Preview
-					</Button>
-					{presentationMode === 'occupancy' && (
+					{viewMode === 'rooms' && (
+						<Button
+							variant={presentationMode === 'occupancy' ? 'default' : 'outline'}
+							size="sm"
+							className="h-8 px-3 text-xs"
+							onClick={() => setPresentationMode('occupancy')}
+						>
+							Occupancy Preview
+						</Button>
+					)}
+					{viewMode === 'rooms' && presentationMode === 'occupancy' && (
 						<div className="flex items-center gap-1.5 rounded-md border border-border bg-background px-1.5 py-1">
 							<Button
 								variant={templateVariant === '11x6' ? 'default' : 'outline'}
@@ -317,7 +483,7 @@ export default function RoomSchedules() {
 					variant="outline"
 					size="sm"
 					onClick={fetchSchedule}
-					disabled={!selectedRoomId || state.status === 'loading' || !isRunIdValid}
+					disabled={!selectedEntityId || state.status === 'loading' || !isRunIdValid}
 					className="h-8 ml-auto shrink-0 shadow-sm"
 				>
 					<RefreshCw className={`mr-1 size-3.5 ${state.status === 'loading' ? 'animate-spin' : ''}`} />
@@ -330,7 +496,11 @@ export default function RoomSchedules() {
 				{state.status === 'idle' && (
 					<div className="flex flex-col items-center justify-center h-full text-muted-foreground">
 						<DoorOpen className="mb-3 size-10 opacity-40" />
-						<p className="text-sm">Select a room to view its schedule</p>
+						<p className="text-sm">
+							{viewMode === 'rooms' && 'Select a room to view its schedule'}
+							{viewMode === 'teachers' && 'Select a teacher to view their schedule'}
+							{viewMode === 'sections' && 'Select a section to view its schedule'}
+						</p>
 					</div>
 				)}
 
@@ -365,18 +535,20 @@ export default function RoomSchedules() {
 				{state.status === 'ok' && presentationMode === 'schedule' && (
 					<TimetableGrid
 						view={state.data}
+						viewMode={viewMode}
 						subjectMap={subjectMap}
 						facultyMap={facultyMap}
 						sectionMap={sectionMap}
+						roomMap={roomMap}
 						onConflictClick={(day, dayLabel, startTime, endTime, entries) => {
-							const room = rooms.find((r) => String(r.id) === selectedRoomId);
+							const contextLabel = state.data.room.name;
 							setConflictData({
 								day,
 								dayLabel,
 								startTime,
 								endTime,
-								roomName: room?.name ?? `Room #${selectedRoomId}`,
-								roomId: Number(selectedRoomId),
+								roomName: contextLabel,
+								roomId: viewMode === 'rooms' ? Number(selectedEntityId) : 0,
 								runId: state.data.source.runId ?? 0,
 								runStatus: state.data.source.status,
 								entries,
@@ -385,13 +557,13 @@ export default function RoomSchedules() {
 					/>
 				)}
 
-				{state.status === 'ok' && presentationMode === 'occupancy' && (
+				{state.status === 'ok' && presentationMode === 'occupancy' && viewMode === 'rooms' && (
 					<OccupancyTemplatePreview
 						view={state.data}
 						variant={templateVariant}
 						subjectMap={subjectMap}
 						facultyMap={facultyMap}
-						sectionMap={sectionMap}
+						sectionMap={sectionNameMap}
 						onPrint={() => window.print()}
 					/>
 				)}
@@ -404,7 +576,7 @@ export default function RoomSchedules() {
 				onClose={() => setConflictData(null)}
 				subjectMap={subjectMap}
 				facultyMap={facultyMap}
-				sectionMap={sectionMap}
+				sectionMap={sectionNameMap}
 			/>
 		</div>
 	);
@@ -473,15 +645,19 @@ function computeSpanData(view: RoomScheduleView): CellRender[][] {
 
 function TimetableGrid({
 	view,
+	viewMode,
 	subjectMap,
 	facultyMap,
 	sectionMap,
+	roomMap,
 	onConflictClick,
 }: {
 	view: RoomScheduleView;
+	viewMode: ViewMode;
 	subjectMap: Map<number, string>;
 	facultyMap: Map<number, string>;
-	sectionMap: Map<number, string>;
+	sectionMap: Map<number, SectionInfo>;
+	roomMap: Map<number, string>;
 	onConflictClick?: (day: string, dayLabel: string, startTime: string, endTime: string, entries: RoomScheduleEntry[]) => void;
 }) {
 	const spanData = useMemo(() => computeSpanData(view), [view]);
@@ -539,6 +715,15 @@ function TimetableGrid({
 									);
 								}
 
+								const firstGrade = cellData.entries.length > 0
+									? sectionMap.get(cellData.entries[0].sectionId)?.gradeLevel ?? null
+									: null;
+								let baseCellClass = 'bg-primary/5 border-primary/20';
+								if (firstGrade === 7) baseCellClass = 'bg-green-50 border-green-200';
+								else if (firstGrade === 8) baseCellClass = 'bg-yellow-50 border-yellow-200';
+								else if (firstGrade === 9) baseCellClass = 'bg-red-50 border-red-200';
+								else if (firstGrade === 10) baseCellClass = 'bg-blue-50 border-blue-200';
+
 								return (
 									<td
 										key={dayIdx}
@@ -546,7 +731,7 @@ function TimetableGrid({
 										className={`border-b border-r last:border-r-0 px-1 py-0.5 align-top transition-colors ${
 											cellData.conflict
 												? 'bg-red-50 border-red-200 cursor-pointer hover:bg-red-100'
-												: 'bg-primary/5 border-primary/20'
+												: baseCellClass
 										}`}
 										onClick={cellData.conflict && onConflictClick ? () => {
 											const timeSlot = view.grid[rowIdx].timeSlot;
@@ -563,8 +748,12 @@ function TimetableGrid({
 											<EntryCell
 												key={entry.entryId}
 												entry={entry}
+												viewMode={viewMode}
 												subjectMap={subjectMap}
-												facultyMap={facultyMap}											sectionMap={sectionMap}											/>
+												facultyMap={facultyMap}
+												sectionMap={sectionMap}
+												roomMap={roomMap}
+											/>
 										))}
 										{cellData.conflict && (
 											<Badge
@@ -590,26 +779,57 @@ function TimetableGrid({
 
 function EntryCell({
 	entry,
+	viewMode,
 	subjectMap,
 	facultyMap,
 	sectionMap,
+	roomMap,
 }: {
 	entry: RoomScheduleEntry;
+	viewMode: ViewMode;
 	subjectMap: Map<number, string>;
 	facultyMap: Map<number, string>;
-	sectionMap: Map<number, string>;
+	sectionMap: Map<number, SectionInfo>;
+	roomMap: Map<number, string>;
 }) {
+	const sectionInfo = sectionMap.get(entry.sectionId);
+	const sectionLabel = sectionInfo?.name ?? `Unknown Section (#${entry.sectionId})`;
+	const facultyLabel = entry.facultyId != null
+		? (facultyMap.get(entry.facultyId) ?? `Unknown Faculty (#${entry.facultyId})`)
+		: 'Unassigned Faculty';
+	const roomLabel = entry.roomId != null
+		? (roomMap.get(entry.roomId) ?? `Room #${entry.roomId}`)
+		: '—';
+
 	return (
 		<div className="px-1.5 py-1 text-[11px] leading-snug">
 			<div className="font-semibold text-foreground truncate">
 				{entry.subjectDisplayLabel ?? subjectMap.get(entry.subjectId) ?? `Unknown Subject (#${entry.subjectId})`}
 			</div>
-			<div className="text-muted-foreground truncate">{sectionMap.get(entry.sectionId) ?? `Unknown Section (#${entry.sectionId})`}</div>
-			<div className="text-muted-foreground/80 truncate">
-				{entry.facultyId != null
-					? (facultyMap.get(entry.facultyId) ?? `Unknown Faculty (#${entry.facultyId})`)
-					: 'Unassigned Faculty'}
-			</div>
+			{viewMode === 'rooms' && (
+				<>
+					<div className="flex items-center gap-1 min-w-0">
+						<GradeLevelBadge grade={sectionInfo?.gradeLevel ?? null} size="xs" />
+						<span className="text-muted-foreground truncate">{sectionLabel}</span>
+					</div>
+					<div className="text-muted-foreground/80 truncate">{facultyLabel}</div>
+				</>
+			)}
+			{viewMode === 'teachers' && (
+				<>
+					<div className="flex items-center gap-1 min-w-0">
+						<GradeLevelBadge grade={sectionInfo?.gradeLevel ?? null} size="xs" />
+						<span className="text-muted-foreground truncate">{sectionLabel}</span>
+					</div>
+					<div className="text-muted-foreground/80 truncate">{roomLabel}</div>
+				</>
+			)}
+			{viewMode === 'sections' && (
+				<>
+					<div className="text-muted-foreground truncate">{facultyLabel}</div>
+					<div className="text-muted-foreground/80 truncate">{roomLabel}</div>
+				</>
+			)}
 		</div>
 	);
 }

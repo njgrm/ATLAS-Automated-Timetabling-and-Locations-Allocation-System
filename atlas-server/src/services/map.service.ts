@@ -228,3 +228,10 @@ export async function setCampusImage(schoolId: number, imageUrl: string) {
 		data: { campusImageUrl: imageUrl },
 	});
 }
+
+export async function removeCampusImage(schoolId: number) {
+	return prisma.school.update({
+		where: { id: schoolId },
+		data: { campusImageUrl: null },
+	});
+}

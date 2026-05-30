@@ -108,6 +108,10 @@ const router = createBrowserRouter([
 				element: <RoomSchedules />,
 			},
 			{
+				path: 'schedules',
+				element: <RoomSchedules />,
+			},
+			{
 				path: 'faculty/room-preferences',
 				element: <OfficerRoomPreferences />,
 			},

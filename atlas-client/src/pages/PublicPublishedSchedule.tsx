@@ -5,7 +5,8 @@ import { AlertCircle, BookOpen, CalendarDays, Clock3, MapPin, RefreshCcw, Search
 
 import atlasApi from '@/lib/api';
 import { buildPublicScheduleCacheKey, isLikelyOfflinePublicError, readPublicScheduleSnapshot, writePublicScheduleSnapshot } from '@/lib/public-schedule-cache';
-import { PublishedTimetableMatrix, DAY_ORDER, type DayKey, formatShortTime, humanizeProgram } from '@/components/published-schedule/PublishedTimetableMatrix';
+import { PublishedTimetableMatrix, DAY_ORDER, type DayKey, type PublishedScheduleMatrixEntry, formatShortTime, humanizeProgram } from '@/components/published-schedule/PublishedTimetableMatrix';
+import { GradeLevelBadge, parseGradeFromSectionName } from '@/components/GradeLevelBadge';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
@@ -127,10 +128,10 @@ export default function PublicPublishedSchedule() {
 	const [online, setOnline] = useState<boolean>(navigator.onLine);
 
 	const schoolId = useMemo(() => parsePositiveInt(searchParams.get('schoolId')) ?? DEFAULT_SCHOOL_ID, [searchParams]);
-	const mode = useMemo<ScheduleMode>(() => {
-		const raw = (searchParams.get('mode') ?? 'sections').toLowerCase();
-		return raw === 'teachers' || raw === 'rooms' ? raw : 'sections';
-	}, [searchParams]);
+	// Public view is intentionally restricted to section schedules. Teachers and rooms
+	// are admin-only surfaces; never exposed to unauthenticated students. We cast to the
+	// wider ScheduleMode union so the dead-but-defensive branches below still type-check.
+	const mode = 'sections' as ScheduleMode;
 	const entityQuery = (searchParams.get('q') ?? '').trim();
 	const gradeFilter = searchParams.get('grade') ?? 'all';
 	const programFilter = searchParams.get('program') ?? 'all';
@@ -357,35 +358,19 @@ export default function PublicPublishedSchedule() {
 		};
 	}, [payload?.entries]);
 
-	const renderSelectedEntryDetails = useCallback((entry: PublishedScheduleEntry) => {
-		if (mode === 'sections') {
-			return (
-				<>
-					<p className="flex items-center gap-1.5"><Clock3 className="size-3.5 shrink-0" /> {formatShortTime(entry.startTime)} - {formatShortTime(entry.endTime)}</p>
-					<p className="flex items-center gap-1.5"><Users className="size-3.5 shrink-0" /> {entry.faculty.name}</p>
-					<p className="flex items-center gap-1.5"><MapPin className="size-3.5 shrink-0" /> {entry.room.name}{entry.room.buildingName ? ` (${entry.room.buildingName})` : ''}</p>
-				</>
-			);
-		}
-
-		if (mode === 'teachers') {
-			return (
-				<>
-					<p className="flex items-center gap-1.5"><Clock3 className="size-3.5 shrink-0" /> {formatShortTime(entry.startTime)} - {formatShortTime(entry.endTime)}</p>
-					<p className="flex items-center gap-1.5"><BookOpen className="size-3.5 shrink-0" /> {entry.section.name}</p>
-					<p className="flex items-center gap-1.5"><MapPin className="size-3.5 shrink-0" /> {entry.room.name}{entry.room.buildingName ? ` (${entry.room.buildingName})` : ''}</p>
-				</>
-			);
-		}
-
+	const renderSelectedEntryDetails = useCallback((entry: PublishedScheduleMatrixEntry) => {
+		// Public sections view: never expose faculty, room, or building info.
+		// Students see only subject (header) + time (row label).
 		return (
-			<>
-				<p className="flex items-center gap-1.5"><Clock3 className="size-3.5 shrink-0" /> {formatShortTime(entry.startTime)} - {formatShortTime(entry.endTime)}</p>
-				<p className="flex items-center gap-1.5"><BookOpen className="size-3.5 shrink-0" /> {entry.section.name}</p>
-				<p className="flex items-center gap-1.5"><Users className="size-3.5 shrink-0" /> {entry.faculty.name}</p>
-			</>
+			<p className="flex items-center gap-1.5"><Clock3 className="size-3.5 shrink-0" /> {formatShortTime(entry.startTime)} - {formatShortTime(entry.endTime)}</p>
 		);
-	}, [mode]);
+	}, []);
+
+	const renderSelectedEntryBadges = useCallback((entry: PublishedScheduleMatrixEntry) => {
+		const section = entry.section;
+		const grade = (section?.gradeLevel ?? null) ?? parseGradeFromSectionName(section?.gradeLevelName ?? section?.name ?? null);
+		return <GradeLevelBadge grade={grade} size="xs" />;
+	}, []);
 
 	if (loading) {
 		return (
@@ -458,7 +443,7 @@ export default function PublicPublishedSchedule() {
 							<div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
 								<div className="space-y-1">
 									<CardTitle className="text-2xl font-semibold tracking-tight">Published Schedule Family</CardTitle>
-									<CardDescription>Table-first published timetables for students, teachers, and rooms.</CardDescription>
+									<CardDescription>Table-first published timetables for students. Browse by section.</CardDescription>
 								</div>
 								<div className="flex flex-wrap items-center gap-2">
 									<Badge variant="outline" className={online ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'}>
@@ -494,15 +479,8 @@ export default function PublicPublishedSchedule() {
 						<Card className="rounded-2xl border-border/70">
 							<CardHeader className="pb-3">
 								<div className="space-y-2">
-									<Tabs value={mode} onValueChange={(value) => updateSearchParams({ mode: value, sectionId: null, facultyId: null, roomId: null })}>
-										<TabsList className="grid w-full grid-cols-3">
-											<TabsTrigger value="sections">Sections</TabsTrigger>
-											<TabsTrigger value="teachers">Teachers</TabsTrigger>
-											<TabsTrigger value="rooms">Rooms</TabsTrigger>
-										</TabsList>
-									</Tabs>
-									<CardTitle className="text-base font-semibold">{modeLabel(mode)}</CardTitle>
-									<CardDescription>{modeDescription(mode)}</CardDescription>
+									<CardTitle className="text-base font-semibold">Sections</CardTitle>
+									<CardDescription>Browse the published timetable by section.</CardDescription>
 								</div>
 							</CardHeader>
 							<CardContent className="space-y-4">
@@ -563,9 +541,9 @@ export default function PublicPublishedSchedule() {
 											})}
 
 											{mode === 'sections' && filteredSections.map((section) => {
-												const isActive = selectedSection?.id === section.id;
-												return <Button key={section.id} variant={isActive ? 'secondary' : 'ghost'} onClick={() => updateSearchParams({ sectionId: String(section.id) })} className="h-auto w-full items-start justify-start rounded-lg px-2 py-2 text-left"><div className="space-y-1"><p className="text-sm font-semibold leading-tight">{section.name}</p><div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"><span>{section.entryCount} class{section.entryCount === 1 ? '' : 'es'}</span>{section.gradeLabel && <Badge variant="outline" className="text-[10px]">{section.gradeLabel}</Badge>}{section.programLabel && <Badge variant="outline" className="text-[10px]">{section.programLabel}</Badge>}</div></div></Button>;
-											})}
+								const isActive = selectedSection?.id === section.id;
+								return <Button key={section.id} variant={isActive ? 'secondary' : 'ghost'} onClick={() => updateSearchParams({ sectionId: String(section.id) })} className="h-auto w-full items-start justify-start rounded-lg px-2 py-2 text-left"><div className="space-y-1"><div className="flex items-center gap-1.5"><p className="text-sm font-semibold leading-tight">{section.name}</p><GradeLevelBadge grade={section.gradeLevel} size="xs" /></div><div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"><span>{section.entryCount} class{section.entryCount === 1 ? '' : 'es'}</span>{section.programLabel && <Badge variant="outline" className="text-[10px]">{section.programLabel}</Badge>}</div></div></Button>;
+							})}
 										</div>
 									</ScrollArea>
 								</div>
@@ -579,11 +557,9 @@ export default function PublicPublishedSchedule() {
 										<CardTitle className="text-lg font-semibold">{selectedTitle}</CardTitle>
 										<CardDescription>{selectedSubtitle}</CardDescription>
 										<div className="mt-1 flex flex-wrap items-center gap-1.5">
-											<Badge variant="outline">{modeLabel(mode)}</Badge>
-											{mode === 'sections' && selectedSection?.gradeLabel && <Badge variant="outline">{selectedSection.gradeLabel}</Badge>}
-											{mode === 'sections' && selectedSection?.programLabel && <Badge variant="outline">{selectedSection.programLabel}</Badge>}
-											{mode === 'teachers' && selectedFaculty && <Badge variant="outline">{selectedFaculty.entryCount} class{selectedFaculty.entryCount === 1 ? '' : 'es'}</Badge>}
-											{mode === 'rooms' && selectedRoom && <Badge variant="outline">{selectedRoom.entryCount} class{selectedRoom.entryCount === 1 ? '' : 'es'}</Badge>}
+											<Badge variant="outline">Section</Badge>
+											<GradeLevelBadge grade={selectedSection?.gradeLevel} size="sm" />
+											{selectedSection?.programLabel && <Badge variant="outline">{selectedSection.programLabel}</Badge>}
 										</div>
 									</div>
 									<div className="w-full sm:w-48">
@@ -609,6 +585,7 @@ export default function PublicPublishedSchedule() {
 										dayFilter={dayFilter}
 										emptyMessage="No published classes were found for this view."
 										renderEntryDetails={renderSelectedEntryDetails}
+										renderEntryBadges={renderSelectedEntryBadges}
 									/>
 								)}
 						</CardContent>

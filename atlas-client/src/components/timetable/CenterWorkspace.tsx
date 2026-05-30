@@ -157,7 +157,7 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 	} = props;
 
 	return (
-		<ResizablePanel id="center-panel" order={2} defaultSize={60} className="flex-1 min-w-0 flex flex-col min-h-0 relative" data-tutorial="center-grid">
+		<ResizablePanel id="center-panel" order={2} defaultSize={60} className="flex-1 min-w-0 flex flex-col min-h-0 relative bg-background" data-tutorial="center-grid">
 			<AnimatePresence mode="wait">
 				{centerView === 'policy' ? (
 					<motion.div

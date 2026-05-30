@@ -11,6 +11,7 @@ import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { ScrollArea } from '@/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/tabs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
 const DEFAULT_SCHOOL_ID = 1;
 
@@ -306,8 +307,8 @@ export default function Audit() {
 							<ShieldCheck className="size-5 text-emerald-600" />
 						</div>
 						<div>
-							<h1 className="text-lg font-bold tracking-tight">Readiness Audit</h1>
-							<p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">System Validation & Health Check</p>
+							<h1 className="text-lg font-bold tracking-tight">Readiness check</h1>
+							<p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">What must be fixed before generating</p>
 						</div>
 					</div>
 					<div className="flex items-center gap-3">
@@ -367,12 +368,12 @@ export default function Audit() {
 										</div>
 										<div>
 											<h3 className={`text-sm font-bold ${isReady ? 'text-emerald-900' : 'text-red-900'}`}>
-												{isReady ? 'System Ready' : 'Blockers Found'}
+												{isReady ? 'Ready to generate' : 'Fix these before generating'}
 											</h3>
 											<p className={`text-[11px] mt-1 leading-relaxed ${isReady ? 'text-emerald-800/70' : 'text-red-800/70'}`}>
 												{isReady 
-													? 'All critical checks passed. You can proceed to generate the schedule.' 
-													: `Found ${criticalCount} critical issue${criticalCount === 1 ? '' : 's'} that will block schedule generation.`}
+													? 'All required checks passed. You can run the schedule generator.' 
+												: `${criticalCount} item${criticalCount === 1 ? '' : 's'} must be fixed before you can publish a schedule.`}
 											</p>
 										</div>
 									</div>
@@ -540,7 +541,7 @@ export default function Audit() {
 																</div>
 															</div>
 														</div>
-														<Button asChild variant="outline" size="sm" className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+														<Button asChild variant="outline" size="sm" className="h-7 text-xs">
 															<Link to={`/teaching-load?facultyId=${m.facultyId}`}>Fix in Teaching Load →</Link>
 														</Button>
 													</div>
@@ -585,7 +586,7 @@ export default function Audit() {
 																Blocks scheduling for: <span className="font-semibold">{c.qualifiedSubjects.map((s: any) => s.code).join(', ')}</span>
 															</div>
 														</div>
-														<Button asChild variant="outline" size="sm" className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+														<Button asChild variant="outline" size="sm" className="h-7 text-xs">
 															<Link to={`/faculty/preferences?facultyId=${c.facultyId}`}>Review Preferences →</Link>
 														</Button>
 													</div>
@@ -631,7 +632,7 @@ export default function Audit() {
 																Missing teacher for: <span className="font-semibold text-red-600">{r.subjectName} ({r.subjectCode})</span>
 															</div>
 														</div>
-														<Button asChild variant="outline" size="sm" className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+														<Button asChild variant="outline" size="sm" className="h-7 text-xs">
 															<Link to={`/teaching-load?sectionId=${r.sectionId}`}>Assign Teacher →</Link>
 														</Button>
 													</div>
@@ -698,7 +699,7 @@ export default function Audit() {
 																	: `${s.compatibleRooms.length} compatible room(s) identified.`}
 															</div>
 														</div>
-														<Button asChild variant="outline" size="sm" className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+														<Button asChild variant="outline" size="sm" className="h-7 text-xs">
 															<Link to={s.hasGap ? "/map" : "/subjects"}>{s.hasGap ? "Fix Map →" : "View Subject →"}</Link>
 														</Button>
 													</div>
@@ -733,7 +734,7 @@ export default function Audit() {
 																{opt.reason}
 															</p>
 														</div>
-														<Button asChild variant="outline" size="sm" className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+														<Button asChild variant="outline" size="sm" className="h-7 text-xs">
 															<Link to="/teaching-load">Optimize Load →</Link>
 														</Button>
 													</div>
@@ -794,7 +795,7 @@ export default function Audit() {
 																style={{ width: `${Math.min(f.loadPercentage, 100)}%` }} 
 															/>
 														</div>
-														<Button asChild variant="outline" size="sm" className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+														<Button asChild variant="outline" size="sm" className="h-7 text-xs">
 															<Link to={`/teaching-load?facultyId=${f.id}`}>View Details →</Link>
 														</Button>
 													</div>

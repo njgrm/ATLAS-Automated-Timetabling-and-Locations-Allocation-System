@@ -623,56 +623,48 @@ export default function SchedulingPolicyPane({
 				activeTab === 'policy' ? (
 					<div className="flex-1 min-h-0 overflow-hidden p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
 
-					{/* G��G�� COL 0: Scheduling Mode G��G�� */}
-					<SectionCard title="Teacher Movement Policy">
+					{/* COL 0: Scheduling Mode */}
+					<SectionCard title="Scheduling Mode">
 						<div className="space-y-3">
-							<div className="space-y-2">
-								<div className="flex items-center justify-between">
+							<div className="grid grid-cols-2 gap-3">
+								<PolicyNumberField
+									label="Block Length (min)"
+									explanation="Length of one generated timetable block. This controls session normalization and the visible timetable slot grid."
+									value={local.periodLengthMinutes}
+									onChange={(v) => update('periodLengthMinutes', v)}
+									min={30}
+									max={90}
+								/>
+								<PolicyNumberField
+									label="Periods Per Day"
+									explanation="Maximum schedulable blocks in one day before protected breaks and special events are applied."
+									value={local.periodsPerDay}
+									onChange={(v) => update('periodsPerDay', v)}
+									min={4}
+									max={12}
+								/>
+							</div>
+							<div className="flex items-center justify-between rounded-md border border-border/60 bg-muted/30 px-3 py-2">
+								<div className="space-y-0.5">
 									<Label className="font-medium text-xs text-foreground">Teacher's Move</Label>
-									<Switch
-										checked={local.teacherMoveEnabled}
-										onCheckedChange={(checked) => update('teacherMoveEnabled', checked)}
-									/>
+									<p className="text-[0.6875rem] text-muted-foreground leading-relaxed">
+										{local.teacherMoveEnabled
+											? 'Teachers can move between buildings for classes.'
+											: 'Teachers stay within their assigned building context.'}
+									</p>
 								</div>
-								<p className="text-xs text-muted-foreground leading-relaxed">
-									{local.teacherMoveEnabled
-										? 'Enabled: Teachers can move and hold classes in rooms outside their default building assignment. Use this for flexible rooming across buildings.'
-										: 'Disabled: Teachers stay constrained to their assigned building context. Use this for stricter room locality during generation and review.'}
-								</p>
+								<Switch
+									checked={local.teacherMoveEnabled}
+									onCheckedChange={(checked) => update('teacherMoveEnabled', checked)}
+								/>
+							</div>
+							<div className="rounded-md border border-sky-200 bg-sky-50 px-2.5 py-2 text-[0.6875rem] text-sky-700 leading-relaxed">
+								Full-day fidelity uses 45-minute blocks with protected lunch, recess, and special-event windows. Shift-window overrides are in the Shift Settings tab.
 							</div>
 						</div>
 					</SectionCard>
 
-						<SectionCard title="Active Day Shape">
-							<div className="space-y-2">
-								<p className="text-xs text-muted-foreground leading-relaxed">
-									This operator-owned block contract drives the generated timetable baseline for the active school year.
-								</p>
-								<div className="grid grid-cols-2 gap-3">
-									<PolicyNumberField
-										label="Block Length (min)"
-										explanation="Length of one generated timetable block. This controls session normalization and the visible timetable slot grid."
-										value={local.periodLengthMinutes}
-										onChange={(v) => update('periodLengthMinutes', v)}
-										min={30}
-										max={90}
-									/>
-									<PolicyNumberField
-										label="Periods Per Day"
-										explanation="Maximum schedulable blocks in one day before protected breaks and special events are applied."
-										value={local.periodsPerDay}
-										onChange={(v) => update('periodsPerDay', v)}
-										min={4}
-										max={12}
-									/>
-								</div>
-								<div className="rounded-md border border-sky-200 bg-sky-50 px-2.5 py-2 text-[0.6875rem] text-sky-700 leading-relaxed">
-									Full-day fidelity uses 45-minute blocks with protected lunch, recess, and special-event windows. Shift-window overrides remain available separately in the Shift Settings tab.
-								</div>
-							</div>
-						</SectionCard>
-
-					{/* G��G�� COL 1: Core Teaching Limits G��G�� */}
+					{/* COL 1: Core Teaching Limits */}
 					<SectionCard title="Core Teaching Limits">
 						<PolicyNumberField
 							label="Max Consecutive Teaching (min)"
@@ -931,10 +923,10 @@ export default function SchedulingPolicyPane({
 						)}
 					</SectionCard>
 
-					{/* G��G�� COL 3: Per-Constraint Weights G��G�� */}
+					{/* COL 2: Per-Constraint Weights */}
 					<SectionCard title="Per-Constraint Weights">
 						<p className="text-[0.6875rem] text-muted-foreground">
-							Toggle, weight (1G��10), and optionally promote soft constraints to hard.
+							Toggle, weight (1–10), and optionally promote soft constraints to hard.
 						</p>
 						<div className="space-y-2">
 							{Object.entries(SOFT_CONSTRAINT_LABELS).map(([code, info]) => {

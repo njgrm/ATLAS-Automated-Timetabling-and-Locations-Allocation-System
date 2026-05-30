@@ -23,6 +23,7 @@ export type PublishedScheduleMatrixEntry = {
 	};
 	section?: {
 		name: string;
+		gradeLevel?: number | null;
 		gradeLevelName: string | null;
 		programName: string | null;
 	};

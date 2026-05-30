@@ -627,6 +627,7 @@ export type RoomScheduleEntry = {
 	subjectDisplayLabel?: string;
 	sectionId: number;
 	facultyId: number | null;
+	roomId?: number;
 	startTime: string;
 	endTime: string;
 	durationMinutes: number;

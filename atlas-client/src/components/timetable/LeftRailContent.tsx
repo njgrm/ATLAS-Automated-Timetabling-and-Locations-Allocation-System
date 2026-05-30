@@ -358,7 +358,7 @@ return (
 																<span className="font-medium truncate min-w-0">{item.subjectCode}</span>
 															</div>
 															<div className="flex items-center gap-1.5 text-[0.5625rem] text-muted-foreground pl-4.5">
-																<span className="truncate">{item.sectionName}</span>
+																<span className="truncate">G{item.gradeLevel} · {item.sectionName}</span>
 																<span>·</span>
 																<span>Session {item.sessionNumber}/{item.sessionsPerWeek}</span>
 															</div>
@@ -899,7 +899,7 @@ return (
 														onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const source = { type: 'draftQueue' as const, item }; setPreGenKbSource(source); setKbSelectedSource(source); setSelectedEntry(null); } }}
 													>
 														<div className="flex items-center justify-between gap-1 min-w-0">
-																<span className="truncate font-semibold text-[0.625rem]">{item.sectionName}{item.cohortCode ? ` · ${item.cohortCode}` : ''}</span>
+																<span className="truncate font-semibold text-[0.625rem]">G{item.gradeLevel} · {item.sectionName}{item.cohortCode ? ` · ${item.cohortCode}` : ''}</span>
 															<span className="shrink-0 text-[0.5rem] text-muted-foreground/70 tabular-nums">{item.sessionNumber}/{item.sessionsPerWeek}</span>
 														</div>
 														<div className="flex items-center gap-1 min-w-0 mt-0.5">

@@ -179,4 +179,10 @@ export async function setCampusImage(schoolId, imageUrl) {
         data: { campusImageUrl: imageUrl },
     });
 }
+export async function removeCampusImage(schoolId) {
+    return prisma.school.update({
+        where: { id: schoolId },
+        data: { campusImageUrl: null },
+    });
+}
 //# sourceMappingURL=map.service.js.map

@@ -21,6 +21,7 @@ import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings'
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { ScrollArea } from '@/ui/scroll-area';
+import { GradeLevelBadge, parseGradeFromSectionName } from '@/components/GradeLevelBadge';
 
 /* ─── Constants ─── */
 
@@ -55,7 +56,7 @@ export function RoomScheduleOverlay({
 }: RoomScheduleOverlayProps) {
 	const [subjectMap, setSubjectMap] = useState<Map<number, string>>(new Map());
 	const [facultyMap, setFacultyMap] = useState<Map<number, string>>(new Map());
-	const [sectionMap, setSectionMap] = useState<Map<number, string>>(new Map());
+	const [sectionMap, setSectionMap] = useState<Map<number, { name: string; gradeLevel: number | null }>>(new Map());
 
 	// Escape key handler
 	const handleKeyDown = useCallback(
@@ -114,7 +115,7 @@ export function RoomScheduleOverlay({
 					),
 				);
 				setSectionMap(
-					new Map((sectionsRes.data.sections ?? []).map((s) => [s.id, s.name])),
+					new Map((sectionsRes.data.sections ?? []).map((s) => [s.id, { name: s.name, gradeLevel: parseGradeFromSectionName(s.gradeLevelName) ?? parseGradeFromSectionName(s.name) }])),
 				);
 			} catch {
 				// Keep graceful ID-based fallback labels if lookups fail.
@@ -235,7 +236,7 @@ function OverlayTimetableGrid({
 	schedule: RoomScheduleView;
 	subjectMap: Map<number, string>;
 	facultyMap: Map<number, string>;
-	sectionMap: Map<number, string>;
+	sectionMap: Map<number, { name: string; gradeLevel: number | null }>;
 }) {
 	return (
 		<table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
@@ -264,8 +265,7 @@ function OverlayTimetableGrid({
 				{schedule.grid.map((row, rowIdx) => (
 					<tr key={rowIdx}>
 						<td className="sticky left-0 z-[5] bg-background border-r border-b px-2 py-3 align-middle w-24">
-							<div className="text-[11px] font-semibold text-foreground">P{rowIdx + 1}</div>
-							<div className="text-[10px] text-muted-foreground leading-tight">
+							<div className="text-[10px] font-semibold text-foreground leading-tight">
 								{formatTime(row.timeSlot.startTime)}–{formatTime(row.timeSlot.endTime)}
 							</div>
 						</td>
@@ -275,13 +275,21 @@ function OverlayTimetableGrid({
 									<td key={dayIdx} className="border-b border-r last:border-r-0 px-1 py-1" />
 								);
 							}
+							const firstGrade = cell.entries.length > 0
+								? sectionMap.get(cell.entries[0].sectionId)?.gradeLevel ?? null
+								: null;
+							let baseCellClass = 'bg-primary/5 border-primary/20';
+							if (firstGrade === 7) baseCellClass = 'bg-green-50 border-green-200';
+							else if (firstGrade === 8) baseCellClass = 'bg-yellow-50 border-yellow-200';
+							else if (firstGrade === 9) baseCellClass = 'bg-red-50 border-red-200';
+							else if (firstGrade === 10) baseCellClass = 'bg-blue-50 border-blue-200';
 							return (
 								<td
 									key={dayIdx}
 									className={`border-b border-r last:border-r-0 px-1 py-0.5 align-top ${
 										cell.conflict
 											? 'bg-red-50 border-red-200'
-											: 'bg-primary/5 border-primary/20'
+											: baseCellClass
 									}`}
 								>
 									{cell.entries.map((entry) => (
@@ -318,15 +326,19 @@ function OverlayEntryCell({
 	entry: RoomScheduleEntry;
 	subjectMap: Map<number, string>;
 	facultyMap: Map<number, string>;
-	sectionMap: Map<number, string>;
+	sectionMap: Map<number, { name: string; gradeLevel: number | null }>;
 }) {
+	const sectionInfo = sectionMap.get(entry.sectionId);
 	return (
 		<div className="px-1.5 py-1 text-[11px] leading-snug">
 			<div className="font-semibold text-foreground truncate">
 				{subjectMap.get(entry.subjectId) ?? `Unknown Subject (#${entry.subjectId})`}
 			</div>
-			<div className="text-muted-foreground truncate">
-				{sectionMap.get(entry.sectionId) ?? `Unknown Section (#${entry.sectionId})`}
+			<div className="flex items-center gap-1 min-w-0">
+				<GradeLevelBadge grade={sectionInfo?.gradeLevel ?? null} size="xs" />
+				<span className="text-muted-foreground truncate">
+					{sectionInfo?.name ?? `Unknown Section (#${entry.sectionId})`}
+				</span>
 			</div>
 			<div className="text-muted-foreground/80 truncate">
 				{facultyMap.get(entry.facultyId) ?? `Unknown Faculty (#${entry.facultyId})`}

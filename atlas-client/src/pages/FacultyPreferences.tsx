@@ -10,7 +10,7 @@ import { AnimatePresence, motion } from 'motion/react';
 
 import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
-import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { describeSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { cacheFacultyIdentity, readCachedFacultyIdentity } from '@/lib/faculty-identity-cache';
 import { buildFacultyCacheKey, isLikelyOfflineError, readFacultySnapshot, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
 import type {
@@ -96,13 +96,7 @@ export default function FacultyPreferences() {
 			try {
 				const schoolYearContext = await resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false });
 				setActiveSchoolYearId(schoolYearContext.activeSchoolYearId);
-				setSchoolYearNotice(
-					schoolYearContext.source === 'atlas' && !schoolYearContext.stale
-						? null
-						: schoolYearContext.activeSchoolYearLabel
-						? `Verified with saved school year data (${schoolYearContext.activeSchoolYearLabel}).`
-						: 'Working from saved data.',
-				);
+				setSchoolYearNotice(describeSchoolYearSource(schoolYearContext));
 
 				try {
 					const { data: facultyMe } = await atlasApi.get<{ faculty: { id: number } }>('/faculty/me', {

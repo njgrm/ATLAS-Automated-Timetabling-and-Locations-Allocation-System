@@ -1,1101 +1,626 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Group, Layer, Rect, Stage, Text } from 'react-konva';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
-	AlertTriangle,
 	BookOpen,
-	Check,
-	CheckCircle2,
-	Circle,
-	ClipboardList,
-	Clock,
-	DoorOpen,
+	UserCheck,
 	GraduationCap,
+	Building2,
+	AlertTriangle,
+	CheckCircle2,
+	ChevronRight,
+	ArrowRight,
 	MapPinned,
-	Maximize2,
-	Minimize2,
-	Minus,
-	Pencil,
-	Plus,
-	RotateCcw,
-	Users,
+	Layers,
+	Wand2,
+	ClipboardList,
+	CalendarRange,
+	Sparkles,
 } from 'lucide-react';
-
-import { BuildingView, ROOM_COLORS, ROOM_TYPE_LABELS } from '@/components/BuildingView';
-import { RoomScheduleOverlay } from '@/components/RoomScheduleOverlay';
-import atlasApi from '@/lib/api';
-import { resolveActiveSchoolYearContext, isUpstreamBackedSchoolYearSource } from '@/lib/enrollpro-public-settings';
-import type { Building, Room, RoomScheduleView } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/ui/card';
-import { Skeleton } from '@/ui/skeleton';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
+import { useDashboardData, type LifecyclePhase } from '@/hooks/useDashboardData';
 
-const DEFAULT_SCHOOL_ID = 1;
-const CANVAS_WIDTH = 920;
-const CANVAS_HEIGHT = 580;
+// Tone vocabulary — only `brand` is school-token-driven; the others are reserved
+// for semantic meaning (info/students/warning) and must stay independent of the
+// school brand color so they continue to read as their own categories.
+type StatTone = 'brand' | 'sky' | 'violet' | 'amber';
 
-/* ─── Lifecycle phases ─── */
-const LIFECYCLE_PHASES = [
-	{ key: 'SETUP', label: 'Setup', description: 'Configure subjects, teachers, rooms' },
-	{ key: 'PREFERENCE_COLLECTION', label: 'Preferences', description: 'Collect teacher preferences' },
-	{ key: 'GENERATION', label: 'Generation', description: 'Run schedule algorithm' },
-	{ key: 'REVIEW', label: 'Review', description: 'Admin review & manual edits' },
-	{ key: 'PUBLISHED', label: 'Published', description: 'Live — visible to all' },
-	{ key: 'ARCHIVED', label: 'Archived', description: 'Past term archive' },
-] as const;
-
-type SetupCheck = { label: string; done: boolean; link?: string; subMessage?: string };
-
-type StatCard = {
-	title: string;
+interface StatTile {
+	label: string;
 	value: string;
+	footer: string;
 	icon: typeof BookOpen;
-	color: string;
-	bg: string;
-	link?: string;
-	warning?: string;
-	muted?: boolean;
+	tone: StatTone;
+	warn?: boolean;
+}
+
+const TONE: Record<StatTone, { iconBg: string; iconRing: string; footer: string }> = {
+	brand: {
+		iconBg: 'bg-primary',
+		iconRing: 'ring-primary/15',
+		// Footer line is the "this is good" confirmation under each stat tile, so it
+		// stays emerald — universal correctness signal — even though the icon chip
+		// itself carries the school's brand color.
+		footer: 'text-emerald-600',
+	},
+	sky: {
+		iconBg: 'bg-sky-500',
+		iconRing: 'ring-sky-100',
+		footer: 'text-sky-600',
+	},
+	violet: {
+		iconBg: 'bg-violet-500',
+		iconRing: 'ring-violet-100',
+		footer: 'text-violet-600',
+	},
+	amber: {
+		iconBg: 'bg-amber-500',
+		iconRing: 'ring-amber-100',
+		footer: 'text-amber-600',
+	},
 };
 
-const LS_KEY_SELECTED_BUILDING = 'atlas_dashboard_selected_building';
+const LIFECYCLE_STEPS: { key: LifecyclePhase; label: string; helper: string }[] = [
+	{ key: 'SETUP', label: 'Setup', helper: 'Curriculum, teachers, rooms' },
+	{ key: 'PREFERENCES', label: 'Preferences', helper: 'Faculty inputs' },
+	{ key: 'GENERATION', label: 'Generate', helper: 'Algorithm run' },
+	{ key: 'REVIEW', label: 'Review', helper: 'Fix blockers' },
+	{ key: 'PUBLISHED', label: 'Published', helper: 'Visible to faculty + students' },
+];
 
-/**
- * Smart-threshold label rotation:
- * - |angle| <= 20°: keep text upright (counter-rotate fully)
- * - |angle| > 20°: rotate text with the building (no counter-rotation)
- * This matches the editor's label strategy for visual consistency.
- */
-function smartLabelRotation(buildingRotation: number): number {
-	const absAngle = Math.abs(buildingRotation % 360);
-	const effective = absAngle > 180 ? 360 - absAngle : absAngle;
-	return effective <= 20 ? -(buildingRotation ?? 0) : 0;
+const PHASE_LABEL: Record<LifecyclePhase, string> = {
+	SETUP: 'Setup phase',
+	PREFERENCES: 'Preference phase',
+	GENERATION: 'Generation phase',
+	REVIEW: 'Review phase',
+	PUBLISHED: 'Published',
+};
+
+type NextStep = {
+	title: string;
+	body: string;
+	cta: string;
+	href: string;
+	warn?: string;
+};
+
+function pickNextStep(args: {
+	phase: LifecyclePhase;
+	subjectCount: number | null;
+	facultyCount: number | null;
+	sectionCount: number | null;
+	unassignedSubjectCount: number | null;
+	buildingsDone: boolean;
+	latestRunStatus: 'NONE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+	violationCount: number | null;
+}): NextStep {
+	const {
+		phase,
+		subjectCount,
+		facultyCount,
+		sectionCount,
+		unassignedSubjectCount,
+		buildingsDone,
+		latestRunStatus,
+		violationCount,
+	} = args;
+
+	if (phase === 'SETUP') {
+		if ((subjectCount ?? 0) === 0) {
+			return {
+				title: 'Add the curriculum',
+				body: 'Load the subject catalog before assigning teachers or generating.',
+				cta: 'Open subjects',
+				href: '/subjects',
+			};
+		}
+		if ((facultyCount ?? 0) === 0) {
+			return {
+				title: 'Sync teachers from EnrollPro',
+				body: 'Pull the faculty roster so subjects can be assigned.',
+				cta: 'Open teachers',
+				href: '/teachers',
+			};
+		}
+		if ((unassignedSubjectCount ?? 0) > 0) {
+			return {
+				title: 'Assign teachers to every subject',
+				body: `${unassignedSubjectCount} subject${unassignedSubjectCount === 1 ? '' : 's'} still need a teacher before generation.`,
+				cta: 'Open teaching load',
+				href: '/teaching-load',
+			};
+		}
+		if (sectionCount === null) {
+			return {
+				title: 'Reconnect enrollment data',
+				body: 'EnrollPro is not reachable. Check the link before generating.',
+				cta: 'Check sections',
+				href: '/sections',
+				warn: 'Enrollment unavailable',
+			};
+		}
+		if ((sectionCount ?? 0) === 0) {
+			return {
+				title: 'Confirm sections for this school year',
+				body: 'No sections were found. Verify enrollment before generating.',
+				cta: 'Check sections',
+				href: '/sections',
+			};
+		}
+		if (!buildingsDone) {
+			return {
+				title: 'Finish campus setup',
+				body: 'Mark every teaching room before generation so placements have rooms.',
+				cta: 'Open campus map',
+				href: '/map',
+			};
+		}
+	}
+	if (phase === 'PREFERENCES') {
+		return {
+			title: 'Generate the timetable',
+			body: 'Setup is complete. Run the generator and review the result.',
+			cta: 'Open timetable',
+			href: '/timetable',
+		};
+	}
+	if (phase === 'GENERATION') {
+		if (latestRunStatus === 'FAILED') {
+			return {
+				title: 'Last generation run failed',
+				body: 'Review the failure cause and retry generation.',
+				cta: 'Open timetable',
+				href: '/timetable',
+				warn: 'Run failed',
+			};
+		}
+		return {
+			title: 'Generation in progress',
+			body: 'The algorithm is still running. Open the timetable to watch progress.',
+			cta: 'Open timetable',
+			href: '/timetable',
+		};
+	}
+	if (phase === 'REVIEW') {
+		if ((violationCount ?? 0) > 0) {
+			return {
+				title: 'Resolve scheduling violations',
+				body: `${violationCount} constraint violation${violationCount === 1 ? '' : 's'} need attention before publish.`,
+				cta: 'Open audit',
+				href: '/audit',
+				warn: `${violationCount} blocker${violationCount === 1 ? '' : 's'}`,
+			};
+		}
+		return {
+			title: 'Review and publish the schedule',
+			body: 'Generation finished with no hard violations. Confirm the result and publish it.',
+			cta: 'Open schedules',
+			href: '/schedules',
+		};
+	}
+	return {
+		title: 'Schedule is published',
+		body: 'Faculty and students can see the timetable. Use Exceptions for in-term changes.',
+		cta: 'Open schedules',
+		href: '/schedules',
+	};
 }
 
 export default function Dashboard() {
-	const navigate = useNavigate();
-	const [buildings, setBuildings] = useState<Building[]>([]);
-	const [campusImageUrl, setCampusImageUrl] = useState<string | null>(null);
-	const [campusImage, setCampusImage] = useState<HTMLImageElement | null>(null);
-	const [loading, setLoading] = useState(true);
-	const [selectedId, setSelectedId] = useState<number | null>(() => {
-		const stored = localStorage.getItem(LS_KEY_SELECTED_BUILDING);
-		return stored ? Number(stored) : null;
+	const {
+		loading,
+		buildings,
+		subjectCount,
+		facultyCount,
+		sectionCount,
+		unassignedSubjectCount,
+		buildingSetupStatus,
+		teachingRoomCount,
+		totalRoomCount,
+		activeSchoolYearLabel,
+		latestRunStatus,
+		violationCount,
+		lifecyclePhase,
+	} = useDashboardData();
+
+	const next = pickNextStep({
+		phase: lifecyclePhase,
+		subjectCount,
+		facultyCount,
+		sectionCount,
+		unassignedSubjectCount,
+		buildingsDone: buildingSetupStatus.done,
+		latestRunStatus,
+		violationCount,
 	});
-	const [scale, setScale] = useState(1);
-	const [position, setPosition] = useState({ x: 0, y: 0 });
-	const [subjectCount, setSubjectCount] = useState<number | null>(null);
-	const [facultyCount, setFacultyCount] = useState<number | null>(null);
-	const [sectionCount, setSectionCount] = useState<number | null>(null);
-	const [unassignedSubjectCount, setUnassignedSubjectCount] = useState<number | null>(null);
-	const mapContainerRef = useRef<HTMLDivElement>(null);
-	const [canvasWidth, setCanvasWidth] = useState(CANVAS_WIDTH);
-	const [buildingFocus, setBuildingFocus] = useState(false);
-	const [hoveredBuildingId, setHoveredBuildingId] = useState<number | null>(null);
-	const [inspectedRoom, setInspectedRoom] = useState<Room | null>(null);
-	const [allSections, setAllSections] = useState<any[]>([]);
 
-	/* ── Room schedule overlay state ── */
-	const [overlayRoom, setOverlayRoom] = useState<{ id: number; name: string; schedule: RoomScheduleView | null } | null>(null);
-
-	/* ── Room utilization cache (per building) ── */
-	type RoomUtil = { utilization: number; conflicts: number };
-	const [roomUtilMap, setRoomUtilMap] = useState<Map<number, RoomUtil>>(new Map());
-	const [utilLoading, setUtilLoading] = useState(false);
-	const utilCacheRef = useRef<Map<number, Map<number, RoomUtil>>>(new Map()); // buildingId → roomId → util
-	const [dataSource, setDataSource] = useState<'live' | 'cached' | 'none'>('none');
-
-	// Persist selection to localStorage
-	const selectBuilding = useCallback((id: number | null) => {
-		setSelectedId(id);
-		setInspectedRoom(null);
-		if (id !== null) {
-			localStorage.setItem(LS_KEY_SELECTED_BUILDING, String(id));
-		}
-	}, []);
-
-	useEffect(() => {
-		setLoading(true);
-		Promise.all([
-			atlasApi.get<{ buildings: Building[] }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
-			atlasApi.get<{ campusImageUrl: string | null }>(`/map/schools/${DEFAULT_SCHOOL_ID}/campus-image`),
-			atlasApi.get<{ count: number; unassignedCount: number }>(`/subjects/stats/${DEFAULT_SCHOOL_ID}`).catch(() => ({ data: { count: 0, unassignedCount: 0 } })),
-		])
-			.then(([bRes, iRes, statsRes]) => {
-				const blds = bRes.data.buildings;
-				setBuildings(blds);
-				setCampusImageUrl(iRes.data.campusImageUrl);
-				setSubjectCount(statsRes.data.count);
-				setUnassignedSubjectCount(statsRes.data.unassignedCount ?? 0);
-				// Default-select first building if no persisted selection or stale id
-				const storedId = Number(localStorage.getItem(LS_KEY_SELECTED_BUILDING));
-				if (blds.length > 0) {
-					const valid = blds.some((b) => b.id === storedId);
-					if (!valid) selectBuilding(blds[0].id);
-					else setSelectedId(storedId);
-				}
-				// Faculty count
-				atlasApi.get<{ faculty: any[] }>(`/faculty?schoolId=${DEFAULT_SCHOOL_ID}`)
-					.then((fRes) => setFacultyCount(fRes.data.faculty.length))
-					.catch(() => setFacultyCount(null));
-				// Section count from ATLAS runtime context
-				resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false })
-					.then((context) => {
-						setDataSource(isUpstreamBackedSchoolYearSource(context.source) ? 'live' : 'cached');
-						if (!context.activeSchoolYearId) { setSectionCount(null); return; }
-						return atlasApi.get<{ totalSections: number; sections: any[] }>(`/sections/summary/${context.activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`);
-					})
-					.then((r) => { 
-						if (r) {
-							setSectionCount(r.data.totalSections);
-							setAllSections(r.data.sections ?? []);
-						}
-					})
-					.catch(() => setSectionCount(null));
-			})
-			.catch(() => {
-				setBuildings([]);
-				setCampusImageUrl(null);
-			})
-			.finally(() => setLoading(false));
-	}, []);
-
-	// Load campus background image
-	useEffect(() => {
-		if (!campusImageUrl) { setCampusImage(null); return; }
-		const img = new window.Image();
-		img.crossOrigin = 'anonymous';
-		img.src = campusImageUrl;
-		img.onload = () => setCampusImage(img);
-		img.onerror = () => setCampusImage(null);
-	}, [campusImageUrl]);
-
-	// Responsive canvas sizing
-	useEffect(() => {
-		const el = mapContainerRef.current;
-		if (!el) return;
-		const observer = new ResizeObserver((entries) => {
-			const width = entries[0]?.contentRect.width;
-			if (width) setCanvasWidth(Math.floor(width));
-		});
-		observer.observe(el);
-		return () => observer.disconnect();
-	}, []);
-
-	const canvasHeight = Math.round(canvasWidth * (CANVAS_HEIGHT / CANVAS_WIDTH));
-
-	/* ── Fetch room utilization for selected building ── */
-	useEffect(() => {
-		if (!selectedId) { setRoomUtilMap(new Map()); return; }
-		const bld = buildings.find((b) => b.id === selectedId);
-		if (!bld) return;
-		const teachingRoomsInBuilding = bld.isTeachingBuilding !== false
-			? bld.rooms.filter((r) => r.isTeachingSpace)
-			: [];
-		if (teachingRoomsInBuilding.length === 0) { setRoomUtilMap(new Map()); return; }
-
-		// Serve from cache if available
-		const cached = utilCacheRef.current.get(selectedId);
-		if (cached) { setRoomUtilMap(cached); return; }
-
-		let cancelled = false;
-		setUtilLoading(true);
-
-		(async () => {
-			try {
-				const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false });
-				if (!context.activeSchoolYearId || cancelled) { setUtilLoading(false); return; }
-				const syId = context.activeSchoolYearId;
-
-				const results = new Map<number, RoomUtil>();
-				// Fetch in parallel with limited concurrency (batch of 6)
-				const chunks: Room[][] = [];
-				for (let i = 0; i < teachingRoomsInBuilding.length; i += 6) {
-					chunks.push(teachingRoomsInBuilding.slice(i, i + 6));
-				}
-				for (const chunk of chunks) {
-					if (cancelled) break;
-					const settled = await Promise.allSettled(
-						chunk.map((r) =>
-							atlasApi.get<RoomScheduleView>(
-								`/room-schedules/${DEFAULT_SCHOOL_ID}/${syId}/rooms/${r.id}?source=latest`,
-							),
-						),
-					);
-					settled.forEach((res, idx) => {
-						const room = chunk[idx];
-						if (res.status === 'fulfilled') {
-							results.set(room.id, {
-								utilization: res.value.data.summary.utilizationPercent,
-								conflicts: res.value.data.summary.conflictCount,
-							});
-						}
-					});
-				}
-				if (!cancelled) {
-					utilCacheRef.current.set(selectedId, results);
-					setRoomUtilMap(results);
-				}
-			} catch {
-				// Partial failure is fine — rooms without data just show "—"
-			} finally {
-				if (!cancelled) setUtilLoading(false);
-			}
-		})();
-
-		return () => { cancelled = true; };
-	}, [selectedId, buildings]);
-
-	const totalRooms = useMemo(() => buildings.reduce((sum, b) => sum + b.rooms.length, 0), [buildings]);
-	const teachingRooms = useMemo(
-		() => buildings.reduce(
-			(sum, b) => sum + (b.isTeachingBuilding !== false ? b.rooms.filter((r) => r.isTeachingSpace).length : 0),
-			0,
-		),
-		[buildings],
-	);
-	const nonTeachingExcluded = totalRooms - teachingRooms;
-	const selected = useMemo(() => buildings.find((b) => b.id === selectedId) ?? null, [buildings, selectedId]);
-
-	/* ── Utilization summary for selected building ── */
-	const utilSummary = useMemo(() => {
-		if (!selected || roomUtilMap.size === 0) return null;
-		const teachingInSelected = selected.rooms.filter((r) => r.isTeachingSpace);
-		if (teachingInSelected.length === 0) return null;
-		const entries = teachingInSelected
-			.map((r) => roomUtilMap.get(r.id))
-			.filter((u): u is RoomUtil => u !== undefined);
-		if (entries.length === 0) return null;
-		const avg = Math.round(entries.reduce((s, e) => s + e.utilization, 0) / entries.length);
-		const highest = entries.reduce((best, e) => (e.utilization > best.utilization ? e : best), entries[0]);
-		const highestRoom = teachingInSelected.find((r) => roomUtilMap.get(r.id) === highest);
-		const conflictRooms = entries.filter((e) => e.conflicts > 0).length;
-		return { avg, highestUtil: highest.utilization, highestRoomName: highestRoom?.name ?? '—', conflictRooms, total: entries.length };
-	}, [selected, roomUtilMap]);
-
-	/* ── Room utilization map for BuildingView ── */
-	const buildingRoomUtilization = useMemo(() => {
-		const map = new Map<number, number>();
-		roomUtilMap.forEach((util, roomId) => {
-			map.set(roomId, util.utilization);
-		});
-		return map;
-	}, [roomUtilMap]);
-
-	/* ── Room occupancy map for BuildingView ── */
-	const buildingRoomOccupancy = useMemo(() => {
-		const map = new Map<number, string>();
-		allSections.forEach((s) => {
-			if (s.homeRoomId) map.set(s.homeRoomId, s.name);
-		});
-		return map;
-	}, [allSections]);
-
-	// Declared before any memo/logic that reads it to avoid TDZ risk.
-	// v1: always SETUP until generation is implemented; will become state later.
-	const currentPhase: string = 'SETUP';
-
-	const buildingSetupStatus = useMemo(() => {
-		const teachingBuildings = buildings.filter((b) => b.isTeachingBuilding !== false);
-		const invalidTeachingBuildings = teachingBuildings.filter(
-			(b) => /^Building \d+$/.test(b.name) || b.rooms.length === 0,
-		);
-		const teachingBuildingsWithoutRooms = teachingBuildings.filter((b) => b.rooms.length === 0);
-		const placeholderNamedBuildings = teachingBuildings.filter((b) => /^Building \d+$/.test(b.name));
-
-		const done = teachingBuildings.length > 0 && invalidTeachingBuildings.length === 0;
-		let subMessage: string | undefined;
-		if (!done) {
-			if (teachingBuildings.length === 0) {
-				subMessage = 'No teaching buildings configured';
-			} else if (teachingBuildingsWithoutRooms.length > 0 && placeholderNamedBuildings.length > 0) {
-				subMessage = `${teachingBuildingsWithoutRooms.length} without rooms, ${placeholderNamedBuildings.length} need renaming`;
-			} else if (teachingBuildingsWithoutRooms.length > 0) {
-				subMessage = `${teachingBuildingsWithoutRooms.length} building${teachingBuildingsWithoutRooms.length !== 1 ? 's' : ''} have no rooms configured`;
-			} else if (placeholderNamedBuildings.length > 0) {
-				subMessage = `${placeholderNamedBuildings.length} building${placeholderNamedBuildings.length !== 1 ? 's' : ''} need renaming`;
-			}
-		}
-		return { done, subMessage };
-	}, [buildings]);
-
-	const statCards: StatCard[] = useMemo(
-		() => {
-			const isSetup = currentPhase === 'SETUP';
-			const isPrefPhase = currentPhase === 'PREFERENCE_COLLECTION';
-			return [
-				{ title: 'Subjects', value: subjectCount !== null ? String(subjectCount) : '—', icon: BookOpen, color: 'text-blue-600', bg: 'bg-blue-50', link: '/subjects', warning: unassignedSubjectCount ? `${unassignedSubjectCount} need teachers` : undefined },
-				{ title: 'Active Teachers', value: facultyCount !== null ? String(facultyCount) : '—', icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50', link: '/teachers' },
-				{ title: 'Sections', value: sectionCount !== null ? String(sectionCount) : '—', icon: GraduationCap, color: 'text-pink-600', bg: 'bg-pink-50', link: '/sections', warning: sectionCount === null ? 'Upstream unavailable' : undefined },
-				{ title: 'Buildings', value: String(buildings.length), icon: MapPinned, color: 'text-amber-600', bg: 'bg-amber-50', link: '/map', warning: buildingSetupStatus.subMessage },
-				{ title: 'Teaching Rooms', value: String(teachingRooms), icon: ClipboardList, color: 'text-violet-600', bg: 'bg-violet-50', link: '/map', warning: nonTeachingExcluded > 0 ? `${totalRooms} total (${nonTeachingExcluded} non-teaching)` : undefined },
-				{ title: 'Teacher Preferences', value: isPrefPhase ? '—' : '—', icon: Clock, color: isPrefPhase ? 'text-orange-600' : 'text-muted-foreground', bg: isPrefPhase ? 'bg-orange-50' : 'bg-muted', muted: isSetup, warning: isSetup ? 'Available in Preference Collection' : undefined },
-			];
+	const stats: StatTile[] = [
+		{
+			label: 'Sections',
+			value: loading ? '…' : sectionCount === null ? '—' : `${sectionCount}`,
+			footer: sectionCount === null
+				? 'Enrollment unavailable'
+				: activeSchoolYearLabel
+					? `S.Y. ${activeSchoolYearLabel}`
+					: 'Active school year',
+			icon: GraduationCap,
+			tone: 'violet',
+			warn: sectionCount === null,
 		},
-		// currentPhase is a constant today; include it so the dep array stays correct
-		// when it becomes state in Phase 2+.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-		[buildings, teachingRooms, totalRooms, nonTeachingExcluded, subjectCount, facultyCount, sectionCount, unassignedSubjectCount, currentPhase, buildingSetupStatus],
-	);
-
-	/* Setup checklist — determines if we can advance from SETUP phase */
-	const setupChecklist: SetupCheck[] = useMemo(
-		() => {
-			return [
-				{ label: 'Subjects configured', done: (subjectCount ?? 0) > 0, link: '/subjects' },
-				{ label: 'Department ownership reviewed', done: (subjectCount ?? 0) > 0, link: '/subjects' },
-				{ label: 'Teachers synced', done: (facultyCount ?? 0) > 0, link: '/teachers' },
-				{ label: 'Teachers assigned to subjects', done: unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0, link: '/teaching-load' },
-				{ label: 'Sections sourced', done: (sectionCount ?? 0) > 0, link: '/sections', subMessage: sectionCount === null ? 'Enrollment service not connected' : sectionCount === 0 ? 'No sections found for active school year' : undefined },
-				{
-					label: 'Buildings & rooms set up',
-					done: buildingSetupStatus.done,
-					link: '/map',
-					subMessage: buildingSetupStatus.subMessage,
-				},
-			];
+		{
+			label: 'Subjects',
+			value: loading ? '…' : `${subjectCount ?? 0}`,
+			footer: 'Curriculum loaded',
+			icon: BookOpen,
+			tone: 'brand',
 		},
-		[subjectCount, facultyCount, unassignedSubjectCount, sectionCount, buildings, buildingSetupStatus],
-	);
+		{
+			label: 'Teachers',
+			value: loading ? '…' : `${facultyCount ?? 0}`,
+			footer: 'Synced from EnrollPro',
+			icon: UserCheck,
+			tone: 'sky',
+		},
+		{
+			label: 'Teaching Rooms',
+			value: loading ? '…' : `${teachingRoomCount}/${totalRoomCount}`,
+			footer: buildingSetupStatus.done ? 'Ready for placement' : 'Some rooms unmarked',
+			icon: Building2,
+			tone: buildingSetupStatus.done ? 'brand' : 'amber',
+			warn: !buildingSetupStatus.done && !loading,
+		},
+	];
 
-	const setupProgress = setupChecklist.filter((c) => c.done).length;
+	// Checklist order matches the operator chronology codified in the audit:
+	// Sections → Subjects → Teachers → Every subject has a teacher → Rooms ready.
+	const checklist = [
+		{
+			label: 'Sections loaded for school year',
+			done: (sectionCount ?? 0) > 0,
+			href: '/sections',
+			hint: sectionCount === null ? 'Enrollment unavailable' : undefined,
+		},
+		{ label: 'Subjects added', done: (subjectCount ?? 0) > 0, href: '/subjects' },
+		{ label: 'Teachers synced from EnrollPro', done: (facultyCount ?? 0) > 0, href: '/teachers' },
+		{
+			label: 'Every subject has a teacher',
+			done: unassignedSubjectCount === 0 && (subjectCount ?? 0) > 0,
+			href: '/teaching-load',
+			hint: unassignedSubjectCount && unassignedSubjectCount > 0
+				? `${unassignedSubjectCount} unassigned`
+				: undefined,
+		},
+		{
+			label: 'Buildings and rooms ready',
+			done: buildingSetupStatus.done,
+			href: '/map',
+			hint: buildingSetupStatus.subMessage,
+		},
+	];
+
+	const doneCount = checklist.filter((c) => c.done).length;
+	const currentIdx = LIFECYCLE_STEPS.findIndex((s) => s.key === lifecyclePhase);
+	const phaseNumber = currentIdx + 1;
 
 	return (
-		<div className="h-[calc(100svh-3.5rem)] overflow-auto px-6 py-4 scrollbar-thin">
-			{/* ─── Top section: KPIs (left) + Lifecycle (right) — equal columns ─── */}
-			<div className="grid grid-cols-2 gap-4 items-stretch">
-				{/* KPI stat cards — 3×2 grid */}
-				<div className="flex flex-col gap-3">
-					<div className="flex items-center gap-3">
-						<h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-							Overview
-						</h2>
-						<div className="h-px flex-1 bg-sidebar-accent" />
+		<div className='h-[calc(100svh-3.5rem)] overflow-auto scrollbar-thin'>
+			<div className='max-w-7xl mx-auto px-6 lg:px-8 py-8 space-y-8 animate-fade-in'>
+				{/* Header */}
+				<div className='flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4'>
+					<div>
+						<h1 className='text-3xl font-bold text-slate-900'>Scheduling Dashboard</h1>
+						<p className='text-slate-500 mt-1.5'>
+							Build, review, and publish the school timetable.
+						</p>
 					</div>
-					<div className="grid grid-cols-3 gap-3 flex-1">
-						{statCards.map((stat) => (
-							<Card key={stat.title} className={`shadow-sm flex flex-col ${stat.muted ? 'opacity-50' : ''}`}>
-								<CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pt-4 pb-1">
-								<CardTitle className="text-xs font-bold uppercase text-muted-foreground leading-tight">
-									{stat.title}
-								</CardTitle>
-								<div className={`${stat.bg} rounded-md p-1.5`}>
-									<stat.icon className={`h-4 w-4 ${stat.color}`} />
-									</div>
-								</CardHeader>
-								<CardContent className="px-4 pb-3 pt-0 flex-1 flex flex-col items-center">
-									{loading ? (
-										<div className="flex-1 flex items-center justify-center">
-											<Skeleton className="h-10 w-20" />
-										</div>
-									) : (
-										<>
-											<div className="flex-1 flex items-center justify-center w-full">
-												<div className="text-4xl font-semibold tracking-tight">
-													{stat.link && !stat.muted ? (
-														<Link to={stat.link} className="hover:underline">{stat.value}</Link>
-													) : (
-														stat.value
-													)}
-												</div>
-											</div>
-											<div className="w-full flex items-end justify-center mt-1 min-h-[1.5rem]">
-												{stat.warning && (
-													<div className="inline-flex items-start text-center justify-center gap-1 text-[0.625rem] text-amber-600 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200/50 max-w-full leading-tight">
-														<AlertTriangle className="size-2.5 shrink-0 mt-[1px]" />
-														<span className="whitespace-normal break-words">{stat.warning}</span>
-													</div>
-												)}
-											</div>
-										</>
-									)}
-								</CardContent>
-							</Card>
-						))}
+					<div className='flex items-center gap-3'>
+						<Badge className='border-0 bg-primary/10 text-primary hover:bg-primary/10 font-semibold gap-1.5 px-3 py-1.5 rounded-full'>
+							<Sparkles className='w-3.5 h-3.5' />
+							{PHASE_LABEL[lifecyclePhase]}
+						</Badge>
+						<Link to='/timetable'>
+							<Button className='gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl shadow-primary-glow'>
+								<CalendarRange className='w-4 h-4' />
+								Open Timetable
+							</Button>
+						</Link>
 					</div>
 				</div>
 
-				{/* Lifecycle + setup checklist */}
-				<div className="flex flex-col gap-3">
-					<div className="flex items-center gap-3">
-					<h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-							Scheduling Lifecycle
-						</h2>
-						<div className="h-px flex-1 bg-sidebar-accent" />
-					</div>
-					<Card className="shadow-sm flex-1">
-						<CardContent className="pt-5 h-full flex flex-col">
-					{/* Phase stepper */}
-					<div className="flex items-center gap-1">
-						{LIFECYCLE_PHASES.map((phase, idx) => {
-							const isCurrent = phase.key === currentPhase;
-							const isPast = LIFECYCLE_PHASES.findIndex((p) => p.key === currentPhase) > idx;
-							return (
-								<Fragment key={phase.key}>
-									{idx > 0 && (
-										<div
-											className={`h-0.5 flex-1 rounded ${
-												isPast ? 'bg-primary' : 'bg-border'
-											}`}
-										/>
-									)}
-									<div className="flex flex-col items-center">
-										<div
-											className={`flex size-8 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors ${
-												isCurrent
-													? 'border-primary bg-primary text-primary-foreground'
-													: isPast
-														? 'border-primary bg-primary/10 text-primary'
-														: 'border-border bg-background text-muted-foreground'
-											}`}
-										>
-											{isPast ? (
-												<Check className="size-3.5" />
-											) : (
-												<Circle className="size-3" fill={isCurrent ? 'currentColor' : 'none'} />
-											)}
+				{/* Stat tiles */}
+				<div className='grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6'>
+					{stats.map((stat) => {
+						const tone = TONE[stat.tone];
+						return (
+							<Card
+								key={stat.label}
+								className='group border-0 shadow-soft hover:shadow-soft-xl transition-all duration-300 bg-white rounded-2xl overflow-hidden p-0'
+							>
+								<CardContent className='p-6 flex flex-col h-full'>
+									<div className='flex items-start justify-between gap-4'>
+										<div className='min-w-0'>
+											<p className='text-sm font-medium text-slate-500'>{stat.label}</p>
+											<p className='text-3xl font-bold text-slate-900 mt-2 tabular-nums'>
+												{stat.value}
+											</p>
 										</div>
-										<span
-										className={`mt-1 text-[0.6875rem] font-medium ${
-												isCurrent ? 'text-primary' : 'text-muted-foreground'
-											}`}
+										<div
+											className={`p-3 rounded-xl text-primary-foreground shadow-lg ring-4 ${tone.iconBg} ${tone.iconRing} group-hover:scale-110 transition-transform`}
 										>
-											{phase.label}
-										</span>
+											<stat.icon className='w-5 h-5' />
+										</div>
 									</div>
-								</Fragment>
-							);
-						})}
-					</div>
+									<div className='mt-5 pt-4 border-t border-slate-100 flex items-center gap-1.5 text-sm'>
+										{stat.warn ? (
+											<>
+												<AlertTriangle className='w-4 h-4 text-amber-500' />
+												<span className='font-medium text-amber-600'>{stat.footer}</span>
+											</>
+										) : (
+											<>
+												<CheckCircle2 className={`w-4 h-4 ${tone.footer}`} />
+												<span className={`font-medium ${tone.footer}`}>{stat.footer}</span>
+											</>
+										)}
+									</div>
+								</CardContent>
+							</Card>
+						);
+					})}
+				</div>
 
-					{/* Setup checklist (shown when in SETUP phase) */}
-					{currentPhase === 'SETUP' && (
-						<div className="mt-4 rounded-lg border border-border bg-muted/30 p-3">
-							<div className="flex items-center justify-between mb-2">
-								<p className="text-sm font-semibold text-foreground">Setup Checklist</p>
-								<Badge
-									variant="secondary"
-									className={`text-xs ${
-										setupProgress === setupChecklist.length
-											? 'bg-emerald-100 text-emerald-700'
-											: 'bg-amber-100 text-amber-700'
-									}`}
-								>
-									{setupProgress}/{setupChecklist.length} complete
+				{/* Three small status cards */}
+				<div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+					<Card className='border-0 shadow-soft rounded-2xl bg-white p-0'>
+						<CardContent className='p-5'>
+							<div className='flex items-center justify-between'>
+								<div className='flex items-center gap-3'>
+									<div className='p-2.5 rounded-xl bg-primary/10'>
+										<Layers className='w-5 h-5 text-primary' />
+									</div>
+									<div>
+										<p className='text-sm font-medium text-slate-500'>Current phase</p>
+										<p className='text-xl font-bold text-primary'>
+											{LIFECYCLE_STEPS[currentIdx]?.label ?? 'Setup'}
+										</p>
+									</div>
+								</div>
+								<Badge className='border-0 bg-primary/10 text-primary hover:bg-primary/10'>
+									Step {phaseNumber} of {LIFECYCLE_STEPS.length}
 								</Badge>
 							</div>
-							<ul className="space-y-1.5">
-								{setupChecklist.map((item) => (
-									<li key={item.label} className="flex items-start gap-2 text-sm">
-										{item.done ? (
-											<CheckCircle2 className="size-4 text-emerald-500 shrink-0 mt-0.5" />
-										) : (
-											<Circle className="size-4 text-muted-foreground/40 shrink-0 mt-0.5" />
-										)}
-										<div>
-											{item.link ? (
-												<Link
-													to={item.link}
-													className={`hover:underline ${item.done ? 'text-muted-foreground line-through' : 'text-foreground'}`}
-												>
-													{item.label}
-												</Link>
+						</CardContent>
+					</Card>
+					<Card className='border-0 shadow-soft rounded-2xl bg-white p-0'>
+						<CardContent className='p-5'>
+							<div className='flex items-center justify-between'>
+								<div className='flex items-center gap-3'>
+									<div
+										className={`p-2.5 rounded-xl ${
+											unassignedSubjectCount && unassignedSubjectCount > 0
+												? 'bg-amber-50'
+												: 'bg-primary/10'
+										}`}
+									>
+										<ClipboardList
+											className={`w-5 h-5 ${
+												unassignedSubjectCount && unassignedSubjectCount > 0
+													? 'text-amber-600'
+													: 'text-primary'
+											}`}
+										/>
+									</div>
+									<div>
+										<p className='text-sm font-medium text-slate-500'>Unassigned subjects</p>
+										<p
+											className={`text-xl font-bold ${
+												unassignedSubjectCount && unassignedSubjectCount > 0
+													? 'text-amber-600'
+													: 'text-primary'
+											}`}
+										>
+											{loading ? '…' : unassignedSubjectCount ?? 0}
+										</p>
+									</div>
+								</div>
+								<Link to='/teaching-load'>
+									<Button
+										variant='ghost'
+										size='sm'
+										className='rounded-lg text-slate-500 hover:text-slate-900 gap-1'
+									>
+										Open
+										<ChevronRight className='w-4 h-4' />
+									</Button>
+								</Link>
+							</div>
+						</CardContent>
+					</Card>
+					<Card className='border-0 shadow-soft rounded-2xl bg-white p-0'>
+						<CardContent className='p-5'>
+							<div className='flex items-center justify-between'>
+								<div className='flex items-center gap-3'>
+									<div className='p-2.5 rounded-xl bg-sky-50'>
+										<MapPinned className='w-5 h-5 text-sky-600' />
+									</div>
+									<div>
+										<p className='text-sm font-medium text-slate-500'>Buildings on campus</p>
+										<p className='text-xl font-bold text-sky-600'>
+											{loading ? '…' : buildings.length}
+										</p>
+									</div>
+								</div>
+								<Link to='/map'>
+									<Button
+										variant='ghost'
+										size='sm'
+										className='rounded-lg text-slate-500 hover:text-slate-900 gap-1'
+									>
+										Open
+										<ChevronRight className='w-4 h-4' />
+									</Button>
+								</Link>
+							</div>
+						</CardContent>
+					</Card>
+				</div>
+
+				{/* Next step + setup checklist */}
+				<div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
+					<Card className='lg:col-span-2 border-0 shadow-soft-xl rounded-2xl bg-white overflow-hidden p-0'>
+						<CardHeader className='border-b border-slate-100 px-6 py-4 bg-primary/5'>
+							<div className='flex items-center justify-between'>
+								<div>
+									<CardTitle className='text-lg flex items-center gap-2 text-slate-900'>
+										<Wand2 className='w-5 h-5 text-primary' />
+										Your next step
+									</CardTitle>
+									<CardDescription>One action moves the whole timetable forward.</CardDescription>
+								</div>
+								{next.warn ? (
+									<Badge className='border-0 bg-amber-100 text-amber-700 hover:bg-amber-100 gap-1.5'>
+										<AlertTriangle className='w-3.5 h-3.5' />
+										{next.warn}
+									</Badge>
+								) : null}
+							</div>
+						</CardHeader>
+						<CardContent className='p-6'>
+							<h2 className='text-xl font-bold text-slate-900'>{next.title}</h2>
+							<p className='text-slate-500 mt-2 leading-relaxed'>{next.body}</p>
+							<div className='mt-6'>
+								<Link to={next.href}>
+									<Button className='gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl shadow-primary-glow'>
+										{next.cta}
+										<ArrowRight className='w-4 h-4' />
+									</Button>
+								</Link>
+							</div>
+						</CardContent>
+					</Card>
+
+					<Card className='border-0 shadow-soft-xl rounded-2xl bg-white p-0 overflow-hidden'>
+						<CardHeader className='border-b border-slate-100 px-6 py-4'>
+							<div className='flex items-center justify-between'>
+								<div>
+									<CardTitle className='text-lg text-slate-900'>Setup checklist</CardTitle>
+									<CardDescription>
+										{doneCount} of {checklist.length} ready
+									</CardDescription>
+								</div>
+								<Badge className='border-0 bg-emerald-50 text-emerald-700 hover:bg-emerald-50'>
+									{doneCount}/{checklist.length}
+								</Badge>
+							</div>
+						</CardHeader>
+						<CardContent className='p-2'>
+							<ul className='divide-y divide-slate-100'>
+								{checklist.map((item) => (
+									<li key={item.label}>
+										<Link
+											to={item.href}
+											className='flex items-start gap-3 px-4 py-3 rounded-xl hover:bg-slate-50/80 transition-colors'
+										>
+											{item.done ? (
+												<div className='mt-0.5 p-1 rounded-full bg-emerald-100'>
+													<CheckCircle2 className='w-4 h-4 text-emerald-600' />
+												</div>
 											) : (
-												<span className={item.done ? 'text-muted-foreground line-through' : 'text-foreground'}>
-													{item.label}
-												</span>
-											)}
-											{item.subMessage && !item.done && (
-												<div className="mt-1.5 inline-flex items-center gap-1 text-[0.625rem] text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/50">
-													<AlertTriangle className="size-2.5 shrink-0" />
-													{item.subMessage}
+												<div className='mt-0.5 p-1 rounded-full bg-slate-100'>
+													<div className='w-4 h-4 rounded-full border-2 border-slate-300' />
 												</div>
 											)}
-										</div>
+											<div className='flex-1 min-w-0'>
+												<p
+													className={`text-sm font-medium ${
+														item.done ? 'text-slate-400 line-through' : 'text-slate-900'
+													}`}
+												>
+													{item.label}
+												</p>
+												{item.hint ? (
+													<p className='flex items-center gap-1 text-xs text-amber-600 mt-1'>
+														<AlertTriangle className='w-3 h-3' />
+														{item.hint}
+													</p>
+												) : null}
+											</div>
+											<ChevronRight className='w-4 h-4 text-slate-300 mt-1' />
+										</Link>
 									</li>
 								))}
 							</ul>
-							{setupProgress === setupChecklist.length && (
-								<div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50/60 px-3 py-2">
-									<p className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
-										<CheckCircle2 className="size-3.5 shrink-0" />
-										Setup complete
-									</p>
-									<p className="mt-0.5 text-[0.6875rem] text-emerald-600/80">
-										All setup items are verified. Schedule generation will be available once Preference Collection (Phase 2) is implemented.
-									</p>
-								</div>
-							)}
-						</div>
-					)}
-
-					{/* Quick Actions */}
-					<div className="mt-4 pt-4 border-t border-border mt-auto">
-						<p className="text-sm font-semibold text-foreground mb-2">Quick Actions</p>
-						<div className="flex flex-wrap gap-2">
-							{currentPhase === 'SETUP' && (
-								<>
-									<Button asChild variant="default" size="sm">
-										<Link to="/subjects"><BookOpen className="mr-1.5 size-3.5" /> Configure Subjects</Link>
-									</Button>
-									<Button asChild variant="outline" size="sm">
-										<Link to="/teachers"><Users className="mr-1.5 size-3.5" /> Manage Teachers</Link>
-									</Button>
-								</>
-							)}
-							{currentPhase === 'PREFERENCE_COLLECTION' && (
-								<Button asChild variant="default" size="sm">
-									<Link to="/preferences"><Clock className="mr-1.5 size-3.5" /> Review Preferences</Link>
-								</Button>
-							)}
-						</div>
-					</div>
-				</CardContent>
-			</Card>
+						</CardContent>
+					</Card>
 				</div>
-			</div>
 
-			{/* Campus Map — side-by-side layout with building inspector on right */}
-			<div className="mt-4 flex items-center gap-3">
-				<h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-					{buildingFocus ? 'Building Focus' : 'Campus Map'}
-				</h2>
-				<div className="h-px flex-1 bg-sidebar-accent" />
-			</div>
-
-			<div className="mt-3 flex gap-4">
-				{/* Map canvas OR building focus view */}
-				<Card className="flex-1 min-w-0 shadow-sm">
-					<CardContent className="pt-4">
-						{loading ? (
-							<Skeleton className="h-[400px] w-full rounded-lg" />
-						) : buildingFocus && selected ? (
-							<>
-								{/* Focus mode toolbar */}
-								<div className="mb-2 flex items-center gap-2">
-									<h3 className="text-sm font-semibold">{selected.name}</h3>
-									<span className="text-xs text-muted-foreground">
-										{selected.rooms.length} room{selected.rooms.length !== 1 ? 's' : ''} · {selected.width}×{selected.height}
-									</span>
-									<div className="flex-1" />
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={() => setBuildingFocus(false)}
-										title="Exit focus mode"
-									>
-										<Minimize2 className="size-3.5 mr-1" /> Map View
-									</Button>
-									<Button asChild variant="outline" size="sm">
-										<Link to={selected ? `/map?buildingId=${selected.id}` : '/map'}>
-											<Pencil className="size-3.5" /> Edit Map
-										</Link>
-									</Button>
-								</div>
-							{/* Large BuildingView — same height as map canvas */}
-							{utilSummary && (
-								<div className="mb-2 flex items-center gap-3 rounded-md border border-border bg-muted/30 px-3 py-1.5 text-[0.6875rem]">
-									<span className="text-muted-foreground">Avg Util:</span>
-									<span className={`font-semibold ${utilSummary.avg >= 80 ? 'text-red-600' : utilSummary.avg >= 50 ? 'text-amber-600' : 'text-emerald-600'}`}>
-										{utilSummary.avg}%
-									</span>
-									<span className="text-border">|</span>
-									<span className="text-muted-foreground">Highest:</span>
-									<span className="font-medium">{utilSummary.highestRoomName} ({utilSummary.highestUtil}%)</span>
-									{utilSummary.conflictRooms > 0 && (
-										<>
-											<span className="text-border">|</span>
-											<span className="font-medium text-red-600">{utilSummary.conflictRooms} room{utilSummary.conflictRooms !== 1 ? 's' : ''} with conflicts</span>
-										</>
-									)}
-									{utilLoading && <span className="text-muted-foreground/50 italic ml-auto">Loading…</span>}
-								</div>
-							)}
-							<BuildingView 
-								building={selected} 
-								height={canvasHeight} 
-								selectedRoomId={inspectedRoom?.id ?? null} 
-								onRoomSelect={setInspectedRoom}
-								roomUtilization={buildingRoomUtilization}
-								roomOccupancy={buildingRoomOccupancy}
-							/>
-							</>
-						) : (
-							<>
-								{/* Map toolbar */}
-								<div className="mb-2 flex items-center gap-2">
-									<Button variant="outline" size="sm" onClick={() => setScale((s) => Math.min(s + 0.15, 2.5))}>
-										<Plus className="size-3.5" />
-									</Button>
-									<Button variant="outline" size="sm" onClick={() => setScale((s) => Math.max(s - 0.15, 0.4))}>
-										<Minus className="size-3.5" />
-									</Button>
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={() => { setScale(1); setPosition({ x: 0, y: 0 }); }}
-									>
-										<RotateCcw className="size-3.5" />
-									</Button>
-									<span className="ml-auto text-[0.6875rem] text-muted-foreground tabular-nums">
-										{Math.round(scale * 100)}%
-									</span>
-									{selected && (
-										<Button
-											variant="outline"
-											size="sm"
-											onClick={() => setBuildingFocus(true)}
-											title="Focus on selected building"
-										>
-											<Maximize2 className="size-3.5 mr-1" /> Focus
-										</Button>
-									)}
-									<Button asChild variant="outline" size="sm">
-										<Link to={selected ? `/map?buildingId=${selected.id}` : '/map'}>
-											<Pencil className="size-3.5" /> Edit Map
-										</Link>
-									</Button>
-								</div>
-
-								{/* Canvas */}
-								<div ref={mapContainerRef} className="overflow-hidden rounded-md border border-border">
-									<Stage
-										width={canvasWidth}
-										height={canvasHeight}
-										draggable
-										x={position.x}
-										y={position.y}
-										scaleX={scale * (canvasWidth / CANVAS_WIDTH)}
-										scaleY={scale * (canvasWidth / CANVAS_WIDTH)}
-										onDragEnd={(e) => setPosition({ x: e.target.x(), y: e.target.y() })}
-									>
-										<Layer>
-											{campusImage ? (
-												<Rect
-													name="bg"
-													x={0}
-													y={0}
-													width={CANVAS_WIDTH}
-													height={CANVAS_HEIGHT}
-													fillPatternImage={campusImage}
-													fillPatternScaleX={CANVAS_WIDTH / campusImage.width}
-													fillPatternScaleY={CANVAS_HEIGHT / campusImage.height}
-												/>
-											) : (
-												<Rect x={0} y={0} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} fill="hsl(40 30% 95%)" cornerRadius={8} />
-											)}
-											{buildings.map((b) => {
-												const isSelected = selectedId === b.id;
-												const isNonTeaching = b.isTeachingBuilding === false;
-												const labelRot = smartLabelRotation(b.rotation ?? 0);
-												return (
-													<Group
-														key={b.id}
-														x={b.x}
-														y={b.y}
-														width={b.width}
-														height={b.height}
-														rotation={b.rotation ?? 0}
-														onClick={() => selectBuilding(b.id)}
-													>
-														<Rect
-															width={b.width}
-															height={b.height}
-															fill={b.color}
-															opacity={isSelected ? 0.95 : 0.78}
-															cornerRadius={8}
-															stroke={isSelected ? '#111827' : '#ffffff'}
-															strokeWidth={isSelected ? 4 : 2}
-															shadowColor="rgba(0,0,0,0.1)"
-															shadowBlur={3}
-															shadowOffsetY={1}
-														/>
-														{isNonTeaching && (
-															<Rect
-																width={b.width}
-																height={b.height}
-																cornerRadius={8}
-																fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-																fillLinearGradientEndPoint={{ x: 12, y: 12 }}
-																fillLinearGradientColorStops={[0, 'rgba(0,0,0,0.15)', 0.5, 'rgba(0,0,0,0.15)', 0.5, 'transparent', 1, 'transparent']}
-																opacity={0.6}
-																listening={false}
-															/>
-														)}
-														<Text
-															x={6}
-															y={6}
-															text={b.name}
-															fontSize={Math.min(14, b.width / 8, b.height / 5)}
-															fill="#ffffff"
-															fontStyle="bold"
-															width={b.width - 12}
-															height={b.height - 30}
-															wrap="word"
-															ellipsis
-															listening={false}
-															rotation={labelRot}
-														/>
-														<Text
-															x={6}
-															y={b.height - 18}
-															text={isNonTeaching ? 'Non-teaching' : `${b.rooms.length} room${b.rooms.length !== 1 ? 's' : ''}`}
-															fontSize={Math.min(11, b.width / 10)}
-															fill="rgba(255,255,255,0.8)"
-															width={b.width - 12}
-															wrap="none"
-															ellipsis
-															listening={false}
-														/>
-														{/* View Full hover overlay */}
-														{hoveredBuildingId === b.id && b.rooms.length > 0 && (
-															<Group
-																x={b.width / 2 - 28}
-																y={b.height / 2 - 8}
-																rotation={smartLabelRotation(b.rotation ?? 0)}
-																onClick={(e) => { e.cancelBubble = true; selectBuilding(b.id); setBuildingFocus(true); }}
-															>
-																<Rect
-																	width={56}
-																	height={16}
-																	fill="rgba(0,0,0,0.75)"
-																	cornerRadius={3}
-																/>
-																<Text
-																	x={0}
-																	y={3}
-																	width={56}
-																	text="View Full"
-																	fontSize={9}
-																	fill="#ffffff"
-																	align="center"
-																/>
-															</Group>
-														)}
-													</Group>
-												);
-											})}
-										</Layer>
-									</Stage>
-								</div>
-							</>
-						)}
-					</CardContent>
-				</Card>
-
-				{/* Building inspector — right side panel */}
-				<Card className="w-72 shrink-0 shadow-sm">
-					<CardContent className="pt-4">
-						{loading ? (
-							<div className="space-y-3">
-								<Skeleton className="h-5 w-32" />
-								<Skeleton className="h-4 w-20" />
-								<Skeleton className="h-24 w-full" />
+				{/* Lifecycle banner — token-driven gradient so HNHS maroon, EnrollPro custom
+				    brand, or default emerald all render as the school's own banner. */}
+				<Card
+					className='border-0 shadow-soft-xl rounded-2xl overflow-hidden p-0 text-primary-foreground'
+					style={{
+						background:
+							'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.92) 55%, hsl(var(--primary) / 0.78) 100%)',
+					}}
+				>
+					<CardContent className='p-6 lg:p-8'>
+						<div className='flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6'>
+							<div>
+								<p className='text-[11px] font-bold uppercase tracking-wider text-primary-foreground/70'>
+									Lifecycle
+								</p>
+								<h3 className='text-xl lg:text-2xl font-bold mt-1'>Where the school year stands</h3>
+								<p className='text-primary-foreground/80 text-sm mt-1'>
+									Move through every phase before students see a published schedule.
+								</p>
 							</div>
-						) : !selected ? (
-							<p className="text-sm text-muted-foreground">No buildings yet.</p>
-						) : inspectedRoom ? (
-							/* ── Room detail mode ── */
-							<>
-								<button
-									onClick={() => setInspectedRoom(null)}
-									className="mb-3 text-xs text-primary hover:underline"
-								>
-									← Back to {selected.name}
-								</button>
-
-								{/* Room header */}
-								<div className="rounded-lg border border-border bg-muted/30 p-3">
-									<div className="flex items-center gap-2 mb-1">
-										<div className={`size-2.5 rounded-sm ${ROOM_COLORS[inspectedRoom.type]?.bg ?? 'bg-muted'} border ${ROOM_COLORS[inspectedRoom.type]?.border ?? 'border-border'}`} />
-										<p className="text-sm font-bold text-foreground truncate">{inspectedRoom.name}</p>
-									</div>
-									<Badge variant="outline" className="text-[0.625rem] px-1.5 py-0">
-										{ROOM_TYPE_LABELS[inspectedRoom.type]}
-									</Badge>
-								</div>
-
-								{/* Room details grid */}
-								<div className="mt-3 space-y-2 text-sm">
-									<div className="flex justify-between">
-										<span className="text-muted-foreground">Floor</span>
-										<span className="font-medium">F{inspectedRoom.floor}</span>
-									</div>
-									<div className="flex justify-between">
-										<span className="text-muted-foreground">Capacity</span>
-										<span className="font-medium flex items-center gap-1">
-											{inspectedRoom.capacity != null ? (
-												<><Users className="size-3.5" /> {inspectedRoom.capacity}</>
-											) : (
-												<span className="text-muted-foreground/60">—</span>
-											)}
-										</span>
-									</div>
-									<div className="flex justify-between">
-										<span className="text-muted-foreground">Teaching space</span>
-										<span className="font-medium">
-											{inspectedRoom.isTeachingSpace ? (
-												<span className="text-emerald-600">Yes</span>
-											) : (
-												<span className="flex items-center gap-1 text-amber-600"><AlertTriangle className="size-3.5" /> No</span>
-											)}
-										</span>
-									</div>
-								</div>
-
-								{/* Room schedule preview */}
-								<RoomSchedulePreview
-									roomId={inspectedRoom.id}
-									isTeachingSpace={inspectedRoom.isTeachingSpace}
-									onExpandSchedule={(schedule) => setOverlayRoom({ id: inspectedRoom.id, name: inspectedRoom.name, schedule })}
-								/>
-							</>
-						) : (
-							/* ── Building overview mode ── */
-							<>
-								{/* Building selector tabs */}
-								<div className="mb-3">
-									<p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Buildings</p>
-									<div className="flex flex-wrap gap-1">
-										{buildings.map((b) => (
-											<button
-												key={b.id}
-												onClick={() => selectBuilding(b.id)}
-												className={`rounded-md px-2 py-1 text-[0.6875rem] font-medium transition-all duration-150 ${
-													selectedId === b.id
-														? 'bg-primary text-primary-foreground shadow-sm'
-														: 'bg-muted text-muted-foreground hover:bg-muted/80'
+							<Badge className='border-0 bg-white/15 text-primary-foreground hover:bg-white/15 backdrop-blur gap-1.5 px-3 py-1.5 self-start lg:self-auto'>
+								<Layers className='w-3.5 h-3.5' />
+								Phase {phaseNumber} of {LIFECYCLE_STEPS.length}: {LIFECYCLE_STEPS[currentIdx]?.label}
+							</Badge>
+						</div>
+						<ol className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3'>
+							{LIFECYCLE_STEPS.map((step, idx) => {
+								const state = idx < currentIdx ? 'done' : idx === currentIdx ? 'active' : 'upcoming';
+								return (
+									<li
+										key={step.key}
+										className={`rounded-xl p-4 border transition-colors ${
+											state === 'active'
+												? 'bg-white text-slate-900 border-white shadow-lg'
+												: state === 'done'
+												? 'bg-white/15 text-primary-foreground border-emerald-300/40 backdrop-blur'
+													: 'bg-white/5 text-primary-foreground/70 border-white/10'
+										}`}
+									>
+										<div className='flex items-center gap-2'>
+											<span
+												className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+													state === 'active'
+														? 'bg-primary text-primary-foreground'
+														: state === 'done'
+															? 'bg-emerald-400 text-white'
+															: 'bg-white/15 text-primary-foreground/80'
 												}`}
 											>
-												{b.name.length > 12 ? b.name.slice(0, 12) + '…' : b.name}
-											</button>
-										))}
-									</div>
-								</div>
-
-								{/* Selected building details */}
-								<div className="rounded-lg border border-border bg-muted/30 p-3">
-									<div className="flex items-center gap-2 mb-2">
-										<div
-											className="size-3 rounded-sm"
-											style={{ backgroundColor: selected.color }}
-										/>
-										<p className="text-sm font-bold text-foreground">{selected.name}</p>
-									</div>
-									<p className="text-[0.6875rem] text-muted-foreground mb-1">
-										{selected.rooms.length} room{selected.rooms.length !== 1 ? 's' : ''} ·{' '}
-										{selected.floorCount} floor{selected.floorCount !== 1 ? 's' : ''}
-									</p>
-								</div>
-
-								{/* Simple HTML floor plan */}
-								<div className="mt-3">
-									<p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
-										Floor Plan
-									</p>
-									{selected.rooms.length === 0 ? (
-										<div className="flex flex-col items-center justify-center py-4 text-muted-foreground">
-											<DoorOpen className="size-6 text-muted-foreground/30" />
-											<p className="mt-1 text-xs">No rooms configured.</p>
+												{idx + 1}
+											</span>
+											<p className='font-semibold text-sm'>{step.label}</p>
 										</div>
-									) : (
-										<div className="space-y-px rounded-lg border border-border overflow-hidden bg-border">
-											{Array.from({ length: selected.floorCount }, (_, i) => selected.floorCount - i).map((floor) => {
-												const rooms = selected.rooms
-													.filter((r) => r.floor === floor)
-													.sort((a, b) => a.floorPosition - b.floorPosition);
-												return (
-													<div key={floor} className="flex bg-background">
-														<div className="flex w-7 shrink-0 items-center justify-center border-r border-border bg-muted/50">
-															<span className="text-[0.6rem] font-bold text-muted-foreground [writing-mode:vertical-lr] rotate-180">
-																F{floor}
-															</span>
-														</div>
-														<div className="flex flex-1 gap-px bg-border min-h-10">
-															{rooms.length === 0 ? (
-																<div className="flex flex-1 items-center justify-center bg-background px-2">
-																	<span className="text-[0.625rem] text-muted-foreground/50 italic">Empty</span>
-																</div>
-															) : (
-																rooms.map((room) => {
-																	const colors = ROOM_COLORS[room.type] ?? ROOM_COLORS.OTHER;
-																	const util = roomUtilMap.get(room.id);
-																	const utilLabel = !room.isTeachingSpace ? 'N/A'
-																		: util ? `${util.utilization}%` : '—';
-																	const utilColor = !room.isTeachingSpace ? 'text-muted-foreground/40'
-																		: !util ? 'text-muted-foreground/40'
-																		: util.utilization >= 80 ? 'text-red-600'
-																		: util.utilization >= 50 ? 'text-amber-600'
-																		: 'text-emerald-600';
-																	return (
-																		<button
-																			key={room.id}
-																			onClick={() => setInspectedRoom(room)}
-																			className={`flex flex-1 flex-col items-center justify-center px-1 py-1 transition-all text-left ${colors.bg} hover:brightness-95`}
-																		>
-																			<span className={`text-[0.5625rem] font-semibold truncate w-full text-center ${colors.text}`}>
-																				{room.name}
-																			</span>
-																			<span className="text-[0.5rem] text-muted-foreground truncate w-full text-center">
-																				{ROOM_TYPE_LABELS[room.type]}
-																			</span>
-																			<span className={`text-[0.5rem] font-medium ${utilColor}`}>
-																				{utilLabel}
-																			</span>
-																		</button>
-																	);
-																})
-															)}
-														</div>
-													</div>
-												);
-											})}
-										</div>
-									)}
-								</div>
-
-								{/* Expand building view */}
-								<Button
-									variant="outline"
-									size="sm"
-									className="mt-3 w-full"
-									onClick={() => setBuildingFocus(true)}
-								>
-									<Maximize2 className="size-3.5" /> Expand Building View
-								</Button>
-
-								{/* Edit link */}
-								<Button asChild variant="outline" size="sm" className="mt-2 w-full">
-									<Link to={`/map?buildingId=${selected.id}`}>
-										<Pencil className="size-3.5" /> Edit in Map Editor
-									</Link>
-								</Button>
-							</>
-						)}
+										<p
+											className={`text-xs mt-2 ${
+												state === 'active' ? 'text-slate-500' : 'text-primary-foreground/70'
+											}`}
+										>
+											{step.helper}
+										</p>
+									</li>
+								);
+							})}
+						</ol>
 					</CardContent>
 				</Card>
 			</div>
-
-			{/* Room Schedule Overlay */}
-			<RoomScheduleOverlay
-				open={!!overlayRoom}
-				onClose={() => setOverlayRoom(null)}
-				roomName={overlayRoom?.name ?? ''}
-				roomId={overlayRoom?.id ?? 0}
-				schedule={overlayRoom?.schedule ?? null}
-			/>
-		</div>
-	);
-}
-
-/* ─── Room Schedule Preview ─── */
-
-const DAY_SHORT: Record<string, string> = {
-	MONDAY: 'M',
-	TUESDAY: 'T',
-	WEDNESDAY: 'W',
-	THURSDAY: 'Th',
-	FRIDAY: 'F',
-};
-
-function RoomSchedulePreview({ roomId, isTeachingSpace, onExpandSchedule }: { roomId: number; isTeachingSpace: boolean; onExpandSchedule?: (schedule: RoomScheduleView) => void }) {
-	const [state, setState] = useState<'idle' | 'loading' | 'ok' | 'empty' | 'error'>('idle');
-	const [schedule, setSchedule] = useState<RoomScheduleView | null>(null);
-
-	useEffect(() => {
-		if (!isTeachingSpace) return;
-		let cancelled = false;
-		setState('loading');
-
-		(async () => {
-			try {
-				const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false });
-				if (!context.activeSchoolYearId || cancelled) return;
-				const { data } = await atlasApi.get<RoomScheduleView>(
-					`/room-schedules/${DEFAULT_SCHOOL_ID}/${context.activeSchoolYearId}/rooms/${roomId}?source=latest`,
-				);
-				if (cancelled) return;
-				setSchedule(data);
-				setState('ok');
-			} catch {
-				if (!cancelled) setState('empty');
-			}
-		})();
-
-		return () => { cancelled = true; };
-	}, [roomId, isTeachingSpace]);
-
-	if (!isTeachingSpace) {
-		return (
-			<div className="mt-4 rounded-md border border-dashed border-border bg-muted/30 px-3 py-2.5">
-				<p className="text-[0.6875rem] text-muted-foreground/60 italic">Non-teaching room — no schedule</p>
-			</div>
-		);
-	}
-
-	if (state === 'loading' || state === 'idle') {
-		return <Skeleton className="mt-4 h-16 w-full rounded-md" />;
-	}
-
-	if (state === 'empty' || !schedule) {
-		return (
-			<div className="mt-4 rounded-md border border-dashed border-border bg-muted/30 px-3 py-2.5">
-				<p className="text-xs font-medium text-muted-foreground">Room Schedule</p>
-				<p className="mt-1 text-[0.6875rem] text-muted-foreground/60 italic">No generation runs yet</p>
-			</div>
-		);
-	}
-
-	return (
-		<div className="mt-4 space-y-2">
-			<div className="flex items-center justify-between">
-				<p className="text-xs font-medium text-muted-foreground">Room Schedule</p>
-				<Badge variant="outline" className="text-[0.5625rem] px-1 py-0">
-					{schedule.summary.utilizationPercent}% util
-				</Badge>
-			</div>
-			{/* Compact day grid — show slot count per day */}
-			<div className="flex gap-1">
-				{schedule.days.map((day, dayIdx) => {
-					const slotCount = schedule.grid.reduce(
-						(sum, row) => sum + (row.cells[dayIdx]?.occupied ? 1 : 0),
-						0,
-					);
-					return (
-						<div
-							key={day}
-							className={`flex-1 rounded border text-center py-1 text-[0.625rem] ${
-								slotCount > 0
-									? 'border-primary/30 bg-primary/5 text-foreground font-medium'
-									: 'border-border bg-muted/30 text-muted-foreground'
-							}`}
-						>
-							<div>{DAY_SHORT[day] ?? day}</div>
-							<div className="text-[0.5625rem] opacity-70">{slotCount}/{schedule.grid.length}</div>
-						</div>
-					);
-				})}
-			</div>
-			<div className="flex items-center justify-between text-[0.625rem] text-muted-foreground">
-				<span>{schedule.summary.entryCount} entries</span>
-				{schedule.summary.conflictCount > 0 && (
-					<span className="text-red-600 font-medium">{schedule.summary.conflictCount} conflicts</span>
-				)}
-			</div>
-			{onExpandSchedule && (
-				<Button
-					variant="default"
-					size="sm"
-					className="w-full h-6 text-[0.625rem]"
-					onClick={() => onExpandSchedule(schedule)}
-				>
-					<Maximize2 className="size-3 mr-1" />
-					Expand Full Schedule
-				</Button>
-			)}
-			<Button asChild variant="outline" size="sm" className="w-full h-6 text-[0.625rem]">
-				<Link to={`/room-schedules?roomId=${roomId}&source=latest`}>View Full Schedule</Link>
-			</Button>
 		</div>
 	);
 }

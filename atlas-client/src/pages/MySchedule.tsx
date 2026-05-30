@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, BookOpen, CalendarDays, Clock3, MapPin, RefreshCcw, School, Users } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
-import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { describeSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { cacheFacultyIdentity, readCachedFacultyIdentity } from '@/lib/faculty-identity-cache';
 import { buildFacultyCacheKey, isLikelyOfflineError, readFacultySnapshot, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
 import FacultyGlobalHeader from '@/components/faculty-shared/FacultyGlobalHeader';
@@ -98,15 +98,7 @@ export default function MySchedule() {
 		try {
 			const schoolYearContext = await resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false });
 			const schoolYearId = schoolYearContext.activeSchoolYearId;
-			setSchoolYearNotice(
-				schoolYearContext.source === 'enrollpro'
-					? `Verified with EnrollPro (${schoolYearContext.activeSchoolYearLabel}).`
-					: schoolYearContext.source === 'atlas-persisted' && !schoolYearContext.stale
-						? null
-						: schoolYearContext.activeSchoolYearLabel
-							? `Working from saved data (${schoolYearContext.activeSchoolYearLabel}).`
-							: 'Working from saved data.',
-				);
+			setSchoolYearNotice(describeSchoolYearSource(schoolYearContext));
 
 			let resolvedFacultyId: number;
 			try {
