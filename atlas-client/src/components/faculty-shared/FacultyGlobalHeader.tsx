@@ -1,10 +1,8 @@
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence, useScroll, useTransform } from 'motion/react';
-import { Activity, Wifi, WifiOff, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
+import { AlertTriangle, CheckCircle2, Info, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 
-import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
-import type { ReactNode } from 'react';
 
 type SyncState = 'idle' | 'queued-offline' | 'syncing' | 'queued' | 'failed' | 'synced';
 
@@ -13,172 +11,211 @@ type Step = {
 	label: string;
 };
 
+type Advisory = {
+	title: string;
+	variant?: 'info' | 'warning' | 'success' | 'destructive';
+	message?: string;
+};
+
 type FacultyGlobalHeaderProps = {
 	title: string;
 	subtitle?: string;
+	eyebrow?: string;
 	steps?: Step[];
 	activeStep?: number;
 	online: boolean;
 	syncState: SyncState;
-	realtimeConnected?: boolean;
-	advisory?: {
-		title: string;
-		variant?: 'info' | 'warning' | 'success' | 'destructive';
-		message?: string;
-	};
+	advisory?: Advisory;
 	onRetryFailed?: () => void;
+	rightSlot?: ReactNode;
+	belowSlot?: ReactNode;
 	children?: ReactNode;
+	// Back-compat optional props (accepted but not surfaced as visual chrome anymore)
+	realtimeConnected?: boolean;
+	queuedCount?: number;
+	failedCount?: number;
+	lastSyncedAt?: string | null;
+	liveViewers?: number;
 };
+
+function useIsMobile() {
+	const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches);
+	useEffect(() => {
+		const media = window.matchMedia('(max-width: 1023px)');
+		const handler = (event: MediaQueryListEvent) => setIsMobile(event.matches);
+		media.addEventListener('change', handler);
+		return () => media.removeEventListener('change', handler);
+	}, []);
+	return isMobile;
+}
+
+function advisoryTone(variant: Advisory['variant']) {
+	switch (variant) {
+		case 'warning':
+			return { wrap: 'border-amber-200 bg-amber-50 text-amber-900', Icon: AlertTriangle };
+		case 'destructive':
+			return { wrap: 'border-red-200 bg-red-50 text-red-900', Icon: AlertTriangle };
+		case 'success':
+			return { wrap: 'border-emerald-200 bg-emerald-50 text-emerald-900', Icon: CheckCircle2 };
+		case 'info':
+		default:
+			return { wrap: 'border-sky-200 bg-sky-50 text-sky-900', Icon: Info };
+	}
+}
+
+function StatusPill({ online, syncState, onRetryFailed }: { online: boolean; syncState: SyncState; onRetryFailed?: () => void }) {
+	if (syncState === 'failed') {
+		return (
+			<button
+				type='button'
+				onClick={onRetryFailed}
+				className='inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100/80 px-2.5 py-1 text-[11px] font-semibold text-amber-900 transition-colors hover:bg-amber-200'
+			>
+				<RefreshCw className='size-3' /> Retry sync
+			</button>
+		);
+	}
+	const label = !online ? 'Offline' : syncState === 'syncing' ? 'Syncing' : 'Online';
+	const Icon = online ? Wifi : WifiOff;
+	const tone = online
+		? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+		: 'border-amber-200 bg-amber-50 text-amber-800';
+	return (
+		<span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${tone}`}>
+			<Icon className='size-3' />
+			{label}
+		</span>
+	);
+}
+
+function StepBar({ steps, activeStep }: { steps: Step[]; activeStep?: number }) {
+	return (
+		<ol className='flex items-center gap-2'>
+			{steps.map((step, index) => {
+				const done = activeStep !== undefined && step.id < activeStep;
+				const active = step.id === activeStep;
+				return (
+					<li key={step.id} className='flex items-center gap-2'>
+						{index > 0 && <span className='h-px w-3 bg-border sm:w-5' aria-hidden='true' />}
+						<span
+							className={[
+								'flex size-6 items-center justify-center rounded-full text-[11px] font-semibold transition-colors',
+								active
+									? 'bg-primary text-primary-foreground shadow-sm ring-2 ring-primary/20'
+									: done
+										? 'bg-primary/15 text-primary'
+										: 'bg-muted text-muted-foreground',
+							].join(' ')}
+						>
+							{step.id}
+						</span>
+						<span className={`text-xs font-medium ${active ? 'text-foreground' : 'text-muted-foreground'}`}>{step.label.replace(/^\d+\s*/, '')}</span>
+					</li>
+				);
+			})}
+		</ol>
+	);
+}
 
 export default function FacultyGlobalHeader({
 	title,
 	subtitle,
+	eyebrow,
 	steps,
 	activeStep,
 	online,
 	syncState,
-	realtimeConnected,
 	advisory,
 	onRetryFailed,
+	rightSlot,
+	belowSlot,
 	children,
 }: FacultyGlobalHeaderProps) {
-	const { scrollY } = useScroll();
-	const [isScrolled, setIsScrolled] = useState(false);
-	const [advisoryExpanded, setAdvisoryExpanded] = useState(false);
+	const isMobile = useIsMobile();
+	const reduceMotion = useReducedMotion();
 
-	// Shrink threshold
-	useEffect(() => {
-		return scrollY.on('change', (latest) => {
-			setIsScrolled(latest > 60);
-		});
-	}, [scrollY]);
-
-	const headerHeight = useTransform(scrollY, [0, 60], ['auto', '64px']);
-	
-	const syncColor = online ? 'text-emerald-600' : 'text-amber-600';
-	const syncBg = online ? 'bg-emerald-50' : 'bg-amber-50';
-
-	return (
-		<motion.header
-			style={{ height: isScrolled ? '64px' : 'auto' }}
-			className="sticky top-0 z-30 w-full border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 py-3 sm:px-6 transition-all duration-300"
-		>
-			<div className="max-w-7xl mx-auto flex flex-col gap-3">
-				{/* Top Row: Title & Status Indicators */}
-				<div className="flex items-center justify-between gap-4">
-					<div className="min-w-0">
-						<motion.h1 
-							animate={{ fontSize: isScrolled ? '1.125rem' : '1.5rem' }}
-							className="font-bold tracking-tight truncate"
-						>
-							{title}
-						</motion.h1>
-						<AnimatePresence>
-							{!isScrolled && subtitle && (
-								<motion.p 
-									initial={{ opacity: 0, height: 0 }}
-									animate={{ opacity: 1, height: 'auto' }}
-									exit={{ opacity: 0, height: 0 }}
-									className="text-xs text-muted-foreground truncate"
-								>
-									{subtitle}
-								</motion.p>
-							)}
-						</AnimatePresence>
+	if (isMobile) {
+		return (
+			<header className='shrink-0 border-b border-border/60 bg-card'>
+				<div className='px-4 pt-4 pb-3'>
+					{eyebrow && <p className='text-[11px] font-semibold uppercase tracking-wider text-primary/80'>{eyebrow}</p>}
+					<div className='mt-0.5 flex items-start justify-between gap-3'>
+						<h1 className='text-[22px] font-bold leading-tight tracking-tight text-foreground'>{title}</h1>
+						<StatusPill online={online} syncState={syncState} onRetryFailed={onRetryFailed} />
 					</div>
-
-					<div className="flex items-center gap-2 shrink-0">
-						{/* Compact Status Indicator */}
-						<div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-bold ${syncBg} ${syncColor}`}>
-							{online ? <Wifi className="size-3" /> : <WifiOff className="size-3" />}
-							<span className="hidden sm:inline">
-								{syncState === 'syncing' ? 'Syncing...' : online ? 'Online' : 'Offline'}
-							</span>
-							{realtimeConnected && (
-								<Activity className="size-3 text-emerald-500 animate-pulse" />
-							)}
+					{subtitle && <p className='mt-1.5 text-[13px] leading-snug text-muted-foreground'>{subtitle}</p>}
+					{steps && steps.length > 0 && (
+						<div className='mt-3 -mx-1 overflow-x-auto px-1'>
+							<StepBar steps={steps} activeStep={activeStep} />
 						</div>
-						
-						{syncState === 'failed' && onRetryFailed && (
-							<Button size="sm" variant="outline" className="h-7 px-2 text-[10px]" onClick={onRetryFailed}>
-								Retry
+					)}
+					{rightSlot && <div className='mt-3'>{rightSlot}</div>}
+					{children && <div className='mt-3'>{children}</div>}
+				</div>
+				{advisory && (
+					<motion.div
+						initial={reduceMotion ? false : { opacity: 0, y: -4 }}
+						animate={{ opacity: 1, y: 0 }}
+						transition={reduceMotion ? { duration: 0 } : { duration: 0.18 }}
+						className={`flex items-start gap-2 border-t px-4 py-2.5 text-xs ${advisoryTone(advisory.variant).wrap}`}
+					>
+						{(() => {
+							const Icon = advisoryTone(advisory.variant).Icon;
+							return <Icon className='mt-0.5 size-3.5 shrink-0' />;
+						})()}
+						<div className='min-w-0 flex-1'>
+							<p className='font-semibold leading-tight'>{advisory.title}</p>
+							{advisory.message && <p className='mt-0.5 leading-snug opacity-90'>{advisory.message}</p>}
+						</div>
+					</motion.div>
+				)}
+				{belowSlot && <div className='border-t border-border/60 bg-muted/30 px-4 py-2'>{belowSlot}</div>}
+			</header>
+		);
+	}
+
+	// Desktop
+	return (
+		<header className='shrink-0 border-b border-border/60 bg-card'>
+			<div className='mx-auto flex w-full max-w-7xl flex-col gap-3 px-6 pt-5 pb-4'>
+				<div className='flex items-end justify-between gap-6'>
+					<div className='min-w-0'>
+						{eyebrow && <p className='text-[11px] font-semibold uppercase tracking-wider text-primary/80'>{eyebrow}</p>}
+						<h1 className='mt-0.5 text-2xl font-bold tracking-tight text-foreground'>{title}</h1>
+						{subtitle && <p className='mt-1 text-sm text-muted-foreground'>{subtitle}</p>}
+					</div>
+					<div className='flex shrink-0 items-center gap-2'>
+						{rightSlot}
+						<StatusPill online={online} syncState={syncState} onRetryFailed={onRetryFailed} />
+					</div>
+				</div>
+				{steps && steps.length > 0 && (
+					<div className='flex items-center gap-4'>
+						<StepBar steps={steps} activeStep={activeStep} />
+					</div>
+				)}
+				{children && <div>{children}</div>}
+				{belowSlot && <div>{belowSlot}</div>}
+			</div>
+			{advisory && (
+				<div className={`border-t ${advisoryTone(advisory.variant).wrap}`}>
+					<div className='mx-auto flex w-full max-w-7xl items-start gap-2 px-6 py-2.5 text-xs'>
+						{(() => {
+							const Icon = advisoryTone(advisory.variant).Icon;
+							return <Icon className='mt-0.5 size-3.5 shrink-0' />;
+						})()}
+						<div className='min-w-0 flex-1'>
+							<span className='font-semibold'>{advisory.title}</span>
+							{advisory.message && <span className='ml-2 opacity-90'>{advisory.message}</span>}
+						</div>
+						{onRetryFailed && syncState === 'failed' && (
+							<Button size='sm' variant='outline' className='h-7 rounded-full px-3 text-[11px]' onClick={onRetryFailed}>
+								<RefreshCw className='mr-1 size-3' /> Retry
 							</Button>
 						)}
 					</div>
 				</div>
-
-				{/* Middle Row: Steps (Visible when not scrolled or on desktop) */}
-				<AnimatePresence>
-					{steps && (steps.length > 0) && (
-						<motion.div 
-							initial={false}
-							animate={{ 
-								height: isScrolled ? 0 : 'auto',
-								opacity: isScrolled ? 0 : 1,
-								marginBottom: isScrolled ? 0 : 4
-							}}
-							className="flex flex-wrap gap-1.5 overflow-hidden"
-						>
-							{steps.map((step) => (
-								<span
-									key={step.id}
-									className={`rounded-full border px-3 py-0.5 text-[11px] font-bold transition-colors ${
-										step.id === activeStep
-											? 'border-primary bg-primary text-primary-foreground'
-											: step.id < activeStep
-												? 'border-primary/30 bg-primary/15 text-primary'
-												: 'border-transparent bg-muted text-muted-foreground'
-									}`}
-								>
-									{step.label}
-								</span>
-							))}
-						</motion.div>
-					)}
-				</AnimatePresence>
-
-				{/* Bottom Row: Smart Advisory */}
-				<AnimatePresence>
-					{!isScrolled && advisory && (
-						<motion.div
-							initial={{ opacity: 0, y: -10 }}
-							animate={{ opacity: 1, y: 0 }}
-							exit={{ opacity: 0, y: -10 }}
-							className={`rounded-xl border p-3 ${
-								advisory.variant === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-900' :
-								advisory.variant === 'destructive' ? 'bg-red-50 border-red-200 text-red-900' :
-								'bg-blue-50 border-blue-200 text-blue-900'
-							}`}
-						>
-							<div className="flex items-center justify-between gap-2">
-								<div className="flex items-center gap-2">
-									<AlertCircle className="size-4 shrink-0" />
-									<p className="text-xs font-bold uppercase tracking-tight">{advisory.title}</p>
-								</div>
-								{advisory.message && (
-									<button 
-										onClick={() => setAdvisoryExpanded(!advisoryExpanded)}
-										className="text-[10px] font-bold underline decoration-dotted"
-									>
-										{advisoryExpanded ? 'Hide' : 'Learn more'}
-									</button>
-								)}
-							</div>
-							{advisoryExpanded && advisory.message && (
-								<motion.p 
-									initial={{ height: 0, opacity: 0 }}
-									animate={{ height: 'auto', opacity: 1 }}
-									className="mt-2 text-xs leading-relaxed border-t border-current/10 pt-2"
-								>
-									{advisory.message}
-								</motion.p>
-							)}
-						</motion.div>
-					)}
-				</AnimatePresence>
-
-				{children}
-			</div>
-		</motion.header>
+			)}
+		</header>
 	);
 }

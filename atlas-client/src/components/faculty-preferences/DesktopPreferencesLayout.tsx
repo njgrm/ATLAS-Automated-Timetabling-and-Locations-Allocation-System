@@ -1,4 +1,4 @@
-import { Heart, MessageSquare, Send } from 'lucide-react';
+import { Heart, MessageSquare } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { Card, CardContent } from '@/ui/card';
@@ -21,18 +21,18 @@ const WELLBEING_ITEMS: { key: keyof WellbeingState; label: string; description: 
 	},
 	{
 		key: 'physicalAilmentSupport',
-		label: 'Physical ailment / mobility support',
-		description: 'Mobility limitation — prefer accessible rooms and minimize walking distance.',
+		label: 'Mobility support',
+		description: 'Prefer accessible rooms and minimize walking distance.',
 	},
 	{
 		key: 'minimizeTravelTime',
-		label: 'Minimize travel time between classes',
+		label: 'Minimize travel time',
 		description: 'Prefer consecutive classes in the same or adjacent rooms.',
 	},
 	{
 		key: 'avoidUpperFloors',
-		label: 'Avoid upper floors (2nd floor and above)',
-		description: 'Prefer ground-floor rooms. Elevator access may not always be available.',
+		label: 'Avoid upper floors',
+		description: 'Prefer ground-floor rooms when possible.',
 	},
 ];
 
@@ -53,86 +53,64 @@ export default function DesktopPreferencesLayout({
 	canEdit,
 	banners,
 }: DesktopPreferencesLayoutProps) {
+	const activeCount = Object.values(wellbeing).filter(Boolean).length;
 	return (
-		<div className='grid grid-cols-[minmax(0,1fr)_380px] gap-8 h-full'>
-			{/* Left Column: Support needs */}
-			<div className='space-y-6 overflow-y-auto pr-2'>
-				<div className='flex items-center justify-between'>
-					<div className='flex items-center gap-3'>
-						<div className='p-2 rounded-xl bg-rose-50 text-rose-500'>
-							<Heart className='size-6' />
+		<div className='mx-auto grid h-full w-full max-w-6xl grid-cols-[minmax(0,1fr)_380px] gap-6'>
+			{/* Left: support toggles */}
+			<div className='flex min-h-0 flex-col gap-4'>
+				{banners && <div className='space-y-3'>{banners}</div>}
+
+				<Card className='flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border-border/60 shadow-sm'>
+					<div className='flex items-center justify-between border-b border-border/60 px-5 py-3'>
+						<div className='flex items-center gap-2'>
+							<Heart className='size-4 text-primary' />
+							<h2 className='text-[14px] font-semibold text-foreground'>Support needs</h2>
 						</div>
-						<div>
-							<h2 className='text-xl font-bold tracking-tight'>Teacher Support Needs</h2>
-							<p className='text-sm text-muted-foreground'>These requests are visible to the scheduler for manual review.</p>
-						</div>
+						<span className='text-[11px] text-muted-foreground'>{activeCount} selected</span>
 					</div>
-				</div>
-
-				{banners && <div className='space-y-4'>{banners}</div>}
-
-
-				<Card className='rounded-3xl border-border/50 bg-card shadow-sm'>
-					<CardContent className='p-6 space-y-4'>
+					<CardContent className='flex-1 divide-y divide-border/60 overflow-auto p-0'>
 						{WELLBEING_ITEMS.map(({ key, label, description }) => (
-							<div
-								key={key}
-								className='flex items-start gap-4 p-4 rounded-2xl border border-border bg-muted/20 hover:bg-muted/30 transition-colors'
-							>
+							<div key={key} className='flex items-start justify-between gap-4 px-5 py-4 hover:bg-muted/30'>
+								<div className='min-w-0 flex-1'>
+									<Label htmlFor={`desk-wb-${key}`} className='cursor-pointer text-[14px] font-semibold text-foreground'>
+										{label}
+									</Label>
+									<p className='mt-0.5 text-[12px] leading-snug text-muted-foreground'>{description}</p>
+								</div>
 								<Switch
 									id={`desk-wb-${key}`}
 									checked={wellbeing[key]}
 									onCheckedChange={(checked) => onWellbeingChange(key, checked)}
 									disabled={!canEdit}
-									className='mt-1 shrink-0'
+									className='mt-0.5 shrink-0'
 								/>
-								<div className='min-w-0'>
-									<Label htmlFor={`desk-wb-${key}`} className='text-sm font-bold cursor-pointer'>
-										{label}
-									</Label>
-									<p className='text-xs text-muted-foreground mt-1 leading-normal'>{description}</p>
-								</div>
 							</div>
 						))}
 					</CardContent>
 				</Card>
 			</div>
 
-			{/* Right Column: Notes and submit context */}
-			<div className='space-y-6 overflow-y-auto pr-1'>
-				<Card className='rounded-3xl border-border/50 bg-card shadow-sm'>
-					<CardContent className='p-6 space-y-4'>
-						<div className='flex items-center gap-3'>
-							<div className='p-2 rounded-xl bg-amber-50 text-amber-500'>
-								<MessageSquare className='size-5' />
-							</div>
-							<h3 className='text-lg font-bold'>Notes For The Scheduler</h3>
-						</div>
-
-						<div className='space-y-2'>
-							<Label className='text-xs font-bold text-muted-foreground uppercase ml-1'>
-								Message to Scheduler
-							</Label>
-							<Textarea
-								placeholder='Add context the scheduler should know before reviewing your support request.'
-								value={notes}
-								onChange={(e) => onNotesChange(e.target.value)}
-								disabled={!canEdit}
-								className='min-h-40 resize-none rounded-2xl p-4 text-sm'
-							/>
-						</div>
+			{/* Right: notes */}
+			<div className='flex min-h-0 flex-col gap-4'>
+				<Card className='flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border-border/60 shadow-sm'>
+					<div className='flex items-center gap-2 border-b border-border/60 px-5 py-3'>
+						<MessageSquare className='size-4 text-primary' />
+						<h3 className='text-[14px] font-semibold text-foreground'>Notes for the scheduler</h3>
+					</div>
+					<CardContent className='flex-1 p-0'>
+						<Textarea
+							placeholder='For example: prefer mornings, recovering from surgery, etc.'
+							value={notes}
+							onChange={(e) => onNotesChange(e.target.value)}
+							disabled={!canEdit}
+							className='h-full min-h-64 resize-none rounded-none border-0 p-5 text-[14px] focus-visible:ring-0'
+						/>
 					</CardContent>
 				</Card>
 
-				<Card className='rounded-3xl border-dashed border-primary/30 bg-primary/5 shadow-sm'>
-					<CardContent className='p-5 text-sm text-muted-foreground'>
-						<div className='flex items-center gap-2 font-semibold text-foreground'>
-							<Send className='size-4 text-primary' />
-							Submit when ready
-						</div>
-						<p className='mt-1'>Submitted preferences are reviewed by the scheduler. These support needs are not automatic timetable blockers.</p>
-					</CardContent>
-				</Card>
+				<p className='text-[12px] leading-snug text-muted-foreground'>
+					Submitted support needs are reviewed by the scheduler. They are not automatic blockers — think of them as context that helps the scheduler choose a better-fit room or slot.
+				</p>
 			</div>
 		</div>
 	);

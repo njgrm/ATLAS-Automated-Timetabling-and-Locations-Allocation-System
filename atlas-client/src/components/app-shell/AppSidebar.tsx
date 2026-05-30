@@ -30,6 +30,7 @@ import { ConfirmationModal } from '@/ui/confirmation-modal';
 import {
 	advancedNav,
 	buildValidateNav,
+	campusNav,
 	facultyNav,
 	facultyPlanningNav,
 	inputCollectionNav,
@@ -216,6 +217,8 @@ export function AppSidebar({
 										{renderNavGroup(setupNav, isAdmin, pathname)}
 										<NavDivider label='Teacher Planning' />
 										{renderNavGroup(facultyPlanningNav, isAdmin, pathname)}
+										<NavDivider label='Campus' />
+										{renderNavGroup(campusNav, isAdmin, pathname)}
 										<NavDivider label='Input Collection' />
 										{renderNavGroup(inputCollectionNav, isAdmin, pathname)}
 										<NavDivider label='Build & Validate' />

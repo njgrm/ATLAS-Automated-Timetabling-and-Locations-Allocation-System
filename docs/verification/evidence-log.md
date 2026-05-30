@@ -1,32 +1,152 @@
+﻿# 2026-05-30 - SMART redesign progress audit after 01+02 execution
+
+- Phase: Cross-cutting UX audit gate after shell/faculty/public redesign execution.
+- Operator: GitHub Copilot
+- Scope gate: AUDIT COMPLETE, TRUE-MOBILE HEADLESS PROOF CAPTURED, NO CODE IMPLEMENTATION IN THIS PASS -> NO-GO for full SMART redesign closure.
+- Trigger: user paused further implementation and requested a fresh UX/UI audit because previous prompts may have become outdated.
+- Report: `docs/reports/ux-ui-smart-redesign-progress-audit-2026-05-30.md`.
+- Key correction: shared-browser mobile captures from the first pass were invalid as mobile proof because `setViewportSize({ width: 390 })` still yielded `window.innerWidth=1128` and `matchMedia('(max-width: 1023px)').matches=false`. Headless Playwright at `390x844` confirmed true mobile shell behavior.
+- Confirmed progress: HNHS maroon tokens active; dashboard runtime Review phase and blockers visible; `AppShell.tsx` under 1000 lines; faculty mobile shell renders hamburger top bar, hides desktop sidebar, and shows bottom nav on `/my`, `/my/schedule`, `/my/preferences`, and `/my/room-preferences`.
+- Remaining blockers: `/public/schedules` and `/my/schedule` still expose schedule-version/reference copy; `/public/schedules` still uses native `<details>`; `/my/room-preferences` still has `title` attributes (`Zoom Out`, `Zoom In`, `Reset`) and a first-load tutorial overlay; all true-mobile faculty routes report global page scroll; preferences still show sensitive support wording too loudly; prompt/design docs still contain stale emerald-first identity language.
+- Evidence screenshots: `qa-artifacts/playwright/20260530-headless-faculty-my-mobile.png`, `20260530-headless-faculty-schedule-mobile.png`, `20260530-headless-faculty-preferences-mobile.png`, `20260530-headless-faculty-room-requests-mobile.png`, `20260530-headless-public-schedules-mobile.png`, `20260530-headless-admin-dashboard-mobile.png`, plus shared-browser desktop captures `20260530-ux-audit-progress-*.png`.
+- Decision: NO-GO for prompt 02 closure and phase closure. Use a focused repair prompt instead of rerunning stale prompt 01/02 verbatim.
+
+---
+
+# 2026-05-30 - Sidebar/dashboard map/campus editor SMART repair audit + prompt
+
+- Phase: Cross-cutting admin UX audit and prompt preparation.
+- Operator: GitHub Copilot
+- Scope gate: AUDIT + PROMPT COMPLETE, NO SOURCE IMPLEMENTATION IN THIS PASS -> NO-GO for admin workflow/map closure until repair prompt runs.
+- Trigger: user clarified that only dashboard has substantially improved so far, teacher pages have marginal improvements, most other pages remain outdated, sidebar order is not chronological, Input Collection and Room Requests should live inside Timetable, locked Analytics should be removed, and dashboard/map/editor need a simpler modern SMART-aligned revamp.
+- Design instruction updates: `docs/DESIGN.md`, `AGENTS.md`, `GEMINI.md`, `ATLAS_AGENT_KI.md`, `.github/copilot-instructions.md`, prompt 01, prompt 02, prompt 04, and the SMART identity prompt sequence now define SMART alignment as token-driven/product-family alignment, not fixed emerald or EnrollPro-derived chrome.
+- Audit report: `docs/reports/sidebar-dashboard-map-smart-repair-audit-2026-05-30.md`.
+- Repair prompt: `docs/prompts/ux-rehaul-06-sidebar-dashboard-map-workflow-repair-one-shot-prompt.md`.
+- Live Tailnet evidence: admin `/` and `/map` pages render `--primary = 360 75% 30%`; sidebar still shows `Input Collection`, standalone `Preferences`, standalone `Room Requests`, and disabled `Analytics`; `/map?mode=editor` still has native details and title attributes on color swatches; `/map` overview is read-first but list-dominant; dashboard map presence is not yet a polished map interface.
+- Evidence screenshots: `qa-artifacts/playwright/20260530-nav-map-audit-admin-dashboard-desktop.png`, `20260530-nav-map-audit-admin-map-overview-desktop.png`, `20260530-nav-map-audit-admin-map-editor-desktop.png`, `20260530-nav-map-audit-admin-map-overview-mobile.png`.
+- Decision: NO-GO for broad continuation. Next implementation should execute prompt 06 before returning to teacher/faculty polish.
+
+---
+
+# 2026-05-30 - Faculty MySchedule blank-state root cause + manual-edit summary preservation
+
+- Phase: Faculty published-schedule reliability (cross-cutting bug discovered during UX rehaul QA).
+- Operator: GitHub Copilot
+- Scope gate: SERVER FIX COMPLETE, TS COMPILE CLEAN, LIVE API REVERIFIED ON TAILNET -> GO.
+- Symptom: teacher `2000056` (real EnrollPro: ELPIDIO AQUINO, facultyId=18189) saw "Your published schedule is not available yet" on `/my/schedule` despite admin having previously published run #126.
+- Root cause: `atlas-server/src/services/manual-edit.service.ts` commit / revert / swap code paths each rebuilt `summary` via `computeSummary(...)` and then wrote `summary: newSummary as object` directly to `GenerationRun`. `computeSummary` does not carry forward `isPublished`, `publishedAt`, `publishedBy`, `publishedSoftViolationCount`, `softViolationsAcknowledged`, `publicationIntegrity`. A `SWAP_ENTRIES` edit on run #126 at 2026-05-28T03:12:34.936Z (audit id 6, actor 1) therefore silently unpublished the run with no `GENERATION_RUN_UNPUBLISHED` audit entry. `resolvePublishedRun` then 404'd `PUBLISHED_RUN_NOT_FOUND`.
+- Fix: added `mergePreservedSummaryFields(existingSummary, newSummary)` in `manual-edit.service.ts` and applied it at all three `prisma.generationRun.update` sites. Manual edits to a published run now keep `isPublished` and related fields intact; explicit unpublish remains a separate audited action.
+- Recovery: ran a one-off Prisma update to restore run #126 publish markers (`isPublished=true`, `publishedAt=2026-05-27T23:11:02.825Z`, `publishedBy=1`, `softViolationsAcknowledged=true`, `publicationIntegrity.reason='RESTORED_AFTER_MANUAL_EDIT_SUMMARY_REPLACE_BUG'`).
+- Live verification: `POST /api/v1/auth/login` for `2000056/DepEd2026!` -> 200; `GET /api/v1/faculty/me?schoolId=1` -> faculty.id=18189; `GET /api/v1/schools/1/schedules/published/55/faculty/18189` -> 200, entries=10, source.runId=126.
+- Files changed: `atlas-server/src/services/manual-edit.service.ts`.
+- Doc updates: `.github/copilot-instructions.md`, `AGENTS.md`, `GEMINI.md`, `docs/verification/evidence-log.md` -> faculty QA credential switched from `maria.santos@deped.edu.ph` to `2000056` (real EnrollPro teacher record).
+- Follow-up: continue the faculty mobile/desktop simplification pass (KISS) against the now-loading `/my/schedule` surface.
+
+---
+
+# 2026-05-30 - Faculty full visual rehaul (mobile-app vs desktop-workbench split)
+
+- Phase: Cross-cutting Faculty UX (shared header + bottom nav + dashboard + schedule + preferences + room requests).
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, LOCAL BUILD GREEN (`npm --prefix atlas-client run build` -> 501ms), TYPECHECK CLEAN on MySchedule/FacultyPreferences/FacultyRoomPreferences -> CONDITIONAL GO (pending operator-driven Tailnet screenshot capture at 375px + 1440px).
+- Files rewritten: `FacultyGlobalHeader.tsx`, `FacultyMobileBottomNav.tsx`, `MobileDashboardLayout.tsx`, `DesktopDashboardLayout.tsx`, `ActionQueue.tsx`, `MobilePreferencesLayout.tsx`, `DesktopPreferencesLayout.tsx`.
+- Files edited: `MyDashboard.tsx`, `MySchedule.tsx`, `FacultyPreferences.tsx`, `FacultyRoomPreferences.tsx`, `TeachingIdentityPanel.tsx`, `FacultyObjectiveStateCard.tsx`.
+- Files removed: `FacultyPageHeader.tsx` (consolidated into `FacultyGlobalHeader`).
+- Pattern established: token-aware Tone system (replacing hardcoded `/70` pastels), mobile = hero + card stack, desktop = hero strip + 12-col workbench, sentence-case copy throughout.
+- Live verification pending: operator should run a Tailnet QA pass on `/my`, `/my/schedule`, `/my/preferences`, `/my/room-preferences` at 375px and 1440px.
+
+---
+
+# 2026-05-30 - UX rehaul 01+02: SMART identity polish + faculty mobile-app feel
+
+- Phase: Cross-cutting UX (shell + faculty + public), discovery and implementation pass.
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, LOCAL BUILD GREEN, LIVE TAILNET QA NOT RUN THIS PASS -> CONDITIONAL GO (pending operator-driven mobile/desktop screenshot capture).
+- Trigger: `docs/prompts/ux-rehaul-01-shell-and-global-identity-refactor-one-shot-prompt.md` + `docs/prompts/ux-rehaul-02-faculty-public-smart-aligned-one-shot-prompt.md`. User qualifier: `Make sure this will look more like SMART, and make sure faculty page looks like an actual mobile app... they should look and feel different according to what the viewport allows.`
+
+- Touched files:
+  - `atlas-client/src/components/faculty-room-preferences/room-request-helpers.tsx` NEW. Extracted `ACTION_LABELS`, `DAYS`, `FACULTY_ROOM_TUTORIAL_STEPS`, `statusBadge`, `isEntryDirty`, `applyRoomSelection`, `slotKey`, and `RoomOption` type from FacultyRoomPreferences. Brings `FacultyRoomPreferences.tsx` from 1017 -> 967 lines (under the 1000-LoC ceiling).
+  - `atlas-client/src/pages/FacultyRoomPreferences.tsx`: dropped the duplicated constants/helpers/types and imports them from the new helpers module.
+  - `atlas-client/src/components/app-shell/FacultyMobileBottomNav.tsx` NEW. Sticky bottom tab bar visible only on `lg:hidden` for the four faculty routes (Home, Schedule, Preferences, Requests). 56px touch targets, safe-area aware (`env(safe-area-inset-bottom)`), animated active underline with `layoutId` and `useReducedMotion` fallback. This is the visible `actual mobile app` change requested by the user.
+  - `atlas-client/src/components/AppShell.tsx`: imported `FacultyMobileBottomNav` and `useReducedMotion`; renders the bottom nav only when `isMobile && isFaculty`; route `AnimatePresence` now disables fade transitions under `prefers-reduced-motion`; outlet wrapper adds `pb-16` on faculty mobile so content does not sit under the tab bar.
+  - `atlas-client/src/components/faculty-shared/FacultyGlobalHeader.tsx`: imports `useReducedMotion` and short-circuits the scroll-shrink listener when reduced motion is requested.
+  - `atlas-client/src/pages/MySchedule.tsx`: title -> `Your Official Schedule`; subtitle now answers `is it published or not` instead of restating `review the timetable`. Hid raw `Published run #N`, `S.Y. {id}`, and `Published at {timestamp}` stat tiles. Replaced with a single `<details>` block labeled `Schedule version` containing `Most recent` + `Reference #`. Error state title now `Official schedule unavailable`. Pruned unused `CalendarDays` and `School` lucide imports.
+  - `atlas-client/src/pages/MyDashboard.tsx`: header title `Teacher Portal` -> `Your Day`; subtitle `Track classes and room requests.` -> personalized `Welcome back, {firstName}` (or generic when name missing). Step chips and dashboard fork remain intact (Mobile vs Desktop layouts already diverge).
+  - `atlas-client/src/pages/PublicPublishedSchedule.tsx`: hero card title `Published Schedule Family` -> `Find your class schedule`; description now task-first. Replaced raw `Run #`, `School Year ID`, and `School ID` badges with hidden-by-default `Schedule version` `<details>`. `Live Published Data` / `Saved Published Data` badges renamed to `Official schedule` / `Showing the last saved copy` / `No official schedule yet` per copy contract. Empty state -> `No official schedule has been published yet`.
+
+- File-size compliance: `FacultyRoomPreferences.tsx` confirmed 967 lines (verified via `Get-Content ... | Measure-Object -Line`). All other touched files <500 lines. AppShell remains 422 lines.
+
+- Build: `npm --prefix atlas-client run build` exit 0, `built in 519ms`. New `FacultyRoomPreferences-*.js` chunk emits at 52.66 kB / 15.03 kB gzip. No TS errors on touched files.
+
+- Pending evidence for full GO:
+  - Tailnet QA screenshots at mobile (375px) and desktop (1440px) showing: faculty bottom tab bar visible on `/my` mobile and absent on desktop; MySchedule new `Your Official Schedule` header; MyDashboard `Your Day` header; PublicPublishedSchedule `Find your class schedule` first viewport; FacultyRoomPreferences three-step flow on mobile.
+
+- Decision: CONDITIONAL GO. All code-side outcomes satisfied; live-viewport screenshot evidence remains the only open gate.
+
+---
+
+# 2026-05-30 - Sidebar chronology + Setup readiness rename + Login SMART verification (Phase C)
+
+- Phase: Admin UX hardening â€” process chronology + readiness vs lifecycle separation
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, TAILNET LIVE VERIFICATION DONE â†’ GO
+- Trigger: `docs/prompts/ux-rehaul-05-tailnet-token-login-dashboard-process-correction-one-shot-prompt.md`. Six outcomes required: (1) full token authority across login/dashboard/sidebar, (2) Login SMART split-panel composition with school identity + scheduling pillars + JHS scope, (3) Dashboard lifecycle from live runtime, (4) Sidebar chronology matching dashboard checklist order, (5) no global scrollbar on dense table pages, (6) explicit `Setup readiness` vs `Scheduling lifecycle` separation.
+
+- Touched files:
+  - `atlas-client/src/components/app-shell/navigation.ts` â€” extracted `Campus & Rooms` into new `campusNav`; added a `Campus` group to `breadcrumbGroups` between Teacher Planning and Input Collection.
+  - `atlas-client/src/components/app-shell/AppSidebar.tsx` â€” imported `campusNav` and rendered it inside a new `<NavDivider label='Campus' />` block, producing the five-phase chronology (School Setup â†’ Teacher Planning â†’ Campus â†’ Input Collection â†’ Build & Validate).
+  - `atlas-client/src/pages/Dashboard.tsx` â€” renamed `Setup checklist` â†’ `Setup readiness` (now scoped to the five prerequisite items) and the lifecycle banner eyebrow `Lifecycle` â†’ `Scheduling lifecycle` (whole-process progress). No behavioral changes to checklist items or lifecycle derivation logic.
+
+- Login verification (no code changes needed): `atlas-client/src/pages/Login.tsx` already satisfies Outcome 2. Verified composition: split panel `lg:flex lg:w-[55%]` brand + `lg:w-[45%]` form, token-driven gradient via `hsl(var(--primary))` / `hsl(var(--accent))` with animated `login-gradient-shift` keyframes, SVG pixel-grid motif, cached school logo via `SHELL_BRANDING_CACHE_KEY` with acronym fallback, JHS scope copy (`Junior High School (Grades 7-10)`), three scheduling pillars (Preference Collection, Automated Generation, Review and Publish Workflow), mobile-safe brand header inside the Card. Tailnet render confirms HNHS maroon palette and ATLAS school identity.
+
+- Build: `npm --prefix atlas-client run build` â†’ exit 0, `built in 603ms`, no TS errors, no Tailwind warnings on touched files. Vite-emitted `Dashboard-*.js` and chunked.
+
+- Tailnet computed-style proof (Edge / `https://njgrm.buru-degree.ts.net/`):
+  - Login `/login`: `--primary = 360 75% 30%`, `--accent = 360 75% 30%`, submit button `background-color = oklab(...maroon... / 0.9)` (token + `hover:bg-primary/90`).
+  - Dashboard `/`: `--primary = 360 75% 30%`, `--sidebar-primary = 360 75% 30%`, Open Timetable CTA `background-color = rgb(134, 19, 19)`, sidebar active item `background-color = rgb(134, 19, 19)`. `body.innerText` contains `Setup readiness` and the new `Campus` sidebar group.
+  - `/teachers`: `document.documentElement.scrollHeight = clientHeight = 682` â†’ `hasGlobalScrollbar = false`. Body and html parity confirms the EnrollPro no-scroll architecture (table region uses `flex-1 min-h-0 overflow-auto` internally).
+
+- Screenshots (`qa-artifacts/playwright/`):
+  - `20260530-login-tailnet-token-correction-after.png` â€” split-panel SMART composition in HNHS maroon, ATLAS scheduling pillars, JHS scope visible.
+  - `20260530-dashboard-tailnet-token-correction-after.png` â€” maroon lifecycle banner, emerald correctness signals retained (ACTIVE pill, done-step circles, `5/5` badge, checklist done pills), `Setup readiness` card, `Scheduling lifecycle` banner.
+  - `20260530-sidebar-tailnet-process-correction-after.png` â€” five-group chronology rendered in order: School Setup â†’ Teacher Planning â†’ Campus â†’ Input Collection â†’ Build & Validate.
+  - `20260530-table-noscroll-tailnet-correction-after.png` â€” `/teachers` dense table without a global scrollbar (root flex shell holds; main table region scrolls internally).
+
+- Anomalies fixed during execution:
+  - First wiring attempt missed the `campusNav` import insertion on AppSidebar (multi-replace context mismatch). Caught at Tailnet load (`ReferenceError: campusNav is not defined`) and patched immediately; build re-verified.
+  - First Tailnet capture after `localStorage.clear()` rendered the default emerald tenant palette because cached school settings were wiped; HNHS maroon restored after re-login + settings rehydrate.
+
+---
+
 # 2026-05-30 - Dashboard token-driven correction (audit follow-up)
 
-- Phase: Admin UX hardening — token-driven brand + live lifecycle
+- Phase: Admin UX hardening â€” token-driven brand + live lifecycle
 - Operator: GitHub Copilot
-- Scope gate: IMPLEMENTATION COMPLETE, TAILNET LIVE VERIFICATION DONE → GO
+- Scope gate: IMPLEMENTATION COMPLETE, TAILNET LIVE VERIFICATION DONE â†’ GO
 - Trigger: `docs/prompts/dashboard-login-sidebar-token-tailnet-audit-2026-05-30.md` returned NO-GO. Critical findings: (1) emerald was hard-coded across Dashboard so HNHS maroon never rendered, (2) SMART's emerald was treated as a literal palette instead of a token role, (3) lifecycle phase was a `CURRENT_PHASE = 'SETUP'` constant that contradicted the live run 128/SY 2026-2027 review state, (4) sidebar `setupNav` order disagreed with the dashboard's setup checklist chronology.
 
 - Touched files:
   - `atlas-client/src/index.css`:
     - Added `--theme-primary: hsl(var(--primary))` and `--theme-accent: hsl(var(--accent))` aliases so SMART-style components can read a single role-named token instead of an emerald literal.
-    - Swapped the hard-coded `#fafbfc → #f0fdf4 → #ecfdf5` body wash for `linear-gradient(135deg, hsl(0 0% 100%) 0%, hsl(var(--primary) / 0.04) 50%, hsl(var(--primary) / 0.07) 100%)` so every school's primary tints its own canvas.
+    - Swapped the hard-coded `#fafbfc â†’ #f0fdf4 â†’ #ecfdf5` body wash for `linear-gradient(135deg, hsl(0 0% 100%) 0%, hsl(var(--primary) / 0.04) 50%, hsl(var(--primary) / 0.07) 100%)` so every school's primary tints its own canvas.
     - Replaced `--shadow-emerald` tokens and the `.shadow-emerald-glow` utility with `.shadow-primary-glow` (`0 10px 30px -5px hsl(var(--primary) / 0.35)`) plus `.shadow-primary-sm`.
   - `atlas-client/src/hooks/useDashboardData.ts`:
     - New types `LifecyclePhase` and `LatestRunStatus`.
     - Now resolves `activeSchoolYearId`, `activeSchoolYearLabel`, latest run id, latest run status (COMPLETED / IN_PROGRESS / FAILED / NONE), and `violationCount` from `/generation/<schoolId>/<syId>/runs/latest` and `/runs/latest/violations`.
-    - Derives `lifecyclePhase` from runtime: SETUP until every setup gate is ready → PREFERENCES when nothing has been generated yet → GENERATION while a run is active or failed → REVIEW after a completed run. Returns all new fields.
+    - Derives `lifecyclePhase` from runtime: SETUP until every setup gate is ready â†’ PREFERENCES when nothing has been generated yet â†’ GENERATION while a run is active or failed â†’ REVIEW after a completed run. Returns all new fields.
   - `atlas-client/src/pages/Dashboard.tsx`:
     - Removed `const CURRENT_PHASE = 'SETUP'`; the header badge, "Current phase" mini-card, "Your next step" branching, and the lifecycle banner now all read `lifecyclePhase` from the hook.
     - `StatTone` is now `'brand' | 'sky' | 'violet' | 'amber'`. `brand` uses `bg-primary` / `ring-primary/15` / `text-primary`. The Subjects and Teaching Rooms tiles use the `brand` tone; Sections (violet) and Teachers (sky) stay semantically distinct so they remain readable as separate categories.
     - Replaced every emerald literal in CTAs, tinted surfaces, badges, and checkmarks with `bg-primary` / `bg-primary/10` / `bg-primary/5` / `text-primary` / `text-primary-foreground` / `shadow-primary-glow`.
     - Lifecycle banner uses an inline `linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.92) 55%, hsl(var(--primary) / 0.78) 100%)` background so HNHS maroon, EnrollPro custom brand, and the default emerald all render as the school's own banner instead of an emerald-to-teal hardcode.
     - `pickNextStep` now covers PREFERENCES (run the generator), GENERATION-IN_PROGRESS, GENERATION-FAILED, REVIEW with `${violationCount} blocker` warning, and PUBLISHED.
-    - Setup checklist reordered to operator chronology: Sections → Subjects → Teachers → Every subject has a teacher → Buildings and rooms ready.
+    - Setup checklist reordered to operator chronology: Sections â†’ Subjects â†’ Teachers â†’ Every subject has a teacher â†’ Buildings and rooms ready.
     - Subtitle appends `S.Y. ${activeSchoolYearLabel}` when known.
   - `atlas-client/src/components/app-shell/navigation.ts`:
-    - `setupNav` reordered to `Sections → Subjects → Campus & Rooms` so sidebar matches the dashboard checklist chronology.
+    - `setupNav` reordered to `Sections â†’ Subjects â†’ Campus & Rooms` so sidebar matches the dashboard checklist chronology.
   - `atlas-client/src/components/app-shell/AppSidebar.tsx`:
-    - `text-emerald-700/80` → `text-primary/80` for the "Scheduling Portal" eyebrow.
-    - `text-emerald-600` → `text-primary` for the `• ACTIVE` school year indicator.
+    - `text-emerald-700/80` â†’ `text-primary/80` for the "Scheduling Portal" eyebrow.
+    - `text-emerald-600` â†’ `text-primary` for the `â€¢ ACTIVE` school year indicator.
 
 - Live Tailnet verification (https://njgrm.buru-degree.ts.net/, signed in as `1000001` / `AdminSY2026!`):
   - `getComputedStyle(documentElement)`:
@@ -35,26 +155,26 @@
     - `--sidebar-primary`: `360 75% 30%`
   - `Open Timetable` button `background-color`: `rgb(134, 19, 19)` (HNHS maroon).
   - Sidebar active item `background-color`: `rgb(134, 19, 19)` (matches header).
-  - Body `background` resolves to `linear-gradient(135deg, rgb(255, 255, 255) 0%, rgba(134, 19, 19, 0.04) 50%, rgba(134, 19, 19, 0.07) 100%)` — token-driven maroon wash, no emerald artifacts.
+  - Body `background` resolves to `linear-gradient(135deg, rgb(255, 255, 255) 0%, rgba(134, 19, 19, 0.04) 50%, rgba(134, 19, 19, 0.07) 100%)` â€” token-driven maroon wash, no emerald artifacts.
   - Dashboard header badge reads `Review phase`; "Current phase" mini-card reads `Review`, `Step 4 of 5`; "Your next step" surfaces a `915 blockers` warning; subtitle reads `S.Y. 2026-2027`. Confirms lifecycle is derived from live run 128 + violation count, not the old `SETUP` constant.
   - Sidebar nav order under SCHOOL SETUP: `Sections`, `Subjects`, `Campus & Rooms` (matches dashboard checklist).
   - Screenshot evidence: `qa-artifacts/playwright/20260530-tailnet-dashboard-token-driven-after.png`.
 
 - Audit gate status:
-  - Critical 1 (emerald hardcode) — RESOLVED (Open Timetable + sidebar active both render maroon).
-  - Critical 2 (SMART misread as literal green) — RESOLVED (tokens drive all brand surfaces; semantic tones kept distinct).
-  - Critical 3 (static lifecycle) — RESOLVED (phase derived from active SY + latest run status + violation count).
-  - Major 4 (sidebar chronology) — RESOLVED (`navigation.ts` reordered).
-  - Major 5 (Login SMART-pattern visual parity) — DEFERRED. Login already reads `hsl(var(--primary))`/`hsl(var(--accent))` (no emerald hardcodes), so Critical-1 is satisfied there. A creative visual rewrite to a true split-panel SMART composition is tracked as a follow-up and is not blocking this gate.
-  - Major 6 (no-scroll on dense table pages) — PRESERVED (no table page or app shell layout was touched in this pass; root `flex flex-col h-[calc(100svh-3.5rem)]` container is intact).
+  - Critical 1 (emerald hardcode) â€” RESOLVED (Open Timetable + sidebar active both render maroon).
+  - Critical 2 (SMART misread as literal green) â€” RESOLVED (tokens drive all brand surfaces; semantic tones kept distinct).
+  - Critical 3 (static lifecycle) â€” RESOLVED (phase derived from active SY + latest run status + violation count).
+  - Major 4 (sidebar chronology) â€” RESOLVED (`navigation.ts` reordered).
+  - Major 5 (Login SMART-pattern visual parity) â€” DEFERRED. Login already reads `hsl(var(--primary))`/`hsl(var(--accent))` (no emerald hardcodes), so Critical-1 is satisfied there. A creative visual rewrite to a true split-panel SMART composition is tracked as a follow-up and is not blocking this gate.
+  - Major 6 (no-scroll on dense table pages) â€” PRESERVED (no table page or app shell layout was touched in this pass; root `flex flex-col h-[calc(100svh-3.5rem)]` container is intact).
 
 - Decision: GO for the audit corrections covered by this pass. Follow-up: Login split-panel SMART rewrite.
 
 ## 2026-05-30 - Emerald-success rebalance after token pass
 
-- Phase: Admin UX hardening — preserve correctness signal
+- Phase: Admin UX hardening â€” preserve correctness signal
 - Operator: GitHub Copilot
-- Scope gate: IMPLEMENTATION COMPLETE, TAILNET LIVE VERIFICATION DONE → GO
+- Scope gate: IMPLEMENTATION COMPLETE, TAILNET LIVE VERIFICATION DONE â†’ GO
 - Trigger: User feedback that the token pass over-applied `--primary` to checkmarks/done/zero-state indicators, washing out the familiar green correctness signal that tells the scheduler they are making progress.
 
 - Touched files:
@@ -65,11 +185,11 @@
     - Setup checklist done-row pill reverted to `bg-emerald-100` + `CheckCircle2 text-emerald-600`.
     - Lifecycle banner done-step number circle reverted to `bg-emerald-400 text-white` (active step circle still uses `bg-primary text-primary-foreground` for identity); done-step card border tinted `border-emerald-300/40` for a quiet hint of progress without breaking the maroon gradient.
   - `atlas-client/src/components/app-shell/AppSidebar.tsx`:
-    - `• ACTIVE` school-year indicator reverted to `text-emerald-600` (the "Scheduling Portal" eyebrow stays `text-primary/80` because it is identity, not progress).
+    - `â€¢ ACTIVE` school-year indicator reverted to `text-emerald-600` (the "Scheduling Portal" eyebrow stays `text-primary/80` because it is identity, not progress).
 
 - Color role contract now in effect:
   - **Primary (school brand, e.g. HNHS maroon)**: header CTA, brand stat icon chips (Subjects, Teaching Rooms), `Review phase` badge, `Current phase` identity, "Step N of N" identity badge, lifecycle banner gradient + active step circle, sidebar active nav, "Scheduling Portal" eyebrow.
-  - **Emerald (universal correctness/progress)**: `• ACTIVE` SY indicator, every stat tile's "checkmark + footer" success line, "Unassigned subjects: 0" zero-state, "Sections loaded / Subjects added / Teachers synced / Every subject has a teacher / Buildings ready" checklist completion pills, "{done}/{total}" checklist badge, lifecycle banner done-step number circles.
+  - **Emerald (universal correctness/progress)**: `â€¢ ACTIVE` SY indicator, every stat tile's "checkmark + footer" success line, "Unassigned subjects: 0" zero-state, "Sections loaded / Subjects added / Teachers synced / Every subject has a teacher / Buildings ready" checklist completion pills, "{done}/{total}" checklist badge, lifecycle banner done-step number circles.
   - **Amber**: real warning/blocker surfaces (e.g. `915 blockers`, unassigned subject count > 0, enrollment unavailable).
   - **Sky / Violet**: semantic info categories (Sections, Teachers, Buildings on campus).
 
@@ -79,7 +199,7 @@
 
 # 2026-05-30 - Dashboard adopts SMART visual identity
 
-- Phase: Admin UX hardening — SMART identity alignment
+- Phase: Admin UX hardening â€” SMART identity alignment
 - Operator: GitHub Copilot
 - Scope gate: IMPLEMENTATION COMPLETE, DESKTOP LIVE VERIFICATION DONE
 - Trigger: user feedback that ATLAS still did not look like a sibling system to SMART. Goal was to adopt SMART's visual language (tokens, surfaces, typography, card pattern) without copying SMART's grading domain.
@@ -97,7 +217,7 @@
     - Three small status cards (Current phase / Unassigned subjects / Buildings on campus) with tinted icon boxes and ghost "Open >" CTAs.
     - Two-column feature row: large "Your next step" card (header tinted `bg-emerald-50/40` with Wand2 icon, dynamic title + body + emerald CTA, optional amber "Enrollment unavailable" pill) and "Setup checklist" card (header + 5 rows with circle/check icons, amber hint chip, line-through done state).
     - Bottom emerald gradient lifecycle banner: `bg-linear-to-br from-emerald-500 via-emerald-600 to-teal-700 text-white rounded-2xl shadow-soft-xl`, with five-step row (active = solid white, done = `bg-white/15 backdrop-blur`, upcoming = `bg-white/5`).
-  - docs/DESIGN.md: added "Visual Identity (SMART-family aligned)" section at the top — codifies brand surface, typography, cards/surfaces, stat-tile pattern, buttons/CTAs, lifecycle banners, spacing rhythm, animation, and a fresh anti-pattern list (no sharp 4-8px radii, no heavy stat-card borders, no flat white shells hiding the gradient, no multiple competing CTAs).
+  - docs/DESIGN.md: added "Visual Identity (SMART-family aligned)" section at the top â€” codifies brand surface, typography, cards/surfaces, stat-tile pattern, buttons/CTAs, lifecycle banners, spacing rhythm, animation, and a fresh anti-pattern list (no sharp 4-8px radii, no heavy stat-card borders, no flat white shells hiding the gradient, no multiple competing CTAs).
 
 - Architecture compliance:
   - Dashboard.tsx 482 LoC, still well under the 1000-LoC cap.
@@ -114,7 +234,7 @@ refactor(dashboard,design): adopt SMART visual identity
 
 - index.css: bump radius to 0.75rem, add soft shadow tokens, emerald body gradient,
   global heading letter-spacing, .shadow-soft / .shadow-emerald-glow / .animate-fade-in utilities
-- Dashboard.tsx: full SMART-skeleton rewrite — 4 stat tiles, 3 status cards,
+- Dashboard.tsx: full SMART-skeleton rewrite â€” 4 stat tiles, 3 status cards,
   next-step + checklist row, emerald gradient lifecycle banner
 - docs/DESIGN.md: add Visual Identity (SMART-family aligned) section codifying tokens,
   card pattern, stat-tile pattern, lifecycle banner, anti-patterns
@@ -128,7 +248,7 @@ refactor(dashboard,design): adopt SMART visual identity
 - Scope gate: IMPLEMENTATION COMPLETE, DESKTOP LIVE VERIFICATION DONE
 - Trigger: user feedback that the KISS pass went too minimal and felt empty/unfinished.
 - Touched files:
-  - atlas-client/src/pages/Dashboard.tsx: rebuilt layout to balance focus and density. Now renders, top-to-bottom: identity block (Scheduling Portal eyebrow + title + one-line guidance), NextActionPanel (one emerald CTA), ReadinessObjectRow (4 at-a-glance stats), two-column grid with SetupChecklist (5 items) and CampusReadinessCard (11 buildings / 157 rooms / Review + Edit actions), and a calm LifecycleSummary strip at the bottom (Setup → Preferences → Generation → Review → Published → Archived).
+  - atlas-client/src/pages/Dashboard.tsx: rebuilt layout to balance focus and density. Now renders, top-to-bottom: identity block (Scheduling Portal eyebrow + title + one-line guidance), NextActionPanel (one emerald CTA), ReadinessObjectRow (4 at-a-glance stats), two-column grid with SetupChecklist (5 items) and CampusReadinessCard (11 buildings / 157 rooms / Review + Edit actions), and a calm LifecycleSummary strip at the bottom (Setup â†’ Preferences â†’ Generation â†’ Review â†’ Published â†’ Archived).
 - Width: container widened from max-w-3xl back to max-w-5xl so two-column rows fit cleanly on lg+.
 - Evidence:
   - qa-artifacts/playwright/20260530-admin-dashboard-desktop-balance-after.png (screenshot captured via integrated browser at admin 1000001)
@@ -136,7 +256,7 @@ refactor(dashboard,design): adopt SMART visual identity
 
 Commit suggestion:
 ```
-refactor(dashboard): balance density — readiness row + checklist + campus + lifecycle
+refactor(dashboard): balance density â€” readiness row + checklist + campus + lifecycle
 
 - Restore ReadinessObjectRow, CampusReadinessCard, LifecycleSummary alongside NextActionPanel + SetupChecklist
 - Widen container to max-w-5xl; arrange checklist + campus card as a 2/3-split row
@@ -151,16 +271,16 @@ refactor(dashboard): balance density — readiness row + checklist + campus + li
 - Scope gate: IMPLEMENTATION COMPLETE, DESKTOP LIVE VERIFICATION DONE
 - Trigger: user feedback that the prior dashboard still felt overwhelming.
 - Touched files:
-  - atlas-client/src/pages/Dashboard.tsx (165 → 60 LoC): removed greeting, lifecycle section, quick-actions block, readiness-object stat row, and campus readiness card. Now renders only: page title, NextActionPanel, SetupChecklist. Max-width tightened from 6xl to 3xl for a calmer single-column scan.
+  - atlas-client/src/pages/Dashboard.tsx (165 â†’ 60 LoC): removed greeting, lifecycle section, quick-actions block, readiness-object stat row, and campus readiness card. Now renders only: page title, NextActionPanel, SetupChecklist. Max-width tightened from 6xl to 3xl for a calmer single-column scan.
   - atlas-client/src/components/dashboard/NextActionPanel.tsx: dropped the 5-step lifecycle ladder inside the card. Card is now one row: icon, "Your next step" eyebrow, title + optional warning chip, one-line body, single emerald CTA. The SetupChecklist below carries all progress signal.
 - Components no longer rendered by Dashboard but kept on disk (used elsewhere or available for future): LifecycleSummary, ReadinessObjectRow, CampusReadinessCard.
 - Evidence:
-  - qa-artifacts/playwright/20260529-admin-dashboard-desktop-kiss-after.png — Dashboard at admin 1000001: single emerald next-step card "Check sections" with amber "Enrollment data unavailable" badge inline, followed by compact "Setup checklist 4/5 done" with three crossed-off items and one open item showing the same enrollment hint. No competing color blocks, no duplicated phase chips, no campus card.
+  - qa-artifacts/playwright/20260529-admin-dashboard-desktop-kiss-after.png â€” Dashboard at admin 1000001: single emerald next-step card "Check sections" with amber "Enrollment data unavailable" badge inline, followed by compact "Setup checklist 4/5 done" with three crossed-off items and one open item showing the same enrollment hint. No competing color blocks, no duplicated phase chips, no campus card.
 - Architecture compliance: Dashboard.tsx well under 1000-LoC cap; no native `<select>` introduced; all UI through `@/ui/*` primitives.
 
 Commit suggestion:
 ```
-refactor(dashboard): KISS pass — one identity line, one next step, one checklist
+refactor(dashboard): KISS pass â€” one identity line, one next step, one checklist
 
 - Dashboard: remove lifecycle, quick actions, readiness stat row, campus card
 - NextActionPanel: drop 5-step ladder; SetupChecklist now owns progress signal
@@ -173,18 +293,18 @@ refactor(dashboard): KISS pass — one identity line, one next step, one checkli
 - Operator: GitHub Copilot
 - Scope gate: IMPLEMENTATION COMPLETE, DESKTOP LIVE VERIFICATION DONE, MOBILE VIEWPORT QA DEFERRED
 - Touched files:
-  - atlas-client/src/components/AppShell.tsx (1064 → 457 LoC: removed "Back to EnrollPro", added emerald Scheduling Portal eyebrow + saved-data pill, grouped sidebar nav, dropped legacy header chips)
-  - atlas-client/src/pages/Dashboard.tsx (763 → 165 LoC: collapsed to NextActionPanel + readiness grid + lifecycle + setup progress; removed Konva map embed)
+  - atlas-client/src/components/AppShell.tsx (1064 â†’ 457 LoC: removed "Back to EnrollPro", added emerald Scheduling Portal eyebrow + saved-data pill, grouped sidebar nav, dropped legacy header chips)
+  - atlas-client/src/pages/Dashboard.tsx (763 â†’ 165 LoC: collapsed to NextActionPanel + readiness grid + lifecycle + setup progress; removed Konva map embed)
   - atlas-client/src/components/dashboard/NextActionPanel.tsx (new, 200 LoC: single "Your next step" card with emerald CTA + lifecycle pill row)
   - atlas-client/src/pages/MapEditor.tsx (300 LoC, extracted from CampusMapEditor host: Overview vs Editor mode toggle, ?mode=editor URL, inline toolbar)
   - atlas-client/src/components/CampusMapEditor.tsx (935 LoC, under 1000-cap; Konva canvas only, no chrome)
   - atlas-client/src/components/BuildingPanel.tsx (943 LoC, under 1000-cap; side panel only)
   - atlas-client/src/components/campus-map/CampusMapOverview.tsx (new: stat banner + buildings grid for read-only view)
-- Bug fixed during live QA loop: MapEditor.tsx was missing `useNavigate` import after route extraction → "useNavigate is not defined" runtime ErrorBoundary on /map. Import restored; reload confirmed Overview + Editor modes render.
+- Bug fixed during live QA loop: MapEditor.tsx was missing `useNavigate` import after route extraction â†’ "useNavigate is not defined" runtime ErrorBoundary on /map. Import restored; reload confirmed Overview + Editor modes render.
 - Evidence (qa-artifacts/playwright/, integrated browser at desktop 1056px innerWidth, admin 1000001):
-  - 20260529-admin-dashboard-desktop-smart-recovery-after.png — Dashboard: emerald "Scheduling Portal" eyebrow, "Build and publish the school timetable" title, single emerald "Check sections" next-step CTA, demoted amber "Enrollment data unavailable" inline pill, lifecycle row (Finish setup / Collect preferences / Generate / Fix blockers / Publish), 4 inline readiness stats (Subjects 22 ready, Teachers 151 ready, Sections need attention, Rooms 157/160). No Konva map on dashboard.
-  - 20260529-admin-map-overview-desktop-smart-recovery-after.png — /map Overview: emerald eyebrow, "Campus and rooms" title, Overview/Edit map mode toggle (Overview active), Edit rooms + Edit campus map actions, 4 stats (Buildings 12, Teaching rooms 157/160, Ready 11, Need attention 1), buildings grid with grade-coded badges and Ready / Needs rooms chips.
-  - 20260529-admin-map-editor-desktop-smart-recovery-after.png — /map?mode=editor: "Campus map editor" title with Edit map active, toolbar (Select / Draw building / +/- / undo), Campus photo + undo/redo + "All changes saved" pill + Save changes button, Konva canvas showing G7 (green) and G8 (yellow) buildings honoring DepEd grade color spec, right-side Building Details panel with name + room label prefix + 7-color palette + advanced placement + delete.
+  - 20260529-admin-dashboard-desktop-smart-recovery-after.png â€” Dashboard: emerald "Scheduling Portal" eyebrow, "Build and publish the school timetable" title, single emerald "Check sections" next-step CTA, demoted amber "Enrollment data unavailable" inline pill, lifecycle row (Finish setup / Collect preferences / Generate / Fix blockers / Publish), 4 inline readiness stats (Subjects 22 ready, Teachers 151 ready, Sections need attention, Rooms 157/160). No Konva map on dashboard.
+  - 20260529-admin-map-overview-desktop-smart-recovery-after.png â€” /map Overview: emerald eyebrow, "Campus and rooms" title, Overview/Edit map mode toggle (Overview active), Edit rooms + Edit campus map actions, 4 stats (Buildings 12, Teaching rooms 157/160, Ready 11, Need attention 1), buildings grid with grade-coded badges and Ready / Needs rooms chips.
+  - 20260529-admin-map-editor-desktop-smart-recovery-after.png â€” /map?mode=editor: "Campus map editor" title with Edit map active, toolbar (Select / Draw building / +/- / undo), Campus photo + undo/redo + "All changes saved" pill + Save changes button, Konva canvas showing G7 (green) and G8 (yellow) buildings honoring DepEd grade color spec, right-side Building Details panel with name + room label prefix + 7-color palette + advanced placement + delete.
 - Deferred / not in this pass:
   - Mobile portrait screenshots: integrated browser surface ignores `setViewportSize` (window.innerWidth stays 1056). Re-capture via `npm run test:visual:faculty` Playwright matrix or a standalone Playwright script in a follow-up.
   - Phase gate evaluation: this work supports usability but is not a phase-3 generator-readiness closure event. No phase status changed.
@@ -194,8 +314,8 @@ Commit suggestion:
 ```
 refactor(ui): rebuild dashboard + map shell with single-next-step identity
 
-- AppShell: drop EnrollPro back-link, add emerald Scheduling Portal eyebrow + saved-data pill, group sidebar nav (1064→457 LoC)
-- Dashboard: collapse to NextActionPanel + readiness grid; remove inline Konva map (763→165 LoC)
+- AppShell: drop EnrollPro back-link, add emerald Scheduling Portal eyebrow + saved-data pill, group sidebar nav (1064â†’457 LoC)
+- Dashboard: collapse to NextActionPanel + readiness grid; remove inline Konva map (763â†’165 LoC)
 - MapEditor: extract Overview vs Editor mode toggle into routed page; fix missing useNavigate import
 - CampusMapEditor / BuildingPanel: trim to canvas + panel only (under 1000 LoC cap)
 ```
@@ -230,7 +350,7 @@ refactor(ui): rebuild dashboard + map shell with single-next-step identity
 - `npm --prefix atlas-client run build` -> vite build clean (2515 modules transformed)
 
 ## Required manual / live verification checklist (Tailnet)
-- [ ] Faculty login (`maria.santos@deped.edu.ph` / `DepEd2026!`) on https://njgrm.buru-degree.ts.net : `MyDashboard`, `FacultyPreferences`, `FacultyRoomPreferences`, `MySchedule` show no "Working from saved data" banner while runtime is healthy (source = enrollpro-verified or atlas-persisted, stale = false).
+- [ ] Faculty login (`2000056` / `DepEd2026!`, real EnrollPro teacher; legacy `maria.santos@deped.edu.ph` is deprecated) on https://njgrm.buru-degree.ts.net : `MyDashboard`, `FacultyPreferences`, `FacultyRoomPreferences`, `MySchedule` show no "Working from saved data" banner while runtime is healthy (source = enrollpro-verified or atlas-persisted, stale = false).
 - [ ] Same faculty session: no repeating `GET /enrollpro-api/school-years 401` in DevTools console.
 - [ ] Same faculty session: `/preferences/.../events` and `/room-preferences/.../events` SSE streams stay open (no `ERR_FAILED` / `ERR_ABORTED` flood).
 - [ ] `FacultyRoomPreferences` bootstrap loads room state via `/latest/me` (Network tab) without 403.
@@ -294,7 +414,7 @@ refactor(ui): rebuild dashboard + map shell with single-next-step identity
 
 ### Server
 
-- **`atlas-server/src/services/section-adapter.ts`** — Added `AbortSignal.timeout(4000)` to `fetchEnrollProActiveSchoolYear()`. The upstream fetch is now bounded to 4 seconds. On timeout or any failure, the `catch` block in `resolveRuntimeContext()` (runtime-context.service.ts) continues to return the `atlas-persisted` result without raising 500/502. Evidence-ranking behavior is unchanged.
+- **`atlas-server/src/services/section-adapter.ts`** â€” Added `AbortSignal.timeout(4000)` to `fetchEnrollProActiveSchoolYear()`. The upstream fetch is now bounded to 4 seconds. On timeout or any failure, the `catch` block in `resolveRuntimeContext()` (runtime-context.service.ts) continues to return the `atlas-persisted` result without raising 500/502. Evidence-ranking behavior is unchanged.
 
 ### Client: shared resolver (`atlas-client/src/lib/enrollpro-public-settings.ts`)
 
@@ -313,8 +433,8 @@ refactor(ui): rebuild dashboard + map shell with single-next-step identity
 
 ### Client: Faculty and Sections pages
 
-- **`atlas-client/src/pages/Faculty.tsx`** — Removed `forceRefresh: navigator.onLine`. Mount effect is now `fetchFaculty({})`. `resolveActiveSchoolYearContext` is called with `preferCache: true, backgroundRefresh: true`. Cached school-year is returned immediately; background re-verification updates the cache asynchronously.
-- **`atlas-client/src/pages/Sections.tsx`** — Same change: removed `forceRefresh: navigator.onLine`, using `preferCache: true, backgroundRefresh: true`.
+- **`atlas-client/src/pages/Faculty.tsx`** â€” Removed `forceRefresh: navigator.onLine`. Mount effect is now `fetchFaculty({})`. `resolveActiveSchoolYearContext` is called with `preferCache: true, backgroundRefresh: true`. Cached school-year is returned immediately; background re-verification updates the cache asynchronously.
+- **`atlas-client/src/pages/Sections.tsx`** â€” Same change: removed `forceRefresh: navigator.onLine`, using `preferCache: true, backgroundRefresh: true`.
 - Degraded-state notices remain intact: cached/refreshing/atlas-mirror labels are unchanged.
 
 ### Client: timetable hook (`atlas-client/src/hooks/useTimetableData.ts`)
@@ -324,8 +444,8 @@ refactor(ui): rebuild dashboard + map shell with single-next-step identity
 
 ## Automated verification
 
-- `npm --prefix atlas-server run build` → PASS (tsc, zero errors)
-- `npm --prefix atlas-client run build` → PASS (vite, 2514 modules transformed, zero errors)
+- `npm --prefix atlas-server run build` â†’ PASS (tsc, zero errors)
+- `npm --prefix atlas-client run build` â†’ PASS (vite, 2514 modules transformed, zero errors)
 
 ## Required manual / live verification checklist (Tailnet)
 

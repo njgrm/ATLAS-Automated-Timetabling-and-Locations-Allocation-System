@@ -387,14 +387,15 @@ export default function FacultyPreferences() {
 	}
 
 	return (
-		<div className='flex flex-col h-[calc(100svh-3.5rem)] overflow-hidden bg-background'>
+		<div className='flex flex-col h-[calc(100svh-3.5rem)] overflow-hidden bg-muted/30'>
 			<FacultyGlobalHeader
-				title='My Teacher Preferences'
-				subtitle='Share support needs for scheduler review. Room changes are separate.'
+				title='Support preferences'
+				eyebrow='Faculty'
+				subtitle='Tell the scheduler about support needs. Room changes are submitted separately.'
 				steps={[
-					{ id: 1, label: '1 Support' },
-					{ id: 2, label: '2 Notes' },
-					{ id: 3, label: '3 Submit' },
+					{ id: 1, label: 'Support' },
+					{ id: 2, label: 'Notes' },
+					{ id: 3, label: 'Submit' },
 				]}
 				activeStep={preferenceStep}
 				online={online}
@@ -402,16 +403,13 @@ export default function FacultyPreferences() {
 				realtimeConnected={sseConnected}
 				advisory={advisory}
 				onRetryFailed={usingCachedPreference ? () => void loadPreference() : undefined}
-			>
-				{schoolYearNotice && (
-					<div className='rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-[10px] font-bold text-amber-900 uppercase'>
-						{schoolYearNotice}
-					</div>
-				)}
-			</FacultyGlobalHeader>
+			/>
 
-			<div className='flex-1 min-h-0 overflow-auto px-4 py-6 sm:px-6 sm:py-8'>
-				<div className='max-w-7xl mx-auto h-full'>
+			<div className='flex-1 min-h-0 overflow-auto px-4 py-5 sm:px-6 sm:py-6 pb-32 lg:pb-6'>
+				{schoolYearNotice && (
+					<p className='mx-auto mb-3 max-w-6xl text-[11px] text-muted-foreground'>{schoolYearNotice}</p>
+				)}
+				<div className='max-w-6xl mx-auto h-full'>
 					{isMobile ? (
 						<MobilePreferencesLayout
 							wellbeing={wellbeing}
@@ -433,40 +431,35 @@ export default function FacultyPreferences() {
 			</div>
 
 			{canEdit && (
-				<div className='shrink-0 border-t border-border bg-background/95 backdrop-blur p-4 sm:p-6 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]'>
-					<div className='max-w-7xl mx-auto flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3'>
-						<div className='flex items-center gap-3'>
-							<span className='text-xs font-bold text-muted-foreground uppercase tracking-wider'>Status</span>
-							<Badge variant={isSubmitted ? 'success' : 'warning'} className='rounded-full px-3 h-6 text-xs'>
+				<div className='shrink-0 border-t border-border/70 bg-card/95 backdrop-blur px-4 py-3 sm:px-6'>
+					<div className='mx-auto flex max-w-6xl flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3'>
+						<div className='flex items-center gap-2'>
+							<Badge variant={isSubmitted ? 'success' : 'warning'} className='rounded-full px-2.5 h-6 text-[11px] font-semibold'>
 								{isSubmitted ? 'Submitted' : 'Draft'}
 							</Badge>
+							{!online && <span className='text-[11px] font-medium text-amber-700'>Offline — connect to save</span>}
 						</div>
 
-						<div className='flex items-center gap-3'>
+						<div className='flex items-center gap-2'>
 							<Button
 								variant='outline'
 								onClick={saveDraft}
 								disabled={saving || submitting || !online}
-								className='flex-1 sm:flex-none h-12 sm:h-10 rounded-xl font-bold gap-2'
+								className='flex-1 sm:flex-none h-11 sm:h-10 rounded-xl font-semibold gap-2'
 							>
 								{saving ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
-								Save Draft
+								Save draft
 							</Button>
 							<Button
 								onClick={submitPreference}
 								disabled={saving || submitting || !online}
-								className='flex-1 sm:flex-none h-12 sm:h-10 rounded-xl font-bold gap-2 shadow-sm'
+								className='flex-1 sm:flex-none h-11 sm:h-10 rounded-xl font-semibold gap-2 shadow-sm'
 							>
 								{submitting ? <Loader2 className='size-4 animate-spin' /> : <Send className='size-4' />}
-								Submit Final
+								Submit
 							</Button>
 						</div>
 					</div>
-					{!online && (
-						<p className='mt-3 text-xs font-medium text-amber-700'>
-							Connect to the internet to save or submit preference changes.
-						</p>
-					)}
 				</div>
 			)}
 		</div>

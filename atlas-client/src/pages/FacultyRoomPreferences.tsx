@@ -51,12 +51,20 @@ import { Switch } from '@/ui/switch';
 import DesktopRoomRequestLayout from '@/components/faculty-room-preferences/DesktopRoomRequestLayout';
 import MobileRoomRequestLayout from '@/components/faculty-room-preferences/MobileRoomRequestLayout';
 import RoomRequestSheet from '@/components/faculty-room-preferences/RoomRequestSheet';
+import {
+	ACTION_LABELS,
+	DAYS,
+	FACULTY_ROOM_TUTORIAL_STEPS,
+	applyRoomSelection,
+	isEntryDirty,
+	slotKey,
+	statusBadge,
+	type RoomOption,
+} from '@/components/faculty-room-preferences/room-request-helpers';
 import { useMobileConflictPreview } from '@/hooks/useMobileConflictPreview';
 
 const DEFAULT_SCHOOL_ID = 1;
 const ROOM_BOOTSTRAP_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-
-type RoomOption = Room & { buildingName: string };
 
 type SlotTarget = {
 	day: DayOfWeek;
@@ -83,74 +91,6 @@ type FacultyRoomBootstrapSnapshot = {
 type FacultyPortalObjectiveLookup = {
 	teachingAssignments: FacultyTeachingAssignmentIdentity[];
 };
-
-const ACTION_LABELS: Record<RequestActionType, string> = {
-	ROOM_CHANGE: 'Room change only',
-	MOVE_TO_EMPTY_SLOT: 'Move to empty slot',
-	SWAP_WITH_OCCUPIED: 'Swap with occupied slot',
-	TIME_AND_ROOM_CHANGE: 'Time + room change',
-};
-
-const DAYS: DayOfWeek[] = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
-
-const FACULTY_ROOM_TUTORIAL_STEPS: TutorialStep[] = [
-	{
-		target: '[data-tutorial="room-step-guidance"]',
-		title: 'Follow The 3 Steps',
-		content: 'Start from Step 1, then move forward to submit. The page keeps you focused on one action at a time.',
-	},
-	{
-		target: '[data-tutorial="context-toggle"]',
-		title: 'Simple View First',
-		content: 'You will first see only what you need. Turn on full schedule context only when you need more details.',
-	},
-	{
-		target: '[data-tutorial="my-classes-panel"]',
-		title: 'Pick Your Class',
-		content: 'Choose your class first. This tells the system which class you are requesting to move.',
-	},
-	{
-		target: '[data-tutorial="target-slot-map"]',
-		title: 'Choose New Time Slot',
-		content: 'Click a free slot to move. Click an occupied slot to request a swap.',
-	},
-	{
-		target: '[data-tutorial="room-picker-modes"]',
-		title: 'Choose Room Your Way',
-		content: 'When the request panel opens, you can pick a room using list, building, or map view.',
-	},
-];
-
-import { CheckCircle2, XCircle, Clock, FileEdit, HelpCircle } from 'lucide-react';
-
-// ...
-
-function statusBadge(status: RoomPreferenceStatus | null, decision: RoomPreferenceDecisionStatus | null) {
-	if (decision === 'APPROVED') return <Badge variant='success' className='text-xs h-5 px-1.5 gap-1'><CheckCircle2 className="size-3" /> Approved</Badge>;
-	if (decision === 'REJECTED') return <Badge variant='destructive' className='text-xs h-5 px-1.5 gap-1'><XCircle className="size-3" /> Rejected</Badge>;
-	if (status === 'SUBMITTED') return <Badge variant='default' className='text-xs h-5 px-1.5 gap-1'><Clock className="size-3" /> Pending</Badge>;
-	if (status === 'DRAFT') return <Badge variant='secondary' className='text-xs h-5 px-1.5 gap-1'><FileEdit className="size-3" /> Draft</Badge>;
-	return <Badge variant='outline' className='text-xs h-5 px-1.5 text-muted-foreground/60 gap-1'><HelpCircle className="size-3" /> No request</Badge>;
-}
-
-function isEntryDirty(current: FacultyRoomPreferenceEntry, initial?: FacultyRoomPreferenceEntry) {
-	return (initial?.requestedRoomId ?? null) !== (current.requestedRoomId ?? null)
-		|| (initial?.rationale ?? '') !== (current.rationale ?? '');
-}
-
-function applyRoomSelection(entries: FacultyRoomPreferenceEntry[], entryId: string, room: RoomOption) {
-	return entries.map((entry) => entry.entryId === entryId
-		? {
-			...entry,
-			requestedRoomId: room.id,
-			requestedRoomName: `${room.name} Â· ${room.buildingName}`,
-		}
-		: entry);
-}
-
-function slotKey(day: string, startTime: string, endTime: string) {
-	return `${day}|${startTime}|${endTime}`;
-}
 
 export default function FacultyRoomPreferences() {
 	const [searchParams] = useSearchParams();
@@ -914,14 +854,15 @@ export default function FacultyRoomPreferences() {
 	}
 
 	return (
-		<div className='flex h-[calc(100svh-3.5rem)] min-h-0 flex-col overflow-hidden'>
+		<div className='flex h-[calc(100svh-3.5rem)] min-h-0 flex-col overflow-hidden bg-muted/30'>
 			<FacultyGlobalHeader
-				title='My Room Requests'
+				title='Room requests'
+				eyebrow='Faculty'
 				subtitle={currentStep === 1 ? 'Pick the class you want to move.' : currentStep === 2 ? 'Pick the new time slot.' : 'Review the check and submit.'}
 				steps={[
-					{ id: 1, label: '1 Select Class' },
-					{ id: 2, label: '2 Choose Target' },
-					{ id: 3, label: '3 Submit' },
+					{ id: 1, label: 'Class' },
+					{ id: 2, label: 'Target' },
+					{ id: 3, label: 'Submit' },
 				]}
 				activeStep={currentStep}
 				online={online}
@@ -934,28 +875,25 @@ export default function FacultyRoomPreferences() {
 				advisory={advisory}
 				onRetryFailed={usingCachedBootstrap ? () => void loadBootstrap() : retryFailedOutboxActions}
 			>
-				{schoolYearNotice && (
-					<div className='rounded-xl border border-amber-200 bg-amber-50 px-3 py-1 text-[10px] font-bold text-amber-900 uppercase'>
-						{schoolYearNotice}
-					</div>
-				)}
-				
-				<div className='flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5 text-xs sm:text-sm'>
-					<span className='font-bold text-foreground'>{entries.length} review class{entries.length === 1 ? '' : 'es'}</span>
-					<span className='text-border/60'>•</span>
+				<div className='flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-card px-3 py-1.5 text-[12px]'>
+					<span className='font-semibold text-foreground'>{entries.length} class{entries.length === 1 ? '' : 'es'}</span>
+					<span className='text-muted-foreground'>·</span>
 					<span className='text-muted-foreground'>{submittedCount} pending</span>
-					{entries.length === 0 && teachingAssignments.length > 0 && <Badge variant='warning' className="h-5 px-1.5 text-[10px]">Teaching load linked</Badge>}
-					{dirtyCount > 0 && <Badge variant='warning' className="h-5 px-1.5 text-[10px]">Unsaved changes</Badge>}
-					<div className="flex-1" />
+					{entries.length === 0 && teachingAssignments.length > 0 && <Badge variant='warning' className='h-5 px-1.5 text-[10px]'>Teaching load linked</Badge>}
+					{dirtyCount > 0 && <Badge variant='warning' className='h-5 px-1.5 text-[10px]'>Unsaved</Badge>}
+					<div className='flex-1' />
 					<div className='flex items-center gap-2' data-tutorial='context-toggle'>
 						<Switch
 							checked={showFullScheduleContext}
 							onCheckedChange={setShowFullScheduleContext}
-							className="scale-75"
+							className='scale-75'
 						/>
-						<span className='text-[11px] text-muted-foreground font-bold uppercase'>Full Context</span>
+						<span className='text-[11px] font-medium text-muted-foreground'>Full context</span>
 					</div>
 				</div>
+				{schoolYearNotice && (
+					<p className='text-[11px] text-muted-foreground'>{schoolYearNotice}</p>
+				)}
 			</FacultyGlobalHeader>
 
 			<div className="flex flex-1 min-h-0 overflow-hidden">

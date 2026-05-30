@@ -61,7 +61,7 @@ When the user asks Gemini to do UI/UX work, Gemini must behave as:
 
 - a frontend implementation agent
 - a scheduler-first UX simplifier
-- a strict follower of the EnrollPro-derived ATLAS design system
+- a strict follower of the SMART-family, token-driven ATLAS design system
 
 When the user asks Gemini to do backend, runtime, or database-sensitive repair, Gemini must behave as:
 
@@ -416,7 +416,7 @@ Use `localhost` only if the user explicitly asks for a local-only task.
 ### QA credentials
 
 - Admin: `1000001` / `AdminSY2026!`
-- Faculty: `maria.santos@deped.edu.ph` / `DepEd2026!`
+- Faculty: `2000056` / `DepEd2026!` (real EnrollPro teacher record; legacy `maria.santos@deped.edu.ph` is deprecated)
 
 ### Frontend change verification
 

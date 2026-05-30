@@ -503,7 +503,7 @@ export default function Dashboard() {
 						<CardHeader className='border-b border-slate-100 px-6 py-4'>
 							<div className='flex items-center justify-between'>
 								<div>
-									<CardTitle className='text-lg text-slate-900'>Setup checklist</CardTitle>
+									<CardTitle className='text-lg text-slate-900'>Setup readiness</CardTitle>
 									<CardDescription>
 										{doneCount} of {checklist.length} ready
 									</CardDescription>
@@ -567,7 +567,7 @@ export default function Dashboard() {
 						<div className='flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6'>
 							<div>
 								<p className='text-[11px] font-bold uppercase tracking-wider text-primary-foreground/70'>
-									Lifecycle
+									Scheduling lifecycle
 								</p>
 								<h3 className='text-xl lg:text-2xl font-bold mt-1'>Where the school year stands</h3>
 								<p className='text-primary-foreground/80 text-sm mt-1'>

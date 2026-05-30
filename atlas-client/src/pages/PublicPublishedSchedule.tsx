@@ -416,8 +416,8 @@ export default function PublicPublishedSchedule() {
 					<div className="mx-auto w-full max-w-4xl">
 						<Card className="rounded-2xl border-border/70">
 							<CardContent className="py-10">
-								<p className="text-lg font-semibold">No published schedule yet</p>
-								<p className="mt-2 text-sm text-muted-foreground">The schedule is not published for this school yet. Students, teachers, and rooms will appear here after the scheduler publishes a run.</p>
+								<p className="text-lg font-semibold">No official schedule has been published yet</p>
+								<p className="mt-2 text-sm text-muted-foreground">Once the school publishes the term schedule, you will see your class timetable here.</p>
 							</CardContent>
 						</Card>
 					</div>
@@ -442,8 +442,8 @@ export default function PublicPublishedSchedule() {
 						<CardHeader className="pb-3">
 							<div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
 								<div className="space-y-1">
-									<CardTitle className="text-2xl font-semibold tracking-tight">Published Schedule Family</CardTitle>
-									<CardDescription>Table-first published timetables for students. Browse by section.</CardDescription>
+									<CardTitle className="text-2xl font-semibold tracking-tight">Find your class schedule</CardTitle>
+									<CardDescription>Search by section. Filter by grade or program. The official schedule for your school.</CardDescription>
 								</div>
 								<div className="flex flex-wrap items-center gap-2">
 									<Badge variant="outline" className={online ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-800'}>
@@ -451,7 +451,7 @@ export default function PublicPublishedSchedule() {
 										{online ? 'Online' : 'Offline'}
 									</Badge>
 									<Badge variant="outline" className={sourceMode === 'live' ? 'border-sky-200 bg-sky-50 text-sky-700' : sourceMode === 'saved' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-muted bg-muted text-muted-foreground'}>
-										{sourceMode === 'live' ? 'Live Published Data' : sourceMode === 'saved' ? 'Saved Published Data' : 'No Published Data'}
+										{sourceMode === 'live' ? 'Official schedule' : sourceMode === 'saved' ? 'Showing the last saved copy' : 'No official schedule yet'}
 									</Badge>
 									<Button variant="outline" size="sm" className="rounded-xl" onClick={() => void loadPublishedSchedule()}>
 										<RefreshCcw className="mr-2 size-4" /> Refresh
@@ -462,16 +462,16 @@ export default function PublicPublishedSchedule() {
 						</CardHeader>
 						<CardContent className="space-y-3 pt-0 text-sm text-muted-foreground">
 							<div className="flex flex-wrap items-center gap-2">
-								<Badge variant="outline">Run #{payload.source.runId}</Badge>
-								<Badge variant="outline">School Year {payload.source.schoolYearId}</Badge>
-								<Badge variant="outline">School {schoolId}</Badge>
 								<Badge variant="outline">{summary.classCount} class{summary.classCount === 1 ? '' : 'es'}</Badge>
 								<Badge variant="outline">{summary.sectionCount} section{summary.sectionCount === 1 ? '' : 's'}</Badge>
 								<Badge variant="outline">{summary.facultyCount} teacher{summary.facultyCount === 1 ? '' : 's'}</Badge>
 								<Badge variant="outline">{summary.roomCount} room{summary.roomCount === 1 ? '' : 's'}</Badge>
 							</div>
-							<p>Latest published run: #{payload.source.runId} • Published at {formatTimestamp(payload.source.publishedAt)}</p>
-							{sourceMode === 'saved' && savedAt && <p>Showing your saved published data from {formatTimestamp(savedAt)}{savedIsStale ? '. This saved copy may be out of date.' : '.'}</p>}
+							<details className="text-xs">
+								<summary className="cursor-pointer text-muted-foreground/80">Schedule version</summary>
+								<p className="mt-1">Most recent schedule: {formatTimestamp(payload.source.publishedAt)} (reference #{payload.source.runId})</p>
+							</details>
+							{sourceMode === 'saved' && savedAt && <p>Showing the last saved copy from {formatTimestamp(savedAt)}{savedIsStale ? '. This saved copy may be out of date.' : '.'}</p>}
 						</CardContent>
 					</Card>
 

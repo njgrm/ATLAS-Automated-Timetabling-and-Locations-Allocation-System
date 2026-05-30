@@ -183,13 +183,6 @@ export default function MyDashboard() {
 		};
 	}, [cachedDashboardAt, dashboard, usingCachedDashboard]);
 
-	const dashboardStep = useMemo(() => {
-		if (!dashboard) return 1;
-		if (!dashboard.objectiveState.hasDraftEntries) return 1;
-		if (dashboard.schedulePreview.counts.pending > 0) return 3;
-		return 2;
-	}, [dashboard]);
-
 	if (loading) {
 		return (
 			<div className='flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden'>
@@ -226,31 +219,21 @@ export default function MyDashboard() {
 	}
 
 	return (
-		<div className='flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-background'>
+		<div className='flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-muted/30'>
 			<FacultyGlobalHeader
-				title='Teacher Portal'
-				subtitle='Track classes and room requests.'
-				steps={[
-					{ id: 1, label: '1 Review' },
-					{ id: 2, label: '2 Request' },
-					{ id: 3, label: '3 Decision' },
-				]}
-				activeStep={dashboardStep}
+				title='Dashboard'
+				eyebrow='Faculty'
 				online={online}
 				syncState={usingCachedDashboard ? 'failed' : online ? 'idle' : 'queued-offline'}
-				realtimeConnected={true}
 				advisory={advisory}
 				onRetryFailed={usingCachedDashboard ? () => void loadDashboard() : undefined}
-			>
-				{schoolYearNotice && (
-					<div className='rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-[10px] font-bold text-amber-900 uppercase tracking-tight'>
-						{schoolYearNotice}
-					</div>
-				)}
-			</FacultyGlobalHeader>
+			/>
 
-			<div className='flex-1 min-h-0 overflow-auto px-4 py-6 sm:px-6 sm:py-8'>
-				<div className='max-w-7xl mx-auto h-full'>
+			<div className='flex-1 min-h-0 overflow-auto px-4 py-5 sm:px-6 sm:py-6 pb-20 lg:pb-8'>
+				{schoolYearNotice && (
+					<p className='mx-auto mb-4 max-w-7xl text-[11px] text-muted-foreground'>{schoolYearNotice}</p>
+				)}
+				<div className='max-w-7xl mx-auto'>
 					{isMobile ? (
 						<MobileDashboardLayout
 							facultyName={dashboard.faculty.name}

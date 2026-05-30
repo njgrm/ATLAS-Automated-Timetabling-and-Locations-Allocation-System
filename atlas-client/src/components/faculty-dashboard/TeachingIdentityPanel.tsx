@@ -60,10 +60,10 @@ export default function TeachingIdentityPanel({ assignments, maxSections = 6, co
 
 	if (assignments.length === 0) {
 		return (
-			<Card className='rounded-2xl border-amber-200 bg-amber-50/60'>
+			<Card className='rounded-2xl border-amber-200 bg-amber-50'>
 				<CardContent className={compact ? 'p-3' : 'p-4'}>
-					<p className='text-sm font-bold text-amber-950'>No teaching load found</p>
-					<p className='mt-1 text-xs leading-relaxed text-amber-800'>Your account is signed in, but no assignment-bearing classes are linked for this school year.</p>
+					<p className='text-[13px] font-semibold text-amber-900'>No teaching load found</p>
+					<p className='mt-1 text-[12px] leading-snug text-amber-800/85'>Your account is signed in, but no classes are linked for this school year.</p>
 				</CardContent>
 			</Card>
 		);
@@ -74,21 +74,21 @@ export default function TeachingIdentityPanel({ assignments, maxSections = 6, co
 	const hasRotation = assignments.some(isRotational);
 
 	return (
-		<Card className='rounded-2xl border-border/50 bg-muted/10'>
-			<CardContent className={compact ? 'space-y-3 p-3' : 'space-y-3 p-4'}>
+		<Card className='rounded-2xl border-border/60 bg-card shadow-sm'>
+			<CardContent className={compact ? 'space-y-3 p-4' : 'space-y-3 p-5'}>
 				<div className='flex items-center justify-between gap-3'>
 					<div>
-						<p className='text-xs font-bold text-muted-foreground uppercase tracking-wider'>Teaching Load</p>
-						<p className='text-xs text-muted-foreground'>{assignments.length} class assignment{assignments.length === 1 ? '' : 's'} linked to your account.</p>
+						<p className='text-[13px] font-semibold text-foreground'>Your teaching load</p>
+						<p className='mt-0.5 text-[12px] text-muted-foreground'>{assignments.length} class{assignments.length === 1 ? '' : 'es'} linked to your account.</p>
 					</div>
-					{hasRotation && <Badge variant='warning'>Rotates by term</Badge>}
+					{hasRotation && <Badge variant='warning' className='shrink-0'>Rotates by term</Badge>}
 				</div>
-				<div className='space-y-2'>
+				<div className='grid grid-cols-1 gap-2 sm:grid-cols-2'>
 					{visibleGroups.map((group) => (
-						<div key={group.sectionId} className='rounded-xl border border-border/50 bg-background px-3 py-2'>
+						<div key={group.sectionId} className='rounded-xl border border-border/60 bg-muted/30 px-3 py-2.5'>
 							<div className='flex items-start justify-between gap-2'>
 								<div className='min-w-0'>
-									<p className='text-xs font-bold truncate'>{group.sectionName}</p>
+									<p className='truncate text-[13px] font-semibold text-foreground'>{group.sectionName}</p>
 									<p className='text-[11px] text-muted-foreground'>Grade {group.gradeLevel}</p>
 								</div>
 								{group.assignments.some(isRotational) && <Badge variant='outline' className='shrink-0 text-[10px]'>Term load</Badge>}
@@ -98,16 +98,16 @@ export default function TeachingIdentityPanel({ assignments, maxSections = 6, co
 									<Badge
 										key={`${assignment.sectionId}:${assignment.subjectId}:${assignment.rotationTermGroupId ?? assignment.rotationTermRank ?? 'all'}`}
 										variant={isRotational(assignment) ? 'secondary' : 'outline'}
-										className='max-w-full truncate text-[10px]'
+										className='max-w-full truncate text-[10px] font-medium'
 									>
-										{assignment.subjectDisplayLabel} - {buildTermLabel(assignment)}
+										{assignment.subjectDisplayLabel} · {buildTermLabel(assignment)}
 									</Badge>
 								))}
 							</div>
 						</div>
 					))}
 				</div>
-				{hiddenCount > 0 && <p className='text-xs text-muted-foreground'>Showing {visibleGroups.length} sections. {hiddenCount} more section{hiddenCount === 1 ? '' : 's'} are linked.</p>}
+				{hiddenCount > 0 && <p className='text-[11px] text-muted-foreground'>Showing {visibleGroups.length} sections. {hiddenCount} more linked.</p>}
 			</CardContent>
 		</Card>
 	);

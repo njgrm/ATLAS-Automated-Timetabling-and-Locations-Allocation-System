@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, Suspense } from 'react';
 import { Link, useLocation, useNavigate, useOutlet } from 'react-router-dom';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 
 import { captureBridgeToken, getBackHref as _getBackHref } from '@/lib/bridge';
 import { applyEnrollProAccentTheme, fetchPublicSettings, fetchSchoolYears, verifySessionToken } from '@/lib/settings';
@@ -43,6 +43,7 @@ import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
 import { useAccessibility } from '@/hooks/useAccessibility';
 
 import { AppSidebar } from './app-shell/AppSidebar';
+import { FacultyMobileBottomNav } from './app-shell/FacultyMobileBottomNav';
 import { MobileNavigationDrawer } from './app-shell/MobileNavigationDrawer';
 import { SchoolYearSwitcher } from './app-shell/SchoolYearSwitcher';
 import {
@@ -113,6 +114,7 @@ export function AppShell() {
 	const location = useLocation();
 	const outlet = useOutlet();
 	const { fontSize, setFontSize } = useAccessibility();
+	const reduceMotion = useReducedMotion();
 	const isTimetableRoute = location.pathname.startsWith('/timetable');
 	const suspenseFallback = isTimetableRoute
 		? <TimetableSkeleton />
@@ -440,17 +442,19 @@ export function AppShell() {
 				<AnimatePresence mode="wait">
 					<motion.div
 						key={location.pathname}
-						initial={{ opacity: 0 }}
-						animate={{ opacity: 1 }}
-						exit={{ opacity: 0 }}
-						transition={{ duration: 0.15, ease: 'linear' }}
-						className='flex-1 min-h-0 overflow-hidden'
+						initial={reduceMotion ? false : { opacity: 0 }}
+						animate={reduceMotion ? { opacity: 1 } : { opacity: 1 }}
+						exit={reduceMotion ? { opacity: 1 } : { opacity: 0 }}
+						transition={reduceMotion ? { duration: 0 } : { duration: 0.15, ease: 'linear' }}
+						className={`flex-1 min-h-0 overflow-hidden ${isMobile && isFaculty ? 'pb-16' : ''}`}
 					>
 						<Suspense fallback={suspenseFallback}>
 							{outlet && React.cloneElement(outlet as React.ReactElement, { key: location.pathname })}
 						</Suspense>
 					</motion.div>
 				</AnimatePresence>
+
+				{isMobile && isFaculty && <FacultyMobileBottomNav />}
 			</SidebarInset>
 		</SidebarProvider>
 	);

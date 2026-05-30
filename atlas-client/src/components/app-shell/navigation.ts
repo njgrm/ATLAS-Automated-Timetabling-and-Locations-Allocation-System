@@ -28,12 +28,15 @@ export const navigationNav: NavItemDef[] = [
 export const setupNav: NavItemDef[] = [
 	{ label: 'Sections', to: '/sections', icon: GraduationCap, adminOnly: true },
 	{ label: 'Subjects', to: '/subjects', icon: BookOpen, adminOnly: true },
-	{ label: 'Campus & Rooms', to: '/map', icon: MapPinned, adminOnly: true },
 ];
 
 export const facultyPlanningNav: NavItemDef[] = [
 	{ label: 'Teachers', to: '/teachers', icon: Users, adminOnly: true },
 	{ label: 'Teaching Load', to: '/teaching-load', icon: UserCog, adminOnly: true },
+];
+
+export const campusNav: NavItemDef[] = [
+	{ label: 'Campus & Rooms', to: '/map', icon: MapPinned, adminOnly: true },
 ];
 
 export const inputCollectionNav: NavItemDef[] = [
@@ -62,6 +65,7 @@ export const breadcrumbGroups: { label: string; items: NavItemDef[] }[] = [
 	{ label: 'Navigation', items: navigationNav },
 	{ label: 'School Setup', items: setupNav },
 	{ label: 'Teacher Planning', items: facultyPlanningNav },
+	{ label: 'Campus', items: campusNav },
 	{ label: 'Input Collection', items: inputCollectionNav },
 	{ label: 'Build & Validate', items: buildValidateNav },
 	{ label: 'My Portal', items: facultyNav },

@@ -377,6 +377,35 @@ function computeSummary(entries: ScheduledEntry[], unassigned: unknown[], valida
 	};
 }
 
+/**
+ * Preserve publication state and display-slot metadata when a manual edit recomputes
+ * a run's summary. Manual edits to a published run must not silently unpublish it;
+ * unpublish must be an explicit action with its own audit trail.
+ */
+function mergePreservedSummaryFields(existingSummary: unknown, newSummary: RunSummary): RunSummary & Record<string, unknown> {
+	const merged: RunSummary & Record<string, unknown> = { ...newSummary };
+	if (!existingSummary || typeof existingSummary !== 'object' || Array.isArray(existingSummary)) {
+		return merged;
+	}
+	const prev = existingSummary as Record<string, unknown>;
+	const preserveKeys = [
+		'isPublished',
+		'publishedAt',
+		'publishedBy',
+		'publishedSoftViolationCount',
+		'softViolationsAcknowledged',
+		'publicationIntegrity',
+		'timetableDisplaySlots',
+		'timetableShapeContracts',
+	];
+	for (const key of preserveKeys) {
+		if (prev[key] !== undefined) {
+			merged[key] = prev[key];
+		}
+	}
+	return merged;
+}
+
 // ─── Human-readable conflict builder ───
 
 const VIOLATION_TITLES: Record<string, string> = {
@@ -741,6 +770,7 @@ export async function commitManualEdit(
 	}
 
 	const newSummary = computeSummary(newEntries, newUnassigned, newValidation);
+	const preservedSummary = mergePreservedSummaryFields(run.summary, newSummary);
 	const newVersion = run.version + 1;
 
 	// Persist atomically: update run + create edit record
@@ -751,7 +781,7 @@ export async function commitManualEdit(
 				draftEntries: newEntries as unknown as object[],
 				unassignedItems: newUnassigned as unknown as object[],
 				violations: newValidation.violations as unknown as object[],
-				summary: newSummary as object,
+				summary: preservedSummary as object,
 				version: newVersion,
 			},
 		}),
@@ -878,6 +908,7 @@ export async function revertLastEdit(
 	const newCtx = buildValidatorCtx(schoolId, schoolYearId, runId, newEntries, refData);
 	const newValidation = validateHardConstraints(newCtx);
 	const newSummary = computeSummary(newEntries, newUnassigned, newValidation);
+	const preservedSummary = mergePreservedSummaryFields(run.summary, newSummary);
 	const newVersion = run.version + 1;
 
 	const [updatedRun, editRecord] = await prisma.$transaction([
@@ -887,7 +918,7 @@ export async function revertLastEdit(
 				draftEntries: newEntries as unknown as object[],
 				unassignedItems: newUnassigned as unknown as object[],
 				violations: newValidation.violations as unknown as object[],
-				summary: newSummary as object,
+				summary: preservedSummary as object,
 				version: newVersion,
 			},
 		}),
@@ -1328,6 +1359,7 @@ export async function swapManualEntries(
 	const softBefore = currentValidation.violations.filter((v) => v.severity === 'SOFT').length;
 	const softAfter = newValidation.violations.filter((v) => v.severity === 'SOFT').length;
 	const newSummary = computeSummary(newEntries, unassignedItems, newValidation);
+	const preservedSummary = mergePreservedSummaryFields(run.summary, newSummary);
 	const newVersion = run.version + 1;
 
 	const [updatedRun, editRecord] = await prisma.$transaction([
@@ -1336,7 +1368,7 @@ export async function swapManualEntries(
 			data: {
 				draftEntries: newEntries as unknown as object[],
 				violations: newValidation.violations as unknown as object[],
-				summary: newSummary as object,
+				summary: preservedSummary as object,
 				version: newVersion,
 			},
 		}),

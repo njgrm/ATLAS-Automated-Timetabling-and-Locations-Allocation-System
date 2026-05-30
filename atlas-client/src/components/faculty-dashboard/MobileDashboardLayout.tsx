@@ -1,12 +1,9 @@
 import { Link } from 'react-router-dom';
-import { CalendarClock, MapPin } from 'lucide-react';
+import { CalendarClock, ChevronRight, ClipboardList, MapPin } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
-import type { FacultyRoomPreferenceEntry } from '@/types';
-import type { FacultyPortalObjectiveState } from '@/types';
-import type { FacultyTeachingAssignmentIdentity } from '@/types';
+import type { FacultyRoomPreferenceEntry, FacultyPortalObjectiveState, FacultyTeachingAssignmentIdentity } from '@/types';
 import ActionQueue from './ActionQueue';
 import FacultyObjectiveStateCard from './FacultyObjectiveStateCard';
 import TeachingIdentityPanel from './TeachingIdentityPanel';
@@ -28,6 +25,26 @@ type MobileDashboardLayoutProps = {
 	objectiveState: FacultyPortalObjectiveState;
 };
 
+function QuickAction({ to, icon: Icon, label, hint, tone }: { to: string; icon: typeof MapPin; label: string; hint: string; tone: 'primary' | 'muted' }) {
+	const toneCls = tone === 'primary'
+		? 'bg-primary text-primary-foreground active:bg-primary/90'
+		: 'bg-card text-foreground border border-border/70 active:bg-muted/60';
+	return (
+		<Link to={to} className={`group flex flex-col gap-2 rounded-2xl p-4 shadow-sm transition-colors ${toneCls}`}>
+			<div className='flex items-center justify-between'>
+				<span className={`flex size-9 items-center justify-center rounded-xl ${tone === 'primary' ? 'bg-white/20' : 'bg-primary/10 text-primary'}`}>
+					<Icon className='size-4' />
+				</span>
+				<ChevronRight className={`size-4 ${tone === 'primary' ? 'opacity-80' : 'text-muted-foreground'}`} />
+			</div>
+			<div>
+				<p className='text-[15px] font-semibold leading-tight'>{label}</p>
+				<p className={`mt-0.5 text-[12px] leading-snug ${tone === 'primary' ? 'text-primary-foreground/85' : 'text-muted-foreground'}`}>{hint}</p>
+			</div>
+		</Link>
+	);
+}
+
 export default function MobileDashboardLayout({
 	facultyName,
 	phaseMessage,
@@ -38,97 +55,80 @@ export default function MobileDashboardLayout({
 	teachingAssignments = [],
 	objectiveState,
 }: MobileDashboardLayoutProps) {
-	const hasDrafts = schedulePreview.some(e => e.status === 'DRAFT');
+	const hasDrafts = schedulePreview.some((e) => e.status === 'DRAFT');
+	const firstName = facultyName.split(' ')[0] || facultyName;
 
 	return (
-		<div className='flex flex-col gap-6'>
-			{/* Compact Greeting & Primary CTA */}
-			<div className='space-y-4'>
-				<div>
-					<h1 className='text-2xl font-bold tracking-tight'>Hello, {facultyName} 👋</h1>
-					<p className='text-sm text-muted-foreground mt-1'>{phaseMessage}</p>
-				</div>
+		<div className='flex flex-col gap-5'>
+			{/* Greeting hero */}
+			<section className='rounded-2xl bg-linear-to-br from-primary to-primary/80 px-5 py-5 text-primary-foreground shadow-md'>
+				<p className='text-[12px] font-medium uppercase tracking-wider text-primary-foreground/80'>Welcome back</p>
+				<h1 className='mt-1 text-2xl font-bold leading-tight'>{firstName}</h1>
+				<p className='mt-1 text-[13px] leading-snug text-primary-foreground/85'>{phaseMessage}</p>
+			</section>
 
-				<Button asChild size='lg' className='w-full h-14 text-base font-bold rounded-2xl shadow-md'>
-					<Link to='/my/room-preferences'>
-						<MapPin className='size-5 mr-2' />
-						Manage My Room Requests
-					</Link>
-				</Button>
-			</div>
+			{/* Quick actions */}
+			<section className='grid grid-cols-2 gap-3'>
+				<QuickAction to='/my/room-preferences' icon={MapPin} label='Room requests' hint='Move or swap a class' tone='primary' />
+				<QuickAction to='/my/schedule' icon={CalendarClock} label='My schedule' hint='See your week' tone='muted' />
+				<QuickAction to='/my/preferences' icon={ClipboardList} label='Support needs' hint='Tell the scheduler' tone='muted' />
+				<Link
+					to='/my/room-preferences'
+					className='flex flex-col justify-between rounded-2xl border border-border/70 bg-card p-4 shadow-sm active:bg-muted/60'
+				>
+					<p className='text-[11px] font-medium uppercase tracking-wider text-muted-foreground'>Pending</p>
+					<div className='mt-2 flex items-baseline justify-between'>
+						<span className='text-2xl font-bold'>{counts.pending}</span>
+						<span className='text-[11px] text-muted-foreground'>{counts.approved} approved</span>
+					</div>
+				</Link>
+			</section>
 
-			{/* Phase 3: Action Queue (Attention Center) */}
+			{/* Attention items */}
 			<ActionQueue counts={counts} hasDraftRoomRequests={hasDrafts} objectiveState={objectiveState} />
 
 			<FacultyObjectiveStateCard objectiveState={objectiveState} compact />
 
-			{/* Status Banners (Progressive Disclosure) - Optional if redundant with GlobalHeader */}
 			{banners && <div className='space-y-3'>{banners}</div>}
 
-			{/* Summary Tiles - Font size fix */}
-			<div className='grid grid-cols-3 gap-3'>
-				<Card className='rounded-2xl border-border/50 bg-muted/20'>
-					<CardContent className='p-3 text-center'>
-						<p className='text-xs font-bold text-muted-foreground uppercase'>Teaching Load</p>
-						<p className='text-lg font-bold mt-1'>{teachingAssignments.length}</p>
-					</CardContent>
-				</Card>
-				<Card className='rounded-2xl border-border/50 bg-blue-50/50'>
-					<CardContent className='p-3 text-center'>
-						<p className='text-xs font-bold text-blue-600 uppercase'>Pending</p>
-						<p className='text-lg font-bold text-blue-700 mt-1'>{counts.pending}</p>
-					</CardContent>
-				</Card>
-				<Card className='rounded-2xl border-border/50 bg-emerald-50/50'>
-					<CardContent className='p-3 text-center'>
-						<p className='text-xs font-bold text-emerald-600 uppercase'>Approved</p>
-						<p className='text-lg font-bold text-emerald-700 mt-1'>{counts.approved}</p>
-					</CardContent>
-				</Card>
-			</div>
-
-			{/* Short Schedule Preview */}
+			{/* Teaching identity */}
 			<TeachingIdentityPanel assignments={teachingAssignments} maxSections={4} compact />
 
-			{/* Short Schedule Preview */}
-			<div className='space-y-3'>
-				<div className='flex items-center justify-between'>
-					<h2 className='text-sm font-bold flex items-center gap-2'>
-						<CalendarClock className='size-4 text-primary' />
-						Upcoming Classes
-					</h2>
-					<Button asChild variant='ghost' size='sm' className='text-xs font-bold h-8'>
-						<Link to='/my/room-preferences'>View All</Link>
-					</Button>
+			{/* Upcoming classes */}
+			<section className='space-y-2'>
+				<div className='flex items-center justify-between px-1'>
+					<h2 className='text-[13px] font-semibold text-foreground'>Upcoming classes</h2>
+					<Link to='/my/schedule' className='text-[12px] font-semibold text-primary'>View all</Link>
 				</div>
 
 				<div className='space-y-2'>
 					{schedulePreview.length === 0 ? (
-						<div className='rounded-2xl border-2 border-dashed px-4 py-8 text-center'>
-							<p className='text-xs font-bold text-foreground'>{objectiveState.title}</p>
-							<p className='mt-1 text-xs leading-relaxed text-muted-foreground'>{objectiveState.roomRequestMessage}</p>
+						<div className='rounded-2xl border border-dashed border-border bg-muted/30 px-4 py-6 text-center'>
+							<p className='text-[13px] font-semibold text-foreground'>{objectiveState.title}</p>
+							<p className='mt-1 text-[12px] leading-snug text-muted-foreground'>{objectiveState.roomRequestMessage}</p>
 						</div>
 					) : (
 						schedulePreview.slice(0, 5).map((entry) => (
-							<Card key={entry.entryId} className='rounded-xl border-border/50 overflow-hidden shadow-sm'>
-								<CardContent className='p-3 flex items-center justify-between gap-3'>
+							<Card key={entry.entryId} className='rounded-2xl border-border/60 shadow-sm'>
+								<CardContent className='flex items-start justify-between gap-3 p-3.5'>
 									<div className='min-w-0'>
-											<p className='text-xs font-bold truncate'>{entry.subjectDisplayLabel ?? entry.subjectCode} • {entry.sectionName}</p>
-										<p className='text-[10px] text-muted-foreground mt-0.5 truncate'>{entry.currentRoomName}</p>
-										{/* Quick-Request Link (Phase 4.2) */}
-										<Button asChild variant="link" size="sm" className="h-auto p-0 text-[10px] font-bold text-primary">
-											<Link to={`/my/room-preferences?entryId=${entry.entryId}`}>Request Move</Link>
-										</Button>
+										<p className='truncate text-[14px] font-semibold leading-tight text-foreground'>{entry.subjectDisplayLabel ?? entry.subjectCode}</p>
+										<p className='mt-0.5 truncate text-[12px] text-muted-foreground'>{entry.sectionName} · {entry.day} {entry.startTime}–{entry.endTime}</p>
+										<p className='mt-0.5 truncate text-[12px] text-muted-foreground'>Room {entry.currentRoomName}</p>
+										<Link
+											to={`/my/room-preferences?entryId=${entry.entryId}`}
+											className='mt-1.5 inline-flex items-center gap-1 text-[12px] font-semibold text-primary'
+										>
+											Request move <ChevronRight className='size-3' />
+										</Link>
 									</div>
-									<div className='shrink-0'>
-										{renderEntryBadge(entry)}
-									</div>
+									<div className='shrink-0'>{renderEntryBadge(entry)}</div>
 								</CardContent>
 							</Card>
 						))
 					)}
 				</div>
-			</div>
+			</section>
 		</div>
 	);
 }
