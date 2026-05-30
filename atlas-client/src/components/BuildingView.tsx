@@ -174,6 +174,36 @@ export function BuildingView({
 		};
 	}, [buildingContentW, buildingContentH]);
 
+	const clampPosition = useCallback((nextPosition: { x: number; y: number }, nextScale: number) => {
+		const scaledWidth = buildingContentW * nextScale;
+		const scaledHeight = buildingContentH * nextScale;
+		const center = calculateCenter(containerW, fixedHeight, nextScale);
+		const x = scaledWidth <= containerW
+			? center.x
+			: Math.min(16, Math.max(containerW - scaledWidth - 16, nextPosition.x));
+		const y = scaledHeight <= fixedHeight
+			? center.y
+			: Math.min(16, Math.max(fixedHeight - scaledHeight - 16, nextPosition.y));
+
+		return { x, y };
+	}, [buildingContentH, buildingContentW, calculateCenter, containerW, fixedHeight]);
+
+	const zoomTo = useCallback((nextScale: number, anchor?: { x: number; y: number }) => {
+		const boundedScale = Math.max(0.2, Math.min(3, nextScale));
+		const focusPoint = anchor ?? { x: containerW / 2, y: fixedHeight / 2 };
+		const buildingPoint = {
+			x: (focusPoint.x - pos.x) / scale,
+			y: (focusPoint.y - pos.y) / scale,
+		};
+		const nextPosition = {
+			x: focusPoint.x - buildingPoint.x * boundedScale,
+			y: focusPoint.y - buildingPoint.y * boundedScale,
+		};
+
+		setScale(boundedScale);
+		setPos(clampPosition(nextPosition, boundedScale));
+	}, [clampPosition, containerW, fixedHeight, pos.x, pos.y, scale]);
+
 	useEffect(() => {
 		const el = containerRef.current;
 		if (!el) return;
@@ -181,12 +211,12 @@ export function BuildingView({
 			const w = entries[0]?.contentRect.width;
 			if (w) {
 				setContainerW(Math.floor(w));
-				setPos(calculateCenter(w, fixedHeight, scale));
+				setPos(clampPosition(calculateCenter(w, fixedHeight, scale), scale));
 			}
 		});
 		obs.observe(el);
 		return () => obs.disconnect();
-	}, [fixedHeight, scale, calculateCenter]);
+	}, [fixedHeight, scale, calculateCenter, clampPosition]);
 
 	useEffect(() => {
 		const sx = (containerW - 32) / buildingContentW;
@@ -194,8 +224,8 @@ export function BuildingView({
 		const fitScale = Math.min(sx, sy, 1.4);
 		const s = Math.max(0.3, fitScale);
 		setScale(s);
-		setPos(calculateCenter(containerW, fixedHeight, s));
-	}, [containerW, fixedHeight, buildingContentW, buildingContentH, calculateCenter, building.id]);
+		setPos(clampPosition(calculateCenter(containerW, fixedHeight, s), s));
+	}, [containerW, fixedHeight, buildingContentW, buildingContentH, calculateCenter, clampPosition, building.id]);
 
 	const resetView = useCallback(() => {
 		const sx = (containerW - 32) / buildingContentW;
@@ -203,8 +233,8 @@ export function BuildingView({
 		const fitScale = Math.min(sx, sy, 1.4);
 		const s = Math.max(0.3, fitScale);
 		setScale(s);
-		setPos(calculateCenter(containerW, fixedHeight, s));
-	}, [containerW, fixedHeight, buildingContentW, buildingContentH, calculateCenter]);
+		setPos(clampPosition(calculateCenter(containerW, fixedHeight, s), s));
+	}, [containerW, fixedHeight, buildingContentW, buildingContentH, calculateCenter, clampPosition]);
 
 	if (building.rooms.length === 0) {
 		return (
@@ -439,13 +469,13 @@ export function BuildingView({
 		<div className="relative">
 			{showToolbar && (
 				<div className="mb-2 flex items-center gap-1">
-					<Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setScale((s) => Math.min(s * 1.15, 3))}>
+					<Button variant="outline" size="sm" className="h-7 w-7 p-0" aria-label="Zoom in building view" onClick={() => zoomTo(scale * 1.15)}>
 						<Plus className="size-3" />
 					</Button>
-					<Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setScale((s) => Math.max(s / 1.15, 0.2))}>
+					<Button variant="outline" size="sm" className="h-7 w-7 p-0" aria-label="Zoom out building view" onClick={() => zoomTo(scale / 1.15)}>
 						<Minus className="size-3" />
 					</Button>
-					<Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={resetView}>
+					<Button variant="outline" size="sm" className="h-7 w-7 p-0" aria-label="Reset building view" onClick={resetView}>
 						<RotateCcw className="size-3" />
 					</Button>
 					<span className="ml-1 text-[0.625rem] text-muted-foreground tabular-nums">
@@ -463,8 +493,14 @@ export function BuildingView({
 					y={pos.y}
 					scaleX={scale}
 					scaleY={scale}
-					onDragEnd={(e) => setPos({ x: e.target.x(), y: e.target.y() })}
-					style={{ cursor: 'grab' }}
+					onDragEnd={(e) => setPos(clampPosition({ x: e.target.x(), y: e.target.y() }, scale))}
+					dragBoundFunc={(nextPosition) => clampPosition(nextPosition, scale)}
+					onWheel={(event) => {
+						event.evt.preventDefault();
+						const stage = event.target.getStage();
+						zoomTo(scale * (event.evt.deltaY < 0 ? 1.08 : 1 / 1.08), stage?.getPointerPosition() ?? undefined);
+					}}
+					style={{ cursor: 'grab', touchAction: 'none' }}
 				>
 					<Layer>
 						<Line

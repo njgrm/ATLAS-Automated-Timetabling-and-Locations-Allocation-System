@@ -1,4 +1,49 @@
-﻿# 2026-05-30 - Admin campus map room schedule + zoom restoration
+﻿# 2026-05-30 - Sidebar collapse and map schedule UX repair
+
+- Phase: Cross-cutting admin UX repair for AppShell sidebar, dashboard campus map, `/map` overview, building view, and room schedule overlay.
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, LOCAL BUILD GREEN, TAILNET QA COMPLETE -> GO with one noted live-data caveat.
+- Trigger: user asked to check collapsing sidebar behavior, room schedules for buildings, map zoom/scroll, and UX/UI on both map layouts.
+- Pre-code findings:
+  - Major: room schedule overlay showed `Unknown Subject`, `Unknown Section`, and `Unknown Faculty` on `/map` room clicks when reference lookup failed or lagged.
+  - Major: campus and building zoom scaled from origin and could drift off useful focus; wheel zoom was functional but felt jumpy/subpar.
+  - Major: desktop sidebar state ignored the saved `sidebar:state` cookie, and the collapsed footer action could open a hidden custom menu.
+  - Major: dashboard campus map did not pass through `campusImageUrl`, so it could diverge visually from `/map`.
+- Fix: room schedule overlay now has bounded loading, independent retry/fallback reference lookups, parent-provided reference maps, and user-friendly labels instead of `Unknown`/internal numeric placeholders.
+- Fix: pivoted latest-run room schedules now carry subject, section, and faculty display labels where available.
+- Fix: campus and building Konva maps now use focus-preserving zoom, wheel zoom, pan clamping, and touch-action control.
+- Fix: dashboard campus map now receives the persisted campus image URL from `useDashboardData`.
+- Fix: desktop AppShell sidebar now honors the saved sidebar cookie outside timetable routes and restores it after leaving timetable; collapsed sidebar footer now uses a Radix dropdown instead of a hidden custom menu.
+- Build: `npm --prefix atlas-client run build` -> pass, `built in ~650ms`; tracked `atlas-client/dist` restored after build verification.
+- Diagnostics: VS Code diagnostics clean on `RoomScheduleOverlay.tsx`, `CampusMapCanvasPreview.tsx`, `BuildingView.tsx`, `CampusReadinessCard.tsx`, `CampusMapOverview.tsx`, `AppShell.tsx`, `AppSidebar.tsx`, `useDashboardData.ts`, `Dashboard.tsx`, `schedule-pivot.ts`, and `types.ts`.
+- Tailnet `/map` verification: shared-browser viewport `963x682`; campus zoom button moved to `120%`; wheel zoom moved to `130%`; room `G10-201` overlay opened with `FIL`, `ENG`, `MATH`, faculty names such as `MAGNO, ANDRES`, no `Unknown`, no `Subject #`, no `Faculty #`, and no `Section #` placeholders.
+- Tailnet dashboard verification: dashboard campus canvas measured approximately `920x520`; building canvas approximately `902x340`; zoom button reached `120%`; room `G10-201` overlay opened with subject labels, faculty names, no `Unknown`, and no internal numeric placeholders.
+- Tailnet shell verification: shared browser rendered the mobile/tablet shell at `963x682`; `Open navigation menu` opened the mobile navigation drawer with dashboard, sections, subjects, teachers, teaching load, campus, timetable, schedules, audit, return, and sign-out actions. Desktop sidebar collapse was verified by code path because the shared browser viewport stayed below the desktop breakpoint.
+- Screenshot evidence: `qa-artifacts/playwright/20260530-admin-map-overview-live-audit-before.png`, `20260530-admin-map-room-overlay-live-audit-before.png`, `20260530-admin-map-room-overlay-after-clean-labels.png`, `20260530-admin-dashboard-map-room-overlay-after-clean-labels.png`.
+- Caveat: live section-summary lookup intermittently returned Tailnet `502` during QA; overlay now avoids unknown/internal-ID copy in that degraded state and still shows usable subject/faculty schedule content. Section proper names should appear when the section-summary reference response succeeds.
+- Decision: GO for the requested sidebar/map schedule/zoom UX repair.
+
+---
+
+# 2026-05-30 - Dashboard interactive campus map restoration
+
+- Phase: Cross-cutting admin UX repair for dashboard campus map interaction.
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, LOCAL BUILD GREEN, TAILNET QA COMPLETE -> GO.
+- Trigger: user reported that dashboard Buildings and rooms were still too small/constrained and not clickable, even after `/map` was restored.
+- Fix: upgraded dashboard `CampusReadinessCard` from a compact static preview to an interactive campus workspace using the shared Konva campus canvas, building selection, `BuildingView`, room utilization metadata, and `RoomScheduleOverlay`.
+- Fix: dashboard campus canvas now renders at `520px` height on desktop with zoom, wheel zoom, drag/pan, reset, and accessible icon-button labels. The selected-building panel now includes an interactive building/room view at `340px` height.
+- Fix: room clicks from the dashboard building view open the full room schedule overlay using latest timetable data, preserving the same drill-down behavior as `/map`.
+- Build: `npm --prefix atlas-client run build` -> pass, `built in 610ms`; tracked `atlas-client/dist` restored after build verification.
+- Diagnostics: VS Code diagnostics clean on `CampusReadinessCard.tsx`, `CampusMapCanvasPreview.tsx`, and `BuildingView.tsx`.
+- File-size guardrail: `CampusReadinessCard.tsx` 277 lines.
+- Tailnet desktop verification: direct admin session on `https://njgrm.buru-degree.ts.net/`; dashboard campus canvas measured `920x520`; building view canvas measured `902x340`; `Zoom in campus map` changed the dashboard campus map to `120%`; clicking dashboard room `G10-201` opened `RoomScheduleOverlay`, which populated with `80%` utilization, `1800/2250 min`, `Run #128 · COMPLETED`, and the timetable grid.
+- Screenshot evidence: `qa-artifacts/playwright/20260530-admin-dashboard-interactive-campus-after.png`, `20260530-admin-dashboard-interactive-campus-room-schedule-after.png`, `20260530-admin-dashboard-interactive-campus-room-schedule-loaded-after.png`.
+- Decision: GO for the dashboard-specific campus map clickability, size, and interaction regression.
+
+---
+
+# 2026-05-30 - Admin campus map room schedule + zoom restoration
 
 - Phase: Cross-cutting admin UX repair for `/map` campus overview and dashboard campus placement.
 - Operator: GitHub Copilot

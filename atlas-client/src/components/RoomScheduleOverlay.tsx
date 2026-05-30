@@ -17,10 +17,10 @@ import { AnimatePresence, motion } from 'motion/react';
 import { formatTime } from '@/lib/utils';
 import type { RoomScheduleView, RoomScheduleEntry } from '@/types';
 import atlasApi from '@/lib/api';
+import { getPreferredAccessToken } from '@/lib/auth';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
-import { ScrollArea } from '@/ui/scroll-area';
 import { GradeLevelBadge, parseGradeFromSectionName } from '@/components/GradeLevelBadge';
 
 /* ─── Constants ─── */
@@ -35,6 +35,38 @@ const DAY_SHORT: Record<string, string> = {
 
 const DEFAULT_SCHOOL_ID = 1;
 
+function wait(ms: number): Promise<void> {
+	return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function loadWithFallback<T>(request: () => Promise<{ data: T }>, fallback: T, timeoutMs = 4000): Promise<{ data: T }> {
+	for (let attempt = 0; attempt < 2; attempt += 1) {
+		let timer: ReturnType<typeof window.setTimeout> | null = null;
+		try {
+			const timeout = new Promise<never>((_, reject) => {
+				timer = window.setTimeout(() => reject(new Error('Request timed out')), timeoutMs);
+			});
+			const result = await Promise.race([request(), timeout]);
+			if (timer) window.clearTimeout(timer);
+			return result;
+		} catch {
+			if (timer) window.clearTimeout(timer);
+			if (attempt === 0) await wait(250);
+		}
+	}
+
+	return { data: fallback };
+}
+
+async function fetchVersionedApi<T>(path: string): Promise<{ data: T }> {
+	const token = getPreferredAccessToken();
+	const response = await fetch(`/api/v1${path}`, {
+		headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+	});
+	if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+	return { data: await response.json() as T };
+}
+
 /* ─── Types ─── */
 
 export interface RoomScheduleOverlayProps {
@@ -43,6 +75,10 @@ export interface RoomScheduleOverlayProps {
 	roomName: string;
 	roomId: number;
 	schedule: RoomScheduleView | null;
+	loading?: boolean;
+	subjectMap?: Map<number, string>;
+	facultyMap?: Map<number, string>;
+	sectionMap?: Map<number, { name: string; gradeLevel: number | null }>;
 }
 
 /* ─── Component ─── */
@@ -53,6 +89,10 @@ export function RoomScheduleOverlay({
 	roomName,
 	roomId,
 	schedule,
+	loading = false,
+	subjectMap: parentSubjectMap,
+	facultyMap: parentFacultyMap,
+	sectionMap: parentSectionMap,
 }: RoomScheduleOverlayProps) {
 	const [subjectMap, setSubjectMap] = useState<Map<number, string>>(new Map());
 	const [facultyMap, setFacultyMap] = useState<Map<number, string>>(new Map());
@@ -78,48 +118,47 @@ export function RoomScheduleOverlay({
 		let cancelled = false;
 
 		(async () => {
-			try {
-				const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true });
-				const activeSchoolYearId = context.activeSchoolYearId;
+			const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true, preferCache: true, backgroundRefresh: true }).catch(() => ({ activeSchoolYearId: null }));
+			const activeSchoolYearId = context.activeSchoolYearId;
 
-				const [subjectsRes, facultyRes, sectionsRes] = await Promise.all([
-					atlasApi.get<{ subjects: Array<{ id: number; code: string; name: string }> }>(
-						`/subjects?schoolId=${DEFAULT_SCHOOL_ID}`,
-					),
-					atlasApi.get<{
-						faculty: Array<{ id: number; firstName: string; lastName: string }>;
-					}>(`/faculty?schoolId=${DEFAULT_SCHOOL_ID}`),
-					activeSchoolYearId
-						? atlasApi.get<{
-								sections: Array<{ id: number; name: string }>;
-						  }>(`/sections/summary/${activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`)
-						: Promise.resolve({ data: { sections: [] } }),
-				]);
+			const [subjectsRes, facultyRes, sectionsRes] = await Promise.all([
+				loadWithFallback(() => atlasApi.get<{ subjects: Array<{ id: number; code?: string | null; displayCode?: string | null; name: string }> }>(
+					`/subjects?schoolId=${DEFAULT_SCHOOL_ID}`,
+				), { subjects: [] }),
+				loadWithFallback(() => atlasApi.get<{
+					faculty: Array<{ id: number; firstName: string; lastName: string }>;
+				}>(`/faculty?schoolId=${DEFAULT_SCHOOL_ID}`), { faculty: [] }),
+				activeSchoolYearId
+					? loadWithFallback(() => fetchVersionedApi<{
+							sections: Array<{ id: number; name: string; gradeLevelName?: string | null }>;
+					  }>(`/sections/summary/${activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`), { sections: [] })
+					: Promise.resolve({ data: { sections: [] } }),
+			]);
 
-				if (cancelled) return;
+			if (cancelled) return;
 
-				setSubjectMap(
-					new Map(
-						(subjectsRes.data.subjects ?? []).map((s) => [
-							s.id,
-							s.code ? `${s.code} - ${s.name}` : s.name,
-						]),
-					),
-				);
-				setFacultyMap(
-					new Map(
-						(facultyRes.data.faculty ?? []).map((f) => [
-							f.id,
-							`${f.lastName}, ${f.firstName}`,
-						]),
-					),
-				);
-				setSectionMap(
-					new Map((sectionsRes.data.sections ?? []).map((s) => [s.id, { name: s.name, gradeLevel: parseGradeFromSectionName(s.gradeLevelName) ?? parseGradeFromSectionName(s.name) }])),
-				);
-			} catch {
-				// Keep graceful ID-based fallback labels if lookups fail.
-			}
+			setSubjectMap(
+				new Map(
+					(subjectsRes.data.subjects ?? []).map((s) => [
+						s.id,
+						s.displayCode ?? s.code ?? s.name,
+					]),
+				),
+			);
+			setFacultyMap(
+				new Map(
+					(facultyRes.data.faculty ?? []).map((f) => [
+						f.id,
+						`${f.lastName}, ${f.firstName}`,
+					]),
+				),
+			);
+			setSectionMap(
+				new Map((sectionsRes.data.sections ?? []).map((s) => [
+					s.id,
+					{ name: s.name, gradeLevel: parseGradeFromSectionName(s.gradeLevelName) ?? parseGradeFromSectionName(s.name) },
+				])),
+			);
 		})();
 
 		return () => {
@@ -128,8 +167,12 @@ export function RoomScheduleOverlay({
 	}, [open, schedule]);
 
 	const displayMaps = useMemo(
-		() => ({ subjectMap, facultyMap, sectionMap }),
-		[subjectMap, facultyMap, sectionMap],
+		() => ({
+			subjectMap: new Map([...(parentSubjectMap ?? new Map()), ...subjectMap]),
+			facultyMap: new Map([...(parentFacultyMap ?? new Map()), ...facultyMap]),
+			sectionMap: new Map([...(parentSectionMap ?? new Map()), ...sectionMap]),
+		}),
+		[parentFacultyMap, parentSectionMap, parentSubjectMap, subjectMap, facultyMap, sectionMap],
 	);
 
 	return (
@@ -207,17 +250,21 @@ export function RoomScheduleOverlay({
 						</div>
 
 						{/* Grid area */}
-						<ScrollArea className="flex-1 min-h-0">
+						<div className="flex-1 min-h-0 overflow-auto">
 							{schedule ? (
-								<div className="p-5">
+								<div className="min-w-3xl p-5">
 									<OverlayTimetableGrid schedule={schedule} {...displayMaps} />
 								</div>
+							) : loading ? (
+								<div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+									Loading the latest room schedule...
+								</div>
 							) : (
-								<div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+								<div className="flex h-full items-center justify-center text-sm text-muted-foreground">
 									No schedule data available.
 								</div>
 							)}
-						</ScrollArea>
+						</div>
 					</motion.div>
 				</>
 			)}
@@ -239,7 +286,7 @@ function OverlayTimetableGrid({
 	sectionMap: Map<number, { name: string; gradeLevel: number | null }>;
 }) {
 	return (
-		<table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+		<table className="min-w-4xl w-full border-collapse" style={{ tableLayout: 'fixed' }}>
 			<colgroup>
 				<col className="w-24" />
 				{schedule.days.map((d) => (
@@ -264,7 +311,7 @@ function OverlayTimetableGrid({
 			<tbody>
 				{schedule.grid.map((row, rowIdx) => (
 					<tr key={rowIdx}>
-						<td className="sticky left-0 z-[5] bg-background border-r border-b px-2 py-3 align-middle w-24">
+						<td className="sticky left-0 z-5 bg-background border-r border-b px-2 py-3 align-middle w-24">
 							<div className="text-[10px] font-semibold text-foreground leading-tight">
 								{formatTime(row.timeSlot.startTime)}–{formatTime(row.timeSlot.endTime)}
 							</div>
@@ -329,19 +376,24 @@ function OverlayEntryCell({
 	sectionMap: Map<number, { name: string; gradeLevel: number | null }>;
 }) {
 	const sectionInfo = sectionMap.get(entry.sectionId);
+	const subjectLabel = entry.subjectDisplayLabel ?? subjectMap.get(entry.subjectId) ?? `Subject #${entry.subjectId}`;
+	const sectionLabel = entry.sectionDisplayLabel ?? sectionInfo?.name ?? 'Assigned section';
+	const facultyLabel = entry.facultyId != null
+		? entry.facultyDisplayLabel ?? facultyMap.get(entry.facultyId) ?? `Faculty #${entry.facultyId}`
+		: 'Unassigned Faculty';
 	return (
 		<div className="px-1.5 py-1 text-[11px] leading-snug">
 			<div className="font-semibold text-foreground truncate">
-				{subjectMap.get(entry.subjectId) ?? `Unknown Subject (#${entry.subjectId})`}
+				{subjectLabel}
 			</div>
 			<div className="flex items-center gap-1 min-w-0">
 				<GradeLevelBadge grade={sectionInfo?.gradeLevel ?? null} size="xs" />
 				<span className="text-muted-foreground truncate">
-					{sectionInfo?.name ?? `Unknown Section (#${entry.sectionId})`}
+					{sectionLabel}
 				</span>
 			</div>
 			<div className="text-muted-foreground/80 truncate">
-				{facultyMap.get(entry.facultyId) ?? `Unknown Faculty (#${entry.facultyId})`}
+				{facultyLabel}
 			</div>
 		</div>
 	);

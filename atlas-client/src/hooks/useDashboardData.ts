@@ -18,6 +18,7 @@ export type LatestRunStatus = 'NONE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
 export type DashboardData = {
 	loading: boolean;
 	buildings: Building[];
+	campusImageUrl: string | null;
 	subjectCount: number | null;
 	facultyCount: number | null;
 	sectionCount: number | null;
@@ -36,6 +37,7 @@ export type DashboardData = {
 
 export function useDashboardData(): DashboardData {
 	const [buildings, setBuildings] = useState<Building[]>([]);
+	const [campusImageUrl, setCampusImageUrl] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [subjectCount, setSubjectCount] = useState<number | null>(null);
 	const [facultyCount, setFacultyCount] = useState<number | null>(null);
@@ -52,10 +54,12 @@ export function useDashboardData(): DashboardData {
 		setLoading(true);
 		Promise.all([
 			atlasApi.get<{ buildings: Building[] }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
+			atlasApi.get<{ campusImageUrl: string | null }>(`/map/schools/${DEFAULT_SCHOOL_ID}/campus-image`).catch(() => ({ data: { campusImageUrl: null } })),
 			atlasApi.get<{ count: number; unassignedCount: number }>(`/subjects/stats/${DEFAULT_SCHOOL_ID}`).catch(() => ({ data: { count: 0, unassignedCount: 0 } })),
 		])
-			.then(([bRes, statsRes]) => {
+			.then(([bRes, campusImageRes, statsRes]) => {
 				setBuildings(bRes.data.buildings);
+				setCampusImageUrl(campusImageRes.data.campusImageUrl ?? null);
 				setSubjectCount(statsRes.data.count);
 				setUnassignedSubjectCount(statsRes.data.unassignedCount ?? 0);
 				atlasApi.get<{ faculty: unknown[] }>(`/faculty?schoolId=${DEFAULT_SCHOOL_ID}`)
@@ -157,6 +161,7 @@ export function useDashboardData(): DashboardData {
 	return {
 		loading,
 		buildings,
+		campusImageUrl,
 		subjectCount,
 		facultyCount,
 		sectionCount,

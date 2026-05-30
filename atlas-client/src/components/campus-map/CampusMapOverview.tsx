@@ -8,6 +8,7 @@ import { GradeLevelBadge, parseGradeFromSectionName } from '@/components/GradeLe
 import { RoomScheduleOverlay } from '@/components/RoomScheduleOverlay';
 import { CampusMapCanvasPreview } from '@/components/campus-map/CampusMapCanvasPreview';
 import atlasApi from '@/lib/api';
+import { getPreferredAccessToken } from '@/lib/auth';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { pivotDraftToView } from '@/lib/schedule-pivot';
 import type { Building, DraftReport, Room, RoomScheduleView, SectionSummaryResponse, Subject } from '@/types';
@@ -35,6 +36,38 @@ const DAY_RANK: Record<string, number> = {
 	FRIDAY: 5,
 };
 
+function wait(ms: number): Promise<void> {
+	return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function withFallback<T>(request: () => Promise<{ data: T }>, fallback: T, timeoutMs = 4000): Promise<{ data: T }> {
+	for (let attempt = 0; attempt < 2; attempt += 1) {
+		let timer: ReturnType<typeof window.setTimeout> | null = null;
+		try {
+			const timeout = new Promise<never>((_, reject) => {
+				timer = window.setTimeout(() => reject(new Error('Request timed out')), timeoutMs);
+			});
+			const result = await Promise.race([request(), timeout]);
+			if (timer) window.clearTimeout(timer);
+			return result;
+		} catch {
+			if (timer) window.clearTimeout(timer);
+			if (attempt === 0) await wait(250);
+		}
+	}
+
+	return { data: fallback };
+}
+
+async function fetchVersionedApi<T>(path: string): Promise<{ data: T }> {
+	const token = getPreferredAccessToken();
+	const response = await fetch(`/api/v1${path}`, {
+		headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+	});
+	if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+	return { data: await response.json() as T };
+}
+
 function teachingRoomCount(building: Building): number {
 	return (building.rooms ?? []).filter((room) => room.isTeachingSpace).length;
 }
@@ -46,8 +79,10 @@ function buildingStatus(building: Building): 'ready' | 'attention' {
 export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOverviewProps) {
 	const [selectedId, setSelectedId] = useState<number | null>(null);
 	const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+	const [scheduleLoading, setScheduleLoading] = useState(true);
 	const [scheduleReport, setScheduleReport] = useState<DraftReport | null>(null);
 	const [subjectMap, setSubjectMap] = useState<Map<number, string>>(new Map());
+	const [facultyMap, setFacultyMap] = useState<Map<number, string>>(new Map());
 	const [sectionMap, setSectionMap] = useState<Map<number, SectionScheduleInfo>>(new Map());
 	const teachingBuildings = buildings.filter((building) => building.isTeachingBuilding !== false);
 	const totalRooms = buildings.reduce((acc, building) => acc + (building.rooms?.length ?? 0), 0);
@@ -61,19 +96,32 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 		?? null;
 	const selectedTeachingRooms = selectedBuilding ? teachingRoomCount(selectedBuilding) : 0;
 	const selectedStatus = selectedBuilding ? buildingStatus(selectedBuilding) : 'attention';
+	const sectionLabelMap = useMemo(
+		() => new Map([...sectionMap].map(([id, section]) => [id, section.name])),
+		[sectionMap],
+	);
+	const overlaySectionMap = useMemo(
+		() => new Map([...sectionMap].map(([id, section]) => [id, { name: section.name, gradeLevel: section.gradeLevel }])),
+		[sectionMap],
+	);
 
 	useEffect(() => {
 		let cancelled = false;
+		setScheduleLoading(true);
 
 		(async () => {
-			const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true });
+			const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true, preferCache: true, backgroundRefresh: true });
 			const activeSchoolYearId = context.activeSchoolYearId;
-			if (!activeSchoolYearId) return;
+			if (!activeSchoolYearId) {
+				if (!cancelled) setScheduleLoading(false);
+				return;
+			}
 
-			const [subjectsRes, sectionsRes, reportRes] = await Promise.all([
-				atlasApi.get<{ subjects: Subject[] }>(`/subjects?schoolId=${DEFAULT_SCHOOL_ID}`).catch(() => ({ data: { subjects: [] as Subject[] } })),
-				atlasApi.get<SectionSummaryResponse>(`/sections/summary/${activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`).catch(() => ({ data: { sections: [] } as unknown as SectionSummaryResponse })),
-				atlasApi.get<DraftReport>(`/generation/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/runs/latest/timetable`).catch(() => ({ data: null as DraftReport | null })),
+			const [subjectsRes, facultyRes, sectionsRes, reportRes] = await Promise.all([
+				withFallback(() => atlasApi.get<{ subjects: Subject[] }>(`/subjects?schoolId=${DEFAULT_SCHOOL_ID}`), { subjects: [] as Subject[] }),
+				withFallback(() => atlasApi.get<{ faculty: Array<{ id: number; firstName: string; lastName: string }> }>(`/faculty?schoolId=${DEFAULT_SCHOOL_ID}`), { faculty: [] }),
+				withFallback(() => fetchVersionedApi<SectionSummaryResponse>(`/sections/summary/${activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`), { sections: [] } as unknown as SectionSummaryResponse),
+				withFallback(() => atlasApi.get<DraftReport>(`/generation/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/runs/latest/timetable`), null as DraftReport | null, 6000),
 			]);
 
 			if (cancelled) return;
@@ -83,6 +131,14 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 					(subjectsRes.data.subjects ?? []).map((subject) => [
 						subject.id,
 						subject.displayCode ?? subject.code ?? subject.name,
+					]),
+				),
+			);
+			setFacultyMap(
+				new Map(
+					(facultyRes.data.faculty ?? []).map((faculty) => [
+						faculty.id,
+						`${faculty.lastName}, ${faculty.firstName}`,
 					]),
 				),
 			);
@@ -99,8 +155,12 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 				),
 			);
 			setScheduleReport(reportRes.data);
+			setScheduleLoading(false);
 		})().catch(() => {
-			if (!cancelled) setScheduleReport(null);
+			if (!cancelled) {
+				setScheduleReport(null);
+				setScheduleLoading(false);
+			}
 		});
 
 		return () => {
@@ -165,8 +225,10 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 			selectedRoom.id,
 			{ id: selectedRoom.id, name: selectedRoom.name, subtitle: parentBuilding?.name },
 			subjectMap,
+			sectionLabelMap,
+			facultyMap,
 		);
-	}, [buildings, scheduleReport, selectedRoom, subjectMap]);
+	}, [buildings, facultyMap, scheduleReport, sectionLabelMap, selectedRoom, subjectMap]);
 
 	const selectBuilding = (buildingId: number) => {
 		setSelectedId(buildingId);
@@ -260,7 +322,7 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 										<div className="min-w-0">
 											<p className="truncate text-sm font-semibold text-slate-900">{selectedRoom.name}</p>
 											<p className="text-xs text-slate-500">
-												{selectedRoomSchedule ? `${selectedRoomSchedule.summary.entryCount} classes scheduled` : 'Latest room schedule unavailable'}
+												{selectedRoomSchedule ? `${selectedRoomSchedule.summary.entryCount} classes scheduled` : scheduleLoading ? 'Loading latest room schedule...' : 'Latest room schedule unavailable'}
 											</p>
 										</div>
 										<GradeLevelBadge grade={roomScheduleIndicators.sectionData.get(selectedRoom.id)?.gradeKey ? Number(roomScheduleIndicators.sectionData.get(selectedRoom.id)?.gradeKey) : null} size="xs" />
@@ -297,6 +359,10 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 					roomName={selectedRoom?.name ?? 'Room'}
 					roomId={selectedRoom?.id ?? 0}
 					schedule={selectedRoomSchedule}
+					loading={scheduleLoading}
+					subjectMap={subjectMap}
+					facultyMap={facultyMap}
+					sectionMap={overlaySectionMap}
 				/>
 			</div>
 		</div>

@@ -66,6 +66,7 @@ void _getBackHref;
 const ENROLLPRO_URL = import.meta.env.VITE_ENROLLPRO_URL ?? 'http://100.88.55.125:5173';
 const SHELL_BRANDING_CACHE_KEY = 'atlas:shell-branding:v1';
 const DEFAULT_SHELL_SCHOOL_NAME = 'ATLAS High School';
+const SIDEBAR_COOKIE_NAME = 'sidebar:state';
 
 type ShellBrandingCache = {
 	schoolName: string;
@@ -107,6 +108,14 @@ function enrollProAsset(path: string | null): string {
 	return path.replace(/^\/uploads/, '/enrollpro-uploads');
 }
 
+function readSidebarOpenPreference(): boolean {
+	const match = document.cookie
+		.split('; ')
+		.find((row) => row.startsWith(`${SIDEBAR_COOKIE_NAME}=`));
+	if (!match) return true;
+	return match.split('=')[1] === 'true';
+}
+
 /* ─── AppShell ─── */
 
 export function AppShell() {
@@ -119,7 +128,9 @@ export function AppShell() {
 	const suspenseFallback = isTimetableRoute
 		? <TimetableSkeleton />
 		: <div className="p-6"><Skeleton className="h-100 w-full rounded-lg" /></div>;
-	const [sidebarOpen, setSidebarOpen] = useState(() => !window.location.pathname.startsWith('/timetable'));
+	const [sidebarOpen, setSidebarOpen] = useState(() => (
+		window.location.pathname.startsWith('/timetable') ? false : readSidebarOpenPreference()
+	));
 	const previousPathnameRef = useRef(location.pathname);
 	const [schoolName, setSchoolName] = useState(() => readShellBrandingCache()?.schoolName ?? DEFAULT_SHELL_SCHOOL_NAME);
 	const [logoUrl, setLogoUrl] = useState<string | null>(() => readShellBrandingCache()?.logoUrl ?? null);
@@ -206,6 +217,7 @@ export function AppShell() {
 	useLayoutEffect(() => {
 		const wasTimetableRoute = previousPathnameRef.current.startsWith('/timetable');
 		if (isTimetableRoute && !wasTimetableRoute) setSidebarOpen(false);
+		if (!isTimetableRoute && wasTimetableRoute) setSidebarOpen(readSidebarOpenPreference());
 		previousPathnameRef.current = location.pathname;
 	}, [isTimetableRoute, location.pathname]);
 

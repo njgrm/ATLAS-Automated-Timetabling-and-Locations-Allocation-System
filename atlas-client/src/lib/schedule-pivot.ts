@@ -15,13 +15,20 @@ function timesOverlap(a: { startTime: string; endTime: string }, b: { startTime:
 	return a.startTime < b.endTime && b.startTime < a.endTime;
 }
 
-function mapEntry(e: ScheduledEntry, subjectMap: Map<number, string>): RoomScheduleEntry {
+function mapEntry(
+	e: ScheduledEntry,
+	subjectMap: Map<number, string>,
+	sectionMap?: Map<number, string>,
+	facultyMap?: Map<number, string>,
+): RoomScheduleEntry {
 	return {
 		entryId: e.entryId,
 		subjectId: e.subjectId,
 		subjectDisplayLabel: subjectMap.get(e.subjectId),
 		sectionId: e.sectionId,
+		sectionDisplayLabel: sectionMap?.get(e.sectionId),
 		facultyId: e.facultyId,
+		facultyDisplayLabel: e.facultyId != null ? facultyMap?.get(e.facultyId) : 'Unassigned Faculty',
 		roomId: e.roomId,
 		startTime: e.startTime,
 		endTime: e.endTime,
@@ -46,6 +53,8 @@ export function pivotDraftToView(
 	entityId: number,
 	entity: PivotedEntity,
 	subjectMap: Map<number, string>,
+	sectionMap?: Map<number, string>,
+	facultyMap?: Map<number, string>,
 ): RoomScheduleView {
 	const filtered = report.entries.filter((e) => {
 		if (entityKind === 'rooms') return e.roomId === entityId;
@@ -90,7 +99,7 @@ export function pivotDraftToView(
 			}
 			const dayEntries = entriesByDay.get(day) ?? [];
 			const overlapping = dayEntries.filter((e) => timesOverlap(slot, e));
-			const mapped = overlapping.map((e) => mapEntry(e, subjectMap));
+			const mapped = overlapping.map((e) => mapEntry(e, subjectMap, sectionMap, facultyMap));
 			const hasConflict = mapped.length > 1;
 			if (hasConflict) conflictCount++;
 			return { day, occupied: mapped.length > 0, entries: mapped, conflict: hasConflict };

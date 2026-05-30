@@ -10,6 +10,13 @@ import {
 import { getBackHref } from '@/lib/bridge';
 import type { BridgeUser } from '@/types';
 import { Badge } from '@/ui/badge';
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
 import { Skeleton } from '@/ui/skeleton';
 import {
 	Sidebar,
@@ -117,7 +124,6 @@ export function AppSidebar({
 	const isFaculty = bridgeUser?.role === 'faculty';
 	const topNavigation = isFaculty ? [] : navigationNav;
 	const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-	const [userMenuOpen, setUserMenuOpen] = useState(false);
 
 	return (
 		<>
@@ -219,62 +225,59 @@ export function AppSidebar({
 				<SidebarFooter>
 					<SidebarMenu>
 						<SidebarMenuItem>
-							<div className='relative'>
-								<SidebarMenuButton
-									size='lg'
-									tooltip={bridgeUser?.role ?? 'User'}
-									onClick={() => setUserMenuOpen((o) => !o)}
-									className='relative'
-								>
-									<div className='absolute inset-0 flex items-center justify-center transition-all duration-200 opacity-0 group-data-[collapsible=icon]:opacity-100 group-data-[collapsible=icon]:scale-100 scale-75'>
-										<LogOut className='size-4 text-muted-foreground' />
-									</div>
-									<div className='flex w-full items-center gap-2 transition-all duration-200 opacity-100 group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:scale-95 group-data-[collapsible=icon]:pointer-events-none'>
-										<div className='flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground overflow-hidden'>
-											<span className='text-xs font-semibold'>
-												{bridgeUser?.role ? bridgeUser.role.charAt(0).toUpperCase() : 'G'}
-											</span>
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<SidebarMenuButton
+										size='lg'
+										tooltip={bridgeUser?.role ?? 'User'}
+										className='relative'
+									>
+										<div className='absolute inset-0 flex items-center justify-center transition-all duration-200 opacity-0 group-data-[collapsible=icon]:opacity-100 group-data-[collapsible=icon]:scale-100 scale-75'>
+											<LogOut className='size-4 text-muted-foreground' />
 										</div>
-										<div className='grid flex-1 text-left text-sm leading-tight overflow-hidden'>
-											<span className='truncate font-semibold'>{bridgeUser?.role ?? 'Guest'}</span>
-											{isAdmin && (
-												<Badge variant='outline' className='mt-0.5 w-fit h-4 px-1 text-[0.5625rem] font-bold border-purple-200 bg-purple-50 text-purple-700'>
-													Admin
-												</Badge>
-											)}
-											{isFaculty && (
-												<span className='truncate text-[0.6875rem] text-muted-foreground'>Teacher</span>
-											)}
-											{!isAdmin && !isFaculty && (
-												<span className='truncate text-[0.6875rem] text-muted-foreground'>Portal access</span>
-											)}
+										<div className='flex w-full items-center gap-2 transition-all duration-200 opacity-100 group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:scale-95 group-data-[collapsible=icon]:pointer-events-none'>
+											<div className='flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground overflow-hidden'>
+												<span className='text-xs font-semibold'>
+													{bridgeUser?.role ? bridgeUser.role.charAt(0).toUpperCase() : 'G'}
+												</span>
+											</div>
+											<div className='grid flex-1 text-left text-sm leading-tight overflow-hidden'>
+												<span className='truncate font-semibold'>{bridgeUser?.role ?? 'Guest'}</span>
+												{isAdmin && (
+													<Badge variant='outline' className='mt-0.5 w-fit h-4 px-1 text-[0.5625rem] font-bold border-purple-200 bg-purple-50 text-purple-700'>
+														Admin
+													</Badge>
+												)}
+												{isFaculty && (
+													<span className='truncate text-[0.6875rem] text-muted-foreground'>Teacher</span>
+												)}
+												{!isAdmin && !isFaculty && (
+													<span className='truncate text-[0.6875rem] text-muted-foreground'>Portal access</span>
+												)}
+											</div>
 										</div>
-									</div>
-								</SidebarMenuButton>
-
-								{userMenuOpen && (
-									<>
-										<div className='fixed inset-0 z-40' onClick={() => setUserMenuOpen(false)} />
-										<div className='absolute bottom-full left-0 right-0 z-50 mb-1 rounded-md border border-border bg-popover p-1 shadow-md group-data-[collapsible=icon]:hidden'>
-											<a
-												href={getBackHref()}
-												className='flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
-											>
-												<ExternalLink className='size-3.5' />
-												<span>Back to EnrollPro</span>
-											</a>
-											<button
-												type='button'
-												onClick={() => { setUserMenuOpen(false); setShowLogoutConfirm(true); }}
-												className='flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs text-destructive hover:bg-destructive/10'
-											>
-												<LogOut className='size-3.5' />
-												<span>Sign out</span>
-											</button>
-										</div>
-									</>
-								)}
-							</div>
+									</SidebarMenuButton>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent side='right' align='end' sideOffset={8} className='w-48'>
+									<DropdownMenuItem asChild>
+										<a href={getBackHref()} className='flex items-center gap-2 text-xs text-muted-foreground'>
+											<ExternalLink className='size-3.5' />
+											<span>Back to EnrollPro</span>
+										</a>
+									</DropdownMenuItem>
+									<DropdownMenuSeparator />
+									<DropdownMenuItem
+										className='gap-2 text-xs text-destructive focus:bg-destructive/10 focus:text-destructive'
+										onSelect={(event) => {
+											event.preventDefault();
+											setShowLogoutConfirm(true);
+										}}
+									>
+										<LogOut className='size-3.5' />
+										<span>Sign out</span>
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
 						</SidebarMenuItem>
 					</SidebarMenu>
 				</SidebarFooter>

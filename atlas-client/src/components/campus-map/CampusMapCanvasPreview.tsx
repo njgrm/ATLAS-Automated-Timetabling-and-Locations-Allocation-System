@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Group, Layer, Rect, Stage, Text } from 'react-konva';
 import { Move, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 
@@ -9,6 +9,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 
 const CANVAS_WIDTH = 920;
 const CANVAS_HEIGHT = 580;
+const MIN_ZOOM = 0.8;
+const MAX_ZOOM = 3;
 
 export type CampusMapCanvasPreviewProps = {
 	buildings: Building[];
@@ -76,8 +78,52 @@ export function CampusMapCanvasPreview({
 	const offsetY = Math.max(0, (stageHeight - CANVAS_HEIGHT * effectiveScale) / 2);
 	const fallbackSelectedId = selectedBuildingId ?? buildings[0]?.id ?? null;
 
+	const getOffsets = useCallback((zoomLevel: number) => {
+		const scaled = scale * zoomLevel;
+		return {
+			x: Math.max(0, (stageWidth - CANVAS_WIDTH * scaled) / 2),
+			y: Math.max(0, (stageHeight - CANVAS_HEIGHT * scaled) / 2),
+		};
+	}, [scale, stageHeight, stageWidth]);
+
+	const clampPosition = useCallback((nextPosition: { x: number; y: number }, zoomLevel: number) => {
+		const scaled = scale * zoomLevel;
+		const offsets = getOffsets(zoomLevel);
+		const scaledWidth = CANVAS_WIDTH * scaled;
+		const scaledHeight = CANVAS_HEIGHT * scaled;
+
+		const x = scaledWidth <= stageWidth
+			? 0
+			: Math.min(-offsets.x, Math.max(stageWidth - offsets.x - scaledWidth, nextPosition.x));
+		const y = scaledHeight <= stageHeight
+			? 0
+			: Math.min(-offsets.y, Math.max(stageHeight - offsets.y - scaledHeight, nextPosition.y));
+
+		return { x, y };
+	}, [getOffsets, scale, stageHeight, stageWidth]);
+
+	const zoomTo = useCallback((nextZoomLevel: number, anchor?: { x: number; y: number }) => {
+		const boundedZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.round(nextZoomLevel * 10) / 10));
+		const focusPoint = anchor ?? { x: stageWidth / 2, y: stageHeight / 2 };
+		const currentScale = scale * zoom;
+		const nextScale = scale * boundedZoom;
+		const currentOffsets = getOffsets(zoom);
+		const nextOffsets = getOffsets(boundedZoom);
+		const mapPoint = {
+			x: (focusPoint.x - position.x - currentOffsets.x) / currentScale,
+			y: (focusPoint.y - position.y - currentOffsets.y) / currentScale,
+		};
+		const nextPosition = {
+			x: focusPoint.x - nextOffsets.x - mapPoint.x * nextScale,
+			y: focusPoint.y - nextOffsets.y - mapPoint.y * nextScale,
+		};
+
+		setZoom(boundedZoom);
+		setPosition(clampPosition(nextPosition, boundedZoom));
+	}, [clampPosition, getOffsets, position.x, position.y, scale, stageHeight, stageWidth, zoom]);
+
 	const adjustZoom = (delta: number) => {
-		setZoom((current) => Math.max(0.8, Math.min(3, Math.round((current + delta) * 10) / 10)));
+		zoomTo(zoom + delta);
 	};
 
 	const resetView = () => {
@@ -85,14 +131,18 @@ export function CampusMapCanvasPreview({
 		setPosition({ x: 0, y: 0 });
 	};
 
+	useEffect(() => {
+		setPosition((current) => clampPosition(current, zoom));
+	}, [clampPosition, zoom]);
+
 	return (
-		<div ref={containerRef} className="relative overflow-hidden rounded-2xl border border-slate-100 bg-stone-50 shadow-inner">
+		<div ref={containerRef} className="relative overflow-hidden rounded-2xl border border-slate-100 bg-stone-50 shadow-inner" style={{ touchAction: interactive ? 'none' : 'pan-y' }}>
 			{showToolbar && (
 				<TooltipProvider>
 					<div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-xl border border-slate-200 bg-white/95 p-1 shadow-sm backdrop-blur">
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Button type="button" variant="ghost" size="icon" className="size-8 rounded-lg" onClick={() => adjustZoom(0.2)}>
+								<Button type="button" variant="ghost" size="icon" className="size-8 rounded-lg" aria-label="Zoom in campus map" onClick={() => adjustZoom(0.2)}>
 									<ZoomIn className="size-4" />
 								</Button>
 							</TooltipTrigger>
@@ -100,7 +150,7 @@ export function CampusMapCanvasPreview({
 						</Tooltip>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Button type="button" variant="ghost" size="icon" className="size-8 rounded-lg" onClick={() => adjustZoom(-0.2)}>
+								<Button type="button" variant="ghost" size="icon" className="size-8 rounded-lg" aria-label="Zoom out campus map" onClick={() => adjustZoom(-0.2)}>
 									<ZoomOut className="size-4" />
 								</Button>
 							</TooltipTrigger>
@@ -108,7 +158,7 @@ export function CampusMapCanvasPreview({
 						</Tooltip>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Button type="button" variant="ghost" size="icon" className="size-8 rounded-lg" onClick={resetView}>
+								<Button type="button" variant="ghost" size="icon" className="size-8 rounded-lg" aria-label="Reset campus map view" onClick={resetView}>
 									<RotateCcw className="size-4" />
 								</Button>
 							</TooltipTrigger>
@@ -129,14 +179,17 @@ export function CampusMapCanvasPreview({
 				draggable={interactive}
 				onDragEnd={(event) => {
 					if (!interactive) return;
-					setPosition({ x: event.target.x(), y: event.target.y() });
+					setPosition(clampPosition({ x: event.target.x(), y: event.target.y() }, zoom));
 				}}
+				dragBoundFunc={(nextPosition) => interactive ? clampPosition(nextPosition, zoom) : nextPosition}
 				onWheel={(event) => {
 					if (!interactive) return;
 					event.evt.preventDefault();
-					adjustZoom(event.evt.deltaY < 0 ? 0.1 : -0.1);
+					const stage = event.target.getStage();
+					zoomTo(zoom + (event.evt.deltaY < 0 ? 0.1 : -0.1), stage?.getPointerPosition() ?? undefined);
 				}}
 				className={interactive ? 'cursor-grab active:cursor-grabbing' : undefined}
+				style={{ touchAction: interactive ? 'none' : 'pan-y' }}
 			>
 				<Layer>
 					<Group x={offsetX} y={offsetY} scaleX={effectiveScale} scaleY={effectiveScale}>

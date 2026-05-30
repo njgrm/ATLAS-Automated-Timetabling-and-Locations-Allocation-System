@@ -210,6 +210,7 @@ export default function Dashboard() {
 	const {
 		loading,
 		buildings,
+		campusImageUrl,
 		subjectCount,
 		facultyCount,
 		sectionCount,
@@ -597,6 +598,7 @@ export default function Dashboard() {
 				<CampusReadinessCard
 					loading={loading}
 					buildings={buildings}
+					campusImageUrl={campusImageUrl}
 					teachingRoomCount={teachingRoomCount}
 					totalRoomCount={totalRoomCount}
 					setupStatus={buildingSetupStatus}
