@@ -1,4 +1,42 @@
-﻿# 2026-05-30 - SMART redesign progress audit after 01+02 execution
+﻿# 2026-05-30 - Admin campus map room schedule + zoom restoration
+
+- Phase: Cross-cutting admin UX repair for `/map` campus overview and dashboard campus placement.
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, LOCAL BUILD GREEN, DESKTOP + MOBILE TAILNET QA COMPLETE -> GO.
+- Trigger: user reported that room schedules and schedule-based room capacity/utilization were missing from room clicks, that the campus map/buildings were too small and no longer zoomable/scrollable, and that the dashboard campus map should be at the very bottom.
+- Design references: `docs/DESIGN.md` campus map/editor rules, `docs/DESIGN-INSPIRATION.md` admin clarity and dense responsive layout guidance, `docs/context7-library-map.md`; Context7 checked `/shadcn-ui/ui` tooltip/dialog composition and `/konvajs/react-konva` Stage click/drag patterns.
+- Fix: `CampusMapCanvasPreview` now supports interactive zoom, wheel zoom, drag/pan, reset, and tooltip-backed icon buttons while preserving compact dashboard preview usage. `/map` uses the larger interactive canvas and a larger `BuildingView` detail panel.
+- Fix: `/map` now fetches latest timetable data, subjects, and section summaries, derives room utilization from `pivotDraftToView`, passes utilization/occupancy/section metadata into `BuildingView`, and opens `RoomScheduleOverlay` when a room is clicked. Room tiles show schedule utilization bars and the schedule overlay links to `/room-schedules?roomId=<id>&source=latest`.
+- Fix: dashboard `CampusReadinessCard` moved after the scheduling lifecycle banner so the campus map is the final dashboard section.
+- Build: `npm --prefix atlas-client run build` -> pass, `built in 616ms`; tracked `atlas-client/dist` restored after cleanup to avoid unrelated build-artifact churn.
+- Diagnostics: VS Code diagnostics clean on `CampusMapCanvasPreview.tsx`, `CampusMapOverview.tsx`, `Dashboard.tsx`, and `BuildingView.tsx`.
+- File-size guardrail: `CampusMapOverview.tsx` 282 lines, `CampusMapCanvasPreview.tsx` 222 lines, `Dashboard.tsx` 587 lines, `BuildingView.tsx` 535 lines.
+- Tailnet desktop verification: direct admin session on `https://njgrm.buru-degree.ts.net/map`; campus map zoom button changed the toolbar from `100%` to `120%`; selected building panel rendered `Grade 10 Academic Wing`, room utilization controls, and building-level zoom controls; clicking room `G10-301` opened `RoomScheduleOverlay` with `Run #128 · COMPLETED`, utilization stats, timetable grid, and `Open Full Page` target `/room-schedules?roomId=113&source=latest`.
+- Tailnet dashboard verification: direct admin session on `/`; heading order is `Scheduling Dashboard` -> `Resolve scheduling violations` -> `Where the school year stands` -> `Buildings and rooms`, confirming the map section is after the lifecycle banner.
+- Mobile proof: Playwright viewport `390x844` on `/map` captured the restored overview with zoom controls and building detail available.
+- Screenshot evidence: `qa-artifacts/playwright/20260530-admin-map-overview-desktop-room-schedule-after.png`, `20260530-admin-map-overview-desktop-zoom-after.png`, `20260530-admin-dashboard-bottom-campus-map-after.png`, `20260530-admin-map-overview-mobile-zoom-after.png`.
+- Decision: GO for the user-reported room schedule, schedule utilization, map zoom/pan, and dashboard placement regressions.
+
+---
+
+# 2026-05-30 - Admin campus map visual repair after Tailnet QA
+
+- Phase: Cross-cutting admin UX repair for dashboard campus preview and `/map` overview.
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, LOCAL BUILD GREEN, DESKTOP + TRUE-MOBILE TAILNET QA COMPLETE -> GO.
+- Trigger: user reported the new dashboard and Campus & Rooms map redesign looked worse than the original editor map and that the building view appeared missing.
+- Root cause: the dashboard preview and `/map` overview used a separate abstract HTML/absolute-positioned map treatment while `/map?mode=editor` retained the recognizable original Konva building canvas. This created inconsistent mental models across the two pages.
+- Fix: added shared read-only `CampusMapCanvasPreview` using the same editor-style building rectangles, labels, colors, selected stroke, campus image handling, and non-teaching hatch treatment. Dashboard `CampusReadinessCard` and `/map` `CampusMapOverview` now use that shared canvas. `/map` also restores the selected building floor/room preview via `BuildingView` with a `Review rooms` action.
+- Build: `npm --prefix atlas-client run build` -> pass, `built in 936ms`.
+- Diagnostics: VS Code diagnostics clean on `CampusMapCanvasPreview.tsx`, `CampusMapOverview.tsx`, `CampusReadinessCard.tsx`, `BuildingPanel.tsx`, `CampusMapEditor.tsx`, `Dashboard.tsx`, and `MapEditor.tsx`.
+- Tailnet desktop verification: direct admin login `1000001 / AdminSY2026!`; `--primary = 360 75% 30%`; `/` dashboard campus preview and `/map` overview now render the same editor-style building map; `/map` selected-building panel shows Grade 10 Academic Wing plus building floor/room preview; `/map?mode=editor` remains intact.
+- Screenshot evidence: `qa-artifacts/playwright/20260530-admin-dashboard-campus-preview-before-fail.png`, `20260530-admin-map-overview-desktop-before-fail.png`, `20260530-admin-map-editor-desktop-before.png`, `20260530-admin-dashboard-campus-preview-after.png`, `20260530-admin-map-overview-desktop-after.png`, `20260530-admin-map-building-view-after.png`, `20260530-admin-map-editor-desktop-after.png`, `20260530-admin-map-overview-mobile-after.png`.
+- Mobile proof: headless Playwright at `390x844` returned `window.innerWidth=390`, `matchMedia('(max-width: 1023px)').matches=true`, `--primary=360 75% 30%`, and page text includes `Campus map` + `Review rooms`.
+- Decision: GO for the user-reported map regression. The inconsistent map treatment and missing building preview are repaired on Tailnet desktop and true-mobile checks.
+
+---
+
+# 2026-05-30 - SMART redesign progress audit after 01+02 execution
 
 - Phase: Cross-cutting UX audit gate after shell/faculty/public redesign execution.
 - Operator: GitHub Copilot

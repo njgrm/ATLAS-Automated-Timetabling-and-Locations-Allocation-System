@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { CalendarClock, Check, Clock, Crosshair, GraduationCap, History, Lightbulb, Loader2, Play, RefreshCw, Send, Settings2, ShieldAlert, Undo2 } from 'lucide-react';
+import { CalendarClock, Check, Clock, ClipboardList, Crosshair, GraduationCap, History, Lightbulb, Loader2, Play, RefreshCw, Send, Settings2, ShieldAlert, Undo2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
@@ -74,6 +74,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		violations,
 		severityFilter,
 		setSeverityFilter,
+		setLeftTab,
 		softCount,
 		WELLBEING_CODES,
 		CONFLICT_CODES,
@@ -215,6 +216,37 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent>Navigate buildings and rooms without leaving the editable grid</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button asChild variant="outline" size="sm" className="h-8 gap-1.5">
+								<Link to="/faculty/preferences">
+									<ClipboardList className="size-3.5" />
+									Input status
+								</Link>
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Check which teachers have submitted preferences</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-8 gap-1.5"
+								onClick={() => setLeftTab('requests')}
+							>
+								<ClipboardList className="size-3.5" />
+								Requests
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Open the room requests queue inside Timetable</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
 

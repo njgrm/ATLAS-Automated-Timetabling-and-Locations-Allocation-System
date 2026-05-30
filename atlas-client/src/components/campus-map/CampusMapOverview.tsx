@@ -1,146 +1,314 @@
-import { CheckCircle2, AlertTriangle, MapPinned, DoorOpen } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AlertTriangle, ArrowRight, Building2, CheckCircle2, DoorOpen, Pencil } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
-import type { Building } from '@/types';
+import { BuildingView, type RoomSectionMetadata } from '@/components/BuildingView';
+import { GradeLevelBadge, parseGradeFromSectionName } from '@/components/GradeLevelBadge';
+import { RoomScheduleOverlay } from '@/components/RoomScheduleOverlay';
+import { CampusMapCanvasPreview } from '@/components/campus-map/CampusMapCanvasPreview';
+import atlasApi from '@/lib/api';
+import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { pivotDraftToView } from '@/lib/schedule-pivot';
+import type { Building, DraftReport, Room, RoomScheduleView, SectionSummaryResponse, Subject } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
-import { Card } from '@/ui/card';
+import { Card, CardContent } from '@/ui/card';
 
 export type CampusMapOverviewProps = {
 	buildings: Building[];
 	campusImageUrl: string | null;
 };
 
-function buildingStatus(b: Building): 'ready' | 'attention' {
-	const teaching = (b.rooms ?? []).filter((r) => r.isTeachingSpace).length;
-	return teaching > 0 ? 'ready' : 'attention';
+type SectionScheduleInfo = {
+	name: string;
+	gradeLevel: number | null;
+	programCode?: string | null;
+};
+
+const DEFAULT_SCHOOL_ID = 1;
+const DAY_RANK: Record<string, number> = {
+	MONDAY: 1,
+	TUESDAY: 2,
+	WEDNESDAY: 3,
+	THURSDAY: 4,
+	FRIDAY: 5,
+};
+
+function teachingRoomCount(building: Building): number {
+	return (building.rooms ?? []).filter((room) => room.isTeachingSpace).length;
+}
+
+function buildingStatus(building: Building): 'ready' | 'attention' {
+	return teachingRoomCount(building) > 0 ? 'ready' : 'attention';
 }
 
 export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOverviewProps) {
-	const totalRooms = buildings.reduce((acc, b) => acc + (b.rooms?.length ?? 0), 0);
-	const teachingRooms = buildings.reduce(
-		(acc, b) => acc + (b.rooms ?? []).filter((r) => r.isTeachingSpace).length,
-		0,
-	);
-	const readyCount = buildings.filter((b) => buildingStatus(b) === 'ready').length;
+	const [selectedId, setSelectedId] = useState<number | null>(null);
+	const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+	const [scheduleReport, setScheduleReport] = useState<DraftReport | null>(null);
+	const [subjectMap, setSubjectMap] = useState<Map<number, string>>(new Map());
+	const [sectionMap, setSectionMap] = useState<Map<number, SectionScheduleInfo>>(new Map());
+	const teachingBuildings = buildings.filter((building) => building.isTeachingBuilding !== false);
+	const totalRooms = buildings.reduce((acc, building) => acc + (building.rooms?.length ?? 0), 0);
+	const teachingRooms = buildings.reduce((acc, building) => acc + teachingRoomCount(building), 0);
+	const readyCount = buildings.filter((building) => buildingStatus(building) === 'ready').length;
 	const attentionCount = buildings.length - readyCount;
+	const selectedBuilding = buildings.find((building) => building.id === selectedId)
+		?? teachingBuildings.find((building) => buildingStatus(building) === 'attention')
+		?? teachingBuildings[0]
+		?? buildings[0]
+		?? null;
+	const selectedTeachingRooms = selectedBuilding ? teachingRoomCount(selectedBuilding) : 0;
+	const selectedStatus = selectedBuilding ? buildingStatus(selectedBuilding) : 'attention';
+
+	useEffect(() => {
+		let cancelled = false;
+
+		(async () => {
+			const context = await resolveActiveSchoolYearContext({ allowStaleOnError: true });
+			const activeSchoolYearId = context.activeSchoolYearId;
+			if (!activeSchoolYearId) return;
+
+			const [subjectsRes, sectionsRes, reportRes] = await Promise.all([
+				atlasApi.get<{ subjects: Subject[] }>(`/subjects?schoolId=${DEFAULT_SCHOOL_ID}`).catch(() => ({ data: { subjects: [] as Subject[] } })),
+				atlasApi.get<SectionSummaryResponse>(`/sections/summary/${activeSchoolYearId}?schoolId=${DEFAULT_SCHOOL_ID}`).catch(() => ({ data: { sections: [] } as unknown as SectionSummaryResponse })),
+				atlasApi.get<DraftReport>(`/generation/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/runs/latest/timetable`).catch(() => ({ data: null as DraftReport | null })),
+			]);
+
+			if (cancelled) return;
+
+			setSubjectMap(
+				new Map(
+					(subjectsRes.data.subjects ?? []).map((subject) => [
+						subject.id,
+						subject.displayCode ?? subject.code ?? subject.name,
+					]),
+				),
+			);
+			setSectionMap(
+				new Map(
+					(sectionsRes.data.sections ?? []).map((section) => [
+						section.id,
+						{
+							name: section.name,
+							gradeLevel: parseGradeFromSectionName(section.gradeLevelName) ?? parseGradeFromSectionName(section.name),
+							programCode: section.programCode,
+						},
+					]),
+				),
+			);
+			setScheduleReport(reportRes.data);
+		})().catch(() => {
+			if (!cancelled) setScheduleReport(null);
+		});
+
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	const roomUtilization = useMemo(() => {
+		const utilization = new Map<number, number>();
+		if (!scheduleReport) return utilization;
+
+		for (const building of buildings) {
+			for (const room of building.rooms ?? []) {
+				if (!room.isTeachingSpace) continue;
+				const schedule = pivotDraftToView(
+					scheduleReport,
+					'rooms',
+					room.id,
+					{ id: room.id, name: room.name, subtitle: building.name },
+					subjectMap,
+				);
+				utilization.set(room.id, Math.min(100, schedule.summary.utilizationPercent));
+			}
+		}
+
+		return utilization;
+	}, [buildings, scheduleReport, subjectMap]);
+
+	const roomScheduleIndicators = useMemo(() => {
+		const occupancy = new Map<number, string>();
+		const sectionData = new Map<number, RoomSectionMetadata>();
+		if (!scheduleReport) return { occupancy, sectionData };
+
+		const sortedEntries = [...scheduleReport.entries].sort((left, right) => {
+			const dayDelta = (DAY_RANK[left.day] ?? 99) - (DAY_RANK[right.day] ?? 99);
+			return dayDelta || left.startTime.localeCompare(right.startTime) || left.endTime.localeCompare(right.endTime);
+		});
+
+		for (const entry of sortedEntries) {
+			if (sectionData.has(entry.roomId)) continue;
+			const section = sectionMap.get(entry.sectionId);
+			const sectionName = section?.name ?? entry.cohortName ?? `Section #${entry.sectionId}`;
+			const gradeLevel = section?.gradeLevel ?? parseGradeFromSectionName(sectionName);
+			const programCode = entry.programCode ?? section?.programCode ?? undefined;
+			occupancy.set(entry.roomId, sectionName);
+			sectionData.set(entry.roomId, {
+				sectionName,
+				gradeKey: gradeLevel ? String(gradeLevel) : '',
+				programCode: programCode ?? undefined,
+			});
+		}
+
+		return { occupancy, sectionData };
+	}, [scheduleReport, sectionMap]);
+
+	const selectedRoomSchedule = useMemo<RoomScheduleView | null>(() => {
+		if (!scheduleReport || !selectedRoom) return null;
+		const parentBuilding = buildings.find((building) => (building.rooms ?? []).some((room) => room.id === selectedRoom.id));
+		return pivotDraftToView(
+			scheduleReport,
+			'rooms',
+			selectedRoom.id,
+			{ id: selectedRoom.id, name: selectedRoom.name, subtitle: parentBuilding?.name },
+			subjectMap,
+		);
+	}, [buildings, scheduleReport, selectedRoom, subjectMap]);
+
+	const selectBuilding = (buildingId: number) => {
+		setSelectedId(buildingId);
+		setSelectedRoom(null);
+	};
 
 	return (
-		<div className="h-[calc(100svh-3.5rem)] overflow-auto bg-linear-to-b from-emerald-50/30 via-background to-background scrollbar-thin">
-			<div className="mx-auto w-full max-w-5xl space-y-6 p-6">
-				<header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+		<div className="h-[calc(100svh-3.5rem)] overflow-auto bg-primary/5 scrollbar-thin">
+			<div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-6 py-7 lg:px-8">
+				<header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
 					<div>
-						<p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-							Scheduling Portal
-						</p>
-						<h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
-							Campus and rooms
-						</h1>
-						<p className="mt-1 text-sm text-muted-foreground">
-							Review buildings, teaching rooms, and home-room readiness for the active school year.
+						<p className="text-[0.72rem] font-bold uppercase text-primary">Scheduling Portal</p>
+						<h1 className="mt-1 text-3xl font-bold text-slate-900">Campus and rooms</h1>
+						<p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">
+							Review buildings, teaching rooms, and room readiness before generation.
 						</p>
 					</div>
-					<div className="flex gap-2">
-						<Button asChild variant="outline" size="sm">
-							<Link to="/map?mode=editor">Edit rooms</Link>
-						</Button>
-						<Button asChild size="sm" className="bg-emerald-600 hover:bg-emerald-700">
-							<Link to="/map?mode=editor" aria-label="Open the campus map editor">
-								<MapPinned className="size-3.5" /> Edit campus map
-							</Link>
-						</Button>
-					</div>
+					<Button asChild className="h-11 rounded-xl bg-primary font-semibold text-primary-foreground shadow-primary-glow hover:bg-primary/90">
+						<Link to="/map?mode=editor">
+							<Pencil className="size-4" />
+							Edit campus map
+						</Link>
+					</Button>
 				</header>
 
-				<Card className="grid grid-cols-2 gap-4 p-4 md:grid-cols-4">
-					<SummaryStat label="Buildings" value={buildings.length.toString()} />
-					<SummaryStat label="Teaching rooms" value={`${teachingRooms} / ${totalRooms}`} />
-					<SummaryStat
-						label="Ready"
-						value={readyCount.toString()}
-						tone={readyCount > 0 ? 'ready' : 'neutral'}
-					/>
-					<SummaryStat
-						label="Need attention"
-						value={attentionCount.toString()}
-						tone={attentionCount > 0 ? 'attention' : 'neutral'}
-					/>
-				</Card>
+				<section className="grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(380px,0.5fr)]">
+					<Card className="overflow-hidden rounded-2xl border-0 bg-white p-0 shadow-soft-xl">
+						<CardContent className="p-0">
+							<div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+								<div>
+									<h2 className="text-lg font-bold text-slate-900">Campus map</h2>
+									<p className="text-xs text-slate-500">Select a building to review its rooms.</p>
+								</div>
+								<Badge className="border-0 bg-primary/10 text-primary hover:bg-primary/10">Overview</Badge>
+							</div>
+							<div className="bg-stone-50 p-4">
+								<CampusMapCanvasPreview
+									buildings={buildings}
+									campusImageUrl={campusImageUrl}
+									selectedBuildingId={selectedBuilding?.id ?? null}
+									onSelectBuilding={selectBuilding}
+									height={560}
+									interactive
+									showToolbar
+								/>
+							</div>
+						</CardContent>
+					</Card>
 
-				<section className="space-y-3">
-					<h2 className="text-sm font-semibold text-foreground">Buildings</h2>
-					{buildings.length === 0 ? (
-						<Card className="p-8 text-center text-sm text-muted-foreground">
-							<MapPinned className="mx-auto mb-2 size-8 text-muted-foreground/40" />
-							<p>No buildings added yet. Open the editor to draw your first building.</p>
-							<Button asChild size="sm" className="mt-4 bg-emerald-600 hover:bg-emerald-700">
-								<Link to="/map?mode=editor">Open editor</Link>
-							</Button>
-						</Card>
-					) : (
-						<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-							{buildings.map((b) => {
-								const status = buildingStatus(b);
-								const teachingCount = (b.rooms ?? []).filter((r) => r.isTeachingSpace).length;
-								const totalCount = b.rooms?.length ?? 0;
-								return (
-									<Card key={b.id} className="space-y-2 p-4">
-										<div className="flex items-start justify-between gap-2">
-											<div className="min-w-0">
-												<p className="truncate text-sm font-semibold text-foreground">{b.name}</p>
-												{b.shortCode && (
-													<p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-														{b.shortCode}
-													</p>
-												)}
-											</div>
-											{status === 'ready' ? (
-												<Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-													<CheckCircle2 className="size-3" /> Ready
-												</Badge>
-											) : (
-												<Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
-													<AlertTriangle className="size-3" /> Needs rooms
-												</Badge>
-											)}
-										</div>
-										<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-											<DoorOpen className="size-3.5" />
-											{teachingCount} teaching of {totalCount} room{totalCount === 1 ? '' : 's'}
-										</div>
-									</Card>
-								);
-							})}
+					<div className="flex min-h-0 flex-col gap-4">
+						<div className="grid grid-cols-2 gap-3">
+							<SummaryStat label="Buildings" value={buildings.length.toString()} icon={Building2} />
+							<SummaryStat label="Teaching rooms" value={`${teachingRooms}/${totalRooms}`} icon={DoorOpen} />
 						</div>
-					)}
+
+						<Card className="rounded-2xl border-0 bg-white p-0 shadow-soft-xl">
+							<CardContent className="p-5">
+								<div className="flex items-center justify-between gap-2">
+									<p className="text-xs font-semibold uppercase text-slate-500">Selected building</p>
+									{selectedBuilding ? (
+										<Badge variant="outline" className={selectedStatus === 'ready' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}>
+											{selectedStatus === 'ready' ? <CheckCircle2 className="size-3" /> : <AlertTriangle className="size-3" />}
+											{selectedStatus === 'ready' ? 'Ready' : 'Needs rooms'}
+										</Badge>
+									) : null}
+								</div>
+								<h3 className="mt-2 truncate text-xl font-bold text-slate-900">{selectedBuilding?.name ?? 'No building selected'}</h3>
+								<p className="mt-2 text-sm text-slate-500">
+									{selectedBuilding
+										? `${selectedTeachingRooms} teaching room${selectedTeachingRooms === 1 ? '' : 's'} out of ${selectedBuilding.rooms?.length ?? 0} total rooms.`
+										: 'Open editor mode to draw buildings and add rooms.'}
+								</p>
+
+								{selectedBuilding ? (
+									<div className="mt-4 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
+										<BuildingView
+											building={selectedBuilding}
+											height={360}
+											showToolbar
+											selectedRoomId={selectedRoom?.id ?? null}
+											onRoomSelect={setSelectedRoom}
+											roomUtilization={roomUtilization}
+											roomOccupancy={roomScheduleIndicators.occupancy}
+											roomSectionData={roomScheduleIndicators.sectionData}
+										/>
+									</div>
+								) : null}
+
+								{selectedRoom ? (
+									<div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-primary/10 bg-primary/5 px-3 py-2">
+										<div className="min-w-0">
+											<p className="truncate text-sm font-semibold text-slate-900">{selectedRoom.name}</p>
+											<p className="text-xs text-slate-500">
+												{selectedRoomSchedule ? `${selectedRoomSchedule.summary.entryCount} classes scheduled` : 'Latest room schedule unavailable'}
+											</p>
+										</div>
+										<GradeLevelBadge grade={roomScheduleIndicators.sectionData.get(selectedRoom.id)?.gradeKey ? Number(roomScheduleIndicators.sectionData.get(selectedRoom.id)?.gradeKey) : null} size="xs" />
+									</div>
+								) : null}
+
+								{selectedBuilding ? (
+									<Button asChild variant="outline" className="mt-4 h-10 w-full justify-between rounded-xl">
+										<Link to={`/map?mode=editor&buildingId=${selectedBuilding.id}`}>
+											Review rooms
+											<ArrowRight className="size-4" />
+										</Link>
+									</Button>
+								) : null}
+							</CardContent>
+						</Card>
+
+						<div className="flex flex-wrap gap-1.5">
+							<Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+								<CheckCircle2 className="size-3" />
+								{readyCount} ready
+							</Badge>
+							<Badge variant="outline" className={attentionCount > 0 ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-600'}>
+								<AlertTriangle className="size-3" />
+								{attentionCount} need attention
+							</Badge>
+						</div>
+					</div>
 				</section>
 
-				{campusImageUrl && (
-					<p className="text-xs text-muted-foreground">A campus photo is already uploaded.</p>
-				)}
+				<RoomScheduleOverlay
+					open={selectedRoom !== null}
+					onClose={() => setSelectedRoom(null)}
+					roomName={selectedRoom?.name ?? 'Room'}
+					roomId={selectedRoom?.id ?? 0}
+					schedule={selectedRoomSchedule}
+				/>
 			</div>
 		</div>
 	);
 }
 
-function SummaryStat({
-	label,
-	value,
-	tone = 'neutral',
-}: {
-	label: string;
-	value: string;
-	tone?: 'ready' | 'attention' | 'neutral';
-}) {
-	const cls = tone === 'ready'
-		? 'text-emerald-700'
-		: tone === 'attention'
-			? 'text-amber-700'
-			: 'text-foreground';
+function SummaryStat({ label, value, icon: Icon }: { label: string; value: string; icon: LucideIcon }) {
 	return (
-		<div>
-			<p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-			<p className={`mt-1 text-2xl font-semibold tabular-nums ${cls}`}>{value}</p>
+		<div className="rounded-2xl bg-white p-4 shadow-soft">
+			<Icon className="size-4 text-primary" />
+			<p className="mt-2 text-[0.68rem] font-semibold uppercase text-slate-500">{label}</p>
+			<p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{value}</p>
 		</div>
 	);
 }

@@ -23,6 +23,7 @@ import atlasApi from '@/lib/api';
 import type { Building, Room, RoomType } from '@/types';
 import { Button } from '@/ui/button';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/ui/accordion';
 import {
 	Dialog,
 	DialogContent,
@@ -304,10 +305,13 @@ export function BuildingPanel({
 	};
 
 	return (
-		<div className="flex h-full w-79.5 shrink-0 flex-col border-l border-border bg-card">
+		<div className="flex h-full shrink-0 flex-col bg-white">
 			{/* Header */}
-			<div className="flex items-center justify-between border-b border-border px-4 py-3">
-				<h3 className="text-sm font-bold">Building Details</h3>
+			<div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+				<div>
+					<p className="text-[0.65rem] font-bold uppercase text-primary">Campus setup</p>
+					<h3 className="text-sm font-bold text-slate-900">Building summary</h3>
+				</div>
 				<Button type="button" variant="ghost" size="icon-xs" onClick={onClose} aria-label="Close building details">
 					<X className="size-4" />
 				</Button>
@@ -318,8 +322,8 @@ export function BuildingPanel({
 					<>
 						{/* Name */}
 						<div>
-							<label className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
-								Name
+							<label className="text-[0.72rem] font-semibold text-slate-500">
+								Building name
 							</label>
 							<Input
 								value={building.name}
@@ -329,7 +333,7 @@ export function BuildingPanel({
 						</div>
 
 						<div>
-							<label className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
+							<label className="text-[0.72rem] font-semibold text-slate-500">
 								Room label prefix
 							</label>
 							<Input
@@ -348,36 +352,42 @@ export function BuildingPanel({
 
 						{/* Color */}
 						<div>
-							<label className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
-								Color
+							<label className="text-[0.72rem] font-semibold text-slate-500">
+								Map color
 							</label>
-							<div className="mt-1.5 flex flex-wrap gap-1.5">
-								{CALM_BUILDING_SWATCHES.map((s) => (
-									<Button
-										key={s.id}
-										type="button"
-										variant="outline"
-										size="icon-xs"
-										aria-label={`Set color: ${s.label}`}
-										title={s.label}
-										onClick={() => onUpdate({ color: s.value, dirty: true })}
-										className={`border-2 transition-all ${
-											building.color === s.value ? 'border-foreground scale-110' : 'border-transparent'
-										}`}
-										style={{ backgroundColor: s.value }}
-									/>
-								))}
-							</div>
+							<TooltipProvider delayDuration={250}>
+								<div className="mt-1.5 flex flex-wrap gap-1.5">
+									{CALM_BUILDING_SWATCHES.map((s) => (
+										<Tooltip key={s.id}>
+											<TooltipTrigger asChild>
+												<Button
+													type="button"
+													variant="outline"
+													size="icon-xs"
+													aria-label={`Set map color to ${s.label}`}
+													onClick={() => onUpdate({ color: s.value, dirty: true })}
+													className={`border-2 transition-all ${
+														building.color === s.value ? 'border-primary scale-110 ring-2 ring-primary/20' : 'border-transparent'
+													}`}
+													style={{ backgroundColor: s.value }}
+												/>
+											</TooltipTrigger>
+											<TooltipContent side="top">{s.label}</TooltipContent>
+										</Tooltip>
+									))}
+								</div>
+							</TooltipProvider>
 						</div>
 
 						{/* Advanced placement (collapsed by default) */}
-						<details className="rounded-md border border-border bg-muted/30 px-3 py-2">
-							<summary className="cursor-pointer select-none text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
-								Advanced placement
-							</summary>
-							<div className="mt-3 grid grid-cols-2 gap-2">
+						<Accordion type="single" collapsible className="rounded-xl border border-slate-100 bg-slate-50 px-3">
+							<AccordionItem value="placement" className="border-0">
+								<AccordionTrigger className="text-[0.72rem] font-semibold text-slate-500 hover:no-underline">
+									Advanced placement
+								</AccordionTrigger>
+								<AccordionContent className="grid grid-cols-2 gap-2 pb-3">
 								<div>
-									<label className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
+									<label className="text-[0.68rem] font-semibold text-slate-500">
 										X
 									</label>
 									<Input
@@ -388,7 +398,7 @@ export function BuildingPanel({
 									/>
 								</div>
 								<div>
-									<label className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
+									<label className="text-[0.68rem] font-semibold text-slate-500">
 										Y
 									</label>
 									<Input
@@ -399,7 +409,7 @@ export function BuildingPanel({
 									/>
 								</div>
 								<div>
-									<label className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
+									<label className="text-[0.68rem] font-semibold text-slate-500">
 										Width
 									</label>
 									<Input
@@ -411,7 +421,7 @@ export function BuildingPanel({
 									/>
 								</div>
 								<div>
-									<label className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
+									<label className="text-[0.68rem] font-semibold text-slate-500">
 										Height
 									</label>
 									<Input
@@ -422,12 +432,13 @@ export function BuildingPanel({
 										className="mt-1"
 									/>
 								</div>
-							</div>
-						</details>
+								</AccordionContent>
+							</AccordionItem>
+						</Accordion>
 
 						{/* Floor count */}
 						<div>
-							<label className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
+							<label className="text-[0.72rem] font-semibold text-slate-500">
 								Number of floors
 							</label>
 							<Input
@@ -450,7 +461,7 @@ export function BuildingPanel({
 
 						{/* Non-teaching building toggle */}
 						{!building.isNew && (
-							<div className="flex items-center gap-3 rounded-md border border-border px-3 py-2">
+							<div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
 								<Switch
 									checked={building.isTeachingBuilding === false}
 									onCheckedChange={() => {
@@ -458,8 +469,8 @@ export function BuildingPanel({
 									}}
 									disabled={togglingTeaching}
 								/>
-								<label className="text-[0.6875rem] text-muted-foreground">
-									Exclude from scheduling (non-teaching building)
+								<label className="text-[0.72rem] text-slate-500">
+									Not used for scheduling
 								</label>
 							</div>
 						)}

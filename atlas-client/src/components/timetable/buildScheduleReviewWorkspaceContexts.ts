@@ -84,6 +84,7 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	setKbSelectedSource: Dispatch<SetStateAction<DragSource>>;
 	severityFilter: 'all' | 'hard' | 'soft' | 'conflicts' | 'wellbeing';
 	setSeverityFilter: (value: 'all' | 'hard' | 'soft' | 'conflicts' | 'wellbeing') => void;
+	setLeftTab: (value: 'violations' | 'unassigned' | 'pinned' | 'requests') => void;
 	VIEW_MODE_LABELS: Record<string, string>;
 	PROGRAM_FILTER_OPTIONS: Array<{ value: string; label: string }>;
 	ENTRY_KIND_FILTER_OPTIONS: Array<{ value: string; label: string }>;

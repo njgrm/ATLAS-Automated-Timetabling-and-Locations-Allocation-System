@@ -43,18 +43,18 @@ import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
 import { useAccessibility } from '@/hooks/useAccessibility';
 
 import { AppSidebar } from './app-shell/AppSidebar';
-import { FacultyMobileBottomNav } from './app-shell/FacultyMobileBottomNav';
+import { FacultyMobileBottomNav } from '@/components/app-shell/FacultyMobileBottomNav';
 import { MobileNavigationDrawer } from './app-shell/MobileNavigationDrawer';
 import { SchoolYearSwitcher } from './app-shell/SchoolYearSwitcher';
 import {
-	advancedNav,
 	breadcrumbGroups,
-	buildValidateNav,
+	auditNav,
 	facultyNav,
-	facultyPlanningNav,
-	inputCollectionNav,
 	navigationNav,
+	reviewPublishNav,
 	setupNav,
+	teachersAndRoomsNav,
+	timetableNav,
 	type NavItemDef,
 } from './app-shell/navigation';
 
@@ -144,10 +144,10 @@ export function AppShell() {
 		const aggregated = [
 			...navigationNav,
 			...setupNav,
-			...facultyPlanningNav,
-			...inputCollectionNav,
-			...buildValidateNav,
-			...advancedNav,
+			...teachersAndRoomsNav,
+			...timetableNav,
+			...reviewPublishNav,
+			...auditNav,
 		]
 			.filter((item) => !item.disabled)
 			.filter((item) => !item.adminOnly || isAdmin);

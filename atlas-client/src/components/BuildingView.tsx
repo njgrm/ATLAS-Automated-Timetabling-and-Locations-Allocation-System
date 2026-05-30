@@ -349,7 +349,7 @@ export function BuildingView({
 									x={4}
 									y={32}
 									width={ROOM_MIN_W - 8}
-									text={`Cap: ${room.capacity}`}
+									text={`Capacity: ${room.capacity}`}
 									fontSize={8}
 									fill="#9ca3af"
 								/>

@@ -187,15 +187,15 @@ export default function MapEditor() {
 	}
 
 	return (
-		<div className="flex h-[calc(100svh-3.5rem)] overflow-hidden">
+		<div className="flex h-[calc(100svh-3.5rem)] overflow-hidden bg-primary/5">
 			{/* Canvas area */}
 			<div className="flex-1 min-w-0 overflow-hidden p-4">
 				<div className="mb-3 flex items-center justify-between gap-3">
 					<div>
-						<p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+						<p className="text-[10px] font-bold uppercase text-primary">
 							Scheduling Portal
 						</p>
-						<h1 className="text-lg font-semibold tracking-tight text-foreground">
+						<h1 className="text-lg font-bold text-slate-900">
 							Campus map editor
 						</h1>
 					</div>
@@ -222,7 +222,7 @@ export default function MapEditor() {
 			</div>
 
 			{/* Side panel — always visible */}
-			<div className="w-80 shrink-0 border-l border-border bg-muted/30 overflow-y-auto scrollbar-thin">
+			<div className="w-88 shrink-0 border-l border-slate-200 bg-white overflow-y-auto scrollbar-thin shadow-soft">
 				{selectedBuilding ? (
 					<BuildingPanel
 						building={selectedBuilding}
@@ -237,11 +237,11 @@ export default function MapEditor() {
 				) : (
 					<div className="flex h-full items-center justify-center p-6 text-center">
 						<div>
-							<MapPinned className="mx-auto size-10 text-muted-foreground/30" />
-							<p className="mt-2 text-sm text-muted-foreground">
+							<MapPinned className="mx-auto size-10 text-primary/30" />
+							<p className="mt-2 text-sm text-slate-500">
 								{buildings.length === 0
-									? 'Click the + button on the canvas to add your first building.'
-									: 'Select a building on the map to edit its details.'}
+									? 'Choose Draw building to add the first campus building.'
+									: 'Select a building on the map to edit rooms and readiness.'}
 							</p>
 						</div>
 					</div>

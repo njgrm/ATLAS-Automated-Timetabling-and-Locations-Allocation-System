@@ -8,7 +8,6 @@ import {
 	CheckCircle2,
 	ChevronRight,
 	ArrowRight,
-	MapPinned,
 	Layers,
 	Wand2,
 	ClipboardList,
@@ -19,6 +18,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
 import { useDashboardData, type LifecyclePhase } from '@/hooks/useDashboardData';
+import { CampusReadinessCard } from '@/components/dashboard/CampusReadinessCard';
 
 // Tone vocabulary — only `brand` is school-token-driven; the others are reserved
 // for semantic meaning (info/students/warning) and must stay independent of the
@@ -369,8 +369,8 @@ export default function Dashboard() {
 					})}
 				</div>
 
-				{/* Three small status cards */}
-				<div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+				{/* Inline workflow status cards */}
+				<div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
 					<Card className='border-0 shadow-soft rounded-2xl bg-white p-0'>
 						<CardContent className='p-5'>
 							<div className='flex items-center justify-between'>
@@ -424,33 +424,6 @@ export default function Dashboard() {
 									</div>
 								</div>
 								<Link to='/teaching-load'>
-									<Button
-										variant='ghost'
-										size='sm'
-										className='rounded-lg text-slate-500 hover:text-slate-900 gap-1'
-									>
-										Open
-										<ChevronRight className='w-4 h-4' />
-									</Button>
-								</Link>
-							</div>
-						</CardContent>
-					</Card>
-					<Card className='border-0 shadow-soft rounded-2xl bg-white p-0'>
-						<CardContent className='p-5'>
-							<div className='flex items-center justify-between'>
-								<div className='flex items-center gap-3'>
-									<div className='p-2.5 rounded-xl bg-sky-50'>
-										<MapPinned className='w-5 h-5 text-sky-600' />
-									</div>
-									<div>
-										<p className='text-sm font-medium text-slate-500'>Buildings on campus</p>
-										<p className='text-xl font-bold text-sky-600'>
-											{loading ? '…' : buildings.length}
-										</p>
-									</div>
-								</div>
-								<Link to='/map'>
 									<Button
 										variant='ghost'
 										size='sm'
@@ -620,6 +593,14 @@ export default function Dashboard() {
 						</ol>
 					</CardContent>
 				</Card>
+
+				<CampusReadinessCard
+					loading={loading}
+					buildings={buildings}
+					teachingRoomCount={teachingRoomCount}
+					totalRoomCount={totalRoomCount}
+					setupStatus={buildingSetupStatus}
+				/>
 			</div>
 		</div>
 	);

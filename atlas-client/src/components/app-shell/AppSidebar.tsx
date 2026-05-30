@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import {
 	AlertTriangle,
 	ExternalLink,
-	Lock,
 	LogOut,
 	School,
 } from 'lucide-react';
@@ -28,14 +27,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
 
 import {
-	advancedNav,
-	buildValidateNav,
-	campusNav,
+	auditNav,
 	facultyNav,
-	facultyPlanningNav,
-	inputCollectionNav,
 	navigationNav,
+	reviewPublishNav,
 	setupNav,
+	teachersAndRoomsNav,
+	timetableNav,
 	type NavItemDef,
 } from './navigation';
 
@@ -73,28 +71,6 @@ function NavItem({
 					<Icon className='size-4' />
 					<span>{label}</span>
 				</Link>
-			</SidebarMenuButton>
-		</SidebarMenuItem>
-	);
-}
-
-function NavItemDisabled({
-	icon: Icon,
-	label,
-}: {
-	icon: React.ElementType;
-	label: string;
-}) {
-	return (
-		<SidebarMenuItem>
-			<SidebarMenuButton
-				tooltip={`${label} (Coming Soon)`}
-				className='cursor-not-allowed opacity-40'
-				disabled
-			>
-				<Icon className='size-4' />
-				<span>{label}</span>
-				<Lock className='ml-auto size-3' />
 			</SidebarMenuButton>
 		</SidebarMenuItem>
 	);
@@ -215,14 +191,14 @@ export function AppSidebar({
 									<>
 										<NavDivider label='School Setup' />
 										{renderNavGroup(setupNav, isAdmin, pathname)}
-										<NavDivider label='Teacher Planning' />
-										{renderNavGroup(facultyPlanningNav, isAdmin, pathname)}
-										<NavDivider label='Campus' />
-										{renderNavGroup(campusNav, isAdmin, pathname)}
-										<NavDivider label='Input Collection' />
-										{renderNavGroup(inputCollectionNav, isAdmin, pathname)}
-										<NavDivider label='Build & Validate' />
-										{renderNavGroup(buildValidateNav, isAdmin, pathname)}
+										<NavDivider label='Teachers and Rooms' />
+										{renderNavGroup(teachersAndRoomsNav, isAdmin, pathname)}
+										<NavDivider label='Timetable' />
+										{renderNavGroup(timetableNav, isAdmin, pathname)}
+										<NavDivider label='Review and Publish' />
+										{renderNavGroup(reviewPublishNav, isAdmin, pathname)}
+										<NavDivider label='Audit' />
+										{renderNavGroup(auditNav, isAdmin, pathname)}
 									</>
 								)}
 
@@ -235,18 +211,6 @@ export function AppSidebar({
 									</>
 								)}
 
-								{!isFaculty && (
-									<>
-										<NavDivider label='Advanced' />
-										{advancedNav.map((item) =>
-											item.disabled ? (
-												<NavItemDisabled key={item.to} icon={item.icon} label={item.label} />
-											) : (
-												<NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} pathname={pathname} />
-											),
-										)}
-									</>
-								)}
 							</SidebarMenu>
 						</SidebarGroupContent>
 					</SidebarGroup>
