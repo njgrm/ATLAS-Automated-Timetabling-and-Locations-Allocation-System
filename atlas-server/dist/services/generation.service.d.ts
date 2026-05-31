@@ -1,6 +1,7 @@
 import { type ScheduledEntry, type Violation } from './constraint-validator.js';
 import { type TimetableShapeContract, type UnassignedItem } from './schedule-constructor.js';
 import { type SeedQualitySummary, type RepairImpact } from './hybrid-scheduler.js';
+import { type GenerationInputComparison, type GenerationInputSnapshot } from './generation-input-snapshot.service.js';
 type PublishedStateReconciliationResult = {
     reconciledCount: number;
     reconciledRunIds: number[];
@@ -88,6 +89,7 @@ export interface RunSummary {
         eventName?: string;
         isSpecialEvent?: boolean;
     }>;
+    inputSnapshot?: GenerationInputSnapshot;
 }
 export declare function triggerGenerationRun(schoolId: number, schoolYearId: number, actorId: number, options?: {
     ignoreRoomRequestGate?: boolean;
@@ -245,6 +247,7 @@ export interface DraftReport {
     entries: ScheduledEntry[];
     unassignedItems: UnassignedItem[];
     summary: RunSummary | null;
+    inputState?: GenerationInputComparison;
     version: number;
     finishedAt: string | null;
     createdAt: string;

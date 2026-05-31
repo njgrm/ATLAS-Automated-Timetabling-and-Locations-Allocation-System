@@ -21,6 +21,19 @@ function readTermId(req: Request): number | undefined | string {
 	return positiveInt(req.params.termId, 'termId');
 }
 
+function readStringQuery(raw: unknown): string | undefined {
+	if (Array.isArray(raw)) return readStringQuery(raw[0]);
+	if (typeof raw !== 'string') return undefined;
+	const value = raw.trim();
+	return value.length > 0 ? value : undefined;
+}
+
+function readScheduleOptions(req: Request) {
+	return {
+		requestedDate: readStringQuery(req.query.date) ?? readStringQuery(req.query.asOfDate),
+	};
+}
+
 router.get('/schools/:schoolId/schedules/published', async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		const schoolId = positiveInt(req.params.schoolId, 'schoolId');
@@ -29,7 +42,7 @@ router.get('/schools/:schoolId/schedules/published', async (req: Request, res: R
 			return;
 		}
 
-		const payload = await getPublishedSchedulePayload(schoolId);
+		const payload = await getPublishedSchedulePayload(schoolId, undefined, readScheduleOptions(req));
 		res.json(payload);
 	} catch (error) {
 		next(error);
@@ -49,7 +62,7 @@ router.get('/schools/:schoolId/schedules/published/sections/:sectionId', async (
 			return;
 		}
 
-		const payload = await getPublishedSectionSchedule(schoolId, sectionId);
+		const payload = await getPublishedSectionSchedule(schoolId, sectionId, undefined, readScheduleOptions(req));
 		res.json(payload);
 	} catch (error) {
 		next(error);
@@ -69,7 +82,7 @@ router.get('/schools/:schoolId/schedules/published/faculty/:facultyId', async (r
 			return;
 		}
 
-		const payload = await getPublishedFacultySchedule(schoolId, facultyId);
+		const payload = await getPublishedFacultySchedule(schoolId, facultyId, undefined, readScheduleOptions(req));
 		res.json(payload);
 	} catch (error) {
 		next(error);
@@ -89,7 +102,7 @@ router.get('/schools/:schoolId/schedules/published/rooms/:roomId', async (req: R
 			return;
 		}
 
-		const payload = await getPublishedRoomSchedule(schoolId, roomId);
+		const payload = await getPublishedRoomSchedule(schoolId, roomId, undefined, readScheduleOptions(req));
 		res.json(payload);
 	} catch (error) {
 		next(error);
@@ -109,7 +122,7 @@ router.get('/schools/:schoolId/schedules/published/:termId', async (req: Request
 			return;
 		}
 
-		const payload = await getPublishedSchedulePayload(schoolId, termId);
+		const payload = await getPublishedSchedulePayload(schoolId, termId, readScheduleOptions(req));
 		res.json(payload);
 	} catch (error) {
 		next(error);
@@ -134,7 +147,7 @@ router.get('/schools/:schoolId/schedules/published/:termId/sections/:sectionId',
 			return;
 		}
 
-		const payload = await getPublishedSectionSchedule(schoolId, sectionId, termId);
+		const payload = await getPublishedSectionSchedule(schoolId, sectionId, termId, readScheduleOptions(req));
 		res.json(payload);
 	} catch (error) {
 		next(error);
@@ -159,7 +172,7 @@ router.get('/schools/:schoolId/schedules/published/:termId/faculty/:facultyId', 
 			return;
 		}
 
-		const payload = await getPublishedFacultySchedule(schoolId, facultyId, termId);
+		const payload = await getPublishedFacultySchedule(schoolId, facultyId, termId, readScheduleOptions(req));
 		res.json(payload);
 	} catch (error) {
 		next(error);
@@ -184,7 +197,7 @@ router.get('/schools/:schoolId/schedules/published/:termId/rooms/:roomId', async
 			return;
 		}
 
-		const payload = await getPublishedRoomSchedule(schoolId, roomId, termId);
+		const payload = await getPublishedRoomSchedule(schoolId, roomId, termId, readScheduleOptions(req));
 		res.json(payload);
 	} catch (error) {
 		next(error);

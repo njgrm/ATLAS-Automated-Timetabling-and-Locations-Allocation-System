@@ -16,7 +16,7 @@ import { Checkbox } from '@/ui/checkbox';
 import { ResizablePanel } from '@/ui/resizable';
 import { ScrollArea } from '@/ui/scroll-area';
 
-import type { Violation } from '@/types';
+import type { CommitResult, ManualEditBatchPreviewResult, ManualEditProposal, Violation } from '@/types';
 
 function projectSandboxEntries(entries: any[], sandboxFacultyByEntryId: Map<string, number>): any[] {
 	if (sandboxFacultyByEntryId.size === 0) return entries;
@@ -72,6 +72,8 @@ type CenterWorkspaceProps = {
 	draftEntries: any[];
 	previewEdit: (proposal: any) => Promise<any>;
 	commitEdit: (proposal: any, allowSoftOverride?: boolean) => Promise<void>;
+	previewEditBatch: (proposals: ManualEditProposal[]) => Promise<ManualEditBatchPreviewResult | null>;
+	commitEditBatch: (proposals: ManualEditProposal[], allowSoftOverride?: boolean) => Promise<CommitResult | null>;
 	previewLoading: boolean;
 	commitLoading: boolean;
 	subjectLabel: (id: number) => string;
@@ -143,6 +145,8 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 		draftEntries,
 		previewEdit,
 		commitEdit,
+		previewEditBatch,
+		commitEditBatch,
 		previewLoading,
 		commitLoading,
 		subjectLabel,
@@ -275,6 +279,15 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 	const resetTacticalSandbox = useCallback(() => {
 		setSandboxFacultyByEntryId(new Map());
 	}, []);
+
+	const isDraftPublished = useMemo(() => {
+		const summary = draft?.summary;
+		if (!summary || typeof summary !== 'object') return false;
+		const candidate = summary as Record<string, unknown>;
+		if (candidate.isPublished === true) return true;
+		if (typeof candidate.publishedAt === 'string' && candidate.publishedAt.length > 0) return true;
+		return typeof candidate.publishedBy === 'number';
+	}, [draft?.summary]);
 
 	return (
 		<ResizablePanel id="center-panel" order={2} defaultSize={60} className="flex-1 min-w-0 flex flex-col min-h-0 relative bg-background" data-tutorial="center-grid">
@@ -607,8 +620,11 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 				schoolYearId={schoolYearId}
 				sandboxFacultyByEntryId={sandboxFacultyByEntryId}
 				onApplyFaculty={applySandboxFaculty}
+				onPreviewFacultyBatch={previewEditBatch}
+				onCommitFacultyBatch={commitEditBatch}
 				onResetSandbox={resetTacticalSandbox}
 				onDismissSelectedEntry={dismissTacticalSandboxForEntry}
+				disabled={isDraftPublished}
 				subjectLabel={subjectLabel}
 				sectionLabel={sectionLabel}
 				facultyLabel={facultyLabel}

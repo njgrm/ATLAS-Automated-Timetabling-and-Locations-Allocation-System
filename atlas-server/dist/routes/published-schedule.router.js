@@ -14,6 +14,19 @@ function readTermId(req) {
         return undefined;
     return positiveInt(req.params.termId, 'termId');
 }
+function readStringQuery(raw) {
+    if (Array.isArray(raw))
+        return readStringQuery(raw[0]);
+    if (typeof raw !== 'string')
+        return undefined;
+    const value = raw.trim();
+    return value.length > 0 ? value : undefined;
+}
+function readScheduleOptions(req) {
+    return {
+        requestedDate: readStringQuery(req.query.date) ?? readStringQuery(req.query.asOfDate),
+    };
+}
 router.get('/schools/:schoolId/schedules/published', async (req, res, next) => {
     try {
         const schoolId = positiveInt(req.params.schoolId, 'schoolId');
@@ -21,7 +34,7 @@ router.get('/schools/:schoolId/schedules/published', async (req, res, next) => {
             res.status(400).json({ code: 'INVALID_PARAM', message: schoolId });
             return;
         }
-        const payload = await getPublishedSchedulePayload(schoolId);
+        const payload = await getPublishedSchedulePayload(schoolId, undefined, readScheduleOptions(req));
         res.json(payload);
     }
     catch (error) {
@@ -40,7 +53,7 @@ router.get('/schools/:schoolId/schedules/published/sections/:sectionId', async (
             res.status(400).json({ code: 'INVALID_PARAM', message: sectionId });
             return;
         }
-        const payload = await getPublishedSectionSchedule(schoolId, sectionId);
+        const payload = await getPublishedSectionSchedule(schoolId, sectionId, undefined, readScheduleOptions(req));
         res.json(payload);
     }
     catch (error) {
@@ -59,7 +72,7 @@ router.get('/schools/:schoolId/schedules/published/faculty/:facultyId', async (r
             res.status(400).json({ code: 'INVALID_PARAM', message: facultyId });
             return;
         }
-        const payload = await getPublishedFacultySchedule(schoolId, facultyId);
+        const payload = await getPublishedFacultySchedule(schoolId, facultyId, undefined, readScheduleOptions(req));
         res.json(payload);
     }
     catch (error) {
@@ -78,7 +91,7 @@ router.get('/schools/:schoolId/schedules/published/rooms/:roomId', async (req, r
             res.status(400).json({ code: 'INVALID_PARAM', message: roomId });
             return;
         }
-        const payload = await getPublishedRoomSchedule(schoolId, roomId);
+        const payload = await getPublishedRoomSchedule(schoolId, roomId, undefined, readScheduleOptions(req));
         res.json(payload);
     }
     catch (error) {
@@ -97,7 +110,7 @@ router.get('/schools/:schoolId/schedules/published/:termId', async (req, res, ne
             res.status(400).json({ code: 'INVALID_PARAM', message: termId });
             return;
         }
-        const payload = await getPublishedSchedulePayload(schoolId, termId);
+        const payload = await getPublishedSchedulePayload(schoolId, termId, readScheduleOptions(req));
         res.json(payload);
     }
     catch (error) {
@@ -121,7 +134,7 @@ router.get('/schools/:schoolId/schedules/published/:termId/sections/:sectionId',
             res.status(400).json({ code: 'INVALID_PARAM', message: sectionId });
             return;
         }
-        const payload = await getPublishedSectionSchedule(schoolId, sectionId, termId);
+        const payload = await getPublishedSectionSchedule(schoolId, sectionId, termId, readScheduleOptions(req));
         res.json(payload);
     }
     catch (error) {
@@ -145,7 +158,7 @@ router.get('/schools/:schoolId/schedules/published/:termId/faculty/:facultyId', 
             res.status(400).json({ code: 'INVALID_PARAM', message: facultyId });
             return;
         }
-        const payload = await getPublishedFacultySchedule(schoolId, facultyId, termId);
+        const payload = await getPublishedFacultySchedule(schoolId, facultyId, termId, readScheduleOptions(req));
         res.json(payload);
     }
     catch (error) {
@@ -169,7 +182,7 @@ router.get('/schools/:schoolId/schedules/published/:termId/rooms/:roomId', async
             res.status(400).json({ code: 'INVALID_PARAM', message: roomId });
             return;
         }
-        const payload = await getPublishedRoomSchedule(schoolId, roomId, termId);
+        const payload = await getPublishedRoomSchedule(schoolId, roomId, termId, readScheduleOptions(req));
         res.json(payload);
     }
     catch (error) {

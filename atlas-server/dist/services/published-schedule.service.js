@@ -19,11 +19,107 @@ function isRunPublished(summary) {
         return false;
     return summary.isPublished === true;
 }
-async function resolvePublishedRun(schoolId, schoolYearId) {
+function isRecord(value) {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+function resolveReadDate(value) {
+    if (value == null || value === '') {
+        return { readDate: new Date(), requestedDate: null };
+    }
+    if (value instanceof Date) {
+        if (Number.isNaN(value.getTime())) {
+            throw err(400, 'PUBLISHED_SCHEDULE_DATE_INVALID', 'Published schedule date must be a valid date.');
+        }
+        return { readDate: value, requestedDate: value.toISOString() };
+    }
+    const requestedDate = value.trim();
+    if (!requestedDate)
+        return { readDate: new Date(), requestedDate: null };
+    const readDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)
+        ? new Date(`${requestedDate}T12:00:00.000Z`)
+        : new Date(requestedDate);
+    if (Number.isNaN(readDate.getTime())) {
+        throw err(400, 'PUBLISHED_SCHEDULE_DATE_INVALID', 'Published schedule date must be a valid date or ISO date string.');
+    }
+    return { readDate, requestedDate };
+}
+function readRevisionChanges(changeSet) {
+    if (!Array.isArray(changeSet))
+        return [];
+    return changeSet.flatMap((change) => {
+        if (!isRecord(change))
+            return [];
+        const entryId = typeof change.entryId === 'string' ? change.entryId.trim() : '';
+        if (!entryId || !isRecord(change.next))
+            return [];
+        return [{ entryId, next: change.next }];
+    });
+}
+const REVISION_ENTRY_FIELDS = new Set([
+    'facultyId',
+    'roomId',
+    'subjectId',
+    'subjectCode',
+    'sectionId',
+    'day',
+    'startTime',
+    'endTime',
+    'durationMinutes',
+    'termIndex',
+    'entryKind',
+    'programType',
+    'programCode',
+    'programName',
+    'cohortCode',
+    'cohortName',
+    'specializationCode',
+    'specializationName',
+    'cohortMemberSectionIds',
+    'cohortExpectedEnrollment',
+    'adviserId',
+    'adviserName',
+    'metadata',
+]);
+function applyRevisionValues(entry, nextValues) {
+    const nextEntry = { ...entry };
+    for (const [key, value] of Object.entries(nextValues)) {
+        if (!REVISION_ENTRY_FIELDS.has(key) || value === undefined)
+            continue;
+        nextEntry[key] = value;
+    }
+    return nextEntry;
+}
+function applyPublishedRevisions(entries, revisions) {
+    if (revisions.length === 0)
+        return entries;
+    const entriesById = new Map(entries.map((entry) => [entry.entryId, entry]));
+    let changed = false;
+    for (const revision of revisions) {
+        for (const change of readRevisionChanges(revision.changeSet)) {
+            const current = entriesById.get(change.entryId);
+            if (!current)
+                continue;
+            entriesById.set(change.entryId, applyRevisionValues(current, change.next));
+            changed = true;
+        }
+    }
+    return changed ? entries.map((entry) => entriesById.get(entry.entryId) ?? entry) : entries;
+}
+function buildRevisionMarker(params) {
+    return [
+        `run=${params.runId}`,
+        `published=${params.publishedAt ?? 'none'}`,
+        `revision=${params.activeRevisionId ?? 'base'}`,
+        `effective=${params.activeRevisionEffectiveDate ?? 'none'}`,
+        `date=${params.resolvedForDate.slice(0, 10)}`,
+    ].join('|');
+}
+async function resolvePublishedRun(schoolId, schoolYearId, options) {
     await reconcileInvalidPublishedRunStates(schoolId, {
         schoolYearId,
         reason: 'PUBLISHED_ENDPOINT_INTEGRITY_RECONCILIATION',
     });
+    const { readDate, requestedDate } = resolveReadDate(options?.requestedDate);
     const candidates = await prisma.generationRun.findMany({
         where: {
             schoolId,
@@ -46,15 +142,47 @@ async function resolvePublishedRun(schoolId, schoolYearId) {
     if (!publishedRun) {
         throw err(404, 'PUBLISHED_RUN_NOT_FOUND', 'No published schedule is available for the requested scope.');
     }
+    const applicableRevisions = await prisma.publishedScheduleRevision.findMany({
+        where: {
+            schoolId: publishedRun.schoolId,
+            schoolYearId: publishedRun.schoolYearId,
+            sourceRunId: publishedRun.id,
+            status: { in: ['SCHEDULED', 'SUPERSEDED'] },
+            effectiveDate: { lte: readDate },
+        },
+        orderBy: [{ effectiveDate: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+        select: {
+            id: true,
+            effectiveDate: true,
+            changeSet: true,
+        },
+    });
+    const activeRevision = applicableRevisions.at(-1) ?? null;
+    const publishedAt = readPublishedAt(publishedRun.summary);
+    const generatedAt = publishedRun.finishedAt?.toISOString() ?? publishedRun.createdAt.toISOString();
+    const resolvedForDate = readDate.toISOString();
+    const activeRevisionEffectiveDate = activeRevision?.effectiveDate.toISOString() ?? null;
     return {
         source: {
             runId: publishedRun.id,
             schoolId: publishedRun.schoolId,
             schoolYearId: publishedRun.schoolYearId,
-            publishedAt: readPublishedAt(publishedRun.summary),
-            generatedAt: publishedRun.finishedAt?.toISOString() ?? publishedRun.createdAt.toISOString(),
+            publishedAt,
+            generatedAt,
+            requestedDate,
+            resolvedForDate,
+            activeRevisionId: activeRevision?.id ?? null,
+            activeRevisionEffectiveDate,
+            appliedRevisionIds: applicableRevisions.map((revision) => revision.id),
+            revisionMarker: buildRevisionMarker({
+                runId: publishedRun.id,
+                publishedAt,
+                activeRevisionId: activeRevision?.id ?? null,
+                activeRevisionEffectiveDate,
+                resolvedForDate,
+            }),
         },
-        entries: (publishedRun.draftEntries ?? []),
+        entries: applyPublishedRevisions((publishedRun.draftEntries ?? []), applicableRevisions),
         summary: (publishedRun.summary ?? null),
     };
 }
@@ -187,8 +315,8 @@ function buildSpecialEventsPayload(policy) {
         days: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
     }));
 }
-export async function getPublishedSchedulePayload(schoolId, schoolYearId) {
-    const resolved = await resolvePublishedRun(schoolId, schoolYearId);
+export async function getPublishedSchedulePayload(schoolId, schoolYearId, options) {
+    const resolved = await resolvePublishedRun(schoolId, schoolYearId, options);
     const policy = await getOrCreatePolicy(resolved.source.schoolId, resolved.source.schoolYearId);
     const sectionIds = Array.from(new Set(resolved.entries.map((entry) => entry.sectionId)));
     const subjectIds = Array.from(new Set(resolved.entries.map((entry) => entry.subjectId)));
@@ -260,22 +388,22 @@ export async function getPublishedSchedulePayload(schoolId, schoolYearId) {
         entries,
     };
 }
-export async function getPublishedSectionSchedule(schoolId, sectionId, schoolYearId) {
-    const payload = await getPublishedSchedulePayload(schoolId, schoolYearId);
+export async function getPublishedSectionSchedule(schoolId, sectionId, schoolYearId, options) {
+    const payload = await getPublishedSchedulePayload(schoolId, schoolYearId, options);
     return {
         ...payload,
         entries: payload.entries.filter((entry) => entry.section.id === sectionId),
     };
 }
-export async function getPublishedFacultySchedule(schoolId, facultyId, schoolYearId) {
-    const payload = await getPublishedSchedulePayload(schoolId, schoolYearId);
+export async function getPublishedFacultySchedule(schoolId, facultyId, schoolYearId, options) {
+    const payload = await getPublishedSchedulePayload(schoolId, schoolYearId, options);
     return {
         ...payload,
         entries: payload.entries.filter((entry) => entry.faculty.id === facultyId),
     };
 }
-export async function getPublishedRoomSchedule(schoolId, roomId, schoolYearId) {
-    const payload = await getPublishedSchedulePayload(schoolId, schoolYearId);
+export async function getPublishedRoomSchedule(schoolId, roomId, schoolYearId, options) {
+    const payload = await getPublishedSchedulePayload(schoolId, schoolYearId, options);
     return {
         ...payload,
         entries: payload.entries.filter((entry) => entry.room.id === roomId),

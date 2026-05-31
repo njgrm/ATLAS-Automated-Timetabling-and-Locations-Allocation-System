@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { Badge } from '@/ui/badge';
+import { Button } from '@/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/card';
 import { ScrollArea } from '@/ui/scroll-area';
 import { cn, formatTime } from '@/lib/utils';
@@ -192,24 +193,31 @@ export function ClassProgramMatrixView({
 																		{dayEntries.map((entry) => {
 																			const isSelected = selectedEntryId === entry.entryId;
 																			return (
-																				<button
-																				type="button"
+																				<Button
 																				key={entry.entryId}
+																				type="button"
+																				variant="ghost"
 																				aria-label={`${section.sectionLabel} ${DAY_SHORT[day] ?? day} ${formatTime(entry.startTime)} to ${formatTime(entry.endTime)} ${subjectLabel(entry.subjectId)} ${roomLabelShort(entry.roomId)}`}
+																				data-entry-id={entry.entryId}
+																				data-section-id={entry.sectionId}
+																				data-subject-id={entry.subjectId}
+																				data-faculty-id={entry.facultyId ?? ''}
 																				onClick={() => onEntryClick(entry)}
 																				className={cn(
-																				'block w-full rounded-md border px-2 py-1.5 text-left shadow-sm transition-colors hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+																				'h-auto w-full justify-start rounded-md border px-2 py-1.5 text-left shadow-sm transition-colors hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
 																				isSelected ? 'border-primary bg-primary/10' : 'border-border bg-background',
 																				entry.entryKind === 'COHORT' ? 'ring-1 ring-sky-200' : '',
 																			)}
 																			>
-																				<div className="flex items-center justify-between gap-2">
-																					<span className="font-semibold text-foreground">{subjectLabel(entry.subjectId)}</span>
-																					<span className="text-[0.625rem] text-muted-foreground">{formatTime(entry.startTime)}-{formatTime(entry.endTime)}</span>
+																				<div className="min-w-0 flex-1">
+																					<div className="flex items-center justify-between gap-2">
+																						<span className="truncate font-semibold text-foreground">{subjectLabel(entry.subjectId)}</span>
+																						<span className="shrink-0 text-[0.625rem] text-muted-foreground">{formatTime(entry.startTime)}-{formatTime(entry.endTime)}</span>
+																					</div>
+																					<div className="mt-0.5 text-[0.625rem] text-muted-foreground">{roomLabelShort(entry.roomId)}</div>
+																					<div className="mt-0.5 truncate text-[0.625rem] text-muted-foreground/80">{entryContextLabel(entry)}</div>
 																				</div>
-																				<div className="mt-0.5 text-[0.625rem] text-muted-foreground">{roomLabelShort(entry.roomId)}</div>
-																				<div className="mt-0.5 text-[0.625rem] text-muted-foreground/80">{entryContextLabel(entry)}</div>
-																			</button>
+																			</Button>
 																		);
 																		})}
 																	</div>

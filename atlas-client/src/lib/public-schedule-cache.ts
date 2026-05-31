@@ -18,8 +18,17 @@ function isStale(cachedAtIso: string, maxAgeMs: number | null | undefined): bool
 	return Date.now() - cachedAtMs > maxAgeMs;
 }
 
-export function buildPublicScheduleCacheKey(schoolId: number): string {
-	return `${PUBLIC_SCHEDULE_CACHE_PREFIX}:school:${schoolId}`;
+function cachePart(value: string | number | null | undefined): string {
+	const normalized = String(value ?? 'current')
+		.trim()
+		.replace(/[^A-Za-z0-9_-]+/g, '_')
+		.replace(/^_+|_+$/g, '');
+	return normalized || 'current';
+}
+
+export function buildPublicScheduleCacheKey(schoolId: number, requestedDate?: string | null, marker?: string): string {
+	const base = `${PUBLIC_SCHEDULE_CACHE_PREFIX}:school:${schoolId}:date:${cachePart(requestedDate)}`;
+	return marker ? `${base}:${cachePart(marker)}` : base;
 }
 
 export function readPublicScheduleSnapshot<T>(
@@ -47,6 +56,31 @@ export function readPublicScheduleSnapshot<T>(
 			data: parsed.data as T,
 			stale: isStale(parsed.cachedAt, options?.maxAgeMs ?? null),
 		};
+	} catch {
+		return null;
+	}
+}
+
+export function readLatestPublicScheduleSnapshotByPrefix<T>(
+	prefix: string,
+	options?: {
+		maxAgeMs?: number | null;
+		validate?: (value: unknown) => value is T;
+	},
+): CachedPublicScheduleSnapshot<T> | null {
+	try {
+		const normalizedPrefix = prefix.endsWith(':') ? prefix : `${prefix}:`;
+		let latest: CachedPublicScheduleSnapshot<T> | null = null;
+		for (let index = 0; index < localStorage.length; index += 1) {
+			const key = localStorage.key(index);
+			if (!key?.startsWith(normalizedPrefix)) continue;
+			const snapshot = readPublicScheduleSnapshot<T>(key, options);
+			if (!snapshot) continue;
+			if (!latest || new Date(snapshot.cachedAt).getTime() > new Date(latest.cachedAt).getTime()) {
+				latest = snapshot;
+			}
+		}
+		return latest;
 	} catch {
 		return null;
 	}

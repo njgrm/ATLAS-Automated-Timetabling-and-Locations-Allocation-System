@@ -18,6 +18,7 @@ import { reconcileSubjectContractFromUpstream } from './subject.service.js';
 import { ensurePhase3GradeWindows } from './grade-window.service.js';
 import { syncCohorts } from './cohort.service.js';
 import { repairActiveSubjectCoverageWithPlaceholders, getActiveSubjectCoverageSummary } from './faculty-assignment.service.js';
+import { compareCurrentInputsForRun, computeGenerationInputSnapshot, } from './generation-input-snapshot.service.js';
 function err(statusCode, code, message, options) {
     const e = new Error(message);
     e.statusCode = statusCode;
@@ -835,6 +836,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
         const termCounts = buildTermCounts(entriesWithTerms);
         const homeRoomStats = buildHomeRoomStats(entriesWithTerms, result.unassignedItems);
         const timetableDisplaySlots = selectPrimaryTimetableShapeContract(timetableShapeContracts)?.displaySlots ?? [];
+        const inputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId);
         const summary = {
             classesProcessed: result.classesProcessed,
             assignedCount: result.assignedCount,
@@ -870,6 +872,7 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
             configuredShiftWindowCount: gradeWindows.length,
             timetableShapeContracts,
             timetableDisplaySlots,
+            inputSnapshot,
         };
         const finishedAt = new Date();
         const durationMs = finishedAt.getTime() - startedAt.getTime();
@@ -1152,6 +1155,20 @@ export async function getLatestRunViolations(schoolId, schoolYearId, termIndex) 
         },
     };
 }
+async function buildDraftReport(run, schoolId, schoolYearId) {
+    const inputState = await compareCurrentInputsForRun(run.summary, schoolId, schoolYearId);
+    return {
+        runId: run.id,
+        status: run.status,
+        entries: ensureEntriesHaveTermIndex((run.draftEntries ?? [])),
+        unassignedItems: (run.unassignedItems ?? []),
+        summary: (run.summary ?? null),
+        inputState,
+        version: run.version,
+        finishedAt: run.finishedAt?.toISOString() ?? null,
+        createdAt: run.createdAt.toISOString(),
+    };
+}
 export async function getRunDraft(runId, schoolId, schoolYearId) {
     const run = await prisma.generationRun.findFirst({
         where: { id: runId, schoolId, schoolYearId },
@@ -1159,16 +1176,7 @@ export async function getRunDraft(runId, schoolId, schoolYearId) {
     });
     if (!run)
         throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
-    return {
-        runId: run.id,
-        status: run.status,
-        entries: ensureEntriesHaveTermIndex((run.draftEntries ?? [])),
-        unassignedItems: (run.unassignedItems ?? []),
-        summary: (run.summary ?? null),
-        version: run.version,
-        finishedAt: run.finishedAt?.toISOString() ?? null,
-        createdAt: run.createdAt.toISOString(),
-    };
+    return buildDraftReport(run, schoolId, schoolYearId);
 }
 export async function getLatestRunDraft(schoolId, schoolYearId) {
     const runId = await resolveLatestValidRunId(schoolId, schoolYearId);
@@ -1178,16 +1186,7 @@ export async function getLatestRunDraft(schoolId, schoolYearId) {
     });
     if (!run)
         throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
-    return {
-        runId: run.id,
-        status: run.status,
-        entries: ensureEntriesHaveTermIndex((run.draftEntries ?? [])),
-        unassignedItems: (run.unassignedItems ?? []),
-        summary: (run.summary ?? null),
-        version: run.version,
-        finishedAt: run.finishedAt?.toISOString() ?? null,
-        createdAt: run.createdAt.toISOString(),
-    };
+    return buildDraftReport(run, schoolId, schoolYearId);
 }
 export async function invalidateStaleCompletedRuns(schoolId, schoolYearId) {
     const [runs, activeFacultyIds] = await Promise.all([

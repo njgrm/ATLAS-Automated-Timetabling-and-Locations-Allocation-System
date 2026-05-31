@@ -14,6 +14,7 @@ import type {
 	DraftPlacementSwapResult,
 	DraftQueueItem,
 	DraftReport,
+	ManualEditBatchPreviewResult,
 	ManualEditProposal,
 	ManualEditRecord,
 	PreviewResult,
@@ -224,6 +225,8 @@ export type TimetableMutationState = {
 	fetchEditHistory: () => Promise<void>;
 	previewEdit: (proposal: ManualEditProposal) => Promise<PreviewResult | null>;
 	commitEdit: (proposal: ManualEditProposal, allowSoftOverride?: boolean) => Promise<void>;
+	previewEditBatch: (proposals: ManualEditProposal[]) => Promise<ManualEditBatchPreviewResult | null>;
+	commitEditBatch: (proposals: ManualEditProposal[], allowSoftOverride?: boolean) => Promise<CommitResult | null>;
 	revertLastEdit: () => Promise<void>;
 	choosePreGenFaculty: (item: DraftQueueItem) => number;
 	choosePreGenRoom: (item: DraftQueueItem) => number;
@@ -802,6 +805,65 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			setDragItem(null);
 		}
 	}, [apiBase, runVersion, schoolYearId, runIdNumeric, setCommitLoading, setViolationReport, fetchEditHistory, setPreviewResult, setSoftConfirmWarnings, setShowSoftConfirm, setPendingCommitProposal, setDragItem, setDraft]);
+
+	const previewEditBatch = useCallback(async (proposals: ManualEditProposal[]): Promise<ManualEditBatchPreviewResult | null> => {
+		if (!apiBase || proposals.length === 0) return null;
+		setPreviewLoading(true);
+		try {
+			const { data } = await atlasApi.post<ManualEditBatchPreviewResult>(`${apiBase}/batch/preview`, { proposals });
+			return data;
+		} catch (e: unknown) {
+			const code = (e as { response?: { data?: { code?: string } } })?.response?.data?.code;
+			const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? (e instanceof Error ? e.message : 'Preview failed.');
+			if (code === 'RUN_ALREADY_PUBLISHED') toast.error('This schedule is already published. Use the Prompt 6 revision workflow for effective-date repairs.');
+			else toast.error(msg);
+			return null;
+		} finally {
+			setPreviewLoading(false);
+		}
+	}, [apiBase, setPreviewLoading]);
+
+	const commitEditBatch = useCallback(async (proposals: ManualEditProposal[], allowSoftOverride = false): Promise<CommitResult | null> => {
+		if (!apiBase || proposals.length === 0) return null;
+		setCommitLoading(true);
+		try {
+			const { data } = await atlasApi.post<CommitResult>(`${apiBase}/batch/commit`, {
+				proposals,
+				expectedVersion: runVersion,
+				allowSoftOverride,
+			});
+			setDraft(data.draft);
+			setSelectedEntry((current) => current ? data.draft.entries.find((entry) => entry.entryId === current.entryId) ?? current : current);
+			if (schoolYearId && runIdNumeric) {
+				const violRes = await atlasApi.get<ViolationReport>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${runIdNumeric}/violations`);
+				setViolationReport(violRes.data);
+			}
+			await fetchEditHistory();
+			if (data.warnings.length > 0) toast.warning(`Saved with ${data.warnings.length} soft warning(s).`);
+			else toast.success(`Saved ${proposals.length} teaching-load change${proposals.length === 1 ? '' : 's'}.`);
+			setPreviewResult(null);
+			setSoftConfirmWarnings([]);
+			setShowSoftConfirm(false);
+			setPendingCommitProposal(null);
+			setDragItem(null);
+			return data;
+		} catch (e: unknown) {
+			const code = (e as { response?: { data?: { code?: string } } })?.response?.data?.code;
+			const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? (e instanceof Error ? e.message : 'Commit failed.');
+			if (code === 'VERSION_CONFLICT' || msg.includes('VERSION_CONFLICT') || msg.includes('version conflict')) {
+				toast.error('Someone changed this schedule. Reload, review the dock, and try again.');
+			} else if (code === 'HARD_VIOLATION_BLOCK') {
+				toast.error('These changes would create a schedule conflict. Review the dock details, choose a different teacher, and try again.');
+			} else if (code === 'RUN_ALREADY_PUBLISHED') {
+				toast.error('This schedule is already published. Use the Prompt 6 revision workflow for effective-date repairs.');
+			} else {
+				toast.error(msg);
+			}
+			return null;
+		} finally {
+			setCommitLoading(false);
+		}
+	}, [apiBase, fetchEditHistory, runIdNumeric, runVersion, schoolYearId, setCommitLoading, setDraft, setDragItem, setPendingCommitProposal, setPreviewResult, setSelectedEntry, setShowSoftConfirm, setSoftConfirmWarnings, setViolationReport]);
 
 	const revertLastEdit = useCallback(async () => {
 		if (!apiBase) return;
@@ -1416,6 +1478,8 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		fetchEditHistory,
 		previewEdit,
 		commitEdit,
+		previewEditBatch,
+		commitEditBatch,
 		revertLastEdit,
 		choosePreGenFaculty,
 		choosePreGenRoom,

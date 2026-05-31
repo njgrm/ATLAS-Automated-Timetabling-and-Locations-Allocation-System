@@ -1200,6 +1200,25 @@ export interface PreviewResult {
 	facultyWeeklyMinutes?: Record<string, number>;
 }
 
+export interface ManualEditBatchPreviewItem {
+	index: number;
+	proposal: ManualEditProposal;
+	status: 'READY' | 'FAILED';
+	entryId?: string;
+	subjectId?: number;
+	sectionId?: number;
+	currentFacultyId?: number | null;
+	targetFacultyId?: number | null;
+	errorCode?: string;
+	errorMessage?: string;
+}
+
+export interface ManualEditBatchPreviewResult extends PreviewResult {
+	proposalCount: number;
+	errorCount: number;
+	proposals: ManualEditBatchPreviewItem[];
+}
+
 export interface HumanConflict {
 	code: string;
 	severity: 'HARD' | 'SOFT';
@@ -1249,6 +1268,7 @@ export interface PolicyImpact {
 
 export interface CommitResult {
 	editId: number;
+	editIds?: number[];
 	draft: DraftReport;
 	violationDelta: PreviewResult['violationDelta'];
 	warnings: Violation[];

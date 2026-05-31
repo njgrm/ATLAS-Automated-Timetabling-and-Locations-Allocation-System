@@ -15,40 +15,41 @@ datasource db {
 }
 
 model School {
-  id             Int              @id @default(autoincrement())
-  name           String
-  shortName      String           @db.VarChar(50)
-  campusImageUrl String?          @map("campus_image_url")
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  subjects       Subject[]
-  buildings      Building[]
-  facultyMirrors FacultyMirror[]
-  authAccounts   AtlasAuthAccount[]
-  classTemplates ClassTemplate[]
-  specializationAliases SpecializationAlias[]
-  sectionMirrors        SectionMirror[]
+  id                         Int                         @id @default(autoincrement())
+  name                       String
+  shortName                  String                      @db.VarChar(50)
+  campusImageUrl             String?                     @map("campus_image_url")
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  subjects                   Subject[]
+  buildings                  Building[]
+  facultyMirrors             FacultyMirror[]
+  authAccounts               AtlasAuthAccount[]
+  classTemplates             ClassTemplate[]
+  specializationAliases      SpecializationAlias[]
+  sectionMirrors             SectionMirror[]
+  publishedScheduleRevisions PublishedScheduleRevision[]
 
   @@map("schools")
 }
 
 model SectionMirror {
-  id                Int      @id @default(autoincrement())
-  externalId        Int      @map("external_id")
-  schoolId          Int      @map("school_id")
-  schoolYearId      Int      @map("school_year_id")
-  name              String
-  gradeLevelId      Int      @map("grade_level_id")
-  gradeLevelName    String   @map("grade_level_name")
-  displayOrder      Int      @map("display_order")
-  maxCapacity       Int      @map("max_capacity")
-  enrolledCount     Int      @map("enrolled_count")
-  programType       String?  @map("program_type")
-  programCode       String?  @map("program_code")
-  programName       String?  @map("program_name")
-  isSpecialProgram  Boolean  @default(false) @map("is_special_program")
-  tleProgramId      Int?     @map("tle_program_id")
-  tleSpecialization String?  @map("tle_specialization")
+  id                 Int     @id @default(autoincrement())
+  externalId         Int     @map("external_id")
+  schoolId           Int     @map("school_id")
+  schoolYearId       Int     @map("school_year_id")
+  name               String
+  gradeLevelId       Int     @map("grade_level_id")
+  gradeLevelName     String  @map("grade_level_name")
+  displayOrder       Int     @map("display_order")
+  maxCapacity        Int     @map("max_capacity")
+  enrolledCount      Int     @map("enrolled_count")
+  programType        String? @map("program_type")
+  programCode        String? @map("program_code")
+  programName        String? @map("program_name")
+  isSpecialProgram   Boolean @default(false) @map("is_special_program")
+  tleProgramId       Int?    @map("tle_program_id")
+  tleSpecialization  String? @map("tle_specialization")
   tleProgramCategory String? @map("tle_program_category")
 
   // ATLAS-specific metadata/overrides
@@ -58,16 +59,16 @@ model SectionMirror {
   homeRoomId            Int?    @map("home_room_id")
   buildingZoneId        String? @map("building_zone_id") @db.VarChar(32)
 
-  lastSyncedAt      DateTime @default(now()) @map("last_synced_at")
-  isStale           Boolean  @default(false) @map("is_stale")
-  staleReason       String?  @map("stale_reason")
-  staleAt           DateTime? @map("stale_at")
+  lastSyncedAt DateTime  @default(now()) @map("last_synced_at")
+  isStale      Boolean   @default(false) @map("is_stale")
+  staleReason  String?   @map("stale_reason")
+  staleAt      DateTime? @map("stale_at")
 
-  version           Int      @default(1)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  school            School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   @@unique([schoolId, schoolYearId, externalId])
   @@index([schoolId, schoolYearId])
@@ -77,12 +78,12 @@ model SectionMirror {
 model SpecializationAlias {
   id        Int      @id @default(autoincrement())
   schoolId  Int      @map("school_id")
-  canonical String   // e.g. "Mathematics"
-  alias     String   // e.g. "Algebra"
+  canonical String // e.g. "Mathematics"
+  alias     String // e.g. "Algebra"
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   @@unique([schoolId, canonical, alias])
   @@index([schoolId])
@@ -93,7 +94,7 @@ model Building {
   id                 Int      @id @default(autoincrement())
   schoolId           Int      @map("school_id")
   name               String
-  shortCode          String?  @db.VarChar(20) @map("short_code")
+  shortCode          String?  @map("short_code") @db.VarChar(20)
   x                  Float    @default(0)
   y                  Float    @default(0)
   width              Float    @default(200)
@@ -125,21 +126,21 @@ enum RoomType {
 }
 
 model Room {
-  id              Int      @id @default(autoincrement())
-  buildingId      Int      @map("building_id")
-  name            String
-  floor           Int      @default(1)
-  floorNumber     Int?     @map("floor_number")
-  buildingZoneId  String?  @map("building_zone_id") @db.VarChar(32)
-  type            RoomType @default(CLASSROOM)
-  capacity        Int?
-  isTeachingSpace Boolean  @default(true) @map("is_teaching_space")
-  isSharedFacility Boolean  @default(false) @map("is_shared_facility")
-  floorPosition   Int      @default(0) @map("floor_position")
-  features        String[] @default([])
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  building        Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  id                       Int                     @id @default(autoincrement())
+  buildingId               Int                     @map("building_id")
+  name                     String
+  floor                    Int                     @default(1)
+  floorNumber              Int?                    @map("floor_number")
+  buildingZoneId           String?                 @map("building_zone_id") @db.VarChar(32)
+  type                     RoomType                @default(CLASSROOM)
+  capacity                 Int?
+  isTeachingSpace          Boolean                 @default(true) @map("is_teaching_space")
+  isSharedFacility         Boolean                 @default(false) @map("is_shared_facility")
+  floorPosition            Int                     @default(0) @map("floor_position")
+  features                 String[]                @default([])
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+  building                 Building                @relation(fields: [buildingId], references: [id], onDelete: Cascade)
   requestedRoomPreferences FacultyRoomPreference[] @relation("RequestedRoomPreferences")
 
   @@map("rooms")
@@ -153,32 +154,32 @@ enum SubjectQualificationPriority {
 }
 
 model Subject {
-  id                      Int              @id @default(autoincrement())
-  schoolId                Int              @map("school_id")
-  code                    String           @db.VarChar(32)
-  outputLabel             String?          @db.VarChar(64) @map("output_label")
+  id                      Int                          @id @default(autoincrement())
+  schoolId                Int                          @map("school_id")
+  code                    String                       @db.VarChar(32)
+  outputLabel             String?                      @map("output_label") @db.VarChar(64)
   name                    String
-  ownerDepartment         String?          @db.VarChar(32) @map("owner_department")
+  ownerDepartment         String?                      @map("owner_department") @db.VarChar(32)
   qualificationPriority   SubjectQualificationPriority @default(DEPARTMENT_FIRST) @map("qualification_priority")
-  rotationFamily          String?          @db.VarChar(64) @map("rotation_family")
-  minMinutesPerWeek       Int              @map("min_minutes_per_week")
-  preferredRoomType       RoomType         @default(CLASSROOM) @map("preferred_room_type")
-  modularGroupId          String?          @db.VarChar(64) @map("modular_group_id")
-  modularOrder            Int?             @map("modular_order")
-  termGroupId             String?          @db.VarChar(64) @map("term_group_id")
-  termCount               Int              @default(3) @map("term_count")
-  gradeLevels             Int[]            @map("grade_levels")
-  isActive                Boolean          @default(true) @map("is_active")
-  isSeedable              Boolean          @default(false) @map("is_seedable")
-  isSystemManaged         Boolean          @default(false) @map("is_system_managed")
-  interSectionEnabled     Boolean          @default(false) @map("inter_section_enabled")
-  interSectionGradeLevels Int[]            @default([]) @map("inter_section_grade_levels")
-  programScopes           ProgramType[]    @default([REGULAR]) @map("program_scopes")
-  allowedSpecializations  String[]         @default([]) @map("allowed_specializations")
-  requiredFeatures        String[]         @default([]) @map("required_features")
-  createdAt               DateTime         @default(now())
-  updatedAt               DateTime         @updatedAt
-  school                  School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  rotationFamily          String?                      @map("rotation_family") @db.VarChar(64)
+  minMinutesPerWeek       Int                          @map("min_minutes_per_week")
+  preferredRoomType       RoomType                     @default(CLASSROOM) @map("preferred_room_type")
+  modularGroupId          String?                      @map("modular_group_id") @db.VarChar(64)
+  modularOrder            Int?                         @map("modular_order")
+  termGroupId             String?                      @map("term_group_id") @db.VarChar(64)
+  termCount               Int                          @default(3) @map("term_count")
+  gradeLevels             Int[]                        @map("grade_levels")
+  isActive                Boolean                      @default(true) @map("is_active")
+  isSeedable              Boolean                      @default(false) @map("is_seedable")
+  isSystemManaged         Boolean                      @default(false) @map("is_system_managed")
+  interSectionEnabled     Boolean                      @default(false) @map("inter_section_enabled")
+  interSectionGradeLevels Int[]                        @default([]) @map("inter_section_grade_levels")
+  programScopes           ProgramType[]                @default([REGULAR]) @map("program_scopes")
+  allowedSpecializations  String[]                     @default([]) @map("allowed_specializations")
+  requiredFeatures        String[]                     @default([]) @map("required_features")
+  createdAt               DateTime                     @default(now())
+  updatedAt               DateTime                     @updatedAt
+  school                  School                       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   facultySubjects         FacultySubject[]
   templateBindings        ClassTemplateSubject[]
 
@@ -196,38 +197,38 @@ enum AncillaryLoadSource {
 }
 
 model FacultyMirror {
-  id                        Int               @id @default(autoincrement())
-  externalId                Int               @map("external_id")
-  employeeId                String?           @unique(map: "uq_faculty_employee_id") @map("employee_id") @db.VarChar(7)
-  schoolId                  Int               @map("school_id")
-  firstName                 String            @map("first_name")
-  lastName                  String            @map("last_name")
+  id                        Int                     @id @default(autoincrement())
+  externalId                Int                     @map("external_id")
+  employeeId                String?                 @unique(map: "uq_faculty_employee_id") @map("employee_id") @db.VarChar(7)
+  schoolId                  Int                     @map("school_id")
+  firstName                 String                  @map("first_name")
+  lastName                  String                  @map("last_name")
   department                String?
   specialization            String?
-  employmentStatus          String            @default("PERMANENT") @map("employment_status")
-  contactInfo               String?           @map("contact_info")
-  avatarUrl                 String?           @map("avatar_url")
-  localNotes                String?           @map("local_notes")
-  isActiveForScheduling     Boolean           @default(true) @map("is_active_for_scheduling")
-  isClassAdviser            Boolean           @default(false) @map("is_class_adviser")
-  advisoryEquivalentHours   Int               @default(0) @map("advisory_equivalent_hours")
-  ancillaryMinutesPerWeek   Int?              @map("ancillary_minutes_per_week")
-  ancillaryLoadSource       AncillaryLoadSource @default(NONE) @map("ancillary_load_source")
-  canTeachOutsideDepartment Boolean           @default(false) @map("can_teach_outside_department")
-  isPlaceholder             Boolean           @default(false) @map("is_placeholder")
-  maxHoursPerWeek           Int               @default(30) @map("max_hours_per_week")
-  lastSyncedAt              DateTime          @default(now()) @map("last_synced_at")
+  employmentStatus          String                  @default("PERMANENT") @map("employment_status")
+  contactInfo               String?                 @map("contact_info")
+  avatarUrl                 String?                 @map("avatar_url")
+  localNotes                String?                 @map("local_notes")
+  isActiveForScheduling     Boolean                 @default(true) @map("is_active_for_scheduling")
+  isClassAdviser            Boolean                 @default(false) @map("is_class_adviser")
+  advisoryEquivalentHours   Int                     @default(0) @map("advisory_equivalent_hours")
+  ancillaryMinutesPerWeek   Int?                    @map("ancillary_minutes_per_week")
+  ancillaryLoadSource       AncillaryLoadSource     @default(NONE) @map("ancillary_load_source")
+  canTeachOutsideDepartment Boolean                 @default(false) @map("can_teach_outside_department")
+  isPlaceholder             Boolean                 @default(false) @map("is_placeholder")
+  maxHoursPerWeek           Int                     @default(30) @map("max_hours_per_week")
+  lastSyncedAt              DateTime                @default(now()) @map("last_synced_at")
   // Stale tracking (Wave 3.5)
-  isStale                   Boolean           @default(false) @map("is_stale")
-  staleReason               String?           @map("stale_reason")
-  staleAt                   DateTime?         @map("stale_at")
+  isStale                   Boolean                 @default(false) @map("is_stale")
+  staleReason               String?                 @map("stale_reason")
+  staleAt                   DateTime?               @map("stale_at")
   // Adviser mapping (Wave 3.5)
-  advisedSectionId          Int?              @map("advised_section_id")
-  advisedSectionName        String?           @map("advised_section_name")
-  version                   Int               @default(1)
-  createdAt                 DateTime          @default(now())
-  updatedAt                 DateTime          @updatedAt
-  school                    School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  advisedSectionId          Int?                    @map("advised_section_id")
+  advisedSectionName        String?                 @map("advised_section_name")
+  version                   Int                     @default(1)
+  createdAt                 DateTime                @default(now())
+  updatedAt                 DateTime                @updatedAt
+  school                    School                  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   facultySubjects           FacultySubject[]
   preferences               FacultyPreference[]
   roomPreferences           FacultyRoomPreference[]
@@ -241,22 +242,22 @@ model FacultyMirror {
 }
 
 model AtlasAuthAccount {
-  id                 Int           @id @default(autoincrement())
-  schoolId           Int           @map("school_id")
-  facultyId          Int?          @map("faculty_id")
-  email              String        @db.VarChar(254) @unique
-  employeeId         String?       @unique(map: "uq_auth_employee_id") @map("employee_id") @db.VarChar(7)
-  accountName        String?       @unique(map: "uq_auth_account_name") @map("account_name")
-  role               String        @db.VarChar(32)
-  passwordHash       String        @map("password_hash")
-  isActive           Boolean       @default(true) @map("is_active")
-  mustChangePassword Boolean       @default(false) @map("must_change_password")
-  failedLoginCount   Int           @default(0) @map("failed_login_count")
-  lockedUntil        DateTime?     @map("locked_until")
-  lastLoginAt        DateTime?     @map("last_login_at")
-  createdAt          DateTime      @default(now()) @map("created_at")
-  updatedAt          DateTime      @updatedAt @map("updated_at")
-  school             School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  id                 Int            @id @default(autoincrement())
+  schoolId           Int            @map("school_id")
+  facultyId          Int?           @map("faculty_id")
+  email              String         @unique @db.VarChar(254)
+  employeeId         String?        @unique(map: "uq_auth_employee_id") @map("employee_id") @db.VarChar(7)
+  accountName        String?        @unique(map: "uq_auth_account_name") @map("account_name")
+  role               String         @db.VarChar(32)
+  passwordHash       String         @map("password_hash")
+  isActive           Boolean        @default(true) @map("is_active")
+  mustChangePassword Boolean        @default(false) @map("must_change_password")
+  failedLoginCount   Int            @default(0) @map("failed_login_count")
+  lockedUntil        DateTime?      @map("locked_until")
+  lastLoginAt        DateTime?      @map("last_login_at")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+  school             School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   faculty            FacultyMirror? @relation(fields: [facultyId], references: [id], onDelete: SetNull)
 
   @@index([schoolId, role])
@@ -294,21 +295,21 @@ model FacultySubject {
 // Kept in sync with FacultySubject.sectionIds by setAssignments() (Prompt B).
 // Cascade-deleted when the parent FacultySubject row is removed.
 model SubjectSectionOwnership {
-  id               Int            @id @default(autoincrement())
-  schoolId         Int            @map("school_id")
-  facultySubjectId Int            @map("faculty_subject_id")
-  facultyId        Int            @map("faculty_id")
-  subjectId        Int            @map("subject_id")
+  id                  Int      @id @default(autoincrement())
+  schoolId            Int      @map("school_id")
+  facultySubjectId    Int      @map("faculty_subject_id")
+  facultyId           Int      @map("faculty_id")
+  subjectId           Int      @map("subject_id")
   /// External section ID — matches SectionMirror.externalId (not its PK)
-  sectionId        Int            @map("section_id")
-  specializationCode  String?     @map("specialization_code") @db.VarChar(64)
-  specializationLabel String?     @map("specialization_label") @db.VarChar(128)
+  sectionId           Int      @map("section_id")
+  specializationCode  String?  @map("specialization_code") @db.VarChar(64)
+  specializationLabel String?  @map("specialization_label") @db.VarChar(128)
   /// Copied from parent FacultySubject.assignedAt for repair-priority queries
-  assignedAt       DateTime       @default(now()) @map("assigned_at")
-  createdAt        DateTime       @default(now()) @map("created_at")
-  updatedAt        DateTime       @updatedAt @map("updated_at")
+  assignedAt          DateTime @default(now()) @map("assigned_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 
-  facultySubject   FacultySubject @relation(fields: [facultySubjectId], references: [id], onDelete: Cascade)
+  facultySubject FacultySubject @relation(fields: [facultySubjectId], references: [id], onDelete: Cascade)
 
   /// DB-level uniqueness: one owner per school+subject+section
   @@unique([schoolId, subjectId, sectionId], map: "uq_subject_section_owner")
@@ -362,9 +363,9 @@ model FacultyPreference {
   createdAt              DateTime         @default(now())
   updatedAt              DateTime         @updatedAt
 
-  faculty      FacultyMirror    @relation(fields: [facultyId], references: [id], onDelete: Cascade)
-  timeSlots    PreferenceTimeSlot[]
-  review       PreferenceReview?
+  faculty   FacultyMirror        @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  timeSlots PreferenceTimeSlot[]
+  review    PreferenceReview?
 
   @@unique([schoolId, schoolYearId, facultyId], map: "uq_preference_school_year_faculty")
   @@index([schoolId, schoolYearId])
@@ -398,16 +399,16 @@ enum ReviewStatus {
 }
 
 model PreferenceReview {
-  id             Int              @id @default(autoincrement())
-  preferenceId   Int              @map("preference_id")
-  reviewerId     Int              @map("reviewer_id")
-  reviewStatus   ReviewStatus     @default(PENDING) @map("review_status")
-  reviewerNotes  String?          @map("reviewer_notes")
-  reviewedAt     DateTime?        @map("reviewed_at")
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id            Int          @id @default(autoincrement())
+  preferenceId  Int          @map("preference_id")
+  reviewerId    Int          @map("reviewer_id")
+  reviewStatus  ReviewStatus @default(PENDING) @map("review_status")
+  reviewerNotes String?      @map("reviewer_notes")
+  reviewedAt    DateTime?    @map("reviewed_at")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
-  preference     FacultyPreference @relation(fields: [preferenceId], references: [id], onDelete: Cascade)
+  preference FacultyPreference @relation(fields: [preferenceId], references: [id], onDelete: Cascade)
 
   @@unique([preferenceId], map: "uq_preference_review")
   @@index([reviewerId])
@@ -431,35 +432,35 @@ enum RoomPreferenceDecisionStatus {
 }
 
 model FacultyRoomPreference {
-  id             Int                          @id @default(autoincrement())
-  schoolId       Int                          @map("school_id")
-  schoolYearId   Int                          @map("school_year_id")
-  runId          Int                          @map("run_id")
-  entryId        String                       @db.VarChar(64) @map("entry_id")
-  facultyId      Int                          @map("faculty_id")
-  subjectId      Int                          @map("subject_id")
-  sectionId      Int                          @map("section_id")
-  currentRoomId  Int                          @map("current_room_id")
-  requestedRoomId Int                         @map("requested_room_id")
-  day            DayOfWeek
-  startTime      String                       @map("start_time")
-  endTime        String                       @map("end_time")
-  termIndex      Int                          @default(1) @map("term_index")
-  rationale      String?
-  status         RoomPreferenceStatus         @default(DRAFT)
-  submittedAt    DateTime?                    @map("submitted_at")
-  version        Int                          @default(1)
-  reviewerId     Int?                         @map("reviewer_id")
-  decisionStatus RoomPreferenceDecisionStatus @default(PENDING) @map("decision_status")
-  reviewerNotes  String?                      @map("reviewer_notes")
-  reviewedAt     DateTime?                    @map("reviewed_at")
-  createdAt      DateTime                     @default(now()) @map("created_at")
-  updatedAt      DateTime                     @updatedAt @map("updated_at")
+  id              Int                          @id @default(autoincrement())
+  schoolId        Int                          @map("school_id")
+  schoolYearId    Int                          @map("school_year_id")
+  runId           Int                          @map("run_id")
+  entryId         String                       @map("entry_id") @db.VarChar(64)
+  facultyId       Int                          @map("faculty_id")
+  subjectId       Int                          @map("subject_id")
+  sectionId       Int                          @map("section_id")
+  currentRoomId   Int                          @map("current_room_id")
+  requestedRoomId Int                          @map("requested_room_id")
+  day             DayOfWeek
+  startTime       String                       @map("start_time")
+  endTime         String                       @map("end_time")
+  termIndex       Int                          @default(1) @map("term_index")
+  rationale       String?
+  status          RoomPreferenceStatus         @default(DRAFT)
+  submittedAt     DateTime?                    @map("submitted_at")
+  version         Int                          @default(1)
+  reviewerId      Int?                         @map("reviewer_id")
+  decisionStatus  RoomPreferenceDecisionStatus @default(PENDING) @map("decision_status")
+  reviewerNotes   String?                      @map("reviewer_notes")
+  reviewedAt      DateTime?                    @map("reviewed_at")
+  createdAt       DateTime                     @default(now()) @map("created_at")
+  updatedAt       DateTime                     @updatedAt @map("updated_at")
 
-  faculty        FacultyMirror                @relation(fields: [facultyId], references: [id], onDelete: Cascade)
-  requestedRoom  Room                         @relation("RequestedRoomPreferences", fields: [requestedRoomId], references: [id], onDelete: Cascade)
-  run            GenerationRun                @relation(fields: [runId], references: [id], onDelete: Cascade)
-  appeals        RoomRequestAppeal[]
+  faculty       FacultyMirror       @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  requestedRoom Room                @relation("RequestedRoomPreferences", fields: [requestedRoomId], references: [id], onDelete: Cascade)
+  run           GenerationRun       @relation(fields: [runId], references: [id], onDelete: Cascade)
+  appeals       RoomRequestAppeal[]
 
   @@unique([runId, entryId], map: "uq_room_preference_run_entry")
   @@index([schoolId, schoolYearId, status])
@@ -488,20 +489,20 @@ enum RoomRequestAppealHistoryAction {
 }
 
 model RoomRequestAppeal {
-  id              Int                            @id @default(autoincrement())
-  schoolId        Int                            @map("school_id")
-  schoolYearId    Int                            @map("school_year_id")
-  runId           Int                            @map("run_id")
-  requestId       Int                            @map("request_id")
-  requesterId     Int                            @map("requester_id")
-  reason          String
-  status          RoomRequestAppealStatus        @default(OPEN)
-  createdAt       DateTime                       @default(now()) @map("created_at")
-  updatedAt       DateTime                       @updatedAt @map("updated_at")
+  id           Int                     @id @default(autoincrement())
+  schoolId     Int                     @map("school_id")
+  schoolYearId Int                     @map("school_year_id")
+  runId        Int                     @map("run_id")
+  requestId    Int                     @map("request_id")
+  requesterId  Int                     @map("requester_id")
+  reason       String
+  status       RoomRequestAppealStatus @default(OPEN)
+  createdAt    DateTime                @default(now()) @map("created_at")
+  updatedAt    DateTime                @updatedAt @map("updated_at")
 
-  request         FacultyRoomPreference          @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  requester       FacultyMirror                  @relation(fields: [requesterId], references: [id], onDelete: Cascade)
-  history         RoomRequestAppealHistory[]
+  request   FacultyRoomPreference      @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  requester FacultyMirror              @relation(fields: [requesterId], references: [id], onDelete: Cascade)
+  history   RoomRequestAppealHistory[]
 
   @@index([schoolId, schoolYearId, runId])
   @@index([requestId])
@@ -510,16 +511,16 @@ model RoomRequestAppeal {
 }
 
 model RoomRequestAppealHistory {
-  id              Int                            @id @default(autoincrement())
-  appealId        Int                            @map("appeal_id")
-  actorId         Int                            @map("actor_id")
-  action          RoomRequestAppealHistoryAction
-  fromStatus      RoomRequestAppealStatus?       @map("from_status")
-  toStatus        RoomRequestAppealStatus?       @map("to_status")
-  note            String?
-  createdAt       DateTime                       @default(now()) @map("created_at")
+  id         Int                            @id @default(autoincrement())
+  appealId   Int                            @map("appeal_id")
+  actorId    Int                            @map("actor_id")
+  action     RoomRequestAppealHistoryAction
+  fromStatus RoomRequestAppealStatus?       @map("from_status")
+  toStatus   RoomRequestAppealStatus?       @map("to_status")
+  note       String?
+  createdAt  DateTime                       @default(now()) @map("created_at")
 
-  appeal          RoomRequestAppeal              @relation(fields: [appealId], references: [id], onDelete: Cascade)
+  appeal RoomRequestAppeal @relation(fields: [appealId], references: [id], onDelete: Cascade)
 
   @@index([appealId, createdAt])
   @@map("room_request_appeal_history")
@@ -536,37 +537,37 @@ model SchedulingPolicy {
   teacherMoveEnabled                       Boolean  @default(true) @map("teacher_move_enabled")
   periodLengthMinutes                      Int      @default(45) @map("period_length_minutes")
   periodsPerDay                            Int      @default(10) @map("periods_per_day")
-  maxConsecutiveTeachingMinutesBeforeBreak  Int      @default(120) @map("max_consecutive_teaching_minutes_before_break")
-  minBreakMinutesAfterConsecutiveBlock      Int      @default(15) @map("min_break_minutes_after_consecutive_block")
-  maxTeachingMinutesPerDay                  Int      @default(400) @map("max_teaching_minutes_per_day")
+  maxConsecutiveTeachingMinutesBeforeBreak Int      @default(120) @map("max_consecutive_teaching_minutes_before_break")
+  minBreakMinutesAfterConsecutiveBlock     Int      @default(15) @map("min_break_minutes_after_consecutive_block")
+  maxTeachingMinutesPerDay                 Int      @default(400) @map("max_teaching_minutes_per_day")
   earliestStartTime                        String   @default("07:00") @map("earliest_start_time")
   latestEndTime                            String   @default("17:00") @map("latest_end_time")
   enforceConsecutiveBreakAsHard            Boolean  @default(false) @map("enforce_consecutive_break_as_hard")
-  enableTravelWellbeingChecks              Boolean  @default(true)  @map("enable_travel_wellbeing_checks")
-  maxWalkingDistanceMetersPerTransition    Int      @default(120)   @map("max_walking_distance_meters_per_transition")
-  maxBuildingTransitionsPerDay             Int      @default(4)     @map("max_building_transitions_per_day")
-  maxBackToBackTransitionsWithoutBuffer    Int      @default(2)     @map("max_back_to_back_transitions_without_buffer")
-  maxIdleGapMinutesPerDay                  Int      @default(60)    @map("max_idle_gap_minutes_per_day")
+  enableTravelWellbeingChecks              Boolean  @default(true) @map("enable_travel_wellbeing_checks")
+  maxWalkingDistanceMetersPerTransition    Int      @default(120) @map("max_walking_distance_meters_per_transition")
+  maxBuildingTransitionsPerDay             Int      @default(4) @map("max_building_transitions_per_day")
+  maxBackToBackTransitionsWithoutBuffer    Int      @default(2) @map("max_back_to_back_transitions_without_buffer")
+  maxIdleGapMinutesPerDay                  Int      @default(60) @map("max_idle_gap_minutes_per_day")
   avoidEarlyFirstPeriod                    Boolean  @default(false) @map("avoid_early_first_period")
   avoidLateLastPeriod                      Boolean  @default(false) @map("avoid_late_last_period")
   enableVacantAwareConstraints             Boolean  @default(false) @map("enable_vacant_aware_constraints")
-  targetFacultyDailyVacantMinutes          Int      @default(60)    @map("target_faculty_daily_vacant_minutes")
-  targetSectionDailyVacantPeriods          Int      @default(1)     @map("target_section_daily_vacant_periods")
-  maxCompressedTeachingMinutesPerDay       Int      @default(300)   @map("max_compressed_teaching_minutes_per_day")
+  targetFacultyDailyVacantMinutes          Int      @default(60) @map("target_faculty_daily_vacant_minutes")
+  targetSectionDailyVacantPeriods          Int      @default(1) @map("target_section_daily_vacant_periods")
+  maxCompressedTeachingMinutesPerDay       Int      @default(300) @map("max_compressed_teaching_minutes_per_day")
   lunchStartTime                           String   @default("11:55") @map("lunch_start_time")
   lunchEndTime                             String   @default("12:55") @map("lunch_end_time")
-  enforceLunchWindow                       Boolean  @default(true)    @map("enforce_lunch_window")
-  showSpecialEventsInGrid                  Boolean  @default(true)    @map("show_special_events_in_grid")
-  enableFlagCeremony                       Boolean  @default(true)    @map("enable_flag_ceremony")
+  enforceLunchWindow                       Boolean  @default(true) @map("enforce_lunch_window")
+  showSpecialEventsInGrid                  Boolean  @default(true) @map("show_special_events_in_grid")
+  enableFlagCeremony                       Boolean  @default(true) @map("enable_flag_ceremony")
   flagCeremonyStartTime                    String   @default("07:00") @map("flag_ceremony_start_time")
   flagCeremonyEndTime                      String   @default("07:30") @map("flag_ceremony_end_time")
-  enableRecess                             Boolean  @default(true)    @map("enable_recess")
+  enableRecess                             Boolean  @default(true) @map("enable_recess")
   recessStartTime                          String   @default("09:45") @map("recess_start_time")
   recessEndTime                            String   @default("10:00") @map("recess_end_time")
-  enableLunchWindow                        Boolean  @default(true)    @map("enable_lunch_window")
-  enableTleTwoPassPriority                 Boolean  @default(true)    @map("enable_tle_two_pass_priority")
-  allowFlexibleSubjectAssignment           Boolean  @default(false)   @map("allow_flexible_subject_assignment")
-  allowConsecutiveLabSessions              Boolean  @default(false)   @map("allow_consecutive_lab_sessions")
+  enableLunchWindow                        Boolean  @default(true) @map("enable_lunch_window")
+  enableTleTwoPassPriority                 Boolean  @default(true) @map("enable_tle_two_pass_priority")
+  allowFlexibleSubjectAssignment           Boolean  @default(false) @map("allow_flexible_subject_assignment")
+  allowConsecutiveLabSessions              Boolean  @default(false) @map("allow_consecutive_lab_sessions")
   constraintConfig                         Json?    @map("constraint_config")
   createdAt                                DateTime @default(now())
   updatedAt                                DateTime @updatedAt
@@ -587,26 +588,27 @@ enum GenerationRunStatus {
 }
 
 model GenerationRun {
-  id              Int                  @id @default(autoincrement())
-  schoolId        Int                  @map("school_id")
-  schoolYearId    Int                  @map("school_year_id")
-  status          GenerationRunStatus  @default(QUEUED)
-  runType         String               @db.VarChar(20) @default("FULL") @map("run_type")
-  triggeredBy     Int                  @map("triggered_by")
-  startedAt       DateTime?            @map("started_at")
-  finishedAt      DateTime?            @map("finished_at")
-  durationMs      Int?                 @map("duration_ms")
+  id              Int                 @id @default(autoincrement())
+  schoolId        Int                 @map("school_id")
+  schoolYearId    Int                 @map("school_year_id")
+  status          GenerationRunStatus @default(QUEUED)
+  runType         String              @default("FULL") @map("run_type") @db.VarChar(20)
+  triggeredBy     Int                 @map("triggered_by")
+  startedAt       DateTime?           @map("started_at")
+  finishedAt      DateTime?           @map("finished_at")
+  durationMs      Int?                @map("duration_ms")
   summary         Json?
   violations      Json?
-  draftEntries    Json?                @map("draft_entries")
-  unassignedItems Json?                @map("unassigned_items")
+  draftEntries    Json?               @map("draft_entries")
+  unassignedItems Json?               @map("unassigned_items")
   error           String?
-  version         Int                  @default(1)
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  version         Int                 @default(1)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
-  manualEdits     ManualScheduleEdit[]
-  roomPreferences FacultyRoomPreference[]
+  manualEdits                ManualScheduleEdit[]
+  roomPreferences            FacultyRoomPreference[]
+  publishedScheduleRevisions PublishedScheduleRevision[] @relation("PublishedRevisionSourceRun")
 
   @@index([schoolId, schoolYearId, createdAt])
   @@index([status])
@@ -628,22 +630,62 @@ enum ManualEditType {
 }
 
 model ManualScheduleEdit {
-  id              Int            @id @default(autoincrement())
-  runId           Int            @map("run_id")
-  schoolId        Int            @map("school_id")
-  schoolYearId    Int            @map("school_year_id")
-  actorId         Int            @map("actor_id")
-  editType        ManualEditType @map("edit_type")
-  beforePayload   Json           @map("before_payload")
-  afterPayload    Json           @map("after_payload")
-  validationSummary Json?        @map("validation_summary")
-  createdAt       DateTime       @default(now())
+  id                Int            @id @default(autoincrement())
+  runId             Int            @map("run_id")
+  schoolId          Int            @map("school_id")
+  schoolYearId      Int            @map("school_year_id")
+  actorId           Int            @map("actor_id")
+  editType          ManualEditType @map("edit_type")
+  beforePayload     Json           @map("before_payload")
+  afterPayload      Json           @map("after_payload")
+  validationSummary Json?          @map("validation_summary")
+  createdAt         DateTime       @default(now())
 
-  run             GenerationRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  run GenerationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 
   @@index([runId, createdAt])
   @@index([schoolId, schoolYearId])
   @@map("manual_schedule_edits")
+}
+
+// ─── Published Schedule Revision ───
+
+enum PublishedRevisionStatus {
+  DRAFT
+  SCHEDULED
+  SUPERSEDED
+
+  @@map("published_revision_status")
+}
+
+model PublishedScheduleRevision {
+  id               Int                     @id @default(autoincrement())
+  schoolId         Int                     @map("school_id")
+  schoolYearId     Int                     @map("school_year_id")
+  sourceRunId      Int                     @map("source_run_id")
+  sourceRevisionId Int?                    @map("source_revision_id")
+  status           PublishedRevisionStatus @default(SCHEDULED)
+  effectiveDate    DateTime                @map("effective_date")
+  actorId          Int?                    @map("actor_id")
+  reason           String                  @db.VarChar(500)
+  changeSet        Json                    @map("change_set")
+  changeSummary    Json?                   @map("change_summary")
+  previousValues   Json                    @map("previous_values")
+  newValues        Json                    @map("new_values")
+  metadata         Json?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  school               School                      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  sourceRun            GenerationRun               @relation("PublishedRevisionSourceRun", fields: [sourceRunId], references: [id], onDelete: Restrict)
+  sourceRevision       PublishedScheduleRevision?  @relation("PublishedRevisionChain", fields: [sourceRevisionId], references: [id], onDelete: SetNull)
+  supersedingRevisions PublishedScheduleRevision[] @relation("PublishedRevisionChain")
+
+  @@index([schoolId, schoolYearId, effectiveDate])
+  @@index([sourceRunId, effectiveDate])
+  @@index([sourceRevisionId])
+  @@index([status])
+  @@map("published_schedule_revisions")
 }
 
 // ─── Audit Log ───
@@ -668,7 +710,7 @@ model AuditLog {
 model FollowUpFlag {
   id        Int      @id @default(autoincrement())
   runId     Int      @map("run_id")
-  entryId   String   @db.VarChar(64) @map("entry_id")
+  entryId   String   @map("entry_id") @db.VarChar(64)
   note      String?
   createdBy Int      @map("created_by")
   createdAt DateTime @default(now())
@@ -696,26 +738,26 @@ enum PreGenerationDraftEntryKind {
 }
 
 model LockedSession {
-  id           Int      @id @default(autoincrement())
-  schoolId     Int      @map("school_id")
-  schoolYearId Int      @map("school_year_id")
+  id           Int                         @id @default(autoincrement())
+  schoolId     Int                         @map("school_id")
+  schoolYearId Int                         @map("school_year_id")
   entryKind    PreGenerationDraftEntryKind @default(SECTION) @map("entry_kind")
-  sectionId    Int      @map("section_id")
-  subjectId    Int      @map("subject_id")
-  facultyId    Int?     @map("faculty_id")
-  roomId       Int?     @map("room_id")
-  cohortCode   String?  @db.VarChar(50) @map("cohort_code")
-  status       PreGenerationDraftStatus @default(DRAFT)
-  lockedRunId  Int?     @map("locked_run_id")
+  sectionId    Int                         @map("section_id")
+  subjectId    Int                         @map("subject_id")
+  facultyId    Int?                        @map("faculty_id")
+  roomId       Int?                        @map("room_id")
+  cohortCode   String?                     @map("cohort_code") @db.VarChar(50)
+  status       PreGenerationDraftStatus    @default(DRAFT)
+  lockedRunId  Int?                        @map("locked_run_id")
   notes        String?
-  version      Int      @default(1)
+  version      Int                         @default(1)
   day          DayOfWeek
-  startTime    String   @map("start_time")
-  endTime      String   @map("end_time")
-  termIndex    Int      @default(1) @map("term_index")
-  createdBy    Int      @map("created_by")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  startTime    String                      @map("start_time")
+  endTime      String                      @map("end_time")
+  termIndex    Int                         @default(1) @map("term_index")
+  createdBy    Int                         @map("created_by")
+  createdAt    DateTime                    @default(now())
+  updatedAt    DateTime                    @updatedAt
   actions      LockedSessionAction[]
 
   @@unique([schoolId, schoolYearId, entryKind, sectionId, subjectId, cohortCode, day, startTime], map: "uq_locked_session")
@@ -727,16 +769,16 @@ model LockedSession {
 
 model LockedSessionAction {
   id            Int      @id @default(autoincrement())
-  lockId         Int?     @map("lock_id")
-  schoolId       Int      @map("school_id")
-  schoolYearId   Int      @map("school_year_id")
-  actorId        Int      @map("actor_id")
-  actionType     String   @db.VarChar(50) @map("action_type")
-  beforePayload  Json?    @map("before_payload")
-  afterPayload   Json?    @map("after_payload")
-  createdAt      DateTime @default(now())
+  lockId        Int?     @map("lock_id")
+  schoolId      Int      @map("school_id")
+  schoolYearId  Int      @map("school_year_id")
+  actorId       Int      @map("actor_id")
+  actionType    String   @map("action_type") @db.VarChar(50)
+  beforePayload Json?    @map("before_payload")
+  afterPayload  Json?    @map("after_payload")
+  createdAt     DateTime @default(now())
 
-  lock          LockedSession? @relation(fields: [lockId], references: [id], onDelete: SetNull)
+  lock LockedSession? @relation(fields: [lockId], references: [id], onDelete: SetNull)
 
   @@index([lockId, createdAt])
   @@index([schoolId, schoolYearId, createdAt])
@@ -746,15 +788,15 @@ model LockedSessionAction {
 // ─── Grade Shift Windows ───
 
 model GradeShiftWindow {
-  id           Int      @id @default(autoincrement())
-  schoolId     Int      @map("school_id")
-  schoolYearId Int      @map("school_year_id")
-  gradeLevel   Int      @map("grade_level")
+  id           Int          @id @default(autoincrement())
+  schoolId     Int          @map("school_id")
+  schoolYearId Int          @map("school_year_id")
+  gradeLevel   Int          @map("grade_level")
   programType  ProgramType? @map("program_type")
-  startTime    String   @map("start_time")
-  endTime      String   @map("end_time")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  startTime    String       @map("start_time")
+  endTime      String       @map("end_time")
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   @@unique([schoolId, schoolYearId, gradeLevel, programType], map: "uq_grade_shift_window")
   @@index([schoolId, schoolYearId])
@@ -764,15 +806,15 @@ model GradeShiftWindow {
 // ─── Wave 3.5: Durable Cache (Source-of-Truth Hardening) ───
 
 model FacultySnapshot {
-  id           Int      @id @default(autoincrement())
-  schoolId     Int      @map("school_id")
-  schoolYearId Int      @map("school_year_id")
-  fetchedAt    DateTime @default(now()) @map("fetched_at")
-  source       String   @default("enrollpro")
-  checksum     String?
-  schemaVersion Int     @default(1) @map("schema_version")
-  payload      Json
-  createdAt    DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  schoolId      Int      @map("school_id")
+  schoolYearId  Int      @map("school_year_id")
+  fetchedAt     DateTime @default(now()) @map("fetched_at")
+  source        String   @default("enrollpro")
+  checksum      String?
+  schemaVersion Int      @default(1) @map("schema_version")
+  payload       Json
+  createdAt     DateTime @default(now())
 
   @@unique([schoolId, schoolYearId], map: "uq_faculty_snapshot_school_year")
   @@index([schoolId, fetchedAt])
@@ -780,15 +822,15 @@ model FacultySnapshot {
 }
 
 model SectionSnapshot {
-  id           Int      @id @default(autoincrement())
-  schoolId     Int      @map("school_id")
-  schoolYearId Int      @map("school_year_id")
-  fetchedAt    DateTime @default(now()) @map("fetched_at")
-  source       String   @default("enrollpro")
-  checksum     String?
-  schemaVersion Int     @default(1) @map("schema_version")
-  payload      Json
-  createdAt    DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  schoolId      Int      @map("school_id")
+  schoolYearId  Int      @map("school_year_id")
+  fetchedAt     DateTime @default(now()) @map("fetched_at")
+  source        String   @default("enrollpro")
+  checksum      String?
+  schemaVersion Int      @default(1) @map("schema_version")
+  payload       Json
+  createdAt     DateTime @default(now())
 
   @@unique([schoolId, schoolYearId], map: "uq_section_snapshot_school_year")
   @@index([schoolId, fetchedAt])
@@ -810,20 +852,20 @@ enum ProgramType {
 // ─── Wave 3.5: TLE Inter-section Cohorts ───
 
 model InstructionalCohort {
-  id                  Int       @id @default(autoincrement())
-  schoolId            Int       @map("school_id")
-  schoolYearId        Int       @map("school_year_id")
-  cohortCode          String    @db.VarChar(50) @map("cohort_code")
-  specializationCode  String    @db.VarChar(20) @map("specialization_code")
-  specializationName  String    @map("specialization_name")
-  gradeLevel          Int       @map("grade_level")
-  memberSectionIds    Int[]     @map("member_section_ids")
-  expectedEnrollment  Int       @default(0) @map("expected_enrollment")
-  preferredRoomType   RoomType? @map("preferred_room_type")
-  isActive            Boolean   @default(true) @map("is_active")
-  sourceRef           String?   @map("source_ref")
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                 Int       @id @default(autoincrement())
+  schoolId           Int       @map("school_id")
+  schoolYearId       Int       @map("school_year_id")
+  cohortCode         String    @map("cohort_code") @db.VarChar(50)
+  specializationCode String    @map("specialization_code") @db.VarChar(20)
+  specializationName String    @map("specialization_name")
+  gradeLevel         Int       @map("grade_level")
+  memberSectionIds   Int[]     @map("member_section_ids")
+  expectedEnrollment Int       @default(0) @map("expected_enrollment")
+  preferredRoomType  RoomType? @map("preferred_room_type")
+  isActive           Boolean   @default(true) @map("is_active")
+  sourceRef          String?   @map("source_ref")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   @@unique([schoolId, schoolYearId, cohortCode], map: "uq_cohort_code")
   @@index([schoolId, schoolYearId, gradeLevel])

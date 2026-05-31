@@ -55,6 +55,31 @@ export function readFacultySnapshot<T>(
 	}
 }
 
+export function readLatestFacultySnapshotByPrefix<T>(
+	prefix: string,
+	options?: {
+		maxAgeMs?: number | null;
+		validate?: (value: unknown) => value is T;
+	},
+): CachedSnapshot<T> | null {
+	try {
+		const normalizedPrefix = prefix.endsWith(':') ? prefix : `${prefix}:`;
+		let latest: CachedSnapshot<T> | null = null;
+		for (let index = 0; index < localStorage.length; index += 1) {
+			const key = localStorage.key(index);
+			if (!key?.startsWith(normalizedPrefix)) continue;
+			const snapshot = readFacultySnapshot<T>(key, options);
+			if (!snapshot) continue;
+			if (!latest || new Date(snapshot.cachedAt).getTime() > new Date(latest.cachedAt).getTime()) {
+				latest = snapshot;
+			}
+		}
+		return latest;
+	} catch {
+		return null;
+	}
+}
+
 export function writeFacultySnapshot<T>(key: string, data: T): void {
 	try {
 		const payload: CacheEnvelope<T> = {

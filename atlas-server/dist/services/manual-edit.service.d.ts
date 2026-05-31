@@ -39,6 +39,23 @@ export interface PreviewResult {
     /** Policy threshold summaries for delta display */
     policyImpactSummary: PolicyImpact[];
 }
+export interface ManualEditBatchPreviewItem {
+    index: number;
+    proposal: ManualEditProposal;
+    status: 'READY' | 'FAILED';
+    entryId?: string;
+    subjectId?: number;
+    sectionId?: number;
+    currentFacultyId?: number | null;
+    targetFacultyId?: number | null;
+    errorCode?: string;
+    errorMessage?: string;
+}
+export interface ManualEditBatchPreviewResult extends PreviewResult {
+    proposalCount: number;
+    errorCount: number;
+    proposals: ManualEditBatchPreviewItem[];
+}
 /** Machine-readable code + human-readable strings for UI rendering */
 export interface HumanConflict {
     code: string;
@@ -77,6 +94,7 @@ export interface PolicyImpact {
 }
 export interface CommitResult {
     editId: number;
+    editIds?: number[];
     draft: DraftReport;
     violationDelta: PreviewResult['violationDelta'];
     warnings: Violation[];
@@ -93,7 +111,9 @@ export interface ManualEditRecord {
     createdAt: string;
 }
 export declare function previewManualEdit(runId: number, schoolId: number, schoolYearId: number, proposal: ManualEditProposal): Promise<PreviewResult>;
+export declare function previewManualEditBatch(runId: number, schoolId: number, schoolYearId: number, proposals: ManualEditProposal[]): Promise<ManualEditBatchPreviewResult>;
 export declare function commitManualEdit(runId: number, schoolId: number, schoolYearId: number, actorId: number, proposal: ManualEditProposal, expectedVersion: number, allowSoftOverride?: boolean): Promise<CommitResult>;
+export declare function commitManualEditBatch(runId: number, schoolId: number, schoolYearId: number, actorId: number, proposals: ManualEditProposal[], expectedVersion: number, allowSoftOverride?: boolean): Promise<CommitResult>;
 export declare function revertLastEdit(runId: number, schoolId: number, schoolYearId: number, actorId: number): Promise<CommitResult>;
 export declare function listManualEdits(runId: number, schoolId: number, schoolYearId: number): Promise<ManualEditRecord[]>;
 export type SwapStrategy = 'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE';

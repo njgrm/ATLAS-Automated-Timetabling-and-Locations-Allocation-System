@@ -4,7 +4,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { AlertCircle, BookOpen, CalendarDays, Clock3, MapPin, RefreshCcw, Search, Users, Wifi, WifiOff } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
-import { buildPublicScheduleCacheKey, isLikelyOfflinePublicError, readPublicScheduleSnapshot, writePublicScheduleSnapshot } from '@/lib/public-schedule-cache';
+import { buildPublishedScheduleCacheMarker, resolvePublishedScheduleRequestDate } from '@/lib/published-schedule-cache-key';
+import { buildPublicScheduleCacheKey, isLikelyOfflinePublicError, readLatestPublicScheduleSnapshotByPrefix, writePublicScheduleSnapshot } from '@/lib/public-schedule-cache';
 import { PublishedTimetableMatrix, DAY_ORDER, type DayKey, type PublishedScheduleMatrixEntry, formatShortTime, humanizeProgram } from '@/components/published-schedule/PublishedTimetableMatrix';
 import { GradeLevelBadge, parseGradeFromSectionName } from '@/components/GradeLevelBadge';
 import { Badge } from '@/ui/badge';
@@ -60,6 +61,11 @@ type PublishedSchedulePayload = {
 		schoolYearId: number;
 		publishedAt: string | null;
 		generatedAt: string | null;
+		requestedDate?: string | null;
+		resolvedForDate?: string | null;
+		activeRevisionId?: number | null;
+		activeRevisionEffectiveDate?: string | null;
+		revisionMarker?: string | null;
 	};
 	entries: PublishedScheduleEntry[];
 };
@@ -128,6 +134,7 @@ export default function PublicPublishedSchedule() {
 	const [online, setOnline] = useState<boolean>(navigator.onLine);
 
 	const schoolId = useMemo(() => parsePositiveInt(searchParams.get('schoolId')) ?? DEFAULT_SCHOOL_ID, [searchParams]);
+	const requestedDate = useMemo(() => resolvePublishedScheduleRequestDate(searchParams.get('date') ?? searchParams.get('asOfDate')), [searchParams]);
 	// Public view is intentionally restricted to section schedules. Teachers and rooms
 	// are admin-only surfaces; never exposed to unauthenticated students. We cast to the
 	// wider ScheduleMode union so the dead-but-defensive branches below still type-check.
@@ -164,19 +171,21 @@ export default function PublicPublishedSchedule() {
 	const loadPublishedSchedule = useCallback(async () => {
 		setLoading(true);
 		setError(null);
-		const cacheKey = buildPublicScheduleCacheKey(schoolId);
-		const cachedSnapshot = readPublicScheduleSnapshot<PublicScheduleSnapshot>(cacheKey, {
+		const cachePrefix = buildPublicScheduleCacheKey(schoolId, requestedDate);
+		const cachedSnapshot = readLatestPublicScheduleSnapshotByPrefix<PublicScheduleSnapshot>(cachePrefix, {
 			maxAgeMs: PUBLIC_SCHEDULE_CACHE_MAX_AGE_MS,
 			validate: isPublishedSchedulePayload,
 		});
 
 		try {
-			const { data } = await atlasApi.get<PublishedSchedulePayload>(`/schools/${schoolId}/schedules/published`);
+			const { data } = await atlasApi.get<PublishedSchedulePayload>(`/schools/${schoolId}/schedules/published`, {
+				params: { date: requestedDate },
+			});
 			setPayload(data);
 			setSourceMode('live');
 			setSavedAt(null);
 			setSavedIsStale(false);
-			writePublicScheduleSnapshot(cacheKey, { payload: data });
+			writePublicScheduleSnapshot(buildPublicScheduleCacheKey(schoolId, requestedDate, buildPublishedScheduleCacheMarker(data.source)), { payload: data });
 		} catch (fetchError) {
 			const status = isAxiosError(fetchError) ? fetchError.response?.status : undefined;
 			const responseData = isAxiosError(fetchError) ? (fetchError.response?.data as { code?: string; message?: string } | undefined) : undefined;
@@ -209,7 +218,7 @@ export default function PublicPublishedSchedule() {
 		}
 
 		setLoading(false);
-	}, [schoolId]);
+	}, [requestedDate, schoolId]);
 
 	useEffect(() => { void loadPublishedSchedule(); }, [loadPublishedSchedule]);
 	useEffect(() => {
@@ -368,7 +377,7 @@ export default function PublicPublishedSchedule() {
 
 	const renderSelectedEntryBadges = useCallback((entry: PublishedScheduleMatrixEntry) => {
 		const section = entry.section;
-		const grade = (section?.gradeLevel ?? null) ?? parseGradeFromSectionName(section?.gradeLevelName ?? section?.name ?? null);
+		const grade = section?.gradeLevel ?? parseGradeFromSectionName(section?.gradeLevelName ?? section?.name ?? null);
 		return <GradeLevelBadge grade={grade} size="xs" />;
 	}, []);
 
@@ -379,7 +388,7 @@ export default function PublicPublishedSchedule() {
 					<div className="mx-auto w-full max-w-7xl space-y-3">
 						<Skeleton className="h-24 w-full rounded-2xl" />
 						<Skeleton className="h-24 w-full rounded-2xl" />
-						<Skeleton className="h-[36rem] w-full rounded-2xl" />
+						<Skeleton className="h-144 w-full rounded-2xl" />
 					</div>
 				</div>
 			</div>
@@ -467,10 +476,15 @@ export default function PublicPublishedSchedule() {
 								<Badge variant="outline">{summary.facultyCount} teacher{summary.facultyCount === 1 ? '' : 's'}</Badge>
 								<Badge variant="outline">{summary.roomCount} room{summary.roomCount === 1 ? '' : 's'}</Badge>
 							</div>
-							<details className="text-xs">
-								<summary className="cursor-pointer text-muted-foreground/80">Schedule version</summary>
+							<div className="rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-xs">
+								<p className="font-semibold text-foreground">Schedule version</p>
 								<p className="mt-1">Most recent schedule: {formatTimestamp(payload.source.publishedAt)} (reference #{payload.source.runId})</p>
-							</details>
+								<p className="mt-1 text-muted-foreground">
+									{payload.source.activeRevisionId
+										? `Revision #${payload.source.activeRevisionId} effective ${formatTimestamp(payload.source.activeRevisionEffectiveDate ?? null)}`
+										: `Base published schedule for ${requestedDate}`}
+								</p>
+							</div>
 							{sourceMode === 'saved' && savedAt && <p>Showing the last saved copy from {formatTimestamp(savedAt)}{savedIsStale ? '. This saved copy may be out of date.' : '.'}</p>}
 						</CardContent>
 					</Card>

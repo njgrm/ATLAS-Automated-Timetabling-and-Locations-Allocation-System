@@ -1,10 +1,19 @@
-export declare function getPublishedSchedulePayload(schoolId: number, schoolYearId?: number): Promise<{
+type PublishedScheduleReadOptions = {
+    requestedDate?: string | Date | null;
+};
+export declare function getPublishedSchedulePayload(schoolId: number, schoolYearId?: number, options?: PublishedScheduleReadOptions): Promise<{
     source: {
         runId: number;
         schoolId: number;
         schoolYearId: number;
         publishedAt: string | null;
         generatedAt: string;
+        requestedDate: string | null;
+        resolvedForDate: string;
+        activeRevisionId: number | null;
+        activeRevisionEffectiveDate: string | null;
+        appliedRevisionIds: number[];
+        revisionMarker: string;
     };
     timeSlots: {
         startTime: string;
@@ -55,7 +64,7 @@ export declare function getPublishedSchedulePayload(schoolId: number, schoolYear
         specializationLabel: string | null;
     }[];
 }>;
-export declare function getPublishedSectionSchedule(schoolId: number, sectionId: number, schoolYearId?: number): Promise<{
+export declare function getPublishedSectionSchedule(schoolId: number, sectionId: number, schoolYearId?: number, options?: PublishedScheduleReadOptions): Promise<{
     entries: {
         entryId: string;
         day: string;
@@ -100,6 +109,12 @@ export declare function getPublishedSectionSchedule(schoolId: number, sectionId:
         schoolYearId: number;
         publishedAt: string | null;
         generatedAt: string;
+        requestedDate: string | null;
+        resolvedForDate: string;
+        activeRevisionId: number | null;
+        activeRevisionEffectiveDate: string | null;
+        appliedRevisionIds: number[];
+        revisionMarker: string;
     };
     timeSlots: {
         startTime: string;
@@ -112,7 +127,7 @@ export declare function getPublishedSectionSchedule(schoolId: number, sectionId:
         days: string[];
     }[];
 }>;
-export declare function getPublishedFacultySchedule(schoolId: number, facultyId: number, schoolYearId?: number): Promise<{
+export declare function getPublishedFacultySchedule(schoolId: number, facultyId: number, schoolYearId?: number, options?: PublishedScheduleReadOptions): Promise<{
     entries: {
         entryId: string;
         day: string;
@@ -157,6 +172,12 @@ export declare function getPublishedFacultySchedule(schoolId: number, facultyId:
         schoolYearId: number;
         publishedAt: string | null;
         generatedAt: string;
+        requestedDate: string | null;
+        resolvedForDate: string;
+        activeRevisionId: number | null;
+        activeRevisionEffectiveDate: string | null;
+        appliedRevisionIds: number[];
+        revisionMarker: string;
     };
     timeSlots: {
         startTime: string;
@@ -169,7 +190,7 @@ export declare function getPublishedFacultySchedule(schoolId: number, facultyId:
         days: string[];
     }[];
 }>;
-export declare function getPublishedRoomSchedule(schoolId: number, roomId: number, schoolYearId?: number): Promise<{
+export declare function getPublishedRoomSchedule(schoolId: number, roomId: number, schoolYearId?: number, options?: PublishedScheduleReadOptions): Promise<{
     entries: {
         entryId: string;
         day: string;
@@ -214,6 +235,12 @@ export declare function getPublishedRoomSchedule(schoolId: number, roomId: numbe
         schoolYearId: number;
         publishedAt: string | null;
         generatedAt: string;
+        requestedDate: string | null;
+        resolvedForDate: string;
+        activeRevisionId: number | null;
+        activeRevisionEffectiveDate: string | null;
+        appliedRevisionIds: number[];
+        revisionMarker: string;
     };
     timeSlots: {
         startTime: string;
@@ -226,3 +253,4 @@ export declare function getPublishedRoomSchedule(schoolId: number, roomId: numbe
         days: string[];
     }[];
 }>;
+export {};

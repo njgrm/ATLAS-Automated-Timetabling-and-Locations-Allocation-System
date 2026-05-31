@@ -23,6 +23,7 @@ async function loadRunContext(runId, schoolId, schoolYearId) {
         throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
     if (run.status !== 'COMPLETED')
         throw err(400, 'RUN_NOT_COMPLETED', 'Manual edits can only be applied to COMPLETED runs.');
+    assertRunIsEditable(run.summary);
     const entries = (run.draftEntries ?? []);
     const unassignedItems = (run.unassignedItems ?? []);
     const [faculty, facultySubjectRows, rooms, subjects, policyRecord, buildings, facultyNames, roomNames, subjectNames, sectionSnapshot] = await Promise.all([
@@ -98,6 +99,21 @@ async function loadRunContext(runId, schoolId, schoolYearId) {
         subjectNameMap,
         sectionEnrollment,
     };
+}
+function isPublishedSummary(summary) {
+    if (!summary || typeof summary !== 'object' || Array.isArray(summary))
+        return false;
+    const candidate = summary;
+    if (candidate.isPublished === true)
+        return true;
+    if (typeof candidate.publishedAt === 'string' && candidate.publishedAt.length > 0)
+        return true;
+    return typeof candidate.publishedBy === 'number';
+}
+function assertRunIsEditable(summary) {
+    if (!isPublishedSummary(summary))
+        return;
+    throw err(409, 'RUN_ALREADY_PUBLISHED', 'This schedule is already published. Published repairs require the Prompt 6 revision workflow before changes can take effect.');
 }
 function buildValidatorCtx(schoolId, schoolYearId, runId, entries, refData) {
     const { faculty, facultySubjects, rooms, subjects, policyRecord, buildings, sectionEnrollment } = refData;
@@ -215,6 +231,54 @@ function applyProposal(entries, unassigned, proposal) {
     }
     return { newEntries, newUnassigned, beforeEntry, afterEntry, removedUnassigned };
 }
+function buildBatchPreviewItem(index, proposal, beforeEntry, afterEntry) {
+    return {
+        index,
+        proposal,
+        status: 'READY',
+        entryId: proposal.entryId ?? afterEntry?.entryId,
+        subjectId: afterEntry?.subjectId ?? beforeEntry?.subjectId ?? proposal.subjectId,
+        sectionId: afterEntry?.sectionId ?? beforeEntry?.sectionId ?? proposal.sectionId,
+        currentFacultyId: beforeEntry?.facultyId ?? null,
+        targetFacultyId: afterEntry?.facultyId ?? proposal.targetFacultyId ?? null,
+    };
+}
+function applyProposalBatch(entries, unassigned, proposals) {
+    let currentEntries = [...entries];
+    let currentUnassigned = [...unassigned];
+    const applied = [];
+    const items = [];
+    proposals.forEach((proposal, index) => {
+        try {
+            const result = applyProposal(currentEntries, currentUnassigned, proposal);
+            currentEntries = result.newEntries;
+            currentUnassigned = result.newUnassigned;
+            applied.push({
+                index,
+                proposal,
+                beforeEntry: result.beforeEntry,
+                afterEntry: result.afterEntry,
+                removedUnassigned: result.removedUnassigned,
+            });
+            items.push(buildBatchPreviewItem(index, proposal, result.beforeEntry, result.afterEntry));
+        }
+        catch (e) {
+            const error = e;
+            items.push({
+                index,
+                proposal,
+                status: 'FAILED',
+                entryId: proposal.entryId,
+                subjectId: proposal.subjectId,
+                sectionId: proposal.sectionId,
+                targetFacultyId: proposal.targetFacultyId ?? null,
+                errorCode: error.code ?? 'BATCH_PROPOSAL_INVALID',
+                errorMessage: error.message ?? 'This change could not be prepared.',
+            });
+        }
+    });
+    return { newEntries: currentEntries, newUnassigned: currentUnassigned, applied, items };
+}
 function timeToMinutes(t) {
     const [h, m] = t.split(':').map(Number);
     return h * 60 + m;
@@ -231,6 +295,34 @@ function computeSummary(entries, unassigned, validation) {
         hardViolationCount,
         violationCounts: validation.counts.byCode,
     };
+}
+/**
+ * Preserve publication state and display-slot metadata when a manual edit recomputes
+ * a run's summary. Manual edits to a published run must not silently unpublish it;
+ * unpublish must be an explicit action with its own audit trail.
+ */
+function mergePreservedSummaryFields(existingSummary, newSummary) {
+    const merged = { ...newSummary };
+    if (!existingSummary || typeof existingSummary !== 'object' || Array.isArray(existingSummary)) {
+        return merged;
+    }
+    const prev = existingSummary;
+    const preserveKeys = [
+        'isPublished',
+        'publishedAt',
+        'publishedBy',
+        'publishedSoftViolationCount',
+        'softViolationsAcknowledged',
+        'publicationIntegrity',
+        'timetableDisplaySlots',
+        'timetableShapeContracts',
+    ];
+    for (const key of preserveKeys) {
+        if (prev[key] !== undefined) {
+            merged[key] = prev[key];
+        }
+    }
+    return merged;
 }
 // ─── Human-readable conflict builder ───
 const VIOLATION_TITLES = {
@@ -538,6 +630,67 @@ export async function previewManualEdit(runId, schoolId, schoolYearId, proposal)
         policyImpactSummary,
     };
 }
+export async function previewManualEditBatch(runId, schoolId, schoolYearId, proposals) {
+    if (!Array.isArray(proposals) || proposals.length === 0) {
+        throw err(400, 'EMPTY_BATCH', 'At least one manual edit proposal is required.');
+    }
+    const refData = await loadRunContext(runId, schoolId, schoolYearId);
+    const { entries, unassignedItems } = refData;
+    const currentCtx = buildValidatorCtx(schoolId, schoolYearId, runId, entries, refData);
+    const currentValidation = validateHardConstraints(currentCtx);
+    const { newEntries, items, applied } = applyProposalBatch(entries, unassignedItems, proposals);
+    const errorCount = items.filter((item) => item.status === 'FAILED').length;
+    const newCtx = buildValidatorCtx(schoolId, schoolYearId, runId, newEntries, refData);
+    const newValidation = validateHardConstraints(newCtx);
+    const hardBefore = currentValidation.violations.filter((v) => v.severity === 'HARD').length;
+    const hardAfter = newValidation.violations.filter((v) => v.severity === 'HARD').length;
+    const softBefore = currentValidation.violations.filter((v) => v.severity === 'SOFT').length;
+    const softAfter = newValidation.violations.filter((v) => v.severity === 'SOFT').length;
+    const newHardViolations = newValidation.violations.filter((v) => v.severity === 'HARD');
+    const newSoftViolations = newValidation.violations.filter((v) => v.severity === 'SOFT');
+    const allNewViolations = [...newHardViolations, ...newSoftViolations];
+    const affectedEntries = [];
+    for (const edit of applied) {
+        if (edit.beforeEntry) {
+            affectedEntries.push({
+                entryId: edit.beforeEntry.entryId, subjectId: edit.beforeEntry.subjectId, sectionId: edit.beforeEntry.sectionId,
+                facultyId: edit.beforeEntry.facultyId, roomId: edit.beforeEntry.roomId,
+                day: edit.beforeEntry.day, startTime: edit.beforeEntry.startTime, endTime: edit.beforeEntry.endTime, phase: 'before',
+                entryKind: edit.beforeEntry.entryKind,
+                cohortCode: edit.beforeEntry.cohortCode ?? null,
+                cohortName: edit.beforeEntry.cohortName ?? null,
+                programType: edit.beforeEntry.programType ?? null,
+                programCode: edit.beforeEntry.programCode ?? null,
+                programName: edit.beforeEntry.programName ?? null,
+            });
+        }
+        if (edit.afterEntry) {
+            affectedEntries.push({
+                entryId: edit.afterEntry.entryId, subjectId: edit.afterEntry.subjectId, sectionId: edit.afterEntry.sectionId,
+                facultyId: edit.afterEntry.facultyId, roomId: edit.afterEntry.roomId,
+                day: edit.afterEntry.day, startTime: edit.afterEntry.startTime, endTime: edit.afterEntry.endTime, phase: 'after',
+                entryKind: edit.afterEntry.entryKind,
+                cohortCode: edit.afterEntry.cohortCode ?? null,
+                cohortName: edit.afterEntry.cohortName ?? null,
+                programType: edit.afterEntry.programType ?? null,
+                programCode: edit.afterEntry.programCode ?? null,
+                programName: edit.afterEntry.programName ?? null,
+            });
+        }
+    }
+    return {
+        allowed: errorCount === 0 && newHardViolations.length === 0,
+        hardViolations: newHardViolations,
+        softViolations: newSoftViolations,
+        violationDelta: { hardBefore, hardAfter, softBefore, softAfter },
+        humanConflicts: buildHumanConflicts(allNewViolations, newEntries, refData),
+        affectedEntries,
+        policyImpactSummary: buildPolicyImpacts(allNewViolations, refData),
+        proposalCount: proposals.length,
+        errorCount,
+        proposals: items,
+    };
+}
 // ─── Commit (persist) ───
 export async function commitManualEdit(runId, schoolId, schoolYearId, actorId, proposal, expectedVersion, allowSoftOverride = false) {
     const refData = await loadRunContext(runId, schoolId, schoolYearId);
@@ -567,6 +720,7 @@ export async function commitManualEdit(runId, schoolId, schoolYearId, actorId, p
         throw err(422, 'SOFT_OVERRIDE_REQUIRED', `Edit produces ${softAfter.length} soft warning(s). Client must set allowSoftOverride=true to proceed.`);
     }
     const newSummary = computeSummary(newEntries, newUnassigned, newValidation);
+    const preservedSummary = mergePreservedSummaryFields(run.summary, newSummary);
     const newVersion = run.version + 1;
     // Persist atomically: update run + create edit record
     const [updatedRun, editRecord] = await prisma.$transaction([
@@ -576,7 +730,7 @@ export async function commitManualEdit(runId, schoolId, schoolYearId, actorId, p
                 draftEntries: newEntries,
                 unassignedItems: newUnassigned,
                 violations: newValidation.violations,
-                summary: newSummary,
+                summary: preservedSummary,
                 version: newVersion,
             },
         }),
@@ -625,6 +779,105 @@ export async function commitManualEdit(runId, schoolId, schoolYearId, actorId, p
     };
     return {
         editId: editRecord.id,
+        draft: draftReport,
+        violationDelta: { hardBefore, hardAfter: hardAfter.length, softBefore, softAfter: softAfter.length },
+        warnings: softAfter,
+        newVersion,
+    };
+}
+export async function commitManualEditBatch(runId, schoolId, schoolYearId, actorId, proposals, expectedVersion, allowSoftOverride = false) {
+    if (!Array.isArray(proposals) || proposals.length === 0) {
+        throw err(400, 'EMPTY_BATCH', 'At least one manual edit proposal is required.');
+    }
+    const refData = await loadRunContext(runId, schoolId, schoolYearId);
+    const { run, entries, unassignedItems } = refData;
+    if (run.version !== expectedVersion) {
+        throw err(409, 'VERSION_CONFLICT', `Run version conflict: expected ${expectedVersion}, actual ${run.version}. Please reload and retry.`);
+    }
+    const currentCtx = buildValidatorCtx(schoolId, schoolYearId, runId, entries, refData);
+    const currentValidation = validateHardConstraints(currentCtx);
+    const { newEntries, newUnassigned, applied, items } = applyProposalBatch(entries, unassignedItems, proposals);
+    const failedItems = items.filter((item) => item.status === 'FAILED');
+    if (failedItems.length > 0) {
+        throw err(400, 'BATCH_PROPOSAL_INVALID', `Cannot commit: ${failedItems.length} proposed change(s) could not be prepared.`);
+    }
+    const newCtx = buildValidatorCtx(schoolId, schoolYearId, runId, newEntries, refData);
+    const newValidation = validateHardConstraints(newCtx);
+    const hardAfter = newValidation.violations.filter((v) => v.severity === 'HARD');
+    const softAfter = newValidation.violations.filter((v) => v.severity === 'SOFT');
+    const hardBefore = currentValidation.violations.filter((v) => v.severity === 'HARD').length;
+    const softBefore = currentValidation.violations.filter((v) => v.severity === 'SOFT').length;
+    if (hardAfter.length > 0) {
+        throw err(422, 'HARD_VIOLATION_BLOCK', `Cannot commit: ${hardAfter.length} hard violation(s). ${hardAfter.map((v) => v.message).join('; ')}`);
+    }
+    if (softAfter.length > 0 && !allowSoftOverride) {
+        throw err(422, 'SOFT_OVERRIDE_REQUIRED', `Batch produces ${softAfter.length} soft warning(s). Client must set allowSoftOverride=true to proceed.`);
+    }
+    const newSummary = computeSummary(newEntries, newUnassigned, newValidation);
+    const preservedSummary = mergePreservedSummaryFields(run.summary, newSummary);
+    const newVersion = run.version + 1;
+    const { updatedRun, editRecords } = await prisma.$transaction(async (tx) => {
+        const updated = await tx.generationRun.update({
+            where: { id: runId, version: expectedVersion },
+            data: {
+                draftEntries: newEntries,
+                unassignedItems: newUnassigned,
+                violations: newValidation.violations,
+                summary: preservedSummary,
+                version: newVersion,
+            },
+        });
+        const created = [];
+        for (const edit of applied) {
+            created.push(await tx.manualScheduleEdit.create({
+                data: {
+                    runId,
+                    schoolId,
+                    schoolYearId,
+                    actorId,
+                    editType: edit.proposal.editType,
+                    beforePayload: (edit.beforeEntry ?? {}),
+                    afterPayload: (edit.afterEntry ?? {}),
+                    validationSummary: {
+                        batchSize: proposals.length,
+                        batchIndex: edit.index,
+                        hardCount: hardAfter.length,
+                        softCount: softAfter.length,
+                        delta: { hardBefore, hardAfter: hardAfter.length, softBefore, softAfter: softAfter.length },
+                        removedUnassignedItem: edit.removedUnassigned ? { ...edit.removedUnassigned } : null,
+                    },
+                },
+            }));
+        }
+        await tx.auditLog.create({
+            data: {
+                schoolId,
+                schoolYearId,
+                action: 'MANUAL_SCHEDULE_EDIT_BATCH',
+                actorId,
+                targetIds: [runId],
+                metadata: {
+                    editIds: created.map((edit) => edit.id),
+                    batchSize: proposals.length,
+                    entryIds: proposals.map((proposal) => proposal.entryId).filter(Boolean),
+                },
+            },
+        });
+        return { updatedRun: updated, editRecords: created };
+    });
+    const draftReport = {
+        runId: updatedRun.id,
+        status: updatedRun.status,
+        entries: newEntries,
+        unassignedItems: newUnassigned,
+        summary: newSummary,
+        finishedAt: updatedRun.finishedAt?.toISOString() ?? null,
+        createdAt: updatedRun.createdAt.toISOString(),
+        version: updatedRun.version,
+    };
+    return {
+        editId: editRecords[0]?.id ?? 0,
+        editIds: editRecords.map((edit) => edit.id),
         draft: draftReport,
         violationDelta: { hardBefore, hardAfter: hardAfter.length, softBefore, softAfter: softAfter.length },
         warnings: softAfter,
@@ -690,6 +943,7 @@ export async function revertLastEdit(runId, schoolId, schoolYearId, actorId) {
     const newCtx = buildValidatorCtx(schoolId, schoolYearId, runId, newEntries, refData);
     const newValidation = validateHardConstraints(newCtx);
     const newSummary = computeSummary(newEntries, newUnassigned, newValidation);
+    const preservedSummary = mergePreservedSummaryFields(run.summary, newSummary);
     const newVersion = run.version + 1;
     const [updatedRun, editRecord] = await prisma.$transaction([
         prisma.generationRun.update({
@@ -698,7 +952,7 @@ export async function revertLastEdit(runId, schoolId, schoolYearId, actorId) {
                 draftEntries: newEntries,
                 unassignedItems: newUnassigned,
                 violations: newValidation.violations,
-                summary: newSummary,
+                summary: preservedSummary,
                 version: newVersion,
             },
         }),
@@ -1045,6 +1299,7 @@ export async function swapManualEntries(runId, schoolId, schoolYearId, actorId, 
     const softBefore = currentValidation.violations.filter((v) => v.severity === 'SOFT').length;
     const softAfter = newValidation.violations.filter((v) => v.severity === 'SOFT').length;
     const newSummary = computeSummary(newEntries, unassignedItems, newValidation);
+    const preservedSummary = mergePreservedSummaryFields(run.summary, newSummary);
     const newVersion = run.version + 1;
     const [updatedRun, editRecord] = await prisma.$transaction([
         prisma.generationRun.update({
@@ -1052,7 +1307,7 @@ export async function swapManualEntries(runId, schoolId, schoolYearId, actorId, 
             data: {
                 draftEntries: newEntries,
                 violations: newValidation.violations,
-                summary: newSummary,
+                summary: preservedSummary,
                 version: newVersion,
             },
         }),

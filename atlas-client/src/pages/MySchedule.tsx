@@ -4,7 +4,8 @@ import { AlertCircle, BookOpen, Clock3, MapPin, RefreshCcw, Users } from 'lucide
 import atlasApi from '@/lib/api';
 import { describeSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { cacheFacultyIdentity, readCachedFacultyIdentity } from '@/lib/faculty-identity-cache';
-import { buildFacultyCacheKey, isLikelyOfflineError, readFacultySnapshot, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
+import { buildFacultyCacheKey, isLikelyOfflineError, readLatestFacultySnapshotByPrefix, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
+import { buildPublishedScheduleCacheMarker, resolvePublishedScheduleRequestDate } from '@/lib/published-schedule-cache-key';
 import FacultyGlobalHeader from '@/components/faculty-shared/FacultyGlobalHeader';
 import { PublishedTimetableMatrix, formatShortTime, type PublishedScheduleMatrixEntry } from '@/components/published-schedule/PublishedTimetableMatrix';
 import { Badge } from '@/ui/badge';
@@ -52,6 +53,11 @@ type PublishedFacultySchedulePayload = {
 		schoolYearId: number;
 		publishedAt: string | null;
 		generatedAt: string | null;
+		requestedDate?: string | null;
+		resolvedForDate?: string | null;
+		activeRevisionId?: number | null;
+		activeRevisionEffectiveDate?: string | null;
+		revisionMarker?: string | null;
 	};
 	entries: PublishedFacultyScheduleEntry[];
 };
@@ -82,6 +88,11 @@ function buildSummary(entries: PublishedFacultyScheduleEntry[]) {
 		sectionCount: sectionNames.size,
 		buildingCount: buildingNames.size,
 	};
+}
+
+function formatRevisionReference(source: PublishedFacultySchedulePayload['source'] | undefined): string {
+	if (!source?.activeRevisionId) return 'Base published schedule';
+	return `Revision #${source.activeRevisionId} effective ${formatTimestamp(source.activeRevisionEffectiveDate ?? null)}`;
 }
 
 export default function MySchedule() {
@@ -120,19 +131,22 @@ export default function MySchedule() {
 				}
 			}
 
-			const cacheKey = buildFacultyCacheKey('published-schedule', DEFAULT_SCHOOL_ID, schoolYearId, resolvedFacultyId);
-			const cachedSnapshot = readFacultySnapshot<PublishedScheduleSnapshot>(cacheKey, {
+			const requestDate = resolvePublishedScheduleRequestDate();
+			const cachePrefix = buildFacultyCacheKey('published-schedule', DEFAULT_SCHOOL_ID, schoolYearId, resolvedFacultyId, 'date', requestDate);
+			const cachedSnapshot = readLatestFacultySnapshotByPrefix<PublishedScheduleSnapshot>(cachePrefix, {
 				maxAgeMs: SCHEDULE_CACHE_MAX_AGE_MS,
 				validate: isPublishedScheduleSnapshot,
 			});
 
 			try {
-				const { data } = await atlasApi.get<PublishedFacultySchedulePayload>(`/schools/${DEFAULT_SCHOOL_ID}/schedules/published/${schoolYearId}/faculty/${resolvedFacultyId}`);
+				const { data } = await atlasApi.get<PublishedFacultySchedulePayload>(`/schools/${DEFAULT_SCHOOL_ID}/schedules/published/${schoolYearId}/faculty/${resolvedFacultyId}`, {
+					params: { date: requestDate },
+				});
 				setSchedule(data);
 				setError(null);
 				setUsingCachedSchedule(false);
 				setCachedScheduleAt(null);
-				writeFacultySnapshot(cacheKey, { facultyId: resolvedFacultyId, payload: data });
+				writeFacultySnapshot(`${cachePrefix}:${buildPublishedScheduleCacheMarker(data.source)}`, { facultyId: resolvedFacultyId, payload: data });
 			} catch (requestError) {
 				if (cachedSnapshot && isLikelyOfflineError(requestError)) {
 					setSchedule(cachedSnapshot.data.payload);
@@ -366,7 +380,7 @@ export default function MySchedule() {
 					</Card>
 
 					<div className="flex items-center justify-between gap-3 text-[12px] text-muted-foreground">
-						<span>Version reference #{schedule?.source.runId ?? '—'} · Published {formatTimestamp(schedule?.source.publishedAt ?? null)}</span>
+						<span>Version reference #{schedule?.source.runId ?? '—'} · {formatRevisionReference(schedule?.source)} · Published {formatTimestamp(schedule?.source.publishedAt ?? null)}</span>
 						{usingCachedSchedule ? <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">Saved snapshot</Badge> : <Badge variant="outline">Live</Badge>}
 					</div>
 				</div>

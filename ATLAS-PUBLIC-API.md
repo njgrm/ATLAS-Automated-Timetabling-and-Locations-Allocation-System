@@ -1063,8 +1063,10 @@ Each projected room entry includes `termIndex` (1, 2, or 3).
 **Public endpoints** (no auth required). These return only `Published` schedules.
 
 Behavior notes:
-- `GET /schools/:schoolId/schedules/published` always resolves the latest published run for that school.
+- `GET /schools/:schoolId/schedules/published` resolves the current active published truth for that school when no date query is supplied.
+- All published schedule endpoints accept optional `date=YYYY-MM-DD` or `asOfDate=<ISO date>` query parameters. Dates before a published revision's effective date return the previous published truth; dates on or after the effective date return the revised truth.
 - If no published run exists, the API returns `404` with `code: "PUBLISHED_RUN_NOT_FOUND"`.
+- If the supplied date is invalid, the API returns `400` with `code: "PUBLISHED_SCHEDULE_DATE_INVALID"`.
 - These endpoints never expose draft/review/unpublished entries.
 - If legacy rows contain invalid `FAILED + published` marker combinations, the service reconciles those rows by clearing publication markers before resolving the published payload.
 
@@ -1106,7 +1108,13 @@ Get term-specific published schedule view for a room.
     "schoolId": 1,
     "schoolYearId": 55,
     "publishedAt": "2026-05-11T03:30:00.000Z",
-    "generatedAt": "2026-05-11T03:20:00.000Z"
+    "generatedAt": "2026-05-11T03:20:00.000Z",
+    "requestedDate": "2026-06-03",
+    "resolvedForDate": "2026-06-03T12:00:00.000Z",
+    "activeRevisionId": 14,
+    "activeRevisionEffectiveDate": "2026-06-03T00:00:00.000Z",
+    "appliedRevisionIds": [14],
+    "revisionMarker": "run=82|published=2026-05-11T03:30:00.000Z|revision=14|effective=2026-06-03T00:00:00.000Z|date=2026-06-03"
   },
   "timeSlots": [
     { "startTime": "07:00", "endTime": "08:00" }

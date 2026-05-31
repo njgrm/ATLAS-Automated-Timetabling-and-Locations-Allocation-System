@@ -92,6 +92,79 @@ router.post(
 	},
 );
 
+// ─── POST /:schoolId/:schoolYearId/runs/:runId/manual-edits/batch/preview ───
+
+router.post(
+	'/:schoolId/:schoolYearId/runs/:runId/manual-edits/batch/preview',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const role = req.user?.role;
+			if (!role || !PRIVILEGED_ROLES.has(role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can preview manual edit batches.' });
+				return;
+			}
+
+			const scope = parseScope(req.params as Record<string, string>);
+			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+
+			const { proposals } = req.body ?? {};
+			if (!Array.isArray(proposals) || proposals.length === 0) {
+				res.status(400).json({ code: 'INVALID_BODY', message: 'Request body must include at least one proposal.' });
+				return;
+			}
+
+			const result = await manualEditService.previewManualEditBatch(
+				scope.runId, scope.schoolId, scope.schoolYearId, proposals,
+			);
+			res.json(result);
+		} catch (e) { next(e); }
+	},
+);
+
+// ─── POST /:schoolId/:schoolYearId/runs/:runId/manual-edits/batch/commit ───
+
+router.post(
+	'/:schoolId/:schoolYearId/runs/:runId/manual-edits/batch/commit',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const role = req.user?.role;
+			if (!role || !PRIVILEGED_ROLES.has(role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can commit manual edit batches.' });
+				return;
+			}
+
+			const scope = parseScope(req.params as Record<string, string>);
+			if (typeof scope === 'string') { res.status(400).json({ code: 'INVALID_PARAM', message: scope }); return; }
+
+			const actorId = req.user?.userId;
+			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
+
+			const { proposals, expectedVersion, allowSoftOverride } = req.body ?? {};
+			if (!Array.isArray(proposals) || proposals.length === 0) {
+				res.status(400).json({ code: 'INVALID_BODY', message: 'Request body must include at least one proposal.' });
+				return;
+			}
+			if (typeof expectedVersion !== 'number') {
+				res.status(400).json({ code: 'INVALID_BODY', message: 'Request body must include expectedVersion (number).' });
+				return;
+			}
+
+			const result = await manualEditService.commitManualEditBatch(
+				scope.runId,
+				scope.schoolId,
+				scope.schoolYearId,
+				actorId,
+				proposals,
+				expectedVersion,
+				!!allowSoftOverride,
+			);
+			res.json(result);
+		} catch (e) { next(e); }
+	},
+);
+
 // ─── POST /:schoolId/:schoolYearId/runs/:runId/manual-edits/revert ───
 
 router.post(
