@@ -895,8 +895,8 @@ refactor(ui): rebuild dashboard + map shell with single-next-step identity
   - atlas-client/src/pages/MySchedule.tsx
   - atlas-client/src/pages/Audit.tsx
   - atlas-client/src/pages/Subjects.tsx
-  - atlas-client/src/pages/FacultyAssignments.tsx
   - atlas-client/src/pages/TeachingLoad.tsx
+  - Note: the legacy `FacultyAssignments.tsx` page file was later verified unused and removed on 2026-05-31; `/teaching-load` is the active page.
   - atlas-client/src/pages/Login.tsx
   - atlas-client/src/pages/SpecializationMapping.tsx
   - atlas-client/src/components/BuildingView.tsx
@@ -1549,7 +1549,7 @@ refactor(ui): rebuild dashboard + map shell with single-next-step identity
   - atlas-server/src/services/teaching-load-automation.service.ts
   - atlas-client/src/components/faculty-assignments/WorkspaceToolbar.tsx
   - atlas-client/src/components/faculty-assignments/OverviewHeader.tsx
-  - atlas-client/src/pages/FacultyAssignments.tsx
+  - atlas-client/src/pages/TeachingLoad.tsx (active page; legacy `FacultyAssignments.tsx` was later verified unused and removed on 2026-05-31)
   - docs/reference/atlas-runtime-source-of-truth-map.md
   - ATLAS-PUBLIC-API.md
   - api/ATLAS-PUBLIC-API.md

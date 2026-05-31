@@ -171,10 +171,10 @@ export async function getFixSuggestions(
 				label: 'Open Policy Suggestion',
 				description: item.entryKind === 'COHORT'
 					? `Consider assigning a qualified teacher who can cover ${placementScope}, or enable the emergency outside-department path.`
-					: 'Consider allowing out-of-field assignments or adding qualified faculty in Faculty Assignments.',
+					: 'Consider allowing out-of-field assignments or adding qualified faculty in Teaching Load.',
 				policyHint: item.entryKind === 'COHORT'
-					? 'Go to Faculty Assignments to align subject ownership and adviser-backed homeroom support for the linked sections.'
-					: 'Go to Faculty Assignments to assign a teacher for this subject + section.',
+					? 'Go to Teaching Load to align subject ownership and adviser-backed homeroom support for the linked sections.'
+					: 'Go to Teaching Load to assign a teacher for this subject + section.',
 			});
 			break;
 		}

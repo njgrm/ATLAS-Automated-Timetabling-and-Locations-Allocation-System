@@ -93,7 +93,7 @@ export const VIOLATION_EXPLANATIONS: Record<string, { why: string; fix: string }
 const UNASSIGNED_EXPLANATIONS: Record<string, { why: string; whatItMeans: string }> = {
 	NO_QUALIFIED_FACULTY: {
 		why: 'No teacher is currently assigned to this subject at this grade level, or all assigned teachers are already fully booked at every available time slot.',
-		whatItMeans: 'This session cannot be placed until a qualified teacher becomes available. Check Faculty Assignments to ensure someone is assigned.',
+		whatItMeans: 'This session cannot be placed until a qualified teacher becomes available. Check Teaching Load to ensure someone is assigned.',
 	},
 	FACULTY_OVERLOADED: {
 		why: 'Teachers who can teach this subject have already reached their maximum weekly or daily teaching hours.',

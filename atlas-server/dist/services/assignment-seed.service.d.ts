@@ -5,7 +5,7 @@
     * `faculty.department` matches the subject ownership department baseline.
  *
  * This runs automatically after every faculty sync to pre-populate the
- * FacultyAssignments page with qualified pairings that the Scheduler fills.
+ * Teaching Load page with qualified pairings that the Scheduler fills.
  */
 export interface AssignmentSeedResult {
     created: number;
