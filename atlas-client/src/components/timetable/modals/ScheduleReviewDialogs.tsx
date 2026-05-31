@@ -152,6 +152,9 @@ setShowEditHistory,
 editHistory,
 } = context;
 
+const requestAppealItems = requestAppeals ?? [];
+const editHistoryItems = editHistory ?? [];
+
 const formatSwapSlot = (day: string, startTime: string, endTime: string) => `${DAY_SHORT[day] ?? day} ${formatTime(startTime)}-${formatTime(endTime)}`;
 const formatSessionContext = (sectionName: string, cohortCode?: string | null) => cohortCode ? `${sectionName} · ${cohortCode}` : sectionName;
 const buildPlacementLabel = (placement: { subjectId: number; sectionId: number; cohortCode?: string | null }) => ({
@@ -446,16 +449,16 @@ return (
 									<div className="flex items-center justify-between">
 										<p className="font-medium">Appeals timeline</p>
 										<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] uppercase">
-											{requestAppeals.length} total
+											{requestAppealItems.length} total
 										</Badge>
 									</div>
 									{appealsLoading ? (
 										<Skeleton className="h-14 w-full rounded" />
-									) : requestAppeals.length === 0 ? (
+									) : requestAppealItems.length === 0 ? (
 										<p className="text-muted-foreground">No appeals yet.</p>
 									) : (
 										<div className="max-h-36 space-y-1.5 overflow-auto">
-											{requestAppeals.map((appeal) => (
+											{requestAppealItems.map((appeal) => (
 												<div key={appeal.id} className="rounded border border-border bg-muted/20 px-2 py-1.5">
 													<div className="flex items-center justify-between gap-2">
 														<p className="font-medium truncate">{appeal.requesterName}</p>
@@ -1390,13 +1393,13 @@ return (
 							Manual Edit History
 						</DialogTitle>
 						<DialogDescription>
-							{editHistory.length === 0
+							{editHistoryItems.length === 0
 								? 'No manual edits have been made on this run.'
-								: `${editHistory.length} edit(s) recorded.`}
+								: `${editHistoryItems.length} edit(s) recorded.`}
 						</DialogDescription>
 					</DialogHeader>
 					<div className="max-h-64 overflow-auto space-y-1.5 py-2">
-						{editHistory.map((edit) => (
+						{editHistoryItems.map((edit) => (
 							<div
 								key={edit.id}
 								className={`rounded border px-3 py-2 text-xs space-y-0.5 ${

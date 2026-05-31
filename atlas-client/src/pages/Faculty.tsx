@@ -1,33 +1,31 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
 	AlertTriangle,
-	ChevronLeft,
-	ChevronRight,
-	ChevronsLeft,
-	ChevronsRight,
+	BookOpenCheck,
+	Eye,
 	RefreshCw,
 	Users,
-	X,
-	ArrowUpDown,
-	ArrowUp,
-	ArrowDown
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
 import type { FacultySummary } from '@/types';
-import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
-import { Skeleton } from '@/ui/skeleton';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import {
 	AdminSearchFilterToolbar,
-	AdminStatePanel,
-	AdminTableShell,
 	AdminWorkspaceFrame,
 	type AdminSourceState,
 } from '@/components/admin-workspace/AdminWorkspace';
-import { FacultyRow } from '@/components/faculty/FacultyRow';
+import { AdminDataTable, type AdminDataTableColumn } from '@/components/admin-workspace/AdminDataTable';
+import {
+	FacultyDepartmentCell,
+	FacultyIdentityCell,
+	FacultyLoadStateBadge,
+	FacultyMobileCard,
+	FacultyTeachingLoadCell,
+	FacultyWeeklyLoadCell,
+} from '@/components/faculty/FacultyRow';
 import { FacultyProfileSheet } from '@/components/faculty/FacultyProfileSheet';
 import { toast } from 'sonner';
 import {
@@ -36,7 +34,11 @@ import {
 	type ActiveSchoolYearContextSource,
 	isUpstreamBackedSchoolYearSource,
 } from '@/lib/enrollpro-public-settings';
-import type { SubjectSectionOwnershipIndexEntry } from '@/lib/faculty-assignment-helpers';
+import {
+	getFacultyLoadSortRank,
+	STANDARD_WEEKLY_TEACHING_HOURS,
+	type SubjectSectionOwnershipIndexEntry,
+} from '@/lib/faculty-assignment-helpers';
 import {
 	getCachedFacultyAssignmentsSummary,
 	requestWithRetry,
@@ -253,6 +255,7 @@ export default function Faculty() {
 	// Filtered, sorted, paginated
 	const { paged, totalFiltered, totalPages } = useMemo(() => {
 		let list = faculty;
+		const compareTeacherName = (left: FacultySummary, right: FacultySummary) => `${left.lastName} ${left.firstName}`.localeCompare(`${right.lastName} ${right.firstName}`);
 
 		// Search
 		if (searchQuery.trim()) {
@@ -276,15 +279,16 @@ export default function Faculty() {
 		if (departmentFilter !== 'all') list = list.filter((f) => f.department === departmentFilter);
 
 		// Sort
-		const sorted = [...list].sort((a, b) => {
+		const sorted = [...list].sort((left, right) => {
 			let cmp = 0;
 			switch (sortField) {
-				case 'name': cmp = `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`); break;
-				case 'specialization': cmp = (a.specialization ?? a.department ?? '').localeCompare(b.specialization ?? b.department ?? ''); break;
-				case 'subjects': cmp = (a.subjectCount ?? 0) - (b.subjectCount ?? 0); break;
-				case 'weeklyLoad': cmp = (a.policyCreditedHours ?? 0) - (b.policyCreditedHours ?? 0); break;
-				case 'status': cmp = Number(a.isActiveForScheduling) - Number(b.isActiveForScheduling); break;
+				case 'name': cmp = compareTeacherName(left, right); break;
+				case 'specialization': cmp = (left.specialization ?? left.department ?? '').localeCompare(right.specialization ?? right.department ?? ''); break;
+				case 'subjects': cmp = (left.subjectCount ?? 0) - (right.subjectCount ?? 0); break;
+				case 'weeklyLoad': cmp = (left.policyCreditedHours ?? 0) - (right.policyCreditedHours ?? 0); break;
+				case 'status': cmp = getFacultyLoadSortRank(left) - getFacultyLoadSortRank(right); break;
 			}
+			if (cmp === 0 && sortField !== 'name') cmp = compareTeacherName(left, right);
 			return sortDir === 'desc' ? -cmp : cmp;
 		});
 
@@ -302,12 +306,53 @@ export default function Faculty() {
 		else { setSortField(field); setSortDir('asc'); }
 	};
 
-	const SortIcon = ({ field }: { field: SortField }) => {
-		if (sortField !== field) return <ArrowUpDown className="size-3 text-muted-foreground/50" />;
-		return sortDir === 'asc' ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />;
-	};
-
 	const hasActiveFilters = schedulingFilter !== 'all' || assignmentFilter !== 'all' || departmentFilter !== 'all';
+
+	const teacherColumns = useMemo<AdminDataTableColumn<FacultySummary, SortField>[]>(() => [
+		{
+			id: 'teacher',
+			label: 'Teacher',
+			description: 'Name, adviser role, and roster ID.',
+			sortKey: 'name',
+			cellClassName: 'min-w-60',
+			render: (teacher) => <FacultyIdentityCell faculty={teacher} />,
+		},
+		{
+			id: 'department',
+			label: 'Department',
+			description: 'Department, specialization, and source state.',
+			sortKey: 'specialization',
+			cellClassName: 'min-w-52',
+			render: (teacher) => <FacultyDepartmentCell faculty={teacher} />,
+		},
+		{
+			id: 'teachingLoad',
+			label: 'Teaching Load',
+			description: 'Subjects and section coverage.',
+			sortKey: 'subjects',
+			headerClassName: 'text-center',
+			cellClassName: 'text-center',
+			render: (teacher) => <FacultyTeachingLoadCell faculty={teacher} />,
+		},
+		{
+			id: 'weeklyLoad',
+			label: 'Credited Workload',
+			description: 'Teaching plus approved credits.',
+			sortKey: 'weeklyLoad',
+			headerClassName: 'text-center',
+			cellClassName: 'text-center',
+			render: (teacher) => <FacultyWeeklyLoadCell faculty={teacher} />,
+		},
+		{
+			id: 'loadState',
+			label: 'Load State',
+			description: 'Readiness against the 30h standard and cap.',
+			sortKey: 'status',
+			headerClassName: 'text-center',
+			cellClassName: 'text-center',
+			render: (teacher) => <FacultyLoadStateBadge faculty={teacher} />,
+		},
+	], []);
 
 	const teacherSourceState = useMemo<AdminSourceState>(() => {
 		if (dataSource === 'live') return 'verified-live';
@@ -320,12 +365,17 @@ export default function Faculty() {
 		const activeCount = faculty.filter((teacher) => teacher.isActiveForScheduling).length;
 		const assignedCount = faculty.filter((teacher) => (teacher.subjectCount ?? 0) > 0).length;
 		const unassignedCount = faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.subjectCount ?? 0) === 0).length;
-		const reviewCount = faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.policyCreditedHours ?? 0) >= teacher.maxHoursPerWeek * 0.85).length;
+		const reviewCount = faculty.filter((teacher) => {
+			const creditedHours = teacher.policyCreditedHours ?? 0;
+			return teacher.isActiveForScheduling && creditedHours > STANDARD_WEEKLY_TEACHING_HOURS && creditedHours <= teacher.maxHoursPerWeek;
+		}).length;
+		const overCapCount = faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.policyCreditedHours ?? 0) > teacher.maxHoursPerWeek).length;
 		return [
 			{ label: 'Active teachers', value: activeCount, tone: activeCount > 0 ? 'success' as const : 'warning' as const, helpText: 'Teachers currently available for scheduling.' },
 			{ label: 'With load', value: assignedCount, tone: assignedCount > 0 ? 'info' as const : 'warning' as const, helpText: 'Teachers with at least one subject or section in Teaching Load.' },
 			{ label: 'Without load', value: unassignedCount, tone: unassignedCount > 0 ? 'warning' as const : 'success' as const, helpText: 'Active teachers with no teaching load yet.' },
-			{ label: 'Needs review', value: reviewCount, tone: reviewCount > 0 ? 'warning' as const : 'success' as const, helpText: 'Active teachers near or above their weekly load limit.' },
+			{ label: 'Approval review', value: reviewCount, tone: reviewCount > 0 ? 'warning' as const : 'success' as const, helpText: `Active teachers above the ${STANDARD_WEEKLY_TEACHING_HOURS}h standard and still within their cap.` },
+			{ label: 'Over cap', value: overCapCount, tone: overCapCount > 0 ? 'warning' as const : 'success' as const, helpText: 'Active teachers above the weekly cap. Repair these before generation.' },
 			{ label: 'Last sync', value: timeSince ?? 'Not synced', tone: timeSince ? 'neutral' as const : 'warning' as const, helpText: 'When ATLAS last refreshed the teacher load summary.' },
 		];
 	}, [faculty, timeSince]);
@@ -458,108 +508,70 @@ export default function Faculty() {
 				</div>
 			)}
 
-			<AdminTableShell
-				footer={!loading && faculty.length > 0 ? (
-					<div className="flex items-center justify-between gap-3">
-						<div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
-							<span>
-								{totalFiltered === 0
-									? 'No results'
-									: `Showing ${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, totalFiltered)} of ${totalFiltered} results`}
-							</span>
-							<div className="flex items-center gap-2 border-l pl-4 border-border/50">
-								<span>Rows per page:</span>
-								<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-									<SelectTrigger className="h-7 w-20 text-xs bg-background">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
-									</SelectContent>
-								</Select>
-							</div>
-						</div>
-						<div className="flex items-center gap-1.5">
-							<Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(1)} disabled={page <= 1}><ChevronsLeft className="size-4" /></Button>
-							<Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}><ChevronLeft className="size-4" /></Button>
-							<div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-[0.7rem] font-bold tabular-nums"><span>{page}</span><span className="text-muted-foreground/50 font-normal">/</span><span className="text-muted-foreground font-normal">{totalPages}</span></div>
-							<Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}><ChevronRight className="size-4" /></Button>
-							<Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(totalPages)} disabled={page >= totalPages}><ChevronsRight className="size-4" /></Button>
-						</div>
-					</div>
-				) : undefined}
-			>
-						<table className="w-full text-sm">
-							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md">
-								<tr className="border-b">
-									<th className="px-4 py-3 text-left">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('name')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
-											Name & Identity <SortIcon field="name" />
-										</Button>
-									</th>
-									<th className="px-4 py-3 text-left">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('specialization')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
-											Department and specialization <SortIcon field="specialization" />
-										</Button>
-									</th>
-									<th className="px-4 py-3 text-center">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('subjects')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground mx-auto">
-											Teaching load <SortIcon field="subjects" />
-										</Button>
-									</th>
-									<th className="px-4 py-3 text-center">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('weeklyLoad')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground mx-auto">
-											Weekly hours <SortIcon field="weeklyLoad" />
-										</Button>
-									</th>
-									<th className="px-4 py-3 text-center">
-										<Button variant="ghost" size="sm" onClick={() => toggleSort('status')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground mx-auto">
-											Load state <SortIcon field="status" />
-										</Button>
-									</th>
-									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Actions</th>
-								</tr>
-							</thead>
-							<tbody className="divide-y divide-border/40">
-								{loading ? (
-									Array.from({ length: 8 }).map((_, i) => (
-										<tr key={i}>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-48" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-32" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-12 mx-auto" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-16 mx-auto" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-10 mx-auto" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-8 w-24 ml-auto" /></td>
-										</tr>
-									))
-								) : paged.length === 0 ? (
-									<tr>
-										<td colSpan={6} className="px-4 py-20 text-center">
-											<AdminStatePanel
-												icon={<Users className="size-8" />}
-												title = {faculty.length === 0 ? 'No teachers found.' : 'No matches found.'}
-												description={faculty.length === 0 ? 'ATLAS needs the teacher roster before officers can review load readiness or assign classes.' : 'Clear a filter or search another teacher name or department.'}
-												action={faculty.length === 0 ? (
-													<Button size="sm" onClick={handleSync} disabled={syncing} className="font-bold shadow-sm">
-														<RefreshCw className={`mr-2 size-4 ${syncing ? 'animate-spin' : ''}`} />
-														Sync from EnrollPro
-													</Button>
-												) : undefined}
-											/>
-										</td>
-									</tr>
-								) : (
-									paged.map((f) => (
-										<FacultyRow 
-											key={f.id} 
-											faculty={f} 
-											onViewProfile={(target) => setProfileTarget(target)}
-										/>
-									))
-								)}
-							</tbody>
-						</table>
-			</AdminTableShell>
+			<AdminDataTable
+				data={paged}
+				columns={teacherColumns}
+				getRowKey={(teacher) => teacher.id}
+				loading={loading}
+				isFiltered={searchQuery.trim().length > 0 || hasActiveFilters}
+				sort={{ key: sortField, direction: sortDir }}
+				onSortChange={toggleSort}
+				pagination={{
+					page,
+					pageSize,
+					total: totalFiltered,
+					totalPages,
+					pageSizeOptions: PAGE_SIZES,
+					onPageChange: setPage,
+					onPageSizeChange: setPageSize,
+				}}
+				emptyState={{
+					icon: <Users className="size-8" />,
+					title: 'No teachers found.',
+					description: 'ATLAS needs the teacher roster before officers can review load readiness or assign classes.',
+					action: (
+						<Button size="sm" onClick={handleSync} disabled={syncing} className="font-bold shadow-sm">
+							<RefreshCw className={`mr-2 size-4 ${syncing ? 'animate-spin' : ''}`} />
+							Sync from EnrollPro
+						</Button>
+					),
+				}}
+				noResultsState={{
+					icon: <Users className="size-8" />,
+					title: 'No matches found.',
+					description: 'Clear a filter or search another teacher name or department.',
+				}}
+				errorState={error && faculty.length === 0 ? {
+					icon: <AlertTriangle className="size-8" />,
+					title: 'Teacher roster is unavailable.',
+					description: error,
+					action: (
+						<Button size="sm" onClick={() => fetchFaculty({ forceRefresh: true })} disabled={syncing} className="font-bold shadow-sm">
+							<RefreshCw className={`mr-2 size-4 ${syncing ? 'animate-spin' : ''}`} />
+							Retry refresh
+						</Button>
+					),
+				} : null}
+				rowActions={{
+					label: 'Teacher actions',
+					primary: (teacher) => (
+						<Button asChild size="sm" className="h-8 gap-2 px-3 text-xs font-bold">
+							<Link to={`/teaching-load?facultyId=${teacher.id}`}>
+								<BookOpenCheck className="size-3.5" />
+								Review teaching load
+							</Link>
+						</Button>
+					),
+					secondary: (teacher) => [{
+						label: 'View teacher profile',
+						icon: <Eye className="size-4" />,
+						onSelect: () => setProfileTarget(teacher),
+					}],
+				}}
+				renderMobileCard={(teacher, context) => (
+					<FacultyMobileCard faculty={teacher} primaryAction={context.primaryAction} secondaryActionMenu={context.secondaryActionMenu} />
+				)}
+			/>
 
 			{/* Roster profile side drawer */}
 			<FacultyProfileSheet 

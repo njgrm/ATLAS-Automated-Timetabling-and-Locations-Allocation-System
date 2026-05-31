@@ -24,6 +24,7 @@ import type { FacultySummary } from '@/types';
 import { Link } from 'react-router-dom';
 import { GRADE_COLORS, gradeLabel } from '@/lib/grade-labels';
 import { getDepartmentColor } from '@/lib/department-colors';
+import { deriveLoadStatus, STANDARD_WEEKLY_TEACHING_HOURS } from '@/lib/faculty-assignment-helpers';
 
 interface FacultyProfileSheetProps {
 	faculty: FacultySummary | null;
@@ -46,21 +47,24 @@ export function FacultyProfileSheet({
 	const weeklyHours = faculty.policyCreditedHours ?? 0;
 	const maxHours = faculty.maxHoursPerWeek;
 	const loadPercent = Math.round((weeklyHours / Math.max(maxHours, 1)) * 100);
+	const loadStatus = deriveLoadStatus(weeklyHours);
 	
 	const loadState = !faculty.isActiveForScheduling
 		? 'Excluded'
 		: weeklyHours === 0 || subjectCount === 0
 		? 'No teaching load'
-		: weeklyHours > maxHours || weeklyHours >= maxHours * 0.85
-		? 'Needs review'
-		: 'Within load';
+		: loadStatus.label;
 	const loadColor =
 		loadState === 'No teaching load' || loadState === 'Excluded' ? 'bg-muted text-muted-foreground'
-		: loadState === 'Needs review' ? 'bg-amber-100 text-amber-700'
+		: loadStatus.status === 'over-cap' ? 'bg-rose-100 text-rose-700'
+		: loadStatus.status === 'overload-allowed' ? 'bg-orange-100 text-orange-700'
+		: loadStatus.status === 'below-standard' ? 'bg-amber-100 text-amber-700'
 		: 'bg-emerald-100 text-emerald-700';
 
 	const loadProgressColor = 
-		loadState === 'Needs review' ? 'bg-amber-500'
+		loadStatus.status === 'over-cap' ? 'bg-rose-500'
+		: loadStatus.status === 'overload-allowed' ? 'bg-orange-500'
+		: loadStatus.status === 'below-standard' ? 'bg-amber-500'
 		: loadState === 'No teaching load' || loadState === 'Excluded' ? 'bg-slate-300'
 		: 'bg-emerald-500';
 
@@ -136,13 +140,13 @@ export function FacultyProfileSheet({
 
 					{/* Workload Section */}
 					<div className="space-y-4">
-						<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest">Current scheduling load</h4>
+						<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest">Current credited workload</h4>
 						
 						<div className={`p-4 rounded-xl border flex flex-col gap-3 ${loadColor} bg-opacity-30 border-current border-opacity-10 shadow-sm`}>
 							<div className="flex items-center justify-between">
 								<div className="flex items-center gap-2">
 									<Clock className="size-4 opacity-70" />
-									<span className="text-sm font-bold">Credited weekly hours</span>
+									<span className="text-sm font-bold">Credited workload</span>
 								</div>
 								<span className="text-lg font-bold tracking-tight">{weeklyHours}h <span className="text-xs font-normal opacity-70">/ {maxHours}h max</span></span>
 							</div>
@@ -155,12 +159,13 @@ export function FacultyProfileSheet({
 							</div>
 							
 							<div className="flex items-center justify-between text-[0.65rem] font-bold uppercase tracking-widest">
-								<span>Current load: {loadPercent}%</span>
+								<span>Credited load: {loadPercent}% of cap</span>
 								<span>{loadState}</span>
 							</div>
 							{faculty.isClassAdviser && (
 								<p className="text-[0.65rem] font-bold opacity-70 mt-1 uppercase tracking-wider">Includes {faculty.advisoryEquivalentHours}h Advisory Credit</p>
 							)}
+							<p className="text-[0.65rem] font-bold opacity-70 uppercase tracking-wider">Standard is {STANDARD_WEEKLY_TEACHING_HOURS}h. The {maxHours}h cap is the hard repair limit.</p>
 						</div>
 
 						<div className="grid grid-cols-2 gap-4 pt-2">

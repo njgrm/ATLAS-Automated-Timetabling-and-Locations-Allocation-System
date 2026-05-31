@@ -79,7 +79,9 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	groupedPivotEntities: TimetableToolbarGroup[];
 	pivotLabel: (id: number) => string;
 	setSelectedEntry: Dispatch<SetStateAction<ScheduledEntry | null>>;
+	selectedEntry: ScheduledEntry | null;
 	setSelectedViolation: (violation: Violation | null) => void;
+	enterManualEditView: (action: 'CHANGE_TIMESLOT' | 'CHANGE_ROOM' | 'CHANGE_FACULTY') => void;
 	setPreGenKbSource: Dispatch<SetStateAction<PreGenDragSource | null>>;
 	setKbSelectedSource: Dispatch<SetStateAction<DragSource>>;
 	severityFilter: 'all' | 'hard' | 'soft' | 'conflicts' | 'wellbeing';

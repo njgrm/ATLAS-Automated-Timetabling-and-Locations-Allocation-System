@@ -1,5 +1,5 @@
-import { memo } from 'react';
-import { CalendarClock, Check, Clock, ClipboardList, Crosshair, GraduationCap, History, Lightbulb, Loader2, Play, RefreshCw, Send, Settings2, ShieldAlert, Undo2 } from 'lucide-react';
+import { memo, useState } from 'react';
+import { AlertTriangle, CalendarClock, Check, Clock, ClipboardList, Crosshair, GraduationCap, History, Lightbulb, Loader2, Play, RefreshCw, RotateCw, SearchCheck, Send, Settings2, ShieldAlert, Undo2, Wrench } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { cn } from '@/lib/utils';
@@ -7,6 +7,7 @@ import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
 
 import { FilterChip, StatItem } from '@/components/timetable/TimetableShared';
 import { TimetableToolbar } from '@/components/timetable/TimetableToolbar';
@@ -17,7 +18,21 @@ type ScheduleReviewWorkspaceHeaderProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
 };
 
+const INPUT_DOMAIN_LABELS: Record<string, string> = {
+	teachingLoad: 'Teaching Load',
+	policy: 'Policy',
+	rooms: 'Rooms',
+	sections: 'Sections',
+	subjects: 'Subjects',
+};
+
+function formatChangedDomains(domains: string[] | undefined): string[] {
+	if (!domains || domains.length === 0) return ['Comparison details are unavailable'];
+	return domains.map((domain) => INPUT_DOMAIN_LABELS[domain] ?? domain);
+}
+
 function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceHeaderProps) {
+	const [showImpactPreview, setShowImpactPreview] = useState(false);
 	const {
 		isPreGenerationWorkspace,
 		activeGeneratedRunId,
@@ -79,6 +94,12 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		WELLBEING_CODES,
 		CONFLICT_CODES,
 	} = context;
+	const inputState = draft?.inputState;
+	const showInputStateBanner = Boolean(inputState && inputState.status !== 'FRESH' && !isPreGenerationWorkspace);
+	const changedDomainLabels = formatChangedDomains(inputState?.changedDomains);
+	const runOptions = runs ?? [];
+	const editHistoryItems = editHistory ?? [];
+	const visibleViolations = violations ?? [];
 
 	return (
 		<div className="shrink-0 border-b border-border bg-background">
@@ -91,13 +112,13 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 				</Badge>
 
 				<div data-tutorial="run-selector">
-					<Select value={selectedRunId} onValueChange={handleRunChange} disabled={runs.length === 0 || centerView === 'pre-generation'}>
+					<Select value={selectedRunId} onValueChange={handleRunChange} disabled={runOptions.length === 0 || centerView === 'pre-generation'}>
 						<SelectTrigger className="h-8 w-44 text-xs">
-							<SelectValue placeholder={runs.length === 0 ? 'No generated run yet' : 'Select run'} />
+							<SelectValue placeholder={runOptions.length === 0 ? 'No generated run yet' : 'Select run'} />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value="latest" disabled={runs.length === 0}>Latest Run</SelectItem>
-							{runs.map((r) => (
+							<SelectItem value="latest" disabled={runOptions.length === 0}>Latest Run</SelectItem>
+							{runOptions.map((r) => (
 								<SelectItem key={r.id} value={String(r.id)}>
 									Run #{r.id} · {formatTimestamp(r.createdAt)}
 								</SelectItem>
@@ -276,7 +297,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 								variant="outline"
 								size="sm"
 								className="h-8 gap-1.5"
-								disabled={revertLoading || editHistory.length === 0 || !draft}
+								disabled={revertLoading || editHistoryItems.length === 0 || !draft}
 								onClick={revertLastEdit}
 							>
 								<Undo2 className={`size-3.5 ${revertLoading ? 'animate-spin' : ''}`} />
@@ -294,11 +315,11 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 								variant="outline"
 								size="sm"
 								className="h-8 gap-1.5"
-								disabled={editHistory.length === 0}
+								disabled={editHistoryItems.length === 0}
 								onClick={() => setShowEditHistory(true)}
 							>
 								<History className="size-3.5" />
-								<span className="text-[0.625rem]">{editHistory.length}</span>
+								<span className="text-[0.625rem]">{editHistoryItems.length}</span>
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent>View manual edit history</TooltipContent>
@@ -349,7 +370,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 							label="Duration"
 							value={formatDuration(
 								draft
-									? runs.find((r) => String(r.id) === selectedRunId || (selectedRunId === 'latest' && r.id === runs[0]?.id))?.durationMs ?? null
+									? runOptions.find((r) => String(r.id) === selectedRunId || (selectedRunId === 'latest' && r.id === runOptions[0]?.id))?.durationMs ?? null
 									: null,
 							)}
 							explanation="Real-world computing time it took to generate this draft."
@@ -361,6 +382,94 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					</div>
 				)}
 			</div>
+
+			{showInputStateBanner && (
+				<div className={cn(
+					'mx-4 mb-2 flex flex-col gap-3 rounded-xl border px-3 py-2.5 shadow-sm lg:flex-row lg:items-center lg:justify-between',
+					inputState?.status === 'STALE'
+						? 'border-amber-200 bg-amber-50 text-amber-950'
+						: 'border-sky-200 bg-sky-50 text-sky-950',
+				)}>
+					<div className="flex min-w-0 items-start gap-3">
+						<div className={cn(
+							'mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg',
+							inputState?.status === 'STALE' ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700',
+						)}>
+							{inputState?.status === 'STALE' ? <AlertTriangle className="size-4" /> : <ShieldAlert className="size-4" />}
+						</div>
+						<div className="min-w-0 space-y-1">
+							<div className="flex flex-wrap items-center gap-2">
+								<p className="text-sm font-bold">{inputState?.status === 'STALE' ? 'Input changes detected' : 'Input status unavailable'}</p>
+								{inputState?.status === 'STALE' && changedDomainLabels.slice(0, 3).map((label) => (
+									<Badge key={label} variant="outline" className="h-5 border-amber-300 bg-white/70 px-1.5 text-[0.625rem] font-bold text-amber-800">
+										{label}
+									</Badge>
+								))}
+							</div>
+							<p className="text-xs font-medium leading-relaxed text-current/80">
+								{inputState?.message ?? 'ATLAS could not check this run against the latest setup data.'}
+							</p>
+						</div>
+					</div>
+
+					<div className="flex flex-wrap items-center gap-2 lg:justify-end">
+						<Button variant="outline" size="sm" className="h-8 gap-1.5 bg-background/80" onClick={() => setShowImpactPreview(true)}>
+							<SearchCheck className="size-3.5" />
+							Preview Impact
+						</Button>
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span>
+										<Button
+											variant="outline"
+											size="sm"
+											className="h-8 gap-1.5 bg-background/80"
+											disabled={!context.selectedEntry}
+											onClick={() => context.enterManualEditView('CHANGE_FACULTY')}
+										>
+											<Wrench className="size-3.5" />
+											Manually Repair
+										</Button>
+									</span>
+								</TooltipTrigger>
+								<TooltipContent>{context.selectedEntry ? 'Repair the selected class without regenerating.' : 'Select a timetable class before using manual repair.'}</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+						<Button variant="destructive" size="sm" className="h-8 gap-1.5" disabled={generating || loading || !schoolYearId} onClick={handleTriggerGenerate}>
+							<RotateCw className="size-3.5" />
+							Regenerate Draft
+						</Button>
+					</div>
+				</div>
+			)}
+
+			<Dialog open={showImpactPreview} onOpenChange={setShowImpactPreview}>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>{inputState?.status === 'STALE' ? 'Input changes detected' : 'Input status unavailable'}</DialogTitle>
+						<DialogDescription>
+							{inputState?.status === 'STALE'
+								? 'This draft was not changed automatically. Review the changed setup areas, then choose manual repair or regenerate when ready.'
+								: 'This draft can still be reviewed, but ATLAS cannot prove whether its setup inputs match the latest data.'}
+						</DialogDescription>
+					</DialogHeader>
+					<div className="rounded-lg border border-border bg-muted/30 p-3">
+						<p className="mb-2 text-xs font-bold uppercase text-muted-foreground">Changed setup areas</p>
+						<div className="flex flex-wrap gap-2">
+							{changedDomainLabels.map((label) => (
+								<Badge key={label} variant="outline" className="bg-background text-xs font-semibold">
+									{label}
+								</Badge>
+							))}
+						</div>
+					</div>
+					<p className="text-xs leading-relaxed text-muted-foreground">{inputState?.actionHint}</p>
+					<DialogFooter>
+						<Button variant="outline" size="sm" onClick={() => setShowImpactPreview(false)}>Close</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 			<TimetableToolbar
 				viewMode={viewMode}
@@ -411,7 +520,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 				<div className="h-4 w-px bg-border mx-0.5" />
 				<FilterChip
 					label="All"
-					count={violations.length}
+					count={visibleViolations.length}
 					active={severityFilter === 'all'}
 					onClick={() => setSeverityFilter('all')}
 				/>
@@ -431,13 +540,13 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 				/>
 				<FilterChip
 					label="Conflicts"
-					count={violations.filter((v) => CONFLICT_CODES.has(v.code)).length}
+					count={visibleViolations.filter((v) => CONFLICT_CODES.has(v.code)).length}
 					active={severityFilter === 'conflicts'}
 					onClick={() => setSeverityFilter('conflicts')}
 				/>
 				<FilterChip
 					label="Well-being"
-					count={violations.filter((v) => WELLBEING_CODES.has(v.code)).length}
+					count={visibleViolations.filter((v) => WELLBEING_CODES.has(v.code)).length}
 					active={severityFilter === 'wellbeing'}
 					onClick={() => setSeverityFilter('wellbeing')}
 				/>

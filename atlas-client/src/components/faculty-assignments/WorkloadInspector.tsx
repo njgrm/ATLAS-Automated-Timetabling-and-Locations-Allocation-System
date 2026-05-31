@@ -16,6 +16,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/ui/tooltip';
 import { cn } from '@/lib/utils';
 import type { FacultySummary, LoadProfile, RotationFamilyTermBreakdown } from '@/types';
 import { gradeLabel } from '@/lib/grade-labels';
+import { StackedWorkloadBar } from './StackedWorkloadBar';
 
 type WorkloadInspectorProps = {
 	selected: FacultySummary | null;
@@ -113,28 +114,20 @@ export function WorkloadInspector({
 				{/* Capacity Gauge */}
 				<section className="space-y-4">
 					<div className="flex items-center justify-between">
-						<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">Weekly Capacity</span>
+						<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">Credited Workload</span>
 						<span className="text-sm font-semibold tabular-nums">{loadProfile.creditedTotalHours} / {selected.maxHoursPerWeek}h</span>
 					</div>
-					<div className="space-y-2">
-						<div className="h-2 w-full bg-muted border border-border/20 shadow-inner rounded-full overflow-hidden">
-							<div 
-								className="h-full bg-primary transition-all duration-500" 
-								style={{ width: `${Math.min(100, (loadProfile.creditedTotalHours / selected.maxHoursPerWeek) * 100)}%` }} 
-							/>
-						</div>
-						<div className="flex justify-between items-center text-xs font-semibold uppercase tracking-tighter text-muted-foreground/60">
-							<span>0%</span>
-							<span>{Math.round((loadProfile.creditedTotalHours / selected.maxHoursPerWeek) * 100)}% Utilized</span>
-							<span>100%</span>
-						</div>
-					</div>
+					<StackedWorkloadBar
+						teachingHours={loadProfile.actualTeachingHours}
+						creditHours={loadProfile.equivalentHours}
+						maxHours={selected.maxHoursPerWeek}
+					/>
 				</section>
 
 				{/* Primary Stats Grid */}
 				<div className="grid grid-cols-2 gap-3">
 					<div className="p-4 rounded-xl border border-border/40 bg-muted/5 space-y-1">
-						<span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest block">Credited</span>
+						<span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest block">Credited workload</span>
 						<p className="text-xl font-black tracking-tight tabular-nums">{loadProfile.creditedTotalHours}h</p>
 					</div>
 					<div className="p-4 rounded-xl border border-border/40 bg-muted/5 space-y-1">

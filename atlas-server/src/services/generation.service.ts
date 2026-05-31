@@ -36,6 +36,12 @@ import { reconcileSubjectContractFromUpstream } from './subject.service.js';
 import { ensurePhase3GradeWindows } from './grade-window.service.js';
 import { syncCohorts } from './cohort.service.js';
 import { repairActiveSubjectCoverageWithPlaceholders, getActiveSubjectCoverageSummary } from './faculty-assignment.service.js';
+import {
+	compareCurrentInputsForRun,
+	computeGenerationInputSnapshot,
+	type GenerationInputComparison,
+	type GenerationInputSnapshot,
+} from './generation-input-snapshot.service.js';
 
 // ─── Helpers ───
 
@@ -263,6 +269,7 @@ export interface RunSummary {
 	};
 	timetableShapeContracts?: TimetableShapeContract[];
 	timetableDisplaySlots?: Array<{ startTime: string; endTime: string; eventName?: string; isSpecialEvent?: boolean }>;
+	inputSnapshot?: GenerationInputSnapshot;
 }
 
 function normalizeProgramType(programType?: string | null): string {
@@ -1023,6 +1030,7 @@ export async function triggerGenerationRun(
 		const termCounts = buildTermCounts(entriesWithTerms);
 		const homeRoomStats = buildHomeRoomStats(entriesWithTerms, result.unassignedItems);
 		const timetableDisplaySlots = selectPrimaryTimetableShapeContract(timetableShapeContracts)?.displaySlots ?? [];
+		const inputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId);
 
 		const summary: RunSummary = {
 			classesProcessed: result.classesProcessed,
@@ -1059,6 +1067,7 @@ export async function triggerGenerationRun(
 			configuredShiftWindowCount: gradeWindows.length,
 			timetableShapeContracts,
 			timetableDisplaySlots,
+			inputSnapshot,
 		};
 
 		const finishedAt = new Date();
@@ -1414,9 +1423,35 @@ export interface DraftReport {
 	entries: ScheduledEntry[];
 	unassignedItems: UnassignedItem[];
 	summary: RunSummary | null;
+	inputState?: GenerationInputComparison;
 	version: number;
 	finishedAt: string | null;
 	createdAt: string;
+}
+
+async function buildDraftReport(run: {
+	id: number;
+	status: GenerationRunStatus;
+	draftEntries: unknown;
+	unassignedItems: unknown;
+	summary: unknown;
+	version: number;
+	finishedAt: Date | null;
+	createdAt: Date;
+}, schoolId: number, schoolYearId: number): Promise<DraftReport> {
+	const inputState = await compareCurrentInputsForRun(run.summary, schoolId, schoolYearId);
+
+	return {
+		runId: run.id,
+		status: run.status,
+		entries: ensureEntriesHaveTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]),
+		unassignedItems: (run.unassignedItems ?? []) as unknown as UnassignedItem[],
+		summary: (run.summary ?? null) as RunSummary | null,
+		inputState,
+		version: run.version,
+		finishedAt: run.finishedAt?.toISOString() ?? null,
+		createdAt: run.createdAt.toISOString(),
+	};
 }
 
 export async function getRunDraft(runId: number, schoolId: number, schoolYearId: number): Promise<DraftReport> {
@@ -1426,16 +1461,7 @@ export async function getRunDraft(runId: number, schoolId: number, schoolYearId:
 	});
 	if (!run) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
 
-	return {
-		runId: run.id,
-		status: run.status,
-		entries: ensureEntriesHaveTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]),
-		unassignedItems: (run.unassignedItems ?? []) as unknown as UnassignedItem[],
-		summary: (run.summary ?? null) as RunSummary | null,
-		version: run.version,
-		finishedAt: run.finishedAt?.toISOString() ?? null,
-		createdAt: run.createdAt.toISOString(),
-	};
+	return buildDraftReport(run, schoolId, schoolYearId);
 }
 
 export async function getLatestRunDraft(schoolId: number, schoolYearId: number): Promise<DraftReport> {
@@ -1446,16 +1472,7 @@ export async function getLatestRunDraft(schoolId: number, schoolYearId: number):
 	});
 	if (!run) throw err(404, 'RUN_NOT_FOUND', 'Generation run not found in this school/year scope.');
 
-	return {
-		runId: run.id,
-		status: run.status,
-		entries: ensureEntriesHaveTermIndex((run.draftEntries ?? []) as unknown as ScheduledEntry[]),
-		unassignedItems: (run.unassignedItems ?? []) as unknown as UnassignedItem[],
-		summary: (run.summary ?? null) as RunSummary | null,
-		version: run.version,
-		finishedAt: run.finishedAt?.toISOString() ?? null,
-		createdAt: run.createdAt.toISOString(),
-	};
+	return buildDraftReport(run, schoolId, schoolYearId);
 }
 
 export async function invalidateStaleCompletedRuns(schoolId: number, schoolYearId: number) {

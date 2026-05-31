@@ -941,6 +941,19 @@ export interface GenerationRun {
 	updatedAt: string;
 }
 
+export type GenerationInputDomain = 'teachingLoad' | 'policy' | 'rooms' | 'sections' | 'subjects';
+
+export type GenerationInputComparison = {
+	status: 'FRESH' | 'STALE' | 'UNKNOWN';
+	message: string;
+	actionHint: string;
+	changedDomains: GenerationInputDomain[];
+	checkedAt: string;
+	runFingerprint?: string;
+	currentFingerprint?: string;
+	missingReason?: 'MISSING_RUN_SNAPSHOT' | 'SNAPSHOT_VERSION_MISMATCH' | 'COMPARISON_FAILED';
+};
+
 export interface RunSummary {
 	classesProcessed: number;
 	assignedCount: number;
@@ -1011,6 +1024,7 @@ export interface RunSummary {
 	};
 	shiftWindowPolicy?: 'ENFORCED' | 'DISABLED';
 	configuredShiftWindowCount?: number;
+	inputSnapshot?: unknown;
 	termCounts?: {
 		term1: number;
 		term2: number;
@@ -1135,6 +1149,7 @@ export interface DraftReport {
 	entries: ScheduledEntry[];
 	unassignedItems: UnassignedItem[];
 	summary: RunSummary | null;
+	inputState?: GenerationInputComparison;
 	version: number;
 	finishedAt: string | null;
 	createdAt: string;
@@ -1827,6 +1842,7 @@ export type LoadProfile = {
 	creditedTotalHours: number;
 	overloadHours: number;
 	overCapHours: number;
+	remainingHours: number;
 	status: LoadStatus;
 	statusLabel: string;
 	rotationFamilies: RotationFamilyBreakdownItem[];

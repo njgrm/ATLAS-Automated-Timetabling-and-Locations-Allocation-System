@@ -15,6 +15,7 @@ import { getProgramBadgeLabel } from '@/lib/schedule-review-helpers';
 import { parseDraftPlacementId } from '@/lib/timetable-utils';
 import { cn, formatTime } from '@/lib/utils';
 import type { CellConflictInfo, ScheduledEntry, Violation, ViolationCode, ViolationSeverity } from '@/types';
+import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
 const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
@@ -150,6 +151,8 @@ interface TimetableGridProps {
 	timeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
 	violationIndex: Map<string, Violation[]>;
 	highlightedEntryIds: Set<string>;
+	localSandboxChangedEntryIds?: Set<string>;
+	localSandboxConflictEntryIds?: Set<string>;
 	selectedEntry: ScheduledEntry | null;
 	followUps: Set<string>;
 	onEntryClick: (entry: ScheduledEntry) => void;
@@ -177,6 +180,8 @@ export const TimetableGrid = memo(function TimetableGrid({
 	timeSlots,
 	violationIndex,
 	highlightedEntryIds,
+	localSandboxChangedEntryIds,
+	localSandboxConflictEntryIds,
 	selectedEntry,
 	followUps,
 	onEntryClick,
@@ -381,9 +386,11 @@ export const TimetableGrid = memo(function TimetableGrid({
 													{info.displaced.length > 0 && (
 														<div className="flex flex-wrap gap-1.5 border-t border-border/40 pt-1">
 															{Array.from(new Map(info.displaced.map((displaced) => [displaced.conflictType, displaced])).values()).map((displaced) => (
-																<button
+																<Button
 																	key={displaced.conflictType}
-																	className="text-[0.625rem] text-primary underline-offset-2 hover:underline"
+																	variant="link"
+																	size="xs"
+																	className="h-auto p-0 text-[0.625rem]"
 																	onMouseDown={(event) => {
 																		event.stopPropagation();
 																		if (displaced.conflictType === 'faculty') onNavToFaculty(displaced.entityId);
@@ -392,7 +399,7 @@ export const TimetableGrid = memo(function TimetableGrid({
 																	}}
 																>
 																		- View {displaced.conflictType === 'faculty' ? 'Teacher' : displaced.conflictType === 'section' ? 'Section' : 'Room'}
-																</button>
+																</Button>
 															))}
 														</div>
 													)}
@@ -427,6 +434,8 @@ export const TimetableGrid = memo(function TimetableGrid({
 											{cellEntries.slice(0, 2).map((entry) => {
 												const severity = entrySeverity(entry.entryId, violationIndex);
 												const isHighlighted = highlightedEntryIds.has(entry.entryId);
+												const isSandboxChanged = localSandboxChangedEntryIds?.has(entry.entryId) ?? false;
+												const isSandboxConflict = localSandboxConflictEntryIds?.has(entry.entryId) ?? false;
 												const isSelected = selectedEntry?.entryId === entry.entryId;
 												const isFollowUp = followUps.has(entry.entryId);
 												const grade = gradeForSection(entry.sectionId);
@@ -445,6 +454,8 @@ export const TimetableGrid = memo(function TimetableGrid({
 												}
 
 												if (isHighlighted) cellClass += ' ring-2 ring-primary ring-offset-1';
+												if (isSandboxChanged) cellClass += ' ring-2 ring-emerald-400 ring-offset-1';
+												if (isSandboxConflict) cellClass += ' border-red-600 ring-2 ring-red-300 ring-offset-1';
 												if (isSelected) cellClass += ' ring-2 ring-foreground ring-offset-1';
 
 													return (
@@ -485,6 +496,12 @@ export const TimetableGrid = memo(function TimetableGrid({
 																				{entry.cohortCode}
 																			</span>
 																		)}
+																		{isSandboxChanged && (
+																			<span className="rounded bg-emerald-100 px-1 py-0.5 text-[0.5rem] font-semibold uppercase tracking-wide text-emerald-700">
+																				Sandbox
+																			</span>
+																		)}
+																		{isSandboxConflict && <AlertCircle className="size-2.5 shrink-0 text-red-600" />}
 																	</div>
 																	<p className="wrap-break-word leading-[1.2] text-muted-foreground">
 																		<span className="font-medium text-foreground/80">{entryContextLabel(entry)}</span>

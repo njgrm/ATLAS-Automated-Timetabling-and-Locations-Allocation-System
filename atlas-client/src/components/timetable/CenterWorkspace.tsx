@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { AlertTriangle, CalendarClock, ChevronLeft, Loader2, Lock, MapPin } from 'lucide-react';
 
@@ -6,6 +7,7 @@ import ManualEditPanel from '@/components/ManualEditPanel';
 import SchedulingPolicyPane from '@/components/SchedulingPolicyPane';
 import { BuildingView, ROOM_COLORS, ROOM_TYPE_LABELS } from '@/components/BuildingView';
 import { ClassProgramMatrixView } from '@/components/timetable/ClassProgramMatrixView';
+import { TacticalSandboxDock } from '@/components/timetable/TacticalSandboxDock';
 import { TimetableGrid } from '@/components/timetable/TimetableGrid';
 import { formatTime } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
@@ -15,6 +17,43 @@ import { ResizablePanel } from '@/ui/resizable';
 import { ScrollArea } from '@/ui/scroll-area';
 
 import type { Violation } from '@/types';
+
+function projectSandboxEntries(entries: any[], sandboxFacultyByEntryId: Map<string, number>): any[] {
+	if (sandboxFacultyByEntryId.size === 0) return entries;
+	return entries.map((entry) => {
+		const facultyId = sandboxFacultyByEntryId.get(entry.entryId);
+		return facultyId == null ? entry : { ...entry, facultyId };
+	});
+}
+
+function buildSandboxChangedEntryIds(entries: any[], sandboxFacultyByEntryId: Map<string, number>): Set<string> {
+	const changedEntryIds = new Set<string>();
+	for (const entry of entries) {
+		const facultyId = sandboxFacultyByEntryId.get(entry.entryId);
+		if (facultyId != null && facultyId !== entry.facultyId) {
+			changedEntryIds.add(entry.entryId);
+		}
+	}
+	return changedEntryIds;
+}
+
+function buildSandboxTeacherConflictEntryIds(entries: any[], changedEntryIds: Set<string>): Set<string> {
+	const conflictEntryIds = new Set<string>();
+	const entriesBySlotAndFaculty = new Map<string, any[]>();
+	for (const entry of entries) {
+		if (entry.facultyId == null) continue;
+		const key = `${entry.facultyId}:${entry.day}:${entry.startTime}:${entry.endTime}`;
+		const slotEntries = entriesBySlotAndFaculty.get(key) ?? [];
+		slotEntries.push(entry);
+		entriesBySlotAndFaculty.set(key, slotEntries);
+	}
+	for (const slotEntries of entriesBySlotAndFaculty.values()) {
+		if (slotEntries.length < 2) continue;
+		if (!slotEntries.some((entry) => changedEntryIds.has(entry.entryId))) continue;
+		for (const entry of slotEntries) conflictEntryIds.add(entry.entryId);
+	}
+	return conflictEntryIds;
+}
 
 type CenterWorkspaceProps = {
 	centerView: 'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building';
@@ -100,6 +139,7 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 		pendingAction,
 		roomMap,
 		facultyMap,
+		subjectMap,
 		draftEntries,
 		previewEdit,
 		commitEdit,
@@ -155,6 +195,86 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 		setPreGenAllowSoftOverride,
 		dayShort,
 	} = props;
+
+	const [tacticalSandboxOpen, setTacticalSandboxOpen] = useState(false);
+	const [sandboxFacultyByEntryId, setSandboxFacultyByEntryId] = useState<Map<string, number>>(new Map());
+	const [autoOpenedSandboxEntryId, setAutoOpenedSandboxEntryId] = useState<string | null>(null);
+	const [suppressedSandboxEntryId, setSuppressedSandboxEntryId] = useState<string | null>(null);
+	const selectedEntryId = selectedEntry?.entryId ?? null;
+
+	useEffect(() => {
+		setSandboxFacultyByEntryId(new Map());
+		setTacticalSandboxOpen(false);
+		setAutoOpenedSandboxEntryId(null);
+		setSuppressedSandboxEntryId(null);
+	}, [draft?.runId, draft?.version]);
+
+	useEffect(() => {
+		if (centerView !== 'schedule' || !selectedEntryId) {
+			setTacticalSandboxOpen(false);
+			setAutoOpenedSandboxEntryId(null);
+			setSuppressedSandboxEntryId(null);
+			return;
+		}
+		if (suppressedSandboxEntryId === selectedEntryId) return;
+		if (autoOpenedSandboxEntryId === selectedEntryId) return;
+		setTacticalSandboxOpen(true);
+		setAutoOpenedSandboxEntryId(selectedEntryId);
+		setSuppressedSandboxEntryId(null);
+	}, [autoOpenedSandboxEntryId, centerView, selectedEntryId, suppressedSandboxEntryId]);
+
+	const handleTacticalSandboxOpenChange = useCallback((open: boolean) => {
+		setTacticalSandboxOpen(open);
+		if (open && selectedEntryId) {
+			setAutoOpenedSandboxEntryId(selectedEntryId);
+			setSuppressedSandboxEntryId(null);
+		} else if (!open && selectedEntryId) {
+			setSuppressedSandboxEntryId(selectedEntryId);
+		}
+	}, [selectedEntryId]);
+
+	const dismissTacticalSandboxForEntry = useCallback((entryId: string) => {
+		setSuppressedSandboxEntryId(entryId);
+		setTacticalSandboxOpen(false);
+	}, []);
+
+	const sandboxGridEntries = useMemo(
+		() => centerView === 'schedule' ? projectSandboxEntries(gridEntries, sandboxFacultyByEntryId) : gridEntries,
+		[centerView, gridEntries, sandboxFacultyByEntryId],
+	);
+
+	const sandboxDraftEntries = useMemo(
+		() => centerView === 'schedule' ? projectSandboxEntries(draftEntries, sandboxFacultyByEntryId) : draftEntries,
+		[centerView, draftEntries, sandboxFacultyByEntryId],
+	);
+
+	const localSandboxChangedEntryIds = useMemo(
+		() => buildSandboxChangedEntryIds(draftEntries, sandboxFacultyByEntryId),
+		[draftEntries, sandboxFacultyByEntryId],
+	);
+
+	const localSandboxConflictEntryIds = useMemo(
+		() => buildSandboxTeacherConflictEntryIds(sandboxDraftEntries, localSandboxChangedEntryIds),
+		[localSandboxChangedEntryIds, sandboxDraftEntries],
+	);
+
+	const applySandboxFaculty = useCallback((entryIds: string[], facultyId: number) => {
+		setSandboxFacultyByEntryId((previous) => {
+			const next = new Map(previous);
+			const originalEntries = new Map(draftEntries.map((entry) => [entry.entryId, entry]));
+			for (const entryId of entryIds) {
+				const originalEntry = originalEntries.get(entryId);
+				if (!originalEntry) continue;
+				if (originalEntry.facultyId === facultyId) next.delete(entryId);
+				else next.set(entryId, facultyId);
+			}
+			return next;
+		});
+	}, [draftEntries]);
+
+	const resetTacticalSandbox = useCallback(() => {
+		setSandboxFacultyByEntryId(new Map());
+	}, []);
 
 	return (
 		<ResizablePanel id="center-panel" order={2} defaultSize={60} className="flex-1 min-w-0 flex flex-col min-h-0 relative bg-background" data-tutorial="center-grid">
@@ -307,11 +427,12 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 															const roomType = (room.type in ROOM_COLORS ? room.type : 'OTHER') as keyof typeof ROOM_COLORS;
 															const colors = ROOM_COLORS[roomType];
 															return (
-																<button
+																<Button
 																	key={room.id}
 																	type="button"
+																	variant="ghost"
 																	onClick={() => openRoomGridWorkspace(room.id)}
-																	className={`flex flex-1 flex-col items-center justify-center px-1 py-1 transition-all text-left ${colors.bg} hover:brightness-95`}
+																	className={`h-auto flex-1 flex-col items-center justify-center rounded-none px-1 py-1 text-left transition-all ${colors.bg} hover:brightness-95`}
 																>
 																	<span className={`text-[0.5625rem] font-semibold truncate w-full text-center ${colors.text}`}>
 																		{room.name}
@@ -319,7 +440,7 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 																	<span className="text-[0.5rem] text-muted-foreground truncate w-full text-center">
 																		{ROOM_TYPE_LABELS[roomType]}
 																	</span>
-																</button>
+																</Button>
 															);
 														})
 													)}
@@ -341,7 +462,7 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 						className="flex-1 min-w-0 flex flex-col min-h-0"
 					>
 						<ClassProgramMatrixView
-							entries={gridEntries as any}
+							entries={sandboxGridEntries as any}
 							sectionLabel={sectionLabel}
 							gradeForSection={gradeForSection}
 							subjectLabel={subjectLabel}
@@ -373,8 +494,7 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 														viewMode === 'faculty' ? 'bg-purple-50 text-purple-700 border-purple-200' :
 														viewMode === 'room' ? 'bg-blue-50 text-blue-700 border-blue-200' :
 														'bg-muted text-muted-foreground'
-													}`}
-													title={pivotLabel(Number(entityFilter))}
+															}`}
 												>
 													{viewMode === 'faculty' ? 'Teacher' : viewMode === 'room' ? 'Room' : 'Section'}: {pivotLabel(Number(entityFilter))}
 												</Badge>
@@ -386,10 +506,12 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 										</div>
 									) : null}
 									<TimetableGrid
-										entries={gridEntries}
+										entries={sandboxGridEntries}
 										timeSlots={timeSlots}
 										violationIndex={violationIndex}
 										highlightedEntryIds={highlightedEntryIds}
+										localSandboxChangedEntryIds={localSandboxChangedEntryIds}
+										localSandboxConflictEntryIds={localSandboxConflictEntryIds}
 										selectedEntry={selectedEntry}
 										followUps={followUps}
 										onEntryClick={handleEntryClick}
@@ -475,6 +597,22 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 					</motion.div>
 				)}
 			</AnimatePresence>
+			<TacticalSandboxDock
+				open={tacticalSandboxOpen}
+				onOpenChange={handleTacticalSandboxOpenChange}
+				selectedEntry={centerView === 'schedule' ? selectedEntry : null}
+				draftEntries={draftEntries}
+				facultyMap={facultyMap}
+				subjectMap={subjectMap}
+				schoolYearId={schoolYearId}
+				sandboxFacultyByEntryId={sandboxFacultyByEntryId}
+				onApplyFaculty={applySandboxFaculty}
+				onResetSandbox={resetTacticalSandbox}
+				onDismissSelectedEntry={dismissTacticalSandboxForEntry}
+				subjectLabel={subjectLabel}
+				sectionLabel={sectionLabel}
+				facultyLabel={facultyLabel}
+			/>
 		</ResizablePanel>
 	);
 }

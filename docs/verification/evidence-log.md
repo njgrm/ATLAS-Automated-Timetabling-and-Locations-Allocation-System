@@ -1,4 +1,120 @@
-﻿# 2026-05-31 - Prompt 15 admin pages cross-QA gate
+﻿# 2026-05-31 - Timetable tactical teaching-load sandbox
+
+- Phase: Teaching Load + Timetable follow-up prompt 4, `tl-timetable-04-tactical-teaching-load-sandbox`.
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, CLIENT BUILD GREEN, TAILNET SMOKE GREEN WITH KNOWN RUNTIME-CONTEXT CAVEAT -> GO.
+- Trigger: user asked to execute the next timetable prompt so a selected generated block can preview local teacher reassignment impact without persisting changes.
+- Scope held: frontend timetable local sandbox only; no backend API, Prisma, generation service, published schedule, or Prompt 5 commit workflow was added.
+- Fix summary: added a `TacticalSandboxDock` bottom sheet for selected generated blocks with current teacher, term, section, time, subject ownership, eligible-teacher workload preview, same-subject bulk scope, reset, close, and disabled `Commit in Prompt 5` controls.
+- Fix summary: added center-workspace local sandbox projection state so previewed faculty assignments can update the grid locally, highlight changed blocks, and mark local same-teacher same-slot conflicts without mutating `draftEntries` or calling persistence endpoints.
+- Fix summary: hardened dock lifecycle so it auto-opens once per selected block, stays closed after `Close without Saving`, resets on draft/run changes, and limits fallback eligibility to the current teacher while subject metadata is unavailable.
+- Fix summary: replaced touched native lowercase `<button>`/raw `title=` usages in timetable touched paths with project `Button` and visible/Radix-supported UI patterns.
+- Frontend verification: `npm --prefix atlas-client run build` passed with Vite `8.0.3` and `2532 modules transformed`.
+- Diagnostics: touched timetable files reported no VS Code diagnostics after repair.
+- Accessibility/primitive checks: touched timetable React files have no lowercase native `<select`, no lowercase native `<button`, no `<details`, and no raw DOM `title=` attributes.
+- File-size gate: `TacticalSandboxDock.tsx` 322 lines, `CenterWorkspace.tsx` 599 lines, and `TimetableGrid.tsx` 551 lines; all new/touched extracted components remain below 1000 lines.
+- Persistence scan: `TacticalSandboxDock.tsx` contains no `atlasApi`, `fetch`, `axios`, write-method strings, `previewEdit`, or `commitEdit` calls; CenterWorkspace sandbox wiring updates local React state only.
+- Tailnet smoke: cache-busted `/timetable` on `https://njgrm.buru-degree.ts.net` opened the dock from the generated `MATH` block, showed current teacher/workload context, kept `Commit in Prompt 5` disabled, closed via `Close without Saving`, and recorded `writes=[]` for POST/PUT/PATCH/DELETE requests.
+- Tailnet caveat: browser console still reported the known `runtime/context` `net::ERR_FAILED` resource error; the timetable page and sandbox interaction remained usable.
+- Review pass: read-only focused subagent review found no blocking issue after the subject-metadata fallback and close-suppression hardening.
+- Decision: prompt-scope GO. Prompt 4 local sandbox is implemented and verified without claiming Phase 3 closure.
+
+---
+
+# 2026-05-31 - Timetable stale input contract
+
+- Phase: Teaching Load + Timetable follow-up prompt 3, `tl-timetable-03-timetable-stale-input-contract`.
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, FOCUSED TESTS GREEN, SERVER/CLIENT BUILDS GREEN, ROUTE AND TAILNET SEEDED SMOKE GREEN WITH LIVE-RUN SNAPSHOT CAVEAT -> GO.
+- Trigger: user asked to execute the attached Prompt 3 so `/timetable` can distinguish fresh, stale, and unknown generated-run inputs without automatic regeneration.
+- Scope held: generation input snapshot metadata, draft response `inputState`, and Schedule Review stale/unknown banner only; no Prisma migration, publish lifecycle, Tactical Bottom Dock, draft commit workflow, generator rewrite, or automatic schedule mutation was added.
+- Fix summary: added a service-layer generation input snapshot contract for Teaching Load, policy, rooms, sections, and subjects using lightweight counts/max-id/max-timestamp fingerprints.
+- Fix summary: persisted new-run snapshots inside existing `GenerationRun.summary.inputSnapshot` and compared that metadata against current setup inputs when returning draft payloads.
+- Fix summary: added optional client `DraftReport.inputState` typing and a `/timetable` banner that shows stale/unknown status with `Preview Impact`, `Manually Repair`, and `Regenerate Draft` actions while leaving existing generated entries untouched.
+- Fix summary: hardened the stale banner path against old/minimal route payloads by tolerating missing array fields in the header and always-mounted timetable dialogs.
+- Focused tests: `Push-Location atlas-server; npx tsx src/__tests__/generation-input-snapshot.test.ts; Pop-Location` passed 3/3 cases for fresh, stale changed-domain, and unknown missing-snapshot comparisons.
+- Backend verification: `npm --prefix atlas-server run build` passed.
+- Runtime verification: built server started on alternate port `5011`; `/api/v1/health` returned `200`; direct admin login returned `200`; `/api/v1/generation/1/55/runs/latest/draft` returned `200` with `inputState.status=UNKNOWN` and `missingReason=MISSING_RUN_SNAPSHOT` for existing run `128`.
+- Frontend verification: `npm --prefix atlas-client run build` passed after the defensive UI repairs.
+- Diagnostics: touched source files reported no VS Code diagnostics after repair.
+- Accessibility/primitive checks: touched React files have no lowercase native `<select`, no lowercase native `<button`, no `<details`, and no raw DOM `title=` attributes.
+- File-size gate: `ScheduleReviewWorkspaceHeader.tsx` 558 lines and `buildScheduleReviewWorkspaceContexts.ts` 217 lines. Pre-existing oversized timetable files remain: `ScheduleReviewWorkspace.tsx` 1450 lines and `ScheduleReviewDialogs.tsx` 1440 lines; Prompt 3 did not perform the larger extraction refactor.
+- Tailnet seeded browser smoke: Playwright-routed fresh draft payload showed `freshHasBanner=0`; stale payload showed `Input changes detected`, all three actions visible, impact dialog domain labels for Teaching Load/Policy/Rooms, and `generationPosts=0` before and after clicking `Regenerate Draft` to open the existing confirmation dialog.
+- Live-run caveat: the latest existing live DB run predates `summary.inputSnapshot`, so the route correctly reports `UNKNOWN` rather than `STALE`; a true live stale-state proof requires a new post-contract generation followed by a safe setup-input edit.
+- Decision: prompt-scope GO. The stale-input contract is implemented and verified without claiming Phase 3 closure.
+
+---
+
+# 2026-05-31 - Teachers AdminDataTable follow-up fix
+
+- Phase: Teaching Load + Timetable follow-up prompt 2b, `tl-timetable-02b-teachers-admin-data-table-followup-fix`.
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, FOCUSED TESTS GREEN, CLIENT BUILD GREEN, TAILNET/SEEDED SMOKE GREEN WITH LIVE-RUNTIME CAVEAT -> GO.
+- Trigger: user asked to execute the attached Prompt 2b for concrete `/teachers` pilot regressions.
+- Scope held: frontend `/teachers` handoff, load-state sorting, summary-stat semantics, shared workload helper test, source map, evidence log, and changelog only; no backend API, Prisma, generation logic, route rename, Teaching Load redesign, or AdminDataTable redesign changed.
+- Design references: `docs/DESIGN.md`, `docs/DESIGN-INSPIRATION.md`, `docs/context7-library-map.md`; existing shadcn/Radix Button, Select, Tooltip, and AdminDataTable patterns were preserved.
+- Fix summary: restored the primary `/teachers` row/card action to `/teaching-load?facultyId=...`, matching the authoritative Teaching Load query contract.
+- Fix summary: added `getFacultyLoadSortRank()` so the `Load State` column sorts by scheduler workload meaning rather than `isActiveForScheduling`; ascending order is `Over cap - must fix`, `Above standard - approval needed`, `At standard`, `Below standard`, `No teaching load`, `Excluded`.
+- Fix summary: split the Teachers summary layer so `Approval review` counts active teachers above the 30h standard and within their cap, while a separate `Over cap` stat counts active teachers above the weekly cap.
+- Focused tests: `Push-Location atlas-client; npx tsx --test src/lib/__tests__/faculty-assignment-helpers.test.ts; Pop-Location` passed 6/6 cases, including the new load-state sort-rank contract.
+- Local verification: `npm --prefix atlas-client run build` passed with Vite `8.0.3` and `2531 modules transformed`.
+- Diagnostics: touched files reported no VS Code diagnostics after repair.
+- Accessibility/primitive checks: touched files have no lowercase native `<select`, no lowercase native `<button`, no `<details`, and no raw DOM `title=` attributes.
+- File-size gate: `Faculty.tsx` 544 lines, `FacultyRow.tsx` 159 lines, `faculty-assignment-helpers.ts` 597 lines, and `faculty-assignment-helpers.test.ts` 46 lines.
+- Tailnet live smoke: `https://njgrm.buru-degree.ts.net/teachers` showed separate `Approval review` and `Over cap` stats, and the first visible `Review teaching load` action had href `/teaching-load?facultyId=101` on the live saved-roster path.
+- Seeded Tailnet UI smoke: Playwright-routed six-state roster confirmed `Approval review=1`, `Over cap=1`, first primary action href `/teaching-load?facultyId=604` before sort, and `Load State` ascending order: `Over cap - must fix`, `Above standard - approval needed`, `At standard`, `Below standard`, `No teaching load`, `Excluded`.
+- Handoff smoke: clicking the sorted first `Review teaching load` link navigated to `/teaching-load?facultyId=601`; after route transition, Teaching Load rendered with `Cap, Olivia` selected in the teacher/workload surface.
+- Caveat: Tailnet runtime/context requests still emitted known transient 502/failed-resource errors. The page remained usable from saved or Playwright-routed ATLAS evidence, so prompt-scope behavior was verified without claiming the live upstream runtime is healthy.
+- Decision: prompt-scope GO. The three verified Prompt 2 regressions are repaired and covered by local build, focused helper tests, guardrail scan, and browser smoke.
+
+---
+
+# 2026-05-31 - Teachers AdminDataTable pilot
+
+- Phase: Teaching Load + Timetable follow-up prompt 2, `tl-timetable-02-teachers-admin-data-table-pilot`.
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, CLIENT BUILD GREEN, DESKTOP AND TRUE MOBILE SMOKE GREEN WITH LIVE-RUNTIME CAVEAT -> GO.
+- Trigger: user asked to execute the attached Prompt 2 for the `/teachers` AdminDataTable pilot.
+- Scope held: frontend `/teachers` table pattern only; no backend pagination/search contracts, Prisma, faculty sync behavior, Teaching Load API, generation logic, route names, or other admin tables changed.
+- Design references: `docs/DESIGN.md`, `docs/DESIGN-INSPIRATION.md`, `docs/context7-library-map.md`; Context7 `/shadcn-ui/ui` guidance from the loaded prompt context was applied for Button, Select, DropdownMenu, Tooltip, and state composition.
+- Fix summary: added reusable `AdminDataTable` with column labels/descriptions, sortable headers with visible state icons, loading/error/empty/no-results states, optional pagination props, shadcn Select page-size control, desktop table rendering, and mobile card fallback rendering.
+- Fix summary: converted `/teachers` from a hand-built table/footer to `AdminDataTable` while preserving search, filters, sort, client-side pagination, sync/refresh actions, saved/live source state, Teacher X placeholder visibility, department/specialization, workload state, and the profile sheet.
+- Fix summary: reworked teacher row presentation into reusable identity, department, teaching-load, credited-workload, load-state, and mobile-card presenters. `Review teaching load` remains the single visible primary row/card action; `View teacher profile` moved into the secondary action menu.
+- Local verification: `npm --prefix atlas-client run build` passed with Vite `8.0.3` and `2531 modules transformed` after final edits.
+- Diagnostics: touched source files reported no VS Code diagnostics after repair.
+- Accessibility/primitive checks: touched React files have no lowercase native `<select`, no lowercase native `<button`, no `<details`, and no raw DOM `title=` attributes.
+- File-size gate: `AdminDataTable.tsx` 289 lines, `Faculty.tsx` 574 lines, and `FacultyRow.tsx` 171 lines.
+- Tailnet live smoke: `https://njgrm.buru-degree.ts.net/teachers` loaded in the shared browser with direct admin session, but live `/api/v1/runtime/context?schoolId=1` failed with Tailnet network/resource errors. The page showed the new table error state `Teacher roster is unavailable.` with retry action rather than a blank screen.
+- Tailnet UI smoke with seeded saved roster: confirmed desktop columns `Teacher`, `Department`, `Teaching Load`, `Credited Workload`, `Load State`, Teacher X badge, visible `Review teaching load` links, pagination footer, credited-workload sort order, secondary `View teacher profile` menu item, and profile sheet opening for `Ana Reyes`.
+- True mobile smoke: isolated Playwright at `390x844` with mocked runtime/summary data confirmed desktop table display `none`, mobile view display `block`, `Review teaching load` visible, Teacher X visible, rows-per-page visible, profile menu/dialog works, and no horizontal overflow (`bodyScrollWidth=390`, `documentClientWidth=390`).
+- Desktop smoke: isolated Playwright at `1366x768` with mocked runtime/summary data confirmed desktop table display `block`, mobile view display `none`, expected column labels, visible primary action, credited-workload sort moved the 12h Teacher X row before the 30h teacher row, and no horizontal overflow (`bodyScrollWidth=1366`, `documentClientWidth=1366`).
+- Decision: prompt-scope GO with live-runtime caveat. The reusable table pilot and `/teachers` conversion are complete and verified locally plus mocked Tailnet UI paths; live roster proof remains dependent on Tailnet runtime/context availability.
+
+---
+
+# 2026-05-31 - Teaching Load semantics foundation
+
+- Phase: Teaching Load + Timetable follow-up prompt 1, `tl-timetable-01-teaching-load-semantics-foundation`.
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, FOCUSED TESTS GREEN, CLIENT BUILD GREEN, TAILNET SMOKE PARTIAL WITH RUNTIME CAVEAT -> GO WITH CAVEAT.
+- Trigger: user asked to execute the attached Prompt 1 for teaching-load semantics foundation.
+- Scope held: frontend Teaching Load workload semantics and `/teachers` wording only; no backend API, Prisma, generation logic, timetable Tactical Dock, revision workflow, or publish behavior changed.
+- Design references: `docs/DESIGN.md`, `docs/DESIGN-INSPIRATION.md`, `docs/context7-library-map.md`; Context7 checked `/shadcn-ui/ui` for Popover, Tooltip, and Progress-style accessible composition before editing.
+- Fix summary: centralized workload threshold semantics so exactly `30h` credited workload is `At standard`, `>30h` through `40h` is `Above standard - approval needed`, and `>40h` is `Over cap - must fix`.
+- Fix summary: added a reusable stacked workload bar that separates active teaching hours from advisory/ancillary credit, marks the `30h` standard, and keeps the `40h` cap visible.
+- Fix summary: updated Teaching Load identity/inspector surfaces and `/teachers` row/profile/stat copy to use `Credited workload`, approval review, and hard-cap wording instead of vague `Overload Allowed`, `Needs review`, or `% Utilized` language.
+- Focused tests: `Push-Location atlas-client; npx tsx --test src/lib/__tests__/faculty-assignment-helpers.test.ts; Pop-Location` passed 5/5 cases covering `25+5=30`, `30+0=30`, `35+5=40`, and `36+5=41`.
+- Local verification: `npm --prefix atlas-client run build` passed with Vite `8.0.3` and `2530 modules transformed`.
+- Diagnostics: touched source files reported no VS Code diagnostics after repair.
+- Accessibility/primitive checks: touched React files have no lowercase native `<select`, no lowercase native `<button`, no `<details`, and no raw DOM `title=` attributes.
+- File-size gate: `TeacherIdentityStrip.tsx` 430 lines, `WorkloadInspector.tsx` 290, `StackedWorkloadBar.tsx` 75, `FacultyRow.tsx` 155, `FacultyProfileSheet.tsx` 274, and `Faculty.tsx` 573.
+- Tailnet smoke: direct admin login on `https://njgrm.buru-degree.ts.net` succeeded. `/teachers` loaded with the new `Approval review` stat and no horizontal overflow (`clientWidth=983`, `scrollWidth=983`).
+- Tailnet caveat: `/teaching-load` was blocked by runtime/context network failure and showed the existing `Workspace Unavailable / Network Error / Retry Connection` recovery state with no horizontal overflow (`clientWidth=983`, `scrollWidth=983`), so live data-row semantics could not be visually confirmed in Tailnet during this pass.
+- Decision: prompt-scope GO with runtime caveat. The semantic helper, visible copy paths, focused tests, and client build are complete; live `/teaching-load` data proof remains dependent on Tailnet runtime availability.
+
+---
+
+# 2026-05-31 - Prompt 15 admin pages cross-QA gate
 
 - Phase: Admin UX rehaul prompt 15 cross-page QA/repair gate for `/sections`, `/subjects`, `/teachers`, `/teaching-load`, `/map`, `/map?mode=editor`, `/schedules`, and `/audit`.
 - Operator: GitHub Copilot

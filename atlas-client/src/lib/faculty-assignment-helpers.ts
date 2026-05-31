@@ -158,15 +158,73 @@ function uniqueSortedPositiveInts(values: readonly number[] | null | undefined):
 
 export function deriveLoadStatus(policyCreditedHours: number): { status: LoadStatus; label: string } {
 	if (policyCreditedHours > MAX_WEEKLY_TEACHING_HOURS) {
-		return { status: 'over-cap', label: 'Over Cap' };
+		return { status: 'over-cap', label: 'Over cap - must fix' };
 	}
-	if (policyCreditedHours >= STANDARD_WEEKLY_TEACHING_HOURS) {
+	if (policyCreditedHours > STANDARD_WEEKLY_TEACHING_HOURS) {
 		return {
 			status: 'overload-allowed',
-			label: policyCreditedHours > STANDARD_WEEKLY_TEACHING_HOURS ? 'Overload Allowed' : 'Compliant',
+			label: 'Above standard - approval needed',
 		};
 	}
-	return { status: 'below-standard', label: 'Below Standard' };
+	if (policyCreditedHours === STANDARD_WEEKLY_TEACHING_HOURS) {
+		return { status: 'compliant', label: 'At standard' };
+	}
+	return { status: 'below-standard', label: 'Below standard' };
+}
+
+export function getFacultyLoadSortRank(
+	faculty: Pick<FacultySummary, 'isActiveForScheduling' | 'policyCreditedHours' | 'subjectCount'>,
+): number {
+	const weeklyHours = faculty.policyCreditedHours ?? 0;
+	const subjectCount = faculty.subjectCount ?? 0;
+	const loadStatus = deriveLoadStatus(weeklyHours);
+
+	// Ascending order puts the scheduler's most urgent repair states first.
+	if (!faculty.isActiveForScheduling) return 5;
+	if (weeklyHours === 0 || subjectCount === 0) return 4;
+	if (loadStatus.status === 'over-cap') return 0;
+	if (loadStatus.status === 'overload-allowed') return 1;
+	if (loadStatus.status === 'compliant') return 2;
+	return 3;
+}
+
+export type WorkloadCapacitySummary = {
+	teachingHours: number;
+	creditHours: number;
+	creditedTotalHours: number;
+	toStandardHours: number;
+	toCapHours: number;
+	overStandardHours: number;
+	overCapHours: number;
+	status: LoadStatus;
+	statusLabel: string;
+};
+
+function roundHours(value: number): number {
+	return Math.round(value * 10) / 10;
+}
+
+export function deriveWorkloadCapacity(
+	teachingHours: number,
+	creditHours: number,
+	maxHours = MAX_WEEKLY_TEACHING_HOURS,
+): WorkloadCapacitySummary {
+	const normalizedTeachingHours = roundHours(Math.max(teachingHours, 0));
+	const normalizedCreditHours = roundHours(Math.max(creditHours, 0));
+	const creditedTotalHours = roundHours(normalizedTeachingHours + normalizedCreditHours);
+	const { status, label } = deriveLoadStatus(creditedTotalHours);
+
+	return {
+		teachingHours: normalizedTeachingHours,
+		creditHours: normalizedCreditHours,
+		creditedTotalHours,
+		toStandardHours: roundHours(Math.max(STANDARD_WEEKLY_TEACHING_HOURS - creditedTotalHours, 0)),
+		toCapHours: roundHours(Math.max(maxHours - creditedTotalHours, 0)),
+		overStandardHours: roundHours(Math.max(creditedTotalHours - STANDARD_WEEKLY_TEACHING_HOURS, 0)),
+		overCapHours: roundHours(Math.max(creditedTotalHours - maxHours, 0)),
+		status,
+		statusLabel: label,
+	};
 }
 
 export function buildSectionMap(sections: ExternalSection[]): Map<number, ExternalSection> {
@@ -572,11 +630,9 @@ export function buildTeachingLoadProfile(
 	const actualTeachingHours = Math.round((creditedMinutes / 60) * 10) / 10;
 	const rawTeachingHours = Math.round((rawMinutes / 60) * 10) / 10;
 	const rotationOvercountHours = Math.round(Math.max(0, rawTeachingHours - actualTeachingHours) * 10) / 10;
-	const normalizedEquivalentHours = Math.round(equivalentHours * 10) / 10;
-	const creditedTotalHours = Math.round((actualTeachingHours + normalizedEquivalentHours) * 10) / 10;
-	const overloadHours = Math.round(Math.max(creditedTotalHours - STANDARD_WEEKLY_TEACHING_HOURS, 0) * 10) / 10;
-	const overCapHours = Math.round(Math.max(creditedTotalHours - MAX_WEEKLY_TEACHING_HOURS, 0) * 10) / 10;
-	const { status, label } = deriveLoadStatus(creditedTotalHours);
+	const workloadCapacity = deriveWorkloadCapacity(actualTeachingHours, equivalentHours);
+	const normalizedEquivalentHours = workloadCapacity.creditHours;
+	const creditedTotalHours = workloadCapacity.creditedTotalHours;
 	const rotationFamilies: RotationFamilyBreakdownItem[] = rotationFamilyComputations
 		.map((entry) => entry.detail)
 		.sort((left, right) => right.overcountHours - left.overcountHours || left.family.localeCompare(right.family));
@@ -587,10 +643,11 @@ export function buildTeachingLoadProfile(
 		rotationOvercountHours,
 		equivalentHours: normalizedEquivalentHours,
 		creditedTotalHours,
-		overloadHours,
-		overCapHours,
-		status,
-		statusLabel: label,
+		overloadHours: workloadCapacity.overStandardHours,
+		overCapHours: workloadCapacity.overCapHours,
+		remainingHours: workloadCapacity.toCapHours,
+		status: workloadCapacity.status,
+		statusLabel: workloadCapacity.statusLabel,
 		rotationFamilies,
 		breakdown: breakdown.sort(
 			(left, right) =>

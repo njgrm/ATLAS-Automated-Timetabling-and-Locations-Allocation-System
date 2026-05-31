@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import type { FacultySummary, LoadProfile, RotationFamilyTermBreakdown } from '@/types';
+import { StackedWorkloadBar } from './StackedWorkloadBar';
 
 type TeacherIdentityStripProps = {
 	selected: FacultySummary;
@@ -72,7 +73,7 @@ export function TeacherIdentityStrip({
 	onDiscardDraft,
 	onSave,
 }: TeacherIdentityStripProps) {
-	const loadCapMinutes = (selected.maxHoursPerWeek || 40) * 60;
+	const workloadPercent = Math.round((loadProfile.creditedTotalHours / Math.max(selected.maxHoursPerWeek, 1)) * 100);
 
 	return (
 		<div className="shrink-0 flex items-center justify-between gap-4 p-1.5 px-3 bg-card border border-border/50 rounded-xl shadow-sm">
@@ -132,7 +133,7 @@ export function TeacherIdentityStrip({
 									<TooltipTrigger asChild>
 										<Info className="size-3 text-muted-foreground/40 cursor-help" />
 									</TooltipTrigger>
-									<TooltipContent className="text-[0.65rem] font-bold max-w-[200px]">
+									<TooltipContent className="text-[0.65rem] font-bold max-w-50">
 										Active time spent in the classroom during the busiest term.
 									</TooltipContent>
 								</Tooltip>
@@ -158,7 +159,7 @@ export function TeacherIdentityStrip({
 										</div>
 									</Button>
 								</SheetTrigger>
-								<SheetContent side="right" className="w-[450px] sm:w-[540px] overflow-y-auto">
+								<SheetContent side="right" className="w-112.5 sm:w-135 overflow-y-auto">
 									<SheetHeader className="pb-6 border-b border-border/50">
 										<SheetTitle className="text-xl font-bold flex items-center gap-2 text-sky-900">
 											<Layers className="size-5" />
@@ -247,15 +248,16 @@ export function TeacherIdentityStrip({
 
 						<div className="h-8 w-px bg-border/40" />
 
-						<div className="w-16 space-y-1">
-							<div className="h-1.5 w-full bg-muted rounded-full overflow-hidden border border-muted/50 relative shadow-inner">
-								<div
-									className="h-full bg-emerald-500 transition-all absolute left-0 top-0 z-10"
-										style={{ width: `${Math.min((loadProfile.creditedTotalHours * 60 / Math.max(loadCapMinutes, 1)) * 100, 100)}%` }}
-								/>
-							</div>
+						<div className="w-28 space-y-1">
+							<StackedWorkloadBar
+								teachingHours={loadProfile.actualTeachingHours}
+								creditHours={loadProfile.equivalentHours}
+								maxHours={selected.maxHoursPerWeek}
+								compact
+								showLegend={false}
+							/>
 							<div className="flex justify-center text-[0.6rem] font-semibold uppercase tracking-tighter tabular-nums text-muted-foreground/80">
-								<span>{Math.round((loadProfile.creditedTotalHours / selected.maxHoursPerWeek) * 100)}% Cap</span>
+								<span>{workloadPercent}% of cap</span>
 							</div>
 						</div>
 
@@ -296,13 +298,18 @@ export function TeacherIdentityStrip({
 										</div>
 										<div className="h-8 w-px bg-white/20" />
 										<div className="text-[0.65rem] font-medium opacity-90 leading-tight">
-											Calculation includes teaching hours, <br />
-											rotation adjustments, and credits.
+											Teaching time and advisory or ancillary <br />
+											credits both count toward the standard.
 										</div>
 									</div>
 								</div>
 								
 								<div className="p-4 space-y-4 bg-card">
+									<StackedWorkloadBar
+										teachingHours={loadProfile.actualTeachingHours}
+										creditHours={loadProfile.equivalentHours}
+										maxHours={selected.maxHoursPerWeek}
+									/>
 									<div className="space-y-3">
 										<h6 className="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground">Step-by-Step Arithmetic</h6>
 										
