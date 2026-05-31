@@ -3,7 +3,7 @@ import { Group, Layer, Rect, Stage, Text } from 'react-konva';
 import { Move, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 
 import type { Building } from '@/types';
-import { MAP_DEFAULT_STROKE, MAP_SELECTED_STROKE } from '@/components/campus-map/campusMapPalette';
+import { MAP_DEFAULT_STROKE, MAP_SELECTED_STROKE, getPrimaryCanvasColor } from '@/components/campus-map/campusMapPalette';
 import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
@@ -77,6 +77,7 @@ export function CampusMapCanvasPreview({
 	const offsetX = Math.max(0, (stageWidth - CANVAS_WIDTH * effectiveScale) / 2);
 	const offsetY = Math.max(0, (stageHeight - CANVAS_HEIGHT * effectiveScale) / 2);
 	const fallbackSelectedId = selectedBuildingId ?? buildings[0]?.id ?? null;
+	const primaryCanvasColor = getPrimaryCanvasColor(MAP_SELECTED_STROKE);
 
 	const getOffsets = useCallback((zoomLevel: number) => {
 		const scaled = scale * zoomLevel;
@@ -233,7 +234,7 @@ export function CampusMapCanvasPreview({
 										fill={building.color}
 										opacity={isSelected ? 0.96 : 0.78}
 										cornerRadius={8}
-										stroke={isSelected ? MAP_SELECTED_STROKE : MAP_DEFAULT_STROKE}
+										stroke={isSelected ? primaryCanvasColor : MAP_DEFAULT_STROKE}
 										strokeWidth={isSelected ? 3 : 2}
 										shadowColor="rgba(0,0,0,0.16)"
 										shadowBlur={isSelected ? 12 : 3}

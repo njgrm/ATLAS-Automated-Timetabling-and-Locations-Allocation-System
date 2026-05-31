@@ -47,7 +47,7 @@ export function SubjectAddForm({
 		<div className="shrink-0 px-6 pb-2">
 			<Card className="shadow-sm border-primary/30">
 				<CardContent className="pt-4">
-					<p className="text-sm font-semibold mb-3">New Custom Subject</p>
+					<p className="text-sm font-semibold mb-3">Add curriculum subject</p>
 					<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
 						<div>
 							<label className="text-xs font-medium text-muted-foreground">Code</label>
@@ -68,23 +68,27 @@ export function SubjectAddForm({
 						<div>
 							<div className="flex justify-between items-center mb-1">
 								<label className="text-xs font-medium text-muted-foreground">
-									Duration ({timeMode === 'minutes' ? 'min' : 'hr'}/wk)
+									Weekly time ({timeMode === 'minutes' ? 'min' : 'hr'}/wk)
 								</label>
 								<div className="flex gap-1 text-[0.625rem]">
-									<button
+									<Button
 										type="button"
+										variant="ghost"
+										size="sm"
 										onClick={() => setTimeMode('minutes')}
-										className={`px-1 rounded ${timeMode === 'minutes' ? 'bg-primary/20 text-primary font-bold' : 'text-muted-foreground hover:bg-muted'}`}
+										className={`h-6 px-1 rounded ${timeMode === 'minutes' ? 'bg-primary/20 text-primary font-bold' : 'text-muted-foreground hover:bg-muted'}`}
 									>
 										Min
-									</button>
-									<button
+									</Button>
+									<Button
 										type="button"
+										variant="ghost"
+										size="sm"
 										onClick={() => setTimeMode('hours')}
-										className={`px-1 rounded ${timeMode === 'hours' ? 'bg-primary/20 text-primary font-bold' : 'text-muted-foreground hover:bg-muted'}`}
+										className={`h-6 px-1 rounded ${timeMode === 'hours' ? 'bg-primary/20 text-primary font-bold' : 'text-muted-foreground hover:bg-muted'}`}
 									>
 										Hr
-									</button>
+									</Button>
 								</div>
 							</div>
 							<Input
@@ -106,19 +110,21 @@ export function SubjectAddForm({
 							/>
 							<div className="flex gap-1 mt-1">
 								{[200, 225, 240, 250].map((val) => (
-									<button
+									<Button
 										type="button"
 										key={val}
+										variant="outline"
+										size="sm"
 										onClick={() => setNewSubject((p) => ({ ...p, minMinutesPerWeek: val }))}
-										className="rounded border bg-accent/5 px-1.5 py-0.5 text-[0.5625rem] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+										className="h-6 rounded bg-accent/5 px-1.5 py-0.5 text-[0.5625rem] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
 									>
 										{val}m
-									</button>
+									</Button>
 								))}
 							</div>
 						</div>
 						<div>
-							<label className="text-xs font-medium text-muted-foreground mb-1 block">Preferred Room Type</label>
+							<label className="text-xs font-medium text-muted-foreground mb-1 block">Room need</label>
 							<Select
 								value={newSubject.preferredRoomType}
 								onValueChange={(v) => setNewSubject((p) => ({ ...p, preferredRoomType: v as RoomType }))}
@@ -139,12 +145,14 @@ export function SubjectAddForm({
 					</div>
 
 					<div className="mt-3">
-						<label className="text-xs font-medium text-muted-foreground">Grade Levels</label>
+						<label className="text-xs font-medium text-muted-foreground">Grade coverage</label>
 						<div className="mt-1 flex gap-2">
 							{GRADE_OPTIONS.map((g) => (
-								<button
+								<Button
 									key={g}
 									type="button"
+									variant="outline"
+									size="sm"
 									onClick={() => toggleGradeLevel(g)}
 									className={`inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
 										newSubject.gradeLevels.includes(g)
@@ -153,18 +161,20 @@ export function SubjectAddForm({
 									}`}
 								>
 									G{g}
-								</button>
+								</Button>
 							))}
 						</div>
 					</div>
 
 					<div className="mt-3">
-						<label className="text-xs font-medium text-muted-foreground">Program Scopes</label>
+						<label className="text-xs font-medium text-muted-foreground">Program coverage</label>
 						<div className="mt-1 flex flex-wrap gap-1.5">
 							{PROGRAM_SCOPE_OPTIONS.map(({ value, label }) => (
-								<button
+								<Button
 									key={value}
 									type="button"
+									variant="outline"
+									size="sm"
 									onClick={() =>
 										setNewSubject((p) => {
 											const has = p.programScopes.includes(value);
@@ -181,7 +191,7 @@ export function SubjectAddForm({
 									}`}
 								>
 									{label}
-								</button>
+								</Button>
 							))}
 						</div>
 					</div>
@@ -194,9 +204,11 @@ export function SubjectAddForm({
 							</label>
 							<div className="mt-1 flex flex-wrap gap-1.5">
 								{availableSpecializations.map((spec) => (
-									<button
+									<Button
 										key={spec}
 										type="button"
+										variant="outline"
+										size="sm"
 										onClick={() =>
 											setNewSubject((p) => {
 												const has = p.allowedSpecializations.includes(spec);
@@ -215,7 +227,7 @@ export function SubjectAddForm({
 										}`}
 									>
 										{spec}
-									</button>
+									</Button>
 								))}
 							</div>
 						</div>
@@ -227,7 +239,7 @@ export function SubjectAddForm({
 							onClick={onCreate}
 							disabled={saving || !newSubject.code.trim() || !newSubject.name.trim()}
 						>
-							{saving ? 'Creating...' : 'Create Subject'}
+							{saving ? 'Creating...' : 'Create subject'}
 						</Button>
 						<Button variant="outline" size="sm" onClick={onCancel}>
 							Cancel

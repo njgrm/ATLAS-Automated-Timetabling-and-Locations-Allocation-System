@@ -2,6 +2,8 @@ import {
 	MoreVertical,
 	Users,
 	ClipboardList,
+	Home,
+	AlertTriangle,
 } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -87,13 +89,17 @@ export function SectionRow({
 	const gKey = gradeKey(section.gradeLevelName);
 	const gColor = GRADE_COLORS[gKey] ?? 'bg-muted text-muted-foreground';
 	const gradeLabel = `G${section.gradeLevelName.replace(/^Grade\s+/i, '')}`;
+	const selectedRoom = homeRoomOptions.find((room) => room.id === section.homeRoomId);
 
 	return (
 		<tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
 			<td className="px-4 py-3">
-				<div 
-					className="flex items-center gap-3 cursor-pointer" 
+				<Button
+					type="button"
+					variant="ghost"
+					className="-ml-2 h-auto w-full justify-start gap-3 rounded-xl p-2 text-left hover:bg-primary/5"
 					onClick={() => onShowDetails(section)}
+					aria-label={`View class coverage and room context for ${section.name}`}
 				>
 					<div className={`flex size-9 shrink-0 items-center justify-center rounded-lg border shadow-sm font-bold text-sm ${gColor} border-opacity-50`}>
 						{gKey || section.name[0]}
@@ -114,7 +120,7 @@ export function SectionRow({
 							{section.isSpecialProgram ? section.programName : 'Regular Program'}
 						</span>
 					</div>
-				</div>
+				</Button>
 			</td>
 
 			<td className="px-4 py-3">
@@ -147,17 +153,29 @@ export function SectionRow({
 			</td>
 
 			<td className="px-4 py-3 min-w-56">
-				<SectionRoomPicker
-					sectionId={section.id}
-					sectionName={section.name}
-					value={section.homeRoomId ?? null}
-					options={homeRoomOptions}
-					onSelect={(roomId) => onHomeRoomChange(section, roomId)}
-					disabled={isReadOnly}
-					isSaving={isSaving}
-					schoolId={schoolId}
-					roomOccupancy={roomOccupancy}
-				/>
+				<div className="space-y-1.5">
+					<SectionRoomPicker
+						sectionId={section.id}
+						sectionName={section.name}
+						value={section.homeRoomId ?? null}
+						options={homeRoomOptions}
+						onSelect={(roomId) => onHomeRoomChange(section, roomId)}
+						disabled={isReadOnly}
+						isSaving={isSaving}
+						schoolId={schoolId}
+						roomOccupancy={roomOccupancy}
+					/>
+					<div className="flex items-start gap-1.5 text-[0.68rem] font-semibold leading-4 text-muted-foreground">
+						{selectedRoom ? <Home className="mt-0.5 size-3 shrink-0 text-emerald-600" /> : <AlertTriangle className="mt-0.5 size-3 shrink-0 text-amber-600" />}
+						<span>
+							{selectedRoom
+								? `${selectedRoom.buildingName} is the current home-room building.`
+								: isReadOnly
+								? 'Needs a home room. Edits are paused until the source is ready.'
+								: 'Needs a home room. Choose a room to make this section schedulable.'}
+						</span>
+					</div>
+				</div>
 			</td>
 
 			<td className="px-4 py-3 text-right">
@@ -170,39 +188,40 @@ export function SectionRow({
 									size="icon"
 									className="size-8 text-muted-foreground hover:text-primary"
 									onClick={() => onShowDetails(section)}
+									aria-label={`View class coverage for ${section.name}`}
 								>
 									<Users className="size-4" />
 								</Button>
 							</TooltipTrigger>
-							<TooltipContent>Assigned Classes</TooltipContent>
+							<TooltipContent>View class coverage and room context</TooltipContent>
 						</Tooltip>
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Link to={`/teaching-load?sectionId=${section.id}`}>
-									<Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-primary">
+									<Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-primary" aria-label={`Open teaching load for ${section.name}`}>
 										<ClipboardList className="size-4" />
 									</Button>
 								</Link>
 							</TooltipTrigger>
-							<TooltipContent>Manage Teaching Load</TooltipContent>
+							<TooltipContent>Open teaching load assignments</TooltipContent>
 						</Tooltip>
 					</TooltipProvider>
 
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
-							<Button variant="ghost" size="icon" className="size-8 text-muted-foreground">
+							<Button variant="ghost" size="icon" className="size-8 text-muted-foreground" aria-label={`More actions for ${section.name}`}>
 								<MoreVertical className="size-4" />
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end" className="w-48">
 							<DropdownMenuItem onClick={() => onShowDetails(section)}>
 								<Users className="mr-2 size-4" />
-								<span>View Details</span>
+								<span>View class coverage</span>
 							</DropdownMenuItem>
 							<DropdownMenuItem asChild>
 								<Link to={`/teaching-load?sectionId=${section.id}`}>
 									<ClipboardList className="mr-2 size-4" />
-									<span>Teaching Load</span>
+									<span>Open teaching load</span>
 								</Link>
 							</DropdownMenuItem>
 						</DropdownMenuContent>

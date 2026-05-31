@@ -1,4 +1,223 @@
-﻿# 2026-05-30 - Sidebar collapse and map schedule UX repair
+﻿# 2026-05-31 - Prompt 15 admin pages cross-QA gate
+
+- Phase: Admin UX rehaul prompt 15 cross-page QA/repair gate for `/sections`, `/subjects`, `/teachers`, `/teaching-load`, `/map`, `/map?mode=editor`, `/schedules`, and `/audit`.
+- Operator: GitHub Copilot
+- Scope gate: CROSS-PAGE QA COMPLETE, ONE ACCESSIBILITY REPAIR APPLIED, LOCAL BUILD GREEN -> CONDITIONAL GO.
+- Trigger: user asked to execute `docs/prompts/ux-rehaul-15-admin-pages-cross-qa-gate-prompt.md`.
+- Scope held: QA/repair only; no `/timetable`, backend API, Prisma, generation logic, published schedule API, auth behavior, faculty `/my/*`, or new feature work.
+- Design references: `docs/DESIGN.md`, `docs/DESIGN-INSPIRATION.md`, `docs/context7-library-map.md`; Context7 checked `/shadcn-ui/ui` for Dialog, Sheet, Tooltip, ScrollArea, and Tabs accessible composition before judging the gate.
+- Source compliance scan: admin gate surfaces have no raw DOM lowercase `<select`, no raw DOM lowercase `<button`, no `<details`, and no raw DOM `title=` attributes; file-size check found no touched React file above 1000 lines.
+- File-size spot checks: `Sections.tsx` 912 lines, `Subjects.tsx` 883, `Faculty.tsx` 532, `TeachingLoad.tsx` 734, `MapEditor.tsx` 274, `RoomSchedules.tsx` 847, `Audit.tsx` 633, and `SubjectFormModal.tsx` 594.
+- Browser gate QA: direct admin session on `https://njgrm.buru-degree.ts.net` loaded the in-scope routes with visible page purpose/status/action framing and no global horizontal overflow at the shared browser effective viewport (`clientWidth=918`, `scrollWidth=918` on sampled routes).
+- Functional smoke: sections search/filter/home-room state/detail content passed; subjects search/add dialog/coverage/archive dialog passed after repair; teachers search/profile/source state passed; teaching-load mode/state copy passed with auto-fill unavailable in the current read-only/no-assignment-data state; campus overview/editor zoom-pan and room context passed; schedules room/teacher/section modes and invalid Run ID copy passed; audit loading/progress, route safety, and duplicate-key console checks passed.
+- Repair applied: `SubjectFormModal.tsx` had a Radix `Checkbox` nested inside a project `Button` in the additional qualified departments control, which produced a React invalid nested `<button>` console warning. The row now renders as a non-interactive styled container with the Radix `Checkbox` as the only control and an explicit `aria-label`.
+- Local verification: `npm --prefix atlas-client run build` passed with Vite `8.0.3` and `2529 modules transformed`; diagnostics for the repaired subject form are clean.
+- Screenshots: `qa-artifacts/playwright/20260530-admin-sections-gate-after.png`, `qa-artifacts/playwright/20260530-admin-subjects-gate-after.png`, `qa-artifacts/playwright/20260530-admin-teachers-gate-after.png`, `qa-artifacts/playwright/20260530-admin-teaching-load-gate-after.png`, `qa-artifacts/playwright/20260530-admin-campus-gate-after.png`, `qa-artifacts/playwright/20260530-admin-schedules-gate-after.png`, `qa-artifacts/playwright/20260530-admin-audit-gate-after.png`.
+- Caveats: the shared browser retained an effective 918px viewport during this gate, so mobile-named evidence remains no-overflow shared-browser evidence rather than true 390px proof. Tailnet runtime/resource failures seen during earlier prompt checks remain known caveats, but the repaired pages expose saved/degraded recovery copy instead of blank states.
+- Decision: CONDITIONAL GO for the cross-page admin gate. The condition is viewport evidence quality only; no Critical or Major UI/accessibility blocker remains in the checked admin surfaces.
+
+---
+
+# 2026-05-31 - Prompt 14 audit readiness report SMART polish
+
+- Phase: Admin UX rehaul prompt 14 for `/audit` readiness-report clarity.
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, LOCAL BUILD GREEN, TAILNET SMOKE COMPLETE WITH RUNTIME/SAVED-EVIDENCE CAVEAT -> GO.
+- Trigger: user asked to execute `docs/prompts/ux-rehaul-14-audit-readiness-report-one-shot-prompt.md`.
+- Scope held: frontend-only changes to `/audit`, runtime source map, evidence log, and changelog; no `/timetable`, `/timetable/generate`, backend APIs, Prisma, generation logic, published schedule APIs, auth behavior, or faculty `/my/*` changes.
+- Design references: `docs/DESIGN.md`, `docs/DESIGN-INSPIRATION.md`, `docs/context7-library-map.md`; Context7 checked `/shadcn-ui/ui` for Tabs, Badge, Button, Checkbox, and ScrollArea accessible admin report layout. No new dependency or motion pattern was introduced.
+- Pre-code findings: `/audit` read as a dense cross-system console with vague labels (`Mismatches`, `Clashes`, `Sync Health`, `Average Roster Load`), a generic loading spinner, raw checkbox usage in the facilities tab, duplicate-key risk in mapped findings, and a bad `Proceed to Generator` link to `/timetable/generate`.
+- Fix summary: rebuilt `/audit` as `Audit readiness report` with a clear review/publish eyebrow, purpose copy, saved/live evidence chip, compact evidence banner, and a primary readiness verdict.
+- Fix summary: consolidated findings into five operator action groups: `Fix teacher assignments`, `Resolve section gaps`, `Check rooms and facilities`, `Review constraints`, and `Check saved/live data`.
+- Fix summary: replaced vague issue language with severity labels, plain reasons, `Why it matters` copy, and safe setup links to `/teaching-load`, `/sections`, `/subjects`, `/teachers`, and `/map` only.
+- Fix summary: added loading proof that lists checked domains, removed the raw facilities checkbox pattern, removed `/timetable/generate`, and changed mapped finding keys to composite identifiers.
+- Runtime source map: updated `/audit` route purpose, API dependencies, ownership notes, verdicts, action groups, saved-evidence behavior, and no-Timetable-gateway rule.
+- Accessibility/primitive checks: touched audit file has no lowercase native `<select`, no lowercase native `<button`, no `title=`, no `<details`, no `/timetable/generate`, no `Proceed to Generator`, no old labels `Mismatches`, `Clashes`, `Sync Health`, or `Average Roster Load`, and no arrow glyphs.
+- File-size gate: `Audit.tsx` 633 lines.
+- Local verification: `npm --prefix atlas-client run build` passed with Vite `8.0.3` and `2529 modules transformed`; diagnostics clean for `Audit.tsx`.
+- Tailnet smoke: direct admin session on `https://njgrm.buru-degree.ts.net/audit` showed `Audit readiness report`, purpose copy, `ATLAS saved evidence`, `Checked: 5 domains`, `Blockers: 236`, `Warnings: 2`, `Average roster load: 74.3%`, and verdict `Needs fixes before scheduling`.
+- Tailnet findings QA: verified action-group tabs for teacher assignments, section gaps, rooms/facilities, constraints, and saved/live data; saved/live group showed two roster sync warnings and setup links to the teacher roster.
+- Tailnet safety QA: DOM/text probe found no `/timetable/generate` or `Proceed to Generator`, and no horizontal overflow (`clientWidth=918`, `scrollWidth=918`). Console probe found no duplicate-key warnings; the only console error observed was the known Tailnet runtime/settings resource failure while the page correctly stayed usable from saved ATLAS evidence.
+- Mobile/shared-browser smoke: after requesting a 390px viewport, the shared browser remained fixed at `918px`; no global horizontal overflow was observed (`clientWidth=918`, `scrollWidth=918`). Mobile screenshot is a no-overflow shared-browser capture, not true 390px proof.
+- Screenshots: `qa-artifacts/playwright/20260530-admin-audit-readiness-after.png`, `qa-artifacts/playwright/20260530-admin-audit-findings-after.png`, `qa-artifacts/playwright/20260530-admin-audit-mobile-after.png`.
+- Decision: prompt-scope GO. `/audit` now reads as a SMART-family readiness report with explicit next setup actions and no Timetable-generation gateway.
+
+---
+
+# 2026-05-31 - Prompt 13 schedules browser SMART polish
+
+- Phase: Admin UX rehaul prompt 13 for `/schedules` schedule browser clarity across rooms, teachers, and sections.
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, LOCAL BUILD GREEN, TAILNET SMOKE COMPLETE WITH VIEWPORT/RUNTIME-CACHE CAVEAT -> GO.
+- Trigger: user asked to execute `docs/prompts/ux-rehaul-13-schedules-browser-one-shot-prompt.md`.
+- Scope held: frontend-only changes to `/schedules` / `/room-schedules` browser UI, occupancy preview fallback copy, runtime source map, evidence log, and changelog; no `/timetable`, backend APIs, latest-run route logic, Prisma, generation logic, published schedule APIs, auth behavior, or faculty `/my/*` changes.
+- Design references: `docs/DESIGN.md`, `docs/DESIGN-INSPIRATION.md`, `docs/context7-library-map.md`; Context7 checked `/shadcn-ui/ui` for accessible controls. No new dependency or motion pattern was introduced.
+- Pre-code findings: `/schedules` already supported room, teacher, and section pivots, but opened without a title/purpose, mode controls lacked audience guidance, selector/source controls were cramped, Latest vs Run ID was unexplained, invalid Run ID looked like a generic no-run state, and degraded fallbacks could expose internal labels such as `Unknown`, `Teacher #`, `Section #`, `Subject #`, or `Faculty #`.
+- Fix summary: added SMART-family page framing with title `Schedules`, review/publish eyebrow, purpose copy, source summary, and descriptive task cards for Rooms, Teachers, and Sections.
+- Fix summary: made the active mode explicit in the toolbar, widened the entity selector, added selector availability copy, explained Latest vs Run ID, and added inline Run ID validation that disables Refresh until the value is valid.
+- Fix summary: replaced generic empty/error states with mode-specific next-action copy, source-specific invalid Run ID recovery copy, and explicit schedule-reference-unavailable copy for failed bootstrap.
+- Fix summary: removed internal-ID fallback copy from room, teacher, section, subject, faculty, and occupancy-template labels, replacing them with plain labels such as `Teacher not listed`, `Section not listed`, `Subject not listed`, and `Building not listed`.
+- Runtime source map: updated the route row to treat `/schedules` as the user-facing browser and `/room-schedules` as a compatibility alias for direct room links.
+- Accessibility/primitive checks: touched schedule files have no lowercase native `<select`, no lowercase native `<button`, no `title=`, no `<details`, no `Unknown`, no `Teacher #`, no `Section #`, no `Faculty #`, and no `Subject #`.
+- File-size gate: `RoomSchedules.tsx` 922 lines and `OccupancyTemplatePreview.tsx` 160 lines.
+- Local verification: `npm --prefix atlas-client run build` passed with Vite `8.0.3` and `2529 modules transformed`; diagnostics clean for touched schedule files.
+- Tailnet smoke: direct admin session on `https://njgrm.buru-degree.ts.net/schedules` showed title, purpose copy, source summary, Rooms/Teachers/Sections task cards, active-mode summary, selector availability, Latest/Run ID explanation, and no horizontal overflow (`clientWidth=918`, `scrollWidth=918`).
+- Tailnet room QA: selected `G10-302`; the page loaded latest completed run `#128`, showed utilization/occupied/conflict stats, and rendered the timetable grid without internal fallback labels.
+- Tailnet teacher QA: selected `SANTOS, MARIA`; the page loaded latest completed run `#128`, showed teacher utilization and section/room timetable cells.
+- Tailnet section QA: selected `MARCELO DEL PILAR`; the page loaded latest completed run `#128`, showed section utilization and teacher/room timetable cells.
+- Tailnet source-control QA: switching to Run ID with value `0` showed inline validation `Use a whole number above 0.`, disabled Refresh, and showed `Schedule not available` with `Check the Run ID or switch back to Latest.`
+- Tailnet caveat: the first shared-browser schedules load had no cached active-year context and `/runtime/context` initially failed with `NO_TOKEN` / transient Tailnet request errors, so the browser showed the honest `No rooms are available yet.` selector state. Direct API login verified `/api/v1/runtime/context?schoolId=1` returns active school year `55`; seeding the verified active-year cache in the same browser allowed normal protected-route QA to proceed. This is recorded as a Tailnet/session bootstrap caveat, not a schedules UI regression.
+- Mobile/shared-browser smoke: after requesting a 390px viewport, the shared browser remained fixed at `918px`; no global horizontal overflow was observed (`clientWidth=918`, `scrollWidth=918`). Mobile screenshot is a no-overflow shared-browser capture, not true 390px proof.
+- Screenshots: `qa-artifacts/playwright/20260530-admin-schedules-empty-after.png`, `qa-artifacts/playwright/20260530-admin-schedules-room-after.png`, `qa-artifacts/playwright/20260530-admin-schedules-mobile-after.png`.
+- Decision: prompt-scope GO. `/schedules` now reads as a SMART-family browser for room, teacher, and section schedule review while preserving existing schedule APIs and timetable-generation boundaries.
+
+---
+
+# 2026-05-31 - Prompt 12 campus and rooms polish
+
+- Phase: Admin UX rehaul prompt 12 for `/map` campus readiness overview and editor polish.
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, LOCAL BUILD GREEN, TAILNET SMOKE COMPLETE WITH VIEWPORT CAVEAT -> GO.
+- Trigger: user asked to execute `docs/prompts/ux-rehaul-12-campus-rooms-polish-one-shot-prompt.md`.
+- Scope held: frontend-only changes to `/map`, campus map components, building view/panel, room schedule overlay copy/accessibility, runtime map, evidence log, and changelog; no `/timetable`, backend map API, Prisma, generation logic, auth behavior, or faculty `/my/*` changes.
+- Design references: `docs/DESIGN.md`, `docs/DESIGN-INSPIRATION.md`, `docs/context7-library-map.md`; Context7 checked `/shadcn-ui/ui` for Tooltip/Dialog/Accordion accessibility composition. No new dependency or motion pattern was introduced.
+- Pre-code findings: `/map` had the restored original canvas/editor model, building view, zoom/pan, and room drilldown foundation, but editor task grouping was not explicit enough, editor wheel zoom was missing, selected-building summary did not state floors/schedule availability, room drilldown fallbacks could expose internal IDs, and building zoom icon controls lacked tooltip coverage.
+- Fix summary: preserved the restored map/editor interaction model and added selected-building readiness chips for teaching rooms, floors, and latest schedule availability.
+- Fix summary: added visible editor task grouping for Rooms, History, and Save while keeping Select, Draw building, Campus photo, undo/redo, and save controls in the same toolbar model.
+- Fix summary: added campus editor wheel zoom and kept drag/pan behavior intact.
+- Fix summary: routed selected campus/building canvas states through the configured `--primary` school token with maroon fallback instead of arbitrary indigo/slate selected strokes.
+- Fix summary: added tooltip coverage to building view zoom controls and aria-labels to icon-only room controls.
+- Fix summary: changed degraded room schedule fallbacks from internal subject/faculty/section IDs to plain labels such as `Subject not listed`, `Teacher not listed`, `Assigned section`, and `No latest schedule is available for this room yet.`
+- Runtime source map: updated `/map` route purpose and notes in `docs/reference/atlas-runtime-source-of-truth-map.md`.
+- Accessibility/primitive checks: touched campus files have no lowercase native `<select`, no lowercase native `<button`, no `title=`, no `<details`, no `Unknown`, no `Subject #`, no `Faculty #`, and no `Section #`; room overlay uses labelled dialog semantics; icon-only controls have tooltip/aria-label coverage.
+- File-size gate: `MapEditor.tsx` 300 lines, `CampusMapEditor.tsx` 957, `BuildingPanel.tsx` 961, `BuildingView.tsx` 621, `CampusMapOverview.tsx` 407, `CampusMapCanvasPreview.tsx` 291, `campusMapPalette.ts` 35, `RoomScheduleOverlay.tsx` 404.
+- Local verification: `npm --prefix atlas-client run build` passed with Vite `8.0.3` and `2529 modules transformed`; diagnostics clean for touched campus files.
+- Tailnet smoke: direct admin login on `https://njgrm.buru-degree.ts.net/map` showed title `Campus and rooms`, purpose copy, `Edit campus map`, readable campus canvas, selected-building summary, teaching-room/floor/schedule readiness chips, and room-click affordance. Inventory rendered `12` buildings and `157/160` teaching rooms.
+- Interaction QA: campus zoom buttons passed, campus wheel zoom passed, campus drag/pan passed, building zoom buttons passed, building wheel zoom passed, building drag/pan passed, and room click opened the room schedule overlay for `G10-302`.
+- Editor QA: `/map?mode=editor` showed `Campus map editor`, `Select`, `Draw building`, `Rooms`, `Campus photo`, `History`, visible save state, and collapsed `Advanced placement`; editor zoom button, wheel zoom, and drag/pan passed.
+- Mobile/shared-browser smoke: `/map` kept title, primary action, selected-building summary, and room readiness visible with no horizontal overflow (`clientWidth=918`, `scrollWidth=918`). Shared browser viewport stayed fixed at `918px` after 390px viewport request, so the mobile screenshot is a no-overflow shared-browser capture, not true 390px proof.
+- Screenshots: `qa-artifacts/playwright/20260530-admin-campus-overview-after.png`, `qa-artifacts/playwright/20260530-admin-campus-room-overlay-after.png`, `qa-artifacts/playwright/20260530-admin-campus-editor-after.png`, `qa-artifacts/playwright/20260530-admin-campus-mobile-after.png`.
+- Decision: prompt-scope GO. `/map` now reads as the SMART-family campus readiness workflow while preserving the restored original map/editor interaction model.
+
+---
+
+# 2026-05-30 - Prompt 11 teaching load state clarity workspace
+
+- Phase: Admin UX rehaul prompt 11 for `/teaching-load` state clarity and dense operator workflow guidance.
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, LOCAL BUILD GREEN, TAILNET SMOKE PARTIAL WITH EXPLICIT CAVEAT -> GO.
+- Trigger: user asked to execute `docs/prompts/ux-rehaul-11-teaching-load-state-clarity-one-shot-prompt.md`.
+- Scope held: frontend-only changes to `/teaching-load`, `useTeachingLoadData` untouched except read-only inspection, and faculty-assignment UI components; no `/timetable`, backend API, Prisma, staffing math, assignment persistence contract, or Auto-Fill algorithm changes.
+- Design references: `docs/DESIGN.md`, `docs/DESIGN-INSPIRATION.md`, `docs/context7-library-map.md`; Context7 checked `/shadcn-ui/ui` for Tooltip/Dialog/Sheet/Tabs/Select accessible composition, `/websites/radix-ui_primitives` for overlay/tab/tooltip accessibility, and `/websites/motion_dev_react` reduced-motion guidance. No new motion was introduced.
+- Pre-code findings: `/teaching-load` had strong operator controls but weak state explanation. The first state could read as `Teaching Load`, `READ-ONLY`, `TOTAL COVERAGE 0 / 0`, `UNASSIGNED 0`, and a blank teacher inspector without telling the operator whether ATLAS was loading, degraded, offline, unavailable, or safe to edit. The review-warning dismiss action used a raw `title=` attribute.
+- Fix summary: added computed workspace state copy for `Verified live`, `Checking source`, `Using saved data`, `Read-only saved data`, `Offline saved data`, and `No assignment data`, each with write-state reasoning and next operator action.
+- Fix summary: reworked the compact top workflow band with page title `Teaching Load`, purpose copy `Assign subjects and sections to teachers before generation.`, source-state chip, coverage explanation, Teacher X count, unassigned count, task-mode tooltips, and a primary action that changes between save draft, retry/check source, offline, or preview auto-fill based on current state.
+- Fix summary: added explicit loading, no roster, no matching teachers, no section universe, no section match, no selected teacher, no selected section, read-only/write-blocked, staffing-audit no-coverage, and network-error recovery copy.
+- Fix summary: replaced raw `title="Dismiss Review Warning"` with `Tooltip` plus `aria-label="Dismiss review warning"`.
+- Runtime source map: updated `/teaching-load` purpose and notes in `docs/reference/atlas-runtime-source-of-truth-map.md`.
+- Accessibility/primitive checks: touched Teaching Load files have no lowercase native `<select`, no lowercase native `<button`, no `title=`, and no `<details`; new icon-only dismiss action has an aria label and Tooltip; Sheet/Dialog title/description contracts remain intact.
+- File-size gate: `TeachingLoad.tsx` 771 lines, `WorkspaceToolbar.tsx` 370, `TeacherGridMode.tsx` 476, `SectionGridMode.tsx` 423, `WorkloadInspector.tsx` 297, `SectionInspector.tsx` 196, `StaffingAuditSheet.tsx` 215.
+- Local verification: `npm --prefix atlas-client run build` passed with Vite `8.0.3` and `2529 modules transformed`; diagnostics clean for touched Teaching Load files.
+- Tailnet smoke: initial shared page QA on `https://njgrm.buru-degree.ts.net/teaching-load` showed the updated title, purpose, source-state label, next-action copy, staffed coverage, Teacher X count, unassigned count, `By teacher`, `Section allocation`, `Staffing audit`, `Preview auto-fill`, section-allocation empty state, staffing audit sheet, and auto-fill confirmation dialog. No global horizontal overflow was observed (`clientWidth=918`, `scrollWidth=918`). Shared browser viewport remained fixed at `918px` even after desktop/mobile viewport requests; mobile-named capture is a no-overflow shared-browser capture, not a true 390px viewport.
+- Tailnet caveat: a fresh browser tab later lost/failed protected-route bootstrap and showed `Workspace Unavailable` with `Network Error`, while direct API probes returned `/api/v1/health` 200 and `/api/v1/runtime/context?schoolId=1` 401 without token. The page error state was actionable (`Retry Connection`), and the successful original shared-page smoke plus screenshots were retained as the prompt evidence.
+- Offline/read-only smoke: simulated offline state on the original shared page showed `Offline saved data`, `Saving is disabled while ATLAS is offline.`, and `Reconnect, then refresh the source before saving assignments.` with no horizontal overflow.
+- Screenshots: `qa-artifacts/playwright/20260530-admin-teaching-load-desktop-after.png`, `qa-artifacts/playwright/20260530-admin-teaching-load-readonly-after.png`, `qa-artifacts/playwright/20260530-admin-teaching-load-mobile-after.png`.
+- Decision: prompt-scope GO. `/teaching-load` now explains source, write, coverage, mode, empty, degraded, and recovery states in operator-facing language while preserving staffing math and backend contracts.
+
+---
+
+# 2026-05-30 - Prompt 10 teachers SMART roster health workspace
+
+- Phase: Admin UX rehaul prompt 10 for `/teachers` roster health and scheduling-readiness workspace.
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, LOCAL BUILD GREEN, TAILNET SMOKE COMPLETE -> GO.
+- Trigger: user asked to execute `docs/prompts/ux-rehaul-10-teachers-roster-health-one-shot-prompt.md`.
+- Scope held: frontend-only changes to `/teachers` page and faculty row/profile components; no `/timetable`, backend API, Prisma, scheduler algorithm, auth, or faculty `/my/*` changes.
+- Design references: `docs/DESIGN.md`, `docs/DESIGN-INSPIRATION.md`, `docs/context7-library-map.md`; Context7 checked `/shadcn-ui/ui` for Sheet/Tooltip/Select accessible composition, `/websites/radix-ui_primitives` for overlay/menu accessibility, and `/websites/motion_dev_react` reduced-motion guidance. No new motion was introduced.
+- Pre-code findings: Prompt 07 shared framing was present, but `/teachers` still did not clearly answer roster health before the table. The page needed readiness stats, plain source-state language, readable load states in rows, a visible Teaching Load action, and a profile sheet that explained load, assignments, adviser context, source freshness, and the next fix path.
+- Fix summary: reframed the page purpose as teacher roster and scheduling-load readiness, changed the primary action to `Refresh teacher roster`, added stats for active teachers, with load, without load, needs review, and last sync, removed primary visible runtime-style source copy, and improved cache/error/retry copy.
+- Fix summary: updated teacher rows so name remains primary, department/specialization stays secondary, adviser context remains calm, load state labels read `Within load`, `Needs review`, `No teaching load`, or `Excluded`, and `Review teaching load` is visible as the row action.
+- Fix summary: updated the profile sheet with accessible title/description, current scheduling load, assigned subjects/sections, adviser/source context, source freshness, no-load recovery copy, and a clear `Review teaching load` action.
+- Runtime source map: updated `/teachers` page purpose and UI-source-state notes in `docs/reference/atlas-runtime-source-of-truth-map.md`.
+- Accessibility/primitive checks: touched teacher files have no lowercase native `<select`, no lowercase native `<button`, no `title=`, and no `<details`; row icon actions have aria labels; the profile sheet keeps `SheetTitle` and `SheetDescription`.
+- File-size gate: `Faculty.tsx` 532 lines, `FacultyRow.tsx` 141 lines, `FacultyProfileSheet.tsx` 253 lines.
+- Local verification: `npm --prefix atlas-client run build` passed with Vite `8.0.3` and `2529 modules transformed`; diagnostics clean for touched teacher files.
+- Tailnet smoke: `https://njgrm.buru-degree.ts.net/teachers` loaded with direct ATLAS admin session, showed page purpose, normalized source label, roster-health stats, `Refresh teacher roster`, load-state labels, visible `Review teaching load` actions, and no raw `runtime` primary copy. Search/filter with `math` returned matching rows. Profile sheet opened and showed current load, assigned subjects/sections, adviser/source context, source freshness, and fix action. No global horizontal overflow (`clientWidth=918`, `scrollWidth=918`). Shared browser viewport remained fixed at `918px` even after mobile viewport request; mobile-named capture is still a no-overflow shared-browser capture, not a true 390px viewport.
+- Screenshots: `qa-artifacts/playwright/20260530-admin-teachers-desktop-after.png`, `qa-artifacts/playwright/20260530-admin-teachers-profile-after.png`, `qa-artifacts/playwright/20260530-admin-teachers-mobile-after.png`.
+- Decision: prompt-scope GO. `/teachers` now communicates roster health and scheduling-load next actions in SMART-family admin language while preserving backend contracts and current phase boundaries.
+
+---
+
+# 2026-05-30 - Prompt 09 subjects SMART curriculum readiness workspace
+
+- Phase: Admin UX rehaul prompt 09 for `/subjects` SMART curriculum/readiness workspace.
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, LOCAL BUILD GREEN, TAILNET SMOKE COMPLETE -> GO.
+- Trigger: user asked to execute `docs/prompts/ux-rehaul-09-subjects-smart-curriculum-one-shot-prompt.md`.
+- Scope held: frontend-only changes to `/subjects` and subject components; no `/timetable`, backend API, Prisma, scheduler algorithm, auth, or faculty `/my/*` changes.
+- Design references: `docs/DESIGN.md`, `docs/DESIGN-INSPIRATION.md`, `docs/context7-library-map.md`; Context7 checked `/shadcn-ui/ui` for Dialog/Sheet/Tooltip/Popover/form composition, `/websites/radix-ui_primitives` for overlay accessibility/title/description, and `/websites/motion_dev_react` reduced-motion guidance. No new motion was introduced.
+- Pre-code findings: prompt 07 gave `/subjects` the shared admin frame, but the page still read like a generic catalog. It needed curriculum-readiness purpose copy, active/archive/coverage/room-risk summary, clearer offering refresh language, action labels for row controls, and plain-language add/archive/delete dialog wording.
+- Fix summary: reframed `/subjects` around schedulable curriculum readiness, renamed offering sync to `Refresh offerings`, added missing-teacher-coverage and room-constrained stats from existing teaching-load summary data, renamed table labels to `Weekly time`, `Room need`, and `Programs and owner`, expanded the coverage sheet with assigned teachers, uncovered scope, program scope, and Teaching Load follow-up links, and clarified add/edit/delete/archive UI copy.
+- Accessibility/primitive checks: touched subject files have no lowercase native `<select`, no lowercase native `<button`, no `title=`, and no `<details`; icon row actions now expose aria labels for coverage, edit, and more-actions controls; dialogs expose title/description copy.
+- File-size gate: `Subjects.tsx` 883 lines, `SubjectRow.tsx` 242 lines, `SubjectFormModal.tsx` 598 lines, `SubjectAddForm.tsx` 245 lines, `DeleteSubjectDialog.tsx` 284 lines.
+- Local verification: `npm --prefix atlas-client run build` passed with Vite `8.0.3` and `2529 modules transformed`; diagnostics clean for touched subject files.
+- Tailnet smoke: `https://njgrm.buru-degree.ts.net/subjects` loaded with direct ATLAS admin session, showed curriculum-readiness purpose copy, source state, active/archive/missing-coverage/room-constrained stats, `Refresh offerings`, `Add subject`, and table labels; no global horizontal overflow (`clientWidth=918`, `scrollWidth=918`). Coverage drawer, add-subject dialog, and archive confirmation dialog opened and showed expected title/description/action copy. Shared browser viewport remained fixed at `918px` even after mobile viewport request; mobile-named capture is still a no-overflow shared-browser capture, not a true 390px viewport.
+- Screenshots: `qa-artifacts/playwright/20260530-admin-subjects-desktop-after.png`, `qa-artifacts/playwright/20260530-admin-subjects-coverage-after.png`, `qa-artifacts/playwright/20260530-admin-subjects-form-after.png`, `qa-artifacts/playwright/20260530-admin-subjects-archive-after.png`, `qa-artifacts/playwright/20260530-admin-subjects-mobile-after.png`.
+- Decision: prompt-scope GO. `/subjects` now communicates curriculum readiness and coverage next actions in SMART-family admin language while preserving backend contracts and current phase boundaries.
+
+---
+
+# 2026-05-30 - Prompt 08 sections SMART setup workspace
+
+- Phase: Admin UX rehaul prompt 08 for `/sections` SMART setup/readiness workspace.
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, LOCAL BUILD GREEN, TAILNET SMOKE COMPLETE -> GO.
+- Trigger: user asked to execute `docs/prompts/ux-rehaul-08-sections-smart-setup-one-shot-prompt.md`.
+- Scope held: frontend-only changes to `/sections` and section components; no `/timetable`, backend API, Prisma, scheduler algorithm, or auth changes.
+- Design references: `docs/DESIGN.md`, `docs/DESIGN-INSPIRATION.md`, `docs/context7-library-map.md`; Context7 checked `/shadcn-ui/ui` for Button/Tooltip/Popover/Sheet composition, `/websites/radix-ui_primitives` for overlay accessibility, and `/websites/motion_dev_react` reduced-motion guidance. No new motion was introduced.
+- Pre-code findings: prompt 07 added the shared page frame, but `/sections` still needed stronger readiness framing, a clear first action, explicit home-room edit writability/queue/blocking guidance, more actionable row copy, and a detail surface that answered room/building and class-coverage questions.
+- Fix: revised the `/sections` header purpose to explain roster verification and home-room readiness before schedule generation.
+- Fix: kept compact inline stats and changed the readiness summary to `Sections`, `Home rooms assigned`, `Need rooms`, and `Queued` when local home-room edits exist.
+- Fix: preserved Prompt 07 source-state copy labels (`Verified live`, `Checking source`, `Using saved data`, `No saved data`) and expanded tooltip copy to explain whether home-room edits are writable, queued, or paused.
+- Fix: added a non-interactive home-room edit status rail explaining writable, queued/offline, checking, or blocked states without intercepting table clicks.
+- Fix: improved section row identity and actions: section name/grade is the primary clickable identity, program stays secondary, home-room readiness states are plain-language, and detail/teaching-load actions have accessible labels.
+- Fix: converted remaining native room-map buttons in the section room modal to project `Button` primitives and changed occupied-room copy to `Used by...` / `Already assigned`.
+- Fix: expanded the section detail sheet with section/program context, current home room, building context, assigned class totals, assigned classes, uncovered expected classes, and an all-covered success state.
+- File-size guardrail: `Sections.tsx` 912 lines, `SectionRow.tsx` 218 lines, `SectionRoomPicker.tsx` 250 lines, `SectionRoomMapModal.tsx` 381 lines, `SectionDetailsSheet.tsx` 335 lines, `AdminWorkspace.tsx` 234 lines.
+- Compliance scan: touched files contain no lowercase native `<select`, no lowercase native `<button`, no literal `title=`, and no `<details` occurrences.
+- Diagnostics: VS Code diagnostics clean on `Sections.tsx`, `SectionRow.tsx`, `SectionRoomPicker.tsx`, `SectionRoomMapModal.tsx`, and `SectionDetailsSheet.tsx`.
+- Build: `npm --prefix atlas-client run build` -> pass; `2529 modules transformed`.
+- Tailnet smoke: `/sections` exposed the visible `Sections` h1, purpose copy, `Using saved data` source label, `Home rooms assigned`, `Need rooms`, `Browse room map`, `Sync sections`, home-room edit state rail, and `Home-room readiness` column in the browser snapshot.
+- Tailnet smoke: detail surface opened from the first section row and exposed accessible sheet content with section title, description, current home room, building context, assigned classes, and uncovered-class/all-covered state.
+- Tailnet smoke: no global horizontal overflow was reported in the shared-browser effective viewport (`clientWidth=918`, `scrollWidth=918`). The shared browser retained `clientWidth=918` even when scripted to mobile/tablet sizes, so viewport evidence is limited to the available shared-browser surface.
+- Screenshot evidence: `qa-artifacts/playwright/20260530-admin-sections-desktop-after.png`, `20260530-admin-sections-mobile-after.png`, `20260530-admin-sections-tablet-after.png`, `20260530-admin-sections-detail-after.png`.
+- Decision: GO for prompt 08 `/sections` SMART setup workspace scope.
+
+---
+
+# 2026-05-30 - Prompt 07 admin shared list pattern
+
+- Phase: Cross-cutting admin UX rehaul prompt 07 for `/sections`, `/subjects`, and `/teachers`.
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, LOCAL BUILD GREEN, TAILNET SMOKE COMPLETE -> GO.
+- Trigger: user asked to execute `docs/prompts/ux-rehaul-07-admin-shared-list-pattern-one-shot-prompt.md`.
+- Design references: `docs/DESIGN.md`, `docs/DESIGN-INSPIRATION.md`, `docs/context7-library-map.md`; Context7 checked `/shadcn-ui/ui` for button/table/tooltip composition, `/websites/radix-ui_primitives` for tooltip accessibility/composition, and `/websites/motion_dev_react` reduced-motion guidance. No new motion was introduced.
+- Pre-code findings: `/sections`, `/subjects`, and `/teachers` rendered without accessible `h1`/`h2` page framing in the shared-browser snapshot; first-screen content started with filters/actions/table columns; source-state copy varied across `Saved Data`, `Verifying runtime`, `No Saved Data`, and `Verified with EnrollPro`.
+- Fix: added shared admin workspace components for page title/purpose copy, source-state chip, compact stat banner, search/filter toolbar, local-scroll table shell, and empty/degraded state panels.
+- Fix: applied the shared frame to `/sections`, `/subjects`, and `/teachers` while preserving current API calls, row components, pagination behavior, filters, and sync actions.
+- Fix: normalized source-state labels to `Verified live`, `Checking source`, `Using saved data`, and `No saved data`, with tooltip explanations that cover what is shown, why it matters, and what to do next.
+- File-size guardrail: `AdminWorkspace.tsx` 234 lines, `Sections.tsx` 858 lines, `Subjects.tsx` 789 lines, `Faculty.tsx` 529 lines.
+- Compliance scan: touched files contain no lowercase native `<select`, no literal `title=`, and no raw `<button className...` occurrences.
+- Diagnostics: VS Code diagnostics clean on `AdminWorkspace.tsx`, `Sections.tsx`, `Subjects.tsx`, and `Faculty.tsx`.
+- Build: `npm --prefix atlas-client run build` -> pass; `2529 modules transformed`.
+- Tailnet smoke: `/sections`, `/subjects`, and `/teachers` each expose visible `h1` page titles and purpose copy in the browser snapshot; no horizontal overflow reported at the shared browser's effective viewport.
+- Screenshot evidence: `qa-artifacts/playwright/20260530-admin-sections-desktop-prompt07-after.png`, `20260530-admin-sections-mobile-prompt07-after.png`, `20260530-admin-subjects-desktop-prompt07-after.png`, `20260530-admin-subjects-mobile-prompt07-after.png`, `20260530-admin-teachers-desktop-prompt07-after.png`, `20260530-admin-teachers-mobile-prompt07-after.png`.
+- Caveat: the shared browser retained an effective `clientWidth` of `918px` even after scripted viewport changes, so the screenshots are evidence for the available shared-browser viewport rather than a true independent mobile browser run.
+- Decision: GO for prompt 07 shared admin list/workspace pattern scope.
+
+---
+
+# 2026-05-30 - Sidebar collapse and map schedule UX repair
 
 - Phase: Cross-cutting admin UX repair for AppShell sidebar, dashboard campus map, `/map` overview, building view, and room schedule overlay.
 - Operator: GitHub Copilot

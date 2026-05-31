@@ -1,7 +1,7 @@
 import Konva from 'konva';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Group, Layer, Line, Rect, Stage, Text, Transformer } from 'react-konva';
-import { ImageOff, Minus, MousePointer2, Plus, Redo2, RotateCcw, Save, Square, Undo2, Upload } from 'lucide-react';
+import { DoorOpen, ImageOff, Minus, MousePointer2, Plus, Redo2, RotateCcw, Save, Square, Undo2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
@@ -13,6 +13,7 @@ import {
 	MAP_DEFAULT_STROKE,
 	MAP_SELECTED_STROKE,
 	MAP_TRANSFORMER_STROKE,
+	getPrimaryCanvasColor,
 } from '@/components/campus-map/campusMapPalette';
 
 type EditorBuilding = Building & { dirty?: boolean; isNew?: boolean };
@@ -510,20 +511,24 @@ export function CampusMapEditor({
 	}, [schoolId, onSaved]);
 
 	const hasDirty = buildings.some((b) => b.dirty);
+	const selectedBuilding = buildings.find((building) => building.id === selectedBuildingId) ?? null;
+	const selectedRoomCount = selectedBuilding?.rooms.length ?? 0;
+	const selectedTeachingRoomCount = selectedBuilding?.rooms.filter((room) => room.isTeachingSpace).length ?? 0;
+	const primaryCanvasColor = getPrimaryCanvasColor(MAP_SELECTED_STROKE);
 	const saveState: 'saved' | 'dirty' | 'saving' = saving ? 'saving' : hasDirty ? 'dirty' : 'saved';
 	const saveStateClass = saveState === 'saved'
 		? 'border-emerald-200 bg-emerald-50 text-emerald-700'
 		: saveState === 'saving'
 			? 'border-sky-200 bg-sky-50 text-sky-700'
 			: 'border-amber-200 bg-amber-50 text-amber-800';
-	const saveStateLabel = saveState === 'saved' ? 'All changes saved' : saveState === 'saving' ? 'Saving…' : 'Unsaved changes';
+	const saveStateLabel = saveState === 'saved' ? 'All changes saved' : saveState === 'saving' ? 'Saving...' : 'Unsaved changes';
 
 	return (
 		<div className="flex flex-col gap-2">
 			{/* Task-grouped toolbar */}
 			<div className="flex flex-wrap items-center gap-2">
 				<TooltipProvider>
-					{/* Group: mode */}
+					{/* Group: Select / Draw */}
 					<div className="inline-flex rounded-md border border-border bg-card p-0.5" role="tablist" aria-label="Map mode">
 						<Tooltip>
 							<TooltipTrigger asChild>
@@ -593,6 +598,15 @@ export function CampusMapEditor({
 						</Tooltip>
 					</div>
 
+					{/* Group: Rooms */}
+					<div className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-2 text-[0.7rem] font-semibold text-slate-600" aria-label="Rooms summary">
+						<DoorOpen className="size-3.5 text-primary" />
+						<span>Rooms</span>
+						<span className="text-muted-foreground">
+							{selectedBuilding ? `${selectedTeachingRoomCount}/${selectedRoomCount} teaching` : 'Select building'}
+						</span>
+					</div>
+
 					{/* Group: campus photo */}
 					<div className="inline-flex items-center gap-1">
 						<label className="cursor-pointer">
@@ -626,8 +640,9 @@ export function CampusMapEditor({
 						)}
 					</div>
 
-					{/* Group: history */}
-					<div className="inline-flex items-center gap-1">
+					{/* Group: History */}
+					<div className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-card px-1">
+						<span className="px-1 text-[0.65rem] font-semibold text-slate-500">History</span>
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Button
@@ -660,16 +675,19 @@ export function CampusMapEditor({
 
 					<div className="flex-1" />
 
-					<span
-						role="status"
-						aria-live="polite"
-						className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.7rem] font-medium ${saveStateClass}`}
-					>
-						<span className={`size-1.5 rounded-full ${
-							saveState === 'saved' ? 'bg-emerald-500' : saveState === 'saving' ? 'bg-sky-500 animate-pulse' : 'bg-amber-500'
-						}`} />
-						{saveStateLabel}
-					</span>
+					<div className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-card px-2" aria-label="Save state">
+						<span className="text-[0.65rem] font-semibold text-slate-500">Save</span>
+						<span
+							role="status"
+							aria-live="polite"
+							className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[0.7rem] font-medium ${saveStateClass}`}
+						>
+							<span className={`size-1.5 rounded-full ${
+								saveState === 'saved' ? 'bg-emerald-500' : saveState === 'saving' ? 'bg-sky-500 animate-pulse' : 'bg-amber-500'
+							}`} />
+							{saveStateLabel}
+						</span>
+					</div>
 
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -712,9 +730,13 @@ export function CampusMapEditor({
 					onMouseDown={handleStageMouseDown}
 					onMouseMove={handleStageMouseMove}
 					onMouseUp={handleStageMouseUp}
+					onWheel={(event) => {
+						event.evt.preventDefault();
+						setScale((current) => Math.max(0.4, Math.min(2.5, current + (event.evt.deltaY < 0 ? 0.1 : -0.1))));
+					}}
 				>
 					<Layer>
-						{/* Background */}
+						{/* Campus photo layer */}
 						{campusImage ? (
 							<>
 								<Rect name="bg" x={0} y={0} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} fill="#f5f5f4" />
@@ -768,9 +790,9 @@ export function CampusMapEditor({
 										fill={b.color}
 										opacity={selected ? 0.95 : 0.78}
 										cornerRadius={8}
-										stroke={selected ? MAP_SELECTED_STROKE : MAP_DEFAULT_STROKE}
+										stroke={selected ? primaryCanvasColor : MAP_DEFAULT_STROKE}
 										strokeWidth={selected ? 3 : 2}
-										shadowColor={selected ? 'rgba(99,102,241,0.35)' : 'rgba(0,0,0,0.12)'}
+										shadowColor={selected ? primaryCanvasColor : 'rgba(0,0,0,0.12)'}
 										shadowBlur={selected ? 12 : 3}
 										shadowOffsetY={selected ? 4 : 1}
 									/>
@@ -869,10 +891,10 @@ export function CampusMapEditor({
 								}
 								return newBox;
 							}}
-							borderStroke={MAP_TRANSFORMER_STROKE}
+							borderStroke={primaryCanvasColor || MAP_TRANSFORMER_STROKE}
 							borderStrokeWidth={2}
 							anchorFill="#ffffff"
-							anchorStroke={MAP_TRANSFORMER_STROKE}
+							anchorStroke={primaryCanvasColor || MAP_TRANSFORMER_STROKE}
 							anchorSize={10}
 							anchorCornerRadius={3}
 							anchorStrokeWidth={2}
@@ -882,9 +904,9 @@ export function CampusMapEditor({
 						{/* Alignment guides */}
 						{guides.map((g, i) =>
 							g.x !== undefined ? (
-								<Line key={`gv-${i}`} points={[g.x, 0, g.x, CANVAS_HEIGHT]} stroke={MAP_TRANSFORMER_STROKE} strokeWidth={1} dash={[4, 4]} opacity={0.6} />
+								<Line key={`gv-${i}`} points={[g.x, 0, g.x, CANVAS_HEIGHT]} stroke={primaryCanvasColor || MAP_TRANSFORMER_STROKE} strokeWidth={1} dash={[4, 4]} opacity={0.6} />
 							) : g.y !== undefined ? (
-								<Line key={`gh-${i}`} points={[0, g.y, CANVAS_WIDTH, g.y]} stroke={MAP_TRANSFORMER_STROKE} strokeWidth={1} dash={[4, 4]} opacity={0.6} />
+								<Line key={`gh-${i}`} points={[0, g.y, CANVAS_WIDTH, g.y]} stroke={primaryCanvasColor || MAP_TRANSFORMER_STROKE} strokeWidth={1} dash={[4, 4]} opacity={0.6} />
 							) : null,
 						)}
 
@@ -896,7 +918,7 @@ export function CampusMapEditor({
 									y={dimTooltip.y - 5}
 									width={80}
 									height={20}
-									fill="rgba(99,102,241,0.9)"
+									fill={primaryCanvasColor || MAP_TRANSFORMER_STROKE}
 									cornerRadius={4}
 								/>
 								<Text

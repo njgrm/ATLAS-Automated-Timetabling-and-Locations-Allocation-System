@@ -2,10 +2,14 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
 	AlertTriangle,
+	CalendarDays,
 	CalendarX,
 	DoorOpen,
+	Info,
+	Layers3,
 	RefreshCw,
 	ServerOff,
+	Users,
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
@@ -41,6 +45,30 @@ const DAY_SHORT: Record<string, string> = {
 type SourceMode = 'latest' | 'run';
 type ViewMode = 'rooms' | 'teachers' | 'sections';
 
+const MODE_COPY: Record<ViewMode, { label: string; description: string; emptyTitle: string; emptyBody: string; icon: typeof DoorOpen }> = {
+	rooms: {
+		label: 'Rooms',
+		description: 'Inspect room use and conflicts',
+		emptyTitle: 'Choose a room',
+		emptyBody: 'Pick a teaching room to see how the latest schedule uses that space and whether any conflicts need review.',
+		icon: DoorOpen,
+	},
+	teachers: {
+		label: 'Teachers',
+		description: 'Inspect teacher daily load',
+		emptyTitle: 'Choose a teacher',
+		emptyBody: 'Pick a teacher to review daily teaching blocks, room movement, and possible schedule conflicts.',
+		icon: Users,
+	},
+	sections: {
+		label: 'Sections',
+		description: 'Inspect section timetable',
+		emptyTitle: 'Choose a section',
+		emptyBody: 'Pick a section to review the student-facing timetable before review or publish decisions.',
+		icon: Layers3,
+	},
+};
+
 type FetchState =
 	| { status: 'idle' }
 	| { status: 'loading' }
@@ -64,6 +92,7 @@ export default function RoomSchedules() {
 	const [sectionMap, setSectionMap] = useState<Map<number, SectionInfo>>(new Map());
 	const [schoolYearId, setSchoolYearId] = useState<number | null>(null);
 	const [roomsLoading, setRoomsLoading] = useState(true);
+	const [lookupError, setLookupError] = useState(false);
 
 	/* Selections */
 	const [viewMode, setViewMode] = useState<ViewMode>('rooms');
@@ -109,6 +138,7 @@ export default function RoomSchedules() {
 	useEffect(() => {
 		(async () => {
 			try {
+				setLookupError(false);
 				const yearContext = await resolveActiveSchoolYearContext({ allowStaleOnError: true });
 				const activeSchoolYearId = yearContext.activeSchoolYearId;
 
@@ -166,7 +196,7 @@ export default function RoomSchedules() {
 				setFacultyMap(fMap);
 				setFacultyList(activeFaculty);
 			} catch {
-				/* rooms unavailable */
+				setLookupError(true);
 			} finally {
 				setRoomsLoading(false);
 			}
@@ -184,6 +214,17 @@ export default function RoomSchedules() {
 
 	/* Derived: is the current source config valid for fetching? */
 	const isRunIdValid = sourceMode === 'latest' || (sourceMode === 'run' && /^[1-9]\d*$/.test(debouncedRunId));
+	const runIdHasValidationError = sourceMode === 'run' && runIdInput.trim().length > 0 && !/^[1-9]\d*$/.test(runIdInput.trim());
+	const runIdMissing = sourceMode === 'run' && runIdInput.trim().length === 0;
+	const selectedModeCopy = MODE_COPY[viewMode];
+	const SelectedModeIcon = selectedModeCopy.icon;
+	const sourceSummary = state.status === 'ok'
+		? `${sourceMode === 'latest' ? 'Latest completed run' : 'Run ID'} #${state.data.source.runId} · ${state.data.source.status}`
+		: sourceMode === 'latest'
+			? 'Latest means the newest completed generation run.'
+			: runIdInput.trim()
+				? `Run ID ${runIdInput.trim()} is used for troubleshooting a specific generation run.`
+				: 'Run ID means inspect a specific generation run for troubleshooting.';
 
 	const fetchSchedule = useCallback(async () => {
 		if (!selectedEntityId || !schoolYearId) return;
@@ -218,14 +259,14 @@ export default function RoomSchedules() {
 					const f = facultyList.find((x) => x.id === entityId);
 					entity = {
 						id: entityId,
-						name: f ? `${f.lastName}, ${f.firstName}` : `Teacher #${entityId}`,
+						name: f ? `${f.lastName}, ${f.firstName}` : 'Teacher not listed',
 						subtitle: f?.department ?? undefined,
 					};
 				} else {
 					const s = sectionList.find((x) => x.id === entityId);
 					entity = {
 						id: entityId,
-						name: s?.name ?? `Section #${entityId}`,
+						name: s?.name ?? 'Section not listed',
 						subtitle: s?.gradeLevelName,
 					};
 				}
@@ -268,7 +309,7 @@ export default function RoomSchedules() {
 	const roomGroups = useMemo(() => {
 		const byBuilding = new Map<string, { value: string; label: string }[]>();
 		for (const r of rooms) {
-			const key = r.buildingName || 'Unknown';
+				const key = r.buildingName || 'Building not listed';
 			const list = byBuilding.get(key) ?? [];
 			list.push({ value: String(r.id), label: `${r.name} (F${r.floor})` });
 			byBuilding.set(key, list);
@@ -325,65 +366,91 @@ export default function RoomSchedules() {
 		}
 		return { groups: sectionGroups, placeholder: 'Select section…' };
 	}, [viewMode, roomGroups, teacherGroups, sectionGroups]);
+	const activeSelectorCount = activeSelector.groups.reduce((count, group) => count + group.items.length, 0);
+	const selectorStatus = roomsLoading
+		? 'Loading schedule references.'
+		: lookupError
+			? 'Schedule references are unavailable right now.'
+		: activeSelectorCount === 0
+			? `No ${selectedModeCopy.label.toLowerCase()} are available yet.`
+			: `${activeSelectorCount} ${selectedModeCopy.label.toLowerCase()} available.`;
 
 	return (
-		<div className="flex flex-col h-[calc(100svh-3.5rem)]">
+		<div className="flex h-[calc(100svh-3.5rem)] flex-col bg-primary/5">
+			<div className="shrink-0 px-6 pt-5 lg:px-8">
+				<header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+					<div>
+						<p className="text-[0.72rem] font-bold uppercase tracking-wide text-primary">Review and publish</p>
+						<h1 className="mt-1 text-3xl font-bold text-slate-900">Schedules</h1>
+						<p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">
+							Browse the latest room, teacher, and section schedules.
+						</p>
+					</div>
+					<div className="rounded-2xl border border-primary/10 bg-white px-4 py-3 shadow-soft">
+						<div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+							<CalendarDays className="size-4 text-primary" />
+							Source
+						</div>
+						<p className="mt-1 text-sm font-semibold text-slate-900">{sourceSummary}</p>
+					</div>
+				</header>
+
+				<div className="mt-4 grid gap-3 md:grid-cols-3">
+					{(['rooms', 'teachers', 'sections'] as ViewMode[]).map((mode) => {
+						const copy = MODE_COPY[mode];
+						const Icon = copy.icon;
+						return (
+							<Button
+								key={mode}
+								type="button"
+								variant={viewMode === mode ? 'default' : 'outline'}
+								onClick={() => {
+									setViewMode(mode);
+									if (mode !== 'rooms' || presentationMode === 'occupancy') setPresentationMode('schedule');
+								}}
+								className={`h-auto justify-start gap-3 rounded-2xl px-4 py-3 text-left shadow-soft ${viewMode === mode ? '' : 'border-primary/10 bg-white text-slate-700 hover:border-primary/30'}`}
+							>
+								<Icon className="size-5 shrink-0" />
+								<span className="min-w-0">
+									<span className="block text-sm font-bold">{copy.label}</span>
+									<span className="block truncate text-xs opacity-80">{copy.description}</span>
+								</span>
+							</Button>
+						);
+					})}
+				</div>
+			</div>
 			{/* ── Toolbar row ── */}
-			<div className="shrink-0 px-6 pt-4 pb-2 flex items-center gap-3 flex-wrap">
-				{/* View mode toggle */}
-				<div className="flex items-center gap-1.5 rounded-md border border-border bg-background px-1.5 py-1">
-					<Button
-						variant={viewMode === 'rooms' ? 'default' : 'outline'}
-						size="sm"
-						className="h-7 px-2.5 text-[11px]"
-						onClick={() => {
-							setViewMode('rooms');
-							if (presentationMode === 'occupancy') setPresentationMode('schedule');
-						}}
-					>
-						Rooms
-					</Button>
-					<Button
-						variant={viewMode === 'teachers' ? 'default' : 'outline'}
-						size="sm"
-						className="h-7 px-2.5 text-[11px]"
-						onClick={() => {
-							setViewMode('teachers');
-							setPresentationMode('schedule');
-						}}
-					>
-						Teachers
-					</Button>
-					<Button
-						variant={viewMode === 'sections' ? 'default' : 'outline'}
-						size="sm"
-						className="h-7 px-2.5 text-[11px]"
-						onClick={() => {
-							setViewMode('sections');
-							setPresentationMode('schedule');
-						}}
-					>
-						Sections
-					</Button>
+			<div className="shrink-0 px-6 pt-4 pb-2 flex items-center gap-3 flex-wrap lg:px-8">
+				<div className="flex items-center gap-2 rounded-xl border border-primary/10 bg-white px-3 py-2 shadow-sm">
+					<SelectedModeIcon className="size-4 text-primary" />
+					<div>
+						<p className="text-xs font-semibold text-slate-900">Browsing {selectedModeCopy.label.toLowerCase()}</p>
+						<p className="text-[0.68rem] text-slate-500">{selectedModeCopy.description}</p>
+					</div>
 				</div>
 
 				{/* Entity selector (rooms / teachers / sections) */}
-				<div className="min-w-55">
+				<div className="min-w-72 flex-1 max-w-xl">
 					{roomsLoading ? (
-						<Skeleton className="h-8 w-full" />
+						<Skeleton className="h-10 w-full rounded-xl" />
 					) : (
 						<SearchableSelect
 							value={selectedEntityId}
 							onValueChange={setSelectedEntityId}
 							groups={activeSelector.groups}
 							placeholder={activeSelector.placeholder}
-							triggerClassName="h-8 text-sm w-full"
+							triggerClassName="h-10 text-sm w-full rounded-xl bg-white shadow-sm"
 						/>
 					)}
+					<p className="mt-1 flex items-center gap-1 text-[0.68rem] text-slate-500">
+						<Info className="size-3 text-primary" />
+						{selectorStatus}
+					</p>
 				</div>
 
 				{/* Source pill toggles */}
-				<div className="flex flex-wrap items-center gap-1.5">
+				<div className="flex flex-wrap items-start gap-1.5 rounded-xl border border-slate-100 bg-white px-2 py-2 shadow-sm">
 					<Button
 						variant={presentationMode === 'schedule' ? 'default' : 'outline'}
 						size="sm"
@@ -439,15 +506,20 @@ export default function RoomSchedules() {
 						Run ID
 					</Button>
 					{sourceMode === 'run' && (
-						<Input
-							type="number"
-							min={1}
-							placeholder="#"
-							value={runIdInput}
-							onChange={(e) => setRunIdInput(e.target.value)}
-							className="h-7 w-16 text-xs"
-						/>
+						<div className="space-y-1">
+							<Input
+								type="number"
+								min={1}
+								placeholder="Run ID"
+								value={runIdInput}
+								onChange={(e) => setRunIdInput(e.target.value)}
+								aria-invalid={runIdHasValidationError}
+								className="h-7 w-24 text-xs"
+							/>
+							{runIdHasValidationError && <p className="text-[0.68rem] font-medium text-destructive">Use a whole number above 0.</p>}
+						</div>
 					)}
+					<p className="basis-full text-[0.68rem] leading-relaxed text-slate-500">{sourceMode === 'latest' ? 'Latest means the newest completed generation run.' : 'Run ID inspects one specific generation run for troubleshooting.'}</p>
 				</div>
 
 				{/* Inline stat banner */}
@@ -483,7 +555,7 @@ export default function RoomSchedules() {
 					variant="outline"
 					size="sm"
 					onClick={fetchSchedule}
-					disabled={!selectedEntityId || state.status === 'loading' || !isRunIdValid}
+					disabled={!selectedEntityId || state.status === 'loading' || !isRunIdValid || runIdHasValidationError || runIdMissing}
 					className="h-8 ml-auto shrink-0 shadow-sm"
 				>
 					<RefreshCw className={`mr-1 size-3.5 ${state.status === 'loading' ? 'animate-spin' : ''}`} />
@@ -492,15 +564,21 @@ export default function RoomSchedules() {
 			</div>
 
 			{/* ── Main content ── */}
-			<div className="flex-1 min-h-0 overflow-auto px-6 pb-4">
+			<div className="flex-1 min-h-0 overflow-auto px-6 pb-4 pt-2 lg:px-8">
 				{state.status === 'idle' && (
-					<div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-						<DoorOpen className="mb-3 size-10 opacity-40" />
-						<p className="text-sm">
-							{viewMode === 'rooms' && 'Select a room to view its schedule'}
-							{viewMode === 'teachers' && 'Select a teacher to view their schedule'}
-							{viewMode === 'sections' && 'Select a section to view its schedule'}
-						</p>
+					<div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-primary/20 bg-white p-8 text-center text-muted-foreground shadow-soft">
+						<div className="max-w-md">
+							<div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+								<SelectedModeIcon className="size-7" />
+							</div>
+							<p className="text-base font-bold text-slate-900">{lookupError ? 'Schedule references unavailable' : selectedModeCopy.emptyTitle}</p>
+							<p className="mt-2 text-sm leading-relaxed text-slate-500">
+								{lookupError ? 'ATLAS could not load the active school year or reference lists. Refresh when the connection is stable.' : selectedModeCopy.emptyBody}
+							</p>
+							<p className="mt-3 text-xs text-slate-400">
+								{lookupError ? 'The page will keep actions disabled until references load.' : 'Use the selector above, then keep Latest selected unless you are checking a known Run ID.'}
+							</p>
+						</div>
 					</div>
 				)}
 
@@ -514,21 +592,30 @@ export default function RoomSchedules() {
 				)}
 
 				{state.status === 'empty' && (
-					<div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-						<CalendarX className="mb-3 size-10 opacity-40" />
-						<p className="text-sm font-medium mb-1">No Generation Runs</p>
-						<p className="text-xs text-center max-w-sm">{state.message}</p>
-						<p className="text-xs mt-3 opacity-70">Run a schedule generation first, then return here to view room timetables.</p>
+					<div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-muted-foreground shadow-soft">
+						<div className="max-w-md">
+							<CalendarX className="mx-auto mb-3 size-10 text-slate-300" />
+							<p className="text-base font-bold text-slate-900">Schedule not available</p>
+							<p className="mt-2 text-sm leading-relaxed text-slate-500">{state.message}</p>
+							<p className="mt-3 text-xs text-slate-400">
+								{sourceMode === 'run'
+									? 'Check the Run ID or switch back to Latest.'
+									: 'Generate a timetable first, then return here to browse rooms, teachers, and sections.'}
+							</p>
+						</div>
 					</div>
 				)}
 
 				{state.status === 'error' && (
-					<div className="flex flex-col items-center justify-center h-full text-destructive">
-						<ServerOff className="mb-3 size-10 opacity-60" />
-						<p className="text-sm font-medium">{state.message}</p>
-						<Button variant="outline" size="sm" className="mt-4" onClick={fetchSchedule}>
-							<RefreshCw className="mr-1.5 size-3.5" /> Retry
-						</Button>
+					<div className="flex h-full items-center justify-center rounded-2xl border border-destructive/20 bg-white p-8 text-center text-destructive shadow-soft">
+						<div className="max-w-md">
+							<ServerOff className="mx-auto mb-3 size-10 opacity-60" />
+							<p className="text-base font-bold">Schedule source unavailable</p>
+							<p className="mt-2 text-sm leading-relaxed text-destructive/80">{state.message}</p>
+							<Button variant="outline" size="sm" className="mt-4" onClick={fetchSchedule}>
+								<RefreshCw className="mr-1.5 size-3.5" /> Retry
+							</Button>
+						</div>
 					</div>
 				)}
 
@@ -793,18 +880,18 @@ function EntryCell({
 	roomMap: Map<number, string>;
 }) {
 	const sectionInfo = sectionMap.get(entry.sectionId);
-	const sectionLabel = sectionInfo?.name ?? `Unknown Section (#${entry.sectionId})`;
+	const sectionLabel = sectionInfo?.name ?? 'Section not listed';
 	const facultyLabel = entry.facultyId != null
-		? (facultyMap.get(entry.facultyId) ?? `Unknown Faculty (#${entry.facultyId})`)
-		: 'Unassigned Faculty';
+		? (facultyMap.get(entry.facultyId) ?? 'Teacher not listed')
+		: 'Unassigned teacher';
 	const roomLabel = entry.roomId != null
-		? (roomMap.get(entry.roomId) ?? `Room #${entry.roomId}`)
+		? (roomMap.get(entry.roomId) ?? 'Room not listed')
 		: '—';
 
 	return (
 		<div className="px-1.5 py-1 text-[11px] leading-snug">
 			<div className="font-semibold text-foreground truncate">
-				{entry.subjectDisplayLabel ?? subjectMap.get(entry.subjectId) ?? `Unknown Subject (#${entry.subjectId})`}
+				{entry.subjectDisplayLabel ?? subjectMap.get(entry.subjectId) ?? 'Subject not listed'}
 			</div>
 			{viewMode === 'rooms' && (
 				<>

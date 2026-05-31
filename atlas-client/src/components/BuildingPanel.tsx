@@ -121,6 +121,14 @@ export function BuildingPanel({
 		useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
 		useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
 	);
+	const deleteRoomDialogCopy = {
+		title: 'Delete room',
+		confirmText: 'Delete room',
+	};
+	const deleteBuildingDialogCopy = {
+		title: 'Delete building',
+		confirmText: 'Delete building',
+	};
 
 	// Rooms filtered by active floor
 	const roomsOnFloor = useMemo(
@@ -624,22 +632,20 @@ export function BuildingPanel({
 
 			{/* Room delete confirmation */}
 			<ConfirmationModal
+				{...deleteRoomDialogCopy}
 				open={!!deleteRoomTarget}
 				onOpenChange={(open) => !open && setDeleteRoomTarget(null)}
-				title="Delete Room"
 				description={<>Are you sure you want to delete <strong>{deleteRoomTarget?.name}</strong>? This action cannot be undone.</>}
-				confirmText="Yes, Delete"
 				onConfirm={() => deleteRoomTarget && handleDeleteRoom(deleteRoomTarget.id)}
 				variant="danger"
 			/>
 
 			{/* Building delete confirmation */}
 			<ConfirmationModal
+				{...deleteBuildingDialogCopy}
 				open={showDeleteBuilding}
 				onOpenChange={setShowDeleteBuilding}
-				title="Delete Building"
 				description={<>Are you sure you want to delete <strong>{building.name}</strong> and all its rooms? This action cannot be undone.</>}
-				confirmText="Yes, Delete"
 				onConfirm={handleDeleteBuilding}
 				loading={deleting}
 				variant="danger"
@@ -841,6 +847,7 @@ function SortableRoomTile({
 				size="icon-xs"
 				{...attributes}
 				{...listeners}
+				aria-label={`Reorder ${room.name}`}
 				className="shrink-0 cursor-grab touch-none text-muted-foreground/60 active:cursor-grabbing"
 			>
 				<GripVertical className="size-3.5" />
@@ -877,7 +884,7 @@ function SortableRoomTile({
 					{showTeachingToggle && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Button type="button" variant="ghost" size="icon-xs" onClick={onToggleTeaching}>
+								<Button type="button" variant="ghost" size="icon-xs" onClick={onToggleTeaching} aria-label={room.isTeachingSpace ? 'Exclude room from scheduling' : 'Include room in scheduling'}>
 									{room.isTeachingSpace ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
 								</Button>
 							</TooltipTrigger>
@@ -888,7 +895,7 @@ function SortableRoomTile({
 					)}
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<Button type="button" variant="ghost" size="icon-xs" onClick={onEdit}>
+							<Button type="button" variant="ghost" size="icon-xs" onClick={onEdit} aria-label={`Edit ${room.name}`}>
 								<PencilLine className="size-3.5" />
 							</Button>
 						</TooltipTrigger>
@@ -898,7 +905,7 @@ function SortableRoomTile({
 					</Tooltip>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<Button type="button" variant="ghost" size="icon-xs" onClick={onDelete} className="text-destructive hover:text-destructive">
+							<Button type="button" variant="ghost" size="icon-xs" onClick={onDelete} className="text-destructive hover:text-destructive" aria-label={`Delete ${room.name}`}>
 								<Trash2 className="size-3.5" />
 							</Button>
 						</TooltipTrigger>

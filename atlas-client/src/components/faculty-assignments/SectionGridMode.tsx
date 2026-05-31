@@ -52,6 +52,9 @@ export type SectionGridModeProps = {
 	onSave: () => void;
 	hasDraft: boolean;
 	onSwapSectionOwnership?: (subjectId: number, sectionId: number, fromFacultyId: number, toFacultyId?: number) => void;
+	workspaceStateLabel: string;
+	workspaceStateNextAction: string;
+	writeBlockedReason: string | null;
 };
 
 
@@ -78,6 +81,9 @@ export function SectionGridMode({
 	onSave,
 	hasDraft,
 	onSwapSectionOwnership,
+	workspaceStateLabel,
+	workspaceStateNextAction,
+	writeBlockedReason,
 }: SectionGridModeProps) {
 	const [searchQuery, setSearchQuery] = useState('');
 
@@ -161,6 +167,10 @@ export function SectionGridMode({
 	if (loading) {
 		return (
 			<div className="flex-1 p-6 space-y-4">
+				<div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+					<p className="text-sm font-semibold text-blue-900">Checking section coverage.</p>
+					<p className="mt-1 text-xs font-medium text-blue-700">ATLAS is loading subject-section needs and saved teacher ownership.</p>
+				</div>
 				{Array.from({ length: 10 }).map((_, i) => (
 					<Skeleton key={i} className="h-14 w-full rounded-xl" />
 				))}
@@ -171,6 +181,18 @@ export function SectionGridMode({
 	return (
 		<div className="flex-1 flex flex-col min-h-0 bg-muted/5">
 			<div className="shrink-0 p-6 border-b border-border/40 bg-background/50 backdrop-blur-sm space-y-4">
+				{isReadOnlyMode && writeBlockedReason && (
+					<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-amber-900">
+						<div className="flex items-start gap-3">
+							<AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+							<div>
+								<p className="text-sm font-semibold">{workspaceStateLabel}</p>
+								<p className="text-xs font-medium text-amber-800/80">{writeBlockedReason}</p>
+							</div>
+						</div>
+						<p className="text-xs font-semibold text-amber-800">{workspaceStateNextAction}</p>
+					</div>
+				)}
 				<div className="flex flex-wrap items-center justify-between gap-3">
 					<div className="flex items-center gap-3 flex-1 min-w-0">
 						<div className="relative flex-1 min-w-50 max-w-sm">
@@ -216,11 +238,17 @@ export function SectionGridMode({
 			</div>
 
 			<div className="flex-1 overflow-auto p-6 space-y-2 no-scrollbar">
-				{sectionRows.length === 0 ? (
+				{Object.keys(sectionsBySubject).length === 0 ? (
+					<div className="flex flex-col items-center justify-center p-12 text-center bg-background border border-dashed border-border/60 rounded-2xl">
+						<BookOpen className="size-10 text-muted-foreground/40 mb-4" />
+						<h3 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/70">No section assignment needs loaded</h3>
+						<p className="text-sm text-muted-foreground mt-2 max-w-md">Refresh the source after sections and subjects are available. Coverage cannot be counted until ATLAS has subject-section pairs.</p>
+					</div>
+				) : sectionRows.length === 0 ? (
 					<div className="flex flex-col items-center justify-center p-12 text-center bg-background border border-dashed border-border/60 rounded-2xl">
 						<CheckCircle2 className="size-10 text-emerald-500/40 mb-4" />
 						<h3 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/60">No sections require attention</h3>
-						<p className="text-xs text-muted-foreground/40 mt-1">All sections match your current coverage contract.</p>
+						<p className="text-xs text-muted-foreground/40 mt-1">All visible sections match this filter. Switch to all sections if you need to review completed coverage.</p>
 					</div>
 				) : sectionRows.map((row) => {
 					const isExpanded = selectedSectionId === row.section.id;

@@ -7,17 +7,13 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	RefreshCw,
-	Search,
-	ServerOff,
 	Users,
 	X,
-	Filter,
 	ChevronsLeft,
 	ChevronsRight,
 	Map as MapIcon,
-	Building2,
+	WifiOff,
 	CheckCircle2,
-	Info,
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
@@ -36,11 +32,15 @@ import {
 } from '@/lib/faculty-teaching-load-cache';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
-import { Card } from '@/ui/card';
-import { Input } from '@/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Skeleton } from '@/ui/skeleton';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
+import {
+	AdminSearchFilterToolbar,
+	AdminStatePanel,
+	AdminTableShell,
+	AdminWorkspaceFrame,
+	type AdminSourceState,
+} from '@/components/admin-workspace/AdminWorkspace';
 import { SectionRow, type SectionDetail } from '@/components/sections/SectionRow';
 import { type RoomOption as HomeRoomOption } from '@/components/sections/SectionRoomPicker';
 import { SectionDetailsSheet } from '@/components/sections/SectionDetailsSheet';
@@ -295,7 +295,7 @@ export default function Sections() {
 				queuedEditsForYear.length > 0
 					? `${queuedEditsForYear.length} home-room change${queuedEditsForYear.length === 1 ? '' : 's'} queued for sync.`
 					: nextSource === 'refreshing'
-					? 'Verifying runtime source before finalizing live section status.'
+						? 'Checking source before finalizing live section status.'
 					: nextSource === 'live'
 					? null
 					: isUpstreamBackedSchoolYearSource(yearContextSource)
@@ -351,7 +351,7 @@ export default function Sections() {
 				setSyncError(true);
 				setCacheNotice(isOnline 
 					? queuedEditsForYear.length > 0
-						? `Live section data is unavailable. Showing saved data with ${queuedEditsForYear.length} queued home-room change${queuedEditsForYear.length === 1 ? '' : 's'}.`
+						? `Live section data is unavailable. Using saved data with ${queuedEditsForYear.length} queued home-room change${queuedEditsForYear.length === 1 ? '' : 's'}.`
 						: 'Live section data is unavailable. Showing your last saved section snapshot in degraded writable mode.'
 					: queuedEditsForYear.length > 0
 					? `Offline mode: ${queuedEditsForYear.length} queued home-room change${queuedEditsForYear.length === 1 ? '' : 's'} will sync after reconnect.`
@@ -646,6 +646,61 @@ export default function Sections() {
 
 	const isReadOnlyMode = state.status !== 'ok' || dataSource === 'none' || dataSource === 'refreshing' || !activeSchoolYearId;
 
+	const sectionSourceState = useMemo<AdminSourceState>(() => {
+		if (dataSource === 'live') return 'verified-live';
+		if (dataSource === 'refreshing' || state.status === 'loading') return 'checking-source';
+		if (dataSource === 'cached' || dataSource === 'atlas-mirror') return 'saved-data';
+		return 'no-saved-data';
+	}, [dataSource, state.status]);
+
+	const sectionStats = useMemo(() => {
+		if (state.status !== 'ok') {
+			return [
+				{ label: 'Sections', value: state.status === 'loading' ? '...' : 0, tone: state.status === 'loading' ? 'info' as const : 'warning' as const },
+			];
+		}
+
+		const assignmentPct = state.data.totalSections > 0 ? Math.round((assignedCount / state.data.totalSections) * 100) : 0;
+		const sectionsNeedingRooms = Math.max(0, state.data.totalSections - assignedCount);
+		return [
+			{ label: 'Sections', value: state.data.totalSections, tone: 'brand' as const, helpText: 'Total section rosters available for the active school year.' },
+			{ label: 'Home rooms assigned', value: `${assignedCount}/${state.data.totalSections}`, tone: assignmentPct === 100 ? 'success' as const : 'warning' as const, helpText: `${assignmentPct}% of sections already have a home room.` },
+			{ label: 'Need rooms', value: sectionsNeedingRooms, tone: sectionsNeedingRooms === 0 ? 'success' as const : 'warning' as const, helpText: sectionsNeedingRooms === 0 ? 'Every visible section has a home room.' : 'Assign these sections before schedule generation.' },
+			...(queuedHomeRoomEdits.length > 0 ? [{ label: 'Queued', value: queuedHomeRoomEdits.length, tone: 'info' as const, helpText: 'Home-room changes saved locally and waiting to sync.' }] : []),
+		];
+	}, [assignedCount, queuedHomeRoomEdits.length, state]);
+
+	const homeRoomEditStatus = useMemo(() => {
+		if (!activeSchoolYearId || state.status !== 'ok' || dataSource === 'none') {
+			return {
+				tone: 'blocked' as const,
+				message: 'Home-room edits are blocked until ATLAS has a section roster for the active school year.',
+			};
+		}
+		if (dataSource === 'refreshing') {
+			return {
+				tone: 'checking' as const,
+				message: 'Home-room edits are paused while ATLAS checks the roster source. Review the list now, then save room changes when the source settles.',
+			};
+		}
+		if (!isOnline) {
+			return {
+				tone: 'queued' as const,
+				message: 'You are offline. Home-room changes save on this device and sync when the connection returns.',
+			};
+		}
+		if (queuedHomeRoomEdits.length > 0) {
+			return {
+				tone: 'queued' as const,
+				message: `${queuedHomeRoomEdits.length} home-room change${queuedHomeRoomEdits.length === 1 ? '' : 's'} will sync before the page is final.`,
+			};
+		}
+		return {
+			tone: 'ready' as const,
+			message: 'Home-room edits are writable. Pick a room from the row or review the room map before changing assignments.',
+		};
+	}, [activeSchoolYearId, dataSource, isOnline, queuedHomeRoomEdits.length, state.status]);
+
 	const PROGRAM_FILTER_COLORS: Record<string, string> = {
 		STE:   'bg-emerald-100/80 text-emerald-700',
 		SPA:   'bg-purple-100/80 text-purple-700',
@@ -657,101 +712,58 @@ export default function Sections() {
 	};
 
 	return (
-		<div className="flex flex-col h-[calc(100svh-3.5rem)]">
-			<div className="shrink-0 px-6 py-4 border-b bg-background/50 backdrop-blur-md">
-				<div className="flex items-center justify-between gap-4">
-					<div className="flex items-center gap-4">
-						<div className="relative w-64">
-							<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-							<Input placeholder="Search sections…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-9" />
-						</div>
-
-						<Button 
-							variant={showFilters ? 'secondary' : 'outline'} 
-							size="sm" 
-							className="h-9 gap-2 font-bold" 
-							onClick={() => setShowFilters(!showFilters)}
-						>
-							<Filter className="size-4" /> 
-							Filters
-							{hasActiveFilters && (
-								<Badge variant="secondary" className="ml-1 h-5 px-1.5 bg-primary text-primary-foreground font-bold">Active</Badge>
-							)}
-						</Button>
-					</div>
-
-					<div className="flex items-center gap-3">
-						<div className="flex items-center gap-2 mr-2">
-							{state.status === 'ok' && (
-								<TooltipProvider>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<div className="flex max-lg:hidden items-center gap-2 px-3 py-1 bg-primary/5 rounded-full border border-primary/20 cursor-help">
-												<div className="flex items-center gap-1.5">
-													<Building2 className="size-3.5 text-primary" />
-													<span className="text-[0.7rem] font-semibold uppercase tracking-widest text-primary">Assignment Progress</span>
-												</div>
-												<div className="h-3 w-32 bg-muted rounded-full overflow-hidden border border-border/30">
-													<div 
-														className="h-full bg-primary transition-all duration-500" 
-														style={{ width: `${(assignedCount / state.data.totalSections) * 100}%` }}
-													/>
-												</div>
-												<span className="text-[0.7rem] font-bold text-primary tabular-nums">
-													{assignedCount}/{state.data.totalSections}
-												</span>
-											</div>
-										</TooltipTrigger>
-										<TooltipContent className="text-[0.65rem] font-bold">
-											{Math.round((assignedCount / state.data.totalSections) * 100)}% of sections have a home-room assigned.
-										</TooltipContent>
-									</Tooltip>
-								</TooltipProvider>
-							)}
-
-							<Button 
-								variant="outline" 
-								size="sm" 
-								className="h-9 gap-2 font-bold bg-primary/5 border-primary/20 text-primary hover:bg-primary/10"
-								onClick={() => setGlobalBrowseModalOpen(true)}
-							>
-								<MapIcon className="size-4" />
-								<span className="hidden sm:inline">Browse Map</span>
-							</Button>
-
-							<TooltipProvider>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Badge variant={dataSource === 'live' ? 'secondary' : 'outline'} className={cn("h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold cursor-help", (dataSource === 'atlas-mirror' || dataSource === 'cached') ? 'bg-amber-100 text-amber-700 border-amber-200' : dataSource === 'refreshing' ? 'bg-blue-50 text-blue-700 border-blue-200 animate-pulse' : '')}>
-											{dataSource === 'live' ? 'Verified' : dataSource === 'refreshing' ? 'Refreshing...' : 'Saved Data'}
-										</Badge>
-									</TooltipTrigger>
-									<TooltipContent side="bottom" className="text-[0.65rem] font-semibold p-2">
-										{dataSource === 'live' ? 'Data freshly verified with EnrollPro.' : dataSource === 'refreshing' ? 'Verifying EnrollPro connection...' : 'Using data saved in ATLAS.'}
-									</TooltipContent>
-								</Tooltip>
-							</TooltipProvider>
-
-							{queuedHomeRoomEdits.length > 0 && (
-								<Badge variant='outline' className='h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold border-blue-200 bg-blue-50 text-blue-700'>
-									Queued: {queuedHomeRoomEdits.length}
-								</Badge>
-							)}
-						</div>
-
-						<Button variant="outline" size="sm" onClick={handleSync} disabled={syncing || syncingQueuedEdits || state.status === 'loading' || !isOnline} className="h-9 gap-2 shadow-sm font-bold">
-							<RefreshCw className={`size-4 ${syncing || syncingQueuedEdits ? 'animate-spin' : ''}`} />
-							<span className="hidden sm:inline">{syncing || syncingQueuedEdits ? 'Syncing...' : !isOnline ? 'Offline' : 'Sync Sections'}</span>
-							<span className="sm:hidden">{syncing || syncingQueuedEdits ? '' : 'Sync'}</span>
-						</Button>
-					</div>
-				</div>
-
-				{/* Expanded Filters */}
-				{showFilters && (
-					<div className="flex flex-col gap-4 pt-4 border-t mt-4 animate-in slide-in-from-top-2 duration-200">
-						{/* Mobile: Dropdowns */}
-						<div className="flex md:hidden items-center gap-2">
+		<AdminWorkspaceFrame
+			title = "Sections"
+			description="Verify section roster data and home-room readiness before schedule generation. Start by syncing sections, then assign a home room to every section that still needs one."
+			sourceState={sectionSourceState}
+			sourceCopy={{
+				description:
+					sectionSourceState === 'verified-live'
+						? 'Sections were checked against the live roster source for the current school year, and home-room edits can be saved when you are online.'
+						: sectionSourceState === 'checking-source'
+						? 'ATLAS is verifying the roster source while the saved section list stays visible, so room edits are paused for now.'
+						: sectionSourceState === 'saved-data'
+						? isOnline ? 'ATLAS is showing the last safe section mirror because the live source is not fully verified. Home-room edits can be queued if saving fails.' : 'ATLAS is showing the last saved section mirror. Home-room edits will be queued on this device until you reconnect.'
+						: 'ATLAS has no safe section roster to show yet.',
+				nextAction:
+					sectionSourceState === 'verified-live'
+						? 'Sync if the roster changed, then assign rooms for sections that still need one.'
+						: sectionSourceState === 'checking-source'
+						? 'Review roster readiness now, then wait before final home-room changes.'
+						: sectionSourceState === 'saved-data'
+						? 'Reconnect or sync before treating this as final roster truth.'
+						: 'Reconnect and sync sections before this page can be used.',
+			}}
+			stats={sectionStats}
+			secondaryActions={(
+				<Button
+					variant="outline"
+					size="sm"
+					className="h-9 gap-2 border-primary/20 bg-primary/5 font-bold text-primary hover:bg-primary/10"
+					onClick={() => setGlobalBrowseModalOpen(true)}
+				>
+					<MapIcon className="size-4" />
+					<span className="hidden sm:inline">Browse room map</span>
+					<span className="sm:hidden">Rooms</span>
+				</Button>
+			)}
+			primaryActions={(
+				<Button variant="outline" size="sm" onClick={handleSync} disabled={syncing || syncingQueuedEdits || state.status === 'loading' || !isOnline} className="h-9 gap-2 shadow-sm font-bold">
+					<RefreshCw className={`size-4 ${syncing || syncingQueuedEdits ? 'animate-spin' : ''}`} />
+					<span className="hidden sm:inline">{syncing || syncingQueuedEdits ? 'Syncing...' : !isOnline ? 'Offline' : 'Sync sections'}</span>
+					<span className="sm:hidden">{syncing || syncingQueuedEdits ? '' : 'Sync'}</span>
+				</Button>
+			)}
+			toolbar={(
+				<AdminSearchFilterToolbar
+					searchValue={searchQuery}
+					onSearchChange={setSearchQuery}
+					searchPlaceholder="Search sections..."
+					filtersOpen={showFilters}
+					onToggleFilters={() => setShowFilters(!showFilters)}
+					hasActiveFilters={hasActiveFilters}
+				>
+					<div className="flex md:hidden items-center gap-2">
 							<Select value={gradeFilter} onValueChange={setGradeFilter}>
 								<SelectTrigger className="h-8 flex-1 text-xs">
 									<SelectValue placeholder="All Grades" />
@@ -777,7 +789,6 @@ export default function Sections() {
 							</Select>
 						</div>
 
-						{/* Desktop: Toggle Groups */}
 						<div className="hidden md:flex flex-wrap items-center gap-6">
 							<div className="flex items-center gap-2">
 								<span className="text-[0.6rem] font-semibold uppercase tracking-widest text-muted-foreground">Grade Level:</span>
@@ -853,9 +864,9 @@ export default function Sections() {
 								</Button>
 							)}
 						</div>
-					</div>
-				)}
-			</div>
+				</AdminSearchFilterToolbar>
+			)}
+		>
 
 			{/* Status Banners */}
 			{state.status === 'no-year' && (
@@ -871,10 +882,33 @@ export default function Sections() {
 					<Button size="sm" variant="outline" onClick={handleSync} disabled={syncing || !isOnline} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold"><RefreshCw className={`mr-1.5 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry Sync</Button>
 				</div>
 			)}
+			{state.status === 'ok' && (
+				<div className={cn(
+					"pointer-events-none shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border px-4 py-2.5 text-sm shadow-sm animate-in fade-in duration-300",
+					homeRoomEditStatus.tone === 'ready' && 'border-emerald-200 bg-emerald-50 text-emerald-900',
+					homeRoomEditStatus.tone === 'queued' && 'border-sky-200 bg-sky-50 text-sky-900',
+					homeRoomEditStatus.tone === 'checking' && 'border-amber-200 bg-amber-50 text-amber-900',
+					homeRoomEditStatus.tone === 'blocked' && 'border-red-200 bg-red-50 text-red-900',
+				)}>
+					{homeRoomEditStatus.tone === 'ready' ? <CheckCircle2 className="size-4 shrink-0" /> : homeRoomEditStatus.tone === 'queued' ? <WifiOff className="size-4 shrink-0" /> : <AlertTriangle className="size-4 shrink-0" />}
+					<span className="flex-1 font-semibold">{homeRoomEditStatus.message}</span>
+				</div>
+			)}
 
-			<div className="flex-1 min-h-0 px-6 py-4">
-				<Card className="h-full flex flex-col shadow-sm border-border/50 overflow-hidden">
-					<div className="flex-1 min-h-0 overflow-auto">
+			<AdminTableShell
+				footer={state.status === 'ok' && state.data.sections.length > 0 ? (
+					<div className="flex items-center justify-between gap-3">
+						<div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
+							<span>{totalFiltered === 0 ? 'No results' : `Showing ${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, totalFiltered)} of ${totalFiltered} results`}</span>
+							<div className="flex items-center gap-2 border-l pl-4 border-border/50">
+								<span>Rows per page:</span>
+								<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}><SelectTrigger className="h-7 w-20 text-xs bg-background"><SelectValue /></SelectTrigger><SelectContent>{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}</SelectContent></Select>
+							</div>
+						</div>
+						<div className="flex items-center gap-1.5"><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(1)} disabled={page <= 1}><ChevronsLeft className="size-4" /></Button><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}><ChevronLeft className="size-4" /></Button><div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-[0.7rem] font-bold tabular-nums"><span>{page}</span><span className="text-muted-foreground/50 font-normal">/</span><span className="text-muted-foreground font-normal">{totalPages}</span></div><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}><ChevronRight className="size-4" /></Button><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(totalPages)} disabled={page >= totalPages}><ChevronsRight className="size-4" /></Button></div>
+					</div>
+				) : undefined}
+			>
 						<table className="w-full text-sm">
 							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md">
 								<tr className="border-b">
@@ -893,8 +927,8 @@ export default function Sections() {
 									<th className="px-4 py-3 text-right">
 										<Button variant="ghost" size="sm" onClick={() => toggleSort('fill')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground ml-auto">Status <SortIcon field="fill" /></Button>
 									</th>
-									<th className="px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Home Room</th>
-									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Actions</th>
+									<th className="px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Home-room readiness</th>
+									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Details</th>
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-border/40">
@@ -903,7 +937,7 @@ export default function Sections() {
 										<tr key={i}><td className="px-4 py-4"><Skeleton className="h-5 w-48" /></td><td className="px-4 py-4"><Skeleton className="h-5 w-16" /></td><td className="px-4 py-4"><Skeleton className="h-5 w-12 ml-auto" /></td><td className="px-4 py-4"><Skeleton className="h-5 w-12 ml-auto" /></td><td className="px-4 py-4"><Skeleton className="h-5 w-14 ml-auto" /></td><td className="px-4 py-4"><Skeleton className="h-8 w-44" /></td><td className="px-4 py-4"><Skeleton className="h-8 w-24 ml-auto" /></td></tr>
 									))
 								) : paged.length === 0 ? (
-									<tr><td colSpan={7} className="px-4 py-20 text-center"><div className="flex flex-col items-center gap-4 text-muted-foreground max-w-xs mx-auto"><Users className="size-12 opacity-20" /><div className="space-y-1"><p className="font-bold text-foreground">{state.status === 'ok' ? 'No sections match your filters.' : 'Sections data unavailable.'}</p></div></div></td></tr>
+									<tr><td colSpan={7} className="px-4 py-20 text-center"><AdminStatePanel icon={<Users className="size-8" />} title = {state.status === 'ok' ? 'No sections match your filters.' : 'Sections data unavailable.'} description={state.status === 'ok' ? 'Clear a filter or search another section name to continue.' : 'Reconnect or sync sections before assigning home rooms.'} /></td></tr>
 								) : (
 									paged.map((s) => (
 										<SectionRow key={s.id} section={s} homeRoomOptions={homeRoomOptions} isReadOnly={isReadOnlyMode} isSaving={savingMirrorId === s.id} onHomeRoomChange={handleHomeRoomChange} onShowDetails={(section) => setDetailTarget(section)} schoolId={DEFAULT_SCHOOL_ID} roomOccupancy={roomOccupancyMap} />
@@ -911,24 +945,17 @@ export default function Sections() {
 								)}
 							</tbody>
 						</table>
-					</div>
+			</AdminTableShell>
 
-					{state.status === 'ok' && state.data.sections.length > 0 && (
-						<div className="shrink-0 flex items-center justify-between border-t border-border/50 px-4 py-3 bg-muted/20">
-							<div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
-								<span>{totalFiltered === 0 ? 'No results' : `Showing ${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, totalFiltered)} of ${totalFiltered} results`}</span>
-								<div className="flex items-center gap-2 border-l pl-4 border-border/50">
-									<span>Rows per page:</span>
-									<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}><SelectTrigger className="h-7 w-20 text-xs bg-background"><SelectValue /></SelectTrigger><SelectContent>{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}</SelectContent></Select>
-								</div>
-							</div>
-							<div className="flex items-center gap-1.5"><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(1)} disabled={page <= 1}><ChevronsLeft className="size-4" /></Button><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}><ChevronLeft className="size-4" /></Button><div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-[0.7rem] font-bold tabular-nums"><span>{page}</span><span className="text-muted-foreground/50 font-normal">/</span><span className="text-muted-foreground font-normal">{totalPages}</span></div><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}><ChevronRight className="size-4" /></Button><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(totalPages)} disabled={page >= totalPages}><ChevronsRight className="size-4" /></Button></div>
-						</div>
-					)}
-				</Card>
-			</div>
-
-			<SectionDetailsSheet sectionId={detailTarget?.id ?? null} sectionName={detailTarget?.name ?? null} schoolYearId={activeSchoolYearId} open={detailTarget !== null} onOpenChange={(open) => !open && setDetailTarget(null)} />
+			<SectionDetailsSheet
+				sectionId={detailTarget?.id ?? null}
+				sectionName={detailTarget?.name ?? null}
+				section={detailTarget}
+				homeRoom={detailTarget?.homeRoomId ? homeRoomOptions.find((room) => room.id === detailTarget.homeRoomId) ?? null : null}
+				schoolYearId={activeSchoolYearId}
+				open={detailTarget !== null}
+				onOpenChange={(open) => !open && setDetailTarget(null)}
+			/>
 
 			<SectionRoomMapModal 
 				open={globalBrowseModalOpen} 
@@ -949,6 +976,6 @@ export default function Sections() {
 					<UnassignConfirmationModal open={pendingAssignment.type === 'unassign'} onOpenChange={(open) => !open && setPendingAssignment(null)} onConfirm={() => { void performHomeRoomUpdate(pendingAssignment.section, null); setPendingAssignment(null); }} sectionName={pendingAssignment.section.name} currentRoomName={pendingAssignment.currentRoomName ?? ''} isSaving={savingMirrorId !== null} />
 				</>
 			)}
-		</div>
+		</AdminWorkspaceFrame>
 	);
 }

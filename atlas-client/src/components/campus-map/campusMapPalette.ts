@@ -20,10 +20,16 @@ export const CALM_BUILDING_SWATCHES: BuildingSwatch[] = [
 
 export const CALM_BUILDING_COLORS = CALM_BUILDING_SWATCHES.map((s) => s.value);
 
-/** Neutral canvas stroke for the currently-selected building. */
-export const MAP_SELECTED_STROKE = '#334155';
+export function getPrimaryCanvasColor(fallback = '#7f1d1d'): string {
+	if (typeof window === 'undefined') return fallback;
+	const primary = window.getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
+	return primary ? `hsl(${primary})` : fallback;
+}
+
+/** Fallback canvas stroke for selected elements before school tokens resolve. */
+export const MAP_SELECTED_STROKE = '#7f1d1d';
 export const MAP_DEFAULT_STROKE = '#ffffff';
-export const MAP_TRANSFORMER_STROKE = '#334155';
+export const MAP_TRANSFORMER_STROKE = '#7f1d1d';
 
 /** Calm background fallback when no campus photo is uploaded. */
 export const MAP_CANVAS_BG = '#f1f5f9';

@@ -5,9 +5,7 @@ import {
 	ChevronRight,
 	ChevronsLeft,
 	ChevronsRight,
-	Filter,
 	RefreshCw,
-	Search,
 	Users,
 	X,
 	ArrowUpDown,
@@ -19,11 +17,16 @@ import atlasApi from '@/lib/api';
 import type { FacultySummary } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
-import { Card } from '@/ui/card';
-import { Input } from '@/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Skeleton } from '@/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
+import {
+	AdminSearchFilterToolbar,
+	AdminStatePanel,
+	AdminTableShell,
+	AdminWorkspaceFrame,
+	type AdminSourceState,
+} from '@/components/admin-workspace/AdminWorkspace';
 import { FacultyRow } from '@/components/faculty/FacultyRow';
 import { FacultyProfileSheet } from '@/components/faculty/FacultyProfileSheet';
 import { toast } from 'sonner';
@@ -59,7 +62,7 @@ export default function Faculty() {
 	const [cacheNotice, setCacheNotice] = useState<string | null>(null);
 	const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 	
-	// Quick Profile
+	// Roster profile drawer
 	const [profileTarget, setProfileTarget] = useState<FacultySummary | null>(null);
 
 	const [showFilters, setShowFilters] = useState(false);
@@ -106,8 +109,8 @@ export default function Faculty() {
 					setDataSource(isOnline ? 'refreshing' : 'cached');
 					setCacheNotice(
 						isOnline
-							? 'Verifying live teacher data before enabling final status. Displaying your last saved roster snapshot in the meantime.'
-							: 'Offline mode: displaying your last saved roster snapshot.',
+							? 'Checking the live teacher roster. The last saved roster stays visible while ATLAS verifies it.'
+							: 'Offline mode: showing the last saved teacher roster.',
 					);
 					setLoading(false);
 				}
@@ -139,10 +142,10 @@ export default function Faculty() {
 				setCacheNotice(null);
 			} else if (!isOnline) {
 				setDataSource('cached');
-				setCacheNotice('Teacher roster is available from ATLAS runtime cache while upstream verification is unavailable.');
+				setCacheNotice('Teacher roster is available from the last saved ATLAS snapshot while upstream verification is unavailable.');
 			} else {
 				setDataSource('refreshing');
-				setCacheNotice('Verifying runtime source before finalizing live status.');
+				setCacheNotice('Checking EnrollPro before finalizing teacher roster status.');
 				void promoteActiveSchoolYearContext({ allowEnrollProFallback: false, allowStaleOnError: true })
 					.then((promotedContext) => {
 						if (isUpstreamBackedSchoolYearSource(promotedContext.source)) {
@@ -151,11 +154,11 @@ export default function Faculty() {
 							return;
 						}
 						setDataSource('cached');
-						setCacheNotice('Teacher roster is available from ATLAS runtime cache while upstream verification is unavailable.');
+						setCacheNotice('Teacher roster is available from the last saved ATLAS snapshot while upstream verification is unavailable.');
 					})
 					.catch(() => {
 						setDataSource('cached');
-						setCacheNotice('Teacher roster is available from ATLAS runtime cache while upstream verification is unavailable.');
+						setCacheNotice('Teacher roster is available from the last saved ATLAS snapshot while upstream verification is unavailable.');
 					});
 			}
 			setSyncError(false);
@@ -176,7 +179,7 @@ export default function Faculty() {
 				setSyncError(true);
 				setDataSource('none');
 				setCacheNotice(null);
-				setError('Failed to load teachers. Check EnrollPro bridge availability, then retry.');
+				setError('ATLAS could not load the teacher roster. Reconnect, then sync from EnrollPro.');
 			}
 		} finally {
 			setRefreshing(false);
@@ -206,7 +209,7 @@ export default function Faculty() {
 
 	const handleSync = async () => {
 		if (!isOnline) {
-			toast.error('You are offline. Reconnect before syncing Teachers.');
+			toast.error('You are offline. Reconnect before refreshing the teacher roster.');
 			return;
 		}
 		setSyncing(true);
@@ -216,15 +219,15 @@ export default function Faculty() {
 				schoolId: DEFAULT_SCHOOL_ID,
 			});
 			if (data.synced) {
-				toast.success(`Successfully synced roster (${data.activeCount} active faculty).`);
+				toast.success(`Teacher roster refreshed (${data.activeCount} active teachers).`);
 				await fetchFaculty({ forceRefresh: true });
 			} else {
 				setSyncError(true);
-				toast.error('Sync completed but reported no changes or an error.');
+				toast.error('Teacher roster refresh finished without a confirmed update.');
 			}
 		} catch {
 			setSyncError(true);
-			toast.error('EnrollPro sync service is currently unreachable.');
+			toast.error('ATLAS could not reach EnrollPro. Try refreshing the roster again.');
 		} finally {
 			setSyncing(false);
 		}
@@ -306,113 +309,91 @@ export default function Faculty() {
 
 	const hasActiveFilters = schedulingFilter !== 'all' || assignmentFilter !== 'all' || departmentFilter !== 'all';
 
+	const teacherSourceState = useMemo<AdminSourceState>(() => {
+		if (dataSource === 'live') return 'verified-live';
+		if (dataSource === 'refreshing' || loading || refreshing) return 'checking-source';
+		if (dataSource === 'cached') return 'saved-data';
+		return 'no-saved-data';
+	}, [dataSource, loading, refreshing]);
+
+	const teacherStats = useMemo(() => {
+		const activeCount = faculty.filter((teacher) => teacher.isActiveForScheduling).length;
+		const assignedCount = faculty.filter((teacher) => (teacher.subjectCount ?? 0) > 0).length;
+		const unassignedCount = faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.subjectCount ?? 0) === 0).length;
+		const reviewCount = faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.policyCreditedHours ?? 0) >= teacher.maxHoursPerWeek * 0.85).length;
+		return [
+			{ label: 'Active teachers', value: activeCount, tone: activeCount > 0 ? 'success' as const : 'warning' as const, helpText: 'Teachers currently available for scheduling.' },
+			{ label: 'With load', value: assignedCount, tone: assignedCount > 0 ? 'info' as const : 'warning' as const, helpText: 'Teachers with at least one subject or section in Teaching Load.' },
+			{ label: 'Without load', value: unassignedCount, tone: unassignedCount > 0 ? 'warning' as const : 'success' as const, helpText: 'Active teachers with no teaching load yet.' },
+			{ label: 'Needs review', value: reviewCount, tone: reviewCount > 0 ? 'warning' as const : 'success' as const, helpText: 'Active teachers near or above their weekly load limit.' },
+			{ label: 'Last sync', value: timeSince ?? 'Not synced', tone: timeSince ? 'neutral' as const : 'warning' as const, helpText: 'When ATLAS last refreshed the teacher load summary.' },
+		];
+	}, [faculty, timeSince]);
+
+	const profileSourceLabel = useMemo(() => {
+		if (teacherSourceState === 'verified-live') return timeSince ? `Verified live - ${timeSince}` : 'Verified live';
+		if (teacherSourceState === 'checking-source') return 'Checking source';
+		if (teacherSourceState === 'saved-data') return timeSince ? `Using saved data - ${timeSince}` : 'Using saved data';
+		return 'No saved data';
+	}, [teacherSourceState, timeSince]);
+
 	return (
-		<div className="flex flex-col h-[calc(100svh-3.5rem)]">
-			{/* Primary Header & Toolbar */}
-			<div className="shrink-0 px-6 py-4 border-b bg-background/50 backdrop-blur-md">
-				<div className="flex items-center justify-between gap-4">
-					<div className="flex items-center gap-4">
-						<div className="relative w-64">
-							<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-							<Input
-								placeholder="Search name or specialization..."
-								value={searchQuery}
-								onChange={(e) => setSearchQuery(e.target.value)}
-								className="pl-9 h-9"
-							/>
-						</div>
-						
-						<Button
-							variant={showFilters ? 'secondary' : 'outline'}
-							size="sm"
-							className="h-9 gap-2"
-							onClick={() => setShowFilters(!showFilters)}
-						>
-							<Filter className="size-4" />
-							Filters
-							{hasActiveFilters && (
-								<Badge variant="secondary" className="ml-1 h-5 px-1.5 bg-primary text-primary-foreground font-bold">
-									Active
-								</Badge>
-							)}
-						</Button>
-					</div>
-
-					<div className="flex items-center gap-3">
-						<div className="flex items-center gap-2 mr-2">
-							<TooltipProvider>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Badge
-											variant={dataSource === 'live' ? 'secondary' : 'outline'}
-											className={`h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold cursor-help ${
-												dataSource === 'cached'
-													? 'bg-amber-100 text-amber-700 border-amber-200'
-													: dataSource === 'refreshing'
-													? 'bg-blue-50 text-blue-700 border-blue-200 animate-pulse'
-													: ''
-											}`}
-										>
-											{dataSource === 'live'
-												? 'Verified with EnrollPro'
-												: dataSource === 'refreshing'
-												? 'Verifying runtime...'
-												: dataSource === 'cached'
-												? 'Working from saved data'
-												: 'No Saved Data'}
-										</Badge>
-									</TooltipTrigger>
-									<TooltipContent side="bottom" className="text-[0.65rem] font-semibold p-2">
-										{dataSource === 'live'
-											? 'Data freshly verified with EnrollPro.'
-											: dataSource === 'refreshing'
-											? 'Checking runtime active school-year and live roster evidence.'
-											: 'Using data saved in ATLAS. Changes will sync when EnrollPro returns.'}
-									</TooltipContent>
-								</Tooltip>
-							</TooltipProvider>
-							{timeSince && (
-								<TooltipProvider delayDuration={500}>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<span className="text-[0.7rem] text-muted-foreground font-semibold bg-muted px-2 py-1 rounded-md hidden lg:inline-block uppercase tracking-tight">
-												Last synced: {timeSince}
-											</span>
-										</TooltipTrigger>
-										<TooltipContent>Synced at {new Date(lastSyncedAt!).toLocaleString()}</TooltipContent>
-									</Tooltip>
-								</TooltipProvider>
-							)}
-						</div>
-						
-						<Button onClick={handleSync} disabled={syncing || !isOnline} size="sm" className="h-9 gap-2 shadow-sm font-bold">
-							<RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
-							{syncing ? 'Syncing...' : !isOnline ? 'Offline' : refreshing ? 'Refreshing...' : 'Sync Teachers'}
-						</Button>
-					</div>
-				</div>
-
-				{/* Expanded Filters */}
-				{showFilters && (
-					<div className="flex flex-wrap items-center gap-3 pt-4 animate-in slide-in-from-top-2 duration-200">
+		<AdminWorkspaceFrame
+			title = "Teachers"
+			description="Review the teacher roster and scheduling load before assigning classes."
+			sourceState={teacherSourceState}
+			sourceCopy={{
+				description:
+					teacherSourceState === 'verified-live'
+						? 'Teacher roster and load summary were checked against EnrollPro for the current school year.'
+						: teacherSourceState === 'checking-source'
+						? 'ATLAS is checking EnrollPro while the saved teacher roster stays visible.'
+						: teacherSourceState === 'saved-data'
+						? 'ATLAS is showing the last safe teacher roster snapshot.'
+						: 'ATLAS has no safe teacher roster snapshot to show yet.',
+				nextAction:
+					teacherSourceState === 'verified-live'
+						? 'Review load readiness or sync if you expect roster changes.'
+						: teacherSourceState === 'checking-source'
+						? 'Keep reviewing the list, but wait before treating the status as final.'
+						: teacherSourceState === 'saved-data'
+						? 'Reconnect or sync before relying on this roster for final setup.'
+						: 'Reconnect and sync teachers before this page can be used.',
+			}}
+			stats={teacherStats}
+			primaryActions={(
+				<Button onClick={handleSync} disabled={syncing || !isOnline} size="sm" className="h-9 gap-2 bg-primary text-primary-foreground shadow-primary-glow hover:bg-primary/90 font-bold">
+					<RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
+					{syncing ? 'Refreshing...' : !isOnline ? 'Offline' : refreshing ? 'Checking...' : 'Refresh teacher roster'}
+				</Button>
+			)}
+			toolbar={(
+				<AdminSearchFilterToolbar
+					searchValue={searchQuery}
+					onSearchChange={setSearchQuery}
+					searchPlaceholder="Search teacher, department, or specialization..."
+					filtersOpen={showFilters}
+					onToggleFilters={() => setShowFilters(!showFilters)}
+					hasActiveFilters={hasActiveFilters}
+				>
 						<Select value={schedulingFilter} onValueChange={(v) => setSchedulingFilter(v as typeof schedulingFilter)}>
 							<SelectTrigger className="h-8 w-40 text-xs bg-background">
-								<SelectValue placeholder="All Status" />
+								<SelectValue placeholder="All roster states" />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="all">All Status</SelectItem>
-								<SelectItem value="active">Active</SelectItem>
-								<SelectItem value="excluded">Excluded in EnrollPro</SelectItem>
+								<SelectItem value="all">All roster states</SelectItem>
+								<SelectItem value="active">Active teachers</SelectItem>
+								<SelectItem value="excluded">Excluded teachers</SelectItem>
 							</SelectContent>
 						</Select>
 						<Select value={assignmentFilter} onValueChange={(v) => setAssignmentFilter(v as typeof assignmentFilter)}>
 							<SelectTrigger className="h-8 w-36 text-xs bg-background">
-								<SelectValue placeholder="All Load Status" />
+								<SelectValue placeholder="All load states" />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="all">All Load Status</SelectItem>
-								<SelectItem value="assigned">Has Load</SelectItem>
-								<SelectItem value="unassigned">No Load</SelectItem>
+								<SelectItem value="all">All load states</SelectItem>
+								<SelectItem value="assigned">With teaching load</SelectItem>
+								<SelectItem value="unassigned">No teaching load</SelectItem>
 							</SelectContent>
 						</Select>
 						{departments.length > 0 && (
@@ -436,17 +417,17 @@ export default function Faculty() {
 								Reset all
 							</Button>
 						)}
-					</div>
-				)}
-			</div>
+				</AdminSearchFilterToolbar>
+			)}
+		>
 
 			{/* Status Banners */}
 			{syncError && (
 				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
 					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
-					<span className="flex-1 font-semibold">{cacheNotice ?? 'EnrollPro is temporarily unavailable. Showing data saved in ATLAS.'}</span>
+					<span className="flex-1 font-semibold">{cacheNotice ?? 'ATLAS could not refresh the teacher roster. The last saved roster is still shown.'}</span>
 					<Button size="sm" variant="outline" onClick={() => fetchFaculty({ forceRefresh: true })} disabled={syncing} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold">
-						<RefreshCw className={`mr-1.5 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry Sync
+						<RefreshCw className={`mr-1.5 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry refresh
 					</Button>
 				</div>
 			)}
@@ -460,7 +441,7 @@ export default function Faculty() {
 					<AlertTriangle className={`size-4 shrink-0 ${dataSource === 'refreshing' ? 'text-blue-600' : 'text-amber-600'}`} />
 					<span className={`flex-1 font-semibold ${dataSource === 'refreshing' ? 'text-blue-900' : 'text-amber-900'}`}>
 						<span className="font-bold uppercase tracking-tight mr-1">
-							{dataSource === 'refreshing' ? 'Verifying runtime context.' : 'Working from saved data.'}
+							{dataSource === 'refreshing' ? 'Checking source.' : 'Using saved data.'}
 						</span>
 						{cacheNotice}
 					</span>
@@ -477,10 +458,37 @@ export default function Faculty() {
 				</div>
 			)}
 
-			{/* Roster Table Container */}
-			<div className="flex-1 min-h-0 px-6 py-4">
-				<Card className="h-full flex flex-col shadow-sm border-border/50 overflow-hidden">
-					<div className="flex-1 min-h-0 overflow-auto">
+			<AdminTableShell
+				footer={!loading && faculty.length > 0 ? (
+					<div className="flex items-center justify-between gap-3">
+						<div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
+							<span>
+								{totalFiltered === 0
+									? 'No results'
+									: `Showing ${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, totalFiltered)} of ${totalFiltered} results`}
+							</span>
+							<div className="flex items-center gap-2 border-l pl-4 border-border/50">
+								<span>Rows per page:</span>
+								<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+									<SelectTrigger className="h-7 w-20 text-xs bg-background">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
+									</SelectContent>
+								</Select>
+							</div>
+						</div>
+						<div className="flex items-center gap-1.5">
+							<Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(1)} disabled={page <= 1}><ChevronsLeft className="size-4" /></Button>
+							<Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}><ChevronLeft className="size-4" /></Button>
+							<div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-[0.7rem] font-bold tabular-nums"><span>{page}</span><span className="text-muted-foreground/50 font-normal">/</span><span className="text-muted-foreground font-normal">{totalPages}</span></div>
+							<Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}><ChevronRight className="size-4" /></Button>
+							<Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(totalPages)} disabled={page >= totalPages}><ChevronsRight className="size-4" /></Button>
+						</div>
+					</div>
+				) : undefined}
+			>
 						<table className="w-full text-sm">
 							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md">
 								<tr className="border-b">
@@ -491,22 +499,22 @@ export default function Faculty() {
 									</th>
 									<th className="px-4 py-3 text-left">
 										<Button variant="ghost" size="sm" onClick={() => toggleSort('specialization')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
-											Department <SortIcon field="specialization" />
+											Department and specialization <SortIcon field="specialization" />
 										</Button>
 									</th>
 									<th className="px-4 py-3 text-center">
 										<Button variant="ghost" size="sm" onClick={() => toggleSort('subjects')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground mx-auto">
-											Subjects <SortIcon field="subjects" />
+											Teaching load <SortIcon field="subjects" />
 										</Button>
 									</th>
 									<th className="px-4 py-3 text-center">
 										<Button variant="ghost" size="sm" onClick={() => toggleSort('weeklyLoad')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground mx-auto">
-											Credited Load <SortIcon field="weeklyLoad" />
+											Weekly hours <SortIcon field="weeklyLoad" />
 										</Button>
 									</th>
 									<th className="px-4 py-3 text-center">
 										<Button variant="ghost" size="sm" onClick={() => toggleSort('status')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground mx-auto">
-											Status <SortIcon field="status" />
+											Load state <SortIcon field="status" />
 										</Button>
 									</th>
 									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Actions</th>
@@ -527,25 +535,17 @@ export default function Faculty() {
 								) : paged.length === 0 ? (
 									<tr>
 										<td colSpan={6} className="px-4 py-20 text-center">
-											<div className="flex flex-col items-center gap-4 text-muted-foreground max-w-xs mx-auto">
-												<Users className="size-12 opacity-20" />
-												<div className="space-y-1">
-													<p className="font-bold text-foreground">
-														{faculty.length === 0 ? 'No teachers found.' : 'No matches found.'}
-													</p>
-													<p className="text-xs">
-														{faculty.length === 0 
-															? 'Ensure the EnrollPro bridge is active and sync your roster to begin scheduling.'
-															: 'Try adjusting your filters or search query to find who you are looking for.'}
-													</p>
-												</div>
-												{faculty.length === 0 && (
+											<AdminStatePanel
+												icon={<Users className="size-8" />}
+												title = {faculty.length === 0 ? 'No teachers found.' : 'No matches found.'}
+												description={faculty.length === 0 ? 'ATLAS needs the teacher roster before officers can review load readiness or assign classes.' : 'Clear a filter or search another teacher name or department.'}
+												action={faculty.length === 0 ? (
 													<Button size="sm" onClick={handleSync} disabled={syncing} className="font-bold shadow-sm">
 														<RefreshCw className={`mr-2 size-4 ${syncing ? 'animate-spin' : ''}`} />
 														Sync from EnrollPro
 													</Button>
-												)}
-											</div>
+												) : undefined}
+											/>
 										</td>
 									</tr>
 								) : (
@@ -559,85 +559,15 @@ export default function Faculty() {
 								)}
 							</tbody>
 						</table>
-					</div>
+			</AdminTableShell>
 
-					{/* Pagination Footer */}
-					{!loading && faculty.length > 0 && (
-						<div className="shrink-0 flex items-center justify-between border-t border-border/50 px-4 py-3 bg-muted/20">
-							<div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
-								<span>
-									{totalFiltered === 0
-										? 'No results'
-										: `Showing ${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, totalFiltered)} of ${totalFiltered} results`}
-								</span>
-								
-								<div className="flex items-center gap-2 border-l pl-4 border-border/50">
-									<span>Rows per page:</span>
-									<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-										<SelectTrigger className="h-7 w-20 text-xs bg-background">
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
-										</SelectContent>
-									</Select>
-								</div>
-							</div>
-							
-							<div className="flex items-center gap-1.5">
-								<Button 
-									variant="outline" 
-									size="icon" 
-									className="h-8 w-8" 
-									onClick={() => setPage(1)} 
-									disabled={page <= 1}
-								>
-									<ChevronsLeft className="size-4" />
-								</Button>
-								<Button 
-									variant="outline" 
-									size="icon" 
-									className="h-8 w-8" 
-									onClick={() => setPage((p) => Math.max(1, p - 1))} 
-									disabled={page <= 1}
-								>
-									<ChevronLeft className="size-4" />
-								</Button>
-								<div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-[0.7rem] font-bold tabular-nums">
-									<span>{page}</span>
-									<span className="text-muted-foreground/50 font-normal">/</span>
-									<span className="text-muted-foreground font-normal">{totalPages}</span>
-								</div>
-								<Button 
-									variant="outline" 
-									size="icon" 
-									className="h-8 w-8" 
-									onClick={() => setPage((p) => Math.min(totalPages, p + 1))} 
-									disabled={page >= totalPages}
-								>
-									<ChevronRight className="size-4" />
-								</Button>
-								<Button 
-									variant="outline" 
-									size="icon" 
-									className="h-8 w-8" 
-									onClick={() => setPage(totalPages)} 
-									disabled={page >= totalPages}
-								>
-									<ChevronsRight className="size-4" />
-								</Button>
-							</div>
-						</div>
-					)}
-				</Card>
-			</div>
-
-			{/* Quick Profile Side Drawer */}
+			{/* Roster profile side drawer */}
 			<FacultyProfileSheet 
 				faculty={profileTarget}
 				open={profileTarget !== null}
 				onOpenChange={(open) => !open && setProfileTarget(null)}
+				sourceFreshness={profileSourceLabel}
 			/>
-		</div>
+		</AdminWorkspaceFrame>
 	);
 }

@@ -197,13 +197,17 @@ export function RoomScheduleOverlay({
 						transition={{ duration: 0.2, ease: 'easeOut' }}
 						className="fixed inset-4 z-50 flex flex-col rounded-xl border border-border bg-background shadow-2xl overflow-hidden"
 						role="dialog"
-						aria-label={`Full schedule for ${roomName}`}
+						aria-labelledby="room-schedule-overlay-title"
+						aria-describedby="room-schedule-overlay-description"
 						aria-modal="true"
 					>
 						{/* Header */}
 						<div className="shrink-0 flex items-center gap-3 px-5 py-3 border-b border-border">
 							<Clock className="size-4 text-primary" />
-							<h2 className="text-sm font-bold flex-1">{roomName} — Full Room Schedule</h2>
+							<h2 id="room-schedule-overlay-title" className="text-sm font-bold flex-1">{roomName} room schedule</h2>
+							<p id="room-schedule-overlay-description" className="sr-only">
+								Review the latest classes scheduled in this room, then open the full room schedule page if more detail is needed.
+							</p>
 
 							{/* Inline stat banner */}
 							{schedule && (
@@ -261,7 +265,7 @@ export function RoomScheduleOverlay({
 								</div>
 							) : (
 								<div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-									No schedule data available.
+									No latest schedule is available for this room yet.
 								</div>
 							)}
 						</div>
@@ -376,11 +380,11 @@ function OverlayEntryCell({
 	sectionMap: Map<number, { name: string; gradeLevel: number | null }>;
 }) {
 	const sectionInfo = sectionMap.get(entry.sectionId);
-	const subjectLabel = entry.subjectDisplayLabel ?? subjectMap.get(entry.subjectId) ?? `Subject #${entry.subjectId}`;
+	const subjectLabel = entry.subjectDisplayLabel ?? subjectMap.get(entry.subjectId) ?? 'Subject not listed';
 	const sectionLabel = entry.sectionDisplayLabel ?? sectionInfo?.name ?? 'Assigned section';
 	const facultyLabel = entry.facultyId != null
-		? entry.facultyDisplayLabel ?? facultyMap.get(entry.facultyId) ?? `Faculty #${entry.facultyId}`
-		: 'Unassigned Faculty';
+		? entry.facultyDisplayLabel ?? facultyMap.get(entry.facultyId) ?? 'Teacher not listed'
+		: 'Unassigned teacher';
 	return (
 		<div className="px-1.5 py-1 text-[11px] leading-snug">
 			<div className="font-semibold text-foreground truncate">

@@ -184,16 +184,16 @@ export function DeleteSubjectDialog({ target, onClose, onDeleted, onEnsureSchool
 						<DialogHeader>
 							<DialogTitle className="flex items-center gap-2 text-destructive">
 								<Trash2 className="size-5 shrink-0" />
-								Delete {subjectLabel}?
+								Delete subject permanently?
 							</DialogTitle>
 							<DialogDescription asChild>
 								<div className="space-y-2 pt-1">
 									<p>
-										<code className="text-xs font-mono font-bold">{target?.code}</code> will be permanently removed. This cannot be undone.
+										{subjectLabel} <code className="text-xs font-mono font-bold">{target?.code}</code> will be permanently removed from the curriculum list. This cannot be undone.
 									</p>
 									{target?.isActive && (
 										<p className="text-xs text-amber-700 font-semibold rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-											This subject is active. If it has teaching load assignments you will be guided through clearing them first.
+											This subject is active for scheduling. If teachers or sections still use it, ATLAS will ask you to clear those assignments first.
 										</p>
 									)}
 								</div>
@@ -204,7 +204,7 @@ export function DeleteSubjectDialog({ target, onClose, onDeleted, onEnsureSchool
 								Cancel
 							</Button>
 							<Button variant="destructive" size="sm" disabled={loading} onClick={handleConfirmDelete}>
-								{loading ? <><Spinner />Checking...</> : 'Delete'}
+								{loading ? <><Spinner />Checking...</> : 'Delete permanently'}
 							</Button>
 						</DialogFooter>
 					</>

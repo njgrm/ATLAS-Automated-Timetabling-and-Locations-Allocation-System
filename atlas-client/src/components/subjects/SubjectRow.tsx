@@ -83,6 +83,10 @@ export function SubjectRow({
 		return sorted.map(g => `GR${g}`).join(', ');
 	}, [subject.gradeLevels]);
 
+	const roomNeedLabel = subject.preferredRoomType === 'CLASSROOM'
+		? 'Standard classroom'
+		: ROOM_TYPE_LABELS[subject.preferredRoomType] ?? subject.preferredRoomType;
+
 	return (
 		<tr className="border-b last:border-0 hover:bg-muted/30 transition-colors group">
 			<td className="px-4 py-3">
@@ -122,16 +126,16 @@ export function SubjectRow({
 			<td className="px-4 py-3">
 				<div className="flex flex-col">
 					<span className="text-sm tabular-nums font-semibold text-foreground">{duration}</span>
-					<span className="text-[0.7rem] text-muted-foreground uppercase tracking-tight">Weekly</span>
+					<span className="text-[0.7rem] text-muted-foreground uppercase tracking-tight">Weekly time</span>
 				</div>
 			</td>
 			<td className="px-4 py-3">
 				<div className="flex flex-col">
 					<span className="text-xs font-medium text-foreground">
-						{ROOM_TYPE_LABELS[subject.preferredRoomType] ?? subject.preferredRoomType}
+						{roomNeedLabel}
 					</span>
 					{subject.requiredFeatures.length > 0 && (
-						<span className="text-[0.65rem] text-blue-600 font-semibold uppercase">+{subject.requiredFeatures.length} requirements</span>
+						<span className="text-[0.65rem] text-amber-600 font-semibold uppercase">+{subject.requiredFeatures.length} room feature{subject.requiredFeatures.length === 1 ? '' : 's'}</span>
 					)}
 				</div>
 			</td>
@@ -170,7 +174,7 @@ export function SubjectRow({
 						</div>
 					)}
 					{subject.isSeedable && (
-						<span className="text-[0.62rem] text-blue-600 font-semibold uppercase">Auto-Schedule</span>
+						<span className="text-[0.62rem] text-blue-600 font-semibold uppercase">Can be scheduled</span>
 					)}
 				</div>
 			</td>
@@ -184,11 +188,12 @@ export function SubjectRow({
 									size="icon"
 									className="size-8 text-muted-foreground hover:text-primary"
 									onClick={() => onShowCoverage(subject)}
+									aria-label={`Review teacher coverage for ${subject.name}`}
 								>
 									<Users className="size-4" />
 								</Button>
 							</TooltipTrigger>
-							<TooltipContent>Teacher coverage</TooltipContent>
+							<TooltipContent>Review teacher coverage</TooltipContent>
 						</Tooltip>
 						<Tooltip>
 							<TooltipTrigger asChild>
@@ -197,17 +202,18 @@ export function SubjectRow({
 									size="icon"
 									className="size-8 text-muted-foreground hover:text-primary"
 									onClick={() => onEdit(subject)}
+									aria-label={`Edit curriculum settings for ${subject.name}`}
 								>
 									<Pencil className="size-4" />
 								</Button>
 							</TooltipTrigger>
-							<TooltipContent>Edit subject</TooltipContent>
+							<TooltipContent>Edit curriculum settings</TooltipContent>
 						</Tooltip>
 					</TooltipProvider>
 
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
-							<Button variant="ghost" size="icon" className="size-8 text-muted-foreground">
+							<Button variant="ghost" size="icon" className="size-8 text-muted-foreground" aria-label={`More subject actions for ${subject.name}`}>
 								<MoreVertical className="size-4" />
 							</Button>
 						</DropdownMenuTrigger>
@@ -215,13 +221,13 @@ export function SubjectRow({
 							{subject.isActive && (
 								<DropdownMenuItem onClick={() => onArchive(subject)}>
 									<Archive className="mr-2 size-4" />
-									<span>Archive</span>
+									<span>Archive for new schedules</span>
 								</DropdownMenuItem>
 							)}
 							{!subject.isActive && (
 								<DropdownMenuItem onClick={() => onReactivate(subject)}>
 									<RotateCcw className="mr-2 size-4" />
-									<span>Reactivate</span>
+									<span>Make schedulable again</span>
 								</DropdownMenuItem>
 							)}
 							<>
@@ -231,7 +237,7 @@ export function SubjectRow({
 									className="text-red-600 focus:text-red-600"
 								>
 									<Trash2 className="mr-2 size-4" />
-									<span>Delete</span>
+									<span>Delete permanently</span>
 								</DropdownMenuItem>
 							</>
 						</DropdownMenuContent>

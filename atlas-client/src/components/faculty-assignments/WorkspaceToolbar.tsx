@@ -37,6 +37,15 @@ type WorkspaceToolbarProps = {
 	reconcileLoading: boolean;
 	showReconcileAction: boolean;
 	reconcileEnabled: boolean;
+	workspaceStateLabel: string;
+	workspaceStateDescription: string;
+	workspaceStateNextAction: string;
+	coverageStateLabel: string;
+	coverageStateDescription: string;
+	activeDraftCount: number;
+	saving: boolean;
+	onSave: () => void;
+	onRetrySource: () => void;
 };
 
 export function WorkspaceToolbar({
@@ -69,17 +78,65 @@ export function WorkspaceToolbar({
 	showReconcileAction,
 	reconcileEnabled,
 	reviewDismissed,
+	workspaceStateLabel,
+	workspaceStateDescription,
+	workspaceStateNextAction,
+	coverageStateLabel,
+	coverageStateDescription,
+	activeDraftCount,
+	saving,
+	onSave,
+	onRetrySource,
 }: WorkspaceToolbarProps & { reviewDismissed?: boolean }) {
 	const completenessPercent = totalPairs > 0 ? Math.round(((realAssignedPairs + syntheticPlaceholderPairs) / totalPairs) * 100) : 0;
+	const hasCoverageUniverse = totalPairs > 0;
+	const assignedPairs = realAssignedPairs + syntheticPlaceholderPairs;
 
 	const statusConfig = useMemo(() => {
-		if (!isOnline) return { label: 'Offline', color: 'bg-amber-500', description: 'Disconnected from server. Changes saved locally.' };
-		if (dataSource === 'refreshing') return { label: 'Syncing', color: 'bg-blue-500 animate-pulse', description: dataSourceNotice ?? 'Verifying live data...' };
-		if (dataSource === 'live') return { label: 'Verified Live', color: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]', description: 'Freshly verified. Changes synced immediately.' };
-		if (isWorkspaceWritable) return { label: 'Saved Data', color: 'bg-amber-500', description: dataSourceNotice ?? 'ATLAS-owned runtime evidence is writable while upstream-backed verification is unavailable.' };
-		if (degradedWriteEnabled) return { label: 'Saved Data', color: 'bg-amber-500', description: dataSourceNotice ?? 'Using local Section evidence.' };
-		return { label: 'Read-Only', color: 'bg-blue-500', description: dataSourceNotice ?? 'Viewing saved snapshot.' };
+		if (!isOnline) return { label: 'Offline', color: 'bg-amber-500', description: 'Disconnected from the server. Changes are locked until ATLAS reconnects.' };
+		if (dataSource === 'refreshing') return { label: 'Checking source', color: 'bg-blue-500 animate-pulse', description: dataSourceNotice ?? 'Verifying live data before edits continue.' };
+		if (dataSource === 'live') return { label: 'Verified live', color: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]', description: 'Freshly verified. Draft changes can be saved.' };
+		if (isWorkspaceWritable) return { label: 'Using saved data', color: 'bg-amber-500', description: dataSourceNotice ?? 'ATLAS-owned runtime evidence is writable while upstream-backed verification is unavailable.' };
+		if (degradedWriteEnabled) return { label: 'Using saved data', color: 'bg-amber-500', description: dataSourceNotice ?? 'Using local Section evidence.' };
+		return { label: 'Read-only', color: 'bg-blue-500', description: dataSourceNotice ?? 'Viewing a saved snapshot. Edits need source verification first.' };
 	}, [isOnline, dataSource, isWorkspaceWritable, degradedWriteEnabled, dataSourceNotice]);
+
+	const primaryAction = useMemo(() => {
+		if (activeDraftCount > 0) {
+			return {
+				label: saving ? 'Saving...' : `Save draft (${activeDraftCount})`,
+				onClick: onSave,
+				disabled: saving || !isWorkspaceWritable,
+				variant: 'default' as const,
+				helper: isWorkspaceWritable ? 'Save pending assignment changes.' : 'Saving is blocked until this workspace is writable.',
+			};
+		}
+		if (dataSource === 'refreshing') {
+			return {
+				label: 'Checking source',
+				onClick: onRetrySource,
+				disabled: true,
+				variant: 'outline' as const,
+				helper: 'ATLAS is checking live assignment data.',
+			};
+		}
+		if (!isOnline || dataSource === 'none') {
+			return {
+				label: isOnline ? 'Retry source' : 'Offline',
+				onClick: onRetrySource,
+				disabled: !isOnline,
+				variant: 'outline' as const,
+				helper: isOnline ? 'Try loading teaching load data again.' : 'Reconnect before retrying.',
+			};
+		}
+		return {
+			label: 'Preview auto-fill',
+			onClick: onAutoFillClick,
+			disabled: autoFillLoading || !autoFillEnabled,
+			variant: 'secondary' as const,
+			helper: autoFillEnabled ? 'Review automated assignment help before applying it.' : 'Auto-fill needs live writable data.',
+		};
+	}, [activeDraftCount, autoFillEnabled, autoFillLoading, dataSource, isOnline, isWorkspaceWritable, onAutoFillClick, onRetrySource, onSave, saving]);
 
 	const showReviewBadge = useMemo(() => {
 		if (reviewDismissed) return false;
@@ -92,8 +149,27 @@ export function WorkspaceToolbar({
 	}, [splitBrainIncident, reviewDismissed]);
 
 	return (
-		<div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-2xl border border-border/40 bg-background px-5 py-2.5 shadow-md">
-			<div className="flex flex-wrap items-center gap-6">
+		<div className="rounded-2xl border border-border/40 bg-background px-5 py-3 shadow-md space-y-3">
+			<div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+				<div className="min-w-60 space-y-1">
+					<div className="flex flex-wrap items-center gap-3">
+						<h1 className="text-xl font-semibold tracking-tight text-foreground">Teaching Load</h1>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Badge variant="outline" className="h-5 cursor-help rounded-full border-primary/15 bg-primary/5 px-2 text-xs font-semibold text-primary shadow-none">
+									{workspaceStateLabel}
+								</Badge>
+							</TooltipTrigger>
+							<TooltipContent side="bottom" className="max-w-72 p-3 text-xs font-medium leading-relaxed">
+								<p className="font-semibold text-foreground">{workspaceStateDescription}</p>
+								<p className="mt-1 text-muted-foreground">{workspaceStateNextAction}</p>
+							</TooltipContent>
+						</Tooltip>
+					</div>
+					<p className="text-sm font-medium text-muted-foreground">Assign subjects and sections to teachers before generation.</p>
+				</div>
+
+				<div className="flex flex-wrap items-center gap-6">
 				{/* Runtime Status */}
 				<Tooltip>
 					<TooltipTrigger asChild>
@@ -135,15 +211,31 @@ export function WorkspaceToolbar({
 				<div className="flex items-center gap-5">
 					<div className="flex items-center gap-4">
 						<div className="flex flex-col">
-							<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/50 leading-none mb-1">Total Coverage</span>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="cursor-help text-xs font-semibold uppercase tracking-widest text-muted-foreground/50 leading-none mb-1">{hasCoverageUniverse ? 'Staffed coverage' : coverageStateLabel}</span>
+								</TooltipTrigger>
+								<TooltipContent side="bottom" className="max-w-72 p-3 text-xs font-medium leading-relaxed">
+									{coverageStateDescription}
+								</TooltipContent>
+							</Tooltip>
 							<div className="flex items-baseline gap-1">
-								<span className="text-sm font-semibold tracking-tight leading-none text-primary">{realAssignedPairs + syntheticPlaceholderPairs}</span>
+								<span className="text-sm font-semibold tracking-tight leading-none text-primary">{assignedPairs}</span>
 								<span className="text-xs font-bold text-muted-foreground/40">/ {totalPairs}</span>
 								<Badge variant="outline" className={`ml-2 h-4 px-1.5 text-xs font-semibold border-none shadow-none ${completenessPercent === 100 ? 'bg-emerald-500/10 text-emerald-700' : 'bg-amber-500/10 text-amber-700'}`}>
 									{completenessPercent}%
 								</Badge>
 							</div>
 						</div>
+						{syntheticPlaceholderPairs > 0 && (
+							<div className="h-8 w-px bg-border/20" />
+						)}
+						{syntheticPlaceholderPairs > 0 && (
+							<div className="flex flex-col">
+								<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/50 leading-none mb-1">Teacher X</span>
+								<span className="text-sm font-semibold tabular-nums leading-none text-violet-600">{syntheticPlaceholderPairs}</span>
+							</div>
+						)}
 						<div className="h-8 w-px bg-border/20" />
 						<div className="flex flex-col">
 							<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/50 leading-none mb-1">Unassigned</span>
@@ -158,17 +250,36 @@ export function WorkspaceToolbar({
 
 				{/* Workspace View Mode */}
 				<div className="flex items-center gap-3">
-					<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/50 hidden sm:inline">Grid Mode</span>
+					<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/50 hidden sm:inline">Work mode</span>
 					<Tabs value={viewMode} onValueChange={(v) => onViewModeChange(v as 'teacher' | 'allocation')} className="h-7">
 						<TabsList className="h-7 p-0.5 bg-muted/40 border border-border/40">
-							<TabsTrigger value="teacher" className="h-6 text-xs font-semibold uppercase px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm">By Teacher</TabsTrigger>
-							<TabsTrigger value="allocation" className="h-6 text-xs font-semibold uppercase px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm">Section Allocation</TabsTrigger>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<TabsTrigger value="teacher" className="h-6 text-xs font-semibold uppercase px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm">By teacher</TabsTrigger>
+								</TooltipTrigger>
+								<TooltipContent side="bottom" className="max-w-62.5 text-xs font-semibold">
+									Inspect and adjust one teacher at a time.
+								</TooltipContent>
+							</Tooltip>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<TabsTrigger value="allocation" className="h-6 text-xs font-semibold uppercase px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm">Section allocation</TabsTrigger>
+								</TooltipTrigger>
+								<TooltipContent side="bottom" className="max-w-62.5 text-xs font-semibold">
+									Fill section coverage gaps by subject.
+								</TooltipContent>
+							</Tooltip>
 						</TabsList>
 					</Tabs>
 				</div>
+				</div>
 			</div>
 
-			<div className="flex items-center gap-3">
+			<div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/30 pt-3">
+				<p className="text-xs font-medium text-muted-foreground">
+					<span className="font-semibold text-foreground">Next:</span> {workspaceStateNextAction}
+				</p>
+				<div className="flex items-center gap-3">
 				{showReconcileAction && (
 					<Button
 						type="button"
@@ -230,20 +341,29 @@ export function WorkspaceToolbar({
 					className="h-8 text-xs font-semibold border-transparent bg-transparent text-primary hover:bg-primary/5 shadow-none gap-2 px-3 uppercase tracking-widest transition-all"
 				>
 					<ChartColumn className="size-4" />
-					Staffing Audit
+					Staffing audit
 				</Button>
 
-				<Button 
-					type="button" 
-					variant="secondary" 
-					size="sm"
-					onClick={onAutoFillClick} 
-					disabled={autoFillLoading || !autoFillEnabled} 
-					className="h-8 text-xs font-semibold gap-2 px-4 uppercase tracking-widest shadow-sm border border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 transition-all"
-				>
-					<Zap className="size-4" />
-					Auto-Fill
-				</Button>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							type="button"
+							variant={primaryAction.variant}
+							size="sm"
+							onClick={primaryAction.onClick}
+							disabled={primaryAction.disabled}
+							className="h-8 text-xs font-semibold gap-2 px-4 uppercase tracking-widest shadow-sm border border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 transition-all"
+						>
+							{activeDraftCount > 0 ? <Activity className="size-4" /> : <Zap className="size-4" />}
+							{primaryAction.label}
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent side="bottom" className="max-w-62.5 text-xs font-semibold">
+						{primaryAction.helper}
+					</TooltipContent>
+				</Tooltip>
+
+				</div>
 			</div>
 		</div>
 	);

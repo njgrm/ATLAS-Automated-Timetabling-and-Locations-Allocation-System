@@ -55,12 +55,12 @@ function buildRows(view: RoomScheduleView, rowCount: number) {
 
 function formatEntry(entry: RoomScheduleEntry, subjectMap: Map<number, string>, facultyMap: Map<number, string>, sectionMap: Map<number, string>) {
 	return {
-		subject: subjectMap.get(entry.subjectId) ?? `Subject #${entry.subjectId}`,
+		subject: subjectMap.get(entry.subjectId) ?? 'Subject not listed',
 		faculty:
 			entry.facultyId != null
-				? (facultyMap.get(entry.facultyId) ?? `Faculty #${entry.facultyId}`)
-				: 'Unassigned Teacher',
-		section: sectionMap.get(entry.sectionId) ?? `Section #${entry.sectionId}`,
+				? (facultyMap.get(entry.facultyId) ?? 'Teacher not listed')
+				: 'Unassigned teacher',
+		section: sectionMap.get(entry.sectionId) ?? 'Section not listed',
 	};
 }
 

@@ -9,12 +9,14 @@ type SectionInspectorProps = {
 	section: ExternalSection | null;
 	sectionContract: SectionAssignedClassesResult | null;
 	effectiveOwnershipMap: Record<string, FacultyOwnershipState & { isPending: boolean }>;
+	writeBlockedReason?: string | null;
 };
 
 export function SectionInspector({
 	section,
 	sectionContract,
-	effectiveOwnershipMap
+	effectiveOwnershipMap,
+	writeBlockedReason
 }: SectionInspectorProps) {
 	if (!section) {
 		return (
@@ -22,7 +24,8 @@ export function SectionInspector({
 				<div className="size-12 rounded-full bg-muted flex items-center justify-center mb-4">
 					<Layout className="size-6 text-muted-foreground/40" />
 				</div>
-				<p className="text-sm font-bold uppercase tracking-widest text-muted-foreground/40">Select a section<br/>to inspect staffing</p>
+				<p className="text-sm font-semibold text-muted-foreground">Select a section to inspect staffing.</p>
+				<p className="mt-2 text-xs font-medium text-muted-foreground/70">Use Section allocation mode to find missing subject coverage and assign a qualified teacher.</p>
 			</div>
 		);
 	}
@@ -59,6 +62,12 @@ export function SectionInspector({
 	return (
 		<div className="flex h-full flex-col bg-background border-l border-border/50">
 			<div className="shrink-0 p-6 border-b border-border/40 space-y-4">
+				{writeBlockedReason && (
+					<div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-amber-900">
+						<p className="text-xs font-semibold uppercase tracking-widest">Write actions paused</p>
+						<p className="mt-1 text-xs font-medium text-amber-800/80">{writeBlockedReason}</p>
+					</div>
+				)}
 				<div className="flex items-center justify-between">
 					<h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">Section Staffing</h3>
 					<Badge variant="outline" className={cn("h-5 font-semibold uppercase tracking-tighter shadow-none text-xs", missingCount === 0 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200")}>

@@ -28,6 +28,10 @@ type StaffingAuditSheetProps = {
 	coverageTotals: TeachingLoadCoverageTotals | null;
 	faculty: FacultySummary[];
 	subjects: Subject[];
+	coverageStateLabel: string;
+	coverageStateDescription: string;
+	workspaceStateLabel: string;
+	workspaceStateNextAction: string;
 	onNavigateToAllocation?: () => void;
 };
 
@@ -37,6 +41,10 @@ export function StaffingAuditSheet({
 	coverageTotals,
 	faculty,
 	subjects,
+	coverageStateLabel,
+	coverageStateDescription,
+	workspaceStateLabel,
+	workspaceStateNextAction,
 	onNavigateToAllocation
 }: StaffingAuditSheetProps) {
 	const completenessPercent = useMemo(() => {
@@ -45,10 +53,11 @@ export function StaffingAuditSheet({
 	}, [coverageTotals]);
 
 	const unassignedCount = coverageTotals?.unassignedPairs ?? 0;
+	const hasCoverageData = Boolean(coverageTotals && coverageTotals.totalPairs > 0);
 
 	return (
 		<Sheet open={open} onOpenChange={onOpenChange}>
-			<SheetContent side="right" className="w-[400px] sm:w-[540px] overflow-y-auto no-scrollbar">
+			<SheetContent side="right" className="w-100 sm:w-135 overflow-y-auto no-scrollbar">
 				<SheetHeader className="pb-6 border-b border-border/50">
 					<div className="flex items-center gap-2 mb-2">
 						<Activity className="size-5 text-primary" />
@@ -60,6 +69,14 @@ export function StaffingAuditSheet({
 				</SheetHeader>
 
 				<div className="py-8 space-y-10">
+					{!hasCoverageData && (
+						<div className="rounded-2xl border border-dashed border-border/70 bg-muted/10 p-6 text-center">
+							<BookOpen className="mx-auto mb-4 size-10 text-muted-foreground/40" />
+							<h4 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/70">{coverageStateLabel}</h4>
+							<p className="mx-auto mt-2 max-w-sm text-sm font-medium text-muted-foreground">{coverageStateDescription}</p>
+							<p className="mx-auto mt-3 max-w-sm text-xs font-semibold text-primary">{workspaceStateLabel}: {workspaceStateNextAction}</p>
+						</div>
+					)}
 					{/* Coverage Progress */}
 					<section className="space-y-4">
 						<div className="flex items-center justify-between">

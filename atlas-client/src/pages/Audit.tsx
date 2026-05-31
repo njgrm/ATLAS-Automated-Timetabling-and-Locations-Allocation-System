@@ -1,19 +1,75 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ShieldCheck, AlertTriangle, UserMinus, BookX, Loader2, Search, ArrowRight, Clock, Box, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
+import {
+	AlertTriangle,
+	ArrowRight,
+	BookX,
+	Box,
+	CheckCircle2,
+	Clock,
+	Loader2,
+	RefreshCw,
+	Search,
+	ShieldCheck,
+	UserMinus,
+	XCircle,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/ui/card';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
+import { Card, CardContent } from '@/ui/card';
 import { Input } from '@/ui/input';
 import { ScrollArea } from '@/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/tabs';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
 const DEFAULT_SCHOOL_ID = 1;
+
+const AUDIT_DOMAINS = [
+	'Teacher assignments',
+	'Section coverage',
+	'Rooms and facilities',
+	'Teacher constraints',
+	'Live and saved data',
+];
+
+type ActiveYearSource = 'atlas-persisted' | 'enrollpro-verified' | 'enrollpro' | 'cache';
+type DataSource = 'live' | 'cached' | 'none';
+type FindingSeverity = 'blocker' | 'warning' | 'info';
+
+type Finding = {
+	id: string;
+	title: string;
+	detail: string;
+	why: string;
+	actionLabel: string;
+	route: string;
+	severity: FindingSeverity;
+};
+
+type FindingGroup = {
+	id: string;
+	label: string;
+	description: string;
+	icon: typeof ShieldCheck;
+	findings: Finding[];
+	emptyTitle: string;
+	emptyBody: string;
+};
+
+function severityClassName(severity: FindingSeverity): string {
+	if (severity === 'blocker') return 'border-red-200 bg-red-50 text-red-700';
+	if (severity === 'warning') return 'border-amber-200 bg-amber-50 text-amber-700';
+	return 'border-sky-200 bg-sky-50 text-sky-700';
+}
+
+function severityLabel(severity: FindingSeverity): string {
+	if (severity === 'blocker') return 'Blocks readiness';
+	if (severity === 'warning') return 'Needs review';
+	return 'Check source';
+}
 
 export default function Audit() {
 	const [loading, setLoading] = useState(true);
@@ -26,14 +82,9 @@ export default function Audit() {
 	const [rooms, setRooms] = useState<any[]>([]);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [activeSchoolYearId, setActiveSchoolYearId] = useState<number | null>(null);
-	const [activeYearSource, setActiveYearSource] = useState<'atlas' | 'atlas-persisted' | 'enrollpro-verified' | 'enrollpro' | 'cache'>('cache');
-	const [dataSource, setDataSource] = useState<'live' | 'cached' | 'none'>('none');
+	const [activeYearSource, setActiveYearSource] = useState<ActiveYearSource>('cache');
+	const [dataSource, setDataSource] = useState<DataSource>('none');
 	const [degradedReasons, setDegradedReasons] = useState<string[]>([]);
-	const [mismatchSearch, setMismatchSearch] = useState('');
-	const [clashSearch, setClashSearch] = useState('');
-	const [rosterSearch, setRosterSearch] = useState('');
-	const [showOnlyFacilityGaps, setShowOnlyFacilityGaps] = useState(false);
-	const [utilSearch, setUtilSearch] = useState('');
 
 	useEffect(() => {
 		resolveActiveSchoolYearContext({ allowStaleOnError: true }).then((context) => {
@@ -52,7 +103,7 @@ export default function Audit() {
 
 	useEffect(() => {
 		if (activeSchoolYearId) {
-			loadData();
+			void loadData();
 		}
 	}, [activeSchoolYearId]);
 
@@ -67,7 +118,7 @@ export default function Audit() {
 				atlasApi.get(`/preferences/${DEFAULT_SCHOOL_ID}/${activeSchoolYearId}/audit`),
 				atlasApi.get(`/sections/summary/${activeSchoolYearId}`, { params: { schoolId: DEFAULT_SCHOOL_ID } }),
 				atlasApi.get(`/class-templates?schoolId=${DEFAULT_SCHOOL_ID}`),
-				atlasApi.get(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`)
+				atlasApi.get(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
 			]);
 
 			const reasons: string[] = [];
@@ -117,22 +168,19 @@ export default function Audit() {
 			}
 
 			if (roomRes.status === 'fulfilled') {
-				const allRooms = (roomRes.value.data.buildings || []).flatMap((b: any) => b.rooms || []);
+				const allRooms = (roomRes.value.data.buildings || []).flatMap((building: any) => building.rooms || []);
 				setRooms(allRooms);
 			} else {
 				reasons.push('Room map data is unavailable.');
 				setRooms([]);
 			}
 
-			const hasLocalEvidence =
-				facRes.status === 'fulfilled' &&
-				subRes.status === 'fulfilled' &&
-				secRes.status === 'fulfilled';
+			const hasLocalEvidence = facRes.status === 'fulfilled' && subRes.status === 'fulfilled' && secRes.status === 'fulfilled';
 
 			if (!hasLocalEvidence) {
 				setDataSource('none');
 				setDegradedReasons(reasons);
-				toast.error('Audit cannot run: local ATLAS evidence is incomplete for this school year.');
+				toast.error('Readiness report cannot run because setup evidence is incomplete.');
 				return;
 			}
 
@@ -140,27 +188,24 @@ export default function Audit() {
 			setDataSource(isUpstreamBacked ? 'live' : 'cached');
 			setDegradedReasons(reasons);
 			if (!isUpstreamBacked || reasons.length > 0) {
-				toast.warning('Audit loaded in degraded mode using ATLAS-cached evidence.');
+				toast.warning('Readiness report is using saved ATLAS evidence.');
 			}
 		} catch {
 			setDataSource('none');
-			setDegradedReasons(['Failed to load audit data.']);
-			toast.error('Failed to load audit data');
+			setDegradedReasons(['Failed to load readiness evidence.']);
+			toast.error('Failed to load readiness evidence.');
 		} finally {
 			setLoading(false);
 		}
 	};
 
-	const checkQualification = (f: any, s: any) => {
-		const allowed = s.allowedSpecializations || [];
-		if (allowed.length === 0) return 1; // Open to all
+	const checkQualification = (facultyMember: any, subject: any) => {
+		const allowed = subject.allowedSpecializations || [];
+		if (allowed.length === 0) return 1;
+		if (facultyMember.specialization && allowed.includes(facultyMember.specialization)) return 1;
+		if (facultyMember.department && allowed.includes(facultyMember.department)) return 2;
 
-		// Tier 1: Spec
-		if (f.specialization && allowed.includes(f.specialization)) return 1;
-		// Tier 2: Dept
-		if (f.department && allowed.includes(f.department)) return 2;
-		// Tier 3: Alias
-		const facultyTerms = [f.specialization, f.department].filter(Boolean);
+		const facultyTerms = [facultyMember.specialization, facultyMember.department].filter(Boolean);
 		for (const alias of aliases) {
 			if (facultyTerms.includes(alias.alias) && allowed.includes(alias.canonical)) return 3;
 		}
@@ -170,68 +215,66 @@ export default function Audit() {
 
 	const mismatches = useMemo(() => {
 		const list: any[] = [];
-		faculty.forEach(f => {
-			(f.assignments || []).forEach((a: any) => {
-				const sub = subjects.find(s => s.id === a.subjectId);
-				if (!sub) return;
-				
-				if (!checkQualification(f, sub)) {
-					list.push({
-						facultyId: f.id,
-						facultyName: `${f.lastName}, ${f.firstName}`,
-						subjectId: sub.id,
-						subjectName: sub.name,
-						subjectCode: sub.code,
-						required: (sub.allowedSpecializations || []).join(', '),
-						actual: f.specialization || f.department || 'None'
-					});
-				}
+		faculty.forEach((facultyMember) => {
+			(facultyMember.assignments || []).forEach((assignment: any) => {
+				const subject = subjects.find((item) => item.id === assignment.subjectId);
+				if (!subject || checkQualification(facultyMember, subject)) return;
+
+				list.push({
+					facultyId: facultyMember.id,
+					facultyName: `${facultyMember.lastName}, ${facultyMember.firstName}`,
+					subjectId: subject.id,
+					subjectName: subject.name,
+					subjectCode: subject.code,
+					required: (subject.allowedSpecializations || []).join(', ') || 'Listed specialization',
+					actual: facultyMember.specialization || facultyMember.department || 'No department listed',
+				});
 			});
 		});
 		return list;
 	}, [faculty, subjects, aliases]);
 
 	const gaps = useMemo(() => {
-		return subjects.filter(s => {
-			const allowed = s.allowedSpecializations || [];
+		return subjects.filter((subject) => {
+			const allowed = subject.allowedSpecializations || [];
 			if (allowed.length === 0) return false;
-			
-			const qualifiedFaculty = faculty.filter(f => checkQualification(f, s));
+
+			const qualifiedFaculty = faculty.filter((facultyMember) => checkQualification(facultyMember, subject));
 			return qualifiedFaculty.length === 0;
 		});
 	}, [faculty, subjects, aliases]);
 
 	const clashes = useMemo(() => {
-		return prefAudit.filter(p => p.unavailabilityPercent > 50).map(p => {
-			const qualifiedSubjects = subjects.filter(s => {
-				const allowed = s.allowedSpecializations || [];
-				return allowed.length > 0 && ((p.specialization && allowed.includes(p.specialization)) || (p.department && allowed.includes(p.department)));
+		return prefAudit.filter((preference) => preference.unavailabilityPercent > 50).map((preference) => {
+			const qualifiedSubjects = subjects.filter((subject) => {
+				const allowed = subject.allowedSpecializations || [];
+				return allowed.length > 0 && ((preference.specialization && allowed.includes(preference.specialization)) || (preference.department && allowed.includes(preference.department)));
 			});
-			return { ...p, qualifiedSubjects };
-		}).filter(p => p.qualifiedSubjects.length > 0);
+			return { ...preference, qualifiedSubjects };
+		}).filter((preference) => preference.qualifiedSubjects.length > 0);
 	}, [prefAudit, subjects]);
 
 	const rosterGaps = useMemo(() => {
 		const missing: any[] = [];
-		sections.forEach(sec => {
-			const template = templates.find(t => t.programType === sec.programCode);
+		sections.forEach((section) => {
+			const template = templates.find((item) => item.programType === section.programCode);
 			if (!template) return;
 
-			template.subjects.forEach((reqSub: any) => {
-				const isAssigned = faculty.some(f => 
-					(f.assignments || []).some((a: any) => 
-						a.subjectId === reqSub.id && (a.sectionIds || []).includes(sec.id)
-					)
+			(template.subjects ?? []).forEach((requiredSubject: any) => {
+				const isAssigned = faculty.some((facultyMember) =>
+					(facultyMember.assignments || []).some((assignment: any) =>
+						assignment.subjectId === requiredSubject.id && (assignment.sectionIds || []).includes(section.id),
+					),
 				);
 
 				if (!isAssigned) {
 					missing.push({
-						sectionId: sec.id,
-						sectionName: sec.name,
-						gradeLevel: sec.displayOrder,
-						subjectId: reqSub.id,
-						subjectName: reqSub.name,
-						subjectCode: reqSub.code
+						sectionId: section.id,
+						sectionName: section.name,
+						gradeLevel: section.displayOrder,
+						subjectId: requiredSubject.id,
+						subjectName: requiredSubject.name,
+						subjectCode: requiredSubject.code,
 					});
 				}
 			});
@@ -241,603 +284,407 @@ export default function Audit() {
 
 	const optimizationIssues = useMemo(() => {
 		const issues: any[] = [];
-		faculty.forEach(spec => {
-			const specSubjs = subjects.filter(s => checkQualification(spec, s) === 1);
-			if (specSubjs.length === 0) return;
+		faculty.forEach((specialist) => {
+			const specialistSubjects = subjects.filter((subject) => checkQualification(specialist, subject) === 1);
+			if (specialistSubjects.length === 0) return;
 
-			const hasGeneralLoad = (spec.assignments || []).some((a: any) => {
-				const sub = subjects.find(s => s.id === a.subjectId);
-				const tier = sub ? checkQualification(spec, sub) : null;
+			const hasGeneralLoad = (specialist.assignments || []).some((assignment: any) => {
+				const subject = subjects.find((item) => item.id === assignment.subjectId);
+				const tier = subject ? checkQualification(specialist, subject) : null;
 				return tier === 3 || tier === null;
 			});
 
-			if (hasGeneralLoad) {
-				specSubjs.forEach(s => {
-					const assignedToOther = faculty.some(other => 
-						other.id !== spec.id && 
-						(other.assignments || []).some((oa: any) => oa.subjectId === s.id) &&
-						checkQualification(other, s) !== 1
-					);
+			if (!hasGeneralLoad) return;
 
-					if (assignedToOther) {
-						issues.push({
-							specialistName: `${spec.lastName}, ${spec.firstName}`,
-							specialization: spec.specialization || spec.department,
-							subjectName: s.name,
-							subjectCode: s.code,
-							reason: `This specialist has capacity for ${s.name} but is assigned other work while non-specialists teach it.`
-						});
-					}
-				});
-			}
+			specialistSubjects.forEach((subject) => {
+				const assignedToOther = faculty.some((otherFaculty) =>
+					otherFaculty.id !== specialist.id &&
+					(otherFaculty.assignments || []).some((assignment: any) => assignment.subjectId === subject.id) &&
+					checkQualification(otherFaculty, subject) !== 1,
+				);
+
+				if (assignedToOther) {
+					issues.push({
+						specialistId: specialist.id,
+						specialistName: `${specialist.lastName}, ${specialist.firstName}`,
+						specialization: specialist.specialization || specialist.department,
+						subjectName: subject.name,
+						subjectCode: subject.code,
+					});
+				}
+			});
 		});
 		return issues;
 	}, [faculty, subjects, aliases]);
 
 	const facilityGaps = useMemo(() => {
-		return subjects.filter(s => s.requiredFeatures?.length > 0).map(s => {
-			const compatible = rooms.filter(r => 
-				r.type === s.preferredRoomType && 
-				s.requiredFeatures.every((f: string) => (r.features || []).includes(f))
+		return subjects.filter((subject) => subject.requiredFeatures?.length > 0).map((subject) => {
+			const compatible = rooms.filter((room) =>
+				room.type === subject.preferredRoomType &&
+				subject.requiredFeatures.every((feature: string) => (room.features || []).includes(feature)),
 			);
-			return { ...s, compatibleCount: compatible.length };
-		}).filter(s => s.compatibleCount === 0);
+			return { ...subject, compatibleCount: compatible.length };
+		}).filter((subject) => subject.compatibleCount === 0);
 	}, [subjects, rooms]);
 
 	const syncIssues = useMemo(() => {
-		return faculty.filter(f => !f.employeeId || f.employeeId.length !== 7).map(f => ({
-			id: f.id,
-			name: `${f.lastName}, ${f.firstName}`,
-			reason: !f.employeeId ? 'Missing Employee ID' : 'Invalid ID format (must be 7 digits)'
+		return faculty.filter((facultyMember) => !facultyMember.employeeId || facultyMember.employeeId.length !== 7).map((facultyMember) => ({
+			id: facultyMember.id,
+			name: `${facultyMember.lastName}, ${facultyMember.firstName}`,
+			reason: !facultyMember.employeeId ? 'Missing employee ID' : 'Employee ID must be 7 digits',
 		}));
 	}, [faculty]);
 
-	const criticalCount = mismatches.length + facilityGaps.length;
-	const isReady = criticalCount === 0;
+	const assignmentFindings: Finding[] = [
+		...mismatches.map((mismatch, index) => ({
+			id: `assignment-mismatch-${mismatch.facultyId}-${mismatch.subjectId}-${index}`,
+			title: `${mismatch.facultyName} is assigned to ${mismatch.subjectName}`,
+			detail: `Required: ${mismatch.required}. Current record: ${mismatch.actual}.`,
+			why: 'Teacher-subject mismatch can create hard schedule violations during review.',
+			actionLabel: 'Fix teacher assignment',
+			route: `/teaching-load?facultyId=${mismatch.facultyId}`,
+			severity: 'blocker' as FindingSeverity,
+		})),
+		...gaps.map((subject, index) => ({
+			id: `assignment-gap-${subject.id}-${index}`,
+			title: `${subject.name} has no qualified teacher`,
+			detail: `Required coverage: ${(subject.allowedSpecializations || []).join(', ') || 'listed specialization'}.`,
+			why: 'ATLAS needs at least one qualified teacher before this subject can be placed reliably.',
+			actionLabel: 'Review teaching load',
+			route: '/teaching-load',
+			severity: 'blocker' as FindingSeverity,
+		})),
+		...optimizationIssues.map((issue, index) => ({
+			id: `assignment-balance-${issue.specialistId}-${issue.subjectCode}-${index}`,
+			title: `${issue.specialistName} may be better used for ${issue.subjectName}`,
+			detail: `${issue.specialization || 'Specialist'} capacity is being used away from a subject they directly match.`,
+			why: 'Better teacher placement can reduce later manual repairs.',
+			actionLabel: 'Review load balance',
+			route: '/teaching-load',
+			severity: 'warning' as FindingSeverity,
+		})),
+	];
 
-	if (loading) return <div className="p-6 flex items-center justify-center h-full"><Loader2 className="animate-spin" /></div>;
+	const sectionFindings: Finding[] = rosterGaps.map((gap, index) => ({
+		id: `section-gap-${gap.sectionId}-${gap.subjectId}-${index}`,
+		title: `${gap.sectionName} is missing ${gap.subjectName}`,
+		detail: `Grade ${gap.gradeLevel} section has no assigned teacher for ${gap.subjectCode}.`,
+		why: 'Every section needs complete subject coverage before scheduling review is meaningful.',
+		actionLabel: 'Assign teacher',
+		route: `/teaching-load?sectionId=${gap.sectionId}`,
+		severity: 'blocker',
+	}));
+
+	const facilityFindings: Finding[] = facilityGaps.map((subject, index) => ({
+		id: `facility-gap-${subject.id}-${index}`,
+		title: `${subject.name} has no compatible room`,
+		detail: `Needs ${(subject.requiredFeatures || []).join(', ') || 'special room features'} and ${subject.preferredRoomType || 'a matching room type'}.`,
+		why: 'Room gaps can block placement or force unsafe manual room changes.',
+		actionLabel: 'Check rooms and facilities',
+		route: '/map',
+		severity: 'blocker',
+	}));
+
+	const constraintFindings: Finding[] = clashes.map((clash, index) => ({
+		id: `constraint-${clash.facultyId ?? clash.name}-${index}`,
+		title: `${clash.name} has limited available time`,
+		detail: `${clash.unavailabilityPercent}% unavailable. Affected subjects: ${clash.qualifiedSubjects.map((subject: any) => subject.code).join(', ')}.`,
+		why: 'Heavy unavailability can leave otherwise qualified subjects hard to place.',
+		actionLabel: 'Check teacher record',
+		route: '/teachers',
+		severity: 'warning',
+	}));
+
+	const sourceFindings: Finding[] = [
+		...degradedReasons.map((reason, index) => ({
+			id: `source-degraded-${index}-${reason}`,
+			title: reason,
+			detail: dataSource === 'none' ? 'This evidence is required before ATLAS can finish the readiness report.' : 'The report is using saved ATLAS evidence for this domain.',
+			why: 'Officers need to know whether a finding is backed by live data or saved data.',
+			actionLabel: 'Check setup source',
+			route: '/sections',
+			severity: dataSource === 'none' ? 'blocker' as FindingSeverity : 'info' as FindingSeverity,
+		})),
+		...syncIssues.map((issue, index) => ({
+			id: `source-sync-${issue.id}-${index}`,
+			title: `${issue.name} has a roster sync issue`,
+			detail: issue.reason,
+			why: 'Teacher identity gaps can break matching, reports, and downstream schedule review.',
+			actionLabel: 'Open teacher roster',
+			route: '/teachers',
+			severity: 'warning' as FindingSeverity,
+		})),
+	];
+
+	const findingGroups: FindingGroup[] = [
+		{
+			id: 'teacher-assignments',
+			label: 'Fix teacher assignments',
+			description: 'Teacher coverage, qualifications, and load balance.',
+			icon: UserMinus,
+			findings: assignmentFindings,
+			emptyTitle: 'Teacher assignments look ready',
+			emptyBody: 'No qualification gaps or teacher-assignment blockers were found in the loaded evidence.',
+		},
+		{
+			id: 'section-gaps',
+			label: 'Resolve section gaps',
+			description: 'Sections missing required class coverage.',
+			icon: BookX,
+			findings: sectionFindings,
+			emptyTitle: 'Sections have required coverage',
+			emptyBody: 'No section-subject gaps were found in the loaded templates and assignments.',
+		},
+		{
+			id: 'rooms-facilities',
+			label: 'Check rooms and facilities',
+			description: 'Room feature and facility readiness.',
+			icon: Box,
+			findings: facilityFindings,
+			emptyTitle: 'Rooms match subject needs',
+			emptyBody: 'No subjects with required room features are missing compatible rooms.',
+		},
+		{
+			id: 'constraints',
+			label: 'Review constraints',
+			description: 'Teacher availability signals that may require review.',
+			icon: Clock,
+			findings: constraintFindings,
+			emptyTitle: 'No major constraint pressure found',
+			emptyBody: 'No teacher with matching subjects is more than 50% unavailable in the loaded preference audit.',
+		},
+		{
+			id: 'saved-live-data',
+			label: 'Check saved/live data',
+			description: 'Evidence freshness and roster sync health.',
+			icon: RefreshCw,
+			findings: sourceFindings,
+			emptyTitle: 'Evidence source looks usable',
+			emptyBody: dataSource === 'live' ? 'The report is based on live upstream-backed evidence.' : 'The report is based on saved ATLAS evidence with no missing domains reported.',
+		},
+	];
+
+	const blockerCount = findingGroups.reduce((total, group) => total + group.findings.filter((finding) => finding.severity === 'blocker').length, 0);
+	const warningCount = findingGroups.reduce((total, group) => total + group.findings.filter((finding) => finding.severity === 'warning').length, 0);
+	const avgLoad = faculty.reduce((sum, facultyMember) => sum + (facultyMember.loadPercentage ?? 0), 0) / (faculty.length || 1);
+	const sourceLabel = dataSource === 'live' ? 'Live upstream-backed' : dataSource === 'cached' ? 'ATLAS saved evidence' : 'No saved evidence';
+	const verdict = dataSource === 'none'
+		? {
+			label: 'Cannot check readiness yet',
+			detail: 'ATLAS could not load enough setup evidence to complete this report.',
+			icon: AlertTriangle,
+			className: 'border-amber-200 bg-amber-50 text-amber-900',
+			iconClassName: 'bg-amber-100 text-amber-700',
+		}
+		: blockerCount === 0
+			? {
+				label: 'Ready for scheduling review',
+				detail: 'No readiness blockers were found in the loaded evidence. Review warnings before moving forward.',
+				icon: CheckCircle2,
+				className: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+				iconClassName: 'bg-emerald-100 text-emerald-700',
+			}
+			: {
+				label: 'Needs fixes before scheduling',
+				detail: `${blockerCount} readiness blocker${blockerCount === 1 ? '' : 's'} must be fixed before scheduling review is reliable.`,
+				icon: XCircle,
+				className: 'border-red-200 bg-red-50 text-red-900',
+				iconClassName: 'bg-red-100 text-red-700',
+			};
+
+	const VerdictIcon = verdict.icon;
+
+	const filterFindings = (findings: Finding[]) => {
+		const query = searchQuery.trim().toLowerCase();
+		if (!query) return findings;
+		return findings.filter((finding) =>
+			finding.title.toLowerCase().includes(query) ||
+			finding.detail.toLowerCase().includes(query) ||
+			finding.why.toLowerCase().includes(query),
+		);
+	};
+
+	if (loading) {
+		return (
+			<div className="flex h-[calc(100svh-3.5rem)] flex-col bg-primary/5 px-6 py-8 lg:px-8">
+				<div className="mx-auto flex h-full w-full max-w-3xl items-center justify-center">
+					<Card className="w-full border-0 bg-white shadow-soft-xl">
+						<CardContent className="p-6">
+							<div className="flex items-start gap-4">
+								<div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+									<Loader2 className="size-6 animate-spin" />
+								</div>
+								<div>
+									<h1 className="text-2xl font-bold text-slate-900">Checking readiness...</h1>
+									<p className="mt-2 text-sm text-slate-500">ATLAS is checking the setup evidence officers need before scheduling review.</p>
+									<div className="mt-4 grid gap-2 sm:grid-cols-2">
+										{AUDIT_DOMAINS.map((domain) => (
+											<div key={domain} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600">
+												<ShieldCheck className="size-4 text-primary" />
+												{domain}
+											</div>
+										))}
+									</div>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+				</div>
+			</div>
+		);
+	}
 
 	return (
-		<div className="h-[calc(100svh-3.5rem)] flex flex-col overflow-hidden bg-background">
-			{/* Page Header */}
-			<header className="shrink-0 border-b bg-muted/30 px-6 py-3">
-				<div className="flex items-center justify-between">
-					<div className="flex items-center gap-3">
-						<div className="size-8 rounded-lg bg-emerald-600/10 flex items-center justify-center">
-							<ShieldCheck className="size-5 text-emerald-600" />
-						</div>
-						<div>
-							<h1 className="text-lg font-bold tracking-tight">Readiness check</h1>
-							<p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">What must be fixed before generating</p>
-						</div>
+		<div className="flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-primary/5">
+			<header className="shrink-0 px-6 pt-5 lg:px-8">
+				<div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+					<div>
+						<p className="text-[0.72rem] font-bold uppercase tracking-wide text-primary">Review and publish</p>
+						<h1 className="mt-1 text-3xl font-bold text-slate-900">Audit readiness report</h1>
+						<p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">
+							See what ATLAS checked, what blocks readiness, and which setup page fixes each issue.
+						</p>
 					</div>
-					<div className="flex items-center gap-3">
-						<TooltipProvider>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Badge
-										variant={dataSource === 'live' ? 'secondary' : 'outline'}
-										className="h-6 px-2 text-[0.7rem] uppercase tracking-wide font-bold cursor-help"
-									>
-										{dataSource === 'live' ? 'Verified Live' : dataSource === 'cached' ? 'Working from Saved Data' : 'No Saved Data'}
-									</Badge>
-								</TooltipTrigger>
-								<TooltipContent side="bottom" className="text-[0.65rem] font-semibold p-2">
-									{dataSource === 'live' 
-										? 'Data freshly verified with EnrollPro.' 
-										: 'Using data saved in ATLAS. Changes will sync when EnrollPro returns.'}
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
-						<Button variant="outline" size="sm" className="h-8 gap-2" onClick={loadData}>
-							<RefreshCw className="size-3.5" />
-							Refresh
+					<div className="flex flex-wrap items-center gap-2">
+						<Badge variant="outline" className="rounded-full border-primary/20 bg-white px-3 py-1 text-primary">
+							{sourceLabel}
+						</Badge>
+						<Button variant="outline" size="sm" className="h-9 rounded-xl bg-white shadow-sm" onClick={loadData}>
+							<RefreshCw className="mr-1 size-3.5" />
+							Refresh report
 						</Button>
-						{isReady && (
-							<Button asChild size="sm" className="h-8 bg-emerald-600 hover:bg-emerald-700">
-								<Link to="/timetable/generate">Proceed to Generator</Link>
-							</Button>
-						)}
 					</div>
+				</div>
+
+				<div className="mt-4 flex flex-wrap items-center gap-4 overflow-x-auto rounded-2xl border border-primary/10 bg-white px-4 py-3 text-sm shadow-soft scrollbar-none">
+					<span className="font-semibold text-slate-900">Checked: <span className="font-normal text-slate-500">{AUDIT_DOMAINS.length} domains</span></span>
+					<span className="text-slate-200">|</span>
+					<span className="font-semibold text-slate-900">Blockers: <span className={blockerCount > 0 ? 'font-normal text-red-600' : 'font-normal text-emerald-600'}>{blockerCount}</span></span>
+					<span className="text-slate-200">|</span>
+					<span className="font-semibold text-slate-900">Warnings: <span className="font-normal text-amber-600">{warningCount}</span></span>
+					<span className="text-slate-200">|</span>
+					<span className="font-semibold text-slate-900">Average roster load: <span className="font-normal text-slate-500">{avgLoad.toFixed(1)}%</span></span>
 				</div>
 			</header>
 
-			{degradedReasons.length > 0 && (
-				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800 shadow-sm">
-					<div className="size-5 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-						<AlertTriangle className='size-3 text-amber-600' />
-					</div>
-					<div className="flex-1">
-						<p className="text-xs font-bold">Running with saved data</p>
-						<p className="text-[11px] mt-0.5 opacity-90">Some live records are currently unreachable. Audit is using saved ATLAS evidence. Missing: {degradedReasons.join(' ')}</p>
+			<div className="flex-1 min-h-0 overflow-auto px-6 pb-6 pt-4 lg:px-8">
+				<div className="mx-auto flex max-w-7xl flex-col gap-4">
+					<Card className={`border shadow-soft ${verdict.className}`}>
+						<CardContent className="p-5">
+							<div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+								<div className="flex items-start gap-4">
+									<div className={`flex size-12 shrink-0 items-center justify-center rounded-2xl ${verdict.iconClassName}`}>
+										<VerdictIcon className="size-6" />
+									</div>
+									<div>
+										<h2 className="text-xl font-bold">{verdict.label}</h2>
+										<p className="mt-1 text-sm leading-relaxed opacity-80">{verdict.detail}</p>
+									</div>
+								</div>
+								<div className="flex flex-wrap gap-2">
+									<Button asChild variant="outline" size="sm" className="rounded-xl bg-white/80">
+										<Link to="/teaching-load">Open Teaching Load</Link>
+									</Button>
+									<Button asChild variant="outline" size="sm" className="rounded-xl bg-white/80">
+										<Link to="/sections">Check Sections</Link>
+									</Button>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+
+					{dataSource === 'none' && (
+						<div className="rounded-2xl border border-amber-200 bg-white p-5 shadow-soft">
+							<div className="flex items-start gap-3">
+								<AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />
+								<div>
+									<p className="font-bold text-slate-900">No complete readiness evidence is available.</p>
+									<p className="mt-1 text-sm text-slate-500">Refresh this report, then check Sections, Subjects, Teachers, and Teaching Load if evidence is still missing.</p>
+									<div className="mt-3 flex flex-wrap gap-2">
+										<Button asChild variant="outline" size="sm"><Link to="/subjects">Check Subjects</Link></Button>
+										<Button asChild variant="outline" size="sm"><Link to="/teachers">Check Teachers</Link></Button>
+										<Button asChild variant="outline" size="sm"><Link to="/map">Check Rooms</Link></Button>
+									</div>
+								</div>
+							</div>
+						</div>
+					)}
+
+					<div className="rounded-2xl bg-white p-4 shadow-soft-xl">
+						<div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+							<div>
+								<h2 className="text-lg font-bold text-slate-900">Findings by next action</h2>
+								<p className="text-sm text-slate-500">Open each group to see what is wrong, why it matters, and where to fix it.</p>
+							</div>
+							<div className="relative w-full max-w-sm">
+								<Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+								<Input
+									placeholder="Search findings..."
+									value={searchQuery}
+									onChange={(event) => setSearchQuery(event.target.value)}
+									className="h-10 rounded-xl bg-slate-50 pl-9"
+								/>
+							</div>
+						</div>
+
+						<Tabs defaultValue="teacher-assignments" className="flex min-h-0 flex-col">
+							<TabsList className="flex h-auto w-full flex-wrap justify-start gap-2 bg-slate-100 p-1">
+								{findingGroups.map((group) => {
+									const GroupIcon = group.icon;
+									return (
+										<TabsTrigger key={group.id} value={group.id} className="h-auto gap-2 rounded-xl px-3 py-2 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+											<GroupIcon className="size-4" />
+											<span>{group.label}</span>
+											<Badge variant="secondary" className="h-5 rounded-full px-1.5 text-[10px]">{group.findings.length}</Badge>
+										</TabsTrigger>
+									);
+								})}
+							</TabsList>
+
+							{findingGroups.map((group) => {
+								const visibleFindings = filterFindings(group.findings);
+								return (
+									<TabsContent key={group.id} value={group.id} className="mt-4 focus-visible:ring-0">
+										<div className="rounded-2xl border border-slate-100 bg-slate-50/70">
+											<div className="border-b border-slate-100 px-4 py-3">
+												<p className="font-bold text-slate-900">{group.label}</p>
+												<p className="text-sm text-slate-500">{group.description}</p>
+											</div>
+											<ScrollArea className="max-h-[46svh] min-h-72">
+												<div className="divide-y divide-slate-100 bg-white">
+													{visibleFindings.length === 0 ? (
+														<div className="px-6 py-16 text-center">
+															<ShieldCheck className="mx-auto mb-3 size-10 text-emerald-500/40" />
+															<p className="font-bold text-slate-900">{searchQuery ? 'No matching findings' : group.emptyTitle}</p>
+															<p className="mx-auto mt-1 max-w-lg text-sm text-slate-500">{searchQuery ? 'Clear the search to see the full report.' : group.emptyBody}</p>
+														</div>
+													) : visibleFindings.map((finding) => (
+														<div key={finding.id} className="flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+															<div className="min-w-0 space-y-2">
+																<div className="flex flex-wrap items-center gap-2">
+																	<Badge variant="outline" className={`rounded-full ${severityClassName(finding.severity)}`}>{severityLabel(finding.severity)}</Badge>
+																	<p className="font-bold text-slate-900">{finding.title}</p>
+																</div>
+																<p className="text-sm text-slate-600">{finding.detail}</p>
+																<p className="text-xs font-medium text-slate-500">Why it matters: {finding.why}</p>
+															</div>
+															<Button asChild variant="outline" size="sm" className="h-9 shrink-0 rounded-xl bg-white">
+																<Link to={finding.route}>
+																	{finding.actionLabel}
+																	<ArrowRight className="ml-1 size-3.5" />
+																</Link>
+															</Button>
+														</div>
+													))}
+												</div>
+											</ScrollArea>
+										</div>
+									</TabsContent>
+								);
+							})}
+						</Tabs>
 					</div>
 				</div>
-			)}
-
-			<div className="flex-1 flex overflow-hidden">
-				{/* Left Rail - Summaries & Verdict */}
-				<aside className="w-80 shrink-0 border-r bg-muted/10 flex flex-col overflow-hidden">
-					<ScrollArea className="flex-1">
-						<div className="p-6 space-y-6">
-							{/* Verdict Card */}
-							<Card className={`border-l-4 shadow-sm ${isReady ? 'border-l-emerald-500 bg-emerald-50/50' : 'border-l-red-500 bg-red-50/50'}`}>
-								<CardContent className="p-4">
-									<div className="flex items-start gap-3">
-										<div className={`size-8 rounded-full shrink-0 flex items-center justify-center ${isReady ? 'bg-emerald-100' : 'bg-red-100'}`}>
-											{isReady ? <CheckCircle2 className="size-5 text-emerald-600" /> : <XCircle className="size-5 text-red-600" />}
-										</div>
-										<div>
-											<h3 className={`text-sm font-bold ${isReady ? 'text-emerald-900' : 'text-red-900'}`}>
-												{isReady ? 'Ready to generate' : 'Fix these before generating'}
-											</h3>
-											<p className={`text-[11px] mt-1 leading-relaxed ${isReady ? 'text-emerald-800/70' : 'text-red-800/70'}`}>
-												{isReady 
-													? 'All required checks passed. You can run the schedule generator.' 
-												: `${criticalCount} item${criticalCount === 1 ? '' : 's'} must be fixed before you can publish a schedule.`}
-											</p>
-										</div>
-									</div>
-								</CardContent>
-							</Card>
-
-							<div className="space-y-3">
-								<label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-1">Health Indicators</label>
-								
-								<Card className="shadow-none border-none bg-red-50/50">
-									<CardContent className="p-4 flex items-center justify-between">
-										<div className="space-y-1">
-											<div className="text-xs font-medium text-red-800 flex items-center gap-2">
-												<AlertTriangle className="size-3.5" /> Critical Errors
-											</div>
-											<div className="text-2xl font-bold text-red-700">{criticalCount}</div>
-										</div>
-										<div className="text-right">
-											<p className="text-[10px] text-red-600/70">{mismatches.length} Mismatches</p>
-											<p className="text-[10px] text-red-600/70">{facilityGaps.length} Facility Gaps</p>
-										</div>
-									</CardContent>
-								</Card>
-
-								<Card className="shadow-none border-none bg-orange-50/50">
-									<CardContent className="p-4 flex items-center justify-between">
-										<div className="space-y-1">
-											<div className="text-xs font-medium text-orange-800 flex items-center gap-2">
-												<Clock className="size-3.5" /> Constraint Clashes
-											</div>
-											<div className="text-2xl font-bold text-orange-700">{clashes.length}</div>
-										</div>
-										<p className="text-[10px] text-orange-600/70 text-right w-24 leading-tight">
-											Specialists with {'>'}50% blocked
-										</p>
-									</CardContent>
-								</Card>
-
-								<Card className="shadow-none border-none bg-amber-50/50">
-									<CardContent className="p-4 flex items-center justify-between">
-										<div className="space-y-1">
-											<div className="text-xs font-medium text-amber-800 flex items-center gap-2">
-												<BookX className="size-3.5" /> Roster Gaps
-											</div>
-											<div className="text-2xl font-bold text-amber-700">{rosterGaps.length}</div>
-										</div>
-										<p className="text-[10px] text-amber-600/70 text-right w-24 leading-tight">
-											Sections missing core subjects
-										</p>
-									</CardContent>
-								</Card>
-
-								<Card className="shadow-none border-none bg-blue-50/50">
-									<CardContent className="p-4 flex items-center justify-between">
-										<div className="space-y-1">
-											<div className="text-xs font-medium text-blue-800 flex items-center gap-2">
-												<RefreshCw className="size-3.5" /> Sync Health
-											</div>
-											<div className="text-2xl font-bold text-blue-700">{syncIssues.length}</div>
-										</div>
-										<p className="text-[10px] text-blue-600/70 text-right w-24 leading-tight">
-											Invalid or missing IDs
-										</p>
-									</CardContent>
-								</Card>
-							</div>
-
-							{/* Utilization Summary in Rail */}
-							<Card className="bg-primary/5 border-primary/10 shadow-none">
-								<CardHeader className="p-4 pb-2">
-									<CardTitle className="text-xs font-bold uppercase tracking-wider text-primary/70">Average Roster Load</CardTitle>
-								</CardHeader>
-								<CardContent className="p-4 pt-0">
-									{(() => {
-										const avgLoad = faculty.reduce((sum, f) => sum + f.loadPercentage, 0) / (faculty.length || 1);
-										return (
-											<div className="space-y-2">
-												<div className="text-2xl font-bold text-primary">{avgLoad.toFixed(1)}%</div>
-												<p className="text-[10px] text-primary/70 leading-relaxed italic">
-													{avgLoad > 95 ? 'Capacity is tight. Generation may struggle.' : 
-													 avgLoad < 70 ? 'Significant excess capacity detected.' : 
-													 'Roster capacity is in the optimal range.'}
-												</p>
-											</div>
-										);
-									})()}
-								</CardContent>
-							</Card>
-						</div>
-					</ScrollArea>
-				</aside>
-
-				{/* Main Workspace - Data Lists */}
-				<main className="flex-1 flex flex-col overflow-hidden">
-					<Tabs defaultValue="mismatches" className="flex-1 flex flex-col overflow-hidden">
-						<div className="px-6 pt-4 border-b bg-background shrink-0">
-							<TabsList className="w-fit bg-muted/50 p-1">
-								<TabsTrigger value="mismatches" className="text-xs gap-2 px-4 h-8">
-									Mismatches {mismatches.length > 0 && <Badge variant="secondary" className="px-1 py-0 h-4 text-[9px] bg-red-100 text-red-700 border-red-200">{mismatches.length}</Badge>}
-								</TabsTrigger>
-								<TabsTrigger value="clashes" className="text-xs gap-2 px-4 h-8">
-									Clashes {clashes.length > 0 && <Badge variant="secondary" className="px-1 py-0 h-4 text-[9px] bg-orange-100 text-orange-700 border-orange-200">{clashes.length}</Badge>}
-								</TabsTrigger>
-								<TabsTrigger value="roster" className="text-xs gap-2 px-4 h-8">
-									Roster {rosterGaps.length > 0 && <Badge variant="secondary" className="px-1 py-0 h-4 text-[9px] bg-amber-100 text-amber-700 border-amber-200">{rosterGaps.length}</Badge>}
-								</TabsTrigger>
-								<TabsTrigger value="facilities" className="text-xs gap-2 px-4 h-8">
-									Facilities {facilityGaps.length > 0 && <Badge variant="secondary" className="px-1 py-0 h-4 text-[9px] bg-red-100 text-red-700 border-red-200">{facilityGaps.length}</Badge>}
-								</TabsTrigger>
-								<TabsTrigger value="optimization" className="text-xs gap-2 px-4 h-8">
-									Optimization {optimizationIssues.length > 0 && <Badge variant="secondary" className="px-1 py-0 h-4 text-[9px]">{optimizationIssues.length}</Badge>}
-								</TabsTrigger>
-								<TabsTrigger value="utilization" className="text-xs px-4 h-8">Utilization</TabsTrigger>
-								<TabsTrigger value="sync" className="text-xs gap-2 px-4 h-8">
-									Sync {syncIssues.length > 0 && <Badge variant="secondary" className="px-1 py-0 h-4 text-[9px] bg-blue-100 text-blue-700 border-blue-200">{syncIssues.length}</Badge>}
-								</TabsTrigger>
-							</TabsList>
-						</div>
-						
-						<div className="flex-1 overflow-hidden">
-							<TabsContent value="mismatches" className="h-full m-0 p-0 focus-visible:ring-0">
-								<div className="h-full flex flex-col overflow-hidden">
-									<div className="px-6 py-3 border-b bg-muted/20 flex items-center justify-between">
-										<div className="relative flex-1 max-w-sm">
-											<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-											<Input 
-												placeholder="Search teachers or subjects..." 
-												value={mismatchSearch}
-												onChange={(e) => setMismatchSearch(e.target.value)}
-												className="pl-8 h-8 text-xs bg-background"
-											/>
-										</div>
-										<p className="text-[11px] text-muted-foreground italic">Critical issues that block schedule generation</p>
-									</div>
-									<ScrollArea className="flex-1">
-										<div className="divide-y px-6">
-										{(() => {
-											const filtered = mismatches.filter(m => !mismatchSearch ||
-												m.facultyName.toLowerCase().includes(mismatchSearch.toLowerCase()) ||
-												m.subjectName.toLowerCase().includes(mismatchSearch.toLowerCase()));
-											if (filtered.length === 0) return (
-												<div className="py-20 text-center">
-													<ShieldCheck className="size-10 text-emerald-500/20 mx-auto mb-3" />
-													<p className="text-sm text-muted-foreground italic">
-														{mismatchSearch ? 'No mismatches match your search.' : 'No critical qualification mismatches found.'}
-													</p>
-												</div>
-											);
-											return filtered.map((m, i) => (
-													<div key={i} className="py-4 flex items-center justify-between hover:bg-muted/30 transition-colors group px-2 -mx-2 rounded-lg">
-														<div className="space-y-1">
-															<div className="flex items-center gap-2">
-																<span className="font-bold text-sm">{m.facultyName}</span>
-																<ArrowRight className="size-3 text-muted-foreground" />
-																<span className="font-semibold text-sm text-primary">{m.subjectName} ({m.subjectCode})</span>
-															</div>
-															<div className="flex items-center gap-4">
-																<div className="flex items-center gap-1.5">
-																	<span className="text-[10px] text-muted-foreground uppercase font-bold">Required</span>
-																	<Badge variant="outline" className="text-[10px] text-red-700 border-red-200 bg-red-50 py-0 h-4">{m.required}</Badge>
-																</div>
-																<div className="flex items-center gap-1.5">
-																	<span className="text-[10px] text-muted-foreground uppercase font-bold">Actual</span>
-																	<Badge variant="outline" className="text-[10px] py-0 h-4">{m.actual}</Badge>
-																</div>
-															</div>
-														</div>
-														<Button asChild variant="outline" size="sm" className="h-7 text-xs">
-															<Link to={`/teaching-load?facultyId=${m.facultyId}`}>Fix in Teaching Load →</Link>
-														</Button>
-													</div>
-												));
-										})()}
-										</div>
-									</ScrollArea>
-								</div>
-							</TabsContent>
-
-							<TabsContent value="clashes" className="h-full m-0 p-0 focus-visible:ring-0">
-								<div className="h-full flex flex-col overflow-hidden">
-									<div className="px-6 py-3 border-b bg-muted/20">
-										<div className="relative max-w-sm">
-											<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-											<Input 
-												placeholder="Search teachers..." 
-												value={clashSearch}
-												onChange={(e) => setClashSearch(e.target.value)}
-												className="pl-8 h-8 text-xs bg-background"
-											/>
-										</div>
-									</div>
-									<ScrollArea className="flex-1">
-										<div className="divide-y px-6">
-										{(() => {
-											const filtered = clashes.filter(c => !clashSearch ||
-												c.name.toLowerCase().includes(clashSearch.toLowerCase()));
-											if (filtered.length === 0) return (
-												<div className="py-20 text-center text-muted-foreground italic">
-													{clashSearch ? 'No bottlenecks match your search.' : 'No preference bottlenecks detected.'}
-												</div>
-											);
-											return filtered.map((c, i) => (
-													<div key={i} className="py-4 flex items-center justify-between hover:bg-muted/30 transition-colors group px-2 -mx-2 rounded-lg">
-														<div className="space-y-1 flex-1">
-															<div className="flex items-center gap-2">
-																<span className="font-bold text-sm">{c.name}</span>
-																<Badge variant="destructive" className="text-[9px] py-0 h-4 uppercase font-bold tracking-wider">{c.unavailabilityPercent}% Unavailable</Badge>
-															</div>
-															<div className="text-[11px] text-muted-foreground">
-																Blocks scheduling for: <span className="font-semibold">{c.qualifiedSubjects.map((s: any) => s.code).join(', ')}</span>
-															</div>
-														</div>
-														<Button asChild variant="outline" size="sm" className="h-7 text-xs">
-															<Link to={`/faculty/preferences?facultyId=${c.facultyId}`}>Review Preferences →</Link>
-														</Button>
-													</div>
-												));
-										})()}
-										</div>
-									</ScrollArea>
-								</div>
-							</TabsContent>
-
-							<TabsContent value="roster" className="h-full m-0 p-0 focus-visible:ring-0">
-								<div className="h-full flex flex-col overflow-hidden">
-									<div className="px-6 py-3 border-b bg-muted/20">
-										<div className="relative max-w-sm">
-											<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-											<Input 
-												placeholder="Search sections or subjects..." 
-												value={rosterSearch}
-												onChange={(e) => setRosterSearch(e.target.value)}
-												className="pl-8 h-8 text-xs bg-background"
-											/>
-										</div>
-									</div>
-									<ScrollArea className="flex-1">
-										<div className="divide-y px-6">
-										{(() => {
-											const filtered = rosterGaps.filter(r => !rosterSearch ||
-												r.sectionName.toLowerCase().includes(rosterSearch.toLowerCase()) ||
-												r.subjectName.toLowerCase().includes(rosterSearch.toLowerCase()));
-											if (filtered.length === 0) return (
-												<div className="py-20 text-center text-muted-foreground italic">
-													{rosterSearch ? 'No roster gaps match your search.' : 'All sections have full subject coverage.'}
-												</div>
-											);
-											return filtered.map((r, i) => (
-													<div key={i} className="py-4 flex items-center justify-between hover:bg-muted/30 transition-colors group px-2 -mx-2 rounded-lg">
-														<div className="space-y-1">
-															<div className="flex items-center gap-2">
-																<Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 py-0 h-4 text-[10px] font-bold">G{r.gradeLevel}</Badge>
-																<span className="font-bold text-sm">{r.sectionName}</span>
-															</div>
-															<div className="text-[11px] text-muted-foreground">
-																Missing teacher for: <span className="font-semibold text-red-600">{r.subjectName} ({r.subjectCode})</span>
-															</div>
-														</div>
-														<Button asChild variant="outline" size="sm" className="h-7 text-xs">
-															<Link to={`/teaching-load?sectionId=${r.sectionId}`}>Assign Teacher →</Link>
-														</Button>
-													</div>
-												));
-										})()}
-										</div>
-									</ScrollArea>
-								</div>
-							</TabsContent>
-
-							<TabsContent value="facilities" className="h-full m-0 p-0 focus-visible:ring-0">
-								<div className="h-full flex flex-col overflow-hidden">
-									<div className="px-6 py-3 border-b bg-muted/20 flex items-center justify-between">
-										<div className="flex items-center gap-2">
-											<input 
-												type="checkbox" 
-												id="gap-only"
-												checked={showOnlyFacilityGaps}
-												onChange={(e) => setShowOnlyFacilityGaps(e.target.checked)}
-												className="size-3.5 rounded border-input accent-emerald-600"
-											/>
-											<label htmlFor="gap-only" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground cursor-pointer">Show only Facility Gaps</label>
-										</div>
-									</div>
-									<ScrollArea className="flex-1">
-										<div className="divide-y px-6">
-											{(() => {
-												const list = subjects.filter(s => s.requiredFeatures?.length > 0).map((s) => {
-													const compatibleRooms = rooms.filter(r => 
-														r.type === s.preferredRoomType && 
-														s.requiredFeatures.every((f: string) => (r.features || []).includes(f))
-													);
-													return { ...s, compatibleRooms, hasGap: compatibleRooms.length === 0 };
-												});
-												
-												const filtered = showOnlyFacilityGaps ? list.filter(l => l.hasGap) : list;
-												
-												if (filtered.length === 0) {
-													return (
-														<div className="py-20 text-center text-muted-foreground italic">
-															{showOnlyFacilityGaps 
-																? 'No subjects currently have room matching gaps.' 
-																: 'No subjects have required facility features defined.'}
-														</div>
-													);
-												}
-
-												return filtered.map((s) => (
-													<div key={s.id} className="py-4 flex items-center justify-between hover:bg-muted/30 transition-colors group px-2 -mx-2 rounded-lg">
-														<div className="space-y-1">
-															<div className="flex items-center gap-2">
-																<span className="font-bold text-sm">{s.name} ({s.code})</span>
-																{s.hasGap && <Badge variant="destructive" className="text-[9px] py-0 h-4 uppercase font-bold tracking-wider">Facility Gap</Badge>}
-															</div>
-															<div className="flex flex-wrap gap-1.5 mt-1">
-																<span className="text-[10px] text-muted-foreground uppercase font-bold">Requires:</span>
-																{s.requiredFeatures.map((f: string) => (
-																	<Badge key={f} variant="secondary" className="text-[9px] bg-amber-50 text-amber-700 border-amber-100 py-0 h-4 font-semibold">{f}</Badge>
-																))}
-															</div>
-															<div className="text-[11px] text-muted-foreground mt-1">
-																{s.hasGap 
-																	? 'Zero rooms meet all feature requirements in current map.' 
-																	: `${s.compatibleRooms.length} compatible room(s) identified.`}
-															</div>
-														</div>
-														<Button asChild variant="outline" size="sm" className="h-7 text-xs">
-															<Link to={s.hasGap ? "/map" : "/subjects"}>{s.hasGap ? "Fix Map →" : "View Subject →"}</Link>
-														</Button>
-													</div>
-												));
-											})()}
-										</div>
-									</ScrollArea>
-								</div>
-							</TabsContent>
-
-							<TabsContent value="optimization" className="h-full m-0 p-0 focus-visible:ring-0">
-								<div className="h-full flex flex-col overflow-hidden">
-									<div className="px-6 py-3 border-b bg-muted/20">
-										<p className="text-[11px] text-muted-foreground italic">Suggestions for better utilization of specialized faculty</p>
-									</div>
-									<ScrollArea className="flex-1">
-										<div className="divide-y px-6">
-											{optimizationIssues.length === 0 ? (
-												<div className="py-20 text-center">
-													<ShieldCheck className="size-10 text-emerald-500/20 mx-auto mb-3" />
-													<p className="text-sm text-muted-foreground italic">Specialized faculty are optimally utilized.</p>
-												</div>
-											) : (
-												optimizationIssues.map((opt, i) => (
-													<div key={i} className="py-4 flex items-center justify-between hover:bg-muted/30 transition-colors group px-2 -mx-2 rounded-lg">
-														<div className="space-y-1">
-															<div className="flex items-center gap-2">
-																<span className="font-bold text-sm">{opt.specialistName}</span>
-																<Badge variant="outline" className="text-[9px] bg-indigo-50 text-indigo-700 border-indigo-200 py-0 h-4 font-bold uppercase tracking-wider">{opt.specialization} Specialist</Badge>
-															</div>
-															<p className="text-[11px] text-muted-foreground max-w-xl italic leading-relaxed">
-																{opt.reason}
-															</p>
-														</div>
-														<Button asChild variant="outline" size="sm" className="h-7 text-xs">
-															<Link to="/teaching-load">Optimize Load →</Link>
-														</Button>
-													</div>
-												))
-											)}
-										</div>
-									</ScrollArea>
-								</div>
-							</TabsContent>
-
-							<TabsContent value="utilization" className="h-full m-0 p-0 focus-visible:ring-0">
-								<div className="h-full flex flex-col overflow-hidden">
-									<div className="px-6 py-3 border-b bg-muted/20 flex items-center justify-between">
-										<div className="relative flex-1 max-w-sm">
-											<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-											<Input 
-												placeholder="Filter by name..." 
-												value={utilSearch}
-												onChange={(e) => setUtilSearch(e.target.value)}
-												className="pl-8 h-8 text-xs bg-background"
-											/>
-										</div>
-										{/* Mini stats for utilization */}
-										{(() => {
-											const overloaded = faculty.filter(f => f.loadPercentage > 100).length;
-											return (
-												<div className="flex items-center gap-4">
-													<div className="flex items-center gap-1.5">
-														<div className="size-2 rounded-full bg-red-500" />
-														<span className="text-[10px] font-bold uppercase text-red-700">{overloaded} Overloaded</span>
-													</div>
-												</div>
-											);
-										})()}
-									</div>
-									<ScrollArea className="flex-1">
-										<div className="divide-y px-6">
-											{faculty
-												.filter(f => f.lastName.toLowerCase().includes(utilSearch.toLowerCase()) || f.firstName.toLowerCase().includes(utilSearch.toLowerCase()))
-												.sort((a, b) => b.loadPercentage - a.loadPercentage)
-												.map((f) => (
-												<div key={f.id} className="py-4 flex items-center justify-between hover:bg-muted/30 transition-colors group px-2 -mx-2 rounded-lg">
-													<div className="space-y-1">
-														<div className="font-bold text-sm">{f.lastName}, {f.firstName}</div>
-														<div className="flex items-center gap-3">
-															{f.department && <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">{f.department}</div>}
-															{f.specialization && <div className="text-[10px] text-primary/70 font-semibold">{f.specialization} Specialist</div>}
-														</div>
-													</div>
-													<div className="flex items-center gap-6">
-														<div className="text-right">
-															<div className={`text-sm font-bold ${f.loadPercentage > 100 ? 'text-red-600' : f.loadPercentage > 90 ? 'text-amber-600' : 'text-emerald-600'}`}>{f.loadPercentage}%</div>
-															<div className="text-[10px] text-muted-foreground uppercase font-medium">{f.subjectHours} / {f.maxHoursPerWeek} hrs</div>
-														</div>
-														<div className="w-32 h-1.5 bg-muted rounded-full overflow-hidden">
-															<div 
-																className={`h-full transition-all ${f.loadPercentage > 100 ? 'bg-red-500' : f.loadPercentage > 90 ? 'bg-amber-500' : 'bg-emerald-500'}`} 
-																style={{ width: `${Math.min(f.loadPercentage, 100)}%` }} 
-															/>
-														</div>
-														<Button asChild variant="outline" size="sm" className="h-7 text-xs">
-															<Link to={`/teaching-load?facultyId=${f.id}`}>View Details →</Link>
-														</Button>
-													</div>
-												</div>
-											))}
-										</div>
-									</ScrollArea>
-								</div>
-							</TabsContent>
-
-							<TabsContent value="sync" className="h-full m-0 p-0 focus-visible:ring-0">
-								<div className="h-full flex flex-col overflow-hidden">
-									<div className="px-6 py-3 border-b bg-muted/20">
-										<p className="text-[11px] text-muted-foreground italic">Verification of data synchronization with EnrollPro</p>
-									</div>
-									<ScrollArea className="flex-1">
-										<div className="divide-y px-6">
-											{syncIssues.length === 0 ? (
-												<div className="py-20 text-center text-muted-foreground italic">All faculty records have valid Employee IDs.</div>
-											) : (
-												syncIssues.map((issue) => (
-													<div key={issue.id} className="py-4 flex items-center justify-between hover:bg-muted/30 transition-colors group px-2 -mx-2 rounded-lg">
-														<div className="space-y-1">
-															<div className="font-bold text-sm">{issue.name}</div>
-															<div className="text-[11px] text-red-600 flex items-center gap-1.5 font-medium">
-																<AlertTriangle className="size-3" />
-																{issue.reason}
-															</div>
-														</div>
-														<Button asChild variant="ghost" size="sm" className="h-7 text-xs">
-															<Link to="/faculty">Fix in Teacher Profile →</Link>
-														</Button>
-													</div>
-												))
-											)}
-										</div>
-									</ScrollArea>
-								</div>
-							</TabsContent>
-						</div>
-					</Tabs>
-				</main>
 			</div>
 		</div>
 	);

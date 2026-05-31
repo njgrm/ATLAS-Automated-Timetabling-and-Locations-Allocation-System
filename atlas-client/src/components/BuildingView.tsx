@@ -3,8 +3,10 @@ import { Group, Layer, Line, Rect, Stage, Text } from 'react-konva';
 import { DoorOpen, Minus, Plus, RotateCcw } from 'lucide-react';
 
 import type { Building, Room, RoomType } from '@/types';
+import { getPrimaryCanvasColor } from '@/components/campus-map/campusMapPalette';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
 /* ─── Room-type color tokens (canvas fills) ─── */
 const ROOM_FILLS: Record<RoomType, { bg: string; text: string; accent: string }> = {
@@ -138,6 +140,7 @@ export function BuildingView({
 	const [containerW, setContainerW] = useState(600);
 	const [scale, setScale] = useState(1);
 	const [pos, setPos] = useState({ x: 0, y: 0 });
+	const primaryCanvasColor = getPrimaryCanvasColor();
 
 	// Floor data (ascending: ground → top)
 	const floorMap = useMemo(() => {
@@ -317,7 +320,7 @@ export function BuildingView({
 								width={ROOM_MIN_W}
 								height={ROOM_H}
 								fill={colors.bg}
-								stroke={isInspected ? '#6366f1' : (gradeColor || (isHovered ? colors.text : colors.accent))}
+								stroke={isInspected ? primaryCanvasColor : (gradeColor || (isHovered ? colors.text : colors.accent))}
 								strokeWidth={isInspected || gradeColor ? 2 : 1}
 								cornerRadius={3}
 								shadowColor="rgba(0,0,0,0.06)"
@@ -468,20 +471,37 @@ export function BuildingView({
 	return (
 		<div className="relative">
 			{showToolbar && (
-				<div className="mb-2 flex items-center gap-1">
-					<Button variant="outline" size="sm" className="h-7 w-7 p-0" aria-label="Zoom in building view" onClick={() => zoomTo(scale * 1.15)}>
-						<Plus className="size-3" />
-					</Button>
-					<Button variant="outline" size="sm" className="h-7 w-7 p-0" aria-label="Zoom out building view" onClick={() => zoomTo(scale / 1.15)}>
-						<Minus className="size-3" />
-					</Button>
-					<Button variant="outline" size="sm" className="h-7 w-7 p-0" aria-label="Reset building view" onClick={resetView}>
-						<RotateCcw className="size-3" />
-					</Button>
-					<span className="ml-1 text-[0.625rem] text-muted-foreground tabular-nums">
-						{Math.round(scale * 100)}%
-					</span>
-				</div>
+				<TooltipProvider>
+					<div className="mb-2 flex items-center gap-1">
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button variant="outline" size="sm" className="h-7 w-7 p-0" aria-label="Zoom in building view" onClick={() => zoomTo(scale * 1.15)}>
+									<Plus className="size-3" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Zoom in</TooltipContent>
+						</Tooltip>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button variant="outline" size="sm" className="h-7 w-7 p-0" aria-label="Zoom out building view" onClick={() => zoomTo(scale / 1.15)}>
+									<Minus className="size-3" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Zoom out</TooltipContent>
+						</Tooltip>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button variant="outline" size="sm" className="h-7 w-7 p-0" aria-label="Reset building view" onClick={resetView}>
+									<RotateCcw className="size-3" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Reset view</TooltipContent>
+						</Tooltip>
+						<span className="ml-1 text-[0.625rem] text-muted-foreground tabular-nums">
+							{Math.round(scale * 100)}%
+						</span>
+					</div>
+				</TooltipProvider>
 			)}
 
 			<div ref={containerRef} className="overflow-hidden rounded-md border border-border bg-slate-50 relative">

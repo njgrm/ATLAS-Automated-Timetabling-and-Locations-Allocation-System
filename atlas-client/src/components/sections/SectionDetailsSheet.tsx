@@ -5,6 +5,9 @@ import {
 	Users,
 	AlertTriangle,
 	ClipboardList,
+	Home,
+	Building2,
+	CheckCircle2,
 } from 'lucide-react';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -20,6 +23,9 @@ import atlasApi from '@/lib/api';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { getDepartmentColor } from '@/lib/department-colors';
+import type { SectionDetail } from './SectionRow';
+import type { RoomOption } from './SectionRoomPicker';
+import { cn } from '@/lib/utils';
 
 /* ─── Types (matching server) ─── */
 export interface SectionAssignedClassRow {
@@ -75,10 +81,19 @@ export interface SectionAssignedClassesResult {
 interface SectionDetailsSheetProps {
 	sectionId: number | null;
 	sectionName: string | null;
+	section?: SectionDetail | null;
+	homeRoom?: RoomOption | null;
 	schoolYearId: number | null;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 }
+
+const GRADE_BADGE_COLORS: Record<string, string> = {
+	'7': 'bg-green-100/80 text-green-700 border-green-200',
+	'8': 'bg-yellow-100/80 text-yellow-700 border-yellow-200',
+	'9': 'bg-red-100/80 text-red-700 border-red-200',
+	'10': 'bg-blue-100/80 text-blue-700 border-blue-200',
+};
 
 function resolveRotationTermLabel(input: { rotationTermLabel?: string | null; rotationTermRank?: number | null }): string | null {
 	const explicitLabel = (input.rotationTermLabel ?? '').trim();
@@ -101,12 +116,15 @@ function resolveRotationTermLabel(input: { rotationTermLabel?: string | null; ro
 export function SectionDetailsSheet({
 	sectionId,
 	sectionName,
+	section,
+	homeRoom,
 	schoolYearId,
 	open,
 	onOpenChange,
 }: SectionDetailsSheetProps) {
 	const [loading, setLoading] = useState(false);
 	const [data, setData] = useState<SectionAssignedClassesResult | null>(null);
+	const selectedGradeKey = String(section?.gradeLevelName?.match(/\d+/)?.[0] ?? data?.gradeLevel ?? '');
 
 	const fetchDetails = useCallback(async () => {
 		if (!sectionId || !schoolYearId) return;
@@ -135,14 +153,14 @@ export function SectionDetailsSheet({
 
 	return (
 		<Sheet open={open} onOpenChange={onOpenChange}>
-			<SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
+			<SheetContent className="w-full overflow-y-auto sm:max-w-xl">
 				<SheetHeader className="pb-6 border-b">
 					<SheetTitle className="flex items-center gap-2 text-xl font-bold">
 						<Users className="size-5 text-primary" />
-						Section Details
+						{sectionName ?? 'Section details'}
 					</SheetTitle>
 					<SheetDescription>
-						Assigned classes and teaching load for <span className="font-bold text-foreground">{sectionName}</span>
+						Class coverage, teacher assignments, and home-room context for this section.
 					</SheetDescription>
 				</SheetHeader>
 
@@ -158,6 +176,36 @@ export function SectionDetailsSheet({
 						</div>
 					) : data ? (
 						<>
+							{/* Section Context */}
+							<div className="space-y-3 rounded-2xl border bg-primary/5 p-4">
+								<div className="flex flex-wrap items-center gap-2">
+									<Badge variant="outline" className={cn('rounded-full shadow-none', GRADE_BADGE_COLORS[selectedGradeKey] ?? 'bg-slate-100 text-slate-700 border-slate-200')}>
+										Grade {section?.gradeLevelName?.replace(/^Grade\s+/i, '') ?? data.gradeLevel}
+									</Badge>
+									<Badge variant="outline" className="rounded-full bg-white text-slate-700 shadow-none">
+										{section?.isSpecialProgram ? section.programName || section.programCode || data.programType : 'Regular Program'}
+									</Badge>
+								</div>
+								<div className="grid gap-3 sm:grid-cols-2">
+									<div className="rounded-xl border bg-white p-3">
+										<div className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
+											<Home className="size-3.5 text-primary" />
+											Current home room
+										</div>
+										<p className="mt-1 text-sm font-bold text-slate-900">{homeRoom?.name ?? 'Not assigned yet'}</p>
+										<p className="text-xs font-medium text-slate-500">{homeRoom ? 'This section has a home room for normal classes.' : 'Assign a home room before schedule generation.'}</p>
+									</div>
+									<div className="rounded-xl border bg-white p-3">
+										<div className="flex items-center gap-2 text-xs font-bold uppercase text-slate-500">
+											<Building2 className="size-3.5 text-primary" />
+											Building context
+										</div>
+										<p className="mt-1 text-sm font-bold text-slate-900">{homeRoom?.buildingName ?? 'No building selected'}</p>
+										<p className="text-xs font-medium text-slate-500">{section?.buildingZoneId ? `Zone ${section.buildingZoneId}` : 'Building is based on the selected home room.'}</p>
+									</div>
+								</div>
+							</div>
+
 							{/* Summary Stats */}
 							<div className="grid grid-cols-2 gap-4">
 								<div className="p-4 rounded-xl border bg-muted/20">
@@ -268,6 +316,15 @@ export function SectionDetailsSheet({
 												</div>
 											</div>
 										))}
+									</div>
+								</div>
+							)}
+							{(!data.unassignedExpectedClasses || data.unassignedExpectedClasses.length === 0) && (
+								<div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+									<CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+									<div>
+										<p className="font-bold">No uncovered expected classes found.</p>
+										<p className="text-xs font-medium leading-5 text-emerald-700">This section's expected class list is covered by current teacher assignments.</p>
 									</div>
 								</div>
 							)}

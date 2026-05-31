@@ -226,10 +226,12 @@ export function SectionRoomMapModal({
 									) : (
 										buildings.map((b) => (
 											<div key={b.id} className="space-y-1">
-												<button
+												<Button
+													type="button"
+													variant="ghost"
 													onClick={() => handleBuildingToggle(b.id)}
 													className={cn(
-														"w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-all",
+														"w-full justify-between px-3 py-2 rounded-lg text-left transition-all",
 														activeBuildingId === b.id 
 															? "bg-primary/5 text-primary font-bold shadow-sm" 
 															: "hover:bg-muted text-muted-foreground font-medium"
@@ -237,7 +239,7 @@ export function SectionRoomMapModal({
 												>
 													<span className="text-xs">{b.name}</span>
 													<ChevronRight className={cn("size-3.5 transition-transform", activeBuildingId === b.id && "rotate-90")} />
-												</button>
+												</Button>
 												
 												{activeBuildingId === b.id && (
 													<div className="grid grid-cols-1 gap-1 px-1 py-1 animate-in fade-in slide-in-from-top-1 duration-200">
@@ -248,15 +250,17 @@ export function SectionRoomMapModal({
 																const occupying = roomOccupancy?.get(r.id);
 																const isSelected = selectedRoomId === r.id;
 																return (
-																	<button
+																	<Button
 																		key={r.id}
 																		ref={isSelected ? activeRoomRef : null}
+																		type="button"
+																		variant="ghost"
 																		onClick={() => {
 																			setSelectedRoomId(r.id);
 																			setViewMode('building');
 																		}}
 																		className={cn(
-																			"group relative flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-all",
+																			"group relative w-full justify-start gap-3 px-3 py-2.5 h-auto rounded-lg border text-left transition-all",
 																			isSelected
 																				? "bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02] z-10"
 																				: "bg-background border-border/50 hover:border-primary/50 hover:shadow-md"
@@ -280,7 +284,7 @@ export function SectionRoomMapModal({
 																						"h-3.5 px-1 text-[8px] font-bold border-opacity-50",
 																						isSelected ? "bg-white/10 text-white border-white/20" : "bg-amber-50 text-amber-600 border-amber-200"
 																					)}>
-																						{occupying}
+																												Used by {occupying}
 																					</Badge>
 																				)}
 																			</div>
@@ -296,7 +300,7 @@ export function SectionRoomMapModal({
 																						"text-[9px] font-bold",
 																						isSelected ? "text-white/60" : "text-amber-600/80"
 																					)}>
-																						• OCCUPIED
+																												Already assigned
 																					</span>
 																				)}
 																			</div>
@@ -304,7 +308,7 @@ export function SectionRoomMapModal({
 																		{isSelected && (
 																			<CheckCircle2 className="size-3.5 ml-auto text-primary-foreground" />
 																		)}
-																	</button>
+																	</Button>
 																);
 															})
 														)}

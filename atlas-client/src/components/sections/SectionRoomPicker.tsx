@@ -3,10 +3,17 @@ import { ChevronsUpDown, Search, Check, Map as MapIcon, X, Clock } from 'lucide-
 import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { Button } from '@/ui/button';
 import { Badge } from '@/ui/badge';
+import { Input } from '@/ui/input';
 import { ScrollArea } from '@/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import type { RoomOption } from '@/components/sections/SectionRow';
 import { SectionRoomMapModal } from './SectionRoomMapModal';
+
+export type RoomOption = {
+	id: number;
+	name: string;
+	buildingName: string;
+	type: string;
+};
 
 interface SectionRoomPickerProps {
 	sectionId: number;
@@ -107,26 +114,26 @@ export function SectionRoomPicker({
 									</span>
 								</>
 							) : (
-								'Unassigned'
+								'Choose home room'
 							)}
 						</span>
 						<ChevronsUpDown className="ml-1 size-3 shrink-0 opacity-40" />
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent 
-					className="w-[280px] p-0 shadow-xl border-border/40 flex flex-col h-[400px]" 
+					className="w-70 p-0 shadow-xl border-border/40 flex flex-col h-100" 
 					align="start"
 					onOpenAutoFocus={(e) => { e.preventDefault(); }}
 				>
 					{/* Header */}
 					<div className="shrink-0 flex items-center border-b px-2 py-1.5 bg-muted/30">
 						<Search className="ml-1 mr-2 size-3.5 shrink-0 text-muted-foreground/60" />
-						<input
+						<Input
 							ref={inputRef}
 							value={query}
 							onChange={(e) => setQuery(e.target.value)}
 							placeholder="Search room or building..."
-							className="h-7 w-full border-0 bg-transparent text-xs focus-visible:ring-0 px-0 outline-none placeholder:text-muted-foreground/50"
+							className="h-7 w-full border-0 bg-transparent px-0 text-xs shadow-none outline-none placeholder:text-muted-foreground/50 focus-visible:ring-0"
 						/>
 						{query && (
 							<Button 
@@ -143,21 +150,22 @@ export function SectionRoomPicker({
 					{/* Options List */}
 					<ScrollArea className="flex-1">
 						<div className="p-1.5">
-							<button
+							<Button
 								type="button"
+								variant="ghost"
 								onClick={() => {
 									onSelect(null);
 									setOpen(false);
 								}}
 								className={cn(
-									'flex w-full items-center justify-start px-2 py-2.5 h-auto text-xs transition-all rounded-md outline-none',
+									'w-full justify-start px-2 py-2.5 h-auto text-xs transition-all rounded-md outline-none',
 									'hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground group',
 									value === null ? 'bg-accent/40 font-bold' : 'transparent'
 								)}
 							>
 								<Check className={cn('mr-2 size-3.5 shrink-0', value === null ? 'opacity-100' : 'opacity-0')} />
 								<span className={cn('italic transition-colors', value === null ? 'text-foreground' : 'text-muted-foreground', 'group-hover:text-primary-foreground')}>Unassigned</span>
-							</button>
+							</Button>
 							
 							{groups.length === 0 && (
 								<div className="py-8 text-center text-xs text-muted-foreground space-y-1">
@@ -177,16 +185,17 @@ export function SectionRoomPicker({
 											const occupying = roomOccupancy?.get(item.id);
 											const isSelected = value === item.id;
 											return (
-												<button
+												<Button
 													key={item.id}
 													ref={isSelected ? activeItemRef : null}
 													type="button"
+													variant="ghost"
 													onClick={() => {
 														onSelect(item.id);
 														setOpen(false);
 													}}
 													className={cn(
-														'flex w-full items-center justify-start px-2 py-2 h-auto text-xs transition-all rounded-md outline-none',
+														'w-full justify-start px-2 py-2 h-auto text-xs transition-all rounded-md outline-none',
 														'hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground group',
 														isSelected ? 'bg-accent/60 font-bold' : 'transparent'
 													)}
@@ -200,16 +209,16 @@ export function SectionRoomPicker({
 																	"ml-auto h-4 px-1 text-[8px] font-black uppercase border-opacity-50",
 																	isSelected ? "bg-white/10 text-white border-white/20" : "bg-amber-50 text-amber-600 border-amber-200"
 																)}>
-																	{occupying}
+																	Used by {occupying}
 																</Badge>
 															)}
 														</div>
 														<div className="flex items-center gap-1.5 mt-0.5">
 															<span className="text-[0.6rem] text-muted-foreground/60 uppercase font-medium group-hover:text-primary-foreground/70">{item.type.replace('_', ' ')}</span>
-															{occupying && <span className="text-[0.6rem] font-bold text-amber-600/80 group-hover:text-primary-foreground/60">• OCCUPIED</span>}
+															{occupying && <span className="text-[0.6rem] font-bold text-amber-600/80 group-hover:text-primary-foreground/60">Room already has a home section</span>}
 														</div>
 													</div>
-												</button>
+												</Button>
 											);
 										})}
 									</div>

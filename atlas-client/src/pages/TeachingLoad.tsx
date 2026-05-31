@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, X } from 'lucide-react';
 import { Card } from '@/ui/card';
 import { Button } from '@/ui/button';
 
@@ -13,7 +13,7 @@ import {
 	STANDARD_WEEKLY_TEACHING_HOURS,
 	computeSectionAssignmentDeltaMinutes,
 } from '@/lib/faculty-assignment-helpers';
-import { TooltipProvider } from '@/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { useTeachingLoadData } from '@/hooks/useTeachingLoadData';
 import { useTeachingLoadUI } from '@/hooks/useTeachingLoadUI';
 import { TeacherGridMode } from '@/components/faculty-assignments/TeacherGridMode';
@@ -404,6 +404,110 @@ export default function TeachingLoad() {
 		return Array.from(depts).sort();
 	}, [data.faculty]);
 
+	const workspaceState = useMemo(() => {
+		if (!data.isOnline) {
+			return {
+				label: 'Offline saved data',
+				description: 'ATLAS is showing the last saved teaching load snapshot. Write actions stay off until the connection returns.',
+				nextAction: 'Reconnect, then refresh the source before saving assignments.',
+				writeBlockedReason: 'Saving is disabled while ATLAS is offline.',
+			};
+		}
+		if (data.splitBrainQuarantineRequired) {
+			return {
+				label: 'Review lock active',
+				description: data.splitBrainReasonLabel,
+				nextAction: 'Repair saved scope drift before changing assignments.',
+				writeBlockedReason: data.splitBrainReasonLabel,
+			};
+		}
+		if (data.dataSource === 'refreshing') {
+			return {
+				label: 'Checking source',
+				description: 'ATLAS is comparing the saved workspace with the live source. The last saved snapshot remains visible while this finishes.',
+				nextAction: 'Wait for verification before saving new changes.',
+				writeBlockedReason: 'Saving is disabled while source verification is still running.',
+			};
+		}
+		if (data.dataSource === 'live' && data.canPersistAssignments) {
+			return {
+				label: 'Verified live',
+				description: 'Assignment data was checked against the live source. Draft changes can be saved.',
+				nextAction: data.activeDraftCount > 0 ? 'Save the draft changes before leaving this page.' : 'Inspect one teacher or fill section coverage gaps.',
+				writeBlockedReason: null,
+			};
+		}
+		if (data.dataSource === 'cached' && data.canPersistAssignments) {
+			return {
+				label: 'Using saved data',
+				description: data.degradedNotice ?? 'ATLAS is using a saved workspace snapshot with enough school-year evidence to allow edits.',
+				nextAction: data.activeDraftCount > 0 ? 'Save the draft, then refresh when live verification is available.' : 'Review coverage carefully, then refresh when live verification is available.',
+				writeBlockedReason: null,
+			};
+		}
+		if (data.dataSource === 'cached') {
+			return {
+				label: 'Read-only saved data',
+				description: data.degradedNotice ?? 'ATLAS can show the saved snapshot, but it cannot safely write assignment changes yet.',
+				nextAction: 'Refresh the source before saving, auto-fill, reset, or transferring assignments.',
+				writeBlockedReason: 'Saving is disabled until ATLAS verifies the live source.',
+			};
+		}
+		return {
+			label: 'No assignment data',
+			description: data.error ?? 'ATLAS could not load a live source or a saved teaching load snapshot.',
+			nextAction: 'Retry the source connection before assigning teachers.',
+			writeBlockedReason: 'Saving is disabled because no teaching load data is available.',
+		};
+	}, [
+		data.activeDraftCount,
+		data.canPersistAssignments,
+		data.dataSource,
+		data.degradedNotice,
+		data.error,
+		data.isOnline,
+		data.splitBrainQuarantineRequired,
+		data.splitBrainReasonLabel,
+	]);
+
+	const coverageState = useMemo(() => {
+		if (data.loading && !data.coverageTotals) {
+			return {
+				label: 'Checking assignment needs',
+				description: 'Coverage totals are loading. Zeroes shown now are placeholders, not final staffing counts.',
+			};
+		}
+		if (!data.activeSchoolYearId) {
+			return {
+				label: 'No active school year',
+				description: 'ATLAS needs an active school year before it can count teacher-section assignment needs.',
+			};
+		}
+		if (!data.coverageTotals || coverageHeadline.total === 0) {
+			return {
+				label: 'No assignment universe',
+				description: 'Coverage is 0 / 0 because ATLAS has no schedulable subject-section pairs for the current source state.',
+			};
+		}
+		if (coverageHeadline.syntheticAssigned > 0) {
+			return {
+				label: 'Mixed coverage',
+				description: `${coverageHeadline.realAssigned} pairs are staffed by real teachers and ${coverageHeadline.syntheticAssigned} use Teacher X placeholders.`,
+			};
+		}
+		return {
+			label: 'Real-teacher coverage',
+			description: 'Coverage counts are based on real teacher assignments for the current school year.',
+		};
+	}, [
+		coverageHeadline.realAssigned,
+		coverageHeadline.syntheticAssigned,
+		coverageHeadline.total,
+		data.activeSchoolYearId,
+		data.coverageTotals,
+		data.loading,
+	]);
+
 	if (data.error && data.dataSource === 'none') {
 		return (
 			<div className="flex h-[calc(100svh-3.5rem)] items-center justify-center p-6">
@@ -455,6 +559,15 @@ export default function TeachingLoad() {
 						showReconcileAction={splitBrainNeedsReconcile}
 						reconcileEnabled={data.canPersistAssignments}
 						reviewDismissed={ui.reviewDismissed}
+						workspaceStateLabel={workspaceState.label}
+						workspaceStateDescription={workspaceState.description}
+						workspaceStateNextAction={workspaceState.nextAction}
+						coverageStateLabel={coverageState.label}
+						coverageStateDescription={coverageState.description}
+						activeDraftCount={data.activeDraftCount}
+						saving={data.saving}
+						onSave={handleSave}
+						onRetrySource={() => data.fetchData({ forceRefresh: true })}
 					/>
 				</div>
 
@@ -486,16 +599,22 @@ export default function TeachingLoad() {
 									</Button>
 								)}
 								{!data.splitBrainQuarantineRequired && (
-									<Button 
-										variant="ghost" 
-										size="icon-xs" 
-										onClick={() => ui.setReviewDismissed(true)} 
-										className="h-8 w-8 hover:bg-amber-200 text-amber-800"
-										title="Dismiss Review Warning"
-									>
-										<span className="sr-only">Dismiss</span>
-										<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-x size-4"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-									</Button>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button 
+												variant="ghost" 
+												size="icon-xs" 
+												onClick={() => ui.setReviewDismissed(true)} 
+												className="h-8 w-8 hover:bg-amber-200 text-amber-800"
+												aria-label="Dismiss review warning"
+											>
+												<X className="size-4" />
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent side="bottom" className="text-xs font-semibold">
+											Dismiss review warning
+										</TooltipContent>
+									</Tooltip>
 								)}
 							</div>
 						</div>
@@ -555,6 +674,9 @@ export default function TeachingLoad() {
 								onToggleFilters={() => ui.setShowFilters(!ui.showFilters)}
 								showOutsideDept={ui.showOutsideDept}
 								onToggleOutsideDept={ui.setShowOutsideDept}
+								workspaceStateLabel={workspaceState.label}
+								workspaceStateNextAction={workspaceState.nextAction}
+								writeBlockedReason={workspaceState.writeBlockedReason}
 							/>
 						) : (
 							<SectionGridMode
@@ -580,6 +702,9 @@ export default function TeachingLoad() {
 								onSave={handleSave}
 								hasDraft={data.activeDraftCount > 0}
 								onSwapSectionOwnership={handleSwapRequest}
+								workspaceStateLabel={workspaceState.label}
+								workspaceStateNextAction={workspaceState.nextAction}
+								writeBlockedReason={workspaceState.writeBlockedReason}
 							/>
 						)}
 					</div>
@@ -594,12 +719,14 @@ export default function TeachingLoad() {
 								hoveredIncomingMinutes={ui.hoveredIncomingMinutes}
 								previewLoadHours={previewLoadHours}
 								isReadOnlyMode={data.isReadOnlyMode}
+								writeBlockedReason={workspaceState.writeBlockedReason}
 							/>
 						) : (
 							<SectionInspector
 								section={ui.selectedSectionId ? data.sectionMap.get(ui.selectedSectionId) ?? null : null}
 								sectionContract={selectedSectionContract}
 								effectiveOwnershipMap={data.effectiveOwnershipMap}
+								writeBlockedReason={workspaceState.writeBlockedReason}
 							/>
 						)}
 					</div>
@@ -633,6 +760,10 @@ export default function TeachingLoad() {
 				coverageTotals={data.coverageTotals}
 				faculty={data.faculty}
 				subjects={data.subjects}
+				coverageStateLabel={coverageState.label}
+				coverageStateDescription={coverageState.description}
+				workspaceStateLabel={workspaceState.label}
+				workspaceStateNextAction={workspaceState.nextAction}
 				onNavigateToAllocation={handleNavigateToAllocation}
 			/>
 		</TooltipProvider>

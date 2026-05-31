@@ -24,6 +24,7 @@ type WorkloadInspectorProps = {
 	hoveredIncomingMinutes: number;
 	previewLoadHours: number;
 	isReadOnlyMode: boolean;
+	writeBlockedReason?: string | null;
 	onClose?: () => void;
 };
 
@@ -41,6 +42,7 @@ export function WorkloadInspector({
 	hoveredIncomingMinutes,
 	previewLoadHours,
 	isReadOnlyMode,
+	writeBlockedReason,
 	onClose
 }: WorkloadInspectorProps) {
 	if (!selected || !loadProfile) {
@@ -49,7 +51,8 @@ export function WorkloadInspector({
 				<div className="size-12 rounded-full bg-muted flex items-center justify-center mb-4">
 					<Users className="size-6 text-muted-foreground/40" />
 				</div>
-				<p className="text-sm font-bold uppercase tracking-widest text-muted-foreground/40">Select a teacher<br/>to inspect workload</p>
+				<p className="text-sm font-semibold text-muted-foreground">Select a teacher to inspect workload.</p>
+				<p className="mt-2 text-xs font-medium text-muted-foreground/70">Use By teacher mode to review assignments, capacity, and the next safe action for one teacher.</p>
 			</div>
 		);
 	}
@@ -59,6 +62,12 @@ export function WorkloadInspector({
 	return (
 		<div className="flex h-full flex-col bg-background border-l border-border/50">
 			<div className="shrink-0 p-6 border-b border-border/40 space-y-4">
+				{isReadOnlyMode && writeBlockedReason && (
+					<div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-amber-900">
+						<p className="text-xs font-semibold uppercase tracking-widest">Read-only mode</p>
+						<p className="mt-1 text-xs font-medium text-amber-800/80">{writeBlockedReason}</p>
+					</div>
+				)}
 				<div className="flex items-center justify-between">
 					<h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">Teacher Workload</h3>
 					<Badge variant="outline" className={cn("h-5 font-semibold uppercase tracking-tighter shadow-none text-xs whitespace-nowrap", status.bg, status.text, status.border)}>

@@ -78,6 +78,9 @@ type TeacherGridModeProps = {
 	onToggleFilters: () => void;
 	showOutsideDept: boolean;
 	onToggleOutsideDept: (s: boolean) => void;
+	workspaceStateLabel: string;
+	workspaceStateNextAction: string;
+	writeBlockedReason: string | null;
 };
 
 export function TeacherGridMode({
@@ -129,6 +132,9 @@ export function TeacherGridMode({
 	onToggleFilters,
 	showOutsideDept,
 	onToggleOutsideDept,
+	workspaceStateLabel,
+	workspaceStateNextAction,
+	writeBlockedReason,
 }: TeacherGridModeProps) {
 	const [expandedId, setExpandedId] = useState<number | null>(selectedId);
 
@@ -146,6 +152,10 @@ export function TeacherGridMode({
 	if (loading) {
 		return (
 			<div className="flex-1 p-6 space-y-4">
+				<div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+					<p className="text-sm font-semibold text-blue-900">Checking teacher assignments.</p>
+					<p className="mt-1 text-xs font-medium text-blue-700">ATLAS is loading the roster, subjects, and current section ownership before edits appear.</p>
+				</div>
 				{Array.from({ length: 8 }).map((_, i) => (
 					<Skeleton key={i} className="h-16 w-full rounded-xl" />
 				))}
@@ -157,6 +167,18 @@ export function TeacherGridMode({
 		<div className="flex-1 flex flex-col min-h-0 bg-muted/5">
 			{/* Familiar Discovery Controls */}
 			<div className="shrink-0 p-6 border-b border-border/40 bg-background/50 backdrop-blur-sm space-y-4">
+				{isReadOnlyMode && writeBlockedReason && (
+					<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-amber-900">
+						<div className="flex items-start gap-3">
+							<AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+							<div>
+								<p className="text-sm font-semibold">{workspaceStateLabel}</p>
+								<p className="text-xs font-medium text-amber-800/80">{writeBlockedReason}</p>
+							</div>
+						</div>
+						<p className="text-xs font-semibold text-amber-800">{workspaceStateNextAction}</p>
+					</div>
+				)}
 				<div className="flex flex-wrap items-center gap-3">
 					<div className="relative flex-1 min-w-50 max-w-sm">
 						<Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -228,7 +250,19 @@ export function TeacherGridMode({
 			</div>
 
 			<div className="flex-1 overflow-auto p-6 space-y-4 no-scrollbar">
-				{groupedFaculty.map(([dept, members]) => (
+				{faculty.length === 0 ? (
+					<div className="flex min-h-72 flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 bg-background p-10 text-center">
+						<Users className="mb-4 size-10 text-muted-foreground/40" />
+						<h3 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/70">No teacher roster loaded</h3>
+						<p className="mt-2 max-w-md text-sm font-medium text-muted-foreground">Refresh the source from the top bar before assigning subjects and sections.</p>
+					</div>
+				) : groupedFaculty.length === 0 ? (
+					<div className="flex min-h-72 flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 bg-background p-10 text-center">
+						<Search className="mb-4 size-10 text-muted-foreground/40" />
+						<h3 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/70">No teachers match these filters</h3>
+						<p className="mt-2 max-w-md text-sm font-medium text-muted-foreground">Clear the search or filters to inspect teacher load.</p>
+					</div>
+				) : groupedFaculty.map(([dept, members]) => (
 					<div key={dept} className="space-y-2">
 						<div className="flex items-center gap-3 px-2">
 							<h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/50">{dept}</h3>

@@ -95,6 +95,8 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 		?? buildings[0]
 		?? null;
 	const selectedTeachingRooms = selectedBuilding ? teachingRoomCount(selectedBuilding) : 0;
+	const selectedTotalRooms = selectedBuilding?.rooms?.length ?? 0;
+	const selectedFloors = selectedBuilding?.floorCount ?? 0;
 	const selectedStatus = selectedBuilding ? buildingStatus(selectedBuilding) : 'attention';
 	const sectionLabelMap = useMemo(
 		() => new Map([...sectionMap].map(([id, section]) => [id, section.name])),
@@ -189,6 +191,8 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 		return utilization;
 	}, [buildings, scheduleReport, subjectMap]);
 
+	const selectedHasSchedule = Boolean(selectedBuilding?.rooms?.some((room) => (roomUtilization.get(room.id) ?? 0) > 0));
+
 	const roomScheduleIndicators = useMemo(() => {
 		const occupancy = new Map<number, string>();
 		const sectionData = new Map<number, RoomSectionMetadata>();
@@ -202,7 +206,7 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 		for (const entry of sortedEntries) {
 			if (sectionData.has(entry.roomId)) continue;
 			const section = sectionMap.get(entry.sectionId);
-			const sectionName = section?.name ?? entry.cohortName ?? `Section #${entry.sectionId}`;
+			const sectionName = section?.name ?? entry.cohortName ?? 'Assigned section';
 			const gradeLevel = section?.gradeLevel ?? parseGradeFromSectionName(sectionName);
 			const programCode = entry.programCode ?? section?.programCode ?? undefined;
 			occupancy.set(entry.roomId, sectionName);
@@ -298,9 +302,17 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 								<h3 className="mt-2 truncate text-xl font-bold text-slate-900">{selectedBuilding?.name ?? 'No building selected'}</h3>
 								<p className="mt-2 text-sm text-slate-500">
 									{selectedBuilding
-										? `${selectedTeachingRooms} teaching room${selectedTeachingRooms === 1 ? '' : 's'} out of ${selectedBuilding.rooms?.length ?? 0} total rooms.`
+										? `${selectedTeachingRooms} teaching room${selectedTeachingRooms === 1 ? '' : 's'} out of ${selectedTotalRooms} total rooms.`
 										: 'Open editor mode to draw buildings and add rooms.'}
 								</p>
+
+								{selectedBuilding ? (
+									<div className="mt-3 grid grid-cols-3 gap-2 text-center">
+										<ReadinessChip label="Teaching rooms" value={`${selectedTeachingRooms}/${selectedTotalRooms}`} />
+										<ReadinessChip label="Floors" value={selectedFloors.toString()} />
+										<ReadinessChip label="Schedules" value={selectedHasSchedule ? 'Available' : scheduleLoading ? 'Checking' : 'No latest run'} />
+									</div>
+								) : null}
 
 								{selectedBuilding ? (
 									<div className="mt-4 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
@@ -327,6 +339,12 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 										</div>
 										<GradeLevelBadge grade={roomScheduleIndicators.sectionData.get(selectedRoom.id)?.gradeKey ? Number(roomScheduleIndicators.sectionData.get(selectedRoom.id)?.gradeKey) : null} size="xs" />
 									</div>
+								) : null}
+
+								{selectedBuilding && !selectedRoom ? (
+									<p className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+										Click a room in the building view to open the latest schedule.
+									</p>
 								) : null}
 
 								{selectedBuilding ? (
@@ -375,6 +393,15 @@ function SummaryStat({ label, value, icon: Icon }: { label: string; value: strin
 			<Icon className="size-4 text-primary" />
 			<p className="mt-2 text-[0.68rem] font-semibold uppercase text-slate-500">{label}</p>
 			<p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{value}</p>
+		</div>
+	);
+}
+
+function ReadinessChip({ label, value }: { label: string; value: string }) {
+	return (
+		<div className="rounded-xl border border-slate-100 bg-slate-50 px-2 py-2">
+			<p className="text-[0.62rem] font-semibold uppercase text-slate-500">{label}</p>
+			<p className="mt-1 truncate text-xs font-bold text-slate-900">{value}</p>
 		</div>
 	);
 }

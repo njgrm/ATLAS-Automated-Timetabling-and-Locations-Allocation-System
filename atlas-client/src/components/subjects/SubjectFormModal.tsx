@@ -171,9 +171,9 @@ export function SubjectFormModal({
 							<Settings2 className="size-5" />
 						</div>
 						<div>
-							<DialogTitle className="text-xl font-bold">{mode === 'add' ? 'Add New Subject' : 'Configure Subject'}</DialogTitle>
+							<DialogTitle className="text-xl font-bold">{mode === 'add' ? 'Add subject' : 'Edit curriculum subject'}</DialogTitle>
 							<DialogDescription className="text-xs">
-								Define scheduling constraints and governance for this academic offering.
+								Set the weekly time, grades, program scope, owner, and room needs used for schedule generation.
 							</DialogDescription>
 						</div>
 					</div>
@@ -186,7 +186,7 @@ export function SubjectFormModal({
 							<ShieldCheck className="size-5 text-emerald-600 shrink-0 mt-0.5" />
 							<div className="space-y-2 flex-1">
 								<div className="flex items-center justify-between gap-2">
-									<h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Persisted Offerings Contract</h3>
+									<h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Saved curriculum source</h3>
 									<Badge variant="outline" className="bg-background font-mono text-[0.6rem]">
 										{subjectMeta.displayCode || form.code}
 									</Badge>
@@ -238,12 +238,12 @@ export function SubjectFormModal({
 					<div className="space-y-4">
 						<div className="flex items-center gap-2 text-primary">
 							<Info className="size-4" />
-							<h3 className="text-[0.6875rem] font-bold uppercase tracking-widest">1. Identity & Scope</h3>
+							<h3 className="text-[0.6875rem] font-bold uppercase tracking-widest">1. Subject identity</h3>
 						</div>
 						
 						<div className="grid grid-cols-2 gap-6">
 							<div className="space-y-1.5">
-								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Subject Code</label>
+								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Subject code</label>
 								<Input
 									placeholder="e.g. MATH10"
 									value={form.code}
@@ -251,14 +251,16 @@ export function SubjectFormModal({
 									onChange={(event) => mode === 'add' && setForm((previous) => ({ ...previous, code: event.target.value.toUpperCase() }))}
 									className={`font-mono uppercase ${mode === 'edit' ? 'bg-muted/50 cursor-not-allowed' : ''}`}
 								/>
+								<p className="text-[0.65rem] text-muted-foreground">Short code shown in tables, schedules, and reports.</p>
 							</div>
 							<div className="space-y-1.5">
-								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Descriptive Name</label>
+								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Subject name</label>
 								<Input
 									placeholder="e.g. Mathematics Grade 10"
 									value={form.name}
 									onChange={(event) => setForm((previous) => ({ ...previous, name: event.target.value }))}
 								/>
+								<p className="text-[0.65rem] text-muted-foreground">Plain subject name officers and teachers will recognize.</p>
 							</div>
 						</div>
 
@@ -269,8 +271,8 @@ export function SubjectFormModal({
 									onCheckedChange={(v) => setForm((p) => ({ ...p, isActive: v }))}
 								/>
 								<div className="flex flex-col">
-									<span className="text-xs font-semibold">Enable for Active Year</span>
-									<span className="text-[0.65rem] text-muted-foreground">Inactive subjects are hidden from the weekly grid.</span>
+									<span className="text-xs font-semibold">Available for this school year</span>
+									<span className="text-[0.65rem] text-muted-foreground">Archived subjects stay in history but are not used for new schedules.</span>
 								</div>
 							</div>
 							{form.isActive ? (
@@ -287,13 +289,13 @@ export function SubjectFormModal({
 					<div className="space-y-4">
 						<div className="flex items-center gap-2 text-primary">
 							<Clock className="size-4" />
-							<h3 className="text-[0.6875rem] font-bold uppercase tracking-widest">2. Scheduling Capacity</h3>
+							<h3 className="text-[0.6875rem] font-bold uppercase tracking-widest">2. Weekly time and room need</h3>
 						</div>
 
 						<div className="space-y-2">
 							<div className="space-y-2">
 								<div className="flex items-center justify-between">
-									<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Weekly Duration</label>
+									<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Weekly time</label>
 									<div className="flex bg-muted rounded-md p-0.5">
 										<Button 
 											type="button"
@@ -334,11 +336,12 @@ export function SubjectFormModal({
 									</span>
 								</div>
 							</div>
+							<p className="text-[0.65rem] text-muted-foreground">Used to calculate how many class periods this subject needs each week.</p>
 						</div>
 
 						<div className="grid grid-cols-2 gap-6 pt-2">
 							<div className="space-y-2">
-								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Preferred Room Type</label>
+								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Room need</label>
 								<Select value={form.preferredRoomType} onValueChange={(v) => setForm((p) => ({ ...p, preferredRoomType: v as RoomType }))}>
 									<SelectTrigger className="h-10">
 										<SelectValue />
@@ -349,6 +352,7 @@ export function SubjectFormModal({
 										))}
 									</SelectContent>
 								</Select>
+								<p className="text-[0.65rem] text-muted-foreground">Choose standard classroom unless this subject needs a specialized room.</p>
 							</div>
 
 							<div className="flex items-center gap-3 p-3 rounded-lg border bg-accent/5 self-end h-10">
@@ -357,7 +361,7 @@ export function SubjectFormModal({
 									onCheckedChange={(v) => setForm((p) => ({ ...p, isSeedable: v }))}
 								/>
 								<div className="flex items-center gap-1.5">
-									<span className="text-[0.7rem] font-semibold uppercase">Auto-Schedule</span>
+									<span className="text-[0.7rem] font-semibold uppercase">Can be scheduled</span>
 									<TooltipProvider>
 										<Tooltip>
 											<TooltipTrigger asChild>
@@ -379,12 +383,12 @@ export function SubjectFormModal({
 					<div className="space-y-6">
 						<div className="flex items-center gap-2 text-primary">
 							<Layout className="size-4" />
-							<h3 className="text-[0.6875rem] font-bold uppercase tracking-widest">3. Governance & Ownership</h3>
+							<h3 className="text-[0.6875rem] font-bold uppercase tracking-widest">3. Programs and teacher owner</h3>
 						</div>
 
 						<div className="grid grid-cols-2 gap-6">
 							<div className="space-y-2">
-								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Owner Department</label>
+								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Owner department</label>
 								<Select
 									value={form.ownerDepartment || 'UNASSIGNED'}
 									onValueChange={(value) => setForm((previous) => ({
@@ -403,16 +407,17 @@ export function SubjectFormModal({
 										))}
 									</SelectContent>
 								</Select>
+								<p className="text-[0.65rem] text-muted-foreground">Department normally responsible for teaching this subject.</p>
 							</div>
 							<div className="space-y-2">
-								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Qualification Baseline</label>
+								<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Coverage rule</label>
 								<div className="h-10 rounded-md border bg-muted/30 px-3 flex items-center">
 									<span className="text-xs font-semibold text-foreground">Department ownership</span>
 								</div>
 							</div>
 						</div>
 
-							<div className="space-y-3">
+						<div className="space-y-3">
 							<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Additional Qualified Departments</label>
 							<p className="text-[0.65rem] text-muted-foreground">
 								Use this when a subject can be baseline-owned by more than one department.
@@ -422,17 +427,8 @@ export function SubjectFormModal({
 									const isPrimary = form.ownerDepartment === option.value;
 									const isSelected = isPrimary || (form.allowedOwnerDepartments ?? []).includes(option.value);
 									return (
-										<Button
+										<div
 											key={`owner-dept-${option.value}`}
-											type="button"
-											variant="ghost"
-											size="sm"
-											onClick={() => {
-												if (!isPrimary) {
-													toggleAdditionalOwnerDepartment(option.value);
-												}
-											}}
-											disabled={isPrimary}
 											className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-left text-[0.65rem] font-semibold transition ${
 												isSelected
 													? 'border-primary/40 bg-primary/10 text-primary'
@@ -440,21 +436,26 @@ export function SubjectFormModal({
 											}`}
 										>
 											<Checkbox
+												aria-label={`Allow ${option.label} to teach this subject`}
 												checked={isSelected}
-												onCheckedChange={() => undefined}
+												onCheckedChange={() => {
+													if (!isPrimary) {
+														toggleAdditionalOwnerDepartment(option.value);
+													}
+												}}
 												disabled={isPrimary}
 											/>
 											<span className="truncate">
 												{option.label}{isPrimary ? ' (Primary)' : ''}
 											</span>
-										</Button>
+										</div>
 									);
 								})}
 							</div>
 						</div>
 
 						<div className="space-y-3">
-							<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Target Grade Levels</label>
+							<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Grade coverage</label>
 							<div className="grid grid-cols-4 gap-2">
 								{GRADE_OPTIONS.map((g) => (
 									<Button
@@ -472,7 +473,7 @@ export function SubjectFormModal({
 						</div>
 
 						<div className="space-y-3">
-							<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Applicable Programs</label>
+							<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Program coverage</label>
 							<div className="flex flex-wrap gap-2">
 								{PROGRAM_SCOPE_OPTIONS.map(({ value, label }) => (
 									<Button
@@ -500,15 +501,15 @@ export function SubjectFormModal({
 					<div className="space-y-6">
 						<div className="flex items-center gap-2 text-primary">
 							<Settings2 className="size-4" />
-							<h3 className="text-[0.6875rem] font-bold uppercase tracking-widest">4. Advanced Logic</h3>
+							<h3 className="text-[0.6875rem] font-bold uppercase tracking-widest">4. Advanced scheduling rules</h3>
 						</div>
 
 						{/* Inter-section Pooling */}
 						<div className="p-4 rounded-xl border bg-muted/20 space-y-4">
 							<div className="flex items-center justify-between">
 								<div className="flex flex-col">
-									<span className="text-xs font-bold uppercase">Inter-Section Pooling</span>
-									<span className="text-[0.65rem] text-muted-foreground">Allows teaching one session to multiple sections simultaneously.</span>
+									<span className="text-xs font-bold uppercase">Shared class session</span>
+									<span className="text-[0.65rem] text-muted-foreground">Use only when one teacher can teach multiple sections at the same time.</span>
 								</div>
 								<Switch
 									checked={form.interSectionEnabled ?? false}
@@ -538,8 +539,8 @@ export function SubjectFormModal({
 						<div className="p-4 rounded-xl border bg-muted/20 space-y-4">
 							<div className="flex items-center justify-between">
 								<div className="flex flex-col">
-									<span className="text-xs font-bold uppercase">Modular Term Ordering</span>
-									<span className="text-[0.65rem] text-muted-foreground">Used for subjects that rotate throughout the school year.</span>
+									<span className="text-xs font-bold uppercase">Rotates by term</span>
+									<span className="text-[0.65rem] text-muted-foreground">Use for subjects that share one weekly schedule lane across terms.</span>
 								</div>
 								<Switch
 									checked={isModularSubject}
@@ -554,7 +555,7 @@ export function SubjectFormModal({
 							{isModularSubject && (
 								<div className="grid grid-cols-2 gap-4 pt-2 animate-in zoom-in-95 duration-200">
 									<div className="space-y-1.5">
-										<label className="text-[0.65rem] font-bold text-muted-foreground uppercase">Group ID</label>
+										<label className="text-[0.65rem] font-bold text-muted-foreground uppercase">Rotation family</label>
 										<Input
 											placeholder="e.g. SCIENCE"
 											value={form.modularGroupId}
@@ -581,10 +582,10 @@ export function SubjectFormModal({
 
 						{/* Room Requirements */}
 						<div className="space-y-3">
-							<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Required Room Features</label>
+							<label className="text-[0.7rem] font-bold text-muted-foreground uppercase ml-0.5">Required room features</label>
 							<div className="flex gap-2">
 								<Input
-									placeholder="e.g. ICT-Lab, Heavy Equipment"
+									placeholder="e.g. ICT lab, workshop tools"
 									value={newFeature}
 									onChange={(e) => setNewFeature(e.target.value)}
 									onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addFeature(); } }}
@@ -608,7 +609,7 @@ export function SubjectFormModal({
 									</Badge>
 								))}
 								{form.requiredFeatures.length === 0 && (
-									<span className="text-[0.65rem] text-muted-foreground italic pl-1">No specific hardware requirements defined.</span>
+									<span className="text-[0.65rem] text-muted-foreground italic pl-1">No special room features needed.</span>
 								)}
 							</div>
 						</div>
@@ -622,7 +623,7 @@ export function SubjectFormModal({
 						disabled={!canSave} 
 						className="h-10 font-bold px-8 shadow-sm"
 					>
-						{saving ? (mode === 'add' ? 'Creating...' : 'Saving...') : (mode === 'add' ? 'Create Subject' : 'Update Subject')}
+						{saving ? (mode === 'add' ? 'Creating...' : 'Saving...') : (mode === 'add' ? 'Create subject' : 'Save curriculum subject')}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

@@ -29,12 +29,14 @@ interface FacultyProfileSheetProps {
 	faculty: FacultySummary | null;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	sourceFreshness: string;
 }
 
 export function FacultyProfileSheet({
 	faculty,
 	open,
 	onOpenChange,
+	sourceFreshness,
 }: FacultyProfileSheetProps) {
 	if (!faculty) return null;
 
@@ -45,15 +47,21 @@ export function FacultyProfileSheet({
 	const maxHours = faculty.maxHoursPerWeek;
 	const loadPercent = Math.round((weeklyHours / Math.max(maxHours, 1)) * 100);
 	
+	const loadState = !faculty.isActiveForScheduling
+		? 'Excluded'
+		: weeklyHours === 0 || subjectCount === 0
+		? 'No teaching load'
+		: weeklyHours > maxHours || weeklyHours >= maxHours * 0.85
+		? 'Needs review'
+		: 'Within load';
 	const loadColor =
-		weeklyHours === 0 ? 'bg-muted text-muted-foreground'
-		: weeklyHours > maxHours ? 'bg-red-100 text-red-700'
-		: weeklyHours >= maxHours * 0.85 ? 'bg-amber-100 text-amber-700'
+		loadState === 'No teaching load' || loadState === 'Excluded' ? 'bg-muted text-muted-foreground'
+		: loadState === 'Needs review' ? 'bg-amber-100 text-amber-700'
 		: 'bg-emerald-100 text-emerald-700';
 
 	const loadProgressColor = 
-		weeklyHours > maxHours ? 'bg-red-500'
-		: weeklyHours >= maxHours * 0.85 ? 'bg-amber-500'
+		loadState === 'Needs review' ? 'bg-amber-500'
+		: loadState === 'No teaching load' || loadState === 'Excluded' ? 'bg-slate-300'
 		: 'bg-emerald-500';
 
 	const deptColor = getDepartmentColor(faculty.department);
@@ -75,19 +83,20 @@ export function FacultyProfileSheet({
 									<Star className="size-4 fill-amber-400 text-amber-500 shrink-0" />
 								)}
 							</div>
-							<SheetDescription className="flex items-center gap-2 mt-1">
+							<SheetDescription className="flex flex-wrap items-center gap-2 mt-1">
 								<code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded uppercase tracking-tighter opacity-80">
 									#{faculty.employeeId || 'ID-PENDING'}
 								</code>
 								{faculty.isActiveForScheduling ? (
 									<span className="flex items-center gap-1 text-[0.7rem] font-bold text-emerald-600 uppercase tracking-wider">
-										<CheckCircle2 className="size-3" /> Active
+										<CheckCircle2 className="size-3" /> Active teacher
 									</span>
 								) : (
 									<span className="flex items-center gap-1 text-[0.7rem] font-bold text-muted-foreground uppercase tracking-wider">
-										<AlertTriangle className="size-3" /> Excluded
+										<AlertTriangle className="size-3" /> Excluded from scheduling
 									</span>
 								)}
+								<span className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-wider">{sourceFreshness}</span>
 							</SheetDescription>
 							{faculty.isClassAdviser && (
 								<div className="mt-2">
@@ -104,7 +113,7 @@ export function FacultyProfileSheet({
 				<div className="py-6 space-y-8">
 					{/* Identity Section */}
 					<div className="space-y-4">
-						<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest">Identity & Department</h4>
+						<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest">Roster identity</h4>
 						<div className="grid grid-cols-2 gap-4">
 							<div className="space-y-1.5">
 								<p className="text-[0.65rem] font-bold text-muted-foreground flex items-center gap-1.5 uppercase tracking-wider">
@@ -127,13 +136,13 @@ export function FacultyProfileSheet({
 
 					{/* Workload Section */}
 					<div className="space-y-4">
-						<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest">Teaching Load Summary</h4>
+						<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest">Current scheduling load</h4>
 						
 						<div className={`p-4 rounded-xl border flex flex-col gap-3 ${loadColor} bg-opacity-30 border-current border-opacity-10 shadow-sm`}>
 							<div className="flex items-center justify-between">
 								<div className="flex items-center gap-2">
 									<Clock className="size-4 opacity-70" />
-									<span className="text-sm font-bold">Policy Credited Hours</span>
+									<span className="text-sm font-bold">Credited weekly hours</span>
 								</div>
 								<span className="text-lg font-bold tracking-tight">{weeklyHours}h <span className="text-xs font-normal opacity-70">/ {maxHours}h max</span></span>
 							</div>
@@ -146,10 +155,8 @@ export function FacultyProfileSheet({
 							</div>
 							
 							<div className="flex items-center justify-between text-[0.65rem] font-bold uppercase tracking-widest">
-								<span>Current Load: {loadPercent}%</span>
-								{weeklyHours > maxHours && (
-									<span className="text-red-700">OVERLOADED</span>
-								)}
+								<span>Current load: {loadPercent}%</span>
+								<span>{loadState}</span>
 							</div>
 							{faculty.isClassAdviser && (
 								<p className="text-[0.65rem] font-bold opacity-70 mt-1 uppercase tracking-wider">Includes {faculty.advisoryEquivalentHours}h Advisory Credit</p>
@@ -177,10 +184,10 @@ export function FacultyProfileSheet({
 					{/* Assigned Subjects List */}
 					<div className="space-y-4">
 						<div className="flex items-center justify-between">
-							<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest">Current Assignments</h4>
+							<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest">Assigned subjects and sections</h4>
 							<Link to={`/teaching-load?facultyId=${faculty.id}`}>
 								<Button variant="link" size="sm" className="h-auto p-0 text-[0.65rem] font-bold uppercase tracking-widest text-primary hover:no-underline">
-									Manage Load <ChevronRight className="size-3 ml-0.5" />
+										Review teaching load <ChevronRight className="size-3 ml-0.5" />
 								</Button>
 							</Link>
 						</div>
@@ -216,10 +223,31 @@ export function FacultyProfileSheet({
 								))}
 							</div>
 						) : (
-							<div className="py-12 text-center border rounded-xl border-dashed bg-muted/5">
-								<p className="text-xs text-muted-foreground italic">No subjects assigned yet.</p>
+							<div className="space-y-3 rounded-xl border border-dashed bg-muted/5 px-4 py-10 text-center">
+								<p className="text-sm font-bold text-foreground">No teaching load assigned yet.</p>
+								<p className="text-xs leading-5 text-muted-foreground">Open Teaching Load to assign subjects and sections before generation.</p>
+								<Link to={`/teaching-load?facultyId=${faculty.id}`} className="inline-flex justify-center">
+									<Button size="sm" variant="outline" className="gap-2 font-bold">
+										Review teaching load
+										<ChevronRight className="size-3" />
+									</Button>
+								</Link>
 							</div>
 						)}
+					</div>
+
+					<Separator className="opacity-50" />
+
+					<div className="space-y-3 rounded-xl border bg-slate-50/70 p-4">
+						<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest">Adviser and source context</h4>
+						<p className="text-sm font-semibold text-foreground">
+							{faculty.isClassAdviser
+								? faculty.advisedSectionName
+									? `Class adviser for ${faculty.advisedSectionName}.`
+									: 'Class adviser assignment exists, but no section label is available.'
+								: 'No adviser section assigned.'}
+						</p>
+						<p className="text-xs leading-5 text-muted-foreground">Roster source: {sourceFreshness}. Refresh the teacher roster if this does not match the latest EnrollPro record.</p>
 					</div>
 
 					{/* Secondary Actions */}
@@ -227,11 +255,11 @@ export function FacultyProfileSheet({
 						<Link to={`/teaching-load?facultyId=${faculty.id}`} className="w-full">
 							<Button className="w-full h-10 gap-2 font-bold shadow-md uppercase tracking-wide text-xs">
 								<ClipboardList className="size-4" />
-								Manage Teaching Load
+								Review teaching load
 							</Button>
 						</Link>
 						<Button variant="secondary" className="h-10 text-muted-foreground font-bold uppercase tracking-wide text-xs" onClick={() => onOpenChange(false)}>
-							Close Profile
+							Close profile
 						</Button>
 					</div>
 				</div>

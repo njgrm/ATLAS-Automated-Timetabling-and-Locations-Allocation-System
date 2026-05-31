@@ -10,15 +10,14 @@ import {
 	ChevronRight,
 	ChevronsLeft,
 	ChevronsRight,
-	Filter,
 	Map,
 	Plus,
 	RefreshCw,
-	Search,
 	Users,
 	Zap,
 	X,
 	Info,
+	CheckCircle2,
 } from 'lucide-react';
 
 import { toast } from 'sonner';
@@ -37,7 +36,6 @@ import { SubjectRow } from '@/components/subjects/SubjectRow';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
-import { Card } from '@/ui/card';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
 import { DeleteSubjectDialog } from '@/components/subjects/DeleteSubjectDialog';
 import {
@@ -51,6 +49,13 @@ import { Input } from '@/ui/input';
 import { Skeleton } from '@/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
+import {
+	AdminSearchFilterToolbar,
+	AdminStatePanel,
+	AdminTableShell,
+	AdminWorkspaceFrame,
+	type AdminSourceState,
+} from '@/components/admin-workspace/AdminWorkspace';
 
 
 const DEFAULT_SCHOOL_ID = 1;
@@ -124,6 +129,7 @@ export default function Subjects() {
 		assigned: { facultyId: number; name: string; grades: number[]; load: number; sections: string[] }[]
 	}>>({});
 	const [coverageLoading, setCoverageLoading] = useState(false);
+	const [assignedSubjectIds, setAssignedSubjectIds] = useState<Set<number> | null>(null);
 
 	// Sorting
 	const [sortField, setSortField] = useState<SortField>('code');
@@ -218,6 +224,32 @@ export default function Subjects() {
 			setCoverageLoading(false);
 		}
 	}, [subjects, ensureActiveSchoolYear]);
+
+	const fetchCoverageSummary = useCallback(async () => {
+		try {
+			const schoolYearId = await ensureActiveSchoolYear();
+			const { data } = await atlasApi.get<{ faculty: any[] }>('/faculty-assignments/summary', {
+				params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId },
+			});
+			const nextAssignedSubjectIds = new Set<number>();
+			for (const faculty of data.faculty ?? []) {
+				for (const assignment of faculty.assignments ?? []) {
+					if (typeof assignment.subjectId === 'number') {
+						nextAssignedSubjectIds.add(assignment.subjectId);
+					}
+				}
+			}
+			setAssignedSubjectIds(nextAssignedSubjectIds);
+		} catch {
+			setAssignedSubjectIds(null);
+		}
+	}, [ensureActiveSchoolYear]);
+
+	useEffect(() => {
+		if (subjects.length > 0) {
+			void fetchCoverageSummary();
+		}
+	}, [fetchCoverageSummary, subjects.length]);
 
 	// Filtered, sorted, paginated
 	const { paged, totalFiltered, totalPages } = useMemo(() => {
@@ -333,6 +365,7 @@ export default function Subjects() {
 
 	const handleSyncContract = async () => {
 		setSyncingContract(true);
+		setSyncError(false);
 		try {
 			const schoolYearId = await ensureActiveSchoolYear();
 			await atlasApi.post('/subjects/sync-offerings', {
@@ -340,9 +373,11 @@ export default function Subjects() {
 				schoolYearId,
 			});
 			await fetchSubjects();
-			toast.success('Subject contract synced from offerings and mirrored section demand.');
+			await fetchCoverageSummary();
+			toast.success('Subject offerings refreshed for the active school year.');
 		} catch (err: any) {
-			toast.error(err?.response?.data?.message ?? 'Failed to sync subject contract.');
+			setSyncError(true);
+			toast.error(err?.response?.data?.message ?? 'Failed to refresh subject offerings.');
 		} finally {
 			setSyncingContract(false);
 		}
@@ -376,62 +411,92 @@ export default function Subjects() {
 		}
 	};
 
+	const subjectSourceState = useMemo<AdminSourceState>(() => {
+		if (loading || syncingContract) return 'checking-source';
+		if (error && subjects.length === 0) return 'no-saved-data';
+		if (syncError) return 'saved-data';
+		return 'verified-live';
+	}, [error, loading, subjects.length, syncError, syncingContract]);
+
+	const subjectStats = useMemo(() => {
+		const activeCount = subjects.filter((subject) => subject.isActive).length;
+		const archivedCount = subjects.length - activeCount;
+		const roomConstrainedCount = subjects.filter((subject) => subject.isActive && (subject.preferredRoomType !== 'CLASSROOM' || subject.requiredFeatures.length > 0)).length;
+		const coverageRiskCount = assignedSubjectIds
+			? subjects.filter((subject) => subject.isActive && subject.isSeedable && !assignedSubjectIds.has(subject.id)).length
+			: null;
+		return [
+			{ label: 'Active subjects', value: activeCount, tone: activeCount > 0 ? 'success' as const : 'warning' as const, helpText: 'Subjects currently available for scheduling this school year.' },
+			{ label: 'Archived', value: archivedCount, tone: archivedCount > 0 ? 'neutral' as const : 'success' as const, helpText: 'Subjects kept for history but hidden from new schedule setup.' },
+			{ label: 'Missing coverage', value: coverageRiskCount ?? 'Checking', tone: coverageRiskCount === null ? 'info' as const : coverageRiskCount > 0 ? 'warning' as const : 'success' as const, helpText: coverageRiskCount === null ? 'ATLAS is checking teaching-load coverage.' : 'Active schedulable subjects with no assigned teacher found in the current teaching load.' },
+			{ label: 'Room constrained', value: roomConstrainedCount, tone: roomConstrainedCount > 0 ? 'warning' as const : 'success' as const, helpText: 'Active subjects that need a specialized room type or room feature.' },
+		];
+	}, [assignedSubjectIds, subjects]);
+
+	const coverageDetail = useMemo(() => {
+		if (!coverageSubject) return null;
+		const assigned = teacherCoverage[coverageSubject.id]?.assigned ?? [];
+		const coveredGrades = new Set(assigned.flatMap((teacher) => teacher.grades));
+		const uncoveredGrades = coverageSubject.gradeLevels.filter((grade) => !coveredGrades.has(grade));
+		return {
+			assigned,
+			uncoveredGrades,
+			programScopes: coverageSubject.programScopes ?? [],
+		};
+	}, [coverageSubject, teacherCoverage]);
+
 	return (
-		<div className="flex flex-col h-[calc(100svh-3.5rem)]">
-			{/* Top Header - Primary Actions */}
-			<div className="shrink-0 px-6 py-4 border-b bg-background/50 backdrop-blur-md">
-				<div className="flex items-center justify-between">
-					<div className="flex items-center gap-4">
-						<div className="relative w-64">
-							<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-							<Input
-								placeholder="Search name or code..."
-								value={searchQuery}
-								onChange={(e) => setSearchQuery(e.target.value)}
-								className="pl-9 h-9"
-							/>
-						</div>
-						<Button
-							variant={showFilters ? 'secondary' : 'outline'}
-							size="sm"
-							className="h-9 gap-2"
-							onClick={() => setShowFilters(!showFilters)}
-						>
-							<Filter className="size-4" />
-							Filters
-							{hasActiveFilters && (
-								<Badge variant="secondary" className="ml-1 h-5 px-1.5 bg-primary text-primary-foreground">
-									Active
-								</Badge>
-							)}
-						</Button>
-					</div>
-
-					<div className="flex items-center gap-2">
-						<TooltipProvider>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Button variant="outline" onClick={handleSyncContract} size="sm" className="h-9" disabled={syncingContract}>
-										<RefreshCw className={`size-4 ${syncingContract ? 'animate-spin' : ''}`} />
-									</Button>
-								</TooltipTrigger>
-								<TooltipContent>Sync Offering Contract</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
-
-
-						<div className="h-4 w-px bg-border mx-1" />
-
-						<Button onClick={() => { setModalMode('add'); setModalSubject(null); setModalSubjectMeta(null); }} size="sm" className="h-9 gap-2 shadow-sm">
-							<Plus className="size-4" />
-							Add Subject
-						</Button>
-					</div>
-				</div>
-
-				{/* Expanded Filters */}
-				{showFilters && (
-					<div className="flex flex-wrap items-center gap-3 pt-4 animate-in slide-in-from-top-2 duration-200">
+		<AdminWorkspaceFrame
+			title = "Subjects"
+			description="Review the curriculum subjects that can be scheduled for this school year. Start with missing teacher coverage and room-constrained subjects before generation."
+			sourceState={subjectSourceState}
+			sourceCopy={{
+				description:
+					subjectSourceState === 'verified-live'
+							? 'The curriculum subject list is loaded for the active school year.'
+						: subjectSourceState === 'checking-source'
+							? 'ATLAS is checking which subjects and program offerings should be active while the page stays usable.'
+						: subjectSourceState === 'saved-data'
+							? 'ATLAS is showing the last known curriculum list while offering verification is incomplete.'
+						: 'ATLAS could not load a usable subject catalog.',
+				nextAction:
+					subjectSourceState === 'verified-live'
+							? 'Open coverage for subjects with risk, or add a subject if the curriculum list is missing one.'
+						: subjectSourceState === 'checking-source'
+							? 'Keep reviewing subjects and wait before final curriculum changes.'
+						: subjectSourceState === 'saved-data'
+							? 'Refresh offerings before treating this as final curriculum truth.'
+						: 'Reconnect and sync subjects before this page can be used.',
+			}}
+			stats={subjectStats}
+			secondaryActions={(
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button variant="outline" onClick={handleSyncContract} size="sm" className="h-9 gap-2" disabled={syncingContract}>
+								<RefreshCw className={`size-4 ${syncingContract ? 'animate-spin' : ''}`} />
+								Refresh offerings
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent className="max-w-72 text-xs leading-relaxed">Checks which subjects and program offerings should be active for the current school year.</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+			)}
+			primaryActions={(
+				<Button onClick={() => { setModalMode('add'); setModalSubject(null); setModalSubjectMeta(null); }} size="sm" className="h-9 gap-2 bg-primary text-primary-foreground shadow-primary-glow hover:bg-primary/90">
+					<Plus className="size-4" />
+					Add subject
+				</Button>
+			)}
+			toolbar={(
+				<AdminSearchFilterToolbar
+					searchValue={searchQuery}
+					onSearchChange={setSearchQuery}
+					searchPlaceholder="Search name or code..."
+					filtersOpen={showFilters}
+					onToggleFilters={() => setShowFilters(!showFilters)}
+					hasActiveFilters={hasActiveFilters}
+				>
 						<Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
 							<SelectTrigger className="h-8 w-32 text-xs">
 								<SelectValue placeholder="All Status" />
@@ -499,17 +564,17 @@ export default function Subjects() {
 								Reset all
 							</Button>
 						)}
-					</div>
-				)}
-			</div>
+				</AdminSearchFilterToolbar>
+			)}
+		>
 
 			{/* Status Banners */}
 			{syncError && (
 				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
 					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
-					<span className="flex-1 font-medium">The offerings contract could not be fully verified against the latest enrollment state. Displaying last known contract.</span>
+						<span className="flex-1 font-medium">ATLAS could not refresh the active subject offerings. The last saved curriculum list is still shown.</span>
 					<Button size="sm" variant="outline" onClick={handleSyncContract} disabled={syncingContract} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold">
-						<RefreshCw className={`mr-1.5 size-3 ${syncingContract ? 'animate-spin' : ''}`} /> Retry Sync
+							<RefreshCw className={`mr-1.5 size-3 ${syncingContract ? 'animate-spin' : ''}`} /> Retry refresh
 					</Button>
 				</div>
 			)}
@@ -524,10 +589,37 @@ export default function Subjects() {
 				</div>
 			)}
 
-			{/* Table Container */}
-			<div className="flex-1 min-h-0 px-6 py-4">
-				<Card className="h-full flex flex-col shadow-sm border-border/50 overflow-hidden">
-					<div className="flex-1 min-h-0 overflow-auto">
+			<AdminTableShell
+				footer={!loading && subjects.length > 0 ? (
+					<div className="flex items-center justify-between gap-3">
+						<div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
+							<span>
+								{totalFiltered === 0
+									? 'No results'
+									: `Showing ${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, totalFiltered)} of ${totalFiltered} results`}
+							</span>
+							<div className="flex items-center gap-2 border-l pl-4 border-border/50">
+								<span>Rows per page:</span>
+								<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+									<SelectTrigger className="h-7 w-20 text-xs bg-background">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
+									</SelectContent>
+								</Select>
+							</div>
+						</div>
+						<div className="flex items-center gap-1.5">
+							<Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(1)} disabled={page <= 1}><ChevronsLeft className="size-4" /></Button>
+							<Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}><ChevronLeft className="size-4" /></Button>
+							<div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-[0.7rem] font-bold tabular-nums"><span>{page}</span><span className="text-muted-foreground/50 font-normal">/</span><span className="text-muted-foreground font-normal">{totalPages}</span></div>
+							<Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}><ChevronRight className="size-4" /></Button>
+							<Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(totalPages)} disabled={page >= totalPages}><ChevronsRight className="size-4" /></Button>
+						</div>
+					</div>
+				) : undefined}
+			>
 						<table className="w-full text-sm">
 							<thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-md">
 								<tr className="border-b">
@@ -538,12 +630,12 @@ export default function Subjects() {
 									</th>
 									<th className="px-4 py-3 text-left">
 										<Button variant="ghost" size="sm" onClick={() => toggleSort('minMinutesPerWeek')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
-											Duration <SortIcon field="minMinutesPerWeek" />
+											Weekly time <SortIcon field="minMinutesPerWeek" />
 										</Button>
 									</th>
 									<th className="px-4 py-3 text-left">
 										<Button variant="ghost" size="sm" onClick={() => toggleSort('preferredRoomType')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground">
-											Room Pref. <SortIcon field="preferredRoomType" />
+											Room need <SortIcon field="preferredRoomType" />
 										</Button>
 									</th>
 									<th className="px-4 py-3 text-left">
@@ -551,7 +643,7 @@ export default function Subjects() {
 											Grades <SortIcon field="gradeLevels" />
 										</Button>
 									</th>
-									<th className="px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Scope & Owner</th>
+									<th className="px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Programs and owner</th>
 									<th className="px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Status</th>
 									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Actions</th>
 								</tr>
@@ -572,19 +664,7 @@ export default function Subjects() {
 								) : paged.length === 0 ? (
 									<tr>
 										<td colSpan={7} className="px-4 py-20 text-center">
-											<div className="flex flex-col items-center gap-4 text-muted-foreground max-w-xs mx-auto">
-												<BookOpen className="size-12 opacity-20" />
-												<div className="space-y-1">
-													<p className="font-bold text-foreground">
-														{subjects.length === 0 ? 'No subjects found.' : 'No matches found.'}
-													</p>
-													<p className="text-xs">
-														{subjects.length === 0 
-															? 'Ensure the offerings contract is synced to begin scheduling.'
-															: 'Try adjusting your filters or search query to find the subject you are looking for.'}
-													</p>
-												</div>
-											</div>
+											<AdminStatePanel icon={<BookOpen className="size-8" />} title = {subjects.length === 0 ? 'No subjects found.' : 'No matches found.'} description={subjects.length === 0 ? 'Refresh offerings to load curriculum subjects for this school year.' : 'Clear a filter or search another subject name or code.'} />
 										</td>
 									</tr>
 								) : (
@@ -632,78 +712,7 @@ export default function Subjects() {
 								)}
 							</tbody>
 						</table>
-					</div>
-
-					{/* Pagination Footer */}
-					{!loading && subjects.length > 0 && (
-						<div className="shrink-0 flex items-center justify-between border-t border-border/50 px-4 py-3 bg-muted/20">
-							<div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
-								<span>
-									{totalFiltered === 0
-										? 'No results'
-										: `Showing ${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, totalFiltered)} of ${totalFiltered} results`}
-								</span>
-								
-								<div className="flex items-center gap-2 border-l pl-4 border-border/50">
-									<span>Rows per page:</span>
-									<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-										<SelectTrigger className="h-7 w-20 text-xs bg-background">
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
-										</SelectContent>
-									</Select>
-								</div>
-							</div>
-							
-							<div className="flex items-center gap-1.5">
-								<Button 
-									variant="outline" 
-									size="icon" 
-									className="h-8 w-8" 
-									onClick={() => setPage(1)} 
-									disabled={page <= 1}
-								>
-									<ChevronsLeft className="size-4" />
-								</Button>
-								<Button 
-									variant="outline" 
-									size="icon" 
-									className="h-8 w-8" 
-									onClick={() => setPage((p) => Math.max(1, p - 1))} 
-									disabled={page <= 1}
-								>
-									<ChevronLeft className="size-4" />
-								</Button>
-								<div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-[0.7rem] font-bold tabular-nums">
-									<span>{page}</span>
-									<span className="text-muted-foreground/50 font-normal">/</span>
-									<span className="text-muted-foreground font-normal">{totalPages}</span>
-								</div>
-								<Button 
-									variant="outline" 
-									size="icon" 
-									className="h-8 w-8" 
-									onClick={() => setPage((p) => Math.min(totalPages, p + 1))} 
-									disabled={page >= totalPages}
-								>
-									<ChevronRight className="size-4" />
-								</Button>
-								<Button 
-									variant="outline" 
-									size="icon" 
-									className="h-8 w-8" 
-									onClick={() => setPage(totalPages)} 
-									disabled={page >= totalPages}
-								>
-									<ChevronsRight className="size-4" />
-								</Button>
-							</div>
-						</div>
-					)}
-				</Card>
-			</div>
+			</AdminTableShell>
 
 			{/* Coverage Side Drawer */}
 			<Sheet open={!!coverageSubject} onOpenChange={(open) => !open && setCoverageSubject(null)}>
@@ -711,10 +720,10 @@ export default function Subjects() {
 					<SheetHeader className="pb-6 border-b">
 						<SheetTitle className="flex items-center gap-2 text-xl font-bold">
 							<Users className="size-5 text-primary" />
-							Teacher Coverage
+							Subject coverage
 						</SheetTitle>
 						<SheetDescription>
-							Read-only ownership context for <span className="font-bold text-foreground">{coverageSubject?.name}</span>
+							Assigned teachers and uncovered grade/program scope for <span className="font-bold text-foreground">{coverageSubject?.name}</span>.
 						</SheetDescription>
 					</SheetHeader>
 
@@ -728,17 +737,17 @@ export default function Subjects() {
 							<>
 								<div className="rounded-xl border border-violet-100 bg-violet-50/30 p-4 space-y-3">
 									<div className="flex items-center justify-between">
-										<p className="text-[0.65rem] font-semibold uppercase tracking-widest text-violet-700/80">Subject Term Context</p>
+										<p className="text-[0.65rem] font-semibold uppercase tracking-widest text-violet-700/80">Term rotation</p>
 										{coverageSubject.rotationFamily && (
 											<Tooltip>
 												<TooltipTrigger asChild>
 													<div className="flex items-center gap-1.5 cursor-help">
 														<Info className="size-3 text-violet-400" />
-														<span className="text-[10px] font-bold text-violet-600 uppercase tracking-tight">Rotating Subject</span>
+														<span className="text-[10px] font-bold text-violet-600 uppercase tracking-tight">Rotates by term</span>
 													</div>
 												</TooltipTrigger>
 												<TooltipContent side="top" className="text-xs font-bold max-w-50">
-													Weekly classroom lane is shared with other subjects in this family across terms.
+														This subject shares a weekly schedule lane with related subjects across terms.
 												</TooltipContent>
 											</Tooltip>
 										)}
@@ -759,7 +768,7 @@ export default function Subjects() {
 										)}
 									</div>
 									<p className="text-[11px] text-violet-800/80 leading-relaxed font-medium italic">
-										Calculations are scoped by <span className="font-bold">rotation family</span> and <span className="font-bold">term rank</span> to ensure weekly load accuracy.
+										Rotating subjects share time across terms, so check both assigned teachers and uncovered grades before generation.
 									</p>
 								</div>
 
@@ -767,15 +776,15 @@ export default function Subjects() {
 								<div className="space-y-4">
 									<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
 										<div className="size-1.5 rounded-full bg-emerald-500" />
-										Currently Assigned
+										Assigned teachers
 										<Badge variant="secondary" className="ml-auto bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-100 font-bold">
-											{(teacherCoverage[coverageSubject.id]?.assigned ?? []).length}
+											{coverageDetail?.assigned.length ?? 0}
 										</Badge>
 									</h4>
 									
-									{(teacherCoverage[coverageSubject.id]?.assigned ?? []).length > 0 ? (
+									{(coverageDetail?.assigned.length ?? 0) > 0 ? (
 										<div className="space-y-3">
-											{teacherCoverage[coverageSubject.id].assigned.map((t) => (
+											{coverageDetail?.assigned.map((t) => (
 												<div key={t.facultyId} className="group p-4 rounded-xl border border-emerald-100 bg-emerald-50/20 shadow-sm space-y-3">
 													<div className="flex items-start justify-between gap-4 border-b border-emerald-100/50 pb-2">
 														<div className="min-w-0">
@@ -813,8 +822,59 @@ export default function Subjects() {
 									) : (
 										<div className="p-10 rounded-xl border border-dashed text-center bg-muted/5">
 											<p className="text-sm text-muted-foreground italic">No teachers assigned to this subject yet.</p>
+											<Link to={`/teaching-load?subjectId=${coverageSubject.id}`} className="mt-3 inline-flex">
+												<Button size="sm" className="gap-2 bg-primary text-primary-foreground shadow-primary-glow hover:bg-primary/90">
+													Fix in Teaching Load
+													<ChevronRight className="size-3.5" />
+												</Button>
+											</Link>
 										</div>
 									)}
+								</div>
+
+								<div className="space-y-4">
+									<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+										<div className={`size-1.5 rounded-full ${(coverageDetail?.uncoveredGrades.length ?? 0) > 0 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+										Uncovered scope
+									</h4>
+									<div className={(coverageDetail?.uncoveredGrades.length ?? 0) > 0 ? 'rounded-xl border border-amber-200 bg-amber-50 p-4' : 'rounded-xl border border-emerald-200 bg-emerald-50 p-4'}>
+										{(coverageDetail?.uncoveredGrades.length ?? 0) > 0 ? (
+											<div className="space-y-3">
+												<p className="text-sm font-bold text-amber-900">These grades do not yet have a teacher mapped for this subject.</p>
+												<div className="flex flex-wrap gap-1.5">
+													{coverageDetail?.uncoveredGrades.map((grade) => (
+														<Badge key={grade} variant="outline" className={`font-bold ${GRADE_COLORS[String(grade)] ?? ''}`}>{gradeLabel(grade)}</Badge>
+													))}
+												</div>
+												<Link to={`/teaching-load?subjectId=${coverageSubject.id}`} className="inline-flex">
+													<Button size="sm" variant="outline" className="gap-2 border-amber-300 text-amber-900 hover:bg-amber-100">
+														Fix coverage in Teaching Load
+														<ChevronRight className="size-3.5" />
+													</Button>
+												</Link>
+											</div>
+										) : (
+											<div className="flex items-start gap-3 text-emerald-900">
+												<CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+												<div>
+													<p className="text-sm font-bold">All listed grades have assigned coverage.</p>
+													<p className="text-xs font-medium text-emerald-700">Review program scope below if this subject only applies to selected programs.</p>
+												</div>
+											</div>
+										)}
+									</div>
+									<div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+										<span className="font-bold uppercase tracking-wider">Program scope:</span>
+										{coverageDetail?.programScopes.map((scope) => (
+											<Badge key={scope} variant="outline" className="bg-white text-slate-700 shadow-none">{scope}</Badge>
+										))}
+									</div>
+									<Link to={`/teaching-load?subjectId=${coverageSubject.id}`} className="inline-flex">
+										<Button size="sm" variant="outline" className="gap-2">
+											Open in Teaching Load
+											<ChevronRight className="size-3.5" />
+										</Button>
+									</Link>
 								</div>
 
 								{/* Facilities Requirement */}
@@ -861,13 +921,13 @@ export default function Subjects() {
 
 			<ConfirmationModal
 				open={!!archiveTarget}
-				title="Archive Subject"
-				description={archiveTarget ? `Archive "${archiveTarget.name}"? It will be hidden from new assignments but historical data is preserved.` : ''}
-				confirmText="Archive"
+				title = "Archive subject for new schedules"
+				description={archiveTarget ? `Archive "${archiveTarget.name}"? It will stay in history but will not appear in new subject setup or teaching-load assignments.` : ''}
+				confirmText="Archive subject"
 				variant="warning"
 				loading={archivingLoading}
 				onConfirm={() => archiveTarget && handleArchiveSubject(archiveTarget)}
-				onCancel={() => setArchiveTarget(null)}
+				onOpenChange={(open) => !open && setArchiveTarget(null)}
 			/>
 
 			<DeleteSubjectDialog
@@ -878,6 +938,6 @@ export default function Subjects() {
 				}}
 				onEnsureSchoolYear={ensureActiveSchoolYear}
 			/>
-		</div>
+		</AdminWorkspaceFrame>
 	);
 }
