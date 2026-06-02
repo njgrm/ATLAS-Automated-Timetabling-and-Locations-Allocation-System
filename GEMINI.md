@@ -333,6 +333,25 @@ Preferred pattern:
 2. inspect heavy JSON only for the minimum candidate set needed
 3. normalize entry term metadata in place when safe instead of cloning the whole payload
 
+### 8. Prove query-shaping work with behavioral and shape checks
+
+When Gemini changes backend read paths to reduce payload size, push filters into SQL, or avoid loading large JSON fields, it must verify both:
+
+- behavior: targeted output matches the full source-of-truth output for representative matching and missing cases
+- shape: the optimized path avoids the specific large field or broad query the prompt asked it to avoid
+
+For JSON-array extraction from persisted timetable payloads, Gemini must preserve response ordering explicitly, such as by using PostgreSQL `WITH ORDINALITY` and ordering by the ordinal column.
+
+Gemini must not claim query-shaping `GO` from a probe that:
+
+- chooses a different run than the service resolver uses
+- compares against unrevised base entries when the runtime contract is revision-effective
+- only prints sample data without failing on mismatch
+- loads the entire heavy payload on the production targeted path
+- leaves corrupted or malformed evidence-log entries in place
+
+If the prompt requires payload-size, timing, or memory evidence and the probe is local-only, Gemini must label it as local probe evidence and keep the prompt at `NO-GO` unless the required live/runtime evidence is also captured or the user accepts the narrower proof.
+
 ---
 
 ## Current Workflow Direction Gemini Must Follow

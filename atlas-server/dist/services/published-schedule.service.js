@@ -114,7 +114,7 @@ function buildRevisionMarker(params) {
         `date=${params.resolvedForDate.slice(0, 10)}`,
     ].join('|');
 }
-async function resolvePublishedRun(schoolId, schoolYearId, options) {
+async function resolvePublishedRun(schoolId, schoolYearId, options, filter) {
     await reconcileInvalidPublishedRunStates(schoolId, {
         schoolYearId,
         reason: 'PUBLISHED_ENDPOINT_INTEGRITY_RECONCILIATION',
@@ -131,22 +131,21 @@ async function resolvePublishedRun(schoolId, schoolYearId, options) {
             id: true,
             schoolId: true,
             schoolYearId: true,
-            draftEntries: true,
             summary: true,
             finishedAt: true,
             createdAt: true,
         },
         take: 200,
     });
-    const publishedRun = candidates.find((candidate) => isRunPublished(candidate.summary));
-    if (!publishedRun) {
+    const publishedRunMeta = candidates.find((candidate) => isRunPublished(candidate.summary));
+    if (!publishedRunMeta) {
         throw err(404, 'PUBLISHED_RUN_NOT_FOUND', 'No published schedule is available for the requested scope.');
     }
     const applicableRevisions = await prisma.publishedScheduleRevision.findMany({
         where: {
-            schoolId: publishedRun.schoolId,
-            schoolYearId: publishedRun.schoolYearId,
-            sourceRunId: publishedRun.id,
+            schoolId: publishedRunMeta.schoolId,
+            schoolYearId: publishedRunMeta.schoolYearId,
+            sourceRunId: publishedRunMeta.id,
             status: { in: ['SCHEDULED', 'SUPERSEDED'] },
             effectiveDate: { lte: readDate },
         },
@@ -157,16 +156,62 @@ async function resolvePublishedRun(schoolId, schoolYearId, options) {
             changeSet: true,
         },
     });
+    let draftEntries = [];
+    if (filter && (filter.sectionId !== undefined || filter.facultyId !== undefined || filter.roomId !== undefined)) {
+        // Identify entries modified by revisions, so we don't accidentally miss an entry
+        // that originally didn't match the filter, but now does (or vice-versa).
+        const relevantEntryIds = new Set();
+        for (const rev of applicableRevisions) {
+            for (const change of readRevisionChanges(rev.changeSet)) {
+                relevantEntryIds.add(change.entryId);
+            }
+        }
+        const filterConds = [];
+        const params = [publishedRunMeta.id];
+        let paramIdx = 2;
+        if (filter.sectionId !== undefined) {
+            filterConds.push(`(elem->>'sectionId')::int = $${paramIdx++}`);
+            params.push(filter.sectionId);
+        }
+        if (filter.facultyId !== undefined) {
+            filterConds.push(`(elem->>'facultyId')::int = $${paramIdx++}`);
+            params.push(filter.facultyId);
+        }
+        if (filter.roomId !== undefined) {
+            filterConds.push(`(elem->>'roomId')::int = $${paramIdx++}`);
+            params.push(filter.roomId);
+        }
+        if (relevantEntryIds.size > 0) {
+            filterConds.push(`elem->>'entryId' = ANY($${paramIdx++}::text[])`);
+            params.push(Array.from(relevantEntryIds));
+        }
+        const rawQuery = `
+			SELECT elem
+			FROM "generation_runs" r,
+				jsonb_array_elements(r."draft_entries") WITH ORDINALITY AS entry(elem, ord)
+			WHERE r.id = $1 AND (${filterConds.join(' OR ')})
+			ORDER BY entry.ord ASC
+		`;
+        const rows = await prisma.$queryRawUnsafe(rawQuery, ...params);
+        draftEntries = rows.map((row) => row.elem);
+    }
+    else {
+        const publishedRunEntries = await prisma.generationRun.findUnique({
+            where: { id: publishedRunMeta.id },
+            select: { draftEntries: true },
+        });
+        draftEntries = (publishedRunEntries?.draftEntries ?? []);
+    }
     const activeRevision = applicableRevisions.at(-1) ?? null;
-    const publishedAt = readPublishedAt(publishedRun.summary);
-    const generatedAt = publishedRun.finishedAt?.toISOString() ?? publishedRun.createdAt.toISOString();
+    const publishedAt = readPublishedAt(publishedRunMeta.summary);
+    const generatedAt = publishedRunMeta.finishedAt?.toISOString() ?? publishedRunMeta.createdAt.toISOString();
     const resolvedForDate = readDate.toISOString();
     const activeRevisionEffectiveDate = activeRevision?.effectiveDate.toISOString() ?? null;
     return {
         source: {
-            runId: publishedRun.id,
-            schoolId: publishedRun.schoolId,
-            schoolYearId: publishedRun.schoolYearId,
+            runId: publishedRunMeta.id,
+            schoolId: publishedRunMeta.schoolId,
+            schoolYearId: publishedRunMeta.schoolYearId,
             publishedAt,
             generatedAt,
             requestedDate,
@@ -175,37 +220,36 @@ async function resolvePublishedRun(schoolId, schoolYearId, options) {
             activeRevisionEffectiveDate,
             appliedRevisionIds: applicableRevisions.map((revision) => revision.id),
             revisionMarker: buildRevisionMarker({
-                runId: publishedRun.id,
+                runId: publishedRunMeta.id,
                 publishedAt,
                 activeRevisionId: activeRevision?.id ?? null,
                 activeRevisionEffectiveDate,
                 resolvedForDate,
             }),
         },
-        entries: applyPublishedRevisions((publishedRun.draftEntries ?? []), applicableRevisions),
-        summary: (publishedRun.summary ?? null),
+        entries: applyPublishedRevisions(draftEntries, applicableRevisions),
+        summary: (publishedRunMeta.summary ?? null),
     };
 }
-async function loadReferenceMaps(schoolId, schoolYearId, sectionIds, subjectIds) {
-    const [subjects, faculty, rooms, sectionSnapshot, sectionMirrors, cohorts, ownershipRows] = await Promise.all([
-        prisma.subject.findMany({ where: { schoolId }, select: { id: true, code: true, name: true } }),
+async function loadReferenceMaps(schoolId, schoolYearId, sectionIds, subjectIds, facultyIds, roomIds) {
+    const [subjects, faculty, rooms, sectionMirrors, cohorts, ownershipRows] = await Promise.all([
+        prisma.subject.findMany({
+            where: { schoolId, id: { in: subjectIds } },
+            select: { id: true, code: true, name: true },
+        }),
         prisma.facultyMirror.findMany({
-            where: { schoolId },
+            where: { schoolId, id: { in: facultyIds } },
             select: { id: true, firstName: true, lastName: true },
         }),
         prisma.room.findMany({
-            where: { building: { schoolId } },
+            where: { building: { schoolId }, id: { in: roomIds } },
             select: { id: true, name: true, type: true, floor: true, building: { select: { id: true, name: true } } },
-        }),
-        prisma.sectionSnapshot.findUnique({
-            where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
-            select: { payload: true },
         }),
         prisma.sectionMirror.findMany({
             where: {
                 schoolId,
                 schoolYearId,
-                ...(sectionIds.length > 0 ? { externalId: { in: sectionIds } } : {}),
+                externalId: { in: sectionIds },
             },
             select: {
                 externalId: true,
@@ -246,17 +290,9 @@ async function loadReferenceMaps(schoolId, schoolYearId, sectionIds, subjectIds)
             : Promise.resolve([]),
     ]);
     const sectionNameById = new Map();
-    if (sectionSnapshot?.payload && Array.isArray(sectionSnapshot.payload)) {
-        for (const grade of sectionSnapshot.payload) {
-            for (const section of grade.sections ?? []) {
-                if (typeof section.id === 'number' && typeof section.name === 'string') {
-                    sectionNameById.set(section.id, section.name);
-                }
-            }
-        }
-    }
     const sectionById = new Map();
     for (const section of sectionMirrors) {
+        sectionNameById.set(section.externalId, section.name);
         sectionById.set(section.externalId, {
             name: section.name,
             gradeLevel: section.gradeLevelId,
@@ -265,6 +301,25 @@ async function loadReferenceMaps(schoolId, schoolYearId, sectionIds, subjectIds)
             programCode: section.programCode,
             programName: section.programName,
         });
+    }
+    // Only load sectionSnapshot payload if there are sectionIds missing from the mirrors
+    const missingSectionIds = sectionIds.filter((id) => !sectionNameById.has(id));
+    if (missingSectionIds.length > 0) {
+        const sectionSnapshot = await prisma.sectionSnapshot.findUnique({
+            where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
+            select: { payload: true },
+        });
+        if (sectionSnapshot?.payload && Array.isArray(sectionSnapshot.payload)) {
+            for (const grade of sectionSnapshot.payload) {
+                for (const section of grade.sections ?? []) {
+                    if (typeof section.id === 'number' && typeof section.name === 'string') {
+                        if (!sectionNameById.has(section.id)) {
+                            sectionNameById.set(section.id, section.name);
+                        }
+                    }
+                }
+            }
+        }
     }
     const specializationBySubjectSection = new Map();
     for (const row of ownershipRows) {
@@ -315,13 +370,26 @@ function buildSpecialEventsPayload(policy) {
         days: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
     }));
 }
-export async function getPublishedSchedulePayload(schoolId, schoolYearId, options) {
-    const resolved = await resolvePublishedRun(schoolId, schoolYearId, options);
+export async function getPublishedSchedulePayload(schoolId, schoolYearId, options, filter) {
+    const resolved = await resolvePublishedRun(schoolId, schoolYearId, options, filter);
+    const filteredEntries = filter
+        ? resolved.entries.filter((entry) => {
+            if (filter.sectionId !== undefined && entry.sectionId !== filter.sectionId)
+                return false;
+            if (filter.facultyId !== undefined && entry.facultyId !== filter.facultyId)
+                return false;
+            if (filter.roomId !== undefined && entry.roomId !== filter.roomId)
+                return false;
+            return true;
+        })
+        : resolved.entries;
     const policy = await getOrCreatePolicy(resolved.source.schoolId, resolved.source.schoolYearId);
-    const sectionIds = Array.from(new Set(resolved.entries.map((entry) => entry.sectionId)));
-    const subjectIds = Array.from(new Set(resolved.entries.map((entry) => entry.subjectId)));
-    const references = await loadReferenceMaps(resolved.source.schoolId, resolved.source.schoolYearId, sectionIds, subjectIds);
-    const entries = resolved.entries.map((entry) => {
+    const sectionIds = Array.from(new Set(filteredEntries.map((entry) => entry.sectionId)));
+    const subjectIds = Array.from(new Set(filteredEntries.map((entry) => entry.subjectId)));
+    const facultyIds = Array.from(new Set(filteredEntries.map((entry) => entry.facultyId).filter((id) => id != null)));
+    const roomIds = Array.from(new Set(filteredEntries.map((entry) => entry.roomId)));
+    const references = await loadReferenceMaps(resolved.source.schoolId, resolved.source.schoolYearId, sectionIds, subjectIds, facultyIds, roomIds);
+    const entries = filteredEntries.map((entry) => {
         const subject = references.subjectById.get(entry.subjectId);
         const room = references.roomById.get(entry.roomId);
         const section = references.sectionById.get(entry.sectionId);
@@ -389,24 +457,12 @@ export async function getPublishedSchedulePayload(schoolId, schoolYearId, option
     };
 }
 export async function getPublishedSectionSchedule(schoolId, sectionId, schoolYearId, options) {
-    const payload = await getPublishedSchedulePayload(schoolId, schoolYearId, options);
-    return {
-        ...payload,
-        entries: payload.entries.filter((entry) => entry.section.id === sectionId),
-    };
+    return getPublishedSchedulePayload(schoolId, schoolYearId, options, { sectionId });
 }
 export async function getPublishedFacultySchedule(schoolId, facultyId, schoolYearId, options) {
-    const payload = await getPublishedSchedulePayload(schoolId, schoolYearId, options);
-    return {
-        ...payload,
-        entries: payload.entries.filter((entry) => entry.faculty.id === facultyId),
-    };
+    return getPublishedSchedulePayload(schoolId, schoolYearId, options, { facultyId });
 }
 export async function getPublishedRoomSchedule(schoolId, roomId, schoolYearId, options) {
-    const payload = await getPublishedSchedulePayload(schoolId, schoolYearId, options);
-    return {
-        ...payload,
-        entries: payload.entries.filter((entry) => entry.room.id === roomId),
-    };
+    return getPublishedSchedulePayload(schoolId, schoolYearId, options, { roomId });
 }
 //# sourceMappingURL=published-schedule.service.js.map

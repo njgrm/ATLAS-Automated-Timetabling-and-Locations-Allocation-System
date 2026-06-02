@@ -1825,7 +1825,7 @@ refactor(ui): rebuild dashboard + map shell with single-next-step identity
   - Teaching-load browser check -> visible text no longer contains approval-gate wording or special-program approval queue language
 
 - Verdict: GO
- 
+
 ## 2026-05-27 - Phase 3 Teaching Load Grade Scope and Section Allocation Workflow Fix
 
 - **Scope**: Repair Teaching Load refactor for honest By Teacher and Section Allocation workflows.
@@ -1889,7 +1889,7 @@ refactor(ui): rebuild dashboard + map shell with single-next-step identity
   - [x] Swap behavior updates both source and destination draft state.
 - **Verdict**: GO
 
- 
+
 ## 2026-05-27 - TeacherGridMode and Inspector Fix (Runtime/TypeScript)
 
 - **Scope**: Fix runtime ReferenceError (Star is not defined) and TypeScript type import regressions.
@@ -1903,7 +1903,7 @@ refactor(ui): rebuild dashboard + map shell with single-next-step identity
   - [x] Runtime crash resolved.
 - **Verdict**: GO
 
- 
+
 ## 2026-05-27 - SectionInspector Info Icon Fix
 
 - **Scope**: Fix runtime ReferenceError (Info is not defined) in SectionInspector.
@@ -2129,4 +2129,26 @@ refactor(ui): rebuild dashboard + map shell with single-next-step identity
   - Local Dashboard drilldown sampling -> PASS: `/sections`, `/subjects`, `/teachers`, `/map`, `/teaching-load`, and next-step target opened expected routes; `/sections` click landed on `/sections`.
   - Tailnet browser smoke -> PASS after health recovered: `/audit` and `/` desktop loaded on `https://njgrm.buru-degree.ts.net`, no horizontal overflow, dashboard `Check for updates` clicked, and repair targets rendered.
   - Screenshots saved under `qa-artifacts/screenshots/audit-dashboard-repair-20260601/` and `qa-artifacts/screenshots/audit-dashboard-repair-20260601-tailnet/`.
+- Verdict: GO
+
+## [2026-06-02] - Prompt 9A Published Schedule Query Shaping Repair
+
+- Scope: closed the Prompt 9A review findings for targeted published schedule reads.
+- Files changed:
+  - `atlas-server/src/services/published-schedule.service.ts`
+  - `atlas-server/src/scripts/probe-targeted-reads.ts`
+  - `GEMINI.md`
+  - `docs/verification/evidence-log.md`
+  - `CHANGELOG.md`
+- Repair delivered:
+  1. Targeted section/faculty/room reads now preserve published entry order during PostgreSQL JSON-array extraction via `WITH ORDINALITY`.
+  2. The targeted-read probe now resolves the same published run as the service, compares against full revision-effective truth, checks faculty/room/section/missing cases, and exits non-zero on mismatch.
+  3. Gemini's repo instructions now require behavioral and query-shape proof before declaring query-shaping work `GO`.
+  4. The malformed Prompt 9A evidence tail was replaced with a clean Markdown entry.
+- Verification:
+  - `npm --prefix atlas-server run build` -> PASS.
+  - `npx --prefix atlas-server tsx atlas-server/src/__tests__/published-schedule-effective-date.test.ts` -> PASS, 27/27.
+  - `npx --prefix atlas-server tsx atlas-server/src/__tests__/published-revision-contract.test.ts` -> PASS, 16/16.
+  - `npx --prefix atlas-server tsx atlas-server/src/scripts/probe-targeted-reads.ts` -> PASS, targeted faculty/room/section/missing slices matched full revision-effective truth.
+  - Touched-file hygiene scan -> PASS: no trailing whitespace in the touched source/docs, and no control-character corruption in `docs/verification/evidence-log.md` or ignored local `CHANGELOG.md`.
 - Verdict: GO

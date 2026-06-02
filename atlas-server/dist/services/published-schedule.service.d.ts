@@ -1,7 +1,11 @@
 type PublishedScheduleReadOptions = {
     requestedDate?: string | Date | null;
 };
-export declare function getPublishedSchedulePayload(schoolId: number, schoolYearId?: number, options?: PublishedScheduleReadOptions): Promise<{
+export declare function getPublishedSchedulePayload(schoolId: number, schoolYearId?: number, options?: PublishedScheduleReadOptions, filter?: {
+    sectionId?: number;
+    facultyId?: number;
+    roomId?: number;
+}): Promise<{
     source: {
         runId: number;
         schoolId: number;
@@ -65,6 +69,29 @@ export declare function getPublishedSchedulePayload(schoolId: number, schoolYear
     }[];
 }>;
 export declare function getPublishedSectionSchedule(schoolId: number, sectionId: number, schoolYearId?: number, options?: PublishedScheduleReadOptions): Promise<{
+    source: {
+        runId: number;
+        schoolId: number;
+        schoolYearId: number;
+        publishedAt: string | null;
+        generatedAt: string;
+        requestedDate: string | null;
+        resolvedForDate: string;
+        activeRevisionId: number | null;
+        activeRevisionEffectiveDate: string | null;
+        appliedRevisionIds: number[];
+        revisionMarker: string;
+    };
+    timeSlots: {
+        startTime: string;
+        endTime: string;
+    }[];
+    specialEvents: {
+        eventName: string | undefined;
+        startTime: string;
+        endTime: string;
+        days: string[];
+    }[];
     entries: {
         entryId: string;
         day: string;
@@ -102,32 +129,32 @@ export declare function getPublishedSectionSchedule(schoolId: number, sectionId:
         cohortName: string | null;
         specializationCode: string | null;
         specializationLabel: string | null;
-    }[];
-    source: {
-        runId: number;
-        schoolId: number;
-        schoolYearId: number;
-        publishedAt: string | null;
-        generatedAt: string;
-        requestedDate: string | null;
-        resolvedForDate: string;
-        activeRevisionId: number | null;
-        activeRevisionEffectiveDate: string | null;
-        appliedRevisionIds: number[];
-        revisionMarker: string;
-    };
-    timeSlots: {
-        startTime: string;
-        endTime: string;
-    }[];
-    specialEvents: {
-        eventName: string | undefined;
-        startTime: string;
-        endTime: string;
-        days: string[];
     }[];
 }>;
 export declare function getPublishedFacultySchedule(schoolId: number, facultyId: number, schoolYearId?: number, options?: PublishedScheduleReadOptions): Promise<{
+    source: {
+        runId: number;
+        schoolId: number;
+        schoolYearId: number;
+        publishedAt: string | null;
+        generatedAt: string;
+        requestedDate: string | null;
+        resolvedForDate: string;
+        activeRevisionId: number | null;
+        activeRevisionEffectiveDate: string | null;
+        appliedRevisionIds: number[];
+        revisionMarker: string;
+    };
+    timeSlots: {
+        startTime: string;
+        endTime: string;
+    }[];
+    specialEvents: {
+        eventName: string | undefined;
+        startTime: string;
+        endTime: string;
+        days: string[];
+    }[];
     entries: {
         entryId: string;
         day: string;
@@ -165,32 +192,32 @@ export declare function getPublishedFacultySchedule(schoolId: number, facultyId:
         cohortName: string | null;
         specializationCode: string | null;
         specializationLabel: string | null;
-    }[];
-    source: {
-        runId: number;
-        schoolId: number;
-        schoolYearId: number;
-        publishedAt: string | null;
-        generatedAt: string;
-        requestedDate: string | null;
-        resolvedForDate: string;
-        activeRevisionId: number | null;
-        activeRevisionEffectiveDate: string | null;
-        appliedRevisionIds: number[];
-        revisionMarker: string;
-    };
-    timeSlots: {
-        startTime: string;
-        endTime: string;
-    }[];
-    specialEvents: {
-        eventName: string | undefined;
-        startTime: string;
-        endTime: string;
-        days: string[];
     }[];
 }>;
 export declare function getPublishedRoomSchedule(schoolId: number, roomId: number, schoolYearId?: number, options?: PublishedScheduleReadOptions): Promise<{
+    source: {
+        runId: number;
+        schoolId: number;
+        schoolYearId: number;
+        publishedAt: string | null;
+        generatedAt: string;
+        requestedDate: string | null;
+        resolvedForDate: string;
+        activeRevisionId: number | null;
+        activeRevisionEffectiveDate: string | null;
+        appliedRevisionIds: number[];
+        revisionMarker: string;
+    };
+    timeSlots: {
+        startTime: string;
+        endTime: string;
+    }[];
+    specialEvents: {
+        eventName: string | undefined;
+        startTime: string;
+        endTime: string;
+        days: string[];
+    }[];
     entries: {
         entryId: string;
         day: string;
@@ -228,29 +255,6 @@ export declare function getPublishedRoomSchedule(schoolId: number, roomId: numbe
         cohortName: string | null;
         specializationCode: string | null;
         specializationLabel: string | null;
-    }[];
-    source: {
-        runId: number;
-        schoolId: number;
-        schoolYearId: number;
-        publishedAt: string | null;
-        generatedAt: string;
-        requestedDate: string | null;
-        resolvedForDate: string;
-        activeRevisionId: number | null;
-        activeRevisionEffectiveDate: string | null;
-        appliedRevisionIds: number[];
-        revisionMarker: string;
-    };
-    timeSlots: {
-        startTime: string;
-        endTime: string;
-    }[];
-    specialEvents: {
-        eventName: string | undefined;
-        startTime: string;
-        endTime: string;
-        days: string[];
     }[];
 }>;
 export {};
