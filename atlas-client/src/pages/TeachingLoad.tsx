@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { AlertTriangle, X } from 'lucide-react';
 import { Card } from '@/ui/card';
@@ -66,6 +66,18 @@ export default function TeachingLoad() {
 
 	const [autoFillResult, setAutoFillResult] = useState<AutoFillSummaryResult | null>(null);
 	const [resetLoading, setResetLoading] = useState(false);
+
+	useEffect(() => {
+		if (data.sectionFocusId) {
+			ui.setViewMode('allocation');
+			ui.setSelectedSectionId(data.sectionFocusId);
+			ui.setSectionModeFilter('all');
+		}
+		if (data.subjectFocusId) {
+			ui.setSelectedSubjectId(data.subjectFocusId);
+			ui.setSubjectSearch('');
+		}
+	}, [data.sectionFocusId, data.subjectFocusId, ui]);
 
 	const dirty = Boolean(data.effectiveDraftAssignmentsByFaculty[data.selectedId ?? 0]);
 	const splitBrainNeedsReconcile = Boolean(

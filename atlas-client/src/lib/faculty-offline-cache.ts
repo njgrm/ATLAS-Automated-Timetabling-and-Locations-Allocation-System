@@ -67,7 +67,7 @@ export function readLatestFacultySnapshotByPrefix<T>(
 		let latest: CachedSnapshot<T> | null = null;
 		for (let index = 0; index < localStorage.length; index += 1) {
 			const key = localStorage.key(index);
-			if (!key?.startsWith(normalizedPrefix)) continue;
+			if (key !== prefix && !key?.startsWith(normalizedPrefix)) continue;
 			const snapshot = readFacultySnapshot<T>(key, options);
 			if (!snapshot) continue;
 			if (!latest || new Date(snapshot.cachedAt).getTime() > new Date(latest.cachedAt).getTime()) {
@@ -77,6 +77,25 @@ export function readLatestFacultySnapshotByPrefix<T>(
 		return latest;
 	} catch {
 		return null;
+	}
+}
+
+export function removeFacultySnapshotsByPrefix(prefix: string): number {
+	try {
+		const normalizedPrefix = prefix.endsWith(':') ? prefix : `${prefix}:`;
+		const keysToRemove: string[] = [];
+		for (let index = 0; index < localStorage.length; index += 1) {
+			const key = localStorage.key(index);
+			if (key === prefix || key?.startsWith(normalizedPrefix)) {
+				keysToRemove.push(key);
+			}
+		}
+		for (const key of keysToRemove) {
+			localStorage.removeItem(key);
+		}
+		return keysToRemove.length;
+	} catch {
+		return 0;
 	}
 }
 

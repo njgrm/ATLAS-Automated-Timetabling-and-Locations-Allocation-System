@@ -3,7 +3,7 @@ import { AlertTriangle, RefreshCcw } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
 import { describeSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
-import { buildFacultyCacheKey, isLikelyOfflineError, readFacultySnapshot, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
+import { buildFacultyCacheKey, isLikelyOfflineError, readLatestFacultySnapshotByPrefix, removeFacultySnapshotsByPrefix, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
 import type { FacultyRoomPreferenceEntry } from '@/types';
 import type { FacultyPortalObjectiveState } from '@/types';
 import type { FacultyTeachingAssignmentIdentity } from '@/types';
@@ -17,6 +17,23 @@ import DesktopDashboardLayout from '@/components/faculty-dashboard/DesktopDashbo
 
 const DEFAULT_SCHOOL_ID = 1;
 const DASHBOARD_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function dashboardCachePart(value: string | number | null | undefined): string {
+	const normalized = String(value ?? 'none')
+		.trim()
+		.replace(/[^A-Za-z0-9_-]+/g, '_')
+		.replace(/^_+|_+$/g, '');
+	return normalized || 'none';
+}
+
+function buildDashboardCacheMarker(data: MyDashboardResponse): string {
+	return [
+		'faculty', dashboardCachePart(data.faculty.id),
+		'run', dashboardCachePart(data.runContext.runId ?? data.schedulePreview.runId),
+		'version', dashboardCachePart(data.runContext.runVersion ?? data.schedulePreview.runVersion),
+		'generated', dashboardCachePart(data.runContext.generatedAt ?? data.schedulePreview.generatedAt),
+	].join('-');
+}
 
 type MyDashboardResponse = {
 	faculty: {
@@ -86,8 +103,8 @@ export default function MyDashboard() {
 		try {
 			const schoolYearContext = await resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false });
 			const schoolYearId = schoolYearContext.activeSchoolYearId;
-			const cacheKey = buildFacultyCacheKey('dashboard', DEFAULT_SCHOOL_ID, schoolYearId);
-			const cachedSnapshot = readFacultySnapshot<MyDashboardResponse>(cacheKey, {
+			const cachePrefix = buildFacultyCacheKey('dashboard', DEFAULT_SCHOOL_ID, schoolYearId);
+			const cachedSnapshot = readLatestFacultySnapshotByPrefix<MyDashboardResponse>(cachePrefix, {
 				maxAgeMs: DASHBOARD_CACHE_MAX_AGE_MS,
 				validate: (value): value is MyDashboardResponse => {
 					if (!value || typeof value !== 'object') return false;
@@ -102,7 +119,8 @@ export default function MyDashboard() {
 				setDashboard(data);
 				setUsingCachedDashboard(false);
 				setCachedDashboardAt(null);
-				writeFacultySnapshot(cacheKey, data);
+				removeFacultySnapshotsByPrefix(cachePrefix);
+				writeFacultySnapshot(`${cachePrefix}:${buildDashboardCacheMarker(data)}`, data);
 				setError(null);
 			} catch (err) {
 				if (cachedSnapshot && isLikelyOfflineError(err)) {
@@ -152,10 +170,10 @@ export default function MyDashboard() {
 		if (usingCachedDashboard) {
 			const savedAt = cachedDashboardAt ? new Date(cachedDashboardAt).toLocaleString() : null;
 			return {
-				title: 'Working from saved data',
+				title: 'Showing latest saved dashboard',
 				message: savedAt
-					? `EnrollPro is currently unreachable. Showing your last saved view from ${savedAt}.`
-					: 'EnrollPro is currently unreachable. Showing your last saved dashboard view.',
+					? `Waiting for connection. Showing the dashboard saved on this device from ${savedAt}.`
+					: 'Waiting for connection. Showing the dashboard saved on this device.',
 				variant: 'warning' as const,
 			};
 		}
@@ -227,6 +245,11 @@ export default function MyDashboard() {
 				syncState={usingCachedDashboard ? 'failed' : online ? 'idle' : 'queued-offline'}
 				advisory={advisory}
 				onRetryFailed={usingCachedDashboard ? () => void loadDashboard() : undefined}
+				rightSlot={(
+					<Button variant='outline' size='sm' className='h-9 rounded-full' onClick={() => void loadDashboard()}>
+						<RefreshCcw className='mr-2 size-4' /> Check for updates
+					</Button>
+				)}
 			/>
 
 			<div className='flex-1 min-h-0 overflow-auto px-4 py-5 sm:px-6 sm:py-6 pb-20 lg:pb-8'>

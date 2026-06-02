@@ -615,6 +615,8 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 				onOpenChange={handleTacticalSandboxOpenChange}
 				selectedEntry={centerView === 'schedule' ? selectedEntry : null}
 				draftEntries={draftEntries}
+				schoolId={defaultSchoolId}
+				runId={draft?.runId ?? null}
 				facultyMap={facultyMap}
 				subjectMap={subjectMap}
 				schoolYearId={schoolYearId}
@@ -622,9 +624,10 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 				onApplyFaculty={applySandboxFaculty}
 				onPreviewFacultyBatch={previewEditBatch}
 				onCommitFacultyBatch={commitEditBatch}
+				onRevisionCreated={handleRefresh}
 				onResetSandbox={resetTacticalSandbox}
 				onDismissSelectedEntry={dismissTacticalSandboxForEntry}
-				disabled={isDraftPublished}
+				isPublished={isDraftPublished}
 				subjectLabel={subjectLabel}
 				sectionLabel={sectionLabel}
 				facultyLabel={facultyLabel}

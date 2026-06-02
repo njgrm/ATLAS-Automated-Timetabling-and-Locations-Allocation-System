@@ -66,13 +66,15 @@ function advisoryTone(variant: Advisory['variant']) {
 function StatusPill({ online, syncState, onRetryFailed }: { online: boolean; syncState: SyncState; onRetryFailed?: () => void }) {
 	if (syncState === 'failed') {
 		return (
-			<button
+			<Button
 				type='button'
 				onClick={onRetryFailed}
-				className='inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100/80 px-2.5 py-1 text-[11px] font-semibold text-amber-900 transition-colors hover:bg-amber-200'
+				variant='outline'
+				size='sm'
+				className='h-7 rounded-full border-amber-300 bg-amber-100/80 px-2.5 text-[11px] font-semibold text-amber-900 hover:bg-amber-200'
 			>
 				<RefreshCw className='size-3' /> Retry sync
-			</button>
+			</Button>
 		);
 	}
 	const label = !online ? 'Offline' : syncState === 'syncing' ? 'Syncing' : 'Online';

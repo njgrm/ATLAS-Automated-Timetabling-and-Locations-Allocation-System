@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-	AlertCircle,
-} from 'lucide-react';
+import { RefreshCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSearchParams } from 'react-router-dom';
 
@@ -19,7 +17,8 @@ import {
 } from '@/lib/roomPreferenceOutbox';
 import { describeSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { cacheFacultyIdentity, readCachedFacultyIdentity } from '@/lib/faculty-identity-cache';
-import { buildFacultyCacheKey, isLikelyOfflineError, readFacultySnapshot, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
+import { buildFacultyCacheKey, isLikelyOfflineError, readLatestFacultySnapshotByPrefix, removeFacultySnapshotsByPrefix, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
+import { buildRoomBootstrapCacheMarker } from '@/lib/faculty-room-preference-cache-key';
 import { scopePreviewToCandidate } from '@/lib/timetable-utils';
 import { formatTime } from '@/lib/utils';
 import type {
@@ -45,12 +44,12 @@ import { TutorialOverlay, useTutorial } from '@/components/TutorialOverlay';
 import FacultyGlobalHeader from '@/components/faculty-shared/FacultyGlobalHeader';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
-import { Card, CardContent } from '@/ui/card';
-import { Skeleton } from '@/ui/skeleton';
 import { Switch } from '@/ui/switch';
 import DesktopRoomRequestLayout from '@/components/faculty-room-preferences/DesktopRoomRequestLayout';
 import MobileRoomRequestLayout from '@/components/faculty-room-preferences/MobileRoomRequestLayout';
 import RoomRequestSheet from '@/components/faculty-room-preferences/RoomRequestSheet';
+import { RoomRequestErrorState, RoomRequestLoadingState } from '@/components/faculty-room-preferences/RoomRequestPageStates';
+import { buildRoomRequestAdvisory } from '@/components/faculty-room-preferences/room-request-advisory';
 import {
 	ACTION_LABELS,
 	DAYS,
@@ -206,8 +205,8 @@ export default function FacultyRoomPreferences() {
 			}
 
 			setFacultyId(resolvedFacultyId);
-			const cacheKey = buildFacultyCacheKey('room-preferences-bootstrap', DEFAULT_SCHOOL_ID, schoolYearId, resolvedFacultyId);
-			const cachedSnapshot = readFacultySnapshot<FacultyRoomBootstrapSnapshot>(cacheKey, {
+			const cachePrefix = buildFacultyCacheKey('room-preferences-bootstrap', DEFAULT_SCHOOL_ID, schoolYearId, resolvedFacultyId);
+			const cachedSnapshot = readLatestFacultySnapshotByPrefix<FacultyRoomBootstrapSnapshot>(cachePrefix, {
 				maxAgeMs: ROOM_BOOTSTRAP_CACHE_MAX_AGE_MS,
 				validate: (value): value is FacultyRoomBootstrapSnapshot => {
 					if (!value || typeof value !== 'object') return false;
@@ -245,7 +244,8 @@ export default function FacultyRoomPreferences() {
 				setCachedBootstrapAt(null);
 				setError(null);
 
-				writeFacultySnapshot(cacheKey, {
+				removeFacultySnapshotsByPrefix(cachePrefix);
+				writeFacultySnapshot(`${cachePrefix}:${buildRoomBootstrapCacheMarker(roomState.data)}`, {
 					facultyId: resolvedFacultyId,
 					rooms: nextRooms,
 					buildings: buildingsResponse.data.buildings,
@@ -556,6 +556,7 @@ export default function FacultyRoomPreferences() {
 		source.addEventListener('ROOM_REQUEST_SUBMITTED', handleEvent as EventListener);
 		source.addEventListener('ROOM_REQUEST_DELETED', handleEvent as EventListener);
 		source.addEventListener('ROOM_REQUEST_REVIEWED', handleEvent as EventListener);
+		source.addEventListener('ROOM_REQUEST_SYNC_COMPLETED', handleEvent as EventListener);
 
 		return () => {
 			source.close();
@@ -797,60 +798,20 @@ export default function FacultyRoomPreferences() {
 		}
 	};
 
-	const advisory = useMemo(() => {
-		if (usingCachedBootstrap) {
-			const savedAt = cachedBootstrapAt ? new Date(cachedBootstrapAt).toLocaleString() : null;
-			return {
-				title: 'Saved request view',
-				message: savedAt
-					? `Live room-request data is unavailable. Showing your last saved view from ${savedAt}.`
-					: 'Live room-request data is unavailable. Showing your last saved view.',
-				variant: 'warning' as const,
-			};
-		}
-
-		if (gate?.blocked) {
-			return {
-				title: 'Update paused',
-				message: `Please complete ${gate.openCount} open items before submitting more.`,
-				variant: 'warning' as const
-			};
-		}
-		return {
-			title: 'Review schedule active',
-			message: 'Free slots create move requests. Occupied slots create swap requests for scheduler decision.',
-			variant: 'info' as const
-		};
-	}, [cachedBootstrapAt, gate, usingCachedBootstrap]);
+	const advisory = useMemo(() => buildRoomRequestAdvisory({
+		cachedBootstrapAt,
+		gate,
+		online,
+		outboxCount,
+		usingCachedBootstrap,
+	}), [cachedBootstrapAt, gate, online, outboxCount, usingCachedBootstrap]);
 
 	if (loading) {
-		return (
-			<div className='flex h-[calc(100svh-3.5rem)] flex-col px-4 py-4 sm:px-6 sm:py-6'>
-				<div className='grid gap-3 md:grid-cols-[1.15fr_0.85fr]'>
-					<Skeleton className='h-[72svh] rounded-2xl' />
-					<Skeleton className='h-[72svh] rounded-2xl' />
-				</div>
-			</div>
-		);
+		return <RoomRequestLoadingState />;
 	}
 
 	if (error) {
-		return (
-			<div className='p-4 sm:p-6'>
-				<Card>
-					<CardContent className='flex items-center gap-3 py-8'>
-						<AlertCircle className='size-5 text-destructive shrink-0' />
-						<div>
-							<p className='font-medium text-destructive'>Cannot load room requests</p>
-							<p className='text-sm text-muted-foreground mt-1'>{error}</p>
-						</div>
-						<Button variant='outline' size='sm' className='ml-auto' onClick={() => void loadBootstrap()}>
-							Retry
-						</Button>
-					</CardContent>
-				</Card>
-			</div>
-		);
+		return <RoomRequestErrorState error={error} onRetry={() => void loadBootstrap()} />;
 	}
 
 	return (
@@ -874,11 +835,18 @@ export default function FacultyRoomPreferences() {
 				realtimeConnected={collaborationConnected}
 				advisory={advisory}
 				onRetryFailed={usingCachedBootstrap ? () => void loadBootstrap() : retryFailedOutboxActions}
+				rightSlot={(
+					<Button variant='outline' size='sm' className='h-9 rounded-full' onClick={() => void loadBootstrap()}>
+						<RefreshCcw className='mr-2 size-4' />
+						Check for updates
+					</Button>
+				)}
 			>
 				<div className='flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-card px-3 py-1.5 text-[12px]'>
 					<span className='font-semibold text-foreground'>{entries.length} class{entries.length === 1 ? '' : 'es'}</span>
 					<span className='text-muted-foreground'>·</span>
 					<span className='text-muted-foreground'>{submittedCount} pending</span>
+					{outboxCount > 0 && <Badge variant='warning' className='h-5 px-1.5 text-[10px]'>{outboxCount} request{outboxCount === 1 ? '' : 's'} waiting to send</Badge>}
 					{entries.length === 0 && teachingAssignments.length > 0 && <Badge variant='warning' className='h-5 px-1.5 text-[10px]'>Teaching load linked</Badge>}
 					{dirtyCount > 0 && <Badge variant='warning' className='h-5 px-1.5 text-[10px]'>Unsaved</Badge>}
 					<div className='flex-1' />

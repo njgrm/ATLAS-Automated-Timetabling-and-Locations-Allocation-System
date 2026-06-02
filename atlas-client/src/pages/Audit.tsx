@@ -13,7 +13,7 @@ import {
 	UserMinus,
 	XCircle,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import atlasApi from '@/lib/api';
@@ -42,10 +42,12 @@ type FindingSeverity = 'blocker' | 'warning' | 'info';
 type Finding = {
 	id: string;
 	title: string;
+	blockedLabel: string;
 	detail: string;
 	why: string;
 	actionLabel: string;
 	route: string;
+	repairTarget: string;
 	severity: FindingSeverity;
 };
 
@@ -55,6 +57,13 @@ type FindingGroup = {
 	description: string;
 	icon: typeof ShieldCheck;
 	findings: Finding[];
+	blockedLabel: string;
+	why: string;
+	primaryActionLabel: string;
+	primaryRoute: string;
+	repairTarget: string;
+	secondaryActionLabel?: string;
+	secondaryRoute?: string;
 	emptyTitle: string;
 	emptyBody: string;
 };
@@ -72,6 +81,7 @@ function severityLabel(severity: FindingSeverity): string {
 }
 
 export default function Audit() {
+	const [searchParams] = useSearchParams();
 	const [loading, setLoading] = useState(true);
 	const [faculty, setFaculty] = useState<any[]>([]);
 	const [subjects, setSubjects] = useState<any[]>([]);
@@ -339,28 +349,34 @@ export default function Audit() {
 		...mismatches.map((mismatch, index) => ({
 			id: `assignment-mismatch-${mismatch.facultyId}-${mismatch.subjectId}-${index}`,
 			title: `${mismatch.facultyName} is assigned to ${mismatch.subjectName}`,
+			blockedLabel: 'Teacher assignment is not ready for scheduling.',
 			detail: `Required: ${mismatch.required}. Current record: ${mismatch.actual}.`,
 			why: 'Teacher-subject mismatch can create hard schedule violations during review.',
 			actionLabel: 'Fix teacher assignment',
-			route: `/teaching-load?facultyId=${mismatch.facultyId}`,
+			route: `/teaching-load?facultyId=${mismatch.facultyId}&subjectId=${mismatch.subjectId}`,
+			repairTarget: 'teaching-load',
 			severity: 'blocker' as FindingSeverity,
 		})),
 		...gaps.map((subject, index) => ({
 			id: `assignment-gap-${subject.id}-${index}`,
 			title: `${subject.name} has no qualified teacher`,
+			blockedLabel: 'Subject coverage is not ready for generation.',
 			detail: `Required coverage: ${(subject.allowedSpecializations || []).join(', ') || 'listed specialization'}.`,
 			why: 'ATLAS needs at least one qualified teacher before this subject can be placed reliably.',
 			actionLabel: 'Review teaching load',
-			route: '/teaching-load',
+			route: `/teaching-load?subjectId=${subject.id}`,
+			repairTarget: 'teaching-load',
 			severity: 'blocker' as FindingSeverity,
 		})),
 		...optimizationIssues.map((issue, index) => ({
 			id: `assignment-balance-${issue.specialistId}-${issue.subjectCode}-${index}`,
 			title: `${issue.specialistName} may be better used for ${issue.subjectName}`,
+			blockedLabel: 'Teacher capacity may be used in the wrong place.',
 			detail: `${issue.specialization || 'Specialist'} capacity is being used away from a subject they directly match.`,
 			why: 'Better teacher placement can reduce later manual repairs.',
 			actionLabel: 'Review load balance',
-			route: '/teaching-load',
+			route: `/teaching-load?facultyId=${issue.specialistId}`,
+			repairTarget: 'teaching-load',
 			severity: 'warning' as FindingSeverity,
 		})),
 	];
@@ -368,30 +384,36 @@ export default function Audit() {
 	const sectionFindings: Finding[] = rosterGaps.map((gap, index) => ({
 		id: `section-gap-${gap.sectionId}-${gap.subjectId}-${index}`,
 		title: `${gap.sectionName} is missing ${gap.subjectName}`,
+		blockedLabel: 'This section is not fully covered.',
 		detail: `Grade ${gap.gradeLevel} section has no assigned teacher for ${gap.subjectCode}.`,
 		why: 'Every section needs complete subject coverage before scheduling review is meaningful.',
 		actionLabel: 'Assign teacher',
-		route: `/teaching-load?sectionId=${gap.sectionId}`,
+		route: `/teaching-load?sectionId=${gap.sectionId}&subjectId=${gap.subjectId}`,
+		repairTarget: 'teaching-load',
 		severity: 'blocker',
 	}));
 
 	const facilityFindings: Finding[] = facilityGaps.map((subject, index) => ({
 		id: `facility-gap-${subject.id}-${index}`,
 		title: `${subject.name} has no compatible room`,
+		blockedLabel: 'Room placement is not ready for this subject.',
 		detail: `Needs ${(subject.requiredFeatures || []).join(', ') || 'special room features'} and ${subject.preferredRoomType || 'a matching room type'}.`,
 		why: 'Room gaps can block placement or force unsafe manual room changes.',
 		actionLabel: 'Check rooms and facilities',
-		route: '/map',
+		route: `/map?mode=editor&subjectId=${subject.id}`,
+		repairTarget: 'map',
 		severity: 'blocker',
 	}));
 
 	const constraintFindings: Finding[] = clashes.map((clash, index) => ({
 		id: `constraint-${clash.facultyId ?? clash.name}-${index}`,
 		title: `${clash.name} has limited available time`,
+		blockedLabel: 'Teacher availability may reduce placement choices.',
 		detail: `${clash.unavailabilityPercent}% unavailable. Affected subjects: ${clash.qualifiedSubjects.map((subject: any) => subject.code).join(', ')}.`,
 		why: 'Heavy unavailability can leave otherwise qualified subjects hard to place.',
 		actionLabel: 'Check teacher record',
-		route: '/teachers',
+		route: clash.facultyId ? `/teachers?facultyId=${clash.facultyId}` : '/teachers',
+		repairTarget: 'teachers',
 		severity: 'warning',
 	}));
 
@@ -399,19 +421,23 @@ export default function Audit() {
 		...degradedReasons.map((reason, index) => ({
 			id: `source-degraded-${index}-${reason}`,
 			title: reason,
+			blockedLabel: dataSource === 'none' ? 'The readiness report cannot finish.' : 'This finding may be based on saved evidence.',
 			detail: dataSource === 'none' ? 'This evidence is required before ATLAS can finish the readiness report.' : 'The report is using saved ATLAS evidence for this domain.',
 			why: 'Officers need to know whether a finding is backed by live data or saved data.',
 			actionLabel: 'Check setup source',
-			route: '/sections',
+			route: reason.toLowerCase().includes('subject') ? '/subjects' : reason.toLowerCase().includes('teacher') || reason.toLowerCase().includes('teaching') ? '/teachers' : '/sections',
+			repairTarget: reason.toLowerCase().includes('subject') ? 'subjects' : reason.toLowerCase().includes('teacher') || reason.toLowerCase().includes('teaching') ? 'teachers' : 'sections',
 			severity: dataSource === 'none' ? 'blocker' as FindingSeverity : 'info' as FindingSeverity,
 		})),
 		...syncIssues.map((issue, index) => ({
 			id: `source-sync-${issue.id}-${index}`,
 			title: `${issue.name} has a roster sync issue`,
+			blockedLabel: 'Teacher identity needs review.',
 			detail: issue.reason,
 			why: 'Teacher identity gaps can break matching, reports, and downstream schedule review.',
 			actionLabel: 'Open teacher roster',
-			route: '/teachers',
+			route: `/teachers?facultyId=${issue.id}`,
+			repairTarget: 'teachers',
 			severity: 'warning' as FindingSeverity,
 		})),
 	];
@@ -423,6 +449,13 @@ export default function Audit() {
 			description: 'Teacher coverage, qualifications, and load balance.',
 			icon: UserMinus,
 			findings: assignmentFindings,
+			blockedLabel: 'Teacher coverage can block generation.',
+			why: 'ATLAS needs the right teacher assigned to each subject-section pair before the timetable can be trusted.',
+			primaryActionLabel: 'Fix teacher assignments',
+			primaryRoute: assignmentFindings[0]?.route ?? '/teaching-load',
+			repairTarget: 'teaching-load',
+			secondaryActionLabel: 'Inspect teachers',
+			secondaryRoute: '/teachers',
 			emptyTitle: 'Teacher assignments look ready',
 			emptyBody: 'No qualification gaps or teacher-assignment blockers were found in the loaded evidence.',
 		},
@@ -432,6 +465,13 @@ export default function Audit() {
 			description: 'Sections missing required class coverage.',
 			icon: BookX,
 			findings: sectionFindings,
+			blockedLabel: 'Incomplete sections can block generation.',
+			why: 'A section with a missing subject-teacher pair cannot produce a complete class program.',
+			primaryActionLabel: 'Assign missing coverage',
+			primaryRoute: sectionFindings[0]?.route ?? '/teaching-load',
+			repairTarget: 'teaching-load',
+			secondaryActionLabel: 'Inspect sections',
+			secondaryRoute: '/sections',
 			emptyTitle: 'Sections have required coverage',
 			emptyBody: 'No section-subject gaps were found in the loaded templates and assignments.',
 		},
@@ -441,6 +481,13 @@ export default function Audit() {
 			description: 'Room feature and facility readiness.',
 			icon: Box,
 			findings: facilityFindings,
+			blockedLabel: 'Room setup can block placement.',
+			why: 'Subjects that need specific room features need compatible teaching spaces before review and publish.',
+			primaryActionLabel: 'Fix room setup',
+			primaryRoute: facilityFindings[0]?.route ?? '/map',
+			repairTarget: 'map',
+			secondaryActionLabel: 'Inspect timetable rooms',
+			secondaryRoute: '/timetable?viewMode=room',
 			emptyTitle: 'Rooms match subject needs',
 			emptyBody: 'No subjects with required room features are missing compatible rooms.',
 		},
@@ -450,6 +497,13 @@ export default function Audit() {
 			description: 'Teacher availability signals that may require review.',
 			icon: Clock,
 			findings: constraintFindings,
+			blockedLabel: 'Teacher availability may block placement.',
+			why: 'A teacher with too few available periods can leave matching subjects without workable times.',
+			primaryActionLabel: 'Review teacher availability',
+			primaryRoute: constraintFindings[0]?.route ?? '/teachers',
+			repairTarget: 'teachers',
+			secondaryActionLabel: 'Open timetable review',
+			secondaryRoute: '/timetable',
 			emptyTitle: 'No major constraint pressure found',
 			emptyBody: 'No teacher with matching subjects is more than 50% unavailable in the loaded preference audit.',
 		},
@@ -459,6 +513,13 @@ export default function Audit() {
 			description: 'Evidence freshness and roster sync health.',
 			icon: RefreshCw,
 			findings: sourceFindings,
+			blockedLabel: 'Readiness evidence needs confirmation.',
+			why: 'Officers need a clear source state before deciding whether setup is ready for generation or publish.',
+			primaryActionLabel: 'Check source records',
+			primaryRoute: sourceFindings[0]?.route ?? '/sections',
+			repairTarget: sourceFindings[0]?.repairTarget ?? 'sections',
+			secondaryActionLabel: 'Refresh report',
+			secondaryRoute: '/audit',
 			emptyTitle: 'Evidence source looks usable',
 			emptyBody: dataSource === 'live' ? 'The report is based on live upstream-backed evidence.' : 'The report is based on saved ATLAS evidence with no missing domains reported.',
 		},
@@ -468,6 +529,13 @@ export default function Audit() {
 	const warningCount = findingGroups.reduce((total, group) => total + group.findings.filter((finding) => finding.severity === 'warning').length, 0);
 	const avgLoad = faculty.reduce((sum, facultyMember) => sum + (facultyMember.loadPercentage ?? 0), 0) / (faculty.length || 1);
 	const sourceLabel = dataSource === 'live' ? 'Live upstream-backed' : dataSource === 'cached' ? 'ATLAS saved evidence' : 'No saved evidence';
+	const defaultGroupId = (() => {
+		const focus = searchParams.get('focus');
+		if (focus === 'timetable') return 'constraints';
+		if (focus && findingGroups.some((group) => group.id === focus)) return focus;
+		const firstGroupWithFindings = findingGroups.find((group) => group.findings.length > 0);
+		return firstGroupWithFindings?.id ?? 'teacher-assignments';
+	})();
 	const verdict = dataSource === 'none'
 		? {
 			label: 'Cannot check readiness yet',
@@ -627,7 +695,7 @@ export default function Audit() {
 							</div>
 						</div>
 
-						<Tabs defaultValue="teacher-assignments" className="flex min-h-0 flex-col">
+						<Tabs defaultValue={defaultGroupId} className="flex min-h-0 flex-col">
 							<TabsList className="flex h-auto w-full flex-wrap justify-start gap-2 bg-slate-100 p-1">
 								{findingGroups.map((group) => {
 									const GroupIcon = group.icon;
@@ -650,6 +718,33 @@ export default function Audit() {
 												<p className="font-bold text-slate-900">{group.label}</p>
 												<p className="text-sm text-slate-500">{group.description}</p>
 											</div>
+											<div className="grid gap-3 border-b border-slate-100 bg-white px-4 py-4 lg:grid-cols-[1fr_auto] lg:items-center">
+												<div className="grid gap-3 text-sm md:grid-cols-2">
+													<div className="rounded-xl bg-slate-50 px-3 py-2">
+														<p className="text-[0.68rem] font-bold uppercase tracking-wide text-slate-400">What is blocked</p>
+														<p className="mt-1 font-semibold text-slate-900">{group.blockedLabel}</p>
+													</div>
+													<div className="rounded-xl bg-slate-50 px-3 py-2">
+														<p className="text-[0.68rem] font-bold uppercase tracking-wide text-slate-400">Why it matters</p>
+														<p className="mt-1 text-slate-600">{group.why}</p>
+													</div>
+												</div>
+												<div className="flex flex-wrap gap-2 lg:justify-end">
+													<Button asChild size="sm" className="h-9 rounded-xl gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90">
+														<Link to={group.primaryRoute} data-repair-target={group.repairTarget}>
+															{group.primaryActionLabel}
+															<ArrowRight className="size-3.5" />
+														</Link>
+													</Button>
+													{group.secondaryActionLabel && group.secondaryRoute ? (
+														<Button asChild variant="outline" size="sm" className="h-9 rounded-xl bg-white">
+															<Link to={group.secondaryRoute} data-repair-target={`${group.repairTarget}-inspect`}>
+																{group.secondaryActionLabel}
+															</Link>
+														</Button>
+													) : null}
+												</div>
+											</div>
 											<ScrollArea className="max-h-[46svh] min-h-72">
 												<div className="divide-y divide-slate-100 bg-white">
 													{visibleFindings.length === 0 ? (
@@ -666,10 +761,11 @@ export default function Audit() {
 																	<p className="font-bold text-slate-900">{finding.title}</p>
 																</div>
 																<p className="text-sm text-slate-600">{finding.detail}</p>
+																<p className="text-xs font-semibold text-slate-600">What is blocked: {finding.blockedLabel}</p>
 																<p className="text-xs font-medium text-slate-500">Why it matters: {finding.why}</p>
 															</div>
 															<Button asChild variant="outline" size="sm" className="h-9 shrink-0 rounded-xl bg-white">
-																<Link to={finding.route}>
+																<Link to={finding.route} data-repair-target={finding.repairTarget}>
 																	{finding.actionLabel}
 																	<ArrowRight className="ml-1 size-3.5" />
 																</Link>

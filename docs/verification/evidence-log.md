@@ -1,4 +1,49 @@
-﻿# 2026-05-31 - Effective-date published schedule read resolution
+﻿# 2026-06-01 - Dashboard readiness summary endpoint
+
+- Phase: Teaching Load + Timetable follow-up prompt 9b, `tl-timetable-09b-dashboard-readiness-summary-endpoint`.
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, SERVER BUILD GREEN, CLIENT BUILD GREEN, ENDPOINT PROBE GREEN, DASHBOARD ROUTE SMOKE GREEN, SOURCE MAP UPDATED -> PROMPT-SCOPE GO.
+- Trigger: active prompt asked to reduce dashboard waterfall loading by adding one dashboard/readiness summary endpoint while preserving source honesty and fallback behavior.
+- Scope held: backend dashboard readiness endpoint, service-layer aggregation, dashboard hook consumption, compact source-state badge, fallback to legacy reads, and documentation/evidence updates. No dashboard redesign, pagination, published-schedule query shaping, or phase-closure claim was added.
+- API contract: added protected `GET /api/v1/dashboard/readiness-summary?schoolId=:schoolId[&schoolYearId=:schoolYearId]`, mounted under `/api/v1/dashboard`. The route parses positive integer params, uses normal ATLAS auth/system-token auth with privileged-role authorization, and delegates aggregation to `dashboard-readiness.service.ts`.
+- Service contract: summary aggregation reads persisted ATLAS evidence for runtime context, campus buildings/rooms and campus image, active subject count, unassigned-subject count, active non-stale faculty mirror count, active section mirror count, latest generation run status, latest run ID, published marker, lifecycle phase, and violation total. The service does not call existing controller routes and does not load latest-run draft entries.
+- Source honesty contract: response includes `sourceState`, `sourceMessage`, `resolvedAt`, and per-domain source records for runtime context, campus, subjects, faculty, sections, and generation. Supported states are `verified_live`, `checking_source`, `using_saved_data`, `no_saved_data`, and `partial_degraded`; the UI maps these to `Verified live`, `Checking source`, `Using saved data`, `No saved data`, and `Partial data`.
+- Client contract: `useDashboardData` now requests the summary endpoint first and paints dashboard stat tiles, lifecycle phase, and setup checklist from that single payload. If the endpoint fails, the hook falls back to the previous map/campus-image/subject/faculty/runtime/section/generation requests so the dashboard remains backward-compatible.
+- Comparison proof: old waterfall probes returned buildings `12`, subjects `22`, unassigned `0`, faculty `151`, activeSchoolYearId `55`, sections `82`, latest run `128`, latest run status `COMPLETED`, and violations `890`. The new summary probe returned `sourceState=using_saved_data`, activeSchoolYearId `55`, subjectCount `22`, facultyCount `151`, sectionCount `82`, latestRunStatus `COMPLETED`, latestRunId `128`, lifecyclePhase `PUBLISHED`, buildings `12`, teachingRoomCount `157`, and violationCount `890`.
+- Endpoint probe: direct admin login (`1000001`) returned `200`; `GET /api/v1/dashboard/readiness-summary?schoolId=1` returned `200` with persisted source records for `atlas-persisted`, `atlas.buildings`, `atlas.subjects`, `atlas.faculty_mirrors`, `atlas.section_mirrors`, and `atlas.generation_runs`.
+- Browser smoke: with server on `http://localhost:5001` and Vite on `http://100.88.55.125:5174`, direct admin login loaded `/` successfully. The dashboard rendered `Using saved data`, stat values `82`, `22`, `151`, `157/160`, phase `Published`, next step `Schedule is published`, and no console/page errors after reload.
+- Frontend guardrails: touched React file line counts stayed below the 1000-line limit (`useDashboardData.ts=289`, `Dashboard.tsx=612`) and the touched files scan found no raw `<button`, `<select`, `<details`, or `title=` matches.
+- Build verification: `npm --prefix atlas-server run build` passed after repairing the strict `violationCounts` reducer type. `npm --prefix atlas-client run build` passed with Vite `8.0.3`, `2533 modules transformed`. Touched files report no VS Code diagnostics.
+- Diff hygiene: `git diff --check` reported only existing CRLF normalization warnings from tracked build output; no whitespace errors were reported.
+- Documentation updates: `docs/reference/atlas-runtime-source-of-truth-map.md`, `docs/verification/evidence-log.md`, and `CHANGELOG.md` now document the Prompt 9b dashboard summary contract and evidence.
+- Decision: PROMPT-SCOPE GO. The dashboard has a single first-readiness summary endpoint with source-honest states and legacy fallback. This does not claim broader Phase 3 or Teaching Load + Timetable phase closure.
+
+---
+
+# 2026-05-31 - Timetable published revision UI workflow
+
+- Phase: Teaching Load + Timetable follow-up prompt 6c, `tl-timetable-06c-timetable-revision-ui-workflow`.
+- Operator: GitHub Copilot
+- Scope gate: IMPLEMENTATION COMPLETE, CLIENT BUILD GREEN, SERVER BUILD GREEN, PUBLISHED-REVISION CONTRACT TESTS GREEN, BROWSER/API REVISION CREATION GREEN -> PROMPT-SCOPE GO.
+- Trigger: user asked to execute Prompt 6c so Tactical Bottom Dock changes on an already published schedule create a future-dated revision instead of editing the published schedule in place.
+- Scope held: `/timetable` published-run Tactical Dock workflow, client-side future-date/reason validation, before/after change summary, workload warnings, protected published-revision API call, success/error copy, and traceability updates. No schema changes, approval workflow, notification workflow, publish-read resolver changes, or direct published-run mutation logic was added.
+- UI contract: `TacticalSandboxDock` now accepts `schoolId`, `runId`, `isPublished`, and `onRevisionCreated`. For unpublished runs it keeps the existing manual-edit preview/commit path. For published runs it stages same-subject teacher changes locally, opens `Schedule a published repair`, requires a future effective date plus reason, and posts to `/api/v1/generation/:schoolId/:schoolYearId/runs/:runId/published-revisions` with `CHANGE_FACULTY` before/after snapshots.
+- Published safety contract: published runs do not call draft manual-edit preview/commit endpoints. The dock copy states that historical published truth is preserved; revision metadata includes `source=TACTICAL_SANDBOX_DOCK`, `sourceRunId`, `schoolYearId`, and `publishedTruthPreserved=true`.
+- Workload warning contract: projected teacher workload warnings use Teaching Load wording: `Above standard - approval needed` for review-level overload and over-cap copy for must-fix load pressure. This pass intentionally did not add approval states or an approval workflow.
+- Runtime repair: browser smoke initially found `ReferenceError: projectSandboxEntries is not defined` in `TacticalSandboxDock.tsx`; repair inlined the projection logic used to build revision changes. Client rebuild passed after the repair.
+- Build verification: `npm --prefix atlas-client run build` passed after the runtime repair. `npm --prefix atlas-server run build` passed. Touched files reported no VS Code diagnostics, and touched React files stayed under the 1000-line guardrail.
+- Targeted test verification: `Push-Location atlas-server; npx tsx src/__tests__/published-revision-contract.test.ts; Pop-Location` passed `16/16` checks, covering service/API revision creation, source-run preservation, audit creation, and invalid effective-date rejection.
+- Browser smoke setup: Tailnet hostname was blocked by unrelated runtime/context and EnrollPro settings fetch instability, so the bounded browser smoke used the Tailnet-exposed Vite URL `http://100.88.55.125:5174` with Playwright route stubs only for unrelated bootstrap failures (`pre-generation-drafts` and EnrollPro public settings). Timetable and published-revision API calls remained real.
+- Browser validation proof: from the published latest run `#128`, the operator selected a generated `MAPEH` block, opened `Repair Teacher Assignment`, saw published-run copy, staged an alternate teacher with `Use teacher`, opened `Create Revision`, and the dialog blocked submit without an effective date with `Choose the first school day...` validation copy.
+- Browser revision creation proof: after entering effective date `2026-06-15` and reason `Prompt 6c browser smoke: future-dated teacher correction`, the UI submitted the published revision workflow. The automated success-text wait timed out after the POST, but persistence succeeded and the protected API list route returned `200` with `count=1`.
+- API persistence proof: `GET /api/v1/generation/1/55/runs/128/published-revisions` returned revision `id=7`, `sourceRunId=128`, `status=SCHEDULED`, `effectiveDate=2026-06-15T00:00:00.000Z`, reason `Prompt 6c browser smoke: future-dated teacher correction`, `changeType=CHANGE_FACULTY`, `previousFacultyId=18292`, and `nextFacultyId=21587`.
+- Historical truth note: Prompt 6b read resolution remains the consumer-side contract. Dates before `2026-06-15` continue resolving the original published run; dates on or after `2026-06-15` apply revision `#7` without mutating the source run.
+- Documentation updates: `docs/reference/atlas-runtime-source-of-truth-map.md`, `docs/verification/evidence-log.md`, and `CHANGELOG.md` now document the Prompt 6c UI workflow and browser/API evidence.
+- Decision: PROMPT-SCOPE GO. Published Tactical Dock changes now create future-dated revision records instead of editing published schedules in place. This does not claim broader Teaching Load + Timetable phase closure.
+
+---
+
+# 2026-05-31 - Effective-date published schedule read resolution
 
 - Phase: Teaching Load + Timetable follow-up prompt 6b, `tl-timetable-06b-effective-date-read-resolution`.
 - Operator: GitHub Copilot
@@ -2019,4 +2064,69 @@ refactor(ui): rebuild dashboard + map shell with single-next-step identity
 - Operator: Gemini CLI
 - Description: Resolved an unresolved variable reference (ArrowRight to ArrowLeftRight mapping issue where ArrowLeftRight wasn't added to imports in SubjectRow.tsx).
 - Verdict: GO
+
+# 2026-06-01 - Prompt 7 Faculty Trust And Freshness Repair
+- Phase: Teaching Load / Timetable Repair Prompt 7
+- Operator: Codex
+- Scope: Faculty-facing freshness, saved-data honesty, and outbox visibility for `/my`, `/my/schedule`, and `/my/room-preferences`.
+- Files changed in this pass:
+  - `atlas-client/src/lib/faculty-offline-cache.ts`
+  - `atlas-client/src/pages/MyDashboard.tsx`
+  - `atlas-client/src/pages/MySchedule.tsx`
+  - `atlas-client/src/pages/FacultyRoomPreferences.tsx`
+  - `atlas-client/src/components/faculty-shared/FacultyGlobalHeader.tsx`
+  - `atlas-client/src/components/faculty-room-preferences/RoomRequestPageStates.tsx`
+  - `atlas-client/src/types.ts`
+  - `atlas-client/src/types.d.ts`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+  - `CHANGELOG.md`
+- Repair delivered:
+  1. Faculty schedule snapshots keep the existing date/run/published-at/revision/effective-date marker contract and now remove older same-prefix snapshots after a live read.
+  2. Room-request bootstrap snapshots are now marker-keyed by school year, faculty, run, run version, generated-at, and available publish/revision marker fields, with old same-prefix snapshots removed after a live refresh.
+  3. Faculty dashboard saved snapshots are now faculty/run/version/generated-at-aware instead of school-year-only.
+  4. Room-request SSE handling now listens for sync completion events in addition to draft/save/delete/review events.
+  5. Faculty pages now expose `Refresh schedule` / `Check for updates` actions and plain saved/offline copy.
+  6. Room-request outbox count is persistently visible as `N requests waiting to send`.
+- Verification:
+  - `npm --prefix atlas-client run build` -> PASS.
+  - `npm --prefix atlas-server run build` -> not run; backend source was not touched.
+  - Targeted cache-key probe -> PASS: published schedule keys differ across base vs revision marker, and room-request bootstrap keys differ across old run vs new run/revision marker.
+  - Touched React line-count scan -> PASS: `MySchedule.tsx=409`, `MyDashboard.tsx=286`, `FacultyRoomPreferences.tsx=994`, `FacultyGlobalHeader.tsx=224`, `RoomRequestPageStates.tsx=42`.
+  - Touched primitive scan -> PASS: no native `<button>`, `<select>`, `<details>`, or native lowercase `title=` attributes in touched React surfaces.
+  - Local browser smoke -> PASS for `/my/schedule` and `/my/room-preferences` at mobile portrait, desktop, and narrow viewports; screenshots saved under `qa-artifacts/screenshots/faculty-trust-freshness-20260601/`.
+  - Local outbox blocked-sync smoke -> PASS: injected two queued room-request actions and aborted the sync endpoint; page showed persistent `2 requests waiting to send`; screenshot saved under `qa-artifacts/screenshots/faculty-trust-freshness-20260601/20260601-faculty-room-preferences-mobile-outbox-sync-blocked.png`.
+  - Tailnet browser smoke -> PASS for `/my/schedule` and `/my/room-preferences` at mobile portrait, desktop, and narrow viewports; screenshots saved under `qa-artifacts/screenshots/faculty-trust-freshness-20260601-tailnet/`.
+- Verdict: GO
 `n## 2026-05-28: Phase 3 Published Schedule Refresh and Stale Cache Fix`n`n- **Scope**: Fix stale published schedule data in public and faculty views.`n- **Files changed**:`n  - `atlas-client/public/sw.js`: Removed published schedule endpoint from service worker caching.`n  - `atlas-client/src/pages/PublicPublishedSchedule.tsx`: Implemented `forceRefresh` mode to bypass local storage and SW caches.`n  - `atlas-client/src/pages/MySchedule.tsx`: Implemented `forceRefresh` mode to bypass local storage and SW caches.`n- **Verification performed**:`n  - `npm --prefix atlas-client run build` passed.`n  - Code review confirmed that `forceRefresh` adds `Cache-Control: no-cache` and skips local snapshots.`n  - Service worker no longer intercepts published schedule API calls.`n- **Verdict**: GO
+
+# 2026-06-01 - Prompt 8 Audit Repair Console And Dashboard Drilldowns
+- Phase: Teaching Load / Timetable Repair Prompt 8
+- Operator: Codex
+- Scope: Scheduler/admin `/audit` repair action groups, `/dashboard` repair drilldowns, refresh/readiness cues, and exact fix routing into existing setup surfaces.
+- Files changed in this pass:
+  - `atlas-client/src/pages/Audit.tsx`
+  - `atlas-client/src/pages/Dashboard.tsx`
+  - `atlas-client/src/hooks/useDashboardData.ts`
+  - `atlas-client/src/pages/TeachingLoad.tsx`
+  - `atlas-client/src/hooks/useTeachingLoadData.ts`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+  - `CHANGELOG.md`
+- Repair delivered:
+  1. Audit finding groups now show `what is blocked`, `why it matters`, one primary fix action, and optional inspect action.
+  2. Audit finding links carry known context for teacher/load (`facultyId`, `subjectId`, `sectionId`), room (`subjectId`), teacher roster (`facultyId`), and timetable review where available.
+  3. Dashboard stat cards now drill into exact repair surfaces and explain why each readiness item can block generation.
+  4. Dashboard now exposes a `Check for updates` action that reruns the existing readiness-summary/fallback load.
+  5. Teaching Load now consumes `?sectionId=` focus parameters in addition to existing `?facultyId=` and `?subjectId=`.
+- Verification:
+  - `npm --prefix atlas-client run build` -> PASS.
+  - Touched line-count scan -> PASS: `Audit.tsx=788`, `Dashboard.tsx=688`, `TeachingLoad.tsx=784`, `useDashboardData.ts=315`, `useTeachingLoadData.ts=501`.
+  - Touched primitive scan -> PASS: no native `<button>`, `<select>`, `<details>`, or lowercase native `title=` in touched React files.
+  - Local browser smoke -> PASS for `/audit` and `/` desktop plus mobile portrait, with no horizontal overflow and no primary-copy matches for `split-brain`, `stale run data`, or `generation gate`.
+  - Local Audit action sampling -> PASS: teacher/load target `/teaching-load?facultyId=21480&subjectId=5744`; section target `/teaching-load?sectionId=2779&subjectId=9`; room target `/map?mode=editor&subjectId=11796`; teacher availability target `/teachers`; saved/live data target `/teachers?facultyId=23843`.
+  - Local Audit action click -> PASS: first teaching-load repair action opened `/teaching-load?facultyId=21480&subjectId=5744`.
+  - Local Dashboard drilldown sampling -> PASS: `/sections`, `/subjects`, `/teachers`, `/map`, `/teaching-load`, and next-step target opened expected routes; `/sections` click landed on `/sections`.
+  - Tailnet browser smoke -> PASS after health recovered: `/audit` and `/` desktop loaded on `https://njgrm.buru-degree.ts.net`, no horizontal overflow, dashboard `Check for updates` clicked, and repair targets rendered.
+  - Screenshots saved under `qa-artifacts/screenshots/audit-dashboard-repair-20260601/` and `qa-artifacts/screenshots/audit-dashboard-repair-20260601-tailnet/`.
+- Verdict: GO

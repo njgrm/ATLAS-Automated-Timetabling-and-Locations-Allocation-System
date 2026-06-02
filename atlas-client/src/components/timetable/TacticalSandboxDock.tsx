@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Loader2, RotateCcw, Search, ShieldCheck, X } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { StackedWorkloadBar } from '@/components/faculty-assignments/StackedWorkloadBar';
+import atlasApi from '@/lib/api';
 import {
 	MAX_WEEKLY_TEACHING_HOURS,
 	deriveWorkloadCapacity,
@@ -12,6 +14,14 @@ import type { CommitResult, FacultyMirror, ManualEditBatchPreviewResult, ManualE
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Checkbox } from '@/ui/checkbox';
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from '@/ui/dialog';
 import { Input } from '@/ui/input';
 import { ScrollArea } from '@/ui/scroll-area';
 import {
@@ -22,12 +32,15 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from '@/ui/sheet';
+import { Textarea } from '@/ui/textarea';
 
 type TacticalSandboxDockProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	selectedEntry: ScheduledEntry | null;
 	draftEntries: ScheduledEntry[];
+	schoolId: number;
+	runId: number | null;
 	facultyMap: Map<number, FacultyMirror>;
 	subjectMap: Map<number, Subject>;
 	schoolYearId: number | null;
@@ -35,9 +48,10 @@ type TacticalSandboxDockProps = {
 	onApplyFaculty: (entryIds: string[], facultyId: number) => void;
 	onPreviewFacultyBatch: (proposals: ManualEditProposal[]) => Promise<ManualEditBatchPreviewResult | null>;
 	onCommitFacultyBatch: (proposals: ManualEditProposal[], allowSoftOverride?: boolean) => Promise<CommitResult | null>;
+	onRevisionCreated: () => void | Promise<void>;
 	onResetSandbox: () => void;
 	onDismissSelectedEntry: (entryId: string) => void;
-	disabled: boolean;
+	isPublished: boolean;
 	subjectLabel: (id: number) => string;
 	sectionLabel: (id: number) => string;
 	facultyLabel: (id: number) => string;
@@ -58,6 +72,27 @@ type Candidate = {
 type ReviewStep = {
 	label: string;
 	state: 'done' | 'active' | 'waiting' | 'blocked';
+};
+
+type RevisionChange = {
+	entry: ScheduledEntry;
+	targetFacultyId: number;
+	targetCapacity: ReturnType<typeof deriveWorkloadCapacity> | null;
+};
+
+type PublishedRevisionResponse = {
+	revision: {
+		id: number;
+		effectiveDate: string;
+		status: string;
+	};
+	auditId: number;
+};
+
+type RevisionSuccess = {
+	revisionId: number;
+	effectiveDate: string;
+	changeCount: number;
 };
 
 function facultyDisplayName(faculty: FacultyMirror): string {
@@ -138,11 +173,50 @@ function buildFacultyChangeProposals(entries: ScheduledEntry[], sandboxFacultyBy
 	return proposals;
 }
 
+function formatSlot(entry: ScheduledEntry): string {
+	return `${entry.day} ${formatTime(entry.startTime)}-${formatTime(entry.endTime)}`;
+}
+
+function revisionDateError(value: string): string | null {
+	if (!value.trim()) return 'Choose the first school day when this revision should take effect.';
+	const parsed = new Date(`${value}T00:00:00Z`);
+	if (Number.isNaN(parsed.getTime())) return 'Enter a valid effective date.';
+
+	const now = new Date();
+	const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+	const selectedUtc = Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate());
+	if (selectedUtc <= todayUtc) return 'Choose tomorrow or a later school day. Same-day published revisions are not allowed.';
+	return null;
+}
+
+function buildRevisionPayloadChange(change: RevisionChange) {
+	const previous = {
+		facultyId: change.entry.facultyId,
+		roomId: change.entry.roomId,
+		day: change.entry.day,
+		startTime: change.entry.startTime,
+		endTime: change.entry.endTime,
+		subjectId: change.entry.subjectId,
+		sectionId: change.entry.sectionId,
+	};
+	return {
+		entryId: change.entry.entryId,
+		changeType: 'CHANGE_FACULTY',
+		previous,
+		next: {
+			...previous,
+			facultyId: change.targetFacultyId,
+		},
+	};
+}
+
 export function TacticalSandboxDock({
 	open,
 	onOpenChange,
 	selectedEntry,
 	draftEntries,
+	schoolId,
+	runId,
 	facultyMap,
 	subjectMap,
 	schoolYearId,
@@ -150,9 +224,10 @@ export function TacticalSandboxDock({
 	onApplyFaculty,
 	onPreviewFacultyBatch,
 	onCommitFacultyBatch,
+	onRevisionCreated,
 	onResetSandbox,
 	onDismissSelectedEntry,
-	disabled,
+	isPublished,
 	subjectLabel,
 	sectionLabel,
 	facultyLabel,
@@ -163,6 +238,13 @@ export function TacticalSandboxDock({
 	const [batchCommitLoading, setBatchCommitLoading] = useState(false);
 	const [softWarningAcknowledged, setSoftWarningAcknowledged] = useState(false);
 	const [candidateQuery, setCandidateQuery] = useState('');
+	const [revisionDialogOpen, setRevisionDialogOpen] = useState(false);
+	const [revisionEffectiveDate, setRevisionEffectiveDate] = useState('');
+	const [revisionReason, setRevisionReason] = useState('');
+	const [revisionSubmitting, setRevisionSubmitting] = useState(false);
+	const [revisionError, setRevisionError] = useState<string | null>(null);
+	const [revisionActionHint, setRevisionActionHint] = useState<string | null>(null);
+	const [revisionSuccess, setRevisionSuccess] = useState<RevisionSuccess | null>(null);
 	const subject = selectedEntry ? subjectMap.get(selectedEntry.subjectId) : undefined;
 	const previewFacultyId = selectedEntry ? sandboxFacultyByEntryId.get(selectedEntry.entryId) ?? selectedEntry.facultyId : null;
 	const stagedProposals = useMemo(() => buildFacultyChangeProposals(draftEntries, sandboxFacultyByEntryId), [draftEntries, sandboxFacultyByEntryId]);
@@ -182,6 +264,9 @@ export function TacticalSandboxDock({
 	useEffect(() => {
 		setBatchPreview(null);
 		setSoftWarningAcknowledged(false);
+		setRevisionError(null);
+		setRevisionActionHint(null);
+		setRevisionSuccess(null);
 	}, [stagedProposalKey]);
 
 	useEffect(() => {
@@ -254,6 +339,32 @@ export function TacticalSandboxDock({
 	}, [candidateQuery, candidates]);
 
 	const selectedBulkCount = bulkEntryIds.size;
+	const revisionChanges = useMemo<RevisionChange[]>(() => {
+		const entriesById = new Map(draftEntries.map((entry) => [entry.entryId, entry]));
+		const projectedEntries = draftEntries.map((entry) => {
+			const facultyId = sandboxFacultyByEntryId.get(entry.entryId);
+			return facultyId == null ? entry : { ...entry, facultyId };
+		});
+		const targetIds = new Set(stagedProposals.map((proposal) => proposal.targetFacultyId).filter((id): id is number => typeof id === 'number'));
+		const capacityByFaculty = new Map<number, ReturnType<typeof deriveWorkloadCapacity>>();
+
+		for (const facultyId of targetIds) {
+			const faculty = facultyMap.get(facultyId);
+			if (!faculty) continue;
+			const teachingHours = teachingHoursForFaculty(projectedEntries, facultyId);
+			const creditHours = Math.max(faculty.advisoryEquivalentHours ?? 0, 0) + ancillaryCreditHours(faculty);
+			capacityByFaculty.set(facultyId, deriveWorkloadCapacity(teachingHours, creditHours, faculty.maxHoursPerWeek || MAX_WEEKLY_TEACHING_HOURS));
+		}
+
+		return stagedProposals.flatMap((proposal) => {
+			if (proposal.editType !== 'CHANGE_FACULTY' || !proposal.entryId || typeof proposal.targetFacultyId !== 'number') return [];
+			const entry = entriesById.get(proposal.entryId);
+			if (!entry) return [];
+			return [{ entry, targetFacultyId: proposal.targetFacultyId, targetCapacity: capacityByFaculty.get(proposal.targetFacultyId) ?? null }];
+		});
+	}, [draftEntries, facultyMap, sandboxFacultyByEntryId, stagedProposals]);
+	const aboveStandardWarnings = useMemo(() => revisionChanges.filter((change) => change.targetCapacity?.status === 'overload-allowed'), [revisionChanges]);
+	const overCapWarnings = useMemo(() => revisionChanges.filter((change) => change.targetCapacity?.status === 'over-cap'), [revisionChanges]);
 	const selectedEntryIds = useMemo(() => {
 		if (!selectedEntry) return [];
 		return [selectedEntry.entryId, ...Array.from(bulkEntryIds)];
@@ -269,13 +380,12 @@ export function TacticalSandboxDock({
 	}
 
 	function applyCandidate(facultyId: number) {
-		if (disabled) return;
 		if (selectedEntryIds.length === 0) return;
 		onApplyFaculty(selectedEntryIds, facultyId);
 	}
 
 	async function reviewBatch() {
-		if (disabled || stagedProposals.length === 0) return null;
+		if (isPublished || stagedProposals.length === 0) return null;
 		setBatchPreviewLoading(true);
 		try {
 			const result = await onPreviewFacultyBatch(stagedProposals);
@@ -288,7 +398,7 @@ export function TacticalSandboxDock({
 	}
 
 	async function commitBatch() {
-		if (disabled || stagedProposals.length === 0) return;
+		if (isPublished || stagedProposals.length === 0) return;
 		const reviewed = batchPreview ?? await reviewBatch();
 		if (!reviewed || !reviewed.allowed || reviewed.errorCount > 0 || reviewed.hardViolations.length > 0) return;
 		if (reviewed.softViolations.length > 0 && !softWarningAcknowledged) return;
@@ -306,19 +416,91 @@ export function TacticalSandboxDock({
 		}
 	}
 
+	function openRevisionReview() {
+		setRevisionError(null);
+		setRevisionActionHint(null);
+		setRevisionSuccess(null);
+		setRevisionDialogOpen(true);
+	}
+
+	async function submitRevision() {
+		if (!schoolYearId || !runId) {
+			setRevisionError('This published schedule is missing a school year or run reference. Refresh the timetable, then try again.');
+			setRevisionActionHint('If the run still has no reference after refresh, ask an administrator to verify the published run.');
+			return;
+		}
+		if (revisionChanges.length === 0) {
+			setRevisionError('No staged teacher changes are ready for revision. Choose a teacher first, then review again.');
+			setRevisionActionHint(null);
+			return;
+		}
+		const dateError = revisionDateError(revisionEffectiveDate);
+		if (dateError) {
+			setRevisionError(dateError);
+			setRevisionActionHint('The current published schedule stays active until the future effective date you choose.');
+			return;
+		}
+		const reason = revisionReason.trim();
+		if (!reason) {
+			setRevisionError('Add a reason so the audit trail explains why this published schedule changed.');
+			setRevisionActionHint('Use a short note such as teacher reassignment, room availability, or corrected staffing record.');
+			return;
+		}
+
+		setRevisionSubmitting(true);
+		setRevisionError(null);
+		setRevisionActionHint(null);
+		try {
+			const { data } = await atlasApi.post<PublishedRevisionResponse>(`/generation/${schoolId}/${schoolYearId}/runs/${runId}/published-revisions`, {
+				effectiveDate: revisionEffectiveDate,
+				reason,
+				changes: revisionChanges.map(buildRevisionPayloadChange),
+				changeSummary: {
+					changeCount: revisionChanges.length,
+					entryIds: revisionChanges.map((change) => change.entry.entryId),
+					changeTypes: ['CHANGE_FACULTY'],
+				},
+				metadata: {
+					source: 'TACTICAL_SANDBOX_DOCK',
+					schoolYearId,
+					sourceRunId: runId,
+					publishedTruthPreserved: true,
+				},
+			});
+			setRevisionSuccess({
+				revisionId: data.revision.id,
+				effectiveDate: data.revision.effectiveDate,
+				changeCount: revisionChanges.length,
+			});
+			toast.success(`Revision scheduled for ${revisionEffectiveDate}. Published history is preserved.`);
+			onResetSandbox();
+			setBatchPreview(null);
+			setSoftWarningAcknowledged(false);
+			setBulkEntryIds(new Set());
+			await onRevisionCreated();
+		} catch (e: unknown) {
+			const response = (e as { response?: { data?: { message?: string; actionHint?: string; code?: string } } })?.response?.data;
+			setRevisionError(response?.message ?? (e instanceof Error ? e.message : 'Revision creation failed.'));
+			setRevisionActionHint(response?.actionHint ?? 'Check the effective date and reason, then try creating the revision again.');
+		} finally {
+			setRevisionSubmitting(false);
+		}
+	}
+
 	return (
+		<>
 		<Sheet open={open} onOpenChange={onOpenChange}>
 			<SheetContent side="bottom" className="flex max-h-[82svh] flex-col gap-3 overflow-hidden p-4 sm:p-5">
 				<SheetHeader className="pr-8">
 					<div className="flex flex-wrap items-center gap-2">
 						<Badge variant="secondary" className="h-5 px-2 text-[0.625rem] uppercase">Local Sandbox</Badge>
-						<Badge variant="outline" className="h-5 px-2 text-[0.625rem]">Review before saving</Badge>
+						<Badge variant="outline" className="h-5 px-2 text-[0.625rem]">{isPublished ? 'Published revision' : 'Review before saving'}</Badge>
 					</div>
 					<SheetTitle>Repair Teacher Assignment</SheetTitle>
 					<SheetDescription>
 						{selectedEntry
-							? disabled
-								? `${subjectLabel(selectedEntry.subjectId)} for ${sectionLabel(selectedEntry.sectionId)} is published. Published repairs need the Prompt 6 revision workflow before changes can take effect.`
+							? isPublished
+								? `${subjectLabel(selectedEntry.subjectId)} for ${sectionLabel(selectedEntry.sectionId)} is published. Saving will create a future-dated revision while older dates keep the original published schedule.`
 								: `${subjectLabel(selectedEntry.subjectId)} for ${sectionLabel(selectedEntry.sectionId)} in SY ${schoolYearId ?? 'current'} can be staged, reviewed, and saved to the draft.`
 							: 'Select a timetable block to preview local teacher reassignment options.'}
 					</SheetDescription>
@@ -389,7 +571,7 @@ export function TacticalSandboxDock({
 													</div>
 													<p className="text-[0.6875rem] text-muted-foreground">{candidate.faculty.department ?? 'Unassigned'}{candidate.faculty.specialization ? ` - ${candidate.faculty.specialization}` : ''}</p>
 												</div>
-												<Button type="button" size="sm" variant={candidate.isSelected ? 'secondary' : 'outline'} className="h-8 text-xs" disabled={disabled} onClick={() => applyCandidate(candidate.faculty.id)} aria-label={`Use ${facultyDisplayName(candidate.faculty)} for this sandbox repair`}>
+												<Button type="button" size="sm" variant={candidate.isSelected ? 'secondary' : 'outline'} className="h-8 text-xs" onClick={() => applyCandidate(candidate.faculty.id)} aria-label={`Use ${facultyDisplayName(candidate.faculty)} for this sandbox repair`}>
 													{candidate.isSelected ? 'Selected' : 'Use teacher'}
 												</Button>
 											</div>
@@ -446,10 +628,10 @@ export function TacticalSandboxDock({
 					</div>
 				)}
 
-				<div className={`rounded-lg border px-3 py-2 text-xs ${disabled ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+				<div className={`rounded-lg border px-3 py-2 text-xs ${isPublished ? 'border-primary/20 bg-primary/5 text-primary' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
 					<div className="flex items-start gap-2">
-						{disabled ? <ShieldCheck className="mt-0.5 size-3.5 shrink-0" /> : <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />}
-						<p>{disabled ? 'This published schedule is read-only here. Use the Prompt 6 revision workflow for effective-date repairs.' : 'Staged changes stay local until you review and save them. Changed blocks are highlighted in the grid; teacher-time conflicts are marked with red borders.'}</p>
+						{isPublished ? <ShieldCheck className="mt-0.5 size-3.5 shrink-0" /> : <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />}
+						<p>{isPublished ? 'This schedule is already published. Review creates a new effective-date revision; it does not edit the published history in place.' : 'Staged changes stay local until you review and save them. Changed blocks are highlighted in the grid; teacher-time conflicts are marked with red borders.'}</p>
 					</div>
 				</div>
 
@@ -457,8 +639,8 @@ export function TacticalSandboxDock({
 					<div className="rounded-lg border border-border bg-background px-3 py-3 text-xs">
 						<div className="flex flex-wrap items-center justify-between gap-2">
 							<div>
-								<p className="text-sm font-semibold text-foreground">Review and save</p>
-								<p className="text-xs text-muted-foreground">{stagedCount} teacher change{stagedCount === 1 ? '' : 's'} waiting for review.</p>
+								<p className="text-sm font-semibold text-foreground">{isPublished ? 'Review and create revision' : 'Review and save'}</p>
+								<p className="text-xs text-muted-foreground">{stagedCount} teacher change{stagedCount === 1 ? '' : 's'} waiting for {isPublished ? 'an effective date' : 'review'}.</p>
 							</div>
 							<div className="flex flex-wrap gap-1.5">
 								{reviewSteps.map((step) => <ReviewStepPill key={step.label} step={step} />)}
@@ -525,12 +707,133 @@ export function TacticalSandboxDock({
 						<X className="size-3.5" />
 						Close Dock
 					</Button>
-					<Button type="button" variant={batchPreview && canCommitPreview ? 'default' : 'outline'} size="sm" disabled={disabled || stagedCount === 0 || batchPreviewLoading || batchCommitLoading || (batchPreview != null && canCommitPreview && !canSaveReviewedBatch)} onClick={() => batchPreview && canCommitPreview ? void commitBatch() : void reviewBatch()} className="gap-1.5">
+					<Button type="button" variant={(isPublished || (batchPreview && canCommitPreview)) ? 'default' : 'outline'} size="sm" disabled={stagedCount === 0 || batchPreviewLoading || batchCommitLoading || (batchPreview != null && canCommitPreview && !canSaveReviewedBatch)} onClick={() => isPublished ? openRevisionReview() : batchPreview && canCommitPreview ? void commitBatch() : void reviewBatch()} className="gap-1.5">
 						{batchPreviewLoading || batchCommitLoading ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
-						{batchPreview && canCommitPreview ? 'Save Changes' : 'Review Changes'}
+						{isPublished ? 'Create Revision' : batchPreview && canCommitPreview ? 'Save Changes' : 'Review Changes'}
 					</Button>
 				</SheetFooter>
 			</SheetContent>
 		</Sheet>
+		<Dialog open={revisionDialogOpen} onOpenChange={setRevisionDialogOpen}>
+			<DialogContent className="max-w-3xl gap-0 p-0">
+				<DialogHeader className="border-b border-border px-5 py-4">
+					<div className="flex flex-wrap items-center gap-2">
+						<Badge className="h-5 px-2 text-[0.625rem]">Published Revision</Badge>
+						<Badge variant="outline" className="h-5 px-2 text-[0.625rem]">History preserved</Badge>
+					</div>
+					<DialogTitle>Schedule a published repair</DialogTitle>
+					<DialogDescription>
+						Choose when these teacher changes take effect. Earlier dates will still show the original published schedule.
+					</DialogDescription>
+				</DialogHeader>
+				<div className="grid max-h-[70vh] gap-4 overflow-y-auto px-5 py-4">
+					{revisionSuccess ? (
+						<div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+							<div className="flex items-start gap-2">
+								<CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+								<div>
+									<p className="font-semibold">Revision #{revisionSuccess.revisionId} is scheduled.</p>
+									<p className="mt-0.5 text-xs">{revisionSuccess.changeCount} change{revisionSuccess.changeCount === 1 ? '' : 's'} take effect on {new Date(revisionSuccess.effectiveDate).toLocaleDateString()}. The timetable is refreshed, and historical reads before that date still use the original published run.</p>
+								</div>
+							</div>
+						</div>
+					) : null}
+					<div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-primary">
+						<div className="flex items-start gap-2">
+							<ShieldCheck className="mt-0.5 size-4 shrink-0" />
+							<p>This creates a future-dated revision record. It does not overwrite the published run that families and teachers may already have viewed.</p>
+						</div>
+					</div>
+					<div className="grid gap-2">
+						<div>
+							<p className="text-sm font-semibold text-foreground">Changed classes</p>
+							<p className="text-xs text-muted-foreground">Review the before and after teacher, room, and time before choosing an effective date.</p>
+						</div>
+						<div className="grid gap-2">
+							{revisionChanges.map((change) => (
+								<div key={change.entry.entryId} className="rounded-lg border border-border bg-card p-3 text-xs">
+									<div className="flex flex-wrap items-start justify-between gap-2">
+										<div>
+											<p className="text-sm font-semibold text-foreground">{subjectLabel(change.entry.subjectId)}</p>
+											<p className="text-muted-foreground">{sectionLabel(change.entry.sectionId)} · {formatSlot(change.entry)}</p>
+										</div>
+										{change.targetCapacity ? <Badge variant="outline" className="h-5 px-2 text-[0.625rem]">{change.targetCapacity.statusLabel}</Badge> : null}
+									</div>
+									<div className="mt-3 grid gap-2 sm:grid-cols-2">
+										<div className="rounded-md border border-border/70 bg-muted/20 p-2">
+											<p className="text-[0.625rem] uppercase text-muted-foreground">Current published</p>
+											<p className="font-medium text-foreground">{change.entry.facultyId ? facultyLabel(change.entry.facultyId) : 'No teacher assigned'}</p>
+											<p className="text-muted-foreground">Room {change.entry.roomId} · {formatSlot(change.entry)}</p>
+										</div>
+										<div className="rounded-md border border-primary/20 bg-primary/5 p-2">
+											<p className="text-[0.625rem] uppercase text-primary/80">Revision after effective date</p>
+											<p className="font-medium text-foreground">{facultyLabel(change.targetFacultyId)}</p>
+											<p className="text-muted-foreground">Room {change.entry.roomId} · {formatSlot(change.entry)}</p>
+										</div>
+									</div>
+								</div>
+							))}
+						</div>
+					</div>
+					{aboveStandardWarnings.length > 0 || overCapWarnings.length > 0 ? (
+						<div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+							<div className="flex items-start gap-2">
+								<AlertTriangle className="mt-0.5 size-4 shrink-0" />
+								<div>
+									<p className="font-semibold">Above-standard load warning</p>
+									<p className="mt-0.5">{aboveStandardWarnings.length} change{aboveStandardWarnings.length === 1 ? '' : 's'} will place a teacher at Above standard - approval needed. This records the revision only; it does not create an approval workflow.</p>
+									{overCapWarnings.length > 0 ? <p className="mt-1 text-red-700">{overCapWarnings.length} change{overCapWarnings.length === 1 ? '' : 's'} may be over cap. Review staffing before choosing this effective date.</p> : null}
+								</div>
+							</div>
+						</div>
+					) : null}
+					<div className="grid gap-3 sm:grid-cols-[12rem_1fr]">
+						<div className="space-y-1.5">
+							<label htmlFor="published-revision-effective-date" className="text-sm font-medium text-foreground">Effective date</label>
+							<Input
+								id="published-revision-effective-date"
+								type="date"
+								value={revisionEffectiveDate}
+								onChange={(event) => setRevisionEffectiveDate(event.target.value)}
+								aria-describedby="published-revision-effective-date-help"
+							/>
+							<p id="published-revision-effective-date-help" className="text-xs text-muted-foreground">Choose tomorrow or a later school day.</p>
+						</div>
+						<div className="space-y-1.5">
+							<label htmlFor="published-revision-reason" className="text-sm font-medium text-foreground">Reason</label>
+							<Textarea
+								id="published-revision-reason"
+								value={revisionReason}
+								onChange={(event) => setRevisionReason(event.target.value)}
+								placeholder="Example: teacher reassignment for the next school week"
+								maxLength={500}
+								aria-describedby="published-revision-reason-help"
+							/>
+							<p id="published-revision-reason-help" className="text-xs text-muted-foreground">This note appears in the revision audit trail.</p>
+						</div>
+					</div>
+					{revisionError ? (
+						<div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+							<div className="flex items-start gap-2">
+								<AlertTriangle className="mt-0.5 size-4 shrink-0" />
+								<div>
+									<p className="font-semibold">Revision was not created.</p>
+									<p className="mt-0.5 text-xs">{revisionError}</p>
+									{revisionActionHint ? <p className="mt-1 text-xs">{revisionActionHint}</p> : null}
+								</div>
+							</div>
+						</div>
+					) : null}
+				</div>
+				<DialogFooter className="border-t border-border px-5 py-4">
+					<Button type="button" variant="outline" onClick={() => setRevisionDialogOpen(false)} disabled={revisionSubmitting}>Close</Button>
+					<Button type="button" onClick={() => void submitRevision()} disabled={revisionSubmitting || revisionChanges.length === 0 || Boolean(revisionSuccess)} className="gap-2">
+						{revisionSubmitting ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+						Create Published Revision
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+		</>
 	);
 }

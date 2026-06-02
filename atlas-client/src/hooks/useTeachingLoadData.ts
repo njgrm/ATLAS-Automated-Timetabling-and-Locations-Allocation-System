@@ -74,6 +74,12 @@ export function useTeachingLoadData() {
 		const parsed = Number(queryValue);
 		return Number.isNaN(parsed) ? null : parsed;
 	});
+	const [sectionFocusId, setSectionFocusId] = useState<number | null>(() => {
+		const queryValue = searchParams.get('sectionId');
+		if (!queryValue) return null;
+		const parsed = Number(queryValue);
+		return Number.isNaN(parsed) ? null : parsed;
+	});
 	const [dataSource, setDataSource] = useState<'live' | 'cached' | 'refreshing' | 'none'>('none');
 	const [degradedNotice, setDegradedNotice] = useState<string | null>(null);
 	const [isOnline, setIsOnline] = useState(() => navigator.onLine);
@@ -305,6 +311,16 @@ export function useTeachingLoadData() {
 		}
 	}, [faculty, searchParams, selectedId]);
 
+	useEffect(() => {
+		const subjectValue = searchParams.get('subjectId');
+		const nextSubjectId = subjectValue ? Number(subjectValue) : null;
+		setSubjectFocusId(nextSubjectId != null && !Number.isNaN(nextSubjectId) ? nextSubjectId : null);
+
+		const sectionValue = searchParams.get('sectionId');
+		const nextSectionId = sectionValue ? Number(sectionValue) : null;
+		setSectionFocusId(nextSectionId != null && !Number.isNaN(nextSectionId) ? nextSectionId : null);
+	}, [searchParams]);
+
 	const allKnownSections = useMemo(() => {
 		return [...(sectionSummary?.sections ?? [])].sort(
 			(left, right) => left.displayOrder - right.displayOrder || left.name.localeCompare(right.name) || left.id - right.id,
@@ -442,6 +458,8 @@ export function useTeachingLoadData() {
 		setSelectedId,
 		subjectFocusId,
 		setSubjectFocusId,
+		sectionFocusId,
+		setSectionFocusId,
 		dataSource,
 		degradedNotice,
 		degradedWriteEnabled,

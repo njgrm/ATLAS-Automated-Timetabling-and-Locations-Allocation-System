@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import atlasApi from '@/lib/api';
 import { isUpstreamBackedSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
@@ -14,6 +14,50 @@ export type BuildingSetupStatus = {
 export type LifecyclePhase = 'SETUP' | 'PREFERENCES' | 'GENERATION' | 'REVIEW' | 'PUBLISHED';
 
 export type LatestRunStatus = 'NONE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+
+export type DashboardReadinessSourceState =
+	| 'verified_live'
+	| 'checking_source'
+	| 'using_saved_data'
+	| 'no_saved_data'
+	| 'partial_degraded';
+
+type DashboardReadinessSummary = {
+	schoolId: number;
+	activeSchoolYearId: number | null;
+	activeSchoolYearLabel: string | null;
+	resolvedAt: string;
+	sourceState: DashboardReadinessSourceState;
+	sourceMessage: string;
+	campus: {
+		buildings: Building[];
+		campusImageUrl: string | null;
+		teachingRoomCount: number;
+		totalRoomCount: number;
+		buildingSetupStatus: BuildingSetupStatus;
+	};
+	subjects: {
+		subjectCount: number;
+		unassignedSubjectCount: number;
+	};
+	faculty: {
+		facultyCount: number;
+		lastSyncedAt: string | null;
+	};
+	sections: {
+		sectionCount: number | null;
+		lastSyncedAt: string | null;
+	};
+	generation: {
+		latestRunStatus: LatestRunStatus;
+		latestRunId: number | null;
+		violationCount: number | null;
+		isPublished: boolean;
+		createdAt: string | null;
+		finishedAt: string | null;
+	};
+	lifecyclePhase: LifecyclePhase;
+};
 
 export type DashboardData = {
 	loading: boolean;
@@ -33,7 +77,17 @@ export type DashboardData = {
 	latestRunId: number | null;
 	violationCount: number | null;
 	lifecyclePhase: LifecyclePhase;
+	readinessSourceState: DashboardReadinessSourceState;
+	readinessSourceMessage: string;
+	readinessResolvedAt: string | null;
+	refreshDashboard: () => void;
 };
+
+function toDataSource(sourceState: DashboardReadinessSourceState): DashboardData['dataSource'] {
+	if (sourceState === 'verified_live') return 'live';
+	if (sourceState === 'using_saved_data' || sourceState === 'partial_degraded') return 'cached';
+	return 'none';
+}
 
 export function useDashboardData(): DashboardData {
 	const [buildings, setBuildings] = useState<Building[]>([]);
@@ -49,36 +103,62 @@ export function useDashboardData(): DashboardData {
 	const [latestRunStatus, setLatestRunStatus] = useState<LatestRunStatus>('NONE');
 	const [latestRunId, setLatestRunId] = useState<number | null>(null);
 	const [violationCount, setViolationCount] = useState<number | null>(null);
+	const [summaryTeachingRoomCount, setSummaryTeachingRoomCount] = useState<number | null>(null);
+	const [summaryTotalRoomCount, setSummaryTotalRoomCount] = useState<number | null>(null);
+	const [summaryBuildingSetupStatus, setSummaryBuildingSetupStatus] = useState<BuildingSetupStatus | null>(null);
+	const [summaryLifecyclePhase, setSummaryLifecyclePhase] = useState<LifecyclePhase | null>(null);
+	const [readinessSourceState, setReadinessSourceState] = useState<DashboardReadinessSourceState>('checking_source');
+	const [readinessSourceMessage, setReadinessSourceMessage] = useState('Checking readiness source.');
+	const [readinessResolvedAt, setReadinessResolvedAt] = useState<string | null>(null);
+	const [refreshNonce, setRefreshNonce] = useState(0);
+
+	const refreshDashboard = useCallback(() => {
+		setRefreshNonce((current) => current + 1);
+	}, []);
 
 	useEffect(() => {
+		let cancelled = false;
 		setLoading(true);
-		Promise.all([
+		setReadinessSourceState('checking_source');
+		setReadinessSourceMessage('Checking readiness source.');
+
+		const loadLegacyDashboardData = () => Promise.all([
 			atlasApi.get<{ buildings: Building[] }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
 			atlasApi.get<{ campusImageUrl: string | null }>(`/map/schools/${DEFAULT_SCHOOL_ID}/campus-image`).catch(() => ({ data: { campusImageUrl: null } })),
 			atlasApi.get<{ count: number; unassignedCount: number }>(`/subjects/stats/${DEFAULT_SCHOOL_ID}`).catch(() => ({ data: { count: 0, unassignedCount: 0 } })),
 		])
 			.then(([bRes, campusImageRes, statsRes]) => {
+				if (cancelled) return;
 				setBuildings(bRes.data.buildings);
 				setCampusImageUrl(campusImageRes.data.campusImageUrl ?? null);
 				setSubjectCount(statsRes.data.count);
 				setUnassignedSubjectCount(statsRes.data.unassignedCount ?? 0);
+				setSummaryTeachingRoomCount(null);
+				setSummaryTotalRoomCount(null);
+				setSummaryBuildingSetupStatus(null);
+				setSummaryLifecyclePhase(null);
 				atlasApi.get<{ faculty: unknown[] }>(`/faculty?schoolId=${DEFAULT_SCHOOL_ID}`)
-					.then((fRes) => setFacultyCount(fRes.data.faculty.length))
-					.catch(() => setFacultyCount(null));
+					.then((fRes) => { if (!cancelled) setFacultyCount(fRes.data.faculty.length); })
+					.catch(() => { if (!cancelled) setFacultyCount(null); });
 				resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false })
 					.then(async (context) => {
+						if (cancelled) return;
 						setDataSource(isUpstreamBackedSchoolYearSource(context.source) ? 'live' : 'cached');
+						setReadinessSourceState(isUpstreamBackedSchoolYearSource(context.source) ? 'verified_live' : 'using_saved_data');
+						setReadinessSourceMessage(isUpstreamBackedSchoolYearSource(context.source) ? 'Verified live readiness data.' : 'Using saved readiness data.');
+						setReadinessResolvedAt(context.cachedAt);
 						setActiveSchoolYearId(context.activeSchoolYearId ?? null);
 						setActiveSchoolYearLabel(context.activeSchoolYearLabel ?? null);
 						if (!context.activeSchoolYearId) { setSectionCount(null); return; }
 						const syId = context.activeSchoolYearId;
 						// Sections summary
 						atlasApi.get<{ totalSections: number }>(`/sections/summary/${syId}?schoolId=${DEFAULT_SCHOOL_ID}`)
-							.then((r) => setSectionCount(r.data.totalSections))
-							.catch(() => setSectionCount(null));
+							.then((r) => { if (!cancelled) setSectionCount(r.data.totalSections); })
+							.catch(() => { if (!cancelled) setSectionCount(null); });
 						// Latest generation run
 						atlasApi.get<{ run: { id: number; status: string } | null }>(`/generation/${DEFAULT_SCHOOL_ID}/${syId}/runs/latest`)
 							.then((r) => {
+								if (cancelled) return;
 								const run = r.data.run;
 								if (!run) { setLatestRunStatus('NONE'); setLatestRunId(null); return; }
 								setLatestRunId(run.id);
@@ -88,33 +168,81 @@ export function useDashboardData(): DashboardData {
 								else if (s === 'FAILED' || s === 'ERROR') setLatestRunStatus('FAILED');
 								else setLatestRunStatus('NONE');
 							})
-							.catch(() => { setLatestRunStatus('NONE'); setLatestRunId(null); });
+							.catch(() => { if (!cancelled) { setLatestRunStatus('NONE'); setLatestRunId(null); } });
 						// Latest violations
 						atlasApi.get<{ violations?: unknown[]; totalCount?: number }>(`/generation/${DEFAULT_SCHOOL_ID}/${syId}/runs/latest/violations`)
 							.then((r) => {
+								if (cancelled) return;
 								const total = typeof r.data.totalCount === 'number'
 									? r.data.totalCount
 									: Array.isArray(r.data.violations) ? r.data.violations.length : null;
 								setViolationCount(total);
 							})
-							.catch(() => setViolationCount(null));
+							.catch(() => { if (!cancelled) setViolationCount(null); });
 					})
-					.catch(() => setSectionCount(null));
+					.catch(() => {
+						if (!cancelled) {
+							setSectionCount(null);
+							setReadinessSourceState('partial_degraded');
+							setReadinessSourceMessage('Some readiness sources are unavailable.');
+						}
+					});
 			})
-			.catch(() => setBuildings([]))
-			.finally(() => setLoading(false));
-	}, []);
+			.catch(() => {
+				if (!cancelled) {
+					setBuildings([]);
+					setDataSource('none');
+					setReadinessSourceState('no_saved_data');
+					setReadinessSourceMessage('No saved readiness data is available yet.');
+				}
+			})
+			.finally(() => { if (!cancelled) setLoading(false); });
 
-	const totalRoomCount = useMemo(() => buildings.reduce((sum, b) => sum + b.rooms.length, 0), [buildings]);
+		atlasApi.get<DashboardReadinessSummary>('/dashboard/readiness-summary', { params: { schoolId: DEFAULT_SCHOOL_ID } })
+			.then((response) => {
+				if (cancelled) return;
+				const summary = response.data;
+				setBuildings(summary.campus.buildings ?? []);
+				setCampusImageUrl(summary.campus.campusImageUrl ?? null);
+				setSubjectCount(summary.subjects.subjectCount);
+				setUnassignedSubjectCount(summary.subjects.unassignedSubjectCount);
+				setFacultyCount(summary.faculty.facultyCount);
+				setSectionCount(summary.sections.sectionCount);
+				setDataSource(toDataSource(summary.sourceState));
+				setActiveSchoolYearId(summary.activeSchoolYearId);
+				setActiveSchoolYearLabel(summary.activeSchoolYearLabel);
+				setLatestRunStatus(summary.generation.latestRunStatus);
+				setLatestRunId(summary.generation.latestRunId);
+				setViolationCount(summary.generation.violationCount);
+				setSummaryTeachingRoomCount(summary.campus.teachingRoomCount);
+				setSummaryTotalRoomCount(summary.campus.totalRoomCount);
+				setSummaryBuildingSetupStatus(summary.campus.buildingSetupStatus);
+				setSummaryLifecyclePhase(summary.lifecyclePhase);
+				setReadinessSourceState(summary.sourceState);
+				setReadinessSourceMessage(summary.sourceMessage);
+				setReadinessResolvedAt(summary.resolvedAt);
+				setLoading(false);
+			})
+			.catch(() => {
+				void loadLegacyDashboardData();
+			});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [refreshNonce]);
+
+	const totalRoomCount = useMemo(() => summaryTotalRoomCount ?? buildings.reduce((sum, b) => sum + b.rooms.length, 0), [buildings, summaryTotalRoomCount]);
 	const teachingRoomCount = useMemo(
-		() => buildings.reduce(
+		() => summaryTeachingRoomCount ?? buildings.reduce(
 			(sum, b) => sum + (b.isTeachingBuilding !== false ? b.rooms.filter((r) => r.isTeachingSpace).length : 0),
 			0,
 		),
-		[buildings],
+		[buildings, summaryTeachingRoomCount],
 	);
 
 	const buildingSetupStatus = useMemo<BuildingSetupStatus>(() => {
+		if (summaryBuildingSetupStatus) return summaryBuildingSetupStatus;
 		const teachingBuildings = buildings.filter((b) => b.isTeachingBuilding !== false);
 		const teachingBuildingsWithoutRooms = teachingBuildings.filter((b) => b.rooms.length === 0);
 		const placeholderNamedBuildings = teachingBuildings.filter((b) => /^Building \d+$/.test(b.name));
@@ -134,9 +262,10 @@ export function useDashboardData(): DashboardData {
 			}
 		}
 		return { done, subMessage };
-	}, [buildings]);
+	}, [buildings, summaryBuildingSetupStatus]);
 
 	const lifecyclePhase = useMemo<LifecyclePhase>(() => {
+		if (summaryLifecyclePhase) return summaryLifecyclePhase;
 		const setupReady =
 			(subjectCount ?? 0) > 0 &&
 			(facultyCount ?? 0) > 0 &&
@@ -156,6 +285,7 @@ export function useDashboardData(): DashboardData {
 		sectionCount,
 		buildingSetupStatus.done,
 		latestRunStatus,
+		summaryLifecyclePhase,
 	]);
 
 	return {
@@ -176,5 +306,9 @@ export function useDashboardData(): DashboardData {
 		latestRunId,
 		violationCount,
 		lifecyclePhase,
+		readinessSourceState,
+		readinessSourceMessage,
+		readinessResolvedAt,
+		refreshDashboard,
 	};
 }

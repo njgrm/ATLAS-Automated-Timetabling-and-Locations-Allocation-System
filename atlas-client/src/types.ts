@@ -746,6 +746,10 @@ export type FacultyRoomPreferenceState = {
 	runId: number;
 	runVersion: number;
 	runGeneratedAt: string | null;
+	publishedAt?: string | null;
+	activeRevisionId?: number | null;
+	activeRevisionEffectiveDate?: string | null;
+	revisionMarker?: string | null;
 	entries: FacultyRoomPreferenceEntry[];
 	globalEntries: FacultyGlobalDraftEntry[];
 	recentRequests?: RoomPreferenceSummaryItem[];
@@ -1881,5 +1885,4 @@ export type SubjectSectionOwnershipIndexEntry = {
 	facultyId: number;
 	facultyName: string;
 };
-
 

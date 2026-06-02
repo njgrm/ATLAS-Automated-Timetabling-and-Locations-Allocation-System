@@ -12,6 +12,7 @@ import {
 	Wand2,
 	ClipboardList,
 	CalendarRange,
+	RefreshCw,
 	Sparkles,
 } from 'lucide-react';
 import { Badge } from '@/ui/badge';
@@ -32,6 +33,10 @@ interface StatTile {
 	icon: typeof BookOpen;
 	tone: StatTone;
 	warn?: boolean;
+	href: string;
+	actionLabel: string;
+	blockerCopy: string;
+	repairTarget: string;
 }
 
 const TONE: Record<StatTone, { iconBg: string; iconRing: string; footer: string }> = {
@@ -74,6 +79,22 @@ const PHASE_LABEL: Record<LifecyclePhase, string> = {
 	GENERATION: 'Generation phase',
 	REVIEW: 'Review phase',
 	PUBLISHED: 'Published',
+};
+
+const SOURCE_BADGE_COPY: Record<string, string> = {
+	verified_live: 'Verified live',
+	checking_source: 'Checking source',
+	using_saved_data: 'Using saved data',
+	no_saved_data: 'No saved data',
+	partial_degraded: 'Partial data',
+};
+
+const SOURCE_BADGE_CLASS: Record<string, string> = {
+	verified_live: 'border-0 bg-emerald-50 text-emerald-700 hover:bg-emerald-50',
+	checking_source: 'border-0 bg-sky-50 text-sky-700 hover:bg-sky-50',
+	using_saved_data: 'border-0 bg-sky-50 text-sky-700 hover:bg-sky-50',
+	no_saved_data: 'border-0 bg-slate-100 text-slate-600 hover:bg-slate-100',
+	partial_degraded: 'border-0 bg-amber-100 text-amber-700 hover:bg-amber-100',
 };
 
 type NextStep = {
@@ -187,7 +208,7 @@ function pickNextStep(args: {
 				title: 'Resolve scheduling violations',
 				body: `${violationCount} constraint violation${violationCount === 1 ? '' : 's'} need attention before publish.`,
 				cta: 'Open audit',
-				href: '/audit',
+				href: '/audit?focus=timetable',
 				warn: `${violationCount} blocker${violationCount === 1 ? '' : 's'}`,
 			};
 		}
@@ -222,6 +243,9 @@ export default function Dashboard() {
 		latestRunStatus,
 		violationCount,
 		lifecyclePhase,
+		readinessSourceState,
+		readinessSourceMessage,
+		refreshDashboard,
 	} = useDashboardData();
 
 	const next = pickNextStep({
@@ -247,6 +271,12 @@ export default function Dashboard() {
 			icon: GraduationCap,
 			tone: 'violet',
 			warn: sectionCount === null,
+			href: '/sections',
+			actionLabel: 'Check sections',
+			blockerCopy: sectionCount === null
+				? 'Generation needs the current school-year sections before it can build classes.'
+				: 'Section setup controls which classes must appear in the timetable.',
+			repairTarget: 'sections',
 		},
 		{
 			label: 'Subjects',
@@ -254,6 +284,10 @@ export default function Dashboard() {
 			footer: 'Curriculum loaded',
 			icon: BookOpen,
 			tone: 'brand',
+			href: '/subjects',
+			actionLabel: 'Review subjects',
+			blockerCopy: 'Curriculum gaps can leave sections without required classes.',
+			repairTarget: 'subjects',
 		},
 		{
 			label: 'Teachers',
@@ -261,6 +295,10 @@ export default function Dashboard() {
 			footer: 'Synced from EnrollPro',
 			icon: UserCheck,
 			tone: 'sky',
+			href: '/teachers',
+			actionLabel: 'Review teachers',
+			blockerCopy: 'Teacher roster gaps can stop subject coverage and schedule placement.',
+			repairTarget: 'teachers',
 		},
 		{
 			label: 'Teaching Rooms',
@@ -269,6 +307,10 @@ export default function Dashboard() {
 			icon: Building2,
 			tone: buildingSetupStatus.done ? 'brand' : 'amber',
 			warn: !buildingSetupStatus.done && !loading,
+			href: '/map',
+			actionLabel: 'Check rooms',
+			blockerCopy: 'Room setup tells ATLAS which spaces are safe to use for classes.',
+			repairTarget: 'map',
 		},
 	];
 
@@ -314,7 +356,27 @@ export default function Dashboard() {
 							Build, review, and publish the school timetable.
 						</p>
 					</div>
-					<div className='flex items-center gap-3'>
+					<div className='flex flex-wrap items-center gap-2'>
+						<Badge className={`${SOURCE_BADGE_CLASS[readinessSourceState]} font-semibold gap-1.5 px-3 py-1.5 rounded-full`}>
+							{readinessSourceState === 'partial_degraded' ? (
+								<AlertTriangle className='w-3.5 h-3.5' />
+							) : (
+								<CheckCircle2 className='w-3.5 h-3.5' />
+							)}
+							{SOURCE_BADGE_COPY[readinessSourceState]}
+						</Badge>
+						<Button
+							type='button'
+							variant='outline'
+							size='sm'
+							className='h-9 rounded-xl bg-white gap-2'
+							onClick={refreshDashboard}
+							disabled={loading}
+							aria-label='Check dashboard readiness for updates'
+						>
+							<RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+							Check for updates
+						</Button>
 						<Badge className='border-0 bg-primary/10 text-primary hover:bg-primary/10 font-semibold gap-1.5 px-3 py-1.5 rounded-full'>
 							<Sparkles className='w-3.5 h-3.5' />
 							{PHASE_LABEL[lifecyclePhase]}
@@ -333,39 +395,51 @@ export default function Dashboard() {
 					{stats.map((stat) => {
 						const tone = TONE[stat.tone];
 						return (
-							<Card
+							<Link
 								key={stat.label}
-								className='group border-0 shadow-soft hover:shadow-soft-xl transition-all duration-300 bg-white rounded-2xl overflow-hidden p-0'
+								to={stat.href}
+								data-repair-target={stat.repairTarget}
+								aria-label={`${stat.actionLabel}: ${stat.blockerCopy}`}
+								className='block h-full rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2'
 							>
-								<CardContent className='p-6 flex flex-col h-full'>
-									<div className='flex items-start justify-between gap-4'>
-										<div className='min-w-0'>
-											<p className='text-sm font-medium text-slate-500'>{stat.label}</p>
-											<p className='text-3xl font-bold text-slate-900 mt-2 tabular-nums'>
-												{stat.value}
-											</p>
+								<Card className='group h-full border-0 shadow-soft hover:shadow-soft-xl transition-all duration-300 bg-white rounded-2xl overflow-hidden p-0'>
+									<CardContent className='p-6 flex flex-col h-full'>
+										<div className='flex items-start justify-between gap-4'>
+											<div className='min-w-0'>
+												<p className='text-sm font-medium text-slate-500'>{stat.label}</p>
+												<p className='text-3xl font-bold text-slate-900 mt-2 tabular-nums'>
+													{stat.value}
+												</p>
+											</div>
+											<div
+												className={`p-3 rounded-xl text-primary-foreground shadow-lg ring-4 ${tone.iconBg} ${tone.iconRing} group-hover:scale-110 transition-transform`}
+											>
+												<stat.icon className='w-5 h-5' />
+											</div>
 										</div>
-										<div
-											className={`p-3 rounded-xl text-primary-foreground shadow-lg ring-4 ${tone.iconBg} ${tone.iconRing} group-hover:scale-110 transition-transform`}
-										>
-											<stat.icon className='w-5 h-5' />
+										<div className='mt-5 pt-4 border-t border-slate-100 space-y-2 text-sm'>
+											<div className='flex items-center gap-1.5'>
+												{stat.warn ? (
+													<>
+														<AlertTriangle className='w-4 h-4 text-amber-500' />
+														<span className='font-medium text-amber-600'>{stat.footer}</span>
+													</>
+												) : (
+													<>
+														<CheckCircle2 className={`w-4 h-4 ${tone.footer}`} />
+														<span className={`font-medium ${tone.footer}`}>{stat.footer}</span>
+													</>
+												)}
+											</div>
+											<p className='text-xs leading-relaxed text-slate-500'>{stat.blockerCopy}</p>
+											<span className='inline-flex items-center gap-1 text-xs font-semibold text-primary'>
+												{stat.actionLabel}
+												<ChevronRight className='w-3.5 h-3.5' />
+											</span>
 										</div>
-									</div>
-									<div className='mt-5 pt-4 border-t border-slate-100 flex items-center gap-1.5 text-sm'>
-										{stat.warn ? (
-											<>
-												<AlertTriangle className='w-4 h-4 text-amber-500' />
-												<span className='font-medium text-amber-600'>{stat.footer}</span>
-											</>
-										) : (
-											<>
-												<CheckCircle2 className={`w-4 h-4 ${tone.footer}`} />
-												<span className={`font-medium ${tone.footer}`}>{stat.footer}</span>
-											</>
-										)}
-									</div>
-								</CardContent>
-							</Card>
+									</CardContent>
+								</Card>
+							</Link>
 						);
 					})}
 				</div>
@@ -422,9 +496,12 @@ export default function Dashboard() {
 										>
 											{loading ? '…' : unassignedSubjectCount ?? 0}
 										</p>
+										<p className='mt-1 text-xs text-slate-500'>
+											Every subject needs a teacher before generation can place classes reliably.
+										</p>
 									</div>
 								</div>
-								<Link to='/teaching-load'>
+								<Link to='/teaching-load' data-repair-target='teaching-load'>
 									<Button
 										variant='ghost'
 										size='sm'
@@ -462,8 +539,9 @@ export default function Dashboard() {
 						<CardContent className='p-6'>
 							<h2 className='text-xl font-bold text-slate-900'>{next.title}</h2>
 							<p className='text-slate-500 mt-2 leading-relaxed'>{next.body}</p>
+							<p className='mt-2 text-sm font-medium text-slate-600'>{readinessSourceMessage}</p>
 							<div className='mt-6'>
-								<Link to={next.href}>
+								<Link to={next.href} data-repair-target='next-step'>
 									<Button className='gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl shadow-primary-glow'>
 										{next.cta}
 										<ArrowRight className='w-4 h-4' />

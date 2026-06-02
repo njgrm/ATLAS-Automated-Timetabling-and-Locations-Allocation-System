@@ -4,7 +4,7 @@ import { AlertCircle, BookOpen, Clock3, MapPin, RefreshCcw, Users } from 'lucide
 import atlasApi from '@/lib/api';
 import { describeSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { cacheFacultyIdentity, readCachedFacultyIdentity } from '@/lib/faculty-identity-cache';
-import { buildFacultyCacheKey, isLikelyOfflineError, readLatestFacultySnapshotByPrefix, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
+import { buildFacultyCacheKey, isLikelyOfflineError, readLatestFacultySnapshotByPrefix, removeFacultySnapshotsByPrefix, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
 import { buildPublishedScheduleCacheMarker, resolvePublishedScheduleRequestDate } from '@/lib/published-schedule-cache-key';
 import FacultyGlobalHeader from '@/components/faculty-shared/FacultyGlobalHeader';
 import { PublishedTimetableMatrix, formatShortTime, type PublishedScheduleMatrixEntry } from '@/components/published-schedule/PublishedTimetableMatrix';
@@ -103,9 +103,11 @@ export default function MySchedule() {
 	const [schedule, setSchedule] = useState<PublishedFacultySchedulePayload | null>(null);
 	const [usingCachedSchedule, setUsingCachedSchedule] = useState(false);
 	const [cachedScheduleAt, setCachedScheduleAt] = useState<string | null>(null);
+	const [checkingForUpdates, setCheckingForUpdates] = useState(false);
 
 	const loadSchedule = useCallback(async () => {
 		setLoading(true);
+		setCheckingForUpdates(true);
 		try {
 			const schoolYearContext = await resolveActiveSchoolYearContext({ allowStaleOnError: true, allowEnrollProFallback: false });
 			const schoolYearId = schoolYearContext.activeSchoolYearId;
@@ -146,6 +148,7 @@ export default function MySchedule() {
 				setError(null);
 				setUsingCachedSchedule(false);
 				setCachedScheduleAt(null);
+				removeFacultySnapshotsByPrefix(cachePrefix);
 				writeFacultySnapshot(`${cachePrefix}:${buildPublishedScheduleCacheMarker(data.source)}`, { facultyId: resolvedFacultyId, payload: data });
 			} catch (requestError) {
 				if (cachedSnapshot && isLikelyOfflineError(requestError)) {
@@ -177,6 +180,7 @@ export default function MySchedule() {
 			setError("We couldn't load your schedule context from ATLAS. Please try again.");
 		} finally {
 			setLoading(false);
+			setCheckingForUpdates(false);
 		}
 	}, []);
 
@@ -221,26 +225,34 @@ export default function MySchedule() {
 		if (usingCachedSchedule) {
 			const savedAt = cachedScheduleAt ? new Date(cachedScheduleAt).toLocaleString() : null;
 			return {
-				title: 'Your saved schedule',
-				message: savedAt ? `Unable to reach EnrollPro. Showing your saved schedule from ${savedAt}.` : 'Unable to reach EnrollPro. Showing your saved schedule.',
+				title: 'Showing latest saved schedule',
+				message: savedAt ? `Waiting for connection. Showing the schedule saved on this device from ${savedAt}.` : 'Waiting for connection. Showing the schedule saved on this device.',
 				variant: 'warning' as const,
+			};
+		}
+
+		if (checkingForUpdates) {
+			return {
+				title: 'Checking for updates',
+				message: 'We are checking whether your published schedule has changed.',
+				variant: 'info' as const,
 			};
 		}
 
 		if (schedule && schedule.entries.length === 0) {
 			return {
 				title: 'No classes assigned',
-				message: 'A published run exists, but no classes are currently assigned to your account.',
+				message: 'A published schedule exists, but no classes are currently assigned to your account.',
 				variant: 'info' as const,
 			};
 		}
 
 		return {
-			title: 'Published schedule view',
-			message: 'This page shows your approved published timetable only.',
+			title: 'Showing latest saved schedule',
+			message: 'This page shows your approved published timetable for today.',
 			variant: 'success' as const,
 		};
-	}, [cachedScheduleAt, schedule, usingCachedSchedule]);
+	}, [cachedScheduleAt, checkingForUpdates, schedule, usingCachedSchedule]);
 
 	if (loading) {
 		return (
@@ -288,6 +300,12 @@ export default function MySchedule() {
 				realtimeConnected={false}
 				advisory={advisory}
 				onRetryFailed={usingCachedSchedule ? () => void loadSchedule() : undefined}
+				rightSlot={(
+					<Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => void loadSchedule()} disabled={checkingForUpdates}>
+						<RefreshCcw className={`mr-2 size-4 ${checkingForUpdates ? 'animate-spin' : ''}`} />
+						{checkingForUpdates ? 'Checking' : 'Refresh schedule'}
+					</Button>
+				)}
 			/>
 
 			<div className="flex-1 min-h-0 overflow-auto px-4 py-5 sm:px-6 sm:py-6 pb-20 lg:pb-8">
@@ -356,7 +374,7 @@ export default function MySchedule() {
 							<Card className="rounded-2xl border-dashed border-border bg-card">
 								<CardContent className="px-4 py-8 text-center">
 									<p className="text-[13px] font-semibold text-foreground">No classes assigned</p>
-									<p className="mt-1 text-[12px] text-muted-foreground">A published run exists, but no classes are linked to you.</p>
+									<p className="mt-1 text-[12px] text-muted-foreground">A published schedule exists, but no classes are linked to you.</p>
 								</CardContent>
 							</Card>
 						)}
@@ -367,7 +385,7 @@ export default function MySchedule() {
 						<CardContent className="py-5">
 							<PublishedTimetableMatrix
 								entries={matrixEntries}
-								emptyMessage="A published run exists, but no classes are currently assigned to your account."
+								emptyMessage="A published schedule exists, but no classes are currently assigned to your account."
 								renderEntryDetails={(entry) => (
 									<>
 										<p className="flex items-center gap-1.5"><Clock3 className="size-3.5 shrink-0" /> {formatShortTime(entry.startTime)} - {formatShortTime(entry.endTime)}</p>
@@ -380,8 +398,8 @@ export default function MySchedule() {
 					</Card>
 
 					<div className="flex items-center justify-between gap-3 text-[12px] text-muted-foreground">
-						<span>Version reference #{schedule?.source.runId ?? '—'} · {formatRevisionReference(schedule?.source)} · Published {formatTimestamp(schedule?.source.publishedAt ?? null)}</span>
-						{usingCachedSchedule ? <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">Saved snapshot</Badge> : <Badge variant="outline">Live</Badge>}
+						<span>Schedule version #{schedule?.source.runId ?? '—'} · {formatRevisionReference(schedule?.source)} · Published {formatTimestamp(schedule?.source.publishedAt ?? null)}</span>
+						{usingCachedSchedule ? <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">Saved schedule</Badge> : <Badge variant="outline">Up to date</Badge>}
 					</div>
 				</div>
 			</div>

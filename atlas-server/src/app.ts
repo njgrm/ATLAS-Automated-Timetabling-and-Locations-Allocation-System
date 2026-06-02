@@ -36,6 +36,7 @@ import publishedRevisionRouter from './routes/published-revision.router.js';
 import classTemplateRouter from './routes/class-template.router.js';
 import specializationAliasRouter from './routes/specialization-alias.router.js';
 import runtimeRouter from './routes/runtime.router.js';
+import dashboardRouter from './routes/dashboard.router.js';
 
 const app = express();
 
@@ -105,6 +106,7 @@ app.use('/api/v1', publishedScheduleRouter);
 app.use('/api/v1/class-templates', classTemplateRouter);
 app.use('/api/v1/specialization-aliases', specializationAliasRouter);
 app.use('/api/v1/runtime', runtimeRouter);
+app.use('/api/v1/dashboard', dashboardRouter);
 
 // Error handler
 app.use(errorHandler);
