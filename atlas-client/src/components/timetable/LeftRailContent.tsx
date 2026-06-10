@@ -1,29 +1,13 @@
-import { AnimatePresence, motion } from 'motion/react';
 import { useEffect } from 'react';
 import {
-AlertTriangle,
-Check,
-ChevronDown,
-ChevronRight,
 ClipboardList,
-Flag,
 GripVertical,
-Info,
-Lightbulb,
-Loader2,
 Lock,
 RefreshCw,
 Search,
-ShieldAlert,
 UserX,
-Wand2,
-X,
-Zap,
 } from 'lucide-react';
-import atlasApi from '@/lib/api';
-import { getDefaultUnassignedReasonDetail, getProgramBadgeLabel, matchesProgramFilter } from '@/lib/schedule-review-helpers';
 import { cn } from '@/lib/utils';
-import type { FixSuggestionsResponse } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
@@ -31,8 +15,8 @@ import { ScrollArea } from '@/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Skeleton } from '@/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
-import { ViolationGroup } from '@/components/timetable/TimetableShared';
-import { DraggablePlacementPin, DraggableQueuePin, DraggableUnassignedPin, PinnedRailDropZone, UnassignDropZone } from '@/components/timetable/DraggablePinWrappers';
+import { DraggablePlacementPin, DraggableQueuePin, PinnedRailDropZone, UnassignDropZone } from '@/components/timetable/DraggablePinWrappers';
+import { GeneratedUnassignedPanel, GeneratedViolationsPanel } from '@/components/timetable/GeneratedRunRailPanels';
 import type { LeftRailContentContext } from '@/components/timetable/timetableContexts.types';
 
 type LeftRailContentProps = {
@@ -64,34 +48,11 @@ setDragItem,
 toast,
 summary,
 filteredUnassignedItems,
-programKindFilteredUnassignedItems,
-unassignedPageSize,
-setUnassignedPageSize,
 UNASSIGNED_REASON_LABELS,
 unassignedReasonFilter,
-setUnassignedReasonFilter,
-resolveEntryProgramType,
-resolveEntryProgramCode,
 sectionLabel,
 subjectLabel,
-kbSelectedSource,
-buildUnassignedKey,
-followUps,
-expandedUnassigned,
-setExpandedUnassigned,
-unassignedFixSuggestions,
-fixLoading,
 schoolYearId,
-runs,
-selectedRunId,
-defaultSchoolId,
-setFixLoading,
-setUnassignedFixSuggestions,
-entryContextLabel,
-previewEdit,
-setDrawerUnassigned,
-setFollowUps,
-showSoftConfirm,
 unassignDropActive,
 setUnassignDropActive,
 pinnedRailDropActive,
@@ -194,579 +155,25 @@ focusPinnedPlacement,
 	const violationGroups = Array.from(violationsByCode.entries());
 	const visibleViolationGroups = violationGroups.slice(0, violationsGroupPage);
 	const hasMoreViolationGroups = violationGroups.length > visibleViolationGroups.length;
-	const visibleUnassignedItems = filteredUnassignedItems.slice(0, unassignedPageSize);
-	const hasMoreUnassignedItems = filteredUnassignedItems.length > visibleUnassignedItems.length;
 
 	useEffect(() => {
 		setViolationsGroupPage(10);
 	}, [violationSearch, filteredViolations.length, setViolationsGroupPage]);
-
-	useEffect(() => {
-		setUnassignedPageSize(40);
-	}, [unassignedReasonFilter, filteredUnassignedItems.length, setUnassignedPageSize]);
 return (
-<>{leftTab === 'violations' && !isPreGenerationWorkspace ? (
-						<div id="panel-violations" role="tabpanel" aria-labelledby="tab-violations" className="flex flex-col flex-1 min-h-0">
-							{/* Top blockers quick list */}
-							{hardViolationCount > 0 && (
-								<div className="shrink-0 px-3 py-2 border-b border-red-100 bg-red-50/50">
-									<div className="flex items-center gap-1.5 text-[0.625rem] font-semibold text-red-700 mb-1">
-										<ShieldAlert className="size-3" />
-										Top blockers ({hardViolationCount} hard)
-									</div>
-									<div className="space-y-0.5">
-										{topBlockers.map((v, i) => {
-											const count = violations.filter((vv) => vv.code === v.code && vv.severity === 'HARD').length;
-											return (
-												<button
-													key={i}
-													type="button"
-													onClick={() => {
-														handleViolationSelect(v);
-														setSeverityFilter('hard');
-													}}
-													className="flex items-center gap-1.5 w-full text-left text-[0.5625rem] text-red-800 hover:text-red-600 hover:bg-red-100/60 rounded px-1 py-0.5 transition-colors"
-												>
-													<ChevronRight className="size-2.5 shrink-0" />
-													<span className="truncate flex-1">{VIOLATION_LABELS[v.code]}</span>
-													<span className="shrink-0 text-red-500 font-medium">×{count}</span>
-												</button>
-											);
-										})}
-									</div>
-								</div>
-							)}
-							{hardViolationCount === 0 && violations.length === 0 && (
-								<div className="shrink-0 px-3 py-2 border-b border-emerald-100 bg-emerald-50/50">
-									<div className="flex items-center gap-1.5 text-[0.625rem] font-medium text-emerald-700">
-										<Check className="size-3" />
-												No violations — schedule is clean
-									</div>
-								</div>
-							)}
-							<div className="shrink-0 px-3 py-2">
-								<div className="relative">
-									<Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-									<Input
-										placeholder="Search violations…"
-										value={violationSearch}
-										onChange={(e) => setViolationSearch(e.target.value)}
-										className="h-7 pl-7 text-xs"
-									/>
-									{violationSearch && (
-										<button
-											type="button"
-											aria-label="Clear search"
-											onClick={() => setViolationSearch('')}
-											className="absolute right-2 top-1/2 -translate-y-1/2"
-										>
-											<X className="size-3 text-muted-foreground" />
-										</button>
-									)}
-								</div>
-							</div>
-							<ScrollArea className="flex-1 min-h-0">
-								<div className="px-3 pb-3 space-y-1">
-									{/* Wave 4.5b item 12: info banner in pre-gen mode */}
-									{isPreGenerationWorkspace && (
-										<div className="mb-2 flex items-start gap-2 rounded border border-primary/20 bg-primary/5 px-2.5 py-2 text-[0.625rem] text-primary">
-											<Info className="size-3 shrink-0 mt-0.5" />
-											<span>Constraint data shown is from the last generated run. Pre-gen placements are validated individually when saved.</span>
-										</div>
-									)}
-									{filteredViolations.length === 0 ? (
-										<div className="py-6 text-center text-xs text-muted-foreground">
-											{violations.length === 0 ? 'No violations found' : 'No matching violations'}
-										</div>
-									) : (
-										visibleViolationGroups.map(([code, vList]) => (
-											<ViolationGroup
-												key={code}
-												code={code}
-												violations={vList}
-												selectedViolation={selectedViolation}
-												onSelect={handleViolationSelect}
-												onExplain={setDrawerViolation}
-												formatConstraintMessage={formatConstraintMessage}
-												labels={VIOLATION_LABELS}
-											/>
-										))
-									)}
-									{hasMoreViolationGroups && (
-										<div className="pt-1">
-											<Button
-												variant="outline"
-												size="sm"
-												className="h-6 w-full text-[0.625rem]"
-												onClick={() => setViolationsGroupPage((prev) => prev + 10)}
-											>
-												Load more groups ({violationGroups.length - visibleViolationGroups.length} left)
-											</Button>
-										</div>
-									)}
-								</div>
-							</ScrollArea>
-						</div>
-					) : leftTab === 'unassigned' && !isPreGenerationWorkspace ? (
-						<ScrollArea id="panel-unassigned" role="tabpanel" aria-labelledby="tab-unassigned" className="flex-1 min-h-0">
-							<div className="px-3 py-3 space-y-3">
-								{/* Wave 4.5 E: Pre-gen mode shows draftBoard.queue as the demand source */}
-								{isPreGenerationWorkspace && draftBoard ? (
-									<>
-										<div className="flex items-center gap-2 rounded border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-[0.625rem] text-primary font-medium">
-											<ClipboardList className="size-3 shrink-0" />
-											Pre-gen demand (unscheduled sessions)
-										</div>
-										{!isDesktop && (
-											<p className="text-[0.625rem] text-muted-foreground px-0.5">
-												Tap a session to open the placement sheet. Drag-and-drop requires a wider screen.
-											</p>
-										)}
-										{draftBoard.queue.length === 0 ? (
-											<p className="text-xs text-muted-foreground text-center py-6">All sessions have been anchored.</p>
-										) : (
-											<div className="space-y-1.5">
-												{draftBoard.queue.map((item) => {
-													const grade = item.gradeLevel;
-													const gradeBadge = grade ? GRADE_BADGE[grade] : undefined;
-													return (
-														<DraggableQueuePin
-															key={item.assignmentKey}
-															item={item}
-															disabled={!isDesktop}
-															className="flex flex-col gap-1 rounded border border-border bg-card px-2 py-1.5 text-xs cursor-grab active:cursor-grabbing hover:border-primary/40 hover:bg-primary/5 transition-colors"
-															onClick={() => {
-																setDragItem({ type: 'draftQueue', item });
-																toast.info('Session selected — now tap an empty slot on the timetable to place it.');
-															}}
-														>
-															<div className="flex items-center gap-1.5 min-w-0">
-																<GripVertical className="size-3 text-muted-foreground/50 shrink-0" />
-																{gradeBadge && (
-																	<Badge variant="outline" className={`h-4 px-1 text-[0.5625rem] shrink-0 ${gradeBadge}`}>
-																		G{grade}
-																	</Badge>
-																)}
-																{item.cohortCode && (
-																	<Badge variant="outline" className="h-4 px-1 text-[0.5625rem] shrink-0 border-sky-300 bg-sky-50 text-sky-700">
-																		{item.cohortCode}
-																	</Badge>
-																)}
-																{item.hasNoTeacher && (
-																	<UserX className="size-3 text-amber-500 shrink-0" aria-label="No teacher assigned in teaching load" />
-																)}
-																<span className="font-medium truncate min-w-0">{item.subjectCode}</span>
-															</div>
-															<div className="flex items-center gap-1.5 text-[0.5625rem] text-muted-foreground pl-4.5">
-																<span className="truncate">G{item.gradeLevel} · {item.sectionName}</span>
-																<span>·</span>
-																<span>Session {item.sessionNumber}/{item.sessionsPerWeek}</span>
-															</div>
-														</DraggableQueuePin>
-													);
-												})}
-											</div>
-										)}
-									</>
-								) : summary ? (
-									<>
-										{/* Dense Inline Stat Block */}
-										<div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-border bg-muted/20 px-3 py-1.5 text-xs">
-											<div className="flex items-center gap-1.5">
-												<span className="text-muted-foreground font-medium">Processed</span>
-												<span className="font-bold">{summary.classesProcessed}</span>
-											</div>
-											<div className="flex items-center gap-1.5">
-												<span className="text-muted-foreground font-medium">Assigned</span>
-												<span className="font-bold text-emerald-600">{summary.assignedCount}</span>
-											</div>
-											<div className="flex items-center gap-1.5">
-												<span className="text-muted-foreground font-medium">Unassigned</span>
-												<span className={`font-bold ${summary.unassignedCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{summary.unassignedCount}</span>
-											</div>
-											{typeof summary.homeRoomSuccessRate === 'number' && (
-												<div className="flex items-center gap-1.5">
-													<span className="text-muted-foreground font-medium">Home-Room</span>
-													<span className="font-bold text-sky-700">{summary.homeRoomSuccessRate}%</span>
-												</div>
-											)}
-										</div>
-										{summary.resourceDiagnostics && (
-											<div className="rounded border border-border/70 bg-background/70 px-2.5 py-2 space-y-2 text-[0.625rem]">
-												<div className="font-semibold text-muted-foreground uppercase tracking-wide">Resource Diagnostics</div>
-												<div className="space-y-1">
-													<div className="font-medium">Lowest teaching-load coverage</div>
-													{summary.resourceDiagnostics.qualifiedFacultyCoverageBySubject.slice(0, 3).map((row) => (
-														<div key={`coverage-${row.subjectId}`} className="flex items-center justify-between text-muted-foreground">
-															<span>{row.subjectCode}</span>
-															<span className="font-semibold text-amber-700">{row.coveragePercent}%</span>
-														</div>
-													))}
-												</div>
-												<div className="space-y-1">
-													<div className="font-medium">Most saturated intervals</div>
-													{summary.resourceDiagnostics.slotSaturationByInterval.slice(0, 3).map((row, idx) => (
-														<div key={`sat-${idx}-${row.day}-${row.startTime}-${row.endTime}`} className="flex items-center justify-between text-muted-foreground">
-															<span>{row.day.slice(0, 3)} {row.startTime}-{row.endTime}</span>
-															<span className="font-semibold text-rose-700">{row.saturationPercent}%</span>
-														</div>
-													))}
-												</div>
-												<div className="space-y-1">
-													<div className="font-medium">Top unassigned clusters</div>
-													{summary.resourceDiagnostics.unassignedBySubjectGrade.slice(0, 3).map((row) => (
-														<div key={`unassigned-${row.subjectId}-${row.gradeLevel}`} className="flex items-center justify-between text-muted-foreground">
-															<span>{row.subjectCode} • G{row.gradeLevel}</span>
-															<span className="font-semibold text-amber-700">{row.count}</span>
-														</div>
-													))}
-												</div>
-												{summary.resourceDiagnostics.roomAssignmentReasonCounts && (
-													<div className="space-y-1">
-														<div className="font-medium">Room assignment reasons</div>
-														{Object.entries(summary.resourceDiagnostics.roomAssignmentReasonCounts).slice(0, 3).map(([reason, count]) => (
-															<div key={`reason-${reason}`} className="flex items-center justify-between text-muted-foreground">
-																<span>{reason}</span>
-																<span className="font-semibold text-sky-700">{count}</span>
-															</div>
-														))}
-													</div>
-												)}
-												{summary.resourceDiagnostics.zoneDistributionByTerm?.[0] && (
-													<div className="space-y-1">
-														<div className="font-medium">Zone distribution (Term {summary.resourceDiagnostics.zoneDistributionByTerm[0].termIndex})</div>
-														{Object.entries(summary.resourceDiagnostics.zoneDistributionByTerm[0].byZone).slice(0, 3).map(([zone, data]) => (
-															<div key={`zone-${zone}`} className="flex items-center justify-between text-muted-foreground">
-																<span>{zone}</span>
-																<span className="font-semibold text-rose-700">{data.percent}%</span>
-															</div>
-														))}
-													</div>
-												)}
-											</div>
-										)}
-										{/* Unassigned items list */}
-										{filteredUnassignedItems.length > 0 && (
-											<div className="space-y-2">
-												{/* Reason filter chips */}
-												<div className="flex flex-wrap gap-1">
-													{(['all', 'NO_QUALIFIED_FACULTY', 'FACULTY_OVERLOADED', 'NO_AVAILABLE_SLOT', 'NO_COMPATIBLE_ROOM'] as const).map((r) => {
-														const label = r === 'all' ? 'All' : (UNASSIGNED_REASON_LABELS[r]?.label ?? r);
-														const count = r === 'all'
-															? programKindFilteredUnassignedItems.length
-															: programKindFilteredUnassignedItems.filter((it) => it.reason === r).length;
-														if (r !== 'all' && count === 0) return null;
-														return (
-															<button
-																key={r}
-																onClick={() => setUnassignedReasonFilter(r)}
-																className={`rounded-full px-2 py-0.5 text-[0.5625rem] font-medium transition-colors ${
-																	unassignedReasonFilter === r
-																		? 'bg-primary text-primary-foreground'
-																		: 'bg-muted text-muted-foreground hover:bg-muted/80'
-																}`}
-															>
-																{label} ({count})
-															</button>
-														);
-													})}
-												</div>
-												<span className="text-[0.6875rem] font-medium text-muted-foreground">
-														Use recovery tools only when a session stays blocked after generation
-													</span>
-												{visibleUnassignedItems.map((item, i) => {
-													const grade = item.gradeLevel;
-													const gradeBadge = grade ? GRADE_BADGE[grade] : undefined;
-													const isKbSelected = kbSelectedSource?.type === 'unassigned'
-														&& kbSelectedSource.item.sectionId === item.sectionId
-														&& kbSelectedSource.item.subjectId === item.subjectId
-																										&& kbSelectedSource.item.session === item.session
-																										&& (kbSelectedSource.item.cohortCode ?? '') === (item.cohortCode ?? '');
-													const itemKey = buildUnassignedKey(item);
-													const isFollowUp = followUps.has(itemKey);
-													const isExpanded = expandedUnassigned.has(itemKey);
-													const cachedFix = unassignedFixSuggestions[itemKey];
-													return (
-														<DraggableUnassignedPin
-															key={`${itemKey}-${i}`}
-															itemKey={itemKey}
-															item={item}
-															disabled={false}
-															className={`rounded border text-xs transition-colors ${
-																isKbSelected
-																	? 'border-primary bg-primary/10 ring-2 ring-primary'
-																	: isFollowUp
-																		? 'border-amber-300 bg-amber-50/80'
-																		: 'border-amber-200 bg-amber-50/50 hover:border-amber-300'
-															}`}
-														>
-															<button
-																type="button"
-																className="w-full max-w-full overflow-hidden text-left px-2 py-1.5 space-y-1 cursor-grab active:cursor-grabbing"
-																onClick={() => {
-																	setExpandedUnassigned((prev) => {
-																		const next = new Set(prev);
-																		if (next.has(itemKey)) next.delete(itemKey);
-																		else next.add(itemKey);
-																		return next;
-																	});
-																	setKbSelectedSource(isKbSelected ? null : { type: 'unassigned', item });
-																}}
-															>
-																<div className="flex items-center gap-1.5 min-w-0">
-																	<ChevronDown className={`size-3 text-muted-foreground shrink-0 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
-																	<GripVertical className="size-3 text-muted-foreground/50 shrink-0" />
-																	{gradeBadge && (
-																		<Badge variant="outline" className={`h-4 px-1 text-[0.5625rem] shrink-0 ${gradeBadge}`}>
-																			G{grade}
-																		</Badge>
-																	)}
-																	{item.entryKind === 'COHORT' && item.cohortCode && (
-																		<Badge variant="outline" className="h-4 px-1 text-[0.5625rem] shrink-0 border-sky-300 bg-sky-50 text-sky-700">
-																			{item.cohortCode}
-																		</Badge>
-																	)}
-																	<span className="font-medium truncate min-w-0">{sectionLabel(item.sectionId)}</span>
-																	<span className="text-muted-foreground shrink-0">·</span>
-																	<span className="truncate min-w-0">{subjectLabel(item.subjectId)}</span>
-																</div>
-																<div className="flex items-center gap-1.5 text-[0.625rem] text-muted-foreground pl-4.5">
-																	{renderUnassignedReasonBadge(item.reason)}
-																	{matchesProgramFilter(resolveEntryProgramType(item), 'SPECIAL') && (
-																		<Badge variant="outline" className="h-4 px-1 text-[0.5625rem] border-violet-300 bg-violet-50 text-violet-700">
-																			{getProgramBadgeLabel(resolveEntryProgramType(item), resolveEntryProgramCode(item))}
-																		</Badge>
-																	)}
-																	<span className="opacity-60 font-medium">Session {item.session}</span>
-																	<span className="ml-auto text-red-600/80 font-semibold tracking-wide uppercase text-[0.5rem] flex items-center gap-0.5">
-																		<AlertTriangle className="size-2.5" /> Blocker
-																	</span>
-																</div>
-															</button>
-															{/* Expanded detail panel */}
-															<AnimatePresence>
-																{isExpanded && (
-																	<motion.div
-																		initial={{ height: 0, opacity: 0 }}
-																		animate={{ height: 'auto', opacity: 1 }}
-																		exit={{ height: 0, opacity: 0 }}
-																		transition={{ duration: 0.15 }}
-																		className="overflow-hidden"
-																	>
-																		<div className="px-2 pb-2 pt-1 border-t border-amber-200 space-y-2">
-																			{/* Reason explanation */}
-																			<div className="rounded border border-red-200 bg-red-50/50 p-2 space-y-1">
-																				<div className="flex items-center gap-1.5 text-[0.625rem] text-red-800 font-medium">
-																					<AlertTriangle className="size-3" />
-																					Why blocked
-																				</div>
-																				<p className="font-medium text-[0.6875rem] text-red-900 wrap-break-word whitespace-normal leading-snug">
-																					{unassignedFixSuggestions[itemKey]
-																						? unassignedFixSuggestions[itemKey]!.humanDetail
-																						: getDefaultUnassignedReasonDetail(item)
-																					}
-																				</p>
-																			</div>
-																			{/* Impact */}
-																			<div className="flex items-center gap-1.5 text-[0.625rem]">
-																				<ShieldAlert className="size-2.5 text-red-600 shrink-0" />
-																				<span className="text-red-700 font-medium">Recovery required</span>
-																				<span className="text-muted-foreground">— this session still needs an operator review before publishing</span>
-																			</div>
-																			{(item.entryKind === 'COHORT' || item.adviserName) && (
-																				<div className="rounded border border-border bg-background px-2 py-1.5 text-[0.625rem] text-muted-foreground">
-																					{entryContextLabel(item)}
-																				</div>
-																			)}
-																			{/* Fix suggestions (inline) */}
-																			{cachedFix === undefined ? (
-																				<Button
-																					variant="outline"
-																					size="sm"
-																					className="w-full h-6 text-[0.5625rem] gap-1"
-																					disabled={fixLoading === itemKey}
-																					onClick={async (e) => {
-																						e.stopPropagation();
-																						// Resolve run ID - if 'latest', use first run id
-																						const resolvedRunId = selectedRunId === 'latest' ? runs[0]?.id : selectedRunId;
-																						if (!resolvedRunId) {
-																							toast.error('No generation run selected');
-																							return;
-																						}
-																						setFixLoading(itemKey);
-																						try {
-																							const { data } = await atlasApi.post<FixSuggestionsResponse>(
-																								`/generation/${defaultSchoolId}/${schoolYearId}/runs/${resolvedRunId}/fix-suggestions`,
-																								{
-																									sectionId: item.sectionId,
-																									subjectId: item.subjectId,
-																									gradeLevel: item.gradeLevel,
-																									session: item.session,
-																									reason: item.reason,
-																									entryKind: item.entryKind,
-																									programType: item.programType,
-																									programCode: item.programCode,
-																									programName: item.programName,
-																									cohortCode: item.cohortCode,
-																									cohortName: item.cohortName,
-																									cohortMemberSectionIds: item.cohortMemberSectionIds,
-																									cohortExpectedEnrollment: item.cohortExpectedEnrollment,
-																									adviserId: item.adviserId,
-																									adviserName: item.adviserName,
-																								},
-																							);
-																							setUnassignedFixSuggestions((prev) => ({
-																								...prev,
-																								[itemKey]: data.explanation,
-																							}));
-																						} catch (err: unknown) {
-																							// Handle auth/permission errors with user-friendly messages
-																							const error = err as { response?: { status?: number; data?: { code?: string } } };
-																							const status = error.response?.status;
-																							const code = error.response?.data?.code;
-																							if (status === 401) {
-																								const msg = code === 'TOKEN_EXPIRED' 
-																									? 'Session expired. Re-open ATLAS from EnrollPro.'
-																									: 'Session missing or invalid. Re-open ATLAS from EnrollPro.';
-																								toast.error(msg);
-																							} else if (status === 403) {
-																								toast.error('You do not have permission to request fix suggestions.');
-																							} else if (status === 400) {
-																								toast.error('Fix suggestion request is invalid. Please refresh run data and try again.');
-																							} else {
-																								toast.error('Could not fetch fix suggestions');
-																							}
-																							setUnassignedFixSuggestions((prev) => ({
-																								...prev,
-																								[itemKey]: null,
-																							}));
-																						} finally {
-																							setFixLoading(null);
-																						}
-																					}}
-																				>
-																					{fixLoading === itemKey ? (
-																						<Loader2 className="size-2.5 animate-spin" />
-																					) : (
-																						<Wand2 className="size-2.5" />
-																					)}
-																					Load fix suggestions
-																				</Button>
-																			) : cachedFix === null ? (
-																				<div className="text-[0.625rem] text-muted-foreground italic px-1">
-																					Could not load suggestions. Try again later.
-																				</div>
-																			) : (
-																				<div className="space-y-1.5">
-																					<div className="text-[0.625rem] font-semibold text-foreground flex items-center gap-1">
-																						<Wand2 className="size-2.5 text-primary" />
-																						Recommended fixes ({cachedFix.suggestions.length})
-																					</div>
-																					{cachedFix.suggestions.length === 0 ? (
-																						<div className="text-[0.625rem] text-muted-foreground italic">
-																							No automatic fix available. Manual intervention needed.
-																						</div>
-																					) : (
-																						cachedFix.suggestions.map((sug, si) => (
-																							<div key={si} className="rounded border border-border bg-background px-2 py-1.5 space-y-1">
-																								<div className="flex items-center gap-1">
-																									<span className="text-[0.625rem] font-medium text-foreground">{si + 1}. {sug.label}</span>
-																								</div>
-																								<p className="text-[0.5625rem] text-muted-foreground leading-relaxed">{sug.description}</p>
-																								{sug.proposal && (
-																									<Button
-																										variant="outline"
-																										size="sm"
-																										className="h-5 text-[0.5rem] gap-0.5 mt-0.5"
-																										onClick={(e) => {
-																											e.stopPropagation();
-																											if (sug.proposal) {
-																												previewEdit(sug.proposal);
-																											}
-																										}}
-																									>
-																										<Zap className="size-2" />
-																										Preview & Apply
-																									</Button>
-																								)}
-																								{sug.policyHint && (
-																									<p className="text-[0.5rem] text-muted-foreground/70 italic">
-																										Policy: {sug.policyHint}
-																									</p>
-																								)}
-																							</div>
-																						))
-																					)}
-																				</div>
-																			)}
-																			{/* Quick action row */}
-																			<div className="flex items-center gap-1 pt-0.5" onClick={(e) => e.stopPropagation()}>
-																				<Button
-																					variant="ghost"
-																					size="sm"
-																					className="h-5 px-1.5 text-[0.5625rem] gap-0.5"
-																					onClick={() => setDrawerUnassigned(item)}
-																				>
-																					<Lightbulb className="size-2.5" />
-																					Full explanation
-																				</Button>
-																				<Button
-																					variant="ghost"
-																					size="sm"
-																					className={`h-5 px-1.5 text-[0.5625rem] gap-0.5 ${isFollowUp ? 'text-amber-600' : ''}`}
-																					onClick={() => {
-																						setFollowUps((prev) => {
-																							const next = new Set(prev);
-																							if (next.has(itemKey)) next.delete(itemKey);
-																							else next.add(itemKey);
-																							return next;
-																						});
-																						toast.info(isFollowUp ? 'Follow-up removed' : 'Marked for follow-up');
-																					}}
-																				>
-																					<Flag className={`size-2.5 ${isFollowUp ? 'fill-amber-500' : ''}`} />
-																					{isFollowUp ? 'Unflag' : 'Flag'}
-																				</Button>
-																			</div>
-																		</div>
-																	</motion.div>
-																)}
-															</AnimatePresence>
-														</DraggableUnassignedPin>
-													);
-												})}
-												{hasMoreUnassignedItems && (
-													<Button
-														variant="outline"
-														size="sm"
-														className="h-6 w-full text-[0.625rem]"
-														onClick={() => setUnassignedPageSize((prev) => prev + 40)}
-													>
-														Load more sessions ({filteredUnassignedItems.length - visibleUnassignedItems.length} left)
-													</Button>
-												)}
-											</div>
-										)}
-										{summary.unassignedCount === 0 && (
-											<div className="py-4 text-center text-xs text-muted-foreground">
-												<Check className="mx-auto size-6 text-emerald-500 mb-1" />
-												All classes assigned successfully
-											</div>
-										)}
-										{summary.unassignedCount > 0 && filteredUnassignedItems.length === 0 && (
-											<div className="py-4 text-center text-xs text-muted-foreground">
-												No unassigned items match the current program, entry type, and reason filters.
-											</div>
-										)}
-									</>
-								) : (
-									<div className="py-6 text-center text-xs text-muted-foreground">
-										No draft data available
-									</div>
-								)}
-							</div>
-						</ScrollArea>
-					) : isPreGenerationWorkspace && (leftTab === 'unassigned' || leftTab === 'pinned') ? (
+<>
+{leftTab === 'violations' && !isPreGenerationWorkspace ? (
+	<GeneratedViolationsPanel
+		context={context}
+		visibleViolationGroups={visibleViolationGroups}
+		violationGroups={violationGroups}
+		hasMoreViolationGroups={hasMoreViolationGroups}
+	/>
+) : leftTab === 'unassigned' && !isPreGenerationWorkspace ? (
+	<GeneratedUnassignedPanel
+		context={context}
+		renderUnassignedReasonBadge={renderUnassignedReasonBadge}
+	/>
+) : isPreGenerationWorkspace && (leftTab === 'unassigned' || leftTab === 'pinned') ? (
 						<div id={leftTab === 'pinned' ? 'panel-pinned' : 'panel-unassigned'} role="tabpanel" aria-labelledby={leftTab === 'pinned' ? 'tab-pinned' : 'tab-unassigned'} className="flex flex-col flex-1 min-h-0">
 							<div className="shrink-0 border-b border-border px-3 py-2">
 								<div className="flex items-center justify-between gap-2">
@@ -916,9 +323,9 @@ return (
 												})}
 											</div>
 											{filteredPreGenQueue.length > pinsQueuePage && (
-											<button type="button" className="mt-1 w-full rounded border border-dashed border-border py-1.5 text-center text-[0.6875rem] text-muted-foreground hover:bg-muted/30 transition-colors" onClick={() => setPinsQueuePage((p) => p + 30)}>
+											<Button type="button" variant="outline" size="sm" className="mt-1 h-8 w-full border-dashed text-[0.6875rem] text-muted-foreground" onClick={() => setPinsQueuePage((p) => p + 30)}>
 												Load more
-											</button>
+											</Button>
 										)}
 											{(draftBoard?.queue.length ?? 0) === 0 ? (
 											<p className="rounded border border-dashed border-border px-2 py-3 text-center text-[0.6875rem] text-muted-foreground">No unassigned pre-generation demand remains.</p>

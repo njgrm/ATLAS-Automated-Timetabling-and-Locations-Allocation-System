@@ -26,6 +26,9 @@ import type {
 	RoomRequestAppealStatus,
 	RunSummary,
 	ScheduledEntry,
+	TeachingLoadRepairApplyResult,
+	TeachingLoadRepairChange,
+	TeachingLoadRepairPreviewResult,
 	UnassignedItem,
 	HumanConflict,
 	Violation,
@@ -66,6 +69,39 @@ type RegularSwapPreviewState = {
 	loading: boolean;
 	error: string | null;
 };
+
+function buildTeachingLoadRepairChangesFromProposals(
+	proposals: ManualEditProposal[],
+	entries: ScheduledEntry[],
+): TeachingLoadRepairChange[] {
+	const entriesById = new Map(entries.map((entry) => [entry.entryId, entry]));
+	return proposals.flatMap((proposal) => {
+		if (proposal.editType !== 'CHANGE_FACULTY' || !proposal.entryId || typeof proposal.targetFacultyId !== 'number') return [];
+		const entry = entriesById.get(proposal.entryId);
+		if (!entry) return [];
+		return [{
+			entryId: entry.entryId,
+			subjectId: entry.subjectId,
+			sectionId: entry.sectionId,
+			fromFacultyId: entry.facultyId,
+			toFacultyId: proposal.targetFacultyId,
+		}];
+	});
+}
+
+function buildExpectedFacultyVersions(
+	changes: TeachingLoadRepairChange[],
+	facultyMap: Map<number, { id: number; version?: number }>,
+): Record<string, number> {
+	const expectedFacultyVersions: Record<string, number> = {};
+	for (const change of changes) {
+		const fromFaculty = change.fromFacultyId ? facultyMap.get(change.fromFacultyId) : null;
+		const toFaculty = facultyMap.get(change.toFacultyId);
+		if (fromFaculty && typeof fromFaculty.version === 'number') expectedFacultyVersions[String(change.fromFacultyId)] = fromFaculty.version;
+		if (toFaculty && typeof toFaculty.version === 'number') expectedFacultyVersions[String(change.toFacultyId)] = toFaculty.version;
+	}
+	return expectedFacultyVersions;
+}
 
 export type PreGenPendingPlacement = {
 	placementId?: number;
@@ -196,7 +232,7 @@ type UseTimetableMutationsInput = {
 
 	viewMode: 'section' | 'faculty' | 'room';
 	entityFilter: string;
-	facultyMap: Map<number, { id: number }>;
+	facultyMap: Map<number, { id: number; version?: number }>;
 	roomMap: Map<number, RoomInfo>;
 };
 
@@ -225,7 +261,7 @@ export type TimetableMutationState = {
 	fetchEditHistory: () => Promise<void>;
 	previewEdit: (proposal: ManualEditProposal) => Promise<PreviewResult | null>;
 	commitEdit: (proposal: ManualEditProposal, allowSoftOverride?: boolean) => Promise<void>;
-	previewEditBatch: (proposals: ManualEditProposal[]) => Promise<ManualEditBatchPreviewResult | null>;
+	previewEditBatch: (proposals: ManualEditProposal[]) => Promise<TeachingLoadRepairPreviewResult | null>;
 	commitEditBatch: (proposals: ManualEditProposal[], allowSoftOverride?: boolean) => Promise<CommitResult | null>;
 	revertLastEdit: () => Promise<void>;
 	choosePreGenFaculty: (item: DraftQueueItem) => number;
@@ -738,6 +774,10 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		if (!schoolYearId || !runIdNumeric) return null;
 		return `/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${runIdNumeric}/manual-edits`;
 	}, [schoolYearId, runIdNumeric]);
+	const teachingLoadRepairBase = useMemo(() => {
+		if (!schoolYearId || !runIdNumeric) return null;
+		return `/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${runIdNumeric}/teaching-load-repairs`;
+	}, [schoolYearId, runIdNumeric]);
 
 	const fetchEditHistory = useCallback(async () => {
 		if (!apiBase) return;
@@ -806,30 +846,40 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		}
 	}, [apiBase, runVersion, schoolYearId, runIdNumeric, setCommitLoading, setViolationReport, fetchEditHistory, setPreviewResult, setSoftConfirmWarnings, setShowSoftConfirm, setPendingCommitProposal, setDragItem, setDraft]);
 
-	const previewEditBatch = useCallback(async (proposals: ManualEditProposal[]): Promise<ManualEditBatchPreviewResult | null> => {
-		if (!apiBase || proposals.length === 0) return null;
+	const previewEditBatch = useCallback(async (proposals: ManualEditProposal[]): Promise<TeachingLoadRepairPreviewResult | null> => {
+		if (!teachingLoadRepairBase || proposals.length === 0) return null;
+		const changes = buildTeachingLoadRepairChangesFromProposals(proposals, draft?.entries ?? []);
+		if (changes.length === 0) return null;
 		setPreviewLoading(true);
 		try {
-			const { data } = await atlasApi.post<ManualEditBatchPreviewResult>(`${apiBase}/batch/preview`, { proposals });
+			const { data } = await atlasApi.post<TeachingLoadRepairPreviewResult>(`${teachingLoadRepairBase}/preview`, {
+				changes,
+				expectedRunVersion: runVersion,
+				expectedFacultyVersions: buildExpectedFacultyVersions(changes, facultyMap),
+			});
 			return data;
 		} catch (e: unknown) {
 			const code = (e as { response?: { data?: { code?: string } } })?.response?.data?.code;
 			const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? (e instanceof Error ? e.message : 'Preview failed.');
-			if (code === 'RUN_ALREADY_PUBLISHED') toast.error('This schedule is already published. Use the Prompt 6 revision workflow for effective-date repairs.');
+			if (code === 'RUN_ALREADY_PUBLISHED') toast.error('This schedule is already published. Create a revision instead of rewriting Teaching Load.');
+			else if (code === 'FACULTY_VERSION_CONFLICT') toast.error('Teaching Load changed while this panel was open. Reload and try again.');
 			else toast.error(msg);
 			return null;
 		} finally {
 			setPreviewLoading(false);
 		}
-	}, [apiBase, setPreviewLoading]);
+	}, [draft?.entries, facultyMap, runVersion, setPreviewLoading, teachingLoadRepairBase]);
 
 	const commitEditBatch = useCallback(async (proposals: ManualEditProposal[], allowSoftOverride = false): Promise<CommitResult | null> => {
-		if (!apiBase || proposals.length === 0) return null;
+		if (!teachingLoadRepairBase || proposals.length === 0) return null;
+		const changes = buildTeachingLoadRepairChangesFromProposals(proposals, draft?.entries ?? []);
+		if (changes.length === 0) return null;
 		setCommitLoading(true);
 		try {
-			const { data } = await atlasApi.post<CommitResult>(`${apiBase}/batch/commit`, {
-				proposals,
-				expectedVersion: runVersion,
+			const { data } = await atlasApi.post<TeachingLoadRepairApplyResult>(`${teachingLoadRepairBase}/apply`, {
+				changes,
+				expectedRunVersion: runVersion,
+				expectedFacultyVersions: buildExpectedFacultyVersions(changes, facultyMap),
 				allowSoftOverride,
 			});
 			setDraft(data.draft);
@@ -839,8 +889,8 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				setViolationReport(violRes.data);
 			}
 			await fetchEditHistory();
-			if (data.warnings.length > 0) toast.warning(`Saved with ${data.warnings.length} soft warning(s).`);
-			else toast.success(`Saved ${proposals.length} teaching-load change${proposals.length === 1 ? '' : 's'}.`);
+			if (data.warnings.length > 0) toast.warning(`Saved Teaching Load with ${data.warnings.length} warning${data.warnings.length === 1 ? '' : 's'}.`);
+			else toast.success(`Saved Teaching Load and updated ${changes.length} timetable block${changes.length === 1 ? '' : 's'}.`);
 			setPreviewResult(null);
 			setSoftConfirmWarnings([]);
 			setShowSoftConfirm(false);
@@ -855,7 +905,9 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			} else if (code === 'HARD_VIOLATION_BLOCK') {
 				toast.error('These changes would create a schedule conflict. Review the dock details, choose a different teacher, and try again.');
 			} else if (code === 'RUN_ALREADY_PUBLISHED') {
-				toast.error('This schedule is already published. Use the Prompt 6 revision workflow for effective-date repairs.');
+				toast.error('This schedule is already published. Create a revision instead of rewriting Teaching Load.');
+			} else if (code === 'FACULTY_VERSION_CONFLICT') {
+				toast.error('Teaching Load changed while this panel was open. Reload and try again.');
 			} else {
 				toast.error(msg);
 			}
@@ -863,7 +915,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		} finally {
 			setCommitLoading(false);
 		}
-	}, [apiBase, fetchEditHistory, runIdNumeric, runVersion, schoolYearId, setCommitLoading, setDraft, setDragItem, setPendingCommitProposal, setPreviewResult, setSelectedEntry, setShowSoftConfirm, setSoftConfirmWarnings, setViolationReport]);
+	}, [draft?.entries, facultyMap, fetchEditHistory, runIdNumeric, runVersion, schoolYearId, setCommitLoading, setDraft, setDragItem, setPendingCommitProposal, setPreviewResult, setSelectedEntry, setShowSoftConfirm, setSoftConfirmWarnings, setViolationReport, teachingLoadRepairBase]);
 
 	const revertLastEdit = useCallback(async () => {
 		if (!apiBase) return;

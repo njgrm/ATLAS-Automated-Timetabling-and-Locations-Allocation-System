@@ -409,7 +409,7 @@ export function AppShell() {
 										</BreadcrumbLink>
 									</BreadcrumbItem>
 									{breadcrumbs.map((crumb, i) => (
-										<React.Fragment key={crumb.label}>
+										<React.Fragment key={`${crumb.label}-${i}`}>
 											<BreadcrumbSeparator />
 											<BreadcrumbItem>
 												{i === breadcrumbs.length - 1 ? (

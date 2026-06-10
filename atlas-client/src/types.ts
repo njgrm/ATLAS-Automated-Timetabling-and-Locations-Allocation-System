@@ -1223,6 +1223,37 @@ export interface ManualEditBatchPreviewResult extends PreviewResult {
 	proposals: ManualEditBatchPreviewItem[];
 }
 
+export type TeachingLoadRepairChange = {
+	entryId: string;
+	subjectId: number;
+	sectionId: number;
+	fromFacultyId: number | null;
+	toFacultyId: number;
+};
+
+export type TeachingLoadOwnershipDelta = {
+	entryId: string;
+	subjectId: number;
+	sectionId: number;
+	fromFacultyId: number | null;
+	toFacultyId: number;
+	currentOwnerId: number | null;
+	timetableAction: 'NO_CHANGE' | 'CHANGE_FACULTY';
+	ownershipAction: 'NO_CHANGE' | 'TRANSFER';
+};
+
+export type TeachingLoadAffectedTeacher = {
+	facultyId: number;
+	beforeTeachingHours: number;
+	afterTeachingHours: number;
+	version: number | null;
+};
+
+export interface TeachingLoadRepairPreviewResult extends ManualEditBatchPreviewResult {
+	ownershipDeltas: TeachingLoadOwnershipDelta[];
+	affectedTeachers: TeachingLoadAffectedTeacher[];
+}
+
 export interface HumanConflict {
 	code: string;
 	severity: 'HARD' | 'SOFT';
@@ -1277,6 +1308,11 @@ export interface CommitResult {
 	violationDelta: PreviewResult['violationDelta'];
 	warnings: Violation[];
 	newVersion: number;
+}
+
+export interface TeachingLoadRepairApplyResult extends CommitResult {
+	ownershipDeltas: TeachingLoadOwnershipDelta[];
+	affectedTeachers: TeachingLoadAffectedTeacher[];
 }
 
 export interface ManualEditRecord {
@@ -1885,4 +1921,3 @@ export type SubjectSectionOwnershipIndexEntry = {
 	facultyId: number;
 	facultyName: string;
 };
-

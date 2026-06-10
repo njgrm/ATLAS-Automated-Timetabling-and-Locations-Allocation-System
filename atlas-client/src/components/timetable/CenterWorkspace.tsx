@@ -16,7 +16,7 @@ import { Checkbox } from '@/ui/checkbox';
 import { ResizablePanel } from '@/ui/resizable';
 import { ScrollArea } from '@/ui/scroll-area';
 
-import type { CommitResult, ManualEditBatchPreviewResult, ManualEditProposal, Violation } from '@/types';
+import type { CommitResult, ManualEditProposal, TeachingLoadRepairPreviewResult, Violation } from '@/types';
 
 function projectSandboxEntries(entries: any[], sandboxFacultyByEntryId: Map<string, number>): any[] {
 	if (sandboxFacultyByEntryId.size === 0) return entries;
@@ -72,7 +72,7 @@ type CenterWorkspaceProps = {
 	draftEntries: any[];
 	previewEdit: (proposal: any) => Promise<any>;
 	commitEdit: (proposal: any, allowSoftOverride?: boolean) => Promise<void>;
-	previewEditBatch: (proposals: ManualEditProposal[]) => Promise<ManualEditBatchPreviewResult | null>;
+	previewEditBatch: (proposals: ManualEditProposal[]) => Promise<TeachingLoadRepairPreviewResult | null>;
 	commitEditBatch: (proposals: ManualEditProposal[], allowSoftOverride?: boolean) => Promise<CommitResult | null>;
 	previewLoading: boolean;
 	commitLoading: boolean;

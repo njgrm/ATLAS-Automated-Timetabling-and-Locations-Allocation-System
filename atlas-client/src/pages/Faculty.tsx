@@ -50,6 +50,35 @@ const PAGE_SIZES = [10, 25, 50, 100];
 
 type SortField = 'name' | 'specialization' | 'subjects' | 'weeklyLoad' | 'status';
 type SortDir = 'asc' | 'desc';
+type TeacherRosterStats = {
+	totalCount: number;
+	activeCount: number;
+	assignedCount: number;
+	unassignedCount: number;
+	reviewCount: number;
+	overCapCount: number;
+};
+type TeacherSummaryPage = {
+	page: number;
+	pageSize: number;
+	total: number;
+	totalPages: number;
+	query: string;
+};
+type TeacherSummaryResponse = {
+	faculty: FacultySummary[];
+	items?: FacultySummary[];
+	page?: number;
+	pageSize?: number;
+	total?: number;
+	totalPages?: number;
+	query?: string;
+	pagination?: TeacherSummaryPage;
+	departments?: string[];
+	rosterStats?: TeacherRosterStats;
+	ownershipIndex?: SubjectSectionOwnershipIndexEntry[];
+	fetchedAt: string | null;
+};
 
 export default function Faculty() {
 	const [faculty, setFaculty] = useState<FacultySummary[]>([]);
@@ -63,6 +92,9 @@ export default function Faculty() {
 	const [dataSource, setDataSource] = useState<'live' | 'cached' | 'refreshing' | 'none'>('none');
 	const [cacheNotice, setCacheNotice] = useState<string | null>(null);
 	const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+	const [serverPagination, setServerPagination] = useState<TeacherSummaryPage | null>(null);
+	const [serverDepartments, setServerDepartments] = useState<string[]>([]);
+	const [rosterStats, setRosterStats] = useState<TeacherRosterStats | null>(null);
 	
 	// Roster profile drawer
 	const [profileTarget, setProfileTarget] = useState<FacultySummary | null>(null);
@@ -108,6 +140,9 @@ export default function Faculty() {
 				if (cachedPreview) {
 					setFaculty(cachedPreview.data.faculty);
 					setLastSyncedAt(cachedPreview.data.fetchedAt);
+					setServerPagination(null);
+					setServerDepartments([]);
+					setRosterStats(null);
 					setDataSource(isOnline ? 'refreshing' : 'cached');
 					setCacheNotice(
 						isOnline
@@ -120,24 +155,49 @@ export default function Faculty() {
 
 			const { data } = await requestWithRetry(
 				() =>
-					atlasApi.get<{
-						faculty: FacultySummary[];
-						ownershipIndex?: SubjectSectionOwnershipIndexEntry[];
-						fetchedAt: string | null;
-					}>('/faculty-assignments/summary', {
-						params: { schoolId: DEFAULT_SCHOOL_ID, schoolYearId },
+					atlasApi.get<TeacherSummaryResponse>('/faculty-assignments/summary', {
+						params: {
+							schoolId: DEFAULT_SCHOOL_ID,
+							schoolYearId,
+							page,
+							pageSize,
+							query: searchQuery.trim() || undefined,
+							scheduling: schedulingFilter,
+							assignment: assignmentFilter,
+							department: departmentFilter !== 'all' ? departmentFilter : undefined,
+							sortField,
+							sortDir,
+						},
 					}),
 				{ attempts: 2, delayMs: 400 },
 			);
 
-			setFaculty(data.faculty);
+			const liveRows = data.items ?? data.faculty;
+			const pagination = data.pagination ?? (
+				typeof data.page === 'number' && typeof data.pageSize === 'number' && typeof data.total === 'number' && typeof data.totalPages === 'number'
+					? {
+						page: data.page,
+						pageSize: data.pageSize,
+						total: data.total,
+						totalPages: data.totalPages,
+						query: data.query ?? searchQuery.trim(),
+					}
+					: null
+			);
+
+			setFaculty(liveRows);
 			setLastSyncedAt(data.fetchedAt);
-			setCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId, {
-				faculty: data.faculty,
-				ownershipIndex: data.ownershipIndex ?? [],
-				fetchedAt: data.fetchedAt,
-				schoolYearId,
-			});
+			setServerPagination(pagination);
+			setServerDepartments(data.departments ?? []);
+			setRosterStats(data.rosterStats ?? null);
+			if (!data.items) {
+				setCachedFacultyAssignmentsSummary(DEFAULT_SCHOOL_ID, schoolYearId, {
+					faculty: data.faculty,
+					ownershipIndex: data.ownershipIndex ?? [],
+					fetchedAt: data.fetchedAt,
+					schoolYearId,
+				});
+			}
 			const isUpstreamBacked = isUpstreamBackedSchoolYearSource(yearContextSource);
 			if (isUpstreamBacked) {
 				setDataSource('live');
@@ -173,6 +233,9 @@ export default function Faculty() {
 			if (cachedFallback) {
 				setFaculty(cachedFallback.data.faculty);
 				setLastSyncedAt(cachedFallback.data.fetchedAt);
+				setServerPagination(null);
+				setServerDepartments([]);
+				setRosterStats(null);
 				setDataSource('cached');
 				setSyncError(true);
 				setError(null);
@@ -187,7 +250,7 @@ export default function Faculty() {
 			setRefreshing(false);
 			setLoading(false);
 		}
-	}, []);
+	}, [assignmentFilter, departmentFilter, isOnline, page, pageSize, schedulingFilter, searchQuery, sortDir, sortField]);
 
 	useEffect(() => {
 		void fetchFaculty({});
@@ -237,10 +300,11 @@ export default function Faculty() {
 
 	// Unique departments for filter
 	const departments = useMemo(() => {
+		if (serverDepartments.length > 0) return serverDepartments;
 		const set = new Set<string>();
 		faculty.forEach((f) => { if (f.department) set.add(f.department); });
 		return Array.from(set).sort();
-	}, [faculty]);
+	}, [faculty, serverDepartments]);
 
 	const timeSince = useMemo(() => {
 		if (!lastSyncedAt) return null;
@@ -254,6 +318,14 @@ export default function Faculty() {
 
 	// Filtered, sorted, paginated
 	const { paged, totalFiltered, totalPages } = useMemo(() => {
+		if (serverPagination) {
+			return {
+				paged: faculty,
+				totalFiltered: serverPagination.total,
+				totalPages: serverPagination.totalPages,
+			};
+		}
+
 		let list = faculty;
 		const compareTeacherName = (left: FacultySummary, right: FacultySummary) => `${left.lastName} ${left.firstName}`.localeCompare(`${right.lastName} ${right.firstName}`);
 
@@ -296,16 +368,18 @@ export default function Faculty() {
 		const tp = Math.max(1, Math.ceil(tf / pageSize));
 		const start = (page - 1) * pageSize;
 		return { paged: sorted.slice(start, start + pageSize), totalFiltered: tf, totalPages: tp };
-	}, [faculty, searchQuery, schedulingFilter, assignmentFilter, departmentFilter, sortField, sortDir, page, pageSize]);
+	}, [faculty, serverPagination, searchQuery, schedulingFilter, assignmentFilter, departmentFilter, sortField, sortDir, page, pageSize]);
 
 	// Reset page when filters change
-	useEffect(() => { setPage(1); }, [searchQuery, schedulingFilter, assignmentFilter, departmentFilter, pageSize]);
+	useEffect(() => { setPage(1); }, [searchQuery, schedulingFilter, assignmentFilter, departmentFilter, pageSize, sortField, sortDir]);
 
 	const toggleSort = (field: SortField) => {
 		if (sortField === field) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
 		else { setSortField(field); setSortDir('asc'); }
 	};
 
+	const tablePage = serverPagination?.page ?? page;
+	const tablePageSize = serverPagination?.pageSize ?? pageSize;
 	const hasActiveFilters = schedulingFilter !== 'all' || assignmentFilter !== 'all' || departmentFilter !== 'all';
 
 	const teacherColumns = useMemo<AdminDataTableColumn<FacultySummary, SortField>[]>(() => [
@@ -362,14 +436,14 @@ export default function Faculty() {
 	}, [dataSource, loading, refreshing]);
 
 	const teacherStats = useMemo(() => {
-		const activeCount = faculty.filter((teacher) => teacher.isActiveForScheduling).length;
-		const assignedCount = faculty.filter((teacher) => (teacher.subjectCount ?? 0) > 0).length;
-		const unassignedCount = faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.subjectCount ?? 0) === 0).length;
-		const reviewCount = faculty.filter((teacher) => {
+		const activeCount = rosterStats?.activeCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling).length;
+		const assignedCount = rosterStats?.assignedCount ?? faculty.filter((teacher) => (teacher.subjectCount ?? 0) > 0).length;
+		const unassignedCount = rosterStats?.unassignedCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.subjectCount ?? 0) === 0).length;
+		const reviewCount = rosterStats?.reviewCount ?? faculty.filter((teacher) => {
 			const creditedHours = teacher.policyCreditedHours ?? 0;
 			return teacher.isActiveForScheduling && creditedHours > STANDARD_WEEKLY_TEACHING_HOURS && creditedHours <= teacher.maxHoursPerWeek;
 		}).length;
-		const overCapCount = faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.policyCreditedHours ?? 0) > teacher.maxHoursPerWeek).length;
+		const overCapCount = rosterStats?.overCapCount ?? faculty.filter((teacher) => teacher.isActiveForScheduling && (teacher.policyCreditedHours ?? 0) > teacher.maxHoursPerWeek).length;
 		return [
 			{ label: 'Active teachers', value: activeCount, tone: activeCount > 0 ? 'success' as const : 'warning' as const, helpText: 'Teachers currently available for scheduling.' },
 			{ label: 'With load', value: assignedCount, tone: assignedCount > 0 ? 'info' as const : 'warning' as const, helpText: 'Teachers with at least one subject or section in Teaching Load.' },
@@ -378,7 +452,7 @@ export default function Faculty() {
 			{ label: 'Over cap', value: overCapCount, tone: overCapCount > 0 ? 'warning' as const : 'success' as const, helpText: 'Active teachers above the weekly cap. Repair these before generation.' },
 			{ label: 'Last sync', value: timeSince ?? 'Not synced', tone: timeSince ? 'neutral' as const : 'warning' as const, helpText: 'When ATLAS last refreshed the teacher load summary.' },
 		];
-	}, [faculty, timeSince]);
+	}, [faculty, rosterStats, timeSince]);
 
 	const profileSourceLabel = useMemo(() => {
 		if (teacherSourceState === 'verified-live') return timeSince ? `Verified live - ${timeSince}` : 'Verified live';
@@ -517,13 +591,16 @@ export default function Faculty() {
 				sort={{ key: sortField, direction: sortDir }}
 				onSortChange={toggleSort}
 				pagination={{
-					page,
-					pageSize,
+					page: tablePage,
+					pageSize: tablePageSize,
 					total: totalFiltered,
 					totalPages,
 					pageSizeOptions: PAGE_SIZES,
 					onPageChange: setPage,
-					onPageSizeChange: setPageSize,
+					onPageSizeChange: (nextPageSize) => {
+						setPageSize(nextPageSize);
+						setPage(1);
+					},
 				}}
 				emptyState={{
 					icon: <Users className="size-8" />,

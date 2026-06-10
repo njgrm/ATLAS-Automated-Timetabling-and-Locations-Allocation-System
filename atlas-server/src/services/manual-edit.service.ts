@@ -153,7 +153,7 @@ export interface ManualEditRecord {
 
 // ─── Internal: load run + reference data for validation ───
 
-async function loadRunContext(runId: number, schoolId: number, schoolYearId: number) {
+export async function loadRunContext(runId: number, schoolId: number, schoolYearId: number) {
 	const run = await prisma.generationRun.findFirst({
 		where: { id: runId, schoolId, schoolYearId },
 	});
@@ -243,7 +243,7 @@ async function loadRunContext(runId: number, schoolId: number, schoolYearId: num
 	};
 }
 
-function isPublishedSummary(summary: unknown): boolean {
+export function isPublishedSummary(summary: unknown): boolean {
 	if (!summary || typeof summary !== 'object' || Array.isArray(summary)) return false;
 	const candidate = summary as Record<string, unknown>;
 	if (candidate.isPublished === true) return true;
@@ -256,7 +256,7 @@ function assertRunIsEditable(summary: unknown): void {
 	throw err(409, 'RUN_ALREADY_PUBLISHED', 'This schedule is already published. Published repairs require the Prompt 6 revision workflow before changes can take effect.');
 }
 
-function buildValidatorCtx(
+export function buildValidatorCtx(
 	schoolId: number,
 	schoolYearId: number,
 	runId: number,
@@ -470,7 +470,7 @@ function timeToMinutes(t: string): number {
 	return h * 60 + m;
 }
 
-function computeSummary(entries: ScheduledEntry[], unassigned: unknown[], validation: ValidationResult): RunSummary {
+export function computeSummary(entries: ScheduledEntry[], unassigned: unknown[], validation: ValidationResult): RunSummary {
 	const assignedCount = entries.length;
 	const unassignedCount = Array.isArray(unassigned) ? unassigned.length : 0;
 	const hardViolationCount = validation.violations.filter((v) => v.severity === 'HARD').length;
@@ -489,7 +489,7 @@ function computeSummary(entries: ScheduledEntry[], unassigned: unknown[], valida
  * a run's summary. Manual edits to a published run must not silently unpublish it;
  * unpublish must be an explicit action with its own audit trail.
  */
-function mergePreservedSummaryFields(existingSummary: unknown, newSummary: RunSummary): RunSummary & Record<string, unknown> {
+export function mergePreservedSummaryFields(existingSummary: unknown, newSummary: RunSummary): RunSummary & Record<string, unknown> {
 	const merged: RunSummary & Record<string, unknown> = { ...newSummary };
 	if (!existingSummary || typeof existingSummary !== 'object' || Array.isArray(existingSummary)) {
 		return merged;
@@ -547,7 +547,7 @@ function formatTimeAmPm(hhmm: string): string {
 	return `${hour12}:${String(m).padStart(2, '0')} ${suffix}`;
 }
 
-function buildHumanConflicts(
+export function buildHumanConflicts(
 	violations: Violation[],
 	entries: ScheduledEntry[],
 	refData: Awaited<ReturnType<typeof loadRunContext>>,
@@ -717,7 +717,7 @@ function buildHumanConflicts(
 	});
 }
 
-function buildPolicyImpacts(violations: Violation[], refData: Awaited<ReturnType<typeof loadRunContext>>): PolicyImpact[] {
+export function buildPolicyImpacts(violations: Violation[], refData: Awaited<ReturnType<typeof loadRunContext>>): PolicyImpact[] {
 	const { facultyNameMap } = refData;
 	const impacts: PolicyImpact[] = [];
 	const seen = new Set<string>();

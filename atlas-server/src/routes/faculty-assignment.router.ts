@@ -27,6 +27,49 @@ function parseCoverageMode(value: unknown): CoverageMode | null {
 	return normalized;
 }
 
+function parsePositiveQueryInteger(value: unknown): number | undefined {
+	if (typeof value !== 'string' || value.trim() === '') {
+		return undefined;
+	}
+	const parsed = Number(value);
+	return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : undefined;
+}
+
+function parseSummaryListOptions(req: Request): { requested: boolean; options: assignmentService.AssignmentSummaryListOptions } {
+	const query = typeof req.query.query === 'string' ? req.query.query : undefined;
+	const scheduling = typeof req.query.scheduling === 'string' ? req.query.scheduling : undefined;
+	const assignment = typeof req.query.assignment === 'string' ? req.query.assignment : undefined;
+	const department = typeof req.query.department === 'string' ? req.query.department : undefined;
+	const sortField = typeof req.query.sortField === 'string' ? req.query.sortField : undefined;
+	const sortDir = typeof req.query.sortDir === 'string' ? req.query.sortDir : undefined;
+	const page = parsePositiveQueryInteger(req.query.page);
+	const pageSize = parsePositiveQueryInteger(req.query.pageSize);
+	const requested = [
+		req.query.page,
+		req.query.pageSize,
+		req.query.query,
+		req.query.scheduling,
+		req.query.assignment,
+		req.query.department,
+		req.query.sortField,
+		req.query.sortDir,
+	].some((value) => value !== undefined);
+
+	return {
+		requested,
+		options: {
+			page,
+			pageSize,
+			query,
+			scheduling: scheduling as assignmentService.AssignmentSummarySchedulingFilter | undefined,
+			assignment: assignment as assignmentService.AssignmentSummaryAssignmentFilter | undefined,
+			department,
+			sortField: sortField as assignmentService.AssignmentSummarySortField | undefined,
+			sortDir: sortDir as assignmentService.AssignmentSummarySortDir | undefined,
+		},
+	};
+}
+
 // Auth: GET /faculty-assignments/summary?schoolId=X&schoolYearId=Y
 router.get('/summary', authenticateWithSystemToken, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
 	try {
@@ -57,10 +100,34 @@ router.get('/summary', authenticateWithSystemToken, requirePrivilegedRole, async
 			schoolYearId = activeYear.id;
 		}
 
-		const summary = await assignmentService.getAssignmentSummary(schoolId, schoolYearId, upstreamAuthToken);
+		const { requested: listRequested, options: listOptions } = parseSummaryListOptions(req);
+		const summary = await assignmentService.getAssignmentSummary(
+			schoolId,
+			schoolYearId,
+			upstreamAuthToken,
+			listRequested ? listOptions : undefined,
+		);
+		const listPage = summary.listPage;
 		const fetchedAt = summary.faculty.length > 0 ? (summary.faculty[0] as any).fetchedAt || null : null;
 		res.json({
-			faculty: summary.faculty,
+			faculty: listRequested ? listPage.items : summary.faculty,
+			items: listPage.items,
+			page: listPage.page,
+			pageSize: listPage.pageSize,
+			total: listPage.total,
+			totalPages: listPage.totalPages,
+			query: listPage.query,
+			pagination: {
+				page: listPage.page,
+				pageSize: listPage.pageSize,
+				total: listPage.total,
+				totalPages: listPage.totalPages,
+				query: listPage.query,
+			},
+			filters: listPage.filters,
+			sort: listPage.sort,
+			departments: listPage.departments,
+			rosterStats: listPage.rosterStats,
 			ownershipIndex: summary.ownershipIndex,
 			coverageTotals: summary.coverageTotals,
 			integrityDiagnostics: summary.integrityDiagnostics,

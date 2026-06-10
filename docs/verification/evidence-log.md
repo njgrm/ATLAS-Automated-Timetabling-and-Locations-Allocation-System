@@ -1,4 +1,4 @@
-﻿# 2026-06-01 - Dashboard readiness summary endpoint
+# 2026-06-01 - Dashboard readiness summary endpoint
 
 - Phase: Teaching Load + Timetable follow-up prompt 9b, `tl-timetable-09b-dashboard-readiness-summary-endpoint`.
 - Operator: GitHub Copilot
@@ -2152,3 +2152,154 @@ refactor(ui): rebuild dashboard + map shell with single-next-step identity
   - `npx --prefix atlas-server tsx atlas-server/src/scripts/probe-targeted-reads.ts` -> PASS, targeted faculty/room/section/missing slices matched full revision-effective truth.
   - Touched-file hygiene scan -> PASS: no trailing whitespace in the touched source/docs, and no control-character corruption in `docs/verification/evidence-log.md` or ignored local `CHANGELOG.md`.
 - Verdict: GO
+
+# 2026-06-02 - Prompt 9b Dashboard Readiness Summary Endpoint Repair
+- Phase: Performance and UI Data Optimization
+- Operator: Codex
+- Scope gate: PASS after route-contract repair.
+- Safety gate: PASS after server/client builds and route probes.
+- Files changed in this pass:
+  - `atlas-server/src/routes/dashboard.router.ts`
+  - `atlas-client/src/hooks/useDashboardData.ts`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+- Repair delivered:
+  1. Restored `/api/v1/dashboard/readiness-summary` as the canonical dashboard readiness summary endpoint documented by Prompt 9b evidence and the runtime source map.
+  2. Kept `/api/v1/dashboard/summary` as a compatibility alias that delegates to the same thin route handler.
+  3. Updated `useDashboardData` to request `/dashboard/readiness-summary` first and keep the legacy waterfall fallback only if the summary endpoint fails.
+  4. Removed the untracked one-off `atlas-server/probe-dashboard.ts` helper script.
+- Verification:
+  - `npm --prefix atlas-server run build` -> PASS.
+  - `npm --prefix atlas-client run build` -> PASS.
+  - Built-server route probe -> PASS: `/api/v1/health`, `/api/v1/dashboard/readiness-summary?schoolId=1`, and compatibility alias `/api/v1/dashboard/summary?schoolId=1` returned HTTP 200.
+  - Dashboard route smoke substitute -> PASS: built dashboard bundle contains `/dashboard/readiness-summary`, the client source no longer calls `/dashboard/summary`, and browser control was unavailable in this session.
+- Verdict: GO
+
+# 2026-06-02 - Prompt 9C Admin Server Pagination/Search
+- Phase: Teaching Load / Timetable Repair Prompt 9C.
+- Operator: Codex.
+- Scope: first high-value admin list integration for `/teachers`; no virtualization, no full admin-table migration, no Tactical Dock, and no faculty `/my/*` changes.
+- Files changed in this pass:
+  - `atlas-server/src/services/faculty-assignment.service.ts`
+  - `atlas-server/src/routes/faculty-assignment.router.ts`
+  - `atlas-client/src/pages/Faculty.tsx`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+  - `CHANGELOG.md`
+- Contract delivered:
+  1. `GET /api/v1/faculty-assignments/summary` preserves the legacy full `faculty` payload when list query params are omitted.
+  2. List-mode requests accept `page`, `pageSize`, `query`, `scheduling`, `assignment`, `department`, `sortField`, and `sortDir`.
+  3. List-mode responses return `items`, `page`, `pageSize`, `total`, `totalPages`, `query`, `filters`, `sort`, `departments`, and full-roster `rosterStats`.
+  4. `/teachers` now sends the AdminDataTable search/filter/sort/page state to the server and uses server totals for the table footer.
+- Verification:
+  - `npm --prefix atlas-server run build` -> PASS.
+  - `npm --prefix atlas-client run build` -> PASS.
+  - API probe -> PASS: legacy call returned `148` teachers and pagination shape; paged call returned `5` items of `148`, `page=1`, `pageSize=5`, `totalPages=30`.
+  - API probe -> PASS: search `ALVAREZ` echoed `query=ALVAREZ` and returned `1` item; impossible query `__atlas_no_match_09c__` returned `items=0`, `total=0`.
+  - Line-count scan -> PASS: `Faculty.tsx=619`, `AdminDataTable.tsx=270`.
+  - Primitive scan -> PASS: no native `<button>`, `<select>`, `<details>`, lowercase native `title=`, document/body scroll hacks, or horizontal-overflow utilities in touched React files.
+  - Browser smoke -> PASS after direct admin browser-state rerun: `/teachers` mobile `390x844` and desktop `1280x800`, footer `Showing 1-25 of 148 results`, search footer `Showing 1-1 of 1 results`, no-results state visible, summary requests included paging and search params, no global horizontal overflow, no API failures, and no console errors.
+  - Tailnet browser smoke -> PASS: `https://njgrm.buru-degree.ts.net/teachers` mobile `390x844`, footer `Showing 1-25 of 148 results`, summary requests included paging params, no global horizontal overflow, and no API failures.
+- Verdict: GO
+
+# 2026-06-03 - Prompt 9D Virtualization Component Extraction
+- Phase: Teaching Load / Timetable Repair Prompt 9D.
+- Operator: Codex.
+- Scope: extracted the generated-run timetable left rail and virtualized only the high-volume generated unassigned-session list. No backend changes, no Tactical Dock work, no full redesign.
+- Files changed in this pass:
+  - `atlas-client/src/components/timetable/LeftRailContent.tsx`
+  - `atlas-client/src/components/timetable/GeneratedRunRailPanels.tsx`
+  - `atlas-client/src/components/timetable/VirtualizedRailList.tsx`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+  - `CHANGELOG.md`
+- Extraction delivered:
+  1. `LeftRailContent.tsx` now delegates generated-run violations and generated unassigned sessions to `GeneratedRunRailPanels.tsx`.
+  2. `VirtualizedRailList.tsx` provides measured, resize-aware rail virtualization for fixed-estimate row windows.
+  3. Generated unassigned sessions now render through the virtual rail instead of the old fixed "load more 40" rail pagination.
+- Verification:
+  - `npm --prefix atlas-client run build` -> PASS.
+  - Touched line-count scan -> PASS: `LeftRailContent.tsx=545`, `GeneratedRunRailPanels.tsx=678`, `VirtualizedRailList.tsx=113`.
+  - Touched primitive scan -> PASS: no native `<button>`, `<select>`, `<details>`, or lowercase native `title=` in touched React files.
+  - Browser smoke -> PASS with service workers blocked and API calls routed directly to the healthy local backend because the Vite/Tailnet proxy returned `502` / `net::ERR_FAILED` for `/api/v1/runtime/context` while direct authenticated backend reads returned HTTP 200.
+  - Desktop `/timetable` generated-unassigned rail -> PASS: virtualization marker present, 9 visible rows rendered for 25 unassigned sessions, no horizontal overflow.
+  - Mobile portrait `/timetable` generated-unassigned rail -> PASS: virtualization marker present, 7 visible rows rendered for 25 unassigned sessions, no horizontal overflow.
+  - Keyboard/focus probe -> PASS: `#panel-unassigned` exposed 12 focusable buttons; focusing the first rail filter button and pressing Enter preserved focus and did not break the panel.
+  - Residual observation: the timetable page still emits an existing duplicate React key warning for `Timetable`; this was observed during smoke but was not introduced by the extracted rail files.
+- Verdict: GO
+
+# 2026-06-08 - Timetable-Embedded Teaching Load Editor
+- Phase: Review/manual adjustment UX and canonical Teaching Load repair.
+- Operator: Codex.
+- Scope: `/timetable` Tactical Teaching Load Dock for generated-run teacher ownership repair; published schedule repairs remain revision-only.
+- Files changed in this pass:
+  - `atlas-server/src/services/manual-edit.service.ts`
+  - `atlas-server/src/services/timetable-teaching-load-repair.service.ts`
+  - `atlas-server/src/routes/timetable-teaching-load-repair.router.ts`
+  - `atlas-server/src/app.ts`
+  - `atlas-server/src/__tests__/timetable-teaching-load-repair-contract.test.ts`
+  - `atlas-client/src/components/timetable/TacticalSandboxDock.tsx`
+  - `atlas-client/src/components/timetable/CenterWorkspace.tsx`
+  - `atlas-client/src/hooks/useTimetableMutations.ts`
+  - `atlas-client/src/types.ts`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+- Contract delivered:
+  1. Added protected endpoints `POST /api/v1/generation/:schoolId/:schoolYearId/runs/:runId/teaching-load-repairs/preview` and `/apply`.
+  2. Preview projects canonical Teaching Load ownership changes plus timetable entry changes before validation, returning conflict/warning shape compatible with the dock.
+  3. Apply blocks published runs (`RUN_ALREADY_PUBLISHED`), stale run versions, stale teacher versions, inactive/missing faculty, HG advisory edits, entry-context drift, and hard schedule conflicts.
+  4. Successful unpublished apply updates `SubjectSectionOwnership`, `FacultySubject.sectionIds`/`gradeLevels`, involved faculty versions, the active run `draftEntries`, violations, summary, manual-edit records, audit log, and run version without creating a new generation run.
+  5. `/timetable` now shows `Timetable and Teaching Load do not match`, `Use timetable teacher`, `Use Teaching Load owner`, `Preview impact`, and `Save Teaching Load and update timetable`; published copy states Teaching Load will not be rewritten from published repairs.
+- Verification:
+  - `npm --prefix atlas-server run build` -> PASS.
+  - `npm --prefix atlas-client run build` -> PASS.
+  - `npx tsx atlas-server/src/__tests__/timetable-teaching-load-repair-contract.test.ts` -> PASS.
+  - Tailnet process smoke -> PASS: server reachable at `100.88.55.125:5001`, client reachable at `100.88.55.125:5174`.
+  - API smoke -> PASS: `/api/v1/health` returned `{"status":"ok","service":"atlas"}`.
+  - Route protection smoke -> PASS: unauthenticated repair preview returned `401 Unauthorized`.
+  - Authenticated route/service smoke -> PASS: admin login succeeded and empty repair preview returned `EMPTY_REPAIR_BATCH`, proving the mounted route reached service validation.
+  - Primitive scan -> PASS: no native `<button>`, `<select>`, `<details>`, or lowercase native `title=` in touched timetable React/hook files.
+  - Line-count scan -> PASS for touched timetable React components: `TacticalSandboxDock.tsx=926`, `CenterWorkspace.tsx=637`; `ScheduleReviewWorkspace.tsx` is not part of this pass diff.
+  - Broad `npx tsc --noEmit` from `atlas-client` -> FAIL on existing unrelated repository type errors in `ConflictInspectorSheet`, `faculty-assignments`, `ManualEditPanel`, `Sections`, room-preference outbox, and test type configuration; one local dock nullability finding was fixed and the client build was rerun successfully.
+  - Browser smoke -> NOT RUN: no callable in-app browser navigation/screenshot tool was exposed in this session. `/timetable` returned HTTP 200 from the Vite dev server.
+- Verdict: GO for implementation/build/API route contract. Browser screenshot smoke remains pending because no callable in-app browser tool was exposed in this session.
+
+# 2026-06-09 - Timetable Teaching Load Live Tailnet Verification
+- Phase: Review/manual adjustment UX and canonical Teaching Load repair.
+- Operator: Codex.
+- Scope: Live Tailnet data verification and repair of timetable-embedded Teaching Load workflow.
+- Live environment:
+  - Server: `http://100.88.55.125:5001`
+  - Client: `http://100.88.55.125:5174`
+  - Admin login: `1000001`
+- Bugs found and repaired:
+  1. Teaching Load repair initially updated only the clicked timetable entry. Live preview correctly exposed that the remaining entries for the same subject/section became unqualified. Fixed by updating every matching generated-run entry in the selected subject/section scope.
+  2. Published repair endpoints returned older manual-edit copy. Fixed to return: `This schedule is already published. Create an effective-date revision for the timetable. Teaching Load will not be rewritten from this published repair.`
+  3. Selecting historical run `127` in `/timetable` loaded the run and then reset to latest. Fixed `useTimetableData` so bootstrap refresh does not depend on `selectedRunId`; explicit run selection now persists.
+  4. Breadcrumbs emitted duplicate React keys when group and page labels both read `Timetable`. Fixed breadcrumb fragment keys to include index.
+  5. `/api/v1/generation/1/55/pre-generation-drafts` returned `500 fetch failed` under forced `SECTION_SOURCE_MODE=enrollpro` while EnrollPro was unreachable. Fixed pre-generation draft context to fall back to cached `SectionSnapshot`.
+- Live mutation evidence:
+  - Target run: unpublished completed `GenerationRun #127`, version `1`.
+  - Change body: `entry-2791`, subject `3078` (`SPA_SPEC`), section `2976` (`SPA A`), faculty `21544 -> 21587`.
+  - Preview after fix: `allowed=true`, `hard=0`, `soft=890`, `proposalCount=5`, `affectedEntries=10`.
+  - Apply result: status `200`, edit IDs `[15,16,17,18,19]`, new run version `2`.
+  - Canonical owner before/after: `21544 -> 21587`.
+  - Draft entries updated: `entry-2791` through `entry-2795` now use faculty `21587`.
+  - `FacultySubject.sectionIds`: old faculty no longer has section `2976`; new faculty has section `2976`.
+  - Generation run count before/after: `96 -> 96`; no new generation run created.
+- Guardrail evidence:
+  - Stale apply against run `127` with expected version `1` after mutation returned `409 VERSION_CONFLICT`.
+  - Published apply against run `128` returned `409 RUN_ALREADY_PUBLISHED` with Teaching Load revision-only copy.
+  - Pre-generation draft endpoint after fallback returned counts: `draft=0`, `lockedForRun=6`, `archived=0`, `unscheduled=4822`.
+- Browser smoke:
+  - Desktop `1440x900`: login -> `/timetable` -> select `Run #127`; selector remained `Run #127`, page showed `GENERATED RUN #127`, no horizontal overflow (`scrollWidth=1440`).
+  - Mobile `390x844`: login -> `/timetable` -> select `Run #127`; selector remained `Run #127`, page showed `GENERATED RUN #127`, no horizontal overflow (`scrollWidth=390`).
+  - First-visit tutorial overlay blocks controls until dismissed or marked complete; smoke set `atlas_timetable_tour=true` to simulate returning scheduler state.
+  - Remaining non-blocking browser noise: `/enrollpro-api/settings/public` returns `502` while EnrollPro settings is unavailable; app falls back to saved branding/source state and remains usable.
+- Verification:
+  - `npm --prefix atlas-server run build` -> PASS.
+  - `npm --prefix atlas-client run build` -> PASS.
+  - `npx tsx atlas-server/src/__tests__/timetable-teaching-load-repair-contract.test.ts` -> PASS.
+  - Primitive scan -> PASS: no native `<button>`, `<select>`, `<details>`, or lowercase native `title=` in touched timetable React/hook files.
+  - Line-count scan -> PASS for touched React components: `TacticalSandboxDock.tsx=926`, `CenterWorkspace.tsx=637`, `AppShell.tsx=473`.
+- Verdict: GO for live API/build/browser smoke with one known non-blocking EnrollPro settings proxy outage.

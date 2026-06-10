@@ -1,0 +1,678 @@
+import { AnimatePresence, motion } from 'motion/react';
+import type { ReactNode } from 'react';
+import {
+	AlertTriangle,
+	Check,
+	ChevronDown,
+	ChevronRight,
+	Flag,
+	GripVertical,
+	Info,
+	Lightbulb,
+	Loader2,
+	Search,
+	ShieldAlert,
+	Wand2,
+	X,
+	Zap,
+} from 'lucide-react';
+
+import atlasApi from '@/lib/api';
+import {
+	getDefaultUnassignedReasonDetail,
+	getProgramBadgeLabel,
+	matchesProgramFilter,
+} from '@/lib/schedule-review-helpers';
+import type { FixSuggestionsResponse, UnassignedItem, Violation, ViolationCode } from '@/types';
+import { Badge } from '@/ui/badge';
+import { Button } from '@/ui/button';
+import { Input } from '@/ui/input';
+import { ScrollArea } from '@/ui/scroll-area';
+import { ViolationGroup } from '@/components/timetable/TimetableShared';
+import { DraggableUnassignedPin } from '@/components/timetable/DraggablePinWrappers';
+import type { LeftRailContentContext } from '@/components/timetable/timetableContexts.types';
+import { VirtualizedRailList } from '@/components/timetable/VirtualizedRailList';
+
+type GeneratedSummary = NonNullable<LeftRailContentContext['summary']> & {
+	homeRoomSuccessRate?: number;
+	resourceDiagnostics?: {
+		qualifiedFacultyCoverageBySubject: Array<{ subjectId: number; subjectCode: string; coveragePercent: number }>;
+		slotSaturationByInterval: Array<{ day: string; startTime: string; endTime: string; saturationPercent: number }>;
+		unassignedBySubjectGrade: Array<{ subjectId: number; subjectCode: string; gradeLevel: number; count: number }>;
+		roomAssignmentReasonCounts?: Record<string, number>;
+		zoneDistributionByTerm?: Array<{ termIndex: number; byZone: Record<string, { percent?: number }> }>;
+	};
+};
+
+type GeneratedViolationsPanelProps = {
+	context: LeftRailContentContext;
+	visibleViolationGroups: Array<[ViolationCode, Violation[]]>;
+	violationGroups: Array<[ViolationCode, Violation[]]>;
+	hasMoreViolationGroups: boolean;
+};
+
+export function GeneratedViolationsPanel({
+	context,
+	visibleViolationGroups,
+	violationGroups,
+	hasMoreViolationGroups,
+}: GeneratedViolationsPanelProps) {
+	const {
+		hardViolationCount,
+		topBlockers,
+		violations,
+		handleViolationSelect,
+		setSeverityFilter,
+		VIOLATION_LABELS,
+		violationSearch,
+		setViolationSearch,
+		filteredViolations,
+		selectedViolation,
+		setDrawerViolation,
+		formatConstraintMessage,
+		setViolationsGroupPage,
+	} = context;
+
+	return (
+		<div id="panel-violations" role="tabpanel" aria-labelledby="tab-violations" className="flex flex-col flex-1 min-h-0">
+			{hardViolationCount > 0 && (
+				<div className="shrink-0 px-3 py-2 border-b border-red-100 bg-red-50/50">
+					<div className="flex items-center gap-1.5 text-[0.625rem] font-semibold text-red-700 mb-1">
+						<ShieldAlert className="size-3" />
+						Top blockers ({hardViolationCount} hard)
+					</div>
+					<div className="space-y-0.5">
+						{topBlockers.map((violation, index) => {
+							const count = violations.filter((item) => item.code === violation.code && item.severity === 'HARD').length;
+							return (
+								<Button
+									key={`${violation.code}-${index}`}
+									type="button"
+									variant="ghost"
+									size="sm"
+									onClick={() => {
+										handleViolationSelect(violation);
+										setSeverityFilter('hard');
+									}}
+									className="h-6 w-full justify-start gap-1.5 rounded px-1 py-0.5 text-left text-[0.5625rem] font-medium text-red-800 hover:bg-red-100/60 hover:text-red-600"
+								>
+									<ChevronRight className="size-2.5 shrink-0" />
+									<span className="truncate flex-1">{VIOLATION_LABELS[violation.code]}</span>
+									<span className="shrink-0 text-red-500 font-medium">x{count}</span>
+								</Button>
+							);
+						})}
+					</div>
+				</div>
+			)}
+			{hardViolationCount === 0 && violations.length === 0 && (
+				<div className="shrink-0 px-3 py-2 border-b border-emerald-100 bg-emerald-50/50">
+					<div className="flex items-center gap-1.5 text-[0.625rem] font-medium text-emerald-700">
+						<Check className="size-3" />
+						No violations - schedule is clean
+					</div>
+				</div>
+			)}
+			<div className="shrink-0 px-3 py-2">
+				<div className="relative">
+					<Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+					<Input
+						placeholder="Search violations..."
+						value={violationSearch}
+						onChange={(event) => setViolationSearch(event.target.value)}
+						className="h-7 pl-7 text-xs"
+					/>
+					{violationSearch && (
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							aria-label="Clear search"
+							onClick={() => setViolationSearch('')}
+							className="absolute right-1 top-1/2 size-6 -translate-y-1/2"
+						>
+							<X className="size-3 text-muted-foreground" />
+						</Button>
+					)}
+				</div>
+			</div>
+			<ScrollArea className="flex-1 min-h-0">
+				<div className="px-3 pb-3 space-y-1">
+					{filteredViolations.length === 0 ? (
+						<div className="py-6 text-center text-xs text-muted-foreground">
+							{violations.length === 0 ? 'No violations found' : 'No matching violations'}
+						</div>
+					) : (
+						visibleViolationGroups.map(([code, violationList]) => (
+							<ViolationGroup
+								key={code}
+								code={code}
+								violations={violationList}
+								selectedViolation={selectedViolation}
+								onSelect={handleViolationSelect}
+								onExplain={setDrawerViolation}
+								formatConstraintMessage={formatConstraintMessage}
+								labels={VIOLATION_LABELS}
+							/>
+						))
+					)}
+					{hasMoreViolationGroups && (
+						<div className="pt-1">
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-6 w-full text-[0.625rem]"
+								onClick={() => setViolationsGroupPage((prev) => prev + 10)}
+							>
+								Load more groups ({violationGroups.length - visibleViolationGroups.length} left)
+							</Button>
+						</div>
+					)}
+				</div>
+			</ScrollArea>
+		</div>
+	);
+}
+
+type GeneratedUnassignedPanelProps = {
+	context: LeftRailContentContext;
+	renderUnassignedReasonBadge: (reason: string) => ReactNode;
+};
+
+export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge }: GeneratedUnassignedPanelProps) {
+	const {
+		summary,
+		filteredUnassignedItems,
+		programKindFilteredUnassignedItems,
+		UNASSIGNED_REASON_LABELS,
+		unassignedReasonFilter,
+		setUnassignedReasonFilter,
+		resolveEntryProgramType,
+		resolveEntryProgramCode,
+		sectionLabel,
+		subjectLabel,
+		kbSelectedSource,
+		buildUnassignedKey,
+		followUps,
+		expandedUnassigned,
+		setExpandedUnassigned,
+		unassignedFixSuggestions,
+		fixLoading,
+		schoolYearId,
+		runs,
+		selectedRunId,
+		defaultSchoolId,
+		setFixLoading,
+		setUnassignedFixSuggestions,
+		entryContextLabel,
+		previewEdit,
+		setDrawerUnassigned,
+		setFollowUps,
+		toast,
+		setKbSelectedSource,
+		GRADE_BADGE,
+	} = context;
+	const generatedSummary = summary as GeneratedSummary | null;
+
+	return (
+		<div id="panel-unassigned" role="tabpanel" aria-labelledby="tab-unassigned" className="flex flex-1 min-h-0 flex-col">
+			{generatedSummary ? (
+				<>
+					<div className="shrink-0 px-3 py-3 space-y-3">
+						<div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-border bg-muted/20 px-3 py-1.5 text-xs">
+							<div className="flex items-center gap-1.5">
+								<span className="text-muted-foreground font-medium">Processed</span>
+								<span className="font-bold">{generatedSummary.classesProcessed}</span>
+							</div>
+							<div className="flex items-center gap-1.5">
+								<span className="text-muted-foreground font-medium">Assigned</span>
+								<span className="font-bold text-emerald-600">{generatedSummary.assignedCount}</span>
+							</div>
+							<div className="flex items-center gap-1.5">
+								<span className="text-muted-foreground font-medium">Unassigned</span>
+								<span className={`font-bold ${generatedSummary.unassignedCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{generatedSummary.unassignedCount}</span>
+							</div>
+							{typeof generatedSummary.homeRoomSuccessRate === 'number' && (
+								<div className="flex items-center gap-1.5">
+									<span className="text-muted-foreground font-medium">Home-Room</span>
+									<span className="font-bold text-sky-700">{generatedSummary.homeRoomSuccessRate}%</span>
+								</div>
+							)}
+						</div>
+						<GeneratedResourceDiagnostics summary={generatedSummary} />
+						{filteredUnassignedItems.length > 0 && (
+							<div className="space-y-2">
+								<div className="flex flex-wrap gap-1">
+									{(['all', 'NO_QUALIFIED_FACULTY', 'FACULTY_OVERLOADED', 'NO_AVAILABLE_SLOT', 'NO_COMPATIBLE_ROOM'] as const).map((reason) => {
+										const label = reason === 'all' ? 'All' : (UNASSIGNED_REASON_LABELS[reason]?.label ?? reason);
+										const count = reason === 'all'
+											? programKindFilteredUnassignedItems.length
+											: programKindFilteredUnassignedItems.filter((item) => item.reason === reason).length;
+										if (reason !== 'all' && count === 0) return null;
+										return (
+											<Button
+												key={reason}
+												type="button"
+												variant={unassignedReasonFilter === reason ? 'default' : 'secondary'}
+												size="sm"
+												onClick={() => setUnassignedReasonFilter(reason)}
+												className="h-6 rounded-full px-2 py-0.5 text-[0.5625rem] font-medium"
+											>
+												{label} ({count})
+											</Button>
+										);
+									})}
+								</div>
+								<span className="text-[0.6875rem] font-medium text-muted-foreground">
+									Use recovery tools only when a session stays blocked after generation
+								</span>
+							</div>
+						)}
+					</div>
+					{filteredUnassignedItems.length > 0 && (
+						<VirtualizedRailList
+							items={filteredUnassignedItems}
+							getKey={(item, index) => `${buildUnassignedKey(item)}-${index}`}
+							estimateRowHeight={(item) => (expandedUnassigned.has(buildUnassignedKey(item)) ? 520 : 78)}
+							renderItem={(item, index) => (
+								<UnassignedRailRow
+									context={context}
+									item={item}
+									index={index}
+									renderUnassignedReasonBadge={renderUnassignedReasonBadge}
+								/>
+							)}
+							className="flex-1 min-h-0 overflow-auto px-3 pb-3"
+							ariaLabel="Unassigned generated sessions"
+							overscan={5}
+						/>
+					)}
+					{generatedSummary.unassignedCount === 0 && (
+						<div className="px-3 py-4 text-center text-xs text-muted-foreground">
+							<Check className="mx-auto size-6 text-emerald-500 mb-1" />
+							All classes assigned successfully
+						</div>
+					)}
+					{generatedSummary.unassignedCount > 0 && filteredUnassignedItems.length === 0 && (
+						<div className="px-3 py-4 text-center text-xs text-muted-foreground">
+							No unassigned items match the current program, entry type, and reason filters.
+						</div>
+					)}
+				</>
+			) : (
+				<div className="px-3 py-6 text-center text-xs text-muted-foreground">
+					No draft data available
+				</div>
+			)}
+		</div>
+	);
+}
+
+function GeneratedResourceDiagnostics({ summary }: { summary: GeneratedSummary }) {
+	if (!summary.resourceDiagnostics) return null;
+
+	return (
+		<div className="rounded border border-border/70 bg-background/70 px-2.5 py-2 space-y-2 text-[0.625rem]">
+			<div className="font-semibold text-muted-foreground uppercase tracking-wide">Resource Diagnostics</div>
+			<div className="space-y-1">
+				<div className="font-medium">Lowest teaching-load coverage</div>
+				{summary.resourceDiagnostics.qualifiedFacultyCoverageBySubject.slice(0, 3).map((row) => (
+					<div key={`coverage-${row.subjectId}`} className="flex items-center justify-between text-muted-foreground">
+						<span>{row.subjectCode}</span>
+						<span className="font-semibold text-amber-700">{row.coveragePercent}%</span>
+					</div>
+				))}
+			</div>
+			<div className="space-y-1">
+				<div className="font-medium">Most saturated intervals</div>
+				{summary.resourceDiagnostics.slotSaturationByInterval.slice(0, 3).map((row, index) => (
+					<div key={`sat-${index}-${row.day}-${row.startTime}-${row.endTime}`} className="flex items-center justify-between text-muted-foreground">
+						<span>{row.day.slice(0, 3)} {row.startTime}-{row.endTime}</span>
+						<span className="font-semibold text-rose-700">{row.saturationPercent}%</span>
+					</div>
+				))}
+			</div>
+			<div className="space-y-1">
+				<div className="font-medium">Top unassigned clusters</div>
+				{summary.resourceDiagnostics.unassignedBySubjectGrade.slice(0, 3).map((row) => (
+					<div key={`unassigned-${row.subjectId}-${row.gradeLevel}`} className="flex items-center justify-between text-muted-foreground">
+						<span>{row.subjectCode} - G{row.gradeLevel}</span>
+						<span className="font-semibold text-amber-700">{row.count}</span>
+					</div>
+				))}
+			</div>
+			{summary.resourceDiagnostics.roomAssignmentReasonCounts && (
+				<div className="space-y-1">
+					<div className="font-medium">Room assignment reasons</div>
+					{Object.entries(summary.resourceDiagnostics.roomAssignmentReasonCounts).slice(0, 3).map(([reason, count]) => (
+						<div key={`reason-${reason}`} className="flex items-center justify-between text-muted-foreground">
+							<span>{reason}</span>
+							<span className="font-semibold text-sky-700">{count}</span>
+						</div>
+					))}
+				</div>
+			)}
+			{summary.resourceDiagnostics.zoneDistributionByTerm?.[0] && (
+				<div className="space-y-1">
+					<div className="font-medium">Zone distribution (Term {summary.resourceDiagnostics.zoneDistributionByTerm[0].termIndex})</div>
+					{Object.entries(summary.resourceDiagnostics.zoneDistributionByTerm[0].byZone).slice(0, 3).map(([zone, data]) => (
+						<div key={`zone-${zone}`} className="flex items-center justify-between text-muted-foreground">
+							<span>{zone}</span>
+							<span className="font-semibold text-rose-700">{data.percent}%</span>
+						</div>
+					))}
+				</div>
+			)}
+		</div>
+	);
+}
+
+function UnassignedRailRow({
+	context,
+	item,
+	index,
+	renderUnassignedReasonBadge,
+}: {
+	context: LeftRailContentContext;
+	item: UnassignedItem;
+	index: number;
+	renderUnassignedReasonBadge: (reason: string) => ReactNode;
+}) {
+	const {
+		resolveEntryProgramType,
+		resolveEntryProgramCode,
+		sectionLabel,
+		subjectLabel,
+		kbSelectedSource,
+		buildUnassignedKey,
+		followUps,
+		expandedUnassigned,
+		setExpandedUnassigned,
+		unassignedFixSuggestions,
+		fixLoading,
+		schoolYearId,
+		runs,
+		selectedRunId,
+		defaultSchoolId,
+		setFixLoading,
+		setUnassignedFixSuggestions,
+		entryContextLabel,
+		previewEdit,
+		setDrawerUnassigned,
+		setFollowUps,
+		toast,
+		setKbSelectedSource,
+		GRADE_BADGE,
+	} = context;
+	const grade = item.gradeLevel;
+	const gradeBadge = grade ? GRADE_BADGE[grade] : undefined;
+	const isKbSelected = kbSelectedSource?.type === 'unassigned'
+		&& kbSelectedSource.item.sectionId === item.sectionId
+		&& kbSelectedSource.item.subjectId === item.subjectId
+		&& kbSelectedSource.item.session === item.session
+		&& (kbSelectedSource.item.cohortCode ?? '') === (item.cohortCode ?? '');
+	const itemKey = buildUnassignedKey(item);
+	const isFollowUp = followUps.has(itemKey);
+	const isExpanded = expandedUnassigned.has(itemKey);
+	const cachedFix = unassignedFixSuggestions[itemKey];
+
+	return (
+		<DraggableUnassignedPin
+			key={`${itemKey}-${index}`}
+			itemKey={itemKey}
+			item={item}
+			disabled={false}
+			className={`rounded border text-xs transition-colors ${
+				isKbSelected
+					? 'border-primary bg-primary/10 ring-2 ring-primary'
+					: isFollowUp
+						? 'border-amber-300 bg-amber-50/80'
+						: 'border-amber-200 bg-amber-50/50 hover:border-amber-300'
+			}`}
+		>
+			<Button
+				type="button"
+				variant="ghost"
+				className="h-auto w-full max-w-full justify-start overflow-hidden px-2 py-1.5 text-left"
+				onClick={() => {
+					setExpandedUnassigned((prev) => {
+						const next = new Set(prev);
+						if (next.has(itemKey)) next.delete(itemKey);
+						else next.add(itemKey);
+						return next;
+					});
+					setKbSelectedSource(isKbSelected ? null : { type: 'unassigned', item });
+				}}
+			>
+				<div className="w-full space-y-1">
+					<div className="flex items-center gap-1.5 min-w-0">
+						<ChevronDown className={`size-3 text-muted-foreground shrink-0 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
+						<GripVertical className="size-3 text-muted-foreground/50 shrink-0" />
+						{gradeBadge && (
+							<Badge variant="outline" className={`h-4 px-1 text-[0.5625rem] shrink-0 ${gradeBadge}`}>
+								G{grade}
+							</Badge>
+						)}
+						{item.entryKind === 'COHORT' && item.cohortCode && (
+							<Badge variant="outline" className="h-4 px-1 text-[0.5625rem] shrink-0 border-sky-300 bg-sky-50 text-sky-700">
+								{item.cohortCode}
+							</Badge>
+						)}
+						<span className="font-medium truncate min-w-0">{sectionLabel(item.sectionId)}</span>
+						<span className="text-muted-foreground shrink-0">-</span>
+						<span className="truncate min-w-0">{subjectLabel(item.subjectId)}</span>
+					</div>
+					<div className="flex items-center gap-1.5 text-[0.625rem] text-muted-foreground pl-4.5">
+						{renderUnassignedReasonBadge(item.reason)}
+						{matchesProgramFilter(resolveEntryProgramType(item), 'SPECIAL') && (
+							<Badge variant="outline" className="h-4 px-1 text-[0.5625rem] border-violet-300 bg-violet-50 text-violet-700">
+								{getProgramBadgeLabel(resolveEntryProgramType(item), resolveEntryProgramCode(item))}
+							</Badge>
+						)}
+						<span className="opacity-60 font-medium">Session {item.session}</span>
+						<span className="ml-auto text-red-600/80 font-semibold tracking-wide uppercase text-[0.5rem] flex items-center gap-0.5">
+							<AlertTriangle className="size-2.5" /> Blocker
+						</span>
+					</div>
+				</div>
+			</Button>
+			<AnimatePresence>
+				{isExpanded && (
+					<motion.div
+						initial={{ height: 0, opacity: 0 }}
+						animate={{ height: 'auto', opacity: 1 }}
+						exit={{ height: 0, opacity: 0 }}
+						transition={{ duration: 0.15 }}
+						className="overflow-hidden"
+					>
+						<div className="px-2 pb-2 pt-1 border-t border-amber-200 space-y-2">
+							<div className="rounded border border-red-200 bg-red-50/50 p-2 space-y-1">
+								<div className="flex items-center gap-1.5 text-[0.625rem] text-red-800 font-medium">
+									<AlertTriangle className="size-3" />
+									Why blocked
+								</div>
+								<p className="font-medium text-[0.6875rem] text-red-900 wrap-break-word whitespace-normal leading-snug">
+									{unassignedFixSuggestions[itemKey]
+										? unassignedFixSuggestions[itemKey]!.humanDetail
+										: getDefaultUnassignedReasonDetail(item)}
+								</p>
+							</div>
+							<div className="flex items-center gap-1.5 text-[0.625rem]">
+								<ShieldAlert className="size-2.5 text-red-600 shrink-0" />
+								<span className="text-red-700 font-medium">Recovery required</span>
+								<span className="text-muted-foreground">- this session still needs an operator review before publishing</span>
+							</div>
+							{(item.entryKind === 'COHORT' || item.adviserName) && (
+								<div className="rounded border border-border bg-background px-2 py-1.5 text-[0.625rem] text-muted-foreground">
+									{entryContextLabel(item)}
+								</div>
+							)}
+							<UnassignedFixSuggestions
+								item={item}
+								itemKey={itemKey}
+								cachedFix={cachedFix}
+								context={context}
+							/>
+							<div className="flex items-center gap-1 pt-0.5" onClick={(event) => event.stopPropagation()}>
+								<Button
+									variant="ghost"
+									size="sm"
+									className="h-5 px-1.5 text-[0.5625rem] gap-0.5"
+									onClick={() => setDrawerUnassigned(item)}
+								>
+									<Lightbulb className="size-2.5" />
+									Full explanation
+								</Button>
+								<Button
+									variant="ghost"
+									size="sm"
+									className={`h-5 px-1.5 text-[0.5625rem] gap-0.5 ${isFollowUp ? 'text-amber-600' : ''}`}
+									onClick={() => {
+										setFollowUps((prev) => {
+											const next = new Set(prev);
+											if (next.has(itemKey)) next.delete(itemKey);
+											else next.add(itemKey);
+											return next;
+										});
+										toast.info(isFollowUp ? 'Follow-up removed' : 'Marked for follow-up');
+									}}
+								>
+									<Flag className={`size-2.5 ${isFollowUp ? 'fill-amber-500' : ''}`} />
+									{isFollowUp ? 'Unflag' : 'Flag'}
+								</Button>
+							</div>
+						</div>
+					</motion.div>
+				)}
+			</AnimatePresence>
+		</DraggableUnassignedPin>
+	);
+}
+
+function UnassignedFixSuggestions({
+	item,
+	itemKey,
+	cachedFix,
+	context,
+}: {
+	item: UnassignedItem;
+	itemKey: string;
+	cachedFix: LeftRailContentContext['unassignedFixSuggestions'][string] | undefined;
+	context: LeftRailContentContext;
+}) {
+	const {
+		fixLoading,
+		schoolYearId,
+		runs,
+		selectedRunId,
+		defaultSchoolId,
+		setFixLoading,
+		setUnassignedFixSuggestions,
+		previewEdit,
+		toast,
+	} = context;
+
+	if (cachedFix === undefined) {
+		return (
+			<Button
+				variant="outline"
+				size="sm"
+				className="w-full h-6 text-[0.5625rem] gap-1"
+				disabled={fixLoading === itemKey}
+				onClick={async (event) => {
+					event.stopPropagation();
+					const resolvedRunId = selectedRunId === 'latest' ? runs[0]?.id : selectedRunId;
+					if (!resolvedRunId) {
+						toast.error('No generation run selected');
+						return;
+					}
+					setFixLoading(itemKey);
+					try {
+						const { data } = await atlasApi.post<FixSuggestionsResponse>(
+							`/generation/${defaultSchoolId}/${schoolYearId}/runs/${resolvedRunId}/fix-suggestions`,
+							{
+								sectionId: item.sectionId,
+								subjectId: item.subjectId,
+								gradeLevel: item.gradeLevel,
+								session: item.session,
+								reason: item.reason,
+								entryKind: item.entryKind,
+								programType: item.programType,
+								programCode: item.programCode,
+								programName: item.programName,
+								cohortCode: item.cohortCode,
+								cohortName: item.cohortName,
+								cohortMemberSectionIds: item.cohortMemberSectionIds,
+								cohortExpectedEnrollment: item.cohortExpectedEnrollment,
+								adviserId: item.adviserId,
+								adviserName: item.adviserName,
+							},
+						);
+						setUnassignedFixSuggestions((prev) => ({ ...prev, [itemKey]: data.explanation }));
+					} catch (errorValue: unknown) {
+						const error = errorValue as { response?: { status?: number; data?: { code?: string } } };
+						const status = error.response?.status;
+						const code = error.response?.data?.code;
+						if (status === 401) {
+							toast.error(code === 'TOKEN_EXPIRED' ? 'Session expired. Re-open ATLAS from EnrollPro.' : 'Session missing or invalid. Re-open ATLAS from EnrollPro.');
+						} else if (status === 403) {
+							toast.error('You do not have permission to request fix suggestions.');
+						} else if (status === 400) {
+							toast.error('Fix suggestion request is invalid. Please refresh run data and try again.');
+						} else {
+							toast.error('Could not fetch fix suggestions');
+						}
+						setUnassignedFixSuggestions((prev) => ({ ...prev, [itemKey]: null }));
+					} finally {
+						setFixLoading(null);
+					}
+				}}
+			>
+				{fixLoading === itemKey ? <Loader2 className="size-2.5 animate-spin" /> : <Wand2 className="size-2.5" />}
+				Load fix suggestions
+			</Button>
+		);
+	}
+
+	if (cachedFix === null) {
+		return <div className="text-[0.625rem] text-muted-foreground italic px-1">Could not load suggestions. Try again later.</div>;
+	}
+
+	return (
+		<div className="space-y-1.5">
+			<div className="text-[0.625rem] font-semibold text-foreground flex items-center gap-1">
+				<Wand2 className="size-2.5 text-primary" />
+				Recommended fixes ({cachedFix.suggestions.length})
+			</div>
+			{cachedFix.suggestions.length === 0 ? (
+				<div className="text-[0.625rem] text-muted-foreground italic">No automatic fix available. Manual intervention needed.</div>
+			) : (
+				cachedFix.suggestions.map((suggestion, index) => (
+					<div key={index} className="rounded border border-border bg-background px-2 py-1.5 space-y-1">
+						<div className="flex items-center gap-1">
+							<span className="text-[0.625rem] font-medium text-foreground">{index + 1}. {suggestion.label}</span>
+						</div>
+						<p className="text-[0.5625rem] text-muted-foreground leading-relaxed">{suggestion.description}</p>
+						{suggestion.proposal && (
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-5 text-[0.5rem] gap-0.5 mt-0.5"
+								onClick={(event) => {
+									event.stopPropagation();
+									if (suggestion.proposal) void previewEdit(suggestion.proposal);
+								}}
+							>
+								<Zap className="size-2" />
+								Preview & Apply
+							</Button>
+						)}
+						{suggestion.policyHint && (
+							<p className="text-[0.5rem] text-muted-foreground/70 italic">Policy: {suggestion.policyHint}</p>
+						)}
+					</div>
+				))
+			)}
+		</div>
+	);
+}

@@ -2,7 +2,7 @@ import { prisma } from '../lib/prisma.js';
 import { Prisma } from '@prisma/client';
 import { validateHardConstraints, } from './constraint-validator.js';
 import { buildPeriodSlots, buildSpecialEventSlots, buildTimetableShapeContract, buildUnionClassPeriodSlots, buildUnionDisplaySlots, mergeDisplaySlots, computeDemand, getDemandAssignmentKey, } from './schedule-constructor.js';
-import { sectionAdapter } from './section-adapter.js';
+import { loadSectionSnapshot, sectionAdapter } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
 import { getTemplatePeriodProfiles } from './class-template.service.js';
@@ -214,8 +214,23 @@ function buildPolicyImpactSummary(violations) {
     }));
 }
 async function loadDraftContext(schoolId, schoolYearId, authToken) {
+    const sectionResultPromise = sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken)
+        .catch(async (error) => {
+        const cached = await loadSectionSnapshot(schoolId, schoolYearId);
+        if (!cached)
+            throw error;
+        const fallbackReason = error instanceof Error ? error.message : String(error);
+        return {
+            gradeLevels: cached.gradeLevels,
+            source: 'cached-enrollpro',
+            fetchedAt: cached.fetchedAt,
+            isStale: true,
+            fallbackReason,
+            contractWarnings: [`EnrollPro sections source failed (${fallbackReason}); using cached section snapshot instead.`],
+        };
+    });
     const [sectionResult, facultyMirrors, facultyRefs, facultySubjectRows, subjects, rooms, buildings, policyRecord, gradeWindows, placements, cohorts] = await Promise.all([
-        sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken),
+        sectionResultPromise,
         prisma.facultyMirror.findMany({
             where: { schoolId, isActiveForScheduling: true, isStale: false },
             select: { id: true, firstName: true, lastName: true, department: true, maxHoursPerWeek: true, isActiveForScheduling: true, canTeachOutsideDepartment: true },

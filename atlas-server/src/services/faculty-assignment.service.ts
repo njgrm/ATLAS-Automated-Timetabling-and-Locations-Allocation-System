@@ -1176,6 +1176,214 @@ export interface PlaceholderCoverageRepairResult {
   stillUncoveredSubjectCodes: string[];
 }
 
+const STANDARD_WEEKLY_TEACHING_HOURS = 30;
+const DEFAULT_ASSIGNMENT_SUMMARY_PAGE_SIZE = 25;
+const MAX_ASSIGNMENT_SUMMARY_PAGE_SIZE = 100;
+
+export type AssignmentSummarySortField = 'name' | 'specialization' | 'subjects' | 'weeklyLoad' | 'status';
+export type AssignmentSummarySortDir = 'asc' | 'desc';
+export type AssignmentSummarySchedulingFilter = 'all' | 'active' | 'excluded';
+export type AssignmentSummaryAssignmentFilter = 'all' | 'assigned' | 'unassigned';
+
+export interface AssignmentSummaryListOptions {
+  page?: number;
+  pageSize?: number;
+  query?: string;
+  scheduling?: AssignmentSummarySchedulingFilter;
+  assignment?: AssignmentSummaryAssignmentFilter;
+  department?: string | null;
+  sortField?: AssignmentSummarySortField;
+  sortDir?: AssignmentSummarySortDir;
+}
+
+export interface AssignmentSummaryRosterStats {
+  totalCount: number;
+  activeCount: number;
+  assignedCount: number;
+  unassignedCount: number;
+  reviewCount: number;
+  overCapCount: number;
+}
+
+export interface AssignmentSummaryPageResult<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  query: string;
+  filters: {
+    scheduling: AssignmentSummarySchedulingFilter;
+    assignment: AssignmentSummaryAssignmentFilter;
+    department: string | null;
+  };
+  sort: {
+    field: AssignmentSummarySortField;
+    dir: AssignmentSummarySortDir;
+  };
+  departments: string[];
+  rosterStats: AssignmentSummaryRosterStats;
+}
+
+type AssignmentSummaryListRow = {
+  firstName: string;
+  lastName: string;
+  department: string | null;
+  specialization: string | null;
+  isActiveForScheduling: boolean;
+  subjectCount: number;
+  policyCreditedHours: number;
+  maxHoursPerWeek: number;
+};
+
+function clampPositiveInteger(value: number | undefined, fallback: number, max?: number): number {
+  if (!Number.isFinite(value) || value == null || value < 1) {
+    return fallback;
+  }
+  const parsed = Math.floor(value);
+  return max == null ? parsed : Math.min(parsed, max);
+}
+
+function normalizeAssignmentSummaryListOptions(options?: AssignmentSummaryListOptions): Required<Omit<AssignmentSummaryListOptions, 'department'>> & { department: string | null } {
+  return {
+    page: clampPositiveInteger(options?.page, 1),
+    pageSize: clampPositiveInteger(options?.pageSize, DEFAULT_ASSIGNMENT_SUMMARY_PAGE_SIZE, MAX_ASSIGNMENT_SUMMARY_PAGE_SIZE),
+    query: (options?.query ?? '').trim(),
+    scheduling: options?.scheduling === 'active' || options?.scheduling === 'excluded' ? options.scheduling : 'all',
+    assignment: options?.assignment === 'assigned' || options?.assignment === 'unassigned' ? options.assignment : 'all',
+    department: typeof options?.department === 'string' && options.department.trim() ? options.department.trim() : null,
+    sortField:
+      options?.sortField === 'specialization' ||
+      options?.sortField === 'subjects' ||
+      options?.sortField === 'weeklyLoad' ||
+      options?.sortField === 'status'
+        ? options.sortField
+        : 'name',
+    sortDir: options?.sortDir === 'desc' ? 'desc' : 'asc',
+  };
+}
+
+function getAssignmentSummaryLoadSortRank(row: AssignmentSummaryListRow): number {
+  const weeklyHours = row.policyCreditedHours ?? 0;
+  const subjectCount = row.subjectCount ?? 0;
+
+  if (!row.isActiveForScheduling) return 5;
+  if (weeklyHours === 0 || subjectCount === 0) return 4;
+  if (weeklyHours > row.maxHoursPerWeek) return 0;
+  if (weeklyHours > STANDARD_WEEKLY_TEACHING_HOURS) return 1;
+  if (weeklyHours === STANDARD_WEEKLY_TEACHING_HOURS) return 2;
+  return 3;
+}
+
+function compareAssignmentSummaryName(left: AssignmentSummaryListRow, right: AssignmentSummaryListRow): number {
+  return `${left.lastName} ${left.firstName}`.localeCompare(`${right.lastName} ${right.firstName}`);
+}
+
+function computeAssignmentSummaryRosterStats(rows: AssignmentSummaryListRow[]): AssignmentSummaryRosterStats {
+  const activeCount = rows.filter((row) => row.isActiveForScheduling).length;
+  const assignedCount = rows.filter((row) => (row.subjectCount ?? 0) > 0).length;
+  const unassignedCount = rows.filter((row) => row.isActiveForScheduling && (row.subjectCount ?? 0) === 0).length;
+  const reviewCount = rows.filter((row) => {
+    const creditedHours = row.policyCreditedHours ?? 0;
+    return row.isActiveForScheduling && creditedHours > STANDARD_WEEKLY_TEACHING_HOURS && creditedHours <= row.maxHoursPerWeek;
+  }).length;
+  const overCapCount = rows.filter((row) => row.isActiveForScheduling && (row.policyCreditedHours ?? 0) > row.maxHoursPerWeek).length;
+
+  return {
+    totalCount: rows.length,
+    activeCount,
+    assignedCount,
+    unassignedCount,
+    reviewCount,
+    overCapCount,
+  };
+}
+
+function buildAssignmentSummaryPage<T extends AssignmentSummaryListRow>(
+  rows: T[],
+  options?: AssignmentSummaryListOptions,
+): AssignmentSummaryPageResult<T> {
+  const normalized = normalizeAssignmentSummaryListOptions(options);
+  const query = normalized.query.toLowerCase();
+  const departments = Array.from(
+    new Set(rows.map((row) => row.department).filter((value): value is string => typeof value === 'string' && value.trim().length > 0)),
+  ).sort((left, right) => left.localeCompare(right));
+
+  let filtered = rows;
+  if (query) {
+    filtered = filtered.filter((row) => (
+      row.firstName.toLowerCase().includes(query) ||
+      row.lastName.toLowerCase().includes(query) ||
+      (row.department ?? '').toLowerCase().includes(query) ||
+      (row.specialization ?? '').toLowerCase().includes(query)
+    ));
+  }
+  if (normalized.scheduling === 'active') {
+    filtered = filtered.filter((row) => row.isActiveForScheduling);
+  } else if (normalized.scheduling === 'excluded') {
+    filtered = filtered.filter((row) => !row.isActiveForScheduling);
+  }
+  if (normalized.assignment === 'assigned') {
+    filtered = filtered.filter((row) => (row.subjectCount ?? 0) > 0);
+  } else if (normalized.assignment === 'unassigned') {
+    filtered = filtered.filter((row) => (row.subjectCount ?? 0) === 0);
+  }
+  if (normalized.department) {
+    filtered = filtered.filter((row) => row.department === normalized.department);
+  }
+
+  const sorted = [...filtered].sort((left, right) => {
+    let cmp = 0;
+    switch (normalized.sortField) {
+      case 'specialization':
+        cmp = (left.specialization ?? left.department ?? '').localeCompare(right.specialization ?? right.department ?? '');
+        break;
+      case 'subjects':
+        cmp = (left.subjectCount ?? 0) - (right.subjectCount ?? 0);
+        break;
+      case 'weeklyLoad':
+        cmp = (left.policyCreditedHours ?? 0) - (right.policyCreditedHours ?? 0);
+        break;
+      case 'status':
+        cmp = getAssignmentSummaryLoadSortRank(left) - getAssignmentSummaryLoadSortRank(right);
+        break;
+      case 'name':
+      default:
+        cmp = compareAssignmentSummaryName(left, right);
+        break;
+    }
+    if (cmp === 0 && normalized.sortField !== 'name') {
+      cmp = compareAssignmentSummaryName(left, right);
+    }
+    return normalized.sortDir === 'desc' ? -cmp : cmp;
+  });
+
+  const total = sorted.length;
+  const totalPages = Math.max(1, Math.ceil(total / normalized.pageSize));
+  const page = Math.min(normalized.page, totalPages);
+  const start = (page - 1) * normalized.pageSize;
+
+  return {
+    items: sorted.slice(start, start + normalized.pageSize),
+    page,
+    pageSize: normalized.pageSize,
+    total,
+    totalPages,
+    query: normalized.query,
+    filters: {
+      scheduling: normalized.scheduling,
+      assignment: normalized.assignment,
+      department: normalized.department,
+    },
+    sort: {
+      field: normalized.sortField,
+      dir: normalized.sortDir,
+    },
+    departments,
+    rosterStats: computeAssignmentSummaryRosterStats(rows),
+  };
+}
+
 export interface RealFacultyRecoveryInput {
   schoolId: number;
   schoolYearId: number;
@@ -4481,7 +4689,12 @@ if (error?.code === 'P2034') {
 return { success: true, version: expectedVersion + 1 };
 }
 
-export async function getAssignmentSummary(schoolId: number, schoolYearId: number, authToken?: string) {
+export async function getAssignmentSummary(
+  schoolId: number,
+  schoolYearId: number,
+  authToken?: string,
+  listOptions?: AssignmentSummaryListOptions,
+) {
   const rosterIndex = await buildRosterIndex(schoolId, schoolYearId, authToken);
   const currentYearSectionScope = Array.from(rosterIndex.sectionMap.values()).map((section) => ({
     id: section.id,
@@ -5028,8 +5241,11 @@ export async function getAssignmentSummary(schoolId: number, schoolYearId: numbe
     staleAdvisorySamples,
   };
 
+  const listPage = buildAssignmentSummaryPage(facultySummary, listOptions);
+
   return {
     faculty: facultySummary,
+    listPage,
     ownershipIndex,
     coverageTotals,
     integrityDiagnostics,

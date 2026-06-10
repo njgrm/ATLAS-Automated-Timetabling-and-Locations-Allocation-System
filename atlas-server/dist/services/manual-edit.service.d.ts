@@ -3,8 +3,9 @@
  * for manual drag-and-drop adjustments during the Review phase.
  * Business logic only; no transport concerns.
  */
-import { type Violation } from './constraint-validator.js';
-import type { DraftReport } from './generation.service.js';
+import { type ValidatorContext, type ScheduledEntry, type ValidationResult, type Violation } from './constraint-validator.js';
+import type { RunSummary, DraftReport } from './generation.service.js';
+import type { UnassignedItem } from './schedule-constructor.js';
 export type ManualEditType = 'PLACE_UNASSIGNED' | 'MOVE_ENTRY' | 'CHANGE_ROOM' | 'CHANGE_FACULTY' | 'CHANGE_TIMESLOT' | 'SWAP_ENTRIES' | 'REVERT';
 export interface ManualEditProposal {
     editType: ManualEditType;
@@ -110,6 +111,114 @@ export interface ManualEditRecord {
     validationSummary: unknown;
     createdAt: string;
 }
+export declare function loadRunContext(runId: number, schoolId: number, schoolYearId: number): Promise<{
+    run: {
+        error: string | null;
+        id: number;
+        schoolId: number;
+        version: number;
+        createdAt: Date;
+        updatedAt: Date;
+        schoolYearId: number;
+        status: import("@prisma/client").$Enums.GenerationRunStatus;
+        runType: string;
+        triggeredBy: number;
+        startedAt: Date | null;
+        finishedAt: Date | null;
+        durationMs: number | null;
+        summary: import(".prisma/client/runtime/library").JsonValue | null;
+        violations: import(".prisma/client/runtime/library").JsonValue | null;
+        draftEntries: import(".prisma/client/runtime/library").JsonValue | null;
+        unassignedItems: import(".prisma/client/runtime/library").JsonValue | null;
+    };
+    entries: ScheduledEntry[];
+    unassignedItems: UnassignedItem[];
+    faculty: {
+        id: number;
+        maxHoursPerWeek: number;
+    }[];
+    facultySubjects: {
+        facultyId: number;
+        subjectId: number;
+        gradeLevels: number[];
+        sectionIds: number[];
+    }[];
+    rooms: {
+        id: number;
+        buildingId: number;
+        type: import("@prisma/client").$Enums.RoomType;
+        capacity: number | null;
+        isTeachingSpace: boolean;
+    }[];
+    subjects: {
+        id: number;
+        gradeLevels: number[];
+        minMinutesPerWeek: number;
+        preferredRoomType: import("@prisma/client").$Enums.RoomType;
+    }[];
+    policyRecord: {
+        id: number;
+        schoolId: number;
+        createdAt: Date;
+        updatedAt: Date;
+        schoolYearId: number;
+        maxConsecutiveTeachingMinutesBeforeBreak: number;
+        minBreakMinutesAfterConsecutiveBlock: number;
+        maxTeachingMinutesPerDay: number;
+        periodLengthMinutes: number;
+        periodsPerDay: number;
+        earliestStartTime: string;
+        latestEndTime: string;
+        maxWalkingDistanceMetersPerTransition: number;
+        maxBuildingTransitionsPerDay: number;
+        maxBackToBackTransitionsWithoutBuffer: number;
+        maxIdleGapMinutesPerDay: number;
+        targetFacultyDailyVacantMinutes: number;
+        targetSectionDailyVacantPeriods: number;
+        maxCompressedTeachingMinutesPerDay: number;
+        flagCeremonyStartTime: string;
+        flagCeremonyEndTime: string;
+        recessStartTime: string;
+        recessEndTime: string;
+        lunchStartTime: string;
+        lunchEndTime: string;
+        teacherMoveEnabled: boolean;
+        enforceConsecutiveBreakAsHard: boolean;
+        enableTravelWellbeingChecks: boolean;
+        avoidEarlyFirstPeriod: boolean;
+        avoidLateLastPeriod: boolean;
+        enableVacantAwareConstraints: boolean;
+        enforceLunchWindow: boolean;
+        showSpecialEventsInGrid: boolean;
+        enableFlagCeremony: boolean;
+        enableRecess: boolean;
+        enableLunchWindow: boolean;
+        enableTleTwoPassPriority: boolean;
+        allowFlexibleSubjectAssignment: boolean;
+        allowConsecutiveLabSessions: boolean;
+        constraintConfig: import(".prisma/client/runtime/library").JsonValue | null;
+    };
+    buildings: {
+        id: number;
+        y: number;
+        x: number;
+    }[];
+    facultyNameMap: Map<number, string>;
+    roomNameMap: Map<number, string>;
+    subjectNameMap: Map<number, string>;
+    sectionEnrollment: Map<number, number>;
+}>;
+export declare function isPublishedSummary(summary: unknown): boolean;
+export declare function buildValidatorCtx(schoolId: number, schoolYearId: number, runId: number, entries: ScheduledEntry[], refData: Awaited<ReturnType<typeof loadRunContext>>): ValidatorContext;
+export declare function computeSummary(entries: ScheduledEntry[], unassigned: unknown[], validation: ValidationResult): RunSummary;
+/**
+ * Preserve publication state and display-slot metadata when a manual edit recomputes
+ * a run's summary. Manual edits to a published run must not silently unpublish it;
+ * unpublish must be an explicit action with its own audit trail.
+ */
+export declare function mergePreservedSummaryFields(existingSummary: unknown, newSummary: RunSummary): RunSummary & Record<string, unknown>;
+export declare function buildHumanConflicts(violations: Violation[], entries: ScheduledEntry[], refData: Awaited<ReturnType<typeof loadRunContext>>): HumanConflict[];
+export declare function buildPolicyImpacts(violations: Violation[], refData: Awaited<ReturnType<typeof loadRunContext>>): PolicyImpact[];
 export declare function previewManualEdit(runId: number, schoolId: number, schoolYearId: number, proposal: ManualEditProposal): Promise<PreviewResult>;
 export declare function previewManualEditBatch(runId: number, schoolId: number, schoolYearId: number, proposals: ManualEditProposal[]): Promise<ManualEditBatchPreviewResult>;
 export declare function commitManualEdit(runId: number, schoolId: number, schoolYearId: number, actorId: number, proposal: ManualEditProposal, expectedVersion: number, allowSoftOverride?: boolean): Promise<CommitResult>;

@@ -20,7 +20,7 @@ import {
 	type PeriodSlot,
 	type PolicyInput,
 } from './schedule-constructor.js';
-import { sectionAdapter } from './section-adapter.js';
+import { loadSectionSnapshot, sectionAdapter, type SectionFetchResult } from './section-adapter.js';
 import { buildSectionRosterIndex, normalizeStoredAssignmentScope } from './faculty-assignment-scope.service.js';
 import { getOrCreatePolicy, DEFAULT_CONSTRAINT_CONFIG } from './scheduling-policy.service.js';
 import { getTemplatePeriodProfiles } from './class-template.service.js';
@@ -454,8 +454,22 @@ function buildPolicyImpactSummary(violations: Violation[]) {
 }
 
 async function loadDraftContext(schoolId: number, schoolYearId: number, authToken?: string) {
+	const sectionResultPromise: Promise<SectionFetchResult> = sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken)
+		.catch(async (error: unknown) => {
+			const cached = await loadSectionSnapshot(schoolId, schoolYearId);
+			if (!cached) throw error;
+			const fallbackReason = error instanceof Error ? error.message : String(error);
+			return {
+				gradeLevels: cached.gradeLevels,
+				source: 'cached-enrollpro',
+				fetchedAt: cached.fetchedAt,
+				isStale: true,
+				fallbackReason,
+				contractWarnings: [`EnrollPro sections source failed (${fallbackReason}); using cached section snapshot instead.`],
+			};
+		});
 	const [sectionResult, facultyMirrors, facultyRefs, facultySubjectRows, subjects, rooms, buildings, policyRecord, gradeWindows, placements, cohorts] = await Promise.all([
-		sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken),
+		sectionResultPromise,
 		prisma.facultyMirror.findMany({
 			where: { schoolId, isActiveForScheduling: true, isStale: false },
 			select: { id: true, firstName: true, lastName: true, department: true, maxHoursPerWeek: true, isActiveForScheduling: true, canTeachOutsideDepartment: true },

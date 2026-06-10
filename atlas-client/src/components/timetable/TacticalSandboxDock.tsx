@@ -10,7 +10,7 @@ import {
 	matchesOwnershipDepartment,
 } from '@/lib/faculty-assignment-helpers';
 import { formatTime } from '@/lib/utils';
-import type { CommitResult, FacultyMirror, ManualEditBatchPreviewResult, ManualEditProposal, ScheduledEntry, Subject } from '@/types';
+import type { CommitResult, FacultyMirror, ManualEditBatchPreviewResult, ManualEditProposal, ScheduledEntry, Subject, TeachingLoadRepairPreviewResult } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Checkbox } from '@/ui/checkbox';
@@ -46,7 +46,7 @@ type TacticalSandboxDockProps = {
 	schoolYearId: number | null;
 	sandboxFacultyByEntryId: Map<string, number>;
 	onApplyFaculty: (entryIds: string[], facultyId: number) => void;
-	onPreviewFacultyBatch: (proposals: ManualEditProposal[]) => Promise<ManualEditBatchPreviewResult | null>;
+	onPreviewFacultyBatch: (proposals: ManualEditProposal[]) => Promise<TeachingLoadRepairPreviewResult | null>;
 	onCommitFacultyBatch: (proposals: ManualEditProposal[], allowSoftOverride?: boolean) => Promise<CommitResult | null>;
 	onRevisionCreated: () => void | Promise<void>;
 	onResetSandbox: () => void;
@@ -142,7 +142,7 @@ function formatHours(value: number): string {
 }
 
 function reviewStatusCopy(preview: ManualEditBatchPreviewResult | null, canCommitPreview: boolean): string {
-	if (!preview) return 'Review checks teacher conflicts and policy warnings before save.';
+	if (!preview) return 'Preview checks teacher conflicts and Teaching Load impact before save.';
 	if (canCommitPreview) return 'Ready to save. No blocking schedule conflict was found.';
 	return 'Choose a different teacher or remove blocked rows, then review again.';
 }
@@ -171,6 +171,45 @@ function buildFacultyChangeProposals(entries: ScheduledEntry[], sandboxFacultyBy
 		});
 	}
 	return proposals;
+}
+
+function findCanonicalOwner(entry: ScheduledEntry | null, facultyMap: Map<number, FacultyMirror>): FacultyMirror | null {
+	if (!entry) return null;
+	for (const faculty of facultyMap.values()) {
+		const ownsEntry = (faculty.facultySubjects ?? []).some((assignment) =>
+			assignment.subjectId === entry.subjectId && (assignment.sectionIds ?? []).includes(entry.sectionId),
+		);
+		if (ownsEntry) return faculty;
+	}
+	return null;
+}
+
+function buildTeachingLoadRepairProposals(
+	entries: ScheduledEntry[],
+	proposals: ManualEditProposal[],
+	canonicalOnlyTargets: Map<string, number>,
+): ManualEditProposal[] {
+	const entriesById = new Map(entries.map((entry) => [entry.entryId, entry]));
+	const stagedEntryIds = new Set<string>();
+	const changes: ManualEditProposal[] = [...proposals];
+
+	for (const proposal of proposals) {
+		if (proposal.editType !== 'CHANGE_FACULTY' || !proposal.entryId || typeof proposal.targetFacultyId !== 'number') continue;
+		stagedEntryIds.add(proposal.entryId);
+	}
+
+	for (const [entryId, targetFacultyId] of canonicalOnlyTargets.entries()) {
+		if (stagedEntryIds.has(entryId)) continue;
+		const entry = entriesById.get(entryId);
+		if (!entry || entry.facultyId == null || entry.facultyId !== targetFacultyId) continue;
+		changes.push({
+			editType: 'CHANGE_FACULTY',
+			entryId,
+			targetFacultyId,
+		});
+	}
+
+	return changes;
 }
 
 function formatSlot(entry: ScheduledEntry): string {
@@ -233,7 +272,8 @@ export function TacticalSandboxDock({
 	facultyLabel,
 }: TacticalSandboxDockProps) {
 	const [bulkEntryIds, setBulkEntryIds] = useState<Set<string>>(new Set());
-	const [batchPreview, setBatchPreview] = useState<ManualEditBatchPreviewResult | null>(null);
+	const [canonicalOnlyTargets, setCanonicalOnlyTargets] = useState<Map<string, number>>(new Map());
+	const [batchPreview, setBatchPreview] = useState<TeachingLoadRepairPreviewResult | null>(null);
 	const [batchPreviewLoading, setBatchPreviewLoading] = useState(false);
 	const [batchCommitLoading, setBatchCommitLoading] = useState(false);
 	const [softWarningAcknowledged, setSoftWarningAcknowledged] = useState(false);
@@ -247,10 +287,15 @@ export function TacticalSandboxDock({
 	const [revisionSuccess, setRevisionSuccess] = useState<RevisionSuccess | null>(null);
 	const subject = selectedEntry ? subjectMap.get(selectedEntry.subjectId) : undefined;
 	const previewFacultyId = selectedEntry ? sandboxFacultyByEntryId.get(selectedEntry.entryId) ?? selectedEntry.facultyId : null;
+	const canonicalOwner = useMemo(() => findCanonicalOwner(selectedEntry, facultyMap), [facultyMap, selectedEntry]);
+	const canonicalOwnerMismatch = Boolean(selectedEntry && canonicalOwner && canonicalOwner.id !== selectedEntry.facultyId);
 	const stagedProposals = useMemo(() => buildFacultyChangeProposals(draftEntries, sandboxFacultyByEntryId), [draftEntries, sandboxFacultyByEntryId]);
-	const stagedProposalKey = useMemo(() => JSON.stringify(stagedProposals), [stagedProposals]);
-	const stagedEntryIds = useMemo(() => new Set(stagedProposals.map((proposal) => proposal.entryId).filter((entryId): entryId is string => Boolean(entryId))), [stagedProposals]);
-	const stagedCount = stagedProposals.length;
+	const teachingLoadRepairProposals = useMemo(() => buildTeachingLoadRepairProposals(draftEntries, stagedProposals, canonicalOnlyTargets), [canonicalOnlyTargets, draftEntries, stagedProposals]);
+	const stagedProposalKey = useMemo(() => JSON.stringify({ stagedProposals, teachingLoadRepairProposals }), [stagedProposals, teachingLoadRepairProposals]);
+	const stagedEntryIds = useMemo(() => new Set([
+		...(isPublished ? stagedProposals : teachingLoadRepairProposals).map((proposal) => proposal.entryId).filter((entryId): entryId is string => Boolean(entryId)),
+	]), [isPublished, stagedProposals, teachingLoadRepairProposals]);
+	const stagedCount = isPublished ? stagedProposals.length : teachingLoadRepairProposals.length;
 	const canCommitPreview = Boolean(batchPreview?.allowed && batchPreview.errorCount === 0 && batchPreview.hardViolations.length === 0);
 	const softWarningCount = batchPreview?.softViolations.length ?? 0;
 	const requiresSoftWarningAcknowledgement = canCommitPreview && softWarningCount > 0;
@@ -258,8 +303,8 @@ export function TacticalSandboxDock({
 	const reviewSteps: ReviewStep[] = useMemo(() => ([
 		{ label: '1 Select teacher', state: stagedCount > 0 ? 'done' : 'active' },
 		{ label: '2 Review changes', state: batchPreview ? (canCommitPreview ? 'done' : 'blocked') : stagedCount > 0 ? 'active' : 'waiting' },
-		{ label: '3 Save draft', state: batchPreview ? (canSaveReviewedBatch ? 'active' : canCommitPreview ? 'waiting' : 'blocked') : 'waiting' },
-	]), [batchPreview, canCommitPreview, canSaveReviewedBatch, stagedCount]);
+		{ label: isPublished ? '3 Create revision' : '3 Save Teaching Load', state: batchPreview ? (canSaveReviewedBatch ? 'active' : canCommitPreview ? 'waiting' : 'blocked') : 'waiting' },
+	]), [batchPreview, canCommitPreview, canSaveReviewedBatch, isPublished, stagedCount]);
 
 	useEffect(() => {
 		setBatchPreview(null);
@@ -271,6 +316,7 @@ export function TacticalSandboxDock({
 
 	useEffect(() => {
 		setCandidateQuery('');
+		setCanonicalOnlyTargets(new Map());
 	}, [selectedEntry?.entryId]);
 
 	const scopedSameSubjectEntries = useMemo(() => {
@@ -381,14 +427,28 @@ export function TacticalSandboxDock({
 
 	function applyCandidate(facultyId: number) {
 		if (selectedEntryIds.length === 0) return;
+		setCanonicalOnlyTargets((previous) => {
+			const next = new Map(previous);
+			for (const entryId of selectedEntryIds) next.delete(entryId);
+			return next;
+		});
 		onApplyFaculty(selectedEntryIds, facultyId);
 	}
 
+	function useTimetableTeacherAsTeachingLoadOwner() {
+		if (!selectedEntry?.facultyId) return;
+		setCanonicalOnlyTargets((previous) => {
+			const next = new Map(previous);
+			next.set(selectedEntry.entryId, selectedEntry.facultyId as number);
+			return next;
+		});
+	}
+
 	async function reviewBatch() {
-		if (isPublished || stagedProposals.length === 0) return null;
+		if (isPublished || teachingLoadRepairProposals.length === 0) return null;
 		setBatchPreviewLoading(true);
 		try {
-			const result = await onPreviewFacultyBatch(stagedProposals);
+			const result = await onPreviewFacultyBatch(teachingLoadRepairProposals);
 			setBatchPreview(result);
 			setSoftWarningAcknowledged(false);
 			return result;
@@ -398,15 +458,16 @@ export function TacticalSandboxDock({
 	}
 
 	async function commitBatch() {
-		if (isPublished || stagedProposals.length === 0) return;
+		if (isPublished || teachingLoadRepairProposals.length === 0) return;
 		const reviewed = batchPreview ?? await reviewBatch();
 		if (!reviewed || !reviewed.allowed || reviewed.errorCount > 0 || reviewed.hardViolations.length > 0) return;
 		if (reviewed.softViolations.length > 0 && !softWarningAcknowledged) return;
 		setBatchCommitLoading(true);
 		try {
-			const result = await onCommitFacultyBatch(stagedProposals, reviewed.softViolations.length > 0 && softWarningAcknowledged);
+			const result = await onCommitFacultyBatch(teachingLoadRepairProposals, reviewed.softViolations.length > 0 && softWarningAcknowledged);
 			if (result) {
 				onResetSandbox();
+				setCanonicalOnlyTargets(new Map());
 				setBatchPreview(null);
 				setSoftWarningAcknowledged(false);
 				setBulkEntryIds(new Set());
@@ -500,8 +561,8 @@ export function TacticalSandboxDock({
 					<SheetDescription>
 						{selectedEntry
 							? isPublished
-								? `${subjectLabel(selectedEntry.subjectId)} for ${sectionLabel(selectedEntry.sectionId)} is published. Saving will create a future-dated revision while older dates keep the original published schedule.`
-								: `${subjectLabel(selectedEntry.subjectId)} for ${sectionLabel(selectedEntry.sectionId)} in SY ${schoolYearId ?? 'current'} can be staged, reviewed, and saved to the draft.`
+								? `${subjectLabel(selectedEntry.subjectId)} for ${sectionLabel(selectedEntry.sectionId)} is published. Create an effective-date revision for the timetable; Teaching Load will not be rewritten from this published repair.`
+								: `${subjectLabel(selectedEntry.subjectId)} for ${sectionLabel(selectedEntry.sectionId)} in SY ${schoolYearId ?? 'current'} can be reviewed, saved to Teaching Load, and reflected in this timetable.`
 							: 'Select a timetable block to preview local teacher reassignment options.'}
 					</SheetDescription>
 				</SheetHeader>
@@ -529,6 +590,30 @@ export function TacticalSandboxDock({
 									<p className="text-[0.625rem] uppercase text-muted-foreground">Current teacher</p>
 									<p className="font-medium text-foreground">{selectedEntry.facultyId ? facultyLabel(selectedEntry.facultyId) : 'No teacher assigned'}</p>
 								</div>
+								<div>
+									<p className="text-[0.625rem] uppercase text-muted-foreground">Teaching Load owner</p>
+									<p className="font-medium text-foreground">{canonicalOwner ? facultyDisplayName(canonicalOwner) : 'No saved owner'}</p>
+								</div>
+								{canonicalOwnerMismatch ? (
+									<div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-amber-800">
+										<div className="flex items-start gap-2">
+											<AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+											<div className="min-w-0">
+												<p className="font-semibold">Timetable and Teaching Load do not match</p>
+												<p className="mt-0.5 text-[0.6875rem]">Choose which source should drive this class before saving.</p>
+												<div className="mt-2 flex flex-wrap gap-1.5">
+													<Button type="button" size="sm" variant="outline" className="h-7 bg-background text-[0.6875rem]" onClick={useTimetableTeacherAsTeachingLoadOwner} disabled={isPublished || !selectedEntry.facultyId}>
+														Use timetable teacher
+													</Button>
+													<Button type="button" size="sm" variant="outline" className="h-7 bg-background text-[0.6875rem]" onClick={() => canonicalOwner ? applyCandidate(canonicalOwner.id) : undefined} disabled={!canonicalOwner}>
+														Use Teaching Load owner
+													</Button>
+												</div>
+												{isPublished ? <p className="mt-1 text-[0.625rem]">Published repairs use revisions only.</p> : null}
+											</div>
+										</div>
+									</div>
+								) : null}
 								{subject ? (
 									<div className="rounded border border-border/70 bg-background px-2 py-1.5 text-[0.6875rem] text-muted-foreground">
 										Owner: {subject.ownerDepartment ?? subject.allowedOwnerDepartments?.join(', ') ?? 'not set'}
@@ -631,7 +716,7 @@ export function TacticalSandboxDock({
 				<div className={`rounded-lg border px-3 py-2 text-xs ${isPublished ? 'border-primary/20 bg-primary/5 text-primary' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
 					<div className="flex items-start gap-2">
 						{isPublished ? <ShieldCheck className="mt-0.5 size-3.5 shrink-0" /> : <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />}
-						<p>{isPublished ? 'This schedule is already published. Review creates a new effective-date revision; it does not edit the published history in place.' : 'Staged changes stay local until you review and save them. Changed blocks are highlighted in the grid; teacher-time conflicts are marked with red borders.'}</p>
+						<p>{isPublished ? 'This schedule is already published. Create an effective-date revision for the timetable. Teaching Load will not be rewritten from this published repair.' : 'Staged changes stay local until you preview impact. Saving updates Teaching Load ownership and this generated timetable together.'}</p>
 					</div>
 				</div>
 
@@ -639,8 +724,8 @@ export function TacticalSandboxDock({
 					<div className="rounded-lg border border-border bg-background px-3 py-3 text-xs">
 						<div className="flex flex-wrap items-center justify-between gap-2">
 							<div>
-								<p className="text-sm font-semibold text-foreground">{isPublished ? 'Review and create revision' : 'Review and save'}</p>
-								<p className="text-xs text-muted-foreground">{stagedCount} teacher change{stagedCount === 1 ? '' : 's'} waiting for {isPublished ? 'an effective date' : 'review'}.</p>
+								<p className="text-sm font-semibold text-foreground">{isPublished ? 'Review and create revision' : 'Review and save Teaching Load'}</p>
+								<p className="text-xs text-muted-foreground">{stagedCount} teacher change{stagedCount === 1 ? '' : 's'} waiting for {isPublished ? 'an effective date' : 'impact preview'}.</p>
 							</div>
 							<div className="flex flex-wrap gap-1.5">
 								{reviewSteps.map((step) => <ReviewStepPill key={step.label} step={step} />)}
@@ -653,7 +738,7 @@ export function TacticalSandboxDock({
 						</div>
 						<div className="mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
 							{draftEntries.filter((entry) => stagedEntryIds.has(entry.entryId)).slice(0, 6).map((entry) => {
-								const targetFacultyId = sandboxFacultyByEntryId.get(entry.entryId);
+								const targetFacultyId = sandboxFacultyByEntryId.get(entry.entryId) ?? canonicalOnlyTargets.get(entry.entryId);
 								const rowPreview = batchPreview?.proposals.find((item) => item.entryId === entry.entryId);
 								return (
 									<div key={entry.entryId} className="rounded border border-border/80 bg-muted/20 px-2 py-1.5">
@@ -661,7 +746,8 @@ export function TacticalSandboxDock({
 											<span className="truncate font-medium text-foreground">{sectionLabel(entry.sectionId)}</span>
 											{rowPreview?.status === 'FAILED' ? <Badge variant="destructive" className="h-4 px-1.5 text-[0.5625rem]">Failed</Badge> : null}
 										</div>
-										<p className="truncate text-[0.6875rem] text-muted-foreground">{entry.facultyId ? facultyLabel(entry.facultyId) : 'No teacher'} → {targetFacultyId ? facultyLabel(targetFacultyId) : 'No teacher'}</p>
+										<p className="truncate text-[0.6875rem] text-muted-foreground">{entry.facultyId ? facultyLabel(entry.facultyId) : 'No teacher'} -&gt; {targetFacultyId ? facultyLabel(targetFacultyId) : 'No teacher'}</p>
+										{canonicalOnlyTargets.has(entry.entryId) ? <p className="mt-0.5 text-[0.625rem] text-amber-700">Teaching Load owner will be updated.</p> : null}
 										{rowPreview?.errorMessage ? <p className="mt-1 text-[0.625rem] text-destructive">{rowPreview.errorMessage}</p> : null}
 									</div>
 								);
@@ -675,6 +761,7 @@ export function TacticalSandboxDock({
 									<div>
 										<p className="font-medium">{reviewStatusCopy(batchPreview, canCommitPreview)}</p>
 										<p className="mt-0.5 text-[0.6875rem] opacity-90">Blocking conflicts: {batchPreview.violationDelta.hardAfter}. Warnings to review before publish: {batchPreview.violationDelta.softAfter}.</p>
+										<p className="mt-0.5 text-[0.6875rem] opacity-90">Teaching Load transfers: {batchPreview.ownershipDeltas.filter((delta) => delta.ownershipAction === 'TRANSFER').length}.</p>
 									</div>
 								</div>
 								{batchPreview.humanConflicts.slice(0, 2).map((conflict) => (
@@ -699,7 +786,7 @@ export function TacticalSandboxDock({
 				) : null}
 
 				<SheetFooter className="shrink-0 gap-2 border-t border-border/70 pt-3 sm:space-x-0">
-					<Button type="button" variant="outline" size="sm" onClick={() => { onResetSandbox(); setBatchPreview(null); setBulkEntryIds(new Set()); }} disabled={stagedCount === 0} className="gap-1.5">
+					<Button type="button" variant="outline" size="sm" onClick={() => { onResetSandbox(); setCanonicalOnlyTargets(new Map()); setBatchPreview(null); setBulkEntryIds(new Set()); }} disabled={stagedCount === 0} className="gap-1.5">
 						<RotateCcw className="size-3.5" />
 						Reset Sandbox
 					</Button>
@@ -709,7 +796,7 @@ export function TacticalSandboxDock({
 					</Button>
 					<Button type="button" variant={(isPublished || (batchPreview && canCommitPreview)) ? 'default' : 'outline'} size="sm" disabled={stagedCount === 0 || batchPreviewLoading || batchCommitLoading || (batchPreview != null && canCommitPreview && !canSaveReviewedBatch)} onClick={() => isPublished ? openRevisionReview() : batchPreview && canCommitPreview ? void commitBatch() : void reviewBatch()} className="gap-1.5">
 						{batchPreviewLoading || batchCommitLoading ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
-						{isPublished ? 'Create Revision' : batchPreview && canCommitPreview ? 'Save Changes' : 'Review Changes'}
+						{isPublished ? 'Create Revision' : batchPreview && canCommitPreview ? 'Save Teaching Load and update timetable' : 'Preview impact'}
 					</Button>
 				</SheetFooter>
 			</SheetContent>

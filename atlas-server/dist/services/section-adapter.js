@@ -302,7 +302,7 @@ async function saveSectionSnapshot(schoolId, schoolYearId, data) {
         },
     });
 }
-async function loadSectionSnapshot(schoolId, schoolYearId) {
+export async function loadSectionSnapshot(schoolId, schoolYearId) {
     const snapshot = await prisma.sectionSnapshot.findUnique({
         where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
     });

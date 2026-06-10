@@ -375,6 +375,11 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		setKbSelectedSource,
 	} = input;
 
+	const selectedRunIdRef = useRef(selectedRunId);
+	useEffect(() => {
+		selectedRunIdRef.current = selectedRunId;
+	}, [selectedRunId]);
+
 	const violations = violationReport?.violations ?? [];
 	const violationIndex = useMemo(() => buildViolationIndex(violations), [violations]);
 
@@ -1146,7 +1151,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				return;
 			}
 
-			const runId = preserveRun ? selectedRunId : 'latest';
+			const runId = preserveRun ? selectedRunIdRef.current : 'latest';
 			if (!preserveRun) setSelectedRunId('latest');
 			await fetchRunData(syId, runId, { preferCache: true, backgroundRefresh: true });
 
@@ -1169,7 +1174,6 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		}
 	}, [
 		schoolYearId,
-		selectedRunId,
 		fetchSchoolYear,
 		fetchRuns,
 		fetchRunData,

@@ -85,6 +85,10 @@ export interface SectionSummary {
 export interface SectionAdapter {
     fetchSectionsBySchoolYear(schoolYearId: number, schoolId: number, authToken?: string): Promise<SectionFetchResult>;
 }
+export declare function loadSectionSnapshot(schoolId: number, schoolYearId: number): Promise<{
+    gradeLevels: SectionsByGrade[];
+    fetchedAt: Date;
+} | null>;
 export declare class StubSectionAdapter implements SectionAdapter {
     fetchSectionsBySchoolYear(_schoolYearId: number, _schoolId: number): Promise<SectionFetchResult>;
 }

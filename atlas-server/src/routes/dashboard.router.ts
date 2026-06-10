@@ -14,7 +14,7 @@ function positiveInt(value: unknown, name: string): number | string {
 	return numeric;
 }
 
-router.get('/readiness-summary', authenticateWithSystemToken, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+async function handleDashboardReadinessSummary(req: Request, res: Response, next: NextFunction) {
 	try {
 		const schoolId = positiveInt(req.query.schoolId ?? 1, 'schoolId');
 		if (typeof schoolId === 'string') {
@@ -39,6 +39,9 @@ router.get('/readiness-summary', authenticateWithSystemToken, requirePrivilegedR
 	} catch (err) {
 		next(err);
 	}
-});
+}
+
+router.get('/readiness-summary', authenticateWithSystemToken, requirePrivilegedRole, handleDashboardReadinessSummary);
+router.get('/summary', authenticateWithSystemToken, requirePrivilegedRole, handleDashboardReadinessSummary);
 
 export default router;

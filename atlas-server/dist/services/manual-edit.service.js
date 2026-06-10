@@ -15,7 +15,7 @@ function err(statusCode, code, message) {
     return e;
 }
 // ─── Internal: load run + reference data for validation ───
-async function loadRunContext(runId, schoolId, schoolYearId) {
+export async function loadRunContext(runId, schoolId, schoolYearId) {
     const run = await prisma.generationRun.findFirst({
         where: { id: runId, schoolId, schoolYearId },
     });
@@ -100,7 +100,7 @@ async function loadRunContext(runId, schoolId, schoolYearId) {
         sectionEnrollment,
     };
 }
-function isPublishedSummary(summary) {
+export function isPublishedSummary(summary) {
     if (!summary || typeof summary !== 'object' || Array.isArray(summary))
         return false;
     const candidate = summary;
@@ -115,7 +115,7 @@ function assertRunIsEditable(summary) {
         return;
     throw err(409, 'RUN_ALREADY_PUBLISHED', 'This schedule is already published. Published repairs require the Prompt 6 revision workflow before changes can take effect.');
 }
-function buildValidatorCtx(schoolId, schoolYearId, runId, entries, refData) {
+export function buildValidatorCtx(schoolId, schoolYearId, runId, entries, refData) {
     const { faculty, facultySubjects, rooms, subjects, policyRecord, buildings, sectionEnrollment } = refData;
     return {
         schoolId,
@@ -283,7 +283,7 @@ function timeToMinutes(t) {
     const [h, m] = t.split(':').map(Number);
     return h * 60 + m;
 }
-function computeSummary(entries, unassigned, validation) {
+export function computeSummary(entries, unassigned, validation) {
     const assignedCount = entries.length;
     const unassignedCount = Array.isArray(unassigned) ? unassigned.length : 0;
     const hardViolationCount = validation.violations.filter((v) => v.severity === 'HARD').length;
@@ -301,7 +301,7 @@ function computeSummary(entries, unassigned, validation) {
  * a run's summary. Manual edits to a published run must not silently unpublish it;
  * unpublish must be an explicit action with its own audit trail.
  */
-function mergePreservedSummaryFields(existingSummary, newSummary) {
+export function mergePreservedSummaryFields(existingSummary, newSummary) {
     const merged = { ...newSummary };
     if (!existingSummary || typeof existingSummary !== 'object' || Array.isArray(existingSummary)) {
         return merged;
@@ -354,7 +354,7 @@ function formatTimeAmPm(hhmm) {
     const hour12 = h % 12 || 12;
     return `${hour12}:${String(m).padStart(2, '0')} ${suffix}`;
 }
-function buildHumanConflicts(violations, entries, refData) {
+export function buildHumanConflicts(violations, entries, refData) {
     const { facultyNameMap, roomNameMap, subjectNameMap } = refData;
     const entryMap = new Map(entries.map((e) => [e.entryId, e]));
     return violations.map((v) => {
@@ -526,7 +526,7 @@ function buildHumanConflicts(violations, entries, refData) {
         return { code: v.code, severity: v.severity, humanTitle: title, humanDetail: detail, delta };
     });
 }
-function buildPolicyImpacts(violations, refData) {
+export function buildPolicyImpacts(violations, refData) {
     const { facultyNameMap } = refData;
     const impacts = [];
     const seen = new Set();

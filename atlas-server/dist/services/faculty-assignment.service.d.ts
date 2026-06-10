@@ -475,6 +475,47 @@ export interface PlaceholderCoverageRepairResult {
     resolvedSubjectCodes: string[];
     stillUncoveredSubjectCodes: string[];
 }
+export type AssignmentSummarySortField = 'name' | 'specialization' | 'subjects' | 'weeklyLoad' | 'status';
+export type AssignmentSummarySortDir = 'asc' | 'desc';
+export type AssignmentSummarySchedulingFilter = 'all' | 'active' | 'excluded';
+export type AssignmentSummaryAssignmentFilter = 'all' | 'assigned' | 'unassigned';
+export interface AssignmentSummaryListOptions {
+    page?: number;
+    pageSize?: number;
+    query?: string;
+    scheduling?: AssignmentSummarySchedulingFilter;
+    assignment?: AssignmentSummaryAssignmentFilter;
+    department?: string | null;
+    sortField?: AssignmentSummarySortField;
+    sortDir?: AssignmentSummarySortDir;
+}
+export interface AssignmentSummaryRosterStats {
+    totalCount: number;
+    activeCount: number;
+    assignedCount: number;
+    unassignedCount: number;
+    reviewCount: number;
+    overCapCount: number;
+}
+export interface AssignmentSummaryPageResult<T> {
+    items: T[];
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+    query: string;
+    filters: {
+        scheduling: AssignmentSummarySchedulingFilter;
+        assignment: AssignmentSummaryAssignmentFilter;
+        department: string | null;
+    };
+    sort: {
+        field: AssignmentSummarySortField;
+        dir: AssignmentSummarySortDir;
+    };
+    departments: string[];
+    rosterStats: AssignmentSummaryRosterStats;
+}
 export interface RealFacultyRecoveryInput {
     schoolId: number;
     schoolYearId: number;
@@ -615,7 +656,7 @@ export declare function getAssignmentsByFaculty(facultyId: number, schoolYearId:
     rotationTermBreakdown: RotationFamilyTermBreakdown[];
 } | null>;
 export declare function setAssignments(facultyId: number, schoolId: number, schoolYearId: number, assignedBy: number, expectedVersion: number, assignments: AssignmentScopeInput[], authToken?: string): Promise<AssignmentMutationResult>;
-export declare function getAssignmentSummary(schoolId: number, schoolYearId: number, authToken?: string): Promise<{
+export declare function getAssignmentSummary(schoolId: number, schoolYearId: number, authToken?: string, listOptions?: AssignmentSummaryListOptions): Promise<{
     faculty: {
         id: number;
         externalId: number;
@@ -698,6 +739,88 @@ export declare function getAssignmentSummary(schoolId: number, schoolYearId: num
             };
         }[];
     }[];
+    listPage: AssignmentSummaryPageResult<{
+        id: number;
+        externalId: number;
+        isPlaceholder: boolean;
+        employeeId: string | null;
+        firstName: string;
+        lastName: string;
+        department: string | null;
+        specialization: string | null;
+        employmentStatus: string;
+        isClassAdviser: boolean;
+        advisedSectionId: number | null;
+        advisedSectionName: string | null;
+        advisoryEquivalentHours: number;
+        ancillaryMinutesPerWeek: number | null;
+        canTeachOutsideDepartment: boolean;
+        isActiveForScheduling: boolean;
+        maxHoursPerWeek: number;
+        version: number;
+        subjectCount: number;
+        sectionCount: number;
+        baselineSubjectCount: number;
+        missingOwnershipSubjectCount: number;
+        ownershipWithoutScopeSubjectCount: number;
+        subjectHours: number;
+        loadPercentage: number;
+        sectionTeachingHours: number;
+        sectionTeachingHoursRaw: number;
+        rotationFamilyOvercountHours: number;
+        rotationFamilyLoadDetails: RotationFamilyLoadDetail[];
+        rotationTermBreakdown: RotationFamilyTermBreakdown[];
+        gradeTeachingHours: number;
+        advisoryHours: number;
+        ancillaryHours: number;
+        policyCreditedHours: number;
+        policyLoadPercentage: number;
+        syntheticCoverageHours: number;
+        loadSignalMode: string;
+        assignments: {
+            gradeLevels: number[];
+            sectionIds: number[];
+            sections: (import("./faculty-assignment-scope.service.js").ScopedSection & {
+                assignmentSpecializationCode: string | null;
+                assignmentSpecializationLabel: string | null;
+                assignmentRotationFamily: string | null;
+                assignmentRotationLaneId: string | null;
+                assignmentRotationTermRank: number | null;
+                assignmentRotationTermLabel: string | null;
+                assignmentRotationTermGroupId: string | null;
+                assignmentRotationTermCount: number | null;
+                assignmentRawMinutesPerWeek: number | null;
+                assignmentConcurrentDeltaMinutesPerWeek: number | null;
+                assignmentExpandsConcurrentDemand: boolean | null;
+            })[];
+            assignmentKind: TeachingLoadAssignmentKind;
+            storedCurrentYearSectionCount: number;
+            ownedCurrentYearSectionCount: number;
+            missingOwnershipSectionCount: number;
+            ownershipWithoutScopeSectionCount: number;
+            outOfSubjectScopeSectionCount: number;
+            id: number;
+            facultyId: number;
+            subjectId: number;
+            schoolId: number;
+            assignedBy: number;
+            assignedAt: Date;
+            version: number;
+            createdAt: Date;
+            updatedAt: Date;
+            subject: {
+                id: number;
+                name: string;
+                code: string;
+                modularGroupId?: string | null;
+                modularOrder?: number | null;
+                termGroupId?: string | null;
+                termCount?: number | null;
+                minMinutesPerWeek: number;
+                rotationFamily?: string | null;
+            };
+        }[];
+    }>;
     ownershipIndex: SubjectSectionOwnershipIndexEntry[];
     coverageTotals: TeachingLoadCoverageTotals;
     integrityDiagnostics: TeachingLoadIntegrityDiagnostics;

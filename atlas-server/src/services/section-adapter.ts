@@ -459,7 +459,7 @@ async function saveSectionSnapshot(schoolId: number, schoolYearId: number, data:
 	});
 }
 
-async function loadSectionSnapshot(schoolId: number, schoolYearId: number): Promise<{
+export async function loadSectionSnapshot(schoolId: number, schoolYearId: number): Promise<{
 	gradeLevels: SectionsByGrade[];
 	fetchedAt: Date;
 } | null> {
