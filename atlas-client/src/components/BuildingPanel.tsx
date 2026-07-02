@@ -45,6 +45,7 @@ type RoomEditForm = {
 	id: number;
 	name: string;
 	floor: number;
+	buildingZoneId: string | null;
 	type: RoomType;
 	capacity: string;
 	isTeachingSpace: boolean;
@@ -93,6 +94,7 @@ export function BuildingPanel({
 	readOnly = false,
 }: BuildingPanelProps) {
 	const [newRoomName, setNewRoomName] = useState('');
+	const [newRoomZone, setNewRoomZone] = useState('');
 	const [newRoomType, setNewRoomType] = useState<RoomType>('CLASSROOM');
 	const [newRoomCapacity, setNewRoomCapacity] = useState('45');
 	const [addingRoom, setAddingRoom] = useState(false);
@@ -161,11 +163,13 @@ export function BuildingPanel({
 				type: newRoomType,
 				capacity: newRoomCapacity ? Number(newRoomCapacity) : null,
 				isTeachingSpace,
+				buildingZoneId: newRoomZone.trim() || null,
 			});
 			onPushHistory();
 			onRoomAdded(data.room);
 			setNewRoomName('');
 			setNewRoomCapacity('45');
+			setNewRoomZone('');
 			toast.success('Room added successfully.');
 		} catch (err: any) {
 			// Surface backend error message if available
@@ -214,6 +218,7 @@ export function BuildingPanel({
 			id: room.id,
 			name: room.name,
 			floor: room.floor,
+			buildingZoneId: room.buildingZoneId ?? '',
 			type: room.type,
 			capacity: room.capacity != null ? String(room.capacity) : '',
 			isTeachingSpace: room.isTeachingSpace,
@@ -233,6 +238,7 @@ export function BuildingPanel({
 			const { data } = await atlasApi.patch(`/map/rooms/${editingRoom.id}`, {
 				name: editingRoom.name.trim(),
 				floor: editingRoom.floor,
+				buildingZoneId: editingRoom.buildingZoneId?.trim() || null,
 				type: editingRoom.type,
 				capacity: editingRoom.capacity ? Number(editingRoom.capacity) : null,
 				isTeachingSpace,
@@ -587,18 +593,28 @@ export function BuildingPanel({
 									/>
 								</div>
 							</div>
-							<div>
-								<label className="text-[0.6rem] text-muted-foreground mb-1 block">Type</label>
-								<Select value={newRoomType} onValueChange={(v) => setNewRoomType(v as RoomType)}>
-									<SelectTrigger className="flex h-9 w-full bg-transparent text-sm shadow-sm transition-colors">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										{ROOM_TYPES.map((t) => (
-											<SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+							<div className="grid grid-cols-2 gap-2">
+								<div>
+									<label className="text-[0.6rem] text-muted-foreground mb-1 block">Type</label>
+									<Select value={newRoomType} onValueChange={(v) => setNewRoomType(v as RoomType)}>
+										<SelectTrigger className="flex h-9 w-full bg-transparent text-sm shadow-sm transition-colors">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{ROOM_TYPES.map((t) => (
+												<SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+								<div>
+									<label className="text-[0.6rem] text-muted-foreground mb-1 block">Zone / Annex</label>
+									<Input
+										placeholder="e.g. MAIN"
+										value={newRoomZone}
+										onChange={(e) => setNewRoomZone(e.target.value)}
+									/>
+								</div>
 							</div>
 							<Button
 								size="sm"
@@ -703,30 +719,42 @@ export function BuildingPanel({
 								</div>
 							</div>
 
-							<div className="space-y-2">
-								<Label>Room type</Label>
-								<Select
-									value={editingRoom.type}
-									onValueChange={(value) => {
-										const nextType = value as RoomType;
-										setEditingRoom({
-											...editingRoom,
-											type: nextType,
-											isTeachingSpace: NON_TEACHING_TYPES.includes(nextType) ? false : editingRoom.isTeachingSpace,
-										});
-									}}
-								>
-									<SelectTrigger>
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										{ROOM_TYPES.map((type) => (
-											<SelectItem key={type.value} value={type.value}>
-												{type.label}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+							<div className="grid grid-cols-2 gap-3">
+								<div className="space-y-2">
+									<Label>Room type</Label>
+									<Select
+										value={editingRoom.type}
+										onValueChange={(value) => {
+											const nextType = value as RoomType;
+											setEditingRoom({
+												...editingRoom,
+												type: nextType,
+												isTeachingSpace: NON_TEACHING_TYPES.includes(nextType) ? false : editingRoom.isTeachingSpace,
+											});
+										}}
+									>
+										<SelectTrigger>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{ROOM_TYPES.map((type) => (
+												<SelectItem key={type.value} value={type.value}>
+													{type.label}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+
+								<div className="space-y-2">
+									<Label htmlFor="edit-room-zone">Zone / Annex</Label>
+									<Input
+										id="edit-room-zone"
+										value={editingRoom.buildingZoneId || ''}
+										placeholder="e.g. MAIN, ANNEX"
+										onChange={(e) => setEditingRoom({ ...editingRoom, buildingZoneId: e.target.value })}
+									/>
+								</div>
 							</div>
 
 							<div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
@@ -864,6 +892,11 @@ function SortableRoomTile({
 							Capacity {room.capacity}
 						</span>
 					)}
+					{room.buildingZoneId && (
+						<Badge variant="outline" className="text-[0.6rem] px-1 py-0 bg-purple-50 text-purple-700 border-purple-100">
+							{room.buildingZoneId}
+						</Badge>
+					)}
 					{!room.isTeachingSpace && (
 						<Badge className="bg-amber-100 text-amber-700 text-[0.55rem] px-1 py-0">
 							Non-teaching
@@ -940,6 +973,11 @@ function RoomTileReadOnly({ room }: { room: Room }) {
 						<span className="text-[0.6875rem] text-muted-foreground">
 							Capacity {room.capacity}
 						</span>
+					)}
+					{room.buildingZoneId && (
+						<Badge variant="outline" className="text-[0.6rem] px-1 py-0 bg-purple-50 text-purple-700 border-purple-100">
+							{room.buildingZoneId}
+						</Badge>
 					)}
 					{!room.isTeachingSpace && (
 						<Badge className="bg-amber-100 text-amber-700 text-[0.55rem] px-1 py-0">

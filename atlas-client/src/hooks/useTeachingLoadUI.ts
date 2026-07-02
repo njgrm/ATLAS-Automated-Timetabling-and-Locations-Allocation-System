@@ -57,6 +57,7 @@ export function useTeachingLoadUI({
 	const [showJumpList, setShowJumpList] = useState(false);
 	const [viewMode, setViewMode] = useState<'teacher' | 'allocation'>('teacher');
 	const [showOutsideDept, setShowOutsideDept] = useState(false);
+	const [showUnmappedSpecialization, setShowUnmappedSpecialization] = useState(false);
 	const [sectionModeFilter, setSectionModeFilter] = useState<'all' | 'unassigned' | 'constrained'>('unassigned');
 	const [selectedSectionId, setSelectedSectionId] = useState<number | null>(null);
 	const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null);
@@ -81,6 +82,17 @@ export function useTeachingLoadUI({
 		toFacultyName?: string;
 	} | null>(null);
 
+	const mappedSpecializations = useMemo(() => {
+		const mapped = new Set<string>();
+		for (const subject of subjects) {
+			mapped.add(subject.code.trim().toLowerCase());
+			for (const spec of subject.allowedSpecializations ?? []) {
+				mapped.add(spec.trim().toLowerCase());
+			}
+		}
+		return mapped;
+	}, [subjects]);
+
 	const filteredFaculty = useMemo(() => {
 		let nextFaculty = faculty;
 		if (!showTemporaryRoles) {
@@ -102,6 +114,13 @@ export function useTeachingLoadUI({
 		}
 		if (departmentFilter !== 'all') {
 			nextFaculty = nextFaculty.filter((member) => member.department === departmentFilter);
+		}
+		if (showUnmappedSpecialization) {
+			nextFaculty = nextFaculty.filter((member) => {
+				if (!member.specialization) return false;
+				const spec = member.specialization.trim().toLowerCase();
+				return !mappedSpecializations.has(spec);
+			});
 		}
 
 		nextFaculty = nextFaculty.filter((member) => {
@@ -247,6 +266,7 @@ export function useTeachingLoadUI({
 		showJumpList, setShowJumpList,
 		viewMode, setViewMode,
 		showOutsideDept, setShowOutsideDept,
+		showUnmappedSpecialization, setShowUnmappedSpecialization,
 		sectionModeFilter, setSectionModeFilter,
 		selectedSectionId, setSelectedSectionId,
 		selectedSubjectId, setSelectedSubjectId,

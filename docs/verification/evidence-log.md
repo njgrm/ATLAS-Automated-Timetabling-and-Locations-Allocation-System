@@ -1,3 +1,103 @@
+# 2026-06-30 - Phase 5 Published Schedule Events / Notifications SSE Pipeline
+
+- Phase: Phase 5 Publish & Dissemination, `phase-5-publish-dissemination`.
+- Operator: Antigravity
+- Scope gate: IMPLEMENTATION COMPLETE, SERVER BUILD GREEN, TESTS GREEN, HEALTH CHECK GREEN -> PROMPT-SCOPE GO.
+- Trigger: user asked to proceed with Phase 5 implementation covering the published schedule events/notifications pipeline.
+- Scope held: created `published-schedule-events.service.ts` and `published-schedule-events.test.ts`, modified `published-schedule.router.ts`, `generation.service.ts`, and `published-revision.service.ts`.
+- SSE events pipeline improvements:
+  - Designed `published-schedule-events.service.ts` for SSE subscription management and event buffering.
+  - Implemented event filtering: faculty subscribers receive only relevant events matching their assigned classes/revisions (extracted from `changeSet` properties) and general publish notifications; admin/officer subscribers receive all notifications.
+  - Mounted `/schools/:schoolId/:schoolYearId/schedules/published-events` route in `published-schedule.router.ts` using JWT auth with cookie or query parameter fallback for EventSource compatibility.
+  - Integrated `SCHEDULE_PUBLISHED` trigger inside `publishRun` (in `generation.service.ts`) and `SCHEDULE_REVISED` trigger inside `createPublishedScheduleRevision` (in `published-revision.service.ts`).
+- Verification proof:
+  - Added unit test suite `published-schedule-events.test.ts` exercising publish, subscriber dispatching, scoping/filtering, and missed events replaying.
+  - Tests completed successfully: 7 passed, 0 failed.
+  - Backend production build completed successfully via `npm --prefix atlas-server run build`.
+  - Server health check verified: `curl.exe -s http://127.0.0.1:5001/api/v1/health` returned `{"status":"ok","service":"atlas"}`.
+- Decision: PROMPT-SCOPE GO.
+
+---
+
+# 2026-06-30 - Phase 4 UX/UI Polish & KISS Realignment
+
+- Phase: Phase 4 UX/UI Polish, `phase-4-ux-ui-polish-kiss-realignment`.
+- Operator: Antigravity
+- Scope gate: IMPLEMENTATION COMPLETE, CLIENT BUILD GREEN, VERIFICATION PROOF GREEN -> PROMPT-SCOPE GO.
+- Trigger: user approved the Phase 4 implementation plan covering collapsible Accordions for findings in Audit.tsx, visual button differentiation for Reject action in OfficerRoomPreferences.tsx, standardizing muted footer links color in Login.tsx, and category label font size upgrade in Audit.tsx.
+- Scope held: modified `Audit.tsx`, `OfficerRoomPreferences.tsx`, and `Login.tsx`.
+- UI/UX improvements:
+  - Redesigned flat findings list in Audit.tsx to collapsible Accordion cards showing details and action buttons progressively.
+  - Upgraded micro-text category label in Audit.tsx to standard text-xs.
+  - Styled Reject button in OfficerRoomPreferences.tsx with warning colors (rose borders and text).
+  - Standardized terms footer text color in Login.tsx to text-muted-foreground.
+- Build verification: Vite client production bundle successfully compiled with zero TypeScript or syntax warnings in 883ms.
+- Decision: PROMPT-SCOPE GO.
+
+---
+
+# 2026-06-30 - Phase 3 UX/UI Polish & KISS Realignment
+
+- Phase: Phase 3 UX/UI Polish, `phase-3-ux-ui-polish-kiss-realignment`.
+- Operator: Antigravity
+- Scope gate: IMPLEMENTATION COMPLETE, CLIENT BUILD GREEN, VERIFICATION PROOF GREEN -> PROMPT-SCOPE GO.
+- Trigger: user approved the Phase 3 implementation plan covering teacher columns simplification, hours merged inside load badges, 3-step wizard workflow on teaching load and room requests, workload progress bar simplification, and interactive lifecycle timeline in HowItWorks explainer.
+- Scope held: modified `Faculty.tsx`, `FacultyRow.tsx`, `WorkspaceToolbar.tsx`, `StackedWorkloadBar.tsx`, `FacultyRoomPreferences.tsx`, `DesktopRoomRequestLayout.tsx`, and `HowItWorks.tsx`.
+- UI/UX improvements:
+  - Reduced Teachers roster columns list to exactly Name, Department, and Load State; de-emphasized sync button to outline style.
+  - Merged credited hours directly inside `FacultyLoadStateBadge` text.
+  - Added horizontal 3-step wizard stepper inside `WorkspaceToolbar.tsx` for guided Teaching Load setup.
+  - Replaced stacked workload progress bars with a single color-coded total workload progress bar in `StackedWorkloadBar.tsx`.
+  - Added 3-step wizard stepper inside `DesktopRoomRequestLayout.tsx` for room requests guidance.
+  - Integrated visual 5-step lifecycle timeline card inside `HowItWorks.tsx`.
+- Build verification: Vite client production bundle successfully compiled with zero TypeScript or syntax warnings in 540ms.
+- Decision: PROMPT-SCOPE GO.
+
+---
+
+# 2026-06-30 - Phase 2 UX/UI Polish & KISS Realignment
+
+- Phase: Phase 2 UX/UI Polish, `phase-2-ux-ui-polish-kiss-realignment`.
+- Operator: Antigravity
+- Scope gate: IMPLEMENTATION COMPLETE, CLIENT BUILD GREEN, VERIFICATION PROOF GREEN -> PROMPT-SCOPE GO.
+- Trigger: user asked to proceed with Phase 2 implementation covering room zone additions, warning severity sub-tabs, mobile day lists, wizard headers cleanup, table column simplification, and standard Tailwind text classes.
+- Scope held: modified `BuildingPanel.tsx`, `GeneratedRunRailPanels.tsx`, `Audit.tsx`, `PublicPublishedSchedule.tsx`, `FacultyPreferences.tsx`, `Subjects.tsx`, `SubjectRow.tsx`, `RoomSchedules.tsx`, `searchable-select.tsx`, `timetableContexts.types.ts`, and `ScheduleReviewWorkspace.tsx`.
+- UI/UX improvements:
+  - Form-based room zone/annex addition and editing in `BuildingPanel.tsx` with dynamic purple-themed Zone badge rendering.
+  - Double sub-tabs under search in warnings left-rail (`GeneratedRunRailPanels.tsx`) with All, Hard, Soft groups and dynamic counts.
+  - Removed redundant What is blocked/Why it matters paragraphs in findings items (`Audit.tsx`).
+  - Mobile-responsive Day List view inside `PublicPublishedSchedule.tsx` replacing squished table on small viewports.
+  - Eliminated steps wizard indicators in `FacultyPreferences.tsx` header for single-page preference card.
+  - Reduced Subjects table column count from 7 to 5 by merging Department, Program scopes, and status indicators inside the first column.
+  - Standardized micro-text to standard Tailwind `text-xs` (and `text-[10px]` where highly justified in dense grid cells) in `RoomSchedules.tsx` and `searchable-select.tsx`.
+- Build verification: Vite client production bundle successfully compiled with zero TypeScript or syntax warnings in 528ms.
+- Decision: PROMPT-SCOPE GO.
+
+---
+
+# 2026-06-11 - Dynamic timetable Teaching Load and unassigned repair
+
+- Phase: Teaching Load + Timetable dynamic repair follow-up, `dynamic-timetable-teaching-load-unassigned-repair`.
+- Operator: Codex
+- Scope gate: IMPLEMENTATION COMPLETE, SERVER BUILD GREEN, CLIENT BUILD GREEN, CONTRACT TEST GREEN, PRIMITIVE SCAN GREEN, BUILT HEALTH GREEN, BROWSER ENTRYPOINT SMOKE GREEN -> PROMPT-SCOPE GO WITH FILE-SIZE AND LIVE-MUTATION CAVEATS.
+- Trigger: user asked to make `/timetable` dynamic beyond scheduled-entry teacher swaps so mini Teaching Load changes can repair canonical ownership for unassigned sessions, refresh the active generated run, and feed explicit placement or regeneration.
+- Scope held: existing teaching-load repair preview/apply endpoints, canonical ownership transfer reuse, generated-run unassigned repair identity, optional placement proposal routing through manual-edit placement logic, timetable rail `Fix teacher` action, selected-unassigned dock flow, client mutation hooks, and traceability updates. No Prisma schema change, new notification platform, full Teaching Load page redesign, or published-run canonical write behavior was added.
+- API contract: `POST /api/v1/generation/:schoolId/:schoolYearId/runs/:runId/teaching-load-repairs/preview` and `/apply` now accept legacy entry changes plus explicit `ENTRY` and `UNASSIGNED` changes. `UNASSIGNED` changes are keyed by `subjectId`, `sectionId`, `session`, `entryKind`, optional `cohortCode`, and `unassignedKey`.
+- Server apply contract: unpublished completed runs can save canonical ownership for scheduled entries or unassigned sessions, update `SubjectSectionOwnership`, update matching `FacultySubject.sectionIds`, update matching draft entries when present, persist refreshed `unassignedItems`, recompute violations/summary, refresh `summary.inputSnapshot`, write manual edit/audit records, and increment the existing run version without creating a new generation run.
+- Placement contract: when an apply request includes `placementProposal`, the service projects the Teaching Load repair first and then reuses the existing manual-edit `PLACE_UNASSIGNED` path in the same transaction. Without a placement proposal, unassigned items remain visible so the scheduler can place them explicitly or regenerate.
+- Published safety: published runs continue to reject canonical Teaching Load repair with `RUN_ALREADY_PUBLISHED`; the timetable dock remains revision-only for published schedules.
+- UX contract: generated-run unassigned rows and default `UNASSIGNED_SECTION` blocker rows now expose a persistent `Fix teacher` action. Selecting it opens the same embedded Teaching Load dock with `Unassigned session` context, `Current owner`, `Choose teacher`, `Preview and save`, and `Save Teaching Load` copy. Scheduled entries keep `Save Teaching Load and update timetable`.
+- Targeted contract test: `npx tsx atlas-server/src/__tests__/timetable-teaching-load-repair-contract.test.ts` passed. Coverage includes explicit unassigned change typing, stable key helper, placement proposal support, shared placement service export, unassigned readiness response fields, input snapshot refresh hook, dock unassigned copy, and client `Save Teaching Load` path.
+- Build verification: `npm --prefix atlas-server run build` passed. `npm --prefix atlas-client run build` passed.
+- Built runtime proof: compiled server started on temporary port `5998`; `GET /api/v1/health` returned `200` with `{"status":"ok","service":"atlas"}` and the process was stopped after the probe.
+- Frontend guardrails: the newly expanded timetable files stayed under 1000 lines after extracting `TacticalSandboxDock.helpers.ts` (`TacticalSandboxDock.tsx=912`, `GeneratedRunRailPanels.tsx=769`, `TimetableShared.tsx=248`, `CenterWorkspace.tsx=652`, helper `188`). Touched-file scan found no native `<button>`, `<select>`, `<details>`, or raw `title=` patterns. Existing `ScheduleReviewWorkspace.tsx` remains oversized at `1454` lines and was touched for state plumbing; it needs a separate extraction pass before strict file-size GO can be claimed.
+- Documentation updates: `docs/reference/atlas-runtime-source-of-truth-map.md`, `docs/verification/evidence-log.md`, and `CHANGELOG.md` now document the dynamic unassigned repair contract.
+- Browser smoke: local Vite `http://localhost:5176/timetable` with live server `http://localhost:5001` rendered latest run `#141` after the slow runs bootstrap. Desktop `1440x900` had no horizontal overflow (`scrollWidth=1440`) and showed `Refresh schedule`, `More`, five default `Fix teacher` actions on `UNASSIGNED_SECTION` blocker rows, and the unassigned Teaching Load dock opened with `Unassigned session` plus `Save Teaching Load`. Mobile `390x844` had no horizontal overflow (`scrollWidth=390`) and showed the same `Fix teacher` actions.
+- Browser caveat: the Tailnet/local runs bootstrap endpoint `/api/v1/generation/1/55/runs` took about `56s`, so browser probes needed a long wait. Console still showed the known non-blocking EnrollPro settings `502` failures. Final mutation smoke still needs a live placeable unassigned row to prove atomic ownership-plus-placement from the UI; this pass verified the UI entrypoint and server contract without committing live data.
+- Decision: PROMPT-SCOPE GO for the dynamic ownership contract and UI entry point, but NO-GO for strict component-size closure until `ScheduleReviewWorkspace.tsx` is extracted below 1000 lines. Keep broader timetable-generation closure separate until live placement/regeneration smoke is rerun against current Tailnet data.
+
+---
+
 # 2026-06-01 - Dashboard readiness summary endpoint
 
 - Phase: Teaching Load + Timetable follow-up prompt 9b, `tl-timetable-09b-dashboard-readiness-summary-endpoint`.
@@ -2303,3 +2403,282 @@ refactor(ui): rebuild dashboard + map shell with single-next-step identity
   - Primitive scan -> PASS: no native `<button>`, `<select>`, `<details>`, or lowercase native `title=` in touched timetable React/hook files.
   - Line-count scan -> PASS for touched React components: `TacticalSandboxDock.tsx=926`, `CenterWorkspace.tsx=637`, `AppShell.tsx=473`.
 - Verdict: GO for live API/build/browser smoke with one known non-blocking EnrollPro settings proxy outage.
+
+# 2026-06-10 - Timetable KISS Simplification
+- Phase: Review/manual adjustment UX simplification.
+- Operator: Codex.
+- Scope: `/timetable` command bar, attention rail, grid-view copy, and embedded Teaching Load dock copy/progressive disclosure. No backend endpoint or schema changes.
+- Files changed in this pass:
+  - `atlas-client/src/components/timetable/ScheduleReviewWorkspaceHeader.tsx`
+  - `atlas-client/src/components/timetable/LeftRail.tsx`
+  - `atlas-client/src/components/timetable/TacticalSandboxDock.tsx`
+  - `atlas-client/src/components/timetable/ClassProgramMatrixView.tsx`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+- UX contract delivered:
+  1. Header now centers the default workflow on run selection, refresh, eligible publish, and a single More menu for secondary tools.
+  2. Added `TimetableTaskState` labels: `No run selected`, `Pre-generation plan`, `Schedule review`, `Published schedule`, and `Needs attention`.
+  3. Left rail now frames violations, unassigned entries, and requests under `Needs attention`.
+  4. Teaching Load dock now uses the three-step copy `1 Current teacher`, `2 Choose teacher`, `3 Preview and save` or `3 Create revision`.
+  5. Workload bars are hidden by default behind `Details`; candidate rows show only `Under load`, `Near limit`, or `Over limit` first.
+  6. Published run repair keeps `Create timetable revision` as the clear primary path and preserves the copy that Teaching Load will not be rewritten from a published repair.
+- Verification:
+  - `npm --prefix atlas-client run build` -> PASS.
+  - Server build -> NOT RUN; backend was not touched.
+  - Primitive scan -> PASS: no native `<button>`, `<select>`, `<details>`, or lowercase native `title=` in touched timetable React files.
+  - Copy scan -> PASS: no primary-label matches for `Recovery Tools`, `Workflow`, `Class Program Matrix`, `Input status unavailable`, `Create Revision`, `Published Revision`, `Manually Repair`, `Preview Impact`, or `Regenerate Draft` under `atlas-client/src/components/timetable`.
+  - Line-count scan -> PASS: `ScheduleReviewWorkspaceHeader.tsx=735`, `LeftRail.tsx=208`, `TacticalSandboxDock.tsx=945`, `ClassProgramMatrixView.tsx=240`.
+  - Tailnet health -> PASS: `https://njgrm.buru-degree.ts.net/api/v1/health` returned `{"status":"ok","service":"atlas"}`.
+  - Tailnet browser smoke -> BLOCKED by existing runtime fetch/proxy issue: authenticated browser fetch to `/api/v1/runtime/context?schoolId=1` fails with `Failed to fetch`/`net::ERR_FAILED`, while direct authenticated server request succeeds.
+  - Local direct-API browser smoke -> PASS with `VITE_ATLAS_API=http://127.0.0.1:5001/api/v1` and Chromium web-security disabled for CORS bypass: no forbidden primary copy, More menu shows `Policy`, `Map`, `Teacher input status`, `Room requests`, `Tour`, `How it works`, `History`, and generation actions.
+  - Desktop overflow -> PASS: `scrollWidth` equals viewport width.
+  - Mobile portrait overflow -> PASS at `390x844`: `scrollWidth=390`, `clientWidth=390`.
+  - Published dock smoke -> PASS: clicking a visible grid block opened the dock, showed `Create timetable revision`, and preserved `Teaching Load will not be rewritten from this published repair.`
+- Verdict: GO for frontend KISS simplification. Tailnet browser end-to-end remains partially blocked by the pre-existing runtime-context browser fetch/proxy failure, not by this UI change.
+
+# 2026-06-11 - Timetable KISS UX Critique Repair
+- Phase: Review/manual adjustment UX simplification.
+- Operator: Codex.
+- Scope: `/timetable` KISS critique repairs for header action density, visible refresh, violation-copy readability, class selection target reliability, and PWA Tailnet cache behavior.
+- Files changed in this pass:
+  - `atlas-client/src/components/timetable/ScheduleReviewWorkspaceHeader.tsx`
+  - `atlas-client/src/components/timetable/GeneratedRunRailPanels.tsx`
+  - `atlas-client/src/components/timetable/TimetableShared.tsx`
+  - `atlas-client/src/components/timetable/TimetableGrid.tsx`
+  - `atlas-client/src/components/timetable/timetableContexts.types.ts`
+  - `atlas-client/public/sw.js`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+- UX contract delivered:
+  1. Removed the hidden legacy toolbar block from the timetable header so secondary actions are not duplicated in the DOM.
+  2. `Refresh schedule` is now visible on desktop while remaining compact on narrow screens.
+  3. Generated violation rail rows now scrub leading `Entry entry-*` text and replace internal subject/section/room/faculty numeric references with readable labels or safe plain-language fallbacks.
+  4. Violation groups keep code-based accordions but show a compact group summary plus an initial five rows with `Show more`.
+  5. Timetable grid entries now expose stable `data-timetable-entry` hooks, accessible `Select ...` labels, focus rings, and a larger minimum click/tap target.
+  6. Service worker cache version advanced to `atlas-v1.0.2`; cached API network-first timeout increased to `10000ms` to avoid Tailnet runtime-context false failures.
+- Verification:
+  - `npm --prefix atlas-client run build` -> PASS after UI changes and again after service-worker update.
+  - Server build -> NOT RUN; backend was not touched.
+  - Primitive scan -> PASS for touched timetable React files: no native `<button>`, `<select>`, `<details>`, or raw `title=`.
+  - Copy scan -> PASS for touched timetable files: no `Recovery Tools`, `Workflow`, `Class Program Matrix`, `Input status unavailable`, `New Pre-Generation Draft`, `Map View`, `How It Works`, or `Refresh data`.
+  - Line-count scan -> PASS for touched React components: `ScheduleReviewWorkspaceHeader.tsx=479`, `TimetableShared.tsx=244`, `TimetableGrid.tsx=583`, `GeneratedRunRailPanels.tsx=710`.
+  - Local browser smoke (`http://localhost:5176`, service workers blocked, returning scheduler state) -> PASS: `Refresh schedule` found, `More` found, no old labels, no visible internal ID copy, 50 timetable entries, first entry aria label `Select MAPEH for SIRIUS · STE, Mon 7:30 AM`, mouse click opened the dock.
+  - Local keyboard smoke -> PASS: focusing the first `data-timetable-entry` and pressing Enter opened the Teaching Load / revision dock.
+  - Local overflow smoke -> PASS at `1440x900`, `900x900`, and `390x844`; document/body scroll widths matched viewport widths.
+  - Tailnet normal browser smoke (`https://njgrm.buru-degree.ts.net`, service workers enabled) -> PASS after service-worker update: schedule review loaded, `Network Error=false`, `Refresh schedule=1`, `data-timetable-entry=50`.
+  - Remaining non-blocking browser noise: `/enrollpro-api/settings/public` still returns `502`; the timetable remains usable from saved branding/runtime data.
+- Verdict: GO for prompt scope.
+
+# 2026-06-11 - Timetable Teaching Load Regeneration And Unassigned QA
+- Phase: Timetable-embedded Teaching Load follow-up QA.
+- Operator: Codex.
+- Scope: Verify whether a post-generation timetable run detects mini Teaching Load changes, updates canonical Teaching Load, supports unassigned-session manual placement, and feeds a new generation. Backend generation fallback was repaired; no client code was changed in this pass.
+- Files changed in this pass:
+  - `atlas-server/src/services/generation.service.ts`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+  - `CHANGELOG.md`
+- Browser/API evidence:
+  1. Tailnet browser selected unpublished run `127`, changed section filter to `COPPER`, opened `entry-156`, searched `BALTAZAR`, previewed the mini Teaching Load repair, acknowledged `890` soft warnings, and clicked `Save Teaching Load and update timetable`.
+  2. The browser sent `POST /api/v1/generation/1/55/runs/127/teaching-load-repairs/preview` -> `200` and `POST /api/v1/generation/1/55/runs/127/teaching-load-repairs/apply` -> `200`.
+  3. Run `127` advanced from version `3` to `4`.
+  4. Run `127` FIL/COPPER entries `entry-156` through `entry-160` all changed from faculty `18279` to faculty `18199`.
+  5. Canonical section ownership for section `2760` / subject `1` changed to faculty `18199` (`BALTAZAR, CRISTETA`).
+  6. Existing run `127` unassigned rows stayed at `25`; their reasons were `FACULTY_OVERLOADED` and `NO_AVAILABLE_SLOT`, not `NO_QUALIFIED_FACULTY`.
+  7. Fresh generation attempt `140` initially failed with `[subject-contract-sync] fetch failed`, traced to fail-fast EnrollPro section sync while cached ATLAS section mirrors existed.
+  8. After backend fallback repair, fresh generation run `141` completed with `assigned=3440`, `unassigned=25`.
+  9. Run `141` FIL/COPPER generated entries used faculty `18199`, proving regeneration consumed the canonical Teaching Load change made through the timetable mini editor.
+- Bug fixed:
+  - Generation now attempts live section sync first, but when EnrollPro section sync is unreachable and non-stale section mirrors exist, the run continues from saved ATLAS section data rather than failing before scheduling.
+- Remaining limitation:
+  - Existing `unassignedItems` are static generated-run artifact rows. They are not automatically rederived after a mini Teaching Load repair.
+  - Unassigned rows are selectable in the rail, but the embedded Teaching Load editor is only entry-driven. A subject/section that is fully unassigned has no timetable block to open the mini Teaching Load owner repair.
+  - Bounded manual-placement probes against run `141` found current unassigned rows still hard-blocked by `FACULTY_OVERLOAD`, `SECTION_TIME_CONFLICT`, or qualification ownership constraints; no safe manual placement was committed in this pass.
+- Verification:
+  - `npm --prefix atlas-server run build` -> PASS.
+  - Tailnet generation route after fix -> PASS: `POST /api/v1/generation/1/55/runs` created completed run `141`.
+  - Client build -> NOT RUN; client code was not changed in this pass.
+- Verdict: GO for mini Teaching Load save and regeneration consumption; NO-GO for automatic existing-run unassigned recomputation and unassigned-row Teaching Load repair.
+
+# 2026-06-11 - Timetable Caveat Closure
+- Phase: Review/manual adjustment UX simplification and Teaching Load repair verification.
+- Operator: Codex.
+- Scope: `/timetable` header action separation, selected-run truth, unpublished Teaching Load repair browser proof, mismatch-branch data proof, and keyboard selection repair. No backend schema or endpoint changes.
+- Files changed in this pass:
+  - `atlas-client/src/components/timetable/ScheduleReviewWorkspaceHeader.tsx`
+  - `atlas-client/src/components/timetable/TimetableGrid.tsx`
+  - `atlas-client/src/components/timetable/TacticalSandboxDock.tsx`
+  - `atlas-client/src/hooks/useTimetableData.ts`
+  - `docs/reference/atlas-runtime-source-of-truth-map.md`
+  - `docs/verification/evidence-log.md`
+- UX/runtime contract delivered:
+  1. Header command row now exposes only task/run identity, run selector, `Refresh schedule`, eligible `Publish`, `More`, and compact stats.
+  2. Setup comparison actions moved behind a collapsed `Setup comparison` strip; `Review setup impact`, `Repair selected class`, and `Generate updated run` are no longer primary command-row actions.
+  3. View/filter controls are labeled under a separate `View controls` toolbar.
+  4. Active run identity is visible through `data-timetable-active-run`; historical run QA can assert the loaded run before dock actions.
+  5. `useTimetableData` now guards run-data state writes so delayed latest/background fetches cannot overwrite a user-selected historical run.
+  6. Timetable entries expose stable entry/subject/section/faculty data attributes for deterministic QA and preserve keyboard Enter/Space selection while coexisting with drag listeners.
+  7. Tactical dock duplicate conflict-message keys were repaired to avoid React console errors during preview.
+- Browser evidence:
+  - Tailnet normal mode with service workers enabled loaded `/timetable`; `navigator.serviceWorker.controller=true`, `data-timetable-entry=50`, no horizontal overflow at `1440x900`, `900x900`, or `390x844`.
+  - Latest published run `128`: selecting a class showed `Create timetable revision`, preserved `Teaching Load will not be rewritten from this published repair.`, and did not show canonical Teaching Load save.
+  - Keyboard selection: focusing `entry-3056` and pressing Enter opened the same published revision dock flow.
+  - Unpublished run `127`: selected-run stability sample remained `Run #127` across six delayed checks after the race fix.
+  - Unpublished Teaching Load flow on run `127`: selected `entry-3056`, changed teacher to `MACALINTAL, VICTOR`, `Preview impact` returned `Ready to save`, soft-warning acknowledgement enabled `Save Teaching Load and update timetable`, and save completed while the active run remained `Run #127`.
+  - Mismatch probe: authenticated Tailnet API comparison for run `127` found natural mismatches without fixture creation, including `entry-2` / subject `3078` / section `2968`, timetable faculty `21624` (`YAMBAO, ALICIA`) vs Teaching Load owner `21538` (`ILAGAN, WENDY`).
+  - Mismatch browser smoke: selected `Run #127`, switched to Teacher view, searched `YAMBAO, ALICIA`, opened `entry-2`, and verified `Timetable and Teaching Load do not match`, `Use timetable teacher`, and `Use Teaching Load owner` were visible with both teacher names present.
+- Verification:
+  - `npm --prefix atlas-client run build` -> PASS after the header/run-state/keyboard fixes and again after the dock key repair.
+  - Server build -> NOT RUN; backend was not touched.
+  - Primitive scan -> PASS for touched timetable React/hook files: no native `<button>`, `<select>`, `<details>`, or raw `title=`.
+  - Old-label scan -> PASS under touched timetable files: no `Recovery Tools`, `Workflow`, `Class Program Matrix`, or `Input status unavailable`.
+  - Line-count scan -> PASS for touched React components: `ScheduleReviewWorkspaceHeader.tsx=495`, `TimetableGrid.tsx=570`, `TacticalSandboxDock.tsx=893`.
+  - Remaining non-blocking browser noise: `/enrollpro-api/settings/public` returns `502`; timetable workflow renders and functions from saved branding/runtime data.
+- Verdict: GO for prompt scope.
+
+# 2026-06-11 - Timetable QA Follow-Up
+- Phase: Review/manual adjustment UX simplification follow-up.
+- Operator: Codex.
+- Scope: Tailnet browser QA for `/timetable` after caveat closure, with fixes for any user-facing bug found. Backend was not changed.
+- Files changed in this pass:
+  - `atlas-client/src/components/timetable/TacticalSandboxDock.tsx`
+  - `atlas-client/src/components/timetable/TacticalSandboxDock.helpers.ts`
+  - `atlas-client/src/hooks/useTimetableMutations.ts`
+  - `docs/verification/evidence-log.md`
+  - `CHANGELOG.md`
+- QA findings:
+  1. Tailnet `/timetable` loaded with service workers enabled and showed latest `Run #128`.
+  2. Header command row stayed limited to run identity, run selector, `Refresh schedule`, `More`, eligible publish, and compact stats.
+  3. `Setup comparison` stayed collapsed until opened; setup actions did not compete with the main command row.
+  4. Published run selection opened the revision-only path with `Create timetable revision`; canonical Teaching Load save was not shown.
+  5. Selecting historical `Run #127` kept the visible active run identity at `Run #127` before and after `Refresh schedule`.
+  6. Natural mismatch data on `Run #127`, Teacher view, `YAMBAO, ALICIA`, entry `entry-2` showed `Timetable and Teaching Load do not match`, `Use timetable teacher`, and `Use Teaching Load owner`.
+  7. Isolated keyboard smoke focused a timetable entry and pressed Enter; the same dock flow opened with focus moving to the sheet close control.
+  8. No document-level horizontal overflow was observed at `1440x900`, `900x900`, or `390x844`.
+- Bug fixed:
+  - Previewing the `Use Teaching Load owner` repair for a grouped/special-program class returned `COHORT_REPAIR_UNSUPPORTED` from the API, but the dock previously did not keep the blocker visible in the panel.
+  - `previewEditBatch` now rethrows preview errors to the dock, and `TacticalSandboxDock` renders persistent inline copy: `Preview blocked` plus guidance to use section coverage repair before changing Teaching Load from the timetable.
+- Maintainability repair:
+  - Extracted pure dock helper logic into `TacticalSandboxDock.helpers.ts` so the main dock component remains comfortably below the 1000-line limit.
+- Verification after fix:
+  - `npm --prefix atlas-client run build` -> PASS.
+  - Primitive scan -> PASS for touched timetable files: no native `<button>`, `<select>`, `<details>`, or raw `title=`.
+  - Old-label scan -> PASS: no primary labels `Recovery Tools`, `Workflow`, `Class Program Matrix`, or `Input status unavailable`.
+  - Line-count scan -> PASS: `ScheduleReviewWorkspaceHeader.tsx=515`, `TimetableGrid.tsx=594`, `TacticalSandboxDock.tsx=915`.
+  - Tailnet blocker re-smoke -> PASS: `COHORT_REPAIR_UNSUPPORTED` remains blocked as expected, `Preview blocked` copy is visible inline, no save/revision action is incorrectly exposed.
+  - Remaining non-blocking browser noise: `/enrollpro-api/settings/public` still returns `502`; timetable workflow renders and functions from saved branding/runtime data.
+- Verdict: GO for prompt scope.
+
+---
+
+# 2026-06-30 - Fix slow timetable page loading
+
+- Phase: Timetable performance fix
+- Operator: Antigravity
+- Scope gate: IMPLEMENTATION COMPLETE, SERVER BUILD GREEN -> PROMPT-SCOPE GO.
+- Trigger: user asked to investigate why timetable page takes too long to load upon visiting.
+- Scope held: Fixed listRuns and invalidateStaleCompletedRuns in generation.service.ts to avoid loading massive JSON blobs.
+- Fix summary: Modified listRuns to include a select clause that explicitly omits draftEntries, iolations, and unassignedItems, which were causing multi-megabyte payloads for the list of 20 runs. Modified invalidateStaleCompletedRuns to lazily fetch draftEntries instead of bulk loading them for all completed runs.
+- Backend verification: 
+px tsc --noEmit passed on tlas-server with no TypeScript errors.
+- Decision: PROMPT-SCOPE GO. The timetable slow load issue caused by heavy payload loading is now resolved.
+
+---
+
+# 2026-07-01 - Phase 6 Teaching Load UX Hardening
+
+- Phase: Phase 6 Teaching Load UX Hardening, `phase-6-teaching-load-ux-hardening`.
+- Operator: Antigravity
+- Scope gate: IMPLEMENTATION COMPLETE, CLIENT BUILD GREEN, VERIFICATION PROOF GREEN -> PROMPT-SCOPE GO.
+- Trigger: user approved the Phase 6 implementation plan covering collapsible department rosters, staffed health indicators, unmapped specialization toggle, and previewing workload hover ghost segment.
+- Scope held: modified `d:\ATLAS\atlas-client\src\pages\TeachingLoad.tsx`, `d:\ATLAS\atlas-client\src\components\faculty-assignments\StackedWorkloadBar.tsx`, `d:\ATLAS\atlas-client\src\components\faculty-assignments\WorkloadInspector.tsx`, `d:\ATLAS\atlas-client\src\components\faculty-assignments\SubjectRow.tsx`, `d:\ATLAS\atlas-client\src\components\faculty-assignments\TeacherGridMode.tsx`, and `d:\ATLAS\atlas-client\src\components\faculty-assignments\SectionGridMode.tsx`.
+- UI/UX improvements:
+  - Added `completedSectionIds` memo set in `TeachingLoad.tsx` to compute section completion based on active assignments.
+  - Enabled hoverHours preview segment inside `StackedWorkloadBar.tsx` with high-contrast animating pulse.
+  - Mounted Cross-Dept Teaching toggle switch within `WorkloadInspector.tsx` that links directly to the parent handler.
+  - Renamed "Assign Available" to "Select All Eligible" in `SubjectRow.tsx`.
+  - Added visual staffed indicator dots (green/yellow) and inline other-teacher assignment labels to section cards in `SubjectRow.tsx`.
+  - Made the entire assigned section card and checkbox click-to-swap trigger the transfer modal in `SubjectRow.tsx`.
+  - Grouped teachers list by department using collapsible accordion cards and added "Unmapped Specialization" switch next to Cross-Dept filter toggle in `TeacherGridMode.tsx`.
+  - Rendered section staffed health indicator dots next to section names in `SectionGridMode.tsx`.
+- Build verification: Vite client production bundle successfully compiled with zero TypeScript or syntax warnings in 633ms.
+- Validation proof: Automated browser subagent logged into the live Tailnet environment `https://njgrm.buru-degree.ts.net`, successfully verified the Subjects view, checked the Teachers list, verified By teacher/Section allocation tab navigation, opened `VILLANUEVA, EDUARDO` workload details (AP department, 18.8/30h credited workload), collapsed/expanded department groups, and checked the interactive campus map.
+- Verdict: GO.
+
+---
+
+# 2026-07-01 - Phase 7 Home-Room & Shift Fences Verification and Closure
+
+- Phase: Phase 7 Home-Room & Shift Fences, `phase-7-home-room-shift-fences`.
+- Operator: Antigravity
+- Scope gate: VERIFICATION PROOF GREEN, ALL TEST SUITES GREEN, LEDGER CLOSED -> GO.
+- Trigger: user requested to proceed with Phase 7 verification and closure.
+- Scope held: audited and verified Home-Room-First scheduling algorithm, Grade Shift Fences (shift windows), and zone-based room assignment logic.
+- Fixes implemented:
+  - Modified [local-auth.service.ts](file:///d:/ATLAS/atlas-server/src/services/local-auth.service.ts) to evaluate `ATLAS_AUTH_DISABLE_RATE_LIMIT` at runtime via a function instead of import time, ensuring that rate-limiting lockout behaviors can be bypassed in development but enforced dynamically in unit tests.
+  - Added email format validation to `loginWithEmailPassword` to reject invalid email formats with status 400 and code `INVALID_EMAIL`.
+  - Configured [local-auth.test.ts](file:///d:/ATLAS/atlas-server/src/__tests__/local-auth.test.ts) to set `ATLAS_AUTH_DISABLE_RATE_LIMIT = 'false'` during the test run, allowing the rate-limiting lockout verification checks to execute and pass correctly.
+- Verification results:
+  - `npm run test:phase2-home-room-strategy` -> PASS (30/30 tests passed).
+  - `npm run test:hybrid-scheduler` -> PASS (39/39 tests passed).
+  - `npm run test:auth` -> PASS (34/34 local auth tests and 18/18 integration login tests passed).
+  - `npm run build` (client) -> PASS (Successful Vite production bundle).
+- Verdict: GO.
+
+---
+
+# 2026-07-01 - Phase 7 UX/UI Audit & Polish Standardization
+
+- Phase: Phase 7 UX/UI Polish & Audit, `phase-7-ux-ui-polish-audit`.
+- Operator: Antigravity
+- Scope gate: IMPLEMENTATION COMPLETE, CLIENT BUILD GREEN, VERIFICATION PROOF GREEN -> GO.
+- Trigger: user requested to review changes from phase 1 to phase 7, see if it holds up under QA, and fix issues/improvements.
+- Scope held: audited all pages against UX_UI_SYSTEM_AUDIT.md and finalized standardization of all custom bracket text sizes and raw HTML buttons.
+- Fixes implemented:
+  - Upgraded remaining micro-text classes like `text-[10px]` and custom bracket sizes `text-[12px]`, `text-[11px]` to standardized Tailwind typography classes (`text-xs`, `text-sm`) in [Subjects.tsx](file:///d:/ATLAS/atlas-client/src/pages/Subjects.tsx), [RoomSchedules.tsx](file:///d:/ATLAS/atlas-client/src/pages/RoomSchedules.tsx), [MySchedule.tsx](file:///d:/ATLAS/atlas-client/src/pages/MySchedule.tsx), [PublicPublishedSchedule.tsx](file:///d:/ATLAS/atlas-client/src/pages/PublicPublishedSchedule.tsx), [DesktopPreferencesLayout.tsx](file:///d:/ATLAS/atlas-client/src/components/faculty-preferences/DesktopPreferencesLayout.tsx), [MobilePreferencesLayout.tsx](file:///d:/ATLAS/atlas-client/src/components/faculty-preferences/MobilePreferencesLayout.tsx), and [MapView.tsx](file:///d:/ATLAS/atlas-client/src/pages/MapView.tsx).
+  - Confirmed and verified that all raw HTML `<button>` elements have already been replaced by UI `<Button>` primitives across `Login.tsx`, `OfficerPreferences.tsx`, and `OfficerRoomPreferences.tsx`.
+- Verification results:
+  - `npm run build` (client) -> PASS (Vite production bundle compiled with 0 errors).
+- Verdict: GO.
+
+---
+
+# 2026-07-02 - Phase 8: Placeholders, Print/PDF, and Live Collaboration
+
+- Phase: Phase 8 Teacher X, PDF & Concurrency, `phase-8-teacher-x-pdf-concurrency`.
+- Operator: Antigravity
+- Scope gate: IMPLEMENTATION COMPLETE, SERVER BUILD GREEN, CLIENT BUILD GREEN, AUTHENTICATION TESTS GREEN, LEDGER CLOSED -> GO.
+- Trigger: user requested to proceed with Phase 8 implementation.
+- Scope held: Placeholder Faculty (Teacher X) management (endpoints, service handlers, dialogs, page actions), print styling and print triggers, and WebSocket-based Real-time Presence/Committed edit sync on the Timetable Review Console.
+- Details implemented:
+  - Created `timetable-events.service.ts` to manage in-memory timetable event pub/sub.
+  - Wired `manual-edit.service.ts` to dispatch `TIMETABLE_EDIT_COMMITTED` and `TIMETABLE_REVERTED` events.
+  - Linked `room-preference-collaboration.service.ts` to bridge timetable events to WebSocket clients in the active channel.
+  - Updated `faculty.service.ts` and `faculty.router.ts` to support deletion and editing (names, department, specialization) for placeholder faculty mirrors.
+  - Created client `CreatePlaceholderDialog.tsx` modal and wired it into `/teachers` (`Faculty.tsx`) with dynamic actions.
+  - Updated `ScheduleReviewWorkspace.tsx` to establish WebSocket collaboration, synchronize cell/entry selections, and refresh grid layout on remote committed edit events.
+  - Updated `ScheduleReviewWorkspaceHeader.tsx` to render online active collaborator avatar badges and trigger the browser print dialog.
+  - Added Print button triggers to `MySchedule.tsx` and `PublicPublishedSchedule.tsx`.
+  - Added clean printing `@media print` rules in `index.css` to hide headers, nav menus, toolbars, and scale grid components to full dimensions.
+- Verification results:
+  - `npm run build` (client) -> PASS (Successful Vite production bundle with zero warnings or errors).
+  - `npm run build` (server) -> PASS (Successful TypeScript compile).
+  - `npm run test:auth` -> PASS (52/52 tests passed).
+- Verdict: GO.
+
+---
+
+# 2026-07-02 - Dynamic Setup Sync (In-Place Timetable Reconciliation)
+
+- Phase: Phase 3 Generator Readiness, `phase-3-generator-readiness`.
+- Operator: Antigravity
+- Scope gate: IMPLEMENTATION COMPLETE, SERVER BUILD GREEN, CLIENT BUILD GREEN, CONTRACT TESTS GREEN, BACKEND ENDPOINT PROBE GREEN -> PROMPT-SCOPE GO.
+- Trigger: user approved implementation plan for dynamic sync.
+- Scope held: created backend setup sync service (`timetable-sync-setup.service.ts`), express router and route mount (`timetable-sync-setup.router.ts`), modified client data hook (`useTimetableData.ts`), client workspace pages (`ScheduleReviewWorkspace.tsx` and `ScheduleReviewWorkspaceHeader.tsx`), created integration test (`timetable-sync-setup.test.ts`).
+- Verification proof:
+  - Integration test suite `timetable-sync-setup.test.ts` passed successfully: 6 passed, 0 failed.
+  - Server compilation (`tsc`) completed successfully.
+  - Client bundling (`vite build`) completed successfully.
+- Verdict: GO.
+
+

@@ -4,13 +4,13 @@ import { toast } from 'sonner';
 
 import { StackedWorkloadBar } from '@/components/faculty-assignments/StackedWorkloadBar';
 import atlasApi from '@/lib/api';
+import { buildUnassignedKey } from '@/lib/timetable-utils';
 import {
 	MAX_WEEKLY_TEACHING_HOURS,
 	deriveWorkloadCapacity,
-	matchesOwnershipDepartment,
 } from '@/lib/faculty-assignment-helpers';
 import { formatTime } from '@/lib/utils';
-import type { CommitResult, FacultyMirror, ManualEditBatchPreviewResult, ManualEditProposal, ScheduledEntry, Subject, TeachingLoadRepairPreviewResult } from '@/types';
+import type { CommitResult, FacultyMirror, ManualEditProposal, ScheduledEntry, Subject, TeachingLoadRepairChange, TeachingLoadRepairPreviewResult, UnassignedItem } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Checkbox } from '@/ui/checkbox';
@@ -33,11 +33,30 @@ import {
 	SheetTitle,
 } from '@/ui/sheet';
 import { Textarea } from '@/ui/textarea';
+import {
+	ancillaryCreditHours,
+	buildEntryRepairChanges,
+	buildFacultyChangeProposals,
+	buildRevisionPayloadChange,
+	buildTeachingLoadRepairProposals,
+	compactLoadStatus,
+	facultyDisplayName,
+	findCanonicalOwner,
+	formatSlot,
+	formatHours,
+	isEligibleFaculty,
+	previewErrorCopy,
+	projectEntryFaculty,
+	revisionDateError,
+	reviewStatusCopy,
+	teachingHoursForFaculty,
+} from './TacticalSandboxDock.helpers';
 
 type TacticalSandboxDockProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	selectedEntry: ScheduledEntry | null;
+	selectedUnassigned: UnassignedItem | null;
 	draftEntries: ScheduledEntry[];
 	schoolId: number;
 	runId: number | null;
@@ -46,11 +65,12 @@ type TacticalSandboxDockProps = {
 	schoolYearId: number | null;
 	sandboxFacultyByEntryId: Map<string, number>;
 	onApplyFaculty: (entryIds: string[], facultyId: number) => void;
-	onPreviewFacultyBatch: (proposals: ManualEditProposal[]) => Promise<TeachingLoadRepairPreviewResult | null>;
-	onCommitFacultyBatch: (proposals: ManualEditProposal[], allowSoftOverride?: boolean) => Promise<CommitResult | null>;
+	onPreviewTeachingLoadRepair: (changes: TeachingLoadRepairChange[], placementProposal?: ManualEditProposal) => Promise<TeachingLoadRepairPreviewResult | null>;
+	onCommitTeachingLoadRepair: (changes: TeachingLoadRepairChange[], allowSoftOverride?: boolean, placementProposal?: ManualEditProposal) => Promise<CommitResult | null>;
 	onRevisionCreated: () => void | Promise<void>;
 	onResetSandbox: () => void;
 	onDismissSelectedEntry: (entryId: string) => void;
+	onDismissSelectedUnassigned: () => void;
 	isPublished: boolean;
 	subjectLabel: (id: number) => string;
 	sectionLabel: (id: number) => string;
@@ -95,58 +115,6 @@ type RevisionSuccess = {
 	changeCount: number;
 };
 
-function facultyDisplayName(faculty: FacultyMirror): string {
-	return `${faculty.lastName}, ${faculty.firstName}`;
-}
-
-function ancillaryCreditHours(faculty: FacultyMirror): number {
-	const rawMinutes = (faculty as FacultyMirror & { ancillaryMinutesPerWeek?: number | null }).ancillaryMinutesPerWeek;
-	return typeof rawMinutes === 'number' && Number.isFinite(rawMinutes) ? rawMinutes / 60 : 0;
-}
-
-function getFacultySubjectIds(faculty: FacultyMirror): Set<number> {
-	return new Set((faculty.facultySubjects ?? []).map((assignment) => assignment.subjectId));
-}
-
-function isEligibleFaculty(faculty: FacultyMirror, subject: Subject | undefined, selectedEntry: ScheduledEntry): boolean {
-	if (!faculty.isActiveForScheduling) return false;
-	if (faculty.id === selectedEntry.facultyId) return true;
-	if (!subject) return false;
-	if (getFacultySubjectIds(faculty).has(subject.id)) return true;
-	if (matchesOwnershipDepartment(faculty.department, subject)) return true;
-	return Boolean(faculty.canTeachOutsideDepartment && subject.allowedSpecializations?.includes(faculty.specialization ?? ''));
-}
-
-function projectEntryFaculty(
-	entry: ScheduledEntry,
-	sandboxFacultyByEntryId: Map<string, number>,
-	selectedEntryId: string | null,
-	previewFacultyId: number | null,
-	bulkEntryIds: Set<string>,
-): ScheduledEntry {
-	const committedOverride = sandboxFacultyByEntryId.get(entry.entryId);
-	if (committedOverride != null) return { ...entry, facultyId: committedOverride };
-	if (previewFacultyId != null && selectedEntryId && (entry.entryId === selectedEntryId || bulkEntryIds.has(entry.entryId))) {
-		return { ...entry, facultyId: previewFacultyId };
-	}
-	return entry;
-}
-
-function teachingHoursForFaculty(entries: ScheduledEntry[], facultyId: number): number {
-	const minutes = entries.reduce((total, entry) => entry.facultyId === facultyId ? total + entry.durationMinutes : total, 0);
-	return Math.round((minutes / 60) * 10) / 10;
-}
-
-function formatHours(value: number): string {
-	return `${Math.round(value * 10) / 10}h`;
-}
-
-function reviewStatusCopy(preview: ManualEditBatchPreviewResult | null, canCommitPreview: boolean): string {
-	if (!preview) return 'Preview checks teacher conflicts and Teaching Load impact before save.';
-	if (canCommitPreview) return 'Ready to save. No blocking schedule conflict was found.';
-	return 'Choose a different teacher or remove blocked rows, then review again.';
-}
-
 function ReviewStepPill({ step }: { step: ReviewStep }) {
 	const tone = step.state === 'done'
 		? 'border-emerald-200 bg-emerald-50 text-emerald-700'
@@ -159,100 +127,11 @@ function ReviewStepPill({ step }: { step: ReviewStep }) {
 	return <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${tone}`}>{step.label}</span>;
 }
 
-function buildFacultyChangeProposals(entries: ScheduledEntry[], sandboxFacultyByEntryId: Map<string, number>): ManualEditProposal[] {
-	const proposals: ManualEditProposal[] = [];
-	for (const entry of entries) {
-		const facultyId = sandboxFacultyByEntryId.get(entry.entryId);
-		if (facultyId == null || facultyId === entry.facultyId) continue;
-		proposals.push({
-			editType: 'CHANGE_FACULTY',
-			entryId: entry.entryId,
-			targetFacultyId: facultyId,
-		});
-	}
-	return proposals;
-}
-
-function findCanonicalOwner(entry: ScheduledEntry | null, facultyMap: Map<number, FacultyMirror>): FacultyMirror | null {
-	if (!entry) return null;
-	for (const faculty of facultyMap.values()) {
-		const ownsEntry = (faculty.facultySubjects ?? []).some((assignment) =>
-			assignment.subjectId === entry.subjectId && (assignment.sectionIds ?? []).includes(entry.sectionId),
-		);
-		if (ownsEntry) return faculty;
-	}
-	return null;
-}
-
-function buildTeachingLoadRepairProposals(
-	entries: ScheduledEntry[],
-	proposals: ManualEditProposal[],
-	canonicalOnlyTargets: Map<string, number>,
-): ManualEditProposal[] {
-	const entriesById = new Map(entries.map((entry) => [entry.entryId, entry]));
-	const stagedEntryIds = new Set<string>();
-	const changes: ManualEditProposal[] = [...proposals];
-
-	for (const proposal of proposals) {
-		if (proposal.editType !== 'CHANGE_FACULTY' || !proposal.entryId || typeof proposal.targetFacultyId !== 'number') continue;
-		stagedEntryIds.add(proposal.entryId);
-	}
-
-	for (const [entryId, targetFacultyId] of canonicalOnlyTargets.entries()) {
-		if (stagedEntryIds.has(entryId)) continue;
-		const entry = entriesById.get(entryId);
-		if (!entry || entry.facultyId == null || entry.facultyId !== targetFacultyId) continue;
-		changes.push({
-			editType: 'CHANGE_FACULTY',
-			entryId,
-			targetFacultyId,
-		});
-	}
-
-	return changes;
-}
-
-function formatSlot(entry: ScheduledEntry): string {
-	return `${entry.day} ${formatTime(entry.startTime)}-${formatTime(entry.endTime)}`;
-}
-
-function revisionDateError(value: string): string | null {
-	if (!value.trim()) return 'Choose the first school day when this revision should take effect.';
-	const parsed = new Date(`${value}T00:00:00Z`);
-	if (Number.isNaN(parsed.getTime())) return 'Enter a valid effective date.';
-
-	const now = new Date();
-	const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-	const selectedUtc = Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate());
-	if (selectedUtc <= todayUtc) return 'Choose tomorrow or a later school day. Same-day published revisions are not allowed.';
-	return null;
-}
-
-function buildRevisionPayloadChange(change: RevisionChange) {
-	const previous = {
-		facultyId: change.entry.facultyId,
-		roomId: change.entry.roomId,
-		day: change.entry.day,
-		startTime: change.entry.startTime,
-		endTime: change.entry.endTime,
-		subjectId: change.entry.subjectId,
-		sectionId: change.entry.sectionId,
-	};
-	return {
-		entryId: change.entry.entryId,
-		changeType: 'CHANGE_FACULTY',
-		previous,
-		next: {
-			...previous,
-			facultyId: change.targetFacultyId,
-		},
-	};
-}
-
 export function TacticalSandboxDock({
 	open,
 	onOpenChange,
 	selectedEntry,
+	selectedUnassigned,
 	draftEntries,
 	schoolId,
 	runId,
@@ -261,11 +140,12 @@ export function TacticalSandboxDock({
 	schoolYearId,
 	sandboxFacultyByEntryId,
 	onApplyFaculty,
-	onPreviewFacultyBatch,
-	onCommitFacultyBatch,
+	onPreviewTeachingLoadRepair,
+	onCommitTeachingLoadRepair,
 	onRevisionCreated,
 	onResetSandbox,
 	onDismissSelectedEntry,
+	onDismissSelectedUnassigned,
 	isPublished,
 	subjectLabel,
 	sectionLabel,
@@ -274,10 +154,12 @@ export function TacticalSandboxDock({
 	const [bulkEntryIds, setBulkEntryIds] = useState<Set<string>>(new Set());
 	const [canonicalOnlyTargets, setCanonicalOnlyTargets] = useState<Map<string, number>>(new Map());
 	const [batchPreview, setBatchPreview] = useState<TeachingLoadRepairPreviewResult | null>(null);
+	const [batchPreviewError, setBatchPreviewError] = useState<string | null>(null);
 	const [batchPreviewLoading, setBatchPreviewLoading] = useState(false);
 	const [batchCommitLoading, setBatchCommitLoading] = useState(false);
 	const [softWarningAcknowledged, setSoftWarningAcknowledged] = useState(false);
 	const [candidateQuery, setCandidateQuery] = useState('');
+	const [showWorkloadDetails, setShowWorkloadDetails] = useState(false);
 	const [revisionDialogOpen, setRevisionDialogOpen] = useState(false);
 	const [revisionEffectiveDate, setRevisionEffectiveDate] = useState('');
 	const [revisionReason, setRevisionReason] = useState('');
@@ -285,29 +167,80 @@ export function TacticalSandboxDock({
 	const [revisionError, setRevisionError] = useState<string | null>(null);
 	const [revisionActionHint, setRevisionActionHint] = useState<string | null>(null);
 	const [revisionSuccess, setRevisionSuccess] = useState<RevisionSuccess | null>(null);
-	const subject = selectedEntry ? subjectMap.get(selectedEntry.subjectId) : undefined;
-	const previewFacultyId = selectedEntry ? sandboxFacultyByEntryId.get(selectedEntry.entryId) ?? selectedEntry.facultyId : null;
-	const canonicalOwner = useMemo(() => findCanonicalOwner(selectedEntry, facultyMap), [facultyMap, selectedEntry]);
+	const [unassignedTargetFacultyId, setUnassignedTargetFacultyId] = useState<number | null>(null);
+	const activeSubjectId = selectedEntry?.subjectId ?? selectedUnassigned?.subjectId ?? null;
+	const activeSectionId = selectedEntry?.sectionId ?? selectedUnassigned?.sectionId ?? null;
+	const subject = activeSubjectId ? subjectMap.get(activeSubjectId) : undefined;
+	const canonicalOwner = useMemo(() => findCanonicalOwner(activeSubjectId, activeSectionId, facultyMap), [activeSectionId, activeSubjectId, facultyMap]);
+	const unassignedKey = selectedUnassigned ? buildUnassignedKey(selectedUnassigned) : null;
+	const activeContextEntry = useMemo<ScheduledEntry | null>(() => {
+		if (selectedEntry) return selectedEntry;
+		if (!selectedUnassigned || !unassignedKey) return null;
+		return {
+			entryId: `unassigned-${unassignedKey}`,
+			facultyId: canonicalOwner?.id ?? null,
+			roomId: selectedUnassigned.homeRoomId ?? 0,
+			subjectId: selectedUnassigned.subjectId,
+			sectionId: selectedUnassigned.sectionId,
+			day: 'UNASSIGNED',
+			startTime: '00:00',
+			endTime: '00:00',
+			durationMinutes: 0,
+			entryKind: selectedUnassigned.entryKind ?? 'SECTION',
+			programType: selectedUnassigned.programType ?? null,
+			programCode: selectedUnassigned.programCode ?? null,
+			programName: selectedUnassigned.programName ?? null,
+			cohortCode: selectedUnassigned.cohortCode ?? null,
+			cohortName: selectedUnassigned.cohortName ?? null,
+			cohortMemberSectionIds: selectedUnassigned.cohortMemberSectionIds,
+			cohortExpectedEnrollment: selectedUnassigned.cohortExpectedEnrollment ?? null,
+			adviserId: selectedUnassigned.adviserId ?? null,
+			adviserName: selectedUnassigned.adviserName ?? null,
+		};
+	}, [canonicalOwner?.id, selectedEntry, selectedUnassigned, unassignedKey]);
+	const previewFacultyId = selectedEntry ? sandboxFacultyByEntryId.get(selectedEntry.entryId) ?? selectedEntry.facultyId : unassignedTargetFacultyId ?? canonicalOwner?.id ?? null;
 	const canonicalOwnerMismatch = Boolean(selectedEntry && canonicalOwner && canonicalOwner.id !== selectedEntry.facultyId);
 	const stagedProposals = useMemo(() => buildFacultyChangeProposals(draftEntries, sandboxFacultyByEntryId), [draftEntries, sandboxFacultyByEntryId]);
 	const teachingLoadRepairProposals = useMemo(() => buildTeachingLoadRepairProposals(draftEntries, stagedProposals, canonicalOnlyTargets), [canonicalOnlyTargets, draftEntries, stagedProposals]);
-	const stagedProposalKey = useMemo(() => JSON.stringify({ stagedProposals, teachingLoadRepairProposals }), [stagedProposals, teachingLoadRepairProposals]);
+	const unassignedRepairChange = useMemo<TeachingLoadRepairChange | null>(() => {
+		if (!selectedUnassigned || !unassignedKey || !unassignedTargetFacultyId) return null;
+		if (canonicalOwner?.id === unassignedTargetFacultyId) return null;
+		return {
+			kind: 'UNASSIGNED',
+			unassignedKey,
+			subjectId: selectedUnassigned.subjectId,
+			sectionId: selectedUnassigned.sectionId,
+			session: selectedUnassigned.session,
+			entryKind: selectedUnassigned.entryKind ?? 'SECTION',
+			cohortCode: selectedUnassigned.cohortCode ?? null,
+			fromFacultyId: canonicalOwner?.id ?? null,
+			toFacultyId: unassignedTargetFacultyId,
+		};
+	}, [canonicalOwner?.id, selectedUnassigned, unassignedKey, unassignedTargetFacultyId]);
+	const repairChanges = useMemo(
+		() => selectedUnassigned && unassignedRepairChange
+			? [unassignedRepairChange]
+			: buildEntryRepairChanges(draftEntries, stagedProposals, canonicalOnlyTargets),
+		[canonicalOnlyTargets, draftEntries, selectedUnassigned, stagedProposals, unassignedRepairChange],
+	);
+	const stagedProposalKey = useMemo(() => JSON.stringify({ stagedProposals, teachingLoadRepairProposals, repairChanges }), [stagedProposals, teachingLoadRepairProposals, repairChanges]);
 	const stagedEntryIds = useMemo(() => new Set([
 		...(isPublished ? stagedProposals : teachingLoadRepairProposals).map((proposal) => proposal.entryId).filter((entryId): entryId is string => Boolean(entryId)),
 	]), [isPublished, stagedProposals, teachingLoadRepairProposals]);
-	const stagedCount = isPublished ? stagedProposals.length : teachingLoadRepairProposals.length;
+	const stagedCount = selectedUnassigned ? repairChanges.length : isPublished ? stagedProposals.length : teachingLoadRepairProposals.length;
 	const canCommitPreview = Boolean(batchPreview?.allowed && batchPreview.errorCount === 0 && batchPreview.hardViolations.length === 0);
 	const softWarningCount = batchPreview?.softViolations.length ?? 0;
 	const requiresSoftWarningAcknowledgement = canCommitPreview && softWarningCount > 0;
 	const canSaveReviewedBatch = canCommitPreview && (!requiresSoftWarningAcknowledgement || softWarningAcknowledged);
 	const reviewSteps: ReviewStep[] = useMemo(() => ([
-		{ label: '1 Select teacher', state: stagedCount > 0 ? 'done' : 'active' },
-		{ label: '2 Review changes', state: batchPreview ? (canCommitPreview ? 'done' : 'blocked') : stagedCount > 0 ? 'active' : 'waiting' },
-		{ label: isPublished ? '3 Create revision' : '3 Save Teaching Load', state: batchPreview ? (canSaveReviewedBatch ? 'active' : canCommitPreview ? 'waiting' : 'blocked') : 'waiting' },
-	]), [batchPreview, canCommitPreview, canSaveReviewedBatch, isPublished, stagedCount]);
+		{ label: '1 Current teacher', state: activeContextEntry ? 'done' : 'active' },
+		{ label: '2 Choose teacher', state: stagedCount > 0 ? 'done' : activeContextEntry ? 'active' : 'waiting' },
+		{ label: isPublished ? '3 Create revision' : '3 Preview and save', state: batchPreview ? (canSaveReviewedBatch ? 'active' : canCommitPreview ? 'waiting' : 'blocked') : stagedCount > 0 ? 'active' : 'waiting' },
+	]), [activeContextEntry, batchPreview, canCommitPreview, canSaveReviewedBatch, isPublished, stagedCount]);
 
 	useEffect(() => {
 		setBatchPreview(null);
+		setBatchPreviewError(null);
 		setSoftWarningAcknowledged(false);
 		setRevisionError(null);
 		setRevisionActionHint(null);
@@ -317,10 +250,11 @@ export function TacticalSandboxDock({
 	useEffect(() => {
 		setCandidateQuery('');
 		setCanonicalOnlyTargets(new Map());
-	}, [selectedEntry?.entryId]);
+		setUnassignedTargetFacultyId(null);
+	}, [selectedEntry?.entryId, unassignedKey]);
 
 	const scopedSameSubjectEntries = useMemo(() => {
-		if (!selectedEntry) return [];
+		if (!selectedEntry || selectedUnassigned) return [];
 		return draftEntries
 			.filter((entry) => {
 				if (entry.entryId === selectedEntry.entryId) return false;
@@ -334,20 +268,22 @@ export function TacticalSandboxDock({
 				if (leftSection !== rightSection) return leftSection.localeCompare(rightSection);
 				return `${left.day}${left.startTime}`.localeCompare(`${right.day}${right.startTime}`);
 			});
-	}, [draftEntries, selectedEntry, sectionLabel]);
+	}, [draftEntries, selectedEntry, selectedUnassigned, sectionLabel]);
 
 	const candidates = useMemo<Candidate[]>(() => {
-		if (!selectedEntry) return [];
+		if (!activeContextEntry) return [];
 		return Array.from(facultyMap.values())
-			.filter((faculty) => isEligibleFaculty(faculty, subject, selectedEntry))
+			.filter((faculty) => isEligibleFaculty(faculty, subject, activeContextEntry))
 			.map((faculty) => {
-				const candidateProjectedEntries = draftEntries.map((entry) => projectEntryFaculty(
-					entry,
-					sandboxFacultyByEntryId,
-					selectedEntry.entryId,
-					faculty.id,
-					bulkEntryIds,
-				));
+				const candidateProjectedEntries = selectedUnassigned
+					? draftEntries
+					: draftEntries.map((entry) => projectEntryFaculty(
+						entry,
+						sandboxFacultyByEntryId,
+						activeContextEntry.entryId,
+						faculty.id,
+						bulkEntryIds,
+					));
 				const teachingHours = teachingHoursForFaculty(candidateProjectedEntries, faculty.id);
 				const creditHours = Math.max(faculty.advisoryEquivalentHours ?? 0, 0) + ancillaryCreditHours(faculty);
 				const capacity = deriveWorkloadCapacity(teachingHours, creditHours, faculty.maxHoursPerWeek || MAX_WEEKLY_TEACHING_HOURS);
@@ -359,7 +295,7 @@ export function TacticalSandboxDock({
 					statusLabel: capacity.statusLabel,
 					toCapHours: capacity.toCapHours,
 					overCapHours: capacity.overCapHours,
-					isCurrent: faculty.id === selectedEntry.facultyId,
+					isCurrent: faculty.id === activeContextEntry.facultyId,
 					isSelected: faculty.id === previewFacultyId,
 				};
 			})
@@ -368,7 +304,7 @@ export function TacticalSandboxDock({
 				if (left.creditedTotalHours !== right.creditedTotalHours) return left.creditedTotalHours - right.creditedTotalHours;
 				return facultyDisplayName(left.faculty).localeCompare(facultyDisplayName(right.faculty));
 			});
-	}, [bulkEntryIds, draftEntries, facultyMap, previewFacultyId, sandboxFacultyByEntryId, selectedEntry, subject]);
+	}, [activeContextEntry, bulkEntryIds, draftEntries, facultyMap, previewFacultyId, sandboxFacultyByEntryId, selectedUnassigned, subject]);
 
 	const filteredCandidates = useMemo(() => {
 		const query = candidateQuery.trim().toLowerCase();
@@ -412,9 +348,9 @@ export function TacticalSandboxDock({
 	const aboveStandardWarnings = useMemo(() => revisionChanges.filter((change) => change.targetCapacity?.status === 'overload-allowed'), [revisionChanges]);
 	const overCapWarnings = useMemo(() => revisionChanges.filter((change) => change.targetCapacity?.status === 'over-cap'), [revisionChanges]);
 	const selectedEntryIds = useMemo(() => {
-		if (!selectedEntry) return [];
+		if (!selectedEntry || selectedUnassigned) return [];
 		return [selectedEntry.entryId, ...Array.from(bulkEntryIds)];
-	}, [bulkEntryIds, selectedEntry]);
+	}, [bulkEntryIds, selectedEntry, selectedUnassigned]);
 
 	function toggleBulkEntry(entryId: string) {
 		setBulkEntryIds((previous) => {
@@ -426,6 +362,10 @@ export function TacticalSandboxDock({
 	}
 
 	function applyCandidate(facultyId: number) {
+		if (selectedUnassigned) {
+			setUnassignedTargetFacultyId(facultyId);
+			return;
+		}
 		if (selectedEntryIds.length === 0) return;
 		setCanonicalOnlyTargets((previous) => {
 			const next = new Map(previous);
@@ -445,29 +385,35 @@ export function TacticalSandboxDock({
 	}
 
 	async function reviewBatch() {
-		if (isPublished || teachingLoadRepairProposals.length === 0) return null;
+		if (isPublished || repairChanges.length === 0) return null;
 		setBatchPreviewLoading(true);
+		setBatchPreviewError(null);
 		try {
-			const result = await onPreviewFacultyBatch(teachingLoadRepairProposals);
+			const result = await onPreviewTeachingLoadRepair(repairChanges);
 			setBatchPreview(result);
 			setSoftWarningAcknowledged(false);
 			return result;
+		} catch (error) {
+			setBatchPreview(null);
+			setBatchPreviewError(previewErrorCopy(error));
+			return null;
 		} finally {
 			setBatchPreviewLoading(false);
 		}
 	}
 
 	async function commitBatch() {
-		if (isPublished || teachingLoadRepairProposals.length === 0) return;
+		if (isPublished || repairChanges.length === 0) return;
 		const reviewed = batchPreview ?? await reviewBatch();
 		if (!reviewed || !reviewed.allowed || reviewed.errorCount > 0 || reviewed.hardViolations.length > 0) return;
 		if (reviewed.softViolations.length > 0 && !softWarningAcknowledged) return;
 		setBatchCommitLoading(true);
 		try {
-			const result = await onCommitFacultyBatch(teachingLoadRepairProposals, reviewed.softViolations.length > 0 && softWarningAcknowledged);
+			const result = await onCommitTeachingLoadRepair(repairChanges, reviewed.softViolations.length > 0 && softWarningAcknowledged);
 			if (result) {
 				onResetSandbox();
 				setCanonicalOnlyTargets(new Map());
+				setUnassignedTargetFacultyId(null);
 				setBatchPreview(null);
 				setSoftWarningAcknowledged(false);
 				setBulkEntryIds(new Set());
@@ -554,41 +500,46 @@ export function TacticalSandboxDock({
 			<SheetContent side="bottom" className="flex max-h-[82svh] flex-col gap-3 overflow-hidden p-4 sm:p-5">
 				<SheetHeader className="pr-8">
 					<div className="flex flex-wrap items-center gap-2">
-						<Badge variant="secondary" className="h-5 px-2 text-[0.625rem] uppercase">Local Sandbox</Badge>
-						<Badge variant="outline" className="h-5 px-2 text-[0.625rem]">{isPublished ? 'Published revision' : 'Review before saving'}</Badge>
+						<Badge variant="secondary" className="h-5 px-2 text-[0.625rem] uppercase">Teaching Load</Badge>
+						<Badge variant="outline" className="h-5 px-2 text-[0.625rem]">{isPublished ? 'Create revision' : 'Preview and save'}</Badge>
 					</div>
-					<SheetTitle>Repair Teacher Assignment</SheetTitle>
+					<SheetTitle>Fix Teacher Assignment</SheetTitle>
 					<SheetDescription>
-						{selectedEntry
+						{activeContextEntry
 							? isPublished
-								? `${subjectLabel(selectedEntry.subjectId)} for ${sectionLabel(selectedEntry.sectionId)} is published. Create an effective-date revision for the timetable; Teaching Load will not be rewritten from this published repair.`
-								: `${subjectLabel(selectedEntry.subjectId)} for ${sectionLabel(selectedEntry.sectionId)} in SY ${schoolYearId ?? 'current'} can be reviewed, saved to Teaching Load, and reflected in this timetable.`
-							: 'Select a timetable block to preview local teacher reassignment options.'}
+								? `${subjectLabel(activeContextEntry.subjectId)} for ${sectionLabel(activeContextEntry.sectionId)} is published. Create an effective-date revision for the timetable; Teaching Load will not be rewritten from this published repair.`
+								: selectedUnassigned
+									? `${subjectLabel(activeContextEntry.subjectId)} for ${sectionLabel(activeContextEntry.sectionId)} is unassigned. Save Teaching Load first, then place this session in a valid slot.`
+									: `${subjectLabel(activeContextEntry.subjectId)} for ${sectionLabel(activeContextEntry.sectionId)} in SY ${schoolYearId ?? 'current'} can be saved to Teaching Load and reflected in this timetable.`
+							: 'Select a class or unassigned session to choose a teacher, preview, and save.'}
 					</SheetDescription>
 				</SheetHeader>
 
-				{selectedEntry ? (
+				{activeContextEntry ? (
 					<div className="grid min-h-0 flex-1 gap-3 overflow-y-auto pr-1 md:h-full md:grid-cols-3 md:overflow-hidden md:pr-0">
 						<section className="min-w-0 min-h-0 overflow-hidden rounded-lg border border-border bg-muted/20 p-3">
 							<div className="space-y-3 text-xs">
 								<div>
-									<p className="text-xs font-semibold text-muted-foreground">Selected block</p>
-									<p className="mt-1 text-base font-semibold text-foreground">{subjectLabel(selectedEntry.subjectId)}</p>
-									<p className="text-xs text-muted-foreground">{sectionLabel(selectedEntry.sectionId)} · {selectedEntry.day} {formatTime(selectedEntry.startTime)}-{formatTime(selectedEntry.endTime)}</p>
+									<p className="text-xs font-semibold text-muted-foreground">{selectedUnassigned ? 'Unassigned session' : 'Selected block'}</p>
+									<p className="mt-1 text-base font-semibold text-foreground">{subjectLabel(activeContextEntry.subjectId)}</p>
+									<p className="text-xs text-muted-foreground">
+										{sectionLabel(activeContextEntry.sectionId)}
+										{selectedUnassigned ? ` · Session ${selectedUnassigned.session}` : ` · ${activeContextEntry.day} ${formatTime(activeContextEntry.startTime)}-${formatTime(activeContextEntry.endTime)}`}
+									</p>
 								</div>
 								<div className="grid grid-cols-2 gap-2 rounded-md border border-border/70 bg-background p-2">
 									<div>
 										<p className="text-[0.625rem] uppercase text-muted-foreground">Section</p>
-										<p className="font-medium">{sectionLabel(selectedEntry.sectionId)}</p>
+										<p className="font-medium">{sectionLabel(activeContextEntry.sectionId)}</p>
 									</div>
 									<div>
 										<p className="text-[0.625rem] uppercase text-muted-foreground">Term</p>
-										<p className="font-medium">{selectedEntry.termIndex ? `Term ${selectedEntry.termIndex}` : 'Run scope'}</p>
+										<p className="font-medium">{activeContextEntry.termIndex ? `Term ${activeContextEntry.termIndex}` : 'Run scope'}</p>
 									</div>
 								</div>
 								<div>
-									<p className="text-[0.625rem] uppercase text-muted-foreground">Current teacher</p>
-									<p className="font-medium text-foreground">{selectedEntry.facultyId ? facultyLabel(selectedEntry.facultyId) : 'No teacher assigned'}</p>
+									<p className="text-[0.625rem] uppercase text-muted-foreground">{selectedUnassigned ? 'Current schedule state' : 'Current teacher'}</p>
+									<p className="font-medium text-foreground">{selectedUnassigned ? 'Not placed yet' : activeContextEntry.facultyId ? facultyLabel(activeContextEntry.facultyId) : 'No teacher assigned'}</p>
 								</div>
 								<div>
 									<p className="text-[0.625rem] uppercase text-muted-foreground">Teaching Load owner</p>
@@ -602,7 +553,7 @@ export function TacticalSandboxDock({
 												<p className="font-semibold">Timetable and Teaching Load do not match</p>
 												<p className="mt-0.5 text-[0.6875rem]">Choose which source should drive this class before saving.</p>
 												<div className="mt-2 flex flex-wrap gap-1.5">
-													<Button type="button" size="sm" variant="outline" className="h-7 bg-background text-[0.6875rem]" onClick={useTimetableTeacherAsTeachingLoadOwner} disabled={isPublished || !selectedEntry.facultyId}>
+													<Button type="button" size="sm" variant="outline" className="h-7 bg-background text-[0.6875rem]" onClick={useTimetableTeacherAsTeachingLoadOwner} disabled={isPublished || !selectedEntry?.facultyId}>
 														Use timetable teacher
 													</Button>
 													<Button type="button" size="sm" variant="outline" className="h-7 bg-background text-[0.6875rem]" onClick={() => canonicalOwner ? applyCandidate(canonicalOwner.id) : undefined} disabled={!canonicalOwner}>
@@ -624,9 +575,14 @@ export function TacticalSandboxDock({
 
 						<section className="flex min-w-0 min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-background md:h-full">
 							<div className="space-y-2 border-b border-border/70 px-3 py-2">
-								<div>
+								<div className="flex items-start justify-between gap-2">
+									<div>
 									<p className="text-sm font-semibold text-foreground">Choose a teacher</p>
-									<p className="text-xs text-muted-foreground">Only teachers eligible for this subject are listed. Use search to find a known candidate.</p>
+									<p className="text-xs text-muted-foreground">Search, choose, then preview before saving.</p>
+									</div>
+									<Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-[0.6875rem]" onClick={() => setShowWorkloadDetails((value) => !value)}>
+										{showWorkloadDetails ? 'Hide details' : 'Details'}
+									</Button>
 								</div>
 								<div className="relative">
 									<Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -660,20 +616,27 @@ export function TacticalSandboxDock({
 													{candidate.isSelected ? 'Selected' : 'Use teacher'}
 												</Button>
 											</div>
-											<div className="mt-2 grid gap-2 sm:grid-cols-[1fr_11rem] sm:items-center">
-												<StackedWorkloadBar
-													teachingHours={candidate.teachingHours}
-													creditHours={candidate.creditHours}
-													maxHours={candidate.faculty.maxHoursPerWeek || MAX_WEEKLY_TEACHING_HOURS}
-													compact
-												/>
-												<div className="text-[0.6875rem] text-muted-foreground sm:text-right">
-													<p className="font-medium text-foreground">{formatHours(candidate.creditedTotalHours)} credited</p>
-													<p>{formatHours(candidate.teachingHours)} teaching + {formatHours(candidate.creditHours)} credit</p>
-													<p>{candidate.overCapHours > 0 ? `${formatHours(candidate.overCapHours)} over cap` : `${formatHours(candidate.toCapHours)} to cap`}</p>
-												</div>
+											<div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+												<Badge variant={candidate.overCapHours > 0 ? 'destructive' : candidate.toCapHours <= 2 ? 'outline' : 'secondary'} className="h-5 px-2 text-[0.625rem]">
+													{compactLoadStatus(candidate)}
+												</Badge>
+												<p className="text-[0.6875rem] font-medium text-muted-foreground">{candidate.statusLabel}</p>
 											</div>
-											<p className="mt-1.5 text-[0.6875rem] font-medium text-muted-foreground">{candidate.statusLabel}</p>
+											{showWorkloadDetails ? (
+												<div className="mt-2 grid gap-2 sm:grid-cols-[1fr_11rem] sm:items-center">
+													<StackedWorkloadBar
+														teachingHours={candidate.teachingHours}
+														creditHours={candidate.creditHours}
+														maxHours={candidate.faculty.maxHoursPerWeek || MAX_WEEKLY_TEACHING_HOURS}
+														compact
+													/>
+													<div className="text-[0.6875rem] text-muted-foreground sm:text-right">
+														<p className="font-medium text-foreground">{formatHours(candidate.creditedTotalHours)} credited</p>
+														<p>{formatHours(candidate.teachingHours)} teaching + {formatHours(candidate.creditHours)} credit</p>
+														<p>{candidate.overCapHours > 0 ? `${formatHours(candidate.overCapHours)} over cap` : `${formatHours(candidate.toCapHours)} to cap`}</p>
+													</div>
+												</div>
+											) : null}
 										</div>
 									))}
 								</div>
@@ -709,7 +672,7 @@ export function TacticalSandboxDock({
 					</div>
 				) : (
 					<div className="flex min-h-40 items-center justify-center rounded-md border border-dashed border-border bg-muted/20 text-sm text-muted-foreground">
-						Select a timetable block to open the local sandbox.
+						Select a timetable block or an unassigned session to open the Teaching Load repair panel.
 					</div>
 				)}
 
@@ -724,7 +687,7 @@ export function TacticalSandboxDock({
 					<div className="rounded-lg border border-border bg-background px-3 py-3 text-xs">
 						<div className="flex flex-wrap items-center justify-between gap-2">
 							<div>
-								<p className="text-sm font-semibold text-foreground">{isPublished ? 'Review and create revision' : 'Review and save Teaching Load'}</p>
+								<p className="text-sm font-semibold text-foreground">{isPublished ? 'Create timetable revision' : 'Preview and save'}</p>
 								<p className="text-xs text-muted-foreground">{stagedCount} teacher change{stagedCount === 1 ? '' : 's'} waiting for {isPublished ? 'an effective date' : 'impact preview'}.</p>
 							</div>
 							<div className="flex flex-wrap gap-1.5">
@@ -736,7 +699,30 @@ export function TacticalSandboxDock({
 								</Badge>
 							) : null}
 						</div>
+						{batchPreviewError ? (
+							<div className="mt-2 rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-red-700">
+								<div className="flex items-start gap-1.5">
+									<AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+									<div>
+										<p className="font-medium">Preview blocked</p>
+										<p className="mt-0.5 text-[0.6875rem]">{batchPreviewError}</p>
+									</div>
+								</div>
+							</div>
+						) : null}
 						<div className="mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+							{selectedUnassigned && unassignedRepairChange ? (
+								<div className="rounded border border-border/80 bg-muted/20 px-2 py-1.5">
+									<div className="flex items-center justify-between gap-2">
+										<span className="truncate font-medium text-foreground">{sectionLabel(selectedUnassigned.sectionId)}</span>
+										<Badge variant="outline" className="h-4 px-1.5 text-[0.5625rem]">Unassigned</Badge>
+									</div>
+									<p className="truncate text-[0.6875rem] text-muted-foreground">
+										{canonicalOwner ? facultyDisplayName(canonicalOwner) : 'No saved owner'} -&gt; {facultyLabel(unassignedRepairChange.toFacultyId)}
+									</p>
+									<p className="mt-0.5 text-[0.625rem] text-amber-700">Session stays in Needs attention until a valid slot is chosen.</p>
+								</div>
+							) : null}
 							{draftEntries.filter((entry) => stagedEntryIds.has(entry.entryId)).slice(0, 6).map((entry) => {
 								const targetFacultyId = sandboxFacultyByEntryId.get(entry.entryId) ?? canonicalOnlyTargets.get(entry.entryId);
 								const rowPreview = batchPreview?.proposals.find((item) => item.entryId === entry.entryId);
@@ -764,8 +750,8 @@ export function TacticalSandboxDock({
 										<p className="mt-0.5 text-[0.6875rem] opacity-90">Teaching Load transfers: {batchPreview.ownershipDeltas.filter((delta) => delta.ownershipAction === 'TRANSFER').length}.</p>
 									</div>
 								</div>
-								{batchPreview.humanConflicts.slice(0, 2).map((conflict) => (
-									<p key={`${conflict.code}-${conflict.humanDetail}`} className="mt-1 text-[0.625rem]">{conflict.humanTitle}: {conflict.humanDetail}</p>
+								{batchPreview.humanConflicts.slice(0, 2).map((conflict, conflictIndex) => (
+									<p key={`${conflict.code}-${conflict.humanDetail}-${conflictIndex}`} className="mt-1 text-[0.625rem]">{conflict.humanTitle}: {conflict.humanDetail}</p>
 								))}
 							</div>
 						) : null}
@@ -786,17 +772,17 @@ export function TacticalSandboxDock({
 				) : null}
 
 				<SheetFooter className="shrink-0 gap-2 border-t border-border/70 pt-3 sm:space-x-0">
-					<Button type="button" variant="outline" size="sm" onClick={() => { onResetSandbox(); setCanonicalOnlyTargets(new Map()); setBatchPreview(null); setBulkEntryIds(new Set()); }} disabled={stagedCount === 0} className="gap-1.5">
+					<Button type="button" variant="outline" size="sm" onClick={() => { onResetSandbox(); setCanonicalOnlyTargets(new Map()); setUnassignedTargetFacultyId(null); setBatchPreview(null); setBatchPreviewError(null); setBulkEntryIds(new Set()); }} disabled={stagedCount === 0} className="gap-1.5">
 						<RotateCcw className="size-3.5" />
-						Reset Sandbox
+						Reset
 					</Button>
-					<Button type="button" variant="outline" size="sm" onClick={() => selectedEntry ? onDismissSelectedEntry(selectedEntry.entryId) : onOpenChange(false)} className="gap-1.5">
+					<Button type="button" variant="outline" size="sm" onClick={() => selectedUnassigned ? onDismissSelectedUnassigned() : activeContextEntry ? onDismissSelectedEntry(activeContextEntry.entryId) : onOpenChange(false)} className="gap-1.5">
 						<X className="size-3.5" />
-						Close Dock
+						Close
 					</Button>
 					<Button type="button" variant={(isPublished || (batchPreview && canCommitPreview)) ? 'default' : 'outline'} size="sm" disabled={stagedCount === 0 || batchPreviewLoading || batchCommitLoading || (batchPreview != null && canCommitPreview && !canSaveReviewedBatch)} onClick={() => isPublished ? openRevisionReview() : batchPreview && canCommitPreview ? void commitBatch() : void reviewBatch()} className="gap-1.5">
 						{batchPreviewLoading || batchCommitLoading ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
-						{isPublished ? 'Create Revision' : batchPreview && canCommitPreview ? 'Save Teaching Load and update timetable' : 'Preview impact'}
+						{isPublished ? 'Create timetable revision' : batchPreview && canCommitPreview ? selectedUnassigned ? 'Save Teaching Load' : 'Save Teaching Load and update timetable' : 'Preview impact'}
 					</Button>
 				</SheetFooter>
 			</SheetContent>
@@ -805,7 +791,7 @@ export function TacticalSandboxDock({
 			<DialogContent className="max-w-3xl gap-0 p-0">
 				<DialogHeader className="border-b border-border px-5 py-4">
 					<div className="flex flex-wrap items-center gap-2">
-						<Badge className="h-5 px-2 text-[0.625rem]">Published Revision</Badge>
+						<Badge className="h-5 px-2 text-[0.625rem]">Timetable revision</Badge>
 						<Badge variant="outline" className="h-5 px-2 text-[0.625rem]">History preserved</Badge>
 					</div>
 					<DialogTitle>Schedule a published repair</DialogTitle>
@@ -842,7 +828,7 @@ export function TacticalSandboxDock({
 									<div className="flex flex-wrap items-start justify-between gap-2">
 										<div>
 											<p className="text-sm font-semibold text-foreground">{subjectLabel(change.entry.subjectId)}</p>
-											<p className="text-muted-foreground">{sectionLabel(change.entry.sectionId)} · {formatSlot(change.entry)}</p>
+											<p className="text-muted-foreground">{sectionLabel(change.entry.sectionId)} · {formatSlot(change.entry, formatTime)}</p>
 										</div>
 										{change.targetCapacity ? <Badge variant="outline" className="h-5 px-2 text-[0.625rem]">{change.targetCapacity.statusLabel}</Badge> : null}
 									</div>
@@ -850,12 +836,12 @@ export function TacticalSandboxDock({
 										<div className="rounded-md border border-border/70 bg-muted/20 p-2">
 											<p className="text-[0.625rem] uppercase text-muted-foreground">Current published</p>
 											<p className="font-medium text-foreground">{change.entry.facultyId ? facultyLabel(change.entry.facultyId) : 'No teacher assigned'}</p>
-											<p className="text-muted-foreground">Room {change.entry.roomId} · {formatSlot(change.entry)}</p>
+											<p className="text-muted-foreground">Room {change.entry.roomId} · {formatSlot(change.entry, formatTime)}</p>
 										</div>
 										<div className="rounded-md border border-primary/20 bg-primary/5 p-2">
 											<p className="text-[0.625rem] uppercase text-primary/80">Revision after effective date</p>
 											<p className="font-medium text-foreground">{facultyLabel(change.targetFacultyId)}</p>
-											<p className="text-muted-foreground">Room {change.entry.roomId} · {formatSlot(change.entry)}</p>
+											<p className="text-muted-foreground">Room {change.entry.roomId} · {formatSlot(change.entry, formatTime)}</p>
 										</div>
 									</div>
 								</div>
@@ -916,7 +902,7 @@ export function TacticalSandboxDock({
 					<Button type="button" variant="outline" onClick={() => setRevisionDialogOpen(false)} disabled={revisionSubmitting}>Close</Button>
 					<Button type="button" onClick={() => void submitRevision()} disabled={revisionSubmitting || revisionChanges.length === 0 || Boolean(revisionSuccess)} className="gap-2">
 						{revisionSubmitting ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
-						Create Published Revision
+						Create timetable revision
 					</Button>
 				</DialogFooter>
 			</DialogContent>

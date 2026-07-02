@@ -380,7 +380,7 @@ export default function RoomSchedules() {
 			<div className="shrink-0 px-6 pt-5 lg:px-8">
 				<header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
 					<div>
-						<p className="text-[0.72rem] font-bold uppercase tracking-wide text-primary">Review and publish</p>
+						<p className="text-xs font-bold uppercase tracking-wide text-primary">Review and publish</p>
 						<h1 className="mt-1 text-3xl font-bold text-slate-900">Schedules</h1>
 						<p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">
 							Browse the latest room, teacher, and section schedules.
@@ -426,7 +426,7 @@ export default function RoomSchedules() {
 					<SelectedModeIcon className="size-4 text-primary" />
 					<div>
 						<p className="text-xs font-semibold text-slate-900">Browsing {selectedModeCopy.label.toLowerCase()}</p>
-						<p className="text-[0.68rem] text-slate-500">{selectedModeCopy.description}</p>
+						<p className="text-xs text-slate-500">{selectedModeCopy.description}</p>
 					</div>
 				</div>
 
@@ -443,7 +443,7 @@ export default function RoomSchedules() {
 							triggerClassName="h-10 text-sm w-full rounded-xl bg-white shadow-sm"
 						/>
 					)}
-					<p className="mt-1 flex items-center gap-1 text-[0.68rem] text-slate-500">
+					<p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
 						<Info className="size-3 text-primary" />
 						{selectorStatus}
 					</p>
@@ -474,7 +474,7 @@ export default function RoomSchedules() {
 							<Button
 								variant={templateVariant === '11x6' ? 'default' : 'outline'}
 								size="sm"
-								className="h-7 px-2.5 text-[11px]"
+								className="h-7 px-2.5 text-xs"
 								onClick={() => setTemplateVariant('11x6')}
 							>
 								11x6
@@ -482,7 +482,7 @@ export default function RoomSchedules() {
 							<Button
 								variant={templateVariant === '13x6' ? 'default' : 'outline'}
 								size="sm"
-								className="h-7 px-2.5 text-[11px]"
+								className="h-7 px-2.5 text-xs"
 								onClick={() => setTemplateVariant('13x6')}
 							>
 								13x6
@@ -516,10 +516,10 @@ export default function RoomSchedules() {
 								aria-invalid={runIdHasValidationError}
 								className="h-7 w-24 text-xs"
 							/>
-							{runIdHasValidationError && <p className="text-[0.68rem] font-medium text-destructive">Use a whole number above 0.</p>}
+							{runIdHasValidationError && <p className="text-xs font-medium text-destructive">Use a whole number above 0.</p>}
 						</div>
 					)}
-					<p className="basis-full text-[0.68rem] leading-relaxed text-slate-500">{sourceMode === 'latest' ? 'Latest means the newest completed generation run.' : 'Run ID inspects one specific generation run for troubleshooting.'}</p>
+					<p className="basis-full text-xs leading-relaxed text-slate-500">{sourceMode === 'latest' ? 'Latest means the newest completed generation run.' : 'Run ID inspects one specific generation run for troubleshooting.'}</p>
 				</div>
 
 				{/* Inline stat banner */}
@@ -534,7 +534,7 @@ export default function RoomSchedules() {
 						</span>
 						<span className="text-border/60">•</span>
 						{state.data.summary.conflictCount > 0 ? (
-							<Badge variant="destructive" className="text-[11px]">
+							<Badge variant="destructive" className="text-xs">
 								<AlertTriangle className="mr-1 size-3" />
 								{state.data.summary.conflictCount} conflict{state.data.summary.conflictCount !== 1 ? 's' : ''}
 							</Badge>
@@ -845,7 +845,7 @@ function TimetableGrid({
 										{cellData.conflict && (
 											<Badge
 												variant="destructive"
-												className="mt-0.5 text-[9px] px-1 py-0 cursor-pointer hover:bg-red-700 transition-colors"
+												className="mt-0.5 text-xs px-1 py-0 cursor-pointer hover:bg-red-700 transition-colors"
 												role="button"
 												tabIndex={0}
 												aria-label="Inspect conflict"
@@ -889,7 +889,7 @@ function EntryCell({
 		: '—';
 
 	return (
-		<div className="px-1.5 py-1 text-[11px] leading-snug">
+		<div className="px-1.5 py-1 text-xs leading-snug">
 			<div className="font-semibold text-foreground truncate">
 				{entry.subjectDisplayLabel ?? subjectMap.get(entry.subjectId) ?? 'Subject not listed'}
 			</div>

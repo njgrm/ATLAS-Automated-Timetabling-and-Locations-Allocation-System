@@ -24,6 +24,12 @@ assert(app.includes("timetableTeachingLoadRepairRouter"), 'Teaching Load repair 
 assert(service.includes('RUN_ALREADY_PUBLISHED'), 'Published runs are blocked from canonical Teaching Load repair.');
 assert(service.includes('expectedRunVersion'), 'Apply contract enforces run version checks.');
 assert(service.includes('FACULTY_VERSION_CONFLICT'), 'Apply contract enforces faculty Teaching Load version checks.');
+assert(service.includes("kind: 'UNASSIGNED'"), 'Repair contract supports unassigned-session Teaching Load changes.');
+assert(service.includes('buildUnassignedKey'), 'Repair contract uses a stable unassigned-session identity.');
+assert(service.includes('placementProposal'), 'Repair contract supports optional placement after Teaching Load repair.');
+assert(service.includes('applyProposalBatch'), 'Placement after Teaching Load repair reuses manual-edit placement logic.');
+assert(service.includes('unassignedReadiness'), 'Preview/apply responses expose unassigned readiness feedback.');
+assert(service.includes('computeGenerationInputSnapshot'), 'Apply refreshes generation input snapshot trust state after Teaching Load repair.');
 assert(service.includes('tx.subjectSectionOwnership.upsert'), 'Apply contract writes normalized SubjectSectionOwnership.');
 assert(service.includes('tx.facultySubject.update'), 'Apply contract updates FacultySubject section scopes.');
 assert(service.includes('draftEntries: newEntries'), 'Apply contract updates the active generated draft entries.');
@@ -40,6 +46,8 @@ assert(dock.includes('Timetable and Teaching Load do not match'), 'Dock shows so
 assert(dock.includes('Use timetable teacher'), 'Dock exposes action to trust the timetable teacher.');
 assert(dock.includes('Use Teaching Load owner'), 'Dock exposes action to trust canonical Teaching Load.');
 assert(dock.includes('Save Teaching Load and update timetable'), 'Dock exposes the required unpublished primary action copy.');
+assert(dock.includes('Unassigned session'), 'Dock exposes unassigned-session repair context.');
+assert(dock.includes('Save Teaching Load'), 'Dock exposes ownership-only save copy for unassigned sessions.');
 assert(dock.includes('Teaching Load will not be rewritten from this published repair'), 'Dock explains published revision-only behavior.');
 
 console.log('[timetable-teaching-load-repair-contract] OK');

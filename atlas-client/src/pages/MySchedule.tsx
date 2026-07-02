@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, BookOpen, Clock3, MapPin, RefreshCcw, Users } from 'lucide-react';
+import { AlertCircle, BookOpen, Clock3, MapPin, Printer, RefreshCcw, Users } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
 import { describeSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
@@ -301,31 +301,37 @@ export default function MySchedule() {
 				advisory={advisory}
 				onRetryFailed={usingCachedSchedule ? () => void loadSchedule() : undefined}
 				rightSlot={(
-					<Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => void loadSchedule()} disabled={checkingForUpdates}>
-						<RefreshCcw className={`mr-2 size-4 ${checkingForUpdates ? 'animate-spin' : ''}`} />
-						{checkingForUpdates ? 'Checking' : 'Refresh schedule'}
-					</Button>
+					<div className="flex gap-2">
+						<Button variant="outline" size="sm" className="h-9 rounded-full print:hidden" onClick={() => window.print()}>
+							<Printer className="mr-2 size-4" />
+							Print Schedule
+						</Button>
+						<Button variant="outline" size="sm" className="h-9 rounded-full print:hidden" onClick={() => void loadSchedule()} disabled={checkingForUpdates}>
+							<RefreshCcw className={`mr-2 size-4 ${checkingForUpdates ? 'animate-spin' : ''}`} />
+							{checkingForUpdates ? 'Checking' : 'Refresh schedule'}
+						</Button>
+					</div>
 				)}
 			/>
 
 			<div className="flex-1 min-h-0 overflow-auto px-4 py-5 sm:px-6 sm:py-6 pb-20 lg:pb-8">
 				<div className="mx-auto w-full max-w-7xl space-y-4">
 					{schoolYearNotice && (
-						<p className="text-[11px] text-muted-foreground">{schoolYearNotice}</p>
+						<p className="text-xs text-muted-foreground">{schoolYearNotice}</p>
 					)}
 
 					{/* Quick stats */}
 					<div className="grid grid-cols-3 gap-2 sm:gap-3">
 						<div className="rounded-xl border border-border/60 bg-card px-3 py-2.5 sm:px-4 sm:py-3">
-							<p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Classes</p>
+							<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Classes</p>
 							<p className="mt-0.5 text-xl font-bold text-foreground sm:text-2xl">{summary.classCount}</p>
 						</div>
 						<div className="rounded-xl border border-border/60 bg-card px-3 py-2.5 sm:px-4 sm:py-3">
-							<p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Sections</p>
+							<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sections</p>
 							<p className="mt-0.5 text-xl font-bold text-foreground sm:text-2xl">{summary.sectionCount}</p>
 						</div>
 						<div className="rounded-xl border border-border/60 bg-card px-3 py-2.5 sm:px-4 sm:py-3">
-							<p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Buildings</p>
+							<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Buildings</p>
 							<p className="mt-0.5 text-xl font-bold text-foreground sm:text-2xl">{summary.buildingCount}</p>
 						</div>
 					</div>
@@ -340,7 +346,7 @@ export default function MySchedule() {
 							return (
 								<section key={day}>
 									<div className="sticky top-0 z-10 -mx-4 mb-2 bg-muted/30 px-4 py-1.5 backdrop-blur">
-										<h2 className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
+										<h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
 											{day.charAt(0) + day.slice(1).toLowerCase()}
 										</h2>
 									</div>
@@ -350,14 +356,14 @@ export default function MySchedule() {
 												<CardContent className="p-3.5">
 													<div className="flex items-start justify-between gap-3">
 														<div className="min-w-0">
-															<p className="truncate text-[14px] font-semibold leading-tight text-foreground">{entry.subject.name || entry.subject.code}</p>
-															<p className="mt-0.5 text-[12px] text-muted-foreground">{entry.section.name}</p>
+															<p className="truncate text-sm font-semibold leading-tight text-foreground">{entry.subject.name || entry.subject.code}</p>
+															<p className="mt-0.5 text-xs text-muted-foreground">{entry.section.name}</p>
 														</div>
-														<span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
+														<span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
 															{formatShortTime(entry.startTime)}–{formatShortTime(entry.endTime)}
 														</span>
 													</div>
-													<div className="mt-2 flex items-center gap-1.5 text-[12px] text-muted-foreground">
+													<div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
 														<MapPin className="size-3.5 shrink-0" />
 														<span className="truncate">
 															{entry.room.name}{entry.room.buildingName ? ` · ${entry.room.buildingName}` : ''}
@@ -373,8 +379,8 @@ export default function MySchedule() {
 						{(!schedule || schedule.entries.length === 0) && (
 							<Card className="rounded-2xl border-dashed border-border bg-card">
 								<CardContent className="px-4 py-8 text-center">
-									<p className="text-[13px] font-semibold text-foreground">No classes assigned</p>
-									<p className="mt-1 text-[12px] text-muted-foreground">A published schedule exists, but no classes are linked to you.</p>
+									<p className="text-sm font-semibold text-foreground">No classes assigned</p>
+									<p className="mt-1 text-xs text-muted-foreground">A published schedule exists, but no classes are linked to you.</p>
 								</CardContent>
 							</Card>
 						)}
@@ -397,7 +403,7 @@ export default function MySchedule() {
 						</CardContent>
 					</Card>
 
-					<div className="flex items-center justify-between gap-3 text-[12px] text-muted-foreground">
+					<div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
 						<span>Schedule version #{schedule?.source.runId ?? '—'} · {formatRevisionReference(schedule?.source)} · Published {formatTimestamp(schedule?.source.publishedAt ?? null)}</span>
 						{usingCachedSchedule ? <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">Saved schedule</Badge> : <Badge variant="outline">Up to date</Badge>}
 					</div>

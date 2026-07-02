@@ -7,8 +7,11 @@ import {
 	buildValidatorCtx,
 	computeSummary,
 	isPublishedSummary,
+	applyProposalBatch,
 	loadRunContext,
 	mergePreservedSummaryFields,
+	type AppliedManualEdit,
+	type ManualEditProposal,
 	type ManualEditBatchPreviewItem,
 	type ManualEditBatchPreviewResult,
 } from './manual-edit.service.js';
@@ -19,6 +22,7 @@ import type { SectionsByGrade } from './section-adapter.js';
 import { buildSectionRosterIndex, deriveGradeLevelsFromSectionIds } from './faculty-assignment-scope.service.js';
 import { resolveAssignmentSpecializationIdentity } from './faculty-assignment.service.js';
 import { HG_SUBJECT_CODE } from './hg-advisory.service.js';
+import { computeGenerationInputSnapshot } from './generation-input-snapshot.service.js';
 
 type ServiceError = Error & {
 	statusCode: number;
@@ -27,7 +31,8 @@ type ServiceError = Error & {
 	details?: Record<string, unknown>;
 };
 
-export type TeachingLoadRepairChange = {
+export type EntryTeachingLoadRepairChange = {
+	kind?: 'ENTRY';
 	entryId: string;
 	subjectId: number;
 	sectionId: number;
@@ -35,15 +40,32 @@ export type TeachingLoadRepairChange = {
 	toFacultyId: number;
 };
 
+export type UnassignedTeachingLoadRepairChange = {
+	kind: 'UNASSIGNED';
+	unassignedKey: string;
+	subjectId: number;
+	sectionId: number;
+	session: number;
+	entryKind: 'SECTION' | 'COHORT';
+	cohortCode?: string | null;
+	fromFacultyId: number | null;
+	toFacultyId: number;
+};
+
+export type TeachingLoadRepairChange = EntryTeachingLoadRepairChange | UnassignedTeachingLoadRepairChange;
+
 export type TeachingLoadRepairRequest = {
 	changes: TeachingLoadRepairChange[];
+	placementProposal?: ManualEditProposal;
 	expectedRunVersion?: number;
 	expectedFacultyVersions?: Record<string, number>;
 	allowSoftOverride?: boolean;
 };
 
 export type TeachingLoadOwnershipDelta = {
-	entryId: string;
+	kind: 'ENTRY' | 'UNASSIGNED';
+	entryId?: string;
+	unassignedKey?: string;
 	subjectId: number;
 	sectionId: number;
 	fromFacultyId: number | null;
@@ -60,9 +82,23 @@ export type TeachingLoadAffectedTeacher = {
 	version: number | null;
 };
 
+export type TeachingLoadUnassignedReadiness = {
+	unassignedKey: string;
+	subjectId: number;
+	sectionId: number;
+	session: number;
+	currentOwnerId: number | null;
+	proposedOwnerId: number;
+	canPlaceNow: boolean;
+	placementBlockers: string[];
+	topBlockerCopy: string | null;
+	suggestedPlacements: ManualEditProposal[];
+};
+
 export type TeachingLoadRepairPreviewResult = ManualEditBatchPreviewResult & {
 	ownershipDeltas: TeachingLoadOwnershipDelta[];
 	affectedTeachers: TeachingLoadAffectedTeacher[];
+	unassignedReadiness: TeachingLoadUnassignedReadiness[];
 };
 
 export type TeachingLoadRepairApplyResult = {
@@ -74,15 +110,25 @@ export type TeachingLoadRepairApplyResult = {
 	newVersion: number;
 	ownershipDeltas: TeachingLoadOwnershipDelta[];
 	affectedTeachers: TeachingLoadAffectedTeacher[];
+	unassignedReadiness: TeachingLoadUnassignedReadiness[];
+};
+
+type NormalizedTeachingLoadRepairChange = TeachingLoadRepairChange & {
+	kind: 'ENTRY' | 'UNASSIGNED';
+	ownershipSectionIds: number[];
+	sourceUnassignedItem?: UnassignedItem;
 };
 
 type PreparedRepair = {
 	refData: Awaited<ReturnType<typeof loadRunContext>>;
-	changes: TeachingLoadRepairChange[];
+	changes: NormalizedTeachingLoadRepairChange[];
 	newEntries: ScheduledEntry[];
+	newUnassignedItems: UnassignedItem[];
 	ownershipDeltas: TeachingLoadOwnershipDelta[];
 	affectedTeachers: TeachingLoadAffectedTeacher[];
 	proposals: ManualEditBatchPreviewItem[];
+	appliedPlacementEdits: AppliedManualEdit[];
+	unassignedReadiness: TeachingLoadUnassignedReadiness[];
 	currentValidation: ReturnType<typeof validateHardConstraints>;
 	newValidation: ReturnType<typeof validateHardConstraints>;
 };
@@ -101,6 +147,15 @@ function positiveInt(value: unknown): number | null {
 	return Number.isInteger(n) && n > 0 ? n : null;
 }
 
+function buildUnassignedKey(item: Pick<UnassignedItem, 'sectionId' | 'subjectId' | 'session' | 'entryKind' | 'cohortCode'>): string {
+	return [
+		item.cohortCode ?? item.sectionId,
+		item.subjectId,
+		item.session,
+		item.entryKind ?? 'SECTION',
+	].join(':');
+}
+
 function normalizeChanges(raw: unknown): TeachingLoadRepairChange[] {
 	if (!Array.isArray(raw) || raw.length === 0) {
 		throw err(400, 'EMPTY_REPAIR_BATCH', 'At least one Teaching Load repair is required.');
@@ -110,14 +165,33 @@ function normalizeChanges(raw: unknown): TeachingLoadRepairChange[] {
 		const subjectId = positiveInt(candidate.subjectId);
 		const sectionId = positiveInt(candidate.sectionId);
 		const toFacultyId = positiveInt(candidate.toFacultyId);
-		if (!candidate.entryId || typeof candidate.entryId !== 'string' || !subjectId || !sectionId || !toFacultyId) {
-			throw err(400, 'INVALID_REPAIR_CHANGE', `Repair ${index + 1} must include entryId, subjectId, sectionId, and toFacultyId.`);
-		}
 		const fromFacultyId = candidate.fromFacultyId == null ? null : positiveInt(candidate.fromFacultyId);
 		if (candidate.fromFacultyId != null && !fromFacultyId) {
 			throw err(400, 'INVALID_REPAIR_CHANGE', `Repair ${index + 1} has an invalid fromFacultyId.`);
 		}
+		if (candidate.kind === 'UNASSIGNED') {
+			const session = positiveInt(candidate.session);
+			const entryKind = candidate.entryKind === 'COHORT' ? 'COHORT' : 'SECTION';
+			if (!candidate.unassignedKey || typeof candidate.unassignedKey !== 'string' || !subjectId || !sectionId || !session || !toFacultyId) {
+				throw err(400, 'INVALID_REPAIR_CHANGE', `Repair ${index + 1} must include unassignedKey, subjectId, sectionId, session, and toFacultyId.`);
+			}
+			return {
+				kind: 'UNASSIGNED',
+				unassignedKey: candidate.unassignedKey,
+				subjectId,
+				sectionId,
+				session,
+				entryKind,
+				cohortCode: typeof candidate.cohortCode === 'string' ? candidate.cohortCode : null,
+				fromFacultyId,
+				toFacultyId,
+			};
+		}
+		if (!('entryId' in candidate) || !candidate.entryId || typeof candidate.entryId !== 'string' || !subjectId || !sectionId || !toFacultyId) {
+			throw err(400, 'INVALID_REPAIR_CHANGE', `Repair ${index + 1} must include entryId, subjectId, sectionId, and toFacultyId.`);
+		}
 		return {
+			kind: 'ENTRY',
 			entryId: candidate.entryId,
 			subjectId,
 			sectionId,
@@ -138,7 +212,7 @@ function teachingHoursByFaculty(entries: ScheduledEntry[], facultyIds: Set<numbe
 
 function projectFacultySubjects(
 	facultySubjects: Array<{ facultyId: number; subjectId: number; gradeLevels: number[]; sectionIds: number[] }>,
-	changes: TeachingLoadRepairChange[],
+	changes: NormalizedTeachingLoadRepairChange[],
 ): Array<{ facultyId: number; subjectId: number; gradeLevels: number[]; sectionIds: number[] }> {
 	const rows = new Map<string, { facultyId: number; subjectId: number; gradeLevels: number[]; sectionIds: Set<number> }>();
 	for (const row of facultySubjects) {
@@ -153,7 +227,7 @@ function projectFacultySubjects(
 	for (const change of changes) {
 		for (const row of rows.values()) {
 			if (row.subjectId === change.subjectId && row.facultyId !== change.toFacultyId) {
-				row.sectionIds.delete(change.sectionId);
+				for (const sectionId of change.ownershipSectionIds) row.sectionIds.delete(sectionId);
 			}
 		}
 		const key = `${change.toFacultyId}:${change.subjectId}`;
@@ -163,7 +237,7 @@ function projectFacultySubjects(
 			gradeLevels: [],
 			sectionIds: new Set<number>(),
 		};
-		target.sectionIds.add(change.sectionId);
+		for (const sectionId of change.ownershipSectionIds) target.sectionIds.add(sectionId);
 		rows.set(key, target);
 	}
 
@@ -235,59 +309,94 @@ async function prepareRepair(
 	}
 
 	const entryById = new Map(entries.map((entry) => [entry.entryId, entry]));
+	const unassignedByKey = new Map(refData.unassignedItems.map((item) => [buildUnassignedKey(item), item]));
 	const subjectIds = [...new Set(changes.map((change) => change.subjectId))];
 	const facultyIds = changes.flatMap((change) => [change.fromFacultyId, change.toFacultyId]).filter((id): id is number => id != null);
-	const [owners, subjects, facultyVersions] = await Promise.all([
-		prisma.subjectSectionOwnership.findMany({
-			where: {
-				schoolId,
-				OR: changes.map((change) => ({ subjectId: change.subjectId, sectionId: change.sectionId })),
-			},
-			select: { facultyId: true, subjectId: true, sectionId: true },
-		}),
+	const [subjects, facultyVersions] = await Promise.all([
 		prisma.subject.findMany({
 			where: { schoolId, id: { in: subjectIds } },
 			select: { id: true, code: true },
 		}),
 		validateExpectedFacultyVersions(schoolId, facultyIds, request.expectedFacultyVersions),
 	]);
-	const ownerByPair = new Map(owners.map((owner) => [`${owner.subjectId}:${owner.sectionId}`, owner.facultyId]));
 	const subjectCodeById = new Map(subjects.map((subject) => [subject.id, subject.code]));
 
-	const newEntries = entries.map((entry) => ({ ...entry }));
-	const proposals: ManualEditBatchPreviewItem[] = [];
-	const ownershipDeltas: TeachingLoadOwnershipDelta[] = [];
-	const seenEntries = new Set<string>();
+	const normalizedChanges: NormalizedTeachingLoadRepairChange[] = [];
 	const seenScopes = new Set<string>();
-	const affectedFacultyIds = new Set<number>();
+	const seenEntries = new Set<string>();
 
-	for (const [index, change] of changes.entries()) {
-		if (seenEntries.has(change.entryId)) throw err(400, 'DUPLICATE_REPAIR_ENTRY', `Entry ${change.entryId} appears more than once.`);
-		seenEntries.add(change.entryId);
-		const scopeKey = `${change.subjectId}:${change.sectionId}`;
-		if (seenScopes.has(scopeKey)) throw err(400, 'DUPLICATE_REPAIR_SCOPE', `Subject ${change.subjectId} section ${change.sectionId} appears more than once.`);
-		seenScopes.add(scopeKey);
-		const entry = entryById.get(change.entryId);
-		if (!entry) throw err(400, 'ENTRY_NOT_FOUND', `Entry ${change.entryId} was not found in this generation run.`);
-		if (entry.subjectId !== change.subjectId || entry.sectionId !== change.sectionId) {
-			throw err(409, 'ENTRY_CONTEXT_CHANGED', 'The selected class no longer matches the Teaching Load repair context. Reload and try again.');
-		}
-		if (change.fromFacultyId != null && entry.facultyId !== change.fromFacultyId) {
-			throw err(409, 'ENTRY_TEACHER_CHANGED', 'The timetable teacher changed while this panel was open. Reload and try again.');
-		}
+	for (const [index, rawChange] of changes.entries()) {
+		const change: (EntryTeachingLoadRepairChange & { kind: 'ENTRY' }) | UnassignedTeachingLoadRepairChange = rawChange.kind === 'UNASSIGNED'
+			? rawChange
+			: { ...rawChange, kind: 'ENTRY' };
 		if ((subjectCodeById.get(change.subjectId) ?? '').toUpperCase() === HG_SUBJECT_CODE) {
 			throw err(409, 'HG_ADVISORY_IMMUTABLE', 'Homeroom Guidance ownership follows adviser records and cannot be changed from the timetable.');
 		}
-		if (entry.entryKind === 'COHORT') {
-			throw err(409, 'COHORT_REPAIR_UNSUPPORTED', 'Cohort classes need a section coverage repair before Teaching Load can be changed from the timetable.');
+		if (change.kind === 'ENTRY') {
+			if (seenEntries.has(change.entryId)) throw err(400, 'DUPLICATE_REPAIR_ENTRY', `Entry ${change.entryId} appears more than once.`);
+			seenEntries.add(change.entryId);
+			const scopeKey = `${change.subjectId}:${change.sectionId}:ENTRY`;
+			if (seenScopes.has(scopeKey)) throw err(400, 'DUPLICATE_REPAIR_SCOPE', `Subject ${change.subjectId} section ${change.sectionId} appears more than once.`);
+			seenScopes.add(scopeKey);
+			const entry = entryById.get(change.entryId);
+			if (!entry) throw err(400, 'ENTRY_NOT_FOUND', `Entry ${change.entryId} was not found in this generation run.`);
+			if (entry.subjectId !== change.subjectId || entry.sectionId !== change.sectionId) {
+				throw err(409, 'ENTRY_CONTEXT_CHANGED', 'The selected class no longer matches the Teaching Load repair context. Reload and try again.');
+			}
+			if (change.fromFacultyId != null && entry.facultyId !== change.fromFacultyId) {
+				throw err(409, 'ENTRY_TEACHER_CHANGED', 'The timetable teacher changed while this panel was open. Reload and try again.');
+			}
+			if (entry.entryKind === 'COHORT') {
+				throw err(409, 'COHORT_REPAIR_UNSUPPORTED', 'Cohort classes need a section coverage repair before Teaching Load can be changed from the timetable.');
+			}
+			normalizedChanges.push({ ...change, kind: 'ENTRY', ownershipSectionIds: [change.sectionId] });
+			continue;
 		}
 
+		const item = unassignedByKey.get(change.unassignedKey);
+		if (!item) {
+			throw err(400, 'UNASSIGNED_NOT_FOUND', `Unassigned session ${change.unassignedKey} was not found in this generation run.`);
+		}
+		if (item.subjectId !== change.subjectId || item.sectionId !== change.sectionId || item.session !== change.session) {
+			throw err(409, 'UNASSIGNED_CONTEXT_CHANGED', 'The unassigned session changed while the Teaching Load panel was open. Refresh and try again.');
+		}
+		if ((item.entryKind ?? 'SECTION') !== change.entryKind || (item.cohortCode ?? null) !== (change.cohortCode ?? null)) {
+			throw err(409, 'UNASSIGNED_CONTEXT_CHANGED', 'The unassigned session scope changed while the Teaching Load panel was open. Refresh and try again.');
+		}
+		const ownershipSectionIds = change.entryKind === 'COHORT'
+			? [...new Set(item.cohortMemberSectionIds?.length ? item.cohortMemberSectionIds : [change.sectionId])]
+			: [change.sectionId];
+		const scopeKey = `${change.subjectId}:${ownershipSectionIds.join(',')}:${change.unassignedKey}`;
+		if (seenScopes.has(scopeKey)) throw err(400, 'DUPLICATE_REPAIR_SCOPE', `Unassigned session ${index + 1} appears more than once.`);
+		seenScopes.add(scopeKey);
+		normalizedChanges.push({ ...change, ownershipSectionIds, sourceUnassignedItem: item });
+	}
+
+	const ownershipFilters = normalizedChanges.flatMap((change) =>
+		change.ownershipSectionIds.map((sectionId) => ({ subjectId: change.subjectId, sectionId })),
+	);
+	const owners = ownershipFilters.length === 0
+		? []
+		: await prisma.subjectSectionOwnership.findMany({
+			where: { schoolId, OR: ownershipFilters },
+			select: { facultyId: true, subjectId: true, sectionId: true },
+		});
+	const ownerByPair = new Map(owners.map((owner) => [`${owner.subjectId}:${owner.sectionId}`, owner.facultyId]));
+
+	const newEntries = entries.map((entry) => ({ ...entry }));
+	let newUnassignedItems = [...refData.unassignedItems];
+	const proposals: ManualEditBatchPreviewItem[] = [];
+	const ownershipDeltas: TeachingLoadOwnershipDelta[] = [];
+	const affectedFacultyIds = new Set<number>();
+
+	for (const change of normalizedChanges) {
 		const currentOwnerId = ownerByPair.get(`${change.subjectId}:${change.sectionId}`) ?? null;
+		const ownershipSectionSet = new Set(change.ownershipSectionIds);
 		const matchingEntryIndexes = newEntries
 			.map((candidate, candidateIndex) => ({ candidate, candidateIndex }))
-			.filter(({ candidate }) => candidate.subjectId === change.subjectId && candidate.sectionId === change.sectionId)
+			.filter(({ candidate }) => candidate.subjectId === change.subjectId && ownershipSectionSet.has(candidate.sectionId))
 			.map(({ candidateIndex }) => candidateIndex);
-		if (matchingEntryIndexes.length === 0) {
+		if (change.kind === 'ENTRY' && matchingEntryIndexes.length === 0) {
 			throw err(400, 'ENTRY_SCOPE_EMPTY', `No timetable entries were found for subject ${change.subjectId} section ${change.sectionId}.`);
 		}
 		let changedTimetableEntry = false;
@@ -312,7 +421,9 @@ async function prepareRepair(
 		if (currentOwnerId != null) affectedFacultyIds.add(currentOwnerId);
 
 		ownershipDeltas.push({
-			entryId: change.entryId,
+			kind: change.kind,
+			entryId: change.kind === 'ENTRY' ? change.entryId : undefined,
+			unassignedKey: change.kind === 'UNASSIGNED' ? change.unassignedKey : undefined,
 			subjectId: change.subjectId,
 			sectionId: change.sectionId,
 			fromFacultyId: change.fromFacultyId,
@@ -326,8 +437,25 @@ async function prepareRepair(
 	const currentValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, entries, refData));
 	const projectedRefData = {
 		...refData,
-		facultySubjects: projectFacultySubjects(refData.facultySubjects, changes),
+		facultySubjects: projectFacultySubjects(refData.facultySubjects, normalizedChanges),
 	};
+
+	let appliedPlacementEdits: AppliedManualEdit[] = [];
+	if (request.placementProposal) {
+		if (request.placementProposal.editType !== 'PLACE_UNASSIGNED') {
+			throw err(400, 'INVALID_PLACEMENT_PROPOSAL', 'Teaching Load repair placementProposal must place an unassigned session.');
+		}
+		const placementResult = applyProposalBatch(newEntries, newUnassignedItems, [request.placementProposal]);
+		const failedPlacement = placementResult.items.find((item) => item.status === 'FAILED');
+		if (failedPlacement) {
+			throw err(400, failedPlacement.errorCode ?? 'INVALID_PLACEMENT_PROPOSAL', failedPlacement.errorMessage ?? 'The selected session could not be placed.');
+		}
+		newEntries.splice(0, newEntries.length, ...placementResult.newEntries);
+		newUnassignedItems = placementResult.newUnassigned;
+		appliedPlacementEdits = placementResult.applied;
+		proposals.push(...placementResult.items);
+	}
+
 	const newValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, newEntries, projectedRefData));
 	const beforeHours = teachingHoursByFaculty(entries, affectedFacultyIds);
 	const afterHours = teachingHoursByFaculty(newEntries, affectedFacultyIds);
@@ -337,21 +465,46 @@ async function prepareRepair(
 		afterTeachingHours: afterHours.get(facultyId) ?? 0,
 		version: facultyVersions.get(facultyId) ?? null,
 	}));
+	const hardViolations = newValidation.violations.filter((violation) => violation.severity === 'HARD');
+	const unassignedReadiness = normalizedChanges
+		.filter((change): change is NormalizedTeachingLoadRepairChange & UnassignedTeachingLoadRepairChange => change.kind === 'UNASSIGNED')
+		.map<TeachingLoadUnassignedReadiness>((change) => {
+			const placed = appliedPlacementEdits.some((edit) => edit.proposal.editType === 'PLACE_UNASSIGNED'
+				&& edit.proposal.sectionId === change.sectionId
+				&& edit.proposal.subjectId === change.subjectId
+				&& edit.proposal.session === change.session);
+			const placementBlockers = hardViolations.slice(0, 3).map((violation) => violation.message);
+			return {
+				unassignedKey: change.unassignedKey,
+				subjectId: change.subjectId,
+				sectionId: change.sectionId,
+				session: change.session,
+				currentOwnerId: ownerByPair.get(`${change.subjectId}:${change.sectionId}`) ?? null,
+				proposedOwnerId: change.toFacultyId,
+				canPlaceNow: placed && placementBlockers.length === 0,
+				placementBlockers,
+				topBlockerCopy: placementBlockers[0] ?? (placed ? null : 'Teaching Load can be saved. Choose a slot before this session leaves the unassigned list.'),
+				suggestedPlacements: request.placementProposal ? [request.placementProposal] : [],
+			};
+		});
 
 	return {
 		refData,
-		changes,
+		changes: normalizedChanges,
 		newEntries,
+		newUnassignedItems,
 		ownershipDeltas,
 		affectedTeachers,
 		proposals,
+		appliedPlacementEdits,
+		unassignedReadiness,
 		currentValidation,
 		newValidation,
 	};
 }
 
 function buildPreview(prepared: PreparedRepair): TeachingLoadRepairPreviewResult {
-	const { currentValidation, newValidation, newEntries, refData, proposals, ownershipDeltas, affectedTeachers } = prepared;
+	const { currentValidation, newValidation, newEntries, refData, proposals, ownershipDeltas, affectedTeachers, unassignedReadiness } = prepared;
 	const hardBefore = currentValidation.violations.filter((violation) => violation.severity === 'HARD').length;
 	const hardViolations = newValidation.violations.filter((violation) => violation.severity === 'HARD');
 	const softBefore = currentValidation.violations.filter((violation) => violation.severity === 'SOFT').length;
@@ -380,6 +533,7 @@ function buildPreview(prepared: PreparedRepair): TeachingLoadRepairPreviewResult
 		proposals,
 		ownershipDeltas,
 		affectedTeachers,
+		unassignedReadiness,
 	};
 }
 
@@ -429,7 +583,7 @@ async function applyCanonicalOwnership(
 	schoolId: number,
 	schoolYearId: number,
 	actorId: number,
-	changes: TeachingLoadRepairChange[],
+	changes: NormalizedTeachingLoadRepairChange[],
 ): Promise<void> {
 	const sectionGradeMap = await loadSectionGradeMap(tx, schoolId, schoolYearId);
 	const touchedKeys = new Map<string, { facultyId: number; subjectId: number }>();
@@ -449,20 +603,6 @@ async function applyCanonicalOwnership(
 	const facultyById = new Map(faculty.map((row) => [row.id, row]));
 
 	for (const change of changes) {
-		const existingOwner = await tx.subjectSectionOwnership.findUnique({
-			where: {
-				schoolId_subjectId_sectionId: {
-					schoolId,
-					subjectId: change.subjectId,
-					sectionId: change.sectionId,
-				},
-			},
-			select: { facultyId: true },
-		});
-		if (existingOwner) {
-			touchedKeys.set(`${existingOwner.facultyId}:${change.subjectId}`, { facultyId: existingOwner.facultyId, subjectId: change.subjectId });
-		}
-
 		let facultySubject = await tx.facultySubject.findUnique({
 			where: { facultyId_subjectId: { facultyId: change.toFacultyId, subjectId: change.subjectId } },
 			select: { id: true },
@@ -489,32 +629,48 @@ async function applyCanonicalOwnership(
 			facultySpecialization: destinationFaculty?.specialization,
 		});
 
-		await tx.subjectSectionOwnership.upsert({
-			where: {
-				schoolId_subjectId_sectionId: {
-					schoolId,
-					subjectId: change.subjectId,
-					sectionId: change.sectionId,
+		for (const sectionId of change.ownershipSectionIds) {
+			const existingOwner = await tx.subjectSectionOwnership.findUnique({
+				where: {
+					schoolId_subjectId_sectionId: {
+						schoolId,
+						subjectId: change.subjectId,
+						sectionId,
+					},
 				},
-			},
-			update: {
-				facultySubjectId: facultySubject.id,
-				facultyId: change.toFacultyId,
-				specializationCode: specializationIdentity.specializationCode,
-				specializationLabel: specializationIdentity.specializationLabel,
-				assignedAt: new Date(),
-			},
-			create: {
-				schoolId,
-				facultySubjectId: facultySubject.id,
-				facultyId: change.toFacultyId,
-				subjectId: change.subjectId,
-				sectionId: change.sectionId,
-				specializationCode: specializationIdentity.specializationCode,
-				specializationLabel: specializationIdentity.specializationLabel,
-				assignedAt: new Date(),
-			},
-		});
+				select: { facultyId: true },
+			});
+			if (existingOwner) {
+				touchedKeys.set(`${existingOwner.facultyId}:${change.subjectId}`, { facultyId: existingOwner.facultyId, subjectId: change.subjectId });
+			}
+
+			await tx.subjectSectionOwnership.upsert({
+				where: {
+					schoolId_subjectId_sectionId: {
+						schoolId,
+						subjectId: change.subjectId,
+						sectionId,
+					},
+				},
+				update: {
+					facultySubjectId: facultySubject.id,
+					facultyId: change.toFacultyId,
+					specializationCode: specializationIdentity.specializationCode,
+					specializationLabel: specializationIdentity.specializationLabel,
+					assignedAt: new Date(),
+				},
+				create: {
+					schoolId,
+					facultySubjectId: facultySubject.id,
+					facultyId: change.toFacultyId,
+					subjectId: change.subjectId,
+					sectionId,
+					specializationCode: specializationIdentity.specializationCode,
+					specializationLabel: specializationIdentity.specializationLabel,
+					assignedAt: new Date(),
+				},
+			});
+		}
 
 		touchedKeys.set(`${change.toFacultyId}:${change.subjectId}`, { facultyId: change.toFacultyId, subjectId: change.subjectId });
 		if (change.fromFacultyId != null) {
@@ -559,8 +715,8 @@ export async function applyTeachingLoadRepair(
 		throw err(422, 'SOFT_OVERRIDE_REQUIRED', `Repair has ${preview.softViolations.length} warning(s). Review and confirm before saving.`);
 	}
 
-	const { refData, newEntries } = prepared;
-	const { run, unassignedItems } = refData;
+	const { refData, newEntries, newUnassignedItems } = prepared;
+	const { run } = refData;
 	if (isPublishedSummary(run.summary)) {
 		throw err(409, 'RUN_ALREADY_PUBLISHED', 'This schedule is already published. Create an effective-date revision for the timetable. Teaching Load will not be rewritten from this published repair.');
 	}
@@ -568,7 +724,7 @@ export async function applyTeachingLoadRepair(
 	if (typeof expectedVersion !== 'number') {
 		throw err(400, 'INVALID_BODY', 'expectedRunVersion is required when applying a Teaching Load repair.');
 	}
-	const newSummary = computeSummary(newEntries, unassignedItems, prepared.newValidation);
+	const newSummary = computeSummary(newEntries, newUnassignedItems, prepared.newValidation);
 	const preservedSummary = mergePreservedSummaryFields(run.summary, newSummary);
 	const newVersion = run.version + 1;
 
@@ -592,7 +748,7 @@ export async function applyTeachingLoadRepair(
 			where: { id: runId, version: expectedVersion },
 			data: {
 				draftEntries: newEntries as unknown as object[],
-				unassignedItems: unassignedItems as unknown as object[],
+				unassignedItems: newUnassignedItems as unknown as object[],
 				violations: prepared.newValidation.violations as unknown as object[],
 				summary: preservedSummary as object,
 				version: newVersion,
@@ -626,6 +782,30 @@ export async function applyTeachingLoadRepair(
 				},
 			}));
 		}
+		for (const edit of prepared.appliedPlacementEdits) {
+			created.push(await tx.manualScheduleEdit.create({
+				data: {
+					runId,
+					schoolId,
+					schoolYearId,
+					actorId,
+					editType: edit.proposal.editType,
+					beforePayload: (edit.beforeEntry ?? {}) as object,
+					afterPayload: (edit.afterEntry ?? {}) as object,
+					validationSummary: {
+						source: 'TEACHING_LOAD_REPAIR_PLACEMENT',
+						subjectId: edit.proposal.subjectId,
+						sectionId: edit.proposal.sectionId,
+						targetFacultyId: edit.proposal.targetFacultyId,
+						targetRoomId: edit.proposal.targetRoomId,
+						hardCount: preview.hardViolations.length,
+						softCount: preview.softViolations.length,
+						delta: preview.violationDelta,
+						removedUnassignedItem: edit.removedUnassigned ? { ...edit.removedUnassigned } : null,
+					} as object,
+				},
+			}));
+		}
 
 		await tx.auditLog.create({
 			data: {
@@ -638,6 +818,8 @@ export async function applyTeachingLoadRepair(
 					editIds: created.map((edit) => edit.id),
 					entryIds: prepared.proposals.map((proposal) => proposal.entryId).filter((entryId): entryId is string => typeof entryId === 'string'),
 					changeCount: prepared.changes.length,
+					unassignedChangeCount: prepared.changes.filter((change) => change.kind === 'UNASSIGNED').length,
+					placedUnassignedCount: prepared.appliedPlacementEdits.length,
 					newVersion,
 				} as object,
 			},
@@ -646,14 +828,27 @@ export async function applyTeachingLoadRepair(
 		return { updatedRun: updated, editRecords: created };
 	});
 
+	let finalSummary: DraftReport['summary'] = newSummary;
+	try {
+		const inputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId);
+		finalSummary = { ...preservedSummary, inputSnapshot };
+		await prisma.generationRun.update({
+			where: { id: updatedRun.id },
+			data: { summary: finalSummary as object },
+		});
+	} catch {
+		finalSummary = preservedSummary;
+	}
+
 	return {
 		editId: editRecords[0]?.id ?? 0,
 		editIds: editRecords.map((edit) => edit.id),
-		draft: buildDraftReport(updatedRun, newEntries, unassignedItems as unknown as UnassignedItem[], newSummary, updatedRun.version),
+		draft: buildDraftReport(updatedRun, newEntries, newUnassignedItems as unknown as UnassignedItem[], finalSummary, updatedRun.version),
 		violationDelta: preview.violationDelta,
 		warnings: preview.softViolations,
 		newVersion: updatedRun.version,
 		ownershipDeltas: preview.ownershipDeltas,
 		affectedTeachers: preview.affectedTeachers,
+		unassignedReadiness: preview.unassignedReadiness,
 	};
 }

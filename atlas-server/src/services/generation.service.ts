@@ -354,7 +354,7 @@ function buildRoomAssignmentReasonCounts(entries: ScheduledEntry[], unassignedIt
 	return counts;
 }
 
-function buildHomeRoomStats(entries: ScheduledEntry[], unassignedItems: UnassignedItem[]): {
+export function buildHomeRoomStats(entries: ScheduledEntry[], unassignedItems: UnassignedItem[]): {
 	attempted: number;
 	assigned: number;
 	successRate: number;
@@ -383,7 +383,7 @@ function buildHomeRoomStats(entries: ScheduledEntry[], unassignedItems: Unassign
 	};
 }
 
-function buildHomeRoomFallbackDiagnostics(
+export function buildHomeRoomFallbackDiagnostics(
 	entries: ScheduledEntry[],
 	unassignedItems: UnassignedItem[],
 ): {
@@ -493,7 +493,7 @@ function buildTermCounts(entries: ScheduledEntry[]): { term1: number; term2: num
 	);
 }
 
-function buildQualifiedCoverageBySubject(
+export function buildQualifiedCoverageBySubject(
 	demand: DemandItem[],
 	facultySubjects: Array<{ facultyId: number; subjectId: number; sectionIds: number[] }>,
 ): Array<{ subjectId: number; subjectCode: string; requiredAssignments: number; qualifiedAssignments: number; coveragePercent: number }> {
@@ -525,7 +525,7 @@ function buildQualifiedCoverageBySubject(
 	})).sort((left, right) => left.coveragePercent - right.coveragePercent || left.subjectCode.localeCompare(right.subjectCode));
 }
 
-function buildSlotSaturation(entries: ScheduledEntry[], roomCapacity: number): Array<{ day: string; startTime: string; endTime: string; assigned: number; capacity: number; saturationPercent: number }> {
+export function buildSlotSaturation(entries: ScheduledEntry[], roomCapacity: number): Array<{ day: string; startTime: string; endTime: string; assigned: number; capacity: number; saturationPercent: number }> {
 	const slotCounts = new Map<string, { day: string; startTime: string; endTime: string; assigned: number }>();
 	for (const entry of entries) {
 		const key = `${entry.day}:${entry.startTime}:${entry.endTime}`;
@@ -542,7 +542,7 @@ function buildSlotSaturation(entries: ScheduledEntry[], roomCapacity: number): A
 		.sort((left, right) => right.saturationPercent - left.saturationPercent || left.day.localeCompare(right.day) || left.startTime.localeCompare(right.startTime));
 }
 
-function buildUnassignedBySubjectGrade(unassignedItems: UnassignedItem[], subjectCodeById: Map<number, string>) {
+export function buildUnassignedBySubjectGrade(unassignedItems: UnassignedItem[], subjectCodeById: Map<number, string>) {
 	const agg = new Map<string, { subjectId: number; subjectCode: string; gradeLevel: number; count: number; reasons: Record<string, number> }>();
 	for (const item of unassignedItems) {
 		const key = `${item.subjectId}:${item.gradeLevel}`;

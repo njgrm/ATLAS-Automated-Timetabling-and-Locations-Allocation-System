@@ -455,14 +455,15 @@ export default function OfficerRoomPreferences() {
 							const liveCount = remoteEntrySelectionCounts.get(request.entryId) ?? 0;
 							const hasLiveFocus = liveCount > 0;
 							return (
-						<button
+						<Button
 							type='button'
+							variant='outline'
 							key={request.id}
 							onClick={() => void openPreview(request)}
-							className={`w-full rounded-2xl border border-border bg-card px-4 py-4 text-left shadow-sm transition hover:border-primary/40 ${hasLiveFocus ? 'ring-2 ring-amber-300/80 border-amber-300/80' : ''}`}
+							className={`w-full h-auto flex flex-col items-start gap-0 rounded-2xl border border-border bg-card px-4 py-4 text-left shadow-sm transition hover:border-primary/40 hover:bg-card/90 text-foreground hover:text-foreground ${hasLiveFocus ? 'ring-2 ring-amber-300/80 border-amber-300/80' : ''}`}
 						>
-							<div className='flex flex-wrap items-start justify-between gap-3'>
-								<div className='space-y-2'>
+							<div className='flex flex-wrap items-start justify-between gap-3 w-full'>
+								<div className='space-y-2 text-left'>
 									<div className='flex flex-wrap items-center gap-2'>
 										<Badge variant='outline'>{request.subjectCode}</Badge>
 										{decisionBadge(request.decisionStatus)}
@@ -479,13 +480,13 @@ export default function OfficerRoomPreferences() {
 										</p>
 									)}
 								</div>
-								<div className='space-y-1 text-right text-xs text-muted-foreground'>
+								<div className='space-y-1 text-right text-xs text-muted-foreground shrink-0'>
 									<p>{request.currentRoomName}</p>
-									<p className='text-primary'>→ {request.requestedRoomName}</p>
+									<p className='text-primary font-bold'>→ {request.requestedRoomName}</p>
 								</div>
 							</div>
-							{request.rationale && <p className='mt-3 text-sm text-muted-foreground'>{request.rationale}</p>}
-						</button>
+							{request.rationale && <p className='mt-3 text-sm text-muted-foreground text-left'>{request.rationale}</p>}
+						</Button>
 							);
 						})()
 					))}
@@ -527,12 +528,12 @@ export default function OfficerRoomPreferences() {
 								<p className='text-xs uppercase tracking-wide text-muted-foreground'>Request visualization</p>
 								<div className='mt-2 grid gap-2 sm:grid-cols-2'>
 									<div className='rounded-lg border border-border bg-muted/30 px-3 py-2'>
-										<p className='text-[0.7rem] font-medium text-muted-foreground'>Before</p>
+										<p className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>Before</p>
 										<p className='text-sm font-semibold text-foreground'>{scopedPreviewState.request.day.slice(0, 3)} {formatTime(scopedPreviewState.request.startTime)} - {formatTime(scopedPreviewState.request.endTime)}</p>
 										<p className='text-xs text-muted-foreground'>{scopedPreviewState.request.currentRoomName}</p>
 									</div>
 									<div className='rounded-lg border border-primary/30 bg-primary/5 px-3 py-2'>
-										<p className='text-[0.7rem] font-medium text-muted-foreground'>After request</p>
+										<p className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>After request</p>
 										<p className='text-sm font-semibold text-foreground'>{scopedPreviewState.request.day.slice(0, 3)} {formatTime(scopedPreviewState.request.startTime)} - {formatTime(scopedPreviewState.request.endTime)}</p>
 										<p className='text-xs text-primary'>{scopedPreviewState.request.requestedRoomName}</p>
 									</div>
@@ -579,7 +580,7 @@ export default function OfficerRoomPreferences() {
 								<Button variant='outline' onClick={() => void reviewRequest('NEEDS_FOLLOW_UP')} disabled={savingDecision}>
 									{savingDecision ? <Loader2 className='mr-1.5 size-4 animate-spin' /> : <ClipboardList className='mr-1.5 size-4' />} Needs follow-up
 								</Button>
-								<Button variant='outline' onClick={() => void reviewRequest('REJECTED')} disabled={savingDecision}>
+								<Button variant='outline' onClick={() => void reviewRequest('REJECTED')} disabled={savingDecision} className="border-rose-200 text-rose-600 hover:text-rose-700 hover:bg-rose-50">
 									{savingDecision ? <Loader2 className='mr-1.5 size-4 animate-spin' /> : <XCircle className='mr-1.5 size-4' />} Reject
 								</Button>
 								<Button onClick={() => void reviewRequest('APPROVED')} disabled={savingDecision || !scopedPreviewState.preview.allowed}>

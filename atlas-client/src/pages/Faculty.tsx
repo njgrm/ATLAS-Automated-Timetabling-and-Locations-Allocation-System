@@ -4,9 +4,15 @@ import {
 	AlertTriangle,
 	BookOpenCheck,
 	Eye,
+	Pencil,
+	Plus,
 	RefreshCw,
+	Trash2,
 	Users,
 } from 'lucide-react';
+
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
+import { CreatePlaceholderDialog } from '@/components/faculty/CreatePlaceholderDialog';
 
 import atlasApi from '@/lib/api';
 import type { FacultySummary } from '@/types';
@@ -98,6 +104,30 @@ export default function Faculty() {
 	
 	// Roster profile drawer
 	const [profileTarget, setProfileTarget] = useState<FacultySummary | null>(null);
+
+	// Placeholder dialog and confirm deletion states
+	const [placeholderDialogOpen, setPlaceholderDialogOpen] = useState(false);
+	const [placeholderEditTarget, setPlaceholderEditTarget] = useState<FacultySummary | null>(null);
+	const [confirmDeleteTarget, setConfirmDeleteTarget] = useState<FacultySummary | null>(null);
+	const [deleting, setDeleting] = useState(false);
+
+	const handleDeletePlaceholder = async () => {
+		if (!confirmDeleteTarget) return;
+		setDeleting(true);
+		try {
+			await atlasApi.delete(`/faculty/${confirmDeleteTarget.id}`, {
+				params: { schoolId: DEFAULT_SCHOOL_ID }
+			});
+			toast.success('Placeholder teacher deleted successfully.');
+			setConfirmDeleteTarget(null);
+			void fetchFaculty({ forceRefresh: true });
+		} catch (err: any) {
+			const errMsg = err?.response?.data?.message ?? 'Failed to delete placeholder.';
+			toast.error(errMsg);
+		} finally {
+			setDeleting(false);
+		}
+	};
 
 	const [showFilters, setShowFilters] = useState(false);
 
@@ -400,27 +430,9 @@ export default function Faculty() {
 			render: (teacher) => <FacultyDepartmentCell faculty={teacher} />,
 		},
 		{
-			id: 'teachingLoad',
-			label: 'Teaching Load',
-			description: 'Subjects and section coverage.',
-			sortKey: 'subjects',
-			headerClassName: 'text-center',
-			cellClassName: 'text-center',
-			render: (teacher) => <FacultyTeachingLoadCell faculty={teacher} />,
-		},
-		{
-			id: 'weeklyLoad',
-			label: 'Credited Workload',
-			description: 'Teaching plus approved credits.',
-			sortKey: 'weeklyLoad',
-			headerClassName: 'text-center',
-			cellClassName: 'text-center',
-			render: (teacher) => <FacultyWeeklyLoadCell faculty={teacher} />,
-		},
-		{
 			id: 'loadState',
 			label: 'Load State',
-			description: 'Readiness against the 30h standard and cap.',
+			description: 'Readiness against standard and cap.',
 			sortKey: 'status',
 			headerClassName: 'text-center',
 			cellClassName: 'text-center',
@@ -486,10 +498,23 @@ export default function Faculty() {
 			}}
 			stats={teacherStats}
 			primaryActions={(
-				<Button onClick={handleSync} disabled={syncing || !isOnline} size="sm" className="h-9 gap-2 bg-primary text-primary-foreground shadow-primary-glow hover:bg-primary/90 font-bold">
-					<RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
-					{syncing ? 'Refreshing...' : !isOnline ? 'Offline' : refreshing ? 'Checking...' : 'Refresh teacher roster'}
-				</Button>
+				<div className="flex items-center gap-2">
+					<Button
+						onClick={() => {
+							setPlaceholderEditTarget(null);
+							setPlaceholderDialogOpen(true);
+						}}
+						size="sm"
+						className="h-9 gap-2 font-semibold shadow-sm"
+					>
+						<Plus className="size-4" />
+						Create Placeholder
+					</Button>
+					<Button variant="outline" onClick={handleSync} disabled={syncing || !isOnline} size="sm" className="h-9 gap-2 font-semibold">
+						<RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
+						{syncing ? 'Refreshing...' : !isOnline ? 'Offline' : refreshing ? 'Checking...' : 'Refresh teacher roster'}
+					</Button>
+				</div>
 			)}
 			toolbar={(
 				<AdminSearchFilterToolbar
@@ -639,11 +664,34 @@ export default function Faculty() {
 							</Link>
 						</Button>
 					),
-					secondary: (teacher) => [{
-						label: 'View teacher profile',
-						icon: <Eye className="size-4" />,
-						onSelect: () => setProfileTarget(teacher),
-					}],
+					secondary: (teacher) => {
+						const actions = [
+							{
+								label: 'View teacher profile',
+								icon: <Eye className="size-4" />,
+								onSelect: () => setProfileTarget(teacher),
+							}
+						];
+						if (teacher.isPlaceholder) {
+							actions.push(
+								{
+									label: 'Edit placeholder details',
+									icon: <Pencil className="size-4" />,
+									onSelect: () => {
+										setPlaceholderEditTarget(teacher);
+										setPlaceholderDialogOpen(true);
+									},
+								},
+								{
+									label: 'Delete placeholder',
+									icon: <Trash2 className="size-4 text-red-500" />,
+									onSelect: () => setConfirmDeleteTarget(teacher),
+									className: 'text-red-600 hover:text-red-700 font-medium',
+								}
+							);
+						}
+						return actions;
+					},
 				}}
 				renderMobileCard={(teacher, context) => (
 					<FacultyMobileCard faculty={teacher} primaryAction={context.primaryAction} secondaryActionMenu={context.secondaryActionMenu} />
@@ -657,6 +705,35 @@ export default function Faculty() {
 				onOpenChange={(open) => !open && setProfileTarget(null)}
 				sourceFreshness={profileSourceLabel}
 			/>
+
+			{/* Create/Edit Placeholder Modal */}
+			<CreatePlaceholderDialog
+				open={placeholderDialogOpen}
+				onOpenChange={setPlaceholderDialogOpen}
+				onSuccess={() => void fetchFaculty({ forceRefresh: true })}
+				facultyToEdit={placeholderEditTarget}
+				departments={departments}
+			/>
+
+			{/* Delete Confirmation Dialog */}
+			<Dialog open={confirmDeleteTarget !== null} onOpenChange={(open) => !open && setConfirmDeleteTarget(null)}>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle className="text-lg font-bold text-red-600">Delete Placeholder Teacher</DialogTitle>
+						<DialogDescription>
+							Are you sure you want to delete <span className="font-semibold text-foreground">{confirmDeleteTarget?.firstName} {confirmDeleteTarget?.lastName}</span>? This action is permanent and will remove all their assigned teaching load sections.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter className="gap-2 sm:gap-0">
+						<Button variant="outline" onClick={() => setConfirmDeleteTarget(null)} disabled={deleting} className="h-9">
+							Cancel
+						</Button>
+						<Button variant="destructive" onClick={handleDeletePlaceholder} disabled={deleting} className="h-9 font-semibold">
+							{deleting ? 'Deleting...' : 'Delete Permanently'}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</AdminWorkspaceFrame>
 	);
 }

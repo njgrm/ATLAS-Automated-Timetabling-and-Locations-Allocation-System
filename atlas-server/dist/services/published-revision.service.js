@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js';
+import { publishPublishedScheduleEvent } from './published-schedule-events.service.js';
 function err(statusCode, code, message, options) {
     const e = new Error(message);
     e.statusCode = statusCode;
@@ -146,7 +147,7 @@ export async function createPublishedScheduleRevision(input, options) {
         changeCount: changes.length,
         entryIds: changedEntryIds,
     };
-    return prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
         const revision = await tx.publishedScheduleRevision.create({
             data: {
                 schoolId: input.schoolId,
@@ -190,6 +191,32 @@ export async function createPublishedScheduleRevision(input, options) {
         });
         return { revision, auditId: audit.id };
     });
+    // Fire notification event after successful commit
+    const affectedFacultyIdsSet = new Set();
+    for (const change of changes) {
+        if (typeof change.previous.facultyId === 'number') {
+            affectedFacultyIdsSet.add(change.previous.facultyId);
+        }
+        if (typeof change.next.facultyId === 'number') {
+            affectedFacultyIdsSet.add(change.next.facultyId);
+        }
+    }
+    const affectedFacultyIds = [...affectedFacultyIdsSet];
+    publishPublishedScheduleEvent({
+        type: 'SCHEDULE_REVISED',
+        schoolId: input.schoolId,
+        schoolYearId: input.schoolYearId,
+        message: `Published schedule has been revised (effective date: ${effectiveDate.toISOString().slice(0, 10)}). Reason: ${reason}`,
+        metadata: {
+            revisionId: result.revision.id,
+            sourceRunId: input.sourceRunId,
+            effectiveDate: effectiveDate.toISOString(),
+            reason,
+            affectedFacultyIds,
+            changeCount: changes.length,
+        },
+    });
+    return result;
 }
 export async function listPublishedScheduleRevisions(params) {
     if (!isPositiveInteger(params.schoolId))

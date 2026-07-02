@@ -47,7 +47,7 @@ export default function MapView() {
 			<div className="mb-3 flex items-center justify-between">
 				<div>
 					<h2 className="text-lg font-bold">Campus Map</h2>
-					<p className="text-[0.8125rem] text-muted-foreground">
+					<p className="text-xs text-muted-foreground">
 						View building locations and room assignments. Select a building for details.
 					</p>
 				</div>
@@ -78,7 +78,7 @@ export default function MapView() {
 					>
 						<RotateCcw className="size-3.5" /> Reset
 					</Button>
-					<span className="ml-auto text-[0.6875rem] text-muted-foreground">
+					<span className="ml-auto text-xs text-muted-foreground">
 						{Math.round(scale * 100)}% • Read-only view
 					</span>
 				</div>
@@ -145,7 +145,7 @@ export default function MapView() {
 				{selected ? (
 					<div className="mt-3 rounded-md border border-border bg-muted/50 p-3">
 						<p className="text-sm font-bold text-foreground">{selected.name}</p>
-						<p className="mt-1 text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
+						<p className="mt-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
 							Rooms
 						</p>
 						<ul className="mt-1.5 space-y-1">
@@ -153,11 +153,11 @@ export default function MapView() {
 								<li key={room.id} className="flex items-center gap-2 text-sm text-foreground">
 									<span className="size-1.5 shrink-0 rounded-full bg-primary" />
 									<span className="flex-1">{room.name}</span>
-									<Badge variant="outline" className="text-[0.6rem] px-1 py-0">
+									<Badge variant="outline" className="text-xs px-1 py-0">
 										{room.type?.replace(/_/g, ' ') ?? 'Classroom'}
 									</Badge>
 									{room.capacity && (
-										<span className="text-[0.6875rem] text-muted-foreground">
+										<span className="text-xs text-muted-foreground">
 											Cap: {room.capacity}
 										</span>
 									)}
@@ -166,7 +166,7 @@ export default function MapView() {
 						</ul>
 					</div>
 				) : (
-					<p className="mt-3 text-[0.8125rem] text-muted-foreground">
+					<p className="mt-3 text-xs text-muted-foreground">
 						Select a building to inspect rooms and details.
 					</p>
 				)}

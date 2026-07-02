@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react';
 import { Move, RotateCw, ScanSearch, Search, Flame } from 'lucide-react';
 
-import { formatTime } from '@/lib/utils';
+import { cn, formatTime } from '@/lib/utils';
 import type {
 	DayOfWeek,
 	FacultyGlobalDraftEntry,
@@ -46,6 +46,7 @@ type DesktopRoomRequestLayoutProps = {
 	renderStatusBadge: (status: RoomPreferenceStatus | null, decision: RoomPreferenceDecisionStatus | null) => ReactNode;
 	entries: FacultyRoomPreferenceEntry[];
 	teachingAssignments: FacultyTeachingAssignmentIdentity[];
+	requestSheetOpen: boolean;
 };
 
 function slotKey(day: string, startTime: string, endTime: string) {
@@ -76,6 +77,7 @@ export default function DesktopRoomRequestLayout({
 	renderStatusBadge,
 	entries,
 	teachingAssignments,
+	requestSheetOpen,
 }: DesktopRoomRequestLayoutProps) {
 	const gridScrollRef = useRef<HTMLDivElement>(null);
 	const [heatmapMode, setHeatmapMode] = useState(false);
@@ -241,9 +243,32 @@ export default function DesktopRoomRequestLayout({
 
 			{/* Right Column: Dynamic Request Builder Pane */}
 			<div className='flex flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-sm'>
-				<div className='border-b border-border px-6 py-4 bg-muted/30'>
-					<h3 className='text-sm font-bold text-foreground'>Request Details</h3>
-						<p className='text-xs text-muted-foreground mt-0.5'>Configure and review your room change.</p>
+				<div className='border-b border-border px-6 py-4 bg-muted/30 space-y-3'>
+					<div className="flex items-center justify-between">
+						<h3 className='text-sm font-bold text-foreground'>Request Details</h3>
+					</div>
+					
+					{/* 3-Step Wizard Guidance */}
+					<div className='grid grid-cols-3 gap-2 text-[10px] font-semibold text-center'>
+						<div className={cn(
+							'pb-1.5 border-b-2 transition-all',
+							!selectedSourceEntryId ? 'border-primary text-primary font-bold' : 'border-muted text-muted-foreground'
+						)}>
+							1. Select Class
+						</div>
+						<div className={cn(
+							'pb-1.5 border-b-2 transition-all',
+							selectedSourceEntryId && !requestSheetOpen ? 'border-primary text-primary font-bold' : 'border-muted text-muted-foreground'
+						)}>
+							2. Pick Slot / Room
+						</div>
+						<div className={cn(
+							'pb-1.5 border-b-2 transition-all',
+							selectedSourceEntryId && requestSheetOpen ? 'border-primary text-primary font-bold' : 'border-muted text-muted-foreground'
+						)}>
+							3. Rationale & Send
+						</div>
+					</div>
 				</div>
 
 				<div className='flex-1 overflow-auto p-6 space-y-6'>

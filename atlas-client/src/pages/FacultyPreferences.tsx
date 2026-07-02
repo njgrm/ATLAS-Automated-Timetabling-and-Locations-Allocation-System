@@ -392,12 +392,6 @@ export default function FacultyPreferences() {
 				title='Support preferences'
 				eyebrow='Faculty'
 				subtitle='Tell the scheduler about support needs. Room changes are submitted separately.'
-				steps={[
-					{ id: 1, label: 'Support' },
-					{ id: 2, label: 'Notes' },
-					{ id: 3, label: 'Submit' },
-				]}
-				activeStep={preferenceStep}
 				online={online}
 				syncState={usingCachedPreference ? 'failed' : online ? 'idle' : 'queued-offline'}
 				realtimeConnected={sseConnected}

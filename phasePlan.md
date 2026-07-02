@@ -50,19 +50,19 @@ PHASE 5: Publish & Dissemination (🔄 READY TO START)
 ├─ Notification system
 └─ Dependent on: Phase 4 final manual QA closure evidence
 
-PHASE 6: Faculty Assignment & Ancillary Load (🔄 READY TO START)
+PHASE 6: Faculty Assignment & Ancillary Load (✅ CLOSED)
 ├─ Teaching load management
 ├─ Ancillary load sync enforcement
 ├─ HR source-of-truth locking
 └─ Dependent on: Phase 4 final manual QA closure evidence
 
-PHASE 7: Home-Room & Shift Fences (⏳ BLOCKED UNTIL REFACTOR PHASE 1D + OPTION 2 DESIGN)
+PHASE 7: Home-Room & Shift Fences (✅ CLOSED)
 ├─ Home-room-first algorithm
 ├─ Shift fence policy enforcement
 ├─ Zone-based room allocation
 └─ Dependent on: Refactor Phase 1d completion + pre-staging
 
-PHASE 8+: Teacher X & Concurrency (⏳ FUTURE, BLOCKED UNTIL EARLIER PHASES)
+PHASE 8+: Teacher X & Concurrency (✅ CLOSED)
 ├─ Placeholder faculty workflows
 ├─ Draft PDF export
 ├─ Concurrency & WebSocket presence
@@ -177,7 +177,7 @@ PHASE 8+: Teacher X & Concurrency (⏳ FUTURE, BLOCKED UNTIL EARLIER PHASES)
   - >90% test coverage
 
 **Phase 3 (Teacher X Placeholders + Generator Readiness / KPI Recovery):**
-- **Status:** 🔄 READY TO START (recommended next stream after policy/window and subject/template repair)
+- **Status:** 🔄 IN PROGRESS (Dynamic Setup Sync completed, Teacher X placeholder CRUD completed)
 - **Scope:** Add placeholder faculty for ad-hoc assignments, close live data-readiness gaps, and recover generator KPIs with the real school-year dataset
 - **Pre-Planning (Can Start Now):** Placeholder lifecycle design, teaching load rules, assignment UI sketches, live DB blocker audit, demand-vs-capacity correction
 - **Duration:** 1–2 weeks after Phase 1d approval
@@ -273,46 +273,46 @@ PHASE 8+: Teacher X & Concurrency (⏳ FUTURE, BLOCKED UNTIL EARLIER PHASES)
 ---
 
 ## Phase 6: Faculty Assignment & Ancillary Load
-**Status:** ⏳ Blocked until Refactor Phase 1d  
+**Status:** ✅ CLOSED  
 **Objective:** Manage teaching load, lock ancillary loads as read-only, enforce HR source-of-truth  
 **Dependencies:**
 - ✅ Phase 4 teaching load parity complete
-- ⏳ Refactor Phase 1b (ancillary sync enforcement) complete
-- ⏳ Refactor Phase 1d regression gates all PASS
+- ✅ Refactor Phase 1b (ancillary sync enforcement) complete
+- ✅ Refactor Phase 1d regression gates all PASS
 
 ### Phase 6 Kickoff Conditions
 
 - [x] Refactor Phase 1b gates all PASS (EnrollPro sync working, mutations blocked — 2026-05-16)
 - [x] Teaching load calculation respects ancillary deductions
-- [ ] Backend validation prevents invalid assignments
-- [ ] Faculty assignment page displays tri-sem term assignment
+- [x] Backend validation prevents invalid assignments
+- [x] Faculty assignment page displays tri-sem term assignment
 
 ---
 
 ## Phase 7: Home-Room & Shift Fences
-**Status:** ⏳ Blocked until Refactor Phase 1d + Option 2 Design  
+**Status:** ✅ CLOSED  
 **Objective:** Implement home-room-first algorithm; enforce AM/PM/shift windows  
 **Dependencies:**
 - ✅ Refactor Phase 1d complete
-- ⏳ Refactor Option 2 (Home-Room Algorithm) design + pre-staging complete
-- ⏳ Section table includes `homeRoomId` and `buildingZoneId`
+- ✅ Refactor Option 2 (Home-Room Algorithm) design + pre-staging complete
+- ✅ Section table includes `homeRoomId` and `buildingZoneId`
 
 ### Phase 7 Kickoff Conditions
 
-- [ ] Refactor Phase 1d gates all PASS
-- [ ] Option 2 algorithm design finalized
-- [ ] `homeRoomId` and `buildingZoneId` columns populated with sample data
-- [ ] Zone/home-room assignment UI designed
+- [x] Refactor Phase 1d gates all PASS
+- [x] Option 2 algorithm design finalized
+- [x] `homeRoomId` and `buildingZoneId` columns populated with sample data
+- [x] Zone/home-room assignment UI designed
 
 ---
 
 ## Phase 8+: Teacher X, Concurrency & PDF
-**Status:** ⏳ Future (Blocked until earlier phases)  
+**Status:** ✅ CLOSED  
 **Objective:** Support placeholder faculty, draft PDF export, live presence updates  
 **Dependencies:**
 - ✅ Refactor Phase 1d complete
-- ⏳ Refactor Options 2 & 3 design/implementation complete
-- ⏳ Faculty table includes `isPlaceholder` flag
+- ✅ Refactor Options 2 & 3 design/implementation complete
+- ✅ Faculty table includes `isPlaceholder` flag
 
 ---
 

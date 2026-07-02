@@ -38,6 +38,7 @@ import classTemplateRouter from './routes/class-template.router.js';
 import specializationAliasRouter from './routes/specialization-alias.router.js';
 import runtimeRouter from './routes/runtime.router.js';
 import dashboardRouter from './routes/dashboard.router.js';
+import timetableSyncSetupRouter from './routes/timetable-sync-setup.router.js';
 
 const app = express();
 
@@ -50,7 +51,6 @@ app.use(
 app.use(
 	cors({
 		origin: (origin, callback) => {
-			// Allow requests with no origin (server-to-server, curl, Postman)
 			if (!origin) return callback(null, true);
 			const allowed = new Set([
 				process.env.CLIENT_URL || 'http://100.88.55.125:5174',
@@ -61,7 +61,6 @@ app.use(
 				'http://localhost:5174',
 				'http://localhost:5175',
 				'http://localhost:5176',
-				// Tailscale / LAN origins — comma-separated via env
 				...(process.env.CORS_EXTRA_ORIGINS
 					? process.env.CORS_EXTRA_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)
 					: []),
@@ -75,15 +74,12 @@ app.use(
 
 app.use(express.json({ limit: '2mb' }));
 
-// Serve uploaded files
 app.use('/uploads', express.static(path.resolve(import.meta.dirname, '../uploads')));
 
-// Health check
 app.get('/api/v1/health', (_req, res) => {
 	res.json({ status: 'ok', service: 'atlas' });
 });
 
-// Routes
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/map', mapRouter);
 app.use('/api/v1/subjects', subjectRouter);
@@ -102,6 +98,7 @@ app.use('/api/v1/generation', lockedSessionRouter);
 app.use('/api/v1/generation', preGenerationDraftRouter);
 app.use('/api/v1/generation', gradeWindowRouter);
 app.use('/api/v1/generation', publishedRevisionRouter);
+app.use('/api/v1/generation', timetableSyncSetupRouter);
 app.use('/api/v1/cohorts', cohortRouter);
 app.use('/api/v1/faculty-portal', facultyPortalRouter);
 app.use('/api/v1', publishedScheduleRouter);
@@ -110,7 +107,6 @@ app.use('/api/v1/specialization-aliases', specializationAliasRouter);
 app.use('/api/v1/runtime', runtimeRouter);
 app.use('/api/v1/dashboard', dashboardRouter);
 
-// Error handler
 app.use(errorHandler);
 
 export default app;

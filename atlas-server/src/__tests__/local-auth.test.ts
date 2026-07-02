@@ -33,6 +33,7 @@ function assertEqual<T>(actual: T, expected: T, label: string) {
 }
 
 async function run() {
+	process.env.ATLAS_AUTH_DISABLE_RATE_LIMIT = 'false';
 	if (!process.env.JWT_SECRET) {
 		process.env.JWT_SECRET = 'atlas-local-auth-test-secret';
 	}
@@ -48,6 +49,15 @@ async function run() {
 		orderBy: { id: 'asc' },
 	});
 	const facultyEmail = process.env.ATLAS_SEEDED_FACULTY_EMAIL ?? seededFaculty?.email ?? 'faculty@deped.edu.ph';
+
+	let officerPassword = seededPassword;
+	if (officerEmail === 'admin@deped.edu.ph') {
+		officerPassword = 'AdminSY2026!';
+	}
+	let facultyPassword = seededPassword;
+	if (facultyEmail === 'maria.santos@deped.edu.ph') {
+		facultyPassword = 'DepEd2026!';
+	}
 
 	section('Seeded account availability');
 
@@ -67,7 +77,7 @@ async function run() {
 
 	const officerLogin = await loginWithEmailPassword({
 		email: officerEmail,
-		password: seededPassword,
+		password: officerPassword,
 		ipAddress: '127.0.0.1',
 		userAgent: 'local-auth-test',
 	});
@@ -82,7 +92,7 @@ async function run() {
 
 	const facultyLogin = await loginWithEmailPassword({
 		email: facultyEmail,
-		password: seededPassword,
+		password: facultyPassword,
 		ipAddress: '127.0.0.1',
 		userAgent: 'local-auth-test',
 	});
@@ -163,7 +173,7 @@ async function run() {
 
 	const missingSecretLogin = await loginWithEmailPassword({
 		email: officerEmail,
-		password: seededPassword,
+		password: officerPassword,
 		ipAddress: '127.0.0.1',
 	});
 
@@ -191,7 +201,7 @@ async function run() {
 
 			const lockedLogin = await loginWithEmailPassword({
 				email: officerEmail,
-				password: seededPassword,
+				password: officerPassword,
 				ipAddress: '127.0.0.1',
 			});
 

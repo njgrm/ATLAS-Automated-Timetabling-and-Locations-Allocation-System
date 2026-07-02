@@ -542,7 +542,7 @@ export default function Subjects() {
 						</Select>
 
 						<div className="flex items-center gap-2 border-l pl-3">
-							<span className="text-[0.7rem] font-medium text-muted-foreground uppercase">Options:</span>
+							<span className="text-xs font-medium text-muted-foreground uppercase">Options:</span>
 							<div className="flex items-center p-0.5 rounded-md bg-muted gap-0.5">
 								<Button type="button" variant="ghost" size="sm" onClick={() => setTimeMode('hours')} className={`h-6 px-1.5 rounded-sm ${timeMode === 'hours' ? 'bg-background shadow-sm text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}>hr</Button>
 								<Button type="button" variant="ghost" size="sm" onClick={() => setTimeMode('minutes')} className={`h-6 px-1.5 rounded-sm ${timeMode === 'minutes' ? 'bg-background shadow-sm text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}>min</Button>
@@ -613,7 +613,7 @@ export default function Subjects() {
 						<div className="flex items-center gap-1.5">
 							<Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(1)} disabled={page <= 1}><ChevronsLeft className="size-4" /></Button>
 							<Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}><ChevronLeft className="size-4" /></Button>
-							<div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-[0.7rem] font-bold tabular-nums"><span>{page}</span><span className="text-muted-foreground/50 font-normal">/</span><span className="text-muted-foreground font-normal">{totalPages}</span></div>
+							<div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-xs font-bold tabular-nums"><span>{page}</span><span className="text-muted-foreground/50 font-normal">/</span><span className="text-muted-foreground font-normal">{totalPages}</span></div>
 							<Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}><ChevronRight className="size-4" /></Button>
 							<Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(totalPages)} disabled={page >= totalPages}><ChevronsRight className="size-4" /></Button>
 						</div>
@@ -643,9 +643,7 @@ export default function Subjects() {
 											Grades <SortIcon field="gradeLevels" />
 										</Button>
 									</th>
-									<th className="px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Programs and owner</th>
-									<th className="px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Status</th>
-									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Actions</th>
+									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-xs">Actions</th>
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-border/40">
@@ -656,14 +654,12 @@ export default function Subjects() {
 											<td className="px-4 py-4"><Skeleton className="h-5 w-16" /></td>
 											<td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
 											<td className="px-4 py-4"><Skeleton className="h-5 w-20" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-24" /></td>
-											<td className="px-4 py-4"><Skeleton className="h-5 w-14" /></td>
 											<td className="px-4 py-4"><Skeleton className="h-8 w-24 ml-auto" /></td>
 										</tr>
 									))
 								) : paged.length === 0 ? (
 									<tr>
-										<td colSpan={7} className="px-4 py-20 text-center">
+										<td colSpan={5} className="px-4 py-20 text-center">
 											<AdminStatePanel icon={<BookOpen className="size-8" />} title = {subjects.length === 0 ? 'No subjects found.' : 'No matches found.'} description={subjects.length === 0 ? 'Refresh offerings to load curriculum subjects for this school year.' : 'Clear a filter or search another subject name or code.'} />
 										</td>
 									</tr>
@@ -737,13 +733,13 @@ export default function Subjects() {
 							<>
 								<div className="rounded-xl border border-violet-100 bg-violet-50/30 p-4 space-y-3">
 									<div className="flex items-center justify-between">
-										<p className="text-[0.65rem] font-semibold uppercase tracking-widest text-violet-700/80">Term rotation</p>
+										<p className="text-xs font-semibold uppercase tracking-widest text-violet-700/80">Term rotation</p>
 										{coverageSubject.rotationFamily && (
 											<Tooltip>
 												<TooltipTrigger asChild>
 													<div className="flex items-center gap-1.5 cursor-help">
 														<Info className="size-3 text-violet-400" />
-														<span className="text-[10px] font-bold text-violet-600 uppercase tracking-tight">Rotates by term</span>
+														<span className="text-xs font-bold text-violet-600 uppercase tracking-tight">Rotates by term</span>
 													</div>
 												</TooltipTrigger>
 												<TooltipContent side="top" className="text-xs font-bold max-w-50">
@@ -753,28 +749,28 @@ export default function Subjects() {
 										)}
 									</div>
 									<div className="flex flex-wrap gap-1.5">
-										<Badge variant="outline" className="bg-white text-violet-700 border-violet-200 font-bold text-[0.65rem] uppercase px-1.5 h-5 shadow-none">
+										<Badge variant="outline" className="bg-white text-violet-700 border-violet-200 font-bold text-xs uppercase px-1.5 h-5 shadow-none">
 											{coverageSubject.code}
 										</Badge>
 										{coverageSubject.rotationFamily && (
-											<Badge variant="outline" className="bg-violet-100 text-violet-900 border-violet-300 font-semibold text-[0.65rem] uppercase px-1.5 h-5 shadow-none">
+											<Badge variant="outline" className="bg-violet-100 text-violet-900 border-violet-300 font-semibold text-xs uppercase px-1.5 h-5 shadow-none">
 												Rotating
 											</Badge>
 										)}
 										{resolveSubjectTermLabel(coverageSubject) && (
-											<Badge variant="outline" className="bg-violet-100 text-violet-900 border-violet-300 font-semibold text-[0.65rem] uppercase px-1.5 h-5 shadow-none">
+											<Badge variant="outline" className="bg-violet-100 text-violet-900 border-violet-300 font-semibold text-xs uppercase px-1.5 h-5 shadow-none">
 												{resolveSubjectTermLabel(coverageSubject)}
 											</Badge>
 										)}
 									</div>
-									<p className="text-[11px] text-violet-800/80 leading-relaxed font-medium italic">
+									<p className="text-xs text-violet-800/80 leading-relaxed font-medium italic">
 										Rotating subjects share time across terms, so check both assigned teachers and uncovered grades before generation.
 									</p>
 								</div>
 
 								{/* Assigned Teachers */}
 								<div className="space-y-4">
-									<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+									<h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
 										<div className="size-1.5 rounded-full bg-emerald-500" />
 										Assigned teachers
 										<Badge variant="secondary" className="ml-auto bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-100 font-bold">
@@ -791,7 +787,7 @@ export default function Subjects() {
 															<p className="text-sm font-bold truncate leading-tight">{t.name}</p>
 															<div className="flex flex-wrap gap-1 mt-1.5">
 																{t.grades.map((g) => (
-																	<Badge key={g} variant="outline" className={`text-[0.6rem] px-1.5 py-0 h-4 font-bold border-opacity-40 ${GRADE_COLORS[String(g)] ?? ''}`}>
+																	<Badge key={g} variant="outline" className={`text-xs px-1.5 py-0 h-4 font-bold border-opacity-40 ${GRADE_COLORS[String(g)] ?? ''}`}>
 																		{gradeLabel(g)}
 																	</Badge>
 																))}
@@ -804,7 +800,7 @@ export default function Subjects() {
 													
 													{t.sections.length > 0 ? (
 														<div className="space-y-1.5">
-															<p className="text-[0.65rem] font-bold text-emerald-700/70 uppercase tracking-wider">Assigned Sections</p>
+															<p className="text-xs font-bold text-emerald-700/70 uppercase tracking-wider">Assigned Sections</p>
 															<div className="flex flex-wrap gap-1.5">
 																{t.sections.map((section, idx) => (
 																	<div key={idx} className="flex items-center gap-1.5 px-2 py-1 rounded bg-white border border-emerald-100/50 shadow-sm">
@@ -814,7 +810,7 @@ export default function Subjects() {
 															</div>
 														</div>
 													) : (
-														<p className="text-[0.65rem] text-muted-foreground italic">No sections explicitly mapped.</p>
+														<p className="text-xs text-muted-foreground italic">No sections explicitly mapped.</p>
 													)}
 												</div>
 											))}
@@ -833,7 +829,7 @@ export default function Subjects() {
 								</div>
 
 								<div className="space-y-4">
-									<h4 className="text-[0.7rem] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+									<h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
 										<div className={`size-1.5 rounded-full ${(coverageDetail?.uncoveredGrades.length ?? 0) > 0 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
 										Uncovered scope
 									</h4>
@@ -882,7 +878,7 @@ export default function Subjects() {
 									<div className="p-4 rounded-xl bg-muted/40 border border-muted/50 flex items-start gap-3 shadow-sm">
 										<Map className="size-5 text-muted-foreground shrink-0 mt-0.5" />
 										<div className="space-y-1">
-											<p className="text-[0.65rem] font-bold uppercase tracking-widest text-muted-foreground">Resource Constraint</p>
+											<p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Resource Constraint</p>
 											<p className="text-sm font-medium">Requires <span className="font-bold text-primary">{ROOM_TYPE_LABELS[coverageSubject.preferredRoomType]}</span> facilities.</p>
 											<Link to="/map" className="text-xs text-primary font-bold flex items-center gap-1 hover:underline pt-1 uppercase tracking-tight">
 												View occupancy map

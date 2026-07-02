@@ -926,6 +926,7 @@ export default function FacultyRoomPreferences() {
 					runId={runId}
 					selectedSourceEntryId={selectedSourceEntryId}
 					selectedEntry={selectedEntry}
+					requestSheetOpen={requestSheetOpen}
 					zoom={zoom}
 					onZoomOut={() => setZoom((current) => Math.max(0.7, Number((current - 0.1).toFixed(2))))}
 					onZoomIn={() => setZoom((current) => Math.min(1.5, Number((current + 0.1).toFixed(2))))}

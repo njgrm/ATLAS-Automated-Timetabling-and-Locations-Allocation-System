@@ -23,8 +23,8 @@ function toProxyOrigin(rawValue: string | undefined, fallbackOrigin: string): st
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), '');
 
-	const atlasProxyTarget = toProxyOrigin(env.VITE_ATLAS_API, 'http://localhost:5001');
-	const enrollProProxyTarget = toProxyOrigin(env.VITE_ENROLLPRO_API_BASE, 'http://localhost:5000');
+	const atlasProxyTarget = toProxyOrigin(env.VITE_ATLAS_API, 'http://127.0.0.1:5001');
+	const enrollProProxyTarget = toProxyOrigin(env.VITE_ENROLLPRO_API_BASE, 'http://127.0.0.1:5000');
 
 	return {
 		plugins: [react(), tailwindcss()],

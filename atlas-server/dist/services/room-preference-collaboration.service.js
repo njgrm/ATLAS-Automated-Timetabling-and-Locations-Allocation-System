@@ -4,6 +4,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { prisma } from '../lib/prisma.js';
 import { resolveCanonicalFacultyMirror } from './faculty-identity.service.js';
 import { onRoomPreferenceEvent } from './room-preference-events.service.js';
+import { onTimetableEvent } from './timetable-events.service.js';
 const DEFAULT_WS_PATH = '/api/v1/room-preferences/collaboration/ws';
 const DEFAULT_HEARTBEAT_TIMEOUT_MS = 30000;
 const DEFAULT_PRUNE_INTERVAL_MS = 5000;
@@ -141,6 +142,9 @@ export function registerRoomPreferenceCollaborationSocket(server, options) {
     const stopRoomRequestBridge = onRoomPreferenceEvent((event) => {
         broadcastToChannel({ schoolId: event.schoolId, schoolYearId: event.schoolYearId, runId: event.runId }, { type: 'collab.room-request.event', event });
     });
+    const stopTimetableBridge = onTimetableEvent((event) => {
+        broadcastToChannel({ schoolId: event.schoolId, schoolYearId: event.schoolYearId, runId: event.runId }, { type: 'collab.timetable.event', event });
+    });
     const pruneTimer = setInterval(() => {
         const cutoff = Date.now() - heartbeatTimeoutMs;
         for (const state of sockets.values()) {
@@ -258,6 +262,7 @@ export function registerRoomPreferenceCollaborationSocket(server, options) {
     });
     const dispose = () => {
         stopRoomRequestBridge();
+        stopTimetableBridge();
         clearInterval(pruneTimer);
         for (const state of sockets.values()) {
             try {

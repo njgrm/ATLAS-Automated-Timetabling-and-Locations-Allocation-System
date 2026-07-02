@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { isAxiosError } from 'axios';
 import { Link, useSearchParams } from 'react-router-dom';
-import { AlertCircle, BookOpen, CalendarDays, Clock3, MapPin, RefreshCcw, Search, Users, Wifi, WifiOff } from 'lucide-react';
+import { AlertCircle, BookOpen, CalendarDays, Clock3, MapPin, Printer, RefreshCcw, Search, Users, Wifi, WifiOff } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
 import { buildPublishedScheduleCacheMarker, resolvePublishedScheduleRequestDate } from '@/lib/published-schedule-cache-key';
@@ -462,10 +462,13 @@ export default function PublicPublishedSchedule() {
 									<Badge variant="outline" className={sourceMode === 'live' ? 'border-sky-200 bg-sky-50 text-sky-700' : sourceMode === 'saved' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-muted bg-muted text-muted-foreground'}>
 										{sourceMode === 'live' ? 'Official schedule' : sourceMode === 'saved' ? 'Showing the last saved copy' : 'No official schedule yet'}
 									</Badge>
-									<Button variant="outline" size="sm" className="rounded-xl" onClick={() => void loadPublishedSchedule()}>
+									<Button variant="outline" size="sm" className="rounded-xl print:hidden" onClick={() => window.print()}>
+										<Printer className="mr-2 size-4" /> Print Schedule
+									</Button>
+									<Button variant="outline" size="sm" className="rounded-xl print:hidden" onClick={() => void loadPublishedSchedule()}>
 										<RefreshCcw className="mr-2 size-4" /> Refresh
 									</Button>
-									<Button asChild variant="ghost" size="sm" className="rounded-xl"><Link to="/login">Sign In</Link></Button>
+									<Button asChild variant="ghost" size="sm" className="rounded-xl print:hidden"><Link to="/login">Sign In</Link></Button>
 								</div>
 							</div>
 						</CardHeader>
@@ -536,7 +539,7 @@ export default function PublicPublishedSchedule() {
 								<div className="overflow-hidden rounded-xl border border-border/70">
 									<div className="flex items-center justify-between border-b border-border/70 px-3 py-2">
 										<p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{modeLabel(mode)}</p>
-										<Badge variant="outline" className="text-[10px]">{mode === 'teachers' ? filteredFaculty.length : mode === 'rooms' ? filteredRooms.length : filteredSections.length}</Badge>
+										<Badge variant="outline" className="text-xs">{mode === 'teachers' ? filteredFaculty.length : mode === 'rooms' ? filteredRooms.length : filteredSections.length}</Badge>
 									</div>
 									<ScrollArea className="h-72">
 										<div className="space-y-1 p-2">
@@ -551,12 +554,12 @@ export default function PublicPublishedSchedule() {
 
 											{mode === 'rooms' && filteredRooms.map((item) => {
 												const isActive = selectedRoom?.id === item.id;
-												return <Button key={item.id} variant={isActive ? 'secondary' : 'ghost'} onClick={() => updateSearchParams({ roomId: String(item.id) })} className="h-auto w-full items-start justify-start rounded-lg px-2 py-2 text-left"><div className="space-y-1"><p className="text-sm font-semibold leading-tight">{item.name}</p><div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">{item.buildingName && <Badge variant="outline" className="text-[10px]">{item.buildingName}</Badge>}<span>{item.entryCount} class{item.entryCount === 1 ? '' : 'es'}</span></div></div></Button>;
+												return <Button key={item.id} variant={isActive ? 'secondary' : 'ghost'} onClick={() => updateSearchParams({ roomId: String(item.id) })} className="h-auto w-full items-start justify-start rounded-lg px-2 py-2 text-left"><div className="space-y-1"><p className="text-sm font-semibold leading-tight">{item.name}</p><div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">{item.buildingName && <Badge variant="outline" className="text-xs">{item.buildingName}</Badge>}<span>{item.entryCount} class{item.entryCount === 1 ? '' : 'es'}</span></div></div></Button>;
 											})}
 
 											{mode === 'sections' && filteredSections.map((section) => {
 								const isActive = selectedSection?.id === section.id;
-								return <Button key={section.id} variant={isActive ? 'secondary' : 'ghost'} onClick={() => updateSearchParams({ sectionId: String(section.id) })} className="h-auto w-full items-start justify-start rounded-lg px-2 py-2 text-left"><div className="space-y-1"><div className="flex items-center gap-1.5"><p className="text-sm font-semibold leading-tight">{section.name}</p><GradeLevelBadge grade={section.gradeLevel} size="xs" /></div><div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"><span>{section.entryCount} class{section.entryCount === 1 ? '' : 'es'}</span>{section.programLabel && <Badge variant="outline" className="text-[10px]">{section.programLabel}</Badge>}</div></div></Button>;
+								return <Button key={section.id} variant={isActive ? 'secondary' : 'ghost'} onClick={() => updateSearchParams({ sectionId: String(section.id) })} className="h-auto w-full items-start justify-start rounded-lg px-2 py-2 text-left"><div className="space-y-1"><div className="flex items-center gap-1.5"><p className="text-sm font-semibold leading-tight">{section.name}</p><GradeLevelBadge grade={section.gradeLevel} size="xs" /></div><div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"><span>{section.entryCount} class{section.entryCount === 1 ? '' : 'es'}</span>{section.programLabel && <Badge variant="outline" className="text-xs">{section.programLabel}</Badge>}</div></div></Button>;
 							})}
 										</div>
 									</ScrollArea>
@@ -594,13 +597,56 @@ export default function PublicPublishedSchedule() {
 								{mode === 'rooms' && !selectedRoom && <p className="text-sm text-muted-foreground">Select a room to view its published timetable.</p>}
 								{selectedEntries.length === 0 && (selectedSection || selectedFaculty || selectedRoom) && <p className="text-sm text-muted-foreground">No published classes were found for this view in the current day filter.</p>}
 								{selectedEntries.length > 0 && (
-									<PublishedTimetableMatrix
-										entries={selectedEntries}
-										dayFilter={dayFilter}
-										emptyMessage="No published classes were found for this view."
-										renderEntryDetails={renderSelectedEntryDetails}
-										renderEntryBadges={renderSelectedEntryBadges}
-									/>
+									<>
+										<div className="hidden lg:block">
+											<PublishedTimetableMatrix
+												entries={selectedEntries}
+												dayFilter={dayFilter}
+												emptyMessage="No published classes were found for this view."
+												renderEntryDetails={renderSelectedEntryDetails}
+												renderEntryBadges={renderSelectedEntryBadges}
+											/>
+										</div>
+										<div className="lg:hidden space-y-3">
+											{DAY_ORDER.map((day) => {
+												const dayEntries = selectedEntries
+													.filter((e) => e.day === day && (dayFilter === 'all' || dayFilter === day))
+													.sort((a, b) => a.startTime.localeCompare(b.startTime));
+												if (dayEntries.length === 0) return null;
+												return (
+													<section key={day} className="space-y-2">
+														<div className="sticky top-0 z-10 -mx-4 mb-2 bg-muted/40 px-4 py-1 backdrop-blur-md border-y border-border/20">
+															<h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+																{day.charAt(0) + day.slice(1).toLowerCase()}
+															</h2>
+														</div>
+														<div className="space-y-2">
+															{dayEntries.map((entry) => (
+																<Card key={entry.entryId} className="rounded-2xl border-border/60 shadow-sm">
+																	<CardContent className="p-3.5">
+																		<div className="flex items-start justify-between gap-3">
+																			<div className="min-w-0">
+																				<p className="truncate text-sm font-semibold leading-tight text-foreground">{entry.subject.name}</p>
+																				<p className="mt-0.5 text-xs uppercase tracking-wide text-muted-foreground">{entry.subject.code}</p>
+																			</div>
+																			{renderSelectedEntryBadges && (
+																				<div className="shrink-0 flex items-center gap-1.5">
+																					{renderSelectedEntryBadges(entry)}
+																				</div>
+																			)}
+																		</div>
+																		<div className="mt-2 space-y-1 text-xs text-muted-foreground">
+																			{renderSelectedEntryDetails(entry)}
+																		</div>
+																	</CardContent>
+																</Card>
+															))}
+														</div>
+													</section>
+												);
+											})}
+										</div>
+									</>
 								)}
 						</CardContent>
 					</Card>

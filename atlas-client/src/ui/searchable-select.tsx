@@ -103,7 +103,7 @@ export function SearchableSelect({
 					{filtered.map((group) => (
 						<div key={group.label}>
 							{group.label && (
-								<div className="px-2 py-1 text-[0.625rem] uppercase tracking-wider text-muted-foreground/70">
+								<div className="px-2 py-1 text-xs uppercase tracking-wider text-muted-foreground/70">
 									{group.label}
 								</div>
 							)}

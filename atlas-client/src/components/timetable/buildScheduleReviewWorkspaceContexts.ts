@@ -96,6 +96,9 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	setProgramFilter: (value: ProgramFilter) => void;
 	setEntryKindFilter: (value: EntryKindFilter) => void;
 	policy: { teacherMoveEnabled: boolean } | null;
+	collaborationConnected?: boolean;
+	presence?: any[];
+	remoteSelections?: Record<string, any>;
 };
 
 export type ScheduleReviewWorkspaceBodyContext = {

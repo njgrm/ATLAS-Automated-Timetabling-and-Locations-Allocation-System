@@ -816,23 +816,12 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	}, [setSchoolYearId]);
 
 	const fetchRuns = useCallback(async (syId: number, options?: FetchOptions) => {
-		const { preferCache = false, backgroundRefresh = false, forceRefresh = false } = options ?? {};
+		const { preferCache = false, forceRefresh = false } = options ?? {};
 		const cached = runsCacheBySchoolYear.get(syId);
 		const canUseCache = !forceRefresh && preferCache && cached && isFresh(cached.ts);
 
 		if (canUseCache) {
 			setRuns(cached.runs);
-			if (backgroundRefresh) {
-				void atlasApi
-					.get<{ runs: GenerationRun[] }>(`/generation/${DEFAULT_SCHOOL_ID}/${syId}/runs`, { params: { limit: 20 } })
-					.then(({ data }) => {
-						runsCacheBySchoolYear.set(syId, { ts: Date.now(), runs: data.runs });
-						setRuns(data.runs);
-					})
-					.catch(() => {
-						// keep warm cache on transient refresh failure
-					});
-			}
 			return cached.runs;
 		}
 
@@ -1003,7 +992,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	}, [setRoomRequestError, setRoomRequestLoading, setRoomRequestSummary]);
 
 	const fetchReferenceData = useCallback(async (syId: number, options?: FetchOptions) => {
-		const { preferCache = false, backgroundRefresh = false, forceRefresh = false } = options ?? {};
+		const { preferCache = false, forceRefresh = false } = options ?? {};
 		const cached = referenceDataCacheBySchoolYear.get(syId);
 		const canUseCache = !forceRefresh && preferCache && cached && isFresh(cached.ts);
 
@@ -1034,27 +1023,6 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 
 		if (canUseCache) {
 			hydrateReferenceState(cached);
-			if (backgroundRefresh) {
-				void Promise.all([
-					atlasApi.get<{ subjects: Subject[] }>(`/subjects?schoolId=${DEFAULT_SCHOOL_ID}`),
-					atlasApi.get<{ faculty: FacultyMirror[] }>(`/faculty?schoolId=${DEFAULT_SCHOOL_ID}`),
-					atlasApi.get<{ buildings: Building[] }>(`/map/schools/${DEFAULT_SCHOOL_ID}/buildings`),
-					atlasApi.get<SectionSummaryResponse>(`/sections/summary/${syId}?schoolId=${DEFAULT_SCHOOL_ID}`).catch(() => ({ data: { sections: [] as ExternalSection[] } })),
-				]).then(([subjectsRes, facultyRes, buildingsRes, sectionsRes]) => {
-					const nextEntry: CachedReferenceData = {
-						ts: Date.now(),
-						subjects: subjectsRes.data.subjects,
-						faculty: facultyRes.data.faculty,
-						buildings: buildingsRes.data.buildings,
-						sections: sectionsRes.data.sections,
-						sectionSummary: sectionsRes.data as SectionSummaryResponse,
-					};
-					referenceDataCacheBySchoolYear.set(syId, nextEntry);
-					hydrateReferenceState(nextEntry);
-				}).catch(() => {
-					// keep warm cache on transient refresh failure
-				});
-			}
 			return;
 		}
 
@@ -1075,28 +1043,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		};
 		referenceDataCacheBySchoolYear.set(syId, nextEntry);
 
-		setSubjectMap(new Map(nextEntry.subjects.map((subject) => [subject.id, subject])));
-		setFacultyMap(new Map(nextEntry.faculty.map((facultyMember) => [facultyMember.id, facultyMember])));
-		setBuildings(nextEntry.buildings);
-		setSectionSummary(nextEntry.sectionSummary);
-		setSectionMap(new Map(nextEntry.sections.map((section) => [section.id, section])));
-
-		const enrichedRooms = new Map<number, RoomInfo>();
-		for (const building of nextEntry.buildings) {
-			for (const room of building.rooms) {
-				enrichedRooms.set(room.id, {
-					id: room.id,
-					name: room.name,
-					buildingId: building.id,
-					buildingName: building.name,
-					buildingShortCode: building.shortCode,
-					floor: room.floor,
-					type: room.type,
-					isTeachingSpace: room.isTeachingSpace,
-				});
-			}
-		}
-		setRoomMap(enrichedRooms);
+		hydrateReferenceState(nextEntry);
 	}, [setBuildings, setFacultyMap, setRoomMap, setSectionMap, setSectionSummary, setSubjectMap]);
 
 	const openMapWorkspace = useCallback(async () => {
@@ -1128,7 +1075,10 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		switchCenterViewWithGuard(() => setCenterView(preGenMapContext ? 'pre-generation' : (draft ? 'schedule' : 'pre-generation')));
 	}, [draft, preGenMapContext, roomMap, setMapBuildingId, setMapRoomId, setViewMode, setEntityFilter, setPreGenMapContext, switchCenterViewWithGuard, setCenterView]);
 
-	const loadAll = useCallback(async (preserveRun = false) => {
+	const loadAll = useCallback(async (options?: { preserveRun?: boolean; force?: boolean } | boolean) => {
+		const preserveRun = typeof options === 'boolean' ? options : options?.preserveRun ?? false;
+		const force = typeof options === 'object' ? options?.force ?? false : false;
+
 		setLoading(true);
 		setError(null);
 		try {
@@ -1138,26 +1088,26 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				setLoading(false);
 				return;
 			}
-			const fetchedRuns = await fetchRuns(syId, { preferCache: true, backgroundRefresh: true });
-			await fetchReferenceData(syId, { preferCache: true, backgroundRefresh: true });
+			const fetchedRuns = await fetchRuns(syId, { preferCache: !force, forceRefresh: force });
+			await fetchReferenceData(syId, { preferCache: !force, forceRefresh: force });
 
 			if (fetchedRuns.length === 0) {
 				setDraft(null);
 				setViolationReport(null);
 				setSelectedRunId('latest');
-				void fetchDraftBoardSummary(syId, { preferCache: true, backgroundRefresh: true });
-				void loadRoomRequestSummary(syId, requestStatusFilter, requestDecisionFilter, { preferCache: true, backgroundRefresh: true });
+				void fetchDraftBoardSummary(syId, { preferCache: !force, forceRefresh: force });
+				void loadRoomRequestSummary(syId, requestStatusFilter, requestDecisionFilter, { preferCache: !force, forceRefresh: force });
 				setLoading(false);
 				return;
 			}
 
 			const runId = preserveRun ? selectedRunIdRef.current : 'latest';
 			if (!preserveRun) setSelectedRunId('latest');
-			await fetchRunData(syId, runId, { preferCache: true, backgroundRefresh: true });
+			await fetchRunData(syId, runId, { preferCache: !force, forceRefresh: force });
 
 			// Secondary rail diagnostics are intentionally deferred to keep first render interactive.
-			void fetchDraftBoardSummary(syId, { preferCache: true, backgroundRefresh: true });
-			void loadRoomRequestSummary(syId, requestStatusFilter, requestDecisionFilter, { preferCache: true, backgroundRefresh: true });
+			void fetchDraftBoardSummary(syId, { preferCache: !force, forceRefresh: force });
+			void loadRoomRequestSummary(syId, requestStatusFilter, requestDecisionFilter, { preferCache: !force, forceRefresh: force });
 		} catch (e: unknown) {
 			const code = getTimetableApiErrorCode(e);
 			if (code === 'NO_ACTIVE_DRAFT' || code === 'STALE_RUN_DATA' || code === 'NO_RUNS') {
@@ -1231,7 +1181,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 	}, [activeGridEntriesBase, selectedEntry, setSelectedEntry, setSelectedViolation]);
 
 	const handleRefresh = useCallback(() => {
-		void loadAll(true);
+		void loadAll({ preserveRun: true, force: true });
 	}, [loadAll]);
 
 	const subjectLabel = useCallback((id: number) => {

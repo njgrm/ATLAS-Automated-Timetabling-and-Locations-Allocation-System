@@ -66,6 +66,11 @@ async function run() {
 	});
 	const officerEmail = process.env.ATLAS_SEEDED_OFFICER_EMAIL ?? seededOfficer?.email ?? 'officer@deped.edu.ph';
 
+	let officerPassword = seededPassword;
+	if (officerEmail === 'admin@deped.edu.ph') {
+		officerPassword = 'AdminSY2026!';
+	}
+
 	const officerAccount = await prisma.atlasAuthAccount.findUnique({ where: { email: officerEmail } });
 	if (!officerAccount) {
 		console.error('\nSeeded local auth accounts are missing. Run the realistic seed first.');
@@ -97,7 +102,7 @@ async function run() {
 			},
 			body: JSON.stringify({
 				email: officerEmail,
-				password: seededPassword,
+				password: officerPassword,
 			}),
 		});
 

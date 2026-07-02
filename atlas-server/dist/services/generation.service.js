@@ -228,7 +228,7 @@ function buildRoomAssignmentReasonCounts(entries, unassignedItems) {
     }
     return counts;
 }
-function buildHomeRoomStats(entries, unassignedItems) {
+export function buildHomeRoomStats(entries, unassignedItems) {
     let assigned = 0;
     let unavailable = 0;
     let unresolved = 0;
@@ -251,7 +251,7 @@ function buildHomeRoomStats(entries, unassignedItems) {
         successRate: attempted > 0 ? Math.round((assigned / attempted) * 10000) / 100 : 0,
     };
 }
-function buildHomeRoomFallbackDiagnostics(entries, unassignedItems) {
+export function buildHomeRoomFallbackDiagnostics(entries, unassignedItems) {
     const diagnostics = {
         homeRoomOccupied: 0,
         noSameZoneStandardRoom: 0,
@@ -347,7 +347,7 @@ function buildTermCounts(entries) {
         return acc;
     }, { term1: 0, term2: 0, term3: 0 });
 }
-function buildQualifiedCoverageBySubject(demand, facultySubjects) {
+export function buildQualifiedCoverageBySubject(demand, facultySubjects) {
     const qualifiedKey = new Set();
     for (const assignment of facultySubjects) {
         for (const sectionId of assignment.sectionIds) {
@@ -374,7 +374,7 @@ function buildQualifiedCoverageBySubject(demand, facultySubjects) {
             : 0,
     })).sort((left, right) => left.coveragePercent - right.coveragePercent || left.subjectCode.localeCompare(right.subjectCode));
 }
-function buildSlotSaturation(entries, roomCapacity) {
+export function buildSlotSaturation(entries, roomCapacity) {
     const slotCounts = new Map();
     for (const entry of entries) {
         const key = `${entry.day}:${entry.startTime}:${entry.endTime}`;
@@ -390,7 +390,7 @@ function buildSlotSaturation(entries, roomCapacity) {
     }))
         .sort((left, right) => right.saturationPercent - left.saturationPercent || left.day.localeCompare(right.day) || left.startTime.localeCompare(right.startTime));
 }
-function buildUnassignedBySubjectGrade(unassignedItems, subjectCodeById) {
+export function buildUnassignedBySubjectGrade(unassignedItems, subjectCodeById) {
     const agg = new Map();
     for (const item of unassignedItems) {
         const key = `${item.subjectId}:${item.gradeLevel}`;

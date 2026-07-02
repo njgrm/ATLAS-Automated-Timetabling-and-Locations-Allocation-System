@@ -25,6 +25,7 @@ function assertEqual(actual, expected, label) {
     console.error(`  ✗ ${label} — expected ${String(expected)}, got ${String(actual)}`);
 }
 async function run() {
+    process.env.ATLAS_AUTH_DISABLE_RATE_LIMIT = 'false';
     if (!process.env.JWT_SECRET) {
         process.env.JWT_SECRET = 'atlas-local-auth-test-secret';
     }
@@ -39,6 +40,14 @@ async function run() {
         orderBy: { id: 'asc' },
     });
     const facultyEmail = process.env.ATLAS_SEEDED_FACULTY_EMAIL ?? seededFaculty?.email ?? 'faculty@deped.edu.ph';
+    let officerPassword = seededPassword;
+    if (officerEmail === 'admin@deped.edu.ph') {
+        officerPassword = 'AdminSY2026!';
+    }
+    let facultyPassword = seededPassword;
+    if (facultyEmail === 'maria.santos@deped.edu.ph') {
+        facultyPassword = 'DepEd2026!';
+    }
     section('Seeded account availability');
     const officerAccount = await prisma.atlasAuthAccount.findUnique({ where: { email: officerEmail } });
     const facultyAccount = await prisma.atlasAuthAccount.findUnique({ where: { email: facultyEmail } });
@@ -52,7 +61,7 @@ async function run() {
     section('TC-AUTH-01 officer login success');
     const officerLogin = await loginWithEmailPassword({
         email: officerEmail,
-        password: seededPassword,
+        password: officerPassword,
         ipAddress: '127.0.0.1',
         userAgent: 'local-auth-test',
     });
@@ -64,7 +73,7 @@ async function run() {
     section('TC-AUTH-02 faculty login success');
     const facultyLogin = await loginWithEmailPassword({
         email: facultyEmail,
-        password: seededPassword,
+        password: facultyPassword,
         ipAddress: '127.0.0.1',
         userAgent: 'local-auth-test',
     });
@@ -123,7 +132,7 @@ async function run() {
     delete process.env.JWT_SECRET;
     const missingSecretLogin = await loginWithEmailPassword({
         email: officerEmail,
-        password: seededPassword,
+        password: officerPassword,
         ipAddress: '127.0.0.1',
     });
     process.env.JWT_SECRET = priorSecret;
@@ -147,7 +156,7 @@ async function run() {
             });
             const lockedLogin = await loginWithEmailPassword({
                 email: officerEmail,
-                password: seededPassword,
+                password: officerPassword,
                 ipAddress: '127.0.0.1',
             });
             assert(!lockedLogin.ok, 'Locked account returns error');

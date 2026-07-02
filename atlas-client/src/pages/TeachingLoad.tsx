@@ -79,6 +79,31 @@ export default function TeachingLoad() {
 		}
 	}, [data.sectionFocusId, data.subjectFocusId, ui]);
 
+	const completedSectionIds = useMemo(() => {
+		const completed = new Set<number>();
+		for (const section of data.allKnownSections) {
+			const programType = (section.programType ?? 'REGULAR').toUpperCase();
+			const displayOrder = section.displayOrder;
+			const applicableSubjects = data.subjects.filter((subject) => {
+				if (!subject.isActive || subject.code === 'HG') return false;
+				const gradeCompatible = subject.gradeLevels.length === 0 || subject.gradeLevels.includes(displayOrder);
+				if (!gradeCompatible) return false;
+				const subjectScopes = subject.programScopes || [];
+				return subjectScopes.length === 0 || subjectScopes.some((scope) => scope.toUpperCase() === programType);
+			});
+			if (applicableSubjects.length === 0) continue;
+			const allStaffed = applicableSubjects.every((subject) => {
+				const key = `${subject.id}:${section.id}`;
+				const owner = data.savedOwnershipMap[key] || data.pendingOwnershipMap[key];
+				return Boolean(owner && data.activeFacultyIds.has(owner.facultyId));
+			});
+			if (allStaffed) {
+				completed.add(section.id);
+			}
+		}
+		return completed;
+	}, [data.allKnownSections, data.subjects, data.savedOwnershipMap, data.pendingOwnershipMap, data.activeFacultyIds]);
+
 	const dirty = Boolean(data.effectiveDraftAssignmentsByFaculty[data.selectedId ?? 0]);
 	const splitBrainNeedsReconcile = Boolean(
 		data.splitBrainIncident
@@ -296,16 +321,52 @@ export default function TeachingLoad() {
 			);
 			setAutoFillResult(result);
 			ui.setSummaryModalOpen(true);
-			toast.success('Auto-fill completed successfully.', { id: toastId });
+			
+			const unresolvedCount = result.unresolved ?? 0;
+			if (unresolvedCount > 0) {
+				toast.warning('Auto-fill finished with gaps. Review the summary for detailed staffing recommendations.', { id: toastId });
+			} else {
+				toast.success('Auto-fill completed successfully.', { id: toastId });
+			}
 			await data.fetchData({ forceRefresh: true });
 		} catch (error: any) {
 			toast.error(error?.response?.data?.message ?? 'Auto-fill failed.', { id: toastId });
 		}
 	}, [applySplitBrainReconcile, data, splitBrainNeedsReconcile, ui]);
 
-	const handleViewStaffingNeeds = useCallback(() => {
-		ui.setStaffingAuditOpen(true);
-	}, [ui]);
+	const handleViewStaffingNeeds = useCallback(async () => {
+		if (!data.activeSchoolYearId) return;
+		const toastId = toast.loading('Generating detailed staffing needs report...');
+		try {
+			const { data: result } = await atlasApi.post<AutoFillSummaryResult>(
+				'/faculty-assignments/report/staffing-needs',
+				{
+					schoolId: DEFAULT_SCHOOL_ID,
+					schoolYearId: data.activeSchoolYearId,
+					coverageMode: ui.coverageMode,
+				},
+			);
+			setAutoFillResult(result);
+			ui.setSummaryModalOpen(true);
+			toast.success('Staffing needs report generated.', { id: toastId });
+		} catch (error: any) {
+			toast.error(error?.response?.data?.message ?? 'Failed to generate staffing needs report.', { id: toastId });
+		}
+	}, [data.activeSchoolYearId, ui.coverageMode, ui.setSummaryModalOpen]);
+
+	const handleToggleCanTeachOutsideDepartment = useCallback(async (checked: boolean) => {
+		if (!data.selected) return;
+		try {
+			await atlasApi.patch(`/faculty/${data.selected.id}`, {
+				version: data.selected.version,
+				canTeachOutsideDepartment: checked,
+			});
+			toast.success(`Cross-department teaching updated for ${data.selected.lastName}.`);
+			await data.fetchData({ forceRefresh: true });
+		} catch (error: any) {
+			toast.error(error?.response?.data?.message ?? 'Failed to update cross-department teaching permission.');
+		}
+	}, [data]);
 
 	const handleNavigateToAllocation = useCallback(() => {
 		ui.setViewMode('allocation');
@@ -686,6 +747,9 @@ export default function TeachingLoad() {
 								onToggleFilters={() => ui.setShowFilters(!ui.showFilters)}
 								showOutsideDept={ui.showOutsideDept}
 								onToggleOutsideDept={ui.setShowOutsideDept}
+								showUnmappedSpecialization={ui.showUnmappedSpecialization}
+								onShowUnmappedSpecializationChange={ui.setShowUnmappedSpecialization}
+								completedSectionIds={completedSectionIds}
 								workspaceStateLabel={workspaceState.label}
 								workspaceStateNextAction={workspaceState.nextAction}
 								writeBlockedReason={workspaceState.writeBlockedReason}
@@ -714,6 +778,7 @@ export default function TeachingLoad() {
 								onSave={handleSave}
 								hasDraft={data.activeDraftCount > 0}
 								onSwapSectionOwnership={handleSwapRequest}
+								completedSectionIds={completedSectionIds}
 								workspaceStateLabel={workspaceState.label}
 								workspaceStateNextAction={workspaceState.nextAction}
 								writeBlockedReason={workspaceState.writeBlockedReason}
@@ -731,6 +796,7 @@ export default function TeachingLoad() {
 								hoveredIncomingMinutes={ui.hoveredIncomingMinutes}
 								previewLoadHours={previewLoadHours}
 								isReadOnlyMode={data.isReadOnlyMode}
+								onToggleCanTeachOutsideDepartment={handleToggleCanTeachOutsideDepartment}
 								writeBlockedReason={workspaceState.writeBlockedReason}
 							/>
 						) : (

@@ -1,5 +1,5 @@
 import { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { HTMLAttributes, MouseEvent, TdHTMLAttributes } from 'react';
+import type { HTMLAttributes, KeyboardEvent, MouseEvent, TdHTMLAttributes } from 'react';
 import {
 	AlertCircle,
 	AlertTriangle,
@@ -66,7 +66,7 @@ interface DraggableEntryProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const DraggableEntry = forwardRef<HTMLDivElement, DraggableEntryProps>(function DraggableEntry(
-	{ entryId, entryData, children, style, onClick, ...rest },
+	{ entryId, entryData, children, style, onClick, onKeyDown, ...rest },
 	forwardedRef,
 ) {
 	const { attributes, listeners, setNodeRef, isDragging: draggingThis, transform } = useDraggable({
@@ -100,6 +100,12 @@ const DraggableEntry = forwardRef<HTMLDivElement, DraggableEntryProps>(function 
 		}
 		onClick?.(event);
 	}, [onClick]);
+	const handleKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+		onKeyDown?.(event);
+		if (!event.defaultPrevented) {
+			listeners?.onKeyDown?.(event as never);
+		}
+	}, [listeners, onKeyDown]);
 
 	return (
 		<div
@@ -108,6 +114,7 @@ const DraggableEntry = forwardRef<HTMLDivElement, DraggableEntryProps>(function 
 			{...attributes}
 			{...listeners}
 			onClick={handleClick}
+			onKeyDown={handleKeyDown}
 			tabIndex={0}
 			style={{
 				...style,
@@ -464,11 +471,23 @@ export const TimetableGrid = memo(function TimetableGrid({
 															const entryData = placementId != null
 																? { type: 'draftPlacement' as const, entry, placementId }
 																: { type: 'entry' as const, entry };
+															const entrySubjectLabel = subjectLabel(entry.subjectId);
+															const entrySectionLabel = sectionLabel(entry.sectionId);
+															const entryDayLabel = DAY_SHORT[day] ?? day;
+															const entryTimeLabel = formatTime(slot.startTime);
 															const card = (
 																<DraggableEntry
 																	entryId={entry.entryId}
 																	entryData={entryData}
 																	role="button"
+																	aria-label={`Select ${entrySubjectLabel} for ${entrySectionLabel}, ${entryDayLabel} ${entryTimeLabel}`}
+																	data-timetable-entry="true"
+																	data-timetable-entry-id={entry.entryId}
+																	data-subject-id={entry.subjectId}
+																	data-subject-label={entrySubjectLabel}
+																	data-section-id={entry.sectionId}
+																	data-section-label={entrySectionLabel}
+																	data-faculty-id={entry.facultyId ?? ''}
 																	onClick={(event) => {
 																		if (hasKbSource) {
 																			event.stopPropagation();
@@ -484,11 +503,11 @@ export const TimetableGrid = memo(function TimetableGrid({
 																			onEntryClick(entry);
 																		}
 																	}}
-																	className={`w-full text-left rounded px-1.5 py-1 border text-[0.625rem] leading-tight transition-colors cursor-grab active:cursor-grabbing hover:opacity-80 select-none ${cellClass}`}
+																	className={`min-h-11 w-full text-left rounded border px-2 py-1.5 text-[0.625rem] leading-tight transition-colors cursor-pointer active:cursor-grabbing hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 select-none ${cellClass}`}
 																>
 																	<div className="font-medium truncate flex items-center gap-1">
 																		<GripVertical className="size-2.5 text-muted-foreground/40 shrink-0" />
-																		{subjectLabel(entry.subjectId)}
+																		{entrySubjectLabel}
 																		{severity === 'HARD' && <AlertCircle className="size-2.5 shrink-0 text-red-600" />}
 																		{severity === 'SOFT' && <AlertTriangle className="size-2.5 shrink-0 text-amber-600" />}
 																		{entry.entryKind === 'COHORT' && entry.cohortCode && (

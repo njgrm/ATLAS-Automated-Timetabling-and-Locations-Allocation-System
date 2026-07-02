@@ -637,14 +637,42 @@ export async function updateFacultyMirror(id, data, expectedVersion) {
     if (existing.version !== expectedVersion) {
         return { success: false, error: 'Version conflict. Please reload.' };
     }
+    const updateData = { ...data };
+    if (!existing.isPlaceholder) {
+        // Synced real teachers cannot have their names/departments edited locally
+        delete updateData.firstName;
+        delete updateData.lastName;
+        delete updateData.department;
+        delete updateData.specialization;
+    }
     const updated = await prisma.facultyMirror.update({
         where: { id },
         data: {
-            ...data,
+            ...updateData,
             version: { increment: 1 },
         },
     });
     return { success: true, faculty: updated };
+}
+export async function deletePlaceholderFaculty(id, schoolId) {
+    const existing = await prisma.facultyMirror.findUnique({ where: { id } });
+    if (!existing)
+        return { success: false, error: 'Faculty profile not found.' };
+    if (existing.schoolId !== schoolId)
+        return { success: false, error: 'Faculty does not belong to this school.' };
+    if (!existing.isPlaceholder)
+        return { success: false, error: 'Only placeholder (temporary) faculty profiles can be deleted.' };
+    await prisma.$transaction(async (tx) => {
+        // Delete their local assignments
+        await tx.facultySubject.deleteMany({
+            where: { facultyId: id, schoolId },
+        });
+        // Delete the faculty mirror profile itself
+        await tx.facultyMirror.delete({
+            where: { id },
+        });
+    });
+    return { success: true };
 }
 export async function getFacultyCountBySchool(schoolId) {
     return prisma.facultyMirror.count({

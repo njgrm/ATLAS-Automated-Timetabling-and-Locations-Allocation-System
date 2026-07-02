@@ -60,18 +60,18 @@ export default function MobilePreferencesLayout({
 			<section>
 				<div className='flex items-center gap-2 px-1'>
 					<Heart className='size-4 text-primary' />
-					<h2 className='text-[15px] font-semibold text-foreground'>Support needs</h2>
+					<h2 className='text-base font-semibold text-foreground'>Support needs</h2>
 				</div>
-				<p className='mt-1 px-1 text-[12px] text-muted-foreground'>The scheduler reviews each toggle and tries to honour it where possible.</p>
+				<p className='mt-1 px-1 text-xs text-muted-foreground'>The scheduler reviews each toggle and tries to honour it where possible.</p>
 				<Card className='mt-3 overflow-hidden rounded-2xl border-border/60 shadow-sm'>
 					<CardContent className='divide-y divide-border/60 p-0'>
 						{WELLBEING_ITEMS.map(({ key, label, description }) => (
 							<div key={key} className='flex items-start justify-between gap-4 px-4 py-3.5'>
 								<div className='min-w-0 flex-1'>
-									<Label htmlFor={`mob-wb-${key}`} className='cursor-pointer text-[14px] font-semibold text-foreground'>
+									<Label htmlFor={`mob-wb-${key}`} className='cursor-pointer text-sm font-semibold text-foreground'>
 										{label}
 									</Label>
-									<p className='mt-0.5 text-[12px] leading-snug text-muted-foreground'>{description}</p>
+									<p className='mt-0.5 text-xs leading-snug text-muted-foreground'>{description}</p>
 								</div>
 								<Switch
 									id={`mob-wb-${key}`}
@@ -89,9 +89,9 @@ export default function MobilePreferencesLayout({
 			<section>
 				<div className='flex items-center gap-2 px-1'>
 					<MessageSquare className='size-4 text-primary' />
-					<h2 className='text-[15px] font-semibold text-foreground'>Notes for the scheduler</h2>
+					<h2 className='text-base font-semibold text-foreground'>Notes for the scheduler</h2>
 				</div>
-				<p className='mt-1 px-1 text-[12px] text-muted-foreground'>Optional context to help the scheduler honour your support needs.</p>
+				<p className='mt-1 px-1 text-xs text-muted-foreground'>Optional context to help the scheduler honour your support needs.</p>
 				<Card className='mt-3 overflow-hidden rounded-2xl border-border/60 shadow-sm'>
 					<CardContent className='p-0'>
 						<Textarea
@@ -99,7 +99,7 @@ export default function MobilePreferencesLayout({
 							value={notes}
 							onChange={(e) => onNotesChange(e.target.value)}
 							disabled={!canEdit}
-							className='min-h-32 resize-none rounded-none border-0 p-4 text-[14px] focus-visible:ring-0'
+							className='min-h-32 resize-none rounded-none border-0 p-4 text-sm focus-visible:ring-0'
 						/>
 					</CardContent>
 				</Card>

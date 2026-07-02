@@ -133,7 +133,7 @@ export function ClassProgramMatrixView({
 	return (
 		<div className="flex min-h-0 flex-1 flex-col gap-3">
 			<div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
-				<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] uppercase">Class Program Matrix</Badge>
+				<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] uppercase">Grid view</Badge>
 				<span>{bands.length} section bands</span>
 				<span className="text-border">•</span>
 				<span>{sectionCount} sections</span>

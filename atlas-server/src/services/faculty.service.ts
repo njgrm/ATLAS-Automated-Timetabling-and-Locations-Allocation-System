@@ -850,32 +850,65 @@ export async function createPlaceholderFaculty(input: CreatePlaceholderFacultyIn
 }
 
 export async function updateFacultyMirror(
-id: number,
-data: Partial<{
-localNotes: string;
-isActiveForScheduling: boolean;
-maxHoursPerWeek: number;
-employmentStatus: string;
-isClassAdviser: boolean;
-advisoryEquivalentHours: number;
-canTeachOutsideDepartment: boolean;
-}>,
-expectedVersion: number,
+	id: number,
+	data: Partial<{
+		firstName: string;
+		lastName: string;
+		department: string | null;
+		specialization: string | null;
+		localNotes: string;
+		isActiveForScheduling: boolean;
+		maxHoursPerWeek: number;
+		employmentStatus: string;
+		isClassAdviser: boolean;
+		advisoryEquivalentHours: number;
+		canTeachOutsideDepartment: boolean;
+	}>,
+	expectedVersion: number,
 ) {
-const existing = await prisma.facultyMirror.findUnique({ where: { id } });
-if (!existing) return { success: false as const, error: 'Faculty not found.' };
-if (existing.version !== expectedVersion) {
-return { success: false as const, error: 'Version conflict. Please reload.' };
+	const existing = await prisma.facultyMirror.findUnique({ where: { id } });
+	if (!existing) return { success: false as const, error: 'Faculty not found.' };
+	if (existing.version !== expectedVersion) {
+		return { success: false as const, error: 'Version conflict. Please reload.' };
+	}
+
+	const updateData: any = { ...data };
+	if (!existing.isPlaceholder) {
+		// Synced real teachers cannot have their names/departments edited locally
+		delete updateData.firstName;
+		delete updateData.lastName;
+		delete updateData.department;
+		delete updateData.specialization;
+	}
+
+	const updated = await prisma.facultyMirror.update({
+		where: { id },
+		data: {
+			...updateData,
+			version: { increment: 1 },
+		},
+	});
+	return { success: true as const, faculty: updated };
 }
 
-const updated = await prisma.facultyMirror.update({
-where: { id },
-data: {
-...data,
-version: { increment: 1 },
-},
-});
-return { success: true as const, faculty: updated };
+export async function deletePlaceholderFaculty(id: number, schoolId: number): Promise<{ success: boolean; error?: string }> {
+	const existing = await prisma.facultyMirror.findUnique({ where: { id } });
+	if (!existing) return { success: false, error: 'Faculty profile not found.' };
+	if (existing.schoolId !== schoolId) return { success: false, error: 'Faculty does not belong to this school.' };
+	if (!existing.isPlaceholder) return { success: false, error: 'Only placeholder (temporary) faculty profiles can be deleted.' };
+
+	await prisma.$transaction(async (tx) => {
+		// Delete their local assignments
+		await tx.facultySubject.deleteMany({
+			where: { facultyId: id, schoolId },
+		});
+		// Delete the faculty mirror profile itself
+		await tx.facultyMirror.delete({
+			where: { id },
+		});
+	});
+
+	return { success: true };
 }
 
 export async function getFacultyCountBySchool(schoolId: number): Promise<number> {

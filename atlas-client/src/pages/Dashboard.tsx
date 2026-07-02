@@ -567,40 +567,48 @@ export default function Dashboard() {
 						</CardHeader>
 						<CardContent className='p-2'>
 							<ul className='divide-y divide-slate-100'>
-								{checklist.map((item) => (
-									<li key={item.label}>
-										<Link
-											to={item.href}
-											className='flex items-start gap-3 px-4 py-3 rounded-xl hover:bg-slate-50/80 transition-colors'
-										>
-											{item.done ? (
-												<div className='mt-0.5 p-1 rounded-full bg-emerald-100'>
-													<CheckCircle2 className='w-4 h-4 text-emerald-600' />
-												</div>
-											) : (
-												<div className='mt-0.5 p-1 rounded-full bg-slate-100'>
-													<div className='w-4 h-4 rounded-full border-2 border-slate-300' />
-												</div>
-											)}
-											<div className='flex-1 min-w-0'>
-												<p
-													className={`text-sm font-medium ${
-														item.done ? 'text-slate-400 line-through' : 'text-slate-900'
+								{(() => {
+									const firstUncompletedIdx = checklist.findIndex((item) => !item.done);
+									return checklist.map((item, idx) => {
+										const isNextTask = idx === firstUncompletedIdx;
+										return (
+											<li key={item.label}>
+												<Link
+													to={item.href}
+													className={`flex items-start gap-3 px-4 py-3 rounded-xl hover:bg-slate-50/80 transition-colors ${
+														isNextTask ? 'ring-2 ring-amber-300 bg-amber-50/20' : ''
 													}`}
 												>
-													{item.label}
-												</p>
-												{item.hint ? (
-													<p className='flex items-center gap-1 text-xs text-amber-600 mt-1'>
-														<AlertTriangle className='w-3 h-3' />
-														{item.hint}
-													</p>
-												) : null}
-											</div>
-											<ChevronRight className='w-4 h-4 text-slate-300 mt-1' />
-										</Link>
-									</li>
-								))}
+													{item.done ? (
+														<div className='mt-0.5 p-1 rounded-full bg-emerald-100'>
+															<CheckCircle2 className='w-4 h-4 text-emerald-600' />
+														</div>
+													) : (
+														<div className='mt-0.5 p-1 rounded-full bg-slate-100'>
+															<div className='w-4 h-4 rounded-full border-2 border-slate-300' />
+														</div>
+													)}
+													<div className='flex-1 min-w-0'>
+														<p
+															className={`text-sm font-medium ${
+																item.done ? 'text-slate-400 line-through' : 'text-slate-900'
+															}`}
+														>
+															{item.label}
+														</p>
+														{item.hint ? (
+															<p className='flex items-center gap-1 text-xs text-amber-600 mt-1'>
+																<AlertTriangle className='w-3 h-3' />
+																{item.hint}
+															</p>
+														) : null}
+													</div>
+													<ChevronRight className='w-4 h-4 text-slate-300 mt-1' />
+												</Link>
+											</li>
+										);
+									});
+								})()}
 							</ul>
 						</CardContent>
 					</Card>
@@ -618,7 +626,7 @@ export default function Dashboard() {
 					<CardContent className='p-6 lg:p-8'>
 						<div className='flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6'>
 							<div>
-								<p className='text-[11px] font-bold uppercase tracking-wider text-primary-foreground/70'>
+								<p className='text-xs font-bold uppercase tracking-wider text-primary-foreground/70'>
 									Scheduling lifecycle
 								</p>
 								<h3 className='text-xl lg:text-2xl font-bold mt-1'>Where the school year stands</h3>

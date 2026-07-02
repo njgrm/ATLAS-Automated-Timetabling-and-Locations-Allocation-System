@@ -514,14 +514,16 @@ export default function Login() {
 											autoComplete="current-password"
 											required
 										/>
-										<button
+										<Button
 											type="button"
+											variant="ghost"
+											size="icon"
 											onClick={() => setShowPassword(!showPassword)}
 											className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 transition-all duration-200"
 											aria-label={showPassword ? 'Hide password' : 'Show password'}
 										>
 											{showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-										</button>
+										</Button>
 									</div>
 								</div>
 
@@ -565,7 +567,7 @@ export default function Login() {
 								</Button>
 							</form>
 
-							<p className="text-[10px] text-gray-400 text-center mt-4 leading-relaxed">
+							<p className="text-xs text-muted-foreground text-center mt-4 leading-relaxed">
 								By signing in, you agree to our{' '}
 								<a
 									href="#"

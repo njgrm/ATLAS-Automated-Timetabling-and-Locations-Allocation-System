@@ -9,6 +9,7 @@ import { BuildingView, ROOM_COLORS, ROOM_TYPE_LABELS } from '@/components/Buildi
 import { ClassProgramMatrixView } from '@/components/timetable/ClassProgramMatrixView';
 import { TacticalSandboxDock } from '@/components/timetable/TacticalSandboxDock';
 import { TimetableGrid } from '@/components/timetable/TimetableGrid';
+import { buildUnassignedKey } from '@/lib/timetable-utils';
 import { formatTime } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -16,7 +17,7 @@ import { Checkbox } from '@/ui/checkbox';
 import { ResizablePanel } from '@/ui/resizable';
 import { ScrollArea } from '@/ui/scroll-area';
 
-import type { CommitResult, ManualEditProposal, TeachingLoadRepairPreviewResult, Violation } from '@/types';
+import type { CommitResult, ManualEditProposal, TeachingLoadRepairChange, TeachingLoadRepairPreviewResult, UnassignedItem, Violation } from '@/types';
 
 function projectSandboxEntries(entries: any[], sandboxFacultyByEntryId: Map<string, number>): any[] {
 	if (sandboxFacultyByEntryId.size === 0) return entries;
@@ -58,6 +59,8 @@ function buildSandboxTeacherConflictEntryIds(entries: any[], changedEntryIds: Se
 type CenterWorkspaceProps = {
 	centerView: 'schedule' | 'pre-generation' | 'policy' | 'manual-edit' | 'map' | 'building';
 	selectedEntry: any;
+	selectedUnassigned: UnassignedItem | null;
+	setSelectedUnassigned: (value: UnassignedItem | null) => void;
 	violationIndex: Map<string, Violation[]>;
 	followUps: Set<string>;
 	toggleFollowUp: (entryId: string) => Promise<void>;
@@ -72,8 +75,8 @@ type CenterWorkspaceProps = {
 	draftEntries: any[];
 	previewEdit: (proposal: any) => Promise<any>;
 	commitEdit: (proposal: any, allowSoftOverride?: boolean) => Promise<void>;
-	previewEditBatch: (proposals: ManualEditProposal[]) => Promise<TeachingLoadRepairPreviewResult | null>;
-	commitEditBatch: (proposals: ManualEditProposal[], allowSoftOverride?: boolean) => Promise<CommitResult | null>;
+	previewTeachingLoadRepair: (changes: TeachingLoadRepairChange[], placementProposal?: ManualEditProposal) => Promise<TeachingLoadRepairPreviewResult | null>;
+	commitTeachingLoadRepair: (changes: TeachingLoadRepairChange[], allowSoftOverride?: boolean, placementProposal?: ManualEditProposal) => Promise<CommitResult | null>;
 	previewLoading: boolean;
 	commitLoading: boolean;
 	subjectLabel: (id: number) => string;
@@ -131,6 +134,8 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 	const {
 		centerView,
 		selectedEntry,
+		selectedUnassigned,
+		setSelectedUnassigned,
 		violationIndex,
 		followUps,
 		toggleFollowUp,
@@ -145,8 +150,8 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 		draftEntries,
 		previewEdit,
 		commitEdit,
-		previewEditBatch,
-		commitEditBatch,
+		previewTeachingLoadRepair,
+		commitTeachingLoadRepair,
 		previewLoading,
 		commitLoading,
 		subjectLabel,
@@ -205,6 +210,8 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 	const [autoOpenedSandboxEntryId, setAutoOpenedSandboxEntryId] = useState<string | null>(null);
 	const [suppressedSandboxEntryId, setSuppressedSandboxEntryId] = useState<string | null>(null);
 	const selectedEntryId = selectedEntry?.entryId ?? null;
+	const selectedUnassignedKey = selectedUnassigned ? buildUnassignedKey(selectedUnassigned) : null;
+	const activeSandboxKey = selectedEntryId ?? selectedUnassignedKey;
 
 	useEffect(() => {
 		setSandboxFacultyByEntryId(new Map());
@@ -214,33 +221,39 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 	}, [draft?.runId, draft?.version]);
 
 	useEffect(() => {
-		if (centerView !== 'schedule' || !selectedEntryId) {
+		if (centerView !== 'schedule' || !activeSandboxKey) {
 			setTacticalSandboxOpen(false);
 			setAutoOpenedSandboxEntryId(null);
 			setSuppressedSandboxEntryId(null);
 			return;
 		}
-		if (suppressedSandboxEntryId === selectedEntryId) return;
-		if (autoOpenedSandboxEntryId === selectedEntryId) return;
+		if (suppressedSandboxEntryId === activeSandboxKey) return;
+		if (autoOpenedSandboxEntryId === activeSandboxKey) return;
 		setTacticalSandboxOpen(true);
-		setAutoOpenedSandboxEntryId(selectedEntryId);
+		setAutoOpenedSandboxEntryId(activeSandboxKey);
 		setSuppressedSandboxEntryId(null);
-	}, [autoOpenedSandboxEntryId, centerView, selectedEntryId, suppressedSandboxEntryId]);
+	}, [activeSandboxKey, autoOpenedSandboxEntryId, centerView, suppressedSandboxEntryId]);
 
 	const handleTacticalSandboxOpenChange = useCallback((open: boolean) => {
 		setTacticalSandboxOpen(open);
-		if (open && selectedEntryId) {
-			setAutoOpenedSandboxEntryId(selectedEntryId);
+		if (open && activeSandboxKey) {
+			setAutoOpenedSandboxEntryId(activeSandboxKey);
 			setSuppressedSandboxEntryId(null);
-		} else if (!open && selectedEntryId) {
-			setSuppressedSandboxEntryId(selectedEntryId);
+		} else if (!open && activeSandboxKey) {
+			setSuppressedSandboxEntryId(activeSandboxKey);
 		}
-	}, [selectedEntryId]);
+	}, [activeSandboxKey]);
 
 	const dismissTacticalSandboxForEntry = useCallback((entryId: string) => {
 		setSuppressedSandboxEntryId(entryId);
 		setTacticalSandboxOpen(false);
 	}, []);
+	const dismissTacticalSandboxForUnassigned = useCallback(() => {
+		setSelectedUnassigned(null);
+		setTacticalSandboxOpen(false);
+		setAutoOpenedSandboxEntryId(null);
+		setSuppressedSandboxEntryId(null);
+	}, [setSelectedUnassigned]);
 
 	const sandboxGridEntries = useMemo(
 		() => centerView === 'schedule' ? projectSandboxEntries(gridEntries, sandboxFacultyByEntryId) : gridEntries,
@@ -614,6 +627,7 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 				open={tacticalSandboxOpen}
 				onOpenChange={handleTacticalSandboxOpenChange}
 				selectedEntry={centerView === 'schedule' ? selectedEntry : null}
+				selectedUnassigned={centerView === 'schedule' ? selectedUnassigned : null}
 				draftEntries={draftEntries}
 				schoolId={defaultSchoolId}
 				runId={draft?.runId ?? null}
@@ -622,11 +636,12 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 				schoolYearId={schoolYearId}
 				sandboxFacultyByEntryId={sandboxFacultyByEntryId}
 				onApplyFaculty={applySandboxFaculty}
-				onPreviewFacultyBatch={previewEditBatch}
-				onCommitFacultyBatch={commitEditBatch}
+				onPreviewTeachingLoadRepair={previewTeachingLoadRepair}
+				onCommitTeachingLoadRepair={commitTeachingLoadRepair}
 				onRevisionCreated={handleRefresh}
 				onResetSandbox={resetTacticalSandbox}
 				onDismissSelectedEntry={dismissTacticalSandboxForEntry}
+				onDismissSelectedUnassigned={dismissTacticalSandboxForUnassigned}
 				isPublished={isDraftPublished}
 				subjectLabel={subjectLabel}
 				sectionLabel={sectionLabel}

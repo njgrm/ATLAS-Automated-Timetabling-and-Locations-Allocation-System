@@ -4390,82 +4390,186 @@ rotationTermBreakdown: buildRotationTermBreakdown(assignmentResponses),
 };
 }
 
+function resolveQualificationTierForManual(
+	faculty: { specialization: string | null; department: string | null; canTeachOutsideDepartment: boolean },
+	subject: { code: string; name: string; allowedSpecializations: string[]; ownerDepartment?: string | null; requiredFeatures?: string[] | null },
+	aliasesByCanonical: Map<string, Set<string>>,
+): boolean {
+	const code = subject.code.toUpperCase();
+	if (code === 'HG' || subject.name.toLowerCase().includes('homeroom')) {
+		return true;
+	}
+
+	if (faculty.canTeachOutsideDepartment) {
+		return true;
+	}
+
+	// Tier 1: SpecializationAlias match
+	if (faculty.specialization) {
+		const normalizedSpecialization = faculty.specialization.trim().toLowerCase();
+		const canonKey = subject.code.trim().toLowerCase();
+		const aliasSet = aliasesByCanonical.get(canonKey);
+		if (aliasSet && aliasSet.has(normalizedSpecialization)) {
+			return true;
+		}
+	}
+
+	// Tier 2: allowedSpecializations match
+	const allowed = (subject.allowedSpecializations ?? []).map((entry) => entry.trim().toLowerCase());
+	const normalizedSpecialization = faculty.specialization?.trim().toLowerCase() ?? null;
+	const normalizedDepartment = faculty.department?.trim().toLowerCase() ?? null;
+
+	if (normalizedSpecialization && allowed.includes(normalizedSpecialization)) {
+		return true;
+	}
+	if (normalizedDepartment && allowed.includes(normalizedDepartment)) {
+		return true;
+	}
+
+	// Department match
+	const isDepartmentOwner = matchesSubjectOwnershipDepartment(
+		faculty.department,
+		subject.code,
+		subject.name,
+		subject.ownerDepartment,
+		subject.requiredFeatures,
+	);
+	if (isDepartmentOwner) {
+		return true;
+	}
+
+	// Special program baseline MAPEH rule
+	if (isSpecialProgramSpecializationSubject(subject.code)
+		&& isSpecialProgramBaselineDepartment(faculty.department)
+		&& isSpecialProgramGeneralistSpecialization(faculty.specialization)
+	) {
+		return true;
+	}
+
+	return false;
+}
+
 export async function setAssignments(
-facultyId: number,
-schoolId: number,
-schoolYearId: number,
-assignedBy: number,
-expectedVersion: number,
-assignments: AssignmentScopeInput[],
-authToken?: string,
+	facultyId: number,
+	schoolId: number,
+	schoolYearId: number,
+	assignedBy: number,
+	expectedVersion: number,
+	assignments: AssignmentScopeInput[],
+	authToken?: string,
 ): Promise<AssignmentMutationResult> {
-const faculty = await prisma.facultyMirror.findUnique({
-where: { id: facultyId },
-select: {
-id: true,
-schoolId: true,
-isActiveForScheduling: true,
-version: true,
-isClassAdviser: true,
-advisedSectionId: true,
-specialization: true,
-},
-});
+	const faculty = await prisma.facultyMirror.findUnique({
+		where: { id: facultyId },
+		select: {
+			id: true,
+			schoolId: true,
+			isActiveForScheduling: true,
+			version: true,
+			isClassAdviser: true,
+			advisedSectionId: true,
+			specialization: true,
+			department: true,
+			canTeachOutsideDepartment: true,
+		},
+	});
 
-if (!faculty) {
-return buildServiceError('FACULTY_NOT_FOUND', 'Faculty not found.');
-}
+	if (!faculty) {
+		return buildServiceError('FACULTY_NOT_FOUND', 'Faculty not found.');
+	}
 
-if (faculty.schoolId !== schoolId) {
-return buildServiceError('SCHOOL_SCOPE_MISMATCH', 'Faculty does not belong to the provided school scope.');
-}
+	if (faculty.schoolId !== schoolId) {
+		return buildServiceError('SCHOOL_SCOPE_MISMATCH', 'Faculty does not belong to the provided school scope.');
+	}
 
-if (!faculty.isActiveForScheduling) {
-return buildServiceError('FACULTY_INACTIVE', 'Faculty is not active for scheduling.');
-}
+	if (!faculty.isActiveForScheduling) {
+		return buildServiceError('FACULTY_INACTIVE', 'Faculty is not active for scheduling.');
+	}
 
-if (faculty.version !== expectedVersion) {
-return buildServiceError('VERSION_CONFLICT', 'Version conflict. Please reload.');
-}
+	if (faculty.version !== expectedVersion) {
+		return buildServiceError('VERSION_CONFLICT', 'Version conflict. Please reload.');
+	}
 
-const subjectIds = Array.from(new Set(assignments.map((assignment) => assignment.subjectId)));
-if (subjectIds.length !== assignments.length) {
-return buildServiceError('INVALID_ASSIGNMENT_SCOPE', 'Each subject can only appear once in a faculty assignment payload.');
-}
+	const subjectIds = Array.from(new Set(assignments.map((assignment) => assignment.subjectId)));
+	if (subjectIds.length !== assignments.length) {
+		return buildServiceError('INVALID_ASSIGNMENT_SCOPE', 'Each subject can only appear once in a faculty assignment payload.');
+	}
 
-let normalizedAssignments: NormalizedAssignmentScope[] = [];
-let rosterIndex: Awaited<ReturnType<typeof buildRosterIndex>> | null = null;
-let validSubjectsById = new Map<number, { id: number; code: string; allowedSpecializations: string[] }>();
+	let normalizedAssignments: NormalizedAssignmentScope[] = [];
+	let rosterIndex: Awaited<ReturnType<typeof buildRosterIndex>> | null = null;
+	let validSubjectsById = new Map<number, { id: number; code: string; name: string; allowedSpecializations: string[]; programScopes: any[]; ownerDepartment: string | null; requiredFeatures: string[] }>();
 
-if (assignments.length > 0) {
-rosterIndex = await buildRosterIndex(schoolId, schoolYearId, authToken);
-const validSubjects = await prisma.subject.findMany({
-where: { schoolId, id: { in: subjectIds } },
-select: { id: true, code: true, allowedSpecializations: true },
-});
-const validSubjectIds = new Set(validSubjects.map((subject) => subject.id));
-validSubjectsById = new Map(validSubjects.map((subject) => [subject.id, subject]));
-const invalidSubjectIds = subjectIds.filter((subjectId) => !validSubjectIds.has(subjectId));
-if (invalidSubjectIds.length > 0) {
-return buildServiceError(
-'INVALID_SUBJECTS',
-'One or more subjects are not valid for the selected school.',
-{ invalidSubjectIds },
-);
-}
+	if (assignments.length > 0) {
+		rosterIndex = await buildRosterIndex(schoolId, schoolYearId, authToken);
+		const validSubjects = await prisma.subject.findMany({
+			where: { schoolId, id: { in: subjectIds } },
+			select: { id: true, code: true, name: true, allowedSpecializations: true, programScopes: true, ownerDepartment: true, requiredFeatures: true },
+		});
+		const validSubjectIds = new Set(validSubjects.map((subject) => subject.id));
+		validSubjectsById = new Map(validSubjects.map((subject) => [subject.id, subject]));
+		const invalidSubjectIds = subjectIds.filter((subjectId) => !validSubjectIds.has(subjectId));
+		if (invalidSubjectIds.length > 0) {
+			return buildServiceError(
+				'INVALID_SUBJECTS',
+				'One or more subjects are not valid for the selected school.',
+				{ invalidSubjectIds },
+			);
+		}
 
-for (const assignment of assignments) {
-const normalized = normalizeIncomingAssignmentScope(assignment, rosterIndex);
-if (!normalized.ok) {
-return buildServiceError(
-'INVALID_ASSIGNMENT_SCOPE',
-normalized.error.message,
-{ subjectId: assignment.subjectId, ...normalized.error },
-);
-}
-normalizedAssignments.push(normalized.value);
-}
-}
+		// Pre-fetch specialization aliases for strict qualification checks
+		const aliases = await prisma.specializationAlias.findMany({
+			where: { schoolId },
+			select: { canonical: true, alias: true },
+		});
+		const aliasesByCanonical = new Map<string, Set<string>>();
+		for (const alias of aliases) {
+			const canonKey = alias.canonical.trim().toLowerCase();
+			const aliasSet = aliasesByCanonical.get(canonKey) ?? new Set<string>();
+			aliasSet.add(alias.alias.trim().toLowerCase());
+			aliasesByCanonical.set(canonKey, aliasSet);
+		}
+
+		for (const assignment of assignments) {
+			const normalized = normalizeIncomingAssignmentScope(assignment, rosterIndex);
+			if (!normalized.ok) {
+				return buildServiceError(
+					'INVALID_ASSIGNMENT_SCOPE',
+					normalized.error.message,
+					{ subjectId: assignment.subjectId, ...normalized.error },
+				);
+			}
+
+			const subject = validSubjectsById.get(assignment.subjectId);
+			if (subject) {
+				// 1. Validate Program Scopes
+				if (subject.programScopes && subject.programScopes.length > 0) {
+					for (const sectionId of normalized.value.sectionIds) {
+						const section = rosterIndex.sectionMap.get(sectionId);
+						const sectionProgram = (section?.programType ?? 'REGULAR').toUpperCase();
+						const allowedScopes = subject.programScopes.map((s) => s.toUpperCase());
+						if (!allowedScopes.includes(sectionProgram)) {
+							return buildServiceError(
+								'INVALID_ASSIGNMENT_SCOPE',
+								`Incompatible Program: Subject requires ${subject.programScopes.join(', ')}, Section is ${section?.programType || 'REGULAR'}.`,
+								{ subjectId: assignment.subjectId, sectionId },
+							);
+						}
+					}
+				}
+
+				// 2. Validate Specialization/Department qualification
+				const isEligible = resolveQualificationTierForManual(faculty, subject, aliasesByCanonical);
+				if (!isEligible) {
+					return buildServiceError(
+						'INVALID_ASSIGNMENT_SCOPE',
+						`Teacher is not qualified to teach ${subject.code}. Toggle "Cross-Dept Teaching" on the teacher's profile to override.`,
+						{ subjectId: assignment.subjectId },
+					);
+				}
+			}
+
+			normalizedAssignments.push(normalized.value);
+		}
+	}
 
 	// ── HG Advisory Guard ──────────────────────────────────────────────────────
 	// If this faculty is a class adviser, their HG section is immutable.

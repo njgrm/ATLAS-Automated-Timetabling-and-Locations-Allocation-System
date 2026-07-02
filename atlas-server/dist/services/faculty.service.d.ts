@@ -211,6 +211,10 @@ export declare function createPlaceholderFaculty(input: CreatePlaceholderFaculty
     updatedAt: Date;
 }>;
 export declare function updateFacultyMirror(id: number, data: Partial<{
+    firstName: string;
+    lastName: string;
+    department: string | null;
+    specialization: string | null;
     localNotes: string;
     isActiveForScheduling: boolean;
     maxHoursPerWeek: number;
@@ -256,6 +260,10 @@ export declare function updateFacultyMirror(id: number, data: Partial<{
         updatedAt: Date;
     };
     error?: undefined;
+}>;
+export declare function deletePlaceholderFaculty(id: number, schoolId: number): Promise<{
+    success: boolean;
+    error?: string;
 }>;
 export declare function getFacultyCountBySchool(schoolId: number): Promise<number>;
 export declare function getLastSyncTime(schoolId: number): Promise<Date | null>;

@@ -1223,7 +1223,8 @@ export interface ManualEditBatchPreviewResult extends PreviewResult {
 	proposals: ManualEditBatchPreviewItem[];
 }
 
-export type TeachingLoadRepairChange = {
+export type EntryTeachingLoadRepairChange = {
+	kind?: 'ENTRY';
 	entryId: string;
 	subjectId: number;
 	sectionId: number;
@@ -1231,8 +1232,24 @@ export type TeachingLoadRepairChange = {
 	toFacultyId: number;
 };
 
+export type UnassignedTeachingLoadRepairChange = {
+	kind: 'UNASSIGNED';
+	unassignedKey: string;
+	subjectId: number;
+	sectionId: number;
+	session: number;
+	entryKind: 'SECTION' | 'COHORT';
+	cohortCode?: string | null;
+	fromFacultyId: number | null;
+	toFacultyId: number;
+};
+
+export type TeachingLoadRepairChange = EntryTeachingLoadRepairChange | UnassignedTeachingLoadRepairChange;
+
 export type TeachingLoadOwnershipDelta = {
-	entryId: string;
+	kind: 'ENTRY' | 'UNASSIGNED';
+	entryId?: string;
+	unassignedKey?: string;
 	subjectId: number;
 	sectionId: number;
 	fromFacultyId: number | null;
@@ -1249,9 +1266,23 @@ export type TeachingLoadAffectedTeacher = {
 	version: number | null;
 };
 
+export interface TeachingLoadUnassignedReadiness {
+	unassignedKey: string;
+	subjectId: number;
+	sectionId: number;
+	session: number;
+	currentOwnerId: number | null;
+	proposedOwnerId: number;
+	canPlaceNow: boolean;
+	placementBlockers: string[];
+	topBlockerCopy: string | null;
+	suggestedPlacements: ManualEditProposal[];
+}
+
 export interface TeachingLoadRepairPreviewResult extends ManualEditBatchPreviewResult {
 	ownershipDeltas: TeachingLoadOwnershipDelta[];
 	affectedTeachers: TeachingLoadAffectedTeacher[];
+	unassignedReadiness: TeachingLoadUnassignedReadiness[];
 }
 
 export interface HumanConflict {
@@ -1313,6 +1344,7 @@ export interface CommitResult {
 export interface TeachingLoadRepairApplyResult extends CommitResult {
 	ownershipDeltas: TeachingLoadOwnershipDelta[];
 	affectedTeachers: TeachingLoadAffectedTeacher[];
+	unassignedReadiness: TeachingLoadUnassignedReadiness[];
 }
 
 export interface ManualEditRecord {

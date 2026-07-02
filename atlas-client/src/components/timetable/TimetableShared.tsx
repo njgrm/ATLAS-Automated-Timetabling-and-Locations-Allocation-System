@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import type { ElementType, ReactNode } from 'react';
 
 import type { Violation, ViolationCode } from '@/types';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/ui/accordion';
 import { Badge } from '@/ui/badge';
+import { Button } from '@/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 
 export function FilterChip({
@@ -64,9 +66,9 @@ export function StatItem({
 		<TooltipProvider delayDuration={200}>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<button type="button" className="cursor-help outline-none focus-visible:ring-1 focus-visible:ring-primary rounded-sm text-left align-top transition-colors hover:opacity-80">
+					<Button type="button" variant="ghost" size="sm" className="h-auto cursor-help px-0 py-0 text-left align-top outline-none hover:bg-transparent hover:opacity-80 focus-visible:ring-1 focus-visible:ring-primary">
 						{content}
-					</button>
+					</Button>
 				</TooltipTrigger>
 				<TooltipContent className="max-w-55 text-xs font-normal leading-relaxed" side="bottom">
 					{explanation}
@@ -81,9 +83,9 @@ export function MetricExplain({ label, explanation }: { label: string; explanati
 		<TooltipProvider delayDuration={200}>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<button type="button" className="text-xs font-medium text-muted-foreground border-b border-dotted border-muted-foreground/50 cursor-help outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-1 rounded-sm text-left transition-colors hover:text-foreground hover:border-foreground/50 pb-0.5">
+					<Button type="button" variant="ghost" size="sm" className="h-auto cursor-help rounded-sm border-b border-dotted border-muted-foreground/50 px-0 py-0 pb-0.5 text-left text-xs font-medium text-muted-foreground outline-none hover:border-foreground/50 hover:bg-transparent hover:text-foreground focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-1">
 						{label}
-					</button>
+					</Button>
 				</TooltipTrigger>
 				<TooltipContent className="max-w-65 text-xs font-normal leading-relaxed" side="bottom">
 					{explanation}
@@ -100,6 +102,7 @@ export function ViolationGroup({
 	onSelect,
 	onExplain,
 	formatConstraintMessage,
+	renderAction,
 	labels,
 }: {
 	code: ViolationCode;
@@ -107,10 +110,18 @@ export function ViolationGroup({
 	selectedViolation: Violation | null;
 	onSelect: (v: Violation) => void;
 	onExplain?: (v: Violation) => void;
-	formatConstraintMessage?: (msg: string) => string;
+	formatConstraintMessage?: (msg: string, violation?: Violation) => string;
+	renderAction?: (v: Violation) => ReactNode;
 	labels: Record<ViolationCode, string>;
 }) {
 	const isHard = violations[0]?.severity === 'HARD';
+	const [visibleCount, setVisibleCount] = useState(5);
+	const visibleViolations = violations.slice(0, visibleCount);
+	const hiddenCount = Math.max(violations.length - visibleCount, 0);
+	const groupLabel = labels[code] ?? String(code);
+	const groupSummary = violations.length === 1
+		? `1 ${groupLabel.toLowerCase()} item needs review`
+		: `${violations.length} ${groupLabel.toLowerCase()} items need review`;
 
 	return (
 		<Accordion
@@ -128,14 +139,19 @@ export function ViolationGroup({
 						>
 							{isHard ? 'HARD' : 'SOFT'}
 						</Badge>
-						<span className="truncate text-xs font-medium">{labels[code]}</span>
+						<span className="truncate text-xs font-medium">{groupLabel}</span>
 						<span className="ml-auto shrink-0 text-[0.6875rem] text-muted-foreground">{violations.length}</span>
 					</div>
 				</AccordionTrigger>
 				<AccordionContent className="border-t border-border pb-0">
 					<div>
-						{violations.map((v, i) => {
+						<p className="border-b border-border/70 px-3 py-1.5 text-[0.625rem] font-medium text-muted-foreground">
+							{groupSummary}
+						</p>
+						{visibleViolations.map((v, i) => {
 							const isSelected = selectedViolation === v;
+							const formattedMessage = formatConstraintMessage ? formatConstraintMessage(v.message, v) : v.message;
+							const action = renderAction?.(v) ?? null;
 							return (
 								<div key={i} className={`flex items-center gap-0.5 ${
 									isSelected
@@ -146,12 +162,15 @@ export function ViolationGroup({
 										<TooltipProvider delayDuration={200}>
 											<Tooltip>
 												<TooltipTrigger asChild>
-													<button
+													<Button
+														type="button"
+														variant="ghost"
+														size="sm"
 														onClick={() => onSelect(v)}
-														className="flex-1 text-left px-3 py-1.5 text-[0.6875rem] leading-tight transition-colors"
+														className="h-auto min-h-9 flex-1 justify-start rounded-none px-3 py-2 text-left text-[0.6875rem] leading-tight transition-colors hover:bg-transparent"
 													>
-														<span className="line-clamp-2 underline decoration-dashed decoration-muted-foreground/50 underline-offset-2">{formatConstraintMessage ? formatConstraintMessage(v.message) : v.message}</span>
-													</button>
+														<span className="line-clamp-2 underline decoration-dashed decoration-muted-foreground/50 underline-offset-2">{formattedMessage}</span>
+													</Button>
 												</TooltipTrigger>
 												<TooltipContent className="max-w-70 text-[0.625rem] font-normal leading-relaxed space-y-1 py-2 px-3 border-amber-200 bg-amber-50 text-amber-900" side="right">
 													<div className="font-semibold text-amber-700 pb-1 mb-1 border-b border-amber-200/60">Constraint Context</div>
@@ -180,28 +199,47 @@ export function ViolationGroup({
 											</Tooltip>
 										</TooltipProvider>
 									) : (
-										<button
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
 											onClick={() => onSelect(v)}
-											className="flex-1 text-left px-3 py-1.5 text-[0.6875rem] leading-tight transition-colors"
+											className="h-auto min-h-9 flex-1 justify-start rounded-none px-3 py-2 text-left text-[0.6875rem] leading-tight transition-colors hover:bg-transparent"
 										>
-											<span className="line-clamp-2">{formatConstraintMessage ? formatConstraintMessage(v.message) : v.message}</span>
-										</button>
+											<span className="line-clamp-2">{formattedMessage}</span>
+										</Button>
 									)}
 									{onExplain && (
-										<button
+										<Button
 											type="button"
+											variant="ghost"
+											size="sm"
 											onClick={(e) => {
 												e.stopPropagation();
 												onExplain(v);
 											}}
-											className="px-2 py-1.5 text-[0.625rem] font-medium text-primary hover:underline"
+											className="h-auto self-stretch rounded-none px-2 py-1.5 text-[0.625rem] font-medium text-primary hover:bg-transparent hover:underline"
 										>
 											Explain
-										</button>
+										</Button>
 									)}
+									{action}
 								</div>
 							);
 						})}
+						{hiddenCount > 0 ? (
+							<div className="border-t border-border/70 p-2">
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									className="h-7 w-full text-[0.625rem]"
+									onClick={() => setVisibleCount((count) => count + 10)}
+								>
+									Show more ({hiddenCount} left)
+								</Button>
+							</div>
+						) : null}
 					</div>
 				</AccordionContent>
 			</AccordionItem>

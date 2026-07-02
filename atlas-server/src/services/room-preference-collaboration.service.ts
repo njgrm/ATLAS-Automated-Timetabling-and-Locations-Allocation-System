@@ -9,6 +9,7 @@ import { prisma } from '../lib/prisma.js';
 import type { AuthPayload } from '../middleware/authenticate.js';
 import { resolveCanonicalFacultyMirror } from './faculty-identity.service.js';
 import { onRoomPreferenceEvent } from './room-preference-events.service.js';
+import { onTimetableEvent } from './timetable-events.service.js';
 
 export type CollaborationViewMode = 'FACULTY_ACTIVE_DRAFT' | 'SCHEDULER_REVIEW' | 'SCHEDULER_QUEUE';
 
@@ -225,6 +226,13 @@ export function registerRoomPreferenceCollaborationSocket(server: HttpServer, op
 		);
 	});
 
+	const stopTimetableBridge = onTimetableEvent((event) => {
+		broadcastToChannel(
+			{ schoolId: event.schoolId, schoolYearId: event.schoolYearId, runId: event.runId },
+			{ type: 'collab.timetable.event', event },
+		);
+	});
+
 	const pruneTimer = setInterval(() => {
 		const cutoff = Date.now() - heartbeatTimeoutMs;
 		for (const state of sockets.values()) {
@@ -357,6 +365,7 @@ export function registerRoomPreferenceCollaborationSocket(server: HttpServer, op
 
 	const dispose = () => {
 		stopRoomRequestBridge();
+		stopTimetableBridge();
 		clearInterval(pruneTimer);
 		for (const state of sockets.values()) {
 			try {

@@ -1,4 +1,4 @@
-const SW_VERSION = 'atlas-v1.0.1';
+const SW_VERSION = 'atlas-v1.0.2';
 const SHELL_CACHE = `atlas-shell-${SW_VERSION}`;
 const STATIC_CACHE = `atlas-static-${SW_VERSION}`;
 const API_CACHE = `atlas-api-${SW_VERSION}`;
@@ -119,7 +119,7 @@ self.addEventListener('fetch', (event) => {
 	}
 
 	if (sameOrigin && shouldCacheFacultyApi(url)) {
-		event.respondWith(networkFirst(request, API_CACHE, { timeoutMs: 3000 }));
+		event.respondWith(networkFirst(request, API_CACHE, { timeoutMs: 10000 }));
 	}
 });
 

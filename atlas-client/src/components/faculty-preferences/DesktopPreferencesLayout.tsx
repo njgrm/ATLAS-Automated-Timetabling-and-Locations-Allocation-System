@@ -64,18 +64,18 @@ export default function DesktopPreferencesLayout({
 					<div className='flex items-center justify-between border-b border-border/60 px-5 py-3'>
 						<div className='flex items-center gap-2'>
 							<Heart className='size-4 text-primary' />
-							<h2 className='text-[14px] font-semibold text-foreground'>Support needs</h2>
+							<h2 className='text-sm font-semibold text-foreground'>Support needs</h2>
 						</div>
-						<span className='text-[11px] text-muted-foreground'>{activeCount} selected</span>
+						<span className='text-xs text-muted-foreground'>{activeCount} selected</span>
 					</div>
 					<CardContent className='flex-1 divide-y divide-border/60 overflow-auto p-0'>
 						{WELLBEING_ITEMS.map(({ key, label, description }) => (
 							<div key={key} className='flex items-start justify-between gap-4 px-5 py-4 hover:bg-muted/30'>
 								<div className='min-w-0 flex-1'>
-									<Label htmlFor={`desk-wb-${key}`} className='cursor-pointer text-[14px] font-semibold text-foreground'>
+									<Label htmlFor={`desk-wb-${key}`} className='cursor-pointer text-sm font-semibold text-foreground'>
 										{label}
 									</Label>
-									<p className='mt-0.5 text-[12px] leading-snug text-muted-foreground'>{description}</p>
+									<p className='mt-0.5 text-xs leading-snug text-muted-foreground'>{description}</p>
 								</div>
 								<Switch
 									id={`desk-wb-${key}`}
@@ -95,7 +95,7 @@ export default function DesktopPreferencesLayout({
 				<Card className='flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border-border/60 shadow-sm'>
 					<div className='flex items-center gap-2 border-b border-border/60 px-5 py-3'>
 						<MessageSquare className='size-4 text-primary' />
-						<h3 className='text-[14px] font-semibold text-foreground'>Notes for the scheduler</h3>
+						<h3 className='text-sm font-semibold text-foreground'>Notes for the scheduler</h3>
 					</div>
 					<CardContent className='flex-1 p-0'>
 						<Textarea
@@ -103,12 +103,12 @@ export default function DesktopPreferencesLayout({
 							value={notes}
 							onChange={(e) => onNotesChange(e.target.value)}
 							disabled={!canEdit}
-							className='h-full min-h-64 resize-none rounded-none border-0 p-5 text-[14px] focus-visible:ring-0'
+							className='h-full min-h-64 resize-none rounded-none border-0 p-5 text-sm focus-visible:ring-0'
 						/>
 					</CardContent>
 				</Card>
 
-				<p className='text-[12px] leading-snug text-muted-foreground'>
+				<p className='text-xs leading-snug text-muted-foreground'>
 					Submitted support needs are reviewed by the scheduler. They are not automatic blockers — think of them as context that helps the scheduler choose a better-fit room or slot.
 				</p>
 			</div>

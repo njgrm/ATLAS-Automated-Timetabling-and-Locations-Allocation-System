@@ -24,6 +24,7 @@ import { Card, CardContent } from '@/ui/card';
 import { Input } from '@/ui/input';
 import { ScrollArea } from '@/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/tabs';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/ui/accordion';
 
 const DEFAULT_SCHOOL_ID = 1;
 
@@ -607,7 +608,7 @@ export default function Audit() {
 			<header className="shrink-0 px-6 pt-5 lg:px-8">
 				<div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
 					<div>
-						<p className="text-[0.72rem] font-bold uppercase tracking-wide text-primary">Review and publish</p>
+						<p className="text-xs font-semibold uppercase tracking-wider text-primary">Review and publish</p>
 						<h1 className="mt-1 text-3xl font-bold text-slate-900">Audit readiness report</h1>
 						<p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">
 							See what ATLAS checked, what blocks readiness, and which setup page fixes each issue.
@@ -753,25 +754,35 @@ export default function Audit() {
 															<p className="font-bold text-slate-900">{searchQuery ? 'No matching findings' : group.emptyTitle}</p>
 															<p className="mx-auto mt-1 max-w-lg text-sm text-slate-500">{searchQuery ? 'Clear the search to see the full report.' : group.emptyBody}</p>
 														</div>
-													) : visibleFindings.map((finding) => (
-														<div key={finding.id} className="flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
-															<div className="min-w-0 space-y-2">
-																<div className="flex flex-wrap items-center gap-2">
-																	<Badge variant="outline" className={`rounded-full ${severityClassName(finding.severity)}`}>{severityLabel(finding.severity)}</Badge>
-																	<p className="font-bold text-slate-900">{finding.title}</p>
-																</div>
-																<p className="text-sm text-slate-600">{finding.detail}</p>
-																<p className="text-xs font-semibold text-slate-600">What is blocked: {finding.blockedLabel}</p>
-																<p className="text-xs font-medium text-slate-500">Why it matters: {finding.why}</p>
-															</div>
-															<Button asChild variant="outline" size="sm" className="h-9 shrink-0 rounded-xl bg-white">
-																<Link to={finding.route} data-repair-target={finding.repairTarget}>
-																	{finding.actionLabel}
-																	<ArrowRight className="ml-1 size-3.5" />
-																</Link>
-															</Button>
-														</div>
-													))}
+													) : (
+														<Accordion type="single" collapsible className="w-full divide-y divide-slate-100">
+															{visibleFindings.map((finding) => (
+																<AccordionItem key={finding.id} value={finding.id} className="border-b last:border-b-0">
+																	<AccordionTrigger className="px-4 py-4 hover:no-underline [&[data-state=open]]:bg-muted/10">
+																		<div className="flex flex-wrap items-center gap-2">
+																			<Badge variant="outline" className={`rounded-full ${severityClassName(finding.severity)}`}>{severityLabel(finding.severity)}</Badge>
+																			<span className="font-bold text-slate-900 text-sm text-left">{finding.title}</span>
+																		</div>
+																	</AccordionTrigger>
+																	<AccordionContent className="px-4 pb-4 pt-1 bg-muted/5">
+																		<div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+																			<div className="space-y-1.5 max-w-2xl">
+																				<p className="text-sm text-slate-600 leading-relaxed">{finding.detail}</p>
+																				<p className="text-xs font-semibold text-slate-600">What is blocked: <span className="font-normal text-slate-500">{finding.blockedLabel}</span></p>
+																				<p className="text-xs font-semibold text-slate-600">Why it matters: <span className="font-normal text-slate-500">{finding.why}</span></p>
+																			</div>
+																			<Button asChild variant="outline" size="sm" className="h-9 shrink-0 rounded-xl bg-white shadow-sm mt-2 lg:mt-0">
+																				<Link to={finding.route} data-repair-target={finding.repairTarget}>
+																					{finding.actionLabel}
+																					<ArrowRight className="ml-1 size-3.5" />
+																				</Link>
+																			</Button>
+																		</div>
+																	</AccordionContent>
+																</AccordionItem>
+															))}
+														</Accordion>
+													)}
 												</div>
 											</ScrollArea>
 										</div>

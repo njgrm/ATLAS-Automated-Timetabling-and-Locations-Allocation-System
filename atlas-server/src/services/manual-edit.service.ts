@@ -5,6 +5,7 @@
  */
 
 import { prisma } from '../lib/prisma.js';
+import { publishTimetableEvent } from './timetable-events.service.js';
 import {
 	validateHardConstraints,
 	type ValidatorContext,
@@ -392,7 +393,7 @@ function applyProposal(
 	return { newEntries, newUnassigned, beforeEntry, afterEntry, removedUnassigned };
 }
 
-type AppliedManualEdit = {
+export type AppliedManualEdit = {
 	index: number;
 	proposal: ManualEditProposal;
 	beforeEntry: ScheduledEntry | null;
@@ -418,7 +419,7 @@ function buildBatchPreviewItem(
 	};
 }
 
-function applyProposalBatch(
+export function applyProposalBatch(
 	entries: ScheduledEntry[],
 	unassigned: UnassignedItem[],
 	proposals: ManualEditProposal[],
@@ -1000,6 +1001,20 @@ export async function commitManualEdit(
 		},
 	});
 
+	publishTimetableEvent({
+		type: 'TIMETABLE_EDIT_COMMITTED',
+		schoolId,
+		schoolYearId,
+		runId,
+		actorId,
+		message: `Manual edit committed: ${proposal.editType}`,
+		metadata: {
+			editId: editRecord.id,
+			editType: proposal.editType,
+			entryId: proposal.entryId ?? afterEntry?.entryId,
+		},
+	});
+
 	const draftReport: DraftReport = {
 		runId: updatedRun.id,
 		status: updatedRun.status,
@@ -1118,6 +1133,19 @@ export async function commitManualEditBatch(
 		});
 
 		return { updatedRun: updated, editRecords: created };
+	});
+
+	publishTimetableEvent({
+		type: 'TIMETABLE_EDIT_COMMITTED',
+		schoolId,
+		schoolYearId,
+		runId,
+		actorId,
+		message: `Batch manual edits committed (${proposals.length} changes)`,
+		metadata: {
+			editIds: editRecords.map((edit) => edit.id),
+			batchSize: proposals.length,
+		},
 	});
 
 	const draftReport: DraftReport = {
@@ -1248,6 +1276,19 @@ export async function revertLastEdit(
 			actorId,
 			targetIds: [runId],
 			metadata: { revertedEditId: lastEdit.id, newEditId: editRecord.id } as object,
+		},
+	});
+
+	publishTimetableEvent({
+		type: 'TIMETABLE_REVERTED',
+		schoolId,
+		schoolYearId,
+		runId,
+		actorId,
+		message: `Reverted manual edit #${lastEdit.id} (${lastEdit.editType})`,
+		metadata: {
+			revertedEditId: lastEdit.id,
+			newEditId: editRecord.id,
 		},
 	});
 
@@ -1709,6 +1750,21 @@ export async function swapManualEntries(
 			},
 		}),
 	]);
+
+	publishTimetableEvent({
+		type: 'TIMETABLE_EDIT_COMMITTED',
+		schoolId,
+		schoolYearId,
+		runId,
+		actorId,
+		message: `Manual swap committed between entries ${entryIdA} and ${entryIdB}`,
+		metadata: {
+			editId: editRecord.id,
+			strategy,
+			entryIdA,
+			entryIdB,
+		},
+	});
 
 	const draftReport: DraftReport = {
 		runId: updatedRun.id,

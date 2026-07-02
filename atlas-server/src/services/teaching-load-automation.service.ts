@@ -299,6 +299,7 @@ interface SubjectRow {
 	termCount: number | null;
 	ownerDepartment: string | null;
 	requiredFeatures: string[];
+	allowedSpecializations: string[];
 }
 
 interface FacultyRow {
@@ -306,6 +307,7 @@ interface FacultyRow {
 	firstName: string;
 	lastName: string;
 	department: string | null;
+	specialization: string | null;
 	canTeachOutsideDepartment: boolean;
 	maxHoursPerWeek: number;
 	isPlaceholder: boolean;
@@ -884,24 +886,113 @@ function buildStaffingReport(
 	};
 }
 
+
+function normalizeSpecializationCode(val: string | null | undefined): string | null {
+	if (!val) return null;
+	return val.trim().toUpperCase().replace(/\s+/g, '_');
+}
+
+function isSpecialProgramSpecializationSubject(subjectCode: string | null | undefined): boolean {
+	const code = (subjectCode ?? '').trim().toUpperCase();
+	return code === 'SPA_SPEC' || code === 'SPS_SPEC' || code.startsWith('SPA_') || code.startsWith('SPS_');
+}
+
+function isSpecialProgramBaselineDepartment(department: string | null | undefined): boolean {
+	const normalized = normalizeDepartmentCode(department);
+	return normalized === 'MAPEH';
+}
+
+function isSpecialProgramGeneralistSpecialization(specialization: string | null | undefined): boolean {
+	const normalized = normalizeSpecializationCode(specialization);
+	return normalized === 'MAJOR_IN_MAPEH' || normalized === 'MAPEH';
+}
+
 function resolveQualificationTier(
 	faculty: FacultyRow,
 	subject: SubjectRow,
+	aliasesByCanonical: Map<string, Set<string>>,
 ): number | null {
-	const departmentMatch = matchesSubjectOwnershipDepartment(
+	const code = subject.code.toUpperCase();
+	if (code === 'HG' || subject.name.toLowerCase().includes('homeroom')) {
+		return 1;
+	}
+
+	// Tier 1: SpecializationAlias match
+	if (faculty.specialization) {
+		const normalizedSpecialization = faculty.specialization.trim().toLowerCase();
+		const canonKey = subject.code.trim().toLowerCase();
+		const aliasSet = aliasesByCanonical.get(canonKey);
+		if (aliasSet && aliasSet.has(normalizedSpecialization)) {
+			return 1;
+		}
+	}
+
+	// Tier 2: allowedSpecializations match
+	const allowed = (subject.allowedSpecializations ?? []).map((entry) => entry.trim().toLowerCase());
+	const normalizedSpecialization = faculty.specialization?.trim().toLowerCase() ?? null;
+	const normalizedDepartment = faculty.department?.trim().toLowerCase() ?? null;
+
+	if (normalizedSpecialization && allowed.includes(normalizedSpecialization)) {
+		return 2;
+	}
+	if (normalizedDepartment && allowed.includes(normalizedDepartment)) {
+		return 2;
+	}
+
+	// Department match
+	const isDepartmentOwner = matchesSubjectOwnershipDepartment(
 		faculty.department,
 		subject.code,
 		subject.name,
 		subject.ownerDepartment,
 		subject.requiredFeatures,
 	);
-	if (departmentMatch) return 1;
-
-	if (faculty.canTeachOutsideDepartment) {
+	if (isDepartmentOwner) {
 		return 2;
 	}
 
+	// Special program baseline MAPEH rule
+	if (isSpecialProgramSpecializationSubject(subject.code)
+		&& isSpecialProgramBaselineDepartment(faculty.department)
+		&& isSpecialProgramGeneralistSpecialization(faculty.specialization)
+	) {
+		return 2;
+	}
+
+	// Override fallback
+	if (faculty.canTeachOutsideDepartment) {
+		return 3;
+	}
+
 	return null;
+}
+
+function compareSubjectsDeterministically(sa: SubjectRow, sb: SubjectRow): number {
+	// 1. Constrained / Specialization-bound / Special Program first
+	const aConstrained = (sa.allowedSpecializations?.length ?? 0) > 0 || isSpecialProgramSpecializationSubject(sa.code);
+	const bConstrained = (sb.allowedSpecializations?.length ?? 0) > 0 || isSpecialProgramSpecializationSubject(sb.code);
+	if (aConstrained !== bConstrained) {
+		return aConstrained ? -1 : 1;
+	}
+
+	// 2. Non-modular vs Modular (non-modular first)
+	const aModular = Boolean(sa.modularGroupId);
+	const bModular = Boolean(sb.modularGroupId);
+	if (aModular !== bModular) {
+		return aModular ? 1 : -1;
+	}
+
+	if (sa.modularGroupId && sb.modularGroupId) {
+		if (sa.modularGroupId !== sb.modularGroupId) {
+			return sa.modularGroupId.localeCompare(sb.modularGroupId);
+		}
+		if ((sa.modularOrder ?? 0) !== (sb.modularOrder ?? 0)) {
+			return (sa.modularOrder ?? 0) - (sb.modularOrder ?? 0);
+		}
+	}
+
+	// 3. Final tie-breaker: alphabetical by code
+	return sa.code.localeCompare(sb.code);
 }
 
 type ExistingOwnershipRow = {
@@ -1012,6 +1103,7 @@ function findBestCandidateForMode(
 	coverageMode: CoverageMode,
 	capacityLedgersByFaculty: Map<number, CapacityLedger>,
 	capacityUsed: Map<number, number>,
+	aliasesByCanonical: Map<string, Set<string>>,
 	subjectAssignmentCountByFacultyId?: Map<number, number>,
 	rotationLaneAssignmentCountByFacultyId?: Map<number, number>,
 	rotationFamilyAssignmentCountByFacultyId?: Map<number, number>,
@@ -1045,7 +1137,7 @@ function findBestCandidateForMode(
 		const limit = resolveRealFacultyCapMinutes(member, realCoverageMode);
 		if (used + deltaMinutes > limit) continue;
 
-		const tier = resolveQualificationTier(member, subjectRow);
+		const tier = resolveQualificationTier(member, subjectRow, aliasesByCanonical);
 		if (tier != null) {
 			candidates.push({
 				faculty: member,
@@ -1087,6 +1179,7 @@ function simulateRealFacultyCoverage(input: {
 	realFaculty: FacultyRow[];
 	candidatePairs: UnresolvedPair[];
 	baseCapacityLedgersByFaculty: Map<number, CapacityLedger>;
+	aliasesByCanonical: Map<string, Set<string>>;
 }): CoverageSimulationResult {
 	const capacityLedgersByFaculty = cloneCapacityLedgers(input.baseCapacityLedgersByFaculty);
 	const capacityUsed = new Map<number, number>();
@@ -1106,11 +1199,7 @@ function simulateRealFacultyCoverage(input: {
 		const sa = subjectMap.get(a);
 		const sb = subjectMap.get(b);
 		if (!sa || !sb) return a - b;
-		if (!sa.modularGroupId && !sb.modularGroupId) return 0;
-		if (!sa.modularGroupId) return -1;
-		if (!sb.modularGroupId) return 1;
-		if (sa.modularGroupId !== sb.modularGroupId) return sa.modularGroupId.localeCompare(sb.modularGroupId);
-		return (sa.modularOrder ?? 0) - (sb.modularOrder ?? 0);
+		return compareSubjectsDeterministically(sa, sb);
 	});
 
 	const unresolvedPairs: UnresolvedPair[] = [];
@@ -1171,6 +1260,7 @@ function simulateRealFacultyCoverage(input: {
 				input.coverageMode,
 				capacityLedgersByFaculty,
 				capacityUsed,
+				input.aliasesByCanonical,
 				subjectAssignmentCountByFacultyId,
 				rotationLaneAssignmentCountByFacultyId,
 				rotationFamilyAssignmentCountByFacultyId,
@@ -1382,6 +1472,7 @@ export async function autoFill(
 			firstName: true,
 			lastName: true,
 			department: true,
+			specialization: true,
 			canTeachOutsideDepartment: true,
 			maxHoursPerWeek: true,
 			isPlaceholder: true,
@@ -1391,6 +1482,19 @@ export async function autoFill(
 	const realFaculty = faculty.filter((member) => !member.isPlaceholder);
 	const realFacultyIds = realFaculty.map((member) => member.id);
 	const placeholderFacultyIds = new Set(faculty.filter((member) => member.isPlaceholder).map((member) => member.id));
+
+	// Pre-fetch specialization aliases for strict qualification checks
+	const aliases = await prisma.specializationAlias.findMany({
+		where: { schoolId },
+		select: { canonical: true, alias: true },
+	});
+	const aliasesByCanonical = new Map<string, Set<string>>();
+	for (const alias of aliases) {
+		const canonKey = alias.canonical.trim().toLowerCase();
+		const aliasSet = aliasesByCanonical.get(canonKey) ?? new Set<string>();
+		aliasSet.add(alias.alias.trim().toLowerCase());
+		aliasesByCanonical.set(canonKey, aliasSet);
+	}
 
 	// ─── Step 1: Build resolved-pair set + capacity used per faculty ───────────
 	const existingOwnerships = await prisma.subjectSectionOwnership.findMany({
@@ -1485,6 +1589,7 @@ export async function autoFill(
 			termCount: true,
 			ownerDepartment: true,
 			requiredFeatures: true,
+			allowedSpecializations: true,
 		},
 	});
 
@@ -1555,12 +1660,14 @@ export async function autoFill(
 		realFaculty,
 		candidatePairs: realCoverageQueue,
 		baseCapacityLedgersByFaculty: baseRealCapacityLedgersByFaculty,
+		aliasesByCanonical,
 	});
 	const hardCapSimulation = simulateRealFacultyCoverage({
 		coverageMode: REAL_ONLY_HARD_CAP_MODE,
 		realFaculty,
 		candidatePairs: realCoverageQueue,
 		baseCapacityLedgersByFaculty: baseRealCapacityLedgersByFaculty,
+		aliasesByCanonical,
 	});
 
 	const staffingTruth = buildStaffingTruthComparison({
@@ -1612,11 +1719,7 @@ export async function autoFill(
 	const orderedSubjectIds = Array.from(bySubjectId.keys()).sort((a, b) => {
 		const sa = subjectMap.get(a)!;
 		const sb = subjectMap.get(b)!;
-		if (!sa.modularGroupId && !sb.modularGroupId) return 0;
-		if (!sa.modularGroupId) return -1;
-		if (!sb.modularGroupId) return 1;
-		if (sa.modularGroupId !== sb.modularGroupId) return sa.modularGroupId.localeCompare(sb.modularGroupId);
-		return (sa.modularOrder ?? 0) - (sb.modularOrder ?? 0);
+		return compareSubjectsDeterministically(sa, sb);
 	});
 
 	// Track new assignments to persist: facultyId → { subjectId → Set<sectionId> }
@@ -1683,6 +1786,7 @@ export async function autoFill(
 				realCoverageMode,
 				capacityLedgersByFaculty,
 				capacityUsed,
+				aliasesByCanonical,
 				subjectAssignmentCountByFacultyId,
 				rotationLaneAssignmentCountByFacultyId,
 			);

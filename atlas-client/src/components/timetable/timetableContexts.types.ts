@@ -23,6 +23,7 @@ export type LeftRailContentContext = {
 	violations: Violation[];
 	handleViolationSelect: (violation: Violation) => void;
 	setSeverityFilter: (value: 'all' | 'hard' | 'soft' | 'conflicts' | 'wellbeing') => void;
+	severityFilter: 'all' | 'hard' | 'soft' | 'conflicts' | 'wellbeing';
 	VIOLATION_LABELS: Record<string, string>;
 	violationSearch: string;
 	setViolationSearch: Dispatch<SetStateAction<string>>;

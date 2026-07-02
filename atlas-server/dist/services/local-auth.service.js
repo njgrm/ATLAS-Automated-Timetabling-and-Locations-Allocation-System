@@ -8,7 +8,7 @@ const LOCKOUT_MINUTES = Number(process.env.ATLAS_AUTH_LOCKOUT_MINUTES ?? 15);
 const MEMORY_WINDOW_MS = Number(process.env.ATLAS_AUTH_MEMORY_WINDOW_MS ?? 10 * 60 * 1000);
 // Set ATLAS_AUTH_DISABLE_RATE_LIMIT=true in .env to bypass all login rate limiting.
 // Remove or set to false to re-enable enforcement.
-const DISABLE_RATE_LIMIT = process.env.ATLAS_AUTH_DISABLE_RATE_LIMIT === 'true';
+const isRateLimitDisabled = () => process.env.ATLAS_AUTH_DISABLE_RATE_LIMIT === 'true';
 const memoryRateLimit = new Map();
 function normalizeIdentifier(value) {
     return value.trim().toLowerCase();
@@ -208,7 +208,7 @@ export async function login(params) {
         };
     }
     const memoryRetryAfter = getMemoryLockRemainingSeconds(identifier, params.ipAddress, now);
-    if (!DISABLE_RATE_LIMIT && memoryRetryAfter > 0) {
+    if (!isRateLimitDisabled() && memoryRetryAfter > 0) {
         return {
             ok: false,
             status: 429,
@@ -286,7 +286,7 @@ export async function login(params) {
             message: 'Account is inactive.',
         };
     }
-    if (!DISABLE_RATE_LIMIT && account.lockedUntil && account.lockedUntil.getTime() > now) {
+    if (!isRateLimitDisabled() && account.lockedUntil && account.lockedUntil.getTime() > now) {
         const seconds = Math.ceil((account.lockedUntil.getTime() - now) / 1000);
         return {
             ok: false,
@@ -442,6 +442,14 @@ export async function login(params) {
     };
 }
 export async function loginWithEmailPassword(params) {
+    if (!isValidEmail(params.email)) {
+        return {
+            ok: false,
+            status: 400,
+            code: 'INVALID_EMAIL',
+            message: 'Invalid email address format.',
+        };
+    }
     return login({
         identifier: params.email,
         password: params.password,

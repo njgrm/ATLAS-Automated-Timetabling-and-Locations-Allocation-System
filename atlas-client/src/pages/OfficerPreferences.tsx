@@ -388,32 +388,30 @@ export default function OfficerPreferences() {
 						{TAB_OPTIONS.map((opt) => {
 							const isActive = statusFilter === opt.value;
 							return (
-								<button
+								<Button
 									key={opt.value}
+									variant={isActive ? 'default' : 'outline'}
+									size="sm"
 									onClick={() => setStatusFilter(opt.value as StatusFilter)}
-									className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
-										isActive
-											? 'border-primary bg-primary text-primary-foreground shadow-sm'
-											: 'border-border bg-background text-muted-foreground hover:bg-muted'
-									}`}
+									className="h-8 gap-1.5"
 								>
 									{opt.label}
 									{opt.value === 'SUBMITTED' && counts.submitted > 0 && (
-										<span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isActive ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-green-100 text-green-700'}`}>
+										<span className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${isActive ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
 											{counts.submitted}
 										</span>
 									)}
 									{opt.value === 'DRAFT' && counts.draft > 0 && (
-										<span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isActive ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-yellow-100 text-yellow-700'}`}>
+										<span className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${isActive ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
 											{counts.draft}
 										</span>
 									)}
 									{opt.value === 'MISSING' && counts.missing > 0 && (
-										<span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isActive ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-red-100 text-red-700'}`}>
+										<span className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${isActive ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
 											{counts.missing}
 										</span>
 									)}
-								</button>
+								</Button>
 							);
 						})}
 					</div>

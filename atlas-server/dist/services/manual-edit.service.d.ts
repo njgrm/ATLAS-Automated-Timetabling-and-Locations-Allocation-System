@@ -210,6 +210,19 @@ export declare function loadRunContext(runId: number, schoolId: number, schoolYe
 }>;
 export declare function isPublishedSummary(summary: unknown): boolean;
 export declare function buildValidatorCtx(schoolId: number, schoolYearId: number, runId: number, entries: ScheduledEntry[], refData: Awaited<ReturnType<typeof loadRunContext>>): ValidatorContext;
+export type AppliedManualEdit = {
+    index: number;
+    proposal: ManualEditProposal;
+    beforeEntry: ScheduledEntry | null;
+    afterEntry: ScheduledEntry | null;
+    removedUnassigned: UnassignedItem | null;
+};
+export declare function applyProposalBatch(entries: ScheduledEntry[], unassigned: UnassignedItem[], proposals: ManualEditProposal[]): {
+    newEntries: ScheduledEntry[];
+    newUnassigned: UnassignedItem[];
+    applied: AppliedManualEdit[];
+    items: ManualEditBatchPreviewItem[];
+};
 export declare function computeSummary(entries: ScheduledEntry[], unassigned: unknown[], validation: ValidationResult): RunSummary;
 /**
  * Preserve publication state and display-slot metadata when a manual edit recomputes

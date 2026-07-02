@@ -127,12 +127,15 @@ export function FacultyWeeklyLoadCell({ faculty }: { faculty: FacultySummary }) 
 
 export function FacultyLoadStateBadge({ faculty }: { faculty: FacultySummary }) {
 	const presentation = getFacultyLoadPresentation(faculty);
+	const weeklyHours = faculty.policyCreditedHours ?? 0;
 
 	return (
 		<TooltipProvider delayDuration={300}>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<Badge variant="outline" className={cn('cursor-help text-[0.7rem] font-bold shadow-none', presentation.badgeClassName)}>{presentation.label}</Badge>
+					<Badge variant="outline" className={cn('cursor-help text-[0.7rem] font-bold shadow-none', presentation.badgeClassName)}>
+						{presentation.label} {weeklyHours > 0 ? `· ${weeklyHours}h` : ''}
+					</Badge>
 				</TooltipTrigger>
 				<TooltipContent className="max-w-60 text-xs leading-relaxed">{presentation.help}</TooltipContent>
 			</Tooltip>

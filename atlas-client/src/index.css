@@ -208,3 +208,53 @@
 		background: hsl(var(--primary) / 0.8);
 	}
 }
+
+@media print {
+	.print\:hidden,
+	nav,
+	aside,
+	button,
+	header,
+	footer,
+	.sidebar,
+	[data-timetable-setup-comparison],
+	[data-timetable-view-controls] {
+		display: none !important;
+	}
+
+	body, html {
+		background: white !important;
+		color: black !important;
+		height: auto !important;
+		min-height: auto !important;
+		overflow: visible !important;
+		-webkit-print-color-adjust: exact !important;
+		print-color-adjust: exact !important;
+	}
+
+	div, section, main {
+		height: auto !important;
+		min-height: auto !important;
+		max-height: none !important;
+		overflow: visible !important;
+		box-shadow: none !important;
+		border-radius: 0 !important;
+	}
+
+	.max-w-7xl, .max-w-4xl {
+		max-width: 100% !important;
+		width: 100% !important;
+		padding: 0 !important;
+		margin: 0 !important;
+	}
+
+	.card, card, [role="row"], .grid > div {
+		page-break-inside: avoid !important;
+		break-inside: avoid !important;
+	}
+
+	* {
+		-webkit-print-color-adjust: exact !important;
+		print-color-adjust: exact !important;
+	}
+}

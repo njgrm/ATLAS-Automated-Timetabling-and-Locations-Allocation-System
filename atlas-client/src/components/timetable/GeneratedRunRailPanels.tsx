@@ -63,6 +63,7 @@ export function GeneratedViolationsPanel({
 		violations,
 		handleViolationSelect,
 		setSeverityFilter,
+		severityFilter,
 		VIOLATION_LABELS,
 		violationSearch,
 		setViolationSearch,
@@ -70,8 +71,81 @@ export function GeneratedViolationsPanel({
 		selectedViolation,
 		setDrawerViolation,
 		formatConstraintMessage,
+		subjectLabel,
+		sectionLabel,
+		roomLabelShort,
+		formatFacultyInitials,
+		filteredUnassignedItems,
+		setSelectedEntry,
+		setSelectedUnassignedForRepair,
+		setSelectedViolation,
+		toast,
 		setViolationsGroupPage,
 	} = context;
+	const formatRailConstraintMessage = (message: string, violation?: Violation): string => {
+		let formatted = formatConstraintMessage(message)
+			.replace(/^Entry\s+entry-[^:]+:\s*/i, '')
+			.replace(/\bentry-[a-z0-9_-]+\b/gi, 'this class');
+
+		const subjectId = violation?.entities?.subjectId;
+		if (typeof subjectId === 'number') {
+			formatted = formatted.replace(new RegExp(`\\bsubject\\s+#?${subjectId}\\b`, 'gi'), subjectLabel(subjectId));
+		}
+		const sectionId = violation?.entities?.sectionId;
+		if (typeof sectionId === 'number') {
+			formatted = formatted.replace(new RegExp(`\\bsection\\s+#?${sectionId}\\b`, 'gi'), sectionLabel(sectionId));
+		}
+		const roomId = violation?.entities?.roomId;
+		if (typeof roomId === 'number') {
+			formatted = formatted.replace(new RegExp(`\\broom\\s+#?${roomId}\\b`, 'gi'), roomLabelShort(roomId));
+		}
+		const facultyId = violation?.entities?.facultyId;
+		if (typeof facultyId === 'number') {
+			formatted = formatted.replace(new RegExp(`\\bfaculty\\s+#?${facultyId}\\b`, 'gi'), formatFacultyInitials(facultyId));
+		}
+
+		return formatted
+			.replace(/\bsubject\s+#?\d+\b/gi, 'this subject')
+			.replace(/\bsection\s+#?\d+\b/gi, 'this section')
+			.replace(/\broom\s+#?\d+\b/gi, 'this room')
+			.replace(/\bfaculty\s+#?\d+\b/gi, 'this teacher');
+	};
+	const resolveUnassignedForViolation = (violation: Violation): UnassignedItem | null => {
+		if (violation.code !== 'UNASSIGNED_SECTION') return null;
+		const entities = violation.entities as Record<string, unknown> | undefined;
+		const subjectId = typeof entities?.subjectId === 'number' ? entities.subjectId : null;
+		const sectionId = typeof entities?.sectionId === 'number' ? entities.sectionId : null;
+		const entitySession = typeof entities?.session === 'number' ? entities.session : null;
+		const messageSession = entitySession ?? Number(violation.message.match(/\bsession\s+(\d+)\b/i)?.[1] ?? NaN);
+		if (!subjectId || !sectionId || !Number.isFinite(messageSession)) return null;
+		return filteredUnassignedItems.find((item) => (
+			item.subjectId === subjectId
+			&& item.sectionId === sectionId
+			&& item.session === messageSession
+		)) ?? null;
+	};
+	const renderUnassignedRepairAction = (violation: Violation): ReactNode => {
+		const item = resolveUnassignedForViolation(violation);
+		if (!item) return null;
+		return (
+			<Button
+				type="button"
+				variant="outline"
+				size="sm"
+				className="h-auto self-stretch rounded-none border-y-0 border-r-0 px-2 py-1.5 text-[0.625rem] font-medium"
+				onClick={(event) => {
+					event.stopPropagation();
+					setSelectedEntry(null);
+					setSelectedViolation(null);
+					setSelectedUnassignedForRepair(item);
+					toast.info('Teaching Load repair opened for this unassigned session.');
+				}}
+			>
+				<Wand2 className="mr-1 size-3" />
+				Fix teacher
+			</Button>
+		);
+	};
 
 	return (
 		<div id="panel-violations" role="tabpanel" aria-labelledby="tab-violations" className="flex flex-col flex-1 min-h-0">
@@ -135,6 +209,31 @@ export function GeneratedViolationsPanel({
 						</Button>
 					)}
 				</div>
+				<div className="mt-2 flex gap-1 rounded-lg bg-muted/40 p-0.5 border border-border/50">
+					{(['all', 'hard', 'soft'] as const).map((filter) => {
+						const count = filter === 'all'
+							? violations.length
+							: filter === 'hard'
+								? violations.filter((v) => v.severity === 'HARD').length
+								: violations.filter((v) => v.severity === 'SOFT').length;
+						const label = filter === 'all' ? 'All' : filter === 'hard' ? 'Hard' : 'Soft';
+						const isActive = severityFilter === filter;
+						return (
+							<Button
+								key={filter}
+								type="button"
+								variant={isActive ? 'default' : 'ghost'}
+								size="sm"
+								onClick={() => setSeverityFilter(filter)}
+								className={`h-6 flex-1 text-[10px] font-semibold rounded-md transition-all ${
+									isActive ? 'shadow-sm' : 'text-muted-foreground hover:text-foreground'
+								}`}
+							>
+								{label} ({count})
+							</Button>
+						);
+					})}
+				</div>
 			</div>
 			<ScrollArea className="flex-1 min-h-0">
 				<div className="px-3 pb-3 space-y-1">
@@ -151,7 +250,8 @@ export function GeneratedViolationsPanel({
 								selectedViolation={selectedViolation}
 								onSelect={handleViolationSelect}
 								onExplain={setDrawerViolation}
-								formatConstraintMessage={formatConstraintMessage}
+								formatConstraintMessage={formatRailConstraintMessage}
+								renderAction={renderUnassignedRepairAction}
 								labels={VIOLATION_LABELS}
 							/>
 						))
@@ -210,6 +310,9 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 		setFollowUps,
 		toast,
 		setKbSelectedSource,
+		setSelectedEntry,
+		setSelectedUnassignedForRepair,
+		setSelectedViolation,
 		GRADE_BADGE,
 	} = context;
 	const generatedSummary = summary as GeneratedSummary | null;
@@ -514,6 +617,20 @@ function UnassignedRailRow({
 								context={context}
 							/>
 							<div className="flex items-center gap-1 pt-0.5" onClick={(event) => event.stopPropagation()}>
+								<Button
+									variant="outline"
+									size="sm"
+									className="h-5 px-1.5 text-[0.5625rem] gap-0.5"
+									onClick={() => {
+										setSelectedEntry(null);
+										setSelectedViolation(null);
+										setSelectedUnassignedForRepair(item);
+										toast.info('Teaching Load repair opened for this unassigned session.');
+									}}
+								>
+									<Wand2 className="size-2.5" />
+									Fix teacher
+								</Button>
 								<Button
 									variant="ghost"
 									size="sm"

@@ -791,7 +791,7 @@ export default function Sections() {
 
 						<div className="hidden md:flex flex-wrap items-center gap-6">
 							<div className="flex items-center gap-2">
-								<span className="text-[0.6rem] font-semibold uppercase tracking-widest text-muted-foreground">Grade Level:</span>
+								<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Grade Level:</span>
 								<div className="flex bg-muted/30 p-0.5 rounded-lg border border-border/50">
 									<Button 
 										variant={gradeFilter === 'all' ? 'secondary' : 'ghost'} 
@@ -816,7 +816,7 @@ export default function Sections() {
 							</div>
 
 							<div className="flex items-center gap-2">
-								<span className="text-[0.6rem] font-semibold uppercase tracking-widest text-muted-foreground">Program Type:</span>
+								<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Program Type:</span>
 								<div className="flex bg-muted/30 p-0.5 rounded-lg border border-border/50 flex-wrap">
 									<Button 
 										variant={programFilter === 'all' ? 'secondary' : 'ghost'} 
@@ -905,7 +905,7 @@ export default function Sections() {
 								<Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}><SelectTrigger className="h-7 w-20 text-xs bg-background"><SelectValue /></SelectTrigger><SelectContent>{PAGE_SIZES.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}</SelectContent></Select>
 							</div>
 						</div>
-						<div className="flex items-center gap-1.5"><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(1)} disabled={page <= 1}><ChevronsLeft className="size-4" /></Button><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}><ChevronLeft className="size-4" /></Button><div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-[0.7rem] font-bold tabular-nums"><span>{page}</span><span className="text-muted-foreground/50 font-normal">/</span><span className="text-muted-foreground font-normal">{totalPages}</span></div><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}><ChevronRight className="size-4" /></Button><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(totalPages)} disabled={page >= totalPages}><ChevronsRight className="size-4" /></Button></div>
+						<div className="flex items-center gap-1.5"><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(1)} disabled={page <= 1}><ChevronsLeft className="size-4" /></Button><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}><ChevronLeft className="size-4" /></Button><div className="flex items-center gap-1.5 px-3 h-8 rounded-md border bg-background text-xs font-bold tabular-nums"><span>{page}</span><span className="text-muted-foreground/50 font-normal">/</span><span className="text-muted-foreground font-normal">{totalPages}</span></div><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}><ChevronRight className="size-4" /></Button><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPage(totalPages)} disabled={page >= totalPages}><ChevronsRight className="size-4" /></Button></div>
 					</div>
 				) : undefined}
 			>
@@ -927,8 +927,8 @@ export default function Sections() {
 									<th className="px-4 py-3 text-right">
 										<Button variant="ghost" size="sm" onClick={() => toggleSort('fill')} className="h-auto px-0 py-0 font-semibold text-muted-foreground hover:text-foreground ml-auto">Status <SortIcon field="fill" /></Button>
 									</th>
-									<th className="px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Home-room readiness</th>
-									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[0.7rem]">Details</th>
+									<th className="px-4 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-xs">Home-room readiness</th>
+									<th className="px-4 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-xs">Details</th>
 								</tr>
 							</thead>
 							<tbody className="divide-y divide-border/40">

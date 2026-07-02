@@ -275,6 +275,52 @@ export function WorkspaceToolbar({
 				</div>
 			</div>
 
+			{/* Step Wizard Workflow */}
+			<div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-border/35 pt-3.5">
+				{/* Step 1 */}
+				<button 
+					type="button"
+					onClick={onViewStaffingNeedsClick}
+					disabled={staffingNeedsLoading}
+					className="group flex items-center gap-3 text-left hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer bg-muted/20 hover:bg-muted/40 p-2 rounded-xl border border-border/30"
+				>
+					<div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-xs font-bold text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all">
+						1
+					</div>
+					<div className="min-w-0">
+						<p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground group-hover:text-primary transition-all leading-none">Step 1</p>
+						<p className="text-xs font-semibold text-foreground truncate mt-1">Check Staffing Needs</p>
+					</div>
+				</button>
+				
+				{/* Step 2 */}
+				<button 
+					type="button"
+					onClick={onAutoFillClick}
+					disabled={autoFillLoading || !autoFillEnabled}
+					className="group flex items-center gap-3 text-left hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer bg-muted/20 hover:bg-muted/40 p-2 rounded-xl border border-border/30"
+				>
+					<div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-xs font-bold text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all">
+						2
+					</div>
+					<div className="min-w-0">
+						<p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground group-hover:text-primary transition-all leading-none">Step 2</p>
+						<p className="text-xs font-semibold text-foreground truncate mt-1">Auto-Fill Base Load</p>
+					</div>
+				</button>
+
+				{/* Step 3 */}
+				<div className="flex items-center gap-3 text-left bg-emerald-50/20 p-2 rounded-xl border border-emerald-200/30">
+					<div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 border border-emerald-200 text-xs font-bold text-emerald-700">
+						3
+					</div>
+					<div className="min-w-0">
+						<p className="text-[9px] font-bold uppercase tracking-widest text-emerald-600 leading-none">Step 3</p>
+						<p className="text-xs font-semibold text-foreground truncate mt-1">Manual Fine-Tuning</p>
+					</div>
+				</div>
+			</div>
+
 			<div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/30 pt-3">
 				<p className="text-xs font-medium text-muted-foreground">
 					<span className="font-semibold text-foreground">Next:</span> {workspaceStateNextAction}

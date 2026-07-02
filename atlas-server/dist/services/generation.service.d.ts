@@ -1,5 +1,5 @@
 import { type ScheduledEntry, type Violation } from './constraint-validator.js';
-import { type TimetableShapeContract, type UnassignedItem } from './schedule-constructor.js';
+import { type DemandItem, type TimetableShapeContract, type UnassignedItem } from './schedule-constructor.js';
 import { type SeedQualitySummary, type RepairImpact } from './hybrid-scheduler.js';
 import { type GenerationInputComparison, type GenerationInputSnapshot } from './generation-input-snapshot.service.js';
 type PublishedStateReconciliationResult = {
@@ -91,6 +91,46 @@ export interface RunSummary {
     }>;
     inputSnapshot?: GenerationInputSnapshot;
 }
+export declare function buildHomeRoomStats(entries: ScheduledEntry[], unassignedItems: UnassignedItem[]): {
+    attempted: number;
+    assigned: number;
+    successRate: number;
+};
+export declare function buildHomeRoomFallbackDiagnostics(entries: ScheduledEntry[], unassignedItems: UnassignedItem[]): {
+    homeRoomOccupied: number;
+    noSameZoneStandardRoom: number;
+    crossBuildingStandardRoomExhausted: number;
+    onlySpecializedRoomsAvailable: number;
+    facultyDailyLimitExceeded: number;
+    facultyConsecutiveLimitExceeded: number;
+    noValidPeriodInPolicyWindow: number;
+};
+export declare function buildQualifiedCoverageBySubject(demand: DemandItem[], facultySubjects: Array<{
+    facultyId: number;
+    subjectId: number;
+    sectionIds: number[];
+}>): Array<{
+    subjectId: number;
+    subjectCode: string;
+    requiredAssignments: number;
+    qualifiedAssignments: number;
+    coveragePercent: number;
+}>;
+export declare function buildSlotSaturation(entries: ScheduledEntry[], roomCapacity: number): Array<{
+    day: string;
+    startTime: string;
+    endTime: string;
+    assigned: number;
+    capacity: number;
+    saturationPercent: number;
+}>;
+export declare function buildUnassignedBySubjectGrade(unassignedItems: UnassignedItem[], subjectCodeById: Map<number, string>): {
+    subjectId: number;
+    subjectCode: string;
+    gradeLevel: number;
+    count: number;
+    reasons: Record<string, number>;
+}[];
 export declare function triggerGenerationRun(schoolId: number, schoolYearId: number, actorId: number, options?: {
     ignoreRoomRequestGate?: boolean;
     enforceShiftWindows?: boolean;

@@ -242,7 +242,7 @@ section('H-ALG-1-01 runHybridScheduler produces valid HybridSchedulerResult shap
     };
     const result = runHybridScheduler(input);
     assert(result.hybridEnabled, 'hybridEnabled = true when profiles succeed');
-    assert(result.seedQuality.length === 4, `seedQuality has 4 entries (one per profile), got ${result.seedQuality.length}`);
+    assert(result.seedQuality.length === 6, `seedQuality has 6 entries (one per profile), got ${result.seedQuality.length}`);
     assert(result.repairImpact !== undefined, 'repairImpact is present');
     assert(result.selectedProfileId !== undefined, 'selectedProfileId is set');
     // With no faculty or rooms, all sessions are unassigned

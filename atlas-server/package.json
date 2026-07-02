@@ -47,6 +47,7 @@
     "test:preference-lifecycle-lock": "tsx src/__tests__/preference-lifecycle-lock.test.ts",
     "test:preference-sse-bilateral": "tsx src/__tests__/preference-sse-bilateral.test.ts",
     "test:hybrid-scheduler": "tsx src/__tests__/hybrid-scheduler.test.ts",
+    "test:timetable-sync-setup": "tsx src/__tests__/timetable-sync-setup.test.ts",
     "benchmark:hybrid": "tsx src/scripts/benchmark-hybrid.ts"
   },
   "dependencies": {

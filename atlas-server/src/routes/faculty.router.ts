@@ -267,6 +267,10 @@ router.patch('/:id', authenticate, async (req: Request, res: Response, next: Nex
 			return;
 		}
 		const {
+			firstName,
+			lastName,
+			department,
+			specialization,
 			localNotes,
 			isActiveForScheduling,
 			maxHoursPerWeek,
@@ -291,6 +295,10 @@ router.patch('/:id', authenticate, async (req: Request, res: Response, next: Nex
 		const result = await facultyService.updateFacultyMirror(
 			id,
 			{
+				firstName,
+				lastName,
+				department,
+				specialization,
 				localNotes,
 				isActiveForScheduling,
 				maxHoursPerWeek,
@@ -307,6 +315,28 @@ router.patch('/:id', authenticate, async (req: Request, res: Response, next: Nex
 			return;
 		}
 		res.json({ faculty: result.faculty });
+	} catch (err) {
+		next(err);
+	}
+});
+
+// Auth: DELETE /faculty/:id — delete local placeholder faculty profile
+router.delete('/:id', authenticate, requirePrivilegedRole, async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		const id = Number(req.params.id);
+		if (Number.isNaN(id)) {
+			res.status(400).json({ code: 'INVALID_PARAM', message: 'id must be a number.' });
+			return;
+		}
+
+		const schoolId = Number(req.query.schoolId ?? req.body.schoolId ?? 1);
+		const result = await facultyService.deletePlaceholderFaculty(id, schoolId);
+		if (!result.success) {
+			res.status(400).json({ code: 'DELETE_FAILED', message: result.error });
+			return;
+		}
+
+		res.json({ success: true, message: 'Placeholder faculty profile deleted successfully.' });
 	} catch (err) {
 		next(err);
 	}

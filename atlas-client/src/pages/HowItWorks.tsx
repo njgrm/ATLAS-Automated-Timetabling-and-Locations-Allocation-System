@@ -94,6 +94,14 @@ const SECTIONS = [
 	},
 ];
 
+const LIFECYCLE_STEPS = [
+	{ step: '1', title: 'Setup', desc: 'Define subjects, sections, rooms, and policy rules.' },
+	{ step: '2', title: 'Preferences', desc: 'Collect teacher support preferences & room requests.' },
+	{ step: '3', title: 'Generate', desc: 'Run the engine to automatically schedule classes.' },
+	{ step: '4', title: 'Review', desc: 'Preview manual tweaks and resolve soft warnings.' },
+	{ step: '5', title: 'Publish', desc: 'Lock the schedule and open teacher/student portals.' },
+];
+
 /* ─── Animations ─── */
 
 const containerVariants = {
@@ -160,6 +168,36 @@ export default function HowItWorks() {
 													resolved, you can publish.
 												</p>
 											</div>
+										</div>
+									</CardContent>
+								</Card>
+							</motion.div>
+
+							{/* The Timetabling Lifecycle Stepper */}
+							<motion.div variants={itemVariants}>
+								<Card className="shadow-sm border-border bg-card overflow-hidden">
+									<CardHeader className="pb-3 border-b border-border bg-muted/20">
+										<CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
+											<span className="flex size-5 items-center justify-center rounded bg-primary text-primary-foreground text-[10px] font-extrabold">A</span>
+											The Timetabling Lifecycle
+										</CardTitle>
+									</CardHeader>
+									<CardContent className="pt-6 pb-6">
+										<div className="grid grid-cols-1 md:grid-cols-5 gap-6 relative">
+											{LIFECYCLE_STEPS.map((item) => (
+												<div key={item.step} className="flex flex-col items-center text-center space-y-3 relative group">
+													{/* Circular Step Badge */}
+													<div className="flex size-11 items-center justify-center rounded-full bg-primary/10 border-2 border-primary text-xs font-extrabold text-primary shadow-sm group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300">
+														{item.step}
+													</div>
+													
+													{/* Step Details */}
+													<div className="space-y-1">
+														<h4 className="text-xs font-bold text-foreground uppercase tracking-wider">{item.title}</h4>
+														<p className="text-[11px] text-muted-foreground leading-relaxed max-w-40 mx-auto">{item.desc}</p>
+													</div>
+												</div>
+											))}
 										</div>
 									</CardContent>
 								</Card>

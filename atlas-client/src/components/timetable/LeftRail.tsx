@@ -56,44 +56,44 @@ export function LeftRail({
 						<Separator />
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<button type="button" className="relative flex items-center justify-center h-8 w-8 rounded hover:bg-muted transition-colors" onClick={() => { panelRef.current?.expand(); setLeftTab('violations'); }}>
+								<Button type="button" variant="ghost" size="sm" className="relative h-8 w-8 p-0" onClick={() => { panelRef.current?.expand(); setLeftTab('violations'); }}>
 									<ShieldAlert className="size-4 text-muted-foreground" />
 									{violationsCount > 0 && !isPreGenerationWorkspace && (
 										<span className="absolute -top-1 -right-1 text-[0.5rem] font-bold leading-none bg-red-500 text-white rounded-full px-1">{violationsCount}</span>
 									)}
-								</button>
+								</Button>
 							</TooltipTrigger>
 							<TooltipContent side="right">Violations</TooltipContent>
 						</Tooltip>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<button type="button" className="relative flex items-center justify-center h-8 w-8 rounded hover:bg-muted transition-colors" onClick={() => { panelRef.current?.expand(); setLeftTab('unassigned'); }}>
+								<Button type="button" variant="ghost" size="sm" className="relative h-8 w-8 p-0" onClick={() => { panelRef.current?.expand(); setLeftTab('unassigned'); }}>
 									<AlertTriangle className="size-4 text-muted-foreground" />
 									{unassignedCount > 0 && !isPreGenerationWorkspace && (
 										<span className="absolute -top-1 -right-1 text-[0.5rem] font-bold leading-none bg-amber-500 text-white rounded-full px-1">{unassignedCount}</span>
 									)}
-								</button>
+								</Button>
 							</TooltipTrigger>
 							<TooltipContent side="right">Unassigned</TooltipContent>
 						</Tooltip>
 						{isPreGenerationWorkspace && (
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<button type="button" className="flex items-center justify-center h-8 w-8 rounded hover:bg-muted transition-colors" onClick={() => { panelRef.current?.expand(); setLeftTab('pinned'); }}>
+									<Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => { panelRef.current?.expand(); setLeftTab('pinned'); }}>
 										<Lock className="size-4 text-muted-foreground" />
-									</button>
+									</Button>
 								</TooltipTrigger>
 								<TooltipContent side="right">Pinned Sessions</TooltipContent>
 							</Tooltip>
 						)}
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<button type="button" className="relative flex items-center justify-center h-8 w-8 rounded hover:bg-muted transition-colors" onClick={() => { panelRef.current?.expand(); setLeftTab('requests'); }}>
+								<Button type="button" variant="ghost" size="sm" className="relative h-8 w-8 p-0" onClick={() => { panelRef.current?.expand(); setLeftTab('requests'); }}>
 									<ClipboardList className="size-4 text-muted-foreground" />
 									{pendingRequestCount > 0 && (
 										<span className="absolute -top-1 -right-1 text-[0.5rem] font-bold leading-none bg-blue-600 text-white rounded-full px-1">{pendingRequestCount}</span>
 									)}
-								</button>
+								</Button>
 							</TooltipTrigger>
 							<TooltipContent side="right">Room Requests</TooltipContent>
 						</Tooltip>
@@ -101,16 +101,34 @@ export function LeftRail({
 				</div>
 			) : (
 				<>
-					<div className="shrink-0 flex border-b border-border" role="tablist" aria-label="Schedule review panels" data-tutorial="left-tabs">
-						<button
+					<div className="shrink-0 border-b border-border" data-tutorial="left-tabs">
+						<div className="flex items-center justify-between gap-2 px-3 py-2">
+							<div>
+								<p className="text-xs font-semibold text-foreground">Needs attention</p>
+								<p className="text-[0.625rem] text-muted-foreground">Review blockers first, then requests.</p>
+							</div>
+							<Button
+								variant="ghost"
+								size="sm"
+								className="h-8 w-8 p-0 shrink-0"
+								onClick={() => panelRef.current?.collapse()}
+								aria-label="Collapse left panel"
+							>
+								<PanelLeftClose className="size-4" />
+							</Button>
+						</div>
+						<div className="flex" role="tablist" aria-label="Needs attention panels">
+						<Button
 							id="tab-violations"
 							type="button"
+							variant="ghost"
+							size="sm"
 							role="tab"
 							aria-selected={leftTab === 'violations'}
 							aria-controls="panel-violations"
 							hidden={isPreGenerationWorkspace}
 							onClick={() => setLeftTab('violations')}
-							className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+							className={`h-8 flex-1 rounded-none px-3 py-2 text-xs font-medium transition-colors ${
 								leftTab === 'violations'
 									? 'text-foreground border-b-2 border-primary'
 									: 'text-muted-foreground hover:text-foreground'
@@ -118,15 +136,17 @@ export function LeftRail({
 						>
 							Violations
 							<span className="ml-1 text-[0.625rem] opacity-70">{violationsCount}</span>
-						</button>
-						<button
+						</Button>
+						<Button
 							id="tab-unassigned"
 							type="button"
+							variant="ghost"
+							size="sm"
 							role="tab"
 							aria-selected={leftTab === 'unassigned'}
 							aria-controls="panel-unassigned"
 							onClick={() => setLeftTab('unassigned')}
-							className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+							className={`h-8 flex-1 rounded-none px-3 py-2 text-xs font-medium transition-colors ${
 								leftTab === 'unassigned'
 									? 'text-foreground border-b-2 border-primary'
 									: 'text-muted-foreground hover:text-foreground'
@@ -136,16 +156,18 @@ export function LeftRail({
 							{unassignedCount > 0 && !isPreGenerationWorkspace && (
 								<span className="ml-1 text-[0.625rem] text-amber-600 font-semibold">{unassignedCount}</span>
 							)}
-						</button>
+						</Button>
 						{isPreGenerationWorkspace && (
-							<button
+							<Button
 								id="tab-pinned"
 								type="button"
+								variant="ghost"
+								size="sm"
 								role="tab"
 								aria-selected={leftTab === 'pinned'}
 								aria-controls="panel-pinned"
 								onClick={() => setLeftTab('pinned')}
-								className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+								className={`h-8 flex-1 rounded-none px-3 py-2 text-xs font-medium transition-colors ${
 									leftTab === 'pinned'
 										? 'text-foreground border-b-2 border-primary'
 										: 'text-muted-foreground hover:text-foreground'
@@ -153,16 +175,18 @@ export function LeftRail({
 							>
 								<Lock className="inline size-3 mr-0.5 -mt-px" />
 								Pinned
-							</button>
+							</Button>
 						)}
-						<button
+						<Button
 							id="tab-requests"
 							type="button"
+							variant="ghost"
+							size="sm"
 							role="tab"
 							aria-selected={leftTab === 'requests'}
 							aria-controls="panel-requests"
 							onClick={() => setLeftTab('requests')}
-							className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+							className={`h-8 flex-1 rounded-none px-3 py-2 text-xs font-medium transition-colors ${
 								leftTab === 'requests'
 									? 'text-foreground border-b-2 border-primary'
 									: 'text-muted-foreground hover:text-foreground'
@@ -173,16 +197,8 @@ export function LeftRail({
 							{pendingRequestCount > 0 && (
 								<span className="ml-1 text-[0.625rem] text-blue-700 font-semibold">{pendingRequestCount}</span>
 							)}
-						</button>
-						<Button
-							variant="ghost"
-							size="sm"
-							className="h-8 w-8 p-0 shrink-0 ml-auto"
-							onClick={() => panelRef.current?.collapse()}
-							aria-label="Collapse left panel"
-						>
-							<PanelLeftClose className="size-4" />
 						</Button>
+						</div>
 					</div>
 					{children}
 				</>

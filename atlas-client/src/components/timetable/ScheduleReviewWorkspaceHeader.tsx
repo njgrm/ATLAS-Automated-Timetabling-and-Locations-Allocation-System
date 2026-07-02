@@ -1,6 +1,8 @@
 import { memo, useState } from 'react';
-import { AlertTriangle, CalendarClock, Check, Clock, ClipboardList, Crosshair, GraduationCap, History, Lightbulb, Loader2, Play, RefreshCw, RotateCw, SearchCheck, Send, Settings2, ShieldAlert, Undo2, Wrench } from 'lucide-react';
+import { AlertTriangle, CalendarClock, Check, ChevronDown, Clock, ClipboardList, Crosshair, GraduationCap, History, Lightbulb, Loader2, MoreHorizontal, Play, Printer, RefreshCw, RotateCw, SearchCheck, Send, Settings2, ShieldAlert, Undo2, Wrench } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
+import atlasApi from '@/lib/api';
 
 import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
@@ -33,6 +35,9 @@ function formatChangedDomains(domains: string[] | undefined): string[] {
 
 function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceHeaderProps) {
 	const [showImpactPreview, setShowImpactPreview] = useState(false);
+	const [syncing, setSyncing] = useState(false);
+	const [showSyncConfirm, setShowSyncConfirm] = useState(false);
+
 	const {
 		isPreGenerationWorkspace,
 		activeGeneratedRunId,
@@ -94,6 +99,27 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		WELLBEING_CODES,
 		CONFLICT_CODES,
 	} = context;
+
+	const handleSyncSetup = async () => {
+		if (!schoolYearId || activeGeneratedRunId == null) return;
+		setSyncing(true);
+		try {
+			const { data } = await atlasApi.post(
+				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${activeGeneratedRunId}/sync-setup`
+			);
+			toast.success(
+				`Timetable synced successfully: updated ${data.updatedFacultyCount} teacher assignments, ` +
+				`displaced ${data.displacedEntriesCount} entries, added ${data.addedUnassignedCount} unassigned sessions.`
+			);
+			handleRefresh();
+		} catch (err: any) {
+			const msg = err.response?.data?.message || err.message || 'Sync failed.';
+			toast.error(msg);
+		} finally {
+			setSyncing(false);
+			setShowSyncConfirm(false);
+		}
+	};
 	const inputState = draft?.inputState;
 	const showInputStateBanner = Boolean(inputState && inputState.status !== 'FRESH' && !isPreGenerationWorkspace);
 	const changedDomainLabels = formatChangedDomains(inputState?.changedDomains);
@@ -293,6 +319,25 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button
+								variant="outline"
+								size="sm"
+								className="h-8 gap-1.5"
+								onClick={() => setShowSyncConfirm(true)}
+								disabled={loading || syncing || isPreGenerationWorkspace || activeGeneratedRunId == null}
+								aria-label="Sync with Setup"
+							>
+								{syncing ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+								Sync with Setup
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Sync teacher assignments and curriculum setup from database</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
 								data-tutorial="undo-btn"
 								variant="outline"
 								size="sm"
@@ -349,6 +394,42 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 
 				{summary && (
 					<div className="flex items-center gap-3 ml-auto text-xs text-muted-foreground">
+						{/* Active Collaborators */}
+						{context.presence && context.presence.length > 0 && (
+							<div className="flex items-center gap-1.5 mr-1 select-none print:hidden">
+								<span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">Online:</span>
+								<div className="flex -space-x-1.5 overflow-hidden">
+									{context.presence.map((user) => {
+										const initials = (user.email || 'U').substring(0, 2).toUpperCase();
+										return (
+											<TooltipProvider key={user.connectionId}>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<div className="inline-flex size-6 items-center justify-center rounded-full border border-background bg-indigo-600 text-[10px] font-bold text-white shadow-sm ring-1 ring-black/5">
+															{initials}
+														</div>
+													</TooltipTrigger>
+													<TooltipContent className="p-2 text-xs">
+														<p className="font-semibold text-foreground">{user.email}</p>
+														<p className="text-[10px] text-muted-foreground capitalize">{user.role?.toLowerCase()} &middot; Active</p>
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+										);
+									})}
+								</div>
+							</div>
+						)}
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => window.print()}
+							className="h-7 gap-1.5 text-[11px] font-semibold border-muted-foreground/20 text-foreground hover:bg-muted shrink-0 print:hidden"
+						>
+							<Printer className="size-3.5" />
+							Print / PDF
+						</Button>
+						<div className="h-4 w-px bg-border print:hidden" />
 						<Badge variant="outline" className={`h-5 px-1.5 text-[0.625rem] font-bold ${statusColor(draft?.status ?? '')}`}>
 							{draft?.status ?? '—'}
 						</Badge>
@@ -417,6 +498,16 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 							<SearchCheck className="size-3.5" />
 							Preview Impact
 						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							className="h-8 gap-1.5 bg-background/80 font-semibold border-amber-300 text-amber-900 hover:bg-amber-100 hover:text-amber-950"
+							onClick={() => setShowSyncConfirm(true)}
+							disabled={loading || syncing}
+						>
+							{syncing ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+							Sync with Setup
+						</Button>
 						<TooltipProvider>
 							<Tooltip>
 								<TooltipTrigger asChild>
@@ -467,6 +558,35 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					<p className="text-xs leading-relaxed text-muted-foreground">{inputState?.actionHint}</p>
 					<DialogFooter>
 						<Button variant="outline" size="sm" onClick={() => setShowImpactPreview(false)}>Close</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog open={showSyncConfirm} onOpenChange={setShowSyncConfirm}>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>Sync Timetable with Setup</DialogTitle>
+						<DialogDescription className="space-y-2">
+							<span>This will update the timetable draft to match live setup changes:</span>
+							<ul className="list-disc list-inside text-xs space-y-1">
+								<li>Sync scheduled classes with current teacher assignments.</li>
+								<li>Import newly created sections or subjects into the unassigned queue.</li>
+								<li>Remove entries for deleted sections or subjects.</li>
+								<li>Re-evaluate policy violations.</li>
+							</ul>
+							<p className="text-xs font-semibold text-amber-600">
+								Manual slot swaps and pins will be preserved, but new conflicts may be highlighted.
+							</p>
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button variant="outline" size="sm" onClick={() => setShowSyncConfirm(false)} disabled={syncing}>
+							Cancel
+						</Button>
+						<Button variant="default" size="sm" onClick={handleSyncSetup} disabled={syncing}>
+							{syncing ? <Loader2 className="size-3 mr-1.5 animate-spin" /> : <RefreshCw className="size-3 mr-1.5" />}
+							Sync Now
+						</Button>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>

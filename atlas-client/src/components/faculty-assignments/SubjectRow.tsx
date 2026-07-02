@@ -40,6 +40,7 @@ export type SubjectRowProps = {
 	resolveSectionHoverDeltaMinutes?: (subject: Subject, sectionId: number) => number;
 	quarantined?: boolean;
 	quarantineLabel?: string | null;
+	completedSectionIds?: Set<number>;
 };
 
 const PROGRAM_BADGE: Record<string, string> = {
@@ -114,6 +115,7 @@ export const SubjectRow = memo(({
 	resolveSectionHoverDeltaMinutes,
 	quarantined = false,
 	quarantineLabel = null,
+	completedSectionIds = new Set(),
 }: SubjectRowProps) => {
 	const [openGrades, setOpenGrades] = useState<Record<number, boolean>>({});
 
@@ -358,7 +360,7 @@ export const SubjectRow = memo(({
 							disabled={disabled || sections.length === 0 || quarantined}
 							className="h-8 px-4 text-xs font-bold uppercase tracking-tight shadow-sm"
 						>
-							{selectedCount > 0 ? 'Unassign All' : 'Assign Available'}
+							{selectedCount > 0 ? 'Unassign All' : 'Select All Eligible'}
 						</Button>
 						<Button
 							variant="ghost"
@@ -449,31 +451,41 @@ export const SubjectRow = memo(({
 														const isPendingOther = Boolean(isOwnedByOther && owner?.isPending);
 														const isSavedOther = Boolean(isOwnedByOther && !owner?.isPending);
 														
-														// Note: isStaleOwner logic might need adjustment if we use effectiveOwnershipMap exclusively
-														// but for now let's keep it simple: if someone else effectively owns it, it's blocked.
-														const blocked = !isSelected && (isOwnedByOther || isHardConflict || quarantined);
+														// Block if hard conflict or quarantined
+														const blocked = !isSelected && (isHardConflict || quarantined);
 														const isSystemAssignedSection = isSystemAssignedSubject && section.id === advisedSectionId;
+														const isClickable = !disabled && !isSystemAssignedSection && (!blocked || isOwnedByOther);
+
 														const conflictLabel = isHardConflict
 															? 'DB Conflict'
 															: isOwnedByOther
 															? owner?.facultyName
 															: null;
-																	const hoverDeltaMinutes =
-																		!isSelected && isRotationFamily && !blocked
-																			? Math.max(0, resolveSectionHoverDeltaMinutes?.(subject, section.id) ?? subject.minMinutesPerWeek)
-																			: 0;
+														const hoverDeltaMinutes =
+															!isSelected && isRotationFamily && !blocked
+																? Math.max(0, resolveSectionHoverDeltaMinutes?.(subject, section.id) ?? subject.minMinutesPerWeek)
+																: 0;
 
 														const requiredSpec = section.assignmentSpecializationCode;
 														const facultySpec = selectedFacultySpecialization;
 														const isPerfectMatch = Boolean(requiredSpec && facultySpec && requiredSpec === facultySpec);
 														const isApprovedCompatibility = Boolean(isSpecializationSlot && !isPerfectMatch && !blocked);
 
+														const handleClick = () => {
+															if (!isClickable) return;
+															if (isOwnedByOther) {
+																onSwapSectionOwnership?.(subject.id, section.id, owner.facultyId, selectedFacultyId);
+															} else {
+																toggleSection(section.id);
+															}
+														};
+
 														return (
 															<div
 																key={section.id}
-																onClick={() => !disabled && !blocked && !isSystemAssignedSection && toggleSection(section.id)}
+																onClick={handleClick}
 																onMouseEnter={() => {
-																	if (!isSelected && !blocked) {
+																	if (!isSelected && !blocked && !isOwnedByOther) {
 																		const delta = isRotationFamily ? hoverDeltaMinutes : subject.minMinutesPerWeek;
 																		if (delta > 0) {
 																			onHoverLoadMinutes?.(delta);
@@ -483,12 +495,12 @@ export const SubjectRow = memo(({
 																onMouseLeave={() => onClearHoverLoad?.()}
 																className={cn(
 																	"group/section relative flex flex-col items-start gap-2 rounded-xl border px-3.5 py-3 transition-all duration-200 shadow-sm select-none",
-																	!disabled && !blocked && !isSystemAssignedSection && "cursor-pointer",
+																	isClickable && "cursor-pointer",
 																	isSystemAssignedSection
 																		? 'border-amber-300 bg-amber-50/50 shadow-inner'
 																		: isHardConflict
 																		? 'border-rose-400 bg-rose-50 shadow-rose-100/50'
-																		: blocked
+																		: !isClickable
 																		? 'border-muted bg-muted/40 opacity-70 cursor-not-allowed'
 																		: isSelected
 																		? 'border-primary/50 bg-primary/5 ring-1 ring-primary/10 shadow-primary/5'
@@ -500,18 +512,24 @@ export const SubjectRow = memo(({
 																)}
 															>
 																<div className="flex items-center justify-between w-full mb-1">
-																	<div className="flex items-center gap-2.5 min-w-0">
+																	<div className="flex items-center gap-2.5 min-w-0 w-full">
 																		<Checkbox
 																			checked={isSelected}
-																			onCheckedChange={() => toggleSection(section.id)}
-																			disabled={disabled || blocked || isSystemAssignedSection}
+																			onCheckedChange={handleClick}
+																			disabled={disabled || quarantined || isSystemAssignedSection || isHardConflict}
 																			className={cn(
 																				"size-4 rounded transition-opacity shadow-none border-border/60 pointer-events-none",
 																				isSystemAssignedSection ? 'opacity-0' : 'opacity-100'
 																			)}
 																		/>
-																		<span className={`text-[0.75rem] font-semibold leading-tight truncate ${isSelected ? 'text-primary' : 'text-foreground'}`}>
+																		<span className={`text-[0.75rem] font-semibold leading-tight truncate ${isSelected ? 'text-primary' : 'text-foreground'} flex items-center gap-1.5 flex-1 min-w-0`}>
+																			<span className={cn("size-2 rounded-full shrink-0", completedSectionIds?.has(section.id) ? "bg-emerald-500" : "bg-amber-400")} />
 																			{section.name}
+																			{isOwnedByOther && (
+																				<span className="text-[9px] font-bold tracking-tight text-amber-600 bg-amber-50 border border-amber-200/50 px-1 py-0.5 rounded leading-none shrink-0 truncate max-w-28 ml-1">
+																					Assigned: {owner.facultyName}
+																				</span>
+																			)}
 																		</span>
 																	</div>
 																	
@@ -551,22 +569,18 @@ export const SubjectRow = memo(({
 																					</TooltipContent>
 																				</Tooltip>
 																			)}
-																			{conflictLabel && (
+																			{isHardConflict && (
 																				<Tooltip>
 																					<TooltipTrigger asChild>
 																						<div className="flex items-center gap-1 cursor-help">
-																							<div className={`size-1.5 rounded-full shrink-0 ${isHardConflict ? 'bg-rose-500' : owner?.isPending ? 'bg-amber-400' : 'bg-amber-500'}`} />
-																							<span className={`text-xs font-bold uppercase tracking-tight truncate max-w-20 ${isHardConflict ? 'text-rose-700' : 'text-amber-700'}`}>
-																								{conflictLabel}
+																							<div className="size-1.5 rounded-full shrink-0 bg-rose-500" />
+																							<span className="text-xs font-bold uppercase tracking-tight truncate max-w-20 text-rose-700">
+																								DB Conflict
 																							</span>
 																						</div>
 																					</TooltipTrigger>
 																					<TooltipContent side="top" className="text-xs font-bold">
-																						{isHardConflict 
-																							? 'Database-level conflict detected.' 
-																							: owner?.isPending
-																							? `Pending selection by ${owner.facultyName}`
-																							: `Already owned by ${owner?.facultyName}`}
+																						Database-level conflict detected.
 																					</TooltipContent>
 																				</Tooltip>
 																			)}

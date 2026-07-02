@@ -33,6 +33,7 @@ export type CollaborationEvent =
 	| { type: 'presence-leave'; payload: { connectionId: string } }
 	| { type: 'selection'; payload: CollaborationSelectionPayload }
 	| { type: 'room-request-event'; payload: RoomPreferenceEvent }
+	| { type: 'timetable-event'; payload: any }
 	| { type: 'error'; payload: { code: string; message: string } }
 	| { type: 'open' }
 	| { type: 'close' };
@@ -120,6 +121,9 @@ export function createRoomPreferenceCollaborationSocket(params: {
 					break;
 				case 'collab.room-request.event':
 					params.onEvent({ type: 'room-request-event', payload: (payload as { event: RoomPreferenceEvent }).event });
+					break;
+				case 'collab.timetable.event':
+					params.onEvent({ type: 'timetable-event', payload: payload.event as any });
 					break;
 				case 'collab.error':
 					params.onEvent({ type: 'error', payload: { code: String((payload as { code?: unknown }).code ?? 'COLLAB_ERROR'), message: String((payload as { message?: unknown }).message ?? 'Collaboration error') } });

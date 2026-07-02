@@ -456,14 +456,87 @@ function buildStaffingReport(unresolvedPairs, faculty, capacityUsed, coverageMod
         shortages,
     };
 }
-function resolveQualificationTier(faculty, subject) {
-    const departmentMatch = matchesSubjectOwnershipDepartment(faculty.department, subject.code, subject.name, subject.ownerDepartment, subject.requiredFeatures);
-    if (departmentMatch)
+function normalizeSpecializationCode(val) {
+    if (!val)
+        return null;
+    return val.trim().toUpperCase().replace(/\s+/g, '_');
+}
+function isSpecialProgramSpecializationSubject(subjectCode) {
+    const code = (subjectCode ?? '').trim().toUpperCase();
+    return code === 'SPA_SPEC' || code === 'SPS_SPEC' || code.startsWith('SPA_') || code.startsWith('SPS_');
+}
+function isSpecialProgramBaselineDepartment(department) {
+    const normalized = normalizeDepartmentCode(department);
+    return normalized === 'MAPEH';
+}
+function isSpecialProgramGeneralistSpecialization(specialization) {
+    const normalized = normalizeSpecializationCode(specialization);
+    return normalized === 'MAJOR_IN_MAPEH' || normalized === 'MAPEH';
+}
+function resolveQualificationTier(faculty, subject, aliasesByCanonical) {
+    const code = subject.code.toUpperCase();
+    if (code === 'HG' || subject.name.toLowerCase().includes('homeroom')) {
         return 1;
-    if (faculty.canTeachOutsideDepartment) {
+    }
+    // Tier 1: SpecializationAlias match
+    if (faculty.specialization) {
+        const normalizedSpecialization = faculty.specialization.trim().toLowerCase();
+        const canonKey = subject.code.trim().toLowerCase();
+        const aliasSet = aliasesByCanonical.get(canonKey);
+        if (aliasSet && aliasSet.has(normalizedSpecialization)) {
+            return 1;
+        }
+    }
+    // Tier 2: allowedSpecializations match
+    const allowed = (subject.allowedSpecializations ?? []).map((entry) => entry.trim().toLowerCase());
+    const normalizedSpecialization = faculty.specialization?.trim().toLowerCase() ?? null;
+    const normalizedDepartment = faculty.department?.trim().toLowerCase() ?? null;
+    if (normalizedSpecialization && allowed.includes(normalizedSpecialization)) {
         return 2;
     }
+    if (normalizedDepartment && allowed.includes(normalizedDepartment)) {
+        return 2;
+    }
+    // Department match
+    const isDepartmentOwner = matchesSubjectOwnershipDepartment(faculty.department, subject.code, subject.name, subject.ownerDepartment, subject.requiredFeatures);
+    if (isDepartmentOwner) {
+        return 2;
+    }
+    // Special program baseline MAPEH rule
+    if (isSpecialProgramSpecializationSubject(subject.code)
+        && isSpecialProgramBaselineDepartment(faculty.department)
+        && isSpecialProgramGeneralistSpecialization(faculty.specialization)) {
+        return 2;
+    }
+    // Override fallback
+    if (faculty.canTeachOutsideDepartment) {
+        return 3;
+    }
     return null;
+}
+function compareSubjectsDeterministically(sa, sb) {
+    // 1. Constrained / Specialization-bound / Special Program first
+    const aConstrained = (sa.allowedSpecializations?.length ?? 0) > 0 || isSpecialProgramSpecializationSubject(sa.code);
+    const bConstrained = (sb.allowedSpecializations?.length ?? 0) > 0 || isSpecialProgramSpecializationSubject(sb.code);
+    if (aConstrained !== bConstrained) {
+        return aConstrained ? -1 : 1;
+    }
+    // 2. Non-modular vs Modular (non-modular first)
+    const aModular = Boolean(sa.modularGroupId);
+    const bModular = Boolean(sb.modularGroupId);
+    if (aModular !== bModular) {
+        return aModular ? 1 : -1;
+    }
+    if (sa.modularGroupId && sb.modularGroupId) {
+        if (sa.modularGroupId !== sb.modularGroupId) {
+            return sa.modularGroupId.localeCompare(sb.modularGroupId);
+        }
+        if ((sa.modularOrder ?? 0) !== (sb.modularOrder ?? 0)) {
+            return (sa.modularOrder ?? 0) - (sb.modularOrder ?? 0);
+        }
+    }
+    // 3. Final tie-breaker: alphabetical by code
+    return sa.code.localeCompare(sb.code);
 }
 function buildInitialCapacityTracking(existingOwnerships) {
     const capacityLanesByFaculty = new Map();
@@ -529,7 +602,7 @@ export function __testRankCoverageCandidates(candidates) {
         .sort((left, right) => compareCoverageCandidateRank(left, right))
         .map((entry) => entry.facultyId);
 }
-function findBestCandidateForMode(subjectRow, sectionId, faculty, coverageMode, capacityLedgersByFaculty, capacityUsed, subjectAssignmentCountByFacultyId, rotationLaneAssignmentCountByFacultyId, rotationFamilyAssignmentCountByFacultyId) {
+function findBestCandidateForMode(subjectRow, sectionId, faculty, coverageMode, capacityLedgersByFaculty, capacityUsed, aliasesByCanonical, subjectAssignmentCountByFacultyId, rotationLaneAssignmentCountByFacultyId, rotationFamilyAssignmentCountByFacultyId) {
     const candidates = [];
     const realCoverageMode = resolveRealCoverageMode(coverageMode);
     const subjectMinutes = Math.max(0, Number(subjectRow.minMinutesPerWeek) || 0);
@@ -550,7 +623,7 @@ function findBestCandidateForMode(subjectRow, sectionId, faculty, coverageMode, 
         const limit = resolveRealFacultyCapMinutes(member, realCoverageMode);
         if (used + deltaMinutes > limit)
             continue;
-        const tier = resolveQualificationTier(member, subjectRow);
+        const tier = resolveQualificationTier(member, subjectRow, aliasesByCanonical);
         if (tier != null) {
             candidates.push({
                 faculty: member,
@@ -602,15 +675,7 @@ function simulateRealFacultyCoverage(input) {
         const sb = subjectMap.get(b);
         if (!sa || !sb)
             return a - b;
-        if (!sa.modularGroupId && !sb.modularGroupId)
-            return 0;
-        if (!sa.modularGroupId)
-            return -1;
-        if (!sb.modularGroupId)
-            return 1;
-        if (sa.modularGroupId !== sb.modularGroupId)
-            return sa.modularGroupId.localeCompare(sb.modularGroupId);
-        return (sa.modularOrder ?? 0) - (sb.modularOrder ?? 0);
+        return compareSubjectsDeterministically(sa, sb);
     });
     const unresolvedPairs = [];
     let rowsClosedByRealFaculty = 0;
@@ -657,7 +722,7 @@ function simulateRealFacultyCoverage(input) {
             ? (rotationFamilyAssignmentCountsByFamily.get(rotationFamily) ?? new Map())
             : undefined;
         for (const pair of pairs) {
-            const candidate = findBestCandidateForMode(subjectRow, pair.sectionId, input.realFaculty, input.coverageMode, capacityLedgersByFaculty, capacityUsed, subjectAssignmentCountByFacultyId, rotationLaneAssignmentCountByFacultyId, rotationFamilyAssignmentCountByFacultyId);
+            const candidate = findBestCandidateForMode(subjectRow, pair.sectionId, input.realFaculty, input.coverageMode, capacityLedgersByFaculty, capacityUsed, input.aliasesByCanonical, subjectAssignmentCountByFacultyId, rotationLaneAssignmentCountByFacultyId, rotationFamilyAssignmentCountByFacultyId);
             if (!candidate) {
                 unresolvedPairs.push(pair);
                 continue;
@@ -822,6 +887,7 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
             firstName: true,
             lastName: true,
             department: true,
+            specialization: true,
             canTeachOutsideDepartment: true,
             maxHoursPerWeek: true,
             isPlaceholder: true,
@@ -831,6 +897,18 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
     const realFaculty = faculty.filter((member) => !member.isPlaceholder);
     const realFacultyIds = realFaculty.map((member) => member.id);
     const placeholderFacultyIds = new Set(faculty.filter((member) => member.isPlaceholder).map((member) => member.id));
+    // Pre-fetch specialization aliases for strict qualification checks
+    const aliases = await prisma.specializationAlias.findMany({
+        where: { schoolId },
+        select: { canonical: true, alias: true },
+    });
+    const aliasesByCanonical = new Map();
+    for (const alias of aliases) {
+        const canonKey = alias.canonical.trim().toLowerCase();
+        const aliasSet = aliasesByCanonical.get(canonKey) ?? new Set();
+        aliasSet.add(alias.alias.trim().toLowerCase());
+        aliasesByCanonical.set(canonKey, aliasSet);
+    }
     // ─── Step 1: Build resolved-pair set + capacity used per faculty ───────────
     const existingOwnerships = await prisma.subjectSectionOwnership.findMany({
         where: {
@@ -910,6 +988,7 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
             termCount: true,
             ownerDepartment: true,
             requiredFeatures: true,
+            allowedSpecializations: true,
         },
     });
     const workQueue = [];
@@ -971,12 +1050,14 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
         realFaculty,
         candidatePairs: realCoverageQueue,
         baseCapacityLedgersByFaculty: baseRealCapacityLedgersByFaculty,
+        aliasesByCanonical,
     });
     const hardCapSimulation = simulateRealFacultyCoverage({
         coverageMode: REAL_ONLY_HARD_CAP_MODE,
         realFaculty,
         candidatePairs: realCoverageQueue,
         baseCapacityLedgersByFaculty: baseRealCapacityLedgersByFaculty,
+        aliasesByCanonical,
     });
     const staffingTruth = buildStaffingTruthComparison({
         totalTeachableRows: allTeachablePairs.length,
@@ -1023,15 +1104,7 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
     const orderedSubjectIds = Array.from(bySubjectId.keys()).sort((a, b) => {
         const sa = subjectMap.get(a);
         const sb = subjectMap.get(b);
-        if (!sa.modularGroupId && !sb.modularGroupId)
-            return 0;
-        if (!sa.modularGroupId)
-            return -1;
-        if (!sb.modularGroupId)
-            return 1;
-        if (sa.modularGroupId !== sb.modularGroupId)
-            return sa.modularGroupId.localeCompare(sb.modularGroupId);
-        return (sa.modularOrder ?? 0) - (sb.modularOrder ?? 0);
+        return compareSubjectsDeterministically(sa, sb);
     });
     // Track new assignments to persist: facultyId → { subjectId → Set<sectionId> }
     const pendingAssignments = new Map();
@@ -1083,7 +1156,7 @@ export async function autoFill(schoolId, schoolYearId, authToken, options) {
             ? `${rotationFamily}:term:${normalizeRotationTermLaneKey(rotationTermMetadata.termRank)}`
             : null;
         for (const pair of pairs) {
-            const candidate = findBestCandidateForMode(subjectRow, pair.sectionId, realFaculty, realCoverageMode, capacityLedgersByFaculty, capacityUsed, subjectAssignmentCountByFacultyId, rotationLaneAssignmentCountByFacultyId);
+            const candidate = findBestCandidateForMode(subjectRow, pair.sectionId, realFaculty, realCoverageMode, capacityLedgersByFaculty, capacityUsed, aliasesByCanonical, subjectAssignmentCountByFacultyId, rotationLaneAssignmentCountByFacultyId);
             if (!candidate) {
                 warnings.push(`Lacking Faculty: no department-qualified teacher for ${subjectRow.name} (${pair.sectionName}).`);
                 unresolvedPairs.push(pair);
