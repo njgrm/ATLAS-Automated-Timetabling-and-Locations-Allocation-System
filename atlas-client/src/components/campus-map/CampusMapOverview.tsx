@@ -1,20 +1,35 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, ArrowRight, Building2, CheckCircle2, DoorOpen, Pencil } from 'lucide-react';
+import {
+	AlertTriangle,
+	ArrowLeft,
+	ArrowRight,
+	Building2,
+	CheckCircle2,
+	DoorOpen,
+	MapPinned,
+	Pencil,
+	Search,
+	TrendingUp,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 import { BuildingView, type RoomSectionMetadata } from '@/components/BuildingView';
-import { GradeLevelBadge, parseGradeFromSectionName } from '@/components/GradeLevelBadge';
+import { ROOM_TYPE_LABELS } from '@/components/BuildingView';
 import { RoomScheduleOverlay } from '@/components/RoomScheduleOverlay';
 import { CampusMapCanvasPreview } from '@/components/campus-map/CampusMapCanvasPreview';
 import atlasApi from '@/lib/api';
 import { getPreferredAccessToken } from '@/lib/auth';
 import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { pivotDraftToView } from '@/lib/schedule-pivot';
+import { parseGradeFromSectionName } from '@/components/GradeLevelBadge';
 import type { Building, DraftReport, Room, RoomScheduleView, SectionSummaryResponse, Subject } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
+import { Input } from '@/ui/input';
+import { ScrollArea } from '@/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 
 export type CampusMapOverviewProps = {
 	buildings: Building[];
@@ -76,32 +91,60 @@ function buildingStatus(building: Building): 'ready' | 'attention' {
 	return teachingRoomCount(building) > 0 ? 'ready' : 'attention';
 }
 
+function getUtilizationColor(pct: number): string {
+	const clamped = Math.max(0, Math.min(100, pct));
+	if (clamped <= 50) {
+		const ratio = clamped / 50;
+		const r = Math.round(34 + (234 - 34) * ratio);
+		const g = Math.round(197 + (179 - 197) * ratio);
+		const b = Math.round(94 + (8 - 94) * ratio);
+		return `rgb(${r},${g},${b})`;
+	} else {
+		const ratio = (clamped - 50) / 50;
+		const r = Math.round(234 + (220 - 234) * ratio);
+		const g = Math.round(179 + (38 - 179) * ratio);
+		const b = Math.round(8 + (38 - 8) * ratio);
+		return `rgb(${r},${g},${b})`;
+	}
+}
+
 export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOverviewProps) {
+	const [activeView, setActiveView] = useState<'map' | 'building'>('map');
 	const [selectedId, setSelectedId] = useState<number | null>(null);
+	const [focusedRoomId, setFocusedRoomId] = useState<number | null>(null);
 	const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+	
+	const [roomSearch, setRoomSearch] = useState('');
+	const [roomTypeFilter, setRoomTypeFilter] = useState('all');
+
 	const [scheduleLoading, setScheduleLoading] = useState(true);
 	const [scheduleReport, setScheduleReport] = useState<DraftReport | null>(null);
 	const [subjectMap, setSubjectMap] = useState<Map<number, string>>(new Map());
 	const [facultyMap, setFacultyMap] = useState<Map<number, string>>(new Map());
 	const [sectionMap, setSectionMap] = useState<Map<number, SectionScheduleInfo>>(new Map());
+
 	const teachingBuildings = buildings.filter((building) => building.isTeachingBuilding !== false);
 	const totalRooms = buildings.reduce((acc, building) => acc + (building.rooms?.length ?? 0), 0);
 	const teachingRooms = buildings.reduce((acc, building) => acc + teachingRoomCount(building), 0);
 	const readyCount = buildings.filter((building) => buildingStatus(building) === 'ready').length;
 	const attentionCount = buildings.length - readyCount;
+	
 	const selectedBuilding = buildings.find((building) => building.id === selectedId)
 		?? teachingBuildings.find((building) => buildingStatus(building) === 'attention')
 		?? teachingBuildings[0]
 		?? buildings[0]
 		?? null;
+
 	const selectedTeachingRooms = selectedBuilding ? teachingRoomCount(selectedBuilding) : 0;
 	const selectedTotalRooms = selectedBuilding?.rooms?.length ?? 0;
 	const selectedFloors = selectedBuilding?.floorCount ?? 0;
 	const selectedStatus = selectedBuilding ? buildingStatus(selectedBuilding) : 'attention';
+	
 	const sectionLabelMap = useMemo(
 		() => new Map([...sectionMap].map(([id, section]) => [id, section.name])),
 		[sectionMap],
 	);
+	
 	const overlaySectionMap = useMemo(
 		() => new Map([...sectionMap].map(([id, section]) => [id, { name: section.name, gradeLevel: section.gradeLevel }])),
 		[sectionMap],
@@ -236,13 +279,27 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 
 	const selectBuilding = (buildingId: number) => {
 		setSelectedId(buildingId);
-		setSelectedRoom(null);
+		setFocusedRoomId(null);
 	};
+
+	const filteredRooms = useMemo(() => {
+		if (!selectedBuilding) return [];
+		return (selectedBuilding.rooms ?? []).filter((room) => {
+			const matchesSearch = room.name.toLowerCase().includes(roomSearch.toLowerCase());
+			const matchesType = roomTypeFilter === 'all' || room.type === roomTypeFilter;
+			return matchesSearch && matchesType;
+		});
+	}, [selectedBuilding, roomSearch, roomTypeFilter]);
+
+	const focusedRoom = useMemo(() => {
+		if (focusedRoomId === null || !selectedBuilding) return null;
+		return (selectedBuilding.rooms ?? []).find((r) => r.id === focusedRoomId) ?? null;
+	}, [focusedRoomId, selectedBuilding]);
 
 	return (
 		<div className="h-[calc(100svh-3.5rem)] overflow-auto bg-primary/5 scrollbar-thin">
 			<div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-6 py-7 lg:px-8">
-				<header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+				<header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between shrink-0">
 					<div>
 						<p className="text-[0.72rem] font-bold uppercase text-primary">Scheduling Portal</p>
 						<h1 className="mt-1 text-3xl font-bold text-slate-900">Campus and rooms</h1>
@@ -259,130 +316,325 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 				</header>
 
 				<section className="grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(380px,0.5fr)]">
+					{/* Campus Map & Rooms Card */}
 					<Card className="overflow-hidden rounded-2xl border-0 bg-white p-0 shadow-soft-xl">
-						<CardContent className="p-0">
-							<div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-								<div>
-									<h2 className="text-lg font-bold text-slate-900">Campus map</h2>
-									<p className="text-xs text-slate-500">Select a building to review its rooms.</p>
-								</div>
-								<Badge className="border-0 bg-primary/10 text-primary hover:bg-primary/10">Overview</Badge>
+						<div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5 bg-slate-50/50">
+							<div>
+								<h2 className="text-sm font-bold text-slate-900">Campus Explorer</h2>
 							</div>
-							<div className="bg-stone-50 p-4">
+							{selectedBuilding && (
+								<div className="flex items-center gap-1 rounded-lg border bg-background p-0.5" role="tablist">
+									<Button
+										variant={activeView === 'map' ? 'default' : 'ghost'}
+										size="sm"
+										className="h-7 text-xs gap-1.5"
+										onClick={() => setActiveView('map')}
+									>
+										<MapPinned className="size-3.5" />
+										Map View
+									</Button>
+									<Button
+										variant={activeView === 'building' ? 'default' : 'ghost'}
+										size="sm"
+										className="h-7 text-xs gap-1.5"
+										onClick={() => setActiveView('building')}
+									>
+										<Building2 className="size-3.5" />
+										Building Details
+									</Button>
+								</div>
+							)}
+						</div>
+
+						<div className="bg-stone-50 p-4 lg:p-5 flex flex-col justify-center min-h-[560px]">
+							{activeView === 'map' ? (
 								<CampusMapCanvasPreview
 									buildings={buildings}
 									campusImageUrl={campusImageUrl}
 									selectedBuildingId={selectedBuilding?.id ?? null}
-									onSelectBuilding={selectBuilding}
+									onSelectBuilding={(buildingId) => {
+										selectBuilding(buildingId);
+										setActiveView('building');
+									}}
 									height={560}
 									interactive
 									showToolbar
 								/>
-							</div>
-						</CardContent>
-					</Card>
-
-					<div className="flex min-h-0 flex-col gap-4">
-						<div className="grid grid-cols-2 gap-3">
-							<SummaryStat label="Buildings" value={buildings.length.toString()} icon={Building2} />
-							<SummaryStat label="Teaching rooms" value={`${teachingRooms}/${totalRooms}`} icon={DoorOpen} />
-						</div>
-
-						<Card className="rounded-2xl border-0 bg-white p-0 shadow-soft-xl">
-							<CardContent className="p-5">
-								<div className="flex items-center justify-between gap-2">
-									<p className="text-xs font-semibold uppercase text-slate-500">Selected building</p>
-									{selectedBuilding ? (
-										<Badge variant="outline" className={selectedStatus === 'ready' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}>
-											{selectedStatus === 'ready' ? <CheckCircle2 className="size-3" /> : <AlertTriangle className="size-3" />}
-											{selectedStatus === 'ready' ? 'Ready' : 'Needs rooms'}
+							) : selectedBuilding ? (
+								<div className="space-y-4 flex flex-col h-full min-h-0">
+									<div className="flex items-center justify-between shrink-0">
+										<div className="flex items-center gap-2">
+											<Button
+												variant="ghost"
+												size="sm"
+												className="h-8 gap-1 pl-1 text-slate-500 hover:text-slate-900"
+												onClick={() => setActiveView('map')}
+											>
+												<ArrowLeft className="size-4" />
+												Back to Map
+											</Button>
+											<span className="text-slate-300">|</span>
+											<h4 className="text-sm font-bold text-slate-800">{selectedBuilding.name}</h4>
+										</div>
+										<Badge variant="outline" className="h-5 text-xs text-muted-foreground">
+											{selectedTeachingRooms} rooms / {selectedBuilding.floorCount} floors
 										</Badge>
-									) : null}
-								</div>
-								<h3 className="mt-2 truncate text-xl font-bold text-slate-900">{selectedBuilding?.name ?? 'No building selected'}</h3>
-								<p className="mt-2 text-sm text-slate-500">
-									{selectedBuilding
-										? `${selectedTeachingRooms} teaching room${selectedTeachingRooms === 1 ? '' : 's'} out of ${selectedTotalRooms} total rooms.`
-										: 'Open editor mode to draw buildings and add rooms.'}
-								</p>
-
-								{selectedBuilding ? (
-									<div className="mt-3 grid grid-cols-3 gap-2 text-center">
-										<ReadinessChip label="Teaching rooms" value={`${selectedTeachingRooms}/${selectedTotalRooms}`} />
-										<ReadinessChip label="Floors" value={selectedFloors.toString()} />
-										<ReadinessChip label="Schedules" value={selectedHasSchedule ? 'Available' : scheduleLoading ? 'Checking' : 'No latest run'} />
 									</div>
-								) : null}
-
-								{selectedBuilding ? (
-									<div className="mt-4 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
+									<div className="overflow-hidden rounded-xl border border-slate-200 bg-background flex-1 min-h-[500px]">
 										<BuildingView
 											building={selectedBuilding}
-											height={360}
+											height={500}
 											showToolbar
-											selectedRoomId={selectedRoom?.id ?? null}
-											onRoomSelect={setSelectedRoom}
+											selectedRoomId={focusedRoomId}
+											onRoomSelect={(room) => setFocusedRoomId(room?.id ?? null)}
 											roomUtilization={roomUtilization}
 											roomOccupancy={roomScheduleIndicators.occupancy}
 											roomSectionData={roomScheduleIndicators.sectionData}
 										/>
 									</div>
-								) : null}
-
-								{selectedRoom ? (
-									<div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-primary/10 bg-primary/5 px-3 py-2">
-										<div className="min-w-0">
-											<p className="truncate text-sm font-semibold text-slate-900">{selectedRoom.name}</p>
-											<p className="text-xs text-slate-500">
-												{selectedRoomSchedule ? `${selectedRoomSchedule.summary.entryCount} classes scheduled` : scheduleLoading ? 'Loading latest room schedule...' : 'Latest room schedule unavailable'}
-											</p>
-										</div>
-										<GradeLevelBadge grade={roomScheduleIndicators.sectionData.get(selectedRoom.id)?.gradeKey ? Number(roomScheduleIndicators.sectionData.get(selectedRoom.id)?.gradeKey) : null} size="xs" />
-									</div>
-								) : null}
-
-								{selectedBuilding && !selectedRoom ? (
-									<p className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-										Click a room in the building view to open the latest schedule.
-									</p>
-								) : null}
-
-								{selectedBuilding ? (
-									<Button asChild variant="outline" className="mt-4 h-10 w-full justify-between rounded-xl">
-										<Link to={`/map?mode=editor&buildingId=${selectedBuilding.id}`}>
-											Review rooms
-											<ArrowRight className="size-4" />
-										</Link>
-									</Button>
-								) : null}
-							</CardContent>
-						</Card>
-
-						<div className="flex flex-wrap gap-1.5">
-							<Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-								<CheckCircle2 className="size-3" />
-								{readyCount} ready
-							</Badge>
-							<Badge variant="outline" className={attentionCount > 0 ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-600'}>
-								<AlertTriangle className="size-3" />
-								{attentionCount} need attention
-							</Badge>
+								</div>
+							) : (
+								<div className="flex flex-col items-center justify-center py-12 text-center text-slate-400">
+									<Building2 className="size-12 opacity-35 animate-pulse" />
+									<p className="mt-2 text-sm">Select a building on the map to begin.</p>
+								</div>
+							)}
 						</div>
+					</Card>
+
+					{/* Sidebar Panel */}
+					<div className="flex flex-col gap-4 max-h-[640px]">
+						{activeView === 'map' ? (
+							<div className="flex min-h-0 flex-col gap-4 h-full">
+								<div className="grid grid-cols-2 gap-3 shrink-0">
+									<SummaryStat label="Buildings" value={buildings.length.toString()} icon={Building2} />
+									<SummaryStat label="Teaching rooms" value={`${teachingRooms}/${totalRooms}`} icon={DoorOpen} />
+								</div>
+
+								<Card className="rounded-2xl border-0 bg-white p-0 shadow-soft-xl flex-1 overflow-auto">
+									<CardContent className="p-5">
+										<div className="flex items-center justify-between gap-2">
+											<p className="text-xs font-semibold uppercase text-slate-500">Selected building</p>
+											{selectedBuilding ? (
+												<Badge variant="outline" className={selectedStatus === 'ready' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}>
+													{selectedStatus === 'ready' ? <CheckCircle2 className="size-3" /> : <AlertTriangle className="size-3" />}
+													{selectedStatus === 'ready' ? 'Ready' : 'Needs rooms'}
+												</Badge>
+											) : null}
+										</div>
+										<h3 className="mt-2 truncate text-xl font-bold text-slate-900">{selectedBuilding?.name ?? 'No building selected'}</h3>
+										<p className="mt-2 text-sm text-slate-500">
+											{selectedBuilding
+												? `${selectedTeachingRooms} teaching room${selectedTeachingRooms === 1 ? '' : 's'} out of ${selectedTotalRooms} total rooms.`
+												: 'Open editor mode to draw buildings and add rooms.'}
+										</p>
+
+										{selectedBuilding ? (
+											<div className="mt-3 grid grid-cols-3 gap-2 text-center">
+												<ReadinessChip label="Teaching rooms" value={`${selectedTeachingRooms}/${selectedTotalRooms}`} />
+												<ReadinessChip label="Floors" value={selectedFloors.toString()} />
+												<ReadinessChip label="Schedules" value={selectedHasSchedule ? 'Available' : scheduleLoading ? 'Checking' : 'No latest run'} />
+											</div>
+										) : null}
+
+										{selectedBuilding && (
+											<Button
+												className="mt-4 w-full h-10 gap-1.5 font-semibold"
+												onClick={() => setActiveView('building')}
+											>
+												Inspect Rooms
+												<ArrowRight className="size-4" />
+											</Button>
+										)}
+
+										{selectedBuilding ? (
+											<Button asChild variant="outline" className="mt-2 h-10 w-full justify-between rounded-xl">
+												<Link to={`/map?mode=editor&buildingId=${selectedBuilding.id}`}>
+													Review rooms in editor
+													<ArrowRight className="size-4" />
+												</Link>
+											</Button>
+										) : null}
+									</CardContent>
+								</Card>
+
+								<div className="flex flex-wrap gap-1.5 shrink-0">
+									<Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+										<CheckCircle2 className="size-3" />
+										{readyCount} ready
+									</Badge>
+									<Badge variant="outline" className={attentionCount > 0 ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-600'}>
+										<AlertTriangle className="size-3" />
+										{attentionCount} need attention
+									</Badge>
+								</div>
+							</div>
+						) : selectedBuilding ? (
+							<Card className="rounded-2xl border-0 bg-white p-0 shadow-soft-xl flex-1 flex flex-col min-h-0">
+								<CardContent className="p-5 flex flex-col h-full min-h-0">
+									<div className="mb-3 shrink-0">
+										<h3 className="text-sm font-bold text-slate-900">Room Directory</h3>
+										<p className="text-xs text-slate-500 truncate mt-0.5">{selectedBuilding.name} · {selectedTeachingRooms} Teaching Rooms</p>
+									</div>
+
+									{/* Search & Filters */}
+									<div className="flex flex-col gap-2 mb-3 shrink-0">
+										<div className="relative">
+											<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
+											<Input
+												placeholder="Search rooms..."
+												value={roomSearch}
+												onChange={(e) => setRoomSearch(e.target.value)}
+												className="h-8 pl-8 text-xs"
+											/>
+										</div>
+										<Select value={roomTypeFilter} onValueChange={setRoomTypeFilter}>
+											<SelectTrigger className="h-8 text-xs">
+												<SelectValue placeholder="Filter by Room Type" />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="all">All Room Types</SelectItem>
+												{Object.entries(ROOM_TYPE_LABELS).map(([type, label]) => (
+													<SelectItem key={type} value={type}>{label}</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									</div>
+
+									{/* Room List Roster */}
+									<ScrollArea className="flex-1 min-h-0 pr-1 -mr-2">
+										<div className="space-y-1.5 pb-2">
+											{filteredRooms.length === 0 ? (
+												<div className="text-center py-8 text-xs text-slate-400 border border-dashed rounded-xl">
+													No rooms match filters.
+												</div>
+											) : (
+												filteredRooms.map((room) => {
+													const utilization = roomUtilization?.get(room.id) ?? 0;
+													const sectionData = roomScheduleIndicators.sectionData.get(room.id);
+													const occupancy = sectionData?.sectionName ?? roomScheduleIndicators.occupancy.get(room.id);
+													const isFocused = focusedRoomId === room.id;
+													
+													let gradeClass = '';
+													if (sectionData) {
+														const g = sectionData.gradeKey;
+														if (g === '7') gradeClass = 'bg-green-50 text-green-700 border-green-200';
+														else if (g === '8') gradeClass = 'bg-yellow-50 text-yellow-700 border-yellow-200';
+														else if (g === '9') gradeClass = 'bg-red-50 text-red-700 border-red-200';
+														else if (g === '10') gradeClass = 'bg-blue-50 text-blue-700 border-blue-200';
+													}
+
+													return (
+														<button
+															key={room.id}
+															type="button"
+															onClick={() => setFocusedRoomId(isFocused ? null : room.id)}
+															className={`w-full text-left p-2.5 rounded-xl border transition-all flex flex-col gap-1.5 ${
+																isFocused 
+																	? 'border-primary bg-primary/5 ring-1 ring-primary' 
+																	: 'border-slate-100 bg-card hover:bg-slate-50'
+															}`}
+														>
+															<div className="flex items-center justify-between w-full">
+																<div className="min-w-0">
+																	<span className="font-bold text-xs text-slate-800 truncate block">{room.name}</span>
+																	<span className="text-[10px] text-slate-400">{ROOM_TYPE_LABELS[room.type] ?? room.type}</span>
+																</div>
+																<Badge variant="secondary" className="text-[10px] py-0 px-1 h-4.5 shrink-0">
+																	Cap: {room.capacity ?? '—'}
+																</Badge>
+															</div>
+
+															{room.isTeachingSpace && (
+																<div className="w-full space-y-0.5">
+																	<div className="flex items-center justify-between text-[9px] font-semibold text-slate-500">
+																		<span className="flex items-center gap-0.5">
+																			<TrendingUp className="size-2.5" />
+																			Utilization
+																		</span>
+																		<span className="tabular-nums">{Math.round(utilization)}%</span>
+																	</div>
+																	<div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+																		<div 
+																			className="h-full transition-all duration-300"
+																			style={{ 
+																				width: `${utilization}%`, 
+																				backgroundColor: getUtilizationColor(utilization) 
+																			}} 
+																		/>
+																	</div>
+																</div>
+															)}
+
+															{occupancy && (
+																<div className="flex flex-wrap gap-1 mt-0.5">
+																	<span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold border uppercase tracking-wider ${gradeClass || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+																		{occupancy}
+																	</span>
+																	{sectionData?.programCode && (
+																		<span className="inline-flex items-center rounded bg-slate-100 px-1 py-0.5 text-[9px] font-bold text-slate-600">
+																			{sectionData.programCode}
+																		</span>
+																	)}
+																</div>
+															)}
+														</button>
+													);
+												})
+											)}
+										</div>
+									</ScrollArea>
+
+									{/* Focused Room detail display */}
+									<div className="mt-3 shrink-0 pt-3 border-t border-slate-100">
+										{focusedRoom ? (
+											<div className="space-y-2">
+												<div className="rounded-xl border border-primary/10 bg-primary/5 p-2.5 flex flex-col gap-1">
+													<div className="flex items-center justify-between">
+														<h5 className="font-bold text-xs text-slate-800">{focusedRoom.name}</h5>
+														<Badge className="text-[9px] h-4 bg-primary/20 text-primary hover:bg-primary/20">{ROOM_TYPE_LABELS[focusedRoom.type]}</Badge>
+													</div>
+													<div className="text-[10px] text-slate-600 space-y-0.5">
+														<p>Capacity: <strong className="text-slate-800">{focusedRoom.capacity ?? '—'} students</strong></p>
+														{focusedRoom.isTeachingSpace ? (
+															<p>Weekly Utilization: <strong className="text-slate-800">{Math.round(roomUtilization?.get(focusedRoom.id) ?? 0)}%</strong></p>
+														) : (
+															<p className="text-amber-600 font-medium">Non-teaching space</p>
+														)}
+													</div>
+												</div>
+												<Button
+													className="w-full h-8.5 text-xs font-semibold gap-1.5"
+													onClick={() => setSelectedRoom(focusedRoom)}
+												>
+													<DoorOpen className="size-3.5" />
+													View Weekly Schedule
+												</Button>
+											</div>
+										) : (
+											<p className="text-center text-[10px] text-slate-400 py-1.5">
+												Select a room to view weekly schedule.
+											</p>
+										)}
+									</div>
+								</CardContent>
+							</Card>
+						) : null}
 					</div>
 				</section>
-
-				<RoomScheduleOverlay
-					open={selectedRoom !== null}
-					onClose={() => setSelectedRoom(null)}
-					roomName={selectedRoom?.name ?? 'Room'}
-					roomId={selectedRoom?.id ?? 0}
-					schedule={selectedRoomSchedule}
-					loading={scheduleLoading}
-					subjectMap={subjectMap}
-					facultyMap={facultyMap}
-					sectionMap={overlaySectionMap}
-				/>
 			</div>
+			
+			<RoomScheduleOverlay
+				open={selectedRoom !== null}
+				onClose={() => setSelectedRoom(null)}
+				roomName={selectedRoom?.name ?? 'Room'}
+				roomId={selectedRoom?.id ?? 0}
+				schedule={selectedRoomSchedule}
+				loading={scheduleLoading}
+				subjectMap={subjectMap}
+				facultyMap={facultyMap}
+				sectionMap={overlaySectionMap}
+			/>
 		</div>
 	);
 }
@@ -390,7 +642,7 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 function SummaryStat({ label, value, icon: Icon }: { label: string; value: string; icon: LucideIcon }) {
 	return (
 		<div className="rounded-2xl bg-white p-4 shadow-soft">
-			<Icon className="size-4 text-primary" />
+			<Icon className="size-4 text-primary animate-pulse" />
 			<p className="mt-2 text-[0.68rem] font-semibold uppercase text-slate-500">{label}</p>
 			<p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{value}</p>
 		</div>

@@ -59,7 +59,7 @@ export function LeftRail({
 								<Button type="button" variant="ghost" size="sm" className="relative h-8 w-8 p-0" onClick={() => { panelRef.current?.expand(); setLeftTab('violations'); }}>
 									<ShieldAlert className="size-4 text-muted-foreground" />
 									{violationsCount > 0 && !isPreGenerationWorkspace && (
-										<span className="absolute -top-1 -right-1 text-[0.5rem] font-bold leading-none bg-red-500 text-white rounded-full px-1">{violationsCount}</span>
+										<span className="absolute -top-1 -right-1 text-[10px] font-bold leading-none bg-red-500 text-white rounded-full px-1">{violationsCount}</span>
 									)}
 								</Button>
 							</TooltipTrigger>
@@ -70,7 +70,7 @@ export function LeftRail({
 								<Button type="button" variant="ghost" size="sm" className="relative h-8 w-8 p-0" onClick={() => { panelRef.current?.expand(); setLeftTab('unassigned'); }}>
 									<AlertTriangle className="size-4 text-muted-foreground" />
 									{unassignedCount > 0 && !isPreGenerationWorkspace && (
-										<span className="absolute -top-1 -right-1 text-[0.5rem] font-bold leading-none bg-amber-500 text-white rounded-full px-1">{unassignedCount}</span>
+										<span className="absolute -top-1 -right-1 text-[10px] font-bold leading-none bg-amber-500 text-white rounded-full px-1">{unassignedCount}</span>
 									)}
 								</Button>
 							</TooltipTrigger>
@@ -91,7 +91,7 @@ export function LeftRail({
 								<Button type="button" variant="ghost" size="sm" className="relative h-8 w-8 p-0" onClick={() => { panelRef.current?.expand(); setLeftTab('requests'); }}>
 									<ClipboardList className="size-4 text-muted-foreground" />
 									{pendingRequestCount > 0 && (
-										<span className="absolute -top-1 -right-1 text-[0.5rem] font-bold leading-none bg-blue-600 text-white rounded-full px-1">{pendingRequestCount}</span>
+										<span className="absolute -top-1 -right-1 text-[10px] font-bold leading-none bg-blue-600 text-white rounded-full px-1">{pendingRequestCount}</span>
 									)}
 								</Button>
 							</TooltipTrigger>
@@ -105,7 +105,7 @@ export function LeftRail({
 						<div className="flex items-center justify-between gap-2 px-3 py-2">
 							<div>
 								<p className="text-xs font-semibold text-foreground">Needs attention</p>
-								<p className="text-[0.625rem] text-muted-foreground">Review blockers first, then requests.</p>
+								<p className="text-xs text-muted-foreground">Review blockers first, then requests.</p>
 							</div>
 							<Button
 								variant="ghost"
@@ -135,7 +135,7 @@ export function LeftRail({
 							}`}
 						>
 							Violations
-							<span className="ml-1 text-[0.625rem] opacity-70">{violationsCount}</span>
+							<span className="ml-1 text-xs opacity-70">{violationsCount}</span>
 						</Button>
 						<Button
 							id="tab-unassigned"
@@ -154,7 +154,7 @@ export function LeftRail({
 						>
 							Unassigned
 							{unassignedCount > 0 && !isPreGenerationWorkspace && (
-								<span className="ml-1 text-[0.625rem] text-amber-600 font-semibold">{unassignedCount}</span>
+								<span className="ml-1 text-xs text-amber-600 font-semibold">{unassignedCount}</span>
 							)}
 						</Button>
 						{isPreGenerationWorkspace && (
@@ -195,7 +195,7 @@ export function LeftRail({
 							<ClipboardList className="inline size-3 mr-0.5 -mt-px" />
 							Requests
 							{pendingRequestCount > 0 && (
-								<span className="ml-1 text-[0.625rem] text-blue-700 font-semibold">{pendingRequestCount}</span>
+								<span className="ml-1 text-xs text-blue-700 font-semibold">{pendingRequestCount}</span>
 							)}
 						</Button>
 						</div>

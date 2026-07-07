@@ -1,1 +1,0 @@
-import{a as e,i as t,u as n}from"./utils-B2WZu7i4.js";var r=n(e(),1);t();var i=r.createContext(void 0);function a(e){let t=r.useContext(i);return e||t||`ltr`}export{a as t};

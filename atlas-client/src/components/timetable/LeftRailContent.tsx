@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
 import {
-ClipboardList,
-GripVertical,
-Lock,
-RefreshCw,
-Search,
-UserX,
+	ClipboardList,
+	GripVertical,
+	Lock,
+	RefreshCw,
+	Search,
+	UserX,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
@@ -20,100 +20,102 @@ import { GeneratedUnassignedPanel, GeneratedViolationsPanel } from '@/components
 import type { LeftRailContentContext } from '@/components/timetable/timetableContexts.types';
 
 type LeftRailContentProps = {
-context: LeftRailContentContext;
+	context: LeftRailContentContext;
 };
 
 export function LeftRailContent({ context }: LeftRailContentProps) {
-const {
-leftTab,
-isPreGenerationWorkspace,
-hardViolationCount,
-topBlockers,
-violations,
-handleViolationSelect,
-setSeverityFilter,
-VIOLATION_LABELS,
-violationSearch,
-setViolationSearch,
-filteredViolations,
-violationsByCode,
-violationsGroupPage,
-setViolationsGroupPage,
-selectedViolation,
-setDrawerViolation,
-formatConstraintMessage,
-draftBoard,
-isDesktop,
-setDragItem,
-toast,
-summary,
-filteredUnassignedItems,
-UNASSIGNED_REASON_LABELS,
-unassignedReasonFilter,
-sectionLabel,
-subjectLabel,
-schoolYearId,
-unassignDropActive,
-setUnassignDropActive,
-pinnedRailDropActive,
-fetchDraftBoardSummary,
-preGenPending,
-pinsSearch,
-setPinsSearch,
-pinsGradeFilter,
-setPinsGradeFilter,
-pinsSectionFilter,
-setPinsSectionFilter,
-pinsSubjectFilter,
-setPinsSubjectFilter,
-getDraggedDraftPlacementId,
-dragItem,
-setPendingUnassignId,
-setShowUnassignConfirm,
-pinsQueuePage,
-setPinsQueuePage,
-preGenKbSource,
-setPreGenKbSource,
-setKbSelectedSource,
-rightPanelRef,
-selectedEntry,
-setSelectedEntry,
-setSelectedViolation,
-preGenEntries,
-gradeForSection,
-formatTime,
-DAY_SHORT,
-formatFacultyInitials,
-roomLabelShort,
-GRADE_BADGE,
-GRADE_CARD_BG,
-roomRequestSummary,
-requestSearch,
-setRequestSearch,
-requestStatusFilter,
-setRequestStatusFilter,
-requestDecisionFilter,
-setRequestDecisionFilter,
-roomRequestError,
-roomRequestLoading,
-filteredRoomRequests,
-selectedRequestId,
-focusRequestInGrid,
-openRequestPreview,
-isPrivilegedUser,
-focusPinnedPlacement,
-} = context;
+	const {
+		leftTab,
+		isPreGenerationWorkspace,
+		hardViolationCount,
+		topBlockers,
+		violations,
+		handleViolationSelect,
+		setSeverityFilter,
+		VIOLATION_LABELS,
+		violationSearch,
+		setViolationSearch,
+		filteredViolations,
+		violationsByCode,
+		violationsGroupPage,
+		setViolationsGroupPage,
+		selectedViolation,
+		setDrawerViolation,
+		formatConstraintMessage,
+		draftBoard,
+		isDesktop,
+		setDragItem,
+		toast,
+		summary,
+		filteredUnassignedItems,
+		UNASSIGNED_REASON_LABELS,
+		unassignedReasonFilter,
+		sectionLabel,
+		subjectLabel,
+		schoolYearId,
+		unassignDropActive,
+		setUnassignDropActive,
+		pinnedRailDropActive,
+		fetchDraftBoardSummary,
+		preGenPending,
+		pinsSearch,
+		setPinsSearch,
+		pinsGradeFilter,
+		setPinsGradeFilter,
+		pinsSectionFilter,
+		setPinsSectionFilter,
+		pinsSubjectFilter,
+		setPinsSubjectFilter,
+		getDraggedDraftPlacementId,
+		dragItem,
+		setPendingUnassignId,
+		setShowUnassignConfirm,
+		pinsQueuePage,
+		setPinsQueuePage,
+		preGenKbSource,
+		setPreGenKbSource,
+		setKbSelectedSource,
+		rightPanelRef,
+		selectedEntry,
+		setSelectedEntry,
+		setSelectedViolation,
+		preGenEntries,
+		gradeForSection,
+		formatTime,
+		DAY_SHORT,
+		formatFacultyInitials,
+		roomLabelShort,
+		GRADE_BADGE,
+		GRADE_CARD_BG,
+		roomRequestSummary,
+		requestSearch,
+		setRequestSearch,
+		requestStatusFilter,
+		setRequestStatusFilter,
+		requestDecisionFilter,
+		setRequestDecisionFilter,
+		roomRequestError,
+		roomRequestLoading,
+		filteredRoomRequests,
+		selectedRequestId,
+		focusRequestInGrid,
+		openRequestPreview,
+		isPrivilegedUser,
+		focusPinnedPlacement,
+	} = context;
+
 	const renderUnassignedReasonBadge = (reason: string) => {
 		const info = UNASSIGNED_REASON_LABELS[reason] ?? {
 			label: reason,
 			className: 'border-gray-300 bg-gray-50 text-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700',
 		};
 		return (
-			<Badge variant="outline" className={`h-4 px-1 text-[0.5625rem] ${info.className}`}>
+			<Badge variant="outline" className={`h-4 px-1 text-xs ${info.className}`}>
 				{info.label}
 			</Badge>
 		);
 	};
+
 	const filteredPreGenQueue = (draftBoard?.queue ?? []).filter((item) => {
 		const matchesGrade = pinsGradeFilter === 'all' || item.gradeLevel === pinsGradeFilter;
 		const matchesSubject = pinsSubjectFilter === 'all' || item.subjectId === pinsSubjectFilter;
@@ -126,6 +128,7 @@ focusPinnedPlacement,
 			|| (item.cohortCode?.toLowerCase().includes(q) ?? false);
 		return matchesGrade && matchesSubject && matchesSection && matchesSearch;
 	});
+
 	const filteredPinnedPlacements = (draftBoard?.placements ?? []).filter((placement) => {
 		if (placement.status !== 'DRAFT') return false;
 		const grade = gradeForSection(placement.sectionId);
@@ -140,10 +143,12 @@ focusPinnedPlacement,
 			|| `${DAY_SHORT[placement.day] ?? placement.day} ${formatTime(placement.startTime)} ${formatTime(placement.endTime)}`.toLowerCase().includes(q);
 		return matchesGrade && matchesSubject && matchesSection && matchesSearch;
 	});
+
 	const pinSubjectOptions = Array.from(new Map([
 		...(draftBoard?.queue ?? []).map((item): [number, string] => [item.subjectId, item.subjectCode]),
 		...(draftBoard?.placements ?? []).filter((placement) => placement.status === 'DRAFT').map((placement): [number, string] => [placement.subjectId, subjectLabel(placement.subjectId)]),
 	]).entries());
+
 	const pinSectionOptions = Array.from(new Map([
 		...(draftBoard?.queue ?? []).filter((item) => pinsGradeFilter === 'all' || item.gradeLevel === pinsGradeFilter).map((item): [number, string] => [item.sectionId, item.sectionName]),
 		...(draftBoard?.placements ?? []).filter((placement) => {
@@ -152,6 +157,7 @@ focusPinnedPlacement,
 			return pinsGradeFilter === 'all' || grade === pinsGradeFilter;
 		}).map((placement): [number, string] => [placement.sectionId, sectionLabel(placement.sectionId)]),
 	]).entries());
+
 	const violationGroups = Array.from(violationsByCode.entries());
 	const visibleViolationGroups = violationGroups.slice(0, violationsGroupPage);
 	const hasMoreViolationGroups = violationGroups.length > visibleViolationGroups.length;
@@ -159,387 +165,384 @@ focusPinnedPlacement,
 	useEffect(() => {
 		setViolationsGroupPage(10);
 	}, [violationSearch, filteredViolations.length, setViolationsGroupPage]);
-return (
-<>
-{leftTab === 'violations' && !isPreGenerationWorkspace ? (
-	<GeneratedViolationsPanel
-		context={context}
-		visibleViolationGroups={visibleViolationGroups}
-		violationGroups={violationGroups}
-		hasMoreViolationGroups={hasMoreViolationGroups}
-	/>
-) : leftTab === 'unassigned' && !isPreGenerationWorkspace ? (
-	<GeneratedUnassignedPanel
-		context={context}
-		renderUnassignedReasonBadge={renderUnassignedReasonBadge}
-	/>
-) : isPreGenerationWorkspace && (leftTab === 'unassigned' || leftTab === 'pinned') ? (
-						<div id={leftTab === 'pinned' ? 'panel-pinned' : 'panel-unassigned'} role="tabpanel" aria-labelledby={leftTab === 'pinned' ? 'tab-pinned' : 'tab-unassigned'} className="flex flex-col flex-1 min-h-0">
-							<div className="shrink-0 border-b border-border px-3 py-2">
-								<div className="flex items-center justify-between gap-2">
-									<div className="flex items-center gap-1.5">
-										<Lock className="size-3.5 text-primary" />
-										<span className="text-xs font-semibold">Pre-Generation Draft</span>
-									</div>
-									<Button
-										variant="outline"
-										size="sm"
-										className="h-7 text-[0.625rem]"
-										onClick={() => { if (schoolYearId) void fetchDraftBoardSummary(schoolYearId); }}
-									>
-										<RefreshCw className="mr-1 size-3" />
-										Refresh
-									</Button>
-								</div>
-								<div className="mt-2 flex flex-wrap items-center gap-1.5">
-									<TooltipProvider>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<Badge variant="secondary" className="h-5 px-2 text-[0.625rem] cursor-default">{draftBoard?.counts.unscheduled ?? 0} unassigned</Badge>
-											</TooltipTrigger>
-											<TooltipContent className="max-w-48 text-xs">Sessions not yet placed in the pre-generation draft grid.</TooltipContent>
-										</Tooltip>
-									</TooltipProvider>
-									<TooltipProvider>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<Badge variant="secondary" className="h-5 px-2 text-[0.625rem] cursor-default">{draftBoard?.counts.draft ?? 0} pinned</Badge>
-											</TooltipTrigger>
-											<TooltipContent className="max-w-48 text-xs">Sessions placed in the draft grid. These become anchors when schedule generation runs.</TooltipContent>
-										</Tooltip>
-									</TooltipProvider>
-									{preGenPending ? <Badge className="h-5 px-2 text-[0.625rem]">Pending preview</Badge> : null}
-								</div>
-								{/* Wave 4.5 H: search + grade filter for pins panel */}
-								<div className="mt-2 flex items-center gap-1.5">
-									<div className="relative flex-1 min-w-0">
-										<Search className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 size-3 text-muted-foreground" />
-										<Input
-												placeholder="Filter…"
-											value={pinsSearch}
-											onChange={(e) => setPinsSearch(e.target.value)}
-											className="h-7 pl-6 text-[0.625rem]"
-										/>
-									</div>
-									<Select
-										value={String(pinsGradeFilter)}
-										onValueChange={(v) => { setPinsGradeFilter(v === 'all' ? 'all' : Number(v)); setPinsSectionFilter('all'); }}
-									>
-										<SelectTrigger className="h-7 w-16 text-[0.625rem]">
-											<SelectValue placeholder="Grade" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="all">All</SelectItem>
-											<SelectItem value="7">G7</SelectItem>
-											<SelectItem value="8">G8</SelectItem>
-											<SelectItem value="9">G9</SelectItem>
-											<SelectItem value="10">G10</SelectItem>
-										</SelectContent>
-									</Select>
-								</div>
-								{/* Wave 4.5b item 6: subject and section filters */}
-								<div className="mt-1.5 flex items-center gap-1.5">
-									<Select value={String(pinsSubjectFilter)} onValueChange={(v) => setPinsSubjectFilter(v === 'all' ? 'all' : Number(v))}>
-										<SelectTrigger className="h-7 flex-1 min-w-0 text-[0.625rem]"><SelectValue placeholder="Subject" /></SelectTrigger>
-										<SelectContent>
-											<SelectItem value="all">All subjects</SelectItem>
-											{pinSubjectOptions.map(([id, code]) => (
-												<SelectItem key={id} value={String(id)}>{code}</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-									<Select value={String(pinsSectionFilter)} onValueChange={(v) => setPinsSectionFilter(v === 'all' ? 'all' : Number(v))}>
-										<SelectTrigger className="h-7 flex-1 min-w-0 text-[0.625rem]"><SelectValue placeholder="Section" /></SelectTrigger>
-										<SelectContent>
-											<SelectItem value="all">All sections</SelectItem>
-											{pinSectionOptions.map(([id, name]) => (
-												<SelectItem key={id} value={String(id)}>{name}</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</div>
+
+	return (
+		<>
+			{leftTab === 'violations' && !isPreGenerationWorkspace ? (
+				<GeneratedViolationsPanel
+					context={context}
+					visibleViolationGroups={visibleViolationGroups}
+					violationGroups={violationGroups}
+					hasMoreViolationGroups={hasMoreViolationGroups}
+				/>
+			) : leftTab === 'unassigned' && !isPreGenerationWorkspace ? (
+				<GeneratedUnassignedPanel
+					context={context}
+					renderUnassignedReasonBadge={renderUnassignedReasonBadge}
+				/>
+			) : isPreGenerationWorkspace && (leftTab === 'unassigned' || leftTab === 'pinned') ? (
+				<div id={leftTab === 'pinned' ? 'panel-pinned' : 'panel-unassigned'} role="tabpanel" aria-labelledby={leftTab === 'pinned' ? 'tab-pinned' : 'tab-unassigned'} className="flex flex-col flex-1 min-h-0">
+					<div className="shrink-0 border-b border-border px-3 py-2">
+						<div className="flex items-center justify-between gap-2">
+							<div className="flex items-center gap-1.5">
+								<Lock className="size-3.5 text-primary" />
+								<span className="text-xs font-semibold">Pre-Generation Draft</span>
 							</div>
-							{/* Wave 4.5 I: DnD requires desktop */}
-							{!isDesktop && (
-								<p className="text-[0.625rem] text-muted-foreground px-3 py-1 border-b border-border bg-muted/30">
-									Scheduling drag-and-drop requires a wider screen. Tap to select, then tap a grid slot.
-								</p>
-							)}
-							<ScrollArea className="flex-1 min-h-0">
-								<div className="space-y-3 p-3">
-									{leftTab === 'unassigned' ? (
-										<>
-											<div className="space-y-1">
-												<p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">Unassigned Sessions</p>
-												<p className="text-[0.6875rem] text-muted-foreground">Drag from here into the grid to pin a draft session.</p>
-											</div>
-											<div className="grid gap-1.5" style={{gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))'}}>
-											{filteredPreGenQueue
-												.slice(0, pinsQueuePage)
-												.map((item) => {
-											const key = `${item.assignmentKey}-${item.sessionNumber}`;
-											const selected = preGenKbSource?.type === 'draftQueue' && preGenKbSource.item.assignmentKey === item.assignmentKey && preGenKbSource.item.sessionNumber === item.sessionNumber;
-											return (
-												<DraggableQueuePin
-													key={key}
-													item={item}
-													disabled={!isDesktop}
-													className={cn(
-														'rounded border px-2 py-1.5 text-xs transition-colors',
-														GRADE_CARD_BG[item.gradeLevel] ?? 'bg-background border-border',
-														selected ? 'border-primary ring-1 ring-primary' : 'hover:border-primary/50',
-														isDesktop ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
-													)}
-												>
-													<div
-														className="min-w-0 flex-1"
-														role="button"
-														tabIndex={0}
-														onClick={() => {
-															const source = { type: 'draftQueue' as const, item };
-															const nextSelected = !selected;
-															setPreGenKbSource(nextSelected ? source : null);
-															setKbSelectedSource(nextSelected ? source : null);
-															// Selecting a queue item drives the right panel (D spec); deselecting clears it
-															if (nextSelected) { setSelectedEntry(null); rightPanelRef.current?.expand(); }
-														}}
-														onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const source = { type: 'draftQueue' as const, item }; setPreGenKbSource(source); setKbSelectedSource(source); setSelectedEntry(null); } }}
-													>
-														<div className="flex items-center justify-between gap-1 min-w-0">
-																<span className="truncate font-semibold text-[0.625rem]">G{item.gradeLevel} · {item.sectionName}{item.cohortCode ? ` · ${item.cohortCode}` : ''}</span>
-															<span className="shrink-0 text-[0.5rem] text-muted-foreground/70 tabular-nums">{item.sessionNumber}/{item.sessionsPerWeek}</span>
-														</div>
-														<div className="flex items-center gap-1 min-w-0 mt-0.5">
-															{item.hasNoTeacher ? (
-																<UserX className="size-3 text-amber-500 shrink-0" />
-															) : item.facultyOptions[0] ? (
-																<span className="shrink-0 text-[0.5625rem] text-primary/80 font-medium">{formatFacultyInitials(item.facultyOptions[0])}</span>
-															) : null}
-															<span className="truncate text-[0.5625rem] text-muted-foreground">{item.subjectCode}</span>
-														</div>
-													</div>
-												</DraggableQueuePin>
-											);
-												})}
-											</div>
-											{filteredPreGenQueue.length > pinsQueuePage && (
-											<Button type="button" variant="outline" size="sm" className="mt-1 h-8 w-full border-dashed text-[0.6875rem] text-muted-foreground" onClick={() => setPinsQueuePage((p) => p + 30)}>
-												Load more
-											</Button>
-										)}
-											{(draftBoard?.queue.length ?? 0) === 0 ? (
-											<p className="rounded border border-dashed border-border px-2 py-3 text-center text-[0.6875rem] text-muted-foreground">No unassigned pre-generation demand remains.</p>
-											) : filteredPreGenQueue.length === 0 ? (
-											<p className="rounded border border-dashed border-border px-2 py-3 text-center text-[0.6875rem] text-muted-foreground">No unassigned items match the current search and filters.</p>
-											) : null}
-										</>
-									) : (
-										<>
-											<UnassignDropZone
-												className={cn(
-													'space-y-1 rounded-md border border-transparent transition-colors',
-													unassignDropActive ? 'border-destructive/60 bg-destructive/5' : '',
-												)}
-											>
-												<p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">Unassign Drop Zone</p>
-												{unassignDropActive ? (
-													<div className="rounded border border-destructive/50 bg-destructive/10 px-2 py-1 text-[0.6875rem] text-destructive">
-														Drop here to return the dragged pinned session to the unassigned list.
-													</div>
-												) : (
-													<p className="text-[0.6875rem] text-muted-foreground">Drag a pinned session here when it should leave the grid.</p>
-												)}
-											</UnassignDropZone>
-											<PinnedRailDropZone
-												className={cn(
-													'space-y-2 rounded-md border border-transparent p-2 transition-colors',
-													pinnedRailDropActive ? 'border-primary/60 bg-primary/5' : 'border-border/60 bg-muted/20',
-												)}
-											>
-												<div className="flex items-center justify-between gap-2">
-													<div>
-														<p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">Pinned Sessions</p>
-														<p className="text-[0.6875rem] text-muted-foreground">Pinned sessions already placed in the draft grid. Drop one here to focus it in the rail.</p>
-													</div>
-													<Badge variant="outline" className="h-5 px-1.5 text-[0.5625rem]">
-														{filteredPinnedPlacements.length}
-													</Badge>
-												</div>
-												{pinnedRailDropActive && (
-													<div className="rounded border border-primary/40 bg-primary/10 px-2 py-1 text-[0.6875rem] text-primary">
-														Release to focus this pinned session and inspect alternate pivots.
-													</div>
-												)}
-												<div className="space-y-1">
-												{filteredPinnedPlacements.map((placement) => {
-											const selected = selectedEntry?.entryId === `draft-placement-${placement.id}`;
-											const placementGrade = gradeForSection(placement.sectionId);
-											const placementGradeBadge = placementGrade ? GRADE_BADGE[placementGrade] : null;
-											return (
-												<DraggablePlacementPin
-													key={placement.id}
-													placement={placement}
-													disabled={!isDesktop}
-													className={cn(
-														'rounded border px-2 py-1.5 text-xs transition-colors',
-														placementGrade ? (GRADE_CARD_BG[placementGrade] ?? 'bg-muted/30 border-border') : 'bg-muted/30',
-														selected ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border hover:border-primary/40',
-														isDesktop ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
-													)}
-												>
-													<div
-														role="button"
-														tabIndex={0}
-														className="w-full text-left"
-														onClick={() => { focusPinnedPlacement(placement); }}
-														onKeyDown={(event) => {
-															if (event.key === 'Enter' || event.key === ' ') {
-																event.preventDefault();
-																focusPinnedPlacement(placement);
-															}
-														}}
-													>
-														<div className="flex items-center gap-1.5 min-w-0">
-															<GripVertical className="size-3 shrink-0 text-muted-foreground/60" />
-															{placementGradeBadge ? (
-																<Badge variant="outline" className={`h-4 px-1 text-[0.5625rem] shrink-0 ${placementGradeBadge}`}>
-																	G{placementGrade}
-																</Badge>
-															) : null}
-															<span className="truncate font-semibold text-[0.6875rem]">{subjectLabel(placement.subjectId)}</span>
-														</div>
-														<p className="mt-0.5 truncate text-[0.625rem] text-muted-foreground pl-4.5">
-															{sectionLabel(placement.sectionId)}
-														</p>
-														<div className="mt-1 pl-4.5 space-y-0.5 text-[0.625rem] text-muted-foreground">
-															<p className="truncate">{DAY_SHORT[placement.day] ?? placement.day} {formatTime(placement.startTime)}–{formatTime(placement.endTime)}</p>
-																					<p className="truncate">{placement.facultyId ? formatFacultyInitials(placement.facultyId) : 'No teacher'} · {placement.roomId ? roomLabelShort(placement.roomId) : 'No room'}</p>
-														</div>
-														<div className="mt-1 flex flex-wrap gap-1 pl-4.5">
-															<Button type="button" variant="outline" size="sm" className="h-5 px-1.5 text-[0.5625rem]" onClick={(event) => { event.stopPropagation(); focusPinnedPlacement(placement, 'room'); }} disabled={!placement.roomId}>
-																Room
-															</Button>
-															<Button type="button" variant="outline" size="sm" className="h-5 px-1.5 text-[0.5625rem]" onClick={(event) => { event.stopPropagation(); focusPinnedPlacement(placement, 'section'); }}>
-																Section
-															</Button>
-															<Button type="button" variant="outline" size="sm" className="h-5 px-1.5 text-[0.5625rem]" onClick={(event) => { event.stopPropagation(); focusPinnedPlacement(placement, 'faculty'); }} disabled={!placement.facultyId}>
-																Faculty
-															</Button>
-														</div>
-													</div>
-												</DraggablePlacementPin>
-											);
-												})}
-												{(draftBoard?.placements ?? []).filter((placement) => placement.status === 'DRAFT').length === 0 ? (
-											<p className="rounded border border-dashed border-border px-2 py-3 text-center text-[0.6875rem] text-muted-foreground">Drop an unassigned source into the center grid to create a pinned draft entry.</p>
-												) : filteredPinnedPlacements.length === 0 ? (
-													<p className="rounded border border-dashed border-border px-2 py-3 text-center text-[0.6875rem] text-muted-foreground">No pinned sessions match the current search and filters.</p>
-												) : null}
-												</div>
-											</PinnedRailDropZone>
-										</>
-									)}
-								</div>
-							</ScrollArea>
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-7 text-xs"
+								onClick={() => { if (schoolYearId) void fetchDraftBoardSummary(schoolYearId); }}
+							>
+								<RefreshCw className="mr-1 size-3" />
+								Refresh
+							</Button>
 						</div>
-					) : (
-						<ScrollArea id="panel-requests" role="tabpanel" aria-labelledby="tab-requests" className="flex-1 min-h-0">
-							<div className="px-3 py-3 space-y-3">
-								<div className="flex items-center justify-between gap-2 rounded border border-border bg-muted/30 px-2.5 py-1.5 text-[0.6875rem]">
-									<div className="flex items-center gap-1.5">
-										<span className="text-muted-foreground">Pending</span>
-										<span className="font-semibold text-blue-700">{roomRequestSummary?.counts.pending ?? 0}</span>
+						<div className="mt-2 flex flex-wrap items-center gap-1.5">
+							<TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Badge variant="secondary" className="h-5 px-2 text-xs cursor-default">{draftBoard?.counts.unscheduled ?? 0} unassigned</Badge>
+									</TooltipTrigger>
+									<TooltipContent className="max-w-48 text-xs">Sessions not yet placed in the pre-generation draft grid.</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+							<TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Badge variant="secondary" className="h-5 px-2 text-xs cursor-default">{draftBoard?.counts.draft ?? 0} pinned</Badge>
+									</TooltipTrigger>
+									<TooltipContent className="max-w-48 text-xs">Sessions placed in the draft grid. These become anchors when schedule generation runs.</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
+							{preGenPending ? <Badge className="h-5 px-2 text-xs">Pending preview</Badge> : null}
+						</div>
+						<div className="mt-2 flex items-center gap-1.5">
+							<div className="relative flex-1 min-w-0">
+								<Search className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 size-3 text-muted-foreground" />
+								<Input
+									placeholder="Filter…"
+									value={pinsSearch}
+									onChange={(e) => setPinsSearch(e.target.value)}
+									className="h-7 pl-6 text-xs"
+								/>
+							</div>
+							<Select
+								value={String(pinsGradeFilter)}
+								onValueChange={(v) => { setPinsGradeFilter(v === 'all' ? 'all' : Number(v)); setPinsSectionFilter('all'); }}
+							>
+								<SelectTrigger className="h-7 w-16 text-xs">
+									<SelectValue placeholder="Grade" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">All</SelectItem>
+									<SelectItem value="7">G7</SelectItem>
+									<SelectItem value="8">G8</SelectItem>
+									<SelectItem value="9">G9</SelectItem>
+									<SelectItem value="10">G10</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="mt-1.5 flex items-center gap-1.5">
+							<Select value={String(pinsSubjectFilter)} onValueChange={(v) => setPinsSubjectFilter(v === 'all' ? 'all' : Number(v))}>
+								<SelectTrigger className="h-7 flex-1 min-w-0 text-xs"><SelectValue placeholder="Subject" /></SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">All subjects</SelectItem>
+									{pinSubjectOptions.map(([id, code]) => (
+										<SelectItem key={id} value={String(id)}>{code}</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<Select value={String(pinsSectionFilter)} onValueChange={(v) => setPinsSectionFilter(v === 'all' ? 'all' : Number(v))}>
+								<SelectTrigger className="h-7 flex-1 min-w-0 text-xs"><SelectValue placeholder="Section" /></SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">All sections</SelectItem>
+									{pinSectionOptions.map(([id, name]) => (
+										<SelectItem key={id} value={String(id)}>{name}</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					</div>
+					{!isDesktop && (
+						<p className="text-xs text-muted-foreground px-3 py-1 border-b border-border bg-muted/30">
+							Scheduling drag-and-drop requires a wider screen. Tap to select, then tap a grid slot.
+						</p>
+					)}
+					<ScrollArea className="flex-1 min-h-0">
+						<div className="space-y-3 p-3">
+							{leftTab === 'unassigned' ? (
+								<>
+									<div className="space-y-1">
+										<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Unassigned Sessions</p>
+										<p className="text-xs text-muted-foreground">Drag from here into the grid to pin a draft session.</p>
 									</div>
-									<div className="flex items-center gap-1.5">
-										<span className="text-muted-foreground">Requests</span>
-										<span className="font-semibold">{roomRequestSummary?.requests.length ?? 0}</span>
+									<div className="grid gap-1.5" style={{gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))'}}>
+										{filteredPreGenQueue
+											.slice(0, pinsQueuePage)
+											.map((item) => {
+												const key = `${item.assignmentKey}-${item.sessionNumber}`;
+												const selected = preGenKbSource?.type === 'draftQueue' && preGenKbSource.item.assignmentKey === item.assignmentKey && preGenKbSource.item.sessionNumber === item.sessionNumber;
+												return (
+													<DraggableQueuePin
+														key={key}
+														item={item}
+														disabled={!isDesktop}
+														className={cn(
+															'rounded border px-2 py-1.5 text-xs transition-colors',
+															GRADE_CARD_BG[item.gradeLevel] ?? 'bg-background border-border',
+															selected ? 'border-primary ring-1 ring-primary' : 'hover:border-primary/50',
+															isDesktop ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
+														)}
+													>
+														<div
+															className="min-w-0 flex-1"
+															role="button"
+															tabIndex={0}
+															onClick={() => {
+																const source = { type: 'draftQueue' as const, item };
+																const nextSelected = !selected;
+																setPreGenKbSource(nextSelected ? source : null);
+																setKbSelectedSource(nextSelected ? source : null);
+																if (nextSelected) { setSelectedEntry(null); rightPanelRef.current?.expand(); }
+															}}
+															onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const source = { type: 'draftQueue' as const, item }; setPreGenKbSource(source); setKbSelectedSource(source); setSelectedEntry(null); } }}
+														>
+															<div className="flex items-center justify-between gap-1 min-w-0">
+																<span className="truncate font-semibold text-xs">G{item.gradeLevel} · {item.sectionName}{item.cohortCode ? ` · ${item.cohortCode}` : ''}</span>
+																<span className="shrink-0 text-xs text-muted-foreground/70 tabular-nums">{item.sessionNumber}/{item.sessionsPerWeek}</span>
+															</div>
+															<div className="flex items-center gap-1 min-w-0 mt-0.5">
+																{item.hasNoTeacher ? (
+																	<UserX className="size-3 text-amber-500 shrink-0" />
+																) : item.facultyOptions[0] ? (
+																	<span className="shrink-0 text-xs text-primary/80 font-medium">{formatFacultyInitials(item.facultyOptions[0])}</span>
+																) : null}
+																<span className="truncate text-xs text-muted-foreground">{item.subjectCode}</span>
+															</div>
+														</div>
+													</DraggableQueuePin>
+												);
+											})}
 									</div>
-								</div>
-								<div className="grid grid-cols-1 gap-2">
-									<Input
-										placeholder="Search teacher, subject, section, room"
-										value={requestSearch}
-										onChange={(event) => setRequestSearch(event.target.value)}
-										className="h-8 text-xs"
-									/>
-									<div className="grid grid-cols-2 gap-2">
-										<Select value={requestStatusFilter} onValueChange={(value) => setRequestStatusFilter(value as 'ALL' | 'SUBMITTED' | 'DRAFT')}>
-											<SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
-											<SelectContent>
-												<SelectItem value="ALL">All statuses</SelectItem>
-												<SelectItem value="SUBMITTED">Submitted</SelectItem>
-												<SelectItem value="DRAFT">Draft</SelectItem>
-											</SelectContent>
-										</Select>
-										<Select value={requestDecisionFilter} onValueChange={(value) => setRequestDecisionFilter(value as 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED')}>
-											<SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Decision" /></SelectTrigger>
-											<SelectContent>
-												<SelectItem value="ALL">All decisions</SelectItem>
-												<SelectItem value="PENDING">Pending</SelectItem>
-												<SelectItem value="APPROVED">Approved</SelectItem>
-												<SelectItem value="REJECTED">Rejected</SelectItem>
-											</SelectContent>
-										</Select>
-									</div>
-								</div>
-								{roomRequestError ? (
-									<div className="rounded border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-[0.6875rem] text-destructive">
-										{roomRequestError}
-									</div>
-								) : null}
-								{roomRequestLoading && !roomRequestSummary ? (
-									<div className="space-y-2">
-										{Array.from({ length: 3 }).map((_, index) => (
-											<Skeleton key={index} className="h-20 w-full rounded-lg" />
-										))}
-									</div>
-								) : filteredRoomRequests.length === 0 ? (
-									<div className="rounded border border-dashed border-border py-6 text-center text-xs text-muted-foreground">
-										No room requests match the current filters.
-									</div>
-								) : (
-									<div className="space-y-2">
-										{filteredRoomRequests.map((request) => (
-											<div
-												key={request.id}
-												className={cn(
-													'rounded border px-2.5 py-2 text-xs transition-colors',
-													selectedRequestId === request.id ? 'border-primary bg-primary/5' : 'border-border bg-card',
-												)}
-											>
-												<div className="flex items-start justify-between gap-2">
-													<div className="min-w-0">
-														<p className="font-semibold truncate">{request.facultyName}</p>
-														<p className="text-[0.625rem] text-muted-foreground truncate">{request.subjectCode} · {request.sectionName}</p>
-														<p className="text-[0.625rem] text-muted-foreground truncate">{request.day} {request.startTime}-{request.endTime} · {request.requestedRoomName}</p>
-													</div>
-													<div className="flex flex-col items-end gap-1">
-														<Badge variant="outline" className="h-4 px-1 text-[0.5625rem] uppercase">{request.decisionStatus}</Badge>
-														{request.appealCount > 0 ? (
-															<Badge variant="outline" className="h-4 px-1 text-[0.5625rem] uppercase">
-																Appeals {request.appealCount}
-															</Badge>
-														) : null}
-														<Button variant="ghost" size="sm" className="h-6 px-1.5 text-[0.625rem]" onClick={() => { void focusRequestInGrid(request.id); }}>
-															Focus
-														</Button>
-													</div>
-												</div>
-												<Button
-													variant="outline"
-													size="sm"
-													className="mt-2 h-7 w-full text-[0.6875rem]"
-													onClick={() => void openRequestPreview(request.id)}
-												>
-													{isPrivilegedUser ? 'Review request' : 'Open request'}
+									{filteredPreGenQueue.length > pinsQueuePage && (
+										<Button type="button" variant="outline" size="sm" className="mt-1 h-8 w-full border-dashed text-xs text-muted-foreground" onClick={() => setPinsQueuePage((p) => p + 30)}>
+											Load more
+										</Button>
+									)}
+									{(draftBoard?.queue.length ?? 0) === 0 ? (
+										<p className="rounded border border-dashed border-border px-2 py-3 text-center text-xs text-muted-foreground">No unassigned pre-generation demand remains.</p>
+									) : filteredPreGenQueue.length === 0 ? (
+										<p className="rounded border border-dashed border-border px-2 py-3 text-center text-xs text-muted-foreground">No unassigned items match the current search and filters.</p>
+									) : null}
+								</>
+							) : (
+								<>
+									<UnassignDropZone
+										className={cn(
+											'space-y-1 rounded-md border border-transparent transition-colors',
+											unassignDropActive ? 'border-destructive/60 bg-destructive/5' : '',
+										)}
+									>
+										<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Unassign Drop Zone</p>
+										{unassignDropActive ? (
+											<div className="rounded border border-destructive/50 bg-destructive/10 px-2 py-1 text-xs text-destructive">
+												Drop here to return the dragged pinned session to the unassigned list.
+											</div>
+										) : (
+											<p className="text-xs text-muted-foreground">Drag a pinned session here when it should leave the grid.</p>
+										)}
+									</UnassignDropZone>
+									<PinnedRailDropZone
+										className={cn(
+											'space-y-2 rounded-md border border-transparent p-2 transition-colors',
+											pinnedRailDropActive ? 'border-primary/60 bg-primary/5' : 'border-border/60 bg-muted/20',
+										)}
+									>
+										<div className="flex items-center justify-between gap-2">
+											<div>
+												<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pinned Sessions</p>
+												<p className="text-xs text-muted-foreground">Pinned sessions already placed in the draft grid. Drop one here to focus it in the rail.</p>
+											</div>
+											<Badge variant="outline" className="h-5 px-1.5 text-xs">
+												{filteredPinnedPlacements.length}
+											</Badge>
+										</div>
+										{pinnedRailDropActive && (
+											<div className="rounded border border-primary/40 bg-primary/10 px-2 py-1 text-xs text-primary">
+												Release to focus this pinned session and inspect alternate pivots.
+											</div>
+										)}
+										<div className="space-y-1">
+											{filteredPinnedPlacements.map((placement) => {
+												const selected = selectedEntry?.entryId === `draft-placement-${placement.id}`;
+												const placementGrade = gradeForSection(placement.sectionId);
+												const placementGradeBadge = placementGrade ? GRADE_BADGE[placementGrade] : null;
+												return (
+													<DraggablePlacementPin
+														key={placement.id}
+														placement={placement}
+														disabled={!isDesktop}
+														className={cn(
+															'rounded border px-2 py-1.5 text-xs transition-colors',
+															placementGrade ? (GRADE_CARD_BG[placementGrade] ?? 'bg-muted/30 border-border') : 'bg-muted/30',
+															selected ? 'border-primary bg-primary/10 ring-1 ring-primary' : 'border-border hover:border-primary/40',
+															isDesktop ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
+														)}
+													>
+														<div
+															role="button"
+															tabIndex={0}
+															className="w-full text-left"
+															onClick={() => { focusPinnedPlacement(placement); }}
+															onKeyDown={(event) => {
+																if (event.key === 'Enter' || event.key === ' ') {
+																	event.preventDefault();
+																	focusPinnedPlacement(placement);
+																}
+															}}
+														>
+															<div className="flex items-center gap-1.5 min-w-0">
+																<GripVertical className="size-3 shrink-0 text-muted-foreground/60" />
+																{placementGradeBadge ? (
+																	<Badge variant="outline" className={`h-4 px-1 text-xs shrink-0 ${placementGradeBadge}`}>
+																		G{placementGrade}
+																	</Badge>
+																) : null}
+																<span className="truncate font-semibold text-xs">{subjectLabel(placement.subjectId)}</span>
+															</div>
+															<p className="mt-0.5 truncate text-xs text-muted-foreground pl-4.5">
+																{sectionLabel(placement.sectionId)}
+															</p>
+															<div className="mt-1 pl-4.5 space-y-0.5 text-xs text-muted-foreground">
+																<p className="truncate">{DAY_SHORT[placement.day] ?? placement.day} {formatTime(placement.startTime)}–{formatTime(placement.endTime)}</p>
+																<p className="truncate">{placement.facultyId ? formatFacultyInitials(placement.facultyId) : 'No teacher'} · {placement.roomId ? roomLabelShort(placement.roomId) : 'No room'}</p>
+															</div>
+															<div className="mt-1 flex flex-wrap gap-1 pl-4.5">
+																<Button type="button" variant="outline" size="sm" className="h-5 px-1.5 text-xs" onClick={(event) => { event.stopPropagation(); focusPinnedPlacement(placement, 'room'); }} disabled={!placement.roomId}>
+																	Room
+																</Button>
+																<Button type="button" variant="outline" size="sm" className="h-5 px-1.5 text-xs" onClick={(event) => { event.stopPropagation(); focusPinnedPlacement(placement, 'section'); }}>
+																	Section
+																</Button>
+																<Button type="button" variant="outline" size="sm" className="h-5 px-1.5 text-xs" onClick={(event) => { event.stopPropagation(); focusPinnedPlacement(placement, 'faculty'); }} disabled={!placement.facultyId}>
+																	Faculty
+																</Button>
+															</div>
+														</div>
+													</DraggablePlacementPin>
+												);
+											})}
+											{(draftBoard?.placements ?? []).filter((placement) => placement.status === 'DRAFT').length === 0 ? (
+												<p className="rounded border border-dashed border-border px-2 py-3 text-center text-xs text-muted-foreground">Drop an unassigned source into the center grid to create a pinned draft entry.</p>
+											) : filteredPinnedPlacements.length === 0 ? (
+												<p className="rounded border border-dashed border-border px-2 py-3 text-center text-xs text-muted-foreground">No pinned sessions match the current search and filters.</p>
+											) : null}
+										</div>
+									</PinnedRailDropZone>
+								</>
+							)}
+						</div>
+					</ScrollArea>
+				</div>
+			) : (
+				<ScrollArea id="panel-requests" role="tabpanel" aria-labelledby="tab-requests" className="flex-1 min-h-0">
+					<div className="px-3 py-3 space-y-3">
+						<div className="flex items-center justify-between gap-2 rounded border border-border bg-muted/30 px-2.5 py-1.5 text-xs">
+							<div className="flex items-center gap-1.5">
+								<span className="text-muted-foreground">Pending</span>
+								<span className="font-semibold text-blue-700">{roomRequestSummary?.counts.pending ?? 0}</span>
+							</div>
+							<div className="flex items-center gap-1.5">
+								<span className="text-muted-foreground">Requests</span>
+								<span className="font-semibold">{roomRequestSummary?.requests.length ?? 0}</span>
+							</div>
+						</div>
+						<div className="grid grid-cols-1 gap-2">
+							<Input
+								placeholder="Search teacher, subject, section, room"
+								value={requestSearch}
+								onChange={(event) => setRequestSearch(event.target.value)}
+								className="h-8 text-xs"
+							/>
+							<div className="grid grid-cols-2 gap-2">
+								<Select value={requestStatusFilter} onValueChange={(value) => setRequestStatusFilter(value as 'ALL' | 'SUBMITTED' | 'DRAFT')}>
+									<SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+									<SelectContent>
+										<SelectItem value="ALL">All statuses</SelectItem>
+										<SelectItem value="SUBMITTED">Submitted</SelectItem>
+										<SelectItem value="DRAFT">Draft</SelectItem>
+									</SelectContent>
+								</Select>
+								<Select value={requestDecisionFilter} onValueChange={(value) => setRequestDecisionFilter(value as 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED')}>
+									<SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Decision" /></SelectTrigger>
+									<SelectContent>
+										<SelectItem value="ALL">All decisions</SelectItem>
+										<SelectItem value="PENDING">Pending</SelectItem>
+										<SelectItem value="APPROVED">Approved</SelectItem>
+										<SelectItem value="REJECTED">Rejected</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
+						</div>
+						{roomRequestError ? (
+							<div className="rounded border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-xs text-destructive">
+								{roomRequestError}
+							</div>
+						) : null}
+						{roomRequestLoading && !roomRequestSummary ? (
+							<div className="space-y-2">
+								{Array.from({ length: 3 }).map((_, index) => (
+									<Skeleton key={index} className="h-20 w-full rounded-lg" />
+								))}
+							</div>
+						) : filteredRoomRequests.length === 0 ? (
+							<div className="rounded border border-dashed border-border py-6 text-center text-xs text-muted-foreground">
+								No room requests match the current filters.
+							</div>
+						) : (
+							<div className="space-y-2">
+								{filteredRoomRequests.map((request) => (
+									<div
+										key={request.id}
+										className={cn(
+											'rounded border px-2.5 py-2 text-xs transition-colors',
+											selectedRequestId === request.id ? 'border-primary bg-primary/5' : 'border-border bg-card',
+										)}
+									>
+										<div className="flex items-start justify-between gap-2">
+											<div className="min-w-0">
+												<p className="font-semibold truncate text-xs">{request.facultyName}</p>
+												<p className="text-xs text-muted-foreground truncate">{request.subjectCode} · {request.sectionName}</p>
+												<p className="text-xs text-muted-foreground truncate">{request.day} {request.startTime}-{request.endTime} · {request.requestedRoomName}</p>
+											</div>
+											<div className="flex flex-col items-end gap-1">
+												<Badge variant="outline" className="h-4 px-1 text-xs uppercase">{request.decisionStatus}</Badge>
+												{request.appealCount > 0 ? (
+													<Badge variant="outline" className="h-4 px-1 text-xs uppercase">
+														Appeals {request.appealCount}
+													</Badge>
+												) : null}
+												<Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={() => { void focusRequestInGrid(request.id); }}>
+													Focus
 												</Button>
 											</div>
-										))}
+										</div>
+										<Button
+											variant="outline"
+											size="sm"
+											className="mt-2 h-7 w-full text-xs"
+											onClick={() => void openRequestPreview(request.id)}
+										>
+											{isPrivilegedUser ? 'Review request' : 'Open request'}
+										</Button>
 									</div>
-								)}
+								))}
 							</div>
-						</ScrollArea>
 						)}
-</>
-);
+					</div>
+				</ScrollArea>
+			)}
+		</>
+	);
 }

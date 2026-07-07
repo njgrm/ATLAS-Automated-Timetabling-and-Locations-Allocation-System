@@ -121,6 +121,8 @@ export type LeftRailContentContext = {
 	openRequestPreview: (requestId: number) => Promise<void>;
 	isPrivilegedUser: boolean;
 	focusPinnedPlacement: (placement: DraftPlacement, mode?: 'details' | 'faculty' | 'section' | 'room') => void;
+	selectedUnassignedForRepair: UnassignedItem | null;
+	setSelectedUnassignedForRepair: Dispatch<SetStateAction<UnassignedItem | null>>;
 };
 
 export type ScheduleReviewDialogsContext = {

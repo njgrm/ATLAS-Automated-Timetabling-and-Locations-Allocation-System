@@ -1,0 +1,1 @@
+import{a as e,i as t,u as n}from"./utils-B2WZu7i4.js";var r=n(e(),1);function i(e){let t=r.useRef(e);return r.useEffect(()=>{t.current=e}),r.useMemo(()=>(...e)=>t.current?.(...e),[])}t();var a=r.createContext(void 0);function o(e){let t=r.useContext(a);return e||t||`ltr`}export{i as n,o as t};

@@ -10,7 +10,8 @@ import { Button } from '@/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
-
+import { ConfirmationModal } from '@/ui/confirmation-modal';
+import { QuickPlaceSummaryModal } from '@/components/timetable/QuickPlaceSummaryModal';
 import { FilterChip, StatItem } from '@/components/timetable/TimetableShared';
 import { TimetableToolbar } from '@/components/timetable/TimetableToolbar';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
@@ -37,6 +38,12 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	const [showImpactPreview, setShowImpactPreview] = useState(false);
 	const [syncing, setSyncing] = useState(false);
 	const [showSyncConfirm, setShowSyncConfirm] = useState(false);
+	const [showQuickPlaceConfirm, setShowQuickPlaceConfirm] = useState(false);
+	const [quickPlacePlaced, setQuickPlacePlaced] = useState<any[]>([]);
+	const [quickPlaceUnplaced, setQuickPlaceUnplaced] = useState<any[]>([]);
+	const [quickPlaceLoading, setQuickPlaceLoading] = useState(false);
+	const [syncResult, setSyncResult] = useState<any | null>(null);
+	const [showPostSyncOffer, setShowPostSyncOffer] = useState(false);
 
 	const {
 		isPreGenerationWorkspace,
@@ -107,10 +114,15 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 			const { data } = await atlasApi.post(
 				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${activeGeneratedRunId}/sync-setup`
 			);
-			toast.success(
-				`Timetable synced successfully: updated ${data.updatedFacultyCount} teacher assignments, ` +
-				`displaced ${data.displacedEntriesCount} entries, added ${data.addedUnassignedCount} unassigned sessions.`
-			);
+			setSyncResult(data);
+			if (data.displacedEntriesCount > 0 || data.addedUnassignedCount > 0) {
+				setShowPostSyncOffer(true);
+			} else {
+				toast.success(
+					`Timetable synced successfully: updated ${data.updatedFacultyCount} teacher assignments, ` +
+					`displaced ${data.displacedEntriesCount} entries, added ${data.addedUnassignedCount} unassigned sessions.`
+				);
+			}
 			handleRefresh();
 		} catch (err: any) {
 			const msg = err.response?.data?.message || err.message || 'Sync failed.';
@@ -118,6 +130,42 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		} finally {
 			setSyncing(false);
 			setShowSyncConfirm(false);
+		}
+	};
+
+	const handleTriggerQuickPlacePreview = async () => {
+		if (!schoolYearId || activeGeneratedRunId == null) return;
+		setQuickPlaceLoading(true);
+		setShowPostSyncOffer(false);
+		try {
+			const { data } = await atlasApi.post(
+				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${activeGeneratedRunId}/quick-place/preview`
+			);
+			setQuickPlacePlaced(data.placed);
+			setQuickPlaceUnplaced(data.unplaced);
+			setShowQuickPlaceConfirm(true);
+		} catch (err: any) {
+			toast.error(err.response?.data?.message || err.message || 'Quick place preview failed.');
+		} finally {
+			setQuickPlaceLoading(false);
+		}
+	};
+
+	const handleCommitQuickPlace = async () => {
+		if (!schoolYearId || activeGeneratedRunId == null || !draft) return;
+		setQuickPlaceLoading(true);
+		try {
+			const { data } = await atlasApi.post(
+				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${activeGeneratedRunId}/quick-place/apply`,
+				{ expectedRunVersion: draft.version }
+			);
+			toast.success(`Successfully placed ${data.placedCount} sessions!`);
+			setShowQuickPlaceConfirm(false);
+			handleRefresh();
+		} catch (err: any) {
+			toast.error(err.response?.data?.message || err.message || 'Failed to apply quick placements.');
+		} finally {
+			setQuickPlaceLoading(false);
 		}
 	};
 	const inputState = draft?.inputState;
@@ -671,6 +719,25 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					onClick={() => setSeverityFilter('wellbeing')}
 				/>
 			</TimetableToolbar>
+
+			<ConfirmationModal
+				open={showPostSyncOffer}
+				onOpenChange={setShowPostSyncOffer}
+				title="Auto-Place Displaced Sessions?"
+				description={`Sync complete: updated ${syncResult?.updatedFacultyCount} assignments, displaced ${syncResult?.displacedEntriesCount} entries, and added ${syncResult?.addedUnassignedCount} unassigned sessions. Would you like ATLAS to automatically run the Quick Place algorithm to schedule these displaced/unassigned sessions?`}
+				onConfirm={handleTriggerQuickPlacePreview}
+				confirmText="Auto-Place Sessions"
+				variant="success"
+			/>
+
+			<QuickPlaceSummaryModal
+				open={showQuickPlaceConfirm}
+				onOpenChange={setShowQuickPlaceConfirm}
+				placed={quickPlacePlaced}
+				unplaced={quickPlaceUnplaced}
+				onConfirm={handleCommitQuickPlace}
+				loading={quickPlaceLoading}
+			/>
 		</div>
 	);
 }

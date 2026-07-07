@@ -169,39 +169,39 @@ export function RightPanel(props: RightPanelProps) {
 									<div className="px-3 py-2 space-y-2">
 										<div className="flex items-center gap-1.5">
 											<span className="text-xs font-medium">{preGenKbSource.item.sectionName}{preGenKbSource.item.cohortCode ? ` · ${preGenKbSource.item.cohortCode}` : ''}</span>
-											{(() => { const g = preGenKbSource.item.gradeLevel; const bg = gradeBadge[g]; return bg ? <Badge variant="outline" className={`h-4 px-1 text-[0.5625rem] shrink-0 ${bg}`}>G{g}</Badge> : null; })()}
+											{(() => { const g = preGenKbSource.item.gradeLevel; const bg = gradeBadge[g]; return bg ? <Badge variant="outline" className={`h-4 px-1.5 text-xs shrink-0 ${bg}`}>G{g}</Badge> : null; })()}
 										</div>
-										<div className="flex items-center gap-2 rounded border border-border bg-muted/20 px-2 py-1">
+										<div className="flex items-center gap-2 rounded border border-border bg-muted/20 px-2 py-1.5">
 											{preGenKbSource.item.hasNoTeacher ? (
 												<>
 													<UserX className="size-4 shrink-0 text-amber-500" />
-													<p className="text-[0.6875rem] text-amber-700">No teacher assigned — place without faculty</p>
+													<p className="text-xs text-amber-700">No teacher assigned — place without faculty</p>
 												</>
 											) : preGenKbSource.item.facultyOptions[0] ? (
 												<>
-													<div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-[0.625rem] font-semibold text-primary shrink-0">
+													<div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary shrink-0">
 														{initials(facultyMap.get(preGenKbSource.item.facultyOptions[0])?.firstName ?? null, facultyMap.get(preGenKbSource.item.facultyOptions[0])?.lastName ?? null)}
 													</div>
 													<div className="min-w-0">
-														<p className="truncate text-[0.6875rem] font-medium text-foreground">{formatFacultyInitials(preGenKbSource.item.facultyOptions[0])}</p>
-														<p className="truncate text-[0.625rem] text-muted-foreground">{facultyMap.get(preGenKbSource.item.facultyOptions[0])?.department ?? 'No department'}</p>
+														<p className="truncate text-xs font-semibold text-foreground">{formatFacultyInitials(preGenKbSource.item.facultyOptions[0])}</p>
+														<p className="truncate text-xs text-muted-foreground">{facultyMap.get(preGenKbSource.item.facultyOptions[0])?.department ?? 'No department'}</p>
 													</div>
 												</>
 											) : (
-												<p className="text-[0.6875rem] text-muted-foreground">No faculty selected</p>
+												<p className="text-xs text-muted-foreground">No faculty selected</p>
 											)}
 										</div>
-										<div className="flex items-center justify-between text-[0.6875rem]">
+										<div className="flex items-center justify-between text-xs">
 											<span className="text-muted-foreground">Session</span>
 											<span className="font-medium tabular-nums">{preGenKbSource.item.sessionNumber} / {preGenKbSource.item.sessionsPerWeek} this week</span>
 										</div>
 										{preGenKbSource.item.preferredRoomType && (
-											<div className="flex items-center justify-between text-[0.6875rem]">
+											<div className="flex items-center justify-between text-xs">
 												<span className="text-muted-foreground">Preferred room</span>
 												<span className="font-medium">{preGenKbSource.item.preferredRoomType}</span>
 											</div>
 										)}
-										<div className="rounded border border-primary/20 bg-primary/5 px-2.5 py-2 text-[0.625rem] text-primary flex items-start gap-2">
+										<div className="rounded border border-primary/20 bg-primary/5 px-2.5 py-2 text-xs text-primary flex items-start gap-2">
 											<Crosshair className="size-3 shrink-0 mt-0.5" />
 											<span>{isDesktop ? 'Recovery only: click or drag onto a slot when a generated session remains blocked.' : 'Recovery only: tap a slot when a generated session remains blocked.'}</span>
 										</div>
@@ -257,70 +257,70 @@ export function RightPanel(props: RightPanelProps) {
 											return (
 												<>
 													<div className="flex items-center gap-1.5">
-														<span className="text-xs font-medium">{sectionLabel(selectedEntry.sectionId)}</span>
-														{gradeStyle && <Badge variant="outline" className={`h-4 px-1 text-[0.5625rem] shrink-0 ${gradeStyle}`}>G{grade}</Badge>}
+														<span className="text-xs font-semibold">{sectionLabel(selectedEntry.sectionId)}</span>
+														{gradeStyle && <Badge variant="outline" className={`h-4 px-1.5 text-xs shrink-0 ${gradeStyle}`}>G{grade}</Badge>}
 													</div>
-													<div className="flex items-center gap-2 rounded border border-border bg-muted/20 px-2 py-1">
+													<div className="flex items-center gap-2 rounded border border-border bg-muted/20 px-2.5 py-1.5">
 														{facultyPhotoUrl ? (
 															<img src={facultyPhotoUrl} alt={facultyLabel(selectedEntry.facultyId)} className="size-8 rounded-full object-cover" />
 														) : (
-															<div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-[0.625rem] font-semibold text-primary">
+															<div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
 																{initials(faculty?.firstName ?? null, faculty?.lastName ?? null)}
 															</div>
 														)}
-														<div className="min-w-0">
-															<p className="truncate text-[0.6875rem] font-medium text-foreground">{facultyLabel(selectedEntry.facultyId)}</p>
-															<p className="truncate text-[0.625rem] text-muted-foreground">
+														<div className="min-w-0 flex-1">
+															<p className="truncate text-xs font-semibold text-foreground">{facultyLabel(selectedEntry.facultyId)}</p>
+															<p className="truncate text-xs text-muted-foreground">
 																{faculty?.department ?? 'No department'} · {faculty?.advisedSectionName ?? 'No advisory class'}
 															</p>
 														</div>
 													</div>
-													<p className="text-[0.6875rem] text-muted-foreground">{dayShort[selectedEntry.day]} {formatTime(selectedEntry.startTime)}–{formatTime(selectedEntry.endTime)}</p>
-													<p className="text-[0.6875rem] text-muted-foreground truncate">{roomLabel(selectedEntry.roomId)}</p>
-													<div className="space-y-1 rounded border border-border bg-muted/20 px-2 py-1.5">
-														<p className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground">Room Request</p>
+													<p className="text-xs text-muted-foreground font-medium">{dayShort[selectedEntry.day]} {formatTime(selectedEntry.startTime)}–{formatTime(selectedEntry.endTime)}</p>
+													<p className="text-xs text-muted-foreground font-medium truncate">{roomLabel(selectedEntry.roomId)}</p>
+													<div className="space-y-1 rounded border border-border bg-muted/20 px-2.5 py-2">
+														<p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Room Request</p>
 														{matchingRequest ? (
 															<>
-																<p className="text-[0.6875rem] text-foreground truncate">Requested: {matchingRequest.requestedRoomName}</p>
-																<p className="text-[0.625rem] text-muted-foreground">
+																<p className="text-xs text-foreground truncate">Requested: {matchingRequest.requestedRoomName}</p>
+																<p className="text-xs text-muted-foreground">
 																	Status: {matchingRequest.decisionStatus} · Reason: {matchingRequest.rationale ?? '—'}
 																</p>
-																<p className="text-[0.625rem] text-muted-foreground truncate">
+																<p className="text-xs text-muted-foreground truncate">
 																	Reviewer notes: {matchingRequest.reviewerNotes ?? '—'}
 																</p>
 																{matchingRequest.appealCount > 0 ? (
-																	<p className="text-[0.625rem] text-muted-foreground">
+																	<p className="text-xs text-muted-foreground">
 																		Appeals: {matchingRequest.appealCount} total ({matchingRequest.openAppealCount} open) · Latest {matchingRequest.latestAppealStatus ?? '—'}
 																	</p>
 																) : null}
 															</>
 														) : (
-															<p className="text-[0.625rem] text-muted-foreground">No request linked to this session.</p>
+															<p className="text-xs text-muted-foreground">No request linked to this session.</p>
 														)}
 													</div>
 													{isPreGenerationWorkspace && previewResult?.softViolations.length ? (
-														<div className="space-y-1 rounded border border-amber-200 bg-amber-50 px-2 py-1.5">
-															<p className="text-[0.625rem] font-semibold uppercase tracking-wide text-amber-800">Latest Move Warnings</p>
+														<div className="space-y-1 rounded border border-amber-200 bg-amber-50 px-2.5 py-2">
+															<p className="text-xs font-bold uppercase tracking-wider text-amber-800">Latest Move Warnings</p>
 															{previewResult.softViolations.slice(0, 3).map((warning: any, idx: number) => (
-																<p key={`${warning.code}-${idx}`} className="text-[0.625rem] text-amber-900 leading-snug">
+																<p key={`${warning.code}-${idx}`} className="text-xs text-amber-900 leading-snug">
 																	{formatConstraintMessage(warning.message)}
 																</p>
 															))}
 															{previewResult.softViolations.length > 3 ? (
-																<p className="text-[0.5625rem] text-amber-700">+{previewResult.softViolations.length - 3} more warning(s)</p>
+																<p className="text-xs text-amber-700">+{previewResult.softViolations.length - 3} more warning(s)</p>
 															) : null}
 														</div>
 													) : null}
 													{entryViolations.length > 0 && (
-														<div className="space-y-1 pt-1">
+														<div className="space-y-1 pt-1.5">
 															<div className="flex items-center gap-1.5">
 																{entryViolations.some((v: any) => v.severity === 'HARD') && (
-																	<Badge variant="outline" className="h-4 px-1.5 text-[0.5rem] border-red-300 bg-red-50 text-red-700">
+																	<Badge variant="outline" className="h-4.5 px-1.5 text-xs font-bold border-red-300 bg-red-50 text-red-700">
 																		{entryViolations.filter((v: any) => v.severity === 'HARD').length} hard
 																	</Badge>
 																)}
 																{entryViolations.some((v: any) => v.severity === 'SOFT') && (
-																	<Badge variant="outline" className="h-4 px-1.5 text-[0.5rem] border-amber-300 bg-amber-50 text-amber-700">
+																	<Badge variant="outline" className="h-4.5 px-1.5 text-xs font-bold border-amber-300 bg-amber-50 text-amber-700">
 																		{entryViolations.filter((v: any) => v.severity === 'SOFT').length} soft
 																	</Badge>
 																)}
@@ -329,16 +329,16 @@ export function RightPanel(props: RightPanelProps) {
 																const explanation = violationExplanations[v.code];
 																return (
 																	<TooltipProvider key={i}>
-																		<Tooltip delayDuration={200}>
+																		<Tooltip delayDuration={300}>
 																			<TooltipTrigger asChild>
-																				<div className={`rounded px-2 py-1 text-[0.625rem] leading-snug cursor-help ${v.severity === 'HARD' ? 'border border-red-200 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 dark:border-red-800' : 'border border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800'}`}>
+																				<div className={`rounded px-2.5 py-1 text-xs leading-snug cursor-help ${v.severity === 'HARD' ? 'border border-red-200 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 dark:border-red-800' : 'border border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800'}`}>
 																					{violationLabels[v.code] ?? v.code}
 																				</div>
 																			</TooltipTrigger>
 																			{explanation && (
 																				<TooltipContent side="left" className="max-w-62.5 text-xs">
-																					<p className="font-medium mb-1">{violationLabels[v.code]}</p>
-																					<p className="text-muted-foreground">{explanation.why}</p>
+																					<p className="font-semibold mb-1">{violationLabels[v.code]}</p>
+																					<p className="text-muted-foreground leading-normal">{explanation.why}</p>
 																				</TooltipContent>
 																			)}
 																		</Tooltip>
@@ -353,15 +353,15 @@ export function RightPanel(props: RightPanelProps) {
 									</div>
 								</ScrollArea>
 
-								<div className="shrink-0 border-t border-border px-3 py-2 space-y-1.5 bg-background" data-tutorial="manual-edit-actions">
+								<div className="shrink-0 border-t border-border px-3 py-2.5 space-y-2 bg-background" data-tutorial="manual-edit-actions">
 									{isPreGenerationWorkspace && selectedEntry?.entryId.startsWith('draft-placement-') ? (
 										<>
-											<p className="text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground">Draft Actions</p>
-											<p className="text-[0.625rem] text-muted-foreground">Use draft actions while pre-generation is active. Generated-run manual edit APIs are not used in this mode.</p>
+											<p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Draft Actions</p>
+											<p className="text-xs text-muted-foreground leading-normal">Use draft actions while pre-generation is active. Generated-run manual edit APIs are not used in this mode.</p>
 											<Button
 												variant="outline"
 												size="sm"
-												className="w-full h-7 text-xs justify-start"
+												className="w-full h-8 text-xs justify-start"
 												onClick={() => {
 													const placementId = parseDraftPlacementId(selectedEntry.entryId);
 													const placement = placementId != null ? draftBoard?.placements.find((candidate: any) => candidate.id === placementId) : undefined;
@@ -376,7 +376,7 @@ export function RightPanel(props: RightPanelProps) {
 													toast.info('Select a destination slot in the timetable to move this pinned session.');
 												}}
 											>
-												<Clock className="size-3 mr-1.5" />Move Pinned Session
+												<Clock className="size-3.5 mr-2 shrink-0" />Move Pinned Session
 											</Button>
 											{(() => {
 												const pid = parseDraftPlacementId(selectedEntry.entryId);
@@ -385,13 +385,13 @@ export function RightPanel(props: RightPanelProps) {
 													<Button
 														variant="outline"
 														size="sm"
-														className="w-full h-7 text-xs justify-start text-destructive border-destructive/40 hover:bg-destructive/5"
+														className="w-full h-8 text-xs justify-start text-destructive border-destructive/40 hover:bg-destructive/5"
 														disabled={deletingPlacementId === pid}
 														onClick={() => { setPendingUnassignId(pid); setShowUnassignConfirm(true); }}
 													>
 														{deletingPlacementId === pid
-															? <><Loader2 className="size-3 mr-1.5 animate-spin" />Removing...</>
-															: <><Trash2 className="size-3 mr-1.5" />Unassign (Return to Queue)</>
+															? <><Loader2 className="size-3.5 mr-2 animate-spin shrink-0" />Removing...</>
+															: <><Trash2 className="size-3.5 mr-2 shrink-0" />Unassign (Return to Queue)</>
 														}
 													</Button>
 												);
@@ -399,21 +399,21 @@ export function RightPanel(props: RightPanelProps) {
 										</>
 									) : (
 										<>
-											<p className="text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground">Recovery Actions</p>
-											<p className="text-[0.625rem] text-muted-foreground">Use only for residual blocked sessions after generation and Teaching Load review.</p>
-											<Button variant="outline" size="sm" className="w-full h-7 text-xs justify-start" onClick={() => {
+											<p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Recovery Actions</p>
+											<p className="text-xs text-muted-foreground leading-normal">Use only for residual blocked sessions after generation and Teaching Load review.</p>
+											<Button variant="outline" size="sm" className="w-full h-8 text-xs justify-start" onClick={() => {
 												setKbSelectedSource({ type: 'entry', entry: selectedEntry! });
 												setSelectedEntry(null);
 												setSelectedViolation(null);
 												toast.info('Recovery move selected. Click a target cell to relocate the blocked session.');
 											}} aria-label="Move timeslot">
-												<Clock className="size-3 mr-1.5" />Move Timeslot
+												<Clock className="size-3.5 mr-2 shrink-0" />Move Timeslot
 											</Button>
-											<Button variant="outline" size="sm" className="w-full h-7 text-xs justify-start" onClick={() => enterManualEditView('CHANGE_ROOM')} aria-label="Change room">
-												<DoorOpen className="size-3 mr-1.5" />Change Room
+											<Button variant="outline" size="sm" className="w-full h-8 text-xs justify-start" onClick={() => enterManualEditView('CHANGE_ROOM')} aria-label="Change room">
+												<DoorOpen className="size-3.5 mr-2 shrink-0" />Change Room
 											</Button>
-											<Button variant="outline" size="sm" className="w-full h-7 text-xs justify-start" onClick={() => enterManualEditView('CHANGE_FACULTY')} aria-label="Reassign teacher">
-												<Users className="size-3 mr-1.5" />Reassign Faculty
+											<Button variant="outline" size="sm" className="w-full h-8 text-xs justify-start" onClick={() => enterManualEditView('CHANGE_FACULTY')} aria-label="Reassign teacher">
+												<Users className="size-3.5 mr-2 shrink-0" />Reassign Faculty
 											</Button>
 										</>
 									)}

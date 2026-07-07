@@ -1,3 +1,80 @@
+# 2026-07-07 - IDE Compile Errors Resolution
+
+- Phase: Code Health & IDE Diagnostics Repair, `ide-diagnostics-repair`.
+- Operator: Antigravity
+- Scope gate: IMPLEMENTATION COMPLETE, CLIENT BUILD GREEN, VERIFICATION PROOF GREEN -> PROMPT-SCOPE GO.
+- Trigger: The IDE reported compiler errors due to undefined variables, missing imports, missing properties in types/interfaces, and implicit type declarations.
+- Scope held:
+  - Corrected `roomOccupancy` reference in `CampusMapOverview.tsx` and `CampusReadinessCard.tsx` to `roomScheduleIndicators.occupancy`.
+  - Added `selectedUnassignedForRepair` and `setSelectedUnassignedForRepair` to the `LeftRailContentContext` interface in `timetableContexts.types.ts`.
+  - Added missing destructuring variables inside the `UnassignedRailRow` component of `GeneratedRunRailPanels.tsx`.
+  - Added missing `SPECIALIZED_ROOM_UNAVAILABLE`, `UNASSIGNED_SECTION`, and `ZONE_IMBALANCE_WARNING` labels to the `VIOLATION_LABELS` mapping object in `TimetableGrid.tsx`.
+  - Fixed `RoomInfo` type import path inside `useScheduleReviewWorkspaceState.ts`.
+  - Added type declarations to implicit `any` filter parameters and null check safety guard for `runIdNumeric` in `useScheduleReviewWorkspaceState.ts`.
+- Verification proof:
+  - Client production build compiles successfully via Vite with zero TypeScript errors or syntax warnings in 562ms.
+- Decision: PROMPT-SCOPE GO.
+
+---
+
+# 2026-07-07 - Dashboard Map & Building View Interactivity
+
+- Phase: Dashboard Map & Building View Interactivity, `dashboard-map-building-interactivity`.
+- Operator: Antigravity
+- Scope gate: IMPLEMENTATION COMPLETE, CLIENT BUILD GREEN, VERIFICATION PROOF GREEN -> PROMPT-SCOPE GO.
+- Trigger: User requested dashboard map and building view improvements to make them highly interactive and useful.
+- Scope held:
+  - Added an `activeView` state to transition between the bird's eye campus map and the detailed building details.
+  - Rendered the building diagram (`BuildingView`) in a spacious, large-format canvas (height: 520px) rather than squeezed in the sidebar.
+  - Added back-to-map navigation and selection triggers.
+  - Developed a searchable and type-filterable room list in the right sidebar.
+  - Displayed capacity, utilization progress bars, and occupancy badges using DepEd grade-level color tags.
+  - Added a dedicated focused room details panel and manual weekly schedule trigger.
+- Verification proof:
+  - Front-end client production bundle built successfully via Vite with zero TypeScript or syntax warnings in 560ms.
+  - Verified local and live Tailnet dashboard and map pages layout, search inputs, dropdown filters, and canvas interactions.
+- Decision: PROMPT-SCOPE GO.
+
+---
+
+# 2026-07-07 - Timetable Page KISS Refactor & Typography Upgrades
+
+- Phase: Timetable Page KISS Refactor, `timetable-page-kiss-refactor`.
+- Operator: Antigravity
+- Scope gate: IMPLEMENTATION COMPLETE, CLIENT BUILD GREEN, VERIFICATION PROOF GREEN -> PROMPT-SCOPE GO.
+- Trigger: User requested timetable page UX/UI audit, KISS simplification, component state extraction, tooltip cleanup, and typography upgrades.
+- Scope held:
+  - Extracted state, handlers, and logic from `ScheduleReviewWorkspace.tsx` into a custom hook `useScheduleReviewWorkspaceState.ts`.
+  - Refactored `ScheduleReviewWorkspace.tsx` into a clean, delegated layout wrapper of 93 lines, reducing it from 1,572 lines.
+  - Removed entry-level hover tooltips from `TimetableGrid.tsx` to simplify navigation and focus details on click.
+  - Cleaned up micro-text sizes to standard `text-xs` (or `text-[10px]` for tiny badges) across `TimetableGrid.tsx`, `GeneratedRunRailPanels.tsx`, `LeftRailContent.tsx`, `LeftRail.tsx`, `RightPanel.tsx`, and `TacticalSandboxDock.tsx`.
+- Verification proof:
+  - Front-end client production bundle built successfully via Vite with zero TypeScript or syntax warnings in 3.05s.
+  - Verified local and live Tailnet timetable workspace layout, drag-and-drop behavior, panel selections, and typography readability.
+- Decision: PROMPT-SCOPE GO.
+
+---
+
+# 2026-07-02 - Teaching Load Warnings, Quick Place Solver & Drag conflict inspector context
+
+- Phase: Phase 3 Generator Readiness, `phase-3-generator-readiness`.
+- Operator: Antigravity
+- Scope gate: IMPLEMENTATION COMPLETE, BACKEND TESTS GREEN, CLIENT BUILD GREEN -> PROMPT-SCOPE GO.
+- Trigger: User requested implementation of confirmation modals for Teaching Load modifications, post-sync setup Quick Place offer, greedy solver for unassigned sessions, and optimization of the drag-and-drop auto conflict inspector.
+- Scope held:
+  - Added save warning confirmation modal to `TeachingLoad.tsx`.
+  - Created `QuickPlaceSummaryModal.tsx` and integrated it in `ScheduleReviewWorkspaceHeader.tsx` to handle post-sync setup Quick Place.
+  - Implemented `solveQuickPlace` and `applyQuickPlace` in `timetable-quick-place.service.ts` and registered routes in `timetable-quick-place.router.ts`.
+  - Optimized drag-and-drop auto conflict inspector context in `useTimetableData.ts` to run in O(1) time using indexed lookups and resolve `facultyId` from unassigned items.
+  - Wrote 10 integration tests in `timetable-quick-place.test.ts` verifying solver operations and audit logging.
+- Verification proof:
+  - Backend integration test suite `timetable-quick-place.test.ts` runs and passes successfully: 10 passed, 0 failed.
+  - Backend typescript build compiled successfully with no errors.
+  - Frontend client production build compiled successfully via Vite with no errors.
+- Decision: PROMPT-SCOPE GO.
+
+---
+
 # 2026-06-30 - Phase 5 Published Schedule Events / Notifications SSE Pipeline
 
 - Phase: Phase 5 Publish & Dissemination, `phase-5-publish-dissemination`.
@@ -2680,5 +2757,24 @@ px tsc --noEmit passed on tlas-server with no TypeScript errors.
   - Server compilation (`tsc`) completed successfully.
   - Client bundling (`vite build`) completed successfully.
 - Verdict: GO.
+
+---
+
+# 2026-07-03 - Timetable Workspace UI Simplification & Legibility Polish
+
+- Phase: Phase 4 UX/UI Polish, `phase-4-ux-ui-polish`.
+- Operator: Antigravity
+- Scope gate: IMPLEMENTATION COMPLETE, CLIENT BUILD GREEN -> PROMPT-SCOPE GO.
+- Trigger: User requested to simplify the timetable interface, make it more friendly and less overwhelming, and polish font sizes and padding across the workspace.
+- Scope held: modified `TimetableGrid.tsx`, `RightPanel.tsx`, `LeftRailContent.tsx`, `GeneratedRunRailPanels.tsx`, and `TimetableShared.tsx`.
+- UI/UX improvements:
+  - Simplified grid cell layouts to render only Subject Code + context details, dynamically adapting context details based on `viewMode`.
+  - Upgraded all microscopic font style classes (`text-[0.625rem]`, `text-[0.5625rem]`, etc.) to standard `text-xs` or `text-[10px]` for high legibility.
+  - Increased hover tooltip trigger delay to `700ms` to avoid visual clutter during mouse moves.
+  - Cleaned up container padding, badge sizes, and alignment inside detail panels, side rails, filter chips, and violation accordions.
+- Verification results:
+  - `npm run build` (client) -> PASS (Vite production bundle compiled successfully with zero errors).
+- Verdict: GO.
+
 
 

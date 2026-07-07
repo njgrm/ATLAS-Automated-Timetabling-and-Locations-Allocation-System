@@ -500,8 +500,8 @@ export function TacticalSandboxDock({
 			<SheetContent side="bottom" className="flex max-h-[82svh] flex-col gap-3 overflow-hidden p-4 sm:p-5">
 				<SheetHeader className="pr-8">
 					<div className="flex flex-wrap items-center gap-2">
-						<Badge variant="secondary" className="h-5 px-2 text-[0.625rem] uppercase">Teaching Load</Badge>
-						<Badge variant="outline" className="h-5 px-2 text-[0.625rem]">{isPublished ? 'Create revision' : 'Preview and save'}</Badge>
+						<Badge variant="secondary" className="h-5 px-2 text-xs uppercase">Teaching Load</Badge>
+						<Badge variant="outline" className="h-5 px-2 text-xs">{isPublished ? 'Create revision' : 'Preview and save'}</Badge>
 					</div>
 					<SheetTitle>Fix Teacher Assignment</SheetTitle>
 					<SheetDescription>
@@ -529,20 +529,20 @@ export function TacticalSandboxDock({
 								</div>
 								<div className="grid grid-cols-2 gap-2 rounded-md border border-border/70 bg-background p-2">
 									<div>
-										<p className="text-[0.625rem] uppercase text-muted-foreground">Section</p>
+										<p className="text-xs uppercase text-muted-foreground">Section</p>
 										<p className="font-medium">{sectionLabel(activeContextEntry.sectionId)}</p>
 									</div>
 									<div>
-										<p className="text-[0.625rem] uppercase text-muted-foreground">Term</p>
+										<p className="text-xs uppercase text-muted-foreground">Term</p>
 										<p className="font-medium">{activeContextEntry.termIndex ? `Term ${activeContextEntry.termIndex}` : 'Run scope'}</p>
 									</div>
 								</div>
 								<div>
-									<p className="text-[0.625rem] uppercase text-muted-foreground">{selectedUnassigned ? 'Current schedule state' : 'Current teacher'}</p>
+									<p className="text-xs uppercase text-muted-foreground">{selectedUnassigned ? 'Current schedule state' : 'Current teacher'}</p>
 									<p className="font-medium text-foreground">{selectedUnassigned ? 'Not placed yet' : activeContextEntry.facultyId ? facultyLabel(activeContextEntry.facultyId) : 'No teacher assigned'}</p>
 								</div>
 								<div>
-									<p className="text-[0.625rem] uppercase text-muted-foreground">Teaching Load owner</p>
+									<p className="text-xs uppercase text-muted-foreground">Teaching Load owner</p>
 									<p className="font-medium text-foreground">{canonicalOwner ? facultyDisplayName(canonicalOwner) : 'No saved owner'}</p>
 								</div>
 								{canonicalOwnerMismatch ? (
@@ -551,22 +551,22 @@ export function TacticalSandboxDock({
 											<AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
 											<div className="min-w-0">
 												<p className="font-semibold">Timetable and Teaching Load do not match</p>
-												<p className="mt-0.5 text-[0.6875rem]">Choose which source should drive this class before saving.</p>
+												<p className="mt-0.5 text-xs">Choose which source should drive this class before saving.</p>
 												<div className="mt-2 flex flex-wrap gap-1.5">
-													<Button type="button" size="sm" variant="outline" className="h-7 bg-background text-[0.6875rem]" onClick={useTimetableTeacherAsTeachingLoadOwner} disabled={isPublished || !selectedEntry?.facultyId}>
+													<Button type="button" size="sm" variant="outline" className="h-7 bg-background text-xs" onClick={useTimetableTeacherAsTeachingLoadOwner} disabled={isPublished || !selectedEntry?.facultyId}>
 														Use timetable teacher
 													</Button>
-													<Button type="button" size="sm" variant="outline" className="h-7 bg-background text-[0.6875rem]" onClick={() => canonicalOwner ? applyCandidate(canonicalOwner.id) : undefined} disabled={!canonicalOwner}>
+													<Button type="button" size="sm" variant="outline" className="h-7 bg-background text-xs" onClick={() => canonicalOwner ? applyCandidate(canonicalOwner.id) : undefined} disabled={!canonicalOwner}>
 														Use Teaching Load owner
 													</Button>
 												</div>
-												{isPublished ? <p className="mt-1 text-[0.625rem]">Published repairs use revisions only.</p> : null}
+												{isPublished ? <p className="mt-1 text-xs">Published repairs use revisions only.</p> : null}
 											</div>
 										</div>
 									</div>
 								) : null}
 								{subject ? (
-									<div className="rounded border border-border/70 bg-background px-2 py-1.5 text-[0.6875rem] text-muted-foreground">
+									<div className="rounded border border-border/70 bg-background px-2 py-1.5 text-xs text-muted-foreground">
 										Owner: {subject.ownerDepartment ?? subject.allowedOwnerDepartments?.join(', ') ?? 'not set'}
 									</div>
 								) : null}
@@ -580,7 +580,7 @@ export function TacticalSandboxDock({
 									<p className="text-sm font-semibold text-foreground">Choose a teacher</p>
 									<p className="text-xs text-muted-foreground">Search, choose, then preview before saving.</p>
 									</div>
-									<Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-[0.6875rem]" onClick={() => setShowWorkloadDetails((value) => !value)}>
+									<Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setShowWorkloadDetails((value) => !value)}>
 										{showWorkloadDetails ? 'Hide details' : 'Details'}
 									</Button>
 								</div>
@@ -607,20 +607,20 @@ export function TacticalSandboxDock({
 												<div className="min-w-0">
 													<div className="flex flex-wrap items-center gap-1.5">
 														<p className="truncate text-sm font-semibold text-foreground">{facultyDisplayName(candidate.faculty)}</p>
-														{candidate.isCurrent ? <Badge variant="outline" className="h-5 px-1.5 text-[0.625rem]">Current</Badge> : null}
-														{candidate.isSelected ? <Badge className="h-5 px-1.5 text-[0.625rem]">Previewed</Badge> : null}
+														{candidate.isCurrent ? <Badge variant="outline" className="h-5 px-1.5 text-xs">Current</Badge> : null}
+														{candidate.isSelected ? <Badge className="h-5 px-1.5 text-xs">Previewed</Badge> : null}
 													</div>
-													<p className="text-[0.6875rem] text-muted-foreground">{candidate.faculty.department ?? 'Unassigned'}{candidate.faculty.specialization ? ` - ${candidate.faculty.specialization}` : ''}</p>
+													<p className="text-xs text-muted-foreground">{candidate.faculty.department ?? 'Unassigned'}{candidate.faculty.specialization ? ` - ${candidate.faculty.specialization}` : ''}</p>
 												</div>
 												<Button type="button" size="sm" variant={candidate.isSelected ? 'secondary' : 'outline'} className="h-8 text-xs" onClick={() => applyCandidate(candidate.faculty.id)} aria-label={`Use ${facultyDisplayName(candidate.faculty)} for this sandbox repair`}>
 													{candidate.isSelected ? 'Selected' : 'Use teacher'}
 												</Button>
 											</div>
 											<div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-												<Badge variant={candidate.overCapHours > 0 ? 'destructive' : candidate.toCapHours <= 2 ? 'outline' : 'secondary'} className="h-5 px-2 text-[0.625rem]">
+												<Badge variant={candidate.overCapHours > 0 ? 'destructive' : candidate.toCapHours <= 2 ? 'outline' : 'secondary'} className="h-5 px-2 text-xs">
 													{compactLoadStatus(candidate)}
 												</Badge>
-												<p className="text-[0.6875rem] font-medium text-muted-foreground">{candidate.statusLabel}</p>
+												<p className="text-xs font-medium text-muted-foreground">{candidate.statusLabel}</p>
 											</div>
 											{showWorkloadDetails ? (
 												<div className="mt-2 grid gap-2 sm:grid-cols-[1fr_11rem] sm:items-center">
@@ -630,7 +630,7 @@ export function TacticalSandboxDock({
 														maxHours={candidate.faculty.maxHoursPerWeek || MAX_WEEKLY_TEACHING_HOURS}
 														compact
 													/>
-													<div className="text-[0.6875rem] text-muted-foreground sm:text-right">
+													<div className="text-xs text-muted-foreground sm:text-right">
 														<p className="font-medium text-foreground">{formatHours(candidate.creditedTotalHours)} credited</p>
 														<p>{formatHours(candidate.teachingHours)} teaching + {formatHours(candidate.creditHours)} credit</p>
 														<p>{candidate.overCapHours > 0 ? `${formatHours(candidate.overCapHours)} over cap` : `${formatHours(candidate.toCapHours)} to cap`}</p>
@@ -660,8 +660,8 @@ export function TacticalSandboxDock({
 												<Checkbox checked={checked} onCheckedChange={() => toggleBulkEntry(entry.entryId)} aria-label={`Include ${sectionLabel(entry.sectionId)} in sandbox preview`} />
 												<span className="min-w-0 flex-1">
 													<span className="block font-medium text-foreground">{sectionLabel(entry.sectionId)}</span>
-													<span className="block text-[0.6875rem] text-muted-foreground">{entry.day} {formatTime(entry.startTime)}-{formatTime(entry.endTime)}</span>
-													<span className="block truncate text-[0.6875rem] text-muted-foreground">{facultyId ? facultyLabel(facultyId) : 'No teacher'}</span>
+													<span className="block text-xs text-muted-foreground">{entry.day} {formatTime(entry.startTime)}-{formatTime(entry.endTime)}</span>
+													<span className="block truncate text-xs text-muted-foreground">{facultyId ? facultyLabel(facultyId) : 'No teacher'}</span>
 												</span>
 											</label>
 										);
@@ -694,7 +694,7 @@ export function TacticalSandboxDock({
 								{reviewSteps.map((step) => <ReviewStepPill key={step.label} step={step} />)}
 							</div>
 							{batchPreview ? (
-								<Badge variant={canCommitPreview ? 'secondary' : 'destructive'} className="h-5 px-2 text-[0.625rem]">
+								<Badge variant={canCommitPreview ? 'secondary' : 'destructive'} className="h-5 px-2 text-xs">
 									{canCommitPreview ? 'Ready to save' : 'Needs changes'}
 								</Badge>
 							) : null}
@@ -705,7 +705,7 @@ export function TacticalSandboxDock({
 									<AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
 									<div>
 										<p className="font-medium">Preview blocked</p>
-										<p className="mt-0.5 text-[0.6875rem]">{batchPreviewError}</p>
+										<p className="mt-0.5 text-xs">{batchPreviewError}</p>
 									</div>
 								</div>
 							</div>
@@ -715,12 +715,12 @@ export function TacticalSandboxDock({
 								<div className="rounded border border-border/80 bg-muted/20 px-2 py-1.5">
 									<div className="flex items-center justify-between gap-2">
 										<span className="truncate font-medium text-foreground">{sectionLabel(selectedUnassigned.sectionId)}</span>
-										<Badge variant="outline" className="h-4 px-1.5 text-[0.5625rem]">Unassigned</Badge>
+										<Badge variant="outline" className="h-4 px-1.5 text-xs">Unassigned</Badge>
 									</div>
-									<p className="truncate text-[0.6875rem] text-muted-foreground">
+									<p className="truncate text-xs text-muted-foreground">
 										{canonicalOwner ? facultyDisplayName(canonicalOwner) : 'No saved owner'} -&gt; {facultyLabel(unassignedRepairChange.toFacultyId)}
 									</p>
-									<p className="mt-0.5 text-[0.625rem] text-amber-700">Session stays in Needs attention until a valid slot is chosen.</p>
+									<p className="mt-0.5 text-xs text-amber-700">Session stays in Needs attention until a valid slot is chosen.</p>
 								</div>
 							) : null}
 							{draftEntries.filter((entry) => stagedEntryIds.has(entry.entryId)).slice(0, 6).map((entry) => {
@@ -730,28 +730,28 @@ export function TacticalSandboxDock({
 									<div key={entry.entryId} className="rounded border border-border/80 bg-muted/20 px-2 py-1.5">
 										<div className="flex items-center justify-between gap-2">
 											<span className="truncate font-medium text-foreground">{sectionLabel(entry.sectionId)}</span>
-											{rowPreview?.status === 'FAILED' ? <Badge variant="destructive" className="h-4 px-1.5 text-[0.5625rem]">Failed</Badge> : null}
+											{rowPreview?.status === 'FAILED' ? <Badge variant="destructive" className="h-4 px-1.5 text-xs">Failed</Badge> : null}
 										</div>
-										<p className="truncate text-[0.6875rem] text-muted-foreground">{entry.facultyId ? facultyLabel(entry.facultyId) : 'No teacher'} -&gt; {targetFacultyId ? facultyLabel(targetFacultyId) : 'No teacher'}</p>
-										{canonicalOnlyTargets.has(entry.entryId) ? <p className="mt-0.5 text-[0.625rem] text-amber-700">Teaching Load owner will be updated.</p> : null}
-										{rowPreview?.errorMessage ? <p className="mt-1 text-[0.625rem] text-destructive">{rowPreview.errorMessage}</p> : null}
+										<p className="truncate text-xs text-muted-foreground">{entry.facultyId ? facultyLabel(entry.facultyId) : 'No teacher'} -&gt; {targetFacultyId ? facultyLabel(targetFacultyId) : 'No teacher'}</p>
+										{canonicalOnlyTargets.has(entry.entryId) ? <p className="mt-0.5 text-xs text-amber-700">Teaching Load owner will be updated.</p> : null}
+										{rowPreview?.errorMessage ? <p className="mt-1 text-xs text-destructive">{rowPreview.errorMessage}</p> : null}
 									</div>
 								);
 							})}
 						</div>
-						{stagedCount > 6 ? <p className="mt-1.5 text-[0.6875rem] text-muted-foreground">{stagedCount - 6} more staged change{stagedCount - 6 === 1 ? '' : 's'} included in the batch.</p> : null}
+						{stagedCount > 6 ? <p className="mt-1.5 text-xs text-muted-foreground">{stagedCount - 6} more staged change{stagedCount - 6 === 1 ? '' : 's'} included in the batch.</p> : null}
 						{batchPreview ? (
 							<div className={`mt-2 rounded-md border px-2.5 py-2 ${canCommitPreview ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
 								<div className="flex items-start gap-1.5">
 									{canCommitPreview ? <CheckCircle2 className="mt-0.5 size-3.5 shrink-0" /> : <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />}
 									<div>
 										<p className="font-medium">{reviewStatusCopy(batchPreview, canCommitPreview)}</p>
-										<p className="mt-0.5 text-[0.6875rem] opacity-90">Blocking conflicts: {batchPreview.violationDelta.hardAfter}. Warnings to review before publish: {batchPreview.violationDelta.softAfter}.</p>
-										<p className="mt-0.5 text-[0.6875rem] opacity-90">Teaching Load transfers: {batchPreview.ownershipDeltas.filter((delta) => delta.ownershipAction === 'TRANSFER').length}.</p>
+										<p className="mt-0.5 text-xs opacity-90">Blocking conflicts: {batchPreview.violationDelta.hardAfter}. Warnings to review before publish: {batchPreview.violationDelta.softAfter}.</p>
+										<p className="mt-0.5 text-xs opacity-90">Teaching Load transfers: {batchPreview.ownershipDeltas.filter((delta) => delta.ownershipAction === 'TRANSFER').length}.</p>
 									</div>
 								</div>
 								{batchPreview.humanConflicts.slice(0, 2).map((conflict, conflictIndex) => (
-									<p key={`${conflict.code}-${conflict.humanDetail}-${conflictIndex}`} className="mt-1 text-[0.625rem]">{conflict.humanTitle}: {conflict.humanDetail}</p>
+									<p key={`${conflict.code}-${conflict.humanDetail}-${conflictIndex}`} className="mt-1 text-xs">{conflict.humanTitle}: {conflict.humanDetail}</p>
 								))}
 							</div>
 						) : null}
@@ -764,7 +764,7 @@ export function TacticalSandboxDock({
 								/>
 									<span>
 										<span className="block font-medium">Acknowledge {softWarningCount} soft warning{softWarningCount === 1 ? '' : 's'} before saving</span>
-										<span className="block text-[0.6875rem]">The warnings will remain after save. Check this box only if you want to save the batch anyway and review those warnings before publish.</span>
+										<span className="block text-xs">The warnings will remain after save. Check this box only if you want to save the batch anyway and review those warnings before publish.</span>
 									</span>
 							</label>
 						) : null}
@@ -791,8 +791,8 @@ export function TacticalSandboxDock({
 			<DialogContent className="max-w-3xl gap-0 p-0">
 				<DialogHeader className="border-b border-border px-5 py-4">
 					<div className="flex flex-wrap items-center gap-2">
-						<Badge className="h-5 px-2 text-[0.625rem]">Timetable revision</Badge>
-						<Badge variant="outline" className="h-5 px-2 text-[0.625rem]">History preserved</Badge>
+						<Badge className="h-5 px-2 text-xs">Timetable revision</Badge>
+						<Badge variant="outline" className="h-5 px-2 text-xs">History preserved</Badge>
 					</div>
 					<DialogTitle>Schedule a published repair</DialogTitle>
 					<DialogDescription>
@@ -830,16 +830,16 @@ export function TacticalSandboxDock({
 											<p className="text-sm font-semibold text-foreground">{subjectLabel(change.entry.subjectId)}</p>
 											<p className="text-muted-foreground">{sectionLabel(change.entry.sectionId)} · {formatSlot(change.entry, formatTime)}</p>
 										</div>
-										{change.targetCapacity ? <Badge variant="outline" className="h-5 px-2 text-[0.625rem]">{change.targetCapacity.statusLabel}</Badge> : null}
+										{change.targetCapacity ? <Badge variant="outline" className="h-5 px-2 text-xs">{change.targetCapacity.statusLabel}</Badge> : null}
 									</div>
 									<div className="mt-3 grid gap-2 sm:grid-cols-2">
 										<div className="rounded-md border border-border/70 bg-muted/20 p-2">
-											<p className="text-[0.625rem] uppercase text-muted-foreground">Current published</p>
+											<p className="text-xs uppercase text-muted-foreground">Current published</p>
 											<p className="font-medium text-foreground">{change.entry.facultyId ? facultyLabel(change.entry.facultyId) : 'No teacher assigned'}</p>
 											<p className="text-muted-foreground">Room {change.entry.roomId} · {formatSlot(change.entry, formatTime)}</p>
 										</div>
 										<div className="rounded-md border border-primary/20 bg-primary/5 p-2">
-											<p className="text-[0.625rem] uppercase text-primary/80">Revision after effective date</p>
+											<p className="text-xs uppercase text-primary/80">Revision after effective date</p>
 											<p className="font-medium text-foreground">{facultyLabel(change.targetFacultyId)}</p>
 											<p className="text-muted-foreground">Room {change.entry.roomId} · {formatSlot(change.entry, formatTime)}</p>
 										</div>

@@ -30,11 +30,11 @@ export function FilterChip({
 	return (
 		<Badge
 			variant="outline"
-			className={`h-6 px-2 text-[0.6875rem] cursor-pointer select-none ${base}`}
+			className={`h-6.5 px-2.5 py-1 text-xs cursor-pointer select-none ${base}`}
 			onClick={onClick}
 		>
 			{label}
-			<span className="ml-1 opacity-70">{count}</span>
+			<span className="ml-1 opacity-70 font-semibold">{count}</span>
 		</Badge>
 	);
 }
@@ -135,17 +135,17 @@ export function ViolationGroup({
 					<div className="flex min-w-0 flex-1 items-center gap-2 text-left">
 						<Badge
 							variant="outline"
-							className={`h-4 px-1 text-[0.5625rem] ${isHard ? 'border-red-300 bg-red-50 text-red-700' : 'border-amber-300 bg-amber-50 text-amber-700'}`}
+							className={`h-4.5 px-1.5 text-xs ${isHard ? 'border-red-300 bg-red-50 text-red-700' : 'border-amber-300 bg-amber-50 text-amber-700'}`}
 						>
 							{isHard ? 'HARD' : 'SOFT'}
 						</Badge>
-						<span className="truncate text-xs font-medium">{groupLabel}</span>
-						<span className="ml-auto shrink-0 text-[0.6875rem] text-muted-foreground">{violations.length}</span>
+						<span className="truncate text-xs font-semibold">{groupLabel}</span>
+						<span className="ml-auto shrink-0 text-xs text-muted-foreground font-semibold">{violations.length}</span>
 					</div>
 				</AccordionTrigger>
 				<AccordionContent className="border-t border-border pb-0">
 					<div>
-						<p className="border-b border-border/70 px-3 py-1.5 text-[0.625rem] font-medium text-muted-foreground">
+						<p className="border-b border-border/70 px-3 py-2 text-xs font-bold text-muted-foreground">
 							{groupSummary}
 						</p>
 						{visibleViolations.map((v, i) => {
@@ -167,12 +167,12 @@ export function ViolationGroup({
 														variant="ghost"
 														size="sm"
 														onClick={() => onSelect(v)}
-														className="h-auto min-h-9 flex-1 justify-start rounded-none px-3 py-2 text-left text-[0.6875rem] leading-tight transition-colors hover:bg-transparent"
+														className="h-auto min-h-9 flex-1 justify-start rounded-none px-3 py-2 text-left text-xs leading-tight transition-colors hover:bg-transparent"
 													>
 														<span className="line-clamp-2 underline decoration-dashed decoration-muted-foreground/50 underline-offset-2">{formattedMessage}</span>
 													</Button>
 												</TooltipTrigger>
-												<TooltipContent className="max-w-70 text-[0.625rem] font-normal leading-relaxed space-y-1 py-2 px-3 border-amber-200 bg-amber-50 text-amber-900" side="right">
+												<TooltipContent className="max-w-70 text-xs font-normal leading-relaxed space-y-1 py-2 px-3 border-amber-200 bg-amber-50 text-amber-900" side="right">
 													<div className="font-semibold text-amber-700 pb-1 mb-1 border-b border-amber-200/60">Constraint Context</div>
 													{v.meta.consecutiveMinutes != null && v.meta.maxConsecutive != null && (
 														<div>Observed: {String(v.meta.consecutiveMinutes)} min · Limit: {String(v.meta.maxConsecutive)} min · <span className="font-semibold">Δ +{Number(v.meta.consecutiveMinutes) - Number(v.meta.maxConsecutive)} min</span></div>
@@ -204,7 +204,7 @@ export function ViolationGroup({
 											variant="ghost"
 											size="sm"
 											onClick={() => onSelect(v)}
-											className="h-auto min-h-9 flex-1 justify-start rounded-none px-3 py-2 text-left text-[0.6875rem] leading-tight transition-colors hover:bg-transparent"
+											className="h-auto min-h-9 flex-1 justify-start rounded-none px-3 py-2 text-left text-xs leading-tight transition-colors hover:bg-transparent"
 										>
 											<span className="line-clamp-2">{formattedMessage}</span>
 										</Button>
@@ -218,7 +218,7 @@ export function ViolationGroup({
 												e.stopPropagation();
 												onExplain(v);
 											}}
-											className="h-auto self-stretch rounded-none px-2 py-1.5 text-[0.625rem] font-medium text-primary hover:bg-transparent hover:underline"
+											className="h-auto self-stretch rounded-none px-2 py-1.5 text-xs font-semibold text-primary hover:bg-transparent hover:underline"
 										>
 											Explain
 										</Button>
@@ -228,12 +228,12 @@ export function ViolationGroup({
 							);
 						})}
 						{hiddenCount > 0 ? (
-							<div className="border-t border-border/70 p-2">
+							<div className="border-t border-border/70 p-2.5">
 								<Button
 									type="button"
 									variant="outline"
 									size="sm"
-									className="h-7 w-full text-[0.625rem]"
+									className="h-8 w-full text-xs font-semibold"
 									onClick={() => setVisibleCount((count) => count + 10)}
 								>
 									Show more ({hiddenCount} left)

@@ -49,6 +49,9 @@ const VIOLATION_LABELS: Record<ViolationCode, string> = {
 	ROOM_CAPACITY_EXCEEDED: 'Room Capacity Exceeded',
 	LACKING_FACULTY: 'Lacking Teacher',
 	INCOMPLETE_MODULAR_GROUP: 'Incomplete Modular Group',
+	SPECIALIZED_ROOM_UNAVAILABLE: 'Specialized Room Unavailable',
+	UNASSIGNED_SECTION: 'Unassigned Section',
+	ZONE_IMBALANCE_WARNING: 'Zone Imbalance Warning',
 };
 
 function entrySeverity(entryId: string, violationIndex: Map<string, Violation[]>): ViolationSeverity | null {
@@ -74,9 +77,6 @@ const DraggableEntry = forwardRef<HTMLDivElement, DraggableEntryProps>(function 
 		data: entryData,
 	});
 
-	// Prevent the click-selection handler from firing immediately after a drag.
-	// PointerSensor suppresses click when pointer moves >8px, but this ref guards
-	// against edge cases where the synthetic click still propagates.
 	const didDragRef = useRef(false);
 	useEffect(() => {
 		if (draggingThis) {
@@ -210,8 +210,6 @@ export const TimetableGrid = memo(function TimetableGrid({
 	onNavToSection,
 	onNavToRoom,
 }: TimetableGridProps) {
-	// Track drop target locally — avoids propagating setDropTarget up to ScheduleReviewWorkspace
-	// and causing the whole workspace to re-render on every hover during drag.
 	const [dropTarget, setDropTarget] = useState<string | null>(null);
 	useDndMonitor({
 		onDragOver(event) {
@@ -244,349 +242,318 @@ export const TimetableGrid = memo(function TimetableGrid({
 		<TooltipProvider>
 			<div className="overflow-auto">
 				<table className="w-full table-fixed border-collapse text-xs min-w-160">
-				<thead>
-					<tr>
-						<th className="w-20 px-2 py-2 text-left text-muted-foreground font-medium border-b border-border">
-							Time
-						</th>
-						{DAYS.map((day) => (
-							<th
-								key={day}
-								className="w-[20%] px-2 py-2 text-center font-medium text-muted-foreground border-b border-border"
-							>
-								{DAY_SHORT[day]}
+					<thead>
+						<tr>
+							<th className="w-20 px-2 py-2 text-left text-muted-foreground font-medium border-b border-border">
+								Time
 							</th>
-						))}
-					</tr>
-				</thead>
-				<tbody>
-					{timeSlots.map((slot) => (
-						<tr key={`${slot.startTime}-${slot.endTime}`} className="border-b border-border/50">
-							<td className="px-2 py-1.5 text-muted-foreground whitespace-nowrap font-mono text-[0.625rem] align-top">
-								{formatTime(slot.startTime)}
-								<br />
-								<span className="opacity-50">{formatTime(slot.endTime)}</span>
-								{slot.isSpecialEvent && slot.eventName && (
-									<>
-										<br />
-										<span className="inline-flex mt-1 rounded bg-amber-100 px-1.5 py-0.5 text-[0.55rem] font-semibold text-amber-700">
-											{slot.eventName}
-										</span>
-									</>
-								)}
-							</td>
-							{DAYS.map((day) => {
-								const key = `${day}-${slot.startTime}-${slot.endTime}`;
-								const cellEntries = gridIndex.get(key) ?? [];
-								if (slot.isSpecialEvent) {
-									return (
-										<td key={key} className="px-1 py-1 align-top border-l border-border/30 bg-amber-50/40 text-center text-[0.65rem] font-medium text-amber-700">
-											{slot.eventName ?? 'Special Event'}
-										</td>
-									);
-								}
-								const isDropOver = dropTarget === key;
-								const dropFeedbackMode = isDropOver ? (cellEntries.length > 0 ? 'swap' : 'replace') : null;
-								const info = conflictMap?.get(key) ?? null;
-								const isActive = conflictMap !== null;
-								let dropClass = '';
-								if (isActive) {
-									if (info?.kind === 'self') {
-										dropClass = ' ring-2 ring-blue-400/60 bg-blue-50/20';
-									} else if (info?.kind === 'hard') {
-										dropClass = isDropOver
-											? ' ring-2 ring-red-500 bg-red-50/60'
-											: ' ring-1 ring-red-400/50 bg-red-50/25';
-									} else if (info?.kind === 'soft') {
-										dropClass = isDropOver
-											? ' ring-2 ring-amber-400 bg-amber-50/60'
-											: ' ring-1 ring-amber-300/50 bg-amber-50/20';
-									} else {
-										dropClass = isDropOver
-											? ' ring-2 ring-emerald-400 bg-emerald-50/60'
-											: (isDragging || hasKbSource)
-												? ' ring-1 ring-emerald-300/30 bg-emerald-50/10'
-												: '';
+							{DAYS.map((day) => (
+								<th
+									key={day}
+									className="w-[20%] px-2 py-2 text-center font-medium text-muted-foreground border-b border-border"
+								>
+									{DAY_SHORT[day]}
+								</th>
+							))}
+						</tr>
+					</thead>
+					<tbody>
+						{timeSlots.map((slot) => (
+							<tr key={`${slot.startTime}-${slot.endTime}`} className="border-b border-border/50">
+								<td className="px-2 py-1.5 text-muted-foreground whitespace-nowrap font-mono text-xs align-top">
+									{formatTime(slot.startTime)}
+									<br />
+									<span className="opacity-50">{formatTime(slot.endTime)}</span>
+									{slot.isSpecialEvent && slot.eventName && (
+										<>
+											<br />
+											<span className="inline-flex mt-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700">
+												{slot.eventName}
+											</span>
+										</>
+									)}
+								</td>
+								{DAYS.map((day) => {
+									const key = `${day}-${slot.startTime}-${slot.endTime}`;
+									const cellEntries = gridIndex.get(key) ?? [];
+									if (slot.isSpecialEvent) {
+										return (
+											<td key={key} className="px-1 py-1 align-top border-l border-border/30 bg-amber-50/40 text-center text-xs font-medium text-amber-700">
+												{slot.eventName ?? 'Special Event'}
+											</td>
+										);
 									}
-								} else if (isDragging || hasKbSource) {
-									dropClass = isDropOver
+									const isDropOver = dropTarget === key;
+									const dropFeedbackMode = isDropOver ? (cellEntries.length > 0 ? 'swap' : 'replace') : null;
+									const info = conflictMap?.get(key) ?? null;
+									const isActive = conflictMap !== null;
+									let dropClass = '';
+									if (isActive) {
+										if (info?.kind === 'self') {
+											dropClass = ' ring-2 ring-blue-400/60 bg-blue-50/20';
+										} else if (info?.kind === 'hard') {
+											dropClass = isDropOver
+												? ' ring-2 ring-red-500 bg-red-50/60'
+												: ' ring-1 ring-red-400/50 bg-red-50/25';
+										} else if (info?.kind === 'soft') {
+											dropClass = isDropOver
+												? ' ring-2 ring-amber-400 bg-amber-50/60'
+												: ' ring-1 ring-amber-300/50 bg-amber-50/20';
+										} else {
+											dropClass = isDropOver
+												? ' ring-2 ring-emerald-400 bg-emerald-50/60'
+												: (isDragging || hasKbSource)
+													? ' ring-1 ring-emerald-300/30 bg-emerald-50/10'
+													: '';
+										}
+									} else if (isDragging || hasKbSource) {
+										dropClass = isDropOver
 											? ' ring-2 ring-emerald-400 bg-emerald-50/60'
-										: ' ring-1 ring-dashed ring-muted-foreground/20';
-								}
+											: ' ring-1 ring-dashed ring-muted-foreground/20';
+									}
 
-								return (
-									<DroppableCell
-										key={key}
-										cellId={key}
-										cellData={{ day, startTime: slot.startTime, endTime: slot.endTime }}
-										data-day={day}
-										data-start-time={slot.startTime}
-										data-end-time={slot.endTime}
-										className={`px-1 py-1 align-top border-l border-border/30 transition-all${dropClass}`}
-										onMouseEnter={() => {
-											if (hasKbSource) {
-												setDropTarget(key);
-											}
-										}}
-										onMouseLeave={() => {
-											if (hasKbSource && dropTarget === key) {
-												setDropTarget(null);
-											}
-										}}
-										onClick={() => {
-											if (hasKbSource) {
-												onKbPlace(day, slot.startTime, slot.endTime);
-											}
-										}}
-									>
-										{isDropOver && isDragging && dropFeedbackMode && (
-											<div
-												className={cn(
-													'mb-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.5rem] font-semibold uppercase tracking-wide',
-													dropFeedbackMode === 'swap'
-														? 'bg-amber-100 text-amber-800'
-														: 'bg-emerald-100 text-emerald-800',
-												)}
-											>
-												{dropFeedbackMode === 'swap' ? 'Swap Preview' : 'Replace Preview'}
-											</div>
-										)}
-										{isDragging && cellEntries.length > 0 && (
-											<div className="mb-0.5 inline-flex items-center rounded-sm bg-muted px-1 py-0.5 text-[0.5rem] text-muted-foreground">
-												Occupied ({cellEntries.length})
-											</div>
-										)}
-										{isActive && info && (info.kind === 'hard' || info.kind === 'soft') && (
-											showHeavyTooltips ? (
-											<Tooltip delayDuration={150}>
-												<TooltipTrigger asChild>
+									return (
+										<DroppableCell
+											key={key}
+											cellId={key}
+											cellData={{ day, startTime: slot.startTime, endTime: slot.endTime }}
+											data-day={day}
+											data-start-time={slot.startTime}
+											data-end-time={slot.endTime}
+											className={`px-1 py-1 align-top border-l border-border/30 transition-all${dropClass}`}
+											onMouseEnter={() => {
+												if (hasKbSource) {
+													setDropTarget(key);
+												}
+											}}
+											onMouseLeave={() => {
+												if (hasKbSource && dropTarget === key) {
+													setDropTarget(null);
+												}
+											}}
+											onClick={() => {
+												if (hasKbSource) {
+													onKbPlace(day, slot.startTime, slot.endTime);
+												}
+											}}
+										>
+											{isDropOver && isDragging && dropFeedbackMode && (
+												<div
+													className={cn(
+														'mb-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide',
+														dropFeedbackMode === 'swap'
+															? 'bg-amber-100 text-amber-800'
+															: 'bg-emerald-100 text-emerald-800',
+													)}
+												>
+													{dropFeedbackMode === 'swap' ? 'Swap Preview' : 'Replace Preview'}
+												</div>
+											)}
+											{isDragging && cellEntries.length > 0 && (
+												<div className="mb-0.5 inline-flex items-center rounded-sm bg-muted px-1 py-0.5 text-xs text-muted-foreground">
+													Occupied ({cellEntries.length})
+												</div>
+											)}
+											{isActive && info && (info.kind === 'hard' || info.kind === 'soft') && (
+												showHeavyTooltips ? (
+													<Tooltip delayDuration={1000}>
+														<TooltipTrigger asChild>
+															<div className={cn(
+																'mb-0.5 flex h-4 cursor-default items-center gap-0.5 rounded-sm px-1',
+																info.kind === 'hard' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700',
+															)}>
+																{info.kind === 'hard'
+																	? <AlertCircle className="size-3 shrink-0" />
+																	: <AlertTriangle className="size-3 shrink-0" />
+																}
+																<span className="truncate text-xs leading-none font-medium">
+																	{info.reasons[0]?.split(':')[0] ?? info.kind}
+																</span>
+															</div>
+														</TooltipTrigger>
+														<TooltipContent side="right" className="z-100 max-w-64 space-y-1.5 p-2 text-xs">
+															<p className={cn('font-semibold', info.kind === 'hard' ? 'text-red-700' : 'text-amber-700')}>
+																{info.kind === 'hard' ? 'Hard conflict' : 'Soft warning'}
+															</p>
+															{info.reasons.map((reason, reasonIndex) => (
+																<p key={reasonIndex} className="text-muted-foreground">{reason}</p>
+															))}
+															{info.displaced.length > 0 && (
+																<div className="space-y-0.5 border-t border-border/40 pt-1">
+																	<p className="font-medium text-xs">Displaces:</p>
+																	{info.displaced.slice(0, 3).map((displaced, displacedIndex) => (
+																		<p key={displacedIndex} className="text-xs text-muted-foreground">
+																			{displaced.subjectName} - unassigned
+																		</p>
+																	))}
+																</div>
+															)}
+															{info.displaced.length > 0 && (
+																<div className="flex flex-wrap gap-1.5 border-t border-border/40 pt-1">
+																	{Array.from(new Map(info.displaced.map((displaced: any) => [displaced.conflictType, displaced])).values()).map((displaced: any) => (
+																		<Button
+																			key={displaced.conflictType}
+																			variant="link"
+																			size="xs"
+																			className="h-auto p-0 text-xs"
+																			onMouseDown={(event) => {
+																				event.stopPropagation();
+																				if (displaced.conflictType === 'faculty') onNavToFaculty(displaced.entityId);
+																				else if (displaced.conflictType === 'section') onNavToSection(displaced.entityId);
+																				else onNavToRoom(displaced.entityId);
+																			}}
+																		>
+																			- View {displaced.conflictType === 'faculty' ? 'Teacher' : displaced.conflictType === 'section' ? 'Section' : 'Room'}
+																		</Button>
+																	))}
+																</div>
+															)}
+														</TooltipContent>
+													</Tooltip>
+												) : (
 													<div className={cn(
-														'mb-0.5 flex h-3.5 cursor-default items-center gap-0.5 rounded-sm px-1',
+														'mb-0.5 flex h-4 cursor-default items-center gap-0.5 rounded-sm px-1',
 														info.kind === 'hard' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700',
 													)}>
 														{info.kind === 'hard'
-															? <AlertCircle className="size-2 shrink-0" />
-															: <AlertTriangle className="size-2 shrink-0" />
+															? <AlertCircle className="size-3 shrink-0" />
+															: <AlertTriangle className="size-3 shrink-0" />
 														}
-														<span className="truncate text-[0.5rem] leading-none font-medium">
+														<span className="truncate text-xs leading-none font-medium">
 															{info.reasons[0]?.split(':')[0] ?? info.kind}
 														</span>
 													</div>
-												</TooltipTrigger>
-												<TooltipContent side="right" className="z-100 max-w-64 space-y-1.5 p-2 text-xs">
-													<p className={cn('font-semibold', info.kind === 'hard' ? 'text-red-700' : 'text-amber-700')}>
-														{info.kind === 'hard' ? 'Hard conflict' : 'Soft warning'}
-													</p>
-													{info.reasons.map((reason, reasonIndex) => (
-														<p key={reasonIndex} className="text-muted-foreground">{reason}</p>
-													))}
-													{info.displaced.length > 0 && (
-														<div className="space-y-0.5 border-t border-border/40 pt-1">
-															<p className="font-medium text-[0.625rem]">Displaces:</p>
-															{info.displaced.slice(0, 3).map((displaced, displacedIndex) => (
-																<p key={displacedIndex} className="text-[0.625rem] text-muted-foreground">
-																	{displaced.subjectName} - unassigned
-																</p>
-															))}
-														</div>
-													)}
-													{info.displaced.length > 0 && (
-														<div className="flex flex-wrap gap-1.5 border-t border-border/40 pt-1">
-															{Array.from(new Map(info.displaced.map((displaced) => [displaced.conflictType, displaced])).values()).map((displaced) => (
-																<Button
-																	key={displaced.conflictType}
-																	variant="link"
-																	size="xs"
-																	className="h-auto p-0 text-[0.625rem]"
-																	onMouseDown={(event) => {
-																		event.stopPropagation();
-																		if (displaced.conflictType === 'faculty') onNavToFaculty(displaced.entityId);
-																		else if (displaced.conflictType === 'section') onNavToSection(displaced.entityId);
-																		else onNavToRoom(displaced.entityId);
-																	}}
-																>
-																		- View {displaced.conflictType === 'faculty' ? 'Teacher' : displaced.conflictType === 'section' ? 'Section' : 'Room'}
-																</Button>
-															))}
-														</div>
-													)}
-												</TooltipContent>
-											</Tooltip>
-											) : (
-												<div className={cn(
-													'mb-0.5 flex h-3.5 cursor-default items-center gap-0.5 rounded-sm px-1',
-													info.kind === 'hard' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700',
-												)}>
-													{info.kind === 'hard'
-														? <AlertCircle className="size-2 shrink-0" />
-														: <AlertTriangle className="size-2 shrink-0" />
-													}
-													<span className="truncate text-[0.5rem] leading-none font-medium">
-														{info.reasons[0]?.split(':')[0] ?? info.kind}
-													</span>
+												)
+											)}
+											{isActive && info?.kind === 'self' && (
+												<div className="mb-0.5 flex h-4 items-center justify-center rounded-sm bg-blue-100 px-1">
+													<span className="text-xs font-medium leading-none text-blue-700">Current</span>
 												</div>
-											)
-										)}
-										{isActive && info?.kind === 'self' && (
-											<div className="mb-0.5 flex h-3.5 items-center justify-center rounded-sm bg-blue-100 px-1">
-												<span className="text-[0.5rem] font-medium leading-none text-blue-700">Current</span>
-											</div>
-										)}
-										{isActive && info?.kind === 'clean' && cellEntries.length === 0 && (isDragging || hasKbSource) && (
-											<div className="flex h-3.5 items-center justify-center opacity-25">
-												<Plus className="size-2.5 text-emerald-700" />
-											</div>
-										)}
-										<div className="space-y-0.5 min-h-6 overflow-hidden">
-											{cellEntries.slice(0, 2).map((entry) => {
-												const severity = entrySeverity(entry.entryId, violationIndex);
-												const isHighlighted = highlightedEntryIds.has(entry.entryId);
-												const isSandboxChanged = localSandboxChangedEntryIds?.has(entry.entryId) ?? false;
-												const isSandboxConflict = localSandboxConflictEntryIds?.has(entry.entryId) ?? false;
-												const isSelected = selectedEntry?.entryId === entry.entryId;
-												const isFollowUp = followUps.has(entry.entryId);
-												const grade = gradeForSection(entry.sectionId);
+											)}
+											{isActive && info?.kind === 'clean' && cellEntries.length === 0 && (isDragging || hasKbSource) && (
+												<div className="flex h-4 items-center justify-center opacity-25">
+													<Plus className="size-3.5 text-emerald-700" />
+												</div>
+											)}
+											<div className="space-y-0.5 min-h-6 overflow-hidden">
+												{cellEntries.slice(0, 2).map((entry) => {
+													const severity = entrySeverity(entry.entryId, violationIndex);
+													const isHighlighted = highlightedEntryIds.has(entry.entryId);
+													const isSandboxChanged = localSandboxChangedEntryIds?.has(entry.entryId) ?? false;
+													const isSandboxConflict = localSandboxConflictEntryIds?.has(entry.entryId) ?? false;
+													const isSelected = selectedEntry?.entryId === entry.entryId;
+													const isFollowUp = followUps.has(entry.entryId);
+													const grade = gradeForSection(entry.sectionId);
 
-												let cellClass = 'border-transparent text-foreground';
-												if (grade === 7) cellClass = 'bg-green-50 border-green-200';
-												else if (grade === 8) cellClass = 'bg-yellow-50 border-yellow-200';
-												else if (grade === 9) cellClass = 'bg-red-50 border-red-200';
-												else if (grade === 10) cellClass = 'bg-blue-50 border-blue-200';
-												else cellClass = 'bg-muted/40 border-border';
+													let cellClass = 'border-transparent text-foreground';
+													if (grade === 7) cellClass = 'bg-green-50 border-green-200';
+													else if (grade === 8) cellClass = 'bg-yellow-50 border-yellow-200';
+													else if (grade === 9) cellClass = 'bg-red-50 border-red-200';
+													else if (grade === 10) cellClass = 'bg-blue-50 border-blue-200';
+													else cellClass = 'bg-muted/40 border-border';
 
-												if (severity === 'HARD') {
-													cellClass += ' border-red-500 ring-1 ring-red-300';
-												} else if (severity === 'SOFT') {
-													cellClass += ' border-amber-500 border-dashed';
-												}
+													if (severity === 'HARD') {
+														cellClass += ' border-red-500 ring-1 ring-red-300';
+													} else if (severity === 'SOFT') {
+														cellClass += ' border-amber-500 border-dashed';
+													}
 
-												if (isHighlighted) cellClass += ' ring-2 ring-primary ring-offset-1';
-												if (isSandboxChanged) cellClass += ' ring-2 ring-emerald-400 ring-offset-1';
-												if (isSandboxConflict) cellClass += ' border-red-600 ring-2 ring-red-300 ring-offset-1';
-												if (isSelected) cellClass += ' ring-2 ring-foreground ring-offset-1';
+													if (isHighlighted) cellClass += ' ring-2 ring-primary ring-offset-1';
+													if (isSandboxChanged) cellClass += ' ring-2 ring-emerald-400 ring-offset-1';
+													if (isSandboxConflict) cellClass += ' border-red-600 ring-2 ring-red-300 ring-offset-1';
+													if (isSelected) cellClass += ' ring-2 ring-foreground ring-offset-1';
+
+													const placementId = parseDraftPlacementId(entry.entryId);
+													const entryData = placementId != null
+														? { type: 'draftPlacement' as const, entry, placementId }
+														: { type: 'entry' as const, entry };
+													const entrySubjectLabel = subjectLabel(entry.subjectId);
+													const entrySectionLabel = sectionLabel(entry.sectionId);
+													const entryDayLabel = DAY_SHORT[day] ?? day;
+													const entryTimeLabel = formatTime(slot.startTime);
 
 													return (
-														(() => {
-															const placementId = parseDraftPlacementId(entry.entryId);
-															const entryData = placementId != null
-																? { type: 'draftPlacement' as const, entry, placementId }
-																: { type: 'entry' as const, entry };
-															const entrySubjectLabel = subjectLabel(entry.subjectId);
-															const entrySectionLabel = sectionLabel(entry.sectionId);
-															const entryDayLabel = DAY_SHORT[day] ?? day;
-															const entryTimeLabel = formatTime(slot.startTime);
-															const card = (
-																<DraggableEntry
-																	entryId={entry.entryId}
-																	entryData={entryData}
-																	role="button"
-																	aria-label={`Select ${entrySubjectLabel} for ${entrySectionLabel}, ${entryDayLabel} ${entryTimeLabel}`}
-																	data-timetable-entry="true"
-																	data-timetable-entry-id={entry.entryId}
-																	data-subject-id={entry.subjectId}
-																	data-subject-label={entrySubjectLabel}
-																	data-section-id={entry.sectionId}
-																	data-section-label={entrySectionLabel}
-																	data-faculty-id={entry.facultyId ?? ''}
-																	onClick={(event) => {
-																		if (hasKbSource) {
-																			event.stopPropagation();
-																			onKbPlace(day, slot.startTime, slot.endTime);
-																			return;
-																		}
-																		event.stopPropagation();
-																		onEntryClick(entry);
-																	}}
-																	onKeyDown={(event) => {
-																		if (event.key === 'Enter' || event.key === ' ') {
-																			event.preventDefault();
-																			onEntryClick(entry);
-																		}
-																	}}
-																	className={`min-h-11 w-full text-left rounded border px-2 py-1.5 text-[0.625rem] leading-tight transition-colors cursor-pointer active:cursor-grabbing hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 select-none ${cellClass}`}
-																>
-																	<div className="font-medium truncate flex items-center gap-1">
-																		<GripVertical className="size-2.5 text-muted-foreground/40 shrink-0" />
-																		{entrySubjectLabel}
-																		{severity === 'HARD' && <AlertCircle className="size-2.5 shrink-0 text-red-600" />}
-																		{severity === 'SOFT' && <AlertTriangle className="size-2.5 shrink-0 text-amber-600" />}
-																		{entry.entryKind === 'COHORT' && entry.cohortCode && (
-																			<span className="rounded bg-sky-100 px-1 py-0.5 text-[0.5rem] font-semibold uppercase tracking-wide text-sky-700">
-																				{entry.cohortCode}
-																			</span>
-																		)}
-																		{isSandboxChanged && (
-																			<span className="rounded bg-emerald-100 px-1 py-0.5 text-[0.5rem] font-semibold uppercase tracking-wide text-emerald-700">
-																				Sandbox
-																			</span>
-																		)}
-																		{isSandboxConflict && <AlertCircle className="size-2.5 shrink-0 text-red-600" />}
-																	</div>
-																	<p className="wrap-break-word leading-[1.2] text-muted-foreground">
-																		<span className="font-medium text-foreground/80">{entryContextLabel(entry)}</span>
-																	</p>
-																	<p className="wrap-break-word leading-[1.2] text-muted-foreground">
-																		{showTeacherDetails ? (
-																			<>
-																				{entry.facultyId ? formatFacultyInitials(entry.facultyId) : 'No teacher'}{' '}
-																			</>
-																		) : null}
-																		<span className="opacity-60">{roomLabelShort(entry.roomId)}</span>
-																	</p>
-																	{isFollowUp && (
-																		<Flag className="size-2.5 text-amber-500 inline-block ml-0.5" />
-																	)}
-																</DraggableEntry>
-															);
-
-															if (!showHeavyTooltips) {
-																return <div key={entry.entryId}>{card}</div>;
-															}
-
-															return (
-													<Tooltip key={entry.entryId} delayDuration={300}>
-															<TooltipTrigger asChild>
-																{card}
-															</TooltipTrigger>
-															<TooltipContent side="right" className="space-y-1 z-100 max-w-50">
-																<div className="font-semibold">{subjectLabel(entry.subjectId)}</div>
-																{showTeacherDetails && entry.facultyId && viewMode !== 'faculty' && (
-																	<div className="text-xs font-medium">{facultyLabel(entry.facultyId)}</div>
+														<DraggableEntry
+															key={entry.entryId}
+															entryId={entry.entryId}
+															entryData={entryData}
+															role="button"
+															aria-label={`Select ${entrySubjectLabel} for ${entrySectionLabel}, ${entryDayLabel} ${entryTimeLabel}`}
+															data-timetable-entry="true"
+															data-timetable-entry-id={entry.entryId}
+															data-subject-id={entry.subjectId}
+															data-subject-label={entrySubjectLabel}
+															data-section-id={entry.sectionId}
+															data-section-label={entrySectionLabel}
+															data-faculty-id={entry.facultyId ?? ''}
+															onClick={(event) => {
+																if (hasKbSource) {
+																	event.stopPropagation();
+																	onKbPlace(day, slot.startTime, slot.endTime);
+																	return;
+																}
+																event.stopPropagation();
+																onEntryClick(entry);
+															}}
+															onKeyDown={(event) => {
+																if (event.key === 'Enter' || event.key === ' ') {
+																	event.preventDefault();
+																	onEntryClick(entry);
+																}
+															}}
+															className={`min-h-10 w-full text-left rounded border px-2 py-1 text-xs leading-tight transition-colors cursor-pointer active:cursor-grabbing hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 select-none ${cellClass}`}
+														>
+															<div className="font-semibold text-xs truncate flex items-center gap-1">
+																<GripVertical className="size-2.5 text-muted-foreground/40 shrink-0" />
+																{entrySubjectLabel}
+																{severity === 'HARD' && <AlertCircle className="size-2.5 shrink-0 text-red-600" />}
+																{severity === 'SOFT' && <AlertTriangle className="size-2.5 shrink-0 text-amber-600" />}
+																{entry.entryKind === 'COHORT' && entry.cohortCode && (
+																	<span className="rounded bg-sky-100 px-1 py-0.5 text-xs font-bold uppercase tracking-wide text-sky-700 shrink-0">
+																		{entry.cohortCode}
+																	</span>
 																)}
-																<div className="text-muted-foreground text-xs">{entryContextLabel(entry)} - {roomLabelShort(entry.roomId)}</div>
-																{entry.programType && entry.programType !== 'REGULAR' && (
-																	<div className="text-[0.625rem] text-violet-700">Program: {getProgramBadgeLabel(entry.programType, entry.programCode)}</div>
+																{isSandboxChanged && (
+																	<span className="rounded bg-emerald-100 px-1 py-0.5 text-xs font-bold uppercase tracking-wide text-emerald-700 shrink-0">
+																		Sandbox
+																	</span>
 																)}
-																<div className="text-muted-foreground text-xs">{DAY_SHORT[entry.day] ?? entry.day} {formatTime(entry.startTime)}-{formatTime(entry.endTime)}</div>
-																{(() => {
-																	const violations = violationIndex.get(entry.entryId) ?? [];
-																	return violations.length > 0 ? (
-																		<div className="pt-1 mt-1 border-t border-border/50">
-																			<span className="text-[0.625rem] font-medium text-amber-600 block mb-0.5">Constraint Warnings</span>
-																			{violations.map((violation, violationIndexItem) => (
-																				<div key={violationIndexItem} className="text-[0.625rem] text-muted-foreground ml-1.5">
-																					- {VIOLATION_LABELS[violation.code] ?? violation.code}
-																				</div>
-																			))}
-																		</div>
-																	) : null;
-																})()}
-															</TooltipContent>
-														</Tooltip>
+																{isSandboxConflict && <AlertCircle className="size-2.5 shrink-0 text-red-600 shrink-0" />}
+																{isFollowUp && (
+																	<Flag className="size-2.5 text-amber-500 fill-amber-500 shrink-0" />
+																)}
+															</div>
+															{(() => {
+																const roomText = roomLabelShort(entry.roomId);
+																const teacherText = entry.facultyId ? formatFacultyInitials(entry.facultyId) : 'No teacher';
+																const sectionText = sectionLabel(entry.sectionId);
+																let detailsText = '';
+																if (viewMode === 'section') {
+																	detailsText = `${teacherText} · ${roomText}`;
+																} else if (viewMode === 'faculty') {
+																	detailsText = `${sectionText} · ${roomText}`;
+																} else if (viewMode === 'room') {
+																	detailsText = `${sectionText} · ${teacherText}`;
+																}
+																return (
+																	<p className="truncate text-xs font-medium text-muted-foreground/80 mt-0.5">
+																		{detailsText}
+																	</p>
 																);
-															})()
-												);
-											})}
-											{cellEntries.length > 2 && (
-												<div className="text-[0.5rem] text-muted-foreground/70 px-1.5 leading-none">+{cellEntries.length - 2} more</div>
-											)}
-										</div>
-									</DroppableCell>
-								);
-							})}
-						</tr>
-					))}
-				</tbody>
+															})()}
+														</DraggableEntry>
+													);
+												})}
+												{cellEntries.length > 2 && (
+													<div className="text-xs text-muted-foreground/70 px-1.5 leading-none">+{cellEntries.length - 2} more</div>
+												)}
+											</div>
+										</DroppableCell>
+									);
+								})}
+							</tr>
+						))}
+					</tbody>
 				</table>
 			</div>
 		</TooltipProvider>

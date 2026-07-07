@@ -512,6 +512,8 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				sourceEntryId = `draft-placement-${dragItem.placement.id}`;
 			} else if (dragItem.type === 'unassigned') {
 				sectionId = dragItem.item.sectionId;
+				facultyId = dragItem.item.facultyId ?? undefined;
+				roomId = dragItem.item.homeRoomId ?? undefined;
 			}
 		} else if (preGenKbSource) {
 			if (preGenKbSource.type === 'draftQueue') {
@@ -532,6 +534,8 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				sourceEntryId = kbSelectedSource.entry.entryId;
 			} else if (kbSelectedSource.type === 'unassigned') {
 				sectionId = kbSelectedSource.item.sectionId;
+				facultyId = kbSelectedSource.item.facultyId ?? undefined;
+				roomId = kbSelectedSource.item.homeRoomId ?? undefined;
 			}
 		}
 

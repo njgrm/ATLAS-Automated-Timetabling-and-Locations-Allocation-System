@@ -132,7 +132,7 @@ export function GeneratedViolationsPanel({
 				type="button"
 				variant="outline"
 				size="sm"
-				className="h-auto self-stretch rounded-none border-y-0 border-r-0 px-2 py-1.5 text-[0.625rem] font-medium"
+				className="h-auto self-stretch rounded-none border-y-0 border-r-0 px-2 py-1.5 text-xs font-medium"
 				onClick={(event) => {
 					event.stopPropagation();
 					setSelectedEntry(null);
@@ -150,9 +150,9 @@ export function GeneratedViolationsPanel({
 	return (
 		<div id="panel-violations" role="tabpanel" aria-labelledby="tab-violations" className="flex flex-col flex-1 min-h-0">
 			{hardViolationCount > 0 && (
-				<div className="shrink-0 px-3 py-2 border-b border-red-100 bg-red-50/50">
-					<div className="flex items-center gap-1.5 text-[0.625rem] font-semibold text-red-700 mb-1">
-						<ShieldAlert className="size-3" />
+				<div className="shrink-0 px-3 py-2.5 border-b border-red-100 bg-red-50/50">
+					<div className="flex items-center gap-1.5 text-xs font-bold text-red-700 mb-1.5">
+						<ShieldAlert className="size-3.5" />
 						Top blockers ({hardViolationCount} hard)
 					</div>
 					<div className="space-y-0.5">
@@ -168,11 +168,11 @@ export function GeneratedViolationsPanel({
 										handleViolationSelect(violation);
 										setSeverityFilter('hard');
 									}}
-									className="h-6 w-full justify-start gap-1.5 rounded px-1 py-0.5 text-left text-[0.5625rem] font-medium text-red-800 hover:bg-red-100/60 hover:text-red-600"
+									className="h-6 w-full justify-start gap-1.5 rounded px-1 py-0.5 text-left text-xs font-semibold text-red-800 hover:bg-red-100/60 hover:text-red-600"
 								>
-									<ChevronRight className="size-2.5 shrink-0" />
+									<ChevronRight className="size-3 shrink-0" />
 									<span className="truncate flex-1">{VIOLATION_LABELS[violation.code]}</span>
-									<span className="shrink-0 text-red-500 font-medium">x{count}</span>
+									<span className="shrink-0 text-red-500 font-semibold">x{count}</span>
 								</Button>
 							);
 						})}
@@ -180,9 +180,9 @@ export function GeneratedViolationsPanel({
 				</div>
 			)}
 			{hardViolationCount === 0 && violations.length === 0 && (
-				<div className="shrink-0 px-3 py-2 border-b border-emerald-100 bg-emerald-50/50">
-					<div className="flex items-center gap-1.5 text-[0.625rem] font-medium text-emerald-700">
-						<Check className="size-3" />
+				<div className="shrink-0 px-3 py-2.5 border-b border-emerald-100 bg-emerald-50/50">
+					<div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+						<Check className="size-3.5" />
 						No violations - schedule is clean
 					</div>
 				</div>
@@ -225,7 +225,7 @@ export function GeneratedViolationsPanel({
 								variant={isActive ? 'default' : 'ghost'}
 								size="sm"
 								onClick={() => setSeverityFilter(filter)}
-								className={`h-6 flex-1 text-[10px] font-semibold rounded-md transition-all ${
+								className={`h-6 flex-1 text-xs font-semibold rounded-md transition-all ${
 									isActive ? 'shadow-sm' : 'text-muted-foreground hover:text-foreground'
 								}`}
 							>
@@ -261,7 +261,7 @@ export function GeneratedViolationsPanel({
 							<Button
 								variant="outline"
 								size="sm"
-								className="h-6 w-full text-[0.625rem]"
+								className="h-7 w-full text-xs"
 								onClick={() => setViolationsGroupPage((prev) => prev + 10)}
 							>
 								Load more groups ({violationGroups.length - visibleViolationGroups.length} left)
@@ -359,14 +359,14 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 												variant={unassignedReasonFilter === reason ? 'default' : 'secondary'}
 												size="sm"
 												onClick={() => setUnassignedReasonFilter(reason)}
-												className="h-6 rounded-full px-2 py-0.5 text-[0.5625rem] font-medium"
+												className="h-6 rounded-full px-2 py-0.5 text-xs font-medium"
 											>
 												{label} ({count})
 											</Button>
 										);
 									})}
 								</div>
-								<span className="text-[0.6875rem] font-medium text-muted-foreground">
+								<span className="text-xs font-medium text-muted-foreground">
 									Use recovery tools only when a session stays blocked after generation
 								</span>
 							</div>
@@ -415,7 +415,7 @@ function GeneratedResourceDiagnostics({ summary }: { summary: GeneratedSummary }
 	if (!summary.resourceDiagnostics) return null;
 
 	return (
-		<div className="rounded border border-border/70 bg-background/70 px-2.5 py-2 space-y-2 text-[0.625rem]">
+		<div className="rounded border border-border/70 bg-background/70 px-2.5 py-2 space-y-2 text-xs">
 			<div className="font-semibold text-muted-foreground uppercase tracking-wide">Resource Diagnostics</div>
 			<div className="space-y-1">
 				<div className="font-medium">Lowest teaching-load coverage</div>
@@ -506,6 +506,9 @@ function UnassignedRailRow({
 		toast,
 		setKbSelectedSource,
 		GRADE_BADGE,
+		setSelectedEntry,
+		setSelectedViolation,
+		setSelectedUnassignedForRepair,
 	} = context;
 	const grade = item.gradeLevel;
 	const gradeBadge = grade ? GRADE_BADGE[grade] : undefined;
@@ -552,12 +555,12 @@ function UnassignedRailRow({
 						<ChevronDown className={`size-3 text-muted-foreground shrink-0 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
 						<GripVertical className="size-3 text-muted-foreground/50 shrink-0" />
 						{gradeBadge && (
-							<Badge variant="outline" className={`h-4 px-1 text-[0.5625rem] shrink-0 ${gradeBadge}`}>
+							<Badge variant="outline" className={`h-4.5 px-1.5 text-xs shrink-0 ${gradeBadge}`}>
 								G{grade}
 							</Badge>
 						)}
 						{item.entryKind === 'COHORT' && item.cohortCode && (
-							<Badge variant="outline" className="h-4 px-1 text-[0.5625rem] shrink-0 border-sky-300 bg-sky-50 text-sky-700">
+							<Badge variant="outline" className="h-4.5 px-1.5 text-xs shrink-0 border-sky-300 bg-sky-50 text-sky-700">
 								{item.cohortCode}
 							</Badge>
 						)}
@@ -565,15 +568,15 @@ function UnassignedRailRow({
 						<span className="text-muted-foreground shrink-0">-</span>
 						<span className="truncate min-w-0">{subjectLabel(item.subjectId)}</span>
 					</div>
-					<div className="flex items-center gap-1.5 text-[0.625rem] text-muted-foreground pl-4.5">
+					<div className="flex items-center gap-1.5 text-xs text-muted-foreground pl-4.5">
 						{renderUnassignedReasonBadge(item.reason)}
 						{matchesProgramFilter(resolveEntryProgramType(item), 'SPECIAL') && (
-							<Badge variant="outline" className="h-4 px-1 text-[0.5625rem] border-violet-300 bg-violet-50 text-violet-700">
+							<Badge variant="outline" className="h-4.5 px-1.5 text-xs border-violet-300 bg-violet-50 text-violet-700">
 								{getProgramBadgeLabel(resolveEntryProgramType(item), resolveEntryProgramCode(item))}
 							</Badge>
 						)}
 						<span className="opacity-60 font-medium">Session {item.session}</span>
-						<span className="ml-auto text-red-600/80 font-semibold tracking-wide uppercase text-[0.5rem] flex items-center gap-0.5">
+						<span className="ml-auto text-red-600/80 font-bold tracking-wide uppercase text-xs flex items-center gap-0.5">
 							<AlertTriangle className="size-2.5" /> Blocker
 						</span>
 					</div>
@@ -589,24 +592,24 @@ function UnassignedRailRow({
 						className="overflow-hidden"
 					>
 						<div className="px-2 pb-2 pt-1 border-t border-amber-200 space-y-2">
-							<div className="rounded border border-red-200 bg-red-50/50 p-2 space-y-1">
-								<div className="flex items-center gap-1.5 text-[0.625rem] text-red-800 font-medium">
+							<div className="rounded border border-red-200 bg-red-50/50 p-2.5 space-y-1">
+								<div className="flex items-center gap-1.5 text-xs text-red-800 font-bold">
 									<AlertTriangle className="size-3" />
 									Why blocked
 								</div>
-								<p className="font-medium text-[0.6875rem] text-red-900 wrap-break-word whitespace-normal leading-snug">
+								<p className="font-medium text-xs text-red-900 wrap-break-word whitespace-normal leading-snug">
 									{unassignedFixSuggestions[itemKey]
 										? unassignedFixSuggestions[itemKey]!.humanDetail
 										: getDefaultUnassignedReasonDetail(item)}
 								</p>
 							</div>
-							<div className="flex items-center gap-1.5 text-[0.625rem]">
-								<ShieldAlert className="size-2.5 text-red-600 shrink-0" />
-								<span className="text-red-700 font-medium">Recovery required</span>
+							<div className="flex items-center gap-1.5 text-xs">
+								<ShieldAlert className="size-3 text-red-600 shrink-0" />
+								<span className="text-red-700 font-semibold">Recovery required</span>
 								<span className="text-muted-foreground">- this session still needs an operator review before publishing</span>
 							</div>
 							{(item.entryKind === 'COHORT' || item.adviserName) && (
-								<div className="rounded border border-border bg-background px-2 py-1.5 text-[0.625rem] text-muted-foreground">
+								<div className="rounded border border-border bg-background px-2.5 py-1.5 text-xs text-muted-foreground">
 									{entryContextLabel(item)}
 								</div>
 							)}
@@ -616,11 +619,11 @@ function UnassignedRailRow({
 								cachedFix={cachedFix}
 								context={context}
 							/>
-							<div className="flex items-center gap-1 pt-0.5" onClick={(event) => event.stopPropagation()}>
+							<div className="flex items-center gap-1.5 pt-1" onClick={(event) => event.stopPropagation()}>
 								<Button
 									variant="outline"
 									size="sm"
-									className="h-5 px-1.5 text-[0.5625rem] gap-0.5"
+									className="h-6 px-2 text-xs gap-1"
 									onClick={() => {
 										setSelectedEntry(null);
 										setSelectedViolation(null);
@@ -628,22 +631,22 @@ function UnassignedRailRow({
 										toast.info('Teaching Load repair opened for this unassigned session.');
 									}}
 								>
-									<Wand2 className="size-2.5" />
+									<Wand2 className="size-3" />
 									Fix teacher
 								</Button>
 								<Button
 									variant="ghost"
 									size="sm"
-									className="h-5 px-1.5 text-[0.5625rem] gap-0.5"
+									className="h-6 px-2 text-xs gap-1"
 									onClick={() => setDrawerUnassigned(item)}
 								>
-									<Lightbulb className="size-2.5" />
+									<Lightbulb className="size-3" />
 									Full explanation
 								</Button>
 								<Button
 									variant="ghost"
 									size="sm"
-									className={`h-5 px-1.5 text-[0.5625rem] gap-0.5 ${isFollowUp ? 'text-amber-600' : ''}`}
+									className={`h-6 px-2 text-xs gap-1 ${isFollowUp ? 'text-amber-600' : ''}`}
 									onClick={() => {
 										setFollowUps((prev) => {
 											const next = new Set(prev);
@@ -694,7 +697,7 @@ function UnassignedFixSuggestions({
 			<Button
 				variant="outline"
 				size="sm"
-				className="w-full h-6 text-[0.5625rem] gap-1"
+				className="w-full h-7 text-xs gap-1"
 				disabled={fixLoading === itemKey}
 				onClick={async (event) => {
 					event.stopPropagation();
@@ -752,40 +755,40 @@ function UnassignedFixSuggestions({
 	}
 
 	if (cachedFix === null) {
-		return <div className="text-[0.625rem] text-muted-foreground italic px-1">Could not load suggestions. Try again later.</div>;
+		return <div className="text-xs text-muted-foreground italic px-1">Could not load suggestions. Try again later.</div>;
 	}
 
 	return (
 		<div className="space-y-1.5">
-			<div className="text-[0.625rem] font-semibold text-foreground flex items-center gap-1">
-				<Wand2 className="size-2.5 text-primary" />
+			<div className="text-xs font-bold text-foreground flex items-center gap-1">
+				<Wand2 className="size-3 text-primary" />
 				Recommended fixes ({cachedFix.suggestions.length})
 			</div>
 			{cachedFix.suggestions.length === 0 ? (
-				<div className="text-[0.625rem] text-muted-foreground italic">No automatic fix available. Manual intervention needed.</div>
+				<div className="text-xs text-muted-foreground italic">No automatic fix available. Manual intervention needed.</div>
 			) : (
 				cachedFix.suggestions.map((suggestion, index) => (
-					<div key={index} className="rounded border border-border bg-background px-2 py-1.5 space-y-1">
+					<div key={index} className="rounded border border-border bg-background px-2.5 py-1.5 space-y-1">
 						<div className="flex items-center gap-1">
-							<span className="text-[0.625rem] font-medium text-foreground">{index + 1}. {suggestion.label}</span>
+							<span className="text-xs font-semibold text-foreground">{index + 1}. {suggestion.label}</span>
 						</div>
-						<p className="text-[0.5625rem] text-muted-foreground leading-relaxed">{suggestion.description}</p>
+						<p className="text-xs text-muted-foreground leading-relaxed">{suggestion.description}</p>
 						{suggestion.proposal && (
 							<Button
 								variant="outline"
 								size="sm"
-								className="h-5 text-[0.5rem] gap-0.5 mt-0.5"
+								className="h-6 text-xs font-semibold gap-0.5 mt-1"
 								onClick={(event) => {
 									event.stopPropagation();
 									if (suggestion.proposal) void previewEdit(suggestion.proposal);
 								}}
 							>
-								<Zap className="size-2" />
+								<Zap className="size-2.5" />
 								Preview & Apply
 							</Button>
 						)}
 						{suggestion.policyHint && (
-							<p className="text-[0.5rem] text-muted-foreground/70 italic">Policy: {suggestion.policyHint}</p>
+							<p className="text-[10px] text-muted-foreground/75 italic">Policy: {suggestion.policyHint}</p>
 						)}
 					</div>
 				))

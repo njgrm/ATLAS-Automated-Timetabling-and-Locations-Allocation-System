@@ -5,6 +5,7 @@ import { Card } from '@/ui/card';
 import { Button } from '@/ui/button';
 
 import atlasApi from '@/lib/api';
+import { ConfirmationModal } from '@/ui/confirmation-modal';
 import {
 	buildMultiOwnerSavedMap,
 	buildOwnershipMap,
@@ -66,6 +67,20 @@ export default function TeachingLoad() {
 
 	const [autoFillResult, setAutoFillResult] = useState<AutoFillSummaryResult | null>(null);
 	const [resetLoading, setResetLoading] = useState(false);
+	const [hasGeneratedRuns, setHasGeneratedRuns] = useState(false);
+	const [showSaveWarning, setShowSaveWarning] = useState(false);
+
+	useEffect(() => {
+		if (data.activeSchoolYearId) {
+			atlasApi.get(`/generation/${DEFAULT_SCHOOL_ID}/${data.activeSchoolYearId}/runs`, { params: { limit: 1 } })
+				.then(({ data: res }) => {
+					setHasGeneratedRuns(res.runs && res.runs.length > 0);
+				})
+				.catch(() => {
+					setHasGeneratedRuns(false);
+				});
+		}
+	}, [data.activeSchoolYearId]);
 
 	useEffect(() => {
 		if (data.sectionFocusId) {
@@ -152,10 +167,16 @@ export default function TeachingLoad() {
 		}
 	}, [data]);
 
-	const handleSave = useCallback(async () => {
+	const handleSave = useCallback(async (force?: boolean) => {
 		if (!data.activeSchoolYearId) return;
 		const draftEntries = Object.entries(data.effectiveDraftAssignmentsByFaculty);
 		if (draftEntries.length === 0) return;
+
+		if (hasGeneratedRuns && !force) {
+			setShowSaveWarning(true);
+			return;
+		}
+
 		data.setSaving(true);
 		try {
 			for (const [facultyIdRaw, assignments] of draftEntries) {
@@ -187,7 +208,7 @@ export default function TeachingLoad() {
 		} finally {
 			data.setSaving(false);
 		}
-	}, [data]);
+	}, [data, hasGeneratedRuns]);
 
 	const handleSetSections = useCallback((subjectId: number, sectionIds: number[], facultyId?: number) => {
 		const targetId = facultyId ?? data.selectedId;
@@ -843,6 +864,16 @@ export default function TeachingLoad() {
 				workspaceStateLabel={workspaceState.label}
 				workspaceStateNextAction={workspaceState.nextAction}
 				onNavigateToAllocation={handleNavigateToAllocation}
+			/>
+
+			<ConfirmationModal
+				open={showSaveWarning}
+				onOpenChange={setShowSaveWarning}
+				title="Save Teaching Load & Timetable Sync Warning"
+				description="Saving these changes will make the current active draft timetable stale. Any sessions whose teachers or subject allocations were modified will be displaced to the unassigned list once the timetable is synced. Do you want to proceed?"
+				onConfirm={() => handleSave(true)}
+				confirmText="Confirm and Save"
+				variant="warning"
 			/>
 		</TooltipProvider>
 	);
