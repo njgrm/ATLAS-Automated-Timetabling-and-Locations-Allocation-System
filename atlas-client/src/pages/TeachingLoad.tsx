@@ -194,16 +194,16 @@ export default function TeachingLoad() {
 			}
 			toast.success(
 				draftEntries.length === 1 && data.selected
-					? `Assignments for ${data.selected.lastName} have been successfully updated.`
+					? `Teaching load for ${data.selected.lastName} has been successfully updated.`
 					: `Saved ${draftEntries.length} teaching-load draft ${draftEntries.length === 1 ? 'change' : 'changes'}.`,
 			);
 			await data.fetchData({ forceRefresh: true });
 		} catch (error: any) {
 			if (error?.response?.data?.code === 'VERSION_CONFLICT') {
 				await data.fetchData({ forceRefresh: true });
-				toast.error(`${error?.response?.data?.message ?? 'Failed to save assignments.'} Latest saved data was reloaded; your local draft remains visible.`);
+				toast.error(`${error?.response?.data?.message ?? 'Failed to save teaching load.'} Latest saved data was reloaded; your local draft remains visible.`);
 			} else {
-				toast.error(error?.response?.data?.message ?? 'Failed to save assignments.');
+				toast.error(error?.response?.data?.message ?? 'Failed to save teaching load.');
 			}
 		} finally {
 			data.setSaving(false);
@@ -309,7 +309,7 @@ export default function TeachingLoad() {
 				schoolYearId: data.activeSchoolYearId,
 				confirmText: ui.resetConfirmText,
 			});
-			toast.success('All assignments for the current school year have been cleared.');
+			toast.success('All teaching loads for the current school year have been cleared.');
 			ui.setResetDialogOpen(false);
 			ui.setResetConfirmText('');
 			await data.fetchData({ forceRefresh: true });

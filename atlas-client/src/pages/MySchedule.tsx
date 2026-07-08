@@ -293,7 +293,7 @@ export default function MySchedule() {
 		<div className="flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-muted/30">
 			<FacultyGlobalHeader
 				title="My schedule"
-				eyebrow="Faculty"
+				eyebrow="Teacher"
 				subtitle={schedule ? 'Your approved published timetable.' : 'No official schedule has been published yet.'}
 				online={online}
 				syncState={usingCachedSchedule ? 'failed' : online ? 'idle' : 'queued-offline'}

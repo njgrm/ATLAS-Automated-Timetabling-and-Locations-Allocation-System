@@ -37,6 +37,7 @@ import specializationAliasRouter from './routes/specialization-alias.router.js';
 import runtimeRouter from './routes/runtime.router.js';
 import dashboardRouter from './routes/dashboard.router.js';
 import timetableSyncSetupRouter from './routes/timetable-sync-setup.router.js';
+import timetableQuickPlaceRouter from './routes/timetable-quick-place.router.js';
 const app = express();
 app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -88,6 +89,7 @@ app.use('/api/v1/generation', preGenerationDraftRouter);
 app.use('/api/v1/generation', gradeWindowRouter);
 app.use('/api/v1/generation', publishedRevisionRouter);
 app.use('/api/v1/generation', timetableSyncSetupRouter);
+app.use('/api/v1/generation', timetableQuickPlaceRouter);
 app.use('/api/v1/cohorts', cohortRouter);
 app.use('/api/v1/faculty-portal', facultyPortalRouter);
 app.use('/api/v1', publishedScheduleRouter);

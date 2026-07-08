@@ -320,7 +320,7 @@ export default function FacultyRoomPreferences() {
 		const attemptAt = new Date().toISOString();
 		const syncingActions = queued.map((action) => ({
 			...action,
-			status: action.status === 'failed' ? action.status : 'syncing',
+			status: (action.status === 'failed' ? action.status : 'syncing') as OutboxActionStatus,
 			lastAttemptAt: attemptAt,
 		}));
 		replaceOutboxActions(facultyId, runId, syncingActions);
@@ -384,7 +384,7 @@ export default function FacultyRoomPreferences() {
 			const failedRetry = syncingActions.map((action) => ({
 				...action,
 				retryCount: action.retryCount + 1,
-				status: action.retryCount + 1 >= 5 ? 'failed' : 'queued',
+				status: (action.retryCount + 1 >= 5 ? 'failed' : 'queued') as OutboxActionStatus,
 				lastAttemptAt: attemptAt,
 			}));
 			replaceOutboxActions(facultyId, runId, failedRetry);
@@ -761,7 +761,7 @@ export default function FacultyRoomPreferences() {
 			targetDay: targetSlot.day,
 			targetStartTime: targetSlot.startTime,
 			targetEndTime: targetSlot.endTime,
-			targetEntryId: targetSlot.targetEntryId,
+			targetEntryId: targetSlot.targetEntryId ?? undefined,
 			rationale: reason.trim() || null,
 			expectedRunVersion: runVersion,
 			requestVersion: selectedEntry.version,
@@ -818,7 +818,7 @@ export default function FacultyRoomPreferences() {
 		<div className='flex h-[calc(100svh-3.5rem)] min-h-0 flex-col overflow-hidden bg-muted/30'>
 			<FacultyGlobalHeader
 				title='Room requests'
-				eyebrow='Faculty'
+				eyebrow='Teacher'
 				subtitle={currentStep === 1 ? 'Pick the class you want to move.' : currentStep === 2 ? 'Pick the new time slot.' : 'Review the check and submit.'}
 				steps={[
 					{ id: 1, label: 'Class' },

@@ -390,7 +390,7 @@ export default function FacultyPreferences() {
 		<div className='flex flex-col h-[calc(100svh-3.5rem)] overflow-hidden bg-muted/30'>
 			<FacultyGlobalHeader
 				title='Support preferences'
-				eyebrow='Faculty'
+				eyebrow='Teacher'
 				subtitle='Tell the scheduler about support needs. Room changes are submitted separately.'
 				online={online}
 				syncState={usingCachedPreference ? 'failed' : online ? 'idle' : 'queued-offline'}

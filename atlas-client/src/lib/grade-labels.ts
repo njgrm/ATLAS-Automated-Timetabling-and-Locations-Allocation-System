@@ -5,7 +5,7 @@
 
 /** Convert a numeric grade level to its short label */
 export function gradeLabel(grade: number): string {
-	return `G${grade}`;
+	return `GR${grade}`;
 }
 
 /** DepEd semantic grade colors */

@@ -240,7 +240,7 @@ export default function MyDashboard() {
 		<div className='flex h-[calc(100svh-3.5rem)] flex-col overflow-hidden bg-muted/30'>
 			<FacultyGlobalHeader
 				title='Dashboard'
-				eyebrow='Faculty'
+				eyebrow='Teacher'
 				online={online}
 				syncState={usingCachedDashboard ? 'failed' : online ? 'idle' : 'queued-offline'}
 				advisory={advisory}

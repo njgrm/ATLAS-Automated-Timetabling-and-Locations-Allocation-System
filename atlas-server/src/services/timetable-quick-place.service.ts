@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma.js';
-import { loadRunContext, isPublishedSummary } from './manual-edit.service.js';
+import { loadRunContext, isPublishedSummary, commitManualEditBatch, type ManualEditProposal } from './manual-edit.service.js';
 import { validateHardConstraints } from './constraint-validator.js';
 import { buildValidatorCtx } from './manual-edit.service.js';
 import { computeSummary } from './manual-edit.service.js';
@@ -148,7 +148,7 @@ export async function solveQuickPlace(
 		const facultyId = item.facultyId ?? ownershipMap.get(key) ?? null;
 
 		const subCode = refData.subjectNameMap.get(item.subjectId) ?? `SUBJ#${item.subjectId}`;
-		const subName = refData.subjects.find(s => s.id === item.subjectId)?.gradeLevels ?? `Subject #${item.subjectId}`;
+		const subName = refData.subjectNameDetailMap.get(item.subjectId) ?? `Subject #${item.subjectId}`;
 		const secName = sectionMap.get(item.sectionId)?.name ?? `Section #${item.sectionId}`;
 
 		if (!facultyId) {
@@ -190,6 +190,7 @@ export async function solveQuickPlace(
 			roomId: number;
 			roomName: string;
 			score: number;
+			roomAssignmentReason: string;
 		} | null = null;
 
 		// Search conflict-free slots
@@ -235,6 +236,9 @@ export async function solveQuickPlace(
 						cohortExpectedEnrollment: item.cohortExpectedEnrollment,
 						adviserId: item.adviserId,
 						adviserName: item.adviserName,
+						metadata: {
+							deferredRoomTypePreference: room.type !== preferredRoomType,
+						},
 					};
 
 					// Full validation check
@@ -251,6 +255,13 @@ export async function solveQuickPlace(
 							score += 20; // Prefer homerooms
 						}
 
+						let roomAssignmentReason = 'FALLBACK_ROOM_ASSIGNED';
+						if (room.id === homeRoomId) {
+							roomAssignmentReason = 'HOME_ROOM_ASSIGNED';
+						} else if (room.type === preferredRoomType) {
+							roomAssignmentReason = 'PREFERRED_ROOM_TYPE_ASSIGNED';
+						}
+
 						if (!bestSlot || score > bestSlot.score) {
 							const rName = refData.roomNameMap.get(room.id) ?? `Room #${room.id}`;
 							bestSlot = {
@@ -260,6 +271,7 @@ export async function solveQuickPlace(
 								roomId: room.id,
 								roomName: rName,
 								score,
+								roomAssignmentReason,
 							};
 						}
 					}
@@ -290,7 +302,8 @@ export async function solveQuickPlace(
 				adviserId: item.adviserId,
 				adviserName: item.adviserName,
 				metadata: {
-					roomAssignmentReason: 'HOME_ROOM_ASSIGNED',
+					roomAssignmentReason: bestSlot.roomAssignmentReason,
+					deferredRoomTypePreference: bestSlot.roomAssignmentReason === 'FALLBACK_ROOM_ASSIGNED',
 				},
 			};
 
@@ -344,10 +357,7 @@ export async function applyQuickPlace(
 	actorId: number,
 	expectedVersion: number,
 ) {
-	// Re-run solver to get fresh results
-	const solution = await solveQuickPlace(runId, schoolId, schoolYearId);
-
-	// Load original run to check version
+	// 1. Early validation checks before expensive solver execution
 	const run = await prisma.generationRun.findUnique({
 		where: { id: runId },
 	});
@@ -359,8 +369,55 @@ export async function applyQuickPlace(
 		throw err(409, 'VERSION_CONFLICT', 'Timetable was modified by another user. Reload and try again.');
 	}
 
-	const nextVersion = run.version + 1;
-	const currentSummary = (run.summary ?? {}) as Record<string, any>;
+	// 2. Solve Quick Place
+	const solution = await solveQuickPlace(runId, schoolId, schoolYearId);
+
+	// If no placements could be made, we don't need to commit anything
+	if (solution.placed.length === 0) {
+		return {
+			success: true,
+			placedCount: 0,
+			version: run.version,
+			draft: {
+				runId: run.id,
+				status: run.status,
+				entries: (run.draftEntries ?? []) as any,
+				unassignedItems: (run.unassignedItems ?? []) as any,
+				summary: run.summary as any,
+				version: run.version,
+				finishedAt: run.finishedAt?.toISOString() ?? null,
+				createdAt: run.createdAt.toISOString(),
+			},
+		};
+	}
+
+	// 3. Map placements to ManualEditProposals
+	const proposals: ManualEditProposal[] = solution.placed.map((p) => ({
+		editType: 'PLACE_UNASSIGNED',
+		sectionId: p.sectionId,
+		subjectId: p.subjectId,
+		session: p.session,
+		targetDay: p.day,
+		targetStartTime: p.startTime,
+		targetEndTime: p.endTime,
+		targetRoomId: p.roomId,
+		targetFacultyId: p.facultyId,
+	}));
+
+	// 4. Commit using commitManualEditBatch (reusing manual-edit checks, audit log, manual edits history)
+	const commitRes = await commitManualEditBatch(
+		runId,
+		schoolId,
+		schoolYearId,
+		actorId,
+		proposals,
+		expectedVersion,
+		true // allowSoftOverride
+	);
+
+	// 5. Recalculate diagnostics for the new entries & unassigned items
+	const finalEntries = commitRes.draft.entries as ScheduledEntry[];
+	const finalUnassigned = commitRes.draft.unassignedItems as unknown as UnassignedItem[];
 
 	const sectionSummary = await getSectionSummary(schoolYearId, schoolId);
 	const sectionsByGrade = sectionSummary.gradeLevels;
@@ -370,8 +427,8 @@ export async function applyQuickPlace(
 	});
 	const activeSubjectCodeById = new Map(activeSubjects.map((s) => [s.id, s.code]));
 
-	const homeRoomStats = buildHomeRoomStats(solution.newEntries, solution.newUnassigned);
-	const homeRoomFallbackDiagnostics = buildHomeRoomFallbackDiagnostics(solution.newEntries, solution.newUnassigned);
+	const homeRoomStats = buildHomeRoomStats(finalEntries, finalUnassigned);
+	const homeRoomFallbackDiagnostics = buildHomeRoomFallbackDiagnostics(finalEntries, finalUnassigned);
 
 	const facultySubjectRows = await prisma.facultySubject.findMany({
 		where: { schoolId },
@@ -392,7 +449,6 @@ export async function applyQuickPlace(
 			};
 		});
 
-	// Derive demand from sync/baseline criteria
 	const { getTemplatePeriodProfiles } = await import('./class-template.service.js');
 	const templateProfiles = await getTemplatePeriodProfiles(schoolId);
 	const classTemplatePeriods: Record<string, number> = {};
@@ -406,26 +462,14 @@ export async function applyQuickPlace(
 	const demand = computeDemand(sectionsByGrade, activeSubjects as any, cohorts as any, classTemplatePeriods);
 
 	const qualifiedFacultyCoverageBySubject = buildQualifiedCoverageBySubject(demand, normalizedFacultySubjects);
-	const slotSaturationByInterval = buildSlotSaturation(solution.newEntries, refData.rooms.length);
-	const unassignedBySubjectGrade = buildUnassignedBySubjectGrade(solution.newUnassigned, activeSubjectCodeById);
+	const slotSaturationByInterval = buildSlotSaturation(finalEntries, refData.rooms.length);
+	const unassignedBySubjectGrade = buildUnassignedBySubjectGrade(finalUnassigned, activeSubjectCodeById);
 
-	// Recompute summary metrics
-	const violationCounts: Record<string, number> = {};
-	for (const v of solution.violations) {
-		violationCounts[v.code] = (violationCounts[v.code] ?? 0) + 1;
-	}
-	const validationResult = {
-		violations: solution.violations,
-		counts: {
-			total: solution.violations.length,
-			byCode: violationCounts,
-		},
-	};
-	const newSummary = computeSummary(solution.newEntries, solution.newUnassigned, validationResult as any);
+	// Update summary with the recalculated diagnostics
 	const nextInputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId);
-
+	const currentSummary = (commitRes.draft.summary ?? {}) as Record<string, any>;
 	const updatedSummary = {
-		...mergePreservedSummaryFields(run.summary, newSummary),
+		...currentSummary,
 		homeRoomAttemptedCount: homeRoomStats.attempted,
 		homeRoomAssignedCount: homeRoomStats.assigned,
 		homeRoomSuccessRate: homeRoomStats.successRate,
@@ -439,85 +483,28 @@ export async function applyQuickPlace(
 		inputSnapshot: nextInputSnapshot,
 	};
 
-	const updatedRun = await prisma.$transaction(async (tx) => {
-		const updated = await tx.generationRun.update({
-			where: { id: runId, version: expectedVersion },
-			data: {
-				draftEntries: solution.newEntries as any,
-				unassignedItems: solution.newUnassigned as any,
-				violations: solution.violations as any,
-				summary: updatedSummary as any,
-				version: nextVersion,
-			},
-		});
-
-		// Write Audit Log entry
-		await tx.auditLog.create({
-			data: {
-				schoolId,
-				schoolYearId,
-				action: 'GENERATION_RUN_QUICK_PLACED',
-				actorId,
-				targetIds: [runId],
-				metadata: {
-					runId,
-					previousVersion: run.version,
-					nextVersion,
-					placedCount: solution.placed.length,
-					unplacedCount: solution.unplaced.length,
-					timestamp: new Date().toISOString(),
-				} as any,
-			},
-		});
-
-		// Log individual placements as manual edit history
-		for (const p of solution.placed) {
-			await tx.manualScheduleEdit.create({
-				data: {
-					runId,
-					schoolId,
-					schoolYearId,
-					actorId,
-					editType: 'PLACE_UNASSIGNED',
-					beforePayload: {},
-					afterPayload: {
-						facultyId: p.facultyId,
-						roomId: p.roomId,
-						subjectId: p.subjectId,
-						sectionId: p.sectionId,
-						day: p.day,
-						startTime: p.startTime,
-						endTime: p.endTime,
-					} as any,
-					validationSummary: {
-						source: 'QUICK_PLACE',
-						subjectCode: p.subjectCode,
-						sectionName: p.sectionName,
-						facultyName: p.facultyName,
-						roomName: p.roomName,
-					} as any,
-				},
-			});
-		}
-
-		return updated;
+	const finalRun = await prisma.generationRun.update({
+		where: { id: runId },
+		data: {
+			summary: updatedSummary as any,
+		},
 	});
 
 	const finalReport = {
-		runId: updatedRun.id,
-		status: updatedRun.status,
-		entries: solution.newEntries,
-		unassignedItems: solution.newUnassigned,
-		summary: updatedRun.summary as any,
-		version: updatedRun.version,
-		finishedAt: updatedRun.finishedAt?.toISOString() ?? null,
-		createdAt: updatedRun.createdAt.toISOString(),
+		runId: finalRun.id,
+		status: finalRun.status,
+		entries: finalEntries,
+		unassignedItems: finalUnassigned,
+		summary: finalRun.summary as any,
+		version: finalRun.version,
+		finishedAt: finalRun.finishedAt?.toISOString() ?? null,
+		createdAt: finalRun.createdAt.toISOString(),
 	};
 
 	return {
 		success: true,
 		placedCount: solution.placed.length,
-		version: updatedRun.version,
+		version: finalRun.version,
 		draft: finalReport,
 	};
 }

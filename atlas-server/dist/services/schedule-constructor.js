@@ -1055,6 +1055,7 @@ export function constructBaseline(input) {
                     roomAssignmentReason: !deferSpecializedRoomTypePreference && item.roomTypePreference && ['LABORATORY', 'TLE_WORKSHOP', 'COMPUTER_LAB', 'GYMNASIUM'].includes(item.roomTypePreference)
                         ? 'SPECIALIZED_ROOM_UNAVAILABLE'
                         : 'FALLBACK_UNRESOLVED',
+                    facultyId: null,
                     entryKind: item.entryKind,
                     programType: item.programType ?? null,
                     programCode: item.programCode ?? null,
@@ -1486,6 +1487,8 @@ export function constructBaseline(input) {
                                         ? (sawCrossBuildingFallbackOptions ? 'CROSS_BUILDING_STANDARD_ROOM_EXHAUSTED' : 'NO_SAME_ZONE_STANDARD_ROOM')
                                         : 'HOME_ROOM_OCCUPIED')
                     : undefined;
+                const assignedFacultyIds = qualifiedMap.get(`${item.subjectId}:${item.sectionId}`) ?? [];
+                const assignedFacultyId = assignedFacultyIds[0] ?? null;
                 unassignedItems.push({
                     sectionId: item.sectionId,
                     subjectId: item.subjectId,
@@ -1493,6 +1496,7 @@ export function constructBaseline(input) {
                     session: session + 1,
                     reason,
                     roomAssignmentReason,
+                    facultyId: assignedFacultyId,
                     entryKind: item.entryKind,
                     programType: item.programType ?? null,
                     programCode: item.programCode ?? null,

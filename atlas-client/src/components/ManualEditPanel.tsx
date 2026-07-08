@@ -185,6 +185,7 @@ export default function ManualEditPanel({
 	timeSlots,
 	roomMap,
 	facultyMap,
+	subjectMap,
 	draftEntries,
 	onPreview,
 	onCommit,
@@ -241,7 +242,9 @@ export default function ManualEditPanel({
 	const facultyLoadMap = useMemo(() => {
 		const loads = new Map<number, number>();
 		for (const e of draftEntries) {
-			loads.set(e.facultyId, (loads.get(e.facultyId) ?? 0) + e.durationMinutes);
+			if (e.facultyId != null) {
+				loads.set(e.facultyId, (loads.get(e.facultyId) ?? 0) + e.durationMinutes);
+			}
 		}
 		return loads;
 	}, [draftEntries]);
@@ -274,7 +277,7 @@ export default function ManualEditPanel({
 		return roomsByBuilding.map((group) => ({
 			label: group.label,
 			items: group.rooms.map((r) => {
-				const missing = required.filter(f => !(r.features || []).includes(f));
+				const missing = required.filter((f: string) => !(r.features || []).includes(f));
 				const isCompatible = missing.length === 0;
 				
 				return {
@@ -301,9 +304,8 @@ export default function ManualEditPanel({
 			
 			const tier = subject ? getQualificationTier(f, subject) : null;
 			let tierLabel = '';
-			if (tier === 1) tierLabel = '[Tier 1: Perfect] ';
-			else if (tier === 2) tierLabel = '[Tier 2: Structural] ';
-			else if (tier === 3) tierLabel = '[Tier 3: Suggestion] ';
+			if (tier === 1 || tier === 2) tierLabel = '[Department Match] ';
+			else if (tier === 3) tierLabel = '[Secondary Match] ';
 			else tierLabel = '[Unqualified] ';
 
 			deptMap.get(dept)!.push({
@@ -334,8 +336,8 @@ export default function ManualEditPanel({
 				draftEntries,
 				entry.entryId,
 				targetDay,
-				entry.facultyId,
-				entry.roomId,
+				entry.facultyId ?? 0,
+				entry.roomId ?? 0,
 			),
 		[draftEntries, entry.entryId, targetDay, entry.facultyId, entry.roomId],
 	);
@@ -491,7 +493,7 @@ export default function ManualEditPanel({
 							variant="outline"
 							className={`h-4 px-1 text-[0.5625rem] shrink-0 ${gradeBadge}`}
 						>
-							G{grade}
+							GR{grade}
 						</Badge>
 					)}
 					<span className="text-muted-foreground shrink-0">·</span>
@@ -501,11 +503,11 @@ export default function ManualEditPanel({
 					</span>
 					<span className="text-muted-foreground shrink-0">·</span>
 					<span className="text-muted-foreground truncate">
-						{facultyLabel(entry.facultyId)}
+						{entry.facultyId != null ? facultyLabel(entry.facultyId) : 'Unassigned'}
 					</span>
 					<span className="text-muted-foreground shrink-0">·</span>
 					<span className="text-muted-foreground truncate">
-						{roomLabel(entry.roomId)}
+						{entry.roomId != null ? roomLabel(entry.roomId) : 'Unassigned'}
 					</span>
 				</div>
 
@@ -711,7 +713,7 @@ export default function ManualEditPanel({
 													<p className="text-[0.65rem] font-medium flex items-center gap-1.5">
 														<span className="text-muted-foreground">Subject requires:</span>
 														{subject.requiredFeatures.length > 0 ? (
-															subject.requiredFeatures.map(f => (
+															subject.requiredFeatures.map((f: string) => (
 																<Badge key={f} variant="outline" className="text-[0.55rem] px-1 py-0 border-amber-200 bg-amber-50 text-amber-700">{f}</Badge>
 															))
 														) : <span className="italic text-muted-foreground/60">No specific features</span>}
@@ -720,17 +722,17 @@ export default function ManualEditPanel({
 													<p className="text-[0.65rem] font-medium flex items-center gap-1.5">
 														<span className="text-muted-foreground">Room provides:</span>
 														{selectedRoom?.features && selectedRoom.features.length > 0 ? (
-															selectedRoom.features.map(f => (
+															selectedRoom.features.map((f: string) => (
 																<Badge key={f} variant="outline" className="text-[0.55rem] px-1 py-0 border-sky-200 bg-sky-50 text-sky-700">{f}</Badge>
 															))
 														) : <span className="italic text-muted-foreground/60">No features tagged</span>}
 													</p>
 												</div>
 
-												{selectedRoom && subject.requiredFeatures.some(f => !(selectedRoom.features || []).includes(f)) && (
+												{selectedRoom && subject.requiredFeatures.some((f: string) => !(selectedRoom.features || []).includes(f)) && (
 													<div className="flex items-center gap-1.5 text-[0.65rem] text-red-600 font-medium pt-1 border-t border-border/40">
 														<AlertCircle className="size-3" />
-														Lacks: {subject.requiredFeatures.filter(f => !(selectedRoom.features || []).includes(f)).join(', ')}
+														Lacks: {subject.requiredFeatures.filter((f: string) => !(selectedRoom.features || []).includes(f)).join(', ')}
 													</div>
 												)}
 											</div>
@@ -781,15 +783,13 @@ export default function ManualEditPanel({
 												<div className="space-y-1 min-w-0">
 													<div className="flex items-center gap-2">
 														<span className="text-xs font-bold truncate">{faculty.lastName}, {faculty.firstName}</span>
-														{tier === 1 && <Badge className="text-[0.55rem] bg-emerald-100 text-emerald-700 hover:bg-emerald-100 px-1 py-0">Tier 1</Badge>}
-														{tier === 2 && <Badge className="text-[0.55rem] bg-sky-100 text-sky-700 hover:bg-sky-100 px-1 py-0">Tier 2</Badge>}
-														{tier === 3 && <Badge className="text-[0.55rem] bg-amber-100 text-amber-700 hover:bg-amber-100 px-1 py-0">Suggestion</Badge>}
+														{(tier === 1 || tier === 2) && <Badge className="text-[0.55rem] bg-emerald-100 text-emerald-700 hover:bg-emerald-100 px-1 py-0">Department Match</Badge>}
+														{tier === 3 && <Badge className="text-[0.55rem] bg-amber-100 text-amber-700 hover:bg-amber-100 px-1 py-0">Secondary Match</Badge>}
 														{!tier && <Badge variant="destructive" className="text-[0.55rem] px-1 py-0">Unqualified</Badge>}
 													</div>
 													<p className="text-[0.65rem] text-muted-foreground leading-tight">
-														{tier === 1 ? 'Perfect match: specialist for this learning area.' :
-														 tier === 2 ? 'Structural match: assigned to the relevant department.' :
-														 tier === 3 ? 'Fuzzy suggestion: keyword match based on historical data.' :
+														{(tier === 1 || tier === 2) ? 'Department match: teacher belongs to the department mapped to this subject.' :
+														 tier === 3 ? 'Secondary match: qualified based on specific specialization credentials.' :
 														 'No qualification match found. This may cause scheduling failures.'}
 													</p>
 												</div>

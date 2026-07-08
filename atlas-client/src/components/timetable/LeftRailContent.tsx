@@ -236,10 +236,10 @@ export function LeftRailContent({ context }: LeftRailContentProps) {
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="all">All</SelectItem>
-									<SelectItem value="7">G7</SelectItem>
-									<SelectItem value="8">G8</SelectItem>
-									<SelectItem value="9">G9</SelectItem>
-									<SelectItem value="10">G10</SelectItem>
+									<SelectItem value="7">GR7</SelectItem>
+									<SelectItem value="8">GR8</SelectItem>
+									<SelectItem value="9">GR9</SelectItem>
+									<SelectItem value="10">GR10</SelectItem>
 								</SelectContent>
 							</Select>
 						</div>

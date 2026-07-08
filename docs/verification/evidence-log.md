@@ -2776,5 +2776,61 @@ px tsc --noEmit passed on tlas-server with no TypeScript errors.
   - `npm run build` (client) -> PASS (Vite production bundle compiled successfully with zero errors).
 - Verdict: GO.
 
+---
+
+# 2026-07-08 - DepEd Terminology Correction and Specialization Tier Abstraction
+
+- Phase: DepEd JHS Terminology & Concept Correctness, `deped-terminology-correctness`.
+- Operator: Antigravity
+- Scope gate: IMPLEMENTATION COMPLETE, CLIENT BUILD GREEN -> PROMPT-SCOPE GO.
+- Trigger: User requested to proceed with the action plan in `ux_ui_audit_findings.md` to resolve DepEd/MATATAG terminology discrepancies and abstract specialization-tier complexity for operators.
+- Scope held: modified `grade-labels.ts`, `LeftRailContent.tsx`, `AssignmentWorkspace.tsx`, `ManualEditPanel.tsx`, `TeachingLoad.tsx`, `MySchedule.tsx`, `MyDashboard.tsx`, `FacultyRoomPreferences.tsx`, and `FacultyPreferences.tsx`.
+- Refactoring improvements:
+  - Updated `gradeLabel` helper to return `"GR"` prefix (e.g. `GR7` - `GR10`) instead of `"G"`.
+  - Standardized grade SelectItems to `GR7` - `GR10` inside `LeftRailContent.tsx` and `AssignmentWorkspace.tsx`.
+  - Abstracted qualification tiers in `ManualEditPanel.tsx` by replacing the developer-facing "Tier 1: Perfect", "Tier 2: Structural", and "Tier 3: Suggestion" labels/badges with simplified "Department Match" (Tiers 1 & 2) and "Secondary Match" (Tier 3).
+  - Replaced `eyebrow="Faculty"` with `eyebrow="Teacher"` in teacher portal pages (`MySchedule.tsx`, `MyDashboard.tsx`, `FacultyRoomPreferences.tsx`, `FacultyPreferences.tsx`).
+  - Updated user-facing toast alerts and success notifications in `TeachingLoad.tsx` to refer to "teaching load" rather than "assignments".
+- Verification results:
+  - `npm --prefix atlas-client run build` -> PASS (Vite production bundle compiled successfully with zero errors).
+- Verdict: GO.
+
+---
+
+# 2026-07-08 - IDE Compile Error Resolutions
+
+- Phase: Code Quality & Compile Resolution, `code-compile-resolution`.
+- Operator: Antigravity
+- Scope gate: IMPLEMENTATION COMPLETE, CLIENT BUILD GREEN, SERVER BUILD GREEN -> PROMPT-SCOPE GO.
+- Trigger: User requested to resolve IDE compile errors in `@[current_problems]`.
+- Scope held: modified `AssignmentWorkspace.tsx`, `ManualEditPanel.tsx`, and `FacultyRoomPreferences.tsx`.
+- Verification results:
+  - `npm --prefix atlas-client run build` -> PASS (Vite production bundle compiled successfully with zero errors).
+  - `npm --prefix atlas-server run build` -> PASS (TypeScript server tsc compilation completed successfully with zero errors).
+- Verdict: GO.
+
+---
+
+# 2026-07-08 - Prompt 10A Quick Place Trust and Contract Repair
+
+- Phase: Timetable Generation / Quick Place, `quick-place-trust-and-contract-repair`.
+- Operator: Antigravity
+- Scope gate: IMPLEMENTATION COMPLETE, BACKEND TESTS GREEN, CLIENT BUILD GREEN -> PROMPT-SCOPE GO.
+- Trigger: User requested to implement tl-timetable-10a-quick-place-trust-and-contract-repair-prompt.md.
+- Scope held:
+  - Added `subjectNameDetailMap` (subject ID -> name) to `loadRunContext` in `manual-edit.service.ts`.
+  - Added automatic `deferredRoomTypePreference: true` tagging for manually placed or moved rooms that mismatch preferred types, converting them to soft warnings in `commitManualEditBatch`.
+  - Refactored `solveQuickPlace` in `timetable-quick-place.service.ts` to source display labels from `subjectNameDetailMap` instead of `.gradeLevels`.
+  - Updated `solveQuickPlace` room sorting and scoring to attach dynamic metadata reasons (`HOME_ROOM_ASSIGNED`, `PREFERRED_ROOM_TYPE_ASSIGNED`, `FALLBACK_ROOM_ASSIGNED`) and set `deferredRoomTypePreference` for fallback placements.
+  - Refactored `applyQuickPlace` to delegate transaction persistence, validation, audit logs, and `ManualScheduleEdit` logging directly to `commitManualEditBatch`.
+  - Recalculated diagnostic summaries in `applyQuickPlace` after the batch commit and updated the generation run summary.
+- Verification results:
+  - `npm --prefix atlas-server run build` -> PASS (TypeScript server tsc compilation completed successfully with zero errors).
+  - `npx tsx atlas-server/src/__tests__/timetable-quick-place.test.ts` -> PASS (All 17 integration checks passed successfully).
+  - `npm --prefix atlas-client run build` -> PASS (Vite production bundle compiled successfully with zero errors).
+- Verdict: GO.
+
+
+
 
 

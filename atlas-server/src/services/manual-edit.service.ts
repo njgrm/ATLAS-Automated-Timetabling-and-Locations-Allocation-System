@@ -210,6 +210,7 @@ export async function loadRunContext(runId: number, schoolId: number, schoolYear
 	const facultyNameMap = new Map(facultyNames.map((f) => [f.id, `${f.lastName}, ${f.firstName}`]));
 	const roomNameMap = new Map(roomNames.map((r) => [r.id, `${r.name} · ${r.building.shortCode || r.building.name}`]));
 	const subjectNameMap = new Map(subjectNames.map((s) => [s.id, s.code]));
+	const subjectNameDetailMap = new Map(subjectNames.map((s) => [s.id, s.name]));
 	const snapshotPayload = Array.isArray(sectionSnapshot?.payload)
 		? sectionSnapshot.payload as unknown as SectionsByGrade[]
 		: [];
@@ -240,6 +241,7 @@ export async function loadRunContext(runId: number, schoolId: number, schoolYear
 		facultyNameMap,
 		roomNameMap,
 		subjectNameMap,
+		subjectNameDetailMap,
 		sectionEnrollment,
 	};
 }
@@ -505,6 +507,11 @@ export function mergePreservedSummaryFields(existingSummary: unknown, newSummary
 		'publicationIntegrity',
 		'timetableDisplaySlots',
 		'timetableShapeContracts',
+		'homeRoomAttemptedCount',
+		'homeRoomAssignedCount',
+		'homeRoomSuccessRate',
+		'resourceDiagnostics',
+		'inputSnapshot',
 	];
 	for (const key of preserveKeys) {
 		if (prev[key] !== undefined) {
@@ -1061,6 +1068,20 @@ export async function commitManualEditBatch(
 	const failedItems = items.filter((item) => item.status === 'FAILED');
 	if (failedItems.length > 0) {
 		throw err(400, 'BATCH_PROPOSAL_INVALID', `Cannot commit: ${failedItems.length} proposed change(s) could not be prepared.`);
+	}
+
+	// Auto-defer room type preference for manually placed/edited mismatched rooms
+	const roomMap = new Map(refData.rooms.map((r) => [r.id, r]));
+	const subjectMap = new Map(refData.subjects.map((s) => [s.id, s]));
+	for (const entry of newEntries) {
+		const room = roomMap.get(entry.roomId);
+		const subject = subjectMap.get(entry.subjectId);
+		if (room && subject && room.type !== subject.preferredRoomType) {
+			entry.metadata = {
+				...entry.metadata,
+				deferredRoomTypePreference: true,
+			};
+		}
 	}
 
 	const newCtx = buildValidatorCtx(schoolId, schoolYearId, runId, newEntries, refData);

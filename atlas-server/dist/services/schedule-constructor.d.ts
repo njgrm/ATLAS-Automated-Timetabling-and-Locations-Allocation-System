@@ -200,6 +200,7 @@ export interface UnassignedItem {
     session: number;
     reason: 'NO_QUALIFIED_FACULTY' | 'FACULTY_OVERLOADED' | 'NO_AVAILABLE_SLOT' | 'NO_COMPATIBLE_ROOM' | 'ROOM_CAPACITY_EXCEEDED';
     roomAssignmentReason?: RoomAssignmentReason;
+    facultyId?: number | null;
     entryKind?: 'SECTION' | 'COHORT';
     programType?: string | null;
     programCode?: string | null;

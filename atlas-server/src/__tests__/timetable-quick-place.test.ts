@@ -134,6 +134,43 @@ async function run() {
 	});
 	createdOwnershipIds.push(ownership.id);
 
+	// 5b. Create fallback subject
+	const subjectFallback = await prisma.subject.create({
+		data: {
+			schoolId,
+			code: `TEST-QP-SUB-FB-${Date.now()}`,
+			name: 'Fallback Subject',
+			minMinutesPerWeek: 180,
+			preferredRoomType: 'FACULTY_ROOM',
+			gradeLevels: [7],
+			isActive: true,
+		}
+	});
+	createdSubjectIds.push(subjectFallback.id);
+
+	const facultySubjectFallback = await prisma.facultySubject.create({
+		data: {
+			schoolId,
+			facultyId: faculty.id,
+			subjectId: subjectFallback.id,
+			gradeLevels: [7],
+			sectionIds: [sectionRec.externalId],
+			assignedBy: officer.id,
+		}
+	});
+	createdFacultySubjectIds.push(facultySubjectFallback.id);
+
+	const ownershipFallback = await prisma.subjectSectionOwnership.create({
+		data: {
+			schoolId,
+			facultySubjectId: facultySubjectFallback.id,
+			facultyId: faculty.id,
+			subjectId: subjectFallback.id,
+			sectionId: sectionRec.externalId,
+		}
+	});
+	createdOwnershipIds.push(ownershipFallback.id);
+
 	// 6. Seed SectionSnapshot
 	const existingSnapshot = await prisma.sectionSnapshot.findUnique({
 		where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
@@ -238,6 +275,24 @@ async function run() {
 						facultyId: faculty.id,
 						homeRoomId: room.id,
 					},
+					{
+						sectionId: sectionRec.externalId,
+						subjectId: subject.id,
+						gradeLevel: 7,
+						session: 2,
+						reason: 'NO_AVAILABLE_SLOT',
+						facultyId: faculty.id,
+						homeRoomId: null,
+					},
+					{
+						sectionId: sectionRec.externalId,
+						subjectId: subjectFallback.id,
+						gradeLevel: 7,
+						session: 1,
+						reason: 'NO_AVAILABLE_SLOT',
+						facultyId: faculty.id,
+						homeRoomId: null,
+					},
 				],
 			},
 		});
@@ -246,25 +301,75 @@ async function run() {
 		const result = await solveQuickPlace(run.id, schoolId, schoolYearId);
 		console.log('Solve result:', JSON.stringify(result, null, 2));
 
-		assertEqual(result.placed.length, 1, 'Quick Place solver placed 1 unassigned item');
+		assertEqual(result.placed.length, 3, 'Quick Place solver placed 3 unassigned items');
 		assertEqual(result.unplaced.length, 0, 'No unplaced items remain');
-		assertEqual(result.newEntries.length, 1, 'New entries contains the auto-placed item');
-		assertEqual(result.newEntries[0].facultyId, faculty.id, 'Placed entry has correct teacher');
-		assertEqual(result.newEntries[0].roomId, room.id, 'Placed entry has correct room');
+		assertEqual(result.newEntries.length, 3, 'New entries contains the auto-placed items');
+
+		// Assert subject display label is correctly sourced from subject.name
+		assertEqual(result.placed[0].subjectName, 'Test Subject', 'Subject 1 name is correct (not gradeLevels)');
+		assertEqual(result.placed[2].subjectName, 'Fallback Subject', 'Subject 3 name is correct (not gradeLevels)');
+
+		// Assert room assignment metadata reasons
+		assertEqual(result.newEntries[0].metadata?.roomAssignmentReason, 'HOME_ROOM_ASSIGNED', 'Metadata reason for home room matches');
+		assertEqual(result.newEntries[1].metadata?.roomAssignmentReason, 'PREFERRED_ROOM_TYPE_ASSIGNED', 'Metadata reason for preferred type matches');
+		assertEqual(result.newEntries[2].metadata?.roomAssignmentReason, 'FALLBACK_ROOM_ASSIGNED', 'Metadata reason for fallback matches');
 
 		section('QUICK-PLACE-02: applyQuickPlace commits solved placements to DB');
 
 		const applyResult = await applyQuickPlace(run.id, schoolId, schoolYearId, officer.id, run.version);
 		assertEqual(applyResult.success, true, 'Quick Place apply succeeded');
-		assertEqual(applyResult.placedCount, 1, 'Quick Place applied 1 placement');
+		assertEqual(applyResult.placedCount, 3, 'Quick Place applied 3 placements');
 		assertEqual(applyResult.version, run.version + 1, 'Run version incremented');
 
 		const updatedRun = await prisma.generationRun.findUnique({
 			where: { id: run.id },
 		});
 		const dbEntries = updatedRun?.draftEntries as any[];
-		assert(dbEntries && dbEntries.length === 1, 'Draft entries committed to DB');
+		assert(dbEntries && dbEntries.length === 3, 'Draft entries committed to DB');
 		assertEqual(dbEntries[0].facultyId, faculty.id, 'Committed entry has correct teacher');
+
+		// Confirm manual-edit history matches and is compatible
+		const manualEdits = await prisma.manualScheduleEdit.findMany({
+			where: { runId: run.id },
+		});
+		assertEqual(manualEdits.length, 3, 'Manual schedule edits were correctly logged');
+		assertEqual(manualEdits[0].editType, 'PLACE_UNASSIGNED', 'Logged edit has correct editType');
+
+		section('QUICK-PLACE-03: applyQuickPlace blocks on version mismatch');
+		let versionConflictError = false;
+		try {
+			// Using run.version (stale version, since it is now run.version + 1)
+			await applyQuickPlace(run.id, schoolId, schoolYearId, officer.id, run.version);
+		} catch (e: any) {
+			if (e.code === 'VERSION_CONFLICT') {
+				versionConflictError = true;
+			}
+		}
+		assert(versionConflictError, 'applyQuickPlace throws VERSION_CONFLICT on stale version');
+
+		section('QUICK-PLACE-04: applyQuickPlace blocks on published run');
+		// Mock published run summary
+		await prisma.generationRun.update({
+			where: { id: run.id },
+			data: {
+				summary: {
+					...(updatedRun?.summary as any),
+					isPublished: true,
+					publishedAt: new Date().toISOString(),
+					publishedBy: officer.id,
+				},
+			},
+		});
+
+		let publishedError = false;
+		try {
+			await applyQuickPlace(run.id, schoolId, schoolYearId, officer.id, updatedRun!.version + 1);
+		} catch (e: any) {
+			if (e.code === 'RUN_ALREADY_PUBLISHED') {
+				publishedError = true;
+			}
+		}
+		assert(publishedError, 'applyQuickPlace throws RUN_ALREADY_PUBLISHED on published run');
 
 	} catch (e: any) {
 		console.error('Test run failed with error:', e);

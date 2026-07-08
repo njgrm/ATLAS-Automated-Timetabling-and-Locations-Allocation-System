@@ -206,6 +206,7 @@ export declare function loadRunContext(runId: number, schoolId: number, schoolYe
     facultyNameMap: Map<number, string>;
     roomNameMap: Map<number, string>;
     subjectNameMap: Map<number, string>;
+    subjectNameDetailMap: Map<number, string>;
     sectionEnrollment: Map<number, number>;
 }>;
 export declare function isPublishedSummary(summary: unknown): boolean;

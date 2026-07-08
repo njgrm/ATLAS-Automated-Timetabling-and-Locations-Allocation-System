@@ -136,6 +136,7 @@ export async function syncTimetableSetup(schoolId, schoolYearId, runId, actorId)
                     session: s,
                     reason,
                     roomAssignmentReason: 'FALLBACK_UNRESOLVED',
+                    facultyId: liveFacultyId,
                     entryKind: demandItem.entryKind,
                     programType: demandItem.programType ?? null,
                     programCode: demandItem.programCode ?? null,

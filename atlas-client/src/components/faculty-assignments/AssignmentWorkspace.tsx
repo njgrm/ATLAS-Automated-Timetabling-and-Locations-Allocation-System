@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Card, CardContent } from '@/ui/card';
 import { Search, Activity, AlertTriangle, CheckCircle2, Users, Layers } from 'lucide-react';
 import { Input } from '@/ui/input';
@@ -89,6 +90,17 @@ export function AssignmentWorkspace({
 	onSetViewMode,
 	getAssignmentOwnershipKey,
 }: AssignmentWorkspaceProps) {
+	const effectiveOwnershipMap = useMemo(() => {
+		const map: Record<string, FacultyOwnershipState & { isPending: boolean }> = {};
+		for (const [key, val] of Object.entries(savedOwnershipMap || {})) {
+			map[key] = { ...val, isPending: false };
+		}
+		for (const [key, val] of Object.entries(pendingOwnershipMap || {})) {
+			map[key] = { ...val, isPending: true };
+		}
+		return map;
+	}, [savedOwnershipMap, pendingOwnershipMap]);
+
 	return (
 		<div className="flex-1 flex min-h-0 gap-3">
 			<AnimatePresence mode="popLayout">
@@ -153,10 +165,10 @@ export function AssignmentWorkspace({
 						</SelectTrigger>
 						<SelectContent>
 							<SelectItem value="all" className="text-xs font-bold uppercase">All Grades</SelectItem>
-							<SelectItem value="7" className="text-xs font-bold uppercase">Grade 7</SelectItem>
-							<SelectItem value="8" className="text-xs font-bold uppercase">Grade 8</SelectItem>
-							<SelectItem value="9" className="text-xs font-bold uppercase">Grade 9</SelectItem>
-							<SelectItem value="10" className="text-xs font-bold uppercase">Grade 10</SelectItem>
+							<SelectItem value="7" className="text-xs font-bold uppercase">GR7</SelectItem>
+							<SelectItem value="8" className="text-xs font-bold uppercase">GR8</SelectItem>
+							<SelectItem value="9" className="text-xs font-bold uppercase">GR9</SelectItem>
+							<SelectItem value="10" className="text-xs font-bold uppercase">GR10</SelectItem>
 						</SelectContent>
 					</Select>
 
@@ -186,11 +198,8 @@ export function AssignmentWorkspace({
 											<div className="space-y-3">
 												{departmentQualifiedSubjects.map((subject) => {
 													const prefix = `${subject.id}:`;
-													const subjectSavedOwnership = Object.fromEntries(
-														Object.entries(savedOwnershipMap || {}).filter(([k]) => k.startsWith(prefix))
-													);
-													const subjectPendingOwnership = Object.fromEntries(
-														Object.entries(pendingOwnershipMap || {}).filter(([k]) => k.startsWith(prefix))
+													const subjectEffectiveOwnership = Object.fromEntries(
+														Object.entries(effectiveOwnershipMap).filter(([k]) => k.startsWith(prefix))
 													);
 													const subjectConflicts = Object.fromEntries(
 														Object.entries(savedConflictMap || {}).filter(([k]) => k.startsWith(prefix))
@@ -204,8 +213,7 @@ export function AssignmentWorkspace({
 															sections={sectionsBySubject[subject.id] ?? []}
 															disabled={saving || !selected.isActiveForScheduling || isReadOnlyMode}
 															selectedFacultyId={selected.id}
-															savedOwnershipMap={subjectSavedOwnership}
-															pendingOwnershipMap={subjectPendingOwnership}
+															effectiveOwnershipMap={subjectEffectiveOwnership}
 															savedConflictMap={subjectConflicts}
 															onSetSections={onSetSections}
 															searchTerm={subjectSearch}
@@ -237,11 +245,8 @@ export function AssignmentWorkspace({
 											<div className="space-y-3">
 												{outsideDepartmentSubjects.map((subject) => {
 													const prefix = `${subject.id}:`;
-													const subjectSavedOwnership = Object.fromEntries(
-														Object.entries(savedOwnershipMap || {}).filter(([k]) => k.startsWith(prefix))
-													);
-													const subjectPendingOwnership = Object.fromEntries(
-														Object.entries(pendingOwnershipMap || {}).filter(([k]) => k.startsWith(prefix))
+													const subjectEffectiveOwnership = Object.fromEntries(
+														Object.entries(effectiveOwnershipMap).filter(([k]) => k.startsWith(prefix))
 													);
 													const subjectConflicts = Object.fromEntries(
 														Object.entries(savedConflictMap || {}).filter(([k]) => k.startsWith(prefix))
@@ -255,8 +260,7 @@ export function AssignmentWorkspace({
 															sections={sectionsBySubject[subject.id] ?? []}
 															disabled={saving || !selected.isActiveForScheduling || isReadOnlyMode}
 															selectedFacultyId={selected.id}
-															savedOwnershipMap={subjectSavedOwnership}
-															pendingOwnershipMap={subjectPendingOwnership}
+															effectiveOwnershipMap={subjectEffectiveOwnership}
 															savedConflictMap={subjectConflicts}
 															onSetSections={onSetSections}
 															isOutsideDepartment
@@ -327,8 +331,7 @@ export function AssignmentWorkspace({
 											sections={sectionsBySubject[subject.id] ?? []}
 											disabled={saving || !selected.isActiveForScheduling || isReadOnlyMode}
 											selectedFacultyId={selected.id}
-											savedOwnershipMap={savedOwnershipMap}
-											pendingOwnershipMap={pendingOwnershipMap}
+											effectiveOwnershipMap={effectiveOwnershipMap}
 											savedConflictMap={savedConflictMap}
 											onSetSections={onSetSections}
 											searchTerm={subjectSearch}
@@ -414,8 +417,7 @@ export function AssignmentWorkspace({
 											sections={sectionsBySubject[subject.id] ?? []}
 											disabled={saving || !selected.isActiveForScheduling || isReadOnlyMode}
 											selectedFacultyId={selected.id}
-											savedOwnershipMap={savedOwnershipMap}
-											pendingOwnershipMap={pendingOwnershipMap}
+											effectiveOwnershipMap={effectiveOwnershipMap}
 											savedConflictMap={savedConflictMap}
 											onSetSections={onSetSections}
 											searchTerm={subjectSearch}
