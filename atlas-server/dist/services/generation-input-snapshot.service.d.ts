@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client';
+import { prisma } from '../lib/prisma.js';
 export type GenerationInputDomain = 'teachingLoad' | 'policy' | 'rooms' | 'sections' | 'subjects';
 export type GenerationInputDomainSnapshot = {
     fingerprint: string;
@@ -23,5 +25,5 @@ export type GenerationInputComparison = {
 };
 export declare function extractGenerationInputSnapshot(summary: unknown): GenerationInputSnapshot | null;
 export declare function compareGenerationInputSnapshots(runSnapshot: GenerationInputSnapshot | null, currentSnapshot: GenerationInputSnapshot, checkedAt?: string): GenerationInputComparison;
-export declare function computeGenerationInputSnapshot(schoolId: number, schoolYearId: number): Promise<GenerationInputSnapshot>;
+export declare function computeGenerationInputSnapshot(schoolId: number, schoolYearId: number, client?: Prisma.TransactionClient | typeof prisma): Promise<GenerationInputSnapshot>;
 export declare function compareCurrentInputsForRun(summary: unknown, schoolId: number, schoolYearId: number): Promise<GenerationInputComparison>;

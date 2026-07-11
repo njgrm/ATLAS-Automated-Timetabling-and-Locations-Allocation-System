@@ -3,6 +3,10 @@ import {
 	previewTeachingLoadRepair,
 	applyTeachingLoadRepair,
 } from '../services/timetable-teaching-load-repair.service.js';
+import {
+	computeGenerationInputSnapshot,
+	extractGenerationInputSnapshot,
+} from '../services/generation-input-snapshot.service.js';
 
 let passCount = 0;
 let failCount = 0;
@@ -111,6 +115,19 @@ async function run() {
 		}
 	});
 	createdFacultyIds.push(faculty.id);
+	const unrelatedFaculty = await prisma.facultyMirror.create({
+		data: {
+			schoolId,
+			externalId: 40007,
+			firstName: 'Unrelated Conflict',
+			lastName: 'Teacher',
+			department: 'English',
+			employmentStatus: 'PERMANENT',
+			isActiveForScheduling: true,
+			maxHoursPerWeek: 20,
+		},
+	});
+	createdFacultyIds.push(unrelatedFaculty.id);
 
 	// 4. Create mock FacultySubject
 	const facultySubject = await prisma.facultySubject.create({
@@ -124,6 +141,17 @@ async function run() {
 		}
 	});
 	createdFacultySubjectIds.push(facultySubject.id);
+	const unrelatedFacultySubject = await prisma.facultySubject.create({
+		data: {
+			schoolId,
+			facultyId: unrelatedFaculty.id,
+			subjectId: subject.id,
+			gradeLevels: [7],
+			sectionIds: [sectionRec.externalId + 1],
+			assignedBy: officer.id,
+		},
+	});
+	createdFacultySubjectIds.push(unrelatedFacultySubject.id);
 
 	// 5. Seed SectionSnapshot
 	const existingSnapshot = await prisma.sectionSnapshot.findUnique({
@@ -303,6 +331,14 @@ async function run() {
 		assertEqual(applyRes.draft.unassignedItems.length, 1, 'Unassigned item remains in list when not placed');
 		assertEqual(applyRes.draft.entries.length, 0, 'No entry created in timetable grid');
 
+		const persistedSnapshot = extractGenerationInputSnapshot(applyRes.draft.summary);
+		const currentSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId);
+		assertEqual(
+			persistedSnapshot?.domains.teachingLoad.fingerprint,
+			currentSnapshot.domains.teachingLoad.fingerprint,
+			'Persisted input snapshot reflects the committed Teaching Load owner',
+		);
+
 		section('TL-REPAIR-03: Placement removes unassigned item and inserts scheduled entry');
 
 		const suggestion = previewRes.unassignedReadiness[0].suggestedPlacements[0];
@@ -328,7 +364,191 @@ async function run() {
 		assertEqual(placementApplyRes.draft.unassignedItems.length, 0, 'Unassigned item removed after placement succeeds');
 		assertEqual(placementApplyRes.draft.entries.length, 1, 'Scheduled entry inserted into timetable grid');
 
-		section('TL-REPAIR-04: Conflict blocks and rolls back');
+		section('TL-REPAIR-04: Placement proposal must match the repaired unassigned session');
+
+		const mismatchRun = await prisma.generationRun.create({
+			data: {
+				schoolId,
+				schoolYearId,
+				status: 'COMPLETED',
+				runType: 'FULL',
+				triggeredBy: officer.id,
+				startedAt: new Date(),
+				finishedAt: new Date(),
+				durationMs: 400,
+				summary: {
+					classesProcessed: 2,
+					assignedCount: 0,
+					unassignedCount: 2,
+					hardViolationCount: 0,
+					softViolationCount: 0,
+					timetableDisplaySlots: [{ startTime: '08:00', endTime: '09:00' }],
+				},
+				violations: [],
+				draftEntries: [],
+				unassignedItems: [1, 2].map((session) => ({
+					sectionId: sectionRec.externalId,
+					subjectId: subject.id,
+					gradeLevel: 7,
+					session,
+					reason: 'NO_AVAILABLE_SLOT',
+					facultyId: null,
+					homeRoomId: room.id,
+				})),
+			},
+		});
+		createdRunIds.push(mismatchRun.id);
+
+		let mismatchRejected = false;
+		try {
+			await applyTeachingLoadRepair(mismatchRun.id, schoolId, schoolYearId, officer.id, {
+				expectedRunVersion: mismatchRun.version,
+				changes: [{
+					kind: 'UNASSIGNED',
+					unassignedKey,
+					subjectId: subject.id,
+					sectionId: sectionRec.externalId,
+					session: 1,
+					entryKind: 'SECTION',
+					fromFacultyId: faculty.id,
+					toFacultyId: faculty.id,
+				}],
+				placementProposal: {
+					editType: 'PLACE_UNASSIGNED',
+					sectionId: sectionRec.externalId,
+					subjectId: subject.id,
+					session: 2,
+					targetDay: 'MONDAY',
+					targetStartTime: '08:00',
+					targetEndTime: '09:00',
+					targetRoomId: room.id,
+					targetFacultyId: faculty.id,
+				},
+			});
+		} catch (error: any) {
+			mismatchRejected = true;
+			assertEqual(error.code, 'PLACEMENT_REPAIR_SCOPE_MISMATCH', 'Mismatched placement returns the repair-scope error');
+		}
+		assert(mismatchRejected, 'Placement for another session is rejected');
+
+		section('TL-REPAIR-05: Unrelated hard conflicts do not suppress placement suggestions');
+
+		const unrelatedConflictRun = await prisma.generationRun.create({
+			data: {
+				schoolId,
+				schoolYearId,
+				status: 'COMPLETED',
+				runType: 'FULL',
+				triggeredBy: officer.id,
+				startedAt: new Date(),
+				finishedAt: new Date(),
+				durationMs: 400,
+				summary: {
+					classesProcessed: 3,
+					assignedCount: 2,
+					unassignedCount: 1,
+					hardViolationCount: 1,
+					softViolationCount: 0,
+					timetableDisplaySlots: [
+						{ startTime: '08:00', endTime: '09:00' },
+						{ startTime: '09:00', endTime: '10:00' },
+					],
+				},
+				violations: [],
+				draftEntries: ['a', 'b'].map((suffix) => ({
+					entryId: `unrelated-conflict-${suffix}`,
+					facultyId: unrelatedFaculty.id,
+					roomId: room.id,
+					subjectId: subject.id,
+					sectionId: sectionRec.externalId + 1,
+					day: 'MONDAY',
+					startTime: '08:00',
+					endTime: '09:00',
+					durationMinutes: 60,
+					entryKind: 'SECTION',
+				})),
+				unassignedItems: [{
+					sectionId: sectionRec.externalId,
+					subjectId: subject.id,
+					gradeLevel: 7,
+					session: 3,
+					reason: 'NO_AVAILABLE_SLOT',
+					facultyId: null,
+					homeRoomId: room.id,
+				}],
+			},
+		});
+		createdRunIds.push(unrelatedConflictRun.id);
+		const unrelatedPreview = await previewTeachingLoadRepair(unrelatedConflictRun.id, schoolId, schoolYearId, {
+			changes: [{
+				kind: 'UNASSIGNED',
+				unassignedKey: `${sectionRec.externalId}:${subject.id}:3:SECTION`,
+				subjectId: subject.id,
+				sectionId: sectionRec.externalId,
+				session: 3,
+				entryKind: 'SECTION',
+				fromFacultyId: faculty.id,
+				toFacultyId: faculty.id,
+			}],
+		});
+		assert(
+			unrelatedPreview.unassignedReadiness[0].suggestedPlacements.length > 0,
+			'Valid suggestions remain available despite unrelated existing hard conflicts',
+		);
+		const unrelatedPlacementPreview = await previewTeachingLoadRepair(unrelatedConflictRun.id, schoolId, schoolYearId, {
+			changes: [{
+				kind: 'UNASSIGNED',
+				unassignedKey: `${sectionRec.externalId}:${subject.id}:3:SECTION`,
+				subjectId: subject.id,
+				sectionId: sectionRec.externalId,
+				session: 3,
+				entryKind: 'SECTION',
+				fromFacultyId: faculty.id,
+				toFacultyId: faculty.id,
+			}],
+			placementProposal: unrelatedPreview.unassignedReadiness[0].suggestedPlacements[0],
+		});
+		assert(unrelatedPlacementPreview.allowed, 'Existing unrelated hard conflicts do not block a valid placement');
+		assertEqual(unrelatedPlacementPreview.hardViolations.length, 0, 'Preview reports no newly introduced hard conflict');
+		assert(
+			unrelatedPlacementPreview.violationDelta.hardBefore > unrelatedPlacementPreview.violationDelta.hardAfter,
+			'Violation delta distinguishes the baseline count from newly introduced blockers',
+		);
+
+		section('TL-REPAIR-06: Stale faculty version blocks all writes');
+		const beforeStaleRun = await prisma.generationRun.findUniqueOrThrow({ where: { id: unrelatedConflictRun.id } });
+		const beforeStaleOwnership = await prisma.subjectSectionOwnership.findUnique({
+			where: { schoolId_subjectId_sectionId: { schoolId, subjectId: subject.id, sectionId: sectionRec.externalId } },
+		});
+		let staleFacultyRejected = false;
+		try {
+			await applyTeachingLoadRepair(unrelatedConflictRun.id, schoolId, schoolYearId, officer.id, {
+				expectedRunVersion: unrelatedConflictRun.version,
+				expectedFacultyVersions: { [faculty.id]: faculty.version - 1 },
+				changes: [{
+					kind: 'UNASSIGNED',
+					unassignedKey: `${sectionRec.externalId}:${subject.id}:3:SECTION`,
+					subjectId: subject.id,
+					sectionId: sectionRec.externalId,
+					session: 3,
+					entryKind: 'SECTION',
+					fromFacultyId: faculty.id,
+					toFacultyId: faculty.id,
+				}],
+			});
+		} catch (error: any) {
+			staleFacultyRejected = true;
+			assertEqual(error.code, 'FACULTY_VERSION_CONFLICT', 'Stale faculty version returns FACULTY_VERSION_CONFLICT');
+		}
+		assert(staleFacultyRejected, 'Stale faculty version is rejected');
+		const afterStaleRun = await prisma.generationRun.findUniqueOrThrow({ where: { id: unrelatedConflictRun.id } });
+		const afterStaleOwnership = await prisma.subjectSectionOwnership.findUnique({
+			where: { schoolId_subjectId_sectionId: { schoolId, subjectId: subject.id, sectionId: sectionRec.externalId } },
+		});
+		assertEqual(afterStaleRun.version, beforeStaleRun.version, 'Stale faculty request does not change the run version');
+		assertEqual(afterStaleOwnership?.facultyId, beforeStaleOwnership?.facultyId, 'Stale faculty request does not change canonical ownership');
+
+		section('TL-REPAIR-07: Conflict blocks and rolls back');
 
 		// Attempting to place another unassigned item that overlaps or conflicts with the existing entry
 		// Let's create another unassigned item in the same section, subject, and same slot
@@ -427,7 +647,7 @@ async function run() {
 		assertEqual((rollbackCheckRun?.draftEntries as any[]).length, 1, 'Draft entries rolled back');
 		assertEqual((rollbackCheckRun?.unassignedItems as any[]).length, 1, 'Unassigned items rolled back');
 
-		section('TL-REPAIR-05: Published run blocks canonical repair');
+		section('TL-REPAIR-08: Published run blocks canonical repair');
 
 		const publishedRun = await prisma.generationRun.create({
 			data: {

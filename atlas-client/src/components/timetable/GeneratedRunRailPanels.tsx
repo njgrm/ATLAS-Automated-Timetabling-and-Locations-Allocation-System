@@ -367,7 +367,7 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 									})}
 								</div>
 								<span className="text-xs font-medium text-muted-foreground">
-									Use recovery tools only when a session stays blocked after generation
+									Start with the sessions that still need a teacher or timetable slot
 								</span>
 							</div>
 						)}

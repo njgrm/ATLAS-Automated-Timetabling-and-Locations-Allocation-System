@@ -1,5 +1,5 @@
 import { memo, useState } from 'react';
-import { AlertTriangle, CalendarClock, Check, ChevronDown, Clock, ClipboardList, Crosshair, GraduationCap, History, Lightbulb, Loader2, MoreHorizontal, Play, Printer, RefreshCw, RotateCw, SearchCheck, Send, Settings2, ShieldAlert, Undo2, Wrench } from 'lucide-react';
+import { AlertTriangle, CalendarClock, Check, Clock, ClipboardList, Crosshair, GraduationCap, History, Lightbulb, Loader2, MoreHorizontal, Play, RefreshCw, RotateCw, SearchCheck, Send, Settings2, ShieldAlert, Undo2, Wrench } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import atlasApi from '@/lib/api';
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
 import { ConfirmationModal } from '@/ui/confirmation-modal';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/ui/dropdown-menu';
 import { QuickPlaceSummaryModal } from '@/components/timetable/QuickPlaceSummaryModal';
 import { FilterChip, StatItem } from '@/components/timetable/TimetableShared';
 import { TimetableToolbar } from '@/components/timetable/TimetableToolbar';
@@ -205,6 +206,51 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					variant="outline"
 					size="sm"
 					className="h-8 gap-1.5"
+					onClick={handleRefresh}
+					disabled={loading}
+				>
+					<RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} />
+					<span className="hidden sm:inline">Refresh schedule</span>
+					<span className="sr-only sm:hidden">Refresh schedule</span>
+				</Button>
+
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-8 gap-1.5"
+								disabled={!draft || hardCount > 0 || centerView === 'pre-generation'}
+								onClick={() => {
+									setPublishAcknowledged(false);
+									setShowPublishDialog(true);
+								}}
+							>
+								<Send className="size-3.5" />
+								Publish
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>
+							{hardCount > 0 ? `Cannot publish: ${hardCount} hard violation(s) remaining` : 'Publish this schedule'}
+						</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button variant="outline" size="sm" className="h-8 gap-1.5">
+							<MoreHorizontal className="size-3.5" />
+							More
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="start" className="w-72 p-2">
+						<div className="grid gap-1">
+
+				<Button
+					variant="outline"
+					size="sm"
+					className="h-8 gap-1.5"
 					disabled={newDraftLoading || !schoolYearId}
 					onClick={handleStartNewPreGenerationDraft}
 				>
@@ -251,29 +297,6 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent>Trigger a new schedule generation run</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
-
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="outline"
-								size="sm"
-								className="h-8 gap-1.5"
-								disabled={!draft || hardCount > 0 || centerView === 'pre-generation'}
-								onClick={() => {
-									setPublishAcknowledged(false);
-									setShowPublishDialog(true);
-								}}
-							>
-								<Send className="size-3.5" />
-								Publish
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>
-							{hardCount > 0 ? `Cannot publish: ${hardCount} hard violation(s) remaining` : 'Publish this schedule'}
-						</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
 
@@ -342,24 +365,6 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent>Open the room requests queue inside Timetable</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
-
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="outline"
-								size="sm"
-								className="h-8"
-								onClick={handleRefresh}
-								disabled={loading}
-								aria-label="Refresh data"
-							>
-								<RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} />
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>Refresh data</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
 
@@ -439,6 +444,9 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					<Lightbulb className="size-3.5" />
 					How It Works
 				</Link>
+						</div>
+					</DropdownMenuContent>
+				</DropdownMenu>
 
 				{summary && (
 					<div className="flex items-center gap-3 ml-auto text-xs text-muted-foreground">
@@ -468,16 +476,6 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 								</div>
 							</div>
 						)}
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => window.print()}
-							className="h-7 gap-1.5 text-[11px] font-semibold border-muted-foreground/20 text-foreground hover:bg-muted shrink-0 print:hidden"
-						>
-							<Printer className="size-3.5" />
-							Print / PDF
-						</Button>
-						<div className="h-4 w-px bg-border print:hidden" />
 						<Badge variant="outline" className={`h-5 px-1.5 text-[0.625rem] font-bold ${statusColor(draft?.status ?? '')}`}>
 							{draft?.status ?? '—'}
 						</Badge>
@@ -504,10 +502,6 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 							)}
 							explanation="Real-world computing time it took to generate this draft."
 						/>
-						<div className="h-4 w-px bg-border mx-1" />
-						<span className="text-[0.625rem] font-medium text-foreground">
-							Recovery Tools: <span className="font-semibold">{(context.policy?.teacherMoveEnabled ?? true) ? 'Enabled' : 'Locked'}</span>
-						</span>
 					</div>
 				)}
 			</div>
@@ -528,7 +522,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 						</div>
 						<div className="min-w-0 space-y-1">
 							<div className="flex flex-wrap items-center gap-2">
-								<p className="text-sm font-bold">{inputState?.status === 'STALE' ? 'Input changes detected' : 'Input status unavailable'}</p>
+								<p className="text-sm font-bold">{inputState?.status === 'STALE' ? 'Setup changes detected' : 'Setup comparison unavailable'}</p>
 								{inputState?.status === 'STALE' && changedDomainLabels.slice(0, 3).map((label) => (
 									<Badge key={label} variant="outline" className="h-5 border-amber-300 bg-white/70 px-1.5 text-[0.625rem] font-bold text-amber-800">
 										{label}
@@ -586,7 +580,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 			<Dialog open={showImpactPreview} onOpenChange={setShowImpactPreview}>
 				<DialogContent className="sm:max-w-md">
 					<DialogHeader>
-						<DialogTitle>{inputState?.status === 'STALE' ? 'Input changes detected' : 'Input status unavailable'}</DialogTitle>
+							<DialogTitle>{inputState?.status === 'STALE' ? 'Setup changes detected' : 'Setup comparison unavailable'}</DialogTitle>
 						<DialogDescription>
 							{inputState?.status === 'STALE'
 								? 'This draft was not changed automatically. Review the changed setup areas, then choose manual repair or regenerate when ready.'
@@ -674,7 +668,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 						className="h-7 px-2.5 text-[0.625rem]"
 						onClick={() => setPresentationMode('workflow')}
 					>
-						Workflow
+						Schedule review
 					</Button>
 					<Button
 						variant={presentationMode === 'matrix' ? 'default' : 'outline'}
@@ -682,7 +676,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 						className="h-7 px-2.5 text-[0.625rem]"
 						onClick={() => setPresentationMode('matrix')}
 					>
-						Class Program Matrix
+						Grid view
 					</Button>
 				</div>
 				<div className="h-4 w-px bg-border mx-0.5" />
@@ -723,10 +717,10 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 			<ConfirmationModal
 				open={showPostSyncOffer}
 				onOpenChange={setShowPostSyncOffer}
-				title="Auto-Place Displaced Sessions?"
-				description={`Sync complete: updated ${syncResult?.updatedFacultyCount} assignments, displaced ${syncResult?.displacedEntriesCount} entries, and added ${syncResult?.addedUnassignedCount} unassigned sessions. Would you like ATLAS to automatically run the Quick Place algorithm to schedule these displaced/unassigned sessions?`}
+				{...{ title: 'Place available sessions?' }}
+				description={`Setup sync updated ${syncResult?.updatedFacultyCount} teacher assignments, moved ${syncResult?.displacedEntriesCount} sessions to Needs attention, and found ${syncResult?.addedUnassignedCount} new sessions. Review the sessions ATLAS can place now.`}
 				onConfirm={handleTriggerQuickPlacePreview}
-				confirmText="Auto-Place Sessions"
+				confirmText="Review placements"
 				variant="success"
 			/>
 

@@ -2851,6 +2851,61 @@ px tsc --noEmit passed on tlas-server with no TypeScript errors.
   - `npm --prefix atlas-client run build` -> PASS (Vite production bundle compiled successfully with zero errors).
 - Verdict: GO.
 
+---
+
+# 2026-07-11 - Prompt 10B Contract Closure Follow-Up
+
+- Phase: Timetable Generation / Teaching Load Repair, `teaching-load-repair-contract-closure`.
+- Operator: Codex
+- Scope gate: SERVER, CLIENT, DATABASE TESTS, AND BUILT-RUNTIME ROUTE GREEN; TAILNET BROWSER ACCEPTANCE BLOCKED BY BROWSER NETWORK ACCESS -> PROMPT-SCOPE NO-GO PENDING TAILNET UI SMOKE.
+- Corrected contracts:
+  - Generation input snapshots are now computed through the active Prisma transaction after canonical Teaching Load ownership and faculty-scope writes, so the saved run fingerprint reflects committed truth.
+  - `placementProposal` must match exactly one `UNASSIGNED` repair on subject, section, session, target teacher, entry kind, unassigned key, and cohort marker where supplied; mismatches return `PLACEMENT_REPAIR_SCOPE_MISMATCH` without writes.
+  - Suggested-slot validation compares candidate hard violations with the projected baseline, so unrelated pre-existing run conflicts do not suppress otherwise valid suggestions.
+  - Affected faculty versions and active scheduling status are rechecked inside the ownership-write transaction.
+  - `TacticalSandboxDock.tsx` was reduced below 1000 lines by extracting `PublishedRevisionDialog.tsx`.
+  - Browser QA exposed and repaired a declaration-order crash caused by reading `hasStagedChanges` before initialization.
+  - Development mode no longer registers the production service worker and unregisters stale development registrations.
+- Verification results:
+  - `npm --prefix atlas-server run build` -> PASS.
+  - `npm --prefix atlas-client run build` -> PASS.
+  - `timetable-teaching-load-repair.test.ts` -> PASS, 31 checks.
+  - `timetable-teaching-load-repair-contract.test.ts` -> PASS.
+  - `timetable-quick-place.test.ts` -> PASS, 26 checks.
+  - Built server start -> PASS on port 5001; `/api/v1/health` returned `ok`; the exact repair preview route returned expected `EMPTY_REPAIR_BATCH` validation and the process remained alive.
+  - React size/primitive scan -> PASS: dock 946 lines, extracted dialog 174 lines, no native button/select/details or raw title usage in touched timetable components.
+  - OS-level Tailnet request -> PASS (`200 OK`), but the in-app browser could not load the Tailnet hostname. Local browser QA found and verified the runtime declaration-order repair; full data-loaded desktop/mobile interaction acceptance remains pending.
+- Tailnet browser follow-up:
+  - Admin login at `https://njgrm.buru-degree.ts.net` -> PASS.
+  - Selected unpublished run `127`; run identity remained visible before repair actions -> PASS.
+  - Unassigned Teaching Load preview ignored 525 unrelated baseline hard conflicts and reported zero newly introduced blockers -> PASS after repair.
+  - Selected `MONDAY 15:15`, `G7 Room 101`; primary action became `Place session` -> PASS.
+  - Applied the placement; run `127` unassigned count changed from 25 to 24 -> PASS.
+- Verdict: GO.
+
+---
+
+# 2026-07-11 - Prompt 10C Timetable KISS Regression Cleanup
+
+- Phase: Timetable Review / KISS cleanup, `timetable-kiss-regression-cleanup`.
+- Operator: Codex
+- Scope gate: CLIENT BUILD, STATIC SCANS, AND TAILNET RESPONSIVE QA GREEN -> PROMPT-SCOPE GO.
+- Changes verified:
+  - The command row now exposes only the run selector, `Refresh schedule`, eligible `Publish`, `More`, and compact run stats.
+  - Secondary setup, generation, policy, map, request, history, tour, and explanation actions are consolidated under `More`.
+  - View choices use `Schedule review` and `Grid view`.
+  - Placement confirmation uses `Place available sessions?`, `Review placements`, `Can place`, and `Still blocked` instead of algorithm-first copy.
+  - A successful unassigned placement closes its stale repair sheet and returns the scheduler to the refreshed queue.
+- Verification results:
+  - `npm --prefix atlas-client run build` -> PASS.
+  - `npm --prefix atlas-server run build` -> PASS.
+  - Teaching Load repair integration -> PASS, 34 checks.
+  - Quick Place integration -> PASS, 26 checks when run independently.
+  - React files -> PASS: header 739 lines, placement summary 184, dock 960, generated rail 858.
+  - Native primitive scan -> PASS: no native `button`, `select`, `details`, or raw DOM `title` attribute in touched files.
+  - Tailnet overflow checks -> PASS at 1440x900, 900x900, and 390x844; document width and height stayed within each viewport.
+- Verdict: GO.
+
 
 
 

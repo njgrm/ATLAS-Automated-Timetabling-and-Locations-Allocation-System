@@ -45,6 +45,9 @@ export interface ManualEditProposal {
 	sectionId?: number;
 	subjectId?: number;
 	session?: number;
+	unassignedKey?: string;
+	entryKind?: 'SECTION' | 'COHORT';
+	cohortCode?: string | null;
 	/** The existing entryId being moved (for MOVE_ENTRY, CHANGE_ROOM, etc.) */
 	entryId?: string;
 	/** Target values */
@@ -335,7 +338,9 @@ function applyProposal(
 			(u) =>
 				u.sectionId === proposal.sectionId &&
 				u.subjectId === proposal.subjectId &&
-				(proposal.session == null || u.session === proposal.session),
+				(proposal.session == null || u.session === proposal.session) &&
+				(proposal.entryKind == null || (u.entryKind ?? 'SECTION') === proposal.entryKind) &&
+				(proposal.cohortCode === undefined || (u.cohortCode ?? null) === proposal.cohortCode),
 		);
 		if (uIdx === -1) throw err(400, 'UNASSIGNED_NOT_FOUND', 'Specified unassigned item not found.');
 

@@ -172,7 +172,9 @@ function applyProposal(entries, unassigned, proposal) {
         // Find matching unassigned item
         const uIdx = newUnassigned.findIndex((u) => u.sectionId === proposal.sectionId &&
             u.subjectId === proposal.subjectId &&
-            (proposal.session == null || u.session === proposal.session));
+            (proposal.session == null || u.session === proposal.session) &&
+            (proposal.entryKind == null || (u.entryKind ?? 'SECTION') === proposal.entryKind) &&
+            (proposal.cohortCode === undefined || (u.cohortCode ?? null) === proposal.cohortCode));
         if (uIdx === -1)
             throw err(400, 'UNASSIGNED_NOT_FOUND', 'Specified unassigned item not found.');
         const uItem = newUnassigned[uIdx];

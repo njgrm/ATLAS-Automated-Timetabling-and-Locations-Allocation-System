@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 
+import type { Prisma } from '@prisma/client';
+
 import { prisma } from '../lib/prisma.js';
 
 export type GenerationInputDomain = 'teachingLoad' | 'policy' | 'rooms' | 'sections' | 'subjects';
@@ -125,7 +127,11 @@ export function compareGenerationInputSnapshots(
 	};
 }
 
-export async function computeGenerationInputSnapshot(schoolId: number, schoolYearId: number): Promise<GenerationInputSnapshot> {
+export async function computeGenerationInputSnapshot(
+	schoolId: number,
+	schoolYearId: number,
+	client: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<GenerationInputSnapshot> {
 	const [
 		facultyMirrorAggregate,
 		facultySubjectAggregate,
@@ -139,56 +145,56 @@ export async function computeGenerationInputSnapshot(schoolId: number, schoolYea
 		classTemplateAggregate,
 		classTemplateSubjectAggregate,
 	] = await Promise.all([
-		prisma.facultyMirror.aggregate({
+		client.facultyMirror.aggregate({
 			where: { schoolId, isStale: false },
 			_count: { _all: true },
 			_max: { id: true, updatedAt: true },
 		}),
-		prisma.facultySubject.aggregate({
+		client.facultySubject.aggregate({
 			where: { schoolId },
 			_count: { _all: true },
 			_max: { id: true, updatedAt: true },
 		}),
-		prisma.subjectSectionOwnership.aggregate({
+		client.subjectSectionOwnership.aggregate({
 			where: { schoolId },
 			_count: { _all: true },
 			_max: { id: true, updatedAt: true },
 		}),
-		prisma.schedulingPolicy.findUnique({
+		client.schedulingPolicy.findUnique({
 			where: { schoolId_schoolYearId: { schoolId, schoolYearId } },
 			select: { id: true, updatedAt: true },
 		}),
-		prisma.gradeShiftWindow.aggregate({
+		client.gradeShiftWindow.aggregate({
 			where: { schoolId, schoolYearId },
 			_count: { _all: true },
 			_max: { id: true, updatedAt: true },
 		}),
-		prisma.room.aggregate({
+		client.room.aggregate({
 			where: { isTeachingSpace: true, building: { schoolId, isTeachingBuilding: true } },
 			_count: { _all: true },
 			_max: { id: true, updatedAt: true },
 		}),
-		prisma.building.aggregate({
+		client.building.aggregate({
 			where: { schoolId, isTeachingBuilding: true },
 			_count: { _all: true },
 			_max: { id: true, updatedAt: true },
 		}),
-		prisma.sectionMirror.aggregate({
+		client.sectionMirror.aggregate({
 			where: { schoolId, schoolYearId, isActiveForScheduling: true },
 			_count: { _all: true },
 			_max: { id: true, updatedAt: true },
 		}),
-		prisma.subject.aggregate({
+		client.subject.aggregate({
 			where: { schoolId, isActive: true },
 			_count: { _all: true },
 			_max: { id: true, updatedAt: true },
 		}),
-		prisma.classTemplate.aggregate({
+		client.classTemplate.aggregate({
 			where: { schoolId, isActive: true },
 			_count: { _all: true },
 			_max: { id: true, updatedAt: true },
 		}),
-		prisma.classTemplateSubject.aggregate({
+		client.classTemplateSubject.aggregate({
 			where: { template: { schoolId } },
 			_count: { _all: true },
 			_max: { id: true, createdAt: true },

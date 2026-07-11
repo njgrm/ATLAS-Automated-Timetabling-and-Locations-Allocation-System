@@ -48,6 +48,16 @@ const DAY_LABELS: Record<string, string> = {
 	FRIDAY: 'Friday',
 };
 
+function blockerCopy(reason: string): string {
+	const labels: Record<string, string> = {
+		NO_AVAILABLE_SLOT: 'No room and teacher time is available.',
+		FACULTY_OVERLOAD: 'The assigned teacher is over the workload limit.',
+		FACULTY_NOT_QUALIFIED: 'The assigned teacher is not qualified for this subject.',
+		NO_FACULTY: 'Choose a teacher before placing this session.',
+	};
+	return labels[reason] ?? reason.replaceAll('_', ' ').toLowerCase().replace(/^./, (letter) => letter.toUpperCase());
+}
+
 export function QuickPlaceSummaryModal({
 	open,
 	onOpenChange,
@@ -60,14 +70,13 @@ export function QuickPlaceSummaryModal({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="w-[calc(100%-2rem)] sm:max-w-lg rounded-3xl p-6 bg-sidebar shadow-2xl">
+			<DialogContent className="w-[calc(100%-2rem)] sm:max-w-lg rounded-lg p-5 bg-background shadow-xl">
 				<DialogHeader className="space-y-2">
 					<DialogTitle className="text-xl font-bold tracking-tight text-gray-900">
-						Auto-Placement (Quick Place) Summary
+						Review placements
 					</DialogTitle>
 					<DialogDescription className="text-sm leading-relaxed text-gray-500">
-						ATLAS ran the scheduling algorithm to auto-place {total} displaced session{total !== 1 ? 's' : ''}.
-						Review the proposed placements below before committing.
+						ATLAS checked {total} session{total !== 1 ? 's' : ''}. Confirm the available placements below.
 					</DialogDescription>
 				</DialogHeader>
 
@@ -78,13 +87,13 @@ export function QuickPlaceSummaryModal({
 							<div className="space-y-3">
 								<div className="flex items-center gap-2 text-emerald-800 font-semibold text-xs tracking-wider uppercase">
 									<CheckCircle2 className="size-4 text-emerald-600" />
-									Successfully Resolved ({placed.length})
+									Can place ({placed.length})
 								</div>
 								<div className="space-y-2">
 									{placed.map((p, idx) => (
 										<div
 											key={`placed-${idx}`}
-											className="p-3.5 rounded-2xl border border-emerald-100 bg-emerald-50/20 space-y-1.5"
+											className="space-y-1.5 rounded-md border border-emerald-200 bg-emerald-50/30 p-3"
 										>
 											<div className="flex justify-between items-start gap-2">
 												<span className="font-semibold text-xs text-gray-900 leading-tight">
@@ -113,13 +122,13 @@ export function QuickPlaceSummaryModal({
 							<div className="space-y-3">
 								<div className="flex items-center gap-2 text-amber-800 font-semibold text-xs tracking-wider uppercase">
 									<AlertTriangle className="size-4 text-amber-600" />
-									Could Not Resolve ({unplaced.length})
+									Still blocked ({unplaced.length})
 								</div>
 								<div className="space-y-2">
 									{unplaced.map((u, idx) => (
 										<div
 											key={`unplaced-${idx}`}
-											className="p-3.5 rounded-2xl border border-amber-100 bg-amber-50/20 space-y-1.5"
+											className="space-y-1.5 rounded-md border border-amber-200 bg-amber-50/30 p-3"
 										>
 											<div className="flex justify-between items-start gap-2">
 												<span className="font-semibold text-xs text-gray-900 leading-tight">
@@ -133,7 +142,7 @@ export function QuickPlaceSummaryModal({
 												<p>Section: <span className="font-semibold text-gray-800">{u.sectionName}</span></p>
 												<p className="mt-1 text-red-600 font-semibold flex items-center gap-1">
 													<span className="inline-block w-1.5 h-1.5 rounded-full bg-red-600" />
-													{u.reason}
+													{blockerCopy(u.reason)}
 												</p>
 											</div>
 										</div>
@@ -149,7 +158,7 @@ export function QuickPlaceSummaryModal({
 						variant="outline"
 						onClick={() => onOpenChange(false)}
 						disabled={loading}
-						className="flex-1 sm:flex-initial h-10 rounded-2xl font-semibold text-xs border border-border bg-white text-gray-700 hover:bg-muted"
+					className="h-9 flex-1 border border-border bg-background text-xs font-semibold text-foreground sm:flex-initial"
 					>
 						Discard
 					</Button>
@@ -157,7 +166,7 @@ export function QuickPlaceSummaryModal({
 						variant="default"
 						onClick={onConfirm}
 						disabled={loading || placed.length === 0}
-						className="flex-1 sm:flex-initial h-10 rounded-2xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shrink-0"
+					className="h-9 flex-1 shrink-0 bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700 sm:flex-initial"
 					>
 						{loading ? (
 							<span className="flex items-center gap-1.5">
@@ -165,7 +174,7 @@ export function QuickPlaceSummaryModal({
 								Applying...
 							</span>
 						) : (
-							'Apply Placements'
+							'Place sessions'
 						)}
 					</Button>
 				</DialogFooter>

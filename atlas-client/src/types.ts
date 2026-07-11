@@ -1176,6 +1176,9 @@ export interface ManualEditProposal {
 	sectionId?: number;
 	subjectId?: number;
 	session?: number;
+	unassignedKey?: string;
+	entryKind?: 'SECTION' | 'COHORT';
+	cohortCode?: string | null;
 	entryId?: string;
 	targetDay?: string;
 	targetStartTime?: string;

@@ -5,6 +5,21 @@ import { buildSectionRosterIndex, deriveGradeLevelsFromSectionIds } from './facu
 import { resolveAssignmentSpecializationIdentity } from './faculty-assignment.service.js';
 import { HG_SUBJECT_CODE } from './hg-advisory.service.js';
 import { computeGenerationInputSnapshot } from './generation-input-snapshot.service.js';
+function introducedViolations(before, after) {
+    const baselineCounts = new Map();
+    for (const violation of before) {
+        const identity = violationIdentity(violation);
+        baselineCounts.set(identity, (baselineCounts.get(identity) ?? 0) + 1);
+    }
+    return after.filter((violation) => {
+        const identity = violationIdentity(violation);
+        const remaining = baselineCounts.get(identity) ?? 0;
+        if (remaining === 0)
+            return true;
+        baselineCounts.set(identity, remaining - 1);
+        return false;
+    });
+}
 function err(statusCode, code, message, options) {
     const e = new Error(message);
     e.statusCode = statusCode;
@@ -33,10 +48,28 @@ function timeToMinutes(t) {
 function minutesBetween(start, end) {
     return timeToMinutes(end) - timeToMinutes(start);
 }
+function violationIdentity(violation) {
+    const entities = violation.entities ?? {};
+    return JSON.stringify({
+        code: violation.code,
+        facultyId: entities.facultyId ?? null,
+        roomId: entities.roomId ?? null,
+        sectionId: entities.sectionId ?? null,
+        subjectId: entities.subjectId ?? null,
+        day: entities.day ?? null,
+        startTime: entities.startTime ?? null,
+        endTime: entities.endTime ?? null,
+        entryIds: [...(entities.entryIds ?? [])].sort(),
+    });
+}
 function findSuggestedPlacements(change, refData, projectedEntries, activeTimeSlots, schoolId, schoolYearId, runId) {
     const item = change.sourceUnassignedItem;
     if (!item)
         return { canPlaceNow: false, suggestedPlacements: [], blocker: 'Unassigned session info missing.' };
+    const baselineHardViolations = new Set(validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, projectedEntries, refData))
+        .violations
+        .filter((violation) => violation.severity === 'HARD')
+        .map(violationIdentity));
     const facultyId = change.toFacultyId;
     const subjectDetails = refData.subjects.find(s => s.id === item.subjectId);
     const preferredRoomType = subjectDetails?.preferredRoomType || 'CLASSROOM';
@@ -102,7 +135,7 @@ function findSuggestedPlacements(change, refData, projectedEntries, activeTimeSl
                 const testEntries = [...projectedEntries, tempEntry];
                 const validatorCtx = buildValidatorCtx(schoolId, schoolYearId, runId, testEntries, refData);
                 const validation = validateHardConstraints(validatorCtx);
-                const hardViolations = validation.violations.filter(v => v.severity === 'HARD');
+                const hardViolations = validation.violations.filter((violation) => violation.severity === 'HARD' && !baselineHardViolations.has(violationIdentity(violation)));
                 if (hardViolations.length === 0) {
                     const softCount = validation.violations.filter(v => v.severity === 'SOFT').length;
                     let score = 100 - softCount;
@@ -139,6 +172,9 @@ function findSuggestedPlacements(change, refData, projectedEntries, activeTimeSl
         targetEndTime: s.endTime,
         targetRoomId: s.roomId,
         targetFacultyId: facultyId,
+        unassignedKey: change.unassignedKey,
+        entryKind: change.entryKind,
+        cohortCode: change.cohortCode ?? null,
     }));
     return {
         canPlaceNow: true,
@@ -248,11 +284,11 @@ function buildDraftReport(run, entries, unassignedItems, summary, version) {
         createdAt: run.createdAt.toISOString(),
     };
 }
-async function validateExpectedFacultyVersions(schoolId, facultyIds, expectedFacultyVersions) {
+async function validateExpectedFacultyVersions(schoolId, facultyIds, expectedFacultyVersions, client = prisma) {
     const uniqueFacultyIds = [...new Set(facultyIds)];
     const rows = uniqueFacultyIds.length === 0
         ? []
-        : await prisma.facultyMirror.findMany({
+        : await client.facultyMirror.findMany({
             where: { schoolId, id: { in: uniqueFacultyIds } },
             select: { id: true, version: true, isActiveForScheduling: true },
         });
@@ -269,6 +305,29 @@ async function validateExpectedFacultyVersions(schoolId, facultyIds, expectedFac
         }
     }
     return new Map(rows.map((row) => [row.id, row.version]));
+}
+function bindPlacementToUnassignedChange(proposal, changes) {
+    if (proposal.editType !== 'PLACE_UNASSIGNED') {
+        throw err(400, 'INVALID_PLACEMENT_PROPOSAL', 'Teaching Load repair placementProposal must place an unassigned session.');
+    }
+    const matches = changes.filter((change) => change.kind === 'UNASSIGNED'
+        && change.subjectId === proposal.subjectId
+        && change.sectionId === proposal.sectionId
+        && change.session === proposal.session
+        && change.toFacultyId === proposal.targetFacultyId
+        && (proposal.unassignedKey == null || proposal.unassignedKey === change.unassignedKey)
+        && (proposal.entryKind == null || proposal.entryKind === change.entryKind)
+        && (proposal.cohortCode === undefined || proposal.cohortCode === (change.cohortCode ?? null)));
+    if (matches.length !== 1) {
+        throw err(409, 'PLACEMENT_REPAIR_SCOPE_MISMATCH', 'The selected placement no longer matches this Teaching Load repair. Refresh and choose the session again.');
+    }
+    const match = matches[0];
+    return {
+        ...proposal,
+        unassignedKey: match.unassignedKey,
+        entryKind: match.entryKind,
+        cohortCode: match.cohortCode ?? null,
+    };
 }
 async function prepareRepair(runId, schoolId, schoolYearId, request) {
     const changes = normalizeChanges(request.changes);
@@ -417,10 +476,8 @@ async function prepareRepair(runId, schoolId, schoolYearId, request) {
     };
     let appliedPlacementEdits = [];
     if (request.placementProposal) {
-        if (request.placementProposal.editType !== 'PLACE_UNASSIGNED') {
-            throw err(400, 'INVALID_PLACEMENT_PROPOSAL', 'Teaching Load repair placementProposal must place an unassigned session.');
-        }
-        const placementResult = applyProposalBatch(newEntries, newUnassignedItems, [request.placementProposal]);
+        const placementProposal = bindPlacementToUnassignedChange(request.placementProposal, normalizedChanges);
+        const placementResult = applyProposalBatch(newEntries, newUnassignedItems, [placementProposal]);
         const failedPlacement = placementResult.items.find((item) => item.status === 'FAILED');
         if (failedPlacement) {
             throw err(400, failedPlacement.errorCode ?? 'INVALID_PLACEMENT_PROPOSAL', failedPlacement.errorMessage ?? 'The selected session could not be placed.');
@@ -452,7 +509,7 @@ async function prepareRepair(runId, schoolId, schoolYearId, request) {
         afterTeachingHours: afterHours.get(facultyId) ?? 0,
         version: facultyVersions.get(facultyId) ?? null,
     }));
-    const hardViolations = newValidation.violations.filter((violation) => violation.severity === 'HARD');
+    const hardViolations = introducedViolations(currentValidation.violations.filter((violation) => violation.severity === 'HARD'), newValidation.violations.filter((violation) => violation.severity === 'HARD'));
     const unassignedReadiness = normalizedChanges
         .filter((change) => change.kind === 'UNASSIGNED')
         .map((change) => {
@@ -506,9 +563,9 @@ async function prepareRepair(runId, schoolId, schoolYearId, request) {
 function buildPreview(prepared) {
     const { currentValidation, newValidation, newEntries, refData, proposals, ownershipDeltas, affectedTeachers, unassignedReadiness } = prepared;
     const hardBefore = currentValidation.violations.filter((violation) => violation.severity === 'HARD').length;
-    const hardViolations = newValidation.violations.filter((violation) => violation.severity === 'HARD');
+    const hardViolations = introducedViolations(currentValidation.violations.filter((violation) => violation.severity === 'HARD'), newValidation.violations.filter((violation) => violation.severity === 'HARD'));
     const softBefore = currentValidation.violations.filter((violation) => violation.severity === 'SOFT').length;
-    const softViolations = newValidation.violations.filter((violation) => violation.severity === 'SOFT');
+    const softViolations = introducedViolations(currentValidation.violations.filter((violation) => violation.severity === 'SOFT'), newValidation.violations.filter((violation) => violation.severity === 'SOFT'));
     const allViolations = [...hardViolations, ...softViolations];
     return {
         allowed: hardViolations.length === 0,
@@ -691,16 +748,8 @@ export async function applyTeachingLoadRepair(runId, schoolId, schoolYearId, act
     }
     const newSummary = computeSummary(newEntries, newUnassignedItems, prepared.newValidation);
     const preservedSummary = mergePreservedSummaryFields(run.summary, newSummary);
-    let inputSnapshot = null;
-    try {
-        inputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId);
-    }
-    catch (e) {
-        console.error('Failed to compute generation input snapshot:', e);
-    }
-    const finalSummary = inputSnapshot ? { ...preservedSummary, inputSnapshot } : preservedSummary;
     const newVersion = run.version + 1;
-    const { updatedRun, editRecords } = await prisma.$transaction(async (tx) => {
+    const { updatedRun, editRecords, finalSummary } = await prisma.$transaction(async (tx) => {
         const currentRun = await tx.generationRun.findFirst({
             where: { id: runId, schoolId, schoolYearId },
             select: { version: true, summary: true, status: true },
@@ -715,14 +764,20 @@ export async function applyTeachingLoadRepair(runId, schoolId, schoolYearId, act
         if (currentRun.version !== expectedVersion) {
             throw err(409, 'VERSION_CONFLICT', 'This timetable changed while the Teaching Load panel was open. Reload and review the change again.');
         }
+        const affectedFacultyIds = prepared.changes
+            .flatMap((change) => [change.fromFacultyId, change.toFacultyId])
+            .filter((facultyId) => facultyId != null);
+        await validateExpectedFacultyVersions(schoolId, affectedFacultyIds, request.expectedFacultyVersions, tx);
         await applyCanonicalOwnership(tx, schoolId, schoolYearId, actorId, prepared.changes);
+        const inputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId, tx);
+        const transactionSummary = { ...preservedSummary, inputSnapshot };
         const updated = await tx.generationRun.update({
             where: { id: runId, version: expectedVersion },
             data: {
                 draftEntries: newEntries,
                 unassignedItems: newUnassignedItems,
                 violations: prepared.newValidation.violations,
-                summary: finalSummary,
+                summary: transactionSummary,
                 version: newVersion,
             },
         });
@@ -795,7 +850,7 @@ export async function applyTeachingLoadRepair(runId, schoolId, schoolYearId, act
                 },
             },
         });
-        return { updatedRun: updated, editRecords: created };
+        return { updatedRun: updated, editRecords: created, finalSummary: transactionSummary };
     });
     return {
         editId: editRecords[0]?.id ?? 0,

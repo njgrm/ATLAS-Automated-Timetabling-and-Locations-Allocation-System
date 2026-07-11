@@ -13,6 +13,9 @@ export interface ManualEditProposal {
     sectionId?: number;
     subjectId?: number;
     session?: number;
+    unassignedKey?: string;
+    entryKind?: 'SECTION' | 'COHORT';
+    cohortCode?: string | null;
     /** The existing entryId being moved (for MOVE_ENTRY, CHANGE_ROOM, etc.) */
     entryId?: string;
     /** Target values */
