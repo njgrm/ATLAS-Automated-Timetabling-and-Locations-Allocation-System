@@ -620,20 +620,80 @@ function UnassignedRailRow({
 								context={context}
 							/>
 							<div className="flex items-center gap-1.5 pt-1" onClick={(event) => event.stopPropagation()}>
-								<Button
-									variant="outline"
-									size="sm"
-									className="h-6 px-2 text-xs gap-1"
-									onClick={() => {
-										setSelectedEntry(null);
-										setSelectedViolation(null);
-										setSelectedUnassignedForRepair(item);
-										toast.info('Teaching Load repair opened for this unassigned session.');
-									}}
-								>
-									<Wand2 className="size-3" />
-									Fix teacher
-								</Button>
+								{(() => {
+									const isTeacherMissing = !item.facultyId;
+									const cachedFix = unassignedFixSuggestions[itemKey];
+
+									if (isTeacherMissing) {
+										return (
+											<Button
+												variant="outline"
+												size="sm"
+												className="h-6 px-2 text-xs gap-1 border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+												onClick={() => {
+													setSelectedEntry(null);
+													setSelectedViolation(null);
+													setSelectedUnassignedForRepair(item);
+													toast.info('Teaching Load repair opened for this unassigned session.');
+												}}
+											>
+												<Wand2 className="size-3" />
+												Fix teacher
+											</Button>
+										);
+									}
+
+									if (cachedFix !== undefined && cachedFix !== null) {
+										const hasSlots = cachedFix.suggestions && cachedFix.suggestions.length > 0;
+										if (hasSlots) {
+											return (
+												<Button
+													variant="outline"
+													size="sm"
+													className="h-6 px-2 text-xs gap-1 border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
+													onClick={() => {
+														setSelectedEntry(null);
+														setSelectedViolation(null);
+														setSelectedUnassignedForRepair(item);
+														toast.info('Teaching Load repair opened for this unassigned session.');
+													}}
+												>
+													<Wand2 className="size-3" />
+													Place session
+												</Button>
+											);
+										} else {
+											return (
+												<Button
+													variant="outline"
+													size="sm"
+													className="h-6 px-2 text-xs gap-1 border-red-200 bg-red-50 text-red-700 hover:bg-red-50"
+													disabled
+												>
+													<ShieldAlert className="size-3" />
+													Still blocked
+												</Button>
+											);
+										}
+									}
+
+									return (
+										<Button
+											variant="outline"
+											size="sm"
+											className="h-6 px-2 text-xs gap-1"
+											onClick={() => {
+												setSelectedEntry(null);
+												setSelectedViolation(null);
+												setSelectedUnassignedForRepair(item);
+												toast.info('Teaching Load repair opened for this unassigned session.');
+											}}
+										>
+											<Wand2 className="size-3" />
+											Place session
+										</Button>
+									);
+								})()}
 								<Button
 									variant="ghost"
 									size="sm"

@@ -295,24 +295,29 @@ export async function applyQuickPlace(runId, schoolId, schoolYearId, actorId, ex
             },
         };
     }
-    // 3. Map placements to ManualEditProposals
-    const proposals = solution.placed.map((p) => ({
-        editType: 'PLACE_UNASSIGNED',
-        sectionId: p.sectionId,
-        subjectId: p.subjectId,
-        session: p.session,
-        targetDay: p.day,
-        targetStartTime: p.startTime,
-        targetEndTime: p.endTime,
-        targetRoomId: p.roomId,
-        targetFacultyId: p.facultyId,
-    }));
-    // 4. Commit using commitManualEditBatch (reusing manual-edit checks, audit log, manual edits history)
-    const commitRes = await commitManualEditBatch(runId, schoolId, schoolYearId, actorId, proposals, expectedVersion, true // allowSoftOverride
-    );
-    // 5. Recalculate diagnostics for the new entries & unassigned items
-    const finalEntries = commitRes.draft.entries;
-    const finalUnassigned = commitRes.draft.unassignedItems;
+    // 3. Map placements to ManualEditProposals, carrying solver-computed metadata
+    const proposals = solution.placed.map((p) => {
+        const matchedEntry = solution.newEntries.find((e) => e.sectionId === p.sectionId &&
+            e.subjectId === p.subjectId &&
+            e.day === p.day &&
+            e.startTime === p.startTime &&
+            e.roomId === p.roomId);
+        return {
+            editType: 'PLACE_UNASSIGNED',
+            sectionId: p.sectionId,
+            subjectId: p.subjectId,
+            session: p.session,
+            targetDay: p.day,
+            targetStartTime: p.startTime,
+            targetEndTime: p.endTime,
+            targetRoomId: p.roomId,
+            targetFacultyId: p.facultyId,
+            metadata: matchedEntry?.metadata ? { ...matchedEntry.metadata } : undefined,
+        };
+    });
+    // 4. Recalculate diagnostics using solver's solution.newEntries & solution.newUnassigned
+    const finalEntries = solution.newEntries;
+    const finalUnassigned = solution.newUnassigned;
     const sectionSummary = await getSectionSummary(schoolYearId, schoolId);
     const sectionsByGrade = sectionSummary.gradeLevels;
     const activeSubjects = await prisma.subject.findMany({
@@ -354,16 +359,13 @@ export async function applyQuickPlace(runId, schoolId, schoolYearId, actorId, ex
     const qualifiedFacultyCoverageBySubject = buildQualifiedCoverageBySubject(demand, normalizedFacultySubjects);
     const slotSaturationByInterval = buildSlotSaturation(finalEntries, refData.rooms.length);
     const unassignedBySubjectGrade = buildUnassignedBySubjectGrade(finalUnassigned, activeSubjectCodeById);
-    // Update summary with the recalculated diagnostics
     const nextInputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId);
-    const currentSummary = (commitRes.draft.summary ?? {});
-    const updatedSummary = {
-        ...currentSummary,
+    // Construct summary overrides to be saved inside the commit transaction
+    const summaryOverrides = {
         homeRoomAttemptedCount: homeRoomStats.attempted,
         homeRoomAssignedCount: homeRoomStats.assigned,
         homeRoomSuccessRate: homeRoomStats.successRate,
         resourceDiagnostics: {
-            ...currentSummary.resourceDiagnostics,
             qualifiedFacultyCoverageBySubject,
             slotSaturationByInterval,
             unassignedBySubjectGrade,
@@ -371,26 +373,23 @@ export async function applyQuickPlace(runId, schoolId, schoolYearId, actorId, ex
         },
         inputSnapshot: nextInputSnapshot,
     };
-    const finalRun = await prisma.generationRun.update({
-        where: { id: runId },
-        data: {
-            summary: updatedSummary,
-        },
-    });
+    // 5. Commit using commitManualEditBatch (reusing manual-edit checks, audit log, manual edits history)
+    const commitRes = await commitManualEditBatch(runId, schoolId, schoolYearId, actorId, proposals, expectedVersion, true, // allowSoftOverride
+    summaryOverrides);
     const finalReport = {
-        runId: finalRun.id,
-        status: finalRun.status,
-        entries: finalEntries,
-        unassignedItems: finalUnassigned,
-        summary: finalRun.summary,
-        version: finalRun.version,
-        finishedAt: finalRun.finishedAt?.toISOString() ?? null,
-        createdAt: finalRun.createdAt.toISOString(),
+        runId: run.id,
+        status: run.status,
+        entries: commitRes.draft.entries,
+        unassignedItems: commitRes.draft.unassignedItems,
+        summary: commitRes.draft.summary,
+        version: commitRes.newVersion,
+        finishedAt: run.finishedAt?.toISOString() ?? null,
+        createdAt: run.createdAt.toISOString(),
     };
     return {
         success: true,
         placedCount: solution.placed.length,
-        version: finalRun.version,
+        version: commitRes.newVersion,
         draft: finalReport,
     };
 }

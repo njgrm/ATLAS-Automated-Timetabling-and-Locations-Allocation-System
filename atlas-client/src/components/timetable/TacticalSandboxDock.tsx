@@ -62,6 +62,7 @@ type TacticalSandboxDockProps = {
 	runId: number | null;
 	facultyMap: Map<number, FacultyMirror>;
 	subjectMap: Map<number, Subject>;
+	roomMap?: Map<number, any>;
 	schoolYearId: number | null;
 	sandboxFacultyByEntryId: Map<string, number>;
 	onApplyFaculty: (entryIds: string[], facultyId: number) => void;
@@ -137,6 +138,7 @@ export function TacticalSandboxDock({
 	runId,
 	facultyMap,
 	subjectMap,
+	roomMap,
 	schoolYearId,
 	sandboxFacultyByEntryId,
 	onApplyFaculty,
@@ -168,6 +170,7 @@ export function TacticalSandboxDock({
 	const [revisionActionHint, setRevisionActionHint] = useState<string | null>(null);
 	const [revisionSuccess, setRevisionSuccess] = useState<RevisionSuccess | null>(null);
 	const [unassignedTargetFacultyId, setUnassignedTargetFacultyId] = useState<number | null>(null);
+	const [selectedPlacementProposal, setSelectedPlacementProposal] = useState<ManualEditProposal | null>(null);
 	const activeSubjectId = selectedEntry?.subjectId ?? selectedUnassigned?.subjectId ?? null;
 	const activeSectionId = selectedEntry?.sectionId ?? selectedUnassigned?.sectionId ?? null;
 	const subject = activeSubjectId ? subjectMap.get(activeSubjectId) : undefined;
@@ -203,8 +206,9 @@ export function TacticalSandboxDock({
 	const stagedProposals = useMemo(() => buildFacultyChangeProposals(draftEntries, sandboxFacultyByEntryId), [draftEntries, sandboxFacultyByEntryId]);
 	const teachingLoadRepairProposals = useMemo(() => buildTeachingLoadRepairProposals(draftEntries, stagedProposals, canonicalOnlyTargets), [canonicalOnlyTargets, draftEntries, stagedProposals]);
 	const unassignedRepairChange = useMemo<TeachingLoadRepairChange | null>(() => {
-		if (!selectedUnassigned || !unassignedKey || !unassignedTargetFacultyId) return null;
-		if (canonicalOwner?.id === unassignedTargetFacultyId) return null;
+		if (!selectedUnassigned || !unassignedKey) return null;
+		const targetFacultyId = unassignedTargetFacultyId ?? canonicalOwner?.id ?? null;
+		if (!targetFacultyId) return null;
 		return {
 			kind: 'UNASSIGNED',
 			unassignedKey,
@@ -214,7 +218,7 @@ export function TacticalSandboxDock({
 			entryKind: selectedUnassigned.entryKind ?? 'SECTION',
 			cohortCode: selectedUnassigned.cohortCode ?? null,
 			fromFacultyId: canonicalOwner?.id ?? null,
-			toFacultyId: unassignedTargetFacultyId,
+			toFacultyId: targetFacultyId,
 		};
 	}, [canonicalOwner?.id, selectedUnassigned, unassignedKey, unassignedTargetFacultyId]);
 	const repairChanges = useMemo(
@@ -234,9 +238,9 @@ export function TacticalSandboxDock({
 	const canSaveReviewedBatch = canCommitPreview && (!requiresSoftWarningAcknowledgement || softWarningAcknowledged);
 	const reviewSteps: ReviewStep[] = useMemo(() => ([
 		{ label: '1 Current teacher', state: activeContextEntry ? 'done' : 'active' },
-		{ label: '2 Choose teacher', state: stagedCount > 0 ? 'done' : activeContextEntry ? 'active' : 'waiting' },
-		{ label: isPublished ? '3 Create revision' : '3 Preview and save', state: batchPreview ? (canSaveReviewedBatch ? 'active' : canCommitPreview ? 'waiting' : 'blocked') : stagedCount > 0 ? 'active' : 'waiting' },
-	]), [activeContextEntry, batchPreview, canCommitPreview, canSaveReviewedBatch, isPublished, stagedCount]);
+		{ label: '2 Choose teacher', state: hasStagedChanges ? 'done' : activeContextEntry ? 'active' : 'waiting' },
+		{ label: isPublished ? '3 Create revision' : '3 Preview and save', state: batchPreview ? (canSaveReviewedBatch ? 'active' : canCommitPreview ? 'waiting' : 'blocked') : hasStagedChanges ? 'active' : 'waiting' },
+	]), [activeContextEntry, batchPreview, canCommitPreview, canSaveReviewedBatch, isPublished, hasStagedChanges]);
 
 	useEffect(() => {
 		setBatchPreview(null);
@@ -251,7 +255,14 @@ export function TacticalSandboxDock({
 		setCandidateQuery('');
 		setCanonicalOnlyTargets(new Map());
 		setUnassignedTargetFacultyId(null);
+		setSelectedPlacementProposal(null);
 	}, [selectedEntry?.entryId, unassignedKey]);
+
+	useEffect(() => {
+		if (selectedUnassigned && previewFacultyId) {
+			void reviewBatch();
+		}
+	}, [previewFacultyId, unassignedKey]);
 
 	const scopedSameSubjectEntries = useMemo(() => {
 		if (!selectedEntry || selectedUnassigned) return [];
@@ -352,6 +363,38 @@ export function TacticalSandboxDock({
 		return [selectedEntry.entryId, ...Array.from(bulkEntryIds)];
 	}, [bulkEntryIds, selectedEntry, selectedUnassigned]);
 
+	const hasStagedChanges = selectedUnassigned
+		? (repairChanges.length > 0 || selectedPlacementProposal !== null)
+		: stagedCount > 0;
+
+	const getPrimaryButtonLabel = () => {
+		if (isPublished) {
+			return 'Create timetable revision';
+		}
+		if (selectedUnassigned) {
+			const isTeacherChanged = unassignedRepairChange !== null;
+			const hasPlacement = selectedPlacementProposal !== null;
+
+			if (batchPreview && canCommitPreview) {
+				if (isTeacherChanged && hasPlacement) {
+					return 'Save Teaching Load and place session';
+				}
+				if (isTeacherChanged) {
+					return 'Save Teaching Load';
+				}
+				if (hasPlacement) {
+					return 'Place session';
+				}
+				return 'Save Teaching Load';
+			}
+			return 'Preview impact';
+		}
+		if (batchPreview && canCommitPreview) {
+			return 'Save Teaching Load and update timetable';
+		}
+		return 'Preview impact';
+	};
+
 	function toggleBulkEntry(entryId: string) {
 		setBulkEntryIds((previous) => {
 			const next = new Set(previous);
@@ -384,12 +427,13 @@ export function TacticalSandboxDock({
 		});
 	}
 
-	async function reviewBatch() {
+	async function reviewBatch(customProposal?: ManualEditProposal) {
 		if (isPublished || repairChanges.length === 0) return null;
 		setBatchPreviewLoading(true);
 		setBatchPreviewError(null);
 		try {
-			const result = await onPreviewTeachingLoadRepair(repairChanges);
+			const proposalToUse = customProposal !== undefined ? customProposal : selectedPlacementProposal;
+			const result = await onPreviewTeachingLoadRepair(repairChanges, proposalToUse ?? undefined);
 			setBatchPreview(result);
 			setSoftWarningAcknowledged(false);
 			return result;
@@ -409,11 +453,16 @@ export function TacticalSandboxDock({
 		if (reviewed.softViolations.length > 0 && !softWarningAcknowledged) return;
 		setBatchCommitLoading(true);
 		try {
-			const result = await onCommitTeachingLoadRepair(repairChanges, reviewed.softViolations.length > 0 && softWarningAcknowledged);
+			const result = await onCommitTeachingLoadRepair(
+				repairChanges,
+				reviewed.softViolations.length > 0 && softWarningAcknowledged,
+				selectedPlacementProposal ?? undefined
+			);
 			if (result) {
 				onResetSandbox();
 				setCanonicalOnlyTargets(new Map());
 				setUnassignedTargetFacultyId(null);
+				setSelectedPlacementProposal(null);
 				setBatchPreview(null);
 				setSoftWarningAcknowledged(false);
 				setBulkEntryIds(new Set());
@@ -643,32 +692,127 @@ export function TacticalSandboxDock({
 							</ScrollArea>
 						</section>
 
-						<section className="flex min-w-0 min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-background md:h-full">
-							<div className="border-b border-border/70 px-3 py-2">
-								<p className="text-sm font-semibold text-foreground">Optional same-subject blocks</p>
-								<p className="text-xs text-muted-foreground">Add only blocks for this same subject and term. {selectedBulkCount} extra block{selectedBulkCount === 1 ? '' : 's'} selected.</p>
-							</div>
-							<ScrollArea className="h-44 min-h-0 md:h-full md:flex-1">
-								<div className="space-y-2 p-3">
-									{scopedSameSubjectEntries.length === 0 ? (
-										<p className="rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">No other generated blocks share this subject scope.</p>
-									) : scopedSameSubjectEntries.map((entry) => {
-										const checked = bulkEntryIds.has(entry.entryId);
-										const facultyId = sandboxFacultyByEntryId.get(entry.entryId) ?? entry.facultyId;
-										return (
-											<label key={entry.entryId} className="flex cursor-pointer items-start gap-2 rounded-md border border-border/80 bg-card p-2 text-xs">
-												<Checkbox checked={checked} onCheckedChange={() => toggleBulkEntry(entry.entryId)} aria-label={`Include ${sectionLabel(entry.sectionId)} in sandbox preview`} />
-												<span className="min-w-0 flex-1">
-													<span className="block font-medium text-foreground">{sectionLabel(entry.sectionId)}</span>
-													<span className="block text-xs text-muted-foreground">{entry.day} {formatTime(entry.startTime)}-{formatTime(entry.endTime)}</span>
-													<span className="block truncate text-xs text-muted-foreground">{facultyId ? facultyLabel(facultyId) : 'No teacher'}</span>
-												</span>
-											</label>
-										);
-									})}
+						{selectedUnassigned ? (
+							<section className="flex min-w-0 min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-background md:h-full">
+								<div className="border-b border-border/70 px-3 py-2">
+									<p className="text-sm font-semibold text-foreground">Choose a timetable slot</p>
+									<p className="text-xs text-muted-foreground">Select an available slot to place this session.</p>
 								</div>
-							</ScrollArea>
-						</section>
+								<ScrollArea className="h-44 min-h-0 md:h-full md:flex-1">
+									<div className="space-y-2 p-3">
+										{batchPreviewLoading ? (
+											<div className="flex justify-center py-6">
+												<Loader2 className="size-5 animate-spin text-muted-foreground/60" />
+											</div>
+										) : (() => {
+											const readiness = batchPreview?.unassignedReadiness?.find(r => r.unassignedKey === unassignedKey);
+											if (!readiness) {
+												return (
+													<p className="rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground italic">
+														Preview the impact to load available timetable slots.
+													</p>
+												);
+											}
+
+											if (!readiness.canPlaceNow && (!readiness.suggestedPlacements || readiness.suggestedPlacements.length === 0)) {
+												return (
+													<div className="rounded-md border border-red-200 bg-red-50 p-2.5 text-xs text-red-800 space-y-1">
+														<div className="font-semibold flex items-center gap-1">
+															<AlertTriangle className="size-3 text-red-600" />
+															Still blocked
+														</div>
+														<p>{readiness.topBlockerCopy || 'No available slots. Teacher or rooms are fully booked.'}</p>
+													</div>
+												);
+											}
+
+											const suggestions = readiness.suggestedPlacements || [];
+											if (suggestions.length === 0) {
+												return (
+													<p className="rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground italic">
+														No suggested slots available.
+													</p>
+												);
+											}
+
+											return (
+												<div className="space-y-1.5">
+													{suggestions.map((suggestion, index) => {
+														const isSelected = selectedPlacementProposal
+															&& selectedPlacementProposal.targetDay === suggestion.targetDay
+															&& selectedPlacementProposal.targetStartTime === suggestion.targetStartTime
+															&& selectedPlacementProposal.targetRoomId === suggestion.targetRoomId;
+														const roomName = roomMap?.get(suggestion.targetRoomId)?.name || `Room #${suggestion.targetRoomId}`;
+														return (
+															<label
+																key={`${suggestion.targetDay}-${suggestion.targetStartTime}-${index}`}
+																className={`flex cursor-pointer items-start gap-2 rounded-md border p-2 text-xs transition-all ${
+																	isSelected
+																		? 'border-green-500 bg-green-50/50 text-green-900 shadow-sm'
+																		: 'border-border/80 bg-card hover:bg-muted/30 text-muted-foreground'
+																}`}
+															>
+																<Checkbox
+																	checked={Boolean(isSelected)}
+																	onCheckedChange={async (checked) => {
+																		if (checked) {
+																			setSelectedPlacementProposal(suggestion);
+																			await reviewBatch(suggestion);
+																		} else {
+																			setSelectedPlacementProposal(null);
+																			await reviewBatch(null as any);
+																		}
+																	}}
+																	aria-label={`Select slot ${suggestion.targetDay} ${suggestion.targetStartTime} in ${roomName}`}
+																/>
+																<span className="min-w-0 flex-1">
+																	<span className={`block font-semibold ${isSelected ? 'text-green-900' : 'text-foreground'}`}>
+																		Option {index + 1}: {suggestion.targetDay}
+																	</span>
+																	<span className="block text-xs mt-0.5">
+																		{formatTime(suggestion.targetStartTime!)} - {formatTime(suggestion.targetEndTime!)}
+																	</span>
+																	<span className="block text-xs italic mt-0.5">
+																		{roomName}
+																	</span>
+																</span>
+															</label>
+														);
+													})}
+												</div>
+											);
+										})()}
+									</div>
+								</ScrollArea>
+							</section>
+						) : (
+							<section className="flex min-w-0 min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-background md:h-full">
+								<div className="border-b border-border/70 px-3 py-2">
+									<p className="text-sm font-semibold text-foreground">Optional same-subject blocks</p>
+									<p className="text-xs text-muted-foreground">Add only blocks for this same subject and term. {selectedBulkCount} extra block{selectedBulkCount === 1 ? '' : 's'} selected.</p>
+								</div>
+								<ScrollArea className="h-44 min-h-0 md:h-full md:flex-1">
+									<div className="space-y-2 p-3">
+										{scopedSameSubjectEntries.length === 0 ? (
+											<p className="rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">No other generated blocks share this subject scope.</p>
+										) : scopedSameSubjectEntries.map((entry) => {
+											const checked = bulkEntryIds.has(entry.entryId);
+											const facultyId = sandboxFacultyByEntryId.get(entry.entryId) ?? entry.facultyId;
+											return (
+												<label key={entry.entryId} className="flex cursor-pointer items-start gap-2 rounded-md border border-border/80 bg-card p-2 text-xs">
+													<Checkbox checked={checked} onCheckedChange={() => toggleBulkEntry(entry.entryId)} aria-label={`Include ${sectionLabel(entry.sectionId)} in sandbox preview`} />
+													<span className="min-w-0 flex-1">
+														<span className="block font-medium text-foreground">{sectionLabel(entry.sectionId)}</span>
+														<span className="block text-xs text-muted-foreground">{entry.day} {formatTime(entry.startTime)}-{formatTime(entry.endTime)}</span>
+														<span className="block truncate text-xs text-muted-foreground">{facultyId ? facultyLabel(facultyId) : 'No teacher'}</span>
+													</span>
+												</label>
+											);
+										})}
+									</div>
+								</ScrollArea>
+							</section>
+						)}
 					</div>
 				) : (
 					<div className="flex min-h-40 items-center justify-center rounded-md border border-dashed border-border bg-muted/20 text-sm text-muted-foreground">
@@ -772,7 +916,7 @@ export function TacticalSandboxDock({
 				) : null}
 
 				<SheetFooter className="shrink-0 gap-2 border-t border-border/70 pt-3 sm:space-x-0">
-					<Button type="button" variant="outline" size="sm" onClick={() => { onResetSandbox(); setCanonicalOnlyTargets(new Map()); setUnassignedTargetFacultyId(null); setBatchPreview(null); setBatchPreviewError(null); setBulkEntryIds(new Set()); }} disabled={stagedCount === 0} className="gap-1.5">
+					<Button type="button" variant="outline" size="sm" onClick={() => { onResetSandbox(); setCanonicalOnlyTargets(new Map()); setUnassignedTargetFacultyId(null); setSelectedPlacementProposal(null); setBatchPreview(null); setBatchPreviewError(null); setBulkEntryIds(new Set()); }} disabled={!hasStagedChanges} className="gap-1.5">
 						<RotateCcw className="size-3.5" />
 						Reset
 					</Button>
@@ -780,9 +924,9 @@ export function TacticalSandboxDock({
 						<X className="size-3.5" />
 						Close
 					</Button>
-					<Button type="button" variant={(isPublished || (batchPreview && canCommitPreview)) ? 'default' : 'outline'} size="sm" disabled={stagedCount === 0 || batchPreviewLoading || batchCommitLoading || (batchPreview != null && canCommitPreview && !canSaveReviewedBatch)} onClick={() => isPublished ? openRevisionReview() : batchPreview && canCommitPreview ? void commitBatch() : void reviewBatch()} className="gap-1.5">
+					<Button type="button" variant={(isPublished || (batchPreview && canCommitPreview)) ? 'default' : 'outline'} size="sm" disabled={!hasStagedChanges || batchPreviewLoading || batchCommitLoading || (batchPreview != null && canCommitPreview && !canSaveReviewedBatch)} onClick={() => isPublished ? openRevisionReview() : batchPreview && canCommitPreview ? void commitBatch() : void reviewBatch()} className="gap-1.5">
 						{batchPreviewLoading || batchCommitLoading ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
-						{isPublished ? 'Create timetable revision' : batchPreview && canCommitPreview ? selectedUnassigned ? 'Save Teaching Load' : 'Save Teaching Load and update timetable' : 'Preview impact'}
+						{getPrimaryButtonLabel()}
 					</Button>
 				</SheetFooter>
 			</SheetContent>

@@ -328,6 +328,29 @@ async function run() {
 		assert(dbEntries && dbEntries.length === 3, 'Draft entries committed to DB');
 		assertEqual(dbEntries[0].facultyId, faculty.id, 'Committed entry has correct teacher');
 
+		// Confirm persisted metadata in DB matches using unambiguous subject and time queries
+		const entryHome = dbEntries.find(
+			(e) => e.subjectId === subject.id && e.day === 'MONDAY' && e.startTime === '08:00'
+		);
+		const entryPreferred = dbEntries.find(
+			(e) => e.subjectId === subject.id && e.day === 'MONDAY' && e.startTime === '09:00'
+		);
+		const entryFallback = dbEntries.find(
+			(e) => e.subjectId === subjectFallback.id && e.day === 'TUESDAY' && e.startTime === '08:00'
+		);
+
+		assert(entryHome, 'Home room entry persisted');
+		assertEqual(entryHome.metadata?.roomAssignmentReason, 'HOME_ROOM_ASSIGNED', 'Persisted room assignment reason for home room matches');
+		assertEqual(entryHome.metadata?.deferredRoomTypePreference ?? false, false, 'Persisted deferredRoomTypePreference is false/absent for home room');
+
+		assert(entryPreferred, 'Preferred room entry persisted');
+		assertEqual(entryPreferred.metadata?.roomAssignmentReason, 'PREFERRED_ROOM_TYPE_ASSIGNED', 'Persisted room assignment reason for preferred room matches');
+		assertEqual(entryPreferred.metadata?.deferredRoomTypePreference ?? false, false, 'Persisted deferredRoomTypePreference is false/absent for preferred room');
+
+		assert(entryFallback, 'Fallback room entry persisted');
+		assertEqual(entryFallback.metadata?.roomAssignmentReason, 'FALLBACK_ROOM_ASSIGNED', 'Persisted room assignment reason for fallback room matches');
+		assertEqual(entryFallback.metadata?.deferredRoomTypePreference, true, 'Persisted deferredRoomTypePreference is true for fallback room');
+
 		// Confirm manual-edit history matches and is compatible
 		const manualEdits = await prisma.manualScheduleEdit.findMany({
 			where: { runId: run.id },

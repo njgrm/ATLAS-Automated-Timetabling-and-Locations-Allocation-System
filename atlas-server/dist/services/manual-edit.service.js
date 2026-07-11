@@ -201,6 +201,7 @@ function applyProposal(entries, unassigned, proposal) {
             cohortExpectedEnrollment: uItem.cohortExpectedEnrollment ?? null,
             adviserId: uItem.adviserId ?? null,
             adviserName: uItem.adviserName ?? null,
+            metadata: proposal.metadata ? { ...proposal.metadata } : undefined,
         };
         afterEntry = newEntry;
         newEntries.push(newEntry);
@@ -806,7 +807,7 @@ export async function commitManualEdit(runId, schoolId, schoolYearId, actorId, p
         newVersion,
     };
 }
-export async function commitManualEditBatch(runId, schoolId, schoolYearId, actorId, proposals, expectedVersion, allowSoftOverride = false) {
+export async function commitManualEditBatch(runId, schoolId, schoolYearId, actorId, proposals, expectedVersion, allowSoftOverride = false, customSummaryOverrides) {
     if (!Array.isArray(proposals) || proposals.length === 0) {
         throw err(400, 'EMPTY_BATCH', 'At least one manual edit proposal is required.');
     }
@@ -849,6 +850,17 @@ export async function commitManualEditBatch(runId, schoolId, schoolYearId, actor
     }
     const newSummary = computeSummary(newEntries, newUnassigned, newValidation);
     const preservedSummary = mergePreservedSummaryFields(run.summary, newSummary);
+    const finalSummary = {
+        ...preservedSummary,
+        ...(customSummaryOverrides || {}),
+    };
+    if (customSummaryOverrides?.resourceDiagnostics) {
+        const existingDiag = preservedSummary.resourceDiagnostics || {};
+        finalSummary.resourceDiagnostics = {
+            ...existingDiag,
+            ...customSummaryOverrides.resourceDiagnostics,
+        };
+    }
     const newVersion = run.version + 1;
     const { updatedRun, editRecords } = await prisma.$transaction(async (tx) => {
         const updated = await tx.generationRun.update({
@@ -857,7 +869,7 @@ export async function commitManualEditBatch(runId, schoolId, schoolYearId, actor
                 draftEntries: newEntries,
                 unassignedItems: newUnassigned,
                 violations: newValidation.violations,
-                summary: preservedSummary,
+                summary: finalSummary,
                 version: newVersion,
             },
         });

@@ -2830,6 +2830,27 @@ px tsc --noEmit passed on tlas-server with no TypeScript errors.
   - `npm --prefix atlas-client run build` -> PASS (Vite production bundle compiled successfully with zero errors).
 - Verdict: GO.
 
+---
+
+# 2026-07-08 - Prompt 10B Complete Dynamic Unassigned Teaching Load Repair
+
+- Phase: Timetable Generation / Teaching Load Repair, `teaching-load-repair-completion`.
+- Operator: Antigravity
+- Scope gate: IMPLEMENTATION COMPLETE, BACKEND TESTS GREEN, CLIENT BUILD GREEN -> PROMPT-SCOPE GO.
+- Trigger: User requested to implement tl-timetable-10b-unassigned-teaching-load-repair-completion-prompt.md.
+- Scope held:
+  - Extended Teaching Load repair endpoints to support both `kind: "ENTRY"` and `kind: "UNASSIGNED"` changes.
+  - Implemented greedy solver slot search `findSuggestedPlacements` inside `timetable-teaching-load-repair.service.ts` to return up to 3 conflict-free placement suggestions for unassigned preview sessions.
+  - Ensured transactional safety and concurrent protection by calculating `inputSnapshot` before the transaction and updating `summary` atomically inside `applyTeachingLoadRepair`'s transaction.
+  - Rendered dynamic action labels (`Fix teacher`, `Place session`, `Still blocked`) in unassigned left-rail panels based on teacher assignment and placement eligibility.
+  - Designed a selectable suggested slots panel in the sandbox dock's third column when an unassigned session is being resolved, previewing slot placement impact on click.
+- Verification results:
+  - `npm --prefix atlas-server run build` -> PASS (TypeScript server tsc compilation completed successfully with zero errors).
+  - `npx tsx atlas-server/src/__tests__/timetable-teaching-load-repair.test.ts` -> PASS (All 23 integration checks passed successfully).
+  - `npx tsx atlas-server/src/__tests__/timetable-teaching-load-repair-contract.test.ts` -> PASS (All contract check assertions passed successfully).
+  - `npm --prefix atlas-client run build` -> PASS (Vite production bundle compiled successfully with zero errors).
+- Verdict: GO.
+
 
 
 

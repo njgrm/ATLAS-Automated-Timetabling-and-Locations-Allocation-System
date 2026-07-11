@@ -25,6 +25,127 @@ function buildUnassignedKey(item) {
         item.entryKind ?? 'SECTION',
     ].join(':');
 }
+const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
+function timeToMinutes(t) {
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+}
+function minutesBetween(start, end) {
+    return timeToMinutes(end) - timeToMinutes(start);
+}
+function findSuggestedPlacements(change, refData, projectedEntries, activeTimeSlots, schoolId, schoolYearId, runId) {
+    const item = change.sourceUnassignedItem;
+    if (!item)
+        return { canPlaceNow: false, suggestedPlacements: [], blocker: 'Unassigned session info missing.' };
+    const facultyId = change.toFacultyId;
+    const subjectDetails = refData.subjects.find(s => s.id === item.subjectId);
+    const preferredRoomType = subjectDetails?.preferredRoomType || 'CLASSROOM';
+    const homeRoomId = item.homeRoomId || null;
+    const candidateRooms = [...refData.rooms].sort((a, b) => {
+        const aHome = a.id === homeRoomId;
+        const bHome = b.id === homeRoomId;
+        if (aHome !== bHome)
+            return aHome ? -1 : 1;
+        const aType = a.type === preferredRoomType;
+        const bType = b.type === preferredRoomType;
+        if (aType !== bType)
+            return aType ? -1 : 1;
+        return a.id - b.id;
+    });
+    const validSlots = [];
+    const roomsToSearch = candidateRooms.filter(r => r.id === homeRoomId || r.type === preferredRoomType).slice(0, 10);
+    if (roomsToSearch.length === 0) {
+        roomsToSearch.push(...candidateRooms.slice(0, 3));
+    }
+    for (const day of DAYS) {
+        if (validSlots.length >= 3)
+            break;
+        for (const slot of activeTimeSlots) {
+            if (validSlots.length >= 3)
+                break;
+            const isSectionBusy = projectedEntries.some(e => e.sectionId === item.sectionId && e.day === day && e.startTime === slot.startTime);
+            if (isSectionBusy)
+                continue;
+            const isTeacherBusy = projectedEntries.some(e => e.facultyId === facultyId && e.day === day && e.startTime === slot.startTime);
+            if (isTeacherBusy)
+                continue;
+            for (const room of roomsToSearch) {
+                if (validSlots.length >= 3)
+                    break;
+                const isRoomBusy = projectedEntries.some(e => e.roomId === room.id && e.day === day && e.startTime === slot.startTime);
+                if (isRoomBusy)
+                    continue;
+                const tempEntry = {
+                    entryId: `temp-qp-check`,
+                    facultyId,
+                    roomId: room.id,
+                    subjectId: item.subjectId,
+                    sectionId: item.sectionId,
+                    day,
+                    startTime: slot.startTime,
+                    endTime: slot.endTime,
+                    durationMinutes: minutesBetween(slot.startTime, slot.endTime),
+                    entryKind: item.entryKind || 'SECTION',
+                    programType: item.programType,
+                    programCode: item.programCode,
+                    programName: item.programName,
+                    cohortCode: item.cohortCode,
+                    cohortName: item.cohortName,
+                    cohortMemberSectionIds: item.cohortMemberSectionIds,
+                    cohortExpectedEnrollment: item.cohortExpectedEnrollment,
+                    adviserId: item.adviserId,
+                    adviserName: item.adviserName,
+                    metadata: {
+                        deferredRoomTypePreference: room.type !== preferredRoomType,
+                    },
+                };
+                const testEntries = [...projectedEntries, tempEntry];
+                const validatorCtx = buildValidatorCtx(schoolId, schoolYearId, runId, testEntries, refData);
+                const validation = validateHardConstraints(validatorCtx);
+                const hardViolations = validation.violations.filter(v => v.severity === 'HARD');
+                if (hardViolations.length === 0) {
+                    const softCount = validation.violations.filter(v => v.severity === 'SOFT').length;
+                    let score = 100 - softCount;
+                    if (room.id === homeRoomId) {
+                        score += 20;
+                    }
+                    validSlots.push({
+                        day,
+                        startTime: slot.startTime,
+                        endTime: slot.endTime,
+                        roomId: room.id,
+                        score,
+                    });
+                }
+            }
+        }
+    }
+    if (validSlots.length === 0) {
+        return {
+            canPlaceNow: false,
+            suggestedPlacements: [],
+            blocker: 'No conflict-free slots found for the proposed teacher in available rooms.',
+        };
+    }
+    validSlots.sort((a, b) => b.score - a.score);
+    const top3 = validSlots.slice(0, 3);
+    const suggestedPlacements = top3.map((s) => ({
+        editType: 'PLACE_UNASSIGNED',
+        sectionId: item.sectionId,
+        subjectId: item.subjectId,
+        session: item.session,
+        targetDay: s.day,
+        targetStartTime: s.startTime,
+        targetEndTime: s.endTime,
+        targetRoomId: s.roomId,
+        targetFacultyId: facultyId,
+    }));
+    return {
+        canPlaceNow: true,
+        suggestedPlacements,
+        blocker: null,
+    };
+}
 function normalizeChanges(raw) {
     if (!Array.isArray(raw) || raw.length === 0) {
         throw err(400, 'EMPTY_REPAIR_BATCH', 'At least one Teaching Load repair is required.');
@@ -310,6 +431,19 @@ async function prepareRepair(runId, schoolId, schoolYearId, request) {
         proposals.push(...placementResult.items);
     }
     const newValidation = validateHardConstraints(buildValidatorCtx(schoolId, schoolYearId, runId, newEntries, projectedRefData));
+    const timeSlots = (run.summary?.timetableDisplaySlots || []);
+    const activeTimeSlots = timeSlots.filter(s => !s.isSpecialEvent).map(s => ({ startTime: s.startTime, endTime: s.endTime }));
+    if (activeTimeSlots.length === 0) {
+        const uniqueSlots = new Set();
+        for (const e of entries) {
+            const key = `${e.startTime}-${e.endTime}`;
+            if (!uniqueSlots.has(key)) {
+                uniqueSlots.add(key);
+                activeTimeSlots.push({ startTime: e.startTime, endTime: e.endTime });
+            }
+        }
+    }
+    activeTimeSlots.sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
     const beforeHours = teachingHoursByFaculty(entries, affectedFacultyIds);
     const afterHours = teachingHoursByFaculty(newEntries, affectedFacultyIds);
     const affectedTeachers = [...affectedFacultyIds].sort((left, right) => left - right).map((facultyId) => ({
@@ -326,7 +460,22 @@ async function prepareRepair(runId, schoolId, schoolYearId, request) {
             && edit.proposal.sectionId === change.sectionId
             && edit.proposal.subjectId === change.subjectId
             && edit.proposal.session === change.session);
-        const placementBlockers = hardViolations.slice(0, 3).map((violation) => violation.message);
+        if (request.placementProposal && placed) {
+            const placementBlockers = hardViolations.slice(0, 3).map((violation) => violation.message);
+            return {
+                unassignedKey: change.unassignedKey,
+                subjectId: change.subjectId,
+                sectionId: change.sectionId,
+                session: change.session,
+                currentOwnerId: ownerByPair.get(`${change.subjectId}:${change.sectionId}`) ?? null,
+                proposedOwnerId: change.toFacultyId,
+                canPlaceNow: placementBlockers.length === 0,
+                placementBlockers,
+                topBlockerCopy: placementBlockers[0] ?? null,
+                suggestedPlacements: [request.placementProposal],
+            };
+        }
+        const searchRes = findSuggestedPlacements(change, projectedRefData, newEntries, activeTimeSlots, schoolId, schoolYearId, runId);
         return {
             unassignedKey: change.unassignedKey,
             subjectId: change.subjectId,
@@ -334,10 +483,10 @@ async function prepareRepair(runId, schoolId, schoolYearId, request) {
             session: change.session,
             currentOwnerId: ownerByPair.get(`${change.subjectId}:${change.sectionId}`) ?? null,
             proposedOwnerId: change.toFacultyId,
-            canPlaceNow: placed && placementBlockers.length === 0,
-            placementBlockers,
-            topBlockerCopy: placementBlockers[0] ?? (placed ? null : 'Teaching Load can be saved. Choose a slot before this session leaves the unassigned list.'),
-            suggestedPlacements: request.placementProposal ? [request.placementProposal] : [],
+            canPlaceNow: searchRes.canPlaceNow,
+            placementBlockers: searchRes.blocker ? [searchRes.blocker] : [],
+            topBlockerCopy: searchRes.blocker ?? 'Teaching Load can be saved. Choose a slot before this session leaves the unassigned list.',
+            suggestedPlacements: searchRes.suggestedPlacements,
         };
     });
     return {
@@ -542,6 +691,14 @@ export async function applyTeachingLoadRepair(runId, schoolId, schoolYearId, act
     }
     const newSummary = computeSummary(newEntries, newUnassignedItems, prepared.newValidation);
     const preservedSummary = mergePreservedSummaryFields(run.summary, newSummary);
+    let inputSnapshot = null;
+    try {
+        inputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId);
+    }
+    catch (e) {
+        console.error('Failed to compute generation input snapshot:', e);
+    }
+    const finalSummary = inputSnapshot ? { ...preservedSummary, inputSnapshot } : preservedSummary;
     const newVersion = run.version + 1;
     const { updatedRun, editRecords } = await prisma.$transaction(async (tx) => {
         const currentRun = await tx.generationRun.findFirst({
@@ -565,7 +722,7 @@ export async function applyTeachingLoadRepair(runId, schoolId, schoolYearId, act
                 draftEntries: newEntries,
                 unassignedItems: newUnassignedItems,
                 violations: prepared.newValidation.violations,
-                summary: preservedSummary,
+                summary: finalSummary,
                 version: newVersion,
             },
         });
@@ -640,18 +797,6 @@ export async function applyTeachingLoadRepair(runId, schoolId, schoolYearId, act
         });
         return { updatedRun: updated, editRecords: created };
     });
-    let finalSummary = newSummary;
-    try {
-        const inputSnapshot = await computeGenerationInputSnapshot(schoolId, schoolYearId);
-        finalSummary = { ...preservedSummary, inputSnapshot };
-        await prisma.generationRun.update({
-            where: { id: updatedRun.id },
-            data: { summary: finalSummary },
-        });
-    }
-    catch {
-        finalSummary = preservedSummary;
-    }
     return {
         editId: editRecords[0]?.id ?? 0,
         editIds: editRecords.map((edit) => edit.id),

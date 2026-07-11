@@ -21,6 +21,7 @@ export interface ManualEditProposal {
     targetEndTime?: string;
     targetRoomId?: number;
     targetFacultyId?: number;
+    metadata?: Record<string, any>;
 }
 export interface PreviewResult {
     allowed: boolean;
@@ -236,7 +237,7 @@ export declare function buildPolicyImpacts(violations: Violation[], refData: Awa
 export declare function previewManualEdit(runId: number, schoolId: number, schoolYearId: number, proposal: ManualEditProposal): Promise<PreviewResult>;
 export declare function previewManualEditBatch(runId: number, schoolId: number, schoolYearId: number, proposals: ManualEditProposal[]): Promise<ManualEditBatchPreviewResult>;
 export declare function commitManualEdit(runId: number, schoolId: number, schoolYearId: number, actorId: number, proposal: ManualEditProposal, expectedVersion: number, allowSoftOverride?: boolean): Promise<CommitResult>;
-export declare function commitManualEditBatch(runId: number, schoolId: number, schoolYearId: number, actorId: number, proposals: ManualEditProposal[], expectedVersion: number, allowSoftOverride?: boolean): Promise<CommitResult>;
+export declare function commitManualEditBatch(runId: number, schoolId: number, schoolYearId: number, actorId: number, proposals: ManualEditProposal[], expectedVersion: number, allowSoftOverride?: boolean, customSummaryOverrides?: Record<string, any>): Promise<CommitResult>;
 export declare function revertLastEdit(runId: number, schoolId: number, schoolYearId: number, actorId: number): Promise<CommitResult>;
 export declare function listManualEdits(runId: number, schoolId: number, schoolYearId: number): Promise<ManualEditRecord[]>;
 export type SwapStrategy = 'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE';

@@ -53,7 +53,9 @@ export interface ManualEditProposal {
 	targetEndTime?: string;
 	targetRoomId?: number;
 	targetFacultyId?: number;
+	metadata?: Record<string, any>;
 }
+
 
 export interface PreviewResult {
 	allowed: boolean;
@@ -364,6 +366,7 @@ function applyProposal(
 			cohortExpectedEnrollment: uItem.cohortExpectedEnrollment ?? null,
 			adviserId: uItem.adviserId ?? null,
 			adviserName: uItem.adviserName ?? null,
+			metadata: proposal.metadata ? { ...proposal.metadata } : undefined,
 		};
 
 		afterEntry = newEntry;
@@ -1050,6 +1053,7 @@ export async function commitManualEditBatch(
 	proposals: ManualEditProposal[],
 	expectedVersion: number,
 	allowSoftOverride = false,
+	customSummaryOverrides?: Record<string, any>,
 ): Promise<CommitResult> {
 	if (!Array.isArray(proposals) || proposals.length === 0) {
 		throw err(400, 'EMPTY_BATCH', 'At least one manual edit proposal is required.');
@@ -1101,6 +1105,17 @@ export async function commitManualEditBatch(
 
 	const newSummary = computeSummary(newEntries, newUnassigned, newValidation);
 	const preservedSummary = mergePreservedSummaryFields(run.summary, newSummary);
+	const finalSummary = {
+		...preservedSummary,
+		...(customSummaryOverrides || {}),
+	};
+	if (customSummaryOverrides?.resourceDiagnostics) {
+		const existingDiag = (preservedSummary.resourceDiagnostics as Record<string, any>) || {};
+		finalSummary.resourceDiagnostics = {
+			...existingDiag,
+			...customSummaryOverrides.resourceDiagnostics,
+		};
+	}
 	const newVersion = run.version + 1;
 
 	const { updatedRun, editRecords } = await prisma.$transaction(async (tx) => {
@@ -1110,7 +1125,7 @@ export async function commitManualEditBatch(
 				draftEntries: newEntries as unknown as object[],
 				unassignedItems: newUnassigned as unknown as object[],
 				violations: newValidation.violations as unknown as object[],
-				summary: preservedSummary as object,
+				summary: finalSummary as object,
 				version: newVersion,
 			},
 		});

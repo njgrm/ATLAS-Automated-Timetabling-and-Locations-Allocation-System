@@ -633,6 +633,7 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 				runId={draft?.runId ?? null}
 				facultyMap={facultyMap}
 				subjectMap={subjectMap}
+				roomMap={roomMap}
 				schoolYearId={schoolYearId}
 				sandboxFacultyByEntryId={sandboxFacultyByEntryId}
 				onApplyFaculty={applySandboxFaculty}
