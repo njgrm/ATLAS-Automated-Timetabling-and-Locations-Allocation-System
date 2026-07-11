@@ -7,7 +7,8 @@
     "dev": "vite --host --port 5174",
     "build": "vite build",
     "preview": "vite preview --port 5174",
-    "test:auth-session": "tsx --test src/lib/__tests__/auth-session.test.ts"
+    "test:auth-session": "tsx --test src/lib/__tests__/auth-session.test.ts",
+    "test:ux-guardrails": "tsx --test src/lib/__tests__/ux-guardrails.test.ts src/lib/__tests__/public-schedule-grade.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

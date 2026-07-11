@@ -273,12 +273,13 @@ export default function RoomRequestSheet({
 													const height = Math.max(44, (building.height / bounds.height) * MAP_H);
 													const isActive = selectedBuildingId === building.id;
 													return (
-														<button
+												<Button
+													variant='outline'
 															type='button'
 															key={`request-map-building-${building.id}`}
 															aria-label={`Select ${building.shortCode ?? building.name}`}
 															onClick={() => setSelectedBuildingId(building.id)}
-															className={`absolute flex items-center justify-center rounded-md border font-semibold text-white shadow transition-all ${isActive ? 'border-white ring-2 ring-sky-400 shadow-lg' : 'border-white/70 hover:ring-1 hover:ring-white/60'}`}
+													className={`absolute flex items-center justify-center rounded-md border p-0 font-semibold text-white shadow transition-all ${isActive ? 'border-white ring-2 ring-sky-400 shadow-lg' : 'border-white/70 hover:ring-1 hover:ring-white/60'}`}
 															style={{
 																left: `${Math.min(540, left)}px`,
 																top: `${Math.min(356, top)}px`,
@@ -291,7 +292,7 @@ export default function RoomRequestSheet({
 															<span className='px-1 text-center leading-tight line-clamp-2'>
 																{building.shortCode ?? building.name}
 															</span>
-														</button>
+												</Button>
 													);
 												})}
 												{buildingsWithRooms.length === 0 && (

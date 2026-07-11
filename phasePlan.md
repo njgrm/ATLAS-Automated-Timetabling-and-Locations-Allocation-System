@@ -1,7 +1,16 @@
 # ATLAS Project Phase Plan — Master Tracker
 **Generated:** 2026-05-15  
-**Status:** Phase 4 in progress (manual QA closure in progress) + Refactor Option 1 closed locally  
-**Last Updated:** 2026-05-16
+**Status:** Generator-readiness delivery remains active; UX-00 through UX-06 are an approved cross-phase usability overlay  
+**Last Updated:** 2026-07-12
+
+## Active Phase
+
+- **Delivery stream:** Phase 3 generator readiness and KPI recovery remains the canonical functional delivery stream.
+- **UX stream:** UX-00 through UX-06 are approved for implementation as a bounded cross-phase overlay as of 2026-07-12.
+- **Boundary:** UX work may simplify presentation and interaction but shall not change generation truth, publish lifecycle gates, role permissions, or persisted source ownership.
+- **Closure rule:** UX phases remain NO-GO until live Tailnet evidence is captured; source-only and localhost checks are supporting evidence only.
+
+This active-phase section supersedes older status phrases elsewhere in this historical ledger when they conflict. Historical Phase 2 and Phase 4 entries remain evidence of earlier work, not competing active pointers.
 
 > **Note:** This document is the master phase tracker for ATLAS. It is gitignored to allow local tracking without committing status. Phase details and evidence are maintained in `docs/phases/` and `docs/verification/`.
 

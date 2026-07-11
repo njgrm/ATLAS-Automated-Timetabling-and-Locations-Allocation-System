@@ -133,7 +133,7 @@ export function ClassProgramMatrixView({
 	return (
 		<div className="flex min-h-0 flex-1 flex-col gap-3">
 			<div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
-				<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] uppercase">Grid view</Badge>
+				<Badge variant="outline" className="h-5 px-1.5 text-xs uppercase">Grid view</Badge>
 				<span>{bands.length} section bands</span>
 				<span className="text-border">•</span>
 				<span>{sectionCount} sections</span>
@@ -149,7 +149,7 @@ export function ClassProgramMatrixView({
 							<CardHeader className={cn('border-b border-border/70 py-3', getGradeTone(band.gradeLabel))}>
 								<CardTitle className="flex items-center justify-between gap-2 text-sm">
 									<span>{band.gradeLabel}</span>
-									<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem]">{band.sections.length} sections</Badge>
+									<Badge variant="outline" className="h-5 px-1.5 text-xs">{band.sections.length} sections</Badge>
 								</CardTitle>
 							</CardHeader>
 							<CardContent className="p-0">
@@ -161,11 +161,11 @@ export function ClassProgramMatrixView({
 										</colgroup>
 										<thead className="sticky top-0 z-10 bg-background">
 											<tr>
-												<th className="sticky left-0 z-20 border-b border-r border-border bg-background px-3 py-2 text-left text-[0.625rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+												<th className="sticky left-0 z-20 border-b border-r border-border bg-background px-3 py-2 text-left text-xs font-semibold uppercase text-muted-foreground">
 													Section
 												</th>
 												{DAYS.map((day) => (
-													<th key={day} className="border-b border-border px-2 py-2 text-left text-[0.625rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+													<th key={day} className="border-b border-border px-2 py-2 text-left text-xs font-semibold uppercase text-muted-foreground">
 														{DAY_SHORT[day] ?? day}
 													</th>
 												))}
@@ -177,7 +177,7 @@ export function ClassProgramMatrixView({
 													<th className={cn('sticky left-0 z-10 border-b border-r border-border px-3 py-2 text-left', getSectionTone(gradeForSection(section.sectionId)))}>
 														<div className="space-y-0.5">
 															<div className="font-semibold text-foreground">{section.sectionLabel}</div>
-															<div className="text-[0.625rem] uppercase tracking-[0.08em] text-muted-foreground">{section.gradeLabel} · {section.entryCount} entries</div>
+																	<div className="text-xs uppercase text-muted-foreground">{section.gradeLabel} · {section.entryCount} entries</div>
 														</div>
 													</th>
 													{DAYS.map((day) => {
@@ -185,7 +185,7 @@ export function ClassProgramMatrixView({
 														return (
 															<td key={`${section.sectionId}-${day}`} className="border-b border-border px-1.5 py-1 align-top">
 																{dayEntries.length === 0 ? (
-																	<div className="rounded border border-dashed border-border/70 px-2 py-3 text-center text-[0.625rem] text-muted-foreground">
+																			<div className="rounded border border-dashed border-border/70 px-2 py-3 text-center text-xs text-muted-foreground">
 																		Open
 																	</div>
 																) : (
@@ -212,10 +212,10 @@ export function ClassProgramMatrixView({
 																				<div className="min-w-0 flex-1">
 																					<div className="flex items-center justify-between gap-2">
 																						<span className="truncate font-semibold text-foreground">{subjectLabel(entry.subjectId)}</span>
-																						<span className="shrink-0 text-[0.625rem] text-muted-foreground">{formatTime(entry.startTime)}-{formatTime(entry.endTime)}</span>
+																						<span className="shrink-0 text-xs text-muted-foreground">{formatTime(entry.startTime)}-{formatTime(entry.endTime)}</span>
 																					</div>
-																					<div className="mt-0.5 text-[0.625rem] text-muted-foreground">{roomLabelShort(entry.roomId)}</div>
-																					<div className="mt-0.5 truncate text-[0.625rem] text-muted-foreground/80">{entryContextLabel(entry)}</div>
+																					<div className="mt-0.5 text-xs text-muted-foreground">{roomLabelShort(entry.roomId)}</div>
+																					<div className="mt-0.5 truncate text-xs text-muted-foreground/80">{entryContextLabel(entry)}</div>
 																				</div>
 																			</Button>
 																		);

@@ -366,7 +366,7 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 					>
 						<div className="mb-2 flex items-center justify-between gap-2">
 							<div className="flex items-center gap-2">
-								<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] uppercase">Map</Badge>
+								<Badge variant="outline" className="h-5 px-1.5 text-xs uppercase">Map</Badge>
 								<p className="text-xs text-muted-foreground">
 									{preGenOnboarding ? 'Click a building then a room to pivot the timetable grid to that room.' : 'View-only map workspace. Editing remains in `/map-editor`.'}
 								</p>
@@ -404,7 +404,7 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 									<ChevronLeft className="size-3.5" />
 									Back to Map
 								</Button>
-								<Badge variant="outline" className="h-5 px-1.5 text-[0.625rem] uppercase">Building View</Badge>
+								<Badge variant="outline" className="h-5 px-1.5 text-xs uppercase">Building View</Badge>
 								<p className="text-xs font-medium">{selectedMapBuilding.name}</p>
 							</div>
 							<Button
@@ -439,14 +439,14 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 										return (
 											<div key={floor} className="flex bg-background">
 												<div className="flex w-7 shrink-0 items-center justify-center border-r border-border bg-muted/50">
-													<span className="text-[0.6rem] font-bold text-muted-foreground [writing-mode:vertical-lr] rotate-180">
+											<span className="rotate-180 text-xs font-bold text-muted-foreground [writing-mode:vertical-lr]">
 														F{floor}
 													</span>
 												</div>
 												<div className="flex flex-1 gap-px bg-border min-h-10">
 													{rooms.length === 0 ? (
 														<div className="flex flex-1 items-center justify-center bg-background px-2">
-															<span className="text-[0.625rem] text-muted-foreground/50 italic">Empty</span>
+													<span className="text-xs italic text-muted-foreground/50">Empty</span>
 														</div>
 													) : (
 														rooms.map((room: any) => {
@@ -460,10 +460,10 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 																	onClick={() => openRoomGridWorkspace(room.id)}
 																	className={`h-auto flex-1 flex-col items-center justify-center rounded-none px-1 py-1 text-left transition-all ${colors.bg} hover:brightness-95`}
 																>
-																	<span className={`text-[0.5625rem] font-semibold truncate w-full text-center ${colors.text}`}>
+															<span className={`w-full truncate text-center text-xs font-semibold ${colors.text}`}>
 																		{room.name}
 																	</span>
-																	<span className="text-[0.5rem] text-muted-foreground truncate w-full text-center">
+															<span className="w-full truncate text-center text-xs text-muted-foreground">
 																		{ROOM_TYPE_LABELS[roomType]}
 																	</span>
 																</Button>
@@ -496,7 +496,7 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 							entryContextLabel={entryContextLabel}
 							onEntryClick={handleEntryClick}
 							selectedEntryId={selectedEntry?.entryId ?? null}
-							header={<Badge variant="secondary" className="h-5 px-1.5 text-[0.625rem]">{centerView === 'pre-generation' ? 'Pre-Generation Matrix' : 'Generated Matrix'}</Badge>}
+							header={<Badge variant="secondary" className="h-5 px-1.5 text-xs">{centerView === 'pre-generation' ? 'Pre-Generation Matrix' : 'Generated Matrix'}</Badge>}
 						/>
 					</motion.div>
 				) : (
@@ -516,7 +516,7 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 											{entityFilter && entityFilter !== 'all' ? (
 												<Badge
 													variant="secondary"
-													className={`h-5 px-2 text-[0.625rem] max-w-36 truncate ${
+												className={`h-5 max-w-36 truncate px-2 text-xs ${
 														viewMode === 'faculty' ? 'bg-purple-50 text-purple-700 border-purple-200' :
 														viewMode === 'room' ? 'bg-blue-50 text-blue-700 border-blue-200' :
 														'bg-muted text-muted-foreground'
@@ -525,7 +525,7 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 													{viewMode === 'faculty' ? 'Teacher' : viewMode === 'room' ? 'Room' : 'Section'}: {pivotLabel(Number(entityFilter))}
 												</Badge>
 											) : null}
-											<Button variant="outline" size="sm" className="h-6 px-2 text-[0.625rem] gap-1" onClick={() => { setCenterView('map'); setPreGenOnboarding(true); }}>
+										<Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => { setCenterView('map'); setPreGenOnboarding(true); }}>
 												<MapPin className="size-3" />
 												Map
 											</Button>
@@ -577,13 +577,13 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 						</ScrollArea>
 						{centerView === 'pre-generation' && preGenPending && (
 							<div className="shrink-0 border-t border-border bg-muted/20 px-3 py-2 space-y-1.5">
-								<div className="flex flex-wrap items-center gap-2 text-[0.6875rem]">
+								<div className="flex flex-wrap items-center gap-2 text-xs">
 									<Lock className="size-3 text-primary shrink-0" />
 									<span className="font-medium text-foreground truncate max-w-[16rem]">Pending: {preGenPending.sourceLabel}</span>
 									{preGenPreviewLoading ? (
 										<span className="inline-flex items-center gap-1 text-muted-foreground"><Loader2 className="size-3 animate-spin" />Checking…</span>
 									) : preGenPreviewError ? (
-										<span className="text-destructive text-[0.625rem]">{preGenPreviewError}</span>
+										<span className="text-xs text-destructive">{preGenPreviewError}</span>
 									) : preGenPreview ? (
 										<span className={preGenPreview.allowed ? 'text-emerald-700' : 'text-red-700'}>
 											{preGenPreview.allowed ? '✓ No hard conflicts' : '✗ Hard conflict'}
@@ -591,17 +591,17 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 									) : null}
 								</div>
 								{preGenPreview?.humanConflicts.slice(0, 2).map((conflict: any) => (
-									<div key={`${conflict.code}-${conflict.humanDetail}`} className={`rounded border px-2 py-1 text-[0.625rem] ${conflict.severity === 'HARD' ? 'border-red-300 bg-red-50 text-red-700' : 'border-amber-300 bg-amber-50 text-amber-800'}`}>
+									<div key={`${conflict.code}-${conflict.humanDetail}`} className={`rounded border px-2 py-1 text-xs ${conflict.severity === 'HARD' ? 'border-red-300 bg-red-50 text-red-700' : 'border-amber-300 bg-amber-50 text-amber-800'}`}>
 										<span className="font-medium">{conflict.humanTitle}</span> — {conflict.humanDetail}
 									</div>
 								))}
 								{preGenPending && cellConflictMap?.get(`${preGenPending.day}-${preGenPending.startTime}`)?.kind === 'hard' && (
-									<div className="flex items-start gap-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[0.625rem] text-amber-800">
+									<div className="flex items-start gap-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
 										<AlertTriangle className="size-3 shrink-0 mt-0.5" />
 										<span>Slot occupied — saving will add a conflict. Choose a different slot or acknowledge below.</span>
 									</div>
 								)}
-								{preGenPreview?.softViolations.length ? (<div className="flex items-start gap-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[0.625rem] text-amber-800"><AlertTriangle className="size-3 shrink-0 mt-0.5" /><span>{preGenPreview.softViolations.length} soft warning(s) — informational only.</span></div>) : null}
+								{preGenPreview?.softViolations.length ? (<div className="flex items-start gap-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800"><AlertTriangle className="size-3 shrink-0 mt-0.5" /><span>{preGenPreview.softViolations.length} soft warning(s) — informational only.</span></div>) : null}
 								<div className="flex items-center gap-2">
 									<Button
 										id="pre-gen-pending-save-anchor"

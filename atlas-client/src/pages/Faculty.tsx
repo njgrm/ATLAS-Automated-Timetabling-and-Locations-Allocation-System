@@ -505,12 +505,12 @@ export default function Faculty() {
 							setPlaceholderDialogOpen(true);
 						}}
 						size="sm"
-						className="h-9 gap-2 font-semibold shadow-sm"
+						className="gap-2 font-semibold shadow-sm"
 					>
 						<Plus className="size-4" />
 						Create Placeholder
 					</Button>
-					<Button variant="outline" onClick={handleSync} disabled={syncing || !isOnline} size="sm" className="h-9 gap-2 font-semibold">
+					<Button variant="outline" onClick={handleSync} disabled={syncing || !isOnline} size="sm" className="gap-2 font-semibold">
 						<RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
 						{syncing ? 'Refreshing...' : !isOnline ? 'Offline' : refreshing ? 'Checking...' : 'Refresh teacher roster'}
 					</Button>
@@ -526,7 +526,7 @@ export default function Faculty() {
 					hasActiveFilters={hasActiveFilters}
 				>
 						<Select value={schedulingFilter} onValueChange={(v) => setSchedulingFilter(v as typeof schedulingFilter)}>
-							<SelectTrigger className="h-8 w-40 text-xs bg-background">
+							<SelectTrigger className="h-10 w-44 text-sm bg-background">
 								<SelectValue placeholder="All roster states" />
 							</SelectTrigger>
 							<SelectContent>
@@ -536,7 +536,7 @@ export default function Faculty() {
 							</SelectContent>
 						</Select>
 						<Select value={assignmentFilter} onValueChange={(v) => setAssignmentFilter(v as typeof assignmentFilter)}>
-							<SelectTrigger className="h-8 w-36 text-xs bg-background">
+							<SelectTrigger className="h-10 w-44 text-sm bg-background">
 								<SelectValue placeholder="All load states" />
 							</SelectTrigger>
 							<SelectContent>
@@ -547,7 +547,7 @@ export default function Faculty() {
 						</Select>
 						{departments.length > 0 && (
 							<Select value={departmentFilter} onValueChange={(v) => setDepartmentFilter(v)}>
-								<SelectTrigger className="h-8 w-40 text-xs bg-background">
+								<SelectTrigger className="h-10 w-44 text-sm bg-background">
 									<SelectValue placeholder="All Departments" />
 								</SelectTrigger>
 								<SelectContent>
@@ -560,7 +560,7 @@ export default function Faculty() {
 							<Button
 								variant="ghost"
 								size="sm"
-								className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground font-semibold"
+								className="px-3 text-sm text-muted-foreground hover:text-foreground font-semibold"
 								onClick={() => { setSchedulingFilter('all'); setAssignmentFilter('all'); setDepartmentFilter('all'); }}
 							>
 								Reset all
@@ -575,7 +575,7 @@ export default function Faculty() {
 				<div className="shrink-0 mx-6 mt-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-sm animate-in fade-in duration-300">
 					<AlertTriangle className="size-4 shrink-0 text-amber-600" />
 					<span className="flex-1 font-semibold">{cacheNotice ?? 'ATLAS could not refresh the teacher roster. The last saved roster is still shown.'}</span>
-					<Button size="sm" variant="outline" onClick={() => fetchFaculty({ forceRefresh: true })} disabled={syncing} className="shrink-0 h-7 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold">
+					<Button size="sm" variant="outline" onClick={() => fetchFaculty({ forceRefresh: true })} disabled={syncing} className="shrink-0 border-amber-300 hover:bg-amber-100 text-amber-900 font-bold">
 						<RefreshCw className={`mr-1.5 size-3 ${syncing ? 'animate-spin' : ''}`} /> Retry refresh
 					</Button>
 				</div>

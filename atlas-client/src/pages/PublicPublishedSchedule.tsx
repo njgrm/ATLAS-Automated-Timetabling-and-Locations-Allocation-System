@@ -6,8 +6,9 @@ import { AlertCircle, BookOpen, CalendarDays, Clock3, MapPin, Printer, RefreshCc
 import atlasApi from '@/lib/api';
 import { buildPublishedScheduleCacheMarker, resolvePublishedScheduleRequestDate } from '@/lib/published-schedule-cache-key';
 import { buildPublicScheduleCacheKey, isLikelyOfflinePublicError, readLatestPublicScheduleSnapshotByPrefix, writePublicScheduleSnapshot } from '@/lib/public-schedule-cache';
+import { resolvePublicSectionGrade } from '@/lib/public-schedule-grade';
 import { PublishedTimetableMatrix, DAY_ORDER, type DayKey, type PublishedScheduleMatrixEntry, formatShortTime, humanizeProgram } from '@/components/published-schedule/PublishedTimetableMatrix';
-import { GradeLevelBadge, parseGradeFromSectionName } from '@/components/GradeLevelBadge';
+import { GradeLevelBadge } from '@/components/GradeLevelBadge';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
@@ -234,14 +235,15 @@ export default function PublicPublishedSchedule() {
 	const sections = useMemo<SectionBrowseItem[]>(() => {
 		const byId = new Map<number, SectionBrowseItem>();
 		for (const entry of payload?.entries ?? []) {
-			const gradeLabel = entry.section.gradeLevelName ?? (entry.section.gradeLevel ? `Grade ${entry.section.gradeLevel}` : null);
+			const gradeLevel = resolvePublicSectionGrade(entry.section.gradeLevel, entry.section.gradeLevelName, entry.section.name);
+			const gradeLabel = gradeLevel ? `Grade ${gradeLevel}` : entry.section.gradeLevelName;
 			const programLabel = entry.section.programName ?? entry.section.programCode ?? (entry.section.programType ? humanizeProgram(entry.section.programType) : null);
 			const existing = byId.get(entry.section.id);
 			if (existing) {
 				existing.entryCount += 1;
 				continue;
 			}
-			byId.set(entry.section.id, { id: entry.section.id, name: entry.section.name, gradeLevel: entry.section.gradeLevel, gradeLabel, programType: entry.section.programType, programLabel, entryCount: 1 });
+			byId.set(entry.section.id, { id: entry.section.id, name: entry.section.name, gradeLevel, gradeLabel, programType: entry.section.programType, programLabel, entryCount: 1 });
 		}
 		return [...byId.values()].sort((left, right) => (left.gradeLevel ?? Number.MAX_SAFE_INTEGER) - (right.gradeLevel ?? Number.MAX_SAFE_INTEGER) || left.name.localeCompare(right.name));
 	}, [payload?.entries]);
@@ -377,7 +379,7 @@ export default function PublicPublishedSchedule() {
 
 	const renderSelectedEntryBadges = useCallback((entry: PublishedScheduleMatrixEntry) => {
 		const section = entry.section;
-		const grade = section?.gradeLevel ?? parseGradeFromSectionName(section?.gradeLevelName ?? section?.name ?? null);
+		const grade = resolvePublicSectionGrade(section?.gradeLevel, section?.gradeLevelName, section?.name);
 		return <GradeLevelBadge grade={grade} size="xs" />;
 	}, []);
 
@@ -479,13 +481,12 @@ export default function PublicPublishedSchedule() {
 								<Badge variant="outline">{summary.facultyCount} teacher{summary.facultyCount === 1 ? '' : 's'}</Badge>
 								<Badge variant="outline">{summary.roomCount} room{summary.roomCount === 1 ? '' : 's'}</Badge>
 							</div>
-							<div className="rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-xs">
-								<p className="font-semibold text-foreground">Schedule version</p>
-								<p className="mt-1">Most recent schedule: {formatTimestamp(payload.source.publishedAt)} (reference #{payload.source.runId})</p>
+							<div className="rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-sm">
+								<p className="font-semibold text-foreground">Official schedule updated {formatTimestamp(payload.source.publishedAt)}</p>
 								<p className="mt-1 text-muted-foreground">
 									{payload.source.activeRevisionId
-										? `Revision #${payload.source.activeRevisionId} effective ${formatTimestamp(payload.source.activeRevisionEffectiveDate ?? null)}`
-										: `Base published schedule for ${requestedDate}`}
+										? `Includes approved changes effective ${formatTimestamp(payload.source.activeRevisionEffectiveDate ?? null)}.`
+										: `Published schedule for ${requestedDate}.`}
 								</p>
 							</div>
 							{sourceMode === 'saved' && savedAt && <p>Showing the last saved copy from {formatTimestamp(savedAt)}{savedIsStale ? '. This saved copy may be out of date.' : '.'}</p>}

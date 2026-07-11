@@ -301,7 +301,7 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 			<div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-6 py-7 lg:px-8">
 				<header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between shrink-0">
 					<div>
-						<p className="text-[0.72rem] font-bold uppercase text-primary">Scheduling Portal</p>
+						<p className="text-xs font-bold uppercase text-primary">Scheduling Portal</p>
 						<h1 className="mt-1 text-3xl font-bold text-slate-900">Campus and rooms</h1>
 						<p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">
 							Review buildings, teaching rooms, and room readiness before generation.
@@ -525,11 +525,11 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 													}
 
 													return (
-														<button
-															key={room.id}
-															type="button"
-															onClick={() => setFocusedRoomId(isFocused ? null : room.id)}
-															className={`w-full text-left p-2.5 rounded-xl border transition-all flex flex-col gap-1.5 ${
+												<Button
+													key={room.id}
+													variant="ghost"
+													onClick={() => setFocusedRoomId(isFocused ? null : room.id)}
+													className={`h-auto w-full items-stretch justify-start rounded-lg border p-2.5 text-left transition-all flex flex-col gap-1.5 ${
 																isFocused 
 																	? 'border-primary bg-primary/5 ring-1 ring-primary' 
 																	: 'border-slate-100 bg-card hover:bg-slate-50'
@@ -538,16 +538,16 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 															<div className="flex items-center justify-between w-full">
 																<div className="min-w-0">
 																	<span className="font-bold text-xs text-slate-800 truncate block">{room.name}</span>
-																	<span className="text-[10px] text-slate-400">{ROOM_TYPE_LABELS[room.type] ?? room.type}</span>
+															<span className="text-xs text-slate-500">{ROOM_TYPE_LABELS[room.type] ?? room.type}</span>
 																</div>
-																<Badge variant="secondary" className="text-[10px] py-0 px-1 h-4.5 shrink-0">
+														<Badge variant="secondary" className="h-5 shrink-0 px-1.5 py-0 text-xs">
 																	Cap: {room.capacity ?? '—'}
 																</Badge>
 															</div>
 
 															{room.isTeachingSpace && (
 																<div className="w-full space-y-0.5">
-																	<div className="flex items-center justify-between text-[9px] font-semibold text-slate-500">
+													<div className="flex items-center justify-between text-xs font-semibold text-slate-500">
 																		<span className="flex items-center gap-0.5">
 																			<TrendingUp className="size-2.5" />
 																			Utilization
@@ -568,17 +568,17 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 
 															{occupancy && (
 																<div className="flex flex-wrap gap-1 mt-0.5">
-																	<span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold border uppercase tracking-wider ${gradeClass || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+														<span className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold border uppercase ${gradeClass || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
 																		{occupancy}
 																	</span>
 																	{sectionData?.programCode && (
-																		<span className="inline-flex items-center rounded bg-slate-100 px-1 py-0.5 text-[9px] font-bold text-slate-600">
+															<span className="inline-flex items-center rounded bg-slate-100 px-1 py-0.5 text-xs font-bold text-slate-600">
 																			{sectionData.programCode}
 																		</span>
 																	)}
 																</div>
 															)}
-														</button>
+												</Button>
 													);
 												})
 											)}
@@ -592,9 +592,9 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 												<div className="rounded-xl border border-primary/10 bg-primary/5 p-2.5 flex flex-col gap-1">
 													<div className="flex items-center justify-between">
 														<h5 className="font-bold text-xs text-slate-800">{focusedRoom.name}</h5>
-														<Badge className="text-[9px] h-4 bg-primary/20 text-primary hover:bg-primary/20">{ROOM_TYPE_LABELS[focusedRoom.type]}</Badge>
+												<Badge className="h-5 bg-primary/20 text-xs text-primary hover:bg-primary/20">{ROOM_TYPE_LABELS[focusedRoom.type]}</Badge>
 													</div>
-													<div className="text-[10px] text-slate-600 space-y-0.5">
+											<div className="space-y-0.5 text-xs text-slate-600">
 														<p>Capacity: <strong className="text-slate-800">{focusedRoom.capacity ?? '—'} students</strong></p>
 														{focusedRoom.isTeachingSpace ? (
 															<p>Weekly Utilization: <strong className="text-slate-800">{Math.round(roomUtilization?.get(focusedRoom.id) ?? 0)}%</strong></p>
@@ -612,7 +612,7 @@ export function CampusMapOverview({ buildings, campusImageUrl }: CampusMapOvervi
 												</Button>
 											</div>
 										) : (
-											<p className="text-center text-[10px] text-slate-400 py-1.5">
+										<p className="py-1.5 text-center text-xs text-slate-500">
 												Select a room to view weekly schedule.
 											</p>
 										)}
@@ -643,7 +643,7 @@ function SummaryStat({ label, value, icon: Icon }: { label: string; value: strin
 	return (
 		<div className="rounded-2xl bg-white p-4 shadow-soft">
 			<Icon className="size-4 text-primary animate-pulse" />
-			<p className="mt-2 text-[0.68rem] font-semibold uppercase text-slate-500">{label}</p>
+			<p className="mt-2 text-xs font-semibold uppercase text-slate-500">{label}</p>
 			<p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{value}</p>
 		</div>
 	);
@@ -652,7 +652,7 @@ function SummaryStat({ label, value, icon: Icon }: { label: string; value: strin
 function ReadinessChip({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="rounded-xl border border-slate-100 bg-slate-50 px-2 py-2">
-			<p className="text-[0.62rem] font-semibold uppercase text-slate-500">{label}</p>
+			<p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
 			<p className="mt-1 truncate text-xs font-bold text-slate-900">{value}</p>
 		</div>
 	);

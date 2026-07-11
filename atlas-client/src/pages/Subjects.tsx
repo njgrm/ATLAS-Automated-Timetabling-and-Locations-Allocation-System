@@ -473,7 +473,7 @@ export default function Subjects() {
 				<TooltipProvider>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<Button variant="outline" onClick={handleSyncContract} size="sm" className="h-9 gap-2" disabled={syncingContract}>
+							<Button variant="outline" onClick={handleSyncContract} size="sm" className="gap-2" disabled={syncingContract}>
 								<RefreshCw className={`size-4 ${syncingContract ? 'animate-spin' : ''}`} />
 								Refresh offerings
 							</Button>
@@ -483,7 +483,7 @@ export default function Subjects() {
 				</TooltipProvider>
 			)}
 			primaryActions={(
-				<Button onClick={() => { setModalMode('add'); setModalSubject(null); setModalSubjectMeta(null); }} size="sm" className="h-9 gap-2 bg-primary text-primary-foreground shadow-primary-glow hover:bg-primary/90">
+				<Button onClick={() => { setModalMode('add'); setModalSubject(null); setModalSubjectMeta(null); }} size="sm" className="gap-2 bg-primary text-primary-foreground shadow-primary-glow hover:bg-primary/90">
 					<Plus className="size-4" />
 					Add subject
 				</Button>
@@ -498,7 +498,7 @@ export default function Subjects() {
 					hasActiveFilters={hasActiveFilters}
 				>
 						<Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
-							<SelectTrigger className="h-8 w-32 text-xs">
+							<SelectTrigger className="h-10 w-36 text-sm">
 								<SelectValue placeholder="All Status" />
 							</SelectTrigger>
 							<SelectContent>
@@ -508,7 +508,7 @@ export default function Subjects() {
 							</SelectContent>
 						</Select>
 						<Select value={roomTypeFilter} onValueChange={(v) => setRoomTypeFilter(v as typeof roomTypeFilter)}>
-							<SelectTrigger className="h-8 w-40 text-xs">
+							<SelectTrigger className="h-10 w-44 text-sm">
 								<SelectValue placeholder="All Room Types" />
 							</SelectTrigger>
 							<SelectContent>
@@ -519,7 +519,7 @@ export default function Subjects() {
 							</SelectContent>
 						</Select>
 						<Select value={String(gradeLevelFilter)} onValueChange={(v) => setGradeLevelFilter(v === 'all' ? 'all' : Number(v))}>
-							<SelectTrigger className="h-8 w-32 text-xs">
+							<SelectTrigger className="h-10 w-36 text-sm">
 								<SelectValue placeholder="All Grades" />
 							</SelectTrigger>
 							<SelectContent>
@@ -530,7 +530,7 @@ export default function Subjects() {
 							</SelectContent>
 						</Select>
 						<Select value={programScopeFilter} onValueChange={setProgramScopeFilter}>
-							<SelectTrigger className="h-8 w-36 text-xs">
+							<SelectTrigger className="h-10 w-40 text-sm">
 								<SelectValue placeholder="All Programs" />
 							</SelectTrigger>
 							<SelectContent>
@@ -542,10 +542,10 @@ export default function Subjects() {
 						</Select>
 
 						<div className="flex items-center gap-2 border-l pl-3">
-							<span className="text-xs font-medium text-muted-foreground uppercase">Options:</span>
+						<span className="text-sm font-medium text-muted-foreground">Time display</span>
 							<div className="flex items-center p-0.5 rounded-md bg-muted gap-0.5">
-								<Button type="button" variant="ghost" size="sm" onClick={() => setTimeMode('hours')} className={`h-6 px-1.5 rounded-sm ${timeMode === 'hours' ? 'bg-background shadow-sm text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}>hr</Button>
-								<Button type="button" variant="ghost" size="sm" onClick={() => setTimeMode('minutes')} className={`h-6 px-1.5 rounded-sm ${timeMode === 'minutes' ? 'bg-background shadow-sm text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'}`}>min</Button>
+							<Button type="button" variant="ghost" size="xs" onClick={() => setTimeMode('hours')} className={timeMode === 'hours' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}>Hours</Button>
+							<Button type="button" variant="ghost" size="xs" onClick={() => setTimeMode('minutes')} className={timeMode === 'minutes' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}>Minutes</Button>
 							</div>
 						</div>
 
@@ -553,7 +553,7 @@ export default function Subjects() {
 							<Button
 								variant="ghost"
 								size="sm"
-								className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+								className="px-3 text-sm text-muted-foreground hover:text-foreground"
 								onClick={() => { 
 									setStatusFilter('all'); 
 									setRoomTypeFilter('all'); 

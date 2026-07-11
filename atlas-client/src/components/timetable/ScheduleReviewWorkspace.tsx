@@ -28,6 +28,9 @@ export default function ScheduleReviewWorkspace() {
 			</div>
 		);
 	}
+	if (!state.headerContext || !state.leftRailContentContext || !state.centerWorkspaceContext || !state.rightPanelContext || !state.overlaysContext) {
+		return <TimetableSkeleton />;
+	}
 
 	return (
 		<div className="flex flex-col h-[calc(100svh-3.5rem)] relative">
@@ -42,7 +45,7 @@ export default function ScheduleReviewWorkspace() {
 			<div className={`h-0.5 shrink-0 bg-emerald-500 transition-opacity duration-150 ${state.showTopLoadingStrip ? 'opacity-100 animate-pulse' : 'opacity-0'}`} />
 			{state.inlineActionStatus ? (
 				<div
-					className={`px-3 py-1 text-[11px] border-b ${
+					className={`border-b px-3 py-1 text-xs ${
 						state.inlineActionStatus.tone === 'error'
 							? 'border-destructive/40 bg-destructive/10 text-destructive'
 							: state.inlineActionStatus.tone === 'warning'

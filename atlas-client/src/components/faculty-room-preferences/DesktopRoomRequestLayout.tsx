@@ -122,14 +122,14 @@ export default function DesktopRoomRequestLayout({
 								<Label htmlFor='heatmap' className='text-xs font-bold cursor-pointer'>Heatmap</Label>
 							</div>
 							<div className='flex items-center gap-1 bg-background rounded-xl border border-border p-1'>
-								<Button variant='ghost' size='icon' className='size-8 rounded-lg' onClick={onZoomOut} title='Zoom Out'>
+								<Button variant='ghost' size='icon' className='rounded-lg' onClick={onZoomOut} aria-label='Zoom out campus view'>
 									<Move className='size-4' />
 								</Button>
 								<div className='px-2 text-[10px] font-bold text-muted-foreground'>{Math.round(zoom * 100)}%</div>
-								<Button variant='ghost' size='icon' className='size-8 rounded-lg' onClick={onZoomIn} title='Zoom In'>
+								<Button variant='ghost' size='icon' className='rounded-lg' onClick={onZoomIn} aria-label='Zoom in campus view'>
 									<ScanSearch className='size-4' />
 								</Button>
-								<Button variant='ghost' size='icon' className='size-8 rounded-lg' onClick={onZoomReset} title='Reset'>
+								<Button variant='ghost' size='icon' className='rounded-lg' onClick={onZoomReset} aria-label='Reset campus zoom'>
 									<RotateCw className='size-4' />
 								</Button>
 							</div>
@@ -170,7 +170,8 @@ export default function DesktopRoomRequestLayout({
 										const slotId = `slot-${day}-${slot.startTime}`;
 
 										return (
-											<button
+											<Button
+												variant='outline'
 												id={slotId}
 												key={`${key}-${day}`}
 												type='button'
@@ -231,7 +232,7 @@ export default function DesktopRoomRequestLayout({
 														);
 													})}
 												</div>
-											</button>
+											</Button>
 										);
 									})}
 								</Fragment>
@@ -288,7 +289,8 @@ export default function DesktopRoomRequestLayout({
 									</p>
 								</div>
 							) : entries.map((entry) => (
-								<button
+								<Button
+									variant='outline'
 									key={entry.entryId}
 									onClick={() => onSelectSourceEntry(entry.entryId)}
 									className={`text-left p-4 rounded-2xl border-2 transition-all ${
@@ -304,7 +306,7 @@ export default function DesktopRoomRequestLayout({
 										</div>
 										{renderStatusBadge(entry.status, entry.decisionStatus)}
 									</div>
-								</button>
+								</Button>
 							))}
 						</div>
 					</div>
@@ -315,18 +317,20 @@ export default function DesktopRoomRequestLayout({
 							<p className='text-[10px] font-bold text-muted-foreground uppercase tracking-wider'>Available Rooms</p>
 							<div className='flex items-center gap-2 rounded-lg border bg-muted/50 px-2 py-1'>
 								<Search className='size-3 text-muted-foreground' />
-								<input 
+								<Input
 									value={roomSearch}
 									onChange={(e) => onRoomSearchChange(e.target.value)}
-									placeholder='Filter...'
-									className='bg-transparent border-0 text-[10px] focus:ring-0 w-20'
+									placeholder='Find room'
+									aria-label='Find an available room'
+									className='h-10 w-32 border-0 bg-transparent text-sm shadow-none'
 								/>
 							</div>
 						</div>
 						
 						<div className='grid gap-2 max-h-60 overflow-auto pr-2'>
 							{filteredRooms.map((room) => (
-								<button
+								<Button
+									variant='outline'
 									key={room.id}
 									onClick={() => selectedEntry && onAssignRoomToEntry(selectedEntry.entryId, room.id)}
 									className={`p-3 rounded-xl border transition-all text-left ${
@@ -337,7 +341,7 @@ export default function DesktopRoomRequestLayout({
 								>
 									<p className='text-xs font-bold'>{room.name}</p>
 									<p className='text-[10px] text-muted-foreground'>{room.buildingName} â€¢ Floor {room.floor}</p>
-								</button>
+								</Button>
 							))}
 						</div>
 					</div>

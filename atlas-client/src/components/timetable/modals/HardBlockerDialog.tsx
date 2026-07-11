@@ -46,7 +46,7 @@ export function HardBlockerDialog({ open, items, onClose }: HardBlockerDialogPro
 									<div className="space-y-0.5">
 										<p className="text-sm font-medium text-red-800 leading-snug">{item.humanTitle}</p>
 										<p className="text-xs text-red-700/80 leading-snug">{item.humanDetail}</p>
-										{item.delta && <p className="text-[0.625rem] text-red-500/70 font-mono mt-0.5">{item.delta}</p>}
+										{item.delta && <p className="mt-0.5 font-mono text-xs text-red-500/70">{item.delta}</p>}
 									</div>
 								</div>
 							))}

@@ -99,11 +99,11 @@ export function QuickPlaceSummaryModal({
 												<span className="font-semibold text-xs text-gray-900 leading-tight">
 													{p.subjectCode} - {p.subjectName}
 												</span>
-												<Badge variant="outline" className="text-[10px] py-0 border-emerald-200 bg-emerald-50/50 text-emerald-800 font-semibold uppercase shrink-0">
+												<Badge variant="outline" className="shrink-0 border-emerald-200 bg-emerald-50/50 py-0 text-xs font-semibold uppercase text-emerald-800">
 													Session {p.session}
 												</Badge>
 											</div>
-											<div className="text-[11px] text-gray-600 space-y-0.5 font-medium">
+											<div className="space-y-0.5 text-xs font-medium text-gray-600">
 												<p>Section: <span className="font-semibold text-gray-800">{p.sectionName}</span></p>
 												<p>Teacher: <span className="font-semibold text-gray-800">{p.facultyName}</span></p>
 												<p>
@@ -134,11 +134,11 @@ export function QuickPlaceSummaryModal({
 												<span className="font-semibold text-xs text-gray-900 leading-tight">
 													{u.subjectCode} - {u.subjectName}
 												</span>
-												<Badge variant="outline" className="text-[10px] py-0 border-amber-200 bg-amber-50/50 text-amber-800 font-semibold uppercase shrink-0">
+												<Badge variant="outline" className="shrink-0 border-amber-200 bg-amber-50/50 py-0 text-xs font-semibold uppercase text-amber-800">
 													Session {u.session}
 												</Badge>
 											</div>
-											<div className="text-[11px] text-gray-600 font-medium">
+											<div className="text-xs font-medium text-gray-600">
 												<p>Section: <span className="font-semibold text-gray-800">{u.sectionName}</span></p>
 												<p className="mt-1 text-red-600 font-semibold flex items-center gap-1">
 													<span className="inline-block w-1.5 h-1.5 rounded-full bg-red-600" />

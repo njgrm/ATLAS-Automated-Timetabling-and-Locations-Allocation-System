@@ -130,12 +130,12 @@ export function RightPanel(props: RightPanelProps) {
 							<Separator />
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<button type="button" className="relative flex items-center justify-center h-8 w-8 rounded hover:bg-muted transition-colors" onClick={() => rightPanelRef.current?.expand()}>
+									<Button variant="ghost" size="icon" className="relative size-8" onClick={() => rightPanelRef.current?.expand()} aria-label="Open entry detail">
 										<Users className="size-4 text-muted-foreground" />
 										{selectedEntry && (
 											<span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full" />
 										)}
-									</button>
+									</Button>
 								</TooltipTrigger>
 								<TooltipContent side="left">Entry detail</TooltipContent>
 							</Tooltip>

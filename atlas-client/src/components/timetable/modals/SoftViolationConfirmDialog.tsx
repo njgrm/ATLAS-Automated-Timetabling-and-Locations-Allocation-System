@@ -47,7 +47,7 @@ export function SoftViolationConfirmDialog({
 							key={index}
 							className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
 						>
-							<span className="font-mono text-[0.625rem] opacity-60 mr-1.5">{warning.code}</span>
+							<span className="mr-1.5 font-mono text-xs opacity-60">{warning.code}</span>
 							{formatConstraintMessage(warning.message)}
 						</div>
 					))}

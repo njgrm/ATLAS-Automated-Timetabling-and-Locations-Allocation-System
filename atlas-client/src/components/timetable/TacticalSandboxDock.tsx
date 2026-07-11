@@ -741,7 +741,9 @@ export function TacticalSandboxDock({
 															&& selectedPlacementProposal.targetDay === suggestion.targetDay
 															&& selectedPlacementProposal.targetStartTime === suggestion.targetStartTime
 															&& selectedPlacementProposal.targetRoomId === suggestion.targetRoomId;
-														const roomName = roomMap?.get(suggestion.targetRoomId)?.name || `Room #${suggestion.targetRoomId}`;
+														const roomName = typeof suggestion.targetRoomId === 'number'
+															? roomMap?.get(suggestion.targetRoomId)?.name || 'Suggested room'
+															: 'Suggested room';
 														return (
 															<label
 																key={`${suggestion.targetDay}-${suggestion.targetStartTime}-${index}`}

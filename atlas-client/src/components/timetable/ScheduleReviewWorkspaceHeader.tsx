@@ -17,6 +17,7 @@ import { FilterChip, StatItem } from '@/components/timetable/TimetableShared';
 import { TimetableToolbar } from '@/components/timetable/TimetableToolbar';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import type { EntryKindFilter, ProgramFilter } from '@/lib/schedule-review-helpers';
+import { DEFAULT_SCHOOL_ID } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 
 type ScheduleReviewWorkspaceHeaderProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
@@ -45,6 +46,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	const [quickPlaceLoading, setQuickPlaceLoading] = useState(false);
 	const [syncResult, setSyncResult] = useState<any | null>(null);
 	const [showPostSyncOffer, setShowPostSyncOffer] = useState(false);
+	const [moreOpen, setMoreOpen] = useState(false);
 
 	const {
 		isPreGenerationWorkspace,
@@ -181,7 +183,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 			<div className="flex items-center gap-2 px-4 pt-3 pb-1.5 flex-wrap">
 				<Badge
 					variant={isPreGenerationWorkspace ? 'secondary' : 'default'}
-					className={cn('h-7 px-2.5 text-[10px] font-semibold tracking-[0.06em] uppercase', isPreGenerationWorkspace ? 'border border-border bg-muted text-muted-foreground' : 'bg-primary text-primary-foreground')}
+					className={cn('h-7 px-2.5 text-xs font-semibold uppercase', isPreGenerationWorkspace ? 'border border-border bg-muted text-muted-foreground' : 'bg-primary text-primary-foreground')}
 				>
 					{isPreGenerationWorkspace ? 'Pre-Generation Draft' : `Generated Run #${activeGeneratedRunId ?? '-'}`}
 				</Badge>
@@ -237,7 +239,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					</Tooltip>
 				</TooltipProvider>
 
-				<DropdownMenu>
+				<DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
 					<DropdownMenuTrigger asChild>
 						<Button variant="outline" size="sm" className="h-8 gap-1.5">
 							<MoreHorizontal className="size-3.5" />
@@ -245,7 +247,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="start" className="w-72 p-2">
-						<div className="grid gap-1">
+						<div className="grid gap-1" onClick={() => setMoreOpen(false)}>
 
 				<Button
 					variant="outline"
@@ -417,7 +419,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 								onClick={() => setShowEditHistory(true)}
 							>
 								<History className="size-3.5" />
-								<span className="text-[0.625rem]">{editHistoryItems.length}</span>
+								<span className="text-xs">{editHistoryItems.length}</span>
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent>View manual edit history</TooltipContent>
@@ -453,7 +455,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 						{/* Active Collaborators */}
 						{context.presence && context.presence.length > 0 && (
 							<div className="flex items-center gap-1.5 mr-1 select-none print:hidden">
-								<span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">Online:</span>
+								<span className="text-xs font-bold uppercase text-muted-foreground/80">Online:</span>
 								<div className="flex -space-x-1.5 overflow-hidden">
 									{context.presence.map((user) => {
 										const initials = (user.email || 'U').substring(0, 2).toUpperCase();
@@ -461,13 +463,13 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 											<TooltipProvider key={user.connectionId}>
 												<Tooltip>
 													<TooltipTrigger asChild>
-														<div className="inline-flex size-6 items-center justify-center rounded-full border border-background bg-indigo-600 text-[10px] font-bold text-white shadow-sm ring-1 ring-black/5">
+												<div className="inline-flex size-7 items-center justify-center rounded-full border border-background bg-indigo-600 text-xs font-bold text-white shadow-sm ring-1 ring-black/5">
 															{initials}
 														</div>
 													</TooltipTrigger>
 													<TooltipContent className="p-2 text-xs">
 														<p className="font-semibold text-foreground">{user.email}</p>
-														<p className="text-[10px] text-muted-foreground capitalize">{user.role?.toLowerCase()} &middot; Active</p>
+													<p className="text-xs capitalize text-muted-foreground">{user.role?.toLowerCase()} &middot; Active</p>
 													</TooltipContent>
 												</Tooltip>
 											</TooltipProvider>
@@ -476,7 +478,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 								</div>
 							</div>
 						)}
-						<Badge variant="outline" className={`h-5 px-1.5 text-[0.625rem] font-bold ${statusColor(draft?.status ?? '')}`}>
+						<Badge variant="outline" className={`h-5 px-1.5 text-xs font-bold ${statusColor(draft?.status ?? '')}`}>
 							{draft?.status ?? '—'}
 						</Badge>
 						<StatItem
@@ -524,7 +526,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 							<div className="flex flex-wrap items-center gap-2">
 								<p className="text-sm font-bold">{inputState?.status === 'STALE' ? 'Setup changes detected' : 'Setup comparison unavailable'}</p>
 								{inputState?.status === 'STALE' && changedDomainLabels.slice(0, 3).map((label) => (
-									<Badge key={label} variant="outline" className="h-5 border-amber-300 bg-white/70 px-1.5 text-[0.625rem] font-bold text-amber-800">
+									<Badge key={label} variant="outline" className="h-5 border-amber-300 bg-white/70 px-1.5 text-xs font-bold text-amber-800">
 										{label}
 									</Badge>
 								))}
@@ -665,7 +667,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					<Button
 						variant={presentationMode === 'workflow' ? 'default' : 'outline'}
 						size="sm"
-						className="h-7 px-2.5 text-[0.625rem]"
+						className="h-7 px-2.5 text-xs"
 						onClick={() => setPresentationMode('workflow')}
 					>
 						Schedule review
@@ -673,7 +675,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					<Button
 						variant={presentationMode === 'matrix' ? 'default' : 'outline'}
 						size="sm"
-						className="h-7 px-2.5 text-[0.625rem]"
+						className="h-7 px-2.5 text-xs"
 						onClick={() => setPresentationMode('matrix')}
 					>
 						Grid view

@@ -739,7 +739,7 @@ export default function Sections() {
 				<Button
 					variant="outline"
 					size="sm"
-					className="h-9 gap-2 border-primary/20 bg-primary/5 font-bold text-primary hover:bg-primary/10"
+					className="gap-2 border-primary/20 bg-primary/5 font-bold text-primary hover:bg-primary/10"
 					onClick={() => setGlobalBrowseModalOpen(true)}
 				>
 					<MapIcon className="size-4" />
@@ -748,7 +748,7 @@ export default function Sections() {
 				</Button>
 			)}
 			primaryActions={(
-				<Button variant="outline" size="sm" onClick={handleSync} disabled={syncing || syncingQueuedEdits || state.status === 'loading' || !isOnline} className="h-9 gap-2 shadow-sm font-bold">
+				<Button variant="outline" size="sm" onClick={handleSync} disabled={syncing || syncingQueuedEdits || state.status === 'loading' || !isOnline} className="gap-2 shadow-sm font-bold">
 					<RefreshCw className={`size-4 ${syncing || syncingQueuedEdits ? 'animate-spin' : ''}`} />
 					<span className="hidden sm:inline">{syncing || syncingQueuedEdits ? 'Syncing...' : !isOnline ? 'Offline' : 'Sync sections'}</span>
 					<span className="sm:hidden">{syncing || syncingQueuedEdits ? '' : 'Sync'}</span>
@@ -763,9 +763,9 @@ export default function Sections() {
 					onToggleFilters={() => setShowFilters(!showFilters)}
 					hasActiveFilters={hasActiveFilters}
 				>
-					<div className="flex md:hidden items-center gap-2">
+					<div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
 							<Select value={gradeFilter} onValueChange={setGradeFilter}>
-								<SelectTrigger className="h-8 flex-1 text-xs">
+								<SelectTrigger className="h-10 text-sm">
 									<SelectValue placeholder="All Grades" />
 								</SelectTrigger>
 								<SelectContent>
@@ -776,7 +776,7 @@ export default function Sections() {
 								</SelectContent>
 							</Select>
 							<Select value={programFilter} onValueChange={setProgramFilter}>
-								<SelectTrigger className="h-8 flex-1 text-xs">
+								<SelectTrigger className="h-10 text-sm">
 									<SelectValue placeholder="All Programs" />
 								</SelectTrigger>
 								<SelectContent>
@@ -789,7 +789,7 @@ export default function Sections() {
 							</Select>
 						</div>
 
-						<div className="hidden md:flex flex-wrap items-center gap-6">
+						<div className="hidden">
 							<div className="flex items-center gap-2">
 								<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Grade Level:</span>
 								<div className="flex bg-muted/30 p-0.5 rounded-lg border border-border/50">

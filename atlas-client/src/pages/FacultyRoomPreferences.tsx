@@ -842,13 +842,13 @@ export default function FacultyRoomPreferences() {
 					</Button>
 				)}
 			>
-				<div className='flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-card px-3 py-1.5 text-[12px]'>
+				<div className='flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-card px-3 py-2 text-sm'>
 					<span className='font-semibold text-foreground'>{entries.length} class{entries.length === 1 ? '' : 'es'}</span>
 					<span className='text-muted-foreground'>·</span>
 					<span className='text-muted-foreground'>{submittedCount} pending</span>
-					{outboxCount > 0 && <Badge variant='warning' className='h-5 px-1.5 text-[10px]'>{outboxCount} request{outboxCount === 1 ? '' : 's'} waiting to send</Badge>}
-					{entries.length === 0 && teachingAssignments.length > 0 && <Badge variant='warning' className='h-5 px-1.5 text-[10px]'>Teaching load linked</Badge>}
-					{dirtyCount > 0 && <Badge variant='warning' className='h-5 px-1.5 text-[10px]'>Unsaved</Badge>}
+					{outboxCount > 0 && <Badge variant='warning'>{outboxCount} request{outboxCount === 1 ? '' : 's'} waiting to send</Badge>}
+					{entries.length === 0 && teachingAssignments.length > 0 && <Badge variant='warning'>Teaching load linked</Badge>}
+					{dirtyCount > 0 && <Badge variant='warning'>Unsaved</Badge>}
 					<div className='flex-1' />
 					<div className='flex items-center gap-2' data-tutorial='context-toggle'>
 						<Switch
@@ -856,11 +856,11 @@ export default function FacultyRoomPreferences() {
 							onCheckedChange={setShowFullScheduleContext}
 							className='scale-75'
 						/>
-						<span className='text-[11px] font-medium text-muted-foreground'>Full context</span>
+						<span className='text-sm font-medium text-muted-foreground'>Show the full school schedule</span>
 					</div>
 				</div>
 				{schoolYearNotice && (
-					<p className='text-[11px] text-muted-foreground'>{schoolYearNotice}</p>
+					<p className='text-sm text-muted-foreground'>{schoolYearNotice}</p>
 				)}
 			</FacultyGlobalHeader>
 

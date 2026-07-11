@@ -59,7 +59,7 @@ export function LeftRail({
 								<Button type="button" variant="ghost" size="sm" className="relative h-8 w-8 p-0" onClick={() => { panelRef.current?.expand(); setLeftTab('violations'); }}>
 									<ShieldAlert className="size-4 text-muted-foreground" />
 									{violationsCount > 0 && !isPreGenerationWorkspace && (
-										<span className="absolute -top-1 -right-1 text-[10px] font-bold leading-none bg-red-500 text-white rounded-full px-1">{violationsCount}</span>
+										<span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1 text-xs font-bold leading-none text-white">{violationsCount}</span>
 									)}
 								</Button>
 							</TooltipTrigger>
@@ -70,7 +70,7 @@ export function LeftRail({
 								<Button type="button" variant="ghost" size="sm" className="relative h-8 w-8 p-0" onClick={() => { panelRef.current?.expand(); setLeftTab('unassigned'); }}>
 									<AlertTriangle className="size-4 text-muted-foreground" />
 									{unassignedCount > 0 && !isPreGenerationWorkspace && (
-										<span className="absolute -top-1 -right-1 text-[10px] font-bold leading-none bg-amber-500 text-white rounded-full px-1">{unassignedCount}</span>
+										<span className="absolute -right-1 -top-1 rounded-full bg-amber-500 px-1 text-xs font-bold leading-none text-white">{unassignedCount}</span>
 									)}
 								</Button>
 							</TooltipTrigger>
@@ -91,7 +91,7 @@ export function LeftRail({
 								<Button type="button" variant="ghost" size="sm" className="relative h-8 w-8 p-0" onClick={() => { panelRef.current?.expand(); setLeftTab('requests'); }}>
 									<ClipboardList className="size-4 text-muted-foreground" />
 									{pendingRequestCount > 0 && (
-										<span className="absolute -top-1 -right-1 text-[10px] font-bold leading-none bg-blue-600 text-white rounded-full px-1">{pendingRequestCount}</span>
+										<span className="absolute -right-1 -top-1 rounded-full bg-blue-600 px-1 text-xs font-bold leading-none text-white">{pendingRequestCount}</span>
 									)}
 								</Button>
 							</TooltipTrigger>

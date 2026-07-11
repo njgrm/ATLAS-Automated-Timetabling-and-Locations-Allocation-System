@@ -848,7 +848,7 @@ function UnassignedFixSuggestions({
 							</Button>
 						)}
 						{suggestion.policyHint && (
-							<p className="text-[10px] text-muted-foreground/75 italic">Policy: {suggestion.policyHint}</p>
+							<p className="text-xs italic text-muted-foreground/75">Policy: {suggestion.policyHint}</p>
 						)}
 					</div>
 				))

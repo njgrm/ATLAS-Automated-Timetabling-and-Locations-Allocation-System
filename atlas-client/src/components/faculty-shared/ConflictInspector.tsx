@@ -45,7 +45,7 @@ export default function ConflictInspector({
 					<>
 						<div className='flex flex-wrap gap-2'>
 							<Badge variant={hardCount > 0 ? 'warning' : 'success'}>
-								{hardCount === 0 ? 'No hard conflicts' : `${hardCount} hard conflict${hardCount !== 1 ? 's' : ''}`}
+								{hardCount === 0 ? 'No blocking conflicts' : `${hardCount} blocking conflict${hardCount !== 1 ? 's' : ''}`}
 							</Badge>
 							{softCount > 0 && (
 								<Badge variant='secondary'>{softCount} minor note{softCount !== 1 ? 's' : ''}</Badge>
@@ -56,7 +56,7 @@ export default function ConflictInspector({
 						)}
 						{hardCount > 0 && (
 							<p className='text-xs font-medium text-amber-800'>
-								This request causes {hardCount} hard conflict{hardCount !== 1 ? 's' : ''}. Add a clear reason below so the scheduling officer can decide.
+								This request causes {hardCount} blocking conflict{hardCount !== 1 ? 's' : ''}. Add a clear reason below so the scheduling officer can decide.
 							</p>
 						)}
 						<div className='space-y-2'>

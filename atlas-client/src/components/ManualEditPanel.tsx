@@ -9,42 +9,17 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-	AlertCircle,
-	ArrowLeft,
-	Check,
-	CheckCircle2,
-	Clock,
-	DoorOpen,
-	Loader2,
-	ShieldAlert,
-	Users,
-} from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, CheckCircle2, Clock, DoorOpen, Loader2, ShieldAlert, Users } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 
 import { formatTime } from '@/lib/utils';
 import { getQualificationTier, type QualificationTier } from '@/lib/grade-labels';
-import type {
-	ManualEditProposal,
-	PreviewResult,
-	ScheduledEntry,
-	FacultyMirror,
-	Violation,
-	Subject,
-} from '@/types';
+import type { ManualEditProposal, PreviewResult, ScheduledEntry } from '@/types';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Label } from '@/ui/label';
 import { ScrollArea } from '@/ui/scroll-area';
-import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectLabel,
-	SelectTrigger,
-	SelectValue,
-} from '@/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/ui/select';
 import { SearchableSelect, type SearchableSelectGroup } from '@/ui/searchable-select';
 import {
 	Tooltip,
@@ -52,124 +27,19 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from '@/ui/tooltip';
+import {
+	buildOccupiedSlots,
+	DAY_SHORT,
+	deltaSentence,
+	DAYS,
+	GRADE_BADGE,
+	type ManualEditActionType,
+	type ManualEditPanelProps,
+} from '@/components/manual-edit/manual-edit-foundation';
 
 /* ─── Constants ─── */
 
-const DAY_SHORT: Record<string, string> = {
-	MONDAY: 'Mon',
-	TUESDAY: 'Tue',
-	WEDNESDAY: 'Wed',
-	THURSDAY: 'Thu',
-	FRIDAY: 'Fri',
-};
-
-const GRADE_BADGE: Record<number, string> = {
-	7: 'bg-green-100 text-green-700 border-green-300',
-	8: 'bg-yellow-100 text-yellow-700 border-yellow-300',
-	9: 'bg-red-100 text-red-700 border-red-300',
-	10: 'bg-blue-100 text-blue-700 border-blue-300',
-};
-
-const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const;
-
-/* ─── Types ─── */
-
-type ActionType = 'CHANGE_TIMESLOT' | 'CHANGE_ROOM' | 'CHANGE_FACULTY';
-
-type RoomInfo = {
-	id: number;
-	name: string;
-	buildingId: number;
-	buildingName: string;
-	buildingShortCode: string | null;
-	floor: number;
-	type: string;
-	capacity?: number | null;
-	isTeachingSpace: boolean;
-	features: string[];
-};
-
-export interface ManualEditPanelProps {
-	entry: ScheduledEntry;
-	violationIndex: Map<string, Violation[]>;
-	followUps: Set<string>;
-	onToggleFollowUp: (id: string) => void;
-	onClose: () => void;
-	subjectLabel: (id: number) => string;
-	facultyLabel: (id: number) => string;
-	sectionLabel: (id: number) => string;
-	gradeForSection: (sectionId: number) => number | null;
-	roomLabel: (roomId: number) => string;
-	isStaleRoom: (roomId: number) => boolean;
-	/** All class time slots derived from draft entries */
-	timeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean }>;
-	/** Rooms (teaching + non-teaching) */
-	roomMap: Map<number, RoomInfo>;
-	/** Faculty with load data */
-	facultyMap: Map<number, FacultyMirror>;
-	/** Full subject details for qualification matching */
-	subjectMap: Map<number, Subject>;
-	/** Draft entries for computing current faculty load + free-slot filtering */
-	draftEntries: ScheduledEntry[];
-	/** Preview API call */
-	onPreview: (proposal: ManualEditProposal) => Promise<PreviewResult | null>;
-	/** Commit API call */
-	onCommit: (proposal: ManualEditProposal, allowSoftOverride: boolean) => Promise<void>;
-	/** Loading states */
-	previewLoading: boolean;
-	commitLoading: boolean;
-	/** Which action to auto-start on mount (from right panel button) */
-	initialAction?: ActionType | null;
-	/** No-op stub kept for interface compat */
-	onForceOpen: () => void;
-}
-
 /* ─── Helpers ─── */
-
-/** Build a human-readable violation-delta sentence. */
-function deltaSentence(delta: PreviewResult['violationDelta']): {
-	text: string;
-	color: string;
-} {
-	const hardDiff = delta.hardAfter - delta.hardBefore;
-	const softDiff = delta.softAfter - delta.softBefore;
-
-	const parts: string[] = [];
-	if (hardDiff > 0) parts.push(`increases hard violations by ${hardDiff}`);
-	else if (hardDiff < 0) parts.push(`reduces hard violations by ${Math.abs(hardDiff)}`);
-	if (softDiff > 0) parts.push(`increases soft warnings by ${softDiff}`);
-	else if (softDiff < 0) parts.push(`reduces soft warnings by ${Math.abs(softDiff)}`);
-
-	if (parts.length === 0)
-		return { text: 'No change in violation counts.', color: 'text-muted-foreground' };
-
-	const sentence = 'This change ' + parts.join(' and ') + '.';
-	const isWorse = hardDiff > 0;
-	const isBetter = hardDiff < 0 && softDiff <= 0;
-	return {
-		text: sentence,
-		color: isWorse ? 'text-red-600' : isBetter ? 'text-green-600' : 'text-amber-600',
-	};
-}
-
-/** Build set of occupied (startTime-endTime) keys for a given faculty/room on a target day. */
-function buildOccupiedSlots(
-	draftEntries: ScheduledEntry[],
-	currentEntryId: string,
-	targetDay: string,
-	entryFacultyId: number,
-	entryRoomId: number,
-): Set<string> {
-	const occupied = new Set<string>();
-	for (const e of draftEntries) {
-		if (e.entryId === currentEntryId) continue;
-		if (e.day !== targetDay) continue;
-		if (e.facultyId === entryFacultyId || e.roomId === entryRoomId) {
-			occupied.add(`${e.startTime}-${e.endTime}`);
-		}
-	}
-	return occupied;
-}
 
 /* ─── Component ─── */
 
@@ -193,7 +63,7 @@ export default function ManualEditPanel({
 	commitLoading,
 	initialAction,
 }: ManualEditPanelProps) {
-	const [actionType, setActionType] = useState<ActionType>(initialAction ?? 'CHANGE_TIMESLOT');
+	const [actionType, setActionType] = useState<ManualEditActionType>(initialAction ?? 'CHANGE_TIMESLOT');
 	const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
 	const [pendingProposal, setPendingProposal] = useState<ManualEditProposal | null>(null);
 	/** Tracks last preview outcome when user adjusts form after previewing */
@@ -903,7 +773,7 @@ export default function ManualEditPanel({
 											<div className="flex items-center gap-1.5">
 												<AlertCircle className="size-3.5 text-red-600" />
 												<span className="text-xs font-semibold text-red-700">
-													Hard Conflicts (
+											Blocking Conflicts (
 													{
 														previewResult.humanConflicts.filter(
 															(c) => c.severity === 'HARD',
@@ -943,7 +813,7 @@ export default function ManualEditPanel({
 											<div className="flex items-center gap-1.5">
 												<AlertCircle className="size-3.5 text-amber-600" />
 												<span className="text-xs font-semibold text-amber-700">
-													Soft Warnings (
+											Warnings (
 													{
 														previewResult.humanConflicts.filter(
 															(c) => c.severity === 'SOFT',
@@ -1031,7 +901,7 @@ export default function ManualEditPanel({
 													<div className="flex items-center gap-1.5">
 														<AlertCircle className="size-3.5 text-red-600" />
 														<span className="text-xs font-semibold text-red-700">
-															Hard Violations ({entryViolations.filter((v) => v.severity === 'HARD').length})
+															Blocking Conflicts ({entryViolations.filter((v) => v.severity === 'HARD').length})
 														</span>
 													</div>
 													{entryViolations.filter((v) => v.severity === 'HARD').map((v, i) => (
@@ -1050,7 +920,7 @@ export default function ManualEditPanel({
 													<div className="flex items-center gap-1.5">
 														<AlertCircle className="size-3.5 text-amber-600" />
 														<span className="text-xs font-semibold text-amber-700">
-															Soft Warnings ({entryViolations.filter((v) => v.severity === 'SOFT').length})
+															Warnings ({entryViolations.filter((v) => v.severity === 'SOFT').length})
 														</span>
 													</div>
 													{entryViolations.filter((v) => v.severity === 'SOFT').map((v, i) => (

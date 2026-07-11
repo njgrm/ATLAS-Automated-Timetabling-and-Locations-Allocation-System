@@ -92,7 +92,7 @@ function buildSummary(entries: PublishedFacultyScheduleEntry[]) {
 
 function formatRevisionReference(source: PublishedFacultySchedulePayload['source'] | undefined): string {
 	if (!source?.activeRevisionId) return 'Base published schedule';
-	return `Revision #${source.activeRevisionId} effective ${formatTimestamp(source.activeRevisionEffectiveDate ?? null)}`;
+	return `Includes approved changes effective ${formatTimestamp(source.activeRevisionEffectiveDate ?? null)}`;
 }
 
 export default function MySchedule() {

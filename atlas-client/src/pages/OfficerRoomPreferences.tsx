@@ -377,7 +377,7 @@ export default function OfficerRoomPreferences() {
 				</div>
 
 				<div className='flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-sm shadow-sm'>
-					<span className='font-medium text-foreground'>Run #{summary?.runId}</span>
+					<span className='font-medium text-foreground'>Current working schedule</span>
 					<span className='text-muted-foreground'>Version {summary?.runVersion}</span>
 					<span className='text-border/60'>•</span>
 					<span className='text-muted-foreground'>{summary?.counts.total ?? 0} requests</span>
@@ -546,11 +546,11 @@ export default function OfficerRoomPreferences() {
 									<p className='mt-2 text-lg font-semibold text-foreground'>{scopedPreviewState.preview.allowed ? 'Yes' : 'No'}</p>
 								</div>
 								<div className='rounded-2xl border border-border bg-card p-4'>
-									<p className='text-xs uppercase tracking-wide text-muted-foreground'>Hard Δ</p>
+									<p className='text-sm font-medium text-muted-foreground'>Blocking conflicts</p>
 									<p className='mt-2 text-lg font-semibold text-foreground'>{scopedPreviewState.preview.violationDelta.hardBefore} → {scopedPreviewState.preview.violationDelta.hardAfter}</p>
 								</div>
 								<div className='rounded-2xl border border-border bg-card p-4'>
-									<p className='text-xs uppercase tracking-wide text-muted-foreground'>Soft Δ</p>
+									<p className='text-sm font-medium text-muted-foreground'>Warnings</p>
 									<p className='mt-2 text-lg font-semibold text-foreground'>{scopedPreviewState.preview.violationDelta.softBefore} → {scopedPreviewState.preview.violationDelta.softAfter}</p>
 								</div>
 								<div className='rounded-2xl border border-border bg-card p-4'>
@@ -560,7 +560,7 @@ export default function OfficerRoomPreferences() {
 							</div>
 
 							<div className='rounded-2xl border border-border bg-card p-4'>
-								<p className='font-semibold text-foreground'>Conflict Summary</p>
+								<p className='font-semibold text-foreground'>What this change affects</p>
 								<div className='mt-3 space-y-2'>
 									{scopedPreviewState.preview.humanConflicts.length > 0 ? scopedPreviewState.preview.humanConflicts.map((conflict, index) => (
 										<div key={`${conflict.code}-${conflict.humanTitle}-${index}`} className='rounded-xl border border-border px-3 py-2 text-sm'>

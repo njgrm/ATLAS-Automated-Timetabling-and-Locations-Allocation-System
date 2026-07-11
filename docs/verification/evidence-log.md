@@ -2906,7 +2906,99 @@ px tsc --noEmit passed on tlas-server with no TypeScript errors.
   - Tailnet overflow checks -> PASS at 1440x900, 900x900, and 390x844; document width and height stayed within each viewport.
 - Verdict: GO.
 
+---
+
+# 2026-07-11 - Prompt 10D Frontend Guardrail And Readability Cleanup
+
+- Phase: Timetable and readiness UI, `frontend-guardrail-readability-cleanup`.
+- Operator: Codex
+- Scope gate: MODIFIED-SURFACE PRIMITIVE SCAN, TYPOGRAPHY SCAN, BUILD, AND BROWSER QA GREEN -> PROMPT-SCOPE GO.
+- Changes verified:
+  - Replaced raw room-row buttons in `CampusMapOverview` and `CampusReadinessCard` with project `Button` primitives.
+  - Replaced the raw collapsed detail button in `RightPanel` with an accessible icon `Button` and retained its tooltip.
+  - Raised operator-facing micro-text to `text-xs` across the modified timetable and campus-readiness surfaces.
+  - Added plain labels for `SPECIALIZED_ROOM_UNAVAILABLE`, `UNASSIGNED_SECTION`, and `ZONE_IMBALANCE_WARNING`.
+- Verification results:
+  - `npm --prefix atlas-client run build` -> PASS.
+  - Modified-surface native `button` / `select` / `details` / DOM `title` scan -> PASS, no matches.
+  - Modified-surface arbitrary micro-text scan -> PASS, no matches.
+  - Tailnet `/timetable` and `/dashboard` smoke -> PASS; no unexpected application error.
+  - Responsive overflow -> PASS at 1440x900, 900x900, and 390x844.
+- Repository-wide note: the broad scan still reports unrelated legacy surfaces and native elements inside project UI primitive implementations; those were not represented as closed by this prompt.
+- Verdict: GO for the changed 10D surfaces.
+
+---
+
+# 2026-07-11 - Prompt 10E Component Extraction And Repo Hygiene
+
+- Phase: Timetable maintainability, `component-extraction-repo-hygiene`.
+- Operator: Codex
+- Scope gate: EXTRACTION, BUILD, TARGETED TEST, TAILNET INTERACTION, AND HYGIENE GREEN -> PROMPT-SCOPE GO.
+- Extraction map:
+  - `useScheduleReviewWorkspaceState.ts`: 1526 -> 985 lines.
+  - Collaboration socket lifecycle -> `useTimetableCollaboration.ts` (116 lines).
+  - Label/reference grouping -> `useTimetableLookupHelpers.ts` (107 lines).
+  - Drag/drop lifecycle -> `useTimetableDragDrop.ts` (153 lines).
+  - Panel/view transitions -> `useTimetableViewNavigation.ts` (112 lines).
+  - `ScheduleReviewDialogs.tsx`: 1440 -> 18-line aggregator.
+  - Lifecycle, generation, publish, and room-request review -> `TimetableWorkflowDialogs.tsx` (87 lines).
+  - Placement, swap, and soft-warning review -> `TimetablePlacementDialogs.tsx` (71 lines).
+  - Assignment picker and edit history -> `TimetableAssignmentDialogs.tsx` (50 lines).
+- Hygiene:
+  - Removed 23 tracked root-level temporary QA scripts, probes, and runtime logs.
+  - Preserved documented `qa-artifacts` Playwright specs and screenshot baselines.
+  - Restored generated `atlas-client/dist` churn after build verification.
+- Verification results:
+  - `npm --prefix atlas-client run build` -> PASS.
+  - `npx tsx --test src/lib/__tests__/timetable-swap-routing.test.ts` -> PASS, 4/4.
+  - Tailnet generate dialog, More-menu focus return, run `127` selection, and unassigned Teaching Load dock -> PASS.
+  - TypeScript no-emit audit found no errors in the newly extracted modules after repair; unrelated pre-existing project type debt remains outside this prompt.
+- Verdict: GO.
 
 
 
 
+
+## 2026-07-12 — UX-00 Through UX-06 Execution
+
+### Scope
+
+- Governance reconciliation and route/source inventory.
+- Shared SMART-family target, typography, focus, and reduced-motion foundations.
+- Scheduler filter and copy simplification.
+- Faculty room-request primitive, readability, and accessibility hardening.
+- Public schedule copy and grade-normalization repair.
+- Tailnet responsive smoke for scheduler, faculty recovery, and public routes.
+
+### Automated Evidence
+
+- RED: `npm run test:ux-guardrails` failed four shared guardrail tests before foundation changes.
+- GREEN: `npm run test:ux-guardrails` passed 8/8 after implementation.
+- Public-grade RED: test failed with missing `public-schedule-grade` implementation.
+- Public-grade GREEN: direct G7/G10, upstream IDs 107/110, name fallback, and missing-grade cases passed.
+- `npm run build`: PASS; 2,552 modules transformed.
+- Source gate: no TSX component remains at or above 1,000 lines in `atlas-client/src`; `ManualEditPanel.tsx` is 995 lines.
+- Source gate: no raw `<button>` or `<input>` remains in the active faculty room-request component directory.
+
+### Live Tailnet Evidence
+
+- Admin authentication: PASS.
+- 1440px scheduler sample: no page-level horizontal overflow across `/`, `/teachers`, `/subjects`, `/sections`, `/teaching-load`, `/map`, `/timetable`, `/audit`, `/room-schedules`, and `/faculty/room-preferences`.
+- 375px scheduler/public sample: no page-level horizontal overflow across `/`, `/subjects`, `/sections`, `/timetable`, `/audit`, `/room-schedules`, and `/public/schedules`.
+- 768px and 844x390 public lookup: no page-level horizontal overflow; search input measured 40px.
+- Public route: section-first search present; no run/revision jargon; Andres Bonifacio badge verified as `G7` after repair.
+- Faculty authentication: PASS.
+- Faculty routes: recovery-state layout and 44px actions PASS without horizontal overflow.
+- Faculty data-backed journey: BLOCKED by missing faculty-profile mapping for employee `2000056`.
+
+### Artifacts
+
+- `qa-artifacts/ux-00-06-2026-07-12/scheduler-dashboard-desktop.png`
+- `qa-artifacts/ux-00-06-2026-07-12/public-schedule-mobile.png`
+- `qa-artifacts/ux-00-06-2026-07-12/faculty-room-requests-mobile-blocked.png`
+
+### Gate Decision
+
+**NO-GO for UX-06 closure.** Source/build and representative responsive Tailnet evidence pass. Closure remains blocked by the faculty-profile mapping failure, missing complete keyboard/zoom/assistive-technology evidence, and the five required moderated older-user sessions.
+
+---
