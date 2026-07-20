@@ -1,5 +1,5 @@
-import { memo, useState } from 'react';
-import { AlertTriangle, CalendarClock, Check, Clock, ClipboardList, Crosshair, GraduationCap, History, Lightbulb, Loader2, MoreHorizontal, Play, RefreshCw, RotateCw, SearchCheck, Send, Settings2, ShieldAlert, Undo2, Wrench } from 'lucide-react';
+import { memo, Profiler, useState, type ReactNode } from 'react';
+import { AlertTriangle, ArrowRightLeft, CalendarClock, Check, Clock, ClipboardCheck, ClipboardList, Crosshair, GraduationCap, History, Info, Lightbulb, ListChecks, Loader2, MoreHorizontal, Play, RefreshCw, RotateCw, SearchCheck, Send, Settings2, ShieldAlert, Undo2, Wrench, type LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import atlasApi from '@/lib/api';
@@ -18,10 +18,27 @@ import { TimetableToolbar } from '@/components/timetable/TimetableToolbar';
 import type { ScheduleReviewWorkspaceHeaderContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
 import type { EntryKindFilter, ProgramFilter } from '@/lib/schedule-review-helpers';
 import { DEFAULT_SCHOOL_ID } from '@/components/timetable/ScheduleReviewWorkspace.constants';
+import { onProfilerRender } from '@/components/timetable/ScheduleReviewWorkspace';
 
 type ScheduleReviewWorkspaceHeaderProps = {
 	context: ScheduleReviewWorkspaceHeaderContext;
 };
+
+type TimetableTaskMode = {
+	id: 'review' | 'place' | 'switch' | 'plan' | 'requests';
+	label: string;
+	helper: string;
+	icon: LucideIcon;
+	active: boolean;
+	disabled?: boolean;
+	onClick: () => void;
+	badge?: ReactNode;
+};
+
+function formatTaskCount(count: number, label: string): string {
+	if (count > 99) return `99+ ${label}`;
+	return `${count} ${label}`;
+}
 
 const INPUT_DOMAIN_LABELS: Record<string, string> = {
 	teachingLoad: 'Teaching Load',
@@ -51,6 +68,8 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	const {
 		isPreGenerationWorkspace,
 		activeGeneratedRunId,
+		leftTab,
+		leftPanelRef,
 		presentationMode,
 		setPresentationMode,
 		selectedRunId,
@@ -60,7 +79,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		newDraftLoading,
 		schoolYearId,
 		handleStartNewPreGenerationDraft,
-		draftBoard,
+		draftPlacementCount,
 		openPreGenerationWorkspace,
 		returnToGeneratedRun,
 		generating,
@@ -76,11 +95,12 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		openMapWorkspace,
 		handleRefresh,
 		revertLoading,
-		editHistory,
+		editHistoryCount,
 		revertLastEdit,
 		setShowEditHistory,
 		tutorial,
 		summary,
+		requestPendingCount,
 		statusColor,
 		formatDuration,
 		formatTimestamp,
@@ -88,6 +108,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 		viewMode,
 		setViewMode,
 		setEntityFilter,
+		hasSelectedEntry,
 		setSelectedEntry,
 		setSelectedViolation,
 		setPreGenKbSource,
@@ -175,20 +196,119 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 	const showInputStateBanner = Boolean(inputState && inputState.status !== 'FRESH' && !isPreGenerationWorkspace);
 	const changedDomainLabels = formatChangedDomains(inputState?.changedDomains);
 	const runOptions = runs ?? [];
-	const editHistoryItems = editHistory ?? [];
 	const visibleViolations = violations ?? [];
+	const unassignedCount = summary?.unassignedCount ?? 0;
+	const openLeftTask = (tab: 'violations' | 'unassigned' | 'requests') => {
+		leftPanelRef.current?.expand();
+		setLeftTab(tab);
+		setPresentationMode('workflow');
+	};
+	const openDraftPlannerTask = async () => {
+		await handleStartNewPreGenerationDraft();
+		setLeftTab('unassigned');
+		leftPanelRef.current?.expand();
+		setPresentationMode('workflow');
+	};
+	const taskModes: TimetableTaskMode[] = [
+		{
+			id: 'review',
+			label: 'Review schedule',
+			helper: hardCount > 0 ? 'Start with hard blockers before publishing.' : 'Check the generated timetable and publish when clean.',
+			icon: ListChecks,
+			active: !isPreGenerationWorkspace && leftTab === 'violations' && !hasSelectedEntry,
+			onClick: () => {
+				openLeftTask('violations');
+			},
+			badge: hardCount > 0 ? formatTaskCount(hardCount, 'blocked') : undefined,
+		},
+		{
+			id: 'place',
+			label: 'Place unassigned',
+			helper: 'Open the queue, choose a session, then choose where it should go.',
+			icon: ClipboardCheck,
+			active: !isPreGenerationWorkspace && leftTab === 'unassigned',
+			onClick: () => {
+				openLeftTask('unassigned');
+			},
+			badge: unassignedCount > 0 ? formatTaskCount(unassignedCount, 'to place') : undefined,
+		},
+		{
+			id: 'switch',
+			label: 'Switch sessions',
+			helper: hasSelectedEntry ? 'Choose another occupied slot to review the switch.' : 'Select one class on the grid, then choose another class to switch with it.',
+			icon: ArrowRightLeft,
+			active: !isPreGenerationWorkspace && hasSelectedEntry,
+			onClick: () => {
+				openLeftTask('violations');
+			},
+		},
+		{
+			id: 'plan',
+			label: isPreGenerationWorkspace ? 'Planning draft' : 'Draft planner',
+			helper: isPreGenerationWorkspace ? 'Use the draft queue and grid before generating a new run.' : 'Open the pre-generation draft queue and place sessions before generating.',
+			icon: CalendarClock,
+			active: isPreGenerationWorkspace,
+			disabled: newDraftLoading || !schoolYearId,
+			onClick: () => {
+				void openDraftPlannerTask();
+			},
+			badge: draftPlacementCount > 0 ? formatTaskCount(draftPlacementCount, 'draft') : undefined,
+		},
+		{
+			id: 'requests',
+			label: 'Review room requests',
+			helper: 'Open teacher room requests and approve, deny, or preview them.',
+			icon: ClipboardList,
+			active: leftTab === 'requests',
+			onClick: () => {
+				openLeftTask('requests');
+			},
+			badge: requestPendingCount > 0 ? formatTaskCount(requestPendingCount, 'request') : undefined,
+		},
+	];
+	const activeTask = taskModes.find((task) => task.active)
+		?? (unassignedCount > 0 ? taskModes[1] : requestPendingCount > 0 ? taskModes[4] : taskModes[0]);
+	const ActiveTaskIcon = activeTask.icon;
+	const foolproofHelp = isPreGenerationWorkspace
+		? 'Draft mode: choose a draft queue item, then tap or click a grid slot. Review draft placement opens before anything is saved. Switch: select one placed draft session, then another occupied slot.'
+		: 'Place: open Needs attention, choose Place session, then tap or click a grid slot. Switch: select one class, then another occupied class to open Review occupied-slot swap. Draft: use Plan before generating for draft anchors.';
+	const statusLegend = 'Can place = empty slot. Can swap = occupied slot. Blocked = fix first. Warning = review only.';
+	const sourceContext = context.schoolYearContext;
+	const sourceLabel = !sourceContext
+		? 'Checking source'
+		: sourceContext.source === 'enrollpro-verified'
+			? 'Verified with EnrollPro'
+			: sourceContext.source === 'enrollpro'
+				? 'Using EnrollPro settings'
+				: sourceContext.source === 'cache'
+					? 'Using cached school year'
+					: 'Using saved ATLAS data';
+	const sourceTone = !sourceContext || sourceContext.source === 'enrollpro-verified' || sourceContext.source === 'enrollpro'
+		? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+		: 'border-amber-200 bg-amber-50 text-amber-950';
+	const latestRunCandidate = runOptions[0] ?? null;
+	const visibleRunId = draft?.runId ?? activeGeneratedRunId;
+	const newerFailedRunNotice = selectedRunId === 'latest'
+		&& draft?.runId != null
+		&& latestRunCandidate?.id != null
+		&& latestRunCandidate.id !== draft.runId
+		&& latestRunCandidate.status !== 'COMPLETED'
+			? `Grid uses completed run #${draft.runId}; newer run #${latestRunCandidate.id} is ${latestRunCandidate.status ?? 'not completed'}.`
+			: null;
+	const showSourceTruthNotice = Boolean(newerFailedRunNotice || sourceContext?.stale || sourceContext?.source === 'cache' || sourceContext?.source === 'atlas-persisted');
 
 	return (
-		<div className="shrink-0 border-b border-border bg-background">
-			<div className="flex items-center gap-2 px-4 pt-3 pb-1.5 flex-wrap">
+		<Profiler id="Header" onRender={onProfilerRender}>
+			<div className="shrink-0 border-b border-border bg-background">
+			<div className="flex items-center gap-2 overflow-x-auto px-4 pt-2 pb-1.5 xl:flex-wrap [@media(max-height:500px)]:pt-1 [@media(max-height:500px)]:pb-1">
 				<Badge
 					variant={isPreGenerationWorkspace ? 'secondary' : 'default'}
-					className={cn('h-7 px-2.5 text-xs font-semibold uppercase', isPreGenerationWorkspace ? 'border border-border bg-muted text-muted-foreground' : 'bg-primary text-primary-foreground')}
+					className={cn('h-7 shrink-0 px-2.5 text-xs font-semibold uppercase', isPreGenerationWorkspace ? 'border border-border bg-muted text-muted-foreground' : 'bg-primary text-primary-foreground')}
 				>
 					{isPreGenerationWorkspace ? 'Pre-Generation Draft' : `Generated Run #${activeGeneratedRunId ?? '-'}`}
 				</Badge>
 
-				<div data-tutorial="run-selector">
+				<div data-tutorial="run-selector" className="shrink-0">
 					<Select value={selectedRunId} onValueChange={handleRunChange} disabled={runOptions.length === 0 || centerView === 'pre-generation'}>
 						<SelectTrigger className="h-8 w-44 text-xs">
 							<SelectValue placeholder={runOptions.length === 0 ? 'No generated run yet' : 'Select run'} />
@@ -207,7 +327,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 				<Button
 					variant="outline"
 					size="sm"
-					className="h-8 gap-1.5"
+					className="h-8 shrink-0 gap-1.5"
 					onClick={handleRefresh}
 					disabled={loading}
 				>
@@ -222,7 +342,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 							<Button
 								variant="outline"
 								size="sm"
-								className="h-8 gap-1.5"
+								className="h-8 shrink-0 gap-1.5"
 								disabled={!draft || hardCount > 0 || centerView === 'pre-generation'}
 								onClick={() => {
 									setPublishAcknowledged(false);
@@ -239,39 +359,49 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					</Tooltip>
 				</TooltipProvider>
 
-				<DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
+				<TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant={isPreGenerationWorkspace ? 'default' : 'outline'}
+								size="sm"
+								className="h-8 shrink-0 gap-1.5"
+								disabled={newDraftLoading || !schoolYearId}
+								onClick={() => void openDraftPlannerTask()}
+							>
+								{newDraftLoading ? <Loader2 className="size-3.5 animate-spin" /> : <CalendarClock className="size-3.5" />}
+								{newDraftLoading ? 'Opening draft…' : 'Plan before generating'}
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Open the draft grid so you can place unassigned sessions before generating.</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
+
+				{draftPlacementCount > 0 && !isPreGenerationWorkspace && (
+					<Button
+						variant="secondary"
+						size="sm"
+						className="h-8 shrink-0 gap-1.5 border border-primary/30"
+						onClick={() => void openPreGenerationWorkspace(false).then(() => {
+							setLeftTab('unassigned');
+							leftPanelRef.current?.expand();
+							setPresentationMode('workflow');
+						})}
+					>
+						<CalendarClock className="size-3.5" />
+						Continue draft
+					</Button>
+				)}
+
+					<DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
 					<DropdownMenuTrigger asChild>
-						<Button variant="outline" size="sm" className="h-8 gap-1.5">
+						<Button variant="outline" size="sm" className="h-8 shrink-0 gap-1.5">
 							<MoreHorizontal className="size-3.5" />
-							More
+							More tools
 						</Button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="start" className="w-72 p-2">
 						<div className="grid gap-1" onClick={() => setMoreOpen(false)}>
-
-				<Button
-					variant="outline"
-					size="sm"
-					className="h-8 gap-1.5"
-					disabled={newDraftLoading || !schoolYearId}
-					onClick={handleStartNewPreGenerationDraft}
-				>
-					{newDraftLoading ? <Loader2 className="size-3.5 animate-spin" /> : <CalendarClock className="size-3.5" />}
-					New Pre-Generation Draft
-				</Button>
-
-				{(draftBoard?.counts.draft ?? 0) > 0 && !isPreGenerationWorkspace && (
-					<Button
-						variant="secondary"
-						size="sm"
-						className="h-8 gap-1.5 border border-primary/30"
-						onClick={() => void openPreGenerationWorkspace(false)}
-					>
-						<CalendarClock className="size-3.5" />
-						Continue Draft
-					</Button>
-				)}
-
 				{isPreGenerationWorkspace && activeGeneratedRunId != null && (
 					<Button
 						variant="outline"
@@ -393,33 +523,30 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button
-								data-tutorial="undo-btn"
 								variant="outline"
 								size="sm"
 								className="h-8 gap-1.5"
-								disabled={revertLoading || editHistoryItems.length === 0 || !draft}
+								disabled={revertLoading || editHistoryCount === 0 || !draft}
 								onClick={revertLastEdit}
 							>
-								<Undo2 className={`size-3.5 ${revertLoading ? 'animate-spin' : ''}`} />
-								Undo
+								{revertLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Undo2 className="size-3.5" />}
+								<span className="hidden xl:inline">Undo</span>
 							</Button>
 						</TooltipTrigger>
-						<TooltipContent>Revert the last manual edit</TooltipContent>
+						<TooltipContent>Undo last manual edit</TooltipContent>
 					</Tooltip>
-				</TooltipProvider>
 
-				<TooltipProvider>
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button
 								variant="outline"
 								size="sm"
 								className="h-8 gap-1.5"
-								disabled={editHistoryItems.length === 0}
+								disabled={editHistoryCount === 0}
 								onClick={() => setShowEditHistory(true)}
 							>
 								<History className="size-3.5" />
-								<span className="text-xs">{editHistoryItems.length}</span>
+								<span className="text-xs">{editHistoryCount}</span>
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent>View manual edit history</TooltipContent>
@@ -451,7 +578,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 				</DropdownMenu>
 
 				{summary && (
-					<div className="flex items-center gap-3 ml-auto text-xs text-muted-foreground">
+					<div className="ml-auto flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
 						{/* Active Collaborators */}
 						{context.presence && context.presence.length > 0 && (
 							<div className="flex items-center gap-1.5 mr-1 select-none print:hidden">
@@ -508,6 +635,124 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 				)}
 			</div>
 
+			{showSourceTruthNotice && (
+				<div
+					data-testid="timetable-source-truth"
+					className={cn(
+						'mx-4 mb-1 flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-1.5 text-xs shadow-sm',
+						sourceTone,
+					)}
+				>
+					<div className="flex min-w-0 items-center gap-2">
+						<Info className="size-3.5 shrink-0" aria-hidden="true" />
+						<p className="min-w-0 truncate font-semibold">
+							{sourceLabel}
+							{schoolYearId ? ` · School year #${schoolYearId}` : ''}
+							{visibleRunId ? ` · Run #${visibleRunId}` : ''}
+						</p>
+					</div>
+					<p className="min-w-0 text-current/80 sm:truncate" data-testid="timetable-run-source-note">
+						{newerFailedRunNotice ?? 'Live EnrollPro verification is not confirmed. Review this as saved ATLAS data until source is refreshed.'}
+					</p>
+				</div>
+			)}
+
+			<div
+				data-testid="timetable-task-guide"
+				className="relative mx-4 mb-1 rounded-lg border border-border bg-muted/20 px-2 py-1 shadow-sm xl:px-3 [@media(max-height:500px)]:mb-0 [@media(max-height:500px)]:py-1"
+			>
+				<div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+					<div className="hidden min-w-0 items-center gap-2 sm:flex sm:w-64 sm:flex-none">
+						<div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-background text-primary shadow-sm ring-1 ring-border">
+							<ActiveTaskIcon className="size-4" aria-hidden="true" />
+						</div>
+						<div className="min-w-0">
+							<p className="text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">Next task</p>
+							<p className="truncate text-sm font-semibold text-foreground">{activeTask.label}</p>
+						</div>
+					</div>
+
+					<div
+						role="group"
+						aria-label="Timetable task modes"
+						className="flex min-w-0 gap-1 overflow-x-auto pb-0.5 sm:flex-1"
+					>
+						{taskModes.map((task) => {
+							const Icon = task.icon;
+							return (
+								<TooltipProvider key={task.id}>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												type="button"
+												variant={task.active ? 'default' : 'outline'}
+												size="sm"
+												className="h-11 shrink-0 gap-1.5 px-3 text-xs"
+												disabled={task.disabled}
+												onClick={task.onClick}
+												data-testid={`timetable-task-${task.id}`}
+												aria-describedby="timetable-foolproof-help"
+											>
+												<Icon className="size-3.5" aria-hidden="true" />
+												<span>{task.label}</span>
+												{task.badge !== undefined && (
+													<Badge
+														variant={task.active ? 'secondary' : 'outline'}
+														className="ml-0.5 h-5 min-w-5 justify-center px-1.5 text-[0.65rem]"
+													>
+														{task.badge}
+													</Badge>
+												)}
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent side="bottom" className="max-w-xs text-xs">
+											{task.helper}
+										</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
+							);
+						})}
+					</div>
+				</div>
+				<div
+					id="timetable-foolproof-help"
+					data-testid="timetable-foolproof-help"
+					className="mt-1 flex min-w-0 flex-col gap-1 rounded-md bg-background/70 px-2 py-1 text-xs leading-snug text-muted-foreground sm:flex-row sm:items-center sm:justify-between [@media(max-height:500px)]:py-0.5"
+				>
+					<p className="min-w-0 truncate">
+						<span className="font-semibold text-foreground">No precision dragging required.</span>{' '}
+						<span className="hidden md:inline">{foolproofHelp}</span>
+						<span className="md:hidden">{activeTask.helper}</span>
+						<span className="sr-only">{foolproofHelp}</span>
+					</p>
+					<div className="flex shrink-0 items-center gap-2">
+						<p
+							className="hidden font-medium text-foreground lg:block"
+							data-testid="timetable-status-legend"
+						>
+							{statusLegend}
+						</p>
+						<span className="sr-only">{statusLegend}</span>
+						{editHistoryCount > 0 && !isPreGenerationWorkspace && (
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="hidden h-8 gap-1.5 border-emerald-300 bg-white text-emerald-900 hover:bg-emerald-100 md:inline-flex"
+							onClick={revertLastEdit}
+							disabled={revertLoading}
+							data-testid="timetable-visible-undo"
+							aria-label="Undo last manual timetable change"
+						>
+							{revertLoading ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Undo2 className="size-3.5" aria-hidden="true" />}
+							<span className="hidden sm:inline">Undo last change</span>
+							<span className="sm:hidden">Undo</span>
+						</Button>
+						)}
+					</div>
+				</div>
+			</div>
+
 			{showInputStateBanner && (
 				<div className={cn(
 					'mx-4 mb-2 flex flex-col gap-3 rounded-xl border px-3 py-2.5 shadow-sm lg:flex-row lg:items-center lg:justify-between',
@@ -560,7 +805,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 											variant="outline"
 											size="sm"
 											className="h-8 gap-1.5 bg-background/80"
-											disabled={!context.selectedEntry}
+											disabled={!hasSelectedEntry}
 											onClick={() => context.enterManualEditView('CHANGE_FACULTY')}
 										>
 											<Wrench className="size-3.5" />
@@ -568,7 +813,7 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 										</Button>
 									</span>
 								</TooltipTrigger>
-								<TooltipContent>{context.selectedEntry ? 'Repair the selected class without regenerating.' : 'Select a timetable class before using manual repair.'}</TooltipContent>
+								<TooltipContent>{hasSelectedEntry ? 'Repair the selected class without regenerating.' : 'Select a timetable class before using manual repair.'}</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
 						<Button variant="destructive" size="sm" className="h-8 gap-1.5" disabled={generating || loading || !schoolYearId} onClick={handleTriggerGenerate}>
@@ -734,7 +979,8 @@ function ScheduleReviewWorkspaceHeaderImpl({ context }: ScheduleReviewWorkspaceH
 				onConfirm={handleCommitQuickPlace}
 				loading={quickPlaceLoading}
 			/>
-		</div>
+			</div>
+		</Profiler>
 	);
 }
 

@@ -1,0 +1,46 @@
+{
+  "results": [
+    {
+      "route": "/my",
+      "finalUrl": "https://njgrm.buru-degree.ts.net/my",
+      "title": "ATLAS"
+    },
+    {
+      "route": "/my/schedule",
+      "finalUrl": "https://njgrm.buru-degree.ts.net/my/schedule",
+      "title": "ATLAS"
+    },
+    {
+      "route": "/my/preferences",
+      "finalUrl": "https://njgrm.buru-degree.ts.net/my/preferences",
+      "title": "ATLAS"
+    },
+    {
+      "route": "/my/room-preferences",
+      "finalUrl": "https://njgrm.buru-degree.ts.net/my/room-preferences",
+      "title": "ATLAS"
+    }
+  ],
+  "issues": [
+    {
+      "route": "/my/schedule",
+      "kind": "response",
+      "detail": "404 https://njgrm.buru-degree.ts.net/api/v1/schools/1/schedules/published/39/faculty/24065?date=2026-07-18"
+    },
+    {
+      "route": "/my/schedule",
+      "kind": "console",
+      "detail": "Failed to load resource: the server responded with a status of 404 ()"
+    },
+    {
+      "route": "/my/schedule",
+      "kind": "response",
+      "detail": "404 https://njgrm.buru-degree.ts.net/api/v1/schools/1/schedules/published/39/faculty/24065?date=2026-07-18"
+    },
+    {
+      "route": "/my/schedule",
+      "kind": "console",
+      "detail": "Failed to load resource: the server responded with a status of 404 ()"
+    }
+  ]
+}

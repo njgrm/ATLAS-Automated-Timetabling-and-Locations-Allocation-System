@@ -62,7 +62,7 @@ function rankRuntimeYears(evidence) {
 export function pickBestRuntimeYear(evidence) {
     return rankRuntimeYears(evidence)[0]?.representative ?? null;
 }
-export async function resolveRuntimeContext(schoolId, authToken) {
+export async function resolveRuntimeContext(schoolId, authToken, options) {
     const [policy, mirror, sectionSnapshot, facultySnapshot, generationRun] = await Promise.all([
         prisma.schedulingPolicy.findFirst({
             where: { schoolId },
@@ -141,29 +141,32 @@ export async function resolveRuntimeContext(schoolId, authToken) {
     let upstreamReachable = false;
     let upstreamVerified = false;
     let upstreamMatched = null;
-    try {
-        const upstreamYear = await fetchEnrollProActiveSchoolYear(authToken);
-        if (upstreamYear) {
-            upstreamReachable = true;
-            const upstreamRank = rankedYears.find((entry) => entry.yearId === upstreamYear.id) ?? null;
-            if (upstreamRank && selectedRank) {
-                const strongerSignal = upstreamRank.strongestWeight > selectedRank.strongestWeight;
-                const competitiveScore = upstreamRank.score >= selectedRank.score * 0.9;
-                if (strongerSignal || competitiveScore) {
-                    selectedRank = upstreamRank;
-                    selected = upstreamRank.representative;
+    const verifyUpstream = options?.verifyUpstream !== false;
+    if (verifyUpstream) {
+        try {
+            const upstreamYear = await fetchEnrollProActiveSchoolYear(authToken);
+            if (upstreamYear) {
+                upstreamReachable = true;
+                const upstreamRank = rankedYears.find((entry) => entry.yearId === upstreamYear.id) ?? null;
+                if (upstreamRank && selectedRank) {
+                    const strongerSignal = upstreamRank.strongestWeight > selectedRank.strongestWeight;
+                    const competitiveScore = upstreamRank.score >= selectedRank.score * 0.9;
+                    if (strongerSignal || competitiveScore) {
+                        selectedRank = upstreamRank;
+                        selected = upstreamRank.representative;
+                    }
+                }
+                upstreamMatched = upstreamYear.id === selected.yearId;
+                if (upstreamMatched) {
+                    source = 'enrollpro-verified';
+                    upstreamVerified = true;
+                    activeSchoolYearLabel = upstreamYear.yearLabel;
                 }
             }
-            upstreamMatched = upstreamYear.id === selected.yearId;
-            if (upstreamMatched) {
-                source = 'enrollpro-verified';
-                upstreamVerified = true;
-                activeSchoolYearLabel = upstreamYear.yearLabel;
-            }
         }
-    }
-    catch {
-        // Keep atlas-persisted context when upstream is unavailable.
+        catch {
+            // Keep atlas-persisted context when upstream is unavailable.
+        }
     }
     const stale = Date.now() - selected.timestamp.getTime() > CONTEXT_STALE_THRESHOLD_MS;
     return {

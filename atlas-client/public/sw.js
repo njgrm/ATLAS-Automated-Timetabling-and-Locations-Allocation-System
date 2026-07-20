@@ -1,4 +1,4 @@
-const SW_VERSION = 'atlas-v1.0.2';
+const SW_VERSION = 'atlas-v1.0.3';
 const SHELL_CACHE = `atlas-shell-${SW_VERSION}`;
 const STATIC_CACHE = `atlas-static-${SW_VERSION}`;
 const API_CACHE = `atlas-api-${SW_VERSION}`;
@@ -113,7 +113,14 @@ self.addEventListener('fetch', (event) => {
 		return;
 	}
 
-	if (sameOrigin && ['style', 'script', 'font', 'image'].includes(request.destination)) {
+	// Only cache immutable production assets. Caching Vite development modules
+	// such as /src/* or /node_modules/.vite/* can mix old and new React runtimes
+	// after HMR/restarts and crash the shell with an invalid hook call.
+	if (
+		sameOrigin
+		&& url.pathname.startsWith('/assets/')
+		&& ['style', 'script', 'font', 'image'].includes(request.destination)
+	) {
 		event.respondWith(cacheFirst(request, STATIC_CACHE));
 		return;
 	}

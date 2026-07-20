@@ -1,0 +1,6 @@
+{
+  "status": "PASS",
+  "targetLabel": "Move selected session to Mon 9:00 AM",
+  "feedbackVisible": true,
+  "blockedCommitRequests": []
+}

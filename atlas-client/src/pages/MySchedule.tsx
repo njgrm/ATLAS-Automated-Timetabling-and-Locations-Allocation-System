@@ -5,6 +5,7 @@ import atlasApi from '@/lib/api';
 import { describeSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { cacheFacultyIdentity, readCachedFacultyIdentity } from '@/lib/faculty-identity-cache';
 import { buildFacultyCacheKey, isLikelyOfflineError, readLatestFacultySnapshotByPrefix, removeFacultySnapshotsByPrefix, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
+import { getActionableApiError } from '@/lib/actionable-api-error';
 import { buildPublishedScheduleCacheMarker, resolvePublishedScheduleRequestDate } from '@/lib/published-schedule-cache-key';
 import FacultyGlobalHeader from '@/components/faculty-shared/FacultyGlobalHeader';
 import { PublishedTimetableMatrix, formatShortTime, type PublishedScheduleMatrixEntry } from '@/components/published-schedule/PublishedTimetableMatrix';
@@ -159,7 +160,7 @@ export default function MySchedule() {
 					return;
 				}
 
-				const responseData = (requestError as { response?: { data?: { code?: string; message?: string } } })?.response?.data;
+				const responseData = (requestError as { response?: { data?: { code?: string; message?: string; actionHint?: string } } })?.response?.data;
 				if (responseData?.code === 'PUBLISHED_RUN_NOT_FOUND') {
 					setSchedule(null);
 					setUsingCachedSchedule(false);
@@ -171,7 +172,7 @@ export default function MySchedule() {
 				setSchedule(null);
 				setUsingCachedSchedule(false);
 				setCachedScheduleAt(null);
-				setError(responseData?.message ?? 'Unable to load your published schedule.');
+				setError(getActionableApiError(requestError, 'Unable to load your published schedule. Please tap Retry.'));
 			}
 		} catch {
 			setSchedule(null);

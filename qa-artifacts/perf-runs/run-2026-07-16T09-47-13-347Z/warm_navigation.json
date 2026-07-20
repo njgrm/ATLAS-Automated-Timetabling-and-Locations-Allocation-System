@@ -1,0 +1,163 @@
+{
+  "status": "PASS",
+  "durationMs": 9041.140800000001,
+  "metrics": {
+    "navigation": {
+      "duration": 103.60000000149012,
+      "domInteractive": 16.200000002980232,
+      "responseEnd": 8.700000002980232
+    },
+    "jsTransferBytes": 3488595,
+    "jsDecodedBytes": 6695384,
+    "jsFileCount": 148,
+    "profilerLogs": [
+      {
+        "id": "Header",
+        "phase": "mount",
+        "actualDuration": 39.100000001490116,
+        "baseDuration": 35.099999994039536,
+        "timestamp": 1784195265934
+      },
+      {
+        "id": "Left Rail",
+        "phase": "mount",
+        "actualDuration": 31.599999997764826,
+        "baseDuration": 28.299999993294477,
+        "timestamp": 1784195265934
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "mount",
+        "actualDuration": 19.099999997764826,
+        "baseDuration": 17.099999994039536,
+        "timestamp": 1784195265934
+      },
+      {
+        "id": "Right Panel",
+        "phase": "mount",
+        "actualDuration": 4.199999999254942,
+        "baseDuration": 3.5,
+        "timestamp": 1784195265934
+      },
+      {
+        "id": "Header",
+        "phase": "nested-update",
+        "actualDuration": 28.899999998509884,
+        "baseDuration": 28.799999997019768,
+        "timestamp": 1784195266075
+      },
+      {
+        "id": "Left Rail",
+        "phase": "nested-update",
+        "actualDuration": 13.399999994784594,
+        "baseDuration": 29.899999987334013,
+        "timestamp": 1784195266076
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 46.599999997764826,
+        "baseDuration": 42.20000000670552,
+        "timestamp": 1784195266076
+      },
+      {
+        "id": "Right Panel",
+        "phase": "nested-update",
+        "actualDuration": 2.100000001490116,
+        "baseDuration": 1.8999999985098839,
+        "timestamp": 1784195266076
+      },
+      {
+        "id": "Header",
+        "phase": "nested-update",
+        "actualDuration": 34.400000005960464,
+        "baseDuration": 59.19999998807907,
+        "timestamp": 1784195266124
+      },
+      {
+        "id": "Left Rail",
+        "phase": "nested-update",
+        "actualDuration": 0.19999999925494194,
+        "baseDuration": 29.899999987334013,
+        "timestamp": 1784195266124
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 42.20000000670552,
+        "timestamp": 1784195266125
+      },
+      {
+        "id": "Header",
+        "phase": "nested-update",
+        "actualDuration": 9.900000002235174,
+        "baseDuration": 48.70000000298023,
+        "timestamp": 1784195266137
+      },
+      {
+        "id": "Header",
+        "phase": "nested-update",
+        "actualDuration": 0.7999999932944775,
+        "baseDuration": 48,
+        "timestamp": 1784195266140
+      },
+      {
+        "id": "Header",
+        "phase": "update",
+        "actualDuration": 14.899999998509884,
+        "baseDuration": 14.5,
+        "timestamp": 1784195266193
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 0.7999999970197678,
+        "baseDuration": 39.49999998882413,
+        "timestamp": 1784195266193
+      },
+      {
+        "id": "Header",
+        "phase": "nested-update",
+        "actualDuration": 0.10000000149011612,
+        "baseDuration": 14.5,
+        "timestamp": 1784195266197
+      },
+      {
+        "id": "Header",
+        "phase": "update",
+        "actualDuration": 7.799999997019768,
+        "baseDuration": 7.699999999254942,
+        "timestamp": 1784195266219
+      },
+      {
+        "id": "Left Rail",
+        "phase": "update",
+        "actualDuration": 0.10000000149011612,
+        "baseDuration": 29.899999987334013,
+        "timestamp": 1784195266219
+      },
+      {
+        "id": "Header",
+        "phase": "nested-update",
+        "actualDuration": 0.3999999985098839,
+        "baseDuration": 7.699999999254942,
+        "timestamp": 1784195266224
+      },
+      {
+        "id": "Left Rail",
+        "phase": "nested-update",
+        "actualDuration": 0.30000000074505806,
+        "baseDuration": 30.19999998807907,
+        "timestamp": 1784195266224
+      },
+      {
+        "id": "Left Rail",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 30.19999998807907,
+        "timestamp": 1784195266225
+      }
+    ]
+  }
+}

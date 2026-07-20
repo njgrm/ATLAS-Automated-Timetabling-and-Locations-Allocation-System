@@ -123,6 +123,20 @@ function computeFacultyWeeklyMinutes(facultyId, placements) {
     }
     return result;
 }
+function emptyWeeklyMinutes() {
+    return { MONDAY: 0, TUESDAY: 0, WEDNESDAY: 0, THURSDAY: 0, FRIDAY: 0 };
+}
+function buildFacultyWeeklyMinutesById(placements) {
+    const weeklyMinutesByFaculty = new Map();
+    for (const placement of placements) {
+        if (placement.status !== 'DRAFT' || placement.facultyId == null)
+            continue;
+        const current = weeklyMinutesByFaculty.get(placement.facultyId) ?? emptyWeeklyMinutes();
+        current[placement.day] = (current[placement.day] ?? 0) + Math.max(0, timeToMinutes(placement.endTime) - timeToMinutes(placement.startTime));
+        weeklyMinutesByFaculty.set(placement.facultyId, current);
+    }
+    return weeklyMinutesByFaculty;
+}
 function computeFacultyWeeklyMinutesFromEntries(facultyId, entries) {
     const result = { MONDAY: 0, TUESDAY: 0, WEDNESDAY: 0, THURSDAY: 0, FRIDAY: 0 };
     for (const entry of entries) {
@@ -213,8 +227,21 @@ function buildPolicyImpactSummary(violations) {
         severity: violation.severity,
     }));
 }
-async function loadDraftContext(schoolId, schoolYearId, authToken) {
-    const sectionResultPromise = sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken)
+async function loadSectionsForDraftContext(schoolId, schoolYearId, authToken, options) {
+    if (options.preferCachedSections) {
+        const cached = await loadSectionSnapshot(schoolId, schoolYearId);
+        if (cached) {
+            return {
+                gradeLevels: cached.gradeLevels,
+                source: 'cached-enrollpro',
+                fetchedAt: cached.fetchedAt,
+                isStale: true,
+                fallbackReason: 'Draft board fast-open uses the latest saved section snapshot.',
+                contractWarnings: ['Pre-generation draft board used the latest saved section snapshot for fast navigation. Placement preview and save still run full validation.'],
+            };
+        }
+    }
+    return sectionAdapter.fetchSectionsBySchoolYear(schoolYearId, schoolId, authToken)
         .catch(async (error) => {
         const cached = await loadSectionSnapshot(schoolId, schoolYearId);
         if (!cached)
@@ -229,6 +256,9 @@ async function loadDraftContext(schoolId, schoolYearId, authToken) {
             contractWarnings: [`EnrollPro sections source failed (${fallbackReason}); using cached section snapshot instead.`],
         };
     });
+}
+async function loadDraftContext(schoolId, schoolYearId, authToken, options = {}) {
+    const sectionResultPromise = loadSectionsForDraftContext(schoolId, schoolYearId, authToken, options);
     const [sectionResult, facultyMirrors, facultyRefs, facultySubjectRows, subjects, rooms, buildings, policyRecord, gradeWindows, placements, cohorts] = await Promise.all([
         sectionResultPromise,
         prisma.facultyMirror.findMany({
@@ -603,6 +633,9 @@ export async function previewPlacement(schoolId, schoolYearId, input, authToken)
 }
 async function buildBoardStateFromContext(schoolId, schoolYearId, ctx) {
     const placements = ctx.placements.map(toDraftRow);
+    const facultyMirrorById = new Map(ctx.facultyMirrors.map((mirror) => [mirror.id, mirror]));
+    const subjectById = new Map(ctx.subjects.map((subject) => [subject.id, subject]));
+    const facultyWeeklyMinutesById = buildFacultyWeeklyMinutesById(ctx.placements);
     const counts = {
         draft: placements.filter((placement) => placement.status === 'DRAFT').length,
         lockedForRun: placements.filter((placement) => placement.status === 'LOCKED_FOR_RUN').length,
@@ -627,15 +660,16 @@ async function buildBoardStateFromContext(schoolId, schoolYearId, ctx) {
                     .sort((left, right) => left - right)
                 : [...(ctx.qualifiedByKey.get(`${demandItem.sectionId}:${demandItem.subjectId}`) ?? [])].sort((left, right) => left - right);
             const facultyOptionsEnriched = rawFacultyOptions.map((fId) => {
-                const mirror = ctx.facultyMirrors.find((m) => m.id === fId);
+                const mirror = facultyMirrorById.get(fId);
                 return {
                     id: fId,
                     name: mirror ? `${mirror.lastName}, ${mirror.firstName}` : `Faculty #${fId}`,
                     department: mirror?.department ?? null,
                     canTeachOutsideDepartment: mirror?.canTeachOutsideDepartment ?? false,
-                    dailyMinutesByDay: computeFacultyWeeklyMinutes(fId, ctx.placements),
+                    dailyMinutesByDay: facultyWeeklyMinutesById.get(fId) ?? emptyWeeklyMinutes(),
                 };
             });
+            const subject = subjectById.get(demandItem.subjectId);
             queue.push({
                 assignmentKey: key,
                 entryKind: demandItem.entryKind,
@@ -644,10 +678,10 @@ async function buildBoardStateFromContext(schoolId, schoolYearId, ctx) {
                 gradeLevel: demandItem.gradeLevel,
                 subjectId: demandItem.subjectId,
                 subjectCode: demandItem.subjectCode,
-                subjectName: ctx.subjects.find((subject) => subject.id === demandItem.subjectId)?.name ?? demandItem.subjectCode,
+                subjectName: subject?.name ?? demandItem.subjectCode,
                 sessionNumber,
                 sessionsPerWeek: demandItem.sessionsPerWeek,
-                preferredRoomType: demandItem.roomTypePreference ?? ctx.subjects.find((subject) => subject.id === demandItem.subjectId)?.preferredRoomType ?? 'CLASSROOM',
+                preferredRoomType: demandItem.roomTypePreference ?? subject?.preferredRoomType ?? 'CLASSROOM',
                 cohortCode: demandItem.cohortCode ?? null,
                 cohortName: demandItem.cohortName ?? null,
                 programCode: demandItem.programCode ?? null,
@@ -673,8 +707,8 @@ async function buildBoardStateFromContext(schoolId, schoolYearId, ctx) {
         },
     };
 }
-export async function listDraftBoardState(schoolId, schoolYearId, authToken) {
-    const ctx = await loadDraftContext(schoolId, schoolYearId, authToken);
+export async function listDraftBoardState(schoolId, schoolYearId, authToken, options = {}) {
+    const ctx = await loadDraftContext(schoolId, schoolYearId, authToken, options);
     return buildBoardStateFromContext(schoolId, schoolYearId, ctx);
 }
 export async function getDraftPlacement(schoolId, schoolYearId, placementId) {
@@ -945,7 +979,7 @@ export async function swapPlacements(schoolId, schoolYearId, actorId, input, aut
     };
 }
 export async function clearDraft(schoolId, schoolYearId, actorId, authToken) {
-    const draftPlacements = await prisma.lockedSession.findMany({ where: { schoolId, schoolYearId, status: 'DRAFT' } });
+    const draftPlacements = await prisma.lockedSession.findMany({ where: { schoolId, schoolYearId, status: 'DRAFT' }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
     if (draftPlacements.length === 0) {
         return listDraftBoardState(schoolId, schoolYearId, authToken);
     }

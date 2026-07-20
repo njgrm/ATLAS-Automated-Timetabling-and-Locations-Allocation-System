@@ -1,3 +1,145 @@
+# 2026-07-20 - Timetable Simplification Overhaul Re-Audit
+
+- Phase: Timetable simplification overhaul re-audit, `timetable-simplification-overhaul-reset`.
+- Operator: Codex.
+- Scope gate: NO-GO for simplification closure.
+- Trigger: User reported that unassigned sessions still cannot be placed, sessions still cannot be swapped confidently, and the timetable page remains visually overwhelming.
+- Live Tailnet evidence:
+  - Active persisted runtime context uses `schoolYearId=39`.
+  - `/timetable` latest completed run observed as run `223`.
+  - Run `223` latest draft exposes `365` generated unassigned items.
+  - `365 / 365` generated unassigned items have `facultyId`.
+  - `0 / 365` generated unassigned items have `homeRoomId`.
+  - Reason counts: `FACULTY_OVERLOADED=360`, `NO_COMPATIBLE_ROOM=5`.
+  - Current generated placement client path requires `targetRoomId` from `item.homeRoomId`, so the observed generated unassigned items cannot commit through the current simple placement path.
+  - Clicking the visible generated-unassigned `Place session` button opened the Tactical Sandbox / `Fix Teaching Load Owner` dialog and did not attempt a placement commit.
+  - Selecting a generated unassigned source showed grid-wide labels, but a cell click in the audit did not attempt a generated placement commit.
+  - Generated occupied-slot swap did open `Review occupied-slot swap`, and `Apply repair` attempted `POST /api/v1/generation/1/39/runs/223/manual-edits/swap`; this suggests swap is technically reachable but the label/mental model remains wrong for a simple swap.
+- UX audit evidence:
+  - First load still exposes a cockpit-like combination of run controls, publish controls, plan action, more tools, stats, task strip, filters, violations rail, unassigned count, request tab, many violation rows, and the grid.
+  - Current first load surfaced `Violations 213` and `Unassigned 365`, creating high visual/cognitive load.
+- Decision:
+  - Prior Phase 1-6 verification is no longer sufficient for product closure because it mostly proved dialog visibility and write-blocked previews, not actual primary workflow completion.
+  - Timetable simplification closure is reset to `NO-GO`.
+  - New plan created at `docs/phases/timetable-simplification-overhaul-plan-2026-07-20.md`.
+  - Source-backed audit created at `docs/analysis/timetable-simplification-overhaul-audit-2026-07-20.md`.
+
+---
+
+# 2026-07-20 - Timetable Simplification Recovery Phase 6
+
+- Phase: Timetable Simplification Recovery Phase 6, `timetable-simplification-phase06-release-validation`.
+- Operator: Codex.
+- Scope gate: CODEX GO, PENDING ANTIGRAVITY FINAL EXTERNAL VERIFICATION.
+- Trigger: Antigravity returned Phase 5 external verification `GO` and explicitly cleared Codex to proceed to Phase 6.
+- Scope held:
+  - No generation truth, timetable ownership, publish lifecycle, role permission, or persisted source-ownership behavior was changed.
+  - Tightened the Phase 6 browser release gate to assert the final Phase 5 plain-language labels: `Can place`, `Can swap`, `Blocked`, `Warning`, `Occupied`, and `Current`.
+  - Preserved write safety in release validation by blocking non-preview generation mutations.
+- Verification proof:
+  - `npx tsc --noEmit` in `atlas-client`: PASS.
+  - `npm run test:ux-guardrails` in `atlas-client`: PASS `26/26`.
+  - `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+  - `npm run build` in `atlas-client`: PASS.
+  - Full live Tailnet Phase 1-6 matrix: `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-workflow-phase01.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase02.spec.ts qa-artifacts/playwright/specs/timetable-simplification-phase03.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase04.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase05.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase06.spec.ts --workers=1`: PASS `36/36` across desktop, mobile portrait, and mobile landscape.
+- Notes:
+  - `atlas-client` still has no configured `lint` script.
+  - Phase 6 write-sensitive tests verified no live timetable writes were committed.
+- Decision: Phase 6 is Codex GO. Send the final external verification prompt to Antigravity for release closure confirmation.
+
+---
+
+# 2026-07-20 - Timetable Simplification Recovery Phase 5
+
+- Phase: Timetable Simplification Recovery Phase 5, `timetable-simplification-phase05-older-user-density`.
+- Operator: Codex.
+- Scope gate: ANTIGRAVITY-VERIFIED GO.
+- Trigger: Antigravity returned Phase 4 external verification `GO`, with the remaining recommendation to continue visual-density and older-user refinements.
+- Scope held:
+  - Preserved timetable truth, generated placement, draft placement, modern swap review, and grid-wide conflict guidance.
+  - Replaced grid preview labels with plain-language states: `Can place`, `Can swap`, `Blocked`, and `Warning`.
+  - Added a persistent status legend: `Can place = empty slot. Can swap = occupied slot. Blocked = fix first. Warning = review only.`
+  - Changed task-mode count badges from bare numbers to capped, readable labels such as `99+ to place` and `99+ blocked`.
+  - Reduced generated-unassigned card badge noise by keeping detailed reason/program badges inside the expanded explanation area.
+  - Increased generated-unassigned recovery/action controls to 40px height so the primary click-placement path is easier for older and touch users.
+- Verification proof:
+  - `npx tsc --noEmit` in `atlas-client`: PASS.
+  - `npm run test:ux-guardrails` in `atlas-client`: PASS `26/26`.
+  - `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+  - `npm run build` in `atlas-client`: PASS.
+  - `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-workflow-phase05.spec.ts --workers=1`: PASS `6/6` across desktop, mobile portrait, and mobile landscape.
+  - `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-workflow-phase04.spec.ts --workers=1`: PASS `6/6` across desktop, mobile portrait, and mobile landscape, with first-action timings around `1.9s-2.0s`.
+  - `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-workflow-phase01.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase02.spec.ts qa-artifacts/playwright/specs/timetable-simplification-phase03.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase06.spec.ts --workers=1`: PASS `24/24` across desktop, mobile portrait, and mobile landscape.
+- Failures found and fixed:
+  - The static Phase 1 grid-wide guidance guardrail still expected the old `Swap`/`Place` text after the Phase 5 copy update. Updated it to enforce `Can swap` and `Can place` instead.
+- Notes:
+  - `atlas-client` still has no configured `lint` script.
+- External verification:
+  - Antigravity returned `GO` after passing TypeScript, UX guardrails, timetable conflict tests, production build, Phase 5 Playwright, Phase 4 regression, and Phase 1/2/3/6 regression.
+  - Antigravity reported no app-level console/page/network errors, no global scrollbars, grid-first layout intact, generated click/drag placement working, generated and draft modern review flows intact, and obsolete teacher/room modal absent.
+- Decision: Phase 5 older-user copy and visual-density implementation is externally closed. Proceed to Phase 6 release validation.
+
+---
+
+# 2026-07-19 - Timetable Simplification Recovery Phase 4
+
+- Phase: Timetable Simplification Recovery Phase 4, `timetable-simplification-phase04-default-composition`.
+- Operator: Codex.
+- Scope gate: CODEX GO.
+- Trigger: Antigravity second-opinion UX/UI audit reported Phase 3 functional GO but visual NO-GO due crowded header/task guide, exposed filter spam, empty right detail rail, and compact viewports being squeezed by side panels.
+- Scope held:
+  - Preserved timetable truth, generated placement, draft placement, swap review, grid-wide guidance, and performance containment.
+  - Moved Program, Entry type, and severity/attention filters behind a `Filters` popover.
+  - Reduced the task guide visual weight from a large "What to do next" card to a compact "Next task" strip with large labeled task controls retained.
+  - Shortened visible mobile help copy while retaining full screen-reader/regression guidance for placement, switching, draft planning, and conflict meaning.
+  - Collapsed compact viewport side panels to zero width by default so the mobile first viewport is grid-first.
+  - Auto-collapsed the right detail panel when no entry or draft queue item is selected.
+  - Kept generated and draft unassigned rails reachable through task buttons and updated the Phase 01 browser gate for the compact task-button path.
+- Verification proof:
+  - `npx tsc --noEmit` in `atlas-client`: PASS.
+  - `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+  - `npm run test:ux-guardrails` in `atlas-client`: PASS `25/25`.
+  - `npm run build` in `atlas-client`: PASS.
+  - `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-workflow-phase04.spec.ts --workers=1`: PASS `6/6` across desktop, mobile portrait, and mobile landscape.
+  - `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-simplification-phase03.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase05.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase06.spec.ts --workers=1`: PASS `18/18` across desktop, mobile portrait, and mobile landscape.
+  - `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-workflow-phase01.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase02.spec.ts --workers=1`: PASS `12/12` across desktop, mobile portrait, and mobile landscape.
+- Failures found and fixed:
+  - Initial compact panel-collapse implementation left the left rail open after panel mount. Fixed with post-mount compact collapse retry and Phase 4 layout assertions.
+  - Initial mobile task guide still measured about `191px` in portrait because active summary and inline Undo were visible. Fixed by hiding the active summary and inline Undo on compact viewports.
+  - Phase 01 mobile tests still clicked the hidden unassigned tab directly. Updated the gate to use the visible task-button path when the tab is not visible.
+- Notes:
+  - `atlas-client` has no configured `lint` script.
+- Decision: Phase 4 default composition is Codex GO. Proceed to Phase 5 for remaining copy, badge-noise, and older-user visual-density refinements.
+
+---
+
+# 2026-07-18 - Timetable Simplification Recovery Phase 3
+
+- Phase: Timetable Simplification Recovery Phase 3, `timetable-simplification-phase03-modern-swap-review`.
+- Operator: Codex.
+- Scope gate: CODEX GO, PENDING ANTIGRAVITY EXTERNAL VERIFICATION.
+- Trigger: User reported that timetable UI remained overwhelming, generated unassigned drag needed useful grid-wide guidance, and the swap modal had regressed to an outdated timetable-owned teacher/room assignment model.
+- Scope held:
+  - Replaced deprecated timetable placement/swap review surfaces with readonly Teaching Load ownership and room-source review.
+  - Removed visible timetable-owned "Choose teacher", "Choose room", "Assign teacher and room", "Fix Teacher Assignment", and "Reassign Teacher" copy from the audited timetable surfaces.
+  - Updated the tactical dock and related timetable recovery copy to describe Teaching Load ownership instead of timetable teacher assignment.
+  - Added explicit hard/soft conflict figures and fallback placeholders to the draft placement review so blocked/no-room states still show the conflict-check structure.
+  - Added `qa-artifacts/playwright/specs/timetable-simplification-phase03.spec.ts` for live Tailnet browser verification of readonly draft placement review and generated visual swap review without reassignment controls.
+- Verification proof:
+  - `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+  - `npm run test:ux-guardrails` in `atlas-client`: PASS `24/24`.
+  - `npx tsc --noEmit` in `atlas-client`: PASS.
+  - `npm run build` in `atlas-client`: PASS.
+  - `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-simplification-phase03.spec.ts --workers=1`: PASS `6/6` across desktop, mobile portrait, and mobile landscape.
+  - `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-workflow-phase01.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase05.spec.ts --workers=1`: PASS `12/12` across desktop, mobile portrait, and mobile landscape.
+  - `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-workflow-phase02.spec.ts qa-artifacts/playwright/specs/timetable-simplification-phase03.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase06.spec.ts --workers=1`: PASS `18/18` across desktop, mobile portrait, and mobile landscape.
+  - `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-workflow-phase04.spec.ts --workers=1`: PASS `6/6` across desktop, mobile portrait, and mobile landscape.
+- Known limitation:
+  - The current live Tailnet pre-generation board filter did not expose occupied draft cells during this pass, so direct live pre-generation occupied-slot swap proof remains covered by shared source/dialog guardrails rather than a live occupied-draft fixture.
+- Decision: Phase 3 is ready for Antigravity external browser verification before proceeding to Phase 4 simplification.
+
+---
+
 # 2026-07-07 - IDE Compile Errors Resolution
 
 - Phase: Code Health & IDE Diagnostics Repair, `ide-diagnostics-repair`.
@@ -3002,3 +3144,278 @@ px tsc --noEmit passed on tlas-server with no TypeScript errors.
 **NO-GO for UX-06 closure.** Source/build and representative responsive Tailnet evidence pass. Closure remains blocked by the faculty-profile mapping failure, missing complete keyboard/zoom/assistive-technology evidence, and the five required moderated older-user sessions.
 
 ---
+
+## [2026-07-18] Timetable Workflow UX Recovery Phase 0 + Phase 1
+
+**Scope:** Restore generated-run timetable usability after user-reported failures: unassigned scrolling, generated unassigned placement, and generated occupied-session swapping.
+
+**Implemented:**
+- Added live workflow Playwright gates for generated-run unassigned scroll usability, generated unassigned placement flow visibility, and generated occupied-slot swap review.
+- Changed generated-run unassigned placement actions so `Place session` opens the guided Tactical Sandbox sheet.
+- Added a direct common click/tap swap path and an explicit right-panel `Switch with another session` action.
+- Reduced generated unassigned rail chrome on compact viewports and widened compact rails to keep the virtual list usable.
+- Corrected generated unassigned draggable semantics to keep nested action buttons targetable.
+- Cached slot/entry minute data in the live conflict inspector index.
+
+**Commands run:**
+- `npm run test:timetable-conflict` - PASS 10/10
+- `npm run test:ux-guardrails` - PASS 19/19
+- `npx tsc --noEmit` - PASS
+- `npm run build` - PASS
+- `npx playwright test qa-artifacts/playwright/specs/timetable-workflow-phase01.spec.ts --workers=1` - PASS 6/6
+
+**Live Tailnet verification:** desktop, mobile portrait, and mobile landscape all passed generated unassigned scroll/placement and occupied-slot swap gates against `https://njgrm.buru-degree.ts.net`.
+
+**Verdict:** Phase 0 and Phase 1 are GO for generated-run workflow recovery. Phase 2 remains open for new-draft placement recovery.
+
+## [2026-07-18] Timetable Workflow UX Recovery Phase 2
+
+**Scope:** Restore new pre-generation draft entry, queue selection, and visible placement confirmation across desktop and mobile.
+
+**Implemented:**
+- Added live Tailnet Phase 2 Playwright gates for primary draft entry and queue-to-grid placement confirmation.
+- Made the `Plan before generating` path switch the workspace immediately, then hydrate the draft board in the background.
+- Optimized the draft-board GET path to prefer the saved EnrollPro section snapshot for navigation reads while preserving full validation for preview/commit.
+- Precomputed draft-board faculty load context instead of recalculating weekly minutes for each queue option.
+- Kept draft queue placement as a visible review dialog instead of auto-committing on cell selection.
+- Fixed mobile queue cards by rendering touch layouts as normal project buttons and making the pre-generation rail itself scrollable.
+- Added a compact conflict-inspector hot path so drag/click hover state does not allocate full decorated conflict details.
+
+**Commands run:**
+- `npm run test:timetable-conflict` - PASS 10/10
+- `npm run test:ux-guardrails` - PASS 19/19
+- `npx tsc --noEmit` - PASS (`atlas-client`)
+- `npm run build` - PASS (`atlas-client`)
+- `npm run build` - PASS (`atlas-server`)
+- `npx playwright test qa-artifacts/playwright/specs/timetable-workflow-phase01.spec.ts --workers=1` - PASS 6/6
+- `npx playwright test qa-artifacts/playwright/specs/timetable-workflow-phase02.spec.ts --workers=1` - PASS 6/6
+
+**Live Tailnet proof:**
+- `/api/v1/health` returned `{ "status": "ok", "service": "atlas" }`.
+- `/api/v1/generation/1/55/pre-generation-drafts?preferCachedSections=true` returned in `987ms` with `queue=1313`, `placements=6`, `unscheduled=1313`.
+- Desktop, mobile portrait, and mobile landscape all passed primary draft entry and visible placement-confirmation gates.
+
+**Verdict:** Phase 0, Phase 1, and Phase 2 are GO for timetable workflow recovery. Phase 3 should proceed next for information architecture simplification and reduction of timetable UI overload.
+
+## [2026-07-18] Timetable Workflow UX Recovery Phase 3
+
+**Scope:** Simplify timetable workspace information architecture without removing restored placement, swap, draft, or conflict-inspector workflows.
+
+**Implemented:**
+- Added a compact `What to do next` timetable task guide with visible modes for review, unassigned placement, session switching, draft planning, and room-request review.
+- Wired task-mode controls to expand the left rail before switching `violations`, `unassigned`, or `requests`, preventing collapsed rails from hiding selected workflows.
+- Converted timetable top actions and grid filters to local horizontal scrollers on compact viewports instead of vertical wrapping that starves the rail/list area.
+- Added short-height landscape compaction for redundant helper copy and the left-rail title strip while preserving visible tab labels, counts, task controls, and local scroll regions.
+- Renamed the task-mode draft chip to `Draft planner` so the primary toolbar action remains the single exact `Plan before generating` control and existing Phase 2 tests stay unambiguous.
+
+**Commands run:**
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run build` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS 19/19.
+- `npx playwright test qa-artifacts/playwright/specs/timetable-workflow-phase03.spec.ts --workers=1`: PASS 3/3 across desktop, mobile portrait, and mobile landscape.
+- `npx playwright test qa-artifacts/playwright/specs/timetable-workflow-phase01.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase02.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase03.spec.ts --workers=1`: PASS 15/15 across desktop, mobile portrait, and mobile landscape.
+
+**Notes:**
+- The Phase 3 gate initially failed on mobile because the new header consumed too much vertical space and because the task button strip had overlapping hit targets in landscape. Those were fixed before GO.
+
+**Verdict:** Phase 3 is GO for information architecture simplification. Phase 4 remains open for first-load and data-load performance.
+
+## [2026-07-18] Timetable Workflow UX Recovery Phase 4
+
+**Scope:** Close first-load and data-load performance for `/timetable` without removing restored placement, swap, or live conflict-inspector functionality.
+
+**Implemented:**
+- Lazy-loaded advanced center-workspace surfaces: policy pane, manual edit panel, map workspace, and building view.
+- Added an explanatory timetable skeleton that tells users the grid loads first and secondary diagnostics follow.
+- Changed timetable data hydration so draft entries and violations apply before background follow-up diagnostics.
+- Started reference-data and secondary-summary requests without blocking first grid readiness.
+- Changed generation run history from full `GenerationRun` rows to metadata-only rows.
+- Removed `summary`, `draftEntries`, `violations`, and `unassignedItems` from `/api/v1/generation/:schoolId/:schoolYearId/runs`.
+- Changed `/api/v1/runtime/context` to resolve from persisted ATLAS evidence by default and only perform the slow upstream verification path when `verifyUpstream=true` is requested.
+- Added `qa-artifacts/playwright/specs/timetable-workflow-phase04.spec.ts` to enforce run-history shape, representative behavior, table/action timing budgets, no global scrollbar, and no advanced diagnostic request before first actionable grid/list.
+
+**Before/after measurements:**
+- Baseline desktop performance harness before Phase 4 changes: `cold_navigation=9239ms`, `warm_navigation=9049ms`.
+- After frontend splitting/background hydration only: `cold_navigation=5213ms`, `warm_navigation=5334ms`.
+- After run-history and runtime-context backend fixes: `cold_navigation=1322ms`, `warm_navigation=1088ms`.
+- `/api/v1/generation/1/55/runs?limit=20` before backend fix: about `59.5MB` and `42221.6ms`.
+- `/api/v1/generation/1/55/runs?limit=20` after metadata-only fix: `5,992` bytes and `43.6ms`; response omitted `summary`, `draftEntries`, `violations`, and `unassignedItems`.
+- `/api/v1/runtime/context?schoolId=1` default persisted path: `185.9ms`, `source=atlas-persisted`, `upstream.reachable=false`.
+- `/api/v1/runtime/context?schoolId=1&verifyUpstream=true`: `4021.6ms`, preserving explicit upstream verification behavior.
+
+**Commands run:**
+- `npm run build` in `atlas-server`: PASS.
+- Built server startup on port `5020`: PASS.
+- `GET http://127.0.0.1:5020/api/v1/health`: PASS `200 {"status":"ok","service":"atlas"}`.
+- `npx playwright test qa-artifacts/playwright/specs/timetable-workflow-phase04.spec.ts --project=desktop --workers=1`: PASS `2/2`.
+- `npx playwright test qa-artifacts/playwright/specs/timetable-workflow-phase04.spec.ts --workers=1`: PASS `6/6` across desktop, mobile portrait, and mobile landscape.
+- `npx playwright test qa-artifacts/playwright/specs/timetable-performance.spec.ts --project=desktop --grep "Environment and dataset preflight|Cold navigation|Warm navigation" --workers=1`: PASS `3/3`.
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run build` in `atlas-client`: PASS.
+
+**Artifacts:**
+- `qa-artifacts/playwright/specs/timetable-workflow-phase04.spec.ts`
+- `qa-artifacts/timetable-workflow-phase04/desktop-run-history-contract-*.json`
+- `qa-artifacts/timetable-workflow-phase04/desktop-first-load-timings-*.json`
+- `qa-artifacts/timetable-workflow-phase04/mobile-portrait-first-load-timings-*.json`
+- `qa-artifacts/timetable-workflow-phase04/mobile-landscape-first-load-timings-*.json`
+- `qa-artifacts/perf-runs/run-2026-07-17T18-43-21-654Z/cold_navigation.json`
+- `qa-artifacts/perf-runs/run-2026-07-17T18-43-21-654Z/warm_navigation.json`
+
+**Verdict:** Phase 4 is GO for first-load and data-load performance. The timetable is now visible and actionable within the Phase 4 Tailnet budgets across desktop, mobile portrait, and mobile landscape.
+
+## [2026-07-18] Timetable Workflow Phase 4 Independent Verification Correction
+
+**Trigger:** Antigravity independently verified the Phase 4 work and returned `NO-GO` because the Phase 2 draft queue placement confirmation no longer appeared.
+
+**Root cause:**
+- Phase 4 deferred reference-data hydration so the initial timetable grid became actionable sooner.
+- The pre-generation draft queue click path still assumed `roomMap` was already hydrated before opening review.
+- When `roomMap` was still empty, `stagePreGenDrop()` exited with the inline error `Cannot place this session yet. Select a faculty and room from a compatible context first.` instead of opening the `Review draft placement` dialog.
+
+**Implemented:**
+- `stagePreGenDrop()` now opens `Review draft placement` before requiring auto-selected teacher/room defaults.
+- If defaults are missing, the dialog remains visible with teacher/room controls instead of blocking the workflow with a toast.
+- Pre-generation queue selection is bridged into the grid click-placement source so empty cells remain clickable after selecting a draft queue item.
+- Preview and commit still require explicit valid teacher and room selections; no write shortcut was introduced.
+
+**Commands run:**
+- Focused diagnostic: PASS, `Review draft placement` dialog count returned `1`.
+- `npx playwright test qa-artifacts/playwright/specs/timetable-workflow-phase02.spec.ts --project=desktop --grep "draft queue item opens visible placement confirmation" --workers=1`: PASS `1/1`.
+- `npx playwright test qa-artifacts/playwright/specs/timetable-workflow-phase02.spec.ts --workers=1`: PASS `6/6` across desktop, mobile portrait, and mobile landscape.
+- `npx playwright test qa-artifacts/playwright/specs/timetable-workflow-phase01.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase02.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase03.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase04.spec.ts --workers=1`: PASS `21/21` across desktop, mobile portrait, and mobile landscape.
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run build` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `19/19`.
+
+**Verdict:** Antigravity's NO-GO blocker is fixed. Phase 1 through Phase 4 timetable workflow recovery is GO again after the combined live Tailnet matrix passed.
+
+## 2026-07-20 - Timetable Overhaul Iteration A
+
+**Scope:** Phase 0A + Phase 0 grouped implementation, with narrow Phase 1/2 truth-label corrections.
+
+**Implemented:**
+- Added a visible timetable source-truth notice for saved/stale school-year context and completed-run fallback behind newer failed runs.
+- Changed generated unassigned cards with `facultyId` but missing `homeRoomId` to show `Needs room` and `Fix room first`, removing the false `Place session` action for those items.
+- Changed generated occupied-slot swap primary action from `Apply repair` to `Swap sessions`.
+- Added live Tailnet Playwright gate `qa-artifacts/playwright/specs/timetable-overhaul-iteration-a.spec.ts`.
+- Added Antigravity prompt `docs/prompts/antigravity-timetable-overhaul-iteration-a-validation-2026-07-20.md`.
+
+**Verification:**
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run build` in `atlas-client`: PASS.
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `26/26`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-overhaul-iteration-a.spec.ts --workers=1`: PASS `9/9` across desktop, mobile portrait, and mobile landscape.
+
+**Verdict:** `CODEX GO` for Iteration A. Overall timetable overhaul remains `NO-GO` pending Iteration B placement/swap contract repair, Iteration C compact shell/header simplification, and Iteration D final validation.
+
+## 2026-07-20 - Cross-Page Header Density and Source-Truth Audit
+
+**Scope:** Live Tailnet audit for `/timetable`, `/sections`, `/subjects`, `/teachers`, and `/teaching-load`, plus runtime context/source-truth verification.
+
+**Evidence:**
+- Live target: `https://njgrm.buru-degree.ts.net`.
+- Admin login: `1000001`.
+- Desktop viewport: `1366x768`.
+- `/timetable`: first grid content observed at `290px` from viewport top.
+- `/sections`: first table observed at `315px`.
+- `/subjects`: first table observed at `355px`.
+- `/teachers`: first table observed at `425px`.
+- `/teaching-load`: local toolbar/header block observed at about `294px` below the shell before the main workspace body.
+- Runtime context default and `verifyUpstream=true` both resolved `activeSchoolYearId=39`, `source=atlas-persisted`, `stale=true`, with upstream unreachable.
+- `sections/summary/39`: `20` sections, `0` enrolled.
+- `sections/summary/55`: `82` sections, `3565` enrolled.
+- `/generation/1/39/runs?limit=5`: newest runs `225` and `224` are `FAILED`; latest completed draft source remains run `223`.
+- `/generation/1/39/runs/latest/draft`: `560` assigned entries, `365` unassigned items, `365 / 365` with faculty owner, `0 / 365` with `homeRoomId`.
+
+**Verdict:** `NO-GO` for cross-page setup UX density and source-truth clarity. The setup pages need a shared compact command-band phase, and timetable work must not hide the fact that the active saved dataset differs from the previous EnrollPro-backed school year.
+
+## [2026-07-18] Timetable Workflow UX Recovery Phase 5
+
+**Scope:** Older-user accessibility and foolproofing for the timetable workflow.
+
+**Implemented:**
+- Added persistent plain-language task guidance for placing unassigned sessions, switching sessions, draft planning, and conflict meaning in the timetable task guide.
+- Increased primary timetable task-mode controls to 44px targets.
+- Added an inline Undo recovery affordance when manual edit history exists, without adding another row that starves mobile panels.
+- Added `role="status"` and `aria-live="polite"` to the timetable on-page action status region.
+- Extended non-error action status visibility to 6 seconds so placement/swap outcomes are not toast-only.
+- Added page-level success/warning messages for draft placement, draft swaps, and generated occupied-session swaps.
+- Added pre-preview conflict guidance in `Review draft placement` so Blocking and Warnings are visible before teacher/room preview completes.
+- Added short-height viewport help-strip overlay behavior to keep guidance visible without reducing the unassigned rail below the Phase 3 usable-height gate.
+- Added moderated older-user script `docs/qa/timetable-phase5-older-user-usability-script-2026-07-18.md`.
+- Added live Tailnet gate `qa-artifacts/playwright/specs/timetable-workflow-phase05.spec.ts`.
+
+**Failures found and fixed during verification:**
+- Initial Phase 5 help used active-mode-only copy, so switch guidance was not visible until a source class was selected. Fixed by making place/switch/draft/conflict instructions persistent.
+- The first Phase 5 workflow test reused active unassigned-placement state before keyboard swap verification. Fixed the gate by isolating workflows with a fresh timetable navigation.
+- `Review draft placement` did not show conflict meaning before room selection. Fixed by adding neutral Blocking/Warnings guidance before preview data exists.
+- The first implementation added too much header height and regressed the Phase 3 mobile-landscape unassigned-panel height gate. Fixed by moving recovery into the help strip and rendering the help strip as a short-viewport overlay.
+
+**Commands run:**
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `20/20`.
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run build` in `atlas-client`: PASS.
+- `npx playwright test qa-artifacts/playwright/specs/timetable-workflow-phase05.spec.ts --workers=1`: PASS `6/6` across desktop, mobile portrait, and mobile landscape.
+- `npx playwright test qa-artifacts/playwright/specs/timetable-workflow-phase03.spec.ts --workers=1`: PASS `3/3` after the short-height layout correction.
+- `npx playwright test qa-artifacts/playwright/specs/timetable-workflow-phase01.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase02.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase03.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase04.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase05.spec.ts --workers=1`: PASS `27/27` across desktop, mobile portrait, and mobile landscape.
+
+**Verdict:** Phase 5 is technical GO. Moderated older-user participant evidence remains a human validation activity and should be captured during Phase 6 release-gate closure.
+
+## [2026-07-18] Timetable Workflow UX Recovery Phase 6
+
+**Scope:** Final regression and release gate for timetable workflow recovery.
+
+**Implemented:**
+- Added `qa-artifacts/playwright/specs/timetable-workflow-phase06.spec.ts`.
+- Added `docs/qa/timetable-phase6-release-gate-report-2026-07-18.md`.
+- Added a live Tailnet release gate that verifies `/timetable` navigation has no app-critical errors, no global vertical scrollbar, no horizontal overflow, visible first action/table readiness, click-placement feedback, and drag feedback without committing live writes.
+- Added plain-language drag overlay copy: `Release on a highlighted cell to review move or swap.`
+- Added a UX guardrail to prevent removing the Phase 6 drag overlay guidance.
+
+**Failures found and fixed during verification:**
+- The first Phase 6 gate exposed that drag had visual movement but no plain-language instruction. The drag overlay now explains the release action and review outcome.
+- Early Phase 6 test iterations used unreliable drag target selection. The final gate uses a visible source entry and adjacent timetable cell relationship, plus blocks non-preview writes.
+
+**Commands run:**
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `21/21`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run build` in `atlas-client`: PASS.
+- `npx playwright test qa-artifacts/playwright/specs/timetable-workflow-phase06.spec.ts --workers=1`: PASS `6/6` across desktop, mobile portrait, and mobile landscape.
+- `npx playwright test qa-artifacts/playwright/specs/timetable-workflow-phase01.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase02.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase03.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase04.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase05.spec.ts qa-artifacts/playwright/specs/timetable-workflow-phase06.spec.ts --workers=1`: PASS `33/33` across desktop, mobile portrait, and mobile landscape.
+
+**Notes:**
+- `atlas-client/package.json` has no configured `lint` script, so lint could not be run as a package gate.
+- Phase 6 write-sensitive tests blocked non-preview generation mutations and verified no live timetable writes were committed.
+
+**Verdict:** Phase 6 is GO. Timetable workflow recovery Phase 0 through Phase 6 is technically closed. Moderated older-user participant evidence remains a rollout-readiness activity.
+
+## [2026-07-18] Timetable Simplification Recovery Phase 0-2
+
+**Scope:** Follow-up recovery after user-reported timetable regressions: overwhelming UI, missing grid-wide cell guidance, generated unassigned drag/click placement problems, and obsolete teacher/room assignment flow in timetable.
+
+**Implemented:**
+- Added `docs/phases/timetable-simplification-recovery-plan-2026-07-18.md` with phases 0-6 for timetable simplification and recovery.
+- Restored grid-wide `Place` / `Swap` guidance while a generated unassigned/session source is selected or dragged.
+- Kept conflict lookup off the pointer-frequency drag handler by dispatching a stable drag-source event and memoizing visible-cell preview state per source change.
+- Removed the generated-run obsolete `Assign teacher and room` assignment dialog surface.
+- Changed generated unassigned placement so timetable uses the item Teaching Load owner and section home room for `PLACE_UNASSIGNED`.
+- Changed generated-run missing-teacher copy from `Choose teacher` to `Fix teaching load`.
+- Added `qa-artifacts/playwright/specs/timetable-simplification-recovery.spec.ts` to validate selected and dragged generated unassigned source guidance against the live Tailnet without committing writes.
+
+**Commands run:**
+- `npm run test:ux-guardrails` in `atlas-client`: PASS `23/23`.
+- `npm run test:timetable-conflict` in `atlas-client`: PASS `10/10`.
+- `npx tsc --noEmit` in `atlas-client`: PASS.
+- `npm run build` in `atlas-client`: PASS.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-simplification-recovery.spec.ts --workers=1`: PASS `3/3` across desktop, mobile portrait, and mobile landscape on `https://njgrm.buru-degree.ts.net`.
+- `npx playwright test -c playwright.config.ts qa-artifacts/playwright/specs/timetable-workflow-phase06.spec.ts --workers=1`: PASS `6/6` across desktop, mobile portrait, and mobile landscape on `https://njgrm.buru-degree.ts.net`.
+
+**Failures found and fixed during verification:**
+- `npx tsc --noEmit` initially failed because `placeGeneratedUnassigned` referenced `openTacticalSandbox` before declaration. Fixed by moving the callback above the generated-unassigned helper.
+- The new simplification Playwright gate initially selected timetable drop cells by `role="button"` before a source was active. Fixed the test to select cells by stable timetable data attributes.
+- The existing Phase 6 gate still expected old `Replace Preview` / `Swap Preview` labels. Fixed the gate to accept the simplified `Place` / `Swap` labels.
+
+**Verdict:** Timetable simplification recovery phases 0-2 are GO for Codex self-validation. Phase 3 remains pending for modern swap-review unification across generated and pre-generation flows. Phase 4-5 remain pending for default-page simplification and older-user visual density/copy cleanup.

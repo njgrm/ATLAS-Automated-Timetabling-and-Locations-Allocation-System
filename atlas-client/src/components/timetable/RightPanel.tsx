@@ -1,3 +1,4 @@
+import { memo, Profiler, useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
 	Clock,
@@ -20,6 +21,7 @@ import { ResizableHandle, ResizablePanel } from '@/ui/resizable';
 import { ScrollArea } from '@/ui/scroll-area';
 import { Separator } from '@/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
+import { onProfilerRender } from '@/components/timetable/ScheduleReviewWorkspace';
 
 type RightPanelProps = {
 	rightPanelRef: any;
@@ -57,10 +59,11 @@ type RightPanelProps = {
 	setPendingUnassignId: (id: number | null) => void;
 	setShowUnassignConfirm: (open: boolean) => void;
 	enterManualEditView: (action: 'CHANGE_ROOM' | 'CHANGE_FACULTY') => void;
+	openTacticalSandbox: () => void;
 	dayShort: Record<string, string>;
 };
 
-export function RightPanel(props: RightPanelProps) {
+function RightPanelImpl(props: RightPanelProps) {
 	const {
 		rightPanelRef,
 		setIsRightCollapsed,
@@ -97,21 +100,31 @@ export function RightPanel(props: RightPanelProps) {
 		setPendingUnassignId,
 		setShowUnassignConfirm,
 		enterManualEditView,
+		openTacticalSandbox,
 		dayShort,
 	} = props;
+	const hasDetailContent = Boolean(selectedEntry || (isPreGenerationWorkspace && preGenKbSource?.type === 'draftQueue'));
+
+	useEffect(() => {
+		if (!hasDetailContent) {
+			rightPanelRef.current?.collapse();
+			setIsRightCollapsed(true);
+		}
+	}, [hasDetailContent, rightPanelRef, setIsRightCollapsed]);
 
 	return (
-		<>
-			<ResizableHandle withHandle />
+		<Profiler id="Right Panel" onRender={onProfilerRender}>
+			<>
+			<ResizableHandle withHandle className={!isDesktop && !hasDetailContent ? 'hidden' : undefined} />
 			<ResizablePanel
 				ref={rightPanelRef}
 				id="right-panel"
 				order={3}
 				minSize={12}
-				maxSize={30}
-				defaultSize={20}
+				maxSize={isDesktop ? 30 : 82}
+				defaultSize={isDesktop ? 20 : 72}
 				collapsible
-				collapsedSize={3}
+				collapsedSize={isDesktop ? 3 : 0}
 				onCollapse={() => setIsRightCollapsed(true)}
 				onExpand={() => setIsRightCollapsed(false)}
 				className="flex flex-col min-h-0 bg-background overflow-hidden border-l border-border"
@@ -175,7 +188,7 @@ export function RightPanel(props: RightPanelProps) {
 											{preGenKbSource.item.hasNoTeacher ? (
 												<>
 													<UserX className="size-4 shrink-0 text-amber-500" />
-													<p className="text-xs text-amber-700">No teacher assigned — place without faculty</p>
+													<p className="text-xs text-amber-700">No Teaching Load owner — repair before placing</p>
 												</>
 											) : preGenKbSource.item.facultyOptions[0] ? (
 												<>
@@ -409,11 +422,19 @@ export function RightPanel(props: RightPanelProps) {
 											}} aria-label="Move timeslot">
 												<Clock className="size-3.5 mr-2 shrink-0" />Move Timeslot
 											</Button>
+											<Button variant="outline" size="sm" className="w-full h-8 text-xs justify-start" onClick={() => {
+												setKbSelectedSource({ type: 'entry', entry: selectedEntry! });
+												setSelectedEntry(null);
+												setSelectedViolation(null);
+												toast.info('Switch mode selected. Click another occupied session to review the swap before saving.');
+											}} aria-label="Switch with another session">
+												<Clock className="size-3.5 mr-2 shrink-0" />Switch with another session
+											</Button>
 											<Button variant="outline" size="sm" className="w-full h-8 text-xs justify-start" onClick={() => enterManualEditView('CHANGE_ROOM')} aria-label="Change room">
 												<DoorOpen className="size-3.5 mr-2 shrink-0" />Change Room
 											</Button>
-											<Button variant="outline" size="sm" className="w-full h-8 text-xs justify-start" onClick={() => enterManualEditView('CHANGE_FACULTY')} aria-label="Reassign teacher">
-												<Users className="size-3.5 mr-2 shrink-0" />Reassign Faculty
+											<Button variant="outline" size="sm" className="w-full h-8 text-xs justify-start" onClick={() => openTacticalSandbox()} aria-label="Fix Teaching Load owner">
+												<Users className="size-3.5 mr-2 shrink-0" />Fix Teaching Load Owner
 											</Button>
 										</>
 									)}
@@ -443,6 +464,9 @@ export function RightPanel(props: RightPanelProps) {
 					</AnimatePresence>
 				)}
 			</ResizablePanel>
-		</>
+			</>
+		</Profiler>
 	);
 }
+
+export const RightPanel = memo(RightPanelImpl);

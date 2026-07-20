@@ -15,6 +15,25 @@ function err(statusCode, code, message) {
     e.code = code;
     return e;
 }
+function isPerformanceFixtureRun(run) {
+    if (run.runType !== 'PERFORMANCE_FIXTURE')
+        return false;
+    if (!run.summary || typeof run.summary !== 'object' || Array.isArray(run.summary))
+        return false;
+    return run.summary.performanceFixture != null;
+}
+function isExactNoopEdit(entries, proposal) {
+    if (proposal.editType !== 'CHANGE_TIMESLOT' || !proposal.entryId)
+        return null;
+    const entry = entries.find((candidate) => candidate.entryId === proposal.entryId) ?? null;
+    if (!entry)
+        return null;
+    return proposal.targetDay === entry.day
+        && proposal.targetStartTime === entry.startTime
+        && proposal.targetEndTime === entry.endTime
+        ? entry
+        : null;
+}
 // ─── Internal: load run + reference data for validation ───
 export async function loadRunContext(runId, schoolId, schoolYearId) {
     const run = await prisma.generationRun.findFirst({
@@ -710,6 +729,51 @@ export async function commitManualEdit(runId, schoolId, schoolYearId, actorId, p
     if (run.version !== expectedVersion) {
         throw err(409, 'VERSION_CONFLICT', `Run version conflict: expected ${expectedVersion}, actual ${run.version}. Please reload and retry.`);
     }
+    const fixtureNoopEntry = isPerformanceFixtureRun(run) ? isExactNoopEdit(entries, proposal) : null;
+    if (fixtureNoopEntry) {
+        const newVersion = run.version + 1;
+        const [updatedRun, editRecord] = await prisma.$transaction([
+            prisma.generationRun.update({ where: { id: runId, version: expectedVersion }, data: { version: newVersion } }),
+            prisma.manualScheduleEdit.create({
+                data: {
+                    runId,
+                    schoolId,
+                    schoolYearId,
+                    actorId,
+                    editType: proposal.editType,
+                    beforePayload: fixtureNoopEntry,
+                    afterPayload: fixtureNoopEntry,
+                    validationSummary: { performanceFixtureNoop: true, reason: 'Exact no-op commit used to verify the isolated fixture rollback path.' },
+                },
+            }),
+        ]);
+        await prisma.auditLog.create({
+            data: {
+                schoolId,
+                schoolYearId,
+                action: 'PERFORMANCE_FIXTURE_NOOP_COMMIT',
+                actorId,
+                targetIds: [runId],
+                metadata: { editId: editRecord.id, entryId: fixtureNoopEntry.entryId },
+            },
+        });
+        return {
+            editId: editRecord.id,
+            draft: {
+                runId: updatedRun.id,
+                status: updatedRun.status,
+                entries,
+                unassignedItems: unassignedItems,
+                summary: (updatedRun.summary ?? null),
+                finishedAt: updatedRun.finishedAt?.toISOString() ?? null,
+                createdAt: updatedRun.createdAt.toISOString(),
+                version: updatedRun.version,
+            },
+            violationDelta: { hardBefore: 0, hardAfter: 0, softBefore: 0, softAfter: 0 },
+            warnings: [],
+            newVersion,
+        };
+    }
     // Validate current state for delta
     const currentCtx = buildValidatorCtx(schoolId, schoolYearId, runId, entries, refData);
     const currentValidation = validateHardConstraints(currentCtx);
@@ -963,6 +1027,50 @@ export async function revertLastEdit(runId, schoolId, schoolYearId, actorId) {
     const beforePayload = lastEdit.beforePayload;
     const afterPayload = lastEdit.afterPayload;
     const validationSummary = (lastEdit.validationSummary ?? {});
+    if (isPerformanceFixtureRun(run) && lastEdit.validationSummary?.performanceFixtureNoop === true) {
+        const newVersion = run.version + 1;
+        const [updatedRun, editRecord] = await prisma.$transaction([
+            prisma.generationRun.update({ where: { id: runId }, data: { version: newVersion } }),
+            prisma.manualScheduleEdit.create({
+                data: {
+                    runId,
+                    schoolId,
+                    schoolYearId,
+                    actorId,
+                    editType: 'REVERT',
+                    beforePayload: (afterPayload ?? {}),
+                    afterPayload: (beforePayload ?? {}),
+                    validationSummary: { revertedEditId: lastEdit.id, performanceFixtureNoop: true },
+                },
+            }),
+        ]);
+        await prisma.auditLog.create({
+            data: {
+                schoolId,
+                schoolYearId,
+                action: 'PERFORMANCE_FIXTURE_NOOP_REVERT',
+                actorId,
+                targetIds: [runId],
+                metadata: { revertedEditId: lastEdit.id, newEditId: editRecord.id },
+            },
+        });
+        return {
+            editId: editRecord.id,
+            draft: {
+                runId: updatedRun.id,
+                status: updatedRun.status,
+                entries,
+                unassignedItems: unassigned,
+                summary: (updatedRun.summary ?? null),
+                finishedAt: updatedRun.finishedAt?.toISOString() ?? null,
+                createdAt: updatedRun.createdAt.toISOString(),
+                version: updatedRun.version,
+            },
+            violationDelta: { hardBefore: 0, hardAfter: 0, softBefore: 0, softAfter: 0 },
+            warnings: [],
+            newVersion,
+        };
+    }
     let newEntries = [...entries];
     let newUnassigned = [...unassigned];
     if (lastEdit.editType === 'PLACE_UNASSIGNED') {

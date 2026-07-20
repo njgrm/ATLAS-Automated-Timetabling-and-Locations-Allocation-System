@@ -376,7 +376,7 @@ export function TeacherIdentityStrip({
 											<div className="flex flex-wrap gap-2">
 												{rotationTermBreakdown.map(f => (
 													<Badge key={f.family} variant="secondary" className="h-5 text-[0.55rem] font-bold bg-sky-50 text-sky-700 border-sky-100">
-														{f.family}: {f.dominantTermLabel || `T${f.dominantTermRank}`}
+												{f.family}: {f.peakTermLabel || (f.peakTermRank != null ? `T${f.peakTermRank}` : 'Peak term')}
 													</Badge>
 												))}
 											</div>

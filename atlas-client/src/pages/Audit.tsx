@@ -530,6 +530,13 @@ export default function Audit() {
 	const warningCount = findingGroups.reduce((total, group) => total + group.findings.filter((finding) => finding.severity === 'warning').length, 0);
 	const avgLoad = faculty.reduce((sum, facultyMember) => sum + (facultyMember.loadPercentage ?? 0), 0) / (faculty.length || 1);
 	const sourceLabel = dataSource === 'live' ? 'Live upstream-backed' : dataSource === 'cached' ? 'ATLAS saved evidence' : 'No saved evidence';
+	const priorityFindings = findingGroups
+		.flatMap((group) => group.findings)
+		.sort((left, right) => {
+			const rank: Record<FindingSeverity, number> = { blocker: 0, warning: 1, info: 2 };
+			return rank[left.severity] - rank[right.severity];
+		})
+		.slice(0, 3);
 	const defaultGroupId = (() => {
 		const focus = searchParams.get('focus');
 		if (focus === 'timetable') return 'constraints';
@@ -677,6 +684,30 @@ export default function Audit() {
 								</div>
 							</div>
 						</div>
+					)}
+
+					{priorityFindings.length > 0 && (
+						<section aria-labelledby="priority-findings-heading" className="rounded-2xl border border-primary/10 bg-white p-4 shadow-soft">
+							<div className="mb-3">
+								<h2 id="priority-findings-heading" className="text-lg font-bold text-slate-900">Fix these first</h2>
+								<p className="text-sm text-slate-500">Start with the highest-impact issues before reviewing the full report.</p>
+							</div>
+							<div className="grid gap-2 lg:grid-cols-3">
+								{priorityFindings.map((finding) => (
+									<div key={finding.id} className="flex min-h-28 flex-col justify-between rounded-xl border border-slate-100 bg-slate-50 p-3">
+										<div>
+											<Badge variant="outline" className={`rounded-full ${severityClassName(finding.severity)}`}>{severityLabel(finding.severity)}</Badge>
+											<p className="mt-2 text-sm font-bold text-slate-900">{finding.title}</p>
+										</div>
+										<Button asChild variant="outline" size="sm" className="mt-3 justify-between rounded-xl bg-white">
+											<Link to={finding.route} data-repair-target={`${finding.repairTarget}-priority`}>
+												{finding.actionLabel}<ArrowRight className="size-3.5" />
+											</Link>
+										</Button>
+									</div>
+								))}
+							</div>
+						</section>
 					)}
 
 					<div className="rounded-2xl bg-white p-4 shadow-soft-xl">

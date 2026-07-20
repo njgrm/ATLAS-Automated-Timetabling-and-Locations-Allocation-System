@@ -799,6 +799,41 @@ async function main() {
 		console.log('ℹ️  Skipped Diego Aquino faculty auth — FacultyMirror not yet synced. Run faculty sync then re-seed.');
 	}
 
+	// Seed the current live QA faculty auth account from the real EnrollPro teacher record.
+	// Employee ID 2000056 is the documented faculty QA identity for Tailnet browser checks.
+	const facultyMirrorForElpidio = await prisma.facultyMirror.findFirst({
+		where: { schoolId: school.id, employeeId: '2000056', firstName: 'ELPIDIO', lastName: 'AQUINO', isStale: false },
+	});
+	if (facultyMirrorForElpidio) {
+		const elpidioHash = await bcrypt.hash('DepEd2026!', 12);
+		await prisma.atlasAuthAccount.upsert({
+			where: { employeeId: '2000056' },
+			update: {
+				email: 'elpidio.aquino@deped.edu.ph',
+				accountName: '2000056',
+				passwordHash: elpidioHash,
+				role: 'faculty',
+				isActive: true,
+				failedLoginCount: 0,
+				lockedUntil: null,
+				facultyId: facultyMirrorForElpidio.id,
+			},
+			create: {
+				employeeId: '2000056',
+				accountName: '2000056',
+				email: 'elpidio.aquino@deped.edu.ph',
+				passwordHash: elpidioHash,
+				role: 'faculty',
+				schoolId: school.id,
+				facultyId: facultyMirrorForElpidio.id,
+				isActive: true,
+			},
+		});
+		console.log('✅ Seeded/updated faculty auth account for AQUINO, ELPIDIO C. (Employee ID: 2000056).');
+	} else {
+		console.log('ℹ️  Skipped Elpidio Aquino faculty auth — FacultyMirror not yet synced. Run faculty sync then re-seed.');
+	}
+
 	// Legacy: also seed Maria Santos demo account if her stub faculty record still exists
 	const facultyMirrorForDemo = await prisma.facultyMirror.findFirst({
 		where: { schoolId: school.id, externalId: 1 },

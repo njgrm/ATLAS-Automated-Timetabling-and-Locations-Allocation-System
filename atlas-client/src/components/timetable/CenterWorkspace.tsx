@@ -1,14 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState, Profiler } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { AlertTriangle, CalendarClock, ChevronLeft, Loader2, Lock, MapPin } from 'lucide-react';
+import { onProfilerRender } from './ScheduleReviewWorkspace';
 
-import { CampusMap } from '@/components/CampusMap';
-import ManualEditPanel from '@/components/ManualEditPanel';
-import SchedulingPolicyPane from '@/components/SchedulingPolicyPane';
-import { BuildingView, ROOM_COLORS, ROOM_TYPE_LABELS } from '@/components/BuildingView';
 import { ClassProgramMatrixView } from '@/components/timetable/ClassProgramMatrixView';
-import { TacticalSandboxDock } from '@/components/timetable/TacticalSandboxDock';
 import { TimetableGrid } from '@/components/timetable/TimetableGrid';
+import { ROOM_TYPE_LABELS } from '@/lib/subject-constants';
 import { buildUnassignedKey } from '@/lib/timetable-utils';
 import { formatTime } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
@@ -17,7 +14,40 @@ import { Checkbox } from '@/ui/checkbox';
 import { ResizablePanel } from '@/ui/resizable';
 import { ScrollArea } from '@/ui/scroll-area';
 
-import type { CommitResult, ManualEditProposal, TeachingLoadRepairChange, TeachingLoadRepairPreviewResult, UnassignedItem, Violation } from '@/types';
+import type { CommitResult, ManualEditProposal, RoomType, TeachingLoadRepairChange, TeachingLoadRepairPreviewResult, UnassignedItem, Violation } from '@/types';
+
+const CampusMap = lazy(() => import('@/components/CampusMap').then((module) => ({
+	default: module.CampusMap,
+})));
+const ManualEditPanel = lazy(() => import('@/components/ManualEditPanel'));
+const SchedulingPolicyPane = lazy(() => import('@/components/SchedulingPolicyPane'));
+const BuildingView = lazy(() => import('@/components/BuildingView').then((module) => ({
+	default: module.BuildingView,
+})));
+const TacticalSandboxDock = lazy(() => import('@/components/timetable/TacticalSandboxDock').then((module) => ({
+	default: module.TacticalSandboxDock,
+})));
+
+const ROOM_COLORS: Record<RoomType, { bg: string; text: string }> = {
+	CLASSROOM: { bg: 'bg-blue-50', text: 'text-blue-700' },
+	LABORATORY: { bg: 'bg-violet-50', text: 'text-violet-700' },
+	COMPUTER_LAB: { bg: 'bg-cyan-50', text: 'text-cyan-700' },
+	TLE_WORKSHOP: { bg: 'bg-orange-50', text: 'text-orange-700' },
+	LIBRARY: { bg: 'bg-amber-50', text: 'text-amber-700' },
+	GYMNASIUM: { bg: 'bg-emerald-50', text: 'text-emerald-700' },
+	FACULTY_ROOM: { bg: 'bg-rose-50', text: 'text-rose-700' },
+	OFFICE: { bg: 'bg-gray-50', text: 'text-gray-600' },
+	OTHER: { bg: 'bg-slate-50', text: 'text-slate-600' },
+};
+
+function AdvancedSurfaceFallback({ label }: { label: string }) {
+	return (
+		<div className="flex h-full min-h-0 flex-1 items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+			<Loader2 className="mr-2 size-4 animate-spin text-primary" />
+			{label}
+		</div>
+	);
+}
 
 function projectSandboxEntries(entries: any[], sandboxFacultyByEntryId: Map<string, number>): any[] {
 	if (sandboxFacultyByEntryId.size === 0) return entries;
@@ -110,10 +140,10 @@ type CenterWorkspaceProps = {
 	entryContextLabel: (entry: any) => string;
 	formatFacultyInitials: (id: number) => string;
 	roomLabelShort: (roomId: number) => string;
-	dragItem: any;
 	kbSelectedSource: any;
 	handleKbPlace: (day: string, startTime: string, endTime: string) => Promise<void>;
-	cellConflictMap: any;
+	getCellConflict: any;
+	getLiveCellConflict: any;
 	navToFaculty: (id: number) => void;
 	navToSection: (id: number) => void;
 	navToRoom: (id: number) => void;
@@ -128,9 +158,11 @@ type CenterWorkspaceProps = {
 	setPreGenPreviewError: (value: string | null) => void;
 	setPreGenAllowSoftOverride: (value: boolean) => void;
 	dayShort: Record<string, string>;
+	tacticalSandboxOpen: boolean;
+	setTacticalSandboxOpen: (v: boolean) => void;
 };
 
-export function CenterWorkspace(props: CenterWorkspaceProps) {
+export const CenterWorkspace = memo(function CenterWorkspace(props: CenterWorkspaceProps) {
 	const {
 		centerView,
 		selectedEntry,
@@ -185,10 +217,10 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 		entryContextLabel,
 		formatFacultyInitials,
 		roomLabelShort,
-		dragItem,
 		kbSelectedSource,
 		handleKbPlace,
-		cellConflictMap,
+		getCellConflict,
+		getLiveCellConflict,
 		navToFaculty,
 		navToSection,
 		navToRoom,
@@ -203,15 +235,26 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 		setPreGenPreviewError,
 		setPreGenAllowSoftOverride,
 		dayShort,
+		tacticalSandboxOpen,
+		setTacticalSandboxOpen,
 	} = props;
 
-	const [tacticalSandboxOpen, setTacticalSandboxOpen] = useState(false);
 	const [sandboxFacultyByEntryId, setSandboxFacultyByEntryId] = useState<Map<string, number>>(new Map());
 	const [autoOpenedSandboxEntryId, setAutoOpenedSandboxEntryId] = useState<string | null>(null);
 	const [suppressedSandboxEntryId, setSuppressedSandboxEntryId] = useState<string | null>(null);
+	const [isCompactViewport, setIsCompactViewport] = useState(() => (
+		typeof window !== 'undefined' ? window.innerWidth < 1024 : false
+	));
 	const selectedEntryId = selectedEntry?.entryId ?? null;
 	const selectedUnassignedKey = selectedUnassigned ? buildUnassignedKey(selectedUnassigned) : null;
 	const activeSandboxKey = selectedEntryId ?? selectedUnassignedKey;
+
+	useEffect(() => {
+		const syncViewport = () => setIsCompactViewport(window.innerWidth < 1024);
+		syncViewport();
+		window.addEventListener('resize', syncViewport);
+		return () => window.removeEventListener('resize', syncViewport);
+	}, []);
 
 	useEffect(() => {
 		setSandboxFacultyByEntryId(new Map());
@@ -219,20 +262,6 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 		setAutoOpenedSandboxEntryId(null);
 		setSuppressedSandboxEntryId(null);
 	}, [draft?.runId, draft?.version]);
-
-	useEffect(() => {
-		if (centerView !== 'schedule' || !activeSandboxKey) {
-			setTacticalSandboxOpen(false);
-			setAutoOpenedSandboxEntryId(null);
-			setSuppressedSandboxEntryId(null);
-			return;
-		}
-		if (suppressedSandboxEntryId === activeSandboxKey) return;
-		if (autoOpenedSandboxEntryId === activeSandboxKey) return;
-		setTacticalSandboxOpen(true);
-		setAutoOpenedSandboxEntryId(activeSandboxKey);
-		setSuppressedSandboxEntryId(null);
-	}, [activeSandboxKey, autoOpenedSandboxEntryId, centerView, suppressedSandboxEntryId]);
 
 	const handleTacticalSandboxOpenChange = useCallback((open: boolean) => {
 		setTacticalSandboxOpen(open);
@@ -274,6 +303,9 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 		() => buildSandboxTeacherConflictEntryIds(sandboxDraftEntries, localSandboxChangedEntryIds),
 		[localSandboxChangedEntryIds, sandboxDraftEntries],
 	);
+	const shouldMountTacticalSandbox = tacticalSandboxOpen
+		|| sandboxFacultyByEntryId.size > 0
+		|| (centerView === 'schedule' && selectedUnassigned !== null);
 
 	const applySandboxFaculty = useCallback((entryIds: string[], facultyId: number) => {
 		setSandboxFacultyByEntryId((previous) => {
@@ -303,7 +335,7 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 	}, [draft?.summary]);
 
 	return (
-		<ResizablePanel id="center-panel" order={2} defaultSize={60} className="flex-1 min-w-0 flex flex-col min-h-0 relative bg-background" data-tutorial="center-grid">
+		<ResizablePanel id="center-panel" order={2} defaultSize={isCompactViewport ? 40 : 60} className="flex-1 min-w-0 flex flex-col min-h-0 relative bg-background" data-tutorial="center-grid">
 			<AnimatePresence mode="wait">
 				{centerView === 'policy' ? (
 					<motion.div
@@ -314,12 +346,14 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 						transition={{ duration: 0.18 }}
 						className="flex flex-col min-h-0 h-full"
 					>
-						<SchedulingPolicyPane
-							schoolId={defaultSchoolId}
-							schoolYearId={schoolYearId}
-							onBack={exitPolicyView}
-							onPolicySaved={handleRefresh}
-						/>
+						<Suspense fallback={<AdvancedSurfaceFallback label="Loading policy workspace..." />}>
+							<SchedulingPolicyPane
+								schoolId={defaultSchoolId}
+								schoolYearId={schoolYearId}
+								onBack={exitPolicyView}
+								onPolicySaved={handleRefresh}
+							/>
+						</Suspense>
 					</motion.div>
 				) : centerView === 'manual-edit' && selectedEntry ? (
 					<motion.div
@@ -330,30 +364,32 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 						transition={{ duration: 0.18 }}
 						className="flex flex-col min-h-0 h-full"
 					>
-						<ManualEditPanel
-							entry={selectedEntry}
-							violationIndex={violationIndex}
-							followUps={followUps}
-							onToggleFollowUp={toggleFollowUp}
-							onClose={() => setCenterView('schedule')}
-							subjectLabel={subjectLabel}
-							facultyLabel={facultyLabel}
-							sectionLabel={sectionLabel}
-							gradeForSection={gradeForSection}
-							roomLabel={roomLabel}
-							isStaleRoom={isStaleRoom}
-							timeSlots={timeSlots}
-							roomMap={roomMap}
-							facultyMap={facultyMap}
-							subjectMap={subjectMap}
-							draftEntries={draftEntries}
-							onPreview={previewEdit}
-							onCommit={commitEdit}
-							previewLoading={previewLoading}
-							commitLoading={commitLoading}
-							initialAction={pendingAction}
-							onForceOpen={() => {}}
-						/>
+						<Suspense fallback={<AdvancedSurfaceFallback label="Loading manual edit tools..." />}>
+							<ManualEditPanel
+								entry={selectedEntry}
+								violationIndex={violationIndex}
+								followUps={followUps}
+								onToggleFollowUp={toggleFollowUp}
+								onClose={() => setCenterView('schedule')}
+								subjectLabel={subjectLabel}
+								facultyLabel={facultyLabel}
+								sectionLabel={sectionLabel}
+								gradeForSection={gradeForSection}
+								roomLabel={roomLabel}
+								isStaleRoom={isStaleRoom}
+								timeSlots={timeSlots}
+								roomMap={roomMap}
+								facultyMap={facultyMap}
+								subjectMap={subjectMap}
+								draftEntries={draftEntries}
+								onPreview={previewEdit}
+								onCommit={commitEdit}
+								previewLoading={previewLoading}
+								commitLoading={commitLoading}
+								initialAction={pendingAction}
+								onForceOpen={() => {}}
+							/>
+						</Suspense>
 					</motion.div>
 				) : centerView === 'map' ? (
 					<motion.div
@@ -377,17 +413,19 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 								{preGenOnboarding ? 'Back to Grid' : 'Back to Schedule'}
 							</Button>
 						</div>
-						<CampusMap
-							buildings={buildings}
-							activeBuildingId={mapBuildingId}
-							onSelect={(buildingId) => {
-								if (buildingId == null) {
-									setMapBuildingId(null);
-									return;
-								}
-								void openBuildingWorkspace(buildingId);
-							}}
-						/>
+						<Suspense fallback={<AdvancedSurfaceFallback label="Loading map workspace..." />}>
+							<CampusMap
+								buildings={buildings}
+								activeBuildingId={mapBuildingId}
+								onSelect={(buildingId) => {
+									if (buildingId == null) {
+										setMapBuildingId(null);
+										return;
+									}
+									void openBuildingWorkspace(buildingId);
+								}}
+							/>
+						</Suspense>
 					</motion.div>
 				) : centerView === 'building' && selectedMapBuilding ? (
 					<motion.div
@@ -418,16 +456,18 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 						</div>
 						<div className="grid min-h-0 flex-1 grid-cols-12 gap-3">
 							<div className="col-span-8 min-h-0 rounded-lg border border-border bg-card p-2">
-								<BuildingView
-									building={selectedMapBuilding}
-									height={420}
-									showToolbar
-									selectedRoomId={mapRoomId}
-									onRoomSelect={(room) => {
-										if (!room) return;
-										openRoomGridWorkspace(room.id);
-									}}
-								/>
+								<Suspense fallback={<AdvancedSurfaceFallback label="Loading building view..." />}>
+									<BuildingView
+										building={selectedMapBuilding}
+										height={420}
+										showToolbar
+										selectedRoomId={mapRoomId}
+										onRoomSelect={(room) => {
+											if (!room) return;
+											openRoomGridWorkspace(room.id);
+										}}
+									/>
+								</Suspense>
 							</div>
 							<div className="col-span-4 min-h-0 rounded-lg border border-border bg-muted/20 p-3">
 								<p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">Rooms</p>
@@ -551,10 +591,10 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 										showTeacherDetails={viewMode !== 'section'}
 										pivotLabel={pivotLabel}
 										roomLabelShort={roomLabelShort}
-										dragItem={dragItem}
 										kbSelectedSource={kbSelectedSource}
 										onKbPlace={handleKbPlace}
-										conflictMap={cellConflictMap}
+										getCellConflict={getCellConflict}
+										getLiveCellConflict={getLiveCellConflict}
 										onNavToFaculty={navToFaculty}
 										onNavToSection={navToSection}
 										onNavToRoom={navToRoom}
@@ -595,10 +635,10 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 										<span className="font-medium">{conflict.humanTitle}</span> — {conflict.humanDetail}
 									</div>
 								))}
-								{preGenPending && cellConflictMap?.get(`${preGenPending.day}-${preGenPending.startTime}`)?.kind === 'hard' && (
+						{preGenPending && getCellConflict?.(`${preGenPending.day}-${preGenPending.startTime}-${preGenPending.endTime}`)?.kind === 'hard' && (
 									<div className="flex items-start gap-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
 										<AlertTriangle className="size-3 shrink-0 mt-0.5" />
-										<span>Slot occupied — saving will add a conflict. Choose a different slot or acknowledge below.</span>
+										<span>Slot occupied — choose another slot or use the switch review before saving.</span>
 									</div>
 								)}
 								{preGenPreview?.softViolations.length ? (<div className="flex items-start gap-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800"><AlertTriangle className="size-3 shrink-0 mt-0.5" /><span>{preGenPreview.softViolations.length} soft warning(s) — informational only.</span></div>) : null}
@@ -612,7 +652,7 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 										onClick={() => void commitPreGenPending()}
 									>
 										{preGenSaving ? <Loader2 className="mr-1 size-3 animate-spin" /> : <Lock className="mr-1 size-3" />}
-										Save Anchor
+										Save placement
 									</Button>
 									<Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setPreGenPending(null); setPreGenPreview(null); setPreGenPreviewError(null); setPreGenAllowSoftOverride(false); }}>
 										Cancel
@@ -623,31 +663,37 @@ export function CenterWorkspace(props: CenterWorkspaceProps) {
 					</motion.div>
 				)}
 			</AnimatePresence>
-			<TacticalSandboxDock
-				open={tacticalSandboxOpen}
-				onOpenChange={handleTacticalSandboxOpenChange}
-				selectedEntry={centerView === 'schedule' ? selectedEntry : null}
-				selectedUnassigned={centerView === 'schedule' ? selectedUnassigned : null}
-				draftEntries={draftEntries}
-				schoolId={defaultSchoolId}
-				runId={draft?.runId ?? null}
-				facultyMap={facultyMap}
-				subjectMap={subjectMap}
-				roomMap={roomMap}
-				schoolYearId={schoolYearId}
-				sandboxFacultyByEntryId={sandboxFacultyByEntryId}
-				onApplyFaculty={applySandboxFaculty}
-				onPreviewTeachingLoadRepair={previewTeachingLoadRepair}
-				onCommitTeachingLoadRepair={commitTeachingLoadRepair}
-				onRevisionCreated={handleRefresh}
-				onResetSandbox={resetTacticalSandbox}
-				onDismissSelectedEntry={dismissTacticalSandboxForEntry}
-				onDismissSelectedUnassigned={dismissTacticalSandboxForUnassigned}
-				isPublished={isDraftPublished}
-				subjectLabel={subjectLabel}
-				sectionLabel={sectionLabel}
-				facultyLabel={facultyLabel}
-			/>
+			{shouldMountTacticalSandbox ? (
+				<Suspense fallback={null}>
+					<Profiler id="Tactical Sandbox" onRender={onProfilerRender}>
+						<TacticalSandboxDock
+							open={tacticalSandboxOpen}
+							onOpenChange={handleTacticalSandboxOpenChange}
+							selectedEntry={centerView === 'schedule' ? selectedEntry : null}
+							selectedUnassigned={centerView === 'schedule' ? selectedUnassigned : null}
+							draftEntries={draftEntries}
+							schoolId={defaultSchoolId}
+							runId={draft?.runId ?? null}
+							facultyMap={facultyMap}
+							subjectMap={subjectMap}
+							roomMap={roomMap}
+							schoolYearId={schoolYearId}
+							sandboxFacultyByEntryId={sandboxFacultyByEntryId}
+							onApplyFaculty={applySandboxFaculty}
+							onPreviewTeachingLoadRepair={previewTeachingLoadRepair}
+							onCommitTeachingLoadRepair={commitTeachingLoadRepair}
+							onRevisionCreated={handleRefresh}
+							onResetSandbox={resetTacticalSandbox}
+							onDismissSelectedEntry={dismissTacticalSandboxForEntry}
+							onDismissSelectedUnassigned={dismissTacticalSandboxForUnassigned}
+							isPublished={isDraftPublished}
+							subjectLabel={subjectLabel}
+							sectionLabel={sectionLabel}
+							facultyLabel={facultyLabel}
+						/>
+					</Profiler>
+				</Suspense>
+			) : null}
 		</ResizablePanel>
 	);
-}
+});

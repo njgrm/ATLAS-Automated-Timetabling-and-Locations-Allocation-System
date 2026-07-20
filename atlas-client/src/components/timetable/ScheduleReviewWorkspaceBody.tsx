@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, Profiler } from 'react';
 import { ResizableHandle, ResizablePanelGroup } from '@/ui/resizable';
 
 import { CenterWorkspace } from '@/components/timetable/CenterWorkspace';
@@ -6,6 +6,7 @@ import { LeftRail } from '@/components/timetable/LeftRail';
 import { LeftRailContent } from '@/components/timetable/LeftRailContent';
 import { RightPanel } from '@/components/timetable/RightPanel';
 import type { ScheduleReviewWorkspaceBodyContext } from '@/components/timetable/buildScheduleReviewWorkspaceContexts';
+import { onProfilerRender } from './ScheduleReviewWorkspace';
 
 type ScheduleReviewWorkspaceBodyProps = {
 	context: ScheduleReviewWorkspaceBodyContext;
@@ -16,6 +17,7 @@ function ScheduleReviewWorkspaceBodyImpl({ context }: ScheduleReviewWorkspaceBod
 		leftPanelRef,
 		setIsLeftCollapsed,
 		isLeftCollapsed,
+		isDesktop,
 		isPreGenerationWorkspace,
 		leftTab,
 		setLeftTab,
@@ -33,6 +35,7 @@ function ScheduleReviewWorkspaceBodyImpl({ context }: ScheduleReviewWorkspaceBod
 				panelRef={leftPanelRef}
 				onCollapseChange={setIsLeftCollapsed}
 				isCollapsed={isLeftCollapsed}
+				isDesktop={isDesktop}
 				isPreGenerationWorkspace={isPreGenerationWorkspace}
 				leftTab={leftTab}
 				setLeftTab={setLeftTab}
@@ -43,13 +46,26 @@ function ScheduleReviewWorkspaceBodyImpl({ context }: ScheduleReviewWorkspaceBod
 				<LeftRailContent context={leftRailContentContext} />
 			</LeftRail>
 
-			<ResizableHandle withHandle />
+			{(isDesktop || !isLeftCollapsed) && <ResizableHandle withHandle />}
 
-			<CenterWorkspace {...centerWorkspaceContext} />
+			<Profiler id="Center/Grid" onRender={onProfilerRender}>
+				<CenterWorkspace {...centerWorkspaceContext} />
+			</Profiler>
 
 			<RightPanel {...rightPanelContext} />
 		</ResizablePanelGroup>
 	);
 }
 
-export const ScheduleReviewWorkspaceBody = memo(ScheduleReviewWorkspaceBodyImpl);
+function arePropsEqual(prevProps: ScheduleReviewWorkspaceBodyProps, nextProps: ScheduleReviewWorkspaceBodyProps) {
+	if (!prevProps.context || !nextProps.context) return prevProps.context === nextProps.context;
+	const prevKeys = Object.keys(prevProps.context);
+	const nextKeys = Object.keys(nextProps.context);
+	if (prevKeys.length !== nextKeys.length) return false;
+	for (const key of prevKeys) {
+		if ((prevProps.context as any)[key] !== (nextProps.context as any)[key]) return false;
+	}
+	return true;
+}
+
+export const ScheduleReviewWorkspaceBody = memo(ScheduleReviewWorkspaceBodyImpl, arePropsEqual);

@@ -1,0 +1,160 @@
+{
+  "status": "PASS",
+  "durationMs": 967.362000000001,
+  "commits": [
+    {
+      "id": "Center/Grid",
+      "phase": "update",
+      "actualDuration": 0.3999999985098839,
+      "baseDuration": 85.3999999910593,
+      "timestamp": 1784214141653
+    },
+    {
+      "id": "Right Panel",
+      "phase": "update",
+      "actualDuration": 0,
+      "baseDuration": 8,
+      "timestamp": 1784214141653
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 1.1000000014901161,
+      "baseDuration": 86.29999999701977,
+      "timestamp": 1784214141655
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 86.29999999701977,
+      "timestamp": 1784214141656
+    },
+    {
+      "id": "Header",
+      "phase": "update",
+      "actualDuration": 130.10000000149012,
+      "baseDuration": 129.39999999850988,
+      "timestamp": 1784214142041
+    },
+    {
+      "id": "Left Rail",
+      "phase": "update",
+      "actualDuration": 68,
+      "baseDuration": 67.20000000298023,
+      "timestamp": 1784214142041
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "update",
+      "actualDuration": 84,
+      "baseDuration": 83.19999999552965,
+      "timestamp": 1784214142041
+    },
+    {
+      "id": "Right Panel",
+      "phase": "update",
+      "actualDuration": 3.2000000029802322,
+      "baseDuration": 5.399999998509884,
+      "timestamp": 1784214142042
+    },
+    {
+      "id": "Header",
+      "phase": "nested-update",
+      "actualDuration": 1.1000000014901161,
+      "baseDuration": 129.39999999850988,
+      "timestamp": 1784214142084
+    },
+    {
+      "id": "Left Rail",
+      "phase": "nested-update",
+      "actualDuration": 0.3999999985098839,
+      "baseDuration": 67.20000000298023,
+      "timestamp": 1784214142084
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 83.19999999552965,
+      "timestamp": 1784214142084
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "update",
+      "actualDuration": 0.6000000014901161,
+      "baseDuration": 83.29999999701977,
+      "timestamp": 1784214142109
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 5.0999999940395355,
+      "baseDuration": 88.19999999552965,
+      "timestamp": 1784214142116
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 7.5,
+      "baseDuration": 88.79999999701977,
+      "timestamp": 1784214142125
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 88.79999999701977,
+      "timestamp": 1784214142128
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "update",
+      "actualDuration": 1.2999999970197678,
+      "baseDuration": 88.5,
+      "timestamp": 1784214142155
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 1.3000000044703484,
+      "baseDuration": 89.70000000298023,
+      "timestamp": 1784214142159
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0.5,
+      "baseDuration": 88.89999999850988,
+      "timestamp": 1784214142162
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 88.89999999850988,
+      "timestamp": 1784214142163
+    },
+    {
+      "id": "Right Panel",
+      "phase": "update",
+      "actualDuration": 17.399999998509884,
+      "baseDuration": 15.599999994039536,
+      "timestamp": 1784214142423
+    },
+    {
+      "id": "Right Panel",
+      "phase": "nested-update",
+      "actualDuration": 8.599999994039536,
+      "baseDuration": 18.599999986588955,
+      "timestamp": 1784214142433
+    },
+    {
+      "id": "Right Panel",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 18.599999986588955,
+      "timestamp": 1784214142437
+    }
+  ]
+}

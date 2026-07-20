@@ -542,7 +542,7 @@ export default function Faculty() {
 							<SelectContent>
 								<SelectItem value="all">All load states</SelectItem>
 								<SelectItem value="assigned">With teaching load</SelectItem>
-								<SelectItem value="unassigned">No teaching load</SelectItem>
+								<SelectItem value="unassigned">Needs teaching load</SelectItem>
 							</SelectContent>
 						</Select>
 						{departments.length > 0 && (
@@ -673,25 +673,22 @@ export default function Faculty() {
 							}
 						];
 						if (teacher.isPlaceholder) {
-							actions.push(
-								{
+							actions.push({
 									label: 'Edit placeholder details',
 									icon: <Pencil className="size-4" />,
 									onSelect: () => {
 										setPlaceholderEditTarget(teacher);
 										setPlaceholderDialogOpen(true);
 									},
-								},
-								{
-									label: 'Delete placeholder',
-									icon: <Trash2 className="size-4 text-red-500" />,
-									onSelect: () => setConfirmDeleteTarget(teacher),
-									className: 'text-red-600 hover:text-red-700 font-medium',
-								}
-							);
+								});
 						}
 						return actions;
 					},
+					destructive: (teacher) => teacher.isPlaceholder ? [{
+						label: 'Delete placeholder',
+						icon: <Trash2 className="size-4" />,
+						onSelect: () => setConfirmDeleteTarget(teacher),
+					}] : [],
 				}}
 				renderMobileCard={(teacher, context) => (
 					<FacultyMobileCard faculty={teacher} primaryAction={context.primaryAction} secondaryActionMenu={context.secondaryActionMenu} />

@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview --port 5174",
     "test:auth-session": "tsx --test src/lib/__tests__/auth-session.test.ts",
+    "test:timetable-conflict": "tsx --test src/lib/__tests__/timetable-live-conflict.test.ts src/lib/__tests__/tactical-sandbox-dock-helpers.test.ts",
     "test:ux-guardrails": "tsx --test src/lib/__tests__/ux-guardrails.test.ts src/lib/__tests__/public-schedule-grade.test.ts"
   },
   "dependencies": {
@@ -46,6 +47,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",
+    "@types/node": "^25.9.5",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",

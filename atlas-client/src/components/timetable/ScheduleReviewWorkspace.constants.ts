@@ -159,7 +159,7 @@ export const TUTORIAL_STEPS = [
 	{
 		target: '[data-tutorial="manual-edit-actions"]',
 		title: 'Manual Edit Actions',
-		content: 'Select an entry, then use these buttons to move its timeslot, change room, or reassign teacher. Every edit shows a preview first.',
+		content: 'Select an entry, then use these buttons to move its timeslot, change room context, or repair Teaching Load ownership. Every edit shows a preview first.',
 		roles: ['admin', 'officer', 'SYSTEM_ADMIN'],
 	},
 	{

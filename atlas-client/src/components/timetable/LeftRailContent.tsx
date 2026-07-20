@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { memo, useEffect, Profiler } from 'react';
 import {
 	ClipboardList,
 	GripVertical,
@@ -18,12 +18,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/t
 import { DraggablePlacementPin, DraggableQueuePin, PinnedRailDropZone, UnassignDropZone } from '@/components/timetable/DraggablePinWrappers';
 import { GeneratedUnassignedPanel, GeneratedViolationsPanel } from '@/components/timetable/GeneratedRunRailPanels';
 import type { LeftRailContentContext } from '@/components/timetable/timetableContexts.types';
+import { onProfilerRender } from '@/components/timetable/ScheduleReviewWorkspace';
 
 type LeftRailContentProps = {
 	context: LeftRailContentContext;
 };
 
-export function LeftRailContent({ context }: LeftRailContentProps) {
+function LeftRailContentImpl({ context }: LeftRailContentProps) {
 	const {
 		leftTab,
 		isPreGenerationWorkspace,
@@ -67,7 +68,6 @@ export function LeftRailContent({ context }: LeftRailContentProps) {
 		pinsSubjectFilter,
 		setPinsSubjectFilter,
 		getDraggedDraftPlacementId,
-		dragItem,
 		setPendingUnassignId,
 		setShowUnassignConfirm,
 		pinsQueuePage,
@@ -167,7 +167,8 @@ export function LeftRailContent({ context }: LeftRailContentProps) {
 	}, [violationSearch, filteredViolations.length, setViolationsGroupPage]);
 
 	return (
-		<>
+		<Profiler id="Left Rail" onRender={onProfilerRender}>
+			<>
 			{leftTab === 'violations' && !isPreGenerationWorkspace ? (
 				<GeneratedViolationsPanel
 					context={context}
@@ -181,7 +182,7 @@ export function LeftRailContent({ context }: LeftRailContentProps) {
 					renderUnassignedReasonBadge={renderUnassignedReasonBadge}
 				/>
 			) : isPreGenerationWorkspace && (leftTab === 'unassigned' || leftTab === 'pinned') ? (
-				<div id={leftTab === 'pinned' ? 'panel-pinned' : 'panel-unassigned'} role="tabpanel" aria-labelledby={leftTab === 'pinned' ? 'tab-pinned' : 'tab-unassigned'} className="flex flex-col flex-1 min-h-0">
+				<div id={leftTab === 'pinned' ? 'panel-pinned' : 'panel-unassigned'} role="tabpanel" aria-labelledby={leftTab === 'pinned' ? 'tab-pinned' : 'tab-unassigned'} className="flex flex-col flex-1 min-h-0 overflow-auto">
 					<div className="shrink-0 border-b border-border px-3 py-2">
 						<div className="flex items-center justify-between gap-2">
 							<div className="flex items-center gap-1.5">
@@ -265,11 +266,11 @@ export function LeftRailContent({ context }: LeftRailContentProps) {
 						</div>
 					</div>
 					{!isDesktop && (
-						<p className="text-xs text-muted-foreground px-3 py-1 border-b border-border bg-muted/30">
+						<p className="pointer-events-none shrink-0 text-xs text-muted-foreground px-3 py-1 border-b border-border bg-muted/30">
 							Scheduling drag-and-drop requires a wider screen. Tap to select, then tap a grid slot.
 						</p>
 					)}
-					<ScrollArea className="flex-1 min-h-0">
+					<div className="shrink-0">
 						<div className="space-y-3 p-3">
 							{leftTab === 'unassigned' ? (
 								<>
@@ -283,30 +284,62 @@ export function LeftRailContent({ context }: LeftRailContentProps) {
 											.map((item) => {
 												const key = `${item.assignmentKey}-${item.sessionNumber}`;
 												const selected = preGenKbSource?.type === 'draftQueue' && preGenKbSource.item.assignmentKey === item.assignmentKey && preGenKbSource.item.sessionNumber === item.sessionNumber;
+												const queueCardClassName = cn(
+													'rounded border px-2 py-1.5 text-xs transition-colors',
+													GRADE_CARD_BG[item.gradeLevel] ?? 'bg-background border-border',
+													selected ? 'border-primary ring-1 ring-primary' : 'hover:border-primary/50',
+													isDesktop ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
+												);
+												const selectQueueItem = () => {
+													const source = { type: 'draftQueue' as const, item };
+													const nextSelected = !selected;
+													setPreGenKbSource(nextSelected ? source : null);
+													setKbSelectedSource(nextSelected ? source : null);
+													if (nextSelected) { setSelectedEntry(null); rightPanelRef.current?.expand(); }
+												};
+												if (!isDesktop) {
+													return (
+														<Button
+															key={key}
+															type="button"
+															role="button"
+															variant="ghost"
+															className={cn(queueCardClassName, 'h-auto w-full justify-start text-left')}
+															onClick={selectQueueItem}
+														>
+															<div className="min-w-0 flex-1">
+																<div className="flex items-center justify-between gap-1 min-w-0">
+																	<span className="truncate font-semibold text-xs">G{item.gradeLevel} Â· {item.sectionName}{item.cohortCode ? ` Â· ${item.cohortCode}` : ''}</span>
+																	<span className="shrink-0 text-xs text-muted-foreground/70 tabular-nums">{item.sessionNumber}/{item.sessionsPerWeek}</span>
+																</div>
+																<div className="flex items-center gap-1 min-w-0 mt-0.5">
+																	{item.hasNoTeacher ? (
+																		<UserX className="size-3 text-amber-500 shrink-0" />
+																	) : item.facultyOptions[0] ? (
+																		<span className="shrink-0 text-xs text-primary/80 font-medium">{formatFacultyInitials(item.facultyOptions[0])}</span>
+																	) : null}
+																	<span className="truncate text-xs text-muted-foreground">{item.subjectCode}</span>
+																</div>
+															</div>
+														</Button>
+													);
+												}
 												return (
 													<DraggableQueuePin
 														key={key}
 														item={item}
-														disabled={!isDesktop}
-														className={cn(
-															'rounded border px-2 py-1.5 text-xs transition-colors',
-															GRADE_CARD_BG[item.gradeLevel] ?? 'bg-background border-border',
-															selected ? 'border-primary ring-1 ring-primary' : 'hover:border-primary/50',
-															isDesktop ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
-														)}
+														disabled={false}
+														onClick={selectQueueItem}
+														onKeyDown={(e) => {
+															if (e.key === 'Enter' || e.key === ' ') {
+																e.preventDefault();
+																selectQueueItem();
+															}
+														}}
+														className={queueCardClassName}
 													>
 														<div
 															className="min-w-0 flex-1"
-															role="button"
-															tabIndex={0}
-															onClick={() => {
-																const source = { type: 'draftQueue' as const, item };
-																const nextSelected = !selected;
-																setPreGenKbSource(nextSelected ? source : null);
-																setKbSelectedSource(nextSelected ? source : null);
-																if (nextSelected) { setSelectedEntry(null); rightPanelRef.current?.expand(); }
-															}}
-															onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const source = { type: 'draftQueue' as const, item }; setPreGenKbSource(source); setKbSelectedSource(source); setSelectedEntry(null); } }}
 														>
 															<div className="flex items-center justify-between gap-1 min-w-0">
 																<span className="truncate font-semibold text-xs">G{item.gradeLevel} · {item.sectionName}{item.cohortCode ? ` · ${item.cohortCode}` : ''}</span>
@@ -416,7 +449,7 @@ export function LeftRailContent({ context }: LeftRailContentProps) {
 															</p>
 															<div className="mt-1 pl-4.5 space-y-0.5 text-xs text-muted-foreground">
 																<p className="truncate">{DAY_SHORT[placement.day] ?? placement.day} {formatTime(placement.startTime)}–{formatTime(placement.endTime)}</p>
-																<p className="truncate">{placement.facultyId ? formatFacultyInitials(placement.facultyId) : 'No teacher'} · {placement.roomId ? roomLabelShort(placement.roomId) : 'No room'}</p>
+																<p className="truncate">{placement.facultyId ? formatFacultyInitials(placement.facultyId) : 'No owner'} · {placement.roomId ? roomLabelShort(placement.roomId) : 'No room'}</p>
 															</div>
 															<div className="mt-1 flex flex-wrap gap-1 pl-4.5">
 																<Button type="button" variant="outline" size="sm" className="h-5 px-1.5 text-xs" onClick={(event) => { event.stopPropagation(); focusPinnedPlacement(placement, 'room'); }} disabled={!placement.roomId}>
@@ -443,7 +476,7 @@ export function LeftRailContent({ context }: LeftRailContentProps) {
 								</>
 							)}
 						</div>
-					</ScrollArea>
+					</div>
 				</div>
 			) : (
 				<ScrollArea id="panel-requests" role="tabpanel" aria-labelledby="tab-requests" className="flex-1 min-h-0">
@@ -460,7 +493,7 @@ export function LeftRailContent({ context }: LeftRailContentProps) {
 						</div>
 						<div className="grid grid-cols-1 gap-2">
 							<Input
-								placeholder="Search teacher, subject, section, room"
+								placeholder="Search owner, subject, section, room"
 								value={requestSearch}
 								onChange={(event) => setRequestSearch(event.target.value)}
 								className="h-8 text-xs"
@@ -543,6 +576,9 @@ export function LeftRailContent({ context }: LeftRailContentProps) {
 					</div>
 				</ScrollArea>
 			)}
-		</>
+			</>
+		</Profiler>
 	);
 }
+
+export const LeftRailContent = memo(LeftRailContentImpl);

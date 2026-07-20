@@ -18,6 +18,7 @@ export type Room = {
 	isTeachingSpace: boolean;
 	floorPosition: number;
 	buildingId: number;
+	buildingZoneId?: string | null;
 	features: string[];
 };
 
@@ -114,6 +115,7 @@ export type ExternalFaculty = {
 	isPlaceholder?: boolean;
 	maxHoursPerWeek: number;
 	version: number;
+	localNotes?: string | null;
 	subjectCount: number;
 	sectionCount: number;
 	subjectHours: number;
@@ -255,6 +257,7 @@ export type FacultySummary = {
 	ancillaryMinutesPerWeek: number;
 	canTeachOutsideDepartment: boolean;
 	maxHoursPerWeek: number;
+	localNotes?: string | null;
 	version: number;
 	subjectCount: number;
 	sectionCount: number;
@@ -1623,6 +1626,7 @@ export interface SectionSummaryResponse {
 	sourceMode?: 'stub' | 'enrollpro' | 'auto';
 	fallbackReason?: string;
 	contractWarnings?: string[];
+	fetchedAt?: string;
 }
 
 export interface SectionAssignedClassRow {

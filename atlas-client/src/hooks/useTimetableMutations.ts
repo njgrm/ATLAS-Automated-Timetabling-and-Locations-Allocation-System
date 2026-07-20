@@ -132,6 +132,7 @@ type UseTimetableMutationsInput = {
 	draft: DraftReport | null;
 	setSelectedEntry: React.Dispatch<React.SetStateAction<ScheduledEntry | null>>;
 	rightPanelRef: React.RefObject<ImperativePanelHandle | null>;
+	isDesktop: boolean;
 	openRoomGridWorkspace: (roomId: number) => void;
 	setSelectedRequestId: React.Dispatch<React.SetStateAction<number | null>>;
 	setRequestPreviewLoading: React.Dispatch<React.SetStateAction<boolean>>;
@@ -174,6 +175,7 @@ type UseTimetableMutationsInput = {
 	setPreGenPreviewLoading: React.Dispatch<React.SetStateAction<boolean>>;
 	setPreGenPreviewError: React.Dispatch<React.SetStateAction<string | null>>;
 	setPreGenAllowSoftOverride: React.Dispatch<React.SetStateAction<boolean>>;
+	setInlineActionStatus: React.Dispatch<React.SetStateAction<{ tone: 'loading' | 'success' | 'warning' | 'error'; message: string } | null>>;
 	preGenPending: PreGenPendingPlacement | null;
 	preGenAllowSoftOverride: boolean;
 	setPreGenSaving: React.Dispatch<React.SetStateAction<boolean>>;
@@ -318,6 +320,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		draft,
 		setSelectedEntry,
 		rightPanelRef,
+		isDesktop,
 		openRoomGridWorkspace,
 		setSelectedRequestId,
 		setRequestPreviewLoading,
@@ -354,10 +357,10 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setPreGenPreviewLoading,
 		setPreGenPreviewError,
 		setPreGenAllowSoftOverride,
+		setInlineActionStatus,
 		preGenPending,
 		preGenAllowSoftOverride,
 		setPreGenSaving,
-		setShowResetDraftDialog,
 		draftBoard,
 		violations,
 		setShowPublishDialog,
@@ -410,6 +413,14 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	const [regularSwapStrategy, setRegularSwapStrategy] = useState<'DIRECT_SWAP' | 'AUTO_FIX_MOVE_BLOCKING' | 'AUTO_FIX_MOVE_SOURCE' | null>(null);
 	const previewCacheRef = useRef<Map<string, PreviewResult>>(new Map());
 	const regularSwapPreviewCacheRef = useRef<Map<string, RegularSwapPreviewState>>(new Map());
+	const draftBoardSummaryRef = useRef(draftBoardSummary);
+	const latestRequestPreviewSeqRef = useRef(0);
+	const latestManualPreviewSeqRef = useRef(0);
+	const latestTeachingLoadPreviewSeqRef = useRef(0);
+
+	useEffect(() => {
+		draftBoardSummaryRef.current = draftBoardSummary;
+	}, [draftBoardSummary]);
 
 	// Clear swap preview when swap action is dismissed (cancel path)
 	useEffect(() => {
@@ -454,10 +465,13 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		if (!schoolYearId) return;
 		const request = (roomRequestSummary?.requests ?? []).find((item) => item.id === requestId);
 		if (!request) return;
+		const requestSeq = latestRequestPreviewSeqRef.current + 1;
+		latestRequestPreviewSeqRef.current = requestSeq;
 		setSelectedRequestId(request.id);
 		setRequestPreviewLoading(true);
 		try {
 			const { data } = await atlasApi.post<RoomPreferencePreviewResponse>(`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${request.runId}/requests/${request.id}/preview`);
+			if (requestSeq !== latestRequestPreviewSeqRef.current) return;
 			setRequestPreview({
 				...data,
 				preview: scopePreviewToCandidate(data.preview, {
@@ -470,21 +484,25 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			setAppealsLoading(true);
 			try {
 				const appealsRes = await atlasApi.get<{ requestId: number; appeals: RoomRequestAppeal[] }>(`/room-preferences/${DEFAULT_SCHOOL_ID}/${schoolYearId}/runs/${request.runId}/requests/${request.id}/appeals`);
+				if (requestSeq !== latestRequestPreviewSeqRef.current) return;
 				setRequestAppeals(appealsRes.data.appeals);
 			} catch {
+				if (requestSeq !== latestRequestPreviewSeqRef.current) return;
 				setRequestAppeals([]);
 			} finally {
-				setAppealsLoading(false);
+				if (requestSeq === latestRequestPreviewSeqRef.current) setAppealsLoading(false);
 			}
+			if (requestSeq !== latestRequestPreviewSeqRef.current) return;
 			await focusRequestInGrid(request.id);
 		} catch (err) {
+			if (requestSeq !== latestRequestPreviewSeqRef.current) return;
 			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
 			toast.error(message ?? 'Failed to load room request preview.');
 			setSelectedRequestId(null);
 			setRequestPreview(null);
 			setRequestAppeals([]);
 		} finally {
-			setRequestPreviewLoading(false);
+			if (requestSeq === latestRequestPreviewSeqRef.current) setRequestPreviewLoading(false);
 		}
 	}, [schoolYearId, roomRequestSummary?.requests, setSelectedRequestId, setRequestPreviewLoading, setRequestPreview, setRequestReviewerNotes, setAppealsLoading, setRequestAppeals, focusRequestInGrid]);
 
@@ -553,9 +571,9 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		}
 	}, [schoolYearId, roomRequestSummary, requestPreview, requestReviewerNotes, setRequestReviewSaving, loadRoomRequestSummary, requestStatusFilter, requestDecisionFilter, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason]);
 
-	const requestPreviewConflicts = requestPreview?.preview.humanConflicts ?? [];
-	const requestPreviewHardConflicts = requestPreviewConflicts.filter((conflict) => conflict.severity === 'HARD');
-	const requestPreviewSoftWarnings = requestPreviewConflicts.filter((conflict) => conflict.severity === 'SOFT');
+	const requestPreviewConflicts = useMemo(() => requestPreview?.preview.humanConflicts ?? [], [requestPreview]);
+	const requestPreviewHardConflicts = useMemo(() => requestPreviewConflicts.filter((conflict) => conflict.severity === 'HARD'), [requestPreviewConflicts]);
+	const requestPreviewSoftWarnings = useMemo(() => requestPreviewConflicts.filter((conflict) => conflict.severity === 'SOFT'), [requestPreviewConflicts]);
 
 	const handleViolationSelect = useCallback((v: Violation) => {
 		setKbSelectedSource(null);
@@ -574,10 +592,10 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setPreGenKbSource(null);
 		setSelectedEntry((prev) => {
 			const next = prev?.entryId === entry.entryId ? null : entry;
-			if (next) rightPanelRef.current?.expand();
+			if (next && isDesktop) rightPanelRef.current?.expand();
 			return next;
 		});
-	}, [setSelectedViolation, setKbSelectedSource, setPreGenKbSource, setSelectedEntry, rightPanelRef]);
+	}, [setSelectedViolation, setKbSelectedSource, setPreGenKbSource, setSelectedEntry, rightPanelRef, isDesktop]);
 
 	const toggleFollowUp = useCallback(async (entryId: string) => {
 		if (!draft || !schoolYearId) return;
@@ -659,10 +677,10 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 
 	const handleTriggerGenerate = useCallback(async () => {
 		if (!schoolYearId) return;
-		if (!draftBoardSummary) await fetchDraftBoardSummary(schoolYearId);
+		if (!draftBoardSummaryRef.current) await fetchDraftBoardSummary(schoolYearId);
 		setEnforceShiftWindows(true);
 		setShowGenerateConfirm(true);
-	}, [schoolYearId, draftBoardSummary, fetchDraftBoardSummary, setEnforceShiftWindows, setShowGenerateConfirm]);
+	}, [schoolYearId, fetchDraftBoardSummary, setEnforceShiftWindows, setShowGenerateConfirm]);
 
 	const confirmGenerate = useCallback((enforceShiftWindowsOverride?: boolean) => {
 		if (typeof enforceShiftWindowsOverride === 'boolean') {
@@ -675,23 +693,35 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	const openPreGenerationWorkspace = useCallback(async (resetExisting: boolean) => {
 		if (!schoolYearId) return;
 		setNewDraftLoading(true);
+		setLeftTab('unassigned');
+		setCenterView('pre-generation');
+		setPreGenOnboarding(false);
+		try { localStorage.setItem('atlas_pregen_active', '1'); } catch { /* ignore */ }
+		setSelectedViolation(null);
+		setSelectedEntry(null);
+		setPreGenPending(null);
+		setPreGenPreview(null);
+		setPreGenPreviewError(null);
+		setPreGenAllowSoftOverride(false);
+		if (!resetExisting) {
+			const loadDraftBoard = () => void atlasApi.get<DraftBoardState>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts?preferCachedSections=true`)
+				.then(({ data }) => {
+					setDraftBoard(data);
+					setDraftBoardSummary(data.counts);
+				})
+				.catch((err) => {
+					const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+					toast.error(message ?? 'Failed to load the pre-generation draft queue.');
+				})
+				.finally(() => setNewDraftLoading(false));
+			window.setTimeout(loadDraftBoard, 350);
+			return;
+		}
 		try {
-			const { data } = resetExisting
-				? await atlasApi.post<DraftBoardState>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/clear`)
-				: await atlasApi.get<DraftBoardState>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts`);
+			const { data } = await atlasApi.post<DraftBoardState>(`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/clear`);
 			setDraftBoard(data);
 			setDraftBoardSummary(data.counts);
-			setLeftTab('pinned');
-			setCenterView('map');
-			setPreGenOnboarding(true);
-			try { localStorage.setItem('atlas_pregen_active', '1'); } catch { /* ignore */ }
-			setSelectedViolation(null);
-			setSelectedEntry(null);
-			setPreGenPending(null);
-			setPreGenPreview(null);
-			setPreGenPreviewError(null);
-			setPreGenAllowSoftOverride(false);
-			toast.success('Pre-generation draft workspace is ready. Choose a room or faculty to begin drafting.');
+			toast.success('Draft planning reset. Choose an unassigned session, then choose a timetable slot.');
 		} catch (err) {
 			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
 			toast.error(message ?? 'Failed to start a new pre-generation draft.');
@@ -702,13 +732,8 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 
 	const handleStartNewPreGenerationDraft = useCallback(async () => {
 		if (!schoolYearId) return;
-		const counts = draftBoard?.counts ?? await fetchDraftBoardSummary(schoolYearId);
-		if ((counts?.draft ?? 0) > 0 || preGenPending) {
-			setShowResetDraftDialog(true);
-			return;
-		}
 		await openPreGenerationWorkspace(false);
-	}, [schoolYearId, draftBoard?.counts, fetchDraftBoardSummary, preGenPending, setShowResetDraftDialog, openPreGenerationWorkspace]);
+	}, [schoolYearId, openPreGenerationWorkspace]);
 
 	const handlePublishConfirm = useCallback(async () => {
 		if (!schoolYearId || !draft?.runId) {
@@ -797,21 +822,26 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		const cacheKey = `${runVersion}:${JSON.stringify(proposal)}`;
 		const cached = previewCacheRef.current.get(cacheKey);
 		if (cached) {
+			latestManualPreviewSeqRef.current += 1;
 			setPreviewResult(cached);
 			return cached;
 		}
+		const requestSeq = latestManualPreviewSeqRef.current + 1;
+		latestManualPreviewSeqRef.current = requestSeq;
 		setPreviewLoading(true);
 		try {
 			const { data } = await atlasApi.post<PreviewResult>(`${apiBase}/preview`, proposal);
 			previewCacheRef.current.set(cacheKey, data);
+			if (requestSeq !== latestManualPreviewSeqRef.current) return null;
 			setPreviewResult(data);
 			return data;
 		} catch (e: unknown) {
+			if (requestSeq !== latestManualPreviewSeqRef.current) return null;
 			const msg = e instanceof Error ? e.message : 'Preview failed.';
 			toast.error(msg);
 			return null;
 		} finally {
-			setPreviewLoading(false);
+			if (requestSeq === latestManualPreviewSeqRef.current) setPreviewLoading(false);
 		}
 	}, [apiBase, runVersion, setPreviewLoading, setPreviewResult]);
 
@@ -852,6 +882,8 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	const previewTeachingLoadRepair = useCallback(async (changes: TeachingLoadRepairChange[], placementProposal?: ManualEditProposal): Promise<TeachingLoadRepairPreviewResult | null> => {
 		if (!teachingLoadRepairBase || changes.length === 0) return null;
 		if (changes.length === 0) return null;
+		const requestSeq = latestTeachingLoadPreviewSeqRef.current + 1;
+		latestTeachingLoadPreviewSeqRef.current = requestSeq;
 		setPreviewLoading(true);
 		try {
 			const { data } = await atlasApi.post<TeachingLoadRepairPreviewResult>(`${teachingLoadRepairBase}/preview`, {
@@ -860,8 +892,10 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				expectedRunVersion: runVersion,
 				expectedFacultyVersions: buildExpectedFacultyVersions(changes, facultyMap),
 			});
+			if (requestSeq !== latestTeachingLoadPreviewSeqRef.current) return null;
 			return data;
 		} catch (e: unknown) {
+			if (requestSeq !== latestTeachingLoadPreviewSeqRef.current) return null;
 			const code = (e as { response?: { data?: { code?: string } } })?.response?.data?.code;
 			const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? (e instanceof Error ? e.message : 'Preview failed.');
 			if (code === 'RUN_ALREADY_PUBLISHED') toast.error('This schedule is already published. Create a revision instead of rewriting Teaching Load.');
@@ -869,7 +903,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			else if (code !== 'COHORT_REPAIR_UNSUPPORTED') toast.error(msg);
 			throw e;
 		} finally {
-			setPreviewLoading(false);
+			if (requestSeq === latestTeachingLoadPreviewSeqRef.current) setPreviewLoading(false);
 		}
 	}, [facultyMap, runVersion, setPreviewLoading, teachingLoadRepairBase]);
 
@@ -957,8 +991,8 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 	const choosePreGenFaculty = useCallback((item: DraftQueueItem) => {
 		const contextFacultyId = viewMode === 'faculty' ? Number(entityFilter) : 0;
 		if (contextFacultyId && item.facultyOptions.includes(contextFacultyId)) return contextFacultyId;
-		return item.facultyOptions[0] ?? Array.from(facultyMap.keys())[0] ?? 0;
-	}, [entityFilter, facultyMap, viewMode]);
+		return item.facultyOptions[0] ?? 0;
+	}, [entityFilter, viewMode]);
 
 	const choosePreGenRoom = useCallback((item: DraftQueueItem) => {
 		const contextRoomId = viewMode === 'room' ? Number(entityFilter) : 0;
@@ -1189,7 +1223,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			const candidateFacultyId = source.type === 'draftQueue' ? choosePreGenFaculty(source.item) : (source.placement.facultyId ?? 0);
 			const candidateRoomId = source.type === 'draftQueue' ? choosePreGenRoom(source.item) : (source.placement.roomId ?? 0);
 			if (!candidateFacultyId || !candidateRoomId) {
-				toast.error('Cannot place this session yet. Select a faculty and room from a compatible context first.');
+				toast.error('Cannot switch this session yet. Fix the Teaching Load owner or room setup first.');
 				return;
 			}
 			const pendingForLabel = buildPreGenPendingPlacement(source, day, startTime, endTime, candidateFacultyId, candidateRoomId);
@@ -1209,13 +1243,26 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		const candidateFacultyId = source.type === 'draftQueue' ? choosePreGenFaculty(source.item) : (source.placement.facultyId ?? 0);
 		const candidateRoomId = source.type === 'draftQueue' ? choosePreGenRoom(source.item) : (source.placement.roomId ?? 0);
 
+		setPreGenConfirmCtx({ source, day, startTime, endTime });
+		setConfirmFacultyId(candidateFacultyId ? String(candidateFacultyId) : '');
+		setConfirmRoomId(candidateRoomId ? String(candidateRoomId) : '');
+		setConfirmPreview(null);
+		setConfirmRawPreview(null);
+		setConfirmPreviewError(null);
+		setConfirmAllowSoftOverride(false);
+		setConfirmAllowDailyOverride(false);
+		setShowPreGenConfirm(true);
+
 		if (!candidateFacultyId || !candidateRoomId) {
-			toast.error('Cannot place this session yet. Select a faculty and room from a compatible context first.');
+			setPreGenPending(null);
+			setPreGenPreview(null);
+			setPreGenPreviewError(null);
+			setPreGenAllowSoftOverride(false);
+			setPreGenPreviewLoading(false);
 			return;
 		}
 
 		const pending = buildPreGenPendingPlacement(source, day, startTime, endTime, candidateFacultyId, candidateRoomId);
-
 		setPreGenPending(pending);
 		setPreGenPreview(null);
 		setPreGenPreviewError(null);
@@ -1232,19 +1279,10 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				setPreGenPreviewError('This placement has hard conflicts. Resolve conflicts or use a different slot.');
 				return;
 			}
-			const { data: commitResult } = await atlasApi.post<DraftPlacementCommitResult>(
-				`/generation/${DEFAULT_SCHOOL_ID}/${schoolYearId}/pre-generation-drafts/commit`,
-				pending,
-			);
-			setDraftBoard(commitResult.board);
-			setDraftBoardSummary(commitResult.board.counts);
-			setPreGenPending(null);
-			setSelectedEntry(null);
-			setPreGenKbSource(null);
-			setKbSelectedSource(null);
+			toast.info('Placement review opened. Confirm the owner, room source, slot, and conflict check before saving.');
 		} catch (err) {
 			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-			setPreGenPreviewError(message ?? 'Unable to place this session.');
+			setPreGenPreviewError(message ?? 'Unable to preview this placement. Try another slot or repair the source data first.');
 		} finally {
 			setPreGenPreviewLoading(false);
 		}
@@ -1260,11 +1298,15 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setPreGenPreviewError,
 		setPreGenAllowSoftOverride,
 		setPreGenPreviewLoading,
-		setDraftBoard,
-		setDraftBoardSummary,
-		setSelectedEntry,
-		setPreGenKbSource,
-		setKbSelectedSource,
+		setPreGenConfirmCtx,
+		setConfirmFacultyId,
+		setConfirmRoomId,
+		setConfirmPreview,
+		setConfirmRawPreview,
+		setConfirmPreviewError,
+		setConfirmAllowSoftOverride,
+		setConfirmAllowDailyOverride,
+		setShowPreGenConfirm,
 	]);
 
 	const runConfirmPreview = useCallback(async () => {
@@ -1272,7 +1314,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		const fId = Number(confirmFacultyId);
 		const rId = Number(confirmRoomId);
 		if (!fId || !rId) {
-			setConfirmPreviewError('Select a faculty member and a room before previewing.');
+			setConfirmPreviewError('Fix the Teaching Load owner or room setup before previewing.');
 			return;
 		}
 		setConfirmPreviewLoading(true);
@@ -1321,7 +1363,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		const fId = Number(confirmFacultyId);
 		const rId = Number(confirmRoomId);
 		if (!fId || !rId) {
-			toast.error('Select a faculty member and a room first.');
+			toast.error('Fix the Teaching Load owner or room setup first.');
 			return;
 		}
 		setConfirmSaving(true);
@@ -1337,9 +1379,19 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			setConfirmRawPreview(null);
 			setConfirmFacultyId('');
 			setConfirmRoomId('');
+			setPreGenPending(null);
+			setPreGenPreview(null);
+			setPreGenPreviewError(null);
+			setPreGenAllowSoftOverride(false);
 			setSelectedEntry(null);
 			setPreGenKbSource(null);
 			setKbSelectedSource(null);
+			setInlineActionStatus({
+				tone: data.preview.softViolations.length > 0 ? 'warning' : 'success',
+				message: data.preview.softViolations.length > 0
+					? `Draft placement saved with ${data.preview.softViolations.length} soft warning(s).`
+					: 'Draft placement saved. The draft queue and grid were updated.',
+			});
 			toast.success('Draft placement saved.');
 		} catch (err) {
 			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -1362,9 +1414,14 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		setConfirmRawPreview,
 		setConfirmFacultyId,
 		setConfirmRoomId,
+		setPreGenPending,
+		setPreGenPreview,
+		setPreGenPreviewError,
+		setPreGenAllowSoftOverride,
 		setSelectedEntry,
 		setPreGenKbSource,
 		setKbSelectedSource,
+		setInlineActionStatus,
 	]);
 
 	const executeSwapAction = useCallback(async () => {
@@ -1392,6 +1449,12 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				const hasSoftWarnings = data.preview.softViolations.length > 0
 					|| data.preview.dailyLoads.source.dailyLoadBand === 'soft'
 					|| data.preview.dailyLoads.target.dailyLoadBand === 'soft';
+				setInlineActionStatus({
+					tone: hasSoftWarnings ? 'warning' : 'success',
+					message: hasSoftWarnings
+						? 'Draft sessions switched with soft warnings. Review the warning labels before generating.'
+						: 'Draft sessions switched. The draft grid was updated.',
+				});
 				if (hasSoftWarnings) toast.warning('Sessions switched slots with soft warnings. Review details in the right panel.');
 				else toast.success('Sessions switched slots.');
 			} else {
@@ -1417,6 +1480,10 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 				setShowSwapConfirm(false);
 				setSwapAction(null);
 				setSwapPreview(null);
+				setInlineActionStatus({
+					tone: 'success',
+					message: 'Draft swap completed. One session was placed and the displaced session returned to the queue.',
+				});
 				toast.success('Swap completed. Conflicting session returned to unassigned and the new session was placed.');
 			}
 		} catch (err) {
@@ -1425,7 +1492,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		} finally {
 			setSwapSaving(false);
 		}
-	}, [schoolYearId, swapAction, setSwapSaving, buildPreGenPendingPlacement, setDraftBoard, setDraftBoardSummary, setSelectedEntry, setPreGenKbSource, setKbSelectedSource, setShowSwapConfirm, setSwapAction, setSwapPreview]);
+	}, [schoolYearId, swapAction, setSwapSaving, buildPreGenPendingPlacement, setDraftBoard, setDraftBoardSummary, setSelectedEntry, setPreGenKbSource, setKbSelectedSource, setShowSwapConfirm, setSwapAction, setSwapPreview, setInlineActionStatus]);
 
 	const executeRegularSwap = useCallback(async () => {
 		if (!regularSwapPending || !apiBase) return;
@@ -1465,6 +1532,14 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			await fetchEditHistory();
 			setRegularSwapPending(null);
 			setSelectedEntry(null);
+			setInlineActionStatus({
+				tone: strategy === 'DIRECT_SWAP' ? 'success' : 'warning',
+				message: strategy === 'AUTO_FIX_MOVE_SOURCE'
+					? 'Sessions switched. ATLAS also moved the source session to the nearest valid slot.'
+					: strategy === 'AUTO_FIX_MOVE_BLOCKING'
+						? 'Sessions switched. ATLAS also relocated the blocking session.'
+						: 'Sessions switched. The grid and edit history were updated.',
+			});
 			if (strategy === 'AUTO_FIX_MOVE_SOURCE') toast.success('Source session auto-fixed to the nearest valid slot.');
 			else if (strategy === 'AUTO_FIX_MOVE_BLOCKING') toast.success('Swap applied with blocking-session auto-fix relocation.');
 			else toast.success('Sessions swapped.');
@@ -1474,7 +1549,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		} finally {
 			setRegularSwapSaving(false);
 		}
-	}, [regularSwapPending, apiBase, runVersion, regularSwapPreview, regularSwapStrategy, setRegularSwapSaving, setDraft, schoolYearId, runIdNumeric, setViolationReport, fetchEditHistory, setRegularSwapPending, setSelectedEntry]);
+	}, [regularSwapPending, apiBase, runVersion, regularSwapPreview, regularSwapStrategy, setRegularSwapSaving, setDraft, schoolYearId, runIdNumeric, setViolationReport, fetchEditHistory, setRegularSwapPending, setSelectedEntry, setInlineActionStatus]);
 
 	const unassignDraftPlacement = useCallback(async (placementId: number) => {
 		if (!schoolYearId) return;
@@ -1513,6 +1588,12 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 			setPreGenPending(null);
 			setPreGenAllowSoftOverride(false);
 			setPreGenPreviewError(null);
+			setInlineActionStatus({
+				tone: data.preview.softViolations.length > 0 ? 'warning' : 'success',
+				message: data.preview.softViolations.length > 0
+					? `Draft placement saved with ${data.preview.softViolations.length} soft warning(s).`
+					: 'Draft placement saved. The draft grid was updated.',
+			});
 			toast.success(preGenPending.placementId ? 'Draft placement updated.' : 'Draft placement saved.');
 		} catch (err) {
 			const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -1520,7 +1601,7 @@ export function useTimetableMutations(input: UseTimetableMutationsInput): Timeta
 		} finally {
 			setPreGenSaving(false);
 		}
-	}, [schoolYearId, preGenPending, setPreGenSaving, setDraftBoard, setDraftBoardSummary, setPreGenPreview, setPreGenPending, setPreGenAllowSoftOverride, setPreGenPreviewError]);
+	}, [schoolYearId, preGenPending, setPreGenSaving, setDraftBoard, setDraftBoardSummary, setPreGenPreview, setPreGenPending, setPreGenAllowSoftOverride, setPreGenPreviewError, setInlineActionStatus]);
 
 	return {
 		filteredRoomRequests,

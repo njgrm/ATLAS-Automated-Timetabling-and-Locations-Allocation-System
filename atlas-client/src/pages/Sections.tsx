@@ -47,7 +47,8 @@ import { SectionDetailsSheet } from '@/components/sections/SectionDetailsSheet';
 import { SwapConfirmationModal, UnassignConfirmationModal } from '@/components/sections/SectionHomeRoomModals';
 import { SectionRoomMapModal } from '@/components/sections/SectionRoomMapModal';
 import { cn } from '@/lib/utils';
-import type { Building, RoomSectionMetadata } from '@/components/BuildingView';
+import type { RoomSectionMetadata } from '@/components/BuildingView';
+import type { Building, SectionSummaryResponse } from '@/types';
 
 /* ─── Constants ─── */
 const DEFAULT_SCHOOL_ID = 1;
@@ -65,17 +66,7 @@ const GRADE_COLORS: Record<string, string> = {
 type SortField = 'name' | 'gradeLevelId' | 'enrolledCount' | 'maxCapacity' | 'fill';
 type SortDir   = 'asc' | 'desc';
 
-type SectionSummary = {
-	schoolId:              number;
-	schoolYearId:          number;
-	totalSections:         number;
-	totalEnrolled:         number;
-	byGradeLevel:          Record<number, number>;
-	enrolledByGradeLevel:  Record<number, number>;
-	sections:              SectionDetail[];
-	fetchedAt?:            string;
-	source?:               string;
-};
+type SectionSummary = SectionSummaryResponse;
 
 type FetchState =
 	| { status: 'loading' }
@@ -174,6 +165,7 @@ export default function Sections() {
 	const [searchQuery, setSearchQuery] = useState('');
 	const [gradeFilter, setGradeFilter] = useState<string>('all');
 	const [programFilter, setProgramFilter] = useState<string>('all');
+	const [homeRoomFilter, setHomeRoomFilter] = useState<'all' | 'missing' | 'assigned'>('all');
 	const [homeRoomOptions, setHomeRoomOptions] = useState<HomeRoomOption[]>([]);
 	const [savingMirrorId, setSavingMirrorId] = useState<number | null>(null);
 	const [showFilters, setShowFilters] = useState(false);
@@ -443,7 +435,7 @@ export default function Sections() {
 				map.set(s.homeRoomId, {
 					sectionName: s.name,
 					gradeKey: gradeKey(s.gradeLevelName),
-					programCode: s.programCode,
+					programCode: s.programCode ?? undefined,
 				});
 			}
 		});
@@ -569,6 +561,8 @@ export default function Sections() {
 			if (programFilter === 'REGULAR') list = list.filter((s) => !s.isSpecialProgram);
 			else list = list.filter((s) => s.programType === programFilter);
 		}
+		if (homeRoomFilter === 'missing') list = list.filter((section) => !section.homeRoomId);
+		if (homeRoomFilter === 'assigned') list = list.filter((section) => Boolean(section.homeRoomId));
 
 		const sorted = [...list].sort((a, b) => {
 			let cmp = 0;
@@ -591,9 +585,9 @@ export default function Sections() {
 		const tp = Math.max(1, Math.ceil(tf / pageSize));
 		const start = (page - 1) * pageSize;
 		return { paged: sorted.slice(start, start + pageSize), totalFiltered: tf, totalPages: tp, assignedCount: ac };
-	}, [state, searchQuery, gradeFilter, programFilter, sortField, sortDir, page, pageSize]);
+	}, [state, searchQuery, gradeFilter, programFilter, homeRoomFilter, sortField, sortDir, page, pageSize]);
 
-	const hasActiveFilters = gradeFilter !== 'all' || searchQuery.trim() !== '' || programFilter !== 'all';
+	const hasActiveFilters = gradeFilter !== 'all' || searchQuery.trim() !== '' || programFilter !== 'all' || homeRoomFilter !== 'all';
 
 	const buildingOccupancy = useMemo(() => {
 		const map = new Map<number, number>();
@@ -763,7 +757,7 @@ export default function Sections() {
 					onToggleFilters={() => setShowFilters(!showFilters)}
 					hasActiveFilters={hasActiveFilters}
 				>
-					<div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
+					<div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3">
 							<Select value={gradeFilter} onValueChange={setGradeFilter}>
 								<SelectTrigger className="h-10 text-sm">
 									<SelectValue placeholder="All Grades" />
@@ -785,6 +779,16 @@ export default function Sections() {
 									{availablePrograms.map(p => (
 										<SelectItem key={p} value={p}>{p}</SelectItem>
 									))}
+								</SelectContent>
+							</Select>
+							<Select value={homeRoomFilter} onValueChange={(value) => setHomeRoomFilter(value as typeof homeRoomFilter)}>
+								<SelectTrigger className="h-10 text-sm">
+									<SelectValue placeholder="All home-room states" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">All home-room states</SelectItem>
+									<SelectItem value="missing">Needs a home room</SelectItem>
+									<SelectItem value="assigned">Home room assigned</SelectItem>
 								</SelectContent>
 							</Select>
 						</div>

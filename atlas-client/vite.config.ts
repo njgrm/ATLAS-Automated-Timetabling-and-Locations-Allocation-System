@@ -29,6 +29,10 @@ export default defineConfig(({ mode }) => {
 	return {
 		plugins: [react(), tailwindcss()],
 		resolve: {
+			// The workspace and client both install React. Force every optimized
+			// dependency and source module onto the client's single runtime so HMR
+			// cannot mix dispatchers and trigger an invalid-hook-call shell crash.
+			dedupe: ['react', 'react-dom'],
 			alias: {
 				'@': path.resolve(__dirname, './src'),
 			},

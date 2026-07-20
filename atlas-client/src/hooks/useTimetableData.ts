@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 
 import atlasApi from '@/lib/api';
-import { resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
+import { resolveActiveSchoolYearContext, type ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { getProgramBadgeLabel, matchesEntryKindFilter, matchesProgramFilter } from '@/lib/schedule-review-helpers';
 import {
 	buildViolationIndex,
 	deriveTimeSlotsFromSummary,
 	minutesBetween,
 } from '@/lib/timetable-utils';
+import { buildLiveConflictIndex, createLiveConflictLookup } from '@/lib/timetable-live-conflict';
 import type {
 	Building,
 	CellConflictInfo,
@@ -58,6 +59,9 @@ const VIOLATION_LABELS: Record<ViolationCode, string> = {
 	ROOM_CAPACITY_EXCEEDED: 'Room Capacity Exceeded',
 	LACKING_FACULTY: 'Lacking Faculty',
 	INCOMPLETE_MODULAR_GROUP: 'Incomplete Modular Group',
+	SPECIALIZED_ROOM_UNAVAILABLE: 'Specialized Room Unavailable',
+	UNASSIGNED_SECTION: 'Unassigned Section',
+	ZONE_IMBALANCE_WARNING: 'Zone Imbalance Warning',
 };
 
 const CONFLICT_CODES: Set<ViolationCode> = new Set([
@@ -175,6 +179,20 @@ function cacheRoomRequestKey(
 	return `${schoolYearId}:${statusFilter}:${decisionFilter}`;
 }
 
+function sameDraftSnapshot(previous: DraftReport | null, next: DraftReport): boolean {
+	if (!previous) return false;
+	return previous.runId === next.runId
+		&& previous.version === next.version
+		&& previous.status === next.status
+		&& previous.finishedAt === next.finishedAt
+		&& previous.createdAt === next.createdAt
+		&& previous.entries.length === next.entries.length
+		&& previous.unassignedItems.length === next.unassignedItems.length
+		&& JSON.stringify(previous.summary) === JSON.stringify(next.summary)
+		&& JSON.stringify({ ...previous.inputState, checkedAt: null, computedAt: null })
+			=== JSON.stringify({ ...next.inputState, checkedAt: null, computedAt: null });
+}
+
 type RoomInfo = {
 	id: number;
 	name: string;
@@ -252,6 +270,7 @@ type UseTimetableDataInput = {
 	subjectMap: Map<number, Subject>;
 
 	dragItem: any;
+	dragActiveRef: React.MutableRefObject<boolean>;
 	preGenKbSource: any;
 	kbSelectedSource: any;
 	setPreGenKbSource: React.Dispatch<React.SetStateAction<any>>;
@@ -270,7 +289,9 @@ export type TimetableDataState = {
 	isPreGenerationWorkspace: boolean;
 	activeGridEntriesBase: ScheduledEntry[];
 	timeSlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }>;
-	cellConflictMap: Map<string, CellConflictInfo> | null;
+	getCellConflict: ((cellId: string) => import('@/types').CellConflictInfo | null) | null;
+	getLiveCellConflict: (source: any, cellId: string) => import('@/types').CellConflictInfo | null;
+	releaseDeferredDragUpdates: () => void;
 	filteredDraftEntries: ScheduledEntry[];
 	programKindFilteredUnassignedItems: UnassignedItem[];
 	filteredUnassignedItems: UnassignedItem[];
@@ -284,6 +305,7 @@ export type TimetableDataState = {
 	navToSection: (id: number) => void;
 	navToRoom: (id: number) => void;
 	activeGeneratedRunId: number | null;
+	schoolYearContext: ActiveSchoolYearContext | null;
 	fetchSchoolYear: () => Promise<number | null>;
 	fetchRuns: (syId: number) => Promise<GenerationRun[]>;
 	fetchRunData: (syId: number, runId: string) => Promise<void>;
@@ -308,6 +330,13 @@ export type TimetableDataState = {
 	isStaleRoom: (roomId: number) => boolean;
 	pivotLabel: (id: number) => string;
 };
+
+function useStablePrimitiveArray<T>(arr: T[]): T[] {
+	const ref = useRef(arr);
+	const isEqual = arr.length === ref.current.length && arr.every((val, i) => val === ref.current[i]);
+	if (!isEqual) ref.current = arr;
+	return ref.current;
+}
 
 export function useTimetableData(input: UseTimetableDataInput): TimetableDataState {
 	const {
@@ -369,18 +398,57 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		roomMap,
 		subjectMap,
 		dragItem,
+		dragActiveRef,
 		preGenKbSource,
 		kbSelectedSource,
 		setPreGenKbSource,
 		setKbSelectedSource,
 	} = input;
+	const deferredDraftBoardRef = useRef<DraftBoardState | null>(null);
+	const deferredRoomRequestRef = useRef<RoomPreferenceSummaryResponse | null>(null);
+	const deferredDragReleaseTimerRef = useRef<number | null>(null);
+	const applyDraftBoard = useCallback((board: DraftBoardState) => {
+		if (dragActiveRef.current) {
+			deferredDraftBoardRef.current = board;
+			return;
+		}
+		setDraftBoard((previous) => JSON.stringify(previous) === JSON.stringify(board) ? previous : board);
+		setDraftBoardSummary((previous) => JSON.stringify(previous) === JSON.stringify(board.counts) ? previous : board.counts);
+	}, [dragActiveRef, setDraftBoard, setDraftBoardSummary]);
+	const applyRoomRequestSummary = useCallback((summary: RoomPreferenceSummaryResponse) => {
+		if (dragActiveRef.current) {
+			deferredRoomRequestRef.current = summary;
+			return;
+		}
+		setRoomRequestSummary((previous) => JSON.stringify(previous) === JSON.stringify(summary) ? previous : summary);
+		setRoomRequestError(null);
+	}, [dragActiveRef, setRoomRequestError, setRoomRequestSummary]);
+	const releaseDeferredDragUpdates = useCallback(() => {
+		if (deferredDragReleaseTimerRef.current != null) window.clearTimeout(deferredDragReleaseTimerRef.current);
+		deferredDragReleaseTimerRef.current = window.setTimeout(() => {
+			deferredDragReleaseTimerRef.current = null;
+			const draftBoardUpdate = deferredDraftBoardRef.current;
+			const roomRequestUpdate = deferredRoomRequestRef.current;
+			deferredDraftBoardRef.current = null;
+			deferredRoomRequestRef.current = null;
+			if (draftBoardUpdate) applyDraftBoard(draftBoardUpdate);
+			if (roomRequestUpdate) applyRoomRequestSummary(roomRequestUpdate);
+		}, 800);
+	}, [applyDraftBoard, applyRoomRequestSummary]);
+	useEffect(() => () => {
+		if (deferredDragReleaseTimerRef.current != null) {
+			window.clearTimeout(deferredDragReleaseTimerRef.current);
+		}
+	}, []);
 
 	const selectedRunIdRef = useRef(selectedRunId);
+	const latestRunDataFetchSeqRef = useRef(0);
+	const [schoolYearContext, setSchoolYearContext] = useState<ActiveSchoolYearContext | null>(null);
 	useEffect(() => {
 		selectedRunIdRef.current = selectedRunId;
 	}, [selectedRunId]);
 
-	const violations = violationReport?.violations ?? [];
+	const violations = useMemo(() => violationReport?.violations ?? [], [violationReport]);
 	const violationIndex = useMemo(() => buildViolationIndex(violations), [violations]);
 
 	const highlightedEntryIds = useMemo(() => {
@@ -471,7 +539,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		|| (centerView === 'map' && (preGenOnboarding || preGenMapContext))
 		|| (centerView === 'building' && preGenMapContext);
 
-	const activeGridEntriesBase = isPreGenerationWorkspace ? preGenEntries : (draft?.entries ?? []);
+	const activeGridEntriesBase = useMemo(() => isPreGenerationWorkspace ? preGenEntries : (draft?.entries ?? []), [isPreGenerationWorkspace, preGenEntries, draft]);
 	const timeSlots = useMemo(
 		() => isPreGenerationWorkspace && draftBoard?.periodSlots?.length
 			? draftBoard.periodSlots
@@ -543,7 +611,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		return { sectionId, facultyId, allFacultyOptions, roomId, sourceEntryId };
 	}, [dragItem, kbSelectedSource, preGenKbSource]);
 
-	const cellConflictMap = useMemo<Map<string, CellConflictInfo> | null>(() => {
+	const legacyCellConflictMap = useMemo<Map<string, import('@/types').CellConflictInfo> | null>(() => {
 		if (!conflictContext) return null;
 
 		const {
@@ -696,6 +764,80 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		return map;
 	}, [conflictContext, activeGridEntriesBase, timeSlots, facultyMap, roomMap, sectionMap, subjectMap]);
 
+	const liveConflictIndex = useMemo(
+		() => buildLiveConflictIndex(activeGridEntriesBase, timeSlots),
+		[activeGridEntriesBase, timeSlots],
+	);
+
+	const conflictLookup = useMemo(() => createLiveConflictLookup(
+		activeGridEntriesBase,
+		timeSlots,
+		conflictContext,
+		{
+			facultyName: (id) => {
+				const faculty = facultyMap.get(id);
+				if (!faculty) return `Faculty #${id}`;
+				const initial = faculty.firstName ? `${faculty.firstName.charAt(0).toUpperCase()}.` : '';
+				return initial ? `${initial} ${faculty.lastName}` : faculty.lastName;
+			},
+			sectionName: (id) => sectionMap.get(id)?.name ?? `Section #${id}`,
+			roomName: (id) => {
+				const room = roomMap.get(id);
+				if (!room) return `Room #${id}`;
+				const building = room.buildingShortCode || room.buildingName;
+				return building ? `${room.name} Â· ${building}` : room.name;
+			},
+			subjectName: (id) => subjectMap.get(id)?.name ?? `Subject #${id}`,
+		},
+		liveConflictIndex,
+	), [conflictContext, activeGridEntriesBase, timeSlots, facultyMap, roomMap, sectionMap, subjectMap, liveConflictIndex]);
+	const conflictLookupRef = useRef<typeof conflictLookup>(null);
+	conflictLookupRef.current = conflictLookup;
+	const getCellConflict = useCallback(
+		(cellId: string) => conflictLookupRef.current?.(cellId) ?? null,
+		[],
+	);
+	const liveDragConflictRef = useRef<{
+		source: any;
+		entries: ScheduledEntry[];
+		lookup: ((cellId: string) => import('@/types').CellConflictInfo | null) | null;
+	} | null>(null);
+	const getLiveCellConflict = useCallback((source: any, cellId: string) => {
+		if (!source) return getCellConflict(cellId);
+		const cached = liveDragConflictRef.current;
+		if (!cached || cached.source !== source || cached.entries !== activeGridEntriesBase) {
+			let context: import('@/lib/timetable-live-conflict').TimetableConflictContext | null = null;
+			if (source.type === 'entry') {
+				context = { sectionId: source.entry.sectionId, facultyId: source.entry.facultyId, roomId: source.entry.roomId, sourceEntryId: source.entry.entryId };
+			} else if (source.type === 'draftQueue') {
+				context = { sectionId: source.item.sectionId, facultyId: source.item.facultyOptions?.[0], allFacultyOptions: source.item.facultyOptions };
+			} else if (source.type === 'draftPlacement') {
+				context = { sectionId: source.placement.sectionId, facultyId: source.placement.facultyId ?? undefined, roomId: source.placement.roomId ?? undefined, sourceEntryId: `draft-placement-${source.placement.id}` };
+			} else if (source.type === 'unassigned') {
+				context = { sectionId: source.item.sectionId, facultyId: source.item.facultyId ?? undefined, roomId: source.item.homeRoomId ?? undefined };
+			}
+			const lookup = createLiveConflictLookup(activeGridEntriesBase, timeSlots, context, {
+				facultyName: (id) => {
+					const faculty = facultyMap.get(id);
+					if (!faculty) return `Faculty #${id}`;
+					const initial = faculty.firstName ? `${faculty.firstName.charAt(0).toUpperCase()}.` : '';
+					return initial ? `${initial} ${faculty.lastName}` : faculty.lastName;
+				},
+				sectionName: (id) => sectionMap.get(id)?.name ?? `Section #${id}`,
+				roomName: (id) => {
+					const room = roomMap.get(id);
+					if (!room) return `Room #${id}`;
+					const building = room.buildingShortCode || room.buildingName;
+					return building ? `${room.name} · ${building}` : room.name;
+				},
+				subjectName: (id) => subjectMap.get(id)?.name ?? `Subject #${id}`,
+			}, liveConflictIndex);
+			liveDragConflictRef.current = { source, entries: activeGridEntriesBase, lookup };
+		}
+		const activeLookup = liveDragConflictRef.current?.lookup;
+		return activeLookup?.(cellId) ?? null;
+	}, [activeGridEntriesBase, facultyMap, getCellConflict, liveConflictIndex, roomMap, sectionMap, subjectMap, timeSlots]);
+
 	const filteredDraftEntries = useMemo(() => {
 		return activeGridEntriesBase.filter((entry) => {
 			const programType = entry.programType ?? sectionMap.get(entry.sectionId)?.programType ?? null;
@@ -719,13 +861,14 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		});
 	}, [programKindFilteredUnassignedItems, unassignedReasonFilter]);
 
-	const sectionIds = useMemo(() => {
+	const rawSectionIds = useMemo(() => {
 		const ids = new Set<number>();
 		for (const e of filteredDraftEntries) ids.add(e.sectionId);
 		return Array.from(ids).sort((a, b) => a - b);
 	}, [filteredDraftEntries]);
+	const sectionIds = useStablePrimitiveArray(rawSectionIds);
 
-	const pivotEntityIds = useMemo(() => {
+	const rawPivotEntityIds = useMemo(() => {
 		const entries = filteredDraftEntries;
 		const isPreGen = centerView === 'pre-generation';
 		if (viewMode === 'section') {
@@ -757,6 +900,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			return ra.name.localeCompare(rb.name);
 		});
 	}, [filteredDraftEntries, viewMode, sectionIds, sectionMap, roomMap, centerView, facultyMap]);
+	const pivotEntityIds = useStablePrimitiveArray(rawPivotEntityIds);
 
 	const gridEntries = useMemo(() => {
 		const entries = filteredDraftEntries;
@@ -814,8 +958,23 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			preferCache: true,
 			backgroundRefresh: true,
 			allowStaleOnError: true,
+			allowEnrollProFallback: false,
 		});
+		setSchoolYearContext(context);
 		if (context.activeSchoolYearId) setSchoolYearId(context.activeSchoolYearId);
+		if (context.source === 'cache' || context.stale) {
+			void resolveActiveSchoolYearContext({
+				forceRefresh: true,
+				allowStaleOnError: true,
+				allowEnrollProFallback: false,
+			}).then((freshContext) => {
+				setSchoolYearContext(freshContext);
+				if (freshContext.activeSchoolYearId) setSchoolYearId(freshContext.activeSchoolYearId);
+			}).catch(() => {
+				// Keep the visible cached/stale source state. The header will state that
+				// ATLAS is working from saved data instead of hiding the uncertainty.
+			});
+		}
 		return context.activeSchoolYearId ?? null;
 	}, [setSchoolYearId]);
 
@@ -840,34 +999,62 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		const runKey = cacheRunKey(syId, runId);
 		const cached = runDataCacheBySchoolYearAndRun.get(runKey);
 		const canUseCache = !forceRefresh && preferCache && cached && isFresh(cached.ts);
+		const applyRunSnapshot = (draftSnapshot: DraftReport, violationsSnapshot: ViolationReport) => {
+			setDraft((prev) => sameDraftSnapshot(prev, draftSnapshot) ? prev : draftSnapshot);
+			setViolationReport((prev) => JSON.stringify(prev) === JSON.stringify(violationsSnapshot) ? prev : violationsSnapshot);
+		};
+		const refreshFollowUps = async (
+			numericRunId: number,
+			draftSnapshot: DraftReport,
+			violationsSnapshot: ViolationReport,
+			requestSeq: number,
+		) => {
+			let followUpEntryIds: string[] = [];
+			try {
+				const { data } = await atlasApi.get<{ flags: Array<{ entryId: string }> }>(`/follow-up-flags/${DEFAULT_SCHOOL_ID}/${syId}/runs/${numericRunId}/flags`);
+				followUpEntryIds = data.flags.map((flag) => flag.entryId);
+			} catch {
+				followUpEntryIds = [];
+			}
+			if (requestSeq !== latestRunDataFetchSeqRef.current) return;
+			runDataCacheBySchoolYearAndRun.set(runKey, {
+				ts: Date.now(),
+				draft: draftSnapshot,
+				violations: violationsSnapshot,
+				followUpEntryIds,
+			});
+			setFollowUps((prev) => {
+				if (prev.size !== followUpEntryIds.length) return new Set(followUpEntryIds);
+				for (const item of followUpEntryIds) if (!prev.has(item)) return new Set(followUpEntryIds);
+				return prev;
+			});
+		};
 
 		if (canUseCache) {
-			setDraft(cached.draft);
-			setViolationReport(cached.violations);
-			setFollowUps(new Set(cached.followUpEntryIds));
+			applyRunSnapshot(cached.draft, cached.violations);
+			setFollowUps((prev) => {
+				if (prev.size !== cached.followUpEntryIds.length) return new Set(cached.followUpEntryIds);
+				for (const item of cached.followUpEntryIds) if (!prev.has(item)) return new Set(cached.followUpEntryIds);
+				return prev;
+			});
 			if (backgroundRefresh) {
+				const requestSeq = latestRunDataFetchSeqRef.current + 1;
+				latestRunDataFetchSeqRef.current = requestSeq;
 				const base = `/generation/${DEFAULT_SCHOOL_ID}/${syId}/runs`;
 				const runPath = runId === 'latest' ? `${base}/latest` : `${base}/${runId}`;
 				void Promise.all([
 					atlasApi.get<DraftReport>(`${runPath}/draft`),
 					atlasApi.get<ViolationReport>(`${runPath}/violations`),
-				]).then(async ([draftRes, violationsRes]) => {
-					let followUpEntryIds: string[] = [];
-					try {
-						const { data } = await atlasApi.get<{ flags: Array<{ entryId: string }> }>(`/follow-up-flags/${DEFAULT_SCHOOL_ID}/${syId}/runs/${draftRes.data.runId}/flags`);
-						followUpEntryIds = data.flags.map((flag) => flag.entryId);
-					} catch {
-						followUpEntryIds = [];
-					}
+				]).then(([draftRes, violationsRes]) => {
+					if (requestSeq !== latestRunDataFetchSeqRef.current) return;
 					runDataCacheBySchoolYearAndRun.set(runKey, {
 						ts: Date.now(),
 						draft: draftRes.data,
 						violations: violationsRes.data,
-						followUpEntryIds,
+						followUpEntryIds: cached.followUpEntryIds,
 					});
-					setDraft(draftRes.data);
-					setViolationReport(violationsRes.data);
-					setFollowUps(new Set(followUpEntryIds));
+					applyRunSnapshot(draftRes.data, violationsRes.data);
+					void refreshFollowUps(draftRes.data.runId, draftRes.data, violationsRes.data, requestSeq);
 				}).catch(() => {
 					// keep warm cache on transient refresh failure
 				});
@@ -877,29 +1064,22 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 
 		const base = `/generation/${DEFAULT_SCHOOL_ID}/${syId}/runs`;
 		const runPath = runId === 'latest' ? `${base}/latest` : `${base}/${runId}`;
+		const requestSeq = latestRunDataFetchSeqRef.current + 1;
+		latestRunDataFetchSeqRef.current = requestSeq;
 		try {
 			const [draftRes, violationsRes] = await Promise.all([
 				atlasApi.get<DraftReport>(`${runPath}/draft`),
 				atlasApi.get<ViolationReport>(`${runPath}/violations`),
 			]);
-			setDraft(draftRes.data);
-			setViolationReport(violationsRes.data);
-			const numericRunId = draftRes.data.runId;
-			let followUpEntryIds: string[] = [];
-			try {
-				const { data } = await atlasApi.get<{ flags: Array<{ entryId: string }> }>(`/follow-up-flags/${DEFAULT_SCHOOL_ID}/${syId}/runs/${numericRunId}/flags`);
-				followUpEntryIds = data.flags.map((f) => f.entryId);
-				setFollowUps(new Set(followUpEntryIds));
-			} catch {
-				followUpEntryIds = [];
-				setFollowUps(new Set());
-			}
+			if (requestSeq !== latestRunDataFetchSeqRef.current) return;
+			applyRunSnapshot(draftRes.data, violationsRes.data);
 			runDataCacheBySchoolYearAndRun.set(runKey, {
 				ts: Date.now(),
 				draft: draftRes.data,
 				violations: violationsRes.data,
-				followUpEntryIds,
+				followUpEntryIds: [],
 			});
+			void refreshFollowUps(draftRes.data.runId, draftRes.data, violationsRes.data, requestSeq);
 		} catch (error) {
 			// Preserve structured API errors (NO_RUNS, NO_ACTIVE_DRAFT, STALE_RUN_DATA)
 			// so loadAll's catch block can inspect the code and keep the workspace open.
@@ -917,15 +1097,13 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		const canUseCache = !forceRefresh && preferCache && cached && isFresh(cached.ts);
 
 		if (canUseCache) {
-			setDraftBoard(cached.board);
-			setDraftBoardSummary(cached.board.counts);
+			applyDraftBoard(cached.board);
 			if (backgroundRefresh) {
 				void atlasApi
-					.get<DraftBoardState>(`/generation/${DEFAULT_SCHOOL_ID}/${syId}/pre-generation-drafts`)
+					.get<DraftBoardState>(`/generation/${DEFAULT_SCHOOL_ID}/${syId}/pre-generation-drafts?preferCachedSections=true`)
 					.then(({ data }) => {
 						draftBoardCacheBySchoolYear.set(syId, { ts: Date.now(), board: data });
-						setDraftBoard(data);
-						setDraftBoardSummary(data.counts);
+						applyDraftBoard(data);
 					})
 					.catch(() => {
 						// keep warm cache on transient refresh failure
@@ -935,17 +1113,16 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		}
 
 		try {
-			const { data } = await atlasApi.get<DraftBoardState>(`/generation/${DEFAULT_SCHOOL_ID}/${syId}/pre-generation-drafts`);
+			const { data } = await atlasApi.get<DraftBoardState>(`/generation/${DEFAULT_SCHOOL_ID}/${syId}/pre-generation-drafts?preferCachedSections=true`);
 			draftBoardCacheBySchoolYear.set(syId, { ts: Date.now(), board: data });
-			setDraftBoard(data);
-			setDraftBoardSummary(data.counts);
+			applyDraftBoard(data);
 			return data.counts;
 		} catch {
-			setDraftBoard(null);
-			setDraftBoardSummary(null);
+			// Do NOT wipe the context state on intermittent 502/network errors.
+			// Wiping the state causes massive re-renders that destroy active drag operations.
 			return null;
 		}
-	}, [setDraftBoard, setDraftBoardSummary]);
+	}, [applyDraftBoard]);
 
 	const loadRoomRequestSummary = useCallback(async (
 		syId: number,
@@ -959,8 +1136,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		const canUseCache = !forceRefresh && preferCache && cached && isFresh(cached.ts);
 
 		if (canUseCache) {
-			setRoomRequestSummary(cached.data);
-			setRoomRequestError(null);
+			applyRoomRequestSummary(cached.data);
 			if (backgroundRefresh) {
 				const params: Record<string, string> = {};
 				if (statusFilter !== 'ALL') params.status = statusFilter;
@@ -969,8 +1145,7 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 					.get<RoomPreferenceSummaryResponse>(`/room-preferences/${DEFAULT_SCHOOL_ID}/${syId}/latest/summary`, { params })
 					.then(({ data }) => {
 						roomRequestSummaryCacheByKey.set(requestKey, { ts: Date.now(), data });
-						setRoomRequestSummary(data);
-						setRoomRequestError(null);
+						applyRoomRequestSummary(data);
 					})
 					.catch(() => {
 						// keep warm cache on transient refresh failure
@@ -986,14 +1161,13 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 			if (decisionFilter !== 'ALL') params.decisionStatus = decisionFilter;
 			const { data } = await atlasApi.get<RoomPreferenceSummaryResponse>(`/room-preferences/${DEFAULT_SCHOOL_ID}/${syId}/latest/summary`, { params });
 			roomRequestSummaryCacheByKey.set(requestKey, { ts: Date.now(), data });
-			setRoomRequestSummary(data);
-			setRoomRequestError(null);
+			applyRoomRequestSummary(data);
 		} catch (err) {
 			setRoomRequestError(buildTimetableErrorMessage(err, 'Failed to load room requests.'));
 		} finally {
 			setRoomRequestLoading(false);
 		}
-	}, [setRoomRequestError, setRoomRequestLoading, setRoomRequestSummary]);
+	}, [applyRoomRequestSummary, setRoomRequestError, setRoomRequestLoading]);
 
 	const fetchReferenceData = useCallback(async (syId: number, options?: FetchOptions) => {
 		const { preferCache = false, forceRefresh = false } = options ?? {};
@@ -1001,11 +1175,24 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		const canUseCache = !forceRefresh && preferCache && cached && isFresh(cached.ts);
 
 		const hydrateReferenceState = (entry: CachedReferenceData) => {
-			setSubjectMap(new Map(entry.subjects.map((subject) => [subject.id, subject])));
-			setFacultyMap(new Map(entry.faculty.map((facultyMember) => [facultyMember.id, facultyMember])));
-			setBuildings(entry.buildings);
-			setSectionSummary(entry.sectionSummary);
-			setSectionMap(new Map(entry.sections.map((section) => [section.id, section])));
+			setSubjectMap((prev) => {
+				if (prev.size === entry.subjects.length && JSON.stringify(Array.from(prev.values())) === JSON.stringify(entry.subjects)) return prev;
+				return new Map(entry.subjects.map((subject) => [subject.id, subject]));
+			});
+
+			setFacultyMap((prev) => {
+				if (prev.size === entry.faculty.length && JSON.stringify(Array.from(prev.values())) === JSON.stringify(entry.faculty)) return prev;
+				return new Map(entry.faculty.map((facultyMember) => [facultyMember.id, facultyMember]));
+			});
+
+			setBuildings((prev) => JSON.stringify(prev) === JSON.stringify(entry.buildings) ? prev : entry.buildings);
+
+			setSectionSummary((prev) => JSON.stringify(prev) === JSON.stringify(entry.sectionSummary) ? prev : entry.sectionSummary);
+
+			setSectionMap((prev) => {
+				if (prev.size === entry.sections.length && JSON.stringify(Array.from(prev.values())) === JSON.stringify(entry.sections)) return prev;
+				return new Map(entry.sections.map((section) => [section.id, section]));
+			});
 
 			const enrichedRooms = new Map<number, RoomInfo>();
 			for (const building of entry.buildings) {
@@ -1022,7 +1209,10 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 					});
 				}
 			}
-			setRoomMap(enrichedRooms);
+			setRoomMap((prev) => {
+				if (prev.size === enrichedRooms.size && JSON.stringify(Array.from(prev.values())) === JSON.stringify(Array.from(enrichedRooms.values()))) return prev;
+				return enrichedRooms;
+			});
 		};
 
 		if (canUseCache) {
@@ -1093,7 +1283,14 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				return;
 			}
 			const fetchedRuns = await fetchRuns(syId, { preferCache: !force, forceRefresh: force });
-			await fetchReferenceData(syId, { preferCache: !force, forceRefresh: force });
+			const referenceDataPromise = fetchReferenceData(syId, {
+				preferCache: !force,
+				forceRefresh: force,
+				backgroundRefresh: !force,
+			}).catch(() => {
+				// Reference labels and advanced map pivots are non-primary for first grid readiness.
+				// Keep the timetable usable with ID fallbacks and let explicit refresh retry.
+			});
 
 			if (fetchedRuns.length === 0) {
 				setDraft(null);
@@ -1101,15 +1298,28 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 				setSelectedRunId('latest');
 				void fetchDraftBoardSummary(syId, { preferCache: !force, forceRefresh: force });
 				void loadRoomRequestSummary(syId, requestStatusFilter, requestDecisionFilter, { preferCache: !force, forceRefresh: force });
+				void referenceDataPromise;
 				setLoading(false);
 				return;
 			}
 
 			const runId = preserveRun ? selectedRunIdRef.current : 'latest';
 			if (!preserveRun) setSelectedRunId('latest');
-			await fetchRunData(syId, runId, { preferCache: !force, forceRefresh: force });
+			try {
+				await fetchRunData(syId, runId, { preferCache: !force, forceRefresh: force });
+			} catch (error) {
+				const code = getTimetableApiErrorCode(error);
+				if (runId === 'latest' && code === 'STALE_RUN_DATA') {
+					const latestRunId = fetchedRuns[0]?.id;
+					if (latestRunId == null) throw error;
+					await fetchRunData(syId, String(latestRunId), { preferCache: !force, forceRefresh: force });
+				} else {
+					throw error;
+				}
+			}
 
 			// Secondary rail diagnostics are intentionally deferred to keep first render interactive.
+			void referenceDataPromise;
 			void fetchDraftBoardSummary(syId, { preferCache: !force, forceRefresh: force });
 			void loadRoomRequestSummary(syId, requestStatusFilter, requestDecisionFilter, { preferCache: !force, forceRefresh: force });
 		} catch (e: unknown) {
@@ -1232,11 +1442,17 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 
 	const isStaleRoom = useCallback((roomId: number): boolean => !roomMap.has(roomId), [roomMap]);
 
-	const pivotLabel = useCallback((id: number): string => {
-		if (viewMode === 'section') return sectionLabel(id);
-		if (viewMode === 'faculty') return facultyLabel(id);
-		return roomLabelShort(id);
+	const pivotLabelMapsRef = useRef({ viewMode, sectionLabel, facultyLabel, roomLabelShort });
+	useEffect(() => {
+		pivotLabelMapsRef.current = { viewMode, sectionLabel, facultyLabel, roomLabelShort };
 	}, [viewMode, sectionLabel, facultyLabel, roomLabelShort]);
+
+	const pivotLabel = useCallback((id: number): string => {
+		const { viewMode: vm, sectionLabel: sl, facultyLabel: fl, roomLabelShort: rl } = pivotLabelMapsRef.current;
+		if (vm === 'section') return sl(id);
+		if (vm === 'faculty') return fl(id);
+		return rl(id);
+	}, []);
 
 	return {
 		violations,
@@ -1250,7 +1466,9 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		isPreGenerationWorkspace,
 		activeGridEntriesBase,
 		timeSlots,
-		cellConflictMap,
+		getCellConflict,
+		getLiveCellConflict,
+		releaseDeferredDragUpdates,
 		filteredDraftEntries,
 		programKindFilteredUnassignedItems,
 		filteredUnassignedItems,
@@ -1283,5 +1501,6 @@ export function useTimetableData(input: UseTimetableDataInput): TimetableDataSta
 		roomLabelShort,
 		isStaleRoom,
 		pivotLabel,
+		schoolYearContext,
 	};
 }

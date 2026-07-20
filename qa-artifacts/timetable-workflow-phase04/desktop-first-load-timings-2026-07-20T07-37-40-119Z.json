@@ -1,0 +1,16 @@
+{
+  "tableVisibleMs": 1378.9286999999968,
+  "firstActionVisibleMs": 1395.6300999999985,
+  "layoutMetrics": {
+    "scrollHeight": 768,
+    "clientHeight": 768,
+    "overflow": "visible",
+    "viewportWidth": 1366,
+    "centerWidth": 1011.78125,
+    "leftWidth": 263.796875,
+    "rightWidth": 40.421875,
+    "taskGuideHeight": 100,
+    "filtersVisible": true
+  },
+  "advancedRequests": []
+}

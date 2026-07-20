@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
 	AlertTriangle,
 	Check,
@@ -16,6 +16,7 @@ import {
 	X,
 	Zap,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 import atlasApi from '@/lib/api';
 import {
@@ -79,6 +80,7 @@ export function GeneratedViolationsPanel({
 		setSelectedEntry,
 		setSelectedUnassignedForRepair,
 		setSelectedViolation,
+		openTacticalSandbox,
 		toast,
 		setViolationsGroupPage,
 	} = context;
@@ -138,11 +140,12 @@ export function GeneratedViolationsPanel({
 					setSelectedEntry(null);
 					setSelectedViolation(null);
 					setSelectedUnassignedForRepair(item);
-					toast.info('Teaching Load repair opened for this unassigned session.');
+					openTacticalSandbox();
+					toast.info('Teaching Load repair opened. Fix the owner there, then place the session.');
 				}}
 			>
 				<Wand2 className="mr-1 size-3" />
-				Fix teacher
+				Fix teaching load
 			</Button>
 		);
 	};
@@ -313,16 +316,22 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 		setSelectedEntry,
 		setSelectedUnassignedForRepair,
 		setSelectedViolation,
+		openTacticalSandbox,
 		GRADE_BADGE,
 	} = context;
 	const generatedSummary = summary as GeneratedSummary | null;
+	const [showDiagnostics, setShowDiagnostics] = useState(false);
 
 	return (
 		<div id="panel-unassigned" role="tabpanel" aria-labelledby="tab-unassigned" className="flex flex-1 min-h-0 flex-col">
 			{generatedSummary ? (
 				<>
-					<div className="shrink-0 px-3 py-3 space-y-3">
-						<div className="flex flex-wrap items-center justify-between gap-1.5 rounded border border-border bg-muted/20 px-3 py-1.5 text-xs">
+					<div className="hidden shrink-0 border-b border-border/70 bg-background px-3 py-2 space-y-2 xl:block">
+						<div className="flex items-center justify-between rounded border border-border bg-muted/20 px-2 py-1 text-xs xl:hidden">
+							<span className="font-semibold text-amber-700">{generatedSummary.unassignedCount} unassigned</span>
+							<span className="text-muted-foreground">{generatedSummary.assignedCount}/{generatedSummary.classesProcessed} placed</span>
+						</div>
+						<div className="hidden grid-cols-4 gap-1.5 rounded border border-border bg-muted/20 px-2 py-1.5 text-xs xl:grid">
 							<div className="flex items-center gap-1.5">
 								<span className="text-muted-foreground font-medium">Processed</span>
 								<span className="font-bold">{generatedSummary.classesProcessed}</span>
@@ -342,10 +351,32 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 								</div>
 							)}
 						</div>
-						<GeneratedResourceDiagnostics summary={generatedSummary} />
+						{generatedSummary.resourceDiagnostics ? (
+							<div className="hidden rounded border border-border/70 bg-muted/20 xl:block">
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									className="h-7 w-full justify-between rounded-none px-2 text-xs"
+									aria-expanded={showDiagnostics}
+									onClick={() => setShowDiagnostics((value) => !value)}
+								>
+									<span className="inline-flex items-center gap-1.5">
+										<Info className="size-3.5" />
+										Resource diagnostics
+									</span>
+									<ChevronDown className={`size-3.5 transition-transform ${showDiagnostics ? '' : '-rotate-90'}`} />
+								</Button>
+								{showDiagnostics ? (
+									<div className="border-t border-border/70">
+										<GeneratedResourceDiagnostics summary={generatedSummary} />
+									</div>
+								) : null}
+							</div>
+						) : null}
 						{filteredUnassignedItems.length > 0 && (
-							<div className="space-y-2">
-								<div className="flex flex-wrap gap-1">
+							<div className="space-y-1.5">
+								<div className="flex gap-1 overflow-x-auto pb-0.5">
 									{(['all', 'NO_QUALIFIED_FACULTY', 'FACULTY_OVERLOADED', 'NO_AVAILABLE_SLOT', 'NO_COMPATIBLE_ROOM'] as const).map((reason) => {
 										const label = reason === 'all' ? 'All' : (UNASSIGNED_REASON_LABELS[reason]?.label ?? reason);
 										const count = reason === 'all'
@@ -366,8 +397,8 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 										);
 									})}
 								</div>
-								<span className="text-xs font-medium text-muted-foreground">
-									Start with the sessions that still need a teacher or timetable slot
+								<span className="hidden text-xs font-medium text-muted-foreground xl:block">
+									Choose a session, then place it with teacher, room, and slot guidance.
 								</span>
 							</div>
 						)}
@@ -385,7 +416,7 @@ export function GeneratedUnassignedPanel({ context, renderUnassignedReasonBadge 
 									renderUnassignedReasonBadge={renderUnassignedReasonBadge}
 								/>
 							)}
-							className="flex-1 min-h-0 overflow-auto px-3 pb-3"
+							className="flex-1 min-h-[220px] overflow-auto px-3 pb-3"
 							ariaLabel="Unassigned generated sessions"
 							overscan={5}
 						/>
@@ -509,6 +540,7 @@ function UnassignedRailRow({
 		setSelectedEntry,
 		setSelectedViolation,
 		setSelectedUnassignedForRepair,
+		openTacticalSandbox,
 	} = context;
 	const grade = item.gradeLevel;
 	const gradeBadge = grade ? GRADE_BADGE[grade] : undefined;
@@ -521,6 +553,28 @@ function UnassignedRailRow({
 	const isFollowUp = followUps.has(itemKey);
 	const isExpanded = expandedUnassigned.has(itemKey);
 	const cachedFix = unassignedFixSuggestions[itemKey];
+	const itemStatus = !item.facultyId
+		? { label: 'Needs owner', className: 'border-amber-200 bg-amber-50 text-amber-800' }
+		: !item.homeRoomId
+			? { label: 'Needs room', className: 'border-sky-200 bg-sky-50 text-sky-800' }
+		: cachedFix === null
+			? { label: 'Still blocked', className: 'border-red-200 bg-red-50 text-red-800' }
+			: cachedFix?.suggestions?.length
+				? { label: 'Ready to place', className: 'border-emerald-200 bg-emerald-50 text-emerald-800' }
+				: { label: 'Check slot', className: 'border-slate-200 bg-slate-50 text-slate-700' };
+	const openPlacementFlow = () => {
+		setSelectedEntry(null);
+		setSelectedViolation(null);
+		setSelectedUnassignedForRepair(item);
+		openTacticalSandbox();
+		toast.info('Teaching Load repair opened. Fix the owner there, then place the session.');
+	};
+	const explainMissingRoom = () => {
+		setSelectedEntry(null);
+		setSelectedViolation(null);
+		setSelectedUnassignedForRepair(item);
+		toast.error('This session needs a section home room before it can be placed. Open Sections and assign a home room first.');
+	};
 
 	return (
 		<DraggableUnassignedPin
@@ -539,6 +593,7 @@ function UnassignedRailRow({
 			<Button
 				type="button"
 				variant="ghost"
+				data-testid="generated-unassigned-card"
 				className="h-auto w-full max-w-full justify-start overflow-hidden px-2 py-1.5 text-left"
 				onClick={() => {
 					setExpandedUnassigned((prev) => {
@@ -569,15 +624,13 @@ function UnassignedRailRow({
 						<span className="truncate min-w-0">{subjectLabel(item.subjectId)}</span>
 					</div>
 					<div className="flex items-center gap-1.5 text-xs text-muted-foreground pl-4.5">
-						{renderUnassignedReasonBadge(item.reason)}
-						{matchesProgramFilter(resolveEntryProgramType(item), 'SPECIAL') && (
-							<Badge variant="outline" className="h-4.5 px-1.5 text-xs border-violet-300 bg-violet-50 text-violet-700">
-								{getProgramBadgeLabel(resolveEntryProgramType(item), resolveEntryProgramCode(item))}
-							</Badge>
-						)}
 						<span className="opacity-60 font-medium">Session {item.session}</span>
-						<span className="ml-auto text-red-600/80 font-bold tracking-wide uppercase text-xs flex items-center gap-0.5">
-							<AlertTriangle className="size-2.5" /> Blocker
+						<span
+							className={`ml-auto inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold ${itemStatus.className}`}
+							data-unassigned-status={itemStatus.label}
+						>
+							{itemStatus.label === 'Still blocked' ? <AlertTriangle className="size-2.5" aria-hidden="true" /> : null}
+							{itemStatus.label}
 						</span>
 					</div>
 				</div>
@@ -608,6 +661,14 @@ function UnassignedRailRow({
 								<span className="text-red-700 font-semibold">Recovery required</span>
 								<span className="text-muted-foreground">- this session still needs an operator review before publishing</span>
 							</div>
+							<div className="flex flex-wrap items-center gap-1.5 text-xs">
+								{renderUnassignedReasonBadge(item.reason)}
+								{matchesProgramFilter(resolveEntryProgramType(item), 'SPECIAL') && (
+									<Badge variant="outline" className="h-4.5 px-1.5 text-xs border-violet-300 bg-violet-50 text-violet-700">
+										{getProgramBadgeLabel(resolveEntryProgramType(item), resolveEntryProgramCode(item))}
+									</Badge>
+								)}
+							</div>
 							{(item.entryKind === 'COHORT' || item.adviserName) && (
 								<div className="rounded border border-border bg-background px-2.5 py-1.5 text-xs text-muted-foreground">
 									{entryContextLabel(item)}
@@ -622,6 +683,7 @@ function UnassignedRailRow({
 							<div className="flex items-center gap-1.5 pt-1" onClick={(event) => event.stopPropagation()}>
 								{(() => {
 									const isTeacherMissing = !item.facultyId;
+									const isRoomMissing = Boolean(item.facultyId) && !item.homeRoomId;
 									const cachedFix = unassignedFixSuggestions[itemKey];
 
 									if (isTeacherMissing) {
@@ -629,16 +691,30 @@ function UnassignedRailRow({
 											<Button
 												variant="outline"
 												size="sm"
-												className="h-6 px-2 text-xs gap-1 border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+												className="h-10 px-3 text-xs gap-1.5 border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
 												onClick={() => {
-													setSelectedEntry(null);
-													setSelectedViolation(null);
-													setSelectedUnassignedForRepair(item);
-													toast.info('Teaching Load repair opened for this unassigned session.');
+													openPlacementFlow();
 												}}
 											>
 												<Wand2 className="size-3" />
-												Fix teacher
+												Fix teaching load
+											</Button>
+										);
+									}
+
+									if (isRoomMissing) {
+										return (
+											<Button
+												asChild
+												variant="outline"
+												size="sm"
+												className="h-10 px-3 text-xs gap-1.5 border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100"
+												onClick={explainMissingRoom}
+											>
+												<Link to={`/sections?sectionId=${item.sectionId}`}>
+													<Wand2 className="size-3" />
+													Fix room first
+												</Link>
 											</Button>
 										);
 									}
@@ -647,16 +723,13 @@ function UnassignedRailRow({
 										const hasSlots = cachedFix.suggestions && cachedFix.suggestions.length > 0;
 										if (hasSlots) {
 											return (
-												<Button
-													variant="outline"
-													size="sm"
-													className="h-6 px-2 text-xs gap-1 border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
-													onClick={() => {
-														setSelectedEntry(null);
-														setSelectedViolation(null);
-														setSelectedUnassignedForRepair(item);
-														toast.info('Teaching Load repair opened for this unassigned session.');
-													}}
+													<Button
+														variant="outline"
+														size="sm"
+														className="h-10 px-3 text-xs gap-1.5 border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
+														onClick={() => {
+															openPlacementFlow();
+														}}
 												>
 													<Wand2 className="size-3" />
 													Place session
@@ -667,7 +740,7 @@ function UnassignedRailRow({
 												<Button
 													variant="outline"
 													size="sm"
-													className="h-6 px-2 text-xs gap-1 border-red-200 bg-red-50 text-red-700 hover:bg-red-50"
+													className="h-10 px-3 text-xs gap-1.5 border-red-200 bg-red-50 text-red-700 hover:bg-red-50"
 													disabled
 												>
 													<ShieldAlert className="size-3" />
@@ -681,12 +754,9 @@ function UnassignedRailRow({
 										<Button
 											variant="outline"
 											size="sm"
-											className="h-6 px-2 text-xs gap-1"
+											className="h-10 px-3 text-xs gap-1.5"
 											onClick={() => {
-												setSelectedEntry(null);
-												setSelectedViolation(null);
-												setSelectedUnassignedForRepair(item);
-												toast.info('Teaching Load repair opened for this unassigned session.');
+												openPlacementFlow();
 											}}
 										>
 											<Wand2 className="size-3" />
@@ -697,7 +767,7 @@ function UnassignedRailRow({
 								<Button
 									variant="ghost"
 									size="sm"
-									className="h-6 px-2 text-xs gap-1"
+									className="h-10 px-3 text-xs gap-1.5"
 									onClick={() => setDrawerUnassigned(item)}
 								>
 									<Lightbulb className="size-3" />
@@ -706,7 +776,7 @@ function UnassignedRailRow({
 								<Button
 									variant="ghost"
 									size="sm"
-									className={`h-6 px-2 text-xs gap-1 ${isFollowUp ? 'text-amber-600' : ''}`}
+									className={`h-10 px-3 text-xs gap-1.5 ${isFollowUp ? 'text-amber-600' : ''}`}
 									onClick={() => {
 										setFollowUps((prev) => {
 											const next = new Set(prev);
@@ -757,7 +827,7 @@ function UnassignedFixSuggestions({
 			<Button
 				variant="outline"
 				size="sm"
-				className="w-full h-7 text-xs gap-1"
+				className="h-10 w-full text-xs gap-1.5"
 				disabled={fixLoading === itemKey}
 				onClick={async (event) => {
 					event.stopPropagation();

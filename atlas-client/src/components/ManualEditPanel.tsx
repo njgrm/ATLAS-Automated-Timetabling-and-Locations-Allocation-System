@@ -34,6 +34,7 @@ import {
 	DAYS,
 	GRADE_BADGE,
 	type ManualEditActionType,
+	type ManualEditRoomInfo,
 	type ManualEditPanelProps,
 } from '@/components/manual-edit/manual-edit-foundation';
 
@@ -120,8 +121,8 @@ export default function ManualEditPanel({
 	}, [draftEntries]);
 
 	const roomsByBuilding = useMemo(() => {
-		const groups: Array<{ buildingId: number; label: string; rooms: RoomInfo[] }> = [];
-		const buildingMap = new Map<number, { label: string; rooms: RoomInfo[] }>();
+		const groups: Array<{ buildingId: number; label: string; rooms: ManualEditRoomInfo[] }> = [];
+		const buildingMap = new Map<number, { label: string; rooms: ManualEditRoomInfo[] }>();
 		for (const [, r] of roomMap) {
 			if (!r.isTeachingSpace) continue;
 			let group = buildingMap.get(r.buildingId);
@@ -230,7 +231,7 @@ export default function ManualEditPanel({
 
 	// ── Actions ──
 
-	const switchAction = useCallback((type: ActionType) => {
+	const switchAction = useCallback((type: ManualEditActionType) => {
 		setActionType(type);
 		setLastPreviewSummary(null);
 	}, []);
@@ -454,7 +455,7 @@ export default function ManualEditPanel({
 										size="sm"
 										className="h-7 text-xs gap-1"
 										onClick={() => switchAction('CHANGE_FACULTY')}
-										aria-label="Reassign Teacher"
+										aria-label="Change Teaching Load owner"
 									>
 										<Users className="size-3" />
 										Faculty
@@ -622,7 +623,7 @@ export default function ManualEditPanel({
 											groups={facultySearchGroups}
 											value={targetFacultyId}
 											onValueChange={setTargetFacultyId}
-											placeholder="Search teachers…"
+											placeholder="Search owners..."
 											triggerClassName="h-8 text-xs w-full"
 										/>
 									</div>

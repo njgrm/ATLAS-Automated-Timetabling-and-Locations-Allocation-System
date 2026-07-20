@@ -3,15 +3,15 @@ import fs from "node:fs";
 import path from "node:path";
 
 const credentials = {
-  email: process.env.PLAYWRIGHT_ADMIN_EMAIL ?? "admin@deped.edu.ph",
-  password: process.env.PLAYWRIGHT_ADMIN_PASSWORD ?? "Incorrect_404",
+  identifier: process.env.PLAYWRIGHT_ADMIN_EMAIL ?? "1000001",
+  password: process.env.PLAYWRIGHT_ADMIN_PASSWORD ?? "AdminSY2026!",
 };
 
 const shouldAssertSnapshots = process.env.PLAYWRIGHT_ASSERT_SNAPSHOTS === "1";
 const screenshotRoot = path.join(process.cwd(), "qa-artifacts", "screenshots", "timetable-preview-smoke");
 
 async function loginAdmin(page: Page) {
-  const response = await page.request.post("http://localhost:5001/api/v1/auth/login", {
+  const response = await page.request.post("/api/v1/auth/login", {
     data: credentials,
   });
   expect(response.ok()).toBeTruthy();

@@ -1,0 +1,5 @@
+{
+  "status": "BLOCKED",
+  "reason": "Admin login failed with HTTP 502: ",
+  "target": "https://njgrm.buru-degree.ts.net"
+}

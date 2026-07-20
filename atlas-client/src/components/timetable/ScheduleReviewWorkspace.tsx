@@ -1,4 +1,4 @@
-import { DndContext, DragOverlay } from '@dnd-kit/core';
+import { DndContext, DragOverlay, pointerWithin, useDndContext } from '@dnd-kit/core';
 import { useScheduleReviewWorkspaceState } from '@/hooks/useScheduleReviewWorkspaceState';
 import { ScheduleReviewWorkspaceHeader } from '@/components/timetable/ScheduleReviewWorkspaceHeader';
 import { ScheduleReviewWorkspaceBody } from '@/components/timetable/ScheduleReviewWorkspaceBody';
@@ -6,6 +6,40 @@ import { ScheduleReviewWorkspaceOverlays } from '@/components/timetable/Schedule
 import { TimetableSkeleton } from '@/components/timetable/TimetableSkeleton';
 import { Button } from '@/ui/button';
 import { AlertCircle, RefreshCw } from 'lucide-react';
+import { Profiler } from 'react';
+
+export const onProfilerRender = (id: string, phase: string, actualDuration: number, baseDuration: number) => {
+	if (typeof window !== 'undefined') {
+		const win = window as any;
+		win.__reactProfilerLogs = win.__reactProfilerLogs || [];
+		win.__reactProfilerLogs.push({ id, phase, actualDuration, baseDuration, timestamp: Date.now() });
+	}
+};
+
+function TimetableDragOverlay({
+	subjectLabel,
+	sectionLabel,
+}: {
+	subjectLabel: (id: number) => string;
+	sectionLabel: (id: number) => string;
+}) {
+	const { active } = useDndContext();
+	const source = active?.data.current as any;
+	if (!source?.type) return null;
+	const label = source.type === 'entry'
+		? subjectLabel(source.entry.subjectId)
+		: source.type === 'draftQueue'
+			? `${source.item.subjectCode} · ${source.item.sectionName}`
+			: source.type === 'draftPlacement'
+				? `Draft · ${subjectLabel(source.placement?.subjectId ?? source.entry?.subjectId)}`
+				: `${subjectLabel(source.item.subjectId)} · ${sectionLabel(source.item.sectionId)}`;
+	return (
+		<div className="rounded border border-primary/60 bg-card px-2.5 py-1.5 text-xs shadow-md pointer-events-none select-none">
+			<p className="font-medium">{label}</p>
+			<p className="mt-0.5 text-[0.68rem] text-muted-foreground">Release on a highlighted cell to review move or swap.</p>
+		</div>
+	);
+}
 
 export default function ScheduleReviewWorkspace() {
 	const state = useScheduleReviewWorkspaceState();
@@ -45,6 +79,8 @@ export default function ScheduleReviewWorkspace() {
 			<div className={`h-0.5 shrink-0 bg-emerald-500 transition-opacity duration-150 ${state.showTopLoadingStrip ? 'opacity-100 animate-pulse' : 'opacity-0'}`} />
 			{state.inlineActionStatus ? (
 				<div
+					role="status"
+					aria-live="polite"
 					className={`border-b px-3 py-1 text-xs ${
 						state.inlineActionStatus.tone === 'error'
 							? 'border-destructive/40 bg-destructive/10 text-destructive'
@@ -58,13 +94,14 @@ export default function ScheduleReviewWorkspace() {
 					{state.inlineActionStatus.message}
 				</div>
 			) : null}
-			<DndContext sensors={state.sensors} onDragStart={state.handleGlobalDragStart} onDragOver={state.handleGlobalDragOver} onDragEnd={state.handleGlobalDragEnd}>
+			<DndContext sensors={state.sensors} collisionDetection={pointerWithin} onDragStart={state.handleGlobalDragStart} onDragMove={state.handleGlobalDragMove} onDragOver={state.handleGlobalDragOver} onDragEnd={state.handleGlobalDragEnd} onDragCancel={state.handleGlobalDragCancel}>
 				<ScheduleReviewWorkspaceHeader context={state.headerContext} />
 				<ScheduleReviewWorkspaceBody
 					context={{
 						leftPanelRef: state.leftPanelRef,
 						setIsLeftCollapsed: state.setIsLeftCollapsed,
 						isLeftCollapsed: state.isLeftCollapsed,
+						isDesktop: state.isDesktop,
 						isPreGenerationWorkspace: state.isPreGenerationWorkspace,
 						leftTab: state.leftTab,
 						setLeftTab: state.setLeftTab,
@@ -77,18 +114,7 @@ export default function ScheduleReviewWorkspace() {
 					}}
 				/>
 				<DragOverlay dropAnimation={null}>
-					{state.dragItem && (
-						<div className="rounded border border-primary/60 bg-card shadow-md px-2.5 py-1.5 text-xs font-medium pointer-events-none select-none">
-							{state.dragItem.type === 'entry'
-								? state.subjectLabel(state.dragItem.entry.subjectId)
-								: state.dragItem.type === 'draftQueue'
-									? `${state.dragItem.item.subjectCode} \u00B7 ${state.dragItem.item.sectionName}`
-									: state.dragItem.type === 'draftPlacement'
-										? `Draft \u00B7 ${state.subjectLabel(state.dragItem.placement.subjectId)}`
-										: `${state.subjectLabel(state.dragItem.item.subjectId)} \u00B7 ${state.sectionLabel(state.dragItem.item.sectionId)}`
-							}
-						</div>
-					)}
+					<TimetableDragOverlay subjectLabel={state.subjectLabel} sectionLabel={state.sectionLabel} />
 				</DragOverlay>
 			</DndContext>
 			<ScheduleReviewWorkspaceOverlays context={state.overlaysContext} />

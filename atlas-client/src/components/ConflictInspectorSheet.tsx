@@ -168,7 +168,9 @@ export function ConflictInspectorSheet({
 											<div className="flex items-center gap-3 text-[0.6875rem] text-muted-foreground">
 												<span className="flex items-center gap-1">
 													<Users className="size-3" />
-													{facultyMap.get(entry.facultyId) ?? `Unknown Faculty (#${entry.facultyId})`}
+											{entry.facultyId != null
+												? facultyMap.get(entry.facultyId) ?? `Unknown Faculty (#${entry.facultyId})`
+												: 'Unassigned Faculty'}
 												</span>
 											</div>
 											<div className="text-[0.625rem] font-mono text-muted-foreground/70">

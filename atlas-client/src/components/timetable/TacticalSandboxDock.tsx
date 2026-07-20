@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Loader2, RotateCcw, Search, ShieldCheck, X } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { StackedWorkloadBar } from '@/components/faculty-assignments/StackedWorkloadBar';
 import atlasApi from '@/lib/api';
 import { buildUnassignedKey } from '@/lib/timetable-utils';
 import {
@@ -27,21 +26,23 @@ import {
 import {
 	ancillaryCreditHours,
 	buildEntryRepairChanges,
+	buildFacultyTeachingMinuteIndex,
 	buildFacultyChangeProposals,
 	buildRevisionPayloadChange,
 	buildTeachingLoadRepairProposals,
-	compactLoadStatus,
 	facultyDisplayName,
 	findCanonicalOwner,
-	formatHours,
 	isEligibleFaculty,
 	previewErrorCopy,
-	projectEntryFaculty,
+	projectedTeachingHoursForFaculty,
 	revisionDateError,
 	reviewStatusCopy,
 	teachingHoursForFaculty,
 } from './TacticalSandboxDock.helpers';
+import { ReviewStepPill, TeacherCandidateCard, type Candidate, type ReviewStep } from './TacticalSandboxDock.parts';
 import { PublishedRevisionDialog } from './PublishedRevisionDialog';
+
+const MAX_RENDERED_TEACHER_CANDIDATES = 30;
 
 type TacticalSandboxDockProps = {
 	open: boolean;
@@ -69,23 +70,6 @@ type TacticalSandboxDockProps = {
 	facultyLabel: (id: number) => string;
 };
 
-type Candidate = {
-	faculty: FacultyMirror;
-	teachingHours: number;
-	creditHours: number;
-	creditedTotalHours: number;
-	statusLabel: string;
-	toCapHours: number;
-	overCapHours: number;
-	isCurrent: boolean;
-	isSelected: boolean;
-};
-
-type ReviewStep = {
-	label: string;
-	state: 'done' | 'active' | 'waiting' | 'blocked';
-};
-
 type RevisionChange = {
 	entry: ScheduledEntry;
 	targetFacultyId: number;
@@ -106,18 +90,6 @@ type RevisionSuccess = {
 	effectiveDate: string;
 	changeCount: number;
 };
-
-function ReviewStepPill({ step }: { step: ReviewStep }) {
-	const tone = step.state === 'done'
-		? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-		: step.state === 'active'
-			? 'border-primary/25 bg-primary/10 text-primary'
-			: step.state === 'blocked'
-				? 'border-red-200 bg-red-50 text-red-700'
-				: 'border-border bg-muted/30 text-muted-foreground';
-
-	return <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${tone}`}>{step.label}</span>;
-}
 
 export function TacticalSandboxDock({
 	open,
@@ -236,8 +208,8 @@ export function TacticalSandboxDock({
 		? (repairChanges.length > 0 || selectedPlacementProposal !== null)
 		: stagedCount > 0;
 	const reviewSteps: ReviewStep[] = useMemo(() => ([
-		{ label: '1 Current teacher', state: activeContextEntry ? 'done' : 'active' },
-		{ label: '2 Choose teacher', state: hasStagedChanges ? 'done' : activeContextEntry ? 'active' : 'waiting' },
+		{ label: '1 Current owner', state: activeContextEntry ? 'done' : 'active' },
+		{ label: '2 Select Teaching Load owner', state: hasStagedChanges ? 'done' : activeContextEntry ? 'active' : 'waiting' },
 		{ label: isPublished ? '3 Create revision' : '3 Preview and save', state: batchPreview ? (canSaveReviewedBatch ? 'active' : canCommitPreview ? 'waiting' : 'blocked') : hasStagedChanges ? 'active' : 'waiting' },
 	]), [activeContextEntry, batchPreview, canCommitPreview, canSaveReviewedBatch, isPublished, hasStagedChanges]);
 
@@ -280,21 +252,34 @@ export function TacticalSandboxDock({
 			});
 	}, [draftEntries, selectedEntry, selectedUnassigned, sectionLabel]);
 
+	const selectedEntryIds = useMemo(() => {
+		if (!selectedEntry || selectedUnassigned) return [];
+		return [selectedEntry.entryId, ...Array.from(bulkEntryIds)];
+	}, [bulkEntryIds, selectedEntry, selectedUnassigned]);
+
+	const draftEntriesById = useMemo(
+		() => new Map(draftEntries.map((entry) => [entry.entryId, entry])),
+		[draftEntries],
+	);
+
+	const baseTeachingMinutesByFaculty = useMemo(
+		() => buildFacultyTeachingMinuteIndex(draftEntries, sandboxFacultyByEntryId),
+		[draftEntries, sandboxFacultyByEntryId],
+	);
+
 	const candidates = useMemo<Candidate[]>(() => {
 		if (!activeContextEntry) return [];
 		return Array.from(facultyMap.values())
 			.filter((faculty) => isEligibleFaculty(faculty, subject, activeContextEntry))
 			.map((faculty) => {
-				const candidateProjectedEntries = selectedUnassigned
-					? draftEntries
-					: draftEntries.map((entry) => projectEntryFaculty(
-						entry,
-						sandboxFacultyByEntryId,
-						activeContextEntry.entryId,
-						faculty.id,
-						bulkEntryIds,
-					));
-				const teachingHours = teachingHoursForFaculty(candidateProjectedEntries, faculty.id);
+				const teachingHours = projectedTeachingHoursForFaculty(
+					faculty.id,
+					baseTeachingMinutesByFaculty,
+					draftEntriesById,
+					selectedEntryIds,
+					faculty.id,
+					sandboxFacultyByEntryId,
+				);
 				const creditHours = Math.max(faculty.advisoryEquivalentHours ?? 0, 0) + ancillaryCreditHours(faculty);
 				const capacity = deriveWorkloadCapacity(teachingHours, creditHours, faculty.maxHoursPerWeek || MAX_WEEKLY_TEACHING_HOURS);
 				return {
@@ -314,7 +299,7 @@ export function TacticalSandboxDock({
 				if (left.creditedTotalHours !== right.creditedTotalHours) return left.creditedTotalHours - right.creditedTotalHours;
 				return facultyDisplayName(left.faculty).localeCompare(facultyDisplayName(right.faculty));
 			});
-	}, [activeContextEntry, bulkEntryIds, draftEntries, facultyMap, previewFacultyId, sandboxFacultyByEntryId, selectedUnassigned, subject]);
+	}, [activeContextEntry, baseTeachingMinutesByFaculty, draftEntries, draftEntriesById, facultyMap, previewFacultyId, sandboxFacultyByEntryId, selectedEntryIds, selectedUnassigned, subject]);
 
 	const filteredCandidates = useMemo(() => {
 		const query = candidateQuery.trim().toLowerCase();
@@ -329,6 +314,11 @@ export function TacticalSandboxDock({
 			return haystack.includes(query);
 		});
 	}, [candidateQuery, candidates]);
+
+	const visibleCandidates = useMemo(
+		() => filteredCandidates.slice(0, MAX_RENDERED_TEACHER_CANDIDATES),
+		[filteredCandidates],
+	);
 
 	const selectedBulkCount = bulkEntryIds.size;
 	const revisionChanges = useMemo<RevisionChange[]>(() => {
@@ -357,10 +347,6 @@ export function TacticalSandboxDock({
 	}, [draftEntries, facultyMap, sandboxFacultyByEntryId, stagedProposals]);
 	const aboveStandardWarnings = useMemo(() => revisionChanges.filter((change) => change.targetCapacity?.status === 'overload-allowed'), [revisionChanges]);
 	const overCapWarnings = useMemo(() => revisionChanges.filter((change) => change.targetCapacity?.status === 'over-cap'), [revisionChanges]);
-	const selectedEntryIds = useMemo(() => {
-		if (!selectedEntry || selectedUnassigned) return [];
-		return [selectedEntry.entryId, ...Array.from(bulkEntryIds)];
-	}, [bulkEntryIds, selectedEntry, selectedUnassigned]);
 
 	const getPrimaryButtonLabel = () => {
 		if (isPublished) {
@@ -485,7 +471,7 @@ export function TacticalSandboxDock({
 			return;
 		}
 		if (revisionChanges.length === 0) {
-			setRevisionError('No staged teacher changes are ready for revision. Choose a teacher first, then review again.');
+			setRevisionError('No staged ownership changes are ready for revision. Select a Teaching Load owner first, then review again.');
 			setRevisionActionHint(null);
 			return;
 		}
@@ -551,15 +537,15 @@ export function TacticalSandboxDock({
 						<Badge variant="secondary" className="h-5 px-2 text-xs uppercase">Teaching Load</Badge>
 						<Badge variant="outline" className="h-5 px-2 text-xs">{isPublished ? 'Create revision' : 'Preview and save'}</Badge>
 					</div>
-					<SheetTitle>Fix Teacher Assignment</SheetTitle>
+					<SheetTitle>Fix Teaching Load Owner</SheetTitle>
 					<SheetDescription>
 						{activeContextEntry
 							? isPublished
 								? `${subjectLabel(activeContextEntry.subjectId)} for ${sectionLabel(activeContextEntry.sectionId)} is published. Create an effective-date revision for the timetable; Teaching Load will not be rewritten from this published repair.`
 								: selectedUnassigned
-									? `${subjectLabel(activeContextEntry.subjectId)} for ${sectionLabel(activeContextEntry.sectionId)} is unassigned. Save Teaching Load first, then place this session in a valid slot.`
+									? `${subjectLabel(activeContextEntry.subjectId)} for ${sectionLabel(activeContextEntry.sectionId)} is unassigned. Step 1: select the Teaching Load owner. Step 2: choose a suggested timetable slot. Step 3: preview conflicts and save.`
 									: `${subjectLabel(activeContextEntry.subjectId)} for ${sectionLabel(activeContextEntry.sectionId)} in SY ${schoolYearId ?? 'current'} can be saved to Teaching Load and reflected in this timetable.`
-							: 'Select a class or unassigned session to choose a teacher, preview, and save.'}
+							: 'Select a class or unassigned session to review Teaching Load ownership, preview, and save.'}
 					</SheetDescription>
 				</SheetHeader>
 
@@ -586,8 +572,8 @@ export function TacticalSandboxDock({
 									</div>
 								</div>
 								<div>
-									<p className="text-xs uppercase text-muted-foreground">{selectedUnassigned ? 'Current schedule state' : 'Current teacher'}</p>
-									<p className="font-medium text-foreground">{selectedUnassigned ? 'Not placed yet' : activeContextEntry.facultyId ? facultyLabel(activeContextEntry.facultyId) : 'No teacher assigned'}</p>
+									<p className="text-xs uppercase text-muted-foreground">{selectedUnassigned ? 'Current schedule state' : 'Current timetable owner'}</p>
+									<p className="font-medium text-foreground">{selectedUnassigned ? 'Not placed yet' : activeContextEntry.facultyId ? facultyLabel(activeContextEntry.facultyId) : 'No owner assigned'}</p>
 								</div>
 								<div>
 									<p className="text-xs uppercase text-muted-foreground">Teaching Load owner</p>
@@ -602,7 +588,7 @@ export function TacticalSandboxDock({
 												<p className="mt-0.5 text-xs">Choose which source should drive this class before saving.</p>
 												<div className="mt-2 flex flex-wrap gap-1.5">
 													<Button type="button" size="sm" variant="outline" className="h-7 bg-background text-xs" onClick={useTimetableTeacherAsTeachingLoadOwner} disabled={isPublished || !selectedEntry?.facultyId}>
-														Use timetable teacher
+														Use timetable owner
 													</Button>
 													<Button type="button" size="sm" variant="outline" className="h-7 bg-background text-xs" onClick={() => canonicalOwner ? applyCandidate(canonicalOwner.id) : undefined} disabled={!canonicalOwner}>
 														Use Teaching Load owner
@@ -625,8 +611,8 @@ export function TacticalSandboxDock({
 							<div className="space-y-2 border-b border-border/70 px-3 py-2">
 								<div className="flex items-start justify-between gap-2">
 									<div>
-									<p className="text-sm font-semibold text-foreground">Choose a teacher</p>
-									<p className="text-xs text-muted-foreground">Search, choose, then preview before saving.</p>
+									<p className="text-sm font-semibold text-foreground">Select Teaching Load owner</p>
+									<p className="text-xs text-muted-foreground">Search, select, then preview before saving.</p>
 									</div>
 									<Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setShowWorkloadDetails((value) => !value)}>
 										{showWorkloadDetails ? 'Hide details' : 'Details'}
@@ -637,9 +623,9 @@ export function TacticalSandboxDock({
 									<Input
 										value={candidateQuery}
 										onChange={(event) => setCandidateQuery(event.target.value)}
-										placeholder="Search teacher, department, or status"
+										placeholder="Search owner, department, or status"
 										className="h-8 pl-8 text-sm"
-										aria-label="Search eligible teachers"
+										aria-label="Search eligible Teaching Load owners"
 									/>
 								</div>
 							</div>
@@ -647,46 +633,25 @@ export function TacticalSandboxDock({
 								<div className="space-y-2 p-3">
 									{filteredCandidates.length === 0 ? (
 										<div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-											No eligible teacher matches this search. Clear the search or pick another block.
+											No eligible owner matches this search. Clear the search or pick another block.
 										</div>
-									) : filteredCandidates.map((candidate) => (
-										<div key={candidate.faculty.id} className="min-w-0 rounded-md border border-border/80 bg-card p-3 shadow-sm">
-											<div className="flex flex-wrap items-start justify-between gap-2">
-												<div className="min-w-0">
-													<div className="flex flex-wrap items-center gap-1.5">
-														<p className="truncate text-sm font-semibold text-foreground">{facultyDisplayName(candidate.faculty)}</p>
-														{candidate.isCurrent ? <Badge variant="outline" className="h-5 px-1.5 text-xs">Current</Badge> : null}
-														{candidate.isSelected ? <Badge className="h-5 px-1.5 text-xs">Previewed</Badge> : null}
-													</div>
-													<p className="text-xs text-muted-foreground">{candidate.faculty.department ?? 'Unassigned'}{candidate.faculty.specialization ? ` - ${candidate.faculty.specialization}` : ''}</p>
-												</div>
-												<Button type="button" size="sm" variant={candidate.isSelected ? 'secondary' : 'outline'} className="h-8 text-xs" onClick={() => applyCandidate(candidate.faculty.id)} aria-label={`Use ${facultyDisplayName(candidate.faculty)} for this sandbox repair`}>
-													{candidate.isSelected ? 'Selected' : 'Use teacher'}
-												</Button>
+									) : (
+										<>
+										{filteredCandidates.length > MAX_RENDERED_TEACHER_CANDIDATES ? (
+											<div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+												Showing the first {MAX_RENDERED_TEACHER_CANDIDATES} of {filteredCandidates.length} eligible owners. Use search to narrow the list.
 											</div>
-											<div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-												<Badge variant={candidate.overCapHours > 0 ? 'destructive' : candidate.toCapHours <= 2 ? 'outline' : 'secondary'} className="h-5 px-2 text-xs">
-													{compactLoadStatus(candidate)}
-												</Badge>
-												<p className="text-xs font-medium text-muted-foreground">{candidate.statusLabel}</p>
-											</div>
-											{showWorkloadDetails ? (
-												<div className="mt-2 grid gap-2 sm:grid-cols-[1fr_11rem] sm:items-center">
-													<StackedWorkloadBar
-														teachingHours={candidate.teachingHours}
-														creditHours={candidate.creditHours}
-														maxHours={candidate.faculty.maxHoursPerWeek || MAX_WEEKLY_TEACHING_HOURS}
-														compact
-													/>
-													<div className="text-xs text-muted-foreground sm:text-right">
-														<p className="font-medium text-foreground">{formatHours(candidate.creditedTotalHours)} credited</p>
-														<p>{formatHours(candidate.teachingHours)} teaching + {formatHours(candidate.creditHours)} credit</p>
-														<p>{candidate.overCapHours > 0 ? `${formatHours(candidate.overCapHours)} over cap` : `${formatHours(candidate.toCapHours)} to cap`}</p>
-													</div>
-												</div>
-											) : null}
-										</div>
-									))}
+										) : null}
+										{visibleCandidates.map((candidate) => (
+											<TeacherCandidateCard
+												key={candidate.faculty.id}
+												candidate={candidate}
+												showWorkloadDetails={showWorkloadDetails}
+												onApply={applyCandidate}
+											/>
+										))}
+										</>
+									)}
 								</div>
 							</ScrollArea>
 						</section>
@@ -805,7 +770,7 @@ export function TacticalSandboxDock({
 													<span className="min-w-0 flex-1">
 														<span className="block font-medium text-foreground">{sectionLabel(entry.sectionId)}</span>
 														<span className="block text-xs text-muted-foreground">{entry.day} {formatTime(entry.startTime)}-{formatTime(entry.endTime)}</span>
-														<span className="block truncate text-xs text-muted-foreground">{facultyId ? facultyLabel(facultyId) : 'No teacher'}</span>
+														<span className="block truncate text-xs text-muted-foreground">{facultyId ? facultyLabel(facultyId) : 'No owner'}</span>
 													</span>
 												</label>
 											);
@@ -835,8 +800,8 @@ export function TacticalSandboxDock({
 								<p className="text-sm font-semibold text-foreground">{isPublished ? 'Create timetable revision' : 'Preview and save'}</p>
 								<p className="text-xs text-muted-foreground">
 									{selectedUnassigned
-										? `${unassignedOwnerChanged ? 'Teacher and placement changes' : 'Session placement'} waiting for review.`
-										: `${stagedCount} teacher change${stagedCount === 1 ? '' : 's'} waiting for ${isPublished ? 'an effective date' : 'impact preview'}.`}
+										? `${unassignedOwnerChanged ? 'Ownership and placement changes' : 'Session placement'} waiting for review.`
+										: `${stagedCount} ownership change${stagedCount === 1 ? '' : 's'} waiting for ${isPublished ? 'an effective date' : 'impact preview'}.`}
 								</p>
 							</div>
 							<div className="flex flex-wrap gap-1.5">
@@ -883,7 +848,7 @@ export function TacticalSandboxDock({
 											<span className="truncate font-medium text-foreground">{sectionLabel(entry.sectionId)}</span>
 											{rowPreview?.status === 'FAILED' ? <Badge variant="destructive" className="h-4 px-1.5 text-xs">Failed</Badge> : null}
 										</div>
-										<p className="truncate text-xs text-muted-foreground">{entry.facultyId ? facultyLabel(entry.facultyId) : 'No teacher'} -&gt; {targetFacultyId ? facultyLabel(targetFacultyId) : 'No teacher'}</p>
+										<p className="truncate text-xs text-muted-foreground">{entry.facultyId ? facultyLabel(entry.facultyId) : 'No owner'} -&gt; {targetFacultyId ? facultyLabel(targetFacultyId) : 'No owner'}</p>
 										{canonicalOnlyTargets.has(entry.entryId) ? <p className="mt-0.5 text-xs text-amber-700">Teaching Load owner will be updated.</p> : null}
 										{rowPreview?.errorMessage ? <p className="mt-1 text-xs text-destructive">{rowPreview.errorMessage}</p> : null}
 									</div>

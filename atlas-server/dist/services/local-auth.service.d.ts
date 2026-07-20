@@ -21,6 +21,23 @@ export type LocalLoginResult = {
     message: string;
     retryAfterSeconds?: number;
 };
+type EnrollProFacultyFeedRow = {
+    teacherId: number;
+    employeeId?: string | null;
+    firstName: string;
+    lastName: string;
+    email?: string | null;
+    contactNumber?: string | null;
+    department?: string | null;
+    departmentCode?: string | null;
+    departmentName?: string | null;
+    specialization?: string | null;
+    isActive?: boolean;
+};
+export declare function selectExactEnrollProFacultyMatch(rows: EnrollProFacultyFeedRow[], identity: {
+    employeeId: string | null;
+    email: string;
+}): EnrollProFacultyFeedRow | null;
 export declare function login(params: {
     identifier: string;
     password: string;
@@ -52,3 +69,4 @@ export declare function buildFacultySeedAccounts(facultyRows: FacultySeedIdentit
     facultyId: number;
     mustChangePassword: true;
 }>;
+export {};

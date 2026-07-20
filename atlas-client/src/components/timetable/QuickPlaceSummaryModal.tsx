@@ -53,7 +53,7 @@ function blockerCopy(reason: string): string {
 		NO_AVAILABLE_SLOT: 'No room and teacher time is available.',
 		FACULTY_OVERLOAD: 'The assigned teacher is over the workload limit.',
 		FACULTY_NOT_QUALIFIED: 'The assigned teacher is not qualified for this subject.',
-		NO_FACULTY: 'Choose a teacher before placing this session.',
+		NO_FACULTY: 'Fix the Teaching Load owner before placing this session.',
 	};
 	return labels[reason] ?? reason.replaceAll('_', ' ').toLowerCase().replace(/^./, (letter) => letter.toUpperCase());
 }

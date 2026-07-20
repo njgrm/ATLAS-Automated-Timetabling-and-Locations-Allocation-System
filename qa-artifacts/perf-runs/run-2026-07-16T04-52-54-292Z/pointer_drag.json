@@ -1,0 +1,51 @@
+{
+  "status": "FAIL",
+  "failures": [
+    "drag-start commit 69.10ms > 16ms",
+    "drag-end commit 39.80ms > 16ms",
+    "long task 157.00ms > 50ms",
+    "Left Rail committed 12 times during drag",
+    "Right Panel committed 1 times during drag",
+    "65 grid cells committed in one crossing batch"
+  ],
+  "startLatencyMs": 23.385899999993853,
+  "dragStartCommitMs": 69.10000000149012,
+  "dragEndCommitMs": 39.8000000002794,
+  "fpsResult": {
+    "fps": 58.00178920773435,
+    "jitterMs": 8.481776539294527,
+    "frameCount": 590,
+    "durationMs": 10172.100000000093,
+    "frameIntervalP95Ms": 18.600000000093132,
+    "frameOverBudgetP95Ms": 1.9333333334264644,
+    "longTasks": [
+      {
+        "startTime": 19046.19999999972,
+        "duration": 157
+      },
+      {
+        "startTime": 19277.799999999814,
+        "duration": 89
+      },
+      {
+        "startTime": 21029.5,
+        "duration": 63
+      },
+      {
+        "startTime": 21861.100000000093,
+        "duration": 63
+      },
+      {
+        "startTime": 24078.100000000093,
+        "duration": 80
+      }
+    ]
+  },
+  "maxCellsPerCommitBatch": 65,
+  "blockedCommitRequests": [],
+  "commits": {
+    "header": 0,
+    "leftRail": 12,
+    "rightPanel": 1
+  }
+}

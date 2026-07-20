@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 
 import { getProgramBadgeLabel } from '@/lib/schedule-review-helpers';
 import type { ExternalSection, FacultyMirror, ScheduledEntry, Subject, UnassignedItem } from '@/types';
@@ -68,13 +68,12 @@ export function useTimetableLookupHelpers({
 
 	const gradeForSection = useCallback((sectionId: number): number | null => {
 		const section = sectionMap.get(sectionId);
-		const gradeMatch = section?.gradeLevelName.match(/(\d+)/);
-		if (gradeMatch) return Number(gradeMatch[1]);
-		const entry = draftEntries.find((candidate) => candidate.sectionId === sectionId);
-		return entry ? subjectMap.get(entry.subjectId)?.gradeLevels?.[0] ?? null : null;
-	}, [draftEntries, sectionMap, subjectMap]);
+		if (section?.displayOrder) return section.displayOrder;
+		const gradeMatch = section?.gradeLevelName?.match(/(\d+)/);
+		return gradeMatch ? Number(gradeMatch[1]) : null;
+	}, [sectionMap]);
 
-	const groupedPivotEntities = useMemo(() => {
+	const rawGroupedPivotEntities = useMemo(() => {
 		const grouped = new Map<string, number[]>();
 		for (const id of pivotEntityIds) {
 			let label = 'Unassigned';
@@ -95,6 +94,15 @@ export function useTimetableLookupHelpers({
 		}
 		return Array.from(grouped, ([label, ids]) => ({ label, ids })).sort((a, b) => a.label.localeCompare(b.label));
 	}, [facultyMap, gradeForSection, pivotEntityIds, roomMap, sectionMap, viewMode]);
+
+	const prevGroupedRef = useRef(rawGroupedPivotEntities);
+	const groupedPivotEntities = useMemo(() => {
+		if (JSON.stringify(rawGroupedPivotEntities) !== JSON.stringify(prevGroupedRef.current)) {
+			prevGroupedRef.current = rawGroupedPivotEntities;
+		}
+		return prevGroupedRef.current;
+	}, [rawGroupedPivotEntities]);
+
 
 	return {
 		resolveEntryProgramType,

@@ -244,11 +244,28 @@ export declare function listRuns(schoolId: number, schoolYearId: number, limit?:
     startedAt: Date | null;
     finishedAt: Date | null;
     durationMs: number | null;
-    summary: import(".prisma/client/runtime/library").JsonValue | null;
-    violations: import(".prisma/client/runtime/library").JsonValue | null;
-    draftEntries: import(".prisma/client/runtime/library").JsonValue | null;
-    unassignedItems: import(".prisma/client/runtime/library").JsonValue | null;
 }[]>;
+/** Select a safe fixture source without loading any timetable JSON payloads. */
+export declare function getPerformanceFixtureSource(schoolId: number, schoolYearId: number): Promise<{
+    id: number;
+    createdAt: string;
+}>;
+/**
+ * Create an isolated completed run for destructive performance verification.
+ * The fixture is deliberately marked in both runType and summary metadata so
+ * the companion deletion operation can never target an operator-owned run.
+ */
+export declare function createPerformanceFixture(sourceRunId: number, schoolId: number, schoolYearId: number, actorId: number): Promise<{
+    sourceRunId: number;
+    id: number;
+    version: number;
+    createdAt: Date;
+}>;
+/** Remove only an explicitly marked performance fixture and its cascade-owned edits. */
+export declare function deletePerformanceFixture(fixtureRunId: number, schoolId: number, schoolYearId: number, actorId: number): Promise<{
+    fixtureRunId: number;
+    deleted: boolean;
+}>;
 export declare function publishRun(schoolId: number, schoolYearId: number, runId: number, actorId: number, options?: {
     acknowledgeSoftViolations?: boolean;
 }): Promise<{

@@ -121,7 +121,7 @@ export function SectionGridMode({
 			let shouldInclude = false;
 			if (sectionModeFilter === 'all') shouldInclude = true;
 			else if (sectionModeFilter === 'unassigned') shouldInclude = unassigned > 0;
-			else if (sectionModeFilter === 'constrained') shouldInclude = section.isSpecialProgram;
+			else if (sectionModeFilter === 'constrained') shouldInclude = section.isSpecialProgram === true;
 
 			if (shouldInclude && matchesSearch) {
 				rows.push({
@@ -354,18 +354,18 @@ export function SectionGridMode({
 																		className="h-9 gap-2 font-semibold uppercase tracking-widest text-xs border-primary/30 hover:border-primary hover:bg-primary/5 shadow-sm"
 																		disabled={saving || isReadOnlyMode}
 																	>
-																		{isStaffed ? 'Reassign' : 'Assign Teacher'}
+																		{isStaffed ? 'Change owner' : 'Set owner'}
 																		<ChevronDown className="size-4 opacity-50" />
 																	</Button>
 																</PopoverTrigger>
 																<PopoverContent align="end" className="w-80 p-0 overflow-hidden rounded-xl shadow-2xl border-primary/20">
 																	<div className="p-3 border-b border-border/40 bg-muted/20">
-																		<p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 mb-1">Qualified Candidates</p>
+																		<p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 mb-1">Eligible Teaching Load owners</p>
 																		<p className="text-xs font-bold text-foreground truncate">{subject.name}</p>
 																	</div>
 																	<div className="max-h-75 overflow-auto no-scrollbar p-1">
 																		{candidates.length === 0 ? (
-																			<p className="p-4 text-center text-xs font-bold text-muted-foreground italic uppercase">No qualified teachers found</p>
+																			<p className="p-4 text-center text-xs font-bold text-muted-foreground italic uppercase">No qualified owners found</p>
 																		) : candidates.map(f => {
 																			const isCurrentOwner = owner?.facultyId === f.id;
 																			const loadPct = Math.round(f.policyLoadPercentage ?? 0);

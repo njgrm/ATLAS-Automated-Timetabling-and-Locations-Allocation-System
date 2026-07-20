@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 
 import { prisma } from '../lib/prisma.js';
 import { loginWithEmailPassword } from '../services/local-auth.service.js';
@@ -299,6 +300,86 @@ async function run() {
 		await prisma.facultyMirror.deleteMany({
 			where: { schoolId: delegatedSchoolId, externalId: delegatedFacultyExternalId },
 		});
+	}
+
+	section('TC-AUTH-10 delegated faculty login hydrates a missing mirror from one exact faculty-feed match');
+
+	const feedFacultyEmail = 'feed.faculty.exact@deped.edu.ph';
+	const feedFacultyEmployeeId = `8${Date.now().toString().slice(-6)}`;
+	const feedFacultyExternalId = 952525;
+
+	try {
+		await prisma.atlasAuthAccount.deleteMany({ where: { email: feedFacultyEmail } });
+		await prisma.facultyMirror.deleteMany({ where: { schoolId: delegatedSchoolId, externalId: feedFacultyExternalId } });
+		await prisma.atlasAuthAccount.create({
+			data: {
+				schoolId: delegatedSchoolId,
+				email: feedFacultyEmail,
+				employeeId: feedFacultyEmployeeId,
+				accountName: feedFacultyEmployeeId,
+				role: 'faculty',
+				passwordHash: await bcrypt.hash('Delegated_2026!', 10),
+				isActive: true,
+			},
+		});
+
+		globalThis.fetch = ((async (input: string | URL | Request) => {
+			const url = String(input);
+			if (url.includes('/auth/verify')) {
+				return new Response(JSON.stringify({
+					valid: true,
+					user: {
+						id: 88002,
+						firstName: 'Feed',
+						lastName: 'Faculty',
+						email: feedFacultyEmail,
+						employeeId: feedFacultyEmployeeId,
+						accountName: feedFacultyEmployeeId,
+						role: 'TEACHER',
+						mustChangePassword: false,
+					},
+				}), { status: 200, headers: { 'content-type': 'application/json' } });
+			}
+			if (url.includes('/integration/v1/faculty')) {
+				return new Response(JSON.stringify({
+					data: [{
+						teacherId: feedFacultyExternalId,
+						employeeId: feedFacultyEmployeeId,
+						firstName: 'Feed',
+						lastName: 'Faculty',
+						email: feedFacultyEmail,
+						departmentCode: 'SCIENCE',
+						specialization: 'Science',
+						isActive: true,
+					}],
+					meta: { page: 1, totalPages: 1, limit: 200 },
+				}), { status: 200, headers: { 'content-type': 'application/json' } });
+			}
+			return new Response(null, { status: 404 });
+		}) as unknown) as typeof globalThis.fetch;
+		process.env.ENROLLPRO_API = 'http://delegated-auth-test/api';
+
+		const feedLogin = await loginWithEmailPassword({
+			email: feedFacultyEmail,
+			password: 'Delegated_2026!',
+			ipAddress: '127.0.0.1',
+			userAgent: 'local-auth-feed-test',
+		});
+
+		assert(feedLogin.ok, 'Faculty-feed delegated login returns success');
+		const feedMirror = await prisma.facultyMirror.findUnique({
+			where: { schoolId_externalId: { schoolId: delegatedSchoolId, externalId: feedFacultyExternalId } },
+		});
+		assert(Boolean(feedMirror), 'Exact faculty-feed match creates the missing FacultyMirror');
+		const feedAccount = await prisma.atlasAuthAccount.findUnique({ where: { email: feedFacultyEmail } });
+		assertEqual(feedAccount?.facultyId ?? null, feedMirror?.id ?? null, 'Provisioned account links to the hydrated FacultyMirror');
+		if (feedLogin.ok) assertEqual(feedLogin.user.userId, feedFacultyExternalId, 'Faculty token uses hydrated external teacher id');
+	} finally {
+		globalThis.fetch = originalFetch;
+		if (originalEnrollProApi === undefined) delete process.env.ENROLLPRO_API;
+		else process.env.ENROLLPRO_API = originalEnrollProApi;
+		await prisma.atlasAuthAccount.deleteMany({ where: { email: feedFacultyEmail } });
+		await prisma.facultyMirror.deleteMany({ where: { schoolId: delegatedSchoolId, externalId: feedFacultyExternalId } });
 	}
 
 	console.log(`\nSummary: ${passCount} passed, ${failCount} failed`);

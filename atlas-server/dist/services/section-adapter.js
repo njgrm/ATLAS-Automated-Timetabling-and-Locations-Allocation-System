@@ -370,7 +370,7 @@ export class EnrollProSectionAdapter {
         const allRows = [];
         while (currentPage <= totalPages) {
             const pageUrl = `${url}?page=${currentPage}&limit=${pageSize}`;
-            const response = await fetch(pageUrl, { headers });
+            const response = await fetch(pageUrl, { headers, signal: AbortSignal.timeout(10000) });
             if (!response.ok) {
                 throw Object.assign(new Error(`EnrollPro sections API returned ${response.status}`), {
                     statusCode: response.status,

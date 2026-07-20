@@ -86,7 +86,6 @@ export type LeftRailContentContext = {
 	pinsSubjectFilter: number | 'all';
 	setPinsSubjectFilter: Dispatch<SetStateAction<number | 'all'>>;
 	getDraggedDraftPlacementId: (source: any) => number | null;
-	dragItem: any;
 	setPendingUnassignId: Dispatch<SetStateAction<number | null>>;
 	setShowUnassignConfirm: Dispatch<SetStateAction<boolean>>;
 	pinsQueuePage: number;
@@ -123,6 +122,7 @@ export type LeftRailContentContext = {
 	focusPinnedPlacement: (placement: DraftPlacement, mode?: 'details' | 'faculty' | 'section' | 'room') => void;
 	selectedUnassignedForRepair: UnassignedItem | null;
 	setSelectedUnassignedForRepair: Dispatch<SetStateAction<UnassignedItem | null>>;
+	openTacticalSandbox: () => void;
 };
 
 export type ScheduleReviewDialogsContext = {

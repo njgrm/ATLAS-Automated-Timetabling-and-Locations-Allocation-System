@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const dateStr = new Date().toISOString().split('T')[0];
+
 export default defineConfig({
   testDir: "./qa-artifacts/playwright/specs",
   timeout: 60_000,
@@ -10,13 +12,13 @@ export default defineConfig({
   retries: 0,
   reporter: [
     ["list"],
-    ["html", { outputFolder: "qa-artifacts/playwright/report", open: "never" }],
+    ["html", { outputFolder: `qa-artifacts/perf-runs/${dateStr}/report`, open: "never" }],
   ],
-  outputDir: "qa-artifacts/playwright/results",
-  snapshotPathTemplate: "qa-artifacts/playwright/snapshots/{testFilePath}/{projectName}/{arg}{ext}",
+  outputDir: `qa-artifacts/perf-runs/${dateStr}/results`,
+  snapshotPathTemplate: `qa-artifacts/perf-runs/${dateStr}/snapshots/{testFilePath}/{projectName}/{arg}{ext}`,
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:5174",
-    trace: "on-first-retry",
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "https://njgrm.buru-degree.ts.net",
+    trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
   projects: [

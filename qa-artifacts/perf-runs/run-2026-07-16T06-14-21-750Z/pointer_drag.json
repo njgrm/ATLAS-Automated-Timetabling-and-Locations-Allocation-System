@@ -1,0 +1,28 @@
+{
+  "status": "FAIL",
+  "failures": [
+    "drag-start commit 78.40ms > 16ms",
+    "drag-end commit 33.70ms > 16ms"
+  ],
+  "startLatencyMs": 56.15679999999702,
+  "dragStartCommitMs": 78.3999999994412,
+  "dragEndCommitMs": 33.70000000204891,
+  "fpsResult": {
+    "fps": 59.92574209807322,
+    "jitterMs": 3.4129730508061447,
+    "frameCount": 623,
+    "durationMs": 10396.200000000186,
+    "frameIntervalP95Ms": 21.199999999254942,
+    "frameOverBudgetP95Ms": 4.533333332588274,
+    "longTasks": []
+  },
+  "maxCellsPerCommitBatch": 0,
+  "cellCommitBatches": [],
+  "blockedCommitRequests": [],
+  "crossingProfilerLogs": [],
+  "commits": {
+    "header": 0,
+    "leftRail": 0,
+    "rightPanel": 0
+  }
+}

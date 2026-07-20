@@ -64,7 +64,7 @@ export function pivotDraftToView(
 	});
 
 	// Pull display slots from summary; fall back to derived slots if missing
-	const displaySlots = report.summary?.timetableDisplaySlots && report.summary.timetableDisplaySlots.length > 0
+	const displaySlots: Array<{ startTime: string; endTime: string; isSpecialEvent?: boolean; eventName?: string }> = report.summary?.timetableDisplaySlots && report.summary.timetableDisplaySlots.length > 0
 		? report.summary.timetableDisplaySlots.map((s) => ({
 			startTime: s.startTime,
 			endTime: s.endTime,

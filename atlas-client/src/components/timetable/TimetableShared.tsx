@@ -28,14 +28,18 @@ export function FilterChip({
 	}
 
 	return (
-		<Badge
+		<Button
+			type="button"
 			variant="outline"
-			className={`h-6.5 px-2.5 py-1 text-xs cursor-pointer select-none ${base}`}
+			size="sm"
+			className={`h-6.5 gap-0 px-2.5 py-1 text-xs select-none ${base}`}
 			onClick={onClick}
+			aria-pressed={active}
+			aria-label={`${label}, ${count}`}
 		>
 			{label}
 			<span className="ml-1 opacity-70 font-semibold">{count}</span>
-		</Badge>
+		</Button>
 	);
 }
 

@@ -13,6 +13,7 @@ import { getPreferredAccessToken } from '@/lib/auth';
 import { describeSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { cacheFacultyIdentity, readCachedFacultyIdentity } from '@/lib/faculty-identity-cache';
 import { buildFacultyCacheKey, isLikelyOfflineError, readFacultySnapshot, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
+import { getActionableApiError } from '@/lib/actionable-api-error';
 import type {
 	FacultyPreference,
 } from '@/types';
@@ -184,7 +185,7 @@ export default function FacultyPreferences() {
 				setError(null);
 				return;
 			}
-			setError('Failed to load your preferences.');
+			setError(getActionableApiError(err, 'Unable to load your preferences. Please tap Retry.'));
 		} finally {
 			setLoading(false);
 		}

@@ -663,6 +663,13 @@ export default function TeachingLoad() {
 						onSave={handleSave}
 						onRetrySource={() => data.fetchData({ forceRefresh: true })}
 					/>
+					<p className="mt-2 text-xs font-medium text-muted-foreground" aria-label="Teaching load workflow">
+						<span className="text-foreground">1. Choose a teacher or section</span>
+						<span aria-hidden="true" className="mx-2">→</span>
+						<span className="text-foreground">2. Review the load and coverage</span>
+						<span aria-hidden="true" className="mx-2">→</span>
+						<span className="text-foreground">3. Save your changes</span>
+					</p>
 				</div>
 
 				{splitBrainNeedsAttention && data.splitBrainIncident && (

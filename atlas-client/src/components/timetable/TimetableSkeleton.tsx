@@ -21,6 +21,9 @@ export function TimetableSkeleton() {
             <Skeleton className="h-5 w-18 bg-muted/80" />
           </div>
         </div>
+        <div className="rounded-lg border border-border bg-background/70 px-3 py-2 text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground">Loading timetable:</span> finding the latest run first, then adding labels and secondary diagnostics after the grid is ready.
+        </div>
         <div className="flex items-center gap-2">
           <Skeleton className="h-7 w-32 bg-muted/80" />
           <Skeleton className="h-7 w-80 bg-muted/80" />

@@ -41,7 +41,7 @@ function wait(ms: number): Promise<void> {
 
 async function loadWithFallback<T>(request: () => Promise<{ data: T }>, fallback: T, timeoutMs = 4000): Promise<{ data: T }> {
 	for (let attempt = 0; attempt < 2; attempt += 1) {
-		let timer: ReturnType<typeof window.setTimeout> | null = null;
+		let timer: number | null = null;
 		try {
 			const timeout = new Promise<never>((_, reject) => {
 				timer = window.setTimeout(() => reject(new Error('Request timed out')), timeoutMs);

@@ -1,0 +1,205 @@
+{
+  "status": "PASS",
+  "durationMs": 10071.8384,
+  "metrics": {
+    "navigation": {
+      "duration": 421,
+      "domInteractive": 228,
+      "responseEnd": 216
+    },
+    "jsTransferBytes": 2841757,
+    "jsDecodedBytes": 6907092,
+    "jsFileCount": 152,
+    "profilerLogs": [
+      {
+        "id": "Header",
+        "phase": "mount",
+        "actualDuration": 68.59999999403954,
+        "baseDuration": 62.50000001490116,
+        "timestamp": 1783997318097
+      },
+      {
+        "id": "Left Rail",
+        "phase": "mount",
+        "actualDuration": 97.7999999821186,
+        "baseDuration": 86.09999996423721,
+        "timestamp": 1783997318098
+      },
+      {
+        "id": "Tactical Sandbox",
+        "phase": "mount",
+        "actualDuration": 14.5,
+        "baseDuration": 14.5,
+        "timestamp": 1783997318099
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "mount",
+        "actualDuration": 47.5,
+        "baseDuration": 43.1000000089407,
+        "timestamp": 1783997318099
+      },
+      {
+        "id": "Right Panel",
+        "phase": "mount",
+        "actualDuration": 8.5,
+        "baseDuration": 6.699999988079071,
+        "timestamp": 1783997318099
+      },
+      {
+        "id": "Header",
+        "phase": "nested-update",
+        "actualDuration": 53.79999999701977,
+        "baseDuration": 53,
+        "timestamp": 1783997318410
+      },
+      {
+        "id": "Left Rail",
+        "phase": "nested-update",
+        "actualDuration": 30.80000002682209,
+        "baseDuration": 30.400000035762787,
+        "timestamp": 1783997318410
+      },
+      {
+        "id": "Tactical Sandbox",
+        "phase": "nested-update",
+        "actualDuration": 8.5,
+        "baseDuration": 8.5,
+        "timestamp": 1783997318411
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 105.2000000178814,
+        "baseDuration": 93.29999999701977,
+        "timestamp": 1783997318411
+      },
+      {
+        "id": "Right Panel",
+        "phase": "nested-update",
+        "actualDuration": 4.600000008940697,
+        "baseDuration": 4.100000008940697,
+        "timestamp": 1783997318411
+      },
+      {
+        "id": "Header",
+        "phase": "nested-update",
+        "actualDuration": 50.6000000089407,
+        "baseDuration": 95.30000001192093,
+        "timestamp": 1783997318516
+      },
+      {
+        "id": "Left Rail",
+        "phase": "nested-update",
+        "actualDuration": 0.10000000894069672,
+        "baseDuration": 30.400000035762787,
+        "timestamp": 1783997318516
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 8.399999961256981,
+        "baseDuration": 35.09999994933605,
+        "timestamp": 1783997318516
+      },
+      {
+        "id": "Header",
+        "phase": "nested-update",
+        "actualDuration": 10.299999982118607,
+        "baseDuration": 75.69999991357327,
+        "timestamp": 1783997318535
+      },
+      {
+        "id": "Header",
+        "phase": "nested-update",
+        "actualDuration": 1.199999988079071,
+        "baseDuration": 75.8999999165535,
+        "timestamp": 1783997318542
+      },
+      {
+        "id": "Header",
+        "phase": "update",
+        "actualDuration": 16.19999998807907,
+        "baseDuration": 15.399999991059303,
+        "timestamp": 1783997318695
+      },
+      {
+        "id": "Left Rail",
+        "phase": "update",
+        "actualDuration": 5.100000008940697,
+        "baseDuration": 4.899999991059303,
+        "timestamp": 1783997318695
+      },
+      {
+        "id": "Tactical Sandbox",
+        "phase": "update",
+        "actualDuration": 0.7999999970197678,
+        "baseDuration": 0.7999999970197678,
+        "timestamp": 1783997318696
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 12.5,
+        "baseDuration": 12.19999997317791,
+        "timestamp": 1783997318696
+      },
+      {
+        "id": "Right Panel",
+        "phase": "update",
+        "actualDuration": 0.9000000059604645,
+        "baseDuration": 0.800000011920929,
+        "timestamp": 1783997318696
+      },
+      {
+        "id": "Header",
+        "phase": "nested-update",
+        "actualDuration": 0.19999998807907104,
+        "baseDuration": 15.399999991059303,
+        "timestamp": 1783997318722
+      },
+      {
+        "id": "Left Rail",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 4.899999991059303,
+        "timestamp": 1783997318722
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "baseDuration": 12.19999997317791,
+        "timestamp": 1783997318722
+      },
+      {
+        "id": "Header",
+        "phase": "update",
+        "actualDuration": 74.40000000596046,
+        "baseDuration": 72.89999997615814,
+        "timestamp": 1783997318901
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 30.50000001490116,
+        "baseDuration": 33.30000002682209,
+        "timestamp": 1783997318901
+      },
+      {
+        "id": "Header",
+        "phase": "nested-update",
+        "actualDuration": 0.20000001788139343,
+        "baseDuration": 72.89999997615814,
+        "timestamp": 1783997318925
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 27.000000029802322,
+        "baseDuration": 29.900000020861626,
+        "timestamp": 1783997318990
+      }
+    ]
+  }
+}

@@ -38,6 +38,9 @@ function parseScope(req, res) {
     }
     return { schoolId, schoolYearId };
 }
+function shouldPreferCachedSections(req) {
+    return req.query.preferCachedSections !== 'false' && req.query.preferCached !== 'false';
+}
 function parsePlacementBody(req) {
     return {
         placementId: req.body.placementId == null ? undefined : Number(req.body.placementId),
@@ -91,7 +94,9 @@ router.get('/:schoolId/:schoolYearId/pre-generation-drafts', authenticate, async
         const scope = parseScope(req, res);
         if (!scope)
             return;
-        const board = await draftService.listDraftBoardState(scope.schoolId, scope.schoolYearId, getAuthToken(req));
+        const board = await draftService.listDraftBoardState(scope.schoolId, scope.schoolYearId, getAuthToken(req), {
+            preferCachedSections: shouldPreferCachedSections(req),
+        });
         res.json(board);
     }
     catch (error) {

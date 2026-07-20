@@ -1,0 +1,160 @@
+{
+  "status": "PASS",
+  "durationMs": 623.2915999999968,
+  "commits": [
+    {
+      "id": "Center/Grid",
+      "phase": "update",
+      "actualDuration": 0.10000000149011612,
+      "baseDuration": 58.500000067055225,
+      "timestamp": 1784212343006
+    },
+    {
+      "id": "Right Panel",
+      "phase": "update",
+      "actualDuration": 0,
+      "baseDuration": 3.600000001490116,
+      "timestamp": 1784212343006
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0.5,
+      "baseDuration": 59.000000067055225,
+      "timestamp": 1784212343007
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 59.000000067055225,
+      "timestamp": 1784212343007
+    },
+    {
+      "id": "Header",
+      "phase": "update",
+      "actualDuration": 56.599999994039536,
+      "baseDuration": 56.3999999910593,
+      "timestamp": 1784212343167
+    },
+    {
+      "id": "Left Rail",
+      "phase": "update",
+      "actualDuration": 24.599999994039536,
+      "baseDuration": 24.299999989569187,
+      "timestamp": 1784212343167
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "update",
+      "actualDuration": 33.899999998509884,
+      "baseDuration": 33.399999998509884,
+      "timestamp": 1784212343167
+    },
+    {
+      "id": "Right Panel",
+      "phase": "update",
+      "actualDuration": 1.5999999940395355,
+      "baseDuration": 2.899999998509884,
+      "timestamp": 1784212343168
+    },
+    {
+      "id": "Header",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 56.3999999910593,
+      "timestamp": 1784212343188
+    },
+    {
+      "id": "Left Rail",
+      "phase": "nested-update",
+      "actualDuration": 0.10000000149011612,
+      "baseDuration": 24.299999989569187,
+      "timestamp": 1784212343188
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 33.399999998509884,
+      "timestamp": 1784212343188
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "update",
+      "actualDuration": 0.3999999985098839,
+      "baseDuration": 33.69999999552965,
+      "timestamp": 1784212343204
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 1.6999999955296516,
+      "baseDuration": 35.099999994039536,
+      "timestamp": 1784212343206
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 1.1000000014901161,
+      "baseDuration": 33.599999994039536,
+      "timestamp": 1784212343208
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 33.599999994039536,
+      "timestamp": 1784212343209
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "update",
+      "actualDuration": 0.6000000014901161,
+      "baseDuration": 33.899999998509884,
+      "timestamp": 1784212343244
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0.8999999985098839,
+      "baseDuration": 34.49999999254942,
+      "timestamp": 1784212343246
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0.30000000447034836,
+      "baseDuration": 34.20000000298023,
+      "timestamp": 1784212343247
+    },
+    {
+      "id": "Center/Grid",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "baseDuration": 34.20000000298023,
+      "timestamp": 1784212343248
+    },
+    {
+      "id": "Right Panel",
+      "phase": "update",
+      "actualDuration": 8.100000001490116,
+      "baseDuration": 7.5,
+      "timestamp": 1784212343484
+    },
+    {
+      "id": "Right Panel",
+      "phase": "nested-update",
+      "actualDuration": 3.399999998509884,
+      "baseDuration": 8.5,
+      "timestamp": 1784212343489
+    },
+    {
+      "id": "Right Panel",
+      "phase": "nested-update",
+      "actualDuration": 0.10000000149011612,
+      "baseDuration": 8.5,
+      "timestamp": 1784212343491
+    }
+  ]
+}

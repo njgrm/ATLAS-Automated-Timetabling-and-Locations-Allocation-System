@@ -9,9 +9,10 @@ router.get('/context', authenticateWithSystemToken, async (req, res, next) => {
             res.status(400).json({ code: 'INVALID_PARAM', message: 'schoolId query parameter must be a positive integer.' });
             return;
         }
+        const verifyUpstream = req.query.verifyUpstream === 'true' || req.query.verifyUpstream === '1';
         const authToken = req.headers.authorization?.slice(7);
-        const upstreamAuthToken = req.user?.authSource === 'system' ? undefined : authToken;
-        const context = await resolveRuntimeContext(schoolId, upstreamAuthToken);
+        const upstreamAuthToken = verifyUpstream && req.user?.authSource === 'bridge' ? authToken : undefined;
+        const context = await resolveRuntimeContext(schoolId, upstreamAuthToken, { verifyUpstream });
         if (!context) {
             res.status(404).json({
                 code: 'NO_RUNTIME_CONTEXT',

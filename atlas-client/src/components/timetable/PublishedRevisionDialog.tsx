@@ -77,7 +77,7 @@ export function PublishedRevisionDialog({
 					</div>
 					<DialogTitle>Schedule a published repair</DialogTitle>
 					<DialogDescription>
-						Choose when these teacher changes take effect. Earlier dates will still show the original published schedule.
+						Choose when these ownership changes take effect. Earlier dates will still show the original published schedule.
 					</DialogDescription>
 				</DialogHeader>
 				<div className="grid max-h-[70vh] gap-4 overflow-y-auto px-5 py-4">

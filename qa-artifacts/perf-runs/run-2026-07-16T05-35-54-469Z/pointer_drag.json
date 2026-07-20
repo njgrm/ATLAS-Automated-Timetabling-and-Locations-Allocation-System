@@ -1,0 +1,121 @@
+{
+  "status": "FAIL",
+  "failures": [
+    "drag-start commit 96.00ms > 16ms",
+    "drag-end commit 51.00ms > 16ms",
+    "long task 203.00ms > 50ms",
+    "Left Rail committed 12 times during drag",
+    "Right Panel committed 1 times during drag",
+    "65 grid cells committed in one crossing batch"
+  ],
+  "startLatencyMs": 31.337500000001455,
+  "dragStartCommitMs": 95.99999999813735,
+  "dragEndCommitMs": 51.00000000093132,
+  "fpsResult": {
+    "fps": 59.033292379612135,
+    "jitterMs": 8.88769453098504,
+    "frameCount": 591,
+    "durationMs": 10011.299999999814,
+    "frameIntervalP95Ms": 19.799999999813735,
+    "frameOverBudgetP95Ms": 3.1333333331470676,
+    "longTasks": [
+      {
+        "startTime": 19286,
+        "duration": 203
+      }
+    ]
+  },
+  "maxCellsPerCommitBatch": 65,
+  "cellCommitBatches": [
+    {
+      "timestampMs": 19464,
+      "cellCount": 65
+    }
+  ],
+  "blockedCommitRequests": [],
+  "crossingProfilerLogs": [
+    {
+      "id": "Left Rail",
+      "phase": "update",
+      "actualDuration": 0.20000000018626451,
+      "timestamp": 1784180184743
+    },
+    {
+      "id": "Left Rail",
+      "phase": "nested-update",
+      "actualDuration": 0.20000000018626451,
+      "timestamp": 1784180184745
+    },
+    {
+      "id": "Left Rail",
+      "phase": "nested-update",
+      "actualDuration": 0.09999999962747097,
+      "timestamp": 1784180184745
+    },
+    {
+      "id": "Left Rail",
+      "phase": "update",
+      "actualDuration": 34.69999999925494,
+      "timestamp": 1784180186142
+    },
+    {
+      "id": "Right Panel",
+      "phase": "update",
+      "actualDuration": 2.5,
+      "timestamp": 1784180186142
+    },
+    {
+      "id": "Left Rail",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "timestamp": 1784180186190
+    },
+    {
+      "id": "Left Rail",
+      "phase": "update",
+      "actualDuration": 0.40000000037252903,
+      "timestamp": 1784180186480
+    },
+    {
+      "id": "Left Rail",
+      "phase": "nested-update",
+      "actualDuration": 0.09999999962747097,
+      "timestamp": 1784180186480
+    },
+    {
+      "id": "Left Rail",
+      "phase": "update",
+      "actualDuration": 0.20000000018626451,
+      "timestamp": 1784180189760
+    },
+    {
+      "id": "Left Rail",
+      "phase": "nested-update",
+      "actualDuration": 0.2999999998137355,
+      "timestamp": 1784180189761
+    },
+    {
+      "id": "Left Rail",
+      "phase": "nested-update",
+      "actualDuration": 0,
+      "timestamp": 1784180189762
+    },
+    {
+      "id": "Left Rail",
+      "phase": "update",
+      "actualDuration": 0.40000000037252903,
+      "timestamp": 1784180191525
+    },
+    {
+      "id": "Left Rail",
+      "phase": "nested-update",
+      "actualDuration": 0.09999999962747097,
+      "timestamp": 1784180191526
+    }
+  ],
+  "commits": {
+    "header": 0,
+    "leftRail": 12,
+    "rightPanel": 1
+  }
+}

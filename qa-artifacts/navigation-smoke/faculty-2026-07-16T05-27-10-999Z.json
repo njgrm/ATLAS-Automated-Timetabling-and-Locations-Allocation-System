@@ -1,0 +1,25 @@
+{
+  "results": [
+    {
+      "route": "/my",
+      "finalUrl": "https://njgrm.buru-degree.ts.net/my",
+      "title": "ATLAS"
+    },
+    {
+      "route": "/my/schedule",
+      "finalUrl": "https://njgrm.buru-degree.ts.net/my/schedule",
+      "title": "ATLAS"
+    },
+    {
+      "route": "/my/preferences",
+      "finalUrl": "https://njgrm.buru-degree.ts.net/my/preferences",
+      "title": "ATLAS"
+    },
+    {
+      "route": "/my/room-preferences",
+      "finalUrl": "https://njgrm.buru-degree.ts.net/my/room-preferences",
+      "title": "ATLAS"
+    }
+  ],
+  "issues": []
+}

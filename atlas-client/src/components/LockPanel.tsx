@@ -550,7 +550,7 @@ export default function LockPanel({ schoolId, schoolYearId, sections, subjects, 
 																	className="cursor-pointer rounded border border-border bg-muted/40 px-1.5 py-1"
 																>
 																	<div className="truncate text-[0.625rem] font-medium">{subject?.code ?? `Subj #${placement.subjectId}`}</div>
-																	<div className="truncate text-[0.5625rem] text-muted-foreground">{faculty.get(placement.facultyId ?? 0)?.lastName ?? 'Assign teacher'} · {rooms.get(placement.roomId ?? 0)?.name ?? 'Assign room'}</div>
+																	<div className="truncate text-[0.5625rem] text-muted-foreground">{faculty.get(placement.facultyId ?? 0)?.lastName ?? 'No owner'} · {rooms.get(placement.roomId ?? 0)?.name ?? 'No room'}</div>
 																</div>
 															);
 														})}

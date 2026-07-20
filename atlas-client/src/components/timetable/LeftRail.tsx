@@ -19,6 +19,7 @@ type LeftRailProps = {
 	panelRef: RefObject<ImperativePanelHandle | null>;
 	onCollapseChange: (collapsed: boolean) => void;
 	isCollapsed: boolean;
+	isDesktop: boolean;
 	isPreGenerationWorkspace: boolean;
 	leftTab: 'violations' | 'unassigned' | 'pinned' | 'requests';
 	setLeftTab: (tab: 'violations' | 'unassigned' | 'pinned' | 'requests') => void;
@@ -32,6 +33,7 @@ export function LeftRail({
 	panelRef,
 	onCollapseChange,
 	isCollapsed,
+	isDesktop,
 	isPreGenerationWorkspace,
 	leftTab,
 	setLeftTab,
@@ -41,7 +43,7 @@ export function LeftRail({
 	children,
 }: LeftRailProps) {
 	return (
-		<ViolationsSidebar panelRef={panelRef as any} onCollapseChange={onCollapseChange}>
+		<ViolationsSidebar panelRef={panelRef as any} onCollapseChange={onCollapseChange} isDesktop={isDesktop}>
 			{isCollapsed ? (
 				<div className="flex flex-col items-center gap-2 pt-2 w-full h-full">
 					<TooltipProvider>
@@ -102,10 +104,10 @@ export function LeftRail({
 			) : (
 				<>
 					<div className="shrink-0 border-b border-border" data-tutorial="left-tabs">
-						<div className="flex items-center justify-between gap-2 px-3 py-2">
+						<div className="flex items-center justify-between gap-2 px-2 py-1.5 xl:px-3 xl:py-2 [@media(max-height:500px)]:hidden">
 							<div>
 								<p className="text-xs font-semibold text-foreground">Needs attention</p>
-								<p className="text-xs text-muted-foreground">Review blockers first, then requests.</p>
+								<p className="hidden text-xs text-muted-foreground xl:block">Review blockers first, then requests.</p>
 							</div>
 							<Button
 								variant="ghost"
@@ -128,7 +130,7 @@ export function LeftRail({
 							aria-controls="panel-violations"
 							hidden={isPreGenerationWorkspace}
 							onClick={() => setLeftTab('violations')}
-							className={`h-8 flex-1 rounded-none px-3 py-2 text-xs font-medium transition-colors ${
+							className={`h-7 flex-1 rounded-none px-1 py-1 text-center xl:h-8 xl:px-3 xl:py-2 text-xs font-medium transition-colors [@media(max-height:500px)]:h-6 [@media(max-height:500px)]:py-0 ${
 								leftTab === 'violations'
 									? 'text-foreground border-b-2 border-primary'
 									: 'text-muted-foreground hover:text-foreground'
@@ -146,7 +148,7 @@ export function LeftRail({
 							aria-selected={leftTab === 'unassigned'}
 							aria-controls="panel-unassigned"
 							onClick={() => setLeftTab('unassigned')}
-							className={`h-8 flex-1 rounded-none px-3 py-2 text-xs font-medium transition-colors ${
+							className={`h-7 flex-1 rounded-none px-1 py-1 text-center xl:h-8 xl:px-3 xl:py-2 text-xs font-medium transition-colors [@media(max-height:500px)]:h-6 [@media(max-height:500px)]:py-0 ${
 								leftTab === 'unassigned'
 									? 'text-foreground border-b-2 border-primary'
 									: 'text-muted-foreground hover:text-foreground'
@@ -167,7 +169,7 @@ export function LeftRail({
 								aria-selected={leftTab === 'pinned'}
 								aria-controls="panel-pinned"
 								onClick={() => setLeftTab('pinned')}
-								className={`h-8 flex-1 rounded-none px-3 py-2 text-xs font-medium transition-colors ${
+							className={`h-7 flex-1 rounded-none px-1 py-1 text-center xl:h-8 xl:px-3 xl:py-2 text-xs font-medium transition-colors [@media(max-height:500px)]:h-6 [@media(max-height:500px)]:py-0 ${
 									leftTab === 'pinned'
 										? 'text-foreground border-b-2 border-primary'
 										: 'text-muted-foreground hover:text-foreground'
@@ -186,7 +188,7 @@ export function LeftRail({
 							aria-selected={leftTab === 'requests'}
 							aria-controls="panel-requests"
 							onClick={() => setLeftTab('requests')}
-							className={`h-8 flex-1 rounded-none px-3 py-2 text-xs font-medium transition-colors ${
+							className={`h-7 flex-1 rounded-none px-1 py-1 text-center xl:h-8 xl:px-3 xl:py-2 text-xs font-medium transition-colors [@media(max-height:500px)]:h-6 [@media(max-height:500px)]:py-0 ${
 								leftTab === 'requests'
 									? 'text-foreground border-b-2 border-primary'
 									: 'text-muted-foreground hover:text-foreground'

@@ -61,6 +61,79 @@ router.post(
 	},
 );
 
+// â”€â”€â”€ Performance verification fixture (privileged, reversible) â”€â”€â”€
+
+router.get(
+	'/:schoolId/:schoolYearId/runs/performance-fixture-source',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const role = req.user?.role;
+			if (!role || !PRIVILEGED_ROLES.has(role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can select performance fixtures.' });
+				return;
+			}
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			if (typeof schoolId === 'string' || typeof schoolYearId === 'string') {
+				res.status(400).json({ code: 'INVALID_PARAM', message: typeof schoolId === 'string' ? schoolId : schoolYearId });
+				return;
+			}
+			res.json({ source: await genService.getPerformanceFixtureSource(schoolId, schoolYearId) });
+		} catch (e) { next(e); }
+	},
+);
+
+router.post(
+	'/:schoolId/:schoolYearId/runs/:runId/performance-fixture',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const role = req.user?.role;
+			if (!role || !PRIVILEGED_ROLES.has(role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can create performance fixtures.' });
+				return;
+			}
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			const runId = positiveInt(req.params.runId, 'runId');
+			if (typeof schoolId === 'string' || typeof schoolYearId === 'string' || typeof runId === 'string') {
+				res.status(400).json({ code: 'INVALID_PARAM', message: [schoolId, schoolYearId, runId].find((value) => typeof value === 'string') });
+				return;
+			}
+			const actorId = req.user?.userId;
+			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
+			const fixture = await genService.createPerformanceFixture(runId, schoolId, schoolYearId, actorId);
+			res.status(201).json({ fixture });
+		} catch (e) { next(e); }
+	},
+);
+
+router.delete(
+	'/:schoolId/:schoolYearId/runs/:runId/performance-fixture',
+	authenticate,
+	async (req: Request, res: Response, next: NextFunction) => {
+		try {
+			const role = req.user?.role;
+			if (!role || !PRIVILEGED_ROLES.has(role)) {
+				res.status(403).json({ code: 'FORBIDDEN', message: 'Only admin, officer, or SYSTEM_ADMIN can delete performance fixtures.' });
+				return;
+			}
+			const schoolId = positiveInt(req.params.schoolId, 'schoolId');
+			const schoolYearId = positiveInt(req.params.schoolYearId, 'schoolYearId');
+			const runId = positiveInt(req.params.runId, 'runId');
+			if (typeof schoolId === 'string' || typeof schoolYearId === 'string' || typeof runId === 'string') {
+				res.status(400).json({ code: 'INVALID_PARAM', message: [schoolId, schoolYearId, runId].find((value) => typeof value === 'string') });
+				return;
+			}
+			const actorId = req.user?.userId;
+			if (!actorId) { res.status(401).json({ code: 'NO_USER', message: 'Authenticated user required.' }); return; }
+			const result = await genService.deletePerformanceFixture(runId, schoolId, schoolYearId, actorId);
+			res.json(result);
+		} catch (e) { next(e); }
+	},
+);
+
 router.post(
 	'/:schoolId/:schoolYearId/runs/:runId/publish',
 	authenticate,

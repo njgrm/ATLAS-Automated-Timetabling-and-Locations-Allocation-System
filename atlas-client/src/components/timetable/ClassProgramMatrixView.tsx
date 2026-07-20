@@ -154,7 +154,7 @@ export function ClassProgramMatrixView({
 							</CardHeader>
 							<CardContent className="p-0">
 								<div className="overflow-auto">
-									<table className="min-w-230 w-full border-collapse text-xs">
+									<table aria-label="Timetable" className="min-w-230 w-full border-collapse text-xs">
 										<colgroup>
 											<col className="w-48" />
 											{DAYS.map((day) => <col key={day} />)}

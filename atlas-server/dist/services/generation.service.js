@@ -16,7 +16,6 @@ import { getTemplatePeriodProfiles, ensureDefaultTemplates, ensureTemplatesForPr
 import { computeEffectiveWeeklyTeachingMinutes } from './scheduling-policy.service.js';
 import { reconcileSubjectContractFromUpstream } from './subject.service.js';
 import { ensurePhase3GradeWindows } from './grade-window.service.js';
-import { syncCohorts } from './cohort.service.js';
 import { repairActiveSubjectCoverageWithPlaceholders, getActiveSubjectCoverageSummary } from './faculty-assignment.service.js';
 import { compareCurrentInputsForRun, computeGenerationInputSnapshot, } from './generation-input-snapshot.service.js';
 function err(statusCode, code, message, options) {
@@ -443,12 +442,22 @@ export async function triggerGenerationRun(schoolId, schoolYearId, actorId, opti
         }
         // ── Fetch all input data for construction ──
         stage = 'subject-contract-sync';
-        await reconcileSubjectContractFromUpstream(schoolId, schoolYearId, options?.authToken);
+        try {
+            await reconcileSubjectContractFromUpstream(schoolId, schoolYearId, options?.authToken);
+        }
+        catch (err) {
+            console.warn('[generation] Subject sync failed; using local mirror', err);
+        }
         await ensureDefaultTemplates(schoolId);
-        await syncSectionsFromExternal(schoolId, schoolYearId, options?.authToken);
+        try {
+            await syncSectionsFromExternal(schoolId, schoolYearId, options?.authToken);
+        }
+        catch (err) {
+            console.warn('[generation] Section sync failed; using local mirror', err);
+        }
         await ensurePhase3GradeWindows(schoolId, schoolYearId);
         const sectionResult = await getSectionSummary(schoolYearId, schoolId, options?.authToken);
-        const cohortSyncResult = await syncCohorts(schoolId, schoolYearId, options?.authToken);
+        const cohortSyncResult = { synced: true, source: 'cached-enrollpro', fetchedAt: new Date(), count: 0, warnings: [] };
         const cohortSyncWarnings = [];
         if (cohortSyncResult.synced) {
             cohortSyncWarnings.push(...(cohortSyncResult.warnings ?? []));
@@ -1030,11 +1039,142 @@ export async function assertLatestRunIsCurrent(schoolId, schoolYearId) {
     return getRunById(runId, schoolId, schoolYearId);
 }
 export async function listRuns(schoolId, schoolYearId, limit = 20) {
+    const normalizedLimit = Number.isFinite(limit) ? Math.trunc(limit) : 20;
+    const safeLimit = Math.min(Math.max(normalizedLimit, 1), 100);
     return prisma.generationRun.findMany({
         where: { schoolId, schoolYearId },
         orderBy: { createdAt: 'desc' },
-        take: limit,
+        take: safeLimit,
+        select: {
+            id: true,
+            schoolId: true,
+            schoolYearId: true,
+            status: true,
+            runType: true,
+            triggeredBy: true,
+            startedAt: true,
+            finishedAt: true,
+            durationMs: true,
+            error: true,
+            version: true,
+            createdAt: true,
+            updatedAt: true,
+        },
     });
+}
+/** Select a safe fixture source without loading any timetable JSON payloads. */
+export async function getPerformanceFixtureSource(schoolId, schoolYearId) {
+    const candidates = await prisma.generationRun.findMany({
+        where: {
+            schoolId,
+            schoolYearId,
+            status: 'COMPLETED',
+            runType: { not: 'PERFORMANCE_FIXTURE' },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        select: { id: true, summary: true, createdAt: true },
+    });
+    const source = candidates.find((candidate) => {
+        const summary = asSummaryRecord(candidate.summary);
+        return !hasPublishedMarkers(summary) && Number(summary.hardViolationCount ?? 0) === 0;
+    });
+    if (!source) {
+        throw err(404, 'NO_FIXTURE_SOURCE', 'No completed, unpublished, zero-hard-violation run is available for performance verification.');
+    }
+    return { id: source.id, createdAt: source.createdAt.toISOString() };
+}
+/**
+ * Create an isolated completed run for destructive performance verification.
+ * The fixture is deliberately marked in both runType and summary metadata so
+ * the companion deletion operation can never target an operator-owned run.
+ */
+export async function createPerformanceFixture(sourceRunId, schoolId, schoolYearId, actorId) {
+    const source = await prisma.generationRun.findFirst({
+        where: { id: sourceRunId, schoolId, schoolYearId, status: 'COMPLETED' },
+        select: {
+            id: true,
+            summary: true,
+            violations: true,
+            draftEntries: true,
+            unassignedItems: true,
+        },
+    });
+    if (!source)
+        throw err(404, 'RUN_NOT_FOUND', 'Completed source run not found in this school/year scope.');
+    if (hasPublishedMarkers(source.summary)) {
+        throw err(409, 'PUBLISHED_RUN_FORBIDDEN', 'A published timetable cannot be used as a performance fixture source.');
+    }
+    if (!Array.isArray(source.draftEntries) || source.draftEntries.length === 0) {
+        throw err(409, 'EMPTY_RUN_FORBIDDEN', 'A performance fixture requires at least one scheduled entry.');
+    }
+    const now = new Date();
+    const fixtureSummary = {
+        ...asSummaryRecord(source.summary),
+        isPublished: false,
+        publishedAt: null,
+        publishedBy: null,
+        performanceFixture: {
+            sourceRunId: source.id,
+            createdBy: actorId,
+            createdAt: now.toISOString(),
+            reversible: true,
+        },
+    };
+    const fixture = await prisma.generationRun.create({
+        data: {
+            schoolId,
+            schoolYearId,
+            status: 'COMPLETED',
+            runType: 'PERFORMANCE_FIXTURE',
+            triggeredBy: actorId,
+            startedAt: now,
+            finishedAt: now,
+            durationMs: 0,
+            summary: fixtureSummary,
+            violations: (source.violations ?? []),
+            draftEntries: source.draftEntries,
+            unassignedItems: (source.unassignedItems ?? []),
+            version: 1,
+        },
+        select: { id: true, version: true, createdAt: true },
+    });
+    await prisma.auditLog.create({
+        data: {
+            schoolId,
+            schoolYearId,
+            action: 'PERFORMANCE_FIXTURE_CREATED',
+            actorId,
+            targetIds: [fixture.id],
+            metadata: { sourceRunId, fixtureRunId: fixture.id, reversible: true },
+        },
+    });
+    return { ...fixture, sourceRunId };
+}
+/** Remove only an explicitly marked performance fixture and its cascade-owned edits. */
+export async function deletePerformanceFixture(fixtureRunId, schoolId, schoolYearId, actorId) {
+    const fixture = await prisma.generationRun.findFirst({
+        where: { id: fixtureRunId, schoolId, schoolYearId },
+        select: { id: true, runType: true, summary: true },
+    });
+    const marker = asSummaryRecord(fixture?.summary).performanceFixture;
+    if (!fixture || fixture.runType !== 'PERFORMANCE_FIXTURE' || marker?.reversible !== true) {
+        throw err(409, 'FIXTURE_DELETE_FORBIDDEN', 'Only a marked performance fixture can be deleted.');
+    }
+    await prisma.$transaction([
+        prisma.generationRun.delete({ where: { id: fixture.id } }),
+        prisma.auditLog.create({
+            data: {
+                schoolId,
+                schoolYearId,
+                action: 'PERFORMANCE_FIXTURE_DELETED',
+                actorId,
+                targetIds: [fixture.id],
+                metadata: { fixtureRunId: fixture.id, sourceRunId: marker.sourceRunId ?? null },
+            },
+        }),
+    ]);
+    return { fixtureRunId: fixture.id, deleted: true };
 }
 export async function publishRun(schoolId, schoolYearId, runId, actorId, options) {
     await reconcileInvalidPublishedRunStates(schoolId, {

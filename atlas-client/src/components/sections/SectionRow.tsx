@@ -16,6 +16,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/ui/tooltip';
 import { Link } from 'react-router-dom';
 import { SectionRoomPicker, type RoomOption } from './SectionRoomPicker';
+import type { ExternalSection } from '@/types';
 
 /* ─── Constants (matching Sections.tsx) ─── */
 const GRADE_COLORS: Record<string, string> = {
@@ -48,21 +49,7 @@ function fillColor(pct: number) {
 }
 
 /* ─── Types ─── */
-export type SectionDetail = {
-	mirrorId?:     number;
-	id:            number;
-	name:          string;
-	maxCapacity:   number;
-	enrolledCount: number;
-	gradeLevelId:  number;
-	gradeLevelName: string;
-	homeRoomId?:   number | null;
-	buildingZoneId?: string | null;
-	programType?:    string;
-	programCode?:    string;
-	programName?:    string;
-	isSpecialProgram?: boolean;
-};
+export type SectionDetail = ExternalSection;
 
 interface SectionRowProps {
 	section: SectionDetail;

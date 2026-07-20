@@ -4,6 +4,7 @@ import { AlertTriangle, RefreshCcw } from 'lucide-react';
 import atlasApi from '@/lib/api';
 import { describeSchoolYearSource, resolveActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import { buildFacultyCacheKey, isLikelyOfflineError, readLatestFacultySnapshotByPrefix, removeFacultySnapshotsByPrefix, writeFacultySnapshot } from '@/lib/faculty-offline-cache';
+import { getActionableApiError } from '@/lib/actionable-api-error';
 import type { FacultyRoomPreferenceEntry } from '@/types';
 import type { FacultyPortalObjectiveState } from '@/types';
 import type { FacultyTeachingAssignmentIdentity } from '@/types';
@@ -131,14 +132,10 @@ export default function MyDashboard() {
 					return;
 				}
 
-				const payload = (err as { response?: { data?: { message?: string; actionHint?: string } } })?.response?.data;
-				const message = [payload?.message, payload?.actionHint].filter(Boolean).join(' ');
-				setError(message ?? 'Unable to load your teacher dashboard.');
+				setError(getActionableApiError(err, 'Unable to load your teacher dashboard. Please tap Retry.'));
 			}
 		} catch (err) {
-			const payload = (err as { response?: { data?: { message?: string; actionHint?: string } } })?.response?.data;
-			const message = [payload?.message, payload?.actionHint].filter(Boolean).join(' ');
-			setError(message ?? "We couldn't load your school-year context from ATLAS.");
+			setError(getActionableApiError(err, "We couldn't load your school-year context from ATLAS. Please tap Retry."));
 		} finally {
 			setLoading(false);
 		}

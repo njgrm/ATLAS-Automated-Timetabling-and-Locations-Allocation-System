@@ -251,5 +251,6 @@ export function useTutorial(storageKey: string) {
 		}
 	}, [hasCompleted]);
 
-	return { active, start, complete, hasCompleted };
+	const contextValue = useMemo(() => ({ active, start, complete, hasCompleted }), [active, start, complete, hasCompleted]);
+	return contextValue;
 }

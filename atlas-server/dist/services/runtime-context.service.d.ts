@@ -26,6 +26,9 @@ export type RuntimeContextResult = {
         matched: boolean | null;
     };
 };
+type ResolveRuntimeContextOptions = {
+    verifyUpstream?: boolean;
+};
 export declare function pickBestRuntimeYear(evidence: RuntimeYearEvidence[]): RuntimeYearEvidence | null;
-export declare function resolveRuntimeContext(schoolId: number, authToken?: string): Promise<RuntimeContextResult | null>;
+export declare function resolveRuntimeContext(schoolId: number, authToken?: string, options?: ResolveRuntimeContextOptions): Promise<RuntimeContextResult | null>;
 export {};

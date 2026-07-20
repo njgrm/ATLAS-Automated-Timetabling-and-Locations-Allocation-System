@@ -1,0 +1,15 @@
+{
+  "status": "PASS",
+  "startLatencyMs": 47.463099999993574,
+  "fpsResult": {
+    "fps": 53.00127084830032,
+    "jitterMs": 23.91721898110499,
+    "frameCount": 538,
+    "durationMs": 10150.70000000298
+  },
+  "commits": {
+    "header": 6,
+    "leftRail": 16,
+    "rightPanel": 4
+  }
+}

@@ -150,7 +150,7 @@ export function StaffingAuditSheet({
 									</div>
 								</div>
 								<span className="text-lg font-semibold text-violet-700">
-									{subjects.filter(s => s.isSpecialProgram).length}
+									{subjects.filter(s => s.programType != null && s.programType !== 'REGULAR').length}
 								</span>
 							</div>
 						</div>

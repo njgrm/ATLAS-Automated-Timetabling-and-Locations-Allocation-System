@@ -1,0 +1,1 @@
+function e(e,t){let n=e?.response?.data;return[typeof n?.message==`string`?n.message.trim():``,typeof n?.actionHint==`string`?n.actionHint.trim():``].filter(Boolean).join(` `)||t}export{e as t};

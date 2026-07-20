@@ -10,6 +10,7 @@ import {
 	RefreshCw,
 	ServerOff,
 	Users,
+	Wrench,
 } from 'lucide-react';
 
 import atlasApi from '@/lib/api';
@@ -19,6 +20,7 @@ import { pivotDraftToView, type PivotEntityKind } from '@/lib/schedule-pivot';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/ui/popover';
 import { SearchableSelect } from '@/ui/searchable-select';
 import { Skeleton } from '@/ui/skeleton';
 import { ConflictInspectorSheet, type ConflictInspectorData } from '@/components/ConflictInspectorSheet';
@@ -489,37 +491,38 @@ export default function RoomSchedules() {
 							</Button>
 						</div>
 					)}
-					<Button
-						onClick={() => setSourceMode('latest')}
-						variant={sourceMode === 'latest' ? 'default' : 'outline'}
-						size="sm"
-						className="h-8 px-3 text-xs"
-					>
-						Latest
-					</Button>
-					<Button
-						onClick={() => setSourceMode('run')}
-						variant={sourceMode === 'run' ? 'default' : 'outline'}
-						size="sm"
-						className="h-8 px-3 text-xs"
-					>
-						Run ID
-					</Button>
-					{sourceMode === 'run' && (
-						<div className="space-y-1">
-							<Input
-								type="number"
-								min={1}
-								placeholder="Run ID"
-								value={runIdInput}
-								onChange={(e) => setRunIdInput(e.target.value)}
-								aria-invalid={runIdHasValidationError}
-								className="h-7 w-24 text-xs"
-							/>
-							{runIdHasValidationError && <p className="text-xs font-medium text-destructive">Use a whole number above 0.</p>}
-						</div>
-					)}
-					<p className="basis-full text-xs leading-relaxed text-slate-500">{sourceMode === 'latest' ? 'Latest means the newest completed generation run.' : 'Run ID inspects one specific generation run for troubleshooting.'}</p>
+					<Popover>
+						<PopoverTrigger asChild>
+							<Button type="button" variant="outline" size="sm" className="gap-2 bg-white">
+								<Wrench className="size-4" />
+								Expert tools
+							</Button>
+						</PopoverTrigger>
+						<PopoverContent align="end" className="w-80 space-y-3 p-4">
+							<div>
+								<p className="text-sm font-semibold text-slate-900">Inspect a specific generation run</p>
+								<p className="mt-1 text-xs leading-relaxed text-slate-500">Keep Latest selected for normal work. Use a Run ID only when troubleshooting a known historical run.</p>
+							</div>
+							<div className="flex gap-2">
+								<Button type="button" onClick={() => setSourceMode('latest')} variant={sourceMode === 'latest' ? 'default' : 'outline'} size="sm">Latest</Button>
+								<Button type="button" onClick={() => setSourceMode('run')} variant={sourceMode === 'run' ? 'default' : 'outline'} size="sm">Run ID</Button>
+							</div>
+							{sourceMode === 'run' && (
+								<div className="space-y-1.5">
+									<Input
+										type="number"
+										min={1}
+										placeholder="Run ID"
+										value={runIdInput}
+										onChange={(event) => setRunIdInput(event.target.value)}
+										aria-label="Generation run ID"
+										aria-invalid={runIdHasValidationError}
+									/>
+									{runIdHasValidationError && <p className="text-xs font-medium text-destructive">Use a whole number above 0.</p>}
+								</div>
+							)}
+						</PopoverContent>
+					</Popover>
 				</div>
 
 				{/* Inline stat banner */}

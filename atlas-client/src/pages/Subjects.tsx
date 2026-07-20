@@ -144,6 +144,7 @@ export default function Subjects() {
 	const [roomTypeFilter, setRoomTypeFilter] = useState<RoomType | 'all'>('all');
 	const [gradeLevelFilter, setGradeLevelFilter] = useState<number | 'all'>('all');
 	const [programScopeFilter, setProgramScopeFilter] = useState<string>('all');
+	const [attentionFilter, setAttentionFilter] = useState<'all' | 'missing-coverage' | 'room-constrained'>('all');
 
 	const fetchSubjects = useCallback(async () => {
 		setLoading(true);
@@ -275,6 +276,8 @@ export default function Subjects() {
 
 		// Program scope filter
 		if (programScopeFilter !== 'all') list = list.filter((s) => (s.programScopes ?? []).includes(programScopeFilter));
+		if (attentionFilter === 'missing-coverage' && assignedSubjectIds) list = list.filter((s) => s.isActive && !assignedSubjectIds.has(s.id));
+		if (attentionFilter === 'room-constrained') list = list.filter((s) => s.isActive && (s.preferredRoomType !== 'CLASSROOM' || s.requiredFeatures.length > 0));
 
 		// Sort
 		const sorted = [...list].sort((a, b) => {
@@ -293,10 +296,10 @@ export default function Subjects() {
 		const tp = Math.max(1, Math.ceil(tf / pageSize));
 		const start = (page - 1) * pageSize;
 		return { paged: sorted.slice(start, start + pageSize), totalFiltered: tf, totalPages: tp };
-	}, [subjects, searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, sortField, sortDir, page, pageSize]);
+	}, [subjects, searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, attentionFilter, assignedSubjectIds, sortField, sortDir, page, pageSize]);
 
 	// Reset page when filters change
-	useEffect(() => { setPage(1); }, [searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, pageSize]);
+	useEffect(() => { setPage(1); }, [searchQuery, statusFilter, roomTypeFilter, gradeLevelFilter, programScopeFilter, attentionFilter, pageSize]);
 
 	const toggleSort = (field: SortField) => {
 		if (sortField === field) {
@@ -361,7 +364,7 @@ export default function Subjects() {
 		}
 	};
 
-	const hasActiveFilters = statusFilter !== 'all' || roomTypeFilter !== 'all' || gradeLevelFilter !== 'all' || programScopeFilter !== 'all';
+	const hasActiveFilters = statusFilter !== 'all' || roomTypeFilter !== 'all' || gradeLevelFilter !== 'all' || programScopeFilter !== 'all' || attentionFilter !== 'all';
 
 	const handleSyncContract = async () => {
 		setSyncingContract(true);
@@ -507,6 +510,16 @@ export default function Subjects() {
 								<SelectItem value="inactive">Archived</SelectItem>
 							</SelectContent>
 						</Select>
+						<Select value={attentionFilter} onValueChange={(value) => setAttentionFilter(value as typeof attentionFilter)}>
+							<SelectTrigger className="h-10 w-52 text-sm">
+								<SelectValue placeholder="All attention states" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All attention states</SelectItem>
+								<SelectItem value="missing-coverage">Missing teacher coverage</SelectItem>
+								<SelectItem value="room-constrained">Room-constrained subjects</SelectItem>
+							</SelectContent>
+						</Select>
 						<Select value={roomTypeFilter} onValueChange={(v) => setRoomTypeFilter(v as typeof roomTypeFilter)}>
 							<SelectTrigger className="h-10 w-44 text-sm">
 								<SelectValue placeholder="All Room Types" />
@@ -559,6 +572,7 @@ export default function Subjects() {
 									setRoomTypeFilter('all'); 
 									setGradeLevelFilter('all'); 
 									setProgramScopeFilter('all'); 
+									setAttentionFilter('all');
 								}}
 							>
 								Reset all

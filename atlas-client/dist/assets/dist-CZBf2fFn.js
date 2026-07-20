@@ -1,0 +1,1 @@
+import{n as e,s as t}from"./jsx-runtime-C7M7YA1l.js";import{t as n}from"./dist-C32owPaG.js";var r=t(e(),1),i=r.useId||(()=>void 0),a=0;function o(e){let[t,o]=r.useState(i());return n(()=>{e||o(e=>e??String(a++))},[e]),e||(t?`radix-${t}`:``)}export{o as t};

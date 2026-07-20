@@ -4,7 +4,7 @@
  * These replace native HTML5 draggable usage so all drag events route
  * through the global DndContext in ScheduleReviewWorkspace.
  */
-import type { MouseEventHandler, ReactNode } from 'react';
+import type { KeyboardEventHandler, MouseEventHandler, ReactNode } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 
 import type { DraftPlacement, DraftQueueItem, UnassignedItem } from '@/types';
@@ -20,12 +20,14 @@ export function DraggableQueuePin({
 	children,
 	className,
 	onClick,
+	onKeyDown,
 }: {
 	item: DraftQueueItem;
 	disabled: boolean;
 	children: ReactNode;
 	className?: string;
 	onClick?: MouseEventHandler<HTMLDivElement>;
+	onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
 }) {
 	const id = `queue-pin-${item.assignmentKey}-${item.sessionNumber}`;
 	const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -33,14 +35,19 @@ export function DraggableQueuePin({
 		disabled,
 		data: { type: 'draftQueue', item },
 	});
+	const dragAttributes = disabled ? {} : attributes;
+	const dragListeners = disabled ? {} : listeners;
 
 	return (
 		<div
 			ref={setNodeRef}
-			{...listeners}
-			{...attributes}
+			{...dragListeners}
+			{...dragAttributes}
+			role={disabled ? 'button' : attributes.role}
+			tabIndex={disabled ? 0 : attributes.tabIndex}
 			className={className}
 			onClick={onClick}
+			onKeyDown={onKeyDown}
 			style={{
 				touchAction: 'none',
 				opacity: isDragging ? 0.45 : 1,
@@ -73,12 +80,14 @@ export function DraggablePlacementPin({
 		disabled,
 		data: { type: 'draftPlacement', placement },
 	});
+	const dragAttributes = disabled ? {} : attributes;
+	const dragListeners = disabled ? {} : listeners;
 
 	return (
 		<div
 			ref={setNodeRef}
-			{...listeners}
-			{...attributes}
+			{...dragListeners}
+			{...dragAttributes}
 			className={className}
 			style={{
 				touchAction: 'none',
@@ -113,12 +122,16 @@ export function DraggableUnassignedPin({
 		disabled,
 		data: { type: 'unassigned', item },
 	});
+	const dragAttributes = disabled ? {} : attributes;
+	const dragListeners = disabled ? {} : listeners;
 
 	return (
 		<div
 			ref={setNodeRef}
-			{...listeners}
-			{...attributes}
+			{...dragListeners}
+			{...dragAttributes}
+			role="group"
+			aria-label={`Unassigned session ${itemKey}`}
 			className={className}
 			style={{
 				touchAction: 'none',

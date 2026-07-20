@@ -1,0 +1,18 @@
+{
+  "status": "FAIL",
+  "failures": [
+    {
+      "scenario": "pointer_drag",
+      "status": "FAIL"
+    },
+    {
+      "scenario": "commit_settled",
+      "status": "BLOCKED",
+      "reason": "Live Tailnet verification is read-only. A dedicated reversible fixture is required before commit/rollback can be exercised safely."
+    },
+    {
+      "scenario": "commit_containment",
+      "status": "FAIL"
+    }
+  ]
+}

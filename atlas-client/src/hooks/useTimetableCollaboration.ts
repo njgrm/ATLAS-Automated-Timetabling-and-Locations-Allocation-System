@@ -28,6 +28,8 @@ export function useTimetableCollaboration({
 	const [lastError, setLastError] = useState<string | null>(null);
 	const socketRef = useRef<CollaborationSocket | null>(null);
 	const selfConnectionIdRef = useRef<string | null>(null);
+	const lastSelectionSentAtRef = useRef(0);
+	const pendingSelectionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	useEffect(() => {
 		if (!schoolYearId || !runId || Number.isNaN(runId)) return;
@@ -95,6 +97,10 @@ export function useTimetableCollaboration({
 		return () => {
 			socket.close();
 			if (socketRef.current === socket) socketRef.current = null;
+			if (pendingSelectionTimerRef.current) {
+				clearTimeout(pendingSelectionTimerRef.current);
+				pendingSelectionTimerRef.current = null;
+			}
 			setConnected(false);
 			setPresence([]);
 			setRemoteSelections({});
@@ -103,14 +109,37 @@ export function useTimetableCollaboration({
 
 	useEffect(() => {
 		if (!connected || !socketRef.current || !selectedEntry || !runId || !schoolYearId) return;
-		socketRef.current.sendSelection({
+		const selection = {
 			schoolId,
 			schoolYearId,
 			runId,
 			entryId: selectedEntry.entryId,
 			source: 'SESSION',
-		});
-	}, [connected, runId, schoolId, schoolYearId, selectedEntry]);
+		} as const;
+		const send = () => {
+			if (!socketRef.current) return;
+			socketRef.current.sendSelection(selection);
+			lastSelectionSentAtRef.current = Date.now();
+			pendingSelectionTimerRef.current = null;
+		};
+		const elapsed = Date.now() - lastSelectionSentAtRef.current;
+		if (elapsed >= 100) {
+			if (pendingSelectionTimerRef.current) {
+				clearTimeout(pendingSelectionTimerRef.current);
+				pendingSelectionTimerRef.current = null;
+			}
+			send();
+			return;
+		}
+		if (pendingSelectionTimerRef.current) clearTimeout(pendingSelectionTimerRef.current);
+		pendingSelectionTimerRef.current = setTimeout(send, 100 - elapsed);
+		return () => {
+			if (pendingSelectionTimerRef.current) {
+				clearTimeout(pendingSelectionTimerRef.current);
+				pendingSelectionTimerRef.current = null;
+			}
+		};
+	}, [connected, runId, schoolId, schoolYearId, selectedEntry?.entryId]);
 
 	return { connected, presence, remoteSelections, lastError };
 }

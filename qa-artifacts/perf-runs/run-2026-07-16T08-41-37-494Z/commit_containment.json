@@ -1,0 +1,200 @@
+{
+  "status": "PASS",
+  "pointerEvidence": {
+    "status": "PASS",
+    "failures": [],
+    "startLatencyMs": 20.262000000002445,
+    "dragStartCommitMs": 1.8999999985098839,
+    "dragEndCommitMs": 0.9000000022351742,
+    "dragStartProfilerLogs": [
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 0,
+        "timestamp": 1784191371650
+      },
+      {
+        "id": "Right Panel",
+        "phase": "update",
+        "actualDuration": 0,
+        "timestamp": 1784191371650
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0.19999999925494194,
+        "timestamp": 1784191371651
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "timestamp": 1784191371651
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 1.2999999970197678,
+        "timestamp": 1784191371679
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 1.300000000745058,
+        "timestamp": 1784191371685
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0.10000000149011612,
+        "timestamp": 1784191371688
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 1.1000000014901161,
+        "timestamp": 1784191371692
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 0.20000000298023224,
+        "timestamp": 1784191371699
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0.09999999776482582,
+        "timestamp": 1784191371702
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 0.09999999776482582,
+        "timestamp": 1784191371702
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 1.8999999985098839,
+        "timestamp": 1784191371705
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 1.4000000022351742,
+        "timestamp": 1784191371707
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "timestamp": 1784191371708
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 0.09999999776482582,
+        "timestamp": 1784191371713
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 0.30000000074505806,
+        "timestamp": 1784191371736
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0.4000000022351742,
+        "timestamp": 1784191371737
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0.19999999925494194,
+        "timestamp": 1784191371739
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "timestamp": 1784191371739
+      }
+    ],
+    "dragEndProfilerLogs": [
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 0.9000000022351742,
+        "timestamp": 1784191382222
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0.9000000022351742,
+        "timestamp": 1784191382225
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 0.10000000149011612,
+        "timestamp": 1784191382228
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0.3999999985098839,
+        "timestamp": 1784191382229
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "timestamp": 1784191382229
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "update",
+        "actualDuration": 0.30000000074505806,
+        "timestamp": 1784191382253
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0.7999999970197678,
+        "timestamp": 1784191382254
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0.8999999985098839,
+        "timestamp": 1784191382255
+      },
+      {
+        "id": "Center/Grid",
+        "phase": "nested-update",
+        "actualDuration": 0,
+        "timestamp": 1784191382256
+      }
+    ],
+    "fpsResult": {
+      "fps": 60.18362736143825,
+      "jitterMs": 0.8950766671612885,
+      "frameCount": 626,
+      "durationMs": 10401.5,
+      "frameIntervalP95Ms": 17.800000000745058,
+      "frameOverBudgetP95Ms": 1.1333333340783902,
+      "longTasks": []
+    },
+    "maxCellsPerCommitBatch": 0,
+    "cellCommitBatches": [],
+    "blockedCommitRequests": [],
+    "crossingProfilerLogs": [],
+    "commits": {
+      "header": 0,
+      "leftRail": 0,
+      "rightPanel": 0
+    }
+  }
+}

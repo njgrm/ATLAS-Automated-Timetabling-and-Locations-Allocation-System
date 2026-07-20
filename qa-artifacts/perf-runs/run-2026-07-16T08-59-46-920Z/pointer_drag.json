@@ -1,0 +1,61 @@
+{
+  "status": "FAIL",
+  "failures": [
+    "long task 76.00ms > 50ms",
+    "Left Rail committed 2 times during drag",
+    "Right Panel committed 1 times during drag",
+    "65 grid cells committed in one crossing batch"
+  ],
+  "startLatencyMs": 14.731699999996636,
+  "dragStartCommitMs": 0,
+  "dragEndCommitMs": 0,
+  "dragStartProfilerLogs": [],
+  "dragEndProfilerLogs": [],
+  "fpsResult": {
+    "fps": 59.89693496904632,
+    "jitterMs": 2.7671168049537505,
+    "frameCount": 623,
+    "durationMs": 10401.199999999255,
+    "frameIntervalP95Ms": 17.700000002980232,
+    "frameOverBudgetP95Ms": 1.0333333363135644,
+    "longTasks": [
+      {
+        "startTime": 18730,
+        "duration": 76
+      }
+    ]
+  },
+  "maxCellsPerCommitBatch": 65,
+  "cellCommitBatches": [
+    {
+      "timestampMs": 18792,
+      "cellCount": 65
+    }
+  ],
+  "blockedCommitRequests": [],
+  "crossingProfilerLogs": [
+    {
+      "id": "Left Rail",
+      "phase": "update",
+      "actualDuration": 15.200000002980232,
+      "timestamp": 1784192416771
+    },
+    {
+      "id": "Right Panel",
+      "phase": "update",
+      "actualDuration": 1,
+      "timestamp": 1784192416771
+    },
+    {
+      "id": "Left Rail",
+      "phase": "nested-update",
+      "actualDuration": 0.19999999552965164,
+      "timestamp": 1784192416793
+    }
+  ],
+  "commits": {
+    "header": 0,
+    "leftRail": 2,
+    "rightPanel": 1
+  }
+}

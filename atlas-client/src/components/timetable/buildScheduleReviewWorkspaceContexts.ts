@@ -1,10 +1,12 @@
 import type { ComponentProps, Dispatch, SetStateAction } from 'react';
+import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { formatTime } from '@/lib/utils';
 import { buildUnassignedKey } from '@/lib/timetable-utils';
 import type { EntryKindFilter, ProgramFilter } from '@/lib/schedule-review-helpers';
 import type { TutorialStep } from '@/components/TutorialOverlay';
 import type { TimetableToolbarGroup } from '@/components/timetable/TimetableToolbar';
 import type { DraftBoardState, DraftReport, HumanConflict, ScheduledEntry, UnassignedItem, Violation } from '@/types';
+import type { ActiveSchoolYearContext } from '@/lib/enrollpro-public-settings';
 import type { DragSource, PreGenDragSource } from '@/components/timetable/ScheduleReviewWorkspace.constants';
 import type { LeftRailContentContext, ScheduleReviewDialogsContext } from '@/components/timetable/timetableContexts.types';
 
@@ -25,13 +27,15 @@ import {
 
 type AnyRecord = Record<string, unknown>;
 
-export type CenterWorkspaceContext = ComponentProps<typeof import('@/components/timetable/CenterWorkspace').CenterWorkspace>;
-export type RightPanelContext = ComponentProps<typeof import('@/components/timetable/RightPanel').RightPanel>;
+export type CenterWorkspaceContext = ComponentProps<typeof import('@/components/timetable/CenterWorkspace').CenterWorkspace> & { tacticalSandboxOpen: boolean, setTacticalSandboxOpen: (v: boolean) => void };
+export type RightPanelContext = ComponentProps<typeof import('@/components/timetable/RightPanel').RightPanel> & { openTacticalSandbox: () => void };
 export type DialogContext = ScheduleReviewDialogsContext;
 
 export type ScheduleReviewWorkspaceHeaderContext = {
 	isPreGenerationWorkspace: boolean;
 	activeGeneratedRunId: number | null;
+	leftTab: 'violations' | 'unassigned' | 'pinned' | 'requests';
+	leftPanelRef: import('react').RefObject<ImperativePanelHandle | null>;
 	presentationMode: 'workflow' | 'matrix';
 	setPresentationMode: (value: 'workflow' | 'matrix') => void;
 	viewMode: 'section' | 'faculty' | 'room';
@@ -45,12 +49,13 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	softCount: number;
 	selectedRunId: string;
 	handleRunChange: (value: string) => void;
-	runs: Array<{ id: number; createdAt: string; durationMs?: number | null }>;
+	runs: Array<{ id: number; createdAt: string; durationMs?: number | null; status?: string }>;
+	schoolYearContext: ActiveSchoolYearContext | null;
 	centerView: string;
 	newDraftLoading: boolean;
 	schoolYearId: number | null;
 	handleStartNewPreGenerationDraft: () => Promise<void>;
-	draftBoard: DraftBoardState | null;
+	draftPlacementCount: number;
 	openPreGenerationWorkspace: (showConfirm: boolean) => Promise<void>;
 	returnToGeneratedRun: () => void;
 	generating: boolean;
@@ -65,7 +70,7 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	openMapWorkspace: () => Promise<void>;
 	handleRefresh: () => void;
 	revertLoading: boolean;
-	editHistory: unknown[];
+	editHistoryCount: number;
 	revertLastEdit: () => Promise<void>;
 	setShowEditHistory: (value: boolean) => void;
 	tutorial: { start: () => void };
@@ -73,13 +78,15 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 		assignedCount: number;
 		classesProcessed: number;
 		hardViolationCount: number;
+		unassignedCount?: number;
 	} | null;
+	requestPendingCount: number;
 	statusColor: (value: string) => string;
 	formatDuration: (value: number | null) => string;
 	groupedPivotEntities: TimetableToolbarGroup[];
 	pivotLabel: (id: number) => string;
 	setSelectedEntry: Dispatch<SetStateAction<ScheduledEntry | null>>;
-	selectedEntry: ScheduledEntry | null;
+	hasSelectedEntry: boolean;
 	setSelectedViolation: (violation: Violation | null) => void;
 	enterManualEditView: (action: 'CHANGE_TIMESLOT' | 'CHANGE_ROOM' | 'CHANGE_FACULTY') => void;
 	setPreGenKbSource: Dispatch<SetStateAction<PreGenDragSource | null>>;
@@ -88,8 +95,8 @@ export type ScheduleReviewWorkspaceHeaderContext = {
 	setSeverityFilter: (value: 'all' | 'hard' | 'soft' | 'conflicts' | 'wellbeing') => void;
 	setLeftTab: (value: 'violations' | 'unassigned' | 'pinned' | 'requests') => void;
 	VIEW_MODE_LABELS: Record<string, string>;
-	PROGRAM_FILTER_OPTIONS: Array<{ value: string; label: string }>;
-	ENTRY_KIND_FILTER_OPTIONS: Array<{ value: string; label: string }>;
+	PROGRAM_FILTER_OPTIONS: ReadonlyArray<{ value: string; label: string }>;
+	ENTRY_KIND_FILTER_OPTIONS: ReadonlyArray<{ value: string; label: string }>;
 	WELLBEING_CODES: Set<string>;
 	CONFLICT_CODES: Set<string>;
 	formatTimestamp: (value: string | null) => string;
@@ -105,6 +112,7 @@ export type ScheduleReviewWorkspaceBodyContext = {
 	leftPanelRef: import('react').RefObject<import('react-resizable-panels').ImperativePanelHandle | null>;
 	setIsLeftCollapsed: Dispatch<SetStateAction<boolean>>;
 	isLeftCollapsed: boolean;
+	isDesktop: boolean;
 	isPreGenerationWorkspace: boolean;
 	leftTab: 'violations' | 'unassigned' | 'pinned' | 'requests';
 	setLeftTab: (value: 'violations' | 'unassigned' | 'pinned' | 'requests') => void;
@@ -144,8 +152,12 @@ type BuildLeftRailContextArgs = Omit<
 >;
 type BuildCenterWorkspaceContextArgs = Omit<CenterWorkspaceContext, 'defaultSchoolId' | 'draftEntries' | 'dayShort'> & {
 	draft?: { entries?: unknown[] } | null;
+	tacticalSandboxOpen: boolean;
+	setTacticalSandboxOpen: (v: boolean) => void;
 };
-type BuildRightPanelContextArgs = Omit<RightPanelContext, 'gradeBadge' | 'dayShort'>;
+type BuildRightPanelContextArgs = Omit<RightPanelContext, 'gradeBadge' | 'dayShort'> & {
+	openTacticalSandbox: () => void;
+};
 type BuildHeaderContextArgs = Omit<
 	ScheduleReviewWorkspaceHeaderContext,
 	| 'VIEW_MODE_LABELS'
@@ -195,13 +207,13 @@ export function buildHeaderContext(args: BuildHeaderContextArgs): ScheduleReview
 	return {
 		...args,
 		VIEW_MODE_LABELS,
-		PROGRAM_FILTER_OPTIONS: [...PROGRAM_FILTER_OPTIONS],
-		ENTRY_KIND_FILTER_OPTIONS: [...ENTRY_KIND_FILTER_OPTIONS],
+		PROGRAM_FILTER_OPTIONS,
+		ENTRY_KIND_FILTER_OPTIONS,
 		WELLBEING_CODES,
 		CONFLICT_CODES,
-		setProgramFilter: (value: ProgramFilter) => args.setProgramFilter(value),
-		setEntryKindFilter: (value: EntryKindFilter) => args.setEntryKindFilter(value),
-	} as ScheduleReviewWorkspaceHeaderContext;
+		setProgramFilter: args.setProgramFilter,
+		setEntryKindFilter: args.setEntryKindFilter,
+	};
 }
 
 export function buildOverlaysContext(args: BuildOverlaysContextArgs): ScheduleReviewWorkspaceOverlaysContext {

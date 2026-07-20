@@ -87,6 +87,7 @@ import { useTimetableViewNavigation } from '@/hooks/useTimetableViewNavigation';
 
 export function useScheduleReviewWorkspaceState() {
 	/* -- Data state -- */
+	const [tacticalSandboxOpen, setTacticalSandboxOpen] = useState(false);
 	const [schoolYearId, setSchoolYearId] = useState<number | null>(null);
 
 
@@ -115,7 +116,6 @@ export function useScheduleReviewWorkspaceState() {
 	const [programFilter, setProgramFilter] = useState<ProgramFilter>('all');
 	const [entryKindFilter, setEntryKindFilter] = useState<EntryKindFilter>('all');
 	const [presentationMode, setPresentationMode] = useState<'workflow' | 'matrix'>('workflow');
-	const [pivotTransitionLoading, setPivotTransitionLoading] = useState(false);
 	const [leftTab, setLeftTab] = useState<'violations' | 'unassigned' | 'pinned' | 'requests'>('violations');
 	const [draftBoard, setDraftBoard] = useState<DraftBoardState | null>(null);
 	const [draftBoardSummary, setDraftBoardSummary] = useState<DraftBoardState['counts'] | null>(null);
@@ -166,7 +166,7 @@ export function useScheduleReviewWorkspaceState() {
 	const [appealSubmitting, setAppealSubmitting] = useState(false);
 
 	/* -- Layout state -- */
-	const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
+	const [isLeftCollapsed, setIsLeftCollapsed] = useState(() => !isDesktop);
 	const [isRightCollapsed, setIsRightCollapsed] = useState(true);
 	const [centerView, setCenterView] = useState<CenterViewMode>('schedule');
 	// Panel refs for imperative collapse/expand
@@ -177,6 +177,7 @@ export function useScheduleReviewWorkspaceState() {
 
 	/* -- Manual edit / DnD state -- */
 	const [dragItem, setDragItem] = useState<DragSource>(null);
+	const dragActiveRef = useRef(false);
 	const [blockerModalData, setBlockerModalData] = useState<any[] | null>(null);
 	const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
 	const [softConfirmWarnings, setSoftConfirmWarnings] = useState<Violation[]>([]);
@@ -250,6 +251,7 @@ export function useScheduleReviewWorkspaceState() {
 	const [assignPickerFacultyId, setAssignPickerFacultyId] = useState<string>('');
 	const [assignPickerRoomId, setAssignPickerRoomId] = useState<string>('');
 	const [inlineActionStatus, setInlineActionStatus] = useState<{ tone: 'loading' | 'success' | 'warning' | 'error'; message: string } | null>(null);
+	const pivotTransitionLoading = false;
 
 	/* -- Tutorial + Explainability -- */
 	const tutorial = useTutorial('atlas_timetable_tour');
@@ -268,10 +270,32 @@ export function useScheduleReviewWorkspaceState() {
 	}, []);
 
 	useEffect(() => {
-		setPivotTransitionLoading(true);
-		const timer = setTimeout(() => setPivotTransitionLoading(false), 180);
-		return () => clearTimeout(timer);
-	}, [viewMode, entityFilter, programFilter, entryKindFilter, leftTab]);
+		if (!isDesktop) {
+			const collapseCompactPanels = () => {
+				leftPanelRef.current?.collapse();
+				rightPanelRef.current?.collapse();
+				setIsLeftCollapsed(true);
+				setIsRightCollapsed(true);
+			};
+			collapseCompactPanels();
+			const frame = window.requestAnimationFrame(collapseCompactPanels);
+			const timeout = window.setTimeout(collapseCompactPanels, 50);
+			return () => {
+				window.cancelAnimationFrame(frame);
+				window.clearTimeout(timeout);
+			};
+		}
+		return undefined;
+	}, [isDesktop, draft?.runId]);
+
+	useEffect(() => {
+		if (!isDesktop && isLeftCollapsed) {
+			leftPanelRef.current?.collapse();
+		}
+		if (!isDesktop && isRightCollapsed) {
+			rightPanelRef.current?.collapse();
+		}
+	}, [isDesktop, isLeftCollapsed, isRightCollapsed]);
 
 	// Fetch scheduling policy when schoolYearId is available
 	useEffect(() => {
@@ -328,7 +352,9 @@ export function useScheduleReviewWorkspaceState() {
 		isPreGenerationWorkspace,
 		activeGridEntriesBase,
 		timeSlots,
-		cellConflictMap,
+		getCellConflict,
+		getLiveCellConflict,
+		releaseDeferredDragUpdates,
 		filteredDraftEntries,
 		programKindFilteredUnassignedItems,
 		filteredUnassignedItems,
@@ -361,6 +387,7 @@ export function useScheduleReviewWorkspaceState() {
 		roomLabelShort,
 		isStaleRoom,
 		pivotLabel,
+		schoolYearContext,
 	} = useTimetableData({
 		schoolYearId,
 		setSchoolYearId,
@@ -420,6 +447,7 @@ export function useScheduleReviewWorkspaceState() {
 		roomMap,
 		subjectMap,
 		dragItem,
+		dragActiveRef,
 		preGenKbSource,
 		kbSelectedSource,
 		setPreGenKbSource,
@@ -437,7 +465,7 @@ export function useScheduleReviewWorkspaceState() {
 		requestPreviewHardConflicts,
 		requestPreviewSoftWarnings,
 		handleViolationSelect,
-		handleEntryClick,
+		handleEntryClick: handleEntrySelect,
 		toggleFollowUp,
 		triggerGeneration,
 		handleTriggerGenerate,
@@ -483,6 +511,7 @@ export function useScheduleReviewWorkspaceState() {
 		draft,
 		setSelectedEntry,
 		rightPanelRef,
+		isDesktop,
 		openRoomGridWorkspace,
 		setSelectedRequestId,
 		setRequestPreviewLoading,
@@ -519,6 +548,7 @@ export function useScheduleReviewWorkspaceState() {
 		setPreGenPreviewLoading,
 		setPreGenPreviewError,
 		setPreGenAllowSoftOverride,
+		setInlineActionStatus,
 		preGenPending,
 		preGenAllowSoftOverride,
 		setPreGenSaving,
@@ -569,6 +599,20 @@ export function useScheduleReviewWorkspaceState() {
 		roomMap,
 	});
 
+	const handleEntryClick = useCallback((entry: ScheduledEntry) => {
+		if (
+			centerView === 'schedule'
+			&& selectedEntry
+			&& selectedEntry.entryId !== entry.entryId
+		) {
+			openRegularSwapPrompt(selectedEntry, entry);
+			setSelectedEntry(null);
+			setSelectedViolation(null);
+			return;
+		}
+		handleEntrySelect(entry);
+	}, [centerView, handleEntrySelect, openRegularSwapPrompt, selectedEntry, setSelectedEntry, setSelectedViolation]);
+
 	const handleCollaborativeTimetableEvent = useCallback(() => {
 		toast.info('Timetable updated by another scheduler. Refreshing data...', { id: 'collab-edit-alert' });
 		void handleRefresh();
@@ -585,6 +629,8 @@ export function useScheduleReviewWorkspaceState() {
 		selectedEntry,
 		onTimetableEvent: handleCollaborativeTimetableEvent,
 	});
+
+	const openTacticalSandbox = useCallback(() => setTacticalSandboxOpen(true), [setTacticalSandboxOpen]);
 
 	const handleRunChange = useCallback(async (runId: string) => {
 		setSelectedRunId(runId);
@@ -605,9 +651,90 @@ export function useScheduleReviewWorkspaceState() {
 	}, [schoolYearId, fetchRunData]);
 
 	/** Handle drop of item onto a timetable cell */
+	const placeGeneratedUnassigned = useCallback(async (
+		item: UnassignedItem,
+		day: string,
+		startTime: string,
+		endTime: string,
+	) => {
+		if (!item.facultyId) {
+			setSelectedEntry(null);
+			setSelectedViolation(null);
+			setSelectedUnassignedForRepair(item);
+			openTacticalSandbox();
+			setInlineActionStatus({
+				tone: 'error',
+				message: 'This session has no Teaching Load owner yet. Fix the teacher in Teaching Load before placing it on the timetable.',
+			});
+			toast.info('Teaching Load repair opened. Choose the correct owner there, then place the session.');
+			return;
+		}
+		if (!item.homeRoomId) {
+			setSelectedUnassignedForRepair(item);
+			setInlineActionStatus({
+				tone: 'error',
+				message: 'This session has no home room available. Fix section room setup or review generated suggestions before placing it.',
+			});
+			toast.error('No home room is available for this unassigned session.');
+			return;
+		}
+
+		const proposal: ManualEditProposal = {
+			editType: 'PLACE_UNASSIGNED',
+			sectionId: item.sectionId,
+			subjectId: item.subjectId,
+			session: item.session,
+			entryKind: item.entryKind,
+			cohortCode: item.cohortCode,
+			targetDay: day,
+			targetStartTime: startTime,
+			targetEndTime: endTime,
+			targetFacultyId: item.facultyId,
+			targetRoomId: item.homeRoomId,
+		};
+
+		setDragItem({ type: 'unassigned', item });
+		setInlineActionStatus({ tone: 'loading', message: 'Checking placement with Teaching Load owner and home room...' });
+		const preview = await previewEdit(proposal);
+		if (!preview) {
+			setDragItem(null);
+			return;
+		}
+		const scopedPreview = scopePreviewToCandidate(preview, { day, startTime, endTime });
+		if (!scopedPreview.allowed) {
+			const firstHard = scopedPreview.humanConflicts.find((hc) => hc.severity === 'HARD');
+			setInlineActionStatus({ tone: 'error', message: firstHard?.humanTitle ?? 'Placement blocked by hard conflicts.' });
+			setDragItem(null);
+			return;
+		}
+		setInlineActionStatus({
+			tone: scopedPreview.softViolations.length > 0 ? 'warning' : 'loading',
+			message: scopedPreview.softViolations.length > 0
+				? `Preview: ${scopedPreview.softViolations.length} soft warning(s). Placing session...`
+				: 'Placing session...',
+		});
+		await commitEdit(proposal, scopedPreview.softViolations.length > 0);
+		setInlineActionStatus({
+			tone: scopedPreview.softViolations.length > 0 ? 'warning' : 'success',
+			message: scopedPreview.softViolations.length > 0
+				? `Placement applied with ${scopedPreview.softViolations.length} soft warning(s).`
+				: 'Placement applied using the Teaching Load owner and home room.',
+		});
+		setDragItem(null);
+	}, [
+		commitEdit,
+		openTacticalSandbox,
+		previewEdit,
+		setSelectedEntry,
+		setSelectedUnassignedForRepair,
+		setSelectedViolation,
+		toast,
+	]);
+
+	/** Handle drop of item onto a timetable cell */
 	const handleCellDrop = useCallback(
-		async (day: string, startTime: string, endTime: string) => {
-			const activeDragItem = dragItem;
+		async (day: string, startTime: string, endTime: string, dragSource?: DragSource) => {
+			const activeDragItem = dragSource ?? dragItem;
 			if (!activeDragItem) return;
 
 			if (activeDragItem.type === 'draftQueue' || activeDragItem.type === 'draftPlacement') {
@@ -617,21 +744,7 @@ export function useScheduleReviewWorkspaceState() {
 			}
 
 			if (activeDragItem.type === 'unassigned') {
-				// Show assignment picker modal instead of auto-selecting
-				setAssignPickerTarget({ day, startTime, endTime, item: activeDragItem.item });
-				// Pre-select from current view context if possible
-				const firstEntity = Number(entityFilter);
-				if (viewMode === 'faculty') {
-					setAssignPickerFacultyId(String(firstEntity));
-					setAssignPickerRoomId('');
-				} else if (viewMode === 'room') {
-					setAssignPickerRoomId(String(firstEntity));
-					setAssignPickerFacultyId('');
-				} else {
-					setAssignPickerFacultyId('');
-					setAssignPickerRoomId('');
-				}
-				setShowAssignmentPicker(true);
+				await placeGeneratedUnassigned(activeDragItem.item, day, startTime, endTime);
 				return;
 			}
 			if (activeDragItem.type === 'entry' && centerView === 'pre-generation') {
@@ -691,14 +804,15 @@ export function useScheduleReviewWorkspaceState() {
 					: 'Move applied.',
 			});
 		},
-		[dragItem, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, entityFilter, viewMode],
+		[dragItem, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned],
 	);
 
 	/** Keyboard-accessible placement confirm */
 	const handleKbPlace = useCallback(
 		async (day: string, startTime: string, endTime: string) => {
-			if (!kbSelectedSource) return;
-			const fakeItem = kbSelectedSource;
+			const activeKbSource = kbSelectedSource ?? (centerView === 'pre-generation' ? preGenKbSource : null);
+			if (!activeKbSource) return;
+			const fakeItem = activeKbSource;
 			setKbSelectedSource(null);
 
 			if (fakeItem.type === 'draftQueue' || fakeItem.type === 'draftPlacement') {
@@ -719,20 +833,7 @@ export function useScheduleReviewWorkspaceState() {
 			}
 
 			if (fakeItem.type === 'unassigned') {
-				// Route to assignment picker
-				setAssignPickerTarget({ day, startTime, endTime, item: fakeItem.item });
-				const firstEntity = Number(entityFilter);
-				if (viewMode === 'faculty') {
-					setAssignPickerFacultyId(String(firstEntity));
-					setAssignPickerRoomId('');
-				} else if (viewMode === 'room') {
-					setAssignPickerRoomId(String(firstEntity));
-					setAssignPickerFacultyId('');
-				} else {
-					setAssignPickerFacultyId('');
-					setAssignPickerRoomId('');
-				}
-				setShowAssignmentPicker(true);
+				await placeGeneratedUnassigned(fakeItem.item, day, startTime, endTime);
 				return;
 			}
 
@@ -782,7 +883,7 @@ export function useScheduleReviewWorkspaceState() {
 					: 'Move applied.',
 			});
 		},
-		[kbSelectedSource, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, entityFilter, viewMode],
+		[kbSelectedSource, preGenKbSource, previewEdit, commitEdit, stagePreGenDrop, centerView, draftBoard?.placements, draft?.entries, openRegularSwapPrompt, placeGeneratedUnassigned],
 	);
 
 	/** Confirm assignment picker and submit the unassigned placement */
@@ -841,12 +942,13 @@ export function useScheduleReviewWorkspaceState() {
 	useEffect(() => {
 		if (!inlineActionStatus) return;
 		if (inlineActionStatus.tone === 'loading' || inlineActionStatus.tone === 'error') return;
-		const timer = setTimeout(() => setInlineActionStatus(null), 2200);
+		const timer = setTimeout(() => setInlineActionStatus(null), 6000);
 		return () => clearTimeout(timer);
 	}, [inlineActionStatus]);
 
 	/* -- Lookup helpers -- */
 
+	const emptyDraftEntries = useMemo(() => [], []);
 	const lookupHelpers = useTimetableLookupHelpers({
 		viewMode,
 		pivotEntityIds,
@@ -854,7 +956,7 @@ export function useScheduleReviewWorkspaceState() {
 		facultyMap,
 		sectionMap,
 		subjectMap,
-		draftEntries: draft?.entries ?? [],
+		draftEntries: draft?.entries ?? emptyDraftEntries,
 		sectionLabel,
 		roomLabelShort,
 	});
@@ -878,16 +980,20 @@ export function useScheduleReviewWorkspaceState() {
 	}, [draftBoard?.placements, preGenConfirmCtx]);
 
 
-	const { sensors, handleGlobalDragStart, handleGlobalDragOver, handleGlobalDragEnd, focusPinnedPlacement } = useTimetableDragDrop({
+	const setDragActive = useCallback((active: boolean) => {
+		dragActiveRef.current = active;
+		if (!active) releaseDeferredDragUpdates();
+	}, [releaseDeferredDragUpdates]);
+	const emptyDraftPlacements = useMemo(() => [], []);
+	const { sensors, handleGlobalDragStart, handleGlobalDragMove, handleGlobalDragOver, handleGlobalDragEnd, handleGlobalDragCancel, focusPinnedPlacement } = useTimetableDragDrop({
 		centerView,
-		draftPlacements: draftBoard?.placements ?? [],
+		draftPlacements: draftBoard?.placements ?? emptyDraftPlacements,
 		preGenEntries,
 		handleCellDrop,
 		navToFaculty,
 		navToSection,
 		navToRoom,
 		rightPanelRef,
-		setDragItem,
 		setCenterView,
 		setLeftTab,
 		setSelectedViolation,
@@ -898,26 +1004,67 @@ export function useScheduleReviewWorkspaceState() {
 		setPinnedRailDropActive,
 		setPendingUnassignId,
 		setShowUnassignConfirm,
+		setDragActive,
 	});
 
 	/* -- Render contexts -- */
 	const hardCount = violations.filter((v) => v.severity === 'HARD').length;
 	const softCount = violations.filter((v) => v.severity === 'SOFT').length;
 	const selectedMapBuilding = buildings.find((b) => b.id === mapBuildingId) ?? null;
-	const selectedMapBuildingFloors = selectedMapBuilding ? Array.from({ length: selectedMapBuilding.floorCount }, (_, i) => selectedMapBuilding.floorCount - i) : [];
+	const selectedMapBuildingFloors = useMemo(() => {
+		return selectedMapBuilding ? Array.from({ length: selectedMapBuilding.floorCount }, (_, i) => selectedMapBuilding.floorCount - i) : [];
+	}, [selectedMapBuilding]);
 
-	const workspaceContexts = (() => {
+	const gridKbSelectedSource = kbSelectedSource ?? (centerView === 'pre-generation' ? preGenKbSource : null);
+
+	const rawWorkspaceContexts = (() => {
 		if ((loading && !draft) || error) {
 			return {};
 		}
-		const leftRailContentContext = buildLeftRailContext({ leftTab, isPreGenerationWorkspace, hardViolationCount, topBlockers, violations, handleViolationSelect, setSeverityFilter, severityFilter, VIOLATION_LABELS, violationSearch, setViolationSearch, filteredViolations, violationsByCode, violationsGroupPage, setViolationsGroupPage, selectedViolation, setDrawerViolation, formatConstraintMessage, draftBoard, isDesktop, setDragItem, toast, summary, filteredUnassignedItems, programKindFilteredUnassignedItems, unassignedPageSize, setUnassignedPageSize, unassignedReasonFilter, setUnassignedReasonFilter, resolveEntryProgramType, resolveEntryProgramCode, sectionLabel, subjectLabel, kbSelectedSource, followUps, expandedUnassigned, setExpandedUnassigned, unassignedFixSuggestions, fixLoading, schoolYearId, runs, selectedRunId, setFixLoading, setUnassignedFixSuggestions, entryContextLabel, previewEdit, setDrawerUnassigned, setFollowUps, showSoftConfirm, unassignDropActive, setUnassignDropActive, pinnedRailDropActive, fetchDraftBoardSummary, preGenPending, pinsSearch, setPinsSearch, pinsGradeFilter, setPinsGradeFilter, pinsSectionFilter, setPinsSectionFilter, pinsSubjectFilter, setPinsSubjectFilter, getDraggedDraftPlacementId, dragItem, setPendingUnassignId, setShowUnassignConfirm, pinsQueuePage, setPinsQueuePage, preGenKbSource, setPreGenKbSource, setKbSelectedSource, rightPanelRef, selectedEntry, setSelectedEntry, selectedUnassignedForRepair, setSelectedUnassignedForRepair, setSelectedViolation, preGenEntries, gradeForSection, formatFacultyInitials, roomLabelShort, roomRequestSummary, requestSearch, setRequestSearch, requestStatusFilter, setRequestStatusFilter, requestDecisionFilter, setRequestDecisionFilter, roomRequestError, roomRequestLoading, filteredRoomRequests, selectedRequestId, focusRequestInGrid, openRequestPreview, isPrivilegedUser, focusPinnedPlacement });
-		const centerWorkspaceContext = buildCenterWorkspaceContext({ centerView, selectedEntry, selectedUnassigned: selectedUnassignedForRepair, setSelectedUnassigned: setSelectedUnassignedForRepair, violationIndex, followUps, toggleFollowUp, exitPolicyView, handleRefresh, schoolYearId, pendingAction, roomMap, facultyMap, subjectMap, draft, previewEdit, commitEdit, previewTeachingLoadRepair, commitTeachingLoadRepair, previewLoading, commitLoading, subjectLabel, facultyLabel, sectionLabel, gradeForSection, roomLabel, isStaleRoom, timeSlots, preGenOnboarding, setCenterView, buildings, mapBuildingId, setMapBuildingId, openBuildingWorkspace, selectedMapBuilding, selectedMapBuildingFloors, mapRoomId, openRoomGridWorkspace, presentationMode, draftBoard, runs, entityFilter, pivotLabel, viewMode, setPreGenOnboarding, gridEntries, highlightedEntryIds, handleEntryClick, entryContextLabel, formatFacultyInitials, roomLabelShort, dragItem, kbSelectedSource, handleKbPlace, cellConflictMap, navToFaculty, navToSection, navToRoom, preGenPending, preGenPreviewLoading, preGenPreviewError, preGenPreview, commitPreGenPending, preGenSaving, setPreGenPending, setPreGenPreview, setPreGenPreviewError, setPreGenAllowSoftOverride });
-		const rightPanelContext = buildRightPanelContext({ rightPanelRef, setIsRightCollapsed, isRightCollapsed, isPreGenerationWorkspace, preGenKbSource, selectedEntry, setPreGenKbSource, setKbSelectedSource, initials, facultyMap, formatFacultyInitials, isDesktop, subjectLabel, toggleFollowUp, followUps, setSelectedEntry, gradeForSection, violationIndex, sectionLabel, facultyLabel, roomLabel, roomRequestSummary, previewResult, formatConstraintMessage, violationLabels: VIOLATION_LABELS, violationExplanations: VIOLATION_EXPLANATIONS, setSelectedViolation, toast, draftBoard, parseDraftPlacementId, deletingPlacementId, setPendingUnassignId, setShowUnassignConfirm, enterManualEditView });
-		const headerContext = buildHeaderContext({ isPreGenerationWorkspace, activeGeneratedRunId, selectedRunId, handleRunChange, runs, centerView, newDraftLoading, schoolYearId, handleStartNewPreGenerationDraft, draftBoard, openPreGenerationWorkspace, returnToGeneratedRun, generating, loading, handleTriggerGenerate, draft, hardCount, setPublishAcknowledged, setShowPublishDialog, exitPolicyView, switchCenterViewWithGuard, enterPolicyView, openMapWorkspace, handleRefresh, revertLoading, editHistory, revertLastEdit, setShowEditHistory, tutorial, summary, statusColor, formatDuration, formatTimestamp, viewMode, setViewMode, setEntityFilter, selectedEntry, setSelectedEntry, setSelectedViolation, enterManualEditView, setPreGenKbSource, setKbSelectedSource, entityFilter, groupedPivotEntities, pivotLabel, programFilter, setProgramFilter, entryKindFilter, setEntryKindFilter, violations, severityFilter, setSeverityFilter, setLeftTab, softCount, presentationMode, setPresentationMode: handlePresentationModeChange, policy, collaborationConnected, presence, remoteSelections });
+		const leftRailContentContext = buildLeftRailContext({ leftTab, isPreGenerationWorkspace, hardViolationCount, topBlockers, violations, handleViolationSelect, setSeverityFilter, severityFilter, VIOLATION_LABELS, violationSearch, setViolationSearch, filteredViolations, violationsByCode, violationsGroupPage, setViolationsGroupPage, selectedViolation, setDrawerViolation, formatConstraintMessage, draftBoard, isDesktop, setDragItem, toast, summary, filteredUnassignedItems, programKindFilteredUnassignedItems, unassignedPageSize, setUnassignedPageSize, unassignedReasonFilter, setUnassignedReasonFilter, resolveEntryProgramType, resolveEntryProgramCode, sectionLabel, subjectLabel, kbSelectedSource, followUps, expandedUnassigned, setExpandedUnassigned, unassignedFixSuggestions, fixLoading, schoolYearId, runs, selectedRunId, setFixLoading, setUnassignedFixSuggestions, entryContextLabel, previewEdit, setDrawerUnassigned, setFollowUps, showSoftConfirm, unassignDropActive, setUnassignDropActive, pinnedRailDropActive, fetchDraftBoardSummary, preGenPending, pinsSearch, setPinsSearch, pinsGradeFilter, setPinsGradeFilter, pinsSectionFilter, setPinsSectionFilter, pinsSubjectFilter, setPinsSubjectFilter, getDraggedDraftPlacementId, setPendingUnassignId, setShowUnassignConfirm, pinsQueuePage, setPinsQueuePage, preGenKbSource, setPreGenKbSource, setKbSelectedSource, rightPanelRef, selectedEntry, setSelectedEntry, selectedUnassignedForRepair, setSelectedUnassignedForRepair, setSelectedViolation, preGenEntries, gradeForSection, formatFacultyInitials, roomLabelShort, roomRequestSummary, requestSearch, setRequestSearch, requestStatusFilter, setRequestStatusFilter, requestDecisionFilter, setRequestDecisionFilter, roomRequestError, roomRequestLoading, filteredRoomRequests, selectedRequestId, focusRequestInGrid, openRequestPreview, isPrivilegedUser, focusPinnedPlacement, openTacticalSandbox });
+		const centerWorkspaceContext = buildCenterWorkspaceContext({ centerView, selectedEntry, selectedUnassigned: selectedUnassignedForRepair, setSelectedUnassigned: setSelectedUnassignedForRepair, violationIndex, followUps, toggleFollowUp, exitPolicyView, handleRefresh, schoolYearId, pendingAction, roomMap, facultyMap, subjectMap, draft, previewEdit, commitEdit, previewTeachingLoadRepair, commitTeachingLoadRepair, previewLoading, commitLoading, subjectLabel, facultyLabel, sectionLabel, gradeForSection, roomLabel, isStaleRoom, timeSlots, preGenOnboarding, setCenterView, buildings, mapBuildingId, setMapBuildingId, openBuildingWorkspace, selectedMapBuilding, selectedMapBuildingFloors, mapRoomId, openRoomGridWorkspace, presentationMode, draftBoard, runs, entityFilter, pivotLabel, viewMode, setPreGenOnboarding, gridEntries, highlightedEntryIds, handleEntryClick, entryContextLabel, formatFacultyInitials, roomLabelShort, kbSelectedSource: gridKbSelectedSource, handleKbPlace, getCellConflict, getLiveCellConflict, navToFaculty, navToSection, navToRoom, tacticalSandboxOpen, setTacticalSandboxOpen, preGenPending, preGenPreviewLoading, preGenPreviewError, preGenPreview, commitPreGenPending, preGenSaving, setPreGenPending, setPreGenPreview, setPreGenPreviewError, setPreGenAllowSoftOverride });
+		const rightPanelContext = buildRightPanelContext({ rightPanelRef, setIsRightCollapsed, isRightCollapsed, isPreGenerationWorkspace, preGenKbSource, selectedEntry, setPreGenKbSource, setKbSelectedSource, initials, facultyMap, formatFacultyInitials, isDesktop, subjectLabel, toggleFollowUp, followUps, setSelectedEntry, gradeForSection, violationIndex, sectionLabel, facultyLabel, roomLabel, roomRequestSummary, previewResult, formatConstraintMessage, violationLabels: VIOLATION_LABELS, violationExplanations: VIOLATION_EXPLANATIONS, setSelectedViolation, toast, draftBoard, parseDraftPlacementId, deletingPlacementId, setPendingUnassignId, setShowUnassignConfirm, enterManualEditView, openTacticalSandbox });
+		const headerContext = buildHeaderContext({ isPreGenerationWorkspace, activeGeneratedRunId, leftTab, leftPanelRef, selectedRunId, handleRunChange, runs, schoolYearContext, centerView, newDraftLoading, schoolYearId, handleStartNewPreGenerationDraft, draftPlacementCount: draftBoardSummary?.draft ?? 0, openPreGenerationWorkspace, returnToGeneratedRun, generating, loading, handleTriggerGenerate, draft, hardCount, setPublishAcknowledged, setShowPublishDialog, exitPolicyView, switchCenterViewWithGuard, enterPolicyView, openMapWorkspace, handleRefresh, revertLoading, editHistoryCount: editHistory.length, revertLastEdit, setShowEditHistory, tutorial, summary, requestPendingCount: roomRequestSummary?.counts?.pending ?? 0, statusColor, formatDuration, formatTimestamp, viewMode, setViewMode, setEntityFilter, hasSelectedEntry: !!selectedEntry, setSelectedEntry, setSelectedViolation, enterManualEditView, setPreGenKbSource, setKbSelectedSource, entityFilter, groupedPivotEntities, pivotLabel, programFilter, setProgramFilter, entryKindFilter, setEntryKindFilter, violations, severityFilter, setSeverityFilter, setLeftTab, softCount, presentationMode, setPresentationMode: handlePresentationModeChange, policy, collaborationConnected, presence, remoteSelections });
 		const dialogContext = buildDialogContext({ showUnassignConfirm, setShowUnassignConfirm, setPendingUnassignId, pendingUnassignId, unassignDraftPlacement, showGenerateConfirm, setShowGenerateConfirm, enforceShiftWindows, setEnforceShiftWindows, draftBoardSummary, followUps, confirmGenerate, showResetDraftDialog, setShowResetDraftDialog, openPreGenerationWorkspace, showLeavePreGenDialog, setShowLeavePreGenDialog, pendingCenterSwitch, setPendingCenterSwitch, requestPreview, requestPreviewLoading, setRequestPreview, setSelectedRequestId, setRequestAppeals, setAppealReason, requestPreviewHardConflicts, requestPreviewSoftWarnings, requestAppeals, appealsLoading, isPrivilegedUser, updateAppealStatus, appealReason, appealSubmitting, submitAppeal, requestReviewerNotes, setRequestReviewerNotes, requestReviewSaving, reviewRoomRequest, generating, generationElapsed, showPublishDialog, setShowPublishDialog, publishAcknowledged, setPublishAcknowledged, softCount, policy, handlePublishConfirm, showPreGenConfirm, setShowPreGenConfirm, setPreGenConfirmCtx, setConfirmPreview, setConfirmRawPreview, setConfirmPreviewError, setConfirmAllowSoftOverride, setConfirmAllowDailyOverride, preGenConfirmCtx, confirmFacultyId, setConfirmFacultyId, confirmPreview, confirmRoomId, setConfirmRoomId, facultyMap, roomMap, confirmPreviewLoading, confirmPreviewError, confirmDisplacedPlacement, toast, openSwapPrompt, confirmAllowDailyOverride, confirmSaving, commitConfirmPlacement, showSwapConfirm, setShowSwapConfirm, setSwapAction, swapAction, formatFacultyInitials, roomLabelShort, subjectLabel, sectionLabel, swapSaving, executeSwapAction, swapPreview, regularSwapPreview, regularSwapPending, setRegularSwapPending, regularSwapSaving, regularSwapStrategy, setRegularSwapStrategy, executeRegularSwap, showSoftConfirm, setShowSoftConfirm, softConfirmWarnings, commitLoading, formatConstraintMessage, setPendingCommitProposal, setPreviewResult, setSoftConfirmWarnings, setDragItem, pendingCommitProposal, commitEdit, showAssignmentPicker, setShowAssignmentPicker, setAssignPickerTarget, assignPickerTarget, assignPickerFacultyId, setAssignPickerFacultyId, assignPickerRoomId, setAssignPickerRoomId, confirmAssignmentPicker, showEditHistory, setShowEditHistory, editHistory });
 		const overlaysContext = buildOverlaysContext({ dialogContext, tutorial, blockerModalData, setBlockerModalData, showExplainDrawer, setDrawerViolation, setDrawerUnassigned, drawerViolation, drawerUnassigned });
 		return { leftRailContentContext, centerWorkspaceContext, rightPanelContext, headerContext, overlaysContext, dialogContext };
 	})();
+
+	const prevContextsRef = useRef<typeof rawWorkspaceContexts | null>(null);
+	const workspaceContexts = useMemo(() => {
+		if (!prevContextsRef.current) {
+			prevContextsRef.current = rawWorkspaceContexts;
+			return rawWorkspaceContexts;
+		}
+
+		const isShallowEqual = (objA: any, objB: any) => {
+			if (Object.is(objA, objB)) return true;
+			if (typeof objA !== 'object' || objA === null || typeof objB !== 'object' || objB === null) return false;
+			const keysA = Object.keys(objA);
+			if (keysA.length !== Object.keys(objB).length) return false;
+			for (const key of keysA) {
+				if (!Object.is(objA[key], objB[key])) return false;
+			}
+			return true;
+		};
+
+		let hasChanges = false;
+		const nextContexts: any = {};
+		for (const key of Object.keys(rawWorkspaceContexts) as (keyof typeof rawWorkspaceContexts)[]) {
+			if (!isShallowEqual(rawWorkspaceContexts[key], prevContextsRef.current![key])) {
+				hasChanges = true;
+				nextContexts[key] = rawWorkspaceContexts[key];
+			} else {
+				nextContexts[key] = prevContextsRef.current[key];
+			}
+		}
+
+		if (hasChanges) {
+			prevContextsRef.current = nextContexts;
+			return nextContexts as typeof rawWorkspaceContexts;
+		}
+		return prevContextsRef.current;
+	}, [rawWorkspaceContexts]);
 
 	const showTopLoadingStrip = loading
 		|| generating
@@ -965,11 +1112,14 @@ export function useScheduleReviewWorkspaceState() {
 		inlineActionStatus,
 		sensors,
 		handleGlobalDragStart,
+		handleGlobalDragMove,
 		handleGlobalDragOver,
 		handleGlobalDragEnd,
+		handleGlobalDragCancel,
 		leftPanelRef,
 		setIsLeftCollapsed,
 		isLeftCollapsed,
+		isDesktop,
 		isPreGenerationWorkspace,
 		leftTab,
 		setLeftTab,

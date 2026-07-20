@@ -103,6 +103,115 @@ function getEnrollProFacultyExternalId(user) {
     const candidate = user.externalTeacherId ?? user.facultyExternalId ?? user.teacherId ?? null;
     return typeof candidate === 'number' && Number.isInteger(candidate) && candidate > 0 ? candidate : null;
 }
+function normalizedIdentity(value) {
+    return (value ?? '').trim().toLowerCase();
+}
+export function selectExactEnrollProFacultyMatch(rows, identity) {
+    const uniqueRows = [...new Map(rows
+            .filter((row) => Number.isInteger(row.teacherId) && row.teacherId > 0 && row.isActive !== false)
+            .map((row) => [row.teacherId, row])).values()];
+    const employeeId = normalizedIdentity(identity.employeeId);
+    if (employeeId) {
+        const employeeMatches = uniqueRows.filter((row) => normalizedIdentity(row.employeeId) === employeeId);
+        if (employeeMatches.length === 1)
+            return employeeMatches[0];
+        if (employeeMatches.length > 1)
+            return null;
+    }
+    const email = normalizedIdentity(identity.email);
+    if (!email)
+        return null;
+    const emailMatches = uniqueRows.filter((row) => normalizedIdentity(row.email) === email);
+    return emailMatches.length === 1 ? emailMatches[0] : null;
+}
+async function hydrateFacultyMirrorFromEnrollProFeed(params) {
+    const enrollProApi = (process.env.ENROLLPRO_API ?? 'http://localhost:5000/api').replace(/\/$/, '');
+    const rows = [];
+    const cachedSnapshot = await prisma.facultySnapshot.findFirst({
+        where: { schoolId: params.schoolId },
+        orderBy: { fetchedAt: 'desc' },
+        select: { payload: true },
+    });
+    if (Array.isArray(cachedSnapshot?.payload)) {
+        for (const raw of cachedSnapshot.payload) {
+            const teacherId = Number(raw.id ?? raw.teacherId ?? 0);
+            if (!Number.isInteger(teacherId) || teacherId < 1)
+                continue;
+            rows.push({
+                teacherId,
+                employeeId: typeof raw.employeeId === 'string' ? raw.employeeId : null,
+                firstName: typeof raw.firstName === 'string' ? raw.firstName : '',
+                lastName: typeof raw.lastName === 'string' ? raw.lastName : '',
+                email: typeof raw.contactInfo === 'string' && raw.contactInfo.includes('@') ? raw.contactInfo : null,
+                contactNumber: typeof raw.contactInfo === 'string' && !raw.contactInfo.includes('@') ? raw.contactInfo : null,
+                department: typeof raw.department === 'string' ? raw.department : null,
+                specialization: typeof raw.specialization === 'string' ? raw.specialization : null,
+                isActive: true,
+            });
+        }
+    }
+    let match = selectExactEnrollProFacultyMatch(rows, params);
+    const pageSize = 200;
+    let page = 1;
+    let totalPages = 1;
+    try {
+        if (match)
+            totalPages = 0;
+        while (page <= totalPages) {
+            const response = await fetch(`${enrollProApi}/integration/v1/faculty?page=${page}&limit=${pageSize}`, {
+                signal: AbortSignal.timeout(5000),
+            });
+            if (!response.ok)
+                return null;
+            const payload = await response.json();
+            rows.push(...(Array.isArray(payload.data) ? payload.data : []));
+            const reportedTotalPages = Number(payload.meta?.totalPages ?? 1);
+            totalPages = Number.isInteger(reportedTotalPages) && reportedTotalPages > 0 ? reportedTotalPages : 1;
+            page += 1;
+        }
+    }
+    catch {
+        if (!match)
+            return null;
+    }
+    match ??= selectExactEnrollProFacultyMatch(rows, params);
+    if (!match)
+        return null;
+    const firstName = match.firstName?.trim();
+    const lastName = match.lastName?.trim();
+    if (!firstName || !lastName)
+        return null;
+    const mirror = await prisma.facultyMirror.upsert({
+        where: { schoolId_externalId: { schoolId: params.schoolId, externalId: match.teacherId } },
+        update: {
+            employeeId: match.employeeId?.trim() || params.employeeId,
+            firstName,
+            lastName,
+            contactInfo: match.email?.trim().toLowerCase() || match.contactNumber?.trim() || params.email,
+            department: match.departmentCode ?? match.department ?? match.departmentName ?? null,
+            specialization: match.specialization ?? null,
+            isStale: false,
+            staleReason: null,
+            staleAt: null,
+            lastSyncedAt: new Date(),
+        },
+        create: {
+            schoolId: params.schoolId,
+            externalId: match.teacherId,
+            employeeId: match.employeeId?.trim() || params.employeeId,
+            firstName,
+            lastName,
+            contactInfo: match.email?.trim().toLowerCase() || match.contactNumber?.trim() || params.email,
+            department: match.departmentCode ?? match.department ?? match.departmentName ?? null,
+            specialization: match.specialization ?? null,
+            isActiveForScheduling: true,
+            isStale: false,
+            lastSyncedAt: new Date(),
+        },
+        select: { id: true, externalId: true },
+    });
+    return mirror;
+}
 async function findLinkedFacultyMirror(params) {
     if (params.role !== 'faculty') {
         return null;
@@ -114,7 +223,13 @@ async function findLinkedFacultyMirror(params) {
         employeeId: params.employeeId,
         email: params.email,
     });
-    return resolution ? { id: resolution.faculty.id, externalId: resolution.faculty.externalId } : null;
+    if (resolution)
+        return { id: resolution.faculty.id, externalId: resolution.faculty.externalId };
+    return hydrateFacultyMirrorFromEnrollProFeed({
+        schoolId: params.schoolId,
+        employeeId: params.employeeId,
+        email: params.email,
+    });
 }
 /**
  * Provision (create or update) an ATLAS auth account from a verified EnrollPro identity.
@@ -376,7 +491,7 @@ export async function login(params) {
             message: 'Invalid Employee ID/Email or password.',
         };
     }
-    const canonicalFaculty = account.role === 'faculty'
+    let canonicalFaculty = account.role === 'faculty'
         ? await resolveCanonicalFacultyMirror({
             schoolId: account.schoolId,
             accountId: account.id,
@@ -387,6 +502,41 @@ export async function login(params) {
             accountName: account.accountName,
         })
         : null;
+    if (account.role === 'faculty' && !canonicalFaculty) {
+        const hydratedMirror = await hydrateFacultyMirrorFromEnrollProFeed({
+            schoolId: account.schoolId,
+            employeeId: account.employeeId,
+            email: account.email,
+        });
+        if (hydratedMirror) {
+            canonicalFaculty = await resolveCanonicalFacultyMirror({
+                schoolId: account.schoolId,
+                accountId: account.id,
+                linkedFacultyId: hydratedMirror.id,
+                tokenUserId: hydratedMirror.externalId,
+                email: account.email,
+                employeeId: account.employeeId,
+                accountName: account.accountName,
+            });
+        }
+        const enrollProResult = canonicalFaculty ? null : await tryEnrollProVerify(identifier, params.password);
+        if (!canonicalFaculty && enrollProResult) {
+            const { account: reprovisioned } = await provisionFromEnrollPro({
+                enrollProUser: enrollProResult.user,
+                password: params.password,
+                schoolId: account.schoolId,
+            });
+            canonicalFaculty = await resolveCanonicalFacultyMirror({
+                schoolId: reprovisioned.schoolId,
+                accountId: reprovisioned.id,
+                linkedFacultyId: reprovisioned.facultyId,
+                tokenUserId: reprovisioned.facultyExternalId,
+                email: reprovisioned.email,
+                employeeId: reprovisioned.employeeId,
+                accountName: reprovisioned.accountName,
+            });
+        }
+    }
     const userId = account.role === 'faculty' && canonicalFaculty
         ? canonicalFaculty.faculty.externalId
         : account.id;

@@ -234,7 +234,9 @@ function inferWorkshopType(programCategory: string | null | undefined): 'CLASSRO
 
 async function fetchJsonWithAuth(url: string, token?: string) {
 	const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-	const response = await fetch(url, { headers });
+	const response = await fetch(url, { headers, signal: AbortSignal.timeout(10000) }).catch((e) => {
+		throw new Error(`Upstream request failed (timeout or network error) for ${url}: ${e.message}`);
+	});
 	if (!response.ok) {
 		throw new Error(`Upstream request failed (${response.status}) for ${url}`);
 	}

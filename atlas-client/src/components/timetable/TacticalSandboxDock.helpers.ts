@@ -43,6 +43,38 @@ export function teachingHoursForFaculty(entries: ScheduledEntry[], facultyId: nu
 	return Math.round((minutes / 60) * 10) / 10;
 }
 
+export function buildFacultyTeachingMinuteIndex(
+	entries: ScheduledEntry[],
+	sandboxFacultyByEntryId: Map<string, number>,
+): Map<number, number> {
+	const minutesByFaculty = new Map<number, number>();
+	for (const entry of entries) {
+		const facultyId = sandboxFacultyByEntryId.get(entry.entryId) ?? entry.facultyId;
+		if (facultyId == null) continue;
+		minutesByFaculty.set(facultyId, (minutesByFaculty.get(facultyId) ?? 0) + entry.durationMinutes);
+	}
+	return minutesByFaculty;
+}
+
+export function projectedTeachingHoursForFaculty(
+	facultyId: number,
+	baseMinutesByFaculty: Map<number, number>,
+	entriesById: Map<string, ScheduledEntry>,
+	targetEntryIds: string[],
+	targetFacultyId: number,
+	sandboxFacultyByEntryId: Map<string, number>,
+): number {
+	let minutes = baseMinutesByFaculty.get(facultyId) ?? 0;
+	for (const entryId of targetEntryIds) {
+		const entry = entriesById.get(entryId);
+		if (!entry) continue;
+		const currentFacultyId = sandboxFacultyByEntryId.get(entry.entryId) ?? entry.facultyId;
+		if (currentFacultyId === facultyId) minutes -= entry.durationMinutes;
+		if (targetFacultyId === facultyId) minutes += entry.durationMinutes;
+	}
+	return Math.round((Math.max(0, minutes) / 60) * 10) / 10;
+}
+
 export function formatHours(value: number): string {
 	return `${Math.round(value * 10) / 10}h`;
 }
